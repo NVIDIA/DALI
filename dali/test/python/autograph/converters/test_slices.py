@@ -20,23 +20,20 @@ from nvidia.dali._autograph.core import converter_testing
 
 
 class SliceTest(converter_testing.TestCase):
+    def test_index_access(self):
+        def f(l):
+            return l[1]
 
-  def test_index_access(self):
+        tr = self.transform(f, (directives_converter, slices))
 
-    def f(l):
-      return l[1]
+        tl = [1, 2]
+        y = tr(tl)
+        self.assertEqual(2, y)
 
-    tr = self.transform(f, (directives_converter, slices))
+    def test_index_access_multiple_definitions(self):
+        def f(l):
+            if l:
+                l = []
+            return l[1]
 
-    tl = [1, 2]
-    y = tr(tl)
-    self.assertEqual(2, y)
-
-  def test_index_access_multiple_definitions(self):
-
-    def f(l):
-      if l:
-        l = []
-      return l[1]
-
-    self.transform(f, (directives_converter, slices))
+        self.transform(f, (directives_converter, slices))

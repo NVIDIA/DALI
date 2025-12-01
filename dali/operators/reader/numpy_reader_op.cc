@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <string>
+#include <memory>
 
 #include "dali/core/backend_tags.h"
 #include "dali/kernels/slice/slice_cpu.h"
@@ -21,6 +22,7 @@
 #include "dali/core/static_switch.h"
 #include "dali/operators/reader/numpy_reader_op.h"
 #include "dali/pipeline/data/backend.h"
+#include "dali/core/mm/memory.h"
 
 namespace dali {
 
@@ -98,9 +100,9 @@ DALI_SCHEMA(readers__Numpy)
 
 This operator can be used in the following modes:
 
-1. Read all files from a directory indicated by ``file_root`` that match given ``file_filter``.
-2. Read file names from a text file indicated in ``file_list`` argument.
-3. Read files listed in ``files`` argument.
+1. Read all files from a directory indicated by `file_root` that match given `file_filter`.
+2. Read file names from a text file indicated in `file_list` argument.
+3. Read files listed in `files` argument.
 
 .. note::
   The ``gpu`` backend requires cuFile/GDS support (418.x driver family or newer). which is
@@ -117,29 +119,29 @@ This operator can be used in the following modes:
   .AddOptionalArg<string>("file_root",
       R"(Path to a directory that contains the data files.
 
-If not using ``file_list`` or ``files``, this directory is traversed to discover the files.
-``file_root`` is required in this mode of operation.)",
+If not using `file_list` or `files`. this directory is traversed to discover the files.
+`file_root` is required in this mode of operation.)",
       nullptr)
   .AddOptionalArg("file_filter",
       R"(If a value is specified, the string is interpreted as glob string to filter the
-list of files in the sub-directories of the ``file_root``.
+list of files in the sub-directories of the `file_root`.
 
-This argument is ignored when file paths are taken from ``file_list`` or ``files``.)", "*.npy")
+This argument is ignored when file paths are taken from `file_list` or `files`.)", "*.npy")
   .AddOptionalArg<string>("file_list",
       R"(Path to a text file that contains filenames (one per line)
-where the filenames are relative to the location of that file or to ``file_root``, if specified.
+where the filenames are relative to the location of that file or to `file_root`, if specified.
 
-This argument is mutually exclusive with ``files``.)", nullptr)
+This argument is mutually exclusive with `files`.)", nullptr)
 .AddOptionalArg("shuffle_after_epoch",
       R"(If set to True, the reader shuffles the entire dataset after each epoch.
 
-``stick_to_shard`` and ``random_shuffle`` cannot be used when this argument is set to True.)",
+`stick_to_shard` and `random_shuffle` cannot be used when this argument is set to True.)",
       false)
   .AddOptionalArg<vector<string>>("files", R"(A list of file paths to read the data from.
 
-If ``file_root`` is provided, the paths are treated as being relative to it.
+If `file_root` is provided, the paths are treated as being relative to it.
 
-This argument is mutually exclusive with ``file_list``.)", nullptr)
+This argument is mutually exclusive with `file_list`.)", nullptr)
   .AddOptionalArg("register_buffers",
       R"code(Applies **only** to the ``gpu`` backend type.
 
@@ -190,7 +192,7 @@ This argument is incompatible with "roi_shape", "roi_end" and "rel_roi_end".
 )code",
         nullptr, true)
     .AddOptionalArg("roi_axes",
-        R"code(Order of dimensions used for the ROI anchor and shape argumens, as dimension indices.
+        R"code(Order of dimensions used for the ROI anchor and shape arguments, as dimension indices.
 
 If not provided, all the dimensions should be specified in the ROI arguments.
 )code",
@@ -202,12 +204,18 @@ Here is a list of the supported values:
 
 - ``"error"`` (default): Attempting to read outside of the bounds of the image will produce an error.
 - ``"pad"``: The array will be padded as needed with zeros or any other value that is specified
-  with the ``fill_value`` argument.
+  with the `fill_value` argument.
 - ``"trim_to_shape"``: The ROI will be cut to the bounds of the array.)code",
         "error")
     .AddOptionalArg("fill_value",
-        R"code(Determines the padding value when ``out_of_bounds_policy`` is set to “pad”.)code",
+        R"code(Determines the padding value when `out_of_bounds_policy` is set to “pad”.)code",
         0.f)
+    .AddOptionalArg("use_o_direct",
+      R"code(If set to True, the data will be read directly from the storage bypassing system
+cache.
+
+Mutually exclusive with ``dont_use_mmap=False``.)code",
+      false)
   .AddParent("LoaderBase");
 
 
@@ -225,6 +233,101 @@ DALI_SCHEMA(NumpyReader)
         R"code(In DALI 1.0 all readers were moved into a dedicated :mod:`~nvidia.dali.fn.readers`
 submodule and renamed to follow a common pattern. This is a placeholder operator with identical
 functionality to allow for backward compatibility.)code");  // Deprecated in 1.0;
+
+NumpyReaderCPU::~NumpyReaderCPU() {
+  // Stop the prefetch thread as it uses the thread pool from this class. So before we can
+  // destroy the thread pool make sure no one is using it anymore.
+  this->StopPrefetchThread();
+}
+
+void NumpyReaderCPU::Prefetch() {
+  // We actually prepare the next batch
+  DomainTimeRange tr("[DALI][NumpyReaderCPU] Prefetch #" + to_string(curr_batch_producer_),
+                      DomainTimeRange::kRed);
+  DataReader<CPUBackend, NumpyFileWrapper, NumpyFileWrapper, true>::Prefetch();
+
+  if (!dont_use_mmap_)
+    return;
+  auto &curr_batch = prefetched_batch_queue_[curr_batch_producer_];
+
+  string previous_path;
+  for (unsigned idx = 0; idx < curr_batch.size(); ++idx) {
+    // in case of pad_last_batch the curr_batch elements are pointing to the same object
+    // including the data, so there it no need to read it again or it can even lead to a race
+    // with allocation/deallocation of memory and concurrent read
+    if (idx > 0 && curr_batch[idx - 1] == curr_batch[idx]) {
+      break;
+    }
+    auto &target = curr_batch[idx];
+
+    // if we pad last batch but we duplicate the samples from the previous one - a case
+    // with multiple unequal shards where we need to create a full duplicated batch
+    // so there is no need to read again this data
+    if (!target->current_file) {
+      break;
+    }
+    if (target->data.shares_data()) {
+      target->data.Reset();
+    }
+    if (use_o_direct_) {
+      /*
+       * the offset to the data we are interested in
+       *                  |<-                       aligned_len                    ->|
+       *                  |                                                          |
+       *                  |                               |<- target->nbytes ->|     |
+       *                  |<-    target_data_offset     ->|                    |     |
+       *     |<-          target->data_offset           ->|
+       *     -------------********************************XXXXXXXXXXXXXXXXXXXXXX******
+       *     |            |                               |                          |
+       * file_start   block_start/allocated_memory     shared_ptr                   block_end
+       */
+
+      // align the size of data to read accounting for its start
+      auto block_start = align_down(target->data_offset, o_direct_alignm_);
+      auto block_end = align_up(target->data_offset + target->nbytes, o_direct_alignm_);
+      auto aligned_len = align_up(block_end - block_start, o_direct_read_len_alignm_);
+      // offset to the desired data from the block start
+      auto target_data_offset = alignment_offset(target->data_offset, o_direct_alignm_);
+      // allocate the memory that is aligned to the block size, but wrap it into shared ptr using
+      auto resource_mem = mm::alloc_raw_shared<char, mm::memory_kind::host>(aligned_len,
+                                                                            o_direct_alignm_);
+      shared_ptr<void> tmp_mem(resource_mem, resource_mem.get() + target_data_offset);
+
+      // split data into chunks and copy separately
+      auto file = dynamic_cast<ODirectFileStream*>(target->current_file.get());
+      auto read_tail = alignment_offset(target->data_offset + target->nbytes, o_direct_chunk_size_);
+      for (size_t read_offset = 0; read_offset < aligned_len; read_offset += o_direct_chunk_size_) {
+        // read whole chunk or just aligned number of blocks to match aligned_len
+        auto read_size = std::min(o_direct_chunk_size_, aligned_len - read_offset);
+        auto target_mem = static_cast<char*>(tmp_mem.get()) - target_data_offset + read_offset;
+        // where to read from counting from the file start
+        auto file_offset = read_offset + align_down(target->data_offset, o_direct_alignm_);
+        thread_pool_.AddWork([this, &target, file, read_size, target_mem, file_offset, read_tail]
+                             (int tid) {
+          Index ret = file->ReadAt(target_mem, read_size, file_offset);
+          DALI_ENFORCE(ret >= static_cast<Index>(read_tail) &&
+                       ret <= static_cast<Index>(o_direct_chunk_size_),
+                       make_string("Failed to read file: ", target->filename,
+                                   ", read: ", ret, " while it should be [", read_tail, ", ",
+                                   o_direct_chunk_size_, "]"));
+        });
+      }
+      target->data.ShareData(tmp_mem, target->nbytes, false, target->shape, target->type, -1);
+    } else {
+      if (!target->data.has_data()) target->data.set_pinned(false);
+      target->data.Resize(target->shape, target->type);
+      auto data_ptr = static_cast<uint8_t*>(target->data.raw_mutable_data());
+      Index ret = target->current_file->Read(data_ptr, target->nbytes);
+      DALI_ENFORCE(ret == static_cast<Index>(target->nbytes),
+                  make_string("Failed to read file: ", target->filename,
+                              ", read: ", ret, " while it should be ", target->nbytes));
+    }
+  }
+  thread_pool_.RunAll();
+  for (auto &target : curr_batch) {
+    target->current_file.reset();
+  }
+}
 
 void NumpyReaderCPU::RunImpl(Workspace &ws) {
   auto &output = ws.Output<CPUBackend>(0);

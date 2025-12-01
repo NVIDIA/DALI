@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@
 #include <random>
 #include <memory>
 #include <utility>
+#include <string>
 
 #include "dali/pipeline/operator/operator.h"
 #include "dali/pipeline/operator/op_spec.h"
@@ -27,6 +28,8 @@
 #include "dali/operators/image/resize/resize_attr.h"
 #include "dali/operators/image/crop/random_crop_attr.h"
 #include "dali/kernels/imgproc/resample/params.h"
+#include "dali/pipeline/operator/checkpointing/snapshot_serializer.h"
+#include "dali/pipeline/operator/checkpointing/op_checkpoint.h"
 
 namespace dali {
 
@@ -47,7 +50,6 @@ class RandomResizedCrop : public Operator<Backend>
   USE_OPERATOR_MEMBERS();
   using Operator<Backend>::RunImpl;
 
-  bool CanInferOutputs() const override { return true; }
 
  protected:
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
@@ -89,6 +91,25 @@ class RandomResizedCrop : public Operator<Backend>
   }
 
   void RunImpl(Workspace &ws) override;
+
+  void SaveState(OpCheckpoint &cpt, AccessOrder order) override {
+    cpt.MutableCheckpointState() = crop_attr_.RNGSnapshot();
+  }
+
+  void RestoreState(const OpCheckpoint &cpt) override {
+    auto &rngs = cpt.CheckpointState<std::vector<std::mt19937>>();
+    crop_attr_.RestoreRNGState(rngs);
+  }
+
+  std::string SerializeCheckpoint(const OpCheckpoint &cpt) const override {
+    const auto &state = cpt.CheckpointState<std::vector<std::mt19937>>();
+    return SnapshotSerializer().Serialize(state);
+  }
+
+  void DeserializeCheckpoint(OpCheckpoint &cpt, const std::string &data) const override {
+    cpt.MutableCheckpointState() =
+      SnapshotSerializer().Deserialize<std::vector<std::mt19937>>(data);
+  }
 
  private:
   void BackendInit();

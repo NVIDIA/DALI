@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,9 +15,12 @@
 #ifndef DALI_PIPELINE_DATA_TYPES_H_
 #define DALI_PIPELINE_DATA_TYPES_H_
 
+#include <algorithm>
+#include <atomic>
 #include <cstdint>
 #include <cstring>
 #include <functional>
+#include <list>
 #include <mutex>
 #include <string>
 #include <type_traits>
@@ -25,6 +28,8 @@
 #include <typeinfo>
 #include <unordered_map>
 #include <vector>
+#include "dali/core/dali_data_type.h"
+#include "dali/core/util.h"
 #include "dali/core/common.h"
 #include "dali/core/spinlock.h"
 #include "dali/core/float16.h"
@@ -46,6 +51,9 @@
 #ifndef DALI_REGISTER_TYPE_IMPL
 #define DALI_REGISTER_TYPE_IMPL(...)
 #endif
+
+inline std::string to_string(daliDataType_t dtype);
+inline std::ostream &operator<<(std::ostream &, daliDataType_t dtype);
 
 namespace dali {
 
@@ -83,199 +91,15 @@ inline Copier GetCopier() {
 
 }  // namespace detail
 
-/**
- * @brief Enum identifiers for the different data types that
- * the pipeline can output.
- *
- * IMPORTANT: This enum is used for serialization of DALI Pipeline. Therefore, any change made to
- * this enum must retain backward compatibility. If the backward compatibility is broken
- * (e.g. values of enumerations are shuffled), the already serialized pipelines
- * around the globe will stop working correctly.
- */
-enum DALIDataType : int {
-  DALI_NO_TYPE           = -1,
-  DALI_UINT8             =  0,
-  DALI_UINT16            =  1,
-  DALI_UINT32            =  2,
-  DALI_UINT64            =  3,
-  DALI_INT8              =  4,
-  DALI_INT16             =  5,
-  DALI_INT32             =  6,
-  DALI_INT64             =  7,
-  DALI_FLOAT16           =  8,
-  DALI_FLOAT             =  9,
-  DALI_FLOAT64           = 10,
-  DALI_BOOL              = 11,
-  DALI_STRING            = 12,
-  DALI_BOOL_VEC          = 13,
-  DALI_INT_VEC           = 14,
-  DALI_STRING_VEC        = 15,
-  DALI_FLOAT_VEC         = 16,
-#ifdef DALI_BUILD_PROTO3
-  DALI_TF_FEATURE        = 17,
-  DALI_TF_FEATURE_VEC    = 18,
-  DALI_TF_FEATURE_DICT   = 19,
-#endif  // DALI_BUILD_PROTO3
-  DALI_IMAGE_TYPE        = 20,
-  DALI_DATA_TYPE         = 21,
-  DALI_INTERP_TYPE       = 22,
-  DALI_TENSOR_LAYOUT     = 23,
-  DALI_PYTHON_OBJECT     = 24,
-  DALI_TENSOR_LAYOUT_VEC = 25,
-  DALI_DATA_TYPE_VEC     = 26,
-  DALI_DATATYPE_END      = 1000
-};
+using DALIDataType = daliDataType_t;
 
-inline const char *GetBuiltinTypeName(DALIDataType t) {
-  switch (t) {
-    case DALI_NO_TYPE:
-      return "<no_type>";
-      break;
-    case DALI_UINT8:
-      return "uint8";
-      break;
-    case DALI_UINT16:
-      return "uint16";
-      break;
-    case DALI_UINT32:
-      return "uint32";
-      break;
-    case DALI_UINT64:
-      return "uint64";
-      break;
-    case DALI_INT8:
-      return "int8";
-      break;
-    case DALI_INT16:
-      return "int16";
-      break;
-    case DALI_INT32:
-      return "int32";
-      break;
-    case DALI_INT64:
-      return "int64";
-      break;
-    case DALI_FLOAT16:
-      return "float16";
-      break;
-    case DALI_FLOAT:
-      return "float";
-      break;
-    case DALI_FLOAT64:
-      return "double";
-      break;
-    case DALI_BOOL:
-      return "bool";
-      break;
-    case DALI_STRING:
-      return "string";
-      break;
-    case DALI_BOOL_VEC:
-      return "list of bool";
-      break;
-    case DALI_INT_VEC:
-      return "list of int";
-      break;
-    case DALI_STRING_VEC:
-      return "list of string";
-      break;
-    case DALI_FLOAT_VEC:
-      return "list of float";
-      break;
-#ifdef DALI_BUILD_PROTO3
-    case DALI_TF_FEATURE:
-      return "TFUtil::Feature";
-      break;
-    case DALI_TF_FEATURE_VEC:
-      return "list of TFUtil::Feature";
-      break;
-    case DALI_TF_FEATURE_DICT:
-      return "dictionary of TFUtil::Feature";
-      break;
-#endif  // DALI_BUILD_PROTO3
-    case DALI_IMAGE_TYPE:
-      return "DALIImageType";
-      break;
-    case DALI_DATA_TYPE:
-      return "DALIDataType";
-      break;
-    case DALI_INTERP_TYPE:
-      return "DALIInterpType";
-      break;
-    case DALI_TENSOR_LAYOUT:
-      return "TensorLayout";
-      break;
-    case DALI_PYTHON_OBJECT:
-      return "Python object";
-      break;
-    case DALI_TENSOR_LAYOUT_VEC:
-      return "list of TensorLayout";
-      break;
-    case DALI_DATA_TYPE_VEC:
-      return "list of DALIDataType";
-    default:
-      return nullptr;
-  }
-}
+constexpr auto GetBuiltinTypeName = daliDataTypeName;
+constexpr auto IsFloatingPoint = daliDataTypeIsFloatingPoint;
+constexpr auto IsIntegral = daliDataTypeIsIntegral;
+constexpr auto IsSigned = daliDataTypeIsSigned;
+constexpr auto IsUnsigned = daliDataTypeIsUnsigned;
+constexpr auto IsEnum = daliDataTypeIsEnum;
 
-inline std::string to_string(DALIDataType dtype);
-inline std::ostream &operator<<(std::ostream &, DALIDataType dtype);
-
-constexpr bool IsFloatingPoint(DALIDataType type) {
-  switch (type) {
-    case DALI_FLOAT16:
-    case DALI_FLOAT:
-    case DALI_FLOAT64:
-      return true;
-    default:
-      return false;
-  }
-}
-
-constexpr bool IsIntegral(DALIDataType type) {
-  switch (type) {
-    case DALI_BOOL:
-    case DALI_UINT8:
-    case DALI_UINT16:
-    case DALI_UINT32:
-    case DALI_UINT64:
-    case DALI_INT8:
-    case DALI_INT16:
-    case DALI_INT32:
-    case DALI_INT64:
-      return true;
-    default:
-      return false;
-  }
-}
-
-constexpr bool IsSigned(DALIDataType type) {
-  switch (type) {
-    case DALI_FLOAT16:
-    case DALI_FLOAT:
-    case DALI_FLOAT64:
-    case DALI_INT8:
-    case DALI_INT16:
-    case DALI_INT32:
-    case DALI_INT64:
-      return true;
-    default:
-      return false;
-  }
-}
-
-constexpr bool IsUnsigned(DALIDataType type) {
-  switch (type) {
-    case DALI_BOOL:
-    case DALI_UINT8:
-    case DALI_UINT16:
-    case DALI_UINT32:
-    case DALI_UINT64:
-      return true;
-    default:
-      return false;
-  }
-}
 
 template <DALIDataType id>
 struct id2type_helper;
@@ -385,7 +209,7 @@ class DLL_PUBLIC TypeInfo {
     return type_size_;
   }
 
-  DLL_PUBLIC inline const string &name() const {
+  DLL_PUBLIC inline std::string_view name() const {
     return name_;
   }
 
@@ -398,12 +222,12 @@ class DLL_PUBLIC TypeInfo {
 
   DALIDataType id_ = DALI_NO_TYPE;
   size_t type_size_ = 0;
-  std::string name_ = dali::to_string(DALI_NO_TYPE);
+  std::string_view name_ = GetBuiltinTypeName(DALI_NO_TYPE);
 };
 
 template <typename T>
 struct TypeNameHelper {
-  static string GetTypeName() {
+  static std::string_view GetTypeName() {
     return typeid(T).name();
   }
 };
@@ -415,23 +239,23 @@ class DLL_PUBLIC TypeTable {
  public:
   template <typename T>
   DLL_PUBLIC static DALIDataType GetTypeId() {
-    auto &inst = instance();
-    static DALIDataType type_id = inst.RegisterType<T>(static_cast<DALIDataType>(++inst.index_));
+    static DALIDataType type_id = instance().RegisterType<T>(
+        static_cast<DALIDataType>(instance().next_id_++));
     return type_id;
   }
 
   template <typename T>
-  DLL_PUBLIC static string GetTypeName() {
+  DLL_PUBLIC static std::string_view GetTypeName() {
     return TypeNameHelper<T>::GetTypeName();
   }
 
   DLL_PUBLIC static const TypeInfo *TryGetTypeInfo(DALIDataType dtype) {
-    auto &inst = instance();
-    std::lock_guard<spinlock> guard(inst.lock_);
-    auto id_it = inst.type_info_map_.find(dtype);
-    if (id_it == inst.type_info_map_.end())
+    auto *types = instance().type_info_map_;
+    assert(types);
+    size_t idx = dtype - DALI_NO_TYPE;
+    if (idx >= types->size())
       return nullptr;
-    return &id_it->second;
+    return (*types)[idx];
   }
 
   DLL_PUBLIC static const TypeInfo &GetTypeInfo(DALIDataType dtype) {
@@ -453,42 +277,77 @@ class DLL_PUBLIC TypeTable {
 
   template <typename T>
   DALIDataType RegisterType(DALIDataType dtype) {
-    std::lock_guard<spinlock> guard(lock_);
-    // Check the map for this types id
-    auto id_it = type_map_.find(typeid(T));
+    static DALIDataType id = [dtype, this]() {
+      std::lock_guard guard(insert_lock_);
+      size_t idx = dtype - DALI_NO_TYPE;
+      // We need the map because this function (and the static variable) may be instantiated
+      // in multiple shared objects whereas the map instance is tied to one well defined
+      // instance of the TypeTable returned by `instance()`.
+      auto [it, inserted] = type_map_.emplace(typeid(T), dtype);
+      if (!inserted)
+        return it->second;
+      if (!type_info_map_ || idx >= type_info_map_->size()) {
+        constexpr size_t kMinCapacity = next_pow2(DALI_CUSTOM_TYPE_START + 100);
+        // we don't need to look at the previous capacity to achieve std::vector-like growth
+        size_t capacity = next_pow2(idx + 1);
+        if (capacity < kMinCapacity)
+          capacity = kMinCapacity;
+        auto &m = type_info_maps_.emplace_back();
+        m.resize(capacity);
+        if (type_info_map_)  // copy the old map into the new one
+          std::copy(type_info_map_->begin(), type_info_map_->end(), m.begin());
+        // The new map contains everything that the old map did - we can "publish" it.
+        // Make sure that the compiler doesn't reorder after the "publishing".
+        std::atomic_thread_fence(std::memory_order_release);
+        // Publish the new map.
+        type_info_map_ = &m;
+      }
+      TypeInfo &info = type_infos_.emplace_back();
+      info.SetType<T>(dtype);
+      if ((*type_info_map_)[idx] != nullptr)
+        DALI_FAIL("The type id ", idx, " is already taken by type ",
+                  (*type_info_map_)[idx]->name());
+      (*type_info_map_)[idx] = &info;
 
-    if (id_it == type_map_.end()) {
-      type_map_[typeid(T)] = dtype;
-      TypeInfo t;
-      t.SetType<T>(dtype);
-      type_info_map_[dtype] = t;
       return dtype;
-    } else {
-      return id_it->second;
-    }
+    }();
+    return id;
   }
 
+  using TypeInfoMap = std::vector<TypeInfo*>;
+  // The "current" type map - it's just a vector that maps type_id (adjusted and treated as index)
+  // to a TypeInfo pointer.
+  TypeInfoMap *type_info_map_ = nullptr;
 
-  spinlock lock_;
+  std::mutex insert_lock_;
+  // All type info maps - old ones are never deleted to avoid locks when only read access is needed.
+  std::list<TypeInfoMap> type_info_maps_;
+  // The actual type info objects. Each type has exactly one TypeInfo - even if we need to grow
+  // the storage - hence, we need to store TypeInfo* in the pas (see typedef TypeInfoMap) and
+  // we need to store TypeInfo instances in a container that never invalidates pointers
+  // (e.g. a list).
+  std::list<TypeInfo> type_infos_;
+  // This is necessary because it turns out that static field in RegisterType has many instances
+  // in a program built with multiple shared libraries.
   std::unordered_map<std::type_index, DALIDataType> type_map_;
-  // Unordered maps do not work with enums,
-  // so we need to use underlying type instead of DALIDataType
-  std::unordered_map<std::underlying_type_t<DALIDataType>, TypeInfo> type_info_map_;
-  int index_ = DALI_DATATYPE_END;
+
+  int next_id_ = DALI_CUSTOM_TYPE_START;
   DLL_PUBLIC static TypeTable &instance();
 };
 
 template <typename T, typename A>
 struct TypeNameHelper<std::vector<T, A> > {
-  static string GetTypeName() {
-    return "list of " + TypeTable::GetTypeName<T>();
+  static std::string_view GetTypeName() {
+    static const std::string name = "list of " + std::string(TypeTable::GetTypeName<T>());
+    return name;
   }
 };
 
 template <typename T, size_t N>
 struct TypeNameHelper<std::array<T, N> > {
-  static string GetTypeName() {
-    return "list of " + TypeTable::GetTypeName<T>();
+  static std::string_view GetTypeName() {
+    static const std::string name = "list of " + std::string(TypeTable::GetTypeName<T>());
+    return name;
   }
 };
 
@@ -501,8 +360,9 @@ template <typename T>
 void TypeInfo::SetType(DALIDataType dtype) {
   // Note: We enforce the fact that NoType is invalid by
   // explicitly setting its type size as 0
-  type_size_ = std::is_same<T, NoType>::value ? 0 : sizeof(T);
-  if (!std::is_same<T, NoType>::value) {
+  constexpr bool is_no_type = std::is_same_v<T, NoType>;
+  type_size_ = is_no_type ? 0 : sizeof(T);
+  if constexpr (!is_no_type) {
     id_ = dtype != DALI_NO_TYPE ? dtype : TypeTable::GetTypeId<T>();
   } else {
     id_ = DALI_NO_TYPE;
@@ -543,17 +403,26 @@ DLL_PUBLIC inline bool IsValidType(const TypeInfo &type) {
   return !IsType<NoType>(type);
 }
 
+inline std::string_view TypeName(DALIDataType dtype) {
+  if (const char *builtin = GetBuiltinTypeName(dtype))
+    return builtin;
+  auto *info = TypeTable::TryGetTypeInfo(dtype);
+  if (info)
+    return info->name();
+  return "<unknown>";
+}
+
 // Used to define a type for use in dali. Inserts the type into the
 // TypeTable w/ a unique id and creates a method to get the name of
 // the type as a string. This does not work for non-fundamental types,
 // as we do not have any mechanism for calling the constructor of the
 // type when the buffer allocates the memory.
-#define DALI_REGISTER_TYPE(Type, dtype)                             \
-  template <> DLL_PUBLIC string TypeTable::GetTypeName<Type>()      \
-    DALI_TYPENAME_REGISTERER(Type, dtype);                          \
-  template <> DLL_PUBLIC DALIDataType TypeTable::GetTypeId<Type>()  \
-    DALI_TYPEID_REGISTERER(Type, dtype);                            \
-  DALI_STATIC_TYPE_MAPPING(Type, dtype);                            \
+#define DALI_REGISTER_TYPE(Type, dtype)                                   \
+  template <> DLL_PUBLIC std::string_view TypeTable::GetTypeName<Type>()  \
+    DALI_TYPENAME_REGISTERER(Type, dtype);                                \
+  template <> DLL_PUBLIC DALIDataType TypeTable::GetTypeId<Type>()        \
+    DALI_TYPEID_REGISTERER(Type, dtype);                                  \
+  DALI_STATIC_TYPE_MAPPING(Type, dtype);                                  \
   DALI_REGISTER_TYPE_IMPL(Type, dtype);
 
 // Instantiate some basic types
@@ -588,137 +457,30 @@ DALI_REGISTER_TYPE(std::vector<float>, DALI_FLOAT_VEC);
 DALI_REGISTER_TYPE(std::vector<TensorLayout>, DALI_TENSOR_LAYOUT_VEC);
 DALI_REGISTER_TYPE(std::vector<DALIDataType>, DALI_DATA_TYPE_VEC);
 
+#define DALI_INTEGRAL_TYPES uint8_t, int8_t, uint16_t, int16_t, uint32_t, int32_t, uint64_t, int64_t
+#define DALI_NUMERIC_TYPES DALI_INTEGRAL_TYPES, float, double
+#define DALI_NUMERIC_TYPES_FP16 DALI_NUMERIC_TYPES, float16
 
-inline std::string to_string(DALIDataType dtype) {
-  if (const char *builtin = GetBuiltinTypeName(dtype))
-    return builtin;
-  auto *info = TypeTable::TryGetTypeInfo(dtype);
-  if (info)
-    return info->name();
-  return "unknown type: " + std::to_string(static_cast<int>(dtype));
-}
-
-inline std::ostream &operator<<(std::ostream &os, DALIDataType dtype) {
-  if (const char *builtin = GetBuiltinTypeName(dtype))
-    return os << builtin;
-  auto *info = TypeTable::TryGetTypeInfo(dtype);
-  if (info)
-    return os << info->name();
-  // Use string concatenation so that the result is the same as in to_string, unaffected by
-  // formatting & other settings in `os`.
-  return os << ("unknown type: " + std::to_string(static_cast<int>(dtype)));
-}
-
-/**
- * @brief Easily instantiate templates for all types
- * type - DALIDataType
- * DType becomes a type corresponding to given DALIDataType
- */
-#define DALI_TYPE_SWITCH_WITH_FP16(type, DType, ...) \
-  switch (type) {                                    \
-    case DALI_NO_TYPE:                               \
-      DALI_FAIL("Invalid type.");                    \
-    case DALI_UINT8:                                 \
-      {                                              \
-        typedef uint8 DType;                         \
-        {__VA_ARGS__}                                \
-      }                                              \
-      break;                                         \
-    case DALI_INT16:                                 \
-      {                                              \
-        typedef int16 DType;                         \
-        {__VA_ARGS__}                                \
-      }                                              \
-      break;                                         \
-    case DALI_INT32:                                 \
-      {                                              \
-        typedef int32 DType;                         \
-        {__VA_ARGS__}                                \
-      }                                              \
-      break;                                         \
-    case DALI_INT64:                                 \
-      {                                              \
-        typedef int64 DType;                         \
-        {__VA_ARGS__}                                \
-      }                                              \
-      break;                                         \
-    case DALI_FLOAT16:                               \
-      {                                              \
-        typedef float16 DType;                       \
-        {__VA_ARGS__}                                \
-      }                                              \
-      break;                                         \
-    case DALI_FLOAT:                                 \
-      {                                              \
-        typedef float DType;                         \
-        {__VA_ARGS__}                                \
-      }                                              \
-      break;                                         \
-    case DALI_FLOAT64:                               \
-      {                                              \
-        typedef double DType;                        \
-        {__VA_ARGS__}                                \
-      }                                              \
-      break;                                         \
-    case DALI_BOOL:                                  \
-      {                                              \
-        typedef bool DType;                          \
-        {__VA_ARGS__}                                \
-      }                                              \
-      break;                                         \
-    default:                                         \
-      DALI_FAIL(make_string("Unknown type: ", type)); \
-  }
-
-#define DALI_TYPE_SWITCH(type, DType, ...)           \
-  switch (type) {                                    \
-    case DALI_NO_TYPE:                               \
-      DALI_FAIL("Invalid type.");                    \
-    case DALI_UINT8:                                 \
-      {                                              \
-        typedef uint8 DType;                         \
-        {__VA_ARGS__}                                \
-      }                                              \
-      break;                                         \
-    case DALI_INT16:                                 \
-      {                                              \
-        typedef int16 DType;                         \
-        {__VA_ARGS__}                                \
-      }                                              \
-      break;                                         \
-    case DALI_INT32:                                 \
-      {                                              \
-        typedef int32 DType;                         \
-        {__VA_ARGS__}                                \
-      }                                              \
-      break;                                         \
-    case DALI_INT64:                                 \
-      {                                              \
-        typedef int64 DType;                         \
-        {__VA_ARGS__}                                \
-      }                                              \
-      break;                                         \
-    case DALI_FLOAT:                                 \
-      {                                              \
-        typedef float DType;                         \
-        {__VA_ARGS__}                                \
-      }                                              \
-      break;                                         \
-    case DALI_FLOAT64:                               \
-      {                                              \
-        typedef double DType;                        \
-        {__VA_ARGS__}                                \
-      }                                              \
-      break;                                         \
-    case DALI_BOOL:                                  \
-      {                                              \
-        typedef bool DType;                          \
-        {__VA_ARGS__}                                \
-      }                                              \
-      break;                                         \
-    default:                                         \
-      DALI_FAIL(make_string("Unknown type: ", type)); \
-  }
 }  // namespace dali
+
+inline std::string to_string(daliDataType_t dtype) {
+  std::string_view name = dali::TypeName(dtype);
+  if (name == "<unknown>")
+    return "unknown type: " + std::to_string(static_cast<int>(dtype));
+  else
+    return std::string(name);
+}
+
+inline std::ostream &operator<<(std::ostream &os, daliDataType_t dtype) {
+  std::string_view name = dali::TypeName(dtype);
+  if (name == "<unknown>") {
+    // Use string concatenation so that the result is the same as in to_string, unaffected by
+    // formatting & other settings in `os`.
+    return os << ("unknown type: " + std::to_string(static_cast<int>(dtype)));
+  } else {
+    return os << name;
+  }
+}
+
 
 #endif  // DALI_PIPELINE_DATA_TYPES_H_

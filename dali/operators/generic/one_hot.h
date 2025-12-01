@@ -19,6 +19,7 @@
 #include <string>
 
 #include "dali/pipeline/operator/operator.h"
+#include "dali/pipeline/operator/checkpointing/stateless_operator.h"
 #include "dali/kernels/kernel_params.h"
 #include "dali/core/tensor_view.h"
 #include "dali/core/static_switch.h"
@@ -53,10 +54,10 @@ void DoOneHot(kernels::OutTensorCPU<Out, DynamicDimensions> output,
 }  // namespace detail
 
 template <typename Backend>
-class OneHot : public Operator<Backend> {
+class OneHot : public StatelessOperator<Backend> {
  public:
   explicit OneHot(const OpSpec &spec)
-      : Operator<Backend>(spec), num_classes_(spec.GetArgument<int64_t>("num_classes")),
+      : StatelessOperator<Backend>(spec), num_classes_(spec.GetArgument<int64_t>("num_classes")),
         axis_(spec.GetArgument<int>("axis")),
         output_type_(spec.GetArgument<DALIDataType>(arg_names::kDtype)),
         on_value_(spec.GetArgument<float>("on_value")),
@@ -75,10 +76,6 @@ class OneHot : public Operator<Backend> {
   USE_OPERATOR_MEMBERS();
 
  protected:
-  bool CanInferOutputs() const override {
-    return true;
-  }
-
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     const auto &input = ws.Input<Backend>(0);
     int input_sample_dim = input.shape().sample_dim();

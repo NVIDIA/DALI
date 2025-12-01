@@ -44,7 +44,7 @@ class ImgSetDescr {
 
   inline size_t nImages() const   { return data_.size(); }
 
-  vector<uint8 *> data_;
+  vector<uint8_t *> data_;
   vector<int> sizes_;
   vector<string> filenames_;
 };
@@ -68,7 +68,7 @@ DLL_PUBLIC std::vector<std::string> ImageList(const std::string& image_folder,
 /**
  * @brief Writes the input image as a ppm file
  */
-DLL_PUBLIC void WriteHWCImage(const uint8 *img, int h, int w, int c, const string &file_name);
+DLL_PUBLIC void WriteHWCImage(const uint8_t *img, int h, int w, int c, const string &file_name);
 DLL_PUBLIC void WriteBatch(const TensorList<CPUBackend> &tl, const string &suffix,
                            float bias = 0.f, float scale = 1.f);
 
@@ -156,7 +156,7 @@ void WriteCHWBatch(const TensorList<Backend> &tl, float bias, float scale, const
 
 template <typename Backend>
 void WriteHWCBatch(const TensorList<Backend> &tl, const string &suffix) {
-  WriteBatch<uint8, Backend>(tl, 0.f, 1.0, suffix, std::array<int, 3>{0, 1, 2}, outHWCImage);
+  WriteBatch<uint8_t, Backend>(tl, 0.f, 1.0, suffix, std::array<int, 3>{0, 1, 2}, outHWCImage);
 }
 
 }  // namespace dali

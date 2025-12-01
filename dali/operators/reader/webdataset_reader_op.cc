@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -21,7 +21,7 @@
 namespace dali {
 
 bool WebdatasetReader::SetupImpl(std::vector<OutputDesc>& output_desc, const Workspace &ws) {
-  DataReader<CPUBackend, std::vector<Tensor<CPUBackend>>>::SetupImpl(output_desc, ws);
+  DataReader::SetupImpl(output_desc, ws);
   int num_outputs = ws.NumOutput();
   int num_samples = GetCurrBatchSize();
 
@@ -85,7 +85,7 @@ augmentation code remains unchanged.
 The dataset consists of one or more tar archives, each of which is further split into samples.
 A sample contains one or more components that correspond to the actual files contained within
 the archive. The components that belong to a specific sample are aggregated by filename without
-extension (for the specifics about the extensions please read the description of the ``ext`` parameter
+extension (for the specifics about the extensions please read the description of the `ext` parameter
 below). Note that samples with their filename starting with a dot will not be loaded, as well as
 entries that are not regular files.
 
@@ -112,7 +112,7 @@ Based on https://github.com/webdataset/webdataset)code")
     })
     .AddArg("paths", R"code(The list of (one or more) paths to the webdataset archives.
 
-Has to be the same length as the ``index_paths`` argument.)code",
+Has to be the same length as the `index_paths` argument.)code",
             DALI_STRING_VEC)
     .AddArg("ext", R"code(The extension sets for each of the outputs produced.
 
@@ -123,12 +123,21 @@ with a semicolon (';') and may contain dots.
 
 Example: "left.png;right.jpg")code",
             DALI_STRING_VEC)
-    .AddOptionalArg("index_paths",
+    .AddOptionalArg("case_sensitive_extensions",
+      R"code(Determines whether the extensions provided via the `ext` should be case sensitive.
+
+Allows mixing case sizes in the `ext` argument as well as in the webdataset container. For example
+when turned off: jpg, JPG, jPG should work.
+
+If the extension characters cannot be represented as ASCI the result of turing this option off
+is undefined.
+)code", true)
+    .AddOptionalArg<std::vector<std::string>>("index_paths",
             R"code(The list of the index files corresponding to the respective webdataset archives.
 
-Has to be the same length as the ``paths`` argument. In case it is not provided,
+Has to be the same length as the `paths` argument. In case it is not provided,
 it will be inferred automatically from the webdataset archive.)code",
-            std::vector<std::string>())
+            nullptr)
     .AddOptionalArg(
         "missing_component_behavior",
         R"code(Specifies what to do in case there is not any file in a sample corresponding to a certain output.

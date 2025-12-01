@@ -2,39 +2,26 @@
 ##  Build DALI dependencies on top of manylinux2014
 ##  DALI is based on "manylinux2014", official page https://github.com/pypa/manylinux
 #########################################################################################
-ARG FROM_IMAGE_NAME=quay.io/pypa/manylinux2014_x86_64
+ARG FROM_IMAGE_NAME=quay.io/pypa/manylinux_2_28_x86_64
 ARG BUILDER_EXTRA_DEPS=scratch
 FROM ${BUILDER_EXTRA_DEPS} as extra_deps
 FROM ${FROM_IMAGE_NAME}
 
 # Install yum Dependencies
-RUN yum install -y wget nasm doxygen graphviz gettext xz openssl autogen zip \
-                   devtoolset-10-libasan-devel devtoolset-10-liblsan-devel \
-                   devtoolset-10-libtsan-devel devtoolset-10-libubsan-devel
+RUN yum install -y wget doxygen graphviz gettext xz openssl autogen zip \
+                   gcc-toolset-14-libasan-devel gcc-toolset-14-liblsan-devel \
+                   gcc-toolset-14-libtsan-devel gcc-toolset-14-libubsan-devel \
+                   perl perl-IPC-Cmd nasm clang clang-devel && \
+    find /usr/lib/clang -name __clang_cuda_runtime_wrapper.h -exec sed -i '/texture_fetch_functions\.h/d' {} \;
+
 ENV ACLOCAL_PATH=/usr/share/aclocal/:/usr/local/share/aclocal
 
-# Don't want the short-unicode version for Python 2.7
-RUN rm -f /opt/python/cp27-cp27m
-
-# Clang, build it before deps as deps changes more frequently
-RUN CLANG_VERSION=15.0.2                                                                           && \
-    cd tmp                                                                                         && \
-    wget https://github.com/llvm/llvm-project/archive/refs/tags/llvmorg-${CLANG_VERSION}.tar.gz    && \
-    tar -xf llvmorg-*.tar.gz                                                                       && \
-    rm -rf llvmorg-*.tar.gz                                                                        && \
-    cd llvm-*                                                                                      && \
-    mkdir build                                                                                    && \
-    cd build                                                                                       && \
-    cmake -DLLVM_ENABLE_PROJECTS="clang;clang-tools-extra" -DCMAKE_BUILD_TYPE=Release -G "Unix Makefiles" ../llvm && \
-    make -j"$(grep ^processor /proc/cpuinfo | wc -l)" install                                      && \
-    cd /tmp                                                                                        && \
-    rm -rf llvm-*                                                                                  && \
-    sed -i 's/#if __cplusplus >= 201103L \&\& CUDA_VERSION >= 9000/\#if __cplusplus >= 201103L \&\& CUDA_VERSION >= 9000 \&\& CUDA_VERSION < 12000/g' \
-        /usr/local/lib/clang/${CLANG_VERSION}/include/__clang_cuda_runtime_wrapper.h && \
-    sed -i -z 's/#if CUDA_VERSION >= 9000\n\/\/ Provide a hint that texture support needs C++11./#if CUDA_VERSION >= 9000 \&\& CUDA_VERSION < 12000\n\/\/ Provide a hint that texture support needs C++11./g' \
-        /usr/local/lib/clang/${CLANG_VERSION}/include/__clang_cuda_runtime_wrapper.h && \
-    sed -i 's/#include "crt\/device_functions.hpp"/#include "crt\/device_functions.h"/g' \
-        /usr/local/lib/clang/${CLANG_VERSION}/include/__clang_cuda_runtime_wrapper.h
+RUN CMAKE_VERSION=3.25.2 && CMAKE_ARCH=$(uname -m) && \
+    wget https://github.com/Kitware/CMake/releases/download/v${CMAKE_VERSION}/cmake-${CMAKE_VERSION}-linux-${CMAKE_ARCH}.sh && \
+    test -e /bin/sh || ln -s /usr/bin/sh /bin/sh && \
+    chmod +x cmake-${CMAKE_VERSION}-linux-${CMAKE_ARCH}.sh && \
+    ./cmake-${CMAKE_VERSION}-linux-${CMAKE_ARCH}.sh --prefix=/usr/local --skip-license && \
+    rm -rf cmake-${CMAKE_VERSION}-linux-${CMAKE_ARCH}.sh
 
 COPY DALI_DEPS_VERSION /tmp
 

@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -34,6 +34,8 @@ cropped and valid bounding boxes and valid labels are returned.)code")
   .NumInput(3)   // [img, bbox, label]
   .NumOutput(3)  // [img, bbox, label]
   .AddOptionalArg("num_attempts", R"code(Number of attempts.)code", 1)
+  .AddRandomSeedArg()
+  .AddRandomStateArg()
   .Deprecate("RandomBBoxCrop");  // deprecated in DALI 0.30
 
 /*
@@ -186,6 +188,9 @@ void SSDRandomCrop<CPUBackend>::RunImpl(SampleWorkspace &ws) {
   int sample = ws.data_idx();
 
   auto N = bboxes.dim(0);
+  DALI_ENFORCE(bboxes.ndim() == 2 && bboxes.dim(1) == 4,
+               "The second dimension of the bounding box tensor should be 4.");
+
   const float* bbox_data = bboxes.data<float>();
 
   const int* label_data = labels.data<int>();
@@ -197,7 +202,7 @@ void SSDRandomCrop<CPUBackend>::RunImpl(SampleWorkspace &ws) {
   float *crop_ptr = crop_attempt.mutable_data<float>();
   // iterate until a suitable crop has been found
   while (true) {
-    auto opt_idx = int_dis_(rngs_[sample]);
+    auto opt_idx = int_dis_(rng_[sample]);
     auto option = sample_options_[opt_idx];
 
     if (option.no_crop()) {
@@ -216,8 +221,8 @@ void SSDRandomCrop<CPUBackend>::RunImpl(SampleWorkspace &ws) {
 
     // make num_attempts_ tries to get a valid crop
     for (int i = 0; i < num_attempts_; ++i) {
-      auto w = float_dis_(rngs_[sample]);
-      auto h = float_dis_(rngs_[sample]);
+      auto w = float_dis_(rng_[sample]);
+      auto h = float_dis_(rng_[sample]);
       // aspect ratio check
       if ((w / h < 0.5) || (w / h > 2.)) {
         continue;
@@ -225,8 +230,8 @@ void SSDRandomCrop<CPUBackend>::RunImpl(SampleWorkspace &ws) {
 
       // need RNG generators for left, top
       std::uniform_real_distribution<float> l_dis(0., 1. - w), t_dis(0., 1. - h);
-      double left = l_dis(rngs_[sample]);
-      double top = t_dis(rngs_[sample]);
+      double left = l_dis(rng_[sample]);
+      double top = t_dis(rng_[sample]);
 
       double right = left + w;
       double bottom = top + h;
@@ -319,11 +324,6 @@ void SSDRandomCrop<CPUBackend>::RunImpl(SampleWorkspace &ws) {
       return;
     }  // end num_attempts loop
   }  // end sample loop
-}
-
-template <>
-void SSDRandomCrop<CPUBackend>::SetupSharedSampleParams(SampleWorkspace &ws) {
-  return;
 }
 
 DALI_REGISTER_OPERATOR(SSDRandomCrop, SSDRandomCrop<CPUBackend>, CPU);

@@ -19,6 +19,7 @@
 #include <malloc.h>
 #include "dali/core/mm/memory_resource.h"
 #include "dali/core/cuda_error.h"
+#include "dali/core/cuda_stream_pool.h"
 #include "dali/core/mm/detail/align.h"
 #include "dali/core/device_guard.h"
 
@@ -201,8 +202,35 @@ class managed_malloc_memory_resource : public managed_async_resource {
   }
 };
 
+#if CUDA_VERSION >= 11020
+
+class DLL_PUBLIC cuda_malloc_async_memory_resource
+: public mm::async_memory_resource<mm::memory_kind::device> {
+ public:
+  cuda_malloc_async_memory_resource() : cuda_malloc_async_memory_resource(-1) {}
+
+  explicit cuda_malloc_async_memory_resource(int device_id);
+
+  static bool is_supported(int device_id = -1);
+
+  int device_id() const noexcept { return device_id_; }
+
+ private:
+  void *do_allocate(size_t size, size_t alignment) override;
+
+  void do_deallocate(void *ptr, size_t size, size_t alignment) override;
+
+  void *do_allocate_async(size_t size, size_t alignment, stream_view stream) override;
+
+  void do_deallocate_async(void *ptr, size_t size, size_t alignment, stream_view stream) override;
+
+  int device_id_;
+  CUDAStreamLease dummy_host_stream_;
+};
+
+#endif
+
 }  // namespace mm
 }  // namespace dali
-
 
 #endif  // DALI_CORE_MM_MALLOC_RESOURCE_H_

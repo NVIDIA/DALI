@@ -1,6 +1,6 @@
 #!/bin/bash -e
 # used pip packages
-pip_packages='${python_test_runner_package} numpy librosa==0.8.1 torch psutil'
+pip_packages='${python_test_runner_package} numpy librosa torch psutil torchvision'
 target_dir=./dali/test/python
 
 test_body() {
@@ -17,6 +17,7 @@ test_body() {
     ${python_invoke_test} --attr 'pytorch' test_external_source_impl_utils.py
     ${python_invoke_test} --attr 'pytorch' test_pipeline_debug.py
     ${python_invoke_test} --attr 'pytorch' test_functional_api.py
+    ${python_new_invoke_test} -s . test_dali_proxy
 }
 
 pushd ../..

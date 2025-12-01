@@ -119,7 +119,16 @@ TEST(KernelAPI, CallWithTuples) {
 
   examples::Kernel<float, float, int> K;
   KernelContext context;
+
+  #if defined(__GNUC__) && !defined(__clang__)
+  // GCC 14.2.1 raises false warnings about array out of bound access
+  #pragma GCC diagnostic push
+  #pragma GCC diagnostic ignored "-Warray-bounds"
+  #endif
   kernel::Run(K, context, std::tie(out), std::tie(in1, in2), std::tie(aux));
+  #if defined(__GNUC__) && !defined(__clang__)
+  #pragma GCC diagnostic pop
+  #endif
 }
 
 }  // namespace kernels

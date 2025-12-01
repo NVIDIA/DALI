@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,10 +15,11 @@
 import os
 from nvidia.dali._multiproc import shared_mem
 from nvidia.dali._multiproc.messages import ShmMessageDesc
-from nvidia.dali._utils.external_source_impl import \
-        assert_cpu_sample_data_type as _assert_cpu_sample_data_type, \
-        sample_to_numpy as _sample_to_numpy
-import pickle
+from nvidia.dali._utils.external_source_impl import (
+    assert_cpu_sample_data_type as _assert_cpu_sample_data_type,
+    sample_to_numpy as _sample_to_numpy,
+)
+import pickle  # nosec B403
 
 
 np = None
@@ -30,7 +31,7 @@ def _div_ceil(a, b):
 
 
 def _align_up(x, alignment):
-    """ Align x up to multiple of alignment"""
+    """Align x up to multiple of alignment"""
     return _div_ceil(x, alignment) * alignment
 
 
@@ -40,13 +41,16 @@ def import_numpy():
         try:
             import numpy as np
         except ImportError:
-            raise RuntimeError('Could not import numpy. Please make sure you have numpy '
-                               'installed before you use parallel mode.')
+            raise RuntimeError(
+                "Could not import numpy. Please make sure you have numpy "
+                "installed before you use parallel mode."
+            )
 
 
 _sample_error_msg = (
     "Unsupported callback return type. Expected NumPy array, PyTorch or MXNet cpu tensors, "
-    "DALI TensorCPU, or list or tuple of them representing sample. Got `{}` instead.")
+    "DALI TensorCPU, or list or tuple of them representing sample. Got `{}` instead."
+)
 
 
 class BufShmChunk:
@@ -61,7 +65,7 @@ class BufShmChunk:
 
     def __getstate__(self):
         state = self.__dict__.copy()
-        state['_shm_chunk'] = None
+        state["_shm_chunk"] = None
         return state
 
     def __setstate__(self, state):
@@ -69,8 +73,9 @@ class BufShmChunk:
 
     @classmethod
     def allocate(cls, shm_chunk_id, initial_chunk_size):
-        return cls(shm_chunk_id, initial_chunk_size,
-                   shared_mem.SharedMem.allocate(initial_chunk_size))
+        return cls(
+            shm_chunk_id, initial_chunk_size, shared_mem.SharedMem.allocate(initial_chunk_size)
+        )
 
     def open_shm(self, handle):
         # self._shm_chunk should be None only as a result of deserialization of the instance.
@@ -121,7 +126,7 @@ class SampleMeta:
 
 class SharedBatchMeta:
     """Describes offset within shared memory chunk and size of serialized list of
-       `SampleMeta` instances"""
+    `SampleMeta` instances"""
 
     def __init__(self, meta_offset, meta_size):
         self.meta_offset = meta_offset
@@ -136,21 +141,26 @@ def deserialize_sample(buffer: BufShmChunk, sample):
     if isinstance(sample, SampleMeta):
         offset = sample.offset
         assert offset % sample.dtype.itemsize == 0, "Sample offset is misaligned."
-        buffer = buffer.buf[offset:offset + sample.nbytes]
+        buffer = buffer.buf[offset : offset + sample.nbytes]
         return np.ndarray(sample.shape, dtype=sample.dtype, buffer=buffer)
-    if isinstance(sample, (tuple, list,)):
+    if isinstance(
+        sample,
+        (
+            tuple,
+            list,
+        ),
+    ):
         return type(sample)(deserialize_sample(buffer, part) for part in sample)
     return sample
 
 
 def deserialize_sample_meta(buffer: BufShmChunk, shared_batch_meta: SharedBatchMeta):
-    """Helper to deserialize SampleMeta from memory based on SharedBatchMeta.
-    """
+    """Helper to deserialize SampleMeta from memory based on SharedBatchMeta."""
     sbm = shared_batch_meta
     if sbm.meta_size == 0:
         return []
-    pickled_meta = buffer.buf[sbm.meta_offset:sbm.meta_offset + sbm.meta_size]
-    samples_meta = pickle.loads(pickled_meta)
+    pickled_meta = buffer.buf[sbm.meta_offset : sbm.meta_offset + sbm.meta_size]
+    samples_meta = pickle.loads(pickled_meta)  # nosec B301
     return samples_meta
 
 
@@ -191,14 +201,21 @@ def _apply_to_sample(func, sample, *args, nest_with_sample=0):
         Specify how many consecutive (additional) arguments have the same level of nesting
         as the sample.
     """
-    if isinstance(sample, (tuple, list,)):
+    if isinstance(
+        sample,
+        (
+            tuple,
+            list,
+        ),
+    ):
         # Check that all the samples have common nesting
         for i in range(nest_with_sample):
             assert len(args[i]) == len(sample)
         nest_group = sample, *args[0:nest_with_sample]
         scalar_args = args[nest_with_sample:]
-        return type(sample)(_apply_to_sample(func, *part, *scalar_args)
-                            for part in zip(*nest_group))
+        return type(sample)(
+            _apply_to_sample(func, *part, *scalar_args) for part in zip(*nest_group)
+        )
     else:
         # we unpacked all nesting levels, now is actual data:
         return func(sample, *args)
@@ -239,16 +256,17 @@ class SharedBatchWriter:
     def _add_array_to_batch(self, np_array, meta, memview):
         sample_size = meta.nbytes
         offset = meta.offset
-        buffer = memview[offset:(offset + sample_size)]
-        shared_array = np.ndarray(
-            np_array.shape, dtype=np_array.dtype, buffer=buffer)
+        buffer = memview[offset : (offset + sample_size)]
+        shared_array = np.ndarray(np_array.shape, dtype=np_array.dtype, buffer=buffer)
         shared_array.ravel()[:] = np_array.ravel()[:]
 
     def _write_batch(self, batch):
         if not batch:
             return
-        batch = [_apply_to_sample(lambda x: _sample_to_numpy(x, _sample_error_msg), sample)
-                 for sample in batch]
+        batch = [
+            _apply_to_sample(lambda x: _sample_to_numpy(x, _sample_error_msg), sample)
+            for sample in batch
+        ]
         meta, data_size = self._prepare_samples_meta(batch)
         serialized_meta = pickle.dumps(meta)
         self.meta_data_size = len(serialized_meta)
@@ -258,10 +276,11 @@ class SharedBatchWriter:
             resize_shm_chunk(self.shm_chunk, self.total_size + self.min_trailing_offset)
         memview = self.shm_chunk.buf
         for sample, sample_meta in zip(batch, meta):
-            _apply_to_sample(self._add_array_to_batch, sample, sample_meta, memview,
-                             nest_with_sample=1)
+            _apply_to_sample(
+                self._add_array_to_batch, sample, sample_meta, memview, nest_with_sample=1
+            )
         # copy meta data at the end of shared memory chunk
-        buffer = memview[self.data_size:(self.data_size + self.meta_data_size)]
+        buffer = memview[self.data_size : (self.data_size + self.meta_data_size)]
         buffer[:] = serialized_meta
 
 
@@ -274,8 +293,8 @@ def resize_shm_chunk(shm_chunk, needed_capacity):
 def read_shm_message(shm_chunk: BufShmChunk, shm_message):
     if shm_message.shm_capacity != shm_chunk.capacity:
         shm_chunk.resize(shm_message.shm_capacity, trunc=False)
-    buffer = shm_chunk.buf[shm_message.offset:shm_message.offset + shm_message.num_bytes]
-    return pickle.loads(buffer)
+    buffer = shm_chunk.buf[shm_message.offset : shm_message.offset + shm_message.num_bytes]
+    return pickle.loads(buffer)  # nosec B301
 
 
 def write_shm_message(worker_id, shm_chunk: BufShmChunk, message, offset, resize=True):
@@ -293,8 +312,10 @@ def write_shm_message(worker_id, shm_chunk: BufShmChunk, message, offset, resize
             # This should not happen, resize is False only when writing task description into memory
             # in the main process, and the description (ScheduledTask and its members) boils down
             # to bounded number of integers.
-            raise RuntimeError("Could not put message into shared memory region,"
-                               " not enough space in the buffer.")
-    buffer = shm_chunk.buf[offset:offset + num_bytes]
+            raise RuntimeError(
+                "Could not put message into shared memory region,"
+                " not enough space in the buffer."
+            )
+    buffer = shm_chunk.buf[offset : offset + num_bytes]
     buffer[:] = serialized_message
     return ShmMessageDesc(worker_id, shm_chunk.shm_chunk_id, shm_chunk.capacity, offset, num_bytes)

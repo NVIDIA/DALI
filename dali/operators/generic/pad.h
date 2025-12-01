@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,16 +15,16 @@
 #ifndef DALI_OPERATORS_GENERIC_PAD_H_
 #define DALI_OPERATORS_GENERIC_PAD_H_
 
+#include <any>
 #include <cstring>
 #include <string>
 #include <utility>
 #include <vector>
 
-#include "dali/core/any.h"
 #include "dali/core/error_handling.h"
 #include "dali/kernels/kernel_manager.h"
-#include "dali/kernels/scratch.h"
 #include "dali/operators/util/axis_args.h"
+#include "dali/pipeline/operator/checkpointing/stateless_operator.h"
 #include "dali/pipeline/operator/operator.h"
 
 #define PAD_SUPPORTED_TYPES (uint8_t, int8_t, uint16_t, int16_t, uint32_t, int32_t, \
@@ -34,10 +34,10 @@
 namespace dali {
 
 template <typename Backend>
-class Pad : public Operator<Backend> {
+class Pad : public StatelessOperator<Backend> {
  public:
   inline explicit Pad(const OpSpec &spec)
-      : Operator<Backend>(spec)
+      : StatelessOperator<Backend>(spec)
       , axis_args_(spec, "axes", "axis_names")
       , shape_("shape", spec)
       , align_("align", spec)
@@ -49,10 +49,6 @@ class Pad : public Operator<Backend> {
 
   using Operator<Backend>::RunImpl;
   void RunImpl(Workspace &ws) override;
-
-  bool CanInferOutputs() const override {
-    return true;
-  }
 
  private:
   void ReadArguments(const OpSpec &spec, const Workspace &ws) {
@@ -105,7 +101,7 @@ class Pad : public Operator<Backend> {
       kernel_sample_args_ = std::vector<Args>();
     }
 
-    auto &kernel_sample_args = any_cast<std::vector<Args>&>(kernel_sample_args_);
+    auto &kernel_sample_args = std::any_cast<std::vector<Args>&>(kernel_sample_args_);
     kernel_sample_args.clear();
     kernel_sample_args.resize(nsamples);
 
@@ -153,7 +149,7 @@ class Pad : public Operator<Backend> {
   ArgValue<float> fill_value_;
 
   kernels::KernelManager kmgr_;
-  any kernel_sample_args_;
+  std::any kernel_sample_args_;
 
   USE_OPERATOR_MEMBERS();
 };

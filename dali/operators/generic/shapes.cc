@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,15 +17,33 @@
 namespace dali {
 
 DALI_SCHEMA(Shapes)
-    .DocStr(R"code(Returns the shapes of inputs.)code")
+    .DocStr(R"(Returns the shapes of tensors in the input batch.)")
     .NumInput(1)
+    .InputDevice(0, InputDevice::Metadata)
     .NumOutput(1)
     .AllowSequences()
     .SupportVolumetric()
     .AddOptionalTypeArg("dtype", "Data type to which the sizes are converted.", DALI_INT64)
-    .DeprecateArgInFavorOf("type", "dtype");  // deprecated since 0.27dev
+    .DeprecateArgInFavorOf("type", "dtype")  // deprecated since 0.27dev
+    // deprecated since 1.44dev
+    .Deprecate("", "Use :meth:`nvidia.dali.pipeline.DataNode.shape` instead.");
+
+DALI_SCHEMA(_Shape)
+    .DocStr(R"(Returns the shapes of tensors in the input batch.
+
+INTERNAL ONLY; used by DataNode.shape()
+)")
+    .NumInput(1)
+    .InputDevice(0, InputDevice::Metadata)
+    .NumOutput(1)
+    .AllowSequences()
+    .SupportVolumetric()
+    .MakeDocHidden()
+    .AddOptionalTypeArg("dtype", "Data type to which the sizes are converted.", DALI_INT64);
 
 DALI_REGISTER_OPERATOR(Shapes, Shapes<CPUBackend>, CPU);
 DALI_REGISTER_OPERATOR(Shapes, Shapes<GPUBackend>, GPU);
+DALI_REGISTER_OPERATOR(_Shape, Shapes<CPUBackend>, CPU);
+DALI_REGISTER_OPERATOR(_Shape, Shapes<GPUBackend>, GPU);
 
 }  // namespace dali

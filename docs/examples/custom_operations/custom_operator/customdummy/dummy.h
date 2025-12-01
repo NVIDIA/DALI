@@ -21,10 +21,6 @@ class Dummy : public ::dali::Operator<Backend> {
   Dummy& operator=(Dummy&&) = delete;
 
  protected:
-  bool CanInferOutputs() const override {
-    return true;
-  }
-
   bool SetupImpl(std::vector<::dali::OutputDesc> &output_desc,
                  const ::dali::Workspace &ws) override {
     const auto &input = ws.Input<Backend>(0);

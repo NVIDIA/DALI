@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -21,7 +21,7 @@
 
 #include "dali/core/common.h"
 #include "dali/core/error_handling.h"
-#include "dali/pipeline/executor/executor.h"
+#include "dali/pipeline/executor/executor_impl.h"
 
 namespace dali {
 
@@ -39,18 +39,14 @@ template <typename WorkspacePolicy, typename QueuePolicy>
 class DLL_PUBLIC PipelinedExecutorImpl : public Executor<WorkspacePolicy, QueuePolicy> {
  public:
   DLL_PUBLIC inline PipelinedExecutorImpl(int batch_size, int num_thread, int device_id,
-                                          size_t bytes_per_sample_hint, bool set_affinity = false,
-                                          int max_num_stream = -1,
-                                          int default_cuda_stream_priority = 0,
+                                          size_t bytes_per_sample_hint, ExecutorFlags flags = {},
                                           QueueSizes prefetch_queue_depth = {2, 2})
       : Executor<WorkspacePolicy, QueuePolicy>(batch_size, num_thread, device_id,
-                                               bytes_per_sample_hint, set_affinity, max_num_stream,
-                                               default_cuda_stream_priority, prefetch_queue_depth) {
+                                               bytes_per_sample_hint, flags,
+                                               prefetch_queue_depth) {
   }
 
   DLL_PUBLIC ~PipelinedExecutorImpl() override = default;
-
-  DLL_PUBLIC void Build(OpGraph *graph, vector<string> output_names) override;
 
   DISABLE_COPY_MOVE_ASSIGN(PipelinedExecutorImpl);
 
@@ -84,12 +80,6 @@ class DLL_PUBLIC PipelinedExecutorImpl : public Executor<WorkspacePolicy, QueueP
 };
 
 template <typename WorkspacePolicy, typename QueuePolicy>
-void PipelinedExecutorImpl<WorkspacePolicy, QueuePolicy>::Build(OpGraph *graph,
-                                                                vector<string> output_names) {
-  Executor<WorkspacePolicy, QueuePolicy>::Build(graph, output_names);
-}
-
-template <typename WorkspacePolicy, typename QueuePolicy>
 void PipelinedExecutorImpl<WorkspacePolicy, QueuePolicy>::SetupOutputInfo(OpGraph &graph) {
   DeviceGuard g(device_id_);
   Executor<WorkspacePolicy, QueuePolicy>::SetupOutputInfo(graph);
@@ -103,7 +93,6 @@ void PipelinedExecutorImpl<WorkspacePolicy, QueuePolicy>::SetupOutputInfo(OpGrap
 template <typename WorkspacePolicy, typename QueuePolicy>
 std::vector<int> PipelinedExecutorImpl<WorkspacePolicy, QueuePolicy>::GetTensorQueueSizes(
     const OpGraph &graph) {
-  Executor<WorkspacePolicy, QueuePolicy>::GetTensorQueueSizes(graph);
   std::vector<int> result = Executor<WorkspacePolicy, QueuePolicy>::GetTensorQueueSizes(graph);
   for (int stage = 0; stage < static_cast<int>(OpType::COUNT); stage++) {
     for (auto id : stage_outputs_[stage]) {
@@ -115,8 +104,17 @@ std::vector<int> PipelinedExecutorImpl<WorkspacePolicy, QueuePolicy>::GetTensorQ
 
 using PipelinedExecutor =
     PipelinedExecutorImpl<AOT_WS_Policy<UniformQueuePolicy>, UniformQueuePolicy>;
-using SeparatedPipelinedExecutor =
-    PipelinedExecutorImpl<AOT_WS_Policy<SeparateQueuePolicy>, SeparateQueuePolicy>;
+
+template
+class DLL_PUBLIC PipelinedExecutorImpl<AOT_WS_Policy<SeparateQueuePolicy>, SeparateQueuePolicy>;
+
+class DLL_PUBLIC SeparatedPipelinedExecutor
+: public PipelinedExecutorImpl<AOT_WS_Policy<SeparateQueuePolicy>, SeparateQueuePolicy> {
+  using ImplBase = PipelinedExecutorImpl<AOT_WS_Policy<SeparateQueuePolicy>, SeparateQueuePolicy>;
+  using ImplBase::ImplBase;
+ public:
+  int InputFeedCount(std::string_view name) override;
+};
 
 }  // namespace dali
 

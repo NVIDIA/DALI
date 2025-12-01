@@ -21,117 +21,110 @@ from nvidia.dali._autograph.utils import hooks
 
 
 class TestList(list):
-  pass
+    pass
 
 
 class OperatorList(hooks.OperatorBase):
-  def is_test_list(self, iterable):
-    return isinstance(iterable, TestList)
+    def is_test_list(self, iterable):
+        return isinstance(iterable, TestList)
 
-  def detect_overload_list_new(self, iterable):
-    return True
+    def detect_overload_list_new(self, iterable):
+        return True
 
-  def list_new(self, iterable):
-    return TestList(iterable)
+    def list_new(self, iterable):
+        return TestList(iterable)
 
-  def detect_overload_list_append(self, list_):
-    return self.is_test_list(list_)
+    def detect_overload_list_append(self, list_):
+        return self.is_test_list(list_)
 
-  def list_append(self, list_, x):
-    list_.append(x)
-    list_ = TestList(list_)
-    return TestList(list_)
+    def list_append(self, list_, x):
+        list_.append(x)
+        list_ = TestList(list_)
+        return TestList(list_)
 
-  def detect_overload_list_pop(self, list_):
-    return self.is_test_list(list_)
+    def detect_overload_list_pop(self, list_):
+        return self.is_test_list(list_)
 
-  def list_pop(self, list_, i):
-    if i is None:
-      x = list_.pop()
-    else:
-      x = list_.pop(i)
-    return list_, x
+    def list_pop(self, list_, i):
+        if i is None:
+            x = list_.pop()
+        else:
+            x = list_.pop(i)
+        return list_, x
 
 
 class ListTest(converter_testing.TestCase):
+    def test_empty_list(self):
+        def f():
+            return []
 
-  def test_empty_list(self):
+        tr = self.transform(f, lists, operator_overload=OperatorList())
 
-    def f():
-      return []
+        tl = tr()
+        # Empty tensor lists cannot be evaluated or stacked.
+        self.assertIsInstance(tl, TestList)
 
-    tr = self.transform(f, lists, operator_overload=OperatorList())
+    def test_initialized_list(self):
+        def f():
+            return [1, 2, 3]
 
-    tl = tr()
-    # Empty tensor lists cannot be evaluated or stacked.
-    self.assertIsInstance(tl, TestList)
+        tr = self.transform(f, lists, operator_overload=OperatorList())
+        tl = tr()
 
-  def test_initialized_list(self):
+        self.assertIsInstance(tl, TestList)
+        self.assertEqual(tl, [1, 2, 3])
 
-    def f():
-      return [1, 2, 3]
+    def test_list_append(self):
+        def f():
+            l = TestList([1])
+            l.append(2)
+            l.append(3)
+            return l
 
-    tr = self.transform(f, lists, operator_overload=OperatorList())
-    tl = tr()
+        tr = self.transform(f, lists, operator_overload=OperatorList())
 
-    self.assertIsInstance(tl, TestList)
-    self.assertEqual(tl, [1, 2, 3])
+        tl = tr()
 
-  def test_list_append(self):
+        self.assertIsInstance(tl, TestList)
+        self.assertEqual(tl, [1, 2, 3])
 
-    def f():
-      l = TestList([1])
-      l.append(2)
-      l.append(3)
-      return l
+    def test_list_pop(self):
+        def f():
+            l = TestList([1, 2, 3])
+            s = l.pop()
+            return s, l
 
-    tr = self.transform(f, lists, operator_overload=OperatorList())
+        tr = self.transform(f, (directives_converter, lists), operator_overload=OperatorList())
 
-    tl = tr()
+        ts, tl = tr()
 
-    self.assertIsInstance(tl, TestList)
-    self.assertEqual(tl, [1, 2, 3])
+        self.assertIsInstance(tl, TestList)
+        self.assertEqual(tl, [1, 2])
+        self.assertEqual(ts, 3)
 
-  def test_list_pop(self):
+    def test_double_list_pop(self):
+        def f(l):
+            s = l.pop().pop()
+            return s, l
 
-    def f():
-      l = TestList([1, 2, 3])
-      s = l.pop()
-      return s, l
+        tr = self.transform(f, lists, operator_overload=OperatorList())
 
-    tr = self.transform(f, (directives_converter, lists),
-                        operator_overload=OperatorList())
+        test_input = [1, 2, [1, 2, 3]]
+        # TODO(mdan): Pass a list of lists of tensor when we fully support that.
+        # For now, we just pass a regular Python list of lists just to verify that
+        # the two pop calls are sequenced properly.
+        s, tl = tr(test_input)
 
-    ts, tl = tr()
+        self.assertIsInstance(tl, list)
+        self.assertEqual(s, 3)
 
-    self.assertIsInstance(tl, TestList)
-    self.assertEqual(tl, [1, 2])
-    self.assertEqual(ts, 3)
+    # TODO(klecki): Revert the stack test
+    # def test_list_stack(self):
 
-  def test_double_list_pop(self):
+    #   def f():
+    #     l = [1, 2, 3]
+    #     return array_ops.stack(l)
 
-    def f(l):
-      s = l.pop().pop()
-      return s, l
+    #   tr = self.transform(f, lists, operator_overload=OperatorList())
 
-    tr = self.transform(f, lists, operator_overload=OperatorList())
-
-    test_input = [1, 2, [1, 2, 3]]
-    # TODO(mdan): Pass a list of lists of tensor when we fully support that.
-    # For now, we just pass a regular Python list of lists just to verify that
-    # the two pop calls are sequenced properly.
-    s, tl = tr(test_input)
-
-    self.assertIsInstance(tl, list)
-    self.assertEqual(s, 3)
-
-  # TODO(klecki): Revert the stack test
-  # def test_list_stack(self):
-
-  #   def f():
-  #     l = [1, 2, 3]
-  #     return array_ops.stack(l)
-
-  #   tr = self.transform(f, lists, operator_overload=OperatorList())
-
-  #   self.assertAllEqual(self.evaluate(tr()), [1, 2, 3])
+    #   self.assertAllEqual(self.evaluate(tr()), [1, 2, 3])

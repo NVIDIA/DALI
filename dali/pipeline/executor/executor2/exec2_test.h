@@ -1,0 +1,176 @@
+// Copyright (c) 2024-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#ifndef DALI_PIPELINE_EXECUTOR_EXECUTOR2_EXEC2_TEST_H_
+#define DALI_PIPELINE_EXECUTOR_EXECUTOR2_EXEC2_TEST_H_
+
+#include <gtest/gtest.h>
+#include <string>
+#include <utility>
+#include <vector>
+#include "dali/pipeline/operator/operator.h"
+#include "dali/pipeline/operator/arg_helper.h"
+#include "dali/pipeline/graph/op_graph2.h"
+#include "dali/pipeline/executor/executor2/exec2_ops_for_test.h"
+
+namespace dali {
+namespace exec2 {
+namespace test {
+
+inline auto &AddCommonArgs(
+    OpSpec &spec, int max_batch_size, const std::string &device = "cpu", int num_threads = 1) {
+  spec.AddArg("max_batch_size", max_batch_size);
+  spec.AddArg("device", device);
+  spec.AddArg("num_threads", num_threads);
+  return spec;
+}
+
+inline auto GetTestGraph1() {
+  auto spec0 = OpSpec(kTestOpName)
+    .AddArg("name", "op0")
+    .AddOutput("op0_0", StorageDevice::CPU)
+    .AddArg("addend", 10);
+  auto spec1 = OpSpec(kTestOpName)
+    .AddArg("name", "op1")
+    .AddArg("addend", 20)
+    .AddOutput("op1_0", StorageDevice::CPU);
+  auto spec2 = OpSpec(kTestOpName)
+    .AddInput("op0_0", StorageDevice::CPU)
+    .AddArg("name", "op2")
+    .AddArgumentInput("addend", "op1_0")
+    .AddOutput("op2_0", StorageDevice::CPU);
+  auto spec3 = OpSpec(kTestOpName)
+    .AddArg("name", "op3")
+    .AddInput("op0_0", StorageDevice::CPU)
+    .AddInput("op1_0", StorageDevice::CPU)
+    .AddArg("addend", 1)
+    .AddOutput("op3_0", StorageDevice::CPU);
+  graph::OpGraph::Builder b;
+  b.Add("op0", std::move(AddCommonArgs(spec0, 32)));
+  b.Add("op1", std::move(AddCommonArgs(spec1, 32)));
+  b.Add("op2", std::move(AddCommonArgs(spec2, 32)));
+  b.Add("op3", std::move(AddCommonArgs(spec3, 32)));
+  b.AddOutput("op3_0_cpu");
+  b.AddOutput("op2_0_cpu");
+  return std::move(b).GetGraph(true);
+}
+
+inline void CheckTestGraph1Results(const Workspace &ws, int batch_size) {
+  auto &o0 = ws.Output<CPUBackend>(0);
+  auto &o1 = ws.Output<CPUBackend>(1);
+  ASSERT_EQ(o0.num_samples(), batch_size);
+  ASSERT_EQ(o1.num_samples(), batch_size);
+  for (int i = 0; i < batch_size; i++) {
+    // The pipeline:
+    // op0 = DummyOp(addend=10)
+    // op1 = DummyOp(addend=20)
+    // op2 = DummyOp(op0, addend=op1)
+    // op3 = DummyOp(op0, op1, addend=1)
+    // return op3, op2  # swapped!
+
+    // DummyOp adds its argumetns, the "addend" and the sample index - thus, we have
+    // tripled sample index + the sum of addends at output
+    EXPECT_EQ(*o0[i].data<int>(), 10 + 20 + 3 * i + 1);
+    EXPECT_EQ(*o1[i].data<int>(), 10 + 20 + 3 * i);
+  }
+}
+
+inline auto GetTestGraph2() {
+  auto spec0 = OpSpec(kTestOpName)
+    .AddArg("name", "op0")
+    .AddOutput("op0_0", StorageDevice::CPU)
+    .AddArg("addend", 10);
+  auto spec0c = OpSpec("MakeContiguous")
+    .AddArg("name", "op0_cont")
+    .AddInput("op0_0", StorageDevice::CPU)
+    .AddOutput("op0_0", StorageDevice::GPU);
+  auto spec1 = OpSpec(kTestOpName)
+    .AddArg("name", "op1")
+    .AddArg("addend", 20)
+    .AddOutput("op1_0", StorageDevice::CPU);
+  auto spec1c = OpSpec("MakeContiguous")
+    .AddArg("name", "op1_cont")
+    .AddInput("op1_0", StorageDevice::CPU)
+    .AddOutput("op1_0", StorageDevice::GPU);
+  auto spec2 = OpSpec(kTestOpName)
+    .AddInput("op0_0", StorageDevice::CPU)
+    .AddArg("name", "op2")
+    .AddArgumentInput("addend", "op1_0")
+    .AddOutput("op2_0", StorageDevice::CPU);
+  auto spec3 = OpSpec(kTestOpName)
+    .AddArg("name", "op3")
+    .AddInput("op0_0", StorageDevice::GPU)
+    .AddInput("op1_0", StorageDevice::GPU)
+    .AddArg("addend", 1)
+    .AddOutput("op3_0", StorageDevice::GPU);
+  auto spec2c = OpSpec("MakeContiguous")
+    .AddArg("name", "op2_cont")
+    .AddInput("op2_0", StorageDevice::CPU)
+    .AddOutput("op2_0", StorageDevice::GPU);
+  graph::OpGraph::Builder b;
+  b.Add("op0",  std::move(AddCommonArgs(spec0,  32, "cpu", 1)));
+  b.Add("op0c", std::move(AddCommonArgs(spec0c, 32, "mixed", 1)));
+  b.Add("op1",  std::move(AddCommonArgs(spec1,  32, "cpu", 1)));
+  b.Add("op1c", std::move(AddCommonArgs(spec1c, 32, "mixed", 1)));
+  b.Add("op2",  std::move(AddCommonArgs(spec2,  32, "cpu", 1)));
+  b.Add("op2c", std::move(AddCommonArgs(spec2c, 32, "mixed", 1)));
+  b.Add("op3",  std::move(AddCommonArgs(spec3,  32, "gpu", 1)));
+  b.AddOutput("op3_0_gpu");
+  b.AddOutput("op2_0_gpu");
+  return std::move(b).GetGraph(true);
+}
+
+inline void CheckTestGraph2Results(const Workspace &ws, int batch_size) {
+  auto &o0g = ws.Output<GPUBackend>(0);
+  auto &o1g = ws.Output<GPUBackend>(1);
+  TensorList<CPUBackend> o0, o1;
+  o0.Copy(o0g);
+  o1.Copy(o1g);
+  ASSERT_EQ(o0.num_samples(), batch_size);
+  ASSERT_EQ(o1.num_samples(), batch_size);
+  for (int i = 0; i < batch_size; i++) {
+    // The pipeline:
+    // op0 = DummyOp(addend=10)
+    // op1 = DummyOp(addend=20)
+    // op2 = DummyOp(op0, addend=op1)
+    // op3 = DummyOp(op0.gpu(), op1.gpu(), addend=1)
+    // return op3, op2.gpu()  # swapped!
+
+    // DummyOp adds its argumetns, the "addend" and the sample index - thus, we have
+    // tripled sample index + the sum of addends at output
+    EXPECT_EQ(*o0[i].data<int>(), 10 + 20 + 3 * i + 1);
+    EXPECT_EQ(*o1[i].data<int>(), 10 + 20 + 3 * i);
+  }
+}
+
+inline auto GetTestGraph3() {
+  auto spec0 = OpSpec(kTestOpName)
+    .AddArg("name", "op0")
+    .AddOutput("op0_0", StorageDevice::CPU)
+    .AddArg("addend", 0);
+  auto spec1 = OpSpec(kSinkOpName)
+    .AddArg("name", "op1")
+    .AddInput("op0_0", StorageDevice::CPU);
+
+  graph::OpGraph::Builder b;
+  b.Add("op0",  std::move(AddCommonArgs(spec0,  32, "cpu", 1)));
+  b.Add("op1",  std::move(AddCommonArgs(spec1,  32, "cpu", 1)));
+  return std::move(b).GetGraph(true);
+}
+
+}  // namespace test
+}  // namespace exec2
+}  // namespace dali
+
+#endif  // DALI_PIPELINE_EXECUTOR_EXECUTOR2_EXEC2_TEST_H_

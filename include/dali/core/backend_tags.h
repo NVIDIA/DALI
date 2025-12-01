@@ -1,4 +1,4 @@
-// Copyright (c) 2018-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2018-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,7 +16,7 @@
 #define DALI_CORE_BACKEND_TAGS_H_
 
 #include <type_traits>
-#include <cuda/memory_resource>
+#include "dali/core/mm/memory_resource.h"
 
 namespace dali {
 
@@ -59,22 +59,22 @@ template <typename MemoryKind>
 struct kind2storage;
 
 template <>
-struct kind2storage<cuda::memory_kind::host> {
+struct kind2storage<mm::memory_kind::host> {
   using type = StorageCPU;
 };
 
 template <>
-struct kind2storage<cuda::memory_kind::pinned> {
+struct kind2storage<mm::memory_kind::pinned> {
   using type = StorageCPU;
 };
 
 template <>
-struct kind2storage<cuda::memory_kind::device> {
+struct kind2storage<mm::memory_kind::device> {
   using type = StorageGPU;
 };
 
 template <>
-struct kind2storage<cuda::memory_kind::managed> {
+struct kind2storage<mm::memory_kind::managed> {
   using type = StorageUnified;
 };
 

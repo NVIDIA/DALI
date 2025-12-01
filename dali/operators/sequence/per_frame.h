@@ -21,20 +21,20 @@
 #include "dali/core/tensor_layout.h"
 #include "dali/core/tensor_shape.h"
 #include "dali/pipeline/operator/common.h"
+#include "dali/pipeline/operator/checkpointing/stateless_operator.h"
 #include "dali/pipeline/operator/operator.h"
 
 namespace dali {
 
 template <typename Backend>
-class PerFrame : public Operator<Backend> {
+class PerFrame : public StatelessOperator<Backend> {
  public:
   inline explicit PerFrame(const OpSpec &spec)
-      : Operator<Backend>(spec), replace_(spec.GetArgument<bool>("replace")) {}
+      : StatelessOperator<Backend>(spec), replace_(spec.GetArgument<bool>("replace")) {}
 
  protected:
-  bool CanInferOutputs() const override {
-    // Return false to prevent executor from allocating memory for the output,
-    // even though the output shape could be inferred, as it is same as input
+  bool HasContiguousOutputs() const override {
+    // This operator creates more samples by replicating existing ones.
     return false;
   }
 

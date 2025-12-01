@@ -37,7 +37,7 @@ void CastGPU::RunImpl(Workspace &ws) {
 
   kernels::KernelContext ctx;
   ctx.gpu.stream = ws.stream();
-  kernels::DynamicScratchpad scratchpad({}, ws.stream());
+  kernels::DynamicScratchpad scratchpad(ws.stream());
   ctx.scratchpad = &scratchpad;
 
   TYPE_SWITCH(output.type(), type2id, Out, CAST_ALLOWED_TYPES, (

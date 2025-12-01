@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,60 +14,69 @@
 
 import tensorflow as tf
 import tensorflow.compat.v1 as tf_v1
-from nose import with_setup
-
+from nose_utils import with_setup, SkipTest, raises
 import test_dali_tf_dataset_mnist as mnist
-from nose_utils import raises
+from packaging.version import Version
 
 mnist.tf.compat.v1.disable_eager_execution()
 
 
 @with_setup(tf.keras.backend.clear_session)
 def test_keras_single_gpu():
-    mnist.run_keras_single_device('gpu', 0)
+    if Version(tf.__version__) >= Version("2.16"):
+        raise SkipTest("TF < 2.16 is required for this test")
+    mnist.run_keras_single_device("gpu", 0)
 
 
 @with_setup(tf.keras.backend.clear_session)
 def test_keras_single_other_gpu():
-    mnist.run_keras_single_device('gpu', 1)
+    if Version(tf.__version__) >= Version("2.16"):
+        raise SkipTest("TF < 2.16 is required for this test")
+    mnist.run_keras_single_device("gpu", 1)
 
 
 @with_setup(tf.keras.backend.clear_session)
 def test_keras_single_cpu():
-    mnist.run_keras_single_device('cpu', 0)
+    if Version(tf.__version__) >= Version("2.16"):
+        raise SkipTest("TF < 2.16 is required for this test")
+    mnist.run_keras_single_device("cpu", 0)
 
 
-@raises(Exception, "TF device and DALI device mismatch. TF*: CPU, DALI*: GPU for output")
+@raises(tf.errors.OpError, "TF device and DALI device mismatch. TF*: CPU, DALI*: GPU for output")
 def test_keras_wrong_placement_gpu():
-    with tf.device('cpu:0'):
+    if Version(tf.__version__) >= Version("2.16"):
+        raise SkipTest("TF < 2.16 is required for this test")
+    with tf.device("cpu:0"):
         model = mnist.keras_model()
-        train_dataset = mnist.get_dataset('gpu', 0)
+        train_dataset = mnist.get_dataset("gpu", 0)
 
         model.fit(train_dataset, epochs=mnist.EPOCHS, steps_per_epoch=mnist.ITERATIONS)
 
 
-@raises(Exception, "TF device and DALI device mismatch. TF*: GPU, DALI*: CPU for output")
+@raises(tf.errors.OpError, "TF device and DALI device mismatch. TF*: GPU, DALI*: CPU for output")
 def test_keras_wrong_placement_cpu():
-    with tf.device('gpu:0'):
+    if Version(tf.__version__) >= Version("2.16"):
+        raise SkipTest("TF < 2.16 is required for this test")
+    with tf.device("gpu:0"):
         model = mnist.keras_model()
-        train_dataset = mnist.get_dataset('cpu', 0)
+        train_dataset = mnist.get_dataset("cpu", 0)
 
         model.fit(train_dataset, epochs=mnist.EPOCHS, steps_per_epoch=mnist.ITERATIONS)
 
 
 @with_setup(tf.compat.v1.reset_default_graph)
 def test_graph_single_gpu():
-    mnist.run_graph_single_device('gpu', 0)
+    mnist.run_graph_single_device("gpu", 0)
 
 
 @with_setup(tf.compat.v1.reset_default_graph)
 def test_graph_single_cpu():
-    mnist.run_graph_single_device('cpu', 0)
+    mnist.run_graph_single_device("cpu", 0)
 
 
 @with_setup(tf.compat.v1.reset_default_graph)
 def test_graph_single_other_gpu():
-    mnist.run_graph_single_device('gpu', 1)
+    mnist.run_graph_single_device("gpu", 1)
 
 
 # This function is copied form:
@@ -102,35 +111,38 @@ def average_gradients(tower_grads):
 def test_graph_multi_gpu():
     iterator_initializers = []
 
-    with tf.device('/cpu:0'):
+    with tf.device("/cpu:0"):
         tower_grads = []
 
         for i in range(mnist.num_available_gpus()):
-            with tf.device('/gpu:{}'.format(i)):
-                daliset = mnist.get_dataset('gpu', i, i, mnist.num_available_gpus())
+            with tf.device("/gpu:{}".format(i)):
+                daliset = mnist.get_dataset("gpu", i, i, mnist.num_available_gpus())
 
                 iterator = tf_v1.data.make_initializable_iterator(daliset)
                 iterator_initializers.append(iterator.initializer)
                 images, labels = iterator.get_next()
 
-                images = tf_v1.reshape(images,
-                                       [mnist.BATCH_SIZE, mnist.IMAGE_SIZE * mnist.IMAGE_SIZE])
-                labels = tf_v1.reshape(tf_v1.one_hot(labels, mnist.NUM_CLASSES),
-                                       [mnist.BATCH_SIZE, mnist.NUM_CLASSES])
+                images = tf_v1.reshape(
+                    images, [mnist.BATCH_SIZE, mnist.IMAGE_SIZE * mnist.IMAGE_SIZE]
+                )
+                labels = tf_v1.reshape(
+                    tf_v1.one_hot(labels, mnist.NUM_CLASSES), [mnist.BATCH_SIZE, mnist.NUM_CLASSES]
+                )
 
                 logits_train = mnist.graph_model(images, reuse=(i != 0), is_training=True)
                 logits_test = mnist.graph_model(images, reuse=True, is_training=False)
 
                 loss_op = tf_v1.reduce_mean(
-                    tf_v1.nn.softmax_cross_entropy_with_logits(logits=logits_train, labels=labels))
+                    tf_v1.nn.softmax_cross_entropy_with_logits(logits=logits_train, labels=labels)
+                )
                 optimizer = tf_v1.train.AdamOptimizer()
                 grads = optimizer.compute_gradients(loss_op)
 
                 if i == 0:
-                    correct_pred = tf_v1.equal(tf_v1.argmax(logits_test, 1),
-                                               tf_v1.argmax(labels, 1))
-                    accuracy = tf_v1.reduce_mean(
-                        tf_v1.cast(correct_pred, tf_v1.float32))
+                    correct_pred = tf_v1.equal(
+                        tf_v1.argmax(logits_test, 1), tf_v1.argmax(labels, 1)
+                    )
+                    accuracy = tf_v1.reduce_mean(tf_v1.cast(correct_pred, tf_v1.float32))
 
                 tower_grads.append(grads)
 
@@ -142,14 +154,14 @@ def test_graph_multi_gpu():
 
 @with_setup(mnist.clear_checkpoints, mnist.clear_checkpoints)
 def test_estimators_single_gpu():
-    mnist.run_estimators_single_device('gpu', 0)
+    mnist.run_estimators_single_device("gpu", 0)
 
 
 @with_setup(mnist.clear_checkpoints, mnist.clear_checkpoints)
 def test_estimators_single_other_gpu():
-    mnist.run_estimators_single_device('gpu', 1)
+    mnist.run_estimators_single_device("gpu", 1)
 
 
 @with_setup(mnist.clear_checkpoints, mnist.clear_checkpoints)
 def test_estimators_single_cpu():
-    mnist.run_estimators_single_device('cpu', 0)
+    mnist.run_estimators_single_device("cpu", 0)

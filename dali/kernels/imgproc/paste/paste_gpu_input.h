@@ -1,4 +1,4 @@
-// Copyright (c) 2021, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2021-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -25,9 +25,10 @@ template <int ndims>
 struct MultiPasteSampleInput {
   struct InputPatch {
     ivec<ndims> out_anchor, in_anchor, size;
-    int in_idx;
+    int in_idx;  // which sample in the batch
+    int batch_idx;  // which batch
   };
-  vector<InputPatch> inputs;
+  std::vector<InputPatch> inputs;
   ivec<ndims> out_size;
   int channels;
 };

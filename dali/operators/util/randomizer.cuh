@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -21,6 +21,7 @@
 #include <memory>
 #include "dali/core/host_dev.h"
 #include "dali/core/device_guard.h"
+#include "dali/core/mm/memory.h"
 #include <curand_kernel.h>  // NOLINT
 
 namespace dali {
@@ -28,13 +29,39 @@ namespace dali {
 struct curand_states {
   curand_states(uint64_t seed, size_t len);
 
+  inline explicit curand_states(size_t len) : len_(len) {
+    states_mem_ = mm::alloc_raw_shared<curandState, mm::memory_kind::device>(len);
+    states_ = states_mem_.get();
+  }
+
   DALI_HOST_DEV inline curandState* states() {
+    return states_;
+  }
+
+  DALI_HOST_DEV inline const curandState* states() const {
     return states_;
   }
 
   DALI_HOST_DEV inline curandState& operator[](size_t idx) {
     assert(idx < len_);
     return states_[idx];
+  }
+
+  DALI_HOST inline size_t length() const {
+    return len_;
+  }
+
+  DALI_HOST inline curand_states copy(AccessOrder order) const {
+    curand_states states(len_);
+    CUDA_CALL(cudaMemcpyAsync(states.states_, states_, sizeof(curandState) * len_,
+                              cudaMemcpyDeviceToDevice, order.stream()));
+    return states;
+  }
+
+  DALI_HOST inline void set(const curand_states &other) {
+    CUDA_CALL(cudaMemcpyAsync(states_, other.states_, sizeof(curandState) * len_,
+                              cudaMemcpyDeviceToDevice, cudaStreamDefault));
+    CUDA_CALL(cudaStreamSynchronize(cudaStreamDefault));
   }
 
  private:

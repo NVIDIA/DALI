@@ -18,7 +18,7 @@
 #include "dali/kernels/slice/slice_gpu.cuh"
 #include "dali/test/tensor_test_utils.h"
 #include "dali/test/test_tensors.h"
-#include "dali/kernels/scratch.h"
+#include "dali/kernels/dynamic_scratchpad.h"
 
 namespace dali {
 
@@ -76,10 +76,8 @@ class SliceBenchGPU : public DALIBenchmark {
 
       auto req = kernel.Setup(ctx, in_tv, args_vec);
 
-      kernels::ScratchpadAllocator scratch_alloc;
-      scratch_alloc.Reserve(req.scratch_sizes);
-      auto scratchpad = scratch_alloc.GetScratchpad();
-      ctx.scratchpad = &scratchpad;
+      kernels::DynamicScratchpad dyn_scratchpad(ctx.gpu.stream);
+      ctx.scratchpad = &dyn_scratchpad;
 
       kernel.Run(ctx, out_tv, in_tv, args_vec);
       CUDA_CALL(cudaStreamSynchronize(ctx.gpu.stream));

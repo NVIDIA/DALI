@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -28,10 +28,10 @@ M and translation T or one fused argument MT.)")
 
 If left unspecified, identity matrix is used.
 
-The matrix ``M`` does not need to be square - if it's not, the output vectors will have a
-number of components equal to the number of rows in ``M``.
+The matrix `M` does not need to be square - if it's not, the output vectors will have a
+number of components equal to the number of rows in `M`.
 
-If a scalar value is provided, ``M`` is assumed to be a square matrix with that value on the
+If a scalar value is provided, `M` is assumed to be a square matrix with that value on the
 diagonal. The size of the matrix is then assumed to match the number of components in the
 input vectors.)",
     nullptr,  // no default value
@@ -40,17 +40,17 @@ input vectors.)",
 
 If left unspecified, no translation is applied unless MT argument is used.
 
-The number of components of this vector must match the number of rows in matrix ``M``.
-If a scalar value is provided, that value is broadcast to all components of ``T`` and the number
-of components is chosen to match the number of rows in ``M``.)", nullptr, true, true)
+The number of components of this vector must match the number of rows in matrix `M`.
+If a scalar value is provided, that value is broadcast to all components of `T` and the number
+of components is chosen to match the number of rows in `M`.)", nullptr, true, true)
   .AddOptionalArg<vector<float>>("MT", R"(A block matrix [M T] which combines the arguments
-``M`` and ``T``.
+`M` and `T`.
 
 Providing a scalar value for this argument is equivalent to providing the same scalar for
 M and leaving T unspecified.
 
 The number of columns must be one more than the number of components in the input.
-This argument is mutually exclusive with ``M`` and ``T``.)",
+This argument is mutually exclusive with `M` and `T`.)",
     nullptr, true, true);
 
 void MTTransformAttr::ProcessMatrixArg(const OpSpec &spec, const ArgumentWorkspace &ws, int N) {

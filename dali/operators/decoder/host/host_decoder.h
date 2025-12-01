@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,15 +19,16 @@
 
 #include "dali/core/common.h"
 #include "dali/core/error_handling.h"
+#include "dali/pipeline/operator/checkpointing/stateless_operator.h"
 #include "dali/pipeline/operator/operator.h"
 #include "dali/util/crop_window.h"
 
 namespace dali {
 
-class HostDecoder : public Operator<CPUBackend> {
+class HostDecoder : public StatelessOperator<CPUBackend> {
  public:
   explicit inline HostDecoder(const OpSpec &spec) :
-      Operator<CPUBackend>(spec),
+      StatelessOperator<CPUBackend>(spec),
       output_type_(spec.GetArgument<DALIImageType>("output_type")),
       use_fast_idct_(spec.GetArgument<bool>("use_fast_idct"))
   {}
@@ -35,13 +36,19 @@ class HostDecoder : public Operator<CPUBackend> {
   inline ~HostDecoder() override = default;
   DISABLE_COPY_MOVE_ASSIGN(HostDecoder);
 
- protected:
+  bool HasContiguousOutputs() const override {
+    return false;
+  }
+
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     return false;
   }
 
   void RunImpl(SampleWorkspace &ws) override;
 
+  using StatelessOperator<CPUBackend>::RunImpl;
+
+ protected:
   virtual CropWindowGenerator GetCropWindowGenerator(int data_idx) const {
     return {};
   }

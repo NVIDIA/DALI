@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,15 +16,15 @@
 #define DALI_OPERATORS_GENERIC_PERMUTE_BATCH_H_
 
 #include <vector>
-#include "dali/pipeline/operator/operator.h"
+#include "dali/pipeline/operator/checkpointing/stateless_operator.h"
 #include "dali/kernels/common/scatter_gather.h"
 
 namespace dali {
 
 template <typename Backend>
-class PermuteBatchBase : public Operator<Backend> {
+class PermuteBatchBase : public StatelessOperator<Backend> {
  public:
-  explicit PermuteBatchBase(const OpSpec &spec) : Operator<Backend>(spec) {
+  explicit PermuteBatchBase(const OpSpec &spec) : StatelessOperator<Backend>(spec) {
     has_indices_input_ = spec.HasTensorArgument("indices");
   }
 
@@ -61,10 +61,6 @@ class PermuteBatchBase : public Operator<Backend> {
       for (int d = 0; d < D; d++)
         out_ts[d] = in_ts[d];
     }
-    return true;
-  }
-
-  bool CanInferOutputs() const override {
     return true;
   }
 

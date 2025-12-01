@@ -1,4 +1,4 @@
-// Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -22,7 +22,6 @@
 #include "dali/kernels/dynamic_scratchpad.h"
 #include "dali/kernels/imgproc/color_manipulation/debayer/debayer.h"
 #include "dali/kernels/imgproc/color_manipulation/debayer/debayer_npp.h"
-#include "dali/kernels/scratch.h"
 #include "dali/pipeline/data/tensor_list.h"
 #include "dali/pipeline/data/views.h"
 #include "dali/test/tensor_test_utils.h"
@@ -33,7 +32,7 @@ namespace kernels {
 namespace debayer {
 namespace test {
 
-constexpr cudaStream_t cuda_stream = 0;
+const cudaStream_t cuda_stream = cudaStreamLegacy;
 
 template <typename InOutT_, DALIDebayerAlgorithm alg_>
 struct DebayerTestParams {
@@ -47,7 +46,7 @@ class DebayerGpuTest : public ::testing::Test {
   using InOutT = typename DebayerTestParamsT::InOutT;
   using Kernel = NppDebayerKernel<InOutT>;
   static constexpr int num_channels = 3;
-  static_assert(DebayerTestParamsT::alg == DALIDebayerAlgorithm::DALI_DEBAYER_BILINEAR_NPP);
+  static_assert(DebayerTestParamsT::alg == DALIDebayerAlgorithm::DALI_DEBAYER_DEFAULT_NPP);
 
   void FillWithGradient(TensorListView<StorageCPU, InOutT, 3> rgb_batch) {
     int max_val = std::numeric_limits<InOutT>::max();
@@ -134,7 +133,7 @@ class DebayerGpuTest : public ::testing::Test {
     Kernel kernel{0};
     KernelContext ctx;
     ctx.gpu.stream = cuda_stream;
-    DynamicScratchpad dyn_scratchpad({}, AccessOrder(ctx.gpu.stream));
+    DynamicScratchpad dyn_scratchpad(AccessOrder(ctx.gpu.stream));
     ctx.scratchpad = &dyn_scratchpad;
     auto in_view = in_.gpu(cuda_stream);
     auto out_view = out_.gpu(cuda_stream);
@@ -152,8 +151,8 @@ class DebayerGpuTest : public ::testing::Test {
 };
 
 using TestParams =
-    ::testing::Types<DebayerTestParams<uint8_t, DALIDebayerAlgorithm::DALI_DEBAYER_BILINEAR_NPP>,
-                     DebayerTestParams<uint16_t, DALIDebayerAlgorithm::DALI_DEBAYER_BILINEAR_NPP>>;
+    ::testing::Types<DebayerTestParams<uint8_t, DALIDebayerAlgorithm::DALI_DEBAYER_DEFAULT_NPP>,
+                     DebayerTestParams<uint16_t, DALIDebayerAlgorithm::DALI_DEBAYER_DEFAULT_NPP>>;
 
 TYPED_TEST_SUITE(DebayerGpuTest, TestParams);
 

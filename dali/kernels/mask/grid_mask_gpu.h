@@ -68,11 +68,7 @@ class GridMaskGpu {
   KernelRequirements Setup(KernelContext &context, const InListGPU<Type, 3> &in) {
     KernelRequirements req;
     req.output_shapes = {in.shape};
-    ScratchpadEstimator se;
     block_setup_.SetupBlocks(in.shape, true);
-    se.add<mm::memory_kind::device, SampleDesc>(in.num_samples());
-    se.add<mm::memory_kind::device, BlockDesc>(block_setup_.Blocks().size());
-    req.scratch_sizes = se.sizes;
     return req;
   }
 

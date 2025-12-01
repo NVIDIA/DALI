@@ -1,4 +1,4 @@
-// Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -38,6 +38,7 @@ template<class InputType, int ndims>
 struct PatchDesc {
   const InputType *in;
   int in_sample_idx;
+  int in_batch_idx;
   ivec<ndims> patch_start, patch_end, in_anchor, in_pitch;
 };
 
@@ -53,7 +54,7 @@ template <class OutputType, class InputType, int ndims>
 void FillPointers(span<SampleDescriptorGPU<OutputType, InputType, ndims - 1>> descs,
                   span<PatchDesc<InputType, ndims - 1>> patches,
                   const OutListGPU<OutputType, ndims> &out,
-                  const InListGPU<InputType, ndims> &in) {
+                  const span<InListGPU<InputType, ndims>> &ins) {
   int batch_size = descs.size();
 
   for (int i = 0; i < batch_size; i++) {
@@ -61,7 +62,7 @@ void FillPointers(span<SampleDescriptorGPU<OutputType, InputType, ndims - 1>> de
   }
 
   for (auto &p : patches) {
-    p.in = p.in_sample_idx < 0 ? nullptr : in.data[p.in_sample_idx];
+    p.in = p.in_sample_idx < 0 ? nullptr : ins[p.in_batch_idx].data[p.in_sample_idx];
   }
 }
 
@@ -73,9 +74,9 @@ void FillPointers(span<SampleDescriptorGPU<OutputType, InputType, ndims - 1>> de
  */
 template <class OutputType, class InputType, int ndims>
 void CreateSampleDescriptors(
-    vector<SampleDescriptorGPU<OutputType, InputType, ndims - 1>> &out_descs,
-    vector<PatchDesc<InputType, ndims - 1>> &out_patches,
-    const TensorListShape<ndims> &in_shape,
+    std::vector<SampleDescriptorGPU<OutputType, InputType, ndims - 1>> &out_descs,
+    std::vector<PatchDesc<InputType, ndims - 1>> &out_patches,
+    const span<TensorListShape<ndims>> &in_shapes,
     span<paste::MultiPasteSampleInput<ndims - 1>> samples) {
   static_assert(ndims == 3, "Only 2D data with channels supported");
 
@@ -173,11 +174,17 @@ void CreateSampleDescriptors(
           patch.patch_end[0] = scaled_y_to_y[y + 1];
           patch.patch_end[1] = scaled_x_to_x[x + 1];
           patch.in = nullptr;  // to be filled later
-          patch.in_sample_idx = max_paste == -1 ? -1 : sample.inputs[max_paste].in_idx;
           patch.in_pitch[0] = 0;
-          patch.in_pitch[1] = max_paste == -1 ? -1 : in_shape[sample.inputs[max_paste].in_idx][1];
-
-          if (max_paste != -1) {
+          if (max_paste == -1) {
+            patch.in_sample_idx = -1;
+            patch.in_batch_idx = -1;
+            patch.in_pitch[1] = -1;
+          } else {
+            patch.in_sample_idx = sample.inputs[max_paste].in_idx;
+            patch.in_batch_idx = sample.inputs[max_paste].batch_idx;
+            int mp_in_idx = sample.inputs[max_paste].in_idx;
+            int mp_batch_idx = sample.inputs[max_paste].batch_idx;
+            patch.in_pitch[1] = in_shapes[mp_batch_idx][mp_in_idx][1];
             patch.in_anchor[0] = sample.inputs[max_paste].in_anchor[0] +
                               patch.patch_start[0] - sample.inputs[max_paste].out_anchor[0];
             patch.in_anchor[1] = sample.inputs[max_paste].in_anchor[1] +
@@ -263,19 +270,14 @@ class PasteGPU {
       KernelContext &context,
       span<paste::MultiPasteSampleInput<spatial_dims>> samples,
       const TensorListShape<ndims> &out_shape,
-      const TensorListShape<ndims> &in_shape) {
-    paste::CreateSampleDescriptors(sample_descriptors_, patch_descriptors_, in_shape, samples);
+      const span<TensorListShape<ndims>> &in_shapes) {
+    paste::CreateSampleDescriptors(sample_descriptors_, patch_descriptors_, in_shapes, samples);
 
     KernelRequirements req;
-    ScratchpadEstimator se;
     // merge width with channels
     auto flattened_shape = collapse_dim(out_shape, spatial_dims - 1);
     block_setup_.SetupBlocks(flattened_shape, true);
-    se.add<mm::memory_kind::device, SampleDesc>(sample_descriptors_.size());
-    se.add<mm::memory_kind::device, PatchDesc>(patch_descriptors_.size());
-    se.add<mm::memory_kind::device, BlockDesc>(block_setup_.Blocks().size());
     req.output_shapes = { out_shape };
-    req.scratch_sizes = se.sizes;
     return req;
   }
 
@@ -283,8 +285,8 @@ class PasteGPU {
   void Run(
       KernelContext &context,
       const OutListGPU<OutputType, ndims> &out,
-      const InListGPU<InputType, ndims> &in) {
-    paste::FillPointers(make_span(sample_descriptors_), make_span(patch_descriptors_), out, in);
+      const span<InListGPU<InputType, ndims>> &ins) {
+    paste::FillPointers(make_span(sample_descriptors_), make_span(patch_descriptors_), out, ins);
 
     SampleDesc *samples_gpu;
     PatchDesc  *patches_gpu;

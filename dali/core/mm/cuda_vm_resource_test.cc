@@ -116,11 +116,11 @@ class VMResourceTest : public ::testing::Test {
     cuvm::CUAddressRange total = res.va_ranges_.back();
     cuvm::CUAddressRange part1 = { total.ptr(),           s1 };
     cuvm::CUAddressRange part2 = { total.ptr() + s1,      s2 };
-    res.va_add_region(part1);
+    res.va_add_range(part1);
     ASSERT_EQ(res.va_regions_.size(), 1u);
     MapRandomBlocks(res.va_regions_[0], 10);
     va_region_backup va1 = Backup(res.va_regions_[0]);
-    res.va_add_region(part2);
+    res.va_add_range(part2);
     ASSERT_EQ(res.va_regions_.size(), 1u);
     auto &region = res.va_regions_.back();
     ASSERT_EQ(region.num_blocks(), b1 + b2);
@@ -138,11 +138,11 @@ class VMResourceTest : public ::testing::Test {
     cuvm::CUAddressRange total = res.va_ranges_.back();
     cuvm::CUAddressRange part1 = { total.ptr(),           s1 };
     cuvm::CUAddressRange part2 = { total.ptr() + s1,      s2 };
-    res.va_add_region(part2);
+    res.va_add_range(part2);
     ASSERT_EQ(res.va_regions_.size(), 1u);
     MapRandomBlocks(res.va_regions_[0], 10);
     va_region_backup va1 = Backup(res.va_regions_[0]);
-    res.va_add_region(part1);
+    res.va_add_range(part1);
     ASSERT_EQ(res.va_regions_.size(), 1u);
     auto &region = res.va_regions_.back();
     ASSERT_EQ(region.num_blocks(), b1 + b2);
@@ -162,15 +162,15 @@ class VMResourceTest : public ::testing::Test {
     cuvm::CUAddressRange part1 = { total.ptr(),           s1 };
     cuvm::CUAddressRange part2 = { total.ptr() + s1,      s2 };
     cuvm::CUAddressRange part3 = { total.ptr() + s1 + s2, s3 };
-    res.va_add_region(part1);
+    res.va_add_range(part1);
     ASSERT_EQ(res.va_regions_.size(), 1u);
     MapRandomBlocks(res.va_regions_[0], 10);
     va_region_backup va1 = Backup(res.va_regions_[0]);
-    res.va_add_region(part3);
+    res.va_add_range(part3);
     ASSERT_EQ(res.va_regions_.size(), 2u);
     MapRandomBlocks(res.va_regions_[1], 12);
     va_region_backup va3 = Backup(res.va_regions_[1]);
-    res.va_add_region(part2);
+    res.va_add_range(part2);
     ASSERT_EQ(res.va_regions_.size(), 1u);
     auto &region = res.va_regions_.back();
     ASSERT_EQ(region.num_blocks(), b1 + b2 + b3);
@@ -250,6 +250,37 @@ class VMResourceTest : public ::testing::Test {
     EXPECT_EQ(res.stat_.peak_allocated_blocks, 2);
   }
 
+  void TestReleaseUnusedVA() {
+    cuda_vm_resource res;
+    size_t block_size = 4 << 20;  // 4 MiB;
+    size_t alloc_size = 4 * block_size;
+    res.block_size_ = block_size;
+    res.initial_va_size_ = alloc_size;
+    // 1st VA allocation
+    void *p0 = res.allocate(alloc_size);
+
+    // 2nd VA allocation
+    void *p1 = res.allocate(alloc_size);
+    void *p2 = res.allocate(alloc_size);
+
+    // 3rd VA allocation
+    void *p3 = res.allocate(4 * alloc_size);
+
+    EXPECT_EQ(res.stat_.peak_va, 7 * alloc_size);
+    EXPECT_EQ(res.stat_.allocated_va, 7 * alloc_size);
+
+    // free half of the 2nd VA allocation
+    res.deallocate(p1, alloc_size);
+    EXPECT_EQ(0, res.release_unused_va());
+
+    // free the rest of the 2nd VA allocation
+    res.deallocate(p2, alloc_size);
+
+    auto va_freed = res.release_unused_va();
+    EXPECT_EQ(va_freed, 2 * alloc_size);
+    EXPECT_EQ(res.stat_.total_unmaps, 8);
+    EXPECT_EQ(res.stat_.allocated_va, 5 * alloc_size);
+  }
 
   void TestExceptionSafety() {
     cudaDeviceProp device_prop;
@@ -338,6 +369,12 @@ TEST_F(VMResourceTest, ReleaseUnused) {
   if (!cuvm::IsSupported())
     GTEST_SKIP() << "CUDA Virtual Memory Management not supported on this platform";
   this->TestReleaseUnused();
+}
+
+TEST_F(VMResourceTest, ReleaseUnusedVA) {
+  if (!cuvm::IsSupported())
+    GTEST_SKIP() << "CUDA Virtual Memory Management not supported on this platform";
+  this->TestReleaseUnusedVA();
 }
 
 std::string format_size(size_t bytes) {

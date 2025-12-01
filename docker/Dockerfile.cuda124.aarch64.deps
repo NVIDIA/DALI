@@ -1,0 +1,29 @@
+ARG TOOLKIT_BASE_IMAGE=ubuntu:20.04
+FROM ${TOOLKIT_BASE_IMAGE} as cuda
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt update && apt install -y libxml2 curl perl gcc && \
+    rm -rf /var/lib/apt/lists/*
+
+RUN curl -LO https://developer.download.nvidia.com/compute/cuda/12.4.1/local_installers/cuda_12.4.1_550.54.15_linux_sbsa.run && \
+    chmod +x cuda_*.run && \
+    ./cuda_*.run --silent --no-opengl-libs --toolkit && \
+    rm -f cuda_*.run;
+
+RUN NVJPEG2K_VERSION=0.7.5.32-1 && \
+    CUFILE_VERSION=1.9.1.3-1 && \
+    CUDA_VERSION_MAJOR=12 && \
+    CUDA_VERSION_MINOR=4 && \
+    apt-get update && \
+    apt-get install wget software-properties-common -y && \
+    apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/sbsa/3bf863cc.pub && \
+    add-apt-repository "deb https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/sbsa/ /" && \
+    apt-get update && \
+    apt-get install libnvjpeg2k0-dev-cuda-${CUDA_VERSION_MAJOR}=${NVJPEG2K_VERSION} \
+                    libnvjpeg2k0-cuda-${CUDA_VERSION_MAJOR}=${NVJPEG2K_VERSION} \
+                    libnvjpeg2k0-static-cuda-${CUDA_VERSION_MAJOR}=${NVJPEG2K_VERSION} \
+                    libcufile-dev-${CUDA_VERSION_MAJOR}-${CUDA_VERSION_MINOR}=${CUFILE_VERSION} -y && \
+    cp /usr/include/libnvjpeg2k/${CUDA_VERSION_MAJOR}/* /usr/local/cuda/include/ && \
+    cp /usr/lib/sbsa-linux-gnu/libnvjpeg2k/${CUDA_VERSION_MAJOR}/* /usr/local/cuda/lib64/ && \
+    rm -rf /var/lib/apt/lists/*

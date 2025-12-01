@@ -22,15 +22,16 @@
 #include <utility>
 
 #include "dali/core/permute.h"
+#include "dali/pipeline/operator/checkpointing/stateless_operator.h"
 #include "dali/pipeline/operator/operator.h"
 
 namespace dali {
 
 template <typename Backend>
-class Transpose : public Operator<Backend> {
+class Transpose : public StatelessOperator<Backend> {
  public:
   explicit inline Transpose(const OpSpec &spec)
-      : Operator<Backend>(spec),
+      : StatelessOperator<Backend>(spec),
         transpose_layout_(spec.GetArgument<bool>("transpose_layout")),
         output_layout_arg_(spec.GetArgument<TensorLayout>("output_layout")) {
     if (spec.HasArgument("perm"))
@@ -100,10 +101,6 @@ class Transpose : public Operator<Backend> {
           ") than the length of the permutation (", pdim, ")"));
       permute_dims(output_desc[0].shape, input_shape, perm_);
     }
-    return true;
-  }
-
-  bool CanInferOutputs() const override {
     return true;
   }
 

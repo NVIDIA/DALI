@@ -1,0 +1,124 @@
+# (C) Copyright IBM Corp. 2019. All Rights Reserved.
+# Copyright (c) 2019-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+package:
+  name: nvidia-dali-core{% if environ.get('NVIDIA_DALI_BUILD_FLAVOR', '')|length %}{{"-" + environ.get('NVIDIA_DALI_BUILD_FLAVOR', '')}}{% endif %}-cuda{{ environ.get('CUDA_VERSION', '') | replace(".","") }}
+  version: {{ environ.get('DALI_CONDA_BUILD_VERSION', '') }}
+
+source:
+  # Beware: Only committed files are used
+  - git_url: ../../..
+
+build:
+  script_env:
+   - CUDA_TARGET_ARCHS
+   - CMAKE_BUILD_TYPE
+   - BUILD_TEST
+   - BUILD_BENCHMARK
+   - BUILD_FUZZING
+   - BUILD_NVTX
+   - BUILD_LMDB
+   - BUILD_JPEG_TURBO
+   - BUILD_NVJPEG
+   - BUILD_LIBTIFF
+   - BUILD_LIBSND
+   - BUILD_LIBTAR
+   - BUILD_FFTS
+   - BUILD_CFITSIO
+   - BUILD_NVOF
+   - BUILD_NVDEC
+   - BUILD_NVML
+   - BUILD_NVCOMP
+   - WITH_DYNAMIC_CUDA_TOOLKIT
+   - WITH_DYNAMIC_NVJPEG
+   - WITH_DYNAMIC_CUFFT
+   - WITH_DYNAMIC_NPP
+   - WITH_DYNAMIC_NVIMGCODEC
+   - WITH_DYNAMIC_NVCOMP
+   - VERBOSE_LOGS
+   - WERROR
+   - BUILD_WITH_ASAN
+   - BUILD_WITH_LSAN
+   - BUILD_WITH_UBSAN
+   - NVIDIA_BUILD_ID
+   - GIT_SHA
+   - DALI_TIMESTAMP
+   - NVIDIA_DALI_BUILD_FLAVOR
+   - LD_LIBRARY_PATH
+   - DALI_CONDA_BUILD_VERSION
+   - CUDA_VERSION
+  string: {{ environ.get('NVIDIA_BUILD_ID', '') }}
+
+requirements:
+  build:
+    skip: True  # [not linux]
+    - {{ compiler('c') }}
+    - {{ compiler('cxx') }}
+    - pkg-config
+    - cmake >=3.25.2
+    - make
+    - patchelf
+    - python-clang
+    - git-lfs
+  host:
+    - protobuf =6.31.1
+    - libprotobuf-static =6.31.1
+    - libjpeg-turbo
+    - dali-opencv
+    - dali-ffmpeg
+    - lmdb
+    - libtiff
+    - libsndfile
+    - libtar
+    - libvorbis =1.3.7
+    # dali-opencv silently depends on openjpeg and libwebp-base
+    # Since we link statically, we need to add those dependencies explicitly
+    - libwebp-base
+    - openjpeg
+    - cfitsio
+    - nvidia-nvimagecodec-cuda{{ environ.get('CUDA_VERSION', '') | replace(".","") }}
+    - libnvcomp
+    # libnvcomp depends on cuda, so make sure it uses the right version for the build
+    - cuda-version {{ environ.get('CUDA_VERSION', '').split('.')[0] }}
+    - aws-sdk-cpp
+  run:
+    - libjpeg-turbo
+    - lmdb
+    - libtiff
+    - libsndfile
+    - libvorbis =1.3.7
+    # dali-opencv silently depends on openjpeg and libwebp-base
+    # Since we link statically, we need to add those dependencies explicitly
+    - libwebp-base
+    - openjpeg
+    # libprotobuf-static we link statically depends on libabseil so add libprotobuf here as a runtime
+    # dependency to install the right version on the libabseil (as protobuf depends on
+    # libprotobuf-static and a newer version of libprotobuf-static may be available than
+    # the protobuf was build with)
+    - libprotobuf =6.31.1
+    - cfitsio
+    - nvidia-nvimagecodec-cuda{{ environ.get('CUDA_VERSION', '') | replace(".","") }}
+    - libnvcomp
+    # libnvcomp depends on cuda, so make sure it uses the right version for the build
+    - cuda-version {{ environ.get('CUDA_VERSION', '').split('.')[0] }}
+    - aws-sdk-cpp
+about:
+  home: https://github.com/NVIDIA/DALI
+  license: Apache-2.0 license
+  license_family: APACHE
+  license_file:
+    - ../../../LICENSE
+    - ../../../COPYRIGHT
+    - ../../../Acknowledgements.txt

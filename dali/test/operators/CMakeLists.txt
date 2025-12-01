@@ -1,4 +1,4 @@
-# Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2022-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,7 +13,19 @@
 # limitations under the License.
 
 if (BUILD_TEST)
-  # get all the test srcs
+  # Get all the test srcs, make it a part of gtest binary
   file(GLOB tmp *.cc *.cu *.h)
+  adjust_source_file_language_property("${tmp}")
   set(DALI_TEST_SRCS ${DALI_TEST_SRCS} ${tmp} PARENT_SCOPE)
+
+  # Additionally build the operators as loadable library, so it can be imported as plugin in Python
+  set(lib_name "testoperatorplugin")
+  add_library(${lib_name} SHARED ${tmp})
+  target_link_libraries(${lib_name} PRIVATE ${CUDART_LIB})
+  target_link_libraries(${lib_name} PUBLIC dali)
+  if (BUILD_NVML)
+    target_link_libraries(${lib_name} PRIVATE dynlink_nvml)
+  endif(BUILD_NVML)
+
+  set_target_properties(${lib_name} PROPERTIES LIBRARY_OUTPUT_DIRECTORY ${TEST_BINARY_DIR})
 endif()

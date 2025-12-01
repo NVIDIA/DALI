@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -30,7 +30,7 @@ class PowerSpectrumPipeline(Pipeline):
 
     def define_graph(self):
         self.data = self.inputs()
-        out = self.data.gpu() if self.device == 'gpu' else self.data
+        out = self.data.gpu() if self.device == "gpu" else self.data
         out = self.fft(out)
         return out
 
@@ -41,7 +41,7 @@ class PowerSpectrumPipeline(Pipeline):
 
 def power_spectrum_numpy(nfft, axis, waveform):
     fft_out = np.fft.fft(waveform, axis=axis, n=nfft)
-    power_spectrum = fft_out.real ** 2 + fft_out.imag ** 2
+    power_spectrum = fft_out.real**2 + fft_out.imag**2
     shape = waveform.shape
 
     out_shape = list(shape)
@@ -49,20 +49,19 @@ def power_spectrum_numpy(nfft, axis, waveform):
     out_shape = tuple(out_shape)
 
     if len(out_shape) == 1:
-        out = power_spectrum[0:out_shape[0]]
+        out = power_spectrum[0 : out_shape[0]]
     elif len(out_shape) == 2:
-        out = power_spectrum[0:out_shape[0], 0:out_shape[1]]
+        out = power_spectrum[0 : out_shape[0], 0 : out_shape[1]]
     elif len(out_shape) == 3:
-        out = power_spectrum[0:out_shape[0], 0:out_shape[1], 0:out_shape[2]]
+        out = power_spectrum[0 : out_shape[0], 0 : out_shape[1], 0 : out_shape[2]]
     return out
 
 
 class PowerSpectrumNumpyPipeline(Pipeline):
-    def __init__(self, device, batch_size, iterator, axis, nfft,
-                 num_threads=1, device_id=0):
+    def __init__(self, device, batch_size, iterator, axis, nfft, num_threads=1, device_id=0):
         super(PowerSpectrumNumpyPipeline, self).__init__(
-              batch_size, num_threads, device_id,
-              seed=12345, exec_async=False, exec_pipelined=False)
+            batch_size, num_threads, device_id, seed=12345, exec_async=False, exec_pipelined=False
+        )
         self.device = "cpu"
         self.iterator = iterator
         self.inputs = ops.ExternalSource()
@@ -86,17 +85,22 @@ def check_operator_power_spectrum(device, batch_size, input_shape, nfft, axis):
     compare_pipelines(
         PowerSpectrumPipeline(device, batch_size, iter(eii1), axis=axis, nfft=nfft),
         PowerSpectrumNumpyPipeline(device, batch_size, iter(eii2), axis=axis, nfft=nfft),
-        batch_size=batch_size, N_iterations=3, eps=1e-04)
+        batch_size=batch_size,
+        N_iterations=3,
+        eps=1e-04,
+    )
 
 
 def test_operator_power_spectrum():
-    for device in ['cpu']:
+    for device in ["cpu"]:
         for batch_size in [3]:
-            for nfft, axis, shape in [(16, 1, (2, 16)),
-                                      (1024, 1, (1, 1024)),
-                                      (1024, 0, (1024,)),
-                                      (128, 1, (1, 100)),
-                                      (128, 0, (100,)),
-                                      (16, 0, (16, 2)),
-                                      (8, 1, (2, 8, 2))]:
+            for nfft, axis, shape in [
+                (16, 1, (2, 16)),
+                (1024, 1, (1, 1024)),
+                (1024, 0, (1024,)),
+                (128, 1, (1, 100)),
+                (128, 0, (100,)),
+                (16, 0, (16, 2)),
+                (8, 1, (2, 8, 2)),
+            ]:
                 yield check_operator_power_spectrum, device, batch_size, shape, nfft, axis

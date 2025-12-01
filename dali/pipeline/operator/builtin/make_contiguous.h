@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,7 +20,7 @@
 #include <utility>
 
 #include "dali/pipeline/data/backend.h"
-#include "dali/pipeline/operator/operator.h"
+#include "dali/pipeline/operator/checkpointing/stateless_operator.h"
 #include "dali/pipeline/operator/common.h"
 #include "dali/core/common.h"
 
@@ -29,11 +29,17 @@
 
 namespace dali {
 
+enum class MakeContiguousMode {
+  AlwaysCopy,    //! Always perform a copy.
+  PassThrough,   //! Never copy.
+  Opportunistic  //! If already contiguous, pass through; otherwise copy.
+};
+
 template<typename Backend>
-class MakeContiguousBase : public Operator<Backend> {
+class MakeContiguousBase : public StatelessOperator<Backend> {
  public:
   inline explicit MakeContiguousBase(const OpSpec &spec) :
-      Operator<Backend>(spec) {
+      StatelessOperator<Backend>(spec) {
     std::vector<int> hints;
     GetSingleOrRepeatedArg(spec, hints, "bytes_per_sample_hint", spec.NumOutput());
     if (!hints.empty())
@@ -42,20 +48,20 @@ class MakeContiguousBase : public Operator<Backend> {
 
   virtual inline ~MakeContiguousBase() = default;
 
-  bool CanInferOutputs() const override {
-    return !pass_through_;
-  }
-
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     output_desc.resize(1);
     if (ws.InputIsType<CPUBackend>(0)) {
       auto &input = ws.Input<CPUBackend>(0);
       output_desc[0].shape = input.shape();
       output_desc[0].type = input.type();
+      pass_through_ = mode_ == MakeContiguousMode::PassThrough ||
+                      (mode_ == MakeContiguousMode::Opportunistic && input.IsContiguousInMemory());
     } else {
       auto &input = ws.Input<GPUBackend>(0);
       output_desc[0].shape = input.shape();
       output_desc[0].type = input.type();
+      pass_through_ = mode_ == MakeContiguousMode::PassThrough ||
+                      (mode_ == MakeContiguousMode::Opportunistic && input.IsContiguousInMemory());
     }
     return !pass_through_;
   }
@@ -69,7 +75,7 @@ class MakeContiguousBase : public Operator<Backend> {
    * inputs.
    */
   void MarkPassThrough() {
-    pass_through_ = true;
+    mode_ = MakeContiguousMode::PassThrough;
   }
 
   /**
@@ -79,15 +85,25 @@ class MakeContiguousBase : public Operator<Backend> {
    * on the graph.
    */
   bool IsPassThrough() const {
-    return pass_through_;
+    return mode_ == MakeContiguousMode::PassThrough;
+  }
+
+  void SetMode(MakeContiguousMode mode) {
+    mode_ = mode;
+  }
+
+  MakeContiguousMode GetMode() const {
+    return mode_;
   }
 
  protected:
   USE_OPERATOR_MEMBERS();
   TensorList<CPUBackend> cpu_output_buff;
   bool coalesced = true;
-  int bytes_per_sample_hint = 0;
+  // Whether the next batch would be passed through - this value is changed in Setup.
   bool pass_through_ = false;
+  int bytes_per_sample_hint = 0;
+  MakeContiguousMode mode_ = MakeContiguousMode::AlwaysCopy;
 };
 
 
@@ -107,7 +123,7 @@ class MakeContiguousMixed : public MakeContiguousBase<MixedBackend> {
       MakeContiguousBase<MixedBackend>(spec) {}
   using Operator<MixedBackend>::Run;
 
-  void Run(Workspace &ws) override;
+  void RunImpl(Workspace &ws) override;
 
   DISABLE_COPY_MOVE_ASSIGN(MakeContiguousMixed);
 };
@@ -131,6 +147,14 @@ void MarkPassThrough(OperatorBase &make_contiguous);
  * @brief Call the MakeContiguousBase::IsPassThrough, invalid for other operators.
  */
 bool IsPassThrough(const OperatorBase &make_contiguous);
+
+/**
+ * @brief Call the MakeContiguousBase::SetMode, invalid for other operators.
+ *
+ * @return true, if the operator was MakeContiguous and the mode was set, false otherwise.
+ */
+bool SetMakeContiguousMode(OperatorBase &make_contiguous, MakeContiguousMode mode);
+
 
 }  // namespace dali
 

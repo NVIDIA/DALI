@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -69,9 +69,18 @@ class CustomPipeline(Pipeline):
         self.feed_input(self.images, images)
 
 
+def load_empty_plugin():
+    try:
+        plugin_manager.load_library(test_bin_dir + "/libdali_customdummyplugin.so")
+    except RuntimeError:
+        # in conda "libdali_customdummyplugin" lands inside lib/ dir
+        plugin_manager.load_library("libdali_customdummyplugin.so")
+
+
 class TestLoadedPlugin(unittest.TestCase):
     def test_sysconfig_provides_non_empty_flags(self):
         import nvidia.dali.sysconfig as dali_sysconfig
+
         assert "" != dali_sysconfig.get_include_flags()
         assert "" != dali_sysconfig.get_compile_flags()
         assert "" != dali_sysconfig.get_link_flags()
@@ -94,13 +103,12 @@ class TestLoadedPlugin(unittest.TestCase):
     def test_load_custom_operator_plugin(self):
         with self.assertRaises(AttributeError):
             print(ops.CustomDummy)
-        plugin_manager.load_library(test_bin_dir + "/libcustomdummyplugin.so")
+        load_empty_plugin()
         print(ops.CustomDummy)
 
     def test_pipeline_including_custom_plugin(self):
-        plugin_manager.load_library(test_bin_dir + "/libcustomdummyplugin.so")
+        load_empty_plugin()
         pipe = CustomPipeline(batch_size, 1, 0)
-        pipe.build()
         pipe_out = pipe.run()
         print(pipe_out)
         images, output = pipe_out
@@ -115,9 +123,9 @@ class TestLoadedPlugin(unittest.TestCase):
             np.testing.assert_array_equal(img, out)
 
     def test_python_operator_and_custom_plugin(self):
-        plugin_manager.load_library(test_bin_dir + "/libcustomdummyplugin.so")
+        load_empty_plugin()
         ops.readers.TFRecord(path="dummy", index_path="dummy", features={})
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

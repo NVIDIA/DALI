@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,7 +20,11 @@ namespace dali {
 
 DALI_SCHEMA(PythonFunctionBase)
     .AddArg("function",
-            "Function object.",
+            R"code(A callable object that defines the function of the operator.
+
+.. warning::
+    The function must not hold a reference to the pipeline in which it is used. If it does,
+    a circular reference to the pipeline will form and the pipeline will never be freed.)code",
             DALI_PYTHON_OBJECT)
     .AddOptionalArg("num_outputs", R"code(Number of outputs.)code", 1)
     .AddOptionalArg<std::vector<TensorLayout>>("output_layouts",
@@ -29,6 +33,7 @@ DALI_SCHEMA(PythonFunctionBase)
 This argument can be a list that contains a distinct layout for each output. If the list has
 fewer than num_outputs elements, only the first outputs have the layout set and the rest of the
 outputs have no layout assigned.)code", nullptr)
+    .MakeStateful()  // The python function may have some state
     .MakeInternal();
 
 DALI_SCHEMA(PythonFunction)
@@ -41,12 +46,21 @@ a more universal data format, see :meth:`nvidia.dali.fn.dl_tensor_python_functio
 The function should not modify input tensors.
 
 .. warning::
-  Currently, this operator can be used only in pipelines with the
-  ``exec_async=False`` and ``exec_pipelined=False`` values specified and should only be
-  used for prototyping and debugging.
+    This operator is not compatible with TensorFlow integration.
 
 .. warning::
-  This operator is not compatible with TensorFlow integration.
+    When the pipeline has conditional execution enabled, additional steps must be taken to
+    prevent the `function` from being rewritten by AutoGraph.
+    There are two ways to achieve this:
+
+        1. Define the function at global scope (i.e. outside of ``pipeline_def`` scope).
+
+        2. If function is a result of another "factory" function, then the factory function
+           must be defined outside pipeline definition function and decorated with
+           :meth:`@do_not_convert <nvidia.dali.pipeline.do_not_convert>`.
+
+    More details can be found in :meth:`@do_not_convert <nvidia.dali.pipeline.do_not_convert>`
+    documentation.
 )code")
         .NumInput(0, 256)
         .AllowSequences()
@@ -70,6 +84,6 @@ as PyTorch tensors.)code")
         .NoPrune()
         .AddParent("PythonFunctionBase")
         .AddOptionalArg("batch_processing", R"code(Determines whether the function gets
-an entire batch as an input.)code", false);
+an entire batch as an input.)code", true);
 
 }  // namespace dali

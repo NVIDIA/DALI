@@ -1,4 +1,4 @@
-// Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2023-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,6 +15,7 @@
 #ifndef DALI_TEST_OPERATORS_PASSTHROUGH_WITH_TRACE_H_
 #define DALI_TEST_OPERATORS_PASSTHROUGH_WITH_TRACE_H_
 
+#include <string>
 #include <vector>
 
 #include "dali/pipeline/operator/operator.h"
@@ -24,13 +25,18 @@ namespace dali {
 template <typename Backend>
 class PassthroughWithTraceOp : public Operator<Backend> {
  public:
-  inline explicit PassthroughWithTraceOp(const OpSpec &spec) : Operator<Backend>(spec) {}
+  inline explicit PassthroughWithTraceOp(const OpSpec &spec)
+  : Operator<Backend>(spec), trace_name_(spec.GetArgument<std::string>("trace_name")) {}
 
   inline ~PassthroughWithTraceOp() override = default;
 
   DISABLE_COPY_MOVE_ASSIGN(PassthroughWithTraceOp);
 
  protected:
+  bool HasContiguousOutputs() const override {
+    return false;
+  }
+
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     return false;
   }
@@ -38,11 +44,12 @@ class PassthroughWithTraceOp : public Operator<Backend> {
 
   void RunImpl(Workspace &ws) override {
     ws.Output<Backend>(0).ShareData(ws.Input<Backend>(0));
-    ws.SetOperatorTrace("test_trace", make_string("test_value", iteration_id++));
+    ws.SetOperatorTrace(trace_name_, make_string("test_value", iteration_id++));
   }
 
 
  private:
+  std::string trace_name_;
   size_t iteration_id = 0;
 };
 

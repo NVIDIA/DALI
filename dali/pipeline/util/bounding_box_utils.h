@@ -181,7 +181,7 @@ void ReadBox(Box<ndim, float>& box,
 
 /**
  * @brief Write bounding box coordinates to a 1D span of floats, outputing the coordinates in the
- * order specied by the provided layout
+ * order specified by the provided layout
  * @remarks Dimension names in the layout can be low (or start) anchors: "xyz", high (or end)
  * anchors: "XYZ" or extent "WHD". For example, a layout "xyXY" implies that the bounding box
  * coordinates are following the order x_start, y_start, x_end, y_end, while a layout "xyWD" means

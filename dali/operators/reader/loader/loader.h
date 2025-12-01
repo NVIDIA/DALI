@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -26,7 +26,9 @@
 #include <vector>
 #include <deque>
 #include <atomic>
+#include <unordered_set>
 
+#include "dali/core/call_once.h"
 #include "dali/core/nvtx.h"
 #include "dali/core/common.h"
 #include "dali/core/error_handling.h"
@@ -42,18 +44,36 @@ DLL_PUBLIC size_t start_index(const size_t shard_id,
 
 DLL_PUBLIC Index num_samples(const size_t shard_num,
                              const size_t size);
+
+/**
+ * @brief Structure describing Loader base state, at the begining of an epoch.
+*/
+struct LoaderStateSnapshot {
+  std::default_random_engine rng;
+  int current_epoch;
+  Index age;
+};
+
 /**
  * @brief Base class for Loaders, responsible for reading samples from resource of some kind
  *        into memory.
  *
  * @tparam Backend
  * @tparam LoadTarget Type into which samples are loaded.
+ * @tparam supports_checkpointing A marker for checkpointing support.
  */
-template <typename Backend, typename LoadTarget>
+template <typename Backend, typename LoadTarget,
+          bool supports_checkpointing = false>
 class Loader {
  public:
   using LoadTargetUniquePtr = std::unique_ptr<LoadTarget>;
   using LoadTargetSharedPtr = std::shared_ptr<LoadTarget>;
+
+  struct IndexedLoadTargetSharedPtr {
+    Index idx;
+    LoadTargetSharedPtr ptr;
+  };
+
   explicit Loader(const OpSpec& options)
     : shuffle_(options.GetArgument<bool>("random_shuffle")),
       initial_buffer_fill_(shuffle_ ? options.GetArgument<int>("initial_fill") : 1),
@@ -70,10 +90,10 @@ class Loader {
       skip_cached_images_(options.GetArgument<bool>("skip_cached_images")),
       lazy_init_(options.GetArgument<bool>("lazy_init")),
       loading_flag_(false),
-      read_sample_counter_(0),
-      returned_sample_counter_(0),
       pad_last_batch_(options.GetArgument<bool>("pad_last_batch")),
-      dont_use_mmap_(options.GetArgument<bool>("dont_use_mmap")) {
+      dont_use_mmap_(options.GetArgument<bool>("dont_use_mmap")),
+      checkpointing_(options.GetArgument<bool>("checkpointing")),
+      max_batch_size_(options.GetArgument<int>("max_batch_size")) {
     DALI_ENFORCE(initial_empty_size_ > 0, "Batch size needs to be greater than 0");
     DALI_ENFORCE(num_shards_ > shard_id_, "num_shards needs to be greater than shard_id");
     // initialize a random distribution -- this will be
@@ -81,6 +101,7 @@ class Loader {
     std::seed_seq seq({seed_});
     e_ = std::default_random_engine(seq);
     virtual_shard_id_ = shard_id_;
+    last_sample_ptr_tmp = {0, nullptr};
   }
 
   virtual ~Loader() {
@@ -93,6 +114,9 @@ class Loader {
   void Init() {
     if (!lazy_init_) {
       PrepareMetadata();
+    }
+    if (IsCheckpointingEnabled()) {
+       SaveStateSnapshot(current_snapshot_);
     }
   }
 
@@ -116,8 +140,91 @@ class Loader {
     DALI_ERROR("Please overload PrepareEmpty for custom LoadTarget type other than Tensor");
   }
 
+  bool IsCheckpointingEnabled() {
+    return supports_checkpointing && checkpointing_;
+  }
+
+  /**
+   * @brief Returns true iff the loader depleted the epoch.
+   *        If true, reading the next sample for a new batch will return
+   *        sample belonging the next epoch.
+   */
+  bool IsEpochDepleted() {
+    return shards_.size() == 0 || shards_.front().start == shards_.front().end;
+  }
+
+  /**
+   * @brief Returns snapshot of current state of the reader.
+   */
+  LoaderStateSnapshot GetStateSnapshot() {
+    DALI_ENFORCE(IsCheckpointingEnabled(),
+                 "Checkpointing was not enabled. Please make sure you set"
+                 " enable_checkpointing to True when creating the pipeline.");
+    if constexpr (!supports_checkpointing) {
+      DALI_FAIL("Checkpointing is not supported by this loader.");
+    } else {
+      return current_snapshot_;
+    }
+  }
+
+  /**
+   * @brief Restores the loader's state from a snapshot.
+   */
+  void RestoreStateFromSnapshot(const LoaderStateSnapshot& state) {
+    DALI_ENFORCE(IsCheckpointingEnabled(),
+                 "Checkpointing was not enabled. Please make sure you set"
+                 " enable_checkpointing to True when creating the pipeline.");
+
+    RestoreEpochState(state);
+    SaveStateSnapshot(current_snapshot_);
+
+    // Now fast forward the loader by `state.age` steps:
+    //
+    // 1. Run in dry mode to see which samples actually need to be read.
+    //    We don't need to read samples that will leave the buffer during fast-forward.
+    for (Index i = 0; i < state.age; i++) {
+      Index pos_in_batch = (returned_sample_counter_ + i) % max_batch_size_;
+      ReadOne(pos_in_batch == 0, pos_in_batch == max_batch_size_ - 1, [](Index i){ return false; });
+    }
+    auto missing = GetMissingSamples();
+
+    // 2. Restore the state and run reading again, this time reading the needed samples.
+    RestoreEpochState(state);
+    for (Index i = 0; i < state.age; i++) {
+      Index pos_in_batch = (returned_sample_counter_ + i) % max_batch_size_;
+      auto filter = [&missing](Index idx) {
+        return missing.find(idx) != missing.end();
+      };
+      ReadOne(pos_in_batch == 0, pos_in_batch == max_batch_size_ - 1, filter);
+    }
+
+    DALI_ENFORCE(GetMissingSamples().empty(), "Internal error: reading missing samples failed");
+
+    // current_snapshot_.age was increased by `ReadOne` calls, reset it to correct value
+    current_snapshot_.age = state.age;
+  }
+
+  bool ShouldPadBatch(bool is_new_batch) {
+    // If the reader has depleted samples from the given shard, but shards are not equal
+    // and we need to pad samples inside batch (even create a whole new dummy batch) using padding
+    // just to return in each shard the same number of samples and batches within the epoch.
+    // It happened only when pad_last_batch_ is set
+    // First part of this condition makes sure that the same number of batches is returned in each
+    // shard. Second makes sure that padding is done up to the full batch. For the first sample in
+    // the batch is_new_batch is set so it means that padding may be no longer needed
+    return (returned_sample_counter_  < num_samples(num_shards_, Size()) || !is_new_batch) &&
+            pad_last_batch_;
+  }
+
   // Get a random read sample
-  LoadTargetSharedPtr ReadOne(bool is_new_batch) {
+  LoadTargetSharedPtr ReadOne(bool is_new_batch, bool is_end_of_batch) {
+    return ReadOne(is_new_batch, is_end_of_batch, [](Index i){ return true; });
+  }
+
+  // Reads one sample if its index (total_read_sample_counter_) matches the provided filter.
+  // Otherwise, uses `Skip` instead of `ReadSample` to skip the sample.
+  template <typename Filter>
+  LoadTargetSharedPtr ReadOne(bool is_new_batch, bool is_end_of_batch, Filter filter) {
     PrepareMetadata();
     DomainTimeRange tr("[DALI][Loader] ReadOne", DomainTimeRange::kGreen1);
     // perform an initial buffer fill if it hasn't already happened
@@ -127,19 +234,36 @@ class Loader {
 
       // Read an initial number of samples to fill our
       // sample buffer
+      int skipped_initial_samples = 0;
       for (int i = 0; i < initial_buffer_fill_; ++i) {
-        auto tensor_ptr = LoadTargetUniquePtr(new LoadTarget());
-        PrepareEmpty(*tensor_ptr);
-        ReadSample(*tensor_ptr);
+        LoadTargetSharedPtr tensor_ptr = nullptr;
+        if (filter(total_read_sample_counter_)) {
+          tensor_ptr = LoadTargetSharedPtr(
+            new LoadTarget,
+            [this](LoadTarget* sample){
+              LoadTargetUniquePtr recycle_ptr(sample);
+              RecycleTensor(std::move(recycle_ptr));
+            });
+          PrepareEmpty(*tensor_ptr);
+          ReadSample(*tensor_ptr);
+        } else {
+          Skip();
+          skipped_initial_samples++;
+        }
+        sample_buffer_.push_back({total_read_sample_counter_, std::move(tensor_ptr)});
         IncreaseReadSampleCounter();
-        sample_buffer_.push_back(std::move(tensor_ptr));
         ++shards_.back().end;
       }
 
       // need some entries in the empty_tensors_ list
       DomainTimeRange tr2("[DALI][Loader] Filling empty list", DomainTimeRange::kOrange);
+
+      // if some samples in the initial buffer were skipped there are no tensors for them,
+      // so we need to create more tensors here to keep the total created tensors count correct.
+      int empty_needed = initial_empty_size_ + skipped_initial_samples;
+
       std::lock_guard<std::mutex> lock(empty_tensors_mutex_);
-      for (int i = 0; i < initial_empty_size_; ++i) {
+      for (int i = 0; i < empty_needed; ++i) {
         auto tensor_ptr = LoadTargetUniquePtr(new LoadTarget());
         PrepareEmpty(*tensor_ptr);
         empty_tensors_.push_back(std::move(tensor_ptr));
@@ -149,18 +273,20 @@ class Loader {
     }
 
     if (shards_.front().start == shards_.front().end) {
-      // If the reader has depleted samples from the given shard, but shards are not equal
-      // and we need to pad samples inside batch (even create a whole new dummy batch) using padding
-      // just to return in each shard the same number of samples and batches within the epoch.
-      // It happened only when pad_last_batch_ is set
-      // First part of this condition makes sure that the same number of batches is returned in each
-      // shard. Second makes sure that padding is done up to the full batch. For the first sample in
-      // the batch is_new_batch is set so it means that padding may be no longer needed
-      if ((returned_sample_counter_  < num_samples(num_shards_, Size()) || !is_new_batch) &&
-        pad_last_batch_) {
+      if (ShouldPadBatch(is_new_batch)) {
         ++returned_sample_counter_;
-        return last_sample_ptr_tmp;
+        current_snapshot_.age++;
+        if (IsCheckpointingEnabled() && !ShouldPadBatch(is_end_of_batch)) {
+          // If the checkpointing is enabled, the epoch is depleted and the next
+          // batch will contain samples from the next epoch - increment the epoch number.
+          consumer_epoch_++;
+          if (IsEpochDepleted()) {
+            SaveStateSnapshot(current_snapshot_);
+          }
+        }
+        return last_sample_ptr_tmp.ptr;
       }
+
       // remove shard that was fully consumed
       shards_.pop_front();
       returned_sample_counter_ = 0;
@@ -172,31 +298,48 @@ class Loader {
 
     int offset = shuffle_ ? dis(e_) : 0;
     Index idx = (shards_.front().start + offset) % sample_buffer_.size();
-    LoadTargetSharedPtr sample_ptr(sample_buffer_[idx].release(),
-      [this](LoadTarget* sample) {
-        LoadTargetUniquePtr recycle_ptr(sample);
-        RecycleTensor(std::move(recycle_ptr));
-    });
+
     std::swap(sample_buffer_[idx], sample_buffer_[shards_.front().start % sample_buffer_.size()]);
-    // now grab an empty tensor, fill it and add to filled buffers
-    // empty_tensors_ needs to be thread-safe w.r.t. RecycleTensor()
-    // being called by multiple consumer threads
-    LoadTargetUniquePtr tensor_ptr;
-    {
-      std::lock_guard<std::mutex> lock(empty_tensors_mutex_);
-      DALI_ENFORCE(empty_tensors_.size() > 0, "No empty tensors - did you forget to return them?");
-      tensor_ptr = std::move(empty_tensors_.back());
-      empty_tensors_.pop_back();
+    LoadTargetSharedPtr tensor_ptr = nullptr;
+    if (filter(total_read_sample_counter_)) {
+      // now grab an empty tensor, fill it and add to filled buffers
+      // empty_tensors_ needs to be thread-safe w.r.t. RecycleTensor()
+      // being called by multiple consumer threads
+      {
+        std::lock_guard<std::mutex> lock(empty_tensors_mutex_);
+        DALI_ENFORCE(empty_tensors_.size() > 0,
+                     "No empty tensors - did you forget to return them?");
+        tensor_ptr = {
+          empty_tensors_.back().release(),
+          [this](LoadTarget* sample){
+            LoadTargetUniquePtr recycle_ptr(sample);
+            RecycleTensor(std::move(recycle_ptr));
+          }
+        };
+        empty_tensors_.pop_back();
+      }
+      ReadSample(*tensor_ptr);
+    } else {
+      Skip();
     }
-    ReadSample(*tensor_ptr);
+    IndexedLoadTargetSharedPtr sample = {total_read_sample_counter_, std::move(tensor_ptr)};
     IncreaseReadSampleCounter();
-    std::swap(sample_buffer_[shards_.back().end % sample_buffer_.size()], tensor_ptr);
+    std::swap(sample_buffer_[shards_.back().end % sample_buffer_.size()], sample);
     ++shards_.back().end;
-    last_sample_ptr_tmp = sample_ptr;
+    last_sample_ptr_tmp = sample;
 
     shards_.front().start++;
     returned_sample_counter_++;
-    return sample_ptr;
+    current_snapshot_.age++;
+
+    if (IsCheckpointingEnabled() && IsEpochDepleted() && !ShouldPadBatch(is_end_of_batch)) {
+      // If the checkpointing is enabled, the epoch is depleted and the next
+      // batch will contain samples from the next epoch - increment the epoch number.
+      consumer_epoch_++;
+      SaveStateSnapshot(current_snapshot_);
+    }
+
+    return sample.ptr;
   }
 
   // return a tensor to the empty pile
@@ -210,6 +353,17 @@ class Loader {
   // used to populate the sample buffer for "shuffled"
   // reads.
   virtual void ReadSample(LoadTarget& tensor) = 0;
+
+  /**
+   * @brief Advances loader position in the data source by skipping a sample.
+   * @warning This generic implementation is very inefficient (it simply reads and discards
+   *          the sample) and should be overriden.
+  */
+  virtual void Skip() {
+    auto tensor_ptr = LoadTargetUniquePtr(new LoadTarget());
+    PrepareEmpty(*tensor_ptr);
+    ReadSample(*tensor_ptr);
+  }
 
   void PrepareMetadata() {
     if (!loading_flag_) {
@@ -264,6 +418,12 @@ class Loader {
   // Reset reader to the first sample
   virtual void Reset(bool wrap_to_shard) = 0;
 
+  // Method for restoring state from the checkpoint in subclasses
+  virtual void RestoreStateImpl(const LoaderStateSnapshot &state) {}
+
+  // Method for saving the state to the checkpoint in subclasses
+  virtual void SaveStateImpl(LoaderStateSnapshot &state) {}
+
   // Check if given reader moved to the next shard
   virtual inline bool IsNextShard(Index current_index) {
      return current_index >= Size() ||
@@ -282,6 +442,7 @@ class Loader {
 
   inline void IncreaseReadSampleCounter() {
     ++read_sample_counter_;
+    ++total_read_sample_counter_;
     if (IsNextShardRelative(read_sample_counter_ - 1, virtual_shard_id_)) {
       if (!stick_to_shard_) {
         ++virtual_shard_id_;
@@ -295,6 +456,13 @@ class Loader {
     }
   }
 
+  void SaveStateSnapshot(LoaderStateSnapshot &snapshot) const {
+    snapshot.rng = e_;
+    snapshot.current_epoch = consumer_epoch_;
+    snapshot.age = 0;
+  }
+
+
   bool ShouldSkipImage(const ImageCache::ImageKey& key) {
     if (!skip_cached_images_)
       return false;
@@ -302,7 +470,7 @@ class Loader {
     // Fetch image cache factory only the first time that we try to load an image
     // we don't do it in construction because we are not sure that the cache was
     // created since the order of operator creation is not guaranteed.
-    std::call_once(fetch_cache_, [this](){
+    dali::call_once(fetch_cache_, [this](){
       auto &image_cache_factory = ImageCacheFactory::Instance();
       if (image_cache_factory.IsInitialized(device_id_))
         cache_ = image_cache_factory.Get(device_id_);
@@ -310,7 +478,40 @@ class Loader {
     return cache_ && cache_->IsCached(key);
   }
 
-  std::vector<LoadTargetUniquePtr> sample_buffer_;
+  // Restores state from snapshot, ignoring its age.
+  void RestoreEpochState(const LoaderStateSnapshot &state) {
+    e_ = state.rng;
+    consumer_epoch_ = state.current_epoch;
+    if (!stick_to_shard_)
+      virtual_shard_id_ = (shard_id_ + state.current_epoch) % num_shards_;
+    total_read_sample_counter_ = consumer_epoch_ * Size();
+    read_sample_counter_ = 0;
+    returned_sample_counter_ = 0;
+    sample_buffer_.clear();
+    initial_buffer_filled_ = false;
+    shards_.clear();
+
+    RestoreStateImpl(state);
+
+    // Re-run reset
+    Reset(true);
+  }
+
+  /* Returns indices of samples present in the buffer but with no content read. */
+  std::unordered_set<Index> GetMissingSamples() {
+    std::unordered_set<Index> missing;
+    if (initial_buffer_filled_ && !last_sample_ptr_tmp.ptr) {
+      missing.insert(last_sample_ptr_tmp.idx);
+    }
+    for (auto &sample : sample_buffer_) {
+      if (!sample.ptr) {
+        missing.insert(sample.idx);
+      }
+    }
+    return missing;
+  }
+
+  std::vector<IndexedLoadTargetSharedPtr> sample_buffer_;
 
   std::vector<LoadTargetUniquePtr> empty_tensors_;
 
@@ -320,7 +521,6 @@ class Loader {
   const int initial_buffer_fill_;
   const int initial_empty_size_;
   const int tensor_init_bytes_;
-  bool initial_buffer_filled_ = false;
 
   // rng
   std::default_random_engine e_;
@@ -354,13 +554,11 @@ class Loader {
   bool loading_flag_;
 
   // Image cache
-  std::once_flag fetch_cache_;
+  dali::once_flag fetch_cache_;
   std::shared_ptr<ImageCache> cache_;
 
-  // Counts how many samples the reader have read already from this epoch
-  Index read_sample_counter_;
   // Counts how many samples the reader have read returned in the current epoch (including padding)
-  Index returned_sample_counter_;
+  Index returned_sample_counter_ = 0;
   // If true, the last batch will be padded with the last sample so that the number
   // of samples matches batch size
   bool pad_last_batch_;
@@ -368,10 +566,20 @@ class Loader {
   // target tensor, if false loader will try to mmap files if possible and wrap the content into
   // tensor without copy
   bool dont_use_mmap_;
+  // Flag that indicates if the checkpointing is enabled. Some behaviour may depend on it,
+  // for example the derived FileLabel changes the way global shuffling works for easier
+  // restoration of the state.
+  bool checkpointing_;
+  // The epoch number the next returned sample belongs to,
+  // tracked only if checkpointing is enabled
+  int consumer_epoch_ = 0;
+  // Batch size
+  int max_batch_size_;
   // Number of data shards that were actually read by the reader
+  // TODO(skarpinski) Make it private to prevent ReadSample from depending on it
   int virtual_shard_id_;
   // Keeps pointer to the last returned sample just in case it needs to be cloned
-  LoadTargetSharedPtr last_sample_ptr_tmp;
+  IndexedLoadTargetSharedPtr last_sample_ptr_tmp;
 
   struct ShardBoundaries {
     Index start;
@@ -379,6 +587,15 @@ class Loader {
   };
 
   std::deque<ShardBoundaries> shards_;
+
+ private:
+  bool initial_buffer_filled_ = false;
+  // Counts how many samples the reader have read already from this epoch
+  Index read_sample_counter_ = 0;
+  // Counts how many samples the reader has read already from all epochs
+  Index total_read_sample_counter_ = 0;
+
+  LoaderStateSnapshot current_snapshot_;
 };
 
 template<typename T, typename... Args>

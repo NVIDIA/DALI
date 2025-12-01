@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -27,6 +27,7 @@
 #include "dali/pipeline/data/tensor_list.h"
 #include "dali/pipeline/data/types.h"
 #include "dali/test/dali_test.h"
+#include "dali/core/static_switch.h"
 
 namespace dali {
 
@@ -37,19 +38,24 @@ inline TensorShape<> empty_tensor_shape() {
 template <typename Backend>
 class TensorTest : public DALITest {
  public:
-  TensorListShape<> GetRandShapeList() {
-    int num_tensor = this->RandInt(1, 128);
-    int dims = this->RandInt(2, 3);
-    TensorListShape<> shape(num_tensor, dims);
-    for (int i = 0; i < num_tensor; ++i) {
-      TensorShape<> tensor_shape;
-      tensor_shape.resize(dims);
-      for (int j = 0; j < dims; ++j) {
-        tensor_shape[j] = this->RandInt(1, 512);
+  TensorListShape<> GetRandShapeList(int64_t min_elements = 1_u64 << 16,
+                                     int64_t max_elements = 1_u64 << 28) {
+    for (;;) {
+      int num_tensor = this->RandInt(1, 128);
+      int dims = this->RandInt(2, 3);
+      TensorListShape<> shape(num_tensor, dims);
+      for (int i = 0; i < num_tensor; ++i) {
+        TensorShape<> tensor_shape;
+        tensor_shape.resize(dims);
+        for (int j = 0; j < dims; ++j) {
+          tensor_shape[j] = this->RandInt(1, 512);
+        }
+        shape.set_tensor_shape(i, tensor_shape);
       }
-      shape.set_tensor_shape(i, tensor_shape);
+      int64_t n = shape.num_elements();
+      if (n >= min_elements && n <= max_elements)
+        return shape;
     }
-    return shape;
   }
 
 
@@ -693,6 +699,31 @@ TYPED_TEST(TensorTest, TestTypeChange) {
       ASSERT_EQ(tensor.dim(i), shape[i]);
     }
     ASSERT_EQ(volume(shape) * TypeTable::GetTypeInfo(current_type).size(), tensor.nbytes());
+  }
+}
+
+TYPED_TEST(TensorTest, TestReinterpret) {
+  using Backend = TypeParam;
+  DALIDataType types[] = {
+      DALI_UINT8, DALI_INT8, DALI_UINT16, DALI_INT16, DALI_UINT32, DALI_INT32,
+      DALI_UINT64, DALI_INT64, DALI_FLOAT, DALI_FLOAT16, DALI_FLOAT64, DALI_BOOL,
+      DALI_INTERP_TYPE, DALI_DATA_TYPE, DALI_IMAGE_TYPE,
+  };
+  for (auto old_t : types) {
+    auto old_size = TypeTable::GetTypeInfo(old_t).size();
+    for (auto new_t : types) {
+      auto new_size = TypeTable::GetTypeInfo(new_t).size();
+      Tensor<Backend> t;
+      t.Resize(TensorShape<>{2, 3, 4}, old_t);
+      if (old_size == new_size) {
+        const void *p = t.raw_data();
+        EXPECT_NO_THROW(t.Reinterpret(new_t));
+        EXPECT_EQ(t.type(), new_t);
+        EXPECT_EQ(t.raw_data(), p);
+      } else {
+        EXPECT_THROW(t.Reinterpret(new_t), std::exception);
+      }
+    }
   }
 }
 

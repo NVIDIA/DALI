@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@
 #include "dali/test/test_tensors.h"
 #include "dali/core/cuda_event.h"
 #include "dali/kernels/transpose/transpose_test.h"
+#include "dali/core/cuda_rt_utils.h"
 
 namespace dali {
 namespace kernels {
@@ -118,6 +119,19 @@ TEST(TransposeGPU, GetTransposeMethod) {
   }
 }
 
+
+template <typename Function>
+inline int GetMaxBlockHeight(int preferred_size, const Function &f) {
+  int max_threads = MaxThreadsPerBlock(f);
+  assert(max_threads >= kTileSize);
+
+  int block_y = 16;  // start with 32x16 block and try smaller until found
+  while (kTileSize * block_y > max_threads)
+    block_y >>= 1;
+
+  return block_y;
+}
+
 TEST(TransposeTiled, AllPerm4DInnermost) {
   TensorShape<> shape = { 19, 57, 37, 53 };  // a bunch of primes, just to make it harder
   int size = volume(shape);
@@ -133,6 +147,8 @@ TEST(TransposeTiled, AllPerm4DInnermost) {
   int grid_size = std::max(1, size / 512);
   ASSERT_LT(grid_size * 512, size) << "Weak test error: Grid too large to test grid loop";
 
+  int block_y = GetMaxBlockHeight(16, TransposeTiledSingle<int>);
+
   for (auto &perm : testing::Permutations4) {
     if (perm[3] == 3)
       continue;  // innermost dim must be permuted
@@ -145,7 +161,7 @@ TEST(TransposeTiled, AllPerm4DInnermost) {
     memset(&desc, 0xCC, sizeof(desc));
     InitTiledTranspose(desc, shape, make_span(perm), out_gpu, in_gpu, grid_size);
     CUDA_CALL(cudaEventRecord(start));
-    TransposeTiledSingle<<<grid_size, dim3(32, 16), kTiledTransposeMaxSharedMem>>>(desc);
+    TransposeTiledSingle<<<grid_size, dim3(32, block_y), kTiledTransposeMaxSharedMem>>>(desc);
     CUDA_CALL(cudaEventRecord(end));
     copyD2H(out_cpu.data(), out_gpu.data(), size);
     testing::RefTranspose(ref.data(), in_cpu.data(), shape.data(), perm, 4);
@@ -174,13 +190,15 @@ TEST(TransposeTiled, BuildDescVectorized) {
 
   SmallVector<int, 6> perm = { 1, 2, 0, 3 };
 
+  int block_y = GetMaxBlockHeight(16, TransposeTiledSingle<int>);
+
   int grid_size = 1024;
   TiledTransposeDesc<int> desc;
   memset(&desc, 0xCC, sizeof(desc));
   InitTiledTranspose(desc, shape, make_span(perm), out_gpu, in_gpu, grid_size);
   EXPECT_EQ(desc.lanes, 4) << "Lanes not detected";
   EXPECT_EQ(desc.ndim, 3) << "Number of dimensions should have shrunk in favor of lanes";
-  TransposeTiledSingle<<<grid_size, dim3(32, 16), kTiledTransposeMaxSharedMem>>>(desc);
+  TransposeTiledSingle<<<grid_size, dim3(32, block_y), kTiledTransposeMaxSharedMem>>>(desc);
   copyD2H(out_cpu.data(), out_gpu.data(), size);
   testing::RefTranspose(ref.data(), in_cpu.data(), shape.data(), perm.data(), perm.size());
 
@@ -192,12 +210,14 @@ TEST(TransposeTiled, BuildDescVectorized) {
 TEST(TransposeTiled, BuildDescAndForceMisalignment) {
   TensorShape<> shape = { 57, 37, 52, 4 };  // a bunch of primes, just to make it harder
   int size = volume(shape);
-  vector<uint8> in_cpu(size + 4), out_cpu(size + 4);
-  vector<uint8> ref(size + 4);
+  vector<uint8_t> in_cpu(size + 4), out_cpu(size + 4);
+  vector<uint8_t> ref(size + 4);
 
-  DeviceBuffer<uint8> in_gpu, out_gpu;
+  DeviceBuffer<uint8_t> in_gpu, out_gpu;
   in_gpu.resize(size + 4);
   out_gpu.resize(size + 4);
+
+  int block_y = GetMaxBlockHeight(16, TransposeTiledSingle<uint8_t>);;
 
   for (uintptr_t offset = 0; offset < 4; offset++) {
     std::iota(in_cpu.begin(), in_cpu.end(), 0);
@@ -208,14 +228,14 @@ TEST(TransposeTiled, BuildDescAndForceMisalignment) {
     SmallVector<int, 6> perm = { 1, 2, 0, 3 };
 
     int grid_size = 1024;
-    TiledTransposeDesc<uint8> desc;
+    TiledTransposeDesc<uint8_t> desc;
     memset(&desc, 0xCC, sizeof(desc));
     InitTiledTranspose(desc, shape, make_span(perm), out_gpu.data() + offset,
                        in_gpu.data() + offset, grid_size);
     EXPECT_EQ(desc.lanes, 4) << "Lanes not detected";
     EXPECT_EQ(desc.ndim, 3) << "Number of dimensions should have shrunk in favor of lanes";
 
-    TransposeTiledSingle<<<grid_size, dim3(32, 16), kTiledTransposeMaxSharedMem>>>(desc);
+    TransposeTiledSingle<<<grid_size, dim3(32, block_y), kTiledTransposeMaxSharedMem>>>(desc);
     copyD2H(out_cpu.data(), out_gpu.data() + offset, size);
     testing::RefTranspose(ref.data(), in_cpu.data(), shape.data(), perm.data(), perm.size());
 
@@ -239,6 +259,8 @@ TEST(TransposeTiled, BuildDescVectorized16BitOpt) {
 
   SmallVector<int, 6> perm = { 1, 2, 0, 3 };
 
+  int block_y = GetMaxBlockHeight(16, TransposeTiledSingle<uint16_t>);
+
   int grid_size = 1024;
   TiledTransposeDesc<uint16_t> desc;
   memset(&desc, 0xCC, sizeof(desc));
@@ -246,7 +268,7 @@ TEST(TransposeTiled, BuildDescVectorized16BitOpt) {
   EXPECT_EQ(desc.lanes, 4) << "Lanes not detected";
   EXPECT_EQ(desc.ndim, 3) << "Number of dimensions should have shrunk in favor of lanes";
 
-  TransposeTiledSingle<<<grid_size, dim3(32, 16), kTiledTransposeMaxSharedMem>>>(desc);
+  TransposeTiledSingle<<<grid_size, dim3(32, block_y), kTiledTransposeMaxSharedMem>>>(desc);
   copyD2H(out_cpu.data(), out_gpu.data(), size);
   testing::RefTranspose(ref.data(), in_cpu.data(), shape.data(), perm.data(), perm.size());
 
@@ -258,12 +280,14 @@ TEST(TransposeTiled, BuildDescVectorized16BitOpt) {
 TEST(TransposeTiled, HighDimensionTest) {
   TensorShape<> shape = {3, 3, 5, 7, 23, 3, 37, 4 };  // a bunch of primes, just to make it harder
   int size = volume(shape);
-  vector<uint8> in_cpu(size), out_cpu(size);
-  vector<uint8> ref(size);
+  vector<uint8_t> in_cpu(size), out_cpu(size);
+  vector<uint8_t> ref(size);
 
-  DeviceBuffer<uint8> in_gpu, out_gpu;
+  DeviceBuffer<uint8_t> in_gpu, out_gpu;
   in_gpu.resize(size);
   out_gpu.resize(size);
+
+  int block_y = GetMaxBlockHeight(16, TransposeTiledSingle<uint8_t>);
 
   for (int size_of_last_dim = 1; size_of_last_dim <= 4; size_of_last_dim++) {
     shape = { 3, 3, 5, 7, 23, 3, 37, size_of_last_dim };
@@ -276,11 +300,11 @@ TEST(TransposeTiled, HighDimensionTest) {
     SmallVector<int, 8> perm = { 1, 0, 4, 2, 6, 3, 5, 7 };
 
     int grid_size = 1024;
-    TiledTransposeDesc<uint8> desc;
+    TiledTransposeDesc<uint8_t> desc;
     memset(&desc, 0xCC, sizeof(desc));
     InitTiledTranspose(desc, shape, make_span(perm), out_gpu.data(), in_gpu.data(), grid_size);
 
-    TransposeTiledSingle<<<grid_size, dim3(32, 16), kTiledTransposeMaxSharedMem>>>(desc);
+    TransposeTiledSingle<<<grid_size, dim3(32, block_y), kTiledTransposeMaxSharedMem>>>(desc);
     copyD2H(out_cpu.data(), out_gpu.data(), size);
     testing::RefTranspose(ref.data(), in_cpu.data(), shape.data(), perm.data(), perm.size());
 

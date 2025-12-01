@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@ import nvidia.dali.ops as ops
 import nvidia.dali.types as types
 from numpy.testing import assert_array_equal
 from test_utils import get_dali_extra_path
+from nose2.tools import params
 
 seed = 1549361629
 
@@ -30,19 +31,30 @@ def compare(tl1, tl2):
     tl2_cpu = tl2.as_cpu()
     assert len(tl1_cpu) == len(tl2_cpu)
     for i in range(0, len(tl1_cpu)):
-        assert_array_equal(tl1_cpu.at(i), tl2_cpu.at(i), "cached and non-cached images differ")
+        assert_array_equal(
+            tl1_cpu.at(i), tl2_cpu.at(i), f"cached and non-cached images differ for sample #{i}"
+        )
 
 
 class HybridDecoderPipeline(Pipeline):
-    def __init__(self, batch_size, num_threads, device_id, cache_size):
+    def __init__(self, batch_size, num_threads, device_id, cache_size, decoder_type):
         super(HybridDecoderPipeline, self).__init__(batch_size, num_threads, device_id, seed=seed)
         self.input = ops.readers.File(file_root=image_dir)
         policy = None
         if cache_size > 0:
             policy = "threshold"
-        self.decode = ops.decoders.Image(device='mixed', output_type=types.RGB, cache_debug=False,
-                                         cache_size=cache_size, cache_type=policy,
-                                         cache_batch_copy=True)
+        print("Decoder type:", decoder_type)
+        decoder_module = (
+            ops.experimental.decoders if "experimental" in decoder_type else ops.decoders
+        )
+        self.decode = decoder_module.Image(
+            device="mixed",
+            output_type=types.RGB,
+            cache_size=cache_size,
+            cache_type=policy,
+            cache_debug=False,
+            cache_batch_copy=True,
+        )
 
     def define_graph(self):
         jpegs, labels = self.input(name="Reader")
@@ -50,11 +62,10 @@ class HybridDecoderPipeline(Pipeline):
         return (images, labels)
 
 
-def test_nvjpeg_cached():
-    ref_pipe = HybridDecoderPipeline(batch_size, 1, 0, 0)
-    ref_pipe.build()
-    cached_pipe = HybridDecoderPipeline(batch_size, 1, 0, 100)
-    cached_pipe.build()
+@params(("legacy",), ("experimental",))
+def test_nvjpeg_cached(decoder_type):
+    ref_pipe = HybridDecoderPipeline(batch_size, 1, 0, 0, decoder_type)
+    cached_pipe = HybridDecoderPipeline(batch_size, 1, 0, 100, decoder_type)
     epoch_size = ref_pipe.epoch_size("Reader")
 
     for i in range(0, (2 * epoch_size + batch_size - 1) // batch_size):
@@ -71,8 +82,9 @@ def test_nvjpeg_cached():
 
 
 def main():
-    test_nvjpeg_cached()
+    test_nvjpeg_cached("legacy")
+    test_nvjpeg_cached("experimental")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

@@ -19,8 +19,8 @@
 #include "dali/test/tensor_test_utils.h"
 #include "dali/test/test_tensors.h"
 #include "dali/kernels/transpose/transpose_test.h"
-#include "dali/kernels/scratch.h"
 #include "dali/core/cuda_event.h"
+#include "dali/kernels/dynamic_scratchpad.h"
 
 namespace dali {
 namespace kernels {
@@ -35,7 +35,6 @@ TEST(TransposeGPU, Test4DAll) {
   TestTensorList<int> in, out, ref;
 
   TransposeGPU transpose;
-  ScratchpadAllocator sa;
 
 #ifdef NDEBUG
   int max_extent = 70;
@@ -70,15 +69,15 @@ TEST(TransposeGPU, Test4DAll) {
 
     KernelContext ctx;
     ctx.gpu.stream = 0;
+
     auto req = transpose.Setup(ctx, shape, make_span(perm), sizeof(int));
     auto out_shape = req.output_shapes[0];
     ASSERT_EQ(out_shape.num_elements(), shape.num_elements());
     out.reshape(out_shape);
     ref.reshape(out_shape);
 
-    sa.Reserve(req.scratch_sizes);
-    auto scratch = sa.GetScratchpad();
-    ctx.scratchpad = &scratch;
+    DynamicScratchpad dyn_scratchpad(AccessOrder(ctx.gpu.stream));
+    ctx.scratchpad = &dyn_scratchpad;
 
     auto in_gpu  = in.gpu();
     auto out_gpu = out.gpu();
@@ -117,7 +116,6 @@ void RunPerfTest(RNG &rng, const TensorListShape<> &shape, span<const int> perm)
 
   TestTensorList<T> in, out, ref;
   TransposeGPU transpose;
-  ScratchpadAllocator sa;
 
   in.reshape(shape);
   auto in_cpu = in.cpu();
@@ -131,15 +129,13 @@ void RunPerfTest(RNG &rng, const TensorListShape<> &shape, span<const int> perm)
   out.reshape(out_shape);
   ref.reshape(out_shape);
 
-  sa.Reserve(req.scratch_sizes);
-  auto scratch = sa.GetScratchpad();
-  ctx.scratchpad = &scratch;
+  DynamicScratchpad dyn_scratchpad(AccessOrder(ctx.gpu.stream));
+  ctx.scratchpad = &dyn_scratchpad;
 
   auto in_gpu  = in.gpu();
   auto out_gpu = out.gpu();
 
   transpose.Run<T>(ctx, out_gpu, in_gpu);  // warm-up
-  scratch = sa.GetScratchpad();
   CUDA_CALL(cudaMemset(out_gpu.data[0], 0xff, shape.num_elements() * sizeof(T)));
   CUDA_CALL(cudaEventRecord(start, ctx.gpu.stream));
   transpose.Run<T>(ctx, out_gpu, in_gpu);
@@ -203,7 +199,7 @@ TEST(TransposeGPU, PerfDeinterleave) {
 
   std::cerr << "Permuting 1-byte data; permutation 2 0 1\ninput shape = \n" << shape << "\n";
 
-  RunPerfTest<uint8>(rng, shape, make_span(perm));
+  RunPerfTest<uint8_t>(rng, shape, make_span(perm));
 }
 
 
@@ -226,7 +222,7 @@ TEST(TransposeGPU, PerfInterleave) {
 
   std::cerr << "Permuting 1-byte data; permutation 1 2 0\ninput shape = \n" << shape << "\n";
 
-  RunPerfTest<uint8>(rng, shape, make_span(perm));
+  RunPerfTest<uint8_t>(rng, shape, make_span(perm));
 }
 
 

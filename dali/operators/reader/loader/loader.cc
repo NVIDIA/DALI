@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,15 +18,16 @@
 namespace dali {
 
 DALI_SCHEMA(LoaderBase)
+  .AddRandomSeedArg()
   .AddOptionalArg("random_shuffle",
       R"code(Determines whether to randomly shuffle data.
 
-A prefetch buffer with a size equal to ``initial_fill`` is used to read data sequentially,
+A prefetch buffer with a size equal to `initial_fill` is used to read data sequentially,
 and then samples are selected randomly to form a batch.)code", false)
   .AddOptionalArg("initial_fill",
       R"code(Size of the buffer that is used for shuffling.
 
-If ``random_shuffle`` is False, this parameter is ignored.)code", 1024)
+If `random_shuffle` is False, this parameter is ignored.)code", 1024)
   .AddOptionalArg("num_shards",
       R"code(Partitions the data into the specified number of parts (shards).
 

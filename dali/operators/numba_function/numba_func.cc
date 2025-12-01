@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -48,6 +48,20 @@ If no setup function provided, the output shape and data type will be the same a
 .. note::
     This operator is experimental and its API might change without notice.
 
+.. warning::
+    When the pipeline has conditional execution enabled, additional steps must be taken to
+    prevent the `run_fn` and `setup_fn` functions from being rewritten by AutoGraph.
+    There are two ways to achieve this:
+
+        1. Define the functions at global scope (i.e. outside of ``pipeline_def`` scope).
+
+        2. If functions are a result of another "factory" function, then the factory function
+           must be defined outside pipeline definition function and decorated with
+           :meth:`@do_not_convert <nvidia.dali.pipeline.do_not_convert>`.
+
+    More details can be found in :meth:`@do_not_convert <nvidia.dali.pipeline.do_not_convert>`
+    documentation.
+
 **Example 1:**
 
 The following example shows a simple setup function which permutes the order of dimensions in the shape.
@@ -74,7 +88,7 @@ Also lets provide run function:
             for j in range(in0.shape[1]):
                 out0[j, i] = in0[i, j]
 
-The run function can work per-sample or per-batch, depending on the ``batch_processing`` argument.
+The run function can work per-sample or per-batch, depending on the `batch_processing` argument.
 
 A run function working per-batch may look like this:
 
@@ -118,7 +132,7 @@ This function is invoked once per batch. Also this function must work in Numba `
   .AddOptionalArg("batch_processing", R"code(Determines whether the function is invoked once per batch or
 separately for each sample in the batch.
 
-When ``batch_processing`` is set to ``True``, the function processes the whole batch. It is necessary if the
+When `batch_processing` is set to ``True``, the function processes the whole batch. It is necessary if the
 function has to perform cross-sample operations and may be beneficial if significant part of the work can
 be reused. For other use cases, specifying False and using per-sample processing function allows the operator
 to process samples in parallel.)code", false);

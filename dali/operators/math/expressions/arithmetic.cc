@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -41,7 +41,7 @@ void ArithmeticGenericOp<CPUBackend>::RunImpl(Workspace &ws) {
   int batch_size = ws.GetInputBatchSize(0);
   for (size_t task_idx = 0; task_idx < tile_range_.size(); task_idx++) {
     pool.AddWork(
-        [=](int thread_idx) {
+        [&, task_idx](int thread_idx) {
           auto range = tile_range_[task_idx];
           // Go over "tiles"
           for (int extent_idx = range.begin; extent_idx < range.end; extent_idx++) {
@@ -87,9 +87,9 @@ Examples::
   add(&0 mul(&1 $0:int8))
   add(&0 rand()))code",
             DALIDataType::DALI_STRING, false)
-    .AddOptionalArg("integer_constants", "", std::vector<int32_t>{}, true)
+    .AddOptionalArg<std::vector<int32_t>>("integer_constants", "", nullptr, true)
     .NumInput(1, 64)  // Some arbitrary number that needs to be validated in operator
-    .AddOptionalArg("real_constants", "", std::vector<float>{}, true)
+    .AddOptionalArg<std::vector<float>>("real_constants", "", nullptr, true)
     .NumOutput(1)
     .MakeDocHidden();
 

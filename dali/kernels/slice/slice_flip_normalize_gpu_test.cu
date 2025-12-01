@@ -1,4 +1,4 @@
-// Copyright (c) 2022-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,7 +18,6 @@
 #include "dali/core/cuda_stream_pool.h"
 #include "dali/core/cuda_event.h"
 #include "dali/kernels/dynamic_scratchpad.h"
-#include "dali/kernels/scratch.h"
 #include "dali/kernels/slice/slice_cpu.h"
 #include "dali/kernels/slice/slice_flip_normalize_gpu.h"
 #include "dali/kernels/slice/slice_flip_normalize_permute_pad_gpu.h"
@@ -44,9 +43,9 @@ class SliceFlipNormalizeGPUTest : public ::testing::Test {
   void RunKernel(TestTensorList<Out, ndim> &output, TestTensorList<In, ndim> &input,
                  const typename Kernel::Args &args) {
     KernelContext ctx;
-    DynamicScratchpad scratchpad;
+    DynamicScratchpad scratchpad(cudaStreamLegacy);
     ctx.scratchpad = &scratchpad;
-    ctx.gpu.stream = 0;
+    ctx.gpu.stream = cudaStreamLegacy;
 
     Kernel kernel;
 
@@ -79,8 +78,8 @@ class SliceFlipNormalizeGPUTest : public ::testing::Test {
   }
 
   void LoadTensor(Tensor<CPUBackend> &tensor, const std::string& path_npy) {
-    auto stream = FileStream::Open(path_npy, false, false);
-    tensor = ::dali::numpy::ReadTensor(stream.get());
+    auto stream = FileStream::Open(path_npy);
+    tensor = ::dali::numpy::ReadTensor(stream.get(), true);
   }
 
   template <typename T, int ndim>
@@ -264,7 +263,7 @@ TEST(SliceFlipNormalizeGPUTest, Benchmark) {
 
     KernelContext ctx;
     ctx.gpu.stream = stream;
-    DynamicScratchpad scratch;
+    DynamicScratchpad scratch(stream);
     ctx.scratchpad = &scratch;
 
     TestTensorList<OutType, 3> out;
@@ -340,7 +339,7 @@ TEST(SliceFlipNormalizeGPUTest, BenchmarkOld) {
 
     KernelContext ctx;
     ctx.gpu.stream = stream;
-    DynamicScratchpad scratch;
+    DynamicScratchpad scratch(stream);
     ctx.scratchpad = &scratch;
 
     TestTensorList<OutType, 3> out;

@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,7 +16,7 @@
 #include <utility>
 #include "dali/core/static_switch.h"
 #include "dali/pipeline/operator/operator.h"
-#include "dali/pipeline/util/batch_rng.h"
+#include "dali/operators/random/rng_base_cpu.h"
 #include "dali/operators/segmentation/utils/searchable_rle_mask.h"
 #include "dali/kernels/common/utils.h"
 #include "dali/core/boundary.h"
@@ -29,21 +29,21 @@ namespace dali {
 DALI_SCHEMA(segmentation__RandomMaskPixel)
     .DocStr(R"(Selects random pixel coordinates in a mask, sampled from a uniform distribution.
 
-Based on run-time argument ``foreground``, it returns either only foreground pixels or any pixels.
+Based on run-time argument `foreground`, it returns either only foreground pixels or any pixels.
 
-Pixels are classificed as foreground either when their value exceeds a given ``threshold`` or when
-it's equal to a specific ``value``.
+Pixels are classified as foreground either when their value exceeds a given `threshold` or when
+it's equal to a specific `value`.
 )")
     .AddOptionalArg<int>("value",
       R"code(All pixels equal to this value are interpreted as foreground.
 
-This argument is mutually exclusive with ``threshold`` argument and is meant to be used only
+This argument is mutually exclusive with `threshold` argument and is meant to be used only
 with integer inputs.
 )code", nullptr, true)
     .AddOptionalArg<float>("threshold",
       R"code(All pixels with a value above this threshold are interpreted as foreground.
 
-This argument is mutually exclusive with ``value`` argument.
+This argument is mutually exclusive with `value` argument.
 )code", 0.0f, true)
     .AddOptionalArg("foreground",
       R"code(If different than 0, the pixel position is sampled uniformly from all foreground pixels.
@@ -51,12 +51,13 @@ This argument is mutually exclusive with ``value`` argument.
 If 0, the pixel position is sampled uniformly from all available pixels.)code",
       0, true)
     .NumInput(1)
-    .NumOutput(1);
+    .NumOutput(1)
+    .AddRandomSeedArg()
+    .AddRandomStateArg();
 
-class RandomMaskPixelCPU : public Operator<CPUBackend> {
+class RandomMaskPixelCPU : public rng::OperatorWithRng<CPUBackend> {
  public:
   explicit RandomMaskPixelCPU(const OpSpec &spec);
-  bool CanInferOutputs() const override { return true; }
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override;
   void RunImpl(Workspace &ws) override;
 
@@ -64,7 +65,6 @@ class RandomMaskPixelCPU : public Operator<CPUBackend> {
   template <typename T>
   void RunImplTyped(Workspace &ws);
 
-  BatchRNG<std::mt19937> rngs_;
   std::vector<SearchableRLEMask> rle_;
 
   std::vector<int> foreground_;
@@ -77,8 +77,7 @@ class RandomMaskPixelCPU : public Operator<CPUBackend> {
 };
 
 RandomMaskPixelCPU::RandomMaskPixelCPU(const OpSpec &spec)
-    : Operator<CPUBackend>(spec),
-      rngs_(spec.GetArgument<int64_t>("seed"), spec.GetArgument<int64_t>("max_batch_size")),
+    : rng::OperatorWithRng<CPUBackend>(spec),
       has_value_(spec.ArgumentDefined("value")) {
   if (has_value_) {
     DALI_ENFORCE(!spec.ArgumentDefined("threshold"),
@@ -125,7 +124,7 @@ void RandomMaskPixelCPU::RunImplTyped(Workspace &ws) {
   for (int sample_idx = 0; sample_idx < nsamples; sample_idx++) {
     thread_pool.AddWork(
       [&, sample_idx](int thread_id) {
-        auto &rng = rngs_[sample_idx];
+        auto &rng = rng_[sample_idx];
         auto mask = masks_view[sample_idx];
         auto pixel_pos = pixel_pos_view[sample_idx];
         const auto &mask_sh = mask.shape;

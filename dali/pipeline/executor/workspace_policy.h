@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,46 +20,19 @@
 
 #include "dali/core/common.h"
 #include "dali/core/error_handling.h"
+#include "dali/pipeline/executor/op_graph_storage.h"
 #include "dali/pipeline/executor/queue_metadata.h"
-#include "dali/pipeline/graph/op_graph.h"
-#include "dali/pipeline/graph/op_graph_storage.h"
-#include "dali/pipeline/graph/op_graph_verifier.h"
+#include "dali/pipeline/executor/op_graph_verifier.h"
+#include "dali/pipeline/executor/lowered_graph.h"
 #include "dali/pipeline/workspace/workspace.h"
 #include "dali/pipeline/workspace/workspace_data_factory.h"
 
 namespace dali {
 
-inline std::ostream &operator<<(std::ostream &os, OpType op_type) {
-  switch (op_type) {
-  case OpType::CPU:
-    return os << "CPU";
-  case OpType::GPU:
-    return os << "GPU";
-  case OpType::MIXED:
-    return os << "MIXED";
-  default:
-    return os << static_cast<int>(op_type);
-  }
-}
-
-inline std::ostream &operator<<(std::ostream &os, StorageDevice device) {
-  switch (device) {
-  case StorageDevice::CPU:
-    return os << "CPU";
-  case StorageDevice::GPU:
-    return os << "GPU";
-  default:
-    return os << static_cast<int>(device);
-  }
-}
-
-// We instantiate the operation of adding the input only for parent op_type and device
-// that are specifically allowed
 // We always use queue_idx = 0 if give queue has only one element -> it is not queued
 template <OpType op_type, OpType producer_type, StorageDevice device>
-enable_if_t<allows_op_input<op_type>(producer_type) && allows_tensor_input<op_type>(device)>
-add_input(Workspace &ws, const tensor_data_store_queue_t &storage,
-          int queue_idx = 0) {
+void add_input(Workspace &ws, const tensor_data_store_queue_t &storage,
+               int queue_idx = 0) {
   auto &queue = get_queue<producer_type, device>(storage);
   DALI_ENFORCE(!queue.IsBuffered() || queue_idx < static_cast<int>(queue.size()),
                "Backing Tensor store queue has not enough elements.");
@@ -67,10 +40,6 @@ add_input(Workspace &ws, const tensor_data_store_queue_t &storage,
   ws.AddInput(tensor);
 }
 
-// If parent op_type or device is not allowed this is a no-op
-template <OpType op_type, OpType producer_type, StorageDevice device>
-enable_if_t<!allows_op_input<op_type>(producer_type) || !allows_tensor_input<op_type>(device)>
-add_input(Workspace &, const tensor_data_store_queue_t &, int = 0) {}
 
 template <OpType op_type, StorageDevice device>
 void add_output(Workspace &ws, const tensor_data_store_queue_t &storage,
@@ -266,61 +235,6 @@ Workspace CreateWorkspace(
 //   template <OpType op_type>
 //   ws_t<op_type> GetWorkspace(QueueIdxs idxs, const OpGraph &graph, const OpNode &node);
 // };
-
-/**
- * @brief Just In Time Workspace Policy
- *
- * When requested, returns a copy of a new workspaces, filling it on the fly with
- * existing inputs, outputs, streams and events.
- *
- * Intended to be used with SeparateQueuePolicy
- */
-template <typename QueuePolicy>
-struct JIT_WS_Policy {
-  template <OpType op_type>
-  using ws_t = Workspace;
-
-  void InitializeWorkspaceStore(const OpGraph &graph, int device_id,
-                                const std::vector<tensor_data_store_queue_t> &tensor_to_store_queue,
-                                ThreadPool *thread_pool, cudaStream_t mixed_op_stream,
-                                cudaStream_t gpu_op_stream, const MixedOpEventMap &mixed_op_events,
-                                const QueueSizes &idxs) {
-    device_id_ = device_id;
-    tensor_to_store_queue_ = tensor_to_store_queue;
-    thread_pool_ = thread_pool;
-    mixed_op_stream_ = mixed_op_stream;
-    gpu_op_stream_ = gpu_op_stream;
-    mixed_op_events_ = mixed_op_events;
-    queue_sizes_ = idxs;
-  }
-
-  template <OpType op_type>
-  ws_t<op_type> GetWorkspace(QueueIdxs idxs, const OpGraph &graph, OpPartitionId partition_idx) {
-    return CreateWorkspace<op_type>(graph, graph.Node(op_type, partition_idx), device_id_,
-                                    tensor_to_store_queue_, thread_pool_, mixed_op_stream_,
-                                    gpu_op_stream_, mixed_op_events_, idxs);
-  }
-
-  template <OpType op_type>
-  ws_t<op_type> GetWorkspace(QueueIdxs idxs, const OpGraph &graph, const OpNode &node) {
-    DALI_ENFORCE(node.op_type == op_type,
-                 "Wrong variant of method selected. OpType does not match.");
-    return CreateWorkspace<op_type>(graph, node, device_id_, tensor_to_store_queue_, thread_pool_,
-                                    mixed_op_stream_, gpu_op_stream_, mixed_op_events_, idxs);
-  }
-
- private:
-  // TODO(klecki): should consider if storing copy of backing storage is good idea
-  int device_id_;
-  std::vector<tensor_data_store_queue_t> tensor_to_store_queue_;
-  ThreadPool *thread_pool_;
-  cudaStream_t mixed_op_stream_, gpu_op_stream_;
-  MixedOpEventMap mixed_op_events_;
-  QueueSizes queue_sizes_;
-
-  static_assert(std::is_same<QueuePolicy, SeparateQueuePolicy>::value,
-                "Incompatible QueuePolicy used with this WorkspacePolicy");
-};
 
 inline int SequentialIndex(QueueIdxs idxs, StageQueues depth, OpType last_stage) {
   constexpr static OpType order[] = {OpType::CPU, OpType::MIXED, OpType::GPU};

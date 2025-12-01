@@ -27,8 +27,7 @@ except Exception:  # python 2
     from urllib2 import urlopen
     from urlparse import urlparse
 
-from paddle import fluid
-
+import paddle
 
 def _extract_tar(filename, dest):
     print("extracting to {}".format(dest))
@@ -44,6 +43,7 @@ def _extract_tar(filename, dest):
 
 def _download_weight(url):
     weight_dir = os.path.expanduser("~/.cache/paddle/weights")
+    os.makedirs(weight_dir, exist_ok=True)
     filename = os.path.basename(urlparse(url).path)
     base, ext = os.path.splitext(filename)
     assert ext in ['.tar', '.pdparams'], "Unsupported weight format"
@@ -92,9 +92,9 @@ def load_weights(exe, prog, url):
     weight_path = _download_weight(url)
 
     if os.path.isdir(weight_path):
-        fluid.io.load_vars(
+        paddle.static.io.load_vars(
             exe, weight_path, prog,
             predicate=lambda v: os.path.exists(
                 os.path.join(weight_path, v.name)))
     else:
-        fluid.io.load_params(exe, '', prog, filename=weight_path)
+        paddle.distributed.io.load_persistables(exe, '', prog, filename=weight_path)

@@ -20,7 +20,7 @@ test_body() {
         done
     fi
     ${python_invoke_test} -m '(?:^|[\b_\./-])[Tt]est.*pytorch*' test_fw_iterators_detection.py
-    ${python_invoke_test} -m '(?:^|[\b_\./-])[Tt]est.*pytorch*' test_fw_iterators.py
+    ${python_new_invoke_test} -A 'pytorch' test_fw_iterators
 }
 
 pushd ../..

@@ -1,4 +1,4 @@
-# Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2021-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,8 +20,7 @@ from nvidia.dali.types import SampleInfo
 from functools import wraps
 import numpy as np
 import os
-from nose.tools import with_setup
-from nose_utils import raises
+from nose_utils import raises, with_setup
 
 from test_pool_utils import capture_processes, setup_function, teardown_function
 
@@ -55,7 +54,6 @@ class IteratorCb:
 
 
 class MockGroup:
-
     def __init__(self, source_desc, batch, prefetch_queue_depth, bytes_per_sample_hint):
         self.source_desc = source_desc
         self.batch = batch
@@ -63,15 +61,17 @@ class MockGroup:
         self.bytes_per_sample_hint = bytes_per_sample_hint
 
     @classmethod
-    def from_callback(cls, callback, batch=False, prefetch_queue_depth=1,
-                      bytes_per_sample_hint=None):
+    def from_callback(
+        cls, callback, batch=False, prefetch_queue_depth=1, bytes_per_sample_hint=None
+    ):
         _, source_desc = get_callback_from_source(callback, cycle=None)
         return cls(source_desc, batch, prefetch_queue_depth, bytes_per_sample_hint)
 
 
 def create_pool(groups, keep_alive_queue_size=1, num_workers=1, start_method="fork"):
     pool = WorkerPool.from_groups(
-        groups, keep_alive_queue_size, start_method=start_method, num_workers=num_workers)
+        groups, keep_alive_queue_size, start_method=start_method, num_workers=num_workers
+    )
     try:
         capture_processes(pool)
         return closing(pool)
@@ -98,13 +98,13 @@ start_methods = ["fork", "spawn"]
 #
 # We do this to not repeat the pattern of:
 #
-# def check_somthing(start_method):
+# def check_something(start_method):
 #    ...
 #
 # @with_setup(setup_function, teardown_function)
 # def test_something():
 #   for start_method in start_methods:
-#      yield check_somthing, start_method
+#      yield check_something, start_method
 
 
 def check_pool(fn):
@@ -114,6 +114,7 @@ def check_pool(fn):
             setup_function()
             yield fn, start_method
             teardown_function()
+
     return wrapper
 
 
@@ -121,11 +122,13 @@ def check_pool(fn):
 # 1 callback, 1 worker tests
 # ################################################################################################ #
 
+
 @check_pool
 def test_pool_one_task(start_method):
     groups = [MockGroup.from_callback(simple_callback)]
-    with create_pool(groups, keep_alive_queue_size=1, num_workers=1,
-                     start_method=start_method) as pool:
+    with create_pool(
+        groups, keep_alive_queue_size=1, num_workers=1, start_method=start_method
+    ) as pool:
         pids = get_pids(pool)
         pid = pids[0]
         tasks = [(SampleInfo(0, 0, 0, 0),)]
@@ -139,8 +142,9 @@ def test_pool_one_task(start_method):
 @check_pool
 def test_pool_multi_task(start_method):
     groups = [MockGroup.from_callback(simple_callback)]
-    with create_pool(groups, keep_alive_queue_size=1, num_workers=1,
-                     start_method=start_method) as pool:
+    with create_pool(
+        groups, keep_alive_queue_size=1, num_workers=1, start_method=start_method
+    ) as pool:
         pids = get_pids(pool)
         pid = pids[0]
         tasks = [(SampleInfo(i, i, 0, 0),) for i in range(10)]
@@ -156,8 +160,9 @@ def test_pool_multi_task(start_method):
 def test_pool_no_overwrite_batch(start_method):
     groups = [MockGroup.from_callback(simple_callback, prefetch_queue_depth=0)]
     for depth in [1, 2, 4, 8]:
-        with create_pool(groups, keep_alive_queue_size=depth, num_workers=1,
-                         start_method=start_method) as pool:
+        with create_pool(
+            groups, keep_alive_queue_size=depth, num_workers=1, start_method=start_method
+        ) as pool:
             pids = get_pids(pool)
             pid = pids[0]
             work_batches = [TaskArgs.make_sample(SampleRange(i, i + 1, i, 0)) for i in range(depth)]
@@ -179,11 +184,13 @@ def test_pool_no_overwrite_batch(start_method):
 # 1 callback, multiple workers tests
 # ################################################################################################ #
 
+
 @check_pool
 def test_pool_work_split_multiple_tasks(start_method):
     callbacks = [MockGroup.from_callback(simple_callback)]
-    with create_pool(callbacks, keep_alive_queue_size=1, num_workers=2,
-                     start_method=start_method) as pool:
+    with create_pool(
+        callbacks, keep_alive_queue_size=1, num_workers=2, start_method=start_method
+    ) as pool:
         num_tasks = 16
         pids = get_pids(pool)
         assert len(pids) == 2
@@ -194,6 +201,7 @@ def test_pool_work_split_multiple_tasks(start_method):
         for task, sample in zip(tasks, batch):
             np.testing.assert_array_equal(answer(-1, *task)[1:], sample[1:])
 
+
 # ################################################################################################ #
 # multiple callbacks
 # ################################################################################################ #
@@ -203,9 +211,11 @@ def test_pool_work_split_multiple_tasks(start_method):
 def test_pool_iterator_dedicated_worker(start_method):
     groups = [
         MockGroup.from_callback(simple_callback, prefetch_queue_depth=3),
-        MockGroup.from_callback(IteratorCb(), prefetch_queue_depth=3, batch=True)]
-    with create_pool(groups, keep_alive_queue_size=1, num_workers=4,
-                     start_method=start_method) as pool:
+        MockGroup.from_callback(IteratorCb(), prefetch_queue_depth=3, batch=True),
+    ]
+    with create_pool(
+        groups, keep_alive_queue_size=1, num_workers=4, start_method=start_method
+    ) as pool:
         pids = get_pids(pool)
         assert len(pids) == 4
         tasks_list = []
@@ -213,8 +223,9 @@ def test_pool_iterator_dedicated_worker(start_method):
         for i in range(4):
             tasks = [(SampleInfo(samples_count + j, j, i, 0),) for j in range(i + 1)]
             tasks_list.append(tasks)
-            work_batch = TaskArgs.make_sample(SampleRange(
-                samples_count, samples_count + i + 1, i, 0))
+            work_batch = TaskArgs.make_sample(
+                SampleRange(samples_count, samples_count + i + 1, i, 0)
+            )
             samples_count += len(tasks)
             pool.schedule_batch(context_i=0, work_batch=work_batch)
             pool.schedule_batch(context_i=1, work_batch=TaskArgs.make_batch((i,)))
@@ -237,8 +248,9 @@ def test_pool_iterator_dedicated_worker(start_method):
 def test_pool_many_ctxs(start_method):
     callbacks = [simple_callback, another_callback]
     groups = [MockGroup.from_callback(cb) for cb in callbacks]
-    with create_pool(groups, keep_alive_queue_size=1, num_workers=1,
-                     start_method=start_method) as pool:
+    with create_pool(
+        groups, keep_alive_queue_size=1, num_workers=1, start_method=start_method
+    ) as pool:
         pids = get_pids(pool)
         pid = pids[0]
         tasks = [(SampleInfo(0, 0, 0, 0),)]
@@ -257,8 +269,9 @@ def test_pool_many_ctxs(start_method):
 def test_pool_context_sync(start_method):
     callbacks = [simple_callback, another_callback]
     groups = [MockGroup.from_callback(cb, prefetch_queue_depth=3) for cb in callbacks]
-    with create_pool(groups, keep_alive_queue_size=1, num_workers=4,
-                     start_method=start_method) as pool:
+    with create_pool(
+        groups, keep_alive_queue_size=1, num_workers=4, start_method=start_method
+    ) as pool:
         capture_processes(pool)
         for i in range(4):
             tasks = [(SampleInfo(j, 0, 0, 0),) for j in range(10 * (i + 1))]
@@ -290,9 +303,11 @@ def test_pool_context_sync(start_method):
 def _test_multiple_stateful_sources_single_worker(num_workers):
     groups = [
         MockGroup.from_callback(IteratorCb(), batch=True),
-        MockGroup.from_callback(IteratorCb(), batch=True)]
-    with create_pool(groups, keep_alive_queue_size=1, num_workers=num_workers,
-                     start_method="spawn") as pool:
+        MockGroup.from_callback(IteratorCb(), batch=True),
+    ]
+    with create_pool(
+        groups, keep_alive_queue_size=1, num_workers=num_workers, start_method="spawn"
+    ) as pool:
         pids = get_pids(pool)
         assert len(pids) == min(num_workers, len(groups))
         pool.schedule_batch(context_i=0, work_batch=TaskArgs.make_batch((0,)))
@@ -325,14 +340,17 @@ def invalid_callback(i):
     return "42"
 
 
-@raises(Exception,
-        glob="Unsupported callback return type. Expected NumPy array, PyTorch or "
-             "MXNet cpu tensors, DALI TensorCPU, or list or tuple of them representing sample. Got")
+@raises(
+    Exception,
+    glob="Unsupported callback return type. Expected NumPy array, PyTorch or "
+    "MXNet cpu tensors, DALI TensorCPU, or list or tuple of them representing sample. Got",
+)
 @with_setup(setup_function, teardown_function)
 def test_pool_invalid_return():
     callbacks = [MockGroup.from_callback(invalid_callback)]
-    with create_pool(callbacks, keep_alive_queue_size=1, num_workers=1,
-                     start_method="spawn") as pool:
+    with create_pool(
+        callbacks, keep_alive_queue_size=1, num_workers=1, start_method="spawn"
+    ) as pool:
         _ = get_pids(pool)
         work_batch = TaskArgs.make_sample(SampleRange(0, 1, 0, 0))
         pool.schedule_batch(context_i=0, work_batch=work_batch)

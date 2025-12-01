@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -43,7 +43,7 @@ DALI_SCHEMA(Dummy2)
   });
 
 TEST(OpSchemaTest, OutputFNTest) {
-  auto spec = OpSpec("Dummy2").AddInput("in", "cpu");
+  auto spec = OpSpec("Dummy2").AddInput("in", StorageDevice::CPU);
   auto &schema = SchemaRegistry::GetSchema("Dummy2");
 
   ASSERT_EQ(schema.CalculateOutputs(spec), 2);
@@ -80,9 +80,9 @@ TEST(OpSchemaTest, OptionalArgumentDefaultValue) {
   ASSERT_TRUE(schema.HasArgumentDefaultValue("foo"));
 
   ASSERT_FALSE(schema.HasArgumentDefaultValue("no_default"));
-  ASSERT_THROW(schema.GetDefaultValueForArgument<int>("no_default"), std::runtime_error);
+  ASSERT_THROW(schema.GetDefaultValueForArgument<int>("no_default"), std::invalid_argument);
 
-  ASSERT_THROW(schema.HasArgumentDefaultValue("don't have this one"), std::runtime_error);
+  ASSERT_THROW(schema.HasArgumentDefaultValue("don't have this one"), invalid_key);
 }
 
 DALI_SCHEMA(Dummy4)
@@ -109,8 +109,19 @@ TEST(OpSchemaTest, OptionalArgumentDefaultValueInheritance) {
   ASSERT_FALSE(schema.HasArgumentDefaultValue("no_default"));
   ASSERT_FALSE(schema.HasArgumentDefaultValue("no_default2"));
 
-  ASSERT_THROW(schema.GetDefaultValueForArgument<int>("no_default"), std::runtime_error);
-  ASSERT_THROW(schema.GetDefaultValueForArgument<bool>("no_default2"), std::runtime_error);
+  ASSERT_THROW(schema.GetDefaultValueForArgument<int>("no_default"), std::invalid_argument);
+  ASSERT_THROW(schema.GetDefaultValueForArgument<bool>("no_default2"), std::invalid_argument);
+}
+
+DALI_SCHEMA(Circular1)
+  .AddParent("Circular2");
+
+DALI_SCHEMA(Circular2)
+  .AddParent("Circular1");
+
+TEST(OpSchemaTest, CircularInheritance) {
+  EXPECT_THROW(SchemaRegistry::GetSchema("Circular1").HasArgument("foo"), std::logic_error);
+  EXPECT_THROW(SchemaRegistry::GetSchema("Circular2").HasArgument("foo"), std::logic_error);
 }
 
 DALI_SCHEMA(Dummy5)
@@ -143,8 +154,8 @@ TEST(OpSchemaTest, OptionalArgumentDefaultValueMultipleInheritance) {
   ASSERT_FALSE(schema.HasArgumentDefaultValue("no_default"));
   ASSERT_FALSE(schema.HasArgumentDefaultValue("no_default2"));
 
-  ASSERT_THROW(schema.GetDefaultValueForArgument<int>("no_default"), std::runtime_error);
-  ASSERT_THROW(schema.GetDefaultValueForArgument<bool>("no_default2"), std::runtime_error);
+  ASSERT_THROW(schema.GetDefaultValueForArgument<int>("no_default"), std::invalid_argument);
+  ASSERT_THROW(schema.GetDefaultValueForArgument<bool>("no_default2"), std::invalid_argument);
 }
 
 DALI_SCHEMA(Dummy6)
@@ -183,9 +194,9 @@ TEST(OpSchemaTest, OptionalArgumentDefaultValueMultipleParent) {
   ASSERT_FALSE(schema.HasArgumentDefaultValue("no_default2"));
   ASSERT_FALSE(schema.HasArgumentDefaultValue("no_default3"));
 
-  ASSERT_THROW(schema.GetDefaultValueForArgument<int>("no_default"), std::runtime_error);
-  ASSERT_THROW(schema.GetDefaultValueForArgument<bool>("no_default2"), std::runtime_error);
-  ASSERT_THROW(schema.GetDefaultValueForArgument<float>("no_default3"), std::runtime_error);
+  ASSERT_THROW(schema.GetDefaultValueForArgument<int>("no_default"), std::invalid_argument);
+  ASSERT_THROW(schema.GetDefaultValueForArgument<bool>("no_default2"), std::invalid_argument);
+  ASSERT_THROW(schema.GetDefaultValueForArgument<float>("no_default3"), std::invalid_argument);
 }
 
 DALI_SCHEMA(Dummy8)
@@ -198,10 +209,10 @@ DALI_SCHEMA(Dummy8)
 
 TEST(OpSchemaTest, AdditionalOutputFNTest) {
   auto spec = OpSpec("Dummy8")
-              .AddInput("in", "cpu")
+              .AddInput("in", StorageDevice::CPU)
               .AddArg("extra_out", 3);
   auto spec2 = OpSpec("Dummy8")
-              .AddInput("in", "cpu")
+              .AddInput("in", StorageDevice::CPU)
               .AddArg("extra_out", 0);
   auto &schema = SchemaRegistry::GetSchema("Dummy8");
 
@@ -210,6 +221,45 @@ TEST(OpSchemaTest, AdditionalOutputFNTest) {
 
   ASSERT_EQ(schema.CalculateOutputs(spec2), 1);
   ASSERT_EQ(schema.CalculateAdditionalOutputs(spec2), 0);
+}
+
+DALI_SCHEMA(DummyWithHiddenArg)
+  .NumInput(1).NumOutput(1)
+  .AddOptionalArg("dummy", "dummy", 1.85f)
+  .AddOptionalArg<float>("_dummy", "hidden argument", 2.f);
+
+DALI_SCHEMA(DummyWithHiddenArg2)
+  .NumInput(1).NumOutput(1)
+  .AddOptionalTypeArg("_dtype", "hidden dtype arg", DALI_INT16)
+  .AddParent("DummyWithHiddenArg");
+
+TEST(OpSchemaTest, OptionalHiddenArg) {
+  auto &schema = SchemaRegistry::GetSchema("DummyWithHiddenArg");
+
+  ASSERT_TRUE(schema.HasOptionalArgument("dummy"));
+  ASSERT_TRUE(schema.HasOptionalArgument("_dummy"));
+
+  ASSERT_EQ(schema.GetDefaultValueForArgument<float>("dummy"), 1.85f);
+  ASSERT_EQ(schema.GetDefaultValueForArgument<float>("_dummy"), 2.f);
+
+  auto names = schema.GetArgumentNames();
+  ASSERT_NE(std::find(names.begin(), names.end(), "dummy"), names.end());
+  ASSERT_EQ(std::find(names.begin(), names.end(), "_dummy"), names.end());
+
+  auto &schema2 = SchemaRegistry::GetSchema("DummyWithHiddenArg2");
+
+  ASSERT_TRUE(schema2.HasOptionalArgument("dummy"));
+  ASSERT_TRUE(schema2.HasOptionalArgument("_dummy"));
+  ASSERT_TRUE(schema2.HasOptionalArgument("_dtype"));
+
+  ASSERT_EQ(schema2.GetDefaultValueForArgument<float>("dummy"), 1.85f);
+  ASSERT_EQ(schema2.GetDefaultValueForArgument<float>("_dummy"), 2.f);
+  ASSERT_EQ(schema2.GetDefaultValueForArgument<DALIDataType>("_dtype"), DALI_INT16);
+
+  auto names2 = schema2.GetArgumentNames();
+  ASSERT_NE(std::find(names2.begin(), names2.end(), "dummy"), names2.end());
+  ASSERT_EQ(std::find(names2.begin(), names2.end(), "_dummy"), names2.end());
+  ASSERT_EQ(std::find(names2.begin(), names2.end(), "_dtype"), names2.end());
 }
 
 }  // namespace dali

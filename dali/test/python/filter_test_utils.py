@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import numpy as np
-from scipy.ndimage import convolve as sp_convolve
 
 border2scipy_border = {
     "101": "mirror",
@@ -29,15 +28,18 @@ def make_slice(start, end):
 
 
 def scipy_baseline_plane(sample, kernel, anchor, border, fill_value, mode):
+    from scipy.ndimage import convolve as sp_convolve
+
     ndim = len(sample.shape)
     assert len(kernel.shape) == ndim, f"{kernel.shape}, {ndim}"
     in_dtype = sample.dtype
 
     if isinstance(anchor, int):
-        anchor = (anchor, ) * ndim
+        anchor = (anchor,) * ndim
     assert len(anchor) == ndim, f"{anchor}, {ndim}"
-    anchor = tuple(filt_ext // 2 if anch == -1 else anch
-                   for anch, filt_ext in zip(anchor, kernel.shape))
+    anchor = tuple(
+        filt_ext // 2 if anch == -1 else anch for anch, filt_ext in zip(anchor, kernel.shape)
+    )
     for anch, filt_ext in zip(anchor, kernel.shape):
         assert 0 <= anch < filt_ext
     # there are two ways (and none exact) to center the even filter
@@ -59,14 +61,16 @@ def scipy_baseline_plane(sample, kernel, anchor, border, fill_value, mode):
 
     if mode == "valid":
         slices = tuple(
-            make_slice(anch, anch - filt_ext + 1) for anch, filt_ext in zip(anchor, kernel.shape))
+            make_slice(anch, anch - filt_ext + 1) for anch, filt_ext in zip(anchor, kernel.shape)
+        )
         out = out[slices]
 
     return out.astype(in_dtype)
 
 
-def filter_baseline(sample, kernel, anchor, border, fill_value=None, mode="same",
-                    has_channels=False):
+def filter_baseline(
+    sample, kernel, anchor, border, fill_value=None, mode="same", has_channels=False
+):
     assert mode in ("same", "valid"), f"{mode}"
 
     def baseline_call(plane):
@@ -94,8 +98,9 @@ def filter_baseline_layout(layout, sample, kernel, anchor, border, fill_value=No
     has_channels = layout[ndim - 1] == "C"
 
     def baseline_call(plane):
-        return filter_baseline(plane, kernel, anchor, border, fill_value, mode,
-                               has_channels=has_channels)
+        return filter_baseline(
+            plane, kernel, anchor, border, fill_value, mode, has_channels=has_channels
+        )
 
     def get_seq_ndim():
         for i, c in enumerate(layout):

@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -24,53 +24,68 @@ class ShmMessageDesc(Structure):
     It describes placement (shared memory chunk, offset etc.) of actual data to be read
     by the receiver of the `ShmMessageDesc` instance.
     ----------
-    `worker_id` : int
-        Intger identifying a process that put the message, number from [0, num_workers) range
+    worker_id : int
+        Integer identifying a process that put the message, number from [0, num_workers) range
         for workers or -1 in case of a main process.
-    `shm_chunk_id` : int
+    shm_chunk_id : int
         Integer identifying shm chunk that contains pickled data to be read by the receiver
-    `shm_capacity` : unsigned long long int
+    shm_capacity : unsigned long long int
         Size of the `shm_chunk_id` chunk, receiver should resize the mapping if the chunk
         was resized by the writer.
-    `offset` : unsigned long long int
+    offset : unsigned long long int
         Offset in the shm chunk where the serialized message starts
-    `num_bytes` : unsigned long long int
+    num_bytes : unsigned long long int
         Size in bytes of the serialized message
     """
-    _fields = (("worker_id", "i"),
-               ("shm_chunk_id", "i"),
-               ("shm_capacity", "Q"),
-               ("offset", "Q"), ("num_bytes", "Q"))
+
+    _fields = (
+        ("worker_id", "i"),
+        ("shm_chunk_id", "i"),
+        ("shm_capacity", "Q"),
+        ("offset", "Q"),
+        ("num_bytes", "Q"),
+    )
 
 
 class WorkerArgs:
     """
     Pack of parameters passed to the worker process on initialization.
     ----------
-    `worker_id` : Ordinal of the worker in the workers pool
-    `start_method` : Python's multiprocessing start method - `spawn` or `fork`
-    `source_descs` : Dictionary with External Source's SourceDescription instances as values.
+    worker_id : Ordinal of the worker in the workers pool
+    start_method : Python's multiprocessing start method - `spawn` or `fork`
+    source_descs : Dictionary with External Source's SourceDescription instances as values.
         Keys are ordinals corresponding to the order in which callbacks were passed to the pool.
         If `callback_pickler` is not None, actual callback in SourceDescription is replaced
         with result of its serialization.
-    `shm_chunks` : list of BufShmChunk instances that describes all the shared memory chunks
+    shm_chunks : list of BufShmChunk instances that describes all the shared memory chunks
         available to the worker (they are identified by ids unique inside the pool).
-    `general_task_queue` : Optional[ShmQueue]
+    general_task_queue : Optional[ShmQueue]
         Queue with tasks for sources without dedicated worker
         or None if all sources have dedicated worker
-    `dedicated_task_queue`: Optional[ShmQueue]
+    dedicated_task_queue : Optional[ShmQueue]
         Queue with tasks for sources that are run solely in the given worker.
         If `dedicated_task_queue` is None, `general_task_queue` must be provided.
-    `result_queue`: ShmQueue
+    result_queue : ShmQueue
         Queue to report any task done, no matter if dedicated or general.
-    `setup_socket` : Optional[socket]
+    setup_socket : Optional[socket]
         Python wrapper around Unix socket used to pass file descriptors identifying
         shared memory chunk to child process. None if `start_method='fork'`
     `callback_pickler`
         Optional custom pickler that was applied to serialize callbacks in `source_descs`"""
 
-    def __init__(self, *, worker_id, start_method, source_descs, shm_chunks, general_task_queue,
-                 dedicated_task_queue, result_queue, setup_socket, callback_pickler):
+    def __init__(
+        self,
+        *,
+        worker_id,
+        start_method,
+        source_descs,
+        shm_chunks,
+        general_task_queue,
+        dedicated_task_queue,
+        result_queue,
+        setup_socket,
+        callback_pickler,
+    ):
         self.worker_id = worker_id
         self.start_method = start_method
         self.source_descs = source_descs
@@ -91,8 +106,9 @@ class SampleRange:
     description size on the batch size.
     """
 
-    def __init__(self, sample_start, sample_end, iteration, epoch_idx, *,
-                 slice_start=0, slice_end=None):
+    def __init__(
+        self, sample_start, sample_end, iteration, epoch_idx, *, slice_start=0, slice_end=None
+    ):
         self.sample_start = sample_start  # idx in epoch of first sample in batch
         self.sample_end = sample_end  # idx in epoch of one past last sample in batch
         self.iteration = iteration  # index of a batch within epoch
@@ -122,10 +138,13 @@ class SampleRange:
         slice_start = min(slice_start, self.slice_end)
         slice_end = max(min(slice_end, self.slice_end), slice_start)
         return SampleRange(
-            self.sample_start, self.sample_end,
-            self.iteration, self.epoch_idx,
+            self.sample_start,
+            self.sample_end,
+            self.iteration,
+            self.epoch_idx,
             slice_start=slice_start,
-            slice_end=slice_end)
+            slice_end=slice_end,
+        )
 
     def __getitem__(self, idx):
         if isinstance(idx, slice):
@@ -137,17 +156,14 @@ class SampleRange:
         if idx_in_batch < self.slice_start or idx_in_batch >= self.slice_end:
             raise IndexError("Index {} out of range for slice of length {}".format(idx, len(self)))
         return SampleInfo(
-            self.sample_start + idx_in_batch,
-            idx_in_batch,
-            self.iteration,
-            self.epoch_idx)
+            self.sample_start + idx_in_batch, idx_in_batch, self.iteration, self.epoch_idx
+        )
 
     def __len__(self):
         return self.slice_end - self.slice_start
 
 
 class TaskArgs:
-
     @classmethod
     def make_sample(cls, sample_range):
         if len(sample_range) <= 0:
@@ -173,15 +189,15 @@ class ScheduledTask:
 
     Parameters
     ----------
-    `context_i` : int
+    context_i : int
         Index identifying the callback in the order of parallel callbacks passed to pool.
-    `scheduled_i` : int
+    scheduled_i : int
         Ordinal of the batch that tasks list corresponds to.
-    `epoch_start` : int
-        The value is increased every time the corresponding context is resetted,
+    epoch_start : int
+        The value is increased every time the corresponding context is reset,
         this way worker can know if the new epoch started, and if it can restart
         iterator that raised StopIteration but is set to cycle=raise.
-    `task` : TaskArgs
+    task : TaskArgs
         Describes the minibatch that should be computed by the worker. If the given source
         is run in batch mode this simply wraps parameters that external source would pass to
         the source in non-parallel mode. In sample mode, it is (part of) the list
@@ -201,24 +217,31 @@ class CompletedTask:
 
     Parameters
     ----------
-    `worker_id` : int
+    worker_id : int
         Id of the worker that completed the task.
-    `context_i` : int
+    context_i : int
         Index identifying the callback in the order of parallel callbacks passed to pool.
-    `scheduled_i` : int
+    scheduled_i : int
         Ordinal of the batch that tasks corresponds to.
-    `minibatch_i` : int
+    minibatch_i : int
         Computation of batch might be split into number of minibatches, this is the number
         that identifies which consecutive part of the batch it is.
-    `batch_meta` :  nvidia.dali._multiproc.shared_batch.SharedBatchMeta
+    batch_meta :  nvidia.dali._multiproc.shared_batch.SharedBatchMeta
         Serialized result of the task.
     `exception`
         Exception if the task failed.
     """
 
     def __init__(
-            self, worker_id, context_i, scheduled_i, minibatch_i, batch_meta=None,
-            exception=None, traceback_str=None):
+        self,
+        worker_id,
+        context_i,
+        scheduled_i,
+        minibatch_i,
+        batch_meta=None,
+        exception=None,
+        traceback_str=None,
+    ):
         self.worker_id = worker_id
         self.context_i = context_i
         self.scheduled_i = scheduled_i
@@ -229,13 +252,24 @@ class CompletedTask:
 
     @classmethod
     def done(cls, worker_id, processed, batch_meta):
-        return cls(worker_id, processed.context_i, processed.scheduled_i, processed.minibatch_i,
-                   batch_meta=batch_meta)
+        return cls(
+            worker_id,
+            processed.context_i,
+            processed.scheduled_i,
+            processed.minibatch_i,
+            batch_meta=batch_meta,
+        )
 
     @classmethod
     def failed(cls, worker_id, processed):
-        return cls(worker_id, processed.context_i, processed.scheduled_i, processed.minibatch_i,
-                   exception=processed.exception, traceback_str=processed.traceback_str)
+        return cls(
+            worker_id,
+            processed.context_i,
+            processed.scheduled_i,
+            processed.minibatch_i,
+            exception=processed.exception,
+            traceback_str=processed.traceback_str,
+        )
 
     def is_failed(self):
         return self.exception is not None

@@ -25,6 +25,7 @@
 #include "dali/kernels/reduce/reductions.h"
 #include "dali/operators/generic/reduce/reduce.h"
 #include "dali/operators/util/axes_utils.h"
+#include "dali/pipeline/operator/checkpointing/stateless_operator.h"
 #include "dali/pipeline/operator/operator.h"
 
 
@@ -35,16 +36,15 @@ namespace dali {
 template <
   template <typename T, typename R, typename S> class ReductionType,
   typename Backend>
-class ReduceWithMeanInput : public Operator<Backend>, AxesHelper {
+class ReduceWithMeanInput : public StatelessOperator<Backend>, AxesHelper {
  public:
   explicit inline ReduceWithMeanInput(const OpSpec &spec) :
-    Operator<Backend>(spec),
+    StatelessOperator<Backend>(spec),
     AxesHelper(spec),
     keep_dims_(spec.GetArgument<bool>("keep_dims")),
     ddof_(spec.GetArgument<int>("ddof")) {
   }
 
-  bool CanInferOutputs() const override { return true; }
 
   inline ~ReduceWithMeanInput() override = default;
 
@@ -82,6 +82,9 @@ class ReduceWithMeanInput : public Operator<Backend>, AxesHelper {
       REDUCE_WITH_MEAN_INPUT_TYPES,
       (this->template RunTyped<float, InputType>(ws);),
       (DALI_FAIL(make_string("Unsupported input type: ", input_type));))
+
+    auto& out = ws.Output<Backend>(0);
+    reduce_util::PropagateLayout(out, in, make_span(axes_), keep_dims_);
   }
 
   template <typename OutputType, typename InputType>

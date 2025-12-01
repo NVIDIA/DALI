@@ -42,7 +42,7 @@ namespace dali {
     intern_->set_is_vector(val);
   }
 
-  void DaliProtoPriv::add_ints(const int64 &val) {
+  void DaliProtoPriv::add_ints(const int64_t &val) {
     intern_->add_ints(val);
   }
 
@@ -75,12 +75,12 @@ namespace dali {
     return intern_->is_vector();
   }
 
-  std::vector<int64> DaliProtoPriv::ints(void) const {
-    std::vector<int64> tmp(intern_->ints().begin(), intern_->ints().end());
+  std::vector<int64_t> DaliProtoPriv::ints(void) const {
+    std::vector<int64_t> tmp(intern_->ints().begin(), intern_->ints().end());
     return tmp;
   }
 
-  int64 DaliProtoPriv::ints(int index) const {
+  int64_t DaliProtoPriv::ints(int index) const {
     return intern_->ints(index);
   }
 

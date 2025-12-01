@@ -35,7 +35,7 @@ CUDADRIVER loadCudaLibrary() {
     ret = dlopen(__CudaLibName, RTLD_NOW);
 
     if (!ret) {
-      fprintf(stderr, "dlopen libcuda.so failed!. Please install GPU dirver");
+      fprintf(stderr, "dlopen libcuda.so failed. Please install GPU driver.");
     }
   }
   return ret;

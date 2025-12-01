@@ -1,0 +1,38 @@
+{
+   "extra_include":[
+      "<cuda.h>",
+      "\"dali/operators/video/dynlink_nvcuvid/cuviddec.h\"",
+      "\"dali/operators/video/dynlink_nvcuvid/nvcuvid.h\""
+   ],
+   "return_type":"CUresult",
+   "calling_conv":"CUDAAPI",
+   "not_found_error":"CUDA_ERROR_SHARED_OBJECT_SYMBOL_NOT_FOUND",
+   "functions": {
+      "cuvidCreateVideoSource": {},
+      "cuvidCreateVideoSourceW": {},
+      "cuvidSetVideoSourceState": {},
+      "cuvidGetSourceVideoFormat": {},
+      "cuvidGetSourceAudioFormat": {},
+      "cuvidCreateVideoParser": {},
+      "cuvidParseVideoData": {},
+      "cuvidDestroyVideoParser": {},
+      "cuvidGetDecoderCaps": {},
+      "cuvidCreateDecoder": {},
+      "cuvidDestroyDecoder": {},
+      "cuvidDecodePicture": {},
+      "cuvidGetDecodeStatus": {},
+      "cuvidReconfigureDecoder": {},
+      "cuvidMapVideoFrame": {},
+      "cuvidUnmapVideoFrame": {},
+      "cuvidMapVideoFrame64": {},
+      "cuvidUnmapVideoFrame64": {},
+      "cuvidCtxLockCreate": {},
+      "cuvidCtxLockDestroy": {},
+      "cuvidCtxLock": {},
+      "cuvidCtxUnlock": {},
+      "cuvidGetVideoSourceState": {
+         "return_type":"cudaVideoState",
+         "not_found_error":"cudaVideoState_Error"
+      }
+   }
+}

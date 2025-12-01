@@ -1,4 +1,4 @@
-// Copyright (c) 2018-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2018-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,7 +16,7 @@
 #include <memory>
 
 #include "dali/operators/reader/parser/sequence_parser.h"
-#include "dali/image/image_factory.h"
+#include "dali/operators/decoder/image/image_factory.h"
 
 namespace dali {
 
@@ -35,7 +35,7 @@ void SequenceParser::Parse(const TensorSequence& data, SampleWorkspace* ws) {
         data.tensors[0].data<uint8_t>(), data.tensors[0].size(), image_type_);
       img->Decode();
     } catch (std::exception &e) {
-      DALI_FAIL(e.what() + ". File: " + file_name);
+      DALI_FAIL(e.what(), ". File: ", file_name);
     }
     const auto decoded = img->GetImage();
 
@@ -63,7 +63,7 @@ void SequenceParser::Parse(const TensorSequence& data, SampleWorkspace* ws) {
                                       data.tensors[frame].size(), image_type_);
       img->Decode();
     } catch (std::exception &e) {
-      DALI_FAIL(e.what() + ". File: " + file_name);
+      DALI_FAIL(e.what(), ". File: ", file_name);
     }
     img->GetImage(view_tensor.mutable_data<uint8_t>());
     DALI_ENFORCE(view_tensor.shares_data(),

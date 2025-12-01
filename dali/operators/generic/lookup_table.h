@@ -32,6 +32,7 @@
 #include "dali/core/tensor_shape.h"
 #include "dali/kernels/common/block_setup.h"
 #include "dali/kernels/type_tag.h"
+#include "dali/pipeline/operator/checkpointing/stateless_operator.h"
 #include "dali/pipeline/operator/operator.h"
 
 namespace dali {
@@ -51,13 +52,13 @@ struct LutSampleDesc {
 };
 
 template <typename Backend>
-class LookupTable : public Operator<Backend> {
+class LookupTable : public StatelessOperator<Backend> {
  public:
   static constexpr int kLookupTableSize = 0x10000;
   static constexpr int kMaxKey = kLookupTableSize - 1;
 
   explicit inline LookupTable(const OpSpec &spec)
-      : Operator<Backend>(spec),
+      : StatelessOperator<Backend>(spec),
         input_type_(DALI_NO_TYPE),
         output_type_(spec.GetArgument<DALIDataType>("dtype")),
         default_value_f_(spec.GetArgument<float>("default_value")) {
@@ -97,10 +98,6 @@ class LookupTable : public Operator<Backend> {
   DISABLE_COPY_MOVE_ASSIGN(LookupTable);
 
  protected:
-  bool CanInferOutputs() const override {
-    return true;
-  }
-
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     if (std::is_same<Backend, GPUBackend>::value && !lut_.shape().num_elements()) {
       TYPE_SWITCH(output_type_, dali::type2id, OutputType, LUT_OUT_TYPES, (

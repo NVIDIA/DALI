@@ -21,15 +21,16 @@
 #include "dali/kernels/kernel_manager.h"
 #include "dali/kernels/signal/fft/fft_cpu.h"
 #include "dali/pipeline/operator/common.h"
+#include "dali/pipeline/operator/checkpointing/stateless_operator.h"
 #include "dali/pipeline/operator/operator.h"
 
 namespace dali {
 
 template <typename Backend>
-class PowerSpectrum : public Operator<Backend> {
+class PowerSpectrum : public StatelessOperator<Backend> {
  public:
   explicit PowerSpectrum(const OpSpec &spec)
-      : Operator<Backend>(spec) {
+      : StatelessOperator<Backend>(spec) {
     fft_args_.nfft = spec.HasArgument("nfft") ? spec.GetArgument<int>("nfft") : -1;
     fft_args_.transform_axis = spec.GetArgument<int>("axis");
     int power = spec.GetArgument<int>("power");
@@ -47,7 +48,6 @@ class PowerSpectrum : public Operator<Backend> {
   }
 
  protected:
-  bool CanInferOutputs() const override { return true; }
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override;
   void RunImpl(Workspace &ws) override;
 

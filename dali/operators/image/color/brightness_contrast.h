@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@
 #include "dali/core/static_switch.h"
 #include "dali/kernels/kernel_manager.h"
 #include "dali/pipeline/data/views.h"
+#include "dali/pipeline/operator/checkpointing/stateless_operator.h"
 #include "dali/pipeline/operator/common.h"
 #include "dali/pipeline/operator/operator.h"
 #include "dali/pipeline/operator/sequence_operator.h"
@@ -54,29 +55,24 @@ const float kDefaultBrightnessShift = 0;
 const float kDefaultContrast = 1.f;
 
 template <typename Backend>
-class BrightnessContrastOp : public SequenceOperator<Backend> {
+class BrightnessContrastOp : public SequenceOperator<Backend, StatelessOperator> {
  public:
+  using Base = SequenceOperator<Backend, StatelessOperator>;
   ~BrightnessContrastOp() override = default;
 
   DISABLE_COPY_MOVE_ASSIGN(BrightnessContrastOp);
 
  protected:
   explicit BrightnessContrastOp(const OpSpec &spec)
-      : SequenceOperator<Backend>(spec),
-        output_type_(DALI_NO_TYPE),
-        input_type_(DALI_NO_TYPE) {
+      : Base(spec), output_type_(DALI_NO_TYPE), input_type_(DALI_NO_TYPE) {
     spec.TryGetArgument(output_type_arg_, "dtype");
-  }
-
-  bool CanInferOutputs() const override {
-    return true;
   }
 
   // The operator needs 4 dim path for DHWC data, so use it to avoid inflating
   // the number of samples and parameters unnecessarily for FHWC when there are no
   // per-frame parameters provided.
   bool ShouldExpand(const Workspace &ws) override {
-    return SequenceOperator<Backend>::ShouldExpand(ws) && this->HasPerFrameArgInputs(ws);
+    return Base::ShouldExpand(ws) && this->HasPerFrameArgInputs(ws);
   }
 
   template <typename OutputType, typename InputType>
@@ -163,7 +159,7 @@ class BrightnessContrastCpu : public BrightnessContrastOp<CPUBackend> {
    * "overloaded virtual function `dali::Operator<dali::CPUBackend>::RunImpl` is only partially
    * overridden in class `dali::brightness_contrast::BrightnessContrast<dali::CPUBackend>`"
    */
-  using SequenceOperator<CPUBackend>::RunImpl;
+  using Base::RunImpl;
 
   ~BrightnessContrastCpu() override = default;
 

@@ -1,4 +1,4 @@
-// Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,13 +20,15 @@
 
 #include "dali/core/access_order.h"
 #include "dali/core/common.h"
+#include "dali/pipeline/operator/checkpointing/stateless_operator.h"
 #include "dali/pipeline/operator/operator.h"
+
 namespace dali {
 
 template <typename Backend>
-class Merge : public Operator<Backend> {
+class Merge : public StatelessOperator<Backend> {
  public:
-  explicit Merge(const OpSpec &spec) : Operator<Backend>(spec) {
+  explicit Merge(const OpSpec &spec) : StatelessOperator<Backend>(spec) {
     DALI_ENFORCE(spec.HasTensorArgument("predicate"),
                  "The 'predicate' argument is required to be present as argument input.");
     RegisterTestsDiagnostics();
@@ -34,7 +36,7 @@ class Merge : public Operator<Backend> {
 
   ~Merge() override = default;
 
-  bool CanInferOutputs() const override {
+  bool HasContiguousOutputs() const override {
     return false;
   }
 

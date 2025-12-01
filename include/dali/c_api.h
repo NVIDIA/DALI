@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@
 #include <cuda_runtime_api.h>
 #include <inttypes.h>
 #include "dali/core/api_helper.h"
+#include "dali/core/dali_data_type.h"
 
 // Trick to bypass gcc4.9 old ABI name mangling used by TF
 #ifdef __cplusplus
@@ -43,22 +44,29 @@ typedef enum {
   DALI_BACKEND_MIXED = 2
 } dali_backend_t;
 
-typedef enum {
-  DALI_NO_TYPE  = -1,
-  DALI_UINT8    =  0,
-  DALI_UINT16   =  1,
-  DALI_UINT32   =  2,
-  DALI_UINT64   =  3,
-  DALI_INT8     =  4,
-  DALI_INT16    =  5,
-  DALI_INT32    =  6,
-  DALI_INT64    =  7,
-  DALI_FLOAT16  =  8,
-  DALI_FLOAT    =  9,
-  DALI_FLOAT64  =  10,
-  DALI_BOOL     =  11,
-} dali_data_type_t;
+typedef daliDataType_t dali_data_type_t;
 
+typedef enum {
+  DALI_EXEC_IS_PIPELINED    = 1,
+  DALI_EXEC_IS_ASYNC        = 2,
+  DALI_EXEC_IS_SEPARATED    = 4,
+  DALI_EXEC_IS_DYNAMIC      = 8,
+
+  DALI_EXEC_SIMPLE          = 0,
+  DALI_EXEC_ASYNC_PIPELINED = DALI_EXEC_IS_PIPELINED | DALI_EXEC_IS_ASYNC,
+  DALI_EXEC_DYNAMIC         = DALI_EXEC_ASYNC_PIPELINED | DALI_EXEC_IS_DYNAMIC,
+} dali_exec_flags_t;
+
+#ifdef __cplusplus
+constexpr dali_exec_flags_t operator|(dali_exec_flags_t x, dali_exec_flags_t y) {
+    return dali_exec_flags_t(static_cast<int>(x) | static_cast<int>(y));
+}
+
+constexpr dali_exec_flags_t operator&(dali_exec_flags_t x, dali_exec_flags_t y) {
+    return dali_exec_flags_t(static_cast<int>(x) & static_cast<int>(y));
+}
+
+#endif
 
 /*
  * Need to keep that in sync with ReaderMeta from operator.h
@@ -84,6 +92,21 @@ typedef struct {
   size_t *reserved;            // reserved size of the operator output, user need to free the memory
   size_t *max_reserved;        // the biggest reserved memory size for the tensor in the batch
 } daliExecutorMetadata;
+
+
+typedef struct daliExternalContextField {
+  char *data;
+  size_t size;
+} daliExternalContextField;
+
+/*
+ * Need to keep that in sync with ExternalContextCheckpoint from checkpoint.h
+ */
+typedef struct {
+  daliExternalContextField pipeline_data;
+  daliExternalContextField iterator_data;
+} daliExternalContextCheckpoint;
+
 
 /**
  * @brief DALI initialization
@@ -140,6 +163,31 @@ DLL_PUBLIC void
 daliCreatePipeline2(daliPipelineHandle *pipe_handle, const char *serialized_pipeline, int length,
                     int max_batch_size, int num_threads, int device_id, int pipelined_execution,
                     int async_execution, int separated_execution, int prefetch_queue_depth,
+                    int cpu_prefetch_queue_depth, int gpu_prefetch_queue_depth,
+                    int enable_memory_stats);
+
+/**
+ * Create a DALI Pipeline, using a pipeline that has been serialized beforehand.
+ *
+ * @param pipe_handle Pipeline handle.
+ * @param serialized_pipeline Serialized pipeline.
+ * @param length Length of the serialized pipeline string.
+ * @param max_batch_size Maximum batch size.
+ * @param num_threads Number of CPU threads which this pipeline uses.
+ * @param device_id ID of the GPU device which this pipeline uses.
+ * @param pipelined_execution If != 0, this pipeline will execute in Pipeline mode.
+ * @param exec_flags Executor congiguration flags
+ * @param cpu_prefetch_queue_depth Depth of the prefetching queue in the CPU stage.
+ *                                 If `separated_execution == 0`, this value is ignored
+ * @param gpu_prefetch_queue_depth Depth of the prefetching queue in the GPU stage.
+ *                                 If `separated_execution == 0`, this value is ignored
+ * @param enable_memory_stats Enable memory stats.
+ */
+DLL_PUBLIC void
+daliCreatePipeline3(daliPipelineHandle *pipe_handle, const char *serialized_pipeline, int length,
+                    int max_batch_size, int num_threads, int device_id,
+                    dali_exec_flags_t exec_flags,
+                    int prefetch_queue_depth,
                     int cpu_prefetch_queue_depth, int gpu_prefetch_queue_depth,
                     int enable_memory_stats);
 
@@ -229,6 +277,15 @@ DLL_PUBLIC void
 daliSetExternalInputDataId(daliPipelineHandle *pipe_handle, const char *operator_name,
                            const char *data_id);
 
+/**
+ * @brief Returns how many times daliSetExternalInput on a given input before calling daliPrefetch
+ *
+ * @param pipe_handle The handle to the pipeline
+ * @param input_name The name of the input in question
+ * @return The number of calls to be made
+ */
+DLL_PUBLIC int
+daliInputFeedCount(daliPipelineHandle *pipe_handle, const char *input_name);
 
 /** @} */
 
@@ -399,12 +456,26 @@ DLL_PUBLIC int daliGetExternalInputNdim(daliPipelineHandle *pipe_handle, const c
 DLL_PUBLIC void daliRun(daliPipelineHandle *pipe_handle);
 
 /**
+ * @brief Schedule initial runs to fill the buffers.
+ *
+ * This function should be called once, after a pipeline is created and external inputs
+ * (if any) are populated the required number of times.
+ * For subsequent runs, daliRun should be used.
+ */
+DLL_PUBLIC void daliPrefetch(daliPipelineHandle *pipe_handle);
+
+/**
  * @brief Schedule first runs to fill buffers for Executor with UniformQueue policy.
+ * @param queue_depth Ignored; must be equal to the pipeline's queue depth
+ * @deprecated Use `daliPrefetch` instead
  */
 DLL_PUBLIC void daliPrefetchUniform(daliPipelineHandle *pipe_handle, int queue_depth);
 
 /**
  * @brief Schedule first runs to fill buffers for Executor with SeparateQueue policy.
+ * @param cpu_queue_depth Ignored; must be equal to the pipeline's CPU queue depth
+ * @param gpu_queue_depth Ignored; must be equal to the pipeline's GPU queue depth
+ * @deprecated Use `daliPrefetch` instead
  */
 DLL_PUBLIC void daliPrefetchSeparate(daliPipelineHandle *pipe_handle,
                                      int cpu_queue_depth, int gpu_queue_depth);
@@ -617,6 +688,22 @@ DLL_PUBLIC void daliDeletePipeline(daliPipelineHandle *pipe_handle);
 DLL_PUBLIC void daliLoadLibrary(const char *lib_path);
 
 /**
+ * @brief The plugin paths will have the following pattern:
+ *        {lib_path}/{sub_path}/libdali_{plugin_name}.so
+ */
+DLL_PUBLIC void daliLoadPluginDirectory(const char* plugin_dir);
+
+/**
+ * @brief Load default plugin library
+ * @remarks DALI_PRELOAD_PLUGINS are environment variables that can be used to control what
+ * plugins are loaded. If the variable is set, it is interpreted as a list of paths separated
+ * by colon (:), where each element can be a directory or library path.
+ * If not set, the "default" path is scanned, which is a subdirectory called plugin under the
+ * directory where the DALI library is installed.
+ */
+DLL_PUBLIC void daliLoadDefaultPlugins();
+
+/**
  * @brief Returns the named reader metadata
  *  @param reader_name Name of the reader to query
  *  @param meta Pointer to metadata to be filled by the function
@@ -692,6 +779,65 @@ DLL_PUBLIC int daliPreallocateDeviceMemory(size_t bytes, int device_id);
  * @return Zero, if the allocation was successful, otherwise nonzero
  */
 DLL_PUBLIC int daliPreallocatePinnedMemory(size_t bytes);
+
+/** @brief Returns serialized pipeline checkpoint
+ *
+ * Saves pipeline state together with provided external context.
+ *
+ * @param pipe_handle Pointer to pipeline handle.
+ *
+ * @param external_context External context to include in the checkpoint.
+ *
+ * @param checkpoint Output pointer to which checkpoint data should be saved.
+ *                   The buffer is allocated with daliAlloc, freeing it is caller's responsibility.
+ *
+ * @param n Output argument for checkpoint size in bytes.
+*/
+DLL_PUBLIC void daliGetSerializedCheckpoint(
+  daliPipelineHandle *pipe_handle,
+  const daliExternalContextCheckpoint *external_context,
+  char **checkpoint, size_t *n);
+
+/** @brief Restores pipeline state from serialized checkpoint
+ *
+ * Should be called before running the pipeline.
+ * The pipeline needs to have checkpointing enabled.
+ *
+ * @param pipe_handle Pointer to pipeline handle.
+ *
+ * @param checkpoint Serialized checkpoint to restore from.
+ *
+ * @param n Size of the checkpoint, in bytes.
+ *
+ * @param external_context Output buffer to which checkpoint's external context will be saved.
+ *                         Populated fields of the external context can be later freed with
+ *                         daliDestroyExternalContextCheckpoint. Ignored if null.
+*/
+DLL_PUBLIC void daliRestoreFromSerializedCheckpoint(
+  daliPipelineHandle *pipe_handle,
+  const char *checkpoint, size_t n,
+  daliExternalContextCheckpoint *external_context);
+
+/** @brief Frees all allocated fields of daliExternalContextCheckpoint
+ *
+ * @param external_context External context to destroy.
+*/
+DLL_PUBLIC void daliDestroyExternalContextCheckpoint(
+  daliExternalContextCheckpoint *external_context);
+
+/** @brief Allocate memory.
+ *
+ * @param n Size, in bytes.
+ *
+ * @return Pointer to allocated memory or NULL on failure.
+*/
+DLL_PUBLIC void *daliAlloc(size_t n);
+
+/** @brief Free memory allocated with daliAlloc.
+ *
+ * @param ptr Pointer to the memory buffer.
+*/
+DLL_PUBLIC void daliFree(void *ptr);
 
 #ifdef __cplusplus
 }

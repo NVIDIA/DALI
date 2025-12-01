@@ -21,6 +21,7 @@
 #include "dali/kernels/signal/decibel/to_decibels_gpu.h"
 #include "dali/kernels/signal/decibel/decibel_calculator.h"
 #include "dali/kernels/kernel_manager.h"
+#include "dali/kernels/dynamic_scratchpad.h"
 
 namespace dali {
 namespace kernels {
@@ -79,10 +80,8 @@ TEST_P(ToDecibelsGpuTest, ToDecibelsGpuTest) {
   kernels::signal::ToDecibelsGpu<T> kernel;
   auto req = kernel.Setup(ctx, in_.gpu());
 
-  ScratchpadAllocator scratch_alloc;
-  scratch_alloc.Reserve(req.scratch_sizes);
-  auto scratchpad = scratch_alloc.GetScratchpad();
-  ctx.scratchpad = &scratchpad;
+  DynamicScratchpad dyn_scratchpad(AccessOrder(ctx.gpu.stream));
+  ctx.scratchpad = &dyn_scratchpad;
 
   ASSERT_EQ(data_shape_, req.output_shapes[0]);
   TestTensorList<T> out;

@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -44,7 +44,7 @@ def test_element_extract_operator():
         def __next__(self):
             batch = test_data
             self.i = (self.i + 1) % self.n
-            return (batch)
+            return batch
 
         next = __next__
 
@@ -74,7 +74,6 @@ def test_element_extract_operator():
             self.feed_input(self.sequences, sequences)
 
     pipe = ElementExtractPipeline(batch_size, 1, 0)
-    pipe.build()
     pipe_out = pipe.run()
     output1, output2, output3, output4 = pipe_out
 
@@ -108,11 +107,12 @@ def element_extract_pipe(shape, layout, element_map, dev, dtype):
     min_shape = [s // 2 if s > 1 else 1 for s in shape]
     min_shape[0] = shape[0]
     min_shape = tuple(min_shape)
-    input = fn.external_source(source=RandomlyShapedDataIterator(batch_size,
-                                                                 min_shape=min_shape,
-                                                                 max_shape=shape,
-                                                                 dtype=dtype),
-                               layout=layout)
+    input = fn.external_source(
+        source=RandomlyShapedDataIterator(
+            batch_size, min_shape=min_shape, max_shape=shape, dtype=dtype
+        ),
+        layout=layout,
+    )
     if dev == "gpu":
         input = input.gpu()
     elements = fn.element_extract(input, element_map=element_map)
@@ -122,7 +122,6 @@ def element_extract_pipe(shape, layout, element_map, dev, dtype):
 
 def check_element_extract(shape, layout, element_map, dev, dtype=np.uint8):
     pipe = element_extract_pipe(shape, layout, element_map, dev, dtype)
-    pipe.build()
     for i in range(10):
         results = pipe.run()
         input = results[0]
@@ -146,22 +145,29 @@ def test_element_extract_layout():
 
 
 def test_raises():
-    with assert_raises(RuntimeError,
-                       glob="Input must have at least two dimensions - outermost for sequence and"
-                            " at least one for data elements."):
+    with assert_raises(
+        RuntimeError,
+        glob="Input must have at least two dimensions - outermost for sequence and"
+        " at least one for data elements.",
+    ):
         check_element_extract([4], "F", [1, 3], "cpu")
 
     for shape, layout in [([6, 1], "XF"), ([8, 10, 3], "HWC")]:
-        with assert_raises(RuntimeError,
-                           glob="Input layout must describe a sequence - it must start with 'F',"
-                                " got '*' instead."):
+        with assert_raises(
+            RuntimeError,
+            glob="Input layout must describe a sequence - it must start with 'F',"
+            " got '*' instead.",
+        ):
             check_element_extract(shape, layout, [1, 3], "cpu")
 
-    with assert_raises(RuntimeError,
-                       glob="Index `10` from `element_map` is out of bounds for sample with"
-                            " sequence length equal `6`"):
+    with assert_raises(
+        RuntimeError,
+        glob="Index `10` from `element_map` is out of bounds for sample with"
+        " sequence length equal `6`",
+    ):
         check_element_extract([6, 1], "FX", [10], "cpu")
 
-    with assert_raises(RuntimeError,
-                       glob="Negative indices in `element_map` are not allowed, found: -5"):
+    with assert_raises(
+        RuntimeError, glob="Negative indices in `element_map` are not allowed, found: -5"
+    ):
         check_element_extract([6, 1], "FX", [-5], "cpu")

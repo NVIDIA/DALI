@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-# Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2021-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,7 +15,7 @@
 
 import argparse
 import os
-import subprocess
+import subprocess  # nosec B404
 import sys
 import tarfile
 import time
@@ -77,18 +77,18 @@ class IndexCreator:
     def split_name(filepath):
         """Splits the webdataset into the basename and the extension"""
         dot_pos = filepath.find(".", filepath.rfind("/") + 1)
-        return filepath[:dot_pos], filepath[dot_pos + 1:]
+        return filepath[:dot_pos], filepath[dot_pos + 1 :]
 
     def _get_data_tar(self):
-        """Retreives the data about the offset, name and size of each component
+        """Retrieves the data about the offset, name and size of each component
         using the gnu tar utility, while also filtering out non-file entries"""
 
-        tar_blocks_proc = subprocess.Popen(
+        tar_blocks_proc = subprocess.Popen(  # nosec B603, B607
             ["tar", "--list", "--block-num", "--file", self.uri],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
         )
-        tar_types_sizes_proc = subprocess.Popen(
+        tar_types_sizes_proc = subprocess.Popen(  # nosec B603, B607
             ["tar", "--verbose", "--list", "--file", self.uri],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -104,14 +104,13 @@ class IndexCreator:
             if not blocks_line or not types_sizes_line:
                 continue
 
-            name = str(blocks_line[blocks_line.find(b":") + 2:], "ascii")
+            name = str(blocks_line[blocks_line.find(b":") + 2 :], "ascii")
             entry_type = types_sizes_line[0:1]
 
             if entry_type != b"-":
                 continue
 
-            offset = int(blocks_line[blocks_line.find(b"block") + 6:
-                                     blocks_line.find(b":")])
+            offset = int(blocks_line[blocks_line.find(b"block") + 6 : blocks_line.find(b":")])
             # according to https://www.loc.gov/preservation/digital/formats/fdd/fdd000531.shtml#:~:text=A%20tar%20(tape%20archive)%20file,are%20not%20compressed%20archive%20files. # noqa: E501, W505
             # each data record is preceded by 512-byte header. `tar --list --block-num --file`
             # return the position (counted in 512-byte blocks) of the header for a given entry.
@@ -120,7 +119,7 @@ class IndexCreator:
 
             size = types_sizes_line[: -len(name)]
             size = size[: size.rfind(b"-") - 8]  # "... <size> 20yy-mm-...."
-            size = int(size[size.rfind(b" "):])
+            size = int(size[size.rfind(b" ") :])
 
             yield offset, name, size
 

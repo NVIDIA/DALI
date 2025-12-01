@@ -90,7 +90,7 @@ class FindRegionTestGPU : public ::testing::Test {
   void RunTest() {
     KernelContext ctx;
     ctx.gpu.stream = 0;
-    DynamicScratchpad dyn_scratchpad({}, AccessOrder(ctx.gpu.stream));
+    DynamicScratchpad dyn_scratchpad(AccessOrder(ctx.gpu.stream));
     ctx.scratchpad = &dyn_scratchpad;
 
     auto out_region = out_region_.gpu().to_static<0>();
@@ -121,7 +121,7 @@ class FindRegionTestGPU : public ::testing::Test {
 
     KernelContext ctx;
     ctx.gpu.stream = 0;
-    DynamicScratchpad dyn_scratchpad({}, AccessOrder(ctx.gpu.stream));
+    DynamicScratchpad dyn_scratchpad(AccessOrder(ctx.gpu.stream));
     ctx.scratchpad = &dyn_scratchpad;
 
     TensorListShape<0> out_sh(nsamples);
@@ -169,7 +169,7 @@ class FindRegionTestGPU : public ::testing::Test {
     for (int i = 0; i < n_iters; ++i) {
       CUDA_CALL(cudaDeviceSynchronize());
 
-      DynamicScratchpad dyn_scratchpad({}, AccessOrder(ctx.gpu.stream));
+      DynamicScratchpad dyn_scratchpad(AccessOrder(ctx.gpu.stream));
       ctx.scratchpad = &dyn_scratchpad;
 
       CUDA_CALL(cudaEventRecord(start));

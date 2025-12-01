@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -52,7 +52,7 @@ class FileListHarness {
 
     for (int i = 0; i < batch_size_; ++i) {
       std::memcpy(
-        input_data_.template mutable_tensor<uint8>(i),
+        input_data_.template mutable_tensor<uint8_t>(i),
         images_.data_[i],
         images_.sizes_[i]);
       input_data_.SetSourceInfo(i, image_names_[i] + "_" + std::to_string(i));
@@ -66,8 +66,7 @@ class FileListHarness {
     SetupPipeline(pipeline);
 
     Workspace ws;
-    pipeline.RunCPU();
-    pipeline.RunGPU();
+    pipeline.Run();
     pipeline.Outputs(&ws);
   }
 
@@ -94,8 +93,8 @@ class DecoderHarness : public FileListHarness {
       OpSpec("ImageDecoder")
         .AddArg("device", "mixed")
         .AddArg("output_type", DALI_RGB)
-        .AddInput("raw_images", "cpu")
-        .AddOutput("images", "gpu"));
+        .AddInput("raw_images", StorageDevice::CPU)
+        .AddOutput("images", StorageDevice::GPU));
     pipeline.Build({{"images", "gpu"}});
   }
 };
@@ -113,47 +112,47 @@ class ResNetHarness : public FileListHarness {
       OpSpec("ImageDecoder")
         .AddArg("device", "cpu")
         .AddArg("output_type", DALI_RGB)
-        .AddInput("raw_images", "cpu")
-        .AddOutput("images", "cpu"));
+        .AddInput("raw_images", StorageDevice::CPU)
+        .AddOutput("images", StorageDevice::CPU));
 
     // Add uniform RNG
     pipeline.AddOperator(
         OpSpec("Uniform")
         .AddArg("device", "cpu")
         .AddArg("range", vector<float>{0, 1})
-        .AddOutput("uniform1", "cpu"));
+        .AddOutput("uniform1", StorageDevice::CPU));
 
     pipeline.AddOperator(
         OpSpec("Uniform")
         .AddArg("device", "cpu")
         .AddArg("range", vector<float>{0, 1})
-        .AddOutput("uniform2", "cpu"));
+        .AddOutput("uniform2", StorageDevice::CPU));
 
     pipeline.AddOperator(
         OpSpec("Uniform")
         .AddArg("device", "cpu")
         .AddArg("range", vector<float>{256, 480})
-        .AddOutput("resize", "cpu"));
+        .AddOutput("resize", StorageDevice::CPU));
 
     // Add coin flip RNG for mirror mask
     pipeline.AddOperator(
         OpSpec("CoinFlip")
         .AddArg("device", "cpu")
         .AddArg("probability", 0.5f)
-        .AddOutput("mirror", "cpu"));
+        .AddOutput("mirror", StorageDevice::CPU));
 
-    std::string resize_op = "FastResizeCropMirror";
     // Add a resize+crop+mirror op
     pipeline.AddOperator(
-        OpSpec(resize_op)
+        OpSpec("ResizeCropMirror")
         .AddArg("device", "cpu")
         .AddArg("crop", vector<float>{224, 224})
-        .AddInput("images", "cpu")
+        .AddInput("images", StorageDevice::CPU)
+        .AddArg("antialias", false)
         .AddArgumentInput("mirror", "mirror")
         .AddArgumentInput("crop_pos_x", "uniform1")
         .AddArgumentInput("crop_pos_y", "uniform2")
         .AddArgumentInput("resize_shorter", "resize")
-        .AddOutput("resized", "cpu"));
+        .AddOutput("resized", StorageDevice::CPU));
 
     pipeline.AddOperator(
         OpSpec("CropMirrorNormalize")
@@ -161,8 +160,8 @@ class ResNetHarness : public FileListHarness {
         .AddArg("dtype", DALI_FLOAT16)
         .AddArg("mean", vector<float>{128, 128, 128})
         .AddArg("std", vector<float>{1, 1, 1})
-        .AddInput("resized", "cpu")
-        .AddOutput("final_batch", "cpu"));
+        .AddInput("resized", StorageDevice::CPU)
+        .AddOutput("final_batch", StorageDevice::CPU));
 
     // Build and run the pipeline
     pipeline.Build({{"final_batch", "gpu"}});

@@ -403,14 +403,7 @@ struct ExtractVerticalWindowsImplGPU : ExtractWindowsImplGPU<Dst, Src> {
 
     grid_dim = dim3(xgrid, ygrid);
 
-    ScratchpadEstimator se;
-    se.add<mm::memory_kind::device, SampleDesc>(N);
-    se.add<mm::memory_kind::device, BlockDesc>(xgrid);
-    se.add<mm::memory_kind::pinned, SampleDesc>(N);
-    se.add<mm::memory_kind::pinned, BlockDesc>(xgrid);
-
     KernelRequirements req;
-    req.scratch_sizes = se.sizes;
     req.output_shapes = { out_shape };
 
     return req;
@@ -520,6 +513,7 @@ struct ExtractHorizontalWindowsImplGPU : ExtractWindowsImplGPU<Dst, Src> {
     for (int i = 0; i < N; i++) {
       int64_t length = lengths[i];
       int nwin = args.num_windows(length);
+      assert(nwin >= 1);  // the calling operator should have checked that
 
       int64_t padded_length = static_cast<int64_t>(nwin-1) * args.window_step + args.window_length;
       if (padded_length > max_padded_length)
@@ -532,6 +526,9 @@ struct ExtractHorizontalWindowsImplGPU : ExtractWindowsImplGPU<Dst, Src> {
         out_shape.set_tensor_shape(i, { nwin, out_win_length });
       }
     }
+    // for each sample, the nwin >= 1 is expected
+    // and the op call should be skipped if there are no samples
+    assert(max_win_per_input >= 1);
 
     if (concatenate) {
       out_shape.set_tensor_shape(0, { total_windows, out_win_length });
@@ -584,16 +581,7 @@ struct ExtractHorizontalWindowsImplGPU : ExtractWindowsImplGPU<Dst, Src> {
       pad_block = dim3(pad_block_x, pad_block_y, 1);
     }
 
-    ScratchpadEstimator se;
-    se.add<mm::memory_kind::device, SampleDesc>(N);
-    se.add<mm::memory_kind::device, BlockDesc>(grid_dim);
-    se.add<mm::memory_kind::device, PadBlock>(pad_grid.z);
-    se.add<mm::memory_kind::pinned, SampleDesc>(N);
-    se.add<mm::memory_kind::pinned, BlockDesc>(grid_dim);
-    se.add<mm::memory_kind::pinned, PadBlock>(pad_grid.z);
-
     KernelRequirements req;
-    req.scratch_sizes = se.sizes;
     req.output_shapes = { out_shape };
 
     return req;

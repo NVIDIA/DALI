@@ -23,6 +23,7 @@
 #include "dali/kernels/kernel_manager.h"
 #include "dali/kernels/signal/decibel/to_decibels_args.h"
 #include "dali/pipeline/operator/common.h"
+#include "dali/pipeline/operator/checkpointing/stateless_operator.h"
 #include "dali/pipeline/operator/operator.h"
 #include "dali/pipeline/util/operator_impl_utils.h"
 
@@ -32,10 +33,10 @@ static constexpr int kNumOutputs = 1;
 namespace dali {
 
 template <typename Backend>
-class ToDecibels : public Operator<Backend> {
+class ToDecibels : public StatelessOperator<Backend> {
  public:
   explicit ToDecibels(const OpSpec &spec)
-      : Operator<Backend>(spec) {
+      : StatelessOperator<Backend>(spec) {
     args_.multiplier = spec.GetArgument<float>("multiplier");
     args_.ref_max = !spec.HasArgument("reference");
     if (!args_.ref_max) {
@@ -49,7 +50,6 @@ class ToDecibels : public Operator<Backend> {
   }
 
  protected:
-  bool CanInferOutputs() const override { return true; }
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override;
   void RunImpl(Workspace &ws) override;
 

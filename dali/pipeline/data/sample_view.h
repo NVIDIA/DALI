@@ -1,4 +1,4 @@
-// Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -36,6 +36,8 @@ namespace dali {
 template <typename Backend, typename ptr_t>
 class SampleViewBase {
  public:
+  template <typename Ptr>
+  static constexpr bool is_mutable = !std::is_const_v<std::remove_pointer_t<Ptr>>;
   /**
    * @name Get the underlying pointer to data
    * @{
@@ -44,7 +46,7 @@ class SampleViewBase {
    * @brief Return an un-typed pointer to the underlying storage.
    */
   template <typename ptr_t_ = ptr_t>
-  std::enable_if_t<std::is_same<ptr_t_, void *>::value, void *> raw_mutable_data() {
+  std::enable_if_t<is_mutable<ptr_t_>, void *> raw_mutable_data() const {
     return data_;
   }
 
@@ -60,7 +62,7 @@ class SampleViewBase {
    * The calling type must match the underlying type of the buffer.
    */
   template <typename T, typename ptr_t_ = ptr_t>
-  inline std::enable_if_t<std::is_same<ptr_t_, void *>::value, T *> mutable_data() {
+  inline std::enable_if_t<is_mutable<ptr_t_>, T *> mutable_data() const {
     DALI_ENFORCE(
         type() == TypeTable::GetTypeId<T>(),
         make_string(
@@ -166,6 +168,11 @@ class ConstSampleView : public SampleViewBase<Backend, const void *> {
  public:
   using Base = SampleViewBase<Backend, const void *>;
   using Base::Base;
+
+  template <typename T>
+  T *mutable_data() const = delete;
+
+  void *raw_mutable_data() const = delete;
 
   ConstSampleView(const SampleView<Backend> &other)  // NOLINT
       : Base(other.raw_data(), other.shape(), other.type()) {}

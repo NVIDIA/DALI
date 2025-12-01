@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -32,6 +32,7 @@ class CachedDecoderImpl {
    * @params spec: to determine all the cache parameters
    */
   explicit CachedDecoderImpl(const OpSpec& spec);
+  ~CachedDecoderImpl();
 
   bool CacheLoad(
     const std::string& file_name,
@@ -48,13 +49,12 @@ class CachedDecoderImpl {
 
   void LoadDeferred(cudaStream_t stream);
 
+  bool IsInCache(const std::string& file_name);
+
   ImageCache::ImageShape CacheImageShape(
     const std::string& file_name);
 
   bool IsCacheEnabled() const noexcept { return cache_ != nullptr; }
-
- protected:
-  ~CachedDecoderImpl();
 
  private:
   std::shared_ptr<ImageCache> cache_;

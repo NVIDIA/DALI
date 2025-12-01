@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -27,13 +27,7 @@
 #include "dali/util/crop_window.h"
 #include "dali/core/backend_tags.h"
 #include "dali/kernels/common/copy.h"
-#include "dali/image/image_factory.h"
-
-#if WITH_DYNAMIC_NVJPEG_ENABLED
-  bool nvjpegIsSymbolAvailable(const char *name);
-#else
-  #define nvjpegIsSymbolAvailable(T) (true)
-#endif
+#include "dali/operators/decoder/image/image_factory.h"
 
 namespace dali {
 
@@ -230,7 +224,7 @@ void HostFallback(const uint8_t *data, int size, DALIImageType image_type, uint8
     img->SetUseFastIdct(use_fast_idct);
     img->Decode();
   } catch (std::exception &e) {
-    DALI_FAIL(e.what() + ". File: " + file_name);
+    DALI_FAIL(e.what(), ". File: ", file_name);
   }
   const auto decoded = img->GetImage();
   const auto shape = img->GetShape();

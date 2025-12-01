@@ -1,0 +1,55 @@
+# Copyright (c) 2024-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+
+{% set build_version = "0.6.0" %}
+
+package:
+  name: nvidia-nvimagecodec-cuda{{ environ.get('CUDA_VERSION', '') | replace(".","") }}
+  version: {{ build_version }}
+
+source:
+  git_url: https://github.com/NVIDIA/nvImageCodec.git
+  git_rev: v0.6.0
+
+build:
+  number: 0
+  string: dali_nvimagecodec
+
+requirements:
+  build:
+    skip: True  # [not linux]
+    - {{ compiler('c') }}
+    - {{ compiler('cxx')}}
+    - pkg-config
+    - cmake >=3.25.2
+    - make
+    - python-clang
+    - git-lfs
+  host:
+    - libjpeg-turbo
+    - libtiff
+    - dali-opencv
+    # dali-opencv silently depends on openjpeg and libwebp-base
+    # Since we link statically, we need to add those dependencies explicitly
+    - libwebp-base
+    - openjpeg
+
+  run:
+    - libjpeg-turbo
+    - libtiff
+    # dali-opencv silently depends on openjpeg and libwebp-base
+    # Since we link statically, we need to add those dependencies explicitly
+    - libwebp-base
+    - openjpeg

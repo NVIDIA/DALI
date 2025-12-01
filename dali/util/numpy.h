@@ -16,6 +16,8 @@
 #define DALI_UTIL_NUMPY_H_
 
 #include <string>
+#include <string_view>
+
 #include "dali/core/common.h"
 #include "dali/core/tensor_shape.h"
 #include "dali/core/stream.h"
@@ -48,11 +50,14 @@ class DLL_PUBLIC HeaderData {
 
 DLL_PUBLIC void ParseHeader(HeaderData &parsed_header, InputStream *src);
 
+DLL_PUBLIC void ParseODirectHeader(HeaderData &parsed_header, InputStream *src,
+                                   size_t o_direct_alignm, size_t o_direct_read_len_alignm);
+
 DLL_PUBLIC void FromFortranOrder(SampleView<CPUBackend> output, ConstSampleView<CPUBackend> input);
 
-DLL_PUBLIC void ParseHeaderContents(HeaderData& target, const std::string &header);
+DLL_PUBLIC void ParseHeaderContents(HeaderData& target, const std::string_view header);
 
-DLL_PUBLIC Tensor<CPUBackend> ReadTensor(InputStream *src);
+DLL_PUBLIC Tensor<CPUBackend> ReadTensor(InputStream *src, bool pinned);
 
 }  // namespace numpy
 }  // namespace dali

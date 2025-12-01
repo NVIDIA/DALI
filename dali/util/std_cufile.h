@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -32,14 +32,13 @@ class StdCUFileStream : public CUFileStream {
  public:
   explicit StdCUFileStream(const std::string& path);
   void Close() override;
-  shared_ptr<void> Get(size_t n_bytes) override;
   size_t ReadAtGPU(void *gpu_buffer, size_t n_bytes,
-                   ptrdiff_t buffer_offset, int64 file_offset) override;
+                   ptrdiff_t buffer_offset, int64_t file_offset) override;
   size_t ReadGPU(void *buffer, size_t n_bytes, ptrdiff_t offset = 0) override;
   size_t Read(void *cpu_buffer, size_t n_bytes) override;
   void SeekRead(ptrdiff_t pos, int whence = SEEK_SET) override;
   ptrdiff_t TellRead() const override;
-  void HandleIOError(int64 ret) const;
+  void HandleIOError(int64_t ret) const;
   size_t Size() const override;
 
   ~StdCUFileStream() override;

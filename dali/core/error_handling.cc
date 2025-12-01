@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -40,8 +40,8 @@ void DALIAppendToLastError(const string &error_str) {
 
 void DALIReportFatalProblem(const char *file, int lineNumb, const char *pComment) {
   dali::string line = std::to_string(lineNumb);
-  dali::string error_str = "[" + dali::string(file) + ":" + line + "] " + pComment;
-  throw DALIException(error_str);
+  dali::string file_and_line = "[" + dali::string(file) + ":" + line + "]";
+  throw DALIException(pComment, file_and_line);
 }
 
 

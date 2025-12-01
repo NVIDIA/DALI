@@ -1,4 +1,4 @@
-# Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2021-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
 
 from nvidia.dali import pipeline_def
 from nvidia.dali.fn import readers
-from nose.tools import assert_equal
+from nose_utils import assert_equals
 import tempfile
 from subprocess import call
 import os
@@ -29,6 +29,7 @@ def webdataset_raw_pipeline(
     paths,
     index_paths,
     ext,
+    case_sensitive_extensions=True,
     missing_component_behavior="empty",
     dtypes=None,
     dont_use_mmap=False,
@@ -44,6 +45,7 @@ def webdataset_raw_pipeline(
         paths=paths,
         index_paths=index_paths,
         ext=ext,
+        case_sensitive_extensions=case_sensitive_extensions,
         missing_component_behavior=missing_component_behavior,
         dtypes=dtypes,
         dont_use_mmap=dont_use_mmap,
@@ -82,30 +84,32 @@ def file_reader_pipeline(
         exts = [exts]
 
     return tuple(
-        readers.file(
-            files=filter_ext(files, ext),
-            dont_use_mmap=dont_use_mmap,
-            prefetch_queue_depth=1,
-            num_shards=num_shards,
-            shard_id=shard_id,
-            stick_to_shard=stick_to_shard,
-            skip_cached_images=skip_cached_images,
-            pad_last_batch=pad_last_batch,
-            lazy_init=lazy_init,
-            read_ahead=read_ahead,
-        )[0]
-        if type(ext) in {str, set}
-        else ext
+        (
+            readers.file(
+                files=filter_ext(files, ext),
+                dont_use_mmap=dont_use_mmap,
+                prefetch_queue_depth=1,
+                num_shards=num_shards,
+                shard_id=shard_id,
+                stick_to_shard=stick_to_shard,
+                skip_cached_images=skip_cached_images,
+                pad_last_batch=pad_last_batch,
+                lazy_init=lazy_init,
+                read_ahead=read_ahead,
+            )[0]
+            if type(ext) in {str, set}
+            else ext
+        )
         for ext in exts
     )
 
 
 def generate_temp_index_file(tar_file_path):
-    global wds2idx_script
     temp_index_file = tempfile.NamedTemporaryFile()
-    assert_equal(
-        call([wds2idx_script, tar_file_path, temp_index_file.name],
-             stdout=open(os.devnull, "wb")), 0)
+    assert_equals(
+        call([wds2idx_script, tar_file_path, temp_index_file.name], stdout=open(os.devnull, "wb")),
+        0,
+    )
     return temp_index_file
 
 

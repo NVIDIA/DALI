@@ -27,6 +27,12 @@ can be provided with external hints for the optical flow calculation. The output
 matches the output format of the optical flow driver API.
 Refer to https://developer.nvidia.com/opticalflow-sdk for more information about the
 Turing, Ampere and Hopper optical flow hardware that is used by DALI.
+
+.. note::
+  The calculated optical flow is always with respect to the resolution of the input image, however the
+  output optical flow image can be a lower resolution, dictated by `output_grid`. If instead you would like
+  the optical flow vectors be consistent with the resolution of the output of this operator, you must divide
+  the output vector field by `output_grid`.
 )code")
                 .NumInput(1, 2)
                 .NumOutput(1)
@@ -48,7 +54,9 @@ The lower the speed, the more additional pre- and postprocessing is used to enha
 
 This operator produces the motion vector field at a coarser resolution than the input pixels.
 This parameter specifies the size of the pixel grid cell corresponding to one motion vector.
-For example, a value of 4 will produce one motion vector for each 4x4 pixel block.
+For example, a value of 4 will produce one motion vector for each 4x4 pixel block. Hence, to
+use optical flow with an `output_grid` of 4 to resample a full resolution image, the flow field
+is upsampled *without* scaling the vector quantities.
 
 .. note::
   Currently, only a 1, 2 and 4 are supported for Ampere and 4 for Turing.
@@ -174,13 +182,6 @@ void OpticalFlow<GPUBackend>::RunImpl(Workspace &ws) {
     CUDA_CALL(cudaEventRecord(sync_, of_stream));
     CUDA_CALL(cudaStreamWaitEvent(ws.stream(), sync_, 0));
   }
-}
-
-template <>
-OpticalFlow<GPUBackend>::~OpticalFlow() {
-#if NVML_ENABLED
-  nvml::Shutdown();
-#endif
 }
 
 }  // namespace dali

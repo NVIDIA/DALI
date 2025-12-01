@@ -1,4 +1,4 @@
-# Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2022-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -21,19 +21,18 @@ from dataclasses import dataclass, field
 from nvidia.dali import pipeline_def
 import nvidia.dali.fn as fn
 from nvidia.dali import types
-import nvidia.dali.tensors as _Tensors
 
 from test_utils import get_dali_extra_path, check_batch
 
 
 data_root = get_dali_extra_path()
-vid_file = os.path.join(data_root, 'db', 'video',
-                        'sintel', 'sintel_trailer-720p.mp4')
+vid_file = os.path.join(data_root, "db", "video", "sintel", "sintel_trailer-720p.mp4")
 
 
 @dataclass
 class SampleDesc:
     """Context that the argument provider callback receives when prompted for parameter"""
+
     rng: random.Random
     frame_idx: int
     sample_idx: int
@@ -49,8 +48,9 @@ class ArgDesc:
     layout: Optional[str] = None
 
     def __post_init__(self):
-        assert self.is_positional_arg or self.dest_device != "gpu", \
-               "Named arguments on GPU are not supported"
+        assert (
+            self.is_positional_arg or self.dest_device != "gpu"
+        ), "Named arguments on GPU are not supported"
         assert not self.layout or self.layout.startswith(self.expandable_prefix)
 
     @property
@@ -62,24 +62,29 @@ class ArgCb:
     """
     Describes a callback to be used as a per-sample/per-frame argument to the operator.
     ----------
-    `name` : Union[str, int]
+    name : Union[str, int]
         String with the name of a named argument of the operator or an int if the data
              should be passed as a positional input.
-    `cb` : Callable[[SampleDesc], np.ndarray]
+    cb : Callable[[SampleDesc], np.ndarray]
         Callback that based on the SampleDesc instance produces a single parameter for
              specific sample/frame.
-    `is_per_frame` : bool
+    is_per_frame : bool
         Flag if the cb should be run for every sample (sequence) or for every frame.
              In the latter case, the argument is passed wrapped
              in per-frame call to the operator.
-    `dest_device` : str
+    dest_device : str
         Controls whether the produced data should be passed to the operator in cpu or gpu memory.
         If set to "gpu", the copy to gpu is added in the pipeline.
              Applicable only to positional inputs.
     """
 
-    def __init__(self, name: Union[str, int], cb: Callable[[SampleDesc], np.ndarray],
-                 is_per_frame: bool, dest_device: str = "cpu"):
+    def __init__(
+        self,
+        name: Union[str, int],
+        cb: Callable[[SampleDesc], np.ndarray],
+        is_per_frame: bool,
+        dest_device: str = "cpu",
+    ):
         self.desc = ArgDesc(name, "F" if is_per_frame else "", dest_device)
         self.cb = cb
 
@@ -129,7 +134,8 @@ class ParamsProviderBase:
             unfolded_layout = input_desc.layout
         self.unfolded_input = ArgData(
             desc=ArgDesc(input_desc.name, "", input_desc.dest_device, unfolded_layout),
-            data=unfolded_input)
+            data=unfolded_input,
+        )
         return self.unfolded_input
 
     def compute_params(self) -> List[ArgData]:
@@ -140,7 +146,6 @@ class ParamsProviderBase:
 
 
 class ParamsProvider(ParamsProviderBase):
-
     def __init__(self, input_params: List[ArgCb]):
         super().__init__()
         self.input_params = input_params
@@ -149,14 +154,16 @@ class ParamsProvider(ParamsProviderBase):
 
     def compute_params(self) -> List[ArgData]:
         self.arg_input_data = compute_input_params_data(
-            self.input_data, self.rng, self.input_params)
+            self.input_data, self.rng, self.input_params
+        )
         return self.arg_input_data
 
     def expand_params(self) -> List[ArgData]:
         self.expanded_params_data = [
             ArgData(
                 desc=ArgDesc(arg_data.desc.name, "", arg_data.desc.dest_device),
-                data=expand_arg_input(self.input_data, arg_data))
+                data=expand_arg_input(self.input_data, arg_data),
+            )
             for arg_data in self.arg_input_data
         ]
         return self.expanded_params_data
@@ -177,8 +184,7 @@ def arg_data_node(arg_data: ArgData):
 
 
 def as_batch(tensor):
-    if isinstance(tensor, _Tensors.TensorListGPU):
-        tensor = tensor.as_cpu()
+    tensor = tensor.as_cpu()
     return [np.array(sample, dtype=types.to_numpy_type(sample.dtype)) for sample in tensor]
 
 
@@ -187,6 +193,7 @@ def dummy_source(batches):
         while True:
             for batch in batches:
                 yield batch
+
     return inner
 
 
@@ -195,8 +202,7 @@ def unfold_batch(batch, num_expand):
     if num_expand == 0:
         return batch
     if num_expand > 1:
-        batch = [sample.reshape((-1,) + sample.shape[num_expand:])
-                 for sample in batch]
+        batch = [sample.reshape((-1,) + sample.shape[num_expand:]) for sample in batch]
     return [frame for sample in batch for frame in sample]
 
 
@@ -227,17 +233,22 @@ def expand_arg(expandable_layout, arg_has_frames, input_batch, arg_batch):
             assert frame_idx >= 0
             assert len(arg_sample) == input_sample.shape[frame_idx]
             if num_expand == 1:
-                expanded_batch.extend(
-                    arg_frame for arg_frame in arg_sample)
+                expanded_batch.extend(arg_frame for arg_frame in arg_sample)
             else:
                 channel_idx = 1 - frame_idx
                 assert expandable_layout[channel_idx] == "C"
                 if channel_idx > frame_idx:
-                    expanded_batch.extend(frame_arg for frame_arg in arg_sample for _ in range(
-                        input_sample.shape[channel_idx]))
+                    expanded_batch.extend(
+                        frame_arg
+                        for frame_arg in arg_sample
+                        for _ in range(input_sample.shape[channel_idx])
+                    )
                 else:
-                    expanded_batch.extend(frame_arg for _ in range(
-                        input_sample.shape[channel_idx]) for frame_arg in arg_sample)
+                    expanded_batch.extend(
+                        frame_arg
+                        for _ in range(input_sample.shape[channel_idx])
+                        for frame_arg in arg_sample
+                    )
     return expanded_batch
 
 
@@ -248,46 +259,48 @@ def expand_arg_input(input_data: ArgData, arg_data: ArgData):
     assert arg_data.desc.expandable_prefix in ["F", ""]
     assert len(input_data.data) == len(arg_data.data)
     arg_has_frames = arg_data.desc.expandable_prefix == "F"
-    return [expand_arg(input_data.desc.expandable_prefix, arg_has_frames, input_batch, arg_batch)
-            for input_batch, arg_batch in zip(input_data.data, arg_data.data)]
+    return [
+        expand_arg(input_data.desc.expandable_prefix, arg_has_frames, input_batch, arg_batch)
+        for input_batch, arg_batch in zip(input_data.data, arg_data.data)
+    ]
 
 
 def _test_seq_input(num_iters, operator_fn, fixed_params, input_params, input_data: ArgData, rng):
     @pipeline_def
     def pipeline(args_data: List[ArgData]):
-        pos_args = [
-            arg_data for arg_data in args_data if arg_data.desc.is_positional_arg]
+        pos_args = [arg_data for arg_data in args_data if arg_data.desc.is_positional_arg]
         pos_nodes = [None] * len(pos_args)
         for arg_data in pos_args:
             assert 0 <= arg_data.desc.name < len(pos_nodes)
             assert pos_nodes[arg_data.desc.name] is None
             pos_nodes[arg_data.desc.name] = arg_data_node(arg_data)
-        named_args = [
-            arg_data for arg_data in args_data if not arg_data.desc.is_positional_arg]
-        arg_nodes = {
-            arg_data.desc.name: arg_data_node(arg_data)
-            for arg_data in named_args}
+        named_args = [arg_data for arg_data in args_data if not arg_data.desc.is_positional_arg]
+        arg_nodes = {arg_data.desc.name: arg_data_node(arg_data) for arg_data in named_args}
         output = operator_fn(*pos_nodes, **fixed_params, **arg_nodes)
         return output
 
     assert num_iters >= len(input_data.data)
     max_batch_size = max(len(batch) for batch in input_data.data)
 
-    params_provider = input_params if isinstance(
-        input_params, ParamsProviderBase) else ParamsProvider(input_params)
+    params_provider = (
+        input_params
+        if isinstance(input_params, ParamsProviderBase)
+        else ParamsProvider(input_params)
+    )
     params_provider.setup(input_data, fixed_params, rng)
     args_data = params_provider.compute_params()
-    seq_pipe = pipeline(args_data=[input_data, *args_data],
-                        batch_size=max_batch_size, num_threads=4,
-                        device_id=0)
+    seq_pipe = pipeline(
+        args_data=[input_data, *args_data], batch_size=max_batch_size, num_threads=4, device_id=0
+    )
     unfolded_input = params_provider.unfold_input()
     expanded_args_data = params_provider.expand_params()
     max_uf_batch_size = max(len(batch) for batch in unfolded_input.data)
-    baseline_pipe = pipeline(args_data=[unfolded_input, *expanded_args_data],
-                             batch_size=max_uf_batch_size, num_threads=4,
-                             device_id=0)
-    seq_pipe.build()
-    baseline_pipe.build()
+    baseline_pipe = pipeline(
+        args_data=[unfolded_input, *expanded_args_data],
+        batch_size=max_uf_batch_size,
+        num_threads=4,
+        device_id=0,
+    )
 
     for _ in range(num_iters):
         (seq_batch,) = seq_pipe.run()
@@ -300,10 +313,13 @@ def _test_seq_input(num_iters, operator_fn, fixed_params, input_params, input_da
 
 
 def get_input_arg_per_sample(input_data, param_cb, rng):
-    return [[
-        param_cb(SampleDesc(rng, None, sample_idx, batch_idx, sample))
-        for sample_idx, sample in enumerate(batch)]
-        for batch_idx, batch in enumerate(input_data.data)]
+    return [
+        [
+            param_cb(SampleDesc(rng, None, sample_idx, batch_idx, sample))
+            for sample_idx, sample in enumerate(batch)
+        ]
+        for batch_idx, batch in enumerate(input_data.data)
+    ]
 
 
 def get_input_arg_per_frame(input_data: ArgData, param_cb, rng, check_broadcasting):
@@ -314,14 +330,17 @@ def get_input_arg_per_frame(input_data: ArgData, param_cb, rng, check_broadcasti
         if check_broadcasting and rng.randint(1, 4) == 1:
             return np.array([param_cb(SampleDesc(rng, 0, sample_idx, batch_idx, sample))])
         num_frames = sample.shape[frame_idx]
-        return np.array([
-            param_cb(SampleDesc(rng, frame_idx, sample_idx, batch_idx, sample))
-            for frame_idx in range(num_frames)])
+        return np.array(
+            [
+                param_cb(SampleDesc(rng, frame_idx, sample_idx, batch_idx, sample))
+                for frame_idx in range(num_frames)
+            ]
+        )
 
-    return [[
-        arg_for_sample(sample_idx, batch_idx, sample)
-        for sample_idx, sample in enumerate(batch)]
-        for batch_idx, batch in enumerate(input_data.data)]
+    return [
+        [arg_for_sample(sample_idx, batch_idx, sample) for sample_idx, sample in enumerate(batch)]
+        for batch_idx, batch in enumerate(input_data.data)
+    ]
 
 
 def compute_input_params_data(input_data: ArgData, rng, input_params: List[ArgCb]):
@@ -329,11 +348,11 @@ def compute_input_params_data(input_data: ArgData, rng, input_params: List[ArgCb
         assert arg_cb.desc.expandable_prefix in ["", "F"]
         if arg_cb.desc.expandable_prefix == "F":
             return get_input_arg_per_frame(
-                input_data, arg_cb.cb, rng, not arg_cb.desc.is_positional_arg)
+                input_data, arg_cb.cb, rng, not arg_cb.desc.is_positional_arg
+            )
         return get_input_arg_per_sample(input_data, arg_cb.cb, rng)
-    return [
-        ArgData(desc=arg_cb.desc, data=input_param_data(arg_cb))
-        for arg_cb in input_params]
+
+    return [ArgData(desc=arg_cb.desc, data=input_param_data(arg_cb)) for arg_cb in input_params]
 
 
 def sequence_suite_helper(rng, input_cases: List[ArgData], ops_test_cases, num_iters=4):
@@ -349,13 +368,13 @@ def sequence_suite_helper(rng, input_cases: List[ArgData], ops_test_cases, num_i
     fn.op([frame for sequence in batch for frame in sequence])
         == [frame for sequence in fn.op(batch) for frame in sequence]
     ----------
-    `input_cases`: List[ArgData].
+    input_cases : List[ArgData].
         Each ArgData instance describes a single parameter (positional or named) that will be
         passed to the pipeline and serve as a source of truth (regarding the number of expandable
         dimensions and sequence shape). Based on it, all other inputs defined through ArgCb
         in `ops_test_cases` will be computed.
         Note the `.desc.device` argument is ignored in favour of `ops_test_case` devices list.
-    `ops_test_cases` : List[Tuple[
+    ops_test_cases : List[Tuple[
             Operator,
             Dict[str, Any],
             ParamProviderBase|List[ArgCb]]
@@ -372,6 +391,7 @@ def sequence_suite_helper(rng, input_cases: List[ArgData], ops_test_cases, num_i
         (see `ParamsProvider`). The tuple can optionally have fourth element: a list of devices
         where the main input (from `input_cases`) should be placed.
     """
+
     class OpTestCase:
         def __init__(self, operator_fn, fixed_params, input_params, devices=None, input_name=0):
             self.operator_fn = operator_fn
@@ -385,11 +405,18 @@ def sequence_suite_helper(rng, input_cases: List[ArgData], ops_test_cases, num_i
             for input_case in input_cases:
                 input_desc = input_case.desc
                 arg_desc = ArgDesc(
-                    input_desc.name, input_desc.expandable_prefix,
-                    device, input_desc.layout)
+                    input_desc.name, input_desc.expandable_prefix, device, input_desc.layout
+                )
                 arg_data = ArgData(arg_desc, input_case.data)
-                yield _test_seq_input, num_iters, test_case.operator_fn, test_case.fixed_params,\
-                    test_case.input_params, arg_data, rng
+                yield (
+                    _test_seq_input,
+                    num_iters,
+                    test_case.operator_fn,
+                    test_case.fixed_params,
+                    test_case.input_params,
+                    arg_data,
+                    rng,
+                )
 
 
 def get_video_input_cases(seq_layout, rng, larger_shape=(512, 288), smaller_shape=(384, 216)):
@@ -397,26 +424,24 @@ def get_video_input_cases(seq_layout, rng, larger_shape=(512, 288), smaller_shap
     max_num_frames = 16
     cases = []
     w, h = larger_shape
-    larger = vid_source(max_batch_size, 1, max_num_frames,
-                        w, h, seq_layout)
+    larger = vid_source(max_batch_size, 1, max_num_frames, w, h, seq_layout)
     w, h = smaller_shape
-    smaller = vid_source(max_batch_size, 2, max_num_frames,
-                         w, h, seq_layout)
+    smaller = vid_source(max_batch_size, 2, max_num_frames, w, h, seq_layout)
     cases.append(smaller)
-    samples = [sample for batch in [smaller[0], larger[0], smaller[1]]
-               for sample in batch]
+    samples = [sample for batch in [smaller[0], larger[0], smaller[1]] for sample in batch]
     rng.shuffle(samples)
     # test variable batch size
     case2 = [
-        samples[0:1], samples[1:1 + max_batch_size],
-        samples[1 + max_batch_size:2 * max_batch_size],
-        samples[2 * max_batch_size:3 * max_batch_size]]
+        samples[0:1],
+        samples[1 : 1 + max_batch_size],
+        samples[1 + max_batch_size : 2 * max_batch_size],
+        samples[2 * max_batch_size : 3 * max_batch_size],
+    ]
     cases.append(case2)
     frames_idx = seq_layout.find("F")
     if frames_idx == 0:
         # test variadic number of frames in different sequences
-        case3 = [[sample[:rng.randint(1, sample.shape[0])]
-                  for sample in batch] for batch in case2]
+        case3 = [[sample[: rng.randint(1, sample.shape[0])] for sample in batch] for batch in case2]
         cases.append(case3)
     return cases
 
@@ -426,13 +451,14 @@ def vid_pipeline(num_frames, width, height, seq_layout):
     vid, _ = fn.readers.video_resize(
         filenames=[vid_file],
         labels=[],
-        name='video reader',
+        name="video reader",
         sequence_length=num_frames,
         file_list_include_preceding_frame=True,
-        device='gpu',
+        device="gpu",
         seed=42,
         resize_x=width,
-        resize_y=height)
+        resize_y=height,
+    )
     if seq_layout == "FCHW":
         vid = fn.transpose(vid, perm=[0, 3, 1, 2])
     elif seq_layout == "CFHW":
@@ -444,10 +470,15 @@ def vid_pipeline(num_frames, width, height, seq_layout):
 
 def vid_source(batch_size, num_batches, num_frames, width, height, seq_layout):
     pipe = vid_pipeline(
-        num_threads=4, batch_size=batch_size, num_frames=num_frames,
-        width=width, height=height, device_id=0, seq_layout=seq_layout,
-        prefetch_queue_depth=1)
-    pipe.build()
+        num_threads=4,
+        batch_size=batch_size,
+        num_frames=num_frames,
+        width=width,
+        height=height,
+        device_id=0,
+        seq_layout=seq_layout,
+        prefetch_queue_depth=1,
+    )
     batches = []
     for _ in range(num_batches):
         (pipe_out,) = pipe.run()
@@ -462,10 +493,10 @@ def video_suite_helper(ops_test_cases, test_channel_first=True, expand_channels=
     For testing operator with different input than the video,
     consider using `sequence_suite_helper` directly.
     ----------
-    `ops_test_cases` : (see `sequence_suite_helper`).
-    `test_channel_first` : bool
+    ops_test_cases : (see `sequence_suite_helper`).
+    test_channel_first : bool
         If True, the "FCHW" layout is tested.
-    `expand_channels` : bool
+    expand_channels : bool
         If True, for the "FCHW" layout the first two (and not just one) dims are expanded,
         and "CFHW" layout is tested. Requires `test_channel_first` to be True.
     """
@@ -481,13 +512,11 @@ def video_suite_helper(ops_test_cases, test_channel_first=True, expand_channels=
 
     def input_data_desc(layout, input_data):
         num_expand = get_layout_prefix_len(layout, expandable_extents)
-        return ArgData(
-            desc=ArgDesc(0, layout[:num_expand], "", layout),
-            data=input_data
-        )
+        return ArgData(desc=ArgDesc(0, layout[:num_expand], "", layout), data=input_data)
 
     input_cases = [
         input_data_desc(input_layout, input_data)
         for input_layout in layouts
-        for input_data in get_video_input_cases(input_layout, rng)]
+        for input_data in get_video_input_cases(input_layout, rng)
+    ]
     yield from sequence_suite_helper(rng, input_cases, ops_test_cases)

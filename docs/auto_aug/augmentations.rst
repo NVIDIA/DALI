@@ -19,7 +19,7 @@ Here is an example of defining a simplified rotate augmentation::
     def rotate_aug(data, angle, fill_value=128, rotate_keep_size=True):
        return fn.rotate(data, angle=angle, fill_value=fill_value, keep_size=True)
 
-Based on the exsiting augmentation, a new one, with adjusted parameters, can be created::
+Based on the existing augmentation, a new one, with adjusted parameters, can be created::
 
     rotate_aug_60 = rotate_aug.augmentation(mag_range=(0, 60), randomly_negate=False)
 
@@ -40,15 +40,15 @@ Decorator
     is an instance of class :meth:`~nvidia.dali.auto_aug.core._augmentation.Augmentation`.
     The class should not be instantiated directly, it needs to be created with the decorator.
 
-    Once obtained, those objects become callables that can be used to speicfy a policy for
+    Once obtained, those objects become callables that can be used to specify a policy for
     :ref:`AutoAugment`, :ref:`RandAugment` or :ref:`TrivialAugment`.
 
     .. method:: def augmentation(self, mag_range, randomly_negate, mag_to_param, param_device, name) -> Augmentation
 
         You can call this method to create new
         :meth:`~nvidia.dali.auto_aug.core._augmentation.Augmentation` instance based on an existing
-        one, with the paramenters adjusted. All parameters are optional - those that were specifed
-        replace the ones that were previouslly passed to
+        one, with the parameters adjusted. All parameters are optional - those that were specified
+        replace the ones that were previously passed to
         :py:func:`@augmentation <nvidia.dali.auto_aug.core.augmentation>`.
 
         :param mag_range: optional, see :py:func:`@augmentation <nvidia.dali.auto_aug.core.augmentation>`.
@@ -63,7 +63,7 @@ Augmentations
 
 Here is a list of callable :meth:`~nvidia.dali.auto_aug.core._augmentation.Augmentation` instances
 defined by DALI. Note that the ``mag_to_param``, ``param_device`` and ``name`` parameters were
-ommited from the :py:func:`@augmentation <nvidia.dali.auto_aug.core.augmentation>` decorator listing
+ommitted from the :py:func:`@augmentation <nvidia.dali.auto_aug.core.augmentation>` decorator listing
 for simplicity.
 
 To adjust the range of parameter, use the ``augmentation`` method
@@ -82,7 +82,7 @@ Applies :meth:`nvidia.dali.fn.transforms.shear` with ``shear_x`` factor using
 :meth:`nvidia.dali.fn.warp_affine`.
 
 
-.. code-block::
+.. code-block:: python
 
     @augmentation(mag_range=(0, 0.3), randomly_negate=True, ...)
     def shear_x(data, shear, fill_value=128, interp_type=None)
@@ -93,7 +93,7 @@ Applies :meth:`nvidia.dali.fn.transforms.shear` with ``shear_x`` factor using
 Applies :meth:`nvidia.dali.fn.transforms.shear` with ``shear_y`` factor using
 :meth:`nvidia.dali.fn.warp_affine`.
 
-.. code-block::
+.. code-block:: python
 
     @augmentation(mag_range=(0, 0.3), randomly_negate=True, ...)
     def shear_y(data, shear, fill_value=128, interp_type=None)
@@ -103,7 +103,7 @@ Applies :meth:`nvidia.dali.fn.transforms.shear` with ``shear_y`` factor using
 Applies :meth:`nvidia.dali.fn.transforms.translation` with shape-relative offset in x-axis using
 :meth:`nvidia.dali.fn.warp_affine`.
 
-.. code-block::
+.. code-block:: python
 
     @augmentation(mag_range=(0., 1.), randomly_negate=True, ...)
     def translate_x(data, rel_offset, shape, fill_value=128, interp_type=None)
@@ -113,7 +113,7 @@ Applies :meth:`nvidia.dali.fn.transforms.translation` with shape-relative offset
 Applies :meth:`nvidia.dali.fn.transforms.translation` with absolute offset in x-axis using
 :meth:`nvidia.dali.fn.warp_affine`.
 
-.. code-block::
+.. code-block:: python
 
     @augmentation(mag_range=(0, 250), randomly_negate=True, ...)
     def translate_x_no_shape(data, offset, fill_value=128, interp_type=None)
@@ -123,7 +123,7 @@ Applies :meth:`nvidia.dali.fn.transforms.translation` with absolute offset in x-
 Applies :meth:`nvidia.dali.fn.transforms.translation` with shape-relative offset in y-axis using
 :meth:`nvidia.dali.fn.warp_affine`.
 
-.. code-block::
+.. code-block:: python
 
     @augmentation(mag_range=(0., 1.), randomly_negate=True, ...)
     def translate_y(data, rel_offset, shape, fill_value=128, interp_type=None)
@@ -133,7 +133,7 @@ Applies :meth:`nvidia.dali.fn.transforms.translation` with shape-relative offset
 Applies :meth:`nvidia.dali.fn.transforms.translation` with absolute offset in y-axis using
 :meth:`nvidia.dali.fn.warp_affine`.
 
-.. code-block::
+.. code-block:: python
 
     @augmentation(mag_range=(0, 250), randomly_negate=True, ...)
     def translate_y_no_shape(data, offset, fill_value=128, interp_type=None)
@@ -142,7 +142,7 @@ Applies :meth:`nvidia.dali.fn.transforms.translation` with absolute offset in y-
 
 Rotates the image using :meth:`nvidia.dali.fn.rotate`.
 
-.. code-block::
+.. code-block:: python
 
     @augmentation(mag_range=(0, 30), randomly_negate=True)
     def rotate(data, angle, fill_value=128, interp_type=None, rotate_keep_size=True)
@@ -152,7 +152,7 @@ Rotates the image using :meth:`nvidia.dali.fn.rotate`.
 Adjusts the brightness with :meth:`nvidia.dali.fn.brightness`. The magnitude is mapped to a [0, 2]
 parameter range.
 
-.. code-block::
+.. code-block:: python
 
     @augmentation(mag_range=(0, 0.9), randomly_negate=True, ...)
     def brightness(data, parameter)
@@ -163,7 +163,7 @@ parameter range.
 Adjusts the contrasts using a channel-weighted mean as a contrast center. The magnitude is mapped
 to a [0, 2] parameter range.
 
-.. code-block::
+.. code-block:: python
 
     @augmentation(mag_range=(0, 0.9), randomly_negate=True, ...)
     def contrast(data, parameter)
@@ -173,7 +173,7 @@ to a [0, 2] parameter range.
 Adjusts the color with :meth:`nvidia.dali.fn.saturation`. The magnitude is mapped to a [0, 2]
 parameter range.
 
-.. code-block::
+.. code-block:: python
 
     @augmentation(mag_range=(0, 0.9), randomly_negate=True, ...)
     def color(data, parameter)
@@ -183,7 +183,7 @@ parameter range.
 
 The outputs correspond to `PIL's ImageEnhance.Sharpness <https://pillow.readthedocs.io/en/stable/reference/ImageEnhance.html#PIL.ImageEnhance.Sharpnessl>`_.
 
-.. code-block::
+.. code-block:: python
 
     @augmentation(mag_range=(0, 0.9), randomly_negate=True, ...)
     def sharpness(data, kernel)
@@ -193,7 +193,7 @@ The outputs correspond to `PIL's ImageEnhance.Sharpness <https://pillow.readthed
 
 Posterizes the image by masking out the lower input bits.
 
-.. code-block::
+.. code-block:: python
 
     @augmentation(mag_range=(0, 4), ...)
     def posterize(data, mask)
@@ -202,7 +202,7 @@ Posterizes the image by masking out the lower input bits.
 
 Inverts the pixels that lie below a threshold.
 
-.. code-block::
+.. code-block:: python
 
     @augmentation(mag_range=(256, 0), ...)
     def solarize(data, threshold)
@@ -211,7 +211,7 @@ Inverts the pixels that lie below a threshold.
 
 Applies the shift to the pixels of value lower than 128.
 
-.. code-block::
+.. code-block:: python
 
     @augmentation(mag_range=(0, 110), ...)
     def solarize_add(data, shift)
@@ -220,7 +220,7 @@ Applies the shift to the pixels of value lower than 128.
 
 Inverts the image.
 
-.. code-block::
+.. code-block:: python
 
     @augmentation
     def invert(data, _)
@@ -229,7 +229,7 @@ Inverts the image.
 
 Applies histogram equalization using :ref:`nvidia.dali.fn.experimental.equalize`.
 
-.. code-block::
+.. code-block:: python
 
     @augmentation
     def equalize(data, _)
@@ -242,7 +242,7 @@ Applies histogram equalization using :ref:`nvidia.dali.fn.experimental.equalize`
 
 Applies automatic contrast adjustment.
 
-.. code-block::
+.. code-block:: python
 
     @augmentation
     def auto_contrast(data, _)
@@ -251,7 +251,7 @@ Applies automatic contrast adjustment.
 
 Identity operation - no processing is applied.
 
-.. code-block::
+.. code-block:: python
 
     @augmentation
     def identity(data, _)

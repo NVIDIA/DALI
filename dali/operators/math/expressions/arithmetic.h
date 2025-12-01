@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -31,7 +31,7 @@
 #include "dali/operators/math/expressions/broadcasting.h"
 #include "dali/operators/math/expressions/arithmetic_meta.h"
 #include "dali/operators/math/expressions/expression_impl_factory.h"
-#include "dali/pipeline/operator/operator.h"
+#include "dali/pipeline/operator/checkpointing/stateless_operator.h"
 
 namespace dali {
 namespace expr {
@@ -85,6 +85,21 @@ inline TileCover GetOneTilePerSample(const TensorListShape<> &shape) {
 }
 
 /**
+ * @brief Checks if the child is a (possibly improper) suffix of the parent.
+ */
+inline bool EndsWith(const TensorLayout &whole, const TensorLayout &suffix) {
+  if (whole.size() < suffix.size()) {
+    return false;
+  }
+  for (int i = 0; i < suffix.size(); i++) {
+    if (whole[whole.size() - 1 - i] != suffix[suffix.size() - 1 - i]) {
+      return false;
+    }
+  }
+  return true;
+}
+
+/**
  * @brief Recurse over expression tree and return the only matching layout
  */
 template <typename Backend>
@@ -103,18 +118,19 @@ DLL_PUBLIC TensorLayout GetCommonLayout(ExprNode &expr, const Workspace &ws) {
   auto result_layout = GetCommonLayout<Backend>(func[0], ws);
   for (int i = 1; i < expr.GetSubexpressionCount(); i++) {
     auto next_layout = GetCommonLayout<Backend>(func[i], ws);
-    if (result_layout.empty()) {
+    if (result_layout.size() >= next_layout.size()) {
+      if (EndsWith(result_layout, next_layout)) {
+        continue;
+      }
+    } else if (EndsWith(next_layout, result_layout)) {
       result_layout = next_layout;
       continue;
     }
-    if (next_layout.empty()) {
-      continue;
-    }
-    DALI_ENFORCE(
-        result_layout == next_layout,
-        make_string("Layouts of subexpressions ", i - 1, " and ", i, " for arithmetic operation",
-                    func.GetFuncName(), " do not match. Expected ", result_layout, " got ",
-                    next_layout, "."));
+    DALI_FAIL(make_string("Layouts of subexpressions ", i - 1, " and ", i,
+                          " for arithmetic operation ", func.GetFuncName(),
+                          " do not match. They must be equal or one must be a "
+                          "suffix of the other. Got ",
+                          result_layout, " and ", next_layout, "."));
   }
   return result_layout;
 }
@@ -311,17 +327,13 @@ inline void CheckAllowedOperations(ExprNode &expr) {
  * the number of CUDA calls.
  */
 template <typename Backend>
-class ArithmeticGenericOp : public Operator<Backend> {
+class ArithmeticGenericOp : public StatelessOperator<Backend> {
  public:
-  inline explicit ArithmeticGenericOp(const OpSpec &spec) : Operator<Backend>(spec) {
+  inline explicit ArithmeticGenericOp(const OpSpec &spec) : StatelessOperator<Backend>(spec) {
     expr_ = ParseExpressionString(spec.GetArgument<std::string>("expression_desc"));
   }
 
  protected:
-  bool CanInferOutputs() const override {
-    return true;
-  }
-
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     output_desc.resize(1);
     for (int i = 1; i < ws.NumInput(); i++) {
@@ -330,9 +342,22 @@ class ArithmeticGenericOp : public Operator<Backend> {
     }
     auto curr_batch_size = ws.GetInputBatchSize(0);
 
+    PropagateShapes<Backend>(result_shape_, *expr_, ws, curr_batch_size);
+
     if (!types_layout_inferred_) {
       result_type_id_ = PropagateTypes<Backend>(*expr_, ws);
       result_layout_ = GetCommonLayout<Backend>(*expr_, ws);
+      // sample_ndim is assumed to be constant between iterations.
+      if (result_layout_.size() != result_shape_.sample_dim()) {
+        // If the tensors with the most dimensions do not have a layout set but some
+        // smaller-dim tensors do, the `GetCommonLayout` returns layout smaller than needed and
+        // we cannot use it. For example if `a` has shape (1, 1, 1), layout ""
+        // and `b` (3,) and "C", the `a * b` shape is (1, 1, 3)
+        // but `GetCommonLayout(a*b, ws)` returns "C".
+        // TODO(ktokarski) Consider wildcards in the layout that can be used when the smaller
+        // shape with layout is broadcast against bigger shape without a layout.
+        result_layout_ = "";
+      }
       std::vector<ExprConstant *> constant_nodes;
       GetConstantNodes(*expr_, constant_nodes);
       AccessOrder order = ws.has_stream() ? ws.stream() : AccessOrder::host();
@@ -341,7 +366,6 @@ class ArithmeticGenericOp : public Operator<Backend> {
       types_layout_inferred_ = true;
     }
 
-    PropagateShapes<Backend>(result_shape_, *expr_, ws, curr_batch_size);
     AllocateIntermediateNodes();
     exec_order_ = CreateExecutionTasks<Backend>(*expr_, cache_, ws.has_stream() ? ws.stream() : 0);
 

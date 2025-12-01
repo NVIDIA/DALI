@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,6 +15,7 @@
 #include "dali/operators/generic/slice/subscript.h"
 #include "dali/kernels/common/type_erasure.h"
 #include "dali/kernels/slice/slice_cpu.h"
+#include "dali/pipeline/operator/checkpointing/stateless_operator.h"
 
 namespace dali {
 
@@ -81,12 +82,13 @@ void TensorSubscript<CPUBackend>::RunTyped(Workspace &ws) {
   kernels::KernelContext ctx;
   for (int i = 0; i < N; i++) {
     tv_in.shape = simplified_in_shape_[i];
-    tv_in.data = static_cast<const T*>(input.raw_tensor(i));
+    tv_in.data = static_cast<const T *>(input.raw_tensor(i));
     tv_out.shape = simplified_out_shape_[i];
-    tv_out.data = static_cast<T*>(output.raw_mutable_tensor(i));
+    tv_out.data = static_cast<T *>(output.raw_mutable_tensor(i));
     kernels::SliceArgs<T, ndim> args;
     args.anchor = simplified_anchor_[i].to_static<ndim>();
     args.shape = tv_out.shape;
+    args.step = simplified_step_[i];
     K.Schedule(ctx, tv_out, tv_in, args, tp);
   }
   tp.RunAll();
@@ -98,18 +100,19 @@ DALI_SCHEMA(SubscriptDimCheck)
     .MakeDocHidden()
     .DocStr(R"(Checks that the input has at least `num_subscripts` dimensions.
 
-This operator is used internally when all indices are empty (:) and just verifieis
+This operator is used internally when all indices are empty (:) and just verifies
 that the input has sufficient number of dimensions and passes through the input.)")
     .NumInput(1)
     .NumOutput(1)
     .PassThrough({{0, 0}})
     .AddArg("num_subscripts",
-      "Number of subscripts supplied, which is the minimum required in the input.", DALI_INT32);
+            "Number of subscripts supplied, which is the minimum required in the input.",
+            DALI_INT32);
 
 
 template <typename Backend>
-struct SubscriptDimCheck : public Operator<Backend> {
-  explicit SubscriptDimCheck(const OpSpec &spec) : Operator<Backend>(spec) {
+struct SubscriptDimCheck : public StatelessOperator<Backend> {
+  explicit SubscriptDimCheck(const OpSpec &spec) : StatelessOperator<Backend>(spec) {
     num_subscripts_ = spec.GetArgument<int>("num_subscripts");
   }
 
@@ -119,8 +122,9 @@ struct SubscriptDimCheck : public Operator<Backend> {
 
   void RunImpl(Workspace &ws) override {
     auto &in = ws.Input<Backend>(0);
-    DALI_ENFORCE(num_subscripts_ <= in.sample_dim(), make_string("Too many indices (",
-      num_subscripts_, ") for a ", in.sample_dim(), "-D tensor."));
+    DALI_ENFORCE(num_subscripts_ <= in.sample_dim(),
+                 make_string("Too many indices (", num_subscripts_, ") for a ", in.sample_dim(),
+                             "-D tensor."));
     auto &out = ws.Output<Backend>(0);
     out.ShareData(in);
   }

@@ -77,7 +77,10 @@ class cuda_vm_resource : public memory_resource<memory_kind::device>,
   struct Stat {
     int allocated_blocks;
     int peak_allocated_blocks;
+    int va_ranges;
+    int peak_va_ranges;
     size_t allocated_va;
+    size_t peak_va;
     size_t curr_allocated;
     size_t peak_allocated;
     size_t curr_free;
@@ -109,6 +112,9 @@ class cuda_vm_resource : public memory_resource<memory_kind::device>,
   void dump_stats(std::ostream &os) {
     print(os, "cuda_vm_resource stat dump:",
       "\ntotal VM size:         ", stat_.allocated_va,
+      "\npeak VM size:          ", stat_.peak_va,
+      "\n# VM ranges:           ", stat_.va_ranges,
+      "\npeak # VM ranges:      ", stat_.peak_va_ranges,
       "\ncurrently allocated:   ", stat_.curr_allocated,
       "\npeak allocated:        ", stat_.peak_allocated,
       "\nallocated_blocks:      ", stat_.allocated_blocks,
@@ -117,7 +123,8 @@ class cuda_vm_resource : public memory_resource<memory_kind::device>,
       "\ntotal allocations:     ", stat_.total_allocations,
       "\ntotal deallocations:   ", stat_.total_deallocations,
       "\ntotal unmapping:       ", stat_.total_unmaps,
-      "\nfree pool size:        ", stat_.curr_free);
+      "\nfree pool size:        ", stat_.curr_free,
+      "\n");
   }
 
   void dbg_dump(std::ostream &os) {
@@ -151,10 +158,16 @@ class cuda_vm_resource : public memory_resource<memory_kind::device>,
    * Releases physical blocks that are currently allocated, but fully available.
    */
   void release_unused() override {
+    do_release_unused(false);
+  }
+
+ protected:
+  std::pair<size_t, size_t> do_release_unused(bool release_va) {
+    size_t mem_freed = 0, va_freed = 0;
     std::vector<cuvm::CUMem> blocks_to_free;
     {
-      lock_guard pool_guard(pool_lock_);
-      mem_lock_guard mem_guard(mem_lock_);
+      std::unique_lock pool_guard(pool_lock_, std::try_to_lock);
+      std::unique_lock mem_guard(mem_lock_, std::try_to_lock);
 
       ptrdiff_t num_blocks_to_free = 0;
       for (auto &region : va_regions_) {
@@ -182,6 +195,7 @@ class cuda_vm_resource : public memory_resource<memory_kind::device>,
             for (ptrdiff_t i = start; i < end; i++) {
               blocks_to_free.push_back(region.unmap_block(i));
               stat_.total_unmaps++;
+              mem_freed += block_size_;
             }
             free_mapped_.get_specific_block(start_ptr, end_ptr);
           }
@@ -191,11 +205,122 @@ class cuda_vm_resource : public memory_resource<memory_kind::device>,
       stat_.allocated_blocks -= blocks_to_free.size();
     }
     blocks_to_free.clear();  // free the physical memory
+    if (release_va)
+      va_freed = release_unused_va();
+    return { mem_freed, va_freed };
   }
 
  protected:
   void do_deallocate(void *ptr, size_t size, size_t alignment) override {
     deallocate_impl(ptr, size, alignment, true);
+  }
+
+  int find_va_region(CUdeviceptr ptr) {
+    for (size_t i = 0; i < va_regions_.size(); i++)
+      if (va_regions_[i].address_range.contains(ptr))
+        return i;
+    return -1;
+  }
+
+  size_t release_unused_va() {
+    struct RangeDesc {
+      int range_idx, region_idx;
+      int start_block, end_block;
+    };
+    std::vector<cuvm::CUMem> blocks_to_free;
+    std::vector<cuvm::CUMemAddressRange> va_ranges_to_free;
+    std::vector<RangeDesc> ranges_to_free;
+    blocks_to_free.reserve(stat_.allocated_blocks);
+    va_ranges_to_free.reserve(va_ranges_.size());
+    ranges_to_free.reserve(va_ranges_.size());
+    size_t va_freed = 0;
+
+    {
+      std::unique_lock pool_guard(pool_lock_, std::try_to_lock);
+      std::unique_lock mem_guard(mem_lock_, std::try_to_lock);
+
+      // the whole block below musn't throw or it'll leave the resource in an inconsistent state
+      [&]() noexcept {
+        for (int i = 0, n = va_ranges_.size(); i < n; i++) {
+          auto start = va_ranges_[i].ptr();
+          auto end = va_ranges_[i].end();
+          if (free_va_.contains(reinterpret_cast<void*>(start), reinterpret_cast<void*>(end))) {
+            int region_idx = find_va_region(start);
+            assert(region_idx >= 0);
+            va_region &region = va_regions_[region_idx];
+
+            ptrdiff_t offset = start - region.address_range.ptr();
+            assert(offset % block_size_ == 0);
+            int num_blocks = (end - start) / block_size_;
+            int start_block = offset / block_size_;  // index of the first block
+            int end_block = start_block + num_blocks;  // index of the last block
+
+            int avail = region.available.find(true, start_block);
+            while (avail < end_block) {
+              int end_avail = std::min<int>(region.available.find(false, avail + 1), end_block);
+              for (int b = avail; b < end_avail; b++) {
+                blocks_to_free.push_back(region.unmap_block(b));
+                stat_.total_unmaps++;
+              }
+              auto *start_ptr = region.block_ptr<char>(avail);
+              auto *end_ptr = region.block_ptr<char>(end_avail);
+              free_mapped_.get_specific_block(start_ptr, end_ptr);
+
+              if (end_avail == end_block)
+                break;
+              avail = region.available.find(true, end_avail + 1);
+            }
+
+            ranges_to_free.push_back({ i, region_idx, start_block, end_block });
+          }
+        }
+        stat_.allocated_blocks -= blocks_to_free.size();
+      }();
+
+      for (const RangeDesc &rd : ranges_to_free) {
+        auto &region = va_regions_[rd.region_idx];
+
+        // We split the va_region as follows:
+
+        // |<--------------- old region ---------------------->|
+        // |<---region-->|<--va_range_to_remove-->|<---tail--->|
+        //               ^                        ^
+        // start_block---^                        ^---- end_block
+
+        // If start_block is 0 then `region` will become empty and we can either
+        // overwrite it with tail (if not empty) or remove it altogether
+
+        va_region tail = region.split(rd.end_block);
+        region.resize(rd.start_block);
+
+        auto *start_ptr = region.block_ptr<char>(rd.start_block);
+        auto *end_ptr = region.block_ptr<char>(rd.end_block);
+        ptrdiff_t range_size = (end_ptr - start_ptr);
+
+        if (region.empty()) {
+          if (tail.empty())
+            va_regions_.erase(va_regions_.begin() + rd.region_idx);
+          else
+            region = std::move(tail);
+        } else if (!tail.empty()) {
+          va_regions_.push_back(std::move(tail));
+        }
+
+        va_ranges_to_free.push_back(std::move(va_ranges_[rd.range_idx]));
+        va_ranges_.erase(va_ranges_.begin() + rd.range_idx);
+        stat_.allocated_va -= range_size;
+        va_freed += range_size;
+        void *p = free_va_.get_specific_block(start_ptr, end_ptr);
+        assert(p != nullptr);
+        (void)p;  // for non-debug builds
+      }
+
+      stat_.va_ranges -= va_ranges_to_free.size();
+    }
+
+    blocks_to_free.clear();
+    va_ranges_to_free.clear();
+    return va_freed;
   }
 
   void *do_allocate(size_t size, size_t alignment) override {
@@ -278,6 +403,10 @@ class cuda_vm_resource : public memory_resource<memory_kind::device>,
       purge();
     }
 
+    bool empty() const {
+      return num_blocks() == 0;
+    }
+
     int num_blocks() const {
       return mapping.size();
     }
@@ -322,7 +451,7 @@ class cuda_vm_resource : public memory_resource<memory_kind::device>,
       assert(available[block_idx]);
       cuvm::Unmap(block_dptr(block_idx), block_size);
       cuvm::CUMem mem({mapping[block_idx], block_size });
-      mapping[block_idx] = 0;
+      mapping[block_idx] = {};
       mapped[block_idx] = false;
       available[block_idx] = false;
       available_blocks--;
@@ -330,6 +459,11 @@ class cuda_vm_resource : public memory_resource<memory_kind::device>,
       return mem;
     }
 
+    /**
+     * @brief Adds the contents of `other` at the end of this region.
+     *
+     * @note This function operates purely on metadata and doesn't affect the process memory map.
+     */
     void append(va_region &&other) {
       assert(address_range.end() == other.address_range.ptr());
       assert(block_size == other.block_size);
@@ -354,6 +488,53 @@ class cuda_vm_resource : public memory_resource<memory_kind::device>,
       assert(mapping.size() == available.size());
     }
 
+    /**
+     * @brief Trims the current region to `tail_start` blocks and returns the rest as a new region.
+     *
+     * @note This function operates purely on metadata and doesn't affect the process memory map.
+     *
+     * @param tail_start  The index of the first block to be moved to `tail`
+     * @return va_region  The region starting at `tail_start`.
+     */
+    va_region split(int tail_start) {
+      if (tail_start == 0) {
+        va_region ret = std::move(*this);
+        available_blocks = 0;
+        address_range = {};
+        return ret;
+      } else if (tail_start == num_blocks()) {
+        return va_region({}, block_size);
+      }
+      int tail_blocks = num_blocks() - tail_start;
+      cuvm::CUAddressRange tail_range(block_dptr(tail_start), tail_blocks * block_size);
+      va_region tail(tail_range, block_size);
+      int n = num_blocks();
+      for (int src = tail_start, dst = 0; src < n; src++, dst++) {
+        tail.mapping[dst] = std::move(available[src]);
+        tail.mapped[dst] = mapped[src];
+
+        bool avail = available[src];
+        tail.available[dst] = avail;
+        if (avail) {  // update the available block count
+          tail.available_blocks++;
+          available_blocks--;
+        }
+      }
+      resize(tail_start);
+      return tail;
+    }
+
+    /**
+     * @brief Changes the size of the region.
+     *
+     * If the new size is smaller than the old one and there are any blocks mapped at indices
+     * that would become out of range, they are unmapped and deallocated.
+     *
+     * @note This function may change the process memory map.
+     *
+     * @note This function affects just the region and doesn't adjust the free_va / free_mapped
+     *       in the enclosing VM resource. These need to be adjusted by the caller.
+     */
     void resize(int new_num_blocks) {
       if (new_num_blocks < num_blocks()) {
         int no_longer_in_range = 0;
@@ -457,7 +638,10 @@ class cuda_vm_resource : public memory_resource<memory_kind::device>,
    *
    * The function hints the driver to use a distinct address space for each device in the
    * attempt to have a contiguous address spaces for each device. Currently, the spacing
-   * between device VA spaces is 1 TiB and initial VA size for each device is 4 GiB.
+   * between device VA spaces is 1 TiB and initial VA size for each device is double the physical
+   * size.
+   * On platforms that restrict VA size, if the reservation, fails there are more attempts to
+   * allocate the size that's large enough to accommodate the requested size.
    */
   void va_allocate(size_t min_size) {
     size_t va_size = std::max(next_pow2(min_size), initial_va_size_);
@@ -472,7 +656,7 @@ class cuda_vm_resource : public memory_resource<memory_kind::device>,
 
     if (va_regions_.empty()) {
       // Calculate the alignment for the initial allocations for this device - we start from
-      // 4 TiB nad go down.
+      // 4 TiB and go down.
       // The address hint is not important.
       hints = {
         { 0_zu, 1_zu << 42 },
@@ -493,23 +677,48 @@ class cuda_vm_resource : public memory_resource<memory_kind::device>,
       };
     }
 
-    // Try to allocate at hinted locations...
-    for (auto hint : hints) {
-      try {
-        va = cuvm::CUMemAddressRange::Reserve(va_size, hint.alignment, hint.address);
-        break;
-      } catch (const CUDAError &) {
-      } catch (const std::bad_alloc &) {}
+    while (!va) {
+      // Try to allocate at hinted locations...
+      for (auto hint : hints) {
+        try {
+          va = cuvm::CUMemAddressRange::Reserve(va_size, hint.alignment, hint.address);
+          break;
+        } catch (const CUDAError &) {
+        } catch (const std::bad_alloc &) {}
+      }
+      if (!va) {
+        // ...hint failed - allocate anywhere, just align to block_size_
+        auto on_error = [&](auto &exception) {
+          size_t next_va_size;
+          next_va_size = std::max(align_up(min_size, block_size_), va_size >> 1);
+          if (next_va_size == va_size) {  // we're already as low as we can - rethrow
+            if (!release_unused_va())
+              throw exception;
+          }
+          va_size = next_va_size;
+        };
+
+        try {
+          va = cuvm::CUMemAddressRange::Reserve(va_size, block_size_, 0);
+          break;
+        } catch (const CUDAError &e) {
+          on_error(e);
+        } catch (const std::bad_alloc &e) {
+          on_error(e);
+        }
+      }
     }
-    if (!va)  // ...hint failed - allocate anywhere, just align to block_size_
-      va = cuvm::CUMemAddressRange::Reserve(va_size, block_size_, 0);
+
+
+    if (va_size < initial_va_size_)
+        initial_va_size_ = va_size;
 
     if (!mm::detail::is_aligned(detail::u2ptr(va.ptr()), block_size_))
       throw std::logic_error("The VA region is not aligned to block size!\n"
         "This should never happen.");
 
     va_ranges_.push_back(std::move(va));
-    va_add_region(va_ranges_.back());
+    va_add_range(va_ranges_.back());
     stat_va_add(va_size);
   }
 
@@ -517,7 +726,7 @@ class cuda_vm_resource : public memory_resource<memory_kind::device>,
    * @brief Add a memory region that spans the given VA range and merge it with adjacent
    *        regions, if found.
    */
-  void va_add_region(cuvm::CUAddressRange va) {
+  void va_add_range(cuvm::CUAddressRange va) {
     // Try to merge regions
     // 1. Find preceding region
     va_region *region = nullptr;
@@ -805,6 +1014,11 @@ class cuda_vm_resource : public memory_resource<memory_kind::device>,
 
   void stat_va_add(size_t size) {
     stat_.allocated_va += size;
+    if (stat_.allocated_va > stat_.peak_va)
+      stat_.peak_va = stat_.allocated_va;
+    stat_.va_ranges++;
+    if (stat_.va_ranges > stat_.peak_va_ranges)
+      stat_.peak_va_ranges = stat_.va_ranges;
   }
 };
 

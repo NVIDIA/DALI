@@ -1,4 +1,4 @@
-# Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2022-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,11 +13,9 @@
 # limitations under the License.
 
 import numpy as np
-from nose.tools import with_setup
-
+from nose_utils import with_setup
 from nvidia.dali import pipeline_def
 import nvidia.dali.fn as fn
-
 from test_external_source_parallel_utils import setup_function, teardown_function, capture_processes
 
 
@@ -32,14 +30,21 @@ def _test_large_sample(start_method):
     @pipeline_def
     def create_pipeline():
         large = fn.external_source(
-            large_sample_cb, batch=False, parallel=True, prefetch_queue_depth=1)
+            large_sample_cb, batch=False, parallel=True, prefetch_queue_depth=1
+        )
         # iteration over array in Python is too slow, so reduce the number of elements
         # to iterate over
         reduced = fn.reductions.sum(large, axes=(1, 2))
         return reduced
 
-    pipe = create_pipeline(batch_size=batch_size, py_num_workers=2, py_start_method=start_method,
-                           prefetch_queue_depth=1, num_threads=2, device_id=0)
+    pipe = create_pipeline(
+        batch_size=batch_size,
+        py_num_workers=2,
+        py_start_method=start_method,
+        prefetch_queue_depth=1,
+        num_threads=2,
+        device_id=0,
+    )
     pipe.build()
     capture_processes(pipe._py_pool)
     for batch_idx in range(8):
@@ -52,7 +57,8 @@ def _test_large_sample(start_method):
             for val in a.flat:
                 assert val == expected_val, (
                     f"Unexpected value in batch: got {val}, expected {expected_val}, "
-                    f"for batch {batch_idx}, sample {idx_in_batch}")
+                    f"for batch {batch_idx}, sample {idx_in_batch}"
+                )
 
 
 def test_large_sample():

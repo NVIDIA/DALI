@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@
 #include "dali/core/error_handling.h"
 #include "dali/core/format.h"
 #include "dali/core/mm/malloc_resource.h"
+#include "dali/core/mm/binning_resource.h"
 #include "dali/core/device_guard.h"
 #include "dali/core/mm/async_pool.h"
 #include "dali/core/mm/composite_resource.h"
@@ -80,9 +81,9 @@ struct DefaultResources {
         int ndevs = 0;
         CUDA_CALL(cudaGetDeviceCount(&ndevs));
         decltype(device) tmp(new std::shared_ptr<device_async_resource>[ndevs]);
-        std::atomic_thread_fence(std::memory_order::memory_order_seq_cst);
+        std::atomic_thread_fence(std::memory_order_seq_cst);
         num_devices = ndevs;
-        std::atomic_thread_fence(std::memory_order::memory_order_seq_cst);
+        std::atomic_thread_fence(std::memory_order_seq_cst);
         device = std::move(tmp);
       }
     }
@@ -119,17 +120,12 @@ struct DefaultResources {
     // is allocated dynamically on stack and never destroyed.
     // This accomplishes the intentional leaking of the pointer.
     using Ptr = std::shared_ptr<T>;
-    std::aligned_storage_t<sizeof(Ptr), alignof(Ptr)> dump;
-    new (&dump) Ptr(std::move(p));
+    alignas(Ptr) std::byte dump[sizeof(Ptr)];
+    new (dump) Ptr(std::move(p));
   }
 };
 
 #define g_resources (DefaultResources::instance())
-
-inline std::shared_ptr<host_memory_resource> CreateDefaultHostResource() {
-  static auto rsrc = std::make_shared<malloc_memory_resource>();
-  return rsrc;
-}
 
 struct CUDARTLoader {
   CUDARTLoader() {
@@ -139,28 +135,97 @@ struct CUDARTLoader {
   }
 };
 
-bool UseDeviceMemoryPool() {
-  static bool value = []() {
-    const char *env = std::getenv("DALI_USE_DEVICE_MEM_POOL");
-    return !env || atoi(env);
-  }();
-  return value;
-}
+struct MMEnv {
+  bool use_dev_mem_pool = true;
+  bool use_pinned_mem_pool = true;
+  bool use_vmm = true;
+  bool use_cuda_malloc_async = false;
 
-bool UsePinnedMemoryPool() {
-  static bool value = []() {
-    const char *env = std::getenv("DALI_USE_PINNED_MEM_POOL");
-    return !env || atoi(env);
-  }();
-  return value;
-}
+  size_t host_malloc_threshold;
 
-bool UseVMM() {
-  static bool value = []() {
-    const char *env = std::getenv("DALI_USE_VMM");
-    return !env || atoi(env);
-  }();
-  return value;
+  static const MMEnv &get() {
+    static MMEnv env;
+    return env;
+  }
+
+ private:
+  MMEnv() {
+    const char *use_dev_mem_pool_env = std::getenv("DALI_USE_DEVICE_MEM_POOL");
+    use_dev_mem_pool = !use_dev_mem_pool_env || atoi(use_dev_mem_pool_env);
+
+    const char *use_vmm_env = std::getenv("DALI_USE_VMM");
+    use_vmm = !use_vmm_env || atoi(use_vmm_env);
+
+    const char *use_pinned_mem_pool_env = std::getenv("DALI_USE_PINNED_MEM_POOL");
+    use_pinned_mem_pool = !use_pinned_mem_pool_env || atoi(use_pinned_mem_pool_env);
+
+    const char *use_cuda_malloc_async_env = std::getenv("DALI_USE_CUDA_MALLOC_ASYNC");
+    use_cuda_malloc_async = use_cuda_malloc_async_env && atoi(use_cuda_malloc_async_env);
+
+    if (use_dev_mem_pool && use_cuda_malloc_async) {
+      if (!use_dev_mem_pool_env) {
+        use_dev_mem_pool = false;
+      } else {
+        throw std::invalid_argument("Configuration clash:\n"
+          "DALI_USE_DEVICE_MEM_POOL and DALI_USE_CUDA_MALLOC_ASYNC cannot be used together");
+      }
+    }
+
+    if (use_vmm && use_cuda_malloc_async) {
+      if (!use_vmm_env) {
+        use_vmm = false;
+      } else {
+        throw std::invalid_argument("Configuration clash:\n"
+          "DALI_USE_VMM and DALI_USE_CUDA_MALLOC_ASYNC cannot be used together");
+      }
+    }
+
+    host_malloc_threshold = ParseMallocThresholdEnv();
+  }
+
+  ssize_t ParseMallocThresholdEnv() {
+    char *env = getenv("DALI_MALLOC_POOL_THRESHOLD");
+    int len = 0;
+    if (env && (len = strlen(env))) {
+      for (int i = 0; i < len; i++) {
+        bool valid = std::isdigit(env[i]) || (i == len - 1 && (env[i] == 'k' || env[i] == 'M'));
+        if (!valid) {
+          DALI_FAIL(make_string(
+            "DALI_MALLOC_POOL_THRESHOLD must be a number, optionally followed by 'k' or 'M', got: ",
+            env));
+        }
+      }
+      ssize_t s = atoll(env);
+      if (env[len-1] == 'k')
+        s <<= 10;
+      else if (env[len-1] == 'M')
+        s <<= 20;
+      return s;
+    } else {
+      char *mmap = getenv("MALLOC_MMAP_MAX_");
+      if (mmap && !atoi(mmap))  // MALLOC_MMAP_MAX == 0 tells malloc to never use mmap
+        return -1;
+      char *thresh = getenv("MALLOC_MMAP_THRESHOLD_");
+      if (thresh)
+        return atoll(thresh);
+      return (32 << 20);  // max for 64-bit Linux systems
+    }
+  }
+};
+
+inline std::shared_ptr<host_memory_resource> CreateDefaultHostResource() {
+  auto rsrc = std::make_shared<malloc_memory_resource>();
+  size_t threshold = MMEnv::get().host_malloc_threshold;
+  if (threshold > 0) {
+    using pool_t = pool_resource<mm::memory_kind::host, mm::coalescing_free_tree, spinlock>;
+    auto pool = std::make_shared<pool_t>(rsrc.get());
+    std::array<size_t, 1> thresholds = {{ threshold }};
+    std::array<std::shared_ptr<host_memory_resource>, 2> resources = {{ rsrc, pool }};
+    using binning_t = binning_resource<mm::memory_kind::host, 2, decltype(resources)>;
+    auto binning_rsrc = std::make_shared<binning_t>(thresholds, resources, resources);
+    return binning_rsrc;
+  }
+  return rsrc;
 }
 
 inline std::shared_ptr<device_async_resource> CreateDefaultDeviceResource() {
@@ -168,11 +233,22 @@ inline std::shared_ptr<device_async_resource> CreateDefaultDeviceResource() {
   CUDAEventPool::instance();
   int device_id = 0;
   CUDA_CALL(cudaGetDevice(&device_id));
-  if (!UseDeviceMemoryPool()) {
+  if (MMEnv::get().use_cuda_malloc_async) {
+    #if CUDA_VERSION >= 11020
+      if (!cuda_malloc_async_memory_resource::is_supported(device_id))
+        throw std::invalid_argument(make_string(
+            "cudaMallocAsync is not supported on device ", device_id));
+      return std::make_shared<mm::cuda_malloc_async_memory_resource>(device_id);
+    #else
+      throw std::invalid_argument(
+        "In order to use DALI_USE_CUDA_MALLOC_ASYNC, compile DALI with CUDA 11.2 or newer.");
+    #endif
+  }
+  if (!MMEnv::get().use_dev_mem_pool) {
     return std::make_shared<mm::cuda_malloc_memory_resource>(device_id);
   }
   #if DALI_USE_CUDA_VM_MAP
-  if (cuvm::IsSupported() && UseVMM()) {
+  if (cuvm::IsSupported() && MMEnv::get().use_vmm) {
     using resource_type = mm::async_pool_resource<mm::memory_kind::device, cuda_vm_resource,
                                                   std::mutex, void>;
     return std::make_shared<resource_type>();
@@ -189,7 +265,7 @@ inline std::shared_ptr<device_async_resource> CreateDefaultDeviceResource() {
 }
 
 inline std::shared_ptr<pinned_async_resource> CreateDefaultPinnedResource() {
-  if (!UsePinnedMemoryPool()) {
+  if (!MMEnv::get().use_pinned_mem_pool) {
     static auto upstream = std::make_shared<mm::pinned_malloc_memory_resource>();
     return upstream;
   }
@@ -366,32 +442,28 @@ device_async_resource *GetDefaultDeviceResource(int device_id) {
 }
 
 template <typename Kind>
-mm::pool_resource_base<Kind> *GetPoolInterface(mm::memory_resource<Kind> *mr) {
-  while (mr) {
-    if (auto *pool = dynamic_cast<mm::pool_resource_base<Kind>*>(mr))
-      return pool;
-    if (auto *up = dynamic_cast<mm::with_upstream<Kind>*>(mr)) {
-      mr = up->upstream();
-    } else {
-      break;
+void ReleaseUnusedMemory(mm::memory_resource<Kind> *mr) {
+  if (auto *pool = dynamic_cast<mm::pool_resource_base<Kind>*>(mr)) {
+    pool->release_unused();
+  } else if (auto *up_rsrc = dynamic_cast<mm::with_upstream<Kind>*>(mr)) {
+    ReleaseUnusedMemory(up_rsrc->upstream());
+  } else if (auto *bin_rsrc = dynamic_cast<mm::binning_resource_base<Kind>*>(mr)) {
+    for (int bin = 0; bin < bin_rsrc->num_bins(); bin++) {
+      ReleaseUnusedMemory(bin_rsrc->resource(bin));
     }
   }
-  return nullptr;
 }
 
 DLL_PUBLIC
 void ReleaseUnusedMemory() {
   if (auto *devs = g_resources.device.get()) {
     for (int i = 0, n = g_resources.num_devices; i < n; i++) {
-      if (auto *pool = GetPoolInterface(devs[i].get())) {
-        pool->release_unused();
-      }
+      ReleaseUnusedMemory(devs[i].get());
     }
   }
 
-  if (auto *pool = GetPoolInterface(g_resources.pinned_async.get())) {
-    pool->release_unused();
-  }
+  ReleaseUnusedMemory(g_resources.pinned_async.get());
+  ReleaseUnusedMemory(g_resources.host.get());
 }
 
 DLL_PUBLIC

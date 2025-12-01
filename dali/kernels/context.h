@@ -1,4 +1,4 @@
-// Copyright (c) 2018-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2018-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -50,6 +50,11 @@ ToContiguousGPUMem(Scratchpad &scratchpad, cudaStream_t stream, const Collection
 
 /**
  * @brief Interface for kernels to obtain auxiliary working memory
+ *
+ * A scratchpad object provides memory indefinitely (as long as underlying resources are available)
+ * - all memory is deallocated at once, at the point a Scratchpad goes out of scope.
+ *
+ * This means that a scratchpad object should, in gerneral, be a temporary object.
  */
 class Scratchpad {
  public:

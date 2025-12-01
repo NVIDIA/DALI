@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -34,7 +34,7 @@ Not providing any axis results in reduction of all elements.)code",
   .AddOptionalArg<TensorLayout>("axis_names", R"code(Name(s) of the axis or axes along which the reduction is performed.
 
 The input layout is used to translate the axis names to axis indices, for example ``axis_names="HW"`` with input
-layout `"FHWC"` is equivalent to specifying ``axes=[1,2]``. This argument cannot be used together with ``axes``.)code",
+layout `"FHWC"` is equivalent to specifying ``axes=[1,2]``. This argument cannot be used together with `axes`.)code",
     nullptr)
   .AddOptionalArg(
     "keep_dims",
@@ -48,19 +48,23 @@ DALI_SCHEMA(ReduceWithOutputType)
 
   DALI_SCHEMA(ReduceWithMeanInput)
   .AddOptionalArg("ddof",
-    R"code(Delat Degrees of Freedom. Adjusts the divisor used in calculations, which is `N - ddof`.)code",
+    R"code(Delta Degrees of Freedom. Adjusts the divisor used in calculations, which is `N - ddof`.)code",
     0)
   .AddParent("ReduceBase");
 
 DALI_SCHEMA(reductions__StdDev)
   .DocStr("Gets standard deviation of elements along provided axes.")
   .NumInput(2)
+  .InputDox(0, "data", "TensorList", "Input to the operator.")
+  .InputDox(1, "mean", "float or TensorList of float", "Mean value to use in the calculations.")
   .NumOutput(1)
   .AddParent("ReduceWithMeanInput");
 
 DALI_SCHEMA(reductions__Variance)
   .DocStr("Gets variance of elements along provided axes.")
   .NumInput(2)
+  .InputDox(0, "data", "TensorList", "Input to the operator.")
+  .InputDox(1, "mean", "float or TensorList of float", "Mean value to use in the calculations.")
   .NumOutput(1)
   .AddParent("ReduceWithMeanInput");
 

@@ -1,4 +1,4 @@
-# Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2022-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -31,7 +31,6 @@ def input_batch(num_dim):
 
 
 def run_pipeline(device, num_dim, replace=False, layout=None):
-
     @pipeline_def
     def pipeline():
         arg = fn.external_source(input_batch(num_dim), layout=layout)
@@ -40,7 +39,6 @@ def run_pipeline(device, num_dim, replace=False, layout=None):
         return fn.per_frame(arg, replace=replace, device=device)
 
     pipe = pipeline(num_threads=4, batch_size=max_batch_size, device_id=0)
-    pipe.build()
     expected_layout = "F" + "*" * (num_dim - 1) if layout is None else "F" + layout[1:]
     for baseline in input_batch(num_dim):
         (out,) = pipe.run()
@@ -71,8 +69,10 @@ def test_zero_dim_not_allowed():
         yield raises(RuntimeError, expected_msg)(run_pipeline), device, 0
 
 
-@raises(RuntimeError, "Per-frame argument input must be a sequence. "
-                      "The input layout should start with 'F'")
+@raises(
+    RuntimeError,
+    "Per-frame argument input must be a sequence. " "The input layout should start with 'F'",
+)
 def _test_not_a_sequence_layout(device, num_dim, layout):
     run_pipeline(device, num_dim=num_dim, layout=layout)
 
@@ -86,12 +86,13 @@ def test_not_a_sequence_layout():
 def _test_pass_through():
     @pipeline_def
     def pipeline():
-        rng = fn.external_source(lambda info: np.array(
-            [info.iteration, info.iteration + 1], dtype=np.float32), batch=False)
+        rng = fn.external_source(
+            lambda info: np.array([info.iteration, info.iteration + 1], dtype=np.float32),
+            batch=False,
+        )
         return fn.per_frame(fn.random.uniform(range=rng, device="gpu", shape=(1, 1, 1), seed=42))
 
     pipe = pipeline(batch_size=1, num_threads=4, device_id=0)
-    pipe.build()
     for i in range(5):
         (out,) = pipe.run()
         [sample] = [np.array(s) for s in out.as_cpu()]

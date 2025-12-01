@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -96,10 +96,6 @@ struct SeparableResamplingGPUImpl : Interface {
     }
 
     KernelRequirements req;
-    ScratchpadEstimator se;
-
-    // Sample descriptions need to be delivered to the GPU - hence, the storage
-    se.add<mm::memory_kind::device, SampleDesc>(setup.sample_descs.size());
 
     // CPU block2sample lookup may change in size and is large enough
     // to mandate declaring it as a requirement for external allocator.
@@ -107,13 +103,6 @@ struct SeparableResamplingGPUImpl : Interface {
     for (auto x : setup.total_blocks)
       num_blocks += x;
 
-    se.add<mm::memory_kind::device, BlockDesc>(num_blocks);
-    se.add<mm::memory_kind::pinned, BlockDesc>(num_blocks);
-
-    // Request memory for intermediate storage.
-    se.add<mm::memory_kind::device, IntermediateElement>(GetTmpMemSize());
-
-    req.scratch_sizes = se.sizes;
     req.output_shapes = { setup.output_shape };
     return req;
   }
@@ -128,6 +117,7 @@ struct SeparableResamplingGPUImpl : Interface {
         which_pass,
         descs_gpu, block2sample.data, block2sample.shape[0],
         setup.block_dim,
+        setup.shm_size_for_pass[which_pass],
         stream);
   }
 
@@ -138,8 +128,6 @@ struct SeparableResamplingGPUImpl : Interface {
   virtual void
   Run(KernelContext &context, const Output &out, const Input &in, const Params &params) {
     cudaStream_t stream = context.gpu.stream;
-
-    SampleDesc *descs_gpu = context.scratchpad->AllocateGPU<SampleDesc>(setup.sample_descs.size());
 
     int blocks_in_all_passes = 0;
     for (auto x : setup.total_blocks)
@@ -185,12 +173,8 @@ struct SeparableResamplingGPUImpl : Interface {
         out.tensor_data(i));
     }
 
-    CUDA_CALL(cudaMemcpyAsync(
-        descs_gpu,
-        setup.sample_descs.data(),
-        setup.sample_descs.size()*sizeof(SampleDesc),
-        cudaMemcpyHostToDevice,
-        stream));
+    SampleDesc *descs_gpu;
+    std::tie(descs_gpu) = context.scratchpad->ToContiguousGPU(stream, setup.sample_descs);
 
     RunPasses(descs_gpu, pass_lookup, stream, std::integral_constant<int, spatial_ndim>());
   }

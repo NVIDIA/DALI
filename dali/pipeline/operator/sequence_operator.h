@@ -1,4 +1,4 @@
-// Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022, 2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -78,13 +78,14 @@ class SampleBroadcasting {
  * By default, with `allow_non_positional_arg_ref=false,  only positional input can be used as such
  * a reference.
  */
-template <typename Backend, bool allow_non_positional_arg_ref = false>
-class SequenceOperator : public Operator<Backend>, protected SampleBroadcasting<Backend> {
+template <typename Backend, template<typename> typename BaseOp = Operator,
+          bool allow_non_positional_arg_ref = false>
+class SequenceOperator : public BaseOp<Backend>, protected SampleBroadcasting<Backend> {
  public:
-  inline explicit SequenceOperator(const OpSpec &spec) : Operator<Backend>{spec} {}
+  inline explicit SequenceOperator(const OpSpec &spec) : BaseOp<Backend>{spec} {}
 
-  using Operator<Backend>::Setup;
-  using Operator<Backend>::Run;
+  using BaseOp<Backend>::Setup;
+  using BaseOp<Backend>::Run;
   using SampleBroadcasting<Backend>::BroadcastSamples;
 
   bool Setup(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
@@ -93,9 +94,9 @@ class SequenceOperator : public Operator<Backend>, protected SampleBroadcasting<
     is_expanding_ = ShouldExpand(ws);
     bool is_inferred;
     if (!IsExpanding()) {
-      is_inferred = Operator<Backend>::Setup(output_desc, ws);
+      is_inferred = BaseOp<Backend>::Setup(output_desc, ws);
     } else {
-      Operator<Backend>::template EnforceUniformInputBatchSize<Backend>(ws);
+      BaseOp<Backend>::EnforceUniformInputBatchSize(ws);
       DALI_ENFORCE(IsExpandable(),
                    "Operator requested to expand the sequence-like inputs, but no expandable input "
                    "was found");
@@ -106,7 +107,7 @@ class SequenceOperator : public Operator<Backend>, protected SampleBroadcasting<
       expanded_.SetBatchSizes(GetReferenceExpandDesc().NumExpanded());
       ExpandInputs(ws);
       ExpandArguments(ws);
-      is_inferred = Operator<Backend>::Setup(output_desc, expanded_);
+      is_inferred = BaseOp<Backend>::Setup(output_desc, expanded_);
     }
     is_inferred = ProcessOutputDesc(output_desc, ws, is_inferred);
     DALI_ENFORCE(is_inferred, "SequenceOperator must infer the input shape");
@@ -115,10 +116,10 @@ class SequenceOperator : public Operator<Backend>, protected SampleBroadcasting<
 
   void Run(Workspace &ws) override {
     if (!IsExpanding()) {
-      Operator<Backend>::Run(ws);
+      BaseOp<Backend>::Run(ws);
     } else {
       ExpandOutputs(ws);
-      Operator<Backend>::Run(expanded_);
+      BaseOp<Backend>::Run(expanded_);
       PostprocessOutputs(ws);
     }
   }
@@ -331,7 +332,7 @@ class SequenceOperator : public Operator<Backend>, protected SampleBroadcasting<
     input_expand_desc_.reserve(num_inputs);
     for (int input_idx = 0; input_idx < num_inputs; input_idx++) {
       const auto &input_shape = ws.GetInputShape(input_idx);
-      const auto &layout = GetInputLayout(ws, input_idx);
+      const auto &layout = ws.GetInputLayout(input_idx);
       input_expand_desc_.emplace_back(input_idx, input_shape, layout,
                                       ShouldExpandChannels(input_idx));
     }
@@ -362,11 +363,11 @@ class SequenceOperator : public Operator<Backend>, protected SampleBroadcasting<
 
   virtual std::unique_ptr<ExpandDesc> InferNonPositionalReferenceExpandDesc(
       const Workspace &ws) {
-    for (const auto &arg_input : ws) {
-      auto &shared_tvec = arg_input.second.tvec;
-      assert(shared_tvec);
-      const std::string &name = arg_input.first;
-      const auto &batch = *shared_tvec;
+    for (const auto &arg_input : ws.ArgumentInputs()) {
+      auto &shared_tl = arg_input.cpu;
+      assert(shared_tl);
+      const std::string &name = arg_input.name;
+      const auto &batch = *shared_tl;
       if (IsPerFrameArg(name, batch)) {
         return std::make_unique<ExpandDesc>(name, batch.shape(), batch.GetLayout(), false);
       }
@@ -397,18 +398,18 @@ class SequenceOperator : public Operator<Backend>, protected SampleBroadcasting<
   }
 
   void ExpandArguments(const ArgumentWorkspace &ws) {
-    for (const auto &arg_input : ws) {
-      auto &shared_tvec = arg_input.second.tvec;
-      assert(shared_tvec);
-      ExpandArgument(ws, arg_input.first, *shared_tvec);
+    for (const auto &arg_input : ws.ArgumentInputs()) {
+      auto &shared_tl = arg_input.cpu;
+      assert(shared_tl);
+      ExpandArgument(ws, arg_input.name, *shared_tl);
     }
   }
 
   bool HasPerFrameArgInputs(const Workspace &ws) {
-    for (const auto &arg_input : ws) {
-      auto &shared_tvec = arg_input.second.tvec;
-      assert(shared_tvec);
-      if (IsPerFrameArg(arg_input.first, *shared_tvec)) {
+    for (const auto &arg_input : ws.ArgumentInputs()) {
+      auto &shared_tl = arg_input.cpu;
+      assert(shared_tl);
+      if (IsPerFrameArg(arg_input.name, *shared_tl)) {
         return true;
       }
     }
@@ -416,7 +417,7 @@ class SequenceOperator : public Operator<Backend>, protected SampleBroadcasting<
   }
 
   bool IsPerFrameArg(const std::string &arg_name, const TensorList<CPUBackend> &arg_input) {
-    const auto &schema = Operator<Backend>::GetSpec().GetSchema();
+    const auto &schema = BaseOp<Backend>::GetSpec().GetSchema();
     // Do not error out but simply ignore `F` layout of the argument input
     // if it is not marked as per-frame in schema to be consistent with operators
     // that do not support per-frame at all
@@ -437,7 +438,6 @@ class SequenceOperator : public Operator<Backend>, protected SampleBroadcasting<
                     "have exactly the same outermost dimensions to expand. However, got `",
                     input_desc.ExpandedLayout(), "` planned for expanding."));
     for (int sample_idx = 0; sample_idx < expand_desc.NumSamples(); ++sample_idx) {
-      assert(expand_desc.NumExpanded(sample_idx) == input_desc.NumExpanded(sample_idx));
       if (expand_desc.ExpandFrames()) {
         DALI_ENFORCE(
             expand_desc.NumFrames(sample_idx) == input_desc.NumFrames(sample_idx),
@@ -454,6 +454,7 @@ class SequenceOperator : public Operator<Backend>, protected SampleBroadcasting<
                         ", respectively: ", expand_desc.NumChannels(sample_idx), " and ",
                         input_desc.NumChannels(sample_idx)));
       }
+      assert(expand_desc.NumExpanded(sample_idx) == input_desc.NumExpanded(sample_idx));
     }
   }
 
@@ -498,10 +499,10 @@ class SequenceOperator : public Operator<Backend>, protected SampleBroadcasting<
   }
 
   void InitializeExpandedArguments(const Workspace &ws) {
-    for (const auto &arg_input : ws) {
-      auto &shared_tvec = arg_input.second.tvec;
-      assert(shared_tvec);
-      InitializeExpandedArgument(ws, arg_input.first, *shared_tvec);
+    for (const auto &arg_input : ws.ArgumentInputs()) {
+      auto &shared_tl = arg_input.cpu;
+      assert(shared_tl);
+      InitializeExpandedArgument(ws, arg_input.name, *shared_tl);
     }
   }
 
@@ -544,7 +545,7 @@ class SequenceOperator : public Operator<Backend>, protected SampleBroadcasting<
   }
 
   TensorList<CPUBackend> &ExpandedArg(const std::string &arg_name) {
-    return expanded_.UnsafeMutableArgumentInput(arg_name);
+    return *expanded_.UnsafeMutableArgumentInput(arg_name);
   }
 
   template <typename BatchType>

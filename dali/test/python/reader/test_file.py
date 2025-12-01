@@ -1,4 +1,4 @@
-# Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2021-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -25,7 +25,7 @@ from test_utils import compare_pipelines
 
 
 def ref_contents(path):
-    fname = path[path.rfind('/') + 1:]
+    fname = path[path.rfind("/") + 1 :]
     return "Contents of " + fname + ".\n"
 
 
@@ -47,7 +47,7 @@ def setUpModule():
 
     g_tmpdir = tempfile.TemporaryDirectory()
     g_root = g_tmpdir.__enter__()
-    g_files = [str(i) + ' x.dat' for i in range(10)]  # name with a space in the middle!
+    g_files = [str(i) + " x.dat" for i in range(10)]  # name with a space in the middle!
     populate(g_root, g_files)
 
 
@@ -75,16 +75,16 @@ def _test_reader_files_arg(use_root, use_labels, shuffle):
 
     batch_size = 3
     pipe = Pipeline(batch_size, 1, 0)
-    files, labels = fn.readers.file(file_root=root, files=fnames, labels=lbl,
-                                    random_shuffle=shuffle)
+    files, labels = fn.readers.file(
+        file_root=root, files=fnames, labels=lbl, random_shuffle=shuffle
+    )
     pipe.set_outputs(files, labels)
-    pipe.build()
 
     num_iters = (len(fnames) + 2 * batch_size) // batch_size
     for i in range(num_iters):
         out_f, out_l = pipe.run()
         for j in range(batch_size):
-            contents = bytes(out_f.at(j)).decode('utf-8')
+            contents = bytes(out_f.at(j)).decode("utf-8")
             label = out_l.at(j)[0]
             index = label - 10000 if use_labels else label
             assert contents == ref_contents(fnames[index])
@@ -105,13 +105,12 @@ def test_file_reader_relpath():
     pipe = Pipeline(batch_size, 1, 0)
     files, labels = fn.readers.file(files=fnames, random_shuffle=True)
     pipe.set_outputs(files, labels)
-    pipe.build()
 
     num_iters = (len(fnames) + 2 * batch_size) // batch_size
     for i in range(num_iters):
         out_f, out_l = pipe.run()
         for j in range(batch_size):
-            contents = bytes(out_f.at(j)).decode('utf-8')
+            contents = bytes(out_f.at(j)).decode("utf-8")
             index = out_l.at(j)[0]
             assert contents == ref_contents(fnames[index])
 
@@ -128,55 +127,71 @@ def test_file_reader_relpath_file_list():
     pipe = Pipeline(batch_size, 1, 0)
     files, labels = fn.readers.file(file_list=list_file, random_shuffle=True)
     pipe.set_outputs(files, labels)
-    pipe.build()
 
     num_iters = (len(fnames) + 2 * batch_size) // batch_size
     for i in range(num_iters):
         out_f, out_l = pipe.run()
         for j in range(batch_size):
-            contents = bytes(out_f.at(j)).decode('utf-8')
+            contents = bytes(out_f.at(j)).decode("utf-8")
             label = out_l.at(j)[0]
             index = 10000 - label
             assert contents == ref_contents(fnames[index])
 
 
-def _test_file_reader_filter(filters, glob_filters, batch_size, num_threads, subpath,
-                             case_sensitive_filter):
+def _test_file_reader_filter(
+    filters, glob_filters, batch_size, num_threads, subpath, case_sensitive_filter
+):
     pipe = Pipeline(batch_size, num_threads, 0)
-    root = os.path.join(os.environ['DALI_EXTRA_PATH'], subpath)
-    files, labels = fn.readers.file(file_root=root, file_filters=filters,
-                                    case_sensitive_filter=case_sensitive_filter)
+    root = os.path.join(os.environ["DALI_EXTRA_PATH"], subpath)
+    files, labels = fn.readers.file(
+        file_root=root, file_filters=filters, case_sensitive_filter=case_sensitive_filter
+    )
     pipe.set_outputs(files, labels)
-    pipe.build()
 
     fnames = set()
     for label, dir in enumerate(sorted(next(os.walk(root))[1])):
         for filter in glob_filters:
             for file in glob.glob(os.path.join(root, dir, filter)):
-                fnames.add((label, file.split('/')[-1], file))
+                fnames.add((label, file.split("/")[-1], file))
 
     fnames = sorted(fnames)
 
     for i in range(len(fnames) // batch_size):
         out_f, _ = pipe.run()
         for j in range(batch_size):
-            with open(fnames[i * batch_size + j][2], 'rb') as file:
+            with open(fnames[i * batch_size + j][2], "rb") as file:
                 contents = np.array(list(file.read()))
                 assert all(contents == out_f.at(j))
 
 
 def test_file_reader_filters():
-    for filters in [['*.jpg'], ['*.jpg', '*.png', '*.jpeg'], ['dog*.jpg', 'cat*.png', '*.jpg']]:
+    for filters in [["*.jpg"], ["*.jpg", "*.png", "*.jpeg"], ["dog*.jpg", "cat*.png", "*.jpg"]]:
         num_threads = random.choice([1, 2, 4, 8])
         batch_size = random.choice([1, 3, 10])
-        yield _test_file_reader_filter, filters, filters, batch_size, num_threads, \
-            'db/single/mixed', False
+        yield (
+            _test_file_reader_filter,
+            filters,
+            filters,
+            batch_size,
+            num_threads,
+            "db/single/mixed",
+            False,
+        )
 
-    yield _test_file_reader_filter, ['*.jPg', '*.JPg'], \
-        ['*.jPg', '*.JPg'], 3, 1, 'db/single/case_sensitive', True
-    yield _test_file_reader_filter, ['*.JPG'], \
-        ['*.jpg', '*.jpG', '*.jPg', '*.jPG', '*.Jpg', '*.JpG', '*.JPg', '*.JPG'], \
-        3, 1, 'db/single/case_sensitive', False
+    yield _test_file_reader_filter, ["*.jPg", "*.JPg"], [
+        "*.jPg",
+        "*.JPg",
+    ], 3, 1, "db/single/case_sensitive", True
+    yield _test_file_reader_filter, ["*.JPG"], [
+        "*.jpg",
+        "*.jpG",
+        "*.jPg",
+        "*.jPG",
+        "*.Jpg",
+        "*.JpG",
+        "*.JPg",
+        "*.JPG",
+    ], 3, 1, "db/single/case_sensitive", False
 
 
 batch_size_alias_test = 64
@@ -203,10 +218,16 @@ def test_file_reader_alias():
 def test_invalid_number_of_shards():
     @pipeline_def(batch_size=1, device_id=0, num_threads=4)
     def get_test_pipe():
-        root = os.path.join(os.environ['DALI_EXTRA_PATH'], 'db/single/mixed')
+        root = os.path.join(os.environ["DALI_EXTRA_PATH"], "db/single/mixed")
         files, labels = fn.readers.file(file_root=root, shard_id=0, num_shards=9999)
         return files, labels
 
     pipe = get_test_pipe()
-    assert_raises(RuntimeError, pipe.build,
-                  glob="The number of input samples: *, needs to be at least equal to the requested number of shards:*.")  # noqa: E501
+    assert_raises(
+        RuntimeError,
+        pipe.build,
+        glob=(
+            "The number of input samples: *,"
+            " needs to be at least equal to the requested number of shards:*."
+        ),
+    )

@@ -25,7 +25,7 @@ __global__ void Lookup(const SampleDesc *sample_descs) {
   auto sample_desc = sample_descs[blockIdx.y];
   for (uint64_t idx = static_cast<uint64_t>(blockIdx.x) * blockDim.x + threadIdx.x;
        idx < sample_desc.num_elements;
-       idx += blockDim.x * gridDim.x) {
+       idx += static_cast<uint64_t>(blockDim.x) * gridDim.x) {
     const uint8_t *in = sample_desc.in;
     uint8_t *out = sample_desc.out;
     uint64_t channel_idx = idx % sample_desc.num_channels;

@@ -18,7 +18,6 @@
 #include "dali/core/static_switch.h"
 #include "dali/kernels/slice/slice_cpu.h"
 #include "dali/pipeline/data/views.h"
-#include "dali/util/half.hpp"
 
 namespace dali {
 

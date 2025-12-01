@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -25,16 +25,16 @@
 #include "dali/pipeline/operator/op_spec.h"
 #include "dali/pipeline/operator/common.h"
 #include "dali/pipeline/util/batch_rng.h"
+#include "dali/operators/random/rng_base_cpu.h"
 
 namespace dali {
 
 template <typename Backend>
-class SSDRandomCrop : public Operator<Backend> {
+class SSDRandomCrop : public rng::OperatorWithRng<Backend> {
  public:
   explicit inline SSDRandomCrop(const OpSpec &spec) :
-    Operator<Backend>(spec),
+    rng::OperatorWithRng<Backend>(spec),
     num_attempts_(spec.GetArgument<int>("num_attempts")),
-    rngs_(spec.GetArgument<int64_t>("seed"), max_batch_size_),
     int_dis_(0, 6),        // sample option
     float_dis_(0.3, 1.) {  // w, h generation
     // setup all possible sample types
@@ -55,12 +55,15 @@ class SSDRandomCrop : public Operator<Backend> {
   using Operator<Backend>::RunImpl;
 
  protected:
+  bool HasContiguousOutputs() const override {
+    return false;
+  }
+
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     return false;
   }
 
   void RunImpl(legacy_workspace_t<Backend> &ws) override;
-  void SetupSharedSampleParams(legacy_workspace_t<Backend> &ws) override;
 
  private:
   struct CropInfo {
@@ -88,7 +91,6 @@ class SSDRandomCrop : public Operator<Backend> {
   int num_attempts_;
 
   // RNG stuff
-  BatchRNG<std::mt19937> rngs_;
   std::uniform_int_distribution<> int_dis_;
   std::uniform_real_distribution<float> float_dis_;
 };

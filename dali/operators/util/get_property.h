@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,55 +17,44 @@
 
 #include <memory>
 #include <string>
+#include <string_view>
 #include <vector>
-#include "dali/operators/util/property.h"
 #include "dali/pipeline/data/type_traits.h"
 #include "dali/pipeline/operator/common.h"
+#include "dali/pipeline/operator/checkpointing/stateless_operator.h"
 #include "dali/pipeline/operator/operator.h"
 
 namespace dali {
 
 template <typename Backend>
-class GetProperty : public Operator<Backend> {
+class GetProperty : public StatelessOperator<Backend> {
  public:
   explicit GetProperty(const OpSpec &spec)
-      : Operator<Backend>(spec),
+      : StatelessOperator<Backend>(spec),
         property_key_(spec.template GetArgument<std::string>("key")),
-        property_(PropertyFactory()) {}
-
-  ~GetProperty() override = default;
-  DISABLE_COPY_MOVE_ASSIGN(GetProperty);
+        property_reader_(GetPropertyReader(property_key_)) {}
 
  protected:
-  bool CanInferOutputs() const override {
-    return true;
+  bool HasContiguousOutputs() const override {
+    return false;  // we may broadcast a common value to all samples
   }
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
-    const auto &input = ws.Input<Backend>(0);
-    output_desc.resize(1);
-    output_desc[0].shape = property_->GetShape(input);
-    output_desc[0].type = property_->GetType(input);
-    return true;
+    return false;
   }
 
   void RunImpl(Workspace &ws) override {
-    property_->FillOutput(ws);
+    property_reader_(ws.Output<Backend>(0), ws);
   }
 
  private:
-  std::unique_ptr<tensor_property::Property<Backend>> PropertyFactory() {
-    if (property_key_ == "source_info") {
-      return std::make_unique<tensor_property::SourceInfo<Backend>>();
-    } else if (property_key_ == "layout") {
-      return std::make_unique<tensor_property::Layout<Backend>>();
-    } else {
-      DALI_FAIL(make_string("Unknown property key: ", property_key_));
-    }
-  }
+  using PropertyReaderFunc = void(TensorList<Backend> &, const Workspace &);
+  using PropertyReader = std::function<PropertyReaderFunc>;
 
-  const std::string property_key_;
-  std::unique_ptr<tensor_property::Property<Backend>> property_;
+  std::string property_key_;
+  PropertyReader property_reader_;
+
+  static PropertyReader GetPropertyReader(std::string_view key);
 };
 
 }  // namespace dali

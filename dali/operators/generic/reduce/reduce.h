@@ -23,8 +23,9 @@
 #include "dali/kernels/reduce/reduce_gpu.h"
 #include "dali/kernels/reduce/reduce_setup_utils.h"
 #include "dali/kernels/reduce/reductions.h"
+#include "dali/operators/generic/reduce/layout_util.h"
 #include "dali/operators/util/axes_utils.h"
-#include "dali/pipeline/operator/operator.h"
+#include "dali/pipeline/operator/checkpointing/stateless_operator.h"
 
 #define REDUCE_TYPES (uint8_t, int8_t, uint16_t, int16_t, uint32_t, int32_t, uint64_t, int64_t, float)  // NOLINT
 
@@ -34,16 +35,15 @@ template <
   template <typename T, typename R> class ReductionType,
   typename Backend,
   template <template <typename X, typename Y> class RType, typename BType> class ImplType>
-class Reduce : public Operator<Backend>, AxesHelper {
+class Reduce : public StatelessOperator<Backend>, AxesHelper {
  public:
   explicit inline Reduce(const OpSpec &spec) :
-      Operator<Backend>(spec),
+      StatelessOperator<Backend>(spec),
       AxesHelper(spec),
       keep_dims_(spec.GetArgument<bool>("keep_dims")) {
     spec.TryGetArgument<DALIDataType>(output_type_, "dtype");
   }
 
-  bool CanInferOutputs() const override { return true; }
 
   inline ~Reduce() override = default;
 
@@ -71,6 +71,9 @@ class Reduce : public Operator<Backend>, AxesHelper {
 
   void RunImpl(Workspace &ws) override {
     auto& reduce_impl = static_cast<ImplType<ReductionType, Backend>&>(*this);
+    auto &input = ws.Input<Backend>(0);
+    auto &output = ws.Output<Backend>(0);
+    reduce_util::PropagateLayout(output, input, make_span(axes_), keep_dims_);
     reduce_impl.RunImplImpl(ws);
   }
 

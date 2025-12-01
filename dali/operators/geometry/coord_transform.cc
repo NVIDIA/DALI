@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -25,7 +25,7 @@ The transformation has the form::
 
   out = M * in + T
 
-Where ``M`` is a ``m x n`` matrix and ``T`` is a translation vector with `m` components.
+Where `M` is a ``m x n`` matrix and `T` is a translation vector with `m` components.
 Input must consist of n-element vectors or points and the output has `m` components.
 
 This operator can be used for many operations. Here's the (incomplete) list:
@@ -33,7 +33,7 @@ This operator can be used for many operations. Here's the (incomplete) list:
  * applying affine transform to point clouds
  * projecting points onto a subspace
  * some color space conversions, for example RGB to YCbCr or grayscale
- * linear operations on colors, like hue rotation, brighness and contrast adjustment
+ * linear operations on colors, like hue rotation, brightness and contrast adjustment
 )")
   .NumInput(1)
   .NumOutput(1)

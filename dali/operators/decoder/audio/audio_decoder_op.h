@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -24,20 +24,20 @@
 #include "dali/operators/audio/resampling_params.h"
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/workspace/workspace.h"
-#include "dali/pipeline/operator/operator.h"
+#include "dali/pipeline/operator/checkpointing/stateless_operator.h"
 #include "dali/kernels/signal/resampling_cpu.h"
 #include "dali/kernels/signal/downmixing.h"
 #include "dali/core/tensor_view.h"
 
 namespace dali {
 
-class AudioDecoderCpu : public Operator<CPUBackend> {
+class AudioDecoderCpu : public StatelessOperator<CPUBackend> {
  private:
   using Backend = CPUBackend;
 
  public:
   explicit inline AudioDecoderCpu(const OpSpec &spec) :
-          Operator<Backend>(spec),
+          StatelessOperator<Backend>(spec),
           output_type_(spec.GetArgument<DALIDataType>("dtype")),
           downmix_(spec.GetArgument<bool>("downmix")),
           use_resampling_(spec.HasArgument("sample_rate") || spec.HasTensorArgument("sample_rate")),
@@ -58,10 +58,6 @@ class AudioDecoderCpu : public Operator<CPUBackend> {
 
   void RunImpl(Workspace &ws) override;
 
-
-  bool CanInferOutputs() const override {
-    return true;
-  }
 
 
  private:

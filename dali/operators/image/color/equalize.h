@@ -21,13 +21,14 @@
 #include "dali/pipeline/operator/op_spec.h"
 #include "dali/pipeline/operator/operator.h"
 #include "dali/pipeline/operator/sequence_operator.h"
+#include "dali/pipeline/operator/checkpointing/stateless_operator.h"
 
 namespace dali {
 
 template <typename Backend>
-class Equalize : public SequenceOperator<Backend> {
+class Equalize : public SequenceOperator<Backend, StatelessOperator> {
  public:
-  explicit Equalize(const OpSpec &spec) : SequenceOperator<Backend>(spec) {}
+  explicit Equalize(const OpSpec &spec) : SequenceOperator<Backend, StatelessOperator>(spec) {}
 
  protected:
   DISABLE_COPY_MOVE_ASSIGN(Equalize);
@@ -43,10 +44,6 @@ class Equalize : public SequenceOperator<Backend> {
 
     output_desc[0].type = input_type;
     // output_desc[0].shape is set by ProcessOutputDesc
-    return true;
-  }
-
-  bool CanInferOutputs() const override {
     return true;
   }
 

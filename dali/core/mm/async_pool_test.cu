@@ -22,6 +22,10 @@
 #include "dali/core/cuda_stream.h"
 #include "dali/core/mm/cuda_vm_resource.h"
 
+#if CUDA_VERSION >= 11020
+#include "dali/core/mm/malloc_resource.h"
+#endif
+
 namespace dali {
 namespace mm {
 
@@ -119,17 +123,18 @@ __global__ void Check(const void *ptr, size_t size, uint8_t fill, int *failures)
 
 struct block {
   void *ptr;
-  size_t size;
+  size_t size, alignment;
   uint8_t fill;
   cudaStream_t stream;
 };
 
 template <typename Pool, typename Mutex>
-void AsyncPoolTest(Pool &pool, vector<block> &blocks, Mutex &mtx, CUDAStream &stream,
+void AsyncPoolTest(Pool &pool, std::vector<block> &blocks, Mutex &mtx, CUDAStream &stream,
                    int max_iters = 20000, bool use_hog = false) {
   stream_view sv(stream);
   std::mt19937_64 rng(12345);
   std::poisson_distribution<> size_dist(1024);
+  std::uniform_int_distribution<> align_log_dist(1, 12);
   const int max_size = 1 << 20;
   std::uniform_int_distribution<> sync_dist(10, 10);
   std::bernoulli_distribution action_dist;
@@ -145,28 +150,34 @@ void AsyncPoolTest(Pool &pool, vector<block> &blocks, Mutex &mtx, CUDAStream &st
   int max_hogs = sync_dist(rng);
   CUDAEvent event = CUDAEvent::Create();
   for (int i = 0; i < max_iters; i++) {
-    if (i == max_iters / 2)
-      pool.release_unused();
+    if constexpr (std::is_base_of_v<mm::pool_resource_base<typename Pool::memory_kind>, Pool>) {
+      if (i == max_iters / 2)
+        pool.release_unused();
+    }
 
     if (use_hog && hog_dist(rng)) {
       if (hogs++ > max_hogs) {
         CUDA_CALL(cudaStreamSynchronize(stream));
         max_hogs = sync_dist(rng);
+        hogs = 0;
       }
       hog.run(stream);
     }
     if (action_dist(rng) || blocks.empty()) {
-      size_t size;
+      size_t size, alignment;
       do {
         size = size_dist(rng);
       } while (size > max_size);
       uint8_t fill = fill_dist(rng);
-      void *ptr = stream ? pool.allocate_async(size, sv) : pool.allocate(size);
+      alignment = 1 << align_log_dist(rng);
+      void *ptr = stream ? pool.allocate_async(size, alignment, sv)
+                         : pool.allocate(size, alignment);
+      ASSERT_TRUE(mm::detail::is_aligned(ptr, alignment));
       CUDA_CALL(cudaMemsetAsync(ptr, fill, size, stream));
       {
         std::lock_guard<Mutex> guard(mtx);
         (void)guard;  // for dummy mutexes
-        blocks.push_back({ ptr, size, fill, stream });
+        blocks.push_back({ ptr, size, alignment, fill, stream });
       }
     } else {
       block blk;
@@ -191,10 +202,10 @@ void AsyncPoolTest(Pool &pool, vector<block> &blocks, Mutex &mtx, CUDAStream &st
       Check<<<div_ceil(blk.size, 1024), 1024, 0, stream>>>(
             blk.ptr, blk.size, blk.fill, failure_buf);
       if (stream) {
-        pool.deallocate_async(blk.ptr, blk.size, sv);
+        pool.deallocate_async(blk.ptr, blk.size, blk.alignment, sv);
       } else {
         CUDA_CALL(cudaStreamSynchronize(stream));
-        pool.deallocate(blk.ptr, blk.size);
+        pool.deallocate(blk.ptr, blk.size, blk.alignment);
       }
     }
   }
@@ -211,7 +222,7 @@ TEST(MMAsyncPool, SingleStreamRandom) {
 
   {
     async_pool_resource<memory_kind::device> pool(&upstream);
-    vector<block> blocks;
+    std::vector<block> blocks;
     detail::dummy_lock mtx;
     AsyncPoolTest(pool, blocks, mtx, stream);
   }
@@ -226,12 +237,12 @@ TEST(MMAsyncPool, MultiThreadedSingleStreamRandom) {
   CUDAStream stream = CUDAStream::Create(true);
   mm::test::test_device_resource upstream;
   {
-    vector<block> blocks;
+    std::vector<block> blocks;
     std::mutex mtx;
 
     async_pool_resource<memory_kind::device> pool(&upstream);
 
-    vector<std::thread> threads;
+    std::vector<std::thread> threads;
 
     for (int t = 0; t < 10; t++) {
       threads.push_back(std::thread([&]() {
@@ -252,12 +263,12 @@ TEST(MMAsyncPool, MultiThreadedMultiStreamRandom) {
   {
     async_pool_resource<memory_kind::device> pool(&upstream);
 
-    vector<std::thread> threads;
+    std::vector<std::thread> threads;
 
     for (int t = 0; t < 10; t++) {
       threads.push_back(std::thread([&]() {
         CUDAStream stream = CUDAStream::Create(true);
-        vector<block> blocks;
+        std::vector<block> blocks;
         detail::dummy_lock mtx;
         AsyncPoolTest(pool, blocks, mtx, stream);
         CUDA_CALL(cudaStreamSynchronize(stream));
@@ -276,13 +287,13 @@ TEST(MMAsyncPool, MultiStreamRandomWithGPUHogs) {
   {
     async_pool_resource<memory_kind::device> pool(&upstream, false);
 
-    vector<std::thread> threads;
+    std::vector<std::thread> threads;
 
     for (int t = 0; t < 10; t++) {
       threads.push_back(std::thread([&]() {
         // 0-th thread uses null stream, which triggers non-async API usage
         CUDAStream stream = t ? CUDAStream::Create(true) : CUDAStream();
-        vector<block> blocks;
+        std::vector<block> blocks;
         detail::dummy_lock mtx;
         AsyncPoolTest(pool, blocks, mtx, stream, 20000, true);
         CUDA_CALL(cudaStreamSynchronize(stream));
@@ -302,10 +313,10 @@ TEST(MMAsyncPool, CrossStream) {
   {
     async_pool_resource<memory_kind::device> pool(&upstream, false);
 
-    vector<std::thread> threads;
-    vector<CUDAStream> streams;
+    std::vector<std::thread> threads;
+    std::vector<CUDAStream> streams;
 
-    vector<block> blocks;
+    std::vector<block> blocks;
     std::mutex mtx;
 
     const int N = 10;
@@ -331,10 +342,10 @@ TEST(MMAsyncPool, CrossStreamWithHogs) {
   {
     async_pool_resource<memory_kind::device> pool(&upstream);
 
-    vector<std::thread> threads;
-    vector<CUDAStream> streams;
+    std::vector<std::thread> threads;
+    std::vector<CUDAStream> streams;
 
-    vector<block> blocks;
+    std::vector<block> blocks;
     std::mutex mtx;
 
     const int N = 10;
@@ -355,124 +366,201 @@ TEST(MMAsyncPool, CrossStreamWithHogs) {
   upstream.check_leaks();
 }
 
-#if DALI_USE_CUDA_VM_MAP
+class MMAsyncPoolTest : public ::testing::Test {
+ public:
+  template <typename MememoryResource>
+  void MultiThreadedSingleStreamRandom() {
+    CUDAStream stream = CUDAStream::Create(true);
+    {
+      std::vector<block> blocks;
+      std::mutex mtx;
 
-TEST(MM_VMAsyncPool, MultiThreadedSingleStreamRandom) {
-  if (!cuvm::IsSupported())
-    GTEST_SKIP() << "Virtual memory management API is not supported on this machine.";
+      MememoryResource pool;
 
-  CUDAStream stream = CUDAStream::Create(true);
-  {
-    vector<block> blocks;
-    std::mutex mtx;
+      std::vector<std::thread> threads;
 
-    async_pool_resource<memory_kind::device, cuda_vm_resource> pool;
+      for (int t = 0; t < 10; t++) {
+        threads.push_back(std::thread([&]() {
+          AsyncPoolTest(pool, blocks, mtx, stream);
+        }));
+      }
+      for (auto &t : threads)
+        t.join();
+    }
+  }
 
-    vector<std::thread> threads;
+  template <typename MemoryResource>
+  void MultiThreadedMultiStreamRandom() {
+    MemoryResource pool;
+
+    std::vector<std::thread> threads;
 
     for (int t = 0; t < 10; t++) {
       threads.push_back(std::thread([&]() {
+        CUDAStream stream = CUDAStream::Create(true);
+        std::vector<block> blocks;
+        detail::dummy_lock mtx;
         AsyncPoolTest(pool, blocks, mtx, stream);
+        CUDA_CALL(cudaStreamSynchronize(stream));
       }));
     }
     for (auto &t : threads)
       t.join();
   }
-}
 
-TEST(MM_VMAsyncPool, MultiThreadedMultiStreamRandom) {
+  template <typename MemoryResource>
+  void MultiStreamRandomWithGPUHogs() {
+    MemoryResource pool;
+
+    std::vector<std::thread> threads;
+
+    for (int t = 0; t < 10; t++) {
+      threads.push_back(std::thread([&]() {
+        // 0-th thread uses null stream, which triggers non-async API usage
+        CUDAStream stream = t ? CUDAStream::Create(true) : CUDAStream();
+        std::vector<block> blocks;
+        detail::dummy_lock mtx;
+        AsyncPoolTest(pool, blocks, mtx, stream, 20000, true);
+        CUDA_CALL(cudaStreamSynchronize(stream));
+      }));
+    }
+    for (auto &t : threads)
+      t.join();
+  }
+
+  template <typename MemoryResource>
+  void CrossStream() {
+    async_pool_resource<memory_kind::device, cuda_vm_resource> pool;
+
+    std::vector<std::thread> threads;
+    std::vector<CUDAStream> streams;
+
+    std::vector<block> blocks;
+    std::mutex mtx;
+
+    const int N = 10;
+    streams.resize(N);
+    for (int t = 0; t < N; t++) {
+      if (t != 0)  // keep empty stream at index 0 to mix sync/async allocations
+        streams[t] = CUDAStream::Create(true);
+      threads.push_back(std::thread([&, t]() {
+        AsyncPoolTest(pool, blocks, mtx, streams[t]);
+        CUDA_CALL(cudaStreamSynchronize(streams[t]));
+      }));
+    }
+    for (auto &t : threads)
+      t.join();
+  }
+
+  template <typename MemoryResource>
+  void CrossStreamWithHogs() {
+    MemoryResource pool;
+
+    std::vector<std::thread> threads;
+    std::vector<CUDAStream> streams;
+
+    std::vector<block> blocks;
+    std::mutex mtx;
+
+    const int N = 10;
+    streams.resize(N);
+    for (int t = 0; t < N; t++) {
+      if (t != 0)  // keep empty stream at index 0 to mix sync/async allocations
+        streams[t] = CUDAStream::Create(true);
+      threads.push_back(std::thread([&, t]() {
+        AsyncPoolTest(pool, blocks, mtx, streams[t], 10000, true);
+        CUDA_CALL(cudaStreamSynchronize(streams[t]));
+      }));
+    }
+    for (auto &t : threads)
+      t.join();
+  }
+};
+
+#if DALI_USE_CUDA_VM_MAP
+
+TEST_F(MMAsyncPoolTest, VM_MultiThreadedSingleStreamRandom) {
   if (!cuvm::IsSupported())
     GTEST_SKIP() << "Virtual memory management API is not supported on this machine.";
 
-  async_pool_resource<memory_kind::device, cuda_vm_resource> pool;
-
-  vector<std::thread> threads;
-
-  for (int t = 0; t < 10; t++) {
-    threads.push_back(std::thread([&]() {
-      CUDAStream stream = CUDAStream::Create(true);
-      vector<block> blocks;
-      detail::dummy_lock mtx;
-      AsyncPoolTest(pool, blocks, mtx, stream);
-      CUDA_CALL(cudaStreamSynchronize(stream));
-    }));
-  }
-  for (auto &t : threads)
-    t.join();
+  using MR = async_pool_resource<memory_kind::device, cuda_vm_resource>;
+  this->MultiThreadedSingleStreamRandom<MR>();
 }
 
-TEST(MM_VMAsyncPool, MultiStreamRandomWithGPUHogs) {
+TEST_F(MMAsyncPoolTest, VM_MultiThreadedMultiStreamRandom) {
   if (!cuvm::IsSupported())
     GTEST_SKIP() << "Virtual memory management API is not supported on this machine.";
 
-  async_pool_resource<memory_kind::device, cuda_vm_resource> pool;
-
-  vector<std::thread> threads;
-
-  for (int t = 0; t < 10; t++) {
-    threads.push_back(std::thread([&]() {
-      // 0-th thread uses null stream, which triggers non-async API usage
-      CUDAStream stream = t ? CUDAStream::Create(true) : CUDAStream();
-      vector<block> blocks;
-      detail::dummy_lock mtx;
-      AsyncPoolTest(pool, blocks, mtx, stream, 20000, true);
-      CUDA_CALL(cudaStreamSynchronize(stream));
-    }));
-  }
-  for (auto &t : threads)
-    t.join();
+  using MR = async_pool_resource<memory_kind::device, cuda_vm_resource>;
+  this->MultiThreadedMultiStreamRandom<MR>();
 }
 
-TEST(MM_VMAsyncPool, CrossStream) {
+TEST_F(MMAsyncPoolTest, VM_MultiStreamRandomWithGPUHogs) {
   if (!cuvm::IsSupported())
     GTEST_SKIP() << "Virtual memory management API is not supported on this machine.";
 
-  async_pool_resource<memory_kind::device, cuda_vm_resource> pool;
-
-  vector<std::thread> threads;
-  vector<CUDAStream> streams;
-
-  vector<block> blocks;
-  std::mutex mtx;
-
-  const int N = 10;
-  streams.resize(N);
-  for (int t = 0; t < N; t++) {
-    if (t != 0)  // keep empty stream at index 0 to mix sync/async allocations
-      streams[t] = CUDAStream::Create(true);
-    threads.push_back(std::thread([&, t]() {
-      AsyncPoolTest(pool, blocks, mtx, streams[t]);
-      CUDA_CALL(cudaStreamSynchronize(streams[t]));
-    }));
-  }
-  for (auto &t : threads)
-    t.join();
+  using MR = async_pool_resource<memory_kind::device, cuda_vm_resource>;
+  this->MultiStreamRandomWithGPUHogs<MR>();
 }
 
-TEST(MM_VMAsyncPool, CrossStreamWithHogs) {
+TEST_F(MMAsyncPoolTest, VM_CrossStream) {
   if (!cuvm::IsSupported())
     GTEST_SKIP() << "Virtual memory management API is not supported on this machine.";
 
-  async_pool_resource<memory_kind::device, cuda_vm_resource> pool;
+  using MR = async_pool_resource<memory_kind::device, cuda_vm_resource>;
+  this->CrossStream<MR>();
+}
 
-  vector<std::thread> threads;
-  vector<CUDAStream> streams;
+TEST_F(MMAsyncPoolTest, VM_CrossStreamWithHogs) {
+  if (!cuvm::IsSupported())
+    GTEST_SKIP() << "Virtual memory management API is not supported on this machine.";
 
-  vector<block> blocks;
-  std::mutex mtx;
+  using MR = async_pool_resource<memory_kind::device, cuda_vm_resource>;
+  this->CrossStreamWithHogs<MR>();
+}
 
-  const int N = 10;
-  streams.resize(N);
-  for (int t = 0; t < N; t++) {
-    if (t != 0)  // keep empty stream at index 0 to mix sync/async allocations
-      streams[t] = CUDAStream::Create(true);
-    threads.push_back(std::thread([&, t]() {
-      AsyncPoolTest(pool, blocks, mtx, streams[t], 10000, true);
-      CUDA_CALL(cudaStreamSynchronize(streams[t]));
-    }));
-  }
-  for (auto &t : threads)
-    t.join();
+#endif
+
+#if CUDA_VERSION >= 11020
+
+TEST_F(MMAsyncPoolTest, cudaMallocAsync_MultiThreadedSingleStreamRandom) {
+  if (!cuda_malloc_async_memory_resource::is_supported())
+    GTEST_SKIP() << "cudaMallocAsync not supported";
+
+  using MR = cuda_malloc_async_memory_resource;
+  this->MultiThreadedSingleStreamRandom<MR>();
+}
+
+TEST_F(MMAsyncPoolTest, cudaMallocAsync_MultiThreadedMultiStreamRandom) {
+  if (!cuda_malloc_async_memory_resource::is_supported())
+    GTEST_SKIP() << "cudaMallocAsync not supported";
+
+  using MR = cuda_malloc_async_memory_resource;
+  this->MultiThreadedMultiStreamRandom<MR>();
+}
+
+TEST_F(MMAsyncPoolTest, cudaMallocAsync_MultiStreamRandomWithGPUHogs) {
+  if (!cuda_malloc_async_memory_resource::is_supported())
+    GTEST_SKIP() << "cudaMallocAsync not supported";
+
+  using MR = cuda_malloc_async_memory_resource;
+  this->MultiStreamRandomWithGPUHogs<MR>();
+}
+
+TEST_F(MMAsyncPoolTest, cudaMallocAsync_CrossStream) {
+  if (!cuda_malloc_async_memory_resource::is_supported())
+    GTEST_SKIP() << "cudaMallocAsync not supported";
+
+  using MR = cuda_malloc_async_memory_resource;
+  this->CrossStream<MR>();
+}
+
+TEST_F(MMAsyncPoolTest, cudaMallocAsync_CrossStreamWithHogs) {
+  if (!cuda_malloc_async_memory_resource::is_supported())
+    GTEST_SKIP() << "cudaMallocAsync not supported";
+
+  using MR = cuda_malloc_async_memory_resource;
+  this->CrossStreamWithHogs<MR>();
 }
 
 #endif

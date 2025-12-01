@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -22,6 +22,7 @@
 #include <string>
 #include "dali/pipeline/data/types.h"
 #include "dali/pipeline/data/dltensor.h"
+#include "dali/pipeline/operator/error_reporting.h"
 
 namespace dali {
 
@@ -54,6 +55,19 @@ static std::string FormatStrFromType(DALIDataType type) {
       return "=d";
     case DALI_BOOL:
      return "=?";
+    case DALI_DATA_TYPE:
+    case DALI_IMAGE_TYPE:
+    case DALI_INTERP_TYPE:
+     throw DaliTypeError(
+         "DALI enum types cannot be used with buffer protocol "
+         "when they are returned as Tensors or TensorLists from DALI pipeline. "
+         "You can use `nvidia.dali.fn.cast` to convert those values to an integral type.");
+     // As an alternative, to allow the usage of tensors containing DALI enums (printing, use with
+     // buffer protocol, numpy conversion etc), we can return format specifier for the underlying
+     // type here. This would allow access to the actual numeric values, for example:
+     // case DALI_DATA_TYPE:
+     //  return
+     //  FormatStrFromType(TypeTable::GetTypeInfo<std::underlying_type_t<DALIDataType>>().id());
     default:
       break;
   }
@@ -203,8 +217,8 @@ static py::capsule DLTensorToCapsule(DLMTensorPtr dl_tensor) {
 }
 
 template <typename Backend>
-py::capsule TensorToDLPackView(SampleView<Backend> tensor, int device_id) {
-  DLMTensorPtr dl_tensor = GetDLTensorView(tensor, device_id);
+py::capsule TensorToDLPackView(SampleView<Backend> tensor, bool pinned, int device_id) {
+  DLMTensorPtr dl_tensor = GetDLTensorView(tensor, pinned, device_id);
   return DLTensorToCapsule(std::move(dl_tensor));
 }
 

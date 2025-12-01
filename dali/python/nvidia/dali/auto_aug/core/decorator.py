@@ -22,24 +22,22 @@ try:
 except ImportError:
     raise RuntimeError(
         "Could not import numpy. DALI's automatic augmentation examples depend on numpy. "
-        "Please install numpy to use the examples.")
+        "Please install numpy to use the examples."
+    )
 
-try:
-    from numpy import typing as npt
-    _ArrayLike = npt.ArrayLike
-except ImportError:
-    # workaround for python3.6 where numpy>=1.20 is not available;
-    # we just don't provide meaningful type information in that case
-    from typing import Any
-    _ArrayLike = Any
+from numpy import typing as npt
 
 
-def augmentation(function: Optional[Callable[..., _DataNode]] = None, *,
-                 mag_range: Optional[Union[Tuple[float, float], np.ndarray]] = None,
-                 randomly_negate: Optional[bool] = None,
-                 mag_to_param: Optional[Callable[[float], _ArrayLike]] = None,
-                 param_device: Optional[str] = None, name: Optional[str] = None,
-                 augmentation_cls: Optional[Type[Augmentation]] = None):
+def augmentation(
+    function: Optional[Callable[..., _DataNode]] = None,
+    *,
+    mag_range: Optional[Union[Tuple[float, float], np.ndarray]] = None,
+    randomly_negate: Optional[bool] = None,
+    mag_to_param: Optional[Callable[[float], npt.ArrayLike]] = None,
+    param_device: Optional[str] = None,
+    name: Optional[str] = None,
+    augmentation_cls: Optional[Type[Augmentation]] = None,
+):
     """
     A decorator turning transformations implemented with DALI into augmentations that
     can be used by automatic augmentations (e.g. AutoAugment, RandAugment, TrivialAugment).
@@ -89,15 +87,23 @@ def augmentation(function: Optional[Callable[..., _DataNode]] = None, *,
 
     def decorator(function):
         cls = augmentation_cls or Augmentation
-        return cls(function, mag_range=mag_range, mag_to_param=mag_to_param,
-                   randomly_negate=randomly_negate, param_device=param_device, name=name)
+        return cls(
+            function,
+            mag_range=mag_range,
+            mag_to_param=mag_to_param,
+            randomly_negate=randomly_negate,
+            param_device=param_device,
+            name=name,
+        )
 
     if function is None:
         return decorator
     else:
         if not callable(function):
-            raise Exception(f"The `@augmentation` decorator was used to decorate the object that "
-                            f"is not callable: {function}.")
+            raise Exception(
+                f"The `@augmentation` decorator was used to decorate the object that "
+                f"is not callable: {function}."
+            )
         elif isinstance(function, Augmentation):
             # it's not clear if we should go with "update the setup" or
             # "discard and create" semantics here
@@ -105,5 +111,6 @@ def augmentation(function: Optional[Callable[..., _DataNode]] = None, *,
                 f"The `@augmentation` was applied to already decorated Augmentation. "
                 f"Please call `{function.name}.augmentation` method to modify the augmentation "
                 f"setup or apply the decorator to the underlying `{function.name}.op` directly.\n"
-                f"Error in augmentation: {function}.")
+                f"Error in augmentation: {function}."
+            )
         return decorator(function)

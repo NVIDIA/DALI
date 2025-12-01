@@ -1,4 +1,4 @@
-// Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,6 +14,7 @@
 
 
 #include <gtest/gtest.h>
+#include <exception>
 #include <functional>
 #include <stdexcept>
 #include <tuple>
@@ -106,12 +107,12 @@ class SplitMergeTest : public ::testing::Test {
    */
   void ValidateSplitPinned(Pipeline &pipe, const std::string &node_name, bool in_pinned_expected,
                            bool out_0_pinned_expected, bool out_1_pinned_expected) {
-    auto node = pipe.GetOperatorNode(node_name);
-    auto in_pinned = node->op->GetDiagnostic<bool>("input_pinned");
+    auto op = pipe.GetOperator(node_name);
+    auto in_pinned = op->GetDiagnostic<bool>("input_pinned");
     EXPECT_EQ(in_pinned, in_pinned_expected) << "[Split]: " << node_name;
-    auto out_0_pinned = node->op->GetDiagnostic<bool>("output_0_pinned");
+    auto out_0_pinned = op->GetDiagnostic<bool>("output_0_pinned");
     EXPECT_EQ(out_0_pinned, out_0_pinned_expected) << "[Split]: " << node_name;
-    auto out_1_pinned = node->op->GetDiagnostic<bool>("output_1_pinned");
+    auto out_1_pinned = op->GetDiagnostic<bool>("output_1_pinned");
     EXPECT_EQ(out_1_pinned, out_1_pinned_expected) << "[Split]: " << node_name;
   }
 
@@ -122,12 +123,12 @@ class SplitMergeTest : public ::testing::Test {
    */
   void ValidateMergePinned(Pipeline &pipe, const std::string &node_name, bool in_0_pinned_expected,
                            bool in_1_pinned_expected, bool out_pinned_expected) {
-    auto node = pipe.GetOperatorNode(node_name);
-    auto in_0_pinned = node->op->GetDiagnostic<bool>("input_0_pinned");
+    auto op = pipe.GetOperator(node_name);
+    auto in_0_pinned = op->GetDiagnostic<bool>("input_0_pinned");
     EXPECT_EQ(in_0_pinned, in_0_pinned_expected) << "[Merge]: " << node_name;
-    auto in_1_pinned = node->op->GetDiagnostic<bool>("input_1_pinned");
+    auto in_1_pinned = op->GetDiagnostic<bool>("input_1_pinned");
     EXPECT_EQ(in_1_pinned, in_1_pinned_expected) << "[Merge]: " << node_name;
-    auto out_pinned = node->op->GetDiagnostic<bool>("output_pinned");
+    auto out_pinned = op->GetDiagnostic<bool>("output_pinned");
     EXPECT_EQ(out_pinned, out_pinned_expected) << "[Merge]: " << node_name;
   }
 
@@ -135,7 +136,7 @@ class SplitMergeTest : public ::testing::Test {
     pipe.AddOperator(OpSpec("ExternalSource")
                          .AddArg("device", "cpu")
                          .AddArg("name", input_name)
-                         .AddOutput(input_name, "cpu"),
+                         .AddOutput(input_name, StorageDevice::CPU),
                      input_name);
   }
 
@@ -150,24 +151,26 @@ class SplitMergeTest : public ::testing::Test {
   void AddSplit(Pipeline &pipe, const std::string &name, const std::string &dev,
                 const std::string &input, const std::string &predicate,
                 const std::string &true_output, const std::string &false_output) {
+    auto storage_dev = ParseStorageDevice(dev);
     pipe.AddOperator(OpSpec("_conditional__Split")
                          .AddArg("device", dev)
-                         .AddInput(input, dev)
+                         .AddInput(input, storage_dev)
                          .AddArgumentInput("predicate", predicate)
-                         .AddOutput(true_output, dev)
-                         .AddOutput(false_output, dev),
+                         .AddOutput(true_output, storage_dev)
+                         .AddOutput(false_output, storage_dev),
                      name);
   }
 
   void AddMerge(Pipeline &pipe, const std::string &name, const std::string &dev,
                 const std::string &true_input, const std::string &false_input,
                 const std::string &predicate, const std::string &output) {
+    auto storage_dev = ParseStorageDevice(dev);
     pipe.AddOperator(OpSpec("_conditional__Merge")
                          .AddArg("device", dev)
-                         .AddInput(true_input, dev)
-                         .AddInput(false_input, dev)
+                         .AddInput(true_input, storage_dev)
+                         .AddInput(false_input, storage_dev)
                          .AddArgumentInput("predicate", predicate)
-                         .AddOutput(output, dev),
+                         .AddOutput(output, storage_dev),
                      name);
   }
 
@@ -183,8 +186,7 @@ class SplitMergeTest : public ::testing::Test {
     pipe.SetExternalInput("input", input);
     pipe.SetExternalInput("pred", predicate);
 
-    pipe.RunCPU();
-    pipe.RunGPU();
+    pipe.Run();
     return {std::move(input), std::move(predicate)};
   }
 
@@ -241,21 +243,23 @@ TEST_F(SplitMergeTest, PinnedInside) {
   AddExternalInputs(pipe);
 
   // we can see impact of pinning
-  pipe.AddOperator(OpSpec("Copy").AddInput("input", "cpu").AddOutput("input_copy", "cpu"),
+  pipe.AddOperator(OpSpec("Copy").AddInput("input", StorageDevice::CPU)
+                                 .AddOutput("input_copy", StorageDevice::CPU),
                    "input_copy");
 
   AddSplit(pipe, "split", "cpu", "input_copy", "pred", "split_0", "split_1");
 
   // copy it, so we don't pin split_0 due to passing it to GPU, but to check it is required
   // to be pinned for consistency reasons
-  pipe.AddOperator(OpSpec("Copy").AddInput("split_0", "cpu").AddOutput("split_0_copy", "cpu"),
+  pipe.AddOperator(OpSpec("Copy").AddInput("split_0", StorageDevice::CPU)
+                                 .AddOutput("split_0_copy", StorageDevice::CPU),
                    "split_0_copy");
 
   // this should be made pinned, thus making the input_copy pinned.
   pipe.AddOperator(OpSpec("MakeContiguous")
                        .AddArg("device", "mixed")
-                       .AddInput("split_1", "cpu")
-                       .AddOutput("split_1_contiguous", "gpu"),
+                       .AddInput("split_1", StorageDevice::CPU)
+                       .AddOutput("split_1_contiguous", StorageDevice::GPU),
                    "make_contiguous");
 
   // as the split_1 is made pinned, split_0 also should be pinned due to coming together into merge
@@ -290,7 +294,8 @@ TEST_F(SplitMergeTest, PinnedThroughMerge) {
   AddExternalInputs(pipe);
 
   // we can see impact of pinning
-  pipe.AddOperator(OpSpec("Copy").AddInput("input", "cpu").AddOutput("input_copy", "cpu"),
+  pipe.AddOperator(OpSpec("Copy").AddInput("input", StorageDevice::CPU)
+                                 .AddOutput("input_copy", StorageDevice::CPU),
                    "input_copy");
 
   AddSplit(pipe, "split", "cpu", "input_copy", "pred", "split_0", "split_1");
@@ -301,8 +306,8 @@ TEST_F(SplitMergeTest, PinnedThroughMerge) {
   // consume the data transferred to GPU
   pipe.AddOperator(OpSpec("MakeContiguous")
                        .AddArg("device", "mixed")
-                       .AddInput("merge_cpu", "cpu")
-                       .AddOutput("merge_gpu", "gpu"),
+                       .AddInput("merge_cpu", StorageDevice::CPU)
+                       .AddOutput("merge_gpu", StorageDevice::GPU),
                    "merge_gpu");
 
   vector<std::pair<string, string>> outputs = {
@@ -336,16 +341,17 @@ TYPED_TEST(SplitMergeTyped, SimpleCase) {
 
   this->AddSplit(pipe, "split", backend, "input", "pred", "split_0", "split_1");
 
+  auto storage_dev = ParseStorageDevice(backend);
   pipe.AddOperator(OpSpec("Copy")
                        .AddArg("device", backend)
-                       .AddInput("split_0", backend)
-                       .AddOutput("split_0_copy", backend),
+                       .AddInput("split_0", storage_dev)
+                       .AddOutput("split_0_copy", storage_dev),
                    "copy_0");
 
   pipe.AddOperator(OpSpec("Copy")
                        .AddArg("device", backend)
-                       .AddInput("split_1", backend)
-                       .AddOutput("split_1_copy", backend),
+                       .AddInput("split_1", storage_dev)
+                       .AddOutput("split_1_copy", storage_dev),
                    "copy_1");
 
   this->AddMerge(pipe, "merge", backend, "split_0_copy", "split_1_copy", "pred", "merge");
@@ -435,12 +441,11 @@ TEST_F(SplitMergeNegativeTest, MismatchedMerge) {
     pipe.SetExternalInput("pred", predicate);
 
     try {
-      pipe.RunCPU();
-      pipe.RunGPU();
+      pipe.Run();
       Workspace ws;
       pipe.Outputs(&ws);
       FAIL() << "Exception was expected but was not thrown.";
-    } catch (std::runtime_error &e) {
+    } catch (std::exception &e) {
       static const char expected[] = "Merge description must cover whole input, got ";
       EXPECT_NE(std::string(e.what()).rfind(expected), std::string::npos)
           << expected << "\n====\nvs\n====\n"
@@ -472,12 +477,11 @@ TEST_F(SplitMergeNegativeTest, MismatchedSplit) {
     pipe.SetExternalInput("pred", predicate);
 
     try {
-      pipe.RunCPU();
-      pipe.RunGPU();
+      pipe.Run();
       Workspace ws;
       pipe.Outputs(&ws);
       FAIL() << "Exception was expected but was not thrown.";
-    } catch (std::runtime_error &e) {
+    } catch (std::exception &e) {
       static const char expected[] = "Split description must cover whole input, got ";
       EXPECT_NE(std::string(e.what()).rfind(expected), std::string::npos)
           << expected << "\n====\nvs\n====\n"
@@ -511,12 +515,11 @@ TEST_F(SplitMergeNegativeTest, MismatchedTypes) {
     pipe.SetExternalInput("pred", predicate);
 
     try {
-      pipe.RunCPU();
-      pipe.RunGPU();
+      pipe.Run();
       Workspace ws;
       pipe.Outputs(&ws);
       FAIL() << "Exception was expected but was not thrown.";
-    } catch (std::runtime_error &e) {
+    } catch (std::exception &e) {
       static const char expected[] = "Found distinct types: int32 and float.";
       EXPECT_NE(std::string(e.what()).rfind(expected), std::string::npos)
           << expected << "\n====\nvs\n====\n"
@@ -539,7 +542,7 @@ TEST_F(SplitMergePinnedInputsTest, Mixes) {
   pipe.AddOperator(OpSpec("ExternalSource")
                        .AddArg("device", "cpu")
                        .AddArg("name", "input")
-                       .AddOutput("pinned_input", "cpu"),
+                       .AddOutput("pinned_input", StorageDevice::CPU),
                    "pinned_input");
 
   AddSplit(pipe, "split", "cpu", "input", "pred", "split_0", "split_1");
@@ -562,8 +565,7 @@ TEST_F(SplitMergePinnedInputsTest, Mixes) {
     pipe.SetExternalInput("pinned_input", pinned_input);
     pipe.SetExternalInput("pred", predicate);
 
-    pipe.RunCPU();
-    pipe.RunGPU();
+    pipe.Run();
     Workspace ws;
     pipe.Outputs(&ws);
 

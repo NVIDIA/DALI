@@ -24,7 +24,8 @@ DALI_REGISTER_OPERATOR(decoders__Audio, AudioDecoderCpu, CPU);
 DALI_SCHEMA(decoders__Audio)
   .DocStr(R"code(Decodes waveforms from encoded audio data.
 
-It supports the following audio formats: wav, flac and ogg.
+It supports the following audio formats: WAV, FLAC, and OGG (including both OGG Vorbis and OGG Opus).
+
 This operator produces the following outputs:
 
 * output[0]: A batch of decoded data

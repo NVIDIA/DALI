@@ -1,0 +1,31 @@
+{
+   "extra_include":[
+      "<nvml.h>"
+   ],
+   "return_type":"nvmlReturn_t",
+   "calling_conv":"DECLDIR",
+   "not_found_error":"NVML_ERROR_FUNCTION_NOT_FOUND",
+   "functions": {
+      "nvmlInit": {},
+      "nvmlInit_v2": {},
+      "nvmlShutdown": {},
+      "nvmlSystemGetDriverVersion": {},
+      "nvmlDeviceGetHandleByPciBusId": {},
+      "nvmlDeviceGetHandleByIndex": {},
+      "nvmlDeviceGetHandleByUUID": {},
+      "nvmlDeviceGetIndex": {},
+      "nvmlDeviceSetCpuAffinity": {},
+      "nvmlDeviceClearCpuAffinity": {},
+      "nvmlDeviceGetCpuAffinity": {},
+      "nvmlErrorString": {
+         "return_type":"const char*",
+         "not_found_error":"\"\""
+      },
+      "nvmlDeviceGetCpuAffinityWithinScope": {},
+      "nvmlDeviceGetBrand": {},
+      "nvmlDeviceGetCount_v2": {},
+      "nvmlDeviceGetHandleByIndex_v2": {},
+      "nvmlDeviceGetCudaComputeCapability": {},
+      "nvmlSystemGetCudaDriverVersion": {}
+   }
+}

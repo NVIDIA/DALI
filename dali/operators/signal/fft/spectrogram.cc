@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -46,15 +46,15 @@ The number of bins that are created in the output is ``nfft // 2 + 1``.
     R"(Window size in number of samples.)",
     512)
   .AddOptionalArg("window_step",
-    R"(Step betweeen the STFT windows in number of samples.)",
+    R"(Step between the STFT windows in number of samples.)",
     256)
-  .AddOptionalArg("window_fn",
+  .AddOptionalArg<std::vector<float>>("window_fn",
     R"(Samples of the window function that will be multiplied to each extracted window when
 calculating the STFT.
 
-If a value is provided, it should be a list of floating point numbers of size ``window_length``.
+If a value is provided, it should be a list of floating point numbers of size `window_length`.
 If a value is not provided, a Hann window will be used.)",
-    std::vector<float>{})
+    nullptr)
   .AddOptionalArg("power",
     R"(Exponent of the magnitude of the spectrum.
 
@@ -66,7 +66,7 @@ Supported values:
     2)
   .AddOptionalArg("center_windows",
     R"(Indicates whether extracted windows should be padded so that the window function is
-centered at multiples of ``window_step``.
+centered at multiples of `window_step`.
 
 If set to False, the signal will not be padded, that is, only windows within the input range
 will be extracted.)",
@@ -78,7 +78,7 @@ If set to True, the signal is mirrored with respect to the boundary, otherwise t
 is padded with zeros.
 
 .. note::
-  When ``center_windows`` is set to False, this option is ignored.
+  When `center_windows` is set to False, this option is ignored.
 )",
     true)
   .AddOptionalArg("layout", R"(Output layout: "ft" (frequency-major) or "tf" (time-major).)",
@@ -151,8 +151,7 @@ template <bool time_major>
 SpectrogramImplCpu<time_major>::SpectrogramImplCpu(const OpSpec &spec)
     : window_length_(spec.GetArgument<int>("window_length"))
     , window_step_(spec.GetArgument<int>("window_step"))
-    , power_(spec.GetArgument<int>("power"))
-    , window_fn_(spec.GetRepeatedArgument<float>("window_fn")) {
+    , power_(spec.GetArgument<int>("power")) {
   DALI_ENFORCE(window_length_ > 0, make_string("Invalid window length: ", window_length_));
   DALI_ENFORCE(window_step_ > 0, make_string("Invalid window step: ", window_step_));
   nfft_ = spec.HasArgument("nfft") ? spec.GetArgument<int>("nfft") : window_length_;
@@ -160,10 +159,11 @@ SpectrogramImplCpu<time_major>::SpectrogramImplCpu(const OpSpec &spec)
   layout_ = spec.GetArgument<TensorLayout>("layout");
   assert((time_major && layout_ == "tf") || (!time_major && layout_ == "ft"));
 
-  if (window_fn_.empty()) {
+  if (!spec.TryGetArgument(window_fn_, "window_fn")) {
     window_fn_.resize(window_length_);
     kernels::signal::HannWindow(make_span(window_fn_));
   }
+
   DALI_ENFORCE(window_fn_.size() == static_cast<size_t>(window_length_),
     "Window function should match the specified `window_length`");
 
@@ -210,6 +210,10 @@ bool SpectrogramImplCpu<time_major>::SetupImpl(std::vector<OutputDesc> &out_desc
 
   for (int sample_id = 0; sample_id < in_shape.num_samples(); sample_id++) {
     int64_t signal_length = in_shape[sample_id].num_elements();
+    if (signal_length == 0) {
+      DALI_FAIL(make_string("Spectogram does not support empty (0-volume) samples. The sample ",
+                            sample_id, " shape is ", in_shape[sample_id]));
+    }
     DALI_ENFORCE(window_args_.num_windows(signal_length) > 0,
       make_string("Signal is too short (", signal_length, ") for sample ", sample_id));
   }
@@ -291,7 +295,7 @@ void SpectrogramImplCpu<time_major>::RunImpl(Workspace &ws) {
 
 template <>
 Spectrogram<CPUBackend>::Spectrogram(const OpSpec &spec)
-    : Operator<CPUBackend>(spec) {
+    : StatelessOperator<CPUBackend>(spec) {
   auto layout = spec.GetArgument<std::string>("layout");
   DALI_ENFORCE(layout == "tf" || layout == "ft",
                make_string("Unexpected layout: ", layout));

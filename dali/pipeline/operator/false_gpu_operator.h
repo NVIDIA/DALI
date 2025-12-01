@@ -1,4 +1,4 @@
-// Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -45,13 +45,13 @@ class FalseGPUOperator : public Operator<GPUBackend> {
       : Operator<GPUBackend>(spec),
         cpu_impl_(spec),
         thread_pool_(num_threads_, spec.GetArgument<int>("device_id"), true,
-                     "FalseGPUOperator " + spec.name()) {
+                     "FalseGPUOperator " + spec.SchemaName()) {
     cpu_ws_.SetThreadPool(&thread_pool_);
   }
   ~FalseGPUOperator() override = default;
 
  protected:
-  bool CanInferOutputs() const override {
+  bool HasContiguousOutputs() const override {
     // To run Setup we need to first copy from device to host.
     // To avoid delaying the Setup stage, we will do Setup and Run in one go (during Run)
     return false;

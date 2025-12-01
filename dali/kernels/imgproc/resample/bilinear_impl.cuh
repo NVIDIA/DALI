@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019, 2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -42,8 +42,8 @@ __device__ void LinearHorz_Channels(
     const Src *__restrict__ in, ptrdiff_vec<1> in_strides, ivec2 in_shape, int dynamic_channels) {
   src_x0 += 0.5f * scale - 0.5f;
 
-  int out_stride = out_strides[0];
-  int in_stride = in_strides[0];
+  ptrdiff_t out_stride = out_strides[0];
+  ptrdiff_t in_stride = in_strides[0];
   int in_w = in_shape.x;
 
   const int channels = static_channels < 0 ? dynamic_channels : static_channels;
@@ -68,7 +68,7 @@ __device__ void LinearHorz_Channels(
       for (int c = 0; c < channels; c++) {
         float a = __ldg(&in0[c]);
         float b = __ldg(&in1[c]);
-        float tmp = fmaf(b-a, q, a);
+        float tmp = __fmaf_rn(b-a, q, a);
         out_row[cx + c] = ConvertSat<Dst>(tmp);
       }
     }
@@ -139,10 +139,10 @@ __device__ void LinearVert(
     float src_y0, float scale,
     Dst *__restrict__ out, ptrdiff_vec<1> out_strides,
     const Src *__restrict__ in, ptrdiff_vec<1> in_strides, ivec2 in_shape, int channels) {
-  src_y0 += 0.5f * scale - 0.5f;
+  src_y0 += __fmaf_rn(scale, 0.5f, -0.5f);
 
-  int out_stride = out_strides[0];
-  int in_stride = in_strides[0];
+  ptrdiff_t out_stride = out_strides[0];
+  ptrdiff_t in_stride = in_strides[0];
   int in_h = in_shape.y;
 
   // columns are independent - we can safely merge columns with channels
@@ -150,7 +150,7 @@ __device__ void LinearVert(
   const int j1 = hi.x * channels;
 
   for (int y = lo.y + threadIdx.y; y < hi.y; y += blockDim.y) {
-    const float sy0f = y * scale + src_y0;
+    const float sy0f = __fmaf_rn(y, scale, src_y0);
     const int sy0i = __float2int_rd(sy0f);
     const float q = sy0f - sy0i;
     const int sy0 = clamp(sy0i,   0, in_h-1);
@@ -163,7 +163,7 @@ __device__ void LinearVert(
     for (int j = j0 + threadIdx.x; j < j1; j += blockDim.x) {
       float a = __ldg(&in0[j]);
       float b = __ldg(&in1[j]);
-      float tmp = fmaf(b-a, q, a);
+      float tmp = __fmaf_rn(b-a, q, a);
       out_row[j] = ConvertSat<Dst>(tmp);
     }
   }
@@ -288,7 +288,7 @@ __device__ void LinearDepth(
       for (int j = j0 + threadIdx.x; j < j1; j += blockDim.x) {
         float a = __ldg(&in0[j]);
         float b = __ldg(&in1[j]);
-        float tmp = fmaf(b-a, q, a);
+        float tmp = __fmaf_rn(b-a, q, a);
         out_row[j] = ConvertSat<Dst>(tmp);
       }
     }

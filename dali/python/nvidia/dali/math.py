@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,17 +14,26 @@
 
 import sys
 
+from nvidia.dali.data_node import DataNode as _DataNode
+from nvidia.dali._utils import dali_trace as _dali_trace
+
 
 def _arithm_op(*args, **kwargs):
     import nvidia.dali.ops
+
+    if _dali_trace.is_tracing_enabled():
+        definition_frame_end = _dali_trace.get_stack_depth() - 2
+    else:
+        definition_frame_end = None
+
     # Fully circular imports don't work. We need to import _arithm_op late and
     # replace this trampoline function.
     setattr(sys.modules[__name__], "_arithm_op", nvidia.dali.ops._arithm_op)
-    return nvidia.dali.ops._arithm_op(*args, **kwargs)
+    return nvidia.dali.ops._arithm_op(*args, **kwargs, definition_frame_end=definition_frame_end)
 
 
-def sqrt(input):
-    """Computes square root of values in ``input``.
+def sqrt(input) -> _DataNode:
+    """Computes square root of values in `input`.
 
     :rtype: TensorList of sqrt(input). If input is an integer, the result will be float,
             otherwise the type is preserved.
@@ -32,8 +41,8 @@ def sqrt(input):
     return _arithm_op("sqrt", input)
 
 
-def rsqrt(input):
-    """Computes reciprocal of the square root of values in ``input``.
+def rsqrt(input) -> _DataNode:
+    """Computes reciprocal of the square root of values in `input`.
 
     :rtype: TensorList of rsqrt(input). If input is an integer, the result will be float,
             otherwise the type is preserved.
@@ -41,8 +50,8 @@ def rsqrt(input):
     return _arithm_op("rsqrt", input)
 
 
-def cbrt(input):
-    """Computes cube root of values in ``input``.
+def cbrt(input) -> _DataNode:
+    """Computes cube root of values in `input`.
 
     :rtype: TensorList of cbrt(input). If input is an integer, the result will be float,
             otherwise the type is preserved.
@@ -50,8 +59,8 @@ def cbrt(input):
     return _arithm_op("cbrt", input)
 
 
-def exp(input):
-    """Computes exponential of values in ``input``.
+def exp(input) -> _DataNode:
+    """Computes exponential of values in `input`.
 
     :rtype: TensorList of exp(input). If input is an integer, the result will be float,
             otherwise the type is preserved.
@@ -59,8 +68,8 @@ def exp(input):
     return _arithm_op("exp", input)
 
 
-def log(input):
-    """Computes natural logarithm (base-e) of values in ``input``.
+def log(input) -> _DataNode:
+    """Computes natural logarithm (base-e) of values in `input`.
 
     :rtype: TensorList of log(input). If input is an integer, the result will be float,
             otherwise the type is preserved.
@@ -68,8 +77,8 @@ def log(input):
     return _arithm_op("log", input)
 
 
-def log2(input):
-    """Computes logarithm (base-2) of values in ``input``.
+def log2(input) -> _DataNode:
+    """Computes logarithm (base-2) of values in `input`.
 
     :rtype: TensorList of log2(input). If input is an integer, the result will be float,
             otherwise the type is preserved.
@@ -77,8 +86,8 @@ def log2(input):
     return _arithm_op("log2", input)
 
 
-def log10(input):
-    """Computes logarithm (base-10) of values in ``input``.
+def log10(input) -> _DataNode:
+    """Computes logarithm (base-10) of values in `input`.
 
     :rtype: TensorList of log10(input). If input is an integer, the result will be float,
             otherwise the type is preserved.
@@ -86,16 +95,16 @@ def log10(input):
     return _arithm_op("log10", input)
 
 
-def abs(input):
-    """Computes absolute value of values in ``input``.
+def abs(input) -> _DataNode:
+    """Computes absolute value of values in `input`.
 
     :rtype: TensorList of abs(input). The type is preserved.
     """
     return _arithm_op("abs", input)
 
 
-def fabs(input):
-    """Computes float absolute value of values in ``input``.
+def fabs(input) -> _DataNode:
+    """Computes float absolute value of values in `input`.
 
     :rtype: TensorList of fabs(input). If input is an integer, the result will be float,
             otherwise the type is preserved.
@@ -103,8 +112,8 @@ def fabs(input):
     return _arithm_op("fabs", input)
 
 
-def floor(input):
-    """Computes floor of values in ``input``.
+def floor(input) -> _DataNode:
+    """Computes floor of values in `input`.
 
     :rtype: TensorList of floor(input). If input is an integer, the result will be float,
             otherwise the type is preserved.
@@ -112,8 +121,8 @@ def floor(input):
     return _arithm_op("floor", input)
 
 
-def ceil(input):
-    """Computes ceil of values in ``input``.
+def ceil(input) -> _DataNode:
+    """Computes ceil of values in `input`.
 
     :rtype: TensorList of ceil(input). If input is an integer, the result will be float,
             otherwise the type is preserved.
@@ -121,8 +130,8 @@ def ceil(input):
     return _arithm_op("ceil", input)
 
 
-def sin(input):
-    """Computes sine of values in ``input``.
+def sin(input) -> _DataNode:
+    """Computes sine of values in `input`.
 
     :rtype: TensorList of sin(input). If input is an integer, the result will be float,
             otherwise the type is preserved.
@@ -130,8 +139,8 @@ def sin(input):
     return _arithm_op("sin", input)
 
 
-def cos(input):
-    """Computes cosine of values in ``input``.
+def cos(input) -> _DataNode:
+    """Computes cosine of values in `input`.
 
     :rtype: TensorList of cos(input). If input is an integer, the result will be float,
             otherwise the type is preserved.
@@ -139,8 +148,8 @@ def cos(input):
     return _arithm_op("cos", input)
 
 
-def tan(input):
-    """Computes tangent of values in ``input``.
+def tan(input) -> _DataNode:
+    """Computes tangent of values in `input`.
 
     :rtype: TensorList of tan(input). If input is an integer, the result will be float,
             otherwise the type is preserved.
@@ -148,8 +157,8 @@ def tan(input):
     return _arithm_op("tan", input)
 
 
-def asin(input):
-    """Computes arcus sine of values in ``input``.
+def asin(input) -> _DataNode:
+    """Computes arcus sine of values in `input`.
 
     :rtype: TensorList of asin(input). If input is an integer, the result will be float,
             otherwise the type is preserved.
@@ -157,8 +166,8 @@ def asin(input):
     return _arithm_op("asin", input)
 
 
-def acos(input):
-    """Computes arcus cosine of values in ``input``.
+def acos(input) -> _DataNode:
+    """Computes arcus cosine of values in `input`.
 
     :rtype: TensorList of acos(input). If input is an integer, the result will be float,
             otherwise the type is preserved.
@@ -166,8 +175,8 @@ def acos(input):
     return _arithm_op("acos", input)
 
 
-def atan(input):
-    """Computes arcus tangent of values in ``input``.
+def atan(input) -> _DataNode:
+    """Computes arcus tangent of values in `input`.
 
     :rtype: TensorList of atan(input). If input is an integer, the result will be float,
             otherwise the type is preserved.
@@ -175,8 +184,8 @@ def atan(input):
     return _arithm_op("atan", input)
 
 
-def sinh(input):
-    """Computes hyperbolic sine of values in ``input``.
+def sinh(input) -> _DataNode:
+    """Computes hyperbolic sine of values in `input`.
 
     :rtype: TensorList of sinh(input). If input is an integer, the result will be float,
             otherwise the type is preserved.
@@ -184,8 +193,8 @@ def sinh(input):
     return _arithm_op("sinh", input)
 
 
-def cosh(input):
-    """Computes hyperbolic cosine of values in ``input``.
+def cosh(input) -> _DataNode:
+    """Computes hyperbolic cosine of values in `input`.
 
     :rtype: TensorList of cosh(input). If input is an integer, the result will be float,
             otherwise the type is preserved.
@@ -193,8 +202,8 @@ def cosh(input):
     return _arithm_op("cosh", input)
 
 
-def tanh(input):
-    """Computes hyperbolic tangent of values in ``input``.
+def tanh(input) -> _DataNode:
+    """Computes hyperbolic tangent of values in `input`.
 
     :rtype: TensorList of tanh(input). If input is an integer, the result will be float,
             otherwise the type is preserved.
@@ -202,8 +211,8 @@ def tanh(input):
     return _arithm_op("tanh", input)
 
 
-def asinh(input):
-    """Computes inverse hyperbolic sine of values in ``input``.
+def asinh(input) -> _DataNode:
+    """Computes inverse hyperbolic sine of values in `input`.
 
     :rtype: TensorList of asinh(input). If input is an integer, the result will be float,
             otherwise the type is preserved.
@@ -211,8 +220,8 @@ def asinh(input):
     return _arithm_op("asinh", input)
 
 
-def acosh(input):
-    """Computes inverse hyperbolic cosine of values in ``input``.
+def acosh(input) -> _DataNode:
+    """Computes inverse hyperbolic cosine of values in `input`.
 
     :rtype: TensorList of acosh(input). If input is an integer, the result will be float,
             otherwise the type is preserved.
@@ -220,8 +229,8 @@ def acosh(input):
     return _arithm_op("acosh", input)
 
 
-def atanh(input):
-    """Computes inverse hyperbolic tangent of values in ``input``.
+def atanh(input) -> _DataNode:
+    """Computes inverse hyperbolic tangent of values in `input`.
 
     :rtype: TensorList of atanh(input). If input is an integer, the result will be float,
             otherwise the type is preserved.
@@ -229,23 +238,23 @@ def atanh(input):
     return _arithm_op("atanh", input)
 
 
-def min(left, right):
-    """Computes minima of corresponding values in ``left`` and ``right``.
+def min(left, right) -> _DataNode:
+    """Computes minima of corresponding values in `left` and `right`.
 
     :rtype: TensorList of the type that is calculated based on the type promotion rules.
     """
     return _arithm_op("min", left, right)
 
 
-def max(left, right):
-    """Computes maxima of corresponding values in ``left`` and ``right``.
+def max(left, right) -> _DataNode:
+    """Computes maxima of corresponding values in `left` and `right`.
 
     :rtype: TensorList of the type that is calculated based on the type promotion rules.
     """
     return _arithm_op("max", left, right)
 
 
-def pow(base, exponent):
+def pow(base, exponent) -> _DataNode:
     """Computes base to the power of exponents, that is base ** exponent.
 
     :rtype: TensorList of pow(base, exponent). Type is calculated based on the type promotion rules.
@@ -253,7 +262,7 @@ def pow(base, exponent):
     return _arithm_op("pow", base, exponent)
 
 
-def fpow(base, exponent):
+def fpow(base, exponent) -> _DataNode:
     """Computes base to the power of exponents as floating point numbers.
 
     :rtype: TensorList of pow(base, exponent). If all inputs are integers, the result will be float,
@@ -262,7 +271,7 @@ def fpow(base, exponent):
     return _arithm_op("fpow", base, exponent)
 
 
-def atan2(x, y):
+def atan2(x, y) -> _DataNode:
     """Computes arcus tangent of corresponding values in  x / y.
 
     :rtype: TensorList of atan2(x, y). If all inputs are integers, the result will be float,
@@ -271,8 +280,8 @@ def atan2(x, y):
     return _arithm_op("atan2", x, y)
 
 
-def clamp(value, lo, hi):
-    """Produces a tensor of values from ``value`` clamped to the range ``[lo, hi]``.
+def clamp(value, lo, hi) -> _DataNode:
+    """Produces a tensor of values from `value` clamped to the range ``[lo, hi]``.
 
     :rtype: TensorList of the type that is calculated based on the type promotion rules.
     """

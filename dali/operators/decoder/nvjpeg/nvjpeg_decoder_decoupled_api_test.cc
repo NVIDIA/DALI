@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -28,8 +28,8 @@ class nvjpegDecodeDecoupledAPITest : public GenericDecoderTest<ImgType> {
       .AddArg("device", "mixed")
       .AddArg("output_type", this->img_type_)
       .AddArg("hybrid_huffman_threshold", hybrid_huffman_threshold_)
-      .AddInput("encoded", "cpu")
-      .AddOutput("decoded", "gpu");
+      .AddInput("encoded", StorageDevice::CPU)
+      .AddOutput("decoded", StorageDevice::GPU);
   }
 
   void JpegTestDecode(int num_threads, unsigned int hybrid_huffman_threshold) {
@@ -182,13 +182,10 @@ TYPED_TEST(nvjpegDecodeDecoupledAPITest, TestSingleTiffDecode4T) {
   this->TiffTestDecode(4);
 }
 
-#if NVJPEG_VER_MAJOR >= 11
+#if NVJPEG_VER_MAJOR >= 11 && NVML_ENABLED
 void PrintDeviceInfo() {
   unsigned int device_count;
-  if (!nvmlIsInitialized()) {
-    nvml::Init();
-    return;
-  }
+  auto nvml_handle = nvml::NvmlInstance::CreateNvmlInstance();
   CUDA_CALL(nvmlDeviceGetCount_v2(&device_count));
   for (unsigned int device_idx = 0; device_idx < device_count; device_idx++) {
     auto info = nvml::GetDeviceInfo(device_idx);
@@ -206,6 +203,7 @@ void PrintDeviceInfo() {
 bool ShouldUseHwDecoder() {
   // HW decoder is disabled for drivers < 455.x, see
   // dali/operators/decoder/nvjpeg/nvjpeg_decoder_decoupled_api.h for details
+  auto nvml_handle = nvml::NvmlInstance::CreateNvmlInstance();
   static float driver_version = nvml::GetDriverVersion();
   static bool device_supports_hw_decoder = nvml::isHWDecoderSupported();
   return device_supports_hw_decoder && driver_version >= 455;
@@ -220,15 +218,15 @@ class CudaDecoderUtilizationTest : public ::testing::Test {
             OpSpec("FileReader")
                     .AddArg("device", "cpu")
                     .AddArg("file_root", list_root)
-                    .AddOutput("compressed_images", "cpu")
-                    .AddOutput("labels", "cpu"));
+                    .AddOutput("compressed_images", StorageDevice::CPU)
+                    .AddOutput("labels", StorageDevice::CPU));
     auto decoder_spec =
             OpSpec("ImageDecoder")
                     .AddArg("device", "mixed")
                     .AddArg("output_type", DALI_RGB)
                     .AddArg("hw_decoder_load", 0.f)
-                    .AddInput("compressed_images", "cpu")
-                    .AddOutput("images", "gpu");
+                    .AddInput("compressed_images", StorageDevice::CPU)
+                    .AddOutput("images", StorageDevice::GPU);
     pipeline_.AddOperator(decoder_spec, decoder_name_);
 
     pipeline_.Build(outputs_);
@@ -241,13 +239,12 @@ class CudaDecoderUtilizationTest : public ::testing::Test {
 };
 
 TEST_F(CudaDecoderUtilizationTest, UtilizationTest) {
-  this->pipeline_.RunCPU();
-  this->pipeline_.RunGPU();
+  this->pipeline_.Run();
 
-  auto node = this->pipeline_.GetOperatorNode(this->decoder_name_);
-  auto nsamples_hw = node->op->GetDiagnostic<int64_t>("nsamples_hw");
-  auto nsamples_cuda = node->op->GetDiagnostic<int64_t>("nsamples_cuda");
-  auto nsamples_host = node->op->GetDiagnostic<int64_t>("nsamples_host");
+  auto op = this->pipeline_.GetOperator(this->decoder_name_);
+  auto nsamples_hw = op->GetDiagnostic<int64_t>("nsamples_hw");
+  auto nsamples_cuda = op->GetDiagnostic<int64_t>("nsamples_cuda");
+  auto nsamples_host = op->GetDiagnostic<int64_t>("nsamples_host");
   EXPECT_EQ(nsamples_hw, 0);
   EXPECT_EQ(nsamples_cuda, 47) << "HW Decoder malfunction: incorrect number "
                                   "of images decoded by CUDA";
@@ -264,21 +261,21 @@ class HwDecoderUtilizationTest : public ::testing::Test {
             OpSpec("FileReader")
                     .AddArg("device", "cpu")
                     .AddArg("file_root", list_root)
-                    .AddOutput("compressed_images", "cpu")
-                    .AddOutput("labels", "cpu"));
+                    .AddOutput("compressed_images", StorageDevice::CPU)
+                    .AddOutput("labels", StorageDevice::CPU));
     auto decoder_spec =
             OpSpec("ImageDecoder")
                     .AddArg("device", "mixed")
                     .AddArg("output_type", DALI_RGB)
                     .AddArg("hw_decoder_load", 1.f)
-                    .AddInput("compressed_images", "cpu")
-                    .AddOutput("images", "gpu");
+                    .AddInput("compressed_images", StorageDevice::CPU)
+                    .AddOutput("images", StorageDevice::GPU);
     pipeline_.AddOperator(decoder_spec, decoder_name_);
 
     pipeline_.Build(outputs_);
 
-    auto node = pipeline_.GetOperatorNode(decoder_name_);
-    if (!node->op->GetDiagnostic<bool>("using_hw_decoder")) {
+    auto op = pipeline_.GetOperator(decoder_name_);
+    if (!op->GetDiagnostic<bool>("using_hw_decoder")) {
       PrintDeviceInfo();
       if (ShouldUseHwDecoder()) {
         FAIL() << "HW Decoder exists in the system and failed to open";
@@ -296,13 +293,12 @@ class HwDecoderUtilizationTest : public ::testing::Test {
 
 
 TEST_F(HwDecoderUtilizationTest, UtilizationTest) {
-  this->pipeline_.RunCPU();
-  this->pipeline_.RunGPU();
+  this->pipeline_.Run();
 
-  auto node = this->pipeline_.GetOperatorNode(this->decoder_name_);
-  auto nsamples_hw = node->op->GetDiagnostic<int64_t>("nsamples_hw");
-  auto nsamples_cuda = node->op->GetDiagnostic<int64_t>("nsamples_cuda");
-  auto nsamples_host = node->op->GetDiagnostic<int64_t>("nsamples_host");
+  auto op = this->pipeline_.GetOperator(this->decoder_name_);
+  auto nsamples_hw = op->GetDiagnostic<int64_t>("nsamples_hw");
+  auto nsamples_cuda = op->GetDiagnostic<int64_t>("nsamples_cuda");
+  auto nsamples_host = op->GetDiagnostic<int64_t>("nsamples_host");
   EXPECT_EQ(nsamples_hw, 47) << "HW Decoder malfunction: incorrect number of images decoded in HW";
   EXPECT_EQ(nsamples_cuda, 0);
   EXPECT_EQ(nsamples_host, 0)
@@ -318,8 +314,8 @@ class HwDecoderMemoryPoolTest : public ::testing::Test {
             OpSpec("FileReader")
                     .AddArg("device", "cpu")
                     .AddArg("file_root", list_root)
-                    .AddOutput("compressed_images", "cpu")
-                    .AddOutput("labels", "cpu"));
+                    .AddOutput("compressed_images", StorageDevice::CPU)
+                    .AddOutput("labels", StorageDevice::CPU));
     auto decoder_spec =
             OpSpec("ImageDecoder")
                     .AddArg("device", "mixed")
@@ -327,8 +323,8 @@ class HwDecoderMemoryPoolTest : public ::testing::Test {
                     .AddArg("hw_decoder_load", 1.f)
                     .AddArg("preallocate_width_hint", 400)
                     .AddArg("preallocate_height_hint", 600)
-                    .AddInput("compressed_images", "cpu")
-                    .AddOutput("images", "gpu");
+                    .AddInput("compressed_images", StorageDevice::CPU)
+                    .AddOutput("images", StorageDevice::GPU);
     pipeline_.AddOperator(decoder_spec, decoder_name_);
 
     pipeline_.Build(outputs_);
@@ -342,8 +338,7 @@ class HwDecoderMemoryPoolTest : public ::testing::Test {
 };
 
 TEST_F(HwDecoderMemoryPoolTest, MemoryPoolTest) {
-  this->pipeline_.RunCPU();
-  this->pipeline_.RunGPU();
+  this->pipeline_.Run();
 }
 
 class HwDecoderSliceUtilizationTest : public ::testing::Test {
@@ -372,17 +367,17 @@ class HwDecoderSliceUtilizationTest : public ::testing::Test {
             OpSpec("FileReader")
                     .AddArg("device", "cpu")
                     .AddArg("file_root", list_root)
-                    .AddOutput("compressed_images", "cpu")
-                    .AddOutput("labels", "cpu"));
+                    .AddOutput("compressed_images", StorageDevice::CPU)
+                    .AddOutput("labels", StorageDevice::CPU));
     auto decoder_spec =
             OpSpec("ImageDecoderSlice")
                     .AddArg("device", "mixed")
                     .AddArg("output_type", DALI_RGB)
                     .AddArg("hw_decoder_load", 1.f)
-                    .AddInput("compressed_images", "cpu")
-                    .AddInput("begin_data", "cpu")
-                    .AddInput("crop_data", "cpu")
-                    .AddOutput("images", "gpu");
+                    .AddInput("compressed_images", StorageDevice::CPU)
+                    .AddInput("begin_data", StorageDevice::CPU)
+                    .AddInput("crop_data", StorageDevice::CPU)
+                    .AddOutput("images", StorageDevice::GPU);
     pipeline_.AddExternalInput("begin_data");
     pipeline_.AddExternalInput("crop_data");
     pipeline_.AddOperator(decoder_spec, decoder_name_);
@@ -391,8 +386,8 @@ class HwDecoderSliceUtilizationTest : public ::testing::Test {
     pipeline_.SetExternalInput("begin_data", begin_data);
     pipeline_.SetExternalInput("crop_data", crop_data);
 
-    auto node = pipeline_.GetOperatorNode(decoder_name_);
-    if (!node->op->GetDiagnostic<bool>("using_hw_decoder_roi")) {
+    auto op = pipeline_.GetOperator(decoder_name_);
+    if (!op->GetDiagnostic<bool>("using_hw_decoder_roi")) {
       PrintDeviceInfo();
       if (ShouldUseHwDecoder()) {
         FAIL() << "HW Decoder exists in the system and failed to open";
@@ -408,13 +403,12 @@ class HwDecoderSliceUtilizationTest : public ::testing::Test {
 };
 
 TEST_F(HwDecoderSliceUtilizationTest, UtilizationTest) {
-  this->pipeline_.RunCPU();
-  this->pipeline_.RunGPU();
+  this->pipeline_.Run();
 
-  auto node = this->pipeline_.GetOperatorNode(this->decoder_name_);
-  auto nsamples_hw = node->op->GetDiagnostic<int64_t>("nsamples_hw");
-  auto nsamples_cuda = node->op->GetDiagnostic<int64_t>("nsamples_cuda");
-  auto nsamples_host = node->op->GetDiagnostic<int64_t>("nsamples_host");
+  auto op = this->pipeline_.GetOperator(this->decoder_name_);
+  auto nsamples_hw = op->GetDiagnostic<int64_t>("nsamples_hw");
+  auto nsamples_cuda = op->GetDiagnostic<int64_t>("nsamples_cuda");
+  auto nsamples_host = op->GetDiagnostic<int64_t>("nsamples_host");
   EXPECT_EQ(nsamples_hw, 47) << "HW Decoder malfunction: incorrect number of images decoded in HW";
   EXPECT_EQ(nsamples_cuda, 0);
   EXPECT_EQ(nsamples_host, 0)
@@ -430,22 +424,22 @@ class HwDecoderCropUtilizationTest : public ::testing::Test {
             OpSpec("FileReader")
                     .AddArg("device", "cpu")
                     .AddArg("file_root", list_root)
-                    .AddOutput("compressed_images", "cpu")
-                    .AddOutput("labels", "cpu"));
+                    .AddOutput("compressed_images", StorageDevice::CPU)
+                    .AddOutput("labels", StorageDevice::CPU));
     auto decoder_spec =
             OpSpec("ImageDecoderCrop")
                     .AddArg("device", "mixed")
                     .AddArg("output_type", DALI_RGB)
                     .AddArg("hw_decoder_load", 1.f)
                     .AddArg("crop", std::vector<float>{224.0f, 224.0f})
-                    .AddInput("compressed_images", "cpu")
-                    .AddOutput("images", "gpu");
+                    .AddInput("compressed_images", StorageDevice::CPU)
+                    .AddOutput("images", StorageDevice::GPU);
     pipeline_.AddOperator(decoder_spec, decoder_name_);
 
     pipeline_.Build(outputs_);
 
-    auto node = pipeline_.GetOperatorNode(decoder_name_);
-    if (!node->op->GetDiagnostic<bool>("using_hw_decoder_roi")) {
+    auto op = pipeline_.GetOperator(decoder_name_);
+    if (!op->GetDiagnostic<bool>("using_hw_decoder_roi")) {
       PrintDeviceInfo();
       if (ShouldUseHwDecoder()) {
         FAIL() << "HW Decoder exists in the system and failed to open";
@@ -461,13 +455,11 @@ class HwDecoderCropUtilizationTest : public ::testing::Test {
 };
 
 TEST_F(HwDecoderCropUtilizationTest, UtilizationTest) {
-  this->pipeline_.RunCPU();
-  this->pipeline_.RunGPU();
-
-  auto node = this->pipeline_.GetOperatorNode(this->decoder_name_);
-  auto nsamples_hw = node->op->GetDiagnostic<int64_t>("nsamples_hw");
-  auto nsamples_cuda = node->op->GetDiagnostic<int64_t>("nsamples_cuda");
-  auto nsamples_host = node->op->GetDiagnostic<int64_t>("nsamples_host");
+  this->pipeline_.Run();
+  auto op = this->pipeline_.GetOperator(this->decoder_name_);
+  auto nsamples_hw = op->GetDiagnostic<int64_t>("nsamples_hw");
+  auto nsamples_cuda = op->GetDiagnostic<int64_t>("nsamples_cuda");
+  auto nsamples_host = op->GetDiagnostic<int64_t>("nsamples_host");
   EXPECT_EQ(nsamples_hw, 47) << "HW Decoder malfunction: incorrect number of images decoded in HW";
   EXPECT_EQ(nsamples_cuda, 0);
   EXPECT_EQ(nsamples_host, 0)
@@ -484,21 +476,21 @@ class HwDecoderRandomCropUtilizationTest : public ::testing::Test {
             OpSpec("FileReader")
                     .AddArg("device", "cpu")
                     .AddArg("file_root", list_root)
-                    .AddOutput("compressed_images", "cpu")
-                    .AddOutput("labels", "cpu"));
+                    .AddOutput("compressed_images", StorageDevice::CPU)
+                    .AddOutput("labels", StorageDevice::CPU));
     auto decoder_spec =
             OpSpec("ImageDecoderRandomCrop")
                     .AddArg("device", "mixed")
                     .AddArg("output_type", DALI_RGB)
                     .AddArg("hw_decoder_load", 1.f)
-                    .AddInput("compressed_images", "cpu")
-                    .AddOutput("images", "gpu");
+                    .AddInput("compressed_images", StorageDevice::CPU)
+                    .AddOutput("images", StorageDevice::GPU);
     pipeline_.AddOperator(decoder_spec, decoder_name_);
 
     pipeline_.Build(outputs_);
 
-    auto node = pipeline_.GetOperatorNode(decoder_name_);
-    if (!node->op->GetDiagnostic<bool>("using_hw_decoder")) {
+    auto op = pipeline_.GetOperator(decoder_name_);
+    if (!op->GetDiagnostic<bool>("using_hw_decoder")) {
       PrintDeviceInfo();
       if (ShouldUseHwDecoder()) {
         FAIL() << "HW Decoder exists in the system and failed to open";
@@ -514,10 +506,9 @@ class HwDecoderRandomCropUtilizationTest : public ::testing::Test {
 };
 
 TEST_F(HwDecoderRandomCropUtilizationTest, UtilizationTest) {
-  this->pipeline_.RunCPU();
-  this->pipeline_.RunGPU();
+  this->pipeline_.Run();
 }
-#endif
+#endif  // NVJPEG_VER_MAJOR >= 11 && NVML_ENABLED
 
 class Nvjpeg2kTest : public ::testing::Test {
  public:
@@ -528,14 +519,14 @@ class Nvjpeg2kTest : public ::testing::Test {
             OpSpec("FileReader")
                     .AddArg("device", "cpu")
                     .AddArg("file_root", list_root)
-                    .AddOutput("compressed_images", "cpu")
-                    .AddOutput("labels", "cpu"));
+                    .AddOutput("compressed_images", StorageDevice::CPU)
+                    .AddOutput("labels", StorageDevice::CPU));
     auto decoder_spec =
             OpSpec("ImageDecoder")
                     .AddArg("device", "mixed")
                     .AddArg("output_type", DALI_RGB)
-                    .AddInput("compressed_images", "cpu")
-                    .AddOutput("images", "gpu");
+                    .AddInput("compressed_images", StorageDevice::CPU)
+                    .AddOutput("images", StorageDevice::GPU);
     pipeline_.AddOperator(decoder_spec, decoder_name_);
 
     pipeline_.Build(outputs_);
@@ -550,12 +541,11 @@ class Nvjpeg2kTest : public ::testing::Test {
 
 
 TEST_F(Nvjpeg2kTest, UtilizationTest) {
-  this->pipeline_.RunCPU();
-  this->pipeline_.RunGPU();
+  this->pipeline_.Run();
 
-  auto node = this->pipeline_.GetOperatorNode(this->decoder_name_);
-  auto nsamples_nvjpeg2k = node->op->GetDiagnostic<int64_t>("nsamples_nvjpeg2k");
-  auto nsamples_host = node->op->GetDiagnostic<int64_t>("nsamples_host");
+  auto op = this->pipeline_.GetOperator(this->decoder_name_);
+  auto nsamples_nvjpeg2k = op->GetDiagnostic<int64_t>("nsamples_nvjpeg2k");
+  auto nsamples_host = op->GetDiagnostic<int64_t>("nsamples_host");
 #if NVJPEG2K_ENABLED
   std::cout << "Using nvJPEG2k" << std::endl;
   EXPECT_EQ(nsamples_nvjpeg2k, 21);

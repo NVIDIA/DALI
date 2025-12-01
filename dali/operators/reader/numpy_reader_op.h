@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -27,14 +27,15 @@
 #include "dali/operators/reader/reader_op.h"
 #include "dali/pipeline/operator/arg_helper.h"
 #include "dali/util/crop_window.h"
+#include "dali/util/odirect_file.h"
 
 namespace dali {
 
 template <typename Backend, typename Target>
-class NumpyReader : public DataReader<Backend, Target> {
+class NumpyReader : public DataReader<Backend, Target, Target, true> {
  public:
   explicit NumpyReader(const OpSpec& spec)
-      : DataReader<Backend, Target>(spec),
+      : DataReader<Backend, Target, Target, true>(spec),
         slice_attr_(spec, "roi_start", "rel_roi_start", "roi_end", "rel_roi_end", "roi_shape",
                     "rel_roi_shape", "roi_axes", nullptr) {
     out_of_bounds_policy_ = GetOutOfBoundsPolicy(spec);
@@ -43,18 +44,18 @@ class NumpyReader : public DataReader<Backend, Target> {
     }
   }
 
-  bool CanInferOutputs() const override {
+  bool HasContiguousOutputs() const override {
     return true;
   }
 
-  USE_READER_OPERATOR_MEMBERS(Backend, Target);
-  using DataReader<Backend, Target>::GetCurrBatchSize;
-  using DataReader<Backend, Target>::GetSample;
+  USE_READER_OPERATOR_MEMBERS(Backend, Target, Target, true);
+  using DataReader<Backend, Target, Target, true>::GetCurrBatchSize;
+  using DataReader<Backend, Target, Target, true>::GetSample;
   using Operator<Backend>::spec_;
 
   bool SetupImpl(std::vector<OutputDesc>& output_desc, const Workspace &ws) override {
     // If necessary start prefetching thread and wait for a consumable batch
-    DataReader<Backend, Target>::SetupImpl(output_desc, ws);
+    DataReader<Backend, Target, Target, true>::SetupImpl(output_desc, ws);
 
     int batch_size = GetCurrBatchSize();
     const auto& file_0 = GetSample(0);
@@ -152,17 +153,49 @@ class NumpyReader : public DataReader<Backend, Target> {
 
 class NumpyReaderCPU : public NumpyReader<CPUBackend, NumpyFileWrapper> {
  public:
-  explicit NumpyReaderCPU(const OpSpec& spec) : NumpyReader<CPUBackend, NumpyFileWrapper>(spec) {
+  explicit NumpyReaderCPU(const OpSpec& spec) : NumpyReader<CPUBackend, NumpyFileWrapper>(spec),
+    dont_use_mmap_(spec.GetArgument<bool>("dont_use_mmap")),
+    use_o_direct_(spec.GetArgument<bool>("use_o_direct")),
+    thread_pool_(num_threads_, spec.GetArgument<int>("device_id"), false, "NumpyReaderCPU") {
+    DALI_ENFORCE(dont_use_mmap_  || !use_o_direct_, make_string("Cannot use use_o_direct with ",
+                 "``dont_use_mmap=False``."));
     bool shuffle_after_epoch = spec.GetArgument<bool>("shuffle_after_epoch");
-    loader_ = InitLoader<NumpyLoader>(spec, shuffle_after_epoch);
+    if (use_o_direct_) {
+      o_direct_chunk_size_ = ODirectFileStream::GetChunkSize();
+      o_direct_alignm_ = ODirectFileStream::GetAlignment();
+      o_direct_read_len_alignm_ = ODirectFileStream::GetLenAlignment();
+    }
+    loader_ = InitLoader<NumpyLoader>(spec, shuffle_after_epoch, use_o_direct_, o_direct_alignm_,
+                                      o_direct_read_len_alignm_);
+    this->SetInitialSnapshot();
   }
+  ~NumpyReaderCPU() override;
+  void Prefetch() override;
 
  protected:
   void RunImpl(Workspace &ws) override;
   using Operator<CPUBackend>::RunImpl;
 
  private:
-  USE_READER_OPERATOR_MEMBERS(CPUBackend, NumpyFileWrapper);
+  USE_READER_OPERATOR_MEMBERS(CPUBackend, NumpyFileWrapper, NumpyFileWrapper, true);
+
+  bool dont_use_mmap_ = false;
+  bool use_o_direct_ = false;
+  size_t o_direct_chunk_size_ = 0;
+  /*
+   * according to open man page
+   * O_DIRECT
+   *   The O_DIRECT flag may impose alignment restrictions on the length
+   *   and address of user-space buffers and the file offset of I/Os.
+   *   In Linux alignment restrictions vary by filesystem and kernel
+   *   version and might be absent entirely.  However there is currently
+   *   no filesystem-independent interface for an application to
+   *   discover these restrictions for a given file or filesystem.
+   */
+  size_t o_direct_alignm_ = 0;
+  size_t o_direct_read_len_alignm_ = 0;
+  // ThreadPool for prefetch which is a separate thread
+  ThreadPool thread_pool_;
 };
 
 }  // namespace dali

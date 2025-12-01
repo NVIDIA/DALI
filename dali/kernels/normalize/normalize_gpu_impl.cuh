@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -284,32 +284,6 @@ class NormalizeImplGPU {
 
     KernelRequirements req;
     req.output_shapes = { data_shape };
-    ScratchpadEstimator se;
-
-    if (scalar_scale_) {
-      // scale is a scalar - it will be corrected before launch, in host code
-      if (scalar_base_) {
-        SetupImpl<Op_Scalar>(se);
-      } else {
-        SetupImpl<Op_ScalarScale>(se);
-      }
-    } else {
-      if (scale_is_stddev_) {
-        if (scalar_base_) {
-          SetupImpl<Op_InvStdDevScalarBase>(se);
-        } else {
-          SetupImpl<Op_InvStdDevNonScalar>(se);
-        }
-      } else {
-        if (scalar_base_) {
-          SetupImpl<Op_ScalarBase>(se);
-        } else {
-          SetupImpl<Op_NonScalar>(se);
-        }
-      }
-    }
-
-    req.scratch_sizes = se.sizes;
     return req;
   }
 
@@ -420,10 +394,9 @@ class NormalizeImplGPU {
         "shape passed to Setup");
   }
 
-  template <typename Desc, typename KernelFunc>
-  std::pair<dim3, dim3>
-  GetLaunchParams(const TensorListShape<> &data_shape, KernelFunc func) const {
-    int max_block = MaxThreadsPerBlock(func);
+  template <typename Desc>
+  std::pair<dim3, dim3> GetLaunchParams(const TensorListShape<> &data_shape, int max_block) const {
+    assert(max_block > 0);
     int optimum_block = std::is_same<Desc, Op_Scalar>::value ? 1024 : 256;
     int64_t block = std::min(max_block, optimum_block);
     int64_t max_size = 0;
@@ -434,7 +407,7 @@ class NormalizeImplGPU {
     }
     if (max_size < block)
       block = max_size;
-    int max_blocks_per_sample = div_ceil(max_size, block);
+    int max_blocks_per_sample = max_size == 0 ? 0 : div_ceil(max_size, block);
     dim3 grid(std::min(max_blocks_per_sample, std::max(32, 2048 / num_samples_)), num_samples_);
     return { grid, dim3(block) };
   }
@@ -448,9 +421,12 @@ class NormalizeImplGPU {
     FillDescs(cpu_descs, out, in, base, scale);
     Desc *gpu_descs = ctx.scratchpad->ToGPU(ctx.gpu.stream, make_span(cpu_descs, num_samples_));
     dim3 grid, block;
-    std::tie(grid, block) = GetLaunchParams<Desc>(in.shape, &NormalizeKernel<Desc>);
-    NormalizeKernel<<<grid, block, 0, ctx.gpu.stream>>>(gpu_descs, global_scale, shift);
-    CUDA_CALL(cudaGetLastError());
+    int max_block = MaxThreadsPerBlockStatic(NormalizeKernel<Desc>);
+    std::tie(grid, block) = GetLaunchParams<Desc>(in.shape, max_block);
+    if (grid.x > 0) {
+      NormalizeKernel<<<grid, block, 0, ctx.gpu.stream>>>(gpu_descs, global_scale, shift);
+      CUDA_CALL(cudaGetLastError());
+    }
   }
 
   template <typename Desc, typename BaseParam, typename ScaleParam>
@@ -462,10 +438,13 @@ class NormalizeImplGPU {
     FillDescs(cpu_descs, out, in, base, scale);
     Desc *gpu_descs = ctx.scratchpad->ToGPU(ctx.gpu.stream, make_span(cpu_descs, num_samples_));
     dim3 grid, block;
-    std::tie(grid, block) = GetLaunchParams<Desc>(in.shape, NormalizeInvStdDevKernel<Desc>);
-    NormalizeInvStdDevKernel<<<grid, block, 0, ctx.gpu.stream>>>(
-      gpu_descs, epsilon, global_scale, shift);
-    CUDA_CALL(cudaGetLastError());
+    int max_block = MaxThreadsPerBlockStatic(NormalizeInvStdDevKernel<Desc>);
+    std::tie(grid, block) = GetLaunchParams<Desc>(in.shape, max_block);
+    if (grid.x > 0) {
+      NormalizeInvStdDevKernel<<<grid, block, 0, ctx.gpu.stream>>>(gpu_descs, epsilon, global_scale,
+                                                                   shift);
+      CUDA_CALL(cudaGetLastError());
+    }
   }
 
   std::string axes_str() const {
@@ -481,12 +460,6 @@ class NormalizeImplGPU {
     }
     ss << "}";
     return ss.str();
-  }
-
-  template <typename Desc>
-  void SetupImpl(ScratchpadEstimator &se) {
-    se.add<mm::memory_kind::pinned, Desc>(num_samples_);
-    se.add<mm::memory_kind::device, Desc>(num_samples_);
   }
 
   template <typename Desc>

@@ -1,4 +1,4 @@
-// Copyright (c) 2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2018, 2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -21,17 +21,19 @@
 
 namespace dali {
 
-class SequenceReader : public DataReader<CPUBackend, TensorSequence> {
+class SequenceReader : public DataReader<CPUBackend, TensorSequence, TensorSequence, true> {
  public:
-  explicit SequenceReader(const OpSpec& spec) : DataReader<CPUBackend, TensorSequence>(spec) {
+  explicit SequenceReader(const OpSpec& spec)
+      : DataReader<CPUBackend, TensorSequence, TensorSequence, true>(spec) {
     loader_ = InitLoader<SequenceLoader>(spec);
+    this->SetInitialSnapshot();
     parser_.reset(new SequenceParser(spec));
   }
 
   void RunImpl(SampleWorkspace &ws) override;
 
  protected:
-  USE_READER_OPERATOR_MEMBERS(CPUBackend, TensorSequence);
+  USE_READER_OPERATOR_MEMBERS(CPUBackend, TensorSequence, TensorSequence, true);
 };
 
 }  // namespace dali

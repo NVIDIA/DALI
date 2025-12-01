@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -66,12 +66,12 @@ class NormalDistribution : public rng::RNGBase<Backend, NormalDistribution<Backe
     stddev_.Acquire(spec, ws, nsamples);
   }
 
-  DALIDataType DefaultDataType() const {
+  DALIDataType DefaultDataType(const OpSpec &spec, const Workspace &ws) const {
     return DALI_FLOAT;
   }
 
   template <typename T>
-  bool SetupDists(Impl<T>* dists_data, int nsamples) {
+  bool SetupDists(Impl<T>* dists_data, const Workspace &ws, int nsamples) {
     if (!mean_.HasExplicitValue() && !stddev_.HasExplicitValue()) {
       return false;
     }

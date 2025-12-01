@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -22,7 +22,7 @@ void MakeContiguousCPU::RunImpl(Workspace &ws) {
   auto &output = ws.Output<CPUBackend>(0);
 
   DomainTimeRange tr("[DALI][MakeContiguousCPU] H2H", DomainTimeRange::kBlue);
-  if (IsPassThrough()) {
+  if (pass_through_) {
     output.ShareData(input);
   } else {
     int batch_size = input.num_samples();
@@ -76,10 +76,23 @@ bool IsPassThrough(const OperatorBase &op) {
   DALI_FAIL("This operation should be called only on MakeContiguous Operators.");
 }
 
+bool SetMakeContiguousMode(OperatorBase &op, MakeContiguousMode mode) {
+  if (auto *make_contiguous_cpu = dynamic_cast<MakeContiguousBase<CPUBackend> *>(&op)) {
+    make_contiguous_cpu->SetMode(mode);
+  } else if (auto *make_contiguous_mixed = dynamic_cast<MakeContiguousBase<MixedBackend> *>(&op)) {
+    make_contiguous_mixed->SetMode(mode);
+  } else if (auto *make_contiguous_gpu = dynamic_cast<MakeContiguousBase<GPUBackend> *>(&op)) {
+    make_contiguous_gpu->SetMode(mode);
+  } else {
+    return false;
+  }
+  return true;
+}
 
 DALI_SCHEMA(MakeContiguous)
   .DocStr(R"code(Move input batch to a contiguous representation, more suitable for execution on the GPU)code")
   .NumInput(1)
+  .InputDevice(0, InputDevice::MatchBackendOrCPU)
   .NumOutput(1)
   .MakeInternal();
 

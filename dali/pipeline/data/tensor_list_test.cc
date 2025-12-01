@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -34,6 +34,7 @@
 #include "dali/pipeline/data/views.h"
 #include "dali/test/dali_test.h"
 #include "dali/test/tensor_test_utils.h"
+#include "dali/test/timing.h"
 
 namespace dali {
 namespace test {
@@ -226,7 +227,7 @@ TYPED_TEST(TensorListTest, TestReserveResize) {
   ASSERT_EQ(tl.capacity(), shape.num_elements() * sizeof(float));
   ASSERT_EQ(tl.nbytes(), 0);
   ASSERT_EQ(tl._num_elements(), 0);
-  ASSERT_NE(unsafe_raw_data(tl), nullptr);
+  ASSERT_NE(contiguous_raw_data(tl), nullptr);
 
   // Give the tensor a type
   tl.template set_type<float>();
@@ -300,7 +301,7 @@ TYPED_TEST(TensorListTest, TestGetContiguousPointer) {
   ASSERT_EQ(tl.nbytes(), volume * sizeof(uint32_t));
   ASSERT_EQ(tl.type(), DALI_UINT32);
   ASSERT_TRUE(tl.IsContiguous());
-  ASSERT_NE(unsafe_raw_data(tl), nullptr);
+  ASSERT_NE(contiguous_raw_data(tl), nullptr);
 }
 
 TYPED_TEST(TensorListTest, TestGetBytesThenAccess) {
@@ -339,7 +340,7 @@ TYPED_TEST(TensorListTest, TestGetBytesThenAccess) {
     ASSERT_TRUE(tl.shares_data());
 
     // Access can't change the underlying data type (which can happen only through Resize)
-    ASSERT_THROW(tl.template mutable_tensor<int16>(0), std::runtime_error);
+    ASSERT_THROW(tl.template mutable_tensor<int16_t>(0), std::runtime_error);
     ASSERT_THROW(tl.template mutable_tensor<double>(0), std::runtime_error);
     // We also cannot allocate bigger
     ASSERT_THROW(tl.Resize(tl.shape(), DALI_FLOAT64), std::runtime_error);
@@ -567,7 +568,7 @@ TYPED_TEST(TensorListTest, TestTypeChange) {
   DALIDataType initial_type = DALI_FLOAT;
   std::array<DALIDataType, 4> types = {DALI_FLOAT, DALI_INT32, DALI_UINT8, DALI_FLOAT64};
   const auto *base_ptr =
-      this->kContiguity == BatchContiguity::Contiguous ? unsafe_raw_data(tensor_list) : nullptr;
+      this->kContiguity == BatchContiguity::Contiguous ? contiguous_raw_data(tensor_list) : nullptr;
   size_t nbytes = shape.num_elements() * sizeof(float);
 
   // Save the pointers
@@ -596,7 +597,7 @@ TYPED_TEST(TensorListTest, TestTypeChange) {
     // The side-effects of only reallocating when we need a bigger buffer, we may use padding
     if (TypeTable::GetTypeInfo(new_type).size() <= TypeTable::GetTypeInfo(initial_type).size()) {
       if (this->kContiguity == BatchContiguity::Contiguous) {
-        ASSERT_EQ(unsafe_raw_data(tensor_list), base_ptr);
+        ASSERT_EQ(contiguous_raw_data(tensor_list), base_ptr);
       } else {
         for (int i = 0; i < tensor_list.num_samples(); ++i) {
           ASSERT_EQ(tensor_list.raw_tensor(i), ptrs[i]);
@@ -729,9 +730,36 @@ class TensorListSuite : public ::testing::Test {
 
 typedef ::testing::Types<CPUBackend, GPUBackend> Backends;
 
-constexpr cudaStream_t cuda_stream = 0;
+const cudaStream_t cuda_stream = cudaStreamLegacy;
 
 TYPED_TEST_SUITE(TensorListSuite, Backends);
+
+TYPED_TEST(TensorListSuite, TestReinterpret) {
+  using Backend = TypeParam;
+  DALIDataType types[] = {
+      DALI_UINT8, DALI_INT8, DALI_UINT16, DALI_INT16, DALI_UINT32, DALI_INT32,
+      DALI_UINT64, DALI_INT64, DALI_FLOAT, DALI_FLOAT16, DALI_FLOAT64, DALI_BOOL,
+      DALI_INTERP_TYPE, DALI_DATA_TYPE, DALI_IMAGE_TYPE,
+  };
+  for (auto old_t : types) {
+    auto old_size = TypeTable::GetTypeInfo(old_t).size();
+    for (auto new_t : types) {
+      auto new_size = TypeTable::GetTypeInfo(new_t).size();
+      TensorList<Backend> t;
+      t.Resize(TensorListShape<>{{2, 3, 4}, {5, 6, 1}}, old_t);
+      if (old_size == new_size) {
+        const void *p0 = t.raw_tensor(0);
+        const void *p1 = t.raw_tensor(1);
+        EXPECT_NO_THROW(t.Reinterpret(new_t));
+        EXPECT_EQ(t.type(), new_t);
+        EXPECT_EQ(t.raw_tensor(0), p0);
+        EXPECT_EQ(t.raw_tensor(1), p1);
+      } else {
+        EXPECT_THROW(t.Reinterpret(new_t), std::exception);
+      }
+    }
+  }
+}
 
 TYPED_TEST(TensorListSuite, SetupAndSetSizeNoncontiguous) {
   constexpr bool is_device = std::is_same_v<TypeParam, GPUBackend>;
@@ -1198,7 +1226,7 @@ TYPED_TEST(TensorListSuite, ResizeSetSize) {
   tv.Resize(new_shape);
   tv.SetLayout("HWC");
 
-  const auto *base = static_cast<const uint8_t *>(unsafe_raw_data(tv));
+  const auto *base = static_cast<const uint8_t *>(contiguous_raw_data(tv));
 
   for (int i = 0; i < 3; i++) {
     EXPECT_EQ(tv[i].raw_data(), base);
@@ -1221,7 +1249,7 @@ TYPED_TEST(TensorListSuite, ResizeSetSize) {
   tv.SetSize(3);
   EXPECT_TRUE(tv.IsContiguous());
 
-  base = static_cast<const uint8_t *>(unsafe_raw_data(tv));
+  base = static_cast<const uint8_t *>(contiguous_raw_data(tv));
 
   for (int i = 0; i < 2; i++) {
     EXPECT_EQ(tv[i].raw_data(), base);
@@ -1278,7 +1306,7 @@ TYPED_TEST(TensorListSuite, ContiguousResize) {
     tv.CopySample(i, tv, i);
   }
 
-  const auto *base = static_cast<const uint8_t *>(unsafe_raw_data(tv));
+  const auto *base = static_cast<const uint8_t *>(contiguous_raw_data(tv));
 
   EXPECT_TRUE(tv.IsContiguous());
   for (int i = 0; i < 3; i++) {
@@ -1648,11 +1676,11 @@ TYPED_TEST(TensorListSuite, EmptyTensorListAsTensorAccess) {
     auto tensor_2d = tv.AsReshapedTensor(shape_2d);
     EXPECT_EQ(tensor_1d.shape(), shape_1d);
     EXPECT_EQ(tensor_1d.type(), DALI_INT32);
-    EXPECT_EQ(tensor_1d.raw_data(), unsafe_raw_data(tv));
+    EXPECT_EQ(tensor_1d.raw_data(), contiguous_raw_data(tv));
     EXPECT_EQ(tensor_1d.raw_data(), nullptr);
     EXPECT_EQ(tensor_2d.shape(), shape_2d);
     EXPECT_EQ(tensor_2d.type(), DALI_INT32);
-    EXPECT_EQ(tensor_2d.raw_data(), unsafe_raw_data(tv));
+    EXPECT_EQ(tensor_2d.raw_data(), contiguous_raw_data(tv));
     EXPECT_EQ(tensor_2d.raw_data(), nullptr);
   }
 
@@ -1664,11 +1692,11 @@ TYPED_TEST(TensorListSuite, EmptyTensorListAsTensorAccess) {
     auto tensor_2d = tv.AsReshapedTensor(shape_2d);
     EXPECT_EQ(tensor_1d.shape(), shape_1d);
     EXPECT_EQ(tensor_1d.type(), DALI_INT32);
-    EXPECT_EQ(tensor_1d.raw_data(), unsafe_raw_data(tv));
+    EXPECT_EQ(tensor_1d.raw_data(), contiguous_raw_data(tv));
     EXPECT_NE(tensor_1d.raw_data(), nullptr);
     EXPECT_EQ(tensor_2d.shape(), shape_2d);
     EXPECT_EQ(tensor_2d.type(), DALI_INT32);
-    EXPECT_EQ(tensor_2d.raw_data(), unsafe_raw_data(tv));
+    EXPECT_EQ(tensor_2d.raw_data(), contiguous_raw_data(tv));
     EXPECT_NE(tensor_2d.raw_data(), nullptr);
   }
 }
@@ -1693,14 +1721,14 @@ TYPED_TEST(TensorListSuite, EmptyTensorListWithDimAsTensorAccess) {
     auto tensor_1d = tv.AsTensor();
     EXPECT_EQ(tensor_1d.shape(), shape_1d);
     EXPECT_EQ(tensor_1d.type(), DALI_INT32);
-    EXPECT_EQ(tensor_1d.raw_data(), unsafe_raw_data(tv));
+    EXPECT_EQ(tensor_1d.raw_data(), contiguous_raw_data(tv));
     EXPECT_EQ(tensor_1d.raw_data(), nullptr);
 
     tv.set_sample_dim(2);
     auto tensor_2d = tv.AsTensor();
     EXPECT_EQ(tensor_2d.shape(), shape_2d);
     EXPECT_EQ(tensor_2d.type(), DALI_INT32);
-    EXPECT_EQ(tensor_2d.raw_data(), unsafe_raw_data(tv));
+    EXPECT_EQ(tensor_2d.raw_data(), contiguous_raw_data(tv));
     EXPECT_EQ(tensor_2d.raw_data(), nullptr);
   }
 }
@@ -1770,6 +1798,41 @@ TYPED_TEST(TensorListSuite, EmptyShareNonContiguous) {
   for (int i = 0; i < shape.num_samples(); i++) {
     ASSERT_EQ(target.raw_tensor(i), nullptr);
     ASSERT_EQ(target.raw_tensor(i), tv.raw_tensor(i));
+  }
+}
+
+TYPED_TEST(TensorListSuite, ZeroCopyBroadcast) {
+  Tensor<TypeParam> t;
+  t.set_pinned(std::is_same_v<TypeParam, CPUBackend>);
+  t.Resize({5, 4, 3}, DALI_FLOAT);
+  t.SetLayout("HWC");
+  t.SetSourceInfo("test");
+  for (int n : { 0, 1, 6, 42 }) {
+    TensorList<TypeParam> tl(t, n);
+    if (n == 0) {
+      EXPECT_EQ(tl.num_samples(), 0);
+      EXPECT_EQ(tl.sample_dim(), 3);
+      EXPECT_EQ(tl.GetLayout(), "HWC");
+      EXPECT_EQ(tl.is_pinned(), t.is_pinned());
+      continue;
+    }
+    if (n == 1)
+      EXPECT_TRUE(tl.IsContiguous());
+    else
+      EXPECT_FALSE(tl.IsContiguous());
+    EXPECT_EQ(tl.GetLayout(), t.GetLayout());
+    EXPECT_EQ(tl.type(), t.type());
+    EXPECT_EQ(tl.shape()[0], t.shape());
+    EXPECT_EQ(tl.is_pinned(), t.is_pinned());
+    EXPECT_EQ(tl.order(), t.order());
+    EXPECT_EQ(tl.num_samples(), n);
+    EXPECT_EQ(tl.nbytes(), t.nbytes() * n);
+    for (int i = 0; i < n; i++) {
+      EXPECT_EQ(tl.raw_tensor(i), t.raw_data());
+      EXPECT_EQ(tl.shape()[i], t.shape());
+      EXPECT_EQ(tl.GetMeta(i).GetLayout(), t.GetMeta().GetLayout());
+      EXPECT_EQ(tl.GetMeta(i).GetSourceInfo(), t.GetMeta().GetSourceInfo());
+    }
   }
 }
 
@@ -1980,6 +2043,44 @@ TEST_F(TensorListVariableBatchSizeTest, TlCopyWithResizeDown) {
   EXPECT_PRED_FORMAT2(Compare, test_tl_, tv);
 }
 
+TEST_F(TensorListVariableBatchSizeTest, UpdatePropertiesFromSamples) {
+  TensorList<CPUBackend> tv(3);
+  tv.set_type(DALI_FLOAT);
+  auto &t = tv.tensor_handle(0);
+  t.set_pinned(true);
+  t.Resize(19, DALI_FLOAT);
+  tv.UpdatePropertiesFromSamples(false);
+  // check if after calling UpdatePropertiesFromSamples even empty samples in TL have consistent
+  // metadata with the the whole TL
+  tv.SetSample(1, tv.tensor_handle(2));
+}
+
+TEST(TensorList, ResizeOverheadPerf) {
+  (void)cudaFree(0);
+#ifdef DALI_DEBUG
+  int niter = 2000;
+  int warmup = 500;
+#else
+  int niter = 20000;
+  int warmup = 5000;
+#endif
+  int total_size = 256 << 10;
+  int nsamples = 1024;
+  auto shape = uniform_list_shape(nsamples, {total_size / nsamples});
+  for (int i = 0; i < warmup; i++) {
+    TensorList<CPUBackend> tl;
+    tl.set_pinned(false);
+    tl.Resize(shape, DALI_UINT8);
+  }
+  auto start = perf_timer::now();
+  for (int i = 0; i < niter; i++) {
+    TensorList<CPUBackend> tl;
+    tl.set_pinned(false);
+    tl.Resize(shape, DALI_UINT8);
+  }
+  auto end = perf_timer::now();
+  std::cout << format_time((end - start) / niter) << std::endl;
+}
 
 }  // namespace test
 }  // namespace dali

@@ -15,40 +15,53 @@
 # sys.path.insert(0, os.path.abspath('..'))
 import os
 import sys
-import sphinx_rtd_theme
 from sphinx.ext.autodoc.mock import mock
 from sphinx.ext.autodoc import between, ClassDocumenter, AttributeDocumenter
-from sphinx.util import inspect
 from builtins import str
 from enum import Enum
 import re
 import subprocess
 from pathlib import Path
 from datetime import date
+import json
+from packaging.version import Version
+import httplib2
+import inspect
+import warnings
 
 # -- Project information -----------------------------------------------------
 
-project = u'NVIDIA DALI'
-copyright = u'2018-{}, NVIDIA Corporation'.format(date.today().year)
-author = u'NVIDIA Corporation'
+# remove sphinx footer
+html_show_sphinx = False
+project = "NVIDIA DALI"
+copyright = "2018-{}, NVIDIA Corporation".format(date.today().year)
+author = "NVIDIA Corporation"
 
-version_long = u'0.0.0'
+version_long = "0.0.0"
 with open("../VERSION") as f:
     version_long = f.readline()
+    version_long = version_long.strip()
 
-version_short = re.match('^[\d]+\.[\d]+', version_long).group(0)
+version_short = re.match(r"^[\d]+\.[\d]+", version_long).group(0)
 
 git_sha = os.getenv("GIT_SHA")
 
 if not git_sha:
     try:
-        git_sha = subprocess.check_output(["git", "log", "--pretty=format:'%h'", "-n1"]).decode('ascii').replace("'","").strip()
-    except:
-        git_sha = u'0000000'
+        git_sha = (
+            subprocess.check_output(
+                ["git", "log", "--pretty=format:'%h'", "-n1"]
+            )
+            .decode("ascii")
+            .replace("'", "")
+            .strip()
+        )
+    except:  # noqa: E722
+        git_sha = "0000000"
 
 git_sha = git_sha[:7] if len(git_sha) > 7 else git_sha
 
-version = str(version_long + u"-" + git_sha)
+version = str(version_long + "-" + git_sha)
 # The full version, including alpha/beta/rc tags
 release = str(version_long)
 
@@ -56,20 +69,48 @@ release = str(version_long)
 generated_path = Path("./operations")
 generated_path.mkdir(exist_ok=True)
 
+generated_dynamic_path = Path("./dali_dynamic/operations")
+relative_generated_dynamic_path = Path("./operations")
+generated_dynamic_path.mkdir(exist_ok=True)
+
 # generate table of supported operators and their devices
 # mock torch required by supported_op_devices
 with mock(["torch", "numba"]):
-    sys.path.insert(0, os.path.abspath('./'))
+    sys.path.insert(0, os.path.abspath("./"))
     import operations_table
+
     operations_table.operations_table(generated_path / "fn_table")
     operations_table.fn_to_op_table(generated_path / "fn_to_op_table")
+    operations_table.operations_table(
+        generated_dynamic_path / "dynamic_table",
+        module_name="nvidia.dali.experimental.dynamic",
+    )
+    operations_table.dynamic_readers_table(
+        generated_dynamic_path / "dynamic_readers_table"
+    )
 
     import doc_index
-    references = doc_index.document_examples('examples/index.py')
+
+    references = doc_index.document_examples("examples/index.py")
 
     import autodoc_submodules
+
     autodoc_submodules.op_autodoc(generated_path / "op_autodoc")
-    autodoc_submodules.fn_autodoc(generated_path / "fn_autodoc", generated_path, references)
+    autodoc_submodules.fn_autodoc(
+        generated_path / "fn_autodoc", generated_path, references
+    )
+    autodoc_submodules.dynamic_autodoc(
+        generated_dynamic_path / "dynamic_autodoc",
+        generated_dynamic_path,
+        relative_generated_dynamic_path,
+        [],
+    )
+    autodoc_submodules.dynamic_readers_autodoc(
+        generated_dynamic_path / "dynamic_readers_autodoc",
+        generated_dynamic_path,
+        relative_generated_dynamic_path,
+        [],
+    )
 
 # Uncomment to keep warnings in the output. Useful for verbose build and output debugging.
 # keep_warnings = True
@@ -82,18 +123,14 @@ if "dev" in version_long:
     release_opt = option_off
     main_opt = option_on
     option_nr = 1
-    html_baseurl = "https://docs.nvidia.com/deeplearning/dali/main-user-guide/docs/"
+    html_baseurl = (
+        "https://docs.nvidia.com/deeplearning/dali/main-user-guide/docs/"
+    )
 else:
     release_opt = option_on
     main_opt = option_off
     option_nr = 0
     html_baseurl = "https://docs.nvidia.com/deeplearning/dali/user-guide/docs/"
-version = version + """<br/>
-Version select: <select onChange="window.location.href = this.value" onFocus="this.selectedIndex = {0}">
-    <option value="https://docs.nvidia.com/deeplearning/dali/user-guide/docs/index.html"{1}>Current release</option>
-    <option value="https://docs.nvidia.com/deeplearning/dali/main-user-guide/docs/index.html"{2}>main (unstable)</option>
-    <option value="https://docs.nvidia.com/deeplearning/dali/archives/index.html">Older releases</option>
-</select>""".format(option_nr, release_opt, main_opt)
 
 # -- General configuration ---------------------------------------------------
 
@@ -105,33 +142,31 @@ Version select: <select onChange="window.location.href = this.value" onFocus="th
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 extensions = [
-    'sphinx.ext.autodoc',
-    'sphinx.ext.mathjax',
-    'sphinx.ext.napoleon',
-    'sphinx.ext.ifconfig',
-    'sphinx.ext.extlinks',
-    'IPython.sphinxext.ipython_console_highlighting',
-    'nbsphinx',
-    'sphinx.ext.intersphinx',
-    'sphinx.ext.autosectionlabel'
+    "sphinx.ext.autodoc",
+    "sphinx.ext.mathjax",
+    "sphinx.ext.napoleon",
+    "sphinx.ext.ifconfig",
+    "sphinx.ext.extlinks",
+    "IPython.sphinxext.ipython_console_highlighting",
+    "nbsphinx",
+    "sphinx.ext.intersphinx",
+    "sphinx.ext.autosectionlabel",
+    "sphinx_paramlinks",
 ]
 
 # https://stackoverflow.com/questions/67473396/shorten-display-format-of-python-type-annotations-in-sphinx
-autodoc_typehints_format = 'short'
+autodoc_typehints_format = "short"
 python_use_unqualified_type_names = True
-autodoc_typehints = 'none'
-
-# Add any paths that contain templates here, relative to this directory.
-templates_path = ['_templates']
+autodoc_typehints = "none"
 
 # The suffix(es) of source filenames.
 # You can specify multiple suffix as a list of string:
 #
 # source_suffix = ['.rst', '.md']
-source_suffix = '.rst'
+source_suffix = ".rst"
 
 # The main toctree document.
-main_doc = 'index'
+main_doc = "index"
 
 # The language for content autogenerated by Sphinx. Refer to documentation
 # for a list of supported languages.
@@ -143,14 +178,14 @@ language = None
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
 # This pattern also affects html_static_path and html_extra_path .
-exclude_patterns = [u'_build', 'Thumbs.db', '.DS_Store', '**.ipynb_checkpoints']
+exclude_patterns = ["_build", "Thumbs.db", ".DS_Store", "**.ipynb_checkpoints"]
 
 # The name of the Pygments (syntax highlighting) style to use.
-pygments_style = 'sphinx'
+pygments_style = "sphinx"
 
 # Mock some of the dependencies for building docs. tf-plugin doc check tf version before loading,
 # so we do not mock tensorflow so we do not need to extend the logic there.
-autodoc_mock_imports = ['paddle', 'torch', 'torchvision']
+autodoc_mock_imports = ["paddle", "torch", "torchvision"]
 
 
 # -- Options for MathJax -----------------------------------------------------
@@ -167,17 +202,15 @@ autodoc_mock_imports = ['paddle', 'torch', 'torchvision']
 # The bug happens only with the CHTML renderer.
 mathjax_path = "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"
 mathjax_config = {
-    'loader': {
-        'load': ['output/svg']
-    },
-    'ignoreHtmlClass': 'tex2jax_ignore',
-    'processHtmlClass': 'tex2jax_process'
+    "loader": {"load": ["output/svg"]},
+    "ignoreHtmlClass": "tex2jax_ignore",
+    "processHtmlClass": "tex2jax_process",
 }
 
 
 # -- Options for Napoleon ----------------------------------------------------
 
-napoleon_custom_sections = ['Supported backends']
+napoleon_custom_sections = ["Supported backends"]
 
 
 # -- Options for HTML output -------------------------------------------------
@@ -185,32 +218,211 @@ napoleon_custom_sections = ['Supported backends']
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 #
-html_theme = 'sphinx_rtd_theme'
-html_theme_path = [sphinx_rtd_theme.get_html_theme_path()]
+try:
+    import nvidia_sphinx_theme  # noqa: F401
+
+    html_theme = "nvidia_sphinx_theme"
+except ImportError:
+    import sphinx_rtd_theme
+
+    html_theme = "sphinx_rtd_theme"
+    html_theme_path = [sphinx_rtd_theme.get_html_theme_path()]
+
+templates_path = ["_templates"]
+
+html_theme_options = {
+    "switcher": {
+        # use for local testing
+        # "json_url": "http://localhost:8888/_static/switcher.json",
+        "json_url": "https://docs.nvidia.com/deeplearning/dali/user-guide/"
+        "docs/_static/switcher.json",
+        "version_match": "main" if "dev" in version_long else version_short,
+    },
+    "navbar_start": ["navbar-logo", "sha_version"],
+    "primary_sidebar_end": [],
+}
+
 
 # Theme options are theme-specific and customize the look and feel of a theme
 # further.  For a list of options available for each theme, see the
 # documentation.
 #
-html_theme_options = {
-    'canonical_url': 'https://docs.nvidia.com/deeplearning/dali/user-guide/docs/index.html',
-    'collapse_navigation': False,
-    'display_version': True,
-    'logo_only': False,
-}
+html_theme_options.update(
+    {
+        "collapse_navigation": False,
+    }
+)
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
-html_static_path = ['_static']
+html_static_path = ["_static"]
+
+switcher_path = os.path.join(html_static_path[0], "switcher.json")
+versions = []
+# the latest is in the archive
+correction = -1 if "dev" in version_long else 0
+for i in range(10, int(version_short.split(".")[1]) + correction):
+    if i >= 34:
+        versions.append((f"1.{i}", f"dali_1_{i}_0", "short_user"))
+    else:
+        versions.append((f"1.{i}", f"dali_1_{i}_0"))
+# add extra patch version
+versions.append(("1.37.1", "dali_1_37_1", "short_user"))
+versions.append(("1.11.1", "dali_1_11_1"))
+# paths are different for 1.0-1.10
+for i in range(0, 10):
+    versions.append((f"1.{i}", f"dali_1{i}0"))
+# again different convention between 0.10 and 0.31
+for i in range(10, 30):
+    if i < 24:
+        if i <= 21:
+            versions.append((f"0.{i}", f"dali_0{i}0_beta", "devel"))
+        else:
+            versions.append((f"0.{i}", f"dali_0{i}0_beta"))
+    else:
+        versions.append((f"0.{i}", f"dali_0{i}0"))
+# add extra path version
+versions.append(("0.25.1", "dali_0251"))
+versions.append(("0.30", "dali_030"))
+versions.append(("0.31", "dali_031"))
+# and again different convention between 0.1 and 0.9
+versions.append(("0.9.1", "dali_091_beta", "devel"))
+versions.append(("0.8.1", "dali_081_beta", "devel"))
+versions.append(("0.8", "dali_08_beta", "devel"))
+versions.append(("0.7", "dali_07_beta", "devel"))
+versions.append(("0.6.1", "dali_061_beta", "devel"))
+versions.append(("0.6", "dali_06_beta", "devel"))
+versions.append(("0.5", "dali_05_beta", "devel"))
+versions.append(("0.4.1", "dali_041_beta", "devel"))
+versions.append(("0.4", "dali_04_beta", "devel"))
+versions.append(("0.3", "dali_03_beta", "devel"))
+versions.append(("0.2", "dali_02_beta", "devel"))
+versions.append(("0.1.2", "dali_012_beta", "short_devel"))
+versions.append(("0.1.1", "dali_011_beta", "short_devel"))
+versions.append(("0.1", "dali_01_beta", "devel"))
+
+versions = sorted(versions, key=lambda v: Version(v[0]), reverse=True)
+
+json_data = []
+for v in versions:
+    if len(v) > 2 and v[2] == "devel":
+        json_data.append(
+            {
+                "name": v[0],
+                "version": v[0],
+                "url": f"https://docs.nvidia.com/deeplearning/dali/archives/{v[1]}"
+                "/dali-developer-guide/docs/",
+            }
+        )
+    elif len(v) > 2 and v[2] == "short_devel":
+        json_data.append(
+            {
+                "name": v[0],
+                "version": v[0],
+                "url": f"https://docs.nvidia.com/deeplearning/dali/archives/{v[1]}"
+                "/dali-developer-guide/",
+            }
+        )
+    elif len(v) > 2 and v[2] == "short_user":
+        json_data.append(
+            {
+                "name": v[0],
+                "version": v[0],
+                "url": f"https://docs.nvidia.com/deeplearning/dali/archives/{v[1]}/user-guide/",
+            }
+        )
+    else:
+        json_data.append(
+            {
+                "name": v[0],
+                "version": v[0],
+                "url": f"https://docs.nvidia.com/deeplearning/dali/archives/{v[1]}"
+                "/user-guide/docs/",
+            }
+        )
+
+if "dev" in version_long:
+    version_short_split = version_short.split(".")
+    one_before = f"{version_short_split[0]}.{int(version_short_split[1]) - 1}"
+    json_data.insert(
+        0,
+        {
+            "name": f"{one_before} (current release)",
+            "version": f"{one_before} (current release)",
+            "url": "https://docs.nvidia.com/deeplearning/dali/user-guide/docs/",
+        },
+    )
+else:
+    json_data.insert(
+        0,
+        {
+            "name": f"{version_short} (current release)",
+            "version": version_short,
+            "url": "https://docs.nvidia.com/deeplearning/dali/user-guide/docs/",
+        },
+    )
+
+json_data.insert(
+    1,
+    {
+        "name": "main (unstable)",
+        "version": "main",
+        "url": "https://docs.nvidia.com/deeplearning/dali/main-user-guide/docs/",
+    },
+)
+
+# trim to N last releases and add the archive
+json_data = json_data[0:10]
+
+json_data.append(
+    {
+        "name": "older releases",
+        "version": "archives",
+        "url": "https://docs.nvidia.com/deeplearning/dali/archives/",
+    }
+)
+
+# validate links
+
+for i, d in enumerate(json_data):
+    if i == 2:
+        # as we just generate the switcher.json for the next release the one before is
+        # not in the archive yet skip checking it
+        print(
+            f"skip checking not archived release location for the switcher: {d['url']}"
+        )
+        continue
+    h = httplib2.Http()
+    resp = h.request(d["url"] + "index.html", "HEAD")
+    if int(resp[0]["status"]) >= 400:
+        print(d["url"], "NOK", resp[0]["status"])
+        exit(1)
+
+with open(switcher_path, "w") as f:
+    json.dump(json_data, f, ensure_ascii=False, indent=4)
 
 # Download favicon and set it (the variable `html_favicon`) for this project.
 # It must be relative path.
 favicon_rel_path = "nvidia.ico"
-subprocess.call(["wget", "-O", favicon_rel_path, "https://docs.nvidia.com/images/nvidia.ico"])
+subprocess.call(
+    [
+        "wget",
+        "-O",
+        favicon_rel_path,
+        "https://docs.nvidia.com/images/nvidia.ico",
+    ]
+)
 html_favicon = favicon_rel_path
 
-subprocess.call(["wget", "-O", "dali.png", "https://raw.githubusercontent.com/NVIDIA/DALI/main/dali.png"])
+subprocess.call(
+    [
+        "wget",
+        "-O",
+        "dali.png",
+        "https://raw.githubusercontent.com/NVIDIA/DALI/main/dali.png",
+    ]
+)
 
 # Custom sidebar templates, must be a dictionary that maps document names
 # to template names.
@@ -226,7 +438,7 @@ subprocess.call(["wget", "-O", "dali.png", "https://raw.githubusercontent.com/NV
 # -- Options for HTMLHelp output ---------------------------------------------
 
 # Output file base name for HTML help builder.
-htmlhelp_basename = 'NVIDIADALIdoc'
+htmlhelp_basename = "NVIDIADALIdoc"
 
 
 # -- Options for LaTeX output ------------------------------------------------
@@ -235,15 +447,12 @@ latex_elements = {
     # The paper size ('letterpaper' or 'a4paper').
     #
     # 'papersize': 'letterpaper',
-
     # The font size ('10pt', '11pt' or '12pt').
     #
     # 'pointsize': '10pt',
-
     # Additional stuff for the LaTeX preamble.
     #
     # 'preamble': '',
-
     # Latex figure (float) alignment
     #
     # 'figure_align': 'htbp',
@@ -253,8 +462,13 @@ latex_elements = {
 # (source start file, target name, title,
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
-    (main_doc, 'NVIDIADALI.tex', u'NVIDIA DALI Documentation',
-     u'NVIDIA Corporation', 'manual'),
+    (
+        main_doc,
+        "NVIDIADALI.tex",
+        "NVIDIA DALI Documentation",
+        "NVIDIA Corporation",
+        "manual",
+    ),
 ]
 
 
@@ -262,10 +476,7 @@ latex_documents = [
 
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
-man_pages = [
-    (main_doc, 'nvidiadali', u'NVIDIA DALI Documentation',
-     [author], 1)
-]
+man_pages = [(main_doc, "nvidiadali", "NVIDIA DALI Documentation", [author], 1)]
 
 
 # -- Options for Texinfo output ----------------------------------------------
@@ -274,39 +485,49 @@ man_pages = [
 # (source start file, target name, title, author,
 #  dir menu entry, description, category)
 texinfo_documents = [
-    (main_doc, 'NVIDIADALI', u'NVIDIA DALI Documentation',
-     author, 'NVIDIADALI', 'One line description of project.',
-     'Miscellaneous'),
+    (
+        main_doc,
+        "NVIDIADALI",
+        "NVIDIA DALI Documentation",
+        author,
+        "NVIDIADALI",
+        "One line description of project.",
+        "Miscellaneous",
+    ),
 ]
 
 
 # -- Extension configuration -------------------------------------------------
 extlinks = {
-    'issue': ('https://github.com/NVIDIA/DALI/issues/%s', 'issue %s'),
-    'fileref': ('https://github.com/NVIDIA/DALI/tree/' +
-                (git_sha if git_sha != u'0000000' else "main") + '/%s', '%s'),
+    "issue": ("https://github.com/NVIDIA/DALI/issues/%s", "issue %s"),
+    "fileref": (
+        "https://github.com/NVIDIA/DALI/tree/"
+        + (git_sha if git_sha != "0000000" else "main")
+        + "/%s",
+        "%s",
+    ),
 }
 
-
-from typing import (
-    Any, Callable, Dict, Iterator, List, Optional, Sequence, Set, Tuple, Type, TypeVar, Union
-)
-from typing import get_type_hints
-
-
-_dali_enums = ["DALIDataType", "DALIIterpType", "DALIImageType", "PipelineAPIType"]
+_dali_enums = [
+    "DALIDataType",
+    "DALIIterpType",
+    "DALIImageType",
+    "PipelineAPIType",
+]
 
 count_unique_visitor_script = os.getenv("ADD_NVIDIA_VISITS_COUNTING_SCRIPT")
 
 html_context = {
-    'nvidia_analytics_id': count_unique_visitor_script
+    "nvidia_analytics_id": count_unique_visitor_script,
+    "git_sha": git_sha,
 }
+
 
 class EnumDocumenter(ClassDocumenter):
     # Register as .. autoenum::
-    objtype = 'enum'
+    objtype = "enum"
     # Produce .. py:class:: fields in the RST doc
-    directivetype = 'class'
+    directivetype = "class"
 
     def __init__(self, *args):
         super().__init__(*args)
@@ -323,20 +544,41 @@ class EnumDocumenter(ClassDocumenter):
         the ones we're interested in.
         We can do the sorting here based on the values, and pass through in self.sort_members()
         """
-        # Since pybind11 https://github.com/pybind/pybind11/pull/2739 there is an extra `value` member
-        # returned by get_object_members(). Here we are filtering the list, to keep only enum members
-        filtered = [member for member in members if member[0] in self.object.__members__.keys()]
+
+        # Since pybind11 https://github.com/pybind/pybind11/pull/2739 there is an extra `value`
+        # member returned by get_object_members().
+        # Here we are filtering the list, to keep only enum members
+        def get_member_name(member):
+            # Sphinx 8.x: ObjectMember with __name__ attribute
+            # Older Sphinx: tuple (name, value, docstring)
+            if hasattr(member, "__name__"):
+                return member.__name__
+            else:
+                return member[0]
+
+        filtered = [
+            member
+            for member in members
+            if get_member_name(member) in self.object.__members__.keys()
+        ]
 
         filtered = super().filter_members(filtered, want_all)
 
         # sort by the actual value of enum - this is a tuple of (name, value, boolean)
+        # In Sphinx 8.x, it's an ObjectMember with .object attribute
         def get_member_value(member_desc):
-            _, member_value, _ = member_desc
+            if hasattr(member_desc, "object"):
+                # Sphinx 8.x: ObjectMember
+                member_value = member_desc.object
+            else:
+                # Older Sphinx: tuple unpacking
+                _, member_value, _ = member_desc
             if isinstance(member_value, Enum):
                 return member_value.value
             else:
                 return int(member_value)
-        filtered.sort(key = get_member_value)
+
+        filtered.sort(key=get_member_value)
 
         return filtered
 
@@ -347,6 +589,7 @@ class EnumDocumenter(ClassDocumenter):
         """
         return documenters
 
+
 class EnumAttributeDocumenter(AttributeDocumenter):
     # Give us higher priority over Sphinx native AttributeDocumenter which is 10, or 11 in case
     # of more specialized attributes.
@@ -354,8 +597,7 @@ class EnumAttributeDocumenter(AttributeDocumenter):
 
     @classmethod
     def can_document_member(cls, member, membername, isattr, parent):
-        """Run only for the Enums supported by DALI
-        """
+        """Run only for the Enums supported by DALI"""
         return isinstance(parent, EnumDocumenter)
 
     def add_directive_header(self, sig):
@@ -366,13 +608,117 @@ class EnumAttributeDocumenter(AttributeDocumenter):
         super(AttributeDocumenter, self).add_directive_header(sig)
 
 
+def get_absolute_param_ref(what, name, param):
+    # DALI ops special case:
+    if name.startswith("nvidia.dali.ops"):
+        if name.endswith((".__init__", ".__call__")):
+            name = name[: -len(".__init__")]
+        # TODO(klecki): we may want to check within the signature at some point,
+        # but for now we know inputs are __positional_only, and kwargs are the rest.
+        # Inputs are documented within the __call__, and the rest within the class body.
+        if param.startswith("__"):
+            return f"{name}.__call__.{param}"
+        return f"{name}.{param}"
+    # Everything else we just link directly
+    return f"{name}.{param}"
+
+
+def replace_params_with_paramrefs(app, what, name, obj, options, lines):
+
+    def map_line(line, params):
+        result = ""
+        while line:
+
+            # Search for untagged identifier in single backticks
+            # [^\d\W]\w* - regex for mostly valid identifiers
+            m = re.search(r"`[^\d\W]\w*`", line)
+            if m is None:
+                result += line
+                break
+
+            # Skip any already valid reference of different kind, for example :func:`foo`
+            match_ref = re.search(r"(:\w+:)(`[^\d\W]\w*`)", line)
+            if (
+                match_ref
+                and m.start() == match_ref.start(2)
+                and m.end() == match_ref.end(2)
+            ):
+                result += line[: m.end()]
+                line = line[m.end() :]
+                continue
+
+            start = m.start()
+            end = m.end()
+            candidate = line[start + 1 : end - 1]
+            # Check if we may be in double backticks and report warning, skip
+            match_double = re.search(r"`(`[^\d\W]\w*`)`", line)
+            if (
+                match_double
+                and start == match_double.start(1)
+                and end == match_double.end(1)
+            ):
+                if candidate in params:
+                    warnings.warn(
+                        f"Found param candidate `{candidate}`"
+                        f" surrounded by double backtick in the docstring for {name} in {line=}."
+                    )
+                result += line[: match_double.end()]
+                line = line[match_double.end() :]
+                continue
+
+            # If we are indeed a parameter, add the :paramref: that sphinx_paramlinks will handle
+            # Use absolute addressing so resolving the name is easier.
+            if candidate in params:
+                paramref = get_absolute_param_ref(
+                    what, name, line[start + 1 : end - 1]
+                )
+                result += f"{line[:start]}:paramref:`~{paramref}`"
+            else:
+                result += line[:end]
+            line = line[end:]
+        return result
+
+    if what not in {"class", "function", "method"}:
+        return
+    try:
+        s = None
+        # Special case for DALI ops API - get the `__call__` as the signature there contains
+        # all the arguments.
+        if name.startswith("nvidia.dali.ops"):
+            import nvidia.dali.ops as ops
+            from nvidia.dali.ops import _signatures
+
+            # Extract the name of the operator skipping the `nvidia.dali.ops` module
+            op_name = name.split(".")[3:]
+            if what == "method" and name.endswith(("__call__", "__init__")):
+                op_name = op_name[:-1]
+            op = _signatures._get_op(ops, op_name)
+            if op:
+                s = inspect.signature(op.__call__)
+
+        else:
+            s = inspect.signature(obj)
+    except Exception as e:
+        warnings.warn(f"Couldn't obtain object's {name} signature: {e}")
+        return
+    if s is None:
+        return
+    lines[:] = [map_line(line, s.parameters) for line in lines]
+
+
 def setup(app):
     if count_unique_visitor_script:
         app.add_js_file(count_unique_visitor_script)
-    app.add_js_file('redirect.js')
+    app.add_js_file("redirect.js")
     # Register a sphinx.ext.autodoc.between listener to ignore everything
     # between lines that contain the word <SPHINX_IGNORE>
-    app.connect('autodoc-process-docstring', between('^.*<SPHINX_IGNORE>.*$', exclude=True))
+    app.connect(
+        "autodoc-process-docstring",
+        between("^.*<SPHINX_IGNORE>.*$", exclude=True),
+    )
+    app.connect(
+        "autodoc-process-docstring", replace_params_with_paramrefs, priority=450
+    )
     app.add_autodocumenter(EnumDocumenter)
     app.add_autodocumenter(EnumAttributeDocumenter)
     return app

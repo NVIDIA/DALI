@@ -1,0 +1,35 @@
+ARG BASE_IMAGE=ubuntu:22.04
+FROM ${BASE_IMAGE}
+
+ARG DEBIAN_FRONTEND=noninteractive
+
+RUN apt update && apt install -y python3 python3-pip build-essential git wget && \
+    python3 -m pip install "setuptools>=70" scikit-build && \
+    rm -rf /var/lib/apt/lists/* && \
+    rm -rf /root/.cache/pip/
+
+RUN CMAKE_VERSION=3.25.2 && CMAKE_ARCH=$(uname -m) && \
+    wget https://github.com/Kitware/CMake/releases/download/v${CMAKE_VERSION}/cmake-${CMAKE_VERSION}-linux-${CMAKE_ARCH}.sh && \
+    test -e /bin/sh || ln -s /usr/bin/sh /bin/sh && \
+    chmod +x cmake-${CMAKE_VERSION}-linux-${CMAKE_ARCH}.sh && \
+    ./cmake-${CMAKE_VERSION}-linux-${CMAKE_ARCH}.sh --prefix=/usr/local --skip-license && \
+    rm -rf cmake-${CMAKE_VERSION}-linux-${CMAKE_ARCH}.sh
+
+WORKDIR /opt/dali
+
+ARG NVIDIA_DALI_BUILD_FLAVOR
+ENV NVIDIA_DALI_BUILD_FLAVOR=${NVIDIA_DALI_BUILD_FLAVOR}
+
+ARG GIT_SHA
+ENV GIT_SHA=${GIT_SHA}
+
+COPY Acknowledgements.txt .
+COPY COPYRIGHT .
+COPY LICENSE .
+COPY VERSION .
+COPY cmake ./cmake
+COPY plugins ./plugins
+
+ENTRYPOINT /bin/bash -c 'mkdir -p /opt/dali-plugins-build && mkdir -p /wheelhouse && cd /opt/dali-plugins-build && \
+    cmake -DPYTHON_EXECUTABLE=`which python3` -DCMAKE_INSTALL_PREFIX=/wheelhouse /opt/dali/plugins && \
+    make install'

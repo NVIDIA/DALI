@@ -14,6 +14,7 @@
 
 #include <gtest/gtest.h>
 #include <random>
+#include <algorithm>
 #include "dali/core/bitmask.h"
 
 namespace dali {

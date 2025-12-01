@@ -25,6 +25,7 @@
 #include "dali/kernels/signal/decibel/decibel_calculator.h"
 #include "dali/kernels/signal/moving_mean_square.h"
 #include "dali/pipeline/data/views.h"
+#include "dali/pipeline/operator/checkpointing/stateless_operator.h"
 #include "dali/pipeline/operator/operator.h"
 
 #define NONSILENCE_TYPES uint8_t, int8_t, uint16_t, int16_t, uint32_t, int32_t, uint64_t, int64_t, float  // NOLINT
@@ -130,7 +131,7 @@ DetectNonsilenceRegion(Tensor<CPUBackend> &intermediate_buffer, const Args<Input
 }  // namespace detail
 
 template<typename Backend>
-class NonsilenceOperator : public Operator<Backend> {
+class NonsilenceOperator : public StatelessOperator<Backend> {
  public:
   ~NonsilenceOperator() override = default;
 
@@ -138,12 +139,8 @@ class NonsilenceOperator : public Operator<Backend> {
 
  protected:
   explicit NonsilenceOperator(const OpSpec &spec) :
-          Operator<Backend>(spec) {}
+          StatelessOperator<Backend>(spec) {}
 
-
-  bool CanInferOutputs() const override {
-    return true;
-  }
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     AcquireArgs(spec_, ws);

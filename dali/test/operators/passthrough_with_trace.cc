@@ -1,4 +1,4 @@
-// Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2023-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@ DALI_SCHEMA(PassthroughWithTraceOp)
             "as pass through. Adds a trace. Used for testing.")
     .NumInput(1)
     .NumOutput(1)
+    .AddOptionalArg("trace_name", "The name of the operator trace", "test_trace")
     .PassThrough({{0, 0}});
 
 }  // namespace dali

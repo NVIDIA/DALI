@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -33,8 +33,6 @@ extern "C" {
 }
 
 namespace dali {
-
-using ImageIdPairs = std::vector<std::pair<std::string, int>>;
 
 inline bool OutPolygonMasksEnabled(const OpSpec &spec) {
   return spec.GetArgument<bool>("polygon_masks") ||
@@ -97,10 +95,11 @@ struct RLEMask : public UniqueHandle<RLE, RLEMask> {
 
 using RLEMaskPtr = std::shared_ptr<RLEMask>;
 
-class DLL_PUBLIC CocoLoader : public FileLabelLoader {
+class DLL_PUBLIC CocoLoader : public FileLabelLoaderBase<true> {
  public:
   explicit inline CocoLoader(const OpSpec &spec)
-      : FileLabelLoader(spec, spec.GetArgument<bool>("shuffle_after_epoch")), spec_(spec) {
+      : FileLabelLoaderBase<true>(spec, spec.GetArgument<bool>("shuffle_after_epoch"))
+      , spec_(spec) {
     has_preprocessed_annotations_ = HasPreprocessedAnnotations(spec);
     DALI_ENFORCE(has_preprocessed_annotations_ || spec.HasArgument("annotations_file"),
         "Either ``annotations_file`` or ``preprocessed_annotations`` must be provided");
@@ -188,7 +187,12 @@ class DLL_PUBLIC CocoLoader : public FileLabelLoader {
       // seeded with hardcoded value to get
       // the same sequence on every shard
       std::mt19937 g(kDaliDataloaderSeed);
-      std::shuffle(image_label_pairs_.begin(), image_label_pairs_.end(), g);
+      std::shuffle(file_label_entries_.begin(), file_label_entries_.end(), g);
+    }
+
+    if (IsCheckpointingEnabled() && shuffle_after_epoch_) {
+      // save initial order
+      backup_file_label_entries_ = file_label_entries_;
     }
     Reset(true);
   }
@@ -197,7 +201,8 @@ class DLL_PUBLIC CocoLoader : public FileLabelLoader {
 
   void ParseJsonAnnotations();
 
-  void SavePreprocessedAnnotations(const std::string &path, const ImageIdPairs &image_id_pairs);
+  void SavePreprocessedAnnotations(
+    const std::string &path, const std::vector<FileLabelEntry> &image_id_pairs);
 
  private:
   const OpSpec spec_;

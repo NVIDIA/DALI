@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,21 +19,21 @@
 #include <vector>
 
 #include "dali/pipeline/operator/arg_helper.h"
+#include "dali/pipeline/operator/checkpointing/stateless_operator.h"
 #include "dali/pipeline/operator/operator.h"
 #include "dali/core/tensor_view.h"
 
 namespace dali {
 
 template <typename Backend>
-class Reshape : public Operator<Backend> {
+class Reshape : public StatelessOperator<Backend> {
  public:
-  using Base = Operator<Backend>;
+  using Base = StatelessOperator<Backend>;
 
   explicit Reshape(const OpSpec &spec_);
 
-  bool CanInferOutputs() const override {
-    // Return false, because we specifically don't want the executor to allocate
-    // the storage for the output - even though we can infer the shape.
+  bool HasContiguousOutputs() const override {
+    // The contiguity depends on the source operator's output
     return false;
   }
 
@@ -62,10 +62,6 @@ class Reshape : public Operator<Backend> {
   TensorLayout layout_;
 
  private:
-  inline const std::string &OpName() const {
-    return this->spec_.name();
-  }
-
   TensorListShape<> input_shape_;
   TensorShape<> uniform_shape_;
   std::vector<float> rel_uniform_shape_;

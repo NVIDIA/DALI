@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import cv2
 import numpy as np
 from scipy.signal import convolve2d
 
@@ -120,7 +121,7 @@ def debayer_bilinear_npp_masks(img, masks):
     green_signal = img * green_mask
     blue_signal = img * blue_mask
     # When inferring red color for blue or green base, there are either
-    # four red base neigbours at four corners or two base neigbours in
+    # four red base neighbors at four corners or two base neighbors in
     # x or y axis. The blue color case is analogous.
     rb_filter = np.array([[1, 2, 1], [2, 4, 2], [1, 2, 1]], dtype=np.int32)
     green_x_filter = np.array([[1, 0, 1]], dtype=np.int32)
@@ -134,7 +135,7 @@ def debayer_bilinear_npp_masks(img, masks):
 
     def green_with_chroma_correlation(color_signal):
         # For red and blue based positions, there are always four
-        # green neighbours (y - 1, x), (y + 1, x), (y, x - 1), (y, x + 1).
+        # green neighbors (y - 1, x), (y + 1, x), (y, x - 1), (y, x + 1).
         # NPP does not simply average 4 of them to get green intensity.
         # Instead, it averages only two in either y or x axis as explained in
         # https://docs.nvidia.com/cuda/npp/group__image__color__debayer.html
@@ -177,3 +178,18 @@ def debayer_bilinear_npp_pattern_seq(seq, patterns):
     seq_masks = [bayer_masks[pattern] for pattern in patterns]
     reds, greens, blues = [np.stack(channel) for channel in zip(*seq_masks)]
     return debayer_bilinear_npp_masks(seq, (reds, greens, blues))
+
+
+def debayer_opencv(img: np.ndarray, pattern: BayerPattern, algorithm: str):
+    """Debayer image with OpenCV."""
+    if pattern is not BayerPattern.BGGR:
+        raise NotImplementedError("Only BGGR pattern is supported by at the moment.")
+    if algorithm == "bilinear_ocv":
+        return cv2.cvtColor(img, cv2.COLOR_BayerBG2RGB)
+    if algorithm == "edgeaware_ocv":
+        return cv2.cvtColor(img, cv2.COLOR_BayerBG2RGB_EA)
+    if algorithm == "vng_ocv":
+        return cv2.cvtColor(img, cv2.COLOR_BayerBG2RGB_VNG)
+    if algorithm == "gray_ocv":
+        return cv2.cvtColor(img, cv2.COLOR_BayerBG2GRAY)[..., None]  # Make HWC
+    raise ValueError(f"Unknown algorithm: {algorithm}")

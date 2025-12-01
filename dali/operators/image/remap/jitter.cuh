@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,10 +19,12 @@
 #include <ctgmath>
 #include <vector>
 #include <random>
+#include <string>
 #include "dali/core/host_dev.h"
 #include "dali/pipeline/operator/operator.h"
 #include "dali/operators/image/remap/displacement_filter.h"
 #include "dali/operators/util/randomizer.cuh"
+#include "dali/operators/random/rng_checkpointing_utils.h"
 
 namespace dali {
 
@@ -32,9 +34,10 @@ class JitterAugment {};
 template <>
 class JitterAugment<GPUBackend> {
  public:
+  static constexpr bool is_stateless = false;
   explicit JitterAugment(const OpSpec& spec) :
-        nDegree_(spec.GetArgument<int>("nDegree")),
-        rnd_(spec.GetArgument<int64_t>("seed"), rnd_size_) {
+        rnd_(spec.GetArgument<int64_t>("seed"), rnd_size_),
+        nDegree_(spec.GetArgument<int>("nDegree")) {
   }
 
   __device__ ivec2 operator()(int y, int x, int c, int H, int W, int C) {
@@ -48,19 +51,44 @@ class JitterAugment<GPUBackend> {
 
   void Cleanup() {}
 
+  curand_states rnd_;
+
  private:
   int nDegree_;
-  curand_states rnd_;
   static constexpr unsigned rnd_size_ = 1024 * 256;
 };
 
 template <typename Backend>
 class Jitter : public DisplacementFilter<Backend, JitterAugment<Backend>> {
  public:
-    inline explicit Jitter(const OpSpec &spec)
-      : DisplacementFilter<Backend, JitterAugment<Backend>>(spec) {}
+  inline explicit Jitter(const OpSpec &spec)
+    : DisplacementFilter<Backend, JitterAugment<Backend>>(spec) {}
 
-    virtual ~Jitter() = default;
+  virtual ~Jitter() = default;
+
+  using DisplacementFilter<Backend, JitterAugment<Backend>>::displace_;
+  using CheckpointType = decltype(JitterAugment<Backend>::rnd_);
+  using CheckpointUtils = rng::RngCheckpointUtils<GPUBackend, CheckpointType>;
+
+  void SaveState(OpCheckpoint &cpt, AccessOrder order) override {
+    static_assert(std::is_same_v<Backend, GPUBackend>);
+    CheckpointUtils::SaveState(cpt, order, displace_.rnd_);
+  }
+
+  void RestoreState(const OpCheckpoint &cpt) override {
+    static_assert(std::is_same_v<Backend, GPUBackend>);
+    CheckpointUtils::RestoreState(cpt, displace_.rnd_);
+  }
+
+  std::string SerializeCheckpoint(const OpCheckpoint &cpt) const override {
+    static_assert(std::is_same_v<Backend, GPUBackend>);
+    return CheckpointUtils::SerializeCheckpoint(cpt);
+  }
+
+  void DeserializeCheckpoint(OpCheckpoint &cpt, const std::string &data) const override {
+    static_assert(std::is_same_v<Backend, GPUBackend>);
+    CheckpointUtils::DeserializeCheckpoint(cpt, data);
+  }
 };
 
 }  // namespace dali

@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -28,10 +28,14 @@ indexing samples in the batch.)")
   .AddOptionalArg("allow_repetitions",
       R"(If true, the output can contain repetitions and omissions.)", false)
   .AddOptionalArg("no_fixed_points", R"(If true, the the output permutation cannot contain fixed
-points, that is ``out[i] != i``. This argument is ignored when batch size is 1.)", false);
+points, that is ``out[i] != i``. This argument is ignored when batch size is 1.)", false)
+  .AddRandomSeedArg()
+  .AddRandomStateArg()
+  .AddParent("ImplicitScopeAttr");
 
 void BatchPermutation::RunImpl(Workspace &ws) {
   auto &output = ws.Output<CPUBackend>(0);
+  auto &rng = rng_[0];
   int N = ws.GetRequestedBatchSize(0);
   if (N < 1)
     return;
@@ -43,14 +47,14 @@ void BatchPermutation::RunImpl(Workspace &ws) {
   tmp_out_.resize(N);
   if (rep) {
     if (no_fixed)
-      random_sequence_no_fixed_points(tmp_out_, 0, N, rng_);
+      random_sequence_no_fixed_points(tmp_out_, 0, N, rng);
     else
-      random_sequence(tmp_out_, 0, N, rng_);
+      random_sequence(tmp_out_, 0, N, rng);
   } else {
     if (no_fixed)
-      random_derangement(tmp_out_, rng_);
+      random_derangement(tmp_out_, rng);
     else
-      random_permutation(tmp_out_, rng_);
+      random_permutation(tmp_out_, rng);
   }
   for (int i = 0; i < N; ++i) {
     out_view.data[i][0] = tmp_out_[i];

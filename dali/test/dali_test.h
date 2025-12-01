@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -25,13 +25,14 @@
 #include <utility>
 #include <vector>
 #include <numeric>
+#include <iomanip>
 
 #include "dali/core/common.h"
 #include "dali/core/error_handling.h"
-#include "dali/image/jpeg.h"
 #include "dali/pipeline/data/backend.h"
 #include "dali/test/dali_test_config.h"
 #include "dali/util/image.h"
+#include "dali/util/crop_window.h"
 #include "dali/util/ocv.h"
 
 namespace dali {
@@ -108,7 +109,7 @@ class DALITest : public ::testing::Test {
   }
 
   inline void DecodeImages(DALIImageType type, const ImgSetDescr &imgs,
-                           vector<vector<uint8>> *images,
+                           vector<vector<uint8_t>> *images,
                            vector<DimPair> *image_dims) {
     c_ = IsColor(type) ? 3 : 1;
     const int flag =
@@ -147,7 +148,7 @@ class DALITest : public ::testing::Test {
   }
 
   inline void MakeDecodedBatch(int n, TensorList<CPUBackend> *tl,
-                               const vector<vector<uint8>> &images,
+                               const vector<vector<uint8_t>> &images,
                                const vector<DimPair> &image_dims, const int c) {
     DALI_ENFORCE(!images.empty(), "Images must be populated to create batches");
     TensorListShape<> shape(n, kImageDim);
@@ -157,7 +158,7 @@ class DALITest : public ::testing::Test {
     }
     tl->Resize(shape, DALI_UINT8);
     for (int i = 0; i < n; ++i) {
-      std::memcpy(tl->template mutable_tensor<uint8>(i),
+      std::memcpy(tl->template mutable_tensor<uint8_t>(i),
                   images[i % images.size()].data(), volume(tl->tensor_shape(i)));
     }
   }
@@ -184,7 +185,7 @@ class DALITest : public ::testing::Test {
     tl->Resize(shape, DALI_UINT8);
 
     for (int i = 0; i < n; ++i) {
-      std::memcpy(tl->template mutable_tensor<uint8>(i), data[i % nImgs],
+      std::memcpy(tl->template mutable_tensor<uint8_t>(i), data[i % nImgs],
                   data_sizes[i % nImgs]);
       tl->SetSourceInfo(i, imgs.filenames_[i % nImgs]);
     }
@@ -307,7 +308,7 @@ class DALITest : public ::testing::Test {
 
   // From OCV example :
   // docs.opencv.org/2.4/doc/tutorials/gpu/gpu-basics-similarity/gpu-basics-similarity.html
-  cv::Scalar MSSIM(uint8 *a, uint8 *b, int h, int w, int c) {
+  cv::Scalar MSSIM(uint8_t *a, uint8_t *b, int h, int w, int c) {
     cv::Mat i1 = cv::Mat(h, w, c == 3 ? CV_8UC3 : CV_8UC1, a);
     cv::Mat i2 = cv::Mat(h, w, c == 3 ? CV_8UC3 : CV_8UC1, b);
 
@@ -370,7 +371,7 @@ class DALITest : public ::testing::Test {
   ImgSetDescr jpegs_, png_, tiff_, bmp_, jpeg2ks_;
 
   // Decoded images
-  vector<vector<uint8>> images_;
+  vector<vector<uint8_t>> images_;
   vector<DimPair> image_dims_;
   int c_;
 

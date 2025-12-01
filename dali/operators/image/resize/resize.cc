@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -38,10 +38,9 @@ DALI_SCHEMA(Resize)
 
 template<typename Backend>
 Resize<Backend>::Resize(const OpSpec &spec)
-    : Operator<Backend>(spec)
+    : StatelessOperator<Backend>(spec)
     , ResizeBase<Backend>(spec) {
   save_attrs_ = this->spec_.HasArgument("save_attrs");
-  resample_params_.resize(num_threads_);
   InitializeBackend();
 }
 

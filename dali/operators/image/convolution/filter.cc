@@ -1,4 +1,4 @@
-// Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2023-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -66,6 +66,7 @@ the corresponding scalars when convolved with the filter.
 The scalars must be of the same type as the input samples.
 For video/sequence input, an array of scalars can be specified to be applied
 :func:`per-frame<nvidia.dali.fn.per_frame>`.)code")
+    .InputDevice(1, 3, InputDevice::MatchBackendOrCPU)
     .AddOptionalArg("anchor",
                     R"code(Specifies the position of the filter over the input.
 
@@ -102,7 +103,7 @@ Supported values are: ``"reflect_101"``, ``"reflect_1001"``, ``"wrap"``,
     .AddOptionalArg("mode",
                     R"code(Supported values are: ``"same"`` and ``"valid"``.
 
-- ``"same"`` (default): The input and output sizes are the same and ``border`` is used
+- ``"same"`` (default): The input and output sizes are the same and `border` is used
   to handle out-of-bound filter positions.
 - ``"valid"``: the output sample is cropped (by ``filter_extent - 1``) so that all
   filter positions lie fully within the input sample.

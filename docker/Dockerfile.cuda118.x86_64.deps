@@ -1,5 +1,5 @@
 ARG TOOLKIT_BASE_IMAGE=ubuntu:20.04
-FROM ${TOOLKIT_BASE_IMAGE} as cuda
+FROM ${TOOLKIT_BASE_IMAGE} AS cuda
 
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -11,26 +11,25 @@ RUN curl -LO https://developer.download.nvidia.com/compute/cuda/11.8.0/local_ins
     ./cuda_*.run --silent --no-opengl-libs --toolkit && \
     rm -f cuda_*.run;
 
-RUN NVJPEG2K_VERSION=0.7.0.31-1 && \
+RUN NVJPEG2K_VERSION=0.8.1.40-1 && \
     CUFILE_VERSION=1.4.0.31-1 && \
-    NVCOMP_VERSION=2.6.1 && \
+    NVCOMP_VERSION=4.2.0.11-1 && \
     CUDA_VERSION_MAJOR=11 && \
+    CUDA_VERSION_MINOR=8 && \
     apt-get update && \
     apt-get install wget software-properties-common -y && \
     apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/x86_64/3bf863cc.pub && \
     apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/x86_64/7fa2af80.pub && \
     add-apt-repository "deb https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/x86_64/ /" && \
     apt-get update && \
-    apt-get install libnvjpeg2k0=${NVJPEG2K_VERSION} libnvjpeg2k-dev=${NVJPEG2K_VERSION} -y && \
-    apt-get install libcufile-dev-11-8=${CUFILE_VERSION} -y && \
+    apt-get install libnvjpeg2k0-dev-cuda-${CUDA_VERSION_MAJOR}=${NVJPEG2K_VERSION} \
+                    libnvjpeg2k0-cuda-${CUDA_VERSION_MAJOR}=${NVJPEG2K_VERSION} \
+                    libnvjpeg2k0-static-cuda-${CUDA_VERSION_MAJOR}=${NVJPEG2K_VERSION} \
+                    libcufile-dev-${CUDA_VERSION_MAJOR}-${CUDA_VERSION_MINOR}=${CUFILE_VERSION} \
+                    libnvcomp4-cuda-${CUDA_VERSION_MAJOR}=${NVCOMP_VERSION} \
+                    libnvcomp4-static-cuda-${CUDA_VERSION_MAJOR}=${NVCOMP_VERSION} -y && \
     cp /usr/include/libnvjpeg2k/${CUDA_VERSION_MAJOR}/* /usr/local/cuda/include/ && \
     cp /usr/lib/x86_64-linux-gnu/libnvjpeg2k/${CUDA_VERSION_MAJOR}/* /usr/local/cuda/lib64/ && \
-    rm -rf /var/lib/apt/lists/* && \
-    mkdir nvcomp && \
-    cd nvcomp && \
-    wget https://developer.download.nvidia.com/compute/nvcomp/${NVCOMP_VERSION}/local_installers/nvcomp_${NVCOMP_VERSION}_x86_64_${CUDA_VERSION_MAJOR}.x.tgz && \
-    tar -xvf nvcomp*.tgz && \
-    cp -rv include/nvcomp* /usr/local/cuda/include/ && \
-    cp -v lib/*.so /usr/local/cuda/lib64/ && \
-    cd .. && \
-    rm -rf nvcomp
+    cp -r /usr/include/nvcomp_${CUDA_VERSION_MAJOR}/* /usr/local/cuda/include/ && \
+    cp -r /usr/lib/x86_64-linux-gnu/nvcomp/${CUDA_VERSION_MAJOR}/* /usr/local/cuda/lib64/ && \
+    rm -rf /var/lib/apt/lists/*

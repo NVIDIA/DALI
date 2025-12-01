@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,28 +12,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import librosa
 import numpy as np
 import nvidia.dali.types as types
 import test_utils
 import os
 import nvidia.dali.fn as fn
 from nvidia.dali import pipeline_def
+from test_audio_utils_librosa_ref import nonsilent_region
 
-audio_files = test_utils.get_files(os.path.join('db', 'audio', 'wav'), 'wav')
+audio_files = test_utils.get_files(os.path.join("db", "audio", "wav"), "wav")
 
 
 def trim_ref(cutoff_db, ref, frame_length, hop_length, input_data):
-    yt, index = librosa.effects.trim(y=input_data, top_db=-cutoff_db, ref=ref,
-                                     frame_length=frame_length,
-                                     hop_length=hop_length)
-    # librosa's trim function calculates power with reference to center of window,
-    # while DALI uses beginning of window. Hence the subtraction below
-    begin = index[0] - frame_length // 2
-    length = index[1] - index[0]
-    if length != 0:
-        length += frame_length - 1
-    return np.array(begin), np.array(length)
+    start, length = nonsilent_region(
+        y=input_data, top_db=-cutoff_db, ref=ref, frame_length=frame_length, hop_length=hop_length
+    )
+    return np.array(start), np.array(length)
 
 
 @pipeline_def
@@ -41,27 +35,37 @@ def nonsilent_region_pipe(cutoff_value, window_size, reference_power, reset_inte
     raw, _ = fn.readers.file(files=audio_files)
     audio, _ = fn.decoders.audio(raw, dtype=types.FLOAT, downmix=True)
     begin_cpu, len_cpu = fn.nonsilent_region(
-        audio, cutoff_db=cutoff_value, window_length=window_size,
+        audio,
+        cutoff_db=cutoff_value,
+        window_length=window_size,
         reference_power=reference_power,
-        reset_interval=reset_interval
+        reset_interval=reset_interval,
     )
     begin_gpu, len_gpu = fn.nonsilent_region(
-        audio.gpu(), cutoff_db=cutoff_value, window_length=window_size,
+        audio.gpu(),
+        cutoff_db=cutoff_value,
+        window_length=window_size,
         reference_power=reference_power,
-        reset_interval=reset_interval
+        reset_interval=reset_interval,
     )
     return audio, begin_cpu, len_cpu, begin_gpu, len_gpu
 
 
-def check_nonsilence_operator(batch_size, cutoff_value, window_size, reference_power,
-                              reset_interval, eps):
+def check_nonsilence_operator(
+    batch_size, cutoff_value, window_size, reference_power, reset_interval, eps
+):
     pipe = nonsilent_region_pipe(
-        cutoff_value, window_size, reference_power, reset_interval,
-        batch_size=batch_size, num_threads=3, device_id=0, seed=42,
+        cutoff_value,
+        window_size,
+        reference_power,
+        reset_interval,
+        batch_size=batch_size,
+        num_threads=3,
+        device_id=0,
+        seed=42,
     )
     hop_length = 1
     ref = np.max if not reference_power else reference_power
-    pipe.build()
     for _ in range(3):
         audio_batch_cpu, begin_batch_cpu, len_batch_cpu, begin_batch_gpu, len_batch_gpu = pipe.run()
         for s in range(batch_size):
@@ -71,9 +75,7 @@ def check_nonsilence_operator(batch_size, cutoff_value, window_size, reference_p
             begin_gpu = test_utils.as_array(begin_batch_gpu[s])
             len_gpu = test_utils.as_array(len_batch_gpu[s])
 
-            ref_begin, ref_len = trim_ref(
-                cutoff_value, ref, window_size, hop_length, audio_cpu
-            )
+            ref_begin, ref_len = trim_ref(cutoff_value, ref, window_size, hop_length, audio_cpu)
             np.testing.assert_allclose(ref_begin, begin_cpu, atol=eps)
             np.testing.assert_allclose(ref_begin, begin_gpu, atol=eps)
             np.testing.assert_allclose(ref_len, len_cpu, atol=eps)
@@ -87,14 +89,13 @@ def test_nonsilence_operator():
     batch_size = 3
     window_sizes = [512, 1024]
     reset_intervals = [-1, 2048, 8192]
-    references_power = [None, .0003]
+    references_power = [None, 0.0003]
     cutoff_coeffs = [-10, -60, -80]
     for ws in window_sizes:
         for ri in reset_intervals:
             for rp in references_power:
                 for cc in cutoff_coeffs:
-                    yield check_nonsilence_operator, \
-                            batch_size, cc, ws, rp, ri, ws
+                    yield check_nonsilence_operator, batch_size, cc, ws, rp, ri, ws
 
 
 def test_cpu_vs_gpu():
@@ -106,46 +107,54 @@ def test_cpu_vs_gpu():
             raw, _ = fn.readers.file(files=audio_files)
             audio, _ = fn.decoders.audio(raw, dtype=types.INT16, downmix=True)
         else:
-            audio = types.Constant(device='cpu', value=data_arr)
+            audio = types.Constant(device="cpu", value=data_arr)
 
         begin_cpu, len_cpu = fn.nonsilent_region(
-            audio, cutoff_db=cutoff_value, window_length=window_size,
+            audio,
+            cutoff_db=cutoff_value,
+            window_length=window_size,
             reference_power=reference_power,
         )
         begin_gpu, len_gpu = fn.nonsilent_region(
-            audio.gpu(), cutoff_db=cutoff_value, window_length=window_size,
+            audio.gpu(),
+            cutoff_db=cutoff_value,
+            window_length=window_size,
             reference_power=reference_power,
         )
         return begin_cpu, len_cpu, begin_gpu, len_gpu
 
     audio_arr = np.zeros([10 + 1 + 10], dtype=np.int16)
     audio_arr[10] = 3000
-    pipe = nonsilent_pipe(data_arr=audio_arr, window_size=1, cutoff_value=-80,
-                          batch_size=1, num_threads=3, device_id=0)
-    pipe.build()
+    pipe = nonsilent_pipe(
+        data_arr=audio_arr,
+        window_size=1,
+        cutoff_value=-80,
+        batch_size=1,
+        num_threads=3,
+        device_id=0,
+    )
     begin_cpu, len_cpu, begin_gpu, len_gpu = [test_utils.as_array(out[0]) for out in pipe.run()]
     assert begin_cpu == begin_gpu == 10
     assert len_cpu == len_gpu == 1
 
     audio_arr[10:15] = 3000
-    pipe = nonsilent_pipe(data_arr=audio_arr, window_size=1,
-                          batch_size=1, num_threads=3, device_id=0)
-    pipe.build()
+    pipe = nonsilent_pipe(
+        data_arr=audio_arr, window_size=1, batch_size=1, num_threads=3, device_id=0
+    )
     begin_cpu, len_cpu, begin_gpu, len_gpu = [test_utils.as_array(out[0]) for out in pipe.run()]
     assert begin_cpu == begin_gpu == 10
     assert len_cpu == len_gpu == 5
 
     window = 5
-    pipe = nonsilent_pipe(data_arr=audio_arr, window_size=5,
-                          batch_size=1, num_threads=3, device_id=0)
-    pipe.build()
+    pipe = nonsilent_pipe(
+        data_arr=audio_arr, window_size=5, batch_size=1, num_threads=3, device_id=0
+    )
     outputs = pipe.run()
     begin_cpu, len_cpu, begin_gpu, len_gpu = [test_utils.as_array(out[0]) for out in outputs]
     assert begin_cpu == begin_gpu == (10 - window + 1)
     assert len_cpu == len_gpu == 13
 
     pipe = nonsilent_pipe(batch_size=batch_size, num_threads=3, device_id=0, seed=42)
-    pipe.build()
     for _ in range(3):
         begin_batch_cpu, len_batch_cpu, begin_batch_gpu, len_batch_gpu = pipe.run()
         for s in range(batch_size):

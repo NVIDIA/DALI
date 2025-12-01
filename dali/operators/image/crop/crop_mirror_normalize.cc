@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,7 +17,6 @@
 #include "dali/core/tensor_layout.h"
 #include "dali/kernels/slice/slice_flip_normalize_permute_pad_cpu.h"
 #include "dali/pipeline/data/views.h"
-#include "dali/util/half.hpp"
 
 namespace dali {
 
@@ -53,7 +52,7 @@ Supported types: ``FLOAT``, ``FLOAT16``, ``INT8``, ``UINT8``.
   .AddOptionalArg("pad_output",
     R"code(Determines whether to pad the output so that the number of channels is a power of 2.
 
-The value used for padding is determined by the ``fill_values`` argument.)code", false)
+The value used for padding is determined by the `fill_values` argument.)code", false)
   .AddOptionalArg("mirror",
     R"code(If nonzero, the image will be flipped (mirrored) horizontally.)code",
     0, true)
@@ -93,7 +92,7 @@ bool CropMirrorNormalize<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_
         using Args = kernels::SliceFlipNormalizePermutePadArgs<Dims>;
         output_desc[0].type = output_type_;
         output_desc[0].shape.resize(nsamples, Dims);
-        auto &kernel_sample_args = any_cast<std::vector<Args>&>(kernel_sample_args_);
+        auto &kernel_sample_args = std::any_cast<std::vector<Args>&>(kernel_sample_args_);
         for (int sample_idx = 0; sample_idx < nsamples; sample_idx++) {
           auto in_view = view<const InputType, Dims>(input[sample_idx]);
           auto req = Kernel().Setup(ctx, in_view, kernel_sample_args[sample_idx]);
@@ -121,7 +120,7 @@ void CropMirrorNormalize<CPUBackend>::RunImpl(Workspace &ws) {
       VALUE_SWITCH(ndim, Dims, CMN_NDIMS, (
         using Kernel = kernels::SliceFlipNormalizePermutePadCpu<OutputType, InputType, Dims>;
         using Args = kernels::SliceFlipNormalizePermutePadArgs<Dims>;
-        auto &kernel_sample_args = any_cast<std::vector<Args>&>(kernel_sample_args_);
+        auto &kernel_sample_args = std::any_cast<std::vector<Args>&>(kernel_sample_args_);
         auto in_view = view<const InputType, Dims>(input);
         auto out_view = view<OutputType, Dims>(output);
         int req_nblocks = std::max(1, 10 * thread_pool.NumThreads() / nsamples);

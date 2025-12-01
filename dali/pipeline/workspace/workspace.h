@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,17 +15,20 @@
 #ifndef DALI_PIPELINE_WORKSPACE_WORKSPACE_H_
 #define DALI_PIPELINE_WORKSPACE_WORKSPACE_H_
 
-#include <vector>
-#include <utility>
+#include <cassert>
+#include <functional>
+#include <map>
 #include <memory>
 #include <string>
-#include <unordered_map>
+#include <string_view>
+#include <utility>
+#include <vector>
 
 #include "dali/core/common.h"
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/data/tensor.h"
 #include "dali/pipeline/data/tensor_list.h"
-#include "dali/pipeline/executor/iteration_data.h"
+#include "dali/pipeline/workspace/iteration_data.h"
 
 namespace dali {
 
@@ -51,50 +54,73 @@ class ArgumentWorkspace {
   virtual ~ArgumentWorkspace() = default;
 
   inline void Clear() {
+    argument_input_idxs_.clear();
     argument_inputs_.clear();
   }
 
-  void AddArgumentInput(const std::string& arg_name, shared_ptr<TensorList<CPUBackend>> input) {
-    argument_inputs_[arg_name] = { std::move(input) };
+  int NumArgumentInput() const {
+    return argument_inputs_.size();
   }
 
-  const TensorList<CPUBackend>& ArgumentInput(const std::string& arg_name) const {
-    auto it = argument_inputs_.find(arg_name);
-    DALI_ENFORCE(it != argument_inputs_.end(), "Argument \"" + arg_name + "\" not found.");
-    return *it->second.tvec;
+  int AddArgumentInput(std::string arg_name, shared_ptr<TensorList<CPUBackend>> input) {
+    int idx = argument_input_idxs_.size();
+    argument_input_idxs_[arg_name] = idx;
+    argument_inputs_.push_back({ std::move(arg_name), std::move(input) });
+    return idx;
   }
 
-  TensorList<CPUBackend>& UnsafeMutableArgumentInput(const std::string& arg_name) {
-    return const_cast<TensorList<CPUBackend>&>(ArgumentInput(arg_name));
+  void SetArgumentInput(int idx, shared_ptr<TensorList<CPUBackend>> input) {
+    assert(idx >= 0 && idx < static_cast<int>(argument_inputs_.size()));
+    argument_inputs_[idx].cpu = std::move(input);
   }
 
- protected:
-  struct ArgumentInputDesc {
-    std::shared_ptr<TensorList<CPUBackend>> tvec;
+  const TensorList<CPUBackend>& ArgumentInput(std::string_view arg_name) const {
+    auto it = argument_input_idxs_.find(arg_name);
+    if (it == argument_input_idxs_.end())
+      throw invalid_key(make_string("Argument \"", arg_name, "\" not found."));
+    assert(argument_inputs_[it->second].cpu);
+    return *argument_inputs_[it->second].cpu;
+  }
+
+  const std::string &ArgumentInputName(int idx) const {
+    DALI_ENFORCE_VALID_INDEX(idx, NumArgumentInput());
+    return argument_inputs_[idx].name;
+  }
+
+  const TensorList<CPUBackend> &ArgumentInput(int idx) const {
+    DALI_ENFORCE_VALID_INDEX(idx, NumArgumentInput());
+    assert(argument_inputs_[idx].cpu);
+    return *argument_inputs_[idx].cpu;
+  }
+
+  const std::shared_ptr<TensorList<CPUBackend>> ArgumentInputPtr(int idx) const {
+    DALI_ENFORCE_VALID_INDEX(idx, NumArgumentInput());
+    return argument_inputs_[idx].cpu;
+  }
+
+  std::shared_ptr<TensorList<CPUBackend>>&
+  UnsafeMutableArgumentInput(std::string_view arg_name) {
+    auto it = argument_input_idxs_.find(arg_name);
+    if (it == argument_input_idxs_.end())
+      throw invalid_key(make_string("Argument \"", arg_name, "\" not found."));
+    return argument_inputs_[it->second].cpu;
+  }
+
+  const auto &ArgumentInputs() const {
+    return argument_inputs_;
+  }
+
+  struct ArgumentInputBuffers {
+    std::string name;
+    std::shared_ptr<TensorList<CPUBackend>> cpu;
+    // In the future, we may add GPU data here
   };
 
+ protected:
   // Argument inputs
-  using argument_input_storage_t = std::unordered_map<std::string, ArgumentInputDesc>;
-  argument_input_storage_t argument_inputs_;
-
- public:
-  using const_iterator = argument_input_storage_t::const_iterator;
-  friend const_iterator begin(const ArgumentWorkspace&);
-  friend const_iterator end(const ArgumentWorkspace&);
+  std::map<std::string, int, std::less<>> argument_input_idxs_;
+  SmallVector<ArgumentInputBuffers, 4> argument_inputs_;
 };
-
-/** @{ */
-/**
- * @brief Iterator-handling functions for ArgumentWorkspace
- */
-inline ArgumentWorkspace::const_iterator begin(const ArgumentWorkspace& ws) {
-  return ws.argument_inputs_.begin();
-}
-
-inline ArgumentWorkspace::const_iterator end(const ArgumentWorkspace& ws) {
-  return ws.argument_inputs_.end();
-}
-/** @} */
 
 /**
  * @brief WorkspaceBase is a base class of objects
@@ -123,16 +149,8 @@ class WorkspaceBase : public ArgumentWorkspace {
    */
   inline void Clear() {
     ArgumentWorkspace::Clear();
-    cpu_inputs_.clear();
-    gpu_inputs_.clear();
-    cpu_outputs_.clear();
-    gpu_outputs_.clear();
-    input_index_map_.clear();
-    output_index_map_.clear();
-    cpu_inputs_index_.clear();
-    gpu_inputs_index_.clear();
-    cpu_outputs_index_.clear();
-    gpu_outputs_index_.clear();
+    inputs_.clear();
+    outputs_.clear();
   }
 
   /** @name Input and output APIs
@@ -147,8 +165,8 @@ class WorkspaceBase : public ArgumentWorkspace {
    * The operator implementation can use this function to access its inputs.
    */
   template <typename Backend>
-  const auto& Input(int idx) const {
-    return *InputHandle(idx, Backend{});
+  const auto& Input(int idx, Backend backend = {}) const {
+    return *InputHandle(idx, backend);
   }
 
   /**
@@ -157,22 +175,22 @@ class WorkspaceBase : public ArgumentWorkspace {
    * The operator implementation can use this function to access its outputs.
    */
   template <typename Backend>
-  auto& Output(int idx) const {
-    return *OutputHandle(idx, Backend{});
+  auto& Output(int idx, Backend backend = {}) const {
+    return *OutputHandle(idx, backend);
   }
 
   /**
    * @brief Returns the number of inputs.
    */
   inline int NumInput() const {
-    return input_index_map_.size();
+    return inputs_.size();
   }
 
   /**
    * @brief Returns the number of outputs.
    */
   inline int NumOutput() const {
-    return output_index_map_.size();
+    return outputs_.size();
   }
 
 
@@ -190,8 +208,8 @@ class WorkspaceBase : public ArgumentWorkspace {
    * Intended only for executor and other internal APIs.
    */
   template <typename Backend>
-  auto& UnsafeMutableInput(int idx) const {
-    return *InputHandle(idx, Backend{});
+  auto& UnsafeMutableInput(int idx, Backend backend = {}) const {
+    return *InputHandle(idx, backend);
   }
 
   /**
@@ -200,8 +218,8 @@ class WorkspaceBase : public ArgumentWorkspace {
    * Intended only for executor and other internal APIs.
    */
   template <typename Backend>
-  const DataObjectPtr<Backend>& InputPtr(int idx) const {
-    return InputHandle(idx, Backend{});
+  const DataObjectPtr<Backend>& InputPtr(int idx, Backend backend = {}) const {
+    return InputHandle(idx, backend);
   }
 
   /**
@@ -210,92 +228,82 @@ class WorkspaceBase : public ArgumentWorkspace {
    * Intended only for executor and other internal APIs.
    */
   template <typename Backend>
-  const DataObjectPtr<Backend>& OutputPtr(int idx) const {
-    return OutputHandle(idx, Backend{});
+  const DataObjectPtr<Backend>& OutputPtr(int idx, Backend backend = {}) const {
+    return OutputHandle(idx, backend);
   }
 
   /** @} */
 
   /**
-   * Returns shape of input at given index
+   * Returns shape of the input at given index
    * @return TensorShape<> for SampleWorkspace, TensorListShape<> for other Workspaces
    */
   auto GetInputShape(int input_idx) const {
-    if (InputIsType<GPUBackend>(input_idx)) {
-      return Input<GPUBackend>(input_idx).shape();
-    } else {
-      return Input<CPUBackend>(input_idx).shape();
-    }
+    return GetBufferProperty(inputs_, input_idx, [](auto &buf) { return buf->shape(); });
   }
 
   /**
-   * Returns the data type of the input at given index
-   * @return DALIDataType
+   * Returns shape of the output at given index
+   * @return TensorShape<> for SampleWorkspace, TensorListShape<> for other Workspaces
+   */
+  auto GetOutputShape(int output_idx) const {
+    return GetBufferProperty(outputs_, output_idx, [](auto &buf) { return buf->shape(); });
+  }
+
+  /**
+   * @brief Returns the type of the data in the input at given index.
    */
   DALIDataType GetInputDataType(int input_idx) const {
-    if (InputIsType<GPUBackend>(input_idx)) {
-      return Input<GPUBackend>(input_idx).type();
-    } else {
-      return Input<CPUBackend>(input_idx).type();
-    }
+    return GetBufferProperty(inputs_, input_idx, [](auto &buf) { return buf->type(); });
   }
 
   /**
-   * @return Type of the data in the output with given index.
+   * @brief Returns the type of the data in the output at given index.
    */
   DALIDataType GetOutputDataType(int output_idx) const {
-    DALI_ENFORCE(NumOutput() > 0, "No outputs found");
-    DALI_ENFORCE(
-        output_idx >= 0 && output_idx < NumOutput(),
-        make_string("Invalid output index: ", output_idx, "; while NumOutput: ", NumOutput()));
-    if (OutputIsType<GPUBackend>(output_idx)) {
-      return Output<GPUBackend>(output_idx).type();
-    } else {
-      return Output<CPUBackend>(output_idx).type();
-    }
+    return GetBufferProperty(outputs_, output_idx, [](auto &buf) { return buf->type(); });
+  }
+
+  /**
+   * @brief Returns the layout of the input at given index
+   */
+  TensorLayout GetInputLayout(int input_idx) const {
+    return GetBufferProperty(inputs_, input_idx, [](auto &buf) { return buf->GetLayout(); });
+  }
+
+  /**
+   * @brief Returns the layout of the output at given index
+   */
+  TensorLayout GetOutputLayout(int output_idx) const {
+    return GetBufferProperty(outputs_, output_idx, [](auto &buf) { return buf->GetLayout(); });
   }
 
   /**
    * Returns batch size for a given input
    */
   int GetInputBatchSize(int input_idx) const {
-    DALI_ENFORCE(NumInput() > 0, "No inputs found");
-    DALI_ENFORCE(input_idx >= 0 && input_idx < NumInput(),
-                 make_string("Invalid input index: ", input_idx, "; while NumInput: ", NumInput()));
-    if (InputIsType<GPUBackend>(input_idx)) {
-      return Input<GPUBackend>(input_idx).num_samples();
-    } else {
-      return Input<CPUBackend>(input_idx).num_samples();
-    }
+    return GetBufferProperty(inputs_, input_idx, [](auto &buf) { return buf->num_samples(); });
+  }
+
+  /**
+   * Returns batch size for a given output
+   */
+  int GetOutputBatchSize(int output_idx) const {
+    return GetBufferProperty(outputs_, output_idx, [](auto &buf) { return buf->num_samples(); });
   }
 
   /**
    * Returns number of dimensions for a given input
    */
   int GetInputDim(int input_idx) const {
-    DALI_ENFORCE(NumInput() > 0, "No inputs found");
-    DALI_ENFORCE(input_idx >= 0 && input_idx < NumInput(),
-                 make_string("Invalid input index: ", input_idx, "; while NumInput: ", NumInput()));
-    if (InputIsType<GPUBackend>(input_idx)) {
-      return Input<GPUBackend>(input_idx).sample_dim();
-    } else {
-      return Input<CPUBackend>(input_idx).sample_dim();
-    }
+    return GetBufferProperty(inputs_, input_idx, [](auto &buf) { return buf->sample_dim(); });
   }
 
   /**
    * Returns number of dimensions for a given output
    */
   int GetOutputDim(int output_idx) const {
-    DALI_ENFORCE(NumOutput() > 0, "No outputs found");
-    DALI_ENFORCE(
-        output_idx >= 0 && output_idx < NumOutput(),
-        make_string("Invalid output index: ", output_idx, "; while NumOutput: ", NumOutput()));
-    if (OutputIsType<GPUBackend>(output_idx)) {
-      return Output<GPUBackend>(output_idx).sample_dim();
-    } else {
-      return Output<CPUBackend>(output_idx).sample_dim();
-    }
+    return GetBufferProperty(outputs_, output_idx, [](auto &buf) { return buf->sample_dim(); });
   }
 
   /**
@@ -319,8 +327,8 @@ class WorkspaceBase : public ArgumentWorkspace {
    */
   template <typename Backend>
   bool InputIsType(int idx) const {
-    DALI_ENFORCE_VALID_INDEX(idx, input_index_map_.size());
-    return input_index_map_[idx].storage_device == backend_to_storage_device<Backend>::value;
+    DALI_ENFORCE_VALID_INDEX(idx, inputs_.size());
+    return inputs_[idx].device == backend_to_storage_device<Backend>::value;
   }
 
   /**
@@ -329,56 +337,8 @@ class WorkspaceBase : public ArgumentWorkspace {
    */
   template <typename Backend>
   bool OutputIsType(int idx) const {
-    DALI_ENFORCE_VALID_INDEX(idx, output_index_map_.size());
-    return output_index_map_[idx].storage_device == backend_to_storage_device<Backend>::value;
-  }
-
-  /**
-   * @brief Adds new CPU input.
-   */
-  void AddInput(DataObjectPtr<CPUBackend> input) {
-    AddHelper(input, &cpu_inputs_, &cpu_inputs_index_, &input_index_map_, StorageDevice::CPU);
-  }
-
-  /**
-   * @brief Adds new GPU input.
-   */
-  void AddInput(DataObjectPtr<GPUBackend> input) {
-    AddHelper(input, &gpu_inputs_, &gpu_inputs_index_, &input_index_map_, StorageDevice::GPU);
-  }
-
-  /**
-   * @brief Sets the CPU input at the specified index to the given input argument
-   */
-  void SetInput(int idx, DataObjectPtr<CPUBackend> input) {
-    SetHelper<DataObjectPtr, CPUBackend>(
-      idx,
-      input,
-      &cpu_inputs_,
-      &cpu_inputs_index_,
-      &input_index_map_,
-      &cpu_inputs_,
-      &cpu_inputs_index_,
-      &gpu_inputs_,
-      &gpu_inputs_index_,
-      StorageDevice::CPU);
-  }
-
-  /**
-   * @brief Sets the GPU input at the specified index to the given input argument
-   */
-  void SetInput(int idx, DataObjectPtr<GPUBackend> input) {
-    SetHelper<DataObjectPtr, GPUBackend>(
-      idx,
-      input,
-      &gpu_inputs_,
-      &gpu_inputs_index_,
-      &input_index_map_,
-      &cpu_inputs_,
-      &cpu_inputs_index_,
-      &gpu_inputs_,
-      &gpu_inputs_index_,
-      StorageDevice::GPU);
+    DALI_ENFORCE_VALID_INDEX(idx, outputs_.size());
+    return outputs_[idx].device == backend_to_storage_device<Backend>::value;
   }
 
   inline void SetThreadPool(ThreadPool *pool) {
@@ -451,80 +411,112 @@ class WorkspaceBase : public ArgumentWorkspace {
   inline span<const cudaEvent_t> ParentEvents() const { return make_cspan(parent_events_); }
 
   /**
+   * @brief Adds a new input
+   *
+   * This overload can be useful when there's an automatic conversion, e.g. from a nullptr
+   * ws.AddInput<CPUBackend>(nullptr);
+   */
+  template <typename Backend>
+  void AddInput(DataObjectPtr<Backend> input, Backend = {}) {
+    AddInput(input);
+  }
+
+  /**
+   * @brief Adds new CPU input
+   */
+  void AddInput(DataObjectPtr<CPUBackend> input) {
+    inputs_.push_back(IOBuffers{ StorageDevice::CPU, std::move(input), nullptr });
+  }
+
+  /**
+   * @brief Adds new GPU input
+   */
+  void AddInput(DataObjectPtr<GPUBackend> input) {
+    inputs_.push_back(IOBuffers{ StorageDevice::GPU, nullptr, std::move(input) });
+  }
+
+
+  /**
+   * @brief Adds a new output
+   *
+   * This overload can be useful when there's an automatic conversion, e.g. from a nullptr
+   * ws.AddOutput<CPUBackend>(nullptr);
+   */
+  template <typename Backend>
+  void AddOutput(DataObjectPtr<Backend> output, Backend = {}) {
+    AddOutput(output);
+  }
+
+  /**
    * @brief Adds new CPU output
    */
   void AddOutput(DataObjectPtr<CPUBackend> output) {
-    AddHelper(output, &cpu_outputs_, &cpu_outputs_index_, &output_index_map_, StorageDevice::CPU);
+    outputs_.push_back(IOBuffers{ StorageDevice::CPU, std::move(output), nullptr });
   }
 
   /**
    * @brief Adds new GPU output
    */
   void AddOutput(DataObjectPtr<GPUBackend> output) {
-    AddHelper(output, &gpu_outputs_, &gpu_outputs_index_, &output_index_map_, StorageDevice::GPU);
+    outputs_.push_back(IOBuffers{ StorageDevice::GPU, nullptr, std::move(output) });
+  }
+
+
+  /**
+   * @brief Sets an input
+   *
+   * This overload can be useful when there's an automatic conversion, e.g. from a nullptr
+   * ws.SetInput<CPUBackend>(idx, nullptr);
+   */
+  template <typename Backend>
+  void SetInput(int idx, DataObjectPtr<Backend> input, Backend = {}) {
+    SetInput(idx, input);
   }
 
   /**
-   * @brief Sets the CPU output at the specified index
+   * @brief Sets a CPU input
+   */
+  void SetInput(int idx, DataObjectPtr<CPUBackend> input) {
+    DALI_ENFORCE_VALID_INDEX(idx, NumInput());
+    inputs_[idx] = IOBuffers{ StorageDevice::CPU, std::move(input), nullptr };
+  }
+
+  /**
+   * @brief Sets a GPU input
+   */
+  void SetInput(int idx, DataObjectPtr<GPUBackend> input) {
+    DALI_ENFORCE_VALID_INDEX(idx, NumInput());
+    inputs_[idx] = IOBuffers{ StorageDevice::GPU, nullptr, std::move(input) };
+  }
+
+
+  /**
+   * @brief Sets an output
+   *
+   * This overload can be useful when there's an automatic conversion, e.g. from a nullptr
+   * ws.SetOutput<CPUBackend>(idx, nullptr);
+   */
+  template <typename Backend>
+  void SetOutput(int idx, DataObjectPtr<Backend> output, Backend = {}) {
+    SetOutput(idx, output);
+  }
+
+  /**
+   * @brief Sets a CPU output
    */
   void SetOutput(int idx, DataObjectPtr<CPUBackend> output) {
-    SetHelper<DataObjectPtr, CPUBackend>(
-      idx,
-      output,
-      &cpu_outputs_,
-      &cpu_outputs_index_,
-      &output_index_map_,
-      &cpu_outputs_,
-      &cpu_outputs_index_,
-      &gpu_outputs_,
-      &gpu_outputs_index_,
-      StorageDevice::CPU);
+    DALI_ENFORCE_VALID_INDEX(idx, NumOutput());
+    outputs_[idx] = IOBuffers{ StorageDevice::CPU, std::move(output), nullptr };
   }
 
   /**
-   * @brief Sets the GPU output at the specified index
+   * @brief Sets a GPU output
    */
   void SetOutput(int idx, DataObjectPtr<GPUBackend> output) {
-    SetHelper<DataObjectPtr, GPUBackend>(
-      idx,
-      output,
-      &gpu_outputs_,
-      &gpu_outputs_index_,
-      &output_index_map_,
-      &cpu_outputs_,
-      &cpu_outputs_index_,
-      &gpu_outputs_,
-      &gpu_outputs_index_,
-      StorageDevice::GPU);
+    DALI_ENFORCE_VALID_INDEX(idx, NumOutput());
+    outputs_[idx] = IOBuffers{ StorageDevice::GPU, nullptr, std::move(output) };
   }
 
-  /**
-   * @brief Returns reference to internal CPU output object at index `idx`.
-   *
-   * @throws runtime_error if the calling type does not match the
-   * type of the tensor at the given index
-   */
-  DataObjectPtr<CPUBackend> SharedCPUOutput(int idx) {
-    DALI_ENFORCE_VALID_INDEX(idx, output_index_map_.size());
-    auto tensor_meta = output_index_map_[idx];
-    DALI_ENFORCE(tensor_meta.storage_device == StorageDevice::CPU, "Output with given "
-        "index does not have the calling backend type (CPUBackend)");
-    return cpu_outputs_[tensor_meta.index];
-  }
-
-  /**
-   * @brief Returns reference to internal GPU output object at index `idx`.
-   *
-   * @throws runtime_error if the calling type does not match the
-   * type of the tensor at the given index
-   */
-  DataObjectPtr<GPUBackend> SharedGPUOutput(int idx) {
-    DALI_ENFORCE_VALID_INDEX(idx, output_index_map_.size());
-    auto tensor_meta = output_index_map_[idx];
-    DALI_ENFORCE(tensor_meta.storage_device == StorageDevice::GPU, "Output with given "
-        "index does not have the calling backend type (GPUBackend)");
-    return gpu_outputs_[tensor_meta.index];
-  }
 
   /**
    * @brief Returns the index of the sample that this workspace stores
@@ -564,18 +556,18 @@ class WorkspaceBase : public ArgumentWorkspace {
 
 
   ///@{
-  /**
-   * Set the whole operator trace map in this workspace.
-   *
-   * Sets the operator trace map that corresponds to all operators in the current iteration.
-   *
-   * Typically, this function shall be called by the Executor, when assigning the Workspace to
-   * the Operator.
-   */
-  void InjectOperatorTraces(std::shared_ptr<operator_trace_map_t> operator_trace_map) {
-    operator_traces_ = std::move(operator_trace_map);
+  /** Sets shared data associated with the current iteration */
+  void InjectIterationData(SharedIterData iter_data) {
+    if (iter_data != iter_data_) {
+      operator_traces_ = nullptr;
+      iter_data_ = std::move(iter_data);
+    }
   }
 
+  /** Gets the shared data associated with the current iteration */
+  SharedIterData GetIterationData() const {
+    return iter_data_;
+  }
 
   /**
    * Set the trace value for the current operator.
@@ -584,11 +576,9 @@ class WorkspaceBase : public ArgumentWorkspace {
    *
    * @see operator_trace_map_t
    */
-  DLL_PUBLIC void SetOperatorTrace(const std::string &trace_key, std::string trace_value) {
-    (*operator_traces_)[GetOperatorInstanceName()].insert_or_assign(
-            trace_key, std::move(trace_value));
+  DLL_PUBLIC void SetOperatorTrace(std::string trace_key, std::string trace_value) {
+    GetOperatorTraces().insert_or_assign(std::move(trace_key), std::move(trace_value));
   }
-
 
   /**
    * Erase the trace value for the current operator.
@@ -597,8 +587,8 @@ class WorkspaceBase : public ArgumentWorkspace {
    *
    * @see operator_trace_map_t
    */
-  DLL_PUBLIC void EraseOperatorTrace(const std::string &trace_key) {
-    (*operator_traces_)[GetOperatorInstanceName()].erase(trace_key);
+  DLL_PUBLIC void EraseOperatorTrace(std::string_view trace_key) {
+    GetOperatorTraces().erase(trace_key);
   }
 
 
@@ -608,149 +598,73 @@ class WorkspaceBase : public ArgumentWorkspace {
    * @see operator_trace_map_t
    */
   DLL_PUBLIC void ClearOperatorTraces() {
-    (*operator_traces_)[GetOperatorInstanceName()].clear();
+    GetOperatorTraces().clear();
   }
 
+  /** Gets operator traces for the currently assigned operator.
+   *
+   * Returns a map, that maps a trace key to a trace value: `ret_value[trace_key] = trace_value`.
+   * The usage is typically within the scope of an operator.
+   */
+  DLL_PUBLIC auto &GetOperatorTraces() const {
+    if (!operator_traces_)
+      operator_traces_ = &iter_data_->operator_traces.Get(operator_instance_name_);
+    return *operator_traces_;
+  }
 
-  /**
-   * Get the trace map for a given operator.
+  /** Get the trace map for a given operator.
    *
    * Returns a map, that maps a trace key to a trace value: `ret_value[trace_key] = trace_value`.
    *
-   * Typically, this function will be called when the traces shall be read.
+   * Typically, this function is be called when the traces are read.
    *
    * @see operator_trace_map_t
    *
    * @param operator_name Name (ID) of the operator.
    */
-  DLL_PUBLIC const auto &GetOperatorTraces(const std::string &operator_name) const {
-    return operator_traces_->at(operator_name);
-  }
-
-  /**
-   * Get the operator trace map for all operators in the pipeline.
-   *
-   * @see operator_trace_map_t
-   */
-  DLL_PUBLIC const auto &GetOperatorTraceMap() const {
-    return *operator_traces_;
+  DLL_PUBLIC auto &GetOperatorTraces(std::string_view operator_name) const {
+    return iter_data_->operator_traces.Get(operator_name);
   }
   ///@}
 
 
  protected:
-  struct InOutMeta {
-    // Storage device of given Input/Output
-    StorageDevice storage_device;
-    // Position in dedicated buffer for given storage_device
-    int index;
-
-    InOutMeta() : storage_device(static_cast<StorageDevice>(-1)), index(-1) {}
-    InOutMeta(StorageDevice storage_device, int index)
-        : storage_device(storage_device), index(index) {}
-  };
-
-  template <typename T>
-  void AddHelper(T entry,
-                 vector<T>* vec,
-                 vector<int>* index,
-                 vector<InOutMeta>* index_map,
-                 StorageDevice storage_device) {
-    // Save the vector of tensors
-    vec->push_back(entry);
-
-    // Update the input index map
-    index_map->emplace_back(storage_device, vec->size()-1);
-    index->push_back(index_map->size()-1);
+  template <typename Backend>
+  const DataObjectPtr<Backend>& InputHandle(int idx) const {
+    return InputHandle(idx, Backend{});
   }
 
-  template <template<typename> class T, typename Backend>
-  void SetHelper(int idx,
-                 T<Backend> entry,
-                 vector<T<Backend>>* vec,
-                 vector<int>* index,
-                 vector<InOutMeta>* index_map,
-                 vector<T<CPUBackend>>* cpu_vec,
-                 vector<int>* cpu_index,
-                 vector<T<GPUBackend>>* gpu_vec,
-                 vector<int>* gpu_index,
-                 StorageDevice storage_device
-                 ) {
-    DALI_ENFORCE_VALID_INDEX(idx, index_map->size());
-
-    // To remove the old input at `idx`, we need to remove it
-    // from its typed vector and update the index_map
-    // entry for all the elements in the vector following it.
-    auto tensor_meta = (*index_map)[idx];
-    if (tensor_meta.storage_device == StorageDevice::CPU) {
-      for (size_t i = tensor_meta.index; i < cpu_vec->size(); ++i) {
-        int &input_idx = (*index_map)[(*cpu_index)[i]].index;
-        --input_idx;
-      }
-      cpu_vec->erase(cpu_vec->begin() + tensor_meta.index);
-      cpu_index->erase(cpu_index->begin() + tensor_meta.index);
-    } else {
-      for (size_t i = tensor_meta.index; i < gpu_vec->size(); ++i) {
-        int &input_idx = (*index_map)[(*gpu_index)[i]].index;
-        --input_idx;
-      }
-      gpu_vec->erase(gpu_vec->begin() + tensor_meta.index);
-      gpu_index->erase(gpu_index->begin() + tensor_meta.index);
-    }
-
-    // Now we insert the new input and update its meta data
-    vec->push_back(entry);
-    index->push_back(idx);
-    (*index_map)[idx] = InOutMeta(storage_device, vec->size()-1);
+  template <typename Backend>
+  const DataObjectPtr<Backend>& OutputHandle(int idx) const {
+    return OutputHandle(idx, Backend{});
   }
-
 
   const DataObjectPtr<CPUBackend>& InputHandle(int idx, const CPUBackend&) const {
-    return CPUInput(idx);
+    DALI_ENFORCE_VALID_INDEX(idx, NumInput());
+    DALI_ENFORCE(inputs_[idx].device == StorageDevice::CPU,
+      make_string("The input ", idx, " is not on the requested device (CPU)."));
+    return inputs_[idx].cpu;
   }
 
   const DataObjectPtr<GPUBackend>& InputHandle(int idx, const GPUBackend&) const {
-    return GPUInput(idx);
+    DALI_ENFORCE_VALID_INDEX(idx, NumInput());
+    DALI_ENFORCE(inputs_[idx].device == StorageDevice::GPU,
+      make_string("The input ", idx, " is not on the requested device (GPU)."));
+    return inputs_[idx].gpu;
   }
 
   const DataObjectPtr<CPUBackend>& OutputHandle(int idx, const CPUBackend&) const {
-    return CPUOutput(idx);
+    DALI_ENFORCE_VALID_INDEX(idx, NumOutput());
+    DALI_ENFORCE(outputs_[idx].device == StorageDevice::CPU,
+      make_string("The output ", idx, " is not on the requested device (CPU)."));
+    return outputs_[idx].cpu;
   }
 
   const DataObjectPtr<GPUBackend>& OutputHandle(int idx, const GPUBackend&) const {
-    return GPUOutput(idx);
-  }
-
-  inline const DataObjectPtr<GPUBackend>& GPUInput(int idx) const {
-    auto tensor_meta = FetchAtIndex(input_index_map_, idx);
-    DALI_ENFORCE(tensor_meta.storage_device == StorageDevice::GPU, "Input with given "
-        "index (" + std::to_string(idx) +
-        ") does not have the calling backend type (GPUBackend)");
-    return gpu_inputs_[tensor_meta.index];
-  }
-
-  inline const DataObjectPtr<CPUBackend>& CPUInput(int idx) const {
-    auto tensor_meta = FetchAtIndex(input_index_map_, idx);
-    DALI_ENFORCE(tensor_meta.storage_device == StorageDevice::CPU, "Input with given "
-        "index (" + std::to_string(idx) +
-        ") does not have the calling backend type (CPUBackend)");
-    return cpu_inputs_[tensor_meta.index];
-  }
-
-  inline const DataObjectPtr<GPUBackend>& GPUOutput(int idx) const {
-    auto tensor_meta = FetchAtIndex(output_index_map_, idx);
-    DALI_ENFORCE(tensor_meta.storage_device == StorageDevice::GPU,
-                 make_string("Output with given index (", idx,
-                             ") does not have the calling backend type (GPUBackend)"));
-    return gpu_outputs_[tensor_meta.index];
-  }
-
-  inline const DataObjectPtr<CPUBackend>& CPUOutput(int idx) const {
-    auto tensor_meta = FetchAtIndex(output_index_map_, idx);
-    DALI_ENFORCE(tensor_meta.storage_device == StorageDevice::CPU,
-                 make_string("Output with given index (", idx,
-                             ") does not have the calling backend type (CPUBackend)"));
-    return cpu_outputs_[tensor_meta.index];
+    DALI_ENFORCE_VALID_INDEX(idx, NumOutput());
+    DALI_ENFORCE(outputs_[idx].device == StorageDevice::GPU,
+      make_string("The output ", idx, " is not on the requested device (GPU)."));
+    return outputs_[idx].gpu;
   }
 
   /**
@@ -758,41 +672,54 @@ class WorkspaceBase : public ArgumentWorkspace {
    */
   SmallVector<int, 4> batch_sizes_;
 
-  vector<DataObjectPtr<CPUBackend>> cpu_inputs_;
-  vector<DataObjectPtr<CPUBackend>> cpu_outputs_;
-  vector<DataObjectPtr<GPUBackend>> gpu_inputs_;
-  vector<DataObjectPtr<GPUBackend>> gpu_outputs_;
+  struct IOBuffers {
+    StorageDevice device;
+    DataObjectPtr<CPUBackend> cpu;
+    DataObjectPtr<GPUBackend> gpu;
 
-  // Maps from a Tensor position in its typed vector
-  // to its absolute position in the workspaces outputs
-  vector<int> cpu_inputs_index_, gpu_inputs_index_;
-  vector<int> cpu_outputs_index_, gpu_outputs_index_;
-  // Used to map input/output tensor indices (0, 1, ... , num_input-1)
-  // to actual tensor objects. The first element indicates if the
-  // Tensor is stored on cpu, and the second element is the index of
-  // that tensor in the {cpu, gpu}_inputs_ vector.
-  vector<InOutMeta> input_index_map_, output_index_map_;
+    template <typename Backend>
+    DataObjectPtr<Backend> &get(Backend = {}) {
+      static_assert(std::is_same_v<Backend, CPUBackend> || std::is_same_v<Backend, GPUBackend>);
+      if constexpr (std::is_same_v<Backend, CPUBackend>) {
+        DALI_ENFORCE(device == StorageDevice::CPU);
+        return cpu;
+      } else {
+        DALI_ENFORCE(device == StorageDevice::GPU);
+        return gpu;
+      }
+    }
+  };
+
+  SmallVector<IOBuffers, 4> inputs_;
+  SmallVector<IOBuffers, 2> outputs_;
 
  private:
-  inline const InOutMeta& FetchAtIndex(const vector<InOutMeta>& index_map, int idx) const {
-    DALI_ENFORCE(idx >= 0 && idx < (int) index_map.size(),
-      "Index out of range." + std::to_string(idx) +
-      " not in range [0, " + std::to_string(index_map.size())
-      + ")");
-    return index_map[idx];
+  template <typename Buffers, typename Getter>
+  static auto GetBufferProperty(Buffers &buffers, int idx, Getter &&getter) {
+    DALI_ENFORCE_VALID_INDEX(idx, buffers.size());
+    auto &inp = buffers[idx];
+    if (inp.device == StorageDevice::GPU)
+      return getter(inp.gpu);
+    else
+      return getter(inp.cpu);
   }
-
 
   AccessOrder output_order_ = AccessOrder::host();
   ThreadPool *thread_pool_ = nullptr;
   cudaEvent_t event_ = nullptr;
   SmallVector<cudaEvent_t, 4> parent_events_;
 
-  /// Name of the instance of the operator, to which this Workspace in associated with.
+  /** Name of the instance of the operator which this Workspace in associated with. */
   std::string operator_instance_name_;
 
-  /// Traces of the operators corresponding to all operators in the current iteration.
-  std::shared_ptr<operator_trace_map_t> operator_traces_;
+  /** Cached pointer to the traces for the operator which this Workspace is associated with.
+   *
+   * mutable, because it's an access accelerator, not a true data member.
+   */
+  mutable operator_trace_map_t *operator_traces_ = nullptr;
+
+  /** Data shared across all workspaces in the current iteration. */
+  SharedIterData iter_data_;
 };
 
 class Workspace : public WorkspaceBase<TensorList> {};

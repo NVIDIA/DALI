@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -44,14 +44,14 @@ __device__ void NNResample(
     const Src *__restrict__ in, vec<1, ptrdiff_t> in_stride, ivec2 in_size, int channels) {
   origin += 0.5f * scale;
   for (int y = lo.y + threadIdx.y; y < hi.y; y += blockDim.y) {
-    int ysrc = floor_int(y * scale.y + origin.y);
+    int ysrc = floor_int(__fmaf_rn(y, scale.y, origin.y));
     ysrc = clamp(ysrc, 0, in_size.y-1);
 
     Dst *out_row = &out[y * out_stride.x];
     const Src *in_row = &in[ysrc * in_stride.x];
 
     for (int x = lo.x + threadIdx.x; x < hi.x; x += blockDim.x) {
-      int xsrc = floor_int(x * scale.x + origin.x);
+      int xsrc = floor_int(__fmaf_rn(x, scale.x, origin.x));
       xsrc = clamp(xsrc, 0, in_size.x-1);
       const Src *src_px = &in_row[xsrc * channels];
       for (int c = 0; c < channels; c++)
@@ -82,21 +82,21 @@ __device__ void NNResample(
   origin += 0.5f * scale;
 
   for (int z = lo.z + threadIdx.z; z < hi.z; z += blockDim.z) {
-    int zsrc = floor_int(z * scale.z + origin.z);
+    int zsrc = floor_int(__fmaf_rn(z, scale.z, origin.z));
     zsrc = clamp(zsrc, 0, in_size.z-1);
 
     Dst *out_plane = &out[z * out_stride.y];
     const Src *in_plane = &in[zsrc * in_stride.y];
 
     for (int y = lo.y + threadIdx.y; y < hi.y; y += blockDim.y) {
-      int ysrc = floor_int(y * scale.y + origin.y);
+      int ysrc = floor_int(__fmaf_rn(y, scale.y, origin.y));
       ysrc = clamp(ysrc, 0, in_size.y-1);
 
       Dst *out_row = &out_plane[y * out_stride.x];
       const Src *in_row = &in_plane[ysrc * in_stride.x];
 
       for (int x = lo.x + threadIdx.x; x < hi.x; x += blockDim.x) {
-        int xsrc = floor_int(x * scale.x + origin.x);
+        int xsrc = floor_int(__fmaf_rn(x, scale.x, origin.x));
         xsrc = clamp(xsrc, 0, in_size.x-1);
         const Src *src_px = &in_row[xsrc * channels];
         for (int c = 0; c < channels; c++)

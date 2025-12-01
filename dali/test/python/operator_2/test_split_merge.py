@@ -1,4 +1,4 @@
-# Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2022-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -57,14 +57,11 @@ def check_conditional_split_merge(dev, pred_gen):
         "batch_size": bs,
         "num_threads": 4,
         "device_id": 0,
-        "prefetch_queue_depth": 1  # so that it's easier to use external source
+        "prefetch_queue_depth": 1,  # so that it's easier to use external source
     }
     pipe_sm = conditional_split_merge_pipe(dev, **kwargs)
     pipe_true = rotate_pipe(dev, **kwargs)
     pipe_false = flip_pipe(dev, **kwargs)
-    pipe_sm.build()
-    pipe_true.build()
-    pipe_false.build()
     data_iter = RandomlyShapedDataIterator(bs, min_shape=(20, 20, 3), max_shape=(40, 30, 3))
     data_iter = iter(data_iter)
     for _ in range(test_iters):
@@ -76,15 +73,15 @@ def check_conditional_split_merge(dev, pred_gen):
         pipe_sm.feed_input("predicate", predicate)
         if data_true:
             pipe_true.feed_input("input", data_true)
-            out_true, = pipe_true.run()
+            (out_true,) = pipe_true.run()
         else:
             out_true = []
         if data_false:
             pipe_false.feed_input("input", data_false)
-            out_false, = pipe_false.run()
+            (out_false,) = pipe_false.run()
         else:
             out_false = []
-        out, = pipe_sm.run()
+        (out,) = pipe_sm.run()
         out_baseline = []
         idx_true = 0
         idx_false = 0
@@ -105,9 +102,11 @@ def test_conditional_split_merge():
     rng = np.random.default_rng()
     for dev in ["cpu", "gpu"]:
         for pred_gen in [
-                lambda x: np.array(x < 3), lambda x: np.array(x % 2 == 0),
-                lambda x: np.array(x % 3 == 0), lambda _: np.array(False),
-                lambda _: rng.choice([np.array(True), np.array(False)])
+            lambda x: np.array(x < 3),
+            lambda x: np.array(x % 2 == 0),
+            lambda x: np.array(x % 3 == 0),
+            lambda _: np.array(False),
+            lambda _: rng.choice([np.array(True), np.array(False)]),
         ]:
             yield check_conditional_split_merge, dev, pred_gen
 
@@ -116,9 +115,11 @@ def test_conditional_split_merge():
 def conditional_split_merge_reinterpret_pipe(dtype, layout, shape):
     batch_size = Pipeline.current().max_batch_size
     input = fn.external_source(
-        source=[[np.full((10, 10, 3), 42, dtype=np.int32) for _ in range(batch_size)]], cycle=True)
+        source=[[np.full((10, 10, 3), 42, dtype=np.int32) for _ in range(batch_size)]], cycle=True
+    )
     pred = fn.external_source(
-        source=[[np.array(i % 2 == 0, dtype=bool) for i in range(batch_size)]], cycle=True)
+        source=[[np.array(i % 2 == 0, dtype=bool) for i in range(batch_size)]], cycle=True
+    )
     true_branch, false_branch = fn._conditional.split(input, predicate=pred)
     false_changed = fn.reinterpret(false_branch, dtype=dtype, layout=layout, shape=shape)
     return fn._conditional.merge(true_branch, false_changed, predicate=pred)
@@ -130,20 +131,23 @@ def run_conditional_split_merge_reinterpret(dtype, layout, shape):
         "batch_size": bs,
         "num_threads": 4,
         "device_id": 0,
-        "prefetch_queue_depth": 1  # so that it's easier to use external source
+        "prefetch_queue_depth": 1,  # so that it's easier to use external source
     }
     pipe = conditional_split_merge_reinterpret_pipe(dtype, layout, shape, **kwargs)
-    pipe.build()
     pipe.run()
 
 
-@params((types.UINT32, None, None, "types*"),
-        (None, "HWC", None, "layouts*"),
-        (None, None, [10, -1], "sample dimensions*"))
+@params(
+    (types.UINT32, None, None, "types*"),
+    (None, "HWC", None, "layouts*"),
+    (None, None, [10, -1], "sample dimensions*"),
+)
 def test_fail_conditional_split_merge(dtype, layout, shape, err_glob):
-    base = ("Divergent data found in different branches of conditional operation. All paths in "
-            "conditional operation are merged into one batch which must have consistent type, "
-            "number of dimensions, layout and other metadata. Found distinct ")
+    base = (
+        "Divergent data found in different branches of conditional operation. All paths in "
+        "conditional operation are merged into one batch which must have consistent type, "
+        "number of dimensions, layout and other metadata. Found distinct "
+    )
 
     with assert_raises(RuntimeError, glob=base + err_glob):
         run_conditional_split_merge_reinterpret(dtype, layout, shape)

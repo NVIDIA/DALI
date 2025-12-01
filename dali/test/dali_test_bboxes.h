@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #ifndef DALI_TEST_DALI_TEST_BBOXES_H_
 #define DALI_TEST_DALI_TEST_BBOXES_H_
 
@@ -39,18 +39,17 @@ class GenericBBoxesTest : public DALISingleOpTest<ImgType> {
     if (descr.opAddImgType) spec = spec.AddArg("image_type", this->ImageType());
 
     this->AddOperatorWithOutput(this->AddArguments(&spec, descr.args)
-                                    .AddInput("boxes", "cpu")
-                                    .AddInput("labels", "cpu")
-                                    .AddOutput("output", "cpu")
-                                    .AddOutput("output1", "cpu")
-                                    .AddOutput("output2", "cpu")
-                                    .AddOutput("output3", "cpu"));
+                                    .AddInput("boxes", StorageDevice::CPU)
+                                    .AddInput("labels", StorageDevice::CPU)
+                                    .AddOutput("output", StorageDevice::CPU)
+                                    .AddOutput("output1", StorageDevice::CPU)
+                                    .AddOutput("output2", StorageDevice::CPU)
+                                    .AddOutput("output3", StorageDevice::CPU));
 
     this->SetTestCheckType(this->GetTestCheckType());
     pipe->Build(DALISingleOpTest<ImgType>::outputs_);
     this->FillExternalInputs();
-    pipe->RunCPU();
-    pipe->RunGPU();
+    pipe->Run();
 
     Workspace ws;
     pipe->Outputs(&ws);
@@ -71,26 +70,25 @@ class GenericBBoxesTest : public DALISingleOpTest<ImgType> {
                           .AddArg("device", "cpu")
                           .AddArg("image_type", this->ImageType())
                           .AddArg("bytes_per_sample_hint", vector<int>{ 8, 8, 256, 128 })
-                          .AddInput("boxes", "cpu")
-                          .AddInput("labels", "cpu")
-                          .AddOutput("begin", "cpu")
-                          .AddOutput("crop", "cpu")
-                          .AddOutput("resized_boxes", "cpu")
-                          .AddOutput("filtered_labels", "cpu"));
+                          .AddInput("boxes", StorageDevice::CPU)
+                          .AddInput("labels", StorageDevice::CPU)
+                          .AddOutput("begin", StorageDevice::CPU)
+                          .AddOutput("crop", StorageDevice::CPU)
+                          .AddOutput("resized_boxes", StorageDevice::CPU)
+                          .AddOutput("filtered_labels", StorageDevice::CPU));
 
     // GPU slice
     pipe->AddOperator(OpSpec("Slice")
                           .AddArg("device", "gpu")
-                          .AddInput("images", "gpu")
-                          .AddInput("begin", "cpu")
-                          .AddInput("crop", "cpu")
-                          .AddOutput("cropped_images", "gpu"));
+                          .AddInput("images", StorageDevice::GPU)
+                          .AddInput("begin", StorageDevice::CPU)
+                          .AddInput("crop", StorageDevice::CPU)
+                          .AddOutput("cropped_images", StorageDevice::GPU));
 
     this->SetTestCheckType(this->GetTestCheckType());
     pipe->Build({{"cropped_images", "gpu"}, {"resized_boxes", "gpu"}});
     this->FillExternalInputs();
-    pipe->RunCPU();
-    pipe->RunGPU();
+    pipe->Run();
 
     Workspace ws;
     pipe->Outputs(&ws);
@@ -118,26 +116,25 @@ class GenericBBoxesTest : public DALISingleOpTest<ImgType> {
     pipe->AddOperator(OpSpec("RandomBBoxCrop")
                           .AddArg("device", "cpu")
                           .AddArg("image_type", this->ImageType())
-                          .AddInput("boxes", "cpu")
-                          .AddInput("labels", "cpu")
-                          .AddOutput("begin", "cpu")
-                          .AddOutput("crop", "cpu")
-                          .AddOutput("resized_boxes", "cpu")
-                          .AddOutput("filtered_labels", "cpu"));
+                          .AddInput("boxes", StorageDevice::CPU)
+                          .AddInput("labels", StorageDevice::CPU)
+                          .AddOutput("begin", StorageDevice::CPU)
+                          .AddOutput("crop", StorageDevice::CPU)
+                          .AddOutput("resized_boxes", StorageDevice::CPU)
+                          .AddOutput("filtered_labels", StorageDevice::CPU));
 
     // GPU slice
     pipe->AddOperator(OpSpec("Slice")
                           .AddArg("device", "cpu")
-                          .AddInput("images", "cpu")
-                          .AddInput("begin", "cpu")
-                          .AddInput("crop", "cpu")
-                          .AddOutput("cropped_images", "cpu"));
+                          .AddInput("images", StorageDevice::CPU)
+                          .AddInput("begin", StorageDevice::CPU)
+                          .AddInput("crop", StorageDevice::CPU)
+                          .AddOutput("cropped_images", StorageDevice::CPU));
 
     this->SetTestCheckType(this->GetTestCheckType());
     pipe->Build({{"cropped_images", "cpu"}, {"resized_boxes", "cpu"}});
     this->FillExternalInputs();
-    pipe->RunCPU();
-    pipe->RunGPU();
+    pipe->Run();
 
     Workspace ws;
     pipe->Outputs(&ws);

@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -34,6 +34,18 @@ class ExternalSource : public InputOperator<Backend> {
   using Operator<Backend>::spec_;
 
  public:
+  void SaveState(OpCheckpoint &cpt, AccessOrder order) override {}
+
+  void RestoreState(const OpCheckpoint &cpt) override {}
+
+  std::string SerializeCheckpoint(const OpCheckpoint &cpt) const override { return {}; }
+
+  void DeserializeCheckpoint(OpCheckpoint &cpt, const std::string &data) const override {
+    DALI_ENFORCE(data.empty(),
+                 "Provided checkpoint contains non-empty data for a stateless operator. "
+                 "The checkpoint might come from another pipeline. ");
+  }
+
   explicit ExternalSource(const OpSpec &spec)
       : InputOperator<Backend>(spec),
         repeats_last_(spec.GetArgument<bool>("repeat_last")),
@@ -51,10 +63,6 @@ class ExternalSource : public InputOperator<Backend> {
   }
 
   virtual ~ExternalSource() = default;
-
-  inline string name() const override {
-    return "ExternalSource (" + output_name_ + ")";
-  }
 
   const TensorLayout& in_layout() const override {
     return layout_;
@@ -102,9 +110,7 @@ class ExternalSource : public InputOperator<Backend> {
   }
 
 
-  bool CanInferOutputs() const override {
-    // shape inference during setup is disabled because it can be calculated during the runtime
-    // depending on the input and output
+  bool HasContiguousOutputs() const override {
     return false;
   }
 
@@ -157,16 +163,23 @@ class ExternalSource : public InputOperator<Backend> {
     ndim_ = input_ndim;
 
     if (spec_.HasArgument("layout")) {
-      DALI_ENFORCE(layout_ == batch.GetLayout(),
-                   make_string("Expected data with layout: \"", layout_,
+      if (batch.GetLayout().empty()) {
+        layout_ = spec_.template GetArgument<TensorLayout>("layout");
+      } else {
+        DALI_ENFORCE(layout_ == batch.GetLayout(),
+                     make_string("Expected data with layout: \"", layout_,
                      "\" and got: \"", batch.GetLayout(), "\"."));
-    } else if (!layout_.empty()) {
-      DALI_ENFORCE(layout_ == batch.GetLayout(),
-                   make_string("Layout of the data fed to the external source has changed "
-                     "from previous iteration. Layout in the previous iteration was \"", layout_,
-                     "\" and the current is \"", batch.GetLayout(), "\"."));
+      }
+    } else {
+        if (layout_.empty()) {
+          layout_ = batch.GetLayout();
+        } else  {
+          DALI_ENFORCE(layout_ == batch.GetLayout(),
+                        make_string("Layout of the data fed to the external source has changed "
+                          "from previous iteration. Layout in the previous iteration was \"",
+                          layout_, "\" and the current is \"", batch.GetLayout(), "\"."));
+        }
     }
-    layout_ = batch.GetLayout();
   }
 
   const bool repeats_last_;

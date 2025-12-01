@@ -14,8 +14,8 @@ instantiate operators and will describe the element-wise operations on tensors::
 
     @pipeline_def
     def my_pipeline():
-        """Create a pipeline which reads and decodes the images, scales channels by broadcasting
-        and clamps the result to [128, 255) range."""
+        """Create a pipeline which reads and decodes the images, scales channels by
+        broadcasting and clamps the result to [128, 255) range."""
         img_files, _ = fn.readers.file(file_root="image_dir")
         images = fn.decoders.image(img_files, device="mixed")
         red_highlight = images * nvidia.dali.types.Constant(np.float32([1.25, 0.75, 0.75]))
@@ -37,8 +37,10 @@ For details and examples see :doc:`expressions tutorials <examples/general/expre
     from that tensor's library may be picked up and the result might be undefined. Using the line
     from the previous example, the first two variants are equivalent, while the third will be wrong::
       # Correct approach:
-      red_highlight_0 = images * nvidia.dali.types.Constant(np.float32([1.25, 0.75, 0.75]))
-      red_highlight_1 = nvidia.dali.types.Constant(np.float32([1.25, 0.75, 0.75])) * images
+      red_highlight_0 = images *
+                        nvidia.dali.types.Constant(np.float32([1.25, 0.75, 0.75]))
+      red_highlight_1 = nvidia.dali.types.Constant(np.float32([1.25, 0.75, 0.75])) *
+                        images
       # Wrong approach:
       # red_highlight_2 = np.float32([1.25, 0.75, 0.75]) * images
 

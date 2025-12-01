@@ -17,7 +17,7 @@ To use one of the policies define the pipeline using the
 :py:func:`@pipeline_def <nvidia.dali.pipeline_def>` decorator and set ``enable_conditionals``
 to ``True``. Next, call the automatic augmentation function inside the pipeline. This example
 applies the :ref:`AutoAugment` policy tuned for ImageNet::
-    from nvidia.dali import pipeline_def
+    from nvidia.dali import pipeline_def, fn, types
     from nvidia.dali.auto_aug import auto_augment
 
 
@@ -36,6 +36,18 @@ applies the :ref:`AutoAugment` policy tuned for ImageNet::
         return resized_images, labels
 
 :ref:`RandAugment` and :ref:`TrivialAugment` policies can be applied in similar fashion.
+
+
+.. note::
+    To see a full example of using automatic augmentations for training, see the
+    :ref:`EfficientNet for PyTorch with DALI and AutoAugment <efficientnet_autoaugment>` example.
+
+.. note::
+    You can also read more about Automatic Augmentation in the blogpost:
+    `Why Automatic Augmentation Matters <https://developer.nvidia.com/blog/why-automatic-augmentation-matters/>`_.
+
+    It covers the importance of Automatic Augmentations, explains the usage and possible customization,
+    and shows how DALI can improve performance as compared to other implementations.
 
 .. currentmodule:: nvidia.dali.auto_aug
 
@@ -67,6 +79,3 @@ The automatic augmentation library is built around several concepts:
 
 To learn more about building or applying policies check the documentation for specific automatic
 augmentation scheme: :ref:`AutoAugment`, :ref:`RandAugment`, or :ref:`TrivialAugment`.
-
-To see an example of using automatic augmentations for training, see the
-:ref:`EfficientNet for PyTorch with DALI and AutoAugment <efficientnet_autoaugment>` example.

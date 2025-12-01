@@ -17,10 +17,10 @@
 #include <complex>
 #include <tuple>
 #include <vector>
+#include <iomanip>
 
 #include "dali/kernels/common/utils.h"
 #include "dali/kernels/erase/erase_gpu.h"
-#include "dali/kernels/scratch.h"
 #include "dali/kernels/dynamic_scratchpad.h"
 #include "dali/pipeline/data/tensor_list.h"
 #include "dali/test/tensor_test_utils.h"
@@ -202,7 +202,7 @@ struct EraseGpuKernelTest :
     EraseGpu<T, ndim, channel_dim> kernel;
     KernelContext ctx;
     ctx.gpu.stream = 0;
-    DynamicScratchpad dyn_scratchpad({}, AccessOrder(ctx.gpu.stream));
+    DynamicScratchpad dyn_scratchpad(AccessOrder(ctx.gpu.stream));
     ctx.scratchpad = &dyn_scratchpad;
 
     CreateRegions();

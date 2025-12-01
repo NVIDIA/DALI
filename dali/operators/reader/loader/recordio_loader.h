@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@
 #include "dali/operators/reader/loader/indexed_file_loader.h"
 #include "dali/core/common.h"
 #include "dali/core/error_handling.h"
+#include "dali/util/uri.h"
 
 namespace dali {
 
@@ -33,17 +34,21 @@ class RecordIOLoader : public IndexedFileLoader {
   }
   ~RecordIOLoader() override {}
 
-  void ReadIndexFile(const std::vector<std::string>& index_uris) override {
+  void ReadIndexFile(const std::vector<std::string>& index_paths) override {
     std::vector<size_t> file_offsets;
     file_offsets.push_back(0);
-    for (std::string& path : uris_) {
-      auto tmp = FileStream::Open(path, read_ahead_, !copy_read_data_);
+    for (std::string& path : paths_) {
+      FileStream::Options opts;
+      opts.read_ahead = read_ahead_;
+      opts.use_mmap = !copy_read_data_;
+      opts.use_odirect = false;
+      auto tmp = FileStream::Open(path, opts);
       file_offsets.push_back(tmp->Size() + file_offsets.back());
       tmp->Close();
     }
-    DALI_ENFORCE(index_uris.size() == 1,
+    DALI_ENFORCE(index_paths.size() == 1,
         "RecordIOReader supports only a single index file");
-    const std::string& path = index_uris[0];
+    const std::string& path = index_paths[0];
     std::ifstream index_file(path);
     DALI_ENFORCE(index_file.good(),
         "Could not open RecordIO index file. Provided path: \"" + path + "\"");
@@ -62,14 +67,14 @@ class RecordIOLoader : public IndexedFileLoader {
       if (temp[i] >= file_offsets[file_offset_index + 1]) {
         ++file_offset_index;
       }
-      int64 size = temp[i + 1] - temp[i];
+      int64_t size = temp[i + 1] - temp[i];
       // skip 0 sized images
       if (size) {
         indices_.emplace_back(temp[i] - file_offsets[file_offset_index],
                               size, file_offset_index);
       }
     }
-    int64 size = file_offsets.back() - temp.back();
+    int64_t size = file_offsets.back() - temp.back();
     // skip 0 sized images
     if (size) {
       indices_.emplace_back(temp.back() - file_offsets[file_offset_index],
@@ -78,17 +83,17 @@ class RecordIOLoader : public IndexedFileLoader {
     index_file.close();
   }
 
-  void ReadSample(Tensor<CPUBackend>& tensor) override {
+  void ReadSample(IndexedFileLoaderSample& sample) override {
     // if we moved to next shard wrap up
     MoveToNextShard(current_index_);
 
-    int64 seek_pos, size;
+    int64_t seek_pos, size;
     size_t file_index;
     std::tie(seek_pos, size, file_index) = indices_[current_index_];
 
     ++current_index_;
 
-    std::string image_key = uris_[file_index] + " at index " + to_string(seek_pos);
+    std::string image_key = paths_[file_index] + " at index " + to_string(seek_pos);
     DALIMeta meta;
     meta.SetSourceInfo(image_key);
     meta.SetSkipSample(false);
@@ -97,9 +102,9 @@ class RecordIOLoader : public IndexedFileLoader {
     if (ShouldSkipImage(image_key)) {
       meta.SetSkipSample(true);
       should_seek_ = true;
-      tensor.Reset();
-      tensor.SetMeta(meta);
-      tensor.Resize({0}, DALI_UINT8);
+      sample.tensor.Reset();
+      sample.tensor.SetMeta(meta);
+      sample.tensor.Resize({0}, DALI_UINT8);
       return;
     }
 
@@ -109,44 +114,48 @@ class RecordIOLoader : public IndexedFileLoader {
     }
 
     shared_ptr<void> p = nullptr;
-    int64 n_read = 0;
-    bool use_read = copy_read_data_;
+    int64_t n_read = 0;
+    bool use_read = copy_read_data_ || !current_file_->CanMemoryMap();
     if (use_read) {
-      tensor.Resize({size});
+      sample.tensor.Resize({size});
     }
     while (p == nullptr && n_read < size) {
       if (!use_read) {
         p = current_file_->Get(size);
         // file is divided between two files, we need to fallback to read here
         if (p == nullptr) {
-          if (tensor.shares_data()) {
-            tensor.Reset();
+          if (sample.tensor.shares_data()) {
+            sample.tensor.Reset();
           }
-          tensor.Resize({size}, DALI_UINT8);
+          sample.tensor.Resize({size}, DALI_UINT8);
           use_read = true;
         } else {
           n_read = size;
           // Wrap the raw data in the Tensor object.
-          tensor.ShareData(p, size, false, {size}, DALI_UINT8, CPU_ONLY_DEVICE_ID);
+          sample.tensor.ShareData(p, size, false, {size}, DALI_UINT8, CPU_ONLY_DEVICE_ID);
           next_seek_pos_ = seek_pos + size;
         }
       }
       if (use_read) {
-        n_read += current_file_->Read(tensor.mutable_data<uint8_t>() + n_read,
+        n_read += current_file_->Read(sample.tensor.mutable_data<uint8_t>() + n_read,
                                       size - n_read);
         next_seek_pos_ = seek_pos + n_read;
       }
       if (p == nullptr && n_read < size) {
-        DALI_ENFORCE(current_file_index_ + 1 < uris_.size(),
+        DALI_ENFORCE(current_file_index_ + 1 < paths_.size(),
           "Incomplete or corrupted record files");
+        const auto& path = paths_[++current_file_index_];
+        FileStream::Options opts;
+        opts.read_ahead = read_ahead_;
+        opts.use_mmap = !copy_read_data_;
+        opts.use_odirect = false;
         // Release previously opened file
-        current_file_ = FileStream::Open(uris_[++current_file_index_], read_ahead_,
-                                         !copy_read_data_);
+        current_file_ = FileStream::Open(path, opts);
         next_seek_pos_ = 0;
         continue;
       }
     }
-    tensor.SetMeta(meta);
+    sample.tensor.SetMeta(meta);
   }
 };
 

@@ -29,7 +29,7 @@
 #include "dali/kernels/kernel_manager.h"
 #include "dali/operators/image/remap/warp_param_provider.h"
 #include "dali/pipeline/data/views.h"
-#include "dali/pipeline/operator/operator.h"
+#include "dali/pipeline/operator/checkpointing/stateless_operator.h"
 #include "dali/pipeline/operator/sequence_operator.h"
 
 namespace dali {
@@ -223,13 +223,13 @@ struct WarpKernelSelector<CPUBackend, Mapping, spatial_ndim, OutputType, InputTy
 
 
 template <typename Backend, typename Derived>
-class Warp : public SequenceOperator<Backend> {
+class Warp : public SequenceOperator<Backend, StatelessOperator> {
  public:
   using MyType = Derived;
   MyType &This() { return static_cast<MyType&>(*this); }
   const MyType &This() const { return static_cast<const MyType&>(*this); }
-  using SequenceOperator<Backend>::IsExpanding;
-  using SequenceOperator<Backend>::GetInputExpandDesc;
+  using SequenceOperator<Backend, StatelessOperator>::IsExpanding;
+  using SequenceOperator<Backend, StatelessOperator>::GetInputExpandDesc;
 
   const OpSpec &Spec() const { return this->spec_; }
 
@@ -264,7 +264,7 @@ class Warp : public SequenceOperator<Backend> {
 
   /** @} */
  public:
-  explicit Warp(const OpSpec &spec) : SequenceOperator<Backend>(spec) {
+  explicit Warp(const OpSpec &spec) : SequenceOperator<Backend, StatelessOperator>(spec) {
     border_clamp_ = !spec.HasArgument("fill_value");
     spec.TryGetArgument(output_type_arg_, "dtype");
   }
@@ -275,10 +275,6 @@ class Warp : public SequenceOperator<Backend> {
 
   bool BorderClamp() const {
     return border_clamp_;
-  }
-
-  bool CanInferOutputs() const override {
-    return true;
   }
 
   bool SetupImpl(std::vector<OutputDesc> &outputs, const Workspace &ws) override {

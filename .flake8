@@ -2,8 +2,13 @@
 color = auto
 count = True
 doctests = False
-max-doc-length = 120
 max-line-length = 100
 statistics = True
+# E203 - whitespace before ':' - PEP8 non-compliant warning in slicing expressions
+# W503 - Line break occurred before a binary operator, replaced by W504
+extend-ignore = E203,W503
+# W504 - Line break occurred after a binary operator
+extend-select = W504
 # Filter out the AutoGraph from regular linter - it has a separate .flake8.ag config.
-exclude = *nvidia/dali/_autograph/*,*test/python/autograph/*
+# Filter out use_cases directory, with forked 3rd party examples that include DALI modifications
+exclude = *nvidia/dali/_autograph/*,*test/python/autograph/*,*docs/examples/use_cases/*

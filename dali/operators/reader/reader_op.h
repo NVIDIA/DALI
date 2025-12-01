@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@
 #include <atomic>
 #include <condition_variable>
 #include <memory>
+#include <optional>
 #include <string>
 #include <thread>
 #include <utility>
@@ -27,6 +28,9 @@
 #include "dali/core/nvtx.h"
 #include "dali/operators/reader/loader/loader.h"
 #include "dali/operators/reader/parser/parser.h"
+#include "dali/pipeline/operator/checkpointing/snapshot_serializer.h"
+#include "dali/pipeline/operator/checkpointing/op_checkpoint.h"
+#include "dali/pipeline/operator/name_utils.h"
 #include "dali/pipeline/operator/operator.h"
 
 namespace dali {
@@ -46,8 +50,10 @@ namespace dali {
  *                    samples.
  * @tparam ParseTarget Type passed into Parser for parsing, usually it is the same
  *                     as the LoadTarget.
+ * @tparam supports_checkpointing A marker for checkpointing support.
  */
-template <typename Backend, typename LoadTarget, typename ParseTarget = LoadTarget>
+template <typename Backend, typename LoadTarget,
+          typename ParseTarget = LoadTarget, bool supports_checkpointing = false>
 class DataReader : public Operator<Backend> {
  public:
   using LoadTargetPtr = std::shared_ptr<LoadTarget>;
@@ -62,6 +68,10 @@ class DataReader : public Operator<Backend> {
         curr_batch_producer_(0),
         consumer_cycle_(false),
         producer_cycle_(false),
+        checkpointing_(spec.GetArgument<bool>("checkpointing")),
+        loader_snapshot_queue_(SnapshotQueueDepth()),
+        snapshot_consumer_(0),
+        snapshot_producer_(0),
         device_id_(-1),
         samples_processed_(0) {
           if (std::is_same<Backend, GPUBackend>::value) {
@@ -87,13 +97,50 @@ class DataReader : public Operator<Backend> {
     curr_batch.clear();
     curr_batch.reserve(max_batch_size_);
     for (int i = 0; i < max_batch_size_; ++i) {
-      curr_batch.push_back(loader_->ReadOne(i == 0));
+      curr_batch.push_back(loader_->ReadOne(i == 0, i == max_batch_size_ - 1));
     }
+    if (IsCheckpointingEnabled()) {
+      SaveLoaderSnapshot();
+    }
+  }
+
+  void SaveState(OpCheckpoint &cpt, AccessOrder order) override {
+    if constexpr (!supports_checkpointing) {
+      DALI_FAIL("The reader `", GetOpDisplayName(spec_, true), "` does not support checkpointing.");
+    } else {
+      DALI_ENFORCE(checkpointing_,
+                   "Cannot save the checkpoint, because "
+                   "checkpointing was not enabled.");
+      const auto &snapshot = loader_snapshot_queue_[snapshot_consumer_];
+      cpt.MutableCheckpointState() = snapshot;
+    }
+  }
+
+  void RestoreState(const OpCheckpoint &cpt) override {
+    if constexpr (!supports_checkpointing) {
+      DALI_FAIL("The reader `", GetOpDisplayName(spec_, true), "` does not support checkpointing.");
+    } else {
+      DALI_ENFORCE(checkpointing_,
+                   "Cannot restore the checkpoint, because "
+                   "checkpointing was not enabled.");
+      auto &snapshot = cpt.CheckpointState<LoaderStateSnapshot>();
+      loader_->RestoreStateFromSnapshot(snapshot);
+      SetInitialSnapshot();
+    }
+  }
+
+  std::string SerializeCheckpoint(const OpCheckpoint &cpt) const override {
+    const auto &state = cpt.CheckpointState<LoaderStateSnapshot>();
+    return SnapshotSerializer().Serialize(state);
+  }
+
+  void DeserializeCheckpoint(OpCheckpoint &cpt, const std::string &data) const override {
+    cpt.MutableCheckpointState() = SnapshotSerializer().Deserialize<LoaderStateSnapshot>(data);
   }
 
   // Main prefetch work loop
   void PrefetchWorker() {
-    SetThreadName(make_string("PrefetchWorker ", spec_.name()).c_str());
+    SetThreadName(make_string("PrefetchWorker ", spec_.SchemaName()).c_str());
     DeviceGuard g(device_id_);
     ProducerWait();
     while (!finished_) {
@@ -125,6 +172,10 @@ class DataReader : public Operator<Backend> {
       prefetch_thread_.join();
       prefetch_thread_ = {};
     }
+  }
+
+  bool HasContiguousOutputs() const override {
+    return false;
   }
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
@@ -223,6 +274,43 @@ class DataReader : public Operator<Backend> {
   }
 
  protected:
+  int SnapshotQueueDepth() {
+    // we keep the snapshots of loader state after producing each of `prefetch_queue_depth_`
+    // batches + 1 snapshot before that.
+    return supports_checkpointing && checkpointing_ ? prefetch_queue_depth_ + 1 : 0;
+  }
+
+  bool IsCheckpointingEnabled() {
+    return supports_checkpointing && checkpointing_;
+  }
+
+  void AdvanceSnapshotProducer() {
+    if (IsCheckpointingEnabled()) {
+      snapshot_producer_ = (snapshot_producer_ + 1) % SnapshotQueueDepth();
+    }
+  }
+
+  void AdvanceSnapshotConsumer() {
+    if (IsCheckpointingEnabled()) {
+      snapshot_consumer_ = (snapshot_consumer_ + 1) % SnapshotQueueDepth();
+    }
+  }
+
+  void SetInitialSnapshot() {
+    if (IsCheckpointingEnabled()) {
+      DALI_ENFORCE(!prefetch_thread_.joinable(),
+                  "Reader's checkpointing must be initialized before reading any samples");
+      snapshot_producer_ = 0;
+      snapshot_consumer_ = 0;
+      SaveLoaderSnapshot();
+      AdvanceSnapshotProducer();
+    }
+  }
+
+  void SaveLoaderSnapshot() {
+    loader_snapshot_queue_[snapshot_producer_] = loader_->GetStateSnapshot();
+  }
+
   void ParseIfNeeded(const Tensor<CPUBackend>& tensor, SampleWorkspace* ws) {
     using OutputCache = std::unordered_map<std::string, std::vector<Tensor<CPUBackend>>>;
     static OutputCache output_cache;
@@ -288,6 +376,7 @@ class DataReader : public Operator<Backend> {
     {
       std::lock_guard<std::mutex> lock(prefetch_access_mutex_);
       AdvanceIndex(curr_batch_producer_, producer_cycle_);
+      AdvanceSnapshotProducer();
     }
     consumer_.notify_all();
   }
@@ -309,6 +398,7 @@ class DataReader : public Operator<Backend> {
     {
       std::lock_guard<std::mutex> lock(prefetch_access_mutex_);
       AdvanceIndex(curr_batch_consumer_, consumer_cycle_);
+      AdvanceSnapshotConsumer();
     }
     producer_.notify_one();
   }
@@ -348,6 +438,10 @@ class DataReader : public Operator<Backend> {
   int curr_batch_producer_;
   bool consumer_cycle_;
   bool producer_cycle_;
+  bool checkpointing_;
+  std::vector<LoaderStateSnapshot> loader_snapshot_queue_;
+  int snapshot_consumer_;
+  int snapshot_producer_;
   int device_id_;
 
   // keep track of how many samples have been processed over all threads.
@@ -357,7 +451,7 @@ class DataReader : public Operator<Backend> {
   std::exception_ptr prefetch_error_;
 
   // Loader
-  std::unique_ptr<Loader<Backend, LoadTarget>> loader_;
+  std::unique_ptr<Loader<Backend, LoadTarget, supports_checkpointing>> loader_;
 
   // Parser
   std::unique_ptr<Parser<ParseTarget>> parser_;
@@ -373,10 +467,19 @@ class DataReader : public Operator<Backend> {
   using DataReader<Backend, LoadTarget, ParseTarget>::parser_;          \
   using DataReader<Backend, LoadTarget, ParseTarget>::prefetched_batch_queue_;
 
+#define USE_READER_OPERATOR_MEMBERS_3(Backend, LoadTarget, ParseTarget, supports_checkpointing) \
+  using DataReader<Backend, LoadTarget, ParseTarget, supports_checkpointing>::loader_;          \
+  using DataReader<Backend, LoadTarget, ParseTarget, supports_checkpointing>::parser_;          \
+  using DataReader<Backend, LoadTarget, ParseTarget,                                            \
+                   supports_checkpointing>::prefetched_batch_queue_;
+
+#define GET_MACRO3(_1, _2, _3, NAME, ...) NAME
+
 #define USE_READER_OPERATOR_MEMBERS(Backend, ...) \
-  GET_MACRO(__VA_ARGS__,                          \
-            USE_READER_OPERATOR_MEMBERS_2,        \
-            USE_READER_OPERATOR_MEMBERS_1)(Backend, __VA_ARGS__)
+  GET_MACRO3(__VA_ARGS__,                          \
+             USE_READER_OPERATOR_MEMBERS_3,        \
+             USE_READER_OPERATOR_MEMBERS_2,        \
+             USE_READER_OPERATOR_MEMBERS_1)(Backend, __VA_ARGS__)
 
 };  // namespace dali
 

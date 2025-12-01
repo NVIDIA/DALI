@@ -21,6 +21,7 @@
 #include <string>
 #include <vector>
 
+#include "dali/test/dali_test_config.h"
 #include "dali/core/common.h"
 #include "dali/core/tensor_shape.h"
 #include "dali/util/image.h"
@@ -28,7 +29,7 @@
 namespace dali {
 
 // Note: this is setup for the binary to be executed from "build"
-const string image_folder = "/data/dali/benchmark/benchmark_images";  // NOLINT
+static const string image_folder = testing::dali_extra_path() + "db/single/jpeg";  // NOLINT
 
 class DALIBenchmark : public benchmark::Fixture {
  public:
@@ -60,7 +61,7 @@ class DALIBenchmark : public benchmark::Fixture {
     tl->Resize(shape, DALI_UINT8);
 
     for (int i = 0; i < n; ++i) {
-      std::memcpy(tl->template mutable_tensor<uint8>(i),
+      std::memcpy(tl->template mutable_tensor<uint8_t>(i),
           jpegs_.data_[i % nImgs], jpegs_.sizes_[i % nImgs]);
       tl->SetSourceInfo(i, jpeg_names_[i % nImgs] + "_" + std::to_string(i));
     }

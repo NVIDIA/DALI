@@ -20,21 +20,18 @@
 #include "dali/pipeline/operator/arg_helper.h"
 #include "dali/pipeline/data/views.h"
 #include "dali/pipeline/operator/common.h"
+#include "dali/pipeline/operator/checkpointing/stateless_operator.h"
 #include "dali/pipeline/operator/operator.h"
 #include "dali/core/format.h"
 
 namespace dali {
 
 template <typename Backend>
-class JpegCompressionDistortion : public Operator<Backend> {
+class JpegCompressionDistortion : public StatelessOperator<Backend> {
  protected:
   explicit JpegCompressionDistortion(const OpSpec &spec)
-      : Operator<Backend>(spec),
+      : StatelessOperator<Backend>(spec),
         quality_arg_("quality", spec) {
-  }
-
-  bool CanInferOutputs() const override {
-    return true;
   }
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {

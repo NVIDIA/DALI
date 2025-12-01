@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,23 +15,22 @@
 #ifndef DALI_OPERATORS_IMAGE_CROP_CROP_MIRROR_NORMALIZE_H_
 #define DALI_OPERATORS_IMAGE_CROP_CROP_MIRROR_NORMALIZE_H_
 
+#include <any>
 #include <cstring>
 #include <utility>
 #include <vector>
-#include "dali/core/any.h"
 #include "dali/core/common.h"
 #include "dali/core/format.h"
 #include "dali/core/util.h"
 #include "dali/core/error_handling.h"
 #include "dali/core/static_switch.h"
 #include "dali/kernels/kernel_manager.h"
-#include "dali/kernels/scratch.h"
 #include "dali/kernels/slice/slice_flip_normalize_permute_pad_common.h"
 #include "dali/operators/generic/slice/out_of_bounds_policy.h"
 #include "dali/operators/image/crop/crop_attr.h"
 #include "dali/pipeline/operator/arg_helper.h"
 #include "dali/pipeline/operator/common.h"
-#include "dali/pipeline/operator/operator.h"
+#include "dali/pipeline/operator/checkpointing/stateless_operator.h"
 
 #define CMN_IN_TYPES (uint8_t, int16_t, uint16_t, int32_t, float, float16)
 #define CMN_OUT_TYPES (float, float16, uint8_t, int8_t)
@@ -93,10 +92,10 @@ kernels::SliceFlipNormalizePermutePadArgs<Dims> ToSliceFlipNormalizePermutePadAr
 }  // namespace detail
 
 template <typename Backend>
-class CropMirrorNormalize : public Operator<Backend> {
+class CropMirrorNormalize : public StatelessOperator<Backend> {
  public:
   explicit inline CropMirrorNormalize(const OpSpec &spec)
-      : Operator<Backend>(spec),
+      : StatelessOperator<Backend>(spec),
         crop_attr_(spec),
         output_type_(spec.GetArgument<DALIDataType>("dtype")),
         output_layout_(spec.GetArgument<TensorLayout>("output_layout")),
@@ -117,10 +116,6 @@ class CropMirrorNormalize : public Operator<Backend> {
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override;
 
   void RunImpl(Workspace &ws) override;
-
-  bool CanInferOutputs() const override {
-    return true;
-  }
 
   void ProcessNormArgs(int sample_idx) {
     span<const float> mean_arg(mean_arg_[sample_idx].data, mean_arg_[sample_idx].num_elements());
@@ -193,7 +188,7 @@ class CropMirrorNormalize : public Operator<Backend> {
     // We won't change the underlying type after the first allocation
     if (!kernel_sample_args_.has_value())
       kernel_sample_args_ = std::vector<Args>(nsamples);
-    auto &kernel_sample_args = any_cast<std::vector<Args>&>(kernel_sample_args_);
+    auto &kernel_sample_args = std::any_cast<std::vector<Args>&>(kernel_sample_args_);
     kernel_sample_args.clear();
     kernel_sample_args.reserve(nsamples);
     // Set internal info for each sample based on CropAttr
@@ -247,7 +242,7 @@ class CropMirrorNormalize : public Operator<Backend> {
   std::vector<float> mean_vec_, inv_std_vec_;
 
   kernels::KernelManager kmgr_;
-  any kernel_sample_args_;
+  std::any kernel_sample_args_;
 
   USE_OPERATOR_MEMBERS();
 };

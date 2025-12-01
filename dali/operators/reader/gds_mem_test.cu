@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <gtest/gtest.h>
+#include <fcntl.h>
 #include <utility>
 #include <vector>
 #include <thread>
@@ -22,6 +23,9 @@
 #include "dali/core/dev_buffer.h"
 #include "dali/test/device_test.h"
 #include "dali/core/dynlink_cufile.h"
+#if NVML_ENABLED
+#include "dali/util/nvml.h"
+#endif  // NVML_ENABLED
 
 namespace dali {
 namespace gds {
@@ -29,7 +33,23 @@ namespace test {
 
 struct CUFileDriverScope {
   CUFileDriverScope() {
+    // cuFileDriverOpen in some versions of cuFile library, can close stdin
+    // returning 0 file descriptor to the pool, then dali gets it from the OS opening a file
+    // and passing to GDS which cannot handle it properly leading to an error
+    int stdin_backup = dup(STDIN_FILENO);
+    if (stdin_backup == -1) {
+      std::cerr << "dup failed: " << strerror(errno) << "\n";
+    }
     CUDA_CALL(cuFileDriverOpen());
+    if (stdin_backup != -1) {
+      if (fcntl(STDIN_FILENO, F_GETFL) == -1 && errno == EBADF) {
+        // Restore stdin from backup
+        if (dup2(stdin_backup, STDIN_FILENO) == -1) {
+          std::cerr << "dup2 failed: " << strerror(errno) << "\n";
+        }
+      }
+      close(stdin_backup);  // Cleanup backup
+    }
   }
   ~CUFileDriverScope() {
     // Here we're the sole owner of cuFile library - we can (and want to) call cuFileDriverClose
@@ -40,10 +60,42 @@ struct CUFileDriverScope {
   #pragma push_macro("cuFileDriverClose")
   #undef cuFileDriverClose
     if (cuFileIsSymbolAvailable("cuFileDriverClose_v2")) {
+      // cuFileDriverOpen in some versions of cuFile library, can close stdin
+      // returning 0 file descriptor to the pool, then dali gets it from the OS opening a file
+      // and passing to GDS which cannot handle it properly leading to an error
+      int stdin_backup = dup(STDIN_FILENO);
+      if (stdin_backup == -1) {
+        std::cerr << "dup failed: " << strerror(errno) << "\n";
+      }
       CUDA_CALL(cuFileDriverClose_v2());  // termination on exception is expected
+      if (stdin_backup != -1) {
+        if (fcntl(STDIN_FILENO, F_GETFL) == -1 && errno == EBADF) {
+          // Restore stdin from backup
+          if (dup2(stdin_backup, STDIN_FILENO) == -1) {
+            std::cerr << "dup2 failed: " << strerror(errno) << "\n";
+          }
+        }
+        close(stdin_backup);  // Cleanup backup
+      }
     } else {
+      // cuFileDriverOpen is some versions of cuFile library, can close stdin
+      // returning 0 file descriptor to the pool, then dali gets it from the OS opening a file
+      // and passing to GDS which cannot handle it properly leading to an error
+      int stdin_backup = dup(STDIN_FILENO);
+      if (stdin_backup == -1) {
+        std::cerr << "dup failed: " << strerror(errno) << "\n";
+      }
       // we've undefined cuFileDriverClose, so it's no longer redirecting to a versioned symbol
       CUDA_CALL(cuFileDriverClose());  // termination on exception is expected
+      if (stdin_backup != -1) {
+        if (fcntl(STDIN_FILENO, F_GETFL) == -1 && errno == EBADF) {
+          // Restore stdin from backup
+          if (dup2(stdin_backup, STDIN_FILENO) == -1) {
+            std::cerr << "dup2 failed: " << strerror(errno) << "\n";
+          }
+        }
+        close(stdin_backup);  // Cleanup backup
+      }
     }
   #pragma pop_macro("cuFileDriverClose")
 #else
@@ -55,6 +107,19 @@ struct CUFileDriverScope {
 
 template <typename TestBody>
 void SkipIfIncompatible(TestBody &&body) {
+  // skip test for aarch64 and CUDA < 12.2
+#if NVML_ENABLED
+  static const int driverVersion = []() {
+    auto nvml_handle = nvml::NvmlInstance::CreateNvmlInstance();
+    auto ret = nvml::GetCudaDriverVersion();
+    return ret;
+  }();
+#if defined(__aarch64__)
+  if (driverVersion < 12020) {
+    return;
+  }
+#endif  // __aarch64__
+#endif  // NVML_ENABLED
   try {
     body();
   } catch (const CUFileError &e) {

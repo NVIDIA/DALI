@@ -101,8 +101,8 @@ struct NppRemapKernel : public RemapKernel<Backend, T> {
         for (int j = 0; j < mapsx.tensor_shape_span(i).size(); j++) {  // Omit the channel dimension
           DALI_ENFORCE(output.tensor_shape_span(i)[j] == mapsx.tensor_shape_span(i)[j],
                        make_string("Output and maps shapes do not match. Output: ",
-                                   output.template tensor_shape(i), " ; mapsx: ",
-                                   mapsx.template tensor_shape(i), "."));
+                                   output.tensor_shape(i), " ; mapsx: ",
+                                   mapsx.tensor_shape(i), "."));
         }
       }
     } else {
@@ -143,7 +143,7 @@ struct NppRemapKernel : public RemapKernel<Backend, T> {
         for (int j = 0; j < mapx.shape.sample_dim(); j++) {  // Omit the channel dimension
           DALI_ENFORCE(output.tensor_shape_span(i)[j] == mapx.shape[j],
                        make_string("Output and maps shapes do not match. Output: ",
-                                   output.template tensor_shape(i), " ; mapsx: ",
+                                   output.tensor_shape(i), " ; mapsx: ",
                                    mapx.shape, "."));
         }
       }

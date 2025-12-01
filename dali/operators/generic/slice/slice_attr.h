@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -366,7 +366,7 @@ class SliceAttr {
     if (use_named_args_) {
       if (spec.HasArgument("normalized_anchor") || spec.HasArgument("normalized_shape")) {
         DALI_WARN(
-            "Warning: ``normalized_anchor``/``normalized_shape`` is only relevant "
+            "Warning: ``normalized_anchor``/`normalized_shape` is only relevant "
             "when using positional slice arguments");
       }
       DALI_ENFORCE(ws.NumInput() == spec.GetSchema().MinNumInput(),

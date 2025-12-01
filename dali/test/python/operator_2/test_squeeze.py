@@ -1,4 +1,4 @@
-# Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2021-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -32,9 +32,15 @@ def squeeze_pipe(shapes, axes=None, axis_names=None, layout=None):
 
 def _testimpl_squeeze(axes, axis_names, layout, shapes, expected_out_shapes, expected_layout):
     batch_size = len(shapes)
-    pipe = squeeze_pipe(batch_size=batch_size, num_threads=1, device_id=0, shapes=shapes, axes=axes,
-                        axis_names=axis_names, layout=layout)
-    pipe.build()
+    pipe = squeeze_pipe(
+        batch_size=batch_size,
+        num_threads=1,
+        device_id=0,
+        shapes=shapes,
+        axes=axes,
+        axis_names=axis_names,
+        layout=layout,
+    )
     for _ in range(3):
         outs = pipe.run()
         assert outs[0].layout() == expected_layout
@@ -49,23 +55,49 @@ def test_squeeze():
         ([1], None, "XYZ", [(300, 1, 200), (10, 1, 10)], [(300, 200), (10, 10)], "XZ"),
         ([1, 2], None, "XYZ", [(300, 1, 1), (10, 1, 1)], [(300,), (10,)], "X"),
         ([0, 2], None, "XYZ", [(1, 300, 1), (1, 10, 1)], [(300,), (10,)], "Y"),
-        ([0, 2], None, "ABCD", [(1, 1, 1, 1), (1, 1, 1, 1)], [(1, 1,), (1, 1)], "BD"),
+        (
+            [0, 2],
+            None,
+            "ABCD",
+            [(1, 1, 1, 1), (1, 1, 1, 1)],
+            [
+                (
+                    1,
+                    1,
+                ),
+                (1, 1),
+            ],
+            "BD",
+        ),
         (None, "Z", "XYZ", [(300, 1, 1), (10, 1, 1)], [(300, 1), (10, 1)], "XY"),
         (None, "ZY", "XYZ", [(300, 1, 1), (10, 1, 1)], [(300,), (10,)], "X"),
-        ([0], None, "X", [(1)], [()], ""),
+        ([0], None, "X", [(1,)], [()], ""),
         ([1], None, "XYZ", [(100, 0, 0)], [(100, 0)], "XZ"),
         (None, "Z", "XYZ", [(100, 0, 0)], [(100, 0)], "XY"),
         (None, "X", "XYZ", [(100, 0, 0)], [(0, 0)], "YZ"),
     ]
     for axes, axis_names, layout, shapes, expected_out_shapes, expected_layout in args:
-        yield _testimpl_squeeze, axes, axis_names, layout, \
-              shapes, expected_out_shapes, expected_layout
+        yield (
+            _testimpl_squeeze,
+            axes,
+            axis_names,
+            layout,
+            shapes,
+            expected_out_shapes,
+            expected_layout,
+        )
 
 
 def _test_squeeze_throw_error(axes, axis_names, layout, shapes):
-    pipe = squeeze_pipe(batch_size=len(shapes), num_threads=1, device_id=0, shapes=shapes,
-                        axes=axes, axis_names=axis_names, layout=layout)
-    pipe.build()
+    pipe = squeeze_pipe(
+        batch_size=len(shapes),
+        num_threads=1,
+        device_id=0,
+        shapes=shapes,
+        axes=axes,
+        axis_names=axis_names,
+        layout=layout,
+    )
     pipe.run()
 
 
@@ -84,9 +116,10 @@ def test_squeeze_throw_error():
         "Requested a shape with 1 elements but the original shape has 10 elements.",
         "Provided both ``axes`` and ``axis_names`` arguments",
         "Requested a shape with 100 elements but the original shape has 0 elements.",
-        "Specified at least twice same dimension to remove."
+        "Specified at least twice same dimension to remove.",
     ]
     assert len(expected_errors) == len(args_list)
     for (axes, axis_names, layout, shapes), error_msg in zip(args_list, expected_errors):
-        yield raises(RuntimeError, error_msg)(_test_squeeze_throw_error), \
-              axes, axis_names, layout, shapes
+        yield raises(RuntimeError, error_msg)(
+            _test_squeeze_throw_error
+        ), axes, axis_names, layout, shapes

@@ -19,12 +19,12 @@
 #include "dali/kernels/reduce/reduce_all_gpu_impl.cuh"
 #include "dali/kernels/reduce/reduce_all_kernel_gpu.h"
 #include "dali/kernels/reduce/reduce_test.h"
-#include "dali/kernels/scratch.h"
 #include "dali/core/cuda_event.h"
 #include "dali/core/span.h"
 #include "dali/core/util.h"
 #include "dali/test/tensor_test_utils.h"
 #include "dali/test/test_tensors.h"
+#include "dali/kernels/dynamic_scratchpad.h"
 
 namespace dali {
 namespace kernels {
@@ -231,10 +231,8 @@ void ReduceAllGPUTest<Reduction>::TestReduceAllKernel(int min_size, int max_size
 
   auto req = kernel.Setup(ctx, in_view_gpu);
 
-  ScratchpadAllocator sa;
-  sa.Reserve(req.scratch_sizes);
-  auto scratchpad = sa.GetScratchpad();
-  ctx.scratchpad = &scratchpad;
+  DynamicScratchpad dyn_scratchpad(AccessOrder(ctx.gpu.stream));
+  ctx.scratchpad = &dyn_scratchpad;
 
   ASSERT_EQ(req.output_shapes[0], out_shape);
 

@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -34,7 +34,7 @@ DALI_SCHEMA(GaussianBlur)
     .DocStr(R"code(Applies a Gaussian Blur to the input.
 
 Gaussian blur is calculated by applying a convolution with a Gaussian kernel, which can be
-parameterized with ``windows_size`` and ``sigma``.
+parameterized with `windows_size` and `sigma`.
 If only the sigma is specified, the radius of the Gaussian kernel defaults to
 ``ceil(3 * sigma)``, so the kernel window size is ``2 * ceil(3 * sigma) + 1``.
 
@@ -153,7 +153,7 @@ bool GaussianBlur<CPUBackend>::ShouldExpand(const Workspace &ws) {
   const auto& input = ws.Input<CPUBackend>(0);
   auto layout = input.GetLayout();
   dim_desc_ = convolution_utils::ParseAndValidateDim(input.shape().sample_dim(), layout);
-  bool should_expand = SequenceOperator<CPUBackend>::ShouldExpand(ws);
+  bool should_expand = Base::ShouldExpand(ws);
   if (should_expand) {
     assert(dim_desc_.usable_axes_start > 0);
     dim_desc_.total_axes_count -= dim_desc_.usable_axes_start;

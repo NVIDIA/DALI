@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -31,10 +31,12 @@ size_t PipelinedExecutorImpl<WorkspacePolicy, QueuePolicy>::CalcIterationDataSiz
          this->queue_sizes_.gpu_size /* mixed_queue_size */ + 1;
 }
 
+int SeparatedPipelinedExecutor::InputFeedCount(std::string_view op_name) {
+  (void)graph_->Node(op_name);
+  return queue_sizes_.cpu_size + queue_sizes_.gpu_size;
+}
 
 template
 class DLL_PUBLIC PipelinedExecutorImpl<AOT_WS_Policy<UniformQueuePolicy>, UniformQueuePolicy>;
-template
-class DLL_PUBLIC PipelinedExecutorImpl<AOT_WS_Policy<SeparateQueuePolicy>, SeparateQueuePolicy>;
 
 }  // namespace dali

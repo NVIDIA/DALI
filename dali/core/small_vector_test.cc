@@ -49,7 +49,7 @@ struct TestObj {
   }
   TestObj &operator=(const TestObj &other) {
     value = other.value;
-    if (other.zombie && !other.zombie)
+    if (other.zombie && !zombie)
       zombies++;
     if (zombie && !other.zombie)
       zombies--;

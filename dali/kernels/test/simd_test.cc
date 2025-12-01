@@ -47,7 +47,7 @@ void TestConvertStore(i128x<nvec> vec) {
 
 template <typename In, int nvec = sizeof(float)/sizeof(In)>
 void TestConvertLoad(In lo, In hi) {
-  int lanes = 16 / sizeof(In);
+  constexpr int lanes = 16 / sizeof(In);
   In in[lanes];  // NOLINT
   // promote to int64_t computation to avoid integer overflow
   for (int64_t i = 0; i < lanes; i++) {

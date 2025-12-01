@@ -1,4 +1,4 @@
-// Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,12 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <nvcomp/lz4.h>
-
 #include <memory>
 #include <string>
 #include <vector>
 
+#include "dali/core/dynlink_nvcomp.h"
 #include "dali/core/backend_tags.h"
 #include "dali/core/common.h"
 #include "dali/core/static_switch.h"
@@ -31,84 +30,6 @@
 #include "dali/pipeline/operator/operator.h"
 
 namespace dali {
-
-namespace inflate {
-
-class NvCompError : public std::runtime_error {
- public:
-  explicit NvCompError(nvcompStatus_t  result, const char *details = nullptr)
-  : std::runtime_error(Message(result, details))
-  , result_(result) {}
-
-  static const char *ErrorString(nvcompStatus_t result) {
-    switch (result) {
-      case nvcompSuccess:
-        return "The API call has finished successfully. Note that many of the calls are "
-               "asynchronous and some of the errors may be seen only after synchronization.";
-      case nvcompErrorInvalidValue:
-        return "Invalid value provided to the API.";
-      case nvcompErrorNotSupported:
-        return "Operation not supported.";
-      case nvcompErrorCannotDecompress:
-        return "Cannot decompress provided input.";
-      case nvcompErrorBadChecksum:
-        return "Wrong checksum of the provided data.";
-      case nvcompErrorCannotVerifyChecksums:
-        return "Cannot verify checksum of the provided data.";
-      case nvcompErrorOutputBufferTooSmall:
-        return "Provided output buffer is too small.";
-      case nvcompErrorWrongHeaderLength:
-        return "Wrong header length of the provided data.";
-      case nvcompErrorAlignment:
-        return "Wrong alignment of the provided data.";
-      case nvcompErrorChunkSizeTooLarge:
-        return "Chunk size of the decoded data is too large.";
-      case nvcompErrorCudaError:
-        return "Unknown CUDA error.";
-      case nvcompErrorInternal:
-        return "Unknown nvCOMP error.";
-      default:
-        return "< unknown error >";
-    }
-  }
-
-  static std::string Message(nvcompStatus_t result, const char *details) {
-    if (details && *details) {
-      return make_string("nvComp error (", result, "): ", ErrorString(result),
-                         "\nDetails:\n", details);
-    } else {
-      return make_string("nvComp error (", result, "): ", ErrorString(result));
-    }
-  }
-
-  nvcompStatus_t result() const { return result_; }
-
- private:
-  nvcompStatus_t result_;
-};
-
-}  // namespace inflate
-
-
-template <>
-inline void cudaResultCheck<nvcompStatus_t>(nvcompStatus_t status) {
-  switch (status) {
-  case nvcompSuccess:
-    return;
-  default:
-    throw inflate::NvCompError(status);
-  }
-}
-
-template <>
-inline void cudaResultCheck<nvcompStatus_t>(nvcompStatus_t status, const string &extra) {
-  switch (status) {
-  case nvcompSuccess:
-    return;
-  default:
-    throw inflate::NvCompError(status, extra.c_str());
-  }
-}
 
 namespace inflate {
 
@@ -130,20 +51,22 @@ class InflateOpGpuLZ4Impl : public InflateOpImplBase<GPUBackend> {
     SetupOutChunks(output);
     auto stream = ws.stream();
 
-    kernels::DynamicScratchpad scratchpad({}, stream);
+    kernels::DynamicScratchpad scratchpad(stream);
     size_t *actual_out_sizes = scratchpad.AllocateGPU<size_t>(total_chunks_num);
 
     auto [in_sizes, in, out_sizes, out] = scratchpad.ToContiguousGPU(
         stream, params_.GetInChunkSizes(), input_ptrs_, inflated_sizes_, inflated_ptrs_);
 
     size_t tempSize;
-    CUDA_CALL(nvcompBatchedLZ4DecompressGetTempSize(total_chunks_num, params_.GetMaxOutChunkVol(),
-                                                     &tempSize));
+    CUDA_CALL(nvcompBatchedLZ4DecompressGetTempSizeAsync(total_chunks_num,
+                                                         params_.GetMaxOutChunkVol(),
+                                                         {}, &tempSize, params_.GetMaxOutVol()));
 
     void *temp = scratchpad.AllocateGPU<uint8_t>(tempSize);
+    nvcompStatus_t *device_statuses = scratchpad.AllocateGPU<nvcompStatus_t>(total_chunks_num);
     CUDA_CALL(nvcompBatchedLZ4DecompressAsync(in, in_sizes, out_sizes, actual_out_sizes,
-                                               total_chunks_num, temp, tempSize, out, nullptr,
-                                               stream));
+                                               total_chunks_num, temp, tempSize, out, {},
+                                               device_statuses, stream));
 
     // nvCOMP uses ``out_sizes`` to avoid OOB accesses if the actual data size after the compression
     // is greater than what follows from the shapes reported by the user.

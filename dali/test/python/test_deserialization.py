@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -39,10 +39,11 @@ def check_deserialization(batch_size, num_threads, shape):
 def check_deserialization_with_params(batch_size, num_threads, shape):
     init_pipe = TestPipeline(batch_size=batch_size, num_threads=num_threads, shape=shape)
     serialized = init_pipe.serialize()
-    ref_pipe = TestPipeline(batch_size=batch_size ** 2, num_threads=num_threads + 1, shape=shape)
-    test_pipe = Pipeline.deserialize(serialized, batch_size=batch_size ** 2,
-                                     num_threads=num_threads + 1)
-    test_utils.compare_pipelines(ref_pipe, test_pipe, batch_size=batch_size ** 2, N_iterations=3)
+    ref_pipe = TestPipeline(batch_size=batch_size**2, num_threads=num_threads + 1, shape=shape)
+    test_pipe = Pipeline.deserialize(
+        serialized, batch_size=batch_size**2, num_threads=num_threads + 1
+    )
+    test_utils.compare_pipelines(ref_pipe, test_pipe, batch_size=batch_size**2, N_iterations=3)
 
 
 def check_deserialization_from_file(batch_size, num_threads, shape):
@@ -57,10 +58,11 @@ def check_deserialization_from_file_with_params(batch_size, num_threads, shape):
     filename = "/tmp/dali.serialize.pipeline.test"
     init_pipe = TestPipeline(batch_size=batch_size, num_threads=num_threads, shape=shape)
     init_pipe.serialize(filename=filename)
-    ref_pipe = TestPipeline(batch_size=batch_size ** 2, num_threads=num_threads + 1, shape=shape)
-    test_pipe = Pipeline.deserialize(filename=filename, batch_size=batch_size ** 2,
-                                     num_threads=num_threads + 1)
-    test_utils.compare_pipelines(ref_pipe, test_pipe, batch_size=batch_size ** 2, N_iterations=3)
+    ref_pipe = TestPipeline(batch_size=batch_size**2, num_threads=num_threads + 1, shape=shape)
+    test_pipe = Pipeline.deserialize(
+        filename=filename, batch_size=batch_size**2, num_threads=num_threads + 1
+    )
+    test_utils.compare_pipelines(ref_pipe, test_pipe, batch_size=batch_size**2, N_iterations=3)
 
 
 def test_deserialization():
@@ -103,8 +105,13 @@ def test_deserialization_from_file_with_params():
                 yield check_deserialization_with_params, bs, nt, sh
 
 
-@raises(ValueError,
-        "serialized_pipeline and filename arguments are mutually exclusive. Precisely one of them should be defined.")  # noqa: E501
+@raises(
+    ValueError,
+    (
+        "serialized_pipeline and filename arguments are mutually exclusive. "
+        "Precisely one of them should be defined."
+    ),
+)
 def test_incorrect_invocation_mutually_exclusive_params():
     filename = "/tmp/dali.serialize.pipeline.test"
     pipe = TestPipeline(batch_size=3, num_threads=1, shape=[666])
@@ -112,7 +119,12 @@ def test_incorrect_invocation_mutually_exclusive_params():
     Pipeline.deserialize(serialized_pipeline=serialized, filename=filename)
 
 
-@raises(ValueError,
-        "serialized_pipeline and filename arguments are mutually exclusive. Precisely one of them should be defined.")  # noqa: E501
+@raises(
+    ValueError,
+    (
+        "serialized_pipeline and filename arguments are mutually exclusive. "
+        "Precisely one of them should be defined."
+    ),
+)
 def test_incorrect_invocation_no_params():
     Pipeline.deserialize()

@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -22,6 +22,18 @@
 #include <vector>
 #include "dali/core/util.h"
 #include "dali/core/cuda_utils.h"
+
+#pragma GCC diagnostic push
+#if __GNUC__ > 11
+  // most recent gcc seems to be confused by some things in small vector raising false warnings
+  #if defined(__has_warning)
+    #if __has_warning("-Wuse-after-free")
+      #pragma GCC diagnostic ignored "-Wuse-after-free"
+    #endif
+  #else
+    #pragma GCC diagnostic ignored "-Wuse-after-free"
+  #endif
+#endif
 
 namespace dali {
 
@@ -70,7 +82,7 @@ struct SmallVectorAlloc<T, device_side_allocator<T>, true> {
 };
 
 
-template <typename T, bool is_pod = std::is_pod<T>::value>
+template <typename T, bool is_pod = is_pod_v<T>>
 class SmallVectorBase {
  protected:
   DALI_NO_EXEC_CHECK
@@ -251,7 +263,7 @@ class SmallVector : SmallVectorAlloc<T, allocator>, SmallVectorBase<T> {
     clear();
     reserve(count);
     T *ptr = this->data();
-    if (std::is_pod<T>::value) {
+    if (is_pod_v<T>) {
       this->copy(ptr, data, count);
       set_size(count);
     } else {
@@ -292,7 +304,7 @@ class SmallVector : SmallVectorAlloc<T, allocator>, SmallVectorBase<T> {
       clear();
       reserve(v.size());
       T *ptr = data();
-      if (std::is_pod<T>::value) {
+      if (is_pod_v<T>) {
         set_size(v.size());
         for (size_t i = 0; i < size(); i++) {
           ptr[i] = src[i];
@@ -353,7 +365,7 @@ class SmallVector : SmallVectorAlloc<T, allocator>, SmallVectorBase<T> {
       }
       T *src = v.data();
       T *dst = data();
-      if (std::is_pod<T>::value) {
+      if (is_pod_v<T>) {
         this->copy(dst, src, v.size());
         set_size(v.size());
       } else {
@@ -520,7 +532,7 @@ class SmallVector : SmallVectorAlloc<T, allocator>, SmallVectorBase<T> {
       index_type i = -1;
       index_type n = size();
 
-      if (std::is_pod<T>::value) {
+      if (is_pod_v<T>) {
         for (i = 0; i < index; i++)
           new_data[i] = ptr[i];
 
@@ -571,7 +583,7 @@ class SmallVector : SmallVectorAlloc<T, allocator>, SmallVectorBase<T> {
     for (index_type dst = first, src = first + count; src < n; dst++, src++)
       ptr[dst] = cuda_move(ptr[src]);
 
-    if (!std::is_pod<T>::value) {
+    if (!is_pod_v<T>) {
       for (index_type i = n - count; i < n; i++)
         ptr[i].~T();
     }
@@ -652,9 +664,8 @@ class SmallVector : SmallVectorAlloc<T, allocator>, SmallVectorBase<T> {
   template <typename U, size_t n, typename A>
   friend class SmallVector;
 
-  using storage_t = typename std::aligned_storage<sizeof(T) * static_size_, alignof(T)>::type;
   union {
-    storage_t storage;
+    alignas(T) std::byte storage[sizeof(T) * static_size];  // NOLINT(runtime/arrays)
     struct {
       T *data;
       size_t capacity;
@@ -708,10 +719,10 @@ class SmallVector : SmallVectorAlloc<T, allocator>, SmallVectorBase<T> {
   using Alloc::deallocate;
 
   DALI_HOST_DEV inline T *static_data() {
-    return reinterpret_cast<T *>(&storage);
+    return reinterpret_cast<T *>(storage);
   }
   DALI_HOST_DEV inline const T *static_data() const {
-    return reinterpret_cast<const T *>(&storage);
+    return reinterpret_cast<const T *>(storage);
   }
 
   DALI_HOST_DEV inline T *dynamic_data() {
@@ -732,5 +743,7 @@ class SmallVector : SmallVectorAlloc<T, allocator>, SmallVectorBase<T> {
 };
 
 }  // namespace dali
+
+#pragma GCC diagnostic pop
 
 #endif  // DALI_CORE_SMALL_VECTOR_H_

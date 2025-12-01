@@ -9,7 +9,6 @@ doc(title="Use Cases",
         "tensorflow/yolov4/readme.rst",
         "tensorflow/efficientdet/README.rst",
         "paddle/index.py",
-        "mxnet/mxnet-resnet50.ipynb",
         "detection_pipeline.ipynb",
         "webdataset-externalsource.ipynb",
     ])

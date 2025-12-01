@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -63,6 +63,11 @@ class OperatorRegistry {
         names.push_back(schema.name().length() ? schema.name() : pair.first);
     }
     return names;
+  }
+
+  bool IsRegistered(const std::string &name) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return registry_.count(name) > 0;
   }
 
  private:

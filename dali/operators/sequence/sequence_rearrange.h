@@ -23,6 +23,7 @@
 #include "dali/core/tensor_view.h"
 #include "dali/kernels/common/scatter_gather.h"
 #include "dali/pipeline/data/views.h"
+#include "dali/pipeline/operator/checkpointing/stateless_operator.h"
 #include "dali/pipeline/operator/operator.h"
 
 namespace dali {
@@ -47,10 +48,10 @@ copy_desc GetCopyDesc(char* output_sample, const char* input_sample, int out_ele
                       int in_elem_idx, int64_t element_sizeof);
 
 template <typename Backend>
-class SequenceRearrange : public Operator<Backend> {
+class SequenceRearrange : public StatelessOperator<Backend> {
  public:
   inline explicit SequenceRearrange(const OpSpec& spec)
-      : Operator<Backend>(spec), scatter_gather_(kMaxSizePerBlock) {
+      : StatelessOperator<Backend>(spec), scatter_gather_(kMaxSizePerBlock) {
     if (spec.HasArgument("new_order")) {
       new_order_ = spec.GetRepeatedArgument<int>("new_order");
       DALI_ENFORCE(!new_order_.empty(), "Empty result sequences are not allowed.");
@@ -61,10 +62,6 @@ class SequenceRearrange : public Operator<Backend> {
   DISABLE_COPY_MOVE_ASSIGN(SequenceRearrange);
 
  protected:
-  bool CanInferOutputs() const override {
-    return true;
-  }
-
   bool SetupImpl(std::vector<OutputDesc>& output_desc, const Workspace &ws) override {
     const auto& input = ws.Input<Backend>(0);
     const auto& in_shape = input.shape();  // temporary in some cases

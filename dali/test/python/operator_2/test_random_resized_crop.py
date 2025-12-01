@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -42,8 +42,18 @@ def analyze_frame(image, channel_dim):
     return x0, y0, x3, y3, int(np.round(f0))
 
 
-def check_frame(image, frame_index, total_frames, channel_dim, roi, w, h, aspect_ratio_range,
-                area_range, value_range):
+def check_frame(
+    image,
+    frame_index,
+    total_frames,
+    channel_dim,
+    roi,
+    w,
+    h,
+    aspect_ratio_range,
+    area_range,
+    value_range,
+):
     x0, y0, x1, y1, f = analyze_frame(image, channel_dim)
     assert f == frame_index * value_range // total_frames
     out_h, out_w = image.shape[:2] if channel_dim != 0 else image.shape[1:3]
@@ -59,12 +69,16 @@ def check_frame(image, frame_index, total_frames, channel_dim, roi, w, h, aspect
         area_min = roi_w_min * roi_h_min / (w * h)
         area_max = roi_w_max * roi_h_max / (w * h)
 
-        assert ratio_max >= aspect_ratio_range[0] and ratio_min <= aspect_ratio_range[1], \
-            "aspect ratio estimated at {}..{} outside valid range [{} .. {}]".format(
-                ratio_min, ratio_min, *aspect_ratio_range)
-        assert area_max >= area_range[0] and area_min <= area_range[1], \
-            "area estimated at {}..{} outside valiid range [{} .. {}]".format(
-                area_min, area_max, *area_range)
+        assert (
+            ratio_max >= aspect_ratio_range[0] and ratio_min <= aspect_ratio_range[1]
+        ), "aspect ratio estimated at {}..{} outside valid range [{} .. {}]".format(
+            ratio_min, ratio_min, *aspect_ratio_range
+        )
+        assert (
+            area_max >= area_range[0] and area_min <= area_range[1]
+        ), "area estimated at {}..{} outside valiid range [{} .. {}]".format(
+            area_min, area_max, *area_range
+        )
         return x0, y0, x1, y1
     else:
         assert (x0, y0, x1, y1) == roi
@@ -78,18 +92,29 @@ def check_seq(seq, channel_dim, w, h, aspect_ratio_range, area_range, value_rang
     total_frames = seq.shape[frame_dim]
     for f in range(total_frames):
         frame = seq[:, f] if frame_dim == 1 else seq[f]
-        roi = check_frame(frame, f, total_frames, frame_channel_dim, roi, w, h, aspect_ratio_range,
-                          area_range, value_range)
+        roi = check_frame(
+            frame,
+            f,
+            total_frames,
+            frame_channel_dim,
+            roi,
+            w,
+            h,
+            aspect_ratio_range,
+            area_range,
+            value_range,
+        )
 
 
 def check_output(output, channel_dim, input_shape, aspect_ratio_range, area_range, value_range):
     if len(input_shape) == 3:
         h, w = input_shape[1:3] if channel_dim == 0 else input_shape[0:2]
-        check_frame(output, 0, 1, channel_dim, None, w, h, aspect_ratio_range, area_range,
-                    value_range)
+        check_frame(
+            output, 0, 1, channel_dim, None, w, h, aspect_ratio_range, area_range, value_range
+        )
     else:
         hidx = 1 if channel_dim == -1 else 2
-        h, w = input_shape[hidx:hidx + 2]
+        h, w = input_shape[hidx : hidx + 2]
         check_seq(output, channel_dim, w, h, aspect_ratio_range, area_range, value_range)
 
 
@@ -102,7 +127,7 @@ def type_range(type):
 
 def generate_data(frames, width, height, channel_dim, type):
     value_range = type_range(type)
-    no_frames = (frames is None)
+    no_frames = frames is None
     if no_frames:
         frames = 1
     x = (np.arange(0, width) * value_range // width).astype(type)[np.newaxis, np.newaxis, :]
@@ -133,26 +158,32 @@ def generator(batch_size, max_frames, channel_dim, type):
     return generate
 
 
-def _test_rrc(device, max_frames, layout, aspect_ratio_range, area_range, output_size, input_type,
-              output_type):
+def _test_rrc(
+    device, max_frames, layout, aspect_ratio_range, area_range, output_size, input_type, output_type
+):
     batch_size = 4
     pipe = dali.pipeline.Pipeline(batch_size, 4, 0)
-    channel_dim = layout.find('C')
+    channel_dim = layout.find("C")
     value_range = type_range(test_utils.dali_type_to_np(input_type))
     if channel_dim == len(layout) - 1:
         channel_dim = -1
-    input = fn.external_source(source=generator(batch_size, max_frames, channel_dim, input_type),
-                               layout=layout)
-    shape = fn.shapes(input)
+    input = fn.external_source(
+        source=generator(batch_size, max_frames, channel_dim, input_type), layout=layout
+    )
+    shape = input.shape()
     if device == "gpu":
         input = input.gpu()
-    out = fn.random_resized_crop(input, random_aspect_ratio=aspect_ratio_range,
-                                 random_area=area_range, size=output_size,
-                                 interp_type=dali.types.INTERP_LINEAR,
-                                 antialias=False, seed=12321,
-                                 dtype=output_type)
+    out = fn.random_resized_crop(
+        input,
+        random_aspect_ratio=aspect_ratio_range,
+        random_area=area_range,
+        size=output_size,
+        interp_type=dali.types.INTERP_LINEAR,
+        antialias=False,
+        seed=12321,
+        dtype=output_type,
+    )
     pipe.set_outputs(out, shape)
-    pipe.build()
     for iter in range(3):
         outputs, input_shapes = pipe.run()
         if device == "gpu":
@@ -169,15 +200,29 @@ def test_random_resized_crop():
     types = [dali.types.UINT8, dali.types.INT16, dali.types.FLOAT]
     sizes = [(100, 100), (320, 240)]
     for device in ["cpu", "gpu"]:
-        for layout, max_frames in [("FHWC", 8), ("FCHW", 1), ("CFHW", 1),
-                                   ("HWC", None), ("CHW", None)]:
+        for layout, max_frames in [
+            ("FHWC", 8),
+            ("FCHW", 1),
+            ("CFHW", 1),
+            ("HWC", None),
+            ("CHW", None),
+        ]:
             for aspect, area in [
                 ((0.5, 2), (0.1, 0.8)),
                 ((1, 2), (0.4, 1.0)),
-                ((0.5, 1), (0.1, 0.5))
+                ((0.5, 1), (0.1, 0.5)),
             ]:
                 input_type = types[np.random.randint(0, len(types))]
                 output_type = dali.types.FLOAT if np.random.randint(0, 2) else None
                 size = sizes[np.random.randint(0, len(sizes))]
-                yield _test_rrc, device, max_frames, layout, aspect, area, size, \
-                    input_type, output_type
+                yield (
+                    _test_rrc,
+                    device,
+                    max_frames,
+                    layout,
+                    aspect,
+                    area,
+                    size,
+                    input_type,
+                    output_type,
+                )

@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,13 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "dali/operators/reader/loader/numpy_loader_gpu.h"
 #include <dirent.h>
 #include <errno.h>
 #include <memory>
 #include <set>
-
 #include "dali/core/common.h"
-#include "dali/operators/reader/loader/numpy_loader_gpu.h"
+#include "dali/operators/reader/loader/filesystem.h"
 
 namespace dali {
 
@@ -27,23 +27,25 @@ void NumpyLoaderGPU::PrepareEmpty(NumpyFileWrapperGPU& target) {
 }
 
 void NumpyFileWrapperGPU::Reopen() {
-  file_stream = CUFileStream::Open(filename, read_ahead, false);
+  FileStream::Options opts;
+  opts.read_ahead = read_ahead;
+  opts.use_mmap = false;
+  opts.use_odirect = false;
+  file_stream_ = CUFileStream::Open(filename, opts);
 }
 
 void NumpyFileWrapperGPU::ReadHeader(detail::NumpyHeaderCache &cache) {
   numpy::HeaderData header;
   bool ret = cache.GetFromCache(filename, header);
   try {
-    if (ret) {
-      file_stream->SeekRead(header.data_offset);
-    } else {
-      numpy::ParseHeader(header, file_stream.get());
+    if (!ret) {
+      numpy::ParseHeader(header, file_stream_.get());
       cache.UpdateCache(filename, header);
     }
   } catch (const std::runtime_error &e) {
-    DALI_FAIL(e.what() + ". File: " + filename);
+    DALI_FAIL(e.what(), ". File: ", filename);
   }
-
+  file_stream_->SeekRead(header.data_offset);
 
   type = header.type();
   shape = header.shape;
@@ -53,7 +55,7 @@ void NumpyFileWrapperGPU::ReadHeader(detail::NumpyHeaderCache &cache) {
 
 void NumpyFileWrapperGPU::ReadRawChunk(void* buffer, size_t bytes,
                                        Index buffer_offset, Index file_offset) {
-  file_stream->ReadAtGPU(static_cast<uint8_t *>(buffer),
+  file_stream_->ReadAtGPU(static_cast<uint8_t *>(buffer),
                          bytes, buffer_offset, file_offset);
 }
 
@@ -63,7 +65,7 @@ void NumpyLoaderGPU::ReadSample(NumpyFileWrapperGPU& target) {
   DeviceGuard g(device_id_);
 
   // extract image file
-  auto filename = files_[current_index_++];
+  auto filename = file_entries_[current_index_++].filename;
 
   // handle wrap-around
   MoveToNextShard(current_index_);

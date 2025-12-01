@@ -1,4 +1,4 @@
-// Copyright (c) 2021, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2021, 2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -79,7 +79,7 @@ struct disjoint_set {
    * @param x index of an element or a group index of an element
    */
   template <class Container>
-  static inline GroupId find(Container &&items, GroupId x) {
+  static inline GroupId find(Container &items, GroupId x) {
     GroupId x0 = x;
 
     // find the label
@@ -111,9 +111,9 @@ struct disjoint_set {
    *          assigning the lower index to the group with a higher index.
    */
   template <typename Container>
-  static inline GroupId merge(Container &&items, GroupId x, GroupId y) {
-    y = find(std::forward<Container>(items), y);
-    x = find(std::forward<Container>(items), x);
+  static inline GroupId merge(Container &items, GroupId x, GroupId y) {
+    y = find(items, y);
+    x = find(items, x);
     if (x < y) {
       Ops::set_group(items[y], x);
       return x;

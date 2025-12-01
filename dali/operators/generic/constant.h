@@ -17,21 +17,23 @@
 
 #include <vector>
 
+#include "dali/pipeline/operator/checkpointing/stateless_operator.h"
 #include "dali/pipeline/operator/operator.h"
 #include "dali/core/tensor_view.h"
 #include "dali/core/static_switch.h"
 
-#define CONSTANT_OP_SUPPORTED_TYPES \
-  (bool, int8_t, uint8_t, int16_t, uint16_t, int32_t, uint32_t, int64_t, uint64_t, float, float16)
+#define CONSTANT_OP_SUPPORTED_TYPES                                                                \
+  (bool, int8_t, uint8_t, int16_t, uint16_t, int32_t, uint32_t, int64_t, uint64_t, float, float16, \
+  DALIDataType, DALIImageType, DALIInterpType)
 
 namespace dali {
 
 template <typename Backend>
-class Constant : public Operator<Backend> {
+class Constant : public StatelessOperator<Backend> {
  public:
-  using Base = Operator<Backend>;
+  using Base = StatelessOperator<Backend>;
 
-  explicit Constant(const OpSpec &spec) : Operator<Backend>(spec) {
+  explicit Constant(const OpSpec &spec) : StatelessOperator<Backend>(spec) {
     bool has_shape = spec.ArgumentDefined("shape");
     spec.TryGetRepeatedArgument(shape_arg_, "shape");
     if (spec.HasArgument("fdata")) {
@@ -70,9 +72,8 @@ class Constant : public Operator<Backend> {
     }
   }
 
-  bool CanInferOutputs() const override {
-    // Return false, because we specifically don't want the executor to allocate
-    // the storage for the output - even though we can infer the shape.
+  bool HasContiguousOutputs() const override {
+    // The output is not contiguous, because we repeat one sample.
     return false;
   }
 
@@ -85,7 +86,7 @@ class Constant : public Operator<Backend> {
     output_shape_ = max_output_shape_;
     output_shape_.resize(ws.GetRequestedBatchSize(0));
     output_desc[0] = {output_shape_, output_type_};
-    return false;
+    return false;  // do not allocate outputs
   }
 
   void RunImpl(Workspace &ws) override;

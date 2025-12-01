@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-{% set build_version = "2.1.5.1" %}
+{% set build_version = "3.1.12" %}
 
   package:
     name: jpeg-turbo
@@ -20,7 +20,7 @@
 
   source:
     git_url: https://github.com/libjpeg-turbo/libjpeg-turbo
-    git_rev: 2.1.5.1
+    git_rev: {{ build_version }}
 
   build:
     number: 0
@@ -32,6 +32,6 @@
       - {{ compiler('cxx') }}
       - java-openjdk-ppc64le 1.8.0 # [ppc64le]
       - openjdk 8.0.152  # [x86_64]
-      - cmake 3.12.2
+      - cmake 3.25.2
       - make 4.2.1
       - yasm # [x86_64]

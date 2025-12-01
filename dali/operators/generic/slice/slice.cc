@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -22,7 +22,7 @@ DALI_SCHEMA(Slice)
         R"code(Extracts a subtensor, or slice.
 
 .. note::
-    For generic indexing and slicing you can use Python indexing systax.
+    For generic indexing and slicing you can use Python indexing syntax.
     See :ref:`datanode indexing` for details.
 
 The slice can be specified by proving the start and end coordinates, or start coordinates
@@ -30,36 +30,36 @@ and shape of the slice. Both coordinates and shapes can be provided in absolute 
 
 The slice arguments can be specified by the following named arguments:
 
-#. ``start``: Slice start coordinates (absolute)
-#. ``rel_start``: Slice start coordinates (relative)
-#. ``end``: Slice end coordinates (absolute)
-#. ``rel_end``: Slice end coordinates (relative)
-#. ``shape``: Slice shape (absolute)
-#. ``rel_shape``: Slice shape (relative)
+#. `start`: Slice start coordinates (absolute)
+#. `rel_start`: Slice start coordinates (relative)
+#. `end`: Slice end coordinates (absolute)
+#. `rel_end`: Slice end coordinates (relative)
+#. `shape`: Slice shape (absolute)
+#. `rel_shape`: Slice shape (relative)
 
 The slice can be configured by providing start and end coordinates or start and shape.
-Relative and absolute arguments can be mixed (for example, ``rel_start`` can be used with ``shape``)
+Relative and absolute arguments can be mixed (for example, `rel_start` can be used with `shape`)
 as long as start and shape or end are uniquely defined.
 
-Alternatively, two extra positional inputs can be provided, specifying ``anchor`` and ``shape``.
-When using positional inputs, two extra boolean arguments ``normalized_anchor``/``normalized_shape``
+Alternatively, two extra positional inputs can be provided, specifying `__anchor` and `__shape`.
+When using positional inputs, two extra boolean arguments `normalized_anchor`/`normalized_shape`
 can be used to specify the nature of the arguments provided. Using positional inputs for anchor
 and shape is incompatible with the named arguments specified above.
 
 .. note::
-    For GPU backend and positional inputs ``anchor`` and ``shape``, both CPU and GPU data nodes
+    For GPU backend and positional inputs `__anchor` and `__shape`, both CPU and GPU data nodes
     are accepted, though CPU inputs are preferred.
     Providing those arguments as GPU inputs will result in an additional device-to-host copy with
     its associated synchronization point.
-    When possible, provide ``anchor`` and ``shape`` as CPU inputs.
+    When possible, provide `__anchor` and `__shape` as CPU inputs.
 
-The slice arguments should provide as many dimensions as specified by the ``axis_names`` or ``axes``
+The slice arguments should provide as many dimensions as specified by the `axis_names` or `axes`
 arguments.
 
 By default, the :meth:`nvidia.dali.fn.slice` operator uses normalized coordinates and ``WH``
 order for the slice arguments.)code")
     .NumInput(1, 3)
-    .InputDevice(1, 3, InputDevice::CPU)
+    .InputDevice(1, 3, InputDevice::MatchBackendOrCPU)
     .NumOutput(1)
     .InputDox(0, "data", "TensorList", R"code(Batch that contains the input data.)code")
     .InputDox(1, "anchor", "1D TensorList of float or int",
@@ -68,14 +68,14 @@ point of the slice (x0, x1, x2, …).
 
 Integer coordinates are interpreted as absolute coordinates, while float coordinates can be
 interpreted as absolute or relative coordinates, depending on the value of
-``normalized_anchor``.)code")
+`normalized_anchor`.)code")
     .InputDox(2, "shape", "1D TensorList of float or int",
                  R"code((Optional) Input that contains normalized or absolute coordinates for the dimensions
 of the slice (s0, s1, s2, …).
 
 Integer coordinates are interpreted as absolute coordinates, while float coordinates can be
 interpreted as absolute or relative coordinates, depending on the value of
-``normalized_shape``.)code")
+`normalized_shape`.)code")
     .SupportVolumetric()
     .AddOptionalArg<DALIImageType>("image_type", "Image type", nullptr)
     .DeprecateArg("image_type")  // deprecated since 0.24dev

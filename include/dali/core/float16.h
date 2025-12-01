@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -21,9 +21,12 @@
 #include <type_traits>
 #include "dali/core/host_dev.h"
 #include "dali/core/force_inline.h"
+
 #ifndef __CUDA_ARCH__
+#define DALI_CORE_FLOAT16_H_INTERNAL
 #include "dali/util/half.hpp"
-#endif
+#undef DALI_CORE_FLOAT16_H_INTERNAL
+#endif  // __CUDA_ARCH__
 
 namespace dali {
 
@@ -371,12 +374,12 @@ struct is_fp_or_half {
 
 namespace literal {
 DALI_HOST_DEV DALI_FORCEINLINE
-float16 operator "" _hf(long double x) {
+float16 operator ""_hf(long double x) {
   return float16(static_cast<double>(x));
 }
 
 DALI_HOST_DEV DALI_FORCEINLINE
-float16 operator "" _hf(unsigned long long int x) {  // NOLINT(runtime/int)
+float16 operator ""_hf(unsigned long long int x) {  // NOLINT(runtime/int)
   return float16(x);
 }
 
@@ -403,6 +406,17 @@ dali::float16 fma(dali::float16 a, dali::float16 b, dali::float16 c) noexcept {
 inline __device__ dali::float16 __ldg(const dali::float16 *mem) {
 #if defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 350
   return dali::float16(__ldg(reinterpret_cast<const __half *>(mem)));
+#else
+  assert(!"Unreachable code!");
+  return {};
+#endif
+}
+#endif
+
+#if !defined(__CUDA_ARCH__) || __CUDA_ARCH__ >= 350  // this is for clang-only build
+inline __device__ __half2 make_half2(const dali::float16 x, const dali::float16 y) {
+#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 350
+  return make_half2(x.impl, y.impl);
 #else
   assert(!"Unreachable code!");
   return {};

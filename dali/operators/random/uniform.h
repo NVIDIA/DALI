@@ -51,10 +51,6 @@ class Uniform : public Operator<CPUBackend> {
   using Operator<CPUBackend>::RunImpl;
 
  protected:
-  bool CanInferOutputs() const override {
-    return true;
-  }
-
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     output_desc.resize(1);
     auto curr_batch_size = ws.GetRequestedBatchSize(0);

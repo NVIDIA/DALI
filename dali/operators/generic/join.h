@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,10 +15,10 @@
 #ifndef DALI_OPERATORS_GENERIC_JOIN_H_
 #define DALI_OPERATORS_GENERIC_JOIN_H_
 
+#include <any>
 #include <string>
 #include <vector>
-#include "dali/core/any.h"
-#include "dali/pipeline/operator/operator.h"
+#include "dali/pipeline/operator/checkpointing/stateless_operator.h"
 #include "dali/kernels/kernel_manager.h"
 #include "dali/kernels/common/join/tensor_join_cpu.h"
 #include "dali/kernels/common/join/tensor_join_gpu.h"
@@ -26,9 +26,9 @@
 namespace dali {
 
 template <typename Backend, bool new_axis>
-class TensorJoin : public Operator<Backend> {
+class TensorJoin : public StatelessOperator<Backend> {
  public:
-  explicit TensorJoin(const OpSpec &spec) : Operator<Backend>(spec) {
+  explicit TensorJoin(const OpSpec &spec) : StatelessOperator<Backend>(spec) {
     has_axis_ = spec.HasArgument("axis");
     has_axis_name_ = spec.HasArgument("axis_name");
     if (!new_axis) {
@@ -48,9 +48,6 @@ class TensorJoin : public Operator<Backend> {
 
   using Storage = detail::storage_tag_map_t<Backend>;
 
-  using Operator<Backend>::Operator;
-
-  bool CanInferOutputs() const override { return true; }
   void RunImpl(Workspace &ws) override;
   bool SetupImpl(vector<OutputDesc> &outputs, const Workspace &ws) override;
 
@@ -58,10 +55,10 @@ class TensorJoin : public Operator<Backend> {
   template <typename T>
   auto &inputs() {
     using RetType = vector<TensorListView<Storage, const T>>;
-    if (RetType *inp = any_cast<RetType>(&inputs_))
+    if (RetType *inp = std::any_cast<RetType>(&inputs_))
       return *inp;
     inputs_ = RetType();
-    return any_cast<RetType&>(inputs_);
+    return std::any_cast<RetType&>(inputs_);
   }
 
   template <typename T>
@@ -77,7 +74,7 @@ class TensorJoin : public Operator<Backend> {
   void SetupAxis(int ndim);
   void SetOutputLayout(const Workspace &ws);
 
-  any inputs_;
+  std::any inputs_;
   kernels::KernelManager kmgr_;
   int axis_ = -1;
   TensorLayout input_layout_, output_layout_;

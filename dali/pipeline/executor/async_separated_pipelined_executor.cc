@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -30,6 +30,23 @@ void AsyncSeparatedPipelinedExecutor::RunMixed() {
 void AsyncSeparatedPipelinedExecutor::RunGPU() {
   CheckForErrors();
   gpu_thread_.DoWork([this]() { SeparatedPipelinedExecutor::RunGPU(); });
+}
+
+void AsyncSeparatedPipelinedExecutor::Prefetch() {
+  for (int i = 0; i < queue_sizes_.gpu_size; i++) {
+    RunCPU();
+    RunMixed();
+    RunGPU();
+  }
+
+  for (int i = 0; i < queue_sizes_.cpu_size; i++) {
+    RunCPU();
+  }
+}
+
+int AsyncSeparatedPipelinedExecutor::InputFeedCount(std::string_view op_name) {
+  (void)graph_->Node(op_name);
+  return queue_sizes_.cpu_size + queue_sizes_.gpu_size;
 }
 
 }  // namespace dali

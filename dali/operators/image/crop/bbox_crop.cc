@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -110,12 +110,12 @@ boxes will be adjusted or filtered out to match the cropped ROI. The applied ran
 is constrained by the arguments that are provided to the operator.
 
 The cropping window candidates are randomly selected until one matches the overlap restrictions
-that are specified by the ``thresholds`` argument. ``thresholds`` values represent a minimum overlap
-metric that is specified by ``threshold_type``, such as the intersection-over-union of the cropping
+that are specified by the `thresholds` argument. `thresholds` values represent a minimum overlap
+metric that is specified by `threshold_type`, such as the intersection-over-union of the cropping
 window and the bounding boxes or the relative overlap as a ratio of the intersection area and
 the bounding box area.
 
-Additionally, if ``allow_no_crop`` is True, the cropping may be skipped entirely as one of
+Additionally, if `allow_no_crop` is True, the cropping may be skipped entirely as one of
 the valid results of the operator.
 
 The following modes of a random crop are available:
@@ -123,21 +123,21 @@ The following modes of a random crop are available:
 - | Randomly shaped window, which is randomly placed in the original input space.
   | The random crop window dimensions are selected to satisfy the aspect ratio and
     relative area restrictions.
-  | If ``input_shape`` is provided, it will be taken into account for the aspect ratio range check.
+  | If `input_shape` is provided, it will be taken into account for the aspect ratio range check.
   | Otherwise, the aspect ratios are calculated in relative terms.
-  | In other words, without ``input_shape``, an aspect ratio of 1.0 is equivalent to the aspect ratio of the input image.
+  | In other words, without `input_shape`, an aspect ratio of 1.0 is equivalent to the aspect ratio of the input image.
 - | Fixed size window, which is randomly placed in the original input space.
-  | The random crop window dimensions are taken from the ``crop_shape`` argument and the anchor is
+  | The random crop window dimensions are taken from the `crop_shape` argument and the anchor is
   | randomly selected.
-  | When providing ``crop_shape``, ``input_shape`` is also required (these dimensions are required to
+  | When providing `crop_shape`, `input_shape` is also required (these dimensions are required to
   | scale the output bounding boxes).
 
 The num_attempts argument can be used to control the maximum number of attempts to produce
-a valid crop to match a minimum overlap metric value from ``thresholds``.
+a valid crop to match a minimum overlap metric value from `thresholds`.
 
 .. warning::
-  When ``allow_no_crop`` is False and ``thresholds`` does not contain ``0.0``, if
-  you do not increase the ``num_attempts`` value,  it might continue to loop for a long time.
+  When `allow_no_crop` is False and `thresholds` does not contain ``0.0``, if
+  you do not increase the `num_attempts` value,  it might continue to loop for a long time.
 
 **Inputs: 0**: bboxes, (1: labels)
 
@@ -147,10 +147,10 @@ refers to the index of the coordinate.
 
 The coordinates are relative to the original image dimensions
 (that means, a range of ``[0.0, 1.0]``) that represent the start and, depending on the value of
-bbox_layout, the end of the region or start and shape. For example, ``bbox_layout``\="xyXY"
+bbox_layout, the end of the region or start and shape. For example, `bbox_layout`\="xyXY"
 means the bounding box coordinates follow the ``start_x``, ``start_y``, ``end_x``,
-and ``end_y`` order, and ``bbox_layout``\="xyWH" indicates that the order is ``start_x``,
-``start_y``, ``width``, and ``height``. See the ``bbox_layout`` argument description
+and ``end_y`` order, and `bbox_layout`\="xyWH" indicates that the order is ``start_x``,
+``start_y``, ``width``, and ``height``. See the `bbox_layout` argument description
 for more information.
 
 An optional input ``labels`` can be provided, representing the labels that are associated with each of
@@ -158,29 +158,29 @@ the bounding boxes.
 
 **Outputs: 0**: anchor, 1: shape, 2: bboxes (, 3: labels, 4: bboxes_indices)
 
-The resulting crop parameters are provided as two separate outputs, ``anchor`` and ``shape``,
+The resulting crop parameters are provided as two separate outputs, `anchor` and `shape`
 that can be fed directly to the :meth:`nvidia.dali.fn.slice` operator to complete the cropping
-of the original image. ``anchor`` and ``shape`` contain the starting coordinates and dimensions
+of the original image. `anchor` and `shape` contain the starting coordinates and dimensions
 for the crop in the ``[x, y, (z)]`` and ``[w, h, (d)]`` formats, respectively. The coordinates can
 be represented in absolute or relative terms, and the representation depends on whether
-the fixed ``crop_shape`` was used.
+the fixed `crop_shape` was used.
 
 .. note::
-  Both ``anchor`` and ``shape`` are returned as a ``float``, even if they represent absolute
-  coordinates due to providing ``crop_shape`` argument. In order for them to be interpreted
-  correctly by :meth:`nvidia.dali.fn.slice`, ``normalized_anchor`` and ``normalized_shape``
+  Both `anchor` and `shape` are returned as a ``float``, even if they represent absolute
+  coordinates due to providing `crop_shape` argument. In order for them to be interpreted
+  correctly by :meth:`nvidia.dali.fn.slice`, `normalized_anchor` and `normalized_shape`
   should be set to False.
 
 
-The third output contains the bounding boxes, after filtering out the ones with a centroid outside
-of the cropping window, and with the coordinates mapped to the new coordinate space.
+The third output contains the bounding boxes, after filtering them out by centroid or area thresholding
+(see `bbox_prune_threshold` argument), and with the coordinates mapped to the new coordinate space.
 
 The next output is optional, and it represents the labels associated with the filtered bounding boxes.
 The output will be present if a labels input was provided.
 
-The last output, also optional, correspond to the original indices of the bounding boxes that passed the
-centroid filter and are present in the output.
-This output will be present if the option ``output_bbox_indices`` is set to True.
+The last output, also optional, corresponds to the original indices of the bounding boxes that passed the
+aforementioned filtering process and are present in the output.
+This output will be present if the option `output_bbox_indices` is set to True.
 )code")
     .NumInput(1, 2)  // [boxes, labels (optional),]
     .InputDox(
@@ -194,19 +194,21 @@ associated with each of the bounding boxes.)code")
       return spec.NumRegularInput() - 1 +                    // +1 if labels are provided
              spec.GetArgument<bool>("output_bbox_indices");  // +1 if output_bbox_indices=True
     })
+    .AddRandomSeedArg()
+    .AddRandomStateArg()
     .AddOptionalArg(
         "thresholds",
-        R"code(Minimum IoU or a different metric, if specified by ``threshold_type``, of the
+        R"code(Minimum IoU or a different metric, if specified by `threshold_type`, of the
 bounding boxes with respect to the cropping window.
 
-Each sample randomly selects one of the ``thresholds``, and the operator will complete
+Each sample randomly selects one of the `thresholds`, and the operator will complete
 up to the specified number of attempts to produce a random crop window that has
-the selected metric above that threshold. See ``num_attempts`` for more information about
+the selected metric above that threshold. See `num_attempts` for more information about
 configuring the number of attempts.)code",
         std::vector<float>{0.f})
     .AddOptionalArg(
         "threshold_type",
-        R"code(Determines the meaning of ``thresholds``.
+        R"code(Determines the meaning of `thresholds`.
 
 By default, thresholds refers to the intersection-over-union (IoU) of the bounding boxes
 with respect to the cropping window. Alternatively, the threshold can be set to "overlap" to
@@ -233,13 +235,13 @@ The value for ``min`` should be greater than ``0.0``, and min should be less tha
 equal to the ``max`` value.  By default, square windows are generated.
 
 .. note::
-  Providing ``aspect_ratio`` and ``scaling`` is incompatible with explicitly
-  specifying ``crop_shape``.
+  Providing `aspect_ratio` and `scaling` is incompatible with explicitly
+  specifying `crop_shape`.
 
 .. note::
-  If ``input_shape`` is provided, it will be taken into account for the calculation of the cropping
+  If `input_shape` is provided, it will be taken into account for the calculation of the cropping
   window aspect ratio.
-  Otherwise, the aspect ratio ranges are relative to the image dimensions. In other words, when ``input_shape``
+  Otherwise, the aspect ratio ranges are relative to the image dimensions. In other words, when `input_shape`
   is not specified, an aspect ratio of 1.0 is equivalent to the original aspect ratio of the image.
 )code",
                     std::vector<float>{1.f, 1.f})
@@ -250,8 +252,8 @@ equal to the ``max`` value.  By default, square windows are generated.
 The value of ``min`` and ``max`` must satisfy the condition ``0.0 <= min <= max``.
 
 .. note::
-  Providing ``aspect_ratio`` and ``scaling`` is incompatible when explicitly specifying the
-  ``crop_shape`` value.
+  Providing `aspect_ratio` and `scaling` is incompatible when explicitly specifying the
+  `crop_shape` value.
 )code",
         std::vector<float>{1.f, 1.f})
     .AddOptionalArg(
@@ -260,38 +262,38 @@ The value of ``min`` and ``max`` must satisfy the condition ``0.0 <= min <= max`
 otherwise they are provided as ``[left, top, width, height]``.
 
 .. warning::
-  This argument has been deprecated. To specify the bbox encoding, use ``bbox_layout`` instead.
-  For example, ``ltrb=True`` is equal to ``bbox_layout``\="xyXY", and ``ltrb=False`` corresponds
-  to ``bbox_layout``\="xyWH".
+  This argument has been deprecated. To specify the bbox encoding, use `bbox_layout` instead.
+  For example, ``ltrb=True`` is equal to `bbox_layout`\="xyXY", and ``ltrb=False`` corresponds
+  to `bbox_layout`\="xyWH".
 )code",
         true)
     .AddOptionalArg(
         "num_attempts",
-        R"code(Number of attempts to get a crop window that matches the ``aspect_ratio`` and
-a selected value from ``thresholds``.
+        R"code(Number of attempts to get a crop window that matches the `aspect_ratio` and
+a selected value from `thresholds`.
 
-After each ``num_attempts``, a different threshold will be picked, until the threshold reaches
-a maximum of ``total_num_attempts`` (if provided) or otherwise indefinitely.)code",
+After each `num_attempts`, a different threshold will be picked, until the threshold reaches
+a maximum of `total_num_attempts` (if provided) or otherwise indefinitely.)code",
         1)
     .AddOptionalArg(
         "total_num_attempts",
         R"code(If provided, it indicates the total maximum number of attempts to get a crop
-window that matches the ``aspect_ratio`` and any selected value from ``thresholds``.
+window that matches the `aspect_ratio` and any selected value from `thresholds`.
 
-After ``total_num_attempts`` attempts, the best candidate will be selected.
+After `total_num_attempts` attempts, the best candidate will be selected.
 
 If this value is not specified, the crop search will continue indefinitely until a valid
 crop is found.
 
 .. warning::
-  If you do not provide a ``total_num_attempts`` value, this can result in an infinite
+  If you do not provide a `total_num_attempts` value, this can result in an infinite
   loop if the conditions imposed by the arguments cannot be satisfied.
 )code",
         -1)
     .AddOptionalArg(
         "all_boxes_above_threshold",
          R"code(If set to True, all bounding boxes in a sample should overlap with the cropping
-window as specified by ``thresholds``.
+window as specified by `thresholds`.
 
 If the bounding boxes do not overlap, the cropping window is considered to be invalid. If set to
 False, and at least one bounding box overlaps the window, the window is considered to
@@ -300,25 +302,25 @@ be valid.)code",
     .AddOptionalArg(
         "allow_no_crop",
         R"code(If set to True, one of the possible outcomes of the random process will
-be to not crop, as if the outcome was one more ``thresholds`` value from which to choose.)code",
+be to not crop, as if the outcome was one more `thresholds` value from which to choose.)code",
         true)
-    .AddOptionalArg<int>(
+    .AddOptionalArg<std::vector<int>>(
         "crop_shape",
         R"code(If provided, the random crop window dimensions will be fixed to this shape.
 
-The order of dimensions is determined by the layout provided in ``shape_layout``.
+The order of dimensions is determined by the layout provided in `shape_layout`.
 
 .. note::
-  When providing ``crop_shape``, ``input_shape`` should be provided as well. Providing explicit ``crop_shape`` is
-  incompatible with using ``scaling`` and ``aspect_ratio`` arguments.)code",
-        std::vector<int>{}, true)
-    .AddOptionalArg<int>(
+  When providing `crop_shape`, `input_shape` should be provided as well. Providing explicit `crop_shape` is
+  incompatible with using `scaling` and `aspect_ratio` arguments.)code",
+        nullptr, true)
+    .AddOptionalArg<std::vector<int>>(
         "input_shape",
         R"code(Specifies the shape of the original input image.
 
-The order of dimensions is determined by the layout that is provided in ``shape_layout``.
+The order of dimensions is determined by the layout that is provided in `shape_layout`.
 )code",
-        std::vector<int>{}, true)
+        nullptr, true)
     .AddOptionalArg<TensorLayout>(
         "bbox_layout",
         R"code(Determines the meaning of the coordinates of the bounding boxes.
@@ -330,14 +332,14 @@ The value of this argument is a string containing the following characters::
   W (width),                   H (height),                D (depth).
 
 .. note::
-  If this value is left empty, depending on the number of dimensions, "xyXY" or
+  If this value is not specified, depending on the number of dimensions, "xyXY" or
   "xyzXYZ" is assumed.
 )code",
-        TensorLayout{})
+        nullptr)
     .AddOptionalArg<TensorLayout>(
         "shape_layout",
-        R"code(Determines the meaning of the dimensions provided in ``crop_shape`` and
-``input_shape``.
+        R"code(Determines the meaning of the dimensions provided in `crop_shape` and
+`input_shape`.
 
 The values are:
 
@@ -346,15 +348,24 @@ The values are:
 - ``D`` (depth)
 
 .. note::
-  If left empty, depending on the number of dimensions ``"WH"`` or ``"WHD"`` will be assumed.
+  If left unset, depending on the number of dimensions ``"WH"`` or ``"WHD"`` will be assumed.
 )code",
-        TensorLayout{})
+        nullptr)
     .AddOptionalArg<bool>(
         "output_bbox_indices",
         R"code(If set to True, an extra output will be returned, containing
 the original indices of the bounding boxes that passed the centroid filter and are present in
 the output bounding boxes.)code",
-        false);
+        false)
+    .AddOptionalArg<float>("bbox_prune_threshold",
+        R"code(Controls when bboxes are considered outside of the ROI and pruned. If this argument is set, boxes are kept
+if the fraction of their area within the ROI is greater than or equal to the threshold specified
+`[0.0,1.0]`. If this argument is **not** set, boxes are pruned if their centroid is outside of the ROI.
+
+For example, when `bbox_prune_threshold=0.2` bboxes that have at least 20% of their original area within
+the ROI are kept, bboxes less than or equal to are pruned. If `bbox_prune_threshold=0.0`, all boxes that
+have some presence in the ROI are kept.)code",
+        nullptr);
 
 template <int ndim>
 class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
@@ -366,23 +377,29 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
     Overlap = 2
   };
 
+  enum BoxPruneMethod {
+    Centroid,
+    RelativeThresh
+  };
+
   ~RandomBBoxCropImpl() = default;
 
   /**
    * @param spec  Pointer to a persistent OpSpec object,
    *              which is guaranteed to be alive for the entire lifetime of this object
    */
-  explicit RandomBBoxCropImpl(const OpSpec *spec)
+  RandomBBoxCropImpl(const OpSpec *spec, BatchRNG<std::mt19937_64> &rng)
       : spec_(*spec),
         num_attempts_{spec_.GetArgument<int>("num_attempts")},
         has_labels_(spec_.NumRegularInput() > 1),
         has_crop_shape_(spec_.ArgumentDefined("crop_shape")),
         has_input_shape_(spec_.ArgumentDefined("input_shape")),
-        bbox_layout_(spec_.GetArgument<TensorLayout>("bbox_layout")),
-        shape_layout_(spec_.GetArgument<TensorLayout>("shape_layout")),
         all_boxes_above_threshold_(spec_.GetArgument<bool>("all_boxes_above_threshold")),
         output_bbox_indices_(spec_.GetArgument<bool>("output_bbox_indices")),
-        rngs_(spec_.GetArgument<int64_t>("seed"), spec_.GetArgument<int>("max_batch_size")) {
+        rngs_(rng) {
+    has_bbox_layout_ = spec_.TryGetArgument(bbox_layout_, "bbox_layout");
+    has_shape_layout_ = spec_.TryGetArgument(shape_layout_, "shape_layout");
+
     auto scaling_arg = spec_.GetRepeatedArgument<float>("scaling");
     DALI_ENFORCE(scaling_arg.size() == 2,
                  make_string("`scaling` must be a range `[min, max]`. Got ",
@@ -393,6 +410,14 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
         scale_range_.min >= 0 && scale_range_.min <= scale_range_.max,
         make_string("`scaling` range must be positive and min <= max. Got: ", scale_range_.min,
                     ", ", scale_range_.max));
+
+    if (spec_.ArgumentDefined("bbox_prune_threshold")) {
+      box_prune_method_ = BoxPruneMethod::RelativeThresh;
+      bbox_prune_threshold_ = spec_.GetArgument<float>("bbox_prune_threshold");
+      DALI_ENFORCE(0 <= bbox_prune_threshold_ && bbox_prune_threshold_ <= 1.f,
+        make_string("`bbox_prune_threshold` must be in range `[0.0,1.0]`. Got: ",
+                    bbox_prune_threshold_));
+    }
 
     auto aspect_ratio_arg = spec_.GetRepeatedArgument<float>("aspect_ratio");
     DALI_ENFORCE(aspect_ratio_arg.size() == 2 || aspect_ratio_arg.size() == 6,
@@ -479,7 +504,7 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
 
     auto default_bbox_layout_start_end = DefaultBBoxLayout<ndim>();
     auto default_bbox_layout_start_shape = DefaultBBoxAnchorAndShapeLayout<ndim>();
-    if (bbox_layout_.empty()) {
+    if (!has_bbox_layout_) {
       auto ltrb = spec_.GetArgument<bool>("ltrb");
       bbox_layout_ = ltrb ? default_bbox_layout_start_end : default_bbox_layout_start_shape;
     }
@@ -493,8 +518,8 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
     if (has_input_shape_ || has_crop_shape_) {
       // Converting the shapes to "WHD" or "WH" if necessary
       auto default_shape_layout = InternalShapeLayout(ndim);
-      const TensorLayout &layout = shape_layout_.empty() ? default_shape_layout : shape_layout_;
-      if (!shape_layout_.empty() && shape_layout_ != default_shape_layout) {
+      const TensorLayout &layout = has_shape_layout_ ? shape_layout_ : default_shape_layout;
+      if (layout != default_shape_layout) {
         DALI_ENFORCE(shape_layout_.is_permutation_of(default_shape_layout),
                      make_string("`shape_layout` should be a permutation of ", default_shape_layout,
                                  "` for the provided inputs"));
@@ -656,7 +681,9 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
 
     std::array<int, ndim> order;
     std::iota(order.begin(), order.end(), 0);
-    std::random_shuffle(order.begin(), order.end());
+    std::random_device rd;
+    std::mt19937 g(rd());
+    std::shuffle(order.begin(), order.end(), g);
 
     float max_extent = 0.0f;
     for (int d = 0; d < ndim; d++) {
@@ -768,6 +795,13 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
           out_crop = rel_crop;
         }
 
+        if (bounding_boxes.empty()) {
+          // No bounding boxes to consider, just use the first propsed crop
+          crop.crop = out_crop;
+          crop.success = true;
+          continue;
+        }
+
         float min_overlap = 0.0, max_overlap = 0.0;
         std::tie(min_overlap, max_overlap) =
             OverlapMetricRange(rel_crop, make_cspan(bounding_boxes));
@@ -780,8 +814,20 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
 
         crop.crop = out_crop;
         crop.boxes.assign(bounding_boxes.begin(), bounding_boxes.end());
-        crop.bbox_indices.clear();  // indices will be populated by FilterByCentroid
-        FilterByCentroid(rel_crop, crop.boxes, crop.bbox_indices);
+        crop.bbox_indices.clear();  // indices will be populated by FilterBboxes
+        if (box_prune_method_ == BoxPruneMethod::Centroid) {
+          FilterBboxes(crop.boxes, crop.bbox_indices,
+            [&](const Box<ndim, float>& bbox) {
+              return rel_crop.contains(bbox.centroid());
+            });
+        } else {  // box_prune_method_ == BoxPruneMethod::RelativeThresh
+          FilterBboxes(crop.boxes, crop.bbox_indices,
+            [&](const Box<ndim, float>& bbox) {
+              const float intersec = volume(intersection(rel_crop, bbox));
+              return intersec != 0.0f && intersec / volume(bbox) >= bbox_prune_threshold_;
+            });
+        }
+
         for (auto &box : crop.boxes) {
           box = RemapBox(box, rel_crop);
         }
@@ -847,13 +893,15 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
     }
   }
 
-  void FilterByCentroid(const Box<ndim, float> &crop,
-                        std::vector<Box<ndim, float>> &bboxes,
-                        std::vector<int> &indices) {
+  template <class UnaryPredicate>
+  void FilterBboxes(std::vector<Box<ndim, float>>& bboxes,
+                    std::vector<int>& indices,
+                    UnaryPredicate pred) {
     std::vector<Box<ndim, float>> new_bboxes;
+    new_bboxes.reserve(bboxes.size());
     indices.clear();
     for (size_t i = 0; i < bboxes.size(); i++) {
-      if (crop.contains(bboxes[i].centroid())) {
+      if (pred(bboxes[i])) {
         new_bboxes.push_back(bboxes[i]);
         indices.push_back(static_cast<int>(i));
       }
@@ -868,15 +916,19 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
   bool has_labels_;
   bool has_crop_shape_;
   bool has_input_shape_;
+  bool has_bbox_layout_;
+  bool has_shape_layout_;
 
   TensorLayout bbox_layout_;
   TensorLayout shape_layout_;
 
   OverlapMetric overlap_metric_ = OverlapMetric::IoU;
+  BoxPruneMethod box_prune_method_ = BoxPruneMethod::Centroid;
   bool all_boxes_above_threshold_ = true;
   bool output_bbox_indices_ = false;
+  float bbox_prune_threshold_ = 0.0f;
 
-  BatchRNG<std::mt19937> rngs_;
+  BatchRNG<std::mt19937_64> &rngs_;
 
   std::vector<SampleOption> sample_options_;
 
@@ -899,7 +951,7 @@ RandomBBoxCrop<CPUBackend>::~RandomBBoxCrop() = default;
 
 template <>
 RandomBBoxCrop<CPUBackend>::RandomBBoxCrop(const OpSpec &spec)
-    : Operator<CPUBackend>(spec) {}
+    : OperatorWithRng<CPUBackend>(spec) {}
 
 template <>
 bool RandomBBoxCrop<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
@@ -925,7 +977,7 @@ bool RandomBBoxCrop<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
 
   if (impl_ == nullptr || impl_ndim_ != num_dims) {
     VALUE_SWITCH(num_dims, ndim, (2, 3),
-      (impl_ = std::make_unique<RandomBBoxCropImpl<ndim>>(&spec_);),
+      (impl_ = std::make_unique<RandomBBoxCropImpl<ndim>>(&spec_, rng_);),
       (DALI_FAIL(make_string("Not supported number of dimensions", num_dims));));
     impl_ndim_ = num_dims;
   }

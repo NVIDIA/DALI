@@ -4,8 +4,7 @@
  * @section intro Introduction
  * NVIDIA DALI (Data Loading Library) is broken into two mains parts. The first part
  * is a library of base primitives for data loading and augmentation. These are
- * organized in the source tree by what type of data they operate on. We currently
- * only have image primitives, so all of the primitives are located under @ref dali/image/.
+ * organized in the source tree by what type of data they operate on.
  *
  * The second part is a high performance data Pipeline (@ref dali/pipeline). The pipeline 
  * is designed to be quite general and extensible.

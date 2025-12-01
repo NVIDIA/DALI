@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@
 #include "dali/core/common.h"
 #include "dali/core/geom/vec.h"
 #include "dali/pipeline/operator/operator.h"
+#include "dali/pipeline/operator/checkpointing/stateless_operator.h"
 
 /**
  * @brief Provides a framework for doing displacement filter operations
@@ -34,6 +35,8 @@ struct HasParam <T, decltype((void) (typename T::Param()), 0)> : std::true_type 
 
 class DisplacementIdentity {
  public:
+  // helper flag for checkpointing to select proper base class
+  static constexpr bool is_stateless = true;
   explicit DisplacementIdentity(const OpSpec& spec) {}
 
   DALI_HOST_DEV
@@ -46,10 +49,14 @@ class DisplacementIdentity {
   void Cleanup() {}
 };
 
+template <typename Backend, typename Displacement>
+using DisplacementBase =
+    std::conditional_t<Displacement::is_stateless, StatelessOperator<Backend>, Operator<Backend>>;
+
 template <typename Backend,
           class Displacement = DisplacementIdentity,
           bool per_channel_transform = false>
-class DisplacementFilter : public Operator<Backend> {};
+class DisplacementFilter : public DisplacementBase<Backend, Displacement> {};
 
 }  // namespace dali
 

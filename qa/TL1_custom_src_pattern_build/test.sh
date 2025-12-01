@@ -1,5 +1,7 @@
 #!/bin/bash -e
 
+pip_packages='astunparse gast dm-tree black'
+
 build_and_check() {
   make -j
   pip install ./dali/python
@@ -39,16 +41,17 @@ example_2() {
   build_and_check
 }
 
-
 test_body() {
     export DALI_DIR=$PWD
     export TMP_DIR="$(mktemp -d)"
     pushd ${TMP_DIR}
+
     example_1
     # Not cleaning in purpose (we don't want to recompile dali_core, etc again)
     example_2
-    rm -rf ./*
+
     popd
+    rm -rf ${TMP_DIR}
 }
 
 pushd ../..

@@ -20,6 +20,7 @@
 #include "dali/core/convert.h"
 #include "dali/core/static_switch.h"
 #include "dali/pipeline/data/types.h"
+#include "dali/pipeline/operator/checkpointing/stateless_operator.h"
 #include "dali/pipeline/operator/operator.h"
 
 #define PREEMPH_TYPES \
@@ -35,7 +36,7 @@ const int kNumOutputs = 1;
 }  // namespace detail
 
 template<typename Backend>
-class PreemphasisFilter : public Operator<Backend> {
+class PreemphasisFilter : public StatelessOperator<Backend> {
  public:
   enum class BorderType : uint8_t {
     Zero = 0,
@@ -44,7 +45,7 @@ class PreemphasisFilter : public Operator<Backend> {
   };
 
   explicit PreemphasisFilter(const OpSpec &spec)
-      : Operator<Backend>(spec),
+      : StatelessOperator<Backend>(spec),
         output_type_(spec.GetArgument<DALIDataType>(arg_names::kDtype)) {
     auto border_str = spec.GetArgument<std::string>(detail::kBorder);
     if (border_str == "zero") {
@@ -60,10 +61,6 @@ class PreemphasisFilter : public Operator<Backend> {
 
   ~PreemphasisFilter() override = default;
   DISABLE_COPY_MOVE_ASSIGN(PreemphasisFilter);
-
-  bool CanInferOutputs() const override {
-    return true;
-  }
 
   bool SetupImpl(std::vector<::dali::OutputDesc> &output_desc,
                  const Workspace &ws) override {

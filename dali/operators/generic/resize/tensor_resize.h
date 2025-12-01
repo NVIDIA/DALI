@@ -23,6 +23,7 @@
 #include "dali/core/expand_dims.h"
 #include "dali/operators/image/resize/resize_base.h"
 #include "dali/operators/image/resize/tensor_resize_attr.h"
+#include "dali/pipeline/operator/checkpointing/stateless_operator.h"
 #include "dali/pipeline/operator/common.h"
 #include "dali/pipeline/operator/operator.h"
 
@@ -31,7 +32,7 @@ namespace tensor_resize {
 
 
 template <typename Backend>
-class TensorResize : public Operator<Backend>
+class TensorResize : public StatelessOperator<Backend>
                    , protected ResizeBase<Backend> {
  public:
   explicit TensorResize(const OpSpec &spec);
@@ -40,7 +41,6 @@ class TensorResize : public Operator<Backend>
   int NumSpatialDims() const { return spatial_ndim_; }
   int FirstSpatialDim() const { return first_spatial_dim_; }
 
-  bool CanInferOutputs() const override { return true; }
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override;
 
@@ -166,7 +166,7 @@ class TensorResize : public Operator<Backend>
 
 template <typename Backend>
 TensorResize<Backend>::TensorResize(const OpSpec &spec)
-    : Operator<Backend>(spec), ResizeBase<Backend>(spec), resize_attr_(spec) {
+    : StatelessOperator<Backend>(spec), ResizeBase<Backend>(spec), resize_attr_(spec) {
   InitializeBackend();
 }
 

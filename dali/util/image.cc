@@ -78,7 +78,7 @@ void LoadImages(const vector<string> &image_names, ImgSetDescr *imgs) {
     int img_size = static_cast<int>(img_file.tellg());
     img_file.seekg(0, std::ios::beg);
 
-    auto data = new uint8[img_size];
+    auto data = new uint8_t[img_size];
     imgs->data_.push_back(data);
     imgs->sizes_.push_back(img_size);
     img_file.read(reinterpret_cast<char*>(data), img_size);
@@ -112,8 +112,8 @@ std::vector<std::string> ImageList(const std::string& image_folder,
   return list_files(image_folder, supported_extensions);
 }
 
-void WriteHWCImage(const uint8 *img, int h, int w, int c, const string &file_name) {
-  WriteImageScaleBias<CPUBackend, uint8>(img, h, w, c, 0.f, 1.0f, file_name, outHWCImage);
+void WriteHWCImage(const uint8_t *img, int h, int w, int c, const string &file_name) {
+  WriteImageScaleBias<CPUBackend, uint8_t>(img, h, w, c, 0.f, 1.0f, file_name, outHWCImage);
 }
 
 void WriteBatch(const TensorList<CPUBackend> &tl, const string &suffix, float bias, float scale) {
@@ -121,26 +121,26 @@ void WriteBatch(const TensorList<CPUBackend> &tl, const string &suffix, float bi
   const auto layout = tl.GetLayout();
 
   bool is_channel_first = ImageLayoutInfo::IsChannelFirst(layout);
-  if (IsType<uint8>(type)) {
+  if (IsType<uint8_t>(type)) {
     if (is_channel_first)
-      WriteCHWBatch<uint8>(tl, bias, scale, suffix);
+      WriteCHWBatch<uint8_t>(tl, bias, scale, suffix);
     else
-      WriteHWCBatch<uint8>(tl, bias, scale, suffix);
-  } else if (IsType<int16>(type)) {
+      WriteHWCBatch<uint8_t>(tl, bias, scale, suffix);
+  } else if (IsType<int16_t>(type)) {
     if (is_channel_first)
-      WriteCHWBatch<int16>(tl, bias, scale, suffix);
+      WriteCHWBatch<int16_t>(tl, bias, scale, suffix);
     else
-      WriteHWCBatch<int16>(tl, bias, scale, suffix);
-  } else if (IsType<int32>(type)) {
+      WriteHWCBatch<int16_t>(tl, bias, scale, suffix);
+  } else if (IsType<int32_t>(type)) {
     if (is_channel_first)
-      WriteCHWBatch<int32>(tl, bias, scale, suffix);
+      WriteCHWBatch<int32_t>(tl, bias, scale, suffix);
     else
-      WriteHWCBatch<int32>(tl, bias, scale, suffix);
-  } else if (IsType<int64>(type)) {
+      WriteHWCBatch<int32_t>(tl, bias, scale, suffix);
+  } else if (IsType<int64_t>(type)) {
     if (is_channel_first)
-      WriteCHWBatch<int64>(tl, bias, scale, suffix);
+      WriteCHWBatch<int64_t>(tl, bias, scale, suffix);
     else
-      WriteHWCBatch<int64>(tl, bias, scale, suffix);
+      WriteHWCBatch<int64_t>(tl, bias, scale, suffix);
   } else if (IsType<float16>(type)) {
     if (is_channel_first)
       WriteCHWBatch<float16>(tl, bias, scale, suffix);

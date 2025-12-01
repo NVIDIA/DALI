@@ -1,4 +1,4 @@
-// Copyright (c) 2018-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2018-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -89,10 +89,10 @@ class TensorListWrapper {
     if (has_cpu()) {
       order = std::is_same<DestinationBackend, CPUBackend>::value
         ? AccessOrder::host()
-        : cudaStream_t(0);
+        : cudaStreamLegacy;
       result->Copy(*cpu_, order);
     } else {
-      order = cudaStream_t(0);
+      order = cudaStreamLegacy;
       result->Copy(*gpu_, order);
     }
     AccessOrder::host().wait(order);

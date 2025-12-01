@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -81,7 +81,7 @@ class ValueInst : public Value {
     return to_string(val_);
   }
 
-  const T &Get() const {
+  const T &Get() const & {
     return val_;
   }
 
@@ -111,8 +111,8 @@ class Argument {
     return has_name_;
   }
 
-  inline const string get_name() const {
-    return has_name() ? name_ : "<no name>";
+  inline std::string_view get_name() const & {
+    return has_name() ? std::string_view(name_) : "<no name>";
   }
 
   inline void set_name(string name) {
@@ -126,7 +126,7 @@ class Argument {
   }
 
   virtual std::string ToString() const {
-    return get_name();
+    return std::string(get_name());
   }
 
   virtual DALIDataType GetTypeId() const = 0;
@@ -134,20 +134,20 @@ class Argument {
   virtual void SerializeToProtobuf(DaliProtoPriv* arg) = 0;
 
   template <typename T>
-  T Get();
+  const T &Get() const &;
 
   template <typename T>
-  bool IsType();
+  bool IsType() const;
 
   template <typename T>
-  static std::shared_ptr<Argument> Store(const std::string& s, const T& val);
+  static std::shared_ptr<Argument> Store(std::string name, const T& val);
 
   virtual ~Argument() = default;
 
  protected:
   Argument() : has_name_(false) {}
 
-  explicit Argument(const std::string& s) : name_(s), has_name_(true) {}
+  explicit Argument(std::string name) : name_(std::move(name)), has_name_(true) {}
 
  private:
   std::string name_;
@@ -157,9 +157,9 @@ class Argument {
 template <typename T>
 class ArgumentInst : public Argument {
  public:
-  explicit ArgumentInst(const std::string& s, const T& v) : Argument(s), val(v) {}
+  explicit ArgumentInst(std::string name, const T& v) : Argument(std::move(name)), val(v) {}
 
-  T Get() {
+  const T &Get() const & {
     return val.Get();
   }
 
@@ -186,9 +186,10 @@ class ArgumentInst : public Argument {
 template <typename T>
 class ArgumentInst<std::vector<T>> : public Argument {
  public:
-  explicit ArgumentInst(const std::string& s, const std::vector<T>& v) : Argument(s), val(v) {}
+  explicit ArgumentInst(std::string name, const std::vector<T>& v)
+  : Argument(std::move(name)), val(v) {}
 
-  std::vector<T> Get() {
+  const std::vector<T> &Get() const & {
     return val.Get();
   }
 
@@ -222,23 +223,23 @@ class ArgumentInst<std::vector<T>> : public Argument {
 DLL_PUBLIC std::shared_ptr<Argument> DeserializeProtobuf(const DaliProtoPriv &arg);
 
 template <typename T>
-bool Argument::IsType() {
-  return dynamic_cast<ArgumentInst<T>*>(this) != nullptr;
+bool Argument::IsType() const {
+  return dynamic_cast<const ArgumentInst<T>*>(this) != nullptr;
 }
 
 template <typename T>
-T Argument::Get() {
-  ArgumentInst<T>* self = dynamic_cast<ArgumentInst<T>*>(this);
+const T &Argument::Get() const & {
+  auto *self = dynamic_cast<const ArgumentInst<T>*>(this);
   if (self == nullptr) {
-    DALI_FAIL("Invalid type of argument \"" + this->get_name() + "\". Expected " +
-              typeid(T).name());
+    DALI_FAIL(make_string("Invalid type of argument \"", get_name(), "\". Expected ",
+              typeid(T).name()));
   }
   return self->Get();
 }
 
 template <typename T>
-std::shared_ptr<Argument> Argument::Store(const std::string& s, const T& val) {
-  return std::shared_ptr<Argument>(new ArgumentInst<T>(s, val));
+std::shared_ptr<Argument> Argument::Store(std::string name, const T& val) {
+  return std::shared_ptr<Argument>(new ArgumentInst<T>(std::move(name), val));
 }
 
 }  // namespace dali

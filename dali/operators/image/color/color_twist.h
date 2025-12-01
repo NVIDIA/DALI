@@ -27,6 +27,7 @@
 #include "dali/pipeline/operator/common.h"
 #include "dali/pipeline/operator/operator.h"
 #include "dali/pipeline/operator/sequence_operator.h"
+#include "dali/pipeline/operator/checkpointing/stateless_operator.h"
 
 #define COLOR_TWIST_SUPPORTED_TYPES (uint8_t, int16_t, int32_t, float, float16)
 
@@ -86,7 +87,7 @@ inline mat3 sat_mat(float saturation) {
 
 
 template <typename Backend>
-class ColorTwistBase : public SequenceOperator<Backend> {
+class ColorTwistBase : public SequenceOperator<Backend, StatelessOperator> {
  public:
   ~ColorTwistBase() override = default;
 
@@ -94,20 +95,17 @@ class ColorTwistBase : public SequenceOperator<Backend> {
 
  protected:
   explicit ColorTwistBase(const OpSpec &spec)
-      : SequenceOperator<Backend>(spec),
+      : SequenceOperator<Backend, StatelessOperator>(spec),
         output_type_(DALI_NO_TYPE) {
     spec.TryGetArgument(output_type_arg_, color::kOutputType);
-  }
-
-  bool CanInferOutputs() const override {
-    return true;
   }
 
   // The operator needs 4 dim path for DHWC data, so use it to avoid inflating
   // the number of samples and parameters unnecessarily for FHWC when there are no
   // per-frame parameters provided.
   bool ShouldExpand(const Workspace &ws) override {
-    return SequenceOperator<Backend>::ShouldExpand(ws) && this->HasPerFrameArgInputs(ws);
+    return SequenceOperator<Backend, StatelessOperator>::ShouldExpand(ws)
+        && this->HasPerFrameArgInputs(ws);
   }
 
   void AcquireArguments(const Workspace &ws) {
@@ -203,7 +201,7 @@ class ColorTwistCpu : public ColorTwistBase<CPUBackend> {
    * "overloaded virtual function `dali::Operator<dali::CPUBackend>::RunImpl`
    * is only partially overridden in class `dali::ColorTwistCpu`"
    */
-  using SequenceOperator<CPUBackend>::RunImpl;
+  using SequenceOperator<CPUBackend, StatelessOperator>::RunImpl;
 
   ~ColorTwistCpu() override = default;
 

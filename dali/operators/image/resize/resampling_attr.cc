@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,6 +15,7 @@
 #include "dali/operators/image/resize/resampling_attr.h"
 #include "dali/pipeline/operator/common.h"
 #include "dali/core/span.h"
+#include "dali/core/call_once.h"
 
 namespace dali {
 
@@ -23,11 +24,11 @@ DALI_SCHEMA(ResamplingFilterAttr)
   .AddOptionalArg("interp_type",
       R"code(Type of interpolation to be used.
 
-Use ``min_filter`` and ``mag_filter`` to specify different filtering for downscaling and upscaling.
+Use `min_filter` and `mag_filter` to specify different filtering for downscaling and upscaling.
 
 .. note::
   Usage of INTERP_TRIANGULAR is now deprecated and it should be replaced by a combination of
-INTERP_LINEAR with ``antialias`` enabled.
+INTERP_LINEAR with `antialias` enabled.
 )code",
       DALI_INTERP_LINEAR, true)
   .AddOptionalArg("mag_filter", "Filter used when scaling up.",
@@ -83,27 +84,6 @@ void ResamplingFilterAttr::PrepareFilterParams(
   bool has_mag = spec.ArgumentDefined("mag_filter");
   bool has_antialias = spec.ArgumentDefined("antialias");
   antialias_ = spec.GetArgument<bool>("antialias");
-
-  if (!has_antialias) {  // antialias not provided explicitly
-    // ... and linear was selected explicitly
-    auto is_linear_default = [](span<const DALIInterpType> interp_types) -> bool {
-      for (auto &interp_type : interp_types) {
-        if (interp_type == DALI_INTERP_LINEAR)
-          return true;
-      }
-      return false;
-    };
-    if ((has_min && is_linear_default(make_cspan(min_arg_))) ||
-        (has_interp && is_linear_default(make_cspan(interp_type_arg_)))) {
-      static std::once_flag linear_default_warning_flag;
-      std::call_once(linear_default_warning_flag, [&]() {
-        DALI_WARN(
-            "The default behavior for LINEAR interpolation type has been changed to apply an "
-            "antialiasing filter. If you didn't mean to apply an antialiasing filter, please use "
-            "`antialias=False`");
-      });
-    }
-  }
 
   min_filter_.resize(num_samples, ResamplingFilterType::Triangular);
   mag_filter_.resize(num_samples, ResamplingFilterType::Linear);

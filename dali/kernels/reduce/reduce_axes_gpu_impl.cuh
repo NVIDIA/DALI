@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -98,7 +98,7 @@ struct ReduceSampleDesc {
  */
 template <typename Out, typename In, typename PreprocessorBank, typename Postprocessor>
 __device__ void ReduceFlatNone(Out *out, const In *in, int64_t n,
-                                PreprocessorBank pre_bank, Postprocessor post) {
+                               PreprocessorBank pre_bank, Postprocessor post) {
   const int64_t blk_size = blockDim.x * blockDim.y;  // no restriction on block size
   const int64_t grid_stride = static_cast<int64_t>(gridDim.x) * blk_size;
   const int flat_tid = threadIdx.x + threadIdx.y * blockDim.x;
@@ -106,6 +106,26 @@ __device__ void ReduceFlatNone(Out *out, const In *in, int64_t n,
   for (int64_t index = base_idx; index < n; index += grid_stride) {
     auto pre = pre_bank.Get({index});
     out[index] = ConvertSat<Out>(post(pre(in[index])));
+  }
+}
+
+
+/**
+ * @brief This function is used when reducting a degenerate dimension
+ *
+ * This function stores and optionally postprocesses the reduction's default value.
+ *
+ * @param post          posptprocessing unary functor
+ */
+template <typename Acc, typename Out, typename Reduction, typename Postprocessor>
+__device__ void ReduceFlatDegenerate(Out *out, int64_t n,
+                                     Reduction, Postprocessor post) {
+  const int64_t blk_size = blockDim.x * blockDim.y;  // no restriction on block size
+  const int64_t grid_stride = static_cast<int64_t>(gridDim.x) * blk_size;
+  const int flat_tid = threadIdx.x + threadIdx.y * blockDim.x;
+  int64_t base_idx = static_cast<int64_t>(blockIdx.x) * blk_size + flat_tid;
+  for (int64_t index = base_idx; index < n; index += grid_stride) {
+    out[index] = ConvertSat<Out>(post(Reduction::template neutral<Acc>()));
   }
 }
 
@@ -227,6 +247,27 @@ __global__ void ReduceMiddleNoneKernel(const ReduceSampleDesc<Out, In> *samples,
   }
 }
 
+
+/**
+ * @brief This kernel is used when reducing a degenerate middle dimension.
+ *
+ * This function stores and optionally postprocesses the reduction's default value.
+ *
+ * @param post          posptprocessing unary functor
+ */
+template <typename Acc, typename Out, typename In,
+          typename Reduction = reductions::sum,
+          typename Postprocessor = identity>
+__global__ void ReduceMiddleDegenerateKernel(const ReduceSampleDesc<Out, In> *samples,
+                                             Reduction r,
+                                             const Postprocessor *post = nullptr) {
+  Postprocessor postprocessor = post ? post[blockIdx.y] : Postprocessor();
+  auto sample = samples[blockIdx.y];
+  Out *out = sample.out;
+
+  int64_t n = sample.n_outer * sample.n_inner;
+  ReduceFlatDegenerate<Acc>(out, n, r, postprocessor);
+}
 
 
 

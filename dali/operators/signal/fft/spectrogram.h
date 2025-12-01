@@ -19,20 +19,19 @@
 #include <vector>
 #include "dali/core/common.h"
 #include "dali/pipeline/operator/common.h"
+#include "dali/pipeline/operator/checkpointing/stateless_operator.h"
 #include "dali/pipeline/operator/operator.h"
 #include "dali/pipeline/util/operator_impl_utils.h"
 
 namespace dali {
 
 template <typename Backend>
-class DLL_PUBLIC Spectrogram : public Operator<Backend> {
+class DLL_PUBLIC Spectrogram : public StatelessOperator<Backend> {
  public:
   DLL_PUBLIC Spectrogram(const OpSpec &spec);
   DLL_PUBLIC ~Spectrogram() override = default;
 
  protected:
-  bool CanInferOutputs() const override { return true; }
-
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     assert(impl_ != nullptr);
     return impl_->SetupImpl(output_desc, ws);
@@ -44,7 +43,7 @@ class DLL_PUBLIC Spectrogram : public Operator<Backend> {
   }
 
   USE_OPERATOR_MEMBERS();
-  using Operator<Backend>::RunImpl;
+  using StatelessOperator<Backend>::RunImpl;
 
  private:
   std::unique_ptr<OpImplBase<Backend>> impl_;

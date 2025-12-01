@@ -15,12 +15,12 @@
 #include <gtest/gtest.h>
 #include <vector>
 #include <tuple>
-#include "dali/kernels/scratch.h"
 #include "dali/core/tensor_shape.h"
 #include "dali/kernels/common/copy.h"
 #include "dali/test/tensor_test_utils.h"
 #include "dali/kernels/test/kernel_test_utils.h"
 #include "dali/kernels/imgproc/pointwise/multiply_add_gpu.h"
+#include "dali/kernels/dynamic_scratchpad.h"
 
 namespace dali {
 namespace kernels {
@@ -152,10 +152,9 @@ TYPED_TEST(MultiplyAddGpuTest, run_test) {
 
   auto reqs = kernel.Setup(ctx, in, this->addends_, this->multipliers_);
 
-  ScratchpadAllocator sa;
-  sa.Reserve(reqs.scratch_sizes);
-  auto scratchpad = sa.GetScratchpad();
-  ctx.scratchpad = &scratchpad;
+  DynamicScratchpad dyn_scratchpad(AccessOrder(ctx.gpu.stream));
+  ctx.scratchpad = &dyn_scratchpad;
+
   kernel.Run(ctx, out, in, this->addends_, this->multipliers_);
   CUDA_CALL(cudaDeviceSynchronize());
 

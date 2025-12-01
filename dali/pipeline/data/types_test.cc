@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -81,21 +81,33 @@ TYPENAME_FUNC(double, double);
 TYPENAME_FUNC(bool, bool);
 
 template <>
-std::string TypesTest<std::vector<uint8>>::TypeName() {
+std::string TypesTest<std::vector<uint8_t>>::TypeName() {
   return "list of uint8";
 }
 
 template <>
-std::string TypesTest<std::array<std::vector<uint8>, DUMMY_ARRAY_SIZE>>::TypeName() {
+std::string TypesTest<std::array<std::vector<uint8_t>, DUMMY_ARRAY_SIZE>>::TypeName() {
   return "list of list of uint8";
 }
 
 typedef ::testing::Types<uint8_t, uint16_t, uint32_t, uint64_t, int8_t, int16_t, int32_t, int64_t,
-                         float16, float, double, bool, std::vector<uint8>,
-                         std::array<std::vector<uint8>, DUMMY_ARRAY_SIZE>>
+                         float16, float, double, bool, std::vector<uint8_t>,
+                         std::array<std::vector<uint8_t>, DUMMY_ARRAY_SIZE>>
     TestTypes;
 
 TYPED_TEST_SUITE(TypesTest, TestTypes);
+
+IMPL_HAS_MEMBER(value);
+
+template <typename T, decltype(type2id<T>::value) = type2id<T>::value>
+void CheckBuiltinType(const TypeInfo *t) {
+  EXPECT_EQ(t->id(), type2id<T>::value);
+  EXPECT_EQ(TypeTable::GetTypeId<T>(), type2id<T>::value);
+}
+
+template <typename T>
+void CheckBuiltinType(...) {}
+
 
 TYPED_TEST(TypesTest, TestRegisteredType) {
   typedef TypeParam T;
@@ -103,13 +115,14 @@ TYPED_TEST(TypesTest, TestRegisteredType) {
   TypeInfo type;
 
   // Verify we start with no type
-  ASSERT_EQ(type.name(), "<no_type>");
-  ASSERT_EQ(type.size(), 0);
+  EXPECT_EQ(type.name(), "<no_type>");
+  EXPECT_EQ(type.size(), 0);
 
   type.SetType<T>();
 
-  ASSERT_EQ(type.size(), sizeof(T));
-  ASSERT_EQ(type.name(), this->TypeName());
+  EXPECT_EQ(type.size(), sizeof(T));
+  EXPECT_EQ(type.name(), this->TypeName());
+  CheckBuiltinType<T>(&type);
 }
 
 struct CustomTestType {};
@@ -141,5 +154,37 @@ TEST(ListTypeNames, ListTypeNames) {
       "uint8, int8, uint16, int16, uint32, int32, uint64, int64, float, double, float16";
   ASSERT_EQ(str1, expected_str1);
 }
+
+// The following disabled code tests the scenario when we need to grow the type table
+// - for which we need an inordinate number of artifical types. The compilation is extremely
+// slow and setting a breakpoint in types.h becomes a nightmare.
+// Uncomment to test this particular scenario, leave commented otherwise.
+#if 0
+
+template <int n = 0>
+void TestTypeTableGrowth(std::integral_constant<int, n> = {}) {
+  if constexpr (n < 3000) {
+    const TypeInfo &ti = TypeTable::GetTypeInfo<std::integral_constant<int, n>>();
+    std::cout << ti.name() << std::endl;
+    EXPECT_NE(ti.name().find(std::to_string(n)), std::string::npos);
+
+    TestTypeTableGrowth(std::integral_constant<int, 2*n+1>());
+    TestTypeTableGrowth(std::integral_constant<int, 2*n+2>());
+
+    const TypeInfo &ti2 = TypeTable::GetTypeInfo<std::integral_constant<int, n>>();
+    EXPECT_EQ(&ti, &ti2);
+  }
+  if constexpr (n == 0)
+    exit(0);
+}
+
+
+TEST(TypeTable, TestTableGrowth) {
+  TestTypeTableGrowth();
+  GTEST_FLAG_SET(death_test_style, "threadsafe");
+  // This avoids polluting the global type table with dummy types
+  EXPECT_EXIT(TestTypeTableGrowth(), ::testing::ExitedWithCode(0), "");
+}
+#endif
 
 }  // namespace dali

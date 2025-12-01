@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -302,7 +302,7 @@ class DLL_PUBLIC Buffer {
     return !!data_;
   }
 
-  std::shared_ptr<void> get_data_ptr() const {
+  const std::shared_ptr<void> &get_data_ptr() const {
     return data_;
   }
 
@@ -549,7 +549,7 @@ class DLL_PUBLIC Buffer {
    *
    * @remark If order is empty, current order is used.
    */
-  inline void set_backing_allocation(const shared_ptr<void> &ptr, size_t bytes, bool pinned,
+  inline void set_backing_allocation(shared_ptr<void> ptr, size_t bytes, bool pinned,
                                      DALIDataType type, size_t size, int device_id,
                                      AccessOrder order = {}) {
     if (!same_managed_object(data_, ptr))
@@ -562,7 +562,7 @@ class DLL_PUBLIC Buffer {
 
     // Fill the remaining members in the order as they appear in class.
     type_ = TypeTable::GetTypeInfo(type);
-    data_ = ptr;
+    data_ = std::move(ptr);
     allocate_ = {};
     size_ = size;
     shares_data_ = data_ != nullptr;
@@ -674,7 +674,10 @@ class DLL_PUBLIC Buffer {
   static double growth_factor_;
   static double shrink_threshold_;
 
-  static bool default_pinned();
+  static bool default_pinned() {
+    static const bool pinned = !RestrictPinnedMemUsage();
+    return pinned;
+  }
 
   TypeInfo type_ = {};               // Data type of underlying storage
   shared_ptr<void> data_ = nullptr;  // Pointer to underlying storage
@@ -683,8 +686,8 @@ class DLL_PUBLIC Buffer {
   size_t num_bytes_ = 0;             // To keep track of the true size of the underlying allocation
   int device_ = CPU_ONLY_DEVICE_ID;  // device the buffer was allocated on
   AccessOrder order_ = AccessOrder::host();   // The order of memory access (host or device)
-  bool shares_data_ = false;                  // Whether we aren't using our own allocation
-  bool pinned_ = !RestrictPinnedMemUsage();   // Whether the allocation uses pinned memory
+  bool shares_data_ = false;         // Whether we aren't using our own allocation
+  bool pinned_ = default_pinned();   // Whether the allocation uses pinned memory
 };
 
 template <typename Backend>

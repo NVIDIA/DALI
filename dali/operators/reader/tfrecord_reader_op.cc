@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2018, 2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@
 
 #include <vector>
 #include <string>
+#include <utility>
 
 #include "dali/operators/reader/tfrecord_reader_op.h"
 
@@ -37,6 +38,7 @@ DALI_REGISTER_OPERATOR(readers___TFRecord, TFRecordReader, CPU);
 // Common part of schema for internal readers._tfrecord and public readers.tfrecord schema.
 DALI_SCHEMA(readers___TFRecordBase)
   .DocStr(R"code(Read sample data from a TensorFlow TFRecord file.)code")
+  .AddRandomSeedArg()
   .AddArg("path",
       R"code(List of paths to TFRecord files.)code",
       DALI_STRING_VEC)
@@ -45,7 +47,13 @@ DALI_SCHEMA(readers___TFRecordBase)
 
 The index files can be obtained from TFRecord files by using the ``tfrecord2idx`` script
 that is distributed with DALI.)code",
-      DALI_STRING_VEC);
+      DALI_STRING_VEC)
+  .AddOptionalArg("use_o_direct",
+      R"code(If set to True, the data will be read directly from the storage bypassing the system
+cache.
+
+Mutually exclusive with ``dont_use_mmap=False``.)code",
+      false);
 
 // Internal readers._tfrecord schema.
 DALI_SCHEMA(readers___TFRecord)
@@ -107,6 +115,22 @@ DALI_SCHEMA(TFRecordReader)
         R"code(In DALI 1.0 all readers were moved into a dedicated :mod:`~nvidia.dali.fn.readers`
 submodule and renamed to follow a common pattern. This is a placeholder operator with identical
 functionality to allow for backward compatibility.)code");  // Deprecated in 1.0;
+
+void TFRecordReader::Prefetch() {
+  // We actually prepare the next batch
+  DomainTimeRange tr("[DALI][TFRecordReader] Prefetch #" + to_string(curr_batch_producer_),
+                     DomainTimeRange::kRed);
+  DataReader<CPUBackend, IndexedFileLoaderSample, Tensor<CPUBackend>, true>::Prefetch();
+
+  auto idx_loader = dynamic_cast<IndexedFileLoader*>(loader_.get());
+  while (idx_loader->AnyWorkLeft()) {
+    auto work = idx_loader->GetReadWork();
+    thread_pool_.AddWork([work = std::move(work)] (int tid) {
+                          work();
+                        });
+  }
+  thread_pool_.RunAll();
+}
 
 }  // namespace dali
 

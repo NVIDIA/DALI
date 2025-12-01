@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -89,7 +89,6 @@ typedef enum {
 } t_loadingFlags;
 
 struct OpArg {
-  OpArg() = default;
   const char *m_Name;
   std::string m_val;
   DALIDataType type;
@@ -233,24 +232,26 @@ class DALISingleOpTest : public DALITest {
   void AddOperatorWithOutput(const OpSpec& spec) {
     // generate the output mapping for this op
     for (int i = 0; i < spec.NumOutput(); ++i)
-      outputs_.push_back(std::make_pair(spec.OutputName(i), spec.OutputDevice(i)));
+      outputs_.push_back(std::make_pair(spec.OutputName(i), to_string(spec.OutputDevice(i))));
 
-    pipeline_->AddOperator(spec, spec.name());
+    pipeline_->AddOperator(spec);
   }
 
   virtual void AddDefaultArgs(OpSpec& spec) {
   }
 
-  void AddOperatorWithOutput(const opDescr &descr, const string &pDevice = "cpu",
-                             const string &pInput = "input", const string &pOutput = "outputCPU") {
+  void AddOperatorWithOutput(const opDescr &descr, const string &device = "cpu",
+                             const string &input = "input", const string &output = "outputCPU") {
     OpSpec spec(descr.opName);
+    spec.AddArg("device", device);
     if (descr.opAddImgType)
       spec = spec.AddArg("image_type", ImageType());
     AddDefaultArgs(spec);
 
+    auto storage_device = ParseStorageDevice(device);
     AddOperatorWithOutput(AddArguments(&spec, descr.args)
-                            .AddInput(pInput, pDevice)
-                            .AddOutput(pOutput, pDevice));
+                            .AddInput(input, storage_device)
+                            .AddOutput(output, storage_device));
   }
 
   void AddSingleOp(const OpSpec& spec) {
@@ -281,8 +282,7 @@ class DALISingleOpTest : public DALITest {
   void RunOperator(Workspace *ws) {
     SetTestCheckType(GetTestCheckType());
     FillExternalInputs();
-    pipeline_->RunCPU();
-    pipeline_->RunGPU();
+    pipeline_->Run();
     pipeline_->Outputs(ws);
   }
 
@@ -375,8 +375,8 @@ class DALISingleOpTest : public DALITest {
     return output_img_type_;
   }
 
-  void TstBody(const string &pName, const string &pDevice = "gpu", double eps = 2e-1) {
-    OpSpec operation = DefaultSchema(pName, pDevice);
+  void TstBody(const string &name, const string &device = "gpu", double eps = 2e-1) {
+    OpSpec operation = DefaultSchema(name, device);
     TstBody(operation, eps);
   }
 
@@ -389,13 +389,13 @@ class DALISingleOpTest : public DALITest {
     RunOperator(operation, eps);
   }
 
-  virtual OpSpec DefaultSchema(const string &pName, const string &pDevice = "gpu") const {
-    return OpSpec(pName)
-      .AddArg("device", pDevice)
+  virtual OpSpec DefaultSchema(const string &name, const string &device = "gpu") const {
+    return OpSpec(name)
+      .AddArg("device", device)
       .AddArg("image_type", this->ImageType())
       .AddArg("output_type", this->ImageType())
-      .AddInput("input", pDevice)
-      .AddOutput("output", pDevice);
+      .AddInput("input", ParseStorageDevice(device))
+      .AddOutput("output", ParseStorageDevice(device));
   }
 
   OpSpec AddArguments(OpSpec *spec, const vector<OpArg> *args) const {
@@ -726,7 +726,7 @@ class DALISingleOpTest : public DALITest {
                           checkAll, &mean, shape1);
         } else {
           colorIdx = CheckBuffers<unsigned char>(lenBuffer,
-                          (*t1).template tensor<uint8>(i), (*t2).template tensor<uint8>(i),
+                          (*t1).template tensor<uint8_t>(i), (*t2).template tensor<uint8_t>(i),
                           checkAll, &mean, shape1);
         }
 
@@ -765,7 +765,7 @@ class DALISingleOpTest : public DALITest {
   vector<std::pair<string, string>> outputs_;
   shared_ptr<Pipeline> pipeline_;
 
-  vector<vector<uint8>> jpeg_decoded_, png_decoded_, tiff_decoded_, bmp_decoded_, jpeg2k_decoded_;
+  vector<vector<uint8_t>> jpeg_decoded_, png_decoded_, tiff_decoded_, bmp_decoded_, jpeg2k_decoded_;
   vector<DimPair> jpeg_dims_, png_dims_, tiff_dims_, bmp_dims_, jpeg2k_dims_;
 
 

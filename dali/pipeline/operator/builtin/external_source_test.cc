@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -13,8 +13,6 @@
 // limitations under the License.
 
 #include <gtest/gtest.h>
-#include <thrust/host_vector.h>
-#include <thrust/device_vector.h>
 #include <fstream>
 #include <memory>
 #include <tuple>
@@ -25,7 +23,8 @@
 #include "dali/pipeline/operator/builtin/external_source.h"
 #include "dali/test/dali_test_config.h"
 #include "dali/c_api.h"
-
+#include "dali/test/test_tensors.h"
+#include "dali/test/tensor_test_utils.h"
 namespace dali {
 
 
@@ -37,14 +36,14 @@ class ExternalSourceBasicTest : public ::testing::Test {
 
   void CreateAndSerializePipeline(bool repeat_last) {
     std::string dev_str = is_cpu ? "cpu" : "gpu";
-    auto pipeline = std::make_unique<Pipeline>(batch_size_, num_threads_, device_id_, false, 1,
+    auto pipeline = std::make_unique<Pipeline>(batch_size_, num_threads_, device_id_, -1, false, 1,
                                                false);
     pipeline->AddOperator(
             OpSpec("ExternalSource")
                     .AddArg("repeat_last", repeat_last)
                     .AddArg("device", dev_str)
                     .AddArg("name", input_name_)
-                    .AddOutput(input_name_, dev_str),
+                    .AddOutput(input_name_, is_cpu ? StorageDevice::CPU : StorageDevice::GPU),
             input_name_);
 
     std::vector<std::pair<std::string, std::string>> outputs = {
@@ -61,17 +60,17 @@ class ExternalSourceBasicTest : public ::testing::Test {
     daliSetExternalInputBatchSize(h, input_name_.c_str(), batch_size_);
     int bytes_per_sample = 10;
     std::vector<int64_t> shapes(batch_size_, bytes_per_sample);
-    thrust::host_vector<uint8_t> data_cpu(batch_size_ * bytes_per_sample);
+    kernels::TestTensorList<uint8_t> data;
+    data.reshape(uniform_list_shape(batch_size_, {bytes_per_sample}));
     assert(bytes_per_sample * batch_size_ < 255);
-    std::iota(data_cpu.begin(), data_cpu.end(), 1);
+    SequentialFill(data.cpu(), 1);
     if constexpr (is_cpu) {
-      daliSetExternalInput(h, input_name_.c_str(), device_type_t::CPU, data_cpu.data(),
+      daliSetExternalInput(h, input_name_.c_str(), device_type_t::CPU, data.cpu().tensor_data(0),
                            dali_data_type_t::DALI_UINT8, shapes.data(), 1, nullptr,
                            DALI_ext_force_copy);
     } else {
-      thrust::device_vector<uint8_t> data_gpu = data_cpu;
       daliSetExternalInput(h, input_name_.c_str(), device_type_t::GPU,
-                           thrust::raw_pointer_cast(data_gpu.data()),
+                           data.gpu().tensor_data(0),
                            dali_data_type_t::DALI_UINT8, shapes.data(), 1, nullptr,
                            DALI_ext_force_copy);
     }
@@ -230,13 +229,13 @@ class ExternalSourceTest : public::testing::WithParamInterface<int>,
         OpSpec("ExternalSource")
         .AddArg("device", "cpu")
         .AddArg("device_id", 0)
-        .AddOutput("data", "cpu")), "");
+        .AddOutput("data", StorageDevice::CPU)), "");
 
     graph_.AddOp(this->PrepareSpec(
             OpSpec("MakeContiguous")
             .AddArg("device", "mixed")
-            .AddInput("data", "cpu")
-            .AddOutput("final_images", "gpu")), "");
+            .AddInput("data", StorageDevice::CPU)
+            .AddOutput("final_images", StorageDevice::GPU)), "");
   }
 
   void BuildGPUGraph() {
@@ -244,12 +243,12 @@ class ExternalSourceTest : public::testing::WithParamInterface<int>,
           OpSpec("ExternalSource")
           .AddArg("device", "gpu")
           .AddArg("device_id", 0)
-          .AddOutput("data", "gpu")), "");
+          .AddOutput("data", StorageDevice::GPU)), "");
     graph_.AddOp(this->PrepareSpec(
           OpSpec("MakeContiguous")
           .AddArg("device", "gpu")
-          .AddInput("data", "gpu")
-          .AddOutput("final_images", "gpu")), "");
+          .AddInput("data", StorageDevice::GPU)
+          .AddOutput("final_images", StorageDevice::GPU)), "");
   }
 
   ExternalSource<CPUBackend>* CreateCPUExe() {
@@ -298,7 +297,7 @@ class ExternalSourceTest : public::testing::WithParamInterface<int>,
 
   template<typename Backend>
   void FeedWithGpuVector(ExternalSource<Backend> *src_op, int dims) {
-    AccessOrder order(cudaStream_t(0));
+    AccessOrder order(cudaStreamLegacy);
     for (int j = 0; j < this->batch_size_; ++j) {
       Tensor<CPUBackend> tensor;
       tensor.set_pinned(false);
@@ -344,7 +343,7 @@ class ExternalSourceTest : public::testing::WithParamInterface<int>,
         ++fill_counter_;
       }
     }
-    AccessOrder order(cudaStream_t(0));
+    AccessOrder order(cudaStreamLegacy);
     tl_gpu_.set_order(order);
     tl_gpu_.Copy(tensor_list);
     src_op->SetDataSource(tl_gpu_, order);
@@ -352,9 +351,7 @@ class ExternalSourceTest : public::testing::WithParamInterface<int>,
   }
 
   void RunExe() {
-    exe_->RunCPU();
-    exe_->RunMixed();
-    exe_->RunGPU();
+    exe_->Run();
   }
 
   bool RunOutputs() {
@@ -644,14 +641,14 @@ TEST(ExternalSourceTestNoInput, ThrowCpu) {
       OpSpec("ExternalSource")
       .AddArg("device", "cpu")
       .AddArg("device_id", 0)
-      .AddOutput("data_out", "cpu")
+      .AddOutput("data_out", StorageDevice::CPU)
       .AddArg("max_batch_size", batch_size)
       .AddArg("num_threads", num_threads), "");
 
   vector<string> outputs = {"data_out_cpu"};
 
   exe->Build(&graph, outputs);
-  exe->RunCPU();
+  exe->Run();
   Workspace ws;
   EXPECT_THROW(exe->ShareOutputs(&ws), std::exception);
 }
@@ -660,14 +657,14 @@ TEST(ExternalSourceTestNoInput, ThrowCpu) {
 void TestOnlyExternalSource(Pipeline &pipe, const std::string &name, const std::string &dev) {
   // Check if the external source is the only operator deserialized
   auto *op = pipe.GetOperatorNode(name);
-  ASSERT_EQ(op->parents.size(), 0);
-  ASSERT_EQ(op->id, 0);
-  ASSERT_EQ(op->spec.name(), "ExternalSource");
+  ASSERT_TRUE(op->inputs.empty());
+  ASSERT_EQ(op->spec.SchemaName(), "ExternalSource");
   ASSERT_EQ(pipe.num_outputs(), 1);
-  ASSERT_EQ(pipe.output_device(0), dev);
+  ASSERT_EQ(pipe.output_device(0), ParseStorageDevice(dev));
   ASSERT_EQ(pipe.output_name(0), name);
   // Make Contiguous is always added at the end
-  ASSERT_EQ(op->children.size(), 1);
+  ASSERT_EQ(op->outputs.size(), 1_uz);
+  ASSERT_EQ(op->outputs[0]->consumers.size(), 1_uz);
 }
 
 
@@ -692,8 +689,7 @@ void TestRunExternalSource(Pipeline &pipe, const std::string &name,
     cudaStreamSynchronize(0);
     pipe.SetExternalInput("es", input_gpu);
   }
-  pipe.RunCPU();
-  pipe.RunGPU();
+  pipe.Run();
 
   TensorList<CPUBackend> output_cpu;
   pipe.Outputs(&ws);
@@ -721,7 +717,7 @@ TEST(ExternalSourceTest, SerializeDeserializeOpSpec) {
     pipe_to_serialize.AddOperator(OpSpec("ExternalSource")
                       .AddArg("device", dev)
                       .AddArg("name", name)
-                      .AddOutput("es", dev),
+                      .AddOutput("es", ParseStorageDevice(dev)),
                   name);
     pipe_to_serialize.Build({{name, dev}});
     auto serialized = pipe_to_serialize.SerializeToProtobuf();

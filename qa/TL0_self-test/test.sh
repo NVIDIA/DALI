@@ -1,30 +1,11 @@
 #!/bin/bash -ex
 
-do_once() {
-  # generate file_list.txt for label testing
-  echo "${DALI_EXTRA_PATH}/db/video/frame_num_timestamp/test.mp4 0 0 99
-  ${DALI_EXTRA_PATH}/db/video/frame_num_timestamp/test.mp4 1 100 199
-  ${DALI_EXTRA_PATH}/db/video/frame_num_timestamp/test.mp4 2 200 256
-  " > /tmp/file_list.txt
-
-  echo "${DALI_EXTRA_PATH}/db/video/frame_num_timestamp/test_25fps.mp4 0 0 1
-  ${DALI_EXTRA_PATH}/db/video/frame_num_timestamp/test_25fps.mp4 1 2 3
-  ${DALI_EXTRA_PATH}/db/video/frame_num_timestamp/test_25fps.mp4 2 4 5
-  " > /tmp/file_list_timestamp.txt
-
-  echo "${DALI_EXTRA_PATH}/db/video/frame_num_timestamp/test_25fps.mp4 0 0 49
-  ${DALI_EXTRA_PATH}/db/video/frame_num_timestamp/test_25fps.mp4 1 50 99
-  ${DALI_EXTRA_PATH}/db/video/frame_num_timestamp/test_25fps.mp4 2 100 149
-  " > /tmp/file_list_frame_num.txt
-}
-
 test_body() {
   for BINNAME in \
     "dali_core_test.bin" \
     "dali_kernel_test.bin" \
     "dali_test.bin" \
-    "dali_operator_test.bin" \
-    "dali_imgcodec_test.bin"
+    "dali_operator_test.bin"
   do
     for DIRNAME in \
       "../../build/dali/python/nvidia/dali" \
@@ -41,7 +22,7 @@ test_body() {
         exit 1
     fi
 
-    "$FULLPATH"
+    DALI_USE_EXEC2=0 "$FULLPATH"
   done
 }
 

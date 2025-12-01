@@ -22,10 +22,10 @@
 #include "dali/core/convert.h"
 #include "dali/kernels/common/utils.h"
 #include "dali/kernels/imgproc/convolution/convolution_cpu.h"
-#include "dali/kernels/scratch.h"
 #include "dali/test/tensor_test_utils.h"
 #include "dali/test/test_tensors.h"
 #include "dali/kernels/imgproc/convolution/baseline_convolution.h"
+#include "dali/kernels/dynamic_scratchpad.h"
 
 namespace dali {
 namespace kernels {
@@ -302,11 +302,8 @@ struct ConvolutionCpuKernelTest : public ::testing::Test {
     Kernel kernel;
 
     auto req = kernel.Setup(ctx, in_.shape, k_win_.num_elements());
-    // this is painful
-    ScratchpadAllocator scratch_alloc;
-    scratch_alloc.Reserve(req.scratch_sizes);
-    auto scratchpad = scratch_alloc.GetScratchpad();
-    ctx.scratchpad = &scratchpad;
+    DynamicScratchpad dyn_scratchpad(AccessOrder::host());
+    ctx.scratchpad = &dyn_scratchpad;
 
     testing::BaselineConvolve(baseline_out_, baseline_in_, k_win_, T::axis, T::window_size / 2);
     TransformCase tranform(out_, baseline_out_, T::in_place);

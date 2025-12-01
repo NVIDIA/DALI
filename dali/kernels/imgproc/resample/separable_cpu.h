@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2021, 2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -96,7 +96,7 @@ struct ResamplingSetupCPU : SeparableResamplingSetup<_spatial_ndim> {
 
       for (int stage = 0; stage < num_stages; stage++) {
         size_t extent = resized_dim_extent(stage);
-        size_t support = filter_support(stage);
+        int support = std::max(0, filter_support(stage));  // support() returns -1 for NN interp.
         size_t num_coeffs = extent * support;
 
         if (extent > req.indices_size)
@@ -142,19 +142,10 @@ struct SeparableResampleCPU  {
     TensorShape<tensor_ndim> out_shape =
       shape_cat(vec2shape(setup.desc.out_shape()), setup.desc.channels);
 
-    ScratchpadEstimator se;
-    if (out_shape.num_elements() > 0) {
-      se.add<mm::memory_kind::host, float>(setup.memory.tmp_size);
-      se.add<mm::memory_kind::host, float>(setup.memory.coeffs_size);
-      se.add<mm::memory_kind::host, int32_t>(setup.memory.indices_size);
-    }
-
     TensorListShape<> out_tls({ out_shape });
 
     KernelRequirements req;
     req.output_shapes = { out_tls };
-    req.scratch_sizes = se.sizes;
-
     return req;
   }
 

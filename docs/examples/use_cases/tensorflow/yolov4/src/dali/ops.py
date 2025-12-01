@@ -1,4 +1,4 @@
-# Copyright 2021 Kacper Kluk, Piotr Kowalewski. All Rights Reserved.
+# Copyright 2021-2023 Kacper Kluk, Piotr Kowalewski. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -55,16 +55,13 @@ def bbox_adjust_ltrb(bboxes, shape_x, shape_y, pos_x, pos_y):
 # Note: this function is a workaround and should be replaced
 # with the dedicated operator once available
 def select(predicate, if_true, if_false):
-    true_shape = dali.fn.shapes(if_true, dtype=dali.types.DALIDataType.INT32)
-    false_shape = dali.fn.shapes(if_false, dtype=dali.types.DALIDataType.INT32)
+    true_shape = if_true.shape(dtype=dali.types.DALIDataType.INT32)
+    false_shape = if_false.shape(dtype=dali.types.DALIDataType.INT32)
 
     joined = dali.fn.cat(if_true, if_false)
     sh = predicate * true_shape + (1 - predicate) * false_shape
 
-    st = dali.fn.cat(
-            dali.fn.slice(true_shape * (1 - predicate), start=[0], shape=[1], axes=[0]),
-            dali.fn.constant(idata=0, shape=[1])
-        )
+    st = dali.fn.stack(true_shape[0] * (1 - predicate), 0)
 
     return dali.fn.slice(joined, start=st, shape=sh, axes=[0,1], out_of_bounds_policy="trim_to_shape")
 
@@ -95,7 +92,7 @@ def mosaic(images, bboxes, labels, image_size):
         permuted_boxes = dali.fn.permute_batch(bboxes, indices=idx)
         permuted_labels = dali.fn.permute_batch(labels, indices=idx)
         shape = dali.fn.stack(shape_y, shape_x)
-        in_anchor, in_shape, bbx, lbl = dali.fn.random_bbox_crop(
+        in_anchor, _, bbx, lbl = dali.fn.random_bbox_crop(
             permuted_boxes,
             permuted_labels,
             input_shape=image_size,
@@ -106,7 +103,7 @@ def mosaic(images, bboxes, labels, image_size):
         )
 
         # swap coordinates (x, y) -> (y, x)
-        in_anchor = dali.fn.reductions.sum(in_anchor) - in_anchor
+        in_anchor = in_anchor[::-1]
         in_anchor_c = dali.fn.cast(in_anchor, dtype=dali.types.DALIDataType.INT32)
 
         return idx, bbx, lbl, in_anchor_c, shape
@@ -130,14 +127,11 @@ def mosaic(images, bboxes, labels, image_size):
     perm_LR, bboxes_LR, labels_LR, in_anchor_LR, size_LR = \
         generate_tiles(bboxes, labels, pix1_x, pix1_y)
 
-    zeros_i = dali.types.Constant(0)
-    zeros_f = dali.types.Constant(0.0)
-
     idx = dali.fn.stack(perm_UL, perm_UR, perm_LL, perm_LR)
     out_anchors = dali.fn.stack(
-        dali.fn.stack(zeros_i, zeros_i),
-        dali.fn.stack(zeros_i, pix0_x),
-        dali.fn.stack(pix0_y, zeros_i),
+        dali.fn.stack(0, 0),
+        dali.fn.stack(0, pix0_x),
+        dali.fn.stack(pix0_y, 0),
         dali.fn.stack(pix0_y, pix0_x)
     )
     in_anchors = dali.fn.stack(
@@ -148,9 +142,9 @@ def mosaic(images, bboxes, labels, image_size):
     )
 
 
-    bboxes_UL = bbox_adjust_ltrb(bboxes_UL, prop0_x, prop0_y, zeros_f, zeros_f)
-    bboxes_UR = bbox_adjust_ltrb(bboxes_UR, prop1_x, prop0_y, prop0_x, zeros_f)
-    bboxes_LL = bbox_adjust_ltrb(bboxes_LL, prop0_x, prop1_y, zeros_f, prop0_y)
+    bboxes_UL = bbox_adjust_ltrb(bboxes_UL, prop0_x, prop0_y, 0.0, 0.0)
+    bboxes_UR = bbox_adjust_ltrb(bboxes_UR, prop1_x, prop0_y, prop0_x, 0.0)
+    bboxes_LL = bbox_adjust_ltrb(bboxes_LL, prop0_x, prop1_y, 0.0, prop0_y)
     bboxes_LR = bbox_adjust_ltrb(bboxes_LR, prop1_x, prop1_y, prop0_x, prop0_y)
     stacked_bboxes = dali.fn.cat(bboxes_UL, bboxes_UR, bboxes_LL, bboxes_LR)
     stacked_labels = dali.fn.cat(labels_UL, labels_UR, labels_LL, labels_LR)

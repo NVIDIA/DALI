@@ -1,4 +1,4 @@
-// Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -27,30 +27,39 @@ namespace dali {
  * Note: the Executor also has an output descriptor inside. It is different than this one.
  */
 struct PipelineOutputDesc {
-  std::string name, device;
-  DALIDataType dtype;
-  int ndim;
+  std::string name;
+  StorageDevice device = StorageDevice::CPU;
+  DALIDataType dtype = DALI_NO_TYPE;
+  int ndim = -1;
+  TensorLayout layout;
 
   PipelineOutputDesc() = default;
 
-  PipelineOutputDesc(std::string name, std::string device, DALIDataType dtype, int ndim)
-      : name(std::move(name)), device(std::move(device)), dtype(dtype), ndim(ndim) {}
+  PipelineOutputDesc(
+        std::string name,
+        std::string_view device,
+        DALIDataType dtype,
+        int ndim,
+        const TensorLayout &layout)
+  : name(std::move(name))
+  , device(ParseStorageDevice(device))
+  , dtype(dtype)
+  , ndim(ndim)
+  , layout(layout) {}
 
-  PipelineOutputDesc(const std::pair<std::string, std::string>& name_and_device)  // NOLINT
+  PipelineOutputDesc(const std::pair<std::string, std::string> &name_and_device)  // NOLINT
       : name(name_and_device.first),
-        device(name_and_device.second),
-        dtype(DALI_NO_TYPE),
-        ndim(-1) {}
+        device(ParseStorageDevice(name_and_device.second)) {}
 
   bool operator==(const PipelineOutputDesc& other) const {
     return name == other.name && device == other.device && dtype == other.dtype &&
-           ndim == other.ndim;
+           ndim == other.ndim && layout == other.layout;
   }
 };
 
 inline std::ostream& operator<<(std::ostream& os, const PipelineOutputDesc& pod) {
   return os << "[Name: " << pod.name << "\tDevice: " << pod.device << "\tDtype: " << pod.dtype
-            << "\tNdim: " << pod.ndim << "]";
+            << "\tNdim: " << pod.ndim << "\tLayout: " << pod.layout << "]";
 }
 
 inline std::ostream& operator<<(std::ostream& os, const std::vector<PipelineOutputDesc>& pod) {

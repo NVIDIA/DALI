@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,8 +19,14 @@ import socket
 from collections import deque
 from multiprocessing import reduction
 from nvidia.dali._utils.external_source_impl import SourceKind, _is_generator_function
-from nvidia.dali._multiproc.shared_batch import SharedBatchWriter, SharedBatchMeta, BufShmChunk, \
-    assert_valid_data_type, read_shm_message, write_shm_message
+from nvidia.dali._multiproc.shared_batch import (
+    SharedBatchWriter,
+    SharedBatchMeta,
+    BufShmChunk,
+    assert_valid_data_type,
+    read_shm_message,
+    write_shm_message,
+)
 from nvidia.dali._multiproc.messages import CompletedTask, WorkerArgs, ShmMessageDesc, ScheduledTask
 from nvidia.dali._multiproc.shared_queue import Dispatcher
 
@@ -30,8 +36,7 @@ class _WorkerProcessingResult:
     thread to the dispatcher thread. The dispatcher thread serializes the batch or the error and
     forwards the result as `CompletedTask` to the main process"""
 
-    def __init__(self, scheduled, shm_chunk, data_batch=None, exception=None,
-                 traceback_str=None):
+    def __init__(self, scheduled, shm_chunk, data_batch=None, exception=None, traceback_str=None):
         self.context_i = scheduled.context_i
         self.scheduled_i = scheduled.scheduled_i
         self.minibatch_i = scheduled.task.minibatch_i
@@ -66,6 +71,7 @@ class SharedBatchDispatcher(Dispatcher):
         def on_thread_exit():
             for queue in recv_queues:
                 queue.close()
+
         super().__init__(result_queue, on_thread_exit)
         self.worker_id = worker_id
 
@@ -78,8 +84,7 @@ class SharedBatchDispatcher(Dispatcher):
         """
         shm_chunk = processed_task.shm_chunk
         completed_task = CompletedTask.failed(self.worker_id, processed_task)
-        return write_shm_message(
-            self.worker_id, shm_chunk, completed_task, 0, resize=True)
+        return write_shm_message(self.worker_id, shm_chunk, completed_task, 0, resize=True)
 
     def _serialize_done_task(self, processed_task: _WorkerProcessingResult):
         """
@@ -101,7 +106,8 @@ class SharedBatchDispatcher(Dispatcher):
         batch_meta = SharedBatchMeta.from_writer(sbw)
         completed_task = CompletedTask.done(self.worker_id, processed_task, batch_meta)
         return write_shm_message(
-            self.worker_id, shm_chunk, completed_task, sbw.total_size, resize=True)
+            self.worker_id, shm_chunk, completed_task, sbw.total_size, resize=True
+        )
 
     def serialize_msgs(self, processed_tasks: List[_WorkerProcessingResult]):
         shm_msgs = []
@@ -214,7 +220,6 @@ class MixedTaskReceiver:
             self.thread.join()
 
     class MixedReceiverState:
-
         def __init__(self):
             self.lock = threading.Lock()
             self.tasks_cv = threading.Condition(lock=self.lock)
@@ -294,7 +299,7 @@ class IterableSource:
     It is a counterpart of _CycleIter/_CycleGenIter wrappers from non parallel mode.
     However due to prefetching in parallel mode `cycle`=raise
     will raise StopIteration in consecutive calls until the new epoch starts
-    (i.e. which happens with pipline.reset call)"""
+    (i.e. which happens with pipeline.reset call)"""
 
     def __init__(self, source_desc):
         self.source_desc = source_desc
@@ -342,7 +347,6 @@ class IterableSource:
 
 
 class CallableSource:
-
     def __init__(self, source_desc):
         self.callback = source_desc.source
 
@@ -369,8 +373,9 @@ class WorkerContext:
 
     def __init__(self, worker_args: WorkerArgs):
         self.worker_id = worker_args.worker_id
-        self.callbacks = self._init_callbacks(worker_args.source_descs,
-                                              worker_args.callback_pickler)
+        self.callbacks = self._init_callbacks(
+            worker_args.source_descs, worker_args.callback_pickler
+        )
         self.result_queue = worker_args.result_queue
         self.general_task_queue = worker_args.general_task_queue
         self.dedicated_task_queue = worker_args.dedicated_task_queue
@@ -390,8 +395,10 @@ class WorkerContext:
         try:
             self.task_receiver = self._init_task_receiver()
             self.batch_dispatcher = SharedBatchDispatcher(
-                worker_args.worker_id, worker_args.result_queue,
-                self.task_receiver.get_recv_queues())
+                worker_args.worker_id,
+                worker_args.result_queue,
+                self.task_receiver.get_recv_queues(),
+            )
         except:  # noqa E722
             self.close()
             raise
@@ -404,7 +411,8 @@ class WorkerContext:
                 source_desc.source = callback_pickler.loads(source_desc.source)
         return {
             context_i: get_source_from_desc(source_desc)
-            for context_i, source_desc in source_descs.items()}
+            for context_i, source_desc in source_descs.items()
+        }
 
     def _recv_queue_handles(self, setup_socket):
         self.result_queue.open_shm(reduction.recv_handle(setup_socket))

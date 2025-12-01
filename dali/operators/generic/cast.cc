@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -76,6 +76,7 @@ DALI_SCHEMA(Cast)
 DALI_SCHEMA(CastLike)
     .DocStr("Cast the first tensor to the type of the second tensor.")
     .NumInput(2)
+    .InputDevice(1, InputDevice::Metadata)
     .NumOutput(1)
     .AllowSequences()
     .SupportVolumetric();

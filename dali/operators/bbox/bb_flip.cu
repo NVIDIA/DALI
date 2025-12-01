@@ -93,7 +93,7 @@ void BbFlipGPU::RunImpl(Workspace &ws) {
   TensorListShape<2> strong_shape = GetNormalizedShape(shape);
 
   block_setup_.SetupBlocks(strong_shape, true);
-  kernels::DynamicScratchpad scratchpad({}, ws.stream());
+  kernels::DynamicScratchpad scratchpad(ws.stream());
 
   samples_.resize(nsamples);
 

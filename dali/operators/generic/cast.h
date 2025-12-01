@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,26 +19,27 @@
 
 #include "dali/core/convert.h"
 #include "dali/core/tensor_shape.h"
-#include "dali/pipeline/operator/operator.h"
+#include "dali/pipeline/data/types.h"
+#include "dali/pipeline/operator/checkpointing/stateless_operator.h"
 
 namespace dali {
 
 #define CAST_ALLOWED_TYPES                                                                         \
   (bool, uint8_t, uint16_t, uint32_t, uint64_t, int8_t, int16_t, int32_t, int64_t, float16, float, \
-  double)
+  double, DALIDataType, DALIImageType, DALIInterpType)
 
 template <typename Backend>
-class Cast : public Operator<Backend> {
+class Cast : public StatelessOperator<Backend> {
  public:
   explicit inline Cast(const OpSpec &spec)
-      : Operator<Backend>(spec) {
-    if (spec.name() == "Cast") {
+      : StatelessOperator<Backend>(spec) {
+    if (spec.SchemaName() == "Cast") {
       dtype_arg_ = spec.GetArgument<DALIDataType>("dtype");
       if (dtype_arg_ == DALI_NO_TYPE) {
         DALI_FAIL(make_string("Unexpected data type argument", dtype_arg_));
       }
     } else {
-      assert(spec.name() == "CastLike");
+      assert(spec.SchemaName() == "CastLike");
       is_cast_like_ = true;
     }
   }
@@ -47,13 +48,14 @@ class Cast : public Operator<Backend> {
   DISABLE_COPY_MOVE_ASSIGN(Cast);
 
  protected:
-  bool CanInferOutputs() const override {
-    return true;
-  }
-
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     const auto &input = ws.Input<Backend>(0);
     DALIDataType out_type = is_cast_like_ ?  ws.GetInputDataType(1) : dtype_arg_;
+    DALI_ENFORCE(!((IsEnum(input.type()) && IsFloatingPoint(out_type)) ||
+                   (IsEnum(out_type) && IsFloatingPoint(input.type()))),
+                 make_string("Cannot cast from ", input.type(), " to ", out_type,
+                             ". Enums can only participate in casts with integral types, "
+                             "but not floating point types."));
     output_desc.resize(1);
     output_desc[0].shape = input.shape();
     output_desc[0].type = out_type;

@@ -1,4 +1,4 @@
-// Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,21 +19,19 @@
 #include "dali/core/backend_tags.h"
 #include "dali/core/tensor_shape.h"
 #include "dali/pipeline/data/types.h"
+#include "dali/pipeline/operator/checkpointing/stateless_operator.h"
 #include "dali/pipeline/operator/operator.h"
 #include "dali/core/static_switch.h"
-#include "dali/imgcodec/parsers/tiff.h"
-#include "dali/imgcodec/image_source.h"
+#include "dali/operators/imgcodec/util/nvimagecodec_types.h"
 
 namespace dali {
 namespace imgcodec {
 
-class ImgcodecPeekImageShape : public Operator<CPUBackend> {
+class ImgcodecPeekImageShape : public StatelessOperator<CPUBackend> {
  public:
   ImgcodecPeekImageShape(const ImgcodecPeekImageShape &) = delete;
 
   explicit ImgcodecPeekImageShape(const OpSpec &spec);
-
-  bool CanInferOutputs() const override;
 
  protected:
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override;
@@ -47,6 +45,8 @@ class ImgcodecPeekImageShape : public Operator<CPUBackend> {
   DALIDataType output_type_ = DALI_INT64;
   bool use_orientation_;
   DALIImageType image_type_;
+
+  NvImageCodecInstance instance_;
 };
 
 }  // namespace imgcodec

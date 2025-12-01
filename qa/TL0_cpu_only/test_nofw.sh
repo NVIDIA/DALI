@@ -1,6 +1,6 @@
 #!/bin/bash -e
 # used pip packages
-pip_packages='${python_test_runner_package} numpy numba scipy librosa==0.8.1'
+pip_packages='${python_test_runner_package} numpy numba scipy librosa'
 
 target_dir=./dali/test/python
 
@@ -13,8 +13,7 @@ test_body() {
     "dali_core_test.bin" \
     "dali_kernel_test.bin" \
     "dali_test.bin" \
-    "dali_operator_test.bin" \
-    "dali_imgcodec_test.bin"
+    "dali_operator_test.bin"
   do
     for DIRNAME in \
       "../../build/dali/python/nvidia/dali" \
@@ -33,8 +32,11 @@ test_body() {
 
     "$FULLPATH" --gtest_filter="*CpuOnly*:*CApi*/0.*-*0.UseCopyKernel:*ForceNoCopyFail:*daliOutputCopySamples"
   done
-
-  ${python_invoke_test} --attr '!pytorch' test_dali_cpu_only.py
+  if [ -z "$DALI_ENABLE_SANITIZERS" ]; then
+    ${python_invoke_test} --attr '!pytorch' test_dali_cpu_only.py
+  else
+    ${python_invoke_test} --attr '!pytorch,!numba' test_dali_cpu_only.py
+  fi
 }
 
 pushd ../..

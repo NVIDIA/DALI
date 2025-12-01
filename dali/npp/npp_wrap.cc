@@ -17,6 +17,7 @@
 #include <mutex>
 #include <string>
 #include <unordered_map>
+#include <stdexcept>
 
 #include "dali/npp/npp.h"
 
@@ -29,7 +30,11 @@ typedef void* NPPIGDRIVER;
 static const char __NppcLibName[] = "libnppc.so";
 static const char __NppiccLibName[] = "libnppicc.so";
 static const char __NppigLibName[] = "libnppig.so";
-#if CUDA_VERSION >= 12000
+#if CUDA_VERSION >= 13000
+static const char __NppcLibNameCuVer[] = "libnppc.so.13";
+static const char __NppiccLibNameCuVer[] = "libnppicc.so.13";
+static const char __NppigLibNameCuVer[] = "libnppig.so.13";
+#elif CUDA_VERSION >= 12000 && CUDA_VERSION < 13000
 static const char __NppcLibNameCuVer[] = "libnppc.so.12";
 static const char __NppiccLibNameCuVer[] = "libnppicc.so.12";
 static const char __NppigLibNameCuVer[] = "libnppig.so.12";

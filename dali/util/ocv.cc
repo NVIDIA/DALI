@@ -13,58 +13,43 @@
 // limitations under the License.
 
 #include "dali/util/ocv.h"
-#include <cmath>
-#include <utility>
-#include <map>
 #include <algorithm>
+#include <cmath>
+#include <map>
 #include <tuple>
+#include <utility>
 #include "dali/core/error_handling.h"
 #include "dali/kernels/imgproc/color_manipulation/color_space_conversion_impl.h"
 
 namespace dali {
 
-int OCVInterpForDALIInterp(DALIInterpType type, int *ocv_type) {
-  switch (type) {
-  case DALI_INTERP_NN:
-    *ocv_type =  cv::INTER_NEAREST;
-    break;
-  case DALI_INTERP_LINEAR:
-    *ocv_type =  cv::INTER_LINEAR;
-    break;
-  case DALI_INTERP_CUBIC:
-    *ocv_type =  cv::INTER_CUBIC;
-    break;
-  default:
-    return DALIError;
-  }
-  return DALISuccess;
-}
-
 int GetOpenCvChannelType(size_t c) {
   return type2ocv<uint8_t>::value(c);
 }
 
-static cv::ColorConversionCodes GetOpenCvColorConversionCode(
-  DALIImageType input_type, DALIImageType output_type) {
-    using ColorConversionPair = std::pair<DALIImageType, DALIImageType>;
-    using ColorConversionMap = std::map< ColorConversionPair, cv::ColorConversionCodes >;
-    static const ColorConversionMap color_conversion_map = {
-        { {DALI_RGB, DALI_BGR},  cv::COLOR_RGB2BGR },
-        { {DALI_RGB, DALI_GRAY}, cv::COLOR_RGB2GRAY },
+static cv::ColorConversionCodes GetOpenCvColorConversionCode(DALIImageType input_type,
+                                                             DALIImageType output_type) {
+  using ColorConversionPair = std::pair<DALIImageType, DALIImageType>;
+  using ColorConversionMap = std::map<ColorConversionPair, cv::ColorConversionCodes>;
+  // clang-format off
+  static const ColorConversionMap color_conversion_map = {
+    { {DALI_RGB, DALI_BGR},  cv::COLOR_RGB2BGR },
+    { {DALI_RGB, DALI_GRAY}, cv::COLOR_RGB2GRAY },
 
-        { {DALI_BGR, DALI_RGB},  cv::COLOR_BGR2RGB },
-        { {DALI_BGR, DALI_GRAY}, cv::COLOR_BGR2GRAY },
+    { {DALI_BGR, DALI_RGB},  cv::COLOR_BGR2RGB },
+    { {DALI_BGR, DALI_GRAY}, cv::COLOR_BGR2GRAY },
 
-        { {DALI_GRAY, DALI_RGB}, cv::COLOR_GRAY2RGB },
-        { {DALI_GRAY, DALI_BGR}, cv::COLOR_GRAY2BGR },
-    };
+    { {DALI_GRAY, DALI_RGB}, cv::COLOR_GRAY2RGB },
+    { {DALI_GRAY, DALI_BGR}, cv::COLOR_GRAY2BGR },
+  };
+  // clang-format on
 
-    const ColorConversionPair color_conversion_pair{ input_type, output_type };
-    const auto it = color_conversion_map.find(color_conversion_pair);
-    if (it == color_conversion_map.end()) {
-      return cv::COLOR_COLORCVT_MAX;
-    }
-    return it->second;
+  const ColorConversionPair color_conversion_pair{input_type, output_type};
+  const auto it = color_conversion_map.find(color_conversion_pair);
+  if (it == color_conversion_map.end()) {
+    return cv::COLOR_COLORCVT_MAX;
+  }
+  return it->second;
 }
 
 template <DALIImageType input_type, DALIImageType output_type>
@@ -121,51 +106,50 @@ inline void custom_conversion(const cv::Mat& img, cv::Mat& output_img) {
   const std::size_t input_C = img.elemSize();
   const std::size_t output_C = output_img.elemSize();
   const std::size_t total_size = img.rows * img.cols;
-  for (std::size_t i = 0; i < total_size; i ++) {
-    custom_conversion_pixel<input_type, output_type>(
-      img.data + i*input_C,
-      output_img.data + i*output_C);
+  for (std::size_t i = 0; i < total_size; i++) {
+    custom_conversion_pixel<input_type, output_type>(img.data + i * input_C,
+                                                     output_img.data + i * output_C);
   }
 }
 
 void OpenCvColorConversion(DALIImageType input_type, const cv::Mat& input_img,
                            DALIImageType output_type, cv::Mat& output_img) {
   DALI_ENFORCE(input_img.elemSize() == static_cast<size_t>(NumberOfChannels(input_type)),
-    "Incorrect number of channels");
+               "Incorrect number of channels");
   DALI_ENFORCE(output_img.elemSize() == static_cast<size_t>(NumberOfChannels(output_type)),
-    "Incorrect number of channels");
+               "Incorrect number of channels");
   auto ocv_conversion_code = GetOpenCvColorConversionCode(input_type, output_type);
   bool ocv_supported = (ocv_conversion_code != cv::COLOR_COLORCVT_MAX);
-  if ( ocv_supported ) {
+  if (ocv_supported) {
     cv::cvtColor(input_img, output_img, ocv_conversion_code);
     return;
   }
   using ColorConversionPair = std::pair<DALIImageType, DALIImageType>;
-  ColorConversionPair conversion { input_type, output_type };
+  ColorConversionPair conversion{input_type, output_type};
   // Handle special cases
-  const ColorConversionPair kRGBToYCbCr  { DALI_RGB,   DALI_YCbCr };
-  const ColorConversionPair kBGRToYCbCr  { DALI_BGR,   DALI_YCbCr };
-  const ColorConversionPair kYCbCrToRGB  { DALI_YCbCr, DALI_RGB };
-  const ColorConversionPair kYCbCrToBGR  { DALI_YCbCr, DALI_BGR };
-  const ColorConversionPair kGrayToYCbCr { DALI_GRAY,  DALI_YCbCr };
-  const ColorConversionPair kYCbCrToGray { DALI_YCbCr, DALI_GRAY };
+  const ColorConversionPair kRGBToYCbCr{DALI_RGB, DALI_YCbCr};
+  const ColorConversionPair kBGRToYCbCr{DALI_BGR, DALI_YCbCr};
+  const ColorConversionPair kYCbCrToRGB{DALI_YCbCr, DALI_RGB};
+  const ColorConversionPair kYCbCrToBGR{DALI_YCbCr, DALI_BGR};
+  const ColorConversionPair kGrayToYCbCr{DALI_GRAY, DALI_YCbCr};
+  const ColorConversionPair kYCbCrToGray{DALI_YCbCr, DALI_GRAY};
 
-  if ( conversion == kRGBToYCbCr ) {
+  if (conversion == kRGBToYCbCr) {
     custom_conversion<DALI_RGB, DALI_YCbCr>(input_img, output_img);
     return;
-  } else if ( conversion == kBGRToYCbCr ) {
+  } else if (conversion == kBGRToYCbCr) {
     custom_conversion<DALI_BGR, DALI_YCbCr>(input_img, output_img);
     return;
-  } else if ( conversion == kYCbCrToRGB ) {
+  } else if (conversion == kYCbCrToRGB) {
     custom_conversion<DALI_YCbCr, DALI_RGB>(input_img, output_img);
     return;
-  } else if ( conversion == kYCbCrToBGR ) {
+  } else if (conversion == kYCbCrToBGR) {
     custom_conversion<DALI_YCbCr, DALI_BGR>(input_img, output_img);
     return;
-  } else if ( conversion == kGrayToYCbCr ) {
+  } else if (conversion == kGrayToYCbCr) {
     custom_conversion<DALI_GRAY, DALI_YCbCr>(input_img, output_img);
     return;
-  } else if ( conversion == kYCbCrToGray ) {
+  } else if (conversion == kYCbCrToGray) {
     custom_conversion<DALI_YCbCr, DALI_GRAY>(input_img, output_img);
     return;
   }

@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -22,9 +22,9 @@
 #include "dali/kernels/imgproc/convolution/baseline_convolution.h"
 #include "dali/kernels/imgproc/convolution/separable_convolution_cpu.h"
 #include "dali/kernels/imgproc/convolution/separable_convolution_gpu.h"
-#include "dali/kernels/scratch.h"
 #include "dali/test/tensor_test_utils.h"
 #include "dali/test/test_tensors.h"
+#include "dali/kernels/dynamic_scratchpad.h"
 
 namespace dali {
 namespace kernels {
@@ -114,15 +114,12 @@ class SepearableConvolutionGpuTestImpl {
       }
 
       KernelContext ctx_gpu, ctx_cpu;
-
       ctx_gpu.gpu.stream = 0;
 
       auto req_gpu = kernel_gpu.Setup(ctx_gpu, data_shape_, window_dims_);
 
-      ScratchpadAllocator scratch_alloc;
-      scratch_alloc.Reserve(req_gpu.scratch_sizes);
-      auto scratchpad = scratch_alloc.GetScratchpad();
-      ctx_gpu.scratchpad = &scratchpad;
+      DynamicScratchpad dyn_scratchpad_gpu(AccessOrder(ctx_gpu.gpu.stream));
+      ctx_gpu.scratchpad = &dyn_scratchpad_gpu;
 
       kernel_gpu.Run(ctx_gpu, out_gpu_v, in_gpu_v, window_v);
       int nsamples = in_gpu_v.num_samples();
@@ -145,10 +142,8 @@ class SepearableConvolutionGpuTestImpl {
         for (int frame = 0; frame < seq_elements; frame++) {
           auto req_cpu = kernel_cpu.Setup(ctx_cpu, element_shape, window_dims);
 
-          ScratchpadAllocator scratch_alloc;
-          scratch_alloc.Reserve(req_cpu.scratch_sizes);
-          auto scratchpad = scratch_alloc.GetScratchpad();
-          ctx_cpu.scratchpad = &scratchpad;
+          DynamicScratchpad dyn_scratchpad_cpu(AccessOrder::host());
+          ctx_cpu.scratchpad = &dyn_scratchpad_cpu;
 
           std::array<TensorView<StorageCPU, const float, 1>, kAxes> windows;
           for (int axis = 0; axis < kAxes; axis++) {

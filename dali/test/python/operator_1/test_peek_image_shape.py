@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,8 +20,8 @@ import os
 from test_utils import get_dali_extra_path, dali_type_to_np
 
 test_data_root = get_dali_extra_path()
-path = 'db/single'
-file_types = {'jpeg', 'mixed', 'png', 'tiff', 'pnm', 'bmp', 'jpeg2k'}
+path = "db/single"
+file_types = {"jpeg", "mixed", "png", "tiff", "pnm", "bmp", "jpeg2k"}
 
 
 def run_decode(data_path, out_type):
@@ -29,12 +29,11 @@ def run_decode(data_path, out_type):
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=0)
     input, _ = fn.readers.file(file_root=data_path, shard_id=0, num_shards=1, name="reader")
     decoded = fn.decoders.image(input, output_type=types.RGB)
-    decoded_shape = fn.shapes(decoded)
+    decoded_shape = decoded.shape()
     raw_shape = fn.peek_image_shape(input, dtype=out_type)
     pipe.set_outputs(decoded, decoded_shape, raw_shape)
-    pipe.build()
     samples = 0
-    length = pipe.reader_meta(name="reader")['epoch_size']
+    length = pipe.reader_meta(name="reader")["epoch_size"]
     while samples < length:
         samples += batch_size
         (images, decoded_shape, raw_shape) = pipe.run()
@@ -44,18 +43,26 @@ def run_decode(data_path, out_type):
             image = images.at(i)
             shape_type = np.int64 if out_type is None else dali_type_to_np(out_type)
             for d in range(len(image.shape) - 1):
-                assert image.shape[d] == decoded_shape.at(i)[d], \
-                    "{} vs {}".format(image.shape[d], decoded_shape.at(i)[d])
-                assert image.shape[d] == raw_shape.at(i)[d], \
-                    "{} vs {}".format(image.shape[d], raw_shape.at(i)[d])
-                assert raw_shape.at(i)[d].dtype == shape_type, \
-                    "{} vs {}".format(raw_shape.at(i)[d].dtyp, shape_type)
+                assert image.shape[d] == decoded_shape.at(i)[d], "{} vs {}".format(
+                    image.shape[d], decoded_shape.at(i)[d]
+                )
+                assert image.shape[d] == raw_shape.at(i)[d], "{} vs {}".format(
+                    image.shape[d], raw_shape.at(i)[d]
+                )
+                assert raw_shape.at(i)[d].dtype == shape_type, "{} vs {}".format(
+                    raw_shape.at(i)[d].dtyp, shape_type
+                )
 
 
-test_types = [None,
-              types.INT32, types.UINT32,
-              types.INT64, types.UINT64,
-              types.FLOAT, types.FLOAT64]
+test_types = [
+    None,
+    types.INT32,
+    types.UINT32,
+    types.INT64,
+    types.UINT64,
+    types.FLOAT,
+    types.FLOAT64,
+]
 
 
 def test_operator_peek_image_shape():

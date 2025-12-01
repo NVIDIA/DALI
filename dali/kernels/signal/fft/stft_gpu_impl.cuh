@@ -66,10 +66,9 @@ class StftImplGPU {
 
   void CreatePlans(int64_t nwindows);
   void CreateStreams(int new_num_streams);
-  void ReserveTempStorage(ScratchpadEstimator &se);
-  void SetupWindowExtraction(KernelContext &ctx, ScratchpadEstimator &se,
-                             span<const int64_t> input_lengths);
-  void SetupPostprocessing(KernelContext &ctx, ScratchpadEstimator &se);
+  void ReserveTempStorage();
+  void SetupWindowExtraction(KernelContext &ctx, span<const int64_t> input_lengths);
+  void SetupPostprocessing(KernelContext &ctx);
 
   std::unique_ptr<fft_postprocess::FFTPostprocess<float2, float2>> post_complex_;
   std::unique_ptr<fft_postprocess::FFTPostprocess<float, float2>> post_real_;

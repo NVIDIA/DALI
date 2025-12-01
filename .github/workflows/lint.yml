@@ -1,0 +1,37 @@
+name: Lint
+
+on:
+  pull_request:
+    branches: [ "main" ]
+
+# TODO(klecki): Deduplicate this list of directories with `lint.cmake` file
+env:
+  PYTHON_SECURITY_LINT_PATHS: "./tools ./dali/python ./dali_tf_plugin"
+  PYTHON_LINT_DOCS_PATHS: "./docs"
+  PYTHON_LINT_PATHS: "./dali ./internal_tools ./qa"
+  AUTOGRAPH_LINT_PATHS: "./dali/python/nvidia/dali/_autograph ./dali/test/python/autograph/"
+
+jobs:
+  python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      - run: pip install  flake8 bandit "black[jupyter]"==25.9.0
+      # keep black invocations separated so each invocation will pick appropriate configuration file
+      # from the top dir used for it
+      - run: black --check --verbose ${{ env.PYTHON_SECURITY_LINT_PATHS }} ${{ env.PYTHON_LINT_PATHS }} ${{ env.AUTOGRAPH_LINT_PATHS }}
+      - run: black --check --verbose ${{ env.PYTHON_LINT_DOCS_PATHS }}
+      - run: flake8 --config=.flake8 ${{ env.PYTHON_SECURITY_LINT_PATHS }} ${{ env.PYTHON_LINT_PATHS }} ${{ env.PYTHON_LINT_DOCS_PATHS }}
+      - run: flake8 --config=.flake8.ag ${{ env.AUTOGRAPH_LINT_PATHS }}
+      - run: bandit --config bandit.yml -r ${{ env.PYTHON_SECURITY_LINT_PATHS }}
+  cpp:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      - run: python ./internal_tools/lint.py . --nproc=5

@@ -22,6 +22,7 @@
 #include "dali/kernels/kernel_manager.h"
 #include "dali/kernels/audio/mel_scale/mel_filter_bank_args.h"
 #include "dali/pipeline/operator/common.h"
+#include "dali/pipeline/operator/checkpointing/stateless_operator.h"
 #include "dali/pipeline/operator/operator.h"
 
 #define MEL_FBANK_SUPPORTED_TYPES (float)
@@ -32,10 +33,10 @@ static constexpr int kNumInputs = 1;
 static constexpr int kNumOutputs = 1;
 
 template <typename Backend>
-class MelFilterBank : public Operator<Backend> {
+class MelFilterBank : public StatelessOperator<Backend> {
  public:
   explicit MelFilterBank(const OpSpec &spec)
-      : Operator<Backend>(spec) {
+      : StatelessOperator<Backend>(spec) {
     args_.nfilter = spec.GetArgument<int>("nfilter");
     DALI_ENFORCE(args_.nfilter > 0, "number of filters should be > 0");
 
@@ -68,7 +69,6 @@ class MelFilterBank : public Operator<Backend> {
   }
 
  protected:
-  bool CanInferOutputs() const override { return true; }
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override;
   void RunImpl(Workspace &ws) override;
 

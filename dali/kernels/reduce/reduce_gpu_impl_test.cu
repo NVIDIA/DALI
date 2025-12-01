@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,7 +16,6 @@
 #include <random>
 #include <utility>
 #include "dali/kernels/reduce/reduce_gpu_impl.cuh"
-#include "dali/kernels/scratch.h"
 #include "dali/test/test_tensors.h"
 #include "dali/test/tensor_test_utils.h"
 #include "dali/core/tensor_shape_print.h"
@@ -428,6 +427,98 @@ TEST(SumImplGPU, All_ZeroSize) {
   test.Run();
 
   RefReduce(test.ref.cpu(), test.in.cpu(), make_span(axes), false, true, reductions::sum());
+
+  test.Check();
+}
+
+TEST(SumImplGPU, Partial_ZeroShape_Middle) {
+  TensorListShape<> in_shape = {{
+    { 3, 0, 5 },
+    { 6, 0, 8 },
+    { 9, 0, 2 }
+  }};
+  TensorListShape<> ref_out_shape = {{
+    TensorShape<>{3, 5},
+    TensorShape<>{6, 8},
+    TensorShape<>{9, 2}
+  }};
+  int axes[] = { 1 };
+  testing::ReductionKernelTest<SumImplGPU<int64_t, uint8_t>, int64_t, uint8_t> test;
+  test.Setup(in_shape, ref_out_shape, make_span(axes), false, false);
+  test.FillData(0, 255);
+
+  test.Run();
+
+  RefReduce(test.ref.cpu(), test.in.cpu(), make_span(axes), false, false, reductions::sum());
+
+  test.Check();
+}
+
+TEST(SumImplGPU, Partial_ZeroShape_Inner) {
+  TensorListShape<> in_shape = {{
+    { 3, 0, 0 },
+    { 6, 0, 0 },
+    { 9, 0, 0 }
+  }};
+  TensorListShape<> ref_out_shape = {{
+    TensorShape<>{3},
+    TensorShape<>{6},
+    TensorShape<>{9}
+  }};
+  int axes[] = { 1, 2 };
+  testing::ReductionKernelTest<SumImplGPU<int64_t, uint8_t>, int64_t, uint8_t> test;
+  test.Setup(in_shape, ref_out_shape, make_span(axes), false, false);
+  test.FillData(0, 255);
+
+  test.Run();
+
+  RefReduce(test.ref.cpu(), test.in.cpu(), make_span(axes), false, false, reductions::sum());
+
+  test.Check();
+}
+
+TEST(SumImplGPU, Partial_ZeroShape_Outer) {
+  TensorListShape<> in_shape = {{
+    { 0, 4, 5 },
+    { 0, 7, 8 },
+    { 0, 1, 2 }
+  }};
+  TensorListShape<> ref_out_shape = {{
+    TensorShape<>{4, 5},
+    TensorShape<>{7, 8},
+    TensorShape<>{1, 2}
+  }};
+  int axes[] = { 0 };
+  testing::ReductionKernelTest<SumImplGPU<int64_t, uint8_t>, int64_t, uint8_t> test;
+  test.Setup(in_shape, ref_out_shape, make_span(axes), false, false);
+  test.FillData(0, 255);
+
+  test.Run();
+
+  RefReduce(test.ref.cpu(), test.in.cpu(), make_span(axes), false, false, reductions::sum());
+
+  test.Check();
+}
+
+TEST(SumImplGPU, Partial_ZeroShape_OuterInner) {
+  TensorListShape<> in_shape = {{
+    { 0, 4, 0 },
+    { 0, 7, 0 },
+    { 0, 1, 0 }
+  }};
+  TensorListShape<> ref_out_shape = {{
+    TensorShape<>{4},
+    TensorShape<>{7},
+    TensorShape<>{1}
+  }};
+  int axes[] = { 0, 2 };
+  testing::ReductionKernelTest<SumImplGPU<int64_t, uint8_t>, int64_t, uint8_t> test;
+  test.Setup(in_shape, ref_out_shape, make_span(axes), false, false);
+  test.FillData(0, 255);
+
+  test.Run();
+
+  RefReduce(test.ref.cpu(), test.in.cpu(), make_span(axes), false, false, reductions::sum());
 
   test.Check();
 }

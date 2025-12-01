@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES.. All rights reserved.
+# Copyright (c) 2019-2025, NVIDIA CORPORATION & AFFILIATES.. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -30,6 +30,8 @@ function(adjust_source_file_language_property SOURCES)
     foreach(File IN LISTS SOURCES)
       if(File MATCHES ".*\.cu$")
         set_source_files_properties(${File} PROPERTIES LANGUAGE CXX)
+        # CMake now forces C++ language and we need to override that to get a CUDA compilation
+        set_source_files_properties(${File} PROPERTIES COMPILE_FLAGS "-x cuda")
       endif()
     endforeach()
   endif()
@@ -39,19 +41,26 @@ endfunction()
 
 # List of currently used arch values
 if (${ARCH} MATCHES "aarch64-")
-  # aarch64-linux and aarch64-qnx
-  set(CUDA_known_archs "53" "62" "72" "75" "87")
+  # aarch64-linux
+  set(CUDA_known_archs "53" "62" "72" "75" "87" "90a")
 elseif (${ARCH} MATCHES "aarch64")
   # aarch64 SBSA, only >=Volta
   # from the whole list/; "70" "75" "80" "86"
   # we pick only major arch as minor should be compatible without JITing, it should
   # shrink  the output binary
-  set(CUDA_known_archs "70" "80" "90")
+  set(CUDA_known_archs "70" "80" "90" "100" "110" "120")
 else()
   # from the whole list: "35" "50" "52" "60" "61" "70" "75" "80" "86"
   # we pick only major arch as minor should be compatible without JITing, it should
   # shrink  the output binary
-  set(CUDA_known_archs "35" "50" "60" "70" "80" "90")
+  set(CUDA_known_archs "35" "50" "60" "70" "80" "90" "100" "110" "120")
+endif()
+
+if ("${CUDA_VERSION_MAJOR}" EQUAL "13")
+  # We need sm75 to Turing, which is still supported with cuda 13
+  # but major version (sm70) is Volta, which is not supported with cuda 13."
+  list(PREPEND CUDA_known_archs "75")
+  list(SORT CUDA_known_archs COMPARE NATURAL)
 endif()
 
 set(CUDA_TARGET_ARCHS ${CUDA_known_archs} CACHE STRING "List of target CUDA architectures")
@@ -182,7 +191,7 @@ function(CUDA_find_library_stub out_path lib_name)
 endfunction()
 
 function(CUDA_remove_toolkit_include_dirs include_dirs)
-  if (NOT ${CMAKE_CUDA_TOOLKIT_ROOT})
+  if (NOT CMAKE_CUDA_TOOLKIT_ROOT)
     CUDA_get_toolkit_from_compiler(CUDA_TOOLKIT_PATH_VAR)
   else()
     set(CUDA_TOOLKIT_PATH_VAR ${CMAKE_CUDA_TOOLKIT_ROOT})

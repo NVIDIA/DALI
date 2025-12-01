@@ -1,6 +1,6 @@
 #!/bin/bash -e
 #
-# Copyright (c) 2018-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2018-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -52,6 +52,8 @@ OUTDIR=${6:-/wheelhouse}
 COMPRESSION=${7:-YES} # whether to compress the resulting wheel
 BUNDLE_NVCOMP=${8:-NO}
 
+MAJOR_CUDA_VERSION="$(echo $OUTWHLNAME | grep -oP 'cuda\K[0-9]{2}')"
+
 if [[ "$COMPRESSION" == "NO" ]]; then
     ZIP_FLAG="-0"
 else
@@ -59,9 +61,6 @@ else
 fi
 
 SCRIPT_PATH=$(dirname $(readlink -f $0))
-
-# For some reason the pip wheel builder inserts "-none-" into the tag even if you gave it an ABI name
-OUTWHLNAME=${OUTWHLNAME//-none-/-}
 
 PKGNAME=$(echo "$OUTWHLNAME" | sed 's/-.*$//')
 PKGNAME_PATH=$(echo "$PKGNAME" | sed 's/_/\//' | sed 's/_.*$//')
@@ -106,14 +105,14 @@ make_wheel_record() {
 DEPS_LIST=(
     "${DEPS_PATH}/lib64/libjpeg.so.62"
     "${DEPS_PATH}/lib/libjpeg.so.62"
-    "${DEPS_PATH}/lib/libavformat.so.60"
-    "${DEPS_PATH}/lib/libavcodec.so.60"
-    "${DEPS_PATH}/lib/libavfilter.so.9"
-    "${DEPS_PATH}/lib/libavutil.so.58"
-    "${DEPS_PATH}/lib/libswscale.so.7"
+    "${DEPS_PATH}/lib/libavformat.so.62"
+    "${DEPS_PATH}/lib/libavcodec.so.62"
+    "${DEPS_PATH}/lib/libavfilter.so.11"
+    "${DEPS_PATH}/lib/libavutil.so.60"
+    "${DEPS_PATH}/lib/libswscale.so.9"
     "${DEPS_PATH}/lib/libtiff.so.6"
     "${DEPS_PATH}/lib/libsndfile.so.1"
-    "${DEPS_PATH}/lib/libFLAC.so.12"
+    "${DEPS_PATH}/lib/libFLAC.so.14"
     "${DEPS_PATH}/lib/libogg.so.0"
     "${DEPS_PATH}/lib/libvorbis.so.0"
     "${DEPS_PATH}/lib/libvorbisenc.so.2"
@@ -121,14 +120,34 @@ DEPS_LIST=(
     "${DEPS_PATH}/lib/libopenjp2.so.7"
     "${DEPS_PATH}/lib/libzstd.so.1"
     "${DEPS_PATH}/lib/libz.so.1"
-    "${DEPS_PATH}/lib/libcfitsio.so.4"
+    "${DEPS_PATH}/lib/libcfitsio.so.10"
+    "${DEPS_PATH}/lib/libaws-cpp-sdk-core.so"
+    "${DEPS_PATH}/lib/libaws-cpp-sdk-s3.so"
+    "${DEPS_PATH}/lib/libaws-crt-cpp.so"
+    "${DEPS_PATH}/lib/libaws-c-mqtt.so.1.0.0"
+    "${DEPS_PATH}/lib/libaws-c-event-stream.so.1.0.0"
+    "${DEPS_PATH}/lib/libaws-c-common.so.1.0.0"
+    "${DEPS_PATH}/lib/libaws-c-common.so.1"
+    "${DEPS_PATH}/lib/libaws-c-sdkutils.so.1.0.0"
+    "${DEPS_PATH}/lib/libaws-c-io.so.1.0.0"
+    "${DEPS_PATH}/lib/libaws-c-cal.so.1.0.0"
+    "${DEPS_PATH}/lib/libaws-c-compression.so.1.0.0"
+    "${DEPS_PATH}/lib/libaws-c-http.so.1.0.0"
+    "${DEPS_PATH}/lib/libaws-c-auth.so.1.0.0"
+    "${DEPS_PATH}/lib/libaws-checksums.so.1.0.0"
+    "${DEPS_PATH}/lib/libaws-c-s3.so.1.0.0"
+    "${DEPS_PATH}/lib/libaws-c-s3.so.0unstable"
+    "${DEPS_PATH}/lib/libs2n.so.1"
+    "lib/libcvcuda.so.0"
+    "lib/libnvcv_types.so.0"
+    # cvcuda adds _d suffix to lib names for debug builds
+    "lib/libcvcuda_d.so.0"
+    "lib/libnvcv_types_d.so.0"
 )
 
 if [ "$BUNDLE_NVCOMP" = "YES" ]; then
     DEPS_LIST+=(
-        "${DEPS_PATH}/cuda/lib64/libnvcomp.so"
-        "${DEPS_PATH}/cuda/lib64/libnvcomp_gdeflate.so"
-        "${DEPS_PATH}/cuda/lib64/libnvcomp_bitcomp.so"
+        "${DEPS_PATH}/cuda/lib64/libnvcomp.so.5"
     )
 fi
 
@@ -170,6 +189,11 @@ copy_and_patch() {
 
     echo "Copying $filepath to $patchedpath"
     cp $filepath $TMPDIR/$patchedpath
+
+    if [[ "$STRIP_DEBUG" != "NO" ]]; then
+        echo "Stripping $patchedpath from debug info"
+        strip_so $TMPDIR/$patchedpath
+    fi
 
     echo "Patching DT_SONAME field in $patchedpath"
     patchelf --set-soname $patchedname $TMPDIR/$patchedpath &
@@ -226,8 +250,8 @@ echo "Fixed hashed names"
 patch_rpath() {
     local FILE=$1
     UPDIRS=$(dirname $(echo "$FILE" | sed "s|$PKGNAME_PATH||") | sed 's/[^\/][^\/]*/../g')
-    echo "Setting rpath of $FILE to '\$ORIGIN:\$ORIGIN$UPDIRS:\$ORIGIN$UPDIRS/.libs:\$ORIGIN/../cufft/lib:\$ORIGIN/../npp/lib:\$ORIGIN/../nvjpeg/lib:/usr/local/cuda/lib64'"
-    patchelf --set-rpath "\$ORIGIN:\$ORIGIN$UPDIRS:\$ORIGIN$UPDIRS/.libs:\$ORIGIN/../cufft/lib:\$ORIGIN/../npp/lib:\$ORIGIN/../nvjpeg/lib:/usr/local/cuda/lib64" $FILE
+    echo "Setting rpath of $FILE to '\$ORIGIN:\$ORIGIN$UPDIRS:\$ORIGIN$UPDIRS/.libs:\$ORIGIN/../cufft/lib:\$ORIGIN/../npp/lib:\$ORIGIN/../nvjpeg/lib:\$ORIGIN/../nvimgcodec:\$ORIGIN/../nvcomp:/usr/local/cuda/lib64:\$ORIGIN/../cu${MAJOR_CUDA_VERSION}/lib'"
+    patchelf --set-rpath "\$ORIGIN:\$ORIGIN$UPDIRS:\$ORIGIN$UPDIRS/.libs:\$ORIGIN/../cufft/lib:\$ORIGIN/../npp/lib:\$ORIGIN/../nvjpeg/lib:\$ORIGIN/../nvimgcodec:\$ORIGIN/../nvcomp:/usr/local/cuda/lib64:\$ORIGIN/../cu${MAJOR_CUDA_VERSION}/lib" $FILE
     patchelf --print-rpath $FILE
 }
 echo "Fixing rpath of main files..."
@@ -261,8 +285,7 @@ echo "Fixed rpath of .lib files"
 
 # correct the metadata in the dist-info/WHEEL, e.g.:
 #Root-Is-Purelib: true
-#Tag: cp27-cp27mu-none-manylinux1_x86_64
-sed -i 's/\(Tag:.*\)-none-/\1-/;s/\(Root-Is-Purelib:\) true/\1 false/' ${PKGNAME}-*.dist-info/WHEEL
+sed -i 's/\(Root-Is-Purelib:\) true/\1 false/' ${PKGNAME}-*.dist-info/WHEEL
 
 # regenerate the RECORD file with new hashes
 RECORD_FILE=$(ls $PKGNAME-*.dist-info/RECORD)
@@ -278,12 +301,16 @@ for ((i=0;i<${#rec_list[@]};++i)); do
    make_wheel_record $FNAME $RECORD_FILE $TMPDIR &
 done
 wait
+
+echo "Removing lock file..."
+rm -f $TMPDIR/dali_rec.lock
+
 echo "$RECORD_FILE,," >> $RECORD_FILE
 echo "Finished generating new record file $RECORD_FILE"
 
 if [[ "$TEST_BUNDLED_LIBS" != "NO" ]]; then
     echo "Check bundled libs..."
-    python ${SCRIPT_PATH}/../../tools/test_bundled_libs.py $(find ./ -iname *.so* | tr '\n' ' ')
+    python ${SCRIPT_PATH}/../../internal_tools/test_bundled_libs.py $(find ./ -iname *.so* | tr '\n' ' ')
 fi
 
 # zip up the new wheel into the wheelhouse

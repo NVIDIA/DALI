@@ -13,7 +13,7 @@ To use the predefined policy that was discovered on ImageNet, import and invoke
 :meth:`~nvidia.dali.auto_aug.auto_augment.auto_augment` inside the pipeline definition,
 for example::
 
-    from nvidia.dali import pipeline_def
+    from nvidia.dali import pipeline_def, fn, types
     from nvidia.dali.auto_aug import auto_augment
 
     @pipeline_def(enable_conditionals=True)
@@ -60,7 +60,8 @@ The best way is to wrap your policy creation into a function::
 
    def my_custom_policy() -> Policy:
         """
-        Creates a simple AutoAugment policy with 3 sub-policies using custom magnitude ranges.
+        Creates a simple AutoAugment policy with 3 sub-policies using custom
+        magnitude ranges.
         """
 
         shear_x = augmentations.shear_x.augmentation((0, 0.5), True)

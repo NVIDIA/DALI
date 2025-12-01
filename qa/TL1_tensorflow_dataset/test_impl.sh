@@ -4,11 +4,11 @@ pip_packages='${python_test_runner_package} jupyter tensorflow-gpu'
 target_dir=./dali/test/python
 
 test_body() {
-    # The package name can be nvidia-dali-tf-plugin,  nvidia-dali-tf-plugin-weekly or  nvidia-dali-tf-plugin-nightly
-    pip uninstall -y `pip list | grep nvidia-dali-tf-plugin | cut -d " " -f1` || true
+    # The package name can be nvidia_dali_tf_plugin,  nvidia_dali_tf_plugin-weekly or  nvidia_dali_tf_plugin-nightly
+    pip uninstall -y `pip list | grep nvidia_dali_tf_plugin | cut -d " " -f1` || true
 
     # Installing "current" dali tf (built against installed TF)
-    pip install ../../../nvidia-dali-tf-plugin*.tar.gz
+    pip install ../../../nvidia_dali_tf_plugin*.tar.gz --no-build-isolation
 
     is_compatible=$(python -c 'import nvidia.dali.plugin.tf as dali_tf; print(dali_tf.dataset_compatible_tensorflow())')
     if [ $is_compatible = 'True' ]; then
@@ -23,12 +23,25 @@ test_body() {
 
         # DALI TF Notebooks run
         pushd ../../../docs/examples/frameworks/tensorflow/
-        jupyter nbconvert tensorflow-dataset.ipynb \
-                  --to notebook --inplace --execute \
-                  --ExecutePreprocessor.kernel_name=python${PYVER:0:1} \
-                  --ExecutePreprocessor.timeout=600
+        # TF 2.16 removed usage of tf.estimator the test uses
+        is_below_2_16=$(python -c 'import tensorflow as tf; \
+                                   from packaging.version import Version; \
+                                   print(Version(tf.__version__) < Version("2.16"))')
 
-        is_compatible_distributed=$(python -c 'import nvidia.dali.plugin.tf as dali_tf; print(dali_tf.dataset_distributed_compatible_tensorflow())')
+        if [ $is_below_2_16 = 'True' ]; then
+            jupyter nbconvert tensorflow-dataset.ipynb \
+                    --to notebook --inplace --execute \
+                    --ExecutePreprocessor.kernel_name=python${PYVER:0:1} \
+                    --ExecutePreprocessor.timeout=600
+        fi
+
+        # due to compatibility problems between the driver, cuda version and
+        # TensorFlow 2.12 test_keras_multi_gpu_mirrored_strategy doesn't work.
+        is_compatible_distributed=$(python -c 'import nvidia.dali.plugin.tf as dali_tf; \
+                                               import tensorflow as tf; \
+                                               from packaging.version import Version; \
+                                               print(dali_tf.dataset_distributed_compatible_tensorflow() \
+                                               and Version(tf.__version__) < Version("2.12.0"))')
         if [ $is_compatible_distributed = 'True' ]; then
             jupyter nbconvert tensorflow-dataset-multigpu.ipynb \
                     --to notebook --inplace --execute \

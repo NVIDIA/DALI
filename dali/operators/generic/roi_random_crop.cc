@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,6 +14,7 @@
 
 #include <random>
 #include "dali/pipeline/operator/operator.h"
+#include "dali/operators/random/rng_base_cpu.h"
 #include "dali/pipeline/util/batch_rng.h"
 #include "dali/pipeline/operator/arg_helper.h"
 
@@ -26,7 +27,7 @@ provided region of interest (ROI) is contained in it.
 If the ROI is bigger than the cropping window, the cropping window will be a subwindow of the ROI.
 If the ROI is smaller than the cropping window, the whole ROI shall be contained in the cropping window.
 
-If an input shape (``in_shape``) is given, the resulting cropping window is selected to be within the
+If an input shape (`in_shape`) is given, the resulting cropping window is selected to be within the
 bounds of that input shape. Alternatively, the input data subject to cropping can be passed to the operator,
 in the operator. When providing an input shape, the region of interest should be within the bounds of the
 input and the cropping window shape should not be larger than the input shape.
@@ -34,11 +35,13 @@ input and the cropping window shape should not be larger than the input shape.
 If no input shape is provided, the resulting cropping window is unbounded, potentially resulting in out
 of bounds cropping.
 
-The cropping window dimensions should be explicitly provided (``crop_shape``), and the ROI should be
-either specified with ``roi_start``/``roi_end`` or ``roi_start``/``roi_shape``.
+The cropping window dimensions should be explicitly provided (`crop_shape`), and the ROI should be
+either specified with `roi_start`/`roi_end` or `roi_start`/`roi_shape`.
 
 The operator produces an output representing the cropping window start coordinates.
 )code")
+    .AddRandomSeedArg()
+    .AddRandomStateArg()
     .AddArg("crop_shape",
       R"code(Cropping window dimensions.)code", DALI_INT_VEC, true)
     .AddArg("roi_start",
@@ -47,13 +50,13 @@ The operator produces an output representing the cropping window start coordinat
       R"code(ROI end coordinates.
 
 .. note::
-  Using ``roi_end`` is mutually exclusive with ``roi_shape``.
+  Using `roi_end` is mutually exclusive with `roi_shape`.
 )code", nullptr, true)
     .AddOptionalArg<std::vector<int>>("roi_shape",
       R"code(ROI shape.
 
 .. note::
-  Using ``roi_shape`` is mutually exclusive with ``roi_end``.
+  Using `roi_shape` is mutually exclusive with `roi_end`.
 )code", nullptr, true)
     .AddOptionalArg<std::vector<int>>("in_shape",
       R"code(Shape of the input data.
@@ -62,21 +65,18 @@ If provided, the cropping window start will be selected so that the cropping win
 bounds of the input.
 
 .. note::
-  Providing ``in_shape`` is incompatible with feeding the input data directly as a positional input.
+  Providing `in_shape` is incompatible with feeding the input data directly as a positional input.
 )code", nullptr, true)
     .NumInput(0, 1)
     .NumOutput(1);
 
-class ROIRandomCropCPU : public Operator<CPUBackend> {
+class ROIRandomCropCPU : public rng::OperatorWithRng<CPUBackend> {
  public:
   explicit ROIRandomCropCPU(const OpSpec &spec);
-  bool CanInferOutputs() const override { return true; }
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override;
   void RunImpl(Workspace &ws) override;
 
  private:
-  BatchRNG<std::mt19937> rngs_;
-
   ArgValue<int, 1> roi_start_;
   ArgValue<int, 1> roi_end_;
   ArgValue<int, 1> roi_shape_;
@@ -89,8 +89,7 @@ class ROIRandomCropCPU : public Operator<CPUBackend> {
 };
 
 ROIRandomCropCPU::ROIRandomCropCPU(const OpSpec &spec)
-    : Operator<CPUBackend>(spec),
-      rngs_(spec.GetArgument<int64_t>("seed"), spec.GetArgument<int64_t>("max_batch_size")),
+    : rng::OperatorWithRng<CPUBackend>(spec),
       roi_start_("roi_start", spec),
       roi_end_("roi_end", spec),
       roi_shape_("roi_shape", spec),
@@ -209,7 +208,7 @@ void ROIRandomCropCPU::RunImpl(Workspace &ws) {
         }
 
         auto dist = std::uniform_int_distribution<int64_t>(start_range[0], start_range[1]);
-        crop_start[sample_idx].data[d] = dist(rngs_[sample_idx]);
+        crop_start[sample_idx].data[d] = dist(rng_[sample_idx]);
       }
     }
   }

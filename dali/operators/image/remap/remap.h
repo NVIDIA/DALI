@@ -1,4 +1,4 @@
-// Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,12 +15,13 @@
 #ifndef DALI_OPERATORS_IMAGE_REMAP_REMAP_H_
 #define DALI_OPERATORS_IMAGE_REMAP_REMAP_H_
 
-#include <vector>
 #include <string>
+#include <vector>
 #include "dali/core/cuda_stream_pool.h"
 #include "dali/kernels/imgproc/geom/remap.h"
 #include "dali/kernels/imgproc/geom/remap_npp.h"
 #include "dali/pipeline/data/views.h"
+#include "dali/pipeline/operator/checkpointing/stateless_operator.h"
 #include "dali/pipeline/operator/common.h"
 #include "dali/pipeline/operator/operator.h"
 #include "dali/pipeline/operator/sequence_operator.h"
@@ -34,21 +35,17 @@ namespace remap {
 
 #define REMAP_SUPPORTED_TYPES (uint8_t, int16_t, uint16_t, float)
 
-template<typename Backend>
-class Remap : public SequenceOperator<Backend> {
+template <typename Backend>
+class Remap : public SequenceOperator<Backend, StatelessOperator> {
  public:
-  explicit Remap(const OpSpec &spec) : SequenceOperator<Backend>(spec) {}
+  using Base = SequenceOperator<Backend, StatelessOperator>;
+  explicit Remap(const OpSpec &spec) : Base(spec) {}
 
 
   ~Remap() override = default;
   DISABLE_COPY_MOVE_ASSIGN(Remap);
 
  protected:
-  bool CanInferOutputs() const override {
-    return true;
-  }
-
-
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     const auto &input = ws.template Input<Backend>(0);
 

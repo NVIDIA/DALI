@@ -1,4 +1,4 @@
-// Copyright (c) 2018-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2018-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,24 +20,41 @@ const char kNonExistingLibName[] = "not_a_dali_plugin.so";
 
 static const std::string& DummyPluginLibPath() {
   static const std::string plugin_lib =
-      dali::test::CurrentExecutableDir() + "/libcustomdummyplugin.so";
+      dali::test::CurrentExecutableDir() + "/libdali_customdummyplugin.so";
+  return plugin_lib;
+}
+
+static const std::string& DummyPluginLibPathGlobal() {
+  static const std::string plugin_lib = "libdali_customdummyplugin.so";
   return plugin_lib;
 }
 
 TEST(PluginManagerTest, LoadLibraryFail) {
-    EXPECT_THROW(
-        dali::PluginManager::LoadLibrary(kNonExistingLibName),
-        std::runtime_error);
+  EXPECT_THROW(
+    dali::PluginManager::LoadLibrary(kNonExistingLibName),
+    std::runtime_error);
 }
 
 TEST(PluginManagerTest, LoadLibraryOK) {
-    EXPECT_NO_THROW(
-        dali::PluginManager::LoadLibrary(DummyPluginLibPath()) );
+  EXPECT_NO_THROW(
+    {
+      try {
+        ::dali::PluginManager::LoadLibrary(DummyPluginLibPath());
+      } catch(dali::DALIException &) {
+        ::dali::PluginManager::LoadLibrary(DummyPluginLibPathGlobal());
+      }
+    });
 }
 
 TEST(PluginManagerTest, LoadingSameLibraryTwiceShouldBeOk) {
-    for (int i = 0; i < 2; i++) {
-        EXPECT_NO_THROW(
-            dali::PluginManager::LoadLibrary(DummyPluginLibPath()) );
-    }
+  for (int i = 0; i < 2; i++) {
+    EXPECT_NO_THROW(
+      {
+        try {
+          ::dali::PluginManager::LoadLibrary(DummyPluginLibPath());
+        } catch(dali::DALIException &) {
+          ::dali::PluginManager::LoadLibrary(DummyPluginLibPathGlobal());
+        }
+      });
+  }
 }

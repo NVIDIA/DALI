@@ -18,13 +18,14 @@
 #include <random>
 #include <vector>
 #include "dali/pipeline/operator/operator.h"
+#include "dali/operators/random/rng_base_cpu.h"
 
 namespace dali {
 
-class BatchPermutation : public Operator<CPUBackend> {
+class BatchPermutation : public rng::OperatorWithRng<CPUBackend, false> {
  public:
   explicit BatchPermutation(const OpSpec &spec)
-  : Operator<CPUBackend>(spec), rng_(spec.GetArgument<int64_t>("seed")) {}
+  : rng::OperatorWithRng<CPUBackend, false>(spec) {}
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     output_desc.resize(1);
@@ -33,11 +34,9 @@ class BatchPermutation : public Operator<CPUBackend> {
     return true;
   }
   void RunImpl(Workspace &ws) override;
-  bool CanInferOutputs() const override { return true; }
  private:
   void NoRepetitions(int N);
   void WithRepetitions(int N);
-  std::mt19937_64 rng_;
   vector<int> tmp_out_;
 };
 

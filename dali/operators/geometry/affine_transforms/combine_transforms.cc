@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,10 +20,11 @@
 #include "dali/core/static_switch.h"
 #include "dali/kernels/kernel_manager.h"
 #include "dali/pipeline/data/types.h"
+#include "dali/pipeline/operator/checkpointing/stateless_operator.h"
 #include "dali/pipeline/operator/op_spec.h"
-#include "dali/pipeline/workspace/workspace.h"
 #include "dali/pipeline/operator/operator.h"
 #include "dali/pipeline/operator/sequence_operator.h"
+#include "dali/pipeline/workspace/workspace.h"
 
 #define TRANSFORM_INPUT_TYPES (float)
 
@@ -49,14 +50,14 @@ Example: combining [T1, T2, T3] is equivalent to T3(T2(T1(...))) for default ord
   .AllowSequences()
   .AddParent("TransformAttr");
 
-class CombineTransformsCPU : public SequenceOperator<CPUBackend> {
+class CombineTransformsCPU : public SequenceOperator<CPUBackend, StatelessOperator> {
  public:
+  using Base = SequenceOperator<CPUBackend, StatelessOperator>;
   explicit CombineTransformsCPU(const OpSpec &spec) :
-      SequenceOperator<CPUBackend>(spec),
+      Base(spec),
       reverse_order_(spec.GetArgument<bool>("reverse_order")) {
   }
 
-  bool CanInferOutputs() const override { return true; }
 
  protected:
   bool SetupImpl(std::vector<OutputDesc> &output_descs,

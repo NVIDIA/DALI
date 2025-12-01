@@ -18,7 +18,6 @@
 #include "dali/kernels/slice/slice_cpu.h"
 #include "dali/test/tensor_test_utils.h"
 #include "dali/test/test_tensors.h"
-#include "dali/kernels/scratch.h"
 
 namespace dali {
 

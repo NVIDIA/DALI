@@ -12,7 +12,7 @@ ENV DALI_TIMESTAMP=${DALI_TIMESTAMP}
 ARG NVIDIA_BUILD_ID
 ENV NVIDIA_BUILD_ID ${NVIDIA_BUILD_ID:-0}
 
-RUN mkdir /dali_tf_sdist && chmod 0777 /dali_tf_sdist
+RUN mkdir /dali_tf_sdist && chmod 0777 /dali_tf_sdist && python3 -m pip install "setuptools>=70"
 
 COPY Acknowledgements.txt .
 COPY COPYRIGHT .

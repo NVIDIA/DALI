@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,21 +15,21 @@
 #ifndef DALI_OPERATORS_GENERIC_SLICE_SUBSCRIPT_H_
 #define DALI_OPERATORS_GENERIC_SLICE_SUBSCRIPT_H_
 
+#include <any>
 #include <string>
 #include <utility>
 #include <vector>
 
-#include "dali/core/any.h"
 #include "dali/core/convert.h"
-#include "dali/core/static_switch.h"
-#include "dali/core/util.h"
 #include "dali/core/math_util.h"
+#include "dali/core/static_switch.h"
 #include "dali/core/tensor_shape_print.h"
-#include "dali/pipeline/data/views.h"
-#include "dali/pipeline/operator/common.h"
-#include "dali/pipeline/operator/operator.h"
+#include "dali/core/util.h"
 #include "dali/kernels/kernel_manager.h"
 #include "dali/kernels/slice/slice_kernel_utils.h"
+#include "dali/pipeline/data/views.h"
+#include "dali/pipeline/operator/common.h"
+#include "dali/pipeline/operator/checkpointing/stateless_operator.h"
 
 namespace dali {
 
@@ -70,7 +70,7 @@ struct SubscriptArg {
 
       int n = batch_size;
       DALI_ENFORCE(shape.num_samples() == n, make_string(
-          "Unexpected number of samples in argument `", name, "`. Got: ",
+         "Unexpected number of samples in argument `", name, "`. Got: ",
           shape.num_samples(), ", expected ", n, "."));
 
       DALI_ENFORCE(shape.sample_dim() == 0,
@@ -80,8 +80,7 @@ struct SubscriptArg {
       DALIDataType type_id = inp.type();
       TYPE_SWITCH(type_id, type2id, T, (INTEGER_TYPES), (
         for (int i = 0; i < n; i++) {
-          // TODO(michalz): Add tensor<T> and mutable_tensor<T> to TensorList?
-          values[i] = ConvertSat<int64_t>(static_cast<const T*>(inp.raw_tensor(i))[0]);
+          values[i] = ConvertSat<int64_t>(inp.tensor<T>(i)[0]);
         }
       ), DALI_FAIL(make_string("Array index must be of integral type. Got: ", type_id)));  // NOLINT
     } else if (src == ArgSource::Value) {
@@ -99,11 +98,11 @@ struct SubscriptInfo {
 
     if (at.IsDefined()) {
       if (lo.IsDefined() || hi.IsDefined()) {
-        DALI_FAIL(make_string("The subscript for dimension ", i,
+        DALI_FAIL(make_string("Internal error: The subscript for dimension ", i,
                               " must not be specified both as an index and as a range."));
       }
       if (step.IsDefined()) {
-        DALI_FAIL(make_string("The subscript for dimension ", i,
+        DALI_FAIL(make_string("Internal error: The subscript for dimension ", i,
                               " was specified as index - it cannot have a step."));
       }
     }
@@ -133,9 +132,9 @@ struct SubscriptInfo {
 
 
 template <typename Backend>
-class TensorSubscript : public Operator<Backend> {
+class TensorSubscript : public StatelessOperator<Backend> {
  public:
-  explicit TensorSubscript(const OpSpec &spec) : Operator<Backend>(spec) {
+  explicit TensorSubscript(const OpSpec &spec) : StatelessOperator<Backend>(spec) {
     InitArgs();
   }
 
@@ -154,8 +153,11 @@ class TensorSubscript : public Operator<Backend> {
 
     int nsub = last_subscript + 1;
     if (spec_.TryGetArgument(nsub_declared_, "num_subscripts")) {
-      DALI_ENFORCE(nsub_declared_ >= nsub, make_string("The internal argument `num_subscripts` "
-      "declares fewer (", nsub_declared_, ") subscripts than actually provided (", nsub, ")."));
+      DALI_ENFORCE(
+          nsub_declared_ >= nsub,
+          make_string("Internal error: The internal argument `num_subscripts` "
+                      "declares fewer (",
+                      nsub_declared_, ") subscripts than actually provided (", nsub, ")."));
     } else {
       // Not declared? No problem, just use the actual number.
       nsub_declared_ = nsub;
@@ -214,28 +216,46 @@ class TensorSubscript : public Operator<Backend> {
             "Detected while processing sample #", i, " of shape (", in_shape[i], ")"));
         start_.tensor_shape_span(i)[d] = idx;
         shape_.tensor_shape_span(i)[d] = 1;
+        step_.tensor_shape_span(i)[d] = 1;
       }
     }
     if (s.IsRange()) {
       for (int i = 0; i < nsamples; i++) {
         int64_t in_extent = in_shape.tensor_shape_span(i)[d];
-        int64_t lo = s.lo.IsDefined() ? s.lo.values[i] : 0;
-        int64_t hi = s.hi.IsDefined() ? s.hi.values[i] : in_extent;
-        int64_t step = s.step.IsDefined() ? s.step.values[i] : 1;
-        // TODO(michalz) Remove when strides are supported
-        DALI_ENFORCE(step == 1, "Indexing with non-unit step is not implemented");
-        if (lo < 0) lo += in_extent;
-        if (hi < 0) hi += in_extent;
-        lo = clamp(lo, 0_i64, in_extent);
-        hi = clamp(hi, 0_i64, in_extent);
-        start_.tensor_shape_span(i)[d] = lo;
+        int64_t step = s.step.IsDefined() ? s.step.values[i] : 1_i64;
         step_.tensor_shape_span(i)[d] = step;
 
-        // NOTE: this code is currently not used, since the underlying kernels
-        //       don't support strides.
-        // TODO(michalz): Remove this comment when strides are supported.
-        int64_t out_extent = step > 0 ? div_ceil(hi - lo,  step)
-                                      : div_ceil(lo - hi, -step);
+        int64_t lo = 0, hi = 0;
+        // hi and low are swapped if step is negative
+        if (step > 0) {
+          lo = s.lo.IsDefined() ? s.lo.values[i] : 0_i64;
+          hi = s.hi.IsDefined() ? s.hi.values[i] : in_extent;
+        } else if (step < 0) {
+          lo = s.lo.IsDefined() ? s.lo.values[i] : -1_i64;
+          hi = s.hi.IsDefined() ? s.hi.values[i] : 0_i64;
+        } else {
+          DALI_FAIL(make_string("Step cannot be zero. Detetected step == 0 at axis ", d,
+                                " while processing sample #", i));
+        }
+
+        if (in_extent > 0) {
+          if (lo < 0)
+            lo += in_extent;
+          if (hi < 0)
+            hi += in_extent;
+          lo = clamp(lo, 0_i64, in_extent - 1);
+          hi = clamp(hi, 0_i64, in_extent);
+        } else {
+          lo = hi = 0;
+        }
+
+        start_.tensor_shape_span(i)[d] = lo;
+
+        if (step < 0 && !s.hi.IsDefined()) {
+          hi = -1_i64;
+        }
+        int64_t out_extent = step > 0 ? div_ceil(hi - lo, step) : div_ceil(lo - hi, -step);
+
         if (out_extent < 0)
           out_extent = 0;
         shape_.tensor_shape_span(i)[d] = out_extent;
@@ -288,6 +308,7 @@ class TensorSubscript : public Operator<Backend> {
     collapse_dims(simplified_in_shape_, in_shape, collapsed_dims_);
     collapse_dims(simplified_out_shape_, shape_, collapsed_dims_);
     collapse_dims(simplified_anchor_, start_, collapsed_dims_);
+    collapse_dims(simplified_step_, step_, collapsed_dims_);
 
     out_shape.resize(in_shape.num_samples(), out_dim_map_.size());
     for (int i = 0; i < out_shape.num_samples(); i++) {
@@ -309,9 +330,8 @@ class TensorSubscript : public Operator<Backend> {
     return out_layout;
   }
 
-  bool CanInferOutputs() const override { return true; }
 
-  using Operator<Backend>::RunImpl;
+  using StatelessOperator<Backend>::RunImpl;
   void RunImpl(Workspace &ws) override {
     const auto &input = ws.Input<Backend>(0);
     auto &output = ws.Output<Backend>(0);
@@ -343,14 +363,14 @@ class TensorSubscript : public Operator<Backend> {
   SmallVector<std::pair<int, int>, 6> collapsed_dims_;
   // Input shape where adjacent dimensions are collapsed where there's no indexing done
   TensorListShape<> simplified_in_shape_;
-  // Output anchor & shape simplified in the same way as input shape
-  TensorListShape<> simplified_anchor_, simplified_out_shape_;
+  // Output shape, anchor & step simplified in the same way as input shape
+  TensorListShape<> simplified_anchor_, simplified_out_shape_, simplified_step_;
 
   // Mapping from output to input indices
   SmallVector<int, 6> out_dim_map_;
 
   kernels::KernelManager kmgr_;
-  any ctx_;
+  std::any ctx_;
 };
 
 }  // namespace dali

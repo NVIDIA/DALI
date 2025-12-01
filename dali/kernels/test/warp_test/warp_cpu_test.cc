@@ -23,10 +23,10 @@
 #include "dali/test/dump_diff.h"
 #include "dali/test/mat2tensor.h"
 #include "dali/test/test_tensors.h"
-#include "dali/kernels/scratch.h"
 #include "dali/test/dali_test_config.h"
 #include "dali/core/geom/transform.h"
 #include "dali/kernels/test/warp_test/warp_test_helper.h"
+#include "dali/kernels/dynamic_scratchpad.h"
 
 namespace dali {
 namespace kernels {
@@ -47,8 +47,6 @@ TEST(WarpCPU, Affine_Transpose_Single) {
 
   WarpCPU<AffineMapping2D, 2, uint8_t, uint8_t, BorderClamp> warp;
 
-  ScratchpadAllocator scratch_alloc;
-
   TensorShape<2> out_shape = { cpu_img.shape[1], cpu_img.shape[0] };
   KernelContext ctx = {};
 
@@ -57,11 +55,12 @@ TEST(WarpCPU, Affine_Transpose_Single) {
 
   req = warp.Setup(ctx, cpu_img, mapping_cpu, out_shape, interp);
 
-  scratch_alloc.Reserve(req.scratch_sizes);
   TestTensorList<uint8_t, 3> out;
   out.reshape(req.output_shapes[0].to_static<3>());
-  auto scratchpad = scratch_alloc.GetScratchpad();
-  ctx.scratchpad = &scratchpad;
+
+  DynamicScratchpad dyn_scratchpad(AccessOrder::host());
+  ctx.scratchpad = &dyn_scratchpad;
+
   warp.Run(ctx, out.cpu(0)[0], cpu_img, mapping_cpu, out_shape, interp);
 
   auto cpu_out = out.cpu(0)[0];
@@ -91,7 +90,6 @@ TEST(WarpCPU, Affine_Transpose_Single) {
 
 TEST(WarpCPU, Affine_RotateScale) {
   WarpCPU<AffineMapping2D, 2, uint8_t, uint8_t, uint8_t> warp;
-  ScratchpadAllocator scratch_alloc;
 
   static const std::string names[] = { "dots", "alley" };
   static const float scales[] = { 10.0f, 0.5f };
@@ -118,11 +116,12 @@ TEST(WarpCPU, Affine_RotateScale) {
 
     req = warp.Setup(ctx, cpu_img, mapping_cpu, out_shape, interp, 255);
 
-    scratch_alloc.Reserve(req.scratch_sizes);
     TestTensorList<uint8_t, 3> out;
     out.reshape(req.output_shapes[0].to_static<3>());
-    auto scratchpad = scratch_alloc.GetScratchpad();
-    ctx.scratchpad = &scratchpad;
+
+    DynamicScratchpad dyn_scratchpad(AccessOrder::host());
+    ctx.scratchpad = &dyn_scratchpad;
+
     warp.Run(ctx, out.cpu(0)[0], cpu_img, mapping_cpu, out_shape, interp, 255);
 
     auto cpu_out = out.cpu(0)[0];

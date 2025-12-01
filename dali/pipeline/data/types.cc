@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
 
 #define DALI_TYPENAME_REGISTERER(Type, dtype)                                    \
 {                                                                                \
-  return to_string(dtype);                                                       \
+  return dali::TypeName(dtype);                                                  \
 }
 
 #define DALI_TYPEID_REGISTERER(Type, dtype)                                      \
@@ -27,8 +27,7 @@
 const auto &_type_info_##Id = TypeTable::GetTypeId<Type>()
 
 #include "dali/pipeline/data/types.h"
-#include "dali/util/half.hpp"
-
+#include "dali/core/float16.h"
 #include "dali/pipeline/data/backend.h"
 #include "dali/core/per_stream_pool.h"
 #include "dali/kernels/common/scatter_gather.h"

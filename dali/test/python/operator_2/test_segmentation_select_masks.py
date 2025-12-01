@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -23,31 +23,34 @@ random.seed(1234)
 np.random.seed(4321)
 
 
-def check_select_masks(batch_size,
-                       npolygons_range=(1, 10),
-                       nvertices_range=(3, 40),
-                       vertex_ndim=2,
-                       vertex_dtype=np.float32,
-                       reindex_masks=False):
-
+def check_select_masks(
+    batch_size,
+    npolygons_range=(1, 10),
+    nvertices_range=(3, 40),
+    vertex_ndim=2,
+    vertex_dtype=np.float32,
+    reindex_masks=False,
+):
     def get_data_source(*args, **kwargs):
         return lambda: make_batch_select_masks(*args, **kwargs)
 
     pipe = dali.pipeline.Pipeline(batch_size=batch_size, num_threads=4, device_id=0, seed=1234)
     with pipe:
         polygons, vertices, mask_ids = fn.external_source(
-            source=get_data_source(batch_size,
-                                   npolygons_range=npolygons_range,
-                                   nvertices_range=nvertices_range,
-                                   vertex_ndim=vertex_ndim,
-                                   vertex_dtype=vertex_dtype),
-            num_outputs=3, device='cpu'
+            source=get_data_source(
+                batch_size,
+                npolygons_range=npolygons_range,
+                nvertices_range=nvertices_range,
+                vertex_ndim=vertex_ndim,
+                vertex_dtype=vertex_dtype,
+            ),
+            num_outputs=3,
+            device="cpu",
         )
         out_polygons, out_vertices = fn.segmentation.select_masks(
             mask_ids, polygons, vertices, reindex_masks=reindex_masks
         )
     pipe.set_outputs(polygons, vertices, mask_ids, out_polygons, out_vertices)
-    pipe.build()
     for iter in range(3):
         outputs = pipe.run()
         for idx in range(batch_size):
@@ -89,29 +92,32 @@ def test_select_masks():
     nvertices_range = (3, 40)
     for batch_size in [1, 3]:
         for vertex_ndim in [2, 3, 6]:
-            for vertex_dtype in [np.float, random.choice([np.int8, np.int16, np.int32, np.int64])]:
+            for vertex_dtype in [float, random.choice([np.int8, np.int16, np.int32, np.int64])]:
                 reindex_masks = random.choice([False, True])
-                yield (check_select_masks,
-                       batch_size,
-                       npolygons_range,
-                       nvertices_range,
-                       vertex_ndim,
-                       vertex_dtype,
-                       reindex_masks)
+                yield (
+                    check_select_masks,
+                    batch_size,
+                    npolygons_range,
+                    nvertices_range,
+                    vertex_ndim,
+                    vertex_dtype,
+                    reindex_masks,
+                )
 
 
 @dali.pipeline_def(batch_size=1, num_threads=4, device_id=0, seed=1234)
 def wrong_input_pipe(data_source_fn, reindex_masks=False):
-    polygons, vertices, mask_ids = fn.external_source(source=data_source_fn, num_outputs=3,
-                                                      device='cpu')
-    out_polygons, out_vertices = fn.segmentation.select_masks(mask_ids, polygons, vertices,
-                                                              reindex_masks=reindex_masks)
+    polygons, vertices, mask_ids = fn.external_source(
+        source=data_source_fn, num_outputs=3, device="cpu"
+    )
+    out_polygons, out_vertices = fn.segmentation.select_masks(
+        mask_ids, polygons, vertices, reindex_masks=reindex_masks
+    )
     return polygons, vertices, mask_ids, out_polygons, out_vertices
 
 
 def _test_select_masks_wrong_input(data_source_fn, err_regex):
     p = wrong_input_pipe(data_source_fn=data_source_fn)
-    p.build()
     with assert_raises(RuntimeError, regex=err_regex):
         _ = p.run()
 
@@ -123,8 +129,9 @@ def test_select_masks_wrong_mask_ids():
         mask_ids = [np.array([10, 11], dtype=np.int32)]  # out of bounds ids
         return polygons, vertices, mask_ids
 
-    _test_select_masks_wrong_input(lambda: test_data(),
-                                   err_regex="Selected mask_id .* is not present in the input\\.")
+    _test_select_masks_wrong_input(
+        lambda: test_data(), err_regex="Selected mask_id .* is not present in the input\\."
+    )
 
 
 def test_select_masks_wrong_mask_meta_dim():
@@ -138,7 +145,8 @@ def test_select_masks_wrong_mask_meta_dim():
     _test_select_masks_wrong_input(
         lambda: test_data(),
         err_regex="``polygons`` is expected to contain 2D tensors with 3 columns: "
-                  "``mask_id, start_idx, end_idx``\\. Got \\d* columns\\.")
+        "``mask_id, start_idx, end_idx``\\. Got \\d* columns\\.",
+    )
 
 
 def test_select_masks_wrong_vertex_ids():
@@ -151,4 +159,5 @@ def test_select_masks_wrong_vertex_ids():
     _test_select_masks_wrong_input(
         lambda: test_data(),
         err_regex="Vertex index range for mask id .* is out of bounds\\. "
-                  "Expected to be within the range of available vertices .*\\.")
+        "Expected to be within the range of available vertices .*\\.",
+    )

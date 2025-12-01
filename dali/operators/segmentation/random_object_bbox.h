@@ -28,12 +28,13 @@
 #include "dali/pipeline/util/batch_rng.h"
 #include "dali/kernels/kernel_params.h"
 #include "dali/kernels/common/fast_hash.h"
+#include "dali/operators/random/rng_base_cpu.h"
 
 namespace dali {
 
 using kernels::InTensorCPU;
 
-class RandomObjectBBox : public Operator<CPUBackend> {
+class RandomObjectBBox : public rng::OperatorWithRng<CPUBackend> {
  public:
   enum OutputFormat {
     Out_AnchorShape,
@@ -43,8 +44,7 @@ class RandomObjectBBox : public Operator<CPUBackend> {
 
   using hash_t = kernels::fast_hash_t;
 
-  explicit RandomObjectBBox(const OpSpec &spec) : Operator<CPUBackend>(spec),
-        rngs_(spec.GetArgument<int>("seed"), max_batch_size_),
+  explicit RandomObjectBBox(const OpSpec &spec) : rng::OperatorWithRng<CPUBackend>(spec),
         background_("background", spec),
         classes_("classes", spec),
         foreground_prob_("foreground_prob", spec),
@@ -85,10 +85,6 @@ class RandomObjectBBox : public Operator<CPUBackend> {
 
     DALI_FAIL(make_string("Invalid output format: \"", format, "\"\n"
       "Possible values: \"anchor_shape\", \"start_end\" and \"box\"."));
-  }
-
-  bool CanInferOutputs() const override {
-    return true;
   }
 
   bool SetupImpl(vector<OutputDesc> &out_descs, const Workspace &ws) override;
@@ -258,7 +254,6 @@ class RandomObjectBBox : public Operator<CPUBackend> {
   bool  ignore_class_ = false;
   int   k_largest_ = -1;          // -1 means no k largest
   int   class_output_idx_ = -1;   // -1 means no class output
-  BatchRNG<> rngs_;
   ArgValue<int> background_;
   ArgValue<int, 1> classes_;
   ArgValue<float> foreground_prob_;

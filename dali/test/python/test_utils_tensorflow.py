@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,7 +20,7 @@ import nvidia.dali.types as types
 import os
 import tensorflow as tf
 from contextlib import contextmanager
-from nose import SkipTest
+from nose_utils import SkipTest
 from nvidia.dali.pipeline import Pipeline
 from tensorflow.python.client import device_lib
 
@@ -29,26 +29,26 @@ from test_utils import to_array, get_dali_extra_path
 
 def skip_for_incompatible_tf():
     if not dali_tf.dataset_distributed_compatible_tensorflow():
-        raise SkipTest('This feature is enabled for TF 2.5.0 and higher')
+        raise SkipTest("This feature is enabled for TF 2.5.0 and higher")
 
 
 def skip_inputs_for_incompatible_tf():
     if not dali_tf.dataset_inputs_compatible_tensorflow():
-        raise SkipTest('This feature is enabled for TF 2.4.1 and higher')
+        raise SkipTest("This feature is enabled for TF 2.4.1 and higher")
 
 
 def num_available_gpus():
     local_devices = device_lib.list_local_devices()
-    num_gpus = sum(1 for device in local_devices if device.device_type == 'GPU')
+    num_gpus = sum(1 for device in local_devices if device.device_type == "GPU")
     if not math.log2(num_gpus).is_integer():
-        raise RuntimeError('Unsupported number of GPUs. This test can run on: 2^n GPUs.')
+        raise RuntimeError("Unsupported number of GPUs. This test can run on: 2^n GPUs.")
     return num_gpus
 
 
 def available_gpus():
     devices = []
     for device_id in range(num_available_gpus()):
-        devices.append('/gpu:{0}'.format(device_id))
+        devices.append("/gpu:{0}".format(device_id))
     return devices
 
 
@@ -85,11 +85,13 @@ def expect_iter_end(should_raise, exception_type):
 #
 # ################################################################################################ #
 
-def get_mix_size_image_pipeline(batch_size, num_threads, device, device_id=0, shard_id=0,
-                                num_shards=1, def_for_dataset=False):
+
+def get_mix_size_image_pipeline(
+    batch_size, num_threads, device, device_id=0, shard_id=0, num_shards=1, def_for_dataset=False
+):
     test_data_root = get_dali_extra_path()
-    file_root = os.path.join(test_data_root, 'db', 'coco_dummy', 'images')
-    annotations_file = os.path.join(test_data_root, 'db', 'coco_dummy', 'instances.json')
+    file_root = os.path.join(test_data_root, "db", "coco_dummy", "images")
+    annotations_file = os.path.join(test_data_root, "db", "coco_dummy", "instances.json")
 
     pipe = Pipeline(batch_size, num_threads, device_id)
     with pipe:
@@ -99,11 +101,11 @@ def get_mix_size_image_pipeline(batch_size, num_threads, device, device_id=0, sh
             shard_id=shard_id,
             num_shards=num_shards,
             ratio=False,
-            image_ids=True)
+            image_ids=True,
+        )
         images = fn.decoders.image(
-            jpegs,
-            device=('mixed' if device == 'gpu' else 'cpu'),
-            output_type=types.RGB)
+            jpegs, device=("mixed" if device == "gpu" else "cpu"), output_type=types.RGB
+        )
 
         pipe.set_outputs(images)
 
@@ -113,11 +115,12 @@ def get_mix_size_image_pipeline(batch_size, num_threads, device, device_id=0, sh
     return pipe, shapes, dtypes
 
 
-def get_image_pipeline(batch_size, num_threads, device, device_id=0, shard_id=0, num_shards=1,
-                       def_for_dataset=False):
+def get_image_pipeline(
+    batch_size, num_threads, device, device_id=0, shard_id=0, num_shards=1, def_for_dataset=False
+):
     test_data_root = get_dali_extra_path()
-    file_root = os.path.join(test_data_root, 'db', 'coco_dummy', 'images')
-    annotations_file = os.path.join(test_data_root, 'db', 'coco_dummy', 'instances.json')
+    file_root = os.path.join(test_data_root, "db", "coco_dummy", "images")
+    annotations_file = os.path.join(test_data_root, "db", "coco_dummy", "instances.json")
 
     pipe = Pipeline(batch_size, num_threads, device_id)
     with pipe:
@@ -127,36 +130,24 @@ def get_image_pipeline(batch_size, num_threads, device, device_id=0, shard_id=0,
             shard_id=shard_id,
             num_shards=num_shards,
             ratio=False,
-            image_ids=True)
+            image_ids=True,
+        )
         images = fn.decoders.image(
-            jpegs,
-            device=('mixed' if device == 'gpu' else 'cpu'),
-            output_type=types.RGB)
-        images = fn.resize(
-            images,
-            resize_x=224,
-            resize_y=224,
-            interp_type=types.INTERP_LINEAR)
+            jpegs, device=("mixed" if device == "gpu" else "cpu"), output_type=types.RGB
+        )
+        images = fn.resize(images, resize_x=224, resize_y=224, interp_type=types.INTERP_LINEAR)
         images = fn.crop_mirror_normalize(
-            images,
-            dtype=types.FLOAT,
-            mean=[128., 128., 128.],
-            std=[1., 1., 1.])
-        if device == 'gpu':
+            images, dtype=types.FLOAT, mean=[128.0, 128.0, 128.0], std=[1.0, 1.0, 1.0]
+        )
+        if device == "gpu":
             image_ids = image_ids.gpu()
         ids_reshaped = fn.reshape(image_ids, shape=[1, 1])
         ids_int16 = fn.cast(image_ids, dtype=types.INT16)
 
         pipe.set_outputs(images, ids_reshaped, ids_int16)
 
-    shapes = (
-        (batch_size, 3, 224, 224),
-        (batch_size, 1, 1),
-        (batch_size, 1))
-    dtypes = (
-        tf.float32,
-        tf.int32,
-        tf.int16)
+    shapes = ((batch_size, 3, 224, 224), (batch_size, 1, 1), (batch_size, 1))
+    dtypes = (tf.float32, tf.int32, tf.int16)
 
     return pipe, shapes, dtypes
 
@@ -170,42 +161,65 @@ def to_image_dataset(image_pipeline_desc, device_str):
             output_shapes=shapes,
             output_dtypes=dtypes,
             num_threads=dataset_pipeline.num_threads,
-            device_id=dataset_pipeline.device_id)
+            device_id=dataset_pipeline.device_id,
+        )
     return dali_dataset
 
 
 def get_dali_dataset_from_pipeline(pipeline_desc, device, device_id, to_dataset=to_image_dataset):
-    dali_dataset = to_dataset(pipeline_desc, '/{0}:{1}'.format(device, device_id))
+    dali_dataset = to_dataset(pipeline_desc, "/{0}:{1}".format(device, device_id))
     return dali_dataset
 
 
-def get_dali_dataset(batch_size, num_threads, device, device_id, num_devices=1,
-                     get_pipeline_desc=get_image_pipeline, to_dataset=to_image_dataset):
+def get_dali_dataset(
+    batch_size,
+    num_threads,
+    device,
+    device_id,
+    num_devices=1,
+    get_pipeline_desc=get_image_pipeline,
+    to_dataset=to_image_dataset,
+):
     shard_id = 0 if num_devices == 1 else device_id
-    dataset_pipeline = get_pipeline_desc(batch_size, num_threads, device, device_id, shard_id,
-                                         num_devices, def_for_dataset=True)
+    dataset_pipeline = get_pipeline_desc(
+        batch_size, num_threads, device, device_id, shard_id, num_devices, def_for_dataset=True
+    )
 
     return get_dali_dataset_from_pipeline(dataset_pipeline, device, device_id, to_dataset)
 
 
-def get_pipe_dataset(batch_size,
-                     num_threads,
-                     device,
-                     device_id,
-                     num_devices=1,
-                     *,
-                     dali_on_dev_0=True,
-                     get_pipeline_desc=get_image_pipeline,
-                     to_dataset=to_image_dataset):
+def get_pipe_dataset(
+    batch_size,
+    num_threads,
+    device,
+    device_id,
+    num_devices=1,
+    *,
+    dali_on_dev_0=True,
+    get_pipeline_desc=get_image_pipeline,
+    to_dataset=to_image_dataset,
+):
     shard_id = 0 if num_devices == 1 else device_id
 
-    tf_dataset = get_dali_dataset(batch_size, num_threads, device, device_id,
-                                  num_devices=num_devices, get_pipeline_desc=get_pipeline_desc,
-                                  to_dataset=to_dataset)
+    tf_dataset = get_dali_dataset(
+        batch_size,
+        num_threads,
+        device,
+        device_id,
+        num_devices=num_devices,
+        get_pipeline_desc=get_pipeline_desc,
+        to_dataset=to_dataset,
+    )
 
-    dali_pipeline, _, _ = get_pipeline_desc(batch_size, num_threads, device,
-                                            0 if dali_on_dev_0 else device_id, shard_id,
-                                            num_devices, def_for_dataset=False)
+    dali_pipeline, _, _ = get_pipeline_desc(
+        batch_size,
+        num_threads,
+        device,
+        0 if dali_on_dev_0 else device_id,
+        shard_id,
+        num_devices,
+        def_for_dataset=False,
+    )
 
     return dali_pipeline, tf_dataset
 
@@ -245,8 +259,6 @@ def run_dataset_eager_mode(dali_datasets, iterations, to_stop_iter=False):
 def run_pipeline(pipelines, iterations, device, to_stop_iter=False):
     if not isinstance(pipelines, list):
         pipelines = [pipelines]
-    for pipeline in pipelines:
-        pipeline.build()
     results = []
     with expect_iter_end(not to_stop_iter, StopIteration):
         for _ in range(iterations):
@@ -263,53 +275,79 @@ def compare(dataset_results, standalone_results, iterations=-1, num_devices=1):
         iterations = len(standalone_results)
 
     # list [iterations] of tuple [devices] of tuple [outputs] of tensors representing batch
-    assert len(dataset_results) == iterations, \
-        f'Got {len(dataset_results)} dataset results for {iterations} iterations'
+    assert (
+        len(dataset_results) == iterations
+    ), f"Got {len(dataset_results)} dataset results for {iterations} iterations"
     for it in range(iterations):
         for device_id in range(num_devices):
-            for tf_data, dali_data in zip(dataset_results[it][device_id],
-                                          standalone_results[it][device_id]):
-                np.testing.assert_array_equal(tf_data, dali_data,
-                                              f'Iteration {it}, x = tf_data, y = DALI baseline')
+            for tf_data, dali_data in zip(
+                dataset_results[it][device_id], standalone_results[it][device_id]
+            ):
+                np.testing.assert_array_equal(
+                    tf_data, dali_data, f"Iteration {it}, x = tf_data, y = DALI baseline"
+                )
 
 
-def run_tf_dataset_graph(device, device_id=0, get_pipeline_desc=get_image_pipeline,
-                         to_dataset=to_image_dataset, to_stop_iter=False):
+def run_tf_dataset_graph(
+    device,
+    device_id=0,
+    get_pipeline_desc=get_image_pipeline,
+    to_dataset=to_image_dataset,
+    to_stop_iter=False,
+):
     tf.compat.v1.reset_default_graph()
     batch_size = 12
     num_threads = 4
     iterations = 10
 
-    standalone_pipeline, dali_dataset = get_pipe_dataset(batch_size, num_threads, device, device_id,
-                                                         get_pipeline_desc=get_pipeline_desc,
-                                                         to_dataset=to_dataset)
+    standalone_pipeline, dali_dataset = get_pipe_dataset(
+        batch_size,
+        num_threads,
+        device,
+        device_id,
+        get_pipeline_desc=get_pipeline_desc,
+        to_dataset=to_dataset,
+    )
 
     dataset_results = run_dataset_in_graph(dali_dataset, iterations, to_stop_iter=to_stop_iter)
-    standalone_results = run_pipeline(standalone_pipeline, iterations, device,
-                                      to_stop_iter=to_stop_iter)
+    standalone_results = run_pipeline(
+        standalone_pipeline, iterations, device, to_stop_iter=to_stop_iter
+    )
 
     compare(dataset_results, standalone_results)
 
 
-def run_tf_dataset_eager_mode(device, device_id=0, get_pipeline_desc=get_image_pipeline,
-                              to_dataset=to_image_dataset, to_stop_iter=False):
+def run_tf_dataset_eager_mode(
+    device,
+    device_id=0,
+    get_pipeline_desc=get_image_pipeline,
+    to_dataset=to_image_dataset,
+    to_stop_iter=False,
+):
     batch_size = 12
     num_threads = 4
     iterations = 10
 
-    standalone_pipeline, dali_dataset = get_pipe_dataset(batch_size, num_threads, device, device_id,
-                                                         get_pipeline_desc=get_pipeline_desc,
-                                                         to_dataset=to_dataset)
+    standalone_pipeline, dali_dataset = get_pipe_dataset(
+        batch_size,
+        num_threads,
+        device,
+        device_id,
+        get_pipeline_desc=get_pipeline_desc,
+        to_dataset=to_dataset,
+    )
 
     dataset_results = run_dataset_eager_mode(dali_dataset, iterations, to_stop_iter=to_stop_iter)
-    standalone_results = run_pipeline(standalone_pipeline, iterations, device,
-                                      to_stop_iter=to_stop_iter)
+    standalone_results = run_pipeline(
+        standalone_pipeline, iterations, device, to_stop_iter=to_stop_iter
+    )
 
     compare(dataset_results, standalone_results)
 
 
-def run_tf_dataset_multigpu_graph_manual_placement(get_pipeline_desc=get_image_pipeline,
-                                                   to_dataset=to_image_dataset):
+def run_tf_dataset_multigpu_graph_manual_placement(
+    get_pipeline_desc=get_image_pipeline, to_dataset=to_image_dataset
+):
     num_devices = num_available_gpus()
     batch_size = 8
     num_threads = 4
@@ -318,22 +356,28 @@ def run_tf_dataset_multigpu_graph_manual_placement(get_pipeline_desc=get_image_p
     dali_datasets = []
     standalone_pipelines = []
     for device_id in range(num_devices):
-        standalone_pipeline, dali_dataset = get_pipe_dataset(batch_size, num_threads, 'gpu',
-                                                             device_id, num_devices,
-                                                             get_pipeline_desc=get_pipeline_desc,
-                                                             to_dataset=to_dataset,
-                                                             dali_on_dev_0=False)
+        standalone_pipeline, dali_dataset = get_pipe_dataset(
+            batch_size,
+            num_threads,
+            "gpu",
+            device_id,
+            num_devices,
+            get_pipeline_desc=get_pipeline_desc,
+            to_dataset=to_dataset,
+            dali_on_dev_0=False,
+        )
         dali_datasets.append(dali_dataset)
         standalone_pipelines.append(standalone_pipeline)
 
     dataset_results = run_dataset_in_graph(dali_datasets, iterations)
-    standalone_results = run_pipeline(standalone_pipelines, iterations, 'gpu')
+    standalone_results = run_pipeline(standalone_pipelines, iterations, "gpu")
 
     compare(dataset_results, standalone_results, iterations, num_devices)
 
 
-def run_tf_dataset_multigpu_eager_manual_placement(get_pipeline_desc=get_image_pipeline,
-                                                   to_dataset=to_image_dataset):
+def run_tf_dataset_multigpu_eager_manual_placement(
+    get_pipeline_desc=get_image_pipeline, to_dataset=to_image_dataset
+):
     num_devices = num_available_gpus()
     batch_size = 8
     num_threads = 4
@@ -342,16 +386,21 @@ def run_tf_dataset_multigpu_eager_manual_placement(get_pipeline_desc=get_image_p
     dali_datasets = []
     standalone_pipelines = []
     for device_id in range(num_devices):
-        standalone_pipeline, dali_dataset = get_pipe_dataset(batch_size, num_threads, 'gpu',
-                                                             device_id, num_devices,
-                                                             get_pipeline_desc=get_pipeline_desc,
-                                                             to_dataset=to_dataset,
-                                                             dali_on_dev_0=False)
+        standalone_pipeline, dali_dataset = get_pipe_dataset(
+            batch_size,
+            num_threads,
+            "gpu",
+            device_id,
+            num_devices,
+            get_pipeline_desc=get_pipeline_desc,
+            to_dataset=to_dataset,
+            dali_on_dev_0=False,
+        )
         dali_datasets.append(dali_dataset)
         standalone_pipelines.append(standalone_pipeline)
 
     dataset_results = run_dataset_eager_mode(dali_datasets, iterations)
-    standalone_results = run_pipeline(standalone_pipelines, iterations, 'gpu')
+    standalone_results = run_pipeline(standalone_pipelines, iterations, "gpu")
 
     compare(dataset_results, standalone_results, iterations, num_devices)
 
@@ -369,8 +418,9 @@ def per_replica_to_numpy(dataset_results, num_devices):
     return results
 
 
-def run_tf_dataset_multigpu_eager_mirrored_strategy(get_pipeline_desc=get_image_pipeline,
-                                                    to_dataset=to_image_dataset):
+def run_tf_dataset_multigpu_eager_mirrored_strategy(
+    get_pipeline_desc=get_image_pipeline, to_dataset=to_image_dataset
+):
     num_devices = num_available_gpus()
     batch_size = 8
     num_threads = 4
@@ -380,25 +430,36 @@ def run_tf_dataset_multigpu_eager_mirrored_strategy(get_pipeline_desc=get_image_
     input_options = tf.distribute.InputOptions(
         experimental_place_dataset_on_device=True,
         experimental_fetch_to_device=False,
-        experimental_replication_mode=tf.distribute.InputReplicationMode.PER_REPLICA)
+        experimental_replication_mode=tf.distribute.InputReplicationMode.PER_REPLICA,
+    )
 
     def dataset_fn(input_context):
-        return get_dali_dataset(batch_size, num_threads, 'gpu', input_context.input_pipeline_id,
-                                num_devices, get_pipeline_desc=get_pipeline_desc,
-                                to_dataset=to_dataset)
+        return get_dali_dataset(
+            batch_size,
+            num_threads,
+            "gpu",
+            input_context.input_pipeline_id,
+            num_devices,
+            get_pipeline_desc=get_pipeline_desc,
+            to_dataset=to_dataset,
+        )
 
-    dali_datasets = [
-        strategy.distribute_datasets_from_function(dataset_fn, input_options)]
+    dali_datasets = [strategy.distribute_datasets_from_function(dataset_fn, input_options)]
     dataset_results = run_dataset_eager_mode(dali_datasets, iterations)
 
     standalone_pipelines = []
     for device_id in range(num_devices):
-        pipeline, _, _ = get_pipeline_desc(batch_size, num_threads, device='gpu',
-                                           device_id=device_id, shard_id=device_id,
-                                           num_shards=num_devices)
+        pipeline, _, _ = get_pipeline_desc(
+            batch_size,
+            num_threads,
+            device="gpu",
+            device_id=device_id,
+            shard_id=device_id,
+            num_shards=num_devices,
+        )
         standalone_pipelines.append(pipeline)
 
-    standalone_results = run_pipeline(standalone_pipelines, iterations, 'gpu')
+    standalone_results = run_pipeline(standalone_pipelines, iterations, "gpu")
 
     dataset_results = per_replica_to_numpy(dataset_results, num_devices)
     compare(dataset_results, standalone_results, iterations, num_devices)

@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -67,14 +67,39 @@ DLL_PUBLIC void DALIAppendToLastError(const string &error_str);
 
 class DALIException : public std::runtime_error {
  public:
-  explicit DALIException(const std::string &message) : std::runtime_error(message) {}
+  explicit DALIException(const std::string &message, const std::string file_and_line = "",
+                         const std::string &cpp_backtrace = "")
+      : std::runtime_error(message), file_and_line_(file_and_line), cpp_backtrace_(cpp_backtrace) {}
+
+  const std::string &GetFileAndLine() const {
+    return file_and_line_;
+  }
+
+  const std::string &GetCppBacktrace() const {
+    return cpp_backtrace_;
+  }
+
+ private:
+  std::string file_and_line_;
+  std::string cpp_backtrace_;
 };
 
 struct unsupported_exception : std::runtime_error {
-  explicit unsupported_exception(const std::string &str) : runtime_error(str), msg(str) {}
+  explicit unsupported_exception(const std::string &str) : runtime_error(str) {}
+};
 
-  const char *what() const noexcept override { return msg.c_str(); }
-  std::string msg;
+/** An exception thrown when an invalid dictionary key is provided
+ *
+ * The exception denotes an invalid key. It can be thrown when:
+ * - the key is not found and the function returns a non-nullable type
+ * - the key doesn't meet some constraints (e.g. a dictionary doesn't accept an empty
+ *   string as a key).
+ *
+ * This exception is used at the Python boundary to raise KeyError rather than IndexError.
+ */
+struct invalid_key : std::out_of_range {
+  explicit invalid_key(const std::string &message) : std::out_of_range(message) {}
+  explicit invalid_key(const char *message) : std::out_of_range(message) {}
 };
 
 inline string BuildErrorString(string statement, string file, int line) {
@@ -233,29 +258,32 @@ inline dali::string GetStacktrace() {
 #define DALI_STR(x) DALI_STR2(x)
 #define FILE_AND_LINE __FILE__ ":" DALI_STR(__LINE__)
 
-#define DALI_MESSAGE_WITH_STACKTRACE(str)\
-  (std::string("[" FILE_AND_LINE "] ") + str + dali::GetStacktrace())
+#define DALI_MESSAGE_AND_STACKTRACE(...)\
+  (std::string("[" FILE_AND_LINE "] ")), ##__VA_ARGS__, dali::GetStacktrace()
 
-#define DALI_MESSAGE(str)\
-  (std::string("[" FILE_AND_LINE "] ") + str)
+#define DALI_MESSAGE(...)\
+  (std::string("[" FILE_AND_LINE "] ")), ##__VA_ARGS__
 
-#define DALI_FAIL(str)                            \
-    throw dali::DALIException(DALI_MESSAGE_WITH_STACKTRACE(str));
+#define DALI_FAIL(...)                     \
+    throw dali::DALIException(             \
+      dali::make_string(__VA_ARGS__),      \
+      std::string("[" FILE_AND_LINE "] "), \
+      dali::GetStacktrace());
 
-#define DALI_ERROR(str)                                          \
-  do {                                                           \
-    std::cerr << DALI_MESSAGE_WITH_STACKTRACE(str) << std::endl; \
+#define DALI_ERROR(...)                                                                    \
+  do {                                                                                     \
+    std::cerr << dali::make_string(DALI_MESSAGE_AND_STACKTRACE(__VA_ARGS__)) << std::endl; \
   } while (0)
 
 #define DALI_WARN(...)                                                      \
   do {                                                                      \
-    std::cerr << DALI_MESSAGE(dali::make_string(__VA_ARGS__)) << std::endl; \
+    std::cerr << dali::make_string(DALI_MESSAGE(__VA_ARGS__)) << std::endl; \
   } while (0)
 
-#define DALI_WARN_ONCE(...)                                                          \
-  do {                                                                               \
-    static int dummy =                                                               \
-        (std::cerr << DALI_MESSAGE(dali::make_string(__VA_ARGS__)) << std::endl, 0); \
+#define DALI_WARN_ONCE(str)                                                  \
+  do {                                                                       \
+    static int dummy =                                                       \
+        (std::cerr << dali::make_string(DALI_MESSAGE(str)) << std::endl, 0); \
   } while (0)
 
 DLL_PUBLIC void DALIReportFatalProblem(const char *file, int line, const char *pComment);

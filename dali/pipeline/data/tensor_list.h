@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -35,6 +35,11 @@
 
 namespace dali {
 
+// Forward declarations in signature, beware
+namespace test {
+class TensorListVariableBatchSizeTest_UpdatePropertiesFromSamples_Test;
+};  // namespace test
+
 template <typename Backend>
 class DLL_PUBLIC TensorList;
 
@@ -68,6 +73,7 @@ template <typename Backend>
 class DLL_PUBLIC TensorList {
  public:
   TensorList();
+  ~TensorList();
 
   /**
    * @brief This constructor allows to create a TensorList with `batch_size` samples.
@@ -78,8 +84,19 @@ class DLL_PUBLIC TensorList {
   TensorList(const TensorList &) = delete;
   TensorList &operator=(const TensorList &) = delete;
 
+  /**
+   * @brief Repeats the `sample` `num_samples` times.
+   *
+   * The TensorList is created in non-contiguous mode.
+   * The TensorList is created with the same type, layout, pinned status, device_id as the sample.
+   *
+   * @param sample The sample to repeat.
+   * @param num_samples The number of times to repeat the sample.
+   */
+  TensorList(const Tensor<Backend> &sample, int num_samples);
+
   TensorList<Backend> &operator=(TensorList<Backend> &&other) noexcept;
-  DLL_PUBLIC TensorList<Backend>(TensorList<Backend> &&other) noexcept;
+  DLL_PUBLIC TensorList(TensorList<Backend> &&other) noexcept;
 
 
   AccessOrder order() const {
@@ -138,7 +155,9 @@ class DLL_PUBLIC TensorList {
   /**
    * @brief Get the shape of the batch.
    */
-  const TensorListShape<> &shape() const &;
+  const TensorListShape<> &shape() const & {
+    return shape_;
+  }
 
   /**
    * @brief Get the shape of the sample.
@@ -268,7 +287,7 @@ class DLL_PUBLIC TensorList {
    * We wait for the order of incoming sample in the order of the batch to allow correctly ordered
    * access of the new sample.
    */
-  DLL_PUBLIC void SetSample(int sample_idx, const shared_ptr<void> &ptr, size_t bytes, bool pinned,
+  DLL_PUBLIC void SetSample(int sample_idx, shared_ptr<void> ptr, size_t bytes, bool pinned,
                             const TensorShape<> &shape, DALIDataType type, int device_id,
                             AccessOrder order, const TensorLayout &layout = "");
   /** @} */
@@ -320,14 +339,18 @@ class DLL_PUBLIC TensorList {
   /**
    * @brief Get the type of samples in the batch.
    */
-  DALIDataType type() const;
+  DALIDataType type() const {
+    return type_.id();
+  }
 
   /**
    * @brief Get the TypeInfo of samples in the batch.
    *
    * @note Using DALIDataType via type() is recommended over accessing type_info().
    */
-  const TypeInfo &type_info() const;
+  const TypeInfo &type_info() const {
+    return type_;
+  }
   /** @} */
 
   /**
@@ -385,6 +408,23 @@ class DLL_PUBLIC TensorList {
   DLL_PUBLIC void ResizeSample(int sample_idx, const TensorShape<> &new_shape);
 
   /**
+   * @brief Reinterprets the contents of the tensor as having a different type.
+   *
+   * Changes the element type of the tensor. The size of the element must not change.
+   */
+  void Reinterpret(DALIDataType new_type_id) {
+    Reinterpret(TypeTable::GetTypeInfo(new_type_id));
+  }
+
+  void Reinterpret(const TypeInfo &new_type_info) {
+    DALI_ENFORCE(new_type_info.size() == type_.size(),
+      "Cannot reinterpret the tensor as having a different element size.");
+    type_ = new_type_info;
+    for (int t = 0, n = num_samples(); t < n; t++)
+      tensors_[t].type_ = new_type_info;  // just assign, no need to re-validate the size
+  }
+
+  /**
    * @brief Reserve memory as one contiguous allocation
    */
   void reserve(size_t total_bytes);
@@ -423,7 +463,10 @@ class DLL_PUBLIC TensorList {
   /**
    * @brief If the batch is backed by contiguous buffer
    */
-  bool IsContiguous() const noexcept;
+  bool IsContiguous() const noexcept {
+    return state_.IsContiguous();
+  }
+
 
   /**
    * @brief Pin the current state for further allocating calls like Resize() or set_type
@@ -435,7 +478,9 @@ class DLL_PUBLIC TensorList {
   /**
    * @brief Check the batch contiguity state.
    */
-  BatchContiguity GetContiguity() const noexcept;
+  BatchContiguity GetContiguity() const noexcept {
+    return state_.Get();
+  }
 
   /**
    * @brief Coalesce from individual samples to a contiguous buffer if the conditions are met.
@@ -467,9 +512,10 @@ class DLL_PUBLIC TensorList {
   /**
    * @brief Set the provided buffer as backing memory for this batch.
    */
-  DLL_PUBLIC void ShareData(const shared_ptr<void> &ptr, size_t bytes, bool pinned,
+  DLL_PUBLIC void ShareData(shared_ptr<void> ptr, size_t bytes, bool pinned,
                             const TensorListShape<> &shape, DALIDataType type, int device_id,
-                            AccessOrder order = {}, const TensorLayout &layout = "");
+                            AccessOrder order = {}, const TensorLayout &layout = "",
+                            CUDASharedEvent ready = {});
 
   /**
    * @brief Set other batch as backing memory for this one. Preserves the contiguity status.
@@ -478,11 +524,15 @@ class DLL_PUBLIC TensorList {
 
   void set_pinned(bool pinned);
 
-  bool is_pinned() const;
+  bool is_pinned() const {
+    return pinned_;
+  }
 
   void set_device_id(int device_id);
 
-  int device_id() const;
+  int device_id() const {
+    return device_;
+  }
 
   bool has_data() const;
 
@@ -526,7 +576,9 @@ class DLL_PUBLIC TensorList {
   /**
    * @brief Get the layout of the sample in the batch.
    */
-  TensorLayout GetLayout() const;
+  inline const TensorLayout &GetLayout() const & {
+    return layout_;
+  }
 
   /**
    * @brief Set cache metadata for given sample
@@ -564,6 +616,22 @@ class DLL_PUBLIC TensorList {
    * @note Keep in mind, that the memory can be fragmented.
    */
   size_t capacity() const noexcept;
+
+  /** Returns an optional, shared handle to CUDA event that marks the readiness of the data.
+   *
+   * This ready event may be shared by multiple tensor lists or tensors. It may also be null.
+   * Typical DALI operators don't need to record or wait for this event.
+   */
+  const CUDASharedEvent &ready_event() const {
+    return ready_;
+  }
+
+  /** Sets the shared event handle that marks the readiness of the data. */
+  void set_ready_event(CUDASharedEvent ready) {
+    ready_ = std::move(ready);
+  }
+
+
 
   /**
    * @brief Returns the size in bytes of the underlying data chunks
@@ -656,6 +724,7 @@ class DLL_PUBLIC TensorList {
   friend void MakeSampleView(class SampleWorkspace &sample, class Workspace &batch,
                              int data_idx, int thread_idx);
   friend void FixBatchPropertiesConsistency(class Workspace &ws, bool contiguous);
+  friend class test::TensorListVariableBatchSizeTest_UpdatePropertiesFromSamples_Test;
 
   auto &tensor_handle(size_t pos) {
     return tensors_[pos];
@@ -742,7 +811,6 @@ class DLL_PUBLIC TensorList {
 
   // Memory backing
   Buffer<Backend> contiguous_buffer_;
-  std::weak_ptr<void> buffer_bkp_;
   // Memory, sample aliases and metadata
   // TODO(klecki): Remove SampleWorkspace (only place where we actually need those Tensor objects)
   // and swap to plain Buffer instead of using actual Tensors.
@@ -751,15 +819,16 @@ class DLL_PUBLIC TensorList {
   // State and metadata that should be uniform regardless of the contiguity state.
   // Sample aliases should match the information stored below.
   State state_;
-  int curr_num_tensors_;
-  TypeInfo type_{};
+  bool pinned_ = true;
+  int curr_num_tensors_ = 0;
   int sample_dim_ = -1;
+  int device_ = CPU_ONLY_DEVICE_ID;
+  TypeInfo type_{};
   TensorListShape<> shape_;
   TensorLayout layout_;
 
-  bool pinned_ = true;
-  int device_ = CPU_ONLY_DEVICE_ID;
   AccessOrder order_ = AccessOrder::host();
+  CUDASharedEvent ready_;
 
   // So we can access the members of other TensorLists
   // with different template types
@@ -776,33 +845,39 @@ class DLL_PUBLIC TensorList {
    * @brief Return an un-typed pointer to the underlying storage.
    * The TensorList must be either empty or have a valid type and be contiguous.
    */
-  friend void *unsafe_raw_mutable_data(TensorList<Backend> &batch) {
-    DALI_ENFORCE(batch.IsContiguous(), "Data pointer can be obtain only for contiguous batch.");
-    return batch.contiguous_buffer_.raw_mutable_data();
+  friend void *contiguous_raw_mutable_data(TensorList<Backend> &batch) {
+    DALI_ENFORCE(batch.IsContiguousInMemory(),
+                 "Data pointer can be obtained only for contiguous batch.");
+    if (batch.IsContiguous()) {
+      return batch.contiguous_buffer_.raw_mutable_data();
+    } else {
+      for (int i = 0; i < batch.num_samples(); i++) {
+        if (void *sample_data = batch.tensors_[i].raw_mutable_data()) {
+          return sample_data;
+        } else {
+          assert(batch.shape_[i].num_elements() == 0);
+        }
+      }
+      return nullptr;  // there are 0 elements
+    }
   }
 
   /**
    * @brief Return an un-typed const pointer to the underlying storage.
    * The TensorList must be either empty or have a valid type and be contiguous.
    */
-  friend const void *unsafe_raw_data(const TensorList<Backend> &batch) {
-    DALI_ENFORCE(batch.IsContiguous(), "Data pointer can be obtain only for contiguous batch.");
-    return batch.contiguous_buffer_.raw_data();
+  friend const void *contiguous_raw_data(const TensorList<Backend> &batch) {
+    return contiguous_raw_mutable_data(const_cast<TensorList<Backend> &>(batch));
   }
+
 
   /**
    * @brief Return the shared pointer, that we can use to correctly share the ownership of sample
    * with.
    * Sample 0 is aliased with the whole buffer, if it is contiguous.
    */
-  friend shared_ptr<void> unsafe_sample_owner(TensorList<Backend> &batch, int sample_idx) {
-    // create new aliasing pointer to current data allocation, so we share the use count
-    // and the deleter correctly.
-    if (batch.IsContiguous()) {
-      return {batch.contiguous_buffer_.get_data_ptr(), batch.raw_mutable_tensor(sample_idx)};
-    } else {
-      return batch.tensors_[sample_idx].get_data_ptr();
-    }
+  friend const shared_ptr<void> &unsafe_sample_owner(TensorList<Backend> &batch, int sample_idx) {
+    return batch.tensors_[sample_idx].get_data_ptr();
   }
 
   /**
@@ -811,7 +886,7 @@ class DLL_PUBLIC TensorList {
    * Only allowed for contiguous batch, in typical scenario it is equivalent to
    * unsafe_sample_owner(batch, 0)
    */
-  friend shared_ptr<void> unsafe_owner(TensorList<Backend> &batch) {
+  friend const shared_ptr<void> &unsafe_owner(TensorList<Backend> &batch) {
     DALI_ENFORCE(batch.IsContiguous(),
                  "Data owner pointer can be obtain only for contiguous TensorList.");
     return batch.contiguous_buffer_.get_data_ptr();

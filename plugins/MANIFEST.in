@@ -1,0 +1,15 @@
+global-include Acknowledgements.txt LICENSE COPYRIGHT
+recursive-include . *.h
+recursive-include . *.hpp
+recursive-include . *.c
+recursive-include . *.cpp
+recursive-include . *.cc
+recursive-include . *.cu
+recursive-include . *.cuh
+recursive-include . *.inl
+recursive-include . *.py
+recursive-include . *.pyi
+recursive-include . *.cmake
+recursive-include . *.sh
+recursive-include . *.patch
+recursive-include . CMakeLists.txt

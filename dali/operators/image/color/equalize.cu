@@ -41,7 +41,7 @@ class EqualizeGPU : public Equalize<GPUBackend> {
     // enforced by the layouts specified in operator schema
     assert(layout.size() == 2 || layout.size() == 3);
     output.SetLayout(layout);
-    kernels::DynamicScratchpad scratchpad({}, AccessOrder(ws.stream()));
+    kernels::DynamicScratchpad scratchpad(AccessOrder(ws.stream()));
     kernels::KernelContext ctx;
     ctx.gpu.stream = ws.stream();
     ctx.scratchpad = &scratchpad;

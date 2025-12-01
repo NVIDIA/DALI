@@ -107,7 +107,7 @@ class NonsilenceOperatorGpu : public NonsilenceOperator<GPUBackend> {
   void CalcMMS(TensorListView<StorageGPU, float, 1> &mms,
                const TensorListView<StorageGPU, const T, 1> &in,
                cudaStream_t stream) {
-    kernels::DynamicScratchpad scratchpad({}, stream);
+    kernels::DynamicScratchpad scratchpad(stream);
     kernels::KernelContext ctx;
     ctx.gpu.stream = stream;
     ctx.scratchpad = &scratchpad;
@@ -123,7 +123,7 @@ class NonsilenceOperatorGpu : public NonsilenceOperator<GPUBackend> {
   void CalcMax(TensorListView<StorageGPU, float, 0> &max,
                const TensorListView<StorageGPU, float, 1> &in,
                cudaStream_t stream) {
-    kernels::DynamicScratchpad scratchpad({}, stream);
+    kernels::DynamicScratchpad scratchpad(stream);
     kernels::KernelContext ctx;
     ctx.gpu.stream = stream;
     ctx.scratchpad = &scratchpad;
@@ -140,7 +140,7 @@ class NonsilenceOperatorGpu : public NonsilenceOperator<GPUBackend> {
                            TensorListView<StorageGPU, int32_t, 0> &len,
                            TensorListView<StorageGPU, float, 1> &mms,
                            cudaStream_t stream) {
-    kernels::DynamicScratchpad scratchpad({}, stream);
+    kernels::DynamicScratchpad scratchpad(stream);
     kernels::KernelContext ctx;
     ctx.gpu.stream = stream;
     ctx.scratchpad = &scratchpad;
@@ -215,7 +215,7 @@ class NonsilenceOperatorGpu : public NonsilenceOperator<GPUBackend> {
     auto out_len = view<int32_t, 0>(ws.Output<GPUBackend>(1));
 
     // 1. Compute MMS
-    kernels::DynamicScratchpad scratchpad({}, ws.stream());
+    kernels::DynamicScratchpad scratchpad(ws.stream());
     auto mms = scratchpad.AllocTensorList<mm::memory_kind::device, float, 1>(input.shape);
     CalcMMS(mms, input, ws.stream());
 

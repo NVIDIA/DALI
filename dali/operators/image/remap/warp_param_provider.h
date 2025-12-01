@@ -16,16 +16,14 @@
 #define DALI_OPERATORS_IMAGE_REMAP_WARP_PARAM_PROVIDER_H_
 
 #include <cassert>
-#include <vector>
 #include <string>
-
+#include <vector>
 #include "dali/core/dev_buffer.h"
 #include "dali/core/mm/memory.h"
 #include "dali/core/static_switch.h"
 #include "dali/core/tensor_view.h"
 #include "dali/kernels/common/copy.h"
 #include "dali/kernels/imgproc/sampler.h"
-#include "dali/kernels/scratch.h"
 #include "dali/pipeline/data/views.h"
 #include "dali/pipeline/operator/operator.h"
 
@@ -68,6 +66,7 @@ class BorderTypeProvider {
   BorderType Border() const {
     return border_;
   }
+
  protected:
   void SetBorder(const OpSpec &spec) {
     float fborder;
@@ -176,12 +175,15 @@ class WarpParamProvider : public InterpTypeProvider, public BorderTypeProvider<B
    *  on the stream associated with current workspace.
    */
   TensorView<StorageGPU, const MappingParams, 1> ParamsGPU() {
-    if (!params_gpu_.data && params_cpu_.data) {
-      auto *p = AllocParams<mm::memory_kind::device>(params_cpu_.num_elements());
-      auto tmp = make_tensor_gpu(p, params_cpu_.shape);
-      kernels::copy(tmp, params_cpu_, GetStream());
+    TensorShape<1> sh{params_count_};
+    if (!params_gpu_ && params_cpu_) {
+      auto *p = AllocParams<mm::memory_kind::device>(params_count_);
+      auto dst = make_tensor_gpu(p, sh);
+      auto src = make_tensor_cpu(params_cpu_.get(), sh);
+      kernels::copy(dst, src, GetStream());
+      return dst;
     }
-    return params_gpu_;
+    return make_tensor_gpu(params_gpu_.get(), sh);
   }
 
   /** @brief Gets the mapping parameters in CPU memory
@@ -191,14 +193,17 @@ class WarpParamProvider : public InterpTypeProvider, public BorderTypeProvider<B
    *  is synchronized with the stream.
    */
   TensorView<StorageCPU, const MappingParams, 1> ParamsCPU() {
-    if (!params_cpu_.data && params_gpu_.data) {
-      auto *p = AllocParams<mm::memory_kind::host>(params_gpu_.num_elements());
-      auto tmp = make_tensor_cpu(p, params_cpu_.shape);
+    TensorShape<1> sh{params_count_};
+    if (!params_cpu_ && params_gpu_) {
+      auto *p = AllocParams<mm::memory_kind::host>(params_count_);
+      auto dst = make_tensor_cpu(p, sh);
+      auto src = make_tensor_gpu(params_gpu_.get(), sh);
       cudaStream_t stream = GetStream();
-      kernels::copy(tmp, params_gpu_, stream);
+      kernels::copy(dst, src, stream);
       CUDA_CALL(cudaStreamSynchronize(stream));
+      return dst;
     }
-    return params_cpu_;
+    return make_tensor_cpu(params_cpu_.get(), sh);
   }
 
  protected:
@@ -212,7 +217,10 @@ class WarpParamProvider : public InterpTypeProvider, public BorderTypeProvider<B
 
   virtual void ResetParams() {
     params_gpu_ = {};
+    params_gpu_sz_ = 0;
     params_cpu_ = {};
+    params_cpu_sz_ = 0;
+    params_count_ = 0;
   }
 
   virtual void SetParams() {
@@ -257,7 +265,7 @@ class WarpParamProvider : public InterpTypeProvider, public BorderTypeProvider<B
     } else {
       for (int i = 0; i < N; i++)
         for (int d = 0; d < spatial_ndim; d++)
-          out_sizes[i][d] = shape_list.data[0][i*N + d];
+          out_sizes[i][d] = shape_list.data[0][i * N + d];
     }
   }
 
@@ -311,31 +319,32 @@ class WarpParamProvider : public InterpTypeProvider, public BorderTypeProvider<B
 
   /** @brief Allocates num_samples_ MappingParams objects in memory specified by alloc  */
   template <typename MemoryKind>
-  MappingParams *AllocParams() {
-    return AllocParams<MemoryKind>(num_samples_);
+  MappingParams *AllocParams(int num_samples) {
+    return AllocParams(static_cast<MemoryKind*>(nullptr), num_samples);
   }
 
-  template <typename MemoryKind>
-  auto &SelectParamView() {
-    return SelectParamView(static_cast<MemoryKind*>(nullptr));
+  inline MappingParams *AllocParams(mm::memory_kind::device *, int count) {
+    if (count > params_gpu_sz_) {
+      params_gpu_ = mm::alloc_raw_async_unique<MappingParams, mm::memory_kind::device>(
+                      count, GetStream(), GetStream());
+      params_gpu_sz_ = count;
+    }
+    params_count_ = count;
+    return params_gpu_.get();
   }
 
-  inline auto &SelectParamView(mm::memory_kind::device *) {
-    return params_gpu_;
-  }
-
-  inline auto &SelectParamView(...) {
-    return params_cpu_;
-  }
-
-  /** @brief Allocates count MappingParams objects in memory specified by alloc  */
-  template <typename MemoryKind>
-  MappingParams *AllocParams(int count) {
-    param_mem_.Reserve<MemoryKind>(count * sizeof(MappingParams));
-    auto scratch = param_mem_.GetScratchpad();
-    auto tmp = scratch.template AllocTensor<MemoryKind, MappingParams, 1>(count);
-    SelectParamView<MemoryKind>() = tmp;
-    return tmp.data;
+  inline MappingParams *AllocParams(mm::memory_kind::host *, int count) {
+    if (count > params_cpu_sz_) {
+      if constexpr (std::is_same_v<Backend, CPUBackend>) {
+        params_cpu_ = mm::alloc_raw_unique<MappingParams, mm::memory_kind::host>(count);
+       } else {
+        params_cpu_ = mm::alloc_raw_async_unique<MappingParams, mm::memory_kind::pinned>(
+            count, mm::host_sync, GetStream());
+       }
+      params_cpu_sz_ = count;
+    }
+    params_count_ = count;
+    return params_cpu_.get();
   }
 
   // can be overwritten by a derived class
@@ -346,9 +355,14 @@ class WarpParamProvider : public InterpTypeProvider, public BorderTypeProvider<B
   int num_samples_ = 0;
 
   std::vector<SpatialShape> out_sizes_;
-  TensorView<StorageGPU, const MappingParams, 1> params_gpu_;
-  TensorView<StorageCPU, const MappingParams, 1> params_cpu_;
-  kernels::ScratchpadAllocator param_mem_;
+  mm::async_uptr<MappingParams> params_gpu_;
+  std::conditional_t<
+      std::is_same_v<Backend, CPUBackend>,
+      mm::uptr<MappingParams>,
+      mm::async_uptr<MappingParams>> params_cpu_;
+  int params_cpu_sz_ = 0;
+  int params_gpu_sz_ = 0;
+  int params_count_ = 0;
 };
 
 }  // namespace dali

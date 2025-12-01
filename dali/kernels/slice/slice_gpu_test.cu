@@ -15,7 +15,7 @@
 #include <gtest/gtest.h>
 #include "dali/kernels/slice/slice_kernel_test.h"
 #include "dali/kernels/slice/slice_gpu.cuh"
-#include "dali/kernels/scratch.h"
+#include "dali/kernels/dynamic_scratchpad.h"
 
 namespace dali {
 namespace kernels {
@@ -43,10 +43,8 @@ class SliceGPUTest : public SliceTest<TestArgs> {
     KernelType kernel;
     KernelRequirements req = kernel.Setup(ctx, test_data.gpu(), slice_args);
 
-    ScratchpadAllocator scratch_alloc;
-    scratch_alloc.Reserve(req.scratch_sizes);
-    auto scratchpad = scratch_alloc.GetScratchpad();
-    ctx.scratchpad = &scratchpad;
+    DynamicScratchpad dyn_scratchpad(AccessOrder(ctx.gpu.stream));
+    ctx.scratchpad = &dyn_scratchpad;
 
     TensorListShape<> output_shapes = req.output_shapes[0];
     for (int i = 0; i < output_shapes.size(); i++) {

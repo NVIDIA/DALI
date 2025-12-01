@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,7 +18,7 @@
 #include <tuple>
 
 #include "dali/core/error_handling.h"
-#include "dali/image/image_factory.h"
+#include "dali/operators/decoder/image/image_factory.h"
 #include "dali/operators/decoder/host/fused/host_decoder_crop.h"
 #include "dali/pipeline/operator/common.h"
 
@@ -27,6 +27,11 @@ namespace dali {
 HostDecoderCrop::HostDecoderCrop(const OpSpec &spec)
   : HostDecoder(spec)
   , CropAttr(spec) {
+}
+
+void HostDecoderCrop::RunImpl(Workspace &ws) {
+  CropAttr::ProcessArguments(spec_, ws);
+  HostDecoder::RunImpl(ws);
 }
 
 DALI_REGISTER_OPERATOR(decoders__ImageCrop, HostDecoderCrop, CPU);

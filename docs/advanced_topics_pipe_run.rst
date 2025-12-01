@@ -10,7 +10,7 @@ DALI pipeline can be run in one of the following ways:
     :meth:`nvidia.dali.Pipeline.release_outputs` that allows a fine-grain control for
     the duration of the output buffers' lifetime.
   | This option corresponds to the :meth:`nvidia.dali.types.PipelineAPIType.SCHEDULED` API type.
-- | Built-in iterators for MXNet, PyTorch, and TensorFlow.
+- | Built-in iterators for PyTorch, JAX, PaddlePaddle, and TensorFlow.
   | This option corresponds to the :meth:`nvidia.dali.types.PipelineAPIType.ITERATOR` API type.
 
 The first API, :meth:`nvidia.dali.Pipeline.run` method completes the following tasks:

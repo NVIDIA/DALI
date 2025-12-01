@@ -23,7 +23,6 @@ Here is an example pipeline using the (recommended) functional API::
         images = dali.fn.resize(images, resize_x = 300, resize_y = 300)
         pipe.set_outputs(images, labels)
 
-    pipe.build()
     outputs = pipe.run()
 
 and the legacy implementation using the operator object API::
@@ -47,7 +46,6 @@ and the legacy implementation using the operator object API::
             return images, labels
 
     pipe = CustomPipe(batch_size = 3, num_threads = 2, device_id = 0)
-    pipe.build()
     outputs = pipe.run()
 
 It is worth noting that the two APIs can be used together in a single pipeline. Here is an example of that::
@@ -63,7 +61,6 @@ It is worth noting that the two APIs can be used together in a single pipeline. 
         images = resize(images)
         pipe.set_outputs(images, labels)
 
-    pipe.build()
     outputs = pipe.run()
 
 Mapping to Functional API
@@ -83,4 +80,9 @@ Modules
 nvidia.dali.plugin.pytorch
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 .. autoclass:: nvidia.dali.plugin.pytorch.TorchPythonFunction
+   :members:
+
+Compose
+^^^^^^^
+.. autoclass:: nvidia.dali.ops.Compose
    :members:

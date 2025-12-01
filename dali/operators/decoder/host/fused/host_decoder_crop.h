@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -29,9 +29,8 @@ class HostDecoderCrop : public HostDecoder, protected CropAttr {
   inline ~HostDecoderCrop() override = default;
   DISABLE_COPY_MOVE_ASSIGN(HostDecoderCrop);
 
-  void inline SetupSharedSampleParams(SampleWorkspace &ws) override {
-    CropAttr::ProcessArguments(spec_, ws);
-  }
+  void RunImpl(Workspace &ws) override;
+  using HostDecoder::RunImpl;
 
  protected:
   inline CropWindowGenerator GetCropWindowGenerator(int data_idx) const override {

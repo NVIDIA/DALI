@@ -1,4 +1,4 @@
-# Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2021-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,17 +19,16 @@ import os
 from test_utils import get_dali_extra_path, check_batch
 
 test_data_root = get_dali_extra_path()
-images_dir = os.path.join(test_data_root, 'db', 'single', 'jpeg')
+images_dir = os.path.join(test_data_root, "db", "single", "jpeg")
 
 
 @pipeline_def
 def pipe_gaussian_noise(mean, stddev, variable_dist_params, device=None):
     encoded, _ = fn.readers.file(file_root=images_dir)
     in_data = fn.cast(
-        fn.decoders.image(encoded, device="cpu", output_type=types.RGB),
-        dtype=types.FLOAT
+        fn.decoders.image(encoded, device="cpu", output_type=types.RGB), dtype=types.FLOAT
     )
-    if device == 'gpu':
+    if device == "gpu":
         in_data = in_data.gpu()
     mean_arg = mean
     stddev_arg = stddev
@@ -42,11 +41,18 @@ def pipe_gaussian_noise(mean, stddev, variable_dist_params, device=None):
     return out_data1, out_data2
 
 
-def _testimpl_operator_noise_gaussian_vs_add_normal_dist(device, mean, stddev, variable_dist_params,
-                                                         batch_size, niter):
-    pipe = pipe_gaussian_noise(mean, stddev, variable_dist_params,
-                               device=device, batch_size=batch_size, num_threads=3, device_id=0)
-    pipe.build()
+def _testimpl_operator_noise_gaussian_vs_add_normal_dist(
+    device, mean, stddev, variable_dist_params, batch_size, niter
+):
+    pipe = pipe_gaussian_noise(
+        mean,
+        stddev,
+        variable_dist_params,
+        device=device,
+        batch_size=batch_size,
+        num_threads=3,
+        device_id=0,
+    )
     for _ in range(niter):
         out0, out1 = pipe.run()
         check_batch(out0, out1, batch_size=batch_size, eps=0.1)
@@ -57,5 +63,12 @@ def test_operator_noise_gaussian_vs_add_normal_dist():
     for device in ("cpu", "gpu"):
         for batch_size in (1, 3):
             for mean, stddev, variable_dist_params in [(10.0, 57.0, False), (0.0, 0.0, True)]:
-                yield _testimpl_operator_noise_gaussian_vs_add_normal_dist, \
-                    device, mean, stddev, variable_dist_params, batch_size, niter
+                yield (
+                    _testimpl_operator_noise_gaussian_vs_add_normal_dist,
+                    device,
+                    mean,
+                    stddev,
+                    variable_dist_params,
+                    batch_size,
+                    niter,
+                )

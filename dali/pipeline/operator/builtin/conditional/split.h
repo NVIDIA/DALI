@@ -1,4 +1,4 @@
-// Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,15 +17,18 @@
 
 #include <vector>
 
+#include "dali/pipeline/operator/checkpointing/stateless_operator.h"
 #include "dali/pipeline/operator/operator.h"
+
 
 namespace dali {
 
 template <typename Backend>
-class Split : public Operator<Backend> {
+class Split : public StatelessOperator<Backend> {
  public:
   explicit Split(const OpSpec &spec)
-      : Operator<Backend>(spec), if_stmt_implementation_(spec.GetArgument<bool>("_if_stmt")) {
+      : StatelessOperator<Backend>(spec),
+        if_stmt_implementation_(spec.GetArgument<bool>("_if_stmt")) {
     DALI_ENFORCE(spec.HasTensorArgument("predicate"),
                  "The 'predicate' argument is required to be present as argument input.");
     RegisterTestsDiagnostics();
@@ -33,7 +36,7 @@ class Split : public Operator<Backend> {
 
   ~Split() override = default;
 
-  bool CanInferOutputs() const override {
+  bool HasContiguousOutputs() const override {
     return false;
   }
 

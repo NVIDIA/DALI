@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -55,7 +55,8 @@ def make_data_batch(batch_size, in_dim, type):
 
     for i in range(batch_size):
         batch.append(
-            (np.random.rand(np.random.randint(0, 10000), in_dim) * (hi - lo) + lo).astype(type))
+            (np.random.rand(np.random.randint(0, 10000), in_dim) * (hi - lo) + lo).astype(type)
+        )
     return batch
 
 
@@ -66,8 +67,9 @@ def get_data_source(batch_size, in_dim, type):
 def _run_test(device, batch_size, out_dim, in_dim, in_dtype, out_dtype, M_kind, T_kind):
     pipe = dali.pipeline.Pipeline(batch_size=batch_size, num_threads=4, device_id=0, seed=1234)
     with pipe:
-        X = fn.external_source(source=get_data_source(batch_size, in_dim, in_dtype), device=device,
-                               layout="NX")
+        X = fn.external_source(
+            source=get_data_source(batch_size, in_dim, in_dtype), device=device, layout="NX"
+        )
         M = None
         T = None
         MT = None
@@ -82,7 +84,7 @@ def _run_test(device, batch_size, out_dim, in_dim, in_dtype, out_dtype, M_kind, 
             MT=MT.flatten().tolist() if isinstance(MT, np.ndarray) else MT,
             M=M.flatten().tolist() if isinstance(M, np.ndarray) else M,
             T=T.flatten().tolist() if isinstance(T, np.ndarray) else T,
-            dtype=dali_type(out_dtype)
+            dtype=dali_type(out_dtype),
         )
         if M is None:
             M = 1
@@ -92,13 +94,16 @@ def _run_test(device, batch_size, out_dim, in_dim, in_dtype, out_dtype, M_kind, 
             MT = 0
 
         M, T, MT = (
-            x if isinstance(x, dali.data_node.DataNode)
-            else dali.types.Constant(x, dtype=dali.types.FLOAT)
-            for x in (M, T, MT))
+            (
+                x
+                if isinstance(x, dali.data_node.DataNode)
+                else dali.types.Constant(x, dtype=dali.types.FLOAT)
+            )
+            for x in (M, T, MT)
+        )
 
         pipe.set_outputs(X, Y, M, T, MT)
 
-    pipe.build()
     for iter in range(3):
         outputs = pipe.run()
         outputs = [x.as_cpu() if hasattr(x, "as_cpu") else x for x in outputs]
@@ -142,14 +147,33 @@ def test_all():
         for M_kind in [None, "vector", "scalar", "input", "scalar input"]:
             for T_kind in [None, "vector", "scalar", "input", "scalar input"]:
                 for batch_size in [1, 3]:
-                    yield _run_test, device, batch_size, 3, 3, np.float32, np.float32, M_kind, \
-                          T_kind
+                    yield (
+                        _run_test,
+                        device,
+                        batch_size,
+                        3,
+                        3,
+                        np.float32,
+                        np.float32,
+                        M_kind,
+                        T_kind,
+                    )
 
     for device in ["cpu", "gpu"]:
         for in_dtype in [np.uint8, np.uint16, np.int16, np.int32, np.float32]:
             for out_dtype in set([in_dtype, np.float32]):
                 for batch_size in [1, 8]:
-                    yield _run_test, device, batch_size, 3, 3, in_dtype, out_dtype, "input", "input"
+                    yield (
+                        _run_test,
+                        device,
+                        batch_size,
+                        3,
+                        3,
+                        in_dtype,
+                        out_dtype,
+                        "input",
+                        "input",
+                    )
 
     for device in ["cpu", "gpu"]:
         for M_kind in ["input", "vector", None]:
@@ -159,8 +183,17 @@ def test_all():
                 else:
                     out_dims = [in_dim]
                 for out_dim in out_dims:
-                    yield _run_test, device, 2, out_dim, in_dim, np.float32, np.float32, M_kind, \
-                          "vector"
+                    yield (
+                        _run_test,
+                        device,
+                        2,
+                        out_dim,
+                        in_dim,
+                        np.float32,
+                        np.float32,
+                        M_kind,
+                        "vector",
+                    )
 
     for device in ["cpu", "gpu"]:
         for MT_kind in ["vector", "input", "scalar"]:
@@ -170,18 +203,27 @@ def test_all():
                 else:
                     out_dims = [in_dim]
                 for out_dim in out_dims:
-                    yield _run_test, device, 2, out_dim, in_dim, np.float32, np.float32, MT_kind, \
-                          "fused"
+                    yield (
+                        _run_test,
+                        device,
+                        2,
+                        out_dim,
+                        in_dim,
+                        np.float32,
+                        np.float32,
+                        MT_kind,
+                        "fused",
+                    )
 
 
 def _test_empty_input(device):
     pipe = dali.pipeline.Pipeline(batch_size=2, num_threads=4, device_id=0, seed=1234)
     with pipe:
-        X = fn.external_source(source=[[np.zeros([0, 3]), np.zeros([0, 3])]], device="cpu",
-                               layout="AB")
+        X = fn.external_source(
+            source=[[np.zeros([0, 3]), np.zeros([0, 3])]], device="cpu", layout="AB"
+        )
         Y = fn.coord_transform(X, M=(1, 2, 3, 4, 5, 6), T=(1, 2))
         pipe.set_outputs(Y)
-    pipe.build()
     o = pipe.run()
     assert o[0].layout() == "AB"
     assert len(o[0]) == 2
@@ -213,9 +255,7 @@ def test_sequences():
         scales = np_rng.uniform(0, 5, 2)
         c = np.cos(angles[0])
         s = np.sin(angles[1])
-        return np.array([
-            [c * scales[0], -s],
-            [s,  c * scales[1]]], dtype=np.float32)
+        return np.array([[c * scales[0], -s], [s, c * scales[1]]], dtype=np.float32)
 
     def t(sample_desc):
         return np.float32(np_rng.uniform(-100, 250, 2))
@@ -232,14 +272,15 @@ def test_sequences():
         (fn.coord_transform, {}, [ArgCb("M", m, False), ArgCb("T", t, True)]),
     ]
 
-    input_seq_data = [[
-        np.array([points() for _ in rand_range(max_num_frames)], dtype=np.float32)
-        for _ in rand_range(max_batch_size)]
-        for _ in range(num_iters)]
+    input_seq_data = [
+        [
+            np.array([points() for _ in rand_range(max_num_frames)], dtype=np.float32)
+            for _ in rand_range(max_batch_size)
+        ]
+        for _ in range(num_iters)
+    ]
 
-    main_input = ArgData(
-        desc=ArgDesc(0, "F", "", "F**"),
-        data=input_seq_data)
+    main_input = ArgData(desc=ArgDesc(0, "F", "", "F**"), data=input_seq_data)
 
     yield from sequence_suite_helper(rng, [main_input], input_cases, num_iters)
 
@@ -248,13 +289,14 @@ def test_sequences():
         (fn.coord_transform, {}, [ArgCb(0, lambda _: points(), False, "gpu")], ["cpu"]),
     ]
 
-    input_mt_data = [[
-        np.array([mt(None) for _ in rand_range(max_num_frames)], dtype=np.float32)
-        for _ in rand_range(max_batch_size)]
-        for _ in range(num_iters)]
+    input_mt_data = [
+        [
+            np.array([mt(None) for _ in rand_range(max_num_frames)], dtype=np.float32)
+            for _ in rand_range(max_batch_size)
+        ]
+        for _ in range(num_iters)
+    ]
 
-    main_input = ArgData(
-        desc=ArgDesc("MT", "F", "", "F**"),
-        data=input_mt_data)
+    main_input = ArgData(desc=ArgDesc("MT", "F", "", "F**"), data=input_mt_data)
 
     yield from sequence_suite_helper(rng, [main_input], input_broadcast_cases, num_iters)

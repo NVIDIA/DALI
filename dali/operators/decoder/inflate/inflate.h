@@ -1,4 +1,4 @@
-// Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -22,7 +22,7 @@
 #include "dali/core/common.h"
 #include "dali/core/tensor_shape.h"
 #include "dali/operators/decoder/inflate/inflate_params.h"
-#include "dali/pipeline/operator/operator.h"
+#include "dali/pipeline/operator/checkpointing/stateless_operator.h"
 #include "dali/pipeline/util/operator_impl_utils.h"
 
 namespace dali {
@@ -68,17 +68,13 @@ class InflateOpImplBase : public OpImplBase<Backend> {
 }  // namespace inflate
 
 template <typename Backend>
-class Inflate : public Operator<Backend> {
+class Inflate : public StatelessOperator<Backend> {
  public:
   USE_OPERATOR_MEMBERS();
 
   explicit Inflate(const OpSpec &spec)
-      : Operator<Backend>(spec),
+      : StatelessOperator<Backend>(spec),
         alg_{inflate::parse_inflate_alg(spec.GetArgument<std::string>(inflate::algArgName))} {}
-
-  bool CanInferOutputs() const override {
-    return true;
-  }
 
  protected:
   void SetupOpImpl();

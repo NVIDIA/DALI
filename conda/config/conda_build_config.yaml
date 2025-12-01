@@ -1,5 +1,9 @@
 c_compiler_version:    # [linux]
-  - 7.5                # [linux]
+  - 14.2               # [linux]
 cxx_compiler_version:  # [linux]
-  - 7.5                # [linux]
-
+  - 14.2               # [linux]
+# for FFMPEG c11 macros
+c_stdlib:
+  - sysroot            # [linux]
+c_stdlib_version:      # [linux]
+  - 2.17               # [linux]

@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import nvidia.dali as dali
 import nvidia.dali.fn as fn
 from nvidia.dali.pipeline import Pipeline
 import numpy as np
@@ -26,9 +25,8 @@ def _test_permutation_generator(allow_repetitions, no_fixed):
     perm = fn.batch_permutation(allow_repetitions=allow_repetitions, no_fixed_points=no_fixed)
     pipe.set_outputs(perm)
 
-    pipe.build()
     for iter in range(100):
-        idxs, = pipe.run()
+        (idxs,) = pipe.run()
         for i in range(batch_size):
             assert idxs.at(i).shape == ()
         idxs = [int(idxs.at(i)) for i in range(batch_size)]
@@ -60,17 +58,15 @@ def _test_permute_batch(device, type):
     batch_size = 10
     pipe = Pipeline(batch_size, 4, 0)
     data = fn.external_source(
-        source=lambda: gen_data(batch_size, type),
-        device=device, layout="abc")
+        source=lambda: gen_data(batch_size, type), device=device, layout="abc"
+    )
     perm = fn.batch_permutation()
     pipe.set_outputs(data, fn.permute_batch(data, indices=perm), perm)
-    pipe.build()
 
     for i in range(10):
         orig, permuted, idxs = pipe.run()
         idxs = [int(idxs.at(i)) for i in range(batch_size)]
-        if isinstance(orig, dali.backend.TensorListGPU):
-            orig = orig.as_cpu()
+        orig = orig.as_cpu()
         ref = [orig.at(idx) for idx in idxs]
         check_batch(permuted, ref, len(ref), 0, 0, "abc")
 
@@ -85,16 +81,14 @@ def _test_permute_batch_fixed(device):
     batch_size = 10
     pipe = Pipeline(batch_size, 4, 0)
     data = fn.external_source(
-        source=lambda: gen_data(batch_size, np.int16),
-        device=device, layout="abc")
+        source=lambda: gen_data(batch_size, np.int16), device=device, layout="abc"
+    )
     idxs = [4, 8, 0, 6, 3, 5, 2, 9, 7, 1]
     pipe.set_outputs(data, fn.permute_batch(data, indices=idxs))
-    pipe.build()
 
-    for i in range(10):
+    for _ in range(10):
         orig, permuted = pipe.run()
-        if isinstance(orig, dali.backend.TensorListGPU):
-            orig = orig.as_cpu()
+        orig = orig.as_cpu()
         ref = [orig.at(idx) for idx in idxs]
         check_batch(permuted, ref, len(ref), 0, 0, "abc")
 
@@ -104,17 +98,18 @@ def test_permute_batch_fixed():
         yield _test_permute_batch_fixed, device
 
 
-@raises(RuntimeError,
-        glob="Sample index out of range. * is not a valid index for an input batch of * tensors.")
+@raises(
+    RuntimeError,
+    glob="Sample index out of range. * is not a valid index for an input batch of * tensors.",
+)
 def _test_permute_batch_out_of_range(device):
     batch_size = 10
     pipe = Pipeline(batch_size, 4, 0)
     data = fn.external_source(
-        source=lambda: gen_data(batch_size, np.int32),
-        device=device, layout="abc")
+        source=lambda: gen_data(batch_size, np.int32), device=device, layout="abc"
+    )
     perm = fn.batch_permutation()
     pipe.set_outputs(data, fn.permute_batch(data, indices=[0, 1, 2, 3, 4, 5, 10, 7, 8, 9]), perm)
-    pipe.build()
     pipe.run()
 
 

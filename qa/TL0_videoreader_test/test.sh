@@ -1,6 +1,6 @@
 #!/bin/bash -e
 
-pip_packages='${python_test_runner_package} numpy'
+pip_packages='${python_test_runner_package} numpy opencv-python-headless'
 target_dir=./docs/examples/sequence_processing/video
 
 do_once() {
@@ -49,6 +49,9 @@ test_body() {
     echo $(pwd)
     ${python_invoke_test} ../../../../dali/test/python/test_video_pipeline.py
     ${python_invoke_test} ../../../../dali/test/python/test_video_reader_resize.py
+
+    cd ../../../../dali/test/python/
+    ${python_new_invoke_test} test_video_reader
 }
 
 pushd ../..

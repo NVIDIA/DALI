@@ -1,4 +1,4 @@
-// Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@ The operator modifies the layout string of the input data to indicate that
 the batch contains sequences.
 Only the layout is affected, while the data stays untouched.
 
-The operator can be used to feed per-frame tensor arguments when procesing sequences.
+The operator can be used to feed per-frame tensor arguments when processing sequences.
 For example, the following snippet shows how to apply ``gaussian_blur`` to a batch of sequences,
 so that a different ``sigma`` is used for each frame in each sequence::
 
@@ -44,7 +44,7 @@ to find out if it supports per-frame input.
 
 If the input passed to ``per-frame`` operator has no layout,
 a new layout is set, that starts with ``F`` and is padded with ``*`` to match
-dimensionality of the input. Otherwise, depending on the ``replace`` flag,
+dimensionality of the input. Otherwise, depending on the `replace` flag,
 the operator either checks if the first character of the layout is equal to ``F``
 or replaces the character with ``F``.
 )code")

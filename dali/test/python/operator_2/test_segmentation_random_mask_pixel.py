@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -22,13 +22,14 @@ import nvidia.dali.math as math
 np.random.seed(4321)
 
 
-def check_random_mask_pixel(ndim=2, batch_size=3,
-                            min_extent=20, max_extent=50):
+def check_random_mask_pixel(ndim=2, batch_size=3, min_extent=20, max_extent=50):
     pipe = dali.pipeline.Pipeline(batch_size=batch_size, num_threads=4, device_id=0, seed=1234)
     with pipe:
         # Input mask
-        in_shape_dims = [fn.cast(fn.random.uniform(range=(min_extent, max_extent + 1)),
-                                 dtype=types.INT32) for _ in range(ndim)]
+        in_shape_dims = [
+            fn.cast(fn.random.uniform(range=(min_extent, max_extent + 1)), dtype=types.INT32)
+            for _ in range(ndim)
+        ]
         in_shape = fn.stack(*in_shape_dims)
         in_mask = fn.cast(fn.random.uniform(range=(0, 2), shape=in_shape), dtype=types.INT32)
 
@@ -51,9 +52,18 @@ def check_random_mask_pixel(ndim=2, batch_size=3,
         anchor = math.min(math.max(0, anchor), in_shape - crop_shape)
         out_mask = fn.slice(in_mask, anchor, crop_shape, axes=tuple(range(ndim)))
 
-    pipe.set_outputs(in_mask, fg_pixel1, fg_pixel2, fg_pixel3, rnd_pixel, coin_flip, fg_biased,
-                     anchor, crop_shape, out_mask)
-    pipe.build()
+    pipe.set_outputs(
+        in_mask,
+        fg_pixel1,
+        fg_pixel2,
+        fg_pixel3,
+        rnd_pixel,
+        coin_flip,
+        fg_biased,
+        anchor,
+        crop_shape,
+        out_mask,
+    )
     for iter in range(3):
         outputs = pipe.run()
         for idx in range(batch_size):

@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -25,7 +25,7 @@ struct Box {
   // box is represented with two ndim coordinates
   static constexpr int size = ndims * 2;
   using corner_t = vec<ndims, CoordinateType>;
-  static_assert(std::is_pod<corner_t>::value, "Corner has to be POD");
+  static_assert(is_pod_v<corner_t>, "Corner has to be POD");
 
   /**
    * Corners of the box.

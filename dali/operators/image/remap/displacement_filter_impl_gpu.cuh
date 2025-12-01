@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -214,13 +214,12 @@ void DisplacementKernel_aligned32bit(
   }
 }
 
-template <class Displacement,
-          bool per_channel_transform>
-class DisplacementFilter<GPUBackend, Displacement,
-                         per_channel_transform> : public Operator<GPUBackend> {
+template <class Displacement, bool per_channel_transform>
+class DisplacementFilter<GPUBackend, Displacement, per_channel_transform>
+    : public DisplacementBase<GPUBackend, Displacement> {
  public:
   explicit DisplacementFilter(const OpSpec &spec) :
-      Operator(spec),
+      DisplacementBase<GPUBackend, Displacement>(spec),
       displace_(spec),
       interp_type_(spec.GetArgument<DALIInterpType>("interp_type")) {
     channel_block_setup_.SetBlockDim(ivec3{kAlignedBlockDim, 1, 1});
@@ -241,10 +240,6 @@ class DisplacementFilter<GPUBackend, Displacement,
      displace_.Cleanup();
   }
 
-  bool CanInferOutputs() const override {
-    return true;
-  }
-
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     const auto &input = ws.Input<GPUBackend>(0);
     output_desc.resize(1);
@@ -254,6 +249,7 @@ class DisplacementFilter<GPUBackend, Displacement,
   }
 
   void RunImpl(Workspace &ws) override {
+    PrepareDisplacement(ws);
     const auto &input = ws.Input<GPUBackend>(0);
     auto &output = ws.Output<GPUBackend>(0);
     output.SetLayout(input.GetLayout());
@@ -295,17 +291,15 @@ class DisplacementFilter<GPUBackend, Displacement,
     return nullptr;
   }
 
-
-  void SetupSharedSampleParams(Workspace &ws) override {
-    PrepareDisplacement(ws);
-  }
-
   bool ShouldRunAligned(size_t sizeof_T, uint64_t maxPower2, int C) {
     return (maxPower2 >= sizeof(uint32_t) / sizeof_T) && (C == 3 || C == 1);
   }
 
   USE_OPERATOR_MEMBERS();
   using Operator<GPUBackend>::RunImpl;
+
+ protected:
+  Displacement displace_;
 
  private:
   static const size_t nDims = 3;
@@ -399,7 +393,7 @@ class DisplacementFilter<GPUBackend, Displacement,
         <<<grid_dim, block_dim, 0, stream>>>(samples_dev_.data(), blocks_dev_.data(), fill_value_,
                                              displace_);
   }
-  Displacement displace_;
+
   DALIInterpType interp_type_;
   float fill_value_;
 

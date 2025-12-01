@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -263,7 +263,7 @@ struct test_device_resource
 
 template <typename Kind, bool owning, typename Upstream = async_memory_resource<Kind>>
 using test_stream_resource = test_resource_wrapper<
-    owning, detail::is_host_accessible<Kind>, async_memory_resource<Kind>, Upstream>;
+    owning, is_host_accessible<Kind>, async_memory_resource<Kind>, Upstream>;
 
 
 class test_dev_pool_resource : public test_stream_resource<memory_kind::device, true> {

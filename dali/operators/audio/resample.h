@@ -16,6 +16,7 @@
 #define DALI_OPERATORS_AUDIO_RESAMPLE_H_
 
 #include <vector>
+#include "dali/pipeline/operator/checkpointing/stateless_operator.h"
 #include "dali/pipeline/operator/operator.h"
 #include "dali/pipeline/operator/arg_helper.h"
 #include "dali/kernels/signal/resampling.h"
@@ -27,9 +28,9 @@ namespace audio {
 #define AUDIO_RESAMPLE_TYPES int8_t, uint8_t, int16_t, uint16_t, int32_t, uint32_t, float
 
 template <typename Backend>
-class ResampleBase : public Operator<Backend> {
+class ResampleBase : public StatelessOperator<Backend> {
  public:
-  explicit ResampleBase(const OpSpec &spec) : Operator<Backend>(spec) {
+  explicit ResampleBase(const OpSpec &spec) : StatelessOperator<Backend>(spec) {
     DALI_ENFORCE(in_rate_.HasValue() == out_rate_.HasValue(),
                  "The parameters ``in_rate`` and ``out_rate`` must be specified together.");
     if (in_rate_.HasValue() + scale_.HasValue() + out_length_.HasValue() > 1)
@@ -47,10 +48,6 @@ class ResampleBase : public Operator<Backend> {
       (DALI_FAIL(make_string("Unsupported output type: ", dtype_,
                            "\nSupported types are : ", ListTypeNames<AUDIO_RESAMPLE_TYPES>()))));
     }
-  }
-
-  bool CanInferOutputs() const override {
-    return true;
   }
 
   bool SetupImpl(std::vector<OutputDesc> &outputs, const Workspace &ws) override {

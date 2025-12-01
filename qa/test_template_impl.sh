@@ -9,10 +9,14 @@ set -x
 export PYTHONUNBUFFERED=1
 
 topdir=$(cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null && pwd )/..
+# supress leaks that are false positive or not related to DALI
+export LSAN_OPTIONS=suppressions=$topdir/qa/leak.sup
+export ASAN_OPTIONS=start_deactivated=true:detect_leaks=0:detect_container_overflow=0:suppressions=$topdir/qa/address.sup
+
 source $topdir/qa/setup_test_common.sh
 
 # Set runner for python tests
-export PYTHONPATH=${PYTHONPATH}:$topdir/qa
+export PYTHONPATH=${PYTHONPATH}:$topdir/qa:$topdir/dali/test/python
 python_test_runner_package="nose nose2 nose-timer nose2-test-timer"
 # use DALI nose wrapper to patch nose to support Python 3.10
 python_test_runner="python -m nose_wrapper"
@@ -42,7 +46,11 @@ then
     return 0
 fi
 
+# disable sanitizer as in some OSes it hangs git clone
+export OLD_LD_PRELOAD=${LD_PRELOAD}
+export LD_PRELOAD=""
 source $topdir/qa/setup_dali_extra.sh
+export LD_PRELOAD=${OLD_LD_PRELOAD}
 
 target_dir=${target_dir-./}
 cd ${target_dir}
@@ -64,28 +72,25 @@ epilog=${epilog-:}
 numer_of_prolog_elms=${#prolog[@]}
 
 enable_sanitizer() {
-    # supress leaks that are false positive or not related to DALI
-    export LSAN_OPTIONS=suppressions=$topdir/qa/leak.sup
-    export ASAN_OPTIONS=symbolize=1:protect_shadow_gap=0:log_path=sanitizer.log:start_deactivated=true:allocator_may_return_null=1:detect_leaks=1:fast_unwind_on_malloc=0:verify_asan_link_order=0
+    export ASAN_OPTIONS=symbolize=1:protect_shadow_gap=0:log_path=sanitizer.log:start_deactivated=true:allocator_may_return_null=1:detect_leaks=1:fast_unwind_on_malloc=0:verify_asan_link_order=0:detect_container_overflow=0:suppressions=$topdir/qa/address.sup
     export ASAN_SYMBOLIZER_PATH=$(which llvm-symbolizer)
     # avoid python false positives
     export PYTHONMALLOC=malloc
     # if something calls dlclose on a module that leaks and it happens before asan can extract symbols we get "unknown module"
     # in the stack trace, to prevent this provide dlclose that does nothing
     echo "int dlclose(void* a) { return 0; }" > /tmp/fake_dlclose.c && gcc -shared -o /tmp/libfakeclose.so /tmp/fake_dlclose.c
-    # for an unknown reason the more recent asan when we set PYTHONMALLOC=malloc, when captures the backtrace for
-    # the `new` call, calls malloc which is intercepted and backtrace is attempted to be captured
-    # however `_Unwind_Find_FDE` is not reentrant as it uses a mutex which leads to a deadlock
-    gcc -shared -fPIC $topdir/qa/test_wrapper_pre.c -o /tmp/pre.so
-    gcc -shared -fPIC $topdir/qa/test_wrapper_post.c -o /tmp/post.so
     export OLD_LD_PRELOAD=${LD_PRELOAD}
-    export LD_PRELOAD="/tmp/pre.so /usr/lib/x86_64-linux-gnu/libasan.so /tmp/glibc_fix.so /tmp/post.so /usr/lib/x86_64-linux-gnu/libstdc++.so /tmp/libfakeclose.so"
+    export LD_PRELOAD="/usr/lib/x86_64-linux-gnu/libasan.so /tmp/glibc_fix.so /tmp/libfakeclose.so /usr/lib/x86_64-linux-gnu/libstdc++.so"
+    # Workaround for bug in asan ignoring RPATHs https://bugzilla.redhat.com/show_bug.cgi?id=1449604
+    export OLD_LD_LIBRARY_PATH2=${LD_LIBRARY_PATH}  # OLD_LD_LIBRARY_PATH variable name already used
+    export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$(python -c 'import nvidia.nvimgcodec as n; import os; print(os.path.dirname(n.__file__))')
 }
 
 # turn off sanitizer to avoid breaking any non-related system built-ins
 disable_sanitizer() {
-    export ASAN_OPTIONS=start_deactivated=true:detect_leaks=0
+    export ASAN_OPTIONS=start_deactivated=true:detect_leaks=0:detect_container_overflow=0:suppressions=$topdir/qa/address.sup
     export LD_PRELOAD=${OLD_LD_PRELOAD}
+    export LD_LIBRARY_PATH=${OLD_LD_LIBRARY_PATH2}
     unset ASAN_SYMBOLIZER_PATH
     unset PYTHONMALLOC
 }
@@ -143,12 +148,26 @@ do
         ${prolog[variant]}
         echo "Test variant run: $variant"
         # install the latest cuda wheel for CUDA 11.x and above tests if it is x86_64
+        # or we just want to use CUDA from system, not wheels
+        # or we are in conda
         version_ge "${CUDA_VERSION}" "110" && \
-          if [ "$(uname -m)" == "x86_64" ]; then
-            install_pip_pkg "pip install --upgrade nvidia-npp-cu${DALI_CUDA_MAJOR_VERSION}    \
-                                                   nvidia-nvjpeg-cu${DALI_CUDA_MAJOR_VERSION} \
-                                                   nvidia-cufft-cu${DALI_CUDA_MAJOR_VERSION}  \
-                                                   -f /pip-packages"
+          if [ "$(uname -m)" == "x86_64" ] && [ -z "${DO_NOT_INSTALL_CUDA_WHEEL}" ] && [ -z "${CONDA_PREFIX}" ]; then
+            NPP_VERSION=$(if [[ $DALI_CUDA_MAJOR_VERSION == "12" ]]; then echo "==12.2.5.30"; else echo ""; fi)
+            if [ "$DALI_CUDA_MAJOR_VERSION" -ge 13 ]; then
+                install_pip_pkg "pip install --upgrade nvidia-npp~=${DALI_CUDA_MAJOR_VERSION}.0   \
+                                                       nvidia-nvjpeg~=${DALI_CUDA_MAJOR_VERSION}.0  \
+                                                       nvidia-cufft~=$((DALI_CUDA_MAJOR_VERSION-1)).0 \
+                                                       nvidia-nvjpeg2k-cu${DALI_CUDA_MAJOR_VERSION} \
+                                                       nvidia-nvtiff-cu${DALI_CUDA_MAJOR_VERSION} \
+                                                       -f /pip-packages"
+            else
+                install_pip_pkg "pip install --upgrade nvidia-npp-cu${DALI_CUDA_MAJOR_VERSION}${NPP_VERSION} \
+                                                       nvidia-nvjpeg-cu${DALI_CUDA_MAJOR_VERSION} \
+                                                       nvidia-nvjpeg2k-cu${DALI_CUDA_MAJOR_VERSION} \
+                                                       nvidia-nvtiff-cu${DALI_CUDA_MAJOR_VERSION} \
+                                                       nvidia-cufft-cu${DALI_CUDA_MAJOR_VERSION} \
+                                                       -f /pip-packages"
+            fi
           fi
 
         # install packages
@@ -164,9 +183,12 @@ do
                 # The package name can be nvidia-dali-tf-plugin,  nvidia-dali-tf-plugin-weekly or nvidia-dali-tf-plugin-nightly
                 # Different DALI can be installed as a dependency of nvidia-dali so uninstall it too
                 pip uninstall -y `pip list | grep nvidia-dali-tf-plugin | cut -d " " -f1` || true
-                pip uninstall -y `pip list | grep nvidia-dali | cut -d " " -f1` || true
-                pip install /opt/dali/nvidia_dali*.whl
-                pip install /opt/dali/nvidia-dali-tf-plugin*.tar.gz
+                # don't reinstall DALI wheen in conda as we use conda package
+                if [ -z "${CONDA_PREFIX}" ]; then
+                    pip uninstall -y `pip list | grep nvidia-dali | cut -d " " -f1` || true
+                    pip install /opt/dali/nvidia_dali*.whl;
+                fi
+                pip install /opt/dali/nvidia_dali_tf_plugin*.tar.gz --no-build-isolation;
             fi
             # if we are using any cuda or nvidia-tensorflow wheels (nvidia-npp, nvidia-nvjpeg or nvidia-cufft)
             # unset LD_LIBRARY_PATH to not used cuda from /usr/local/ but from wheels

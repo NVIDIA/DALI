@@ -14,7 +14,7 @@
 # ==============================================================================
 """Tests for conversion module."""
 
-import imp
+import types
 import sys
 import unittest
 
@@ -28,50 +28,46 @@ from nvidia.dali._autograph.impl import conversion
 
 
 class ConversionTest(unittest.TestCase):
+    def _simple_program_ctx(self):
+        return converter.ProgramContext(
+            options=converter.ConversionOptions(recursive=True), autograph_module=api
+        )
 
-  def _simple_program_ctx(self):
-    return converter.ProgramContext(
-        options=converter.ConversionOptions(recursive=True),
-        autograph_module=api)
+    def test_is_allowlisted(self):
+        def test_fn():
+            return 1
 
-  def test_is_allowlisted(self):
+        self.assertFalse(conversion.is_allowlisted(test_fn))
 
-    def test_fn():
-      return 1
+    def test_is_allowlisted_callable_allowlisted_call(self):
+        allowlisted_mod = types.ModuleType("test_allowlisted_call")
+        sys.modules["test_allowlisted_call"] = allowlisted_mod
+        config.CONVERSION_RULES = (
+            config.DoNotConvert("test_allowlisted_call"),
+        ) + config.CONVERSION_RULES
 
-    self.assertFalse(conversion.is_allowlisted(test_fn))
+        class TestClass(object):
+            def __call__(self):
+                pass
 
-  def test_is_allowlisted_callable_allowlisted_call(self):
+            def allowlisted_method(self):
+                pass
 
-    allowlisted_mod = imp.new_module('test_allowlisted_call')
-    sys.modules['test_allowlisted_call'] = allowlisted_mod
-    config.CONVERSION_RULES = ((config.DoNotConvert('test_allowlisted_call'),) +
-                               config.CONVERSION_RULES)
+        TestClass.__module__ = "test_allowlisted_call"
+        if six.PY2:
+            TestClass.__call__.__func__.__module__ = "test_allowlisted_call"
+        else:
+            TestClass.__call__.__module__ = "test_allowlisted_call"
 
-    class TestClass(object):
+        class Subclass(TestClass):
+            def converted_method(self):
+                pass
 
-      def __call__(self):
-        pass
+        tc = Subclass()
 
-      def allowlisted_method(self):
-        pass
-
-    TestClass.__module__ = 'test_allowlisted_call'
-    if six.PY2:
-      TestClass.__call__.__func__.__module__ = 'test_allowlisted_call'
-    else:
-      TestClass.__call__.__module__ = 'test_allowlisted_call'
-
-    class Subclass(TestClass):
-
-      def converted_method(self):
-        pass
-
-    tc = Subclass()
-
-    self.assertTrue(conversion.is_allowlisted(TestClass.__call__))
-    self.assertTrue(conversion.is_allowlisted(tc))
-    self.assertTrue(conversion.is_allowlisted(tc.__call__))
-    self.assertTrue(conversion.is_allowlisted(tc.allowlisted_method))
-    self.assertFalse(conversion.is_allowlisted(Subclass))
-    self.assertFalse(conversion.is_allowlisted(tc.converted_method))
+        self.assertTrue(conversion.is_allowlisted(TestClass.__call__))
+        self.assertTrue(conversion.is_allowlisted(tc))
+        self.assertTrue(conversion.is_allowlisted(tc.__call__))
+        self.assertTrue(conversion.is_allowlisted(tc.allowlisted_method))
+        self.assertFalse(conversion.is_allowlisted(Subclass))
+        self.assertFalse(conversion.is_allowlisted(tc.converted_method))

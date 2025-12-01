@@ -1,15 +1,16 @@
-ARG AARCH64_BASE_IMAGE=nvidia/cuda:11.8.0-devel-ubuntu20.04
+ARG AARCH64_BASE_IMAGE=nvidia/cuda:12.6.3-devel-ubuntu22.04
 FROM ${AARCH64_BASE_IMAGE}
 
-ENV DEBIAN_FRONTEND=noninteractive
-ENV CUDA_CROSS_VERSION=11-8
-ENV CUDA_CROSS_VERSION_DOT=11.8
+ENV DEBIAN_FRONTEND=noninteractive \
+    CUDA_CROSS_VERSION=12-6 \
+    CUDA_CROSS_VERSION_DOT=12.6
 
-RUN apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/repos/ubuntu1804/x86_64/3bf863cc.pub && \
+RUN apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64/3bf863cc.pub && \
     apt-get update && apt-get install software-properties-common -y --no-install-recommends && \
     add-apt-repository ppa:deadsnakes/ppa -y && \
     apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
+    libssl-dev \
     curl \
     wget \
     unzip \
@@ -22,27 +23,28 @@ RUN apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/
     pkg-config \
     libtool \
     libtool-bin \
-    python3-distutils \
     autogen \
     zip \
-    python3.6 python3.6-dev python3.6-distutils\
-    python3.7 python3.7-dev python3.7-distutils \
-    python3.8 python3.8-dev \
-    python3.9 python3.9-dev python3.9-distutils \
-    python3.10 python3.10-dev python3.10-distutils \
-    python3.11 python3.11-dev python3.11-distutils&& \
+    python3.9 python3.9-dev \
+    python3.10 python3.10-dev \
+    python3.11 python3.11-dev \
+    python3.12 python3.12-dev \
+    python3.13 python3.13-dev && \
     apt-key adv --fetch-key http://repo.download.nvidia.com/jetson/jetson-ota-public.asc && \
-    add-apt-repository 'deb https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/cross-linux-aarch64/ /' && \
+    add-apt-repository 'deb https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/cross-linux-aarch64/ /' && \
     apt-get update && \
     apt-get install -y cuda-cudart-cross-aarch64-${CUDA_CROSS_VERSION} \
                        libcufft-cross-aarch64-${CUDA_CROSS_VERSION} \
                        libcurand-cross-aarch64-${CUDA_CROSS_VERSION} \
+                       libcusolver-cross-aarch64-${CUDA_CROSS_VERSION} \
+                       libcublas-cross-aarch64-${CUDA_CROSS_VERSION} \
                        cuda-driver-cross-aarch64-${CUDA_CROSS_VERSION} \
                        cuda-cccl-cross-aarch64-${CUDA_CROSS_VERSION} \
                        cuda-nvcc-cross-aarch64-${CUDA_CROSS_VERSION} \
                        libnpp-cross-aarch64-${CUDA_CROSS_VERSION} \
     && \
     rm -rf /var/lib/apt/lists/* && \
+    rm /usr/bin/python3 && ln -s python3.10 /usr/bin/python3 && \
     PYTHON_VER=$(python3 -c "import sys;print(f'{sys.version_info[0]}{sys.version_info[1]}')") && \
     if [ "${PYTHON_VER}" = "36" ]; then \
         curl -O https://bootstrap.pypa.io/pip/3.6/get-pip.py; \
@@ -50,7 +52,7 @@ RUN apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/
         curl -O https://bootstrap.pypa.io/get-pip.py; \
     fi && python3 get-pip.py && rm get-pip.py && \
     # decouple libclang and clang installation so libclang changes are not overriden by clang
-    pip install clang==14.0 && pip install libclang==14.0.1 flake8 && \
+    pip install clang==14.0 && pip install libclang==14.0.1 flake8 bandit "black[jupyter]"==25.9.0 && \
     rm -rf /root/.cache/pip/ && \
     cd /tmp && git clone https://github.com/NixOS/patchelf && cd patchelf && \
     ./bootstrap.sh && ./configure --prefix=/usr/ && make -j install && cd / && rm -rf /tmp/patchelf && \
@@ -58,6 +60,13 @@ RUN apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/
     ln -s /usr/bin/python3-config /usr/bin/python-config && \
     PYTHON_V=$(python3 -c "import sys;print(f'{sys.version_info[0]}.{sys.version_info[1]}')") && \
     ln -s /usr/bin/python${PYTHON_V}-config /usr/bin/python3-config
+
+RUN CMAKE_VERSION=3.25.2 && CMAKE_ARCH=$(uname -m) && \
+    wget https://github.com/Kitware/CMake/releases/download/v${CMAKE_VERSION}/cmake-${CMAKE_VERSION}-linux-${CMAKE_ARCH}.sh && \
+    test -e /bin/sh || ln -s /usr/bin/sh /bin/sh && \
+    chmod +x cmake-${CMAKE_VERSION}-linux-${CMAKE_ARCH}.sh && \
+    ./cmake-${CMAKE_VERSION}-linux-${CMAKE_ARCH}.sh --prefix=/usr/local --skip-license && \
+    rm -rf cmake-${CMAKE_VERSION}-linux-${CMAKE_ARCH}.sh
 
 ENV PKG_CONFIG_PATH=/usr/aarch64-linux-gnu/lib/pkgconfig
 
@@ -86,7 +95,7 @@ RUN /bin/bash -c 'DALI_DEPS_VERSION_SHA=${DALI_DEPS_VERSION_SHA:-$(cat /tmp/DALI
     /tmp/dali_deps/build_scripts/build_deps.sh && rm -rf /tmp/dali_deps && rm -rf /tmp/DALI_DEPS_VERSION'
 
 # hack - install cross headers in the default python paths, so host python3-config would point to them
-RUN export PYVERS="3.6.9 3.7.8 3.8.5 3.9.0 3.10.0 3.11.0" && \
+RUN export PYVERS="3.9.0 3.10.0 3.11.0 3.12.0 3.13.0" && \
     for PYVER in ${PYVERS}; do \
         cd /tmp && (curl -L https://www.python.org/ftp/python/${PYVER}/Python-${PYVER}.tgz | tar -xzf - || exit 1) && \
         rm -rf *.tgz && cd Python*                                                                     && \
@@ -125,23 +134,30 @@ CMD WERROR=ON           \
     BUILD_NVCOMP=OFF    \
     BUILD_NVJPEG=OFF    \
     BUILD_NVJPEG2K=OFF  \
+    BUILD_CVCUDA=ON     \
     BUILD_NVOF=OFF      \
     BUILD_NVDEC=OFF     \
     BUILD_NVML=OFF      \
     VERBOSE_LOGS=OFF    \
     BUILD_CUFILE=OFF    \
-    TEST_BUNDLED_LIBS=NO\
-    WITH_DYNAMIC_CUDA_TOOLKIT=ON\
-    WITH_DYNAMIC_NVJPEG=ON\
-    WITH_DYNAMIC_CUFFT=ON\
+    BUILD_NVIMAGECODEC=ON \
+    TEST_BUNDLED_LIBS=NO \
+    WITH_DYNAMIC_CUDA_TOOLKIT=ON \
+    WITH_DYNAMIC_NVJPEG=ON \
+    WITH_DYNAMIC_CUFFT=ON \
     WITH_DYNAMIC_NPP=ON \
-    WHL_PLATFORM_NAME=manylinux2014_aarch64            \
+    WITH_DYNAMIC_NVIMGCODEC=ON \
+    WITH_DYNAMIC_NVCOMP=OFF \
+    NVIDIA_BUILD_ID=${NVIDIA_BUILD_ID:-0} \
+    WHL_PLATFORM_NAME=manylinux_2_28_aarch64            \
     BUNDLE_PATH_PREFIX="/usr/aarch64-linux-gnu"        \
     EXTRA_CMAKE_OPTIONS="-DCMAKE_TOOLCHAIN_FILE:STRING=$PWD/../platforms/aarch64-linux/aarch64-linux.toolchain.cmake \
                         -DCMAKE_COLOR_MAKEFILE=ON                                                      \
                         -DCMAKE_CUDA_COMPILER=/usr/local/cuda-${CUDA_CROSS_VERSION_DOT}/bin/nvcc       \
                         -DCUDA_HOST=/usr/local/cuda-${CUDA_CROSS_VERSION_DOT}                          \
-                        -DCUDA_TARGET=/usr/local/cuda-${CUDA_CROSS_VERSION_DOT}/targets/aarch64-linux" \
+                        -DCUDA_TARGET=/usr/local/cuda-${CUDA_CROSS_VERSION_DOT}/targets/aarch64-linux  \
+                        -DCMAKE_PREFIX_PATH=/usr/aarch64-linux-gnu/                                    \
+                        -DPython_EXECUTABLE=$(which python) "                                          \
     /dali/docker/build_helper.sh                    && \
     rm -rf /dali/${DALI_BUILD_DIR}/nvidia*          && \
     cd /dali/dali_tf_plugin                         && \

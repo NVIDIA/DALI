@@ -47,12 +47,13 @@ computations to access tensor elements. In the example below, we use a run-time 
 access an element at a random position within a tensor::
 
     raw_files = fn.readers.file(...)
-    length = fn.shapes(raw_files)[0]
+    length = raw_files.shape()[0]
 
     # calculate a random index from 0 to file_length-1
     random_01 = fn.random.uniform(range=(0, 1))  # random numbers in range [0..1)
     index = fn.floor(random_01 * length)  # calculate indices from [0..length)
-    index = fn.cast(index, dtype=dali.types.INT64)  # cast the index to integer - required for indexing
+    # cast the index to integer - required for indexing
+    index = fn.cast(index, dtype=dali.types.INT64)
 
     # extract a random byte
     random_byte = raw_files[index]
@@ -68,7 +69,7 @@ for the respective sample in ``raw_files``.
 Slicing
 ~~~~~~~
 
-To extract multiple values (or slices), the Python list slicing systax can be used::
+To extract multiple values (or slices), the Python list slicing syntax can be used::
 
     header = raw_files[:16]  # extract 16-byte headers from files in the batch
 
@@ -93,7 +94,7 @@ Slicing keeps the sliced dimensions even if the length of the slice is 1::
 
     green_with_channel = images[:,:,1:2]  # the last dimension is kept
 
-When indexing and slicing multidimensional data, the trailing dimenions can be omitted. This is
+When indexing and slicing multidimensional data, the trailing dimensions can be omitted. This is
 equivalent to passing a full-range slice to all trailing dimensions::
 
     wide = letterboxed[20:-20,:,:]   # slice height, keep width and channels
@@ -106,7 +107,13 @@ equivalent to passing a full-range slice to all trailing dimensions::
 Strided slices
 ~~~~~~~~~~~~~~
 
-Indexing with a custom step is not implemented.
+Striding in the positive and negative direction can also be achieved with the same
+semantics as numpy arrays. This can be done over multiple dimensions.
+
+    reversed = array[::-1]
+    every_second = array[::2]
+    every_second_reversed = array[::-2]
+    quarter_resolution = image[::2, ::2]
 
 Adding dimensions
 ~~~~~~~~~~~~~~~~~

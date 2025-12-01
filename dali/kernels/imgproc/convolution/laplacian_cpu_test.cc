@@ -18,9 +18,9 @@
 #include "dali/kernels/common/utils.h"
 #include "dali/kernels/imgproc/convolution/laplacian_cpu.h"
 #include "dali/kernels/imgproc/convolution/laplacian_test.h"
-#include "dali/kernels/scratch.h"
 #include "dali/test/tensor_test_utils.h"
 #include "dali/test/test_tensors.h"
+#include "dali/kernels/dynamic_scratchpad.h"
 
 namespace dali {
 namespace kernels {
@@ -144,11 +144,8 @@ struct LaplacianCpuKernelTest : public ::testing::Test {
     KernelContext ctx = {};
 
     auto req = kernel.Setup(ctx, in_.shape, lapl_params_.window_sizes);
-
-    ScratchpadAllocator scratch_alloc;
-    scratch_alloc.Reserve(req.scratch_sizes);
-    auto scratchpad = scratch_alloc.GetScratchpad();
-    ctx.scratchpad = &scratchpad;
+    DynamicScratchpad dyn_scratchpad(AccessOrder::host());
+    ctx.scratchpad = &dyn_scratchpad;
 
     kernel.Run(ctx, out_, in_, lapl_params_.tensor_windows, uniform_array<axes>(1.f));
     CompareOut(out_, kernel_);
@@ -287,10 +284,8 @@ struct LaplacianCpuTest : public ::testing::Test {
     auto vol = volume(shape_);
     for (int axis = 0; axis < axes; axis++) {
       auto req = kernel.Setup(ctx, shape_, lapl_params_.window_sizes[axis]);
-      ScratchpadAllocator scratch_alloc;
-      scratch_alloc.Reserve(req.scratch_sizes);
-      auto scratchpad = scratch_alloc.GetScratchpad();
-      ctx.scratchpad = &scratchpad;
+      DynamicScratchpad dyn_scratchpad(AccessOrder::host());
+      ctx.scratchpad = &dyn_scratchpad;
       kernel.Run(ctx, intermediate_, in_, lapl_params_.tensor_windows[axis]);
       for (int i = 0; i < vol; i++) {
         baseline_acc_.data[i] += weights_[axis] * intermediate_.data[i];
@@ -322,11 +317,8 @@ struct LaplacianCpuTest : public ::testing::Test {
     Kernel kernel;
     KernelContext ctx = {};
     auto req = kernel.Setup(ctx, in_.shape, lapl_params_.window_sizes);
-    ScratchpadAllocator scratch_alloc;
-    scratch_alloc.Reserve(req.scratch_sizes);
-    auto scratchpad = scratch_alloc.GetScratchpad();
-    ctx.scratchpad = &scratchpad;
-
+    DynamicScratchpad dyn_scratchpad(AccessOrder::host());
+    ctx.scratchpad = &dyn_scratchpad;
     kernel.Run(ctx, out_, in_, lapl_params_.tensor_windows, weights_);
     RunBaseline();
     CompareOut(out_, baseline_out_);

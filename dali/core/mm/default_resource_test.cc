@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -244,9 +244,9 @@ TEST(MMDefaultResource, InitStampede) {
             return;
           std::this_thread::yield();
         }
-        std::atomic_thread_fence(std::memory_order::memory_order_acquire);
+        std::atomic_thread_fence(std::memory_order_acquire);
         GetDefaultResource<memory_kind::device>();
-        std::atomic_thread_fence(std::memory_order::memory_order_release);
+        std::atomic_thread_fence(std::memory_order_release);
         cnt++;
         while (!f2) {
           if (stop)
@@ -264,7 +264,7 @@ TEST(MMDefaultResource, InitStampede) {
     f1 = false;
     SetDefaultResource<memory_kind::device>(nullptr);
     _Test_FreeDeviceResources();
-    std::atomic_thread_fence(std::memory_order::memory_order_seq_cst);
+    std::atomic_thread_fence(std::memory_order_seq_cst);
     f2 = true;
     while (cnt != 0)
       std::this_thread::yield();
@@ -379,12 +379,27 @@ static void ReleaseUnusedTestImpl(ssize_t max_alloc_size = std::numeric_limits<s
 }
 
 TEST(MMDefaultResource, ReleaseUnusedBasic) {
+  cudaDeviceProp device_prop;
+  CUDA_CALL(cudaGetDeviceProperties(&device_prop, 0));
+  if (device_prop.integrated)
+    GTEST_SKIP() << "The memory usage on integrated GPUs cannot be reliably tracked.";
+
+  auto *res = mm::GetDefaultResource<mm::memory_kind::device>();
+  auto *pool = GetPoolInterface(res);
+  if (!pool)
+    GTEST_SKIP() << "No memory pool in use - cannot test pool releasing of unused memory.";
+
   ReleaseUnusedTestImpl(256 << 20);
 }
 
 TEST(MMDefaultResource, ReleaseUnusedMaxMem) {
   if (!UseVMM())
     GTEST_SKIP() << "Cannot reliably test ReleaseUnused with max mem usage without VMM support";
+
+  cudaDeviceProp device_prop;
+  CUDA_CALL(cudaGetDeviceProperties(&device_prop, 0));
+  if (device_prop.integrated)
+    GTEST_SKIP() << "The memory usage on integrated GPUs cannot be reliably tracked.";
 
   ReleaseUnusedTestImpl();
 }

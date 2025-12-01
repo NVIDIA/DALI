@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -22,13 +22,13 @@ DALI_SCHEMA(NonsilentRegion)
   .DocStr(R"code(Performs leading and trailing silence detection in an audio buffer.
 
 The operator returns the beginning and length of the non-silent region by comparing the
-short term power calculated for ``window_length`` of the signal with a silence cut-off threshold.
+short term power calculated for `window_length` of the signal with a silence cut-off threshold.
 The signal is considered to be silent when the ``short_term_power_db`` is less than
-the ``cutoff_db``. where::
+the `cutoff_db`. where::
 
   short_term_power_db = 10 * log10( short_term_power / reference_power )
 
-Unless specified otherwise, ``reference_power`` is the maximum power of the signal.
+Unless specified otherwise, `reference_power` is the maximum power of the signal.
 
 Inputs and outputs:
 

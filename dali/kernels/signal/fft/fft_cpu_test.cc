@@ -17,10 +17,10 @@
 #include <vector>
 #include <complex>
 #include <cmath>
-#include "dali/kernels/scratch.h"
 #include "dali/kernels/signal/fft/fft_cpu.h"
 #include "dali/test/test_tensors.h"
 #include "dali/test/tensor_test_utils.h"
+#include "dali/kernels/dynamic_scratchpad.h"
 
 namespace dali {
 namespace kernels {
@@ -136,10 +136,8 @@ TEST_P(ComplexFft1DCpuTest, FftTest) {
 
   KernelRequirements reqs = kernel.Setup(ctx, in_view_, args);
 
-  ScratchpadAllocator scratch_alloc;
-  scratch_alloc.Reserve(reqs.scratch_sizes);
-  auto scratchpad = scratch_alloc.GetScratchpad();
-  ctx.scratchpad = &scratchpad;
+  DynamicScratchpad dyn_scratchpad(AccessOrder::host());
+  ctx.scratchpad = &dyn_scratchpad;
 
   TensorShape<> expected_out_shape = in_shape;
   expected_out_shape[args.transform_axis] = nfft/2+1;
@@ -202,10 +200,8 @@ TEST_P(PowerSpectrum1DCpuTest, FftTest) {
 
   KernelRequirements reqs = kernel.Setup(ctx, in_view_, args);
 
-  ScratchpadAllocator scratch_alloc;
-  scratch_alloc.Reserve(reqs.scratch_sizes);
-  auto scratchpad = scratch_alloc.GetScratchpad();
-  ctx.scratchpad = &scratchpad;
+  DynamicScratchpad dyn_scratchpad(AccessOrder::host());
+  ctx.scratchpad = &dyn_scratchpad;
 
   TensorShape<> expected_out_shape = in_shape;
   expected_out_shape[args.transform_axis] = nfft/2+1;
@@ -295,10 +291,8 @@ TEST_P(ComplexFft1DCpuOtherLayoutTest, LayoutTest) {
 
   KernelRequirements reqs = kernel.Setup(ctx, in_view_, args);
 
-  ScratchpadAllocator scratch_alloc;
-  scratch_alloc.Reserve(reqs.scratch_sizes);
-  auto scratchpad = scratch_alloc.GetScratchpad();
-  ctx.scratchpad = &scratchpad;
+  DynamicScratchpad dyn_scratchpad(AccessOrder::host());
+  ctx.scratchpad = &dyn_scratchpad;
 
   auto expected_out_shape = in_shape;
   expected_out_shape[args.transform_axis] = nfft/2+1;

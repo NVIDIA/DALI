@@ -26,6 +26,6 @@
 [submodule "third_party/cocoapi"]
 	path = third_party/cocoapi
 	url = https://github.com/cocodataset/cocoapi
-[submodule "third_party/libcudacxx"]
-	path = third_party/libcudacxx
-	url = https://github.com/mzient/libcudacxx.git
+[submodule "third_party/cvcuda"]
+	path = third_party/cvcuda
+        url = https://github.com/CVCUDA/CV-CUDA.git

@@ -27,27 +27,25 @@ DoNotConvert = config_lib.DoNotConvert
 CONVERSION_RULES = (
     # Known packages
     # <List of packages that we force-convert>
-
     # Builtin modules
-    DoNotConvert('collections'),
-    DoNotConvert('copy'),
-    DoNotConvert('cProfile'),
-    DoNotConvert('inspect'),
-    DoNotConvert('ipdb'),
-    DoNotConvert('linecache'),
-    DoNotConvert('mock'),
-    DoNotConvert('pathlib'),
-    DoNotConvert('pdb'),
-    DoNotConvert('posixpath'),
-    DoNotConvert('pstats'),
-    DoNotConvert('re'),
-    DoNotConvert('threading'),
-    DoNotConvert('urllib'),
-
+    DoNotConvert("collections"),
+    DoNotConvert("copy"),
+    DoNotConvert("cProfile"),
+    DoNotConvert("inspect"),
+    DoNotConvert("ipdb"),
+    DoNotConvert("linecache"),
+    DoNotConvert("mock"),
+    DoNotConvert("pathlib"),
+    DoNotConvert("pdb"),
+    DoNotConvert("posixpath"),
+    DoNotConvert("pstats"),
+    DoNotConvert("re"),
+    DoNotConvert("threading"),
+    DoNotConvert("urllib"),
     # Known libraries
-    DoNotConvert('matplotlib'),
-    DoNotConvert('numpy'),
-    DoNotConvert('pandas'),
-    DoNotConvert('PIL'),
-    DoNotConvert('absl.logging'),
+    DoNotConvert("matplotlib"),
+    DoNotConvert("numpy"),
+    DoNotConvert("pandas"),
+    DoNotConvert("PIL"),
+    DoNotConvert("absl.logging"),
 )

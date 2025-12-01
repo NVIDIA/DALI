@@ -1,4 +1,4 @@
-// Copyright (c) 2022-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -161,7 +161,7 @@ struct LaplacianGpuTest : public ::testing::Test {
 
   void RunTest() {
     KernelContext ctx_cpu = {}, ctx_gpu = {};
-    ctx_gpu.gpu.stream = 0;
+    ctx_gpu.gpu.stream = cudaStreamLegacy;
     KernelCpu kernel_cpu;
     KernelGpu kernel_gpu;
     int nsamples = in_.shape.size();
@@ -197,7 +197,7 @@ struct LaplacianGpuTest : public ::testing::Test {
         auto out_view = TensorView<StorageCPU, Out, sample_ndim>{
             baseline_out_[sample_idx].data + stride * elem_idx, elem_shape};
         // Copy context so that the kernel instance can modify scratchpad
-        DynamicScratchpad scratchpad;
+        DynamicScratchpad scratchpad(cudaStreamLegacy);
         ctx_cpu.scratchpad = &scratchpad;
         kernel_cpu.Run(ctx_cpu, out_view, in_view, windows, scales);
       }
@@ -216,7 +216,7 @@ struct LaplacianGpuTest : public ::testing::Test {
 
     auto req = kernel_gpu.Setup(ctx_gpu, in_.shape, win_sizes_);
 
-    DynamicScratchpad scratchpad;
+    DynamicScratchpad scratchpad(cudaStreamLegacy);
     ctx_gpu.scratchpad = &scratchpad;
     kernel_gpu.Run(ctx_gpu, out_, in_, windows_, scale_spans_);
 

@@ -19,16 +19,17 @@
 #include <vector>
 
 #include "dali/pipeline/operator/common.h"
+#include "dali/pipeline/operator/checkpointing/stateless_operator.h"
 #include "dali/pipeline/operator/operator.h"
 #include "dali/pipeline/operator/arg_helper.h"
 
 namespace dali {
 
 template <typename Backend>
-class BbFlip : public Operator<Backend> {
+class BbFlip : public StatelessOperator<Backend> {
  public:
   explicit BbFlip(const OpSpec &spec) :
-      Operator<Backend>(spec),
+      StatelessOperator<Backend>(spec),
       ltrb_(spec.GetArgument<bool>("ltrb")),
       horz_("horizontal", spec),
       vert_("vertical", spec) {}
@@ -37,10 +38,6 @@ class BbFlip : public Operator<Backend> {
   DISABLE_COPY_MOVE_ASSIGN(BbFlip);
 
  protected:
-  bool CanInferOutputs() const override {
-    return true;
-  }
-
   bool SetupImpl(std::vector<OutputDesc> &output_descs, const Workspace &ws) override {
     const auto &input = ws.Input<Backend>(0);
     DALI_ENFORCE(input.type() == DALI_FLOAT, "Bounding box in wrong format");

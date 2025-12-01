@@ -1,4 +1,4 @@
-# Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2023-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -23,11 +23,10 @@ from nvidia.dali.auto_aug.core import augmentation, select
 from test_utils import get_dali_extra_path, check_batch
 
 data_root = get_dali_extra_path()
-images_dir = os.path.join(data_root, 'db', 'single', 'jpeg')
+images_dir = os.path.join(data_root, "db", "single", "jpeg")
 
 
 def sample_info(cb):
-
     def idx_in_batch_cb(sample_info):
         return np.array(cb(sample_info), dtype=np.int32)
 
@@ -42,7 +41,7 @@ def overexpose(image, multiplier):
 @augmentation(mag_range=(0.1, 0.9))
 def blend_edges(image, blend_factor):
     edges = fn.laplacian(image, window_size=5, dtype=types.UINT8)
-    return fn.cast_like((1. - blend_factor) * image + blend_factor * edges, image)
+    return fn.cast_like((1.0 - blend_factor) * image + blend_factor * edges, image)
 
 
 def as_square_shape(edge_len):
@@ -55,13 +54,12 @@ def cutout(image, shape):
 
 
 @params(
-    ("cpu", ),
-    ("gpu", ),
+    ("cpu",),
+    ("gpu",),
 )
 def test_select(dev):
 
     def _collect_batch(p):
-        p.build()
         batches = p.run()
         if dev == "gpu":
             batches = (batch.as_cpu() for batch in batches)
@@ -86,7 +84,7 @@ def test_select(dev):
         image = fn.decoders.image(image, device="cpu" if dev == "cpu" else "mixed")
         return tuple(op(image, magnitude_bin=magnitude_bin, num_magnitude_bins=4) for op in ops)
 
-    batch_select, = _collect_batch(pipeline_select())
+    (batch_select,) = _collect_batch(pipeline_select())
     ref_batches = _collect_batch(pipeline_refs())
     ref_batch = [ref_batches[idx % len(ops)][idx] for idx in range(batch_size)]
     check_batch(batch_select, ref_batch, max_allowed_error=1e-6)

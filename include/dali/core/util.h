@@ -1,4 +1,4 @@
-// Copyright (c) 2018-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2018-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -84,6 +84,17 @@ constexpr Value align_up(Value v, Alignment a) {
   return v + ((a - 1) & -v);
 }
 
+template <typename Value, typename Alignment>
+DALI_HOST_DEV
+constexpr Value alignment_offset(Value v, Alignment a) {
+  return v & (a - 1);
+}
+
+template <typename Value, typename Alignment>
+DALI_HOST_DEV
+constexpr Value align_down(Value v, Alignment a) {
+  return v & -a;
+}
 
 DALI_HOST_DEV
 constexpr int32_t div_ceil(int32_t total, uint32_t grain) {
@@ -289,6 +300,42 @@ struct identity {
   }
 };
 
+/** Implements a trait that checks for the presence of a member called <member_name>
+ *
+ * Usage:
+ * ```
+ * // at namespace/global scope
+ * IMPL_HAS_MEMBER(foo);
+ *
+ * struct S {
+ *     int foo;
+ * };
+ *
+ * template <typename X>
+ * auto foo_or_zero(X x) {
+ *   if constexpr (has_member_foo_v<X>)
+ *     return x.foo;
+ *   else
+ *     return 0;  // no foo in x
+ * }
+ *
+ * int main() {
+ *   S s { 42 };
+ *   cout << foo_or_zero(s) << endl;  // 42
+ *   cout << foo_or_zero(1.234) << endl;  // 0
+ * }
+ *
+ * ```
+ */
+#define IMPL_HAS_MEMBER(member_name)\
+template <typename T, typename = decltype(std::declval<T>().member_name)>\
+std::true_type HasMember_##member_name(T *);\
+std::false_type HasMember_##member_name(...);\
+template <typename T>\
+using has_member_##member_name = \
+  decltype(HasMember_##member_name(std::declval<std::add_pointer_t<T>>()));\
+template <typename T>\
+constexpr bool has_member_##member_name##_v = has_member_##member_name<T>::value
 
 #define IMPL_HAS_NESTED_TYPE(type_name)\
 template <typename T>\
@@ -439,6 +486,17 @@ inline auto flatten(span<const std::array<T, N>, extent> in) {
     ? dynamic_extent : extent*span_extent_t(N);
   return flatten(span<const T, next_extent>(&in[0][0], in.size() * N));
 }
+
+template <typename T>
+using is_pod = std::conjunction<
+    std::is_standard_layout<T>,
+    std::is_trivially_copy_assignable<T>,
+    std::is_trivially_copyable<T>,
+    std::is_trivially_default_constructible<T>,
+    std::is_trivially_destructible<T>>;
+
+template <typename T>
+constexpr bool is_pod_v = is_pod<T>::value;
 
 }  // namespace dali
 

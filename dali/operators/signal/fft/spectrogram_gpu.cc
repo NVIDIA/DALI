@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -54,11 +54,11 @@ struct SpectrogramOpImplGPU : public OpImplBase<GPUBackend> {
     args.spectrum_type = static_cast<FftSpectrumType>(power);
     args.time_major_layout = layout == "tf";
 
-    cpu_window = spec.GetRepeatedArgument<float>("window_fn");
-    if (cpu_window.empty()) {
+    if (!spec.TryGetRepeatedArgument(cpu_window, "window_fn")) {
       cpu_window.resize(args.window_length);
       kernels::signal::HannWindow(make_span(cpu_window));
     }
+
     DALI_ENFORCE(cpu_window.size() == static_cast<size_t>(args.window_length),
       "Window function should match the specified `window_length`");
 
@@ -82,13 +82,16 @@ struct SpectrogramOpImplGPU : public OpImplBase<GPUBackend> {
     TensorListShape<> out_shape;
     in_shape_1D.resize(in_shape.num_samples());
 
+    for (int i = 0; i < in_shape.num_samples(); i++) {
+      if (volume(in_shape.tensor_shape_span(i)) == 0) {
+        DALI_FAIL(make_string("Spectogram does not support empty (0-volume) samples. The sample ",
+                              i, " shape is ", in_shape[i]));
+      }
+    }
+
     int axis = -1;
     if (in_shape.sample_dim() > 1) {
       for (int i = 0; i < in_shape.num_samples(); i++) {
-        if (volume(in_shape.tensor_shape_span(i)) == 0) {
-          in_shape_1D.tensor_shape_span(i)[0] = 0;
-          continue;
-        }
         if (axis < 0) {
           int max_extent = 0;
           // looking for non-degenerate dimension
@@ -169,7 +172,7 @@ struct SpectrogramOpImplGPU : public OpImplBase<GPUBackend> {
 
 template <>
 Spectrogram<GPUBackend>::Spectrogram(const OpSpec &spec)
-    : Operator<GPUBackend>(spec)
+    : StatelessOperator<GPUBackend>(spec)
     , impl_(std::make_unique<SpectrogramOpImplGPU>(spec)) {}
 
 DALI_REGISTER_OPERATOR(Spectrogram, Spectrogram<GPUBackend>, GPU);

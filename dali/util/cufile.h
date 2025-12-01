@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -39,7 +39,7 @@ class DLL_PUBLIC CUFileStream : public FileStream {
     }
   };
 
-  static std::unique_ptr<CUFileStream> Open(const std::string& uri, bool read_ahead, bool use_mmap);
+  static std::unique_ptr<CUFileStream> Open(const std::string& uri, FileStream::Options opts);
   /**
    * @brief Reads `n_bytes` to the buffer at position `offset`
    *
@@ -56,7 +56,7 @@ class DLL_PUBLIC CUFileStream : public FileStream {
    * This function is thread-safe.
    */
   virtual size_t ReadAtGPU(void *buffer, size_t n_bytes,
-                           ptrdiff_t buffer_offset, int64 file_offset) = 0;
+                           ptrdiff_t buffer_offset, int64_t file_offset) = 0;
 
  protected:
   explicit CUFileStream(const std::string& path) : FileStream(path) {}

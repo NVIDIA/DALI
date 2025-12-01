@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -21,6 +21,7 @@
 #include <iostream>
 #include <memory>
 #include <string>
+#include <string_view>
 #include <type_traits>
 #include <vector>
 
@@ -46,14 +47,6 @@ using std::string;
 using std::unique_ptr;
 using std::vector;
 
-// Common types
-using uint8 = uint8_t;
-using int16 = int16_t;
-using int64 = int64_t;
-using uint64 = uint64_t;
-using int32 = int32_t;
-using uint32 = uint32_t;
-
 // Basic data type for our indices and dimension sizes
 typedef int64_t Index;
 
@@ -64,14 +57,7 @@ enum class OpType {
   COUNT = 3
 };
 
-// What device is this tensor stored on
-enum class StorageDevice {
-  CPU = 0,
-  GPU = 1,
-  COUNT = 2,
-};
-
-static std::string to_string(OpType op_type) {
+inline std::string to_string(OpType op_type) {
   switch (op_type) {
     case OpType::CPU:
       return "cpu";
@@ -82,6 +68,69 @@ static std::string to_string(OpType op_type) {
     default:
       return "<invalid>";
   }
+}
+
+inline std::ostream &operator<<(std::ostream &os, OpType op_type) {
+  switch (op_type) {
+    case OpType::CPU:
+      return os << "cpu";
+    case OpType::GPU:
+      return os << "gpu";
+    case OpType::MIXED:
+      return os << "mixed";
+    default:
+      return os << "<invalid>";
+  }
+}
+
+constexpr OpType ParseOpType(std::string_view device) {
+  if (device == "gpu")
+    return OpType::GPU;
+  else if (device == "cpu")
+    return OpType::CPU;
+  else if (device == "mixed")
+    return OpType::MIXED;
+  else
+    throw std::invalid_argument("Unsupported device type: \"" + std::string(device) + "\".");
+}
+
+
+/** The type of the device a buffer is stored in. */
+enum class StorageDevice {
+  CPU = 0,
+  GPU = 1,
+  COUNT = 2,
+};
+
+inline std::string to_string(StorageDevice device) {
+  switch (device) {
+    case StorageDevice::CPU:
+      return "cpu";
+    case StorageDevice::GPU:
+      return "gpu";
+    default:
+      return "<invalid>";
+  }
+}
+
+inline std::ostream &operator<<(std::ostream &os, StorageDevice device) {
+  switch (device) {
+    case StorageDevice::CPU:
+      return os << "cpu";
+    case StorageDevice::GPU:
+      return os << "gpu";
+    default:
+      return os << "<invalid>";
+  }
+}
+
+constexpr StorageDevice ParseStorageDevice(std::string_view io_device) {
+  if (io_device == "cpu")
+    return StorageDevice::CPU;
+  else if (io_device == "gpu")
+    return StorageDevice::GPU;
+  else
+    throw std::invalid_argument("Invalid device specifier: \"" + std::string(io_device) + "\".");
 }
 
 struct DALISize {
@@ -152,7 +201,7 @@ inline int NumberOfChannels(DALIImageType type, int orig_nchannels = -1) {
 
 using std::to_string;
 
-inline std::string to_string(const bool& b) {
+inline std::string to_string(bool b) {
   if (b) {
     return "True";
   } else {
@@ -160,7 +209,7 @@ inline std::string to_string(const bool& b) {
   }
 }
 
-inline std::string to_string(const DALIInterpType& interpolation) {
+inline std::string to_string(DALIInterpType interpolation) {
   switch (interpolation) {
     case DALI_INTERP_NN:
       return "INTERP_NN";
@@ -179,7 +228,7 @@ inline std::string to_string(const DALIInterpType& interpolation) {
   }
 }
 
-inline std::string to_string(const DALIImageType& im_type) {
+inline std::string to_string(DALIImageType im_type) {
   switch (im_type) {
     case DALI_RGB:
       return "RGB";

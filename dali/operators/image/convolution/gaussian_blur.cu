@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -77,7 +77,7 @@ bool GaussianBlur<GPUBackend>::ShouldExpand(const Workspace &ws) {
   const auto& input = ws.Input<GPUBackend>(0);
   auto layout = input.GetLayout();
   dim_desc_ = convolution_utils::ParseAndValidateDim(input.shape().sample_dim(), layout);
-  bool should_expand = SequenceOperator<GPUBackend>::ShouldExpand(ws) && HasPerFrameArgInputs(ws);
+  bool should_expand = Base::ShouldExpand(ws) && HasPerFrameArgInputs(ws);
   if (should_expand) {
     assert(dim_desc_.usable_axes_start > 0);
     dim_desc_.total_axes_count -= dim_desc_.usable_axes_start;

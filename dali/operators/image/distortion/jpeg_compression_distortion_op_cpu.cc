@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -30,7 +30,7 @@ is applied independently to 8x8 pixel blocks, which introduces additional artifa
 at block boundaries.
 
 This operation produces images by subjecting the input to a transformation that
-mimics JPEG compression with given ``quality`` factor followed by decompression.
+mimics JPEG compression with given `quality` factor followed by decompression.
 )code")
     .NumInput(1)
     .InputLayout({"HWC", "FHWC"})
@@ -73,6 +73,8 @@ static void RunJpegDistortionCPU(ThreadCtx &ctx, const uint8_t *input, uint8_t *
 void JpegCompressionDistortionCPU::RunImpl(Workspace &ws) {
   const auto &input = ws.Input<CPUBackend>(0);
   auto &output = ws.Output<CPUBackend>(0);
+  auto layout = input.GetLayout();
+  output.SetLayout(layout);
   auto in_shape = input.shape();
   int nsamples = input.num_samples();
   auto& thread_pool = ws.GetThreadPool();
@@ -84,7 +86,6 @@ void JpegCompressionDistortionCPU::RunImpl(Workspace &ws) {
   for (int sample_idx = 0; sample_idx < nsamples; sample_idx++) {
     auto shape = in_shape.tensor_shape_span(sample_idx);
     int ndim = shape.size();
-    auto layout = input.GetLayout();
 
     int w_dim = layout.find('W');
     assert(w_dim >= 0);

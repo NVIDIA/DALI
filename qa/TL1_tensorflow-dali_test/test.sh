@@ -1,5 +1,4 @@
 #!/bin/bash -e
-pip_packages='horovod==0.27'
 target_dir=./docs/examples/use_cases/tensorflow/resnet-n
 
 do_once() {
@@ -12,19 +11,13 @@ do_once() {
 
     CUDA_VERSION=$(echo $(nvcc --version) | sed 's/.*\(release \)\([0-9]\+\)\.\([0-9]\+\).*/\2\3/')
 
-    # check if CUDA version is at least 11.x
-    if [ "${CUDA_VERSION:0:2}" == "11" ]; then
-        # install TF 2.6.x for CUDA 11.x test
-        install_pip_pkg "pip install $($topdir/qa/setup_packages.py -i 0 -u tensorflow-gpu --cuda ${CUDA_VERSION}) -f /pip-packages"
-    else
-        # install TF 2.3.x for CUDA 10.x test
-        install_pip_pkg "pip install $($topdir/qa/setup_packages.py -i 0 -u tensorflow-gpu --cuda ${CUDA_VERSION}) -f /pip-packages"
-    fi
+    idx=$($topdir/qa/setup_packages.py -n -u tensorflow-gpu --cuda ${CUDA_VERSION})
+    install_pip_pkg "pip install $($topdir/qa/setup_packages.py -i $idx -u tensorflow-gpu --cuda ${CUDA_VERSION}) -f /pip-packages"
 
-    # The package name can be nvidia-dali-tf-plugin,  nvidia-dali-tf-plugin-weekly or  nvidia-dali-tf-plugin-nightly
-    pip uninstall -y `pip list | grep nvidia-dali-tf-plugin | cut -d " " -f1` || true
+    # The package name can be nvidia_dali_tf_plugin,  nvidia_dali_tf_plugin-weekly or  nvidia_dali_tf_plugin-nightly
+    pip uninstall -y `pip list | grep nvidia_dali_tf_plugin | cut -d " " -f1` || true
 
-    pip install /opt/dali/nvidia-dali-tf-plugin*.tar.gz
+    pip install /opt/dali/nvidia_dali_tf_plugin*.tar.gz --no-build-isolation
 
     export PATH=$PATH:/usr/local/mpi/bin
     # MPI might be present in CUDA 10 image already so no need to build it if that is the case
@@ -56,13 +49,23 @@ do_once() {
     export HOROVOD_NCCL_LIB=/usr/lib/x86_64-linux-gnu
     export HOROVOD_NCCL_LINK=SHARED
     export HOROVOD_WITHOUT_PYTORCH=1
-    # horovod is added to `pip_packages` so it can be preloaded, but install it here when
-    # TF is already available and we can set env variables
-    install_pip_pkg "pip install --force-reinstall horovod==0.26.1 -f /pip-packages"
+    # it addresses the issue with third_party/gloo, which is a part of horovod dependency,
+    # requiring too old version of cmake
+    export CMAKE_POLICY_VERSION_MINIMUM=3.5
+    # patch and install horovod
+    git clone https://github.com/abseil/abseil-cpp.git --depth 1 -b lts_2025_01_27 && \
+    cd abseil-cpp && mkdir build && cd build && \
+    CFLAGS="-fPIC" CXXFLAGS="-fPIC -std=c++17" cmake ../ && make -j$(nproc) && make install && cd ../.. && rm -rf abseil-cpp && \
+    pip download horovod==0.28.1 && tar -xf horovod-0.28.1.tar.gz  && cd horovod-0.28.1 && \
+    sed -i "s/tensorflow\/compiler\/xla\/client\/xla_builder\.h/xla\/hlo\/builder\/xla_builder\.h/" horovod/tensorflow/xla_mpi_ops.cc && \
+    sed -i "s/::xla::StatusOr/absl::StatusOr/" horovod/tensorflow/xla_mpi_ops.cc && \
+    echo "find_package(absl REQUIRED)" >> horovod/tensorflow/CMakeLists.txt && \
+    echo "target_link_libraries(\${TF_TARGET_LIB} absl::log)" >> horovod/tensorflow/CMakeLists.txt && \
+    pip install . && cd .. && rm -rf horovod*
 
-    for file in $(ls /data/imagenet/train-val-tfrecord-480-subset);
+    for file in $(ls /data/imagenet/train-val-tfrecord-small);
     do
-        python ../../../../../tools/tfrecord2idx /data/imagenet/train-val-tfrecord-480-subset/${file} \
+        python ../../../../../tools/tfrecord2idx /data/imagenet/train-val-tfrecord-small/${file} \
             idx-files/${file}.idx &
     done
     wait
@@ -73,10 +76,12 @@ do_once() {
 }
 
 test_body() {
+    # for the compatibility with the old keras API
+    export TF_USE_LEGACY_KERAS=1
     # test code
     mpiexec --allow-run-as-root --bind-to none -np ${NUM_GPUS} \
         python -u resnet.py \
-        --data_dir=/data/imagenet/train-val-tfrecord-480-subset --data_idx_dir=idx-files/ \
+        --data_dir=/data/imagenet/train-val-tfrecord-small --data_idx_dir=idx-files/ \
         --precision=fp16 --num_iter=100  --iter_unit=batch --display_every=50 \
         --batch=64 --use_xla --dali_mode="GPU" --log_dir=./
 }

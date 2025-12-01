@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -160,14 +160,6 @@ class TransposeGPU::Impl {
 
     KernelRequirements req;
     req.output_shapes = { out_shape_ };
-    ScratchpadEstimator se;
-
-    se.add<mm::memory_kind::device, TiledTransposeDesc<T>>(tiled_descs_.size());
-    se.add<mm::memory_kind::device, DeinterleaveDesc<T>>(deinterleave_descs_.size());
-    se.add<mm::memory_kind::device, GenericTransposeDesc<T>>(generic_descs_.size());
-
-    req.scratch_sizes = se.sizes;
-
     return req;
   }
 
@@ -255,7 +247,7 @@ class TransposeGPU::Impl {
       auto *gpu_descs = reinterpret_cast<TiledTransposeDesc<T>*>(
         ctx.scratchpad->ToGPU(ctx.gpu.stream, tiled_descs_));
 
-      int max_threads = MaxThreadsPerBlock(TransposeTiledBatch<T>);
+      int max_threads = MaxThreadsPerBlockStatic(TransposeTiledBatch<T>);
       assert(max_threads >= kTileSize);
 
       int block_y = 16;  // start with 32x16 block and try smaller until found

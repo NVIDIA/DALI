@@ -1,7 +1,7 @@
 Sharding
 ========
 
-Sharding allows DALI to partition the dataset into nonoverlapping pieces on which each DALI pipeline
+Sharding allows DALI to partition the dataset into non-overlapping pieces on which each DALI pipeline
 instance can work. This functionality addresses the issue of having a global and a shared state
 that allows the distribution of training samples among the ranks. After each epoch, by default,
 the DALI pipeline advances to the next shard to increase the entropy of the data that is seen by
@@ -62,12 +62,14 @@ Shard calculation
 
 Here is the formula to calculate the shard size for a shard ID::
 
-    floor((id + 1) * dataset_size / num_shards) - floor(id * dataset_size / num_shards)
+    floor((id + 1) * dataset_size / num_shards) -
+        floor(id * dataset_size / num_shards)
 
 When the pipeline advances through the epochs and the reader moves to the next shard, the formula
 needs to be extended to reflect this change::
 
-  floor(((id + epoch_num) % num_shards + 1) * dataset_size / num_shards) - floor(((id + epoch_num) % num_shards) * dataset_size / num_shards)
+  floor(((id + epoch_num) % num_shards + 1) * dataset_size / num_shards) -
+      floor(((id + epoch_num) % num_shards) * dataset_size / num_shards)
 
 When the second formula is used, providing a size value once at the beginning of the training works
 only when the ``stick_to_shard`` reader option is enabled and prevents DALI from rotating shards.

@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,6 +15,7 @@
 #include <gtest/gtest.h>
 #include <vector>
 #include <algorithm>
+#include <random>
 
 #include "dali/core/cuda_error.h"
 #include "dali/core/mm/memory.h"
@@ -73,7 +74,7 @@ class ScatterGatherTest : public testing::Test {
 
   template <typename MemoryKind>
   void Memcpy(void *dst, const void *src, size_t size, cudaMemcpyKind kind) {
-    if (cuda::kind_has_property<MemoryKind, cuda::memory_access::host>::value) {
+    if (mm::is_host_accessible<MemoryKind>) {
       memcpy(dst, src, size);
     } else {
       CUDA_CALL(cudaMemcpy(dst, src, size, kind));
@@ -82,7 +83,7 @@ class ScatterGatherTest : public testing::Test {
 
   template <typename MemoryKind>
   void Memset(void *dst, int c, size_t size) {
-    if (cuda::kind_has_property<MemoryKind, cuda::memory_access::host>::value) {
+    if (mm::is_host_accessible<MemoryKind>) {
       memset(dst, c, size);
     } else {
       CUDA_CALL(cudaMemset(dst, c, size));
@@ -132,8 +133,10 @@ class ScatterGatherTest : public testing::Test {
       j += l;
     }
 
-    std::random_shuffle(ranges.begin(), ranges.end());
-    std::random_shuffle(back_ranges.begin(), back_ranges.end());
+    std::random_device rd;
+    std::mt19937 g(rd());
+    std::shuffle(ranges.begin(), ranges.end(), g);
+    std::shuffle(back_ranges.begin(), back_ranges.end(), g);
 
     this->template Memcpy<kind>(in_ptr.get(), in.data(), in.size(), cudaMemcpyHostToDevice);
     this->template Memset<kind>(out_ptr.get(), 0, out.size());

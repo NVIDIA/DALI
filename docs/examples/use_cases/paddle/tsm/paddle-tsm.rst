@@ -14,9 +14,11 @@ Run the following commands to download and preprocess some videos from kinetics4
 .. code-block:: bash
 
    mkdir demo
-   youtube-dl --quiet --no-warnings -f mp4 -o demo/tmp.mp4 'https://www.youtube.com/watch?v=iU3ByohkPaM'
+   youtube-dl --quiet --no-warnings -f mp4 -o demo/tmp.mp4 \
+              'https://www.youtube.com/watch?v=iU3ByohkPaM'
    ffmpeg -y -i demo/tmp.mp4 -filter:v scale=-1:300 -ss 0 -t 10 -c:a copy demo/1.mp4
-   youtube-dl --quiet --no-warnings -f mp4 -o demo/tmp.mp4 'https://www.youtube.com/watch?v=C0J6EQYYLzI'
+   youtube-dl --quiet --no-warnings -f mp4 -o demo/tmp.mp4 \
+              'https://www.youtube.com/watch?v=C0J6EQYYLzI'
    ffmpeg -y -i demo/tmp.mp4 -filter:v scale=-1:300 -ss 0 -t 10 -c:a copy demo/2.mp4
    rm demo/tmp.mp4
 

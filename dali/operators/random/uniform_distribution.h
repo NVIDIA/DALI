@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -156,7 +156,7 @@ class UniformDistribution : public rng::RNGBase<Backend, UniformDistribution<Bac
         per_sample_values_.resize(values_.size());
         per_sample_nvalues_.resize(values_.size());
         if (std::is_same<Backend, GPUBackend>::value) {
-          kernels::DynamicScratchpad scratch({}, ws.stream());
+          kernels::DynamicScratchpad scratch(ws.stream());
           int64_t nvalues = values_.get().shape.num_elements();
 
           auto values_cpu =
@@ -189,12 +189,12 @@ class UniformDistribution : public rng::RNGBase<Backend, UniformDistribution<Bac
     }
   }
 
-  DALIDataType DefaultDataType() const {
+  DALIDataType DefaultDataType(const OpSpec &spec, const Workspace &ws) const {
     return DALI_FLOAT;
   }
 
   template <typename T>
-  bool SetupDists(typename ImplContinuous<T>::type* dists, int nsamples) {
+  bool SetupDists(typename ImplContinuous<T>::type* dists, const Workspace &ws, int nsamples) {
     for (int s = 0; s < nsamples; s++) {
       dists[s] = typename ImplContinuous<T>::type{range_[s].data[0], range_[s].data[1]};
     }
@@ -204,7 +204,7 @@ class UniformDistribution : public rng::RNGBase<Backend, UniformDistribution<Bac
   }
 
   template <typename T>
-  bool SetupDists(typename ImplDiscrete<T>::type* dists, int nsamples) {
+  bool SetupDists(typename ImplDiscrete<T>::type* dists, const Workspace &ws, int nsamples) {
     assert(values_.HasExplicitValue());
     for (int s = 0; s < nsamples; s++) {
       dists[s] = typename ImplDiscrete<T>::type{per_sample_values_[s], per_sample_nvalues_[s]};

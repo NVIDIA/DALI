@@ -12,7 +12,7 @@ Differences to the Deep Learning Examples configuration
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 * The default values of the parameters were adjusted to values used in EfficientNet training.
-* ``--data-backend`` parameter was changed to accept ``dali``, ``pytorch``, or ``synthetic``. It is set to ``dali`` by default.
+* ``--data-backend`` parameter was changed to accept ``pytorch``, ``pytorch_optimized``, ``synthetic``, ``dali`` or ``dali_proxy``. It is set to ``dali`` by default.
 * ``--dali-device`` was added to control placement of some of DALI operators.
 * ``--augmentation`` was replaced with ``--automatic-augmentation``, now supporting ``disabled``, ``autoaugment``, and ``trivialaugment`` values.
 * ``--workers`` defaults were halved to accommodate DALI. The value is automatically doubled when ``pytorch`` data loader is used. Thanks to this the default value performs well with both loaders.
@@ -56,7 +56,8 @@ The EfficientNet script operates on ImageNet 1k, a widely popular image classifi
 
   mkdir train && mv ILSVRC2012_img_train.tar train/ && cd train
   tar -xvf ILSVRC2012_img_train.tar && rm -f ILSVRC2012_img_train.tar
-  find . -name "*.tar" | while read NAME ; do mkdir -p "${NAME%.tar}"; tar -xvf "${NAME}" -C "${NAME%.tar}"; rm -f "${NAME}"; done
+  find . -name "*.tar" | while read NAME ; do mkdir -p "${NAME%.tar}"
+  tar -xvf "${NAME}" -C "${NAME%.tar}"; rm -f "${NAME}"; done
   cd ..
 
 3. Extract the validation data and move the images to subfolders:
@@ -88,11 +89,27 @@ You may need to adjust ``--batch-size`` parameter for your machine.
 
 You can change the data loader and automatic augmentation scheme that are used by adding:
 
-* ``--data-backend``: ``dali`` | ``pytorch`` | ``synthetic``,
+* ``--data-backend``: ``dali`` | ``dali_proxy`` | ``pytorch`` | ``synthetic``,
 * ``--automatic-augmentation``: ``disabled`` | ``autoaugment`` | ``trivialaugment`` (the last one only for DALI),
 * ``--dali-device``: ``cpu`` | ``gpu`` (only for DALI).
 
-By default DALI GPU-variant with AutoAugment is used.
+By default DALI GPU-variant with AutoAugment is used (``dali`` and ``dali_proxy`` backends).
+
+Data Backends
+-------------
+
+- **dali**:
+  Leverages a DALI pipeline along with DALI's PyTorch iterator for data loading, preprocessing, and augmentation.
+
+- **dali_proxy**:
+  Uses a DALI pipeline for preprocessing and augmentation while relying on PyTorch's data loader. DALI Proxy facilitates the transfer of data to DALI for processing.
+  See :ref:`pytorch_dali_proxy`.
+
+- **pytorch**: 
+  Employs the native PyTorch data loader for data preprocessing and augmentation.
+
+- **synthetic**: 
+  Creates synthetic data on the fly, which is useful for testing and benchmarking purposes. This backend eliminates the need for actual datasets, providing a convenient way to simulate data loading.
 
 For example to run the EfficientNet with AMP on a batch size of 128 with DALI using TrivialAugment you need to invoke:
 
@@ -133,22 +150,60 @@ To run training benchmarks with different data loaders and automatic augmentatio
   export RESULT_WORKSPACE=./
 
   # synthetic benchmark
-  python multiproc.py --nproc_per_node 8 ./main.py --amp --static-loss-scale 128 --batch-size 128 --epochs 1 --prof 1000 --no-checkpoints --training-only --data-backend synthetic --workspace $RESULT_WORKSPACE --raport-file bench_report_synthetic.json $PATH_TO_IMAGENET
+  python multiproc.py --nproc_per_node 8 ./main.py --amp --static-loss-scale 128
+                      --batch-size 128 --epochs 1 --prof 1000 --no-checkpoints
+                      --training-only --data-backend synthetic
+                      --workspace $RESULT_WORKSPACE
+                      --report-file bench_report_synthetic.json $PATH_TO_IMAGENET
 
   # DALI without automatic augmentations
-  python multiproc.py --nproc_per_node 8 ./main.py --amp --static-loss-scale 128 --batch-size 128 --epochs 4 --no-checkpoints --training-only --data-backend dali --automatic-augmentation disabled  --workspace $RESULT_WORKSPACE --raport-file bench_report_dali.json $PATH_TO_IMAGENET
+  python multiproc.py --nproc_per_node 8 ./main.py --amp --static-loss-scale 128
+                      --batch-size 128 --epochs 4 --no-checkpoints --training-only
+                      --data-backend dali --automatic-augmentation disabled
+                      --workspace $RESULT_WORKSPACE
+                      --report-file bench_report_dali.json $PATH_TO_IMAGENET
 
   # DALI with AutoAugment
-  python multiproc.py --nproc_per_node 8 ./main.py --amp --static-loss-scale 128 --batch-size 128 --epochs 4 --no-checkpoints --training-only --data-backend dali --automatic-augmentation autoaugment  --workspace $RESULT_WORKSPACE --raport-file bench_report_dali_aa.json $PATH_TO_IMAGENET
+  python multiproc.py --nproc_per_node 8 ./main.py --amp --static-loss-scale 128
+                      --batch-size 128 --epochs 4 --no-checkpoints --training-only
+                      --data-backend dali --automatic-augmentation autoaugment
+                      --workspace $RESULT_WORKSPACE
+                      --report-file bench_report_dali_aa.json $PATH_TO_IMAGENET
 
   # DALI with TrivialAugment
-  python multiproc.py --nproc_per_node 8 ./main.py --amp --static-loss-scale 128 --batch-size 128 --epochs 4 --no-checkpoints --training-only --data-backend dali --automatic-augmentation trivialaugment --workspace $RESULT_WORKSPACE --raport-file bench_report_dali_ta.json $PATH_TO_IMAGENET
+  python multiproc.py --nproc_per_node 8 ./main.py --amp --static-loss-scale 128
+                      --batch-size 128 --epochs 4 --no-checkpoints --training-only
+                      --data-backend dali --automatic-augmentation trivialaugment
+                      --workspace $RESULT_WORKSPACE
+                      --report-file bench_report_dali_ta.json $PATH_TO_IMAGENET
+
+  # DALI proxy with AutoAugment
+  python multiproc.py --nproc_per_node 8 ./main.py --amp --static-loss-scale 128
+                      --batch-size 128 --epochs 4 --no-checkpoints --training-only
+                      --data-backend dali_proxy --automatic-augmentation autoaugment
+                      --workspace $RESULT_WORKSPACE
+                      --report-file bench_report_dali_proxy_aa.json $PATH_TO_IMAGENET
+
+  # DALI proxy with TrivialAugment
+  python multiproc.py --nproc_per_node 8 ./main.py --amp --static-loss-scale 128
+                      --batch-size 128 --epochs 4 --no-checkpoints --training-only
+                      --data-backend dali_proxy --automatic-augmentation trivialaugment
+                      --workspace $RESULT_WORKSPACE
+                      --report-file bench_report_dali_proxy_ta.json $PATH_TO_IMAGENET
 
   # PyTorch without automatic augmentations
-  python multiproc.py --nproc_per_node 8 ./main.py --amp --static-loss-scale 128 --batch-size 128 --epochs 4 --no-checkpoints --training-only --data-backend pytorch --automatic-augmentation disabled --workspace $RESULT_WORKSPACE --raport-file bench_report_pytorch.json $PATH_TO_IMAGENET
+  python multiproc.py --nproc_per_node 8 ./main.py --amp --static-loss-scale 128
+                      --batch-size 128 --epochs 4 --no-checkpoints --training-only
+                      --data-backend pytorch --automatic-augmentation disabled
+                      --workspace $RESULT_WORKSPACE
+                      --report-file bench_report_pytorch.json $PATH_TO_IMAGENET
 
   # PyTorch with AutoAugment:
-  python multiproc.py --nproc_per_node 8 ./main.py --amp --static-loss-scale 128 --batch-size 128 --epochs 4 --no-checkpoints --training-only --data-backend pytorch --automatic-augmentation autoaugment --workspace $RESULT_WORKSPACE --raport-file bench_report_pytorch_aa.json $PATH_TO_IMAGENET
+  python multiproc.py --nproc_per_node 8 ./main.py --amp --static-loss-scale 128
+                      --batch-size 128 --epochs 4 --no-checkpoints --training-only
+                      --data-backend pytorch --automatic-augmentation autoaugment
+                      --workspace $RESULT_WORKSPACE
+                      --report-file bench_report_pytorch_aa.json $PATH_TO_IMAGENET
 
 
 Inference
@@ -158,17 +213,20 @@ Validation is done every epoch, and can be also run separately on a checkpointed
 
 .. code-block:: bash
 
-  python ./main.py --evaluate --epochs 1 --resume <path to checkpoint> -b <batch size> $PATH_TO_IMAGENET
+  python ./main.py --evaluate --epochs 1 --resume <path to checkpoint>
+                   -b <batch size> $PATH_TO_IMAGENET
 
 To run inference on JPEG image, you have to first extract the model weights from checkpoint:
 
 .. code-block:: bash
 
-  python checkpoint2model.py --checkpoint-path <path to checkpoint> --weight-path <path where weights will be stored>
+  python checkpoint2model.py --checkpoint-path <path to checkpoint>
+                             --weight-path <path where weights will be stored>
 
 Then, run the classification script:
 
 .. code-block:: bash
 
-  python classify.py --pretrained-from-file <path to weights from previous step> --precision AMP|FP32 --image <path to JPEG image>
+  python classify.py --pretrained-from-file <path to weights from previous step>
+                     --precision AMP|FP32 --image <path to JPEG image>
 

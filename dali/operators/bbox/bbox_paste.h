@@ -20,20 +20,25 @@
 #include "dali/core/common.h"
 #include "dali/core/error_handling.h"
 #include "dali/pipeline/operator/common.h"
+#include "dali/pipeline/operator/checkpointing/stateless_operator.h"
 #include "dali/pipeline/operator/operator.h"
 
 namespace dali {
 
 template <typename Backend>
-class BBoxPaste : public Operator<Backend> {
+class BBoxPaste : public StatelessOperator<Backend> {
  public:
   explicit inline BBoxPaste(const OpSpec &spec) :
-    Operator<Backend>(spec) {
+    StatelessOperator<Backend>(spec) {
     use_ltrb_ = spec.GetArgument<bool>("ltrb");
   }
 
  protected:
   bool use_ltrb_ = false;
+
+  bool HasContiguousOutputs() const override {
+    return false;
+  }
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     return false;

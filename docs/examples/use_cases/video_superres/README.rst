@@ -100,47 +100,11 @@ The default location that the training code will look for these weights is ``flo
 Data
 ----
 
-Following `Makansi et al. <https://arxiv.org/abs/1707.00471>`_ we use the `Myanmar
-60p video <https://www.harmonicinc.com/resources/videos/4k-video-clip-center>`_ as our
-raw data source.
+`Makansi et al. <https://arxiv.org/abs/1707.00471>`_ uses the `Myanmar 60p video` as
+its raw data source. It is a 60 FPS, 4K resolution cinematic video.
 
-The raw video is a 60 FPS, 4K resolution cinematic video.  In order to prepare
-the data for training you should run the following steps:
-
-
-#. 
-   Create a data folder ``<data_dir>`` and download the 4K Myanmar video.
-
-#. 
-   Run ``prepare_data.sh`` by providing the 4K Myanmar video file as argument.
-
-This will create a 5 directories inside of ``<data_dir>``\ :
-
-
-* orig
-* 540p
-* 720p
-* 1080p
-* 4k
-  Each of these diretories contain scenes (short extracts of the origin video) seperated in two directories ``train`` and ``val``. 
-
-The script used in prepare_data.sh are the follwing:
-
-tools/split_scenes.py : split the video into scenes and remove audio track:
-
-.. code-block:: bash
-
-   python ./tools/split_scenes.py --raw_data <path_to_mp4_file> --out_data <data_dir>
-
-The scenes will be written to <data_dir>/orig/scenes. The scenes will be split into training and validation folders.
-
-tools/transcode_scenes.py : transcode the scenes to have a smaller keyframe interval and possibly a lower resolution:
-
-.. code-block:: bash
-
-   python ./tools/transcode_scenes.py --main_data <data_dir> --resolution <resolution>
-
-where <resolution> can be one of: '4K', 1080p, 720p or 540p. The transcoded scenes will be written to <data_dir>/<resolution>/scenes and split into training and validation folders. Run the script with --help to see more options. Note that while you can split and transcode the original video in one step, we found it to be much faster to split first, then transcode.
+Example preparation steps can be found `here
+<https://github.com/NVIDIA/nvvl/tree/master/examples/pytorch_superres>`_.
 
 Training
 --------
@@ -155,7 +119,7 @@ This file allows configuration of a variety of
 training options - it is expected that you will modify data paths appropriately
 for your system.
 
-Visualization of training data, e.g. loss curves and timings, aswell as sample images is provided through `Tensorboard <https://www.tensorflow.org/programmers_guide/summaries_and_tensorboard>`_ via the `tensorboardX <https://github.com/lanpa/tensorboard-pytorch>`_ library.  Whilst training is running you can access Tensorboard at ``<host_ip>:6006``.
+Visualization of training data, e.g. loss curves and timings, as well as sample images is provided through `Tensorboard <https://www.tensorflow.org/programmers_guide/summaries_and_tensorboard>`_ via the `tensorboardX <https://github.com/lanpa/tensorboard-pytorch>`_ library.  Whilst training is running you can access Tensorboard at ``<host_ip>:6006``.
 
 Results on Myanmar Validation Set
 ---------------------------------
@@ -167,7 +131,7 @@ Input image (128x240 - click to see actual size):
 
 .. image:: ./data/input.png
    :target: ./data/input.png
-   :alt: 
+   :alt:
 
 
 VSRNet prediction (512x960 - click to see actual size):
@@ -175,7 +139,7 @@ VSRNet prediction (512x960 - click to see actual size):
 
 .. image:: ./data/predicted.png
    :target: ./data/predicted.png
-   :alt: 
+   :alt:
 
 
 Example training loss (fp16, batch size 7, min_lr=max_lr=0.001):
@@ -183,7 +147,7 @@ Example training loss (fp16, batch size 7, min_lr=max_lr=0.001):
 
 .. image:: ./data/train_loss.png
    :target: ./data/train_loss.png
-   :alt: 
+   :alt:
 
 
 Example validation PSNR (fp16, batch size 7, min_lr=max_lr=0.001)
@@ -191,7 +155,7 @@ Example validation PSNR (fp16, batch size 7, min_lr=max_lr=0.001)
 
 .. image:: ./data/val_psnr.png
    :target: ./data/val_psnr.png
-   :alt: 
+   :alt:
 
 
 Reference
@@ -203,7 +167,8 @@ If you find this implementation useful in your work, please acknowledge it appro
 
    @InProceedings{IB17,
      author       = "O. Makansi and E. Ilg and and Thomas Brox",
-     title        = "End-to-End Learning of Video Super-Resolution with Motion Compensation",
+     title        = "End-to-End Learning of Video Super-Resolution with Motion
+                     Compensation",
      booktitle    = "German Conference on Pattern Recognition (GCPR) 2017",
      month        = " ",
      year         = "2017",
@@ -213,9 +178,12 @@ If you find this implementation useful in your work, please acknowledge it appro
 .. code-block:: BibTeX
 
    @InProceedings{IMKDB17,
-     author       = "E. Ilg and N. Mayer and T. Saikia and M. Keuper and A. Dosovitskiy and T. Brox",
-     title        = "FlowNet 2.0: Evolution of Optical Flow Estimation with Deep Networks",
-     booktitle    = "IEEE Conference on Computer Vision and Pattern Recognition (CVPR)",
+     author       = "E. Ilg and N. Mayer and T. Saikia and M. Keuper and A.
+                     Dosovitskiy and T. Brox",
+     title        = "FlowNet 2.0: Evolution of Optical Flow Estimation with
+                     Deep Networks",
+     booktitle    = "IEEE Conference on Computer Vision and Pattern Recognition
+                     (CVPR)",
      month        = "Jul",
      year         = "2017",
      url          = "http://lmb.informatik.uni-freiburg.de//Publications/2017/IMKDB17"

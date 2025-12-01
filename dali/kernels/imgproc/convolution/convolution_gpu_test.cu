@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -24,9 +24,9 @@
 #include "dali/kernels/imgproc/convolution/baseline_convolution.h"
 #include "dali/kernels/imgproc/convolution/convolution_cpu.h"
 #include "dali/kernels/imgproc/convolution/convolution_gpu.h"
-#include "dali/kernels/scratch.h"
 #include "dali/test/tensor_test_utils.h"
 #include "dali/test/test_tensors.h"
+#include "dali/kernels/dynamic_scratchpad.h"
 
 namespace dali {
 namespace kernels {
@@ -159,6 +159,7 @@ struct ConvolutionGpuKernelTest : public ::testing::Test {
   void RunTest() {
     KernelContext ctx_cpu, ctx_gpu;
     ctx_gpu.gpu.stream = 0;
+
     KernelCpu kernel_cpu;
     KernelGpu kernel_gpu;
 
@@ -175,10 +176,8 @@ struct ConvolutionGpuKernelTest : public ::testing::Test {
       int window_size = shape_window[sample][0];
       auto req = kernel_cpu.Setup(ctx_cpu, data_shape[sample], window_size);
 
-      ScratchpadAllocator scratch_alloc;
-      scratch_alloc.Reserve(req.scratch_sizes);
-      auto scratchpad = scratch_alloc.GetScratchpad();
-      ctx_cpu.scratchpad = &scratchpad;
+      DynamicScratchpad dyn_scratchpad_cpu(AccessOrder::host());
+      ctx_cpu.scratchpad = &dyn_scratchpad_cpu;
 
       kernel_cpu.Run(ctx_cpu, baseline_out_[sample], baseline_in_[sample], k_win_[sample],
                      transform.GetCpuTransform(sample));
@@ -186,11 +185,11 @@ struct ConvolutionGpuKernelTest : public ::testing::Test {
 
     auto req = kernel_gpu.Setup(ctx_gpu, in_.shape, shape_window);
 
-    ScratchpadAllocator scratch_alloc;
-    scratch_alloc.Reserve(req.scratch_sizes);
-    auto scratchpad = scratch_alloc.GetScratchpad();
-    ctx_gpu.scratchpad = &scratchpad;
     auto gpu_epilogue = transform.GetGpuEpilogue();
+
+    DynamicScratchpad dyn_scratchpad_gpu(AccessOrder(ctx_gpu.gpu.stream));
+    ctx_gpu.scratchpad = &dyn_scratchpad_gpu;
+
     kernel_gpu.Run(ctx_gpu, out_, in_, k_win_, span<const int>{}, gpu_epilogue);
 
     output_.invalidate_cpu();

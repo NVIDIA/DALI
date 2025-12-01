@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,6 +15,12 @@
 #include <limits>
 #include <string>
 #include "dali/operators/decoder/nvjpeg/nvjpeg_decoder_decoupled_api.h"
+
+#if not(WITH_DYNAMIC_NVJPEG_ENABLED)
+bool nvjpegIsSymbolAvailable(const char *name) {
+  return true;
+}
+#endif
 
 namespace dali {
 

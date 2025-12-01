@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,9 +15,11 @@
 #ifndef DALI_TEST_OPERATORS_DUMMY_OP_H_
 #define DALI_TEST_OPERATORS_DUMMY_OP_H_
 
+#include <string>
 #include <vector>
 
 #include "dali/pipeline/operator/operator.h"
+#include "dali/pipeline/operator/checkpointing/op_checkpoint.h"
 
 namespace dali {
 
@@ -32,6 +34,10 @@ class DummyOp : public Operator<Backend> {
   DISABLE_COPY_MOVE_ASSIGN(DummyOp);
 
  protected:
+  bool HasContiguousOutputs() const override {
+    return false;
+  }
+
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     return false;
   }
@@ -39,6 +45,110 @@ class DummyOp : public Operator<Backend> {
   void RunImpl(Workspace &) override {
     DALI_FAIL("I'm a dummy op don't run me");
   }
+};
+
+class TestStatefulSource : public Operator<CPUBackend> {
+ public:
+  explicit TestStatefulSource(const OpSpec &spec);
+
+  inline ~TestStatefulSource() override = default;
+
+  DISABLE_COPY_MOVE_ASSIGN(TestStatefulSource);
+
+  void SaveState(OpCheckpoint &cpt, AccessOrder order) override;
+
+  void RestoreState(const OpCheckpoint &cpt) override;
+
+  std::string SerializeCheckpoint(const OpCheckpoint &cpt) const override;
+
+  void DeserializeCheckpoint(OpCheckpoint &cpt, const std::string &data) const override;
+
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override;
+
+  using Operator<CPUBackend>::RunImpl;
+
+  void RunImpl(Workspace &ws) override;
+
+ private:
+  uint8_t state_ = 0;
+  int checkpoints_to_collect_ = 0;
+  bool ever_run_ = false;
+  int epoch_size_;
+};
+
+class TestStatefulOpCPU : public Operator<CPUBackend> {
+ public:
+  explicit TestStatefulOpCPU(const OpSpec &spec);
+
+  inline ~TestStatefulOpCPU() override = default;
+
+  DISABLE_COPY_MOVE_ASSIGN(TestStatefulOpCPU);
+
+  void SaveState(OpCheckpoint &cpt, AccessOrder order) override;
+
+  void RestoreState(const OpCheckpoint &cpt) override;
+
+  std::string SerializeCheckpoint(const OpCheckpoint &cpt) const override;
+
+  void DeserializeCheckpoint(OpCheckpoint &cpt, const std::string &data) const override;
+
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override;
+
+  using Operator<CPUBackend>::RunImpl;
+
+  void RunImpl(Workspace &ws) override;
+
+ private:
+  uint8_t state_ = 0;
+};
+
+class TestStatefulOpMixed : public Operator<MixedBackend> {
+ public:
+  explicit TestStatefulOpMixed(const OpSpec &spec);
+
+  inline ~TestStatefulOpMixed() override = default;
+
+  DISABLE_COPY_MOVE_ASSIGN(TestStatefulOpMixed);
+
+  void SaveState(OpCheckpoint &cpt, AccessOrder order) override;
+
+  void RestoreState(const OpCheckpoint &cpt) override;
+
+  std::string SerializeCheckpoint(const OpCheckpoint &cpt) const override;
+
+  void DeserializeCheckpoint(OpCheckpoint &cpt, const std::string &data) const override;
+
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override;
+
+  void RunImpl(Workspace &ws) override;
+
+ private:
+  uint8_t state_ = 0;
+};
+
+class TestStatefulOpGPU : public Operator<GPUBackend> {
+ public:
+  explicit TestStatefulOpGPU(const OpSpec &spec);
+
+  inline ~TestStatefulOpGPU() override;
+
+  DISABLE_COPY_MOVE_ASSIGN(TestStatefulOpGPU);
+
+  void SaveState(OpCheckpoint &cpt, AccessOrder order) override;
+
+  void RestoreState(const OpCheckpoint &cpt) override;
+
+  std::string SerializeCheckpoint(const OpCheckpoint &cpt) const override;
+
+  void DeserializeCheckpoint(OpCheckpoint &cpt, const std::string &data) const override;
+
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override;
+
+  void RunImpl(Workspace &ws) override;
+
+ private:
+  int max_batch_size_;
+  uint8_t *state_;
 };
 
 }  // namespace dali

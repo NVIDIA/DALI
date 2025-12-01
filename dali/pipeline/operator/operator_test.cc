@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -57,11 +57,16 @@ namespace {
 class TestOp : public OperatorBase {
  public:
   using OperatorBase::OperatorBase;
-  bool Setup(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
+
+  bool HasContiguousOutputs() const override {
     return false;
   }
 
-  void Run(Workspace &ws) override {
+  bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
+    return false;
+  }
+
+  void RunImpl(Workspace &ws) override {
   }
 };
 

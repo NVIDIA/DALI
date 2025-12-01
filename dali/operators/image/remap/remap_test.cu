@@ -1,4 +1,4 @@
-// Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -60,7 +60,7 @@ TYPED_TEST(RemapTest, ShiftPixelOriginTest) {
   for (auto &val : this->ref_data_) {
     val += .5f;
   }
-  dali::kernels::DynamicScratchpad ds;
+  dali::kernels::DynamicScratchpad ds(this->stream_);
   ShiftPixelOrigin(this->test_data_.gpu(this->stream_), .5f, ds,
                    this->stream_);
   CUDA_CALL(cudaStreamSynchronize(this->stream_));

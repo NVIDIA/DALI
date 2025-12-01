@@ -23,10 +23,10 @@
 #include "dali/test/dump_diff.h"
 #include "dali/test/mat2tensor.h"
 #include "dali/test/test_tensors.h"
-#include "dali/kernels/scratch.h"
 #include "dali/core/mm/memory.h"
 #include "dali/test/dali_test_config.h"
 #include "dali/core/geom/transform.h"
+#include "dali/kernels/dynamic_scratchpad.h"
 
 namespace dali {
 namespace kernels {
@@ -64,12 +64,12 @@ void WarpGPU_Affine_Transpose(bool force_variable) {
 
   WarpGPU<AffineMapping2D, 2, uint8_t, uint8_t, BorderClamp> warp;
 
-  ScratchpadAllocator scratch_alloc;
 
   auto mapping_gpu = mm::alloc_raw_unique<AffineMapping2D, mm::memory_kind::device>(1);
   TensorShape<2> out_shape = { img_tensor.shape[1], img_tensor.shape[0] };
   KernelContext ctx = {};
   ctx.gpu.stream = 0;
+
   auto out_shapes_hw = make_span<1>(&out_shape);
   auto mappings = make_tensor_gpu<1>(mapping_gpu.get(), { 1 });
   copy(mappings, make_tensor_cpu<1>(&mapping_cpu, { 1 }));
@@ -82,17 +82,16 @@ void WarpGPU_Affine_Transpose(bool force_variable) {
     setup.SetBlockDim(dim3(32, 8, 1));
     auto out_shapes = setup.GetOutputShape(in_list.shape, out_shapes_hw);
     req = setup.Setup(out_shapes, true);
-    req.scratch_sizes[static_cast<int>(mm::memory_kind_id::device)] +=
-        sizeof(warp::SampleDesc<2, int, int>);
   } else {
     req = warp.Setup(ctx, in_list, mappings, out_shapes_hw, {&interp, 1});
   }
 
-  scratch_alloc.Reserve(req.scratch_sizes);
   TestTensorList<uint8_t, 3> out;
   out.reshape(req.output_shapes[0].to_static<3>());
-  auto scratchpad = scratch_alloc.GetScratchpad();
-  ctx.scratchpad = &scratchpad;
+
+  DynamicScratchpad dyn_scratchpad(AccessOrder(ctx.gpu.stream));
+  ctx.scratchpad = &dyn_scratchpad;
+
   warp.Run(ctx, out.gpu(0), in_list, mappings, out_shapes_hw, {&interp, 1});
 
   auto cpu_out = out.cpu(0)[0];
@@ -165,8 +164,6 @@ TEST(WarpGPU, Affine_RotateScale_Single) {
 
   WarpGPU<AffineMapping2D, 2, uint8_t, uint8_t, uint8_t> warp;
 
-  ScratchpadAllocator scratch_alloc;
-
   auto mapping_gpu = mm::alloc_raw_unique<AffineMapping2D, mm::memory_kind::device>(1);
   TensorShape<2> out_shape = { img_tensor.shape[0] * scale, img_tensor.shape[1] * scale };
   KernelContext ctx = {};
@@ -180,11 +177,12 @@ TEST(WarpGPU, Affine_RotateScale_Single) {
   auto out_shapes = setup.GetOutputShape(in_list.shape, out_shapes_hw);
   setup.SetBlockDim(dim3(32, 24, 1));  // force non-square block
   KernelRequirements req = setup.Setup(out_shapes, true);
-  scratch_alloc.Reserve(req.scratch_sizes);
   TestTensorList<uint8_t, 3> out;
   out.reshape(req.output_shapes[0].to_static<3>());
-  auto scratchpad = scratch_alloc.GetScratchpad();
-  ctx.scratchpad = &scratchpad;
+
+  DynamicScratchpad dyn_scratchpad(AccessOrder(ctx.gpu.stream));
+  ctx.scratchpad = &dyn_scratchpad;
+
   warp.Run(ctx, out.gpu(0), in_list, mappings, out_shapes_hw, {&interp, 1}, 255);
 
   auto cpu_out = out.cpu(0)[0];
@@ -234,8 +232,6 @@ TEST(WarpGPU, Affine_RotateScale_Uniform) {
 
   WarpGPU<AffineMapping2D, 2, uint8_t, uint8_t, uint8_t> warp;
 
-  ScratchpadAllocator scratch_alloc;
-
   auto mapping_gpu = mm::alloc_raw_unique<AffineMapping2D, mm::memory_kind::device>(samples);
   TensorShape<2> out_shape = { img_tensor.shape[0] * scale, img_tensor.shape[1] * scale };
   KernelContext ctx = {};
@@ -250,11 +246,12 @@ TEST(WarpGPU, Affine_RotateScale_Uniform) {
   KernelRequirements req = warp.Setup(
     ctx, in_list, mappings, make_span(out_shapes_hw), {&interp, 1}, 255);
 
-  scratch_alloc.Reserve(req.scratch_sizes);
   TestTensorList<uint8_t, 3> out;
   out.reshape(req.output_shapes[0].to_static<3>());
-  auto scratchpad = scratch_alloc.GetScratchpad();
-  ctx.scratchpad = &scratchpad;
+
+  DynamicScratchpad dyn_scratchpad(AccessOrder(ctx.gpu.stream));
+  ctx.scratchpad = &dyn_scratchpad;
+
   warp.Run(ctx, out.gpu(0), in_list, mappings, make_span(out_shapes_hw), {&interp, 1}, 255);
   CUDA_CALL(cudaDeviceSynchronize());
 

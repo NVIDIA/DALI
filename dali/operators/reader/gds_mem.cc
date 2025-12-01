@@ -281,7 +281,10 @@ void GDSStagingEngine::commit_no_lock() {
   if (scheduled_.empty()) {
     scheduled_.swap(unscheduled_);
   } else {
-    scheduled_.insert(scheduled_.end(), unscheduled_.begin(), unscheduled_.end());
+    scheduled_.reserve(scheduled_.size() + unscheduled_.size());
+    for (void* ptr : unscheduled_) {
+      scheduled_.push_back(ptr);
+    }
     unscheduled_.clear();
   }
   CUDA_CALL(cudaEventRecord(ready_, stream_));

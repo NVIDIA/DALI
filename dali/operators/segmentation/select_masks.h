@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -21,24 +21,21 @@
 #include "dali/core/common.h"
 #include "dali/core/span.h"
 #include "dali/core/tensor_shape.h"
-#include "dali/pipeline/operator/operator.h"
+#include "dali/pipeline/operator/checkpointing/stateless_operator.h"
 
 namespace dali {
 
 
-class SelectMasksCPU : public Operator<CPUBackend> {
+class SelectMasksCPU : public StatelessOperator<CPUBackend> {
  public:
   explicit SelectMasksCPU(const OpSpec &spec)
-      : Operator<CPUBackend>(spec), reindex_masks_(spec.GetArgument<bool>("reindex_masks")) {}
+      : StatelessOperator<CPUBackend>(spec),
+        reindex_masks_(spec.GetArgument<bool>("reindex_masks")) {}
 
   ~SelectMasksCPU() override = default;
   DISABLE_COPY_MOVE_ASSIGN(SelectMasksCPU);
 
  protected:
-  bool CanInferOutputs() const override {
-    return true;
-  }
-
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override;
   void RunImpl(Workspace &ws) override;
 

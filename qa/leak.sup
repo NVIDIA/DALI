@@ -1,4 +1,5 @@
 # external libraries
+
 leak:paddle
 leak:llvm
 leak:zmq
@@ -11,8 +12,8 @@ leak:numba
 leak:libmxnet
 leak:libtorch
 leak:libc10
-leak:av_realloc_f
-leak:av_malloc
+# we don't control FFmpegDemuxer destructor so we cannot fix that in DALI
+leak:FFmpegDemuxer
 # tensorflow
 leak:PyInit__pywrap_debug_events_writer
 leak:_pywrap
@@ -21,8 +22,10 @@ leak:PyInit__tf_stack
 leak:PyInit__dtypes
 leak:GetStacktrace
 leak:_Unwind_ForcedUnwind
+leak:xla
 # as DALI dlopens but not dlcloses libraries some resources are marked as leaked
 # suppress them
+leak:dlopen
 leak:cuFileDriverOpen
 leak:cudaGetDeviceCount
 leak:cuvidGetDecoderCaps
@@ -38,10 +41,12 @@ leak:dali::kernels::DynamicScratchpad::~DynamicScratchpad
 leak:dali::kernels::DynamicScratchpad::AllocImpl
 leak:dali::mm::GPUHog::init()
 leak:dali::mm::detail::fixed_size_allocator
+leak:nvmlInitWithFlags
 # no idea how to suppress them other than as below but they are not caused by DALI
 # still there is some danger that any of the  below functions appear in a valid leak
 leak:std::string::_Rep::_S_create
 leak:PyLong_FromLong
+leak:PyFloat_FromDouble
 leak:PyCode_NewWithPosOnlyArgs
 leak:_PyLong_New
 leak:PyBytes_FromString
@@ -58,3 +63,4 @@ leak:_PyObject_MakeTpCall
 leak:PyDict_SetDefault
 leak:PySequence_List
 leak:_PyFunction_Vectorcall
+leak:numa_node_to_cpus

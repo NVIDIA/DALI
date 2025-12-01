@@ -1,4 +1,4 @@
-// Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -22,10 +22,11 @@
 #include <string>
 #include <utility>
 #include <vector>
-#include "dali/operators/reader/loader/filesystem.h"
-#include "dali/util/file.h"
 #include "dali/core/util.h"
+#include "dali/operators/reader/loader/discover_files.h"
+#include "dali/operators/reader/loader/filesystem.h"
 #include "dali/test/dali_test_config.h"
+#include "dali/util/file.h"
 
 namespace dali {
 namespace detail {
@@ -36,9 +37,9 @@ TEST(LibTarUtilsTestSimple, Interface) {
   std::string dummy_filepath(dali::filesystem::join_path(testing::dali_extra_path(),
                                                          "db/webdataset/MNIST/devel-1.tar"));
 
-  TarArchive dummy_archive(FileStream::Open(dummy_filepath, false, false));
+  TarArchive dummy_archive(FileStream::Open(dummy_filepath));
   TarArchive intermediate_archive(std::move(dummy_archive));
-  TarArchive archive(FileStream::Open(filepath, false, false));
+  TarArchive archive(FileStream::Open(filepath));
   archive = std::move(intermediate_archive);
 
   ASSERT_FALSE(dummy_archive.NextFile());
@@ -69,7 +70,7 @@ TEST(LibTarUtilsTestSimple, Interface) {
 TEST(LibTarUtilsTestSimple, LongNameIndexing) {
   std::string filepath(dali::filesystem::join_path(testing::dali_extra_path(),
                                                    "db/webdataset/sample-tar/gnu.tar"));
-  TarArchive archive(FileStream::Open(filepath, false, false));
+  TarArchive archive(FileStream::Open(filepath));
   std::string name_prefix(128, '#');
   for (int idx = 0; idx < 1000; idx++) {
     ASSERT_EQ(archive.GetFileName(), name_prefix + to_string(idx));
@@ -88,7 +89,11 @@ TEST(LibTarUtilsTestSimple, Types) {
       TarArchive::ENTRY_DIR,      TarArchive::ENTRY_FIFO,     TarArchive::ENTRY_FILE,
       TarArchive::ENTRY_SYMLINK,  TarArchive::ENTRY_HARDLINK};
 
-  TarArchive archive(FileStream::Open(filepath, false, true));
+  FileStream::Options opts;
+  opts.read_ahead = false;
+  opts.use_mmap = true;
+  opts.use_odirect = false;
+  TarArchive archive(FileStream::Open(filepath, opts));
   for (size_t i = 0; i < types.size(); i++) {
     ASSERT_EQ(archive.GetFileType(), types[i]);
     ASSERT_EQ(archive.GetFileName(), to_string(i) + (types[i] == TarArchive::ENTRY_DIR ? "/" : ""));
@@ -103,7 +108,11 @@ TEST(LibTarUtilsTestSimple, Offset) {
   std::string filepath(dali::filesystem::join_path(testing::dali_extra_path(),
                                                    "db/webdataset/sample-tar/types.tar"));
 
-  TarArchive archive(FileStream::Open(filepath, false, true));
+  FileStream::Options opts;
+  opts.read_ahead = false;
+  opts.use_mmap = true;
+  opts.use_odirect = false;
+  TarArchive archive(FileStream::Open(filepath, opts));
   archive.SeekArchive(7 * T_BLOCKSIZE);
   ASSERT_EQ(archive.TellArchive(), 7 * T_BLOCKSIZE);
   for (int i = 7; i < 14; i++) {
@@ -149,8 +158,8 @@ class SimpleTarTests : public ::testing::TestWithParam<SimpleTarTestsData> {
  protected:
   TarArchive archive;
   SimpleTarTests()
-      : archive(FileStream::Open(GetParam().filepath, GetParam().read_ahead, GetParam().use_mmap)) {
-  }
+      : archive(FileStream::Open(GetParam().filepath,
+                                 {GetParam().read_ahead, GetParam().use_mmap, false})) {}
 };
 
 TEST_P(SimpleTarTests, Index) {
@@ -245,6 +254,7 @@ class MultiTarTests : public ::testing::TestWithParam<bool> {
  protected:
   std::unique_ptr<TarArchive> archives[kMultithreadedSamples];
   const std::pair<int, int> ranges[kMultithreadedSamples] = {{2000, 3000}, {0, 1000}, {1000, 2000}};
+
   void SetUp() final {
     std::string filepath_prefix(
         dali::filesystem::join_path(testing::dali_extra_path(), "db/webdataset/MNIST/devel-"));
@@ -253,7 +263,7 @@ class MultiTarTests : public ::testing::TestWithParam<bool> {
         filepath_prefix + "0.tar", filepath_prefix + "1.tar", filepath_prefix + "2.tar"};
 
     for (int idx = 0; idx < kMultithreadedSamples; idx++) {
-      archives[idx] = std::make_unique<TarArchive>(FileStream::Open(filepaths[idx], false, false));
+      archives[idx] = std::make_unique<TarArchive>(FileStream::Open(filepaths[idx]));
     }
   }
 };
@@ -262,7 +272,7 @@ TEST_P(MultiTarTests, Index) {
   std::future<void> tasks[kMultithreadedSamples];
 
   for (int idx = 0; idx < kMultithreadedSamples; idx++) {
-    tasks[idx] = std::async(std::launch::async, [=] {
+    tasks[idx] = std::async(std::launch::async, [=, this] {
       TestArchiveEntries(*archives[idx], {".cls", ".jpg"}, ranges[idx].first, ranges[idx].second,
                          GetParam());
     });

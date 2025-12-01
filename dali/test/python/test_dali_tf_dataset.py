@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -27,16 +27,17 @@ def test_different_num_shapes_dtypes():
     batch_size = 12
     num_threads = 4
 
-    dataset_pipe, shapes, dtypes = get_image_pipeline(batch_size, num_threads, 'cpu')
+    dataset_pipe, shapes, dtypes = get_image_pipeline(batch_size, num_threads, "cpu")
     dtypes = tuple(dtypes[0:2])
 
-    with tf.device('/cpu:0'):
+    with tf.device("/cpu:0"):
         dali_tf.DALIDataset(
             pipeline=dataset_pipe,
             batch_size=batch_size,
             output_shapes=shapes,
             output_dtypes=dtypes,
-            num_threads=num_threads)
+            num_threads=num_threads,
+        )
 
 
 @raises(RuntimeError, "some operators*cannot be used with TensorFlow Dataset API and DALIIterator")
@@ -46,14 +47,15 @@ def test_python_operator_not_allowed_in_tf_dataset_error():
         output = fn.python_function(function=lambda: np.zeros((3, 3, 3)))
         pipeline.set_outputs(output)
 
-    shapes = ((1, 3, 3, 3))
-    dtypes = (tf.float32)
+    shapes = (1, 3, 3, 3)
+    dtypes = tf.float32
 
-    with tf.device('/cpu:0'):
+    with tf.device("/cpu:0"):
         _ = dali_tf.DALIDataset(
             pipeline=pipeline,
             batch_size=1,
             output_shapes=shapes,
             output_dtypes=dtypes,
             num_threads=1,
-            device_id=0)
+            device_id=0,
+        )

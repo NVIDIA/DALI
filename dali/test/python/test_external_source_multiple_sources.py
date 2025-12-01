@@ -1,4 +1,4 @@
-# Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2021-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -21,23 +21,24 @@ from nose_utils import raises
 
 @pipeline_def(batch_size=8, num_threads=3, device_id=0)
 def pipeline():
-    output = fn.external_source(source=np.zeros((8, 8)), name='input')
+    output = fn.external_source(source=np.zeros((8, 8)), name="input")
     return output
 
 
-@raises(RuntimeError, glob="Cannot use `feed_input` on the external source 'input' with a `source`"
-        " argument specified.")
+@raises(
+    RuntimeError,
+    glob="Cannot use `feed_input` on the external source 'input' with a `source`"
+    " argument specified.",
+)
 def test_feed_input_with_source():
     pipe = pipeline()
-    pipe.build()
-    pipe.feed_input('input', np.zeros((8, 8)))
+    pipe.feed_input("input", np.zeros((8, 8)))
     pipe.run()
 
 
 def test_external_source_with_callback():
     """Test if using external_source with 'source' doesn't raise exceptions."""
     pipe = pipeline()
-    pipe.build()
     pipe.run()
 
 

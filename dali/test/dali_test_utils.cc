@@ -1,4 +1,4 @@
-// Copyright (c) 2018-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2018-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,6 +14,7 @@
 
 #include "dali/test/dali_test_utils.h"
 #include <gtest/gtest.h>
+#include <dlfcn.h>
 #include <libgen.h>
 #include <limits.h>
 #include <unistd.h>
@@ -21,6 +22,7 @@
 #include <opencv2/opencv.hpp>
 #include <random>
 #include <string>
+#include <filesystem>
 #include "dali/core/common.h"
 #include "dali/core/error_handling.h"
 #include "dali/pipeline/data/backend.h"
@@ -28,16 +30,33 @@
 #include "dali/pipeline/workspace/workspace.h"
 #include "dali/test/tensor_test_utils.h"
 
+namespace fs = std::filesystem;
+
 namespace dali {
 namespace test {
 
 std::string CurrentExecutableDir() {
-    char result[PATH_MAX];
+    char result[PATH_MAX + 1] = {};  // readlink doesn't place a NULL terminator at the end of path
     ssize_t count = readlink("/proc/self/exe", result, PATH_MAX);
     if (count != -1) {
         return dirname(result);
     }
     return {};
+}
+
+const std::string& DefaultGlobalLibPath() {
+  static const std::string path = [&]() -> std::string {
+    Dl_info info;
+    if (dladdr((const void*)dali::DALISetLastError, &info)) {
+      fs::path path(info.dli_fname);
+      // use the directory of the plugin manager shared object to detect the potential
+      // plugin default directory
+      path = path.parent_path();
+      return path.string();
+    }
+    return {};
+  }();
+  return path;
 }
 
 void MakeRandomBatch(TensorList<CPUBackend> &data, int N,

@@ -74,7 +74,7 @@ void ApplyLifter(const kernels::OutTensorCPU<T, Dims> &inout, int axis, const T*
 }  // namespace detail
 
 DALI_SCHEMA(MFCC)
-    .DocStr(R"code(Computes Mel Frequency Cepstral Coefficiencs (MFCC) from
+    .DocStr(R"code(Computes Mel Frequency Cepstral Coefficients (MFCC) from
 a mel spectrogram.)code")
     .NumInput(kNumInputs)
     .NumOutput(kNumOutputs)

@@ -1,4 +1,4 @@
-# Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2022-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -22,9 +22,10 @@ test_data_root = os.path.join(get_dali_extra_path(), "db", "webdataset", "legacy
 
 @pipeline_def(batch_size=8, num_threads=4, device_id=0)
 def wds_index_file_pipeline(idx_path, device):
-    jpg, cls = fn.readers.webdataset(paths=[os.path.join(test_data_root, "data.tar")],
-                                     index_paths=[idx_path], ext=['jpg', 'cls'])
-    if device == 'gpu':
+    jpg, cls = fn.readers.webdataset(
+        paths=[os.path.join(test_data_root, "data.tar")], index_paths=[idx_path], ext=["jpg", "cls"]
+    )
+    if device == "gpu":
         jpg = jpg.gpu()
         cls = cls.gpu()
     return jpg, cls
@@ -32,12 +33,11 @@ def wds_index_file_pipeline(idx_path, device):
 
 def _test_wds_index_file_pipeline(idx_path, device):
     p = wds_index_file_pipeline(idx_path, device)
-    p.build()
     p.run()
 
 
 def test_wds_index_file_pipeline():
     idx_files = glob.glob(test_data_root + "/*.idx")
     for idx_path in idx_files:
-        for device in ['cpu', 'gpu']:
+        for device in ["cpu", "gpu"]:
             yield _test_wds_index_file_pipeline, idx_path, device

@@ -1,4 +1,4 @@
-// Copyright (c) 2018-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2018-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -123,28 +123,20 @@ inline void AddOperatorToPipeline(Pipeline &pipeline, const OpSpec &op_spec) {
   pipeline.AddOperator(op_spec);
 }
 
-
-inline Workspace CreateWorkspace() {
-  Workspace ws;
-  return ws;
-}
-
-
 inline void RunPipeline(Pipeline &pipeline) {
-  pipeline.RunCPU();
-  pipeline.RunGPU();
+  pipeline.Run();
 }
 
 inline std::vector<TensorListWrapper>
-GetOutputsFromPipeline(Pipeline &pipeline, const std::string &output_backend) {
+GetOutputsFromPipeline(Workspace &ws, Pipeline &pipeline, const std::string &output_backend) {
   std::vector<TensorListWrapper> ret;
-  auto workspace = CreateWorkspace();
-  pipeline.Outputs(&workspace);
-  for (int output_idx = 0; output_idx < workspace.NumOutput(); output_idx++) {
-    if (workspace.OutputIsType<CPUBackend>(output_idx)) {
-      ret.emplace_back(&workspace.Output<CPUBackend>(output_idx));
+  ws = {};
+  pipeline.Outputs(&ws);
+  for (int output_idx = 0; output_idx < ws.NumOutput(); output_idx++) {
+    if (ws.OutputIsType<CPUBackend>(output_idx)) {
+      ret.emplace_back(&ws.Output<CPUBackend>(output_idx));
     } else {
-      ret.emplace_back(&workspace.Output<GPUBackend>(output_idx));
+      ret.emplace_back(&ws.Output<GPUBackend>(output_idx));
     }
   }
   return ret;
@@ -154,7 +146,7 @@ GetOutputsFromPipeline(Pipeline &pipeline, const std::string &output_backend) {
 inline void BuildPipeline(Pipeline &pipeline, const OpSpec &spec) {
   std::vector<std::pair<std::string, std::string>> vecoutputs_;
   for (int i = 0; i < spec.NumOutput(); ++i) {
-    vecoutputs_.emplace_back(spec.OutputName(i), spec.OutputDevice(i));
+    vecoutputs_.emplace_back(spec.OutputName(i), to_string(spec.OutputDevice(i)));
   }
   pipeline.Build(vecoutputs_);
 }
@@ -172,9 +164,9 @@ CreateOpSpec(const std::string &operator_name, Arguments operator_arguments, boo
     arg.second.SetArg(arg.first.arg_name(), opspec, nullptr);
   }
   if (has_input) {
-    opspec.AddInput(detail::input_name, input_backend);
+    opspec.AddInput(detail::input_name, ParseStorageDevice(input_backend));
   }
-  opspec.AddOutput("output", output_backend);
+  opspec.AddOutput("output", ParseStorageDevice(output_backend));
   return opspec;
 }
 
@@ -285,10 +277,11 @@ class DaliOperatorTest : public ::testing::Test, public ::testing::WithParamInte
     BuildPipeline(pipeline, op_spec);
     SetInputInPipeline(pipeline, input);
     RunPipeline(pipeline);
-    return GetOutputsFromPipeline(pipeline, output_backend);
+    return GetOutputsFromPipeline(ws_, pipeline, output_backend);
   }
 
   size_t num_threads_ = 1;
+  Workspace ws_;
 };
 
 }  // namespace testing

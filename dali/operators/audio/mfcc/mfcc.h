@@ -22,6 +22,7 @@
 #include "dali/kernels/kernel_manager.h"
 #include "dali/kernels/signal/dct/dct_args.h"
 #include "dali/pipeline/operator/common.h"
+#include "dali/pipeline/operator/checkpointing/stateless_operator.h"
 #include "dali/pipeline/operator/operator.h"
 #include "dali/core/dev_buffer.h"
 
@@ -70,15 +71,14 @@ class LifterCoeffs {
 
 
 template <typename Backend>
-class MFCC : public Operator<Backend> {
+class MFCC : public StatelessOperator<Backend> {
  public:
   using DctArgs = kernels::signal::dct::DctArgs;
 
   explicit MFCC(const OpSpec &spec)
-      : Operator<Backend>(spec) {}
+      : StatelessOperator<Backend>(spec) {}
 
  protected:
-  bool CanInferOutputs() const override { return true; }
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override;
   void RunImpl(Workspace &ws) override;
 

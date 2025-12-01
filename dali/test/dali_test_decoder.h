@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,7 +19,7 @@
 #include <utility>
 #include <vector>
 #include <memory>
-#include "dali/image/image_factory.h"
+#include "dali/operators/decoder/image/image_factory.h"  // TODO(janton): use something else for the ref
 #include "dali/test/dali_test_single_op.h"
 
 namespace dali {
@@ -103,6 +103,7 @@ class GenericDecoderTest : public DALISingleOpTest<ImgType> {
     for (size_t imgIdx = 0; imgIdx < imgs.nImages(); ++imgIdx) {
       Tensor<CPUBackend> image;
 
+      // TODO(janton): use something else for the ref
       auto decoded_image = ImageFactory::CreateImage(
           imgs.data_[imgIdx], imgs.sizes_[imgIdx], this->img_type_);
       decoded_image->Decode();
@@ -121,7 +122,7 @@ class GenericDecoderTest : public DALISingleOpTest<ImgType> {
     }
   }
 
-  void VerifyDecode(const uint8 *img, int h, int w, const ImgSetDescr &imgs,
+  void VerifyDecode(const uint8_t *img, int h, int w, const ImgSetDescr &imgs,
                     int img_id) const {
     // Compare w/ opencv result
     const auto imgData = imgs.data_[img_id];
@@ -130,7 +131,7 @@ class GenericDecoderTest : public DALISingleOpTest<ImgType> {
     Tensor<CPUBackend> out;
     const int c = this->GetNumColorComp();
     this->DecodeImage(imgData, imgSize, c, this->ImageType(), &out);
-    this->CheckBuffers(h * w * c, out.mutable_data<uint8>(), img, false, nullptr, {h, w, c});
+    this->CheckBuffers(h * w * c, out.mutable_data<uint8_t>(), img, false, nullptr, {h, w, c});
   }
 
   uint32_t GetImageLoadingFlags() const override {

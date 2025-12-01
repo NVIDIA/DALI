@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -11,8 +11,6 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-
-#include "dali/c_api.h"  // NOLINT [build/include]
 
 #include <algorithm>
 #include <string>
@@ -32,6 +30,19 @@
 #include "dali/pipeline/data/tensor_list.h"
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/data/copy_to_external.h"
+#include "dali/pipeline/operator/checkpointing/checkpoint.h"
+
+#include "dali/c_api.h"  // NOLINT [build/include]
+
+// Sanity check that the values of the flags are consistent with the ExecutorType enum.
+namespace dali {
+namespace {
+static_assert(static_cast<ExecutorType>(DALI_EXEC_IS_PIPELINED) == ExecutorType::PipelinedFlag);
+static_assert(static_cast<ExecutorType>(DALI_EXEC_IS_ASYNC) == ExecutorType::AsyncFlag);
+static_assert(static_cast<ExecutorType>(DALI_EXEC_IS_SEPARATED) == ExecutorType::SeparatedFlag);
+static_assert(static_cast<ExecutorType>(DALI_EXEC_IS_DYNAMIC) == ExecutorType::DynamicFlag);
+}  // namespace
+}  // namespace dali
 
 using dali::AccessOrder;
 using dali::CPUBackend;
@@ -76,8 +87,6 @@ typedef daliPipelineHandle *daliPipelineHandle_t;
 
 namespace {
 
-bool dali_initialized = false;
-
 int PopCurrBatchSize(batch_size_map_t *batch_size_map, int max_batch_size,
                      const std::string &op_name) {
   auto it = batch_size_map->find(op_name);
@@ -94,17 +103,17 @@ int PopCurrBatchSize(batch_size_map_t *batch_size_map, int max_batch_size,
  *
  * @param flags Flags typically specified in daliSetExternalInput* functions.
  */
-dali::InputOperatorNoCopyMode GetExternalSourceCopyMode(unsigned int flags) {
-  dali::InputOperatorNoCopyMode no_copy_mode = dali::InputOperatorNoCopyMode::DEFAULT;
+dali::InputOperatorCopyMode GetExternalSourceCopyMode(unsigned int flags) {
+  dali::InputOperatorCopyMode copy_mode = dali::InputOperatorCopyMode::DEFAULT;
   DALI_ENFORCE(!((flags & DALI_ext_force_copy) && (flags & DALI_ext_force_no_copy)),
                "External Source cannot be forced to use DALI_ext_force_copy and "
                "DALI_ext_force_no_copy at the same time.");
   if (flags & DALI_ext_force_copy) {
-    no_copy_mode = dali::InputOperatorNoCopyMode::FORCE_COPY;
+    copy_mode = dali::InputOperatorCopyMode::FORCE_COPY;
   } else if (flags & DALI_ext_force_no_copy) {
-    no_copy_mode = dali::InputOperatorNoCopyMode::FORCE_NO_COPY;
+    copy_mode = dali::InputOperatorCopyMode::FORCE_NO_COPY;
   }
-  return no_copy_mode;
+  return copy_mode;
 }
 
 template <typename Backend>
@@ -221,14 +230,13 @@ inline std::unique_ptr<DALIPipeline> WrapPipeline(std::unique_ptr<dali::Pipeline
 
 
 void daliInitialize() {
-  static std::once_flag init_flag;
-  auto init = [&] {
-      dali::DALIInit(dali::OpSpec("CPUAllocator"),
-                     dali::OpSpec("PinnedCPUAllocator"),
-                     dali::OpSpec("GPUAllocator"));
-      dali_initialized = true;
-  };
-  std::call_once(init_flag, init);
+  static int init = []() {
+    dali::DALIInit(dali::OpSpec("CPUAllocator"),
+                   dali::OpSpec("PinnedCPUAllocator"),
+                   dali::OpSpec("GPUAllocator"));
+    return 0;
+  }();
+  (void)init;
 }
 
 
@@ -248,22 +256,42 @@ daliCreatePipeline2(daliPipelineHandle *pipe_handle, const char *serialized_pipe
                     int async_execution, int separated_execution, int prefetch_queue_depth,
                     int cpu_prefetch_queue_depth, int gpu_prefetch_queue_depth,
                     int enable_memory_stats) {
-  bool se = separated_execution != 0;
-  bool pe = pipelined_execution != 0;
-  bool ae = async_execution != 0;
-  auto pipeline =
-          std::make_unique<dali::Pipeline>(std::string(serialized_pipeline, length), max_batch_size,
-                                           num_threads, device_id, pe, prefetch_queue_depth, ae);
-  pipeline->SetExecutionTypes(pe, se, ae);
-  if (se) {
-    pipeline->SetQueueSizes(cpu_prefetch_queue_depth, gpu_prefetch_queue_depth);
+  dali_exec_flags_t flags = {};
+  if (async_execution)  // there's no non-pipelined async executor
+    flags = flags | DALI_EXEC_IS_ASYNC | DALI_EXEC_IS_PIPELINED;
+  if (pipelined_execution)
+    flags = flags | DALI_EXEC_IS_PIPELINED;
+  if (separated_execution)
+    flags = flags | DALI_EXEC_IS_SEPARATED;
+  daliCreatePipeline3(pipe_handle, serialized_pipeline, length,
+                      max_batch_size, num_threads, device_id, flags,
+                      prefetch_queue_depth, cpu_prefetch_queue_depth, gpu_prefetch_queue_depth,
+                      enable_memory_stats);
+}
+
+DLL_PUBLIC void
+daliCreatePipeline3(daliPipelineHandle *pipe_handle, const char *serialized_pipeline, int length,
+                    int max_batch_size, int num_threads, int device_id,
+                    dali_exec_flags_t exec_flags, int prefetch_queue_depth,
+                    int cpu_prefetch_queue_depth, int gpu_prefetch_queue_depth,
+                    int enable_memory_stats) {
+  dali::PipelineParams params = dali::MakePipelineParams(max_batch_size, num_threads, device_id);
+  params.executor_type = static_cast<dali::ExecutorType>(exec_flags);
+  if (exec_flags & DALI_EXEC_IS_SEPARATED) {
+    dali::QueueSizes queue_sizes{cpu_prefetch_queue_depth, gpu_prefetch_queue_depth};
+    params.prefetch_queue_depths = queue_sizes;
+  } else {
+    params.prefetch_queue_depths = dali::QueueSizes{prefetch_queue_depth, prefetch_queue_depth};
   }
-  pipeline->EnableExecutorMemoryStats(enable_memory_stats);
+  params.executor_type = static_cast<dali::ExecutorType>(exec_flags);
+  params.enable_memory_stats = enable_memory_stats;
+
+  auto pipeline = std::make_unique<dali::Pipeline>(
+      std::string(serialized_pipeline, length), params);
   pipeline->Build();
 
   *pipe_handle = WrapPipeline(std::move(pipeline)).release();
 }
-
 
 void daliDeserializeDefault(daliPipelineHandle *pipe_handle, const char *serialized_pipeline,
                             int length) {
@@ -283,26 +311,36 @@ int daliGetMaxBatchSize(daliPipelineHandle_t pipe_handle) {
   return (*pipe_handle)->pipeline->max_batch_size();
 }
 
+int daliInputFeedCount(daliPipelineHandle_t pipe_handle, const char *input_name) {
+  auto &pipeline = (*pipe_handle)->pipeline;
+  return pipeline->InputFeedCount(input_name);
+}
+
+void daliPrefetch(daliPipelineHandle_t pipe_handle) {
+  auto &pipeline = (*pipe_handle)->pipeline;
+  pipeline->Prefetch();
+}
 
 void daliPrefetchUniform(daliPipelineHandle_t pipe_handle, int queue_depth) {
   auto &pipeline = (*pipe_handle)->pipeline;
-  for (int i = 0; i < queue_depth; ++i) {
-    pipeline->RunCPU();
-    pipeline->RunGPU();
+  auto sz = pipeline->GetQueueSizes();
+  if (queue_depth != sz.cpu_size || queue_depth != sz.gpu_size) {
+    DALI_WARN("daliPrefetchUniform is deprecated and setting queue_length different than"
+    " the one set in the pipeline has no effect. Use daliPrefetch instead.");
   }
+  pipeline->Prefetch();
 }
 
 
 void daliPrefetchSeparate(daliPipelineHandle_t pipe_handle,
                           int cpu_queue_depth, int gpu_queue_depth) {
   auto &pipeline = (*pipe_handle)->pipeline;
-  for (int i = 0; i < gpu_queue_depth; ++i) {
-    pipeline->RunCPU();
-    pipeline->RunGPU();
+  auto sz = pipeline->GetQueueSizes();
+  if (cpu_queue_depth != sz.cpu_size || gpu_queue_depth != sz.gpu_size) {
+    DALI_WARN("daliPrefetchSeparate is deprecated and setting queue_length different than"
+    " the one set in the pipeline has no effect. Use daliPrefetch instead.");
   }
-  for (int i = 0; i < cpu_queue_depth; ++i) {
-    pipeline->RunCPU();
-  }
+  pipeline->Prefetch();
 }
 
 
@@ -402,8 +440,7 @@ dali_data_type_t daliGetExternalInputType(daliPipelineHandle_t pipe_handle, cons
 
 void daliRun(daliPipelineHandle_t pipe_handle) {
   dali::Pipeline *pipeline = (*pipe_handle)->pipeline.get();
-  pipeline->RunCPU();
-  pipeline->RunGPU();
+  pipeline->Run();
 }
 
 
@@ -532,30 +569,9 @@ size_t daliTensorSize(daliPipelineHandle_t pipe_handle, int n) {
   }
 }
 
-template <typename T>
-static size_t daliMaxDimTensorsHelper(dali::Workspace* ws, int n) {
-  const auto &out_tensor_list = ws->Output<T>(n);
-  size_t tensors_num = out_tensor_list.num_samples();
-  int max_num_dim = 0;
-  for (size_t i = 0; i < tensors_num; ++i) {
-    auto shape = out_tensor_list.tensor_shape(i);
-    int num_dim = shape.size();
-    // squeeze last dimension
-    if (shape[num_dim - 1] == 1) {
-      --num_dim;
-    }
-    max_num_dim = std::max(max_num_dim, num_dim);
-  }
-  return static_cast<size_t>(max_num_dim);
-}
-
 size_t daliMaxDimTensors(daliPipelineHandle_t pipe_handle, int n) {
   dali::Workspace* ws = &(*pipe_handle)->workspace;
-  if (ws->OutputIsType<CPUBackend>(n)) {
-    return daliMaxDimTensorsHelper<CPUBackend>(ws, n);
-  } else {
-    return daliMaxDimTensorsHelper<GPUBackend>(ws, n);
-  }
+  return ws->GetOutputDim(n);
 }
 
 size_t daliGetDeclaredOutputNdim(daliPipelineHandle_t pipe_handle, int n) {
@@ -581,10 +597,7 @@ const char *daliGetOutputName(daliPipelineHandle_t pipe_handle, int id) {
 
 device_type_t daliGetOutputDevice(daliPipelineHandle_t pipe_handle, int id) {
   dali::Pipeline *pipeline = (*pipe_handle)->pipeline.get();
-  if (pipeline->output_device(id) == "gpu") {
-    return device_type_t::GPU;
-  }
-  return device_type_t::CPU;
+  return static_cast<device_type_t>(pipeline->output_device(id));
 }
 
 
@@ -627,7 +640,7 @@ void daliOutputCopy(daliPipelineHandle_t pipe_handle, void *dst, int output_idx,
   AccessOrder copy_order = AccessOrder::host();
 
   if (ws->OutputIsType<CPUBackend>(output_idx)) {
-    copy_order = is_pinned ? AccessOrder(stream) : AccessOrder::host();
+    copy_order = dst_type == GPU ? AccessOrder(stream) : AccessOrder::host();
     auto &src = ws->Output<CPUBackend>(output_idx);
     CopyToExternal(dst, dst_mem_kind, src, copy_order, use_copy_kernel);
     if (!host_sync)
@@ -658,7 +671,7 @@ void daliOutputCopySamples(daliPipelineHandle_t pipe_handle, void **dsts, int ou
   AccessOrder copy_order = AccessOrder::host();
 
   if (ws->OutputIsType<CPUBackend>(output_idx)) {
-    copy_order = is_pinned ? AccessOrder(stream) : AccessOrder::host();
+    copy_order = dst_type == GPU ? AccessOrder(stream) : AccessOrder::host();
     auto & src = ws->Output<CPUBackend>(output_idx);
     CopyToExternal(dsts, dst_mem_kind, src, copy_order, use_copy_kernel);
     if (!host_sync)
@@ -706,7 +719,15 @@ void daliDeletePipeline(daliPipelineHandle_t pipe_handle) {
 }
 
 void daliLoadLibrary(const char* lib_path) {
-    dali::PluginManager::LoadLibrary(lib_path);
+  dali::PluginManager::LoadLibrary(lib_path);
+}
+
+void daliLoadPluginDirectory(const char* plugin_dir) {
+  dali::PluginManager::LoadDirectory(plugin_dir);
+}
+
+void daliLoadDefaultPlugins() {
+  dali::PluginManager::LoadDefaultPlugins();
 }
 
 void daliGetReaderMetadata(daliPipelineHandle_t pipe_handle, const char *reader_name,
@@ -803,3 +824,71 @@ int daliPreallocatePinnedMemory(size_t bytes) {
     return -1;
   }
 }
+
+void *daliAlloc(size_t n) {
+  return malloc(n);
+}
+
+void daliFree(void *ptr) {
+  free(ptr);
+}
+
+void daliGetSerializedCheckpoint(
+    daliPipelineHandle_t pipe_handle,
+    const daliExternalContextCheckpoint *external_context,
+    char **checkpoint, size_t *n) {
+  DALI_ENFORCE(external_context, "Provided pointer to external context cannot be NULL.");
+  auto &pipeline = (*pipe_handle)->pipeline;
+  dali::ExternalContextCheckpoint ctx{};
+  if (external_context->pipeline_data.data) {
+    ctx.pipeline_data = {
+      external_context->pipeline_data.data,
+      external_context->pipeline_data.size
+    };
+  }
+  if (external_context->iterator_data.data) {
+    ctx.iterator_data = {
+      external_context->iterator_data.data,
+      external_context->iterator_data.size
+    };
+  }
+  std::string cpt = pipeline->GetSerializedCheckpoint(ctx);
+  *n = cpt.size();
+  *checkpoint = reinterpret_cast<char *>(daliAlloc(cpt.size()));
+  DALI_ENFORCE(*checkpoint, "Failed to allocate memory");
+  memcpy(*checkpoint, cpt.c_str(), *n);
+}
+
+daliExternalContextField daliExternalContextFieldFromString(const std::string &string) {
+  daliExternalContextField field;
+  auto n = string.size();
+  field.data = static_cast<char *>(daliAlloc(n));
+  memcpy(field.data, string.c_str(), n);
+  field.size = n;
+  return field;
+}
+
+void daliRestoreFromSerializedCheckpoint(
+    daliPipelineHandle *pipe_handle,
+    const char *checkpoint, size_t n,
+    daliExternalContextCheckpoint *external_context) {
+  DALI_ENFORCE(external_context != nullptr,
+               "Null external context provided.");
+  auto &pipeline = (*pipe_handle)->pipeline;
+  auto ctx = pipeline->RestoreFromSerializedCheckpoint({checkpoint, n});
+  if (external_context) {
+    *external_context = {};
+    if (!ctx.pipeline_data.empty()) {
+      external_context->pipeline_data = daliExternalContextFieldFromString(ctx.pipeline_data);
+    }
+    if (!ctx.iterator_data.empty()) {
+      external_context->iterator_data = daliExternalContextFieldFromString(ctx.iterator_data);
+    }
+  }
+}
+
+void daliDestroyExternalContextCheckpoint(daliExternalContextCheckpoint *external_context) {
+  if (external_context->pipeline_data.data) daliFree(external_context->pipeline_data.data);
+  if (external_context->iterator_data.data) daliFree(external_context->iterator_data.data);
+}
+

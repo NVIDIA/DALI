@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -21,7 +21,7 @@
 #include <utility>
 #include "dali/core/cuda_error.h"
 #include "dali/core/tensor_shape.h"
-#include "dali/pipeline/operator/operator.h"
+#include "dali/pipeline/operator/checkpointing/stateless_operator.h"
 #include "dali/pipeline/util/bounding_box_utils.h"
 
 namespace dali {
@@ -30,12 +30,12 @@ template<typename Backend>
 class BoxEncoder;
 
 template <>
-class BoxEncoder<CPUBackend>: public Operator<CPUBackend> {
+class BoxEncoder<CPUBackend>: public StatelessOperator<CPUBackend> {
  public:
   using BoundingBox = Box<2, float>;
 
   explicit BoxEncoder(const OpSpec &spec)
-      : Operator<CPUBackend>(spec),
+      : StatelessOperator<CPUBackend>(spec),
         criteria_(spec.GetArgument<float>("criteria")),
         offset_(spec.GetArgument<bool>("offset")),
         scale_(spec.GetArgument<float>("scale")) {
@@ -70,12 +70,16 @@ class BoxEncoder<CPUBackend>: public Operator<CPUBackend> {
   DISABLE_COPY_MOVE_ASSIGN(BoxEncoder);
 
  protected:
+  bool HasContiguousOutputs() const override {
+    return false;
+  }
+
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     return false;
   }
 
   void RunImpl(SampleWorkspace &ws) override;
-  using Operator<CPUBackend>::RunImpl;
+  using StatelessOperator<CPUBackend>::RunImpl;
 
  private:
   const float criteria_;

@@ -1,4 +1,4 @@
-// Copyright (c) 2022-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -114,6 +114,22 @@ using DynamicScratchpadImpl = DynamicScratchpadImplT<
 
 }  // namespace detail
 
+/**
+ * @brief A dynamically allocated scratchpad
+ *
+ * A dynamic scratchpad dynamically allocates temporary buffers for each memory kind.
+ * The memory used grows indefinitely and is freed once the object is destroyed (e.g. goes out
+ * of scope). This means that instances of DynamicScratchpad MUST NOT be kept alive indefinitely,
+ * e.g. as class members, because it will constitute an UNDETECTABLE functional MEMORY LEAK (the
+ * buffers will be still reachable and will be freed when the scratchpad is destroyed, so memory
+ * sanitizers won't complain).
+ * Instead, a DynamicScratchpad should be declared as a local / temporary variable.
+ *
+ * The memory allocation and deallocation follows the specified access order (stream or host).
+ * Device memory is allocated and deallocated in order specified in `device_order`.
+ * Pinned memory is, by default, allocated in host order and deallocated in the same order as the
+ * one used for device memory. These orders, however, can be specified explicitly.
+ */
 class DynamicScratchpad
   : public Scratchpad
   , private detail::DynamicScratchpadImpl {
@@ -121,19 +137,20 @@ class DynamicScratchpad
   /**
    * @brief Constructs a dynamically allocated scratchpad
    *
-   * @param initial_sizes   Sizes, in bytes, of the initial buffers. Note that these buffers
-   *                        are allocated lazily, so nothing is allocated if there's no request
-   *                        for memory of any given kind.
-   * @param device_order    Allocation and deallocation order for device memory.
+   * @param device_order          Allocation and deallocation order for device memory.
    * @param pinned_dealloc_order  Deallocation order for pinned memory. Allocation is always
    *                              host-ordered. If not set, device_order is used.
    * @param managed_dealloc_order Deallocation order for managed memory. Allocation is always
    *                              host-ordered. If not set, device_order is used.
+   * @param initial_sizes         Sizes, in bytes, of the initial buffers. Note that these buffers
+   *                              are allocated lazily, so nothing is allocated if there's no request
+   *                              for memory of any given kind.
    */
-  explicit DynamicScratchpad(scratch_sizes_t initial_sizes = {},
-                             AccessOrder device_order = cudaStream_t(0),
+  using scratch_sizes_t = std::array<size_t, static_cast<size_t>(mm::memory_kind_id::count)>;
+  explicit DynamicScratchpad(AccessOrder device_order,
                              AccessOrder pinned_dealloc_order = {},
-                             AccessOrder managed_dealloc_order = {}) {
+                             AccessOrder managed_dealloc_order = {},
+                             scratch_sizes_t initial_sizes = {}) {
     initial_sizes_ = initial_sizes;
     for (auto &s : initial_sizes_) {
       if (s == 0)

@@ -1,4 +1,4 @@
-# Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2021-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -25,10 +25,9 @@ class QueueMeta(Structure):
 
 
 class ShmQueue:
-
     """
     Simple fixed capacity shared memory queue of fixed size messages.
-    Writting to a full queue fails, attempt to get from an empty queue blocks until data is
+    Writing to a full queue fails, attempt to get from an empty queue blocks until data is
     available or the queue is closed.
     """
 
@@ -44,8 +43,9 @@ class ShmQueue:
         self.meta_size = align_up(self.meta.get_size(), self.ALIGN_UP_MSG)
         dummy_msg = self.MSG_CLASS()
         self.msg_size = align_up(dummy_msg.get_size(), self.ALIGN_UP_MSG)
-        self.shm_capacity = align_up(self.meta_size + capacity * self.msg_size,
-                                     self.ALIGN_UP_BUFFER)
+        self.shm_capacity = align_up(
+            self.meta_size + capacity * self.msg_size, self.ALIGN_UP_BUFFER
+        )
         self.shm = shared_mem.SharedMem.allocate(self.shm_capacity)
         self.is_closed = False
         self._init_offsets()
@@ -53,8 +53,8 @@ class ShmQueue:
 
     def __getstate__(self):
         state = self.__dict__.copy()
-        state['msgs_offsets'] = None
-        state['shm'] = None
+        state["msgs_offsets"] = None
+        state["shm"] = None
         return state
 
     def __setstate__(self, state):
@@ -84,8 +84,9 @@ class ShmQueue:
         num_take = self.meta.size
         if num_samples is not None and num_samples < num_take:
             num_take = num_samples
-        recv = [self._read_msg((self.meta.begining + i) % self.meta.capacity)
-                for i in range(num_take)]
+        recv = [
+            self._read_msg((self.meta.begining + i) % self.meta.capacity) for i in range(num_take)
+        ]
         self.meta.size -= num_take
         self.meta.begining = (self.meta.begining + num_take) % self.meta.capacity
         self._write_meta()
@@ -182,10 +183,9 @@ class ShmQueue:
 
 
 class Dispatcher:
-
     """Wrapper around the queue that enables writing to the queue in a separate thread, just in
-       case a writing process would have to wait too long for a lock on the queue when multiple
-       readers pop the items one by one."""
+    case a writing process would have to wait too long for a lock on the queue when multiple
+    readers pop the items one by one."""
 
     def __init__(self, target_queue, on_thread_exit=None):
         self.pending_cv = threading.Condition()

@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -22,8 +22,8 @@ DALI_SCHEMA(Hsv)
     .DocStr(R"code(Adjusts hue, saturation and value (brightness) of the images.
 
 To change the hue, the saturation, and/or the value of the image, pass the corresponding
-coefficients. Remember that the ``hue`` is an additive delta argument,
-while for ``saturation`` and ``value``, the arguments are multiplicative.
+coefficients. Remember that the `hue` is an additive delta argument,
+while for `saturation` and `value`, the arguments are multiplicative.
 
 This operator accepts images in the RGB color space.
 

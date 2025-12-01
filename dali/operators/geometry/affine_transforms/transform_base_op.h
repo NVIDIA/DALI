@@ -26,7 +26,7 @@
 #include "dali/pipeline/data/types.h"
 #include "dali/pipeline/operator/arg_helper.h"
 #include "dali/pipeline/operator/op_spec.h"
-#include "dali/pipeline/operator/operator.h"
+#include "dali/pipeline/operator/checkpointing/stateless_operator.h"
 #include "dali/pipeline/operator/sequence_operator.h"
 #include "dali/pipeline/workspace/workspace.h"
 
@@ -46,16 +46,15 @@ using affine_mat_t = mat<mat_dim, mat_dim, T>;
  * As with any CRTP-based system, any non-private method can be shadowed by the TransformImpl class.
  */
 template <typename Backend, typename TransformImpl>
-class TransformBaseOp : public SequenceOperator<Backend, true> {
+class TransformBaseOp : public SequenceOperator<Backend, StatelessOperator, true> {
  public:
-  using Base = SequenceOperator<Backend, true>;
+  using Base = SequenceOperator<Backend, StatelessOperator, true>;
   explicit TransformBaseOp(const OpSpec &spec) :
       Base(spec), reverse_order_(spec.GetArgument<bool>("reverse_order")) {
     matrix_data_.set_pinned(false);
     matrix_data_.set_type(dtype_);
   }
 
-  bool CanInferOutputs() const override { return true; }
 
   TransformImpl &This() noexcept { return static_cast<TransformImpl&>(*this); }
   const TransformImpl &This() const noexcept { return static_cast<const TransformImpl&>(*this); }

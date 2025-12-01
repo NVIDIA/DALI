@@ -37,6 +37,7 @@ NVIDIA DALI Documentation
    :hidden:
    :caption: Python API Documentation
 
+   dali_dynamic/index
    pipeline
    data_types
    math
@@ -59,8 +60,10 @@ NVIDIA DALI Documentation
    advanced_topics_performance_tuning
    advanced_topics_sharding
    advanced_topics_pipe_run
+   advanced_topics_checkpointing
    advanced_topics_experimental
    compilation
+   env_vars
 
 .. toctree::
    :hidden:
@@ -74,4 +77,4 @@ NVIDIA DALI Documentation
 
    Release Notes <https://docs.nvidia.com/deeplearning/dali/release-notes/index.html>
    GitHub <https://github.com/NVIDIA/DALI>
-   Roadmap <https://github.com/NVIDIA/DALI/issues/3774>
+   Roadmap <https://github.com/NVIDIA/DALI/issues/5320>

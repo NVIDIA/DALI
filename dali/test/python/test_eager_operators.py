@@ -1,4 +1,4 @@
-# Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2022-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -31,7 +31,7 @@ def _test_disqualified_argument(key):
 
 
 def test_disqualified_arguments():
-    for arg in ['bytes_per_sample_hint', 'preserve', 'seed']:
+    for arg in ["bytes_per_sample_hint", "preserve", "seed"]:
         yield _test_disqualified_argument, arg
 
 
@@ -130,9 +130,12 @@ def test_identical_rng_states_interleaved():
 def test_objective_eager_resize():
     from nvidia.dali._utils import eager_utils
 
-    resize_class = eager_utils._eager_op_object_factory(ops.python_op_factory('Resize'), 'Resize')
-    tl = tensors.TensorListCPU(np.random.default_rng().integers(
-        256, size=(8, 200, 200, 3), dtype=np.uint8))
+    resize_class = eager_utils._eager_op_object_factory(
+        ops.python_op_factory("Resize", "Resize"), "Resize"
+    )
+    tl = tensors.TensorListCPU(
+        np.random.default_rng().integers(256, size=(8, 200, 200, 3), dtype=np.uint8)
+    )
 
     obj_resize = resize_class(resize_x=50, resize_y=50)
     out_obj = obj_resize(tl)
@@ -150,20 +153,19 @@ def mixed_image_decoder_pipeline(file_root, seed):
 
 
 def test_mixed_devices_decoder():
-    """ Tests hidden functionality of exposing eager operators as classes. """
+    """Tests hidden functionality of exposing eager operators as classes."""
     seed = 42
     batch_size = 8
-    file_root = os.path.join(get_dali_extra_path(), 'db/single/jpeg')
+    file_root = os.path.join(get_dali_extra_path(), "db/single/jpeg")
 
     pipe = mixed_image_decoder_pipeline(file_root, seed, batch_size=batch_size)
-    pipe.build()
-    pipe_out, = pipe.run()
+    (pipe_out,) = pipe.run()
 
     jpeg, _ = next(eager.readers.file(file_root=file_root, batch_size=batch_size, seed=seed))
-    eager_out = eager.decoders.image(jpeg, device="gpu")
+    eager_out = eager.decoders.image(jpeg, device="mixed")
 
     assert len(pipe_out) == len(eager_out)
 
     with eager.arithmetic():
-        for comp_tensor in (pipe_out == eager_out):
+        for comp_tensor in pipe_out == eager_out:
             assert np.all(comp_tensor.as_cpu())

@@ -83,6 +83,46 @@ For convenience, the DALI_BUFFER_GROWTH_FACTOR environment variable and the
 `nvidia.dali.backend.SetBufferGrowthFactor` Python function can be used to set the same
 growth factor for the host and the GPU buffers.
 
+
+Allocator Configuration
+-----------------------
+
+DALI uses several types of memory resources for various kinds of memory.
+
+For regular host memory, DALI uses (aligned) ``malloc`` for small allocations and a custom memory
+pool for large allocations (to prevent costly calls to ``mmap`` by ``malloc``).
+The maximum size of a host allocation that is allocated directly with ``malloc`` can be customized
+by setting ``DALI_MALLOC_POOL_THRESHOLD`` environment variable. If not specified, the value is
+either derived from environment variables controlling ``malloc`` or, if not found, a default value
+of 32M is used.
+
+For host pinned memory, DALI uses a stream-aware memory pool on top of ``cudaMallocHost``.
+Direct usage of ``cudaMallocHost``, while discouraged, can be forced by specifying
+``DALI_USE_PINNED_MEM_POOL=0`` in the environment.
+
+For device memory, DALI uses a stream-aware memory pool built on top of CUDA VMM resource
+(if the platform supports VMM). It can be changed to ``cudaMallocAsync`` or even plain
+``cudaMalloc``.
+In order to skip memory pool entirely and use ``cudaMalloc`` (not recommended), set
+``DALI_USE_DEVICE_MEM_POOL=0``.
+Set ``DALI_USE_CUDA_MALLOC_ASYNC=1`` to use ``cudaMallocAsync`` instead of DALI's internal memory
+pool.
+When using the memory pool (``DALI_USE_DEVICE_MEM_POOL=1`` or unset), you can disable the use of
+VMM by setting ``DALI_USE_VMM=0``. This will cause ``cudaMalloc`` to be used as an upstream memory
+resource for the internal memory pool.
+
+Using ``cudaMallocAsync`` typically results in slightly slower execution, but it enables memory
+pool sharing with other libraries using the same allocation method.
+
+.. warning::
+    Disabling memory pools will result in a dramatic drop in performance. This option is provided
+    only for debugging purposes.
+
+    Disabling CUDA VMM can degrade performance due to pessimistic synchronization in
+    ``cudaFree``, and it can cause out-of-memory errors due to fragmentation affecting
+    ``cudaMalloc``.
+
+
 Memory Pool Preallocation
 -------------------------
 
@@ -147,3 +187,42 @@ we recommend that you prefetch more data ahead of time.
 
 .. note::
   Increasing queue depth also increases memory consumption.
+
+Readers fine-tuning
+-------------------
+
+Selected readers use environment variables to fine-tune their behavior regarding the file storage
+access patterns. In most cases the default parameter should provide decent performance, still in
+some particular system properties (file system type) can require adjusting them accordingly.
+
+- ``DALI_GDS_CHUNK_SIZE`` - adjust the size of a single GDS read request.
+
+  Applicable to the :meth:`nvidia.dali.fn.readers.numpy` operator for the ``GPU`` backend.
+  The default value is 2MB. It must be a number, optionally followed by 'k' or 'M',
+  be a power of two, and not be larger than 16MB. The optimal performance can be achieved for
+  different values depending on the filesystem and GDS version.
+
+- ``DALI_ODIRECT_ALIGNMENT`` - adjusts the O_DIRECT alignment.
+
+  Applicable only to readers that expose `use_o_direct` parameter, like
+  :meth:`nvidia.dali.fn.readers.numpy` operator for the ``CPU`` backend. The default value is 4KB.
+  It must be a number, optionally followed by 'k' or 'M', be a power of two, and not be larger
+  than 16MB. The minimal value depends on the file system. See more in
+  `the Linux Open call manpage, O_DIRECT section <https://man7.org/linux/man-pages/man2/open.2.html>`__
+
+- ``DALI_ODIRECT_LEN_ALIGNMENT`` - adjusts the O_DIRECT read length alignment.
+
+  Applicable only to readers that expose `use_o_direct` parameter, like
+  :meth:`nvidia.dali.fn.readers.numpy` operator for the ``CPU`` backend. The default value is 4KB.
+  It must be a number, optionally followed by 'k' or 'M', be a power of two, and not be larger
+  than 16MB. The minimal value depends on the file system. See more in
+  `the Linux Open call manpage, O_DIRECT section <https://man7.org/linux/man-pages/man2/open.2.html>`__
+
+- ``DALI_ODIRECT_CHUNK_SIZE`` - adjust the size of single O_DIRECT read request.
+
+  Applicable only to readers that expose `use_o_direct` parameter, like
+  :meth:`nvidia.dali.fn.readers.numpy` operator for the ``CPU`` backend. The default value is 2MB.
+  It must be a number, optionally followed by 'k' or 'M', be a power of two, and not larger
+  than 16MB, and not smaller than ``DALI_ODIRECT_LEN_ALIGNMENT``. The optimal performance can be
+  achieved for different values depending on the filesystem.
+

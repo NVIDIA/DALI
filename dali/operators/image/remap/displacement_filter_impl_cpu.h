@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -64,10 +64,10 @@ void Warp(
 
 template <class Displacement, bool per_channel_transform>
 class DisplacementFilter<CPUBackend, Displacement, per_channel_transform>
-    : public Operator<CPUBackend> {
+    : public DisplacementBase<CPUBackend, Displacement> {
  public:
   explicit DisplacementFilter(const OpSpec &spec)
-      : Operator(spec),
+      : DisplacementBase<CPUBackend, Displacement>(spec),
         displace_(num_threads_, Displacement(spec)),
         interp_type_(spec.GetArgument<DALIInterpType>("interp_type")) {
     has_mask_ = spec.HasTensorArgument("mask");
@@ -141,10 +141,6 @@ class DisplacementFilter<CPUBackend, Displacement, per_channel_transform>
     } else {
       output.CopySample(sample_idx, input, sample_idx);
     }
-  }
-
-  bool CanInferOutputs() const override {
-    return true;
   }
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {

@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -22,16 +22,11 @@ unset SUBDIR
     --disable-doc \
     --disable-avdevice \
     --disable-swresample \
-    --disable-postproc \
     --disable-w32threads \
     --disable-os2threads \
-    --disable-dct \
     --disable-dwt \
     --disable-error-resilience \
     --disable-lsp \
-    --disable-mdct \
-    --disable-rdft \
-    --disable-fft \
     --disable-faan \
     --disable-pixelutils \
     --disable-autodetect \
@@ -51,7 +46,8 @@ unset SUBDIR
     --disable-filters \
     --disable-bsfs \
     --disable-decoder=ipu \
-    --enable-bsf=h264_mp4toannexb,hevc_mp4toannexb,mpeg4_unpack_bframes
+    --enable-bsf=h264_mp4toannexb,hevc_mp4toannexb,mpeg4_unpack_bframes \
+    --disable-lzma
 # adds | sed 's/\(.*{\)/DALI_\1/' | to the version file generation command - it prepends "DALI_" to the symbol version
 sed -i 's/\$\$(M)sed '\''s\/MAJOR\/\$(lib$(NAME)_VERSION_MAJOR)\/'\'' \$\$< | \$(VERSION_SCRIPT_POSTPROCESS_CMD) > \$\$\@/\$\$(M)sed '\''s\/MAJOR\/\$(lib$(NAME)_VERSION_MAJOR)\/'\'' \$\$< | sed '\''s\/\\(\.*{\\)\/DALI_\\1\/'\'' | \$(VERSION_SCRIPT_POSTPROCESS_CMD) > \$\$\@/' ffbuild/library.mak
 make -j"$(nproc --all)"

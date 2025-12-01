@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,10 +18,11 @@
 #include "dali/core/tensor_shape.h"
 #include "dali/pipeline/data/backend.h"
 #include "dali/test/dali_test_decoder.h"
-#include "dali/pipeline/executor/executor.h"
+#include "dali/pipeline/executor/executor_impl.h"
 #include "dali/pipeline/executor/pipelined_executor.h"
 #include "dali/pipeline/executor/async_pipelined_executor.h"
 #include "dali/pipeline/executor/async_separated_pipelined_executor.h"
+#include "dali/pipeline/operator/builtin/external_source.h"
 #include "dali/test/dali_test_utils.h"
 #include "dali/test/tensor_test_utils.h"
 
@@ -52,28 +53,55 @@ class ExecutorTest : public GenericDecoderTest<RGB> {
     return spec;
   }
 
-  inline void PruneGraph(ExecutorBase *exe) const {
-    exe->PruneUnusedGraphNodes();
-  }
-
   bool HasConditionals(ExecutorBase &exe) const {
     return exe.HasConditionals();
   }
 
-  // TODO(klecki): adjust to refactored code
-  vector<Workspace> CPUData(ExecutorBase *exe, int idx) const {
-    // return std::get<static_cast<int>(OpType::CPU)>(exe->wss_[idx].op_data);
-    return {};
+  bool IsSeparated() {
+    return std::is_same_v<ExecutorToTest, SeparatedPipelinedExecutor>
+        || std::is_same_v<ExecutorToTest, AsyncSeparatedPipelinedExecutor>;
   }
 
-  vector<Workspace> MixedData(ExecutorBase *exe, int idx) const {
-    // return std::get<static_cast<int>(OpType::MIXED)>(exe->wss_[idx].op_data);
-    return {};
-  }
+  template<typename Factory>
+  void RunCheckpointingTest(Factory executor_and_graph_factory,
+                            int epoch_size, int epochs_cnt = 3) {
+    auto collect_result = [&](const TensorList<CPUBackend> &data) {
+      std::vector<uint8_t> result;
+      for (int i = 0; i < data.num_samples(); i++)
+        result.push_back(data.tensor<uint8_t>(i)[0]);
+      return result;
+    };
 
-  vector<Workspace> GPUData(ExecutorBase *exe, int idx) const {
-    // return std::get<static_cast<int>(OpType::GPU)>(exe->wss_[idx].op_data);
-    return {};
+    Workspace ws;
+    auto run_epoch = [&](std::unique_ptr<ExecutorToTest> &exec) {
+      std::vector<std::vector<uint8_t>> results;
+      for (int i = 0; i < epoch_size; i++) {
+        exec->Run();
+        exec->Outputs(&ws);
+
+        if (ws.OutputIsType<CPUBackend>(0)) {
+          results.push_back(collect_result(ws.Output<CPUBackend>(0)));
+        } else {
+          TensorList<CPUBackend> cpu;
+          cpu.Copy(ws.Output<GPUBackend>(0));
+          results.push_back(collect_result(cpu));
+        }
+      }
+
+      return results;
+    };
+
+    auto [exec1, graph1] = executor_and_graph_factory();
+    auto [exec2, graph2] = executor_and_graph_factory();
+
+    for (int i = 0; i < epochs_cnt; i++)
+      run_epoch(exec1);
+
+    auto cpt = exec1->GetCurrentCheckpoint();
+    exec2->RestoreStateFromCheckpoint(cpt);
+
+    for (int i = 0; i < epochs_cnt; i++)
+      EXPECT_EQ(run_epoch(exec1), run_epoch(exec2));
   }
 
   int batch_size_, num_threads_ = 1;
@@ -93,303 +121,6 @@ using ExecutorSyncTypes =
 
 TYPED_TEST_SUITE(ExecutorSyncTest, ExecutorSyncTypes);
 
-TYPED_TEST(ExecutorTest, TestPruneBasicGraph) {
-  auto exe = this->GetExecutor(this->batch_size_, this->num_threads_, 0, 1);
-  exe->Init();
-
-  // Build a basic cpu->gpu graph
-  OpGraph graph;
-  graph.AddOp(this->PrepareSpec(
-          OpSpec("DummyOp")
-          .AddArg("device", "cpu")
-          .AddOutput("data1", "cpu")
-          .AddOutput("data2", "cpu")), "");
-
-  graph.AddOp(this->PrepareSpec(
-          OpSpec("DummyOp")
-          .AddArg("device", "cpu")
-          .AddArg("num_outputs", 1)
-          .AddInput("data1", "cpu")
-          .AddOutput("data3", "cpu")), "");
-
-  graph.AddOp(this->PrepareSpec(
-          OpSpec("MakeContiguous")
-          .AddArg("device", "mixed")
-          .AddInput("data3", "cpu")
-          .AddOutput("data3_cont", "cpu")), "");
-
-  graph.AddOp(this->PrepareSpec(
-          OpSpec("DummyOp")
-          .AddArg("device", "cpu")
-          .AddArg("num_outputs", 1)
-          .AddInput("data1", "cpu")
-          .AddOutput("data4", "cpu")), "");
-
-  vector<string> outputs = {"data3_cont_cpu"};
-  exe->Build(&graph, outputs);
-
-  // Validate the graph - op 3 should
-  // have been pruned as its outputs
-  // are unused.
-  ASSERT_EQ(graph.NumOp(OpType::CPU), 2);
-  ASSERT_EQ(graph.NumOp(OpType::MIXED), 1);
-  ASSERT_EQ(graph.NumOp(OpType::GPU), 0);
-
-  // Validate the source op
-  auto& node = graph.Node(0);
-  ASSERT_EQ(node.id, 0);
-  ASSERT_EQ(node.children.size(), 1);
-  ASSERT_EQ(node.parents.size(), 0);
-  ASSERT_EQ(node.children.count(1), 1);
-  ASSERT_EQ(graph.TensorSourceID(node.spec.Output(0)), 0);
-  ASSERT_EQ(graph.TensorIdxInSource(node.spec.Output(0)), 0);
-  ASSERT_TRUE(graph.TensorIsType<CPUBackend>(node.spec.Output(0)));
-
-  auto& node2 = graph.Node(1);
-  ASSERT_EQ(node2.id, 1);
-  ASSERT_EQ(node2.children.size(), 1);
-  ASSERT_EQ(node2.parents.size(), 1);
-  ASSERT_EQ(node2.parents.count(0), 1);
-  ASSERT_EQ(graph.TensorSourceID(node2.spec.Output(0)), 1);
-  ASSERT_EQ(graph.TensorIdxInSource(node2.spec.Output(0)), 0);
-  ASSERT_TRUE(graph.TensorIsType<CPUBackend>(node2.spec.Output(0)));
-  ASSERT_EQ(node2.spec.Output(0), "data3_cpu");
-
-  auto& node3 = graph.Node(2);
-  ASSERT_EQ(node3.id, 2);
-  ASSERT_EQ(node3.children.size(), 0);
-  ASSERT_EQ(node3.parents.size(), 1);
-  ASSERT_EQ(node3.parents.count(1), 1);
-  ASSERT_EQ(graph.TensorSourceID(node3.spec.Output(0)), 2);
-  ASSERT_EQ(graph.TensorIdxInSource(node3.spec.Output(0)), 0);
-  ASSERT_TRUE(graph.TensorIsType<CPUBackend>(node3.spec.Output(0)));
-  ASSERT_EQ(node3.spec.Output(0), "data3_cont_cpu");
-}
-
-TYPED_TEST(ExecutorTest, TestPruneMultiple) {
-  auto exe = this->GetExecutor(this->batch_size_, this->num_threads_, 0, 1);
-  exe->Init();
-
-  // Build a basic cpu->gpu graph
-  OpGraph graph;
-  graph.AddOp(this->PrepareSpec(
-          OpSpec("DummyOp")
-          .AddArg("device", "cpu")
-          .AddOutput("data1", "cpu")
-          .AddOutput("data2", "cpu")), "");
-
-  graph.AddOp(this->PrepareSpec(
-          OpSpec("MakeContiguous")
-          .AddArg("device", "mixed")
-          .AddInput("data1", "cpu")
-          .AddOutput("data1_cont", "cpu")), "");
-
-  graph.AddOp(this->PrepareSpec(
-          OpSpec("DummyOp")
-          .AddArg("device", "cpu")
-          .AddArg("num_outputs", 1)
-          .AddInput("data1", "cpu")
-          .AddOutput("data3", "cpu")), "");
-
-  graph.AddOp(this->PrepareSpec(
-          OpSpec("DummyOp")
-          .AddArg("device", "cpu")
-          .AddArg("num_outputs", 1)
-          .AddInput("data1", "cpu")
-          .AddOutput("data4", "cpu")), "");
-
-  graph.AddOp(this->PrepareSpec(
-          OpSpec("DummyOp")
-          .AddArg("device", "cpu")
-          .AddArg("num_outputs", 0)
-          .AddArg("preserve", true)
-          .AddInput("data1", "cpu")), "");
-
-  vector<string> outputs = {"data1_cont_cpu"};
-  exe->Build(&graph, outputs);
-
-  // Validate the graph - op 2&3 should
-  // have been pruned.
-  // Op 4 should not be pruned
-  ASSERT_EQ(graph.NumOp(OpType::CPU), 2);
-  ASSERT_EQ(graph.NumOp(OpType::MIXED), 1);
-  ASSERT_EQ(graph.NumOp(OpType::GPU), 0);
-
-  // Validate the source op
-  auto& node = graph.Node(0);
-  ASSERT_EQ(node.id, 0);
-  ASSERT_EQ(node.children.size(), 2);
-  ASSERT_EQ(node.parents.size(), 0);
-  ASSERT_EQ(graph.TensorSourceID(node.spec.Output(0)), 0);
-  ASSERT_EQ(graph.TensorIdxInSource(node.spec.Output(0)), 0);
-  ASSERT_TRUE(graph.TensorIsType<CPUBackend>(node.spec.Output(0)));
-  ASSERT_EQ(node.spec.NumOutput(), 2);
-  ASSERT_EQ(node.spec.Output(0), "data1_cpu");
-  ASSERT_EQ(node.spec.Output(1), "data2_cpu");
-
-  auto& node2 = graph.Node(1);
-  ASSERT_EQ(node2.id, 1);
-  ASSERT_EQ(node2.children.size(), 0);
-  ASSERT_EQ(node2.parents.size(), 1);
-  ASSERT_EQ(graph.TensorSourceID(node2.spec.Output(0)), 1);
-  ASSERT_EQ(graph.TensorIdxInSource(node2.spec.Output(0)), 0);
-  ASSERT_TRUE(graph.TensorIsType<CPUBackend>(node2.spec.Output(0)));
-  ASSERT_EQ(node2.spec.NumOutput(), 1);
-  ASSERT_EQ(node2.spec.Output(0), "data1_cont_cpu");
-}
-
-TYPED_TEST(ExecutorTest, TestPruneRecursive) {
-  auto exe = this->GetExecutor(this->batch_size_, this->num_threads_, 0, 1);
-  exe->Init();
-
-  // Build a basic cpu->gpu graph
-  OpGraph graph;
-  graph.AddOp(this->PrepareSpec(
-          OpSpec("DummyOp")
-          .AddArg("device", "cpu")
-          .AddArg("num_outputs", 1)
-          .AddOutput("data1", "cpu")), "");
-
-  graph.AddOp(this->PrepareSpec(
-          OpSpec("MakeContiguous")
-          .AddArg("device", "mixed")
-          .AddInput("data1", "cpu")
-          .AddOutput("data1_cont", "cpu")), "");
-
-  graph.AddOp(this->PrepareSpec(
-          OpSpec("DummyOp")
-          .AddArg("device", "cpu")
-          .AddArg("num_outputs", 1)
-          .AddInput("data1", "cpu")
-          .AddOutput("data2", "cpu")), "");
-
-  graph.AddOp(this->PrepareSpec(
-          OpSpec("DummyOp")
-          .AddArg("device", "cpu")
-          .AddArg("num_outputs", 1)
-          .AddInput("data2", "cpu")
-          .AddOutput("data3", "cpu")), "");
-
-  vector<string> outputs = {"data1_cont_cpu"};
-  exe->Build(&graph, outputs);
-
-  // Validate the graph - op 2&3 should
-  // have been pruned
-  ASSERT_EQ(graph.NumOp(OpType::CPU), 1);
-  ASSERT_EQ(graph.NumOp(OpType::MIXED), 1);
-  ASSERT_EQ(graph.NumOp(OpType::GPU), 0);
-
-  // Validate the source op
-  auto& node = graph.Node(0);
-  ASSERT_EQ(node.id, 0);
-  ASSERT_EQ(node.children.size(), 1);
-  ASSERT_EQ(node.parents.size(), 0);
-  ASSERT_EQ(graph.TensorSourceID(node.spec.Output(0)), 0);
-  ASSERT_EQ(graph.TensorIdxInSource(node.spec.Output(0)), 0);
-  ASSERT_TRUE(graph.TensorIsType<CPUBackend>(node.spec.Output(0)));
-  ASSERT_EQ(node.spec.NumOutput(), 1);
-  ASSERT_EQ(node.spec.Output(0), "data1_cpu");
-
-  auto& node2 = graph.Node(1);
-  ASSERT_EQ(node2.id, 1);
-  ASSERT_EQ(node2.children.size(), 0);
-  ASSERT_EQ(node2.parents.size(), 1);
-  ASSERT_EQ(graph.TensorSourceID(node2.spec.Output(0)), 1);
-  ASSERT_EQ(graph.TensorIdxInSource(node2.spec.Output(0)), 0);
-  ASSERT_TRUE(graph.TensorIsType<CPUBackend>(node2.spec.Output(0)));
-  ASSERT_EQ(node2.spec.NumOutput(), 1);
-  ASSERT_EQ(node2.spec.Output(0), "data1_cont_cpu");
-}
-
-TYPED_TEST(ExecutorTest, TestPruneWholeGraph) {
-  auto exe = this->GetExecutor(this->batch_size_, this->num_threads_, 0, 1);
-  exe->Init();
-
-  // Build a basic cpu->gpu graph
-  OpGraph graph;
-  graph.AddOp(this->PrepareSpec(
-          OpSpec("DummyOp")
-          .AddArg("device", "cpu")
-          .AddArg("num_outputs", 1)
-          .AddOutput("data1", "cpu")), "");
-
-  graph.AddOp(this->PrepareSpec(
-          OpSpec("DummyOp")
-          .AddArg("device", "cpu")
-          .AddArg("num_outputs", 1)
-          .AddInput("data1", "cpu")
-          .AddOutput("data2", "cpu")), "");
-
-  graph.AddOp(this->PrepareSpec(
-          OpSpec("DummyOp")
-          .AddArg("device", "cpu")
-          .AddArg("num_outputs", 1)
-          .AddInput("data2", "cpu")
-          .AddOutput("data3", "cpu")), "");
-
-  vector<string> outputs = {"data_that_does_not_exist"};
-  ASSERT_THROW(this->PruneGraph(exe.get()),
-      std::runtime_error);
-}
-
-// TODO(klecki): adjust to after refactor
-TYPED_TEST(ExecutorTest, DISABLED_TestDataSetup) {
-  auto exe = this->GetExecutor(this->batch_size_, this->num_threads_, 0, 1);
-  exe->Init();
-
-  // Build a basic cpu->gpu graph
-  OpGraph graph;
-  graph.AddOp(this->PrepareSpec(
-          OpSpec("ExternalSource")
-          .AddArg("device", "cpu")
-          .AddArg("device_id", 0)
-          .AddOutput("data1", "cpu")), "");
-
-  graph.AddOp(this->PrepareSpec(
-          OpSpec("MakeContiguous")
-          .AddArg("device", "mixed")
-          .AddInput("data1", "cpu")
-          .AddOutput("data2", "gpu")), "");
-
-  graph.AddOp(this->PrepareSpec(
-          OpSpec("DummyOp")
-          .AddArg("device", "gpu")
-          .AddArg("num_outputs", 1)
-          .AddInput("data2", "gpu")
-          .AddOutput("data3", "gpu")), "");
-
-  vector<string> outputs = {"data3_gpu"};
-  exe->Build(&graph, outputs);
-
-  // Verify the data has been setup correctly
-  for (int i = 0; i < 2; ++i) {
-    auto host_workspaces = this->CPUData(exe.get(), i);
-    ASSERT_EQ(host_workspaces.size(), 1);
-    Workspace &hws = host_workspaces[0];
-    ASSERT_EQ(hws.NumInput(), 0);
-    ASSERT_EQ(hws.NumOutput(), 1);
-    ASSERT_EQ(hws.GetRequestedBatchSize(0), this->batch_size_);
-    ASSERT_TRUE(hws.OutputIsType<CPUBackend>(0));
-
-    auto mixed_workspaces = this->MixedData(exe.get(), i);
-    ASSERT_EQ(mixed_workspaces.size(), 1);
-    Workspace &mws = mixed_workspaces[0];
-    ASSERT_EQ(mws.NumInput(), 1);
-    ASSERT_EQ(mws.GetInputBatchSize(0), this->batch_size_);
-    ASSERT_TRUE(mws.InputIsType<CPUBackend>(0));
-    ASSERT_EQ(mws.NumOutput(), 1);
-    ASSERT_TRUE(mws.OutputIsType<GPUBackend>(0));
-
-    auto device_workspaces = this->GPUData(exe.get(), i);
-    ASSERT_EQ(device_workspaces.size(), 1);
-    Workspace &dws = device_workspaces[0];
-    ASSERT_EQ(dws.NumInput(), 1);
-    ASSERT_TRUE(dws.InputIsType<GPUBackend>(0));
-    ASSERT_EQ(dws.NumOutput(), 1);
-    ASSERT_TRUE(dws.OutputIsType<GPUBackend>(0));
-  }
-}
-
 TYPED_TEST(ExecutorTest, TestRunBasicGraph) {
   auto exe = this->GetExecutor(this->batch_size_, this->num_threads_, 0, 1);
   exe->Init();
@@ -400,19 +131,19 @@ TYPED_TEST(ExecutorTest, TestRunBasicGraph) {
           OpSpec("ExternalSource")
           .AddArg("device", "cpu")
           .AddArg("device_id", 0)
-          .AddOutput("data", "cpu")), "");
+          .AddOutput("data", StorageDevice::CPU)), "");
 
   graph.AddOp(this->PrepareSpec(
           OpSpec("Copy")
           .AddArg("device", "cpu")
-          .AddInput("data", "cpu")
-          .AddOutput("images", "cpu")), "");
+          .AddInput("data", StorageDevice::CPU)
+          .AddOutput("images", StorageDevice::CPU)), "");
 
   graph.AddOp(this->PrepareSpec(
           OpSpec("MakeContiguous")
           .AddArg("device", "mixed")
-          .AddInput("images", "cpu")
-          .AddOutput("final_images", "cpu")), "");
+          .AddInput("images", StorageDevice::CPU)
+          .AddOutput("final_images", StorageDevice::CPU)), "");
 
   vector<string> outputs = {"final_images_cpu"};
   exe->Build(&graph, outputs);
@@ -425,9 +156,7 @@ TYPED_TEST(ExecutorTest, TestRunBasicGraph) {
   test::MakeRandomBatch(tl, this->batch_size_);
   src_op->SetDataSource(tl);
 
-  exe->RunCPU();
-  exe->RunMixed();
-  exe->RunGPU();
+  exe->Run();
 
   Workspace ws;
   exe->Outputs(&ws);
@@ -446,19 +175,19 @@ TYPED_TEST(ExecutorTest, TestRunBasicGraphWithCB) {
           OpSpec("ExternalSource")
           .AddArg("device", "cpu")
           .AddArg("device_id", 0)
-          .AddOutput("data", "cpu")), "");
+          .AddOutput("data", StorageDevice::CPU)), "");
 
   graph.AddOp(this->PrepareSpec(
           OpSpec("Copy")
           .AddArg("device", "cpu")
-          .AddInput("data", "cpu")
-          .AddOutput("images", "cpu")), "");
+          .AddInput("data", StorageDevice::CPU)
+          .AddOutput("images", StorageDevice::CPU)), "");
 
   graph.AddOp(this->PrepareSpec(
           OpSpec("MakeContiguous")
           .AddArg("device", "mixed")
-          .AddInput("images", "cpu")
-          .AddOutput("final_images", "cpu")), "");
+          .AddInput("images", StorageDevice::CPU)
+          .AddOutput("final_images", StorageDevice::CPU)), "");
 
   vector<string> outputs = {"final_images_cpu"};
 
@@ -472,9 +201,7 @@ TYPED_TEST(ExecutorTest, TestRunBasicGraphWithCB) {
   test::MakeRandomBatch(tl, this->batch_size_);
   src_op->SetDataSource(tl);
 
-  exe->RunCPU();
-  exe->RunMixed();
-  exe->RunGPU();
+  exe->Run();
 
   Workspace ws;
   exe->Outputs(&ws);
@@ -498,25 +225,25 @@ TYPED_TEST(ExecutorSyncTest, TestPrefetchedExecution) {
           OpSpec("ExternalSource")
           .AddArg("device", "cpu")
           .AddArg("device_id", 0)
-          .AddOutput("data", "cpu")), "");
+          .AddOutput("data", StorageDevice::CPU)), "");
 
   graph.AddOp(this->PrepareSpec(
           OpSpec("Copy")
           .AddArg("device", "cpu")
-          .AddInput("data", "cpu")
-          .AddOutput("images", "cpu")), "");
+          .AddInput("data", StorageDevice::CPU)
+          .AddOutput("images", StorageDevice::CPU)), "");
 
   graph.AddOp(this->PrepareSpec(
           OpSpec("MakeContiguous")
           .AddArg("device", "mixed")
-          .AddInput("images", "cpu")
-          .AddOutput("images", "gpu")), "");
+          .AddInput("images", StorageDevice::CPU)
+          .AddOutput("images", StorageDevice::GPU)), "");
 
   graph.AddOp(this->PrepareSpec(
           OpSpec("Copy")
           .AddArg("device", "gpu")
-          .AddInput("images", "gpu")
-          .AddOutput("final_images", "gpu")), "");
+          .AddInput("images", StorageDevice::GPU)
+          .AddOutput("final_images", StorageDevice::GPU)), "");
 
   vector<string> outputs = {"final_images_gpu"};
   exe->Build(&graph, outputs);
@@ -542,12 +269,12 @@ TYPED_TEST(ExecutorSyncTest, TestPrefetchedExecution) {
   tl2.Resize(shape2, DALI_UINT8);
   for (int i = 0; i < batch_size; ++i) {
     std::memcpy(
-        tl1.template mutable_tensor<uint8>(i),
-        tl.template tensor<uint8>(i),
+        tl1.template mutable_tensor<uint8_t>(i),
+        tl.template tensor<uint8_t>(i),
         volume(tl.tensor_shape(i)));
     std::memcpy(
-        tl2.template mutable_tensor<uint8>(i),
-        tl.template tensor<uint8>(i+batch_size),
+        tl2.template mutable_tensor<uint8_t>(i),
+        tl.template tensor<uint8_t>(i+batch_size),
         volume(tl.tensor_shape(i+batch_size)));
   }
 
@@ -557,9 +284,7 @@ TYPED_TEST(ExecutorSyncTest, TestPrefetchedExecution) {
 
   auto run = [&src_op, &exe] (TensorList<CPUBackend> &input) {
     src_op->SetDataSource(input);
-    exe->RunCPU();
-    exe->RunMixed();
-    exe->RunGPU();
+    exe->Run();
   };
 
   auto check = [&exe, &ws, &tl, batch_size] (int batch_idx) {
@@ -595,61 +320,61 @@ TYPED_TEST(ExecutorTest, TestPinning) {
   graph.AddOp(this->PrepareSpec(OpSpec("ExternalSource")
                                     .AddArg("device", "cpu")
                                     .AddArg("device_id", 0)
-                                    .AddOutput("data_0", "cpu")),
+                                    .AddOutput("data_0", StorageDevice::CPU)),
               "ExternalSource_0");
 
   // First set of Copy + Copy and Pass Through
   graph.AddOp(this->PrepareSpec(OpSpec("Copy")
                                     .AddArg("device", "cpu")
-                                    .AddInput("data_0", "cpu")
-                                    .AddOutput("copy_0", "cpu")),
+                                    .AddInput("data_0", StorageDevice::CPU)
+                                    .AddOutput("copy_0", StorageDevice::CPU)),
               "Copy_0");
 
   graph.AddOp(this->PrepareSpec(OpSpec("Copy")
                                     .AddArg("device", "cpu")
-                                    .AddInput("data_0", "cpu")
-                                    .AddOutput("copy_1", "cpu")),
+                                    .AddInput("data_0", StorageDevice::CPU)
+                                    .AddOutput("copy_1", StorageDevice::CPU)),
               "Copy_1");
 
   graph.AddOp(this->PrepareSpec(OpSpec("PassthroughOp")
                                     .AddArg("device", "cpu")
-                                    .AddInput("copy_0", "cpu")
-                                    .AddOutput("pass_through_0", "cpu")),
+                                    .AddInput("copy_0", StorageDevice::CPU)
+                                    .AddOutput("pass_through_0", StorageDevice::CPU)),
               "PassThrough_0");
 
   // Trigger pinning of first set when it moves CPU -> GPU
   graph.AddOp(this->PrepareSpec(OpSpec("MakeContiguous")
                                     .AddArg("device", "mixed")
-                                    .AddInput("pass_through_0", "cpu")
-                                    .AddOutput("out_0", "gpu")),
+                                    .AddInput("pass_through_0", StorageDevice::CPU)
+                                    .AddOutput("out_0", StorageDevice::GPU)),
               "MakeContiguous_0");
 
   // but not the Copy_1 to compare against
   graph.AddOp(this->PrepareSpec(OpSpec("MakeContiguous")
                                     .AddArg("device", "mixed")
-                                    .AddInput("copy_1", "cpu")
-                                    .AddOutput("out_1", "cpu")),
+                                    .AddInput("copy_1", StorageDevice::CPU)
+                                    .AddOutput("out_1", StorageDevice::CPU)),
               "MakeContiguous_1");
 
 
   // Second set of Copy and Pass Through
   graph.AddOp(this->PrepareSpec(OpSpec("Copy")
                                     .AddArg("device", "cpu")
-                                    .AddInput("data_0", "cpu")
-                                    .AddOutput("copy_2", "cpu")),
+                                    .AddInput("data_0", StorageDevice::CPU)
+                                    .AddOutput("copy_2", StorageDevice::CPU)),
               "Copy_2");
 
   graph.AddOp(this->PrepareSpec(OpSpec("PassthroughOp")
                                     .AddArg("device", "cpu")
-                                    .AddInput("copy_2", "cpu")
-                                    .AddOutput("pass_through_1", "cpu")),
+                                    .AddInput("copy_2", StorageDevice::CPU)
+                                    .AddOutput("pass_through_1", StorageDevice::CPU)),
               "PassThrough_1");
 
   // Check pinning argument inputs to operators in GPU stage
   graph.AddOp(this->PrepareSpec(OpSpec("CopyArgumentOp")
                                     .AddArg("device", "gpu")
                                     .AddArgumentInput("to_copy", "pass_through_1")
-                                    .AddOutput("out_2", "gpu")),
+                                    .AddOutput("out_2", StorageDevice::GPU)),
               "DummyOpGpu");
 
   vector<string> outputs = {"copy_0_cpu",         "copy_1_cpu", "pass_through_0_cpu", "copy_2_cpu",
@@ -664,9 +389,7 @@ TYPED_TEST(ExecutorTest, TestPinning) {
   tl.Resize(uniform_list_shape(this->batch_size_, TensorShape<>{}), DALI_FLOAT);
   src_op->SetDataSource(tl);
 
-  exe->RunCPU();
-  exe->RunMixed();
-  exe->RunGPU();
+  exe->Run();
 
   Workspace ws;
   exe->Outputs(&ws);
@@ -696,7 +419,7 @@ TYPED_TEST(ExecutorTest, TestCondtionalDetection) {
   graph_no_cond.AddOp(this->PrepareSpec(OpSpec("ExternalSource")
                                             .AddArg("device", "cpu")
                                             .AddArg("device_id", 0)
-                                            .AddOutput("data", "cpu")),
+                                            .AddOutput("data", StorageDevice::CPU)),
                       "ExternalSource");
 
   // Build a basic graph without conditionals.
@@ -704,24 +427,24 @@ TYPED_TEST(ExecutorTest, TestCondtionalDetection) {
   graph_with_cond.AddOp(this->PrepareSpec(OpSpec("ExternalSource")
                                             .AddArg("device", "cpu")
                                             .AddArg("device_id", 0)
-                                            .AddOutput("input", "cpu")),
+                                            .AddOutput("input", StorageDevice::CPU)),
                       "ExternalSource");
 
   graph_with_cond.AddOp(this->PrepareSpec(OpSpec("_conditional__Split")
                                               .AddArg("device", "cpu")
-                                              .AddInput("input", "cpu")
+                                              .AddInput("input", StorageDevice::CPU)
                                               .AddArgumentInput("predicate", "input")
-                                              .AddOutput("true_output", "cpu")
-                                              .AddOutput("false_output", "cpu")
+                                              .AddOutput("true_output", StorageDevice::CPU)
+                                              .AddOutput("false_output", StorageDevice::CPU)
                                               .AddArg("_if_stmt", true)),
                         "split");
 
   graph_with_cond.AddOp(this->PrepareSpec(OpSpec("_conditional__Merge")
                                               .AddArg("device", "cpu")
-                                              .AddInput("true_output", "cpu")
-                                              .AddInput("false_output", "cpu")
+                                              .AddInput("true_output", StorageDevice::CPU)
+                                              .AddInput("false_output", StorageDevice::CPU)
                                               .AddArgumentInput("predicate", "input")
-                                              .AddOutput("output", "cpu")),
+                                              .AddOutput("output", StorageDevice::CPU)),
                         "merge");
 
   exe_no_cond->Build(&graph_no_cond, {"data_cpu"});
@@ -729,6 +452,115 @@ TYPED_TEST(ExecutorTest, TestCondtionalDetection) {
 
   EXPECT_FALSE(this->HasConditionals(*exe_no_cond));
   EXPECT_TRUE(this->HasConditionals(*exe_with_cond));
+}
+
+
+TYPED_TEST(ExecutorTest, SimpleCheckpointingCPU) {
+  constexpr int epoch_size = 4;
+  auto prepare_executor_and_graph = [&] {
+    auto exe = this->GetExecutor(this->batch_size_, this->num_threads_, 0, 1);
+    exe->EnableCheckpointing(true);
+    exe->Init();
+
+    auto graph = std::make_unique<OpGraph>();
+    graph->AddOp(
+      this->PrepareSpec(
+        OpSpec("TestStatefulSource")
+          .AddArg("checkpointing", true)
+          .AddArg("epoch_size", epoch_size)
+          .AddOutput("state", StorageDevice::CPU)),
+      "dummy");
+
+    exe->Build(graph.get(), {"state_cpu"});
+    return std::pair{std::move(exe), std::move(graph)};
+  };
+
+  if (this->IsSeparated())
+    EXPECT_THROW(
+      this->RunCheckpointingTest(prepare_executor_and_graph, epoch_size),
+      DALIException);
+  else
+    this->RunCheckpointingTest(prepare_executor_and_graph, epoch_size);
+}
+
+TYPED_TEST(ExecutorTest, PipelineCheckpointingCPU) {
+  constexpr int epoch_size = 4;
+  auto prepare_executor_and_graph = [&] {
+    auto exe = this->GetExecutor(this->batch_size_, this->num_threads_, 0, 1);
+    exe->EnableCheckpointing(true);
+    exe->Init();
+
+    auto graph = std::make_unique<OpGraph>();
+    graph->AddOp(
+      this->PrepareSpec(
+        OpSpec("TestStatefulSource")
+          .AddArg("checkpointing", true)
+          .AddArg("epoch_size", epoch_size)
+          .AddOutput("data", StorageDevice::CPU)),
+      "dummy_src");
+
+    graph->AddOp(
+      this->PrepareSpec(
+        OpSpec("TestStatefulOp")
+          .AddArg("device", "cpu")
+          .AddInput("data", StorageDevice::CPU)
+          .AddOutput("processed", StorageDevice::CPU)),
+      "dummy_op");
+
+    exe->Build(graph.get(), {"processed_cpu"});
+    return std::pair{std::move(exe), std::move(graph)};
+  };
+
+  if (this->IsSeparated())
+    EXPECT_THROW(
+      this->RunCheckpointingTest(prepare_executor_and_graph, epoch_size),
+      DALIException);
+  else
+    this->RunCheckpointingTest(prepare_executor_and_graph, epoch_size);
+}
+
+TYPED_TEST(ExecutorTest, PipelineCheckpointingMixed) {
+  constexpr int epoch_size = 4;
+  auto prepare_executor_and_graph = [&] {
+    auto exe = this->GetExecutor(this->batch_size_, this->num_threads_, 0, 1);
+    exe->EnableCheckpointing(true);
+    exe->Init();
+
+    auto graph = std::make_unique<OpGraph>();
+    graph->AddOp(
+      this->PrepareSpec(
+        OpSpec("TestStatefulSource")
+          .AddArg("checkpointing", true)
+          .AddArg("epoch_size", epoch_size)
+          .AddOutput("data1", StorageDevice::CPU)),
+      "dummy_src");
+
+    graph->AddOp(
+      this->PrepareSpec(
+        OpSpec("TestStatefulOp")
+          .AddArg("device", "mixed")
+          .AddInput("data1", StorageDevice::CPU)
+          .AddOutput("data2", StorageDevice::GPU)),
+      "dummy_op1");
+
+    graph->AddOp(
+      this->PrepareSpec(
+        OpSpec("TestStatefulOp")
+          .AddArg("device", "gpu")
+          .AddInput("data2", StorageDevice::GPU)
+          .AddOutput("processed", StorageDevice::GPU)),
+      "dummy_op2");
+
+    exe->Build(graph.get(), {"processed_gpu"});
+    return std::pair{std::move(exe), std::move(graph)};
+  };
+
+  if (this->IsSeparated())
+    EXPECT_THROW(
+      this->RunCheckpointingTest(prepare_executor_and_graph, epoch_size),
+      DALIException);
+  else
+    this->RunCheckpointingTest(prepare_executor_and_graph, epoch_size);
 }
 
 }  // namespace dali

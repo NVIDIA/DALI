@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -21,6 +21,7 @@
 #include "dali/core/static_switch.h"
 #include "dali/kernels/kernel_manager.h"
 #include "dali/operators/geometry/mt_transform_attr.h"
+#include "dali/pipeline/operator/checkpointing/stateless_operator.h"
 #include "dali/pipeline/operator/operator.h"
 #include "dali/pipeline/operator/sequence_operator.h"
 
@@ -30,14 +31,14 @@ namespace dali {
 #define COORD_TRANSFORM_DIMS (1, 2, 3, 4, 5, 6)
 
 template <typename Backend>
-class CoordTransform : public SequenceOperator<Backend, true>, private MTTransformAttr {
+class CoordTransform : public SequenceOperator<Backend, StatelessOperator, true>,
+                       private MTTransformAttr {
  public:
-  using Base = SequenceOperator<Backend, true>;
+  using Base = SequenceOperator<Backend, StatelessOperator, true>;
   explicit CoordTransform(const OpSpec &spec) : Base(spec), MTTransformAttr(spec) {
     dtype_ = spec_.template GetArgument<DALIDataType>("dtype");
   }
 
-  bool CanInferOutputs() const override { return true; }
 
  protected:
   using Base::spec_;

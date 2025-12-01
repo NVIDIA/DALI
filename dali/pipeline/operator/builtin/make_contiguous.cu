@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,9 +19,9 @@
 
 namespace dali {
 
-void MakeContiguousMixed::Run(Workspace &ws) {
+void MakeContiguousMixed::RunImpl(Workspace &ws) {
   const auto& input = ws.Input<CPUBackend>(0);
-  int sample_dim = input[0].shape().sample_dim();
+  int sample_dim = input.shape().sample_dim();
   size_t batch_size = input.num_samples();
   DALIDataType type = input.type();
   size_t type_size = input.type_info().size();
@@ -39,7 +39,7 @@ void MakeContiguousMixed::Run(Workspace &ws) {
   if (ws.OutputIsType<CPUBackend>(0)) {
     auto &output = ws.Output<CPUBackend>(0);
     DomainTimeRange tr("[DALI][MakeContiguousMixed] H2H non coalesced", DomainTimeRange::kGreen);
-    if (IsPassThrough()) {
+    if (pass_through_) {
       AccessOrder out_order = output.order();
       // A call to ShareData may synchronize the orders and we don't want that.
       // TODO(michalz): Find a less hacky solution.
@@ -70,7 +70,7 @@ void MakeContiguousGPU::RunImpl(Workspace &ws) {
   const auto& input = ws.Input<GPUBackend>(0);
   auto& output = ws.Output<GPUBackend>(0);
   DomainTimeRange tr("[DALI][MakeContiguousGPU] D2D", DomainTimeRange::kGreen);
-  if (IsPassThrough()) {
+  if (pass_through_) {
     output.ShareData(input);
   } else {
     output.Copy(input);

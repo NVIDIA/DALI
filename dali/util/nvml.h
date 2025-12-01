@@ -17,10 +17,7 @@
 
 #include <nvml.h>
 #include <cuda_runtime_api.h>
-#include <pthread.h>
-#include <sys/sysinfo.h>
 #include <mutex>
-#include <vector>
 #include <string>
 #include "dali/util/nvml_wrap.h"
 #include "dali/core/cuda_error.h"
@@ -145,93 +142,12 @@ inline void Init() {
  * @brief Gets the CPU affinity mask using NVML,
  *        respecting previously set mask.
  */
-inline void GetNVMLAffinityMask(cpu_set_t * mask, size_t num_cpus) {
-  if (!nvmlIsInitialized()) {
-    return;
-  }
-  int device_idx;
-  CUDA_CALL(cudaGetDevice(&device_idx));
-
-  // Get the ideal placement from NVML
-  size_t cpu_set_size = (num_cpus + 63) / 64;
-  std::vector<unsigned long> nvml_mask_container(cpu_set_size);  // NOLINT(runtime/int)
-  auto * nvml_mask = nvml_mask_container.data();
-  nvmlDevice_t device;
-  CUDA_CALL(nvmlDeviceGetHandleByIndex(device_idx, &device));
-  #if (CUDART_VERSION >= 11000)
-    if (nvmlHasCuda11NvmlFunctions()) {
-      CUDA_CALL(nvmlDeviceGetCpuAffinityWithinScope(device, cpu_set_size, nvml_mask,
-                                                        NVML_AFFINITY_SCOPE_SOCKET));
-    } else {
-      CUDA_CALL(nvmlDeviceGetCpuAffinity(device, cpu_set_size, nvml_mask));
-    }
-  #else
-    CUDA_CALL(nvmlDeviceGetCpuAffinity(device, cpu_set_size, nvml_mask));
-  #endif
-
-  // Convert it to cpu_set_t
-  cpu_set_t nvml_set;
-  CPU_ZERO(&nvml_set);
-  const size_t n_bits = sizeof(unsigned long) * 8;  // NOLINT(runtime/int)
-  for (size_t i = 0; i < num_cpus; ++i) {
-    const size_t position = i % n_bits;
-    const size_t index = i / n_bits;
-    const unsigned long current_mask = 1ul << position;  // NOLINT(runtime/int)
-    const bool cpu_is_set = (nvml_mask[index] & current_mask) != 0;
-    if (cpu_is_set) {
-        CPU_SET(i, &nvml_set);
-    }
-  }
-
-  // Get the current affinity mask
-  cpu_set_t current_set;
-  CPU_ZERO(&current_set);
-  pthread_getaffinity_np(pthread_self(), sizeof(current_set), &current_set);
-
-  // AND masks
-  CPU_AND(mask, &nvml_set, &current_set);
-}
+void GetNVMLAffinityMask(cpu_set_t * mask, size_t num_cpus);
 
 /**
  * @brief Sets the CPU affinity for the calling thread
  */
-inline void SetCPUAffinity(int core = -1) {
-  std::lock_guard<std::mutex> lock(Mutex());
-
-  size_t num_cpus = get_nprocs_conf();
-
-  cpu_set_t requested_set;
-  CPU_ZERO(&requested_set);
-  if (core != -1) {
-    if (core < 0 || (size_t)core >= num_cpus) {
-      DALI_WARN(make_string("Requested setting affinity to core ", core,
-                            " but only ", num_cpus, " cores available. Ignoring..."));
-      GetNVMLAffinityMask(&requested_set, num_cpus);
-    } else {
-      CPU_SET(core, &requested_set);
-    }
-  } else {
-    GetNVMLAffinityMask(&requested_set, num_cpus);
-  }
-
-  // Set the affinity
-  bool at_least_one_cpu_set = false;
-  for (std::size_t i = 0; i < num_cpus; i++) {
-    at_least_one_cpu_set |= CPU_ISSET(i, &requested_set);
-  }
-  if (!at_least_one_cpu_set) {
-    DALI_WARN("CPU affinity requested by user or recommended by nvml setting"
-              " does not meet allowed affinity for given DALI thread."
-              " Use taskset tool to check allowed affinity");
-    return;
-  }
-
-  int error = pthread_setaffinity_np(pthread_self(), sizeof(requested_set), &requested_set);
-  if (error != 0) {
-    DALI_WARN("Setting affinity failed! Error code: " + to_string(error));
-  }
-}
-
+void SetCPUAffinity(int core = -1);
 
 inline void Shutdown() {
   std::lock_guard<std::mutex> lock(Mutex());
@@ -240,6 +156,45 @@ inline void Shutdown() {
   }
   CUDA_CALL(nvmlShutdown());
 }
+
+
+class NvmlInstance {
+ public:
+  static NvmlInstance CreateNvmlInstance() {
+    return NvmlInstance(true);
+  }
+
+  explicit NvmlInstance(bool init = false) {
+    if (init) {
+      Init();
+      is_created_ = true;
+    }
+  }
+
+  NvmlInstance(const NvmlInstance &) = delete;
+
+  NvmlInstance &operator=(const NvmlInstance &) = delete;
+
+  inline NvmlInstance(NvmlInstance &&other) : is_created_(other.is_created_) {
+    other.is_created_ = false;
+  }
+
+  inline NvmlInstance &operator=(NvmlInstance &&other) {
+    std::swap(is_created_, other.is_created_);
+    other.~NvmlInstance();
+    return *this;
+  }
+
+  ~NvmlInstance() {
+    if (is_created_) {
+      Shutdown();
+      is_created_ = false;
+    }
+  }
+
+ private:
+  bool is_created_ = false;
+};
 
 /**
  * Checks, whether CUDA11-proper NVML functions have been successfully loaded
@@ -255,12 +210,19 @@ inline bool HasCuda11NvmlFunctions() {
 namespace impl {
 
 float GetDriverVersion();
+int GetCudaDriverVersion();
 
 }  // namespace impl
 
 
 inline float GetDriverVersion() {
   static float version = impl::GetDriverVersion();
+  return version;
+}
+
+
+inline int GetCudaDriverVersion() {
+  static int version = impl::GetCudaDriverVersion();
   return version;
 }
 

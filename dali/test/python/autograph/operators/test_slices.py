@@ -21,22 +21,21 @@ from nvidia.dali._autograph.utils.all_utils import custom_constant
 
 
 class SlicesTest(unittest.TestCase):
+    def test_set_item_tensor_list(self):
+        initial_list = custom_constant([[1, 2], [3, 4]])
+        l = slices.set_item(initial_list, 0, [5, 6])
+        self.assertEqual(l, [[5, 6], [3, 4]])
 
-  def test_set_item_tensor_list(self):
-    initial_list = custom_constant([[1, 2], [3, 4]])
-    l = slices.set_item(initial_list, 0, [5, 6])
-    self.assertEqual(l, [[5, 6], [3, 4]])
+    def test_get_item_tensor_list(self):
+        initial_list = custom_constant([[1, 2], [3, 4]])
+        t = slices.get_item(initial_list, 1, slices.GetItemOpts(None))
+        self.assertEqual(t, [3, 4])
 
-  def test_get_item_tensor_list(self):
-    initial_list = custom_constant([[1, 2], [3, 4]])
-    t = slices.get_item(initial_list, 1, slices.GetItemOpts(None))
-    self.assertEqual(t, [3, 4])
+    def test_get_item_tensor_string(self):
+        initial_str = custom_constant("abcd")
+        t = slices.get_item(initial_str, 1, slices.GetItemOpts(None))
+        self.assertEqual(t, "b")
 
-  def test_get_item_tensor_string(self):
-    initial_str = custom_constant('abcd')
-    t = slices.get_item(initial_str, 1, slices.GetItemOpts(None))
-    self.assertEqual(t, 'b')
-
-    initial_list_str = custom_constant(['abcd', 'bcde'])
-    t = slices.get_item(initial_list_str, 1, slices.GetItemOpts(None))
-    self.assertEqual(t, 'bcde')
+        initial_list_str = custom_constant(["abcd", "bcde"])
+        t = slices.get_item(initial_list_str, 1, slices.GetItemOpts(None))
+        self.assertEqual(t, "bcde")

@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -33,9 +33,7 @@ const std::string &dali_extra_path() {
   //      There's a "leak" here, but we don't really care about it.
   static std::string *_dali_extra_path = new std::string();
 
-  static std::once_flag noninit_warning;
-
-  std::call_once(noninit_warning, []() {
+  static int noninit_warning = []() {
       auto ptr = std::getenv("DALI_EXTRA_PATH");
       if (!ptr) {
         std::cerr << "WARNING: DALI_EXTRA_PATH not initialized." << std::endl;
@@ -51,7 +49,7 @@ const std::string &dali_extra_path() {
         std::cerr << "WARNING: Could not read the sha of DALI_extra at " << *_dali_extra_path
                   << ". Make sure DALI_EXTRA is checked out to " << DALI_EXTRA_VERSION
                   << " so the test data is in the required version." << std::endl;
-        return;
+        return 0;
       }
       auto count = fread(hash, sizeof(hash[0]), kHashLen, pipe);
       // hash is kHashLen + 1
@@ -61,7 +59,7 @@ const std::string &dali_extra_path() {
         std::cerr << "WARNING: Could not read the sha of DALI_extra at " << *_dali_extra_path
                   << ". Make sure DALI_EXTRA is checked out to " << DALI_EXTRA_VERSION
                   << " so the test data is in the required version." << std::endl;
-        return;
+        return 0;
       }
       if (strncmp(DALI_EXTRA_VERSION, hash, kHashLen) != 0) {
         std::cerr << "WARNING: DALI_extra at " << *_dali_extra_path
@@ -69,7 +67,8 @@ const std::string &dali_extra_path() {
                      "fail to run or produce incorrect results.\nVersion required: "
                   << DALI_EXTRA_VERSION << "\nVersion found: " << hash << std::endl;
       }
-  });
+      return 0;
+  }();
   return *_dali_extra_path;
 }
 

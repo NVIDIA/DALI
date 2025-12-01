@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -38,9 +38,8 @@ namespace dali {
 template <typename Target>
 class CUFileLoader : public FileLoader<GPUBackend, Target, CUFileStream> {
  public:
-  explicit CUFileLoader(const OpSpec& spec, vector<std::string> images = {},
-                        bool shuffle_after_epoch = false)
-      : FileLoader<GPUBackend, Target, CUFileStream>(spec) {
+  CUFileLoader(const OpSpec& spec, bool shuffle_after_epoch)
+      : FileLoader<GPUBackend, Target, CUFileStream>(spec, shuffle_after_epoch) {
   }
 
   ~CUFileLoader() {
@@ -51,7 +50,7 @@ class CUFileLoader : public FileLoader<GPUBackend, Target, CUFileStream> {
      * cuFileDeregister functions, so instead of letting them to be cleared by Loader class when
      * cuFile is no longer accesible we need to do that here.
      */
-    this->last_sample_ptr_tmp.reset();
+    this->last_sample_ptr_tmp.ptr.reset();
     this->sample_buffer_.clear();
     this->empty_tensors_.clear();
   }

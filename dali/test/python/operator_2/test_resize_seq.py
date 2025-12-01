@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@ import numpy as np
 import os.path
 from test_utils import check_batch
 import PIL.Image
+
 try:
     from PIL.Image.Resampling import NEAREST, BILINEAR, BICUBIC, LANCZOS
 except Exception:
@@ -28,8 +29,9 @@ except Exception:
 
 def init_video_data():
     batch_size = 2
-    video_directory = os.path.join(os.environ['DALI_EXTRA_PATH'],
-                                   "db", "video", "sintel", "video_files")
+    video_directory = os.path.join(
+        os.environ["DALI_EXTRA_PATH"], "db", "video", "sintel", "video_files"
+    )
 
     video_files = [os.path.join(video_directory, f) for f in sorted(os.listdir(video_directory))]
 
@@ -38,9 +40,8 @@ def init_video_data():
         input = fn.readers.video(device="gpu", filenames=video_files, sequence_length=32, stride=5)
         video_pipe.set_outputs(input)
 
-    video_pipe.build()
     out = video_pipe.run()
-    in_seq = out[0].as_cpu().at(0)
+    in_seq = np.array(out[0].at(0).as_cpu())
     return in_seq
 
 
@@ -49,7 +50,7 @@ frames_fchw = frames_fhwc.transpose([0, 3, 1, 2])
 
 
 def GetSequences(channel_first, length, batch_size):
-    """ gets overlapping sequences, starting at iteration number """
+    """gets overlapping sequences, starting at iteration number"""
     source = frames_fchw if channel_first else frames_fhwc
     N = source.shape[0]
 
@@ -62,14 +63,15 @@ def GetSequences(channel_first, length, batch_size):
 
     def get_batch(iter):
         return [get_seq(iter * batch_size + i) for i in range(batch_size)]
+
     return get_batch
 
 
 resample_dali2pil = {
-    types.INTERP_NN:         NEAREST,
+    types.INTERP_NN: NEAREST,
     types.INTERP_TRIANGULAR: BILINEAR,
-    types.INTERP_CUBIC:      BICUBIC,
-    types.INTERP_LANCZOS3:   LANCZOS
+    types.INTERP_CUBIC: BICUBIC,
+    types.INTERP_LANCZOS3: LANCZOS,
 }
 
 
@@ -89,6 +91,7 @@ def resize_PIL(channel_first, interp, w, h):
                 out_frame = out_frame.transpose([2, 0, 1])
             out_seq.append(out_frame)
         return np.array(out_seq)
+
     return resize
 
 
@@ -97,8 +100,9 @@ def create_ref_pipe(channel_first, seq_len, interp, dtype, w, h, batch_size=2):
     with pipe:
         layout = "FCHW" if channel_first else "FHWC"
         ext = fn.external_source(GetSequences(channel_first, seq_len, batch_size), layout=layout)
-        pil_resized = fn.python_function(ext, function=resize_PIL(channel_first, interp, w, h),
-                                         batch_processing=False)
+        pil_resized = fn.python_function(
+            ext, function=resize_PIL(channel_first, interp, w, h), batch_processing=False
+        )
         if dtype is not None:  # unfortunately, PIL can't quite handle that
             pil_resized = fn.cast(pil_resized, dtype=dtype)
         pil_resized = fn.reshape(pil_resized, layout=layout)
@@ -111,25 +115,32 @@ def create_dali_pipe(channel_first, seq_len, interp, dtype, w, h, batch_size=2):
     with pipe:
         layout = "FCHW" if channel_first else "FHWC"
         ext = fn.external_source(GetSequences(channel_first, seq_len, batch_size), layout=layout)
-        resize_cpu_out = fn.resize(ext, resize_x=w, resize_y=h, interp_type=interp,
-                                   dtype=dtype, save_attrs=True)
-        resize_gpu_out = fn.resize(ext.gpu(), resize_x=w, resize_y=h, interp_type=interp,
-                                   minibatch_size=4, dtype=dtype, save_attrs=True)
+        resize_cpu_out = fn.resize(
+            ext, resize_x=w, resize_y=h, interp_type=interp, dtype=dtype, save_attrs=True
+        )
+        resize_gpu_out = fn.resize(
+            ext.gpu(),
+            resize_x=w,
+            resize_y=h,
+            interp_type=interp,
+            minibatch_size=4,
+            dtype=dtype,
+            save_attrs=True,
+        )
         dali_resized_cpu, size_cpu = resize_cpu_out
         dali_resized_gpu, size_gpu = resize_gpu_out
         # extract just HW part from the input shape
-        ext_size = fn.slice(fn.cast(fn.shapes(ext), dtype=types.INT32),
-                            2 if channel_first else 1, 2, axes=[0])
+        ext_size = fn.slice(
+            fn.cast(ext.shape(), dtype=types.INT32), 2 if channel_first else 1, 2, axes=[0]
+        )
         pipe.set_outputs(dali_resized_cpu, dali_resized_gpu, ext_size, size_cpu, size_gpu)
     return pipe
 
 
 def _test_resize(layout, interp, dtype, w, h):
-    channel_first = (layout == "FCHW")
+    channel_first = layout == "FCHW"
     pipe_dali = create_dali_pipe(channel_first, 8, interp, dtype, w, h)
-    pipe_dali.build()
     pipe_ref = create_ref_pipe(channel_first, 8, interp, dtype, w, h)
-    pipe_ref.build()
     eps = 1e-2
     max_err = 6
     for iter in range(4):
@@ -138,7 +149,7 @@ def _test_resize(layout, interp, dtype, w, h):
         dali_cpu = out_dali[0]
         dali_gpu = out_dali[1]
         if interp == types.INTERP_LANCZOS3:
-            # PIL can't resize float data. Lanczos resamling generates overshoot which we have
+            # PIL can't resize float data. Lanczos resampling generates overshoot which we have
             # to get rid of for the comparison to succeed.
             dali_cpu = [np.array(x).clip(0, 255) for x in dali_cpu]
             dali_gpu = [np.array(x).clip(0, 255) for x in dali_gpu.as_cpu()]
@@ -164,10 +175,12 @@ def _test_resize(layout, interp, dtype, w, h):
 
 def test_resize():
     channel_first = False
-    for interp, w, h in [(types.INTERP_NN, 640, 480),
-                         (types.INTERP_TRIANGULAR, 100, 80),
-                         (types.INTERP_LANCZOS3, 200, 100)]:
+    for interp, w, h in [
+        (types.INTERP_NN, 640, 480),
+        (types.INTERP_TRIANGULAR, 100, 80),
+        (types.INTERP_LANCZOS3, 200, 100),
+    ]:
         for dtype in [None, types.UINT8, types.FLOAT]:
             layout = "FCHW" if channel_first else "FHWC"
-            channel_first = not channel_first   # alternating pattern cuts number of cases by half
+            channel_first = not channel_first  # alternating pattern cuts number of cases by half
             yield _test_resize, layout, interp, dtype, w, h

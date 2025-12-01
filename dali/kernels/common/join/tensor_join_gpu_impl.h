@@ -35,7 +35,6 @@ class DLL_PUBLIC TensorJoinImplGPU {
 
   /**
    * @param output_shape    shape of the result of joining the inputs
-   * @param se              scratchpad requirements are added here
    * @param get_input_shape a function called with an input index; returns a reference to a shape
    *                        of the input at given index
    * @param num_inputs      number of joined tensors
@@ -52,7 +51,6 @@ class DLL_PUBLIC TensorJoinImplGPU {
    * differ at index `axis` (if new_axis == `false`).
    */
   void Setup(TensorListShape<> &output_shape,
-             ScratchpadEstimator &se,
              const std::function<const TensorListShape<> *(int)> &get_input_shape,
              int num_inputs,
              int axis);

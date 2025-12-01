@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -28,11 +28,11 @@ This operator can be used in the following modes:
 
 1. Listing files from a directory, assigning labels based on subdirectory structure.
 
-In this mode, the directory indicated in ``file_root`` argument should contain one or more
+In this mode, the directory indicated in `file_root` argument should contain one or more
 subdirectories. The files in these subdirectories are listed and assigned labels based on
-lexicographical order of the subdirectory. If you provide ``file_filters`` argument with
+lexicographical order of the subdirectory. If you provide `file_filters` argument with
 a list of glob strings, the operator will list files matching at least one of the patterns.
-Otherwise, a default set of filters is used (see the default value of ``file_filters`` for
+Otherwise, a default set of filters is used (see the default value of `file_filters` for
 details).
 
 For example, this directory structure::
@@ -64,7 +64,7 @@ and with ``file_filters = ["*.jpg", "*.jpeg"]`` will yield the following outputs
 
 2. Use file names and labels stored in a text file.
 
-``file_list`` argument points to a file which contains one file name and label per line.
+`file_list` argument points to a file which contains one file name and label per line.
 Example::
 
   dog.jpg 0
@@ -84,36 +84,40 @@ for details.
   .AddOptionalArg<string>("file_root",
       R"(Path to a directory that contains the data files.
 
-If not using ``file_list`` or ``files``, this directory is traversed to discover the files.
-``file_root`` is required in this mode of operation.)",
+If not using `file_list` or `files`. this directory is traversed to discover the files.
+`file_root` is required in this mode of operation.)",
       nullptr)
   .AddOptionalArg<string>("file_list",
       R"(Path to a text file that contains one whitespace-separated ``filename label``
-pair per line. The filenames are relative to the location of that file or to ``file_root``,
+pair per line. The filenames are relative to the location of that file or to `file_root`,
 if specified.
 
-This argument is mutually exclusive with ``files``.)", nullptr)
+This argument is mutually exclusive with `files`.)", nullptr)
 .AddOptionalArg("shuffle_after_epoch",
       R"(If set to True, the reader shuffles the entire dataset after each epoch.
 
-``stick_to_shard`` and ``random_shuffle`` cannot be used when this argument is set to True.)",
+`stick_to_shard` and `random_shuffle` cannot be used when this argument is set to True.)",
       false)
   .AddOptionalArg<vector<string>>("files", R"(A list of file paths to read the data from.
 
-If ``file_root`` is provided, the paths are treated as being relative to it.
-When using ``files``, the labels are taken from ``labels`` argument or, if it was not supplied,
-contain indices at which given file appeared in the ``files`` list.
+If `file_root` is provided, the paths are treated as being relative to it.
+When using `files`, the labels are taken from `labels` argument or, if it was not supplied,
+contain indices at which given file appeared in the `files` list.
 
-This argument is mutually exclusive with ``file_list``.)", nullptr)
+This argument is mutually exclusive with `file_list`.)", nullptr)
   .AddOptionalArg<vector<int>>("labels", R"(Labels accompanying contents of files listed in
-``files`` argument.
+`files` argument.
 
 If not used, sequential 0-based indices are used as labels)", nullptr)
   .AddOptionalArg<string>("file_filters", R"(A list of glob strings to filter the
-list of files in the sub-directories of the ``file_root``.
+list of files in the sub-directories of the `file_root`.
 
-This argument is ignored when file paths are taken from ``file_list`` or ``files``.)",
+This argument is ignored when file paths are taken from `file_list` or `files`.)",
       kKnownExtensionsGlob)
+  .AddOptionalArg<std::vector<string>>("dir_filters", R"(A list of glob strings to filter the
+list of sub-directories under `file_root`.
+
+This argument is ignored when file paths are taken from `file_list` or `files`.)", nullptr)
   .AddOptionalArg<bool>("case_sensitive_filter", R"(If set to True, the filter will be matched
 case-sensitively, otherwise case-insensitively.)", false)
   .AddParent("LoaderBase");

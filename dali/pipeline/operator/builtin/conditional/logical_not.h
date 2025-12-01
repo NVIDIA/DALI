@@ -19,22 +19,20 @@
 #include <vector>
 
 #include "dali/pipeline/operator/builtin/conditional/validation.h"
+#include "dali/pipeline/operator/checkpointing/stateless_operator.h"
 #include "dali/pipeline/operator/operator.h"
+
 
 namespace dali {
 
 /**
  * @brief Eager `not` operator from Python
  */
-class LogicalNot : public Operator<CPUBackend> {
+class LogicalNot : public StatelessOperator<CPUBackend> {
  public:
-  explicit LogicalNot(const OpSpec &spec) : Operator<CPUBackend>(spec), name_("not") {}
+  explicit LogicalNot(const OpSpec &spec) : StatelessOperator<CPUBackend>(spec), name_("not") {}
 
   ~LogicalNot() override = default;
-
-  bool CanInferOutputs() const override {
-    return true;
-  }
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override;
   void RunImpl(Workspace &ws) override;
@@ -55,6 +53,10 @@ class LogicalNotFailForGpu : public Operator<GPUBackend> {
  public:
   explicit LogicalNotFailForGpu(const OpSpec &spec) : Operator<GPUBackend>(spec) {
     ReportGpuInputError("not", "", true);
+  }
+
+  bool HasContiguousOutputs() const override {
+    return false;
   }
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {

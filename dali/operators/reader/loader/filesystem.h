@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,27 +17,15 @@
 
 #include <string>
 #include <utility>
-#include <vector>
 #include "dali/core/common.h"
 
 namespace dali {
 namespace filesystem {
 
-DLL_PUBLIC vector<string> traverse_directories(const string &path, const string &filter);
-
-/**
- * @brief Finds all (file, label) pairs matching any filter from the list.
- */
-DLL_PUBLIC vector<std::pair<string, int>> traverse_directories(
-    const string &file_root, const vector<string> &filters,
-    const bool case_sensitive_filter = false);
-
 /**
  * @brief Prepends dir to a relative path and keeps absolute path unchanged.
  */
-DLL_PUBLIC string join_path(const string &dir, const string &path);
-
-DLL_PUBLIC string dir_path(const string &path);
+DLL_PUBLIC string join_path(const std::string &dir, const std::string &path);
 
 #ifdef WINVER
 constexpr char dir_sep = '\\';

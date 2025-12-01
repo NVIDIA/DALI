@@ -18,24 +18,22 @@ from typing import Callable, Tuple, Optional, Union
 
 from nvidia.dali import fn, types
 from nvidia.dali.data_node import DataNode as _DataNode
-from nvidia.dali.auto_aug.core._args import filter_extra_accepted_kwargs, \
-    get_missing_kwargs, get_num_positional_args, MissingArgException
+from nvidia.dali.auto_aug.core._args import (
+    filter_extra_accepted_kwargs,
+    get_missing_kwargs,
+    get_num_positional_args,
+    MissingArgException,
+)
 
 try:
     import numpy as np
 except ImportError:
     raise RuntimeError(
         "Could not import numpy. DALI's automatic augmentation examples depend on numpy. "
-        "Please install numpy to use the examples.")
+        "Please install numpy to use the examples."
+    )
 
-try:
-    from numpy import typing as npt
-    _ArrayLike = npt.ArrayLike
-except ImportError:
-    # workaround for python3.6 where numpy 1.20+ is not available;
-    # we just don't provide meaningful type information in that case
-    from typing import Any
-    _ArrayLike = Any
+from numpy import typing as npt
 
 
 class _UndefinedParam:
@@ -44,9 +42,12 @@ class _UndefinedParam:
 
 
 class _SignedMagnitudeBin:
-
-    def __init__(self, magnitude_bin: Union[int, _DataNode], random_sign: _DataNode,
-                 signed_magnitude_idx: _DataNode):
+    def __init__(
+        self,
+        magnitude_bin: Union[int, _DataNode],
+        random_sign: _DataNode,
+        signed_magnitude_idx: _DataNode,
+    ):
         self._magnitude_bin = magnitude_bin
         self._random_sign = random_sign
         self._signed_magnitude_idx = signed_magnitude_idx
@@ -65,19 +66,27 @@ class _SignedMagnitudeBin:
         return cls(magnitude_bin, self._random_sign[idx], self._signed_magnitude_idx[idx])
 
     @classmethod
-    def create_from_bin(cls, magnitude_bin: Union[int, _DataNode],
-                        random_sign: Optional[_DataNode] = None, seed: Optional[int] = None,
-                        shape: Optional[Tuple] = None):
+    def create_from_bin(
+        cls,
+        magnitude_bin: Union[int, _DataNode],
+        random_sign: Optional[_DataNode] = None,
+        seed: Optional[int] = None,
+        shape: Optional[Tuple] = None,
+    ):
         if not isinstance(magnitude_bin, (int, _DataNode)):
-            raise Exception(f"The `magnitude_bin` must be an int or _DataNode (output of DALI op "
-                            f"or `types.Constant`) representing batch of ints from "
-                            f"`[0..num_magnitude_bins-1]` range. Got {magnitude_bin} instead.")
+            raise Exception(
+                f"The `magnitude_bin` must be an int or _DataNode (output of DALI op "
+                f"or `types.Constant`) representing batch of ints from "
+                f"`[0..num_magnitude_bins-1]` range. Got {magnitude_bin} instead."
+            )
         if random_sign is not None and any(arg is not None for arg in (seed, shape)):
             raise Exception(
-                "The `random_sign` cannot be specified together with neither `seed` nor `shape`.")
+                "The `random_sign` cannot be specified together with neither `seed` nor `shape`."
+            )
         if random_sign is None:
-            random_sign = fn.random.uniform(values=[0, 1], dtype=types.INT32, seed=seed,
-                                            shape=shape)
+            random_sign = fn.random.uniform(
+                values=[0, 1], dtype=types.INT32, seed=seed, shape=shape
+            )
         # it is important to compute it as soon as possible - we may be created at the top level
         # in the pipeline, while it may be read in conditional split
         signed_magnitude_idx = 2 * magnitude_bin + random_sign
@@ -85,7 +94,6 @@ class _SignedMagnitudeBin:
 
     @staticmethod
     def _remap_to_signed_magnitudes(magnitudes):
-
         def remap_bin_idx(bin_idx):
             magnitude = magnitudes[bin_idx // 2]
             if bin_idx % 2:
@@ -107,8 +115,12 @@ class _SignedMagnitudeBin:
         return self._signed_magnitude_idx
 
 
-def signed_bin(magnitude_bin: Union[int, _DataNode], random_sign: Optional[_DataNode] = None,
-               seed: Optional[int] = None, shape: Optional[Tuple] = None) -> _SignedMagnitudeBin:
+def signed_bin(
+    magnitude_bin: Union[int, _DataNode],
+    random_sign: Optional[_DataNode] = None,
+    seed: Optional[int] = None,
+    shape: Optional[Tuple] = None,
+) -> _SignedMagnitudeBin:
     """
     Combines the `magnitude_bin` with information about the sign of the magnitude.
     The Augmentation wrapper can generate and handle the random sign on its own. Yet,
@@ -140,7 +152,7 @@ class Augmentation:
         op: Callable[..., _DataNode],
         mag_range: Optional[Union[Tuple[float, float], np.ndarray]] = None,
         randomly_negate: Optional[bool] = None,
-        mag_to_param: Optional[Callable[[float], _ArrayLike]] = None,
+        mag_to_param: Optional[Callable[[float], npt.ArrayLike]] = None,
         param_device: Optional[str] = None,
         name: Optional[str] = None,
     ):
@@ -158,9 +170,14 @@ class Augmentation:
         ]
         return f"Augmentation({', '.join([repr(self.op)] + params)})"
 
-    def __call__(self, data: _DataNode, *,
-                 magnitude_bin: Optional[Union[int, _DataNode, _SignedMagnitudeBin]] = None,
-                 num_magnitude_bins: Optional[int] = None, **kwargs) -> _DataNode:
+    def __call__(
+        self,
+        data: _DataNode,
+        *,
+        magnitude_bin: Optional[Union[int, _DataNode, _SignedMagnitudeBin]] = None,
+        num_magnitude_bins: Optional[int] = None,
+        **kwargs,
+    ) -> _DataNode:
         """
         Applies the decorated transformation to the `data` as if by calling
         `self.op(data, param, **kwargs)` where
@@ -188,7 +205,7 @@ class Augmentation:
         -------
         DataNode
             A batch of transformed samples.
-    """
+        """
         num_mandatory_positional_args = 2
         param_device = self._infer_param_device(data)
         params = self._get_param(magnitude_bin, num_magnitude_bins, param_device)
@@ -199,7 +216,10 @@ class Augmentation:
                 f"The augmentation `{self.name}` requires following named argument(s) "
                 f"which were not provided to the call: {', '.join(missing_args)}. "
                 f"Please make sure to pass the required arguments when calling the "
-                f"augmentation.", augmentation=self, missing_args=missing_args)
+                f"augmentation.",
+                augmentation=self,
+                missing_args=missing_args,
+            )
         return self.op(data, params, **op_kwargs)
 
     @property
@@ -226,9 +246,15 @@ class Augmentation:
     def name(self):
         return self._name or self.op.__name__
 
-    def augmentation(self, mag_range=_UndefinedParam, randomly_negate=_UndefinedParam,
-                     mag_to_param=_UndefinedParam, param_device=_UndefinedParam,
-                     name=_UndefinedParam, augmentation_cls=None):
+    def augmentation(
+        self,
+        mag_range=_UndefinedParam,
+        randomly_negate=_UndefinedParam,
+        mag_to_param=_UndefinedParam,
+        param_device=_UndefinedParam,
+        name=_UndefinedParam,
+        augmentation_cls=None,
+    ):
         """
         The method to update augmentation parameters specified with `@augmentation` decorator.
         Returns a new augmentation with the original operation decorated but updated parameters.
@@ -236,9 +262,13 @@ class Augmentation:
         """
         cls = augmentation_cls or self.__class__
         config = self._get_config()
-        for key, value in dict(mag_range=mag_range, randomly_negate=randomly_negate,
-                               mag_to_param=mag_to_param, param_device=param_device,
-                               name=name).items():
+        for key, value in dict(
+            mag_range=mag_range,
+            randomly_negate=randomly_negate,
+            mag_to_param=mag_to_param,
+            param_device=param_device,
+            name=name,
+        ).items():
             assert key in config
             if value is not _UndefinedParam:
                 config[key] = value
@@ -273,7 +303,8 @@ class Augmentation:
                 f"You can move DALI operators from `mag_to_param` callback to the "
                 f"decorated augmentation code or replace the DALI operators in `mag_to_param` "
                 f"callback with their `dali.experimental.eger` counterparts.\n\n"
-                f"Error in augmentation: {self}.")
+                f"Error in augmentation: {self}."
+            )
         return np.array(param)
 
     def _map_mags_to_params(self, magnitudes):
@@ -289,7 +320,8 @@ class Augmentation:
                         f"Got param of shape {ref_shape} and {ref_dtype} type for magnitude "
                         f"{magnitudes[0]}, but for magnitude {mag} the returned array "
                         f"has shape {param.shape} and type {param.dtype}.\n\n"
-                        f"Error in augmentation: {self}.")
+                        f"Error in augmentation: {self}."
+                    )
         return np.array(params)
 
     def _get_magnitudes(self, num_magnitude_bins):
@@ -301,19 +333,22 @@ class Augmentation:
                 raise Exception(
                     f"The augmentation `{self.name}` has nd.array of length {len(mag_range)} "
                     f"specified as the `mag_range`. However, the `num_magnitude_bins` "
-                    f"passed to the call is {num_magnitude_bins}.")
+                    f"passed to the call is {num_magnitude_bins}."
+                )
             return mag_range
         if num_magnitude_bins is None:
             raise Exception(
                 f"The `num_magnitude_bins` argument is missing in the call of "
                 f"the `{self.name}` augmentation. Please specify the `num_magnitude_bins` "
                 f"along with the samples and magnitude_bin."
-                f"\nError in augmentation: {self}.")
-        if not hasattr(mag_range, '__len__') or len(mag_range) != 2:
+                f"\nError in augmentation: {self}."
+            )
+        if not hasattr(mag_range, "__len__") or len(mag_range) != 2:
             raise Exception(
                 f"The `mag_range` must be a tuple of (low, high) ends of magnitude range or "
                 f"nd.array of explicitly defined magnitudes. Got `{self.mag_range}` for "
-                f"augmentation `{self.name}`.")
+                f"augmentation `{self.name}`."
+            )
         lo, hi = mag_range
         return np.linspace(lo, hi, num_magnitude_bins, dtype=np.float32)
 
@@ -323,9 +358,10 @@ class Augmentation:
             return None
         if magnitude_bin is None:
             raise Exception(
-                f"The augmentation `{self.name}` has `mag_range` specified, so when called, "
-                f"it requires `magnitude_bin` parameter to select the magnitude from the "
-                f"`mag_range`.\nError in augmentation: {self}.")
+                f"The augmentation `{self.name}` has `mag_range` specified, "  # nosec B608
+                f"so when called, it requires `magnitude_bin` parameter to select "
+                f"the magnitude from the `mag_range`.\nError in augmentation: {self}."
+            )
         if self.randomly_negate and not isinstance(magnitude_bin, _SignedMagnitudeBin):
             magnitude_bin = signed_bin(magnitude_bin)
             warnings.warn(
@@ -335,7 +371,9 @@ class Augmentation:
                 f"However, for better performance, if you conditionally split batch "
                 f"between multiple augmentations, it is better to call "
                 f"`signed_magnitude_bin = signed_bin(magnitude_bin)` before the split "
-                f"and pass the signed bins instead.", Warning)
+                f"and pass the signed bins instead.",
+                Warning,
+            )
         if self.randomly_negate:
             assert isinstance(magnitude_bin, _SignedMagnitudeBin)  # by the two checks above
             if isinstance(magnitude_bin.bin, int):
@@ -350,8 +388,11 @@ class Augmentation:
         else:
             # other augmentations in the suite may need sign and we got it along the magnitude bin,
             # just unpack the plain magnitude bin
-            bin_idx = magnitude_bin.bin if isinstance(magnitude_bin,
-                                                      _SignedMagnitudeBin) else magnitude_bin
+            bin_idx = (
+                magnitude_bin.bin
+                if isinstance(magnitude_bin, _SignedMagnitudeBin)
+                else magnitude_bin
+            )
             if isinstance(bin_idx, int):
                 magnitude = magnitudes[bin_idx]
                 param = self._map_mag_to_param(magnitude)
@@ -367,7 +408,8 @@ class Augmentation:
             raise Exception(
                 f"The {self.op} accepts {num_positional} positional argument(s), "
                 f"but the functions decorated with `@augmentation` must accept at least two "
-                f"positional arguments: the samples and parameters.\nError in: {self}.")
+                f"positional arguments: the samples and parameters.\nError in: {self}."
+            )
 
 
 def _np_wrap(mag):

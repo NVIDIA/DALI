@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -75,19 +75,28 @@ include(cmake/Dependencies.common.cmake)
 ##################################################################
 set(Protobuf_CROSS YES)
 set(Protobuf_USE_STATIC_LIBS YES)
-find_package(Protobuf 2.0 REQUIRED)
-if(${Protobuf_VERSION} VERSION_LESS "3.0")
-  message(STATUS "TensorFlow TFRecord file format support is not available with Protobuf 2")
-else()
-  message(STATUS "Enabling TensorFlow TFRecord file format support")
-  add_definitions(-DDALI_BUILD_PROTO3=1)
-  set(BUILD_PROTO3 ON CACHE STRING "Build proto3")
-endif()
+# deliberatelly use protobuf instead of Protobuf to use protobuf provided cmake configuration file
+# then use Protobuf to utilize our FindProtobuf.cmake to discover the rest
+find_package(protobuf REQUIRED CONFIG)
+find_package(Protobuf 3.6.1 REQUIRED)
+message(STATUS "Enabling TensorFlow TFRecord file format support")
+add_definitions(-DDALI_BUILD_PROTO3=1)
+set(BUILD_PROTO3 ON CACHE STRING "Build proto3")
 
 include_directories(SYSTEM ${Protobuf_INCLUDE_DIRS})
-list(APPEND DALI_LIBS ${Protobuf_LIBRARY} ${Protobuf_PROTOC_LIBRARIES} ${Protobuf_LITE_LIBRARIES})
+list(APPEND DALI_LIBS protobuf::libprotobuf)
 
 set(DALI_SYSTEM_LIBS rt pthread m dl)
 list(APPEND DALI_LIBS ${CUDART_LIB} ${DALI_SYSTEM_LIBS})
 
 list(APPEND DALI_EXCLUDES libprotobuf.a;libprotobuf-lite.a;libprotoc.a)
+# find all the libraries that protobuf::libprotobuf depends on
+get_link_libraries(PROTO_LIB_DEPS protobuf::libprotobuf)
+# libutf8_validity.a is a result of a generator expression, add it manually as it is
+# hard/impossible to learn its name during the configuration phase
+list(APPEND DALI_EXCLUDES ${PROTO_LIB_DEPS} libutf8_validity.a)
+
+##################################################################
+# pybind 11
+##################################################################
+set(PYBIND11_USE_CROSSCOMPILING ON)

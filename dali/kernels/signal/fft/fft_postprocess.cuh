@@ -305,7 +305,6 @@ class ToFreqMajorSpectrum : public FFTPostprocess<Out, In> {
 
   KernelRequirements Setup(KernelContext &ctx, const TensorListShape<2> &in_shape) override {
     KernelRequirements req;
-    ScratchpadEstimator se;
     req.output_shapes.resize(1);
     auto &out_shape = req.output_shapes[0];
 
@@ -335,11 +334,6 @@ class ToFreqMajorSpectrum : public FFTPostprocess<Out, In> {
       nblocks += div_ceil(nwindows, block_size_);
     }
     nblocks_ = nblocks;
-    se.add<mm::memory_kind::device, SampleDesc>(N);
-    se.add<mm::memory_kind::device, BlockDesc>(nblocks);
-    se.add<mm::memory_kind::host, SampleDesc>(N);
-    se.add<mm::memory_kind::host, BlockDesc>(nblocks);
-    req.scratch_sizes = se.sizes;
     return req;
   }
 

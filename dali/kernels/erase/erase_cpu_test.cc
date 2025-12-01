@@ -17,7 +17,6 @@
 #include <vector>
 #include <complex>
 #include <cmath>
-#include "dali/kernels/scratch.h"
 #include "dali/kernels/erase/erase_cpu.h"
 #include "dali/kernels/common/utils.h"
 #include "dali/test/test_tensors.h"

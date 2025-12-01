@@ -1,6 +1,6 @@
 #!/bin/bash -e
 # used pip packages
-pip_packages='jupyter numpy matplotlib<3.5.3 pillow opencv-python librosa==0.8.1 simpleaudio'
+pip_packages='jupyter numpy matplotlib pillow opencv-python-headless librosa simpleaudio'
 target_dir=./docs/examples
 
 # populate epilog and prolog with variants to enable/disable conda
@@ -10,9 +10,13 @@ epilog=(disable_conda)
 
 do_once() {
   # We need cmake to run the custom plugin notebook + ffmpeg, wget for video example, libasound2-dev for audio test
-  apt-get update
-  apt-get install -y --no-install-recommends wget ffmpeg cmake libasound2-dev
+  # install native compilers in conda instead of using system ones so we can link with conda packages
+  enable_conda
+  # We use CUDA 12.0 docker image for this test, so we need to install gcc 12.x at most.
+  # TODO: bump GCC version once CUDA 12.0 image is no longer used.
+  conda install gcc==12.4 gxx==12.4 alsa-lib wget ffmpeg cmake -y
   mkdir -p idx_files
+  disable_conda
 }
 
 test_body() {
@@ -20,7 +24,7 @@ test_body() {
     # test all jupyters except one related to a particular FW,
     # and one requiring a dedicated HW (multiGPU, GDS and OF)
     # optical flow requires TU102 architecture whilst this test can be run on any GPU
-    exclude_files="multigpu\|mxnet\|tensorflow\|pytorch\|paddle\|external_input.ipynb\|numpy_reader.ipynb\|webdataset-externalsource.ipynb\|optical_flow\|python_operator\|#"
+    exclude_files="multigpu\|mxnet\|tensorflow\|pytorch\|paddle\|jax\|external_input.ipynb\|numpy_reader.ipynb\|webdataset-externalsource.ipynb\|optical_flow\|python_operator\|#"
 
     find * -name "*.ipynb" | sed "/${exclude_files}/d" | xargs -i jupyter nbconvert \
                     --to notebook --inplace --execute \

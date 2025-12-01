@@ -19,12 +19,12 @@
 #include <string>
 #include "dali/core/tensor_shape.h"
 #include "dali/pipeline/data/backend.h"
-#include "dali/pipeline/operator/operator.h"
+#include "dali/pipeline/operator/checkpointing/stateless_operator.h"
 
 namespace dali {
 
 template <typename Backend>
-class Flip: public Operator<Backend> {
+class Flip: public StatelessOperator<Backend> {
  public:
   explicit Flip(const OpSpec &spec);
 
@@ -37,10 +37,6 @@ class Flip: public Operator<Backend> {
     auto &input = ws.Input<Backend>(0);
     output_desc[0].type =  input.type();
     output_desc[0].shape = input.shape();
-    return true;
-  }
-
-  bool CanInferOutputs() const override {
     return true;
   }
 

@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -38,11 +38,11 @@ using kernels::label_bbox::GetLabelBoundingBoxes;
 DALI_SCHEMA(segmentation__RandomObjectBBox)
   .DocStr(R"(Randomly selects an object from a mask and returns its bounding box.
 
-This operator takes a labeled segmentation map as its input. With probability ``foreground_prob``
-it randomly selects a label (uniformly or according to the distribution given as ``class_weights``),
+This operator takes a labeled segmentation map as its input. With probability `foreground_prob`
+it randomly selects a label (uniformly or according to the distribution given as `class_weights`),
 extracts connected blobs of pixels with the selected label and randomly selects one of the blobs.
-The blobs may be further filtered according to ``k_largest`` and ``threshold``.
-The output is a bounding box of the selected blob in one of the formats described in ``format``.
+The blobs may be further filtered according to `k_largest` and `threshold`.
+The output is a bounding box of the selected blob in one of the formats described in `format`.
 
 With probability 1-foreground_prob, the entire area of the input is returned.)")
   .NumInput(1)
@@ -51,11 +51,13 @@ With probability 1-foreground_prob, the entire area of the input is returned.)")
     int output_class = spec.GetArgument<bool>("output_class");
     return 1 + separate_corners + output_class;
   })
+  .AddRandomSeedArg()
+  .AddRandomStateArg()
   .AddOptionalArg("ignore_class", R"(If True, all objects are picked with equal probability,
 regardless of the class they belong to. Otherwise, a class is picked first and then an object is
 randomly selected from this class.
 
-This argument is incompatible with ``classes``, ``class_weights`` or ``output_class``.
+This argument is incompatible with `classes`, `class_weights` or `output_class`.
 
 .. note::
   This flag only affects the probability with which blobs are selected. It does not cause
@@ -65,29 +67,29 @@ label of the class to which the selected box belongs, or background label if the
 is not an object bounding box.
 
 The output may not be an object bounding box when any of the following conditions occur:
-  - the sample was randomly (according to ``foreground_prob``) chosen not be be a foreground one
+  - the sample was randomly (according to `foreground_prob`) chosen not be be a foreground one
   - the sample contained no foreground objects
   - no bounding box met the required size threshold.)", false)
   .AddOptionalArg("foreground_prob", "Probability of selecting a foreground bounding box.", 1.0f,
     true)
   .AddOptionalArg<vector<int>>("classes", R"(List of labels considered as foreground.
 
-If left unspecified, all labels not equal to ``background`` are considered foreground.)",
+If left unspecified, all labels not equal to `background` are considered foreground.)",
     nullptr, true)
   .AddOptionalArg("background", R"(Background label.
 
-If left unspecified, it's either 0 or any value not in ``classes``.)", 0, true)
+If left unspecified, it's either 0 or any value not in `classes`.)", 0, true)
   .AddOptionalArg<vector<float>>("class_weights", R"(Relative probabilities of foreground classes.
 
-Each value corresponds to a class label in ``classes``. If ``classes`` are not specified,
+Each value corresponds to a class label in `classes`. If `classes` are not specified,
 consecutive 1-based labels are assigned.
 
 The sum of the weights doesn't have to be equal to 1 - if it isn't the weights will be
 normalized .)", nullptr, true)
   .AddOptionalArg<int>("k_largest", R"(If specified, the boxes are sorted by decreasing volume
-and only ``k_largest`` are considered.
+and only `k_largest` are considered.
 
-If ``ignore_class`` is True, ``k_largest`` referes to all boxes; otherwise it refers to the
+If `ignore_class` is True, `k_largest` referes to all boxes; otherwise it refers to the
 selected class.)",
     nullptr)
   .AddOptionalArg<vector<int>>("threshold", R"(Per-axis minimum size of the bounding boxes
@@ -189,7 +191,7 @@ void RandomObjectBBox::SampleContext<BlobLabel>::FindLabels(const InTensorCPU<T>
   for (int i = 0; i < num_chunks; i++) {
     int64_t start = N * i / num_chunks;
     int64_t end = N * (i + 1)  / num_chunks;
-    thread_pool->AddWork([=](int) {
+    thread_pool->AddWork([=, this](int) {
       auto &lbl = tmp_labels[i];
       lbl.clear();
       detail::FindLabels(lbl, data + start, end - start);
@@ -375,10 +377,10 @@ int RandomObjectBBox::PickBox(span<Box<ndim, int>> boxes, int sample_idx) {
     }
     std::sort(vol_idx.begin(), vol_idx.end());
     std::uniform_int_distribution<int> dist(0, std::min(n, k_largest_)-1);
-    return vol_idx[dist(rngs_[sample_idx])].second;
+    return vol_idx[dist(rng_[sample_idx])].second;
   } else {
     std::uniform_int_distribution<int> dist(0, n-1);
-    return dist(rngs_[sample_idx]);
+    return dist(rng_[sample_idx]);
   }
 }
 
@@ -492,7 +494,7 @@ bool RandomObjectBBox::PickForegroundBox(
     }
 
     while (class_info_.CalculateCDF()) {
-      if (!context.PickClassLabel(class_info_, rngs_[context.sample_idx]))
+      if (!context.PickClassLabel(class_info_, rng_[context.sample_idx]))
         return false;
 
       assert(context.class_label != class_info_.background);
@@ -578,7 +580,7 @@ void RandomObjectBBox::RunImpl(Workspace &ws) {
 
   std::uniform_real_distribution<> foreground(0, 1);
   for (int i = 0; i < N; i++) {
-    bool fg = foreground(rngs_[i]) < foreground_prob_[i].data[0];
+    bool fg = foreground(rng_[i]) < foreground_prob_[i].data[0];
     if (!fg) {
       StoreBox(out1, out2, format_, i, default_anchor, input.tensor_shape(i));
       if (HasClassLabelOutput()) {

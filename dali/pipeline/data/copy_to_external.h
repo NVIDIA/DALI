@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,7 +17,7 @@
 
 #include <cuda_runtime.h>
 #include "dali/core/static_switch.h"
-#include "dali/pipeline/data/buffer.h"
+#include "dali/pipeline/data/tensor_list.h"
 #include "dali/pipeline/data/types.h"
 #include "dali/core/mm/memory_kind.h"
 
@@ -47,6 +47,12 @@ inline void CopyToExternalImpl(void* dst,
                                const Tensor<SrcBackend> &src,
                                AccessOrder order, bool use_copy_kernel) {
   DeviceGuard d(src.device_id());
+  constexpr bool is_gpu_copy = std::is_same_v<DstBackend, GPUBackend> ||
+                               std::is_same_v<SrcBackend, GPUBackend>;
+  if constexpr (is_gpu_copy) {
+    order.wait(src.order());
+  }
+
   const auto &type_info = src.type_info();
   type_info.template Copy<DstBackend, SrcBackend>(dst, src.raw_data(), src.size(), order.stream(),
                                                   use_copy_kernel);
@@ -65,11 +71,12 @@ inline void CopyToExternalImpl(void* dst,
   constexpr bool is_gpu_copy = std::is_same_v<DstBackend, GPUBackend> ||
                                std::is_same_v<SrcBackend, GPUBackend>;
   if constexpr (is_gpu_copy) {
-    src.order().wait(order);
+    order.wait(src.order());
   }
 
   if (src.IsContiguous()) {
-    type_info.template Copy<DstBackend, SrcBackend>(dst, unsafe_raw_data(src), src._num_elements(),
+    type_info.template Copy<DstBackend, SrcBackend>(dst, contiguous_raw_data(src),
+                                                    src._num_elements(),
                                                     order.stream(), use_copy_kernel);
   } else {
     const auto &src_shape = src.shape();
@@ -93,11 +100,10 @@ inline void CopyToExternalImpl(void** dsts,
                                const TensorList<SrcBackend> &src,
                                AccessOrder order, bool use_copy_kernel) {
   DeviceGuard d(src.device_id());
-
   constexpr bool is_gpu_copy = std::is_same_v<DstBackend, GPUBackend> ||
                                std::is_same_v<SrcBackend, GPUBackend>;
   if constexpr (is_gpu_copy) {
-    src.order().wait(order);
+    order.wait(src.order());
   }
 
   const auto &type_info = src.type_info();
@@ -114,7 +120,7 @@ inline void CopyToExternalImpl(void** dsts,
   int samples_to_copy = sizes.size();
 
   if (src.IsContiguous() && samples_to_copy == num_samples) {
-    type_info.template Copy<DstBackend, SrcBackend>(dsts, unsafe_raw_data(src), sizes.data(),
+    type_info.template Copy<DstBackend, SrcBackend>(dsts, contiguous_raw_data(src), sizes.data(),
                                                     num_samples, order.stream(), use_copy_kernel);
 
   } else {
@@ -135,22 +141,20 @@ inline void CopyToExternalImpl(void** dsts,
 }
 
 template <typename DstKind, typename SrcBackend>
-inline void CopyToExternal(void* dst, const Tensor<SrcBackend> &src,
-                           AccessOrder order, bool use_copy_kernel) {
+inline void CopyToExternal(void *dst, const Tensor<SrcBackend> &src, AccessOrder order,
+                           bool use_copy_kernel) {
   const bool src_device_access = (std::is_same<SrcBackend, GPUBackend>::value || src.is_pinned());
-  const bool dst_device_access = cuda::kind_has_property<DstKind,
-                                                         cuda::memory_access::device>::value;
+  const bool dst_device_access = mm::is_device_accessible<DstKind>;
   use_copy_kernel &= dst_device_access && src_device_access;
   using DstBackend = typename detail::kind2backend<DstKind>::type;
   CopyToExternalImpl<DstBackend, SrcBackend>(dst, src, order, use_copy_kernel);
 }
 
 template <typename DstKind, typename SrcBackend>
-inline void CopyToExternal(void* dst, const TensorList<SrcBackend> &src,
-                           AccessOrder order, bool use_copy_kernel) {
+inline void CopyToExternal(void *dst, const TensorList<SrcBackend> &src, AccessOrder order,
+                           bool use_copy_kernel) {
   const bool src_device_access = (std::is_same<SrcBackend, GPUBackend>::value || src.is_pinned());
-  const bool dst_device_access = cuda::kind_has_property<DstKind,
-                                                         cuda::memory_access::device>::value;
+  const bool dst_device_access = mm::is_device_accessible<DstKind>;
   use_copy_kernel &= dst_device_access && src_device_access;
   using DstBackend = typename detail::kind2backend<DstKind>::type;
   CopyToExternalImpl<DstBackend, SrcBackend>(dst, src, order, use_copy_kernel);
@@ -185,7 +189,7 @@ template <typename DstKind, typename SrcBackend>
 inline void CopyToExternal(void** dsts, const TensorList<SrcBackend> &src,
                            AccessOrder order, bool use_copy_kernel) {
   bool src_device_access = (std::is_same<SrcBackend, GPUBackend>::value || src.is_pinned());
-  bool dst_device_access = cuda::kind_has_property<DstKind, cuda::memory_access::device>::value;
+  bool dst_device_access = mm::is_device_accessible<DstKind>;
   use_copy_kernel &= dst_device_access && src_device_access;
   using DstBackend = typename detail::kind2backend<DstKind>::type;
   CopyToExternalImpl<DstBackend, SrcBackend>(dsts, src, order, use_copy_kernel);

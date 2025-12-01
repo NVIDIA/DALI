@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,6 +14,7 @@
 
 #include "dali/operators/decoder/decoder_test.h"
 #include "dali/operators/image/crop/random_crop_attr.h"
+#include "dali/test/dali_test_checkpointing.h"
 
 namespace dali {
 
@@ -62,6 +63,30 @@ TYPED_TEST(ImageDecoderRandomCropTest_GPU, TiffDecode) {
 
 TYPED_TEST(ImageDecoderRandomCropTest_GPU, Jpeg2kDecode) {
   this->Run(t_jpeg2kImgType);
+}
+
+class ImageRandomCropCheckpointingTest_GPU : public CheckpointingTest {};
+
+TEST_F(ImageRandomCropCheckpointingTest_GPU, Simple) {
+  PipelineWrapper pipe(8, {{"decoded", "gpu"}});
+  pipe.EnableCheckpointing();
+
+  auto filepath = testing::dali_extra_path() + "/db/single/jpeg/134/site-1534685_1280.jpg";
+  pipe.AddOperator(
+    OpSpec("FileReader")
+      .AddOutput("file", StorageDevice::CPU)
+      .AddOutput("label", StorageDevice::CPU)
+      .AddArg("pad_last_batch", true)
+      .AddArg("files", std::vector{filepath}));
+
+  pipe.AddOperator(
+    OpSpec("decoders__ImageRandomCrop")
+      .AddInput("file", StorageDevice::CPU)
+      .AddOutput("decoded", StorageDevice::GPU)
+      .AddArg("device", "mixed"));
+
+  pipe.Build();
+  this->RunTest<uint8_t>(std::move(pipe), 2);
 }
 
 }  // namespace dali

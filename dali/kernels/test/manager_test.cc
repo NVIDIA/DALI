@@ -34,11 +34,8 @@ struct TestStruct2 {
 struct TestKernel {
   KernelRequirements Setup(KernelContext &ctx,
                            const InListGPU<float, 3> &in, int arg1, float arg2) {
-    ScratchpadEstimator se;
-    se.add<mm::memory_kind::device, int>(arg1 + 100);
     KernelRequirements req = {};
     req.output_shapes.push_back(in.shape);
-    req.scratch_sizes = se.sizes;
     return req;
   }
 

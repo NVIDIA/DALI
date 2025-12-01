@@ -1,4 +1,4 @@
-# Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2021-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -24,11 +24,12 @@ batch_size = 10
 def copy_pipe(shape, layout, dev, dtype):
     min_shape = [s // 2 if s > 1 else 1 for s in shape]
     min_shape = tuple(min_shape)
-    input = fn.external_source(source=RandomlyShapedDataIterator(batch_size,
-                                                                 min_shape=min_shape,
-                                                                 max_shape=shape,
-                                                                 dtype=dtype),
-                               layout=layout)
+    input = fn.external_source(
+        source=RandomlyShapedDataIterator(
+            batch_size, min_shape=min_shape, max_shape=shape, dtype=dtype
+        ),
+        layout=layout,
+    )
     if dev == "gpu":
         input = input.gpu()
     output = fn.copy(input)
@@ -37,7 +38,6 @@ def copy_pipe(shape, layout, dev, dtype):
 
 def check_copy(shape, layout, dev, dtype=np.uint8):
     pipe = copy_pipe(shape, layout, dev, dtype)
-    pipe.build()
     for i in range(10):
         input, output = pipe.run()
         for i in range(batch_size):

@@ -17,11 +17,13 @@ try:
 except ImportError:
     raise RuntimeError(
         "Could not import numpy. DALI's automatic augmentation examples depend on numpy. "
-        "Please install numpy to use the examples.")
+        "Please install numpy to use the examples."
+    )
 
 from nvidia.dali import fn
 from nvidia.dali import types
 from nvidia.dali.auto_aug.core import augmentation
+
 """
 This module contains a standard suite of augmentations used by AutoAugment policy for ImageNet,
 RandAugment and TrivialAugmentWide. The augmentations are implemented in terms of DALI operators.
@@ -52,53 +54,66 @@ def warp_y_param(magnitude):
 @augmentation(mag_range=(0, 0.3), randomly_negate=True, mag_to_param=warp_x_param)
 def shear_x(data, shear, fill_value=128, interp_type=None):
     mt = fn.transforms.shear(shear=shear)
-    return fn.warp_affine(data, matrix=mt, fill_value=fill_value, interp_type=interp_type,
-                          inverse_map=False)
+    return fn.warp_affine(
+        data, matrix=mt, fill_value=fill_value, interp_type=interp_type, inverse_map=False
+    )
 
 
 @augmentation(mag_range=(0, 0.3), randomly_negate=True, mag_to_param=warp_y_param)
 def shear_y(data, shear, fill_value=128, interp_type=None):
     mt = fn.transforms.shear(shear=shear)
-    return fn.warp_affine(data, matrix=mt, fill_value=fill_value, interp_type=interp_type,
-                          inverse_map=False)
+    return fn.warp_affine(
+        data, matrix=mt, fill_value=fill_value, interp_type=interp_type, inverse_map=False
+    )
 
 
-@augmentation(mag_range=(0., 1.), randomly_negate=True, mag_to_param=warp_x_param)
+@augmentation(mag_range=(0.0, 1.0), randomly_negate=True, mag_to_param=warp_x_param)
 def translate_x(data, rel_offset, shape, fill_value=128, interp_type=None):
     offset = rel_offset * shape[1]
     mt = fn.transforms.translation(offset=offset)
-    return fn.warp_affine(data, matrix=mt, fill_value=fill_value, interp_type=interp_type,
-                          inverse_map=False)
+    return fn.warp_affine(
+        data, matrix=mt, fill_value=fill_value, interp_type=interp_type, inverse_map=False
+    )
 
 
-@augmentation(mag_range=(0, 250), randomly_negate=True, mag_to_param=warp_x_param,
-              name="translate_x")
+@augmentation(
+    mag_range=(0, 250), randomly_negate=True, mag_to_param=warp_x_param, name="translate_x"
+)
 def translate_x_no_shape(data, offset, fill_value=128, interp_type=None):
     mt = fn.transforms.translation(offset=offset)
-    return fn.warp_affine(data, matrix=mt, fill_value=fill_value, interp_type=interp_type,
-                          inverse_map=False)
+    return fn.warp_affine(
+        data, matrix=mt, fill_value=fill_value, interp_type=interp_type, inverse_map=False
+    )
 
 
-@augmentation(mag_range=(0., 1.), randomly_negate=True, mag_to_param=warp_y_param)
+@augmentation(mag_range=(0.0, 1.0), randomly_negate=True, mag_to_param=warp_y_param)
 def translate_y(data, rel_offset, shape, fill_value=128, interp_type=None):
     offset = rel_offset * shape[0]
     mt = fn.transforms.translation(offset=offset)
-    return fn.warp_affine(data, matrix=mt, fill_value=fill_value, interp_type=interp_type,
-                          inverse_map=False)
+    return fn.warp_affine(
+        data, matrix=mt, fill_value=fill_value, interp_type=interp_type, inverse_map=False
+    )
 
 
-@augmentation(mag_range=(0, 250), randomly_negate=True, mag_to_param=warp_y_param,
-              name="translate_y")
+@augmentation(
+    mag_range=(0, 250), randomly_negate=True, mag_to_param=warp_y_param, name="translate_y"
+)
 def translate_y_no_shape(data, offset, fill_value=128, interp_type=None):
     mt = fn.transforms.translation(offset=offset)
-    return fn.warp_affine(data, matrix=mt, fill_value=fill_value, interp_type=interp_type,
-                          inverse_map=False)
+    return fn.warp_affine(
+        data, matrix=mt, fill_value=fill_value, interp_type=interp_type, inverse_map=False
+    )
 
 
 @augmentation(mag_range=(0, 30), randomly_negate=True)
 def rotate(data, angle, fill_value=128, interp_type=None, rotate_keep_size=True):
-    return fn.rotate(data, angle=angle, fill_value=fill_value, interp_type=interp_type,
-                     keep_size=rotate_keep_size)
+    return fn.rotate(
+        data,
+        angle=angle,
+        fill_value=fill_value,
+        interp_type=interp_type,
+        keep_size=rotate_keep_size,
+    )
 
 
 def shift_enhance_range(magnitude):
@@ -120,9 +135,10 @@ def contrast(data, parameter):
     It follows PIL implementation of Contrast enhancement which uses a channel-weighted
     mean as a contrast center.
     """
-    mean = fn.reductions.mean(data, axes=[0, 1])
+    # assumes FHWC or HWC layout
+    mean = fn.reductions.mean(data, axis_names="HW", keep_dims=True)
     rgb_weights = types.Constant(np.array([0.299, 0.587, 0.114], dtype=np.float32))
-    center = fn.reductions.sum(mean * rgb_weights)
+    center = fn.reductions.sum(mean * rgb_weights, axis_names="C", keep_dims=True)
     # it could be just `fn.contrast(data, contrast=parameter, contrast_center=center)`
     # but for GPU `data` the `center` is in GPU mem, and that cannot be passed
     # as named arg (i.e. `contrast_center`) to the operator
@@ -146,8 +162,9 @@ def sharpness_kernel_shifted(magnitude):
     return sharpness_kernel(magnitude - 1)
 
 
-@augmentation(mag_range=(0, 0.9), randomly_negate=True, mag_to_param=sharpness_kernel,
-              param_device="auto")
+@augmentation(
+    mag_range=(0, 0.9), randomly_negate=True, mag_to_param=sharpness_kernel, param_device="auto"
+)
 def sharpness(data, kernel):
     """
     The outputs correspond to PIL's ImageEnhance.Sharpness with the exception for 1px
@@ -169,7 +186,7 @@ def poster_mask_uint8(magnitude):
     elif magnitude > 8:
         magnitude = 8
     nbits = np.round(8 - magnitude).astype(np.uint32)
-    removal_mask = np.uint8(2)**nbits - 1
+    removal_mask = np.uint8(2) ** nbits - 1
     return np.array(np.uint8(255) ^ removal_mask, dtype=np.uint8)
 
 
@@ -217,8 +234,9 @@ def equalize(data, _):
 
 @augmentation
 def auto_contrast(data, _):
-    # assumes HWC layout
-    lo, hi = fn.reductions.min(data, axes=[0, 1]), fn.reductions.max(data, axes=[0, 1])
+    # assumes FHWC or HWC layout
+    lo = fn.reductions.min(data, axis_names="HW", keep_dims=True)
+    hi = fn.reductions.max(data, axis_names="HW", keep_dims=True)
     diff = hi - lo
     mask_scale = diff > 0
     mask_id = mask_scale ^ True

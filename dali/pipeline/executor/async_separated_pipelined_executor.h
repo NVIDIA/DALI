@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -34,14 +34,12 @@ class DLL_PUBLIC AsyncSeparatedPipelinedExecutor : public SeparatedPipelinedExec
  public:
   DLL_PUBLIC inline AsyncSeparatedPipelinedExecutor(
       int batch_size, int num_thread, int device_id, size_t bytes_per_sample_hint,
-      bool set_affinity = false, int max_num_stream = -1, int default_cuda_stream_priority = 0,
-      QueueSizes prefetch_queue_depth = QueueSizes{2, 2})
+      ExecutorFlags flags = {}, QueueSizes prefetch_queue_depth = QueueSizes{2, 2})
       : SeparatedPipelinedExecutor(batch_size, num_thread, device_id, bytes_per_sample_hint,
-                                   set_affinity, max_num_stream, default_cuda_stream_priority,
-                                   prefetch_queue_depth),
-        cpu_thread_(device_id, set_affinity, "CPU executor"),
-        mixed_thread_(device_id, set_affinity, "Mixed executor"),
-        gpu_thread_(device_id, set_affinity, "GPU executor") {}
+                                   flags, prefetch_queue_depth),
+        cpu_thread_(device_id, Test(flags, ExecutorFlags::SetAffinity), "CPU executor"),
+        mixed_thread_(device_id, Test(flags, ExecutorFlags::SetAffinity), "Mixed executor"),
+        gpu_thread_(device_id, Test(flags, ExecutorFlags::SetAffinity), "GPU executor") {}
 
   DLL_PUBLIC ~AsyncSeparatedPipelinedExecutor() override {
     Shutdown();
@@ -76,12 +74,6 @@ class DLL_PUBLIC AsyncSeparatedPipelinedExecutor : public SeparatedPipelinedExec
     }
   }
 
-  DLL_PUBLIC void RunCPU() override;
-
-  DLL_PUBLIC void RunMixed() override;
-
-  DLL_PUBLIC void RunGPU() override;
-
   DLL_PUBLIC void Outputs(Workspace *ws) override {
     CheckForErrors();
     try {
@@ -97,7 +89,17 @@ class DLL_PUBLIC AsyncSeparatedPipelinedExecutor : public SeparatedPipelinedExec
     }
   }
 
+  DLL_PUBLIC int InputFeedCount(std::string_view op_name) override;
+
  protected:
+  DLL_PUBLIC void Prefetch() override;
+
+  DLL_PUBLIC void RunCPU() override;
+
+  DLL_PUBLIC void RunMixed() override;
+
+  DLL_PUBLIC void RunGPU() override;
+
   void CheckForErrors() {
     cpu_thread_.CheckForErrors();
     mixed_thread_.CheckForErrors();

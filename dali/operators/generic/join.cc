@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -34,7 +34,7 @@ The shapes of the inputs must match in all dimensions except the concatenation a
 Accepted range is [-ndim, ndim-1]. Negative indices are counted from the back.)code", 0, false)
   .AddOptionalArg<string>("axis_name", R"(Name of the axis along which the tensors are concatenated.
 
-This argument is mutually exclusive with ``axis``.
+This argument is mutually exclusive with `axis`.
 This argument requires that at least one input has a non-empty layout and that all non-empty
 input layouts match.)", nullptr, false)
   .NumInput(1, 999)
@@ -47,14 +47,14 @@ The shapes of respective tensors in the inputs must match.)")
   .AddOptionalArg<int>("axis", R"code(The axis in the output tensor along which the inputs are stacked.
 
 The axis is inserted before a corresponding axis in the inputs. A value of 0 indicates that whole
-tensors are stacked. Specifying ``axis`` equal to the number of dimensions in the inputs causes
+tensors are stacked. Specifying `axis` equal to the number of dimensions in the inputs causes
 the values from the inputs to be interleaved).
 
 Accepted range is [-ndim, ndim]. Negative indices are counted from the back.)code", 0, false)
   .AddOptionalArg<string>("axis_name", R"(Name of the new axis to be inserted.
 
 A one-character string that will denote the new axis in the output layout. The output layout will be
-constructed by inserting that character into the input layout at the position indicated by ``axis``.
+constructed by inserting that character into the input layout at the position indicated by `axis`.
 For example, specifying ``axis = 0`` and ``axis_name = "C"`` with input layout "HW" will yield
 the output layout "CHW")", nullptr, false)
   .NumInput(1, 999)

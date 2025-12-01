@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -80,36 +80,36 @@ TEST(OpSpecTest, GetArgumentTensorSet) {
     auto spec0 = OpSpec("DummyOpForSpecTest")
         .AddArg("max_batch_size", 2)
         .AddArgumentInput(arg_name, "<not_used>");
-    ASSERT_EQ(spec0.GetArgument<int32_t>(arg_name, &ws0, 0), 42);
-    ASSERT_EQ(spec0.GetArgument<int32_t>(arg_name, &ws0, 1), 43);
+    EXPECT_EQ(spec0.GetArgument<int32_t>(arg_name, &ws0, 0), 42);
+    EXPECT_EQ(spec0.GetArgument<int32_t>(arg_name, &ws0, 1), 43);
     int result = 0;
     ASSERT_TRUE(spec0.TryGetArgument<int32_t>(result, arg_name, &ws0, 0));
-    ASSERT_EQ(result, 42);
+    EXPECT_EQ(result, 42);
     ASSERT_TRUE(spec0.TryGetArgument<int32_t>(result, arg_name, &ws0, 1));
-    ASSERT_EQ(result, 43);
-    ASSERT_THROW(spec0.GetArgument<float>(arg_name, &ws0, 0), std::runtime_error);
+    EXPECT_EQ(result, 43);
+    EXPECT_THROW(spec0.GetArgument<float>(arg_name, &ws0, 0), std::runtime_error);
     float tmp = 0.f;
-    ASSERT_FALSE(spec0.TryGetArgument<float>(tmp, arg_name, &ws0, 0));
+    EXPECT_FALSE(spec0.TryGetArgument<float>(tmp, arg_name, &ws0, 0));
 
     ArgumentWorkspace ws1;
     auto spec1 = OpSpec("DummyOpForSpecTest")
         .AddArg("max_batch_size", 2);
     // If we have a default optional argument, we will just return its value
     if (arg_name != "default_tensor"s) {
-      ASSERT_THROW(spec1.GetArgument<int>(arg_name, &ws1, 0), std::runtime_error);
-      ASSERT_THROW(spec1.GetArgument<int>(arg_name, &ws1, 1), std::runtime_error);
+      EXPECT_THROW(spec1.GetArgument<int>(arg_name, &ws1, 0), std::invalid_argument);
+      EXPECT_THROW(spec1.GetArgument<int>(arg_name, &ws1, 1), std::invalid_argument);
       int result = 0;
-      ASSERT_FALSE(spec1.TryGetArgument<int>(result, arg_name, &ws1, 0));
-      ASSERT_FALSE(spec1.TryGetArgument<int>(result, arg_name, &ws1, 1));
+      EXPECT_FALSE(spec1.TryGetArgument<int>(result, arg_name, &ws1, 0));
+      EXPECT_FALSE(spec1.TryGetArgument<int>(result, arg_name, &ws1, 1));
     } else {
-      ASSERT_EQ(spec1.GetArgument<int>(arg_name, &ws1, 0), 11);
-      ASSERT_EQ(spec1.GetArgument<int>(arg_name, &ws1, 1), 11);
+      EXPECT_EQ(spec1.GetArgument<int>(arg_name, &ws1, 0), 11);
+      EXPECT_EQ(spec1.GetArgument<int>(arg_name, &ws1, 1), 11);
       int result = 0;
-      ASSERT_TRUE(spec1.TryGetArgument<int>(result, arg_name, &ws1, 0));
-      ASSERT_EQ(result, 11);
+      EXPECT_TRUE(spec1.TryGetArgument<int>(result, arg_name, &ws1, 0));
+      EXPECT_EQ(result, 11);
       result = 0;
-      ASSERT_TRUE(spec1.TryGetArgument<int>(result, arg_name, &ws1, 1));
-      ASSERT_EQ(result, 11);
+      EXPECT_TRUE(spec1.TryGetArgument<int>(result, arg_name, &ws1, 1));
+      EXPECT_EQ(result, 11);
     }
   }
 }
@@ -121,14 +121,14 @@ TEST(OpSpecTest, GetArgumentValue) {
     auto spec0 = OpSpec("DummyOpForSpecTest")
         .AddArg("max_batch_size", 2)
         .AddArg(arg_name, 42);
-    ASSERT_EQ(spec0.GetArgument<int>(arg_name, &ws), 42);
+    EXPECT_EQ(spec0.GetArgument<int>(arg_name, &ws), 42);
     int result = 0;
     ASSERT_TRUE(spec0.TryGetArgument(result, arg_name, &ws));
-    ASSERT_EQ(result, 42);
+    EXPECT_EQ(result, 42);
 
-    ASSERT_THROW(spec0.GetArgument<float>(arg_name, &ws), std::runtime_error);
+    EXPECT_THROW(spec0.GetArgument<float>(arg_name, &ws), std::runtime_error);
     float tmp = 0.f;
-    ASSERT_FALSE(spec0.TryGetArgument(tmp, arg_name, &ws));
+    EXPECT_FALSE(spec0.TryGetArgument(tmp, arg_name, &ws));
   }
 
   for (const auto &arg_name : {"required"s, "no_default"s,
@@ -136,28 +136,28 @@ TEST(OpSpecTest, GetArgumentValue) {
     ArgumentWorkspace ws;
     auto spec0 = OpSpec("DummyOpForSpecTest")
         .AddArg("max_batch_size", 2);
-    ASSERT_THROW(spec0.GetArgument<int>(arg_name, &ws), std::runtime_error);
+    EXPECT_THROW(spec0.GetArgument<int>(arg_name, &ws), std::invalid_argument);
     int result = 0;
-    ASSERT_FALSE(spec0.TryGetArgument(result, arg_name, &ws));
+    EXPECT_FALSE(spec0.TryGetArgument(result, arg_name, &ws));
 
-    ASSERT_THROW(spec0.GetArgument<float>(arg_name, &ws), std::runtime_error);
+    EXPECT_THROW(spec0.GetArgument<float>(arg_name, &ws), std::invalid_argument);
     float tmp = 0.f;
-    ASSERT_FALSE(spec0.TryGetArgument(tmp, arg_name, &ws));
+    EXPECT_FALSE(spec0.TryGetArgument(tmp, arg_name, &ws));
   }
 
   for (const auto &arg_name : {"default"s, "default_tensor"s}) {
     ArgumentWorkspace ws;
     auto spec0 = OpSpec("DummyOpForSpecTest")
         .AddArg("max_batch_size", 2);
-    ASSERT_EQ(spec0.GetArgument<int>(arg_name, &ws), 11);
+    EXPECT_EQ(spec0.GetArgument<int>(arg_name, &ws), 11);
 
     int result = 0;
     ASSERT_TRUE(spec0.TryGetArgument(result, arg_name, &ws));
-    ASSERT_EQ(result, 11);
+    EXPECT_EQ(result, 11);
 
-    ASSERT_THROW(spec0.GetArgument<float>(arg_name, &ws), std::runtime_error);
+    EXPECT_THROW(spec0.GetArgument<float>(arg_name, &ws), std::invalid_argument);
     float tmp = 0.f;
-    ASSERT_FALSE(spec0.TryGetArgument(tmp, arg_name, &ws));
+    EXPECT_FALSE(spec0.TryGetArgument(tmp, arg_name, &ws));
   }
 }
 
@@ -170,10 +170,10 @@ TEST(OpSpecTest, GetArgumentVec) {
         .AddArg("max_batch_size", 2)
         .AddArg(arg_name, value);
 
-    ASSERT_EQ(spec0.GetRepeatedArgument<int32_t>(arg_name), value);
+    EXPECT_EQ(spec0.GetRepeatedArgument<int32_t>(arg_name), value);
     std::vector<int32_t> result;
     ASSERT_TRUE(spec0.TryGetRepeatedArgument(result, arg_name));
-    ASSERT_EQ(result, value);
+    EXPECT_EQ(result, value);
   }
 
   for (const auto &arg_name : {"required_vec"s, "no_default_vec"s}) {
@@ -181,17 +181,17 @@ TEST(OpSpecTest, GetArgumentVec) {
     auto spec0 = OpSpec("DummyOpForSpecTest")
         .AddArg("max_batch_size", 2);
 
-    ASSERT_THROW(spec0.GetRepeatedArgument<int32_t>(arg_name), std::runtime_error);
+    EXPECT_THROW(spec0.GetRepeatedArgument<int32_t>(arg_name), std::invalid_argument);
     std::vector<int32_t> result_v;
     ASSERT_FALSE(spec0.TryGetRepeatedArgument(result_v, arg_name));
     SmallVector<int32_t, 1> result_sv;
-    ASSERT_FALSE(spec0.TryGetRepeatedArgument(result_sv, arg_name));
+    EXPECT_FALSE(spec0.TryGetRepeatedArgument(result_sv, arg_name));
 
-    ASSERT_THROW(spec0.GetRepeatedArgument<float>(arg_name), std::runtime_error);
+    EXPECT_THROW(spec0.GetRepeatedArgument<float>(arg_name), std::invalid_argument);
     std::vector<float> tmp_v;
-    ASSERT_FALSE(spec0.TryGetRepeatedArgument(tmp_v, arg_name));
+    EXPECT_FALSE(spec0.TryGetRepeatedArgument(tmp_v, arg_name));
     SmallVector<float, 1> tmp_sv;
-    ASSERT_FALSE(spec0.TryGetRepeatedArgument(tmp_sv, arg_name));
+    EXPECT_FALSE(spec0.TryGetRepeatedArgument(tmp_sv, arg_name));
   }
 
   {
@@ -200,7 +200,7 @@ TEST(OpSpecTest, GetArgumentVec) {
     auto spec0 = OpSpec("DummyOpForSpecTest")
         .AddArg("max_batch_size", 2);
     auto default_val = std::vector<int32_t>{0, 1};
-    ASSERT_EQ(spec0.GetRepeatedArgument<int32_t>(arg_name), default_val);
+    EXPECT_EQ(spec0.GetRepeatedArgument<int32_t>(arg_name), default_val);
   }
 }
 
@@ -208,36 +208,36 @@ TEST(OpSpecTest, GetArgumentVec) {
 TEST(OpSpecTest, GetArgumentNonExisting) {
   auto spec0 = OpSpec("DummyOpForSpecTest")
       .AddArg("max_batch_size", 2);
-  ASSERT_THROW(spec0.GetArgument<int>("<no_such_argument>"), DALIException);
+  EXPECT_THROW(spec0.GetArgument<int>("<no_such_argument>"), invalid_key);
   int result = 0;
-  ASSERT_FALSE(spec0.TryGetArgument<int>(result, "<no_such_argument>"));
+  EXPECT_FALSE(spec0.TryGetArgument<int>(result, "<no_such_argument>"));
 
 
-  ASSERT_THROW(spec0.GetRepeatedArgument<int>("<no_such_argument>"), DALIException);
+  EXPECT_THROW(spec0.GetRepeatedArgument<int>("<no_such_argument>"), invalid_key);
   std::vector<int> result_vec;
-  ASSERT_FALSE(spec0.TryGetRepeatedArgument(result_vec, "<no_such_argument>"));
+  EXPECT_FALSE(spec0.TryGetRepeatedArgument(result_vec, "<no_such_argument>"));
   SmallVector<int, 1> result_sv;
-  ASSERT_FALSE(spec0.TryGetRepeatedArgument(result_sv, "<no_such_argument>"));
+  EXPECT_FALSE(spec0.TryGetRepeatedArgument(result_sv, "<no_such_argument>"));
 }
 
 TEST(OpSpecTest, DeprecatedArgs) {
   auto spec0 = OpSpec("DummyOpForSpecTest")
       .AddArg("max_batch_size", 2)
       .AddArg("deprecated_arg", 1);
-  ASSERT_THROW(spec0.GetArgument<int>("deprecated_arg"), DALIException);
-  ASSERT_EQ(spec0.GetArgument<int>("replacing_arg"), 1);
+  EXPECT_THROW(spec0.GetArgument<int>("deprecated_arg"), std::invalid_argument);
+  EXPECT_EQ(spec0.GetArgument<int>("replacing_arg"), 1);
 
   int result = 0;
-  ASSERT_FALSE(spec0.TryGetArgument<int>(result, "deprecated_arg"));
+  EXPECT_FALSE(spec0.TryGetArgument<int>(result, "deprecated_arg"));
   ASSERT_TRUE(spec0.TryGetArgument<int>(result, "replacing_arg"));
-  ASSERT_EQ(result, 1);
+  EXPECT_EQ(result, 1);
 
-  ASSERT_THROW(OpSpec("DummyOpForSpecTest")
+  EXPECT_THROW(OpSpec("DummyOpForSpecTest")
       .AddArg("max_batch_size", 2)
       .AddArg("deprecated_arg", 1)
       .AddArg("replacing_arg", 2), DALIException);
 
-  ASSERT_THROW(OpSpec("DummyOpForSpecTest")
+  EXPECT_THROW(OpSpec("DummyOpForSpecTest")
       .AddArg("max_batch_size", 2)
       .AddArg("replacing_arg", 1)
       .AddArg("deprecated_arg", 2), DALIException);
@@ -247,7 +247,7 @@ TEST(OpSpecTest, DeprecatedArgs) {
       .AddArg("deprecated_ignored_arg", 42);
   // It is marked as to be ingored, but there's no reason we should not be
   // able to query for the argument if it was provided.
-  ASSERT_TRUE(spec0.TryGetArgument<int>(result, "deprecated_ignored_arg"));
+  EXPECT_TRUE(spec0.TryGetArgument<int>(result, "deprecated_ignored_arg"));
 }
 
 TEST(OpSpecTest, DeprecatedArgsParents) {
@@ -256,55 +256,55 @@ TEST(OpSpecTest, DeprecatedArgsParents) {
       .AddArg("grandparent_deprecated_arg", 3)
       .AddArg("parent_zero_deprecated_arg", 4)
       .AddArg("parent_one_deprecated_arg", 5);
-  ASSERT_THROW(spec0.GetArgument<int>("grandparent_deprecated_arg"), DALIException);
-  ASSERT_THROW(spec0.GetArgument<int>("parent_zero_deprecated_arg"), DALIException);
-  ASSERT_THROW(spec0.GetArgument<int>("parent_one_deprecated_arg"), DALIException);
-  ASSERT_EQ(spec0.GetArgument<int>("grandparent_replacing_arg"), 3);
-  ASSERT_EQ(spec0.GetArgument<int>("parent_zero_replacing_arg"), 4);
-  ASSERT_EQ(spec0.GetArgument<int>("parent_one_replacing_arg"), 5);
+  EXPECT_THROW(spec0.GetArgument<int>("grandparent_deprecated_arg"), std::invalid_argument);
+  EXPECT_THROW(spec0.GetArgument<int>("parent_zero_deprecated_arg"), std::invalid_argument);
+  EXPECT_THROW(spec0.GetArgument<int>("parent_one_deprecated_arg"), std::invalid_argument);
+  EXPECT_EQ(spec0.GetArgument<int>("grandparent_replacing_arg"), 3);
+  EXPECT_EQ(spec0.GetArgument<int>("parent_zero_replacing_arg"), 4);
+  EXPECT_EQ(spec0.GetArgument<int>("parent_one_replacing_arg"), 5);
 
 
   int result = 0;
-  ASSERT_FALSE(spec0.TryGetArgument<int>(result, "grandparent_deprecated_arg"));
+  EXPECT_FALSE(spec0.TryGetArgument<int>(result, "grandparent_deprecated_arg"));
   ASSERT_TRUE(spec0.TryGetArgument<int>(result, "grandparent_replacing_arg"));
-  ASSERT_EQ(result, 3);
+  EXPECT_EQ(result, 3);
 
-  ASSERT_FALSE(spec0.TryGetArgument<int>(result, "parent_zero_deprecated_arg"));
+  EXPECT_FALSE(spec0.TryGetArgument<int>(result, "parent_zero_deprecated_arg"));
   ASSERT_TRUE(spec0.TryGetArgument<int>(result, "parent_zero_replacing_arg"));
-  ASSERT_EQ(result, 4);
+  EXPECT_EQ(result, 4);
 
-  ASSERT_FALSE(spec0.TryGetArgument<int>(result, "parent_one_deprecated_arg"));
+  EXPECT_FALSE(spec0.TryGetArgument<int>(result, "parent_one_deprecated_arg"));
   ASSERT_TRUE(spec0.TryGetArgument<int>(result, "parent_one_replacing_arg"));
-  ASSERT_EQ(result, 5);
+  EXPECT_EQ(result, 5);
 
-  ASSERT_THROW(OpSpec("DummyOpForSpecTest")
+  EXPECT_THROW(OpSpec("DummyOpForSpecTest")
       .AddArg("max_batch_size", 2)
       .AddArg("grandparent_deprecated_arg", 1)
       .AddArg("grandparent_replacing_arg", 2), DALIException);
 
-  ASSERT_THROW(OpSpec("DummyOpForSpecTest")
+  EXPECT_THROW(OpSpec("DummyOpForSpecTest")
       .AddArg("max_batch_size", 2)
       .AddArg("grandparent_replacing_arg", 1)
       .AddArg("grandparent_deprecated_arg", 2), DALIException);
 
 
-  ASSERT_THROW(OpSpec("DummyOpForSpecTest")
+  EXPECT_THROW(OpSpec("DummyOpForSpecTest")
       .AddArg("max_batch_size", 2)
       .AddArg("parent_zero_deprecated_arg", 1)
       .AddArg("parent_zero_replacing_arg", 2), DALIException);
 
-  ASSERT_THROW(OpSpec("DummyOpForSpecTest")
+  EXPECT_THROW(OpSpec("DummyOpForSpecTest")
       .AddArg("max_batch_size", 2)
       .AddArg("parent_zero_replacing_arg", 1)
       .AddArg("parent_zero_deprecated_arg", 2), DALIException);
 
 
-  ASSERT_THROW(OpSpec("DummyOpForSpecTest")
+  EXPECT_THROW(OpSpec("DummyOpForSpecTest")
       .AddArg("max_batch_size", 2)
       .AddArg("parent_one_deprecated_arg", 1)
       .AddArg("parent_one_replacing_arg", 2), DALIException);
 
-  ASSERT_THROW(OpSpec("DummyOpForSpecTest")
+  EXPECT_THROW(OpSpec("DummyOpForSpecTest")
       .AddArg("max_batch_size", 2)
       .AddArg("parent_one_replacing_arg", 1)
       .AddArg("parent_one_deprecated_arg", 2), DALIException);
@@ -313,10 +313,6 @@ TEST(OpSpecTest, DeprecatedArgsParents) {
 class TestArgumentInput_Producer : public Operator<CPUBackend> {
  public:
   explicit TestArgumentInput_Producer(const OpSpec &spec) : Operator<CPUBackend>(spec) {}
-
-  bool CanInferOutputs() const override {
-    return true;
-  }
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     output_desc.resize(3);
@@ -359,10 +355,6 @@ class TestArgumentInput_Consumer : public Operator<CPUBackend> {
  public:
   explicit TestArgumentInput_Consumer(const OpSpec &spec) : Operator<CPUBackend>(spec) {}
 
-  bool CanInferOutputs() const override {
-    return true;
-  }
-
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     output_desc.resize(1);
     output_desc[0] = {uniform_list_shape(ws.GetRequestedBatchSize(0), {1}), DALI_INT32};
@@ -377,7 +369,7 @@ class TestArgumentInput_Consumer : public Operator<CPUBackend> {
     }
     // Non-matching shapes (differnet than 1 scalar value per sample) should not work with
     // OpSpec::GetArgument()
-    ASSERT_THROW(auto z = spec_.GetArgument<float>("arg2", &ws, 0), std::runtime_error);
+    EXPECT_THROW(auto z = spec_.GetArgument<float>("arg2", &ws, 0), std::runtime_error);
 
     // They can be accessed as proper ArgumentInputs
     auto &ref_1 = ws.ArgumentInput("arg1");
@@ -423,26 +415,55 @@ TEST(ArgumentInputTest, OpSpecAccess) {
   Pipeline pipe(10, 4, 0);
   pipe.AddOperator(OpSpec("TestArgumentInput_Producer")
                        .AddArg("device", "cpu")
-                       .AddOutput("support_arg0", "cpu")
-                       .AddOutput("support_arg1", "cpu")
-                       .AddOutput("support_arg2", "cpu"));
+                       .AddOutput("support_arg0", StorageDevice::CPU)
+                       .AddOutput("support_arg1", StorageDevice::CPU)
+                       .AddOutput("support_arg2", StorageDevice::CPU));
 
   pipe.AddOperator(OpSpec("TestArgumentInput_Consumer")
                        .AddArg("device", "cpu")
                        .AddArgumentInput("arg0", "support_arg0")
                        .AddArgumentInput("arg1", "support_arg1")
                        .AddArgumentInput("arg2", "support_arg2")
-                       .AddOutput("I need to specify something", "cpu")
+                       .AddOutput("I need to specify something", StorageDevice::CPU)
                        .AddArg("preserve", true));
 
   vector<std::pair<string, string>> outputs = {{"I need to specify something", "cpu"}};
   pipe.Build(outputs);
 
-  pipe.RunCPU();
-  pipe.RunGPU();
+  pipe.Run();
 
   Workspace ws;
   pipe.Outputs(&ws);
+}
+
+DALI_SCHEMA(Schema_TestOpSpec_Lookup)
+    .DocStr("TestOpSpec_Lookup")
+    .NumInput(1)
+    .NumOutput(1)
+    // the names of the arguments are deliberately in a reverse order (lexicographically)
+    .AddOptionalArg<int>("zero", "dummy arg that can be an argument input", 0, true)
+    .AddOptionalArg<int>("one",  "dummy arg that can be an argument input", 0, true);
+
+TEST(TestOpSpec, Lookup) {
+  OpSpec spec("Schema_TestOpSpec_Lookup");
+  spec.AddInput("input_0", StorageDevice::GPU);
+  spec.AddArgumentInput("one", "input_1");
+  spec.AddArgumentInput("zero", "input_2");
+  EXPECT_EQ(spec.ArgumentInputIdx("one"), 1);
+  EXPECT_EQ(spec.ArgumentInputIdx("zero"), 2);
+
+  EXPECT_EQ(spec.InputName(0), "input_0");
+  EXPECT_EQ(spec.InputName(1), "input_1");
+  EXPECT_EQ(spec.ArgumentInputName(1), "one");
+  EXPECT_EQ(spec.InputName(2), "input_2");
+  EXPECT_EQ(spec.ArgumentInputName(2), "zero");
+}
+
+TEST(TestOpSpec, EmptySchema) {
+  OpSpec spec("nonexistent_schema");
+  EXPECT_THROW(spec.GetSchema(), std::runtime_error);
+  EXPECT_EQ(spec.GetArgument<std::string>("device"), "cpu");
+  EXPECT_EQ(spec.GetArgument<std::string>("_module"), "nvidia.dali.ops");
 }
 
 }  // namespace dali

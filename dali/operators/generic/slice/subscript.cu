@@ -1,4 +1,4 @@
-// Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -34,10 +34,10 @@ void TensorSubscript<GPUBackend>::RunTyped(Workspace &ws) {
     TensorListView<StorageGPU, T, ndim> tmp_out;
     vector<kernels::SliceArgs<T, ndim>> args;
   };
-  Ctx *ctx = any_cast<Ctx>(&ctx_);
+  Ctx *ctx = std::any_cast<Ctx>(&ctx_);
   if (!ctx) {
     ctx_ = Ctx();
-    ctx = &any_cast<Ctx&>(ctx_);
+    ctx = &std::any_cast<Ctx&>(ctx_);
   }
 
   ctx->tmp_in.resize(N);
@@ -50,6 +50,7 @@ void TensorSubscript<GPUBackend>::RunTyped(Workspace &ws) {
     ctx->tmp_out.data[i] = static_cast<T *>(output.raw_mutable_tensor(i));
     ctx->args[i].shape = ctx->tmp_out.shape[i];
     ctx->args[i].anchor = simplified_anchor_[i];
+    ctx->args[i].step = simplified_step_[i];
   }
 
   kernels::KernelContext kctx;

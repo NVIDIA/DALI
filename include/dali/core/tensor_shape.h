@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -243,12 +243,20 @@ struct TensorShape<DynamicDimensions>
   /**
    * @brief Return empty shape of specified dimensionality
    */
-  static TensorShape<> empty_shape(int dim) {
+  static TensorShape empty_shape(int dim) {
     assert(dim > 0);
-    TensorShape<> result;
+    return TensorShape::filled_shape(dim, 0);
+  }
+
+  /**
+   * @brief Return shape of specified dimensionality filled with value
+   */
+  static TensorShape filled_shape(int dim, int64_t value) {
+    assert(dim >= 0);
+    TensorShape result;
     result.resize(dim);
     for (auto &elem : result) {
-      elem = 0;
+      elem = value;
     }
     return result;
   }
@@ -317,12 +325,20 @@ struct TensorShape : public TensorShapeBase<DeviceArray<int64_t, ndim>, ndim> {
   /**
    * @brief Return empty shape of specified dimensionality
    */
-  static TensorShape<> empty_shape(int dim = ndim) {
-    assert(dim == ndim && "Not supported for count other than statically defined");
-    TensorShape<> result;
+  static TensorShape empty_shape(int dim = ndim) {
+    assert(dim > 0 && "0D always has exectly 1 element");
+    return filled_shape(dim, 0);
+  }
+
+  /**
+   * @brief Return shape of specified dimensionality filled with value
+   */
+  static TensorShape filled_shape(int dim, int64_t value) {
+    assert(dim == ndim && "Not supported for dimensionality other than statically defined");
+    TensorShape result;
     result.resize(dim);
     for (auto &elem : result) {
-      elem = 0;
+      elem = value;
     }
     return result;
   }
@@ -625,12 +641,17 @@ struct TensorListShapeBase {
    */
   template <typename SampleShape>
   void set_tensor_shape(int64_t sample, const SampleShape &sample_shape) {
-    detail::check_compatible_ndim<sample_ndim, compile_time_size<SampleShape>::value>();
-    assert(static_cast<int>(dali::size(sample_shape)) == static_cast<int>(sample_dim()));
+    constexpr int rhs_sample_ndim = compile_time_size<SampleShape>::value;
+    detail::check_compatible_ndim<sample_ndim, rhs_sample_ndim>();
+    constexpr bool is_scalar = sample_ndim == 0 || rhs_sample_ndim == 0;
     assert(sample >= 0 && sample < nsamples && "Sample index out of range");
-    int64_t base = sample_dim() * sample;
-    for (int i = 0; i < sample_dim(); i++) {
-      shapes[base + i] = sample_shape[i];
+    assert(static_cast<int>(dali::size(sample_shape)) == static_cast<int>(sample_dim()));
+    assert(static_cast<int>(shapes.size()) == nsamples * sample_dim() && "shapes size mismatch");
+    if constexpr (!is_scalar) {
+      int64_t base = sample_dim() * sample;
+      for (int i = 0; i < sample_dim(); i++) {
+        shapes[base + i] = sample_shape[i];
+      }
     }
   }
 

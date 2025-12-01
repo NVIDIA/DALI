@@ -1,4 +1,4 @@
-// Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -79,7 +79,7 @@ class DLL_PUBLIC PipelineDebug {
   }
 
   void AddOperatorImpl(OpSpec &spec, int logical_id) {
-    std::string name = "__debug__" + spec.name() + "_" + std::to_string(logical_id);
+    std::string name = "__debug__" + spec.SchemaName() + "_" + std::to_string(logical_id);
     std::string device = spec.GetArgument<std::string>("device");
 
     if (device == "gpu") {

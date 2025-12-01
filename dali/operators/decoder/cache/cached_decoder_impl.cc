@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -76,9 +76,12 @@ void CachedDecoderImpl::LoadDeferred(cudaStream_t stream) {
   CUDA_CALL((scatter_gather_->Run(stream, true, copy_method), cudaGetLastError()));
 }
 
+bool CachedDecoderImpl::IsInCache(const std::string& file_name) {
+  return cache_ && cache_->IsCached(file_name);
+}
+
 ImageCache::ImageShape CachedDecoderImpl::CacheImageShape(const std::string& file_name) {
-  return cache_ && cache_->IsCached(file_name) ?
-    cache_->GetShape(file_name) : ImageCache::ImageShape{};
+  return IsInCache(file_name) ? cache_->GetShape(file_name) : ImageCache::ImageShape{};
 }
 
 void CachedDecoderImpl::CacheStore(const std::string& file_name, const uint8_t *data,
@@ -95,7 +98,7 @@ DALI_SCHEMA(CachedDecoderAttr)
       R"code(Applies **only** to the ``mixed`` backend type.
 
 Total size of the decoder cache in megabytes. When provided, the decoded images
-that are larger than ``cache_threshold`` will be cached in GPU memory.
+that are larger than `cache_threshold` will be cached in GPU memory.
 )code",
       0)
   .AddOptionalArg("cache_threshold",
@@ -122,7 +125,7 @@ copied with ``cudaMemcpy``.)code",
 
 Here is a list of the available cache types:
 
-* | ``threshold``: caches every image with a size that is larger than ``cache_threshold`` until
+* | ``threshold``: caches every image with a size that is larger than `cache_threshold` until
   | the cache is full.
 
   The warm-up time for threshold policy is 1 epoch.

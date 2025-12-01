@@ -6,7 +6,7 @@ Scott Reed, Cheng-Yang Fu, Alexander C. Berg as `SSD: Single Shot MultiBox Detec
 
 Code is based on `NVIDIA Deep Learning Examples <https://github.com/NVIDIA/DeepLearningExamples/tree/master/PyTorch/Detection/SSD>`_ and has been modified to use full DALI pipeline, it can be found in :fileref:`docs/examples/use_cases/pytorch/single_stage_detector/main.py`.
 
-To run training on 8 GPUs using half-precission with COCO 2017 dataset under ``/coco`` use following command:
+To run training on 8 GPUs using half-precision with COCO 2017 dataset under ``/coco`` use following command:
 
 .. code-block:: bash
 
@@ -26,7 +26,8 @@ Requirements
       mkdir /coco; cd /coco
       curl -O http://images.cocodataset.org/zips/train2017.zip; unzip train2017.zip
       curl -O http://images.cocodataset.org/zips/val2017.zip; unzip val2017.zip
-      curl -O http://images.cocodataset.org/annotations/annotations_trainval2017.zip; unzip annotations_trainval2017.zip
+      curl -O http://images.cocodataset.org/annotations/annotations_trainval2017.zip
+      unzip annotations_trainval2017.zip
       cd $dir
 
 - Install packages listed below into your ``python`` interpreter:

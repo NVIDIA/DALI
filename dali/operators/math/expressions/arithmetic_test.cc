@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -122,6 +122,29 @@ TEST(ArithmeticOpsTest, TreePropagationBroadcasting) {
   EXPECT_EQ(expected_sh, result_shape);
 }
 
+TEST(ArithmeticOpsTest, TreePropagationLayoutBroadcasting) {
+  std::string expr_str = "div(sub(&0 &1) &2)";
+  auto expr = ParseExpressionString(expr_str);
+  auto &expr_ref = *expr;
+  Workspace ws;
+  std::shared_ptr<TensorList<CPUBackend>> in[3];
+  for (auto &ptr : in) {
+    ptr = std::make_shared<TensorList<CPUBackend>>();
+  }
+  in[0]->SetLayout(TensorLayout());
+  in[0]->Resize({{1, 1, 1}, {1, 1, 1}}, DALI_INT32);
+  in[1]->SetLayout(TensorLayout("HW"));
+  in[1]->Resize({{1, 1}, {1, 1}}, DALI_INT32);
+  in[2]->SetLayout(TensorLayout("DHW"));
+  in[2]->Resize({{1, 1, 1}, {1, 1, 1}}, DALI_INT32);
+  ws.AddInput(in[0]);
+  ws.AddInput(in[1]);
+  ws.AddInput(in[2]);
+
+  auto layout = GetCommonLayout<CPUBackend>(expr_ref, ws);
+  EXPECT_EQ("DHW", layout);
+}
+
 
 TEST(ArithmeticOpsTest, TreePropagationLayoutError) {
   std::string expr_str = "div(sub(&0 &1) &2)";
@@ -134,7 +157,7 @@ TEST(ArithmeticOpsTest, TreePropagationLayoutError) {
     ptr->Resize({{1}, {2}}, DALI_INT32);
   }
   in[0]->SetLayout(TensorLayout());
-  in[1]->SetLayout(TensorLayout("HW"));
+  in[1]->SetLayout(TensorLayout("DH"));
   in[2]->SetLayout(TensorLayout("DHW"));
   ws.AddInput(in[0]);
   ws.AddInput(in[1]);
@@ -214,6 +237,7 @@ class BinaryArithmeticOpsTest
 
   void TestFunction(const TensorListShape<> &shape) {
     auto backend = testing::detail::BackendStringName<Backend>();
+    auto storage_device = backend_to_storage_device<Backend>::value;
 
     auto param = this->GetParam();
     auto expression_desc = std::get<0>(param) + "(&0 &1)";
@@ -227,9 +251,9 @@ class BinaryArithmeticOpsTest
     pipe.AddOperator(OpSpec("ArithmeticGenericOp")
                          .AddArg("device", backend)
                          .AddArg("expression_desc", expression_desc)
-                         .AddInput("data0", backend)
-                         .AddInput("data1", backend)
-                         .AddOutput("result", backend),
+                         .AddInput("data0", storage_device)
+                         .AddInput("data1", storage_device)
+                         .AddOutput("result", storage_device),
                      std::get<0>(param));
 
     vector<std::pair<string, string>> outputs = {{"result", backend}};
@@ -243,8 +267,7 @@ class BinaryArithmeticOpsTest
     pipe.SetExternalInput("data0", batch[0]);
     pipe.SetExternalInput("data1", batch[1]);
 
-    pipe.RunCPU();
-    pipe.RunGPU();
+    pipe.Run();
     Workspace ws;
     pipe.Outputs(&ws);
     vector<T> result_cpu(shape.num_elements());
@@ -276,7 +299,7 @@ class BinaryArithmeticOpsTest
     TensorShape<> strides1 = {1*3, 0, 1};
 
     auto backend = testing::detail::BackendStringName<Backend>();
-
+    auto storage_device = backend_to_storage_device<Backend>::value;
 
     Pipeline pipe(batch_size, num_threads, 0);
 
@@ -286,9 +309,9 @@ class BinaryArithmeticOpsTest
     pipe.AddOperator(OpSpec("ArithmeticGenericOp")
                          .AddArg("device", backend)
                          .AddArg("expression_desc", "add(&0 &1)")
-                         .AddInput("data0", backend)
-                         .AddInput("data1", backend)
-                         .AddOutput("result0", backend),
+                         .AddInput("data0", storage_device)
+                         .AddInput("data1", storage_device)
+                         .AddOutput("result0", storage_device),
                      "arithm");
 
     vector<std::pair<string, string>> outputs = {{"result0", backend}};
@@ -301,8 +324,7 @@ class BinaryArithmeticOpsTest
 
     pipe.SetExternalInput("data0", batch[0]);
     pipe.SetExternalInput("data1", batch[1]);
-    pipe.RunCPU();
-    pipe.RunGPU();
+    pipe.Run();
     Workspace ws;
     pipe.Outputs(&ws);
     ASSERT_EQ(DALI_INT32, ws.Output<Backend>(0).type());
@@ -401,17 +423,17 @@ TEST(ArithmeticOpsTest, GenericPipeline) {
   pipe.AddOperator(OpSpec("ArithmeticGenericOp")
                        .AddArg("device", "cpu")
                        .AddArg("expression_desc", "add(&0 &1)")
-                       .AddInput("data0", "cpu")
-                       .AddInput("data1", "cpu")
-                       .AddOutput("result", "cpu"),
+                       .AddInput("data0", StorageDevice::CPU)
+                       .AddInput("data1", StorageDevice::CPU)
+                       .AddOutput("result", StorageDevice::CPU),
                    "arithm_cpu");
 
   pipe.AddOperator(OpSpec("ArithmeticGenericOp")
                        .AddArg("device", "gpu")
                        .AddArg("expression_desc", "mul(&0 &1)")
-                       .AddInput("result", "gpu")
-                       .AddInput("data1", "gpu")
-                       .AddOutput("result2", "gpu"),
+                       .AddInput("result", StorageDevice::GPU)
+                       .AddInput("data1", StorageDevice::GPU)
+                       .AddOutput("result2", StorageDevice::GPU),
                    "arithm_gpu");
 
   vector<std::pair<string, string>> outputs = {{"result", "cpu"}, {"result2", "gpu"}};
@@ -423,8 +445,7 @@ TEST(ArithmeticOpsTest, GenericPipeline) {
 
   pipe.SetExternalInput("data0", batch);
   pipe.SetExternalInput("data1", batch);
-  pipe.RunCPU();
-  pipe.RunGPU();
+  pipe.Run();
   Workspace ws;
   pipe.Outputs(&ws);
 
@@ -456,17 +477,17 @@ TEST(ArithmeticOpsTest, FdivPipeline) {
   pipe.AddOperator(OpSpec("ArithmeticGenericOp")
                        .AddArg("device", "cpu")
                        .AddArg("expression_desc", "fdiv(&0 &1)")
-                       .AddInput("data0", "cpu")
-                       .AddInput("data1", "cpu")
-                       .AddOutput("result0", "cpu"),
+                       .AddInput("data0", StorageDevice::CPU)
+                       .AddInput("data1", StorageDevice::CPU)
+                       .AddOutput("result0", StorageDevice::CPU),
                    "arithm_cpu");
 
   pipe.AddOperator(OpSpec("ArithmeticGenericOp")
                        .AddArg("device", "gpu")
                        .AddArg("expression_desc", "fdiv(&0 &1)")
-                       .AddInput("data0", "gpu")
-                       .AddInput("data1", "gpu")
-                       .AddOutput("result1", "gpu"),
+                       .AddInput("data0", StorageDevice::GPU)
+                       .AddInput("data1", StorageDevice::GPU)
+                       .AddOutput("result1", StorageDevice::GPU),
                    "arithm_gpu");
 
   vector<std::pair<string, string>> outputs = {{"result0", "cpu"}, {"result1", "gpu"}};
@@ -480,8 +501,7 @@ TEST(ArithmeticOpsTest, FdivPipeline) {
 
   pipe.SetExternalInput("data0", batch[0]);
   pipe.SetExternalInput("data1", batch[1]);
-  pipe.RunCPU();
-  pipe.RunGPU();
+  pipe.Run();
   Workspace ws;
   pipe.Outputs(&ws);
   ASSERT_EQ(ws.Output<CPUBackend>(0).type(), DALI_FLOAT);
@@ -528,16 +548,16 @@ TEST(ArithmeticOpsTest, ConstantsPipeline) {
                        .AddArg("device", "cpu")
                        .AddArg("expression_desc", "add(&0 $0:int32)")
                        .AddArg("integer_constants", std::vector<int>{magic_int})
-                       .AddInput("data0", "cpu")
-                       .AddOutput("result0", "cpu"),
+                       .AddInput("data0", StorageDevice::CPU)
+                       .AddOutput("result0", StorageDevice::CPU),
                    "arithm_cpu_add");
 
   pipe.AddOperator(OpSpec("ArithmeticGenericOp")
                        .AddArg("device", "cpu")
                        .AddArg("expression_desc", "mul(&0 $0:float32)")
                        .AddArg("real_constants", std::vector<float>{magic_float})
-                       .AddInput("data0", "cpu")
-                       .AddOutput("result1", "cpu"),
+                       .AddInput("data0", StorageDevice::CPU)
+                       .AddOutput("result1", StorageDevice::CPU),
                    "arithm_cpu_mul");
 
   vector<std::pair<string, string>> outputs = {{"result0", "cpu"}, {"result1", "cpu"}};
@@ -548,8 +568,7 @@ TEST(ArithmeticOpsTest, ConstantsPipeline) {
   FillBatch<int>(batch, uniform_list_shape(batch_size, {tensor_elements}));
 
   pipe.SetExternalInput("data0", batch);
-  pipe.RunCPU();
-  pipe.RunGPU();
+  pipe.Run();
   Workspace ws;
   pipe.Outputs(&ws);
 
@@ -585,17 +604,17 @@ class ArithmeticOpsScalarTest :  public ::testing::TestWithParam<shape_sequence>
     pipe.AddOperator(OpSpec("ArithmeticGenericOp")
                         .AddArg("device", "cpu")
                         .AddArg("expression_desc", "add(&0 &1)")
-                        .AddInput("data0", "cpu")
-                        .AddInput("data1", "cpu")
-                        .AddOutput("result0", "cpu"),
+                        .AddInput("data0", StorageDevice::CPU)
+                        .AddInput("data1", StorageDevice::CPU)
+                        .AddOutput("result0", StorageDevice::CPU),
                     "arithm_cpu");
 
     pipe.AddOperator(OpSpec("ArithmeticGenericOp")
                         .AddArg("device", "gpu")
                         .AddArg("expression_desc", "add(&0 &1)")
-                        .AddInput("data0", "gpu")
-                        .AddInput("data1", "gpu")
-                        .AddOutput("result1", "gpu"),
+                        .AddInput("data0", StorageDevice::GPU)
+                        .AddInput("data1", StorageDevice::GPU)
+                        .AddOutput("result1", StorageDevice::GPU),
                     "arithm_gpu");
 
     vector<std::pair<string, string>> outputs = {{"result0", "cpu"}, {"result1", "gpu"}};
@@ -612,8 +631,7 @@ class ArithmeticOpsScalarTest :  public ::testing::TestWithParam<shape_sequence>
 
       pipe.SetExternalInput("data0", batch[0]);
       pipe.SetExternalInput("data1", batch[1]);
-      pipe.RunCPU();
-      pipe.RunGPU();
+      pipe.Run();
       Workspace ws;
       pipe.Outputs(&ws);
 
@@ -731,15 +749,15 @@ TEST(ArithmeticOpsTest, UnaryPipeline) {
   pipe.AddOperator(OpSpec("ArithmeticGenericOp")
                        .AddArg("device", "cpu")
                        .AddArg("expression_desc", "minus(&0)")
-                       .AddInput("data0", "cpu")
-                       .AddOutput("result0", "cpu"),
+                       .AddInput("data0", StorageDevice::CPU)
+                       .AddOutput("result0", StorageDevice::CPU),
                    "arithm_cpu_neg");
 
   pipe.AddOperator(OpSpec("ArithmeticGenericOp")
                        .AddArg("device", "gpu")
                        .AddArg("expression_desc", "plus(&0)")
-                       .AddInput("result0", "gpu")
-                       .AddOutput("result1", "gpu"),
+                       .AddInput("result0", StorageDevice::GPU)
+                       .AddOutput("result1", StorageDevice::GPU),
                    "arithm_gpu_pos");
 
   vector<std::pair<string, string>> outputs = {{"result0", "cpu"}, {"result1", "gpu"}};
@@ -756,8 +774,7 @@ TEST(ArithmeticOpsTest, UnaryPipeline) {
   }
 
   pipe.SetExternalInput("data0", batch);
-  pipe.RunCPU();
-  pipe.RunGPU();
+  pipe.Run();
   Workspace ws;
   pipe.Outputs(&ws);
   vector<int32_t> result1_cpu(tensor_elements);

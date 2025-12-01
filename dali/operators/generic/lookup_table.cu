@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -48,13 +48,13 @@ void LookupTable<GPUBackend>::RunImpl(Workspace &ws) {
 
   auto num_samples = shape.num_samples();
   samples_.resize(num_samples);
+  TensorListShape<1> collapsed_shape(num_samples);
   for (int sample_id = 0; sample_id < num_samples; sample_id++) {
     samples_[sample_id].output = output.raw_mutable_tensor(sample_id);
     samples_[sample_id].input = input.raw_tensor(sample_id);
+    collapsed_shape.tensor_shape_span(sample_id)[0] = shape.tensor_size(sample_id);
   }
   samples_dev_.from_host(samples_, stream);
-
-  auto collapsed_shape = collapse_dims<1>(shape, {std::make_pair(0, shape.sample_dim())});
 
   block_setup_.SetupBlocks(collapsed_shape, true);
   blocks_dev_.from_host(block_setup_.Blocks(), stream);

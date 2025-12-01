@@ -1,4 +1,4 @@
-// Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2023-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -28,7 +28,7 @@ namespace equalize {
 namespace hist {
 namespace test {
 
-constexpr cudaStream_t cuda_stream = 0;
+const cudaStream_t cuda_stream = cudaStreamLegacy;
 
 class EqualizeHistGpuTest : public ::testing::Test {
  protected:
@@ -39,7 +39,7 @@ class EqualizeHistGpuTest : public ::testing::Test {
     HistogramKernelGpu kernel;
     KernelContext ctx;
     ctx.gpu.stream = cuda_stream;
-    DynamicScratchpad dyn_scratchpad({}, AccessOrder(ctx.gpu.stream));
+    DynamicScratchpad dyn_scratchpad(AccessOrder(ctx.gpu.stream));
     ctx.scratchpad = &dyn_scratchpad;
     auto out_view = out_.gpu(cuda_stream);
     auto in_view = in_.gpu(cuda_stream);

@@ -1,4 +1,4 @@
-# Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2021-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,14 +19,15 @@
 # to switch between the default numpy and cupy
 
 import mxnet as mx
-from nose import with_setup
-from nose_utils import raises
+from nose_utils import raises, with_setup
 
 from test_pool_utils import setup_function
-from test_external_source_parallel_utils import (ExtCallback,
-                                                 check_spawn_with_callback,
-                                                 create_pipe,
-                                                 build_and_run_pipeline)
+from test_external_source_parallel_utils import (
+    ExtCallback,
+    check_spawn_with_callback,
+    create_pipe,
+    build_and_run_pipeline,
+)
 import numpy as np
 
 
@@ -46,12 +47,14 @@ class ExtCallbackMXCuda(ExtCallback):
         return mx.nd.array(a, dtype=a.dtype, ctx=mx.gpu(0))
 
 
-@raises(Exception, "Exception traceback received from worker thread*"
-                   "TypeError: Unsupported callback return type. GPU tensors*not supported*"
-                   "Got*MXNet GPU tensor.")
+@raises(
+    Exception,
+    "Exception traceback received from worker thread*"
+    "TypeError: Unsupported callback return type. GPU tensors*not supported*"
+    "Got*MXNet GPU tensor.",
+)
 @with_setup(setup_function)
 def test_mxnet_cuda():
     callback = ExtCallbackMXCuda((4, 5), 10, np.int32)
-    pipe = create_pipe(callback, 'cpu', 5, py_num_workers=6,
-                       py_start_method='spawn', parallel=True)
+    pipe = create_pipe(callback, "cpu", 5, py_num_workers=6, py_start_method="spawn", parallel=True)
     build_and_run_pipeline(pipe)

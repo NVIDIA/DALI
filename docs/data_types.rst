@@ -18,10 +18,10 @@ TensorList wraps the outputs of current iteration and is valid only for the dura
 iteration. Using the TensorList after moving to the next iteration is not allowed.
 If you wish to retain the data you need to copy it before indicating DALI that you released it.
 
-For typicall use-cases, for example when DALI is used through :ref:`DL Framework Plugins`,
-no additionall memory bookkeeping is necessary.
+For typical use-cases, for example when DALI is used through :ref:`DL Framework Plugins`,
+no additional memory bookkeeping is necessary.
 
-.. currentmodule:: nvidia.dali.backend
+.. currentmodule:: nvidia.dali.tensors
 
 
 TensorListCPU
@@ -44,9 +44,9 @@ TensorCPU
 .. autoclass:: TensorCPU
    :members:
    :undoc-members:
-   :special-members: __init__, __array_interface__
+   :special-members: __init__, __array_interface__, __dlpack__, __dlpack_device__
 
-   .. method:: dtype(self: nvidia.dali.backend_impl.TensorCPU) -> str
+   .. method:: dtype(self: nvidia.dali.tensors.TensorCPU) -> str
 
       String representing NumPy type of the Tensor.
 
@@ -59,9 +59,9 @@ TensorGPU
 .. autoclass:: TensorGPU
    :members:
    :undoc-members:
-   :special-members: __init__, __cuda_array_interface__
+   :special-members: __init__, __cuda_array_interface__, __dlpack__, __dlpack_device__
 
-   .. method:: dtype(self: nvidia.dali.backend_impl.TensorCPU) -> str
+   .. method:: dtype(self: nvidia.dali.tensors.TensorCPU) -> str
 
       String representing NumPy type of the Tensor.
 
@@ -97,9 +97,10 @@ DALIDataType
    :member-order: bysource
    :exclude-members: name
 
+.. autofunction:: to_numpy_type
+
 DALIIterpType
 ^^^^^^^^^^^^^
-.. autofunction:: to_numpy_type
 .. autoenum:: DALIInterpType
    :members:
    :undoc-members:

@@ -1,0 +1,12 @@
+{
+   "extra_include":[
+      "<nvcomp/lz4.h>"
+   ],
+   "return_type":"nvcompStatus_t",
+   "calling_conv":"",
+   "not_found_error":"nvcompErrorNotSupported",
+   "functions": {
+      "nvcompBatchedLZ4DecompressGetTempSizeAsync": {},
+      "nvcompBatchedLZ4DecompressAsync": {}
+   }
+}

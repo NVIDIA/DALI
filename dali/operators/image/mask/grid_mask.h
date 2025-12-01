@@ -18,17 +18,17 @@
 #include <vector>
 #include "dali/kernels/kernel_manager.h"
 #include "dali/pipeline/operator/common.h"
+#include "dali/pipeline/operator/checkpointing/stateless_operator.h"
 #include "dali/pipeline/operator/operator.h"
 
 namespace dali {
 
 template <typename Backend>
-class GridMask : public Operator<Backend> {
+class GridMask : public StatelessOperator<Backend> {
  public:
-  explicit GridMask(const OpSpec &spec) : Operator<Backend>(spec) { }
+  explicit GridMask(const OpSpec &spec) : StatelessOperator<Backend>(spec) { }
 
  protected:
-  bool CanInferOutputs() const override { return true; }
   void GetArguments(const Workspace &ws) {
     int batch_size = ws.GetInputBatchSize(0);
     this->GetPerSampleArgument(tile_, "tile", ws, batch_size);

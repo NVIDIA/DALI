@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -41,7 +41,8 @@ images and annotation JSON files.
 
 This readers produces the following outputs::
 
-    images, bounding_boxes, labels, ((polygons, vertices) | (pixelwise_masks)), (image_ids)
+    images, bounding_boxes, labels, ((polygons, vertices) | (pixelwise_masks)),
+    (image_ids)
 
 * **images**
   Each sample contains image data with layout ``HWC`` (height, width, channels).
@@ -53,14 +54,14 @@ This readers produces the following outputs::
      ...
      [x_M, y_M, w_M, h_M]]
 
-  or in ``[l, t, r, b]`` format if requested (see ``ltrb`` argument).
+  or in ``[l, t, r, b]`` format if requested (see `ltrb` argument).
 * **labels**
   Each bounding box is associated with an integer label representing a category identifier::
 
     [label_0, label_1, ..., label_M]
 
-* **polygons** and **vertices** (Optional, present if ``polygon_masks`` is set to True)
-  If ``polygon_masks`` is enabled, two extra outputs describing masks by a set of polygons.
+* **polygons** and **vertices** (Optional, present if `polygon_masks` is set to True)
+  If `polygon_masks` is enabled, two extra outputs describing masks by a set of polygons.
   Each mask contains an arbitrary number of polygons ``P``, each associated with a mask index in the range [0, M) and
   composed by a group of ``V`` vertices. The output ``polygons`` describes the polygons as follows::
 
@@ -69,7 +70,7 @@ This readers produces the following outputs::
      ...
      [mask_idx_P, start_vertex_idx_P, end_vertex_idx_P]]
 
-  where ``mask_idx`` is the index of the mask the polygon, in the range ``[0, M)``, and ``start_vertex_idx`` and  ``end_verted_idx``
+  where ``mask_idx`` is the index of the mask the polygon, in the range ``[0, M)``, and ``start_vertex_idx`` and  ``end_vertex_idx``
   define the range of indices of vertices, as they appear in the output ``vertices``, belonging to this polygon.
   Each sample in ``vertices`` contains a list of vertices that composed the different polygons in the sample, as 2D coordinates::
 
@@ -78,9 +79,9 @@ This readers produces the following outputs::
      ...
      [x_V, y_V]]
 
-* **pixelwise_masks** (Optional, present if argument ``pixelwise_masks`` is set to True)
-  Contains image-like data, same shape and layout as ``images``, representing a pixelwise segmentation mask.
-* **image_ids** (Optional, present if argument ``image_ids`` is set to True)
+* **pixelwise_masks** (Optional, present if argument `pixelwise_masks` is set to True)
+  Contains image-like data, same shape and layout as `images`, representing a pixelwise segmentation mask.
+* **image_ids** (Optional, present if argument `image_ids` is set to True)
   One element per sample, representing an image identifier.)code")
   .AddOptionalArg("preprocessed_annotations",
     "Path to the directory with meta files that contain preprocessed COCO annotations.",
@@ -102,22 +103,22 @@ If a file list is not provided, this argument is required.)code",
 
 If set to False, the bboxes are returned as [x, y, width, height].)code",
       false)
+  .AddOptionalArg("include_iscrowd",
+      R"code(If set to True annotations marked as ``iscrowd=1`` are included as well.)code",
+      true)
   .AddOptionalArg("polygon_masks",
       R"code(If set to True, segmentation mask polygons are read in the form of two outputs:
-``polygons`` and ``vertices``. This argument is mutually exclusive with ``pixelwise_masks``.
-
-.. warning::
-    Currently objects with ``iscrowd=1`` annotations are skipped.)code",
+``polygons`` and ``vertices``. This argument is mutually exclusive with `pixelwise_masks`.)code",
       false)
   .AddOptionalArg("masks", R"code(Enable polygon masks.)code", false)
   .DeprecateArg("masks", false,
-R"code(Use ``polygon_masks`` instead. Note that the polygon format has changed ``mask_id, start_coord, end_coord`` to ``mask_id, start_vertex, end_vertex`` where
+R"code(Use `polygon_masks` instead. Note that the polygon format has changed ``mask_id, start_coord, end_coord`` to ``mask_id, start_vertex, end_vertex`` where
 start_coord and end_coord are total number of coordinates, effectly ``start_coord = 2 * start_vertex`` and ``end_coord = 2 * end_vertex``.
 Example: A polygon with vertices ``[[x0, y0], [x1, y1], [x2, y2]]`` would be represented as ``[mask_id, 0, 6]`` when using the deprecated
-argument ``masks``, but ``[mask_id, 0, 3]`` when using the new argument ``polygon_masks``.)code")  // deprecated since 0.28dev
+argument ``masks``, but ``[mask_id, 0, 3]`` when using the new argument `polygon_masks`.)code")  // deprecated since 0.28dev
   .AddOptionalArg("pixelwise_masks",
       R"code(If true, segmentation masks are read and returned as pixel-wise masks. This argument is
-mutually exclusive with ``polygon_masks``.)code",
+mutually exclusive with `polygon_masks`.)code",
       false)
   .AddOptionalArg("skip_empty",
       R"code(If true, reader will skip samples with no object instances in them)code",
@@ -150,7 +151,7 @@ ordered by their image id.
 
 The paths to be kept should match exactly those in the annotations file.
 
-Note: This argument is mutually exclusive with ``preprocessed_annotations``.)code", nullptr)
+Note: This argument is mutually exclusive with `preprocessed_annotations`.)code", nullptr)
   .DeprecateArgInFavorOf("save_img_ids", "image_ids")  // deprecated since 0.28dev
   .AddOptionalArg("save_preprocessed_annotations",
       R"code(If set to True, the operator saves a set of files containing binary representations of the
@@ -183,13 +184,15 @@ DALI_SCHEMA(COCOReader)
 submodule and renamed to follow a common pattern. This is a placeholder operator with identical
 functionality to allow for backward compatibility.)code");  // Deprecated in 1.0;
 
-COCOReader::COCOReader(const OpSpec& spec): DataReader<CPUBackend, ImageLabelWrapper>(spec) {
+COCOReader::COCOReader(const OpSpec& spec)
+    : DataReader<CPUBackend, ImageLabelWrapper, ImageLabelWrapper, true>(spec) {
   DALI_ENFORCE(!skip_cached_images_, "COCOReader doesn't support `skip_cached_images` option");
   output_polygon_masks_ = OutPolygonMasksEnabled(spec);
   legacy_polygon_format_ = spec.HasArgument("masks") && spec.GetArgument<bool>("masks");
   output_pixelwise_masks_ = OutPixelwiseMasksEnabled(spec);
   output_image_ids_ = OutImageIdsEnabled(spec);
   loader_ = InitLoader<CocoLoader>(spec);
+  this->SetInitialSnapshot();
 
   if (legacy_polygon_format_) {
     DALI_WARN("Warning: Using legacy format for polygons. "
@@ -258,6 +261,7 @@ void COCOReader::RunImpl(SampleWorkspace &ws) {
 }
 
 void COCOReader::PixelwiseMasks(int image_idx, int* mask) {
+  bool ratio = spec_.GetArgument<bool>("ratio");
   auto &loader_impl = LoaderImpl();
   auto pol = loader_impl.polygons(image_idx);
   auto ver = loader_impl.vertices(image_idx);
@@ -268,6 +272,7 @@ void COCOReader::PixelwiseMasks(int image_idx, int* mask) {
   auto labels_span = loader_impl.labels(image_idx);
   std::set<int> labels(labels_span.data(),
                        labels_span.data() + labels_span.size());
+  memset(mask, 0, h * w * sizeof(int));
   if (!labels.size()) {
     return;
   }
@@ -287,8 +292,8 @@ void COCOReader::PixelwiseMasks(int image_idx, int* mask) {
     auto pol_ver = span<const vec2>{ver.data() + start_idx, nver};
     in.resize(pol_ver.size() * 2);
     for (int i = 0, k = 0; i < pol_ver.size(); i++) {
-      in[k++] = static_cast<double>(pol_ver[i].x);
-      in[k++] = static_cast<double>(pol_ver[i].y);
+      in[k++] = static_cast<double>(ratio ? pol_ver[i].x * w : pol_ver[i].x);
+      in[k++] = static_cast<double>(ratio ? pol_ver[i].y * h : pol_ver[i].y);
     }
     RLE M;
     rleInit(&M, 0, 0, 0, 0);
@@ -397,7 +402,6 @@ void COCOReader::PixelwiseMasks(int image_idx, int* mask) {
   }
 
   // Decode final pixelwise masks encoded via RLE
-  memset(mask, 0, h * w * sizeof(int));
   int x = 0, y = 0;
   for (uint i = 0; i < A.m; i++)
     for (uint j = 0; j < A.cnts[i]; j++) {

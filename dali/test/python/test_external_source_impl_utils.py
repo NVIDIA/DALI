@@ -1,4 +1,4 @@
-# Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2021-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,9 +15,7 @@
 from nvidia.dali._utils import external_source_impl
 from nvidia.dali import tensors, pipeline_def
 import nvidia.dali.fn as fn
-from nose.tools import assert_equals
-from nose_utils import raises
-from nose.plugins.attrib import attr
+from nose_utils import raises, assert_equals, attr
 import numpy as np
 
 
@@ -41,10 +39,12 @@ def run_checks(samples_allowed, batches_allowed, samples_disallowed, batches_dis
         yield converts, external_source_impl.batch_to_numpy, sample, baseline
     for sample in samples_disallowed:
         yield raises(TypeError, "Unsupported callback return type.")(
-            external_source_impl.assert_cpu_sample_data_type), sample
+            external_source_impl.assert_cpu_sample_data_type
+        ), sample
     for sample in samples_disallowed + batches_disallowed:
         yield raises(TypeError, "Unsupported callback return type")(
-            external_source_impl.assert_cpu_batch_data_type), sample
+            external_source_impl.assert_cpu_batch_data_type
+        ), sample
 
 
 def non_uniform_tl():
@@ -54,16 +54,13 @@ def non_uniform_tl():
     @pipeline_def(batch_size=2, num_threads=4, device_id=0)
     def pipe():
         return fn.external_source(source=get_samples)
+
     p = pipe()
-    p.build()
     return p.run()[0]
 
 
 def test_regular_containers():
-    samples_cpu = [
-        (test_array, test_array),
-        (tensors.TensorCPU(test_array), test_array)
-    ]
+    samples_cpu = [(test_array, test_array), (tensors.TensorCPU(test_array), test_array)]
     batches_cpu = [
         ([test_array], [test_array]),
         ([test_array] * 4, [test_array] * 4),
@@ -75,18 +72,17 @@ def test_regular_containers():
 
 
 def test_non_uniform_batch():
-    batches_disallowed = [
-        [test_array, np.array([[42, 42]], dtype=np.uint8)],
-        non_uniform_tl()
-    ]
+    batches_disallowed = [[test_array, np.array([[42, 42]], dtype=np.uint8)], non_uniform_tl()]
     for b in batches_disallowed:
         yield raises(ValueError, "Uniform input is required (batch of tensors of equal shapes)")(
-            external_source_impl.batch_to_numpy), b
+            external_source_impl.batch_to_numpy
+        ), b
 
 
-@attr('pytorch')
+@attr("pytorch")
 def test_pytorch_containers():
     import torch
+
     samples_cpu = [
         (torch.tensor(test_array), test_array),
     ]
@@ -100,7 +96,7 @@ def test_pytorch_containers():
     yield from run_checks(samples_cpu, batches_cpu, disallowed_samples, [])
 
 
-@attr('mxnet')
+@attr("mxnet")
 def test_mxnet_containers():
     import mxnet as mx
 
@@ -111,21 +107,15 @@ def test_mxnet_containers():
         ([mx.nd.array(test_array)], [test_array]),
         ([mx.nd.array(test_array)] * 4, [test_array] * 4),
     ]
-    disallowed_samples = [
-        mx.nd.array(test_array, ctx=mx.gpu(0))
-    ]
+    disallowed_samples = [mx.nd.array(test_array, ctx=mx.gpu(0))]
     yield from run_checks(samples_cpu, batches_cpu, disallowed_samples, [])
 
 
-@attr('cupy')
+@attr("cupy")
 def test_cupy_containers():
     import cupy as cp
+
     test_array = cp.array([[42, 42], [42, 42]], dtype=cp.uint8)
-    disallowed_samples = [
-        test_array,
-        tensors.TensorGPU(test_array)
-    ]
-    disallowed_batches = [
-        tensors.TensorListGPU(test_array)
-    ]
+    disallowed_samples = [test_array, tensors.TensorGPU(test_array)]
+    disallowed_batches = [tensors.TensorListGPU(test_array)]
     yield from run_checks([], [], disallowed_samples, disallowed_batches)

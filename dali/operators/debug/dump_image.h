@@ -20,15 +20,16 @@
 
 #include "dali/core/common.h"
 #include "dali/core/error_handling.h"
+#include "dali/pipeline/operator/checkpointing/stateless_operator.h"
 #include "dali/pipeline/operator/operator.h"
 
 namespace dali {
 
 template <typename Backend>
-class DumpImage : public Operator<Backend> {
+class DumpImage : public StatelessOperator<Backend> {
  public:
   explicit inline DumpImage(const OpSpec &spec) :
-    Operator<Backend>(spec),
+    StatelessOperator<Backend>(spec),
     suffix_(spec.GetArgument<string>("suffix")) {
     DALI_ENFORCE(spec.GetArgument<TensorLayout>("input_layout") == "HWC",
         "CHW not supported yet.");
@@ -37,6 +38,10 @@ class DumpImage : public Operator<Backend> {
   inline ~DumpImage() override = default;
 
  protected:
+  bool HasContiguousOutputs() const override {
+    return false;
+  }
+
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     return false;
   }

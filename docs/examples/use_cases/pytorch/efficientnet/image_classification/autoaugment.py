@@ -75,7 +75,7 @@ class OperationFactory:
             "translateY": np.linspace(0, 250, 11),
             "rotate": np.linspace(0, 30, 11),
             "color": np.linspace(0.1, 1.9, 11),
-            "posterize": np.round(np.linspace(0, 4, 11), 0).astype(np.int),
+            "posterize": np.round(np.linspace(0, 4, 11), 0).astype(int),
             "solarize": np.linspace(0, 256, 11),
             "solarizeadd": np.linspace(0, 110, 11),
             "contrast": np.linspace(0.1, 1.9, 11),
@@ -96,7 +96,7 @@ class OperationFactory:
             for i in range(256):
                 if i < threshold:
                     res = i + addition if i + addition <= 255 else 255
-                    res = res if res >= 0 else 0
+                    res = int(res if res >= 0 else 0)
                     lut.append(res)
                 else:
                     lut.append(i)

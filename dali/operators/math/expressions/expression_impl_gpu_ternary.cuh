@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -64,7 +64,6 @@ __global__ void ExecuteTiledTernaryOp1D(const SampleDescGPU<3> *samples, const T
   const auto &tile = tiles[blockIdx.y];
   const auto &sample = samples[tile.sample_idx];
   auto output = static_cast<Result *>(sample.output.data);
-  auto &out_strides = sample.output.strides;
   auto &arg0 = sample.args[0];
   auto &arg1 = sample.args[1];
   auto &arg2 = sample.args[2];
@@ -91,6 +90,7 @@ struct InvokerTernaryOp {
       ExecuteTiledTernaryOpND<op, Result>
           <<<grid, block, 0, stream>>>(samples, tiles);
     }
+    CUDA_CALL(cudaGetLastError());
   }
 };
 

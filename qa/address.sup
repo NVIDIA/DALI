@@ -1,0 +1,8 @@
+# apt started reporting heap-buffer-overflow
+interceptor_via_lib:libapt-pkg
+interceptor_via_lib:_zmq.cpython
+interceptor_via_lib:libtensorflow_cc
+interceptor_via_lib:libtensorflow_framework
+interceptor_via_lib:libtorch_python
+interceptor_via_lib:libtorch_cpu
+interceptor_via_lib:_multiarray_umath
