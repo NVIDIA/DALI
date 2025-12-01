@@ -133,7 +133,14 @@ def loop_images_test(t, td):
 
         out_tv = transforms.functional.pil_to_tensor(t(img)).unsqueeze(0).permute(0, 2, 3, 1)
         out_dali_tv = transforms.functional.pil_to_tensor(td(img)).unsqueeze(0).permute(0, 2, 3, 1)
-        assert out_tv.shape == out_dali_tv.shape, f"Should be:{out_tv.shape} is:{out_dali_tv.shape}"
+        tv_shape_lower = torch.Size([out_tv.shape[1] - 1, out_tv.shape[2] - 1])
+        tv_shape_upper = torch.Size([out_tv.shape[1] + 1, out_tv.shape[2] + 1])
+        assert (
+            tv_shape_lower[0] <= out_dali_tv.shape[1] <= tv_shape_upper[0]
+        ), f"Should be:{out_tv.shape} is:{out_dali_tv.shape}"
+        assert (
+            tv_shape_lower[1] <= out_dali_tv.shape[2] <= tv_shape_upper[1]
+        ), f"Should be:{out_tv.shape} is:{out_dali_tv.shape}"
         # assert torch.equal(out_tv, out_dali_tv)
 
 

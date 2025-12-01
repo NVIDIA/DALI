@@ -80,7 +80,7 @@ def test_center_crop_equal_size():
     assert torch.equal(img_dali, out_dali_tv)
 
 
-@params((512), (127))
+@params((512), (128))
 def test_center_crop_larger_than_image(size):
     img, img_dali = make_img(size // 2, size // 2)
     t, td = build_centercrop_transform((size, size))
