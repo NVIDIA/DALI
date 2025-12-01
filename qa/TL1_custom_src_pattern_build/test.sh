@@ -1,6 +1,6 @@
 #!/bin/bash -e
 
-pip_packages='astunparse gast dm-tree black'
+pip_packages='astunparse gast dm-tree black nvtx makefun'
 
 build_and_check() {
   make -j
