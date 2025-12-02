@@ -125,6 +125,7 @@ static_assert(align_up(17, 16) == 32, "Should align up");
 static_assert(align_up(8, 8) == 8, "Should be already aligned");
 static_assert(align_up(5, 8) == 8, "Should align");
 
+
 /**
  * @brief Calculates the smallest power of 2 that is greater than or equal to n.
  *
@@ -144,25 +145,47 @@ constexpr std::enable_if_t<std::is_integral<T>::value, T> next_pow2(T n) {
 
 #if defined(__CUDA_ARCH__)
   // CUDA DEVICE PATH
-  if constexpr (sizeof(U) == 4) {
-    // __clz() — count leading zeros (32-bit)
-    int lz = __clz(x - 1);
+  constexpr int bits = sizeof(U) * 8;
+  
+  if constexpr (sizeof(U) == 8) {
+    // 64-bit version: uses __clzll()
+    unsigned long long y = static_cast<unsigned long long>(x - 1);
+    int lz = __clzll(y);
+    int pos = 63 - lz;
+    return static_cast<T>(U(1) << (pos + 1));
+  } else if constexpr (sizeof(U) == 4) {
+    // 32-bit version: uses __clz()
+    unsigned int y = static_cast<unsigned int>(x - 1);
+    int lz = __clz(y);
     int pos = 31 - lz;
     return static_cast<T>(U(1) << (pos + 1));
+  } else if constexpr (sizeof(U) == 2 || sizeof(U) == 1) {
+    // 8- and 16-bit version: CUDA does not provide __clz for 8/16 bits,
+    // so they need to be safely widened to 32-bit unsigned and __clz() used.
+    unsigned int y = static_cast<unsigned int>(x - 1);
+    int lz = __clz(y);
+    int pos = 31 - lz;  // position of the most significant bit in a 32-bit container
+
+    // normalize to the actual number of bits of the original type
+    int shift = pos - (32 - bits);
+    return static_cast<T>(U(1) << (shift + 1));
   } else {
-    // 64-bit version uses __clzll()
-    int lz = __clzll(x - 1);
-    int pos = 63 - lz;
+    // fallback, in case of exotic sizes
+    unsigned int y = static_cast<unsigned int>(x - 1);
+    int lz = __clz(y);
+    int pos = 31 - lz;
     return static_cast<T>(U(1) << (pos + 1));
   }
 #else
   // CPU fallback (portable bitwise version with loop)
   x--;
+#if defined(__clang__) || defined(__GNUC__)
+  #pragma unroll
+#endif
   for (unsigned i = 1; i < sizeof(U) * 8; i <<= 1) {
     x |= x >> i;
   }
   return static_cast<T>(x + 1);
-
 #endif
 }
 
