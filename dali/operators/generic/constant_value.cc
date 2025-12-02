@@ -87,7 +87,7 @@ void ConstantValue<CPUBackend>::RunImpl(Workspace &ws) {
             auto* out_data = output.mutable_tensor<OutputType>(s);
             auto out_shape = out_shapes.tensor_shape_span(s);
             auto in_shape = fill_value.tensor_shape_span(s);
-            if (in_shape.back() == volume(in_shape)) {
+            if (in_shape.empty() || in_shape.back() == volume(in_shape)) {
               RepeatInner(out_data, volume(out_shape), fill_value_data, volume(in_shape));
             } else {
               TensorShape<> in_strides;

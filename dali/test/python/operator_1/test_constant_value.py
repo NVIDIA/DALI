@@ -47,22 +47,51 @@ def test_ones_like():
     np.testing.assert_array_almost_equal(run(fn.ones_like(arr)), np.ones_like(arr))
 
 
-def test_full():
+def test_full_scalar():
     sh = (2, 3, 4)
-    fill_value_sh = (3, 4)
-    fill_value_arr = np.random.uniform(size=fill_value_sh)
-    np.testing.assert_array_almost_equal(
-        run(fn.full(fill_value_arr, shape=sh)), np.full(sh, fill_value_arr)
-    )
+    np.testing.assert_array_almost_equal(run(fn.full(1234, shape=sh)), np.full(sh, 1234))
 
 
-def test_full_broadcast():
+def test_full_broadcast_simple():
     shape = (2, 3)
     data = np.array([1, 2, 3], dtype=np.int32)
+    assert data.shape == (3,)
+    np.testing.assert_array_almost_equal(run(fn.full(data, shape=shape)), np.full(shape, data))
+
+    shape = (2, 4)  # inner extent is a power of 2
+    data = np.array([1, 2, 3, 4], dtype=np.int32)
+    assert data.shape == (4,)
     np.testing.assert_array_almost_equal(run(fn.full(data, shape=shape)), np.full(shape, data))
 
     shape = (3, 2)
     data = np.array([[1], [2], [3]], dtype=np.int32)
+    assert data.shape == (3, 1)
+    np.testing.assert_array_almost_equal(run(fn.full(data, shape=shape)), np.full(shape, data))
+
+
+def test_full_broadcast_complex():
+    shape = (2, 3, 4)
+    # broadcast along middle dim
+    data = np.array([[[1, 2, 3, 4]], [[5, 6, 7, 8]]], dtype=np.int32)
+    assert data.shape == (2, 1, 4)
+    np.testing.assert_array_almost_equal(run(fn.full(data, shape=shape)), np.full(shape, data))
+
+    # broadcast along outer and inner dim, keep middle
+    shape = (2, 3, 4)
+    data = np.array([[[1], [2], [3]]], dtype=np.int32)
+    assert data.shape == (1, 3, 1)
+    np.testing.assert_array_almost_equal(run(fn.full(data, shape=shape)), np.full(shape, data))
+
+    # broadcast along axes 0 and 2
+    shape = (2, 3, 4, 3)
+    data = np.array([[[[1, 2, 3]], [[4, 5, 6]], [[7, 8, 9]]]], dtype=np.int32)
+    assert data.shape == (1, 3, 1, 3)
+    np.testing.assert_array_almost_equal(run(fn.full(data, shape=shape)), np.full(shape, data))
+
+    # broadcast along axes 1 and 3
+    shape = (2, 3, 4, 3)
+    data = np.array([[[[1], [2], [3], [4]]], [[[5], [6], [7], [8]]]], dtype=np.int32)
+    assert data.shape == (2, 1, 4, 1)
     np.testing.assert_array_almost_equal(run(fn.full(data, shape=shape)), np.full(shape, data))
 
 
