@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -54,6 +54,16 @@ def test_full():
     np.testing.assert_array_almost_equal(
         run(fn.full(fill_value_arr, shape=sh)), np.full(sh, fill_value_arr)
     )
+
+
+def test_full_broadcast():
+    shape = (2, 3)
+    data = np.array([1, 2, 3], dtype=np.int32)
+    np.testing.assert_array_almost_equal(run(fn.full(data, shape=shape)), np.full(shape, data))
+
+    shape = (3, 2)
+    data = np.array([[1], [2], [3]], dtype=np.int32)
+    np.testing.assert_array_almost_equal(run(fn.full(data, shape=shape)), np.full(shape, data))
 
 
 def test_full_like():
