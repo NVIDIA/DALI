@@ -71,6 +71,12 @@ class RNG:
         """Get the seed used to initialize this RNG."""
         return self._seed
 
+    @seed.setter
+    def seed(self, value):
+        """Set the seed for this RNG and reset its random sequence."""
+        self._seed = value
+        self._rng = _random.Random(value)
+
     def clone(self):
         """Create a new RNG with the same seed.
 
@@ -150,4 +156,4 @@ def set_seed(seed):
     >>> result2 = ndd.random.uniform(range=(-1, 1), shape=[10])
     >>> # result1 and result2 should be identical
     """
-    _thread_local.default_rng = RNG(seed=seed)
+    get_default_rng().seed = seed

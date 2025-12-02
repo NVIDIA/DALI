@@ -137,3 +137,46 @@ def test_rng_clone():
     assert np.array_equal(
         result1_np, result2_np
     ), "Cloned RNGs should produce identical operator results"
+
+
+def test_rng_set_seed():
+    # Explicit RNG instance
+    rng = ndd.random.RNG(seed=1234)
+    values1 = [rng() for _ in range(5)]
+    rng.seed = 1234
+    values2 = [rng() for _ in range(5)]
+    assert values1 == values2
+    rng.seed = 5678  # Different seed should produce different values
+    values3 = [rng() for _ in range(5)]
+    assert values1 != values3
+
+    # Explicit RNG instance with operators
+    rng.seed = 1234
+    result1_np = asnumpy(ndd.random.uniform(range=[0.0, 1.0], shape=[10], rng=rng))
+    rng.seed = 1234
+    result2_np = asnumpy(ndd.random.uniform(range=[0.0, 1.0], shape=[10], rng=rng))
+    assert np.array_equal(result1_np, result2_np)
+    rng.seed = 5678  # Different seed
+    result3_np = asnumpy(ndd.random.uniform(range=[0.0, 1.0], shape=[10], rng=rng))
+    assert not np.array_equal(result1_np, result3_np)
+
+    # Default RNG
+    ndd.random.set_seed(9876)
+    assert ndd.random.get_default_rng().seed == 9876
+    values1 = [ndd.random.get_default_rng()() for _ in range(5)]
+    ndd.random.set_seed(9876)
+    values2 = [ndd.random.get_default_rng()() for _ in range(5)]
+    assert values1 == values2
+    ndd.random.set_seed(5432)  # Different seed should produce different values
+    values3 = [ndd.random.get_default_rng()() for _ in range(5)]
+    assert values1 != values3
+
+    # Default RNG with operators
+    ndd.random.set_seed(1111)
+    result1_np = asnumpy(ndd.random.uniform(range=[0.0, 1.0], shape=[10]))
+    ndd.random.set_seed(1111)
+    result2_np = asnumpy(ndd.random.uniform(range=[0.0, 1.0], shape=[10]))
+    assert np.array_equal(result1_np, result2_np)
+    ndd.random.set_seed(2222)  # Different seed
+    result3_np = asnumpy(ndd.random.uniform(range=[0.0, 1.0], shape=[10]))
+    assert not np.array_equal(result1_np, result3_np)
