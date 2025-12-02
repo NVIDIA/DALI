@@ -41,30 +41,18 @@ op_args = {
 @cartesian_params(("cpu", "gpu"), (None, 3), ("ops", "fn"), ("uniform", "normal"))
 def test_rng_argument(device_type, batch_size, api_type, opname):
     """Test that the rng argument works with random operators."""
-    # Create a simple RNG that returns predictable values
-    rng_state = [0]
     op_instance = None
 
-    def my_rng():
-        nonlocal rng_state
-        rng_state[0] += 1
-        random_state = np.uint32(rng_state[0] * 12345)
-        return random_state
-
-    def generate():
+    def generate(rng):
         nonlocal op_instance
         # Create operator or use functional API
         if api_type == "ops":
             if op_instance is None:
-                # For batch mode, we need to specify max_batch_size
-                if batch_size is not None:
-                    op_instance = ops[opname](device=device_type, max_batch_size=batch_size)
-                else:
-                    op_instance = ops[opname](device=device_type)
-            result1 = op_instance(batch_size=batch_size, rng=my_rng, **op_args[opname])
+                op_instance = ops[opname](device=device_type, max_batch_size=batch_size)
+            result1 = op_instance(batch_size=batch_size, rng=rng, **op_args[opname])
         else:
             result1 = fn[opname](
-                batch_size=batch_size, rng=my_rng, device=device_type, **op_args[opname]
+                batch_size=batch_size, rng=rng, device=device_type, **op_args[opname]
             )
 
         # Verify result type and shape
@@ -81,11 +69,11 @@ def test_rng_argument(device_type, batch_size, api_type, opname):
             assert result1_np.shape == (10,), f"Expected shape (10,), got {result1_np.shape}"
         return result1_np
 
-    rng_state[0] = 1234
-    result1_np = generate()
-    result2_np = generate()
-    rng_state[0] = 1234
-    result3_np = generate()
+    rng1 = ndd.random.RNG(seed=1234)
+    rng2 = ndd.random.RNG(seed=1234)
+    result1_np = generate(rng1)
+    result2_np = generate(rng1)
+    result3_np = generate(rng2)
     assert not np.array_equal(
         result1_np, result2_np
     ), "Results should not be identical with different random state"
@@ -97,31 +85,28 @@ def test_rng_argument(device_type, batch_size, api_type, opname):
 @params(("cpu",), ("gpu",))
 def test_rng_seed_exclusion(device_type):
     """Test that seed argument is removed when rng is provided."""
-    rng_state = [0]
-
-    def my_rng():
-        rng_state[0] += 1
-        return np.uint32(rng_state[0] * 12345)
+    rng1 = ndd.random.RNG(seed=1111)
+    rng2 = ndd.random.RNG(seed=2222)
 
     # This should work - rng should override seed (seed is an init-time argument)
     uniform_op1 = ndd.ops.random.Uniform(device=device_type, seed=42)
     uniform_op2 = ndd.ops.random.Uniform(device=device_type, seed=42)
-    result1 = uniform_op1(range=[0.0, 1.0], shape=[10], rng=my_rng)  # This should override the seed
-    result2 = uniform_op2(range=[0.0, 1.0], shape=[10], rng=my_rng)  # This should override the seed
+    result1 = uniform_op1(range=[0.0, 1.0], shape=[10], rng=rng1)  # This should override the seed
+    result2 = uniform_op2(range=[0.0, 1.0], shape=[10], rng=rng2)  # This should override the seed
     result_np1 = asnumpy(result1)
     assert result_np1.shape == (10,)
     result_np2 = asnumpy(result2)
     assert result_np2.shape == (10,)
 
-    assert not np.array_equal(
-        result_np1, result_np2
-    ), "Different results expected because of different random states regardless of the initial seed"
+    # expected to be different because of different random states
+    # regardless of the initial seed
+    assert not np.array_equal(result_np1, result_np2)
 
 
 def test_rng_clone():
     """Test that RNG.clone() creates an independent copy with the same seed."""
     # Create an RNG with a specific seed
-    rng1 = ndd.random.rng(seed=5678)
+    rng1 = ndd.random.RNG(seed=5678)
 
     # Clone it
     rng2 = rng1.clone()
@@ -139,7 +124,7 @@ def test_rng_clone():
         assert val1 == val2, f"Value {i} doesn't match: {val1} != {val2}"
 
     # Verify cloned RNG works with operators
-    rng3 = ndd.random.rng(seed=9999)
+    rng3 = ndd.random.RNG(seed=9999)
     rng4 = rng3.clone()
 
     result1 = ndd.random.uniform(range=[0.0, 1.0], shape=[10], rng=rng3)

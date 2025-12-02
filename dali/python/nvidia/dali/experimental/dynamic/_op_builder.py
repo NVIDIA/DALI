@@ -287,6 +287,9 @@ def build_call_function(schema, op_class):
     if has_random_state_arg:
         call_args.append("rng=None")
         used_kwargs.add("rng")
+        # Remove 'seed' from used_kwargs and signature_args if present
+        if "seed" in used_kwargs:
+            used_kwargs.remove("seed")
 
     inputs = _get_inputs(schema)
 
@@ -316,7 +319,19 @@ def build_call_function(schema, op_class):
             kwargs = {}
 
             if has_random_state_arg:
-                rng = raw_kwargs.pop("rng", _random.get_default_rng())
+                rng = raw_kwargs.pop("rng", None)
+                if rng is None:
+                    rng = _random.get_default_rng()
+                if not isinstance(rng, _random.RNG):
+                    raise ValueError(
+                        f"rng must be an instance of nvidia.dali.experimental.dynamic.random.RNG, "
+                        f"but got {type(rng)}"
+                    )
+
+                # Use the provided RNG to generate 7 random uint32 values.
+                # This creates a fixed-size random state tensor.
+                # 7 uint32 words = 224 bits; required is 194 bits (operator reads first 25 bytes).
+                # Only one random state tensor is created per call, not per sample.
                 raw_kwargs["_random_state"] = Tensor(
                     [rng() for _ in range(7)],
                     dtype=_type.dtype(nvidia.dali.types.UINT32),
@@ -453,6 +468,11 @@ def build_fn_wrapper(op):
         tensor_args.append("rng")
         used_kwargs.add("rng")
         signature_args.append("rng=None")
+        # Remove 'seed' from used_kwargs and signature_args if present
+        if "seed" in used_kwargs:
+            used_kwargs.remove("seed")
+        if "seed" in signature_args:
+            signature_args.remove("seed")
 
     header = f"{fn_name}({', '.join(inputs + signature_args)})"
 

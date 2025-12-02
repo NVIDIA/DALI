@@ -40,7 +40,7 @@ class RNG:
     >>> import nvidia.dali.experimental.dynamic as ndd
     >>>
     >>> # Create an RNG with a specific seed
-    >>> my_rng = ndd.random.rng(seed=1234)
+    >>> my_rng = ndd.random.RNG(seed=1234)
     >>>
     >>> # Use it with random operators
     >>> result = ndd.ops.random.Uniform(device="cpu")(range=(-1, 1), shape=[10], rng=my_rng)
@@ -86,7 +86,7 @@ class RNG:
         >>> import nvidia.dali.experimental.dynamic as ndd
         >>>
         >>> # Create an RNG
-        >>> rng1 = ndd.random.rng(seed=1234)
+        >>> rng1 = ndd.random.RNG(seed=1234)
         >>>
         >>> # Clone it to create an independent copy
         >>> rng2 = rng1.clone()
@@ -151,29 +151,3 @@ def set_seed(seed):
     >>> # result1 and result2 should be identical
     """
     _thread_local.default_rng = RNG(seed=seed)
-
-
-def rng(seed=None):
-    """Create a new random number generator.
-
-    Parameters
-    ----------
-    seed : int, optional
-        Seed for the random number generator. If not provided, a random seed is used.
-
-    Returns
-    -------
-    RNG
-        A new RNG instance.
-
-    Examples
-    --------
-    >>> import nvidia.dali.experimental.dynamic as ndd
-    >>>
-    >>> # Create an RNG with a specific seed
-    >>> my_rng = ndd.random.rng(seed=1234)
-    >>>
-    >>> # Use it with random operators
-    >>> result = ndd.ops.random.Uniform(device="cpu")(range=(-1, 1), shape=[10], rng=my_rng)
-    """
-    return RNG(seed=seed)

@@ -119,9 +119,10 @@ def _get_rng_doc():
     """Return documentation for the rng argument used in dynamic API random operators."""
     return _numpydoc_formatter(
         "rng",
-        "nvidia.dali.random.RNG",
+        "nvidia.dali.experimental.dynamic.random.RNG",
         "A random number generator instance.\n"
-        "Can be obtained by calling :func:`nvidia.dali.random.rng(seed) <nvidia.dali.random.rng>`.\n"
+        "Can be obtained by calling "
+        ":func:`nvidia.dali.experimental.dynamic.random.RNG(seed)`.\n"
         "If not provided, the default RNG is used.",
         optional=True,
     )
