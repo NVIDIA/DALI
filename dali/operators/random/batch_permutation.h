@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -22,10 +22,10 @@
 
 namespace dali {
 
-class BatchPermutation : public rng::OperatorWithRng<CPUBackend, false> {
+class BatchPermutation : public rng::OperatorWithRng<Operator<CPUBackend>> {
  public:
   explicit BatchPermutation(const OpSpec &spec)
-  : rng::OperatorWithRng<CPUBackend, false>(spec) {}
+  : rng::OperatorWithRng<Operator<CPUBackend>>(spec) {}
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     output_desc.resize(1);

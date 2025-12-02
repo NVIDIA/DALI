@@ -268,11 +268,23 @@ endif()
 ##################################################################
 if (BUILD_CVCUDA)
   set(DALI_BUILD_PYTHON ${BUILD_PYTHON})
+  set(DALI_BUILD_TESTS ${BUILD_TESTS})
+  set(DALI_BUILD_TESTS_CPP ${BUILD_TESTS_CPP})
+  set(DALI_BUILD_TESTS_WHEELS ${BUILD_TESTS_WHEELS})
+  set(DALI_BUILD_TESTS_PYTHON ${BUILD_TESTS_PYTHON})
   set(BUILD_PYTHON OFF)
+  set(BUILD_TESTS OFF)
+  set(BUILD_TESTS_CPP OFF)
+  set(BUILD_TESTS_WHEELS OFF)
+  set(BUILD_TESTS_PYTHON OFF)
   # for now we use only median blur from CV-CUDA
   set(CV_CUDA_SRC_PATERN medianblur median_blur morphology warp HQResize)
   check_and_add_cmake_submodule(${PROJECT_SOURCE_DIR}/third_party/cvcuda)
   set(BUILD_PYTHON ${DALI_BUILD_PYTHON})
+  set(BUILD_TESTS ${DALI_BUILD_TESTS})
+  set(BUILD_TESTS_CPP ${DALI_BUILD_TESTS_CPP})
+  set(BUILD_TESTS_WHEELS ${DALI_BUILD_TESTS_WHEELS})
+  set(BUILD_TESTS_PYTHON ${DALI_BUILD_TESTS_PYTHON})
 endif()
 
 ##################################################################

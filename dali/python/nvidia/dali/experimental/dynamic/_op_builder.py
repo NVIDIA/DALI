@@ -15,16 +15,16 @@
 import nvidia.dali.backend as _b
 from nvidia.dali.fn import _to_snake_case
 import makefun
-from ._batch import Batch, _get_batch_size
+from ._batch import Batch, _get_batch_size, as_batch as _as_batch
 from ._tensor import Tensor
 from . import ops
 from . import _type
-import types
 import copy
 from . import _invocation, _device, _eval_mode, _eval_context
 import nvidia.dali.ops as _ops
 import nvidia.dali.types
 import nvtx
+from nvidia.dali import internal as _internal
 from nvidia.dali.ops import _docs, _names
 
 
@@ -87,11 +87,13 @@ def _get_input_device_type(x):
     return dev.device_type if dev is not None else None
 
 
-def _to_tensor(x, device=None):
+def _to_tensor(x, device=None, dtype=None):
     with nvtx.annotate("to_tensor", domain="op_builder"):
         if x is None:
             return None
         if isinstance(x, Tensor):
+            if dtype is not None and x.dtype != dtype:
+                return Tensor(x, dtype=dtype, device=device)
             if device is not None:
                 return x.to_device(device)
             return x
@@ -99,43 +101,58 @@ def _to_tensor(x, device=None):
             if x.is_batch:
                 raise ValueError("Batch invocation result cannot be used as a single tensor")
             return Tensor(invocation_result=x, device=device)
-        return Tensor(x, device=device)
+        return Tensor(x, device=device, dtype=dtype)
 
 
-def _to_batch(x, batch_size, device=None):
+def _to_batch(x, batch_size, device=None, dtype=None):
     with nvtx.annotate("to_batch", domain="op_builder"):
         if x is None:
             return None
         if isinstance(x, Batch):
+            if dtype is not None and x.dtype != dtype:
+                return _as_batch(x, dtype=dtype, device=device)
             if device is not None:
                 return x.to_device(device)
             return x
         if isinstance(x, _invocation.InvocationResult):
             if x.is_batch:
-                return Batch(invocation_result=x, device=device)
+                return Batch(invocation_result=x, device=device, dtype=dtype)
             else:
-                x = _to_tensor(x)  # fall back to regular replication
+                x = _to_tensor(x, dtype=dtype)  # fall back to regular replication
         actual_batch_size = _get_batch_size(x)
         if actual_batch_size is not None:
             if batch_size is not None and actual_batch_size != batch_size:
                 raise ValueError(f"Unexpected batch size: {actual_batch_size} != {batch_size}")
-            return Batch(x, device=device)
+            return Batch(x, device=device, dtype=dtype)
 
-        return Batch.broadcast(x, batch_size, device=device)
+        return Batch.broadcast(x, batch_size, device=device, dtype=dtype)
 
 
 _unsupported_args = {"bytes_per_sample_hint", "preserve"}
 
 
 def _find_or_create_module(root_module, module_path):
-    module = root_module
-    for path_part in module_path:
-        submodule = getattr(module, path_part, None)
-        if submodule is None:
-            submodule = types.ModuleType(path_part)
-            setattr(module, path_part, submodule)
-        module = submodule
-    return module
+    return _internal.get_submodule(root_module, module_path)
+
+
+def _scalar_arg_type_id(dtype_id):
+    if dtype_id == nvidia.dali.types.DALIDataType._INT32_VEC:
+        return nvidia.dali.types.INT32
+    elif dtype_id == nvidia.dali.types.DALIDataType._FLOAT_VEC:
+        return nvidia.dali.types.FLOAT
+    elif dtype_id == nvidia.dali.types.DALIDataType._STRING_VEC:
+        return nvidia.dali.types.STRING
+    elif dtype_id == nvidia.dali.types.DALIDataType._BOOL_VEC:
+        return nvidia.dali.types.BOOL
+    else:
+        return dtype_id
+
+
+def _argument_type_conversion(dtype_id):
+    try:
+        return _type.dtype(_scalar_arg_type_id(dtype_id))
+    except KeyError:
+        return None
 
 
 def build_operator_class(schema):
@@ -168,10 +185,15 @@ def build_operator_class(schema):
     op_class.legacy_op = legacy_op_class
     op_class.is_stateful = schema.IsStateful()
     op_class._instance_cache = {}  # TODO(michalz): Make it thread-local
+    op_class._generated = True
     op_class.__init__ = build_constructor(schema, op_class)
     op_class.__call__ = build_call_function(schema, op_class)
     op_class.__module__ = module.__name__
     op_class.__qualname__ = class_name
+    op_class._argument_conversion_map = {
+        arg: _argument_type_conversion(schema.GetArgumentType(arg))
+        for arg in schema.GetArgumentNames()
+    }
     setattr(module, class_name, op_class)
     return op_class
 
@@ -296,7 +318,10 @@ def build_call_function(schema, op_class):
                     for k, v in raw_kwargs.items():
                         if v is None:
                             continue
-                        kwargs[k] = _to_batch(v, batch_size, device=_device.Device("cpu"))
+                        dtype = op_class._argument_conversion_map[k]
+                        kwargs[k] = _to_batch(
+                            v, batch_size, device=_device.Device("cpu"), dtype=dtype
+                        )
             else:
                 with nvtx.annotate("__call__: convert to tensors", domain="op_builder"):
                     for inp in raw_args:
@@ -306,7 +331,8 @@ def build_call_function(schema, op_class):
                     for k, v in raw_kwargs.items():
                         if v is None:
                             continue
-                        kwargs[k] = _to_tensor(v)
+                        dtype = op_class._argument_conversion_map[k]
+                        kwargs[k] = _to_tensor(v, dtype=dtype)
 
             with nvtx.annotate("__call__: shallowcopy", domain="op_builder"):
                 inputs = [copy.copy(x) for x in inputs]
@@ -384,13 +410,7 @@ def build_fn_wrapper(op):
     module_path = schema.ModulePath()
     from .. import dynamic as parent
 
-    module = parent
-    for path_part in module_path:
-        new_module = getattr(module, path_part, None)
-        if new_module is None:
-            new_module = types.ModuleType(path_part)
-            setattr(module, path_part, new_module)
-        module = new_module
+    module = _internal.get_submodule(parent, module_path)
 
     fn_name = _to_snake_case(op.schema.OperatorName())
     inputs = _get_inputs(schema)
@@ -493,6 +513,7 @@ def build_fn_wrapper(op):
     function = makefun.create_function(header, fn_call, doc=doc)
     function.op_class = op
     function.schema = schema
+    function._generated = True
     function.__module__ = module.__name__
     setattr(module, fn_name, function)
     return function
@@ -516,7 +537,12 @@ def build_operators():
     deprecated = {}
     op_map = {}
     for op_name in _all_ops:
-        if op_name.endswith("ExternalSource") or op_name.endswith("PythonFunction"):
+        if (
+            op_name.endswith("ExternalSource")
+            or op_name.endswith("PythonFunction")
+            or op_name.endswith("NumbaFunction")
+            or op_name.endswith("JaxFunction")
+        ):
             continue
 
         schema = _b.GetSchema(op_name)

@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,18 +20,17 @@
 #include "dali/operators/random/rng_base_cpu.h"
 #include "dali/operators/random/rng_base_gpu.h"
 #include "dali/pipeline/operator/arg_helper.h"
+#include "dali/operators/random/random_dist.h"
 
 #define DALI_SALT_AND_PEPPER_NOISE_TYPES \
   uint8_t, int8_t, uint16_t, int16_t, uint32_t, int32_t, uint64_t, int64_t, float
 
 namespace dali {
 
-template <typename Backend, typename T>
+template <typename T>
 class SaltAndPepperNoiseImpl {
  public:
-  using DistType = typename std::conditional_t<std::is_same<Backend, GPUBackend>::value,
-                                               curand_uniform_dist<float>,
-                                               std::uniform_real_distribution<float>>;
+  using DistType = random::normalized_uniform_dist<float>;
   static constexpr T kDefaultSalt =
       std::is_floating_point<T>::value ? T(1) : std::numeric_limits<T>::max();
   static constexpr T kDefaultPepper =
@@ -78,7 +77,7 @@ class SaltAndPepperNoise : public rng::RNGBase<Backend, SaltAndPepperNoise<Backe
   using BaseImpl = rng::RNGBase<Backend, SaltAndPepperNoise<Backend>, true>;
 
   template <typename T>
-  using Impl = SaltAndPepperNoiseImpl<Backend, T>;
+  using Impl = SaltAndPepperNoiseImpl<T>;
 
   explicit SaltAndPepperNoise(const OpSpec &spec)
       : BaseImpl(spec),

@@ -683,10 +683,10 @@ void ExposeTensor(py::module &m) {
       Exposes the tensor as a DLPack capsule.
 
       Note:
-        When NOT using the dynamic execution (when `exec_dynamic` is set to ``False`` or other
-        parameters are not compatible with this execution mode), the pipeline
-        outputs may be reused and overwritten by DALI after `release_outputs` has been called.
-        Make sure the dynamic execution is enabled if you want to keep the outputs indefinitely.
+        When NOT using the default execution model (i.e., when ``exec_dynamic=False`` or other
+        parameters are incompatible with this execution mode), the pipeline outputs may be reused
+        and overwritten by DALI after ``release_outputs`` has been called. Make sure that the
+        default execution model is enabled if you want to keep the outputs indefinitely.
 
       stream : int, None
           The CUDA stream the the caller is going to use to access the buffer.
@@ -940,10 +940,10 @@ void ExposeTensor(py::module &m) {
       Exposes the tensor as a DLPack capsule.
 
       Note:
-        When NOT using the dynamic execution (when `exec_dynamic` is set to ``False`` or other
-        parameters are not compatible with this execution mode), the pipeline
-        outputs may be reused and overwritten by DALI after `release_outputs` has been called.
-        Make sure the dynamic execution is enabled if you want to keep the outputs indefinitely.
+        When NOT using the default execution model (i.e., when ``exec_dynamic=False`` or other
+        parameters are incompatible with this execution mode), the pipeline outputs may be reused
+        and overwritten by DALI after ``release_outputs`` has been called. Make sure that the
+        default execution model is enabled if you want to keep the outputs indefinitely.
 
       stream : int, None
           The CUDA stream the the caller is going to use to access the buffer.
@@ -2982,7 +2982,8 @@ PYBIND11_MODULE(backend_impl, m) {
         [](OpSchema *schema, const std::string &arg_name) {
           return schema->HasArgument(arg_name);
         })
-    .def("GetSupportedBackends", &GetSupportedBackends);
+    .def("GetSupportedBackends", &GetSupportedBackends)
+    .def("HasRandomSeedArg", &OpSchema::HasRandomSeedArg);
 
   ExposeTensorLayout(types_m);
   ExposeTensor(m);

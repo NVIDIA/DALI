@@ -25,7 +25,6 @@
 #include "dali/core/geom/box.h"
 #include "dali/core/static_switch.h"
 #include "dali/pipeline/data/views.h"
-#include "dali/pipeline/util/batch_rng.h"
 #include "dali/pipeline/util/bounding_box_utils.h"
 
 namespace dali {
@@ -195,6 +194,7 @@ associated with each of the bounding boxes.)code")
              spec.GetArgument<bool>("output_bbox_indices");  // +1 if output_bbox_indices=True
     })
     .AddRandomSeedArg()
+    .AddRandomStateArg()
     .AddOptionalArg(
         "thresholds",
         R"code(Minimum IoU or a different metric, if specified by `threshold_type`, of the
@@ -386,16 +386,18 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
   /**
    * @param spec  Pointer to a persistent OpSpec object,
    *              which is guaranteed to be alive for the entire lifetime of this object
+   * @param rng_op  Pointer to the (base class) of the enclosing operator, needed for
+   *                accessing the random number generator infrastructure.
    */
-  RandomBBoxCropImpl(const OpSpec *spec, BatchRNG<std::mt19937_64> &rng)
+  RandomBBoxCropImpl(const OpSpec *spec, rng::OperatorWithRng<Operator<CPUBackend>> *rng_op)
       : spec_(*spec),
+        rng_op_(rng_op),
         num_attempts_{spec_.GetArgument<int>("num_attempts")},
         has_labels_(spec_.NumRegularInput() > 1),
         has_crop_shape_(spec_.ArgumentDefined("crop_shape")),
         has_input_shape_(spec_.ArgumentDefined("input_shape")),
         all_boxes_above_threshold_(spec_.GetArgument<bool>("all_boxes_above_threshold")),
-        output_bbox_indices_(spec_.GetArgument<bool>("output_bbox_indices")),
-        rngs_(rng) {
+        output_bbox_indices_(spec_.GetArgument<bool>("output_bbox_indices")) {
     has_bbox_layout_ = spec_.TryGetArgument(bbox_layout_, "bbox_layout");
     has_shape_layout_ = spec_.TryGetArgument(shape_layout_, "shape_layout");
 
@@ -716,8 +718,8 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
     float best_metric = -1.0;
 
     crop.clear();
+    auto rng = rng_op_->GetSampleRNG(sample);
     while (!crop.success && (total_num_attempts_ < 0 || count < total_num_attempts_)) {
-      auto &rng = rngs_[sample];
       std::uniform_int_distribution<> idx_dist(0, sample_options_.size() - 1);
       SampleOption option = sample_options_[idx_dist(rng)];
       bool absolute_crop_dims = has_crop_shape_;
@@ -910,6 +912,7 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
 
  private:
   const OpSpec &spec_;
+  rng::OperatorWithRng<Operator<CPUBackend>> *rng_op_;
   int num_attempts_;
   int total_num_attempts_;
   bool has_labels_;
@@ -926,8 +929,6 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
   bool all_boxes_above_threshold_ = true;
   bool output_bbox_indices_ = false;
   float bbox_prune_threshold_ = 0.0f;
-
-  BatchRNG<std::mt19937_64> &rngs_;
 
   std::vector<SampleOption> sample_options_;
 
@@ -950,7 +951,7 @@ RandomBBoxCrop<CPUBackend>::~RandomBBoxCrop() = default;
 
 template <>
 RandomBBoxCrop<CPUBackend>::RandomBBoxCrop(const OpSpec &spec)
-    : OperatorWithRng<CPUBackend>(spec) {}
+    : OperatorWithRng<Operator<CPUBackend>>(spec) {}
 
 template <>
 bool RandomBBoxCrop<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
@@ -976,7 +977,7 @@ bool RandomBBoxCrop<CPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
 
   if (impl_ == nullptr || impl_ndim_ != num_dims) {
     VALUE_SWITCH(num_dims, ndim, (2, 3),
-      (impl_ = std::make_unique<RandomBBoxCropImpl<ndim>>(&spec_, rng_);),
+      (impl_ = std::make_unique<RandomBBoxCropImpl<ndim>>(&spec_, this);),
       (DALI_FAIL(make_string("Not supported number of dimensions", num_dims));));
     impl_ndim_ = num_dims;
   }

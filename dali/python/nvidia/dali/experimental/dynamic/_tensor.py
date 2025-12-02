@@ -70,12 +70,12 @@ class Tensor:
     """A Tensor object.
 
     This class represents a single tensor usable with DALI dynamic API. It can contain any of the
-    following::
+    following:
 
-    * tensor data owned by DALI
-    * external tensor data wrapped into a DALI tensor
-    * a sample taken out of a Batch object
-    * a result of a lazy evaluation of a DALI operator.
+    - tensor data owned by DALI
+    - external tensor data wrapped into a DALI tensor
+    - a sample taken out of a Batch object
+    - a result of a lazy evaluation of a DALI operator
 
     In case of lazy evaluation, the operations are executed only after an attempt is made to access
     the tensor data or properties which cannot be obtained without running the underlying operation.
@@ -92,14 +92,14 @@ class Tensor:
         invocation_result: Optional[_invocation.InvocationResult] = None,
         copy: bool = False,
     ):
-        """Constructs a Tensor object.
+        """Constructs a :class:`Tensor` object.
 
         .. warning::
-            Tensor objects should not be constructed directly, use :meth:`tensor` or
+            :class:`Tensor` objects should not be constructed directly, use :meth:`tensor` or
             :meth:`as_tensor` instead.
 
-        The `Tensor` object can be created either from an existing object, passed as `data` or
-        from an invocation result.
+        The :class:`Tensor` object can be created either from an existing object, passed as `data`
+        or from an invocation result.
         Unless explicitly requested with the `copy` parameter, this constructor will make best
         effort to avoid the copy.
 
@@ -181,7 +181,9 @@ class Tensor:
                 else:
                     from . import cast
 
-                    converted = cast(data.to_device(device), dtype=dtype, device=self.device)
+                    if device is None:
+                        device = data.device
+                    converted = cast(data.to_device(device), dtype=dtype, device=device)
                     self._assign(converted.evaluate())
                     copied = True
             elif isinstance(data, TensorSlice):
@@ -320,7 +322,8 @@ class Tensor:
         if self.device == device and not force_copy:
             return self
         else:
-            with device:
+            copy_dev = device if device.device_type == "gpu" else self.device
+            with copy_dev:
                 from . import copy
 
                 return copy(self, device=device)
@@ -465,6 +468,7 @@ class Tensor:
         else:
             raise TypeError("This is not a CPU tensor. Use `.cpu()` to get the array interface.")
 
+    @property
     def __cuda_array_interface__(self):
         b = self.evaluate()._storage
         if isinstance(b, _backend.TensorGPU):
@@ -488,21 +492,20 @@ class Tensor:
         """
         if self._storage is None:
             # TODO(michalz): Consider thread-safety
-            with _EvalContext.current() as ctx:
-                if self._slice:
-                    self._storage = self._slice.evaluate()._storage
-                elif self._batch is not None:
-                    t = self._batch._tensors[self._index_in_batch]
-                    if t is self:
-                        self._storage = self._batch.evaluate()._storage[self._index_in_batch]
-                    else:
-                        self._storage = t.evaluate()._storage
+            if self._slice:
+                self._storage = self._slice.evaluate()._storage
+            elif self._batch is not None:
+                t = self._batch._tensors[self._index_in_batch]
+                if t is self:
+                    self._storage = self._batch.evaluate()._storage[self._index_in_batch]
                 else:
-                    assert self._invocation_result is not None
-                    self._storage = self._invocation_result.value(ctx)
-                self._shape = tuple(self._storage.shape())
-                self._dtype = DType.from_type_id(self._storage.dtype)
-                self._layout = self._storage.layout()
+                    self._storage = t.evaluate()._storage
+            else:
+                assert self._invocation_result is not None
+                self._storage = self._invocation_result.value()
+            self._shape = tuple(self._storage.shape())
+            self._dtype = DType.from_type_id(self._storage.dtype)
+            self._layout = self._storage.layout()
         return self
 
     def __getitem__(self, ranges: Any) -> "Tensor":
@@ -862,10 +865,11 @@ def tensor(
         The data to construct the tensor from. It can be a tensor-like object, a (nested) list,
         TensorCPU/TensorGPU or other supported type.
         Supported types are:
+
         - numpy arrays
         - torch tensors
         - types exposing __dlpack__ or __array__ interface
-        - existing Tensor objects
+        - existing :class:`Tensor` objects
     dtype : DType, default: None
         The desired data type of the tensor. If not specified, the data type is inferred
         from the input data. If specified, the input data is cast to the desired data type.
@@ -893,10 +897,11 @@ def as_tensor(
         The data to construct the tensor from. It can be a tensor-like object, a (nested) list,
         TensorCPU/TensorGPU or other supported type.
         Supported types are:
+
         - numpy arrays
         - torch tensors
         - types exposing __dlpack__ or __array__ interface
-        - existing Tensor objects
+        - existing :class:`Tensor` objects
     dtype : DType, default: None
         The desired data type of the tensor. If not specified, the data type is inferred
         from the input data. If specified, the input data is cast to the desired data type.

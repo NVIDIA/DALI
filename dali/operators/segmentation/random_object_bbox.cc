@@ -52,6 +52,7 @@ With probability 1-foreground_prob, the entire area of the input is returned.)")
     return 1 + separate_corners + output_class;
   })
   .AddRandomSeedArg()
+  .AddRandomStateArg()
   .AddOptionalArg("ignore_class", R"(If True, all objects are picked with equal probability,
 regardless of the class they belong to. Otherwise, a class is picked first and then an object is
 randomly selected from this class.
@@ -350,8 +351,8 @@ void RandomObjectBBox::InitClassInfo(int sample_idx) {
   class_info_.Init(bg, class_tv, weight_tv);
 }
 
-template <int ndim>
-int RandomObjectBBox::PickBox(span<Box<ndim, int>> boxes, int sample_idx) {
+template <int ndim, typename RNG>
+int RandomObjectBBox::PickBox(span<Box<ndim, int>> boxes, int sample_idx, RNG &rng) {
   auto beg = boxes.begin();
   auto end = boxes.end();
   if (threshold_.HasExplicitValue()) {
@@ -376,10 +377,10 @@ int RandomObjectBBox::PickBox(span<Box<ndim, int>> boxes, int sample_idx) {
     }
     std::sort(vol_idx.begin(), vol_idx.end());
     std::uniform_int_distribution<int> dist(0, std::min(n, k_largest_)-1);
-    return vol_idx[dist(rng_[sample_idx])].second;
+    return vol_idx[dist(rng)].second;
   } else {
     std::uniform_int_distribution<int> dist(0, n-1);
-    return dist(rng_[sample_idx]);
+    return dist(rng);
   }
 }
 
@@ -404,8 +405,8 @@ void RandomObjectBBox::GetBoxes(SampleContext<BlobLabel> &ctx, int nblobs) {
   );  // NOLINT
 }
 
-template <typename BlobLabel>
-bool RandomObjectBBox::PickBox(SampleContext<BlobLabel> &ctx) {
+template <typename BlobLabel, typename RNG>
+bool RandomObjectBBox::PickBox(SampleContext<BlobLabel> &ctx, RNG &rng) {
   int ndim = ctx.blobs.dim();
   int nblobs = ctx.box_data.size() / (2 * ndim);
   if (!nblobs)
@@ -415,7 +416,7 @@ bool RandomObjectBBox::PickBox(SampleContext<BlobLabel> &ctx) {
     (
       auto *box_data = reinterpret_cast<Box<static_ndim, int>*>(ctx.box_data.data());
       auto boxes = make_span(box_data, nblobs);
-      int box_idx = PickBox(boxes, ctx.sample_idx);
+      int box_idx = PickBox(boxes, ctx.sample_idx, rng);
       if (box_idx >= 0) {
         ctx.SelectBox(box_idx);
         return true;
@@ -454,9 +455,9 @@ void RandomObjectBBox::ClassInfo::DisableAbsentClasses(const LabelSet &labels) {
   }
 }
 
-template <typename BlobLabel, typename T>
+template <typename BlobLabel, typename T, typename RNG>
 bool RandomObjectBBox::PickForegroundBox(
-      SampleContext<BlobLabel> &context, const InTensorCPU<T> &input) {
+      SampleContext<BlobLabel> &context, const InTensorCPU<T> &input, RNG &rng) {
   InitClassInfo(context.sample_idx);
   context.class_label = class_info_.background;
   auto &tp = *context.thread_pool;
@@ -475,7 +476,7 @@ bool RandomObjectBBox::PickForegroundBox(
       if (cache_entry)
         cache_entry->Put(class_info_.background, context.box_data);
     }
-    return PickBox(context);
+    return PickBox(context, rng);
   } else {
     if (cache_entry && !cache_entry->labels.empty()) {
       context.labels = cache_entry->labels;
@@ -493,7 +494,7 @@ bool RandomObjectBBox::PickForegroundBox(
     }
 
     while (class_info_.CalculateCDF()) {
-      if (!context.PickClassLabel(class_info_, rng_[context.sample_idx]))
+      if (!context.PickClassLabel(class_info_, rng))
         return false;
 
       assert(context.class_label != class_info_.background);
@@ -507,7 +508,7 @@ bool RandomObjectBBox::PickForegroundBox(
           cache_entry->Put(context.class_label, context.box_data);
       }
 
-      if (PickBox(context))
+      if (PickBox(context, rng))
         return true;
 
       // we couldn't find a satisfactory blob in this class, so let's exclude it and try again
@@ -519,11 +520,11 @@ bool RandomObjectBBox::PickForegroundBox(
   }
 }
 
-template <typename BlobLabel>
-bool RandomObjectBBox::PickForegroundBox(SampleContext<BlobLabel> &context) {
+template <typename BlobLabel, typename RNG>
+bool RandomObjectBBox::PickForegroundBox(SampleContext<BlobLabel> &context, RNG &rng) {
   bool ret = false;
   TYPE_SWITCH(context.input.type(), type2id, T, INPUT_TYPES,
-    (ret = PickForegroundBox(context, view<const T>(context.input));),
+    (ret = PickForegroundBox(context, view<const T>(context.input), rng);),
     (DALI_FAIL(make_string("Unsupported input type: ", context.input.type())))
   );  // NOLINT
   return ret;
@@ -579,7 +580,8 @@ void RandomObjectBBox::RunImpl(Workspace &ws) {
 
   std::uniform_real_distribution<> foreground(0, 1);
   for (int i = 0; i < N; i++) {
-    bool fg = foreground(rng_[i]) < foreground_prob_[i].data[0];
+    auto rng = GetSampleRNG(i);
+    bool fg = foreground(rng) < foreground_prob_[i].data[0];
     if (!fg) {
       StoreBox(out1, out2, format_, i, default_anchor, input.tensor_shape(i));
       if (HasClassLabelOutput()) {
@@ -601,7 +603,7 @@ void RandomObjectBBox::RunImpl(Workspace &ws) {
         if (out2.num_samples() > 0)
           ctx.out2 = out2[i];
 
-        if (PickForegroundBox(ctx)) {
+        if (PickForegroundBox(ctx, rng)) {
           assert(ctx.class_label != class_info_.background || ignore_class_);
           StoreBox(out1, out2, format_, i, ctx.selected_box);
         } else {

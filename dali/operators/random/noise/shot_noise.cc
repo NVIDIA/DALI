@@ -43,6 +43,7 @@ The shape and data type of the output will match the input.
     .NumInput(1)
     .NumOutput(1)
     .AddRandomSeedArg()
+    .AddRandomStateArg()
     .AddOptionalArg<float>("factor",
       R"code(Factor parameter.)code",
      20.0f, true);

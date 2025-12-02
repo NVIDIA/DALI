@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -40,8 +40,7 @@ class DisplacementIdentity {
   explicit DisplacementIdentity(const OpSpec& spec) {}
 
   DALI_HOST_DEV
-  ivec2 operator()(const int h, const int w, const int c,
-                   const int H, const int W, const int C) {
+  ivec2 operator()(int sample_idx, int h, int w, int c, int H, int W, int C) {
     // identity
     return { w, h };
   }
