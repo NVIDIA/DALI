@@ -26,5 +26,6 @@ from ._imread import imread  # noqa: F401
 
 from . import ops
 from . import math  # noqa: F401
+from . import random  # noqa: F401
 
 ops._initialize()

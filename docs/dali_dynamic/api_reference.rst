@@ -52,3 +52,14 @@ EvalMode
 ^^^^^^^^
 .. autoclass:: EvalMode
    :members:
+
+Random state
+------------
+
+.. currentmodule:: nvidia.dali.experimental.dynamic.random
+
+RNG
+^^^
+
+.. autoclass:: RNG
+   :members:
