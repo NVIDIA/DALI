@@ -760,7 +760,10 @@ def _try_extend_reader_signature(schema: _b.OpSchema, op_name: str):
 
     from nvidia.dali.experimental import dynamic
 
-    op = getattr(dynamic.readers, op_name, None)
+    readers = getattr(dynamic, "readers", None)
+    if readers is None:
+        return ""
+    op = getattr(readers, op_name, None)
     if op is None or not issubclass(op, dynamic.ops.Reader):
         return ""
 
