@@ -710,8 +710,11 @@ used with DALIDataType, to avoid confusion with `AddOptionalArg<type>(name, doc,
    */
   std::string GetArgumentDefaultValueString(std::string_view name) const;
 
-  /** Get names of all required, optional, and deprecated arguments */
-  std::vector<std::string> GetArgumentNames() const;
+  /** Get names of all required, optional, and deprecated arguments.
+   *
+   * @param include_hidden - if true, includes hidden arguments
+   */
+  std::vector<std::string> GetArgumentNames(bool include_hidden = false) const;
   bool IsTensorArgument(std::string_view name) const;
   bool ArgSupportsPerFrameInput(std::string_view arg_name) const;
 

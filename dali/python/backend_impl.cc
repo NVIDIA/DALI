@@ -2955,7 +2955,7 @@ PYBIND11_MODULE(backend_impl, m) {
     .def("GetArgumentType", &OpSchema::GetArgumentType)
     .def("HasArgumentDefaultValue", &OpSchema::HasArgumentDefaultValue)
     .def("GetArgumentDefaultValueString", &OpSchema::GetArgumentDefaultValueString)
-    .def("GetArgumentNames", &OpSchema::GetArgumentNames)
+    .def("GetArgumentNames", &OpSchema::GetArgumentNames, "include_hidden"_a = false)
     .def("IsArgumentOptional", &OpSchema::HasOptionalArgument,
         "arg_name"_a)
     .def("IsTensorArgument", &OpSchema::IsTensorArgument)

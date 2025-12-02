@@ -185,6 +185,7 @@ def build_operator_class(schema):
     op_class.fn_name = _to_snake_case(class_name)
     op_class.legacy_op = legacy_op_class
     op_class.is_stateful = schema.IsStateful()
+    op_class.has_random_state_arg = schema.HasRandomStateArg()
     op_class._instance_cache = {}  # TODO(michalz): Make it thread-local
     op_class._generated = True
     op_class.__init__ = build_constructor(schema, op_class)
@@ -193,7 +194,7 @@ def build_operator_class(schema):
     op_class.__qualname__ = class_name
     op_class._argument_conversion_map = {
         arg: _argument_type_conversion(schema.GetArgumentType(arg))
-        for arg in schema.GetArgumentNames()
+        for arg in schema.GetArgumentNames(include_hidden=True)
     }
     setattr(module, class_name, op_class)
     return op_class
@@ -266,6 +267,7 @@ def _get_inputs(schema):
 
 def build_call_function(schema, op_class):
     stateful = op_class.is_stateful
+    has_random_state_arg = op_class.has_random_state_arg
     call_args = []
     used_kwargs = set()
     for arg in schema.GetArgumentNames():
@@ -282,7 +284,7 @@ def build_call_function(schema, op_class):
     call_args = ["batch_size=None"] + call_args
 
     # Add rng argument for random operators
-    if schema.HasRandomStateArg():
+    if has_random_state_arg:
         call_args.append("rng=None")
         used_kwargs.add("rng")
 
@@ -313,11 +315,9 @@ def build_call_function(schema, op_class):
             inputs = []
             kwargs = {}
 
-            random_state = None
-            if schema.HasRandomStateArg():
-                rng = raw_kwargs.get("rng", _random.get_default_rng())
-                raw_kwargs.pop("rng")
-                random_state = Tensor(
+            if has_random_state_arg:
+                rng = raw_kwargs.pop("rng", _random.get_default_rng())
+                raw_kwargs["_random_state"] = Tensor(
                     [rng() for _ in range(7)],
                     dtype=_type.dtype(nvidia.dali.types.UINT32),
                     device="cpu",
@@ -338,13 +338,6 @@ def build_call_function(schema, op_class):
                         kwargs[k] = _to_batch(
                             v, batch_size, device=_device.Device("cpu"), dtype=dtype
                         )
-                    if random_state is not None:
-                        kwargs["_random_state"] = _to_batch(
-                            random_state,
-                            batch_size,
-                            device=_device.Device("cpu"),
-                            dtype=_type.dtype(nvidia.dali.types.UINT32),
-                        )
             else:
                 with nvtx.annotate("__call__: convert to tensors", domain="op_builder"):
                     for inp in raw_args:
@@ -356,8 +349,6 @@ def build_call_function(schema, op_class):
                             continue
                         dtype = op_class._argument_conversion_map[k]
                         kwargs[k] = _to_tensor(v, dtype=dtype)
-                    if random_state is not None:
-                        kwargs["_random_state"] = random_state
 
             with nvtx.annotate("__call__: shallowcopy", domain="op_builder"):
                 inputs = [copy.copy(x) for x in inputs]

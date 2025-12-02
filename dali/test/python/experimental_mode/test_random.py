@@ -115,7 +115,7 @@ def test_rng_seed_exclusion(device_type):
 
     assert not np.array_equal(
         result_np1, result_np2
-    ), "Different results expectedbecause of different random states regardless of the initial seed"
+    ), "Different results expected because of different random states regardless of the initial seed"
 
 
 def test_rng_clone():
