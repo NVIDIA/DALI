@@ -292,8 +292,8 @@ endif()
 ##################################################################
 set(DALI_INSTALL_REQUIRES_NVIMGCODEC "")
 if(BUILD_NVIMAGECODEC)
-  set(NVIMGCODEC_MIN_VERSION "0.6.0")
-  set(NVIMGCODEC_MAX_VERSION "0.7.0")
+  set(NVIMGCODEC_MIN_VERSION "0.7.0")
+  set(NVIMGCODEC_MAX_VERSION "0.8.0")
   message(STATUS "nvImageCodec - requires version >=${NVIMGCODEC_MIN_VERSION}, <${NVIMGCODEC_MAX_VERSION}")
   if (WITH_DYNAMIC_NVIMGCODEC)
     message(STATUS "nvImageCodec - dynamic load")
@@ -310,8 +310,8 @@ if(BUILD_NVIMAGECODEC)
       include(FetchContent)
       FetchContent_Declare(
         nvimgcodec_headers
-        URL      https://developer.download.nvidia.com/compute/nvimgcodec/redist/nvimgcodec/linux-x86_64/nvimgcodec-linux-x86_64-0.6.0.32-archive.tar.xz
-        URL_HASH SHA512=a7c894d38c78fd6fb4e460c5aebabaf90af20462faf84dcbaa310ca4842638cccd8d9628cafda1a970f865afe44815d718f65fe12f6c84160b8cd2d8485e81ca
+        URL      https://developer.download.nvidia.com/compute/nvimgcodec/redist/nvimgcodec/linux-x86_64/nvimgcodec-linux-x86_64-0.7.0.11-archive.tar.xz
+        URL_HASH SHA512=0777af0a41500de7aaeffb6966b3da20271f807c6af106307b9759854c082d5b6f850c0455b011b8978fc5954514bb46dbd5da0904d471309adf9fdfbaf7dd98
       )
       FetchContent_Populate(nvimgcodec_headers)
       set(nvimgcodec_INCLUDE_DIR "${nvimgcodec_headers_SOURCE_DIR}/${CUDA_VERSION_MAJOR}/include")
@@ -352,7 +352,7 @@ if(BUILD_NVIMAGECODEC)
     ExternalProject_Add(
       nvImageCodec
       GIT_REPOSITORY    https://github.com/NVIDIA/nvImageCodec.git
-      GIT_TAG           v0.6.0
+      GIT_TAG           v0.7.0
       GIT_SUBMODULES    "external/pybind11"
                         "external/NVTX"
                         "external/googletest"
