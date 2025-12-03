@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -22,6 +22,7 @@
 #include "dali/core/error_handling.h"
 #include "dali/kernels/common/utils.h"
 #include "dali/kernels/kernel.h"
+#include "dali/core/boundary.h"
 
 namespace dali {
 namespace kernels {
@@ -35,6 +36,7 @@ struct SliceArgs {
   TensorShape<Dims> step = TensorShape<Dims>::filled_shape(Dims, 1);
   SmallVector<T, 8> fill_values = { 0, };
   int channel_dim = -1;
+  boundary::BoundaryType border_type = boundary::BoundaryType::CONSTANT;
 };
 
 template <typename T, typename Container>

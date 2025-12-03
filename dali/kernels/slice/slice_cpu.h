@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -37,7 +37,7 @@ namespace slice_impl {
 /**
  * @brief Optimized special case for the last two dimensions whith channel-last configuration
  */
-template <typename OutputType, typename InputType, bool OutOfBounds, bool NeedPad>
+template <typename OutputType, typename InputType, bool UseFill, boundary::BoundaryType BorderType>
 void SliceKernelImplChannelLast(OutputType *output,
                                 const InputType *input,
                                 const int64_t *out_strides,
@@ -48,21 +48,21 @@ void SliceKernelImplChannelLast(OutputType *output,
                                 const int64_t *step,
                                 const OutputType *fill_values,
                                 int channel_dim,  // negative if no channel dim or already processed
-                                std::integral_constant<bool, OutOfBounds>,
-                                std::integral_constant<bool, NeedPad>) {
+                                std::integral_constant<boundary::BoundaryType, BorderType>,
+                                std::integral_constant<bool, UseFill>) {
   constexpr int d = 0;
   assert(channel_dim == 1);
   int64_t out_nchannels = out_shape[channel_dim];
   int64_t in_nchannels = in_shape[channel_dim];
   int64_t npixels = out_shape[d];
 
+  if (UseFill) {
+    PadFill(output, fill_values, npixels, out_nchannels);
+    return;
+  }
+
   if (NeedPad) {
     // If the whole row is out of bounds, just fill
-    if (OutOfBounds) {
-      PadFill(output, fill_values, npixels, out_nchannels);
-      return;
-    }
-
     // Calculate number of pixels to pad on the left and right, and the number of pixels to be
     // copied
     int64_t pad_pixels_before, copy_pixels, pad_pixels_after;
