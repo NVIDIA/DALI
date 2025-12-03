@@ -731,9 +731,7 @@ class ImageDecoder : public StatelessOperator<Backend> {
           cs_view.region.end[0] = roi.end[0];
           cs_view.region.end[1] = roi.end[1];
           nvimgcodecCodeStream_t sub_encoded_stream = st->sub_encoded_stream.get();
-          if (sub_encoded_stream) {
-            // We can take the address of the local variable, since it is not going to be modified,
-            // just used as a pointer to the actual handle
+          if (sub_encoded_stream) {  // reuses the code stream object
             CHECK_NVIMGCODEC(nvimgcodecCodeStreamGetSubCodeStream(
                 st->parsed_sample.encoded_stream.get(), &sub_encoded_stream, &cs_view));
           } else {
@@ -794,10 +792,8 @@ class ImageDecoder : public StatelessOperator<Backend> {
           st.image_info.buffer = output.raw_mutable_tensor(orig_idx);
         }
         nvimgcodecImage_t image = st.image.get();
-        if (image) {
-          // We can take the address of the local variable, since it is not going to be modified,
-          // just used as a pointer to the actual handle
-          nvimgcodecImageCreate(instance_, &image, &st.image_info);
+        if (image) {  // reuses the image object
+          CHECK_NVIMGCODEC(nvimgcodecImageCreate(instance_, &image, &st.image_info));
         } else {
           st.image = NvImageCodecImage::Create(instance_, &st.image_info);
         }
