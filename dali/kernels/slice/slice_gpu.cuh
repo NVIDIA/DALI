@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -31,6 +31,7 @@
 #include "dali/kernels/common/type_erasure.h"
 #include "dali/kernels/kernel.h"
 #include "dali/kernels/slice/slice_kernel_utils.h"
+#include "dali/core/boundary.h"
 
 __device__ DALI_FORCEINLINE bool __ldg(const bool *ptr) {
   return __ldg(reinterpret_cast<const dali::kernels::type_of_size<sizeof(bool)> *>(ptr));
@@ -44,6 +45,22 @@ namespace {  // NOLINT
 DALI_HOST_DEV DALI_FORCEINLINE bool is_out_of_bounds(int64_t idx, int64_t data_extent) {
   // check idx < 0 and idx >= data_extent at once
   return static_cast<uint64_t>(idx) >= static_cast<uint64_t>(data_extent);
+}
+
+template <typename T>
+DALI_HOST_DEV DALI_FORCEINLINE T handle_bounds(
+      T idx, T data_extent, boundary::BoundaryType border_type) {
+  if (border_type == boundary::BoundaryType::CLAMP) {
+    return boundary::idx_clamp(idx, 0, data_extent);
+  } else if (border_type == boundary::BoundaryType::REFLECT_101) {
+    return boundary::idx_reflect_101(idx, 0, data_extent);
+  } else if (border_type == boundary::BoundaryType::REFLECT_1001) {
+    return boundary::idx_reflect_1001(idx, 0, data_extent);
+  } else if (border_type == boundary::BoundaryType::WRAP) {
+    return boundary::idx_wrap(idx, data_extent);
+  } else {
+    return idx;
+  }
 }
 
 }  // namespace
@@ -63,7 +80,7 @@ struct SliceSampleDesc {
 
   const void *__restrict__ fill_values;
   int channel_dim;
-  bool need_pad;
+  boundary::BoundaryType border_type;
 
   fast_div<uint64_t> out_strides[Dims];
   TensorShape<Dims> in_strides;
@@ -142,18 +159,21 @@ __device__ void SliceFuncNoPad(OutputType *__restrict__ out, const InputType *__
  * @brief General algorithm that allows for padding in any dimension
  * @remarks `in` refers to the beginning of the input (not the slice anchor)
  */
-template <int Dims, typename OutputType, typename InputType, bool AllDims = true>
+template <int Dims,
+          typename OutputType, typename InputType, bool AllDims = true>
 __device__ void SliceFunc(OutputType *__restrict__ out, const InputType *__restrict__ in,
                           const fast_div<uint64_t> *out_strides, const int64_t *in_strides,
                           const int64_t *out_shape, const int64_t *in_shape, const int64_t *anchor,
                           const int64_t *step, const OutputType *__restrict__ fill_values,
-                          int channel_dim, uint64_t offset, uint64_t block_end) {
+                          int channel_dim, uint64_t offset, uint64_t block_end,
+                          boundary::BoundaryType border_type) {
   if (Dims > 1 && step[Dims - 1] == 1 && step[Dims - 2] == 1 && anchor[Dims - 1] == 0 &&
       in_shape[Dims - 1] == out_shape[Dims - 1] && channel_dim != Dims - 1) {
     const int NextDims = Dims > 1 ? Dims - 1 : 1;
-    SliceFunc<NextDims, OutputType, InputType, false>(out, in, out_strides, in_strides, out_shape,
-                                                      in_shape, anchor, step, fill_values,
-                                                      channel_dim, offset, block_end);
+    SliceFunc<NextDims, OutputType, InputType, false>(
+        out, in, out_strides, in_strides, out_shape,
+        in_shape, anchor, step, fill_values,
+        channel_dim, offset, block_end, border_type);
     return;
   }
 
@@ -179,40 +199,61 @@ __device__ void SliceFunc(OutputType *__restrict__ out, const InputType *__restr
 
       // If no dimensions were skipped (AllDims=true) we can avoid division in the last dimension,
       // because know the strides are 1 (or we treat them as 1 if we fused dimensions)
-      int i_c = 0;
       int i_d;
-      bool out_of_bounds = false;
       uint64_t in_idx = 0;
 
-      #pragma unroll
-      for (int d = 0; d < Dims - 1; d++) {
-        i_d = div_mod(idx, idx, out_strides[d]);
-        if (d == channel_dim)
+      if (border_type == boundary::BoundaryType::CONSTANT) {
+        int i_c = 0;
+        bool out_of_bounds = false;
+
+        #pragma unroll
+        for (int d = 0; d < Dims - 1; d++) {
+          i_d = div_mod(idx, idx, out_strides[d]);
+          if (d == channel_dim)
+            i_c = i_d;
+          i_d = anchor[d] + i_d * step[d];
+          out_of_bounds |= is_out_of_bounds(i_d, in_shape[d]);
+          in_idx += i_d * in_strides[d];
+        }
+
+        constexpr int d = LastDim;
+        i_d = idx;
+        if (AllDims && d == channel_dim)
           i_c = i_d;
-        i_d = anchor[d] + i_d * step[d];
-        out_of_bounds |= is_out_of_bounds(i_d, in_shape[d]);
-        in_idx += i_d * in_strides[d];
+        i_d = inner_in_anchor + i_d * step[d];
+        out_of_bounds |= is_out_of_bounds(i_d, inner_in_extent);
+        in_idx += i_d;
+
+        // Fill values are reused a lot, so let's make sure they are cached (by using __ldg())
+
+        OutputType value = __ldg(&fill_values[i_c]);
+        if (!out_of_bounds)
+          value = clamp<OutputType>(in[in_idx]);
+        result.values[i] = value;
+      } else {
+        #pragma unroll
+        for (int d = 0; d < Dims - 1; d++) {
+          i_d = div_mod(idx, idx, out_strides[d]);
+          i_d = anchor[d] + i_d * step[d];
+          i_d = handle_bounds<int>(i_d, in_shape[d], border_type);
+          in_idx += i_d * in_strides[d];
+        }
+
+        constexpr int d = LastDim;
+        i_d = idx;
+        i_d = inner_in_anchor + i_d * step[d];
+        i_d = handle_bounds<int>(i_d, inner_in_extent, border_type);
+        in_idx += i_d;
+
+        result.values[i] = clamp<OutputType>(in[in_idx]);
+
       }
-
-      constexpr int d = LastDim;
-      i_d = idx;
-      if (AllDims && d == channel_dim)
-        i_c = i_d;
-      i_d = inner_in_anchor + i_d * step[d];
-      out_of_bounds |= is_out_of_bounds(i_d, inner_in_extent);
-      in_idx += i_d;
-
-      // Fill values are reused a lot, so let's make sure they are cached (by using __ldg())
-      OutputType value = __ldg(&fill_values[i_c]);
-      if (!out_of_bounds)
-        value = clamp<OutputType>(in[in_idx]);
-      result.values[i] = value;
     }
     result.store(&out[offset], i);
   }
 }
 
-template <typename OutputType, typename InputType, int Dims, bool SupportPad>
+template <typename OutputType, typename InputType, int Dims, bool SupportsOutOfBounds>
 __global__ void SliceKernel(const SliceSampleDesc<Dims> *samples, const SliceBlockDesc *blocks) {
   int sampleIdx = blocks[blockIdx.x].sampleIdx;
   uint64_t offset = blocks[blockIdx.x].offset + threadIdx.x * PackedBuffer<OutputType>::kCapacity;
@@ -224,13 +265,19 @@ __global__ void SliceKernel(const SliceSampleDesc<Dims> *samples, const SliceBlo
   auto *in_strides = sample.in_strides.data();
   auto *anchor = sample.anchor.data();
   auto *step = sample.step.data();
-  if (SupportPad && sample.need_pad) {
+
+  if (SupportsOutOfBounds && sample.border_type != boundary::BoundaryType::TRANSPARENT) {
     auto *in_shape = sample.in_shape.data();
     auto *out_shape = sample.out_shape.data();
-    auto *fill_values = static_cast<const OutputType *>(sample.fill_values);
+    const OutputType *fill_values = nullptr;;
+    auto border_type = sample.border_type;
+    if (border_type == boundary::BoundaryType::CONSTANT)
+      fill_values = static_cast<const OutputType *>(sample.fill_values);
     auto channel_dim = sample.channel_dim;
-    SliceFunc<Dims>(out, in, out_strides, in_strides, out_shape, in_shape, anchor, step,
-                    fill_values, channel_dim, offset, block_end);
+    SliceFunc<Dims>(
+        out, in, out_strides, in_strides,
+        out_shape, in_shape,
+        anchor, step, fill_values, channel_dim, offset, block_end, border_type);
   } else {
     SliceFuncNoPad<Dims>(out, in, out_strides, in_strides, anchor, step, offset, block_end);
   }
@@ -290,7 +337,9 @@ class SliceGPU {
 
     if (blocks_per_sm_ == 0) {
       CUDA_CALL(cudaOccupancyMaxActiveBlocksPerMultiprocessor(
-          &blocks_per_sm_, slice_impl::SliceKernel<OutputType, InputType, Dims, false>, kBlockDim,
+          &blocks_per_sm_,
+          slice_impl::SliceKernel<OutputType, InputType, Dims, false>,
+          kBlockDim,
           0));
     }
     unsigned max_active_blocks = blocks_per_sm_ * GetSmCount();
@@ -358,10 +407,13 @@ class SliceGPU {
       // fill values points to gpu memory
       sample_desc.fill_values = fill_values_gpu + i * nfill_values_;
       sample_desc.channel_dim = nfill_values_ > 1 ? slice_args[i].channel_dim : -1;
-      sample_desc.need_pad = NeedPad(Dims, anchor, in_shape, out_shape);
+      bool need_pad = NeedPad(Dims, anchor, in_shape, out_shape);
+      sample_desc.border_type = need_pad
+          ? boundary::BoundaryType::REFLECT_101
+          : boundary::BoundaryType::TRANSPARENT;
 
       // pre-anchor and step if there is no padding
-      if (!sample_desc.need_pad) {
+      if (sample_desc.border_type == boundary::BoundaryType::TRANSPARENT) {
         const InputType *in_data = in.tensor_data(i);
         for (int d = 0; d < Dims; ++d) {
           in_data += sample_desc.anchor[d] * sample_desc.in_strides[d];
@@ -372,7 +424,7 @@ class SliceGPU {
         sample_desc.in = in.tensor_data(i);
       }
 
-      any_padded_sample |= sample_desc.need_pad;
+      any_padded_sample |= sample_desc.border_type != boundary::BoundaryType::TRANSPARENT;
     }
 
     int64_t block_idx = 0;
