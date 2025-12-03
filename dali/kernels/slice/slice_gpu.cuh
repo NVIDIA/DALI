@@ -246,7 +246,6 @@ __device__ void SliceFunc(OutputType *__restrict__ out, const InputType *__restr
         in_idx += i_d;
 
         result.values[i] = clamp<OutputType>(in[in_idx]);
-
       }
     }
     result.store(&out[offset], i);
@@ -409,8 +408,8 @@ class SliceGPU {
       sample_desc.channel_dim = nfill_values_ > 1 ? slice_args[i].channel_dim : -1;
       bool need_pad = NeedPad(Dims, anchor, in_shape, out_shape);
       sample_desc.border_type = need_pad
-          ? boundary::BoundaryType::REFLECT_101
-          : boundary::BoundaryType::TRANSPARENT;
+          ? slice_args[i].border_type
+          : boundary::BoundaryType::TRANSPARENT;  // no padding, so no border handling needed
 
       // pre-anchor and step if there is no padding
       if (sample_desc.border_type == boundary::BoundaryType::TRANSPARENT) {
