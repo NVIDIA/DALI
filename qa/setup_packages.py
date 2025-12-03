@@ -590,8 +590,14 @@ all_packages = [
                 PckgVer(
                     "0.20.1", python_min_ver="3.9", python_max_ver="3.9", dependencies=["numpy<2"]
                 ),
-                PckgVer("0.21.1", python_min_ver="3.10", dependencies=["numpy<2"]),
-            ]
+                PckgVer("0.22.0", python_min_ver="3.10", dependencies=["numpy<2"]),
+            ],
+            "130": [
+                PckgVer(
+                    "0.20.1", python_min_ver="3.9", python_max_ver="3.9", dependencies=["numpy<2"]
+                ),
+                PckgVer("0.22.0", python_min_ver="3.10", dependencies=["numpy<2"]),
+            ],
         },
         # name used during installation
         name="numba-cuda[cu{cuda_v[0]}{cuda_v[1]}]",
