@@ -406,6 +406,15 @@ def _get_implicit_extra_params(schema, api: Api, include_init_header: bool):
                     annotation=Optional[str],
                 )
             )
+        elif "random" in schema.ModulePath():
+            params.append(
+                Parameter(
+                    name="rng",
+                    kind=Parameter.KEYWORD_ONLY,
+                    default=None,
+                    annotation=Optional[_RNG],
+                )
+            )
 
     return params
 
