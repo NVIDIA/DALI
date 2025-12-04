@@ -247,11 +247,12 @@ void SliceKernelImpl(OutputType *output,
     // within input bounds
     for (; (0 <= in_idx && in_idx < in_shape[d]) && out_idx < out_shape[d];
         in_idx += step[d], out_idx++) {
-      SliceKernelImpl(output, input + in_idx * in_strides[d], out_strides + 1, in_strides + 1,
+      auto *input_slice = !AllFill ? input + in_idx * in_strides[d] : nullptr;
+      SliceKernelImpl(output, input_slice, out_strides + 1, in_strides + 1,
                       out_shape + 1, in_shape + 1, anchor + 1, step + 1,
                       fill_values, channel_dim - 1,
                       std::integral_constant<int, DimsLeft - 1>(),
-                      border_type, std::false_type());
+                      border_type, all_fill);
       output += out_strides[d];
       if (BorderType == boundary::BoundaryType::CONSTANT && d == channel_dim)
         fill_values++;
@@ -277,7 +278,7 @@ void SliceKernelImpl(OutputType *output,
                       out_shape + 1, in_shape + 1, anchor + 1, step + 1,
                       static_cast<const OutputType *>(nullptr), channel_dim - 1,
                       std::integral_constant<int, DimsLeft - 1>(),
-                      border_type, std::false_type());
+                      border_type, all_fill);
       output += out_strides[d];
     }
   }
