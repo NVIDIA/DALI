@@ -121,14 +121,23 @@ void SliceKernelImplChannelLast(OutputType *output,
   } else {
     assert(out_strides[d + 1] == 1);
     assert(in_strides[d + 1] == 1);
-    if constexpr (BorderType == boundary::BoundaryType::TRANSPARENT) {
+    if (anchor[d + 1] >= 0 && in_shape[d + 1] >= out_shape[d + 1] + anchor[d + 1]) {
       for (int64_t i = 0; i < out_shape[d]; i++) {
         auto *out_row = output + i * out_strides[d];
         int64_t in_idx = boundary::handle_bounds(anchor[d] + i, in_shape[d], BorderType);
         auto *in_row = input + in_idx * in_strides[d];
         for (int64_t j = 0; j < out_shape[d + 1]; j++) {
-          int64_t jj = boundary::handle_bounds(anchor[d + 1] + j, in_shape[d + 1], BorderType);
-          out_row[j] = clamp<OutputType>(in_row[jj]);
+          out_row[j] = clamp<OutputType>(in_row[j + anchor[d + 1]]);
+        }
+      }
+    } else {
+      for (int64_t i = 0; i < out_shape[d]; i++) {
+        auto *out_row = output + i * out_strides[d];
+        int64_t in_idx = boundary::handle_bounds(anchor[d] + i, in_shape[d], BorderType);
+        auto *in_row = input + in_idx * in_strides[d];
+        for (int64_t j = 0; j < out_shape[d + 1]; j++) {
+          auto inner_idx = boundary::handle_bounds(j + anchor[d + 1], in_shape[d + 1], BorderType);
+          out_row[j] = clamp<OutputType>(in_row[inner_idx]);
         }
       }
     }
@@ -486,10 +495,12 @@ class SliceCPU {
     const OutputType *fill_values = args.fill_values.data();
     int fill_values_size = args.fill_values.size();
     if (fill_values_size > 1) {
-      DALI_ENFORCE(args.channel_dim >= 0 && args.channel_dim < Dims,
-        "Channels dimension needs to be specified if multi-channel fill_values is provided");
-      DALI_ENFORCE(fill_values_size == out.shape[args.channel_dim],
-        "Multi-channel fill value does not match the number of channels in the input");
+      if (args.border_type == boundary::BoundaryType::CONSTANT) {
+        DALI_ENFORCE(args.channel_dim >= 0 && args.channel_dim < Dims,
+          "Channels dimension needs to be specified if multi-channel fill_values is provided");
+        DALI_ENFORCE(fill_values_size == out.shape[args.channel_dim],
+          "Multi-channel fill value does not match the number of channels in the output");
+      }
     }
 
     SliceKernel(exec_engine, out.data, in.data, out_strides, in_strides, out.shape, in.shape, args,
