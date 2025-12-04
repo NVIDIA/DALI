@@ -759,7 +759,9 @@ def test_crop_rounding(device, rounding):
 
 
 @cartesian_params(
-    ("cpu", "gpu"), ("HWC", "CHW"), ("constant", "clamp", "reflect", "reflect_101", "wrap")
+    ("cpu", "gpu"),
+    ("HWC", "CHW"),
+    ("constant", "const", "pad", "clamp", "edge", "reflect", "reflect_1001", "reflect_101", "wrap"),
 )
 def test_border_modes(device, layout, out_of_bounds_policy):
     @pipeline_def(batch_size=1, num_threads=4, device_id=0, seed=1234)
@@ -777,7 +779,7 @@ def test_border_modes(device, layout, out_of_bounds_policy):
         if layout == "CHW":  # convert to CHW
             input = fn.transpose(input, perm=(2, 0, 1))
 
-        fill = [0x76, 0xB9, 0x00] if out_of_bounds_policy == "constant" else None
+        fill = [0x76, 0xB9, 0x00] if out_of_bounds_policy in ["constant", "const", "pad"] else None
         output = fn.crop(
             input,
             crop_h=3.0 * h,
