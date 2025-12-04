@@ -121,12 +121,15 @@ void SliceKernelImplChannelLast(OutputType *output,
   } else {
     assert(out_strides[d + 1] == 1);
     assert(in_strides[d + 1] == 1);
-    for (int64_t i = 0; i < out_shape[d]; i++) {
-      auto *out_row = output + i * out_strides[d];
-      int64_t in_idx = boundary::handle_bounds(anchor[d] + i, in_shape[d], BorderType);
-      auto *in_row = input + in_idx * in_strides[d];
-      for (int64_t j = 0; j < out_shape[d + 1]; j++) {
-        out_row[j] = clamp<OutputType>(in_row[anchor[d + 1] + j]);
+    if constexpr (BorderType == boundary::BoundaryType::TRANSPARENT) {
+      for (int64_t i = 0; i < out_shape[d]; i++) {
+        auto *out_row = output + i * out_strides[d];
+        int64_t in_idx = boundary::handle_bounds(anchor[d] + i, in_shape[d], BorderType);
+        auto *in_row = input + in_idx * in_strides[d];
+        for (int64_t j = 0; j < out_shape[d + 1]; j++) {
+          int64_t jj = boundary::handle_bounds(anchor[d + 1] + j, in_shape[d + 1], BorderType);
+          out_row[j] = clamp<OutputType>(in_row[jj]);
+        }
       }
     }
   }

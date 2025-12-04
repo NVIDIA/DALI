@@ -157,7 +157,7 @@ __device__ void SliceFunc(OutputType *__restrict__ out, const InputType *__restr
        border_type == boundary::BoundaryType::CONSTANT ||
        // If the border mode is position-dependent, we can only fuse dimensions if they don't
        // need padding.
-       anchor[Dims - 2] >= 0 && in_shape[Dims - 2] >= out_shape[Dims - 2] + anchor[Dims - 2])) {
+       (anchor[Dims - 2] >= 0 && in_shape[Dims - 2] >= out_shape[Dims - 2] + anchor[Dims - 2]))) {
     const int NextDims = Dims > 1 ? Dims - 1 : 1;
     SliceFunc<NextDims, OutputType, InputType, false>(
         out, in, out_strides, in_strides, out_shape,
