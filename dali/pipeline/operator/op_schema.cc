@@ -522,6 +522,11 @@ OpSchema &OpSchema::AddRandomStateArg() {
   return *this;
 }
 
+
+bool OpSchema::HasRandomStateArg() const {
+  return HasArgument("_random_state") && IsTensorArgument("_random_state");
+}
+
 bool OpSchema::HasRandomSeedArg() const {
   return !IsDeprecatedArg("seed");
 }
@@ -986,11 +991,11 @@ std::string OpSchema::GetArgumentDefaultValueString(std::string_view name) const
 }
 
 
-std::vector<std::string> OpSchema::GetArgumentNames() const {
+std::vector<std::string> OpSchema::GetArgumentNames(bool include_hidden) const {
   std::vector<std::string> ret;
   const auto &args = GetFlattenedArguments();
   for (auto it = args.begin(); it != args.end(); ++it)
-    if (!it->second->hidden)
+    if (include_hidden || !it->second->hidden)
       ret.push_back(it->first);
   return ret;
 }

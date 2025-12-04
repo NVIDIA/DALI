@@ -15,6 +15,7 @@
 #include <gtest/gtest.h>
 #include <curand_kernel.h>
 #include <random>
+#include <string>
 #include <vector>
 #include "dali/operators/random/philox.h"
 #include "dali/core/dev_buffer.h"
@@ -146,6 +147,18 @@ TEST(TestPhilox, VersusCurandRandomSkipahead) {
     uint32_t curand_ret = ref[i];
     ASSERT_EQ(ret, curand_ret) << " at " << i;
   }
+}
+
+TEST(TestPhilox, StringSerialization) {
+  Philox4x32_10 philox1{}, philox2{};
+  philox1.init(key, seq, ofs);
+  std::string str = philox1.state_to_string();
+  Philox4x32_10::State state{};
+  Philox4x32_10::state_from_string(state, str);
+  philox2.set_state(state);
+  auto state1 = philox1.get_state();
+  auto state2 = philox2.get_state();
+  ASSERT_EQ(memcmp(&state1, &state2, sizeof(Philox4x32_10::State)), 0);
 }
 
 }  // namespace test

@@ -20,14 +20,14 @@ import string
 from contextlib import closing
 from inspect import Parameter, Signature, getdoc, getmodule, ismodule
 from pathlib import Path
-from typing import Any, List, Literal, Optional, Sequence, TypeAlias, Union
+from typing import Any, List, Literal, Optional, Sequence, Union
 
 from nvidia.dali import backend as _b
 from nvidia.dali import fn, ops, types
 from nvidia.dali import types as _types
 from nvidia.dali.ops import _docs, _names, _registry
 
-Api: TypeAlias = Literal["fn", "ops", "dynamic"]
+Api = Literal["fn", "ops", "dynamic"]
 
 
 def _create_annotation_placeholder(typename):
@@ -110,7 +110,11 @@ def _scalar_element_annotation(scalar_dtype, api: Api):
             return _enum_mapping[t]
 
         api_module = _api_to_module(api)
-        if hasattr(api_module, t.__name__) and hasattr(builtins, t.__name__):
+        if (
+            hasattr(t, "__name__")
+            and hasattr(api_module, t.__name__)
+            and hasattr(builtins, t.__name__)
+        ):
             # Resolve conflicts between exported symbols and types used in annotations
             # For instance, bool becomes "builtins.bool" because of ndd.bool
             t = f"builtins.{t.__name__}"  # type: ignore[reportAttributeAccessIssue]
@@ -756,7 +760,10 @@ def _try_extend_reader_signature(schema: _b.OpSchema, op_name: str):
 
     from nvidia.dali.experimental import dynamic
 
-    op = getattr(dynamic.readers, op_name, None)
+    readers = getattr(dynamic, "readers", None)
+    if readers is None:
+        return ""
+    op = getattr(readers, op_name, None)
     if op is None or not issubclass(op, dynamic.ops.Reader):
         return ""
 
@@ -1071,12 +1078,12 @@ class StubFileManager:
             f.close()
 
 
-def gen_all_signatures(nvidia_dali_path: Path | str, api: Api):
+def gen_all_signatures(nvidia_dali_path: Union[Path, str], api: Api):
     """Generate the signatures for "fn", "ops" or "dynamic" api.
 
     Parameters
     ----------
-    nvidia_dali_path : Path
+    nvidia_dali_path : Path or str
         The path to the wheel pre-packaging to the nvidia/dali directory.
     api : str
         "fn", "ops" or "dynamic"
