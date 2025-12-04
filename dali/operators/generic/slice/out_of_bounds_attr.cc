@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -26,12 +26,35 @@ DALI_SCHEMA(OutOfBoundsAttr)
 Here is a list of the supported values:
 
 - ``"error"`` (default): Attempting to slice outside of the bounds of the input will produce an error.
-- ``"pad"``: The input will be padded as needed with zeros or any other value that is specified
-  with the `fill_values` argument.
+- ``"constant"`` or ``"pad"``: The input will be padded as needed with zeros or any other value that
+   is specified in the `fill_values` argument.
 - ``"trim_to_shape"``: The slice window will be cut to the bounds of the input.)code", "error")
     .AddOptionalArg("fill_values",
         R"code(Determines padding values and is only relevant if `out_of_bounds_policy`
-is set to “pad”.
+is set to ``"constant"``.
+
+If a scalar value is provided, it will be used for all the channels. If multiple values are
+provided, the number of values and channels must be identical (extent of dimension ``C``
+in the layout) in the output slice.)code", std::vector<float>{0.f});
+
+DALI_SCHEMA(OutOfBoundsAttrBorderMode)
+    .DocStr(R"code(Out-of-bounds slicing attributes placeholder)code")
+    .AddOptionalArg("out_of_bounds_policy",
+        R"code(Determines the policy when slicing the out of bounds area of the input.
+
+Here is a list of the supported values:
+
+- ``"error"`` (default): Attempting to slice outside of the bounds of the input will produce an error.
+- ``"constant"`` or ``"pad"``: The input will be padded as needed with zeros or constant value(s)
+  specified in the `fill_values` argument.
+- ``"edge"`` or ``"clamp"``: The edge values will be repeated
+- ``"reflect"`` or ``"reflect_1001"``: The input will be reflected, repeating the edge values
+- ``"reflect_101"``: The input will be reflected without repeating the edge values
+- ``"wrap"``: The input coordinates will be wrapped, repeating the input.
+- ``"trim_to_shape"``: The slice window will be cut to the bounds of the input.)code", "error")
+    .AddOptionalArg("fill_values",
+        R"code(Determines padding values and is only relevant if `out_of_bounds_policy`
+is set to ``"constant"``.
 
 If a scalar value is provided, it will be used for all the channels. If multiple values are
 provided, the number of values and channels must be identical (extent of dimension ``C``

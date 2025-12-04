@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -38,8 +38,8 @@ class NumpyReader : public DataReader<Backend, Target, Target, true> {
       : DataReader<Backend, Target, Target, true>(spec),
         slice_attr_(spec, "roi_start", "rel_roi_start", "roi_end", "rel_roi_end", "roi_shape",
                     "rel_roi_shape", "roi_axes", nullptr) {
-    out_of_bounds_policy_ = GetOutOfBoundsPolicy(spec);
-    if (out_of_bounds_policy_ == OutOfBoundsPolicy::Pad) {
+    out_of_bounds_policy_ = GetOutOfBoundsPolicy(spec, { boundary::BoundaryType::CONSTANT });
+    if (out_of_bounds_policy_.shape_policy == OutOfBoundsShapePolicy::Pad) {
       fill_value_ = spec.GetArgument<float>("fill_value");
     }
   }
@@ -107,8 +107,10 @@ class NumpyReader : public DataReader<Backend, Target, Target, true> {
         // layout)
         auto full_sample_sh = sh.tensor_shape(i);  // already permuted dims
         auto tmp_roi = slice_attr_.GetCropWindowGenerator(i)(full_sample_sh, {});
-        ApplySliceBoundsPolicy(out_of_bounds_policy_, full_sample_sh, tmp_roi.anchor,
-                               tmp_roi.shape);
+
+        ApplySliceBoundsPolicy(
+            out_of_bounds_policy_.shape_policy, full_sample_sh, tmp_roi.anchor, tmp_roi.shape);
+
         sh.set_tensor_shape(i, tmp_roi.shape);  // set the final shape
 
         for (int d = 0; d < ndim; d++) {
@@ -144,7 +146,7 @@ class NumpyReader : public DataReader<Backend, Target, Target, true> {
 
   NamedSliceAttr slice_attr_;
   std::vector<CropWindow> rois_;
-  OutOfBoundsPolicy out_of_bounds_policy_ = OutOfBoundsPolicy::Error;
+  OutOfBoundsPolicy out_of_bounds_policy_;
   float fill_value_ = 0;
 
   std::vector<bool> need_transpose_;

@@ -47,22 +47,6 @@ DALI_HOST_DEV DALI_FORCEINLINE bool is_out_of_bounds(int64_t idx, int64_t data_e
   return static_cast<uint64_t>(idx) >= static_cast<uint64_t>(data_extent);
 }
 
-template <typename T>
-DALI_HOST_DEV DALI_FORCEINLINE T handle_bounds(
-      T idx, T data_extent, boundary::BoundaryType border_type) {
-  if (border_type == boundary::BoundaryType::CLAMP) {
-    return boundary::idx_clamp(idx, 0, data_extent);
-  } else if (border_type == boundary::BoundaryType::REFLECT_101) {
-    return boundary::idx_reflect_101(idx, 0, data_extent);
-  } else if (border_type == boundary::BoundaryType::REFLECT_1001) {
-    return boundary::idx_reflect_1001(idx, 0, data_extent);
-  } else if (border_type == boundary::BoundaryType::WRAP) {
-    return boundary::idx_wrap(idx, data_extent);
-  } else {
-    return idx;
-  }
-}
-
 }  // namespace
 
 
@@ -168,7 +152,12 @@ __device__ void SliceFunc(OutputType *__restrict__ out, const InputType *__restr
                           int channel_dim, uint64_t offset, uint64_t block_end,
                           boundary::BoundaryType border_type) {
   if (Dims > 1 && step[Dims - 1] == 1 && step[Dims - 2] == 1 && anchor[Dims - 1] == 0 &&
-      in_shape[Dims - 1] == out_shape[Dims - 1] && channel_dim != Dims - 1) {
+      in_shape[Dims - 1] == out_shape[Dims - 1] && channel_dim != Dims - 1 &&
+      (border_type == boundary::BoundaryType::TRANSPARENT ||
+       border_type == boundary::BoundaryType::CONSTANT ||
+       // If the border mode is position-dependent, we can only fuse dimensions if they don't
+       // need padding.
+       anchor[Dims - 2] >= 0 && in_shape[Dims - 2] >= out_shape[Dims - 2] + anchor[Dims - 2])) {
     const int NextDims = Dims > 1 ? Dims - 1 : 1;
     SliceFunc<NextDims, OutputType, InputType, false>(
         out, in, out_strides, in_strides, out_shape,
@@ -235,14 +224,14 @@ __device__ void SliceFunc(OutputType *__restrict__ out, const InputType *__restr
         for (int d = 0; d < Dims - 1; d++) {
           i_d = div_mod(idx, idx, out_strides[d]);
           i_d = anchor[d] + i_d * step[d];
-          i_d = handle_bounds<int>(i_d, in_shape[d], border_type);
+          i_d = boundary::handle_bounds<int>(i_d, in_shape[d], border_type);
           in_idx += i_d * in_strides[d];
         }
 
         constexpr int d = LastDim;
         i_d = idx;
         i_d = inner_in_anchor + i_d * step[d];
-        i_d = handle_bounds<int>(i_d, inner_in_extent, border_type);
+        i_d = boundary::handle_bounds<int>(i_d, inner_in_extent, border_type);
         in_idx += i_d;
 
         result.values[i] = clamp<OutputType>(in[in_idx]);
