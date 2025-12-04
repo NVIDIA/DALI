@@ -120,7 +120,7 @@ inline bool TryParse(BoundaryType &type, std::string_view type_str) {
 
 inline BoundaryType parse(std::string_view type) {
   BoundaryType result;
-  if (!TryParse(result, type))
+  if (TryParse(result, type))
     return result;
   throw std::invalid_argument(make_string("Unknown boundary type was specified: ``", type, "``."));
 }
