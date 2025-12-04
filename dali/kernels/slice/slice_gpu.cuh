@@ -306,6 +306,8 @@ class SliceGPU {
       nfill_values_ = 1;
     } else if (nfill_values_ > 1) {
       for (const auto &args : slice_args) {
+        if (args.border_type != boundary::BoundaryType::CONSTANT)
+          continue;
         if (args.channel_dim < 0 || args.channel_dim >= Dims)
           throw std::invalid_argument(
               "Channel dim must be valid for multi-channel fill values");

@@ -18,14 +18,17 @@ import nvidia.dali.ops as ops
 import nvidia.dali.types as types
 import numpy as np
 import os
+import cv2
+from test_slice import to_cv_border_type
 from nose_utils import assert_raises
 from test_utils import as_array
 from test_utils import compare_pipelines
 from test_utils import RandomDataIterator
 from test_utils import get_dali_extra_path
+from test_utils import dump_as_core_artifacts
 from test_slice import check_slice_output, abs_slice_start_and_end
 import itertools
-from nose2.tools import params
+from nose2.tools import params, cartesian_params
 
 test_data_root = get_dali_extra_path()
 caffe_db_folder = os.path.join(test_data_root, "db", "lmdb")
@@ -753,3 +756,58 @@ def test_crop_rounding(device, rounding):
     elif rounding == "round":
         # padding happens to the left of the input
         np.testing.assert_array_equal(data[5:16, :, :], cropped[:, 1:9, :])
+
+
+@cartesian_params(
+    ("cpu", "gpu"), ("HWC", "CHW"), ("constant", "clamp", "reflect", "reflect_101", "wrap")
+)
+def test_border_modes(device, layout, out_of_bounds_policy):
+    @pipeline_def(batch_size=1, num_threads=4, device_id=0, seed=1234)
+    def make_pipe():
+        file, _ = fn.readers.file(
+            file_root=os.path.join(test_data_root, "db", "single", "jpeg"),
+            random_shuffle=False,
+        )
+        img = fn.decoders.image(file, device="mixed" if device == "gpu" else "cpu")
+        shape = img.shape()
+        h, w = shape[0], shape[1]
+
+        input = img
+
+        if layout == "CHW":  # convert to CHW
+            input = fn.transpose(input, perm=(2, 0, 1))
+
+        fill = [0x76, 0xB9, 0x00] if out_of_bounds_policy == "constant" else None
+        output = fn.crop(
+            input,
+            crop_h=3.0 * h,
+            crop_w=3.0 * w,
+            crop_pos_x=0.5,
+            crop_pos_y=0.5,
+            out_of_bounds_policy=out_of_bounds_policy,
+            fill_values=fill,
+        )
+
+        if layout == "CHW":
+            output = fn.transpose(output, perm=(1, 2, 0))
+
+        return img, output
+
+    pipe = make_pipe()
+    inputs, outputs = pipe.run()
+    if device == "gpu":
+        inputs = inputs.as_cpu()
+        outputs = outputs.as_cpu()
+
+    for i in range(len(inputs)):
+        in_img = as_array(inputs[i])
+        out_img = as_array(outputs[i])
+        h, w = in_img.shape[:2]
+        ref = cv2.copyMakeBorder(
+            in_img, h, h, w, w, to_cv_border_type(out_of_bounds_policy), None, [0x76, 0xB9, 0x00]
+        )
+        if not np.array_equal(ref, out_img):
+            dump_as_core_artifacts(
+                f"border_mode_{out_of_bounds_policy}_{layout}_{device}_{i}", out_img, ref
+            )
+            assert np.array_equal(ref, out_img)
