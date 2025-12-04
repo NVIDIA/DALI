@@ -130,6 +130,10 @@ class Compose(Pipeline):
             data_input: Input tensor or PIL Image.
                 In case of PIL image it will be converted to tensor before sending to pipeline
         """
+
+        if not isinstance(data_input, (Image.Image, torch.Tensor)):
+            raise TypeError(f"input should be PIL Image or torch.Tensor. Got {type(data_input)}")
+
         if isinstance(data_input, Image.Image):
             _input = torch.as_tensor(np.array(data_input, copy=True)).unsqueeze(0)
         else:
