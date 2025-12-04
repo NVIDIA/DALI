@@ -17,6 +17,7 @@ import builtins
 import os
 import re
 import string
+import tokenize
 from contextlib import closing
 from inspect import Parameter, Signature, getdoc, getmodule, ismodule
 from pathlib import Path
@@ -70,6 +71,7 @@ _DALIImageType = _create_annotation_placeholder("DALIImageType")
 _DALIInterpType = _create_annotation_placeholder("DALIInterpType")
 _TensorLikeIn = _create_annotation_placeholder("TensorLikeIn")
 _TensorLikeArg = _create_annotation_placeholder("TensorLikeArg")
+_RNG = _create_annotation_placeholder("RNG")
 
 _enum_mapping = {
     types.DALIDataType: _DALIDataType,
@@ -1071,6 +1073,19 @@ class StubFileManager:
                 print(f"from . import {direct_submodule} as {direct_submodule}", file=f)
 
             f.write(os.linesep * 2)
+
+            # If there'san existing .py file with the same name, prepend its content
+            py_file = self._nvidia_dali_path / self._api / f"{module_path}.py"
+            if py_file.exists():
+                with py_file.open() as file:
+                    # Remove comments from the source code
+                    source = tokenize.untokenize(
+                        token
+                        for token in tokenize.generate_tokens(file.readline)
+                        if token.type != tokenize.COMMENT
+                    )
+                f.write(source)
+
         return self._module_to_file[module_path]
 
     def close(self):
