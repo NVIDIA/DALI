@@ -128,7 +128,6 @@ class PadEdge:
                 interp_type=dali.types.DALIInterpType.INTERP_NN,
                 device=self.device,
             )
-            return left_pad
             data_input = fn.cat(left_pad, data_input, axis=1, device=self.device)
         # Pad right
         if right > 0:
@@ -291,7 +290,7 @@ class Pad:
         padding_mode: Literal["constant", "edge", "reflect", "symmetric"] = "constant",
         device: Literal["cpu", "gpu"] = "cpu",
     ):
-        self.device = "cpu"
+        self.device = device
         if padding_mode == "constant":
             self.pad = PADDING_CLASS[padding_mode](padding, fill, device)
         else:

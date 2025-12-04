@@ -164,7 +164,7 @@ class Compose(Pipeline):
                 if output.shape[0] > 1:
                     output_list = []
                     for i in range(output.shape[0]):
-                        output_list.append(Image.fromarray(output[i].numpy()), mode="RGB")
+                        output_list.append(Image.fromarray(output[i].numpy(), mode="RGB"))
                     output = output_list
                 else:
                     output = Image.fromarray(output[0].numpy(), mode="RGB")

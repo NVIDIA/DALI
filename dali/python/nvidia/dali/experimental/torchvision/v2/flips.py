@@ -26,7 +26,7 @@ class RandomFlip:
 
     def __init__(self, p: float = 0.5, horizontal: int = 1, device="cpu"):
         self.prob = p
-        self.device = "cpu"
+        self.device = device
         self.horizontal = horizontal
 
     def __call__(self, data_input):

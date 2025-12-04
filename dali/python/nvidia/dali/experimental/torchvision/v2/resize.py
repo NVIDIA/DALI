@@ -125,7 +125,6 @@ class Resize:
         self.effective_size = self._infer_effective_size(size, max_size)
         self.antialias = antialias
         self.device = device
-        print(f"{self.mode} : {self.effective_size} : {self.max_size}")
 
     def __call__(self, data_input):
         """
