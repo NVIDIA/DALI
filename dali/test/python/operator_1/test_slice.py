@@ -1187,23 +1187,27 @@ def test_wrong_backend_named_args():
 
 
 def to_cv_border_type(out_of_bounds_policy):
-    if out_of_bounds_policy == "constant":
+    if out_of_bounds_policy in ["constant", "const", "pad"]:
         return cv2.BORDER_CONSTANT
-    elif out_of_bounds_policy == "clamp":
+    elif out_of_bounds_policy in ["clamp", "edge"]:
         return cv2.BORDER_REPLICATE
-    elif out_of_bounds_policy == "reflect":
+    elif out_of_bounds_policy in ["reflect", "reflect_1001"]:
         return cv2.BORDER_REFLECT
     elif out_of_bounds_policy == "reflect_101":
         return cv2.BORDER_REFLECT_101
     elif out_of_bounds_policy == "wrap":
         return cv2.BORDER_WRAP
+    else:
+        raise ValueError(f"Invalid out_of_bounds_policy: {out_of_bounds_policy}")
 
 
 @cartesian_params(
-    ("cpu", "gpu"), ("HWC", "CHW"), ("constant", "clamp", "reflect", "reflect_101", "wrap")
+    ("cpu", "gpu"),
+    ("HWC", "CHW"),
+    ("constant", "const", "pad", "clamp", "edge", "reflect", "reflect_1001", "reflect_101", "wrap"),
 )
 def test_border_modes(device, layout, out_of_bounds_policy):
-    @pipeline_def(batch_size=1, num_threads=4, device_id=0, seed=1234)
+    @pipeline_def(batch_size=2, num_threads=4, device_id=0, seed=1234)
     def make_pipe():
         file, _ = fn.readers.file(
             file_root=os.path.join(test_data_root, "db", "single", "jpeg"),
@@ -1220,7 +1224,7 @@ def test_border_modes(device, layout, out_of_bounds_policy):
 
         anchor = fn.stack(-w, -h)
         shape = fn.stack(3 * w, 3 * h)
-        fill = [0x76, 0xB9, 0x00] if out_of_bounds_policy == "constant" else None
+        fill = [0x76, 0xB9, 0x00] if out_of_bounds_policy in ["constant", "const", "pad"] else None
         output = fn.slice(
             input,
             anchor,
