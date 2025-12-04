@@ -14,7 +14,7 @@
 
 from setuptools import setup, find_namespace_packages
 
-setup(name='nvidia-dali@DALI_FLAVOR_MINUS@-cuda@CUDA_VERSION_SHORT_DIGIT_ONLY@',
+setup(name='nvidia-dali-cuda@CUDA_VERSION_SHORT_DIGIT_ONLY@',
       description='NVIDIA DALI @DALI_FLAVOR@ for CUDA @CUDA_VERSION_SHORT@. Git SHA: @GIT_SHA@',
           long_description='''NVIDIA DALI
 ===========
