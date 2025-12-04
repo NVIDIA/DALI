@@ -25,6 +25,7 @@
 #include "dali/kernels/common/split_shape.h"
 #include "dali/kernels/kernel.h"
 #include "dali/kernels/slice/slice_kernel_utils.h"
+#include "dali/core/static_switch.h"
 
 
 namespace dali {
@@ -36,8 +37,10 @@ namespace slice_impl {
 
 /**
  * @brief Optimized special case for the last two dimensions whith channel-last configuration
+ * @tparam AllFill True, if the entire row is filled with the fill value
+ * @tparam BorderType Border type to use
  */
-template <typename OutputType, typename InputType, bool UseFill, boundary::BoundaryType BorderType>
+template <typename OutputType, typename InputType, bool AllFill, boundary::BoundaryType BorderType>
 void SliceKernelImplChannelLast(OutputType *output,
                                 const InputType *input,
                                 const int64_t *out_strides,
@@ -49,19 +52,20 @@ void SliceKernelImplChannelLast(OutputType *output,
                                 const OutputType *fill_values,
                                 int channel_dim,  // negative if no channel dim or already processed
                                 std::integral_constant<boundary::BoundaryType, BorderType>,
-                                std::integral_constant<bool, UseFill>) {
+                                std::integral_constant<bool, AllFill>) {
+  static_assert(!AllFill || BorderType == boundary::BoundaryType::CONSTANT);
   constexpr int d = 0;
   assert(channel_dim == 1);
   int64_t out_nchannels = out_shape[channel_dim];
   int64_t in_nchannels = in_shape[channel_dim];
   int64_t npixels = out_shape[d];
 
-  if (UseFill) {
+  if constexpr (AllFill) {
     PadFill(output, fill_values, npixels, out_nchannels);
     return;
   }
 
-  if (NeedPad) {
+  if constexpr (BorderType == boundary::BoundaryType::CONSTANT) {
     // If the whole row is out of bounds, just fill
     // Calculate number of pixels to pad on the left and right, and the number of pixels to be
     // copied
@@ -114,12 +118,13 @@ void SliceKernelImplChannelLast(OutputType *output,
       PadFill(output, fill_values, pad_pixels_after, out_nchannels);
       output += pad_pixels_after * out_strides[d];
     }
-  } else {  // NeedPad = false
+  } else {
     assert(out_strides[d + 1] == 1);
     assert(in_strides[d + 1] == 1);
     for (int64_t i = 0; i < out_shape[d]; i++) {
       auto *out_row = output + i * out_strides[d];
-      auto *in_row = input + (anchor[d] + i) * in_strides[d];
+      int64_t in_idx = boundary::handle_bounds(anchor[d] + i, in_shape[d], BorderType);
+      auto *in_row = input + in_idx * in_strides[d];
       for (int64_t j = 0; j < out_shape[d + 1]; j++) {
         out_row[j] = clamp<OutputType>(in_row[anchor[d + 1] + j]);
       }
@@ -127,7 +132,7 @@ void SliceKernelImplChannelLast(OutputType *output,
   }
 }
 
-template <typename OutputType, typename InputType, bool OutOfBounds, bool NeedPad>
+template <typename OutputType, typename InputType, boundary::BoundaryType BorderType, bool AllFill>
 void SliceKernelImpl(OutputType *output,
                      const InputType *input,
                      const int64_t *out_strides,
@@ -139,20 +144,20 @@ void SliceKernelImpl(OutputType *output,
                      const OutputType *fill_values,
                      int channel_dim,  // negative if no channel dim or already processed
                      std::integral_constant<int, 1>,
-                     std::integral_constant<bool, OutOfBounds>,
-                     std::integral_constant<bool, NeedPad>) {
+                     std::integral_constant<boundary::BoundaryType, BorderType>,
+                     std::integral_constant<bool, AllFill>) {
   constexpr int d = 0;
-  if (OutOfBounds) {
+  if constexpr (AllFill) {
     for (int i = 0; i < out_shape[d]; i++) {
       output[i] = *fill_values;
       if (d == channel_dim)
         fill_values++;
     }
   } else {
-    int in_idx = anchor[d];
-    int out_idx = 0;
+    int64_t in_idx = anchor[d];
+    int64_t out_idx = 0;
 
-    if (NeedPad) {
+    if constexpr (BorderType == boundary::BoundaryType::CONSTANT) {
       // out of bounds (left side of output)
       for (; (in_idx < 0 || in_idx >= in_shape[d]) && out_idx < out_shape[d];
            in_idx += step[d], out_idx++) {
@@ -160,20 +165,36 @@ void SliceKernelImpl(OutputType *output,
         if (d == channel_dim)
           fill_values++;
       }
+    } else if constexpr (BorderType != boundary::BoundaryType::TRANSPARENT) {  // NOLINT - liter bug with else if constexpr
+      // out of bounds (left side of output)
+      for (; (in_idx < 0 || in_idx >= in_shape[d]) && out_idx < out_shape[d];
+           in_idx += step[d], out_idx++) {
+        auto in_idx_in_range = boundary::handle_bounds(in_idx, in_shape[d], BorderType);
+        output[out_idx] = clamp<OutputType>(input[in_idx_in_range]);
+        if (d == channel_dim)
+          fill_values++;
+      }
     }
-
     // within input bounds
     for (; (0 <= in_idx && in_idx < in_shape[d]) && out_idx < out_shape[d];
          in_idx += step[d], out_idx++) {
       output[out_idx] = clamp<OutputType>(input[in_idx]);
-      if (NeedPad && d == channel_dim)
+      if (BorderType == boundary::BoundaryType::CONSTANT && d == channel_dim)
         fill_values++;
     }
 
-    if (NeedPad) {
+    if constexpr (BorderType == boundary::BoundaryType::CONSTANT) {
       // out of bounds (right side of output)
       for (; out_idx < out_shape[d]; in_idx += step[d], out_idx += out_strides[d]) {
         output[out_idx] = *fill_values;
+        if (d == channel_dim)
+          fill_values++;
+      }
+    } else if constexpr (BorderType != boundary::BoundaryType::TRANSPARENT) {  // NOLINT - liter bug with else if constexpr
+      // out of bounds (right side of output)
+      for (; out_idx < out_shape[d]; in_idx += step[d], out_idx += out_strides[d]) {
+        auto in_idx_in_range = boundary::handle_bounds(in_idx, in_shape[d], BorderType);
+        output[out_idx] = clamp<OutputType>(input[in_idx_in_range]);
         if (d == channel_dim)
           fill_values++;
       }
@@ -181,7 +202,8 @@ void SliceKernelImpl(OutputType *output,
   }
 }
 
-template <typename OutputType, typename InputType, bool OutOfBounds, bool NeedPad, int DimsLeft>
+template <typename OutputType, typename InputType, int DimsLeft,
+          boundary::BoundaryType BorderType, bool AllFill>
 void SliceKernelImpl(OutputType *output,
                      const InputType *input,
                      const int64_t *out_strides,
@@ -193,65 +215,70 @@ void SliceKernelImpl(OutputType *output,
                      const OutputType *fill_values,
                      int channel_dim,  // negative if no channel dim or already processed
                      std::integral_constant<int, DimsLeft>,
-                     std::integral_constant<bool, OutOfBounds>,
-                     std::integral_constant<bool, NeedPad>) {
+                     std::integral_constant<boundary::BoundaryType, BorderType> border_type,
+                     std::integral_constant<bool, AllFill> all_fill) {
   // Special case for last 2 dimensions with channel-last configuration
   if (DimsLeft == 2 && channel_dim == 1) {
     SliceKernelImplChannelLast(output, input, out_strides, in_strides, out_shape, in_shape, anchor,
                                step, fill_values, channel_dim,
-                               std::integral_constant<bool, OutOfBounds>(),
-                               std::integral_constant<bool, NeedPad>());
+                               border_type, all_fill);
     return;
   }
 
   constexpr int d = 0;
-  int in_idx = anchor[d];
-  int out_idx = 0;
+  int64_t in_idx = anchor[d];
+  int64_t out_idx = 0;
 
-  if (anchor[d] > 0 && anchor[d] < in_shape[d])
-    input += anchor[d] * in_strides[d];
-
-  if (NeedPad) {
+  if constexpr (BorderType == boundary::BoundaryType::CONSTANT) {
     // out of bounds (left side of output)
     for (; (in_idx < 0 || in_idx >= in_shape[d]) && out_idx < out_shape[d];
          in_idx += step[d], out_idx++) {
-      SliceKernelImpl(output, input, out_strides + 1, in_strides + 1, out_shape + 1,
-                      in_shape + 1, anchor + 1, step + 1, fill_values, channel_dim - 1,
+      SliceKernelImpl(output, static_cast<const InputType*>(nullptr),
+                      out_strides + 1, in_strides + 1, out_shape + 1, in_shape + 1, anchor + 1,
+                      step + 1, fill_values, channel_dim - 1,
                       std::integral_constant<int, DimsLeft - 1>(),
-                      std::integral_constant<bool, true>(),
-                      std::integral_constant<bool, NeedPad>());
+                      border_type,
+                      std::true_type());
       output += out_strides[d];
       if (d == channel_dim)
         fill_values++;
     }
-  }
 
-  // within input bounds
-  for (; (0 <= in_idx && in_idx < in_shape[d]) && out_idx < out_shape[d];
-       in_idx += step[d], out_idx++) {
-    SliceKernelImpl(output, input, out_strides + 1, in_strides + 1, out_shape + 1,
-                    in_shape + 1, anchor + 1, step + 1, fill_values, channel_dim - 1,
-                    std::integral_constant<int, DimsLeft - 1>(),
-                    std::integral_constant<bool, OutOfBounds>(),
-                    std::integral_constant<bool, NeedPad>());
-    output += out_strides[d];
-    if (!OutOfBounds)
-      input += in_strides[d] * step[d];
-    if (NeedPad && d == channel_dim)
-      fill_values++;
-  }
+    // within input bounds
+    for (; (0 <= in_idx && in_idx < in_shape[d]) && out_idx < out_shape[d];
+        in_idx += step[d], out_idx++) {
+      SliceKernelImpl(output, input + in_idx * in_strides[d], out_strides + 1, in_strides + 1,
+                      out_shape + 1, in_shape + 1, anchor + 1, step + 1,
+                      fill_values, channel_dim - 1,
+                      std::integral_constant<int, DimsLeft - 1>(),
+                      border_type, std::false_type());
+      output += out_strides[d];
+      if (BorderType == boundary::BoundaryType::CONSTANT && d == channel_dim)
+        fill_values++;
+    }
 
-  if (NeedPad) {
     // out of bounds (right side of output)
     for (; out_idx < out_shape[d]; out_idx++) {
-      SliceKernelImpl(output, input, out_strides + 1, in_strides + 1, out_shape + 1,
+      SliceKernelImpl(output, static_cast<const InputType*>(nullptr),
+                      out_strides + 1, in_strides + 1, out_shape + 1,
                       in_shape + 1, anchor + 1, step + 1, fill_values, channel_dim - 1,
                       std::integral_constant<int, DimsLeft - 1>(),
-                      std::integral_constant<bool, true>(),
-                      std::integral_constant<bool, NeedPad>());
+                      border_type, std::true_type());
       output += out_strides[d];
       if (d == channel_dim)
         fill_values++;
+    }
+  } else {
+    // within input bounds
+    for (; out_idx < out_shape[d]; in_idx += step[d], out_idx++) {
+      auto in_idx_in_range = boundary::handle_bounds(in_idx, in_shape[d], BorderType);
+      auto *input_slice = input + in_idx_in_range * in_strides[d];
+      SliceKernelImpl(output, input_slice, out_strides + 1, in_strides + 1,
+                      out_shape + 1, in_shape + 1, anchor + 1, step + 1,
+                      static_cast<const OutputType *>(nullptr), channel_dim - 1,
+                      std::integral_constant<int, DimsLeft - 1>(),
+                      border_type, std::false_type());
+      output += out_strides[d];
     }
   }
 }
@@ -269,23 +296,33 @@ void SliceKernel(OutputType *output,
                  const TensorShape<Dims> &anchor,
                  const TensorShape<Dims> &step,
                  const OutputType *fill_values,
-                 int channel_dim = -1) {  // negative if no channel dim or already processed
+                 int channel_dim,  // negative if no channel dim or already processed
+                 boundary::BoundaryType border_type) {
   bool need_pad = NeedPad(Dims, anchor.data(), in_shape.data(), out_shape.data());
-  if (need_pad) {
+  if (!need_pad)
+    border_type = boundary::BoundaryType::TRANSPARENT;
+
+  VALUE_SWITCH(border_type, BorderType, (
+    boundary::BoundaryType::CONSTANT,
+    boundary::BoundaryType::CLAMP,
+    boundary::BoundaryType::REFLECT_101,
+    boundary::BoundaryType::REFLECT_1001,
+    boundary::BoundaryType::WRAP
+  ), (  // NOLINT
     slice_impl::SliceKernelImpl(
         output, input, out_strides.data(), in_strides.data(), out_shape.data(), in_shape.data(),
         anchor.data(), step.data(), fill_values, channel_dim,
         std::integral_constant<int, Dims>(),
-        std::integral_constant<bool, false>(),
-        std::integral_constant<bool, true>());
-  } else {
+        std::integral_constant<boundary::BoundaryType, BorderType>(),
+        std::false_type());
+  ), (  // NOLINT
     slice_impl::SliceKernelImpl(
-        output, input, out_strides.data(), in_strides.data(), out_shape.data(), in_shape.data(),
-        anchor.data(), step.data(), fill_values, channel_dim,
-        std::integral_constant<int, Dims>(),
-        std::integral_constant<bool, false>(),
-        std::integral_constant<bool, false>());
-  }
+      output, input, out_strides.data(), in_strides.data(), out_shape.data(), in_shape.data(),
+      anchor.data(), step.data(), fill_values, channel_dim,
+      std::integral_constant<int, Dims>(),
+      std::integral_constant<boundary::BoundaryType, boundary::BoundaryType::TRANSPARENT>(),
+      std::false_type());
+  )); // NOLINT
 }
 
 
@@ -338,7 +375,8 @@ void SliceKernel(ExecutionEngine &exec_engine,
   if (nblocks == 1) {
     exec_engine.AddWork([=](int) {
       SliceKernel(out_data, in_data, out_strides, in_strides, out_shape, in_shape, args.anchor,
-                  args.step, GetPtr<OutputType>(args.fill_values), args.channel_dim);
+                  args.step, GetPtr<OutputType>(args.fill_values), args.channel_dim,
+                  args.border_type);
     }, kSliceCost * volume(out_shape), false);  // do not start work immediately
     return;
   }
@@ -360,7 +398,8 @@ void SliceKernel(ExecutionEngine &exec_engine,
       }
       exec_engine.AddWork([=](int) {
         SliceKernel(output_ptr, in_data, out_strides, in_strides, blk_shape, in_shape,
-                    blk_anchor, blk_step, GetPtr<OutputType>(args.fill_values), args.channel_dim);
+                    blk_anchor, blk_step, GetPtr<OutputType>(args.fill_values), args.channel_dim,
+                    args.border_type);
       }, kSliceCost * volume(blk_shape), false);  // do not start work immediately
     });
   // scheduled work does not start until user calls Run()
@@ -391,7 +430,7 @@ void SliceKernel(SequentialExecutionEngine &exec_engine,
   }
 
   SliceKernel(out_data, in_data, out_strides, in_strides, out_shape, in_shape, args.anchor,
-              args.step, GetPtr<OutputType>(args.fill_values), args.channel_dim);
+              args.step, GetPtr<OutputType>(args.fill_values), args.channel_dim, args.border_type);
 }
 
 template <typename OutputType, typename InputType, int Dims>

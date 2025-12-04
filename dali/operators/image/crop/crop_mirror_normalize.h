@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -100,12 +100,12 @@ class CropMirrorNormalize : public StatelessOperator<Backend> {
         output_type_(spec.GetArgument<DALIDataType>("dtype")),
         output_layout_(spec.GetArgument<TensorLayout>("output_layout")),
         pad_output_(spec.GetArgument<bool>("pad_output")),
-        out_of_bounds_policy_(GetOutOfBoundsPolicy(spec)),
+        out_of_bounds_policy_(GetOutOfBoundsPolicy(spec, { boundary::BoundaryType::CONSTANT })),
         mean_arg_("mean", spec),
         std_arg_("std", spec),
         scale_(spec.GetArgument<float>("scale")),
         shift_(spec.GetArgument<float>("shift")) {
-    if (out_of_bounds_policy_ == OutOfBoundsPolicy::Pad) {
+    if (out_of_bounds_policy_.shape_policy == OutOfBoundsShapePolicy::Pad) {
       fill_values_ = spec.GetRepeatedArgument<float>("fill_values");
     }
   }
@@ -195,10 +195,15 @@ class CropMirrorNormalize : public StatelessOperator<Backend> {
     for (int data_idx = 0; data_idx < nsamples; data_idx++) {
       auto crop_win_gen = crop_attr_.GetCropWindowGenerator(data_idx);
       assert(crop_win_gen);
+
       CropWindow crop_window = crop_win_gen(in_shape[data_idx], input_layout_);
       bool horizontal_flip = this->spec_.template GetArgument<int>("mirror", &ws, data_idx);
-      ApplySliceBoundsPolicy(out_of_bounds_policy_, in_shape[data_idx], crop_window.anchor,
-                              crop_window.shape);
+
+      ApplySliceBoundsPolicy(
+          out_of_bounds_policy_.shape_policy,
+          in_shape[data_idx],
+          crop_window.anchor,
+          crop_window.shape);
 
       if (per_sample_norm_args)
         ProcessNormArgs(data_idx);
@@ -231,7 +236,7 @@ class CropMirrorNormalize : public StatelessOperator<Backend> {
   bool pad_output_;
 
   std::vector<float> fill_values_;
-  OutOfBoundsPolicy out_of_bounds_policy_ = OutOfBoundsPolicy::Error;
+  OutOfBoundsPolicy out_of_bounds_policy_;
 
   ArgValue<float, 1> mean_arg_;
   ArgValue<float, 1> std_arg_;
