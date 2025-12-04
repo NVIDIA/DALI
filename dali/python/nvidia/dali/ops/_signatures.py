@@ -1017,12 +1017,6 @@ def _group_signatures(api: Api):
         _, module_nesting, op_name = _names._process_op_name(schema_name, api=api)
         op = _get_op(api_module, module_nesting + [op_name])
 
-        # Special case for dynamic.ops
-        if op is None and api_module.__name__.endswith("dynamic"):
-            schema_name = f"ops__{schema_name}"
-            _, module_nesting, op_name = _names._process_op_name(schema_name, api=api)
-            op = _get_op(api_module, module_nesting + [op_name])  # type: ignore
-
         if op is None:
             continue
 
@@ -1054,7 +1048,6 @@ class StubFileManager:
         if api_path in ("ops", "fn"):
             self._header += _PIPELINE_HEADER
         else:
-            self._module_tree[""]["ops"] = self._module_tree[""]
             self._header += _DYNAMIC_HEADER
 
     def get(self, module_nesting: List[str]):
@@ -1146,8 +1139,6 @@ def gen_all_signatures(nvidia_dali_path: Union[Path, str], api: Api):
         }
         for schema_name, op in sig_groups["generated"]:
             _, module_nesting, op_name = _names._process_op_name(schema_name, api=api)
-            if api == "dynamic":
-                schema_name = schema_name.removeprefix("ops__")
             schema = _b.TryGetSchema(schema_name)
 
             signature = signature_generators[api](schema, schema_name, op_name)
