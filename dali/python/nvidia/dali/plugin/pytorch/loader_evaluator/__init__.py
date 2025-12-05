@@ -13,6 +13,5 @@
 # limitations under the License.
 
 from .loader import LoaderEvaluator
-from .metrics import PerformanceMetrics
 
-__all__ = ["LoaderEvaluator", "PerformanceMetrics"]
+__all__ = ["LoaderEvaluator"]

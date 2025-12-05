@@ -22,7 +22,6 @@ test_py_with_framework() {
     done
 
     ${python_new_invoke_test} -A '!slow,!pytorch,!mxnet,!cupy' test_backend_impl
-    ${python_new_invoke_test} -A '!slow,!pytorch,!mxnet,!cupy' test_pytorch_loader_evaluator
 
     if [ -z "$DALI_ENABLE_SANITIZERS" ]; then
         ${python_new_invoke_test} -A 'numba' -s type_annotations
@@ -39,6 +38,7 @@ test_py() {
     python test_coco_tfrecord.py -i 64
     python test_data_containers.py -s -b 20
     python test_data_containers.py -s -b 20 -n
+    ${python_new_invoke_test} test_pytorch_loader_evaluator
 }
 
 test_autograph() {
