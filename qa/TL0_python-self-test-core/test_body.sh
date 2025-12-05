@@ -38,7 +38,6 @@ test_py() {
     python test_coco_tfrecord.py -i 64
     python test_data_containers.py -s -b 20
     python test_data_containers.py -s -b 20 -n
-    ${python_new_invoke_test} test_pytorch_loader_evaluator
 }
 
 test_autograph() {
@@ -69,6 +68,7 @@ test_pytorch() {
         ${python_new_invoke_test} -A '!slow' checkpointing.test_dali_checkpointing_fw_iterators.TestPytorch
         ${python_new_invoke_test} -A '!slow' checkpointing.test_dali_checkpointing_fw_iterators.TestPytorchRagged
     fi
+    ${python_new_invoke_test} test_pytorch_loader_evaluator
 }
 
 test_checkpointing() {
