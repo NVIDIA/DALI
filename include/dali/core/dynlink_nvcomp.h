@@ -57,6 +57,10 @@ class NvCompError : public std::runtime_error {
         return "Unknown CUDA error.";
       case nvcompErrorInternal:
         return "Unknown nvCOMP error.";
+#if NVCOMP_VER_MAJOR > 5 || (NVCOMP_VER_MAJOR == 5 && NVCOMP_VER_MINOR >= 1)
+      case nvcompErrorBatchSizeTooLarge:
+        return "Batch size is too large.";
+#endif
       default:
         return "< unknown error >";
     }
