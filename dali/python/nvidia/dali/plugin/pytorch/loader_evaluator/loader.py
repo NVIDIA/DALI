@@ -23,9 +23,8 @@ import json
 import threading
 import time
 from collections import deque
-from typing import Any, Dict, Iterator, Optional, Tuple
+from typing import Any, Dict, Iterator, Optional
 
-from torch import Tensor as TorchTensor
 from torch.utils.data import DataLoader
 
 
@@ -82,7 +81,7 @@ class LoaderEvaluator:
         if self.mode == "replay":
             self._cache_batches()
 
-    def __iter__(self) -> Iterator[Tuple[TorchTensor, TorchTensor]]:
+    def __iter__(self) -> Iterator[Any]:
         """Iterate through the dataloader based on the current mode."""
         if self.mode == "log":
             return self._log_mode_iter()
@@ -109,7 +108,7 @@ class LoaderEvaluator:
                 if len(self.cached_batches) > 0:
                     self.cache_ready = True
 
-    def _log_mode_iter(self) -> Iterator[Tuple[TorchTensor, TorchTensor]]:
+    def _log_mode_iter(self) -> Iterator[Any]:
         """Log mode: iterate normally while collecting metrics."""
         self.start_time = time.time()
         self.batch_times = []
@@ -127,7 +126,7 @@ class LoaderEvaluator:
 
         self.end_time = time.time()
 
-    def _replay_mode_iter(self) -> Iterator[Tuple[TorchTensor, TorchTensor]]:
+    def _replay_mode_iter(self) -> Iterator[Any]:
         """Replay mode: replay cached batches for ideal performance
         simulation."""
         if not self.cache_ready or len(self.cached_batches) == 0:
@@ -141,26 +140,13 @@ class LoaderEvaluator:
 
         # Replay cached batches to match original DataLoader length
         original_length = len(self.dataloader)
-        batch_count = 0
 
-        while batch_count < original_length:
-            for batch in self.cached_batches:
-                if batch_count >= original_length:
-                    break
-
-                batch_start = time.time()
-                batch_count += 1
-                # Record timing before yield to ensure it's captured even if
-                # iteration breaks
-                batch_time = time.time() - batch_start
-                self.batch_times.append(batch_time)
-                # Record metrics during yielding (time to yield = cache access
-                # time)
-                yield batch
-
-                # Check if we've reached the original length after incrementing
-                if batch_count >= original_length:
-                    break
+        for i in range(original_length):
+            batch_start = time.time()
+            batch = self.cached_batches[i % len(self.cached_batches)]
+            batch_time = time.time() - batch_start
+            self.batch_times.append(batch_time)
+            yield batch
 
         self.end_time = time.time()
 
