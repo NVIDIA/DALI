@@ -35,7 +35,6 @@
 #include "dali/pipeline/data/tensor.h"
 #include "dali/pipeline/data/tensor_list.h"
 #include "dali/pipeline/init.h"
-#include "dali/pipeline/operator/eager_operator.h"
 #include "dali/pipeline/operator/error_reporting.h"
 #include "dali/pipeline/operator/op_schema.h"
 #include "dali/pipeline/operator/op_spec.h"
@@ -1210,42 +1209,6 @@ template <typename Backend>
 using tensor_list_py_class_t =
     py::class_<TensorList<Backend>, std::shared_ptr<TensorList<Backend>>>;
 
-template <typename Backend>
-void EagerArithmOp(tensor_list_py_class_t<Backend> &py_class, std::string &op_name) {
-  py_class.def(("__" + op_name + "__").c_str(), [impl_name = "_" + op_name](py::args &args) {
-    bool arithm_ops_enabled =
-        FromPythonTrampoline("nvidia.dali.experimental.eager", "arithmetic", "enabled")
-            .cast<bool>();
-
-    if (arithm_ops_enabled) {
-      return FromPythonTrampoline("nvidia.dali._utils.eager_utils", impl_name.c_str())(*args);
-    } else {
-      std::stringstream types_ss;
-      types_ss << py::type::of(args[0]);
-      for (size_t i = 1; i < args.size(); ++i) {
-        types_ss << " and " << py::type::of(args[i]);
-      }
-      throw py::type_error(
-          make_string("unsupported operand type(s) for _", impl_name, "__: ", types_ss.str(),
-                      "\nIf you want to use TensorList operators directly, enable them with "
-                      "'nvidia.dali.experimental.eager.arithmetic'. Eager operators may be slower "
-                      "than pipeline's."));
-    }
-  });
-}
-
-template <typename Backend>
-void ExposeTensorListOperators(tensor_list_py_class_t<Backend> &py_class) {
-  static std::vector<std::string> arithm_op_list{
-      "add",      "radd",     "sub",       "rsub", "mul", "rmul", "pow", "rpow", "truediv",
-      "rtruediv", "floordiv", "rfloordiv", "eq",   "ne",  "lt",   "le",  "gt",   "ge",
-      "and",      "rand",     "or",        "ror",  "xor", "rxor", "neg"};
-
-  for (std::string &op_name : arithm_op_list) {
-    EagerArithmOp(py_class, op_name);
-  }
-}
-
 void ExposeTensorListCPU(py::module &m) {
     auto tensor_list_cpu_class =
       py::class_<TensorList<CPUBackend>, std::shared_ptr<TensorList<CPUBackend>>>(
@@ -1551,8 +1514,6 @@ void ExposeTensorListCPU(py::module &m) {
 
       :type: DALIDataType
       )code");
-
-  ExposeTensorListOperators(tensor_list_cpu_class);
 }
 
 void ExposeTesorListGPU(py::module &m) {
@@ -1784,8 +1745,6 @@ void ExposeTesorListGPU(py::module &m) {
 
       :type: DALIDataType
       )code");
-
-  ExposeTensorListOperators(tensor_list_gpu_class);
 }
 
 void ExposeTensorList(py::module &m) {
@@ -1973,23 +1932,6 @@ py::dict ExecutorMetaToDict(const ExecutorMetaMap &meta) {
     d[stat.first.c_str()] = op_dict;
   }
   return d;
-}
-
-template <typename Backend>
-void ExposeEagerOperator(py::module &m, const char *name) {
-  py::class_<EagerOperator<Backend>>(m, name)
-      .def(py::init([](const OpSpec &op_spec) {
-             return std::make_unique<EagerOperator<Backend>>(op_spec);
-           }),
-           "op_spec"_a)
-      .def("__call__",
-           [](EagerOperator<Backend> &op,
-              const std::vector<
-                  std::shared_ptr<TensorList<typename Backend2Types<Backend>::InBackend>>> &inputs,
-              const std::unordered_map<std::string, std::shared_ptr<TensorList<CPUBackend>>>
-                  &kwargs) { return op.Run(inputs, kwargs); })
-      .def("reader_meta",
-           [](EagerOperator<Backend> &op) { return ReaderMetaToDict(op.GetReaderMeta()); });
 }
 
 void ExposePipelineDebug(py::module &m) {
@@ -2989,11 +2931,6 @@ PYBIND11_MODULE(backend_impl, m) {
   ExposeTensorLayout(types_m);
   ExposeTensor(m);
   ExposeTensorList(m);
-
-  ExposeEagerOperator<CPUBackend>(m, "EagerOperatorCPU");
-  ExposeEagerOperator<GPUBackend>(m, "EagerOperatorGPU");
-  ExposeEagerOperator<MixedBackend>(m, "EagerOperatorMixed");
-
   ExposePipelineDebug(m);
 
   types_m.attr("NHWC") = "HWC";

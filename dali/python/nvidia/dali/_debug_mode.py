@@ -24,7 +24,7 @@ import nvidia.dali.pipeline as _pipeline
 import nvidia.dali.tensors as _tensors
 import nvidia.dali.types as _types
 from nvidia.dali import _conditionals
-from nvidia.dali._utils.eager_utils import _Classification, _transform_data_to_tensorlist
+from nvidia.dali._debug_utils import _Classification, _transform_data_to_tensorlist
 from nvidia.dali.data_node import DataNode as _DataNode, _check
 from nvidia.dali.fn import _to_snake_case
 from nvidia.dali._utils.external_source_impl import (
