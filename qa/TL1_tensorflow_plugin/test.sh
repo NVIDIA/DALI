@@ -1,4 +1,18 @@
 #!/bin/bash -e
+
+# Tensorflow tests are incompatible with Python 3.13.
+# Check Python version and run test accordingly.
+set +e
+python -c '
+import sys
+if sys.version_info == (3, 13):
+    sys.exit(1)
+'
+if [ $? -ne 0 ]; then
+    exit 0
+fi
+set -e
+
 # used pip packages
 pip_packages='${python_test_runner_package} tensorflow-gpu'
 target_dir=./dali/test/python

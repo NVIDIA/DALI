@@ -1,6 +1,17 @@
 #!/bin/bash -e
-# used pip packages
-pip_packages='${python_test_runner_package} numpy'
+
+# Free-threaded Python is incompatible with numpy<2.
+# Check if Python is compiled with --disable-gil and
+# set NumPy version accordingly.
+set +e
+python3 -c 'import sysconfig ; exit(sysconfig.get_config_var("Py_GIL_DISABLED"))'
+if [ $? -ne 0  ]; then
+    pip_packages='${python_test_runner_package} numpy>=2' ;
+else
+    pip_packages='${python_test_runner_package} numpy' ;
+fi
+set -e
+
 target_dir=./dali/test/python
 
 # don't test conda with snitizers
