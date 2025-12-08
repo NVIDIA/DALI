@@ -17,6 +17,7 @@ import builtins
 import os
 import re
 import string
+import tokenize
 from contextlib import closing
 from inspect import Parameter, Signature, getdoc, getmodule, ismodule
 from pathlib import Path
@@ -70,6 +71,7 @@ _DALIImageType = _create_annotation_placeholder("DALIImageType")
 _DALIInterpType = _create_annotation_placeholder("DALIInterpType")
 _TensorLikeIn = _create_annotation_placeholder("TensorLikeIn")
 _TensorLikeArg = _create_annotation_placeholder("TensorLikeArg")
+_RNG = _create_annotation_placeholder("RNG")
 
 _enum_mapping = {
     types.DALIDataType: _DALIDataType,
@@ -402,6 +404,15 @@ def _get_implicit_extra_params(schema, api: Api, include_init_header: bool):
                     kind=Parameter.KEYWORD_ONLY,
                     default=None,
                     annotation=Optional[str],
+                )
+            )
+        elif "random" in schema.ModulePath():
+            params.append(
+                Parameter(
+                    name="rng",
+                    kind=Parameter.KEYWORD_ONLY,
+                    default=None,
+                    annotation=Optional[_RNG],
                 )
             )
 
@@ -1006,12 +1017,6 @@ def _group_signatures(api: Api):
         _, module_nesting, op_name = _names._process_op_name(schema_name, api=api)
         op = _get_op(api_module, module_nesting + [op_name])
 
-        # Special case for dynamic.ops
-        if op is None and api_module.__name__.endswith("dynamic"):
-            schema_name = f"ops__{schema_name}"
-            _, module_nesting, op_name = _names._process_op_name(schema_name, api=api)
-            op = _get_op(api_module, module_nesting + [op_name])  # type: ignore
-
         if op is None:
             continue
 
@@ -1043,7 +1048,6 @@ class StubFileManager:
         if api_path in ("ops", "fn"):
             self._header += _PIPELINE_HEADER
         else:
-            self._module_tree[""]["ops"] = self._module_tree[""]
             self._header += _DYNAMIC_HEADER
 
     def get(self, module_nesting: List[str]):
@@ -1071,6 +1075,19 @@ class StubFileManager:
                 print(f"from . import {direct_submodule} as {direct_submodule}", file=f)
 
             f.write(os.linesep * 2)
+
+            # If there's an existing .py file with the same name, prepend its content
+            py_file = self._nvidia_dali_path / self._api / f"{module_path}.py"
+            if py_file.exists():
+                with py_file.open() as file:
+                    # Remove comments from the source code
+                    source = tokenize.untokenize(
+                        token
+                        for token in tokenize.generate_tokens(file.readline)
+                        if token.type != tokenize.COMMENT
+                    )
+                f.write(source)
+
         return self._module_to_file[module_path]
 
     def close(self):
@@ -1122,8 +1139,6 @@ def gen_all_signatures(nvidia_dali_path: Union[Path, str], api: Api):
         }
         for schema_name, op in sig_groups["generated"]:
             _, module_nesting, op_name = _names._process_op_name(schema_name, api=api)
-            if api == "dynamic":
-                schema_name = schema_name.removeprefix("ops__")
             schema = _b.TryGetSchema(schema_name)
 
             signature = signature_generators[api](schema, schema_name, op_name)

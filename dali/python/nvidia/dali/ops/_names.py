@@ -44,19 +44,11 @@ def _process_op_name(op_schema_name, make_hidden=False, api="ops"):
             ("experimental.readers.Video", ["experimental", "readers"], "Video")
     """
 
-    # Dynamic mode registers non-reader operator classes under the ops module
-    dynamic_ops = api == "dynamic" and op_schema_name.startswith("ops__")
-    if dynamic_ops:
-        op_schema_name = op_schema_name.removeprefix("ops__")
-
     schema = _b.GetSchema(op_schema_name)
     submodule_path = schema.ModulePath()
     op_name = schema.OperatorName()
     if make_hidden:
         submodule_path = [*submodule_path, "hidden"]
-
-    if dynamic_ops:
-        submodule_path = ["ops", *submodule_path]
 
     to_snake_case = False
     if api == "fn":
