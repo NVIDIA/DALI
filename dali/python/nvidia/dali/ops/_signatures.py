@@ -1076,7 +1076,7 @@ class StubFileManager:
 
             f.write(os.linesep * 2)
 
-            # If there'san existing .py file with the same name, prepend its content
+            # If there's an existing .py file with the same name, prepend its content
             py_file = self._nvidia_dali_path / self._api / f"{module_path}.py"
             if py_file.exists():
                 with py_file.open() as file:
