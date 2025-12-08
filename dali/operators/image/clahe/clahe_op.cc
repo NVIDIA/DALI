@@ -15,6 +15,7 @@
 #include <cuda_runtime.h>
 
 #include <cstdlib>
+#include <mutex>
 #include <vector>
 
 // (Removed luminance debug instrumentation to avoid host transfers/OpenCV dependency.)
@@ -72,12 +73,16 @@ class ClaheGPU : public Operator<GPUBackend> {
         bins_(spec.GetArgument<int>("bins")),
         clip_limit_(spec.GetArgument<float>("clip_limit")),
         luma_only_(spec.GetArgument<bool>("luma_only")) {
-    // Initialize color conversion LUTs (one-time setup)
-    static bool luts_initialized = false;
-    if (!luts_initialized) {
-      InitColorConversionLUTs();
-      luts_initialized = true;
-    }
+    // Initialize color conversion LUTs per device using std::once_flag
+    static int ndev = []() {
+      int n;
+      CUDA_CALL(cudaGetDeviceCount(&n));
+      return n;
+    }();
+    static std::vector<std::once_flag> luts_initialized(ndev);
+    int device_id = spec.GetArgument<int>("device_id");
+    DeviceGuard dg(device_id);
+    std::call_once(luts_initialized[device_id], InitColorConversionLUTs);
   }
 
   bool SetupImpl(std::vector<OutputDesc> &outputs, const Workspace &ws) override {
