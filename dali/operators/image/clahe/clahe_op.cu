@@ -188,7 +188,6 @@ __device__ float lab_f_to_xyz(float u) {
   // LUT covers [0, 1.2] range, indexed 0-4095
   float clamped = fmaxf(0.0f, fminf(u, 1.2f));
   int idx = __float2int_rn(clamped * (4095.0f / 1.2f));  // Map [0,1.2] -> [0,4095]
-  idx = min(idx, 4095);
   return g_lab_to_xyz_lut[idx];
 }
 
