@@ -123,17 +123,6 @@ class ClaheGPU : public Operator<GPUBackend> {
           "for per-channel processing.");
     }
 
-    // Warn about RGB channel order (only once)
-    static bool warned_rgb_order = false;
-    if (has_rgb && luma_only_ && !warned_rgb_order) {
-      DALI_WARN("CRITICAL: CLAHE expects RGB channel order (Red, Green, Blue). "
-                "If your images are in BGR order (common with OpenCV cv2.imread), "
-                "the luminance calculation will be INCORRECT. "
-                "Convert BGR to RGB using fn.reinterpret or similar "
-                "operators before CLAHE.");
-      warned_rgb_order = true;
-    }
-
     // Use DynamicScratchpad for automatic memory management
     kernels::DynamicScratchpad scratchpad(stream);
 
