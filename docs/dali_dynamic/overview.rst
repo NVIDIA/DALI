@@ -1,8 +1,5 @@
-[Experimental] DALI Dynamic
-========
-
 Overview
---------
+========
 
 **DALI Dynamic** extends NVIDIA DALI by introducing an imperative execution model with lazy evaluation.
 It complements the existing graph-based pipeline execution, and its main goal is to enable seamless
@@ -36,7 +33,6 @@ Key features include:
    can be performed in DALI Dynamic using exactly the same operators as a pipeline mode
    and transition between the two modes is straightforward.
 
-
 How it works
 ------------
 
@@ -50,13 +46,13 @@ to improve performance.
 
 .. code-block:: python
 
-   import nvidia.dali.dynamic as ndd
+   import nvidia.dali.experimental.dynamic as ndd
 
    model = MyModel(...)
    flip_horizontal = True
    flip_vertical = False
-   dataset = ndd.readers.file(file_root=images_dir)
-   for batch in dataset.epoch(batch_size=16):
+   dataset = ndd.readers.File(file_root=images_dir)
+   for batch in dataset.next_epoch(batch_size=16):
        img = ndd.decoders.image(batch, device="mixed")
        flipped = ndd.flip(img, horizontal=flip_horizontal, vertical=flip_vertical)
        model((flipped, img))

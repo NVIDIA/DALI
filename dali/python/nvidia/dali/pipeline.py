@@ -146,18 +146,18 @@ class Pipeline(object):
         In order to synchronize with the pipeline one needs to call
         :meth:`outputs` method.
     exec_dynamic : bool, optional, default = None
-        Whether to use the dynamic executor.
-        Dynamic executor allows to interleave CPU and GPU operators and to perform GPU to CPU
+        ``exec_dynamic`` marks the default execution model.
+        This execution model allows to interleave CPU and GPU operators and to perform GPU to CPU
         copies. It also uses dynamic memory allocation for pipeline outputs and inter-operator
         buffers, which reduces memory consumption in complex pipelines.
-        The dynamic executor is used by default when `exec_async` and `exec_pipelined` are ``True``
-        and separated queues are not used (see `prefetch_queue_depth`). It can be forcibly disabled
-        by specifying ``False``.
+        This execution model is used by default when ``exec_async`` and ``exec_pipelined`` are
+        ``True`` and separated queues are not used (see ``prefetch_queue_depth``). It can be
+        forcibly disabled by specifying ``exec_dynamic=False``.
     stream_policy : StreamPolicy, optional, default = None
-        Stream policy (only for dynamic executor).
+        Stream policy (only for the default execution model).
         If not specified, the default value is ``StreamPolicy.PER_BACKEND``.
     concurrency : OperatorConcurrency, optional, default = None
-        Operator concurrency policy (only for dynamic executor).
+        Operator concurrency policy (only for the default execution model).
         If not specified, the default value is ``OperatorConcurrency.BACKEND``.
     bytes_per_sample : int, optional, default = 0
         A hint for DALI for how much memory to use for its tensors.
@@ -1338,7 +1338,9 @@ class Pipeline(object):
             else:
                 reason = "was explicitly disabled in this pipeline"
 
-            raise RuntimeError(error_message_prefix + " dynamic execution, which " + reason + ".")
+            raise RuntimeError(
+                error_message_prefix + " legacy execution model, which " + reason + "."
+            )
 
     def outputs(self, cuda_stream=None):
         """Returns the outputs of the pipeline and releases previous buffer.
@@ -1353,7 +1355,7 @@ class Pipeline(object):
             e.g. ``cupy.cuda.Stream``, ``torch.cuda.Stream``
             The stream to which the returned `TensorLists` are bound.
             Defaults to None, which means that the outputs are synchronized with the host.
-            Works only with pipelines using dynamic execution.
+            Works only with pipelines using the default execution model.
 
         Returns
         -------
@@ -1421,12 +1423,12 @@ class Pipeline(object):
             e.g. ``cupy.cuda.Stream``, ``torch.cuda.Stream``
             The stream to which the returned `TensorLists` are bound.
             Defaults to None, which means that the outputs are synchronized with the host.
-            Works only with pipelines using dynamic execution.
+            Works only with pipelines using the default execution model.
 
         Returns
         -------
             A list of ``TensorList`` objects for respective pipeline outputs.
-            Unless using the dynamic executor, the returned buffers are valid only until
+            Unless using the default execution model, the returned buffers are valid only until
             :meth:`release_outputs` is called.
         """
         if cuda_stream is not None:
@@ -1458,7 +1460,8 @@ class Pipeline(object):
         Should not be mixed with :meth:`run` in the same pipeline.
 
         .. note::
-            When using dynamic executor (``exec_dynamic=True``), the buffers are not invalidated.
+            When using the default execution model (``exec_dynamic = True | None``),
+            the buffers are not invalidated.
         """
         with self._check_api_type_scope(types.PipelineAPIType.SCHEDULED):
             self.build()

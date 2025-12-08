@@ -1,6 +1,6 @@
 #!/bin/bash -e
 # used pip packages
-pip_packages='${python_test_runner_package} dataclasses numpy opencv-python pillow librosa scipy nvidia-ml-py==11.450.51 numba lz4 numba_cuda[cu${DALI_CUDA_MAJOR_VERSION}]>0.19.0'
+pip_packages='${python_test_runner_package} dataclasses numpy opencv-python pillow librosa scipy nvidia-ml-py==11.450.51 numba lz4 numba-cuda'
 
 target_dir=./dali/test/python
 
@@ -10,7 +10,7 @@ test_body() {
   fi
   # make sure nvcc and nvjitlink are the same version, if the nvjitlink is lower than nvcc
   # we get the PTX version mismatch error
-  if [[ "$DALI_CUDA_MAJOR_VERSION" == "12" ]]; then
+  if pip show nvidia-cuda-nvcc-cu12 > /dev/null 2>&1; then
     nvcc_pkg="nvidia-cuda-nvcc-cu12"
     nvjitlink_pkg="nvidia-nvjitlink-cu12"
   else

@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@
 #include "dali/pipeline/operator/arg_helper.h"
 #include "dali/operators/random/rng_base_gpu.h"
 #include "dali/operators/random/rng_base_cpu.h"
+#include "dali/operators/random/random_dist.h"
 
 #define DALI_COINFLIP_TYPES bool, uint8_t, int32_t
 
@@ -27,10 +28,7 @@ namespace dali {
 
 template <typename Backend>
 struct CoinFlipImpl {
-  using DistType =
-    typename std::conditional_t<std::is_same<Backend, GPUBackend>::value,
-        curand_bernoulli_dist,
-        std::bernoulli_distribution>;
+  using DistType = random::bernoulli_dist;
 
   DALI_HOST_DEV explicit CoinFlipImpl() {}
 

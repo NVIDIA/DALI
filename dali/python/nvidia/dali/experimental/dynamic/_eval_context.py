@@ -18,7 +18,7 @@ import nvidia.dali.backend_impl as _b
 import weakref
 
 _tls = local()
-_tls.default = None
+_tls.default = {}  # per-device default context
 _tls.stack = []
 
 
@@ -33,6 +33,7 @@ class EvalContext:
 
     This class aggregates state and auxiliary objects that are necessary to execute DALI operators.
     These include:
+
     - CUDA device
     - thread pool
     - cuda stream.
@@ -57,11 +58,6 @@ class EvalContext:
         """
         self._invocations = []
         self._cuda_stream = cuda_stream
-        if device_id is None:
-            try:
-                device_id = _b.GetCUDACurrentDevice()
-            except Exception:
-                device_id = None
         if device_id is not None:
             self._device = _device.Device("gpu", device_id)
         else:
@@ -77,14 +73,21 @@ class EvalContext:
         """
         Returns the currently active EvalContext for the calling thread.
         """
-        return _tls.stack[-1] if _tls.stack else EvalContext.default()
+        if _tls.stack:
+            return _tls.stack[-1]
+        else:
+            return EvalContext.default()
 
     def __enter__(self):
         _tls.stack.append(self)
+        if self._device:
+            self._device.__enter__()
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
         assert _tls.stack[-1] is self
+        if self._device:
+            self._device.__exit__(exc_type, exc_value, traceback)
         _tls.stack.pop()
         if EvalContext.current() is not self:
             self.evaluate_all()
@@ -117,9 +120,10 @@ class EvalContext:
 
     @staticmethod
     def default():
-        if _tls.default is None:
-            _tls.default = EvalContext()
-        return _tls.default
+        current_device_id = _device.Device.default_device_id("gpu")
+        if current_device_id not in _tls.default:
+            _tls.default[current_device_id] = EvalContext(device_id=current_device_id)
+        return _tls.default[current_device_id]
 
     def cached_results(self, invocation):
         """

@@ -15,6 +15,10 @@
 import nvidia.dali.experimental.dynamic as ndd
 import nvidia.dali.backend as _backend
 from nose_utils import SkipTest, attr
+import numpy as np
+import os
+from nose2.tools import cartesian_params
+from test_utils import get_dali_extra_path
 
 
 def test_eval_context_get():
@@ -132,3 +136,101 @@ def test_eval_context_evaluate_all_weakref():
         ctx._add_invocation(inv, weak=True)
         del inv
     assert run_count_container.run_count == 0
+
+
+def _gpu_expr():
+    a = ndd.tensor(np.array([1.0, 2.0, 3.0], dtype=np.float32), device="gpu")
+    b = ndd.tensor(np.array([4.0, 5.0, 6.0], dtype=np.float32), device="gpu")
+    return ndd.slice(a + b, end=[1], axes=[0])
+
+
+def _validate_gpu_expr_result(result, expected_device_id):
+    assert result.device.device_type == "gpu"
+    assert result.device.device_id == expected_device_id
+    assert result.shape == (1,)
+    result = result.evaluate()
+    result_cpu = result.to_device(ndd.Device("cpu"))
+    result_cpu = result_cpu.evaluate()
+    assert result_cpu.shape == (1,)
+    assert result_cpu.dtype == ndd.float32
+    assert result_cpu.device.device_type == "cpu"
+    assert result_cpu.device.device_id == 0
+    np.testing.assert_array_equal(result_cpu, np.array([5.0], dtype=np.float32))
+
+
+@cartesian_params(
+    [
+        None,
+    ]
+    + list(range(_backend.GetCUDADeviceCount())),
+)
+def test_eval_context_evaluate_gpu_expr(device_id):
+    """
+    Test that operations executed on the device context used to create the invocation, regardless
+    of the current eval context.
+    """
+    if _backend.GetCUDADeviceCount() == 0:
+        raise SkipTest("At least 1 device needed for the test")
+
+    if device_id is None:
+        result = _gpu_expr()
+    else:
+        with ndd.Device(f"gpu:{device_id}"):
+            result = _gpu_expr()
+    actual_device_id = device_id if device_id is not None else 0
+    # It doesn't matter if the current eval context is different from the one used to create
+    # the invocation, since the eval context is captured when the invocation is created.
+    for eval_device_id in range(_backend.GetCUDADeviceCount()):
+        with ndd.EvalContext(device_id=eval_device_id):
+            _validate_gpu_expr_result(result, actual_device_id)
+
+
+def test_default_device_conversion_to_cpu():
+    """
+    Test that evaluating a GPU tensor converted to CPU doesn't trigger any device mismatch errors.
+    """
+    if _backend.GetCUDADeviceCount() == 0:
+        raise SkipTest("At least 1 device needed for the test")
+
+    cpu_arr = np.array([1.0, 2.0, 3.0], dtype=np.float32)
+    gpu_tensor = ndd.tensor(cpu_arr, device="gpu")
+    cpu_tensor = gpu_tensor.cpu()
+    cpu_tensor_result = cpu_tensor.evaluate()
+    np.testing.assert_array_equal(cpu_tensor_result, cpu_arr)
+
+
+@cartesian_params(
+    [
+        None,
+    ]
+    + list(range(_backend.GetCUDADeviceCount())),
+)
+def test_device_match_mixed_operator(device_id):
+    """
+    Test that mixed operators (such as decoders.image) correctly honor the active device context.
+    """
+    if _backend.GetCUDADeviceCount() == 0:
+        raise SkipTest("At least 1 device needed for the test")
+
+    image_path = os.path.join(
+        get_dali_extra_path(), "db", "single", "jpeg", "100", "swan-3584559_640.jpg"
+    )
+    with open(image_path, "rb") as f:
+        # Use .copy() to create a writable array so that it can be passed as a Tensor through dlpack
+        encoded_data = np.frombuffer(f.read(), dtype=np.uint8).copy()
+
+    if device_id is None:
+        decoded_gpu = ndd.decoders.image(encoded_data, device="mixed")
+    else:
+        with ndd.Device(f"gpu:{device_id}"):
+            decoded_gpu = ndd.decoders.image(encoded_data, device="mixed")
+
+    eval_device_id = device_id if device_id is not None else 0
+    with ndd.EvalContext(device_id=eval_device_id):
+        assert decoded_gpu.device.device_type == "gpu"
+        assert decoded_gpu.device.device_id == eval_device_id
+        output = decoded_gpu.evaluate()
+        # Image dimensions for swan-3584559_640.jpg
+        assert output.ndim == 3
+        assert output.shape == (408, 640, 3)
+        assert output.dtype == ndd.uint8

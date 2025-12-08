@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,7 +15,6 @@
 #include <random>
 #include "dali/pipeline/operator/operator.h"
 #include "dali/operators/random/rng_base_cpu.h"
-#include "dali/pipeline/util/batch_rng.h"
 #include "dali/pipeline/operator/arg_helper.h"
 
 namespace dali {
@@ -41,6 +40,7 @@ either specified with `roi_start`/`roi_end` or `roi_start`/`roi_shape`.
 The operator produces an output representing the cropping window start coordinates.
 )code")
     .AddRandomSeedArg()
+    .AddRandomStateArg()
     .AddArg("crop_shape",
       R"code(Cropping window dimensions.)code", DALI_INT_VEC, true)
     .AddArg("roi_start",
@@ -69,7 +69,7 @@ bounds of the input.
     .NumInput(0, 1)
     .NumOutput(1);
 
-class ROIRandomCropCPU : public rng::OperatorWithRng<CPUBackend> {
+class ROIRandomCropCPU : public rng::OperatorWithRng<Operator<CPUBackend>> {
  public:
   explicit ROIRandomCropCPU(const OpSpec &spec);
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override;
@@ -88,7 +88,7 @@ class ROIRandomCropCPU : public rng::OperatorWithRng<CPUBackend> {
 };
 
 ROIRandomCropCPU::ROIRandomCropCPU(const OpSpec &spec)
-    : rng::OperatorWithRng<CPUBackend>(spec),
+    : OperatorWithRng<Operator<CPUBackend>>(spec),
       roi_start_("roi_start", spec),
       roi_end_("roi_end", spec),
       roi_shape_("roi_shape", spec),
@@ -180,6 +180,7 @@ void ROIRandomCropCPU::RunImpl(Workspace &ws) {
   int ndim = crop_start[0].shape[0];
 
   for (int sample_idx = 0; sample_idx < nsamples; sample_idx++) {
+    auto rng = GetSampleRNG(sample_idx);
     int64_t* sample_sh = nullptr;
     if (!in_shape_.empty())
       sample_sh = in_shape_.tensor_shape_span(sample_idx).data();
@@ -207,7 +208,7 @@ void ROIRandomCropCPU::RunImpl(Workspace &ws) {
         }
 
         auto dist = std::uniform_int_distribution<int64_t>(start_range[0], start_range[1]);
-        crop_start[sample_idx].data[d] = dist(rng_[sample_idx]);
+        crop_start[sample_idx].data[d] = dist(rng);
       }
     }
   }

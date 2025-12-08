@@ -115,6 +115,19 @@ Args
     return ret
 
 
+def _get_rng_doc():
+    """Return documentation for the rng argument used in dynamic API random operators."""
+    return _numpydoc_formatter(
+        "rng",
+        "nvidia.dali.experimental.dynamic.random.RNG",
+        "A random number generator instance.\n"
+        "Can be obtained by calling "
+        ":func:`nvidia.dali.experimental.dynamic.random.RNG(seed)`.\n"
+        "If not provided, the default RNG is used.",
+        optional=True,
+    )
+
+
 def _get_kwargs(schema, api="ops", args=None):
     """
     Get the numpydoc-formatted docstring section for keywords arguments.
@@ -176,6 +189,12 @@ def _get_kwargs(schema, api="ops", args=None):
             doc = doc.replace("TensorList", "Tensor/Batch")
         ret += doc
         ret += "\n"
+
+    # Add rng documentation for dynamic API random operators
+    if api == "dynamic" and args is not None and "rng" in args:
+        ret += _get_rng_doc()
+        ret += "\n"
+
     return ret
 
 

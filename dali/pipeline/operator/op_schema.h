@@ -453,6 +453,15 @@ used with DALIDataType, to avoid confusion with `AddOptionalArg<type>(name, doc,
    */
   OpSchema &AddRandomSeedArg();
 
+  /** Adds a random state argument to the operator.
+   *
+   * This argument is used to pass the initial state of the random number generator
+   * to random operators in Dynamic Mode. It accepts a 1D tensor of uint32_t values.
+   * It is not advertised in the Python API and is automatically hidden from 
+   * documentation (by using a leading underscore).
+   */
+  OpSchema &AddRandomStateArg();
+
   /**  Marks an argument as deprecated in favor of a new argument
    *
    * Providing renamed_to means the argument has been renamed and we can safely
@@ -674,6 +683,9 @@ used with DALIDataType, to avoid confusion with `AddOptionalArg<type>(name, doc,
    */
   bool HasArgument(std::string_view name, bool include_internal = false) const;
 
+  /** Returns true if the operator has a "_random_state" tensor argument. */
+  bool HasRandomStateArg() const;
+
   /** Returns true if the operator has a "seed" argument. */
   bool HasRandomSeedArg() const;
 
@@ -698,8 +710,11 @@ used with DALIDataType, to avoid confusion with `AddOptionalArg<type>(name, doc,
    */
   std::string GetArgumentDefaultValueString(std::string_view name) const;
 
-  /** Get names of all required, optional, and deprecated arguments */
-  std::vector<std::string> GetArgumentNames() const;
+  /** Get names of all required, optional, and deprecated arguments.
+   *
+   * @param include_hidden - if true, includes hidden arguments
+   */
+  std::vector<std::string> GetArgumentNames(bool include_hidden = false) const;
   bool IsTensorArgument(std::string_view name) const;
   bool ArgSupportsPerFrameInput(std::string_view arg_name) const;
 

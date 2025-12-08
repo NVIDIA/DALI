@@ -22,7 +22,7 @@ from ._tensor import (
     as_tensor as _as_tensor,
 )
 import nvidia.dali.backend as _backend
-from ._eval_context import EvalContext as _EvalContext
+import nvidia.dali.types as _dali_types
 from ._device import Device, device as _device
 from . import _eval_mode
 from . import _invocation
@@ -182,7 +182,7 @@ class Batch:
     This class represents a batch of tensors usable with DALI dynamic API. The tensors in the batch
     have the same element type, layout and number of dimensions, but can differ in shape.
 
-    A Batch can contain:
+    A :class:`Batch` can contain:
 
     * a single buffer and shape, owned by DALI, representing consecutive tensors
     * a list of :class:`Tensor` objects.
@@ -201,10 +201,10 @@ class Batch:
         invocation_result: Optional[_invocation.InvocationResult] = None,
         copy: bool = False,
     ):
-        """Constructs a Batch object.
+        """Constructs a :class:`Batch` object.
 
         .. warning::
-            Batch objects should not be constructed directly, use :meth:`batch` or
+            :class:`Batch` objects should not be constructed directly, use :meth:`batch` or
             :meth:`as_batch` instead.
 
         The batch object can be created either from an existing object, passed as `tensors` or
@@ -218,6 +218,7 @@ class Batch:
             The data to construct the batch from. It can be a list of tensors, a TensorList,
             or other supported types. If None, the batch is constructed from an invocation result.
             Supported types are:
+
             - a list of tensor-like objects; the objects need to have matching number of dimensions,
             data types and layouts,
             - a tensor-like object; the outermost dimenion is interpreted as the batch dimension
@@ -388,22 +389,27 @@ class Batch:
         return self._wraps_external_data
 
     @staticmethod
-    def broadcast(sample, batch_size: int, device: Optional[Device] = None) -> "Batch":
+    def broadcast(
+        sample,
+        batch_size: int,
+        device: Optional[Device] = None,
+        dtype: Optional[DType] = None,
+    ) -> "Batch":
         """
         Creates a batch by repeating a single `sample` `batch_size` times.
 
         This function returns a batch obtained by repeating the sample `sample` `batch_size` times.
         Optionally, the result may be placed on the specified device (otherwise it will inherit the
-        device from the `sample` argument).
+        device from the `sample` argument) or converted to the desired data type.
 
         This function yields result equivalent to
-        ``as_batch([tensor(sample)] * batch_size, device=device)``
+        ``as_batch([tensor(sample, dtype=dtype, device=device)] * batch_size)``
         but is much more efficient.
         """
         if isinstance(sample, Batch):
             raise ValueError("Cannot broadcast a Batch")
         if _is_tensor_type(sample):
-            t = _as_tensor(sample, device=device).evaluate()
+            t = _as_tensor(sample, device=device, dtype=dtype).evaluate()
             if t.device.device_type == "gpu":
                 tl_type = _backend.TensorListGPU
             else:
@@ -422,6 +428,8 @@ class Batch:
                 arr = arr.astype(np.uint32)
             elif arr.dtype == object:
                 arr, converted_dtype_id = _try_convert_enums(arr)
+            if dtype is not None and dtype.kind != DType.Kind.enum:
+                arr = arr.astype(_dali_types.to_numpy_type(dtype.type_id))
             arr = np.repeat(arr[np.newaxis], batch_size, axis=0)
 
         with nvtx.annotate("to backend", domain="batch"):
@@ -429,7 +437,7 @@ class Batch:
             if converted_dtype_id is not None:
                 tl.reinterpret(converted_dtype_id)
         with nvtx.annotate("create batch", domain="batch"):
-            return Batch(tl, device=device)
+            return Batch(tl, device=device, dtype=dtype)
 
     @property
     def dtype(self) -> DType:
@@ -522,11 +530,11 @@ class Batch:
         if self.device == device and not force_copy:
             return self
         else:
-            with device:
+            copy_dev = device if device.device_type == "gpu" else self.device
+            with copy_dev:
                 from . import copy
 
-                ret = copy(self, device=device)
-                return ret
+                return copy(self, device=device)
 
     def cpu(self) -> "Batch":
         """
@@ -566,17 +574,17 @@ class Batch:
         Samplewise slicing interface allows the slicing parmaters to be batches (with the same
         number of samples) and the slicing parameters are applied to respective samples.
 
-        ```Python
-        start = Batch([1, 2, 3])
-        stop = Batch([4, 5, 6])
-        step = Batch([1, 1, 2])
-        sliced = input.slice[start, stop, step]
-        # the result is equivalent to
-        sliced = Batch([
-            sample[start[i]:stop[i]:step[i]]
-            for i, sample in enumerate(input)
-        ])
-        ```
+        ::
+
+            start = Batch([1, 2, 3])
+            stop = Batch([4, 5, 6])
+            step = Batch([1, 1, 2])
+            sliced = input.slice[start, stop, step]
+            # the result is equivalent to
+            sliced = Batch([
+                sample[start[i]:stop[i]:step[i]]
+                for i, sample in enumerate(input)
+            ])
 
         If the slicing parameters are not batches, they are broadcast to all samples.
         """
@@ -655,15 +663,13 @@ class Batch:
 
         Example::
 
-        ```
-        >>> import nvidia.dali.experimental.dynamic as ndd
-        >>> import numpy as np
-        >>> t0 = ndd.tensor(np.zeros((480, 640, 3)))
-        >>> t1 = ndd.tensor(np.zeros((720, 1280, 1)))
-        >>> b = ndd.as_batch([t0, t1])
-        >>> print(b.shape)
-        [(480, 640, 3), (720, 1280, 1)]
-        ```
+            >>> import nvidia.dali.experimental.dynamic as ndd
+            >>> import numpy as np
+            >>> t0 = ndd.tensor(np.zeros((480, 640, 3)))
+            >>> t1 = ndd.tensor(np.zeros((720, 1280, 1)))
+            >>> b = ndd.as_batch([t0, t1])
+            >>> print(b.shape)
+            [(480, 640, 3), (720, 1280, 1)]
         """
         if self._invocation_result is not None:
             return self._invocation_result.shape
@@ -690,23 +696,22 @@ class Batch:
         """
         if self._storage is None:
             # TODO(michalz): Consider thread-safety
-            with _EvalContext.current() as ctx:
-                if self._invocation_result is not None:
-                    self._storage = self._invocation_result.value(ctx)
-                else:
-                    with self._device:
-                        if self._device.device_type == "cpu":
-                            backend_type = _backend.TensorListCPU
-                        elif self._device.device_type == "gpu":
-                            backend_type = _backend.TensorListGPU
-                        else:
-                            raise ValueError(
-                                f"Internal error: "
-                                f"Unsupported device type: {self._device.device_type}"
-                            )
-                        self._storage = backend_type(
-                            [t.evaluate()._storage for t in self._tensors], self.layout
+            if self._invocation_result is not None:
+                self._storage = self._invocation_result.value()
+            else:
+                with self._device:
+                    if self._device.device_type == "cpu":
+                        backend_type = _backend.TensorListCPU
+                    elif self._device.device_type == "gpu":
+                        backend_type = _backend.TensorListGPU
+                    else:
+                        raise ValueError(
+                            f"Internal error: "
+                            f"Unsupported device type: {self._device.device_type}"
                         )
+                    self._storage = backend_type(
+                        [t.evaluate()._storage for t in self._tensors], self.layout
+                    )
         return self
 
     def __add__(self, other):
@@ -795,7 +800,7 @@ def batch(
     device: Optional[Device] = None,
     layout: Optional[str] = None,
 ):
-    """Constructs a Batch object.
+    """Constructs a :class:`Batch` object.
 
     Constructs a batch by copying the input tensors and optionally converting them to the desired
     data type and storing on the specified device.
@@ -806,7 +811,8 @@ def batch(
         The data to construct the batch from. Can be a list of tensors, a TensorList,
         or other supported types.
         Supported types are:
-        - a Batch object; the batch is copied and the data is converted and moved to the
+
+        - a :class:`Batch` object; the batch is copied and the data is converted and moved to the
           specified device, if necessary
         - a list of tensor-like objects; the objects need to have matching number of dimensions,
           data types and layouts,
@@ -840,7 +846,7 @@ def as_batch(
     device: Optional[Device] = None,
     layout: Optional[str] = None,
 ):
-    """Constructs a Batch object, avoiding the copy.
+    """Constructs a :class:`Batch` object, avoiding the copy.
 
     Constructs a batch by viewing the input tensors as a batch. If the input tensors do not
     reside on the specified device or do not match the desired type, the data will be converted
@@ -853,7 +859,8 @@ def as_batch(
         or other supported types. In general, the input tensors must be kept alive by the caller
         until the batch is no longer needed.
         Supported types are:
-        - a Batch object; the batch is copied and the data is converted and moved to the
+
+        - a :class:`Batch` object; the batch is copied and the data is converted and moved to the
           specified device, if necessary
         - a list of tensor-like objects; the objects need to have matching number of dimensions,
           data types and layouts,

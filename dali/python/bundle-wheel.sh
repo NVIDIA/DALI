@@ -250,8 +250,8 @@ echo "Fixed hashed names"
 patch_rpath() {
     local FILE=$1
     UPDIRS=$(dirname $(echo "$FILE" | sed "s|$PKGNAME_PATH||") | sed 's/[^\/][^\/]*/../g')
-    echo "Setting rpath of $FILE to '\$ORIGIN:\$ORIGIN$UPDIRS:\$ORIGIN$UPDIRS/.libs:\$ORIGIN/../cufft/lib:\$ORIGIN/../npp/lib:\$ORIGIN/../nvjpeg/lib:\$ORIGIN/../nvimgcodec:\$ORIGIN/../nvcomp:/usr/local/cuda/lib64:\$ORIGIN/../cu${MAJOR_CUDA_VERSION}/lib'"
-    patchelf --set-rpath "\$ORIGIN:\$ORIGIN$UPDIRS:\$ORIGIN$UPDIRS/.libs:\$ORIGIN/../cufft/lib:\$ORIGIN/../npp/lib:\$ORIGIN/../nvjpeg/lib:\$ORIGIN/../nvimgcodec:\$ORIGIN/../nvcomp:/usr/local/cuda/lib64:\$ORIGIN/../cu${MAJOR_CUDA_VERSION}/lib" $FILE
+    echo "Setting rpath of $FILE to '\$ORIGIN:\$ORIGIN$UPDIRS:\$ORIGIN$UPDIRS/.libs:\$ORIGIN/../cufft/lib:\$ORIGIN/../npp/lib:\$ORIGIN/../nvjpeg/lib:\$ORIGIN/../nvimgcodec:\$ORIGIN/../libnvcomp/lib64:/usr/local/cuda/lib64:\$ORIGIN/../cu${MAJOR_CUDA_VERSION}/lib'"
+    patchelf --set-rpath "\$ORIGIN:\$ORIGIN$UPDIRS:\$ORIGIN$UPDIRS/.libs:\$ORIGIN/../cufft/lib:\$ORIGIN/../npp/lib:\$ORIGIN/../nvjpeg/lib:\$ORIGIN/../nvimgcodec:\$ORIGIN/../libnvcomp/lib64:/usr/local/cuda/lib64:\$ORIGIN/../cu${MAJOR_CUDA_VERSION}/lib" $FILE
     patchelf --print-rpath $FILE
 }
 echo "Fixing rpath of main files..."
