@@ -17,7 +17,9 @@ import os
 from nvidia.dali import fn, types
 from nvidia.dali.pipeline import pipeline_def
 from test_utils import get_dali_extra_path
+from nose_utils import SkipTest, attr
 import cv2
+import nvidia.dali as dali
 
 # Thresholds for synthetic/simple images
 MSE_THRESHOLD = 5.0
@@ -701,3 +703,35 @@ def test_lab_color_conversion_accuracy():
     # GPU floating-point operations and LUT quantization add small differences
     # The test uses minimal CLAHE settings (1x1 tiles, clip_limit=1.0)
     # but still applies histogram equalization
+
+
+@attr("multi_gpu")
+def test_clahe_multi_gpu():
+    """Test that CLAHE produces identical results on different GPUs"""
+    if dali.backend.GetCUDADeviceCount() < 2:
+        raise SkipTest("At least 2 devices needed for the test")
+
+    image_path = os.path.join(test_data_root, "db", "imgproc", "alley.png")
+
+    @dali.pipeline_def(num_threads=4, batch_size=1)
+    def clahe_pipe():
+        img, _ = fn.readers.file(files=[image_path])
+        img = fn.decoders.image(img, device="mixed")
+        return fn.clahe(img, clip_limit=2, tiles_x=8, tiles_y=8, luma_only=True)
+
+    # Run on GPU 0
+    p0 = clahe_pipe(device_id=0)
+    p0.build()
+    (ret0,) = p0.run()
+    img0 = np.array(ret0.as_cpu()[0])
+    del p0
+
+    # Run on GPU 1
+    p1 = clahe_pipe(device_id=1)
+    p1.build()
+    (ret1,) = p1.run()
+    img1 = np.array(ret1.as_cpu()[0])
+    del p1
+
+    # Results should be identical across GPUs
+    assert np.array_equal(img0, img1), "CLAHE results differ between GPU 0 and GPU 1"
