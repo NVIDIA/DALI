@@ -595,7 +595,6 @@ def build_fn_wrappers(all_ops):
     return wrappers
 
 
-#TODO(klecki): ops collection should not be needed anymore.
 def build_operators():
     """Main entry point for dynamic mode operator discovery and construction.
     Returns a tuple of all operator classes and functional wrappers."""
