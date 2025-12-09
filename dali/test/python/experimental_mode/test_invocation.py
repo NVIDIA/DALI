@@ -80,7 +80,7 @@ class MockOperator:
         self._batch_size = batch_size
         self._addend = addend
 
-    def run(self, ctx, *inputs, batch_size=None, addend=None):
+    def _run(self, ctx, *inputs, batch_size=None, addend=None):
         if addend is None:
             addend = self._addend
             if addend is None:
@@ -109,10 +109,10 @@ class MockOperator:
         else:
             return tuple(MockTensor(t.data + addend.data, t.layout) for t in inputs)
 
-    def infer_num_outputs(self, *inputs, **args):
+    def _infer_num_outputs(self, *inputs, **args):
         return max(len(inputs), 1)
 
-    def infer_output_devices(self, *inputs, **args):
+    def _infer_output_devices(self, *inputs, **args):
         return [input.device for input in inputs]
 
 
@@ -122,25 +122,25 @@ def test_mock_operator_tensor():
     b2 = MockTensor(np.int32([4, 5, 6]))
     b3 = MockTensor(np.int32([7, 8, 9]))
     a = MockTensor(np.int32([10, 20, 30]))
-    assert op.infer_num_outputs() == 1
-    assert op.infer_num_outputs(b1, addend=a) == 1
-    assert op.infer_num_outputs(b1, b2, addend=a) == 2
-    assert op.infer_output_devices(b1, b2, addend=a) == [b1.device, b2.device]
-    assert op.infer_output_devices(b1, b2, b3, addend=a) == [b1.device, b2.device, b3.device]
+    assert op._infer_num_outputs() == 1
+    assert op._infer_num_outputs(b1, addend=a) == 1
+    assert op._infer_num_outputs(b1, b2, addend=a) == 2
+    assert op._infer_output_devices(b1, b2, addend=a) == [b1.device, b2.device]
+    assert op._infer_output_devices(b1, b2, b3, addend=a) == [b1.device, b2.device, b3.device]
 
-    out = op.run(ndd.EvalContext.current(), addend=a)
+    out = op._run(ndd.EvalContext.current(), addend=a)
     assert out == (MockTensor(np.int32([10, 20, 30])),)
 
-    out = op.run(ndd.EvalContext.current(), b1, addend=a)
+    out = op._run(ndd.EvalContext.current(), b1, addend=a)
     assert out == (MockTensor(np.int32([11, 22, 33])),)
 
-    out = op.run(ndd.EvalContext.current(), b1, b2, addend=a)
+    out = op._run(ndd.EvalContext.current(), b1, b2, addend=a)
     assert out == (
         MockTensor(np.int32([11, 22, 33])),
         MockTensor(np.int32([14, 25, 36])),
     )
 
-    out = op.run(ndd.EvalContext.current(), b1, b2, b3, addend=a)
+    out = op._run(ndd.EvalContext.current(), b1, b2, b3, addend=a)
     assert out == (
         MockTensor(np.int32([11, 22, 33])),
         MockTensor(np.int32([14, 25, 36])),
@@ -154,25 +154,25 @@ def test_mock_operator_batch():
     b2 = MockBatch([MockTensor(np.int32([4, 5, 6]))])
     b3 = MockBatch([MockTensor(np.int32([7, 8, 9]))])
     a = MockBatch([MockTensor(np.int32([10, 20, 30]))])
-    assert op.infer_num_outputs() == 1
-    assert op.infer_num_outputs(b1, addend=a) == 1
-    assert op.infer_num_outputs(b1, b2, addend=a) == 2
-    assert op.infer_output_devices(b1, b2, addend=a) == [b1.device, b2.device]
-    assert op.infer_output_devices(b1, b2, b3, addend=a) == [b1.device, b2.device, b3.device]
+    assert op._infer_num_outputs() == 1
+    assert op._infer_num_outputs(b1, addend=a) == 1
+    assert op._infer_num_outputs(b1, b2, addend=a) == 2
+    assert op._infer_output_devices(b1, b2, addend=a) == [b1.device, b2.device]
+    assert op._infer_output_devices(b1, b2, b3, addend=a) == [b1.device, b2.device, b3.device]
 
-    out = op.run(ndd.EvalContext.current(), addend=a, batch_size=1)
+    out = op._run(ndd.EvalContext.current(), addend=a, batch_size=1)
     assert out == (MockBatch([MockTensor(np.int32([10, 20, 30]))]),)
 
-    out = op.run(ndd.EvalContext.current(), b1, addend=a, batch_size=1)
+    out = op._run(ndd.EvalContext.current(), b1, addend=a, batch_size=1)
     assert out == (MockBatch([MockTensor(np.int32([11, 22, 33]))]),)
 
-    out = op.run(ndd.EvalContext.current(), b1, b2, addend=a, batch_size=1)
+    out = op._run(ndd.EvalContext.current(), b1, b2, addend=a, batch_size=1)
     assert out == (
         MockBatch([MockTensor(np.int32([11, 22, 33]))]),
         MockBatch([MockTensor(np.int32([14, 25, 36]))]),
     )
 
-    out = op.run(ndd.EvalContext.current(), b1, b2, b3, addend=a, batch_size=1)
+    out = op._run(ndd.EvalContext.current(), b1, b2, b3, addend=a, batch_size=1)
     assert out == (
         MockBatch([MockTensor(np.int32([11, 22, 33]))]),
         MockBatch([MockTensor(np.int32([14, 25, 36]))]),

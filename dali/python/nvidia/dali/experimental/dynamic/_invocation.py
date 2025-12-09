@@ -76,7 +76,7 @@ class Invocation:
 
     def device(self, result_index: int):
         if self._output_devices is None:
-            self._output_devices = self._operator.infer_output_devices(*self._inputs, **self._args)
+            self._output_devices = self._operator._infer_output_devices(*self._inputs, **self._args)
         return self._output_devices[result_index]
 
     def ndim(self, result_index: int) -> int:
@@ -123,7 +123,7 @@ class Invocation:
 
     def __len__(self):
         if self._num_outputs is None:
-            self._num_outputs = self._operator.infer_num_outputs(*self._inputs, **self._args)
+            self._num_outputs = self._operator._infer_num_outputs(*self._inputs, **self._args)
         return self._num_outputs
 
     @property
@@ -159,7 +159,7 @@ class Invocation:
             # if cached is not None:
             #     self._results = cached
             # else:
-            r = self._operator.run(
+            r = self._operator._run(
                 ctx,
                 *self._inputs,
                 batch_size=self._batch_size if self._is_batch else None,

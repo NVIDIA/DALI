@@ -203,7 +203,7 @@ def build_constructor(schema, op_class):
     Generates __init__ method for an operator subclass. Allows for lazy spec initialization based on the provided
     arguments.
 
-    Operator.get() should be used instead of the constructor to utilize the instance caching.
+    Operator._get() can be used instead of the constructor to utilize the instance caching.
     """
     stateful = op_class._is_stateful
     function_name = "__init__"
@@ -355,7 +355,7 @@ def build_call_function(schema, op_class):
                     for i, inp in enumerate(raw_args):
                         if inp is None:
                             continue
-                        input_device = self.input_device(i, _get_input_device(inp))
+                        input_device = self._input_device(i, _get_input_device(inp))
                         inp = _to_batch(inp, batch_size, device=input_device)
                         inputs.append(inp)
                     for k, v in raw_kwargs.items():
@@ -560,7 +560,7 @@ def build_fn_wrapper(op):
 
         # Get or create the operator instance that matches the arguments
         with nvtx.annotate(f"get instance {op._op_name}", domain="op_builder"):
-            op_inst = op.get(
+            op_inst = op._get(
                 max_batch_size=max_batch_size,
                 name=None,
                 device=device,
