@@ -152,8 +152,10 @@ def _argument_type_conversion(dtype_id):
 
 
 def build_operator_class(schema):
-    """Generates an Operator subclass from a schema, fills the members and implements the __init__ and __call__ methods.
-    Registers the class in the appropriate module."""
+    """
+    Generates an Operator subclass based on a schema, fills the members and implements the __init__
+    and __call__ methods. Registers the class in the appropriate module.
+    """
     class_name = schema.OperatorName()
     module_path = schema.ModulePath()
     is_reader = "readers" in module_path
@@ -200,8 +202,8 @@ def build_operator_class(schema):
 
 def build_constructor(schema, op_class):
     """
-    Generates __init__ method for an operator subclass. Allows for lazy spec initialization based on the provided
-    arguments.
+    Generates __init__ method for an operator subclass. Allows for lazy OpSpec initialization based
+    on the provided arguments.
 
     Operator._get() can be used instead of the constructor to utilize the instance caching.
     """
@@ -450,9 +452,10 @@ def _next_pow2(x):
 
 
 def build_fn_wrapper(op):
-    """Generates main API entry point for dynamic mode operator.
+    """Generates main API entry point for a dynamic mode operator.
 
-    Extracts the batch size and device if possible, gets or creates the operator instance and calls it.
+    The implementation extracts the batch size and device if possible, gets the Operator instance,
+    and calls it to produce an Invocation object.
 
     Parameters
     ----------

@@ -25,7 +25,8 @@ from ._batch import Batch
 class Operator:
     """Base class for all dynamic operators. Manages backend lifecycle, caching, and execution.
 
-    The actual operator subclasses are constructed via _op_builder.build_operator_class() factory function.
+    The actual operator subclasses are constructed via _op_builder.build_operator_class() factory
+    function.
 
     Operator._get() can be used instead of the constructor to utilize the instance caching.
     """
@@ -39,7 +40,9 @@ class Operator:
     _legacy_op = None  # The legacy operator class from the nvidia.dali.ops module
     _is_stateful = False
     _has_random_state_arg = False
-    _generated = False  # Indicates if this operator is generated and we can autogenerate the stubs or we need to reimport
+    # Indicates if this operator is generated and we can autogenerate the stubs or we need
+    # to reimport the operator from py to pyi file.
+    _generated = False
     _instance_cache = {}
 
     def __init__(
@@ -49,7 +52,7 @@ class Operator:
         device="cpu",
         **kwargs,
     ):
-        """Constructs an operator instance - keep the scalar init arguments for lazy spec initialization.
+        """Constructs an operator instance
         Parameters
         ----------
         max_batch_size : int
@@ -80,7 +83,7 @@ class Operator:
         self._output_devices = None
         # Instance of the legacy Python Operator from the nvidia.dali.ops module
         self._op_inst = None
-        # Instance of the C++ OperatorBase class - used for direct invocation of operator implementation
+        # Instance of the C++ OperatorBase class - used for direct invocation of operator
         self._op_backend = None
         self._op_spec = None
         self._last_invocation = None
