@@ -16,6 +16,8 @@ import json
 import os
 import tempfile
 import unittest
+import sys
+from io import StringIO
 
 import torch
 from torch.utils.data import DataLoader, TensorDataset
@@ -28,7 +30,9 @@ class TestLoaderEvaluatorBasic(unittest.TestCase):
 
     def setUp(self):
         """Create sample data for testing."""
-        # Create simple tensor data
+        # Set the seed for reproducibility
+        torch.seed(1234)
+
         data = torch.randn(100, 3, 32, 32)  # 100 samples, 3 channels, 32x32 images
         targets = torch.randint(0, 10, (100,))  # 100 labels from 0-9
         self.sample_dataset = TensorDataset(data, targets)
@@ -306,10 +310,6 @@ class TestLoaderEvaluatorMethods(unittest.TestCase):
             batch_count += 1
             if batch_count >= 2:
                 break
-
-        # Capture stdout
-        import sys
-        from io import StringIO
 
         old_stdout = sys.stdout
         sys.stdout = captured_output = StringIO()

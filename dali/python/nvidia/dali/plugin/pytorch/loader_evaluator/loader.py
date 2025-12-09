@@ -20,7 +20,6 @@ monitoring.
 """
 
 import json
-import threading
 import time
 from collections import deque
 from typing import Any, Dict, Iterator, Optional
@@ -70,7 +69,6 @@ class LoaderEvaluator:
         # In-memory cache for batches
         self.cached_batches = deque(maxlen=num_cached_batches)
         self.cache_ready = False
-        self.cache_lock = threading.Lock()
 
         # Performance metrics
         self.batch_times = []
@@ -97,16 +95,14 @@ class LoaderEvaluator:
 
     def _cache_batches(self):
         """Cache batches from the dataloader for replay mode."""
-        with self.cache_lock:
-            self.cached_batches.clear()
-            self.cache_ready = False
+        self.cached_batches.clear()
+        self.cache_ready = False
 
         for batch in self.dataloader:
-            with self.cache_lock:
-                self.cached_batches.append(batch)
-                # Cache is ready when we have at least one batch cached
-                if len(self.cached_batches) > 0:
-                    self.cache_ready = True
+            self.cached_batches.append(batch)
+            # Cache is ready when we have at least one batch cached
+            if len(self.cached_batches) > 0:
+                self.cache_ready = True
 
     def _log_mode_iter(self) -> Iterator[Any]:
         """Log mode: iterate normally while collecting metrics."""
@@ -152,7 +148,7 @@ class LoaderEvaluator:
 
     def get_metrics(self) -> Dict[str, Any]:
         """Return collected performance metrics."""
-        if not self.batch_times:
+        if not self.batch_times or not self.start_time or not self.end_time:
             return {}
 
         total_time = self.end_time - self.start_time if self.start_time and self.end_time else 0
