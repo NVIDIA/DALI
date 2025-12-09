@@ -276,7 +276,8 @@ def build_call_function(schema, op_class):
 
     The call function handles batch/sample distinction,
     conversion of arguments to batch/tensor and RNG state for random ops.
-    It constructs the invocation object and runs it immediately or returns it for lazy evaluation.
+    It constructs the invocation object and runs it immediately or returns it for lazy evaluation
+    depending on the current evaluation mode.
     """
     stateful = op_class._is_stateful
     has_random_state_arg = op_class._has_random_state_arg
