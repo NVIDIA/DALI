@@ -16,7 +16,7 @@ import nvidia.dali.experimental.dynamic as ndd
 
 
 def test_ndd_operator_api():
-    for op in ndd.ops._all_functions:
+    for op in ndd._ops._all_functions:
         for member in dir(op):
             assert member.startswith("_"), f"Unexpected public member `{member}` in {op}"
 
@@ -24,7 +24,7 @@ def test_ndd_operator_api():
 def test_ndd_reader_api():
     for reader in dir(ndd.readers):
         reader_cls = getattr(ndd.readers, reader)
-        if isinstance(reader_cls, type) and issubclass(reader_cls, ndd.ops.Reader):
+        if isinstance(reader_cls, type) and issubclass(reader_cls, ndd._ops.Reader):
             allowed_members = ["next_epoch"]
             for member in dir(reader_cls):
                 assert (

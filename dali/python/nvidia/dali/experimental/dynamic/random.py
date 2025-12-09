@@ -43,7 +43,7 @@ class RNG:
     >>> my_rng = ndd.random.RNG(seed=1234)
     >>>
     >>> # Use it with random operators
-    >>> result = ndd.ops.random.Uniform(device="cpu")(range=(-1, 1), shape=[10], rng=my_rng)
+    >>> result = ndd.random.uniform(range=(-1, 1), shape=[10], rng=my_rng, device="cpu")
     """
 
     def __init__(self, seed=None):
