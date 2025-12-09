@@ -117,3 +117,6 @@ install_cuda_compat() {
         apt update && apt install -y cuda-compat-13-0
     fi
 }
+
+PYTHON_GIL=$(python3 -c "import sysconfig; ret=sysconfig.get_config_var('Py_GIL_DISABLED'); print(0 if ret else 1)")
+

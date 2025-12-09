@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 import argparse
 import sys
+import sysconfig
 
 # use packaging from PIP as it is always present on system we are testing on
 from pip._vendor.packaging.version import parse
@@ -17,12 +18,13 @@ except ImportError:
 from urllib.request import urlopen, HTTPError, Request, URLError
 
 PYTHON_VERSION = ".".join([str(x) for x in sys.version_info[0:2]])
+FREE_THREADED_BUILD = sysconfig.get_config_var("Py_GIL_DISABLED") == 1
 
 
 class PckgVer:
     """Class that holds a version string accompanied with maximum and minimum python version that
     this version should support. If python falls beyond version bounds it evaluates to the
-    empty string
+    empty string. Optionally enforces free-threaded Python build.
 
     Parameters
     ----------
@@ -36,22 +38,38 @@ class PckgVer:
         Alternative name that should be used during installation instead of general package name
     dependencies : list of str, optional, default = None
         List of packages in ["name==version", ] format that should be installed together with
-        a given package
+        a given package.
+    python_free_threaded : bool, optional, default = None
+        Optionally enforces specific Python build w.r.t. GIL existence. If True, enforces
+        free-threaded build. If False, enforces regular (non-free-threaded) build. If None,
+        both are acceptable.
     """
 
     def __init__(
-        self, ver, python_min_ver=None, python_max_ver=None, alias=None, dependencies=None
+        self,
+        ver,
+        python_min_ver=None,
+        python_max_ver=None,
+        alias=None,
+        dependencies=None,
+        python_free_threaded: bool = None,
     ):
         self.ver = ver
         self.python_min_ver = python_min_ver
         self.python_max_ver = python_max_ver
         self.name_alias = alias
         self.dependent_packages = dependencies
+        self.python_free_threaded = python_free_threaded
 
     def __bool__(self):
         return (
-            not self.python_min_ver or parse(PYTHON_VERSION) >= parse(self.python_min_ver)
-        ) and (not self.python_max_ver or parse(PYTHON_VERSION) <= parse(self.python_max_ver))
+            (not self.python_min_ver or parse(PYTHON_VERSION) >= parse(self.python_min_ver))
+            and (not self.python_max_ver or parse(PYTHON_VERSION) <= parse(self.python_max_ver))
+            and (
+                self.python_free_threaded is None
+                or FREE_THREADED_BUILD == self.python_free_threaded
+            )
+        )
 
     def __repr__(self):
         if self:
@@ -483,10 +501,26 @@ all_packages = [
     PlainPackage(
         "numpy",
         [
-            PckgVer("<2"),
+            PckgVer(">=2"),
         ],
     ),
-    PlainPackage("opencv-python-headless", [PckgVer("4.12.0.88", dependencies=["numpy<2"])]),
+    PlainPackage(
+        "jupyter",
+        [
+            PckgVer("1.1.1", python_free_threaded=False),
+        ],
+    ),
+    PlainPackage(
+        "opencv-python-headless",
+        [
+            PckgVer(
+                "4.12.0.88",
+                dependencies=["numpy<2"],
+                # Free-threaded Python build is incompatible with numpy<2.
+                python_free_threaded=False,
+            )
+        ],
+    ),
     CudaPackage(
         "cupy",
         {
@@ -501,6 +535,7 @@ all_packages = [
                 PckgVer(
                     "2.19.1",
                     python_min_ver="3.9",
+                    python_max_ver="3.12",
                     alias="tensorflow[and-cuda]",
                     dependencies=[
                         "protobuf<4",
@@ -508,10 +543,13 @@ all_packages = [
                         "tf_keras==2.19",
                         "numpy<2",
                     ],
+                    # Free-threaded Python build is incompatible with numpy<2.
+                    python_free_threaded=False,
                 ),
                 PckgVer(
                     "2.20.0",
                     python_min_ver="3.9",
+                    python_max_ver="3.12",
                     alias="tensorflow[and-cuda]",
                     dependencies=[
                         "protobuf",
@@ -519,6 +557,8 @@ all_packages = [
                         "tf_keras==2.20",
                         "numpy<2",
                     ],
+                    # Free-threaded Python build is incompatible with numpy<2.
+                    python_free_threaded=False,
                 ),
             ],
         },
@@ -548,6 +588,8 @@ all_packages = [
                     dependencies=["protobuf<4", "numpy<2"],
                     python_min_ver="3.8",
                     python_max_ver="3.12",
+                    # Free-threaded Python build is incompatible with numpy<2.
+                    python_free_threaded=False,
                 )
             ],
         },
@@ -565,6 +607,8 @@ all_packages = [
                     python_min_ver="3.9",
                     python_max_ver="3.11",
                     dependencies=["jaxlib", "numpy<2"],
+                    # Free-threaded Python build is incompatible with numpy<2.
+                    python_free_threaded=False,
                 ),
             ]
         },
@@ -577,9 +621,20 @@ all_packages = [
         {
             "120": [
                 PckgVer(
-                    "0.59.1", python_min_ver="3.9", python_max_ver="3.9", dependencies=["numpy<2"]
+                    "0.59.1",
+                    python_min_ver="3.9",
+                    python_max_ver="3.9",
+                    dependencies=["numpy<2"],
+                    # Free-threaded Python build is incompatible with numpy<2.
+                    python_free_threaded=False,
                 ),
-                PckgVer("0.61.2", python_min_ver="3.10", dependencies=["numpy<2"]),
+                PckgVer(
+                    "0.61.2",
+                    python_min_ver="3.10",
+                    dependencies=["numpy<2"],
+                    # Free-threaded Python build is incompatible with numpy<2.
+                    python_free_threaded=False,
+                ),
             ]
         },
     ),
@@ -588,8 +643,21 @@ all_packages = [
         {
             "120": [
                 PckgVer(
-                    "0.20.1", python_min_ver="3.9", python_max_ver="3.9", dependencies=["numpy<2"]
+                    "0.20.1",
+                    python_min_ver="3.9",
+                    python_max_ver="3.9",
+                    dependencies=["numpy<2"],
+                    # Free-threaded Python build is incompatible with numpy<2.
+                    python_free_threaded=False,
                 ),
+                PckgVer(
+                    "0.21.1",
+                    python_min_ver="3.10",
+                    dependencies=["numpy<2"],
+                    # Free-threaded Python build is incompatible with numpy<2.
+                    python_free_threaded=False,
+                ),
+<<<<<<< HEAD
                 PckgVer("0.22.0", python_min_ver="3.10", dependencies=["numpy<2"]),
             ],
             "130": [
@@ -598,6 +666,9 @@ all_packages = [
                 ),
                 PckgVer("0.22.0", python_min_ver="3.10", dependencies=["numpy<2"]),
             ],
+=======
+            ]
+>>>>>>> e89896244 (Adjust tests to work with updated Python version)
         },
         # name used during installation
         name="numba-cuda[cu{cuda_v[0]}{cuda_v[1]}]",

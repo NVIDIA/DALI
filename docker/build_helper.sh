@@ -78,14 +78,7 @@ export PYTHON_VERSIONS=${PYTHON_VERSIONS}
 # use all available pythons
 
 # PYTHON_GIL can be set to 0 only if Python is compiled with --disable-gil.
-# Check if Python is compiled with --disable-gil.
-set +e
-python -c 'import sysconfig ; exit(sysconfig.get_config_var("Py_GIL_DISABLED"))'
-# Set PYTHON_GIL accordingly.
-if [ $? -ne 0  ]; then
-        export PYTHON_GIL=0
-fi
-set -e
+export PYTHON_GIL=$(python3 -c "import sysconfig; ret=sysconfig.get_config_var('Py_GIL_DISABLED'); print(0 if ret else 1)")
 
 cmake ../ -DCMAKE_INSTALL_PREFIX=.                 \
       -DARCH=${ARCH}                               \
