@@ -31,7 +31,7 @@ class TestLoaderEvaluatorBasic(unittest.TestCase):
     def setUp(self):
         """Create sample data for testing."""
         # Set the seed for reproducibility
-        torch.seed(1234)
+        torch.manual_seed(1234)
 
         data = torch.randn(100, 3, 32, 32)  # 100 samples, 3 channels, 32x32 images
         targets = torch.randint(0, 10, (100,))  # 100 labels from 0-9
@@ -158,7 +158,7 @@ class TestLoaderEvaluatorModes(unittest.TestCase):
 
         # In log mode, should behave like normal DataLoader
         batch_count = 0
-        for batch in loader:
+        for _ in loader:
             batch_count += 1
             if batch_count >= 2:
                 break
@@ -189,7 +189,7 @@ class TestLoaderEvaluatorModes(unittest.TestCase):
         # The test should iterate through all available batches (7 total)
         # but we'll limit to 5 to keep test fast
         batch_count = 0
-        for batch in loader:
+        for _ in loader:
             batch_count += 1
             if batch_count >= 5:  # Should replay cached batches multiple times
                 break
@@ -209,7 +209,7 @@ class TestLoaderEvaluatorModes(unittest.TestCase):
 
         # Count batches from replay mode
         replay_batch_count = 0
-        for batch in replay_loader:
+        for _ in replay_loader:
             replay_batch_count += 1
 
         # Should produce the same number of batches as the original DataLoader
@@ -253,7 +253,7 @@ class TestLoaderEvaluatorMethods(unittest.TestCase):
 
         # Process some batches
         batch_count = 0
-        for batch in loader:
+        for _ in loader:
             batch_count += 1
             if batch_count >= 2:
                 break
@@ -274,7 +274,7 @@ class TestLoaderEvaluatorMethods(unittest.TestCase):
 
         # Process some batches
         batch_count = 0
-        for batch in loader:
+        for _ in loader:
             batch_count += 1
             if batch_count >= 2:
                 break
@@ -306,7 +306,7 @@ class TestLoaderEvaluatorMethods(unittest.TestCase):
 
         # Process some batches
         batch_count = 0
-        for batch in loader:
+        for _ in loader:
             batch_count += 1
             if batch_count >= 2:
                 break
@@ -343,7 +343,7 @@ class TestLoaderEvaluatorEdgeCases(unittest.TestCase):
 
         # Should not raise exception when iterating over empty loader
         batch_count = 0
-        for batch in loader:
+        for _ in loader:
             batch_count += 1
 
         self.assertEqual(batch_count, 0)
@@ -365,7 +365,7 @@ class TestLoaderEvaluatorEdgeCases(unittest.TestCase):
 
         # Should be able to iterate once
         batch_count = 0
-        for batch in loader:
+        for _ in loader:
             batch_count += 1
 
         self.assertEqual(batch_count, 1)
@@ -388,7 +388,7 @@ class TestLoaderEvaluatorEdgeCases(unittest.TestCase):
 
         # Should still be iterable (defaults to log mode)
         batch_count = 0
-        for batch in loader:
+        for _ in loader:
             batch_count += 1
             if batch_count >= 1:
                 break
@@ -415,7 +415,7 @@ class TestLoaderEvaluatorEdgeCases(unittest.TestCase):
 
         # Process all batches
         batch_count = 0
-        for batch in loader:
+        for _ in loader:
             batch_count += 1
 
         self.assertEqual(batch_count, 2)

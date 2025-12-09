@@ -148,7 +148,7 @@ class LoaderEvaluator:
 
     def get_metrics(self) -> Dict[str, Any]:
         """Return collected performance metrics."""
-        if not self.batch_times or not self.start_time or not self.end_time:
+        if not self.batch_times:
             return {}
 
         total_time = self.end_time - self.start_time if self.start_time and self.end_time else 0
