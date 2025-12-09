@@ -35,11 +35,12 @@ class EvalMode(Enum):
                     the operation returns.
     """
 
-    default = auto()
     deferred = auto()
     eager = auto()
     sync_cpu = auto()
     sync_full = auto()
+
+    default = deferred
 
     def __enter__(self):
         _tls.eval_mode_stack.append(self)
