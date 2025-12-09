@@ -52,7 +52,12 @@ class EvalMode(Enum):
         return _tls.eval_mode_stack[-1]
 
 
-_tls = threading.local()
-_tls.eval_mode_stack = [EvalMode.default]
+class _ThreadLocalState(threading.local):
+    def __init__(self):
+        super().__init__()
+        self.eval_mode_stack = [EvalMode.default]
+
+
+_tls = _ThreadLocalState()
 
 __all__ = ["EvalMode"]
