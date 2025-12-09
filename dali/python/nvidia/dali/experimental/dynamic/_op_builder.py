@@ -12,21 +12,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import nvidia.dali.backend as _b
-from nvidia.dali.fn import _to_snake_case
-import makefun
-from ._batch import Batch, _get_batch_size, as_batch as _as_batch
-from ._tensor import Tensor
-from . import ops
-from . import _type
 import copy
-from . import _invocation, _device, _eval_mode, _eval_context
+
+import makefun
+import nvidia.dali.backend as _b
 import nvidia.dali.ops as _ops
 import nvidia.dali.types
 import nvtx
 from nvidia.dali import internal as _internal
+from nvidia.dali.fn import _to_snake_case
 from nvidia.dali.ops import _docs, _names
+
+from . import _device, _eval_context, _eval_mode, _invocation, _type, ops
 from . import random as _random
+from ._batch import Batch, _get_batch_size
+from ._batch import as_batch as _as_batch
+from ._tensor import Tensor
 
 
 def is_external(x):
@@ -404,19 +405,16 @@ def build_call_function(schema, op_class):
                 self._last_invocation = invocation
 
             if (
-                _eval_mode.EvalMode.current() == _eval_mode.EvalMode.eager
-                or _eval_mode.EvalMode.current() == _eval_mode.EvalMode.sync_cpu
-                or _eval_mode.EvalMode.current() == _eval_mode.EvalMode.sync_full
-                or (
-                    _eval_mode.EvalMode.current() == _eval_mode.EvalMode.default
-                    and (
-                        any(is_external(x) for x in inputs)
-                        or any(is_external(x) for x in kwargs.values())
-                    )
-                )
+                _eval_mode.EvalMode.current() is _eval_mode.EvalMode.sync_cpu
+                or _eval_mode.EvalMode.current() is _eval_mode.EvalMode.sync_full
+                or any(is_external(x) for x in inputs)
+                or any(is_external(x) for x in kwargs.values())
             ):
                 # Evaluate immediately
                 invocation.run(_eval_context.EvalContext.current())
+            elif _eval_mode.EvalMode.current() is _eval_mode.EvalMode.eager:
+                with nvtx.annotate("__call__: eager scheduling", domain="op_builder"):
+                    invocation.schedule(_eval_context.EvalContext.current())
             else:
                 pass
                 # Lazy evaluation
