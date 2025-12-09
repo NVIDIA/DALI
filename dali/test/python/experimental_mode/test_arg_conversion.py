@@ -20,7 +20,7 @@ from test_utils import get_dali_extra_path
 
 def _conversion_test_op(check_arg_func):
     class Resize2(ndd.ops.Resize):
-        def run(self, ctx, *inputs, **args):
+        def _run(self, ctx, *inputs, **args):
             check_arg_func(args)
             return ndd.ops.Resize._run(self, ctx, *inputs, **args)
 
