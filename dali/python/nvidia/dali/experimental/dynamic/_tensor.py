@@ -837,17 +837,15 @@ class TensorSlice:
                         abs_ranges[d] = r.start + ranges[i] * r.step
                     i += 1
             result = TensorSlice(self._tensor, tuple(abs_ranges), True)
-            if _eval_mode.EvalMode.current().value >= _eval_mode.EvalMode.eager.value:
-                result.evaluate()
-            return Tensor(result)
+            return result._run()
 
-    def evaluate(self):
+    def _run(self):
         with _EvalContext.current():
             if len(self._ranges) == 0:
-                return self._tensor.evaluate()
+                return self._tensor
 
             if all(_is_full_slice(r) for r in self._ranges):
-                return self._tensor.evaluate()
+                return self._tensor
 
             args = {}
             d = 0
@@ -868,7 +866,10 @@ class TensorSlice:
 
             from . import _tensor_subscript
 
-            return _tensor_subscript(self._tensor, **args).evaluate()
+            return _tensor_subscript(self._tensor, **args)
+
+    def evaluate(self):
+        return self._run().evaluate()
 
 
 def tensor(
