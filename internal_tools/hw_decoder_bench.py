@@ -216,46 +216,48 @@ class NDDRN50Pipeline:
         rng = ndd.random.RNG(seed=42)
         self.rng_copy = rng.clone()
         self.reader = ndd.readers.File(file_root=args.images_dir)
-
-        def pipe_fn():
-            with ndd.EvalContext(num_threads=self.num_threads, device_id=self.device_id):
-                while True:
-                    for jpegs, _ in self.reader.next_epoch(batch_size=self.batch_size):
-                        images = self.decoders_module.image_random_crop(
-                            jpegs,
-                            device=self.device,
-                            output_type=types.RGB,
-                            hw_decoder_load=self.hw_load,
-                            preallocate_width_hint=args.width_hint,
-                            preallocate_height_hint=args.height_hint,
-                        )
-                        coin_flip = ndd.random.coin_flip(
-                            batch_size=self.batch_size, probability=0.5, rng=self.rng_copy
-                        )
-                        layout = types.NCHW
-                        out_type = types.FLOAT16
-                        images = ndd.resize(
-                            images, resize_x=224, resize_y=224, minibatch_size=self.minibatch_size
-                        )
-                        output = ndd.crop_mirror_normalize(
-                            images,
-                            dtype=out_type,
-                            output_layout=layout,
-                            crop=(224, 224),
-                            mean=[0.485 * 255, 0.456 * 255, 0.406 * 255],
-                            std=[0.229 * 255, 0.224 * 255, 0.225 * 255],
-                            mirror=coin_flip,
-                        )
-                        yield output
-
-        # create generator in the thread pool
-        self.pipe = pipe_fn()
+        self.next_input_data = None
+        self.eval_context = ndd.EvalContext(num_threads=self.num_threads, device_id=self.device_id)
 
     def build(self):
         pass
 
     def share_outputs(self):
-        return next(self.pipe).evaluate()
+        with self.eval_context:
+            if self.next_input_data is None:
+                self.next_input_data = iter(self.reader.next_epoch(batch_size=self.batch_size))
+            try:
+                jpegs, _ = next(self.next_input_data)
+            except StopIteration:
+                self.next_input_data = iter(self.reader.next_epoch(batch_size=self.batch_size))
+                jpegs, _ = next(self.next_input_data)
+
+            images = self.decoders_module.image_random_crop(
+                jpegs,
+                device=self.device,
+                output_type=types.RGB,
+                hw_decoder_load=self.hw_load,
+                preallocate_width_hint=args.width_hint,
+                preallocate_height_hint=args.height_hint,
+            )
+            coin_flip = ndd.random.coin_flip(
+                batch_size=self.batch_size, probability=0.5, rng=self.rng_copy
+            )
+            layout = types.NCHW
+            out_type = types.FLOAT16
+            images = ndd.resize(
+                images, resize_x=224, resize_y=224, minibatch_size=self.minibatch_size
+            )
+            output = ndd.crop_mirror_normalize(
+                images,
+                dtype=out_type,
+                output_layout=layout,
+                crop=(224, 224),
+                mean=[0.485 * 255, 0.456 * 255, 0.406 * 255],
+                std=[0.229 * 255, 0.224 * 255, 0.225 * 255],
+                mirror=coin_flip,
+            )
+            return output.evaluate()
 
     def release_outputs(self):
         pass
