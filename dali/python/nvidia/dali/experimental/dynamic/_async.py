@@ -104,8 +104,5 @@ class _AsyncExecutor:
         with self._condition:
             self._condition.wait_for(lambda: self._completed_seq >= task._seq_id)
 
-        if task._exception is not None:
-            raise task._exception
-
     def shutdown(self):
         self._queue.put(None)
