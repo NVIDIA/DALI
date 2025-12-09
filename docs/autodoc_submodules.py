@@ -260,7 +260,7 @@ def dynamic_autodoc(
         funs_in_module = [
             fun
             for fun in get_functions(dali_module)
-            if hasattr(getattr(dali_module, fun), "schema")
+            if hasattr(getattr(dali_module, fun), "_schema_name")
         ]
 
         write_module_file(generated_path, module, funs_in_module, references)
