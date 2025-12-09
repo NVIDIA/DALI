@@ -12,10 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Optional
-from ._eval_context import EvalContext as _EvalContext
-from ._type import DType
+from typing import TYPE_CHECKING, Any, Optional
+
 import nvtx
+
+from ._async import _Future
+from ._device import Device
+from ._eval_context import EvalContext as _EvalContext
+from ._eval_mode import EvalMode as _EvalMode
+from ._type import DType
+
+if TYPE_CHECKING:
+    from .ops import Operator
 
 
 class Invocation:
@@ -32,10 +40,10 @@ class Invocation:
 
     def __init__(
         self,
-        operator_instance,
-        call_id,
-        inputs=[],
-        args={},
+        operator_instance: "Operator",
+        call_id: Optional[int],
+        inputs: list[Any] = [],
+        args: dict[str, Any] = {},
         is_batch: bool = False,
         batch_size: Optional[int] = None,
         previous_invocation: Optional["Invocation"] = None,
@@ -67,12 +75,13 @@ class Invocation:
         self._inputs = inputs
         self._args = args
         self._is_batch = is_batch
-        self._results = None
+        self._results: tuple[Any] | None = None
         self._batch_size = batch_size
-        self._num_outputs = None
-        self._output_devices = None
+        self._num_outputs: int | None = None
+        self._output_devices: list[Device] | None = None
         self._previous_invocation = previous_invocation
         self._eval_context = _EvalContext.current()
+        self._future: Optional[_Future] = None
 
     def device(self, result_index: int):
         if self._output_devices is None:
@@ -131,9 +140,35 @@ class Invocation:
         return self._is_batch
 
     def run(self, ctx: Optional[_EvalContext] = None):
-        ctx = self._eval_context if ctx is None else ctx
-        if self._results is not None:
+        if future := self._future:
+            with nvtx.annotate("Invocation.wait", domain="invocation"):
+                future.wait()
+            self._future = None
+        else:
+            ctx = self._eval_context if ctx is None else ctx
+            self._results = self._run_impl(ctx)
+
+    def schedule(self, ctx: Optional[_EvalContext] = None):
+        """Schedule the asynchronous execution of the operator"""
+
+        if self._results is not None or self._future is not None:
             return
+
+        def _run():
+            # Forward thread-local context to the new thread
+            with eval_context, eval_mode, device:
+                return self._run_impl(eval_context)
+
+        eval_mode = _EvalMode.current()
+        device = Device.current()
+        eval_context = self._eval_context if ctx is None else ctx
+
+        self._future = eval_context._async_executor.submit(_run)
+
+    def _run_impl(self, ctx: _EvalContext):
+        if self._results is not None:
+            return self._results
+
         with nvtx.annotate("Invocation.run", domain="invocation"):
             # If the invocation was created with a GPU device, validate that
             # the evaluation context matches.
@@ -171,6 +206,8 @@ class Invocation:
                 self._results = (r,)
             self._results = tuple(self._results)
             ctx.cache_results(self, self._results)
+
+            return self._results
 
     def values(self, ctx: Optional[_EvalContext] = None):
         """
