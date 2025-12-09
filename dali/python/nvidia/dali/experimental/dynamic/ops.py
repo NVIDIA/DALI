@@ -23,6 +23,25 @@ from ._batch import Batch
 
 
 class Operator:
+    """Base class for all dynamic operators. Manages backend lifecycle, caching, and execution.
+
+    The actual operator subclasses are constructed via _op_builder.build_operator_class() factory function.
+
+    Operator.get() should be used instead of the constructor to utilize the instance caching.
+    """
+
+    # Class members - each subclass will override in the factory function:
+    _schema = None
+    _schema_name = None
+    _supported_backends = frozenset()
+    _op_name = None  # CamelCase legacy class API name, without the module - e.g. "CoinFlip"
+    _fn_name = None  # snake_case api name - e.g. "coin_flip"
+    _legacy_op = None  # The legacy operator class from the nvidia.dali.ops module
+    _is_stateful = False
+    _has_random_state_arg = False
+    _generated = False  # Indicates if this operator is generated and we can autogenerate the stubs or we need to reimport
+    _instance_cache = {}
+
     def __init__(
         self,
         max_batch_size,
@@ -30,7 +49,7 @@ class Operator:
         device="cpu",
         **kwargs,
     ):
-        """Constructs an operator instance.
+        """Constructs an operator instance - keep the scalar init arguments for lazy spec initialization.
         Parameters
         ----------
         max_batch_size : int
@@ -49,11 +68,19 @@ class Operator:
 
         self._device = _to_device(device)
 
+        # Information below is lazy-initialized
+        # TODO(klecki): Use @property or @cached_property for self-init.
+
+        # Metadata about batch/sample, layout, dim and type. See _make_meta() for more details.
         self._input_meta = []
         self._arg_meta = {}
+        # Number of outputs
         self._num_outputs = None
+        # Expected device placement of the outputs
         self._output_devices = None
+        # Instance of the legacy Python Operator from the nvidia.dali.ops module
         self._op_inst = None
+        # Instance of the C++ OperatorBase class - used for direct invocation of operator implementation
         self._op_backend = None
         self._op_spec = None
         self._last_invocation = None
@@ -153,7 +180,7 @@ class Operator:
 
                 # legacy_op is a member of the old `ops` module - we use the ops API to obtain
                 # an OpSpec
-                op = self.legacy_op(
+                op = self._legacy_op(
                     name=self._name, device=self._device.device_type, **self._init_args
                 )
                 self._op_inst = op
@@ -214,7 +241,7 @@ class Operator:
                 batch_size is not None
                 and self._max_batch_size is not None
                 and batch_size > self._max_batch_size
-                and self.schema.IsStateful()
+                and self._is_stateful
             ):
                 raise RuntimeError(
                     f"The batch size {batch_size} is larger than the `max_batch_size` "
@@ -232,7 +259,7 @@ class Operator:
 
             is_batch = batch_size is not None or _is_batch()
             if self._is_backend_initialized():
-                if self.schema.IsStateful():
+                if self._is_stateful:
                     # clearing the backend in a stateful op would destroy the state
                     self.check_compatible(inputs, batch_size, args)
                 elif not self.is_compatible(inputs, batch_size, args):
@@ -322,6 +349,7 @@ class Operator:
                     f"current one."
                 )
 
+    # TODO(klecki): Consider making a dataclass
     def _make_meta(self, x):
         is_batch = False
         if isinstance(x, _invocation.Invocation):
@@ -343,7 +371,7 @@ class Operator:
         if "display_name" in self._init_args:
             type_name = self._init_args["display_name"]
         else:
-            type_name = self.schema.OperatorName()
+            type_name = self._schema.OperatorName()
         if self._name is not None:
             return f'type_name "{self._name}"'
         else:
@@ -351,6 +379,10 @@ class Operator:
 
 
 class Reader(Operator):
+    """Base class for reader operators. Extends Operator with iteration support via next_epoch().
+
+    Readers maintain internal state and can provide samples or batches. Mixing iteration styles
+    (samples/batches/direct calls) on the same instance is forbidden."""
     def __init__(
         self,
         batch_size=None,

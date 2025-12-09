@@ -27,7 +27,7 @@ class Invocation:
     lazy evaluation of stateful operators or operators with side-effects.
 
     NOTE:  This class is not thread safe. Subsequent invocations of the same operator instance
-           must be synhchronized by the caller.
+           must be synchronized by the caller.
     """
 
     def __init__(

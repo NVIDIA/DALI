@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -122,8 +122,6 @@ def get_schema_names(module, functions):
         obj = getattr(sys.modules[module], fun)
         if hasattr(obj, "_schema_name"):
             return obj._schema_name
-        elif hasattr(obj, "schema"):
-            return obj.schema.Name()
         else:
             return operations_table.no_schema_fns[f"{module}.{fun}"]
 

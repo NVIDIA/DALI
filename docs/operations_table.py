@@ -33,7 +33,7 @@ mix_ops = ops.mixed_ops()
 all_ops_in_module = {
     "nvidia.dali.fn": cpu_ops.union(gpu_ops).union(mix_ops),
     "nvidia.dali.experimental.dynamic": [
-        f.schema.Name() for f in ndd.ops._all_functions
+        f._schema_name for f in ndd.ops._all_functions
     ],
 }
 all_ops = all_ops_in_module["nvidia.dali.fn"]
@@ -223,9 +223,9 @@ def operations_table(out_filename, module_name="nvidia.dali.fn"):
 
 def dynamic_readers_table(out_filename):
     readers = [
-        f.schema.Name()
+        f._schema_name
         for f in ndd.ops._all_ops
-        if "readers" in f.schema.ModulePath()
+        if "readers" in f._schema.ModulePath()
     ]
     doc_table = operations_table_str(
         readers, module_name="nvidia.dali.experimental.dynamic"
