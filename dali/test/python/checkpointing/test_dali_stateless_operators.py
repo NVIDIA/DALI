@@ -1,4 +1,4 @@
-# Copyright (c) 2023-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2023-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -685,13 +685,13 @@ def test_tensor_join_stateless(device, join):
 
 
 @params("cpu", "gpu")
-@stateless_signed_off("tensor_subscript", "hidden.tensor_subscript")
+@stateless_signed_off("_tensor_subscript", "hidden._tensor_subscript")
 def test_tensor_subscript_stateless(device):
     check_single_input(lambda x, **kwargs: x[0, :, 2:4:-1], device)
 
 
 @params("cpu", "gpu")
-@stateless_signed_off("subscript_dim_check", "hidden.subscript_dim_check")
+@stateless_signed_off("_subscript_dim_check", "hidden._subscript_dim_check")
 def test_subscript_dim_check(device):
     check_single_input(lambda x, **kwargs: x[:], device)
 

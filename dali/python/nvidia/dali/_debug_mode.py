@@ -1,4 +1,4 @@
-# Copyright (c) 2021-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2021-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -71,7 +71,7 @@ class DataNodeDebug(_DataNode):
     @staticmethod
     def _arithm_op(*inputs, name=None):
         return _PipelineDebug.current()._wrap_op_call(
-            _ops.ArithmeticGenericOp, DataNodeDebug._aritm_op_name, *inputs, name=name
+            _ops._ArithmeticGenericOp, DataNodeDebug._aritm_op_name, *inputs, name=name
         )
 
     def __add__(self, other):
@@ -149,7 +149,7 @@ class DataNodeDebug(_DataNode):
     def __rxor__(self, other):
         return self._arithm_op(other, self, name="bitxor")
 
-    _aritm_op_name = _to_snake_case(_ops.ArithmeticGenericOp.__name__)
+    _aritm_op_name = _to_snake_case(_ops._ArithmeticGenericOp.__name__)
 
 
 class _ExternalSourceDebug:
@@ -379,7 +379,7 @@ class _OperatorManager:
         self._batch_size = batch_size
         self._separate_kwargs(kwargs)
 
-        if op_name == "arithmetic_generic_op":
+        if op_name == "_arithmetic_generic_op":
             inputs = self._init_arithm_op(kwargs["name"], inputs)
 
         # Save inputs classification for later verification.
@@ -955,7 +955,7 @@ class _PipelineDebug(_pipeline.Pipeline):
             self._create_op(op_class, op_name, key, cur_context, inputs, kwargs)
 
         if key in self._operators:
-            if op_name == "arithmetic_generic_op":
+            if op_name == "_arithmetic_generic_op":
                 inputs = _PipelineDebug._extract_data_node_inputs(inputs)
             return self._run_op(self._operators[key], inputs, kwargs)
         else:

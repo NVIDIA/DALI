@@ -1,4 +1,4 @@
-# Copyright (c) 2023-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2023-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -267,7 +267,7 @@ def _arithm_op(name, *inputs, definition_frame_end=None):
     else:
         definition_frame_end = None
     # Create "instance" of operator
-    op = nvidia.dali.ops.ArithmeticGenericOp(
+    op = nvidia.dali.ops._ArithmeticGenericOp(
         device=dev,
         expression_desc=expression_desc,
         integer_constants=integers,

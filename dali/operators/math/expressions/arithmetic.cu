@@ -38,6 +38,6 @@ void ArithmeticGenericOp<GPUBackend>::RunImpl(Workspace &ws) {
 
 }  // namespace expr
 
-DALI_REGISTER_OPERATOR(ArithmeticGenericOp, expr::ArithmeticGenericOp<GPUBackend>, GPU);
+DALI_REGISTER_OPERATOR(_ArithmeticGenericOp, expr::ArithmeticGenericOp<GPUBackend>, GPU);
 
 }  // namespace dali

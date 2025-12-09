@@ -1,4 +1,4 @@
-# Copyright (c) 2021-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2021-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -205,7 +205,7 @@ def _test_invalid_args(device, args, message, run):
     data = [np.uint8([[1, 2, 3]]), np.uint8([[1, 2]])]
     pipe = Pipeline(2, 1, 0)
     src = fn.external_source(lambda: data, device=device)
-    pipe.set_outputs(fn.tensor_subscript(src, **args))
+    pipe.set_outputs(fn._tensor_subscript(src, **args))
     with assert_raises(RuntimeError, glob=message):
         pipe.build()
         if run:
@@ -240,11 +240,11 @@ def _test_too_many_indices(device):
     src = fn.external_source(lambda: data, device=device)
     pipe = index_pipe(src, lambda x: x[1, :])
 
-    # Verified by tensor_subscript
+    # Verified by _tensor_subscript
     with assert_raises(RuntimeError, glob="Too many indices"):
         _ = pipe.run()
 
-    # Verified by subscript_dim_check
+    # Verified by _subscript_dim_check
     pipe = index_pipe(src, lambda x: x[:, :])
     with assert_raises(RuntimeError, glob="Too many indices"):
         _ = pipe.run()
@@ -254,7 +254,7 @@ def _test_too_many_indices(device):
     with assert_raises(RuntimeError, glob="not enough dimensions"):
         _ = pipe.run()
 
-    # Verified by subscript_dim_check
+    # Verified by _subscript_dim_check
     pipe = index_pipe(src, lambda x: x[dali.newaxis, :, dali.newaxis, :])
     with assert_raises(RuntimeError, glob="Too many indices"):
         _ = pipe.run()
