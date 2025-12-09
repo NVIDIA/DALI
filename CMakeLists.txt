@@ -84,6 +84,8 @@ cmake_dependent_option(BUILD_PYTHON "Build Python bindings" ON
                        "NOT BUILD_DALI_NODEPS" OFF)
 cmake_dependent_option(BUILD_SHM_WRAPPER "Build shared memory bindings, needs BUILD_PYTHON=ON" ON
                       "NOT BUILD_DALI_NODEPS" OFF)
+cmake_dependent_option(USE_PREBUILD_PYBIND11 "Use prebuilt pybind11 from the system instead of the submodule" OFF
+                       "BUILD_PYTHON" OFF)
 cmake_dependent_option(BUILD_LMDB "Build LMDB readers" ON
                        "NOT BUILD_DALI_NODEPS" OFF)
 cmake_dependent_option(BUILD_JPEG_TURBO "Build with libjpeg-turbo support" ON

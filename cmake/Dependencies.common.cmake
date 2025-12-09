@@ -83,7 +83,11 @@ endif()
 # PyBind
 ##################################################################
 if (BUILD_PYTHON)
-  check_and_add_cmake_submodule(${PROJECT_SOURCE_DIR}/third_party/pybind11)
+  if (USE_PREBUILD_PYBIND11)
+    find_package(pybind11 REQUIRED)
+  else()
+    check_and_add_cmake_submodule(${PROJECT_SOURCE_DIR}/third_party/pybind11)
+  endif()
 endif()
 
 ##################################################################
