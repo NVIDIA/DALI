@@ -331,7 +331,7 @@ class Tensor:
                 and self.device.device_id != device.device_id
             ):
                 warnings.warn(
-                    f"Copying tensor from GPU {self.device.device_id} to GPU {device.device_id} "
+                    f"Copying a tensor from GPU {self.device.device_id} to GPU {device.device_id} "
                     f"through host memory. This may be slow."
                 )
                 return self.cpu().to_device(device)

@@ -537,7 +537,8 @@ class Batch:
                 and self.device.device_id != device.device_id
             ):
                 warnings.warn(
-                    f"Copying tensor from GPU {self.device.device_id} to GPU {device.device_id} goes through host memory. This may be slow."
+                    f"Copying a batch from GPU {self.device.device_id} to GPU {device.device_id} "
+                    f"through host memory. This may be slow."
                 )
                 return self.cpu().evaluate().to_device(device)
 
