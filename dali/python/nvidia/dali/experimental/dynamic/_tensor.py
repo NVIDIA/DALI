@@ -280,7 +280,7 @@ class Tensor:
             self._assign(cast(self, dtype=dtype, device=self.device).evaluate())
             copied = True
 
-        if _eval_mode.EvalMode.current().value >= _eval_mode.EvalMode.eager.value:
+        if _eval_mode.EvalMode.current().value > _eval_mode.EvalMode.eager.value:
             self.evaluate()
 
         if copy and self._storage is not None and not copied:
