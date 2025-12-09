@@ -251,3 +251,17 @@ def test_tensor_copy_constructor_invocation_result():
     assert t_gpu2.dtype == ndd.int32
     assert t_gpu2.shape == (2, 3)
     assert np.array_equal(asnumpy(t_gpu2), asnumpy(t_gpu))
+
+
+@attr("multi_gpu")
+def test_cross_device_copy():
+    if _b.GetCUDADeviceCount() < 2:
+        raise SkipTest("At least 2 devices needed for the test")
+    c0 = ndd.tensor([[1, 2, 3], [4, 5, 6]], dtype=ndd.int32)
+    g0 = c0.to_device("gpu:0")
+    g1 = g0.to_device("gpu:1")
+    c1 = g1.cpu()
+    assert np.array_equal(asnumpy(c0), asnumpy(c1))
+    g0 = g1.to_device("gpu:0")
+    c0 = g0.cpu()
+    assert np.array_equal(asnumpy(c0), asnumpy(c1))

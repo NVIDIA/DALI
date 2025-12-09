@@ -21,6 +21,7 @@ from . import _eval_mode
 from . import _invocation
 import copy
 import nvidia.dali.types
+import warnings
 
 
 def _volume(shape: Tuple[int, ...]) -> int:
@@ -319,9 +320,22 @@ class Tensor:
         If the tensor already resides on the device specified, the function will return `self`
         unless a copy is explicitly requested by passing ``force_copy=True``
         """
+        if device is not None and not isinstance(device, Device):
+            device = _device(device)
         if self.device == device and not force_copy:
             return self
         else:
+            if (
+                self.device.device_type == "gpu"
+                and device.device_type == "gpu"
+                and self.device.device_id != device.device_id
+            ):
+                warnings.warn(
+                    f"Copying tensor from GPU {self.device.device_id} to GPU {device.device_id} "
+                    f"through host memory. This may be slow."
+                )
+                return self.cpu().to_device(device)
+
             copy_dev = device if device.device_type == "gpu" else self.device
             with copy_dev:
                 from . import copy
