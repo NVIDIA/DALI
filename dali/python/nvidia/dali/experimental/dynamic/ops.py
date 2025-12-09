@@ -383,6 +383,7 @@ class Reader(Operator):
 
     Readers maintain internal state and can provide samples or batches. Mixing iteration styles
     (samples/batches/direct calls) on the same instance is forbidden."""
+
     def __init__(
         self,
         batch_size=None,
