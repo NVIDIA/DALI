@@ -710,7 +710,9 @@ class Batch:
                             f"Unsupported device type: {self._device.device_type}"
                         )
                     self._storage = backend_type(
-                        [t.evaluate()._storage for t in self._tensors], self.layout
+                        [t.evaluate()._storage for t in self._tensors],
+                        self.layout,
+                        contiguous=False,
                     )
         return self
 
