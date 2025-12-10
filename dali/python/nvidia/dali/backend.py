@@ -85,14 +85,7 @@ if not initialized:
             "Please update your environment to use Python 3.9, "
             "or newer."
         )
-    # py3.9 warning
-    if sys.version_info[0] == 3 and sys.version_info[1] == 9:
-        deprecation_warning(
-            "DALI 1.53 is the last release to support Python 3.9 "
-            "Please update your environment to use Python 3.10, "
-            "or newer."
-        )
-    # py3.13 warning
+    # py3.13 warning. Handles both 3.13 and 3.13t.
     if sys.version_info[0] == 3 and sys.version_info[1] == 13:
         deprecation_warning("Python 3.13 support is experimental and not officially tested.")
 
