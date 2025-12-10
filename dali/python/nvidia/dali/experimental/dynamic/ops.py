@@ -101,12 +101,23 @@ class Operator:
         self._init_spec(inputs, args)
         return self._num_outputs
 
-    def input_device(self, index: int, actual_device: Optional[str] = None):
+    def input_device(self, index: int, actual_device: Optional[_device.Device] = None):
         default_input_device = "gpu" if self._device.device_type == "gpu" else "cpu"
-        dev_type = self.schema.GetInputDevice(index, actual_device, default_input_device)
+        actual_device_type = actual_device.device_type if actual_device is not None else None
+        dev_type = self.schema.GetInputDevice(index, actual_device_type, default_input_device)
         if dev_type is None:
             return self._device
-        return _device.Device(dev_type, self._device.device_id)  # inherit the device id
+        if dev_type == "cpu":
+            dev_id = 0
+        else:
+            if self._device.device_type != "cpu":
+                dev_id = self._device.device_id  # we need to match our current device
+            else:
+                # This is a CPU operator so it doesn't have a device id - we should just
+                # use whatever was passed in.
+                dev_id = actual_device.device_id if actual_device is not None else 0
+
+        return _device.Device(dev_type, dev_id)  # inherit the device id
 
     def infer_output_devices(self, *inputs, **args):
         self._init_spec(inputs, args)

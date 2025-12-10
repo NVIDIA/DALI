@@ -13,8 +13,9 @@
 # limitations under the License.
 
 import nvidia.dali.experimental.dynamic as ndd
+import nvidia.dali.backend as _b
 import numpy as np
-from nose_utils import attr
+from nose_utils import attr, SkipTest
 from nose2.tools import params
 from nose_utils import assert_raises
 import test_tensor
@@ -260,3 +261,22 @@ def test_batch_to_gpu():
     assert b_gpu.ndim == 2
     assert b_gpu.shape == [(2, 3)]
     assert np.array_equal(asnumpy(b_gpu.tensors[0]), input)
+
+
+@attr("multi_gpu")
+def test_cross_device_copy():
+    if _b.GetCUDADeviceCount() < 2:
+        raise SkipTest("At least 2 devices needed for the test")
+    c0 = ndd.as_batch(
+        [
+            ndd.tensor([[1, 2, 3], [4, 5, 6]], dtype=ndd.int32),
+            ndd.tensor([[7, 8, 9, 10], [11, 12, 13, 14]], dtype=ndd.int32),
+        ]
+    )
+    g0 = c0.to_device("gpu:0")
+    g1 = g0.to_device("gpu:1")
+    c1 = g1.cpu()
+    assert batch_equal(asnumpy(c0), asnumpy(c1))
+    g0 = g1.to_device("gpu:0")
+    c0 = g0.cpu()
+    assert batch_equal(asnumpy(c0), asnumpy(c1))

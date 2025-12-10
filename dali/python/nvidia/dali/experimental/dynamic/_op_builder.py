@@ -83,11 +83,6 @@ def _get_input_device(x):
         return None
 
 
-def _get_input_device_type(x):
-    dev = _get_input_device(x)
-    return dev.device_type if dev is not None else None
-
-
 def _to_tensor(x, device=None, dtype=None):
     with nvtx.annotate("to_tensor", domain="op_builder"):
         if x is None:
@@ -343,7 +338,7 @@ def build_call_function(schema, op_class):
                     for i, inp in enumerate(raw_args):
                         if inp is None:
                             continue
-                        input_device = self.input_device(i, _get_input_device_type(inp))
+                        input_device = self.input_device(i, _get_input_device(inp))
                         inp = _to_batch(inp, batch_size, device=input_device)
                         inputs.append(inp)
                     for k, v in raw_kwargs.items():

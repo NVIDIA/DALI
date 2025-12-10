@@ -17,9 +17,9 @@ import numpy as np
 from nose2.tools import cartesian_params, params
 
 
-def asnumpy(tensor):
+def asnumpy(tensor_or_batch):
     """Convert a DALI dynamic tensor to numpy array."""
-    return np.array(tensor.cpu().evaluate()._storage)
+    return np.array(ndd.as_tensor(tensor_or_batch, device="cpu"))
 
 
 ops = {
