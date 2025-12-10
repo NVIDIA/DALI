@@ -1576,7 +1576,7 @@ void ExposeTesorListGPU(py::module &m) {
       layout : str
             Layout of the data
       contiguous : bool = True
-            If True, the list of tensors is converted to a contiguous TensorListCPU, necessarily
+            If True, the list of tensors is converted to a contiguous TensorListGPU, necessarily
             creating a copy. Otherwise, the copy may be avoided.
       )code")
     .def(py::init([](const py::object &object,
