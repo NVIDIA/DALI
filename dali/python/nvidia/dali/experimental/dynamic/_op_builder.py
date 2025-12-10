@@ -564,8 +564,6 @@ def build_fn_wrapper(op):
 def build_fn_wrappers(all_ops):
     wrappers = []
     for op in all_ops:
-        if op.op_name.startswith("_"):
-            continue
         # Allow random operators to have functional wrappers even if stateful
         if op.schema.IsStateful() and not op.schema.HasRandomStateArg():
             continue
