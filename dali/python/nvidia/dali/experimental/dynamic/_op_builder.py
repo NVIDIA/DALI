@@ -13,6 +13,8 @@
 # limitations under the License.
 
 import copy
+import threading
+from collections import UserDict
 
 import makefun
 import nvidia.dali.backend as _b
@@ -28,6 +30,24 @@ from . import random as _random
 from ._batch import Batch, _get_batch_size
 from ._batch import as_batch as _as_batch
 from ._tensor import Tensor
+
+
+class TLSDict(UserDict):
+    """Thread-local dictionnary used for the instance cache"""
+
+    def __init__(self, *args, **kwargs):
+        self._local = threading.local()
+        super().__init__(*args, **kwargs)
+
+    @property
+    def data(self):
+        if not hasattr(self._local, "store"):
+            self._local.store = {}
+        return self._local.store
+
+    @data.setter
+    def data(self, value):
+        self._local.store = value
 
 
 def is_external(x):
@@ -187,7 +207,7 @@ def build_operator_class(schema):
     op_class._legacy_op = legacy_op_class
     op_class._is_stateful = schema.IsStateful()
     op_class._has_random_state_arg = schema.HasRandomStateArg()
-    op_class._instance_cache = {}  # TODO(michalz): Make it thread-local
+    op_class._instance_cache = TLSDict()
     op_class._generated = True
     op_class.__init__ = build_constructor(schema, op_class)
     op_class.__call__ = build_call_function(schema, op_class)
