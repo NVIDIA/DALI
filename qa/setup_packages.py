@@ -39,6 +39,9 @@ class PckgVer:
     dependencies : list of str, optional, default = None
         List of packages in ["name==version", ] format that should be installed together with
         a given package.
+    constraints : list of str, optional, default = None
+        List of constraints in ["name==version", ] format. They will form a file passed to
+       `pip install` as `--constraint` option.
     python_free_threaded : bool, optional, default = None
         Optionally enforces specific Python build w.r.t. GIL existence. If True, enforces
         free-threaded build. If False, enforces regular (non-free-threaded) build. If None,
@@ -52,13 +55,15 @@ class PckgVer:
         python_max_ver=None,
         alias=None,
         dependencies=None,
-        python_free_threaded: bool = None,
+        constraints: list[str] = [],
+        python_free_threaded: bool | None = None,
     ):
         self.ver = ver
         self.python_min_ver = python_min_ver
         self.python_max_ver = python_max_ver
         self.name_alias = alias
         self.dependent_packages = dependencies
+        self.constraints_list = constraints
         self.python_free_threaded = python_free_threaded
 
     def __bool__(self):
@@ -84,6 +89,10 @@ class PckgVer:
     @property
     def dependencies(self):
         return self.dependent_packages
+
+    @property
+    def constraints(self) -> list[str]:
+        return self.constraints_list
 
 
 class BasePackage:
@@ -141,6 +150,17 @@ class BasePackage:
         """
         version = self.get_version(idx, cuda_version)
         return getattr(version, "dependencies", None)
+
+    def get_constraints(self, cuda_version=None, idx=None):
+        """Obtains constraints list.
+
+        Parameters
+        ----------
+        version : str or PckgVer
+            Package version
+        """
+        version = self.get_version(idx, cuda_version)
+        return version.constraints
 
     def get_name(self, cuda_version=None, idx=None):
         """Retrives package name.
@@ -731,6 +751,14 @@ parser.add_argument(
     action="store_true",
     default=False,
 )
+parser.add_argument(
+    "--constraints",
+    "-c",
+    dest="constraints",
+    help="return relevant constraints file for pip",
+    action="store_true",
+    default=False,
+)
 args = parser.parse_args()
 
 
@@ -807,6 +835,25 @@ def get_links_indices(packages, cuda_version):
     return " ".join(ret)
 
 
+def gen_constraints(packages, cuda_version) -> str:
+    """Generate a constraints file for given packages.
+
+    Returns:
+        str: The path to the constraints file.
+    """
+    import tempfile
+
+    constraints_file = tempfile.NamedTemporaryFile(delete=False, suffix=".txt")
+    constraints_per_package = for_all_pckg(
+        packages, lambda pckg: pckg.get_constraints(cuda_version), add_additional_packages=False
+    )
+    with open(constraints_file.name, "w") as f:
+        for constraints in constraints_per_package:
+            for c in constraints:
+                f.write(f"{c}\n")
+    return constraints_file.name
+
+
 def main():
     if args.list:
         print_configs(args.cuda)
@@ -822,6 +869,8 @@ def main():
         print(get_extra_indices(args.use, args.cuda))
     elif args.links_index:
         print(get_links_indices(args.use, args.cuda))
+    elif args.constraints:
+        print(gen_constraints(args.use, args.cuda))
 
 
 if __name__ == "__main__":

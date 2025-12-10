@@ -172,10 +172,13 @@ do
 
         # install packages
         inst=$($topdir/qa/setup_packages.py -i $i -u $pip_packages --cuda ${CUDA_VERSION})
+        constraints_file=$($topdir/qa/setup_packages.py -c -u $pip_packages --cuda ${CUDA_VERSION})
+        echo "Constraints file: ${constraints_file}"
+        cat ${constraints_file}
         if [ -n "$inst" ]; then
             for pkg in ${inst}
             do
-                install_pip_pkg "pip install $pkg -f /pip-packages ${link_indices_string} ${extra_indices_string}"
+                install_pip_pkg "pip install $pkg -f /pip-packages ${link_indices_string} ${extra_indices_string} -c ${constraints_file}"
             done
 
             # If we just installed tensorflow, we need to reinstall DALI TF plugin
