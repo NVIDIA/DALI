@@ -642,6 +642,18 @@ all_packages = [
         links_index=("https://storage.googleapis.com/" "jax-releases/jax_cuda_releases.html"),
     ),
     PlainPackage(
+        "flax",
+        [
+            PckgVer(
+                "0.7.4",
+                dependencies=["numpy<2"],
+                # Free-threaded Python build is incompatible with numpy<2.
+                python_free_threaded=False,
+                constraints=["jax==0.4.16"],
+            ),
+        ],
+    ),
+    PlainPackage(
         "clu",
         [
             PckgVer(
