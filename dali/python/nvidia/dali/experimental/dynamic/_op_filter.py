@@ -16,23 +16,23 @@ import nvidia.dali.backend as _b
 from packaging.version import Version
 
 # Python-based operators are not supported in dynamic mode
-kPythonBasedOps = ["ExternalSource", "PythonFunction", "NumbaFunction", "JaxFunction"]
+PythonBasedOps = ["ExternalSource", "PythonFunction", "NumbaFunction", "JaxFunction"]
 
 # Operators that were deprecated before this version will not be exposed in dynamic mode
-kDynamicModeOpCutoff = Version("1.54")
+DynamicModeOpCutoff = Version("1.54")
 
 
 def should_create_dynamic_op(schema_name: str) -> bool:
     """
     Determines if an operator with the given schema name should be exposed in dynamic mode.
     """
-    if any(schema_name.endswith(op) for op in kPythonBasedOps):
+    if any(schema_name.endswith(op) for op in PythonBasedOps):
         return False
     schema = _b.GetSchema(schema_name)
     if schema.IsInternal():
         return False
     if schema.IsDeprecated():
         deprecated_version = Version(schema.DeprecatedInVersion())
-        if deprecated_version < kDynamicModeOpCutoff:
+        if deprecated_version < DynamicModeOpCutoff:
             return False
     return True
