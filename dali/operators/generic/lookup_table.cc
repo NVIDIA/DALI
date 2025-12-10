@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -102,7 +102,7 @@ Here is a practical example, considering the table defined above::
   .AddOptionalTypeArg("dtype",
     R"code(Output data type.)code",
     DALI_FLOAT)
-  .DeprecateArgInFavorOf("output_dtype", "dtype")  // deprecated since 0.24dev
+  .DeprecateArgInFavorOf("output_dtype", "dtype", "0.24")
   .AddOptionalArg("default_value",
     R"code(Default output value for keys that are not present in the table.)code",
     0.0f)

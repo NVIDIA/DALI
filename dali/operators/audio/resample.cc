@@ -1,4 +1,4 @@
-// Copyright (c) 2022-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -104,10 +104,11 @@ DALI_SCHEMA(experimental__AudioResample)
     .NumOutput(1)
     .MakeDocPartiallyHidden()
     .Deprecate(
+        "1.18",
         "AudioResample",
         "This operator was moved out from the experimental phase, "
         "and is now a regular DALI operator. This is just an deprecated "
-        "alias kept for backward compatibility.");  // Deprecated in 1.18
+        "alias kept for backward compatibility.");
 
 namespace audio {
 

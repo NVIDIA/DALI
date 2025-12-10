@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -59,10 +59,11 @@ DALI_SCHEMA(AudioDecoder)
     .AddParent("decoders__Audio")
     .MakeDocPartiallyHidden()
     .Deprecate(
+        "1.0",
         "decoders__Audio",
         R"code(In DALI 1.0 all decoders were moved into a dedicated :mod:`~nvidia.dali.fn.decoders`
 submodule and renamed to follow a common pattern. This is a placeholder operator with identical
-functionality to allow for backward compatibility.)code");  // Deprecated in 1.0;
+functionality to allow for backward compatibility.)code");
 
 bool
 AudioDecoderCpu::SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) {

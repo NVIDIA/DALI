@@ -36,7 +36,7 @@ cropped and valid bounding boxes and valid labels are returned.)code")
   .AddOptionalArg("num_attempts", R"code(Number of attempts.)code", 1)
   .AddRandomSeedArg()
   .AddRandomStateArg()
-  .Deprecate("RandomBBoxCrop");  // deprecated in DALI 0.30
+  .Deprecate("0.30", "RandomBBoxCrop");
 
 /*
  * # This function is from https://github.com/kuangliu/pytorch-ssd.

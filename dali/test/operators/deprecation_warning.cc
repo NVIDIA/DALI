@@ -1,4 +1,4 @@
-// Copyright (c) 2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2024-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@ DALI_SCHEMA(DeprecationWarningOp)
     .DocStr("Operator for deprecation warnings.")
     .NumInput(0)
     .NumOutput(1)
-    .Deprecate("", "Additional message");
+    .Deprecate("1.0", "", "Additional message");
 
 
 DALI_REGISTER_OPERATOR(sub__DeprecationWarningOp, DeprecationWarningOp, CPU);
@@ -32,7 +32,7 @@ DALI_SCHEMA(sub__DeprecationWarningOp)
     .DocStr("Operator for deprecation warnings.")
     .NumInput(0)
     .NumOutput(1)
-    .Deprecate("sub__sub__DeprecationWarningOp", "Another message");
+    .Deprecate("1.0", "sub__sub__DeprecationWarningOp", "Another message");
 
 DALI_REGISTER_OPERATOR(sub__sub__DeprecationWarningOp, DeprecationWarningOp, CPU);
 
@@ -40,6 +40,6 @@ DALI_SCHEMA(sub__sub__DeprecationWarningOp)
     .DocStr("Operator for deprecation warnings.")
     .NumInput(0)
     .NumOutput(1)
-    .Deprecate("sub__sub__DeprecationWarningOp");
+    .Deprecate("1.0", "sub__sub__DeprecationWarningOp");
 
 }  // namespace dali

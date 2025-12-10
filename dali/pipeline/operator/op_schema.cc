@@ -163,7 +163,7 @@ a pipeline scope. False if it was defined without pipeline being set as current.
                  "<empty>");
   arguments_["_display_name"].ignore_cmp = true;
 
-  DeprecateArg("seed", true,
+  DeprecateArg("seed", "1.46", true,
                "The argument \"seed\" should not be used with operators that don't use "
                "random numbers.");
   arguments_["seed"].hidden = true;
@@ -344,8 +344,10 @@ OpSchema &OpSchema::MakeDocPartiallyHidden() {
 }
 
 
-OpSchema &OpSchema::Deprecate(std::string in_favor_of, std::string explanation) {
+OpSchema &OpSchema::Deprecate(std::string version, std::string in_favor_of,
+                              std::string explanation) {
   is_deprecated_ = true;
+  deprecation_version_ = std::move(version);
   deprecated_in_favor_of_ = std::move(in_favor_of);
   deprecation_message_ = std::move(explanation);
   return *this;
@@ -532,18 +534,20 @@ bool OpSchema::HasRandomSeedArg() const {
 }
 
 OpSchema &OpSchema::DeprecateArgInFavorOf(std::string_view arg_name, std::string renamed_to,
-                                          std::string msg) {
+                                          std::string version, std::string msg) {
   if (msg.empty())
     msg = DefaultDeprecatedArgMsg(arg_name, renamed_to, false);
 
   auto &alias = AddArgumentImpl(arg_name);
   alias.defined_in = this;
-  alias.deprecated = std::make_unique<ArgumentDeprecation>(renamed_to, std::move(msg), false);
+  alias.deprecated = std::make_unique<ArgumentDeprecation>(renamed_to, std::move(version),
+                                                           std::move(msg), false);
 
   return *this;
 }
 
-OpSchema &OpSchema::DeprecateArg(std::string_view arg_name, bool removed, std::string msg) {
+OpSchema &OpSchema::DeprecateArg(std::string_view arg_name, std::string version,
+                                 bool removed, std::string msg) {
   if (msg.empty())
     msg = DefaultDeprecatedArgMsg(arg_name, {}, removed);
 
@@ -552,7 +556,8 @@ OpSchema &OpSchema::DeprecateArg(std::string_view arg_name, bool removed, std::s
   if (arg.deprecated)
     throw std::logic_error(make_string("The argument \"", arg_name, "\" is already deprecated"));
 
-  arg.deprecated = std::make_unique<ArgumentDeprecation>("", std::move(msg), removed);
+  arg.deprecated = std::make_unique<ArgumentDeprecation>("", std::move(version),
+                                                         std::move(msg), removed);
 
   return *this;
 }
@@ -784,6 +789,11 @@ bool OpSchema::IsDeprecated() const {
   return is_deprecated_;
 }
 
+const std::string &OpSchema::DeprecatedInVersion() const {
+  if (!is_deprecated_ && !deprecation_version_.empty())
+    throw std::logic_error(make_string("Operator \"", name(), "\" is not deprecated."));
+  return deprecation_version_;
+}
 
 const std::string &OpSchema::DeprecatedInFavorOf() const {
   return deprecated_in_favor_of_;
