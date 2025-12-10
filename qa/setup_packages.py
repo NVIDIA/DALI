@@ -641,6 +641,18 @@ all_packages = [
         name="jax[cuda{cuda_v[0]}{cuda_v[1]}_local]",
         links_index=("https://storage.googleapis.com/" "jax-releases/jax_cuda_releases.html"),
     ),
+    PlainPackage(
+        "clu",
+        [
+            PckgVer(
+                "0.0.12",
+                dependencies=["numpy<2"],
+                # Free-threaded Python build is incompatible with numpy<2.
+                python_free_threaded=False,
+                constraints=["jax==0.4.16"],
+            ),
+        ],
+    ),
     CudaPackage(
         "numba",
         {
