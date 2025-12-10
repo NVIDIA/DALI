@@ -96,7 +96,7 @@ class _AsyncExecutor:
 
         # Let the worker acquire the GIL if it's ready to pick up a task
         if sys.version_info < (3, 13) or sys._is_gil_enabled():
-            self._event.wait(1e-3)
+            self._event.wait(1e-4)  # 100us
 
         return task
 

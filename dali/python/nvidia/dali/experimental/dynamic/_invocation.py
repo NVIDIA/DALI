@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import threading
 from typing import TYPE_CHECKING, Any, Optional
 
 import nvtx
@@ -82,6 +83,7 @@ class Invocation:
         self._previous_invocation = previous_invocation
         self._eval_context = _EvalContext.current()
         self._future: Optional[_Future] = None
+        self._run_lock = threading.Lock()
 
     def device(self, result_index: int):
         if self._output_devices is None:
@@ -146,10 +148,15 @@ class Invocation:
             self._future = None
         else:
             ctx = self._eval_context if ctx is None else ctx
-            self._results = self._run_impl(ctx)
+            # We don't want to run from two threads
+            with self._run_lock:
+                self._results = self._run_impl(ctx)
 
     def schedule(self, ctx: Optional[_EvalContext] = None):
         """Schedule the asynchronous execution of the operator"""
+
+        # Note: this function can only be called once, soon after the instance creation
+        # so we don't have to worry about thread-safety
 
         if self._results is not None or self._future is not None:
             return
