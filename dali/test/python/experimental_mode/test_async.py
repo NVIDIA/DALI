@@ -18,9 +18,9 @@ import threading
 
 import numpy as np
 import nvidia.dali.experimental.dynamic as ndd
-import torch
 from nose2.tools import params
 from nose_utils import SkipTest, raises
+from nvidia.dali import backend
 
 
 @params(("cpu",), ("gpu",))
@@ -87,17 +87,17 @@ def test_eager_parallelism():
         started = start_event.wait(1)
 
     start_event = threading.Event()
-    cuda_stream = torch.cuda.Stream()
+    cuda_stream = backend.Stream(None)
 
     callback_type = ctypes.CFUNCTYPE(None, ctypes.c_void_p)
     cudart.cudaLaunchHostFunc.argtypes = [ctypes.c_void_p, callback_type, ctypes.c_void_p]
     cudart.cudaLaunchHostFunc.restype = ctypes.c_int
     callback = callback_type(wait_event)
-    err = cudart.cudaLaunchHostFunc(cuda_stream.cuda_stream, callback, None)
+    err = cudart.cudaLaunchHostFunc(cuda_stream.handle, callback, None)
     assert err == 0
 
     started = False
-    with ndd.EvalMode.eager, ndd.EvalContext(cuda_stream=cuda_stream.cuda_stream):
+    with ndd.EvalMode.eager, ndd.EvalContext(cuda_stream=cuda_stream):
         a = ndd.tensor([1, 2, 3], device="gpu")
         b = ndd.tensor([4, 5, 6], device="gpu")
         # if the execution was not parallel, this would need to wait for the callback to be called
