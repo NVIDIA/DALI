@@ -61,7 +61,7 @@ void ArithmeticGenericOp<CPUBackend>::RunImpl(Workspace &ws) {
 
 }  // namespace expr
 
-DALI_SCHEMA(ArithmeticGenericOp)
+DALI_SCHEMA(_ArithmeticGenericOp)
     .DocStr(R"code(Arithmetic operator capable of executing expression tree of element-wise
 arithmetic operations.)code")
     .AddArg("expression_desc", R"code(Polish notation describing the expression extendend with
@@ -93,6 +93,6 @@ Examples::
     .NumOutput(1)
     .MakeDocHidden();
 
-DALI_REGISTER_OPERATOR(ArithmeticGenericOp, expr::ArithmeticGenericOp<CPUBackend>, CPU);
+DALI_REGISTER_OPERATOR(_ArithmeticGenericOp, expr::ArithmeticGenericOp<CPUBackend>, CPU);
 
 }  // namespace dali

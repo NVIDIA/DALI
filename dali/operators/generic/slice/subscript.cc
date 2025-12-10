@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -26,7 +26,7 @@ namespace dali {
     .AddOptionalArg<int>("step_" #idx, "Range step", nullptr, true)
 
 
-DALI_SCHEMA(TensorSubscript)
+DALI_SCHEMA(_TensorSubscript)
     .MakeDocHidden()
     .DocStr(R"(Applies NumPy-like indexing to a batch of tensors.)")
     .NumInput(1)
@@ -94,9 +94,9 @@ void TensorSubscript<CPUBackend>::RunTyped(Workspace &ws) {
   tp.RunAll();
 }
 
-DALI_REGISTER_OPERATOR(TensorSubscript, TensorSubscript<CPUBackend>, CPU);
+DALI_REGISTER_OPERATOR(_TensorSubscript, TensorSubscript<CPUBackend>, CPU);
 
-DALI_SCHEMA(SubscriptDimCheck)
+DALI_SCHEMA(_SubscriptDimCheck)
     .MakeDocHidden()
     .DocStr(R"(Checks that the input has at least `num_subscripts` dimensions.
 
@@ -132,7 +132,7 @@ struct SubscriptDimCheck : public StatelessOperator<Backend> {
   int num_subscripts_ = 0;
 };
 
-DALI_REGISTER_OPERATOR(SubscriptDimCheck, SubscriptDimCheck<CPUBackend>, CPU);
-DALI_REGISTER_OPERATOR(SubscriptDimCheck, SubscriptDimCheck<GPUBackend>, GPU);
+DALI_REGISTER_OPERATOR(_SubscriptDimCheck, SubscriptDimCheck<CPUBackend>, CPU);
+DALI_REGISTER_OPERATOR(_SubscriptDimCheck, SubscriptDimCheck<GPUBackend>, GPU);
 
 }  // namespace dali

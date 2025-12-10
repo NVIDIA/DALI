@@ -626,9 +626,9 @@ class Tensor:
 
 def _arithm_op(name, *args, **kwargs):
     argsstr = " ".join(f"&{i}" for i in range(len(args)))
-    from . import arithmetic_generic_op
+    from . import _arithmetic_generic_op
 
-    return arithmetic_generic_op(*args, expression_desc=f"{name}({argsstr})")
+    return _arithmetic_generic_op(*args, expression_desc=f"{name}({argsstr})")
 
 
 def _is_int_value(tested: Any, reference: int) -> bool:
@@ -860,9 +860,9 @@ class TensorSlice:
                     args[f"at_{d}"] = r
                     d += 1
 
-            from . import tensor_subscript
+            from . import _tensor_subscript
 
-            return tensor_subscript(self._tensor, **args).evaluate()
+            return _tensor_subscript(self._tensor, **args).evaluate()
 
 
 def tensor(

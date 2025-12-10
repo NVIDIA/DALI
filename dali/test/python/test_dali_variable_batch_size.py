@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -1388,7 +1388,7 @@ def test_tensor_subscript():
 
 def test_subscript_dim_check():
     data = generate_data(31, 13, array_1d_shape_generator, lo=0, hi=255, dtype=np.uint8)
-    check_pipeline(data, single_op_pipeline, operator_fn=fn.subscript_dim_check, num_subscripts=1)
+    check_pipeline(data, single_op_pipeline, operator_fn=fn._subscript_dim_check, num_subscripts=1)
 
 
 def test_crop_argument_from_external_source():
@@ -1923,8 +1923,8 @@ tested_methods = [
     "squeeze",
     "ssd_random_crop",
     "stack",
-    "subscript_dim_check",
-    "tensor_subscript",
+    "_subscript_dim_check",
+    "_tensor_subscript",
     "to_decibels",
     "transform_translation",
     "transforms.combine",

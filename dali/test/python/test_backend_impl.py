@@ -425,7 +425,7 @@ def test_schema_is_stateful():
     assert get_schema(fn.readers.tfrecord).IsStateful()
     # Generic processing operators
     assert not get_schema(fn.resize).IsStateful()
-    assert not get_schema(fn.tensor_subscript).IsStateful()
+    assert not get_schema(fn._tensor_subscript).IsStateful()
     assert not get_schema(fn.slice).IsStateful()
     assert not get_schema(fn.decoders.image).IsStateful()
 

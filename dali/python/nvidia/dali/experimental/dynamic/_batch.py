@@ -93,13 +93,13 @@ class BatchedSlice:
                 args[f"at_{d}"] = r
                 d += 1
 
-        from . import tensor_subscript
+        from . import _tensor_subscript
 
-        return tensor_subscript(self._batch, **args)
+        return _tensor_subscript(self._batch, **args)
 
 
 def _arithm_op(name, *args, **kwargs):
-    from . import arithmetic_generic_op
+    from . import _arithmetic_generic_op
 
     argsstr = " ".join(f"&{i}" for i in range(len(args)))
     gpu = False
@@ -125,7 +125,7 @@ def _arithm_op(name, *args, **kwargs):
                 raise ValueError("Cannot mix GPU and CPU inputs.")
             new_args[i] = args[i]
 
-    return arithmetic_generic_op(*new_args, expression_desc=f"{name}({argsstr})")
+    return _arithmetic_generic_op(*new_args, expression_desc=f"{name}({argsstr})")
 
 
 class _TensorList:

@@ -1321,7 +1321,7 @@ def test_tensor_subscript():
 
 
 def test_subscript_dim_check():
-    check_single_input(fn.subscript_dim_check, num_subscripts=3)
+    check_single_input(fn._subscript_dim_check, num_subscripts=3)
 
 
 def test_get_property():
@@ -1609,8 +1609,8 @@ tested_methods = [
     "multi_paste",
     "roi_random_crop",
     "segmentation.random_object_bbox",
-    "tensor_subscript",
-    "subscript_dim_check",
+    "_tensor_subscript",
+    "_subscript_dim_check",
     "math.ceil",
     "math.clamp",
     "math.tanh",
