@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -22,6 +22,7 @@
 #include <functional>
 #include <list>
 #include <mutex>
+#include <optional>
 #include <string>
 #include <type_traits>
 #include <typeindex>
@@ -156,7 +157,9 @@ class DLL_PUBLIC TypeInfo {
    *        (only relevant for device and host pinned memory)
    */
   template <typename DstBackend, typename SrcBackend>
-  DLL_PUBLIC void Copy(void *dst, const void *src, Index n, cudaStream_t stream,
+  DLL_PUBLIC void Copy(void *dst, std::optional<int> dst_device_id,
+                       const void *src, std::optional<int> src_device_id,
+                       Index n, cudaStream_t stream,
                        bool use_copy_kernel = false) const;
 
   /**
