@@ -152,6 +152,10 @@ def _argument_type_conversion(dtype_id):
 
 
 def build_operator_class(schema):
+    """
+    Generates an Operator subclass based on a schema, fills the members and implements the __init__
+    and __call__ methods. Registers the class in the appropriate module.
+    """
     class_name = schema.OperatorName()
     module_path = schema.ModulePath()
     is_reader = "readers" in module_path
@@ -173,14 +177,15 @@ def build_operator_class(schema):
     base = ops.Operator
     if "readers" in module.__name__:
         base = ops.Reader
-    op_class = type(class_name, (base,), {})
-    op_class.schema = schema
-    op_class.supported_backends = set(schema.GetSupportedBackends())
-    op_class.op_name = class_name
-    op_class.fn_name = _to_snake_case(class_name)
-    op_class.legacy_op = legacy_op_class
-    op_class.is_stateful = schema.IsStateful()
-    op_class.has_random_state_arg = schema.HasRandomStateArg()
+    op_class = type(class_name, (base,), {})  # create a subclass
+    op_class._schema = schema
+    op_class._schema_name = schema.Name()
+    op_class._supported_backends = set(schema.GetSupportedBackends())
+    op_class._op_name = class_name
+    op_class._fn_name = _to_snake_case(class_name)
+    op_class._legacy_op = legacy_op_class
+    op_class._is_stateful = schema.IsStateful()
+    op_class._has_random_state_arg = schema.HasRandomStateArg()
     op_class._instance_cache = {}  # TODO(michalz): Make it thread-local
     op_class._generated = True
     op_class.__init__ = build_constructor(schema, op_class)
@@ -196,7 +201,13 @@ def build_operator_class(schema):
 
 
 def build_constructor(schema, op_class):
-    stateful = op_class.is_stateful
+    """
+    Generates __init__ method for an operator subclass. Allows for lazy OpSpec initialization based
+    on the provided arguments.
+
+    Operator._get() can be used instead of the constructor to utilize the instance caching.
+    """
+    stateful = op_class._is_stateful
     function_name = "__init__"
 
     init_args = []
@@ -223,6 +234,7 @@ def build_constructor(schema, op_class):
     ] + init_args
     header = f"__init__({', '.join(header_args)})"
 
+    # Note: Base __init__ will keep the **kwargs
     def init(self, max_batch_size, name, **kwargs):
         kwargs = {k: _scalar_decay(v) for k, v in kwargs.items()}
         op_class.__base__.__init__(self, max_batch_size, name, **kwargs)
@@ -261,8 +273,16 @@ def _get_inputs(schema):
 
 
 def build_call_function(schema, op_class):
-    stateful = op_class.is_stateful
-    has_random_state_arg = op_class.has_random_state_arg
+    """
+    Generates __call__ method for an operator subclass.
+
+    The call function handles batch/sample distinction,
+    conversion of arguments to batch/tensor and RNG state for random ops.
+    It constructs the invocation object and runs it immediately or returns it for lazy evaluation
+    depending on the current evaluation mode.
+    """
+    stateful = op_class._is_stateful
+    has_random_state_arg = op_class._has_random_state_arg
     call_args = []
     used_kwargs = set()
     for arg in schema.GetArgumentNames():
@@ -291,7 +311,7 @@ def build_call_function(schema, op_class):
     header = f"__call__({', '.join(['self'] + inputs + call_args)})"
 
     def call(self, *raw_args, batch_size=None, **raw_kwargs):
-        with nvtx.annotate(f"__call__: {self.op_name}", domain="op_builder"):
+        with nvtx.annotate(f"__call__: {self._op_name}", domain="op_builder"):
             self._pre_call(*raw_args, **raw_kwargs)
             with nvtx.annotate("__call__: get batch size", domain="op_builder"):
                 is_batch = batch_size is not None
@@ -338,7 +358,7 @@ def build_call_function(schema, op_class):
                     for i, inp in enumerate(raw_args):
                         if inp is None:
                             continue
-                        input_device = self.input_device(i, _get_input_device(inp))
+                        input_device = self._input_device(i, _get_input_device(inp))
                         inp = _to_batch(inp, batch_size, device=input_device)
                         inputs.append(inp)
                     for k, v in raw_kwargs.items():
@@ -404,7 +424,7 @@ def build_call_function(schema, op_class):
                 # When leaving the context, the invocation will be evaluated if it's still alive.
                 # ctx = _eval_context.EvalContext.current()
                 # if ctx is not None:
-                # ctx._add_invocation(invocation, weak=not self.is_stateful)
+                # ctx._add_invocation(invocation, weak=not self._is_stateful)
 
             if is_batch:
                 if len(invocation) == 1:
@@ -432,13 +452,23 @@ def _next_pow2(x):
 
 
 def build_fn_wrapper(op):
-    schema = op.schema
+    """Generates main API entry point for a dynamic mode operator.
+
+    The implementation extracts the batch size and device if possible, gets the Operator instance,
+    and calls it to produce an Invocation object.
+
+    Parameters
+    ----------
+    op : ndd.Operator
+        The ndd "operator" class to wrap.
+    """
+    schema = op._schema
     module_path = schema.ModulePath()
     from .. import dynamic as parent
 
     module = _internal.get_submodule(parent, module_path)
 
-    fn_name = _to_snake_case(op.schema.OperatorName())
+    fn_name = _to_snake_case(op._schema.OperatorName())
     inputs = _get_inputs(schema)
 
     fixed_args = []
@@ -446,20 +476,20 @@ def build_fn_wrapper(op):
     signature_args = ["batch_size=None, device=None"]
     used_kwargs = set()
 
-    for arg in op.schema.GetArgumentNames():
+    for arg in op._schema.GetArgumentNames():
         if arg in _unsupported_args:
             continue
-        if op.schema.IsTensorArgument(arg):
+        if op._schema.IsTensorArgument(arg):
             tensor_args.append(arg)
         else:
             fixed_args.append(arg)
         used_kwargs.add(arg)
-        if op.schema.IsArgumentOptional(arg):
+        if op._schema.IsArgumentOptional(arg):
             signature_args.append(f"{arg}=None")
         else:
             signature_args.append(arg)
 
-    if schema.HasRandomStateArg():
+    if op._has_random_state_arg:
         tensor_args.append("rng")
         used_kwargs.add("rng")
         signature_args.append("rng=None")
@@ -520,21 +550,21 @@ def build_fn_wrapper(op):
             device = _device.Device(device)
             device_inferred = False
 
-        supported_backends = op.supported_backends
+        supported_backends = op._supported_backends
         if device.device_type not in supported_backends:
             if len(supported_backends) == 1 and device_inferred:
                 # Maybe we got it wrong? Try the only device that's there
                 device.device_type = supported_backends[0]
             else:
-                # No we want to call "mixed" operators "gpu" - but we still have distinct backends.
+                # Now we want to call "mixed" operators "gpu" - but we still have distinct backends.
                 # Hardly any op has both "mixed" and "gpu", so we can just replace "gpu" with
                 # "mixed".
                 if device.device_type == "gpu" and "mixed" in supported_backends:
                     device.device_type = "mixed"
 
         # Get or create the operator instance that matches the arguments
-        with nvtx.annotate(f"get instance {op.op_name}", domain="op_builder"):
-            op_inst = op.get(
+        with nvtx.annotate(f"get instance {op._op_name}", domain="op_builder"):
+            op_inst = op._get(
                 max_batch_size=max_batch_size,
                 name=None,
                 device=device,
@@ -548,8 +578,9 @@ def build_fn_wrapper(op):
 
     doc = _docs._docstring_generator_fn(schema.Name(), api="dynamic", args=used_kwargs)
     function = makefun.create_function(header, fn_call, doc=doc)
-    function.op_class = op
-    function.schema = schema
+    function._op_class = op
+    function._schema = schema
+    function._schema_name = schema.Name()
     function._generated = True
     function.__module__ = module.__name__
     setattr(module, fn_name, function)
@@ -560,7 +591,7 @@ def build_fn_wrappers(all_ops):
     wrappers = []
     for op in all_ops:
         # Allow random operators to have functional wrappers even if stateful
-        if op.schema.IsStateful() and not op.schema.HasRandomStateArg():
+        if op._is_stateful and not op._has_random_state_arg:
             continue
 
         wrappers.append(build_fn_wrapper(op))
@@ -568,26 +599,29 @@ def build_fn_wrappers(all_ops):
 
 
 def build_operators():
+    """Main entry point for dynamic mode operator discovery and construction.
+    Returns a tuple of all operator classes and functional wrappers."""
     _all_ops = _ops._registry._all_registered_ops()
     all_op_classes = []
     deprecated = {}
     op_map = {}
-    for op_name in _all_ops:
+    # TODO(klecki): We should generalize the filtering.
+    for schema_name in _all_ops:
         if (
-            op_name.endswith("ExternalSource")
-            or op_name.endswith("PythonFunction")
-            or op_name.endswith("NumbaFunction")
-            or op_name.endswith("JaxFunction")
+            schema_name.endswith("ExternalSource")
+            or schema_name.endswith("PythonFunction")
+            or schema_name.endswith("NumbaFunction")
+            or schema_name.endswith("JaxFunction")
         ):
             continue
 
-        schema = _b.GetSchema(op_name)
+        schema = _b.GetSchema(schema_name)
         deprecated_in_favor = schema.DeprecatedInFavorOf()
         if deprecated_in_favor:
-            deprecated[op_name] = deprecated_in_favor
+            deprecated[schema_name] = deprecated_in_favor
         cls = build_operator_class(schema)
         all_op_classes.append(cls)
-        op_map[op_name] = cls
+        op_map[schema_name] = cls
     for what, in_favor in deprecated.items():
         schema = _b.GetSchema(what)
         module = _find_or_create_module(ops, schema.ModulePath())
