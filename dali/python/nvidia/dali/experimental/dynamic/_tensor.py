@@ -735,12 +735,14 @@ class TensorSlice:
 
         j = 0
         layout = ""
-        for i, r in enumerate(self._ranges):
+        for r in self._ranges:
             if isinstance(r, slice):
                 layout += input_layout[j]
                 j += 1
             elif r is Ellipsis:
-                j += self._tensor.ndim - len(self._ranges) + 1
+                skip = self._tensor.ndim - len(self._ranges) + 1
+                layout += input_layout[j : j + skip]
+                j += skip
             else:
                 j += 1  # skip this dimension
         self._layout = layout
