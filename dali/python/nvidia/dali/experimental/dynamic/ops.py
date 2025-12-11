@@ -134,7 +134,7 @@ class Operator:
     def _input_device(self, index: int, actual_device: Optional[_device.Device] = None):
         default_input_device = "gpu" if self._device.device_type == "gpu" else "cpu"
         actual_device_type = actual_device.device_type if actual_device is not None else None
-        dev_type = self.schema.GetInputDevice(index, actual_device_type, default_input_device)
+        dev_type = self._schema.GetInputDevice(index, actual_device_type, default_input_device)
         if dev_type is None:
             return self._device
         if dev_type == "cpu":
