@@ -35,8 +35,18 @@ void Tensor<Backend>::Copy(const Tensor<SrcBackend> &src, AccessOrder order) {
   this->SetLayout(src.GetLayout());
   this->SetSourceInfo(src.GetSourceInfo());
   this->SetSkipSample(src.ShouldSkipSample());
-  type_.template Copy<Backend, SrcBackend>(this->raw_mutable_data(),
-      src.raw_data(), this->size(), copy_order.stream());
+  std::optional<int> dst_device_id, src_device_id;
+  if (std::is_same_v<Backend, GPUBackend>)
+    dst_device_id = device_id();
+  if (std::is_same_v<SrcBackend, GPUBackend>)
+    src_device_id = src.device_id();
+  type_.template Copy<Backend, SrcBackend>(
+      this->raw_mutable_data(),
+      dst_device_id,
+      src.raw_data(),
+      src_device_id,
+      this->size(),
+      copy_order.stream());
   copy_impl::SyncAfter(this->order(), copy_order);
 }
 
