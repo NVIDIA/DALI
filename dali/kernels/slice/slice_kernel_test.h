@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -287,7 +287,7 @@ struct ArgsGen_MultiChannelBoundary {
       args.shape[0] = input_shape[0];
       args.shape[1] = 2 * input_shape[1];
       args.shape[2] = 2 * input_shape[2];
-      } else {
+    } else {
       args.anchor[0] = -input_shape[0] / 2;
       args.anchor[1] = -input_shape[1] / 2;
       args.anchor[2] = 0;

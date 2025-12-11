@@ -1207,7 +1207,7 @@ def to_cv_border_type(out_of_bounds_policy):
     ("constant", "const", "pad", "clamp", "edge", "reflect", "reflect_1001", "reflect_101", "wrap"),
 )
 def test_border_modes(device, layout, out_of_bounds_policy):
-    @pipeline_def(batch_size=2, num_threads=4, device_id=0, seed=1234)
+    @pipeline_def(batch_size=10, num_threads=4, device_id=0, seed=1234)
     def make_pipe():
         file, _ = fn.readers.file(
             file_root=os.path.join(test_data_root, "db", "single", "jpeg"),
@@ -1222,8 +1222,13 @@ def test_border_modes(device, layout, out_of_bounds_policy):
         if layout == "CHW":  # convert to CHW
             input = fn.transpose(input, perm=(2, 0, 1))
 
-        anchor = fn.stack(-w, -h)
-        shape = fn.stack(3 * w, 3 * h)
+        top = fn.random.uniform(range=fn.stack(1.0 * h, 2.0 * h), dtype=types.INT64)
+        bottom = fn.random.uniform(range=fn.stack(1.0 * h, 2.0 * h), dtype=types.INT64)
+        left = fn.random.uniform(range=fn.stack(1.0 * w, 2.0 * w), dtype=types.INT64)
+        right = fn.random.uniform(range=fn.stack(1.0 * w, 2.0 * w), dtype=types.INT64)
+
+        anchor = fn.stack(-left, -top)
+        shape = fn.stack(w + left + right, h + top + bottom)
         fill = [0x76, 0xB9, 0x00] if out_of_bounds_policy in ["constant", "const", "pad"] else None
         output = fn.slice(
             input,
@@ -1237,20 +1242,22 @@ def test_border_modes(device, layout, out_of_bounds_policy):
         if layout == "CHW":  # convert back to HWC
             output = fn.transpose(output, perm=(1, 2, 0))
 
-        return img, output
+        return img, output, fn.stack(left, top, right, bottom)
 
     pipe = make_pipe()
-    inputs, outputs = pipe.run()
+    inputs, outputs, margins = pipe.run()
     if device == "gpu":
         inputs = inputs.as_cpu()
         outputs = outputs.as_cpu()
+        margins = margins.as_cpu()
 
     for i in range(len(inputs)):
         in_img = as_array(inputs[i])
         out_img = as_array(outputs[i])
         h, w = in_img.shape[:2]
+        l, t, r, b = as_array(margins[i])
         ref = cv2.copyMakeBorder(
-            in_img, h, h, w, w, to_cv_border_type(out_of_bounds_policy), None, [0x76, 0xB9, 0x00]
+            in_img, t, b, l, r, to_cv_border_type(out_of_bounds_policy), None, [0x76, 0xB9, 0x00]
         )
         if not np.array_equal(ref, out_img):
             dump_as_core_artifacts(
