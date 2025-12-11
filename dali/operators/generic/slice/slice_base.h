@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -47,7 +47,7 @@ class SliceBase : public StatelessOperator<Backend> {
       : StatelessOperator<Backend>(spec),
         out_of_bounds_policy_(GetOutOfBoundsPolicy(spec)) {
     spec.TryGetArgument(output_type_, "dtype");
-    if (out_of_bounds_policy_ == OutOfBoundsPolicy::Pad) {
+    if (out_of_bounds_policy_.shape_policy == OutOfBoundsShapePolicy::Pad) {
       fill_values_ = spec.GetRepeatedArgument<float>("fill_values");
     }
   }
@@ -69,7 +69,8 @@ class SliceBase : public StatelessOperator<Backend> {
       auto crop_win_gen = this->GetCropWindowGenerator(i);
       assert(crop_win_gen);
       CropWindow win = crop_win_gen(in_shape[i], in_layout);
-      ApplySliceBoundsPolicy(out_of_bounds_policy_, in_shape[i], win.anchor, win.shape);
+      ApplySliceBoundsPolicy(
+        out_of_bounds_policy_.shape_policy, in_shape[i], win.anchor, win.shape);
       slice_args.emplace_back(
           ToSliceArgs<OutputType, Dims>(win, in_layout, make_cspan(fill_values_)));
     }
@@ -89,7 +90,8 @@ class SliceBase : public StatelessOperator<Backend> {
   DALIDataType input_type_ = DALI_NO_TYPE;
   DALIDataType output_type_ = DALI_NO_TYPE;
   int ndim_ = -1;
-  OutOfBoundsPolicy out_of_bounds_policy_ = OutOfBoundsPolicy::Error;
+  OutOfBoundsPolicy out_of_bounds_policy_;
+  boundary::BoundaryType border_type_ = boundary::BoundaryType::CONSTANT;
 
   USE_OPERATOR_MEMBERS();
   using Operator<Backend>::RunImpl;
@@ -105,15 +107,18 @@ class SliceBase : public StatelessOperator<Backend> {
     args.shape = win.shape.to_static<Dims>();
     std::fill(args.step.begin(), args.step.end(), 1);
     args.channel_dim = -1;
-    if (!fill_values_.empty()) {
-      args.fill_values.clear();
-      for (auto val : fill_values_)
-        args.fill_values.push_back(static_cast<OutputType>(val));
-      if (fill_values_.size() > 1) {
-        DALI_ENFORCE((channel_dim >= 0 && channel_dim < Dims),
-                     "Multi-channel fill_values was provided but channel dimension could not be "
-                     "found in layout");
-        args.channel_dim = channel_dim;
+    args.border_type = out_of_bounds_policy_.border_type;
+    if (out_of_bounds_policy_.border_type == boundary::BoundaryType::CONSTANT) {
+      if (!fill_values_.empty()) {
+        args.fill_values.clear();
+        for (auto val : fill_values_)
+          args.fill_values.push_back(static_cast<OutputType>(val));
+        if (fill_values_.size() > 1) {
+          DALI_ENFORCE((channel_dim >= 0 && channel_dim < Dims),
+                      "Multi-channel fill_values was provided but channel dimension could not be "
+                      "found in layout");
+          args.channel_dim = channel_dim;
+        }
       }
     }
     return args;

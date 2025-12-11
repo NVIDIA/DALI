@@ -1,4 +1,4 @@
-// Copyright (c) 2019, 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019, 2022, 2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,7 +16,7 @@
 #define DALI_CORE_BOUNDARY_H_
 
 #include <string>
-
+#include <string_view>
 #include "dali/core/force_inline.h"
 #include "dali/core/format.h"
 #include "dali/core/geom/vec.h"
@@ -83,22 +83,45 @@ inline std::string to_string(const BoundaryType& type) {
   }
 }
 
-inline BoundaryType parse(std::string type) {
-  std::transform(type.begin(), type.end(), type.begin(), [](auto c) { return std::tolower(c); });
-  if (type == "constant" || type == "const" || type == "fill")
-    return BoundaryType::CONSTANT;
-  if (type == "clamp")
-    return BoundaryType::CLAMP;
-  if (type == "reflect_1001" || type == "reflect1001" || type == "1001")
-    return BoundaryType::REFLECT_1001;
-  if (type == "reflect_101" || type == "reflect101" || type == "101")
-    return BoundaryType::REFLECT_101;
-  if (type == "wrap")
-    return BoundaryType::WRAP;
-  if (type == "transparent")
-    return BoundaryType::TRANSPARENT;
-  if (type == "isolated")
-    return BoundaryType::ISOLATED;
+inline bool TryParse(BoundaryType &type, std::string_view type_str) {
+  std::string s(type_str);
+  std::transform(s.begin(), s.end(), s.begin(),
+                 [](auto c) { return std::tolower(c); });
+  if (s == "constant" || s == "const" || s == "fill" || s == "pad") {
+    type = BoundaryType::CONSTANT;
+    return true;
+  }
+  if (s == "clamp" || s == "edge") {
+    type = BoundaryType::CLAMP;
+    return true;
+  }
+  if (s == "reflect" || s == "reflect_1001" || s == "reflect1001" || s == "1001") {
+    type = BoundaryType::REFLECT_1001;
+    return true;
+  }
+  if (s == "reflect_101" || s == "reflect101" || s == "101") {
+    type = BoundaryType::REFLECT_101;
+    return true;
+  }
+  if (s == "wrap") {
+    type = BoundaryType::WRAP;
+    return true;
+  }
+  if (s == "transparent") {
+    type = BoundaryType::TRANSPARENT;
+    return true;
+  }
+  if (s == "isolated") {
+    type = BoundaryType::ISOLATED;
+    return true;
+  }
+  return false;
+}
+
+inline BoundaryType parse(std::string_view type) {
+  BoundaryType result;
+  if (TryParse(result, type))
+    return result;
   throw std::invalid_argument(make_string("Unknown boundary type was specified: ``", type, "``."));
 }
 
@@ -118,7 +141,7 @@ inline BoundaryType parse(std::string type) {
  */
 template <typename T>
 DALI_HOST_DEV DALI_FORCEINLINE
-std::enable_if_t<std::is_integral<T>::value, T> idx_reflect_101(T idx, T lo, T hi) {
+constexpr std::enable_if_t<std::is_integral<T>::value, T> idx_reflect_101(T idx, T lo, T hi) {
   if (hi - lo < 2)
     return hi - 1;  // make it obviously wrong if hi <= lo
   for (;;) {
@@ -135,7 +158,7 @@ std::enable_if_t<std::is_integral<T>::value, T> idx_reflect_101(T idx, T lo, T h
 /// @brief Equivalent to `idx_reflect_101(idx, 0, size)`
 template <typename T>
 DALI_HOST_DEV DALI_FORCEINLINE
-std::enable_if_t<std::is_integral<T>::value, T> idx_reflect_101(T idx, T size) {
+constexpr std::enable_if_t<std::is_integral<T>::value, T> idx_reflect_101(T idx, T size) {
   return idx_reflect_101(idx, T(0), size);
 }
 
@@ -156,7 +179,7 @@ std::enable_if_t<std::is_integral<T>::value, T> idx_reflect_101(T idx, T size) {
  */
 template <typename T>
 DALI_HOST_DEV DALI_FORCEINLINE
-std::enable_if_t<std::is_integral<T>::value, T> idx_reflect_1001(T idx, T lo, T hi) {
+constexpr std::enable_if_t<std::is_integral<T>::value, T> idx_reflect_1001(T idx, T lo, T hi) {
   if (hi - lo < 1)
     return hi - 1;  // make it obviously wrong if hi <= lo
   for (;;) {
@@ -173,7 +196,7 @@ std::enable_if_t<std::is_integral<T>::value, T> idx_reflect_1001(T idx, T lo, T 
 /// @brief Equivalent to `idx_reflect_1001(idx, 0, size)`
 template <typename T>
 DALI_HOST_DEV DALI_FORCEINLINE
-std::enable_if_t<std::is_integral<T>::value, T> idx_reflect_1001(T idx, T size) {
+constexpr std::enable_if_t<std::is_integral<T>::value, T> idx_reflect_1001(T idx, T size) {
   return idx_reflect_1001(idx, T(0), size);
 }
 
@@ -186,21 +209,21 @@ std::enable_if_t<std::is_integral<T>::value, T> idx_reflect_1001(T idx, T size) 
  */
 template <typename T>
 DALI_HOST_DEV DALI_FORCEINLINE
-std::enable_if_t<std::is_integral<T>::value, T> idx_clamp(T idx, T lo, T hi) {
+constexpr std::enable_if_t<std::is_integral<T>::value, T> idx_clamp(T idx, T lo, T hi) {
   return clamp(idx, lo, hi - 1);
 }
 
 /// @brief Equivalent to `idx_clamp(idx, 0, size)`
 template <typename T>
 DALI_HOST_DEV DALI_FORCEINLINE
-std::enable_if_t<std::is_integral<T>::value, T> idx_clamp(T idx, T size) {
+constexpr std::enable_if_t<std::is_integral<T>::value, T> idx_clamp(T idx, T size) {
   return idx_clamp(idx, 0, size);
 }
 
 /// @brief Wraps out-of-range indices modulo `size`
 template <typename T>
 DALI_HOST_DEV DALI_FORCEINLINE
-std::enable_if_t<std::is_integral<T>::value && std::is_signed<T>::value, T>
+constexpr std::enable_if_t<std::is_integral<T>::value && std::is_signed<T>::value, T>
 idx_wrap(T idx, T size) {
   idx %= size;
   return idx < 0 ? idx + size : idx;
@@ -209,7 +232,7 @@ idx_wrap(T idx, T size) {
 /// @brief Wraps out-of-range indices modulo `size`
 template <typename T>
 DALI_HOST_DEV DALI_FORCEINLINE
-std::enable_if_t<std::is_unsigned<T>::value, T> idx_wrap(T idx, T size) {
+constexpr std::enable_if_t<std::is_unsigned<T>::value, T> idx_wrap(T idx, T size) {
   return idx % size;
 }
 
@@ -217,19 +240,19 @@ std::enable_if_t<std::is_unsigned<T>::value, T> idx_wrap(T idx, T size) {
 
 template <int n>
 DALI_HOST_DEV DALI_FORCEINLINE
-ivec<n> idx_clamp(ivec<n> idx, ivec<n> lo, ivec<n> hi) {
+constexpr ivec<n> idx_clamp(ivec<n> idx, ivec<n> lo, ivec<n> hi) {
   return clamp(idx, lo, hi - 1);
 }
 
 template <int n>
 DALI_HOST_DEV DALI_FORCEINLINE
-ivec<n> idx_clamp(ivec<n> idx, ivec<n> size) {
+constexpr ivec<n> idx_clamp(ivec<n> idx, ivec<n> size) {
   return clamp(idx, ivec<n>(), size - 1);
 }
 
 template <int n>
 DALI_HOST_DEV DALI_FORCEINLINE
-ivec<n> idx_reflect_101(ivec<n> idx, ivec<n> lo, ivec<n> hi) {
+constexpr ivec<n> idx_reflect_101(ivec<n> idx, ivec<n> lo, ivec<n> hi) {
   ivec<n> out;
   for (int i = 0; i < n; i++)
     out[i] = idx_reflect_101(idx[i], lo[i], hi[i]);
@@ -238,7 +261,7 @@ ivec<n> idx_reflect_101(ivec<n> idx, ivec<n> lo, ivec<n> hi) {
 
 template <int n>
 DALI_HOST_DEV DALI_FORCEINLINE
-ivec<n> idx_reflect_101(ivec<n> idx, ivec<n> size) {
+constexpr ivec<n> idx_reflect_101(ivec<n> idx, ivec<n> size) {
   ivec<n> out;
   for (int i = 0; i < n; i++)
     out[i] = idx_reflect_101(idx[i], size[i]);
@@ -247,7 +270,7 @@ ivec<n> idx_reflect_101(ivec<n> idx, ivec<n> size) {
 
 template <int n>
 DALI_HOST_DEV DALI_FORCEINLINE
-ivec<n> idx_reflect_1001(ivec<n> idx, ivec<n> lo, ivec<n> hi) {
+constexpr ivec<n> idx_reflect_1001(ivec<n> idx, ivec<n> lo, ivec<n> hi) {
   ivec<n> out;
   for (int i = 0; i < n; i++)
     out[i] = idx_reflect_1001(idx[i], lo[i], hi[i]);
@@ -256,7 +279,7 @@ ivec<n> idx_reflect_1001(ivec<n> idx, ivec<n> lo, ivec<n> hi) {
 
 template <int n>
 DALI_HOST_DEV DALI_FORCEINLINE
-ivec<n> idx_reflect_1001(ivec<n> idx, ivec<n> size) {
+constexpr ivec<n> idx_reflect_1001(ivec<n> idx, ivec<n> size) {
   ivec<n> out;
   for (int i = 0; i < n; i++)
     out[i] = idx_reflect_1001(idx[i], size[i]);
@@ -265,11 +288,28 @@ ivec<n> idx_reflect_1001(ivec<n> idx, ivec<n> size) {
 
 template <int n>
 DALI_HOST_DEV DALI_FORCEINLINE
-ivec<n> idx_wrap(ivec<n> idx, ivec<n> size) {
+constexpr ivec<n> idx_wrap(ivec<n> idx, ivec<n> size) {
   ivec<n> out;
   for (int i = 0; i < n; i++)
     out[i] = idx_wrap(idx[i], size[i]);
   return out;
+}
+
+
+template <typename T>
+DALI_HOST_DEV DALI_FORCEINLINE
+constexpr T handle_bounds(T idx, T data_extent, BoundaryType border_type) {
+  if (border_type == BoundaryType::CLAMP) {
+    return idx_clamp(idx, T(0), data_extent);
+  } else if (border_type == BoundaryType::REFLECT_101) {
+    return idx_reflect_101(idx, T(0), data_extent);
+  } else if (border_type == BoundaryType::REFLECT_1001) {
+    return idx_reflect_1001(idx, T(0), data_extent);
+  } else if (border_type == BoundaryType::WRAP) {
+    return idx_wrap(idx, data_extent);
+  } else {
+    return idx;
+  }
 }
 
 

@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -102,8 +102,10 @@ class SliceTest : public ::testing::Test {
       auto *fill_values = slice_args[i].fill_values.data();
       int fill_values_size = slice_args[i].fill_values.size();
       if (fill_values_size > 1) {
-        ASSERT_GE(channel_dim, 0);
-        ASSERT_EQ(fill_values_size, out_shape[channel_dim]);
+        if (slice_args[i].border_type == boundary::BoundaryType::CONSTANT) {
+          ASSERT_GE(channel_dim, 0);
+          ASSERT_EQ(fill_values_size, out_shape[channel_dim]);
+        }
       }
 
       auto in_strides = GetStrides(in_shape);
@@ -117,21 +119,32 @@ class SliceTest : public ::testing::Test {
         int64_t in_idx = 0;
         bool out_of_bounds = false;
         for (int d = 0; d < Dims; d++) {
-          int i_d = idx / out_strides[d];
+          int64_t i_d = idx / out_strides[d];
           idx = idx % out_strides[d];
+
+          int64_t in_coord = anchor[d] + i_d;
 
           if (d == channel_dim)
             i_c = i_d;
-          out_of_bounds |= anchor[d] + i_d < 0;
-          out_of_bounds |= anchor[d] + i_d >= in_shape[d];
+          if (slice_args[i].border_type == boundary::BoundaryType::CONSTANT) {
+            out_of_bounds |= in_coord < 0;
+            out_of_bounds |= in_coord >= in_shape[d];
+          } else {
+            in_coord = boundary::handle_bounds(in_coord, in_shape[d], slice_args[i].border_type);
+          }
+
           if (!out_of_bounds) {
-            in_idx += (anchor[d] + i_d) * in_strides[d];
+            in_idx += in_coord * in_strides[d];
           }
         }
 
-        assert(i_c >= 0 && i_c < fill_values_size);
-        out_tensor[out_idx] =
-            out_of_bounds ? fill_values[i_c] : Convert<OutputType>(in_tensor[in_idx]);
+        if (slice_args[i].border_type == boundary::BoundaryType::CONSTANT) {
+          assert(i_c >= 0 && i_c < fill_values_size);
+          out_tensor[out_idx] =
+              out_of_bounds ? fill_values[i_c] : Convert<OutputType>(in_tensor[in_idx]);
+        } else {
+          out_tensor[out_idx] = Convert<OutputType>(in_tensor[in_idx]);
+        }
       }
     }
   }
@@ -262,38 +275,78 @@ struct ArgsGen_SingleValuePad {
   }
 };
 
-template <typename OutputType, int Dims = 3>
-struct ArgsGen_MultiChannelPad {
+
+template <typename OutputType, boundary::BoundaryType BoundaryType, bool ChFirst, int Dims = 3>
+struct ArgsGen_MultiChannelBoundary {
   SliceArgs<OutputType, Dims> Get(const TensorShape<Dims>& input_shape) {
     SliceArgs<OutputType, 3> args;
-    args.anchor[0] = -input_shape[0] / 2;
-    args.anchor[1] = -input_shape[1] / 2;
-    args.anchor[2] = 0;
-    args.shape[0] = 2 * input_shape[0];
-    args.shape[1] = 2 * input_shape[1];
-    args.shape[2] = input_shape[2];
+    if (ChFirst) {
+      args.anchor[0] = 0;
+      args.anchor[1] = -input_shape[1] / 2;
+      args.anchor[2] = -input_shape[2] / 2;
+      args.shape[0] = input_shape[0];
+      args.shape[1] = 2 * input_shape[1];
+      args.shape[2] = 2 * input_shape[2];
+    } else {
+      args.anchor[0] = -input_shape[0] / 2;
+      args.anchor[1] = -input_shape[1] / 2;
+      args.anchor[2] = 0;
+      args.shape[0] = 2 * input_shape[0];
+      args.shape[1] = 2 * input_shape[1];
+      args.shape[2] = input_shape[2];
+    }
     args.fill_values = {100, 110, 120};
-    args.channel_dim = 2;
+    args.border_type = BoundaryType;
+    args.channel_dim = ChFirst ? 0 : 2;
     return args;
   }
 };
 
+template <typename OutputType, int Dims = 3>
+struct ArgsGen_MultiChannelPad
+  : ArgsGen_MultiChannelBoundary<OutputType, boundary::BoundaryType::CONSTANT, false, Dims> {};
+template <typename OutputType, int Dims = 3>
+struct ArgsGen_MultiChannelClamp
+  : ArgsGen_MultiChannelBoundary<OutputType, boundary::BoundaryType::CLAMP, false, Dims> {};
+template <typename OutputType, int Dims = 3>
+struct ArgsGen_MultiChannelReflect1001
+  : ArgsGen_MultiChannelBoundary<OutputType, boundary::BoundaryType::REFLECT_1001, false, Dims> {};
+template <typename OutputType, int Dims = 3>
+struct ArgsGen_MultiChannelReflect101
+  : ArgsGen_MultiChannelBoundary<OutputType, boundary::BoundaryType::REFLECT_101, false, Dims> {};
+template <typename OutputType, int Dims = 3>
+struct ArgsGen_MultiChannelWrap
+  : ArgsGen_MultiChannelBoundary<OutputType, boundary::BoundaryType::WRAP, false, Dims> {};
+template <typename OutputType, int Dims = 3>
+struct ArgsGen_MultiChannelTransparent
+  : ArgsGen_MultiChannelBoundary<OutputType, boundary::BoundaryType::TRANSPARENT, false, Dims> {};
+template <typename OutputType, int Dims = 3>
+struct ArgsGen_MultiChannelIsolated
+  : ArgsGen_MultiChannelBoundary<OutputType, boundary::BoundaryType::ISOLATED, false, Dims> {};
+
 
 template <typename OutputType, int Dims = 3>
-struct ArgsGen_MultiChannelPad_ChFirst {
-  SliceArgs<OutputType, Dims> Get(const TensorShape<Dims>& input_shape) {
-    SliceArgs<OutputType, 3> args;
-    args.anchor[0] = 0;
-    args.anchor[1] = -input_shape[1] / 2;
-    args.anchor[2] = -input_shape[2] / 2;
-    args.shape[0] = input_shape[0];
-    args.shape[1] = 2 * input_shape[1];
-    args.shape[2] = 2 * input_shape[2];
-    args.fill_values = {100, 110, 120};
-    args.channel_dim = 0;
-    return args;
-  }
-};
+struct ArgsGen_MultiChannelPad_ChFirst
+  : ArgsGen_MultiChannelBoundary<OutputType, boundary::BoundaryType::CONSTANT, true, Dims> {};
+template <typename OutputType, int Dims = 3>
+struct ArgsGen_MultiChannelClamp_ChFirst
+  : ArgsGen_MultiChannelBoundary<OutputType, boundary::BoundaryType::CLAMP, true, Dims> {};
+template <typename OutputType, int Dims = 3>
+struct ArgsGen_MultiChannelReflect1001_ChFirst
+  : ArgsGen_MultiChannelBoundary<OutputType, boundary::BoundaryType::REFLECT_1001, true, Dims> {};
+template <typename OutputType, int Dims = 3>
+struct ArgsGen_MultiChannelReflect101_ChFirst
+  : ArgsGen_MultiChannelBoundary<OutputType, boundary::BoundaryType::REFLECT_101, true, Dims> {};
+template <typename OutputType, int Dims = 3>
+struct ArgsGen_MultiChannelWrap_ChFirst
+  : ArgsGen_MultiChannelBoundary<OutputType, boundary::BoundaryType::WRAP, true, Dims> {};
+template <typename OutputType, int Dims = 3>
+struct ArgsGen_MultiChannelTransparent_ChFirst
+  : ArgsGen_MultiChannelBoundary<OutputType, boundary::BoundaryType::TRANSPARENT, true, Dims> {};
+template <typename OutputType, int Dims = 3>
+using ArgsGen_MultiChannelIsolated_ChFirst =
+    ArgsGen_MultiChannelBoundary<OutputType, boundary::BoundaryType::ISOLATED, true, Dims>;
+
 
 template <typename OutputType, int Dims = 3>
 struct ArgsGen_PadAlsoChDim {
@@ -344,6 +397,22 @@ struct ArgsGen_PadOnlyChDim {
 };
 
 template <typename OutputType, int Dims = 3>
+struct ArgsGen_ReflectOnlyChDim {
+  SliceArgs<OutputType, Dims> Get(const TensorShape<Dims>& input_shape) {
+    SliceArgs<OutputType, 3> args;
+    args.anchor[0] = 0;
+    args.anchor[1] = 0;
+    args.anchor[2] = 1;
+    args.shape[0] = input_shape[0];
+    args.shape[1] = input_shape[1];
+    args.shape[2] = input_shape[2] + 2;
+    args.border_type = boundary::BoundaryType::REFLECT_101;
+    args.channel_dim = -1;
+    return args;
+  }
+};
+
+template <typename OutputType, int Dims = 3>
 struct ArgsGen_PadAlsoChDim_ChFirst {
   SliceArgs<OutputType, Dims> Get(const TensorShape<Dims>& input_shape) {
     SliceArgs<OutputType, 3> args;
@@ -354,6 +423,22 @@ struct ArgsGen_PadAlsoChDim_ChFirst {
     args.shape[1] = 2 * input_shape[1];
     args.shape[2] = 2 * input_shape[2];
     args.fill_values = {100};
+    args.channel_dim = -1;
+    return args;
+  }
+};
+
+template <typename OutputType, int Dims = 3>
+struct ArgsGen_WrapAlsoChDim_ChFirst {
+  SliceArgs<OutputType, Dims> Get(const TensorShape<Dims>& input_shape) {
+    SliceArgs<OutputType, 3> args;
+    args.anchor[0] = 1;
+    args.anchor[1] = -input_shape[1] / 2;
+    args.anchor[2] = -input_shape[2] / 2;
+    args.shape[0] = input_shape[0] + 2;
+    args.shape[1] = 2 * input_shape[1];
+    args.shape[2] = 2 * input_shape[2];
+    args.border_type = boundary::BoundaryType::WRAP;
     args.channel_dim = -1;
     return args;
   }
@@ -403,12 +488,22 @@ using SLICE_TEST_TYPES = ::testing::Types<
     SliceTestArgs<int, int, 3, 1, 20, ArgsGen_SingleValuePad<int, 3>, 20, 20, 3>,
     SliceTestArgs<int, int, 3, 1, 20, ArgsGen_MultiChannelPad<int, 3>, 20, 20, 3>,
     SliceTestArgs<int, int, 3, 1, 20, ArgsGen_MultiChannelPad_ChFirst<int, 3>, 3, 20, 20>,
+    SliceTestArgs<int, int, 3, 1, 20, ArgsGen_MultiChannelClamp<int, 3>, 20, 20, 3>,
+    SliceTestArgs<int, int, 3, 1, 20, ArgsGen_MultiChannelClamp_ChFirst<int, 3>, 3, 20, 20>,
+    SliceTestArgs<int, int, 3, 1, 20, ArgsGen_MultiChannelReflect1001<int, 3>, 20, 20, 3>,
+    SliceTestArgs<int, int, 3, 1, 20, ArgsGen_MultiChannelReflect1001_ChFirst<int, 3>, 3, 20, 20>,
+    SliceTestArgs<int, int, 3, 1, 20, ArgsGen_MultiChannelReflect101<int, 3>, 20, 20, 3>,
+    SliceTestArgs<int, int, 3, 1, 20, ArgsGen_MultiChannelReflect101_ChFirst<int, 3>, 3, 20, 20>,
+    SliceTestArgs<int, int, 3, 1, 20, ArgsGen_MultiChannelWrap<int, 3>, 20, 20, 3>,
+    SliceTestArgs<int, int, 3, 1, 20, ArgsGen_MultiChannelWrap_ChFirst<int, 3>, 3, 20, 20>,
     SliceTestArgs<int, int, 3, 1, 20, ArgsGen_PadAlsoChDim<int, 3>, 20, 20, 3>,
     SliceTestArgs<int, int, 3, 1, 20, ArgsGen_PadAlsoChDim_MultiChannelFillValues<int, 3>, 20, 20, 3>,  // NOLINT
     SliceTestArgs<int, int, 3, 1, 20, ArgsGen_PadOnlyChDim<int, 3>, 20, 20, 3>,
+    SliceTestArgs<int, int, 3, 1, 20, ArgsGen_ReflectOnlyChDim<int, 3>, 20, 20, 3>,
     SliceTestArgs<int, int, 3, 1, 20, ArgsGen_PadAlsoChDim_ChFirst<int, 3>, 3, 20, 20>,
     SliceTestArgs<int, int, 3, 1, 20, ArgsGen_PadAlsoChDim_ChFirst_MultiChannelFillValues<int, 3>, 3, 20, 20>,  // NOLINT
     SliceTestArgs<int, int, 3, 10, 20, ArgsGen_PadAlsoChDim_ChFirst<int, 3>, 3, 20, 20>,
+    SliceTestArgs<int, int, 3, 10, 20, ArgsGen_WrapAlsoChDim_ChFirst<int, 3>, 3, 20, 20>,
     SliceTestArgs<int, int, 3, 10, 20, ArgsGen_PadAlsoChDim_ChFirst_MultiChannelFillValues<int, 3>, 3, 20, 20>  // NOLINT
 >;
 

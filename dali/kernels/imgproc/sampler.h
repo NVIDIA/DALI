@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019, 2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -24,11 +24,20 @@
 #include "dali/core/host_dev.h"
 #include "dali/core/tensor_view.h"
 #include "dali/kernels/imgproc/surface.h"
+#include "dali/core/boundary.h"
 
 namespace dali {
 namespace kernels {
 
-struct BorderClamp {};
+template <boundary::BoundaryType type>
+struct BorderMode {};
+
+using BorderNone = BorderMode<boundary::BoundaryType::TRANSPARENT>;
+using BorderClamp = BorderMode<boundary::BoundaryType::CLAMP>;
+using BorderWrap = BorderMode<boundary::BoundaryType::WRAP>;
+using BorderMirror101 = BorderMode<boundary::BoundaryType::REFLECT_101>;
+using BorderMirror1001 = BorderMode<boundary::BoundaryType::REFLECT_1001>;
+
 
 template <DALIInterpType interp, int spatial_ndim, typename In>
 struct Sampler;
@@ -133,9 +142,32 @@ struct Sampler<DALI_INTERP_NN, _spatial_ndim, In> {
   }
 
   template <typename T = In>
+  DALI_HOST_DEV DALI_FORCEINLINE T at(icoords pos, int c, BorderNone) const {
+    return ConvertSat<T>(surface(pos, c));
+  }
+
+  template <typename T = In>
   DALI_HOST_DEV DALI_FORCEINLINE T at(icoords pos, int c, BorderClamp) const {
     icoords clamped = clamp(pos, icoords(0), surface.size - 1);
     return ConvertSat<T>(surface(clamped, c));
+  }
+
+  template <typename T = In>
+  DALI_HOST_DEV DALI_FORCEINLINE T at(icoords pos, int c, BorderWrap) const {
+    icoords wrapped = idx_wrap(pos, surface.size);
+    return ConvertSat<T>(surface(wrapped, c));
+  }
+
+  template <typename T = In>
+  DALI_HOST_DEV DALI_FORCEINLINE T at(icoords pos, int c, BorderMirror101) const {
+    icoords reflected = idx_reflect_101(pos, icoords(0), surface.size);
+    return ConvertSat<T>(surface(reflected, c));
+  }
+
+  template <typename T = In>
+  DALI_HOST_DEV DALI_FORCEINLINE T at(icoords pos, int c, BorderMirror1001) const {
+    icoords reflected = idx_reflect_1001(pos, icoords(0), surface.size);
+    return ConvertSat<T>(surface(reflected, c));
   }
 
   template <typename T = In, typename BorderValue>
@@ -161,10 +193,45 @@ struct Sampler<DALI_INTERP_NN, _spatial_ndim, In> {
 
   template <typename T>
   DALI_HOST_DEV
+  void operator()(T *pixel, icoords pos, BorderNone) const {
+    for (int c = 0; c < surface.channels; c++) {
+      pixel[c] = ConvertSat<T>(surface(pos, c));
+    }
+  }
+
+  template <typename T>
+  DALI_HOST_DEV
   void operator()(T *pixel, icoords pos, BorderClamp) const {
     icoords clamped = clamp(pos, icoords(0), surface.size - 1);
     for (int c = 0; c < surface.channels; c++) {
       pixel[c] = ConvertSat<T>(surface(clamped, c));
+    }
+  }
+
+  template <typename T>
+  DALI_HOST_DEV
+  void operator()(T *pixel, icoords pos, BorderWrap) const {
+    icoords wrapped = idx_wrap(pos, surface.size);
+    for (int c = 0; c < surface.channels; c++) {
+      pixel[c] = ConvertSat<T>(surface(wrapped, c));
+    }
+  }
+
+  template <typename T>
+  DALI_HOST_DEV
+  void operator()(T *pixel, icoords pos, BorderMirror101) const {
+    icoords reflected = idx_reflect_101(pos, icoords(0), surface.size);
+    for (int c = 0; c < surface.channels; c++) {
+      pixel[c] = ConvertSat<T>(surface(reflected, c));
+    }
+  }
+
+  template <typename T>
+  DALI_HOST_DEV
+  void operator()(T *pixel, icoords pos, BorderMirror1001) const {
+    icoords reflected = idx_reflect_1001(pos, icoords(0), surface.size);
+    for (int c = 0; c < surface.channels; c++) {
+      pixel[c] = ConvertSat<T>(surface(reflected, c));
     }
   }
 
