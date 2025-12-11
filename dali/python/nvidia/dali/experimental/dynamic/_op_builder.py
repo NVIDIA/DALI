@@ -33,7 +33,7 @@ from ._tensor import Tensor
 
 
 class TLSDict(UserDict):
-    """Thread-local dictionnary used for the instance cache"""
+    """Thread-local dictionary used for the instance cache"""
 
     def __init__(self, *args, **kwargs):
         self._local = threading.local()

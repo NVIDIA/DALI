@@ -21,7 +21,7 @@ from typing import Any, Optional
 
 
 class _Future:
-    """Lightweight future created by _EagerExecutor to track tasks"""
+    """Lightweight future created by _AsyncExecutor to track tasks"""
 
     __slots__ = ("_seq_id", "_executor", "_callable", "_exception")
 
@@ -89,6 +89,7 @@ class _AsyncExecutor:
             self._thread = threading.Thread(target=self._worker, daemon=True)
             self._thread.start()
 
+        # Since the executor is bound to a single eval context, there's no race condition
         self._submitted_seq += 1
         callback = functools.partial(callable, *args, **kwargs)
         task = _Future(self._submitted_seq, self, callback)
