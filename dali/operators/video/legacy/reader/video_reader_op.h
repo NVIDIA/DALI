@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -178,7 +178,11 @@ class VideoReader : public DataReader<GPUBackend, SequenceWrapper, SequenceWrapp
                       prefetched_video.timestamps.end(), -1);
           }
           timestamp_output_->type_info().Copy<GPUBackend, CPUBackend>(
-              timestamp, prefetched_video.timestamps.data(), prefetched_video.timestamps.size(),
+              timestamp,
+              std::nullopt,
+              prefetched_video.timestamps.data(),
+              std::nullopt,
+              prefetched_video.timestamps.size(),
               stream);
         }
       }
