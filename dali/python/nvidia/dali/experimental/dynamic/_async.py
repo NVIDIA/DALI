@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import functools
 import queue
 import sys
 import threading
@@ -84,15 +83,14 @@ class _AsyncExecutor:
                 self._completed_seq += 1
                 self._condition.notify()
 
-    def submit(self, callable: Callable[..., Any], *args: object, **kwargs: object):
+    def submit(self, callable: Callable[[], None]):
         if self._thread is None or not self._thread.is_alive():
             self._thread = threading.Thread(target=self._worker, daemon=True)
             self._thread.start()
 
         # Since the executor is bound to a single eval context, there's no race condition
         self._submitted_seq += 1
-        callback = functools.partial(callable, *args, **kwargs)
-        task = _Future(self._submitted_seq, self, callback)
+        task = _Future(self._submitted_seq, self, callable)
         self._queue.put(task)
 
         # Let the worker acquire the GIL if it's ready to pick up a task

@@ -150,7 +150,7 @@ class Invocation:
             ctx = self._eval_context if ctx is None else ctx
             # We don't want to run from two threads
             with self._run_lock:
-                self._results = self._run_impl(ctx)
+                self._run_impl(ctx)
 
     def schedule(self, ctx: Optional[_EvalContext] = None):
         """Schedule the asynchronous execution of the operator"""
@@ -161,20 +161,22 @@ class Invocation:
         if self._results is not None or self._future is not None:
             return
 
-        def _run():
-            # Forward thread-local context to the new thread
-            with eval_context, eval_mode, device:
-                return self._run_impl(eval_context)
-
         eval_mode = _EvalMode.current()
         device = Device.current()
         eval_context = self._eval_context if ctx is None else ctx
 
+        def _run():
+            # Forward thread-local context to the new thread
+            with eval_context, eval_mode, device:
+                self._run_impl(eval_context)
+
         self._future = eval_context._async_executor.submit(_run)
 
     def _run_impl(self, ctx: _EvalContext):
+        """Run the operator and store the result in self._results"""
+
         if self._results is not None:
-            return self._results
+            return
 
         with nvtx.annotate("Invocation.run", domain="invocation"):
             # If the invocation was created with a GPU device, validate that
@@ -213,8 +215,6 @@ class Invocation:
                 self._results = (r,)
             self._results = tuple(self._results)
             ctx.cache_results(self, self._results)
-
-            return self._results
 
     def values(self, ctx: Optional[_EvalContext] = None):
         """
