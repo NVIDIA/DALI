@@ -49,8 +49,17 @@ void CopySamplewiseImpl(DstBatch<DstBackend> &dst, const SrcBatch<SrcBackend> &s
     sizes.push_back(src.shape()[i].num_elements());
   }
 
-  type_info.Copy<SrcBackend, DstBackend>(dsts.data(), srcs.data(), sizes.data(), num_samples,
-                                         order.stream(), use_copy_kernel);
+  std::optional<int> dst_dev_id, src_dev_id;
+  if (std::is_same_v<SrcBackend, GPUBackend>)
+    src_dev_id = src.device_id();
+  if (std::is_same_v<DstBackend, GPUBackend>)
+    dst_dev_id = dst.device_id();
+
+  type_info.Copy<SrcBackend, DstBackend>(
+      dsts.data(), dst_dev_id,
+      srcs.data(), src_dev_id,
+      sizes.data(), num_samples,
+      order.stream(), use_copy_kernel);
 }
 
 
@@ -59,7 +68,9 @@ void CopySamplewiseImpl(DstBatch<DstBackend> &dst, const SrcBatch<SrcBackend> &s
  * Assumes matching shapes and type.
  */
 template <typename DstBackend, typename SrcBackend, template <typename> typename DstBatch>
-void CopySamplewiseImpl(DstBatch<DstBackend> &dst, const void *src, const TypeInfo &type_info,
+void CopySamplewiseImpl(DstBatch<DstBackend> &dst,
+                        const void *src, std::optional<int> src_dev_id,
+                        const TypeInfo &type_info,
                         AccessOrder order, bool use_copy_kernel = false) {
   auto num_samples = dst.num_samples();
   BatchVector<void *> dsts;
@@ -71,8 +82,15 @@ void CopySamplewiseImpl(DstBatch<DstBackend> &dst, const void *src, const TypeIn
     sizes.push_back(dst.shape()[i].num_elements());
   }
 
-  type_info.Copy<DstBackend, SrcBackend>(dsts.data(), src, sizes.data(), num_samples,
-                                         order.stream(), use_copy_kernel);
+  std::optional<int> dst_dev_id;
+  if (std::is_same_v<DstBackend, GPUBackend>)
+    dst_dev_id = dst.device_id();
+
+  type_info.Copy<DstBackend, SrcBackend>(
+      dsts.data(), dst_dev_id,
+      src, src_dev_id,
+      sizes.data(), num_samples,
+      order.stream(), use_copy_kernel);
 }
 
 
@@ -81,7 +99,9 @@ void CopySamplewiseImpl(DstBatch<DstBackend> &dst, const void *src, const TypeIn
  * Assumes matching shapes and types.
  */
 template <typename DstBackend, typename SrcBackend, template <typename> typename SrcBatch>
-void CopySamplewiseImpl(void *dst, const SrcBatch<SrcBackend> &src, const TypeInfo &type_info,
+void CopySamplewiseImpl(void *dst, std::optional<int> dst_dev_id,
+                        const SrcBatch<SrcBackend> &src,
+                        const TypeInfo &type_info,
                         AccessOrder order, bool use_copy_kernel = false) {
   auto num_samples = src.num_samples();
   BatchVector<const void *> srcs;
@@ -93,8 +113,15 @@ void CopySamplewiseImpl(void *dst, const SrcBatch<SrcBackend> &src, const TypeIn
     sizes.push_back(src.shape()[i].num_elements());
   }
 
-  type_info.Copy<DstBackend, SrcBackend>(dst, srcs.data(), sizes.data(), num_samples,
-                                         order.stream(), use_copy_kernel);
+  std::optional<int> src_dev_id;
+  if (std::is_same_v<SrcBackend, GPUBackend>)
+    src_dev_id = src.device_id();
+
+  type_info.Copy<DstBackend, SrcBackend>(
+      dst, dst_dev_id,
+      srcs.data(), src_dev_id,
+      sizes.data(), num_samples,
+      order.stream(), use_copy_kernel);
 }
 
 /**
@@ -105,20 +132,29 @@ template <typename DstBackend, typename SrcBackend, template <typename> typename
           template <typename> typename SrcBatch>
 void CopyImpl(DstBatch<DstBackend> &dst, const SrcBatch<SrcBackend> &src, const TypeInfo &type_info,
               AccessOrder copy_order, bool use_copy_kernel = false) {
+  std::optional<int> dst_dev_id;
+  if (std::is_same_v<DstBackend, GPUBackend>)
+    dst_dev_id = dst.device_id();
+  std::optional<int> src_dev_id;
+  if (std::is_same_v<SrcBackend, GPUBackend>)
+    src_dev_id = src.device_id();
   if (dst.IsContiguous() && src.IsContiguous()) {
-    type_info.Copy<DstBackend, SrcBackend>(contiguous_raw_mutable_data(dst),
-                                           contiguous_raw_data(src),
-                                           dst.shape().num_elements(), copy_order.stream(),
-                                           use_copy_kernel);
+    type_info.Copy<DstBackend, SrcBackend>(
+      contiguous_raw_mutable_data(dst),
+      dst_dev_id,
+      contiguous_raw_data(src),
+      src_dev_id,
+      dst.shape().num_elements(), copy_order.stream(),
+      use_copy_kernel);
   } else if (dst.IsContiguous() && !src.IsContiguous()) {
-    copy_impl::CopySamplewiseImpl<DstBackend, SrcBackend>(contiguous_raw_mutable_data(dst), src,
-                                                          type_info, copy_order, use_copy_kernel);
+    copy_impl::CopySamplewiseImpl<DstBackend, SrcBackend>(
+        contiguous_raw_mutable_data(dst), dst_dev_id, src, type_info, copy_order, use_copy_kernel);
   } else if (!dst.IsContiguous() && src.IsContiguous()) {
-    copy_impl::CopySamplewiseImpl<DstBackend, SrcBackend>(dst, contiguous_raw_data(src), type_info,
-                                                          copy_order, use_copy_kernel);
+    copy_impl::CopySamplewiseImpl<DstBackend, SrcBackend>(
+        dst, contiguous_raw_data(src), src_dev_id, type_info, copy_order, use_copy_kernel);
   } else {
-    copy_impl::CopySamplewiseImpl<DstBackend, SrcBackend>(dst, src, type_info, copy_order,
-                                                          use_copy_kernel);
+    copy_impl::CopySamplewiseImpl<DstBackend, SrcBackend>(
+        dst, src, type_info, copy_order, use_copy_kernel);
   }
 }
 

@@ -44,6 +44,7 @@ struct kind2backend<mm::memory_kind::managed> {
 
 template <typename DstBackend, typename SrcBackend>
 inline void CopyToExternalImpl(void* dst,
+                               std::optional<int> dst_device_id,
                                const Tensor<SrcBackend> &src,
                                AccessOrder order, bool use_copy_kernel) {
   DeviceGuard d(src.device_id());
@@ -54,12 +55,17 @@ inline void CopyToExternalImpl(void* dst,
   }
 
   const auto &type_info = src.type_info();
-  type_info.template Copy<DstBackend, SrcBackend>(dst, src.raw_data(), src.size(), order.stream(),
-                                                  use_copy_kernel);
+  std::optional<int> src_device_id;
+  if (std::is_same_v<SrcBackend, GPUBackend>)
+    src_device_id = src.device_id();
+  type_info.template Copy<DstBackend, SrcBackend>(
+      dst, dst_device_id, src.raw_data(), src_device_id,
+      src.size(), order.stream(), use_copy_kernel);
 }
 
 template <typename DstBackend, typename SrcBackend>
 inline void CopyToExternalImpl(void* dst,
+                               std::optional<int> dst_device_id,
                                const TensorList<SrcBackend> &src,
                                AccessOrder order, bool use_copy_kernel) {
   DeviceGuard d(src.device_id());
@@ -74,10 +80,15 @@ inline void CopyToExternalImpl(void* dst,
     order.wait(src.order());
   }
 
+  std::optional<int> src_device_id;
+  if (std::is_same_v<SrcBackend, GPUBackend>)
+    src_device_id = src.device_id();
+
   if (src.IsContiguous()) {
-    type_info.template Copy<DstBackend, SrcBackend>(dst, contiguous_raw_data(src),
-                                                    src._num_elements(),
-                                                    order.stream(), use_copy_kernel);
+    type_info.template Copy<DstBackend, SrcBackend>(
+        dst, dst_device_id,
+        contiguous_raw_data(src), src_device_id,
+        src._num_elements(), order.stream(), use_copy_kernel);
   } else {
     const auto &src_shape = src.shape();
     BatchVector<const void *> from;
@@ -90,13 +101,15 @@ inline void CopyToExternalImpl(void* dst,
       sizes.push_back(src_shape.tensor_size(i));
     }
 
-    type_info.template Copy<DstBackend, SrcBackend>(dst, from.data(), sizes.data(),
-                                                    num_samples, order.stream(), use_copy_kernel);
+    type_info.template Copy<DstBackend, SrcBackend>(
+      dst, dst_device_id, from.data(), src_device_id, sizes.data(),
+      num_samples, order.stream(), use_copy_kernel);
   }
 }
 
 template <typename DstBackend, typename SrcBackend>
 inline void CopyToExternalImpl(void** dsts,
+                               std::optional<int> dst_device_id,
                                const TensorList<SrcBackend> &src,
                                AccessOrder order, bool use_copy_kernel) {
   DeviceGuard d(src.device_id());
@@ -119,9 +132,14 @@ inline void CopyToExternalImpl(void** dsts,
   }
   int samples_to_copy = sizes.size();
 
+  std::optional<int> src_device_id;
+  if (std::is_same_v<SrcBackend, GPUBackend>)
+    src_device_id = src.device_id();
+
   if (src.IsContiguous() && samples_to_copy == num_samples) {
-    type_info.template Copy<DstBackend, SrcBackend>(dsts, contiguous_raw_data(src), sizes.data(),
-                                                    num_samples, order.stream(), use_copy_kernel);
+    type_info.template Copy<DstBackend, SrcBackend>(
+        dsts, dst_device_id, contiguous_raw_data(src), src_device_id, sizes.data(),
+        num_samples, order.stream(), use_copy_kernel);
 
   } else {
     BatchVector<const void *> from;
@@ -136,77 +154,99 @@ inline void CopyToExternalImpl(void** dsts,
     }
 
     type_info.template Copy<DstBackend, SrcBackend>(
-          to.data(), from.data(), sizes.data(), samples_to_copy, order.stream(), use_copy_kernel);
+          to.data(), dst_device_id,
+          from.data(), src_device_id,
+          sizes.data(), samples_to_copy,
+          order.stream(), use_copy_kernel);
   }
 }
 
 template <typename DstKind, typename SrcBackend>
-inline void CopyToExternal(void *dst, const Tensor<SrcBackend> &src, AccessOrder order,
+inline void CopyToExternal(void *dst,
+                           std::optional<int> dst_device_id,
+                           const Tensor<SrcBackend> &src,
+                           AccessOrder order,
                            bool use_copy_kernel) {
   const bool src_device_access = (std::is_same<SrcBackend, GPUBackend>::value || src.is_pinned());
   const bool dst_device_access = mm::is_device_accessible<DstKind>;
   use_copy_kernel &= dst_device_access && src_device_access;
   using DstBackend = typename detail::kind2backend<DstKind>::type;
-  CopyToExternalImpl<DstBackend, SrcBackend>(dst, src, order, use_copy_kernel);
+  CopyToExternalImpl<DstBackend, SrcBackend>(dst, dst_device_id, src, order, use_copy_kernel);
 }
 
 template <typename DstKind, typename SrcBackend>
-inline void CopyToExternal(void *dst, const TensorList<SrcBackend> &src, AccessOrder order,
+inline void CopyToExternal(void *dst,
+                           std::optional<int> dst_device_id,
+                           const TensorList<SrcBackend> &src,
+                           AccessOrder order,
                            bool use_copy_kernel) {
   const bool src_device_access = (std::is_same<SrcBackend, GPUBackend>::value || src.is_pinned());
   const bool dst_device_access = mm::is_device_accessible<DstKind>;
   use_copy_kernel &= dst_device_access && src_device_access;
   using DstBackend = typename detail::kind2backend<DstKind>::type;
-  CopyToExternalImpl<DstBackend, SrcBackend>(dst, src, order, use_copy_kernel);
+  CopyToExternalImpl<DstBackend, SrcBackend>(dst, dst_device_id, src, order, use_copy_kernel);
 }
 
 /**
  * @brief Run-time dispatch - DO NOT USE unless really necessary
  */
 template <typename SrcBackend>
-inline void CopyToExternal(void* dst, mm::memory_kind_id kind_id, const Tensor<SrcBackend> &src,
-                           AccessOrder order, bool use_copy_kernel) {
+inline void CopyToExternal(void* dst,
+                           mm::memory_kind_id kind_id,
+                           std::optional<int> dst_device_id,
+                           const Tensor<SrcBackend> &src,
+                           AccessOrder order,
+                           bool use_copy_kernel) {
   TYPE_SWITCH(kind_id, mm::kind2id, Kind, (mm::memory_kind::host,
                                            mm::memory_kind::pinned,
                                            mm::memory_kind::device,
                                            mm::memory_kind::managed),
-    (CopyToExternal<Kind, SrcBackend>(dst, src, order, use_copy_kernel)),
+    (CopyToExternal<Kind, SrcBackend>(dst, dst_device_id, src, order, use_copy_kernel)),
     (throw std::logic_error("Unreachable code - invalid memory kind.")));
 }
 
 template <typename SrcBackend>
-inline void CopyToExternal(void* dst, mm::memory_kind_id kind_id, const TensorList<SrcBackend> &src,
-                           AccessOrder order, bool use_copy_kernel) {
-  TYPE_SWITCH(kind_id, mm::kind2id, Kind, (mm::memory_kind::host,
-                                           mm::memory_kind::pinned,
-                                           mm::memory_kind::device,
-                                           mm::memory_kind::managed),
-    (CopyToExternal<Kind, SrcBackend>(dst, src, order, use_copy_kernel)),
-    (throw std::logic_error("Unreachable code - invalid memory kind.")));
-}
-
-template <typename DstKind, typename SrcBackend>
-inline void CopyToExternal(void** dsts, const TensorList<SrcBackend> &src,
-                           AccessOrder order, bool use_copy_kernel) {
-  bool src_device_access = (std::is_same<SrcBackend, GPUBackend>::value || src.is_pinned());
-  bool dst_device_access = mm::is_device_accessible<DstKind>;
-  use_copy_kernel &= dst_device_access && src_device_access;
-  using DstBackend = typename detail::kind2backend<DstKind>::type;
-  CopyToExternalImpl<DstBackend, SrcBackend>(dsts, src, order, use_copy_kernel);
-}
-
-/**
- * @brief Run-time dispatch - DO NOT USE unless really necessary
- */
-template <typename SrcBackend>
-inline void CopyToExternal(void** dsts, mm::memory_kind_id kind_id,
+inline void CopyToExternal(void* dst,
+                           mm::memory_kind_id kind_id,
+                           std::optional<int> dst_device_id,
                            const TensorList<SrcBackend> &src,
                            AccessOrder order, bool use_copy_kernel) {
   TYPE_SWITCH(kind_id, mm::kind2id, Kind, (mm::memory_kind::host,
                                            mm::memory_kind::pinned,
                                            mm::memory_kind::device,
                                            mm::memory_kind::managed),
-    (CopyToExternal<Kind, SrcBackend>(dsts, src, order, use_copy_kernel)),
+    (CopyToExternal<Kind, SrcBackend>(dst, dst_device_id, src, order, use_copy_kernel)),
+    (throw std::logic_error("Unreachable code - invalid memory kind.")));
+}
+
+template <typename DstKind, typename SrcBackend>
+inline void CopyToExternal(void** dsts,
+                           std::optional<int> dst_device_id,
+                           const TensorList<SrcBackend> &src,
+                           AccessOrder order,
+                           bool use_copy_kernel) {
+  bool src_device_access = (std::is_same<SrcBackend, GPUBackend>::value || src.is_pinned());
+  bool dst_device_access = mm::is_device_accessible<DstKind>;
+  use_copy_kernel &= dst_device_access && src_device_access;
+  using DstBackend = typename detail::kind2backend<DstKind>::type;
+  CopyToExternalImpl<DstBackend, SrcBackend>(dsts, dst_device_id, src, order, use_copy_kernel);
+}
+
+/**
+ * @brief Run-time dispatch - DO NOT USE unless really necessary
+ */
+template <typename SrcBackend>
+inline void CopyToExternal(void** dsts,
+                           mm::memory_kind_id kind_id,
+                           std::optional<int> dst_device_id,
+                           const TensorList<SrcBackend> &src,
+                           AccessOrder order,
+                           bool use_copy_kernel) {
+  TYPE_SWITCH(kind_id, mm::kind2id, Kind, (mm::memory_kind::host,
+                                           mm::memory_kind::pinned,
+                                           mm::memory_kind::device,
+                                           mm::memory_kind::managed),
+    (CopyToExternal<Kind, SrcBackend>(dsts, dst_device_id, src, order, use_copy_kernel)),
     (throw std::logic_error("Unreachable code - invalid memory kind.")));
 }
 
