@@ -21,7 +21,6 @@ from . import _eval_mode
 from . import _invocation
 import copy
 import nvidia.dali.types
-import warnings
 
 
 def _volume(shape: Tuple[int, ...]) -> int:
