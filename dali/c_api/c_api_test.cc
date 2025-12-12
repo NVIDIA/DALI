@@ -782,7 +782,7 @@ void TestForceFlagRun(bool ext_src_no_copy, unsigned int flag_to_test, int devic
       MemCopy(data[i].get(), input_cpu.get(), num_elems, cuda_stream);
 
     input_wrapper[i].ShareData(std::static_pointer_cast<void>(data[i]), num_elems,
-                               false, input_shape, DALI_UINT8, device_id);
+                               false, input_shape, DALI_UINT8, device_id, cuda_stream);
     pipe_ptr->SetExternalInput(input_name, input_wrapper[i]);
     if (flag_to_test == DALI_ext_force_no_copy) {
       // for no copy, we just pass the view to data
