@@ -37,7 +37,7 @@ void Tensor<Backend>::Copy(const Tensor<SrcBackend> &src, AccessOrder order) {
   this->SetSkipSample(src.ShouldSkipSample());
   std::optional<int> dst_device_id, src_device_id;
   if (std::is_same_v<Backend, GPUBackend>)
-    dst_device_id = device_id();
+    dst_device_id = this->device_id();
   if (std::is_same_v<SrcBackend, GPUBackend>)
     src_device_id = src.device_id();
   type_.template Copy<Backend, SrcBackend>(
@@ -67,8 +67,15 @@ void Tensor<Backend>::Copy(
   }
 
   order.wait(order_);
-  type_.template Copy<Backend, CPUBackend>(this->raw_mutable_data(),
-      data, this->size(), order.stream());
+
+  std::optional<int> dst_dev_id, src_dev_id;
+  if (std::is_same_v<Backend, GPUBackend>)
+    dst_dev_id = this->device_id();
+
+  type_.template Copy<Backend, CPUBackend>(
+      this->raw_mutable_data(), dst_dev_id,
+      data, std::nullopt,
+      this->size(), order.stream());
   order_.wait(order);
 }
 
