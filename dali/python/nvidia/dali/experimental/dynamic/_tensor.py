@@ -12,16 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Optional, Tuple, Union
-from ._type import DType, dtype as _dtype, type_id as _type_id
-from ._device import Device, device as _device
-import nvidia.dali.backend as _backend
-from ._eval_context import EvalContext as _EvalContext
-from . import _eval_mode
-from . import _invocation
 import copy
-import nvidia.dali.types
 import warnings
+from typing import Any, Optional, Tuple, Union
+
+import nvidia.dali.backend as _backend
+import nvidia.dali.types
+
+from . import _eval_mode, _invocation
+from ._device import Device
+from ._device import device as _device
+from ._eval_context import EvalContext as _EvalContext
+from ._type import DType
+from ._type import dtype as _dtype
+from ._type import type_id as _type_id
 
 
 def _volume(shape: Tuple[int, ...]) -> int:
@@ -277,7 +281,7 @@ class Tensor:
             self._assign(cast(self, dtype=dtype, device=self.device).evaluate())
             copied = True
 
-        if _eval_mode.EvalMode.current().value >= _eval_mode.EvalMode.eager.value:
+        if _eval_mode.EvalMode.current().value > _eval_mode.EvalMode.eager.value:
             self.evaluate()
 
         if copy and self._storage is not None and not copied:
@@ -729,12 +733,14 @@ class TensorSlice:
 
         j = 0
         layout = ""
-        for i, r in enumerate(self._ranges):
+        for r in self._ranges:
             if isinstance(r, slice):
                 layout += input_layout[j]
                 j += 1
             elif r is Ellipsis:
-                j += self._tensor.ndim - len(self._ranges) + 1
+                skip = self._tensor.ndim - len(self._ranges) + 1
+                layout += input_layout[j : j + skip]
+                j += skip
             else:
                 j += 1  # skip this dimension
         self._layout = layout
@@ -831,17 +837,15 @@ class TensorSlice:
                         abs_ranges[d] = r.start + ranges[i] * r.step
                     i += 1
             result = TensorSlice(self._tensor, tuple(abs_ranges), True)
-            if _eval_mode.EvalMode.current().value >= _eval_mode.EvalMode.eager.value:
-                result.evaluate()
-            return Tensor(result)
+            return result._run()
 
-    def evaluate(self):
+    def _run(self):
         with _EvalContext.current():
             if len(self._ranges) == 0:
-                return self._tensor.evaluate()
+                return self._tensor
 
             if all(_is_full_slice(r) for r in self._ranges):
-                return self._tensor.evaluate()
+                return self._tensor
 
             args = {}
             d = 0
@@ -862,7 +866,10 @@ class TensorSlice:
 
             from . import _tensor_subscript
 
-            return _tensor_subscript(self._tensor, **args).evaluate()
+            return _tensor_subscript(self._tensor, **args)
+
+    def evaluate(self):
+        return self._run().evaluate()
 
 
 def tensor(

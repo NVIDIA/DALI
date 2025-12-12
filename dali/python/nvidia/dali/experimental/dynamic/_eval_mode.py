@@ -35,11 +35,12 @@ class EvalMode(Enum):
                     the operation returns.
     """
 
-    default = auto()
     deferred = auto()
     eager = auto()
     sync_cpu = auto()
     sync_full = auto()
+
+    default = deferred
 
     def __enter__(self):
         _tls.eval_mode_stack.append(self)
@@ -52,7 +53,12 @@ class EvalMode(Enum):
         return _tls.eval_mode_stack[-1]
 
 
-_tls = threading.local()
-_tls.eval_mode_stack = [EvalMode.default]
+class _ThreadLocalState(threading.local):
+    def __init__(self):
+        super().__init__()
+        self.eval_mode_stack = [EvalMode.default]
+
+
+_tls = _ThreadLocalState()
 
 __all__ = ["EvalMode"]

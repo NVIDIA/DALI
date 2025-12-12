@@ -12,21 +12,42 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import nvidia.dali.backend as _b
-from nvidia.dali.fn import _to_snake_case
-import makefun
-from ._batch import Batch, _get_batch_size, as_batch as _as_batch
-from ._tensor import Tensor
-from . import ops
-from . import _type
 import copy
-from . import _invocation, _device, _eval_mode, _eval_context
+import threading
+from collections import UserDict
+
+import makefun
+import nvidia.dali.backend as _b
 import nvidia.dali.ops as _ops
 import nvidia.dali.types
 import nvtx
 from nvidia.dali import internal as _internal
+from nvidia.dali.fn import _to_snake_case
 from nvidia.dali.ops import _docs, _names
+
+from . import _device, _eval_context, _eval_mode, _invocation, _type, ops
 from . import random as _random
+from ._batch import Batch, _get_batch_size
+from ._batch import as_batch as _as_batch
+from ._tensor import Tensor
+
+
+class TLSDict(UserDict):
+    """Thread-local dictionary used for the instance cache"""
+
+    def __init__(self, *args, **kwargs):
+        self._local = threading.local()
+        super().__init__(*args, **kwargs)
+
+    @property
+    def data(self):
+        if not hasattr(self._local, "store"):
+            self._local.store = {}
+        return self._local.store
+
+    @data.setter
+    def data(self, value):
+        self._local.store = value
 
 
 def is_external(x):
@@ -186,7 +207,7 @@ def build_operator_class(schema):
     op_class._legacy_op = legacy_op_class
     op_class._is_stateful = schema.IsStateful()
     op_class._has_random_state_arg = schema.HasRandomStateArg()
-    op_class._instance_cache = {}  # TODO(michalz): Make it thread-local
+    op_class._instance_cache = TLSDict()
     op_class._generated = True
     op_class.__init__ = build_constructor(schema, op_class)
     op_class.__call__ = build_call_function(schema, op_class)
@@ -404,19 +425,16 @@ def build_call_function(schema, op_class):
                 self._last_invocation = invocation
 
             if (
-                _eval_mode.EvalMode.current() == _eval_mode.EvalMode.eager
-                or _eval_mode.EvalMode.current() == _eval_mode.EvalMode.sync_cpu
-                or _eval_mode.EvalMode.current() == _eval_mode.EvalMode.sync_full
-                or (
-                    _eval_mode.EvalMode.current() == _eval_mode.EvalMode.default
-                    and (
-                        any(is_external(x) for x in inputs)
-                        or any(is_external(x) for x in kwargs.values())
-                    )
-                )
+                _eval_mode.EvalMode.current() is _eval_mode.EvalMode.sync_cpu
+                or _eval_mode.EvalMode.current() is _eval_mode.EvalMode.sync_full
+                or any(is_external(x) for x in inputs)
+                or any(is_external(x) for x in kwargs.values())
             ):
                 # Evaluate immediately
                 invocation.run(_eval_context.EvalContext.current())
+            elif _eval_mode.EvalMode.current() is _eval_mode.EvalMode.eager:
+                with nvtx.annotate("__call__: eager scheduling", domain="op_builder"):
+                    invocation.schedule(_eval_context.EvalContext.current())
             else:
                 pass
                 # Lazy evaluation
