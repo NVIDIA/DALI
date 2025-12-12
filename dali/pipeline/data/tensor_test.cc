@@ -28,6 +28,8 @@
 #include "dali/pipeline/data/types.h"
 #include "dali/test/dali_test.h"
 #include "dali/core/static_switch.h"
+#include "dali/test/tensor_test_utils.h"
+#include "dali/pipeline/data/views.h"
 
 namespace dali {
 
@@ -771,6 +773,37 @@ TYPED_TEST(TensorTest, TestSubspaceTensor) {
       }
     }
   }
+}
+
+TEST(TensorTestGPU, TestCrossDeviceCopy_MultiGPU) {
+  int ndev = 0;
+  CUDA_CALL(cudaGetDeviceCount(&ndev));
+  if (ndev < 2) {
+    GTEST_SKIP() << "At least 2 devices needed for the test\n";
+  }
+
+  Tensor<CPUBackend> in, out;
+  Tensor<GPUBackend> gpu0;
+  Tensor<GPUBackend> gpu1;
+  in.Resize(TensorShape<>{10000}, DALI_INT32);
+  SequentialFill(view<int>(in), 1234);
+
+  gpu0.set_device_id(0);
+  gpu1.set_device_id(1);
+
+  {
+    DeviceGuard dg0(0);
+    gpu0.Copy(in);
+  }
+
+  {
+    DeviceGuard dg1(1);
+    gpu1.Copy(gpu0);
+    out.Copy(gpu1);
+  }
+
+
+  Check(view<int>(in), view<int>(out));
 }
 
 }  // namespace dali
