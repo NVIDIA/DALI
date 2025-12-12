@@ -531,17 +531,6 @@ class Batch:
         if self.device == device and not force_copy:
             return self
         else:
-            if (
-                self.device.device_type == "gpu"
-                and device.device_type == "gpu"
-                and self.device.device_id != device.device_id
-            ):
-                warnings.warn(
-                    f"Copying a batch from GPU {self.device.device_id} to GPU {device.device_id} "
-                    f"through host memory. This may be slow."
-                )
-                return self.cpu().evaluate().to_device(device)
-
             copy_dev = device if device.device_type == "gpu" else self.device
             with copy_dev:
                 from . import copy
