@@ -77,6 +77,9 @@ export TEST_BUNDLED_LIBS=${TEST_BUNDLED_LIBS:-YES}
 export PYTHON_VERSIONS=${PYTHON_VERSIONS}
 # use all available pythons
 
+# PYTHON_GIL can be set to 0 only if Python is compiled with --disable-gil.
+export PYTHON_GIL=$(python3 -c "import sysconfig; ret=sysconfig.get_config_var('Py_GIL_DISABLED'); print(0 if ret else 1)")
+
 cmake ../ -DCMAKE_INSTALL_PREFIX=.                 \
       -DARCH=${ARCH}                               \
       -DCUDA_TARGET_ARCHS=${CUDA_TARGET_ARCHS}     \
