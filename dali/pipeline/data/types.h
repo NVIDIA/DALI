@@ -173,7 +173,9 @@ class DLL_PUBLIC TypeInfo {
    *        (only relevant for device and host pinned memory)
    */
   template <typename DstBackend, typename SrcBackend>
-  DLL_PUBLIC void Copy(void **dst, const void **srcs, const Index *sizes, int n,
+  DLL_PUBLIC void Copy(void **dst, std::optional<int> dst_device_id,
+                       const void **srcs, std::optional<int> src_device_id,
+                       const Index *sizes, int n,
                        cudaStream_t stream, bool use_copy_kernel = false) const;
 
   /**
@@ -187,7 +189,9 @@ class DLL_PUBLIC TypeInfo {
    *        (only relevant for device and host pinned memory)
    */
   template <typename DstBackend, typename SrcBackend>
-  DLL_PUBLIC void Copy(void *dst, const void **srcs, const Index *sizes, int n, cudaStream_t stream,
+  DLL_PUBLIC void Copy(void *dst, std::optional<int> dst_device_id,
+                       const void **srcs, std::optional<int> src_device_id,
+                       const Index *sizes, int n, cudaStream_t stream,
                        bool use_copy_kernel = false) const;
 
   /**
@@ -201,7 +205,9 @@ class DLL_PUBLIC TypeInfo {
    *        (only relevant for device and host pinned memory)
    */
   template <typename DstBackend, typename SrcBackend>
-  DLL_PUBLIC void Copy(void **dsts, const void *src, const Index *sizes, int n, cudaStream_t stream,
+  DLL_PUBLIC void Copy(void **dsts, std::optional<int> dst_device_id,
+                       const void *src, std::optional<int> src_device_id,
+                       const Index *sizes, int n, cudaStream_t stream,
                        bool use_copy_kernel = false) const;
 
   DLL_PUBLIC inline DALIDataType id() const {
