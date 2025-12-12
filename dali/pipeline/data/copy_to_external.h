@@ -153,10 +153,6 @@ inline void CopyToExternalImpl(void** dsts,
       to.push_back(dsts[i]);
     }
 
-    std::optional<int> src_device_id;
-    if (std::is_same_v<SrcBackend, GPUBackend>)
-      src_device_id = src.device_id();
-
     type_info.template Copy<DstBackend, SrcBackend>(
           to.data(), dst_device_id,
           from.data(), src_device_id,
