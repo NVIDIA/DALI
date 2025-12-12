@@ -1,4 +1,4 @@
-// Copyright (c) 2023-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2023-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -134,11 +134,11 @@ Values will be converted to the dynamic range of the requested type.)code",
       true)
   // deprecated and removed (ignored)
   .AddOptionalArg("split_stages", "", false)
-  .DeprecateArg("split_stages", false)  // deprecated since DALI 1.0
+  .DeprecateArg("split_stages", "1.0", false)
   .AddOptionalArg("use_chunk_allocator", "", false)
-  .DeprecateArg("use_chunk_allocator", false)  // deprecated since DALI 1.0
+  .DeprecateArg("use_chunk_allocator", "1.0", false)
   .AddOptionalArg("memory_stats", "", false)
-  .DeprecateArg("memory_stats", false);  // deprecated since in Nov 2022
+  .DeprecateArg("memory_stats", "1.36", false);
 
 DALI_SCHEMA(experimental__decoders__Image)
   .DocStr(R"code(Decodes images.

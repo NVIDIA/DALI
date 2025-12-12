@@ -78,7 +78,7 @@ interpreted as absolute or relative coordinates, depending on the value of
 `normalized_shape`.)code")
     .SupportVolumetric()
     .AddOptionalArg<DALIImageType>("image_type", "Image type", nullptr)
-    .DeprecateArg("image_type")  // deprecated since 0.24dev
+    .DeprecateArg("image_type", "0.24")
     .AddParent("SliceBase")
     .AddParent("SliceAttr")
     .AddParent("OutOfBoundsAttrBorderMode");

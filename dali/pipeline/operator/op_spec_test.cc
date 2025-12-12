@@ -31,19 +31,19 @@ namespace dali {
 DALI_SCHEMA(DummyGrandparentForSpecTest)
   .NumInput(0).NumOutput(0)
   .AddOptionalArg("grandparent_replacing_arg", "arg that replaces deprecated arg", 0)
-  .DeprecateArgInFavorOf("grandparent_deprecated_arg", "grandparent_replacing_arg");
+  .DeprecateArgInFavorOf("grandparent_deprecated_arg", "grandparent_replacing_arg", "1.0");
 
 DALI_SCHEMA(DummyParentZeroForSpecTest)
   .NumInput(0).NumOutput(0)
   .AddOptionalArg("parent_zero_replacing_arg", "arg that replaces deprecated arg", 0)
-  .DeprecateArgInFavorOf("parent_zero_deprecated_arg", "parent_zero_replacing_arg")
+  .DeprecateArgInFavorOf("parent_zero_deprecated_arg", "parent_zero_replacing_arg", "1.0")
   .AddParent("DummyGrandparentForSpecTest");
 
 
 DALI_SCHEMA(DummyParentOneForSpecTest)
   .NumInput(0).NumOutput(0)
   .AddOptionalArg("parent_one_replacing_arg", "arg that replaces deprecated arg", 0)
-  .DeprecateArgInFavorOf("parent_one_deprecated_arg", "parent_one_replacing_arg");
+  .DeprecateArgInFavorOf("parent_one_deprecated_arg", "parent_one_replacing_arg", "1.0");
 
 
 DALI_SCHEMA(DummyOpForSpecTest)
@@ -58,10 +58,10 @@ DALI_SCHEMA(DummyOpForSpecTest)
   .AddOptionalArg("default_tensor", "argument with default", 11, true)
   .AddOptionalArg<int>("no_default_tensor", "argument without default", nullptr, true)
   .AddOptionalArg("replacing_arg", "arg that replaces deprecated arg", 0)
-  .DeprecateArgInFavorOf("deprecated_arg", "replacing_arg")
+  .DeprecateArgInFavorOf("deprecated_arg", "replacing_arg", "1.0")
   .AddOptionalArg("deprecated_ignored_arg",
                   "arg that is deprecated and ignored by the implementation", 0)
-  .DeprecateArg("deprecated_ignored_arg", true)
+  .DeprecateArg("deprecated_ignored_arg", "1.0")
   .AddParent("DummyParentZeroForSpecTest")
   .AddParent("DummyParentOneForSpecTest");
 

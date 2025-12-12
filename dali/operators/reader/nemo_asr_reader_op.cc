@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -116,7 +116,7 @@ in seconds, of the audio samples.
 Samples with a duration longer than this value will be ignored.)code",
     0.0f)
   .AddOptionalArg<bool>("normalize_text", "Normalize text.", nullptr)
-  .DeprecateArg("normalize_text")  // deprecated since 0.28dev
+  .DeprecateArg("normalize_text", "0.28")
   .AdditionalOutputsFn(NemoAsrReaderOutputFn)
   .AddParent("LoaderBase");
 
@@ -132,10 +132,11 @@ DALI_SCHEMA(NemoAsrReader)
     .AddParent("readers__NemoAsr")
     .MakeDocPartiallyHidden()
     .Deprecate(
+        "1.0",
         "readers__NemoAsr",
         R"code(In DALI 1.0 all readers were moved into a dedicated :mod:`~nvidia.dali.fn.readers`
 submodule and renamed to follow a common pattern. This is a placeholder operator with identical
-functionality to allow for backward compatibility.)code");  // Deprecated in 1.0;
+functionality to allow for backward compatibility.)code");
 
 NemoAsrReader::NemoAsrReader(const OpSpec& spec)
     : DataReader<CPUBackend, AsrSample, AsrSample, true>(spec),

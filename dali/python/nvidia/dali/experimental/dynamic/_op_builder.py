@@ -27,6 +27,7 @@ import nvtx
 from nvidia.dali import internal as _internal
 from nvidia.dali.ops import _docs, _names
 from . import random as _random
+from . import _op_filter
 
 
 def is_external(x):
@@ -605,14 +606,8 @@ def build_operators():
     all_op_classes = []
     deprecated = {}
     op_map = {}
-    # TODO(klecki): We should generalize the filtering.
     for schema_name in _all_ops:
-        if (
-            schema_name.endswith("ExternalSource")
-            or schema_name.endswith("PythonFunction")
-            or schema_name.endswith("NumbaFunction")
-            or schema_name.endswith("JaxFunction")
-        ):
+        if not _op_filter.should_create_dynamic_op(schema_name):
             continue
 
         schema = _b.GetSchema(schema_name)

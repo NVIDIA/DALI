@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -229,10 +229,11 @@ DALI_SCHEMA(NumpyReader)
     .AddParent("readers__Numpy")
     .MakeDocPartiallyHidden()
     .Deprecate(
+        "1.0",
         "readers__Numpy",
         R"code(In DALI 1.0 all readers were moved into a dedicated :mod:`~nvidia.dali.fn.readers`
 submodule and renamed to follow a common pattern. This is a placeholder operator with identical
-functionality to allow for backward compatibility.)code");  // Deprecated in 1.0;
+functionality to allow for backward compatibility.)code");
 
 NumpyReaderCPU::~NumpyReaderCPU() {
   // Stop the prefetch thread as it uses the thread pool from this class. So before we can

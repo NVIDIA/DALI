@@ -73,10 +73,11 @@ enum class InputDevice : uint8_t {
 
 struct ArgumentDeprecation {
   ArgumentDeprecation() = default;
-  ArgumentDeprecation(string renamed_to, string msg, bool removed = false)
-  : renamed_to(renamed_to), msg(msg), removed(removed) {}
+  ArgumentDeprecation(string renamed_to, string version, string msg, bool removed = false)
+  : renamed_to(renamed_to), version(version), msg(msg), removed(removed) {}
 
   std::string renamed_to;
+  std::string version;  // Dali version when the argument was deprecated
   std::string msg;
   bool removed = false;
 };
@@ -292,10 +293,12 @@ class DLL_PUBLIC OpSchema {
 
   /**  Notes that this operator is deprecated and optionally specifies its successor
    *
+   * @param version Dali version when the operator was deprecated, e.g. "1.0"
    * @param in_favor_of schema name of the replacement
    * @param explanation additional explanation
    */
-  OpSchema &Deprecate(std::string in_favor_of = "",
+  OpSchema &Deprecate(std::string version,
+                      std::string in_favor_of = "",
                       std::string explanation = "");
 
   /** Notes that this operator cannot be serialized */
@@ -457,7 +460,7 @@ used with DALIDataType, to avoid confusion with `AddOptionalArg<type>(name, doc,
    *
    * This argument is used to pass the initial state of the random number generator
    * to random operators in Dynamic Mode. It accepts a 1D tensor of uint32_t values.
-   * It is not advertised in the Python API and is automatically hidden from 
+   * It is not advertised in the Python API and is automatically hidden from
    * documentation (by using a leading underscore).
    */
   OpSchema &AddRandomStateArg();
@@ -466,9 +469,11 @@ used with DALIDataType, to avoid confusion with `AddOptionalArg<type>(name, doc,
    *
    * Providing renamed_to means the argument has been renamed and we can safely
    * propagate the value to the new argument name.
+   *
+   * @param version Dali version when the argument was deprecated
    */
   OpSchema &DeprecateArgInFavorOf(std::string_view arg_name, std::string renamed_to,
-                                  std::string msg = {});
+                                 std::string version, std::string msg = {});
 
   /**  Marks an argument as deprecated
    *
@@ -478,9 +483,11 @@ used with DALIDataType, to avoid confusion with `AddOptionalArg<type>(name, doc,
    *          2. removed==false, means the operator will still use the
    *              deprecated argument until it is finally removed completely from the schema.
    *          3. For renaming the argument see DeprecateArgInFavorOf
+   *
+   * @param version Dali version when the argument was deprecated
    */
-  OpSchema &DeprecateArg(std::string_view arg_name, bool removed = true,
-                         std::string msg = {});
+  OpSchema &DeprecateArg(std::string_view arg_name, std::string version,
+                         bool removed = true, std::string msg = {});
 
   /**
    * @brief Sets a function that infers whether the op can
@@ -606,6 +613,9 @@ used with DALIDataType, to avoid confusion with `AddOptionalArg<type>(name, doc,
 
   /** Whether this operator is deprecated. */
   bool IsDeprecated() const;
+
+  /** What Dali version the operator was deprecated in. */
+  const std::string &DeprecatedInVersion() const;
 
   /** What operator replaced the current one. */
   const std::string &DeprecatedInFavorOf() const;
@@ -844,6 +854,7 @@ used with DALIDataType, to avoid confusion with `AddOptionalArg<type>(name, doc,
   bool is_deprecated_ = false;
   std::string deprecated_in_favor_of_;
   std::string deprecation_message_;
+  std::string deprecation_version_;
 };
 
 class SchemaRegistry {

@@ -1,4 +1,4 @@
-// Copyright (c) 2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2024-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -32,7 +32,7 @@ DALI_SCHEMA(experimental__Resize)
   .AddOptionalArg("save_attrs",
       R"code(Save reshape attributes for testing.)code", false)
   .AddOptionalArg<DALIImageType>("image_type", "Image type", nullptr)
-  .DeprecateArg("image_type")  // deprecated since 0.25dev
+  .DeprecateArg("image_type", "0.25")
   .SupportVolumetric()
   .AllowSequences()
   .AddParent("ResizeAttr")

@@ -32,7 +32,7 @@ def ndd_rn50_pipeline(jpegs):
     xy = ndd.random.uniform(batch_size=batch_size, range=[0, 1], shape=2, rng=rng_copy)
     do_mirror = ndd.random.coin_flip(batch_size=batch_size, probability=0.5, rng=rng_copy)
     size = ndd.random.uniform(batch_size=batch_size, range=[256, 480], rng=rng_copy)
-    resized_images = ndd.fast_resize_crop_mirror(
+    resized_images = ndd.resize_crop_mirror(
         images,
         crop=[224, 224],
         crop_pos_x=xy.slice[0],
@@ -40,6 +40,7 @@ def ndd_rn50_pipeline(jpegs):
         mirror=do_mirror,
         resize_shorter=size,
         interp_type=dali.types.INTERP_LANCZOS3,
+        antialias=False,
     )
     output = ndd.crop_mirror_normalize(
         resized_images,
@@ -72,7 +73,7 @@ def rn50_pipeline():
     do_mirror = fn.random.coin_flip(probability=0.5, _random_state=state_2)
     size = fn.random.uniform(range=[256, 480], _random_state=state_3)
     images = fn.decoders.image(jpegs, device="mixed")
-    resized_images = fn.fast_resize_crop_mirror(
+    resized_images = fn.resize_crop_mirror(
         images,
         crop=[224, 224],
         crop_pos_x=xy[0],
@@ -80,6 +81,7 @@ def rn50_pipeline():
         mirror=do_mirror,
         resize_shorter=size,
         interp_type=dali.types.DALIInterpType.INTERP_LANCZOS3,
+        antialias=False,
     )
     output = fn.crop_mirror_normalize(
         resized_images,

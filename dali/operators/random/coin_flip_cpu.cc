@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -55,7 +55,7 @@ sample is generated.
     .InputDevice(0, InputDevice::Metadata)
     .NumOutput(1)
     .AddParent("random__CoinFlip")
-    .Deprecate("random__CoinFlip");  // Deprecated in 0.30
+    .Deprecate("0.30", "random__CoinFlip");
 
 
 DALI_REGISTER_OPERATOR(CoinFlip, CoinFlip<CPUBackend>, CPU);

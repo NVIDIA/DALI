@@ -99,10 +99,11 @@ DALI_SCHEMA(_TFRecordReader)
     .AddParent("readers___TFRecord")
     .MakeInternal()
     .Deprecate(
+        "1.0",
         "readers__TFRecord",
         R"code(In DALI 1.0 all readers were moved into a dedicated :mod:`~nvidia.dali.fn.readers`
 submodule and renamed to follow a common pattern. This is a placeholder operator with identical
-functionality to allow for backward compatibility.)code");  // Deprecated in 1.0;
+functionality to allow for backward compatibility.)code");
 
 
 // Deprecated alias
@@ -111,10 +112,11 @@ DALI_SCHEMA(TFRecordReader)
     .AddParent("readers__TFRecord")
     .MakeDocPartiallyHidden()
     .Deprecate(
+        "1.0",
         "readers__TFRecord",
         R"code(In DALI 1.0 all readers were moved into a dedicated :mod:`~nvidia.dali.fn.readers`
 submodule and renamed to follow a common pattern. This is a placeholder operator with identical
-functionality to allow for backward compatibility.)code");  // Deprecated in 1.0;
+functionality to allow for backward compatibility.)code");
 
 void TFRecordReader::Prefetch() {
   // We actually prepare the next batch

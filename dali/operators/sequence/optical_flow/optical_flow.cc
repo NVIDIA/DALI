@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -61,7 +61,7 @@ is upsampled *without* scaling the vector quantities.
 .. note::
   Currently, only a 1, 2 and 4 are supported for Ampere and 4 for Turing.
 )code", 4, false)
-                .DeprecateArgInFavorOf("output_format", detail::kOutputGridArgName)
+                .DeprecateArgInFavorOf("output_format", detail::kOutputGridArgName, "1.11")
                 .AddOptionalArg(detail::kEnableTemporalHintsArgName,
                                 R"code(Enables or disables temporal hints for sequences that are
 longer than two images.

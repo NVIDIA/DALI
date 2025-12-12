@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -51,7 +51,7 @@ DALI_SCHEMA(TransformTranslation)  // Deprecated in 0.28.0dev
 The number of dimensions of the transform is inferred from this argument.)code",
     DALI_FLOAT_VEC, true)
   .MakeDocHidden()
-  .Deprecate("transforms__Translation")
+  .Deprecate("1.0", "transforms__Translation")
   .NumInput(0, 1)
   .NumOutput(1)
   .AddParent("TransformAttr");

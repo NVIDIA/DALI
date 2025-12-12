@@ -1913,6 +1913,7 @@ py::dict ArgumentDeprecationInfoToDict(const ArgumentDeprecation & meta) {
   d["msg"] = meta.msg;
   d["removed"] = meta.removed;
   d["renamed_to"] = meta.renamed_to;
+  d["deprecated_in_version"] = meta.version;
   return d;
 }
 
@@ -2927,6 +2928,7 @@ PYBIND11_MODULE(backend_impl, m) {
     .def("IsDocPartiallyHidden", &OpSchema::IsDocPartiallyHidden)
     .def("IsNoPrune", &OpSchema::IsNoPrune)
     .def("IsDeprecated", &OpSchema::IsDeprecated)
+    .def("DeprecatedInVersion", &OpSchema::DeprecatedInVersion)
     .def("DeprecatedInFavorOf", &OpSchema::DeprecatedInFavorOf)
     .def("DeprecationMessage", &OpSchema::DeprecationMessage)
     .def("IsDeprecatedArg", &OpSchema::IsDeprecatedArg)
