@@ -14,9 +14,11 @@ void Dummy<::dali::CPUBackend>::RunImpl(::dali::Workspace &ws) {
     tp.AddWork(
         [&, sample_id](int thread_id) {
           type.Copy<::dali::CPUBackend, ::dali::CPUBackend>(
-                            output.raw_mutable_tensor(sample_id),
-                            input.raw_tensor(sample_id),
-                            in_shape.tensor_size(sample_id), 0);
+              output.raw_mutable_tensor(sample_id),
+              std::nullopt,
+              input.raw_tensor(sample_id),
+              std::nullopt,
+              in_shape.tensor_size(sample_id), 0);
         },
         in_shape.tensor_size(sample_id));
   }

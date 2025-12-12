@@ -1047,7 +1047,7 @@ void ExposeTensor(py::module &m) {
     .def("copy_to_external",
         [](Tensor<GPUBackend> &t, py::object p, py::object cuda_stream,
            bool non_blocking, bool use_copy_kernel) {
-          CopyToExternalImplGPU(t, std::nullopt, p, cuda_stream, non_blocking, use_copy_kernel);
+          CopyToExternalImplGPU(t, p, cuda_stream, non_blocking, use_copy_kernel);
         },
       "ptr"_a,
       "cuda_stream"_a = py::none(),
