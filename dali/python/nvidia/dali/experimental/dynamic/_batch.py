@@ -27,7 +27,6 @@ from ._device import Device, device as _device
 from . import _eval_mode
 from . import _invocation
 import nvtx
-import warnings
 
 
 def _backend_device(backend: Union[_backend.TensorListCPU, _backend.TensorListGPU]) -> Device:
