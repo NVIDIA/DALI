@@ -775,7 +775,7 @@ def _try_extend_reader_signature(schema: _b.OpSchema, op_name: str):
     if readers is None:
         return ""
     op = getattr(readers, op_name, None)
-    if op is None or not issubclass(op, dynamic.ops.Reader):
+    if op is None or not issubclass(op, dynamic._ops.Reader):
         return ""
 
     doc = getdoc(op)
