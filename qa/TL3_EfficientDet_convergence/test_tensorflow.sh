@@ -25,7 +25,7 @@ export IS_TMP_DIR=0
 if [ ! -f "/data/coco/coco-2017/coco2017/train2017/000000581929.jpg" ] && [ -f "/data/coco/coco-2017/coco2017/train2017.zip" ]; then
     export DATA_DIR=$(mktemp -d)
     export IS_TMP_DIR=1
-    cd ${DATA_DIR}
+    pushd ${DATA_DIR}
     cp /data/coco/coco-2017/coco2017/train2017.zip . &
     cp /data/coco/coco-2017/coco2017/val2017.zip . &
     cp /data/coco/coco-2017/coco2017/annotations_trainval2017.zip . &
@@ -33,6 +33,8 @@ if [ ! -f "/data/coco/coco-2017/coco2017/train2017/000000581929.jpg" ] && [ -f "
     unzip -q train2017.zip &
     unzip -q val2017.zip &
     unzip -q annotations_trainval2017.zip &
+    wait
+    popd
 fi
 
 python train.py                                                                                     \

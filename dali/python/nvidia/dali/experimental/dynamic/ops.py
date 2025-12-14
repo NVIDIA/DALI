@@ -23,6 +23,28 @@ from ._batch import Batch
 
 
 class Operator:
+    """Base class for all dynamic operators. Manages backend lifecycle, caching, and execution.
+
+    The actual operator subclasses are constructed via _op_builder.build_operator_class() factory
+    function.
+
+    Operator._get() can be used instead of the constructor to utilize the instance caching.
+    """
+
+    # Class members - each subclass will override in the factory function:
+    _schema = None
+    _schema_name = None
+    _supported_backends = frozenset()
+    _op_name = None  # CamelCase legacy class API name, without the module - e.g. "CoinFlip"
+    _fn_name = None  # snake_case api name - e.g. "coin_flip"
+    _legacy_op = None  # The legacy operator class from the nvidia.dali.ops module
+    _is_stateful = False
+    _has_random_state_arg = False
+    # Indicates if this operator is generated and we can autogenerate the stubs or we need
+    # to reimport the operator from py to pyi file.
+    _generated = False
+    _instance_cache = {}
+
     def __init__(
         self,
         max_batch_size,
@@ -30,7 +52,7 @@ class Operator:
         device="cpu",
         **kwargs,
     ):
-        """Constructs an operator instance.
+        """Constructs an operator instance
         Parameters
         ----------
         max_batch_size : int
@@ -49,17 +71,25 @@ class Operator:
 
         self._device = _to_device(device)
 
+        # Information below is lazy-initialized
+        # TODO(klecki): Use @property or @cached_property for self-init.
+
+        # Metadata about batch/sample, layout, dim and type. See _make_meta() for more details.
         self._input_meta = []
         self._arg_meta = {}
+        # Number of outputs
         self._num_outputs = None
+        # Expected device placement of the outputs
         self._output_devices = None
+        # Instance of the legacy Python Operator from the nvidia.dali.ops module
         self._op_inst = None
+        # Instance of the C++ OperatorBase class - used for direct invocation of operator
         self._op_backend = None
         self._op_spec = None
         self._last_invocation = None
 
     @classmethod
-    def get(
+    def _get(
         cls,
         max_batch_size: int,
         name: Optional[str] = None,
@@ -97,18 +127,29 @@ class Operator:
                 cls._instance_cache[key] = inst
         return inst
 
-    def infer_num_outputs(self, *inputs, **args):
+    def _infer_num_outputs(self, *inputs, **args):
         self._init_spec(inputs, args)
         return self._num_outputs
 
-    def input_device(self, index: int, actual_device: Optional[str] = None):
+    def _input_device(self, index: int, actual_device: Optional[_device.Device] = None):
         default_input_device = "gpu" if self._device.device_type == "gpu" else "cpu"
-        dev_type = self.schema.GetInputDevice(index, actual_device, default_input_device)
+        actual_device_type = actual_device.device_type if actual_device is not None else None
+        dev_type = self._schema.GetInputDevice(index, actual_device_type, default_input_device)
         if dev_type is None:
             return self._device
-        return _device.Device(dev_type, self._device.device_id)  # inherit the device id
+        if dev_type == "cpu":
+            dev_id = 0
+        else:
+            if self._device.device_type != "cpu":
+                dev_id = self._device.device_id  # we need to match our current device
+            else:
+                # This is a CPU operator so it doesn't have a device id - we should just
+                # use whatever was passed in.
+                dev_id = actual_device.device_id if actual_device is not None else 0
 
-    def infer_output_devices(self, *inputs, **args):
+        return _device.Device(dev_type, dev_id)  # inherit the device id
+
+    def _infer_output_devices(self, *inputs, **args):
         self._init_spec(inputs, args)
         return self._output_devices
 
@@ -142,7 +183,7 @@ class Operator:
 
                 # legacy_op is a member of the old `ops` module - we use the ops API to obtain
                 # an OpSpec
-                op = self.legacy_op(
+                op = self._legacy_op(
                     name=self._name, device=self._device.device_type, **self._init_args
                 )
                 self._op_inst = op
@@ -193,7 +234,7 @@ class Operator:
                 self._op_spec.AddArg("max_batch_size", self._max_batch_size)
                 self._op_backend = _b._Operator(self._op_spec)
 
-    def run(self, ctx, *inputs, batch_size=None, **args):
+    def _run(self, ctx, *inputs, batch_size=None, **args):
         device_id = ctx.device_id if ctx is not None else None
         device_ctx = (
             _device.Device("gpu", device_id) if device_id is not None else _device.Device("cpu")
@@ -203,7 +244,7 @@ class Operator:
                 batch_size is not None
                 and self._max_batch_size is not None
                 and batch_size > self._max_batch_size
-                and self.schema.IsStateful()
+                and self._is_stateful
             ):
                 raise RuntimeError(
                     f"The batch size {batch_size} is larger than the `max_batch_size` "
@@ -221,10 +262,10 @@ class Operator:
 
             is_batch = batch_size is not None or _is_batch()
             if self._is_backend_initialized():
-                if self.schema.IsStateful():
+                if self._is_stateful:
                     # clearing the backend in a stateful op would destroy the state
-                    self.check_compatible(inputs, batch_size, args)
-                elif not self.is_compatible(inputs, batch_size, args):
+                    self._check_compatible(inputs, batch_size, args)
+                elif not self._is_compatible(inputs, batch_size, args):
                     # we can reinitialize a stateless operator - not very efficient :(
                     self._reset_backend()
 
@@ -252,7 +293,7 @@ class Operator:
         self._input_meta = [self._make_meta(input) for input in inputs]
         self._arg_meta = {name: self._make_meta(arg) for name, arg in args.items()}
 
-    def is_compatible(self, inputs, batch_size, args):
+    def _is_compatible(self, inputs, batch_size, args):
         """Checks if the inputs and arguments are compatible with this operator instance."""
         if batch_size is not None:
             if batch_size > self._max_batch_size:
@@ -263,12 +304,12 @@ class Operator:
             return False
         return True
 
-    def check_compatible(self, inputs, batch_size, args):
+    def _check_compatible(self, inputs, batch_size, args):
         """Raises an error if the inputs and arguments are not compatible with this op instance."""
 
         def error_header():
             return (
-                f"The invocation of operator {self.display_name} "
+                f"The invocation of operator {self._display_name} "
                 f"is not compatible with the previous call:\n"
             )
 
@@ -311,6 +352,7 @@ class Operator:
                     f"current one."
                 )
 
+    # TODO(klecki): Consider making a dataclass
     def _make_meta(self, x):
         is_batch = False
         if isinstance(x, _invocation.Invocation):
@@ -328,11 +370,11 @@ class Operator:
         }
 
     @property
-    def display_name(self):
+    def _display_name(self):
         if "display_name" in self._init_args:
             type_name = self._init_args["display_name"]
         else:
-            type_name = self.schema.OperatorName()
+            type_name = self._schema.OperatorName()
         if self._name is not None:
             return f'type_name "{self._name}"'
         else:
@@ -340,6 +382,11 @@ class Operator:
 
 
 class Reader(Operator):
+    """Base class for reader operators. Extends Operator with iteration support via next_epoch().
+
+    Readers maintain internal state and can provide samples or batches. Mixing iteration styles
+    (samples/batches/direct calls) on the same instance is forbidden."""
+
     def __init__(
         self,
         batch_size=None,
@@ -355,26 +402,26 @@ class Reader(Operator):
 
     def _pre_call(self, *inputs, **args):
         if self._api_type is None:
-            self._api_type = "run"
-        elif self._api_type != "run":
+            self._api_type = "_run"
+        elif self._api_type != "_run":
             raise RuntimeError(
-                "Cannot mix `samples`, `batches` and `run`/`__call__` on the same reader."
+                "Cannot mix `samples`, `batches` and `_run`/`__call__` on the same reader."
             )
 
-    def run(self, ctx=None, *inputs, **args):
+    def _run(self, ctx=None, *inputs, **args):
         """
         Runs the reader and obtains one result (batch or sample, depending on `batch_size`).
 
         Do not call this function directly. Use `__call__` instead.
         """
         if self._api_type is None:
-            self._api_type = "run"
-        elif self._api_type != "run":
+            self._api_type = "_run"
+        elif self._api_type != "_run":
             raise RuntimeError(
-                "Cannot mix `samples`, `batches` and `run`/`__call__` on the same reader."
+                "Cannot mix `samples`, `batches` and `_run`/`__call__` on the same reader."
             )
 
-        return super().run(ctx, *inputs, **args)
+        return super()._run(ctx, *inputs, **args)
 
     def next_epoch(self, batch_size=None, ctx: Optional[_eval_context.EvalContext] = None):
         """
@@ -404,7 +451,7 @@ class Reader(Operator):
             self._api_type = "samples"
         elif self._api_type != "samples":
             raise RuntimeError(
-                "Cannot mix `samples`, `batches` and `run`/`__call__` on the same reader."
+                "Cannot mix `samples`, `batches` and `_run`/`__call__` on the same reader."
             )
 
         if ctx is None:
@@ -419,7 +466,7 @@ class Reader(Operator):
             meta = self._op_backend.GetReaderMeta()
             idx = 0
             while idx < meta["epoch_size_padded"]:
-                outputs = super().run(ctx, batch_size=self._actual_batch_size)
+                outputs = super()._run(ctx, batch_size=self._actual_batch_size)
                 batch_size = len(outputs[0])
                 assert batch_size == self._actual_batch_size
                 idx += batch_size
@@ -431,7 +478,7 @@ class Reader(Operator):
         if self._api_type is None:
             self._api_type = "batches"
         elif self._api_type != "batches":
-            raise RuntimeError("Cannot mix samples(), batches() and run() on the same reader.")
+            raise RuntimeError("Cannot mix samples(), batches() and _run() on the same reader.")
 
         if ctx is None:
             ctx = _eval_context.EvalContext.current()
@@ -457,7 +504,7 @@ class Reader(Operator):
             meta = self._op_backend.GetReaderMeta()
             idx = 0
             while idx < meta["epoch_size_padded"]:
-                outputs = super().run(ctx, batch_size=batch_size)
+                outputs = super()._run(ctx, batch_size=batch_size)
                 batch_size_returned = len(outputs[0])
                 assert batch_size_returned == batch_size
                 idx += batch_size_returned

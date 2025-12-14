@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -190,7 +190,12 @@ def run_pipeline(input_epoch, pipeline_fn, *, devices: list = ["cpu", "gpu"], **
 
 
 def check_pipeline(
-    input_epoch, pipeline_fn, *, devices: list = ["cpu", "gpu"], eps=1e-7, **pipeline_fn_args
+    input_epoch,
+    pipeline_fn,
+    *,
+    devices: list = ["cpu", "gpu"],
+    eps=1e-7,
+    **pipeline_fn_args,
 ):
     """
     Verifies, if given pipeline supports iter-to-iter variable batch size
@@ -265,7 +270,12 @@ def float_array_helper(operator_fn, opfn_args={}):
 
 def sequence_op_helper(operator_fn, opfn_args={}):
     data = generate_data(
-        31, 13, custom_shape_generator(3, 7, 160, 200, 80, 100, 3, 3), lo=0, hi=255, dtype=np.uint8
+        31,
+        13,
+        custom_shape_generator(3, 7, 160, 200, 80, 100, 3, 3),
+        lo=0,
+        hi=255,
+        dtype=np.uint8,
     )
     check_pipeline(
         data,
@@ -330,6 +340,7 @@ def numba_setup_out_shape(out_shape, in_shape):
 
 ops_image_custom_args = [
     (fn.cast, {"dtype": types.INT32}),
+    (fn.clahe, {"tiles_x": 4, "tiles_y": 4, "clip_limit": 2.0, "devices": ["gpu"]}),
     (fn.color_space_conversion, {"image_type": types.BGR, "output_type": types.RGB}),
     (fn.coord_transform, {"M": 0.5, "T": 2}),
     (fn.coord_transform, {"T": 2}),
@@ -346,7 +357,10 @@ ops_image_custom_args = [
             "normalized_shape": True,
         },
     ),
-    (fn.fast_resize_crop_mirror, {"crop": [5, 5], "resize_shorter": 10, "devices": ["cpu"]}),
+    (
+        fn.fast_resize_crop_mirror,
+        {"crop": [5, 5], "resize_shorter": 10, "devices": ["cpu"]},
+    ),
     (fn.flip, {"horizontal": True}),
     (fn.gaussian_blur, {"window_size": 5}),
     (fn.get_property, {"key": "layout"}),
@@ -366,11 +380,17 @@ ops_image_custom_args = [
     (fn.warp_affine, {"matrix": (0.1, 0.9, 10, 0.8, -0.2, -20)}),
     (fn.expand_dims, {"axes": 1, "new_axis_names": "Z"}),
     (fn.grid_mask, {"angle": 2.6810782, "ratio": 0.38158387, "tile": 51}),
-    (fn.multi_paste, {"in_ids": np.zeros([31], dtype=np.int32), "output_size": [300, 300, 3]}),
+    (
+        fn.multi_paste,
+        {"in_ids": np.zeros([31], dtype=np.int32), "output_size": [300, 300, 3]},
+    ),
     (fn.experimental.median_blur, {"devices": ["gpu"]}),
     (fn.experimental.dilate, {"devices": ["gpu"]}),
     (fn.experimental.erode, {"devices": ["gpu"]}),
-    (fn.experimental.warp_perspective, {"matrix": np.eye(3), "devices": ["gpu", "cpu"]}),
+    (
+        fn.experimental.warp_perspective,
+        {"matrix": np.eye(3), "devices": ["gpu", "cpu"]},
+    ),
     (fn.experimental.resize, {"resize_x": 50, "resize_y": 50, "devices": ["gpu"]}),
     (fn.zeros_like, {"devices": ["cpu"]}),
     (fn.ones_like, {"devices": ["cpu"]}),
@@ -501,7 +521,9 @@ def test_coin_flip():
         return pipe
 
     run_pipeline(
-        generate_data(31, 13, image_like_shape_generator), pipeline_fn=pipe, devices=["cpu"]
+        generate_data(31, 13, image_like_shape_generator),
+        pipeline_fn=pipe,
+        devices=["cpu"],
     )
 
 
@@ -525,7 +547,11 @@ def test_random_choice():
         pipe.set_outputs(dist)
         return pipe
 
-    run_pipeline(generate_data(31, 13, array_1d_shape_generator), pipeline_fn=pipe, devices=["cpu"])
+    run_pipeline(
+        generate_data(31, 13, array_1d_shape_generator),
+        pipeline_fn=pipe,
+        devices=["cpu"],
+    )
 
 
 def test_random_normal():
@@ -563,7 +589,9 @@ def test_random_beta():
         return pipe
 
     run_pipeline(
-        generate_data(31, 13, image_like_shape_generator), pipeline_fn=pipe_input, devices=["cpu"]
+        generate_data(31, 13, image_like_shape_generator),
+        pipeline_fn=pipe_input,
+        devices=["cpu"],
     )
     run_pipeline(
         generate_data(31, 13, image_like_shape_generator),
@@ -910,7 +938,10 @@ def test_ssd_random_crop_op():
 def test_reshape():
     data = generate_data(31, 13, (160, 80, 3), lo=0, hi=255, dtype=np.uint8)
     check_pipeline(
-        data, pipeline_fn=single_op_pipeline, operator_fn=fn.reshape, shape=(160 / 2, 80 * 2, 3)
+        data,
+        pipeline_fn=single_op_pipeline,
+        operator_fn=fn.reshape,
+        shape=(160 / 2, 80 * 2, 3),
     )
 
 
@@ -998,7 +1029,8 @@ def test_lookup_table():
         return pipe
 
     check_pipeline(
-        generate_data(31, 13, array_1d_shape_generator, lo=0, hi=5, dtype=np.uint8), pipe
+        generate_data(31, 13, array_1d_shape_generator, lo=0, hi=5, dtype=np.uint8),
+        pipe,
     )
     # TODO sequence
 
@@ -1096,7 +1128,12 @@ def generate_decoders_data(data_dir, data_extension, exclude_subdirs=[]):
     nfiles = len(fnames)
     _input_epoch = [
         list(map(lambda fname: test_utils.read_file_bin(fname), fnames[: nfiles // 3])),
-        list(map(lambda fname: test_utils.read_file_bin(fname), fnames[nfiles // 3 : nfiles // 2])),
+        list(
+            map(
+                lambda fname: test_utils.read_file_bin(fname),
+                fnames[nfiles // 3 : nfiles // 2],
+            )
+        ),
         list(map(lambda fname: test_utils.read_file_bin(fname), fnames[nfiles // 2 :])),
     ]
 
@@ -1114,7 +1151,9 @@ def generate_decoders_data(data_dir, data_extension, exclude_subdirs=[]):
 @nottest
 def test_decoders_check(pipeline_fn, data_dir, data_extension, devices=["cpu"], exclude_subdirs=[]):
     data = generate_decoders_data(
-        data_dir=data_dir, data_extension=data_extension, exclude_subdirs=exclude_subdirs
+        data_dir=data_dir,
+        data_extension=data_extension,
+        exclude_subdirs=exclude_subdirs,
     )
     check_pipeline(data, pipeline_fn=pipeline_fn, devices=devices)
 
@@ -1122,7 +1161,9 @@ def test_decoders_check(pipeline_fn, data_dir, data_extension, devices=["cpu"], 
 @nottest
 def test_decoders_run(pipeline_fn, data_dir, data_extension, devices=["cpu"], exclude_subdirs=[]):
     data = generate_decoders_data(
-        data_dir=data_dir, data_extension=data_extension, exclude_subdirs=exclude_subdirs
+        data_dir=data_dir,
+        data_extension=data_extension,
+        exclude_subdirs=exclude_subdirs,
     )
     run_pipeline(data, pipeline_fn=pipeline_fn, devices=devices)
 
@@ -1191,9 +1232,23 @@ def test_image_decoders():
     for ext in image_decoder_extensions:
         for pipe_template in image_decoder_pipes:
             pipe = partial(pipe_template, fn.decoders)
-            yield test_decoders_check, pipe, data_path, ext, ["cpu", "mixed"], exclude_subdirs
+            yield (
+                test_decoders_check,
+                pipe,
+                data_path,
+                ext,
+                ["cpu", "mixed"],
+                exclude_subdirs,
+            )
             pipe = partial(pipe_template, fn.experimental.decoders)
-            yield test_decoders_check, pipe, data_path, ext, ["cpu", "mixed"], exclude_subdirs
+            yield (
+                test_decoders_check,
+                pipe,
+                data_path,
+                ext,
+                ["cpu", "mixed"],
+                exclude_subdirs,
+            )
         pipe = partial(image_decoder_rcrop_pipe, fn.decoders)
         yield test_decoders_run, pipe, data_path, ext, ["cpu", "mixed"], exclude_subdirs
         pipe = partial(image_decoder_rcrop_pipe, fn.experimental.decoders)
@@ -1281,7 +1336,10 @@ def test_segmentation_select_masks():
 
     input_data = [
         get_data_source(
-            random.randint(5, 31), vertex_ndim=2, npolygons_range=(1, 5), nvertices_range=(3, 10)
+            random.randint(5, 31),
+            vertex_ndim=2,
+            npolygons_range=(1, 5),
+            nvertices_range=(3, 10),
         )
         for _ in range(13)
     ]
@@ -1330,7 +1388,7 @@ def test_tensor_subscript():
 
 def test_subscript_dim_check():
     data = generate_data(31, 13, array_1d_shape_generator, lo=0, hi=255, dtype=np.uint8)
-    check_pipeline(data, single_op_pipeline, operator_fn=fn.subscript_dim_check, num_subscripts=1)
+    check_pipeline(data, single_op_pipeline, operator_fn=fn._subscript_dim_check, num_subscripts=1)
 
 
 def test_crop_argument_from_external_source():
@@ -1352,7 +1410,12 @@ def test_crop_argument_from_external_source():
 
     image_data = np.fromfile(
         os.path.join(
-            test_utils.get_dali_extra_path(), "db", "single", "jpeg", "100", "swan-3584559_640.jpg"
+            test_utils.get_dali_extra_path(),
+            "db",
+            "single",
+            "jpeg",
+            "100",
+            "swan-3584559_640.jpg",
         ),
         dtype=np.uint8,
     )
@@ -1443,7 +1506,10 @@ def test_debayer():
             h, w = 2 * np.int32(rng.uniform(2, 3, 2))
             r, g, b = np.full((h, w), j), np.full((h, w), j + 1), np.full((h, w), j + 2)
             rgb = np.uint8(np.stack([r, g, b], axis=2))
-            yield rgb2bayer(rgb, pattern), np.array(blue_position(pattern), dtype=np.int32)
+            yield (
+                rgb2bayer(rgb, pattern),
+                np.array(blue_position(pattern), dtype=np.int32),
+            )
             j += 1
 
     sample = sample_gen()
@@ -1523,7 +1589,10 @@ def test_cast_like():
 def test_conditional():
     def conditional_wrapper(max_batch_size, input_data, device):
         @experimental_pipeline_def(
-            enable_conditionals=True, batch_size=max_batch_size, num_threads=4, device_id=0
+            enable_conditionals=True,
+            batch_size=max_batch_size,
+            num_threads=4,
+            device_id=0,
         )
         def actual_pipe():
             variable_condition = fn.external_source(source=input_data, cycle=False, device=device)
@@ -1535,7 +1604,13 @@ def test_conditional():
                 output = types.Constant(np.array(42.0), device="cpu")
             logical_expr = variable_condition or not variable_condition
             logical_expr2 = not variable_condition and variable_condition
-            return output, variable_condition, variable_data, logical_expr, logical_expr2
+            return (
+                output,
+                variable_condition,
+                variable_data,
+                logical_expr,
+                logical_expr2,
+            )
 
         return actual_pipe()
 
@@ -1547,7 +1622,10 @@ def test_conditional():
 
     def split_merge_wrapper(max_batch_size, input_data, device):
         @experimental_pipeline_def(
-            enable_conditionals=True, batch_size=max_batch_size, num_threads=4, device_id=0
+            enable_conditionals=True,
+            batch_size=max_batch_size,
+            num_threads=4,
+            device_id=0,
         )
         def actual_pipe():
             variable_pred = fn.external_source(source=input_data, cycle=False, device=device)
@@ -1567,7 +1645,10 @@ def test_conditional():
 
     def not_validate_wrapper(max_batch_size, input_data, device):
         @experimental_pipeline_def(
-            enable_conditionals=True, batch_size=max_batch_size, num_threads=4, device_id=0
+            enable_conditionals=True,
+            batch_size=max_batch_size,
+            num_threads=4,
+            device_id=0,
         )
         def actual_pipe():
             variable_pred = fn.external_source(source=input_data, cycle=False, device=device)
@@ -1607,7 +1688,11 @@ def test_zeros():
         pipe.set_outputs(processed)
         return pipe
 
-    run_pipeline(generate_data(31, 13, array_1d_shape_generator), pipeline_fn=pipe, devices=["cpu"])
+    run_pipeline(
+        generate_data(31, 13, array_1d_shape_generator),
+        pipeline_fn=pipe,
+        devices=["cpu"],
+    )
 
 
 def test_ones():
@@ -1619,7 +1704,11 @@ def test_ones():
         pipe.set_outputs(processed)
         return pipe
 
-    run_pipeline(generate_data(31, 13, array_1d_shape_generator), pipeline_fn=pipe, devices=["cpu"])
+    run_pipeline(
+        generate_data(31, 13, array_1d_shape_generator),
+        pipeline_fn=pipe,
+        devices=["cpu"],
+    )
 
 
 def test_full():
@@ -1631,7 +1720,11 @@ def test_full():
         pipe.set_outputs(processed)
         return pipe
 
-    run_pipeline(generate_data(31, 13, array_1d_shape_generator), pipeline_fn=pipe, devices=["cpu"])
+    run_pipeline(
+        generate_data(31, 13, array_1d_shape_generator),
+        pipeline_fn=pipe,
+        devices=["cpu"],
+    )
 
 
 def test_full_like():
@@ -1642,7 +1735,11 @@ def test_full_like():
         pipe.set_outputs(processed)
         return pipe
 
-    run_pipeline(generate_data(31, 13, array_1d_shape_generator), pipeline_fn=pipe, devices=["cpu"])
+    run_pipeline(
+        generate_data(31, 13, array_1d_shape_generator),
+        pipeline_fn=pipe,
+        devices=["cpu"],
+    )
 
 
 def test_io_file_read():
@@ -1826,8 +1923,8 @@ tested_methods = [
     "squeeze",
     "ssd_random_crop",
     "stack",
-    "subscript_dim_check",
-    "tensor_subscript",
+    "_subscript_dim_check",
+    "_tensor_subscript",
     "to_decibels",
     "transform_translation",
     "transforms.combine",
@@ -1847,6 +1944,7 @@ tested_methods = [
     "full",
     "full_like",
     "io.file.read",
+    "clahe",
 ]
 
 excluded_methods = [

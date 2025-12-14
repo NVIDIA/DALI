@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -81,7 +81,7 @@ interpreted as absolute or relative coordinates, depending on the value of
     .DeprecateArg("image_type")  // deprecated since 0.24dev
     .AddParent("SliceBase")
     .AddParent("SliceAttr")
-    .AddParent("OutOfBoundsAttr");
+    .AddParent("OutOfBoundsAttrBorderMode");
 
 DALI_REGISTER_OPERATOR(Slice, Slice<CPUBackend>, CPU);
 

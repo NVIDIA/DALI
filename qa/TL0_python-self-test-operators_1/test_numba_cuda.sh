@@ -10,7 +10,7 @@ test_body() {
   fi
   # make sure nvcc and nvjitlink are the same version, if the nvjitlink is lower than nvcc
   # we get the PTX version mismatch error
-  if [[ "$DALI_CUDA_MAJOR_VERSION" == "12" ]]; then
+  if pip show nvidia-cuda-nvcc-cu12 > /dev/null 2>&1; then
     nvcc_pkg="nvidia-cuda-nvcc-cu12"
     nvjitlink_pkg="nvidia-nvjitlink-cu12"
   else

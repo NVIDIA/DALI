@@ -85,7 +85,10 @@ def check_single_input_operator_pipeline(op, device, **kwargs):
     @pipeline_def
     def pipeline():
         data, _ = fn.readers.file(
-            name="Reader", file_root=images_dir, pad_last_batch=True, random_shuffle=True
+            name="Reader",
+            file_root=images_dir,
+            pad_last_batch=True,
+            random_shuffle=True,
         )
         decoding_device = "mixed" if device == "gpu" else "cpu"
         decoded = fn.decoders.image_random_crop(data, device=decoding_device)
@@ -528,9 +531,9 @@ def test_nemo_asr_reader(
     for i, f in enumerate(wav_files):
         manifest.write(
             f'{{"audio_filepath": "{f}", \
-                       "offset": {i/1000}, \
-                       "duration": {0.3 + i/100}, \
-                       "text": "o{"o"*i}"}}\n'
+                       "offset": {i / 1000}, \
+                       "duration": {0.3 + i / 100}, \
+                       "text": "o{"o" * i}"}}\n'
         )
     manifest.flush()
 
@@ -683,10 +686,18 @@ class VideoConfig:
     (0, 2),
     (
         BaseDecoderConfig(
-            shard_id=0, num_shards=1, stick_to_shard=True, pad_last_batch=True, random_shuffle=True
+            shard_id=0,
+            num_shards=1,
+            stick_to_shard=True,
+            pad_last_batch=True,
+            random_shuffle=True,
         ),
         BaseDecoderConfig(
-            shard_id=4, num_shards=7, stick_to_shard=True, pad_last_batch=True, random_shuffle=False
+            shard_id=4,
+            num_shards=7,
+            stick_to_shard=True,
+            pad_last_batch=True,
+            random_shuffle=False,
         ),
         BaseDecoderConfig(
             shard_id=6,
@@ -710,7 +721,11 @@ class VideoConfig:
 )
 @reader_signed_off("readers.video", "video_reader")
 def test_video_reader(
-    num_epochs, batch_size, iters_into_epoch, config: BaseDecoderConfig, video: VideoConfig
+    num_epochs,
+    batch_size,
+    iters_into_epoch,
+    config: BaseDecoderConfig,
+    video: VideoConfig,
 ):
     files = [os.path.join(get_dali_extra_path(), f"db/video/small/small{i}.mp4") for i in range(5)]
 
@@ -747,7 +762,11 @@ def test_video_reader(
     (0, 3),
     (
         BaseDecoderConfig(
-            shard_id=0, num_shards=1, stick_to_shard=True, pad_last_batch=True, random_shuffle=True
+            shard_id=0,
+            num_shards=1,
+            stick_to_shard=True,
+            pad_last_batch=True,
+            random_shuffle=True,
         ),
         BaseDecoderConfig(
             shard_id=6,
@@ -768,7 +787,11 @@ def test_video_reader(
 )
 @reader_signed_off("readers.video_resize", "video_reader_resize")
 def test_video_reader_resize_reader(
-    num_epochs, batch_size, iters_into_epoch, config: BaseDecoderConfig, video: VideoConfig
+    num_epochs,
+    batch_size,
+    iters_into_epoch,
+    config: BaseDecoderConfig,
+    video: VideoConfig,
 ):
     files = [os.path.join(get_dali_extra_path(), f"db/video/small/small{i}.mp4") for i in range(5)]
 
@@ -809,7 +832,11 @@ def test_video_reader_resize_reader(
     (0, 2),
     (
         BaseDecoderConfig(
-            shard_id=1, num_shards=2, stick_to_shard=True, pad_last_batch=True, random_shuffle=True
+            shard_id=1,
+            num_shards=2,
+            stick_to_shard=True,
+            pad_last_batch=True,
+            random_shuffle=True,
         ),
         BaseDecoderConfig(
             shard_id=2,
@@ -823,7 +850,12 @@ def test_video_reader_resize_reader(
 )
 @reader_signed_off("experimental.readers.video")
 def test_experimental_video_reader(
-    device, num_epochs, batch_size, iters_into_epoch, config: BaseDecoderConfig, video: VideoConfig
+    device,
+    num_epochs,
+    batch_size,
+    iters_into_epoch,
+    config: BaseDecoderConfig,
+    video: VideoConfig,
 ):
     files = [
         os.path.join(get_dali_extra_path(), "db", "video", "vfr", f"test_{i}.mp4") for i in (1, 2)
@@ -901,7 +933,11 @@ def test_random_mask_pixel():
 @random_signed_off("roi_random_crop")
 def test_roi_random_crop():
     check_single_input_operator(
-        fn.roi_random_crop, "cpu", crop_shape=(10, 10), roi_start=(0, 0), roi_end=(30, 30)
+        fn.roi_random_crop,
+        "cpu",
+        crop_shape=(10, 10),
+        roi_start=(0, 0),
+        roi_end=(30, 30),
     )
 
 
@@ -1201,6 +1237,7 @@ unsupported_readers = [
 ]
 
 unsupported_ops = [
+    "clahe",
     "experimental.decoders.video",
     "experimental.inputs.video",
     "plugin.video.decoder",

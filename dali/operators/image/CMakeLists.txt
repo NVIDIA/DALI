@@ -14,6 +14,7 @@
 
 # Get all the source files and dump test files
 
+add_subdirectory(clahe)
 add_subdirectory(color)
 add_subdirectory(crop)
 add_subdirectory(convolution)

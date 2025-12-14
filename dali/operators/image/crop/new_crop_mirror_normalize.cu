@@ -1,4 +1,4 @@
-// Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2023-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -56,12 +56,12 @@ class NewCropMirrorNormalizeGPU : public StatelessOperator<GPUBackend> {
         output_type_(spec.GetArgument<DALIDataType>("dtype")),
         output_layout_(spec.GetArgument<TensorLayout>("output_layout")),
         pad_output_(spec.GetArgument<bool>("pad_output")),
-        out_of_bounds_policy_(GetOutOfBoundsPolicy(spec)),
+        out_of_bounds_policy_(GetOutOfBoundsPolicy(spec, { boundary::BoundaryType::CONSTANT })),
         mean_arg_("mean", spec),
         std_arg_("std", spec),
         scale_(spec.GetArgument<float>("scale")),
         shift_(spec.GetArgument<float>("shift")) {
-    if (out_of_bounds_policy_ == OutOfBoundsPolicy::Pad) {
+    if (out_of_bounds_policy_.shape_policy == OutOfBoundsShapePolicy::Pad) {
       fill_values_ = spec.GetRepeatedArgument<float>("fill_values");
     }
   }
@@ -81,7 +81,8 @@ class NewCropMirrorNormalizeGPU : public StatelessOperator<GPUBackend> {
   CmnImplKind GetImplementationKind(DALIDataType in_type, DALIDataType out_type,
                                     const TensorLayout &in_layout, const TensorLayout &out_layout,
                                     int ndim, int spatial_dim, int channel_dim,
-                                    const TensorListShape<> &in_shape, OutOfBoundsPolicy oobp) {
+                                    const TensorListShape<> &in_shape,
+                                    const OutOfBoundsPolicy &oobp) {
     if (spatial_dim != 2 || ndim != 3 ||
         (channel_dim_idx_ != 0 && channel_dim_idx_ != spatial_ndim_)) {
       return CmnImplKind::FallbackGeneric;
@@ -89,7 +90,7 @@ class NewCropMirrorNormalizeGPU : public StatelessOperator<GPUBackend> {
     // check for optimized version
     if (in_type == DALI_UINT8 && (out_type == DALI_FLOAT || out_type == DALI_FLOAT16) &&
         in_layout == "HWC" && (out_layout == "CHW" || out_layout == "HWC") &&
-        (oobp == OutOfBoundsPolicy::Error || oobp == OutOfBoundsPolicy::TrimToShape)) {
+        oobp.border_type == boundary::BoundaryType::TRANSPARENT) {
       if (in_shape.num_samples() > 0 && in_shape.tensor_shape_span(0)[2] == 3)
         return CmnImplKind::SliceHwc2HwcChwNormalize;
     }
@@ -338,7 +339,7 @@ class NewCropMirrorNormalizeGPU : public StatelessOperator<GPUBackend> {
     auto crop_win_gen = crop_attr_.GetCropWindowGenerator(sample_idx);
     assert(crop_win_gen);
     CropWindow crop_window = crop_win_gen(sample_shape, input_layout_);
-    ApplySliceBoundsPolicy(out_of_bounds_policy_, sample_shape, crop_window.anchor,
+    ApplySliceBoundsPolicy(out_of_bounds_policy_.shape_policy, sample_shape, crop_window.anchor,
                            crop_window.shape);
 
     kernels::Roi<2> roi;
@@ -403,7 +404,7 @@ class NewCropMirrorNormalizeGPU : public StatelessOperator<GPUBackend> {
   CmnImplKind impl_kind_ = CmnImplKind::FallbackGeneric;
 
   std::vector<float> fill_values_;
-  OutOfBoundsPolicy out_of_bounds_policy_ = OutOfBoundsPolicy::Error;
+  OutOfBoundsPolicy out_of_bounds_policy_;
 
   ArgValue<float, 1> mean_arg_;
   ArgValue<float, 1> std_arg_;

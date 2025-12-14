@@ -27,6 +27,7 @@ from ._device import Device, device as _device
 from . import _eval_mode
 from . import _invocation
 import nvtx
+import warnings
 
 
 def _backend_device(backend: Union[_backend.TensorListCPU, _backend.TensorListGPU]) -> Device:
@@ -92,13 +93,13 @@ class BatchedSlice:
                 args[f"at_{d}"] = r
                 d += 1
 
-        from . import tensor_subscript
+        from . import _tensor_subscript
 
-        return tensor_subscript(self._batch, **args)
+        return _tensor_subscript(self._batch, **args)
 
 
 def _arithm_op(name, *args, **kwargs):
-    from . import arithmetic_generic_op
+    from . import _arithmetic_generic_op
 
     argsstr = " ".join(f"&{i}" for i in range(len(args)))
     gpu = False
@@ -124,7 +125,7 @@ def _arithm_op(name, *args, **kwargs):
                 raise ValueError("Cannot mix GPU and CPU inputs.")
             new_args[i] = args[i]
 
-    return arithmetic_generic_op(*new_args, expression_desc=f"{name}({argsstr})")
+    return _arithmetic_generic_op(*new_args, expression_desc=f"{name}({argsstr})")
 
 
 class _TensorList:
@@ -530,6 +531,17 @@ class Batch:
         if self.device == device and not force_copy:
             return self
         else:
+            if (
+                self.device.device_type == "gpu"
+                and device.device_type == "gpu"
+                and self.device.device_id != device.device_id
+            ):
+                warnings.warn(
+                    f"Copying a batch from GPU {self.device.device_id} to GPU {device.device_id} "
+                    f"through host memory. This may be slow."
+                )
+                return self.cpu().evaluate().to_device(device)
+
             copy_dev = device if device.device_type == "gpu" else self.device
             with copy_dev:
                 from . import copy
@@ -710,7 +722,9 @@ class Batch:
                             f"Unsupported device type: {self._device.device_type}"
                         )
                     self._storage = backend_type(
-                        [t.evaluate()._storage for t in self._tensors], self.layout
+                        [t.evaluate()._storage for t in self._tensors],
+                        self.layout,
+                        contiguous=False,
                     )
         return self
 

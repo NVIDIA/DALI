@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -18,14 +18,17 @@ import nvidia.dali.ops as ops
 import nvidia.dali.types as types
 import numpy as np
 import os
+import cv2
+from test_slice import to_cv_border_type
 from nose_utils import assert_raises
 from test_utils import as_array
 from test_utils import compare_pipelines
 from test_utils import RandomDataIterator
 from test_utils import get_dali_extra_path
+from test_utils import dump_as_core_artifacts
 from test_slice import check_slice_output, abs_slice_start_and_end
 import itertools
-from nose2.tools import params
+from nose2.tools import params, cartesian_params
 
 test_data_root = get_dali_extra_path()
 caffe_db_folder = os.path.join(test_data_root, "db", "lmdb")
@@ -753,3 +756,67 @@ def test_crop_rounding(device, rounding):
     elif rounding == "round":
         # padding happens to the left of the input
         np.testing.assert_array_equal(data[5:16, :, :], cropped[:, 1:9, :])
+
+
+@cartesian_params(
+    ("cpu", "gpu"),
+    ("HWC", "CHW"),
+    ("constant", "const", "pad", "clamp", "edge", "reflect", "reflect_1001", "reflect_101", "wrap"),
+)
+def test_border_modes(device, layout, out_of_bounds_policy):
+    @pipeline_def(batch_size=1, num_threads=4, device_id=0, seed=1234)
+    def make_pipe():
+        file, _ = fn.readers.file(
+            file_root=os.path.join(test_data_root, "db", "single", "jpeg"),
+            random_shuffle=False,
+        )
+        img = fn.decoders.image(file, device="mixed" if device == "gpu" else "cpu")
+        shape = img.shape()
+        h, w = shape[0], shape[1]
+
+        input = img
+
+        if layout == "CHW":  # convert to CHW
+            input = fn.transpose(input, perm=(2, 0, 1))
+
+        top = fn.random.uniform(range=fn.stack(1.0 * h, 2.0 * h), dtype=types.INT64)
+        bottom = fn.random.uniform(range=fn.stack(1.0 * h, 2.0 * h), dtype=types.INT64)
+        left = fn.random.uniform(range=fn.stack(1.0 * w, 2.0 * w), dtype=types.INT64)
+        right = fn.random.uniform(range=fn.stack(1.0 * w, 2.0 * w), dtype=types.INT64)
+
+        fill = [0x76, 0xB9, 0x00] if out_of_bounds_policy in ["constant", "const", "pad"] else None
+        output = fn.crop(
+            input,
+            crop_h=h + top + bottom + 0.0,
+            crop_w=w + left + right + 0.0,
+            crop_pos_x=left / (left + right),
+            crop_pos_y=top / (top + bottom),
+            out_of_bounds_policy=out_of_bounds_policy,
+            fill_values=fill,
+        )
+
+        if layout == "CHW":
+            output = fn.transpose(output, perm=(1, 2, 0))
+
+        return img, output, fn.stack(left, top, right, bottom)
+
+    pipe = make_pipe()
+    inputs, outputs, margins = pipe.run()
+    if device == "gpu":
+        inputs = inputs.as_cpu()
+        outputs = outputs.as_cpu()
+        margins = margins.as_cpu()
+
+    for i in range(len(inputs)):
+        in_img = as_array(inputs[i])
+        out_img = as_array(outputs[i])
+        h, w = in_img.shape[:2]
+        l, t, r, b = as_array(margins[i])
+        ref = cv2.copyMakeBorder(
+            in_img, t, b, l, r, to_cv_border_type(out_of_bounds_policy), None, [0x76, 0xB9, 0x00]
+        )
+        if not np.array_equal(ref, out_img):
+            dump_as_core_artifacts(
+                f"border_mode_{out_of_bounds_policy}_{layout}_{device}_{i}", out_img, ref
+            )
+            assert np.array_equal(ref, out_img)

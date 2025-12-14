@@ -251,9 +251,9 @@ class DataNode(object):
             if len(new_axes) > 0 and isinstance(val[-1], _NewAxis):
                 sliced = self  # no check needed, ExpandDims will do the trick
             else:
-                sliced = nvidia.dali.fn.subscript_dim_check(self, num_subscripts=len(idxs))
+                sliced = nvidia.dali.fn._subscript_dim_check(self, num_subscripts=len(idxs))
         else:
-            sliced = nvidia.dali.fn.tensor_subscript(self, **slice_args, num_subscripts=len(idxs))
+            sliced = nvidia.dali.fn._tensor_subscript(self, **slice_args, num_subscripts=len(idxs))
 
         if len(new_axes) == 0:
             return sliced
