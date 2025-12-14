@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -33,8 +33,7 @@ def build_centercrop_transform(size: Union[int, Sequence[int]]):
 
 def make_img(h, w, c=3):
     arr = np.arange(h * w * c, dtype=np.uint8).reshape((c, h, w))
-    arr_dali = np.arange(h * w * c, dtype=np.uint8).reshape((h, w, c))
-    return torch.tensor(arr), torch.tensor(arr_dali).unsqueeze(0)
+    return torch.tensor(arr)
 
 
 @params(
@@ -53,48 +52,42 @@ def make_img(h, w, c=3):
     ),
 )
 def test_center_crop_square_int(size):
-    img, img_dali = make_img(256, 256)
+    img = make_img(256, 256)
     t, td = build_centercrop_transform(size)
 
     out_tv = t(img)
-    out_dali_tv = td(img_dali).cpu()
+    out_dali_tv = td(img).cpu()
 
-    if isinstance(size, list) and len(size) == 1:
-        size = size[0]
-    if isinstance(size, int):
-        assert out_tv.shape[-2:] == (size, size)
-        assert out_dali_tv.shape[1:3] == (size, size)
-    else:
-        assert out_tv.shape[-2:] == tuple(size)
-        assert out_dali_tv.shape[1:3] == tuple(size)
+    assert (
+        out_tv.shape[-3:] == out_dali_tv.shape[-3:]
+    ), f"Is: {out_dali_tv.shape} should be: {out_tv.shape}"
 
 
 def test_center_crop_equal_size():
-    img, img_dali = make_img(256, 256)
+    img = make_img(256, 256)
     t, td = build_centercrop_transform((256, 256))
 
     out_tv = t(img)
-    out_dali_tv = td(img_dali).cpu()
+    out_dali_tv = td(img).cpu()
 
     assert torch.equal(img, out_tv)
-    assert torch.equal(img_dali, out_dali_tv)
+    assert torch.equal(img, out_dali_tv)
 
 
 @params((512), (128))
 def test_center_crop_larger_than_image(size):
-    img, img_dali = make_img(size // 2, size // 2)
+    img = make_img(size // 2, size // 2)
     t, td = build_centercrop_transform((size, size))
 
     out_tv = t(img)
-    out_dali_tv = td(img_dali).cpu()
+    out_dali_tv = td(img).cpu()
 
-    assert out_tv.shape[-2:] == (size, size)
-    assert out_dali_tv.shape[1:3] == (size, size)
+    assert out_tv.shape == out_dali_tv.shape, f"Is: {out_dali_tv.shape} should be {out_tv.shape}"
 
     center = out_tv[:, size // 4 : size - size // 4, size // 4 : size - size // 4]
     assert torch.equal(center, img)
-    center = out_dali_tv[:, size // 4 : size - size // 4, size // 4 : size - size // 4, :]
-    assert torch.equal(center, img_dali)
+    center = out_dali_tv[:, size // 4 : size - size // 4, size // 4 : size - size // 4]
+    assert torch.equal(center, img)
 
 
 @params(

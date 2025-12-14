@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import ctypes
 import os
 from typing import Sequence, Union
 
@@ -24,8 +23,6 @@ import torch
 import torchvision.transforms.v2 as transforms
 
 from nvidia.dali.experimental.torchvision import Resize, Compose
-from nvidia.dali.backend import TensorGPU, TensorListCPU, TensorListGPU
-import nvidia.dali.types as types
 
 
 def read_file(path):
@@ -44,64 +41,6 @@ test_files = [
     for f in ["snail-4291306_1280.jpg", "snail-4345504_1280.jpg", "snail-4368154_1280.jpg"]
 ]
 test_input_filenames = [read_filepath(fname) for fname in test_files]
-
-to_torch_type = {
-    types.DALIDataType.FLOAT: torch.float32,
-    types.DALIDataType.FLOAT64: torch.float64,
-    types.DALIDataType.FLOAT16: torch.float16,
-    types.DALIDataType.UINT8: torch.uint8,
-    types.DALIDataType.INT8: torch.int8,
-    types.DALIDataType.BOOL: torch.bool,
-    types.DALIDataType.INT16: torch.int16,
-    types.DALIDataType.INT32: torch.int32,
-    types.DALIDataType.INT64: torch.int64,
-}
-
-
-def to_torch_tensor(tensor_or_tl, device_id=0):
-    """
-    Copy contents of DALI tensor to PyTorch's Tensor.
-
-    Parameters
-    ----------
-    `tensor_or_tl` : TensorGPU or TensorListGPU
-    `arr` : torch.Tensor
-            Destination of the copy
-    `cuda_stream` : torch.cuda.Stream, cudaStream_t or any value that can be cast to cudaStream_t.
-                    CUDA stream to be used for the copy
-                    (if not provided, an internal user stream will be selected)
-                    In most cases, using pytorch's current stream is expected (for example,
-                    if we are copying to a tensor allocated with torch.zeros(...))
-    """
-    if isinstance(tensor_or_tl, (TensorListGPU, TensorListCPU)):
-        dali_tensor = tensor_or_tl.as_tensor()
-    else:
-        dali_tensor = tensor_or_tl
-
-    if isinstance(dali_tensor, (TensorGPU)):
-        torch_device = torch.device("cuda", device_id)
-    else:
-        torch_device = torch.device("cpu")
-        non_blocking = False
-        cuda_stream = None
-
-    out_torch = torch.empty(
-        dali_tensor.shape(),
-        dtype=to_torch_type[dali_tensor.dtype],
-        device=torch_device,
-    )
-
-    c_type_pointer = ctypes.c_void_p(out_torch.data_ptr())
-    if isinstance(dali_tensor, (TensorGPU)):
-        non_blocking = True
-        cuda_stream = torch.cuda.current_stream(device=torch_device)
-        cuda_stream = types._raw_cuda_stream(cuda_stream)
-        stream = None if cuda_stream is None else ctypes.c_void_p(cuda_stream)
-        tensor_or_tl.copy_to_external(c_type_pointer, stream, non_blocking)
-    else:
-        tensor_or_tl.copy_to_external(c_type_pointer)
-
-    return out_torch
 
 
 def build_resize_transform(

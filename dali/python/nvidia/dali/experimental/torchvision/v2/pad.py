@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,7 +20,68 @@ import nvidia.dali as dali
 import nvidia.dali.fn as fn
 
 
-class PadConstant:
+class PadBase:
+    def __init__(
+        self,
+        padding: Union[int, Sequence[int]],
+        boarder_type: Literal["pad", "reflect_1001", "reflect_101", "clamp"],
+        fill: Union[
+            int,
+            float,
+            Sequence[int],
+            Sequence[float],
+            None,
+            dict[
+                Union[type, str],
+                Union[
+                    int,
+                    float,
+                    collections.abc.Sequence[int],
+                    collections.abc.Sequence[float],
+                    NoneType,
+                ],
+            ],
+        ] = 0,
+        device: Literal["cpu", "gpu"] = "cpu",
+    ):
+        if isinstance(padding, int):
+            self.pad_left, self.pad_top, self.pad_right, self.pad_bottom = (
+                padding,
+                padding,
+                padding,
+                padding,
+            )
+        else:
+            self.pad_left, self.pad_top, self.pad_right, self.pad_bottom = padding
+        self.fill = fill
+        self.device = device
+        self.boarder_type = boarder_type
+
+    def __call__(self, data_input):
+        # TODO: different layouts ?
+        input_height = data_input.shape()[0]
+        input_width = data_input.shape()[1]
+        if self.device == "gpu":
+            data_input = data_input.gpu()
+
+        data_input = fn.slice(
+            data_input,
+            fn.stack(
+                fn.cast(-self.pad_left, dtype=dali.types.INT64),
+                fn.cast(-self.pad_top, dtype=dali.types.INT64),
+            ),  # __anchor
+            fn.stack(
+                input_width + self.pad_right + self.pad_left,
+                input_height + self.pad_bottom + self.pad_top,
+            ),  # __shape
+            out_of_bounds_policy=self.boarder_type,
+            fill_values=self.fill,
+        )
+
+        return data_input
+
+
+class PadConstant(PadBase):
     """
     Implementation of padding with a constant value.
     """
@@ -47,61 +108,10 @@ class PadConstant:
         ] = 0,
         device: Literal["cpu", "gpu"] = "cpu",
     ):
-        self.pad_left, self.pad_top, self.pad_right, self.pad_bottom = padding
-        self.fill = fill
-        self.device = device
-
-    def __call__(self, data_input):
-        input_height = data_input.shape()[0]
-        input_width = data_input.shape()[1]
-        if self.device == "gpu":
-            data_input = data_input.gpu()
-
-        # DALI fn.pad appends fill_value while Torchvision also pads in front of data.
-        # That is why top and left padding need special treatment.
-        if self.pad_top > 0:
-            top_fill_pad = fn.full(
-                fn.cast_like(self.fill, data_input),
-                shape=fn.stack(
-                    fn.cast(self.pad_top, dtype=dali.types.INT32),
-                    fn.cast(input_width, dtype=dali.types.INT32),
-                    fn.cast(data_input.shape()[2], dtype=dali.types.INT32),
-                ),
-                device=self.device,
-            )
-            data_input = fn.cat(top_fill_pad, data_input, axis=0, device=self.device)
-            input_height = data_input.shape()[0]
-
-        if self.pad_left > 0:
-            left_fill_pad = fn.full(
-                fn.cast_like(self.fill, data_input),
-                shape=fn.stack(
-                    fn.cast(input_height, dtype=dali.types.INT32),
-                    fn.cast(self.pad_left, dtype=dali.types.INT32),
-                    fn.cast(data_input.shape()[2], dtype=dali.types.INT32),
-                ),
-                device=self.device,
-            )
-            data_input = fn.cat(left_fill_pad, data_input, axis=1, device=self.device)
-            input_width = data_input.shape()[1]
-
-        if self.pad_right > 0 or self.pad_bottom > 0:
-            out_height = fn.cast(input_height + self.pad_bottom, dtype=dali.types.INT32)
-            out_width = fn.cast(input_width + self.pad_right, dtype=dali.types.INT32)
-            # axes (0,1) are [H, W] for image in HWC layout
-            return fn.pad(
-                data_input,
-                axes=(0, 1),
-                shape=fn.stack(out_height, out_width),
-                # TODO: not sure why it is limited to float - could match input.dtype!
-                fill_value=fn.cast(self.fill, dtype=dali.types.FLOAT),
-                device=self.device,
-            )
-        else:
-            return data_input
+        super().__init__(padding, fill=fill, boarder_type="pad", device=device)
 
 
-class PadEdge:
+class PadEdge(PadBase):
     """
     Implementation of padding with edges,e.g.:
     input: [1, 2, 3, 4, 5, 6]
@@ -109,57 +119,10 @@ class PadEdge:
     """
 
     def __init__(self, padding: Union[int, Sequence[int]], device: Literal["cpu", "gpu"] = "cpu"):
-        self.pad = padding
-        self.device = device
-        raise NotImplementedError("To fully implement this repeat operator would be required!")
-
-    def __call__(self, data_input):
-        left, top, right, bottom = self.pad
-        if self.device == "gpu":
-            data_input = data_input.gpu()
-
-        # Pad left
-        if left > 0:
-            left_pad = data_input[:, 0:1, :]
-            left_pad = fn.resize(
-                left_pad,
-                resize_x=fn.cast(left, dtype=dali.types.FLOAT),
-                resize_y=1,
-                interp_type=dali.types.DALIInterpType.INTERP_NN,
-                device=self.device,
-            )
-            data_input = fn.cat(left_pad, data_input, axis=1, device=self.device)
-        # Pad right
-        if right > 0:
-            W2 = data_input.shape()[1]
-            right_pad = data_input[
-                :,
-                W2 - 1 : W2,
-            ]
-            right_pad = fn.resize(
-                right_pad, resize_x=fn.cast(right, dtype=dali.types.FLOAT), device=self.device
-            )
-            data_input = fn.cat(data_input, right_pad, axis=1, device=self.device)
-        # Pad top
-        if top > 0:
-            top_pad = data_input[0:1, :, :]
-            top_pad = fn.resize(
-                top_pad, resize_y=fn.cast(top, dtype=dali.types.FLOAT), device=self.device
-            )
-            data_input = fn.cat(top_pad, data_input, axis=0, device=self.device)
-        # Pad bottom
-        if bottom > 0:
-            H2 = data_input.shape()[0]
-            bottom_pad = data_input[H2 - 1 : H2, :, :]
-            bottom_pad = fn.resize(
-                bottom_pad, resize_y=fn.cast(bottom, dtype=dali.types.FLOAT), device=self.device
-            )
-            data_input = fn.cat(data_input, bottom_pad, axis=0, device=self.device)
-
-        return data_input
+        super().__init__(padding, fill=0, boarder_type="clamp", device=device)
 
 
-class PadSymmetric:
+class PadSymmetric(PadBase):
     """
     Implementation of symmetric padding:
     input: [1, 2, 3, 4, 5, 6]
@@ -168,33 +131,10 @@ class PadSymmetric:
     """
 
     def __init__(self, padding: Union[int, Sequence[int]], device: Literal["cpu", "gpu"] = "cpu"):
-        self.pad = padding
-        self.device = device
-
-    def __call__(self, data_input):
-        if self.device == "gpu":
-            data_input = data_input.gpu()
-        left, top, right, bottom = self.pad
-        if left > 0:
-            data_input = fn.cat(
-                data_input[:, left - 1 :: -1, :], data_input, axis=1, device=self.device
-            )
-        if right > 0:
-            data_input = fn.cat(
-                data_input, data_input[:, ::-1, :][:, :right, :], axis=1, device=self.device
-            )
-        if top > 0:
-            data_input = fn.cat(
-                data_input[top - 1 :: -1, :, :], data_input, axis=0, device=self.device
-            )
-        if bottom > 0:
-            data_input = fn.cat(
-                data_input, data_input[::-1, :, :][:bottom, :, :], axis=0, device=self.device
-            )
-        return data_input
+        super().__init__(padding, fill=0, boarder_type="reflect_1001", device=device)
 
 
-class PadReflect:
+class PadReflect(PadBase):
     """
     Implementation of reflection padding:
     input: [1, 2, 3, 4, 5, 6]
@@ -203,26 +143,7 @@ class PadReflect:
     """
 
     def __init__(self, padding: Union[int, Sequence[int]], device: Literal["cpu", "gpu"] = "cpu"):
-        self.pad = padding
-        self.device = device
-
-    def __call__(self, data_input):
-        if self.device == "gpu":
-            data_input = data_input.gpu()
-        left, top, right, bottom = self.pad
-        if left > 0:
-            data_input = fn.cat(data_input[:, left:0:-1, :], data_input, axis=1, device=self.device)
-        if right > 0:
-            data_input = fn.cat(
-                data_input, data_input[:, ::-1, :][:, 1 : right + 1, :], axis=1, device=self.device
-            )
-        if top > 0:
-            data_input = fn.cat(data_input[top:0:-1, :, :], data_input, axis=0, device=self.device)
-        if bottom > 0:
-            data_input = fn.cat(
-                data_input, data_input[::-1, :, :][1 : bottom + 1, :, :], axis=0, device=self.device
-            )
-        return data_input
+        super().__init__(padding, fill=0, boarder_type="reflect_101", device=device)
 
 
 PADDING_CLASS = {

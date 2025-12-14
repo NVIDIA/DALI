@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,19 +12,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .v2.compose import Compose
-from .v2.resize import Resize
 from .v2.centercrop import CenterCrop
-from .v2.flips import RandomHorizontalFlip, RandomVerticalFlip
+from .v2.color import ColorJitter, Grayscale
+from .v2.compose import Compose
 from .v2.pad import Pad
+from .v2.flips import RandomHorizontalFlip, RandomVerticalFlip
+from .v2.resize import Resize
 from .v2.tensor import ToTensor
 
 __all__ = [
-    "Compose",
-    "Resize",
     "CenterCrop",
+    "ColorJitter",
+    "Compose",
+    "Grayscale",
+    "Pad",
     "RandomHorizontalFlip",
     "RandomVerticalFlip",
-    "Pad",
+    "Resize",
     "ToTensor",
 ]

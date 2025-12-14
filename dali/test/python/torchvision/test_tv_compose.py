@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -48,7 +48,7 @@ test_input_filenames = [read_filepath(fname) for fname in test_files]
 def test_compose_tensor():
     test_tensor = make_test_tensor(shape=(5, 5, 5, 3))
     dali_out = Compose([RandomHorizontalFlip(p=1.0)], batch_size=test_tensor.shape[0])(test_tensor)
-    tv_out = tv.RandomHorizontalFlip(p=1.0)(test_tensor.permute(0, 3, 1, 2)).permute(0, 2, 3, 1)
+    tv_out = tv.RandomHorizontalFlip(p=1.0)(test_tensor)
 
     assert isinstance(dali_out, torch.Tensor)
     assert torch.equal(dali_out, tv_out)

@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -119,6 +119,15 @@ class Compose(Pipeline):
             input_node = op(input_node)
         return input_node
 
+    def _convert_tensor_to_image(sefl, img):
+        if img.shape[-1] == 1:
+            mode = "L"
+            img = img.squeeze(-1)
+        else:
+            mode = "RGB"
+
+        return Image.fromarray(img.numpy(), mode=mode)
+
     def __call__(self, data_input):
         """
         Runs a pipeline
@@ -136,11 +145,18 @@ class Compose(Pipeline):
 
         if isinstance(data_input, Image.Image):
             _input = torch.as_tensor(np.array(data_input, copy=True)).unsqueeze(0)
-        else:
+            layout = "HWC"
+        elif isinstance(data_input, torch.Tensor):
             _input = data_input
+            if data_input.ndim == 3:
+                # DALI requires batch size to be present
+                _input = _input.unsqueeze(0)
+            layout = "CHW"
+        else:
+            _input = data_input  # TODO: exception (?)
 
         self.build()
-        self.feed_input(data_node=self.input_node_name, data=_input)
+        self.feed_input(data_node=self.input_node_name, layout=layout, data=_input)
         output = self.run()
 
         if output is None:
@@ -149,24 +165,30 @@ class Compose(Pipeline):
         output = to_torch_tensor(output)
         # ToTensor
         if isinstance(self.op_list[-1], ToTensor):
-            # TODO:Support batches of tensors, like [...., H, W, C]
+            # TODO:Support batches of tensors, like [...., C, H, W]
             if output.shape[0] > 1:
                 raise NotImplementedError("ToTensor does not currently work for batches")
-            else:
-                output = output[0].permute(2, 1, 0)
+            # else:
+            #    output = output[0].permute(2, 1, 0)
 
         # Convert to PIL.Image
+        # TODO: consider when to return PIL.Image - e.g. if it is feasible for channels < 3
         elif isinstance(data_input, Image.Image):
             if isinstance(output, tuple):
-                output = Image.fromarray(output[0].numpy())
+                output = self._convert_tensor_to_image(output[0])
             else:
                 # batches
                 if output.shape[0] > 1:
                     output_list = []
                     for i in range(output.shape[0]):
-                        output_list.append(Image.fromarray(output[i].numpy(), mode="RGB"))
+                        output_list.append(self._convert_tensor_to_image(output[i]))
                     output = output_list
                 else:
-                    output = Image.fromarray(output[0].numpy(), mode="RGB")
+                    output = self._convert_tensor_to_image(output[0])
+
+        elif isinstance(data_input, torch.Tensor):
+            if data_input.ndim == 3:
+                # DALI requires batch size to be present
+                output = output.squeeze(0)
 
         return output

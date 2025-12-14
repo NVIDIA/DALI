@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -29,7 +29,7 @@ def test_horizontal_random_flip_probability():
     img = make_test_tensor()
     transform = Compose([RandomHorizontalFlip(p=1.0)])  # always flip
     out = transform(img)
-    tvout = tv.RandomHorizontalFlip(p=1.0)(img.permute(0, 3, 1, 2)).permute(0, 2, 3, 1)
+    tvout = tv.RandomHorizontalFlip(p=1.0)(img)
     assert torch.equal(out, tvout)
 
     transform = Compose([RandomHorizontalFlip(p=0.0)])  # never flip
@@ -41,7 +41,7 @@ def test_vertical_random_flip_probability():
     img = make_test_tensor()
     transform = Compose([RandomVerticalFlip(p=1.0)])  # always flip
     out = transform(img)
-    tvout = tv.RandomVerticalFlip(p=1.0)(img.permute(0, 3, 1, 2)).permute(0, 2, 3, 1)
+    tvout = tv.RandomVerticalFlip(p=1.0)(img)
     assert torch.equal(out, tvout)
 
     transform = Compose([RandomVerticalFlip(p=0.0)])  # never flip

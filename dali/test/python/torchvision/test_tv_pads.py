@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -21,7 +21,7 @@ import torchvision.transforms as tv
 from nose2.tools import cartesian_params
 
 
-def make_test_tensor(shape=(1, 10, 10, 1)):
+def make_test_tensor(shape=(1, 1, 10, 10)):
     total = 1
     for s in shape:
         total *= s
@@ -29,7 +29,7 @@ def make_test_tensor(shape=(1, 10, 10, 1)):
 
 
 def test_pad_core(mode: str, device: str, padding: list, fill=0.0):
-    img = make_test_tensor(shape=(1, 5, 5, 1))
+    img = make_test_tensor(shape=(1, 1, 5, 5))
     if mode == "constant":
         transform = Compose([Pad(padding=padding, fill=fill, padding_mode=mode, device=device)])
         transform_tv = tv.Pad(padding, fill=fill, padding_mode=mode)
@@ -37,7 +37,7 @@ def test_pad_core(mode: str, device: str, padding: list, fill=0.0):
         transform = Compose([Pad(padding=padding, padding_mode=mode, device=device)])
         transform_tv = tv.Pad(padding, padding_mode=mode)
     out = transform(img)
-    out_tv = transform_tv(img.permute(0, 3, 1, 2)).permute(0, 2, 3, 1)
+    out_tv = transform_tv(img)
 
     if device == "gpu":
         out = out.cpu()
@@ -46,11 +46,8 @@ def test_pad_core(mode: str, device: str, padding: list, fill=0.0):
 
 @cartesian_params(
     # TODO: edge will fail, because we do not have a mean to replicate an arrray x times
-    # ("constant", "reflect", "symmetric", "edge"),
-    ("constant", "reflect", "symmetric"),
-    # TODO: constant on GPU will fail, fn.full is not implemented there
-    # ("cpu", "gpu"),
-    ("cpu",),
+    ("constant", "reflect", "symmetric", "edge"),
+    ("cpu", "gpu"),
     (
         [1, 0, 0, 0],
         [2, 0, 0, 0],
@@ -72,11 +69,8 @@ def test_pad_symetric_single(mode, device, padding):
 
 @cartesian_params(
     # TODO: edge will fail, because we do not have a mean to replicate an arrray x times
-    # ("constant", "reflect", "symmetric", "edge"),
-    ("constant", "reflect", "symmetric"),
-    # TODO: constant on GPU will fail, fn.full is not implemented there
-    # ("cpu", "gpu"),
-    ("cpu",),
+    ("constant", "reflect", "symmetric", "edge"),
+    ("cpu", "gpu"),
     (
         [1, 1, 1, 1],
         [2, 2, 2, 2],
@@ -93,11 +87,11 @@ def test_pad_multi(mode: str, device: str, padding: list):
 
 
 @cartesian_params(
-    # TODO: constant on GPU will fail, fn.full is not implemented there
-    ("cpu",),
+    ("cpu", "gpu"),
     ([2, 2, 2, 2], [5, 5, 5, 5]),
     # TODO: no support for fill values > 1D in DALI !!!
-    (1.0,),
+    # (1.0, [0.45, 1.0, 0.34]),
+    (2.0,),
 )
 def test_constant_pad(device: str, padding: list, fill):
     test_pad_core("constant", device, padding, fill)

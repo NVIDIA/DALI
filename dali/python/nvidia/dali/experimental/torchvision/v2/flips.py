@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import Literal
 import nvidia.dali.fn as fn
 
 
@@ -24,7 +25,7 @@ class RandomFlip:
         device (string) - operator execution device
     """
 
-    def __init__(self, p: float = 0.5, horizontal: int = 1, device="cpu"):
+    def __init__(self, p: float = 0.5, horizontal: int = 1, device: Literal["cpu", "gpu"] = "cpu"):
         self.prob = p
         self.device = device
         self.horizontal = horizontal
@@ -57,7 +58,7 @@ class RandomHorizontalFlip(RandomFlip):
         device (string) - operator execution device
     """
 
-    def __init__(self, p: float = 0.5, device="cpu"):
+    def __init__(self, p: float = 0.5, device: Literal["cpu", "gpu"] = "cpu"):
         super().__init__(p, True, device)
 
 
@@ -70,5 +71,5 @@ class RandomVerticalFlip(RandomFlip):
         device (string) - operator execution device
     """
 
-    def __init__(self, p: float = 0.5, device="cpu"):
+    def __init__(self, p: float = 0.5, device: Literal["cpu", "gpu"] = "cpu"):
         super().__init__(p, False, device)
