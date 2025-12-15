@@ -28,7 +28,6 @@ const auto &_type_info_##Id = TypeTable::GetTypeId<Type>()
 
 #include "dali/pipeline/data/types.h"
 #include "dali/core/float16.h"
-#include "dali/core/device_guard.h"
 #include "dali/pipeline/data/backend.h"
 #include "dali/core/per_stream_pool.h"
 #include "dali/kernels/common/scatter_gather.h"
@@ -77,16 +76,6 @@ void ScatterGatherCopy(void **dsts, const void *src, const Index *sizes, int n, 
   sc->Run(stream, true, kernels::ScatterGatherGPU::Method::Kernel);
 }
 
-inline std::optional<DeviceGuard> GetDeviceGuard(
-      std::optional<int> dst_dev_id, std::optional<int> src_dev_id) {
-  if (dst_dev_id)
-    return DeviceGuard(*dst_dev_id);
-  else if (src_dev_id)
-    return DeviceGuard(*src_dev_id);
-  else
-    return std::nullopt;
-}
-
 }  // namespace detail
 
 TypeTable &TypeTable::instance() {
@@ -118,17 +107,11 @@ void TypeInfo::Copy(
     // Call our copy function
     copier_(dst, src, n);
   } else if (use_copy_kernel && !cross_device) {
-      auto g = detail::GetDeviceGuard(dst_dev_id, src_dev_id);
-      detail::LaunchCopyKernel(dst, src, n * size(), stream);
+    detail::LaunchCopyKernel(dst, src, n * size(), stream);
   } else {
     if (cross_device) {
       CUDA_CALL(cudaMemcpyPeerAsync(dst, *dst_dev_id, src, *src_dev_id, n*size(), stream));
     } else {
-      std::optional<DeviceGuard> g;
-      if (dst_dev_id)
-        g = DeviceGuard(*dst_dev_id);
-      else if (src_dev_id)
-        g = DeviceGuard(*src_dev_id);
       MemCopy(dst, src, n*size(), stream);
     }
   }
@@ -170,7 +153,6 @@ template void TypeInfo::Copy<GPUBackend, GPUBackend>(
     cudaStream_t stream,
     bool use_copy_kernel) const;
 
-
 template <typename DstBackend, typename SrcBackend>
 void TypeInfo::Copy(
       void **dsts,
@@ -186,7 +168,6 @@ void TypeInfo::Copy(
   // assume same device if either is not set
   bool cross_device = src_dev_id && dst_dev_id && *src_dev_id != *dst_dev_id;
   if (!is_host_to_host && use_copy_kernel && !cross_device) {
-    auto g = detail::GetDeviceGuard(dst_dev_id, src_dev_id);
     detail::ScatterGatherCopy(dsts, srcs, sizes, n, size(), stream);
   } else {
     for (int i = 0; i < n; i++) {
@@ -251,7 +232,6 @@ void TypeInfo::Copy(
   // assume same device if either is not set
   bool cross_device = src_dev_id && dst_dev_id && *src_dev_id != *dst_dev_id;
   if (!is_host_to_host && use_copy_kernel && !cross_device) {
-    auto g = detail::GetDeviceGuard(dst_dev_id, src_dev_id);
     detail::ScatterGatherCopy(dst, srcs, sizes, n, size(), stream);
   } else {
     auto sample_dst = static_cast<uint8_t*>(dst);
@@ -319,7 +299,6 @@ void TypeInfo::Copy(
   // assume same device if either is not set
   bool cross_device = src_dev_id && dst_dev_id && *src_dev_id != *dst_dev_id;
   if (!is_host_to_host && use_copy_kernel && !cross_device) {
-    auto g = detail::GetDeviceGuard(dst_dev_id, src_dev_id);
     detail::ScatterGatherCopy(dsts, src, sizes, n, size(), stream);
   } else {
     auto sample_src = reinterpret_cast<const uint8_t*>(src);
