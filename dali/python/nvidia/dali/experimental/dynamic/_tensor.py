@@ -12,15 +12,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Optional, Tuple, Union
-from ._type import DType, dtype as _dtype, type_id as _type_id
-from ._device import Device, device as _device
-import nvidia.dali.backend as _backend
-from ._eval_context import EvalContext as _EvalContext
-from . import _eval_mode
-from . import _invocation
 import copy
+from typing import Any, Optional, Tuple, Union
+
+import nvidia.dali.backend as _backend
 import nvidia.dali.types
+
+from . import _eval_mode, _invocation
+from ._device import Device
+from ._device import device as _device
+from ._eval_context import EvalContext as _EvalContext
+from ._type import DType
+from ._type import dtype as _dtype
+from ._type import type_id as _type_id
 
 
 def _volume(shape: Tuple[int, ...]) -> int:
@@ -476,7 +480,7 @@ class Tensor:
         if isinstance(b, _backend.TensorGPU):
             return b.__cuda_array_interface__
         else:
-            raise TypeError(
+            raise AttributeError(
                 "This is not a GPU tensor. Use `.gpu()` to get the CUDA array interface."
             )
 
