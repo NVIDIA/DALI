@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -86,7 +86,7 @@ This readers produces the following outputs::
   .AddOptionalArg("preprocessed_annotations",
     "Path to the directory with meta files that contain preprocessed COCO annotations.",
     std::string())
-  .DeprecateArgInFavorOf("meta_files_path", "preprocessed_annotations")  // deprecated since 0.28dev
+  .DeprecateArgInFavorOf("meta_files_path", "preprocessed_annotations", "0.28")
   .AddOptionalArg("annotations_file",
       R"code(List of paths to the JSON annotations files.)code",
       std::string())
@@ -111,11 +111,11 @@ If set to False, the bboxes are returned as [x, y, width, height].)code",
 ``polygons`` and ``vertices``. This argument is mutually exclusive with `pixelwise_masks`.)code",
       false)
   .AddOptionalArg("masks", R"code(Enable polygon masks.)code", false)
-  .DeprecateArg("masks", false,
+  .DeprecateArg("masks", "0.28", false,
 R"code(Use `polygon_masks` instead. Note that the polygon format has changed ``mask_id, start_coord, end_coord`` to ``mask_id, start_vertex, end_vertex`` where
 start_coord and end_coord are total number of coordinates, effectly ``start_coord = 2 * start_vertex`` and ``end_coord = 2 * end_vertex``.
 Example: A polygon with vertices ``[[x0, y0], [x1, y1], [x2, y2]]`` would be represented as ``[mask_id, 0, 6]`` when using the deprecated
-argument ``masks``, but ``[mask_id, 0, 3]`` when using the new argument `polygon_masks`.)code")  // deprecated since 0.28dev
+argument ``masks``, but ``[mask_id, 0, 3]`` when using the new argument `polygon_masks`.)code")
   .AddOptionalArg("pixelwise_masks",
       R"code(If true, segmentation masks are read and returned as pixel-wise masks. This argument is
 mutually exclusive with `polygon_masks`.)code",
@@ -152,18 +152,18 @@ ordered by their image id.
 The paths to be kept should match exactly those in the annotations file.
 
 Note: This argument is mutually exclusive with `preprocessed_annotations`.)code", nullptr)
-  .DeprecateArgInFavorOf("save_img_ids", "image_ids")  // deprecated since 0.28dev
+  .DeprecateArgInFavorOf("save_img_ids", "image_ids", "0.28")
   .AddOptionalArg("save_preprocessed_annotations",
       R"code(If set to True, the operator saves a set of files containing binary representations of the
 preprocessed COCO annotations.)code",
       false)
   .DeprecateArgInFavorOf("dump_meta_files",
-                         "save_preprocessed_annotations")  // deprecated since 0.28dev
+                         "save_preprocessed_annotations", "0.28")
   .AddOptionalArg("save_preprocessed_annotations_dir",
       R"code(Path to the directory in which to save the preprocessed COCO annotations files.)code",
     std::string())
   .DeprecateArgInFavorOf("dump_meta_files_path",
-                         "save_preprocessed_annotations_dir")  // deprecated since 0.28dev
+                         "save_preprocessed_annotations_dir", "0.28")
   .AdditionalOutputsFn(COCOReaderOutputFn)
   .AddParent("LoaderBase");
 
@@ -179,10 +179,11 @@ DALI_SCHEMA(COCOReader)
     .AddParent("readers__COCO")
     .MakeDocPartiallyHidden()
     .Deprecate(
+        "1.0",
         "readers__COCO",
         R"code(In DALI 1.0 all readers were moved into a dedicated :mod:`~nvidia.dali.fn.readers`
 submodule and renamed to follow a common pattern. This is a placeholder operator with identical
-functionality to allow for backward compatibility.)code");  // Deprecated in 1.0;
+functionality to allow for backward compatibility.)code");
 
 COCOReader::COCOReader(const OpSpec& spec)
     : DataReader<CPUBackend, ImageLabelWrapper, ImageLabelWrapper, true>(spec) {

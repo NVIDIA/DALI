@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -52,7 +52,7 @@ DALI_SCHEMA(FastResizeCropMirror)
   .NumOutput(1)
   .SupportVolumetric()
   .AllowSequences()
-  .Deprecate("ResizeCropMirror")
+  .Deprecate("1.32", "ResizeCropMirror")
   .AddParent("ResizeCropMirror")
   .AddOptionalArg("antialias", R"(If enabled, it applies an antialiasing filter when scaling down.
 

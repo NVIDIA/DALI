@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -86,7 +86,7 @@ This argument is mutually exclusive with `values`.
 This argument is mutually exclusive with `range`.)code",
       nullptr, true)
     .AddParent("RNGAttr")
-    .Deprecate("random__Uniform");  // Deprecated in 0.30
+    .Deprecate("0.30", "random__Uniform");
 
 
 DALI_REGISTER_OPERATOR(Uniform, UniformDistribution<CPUBackend>, CPU);
