@@ -5,8 +5,7 @@ from concurrent.futures import ThreadPoolExecutor
 from nvidia.dali.pipeline import pipeline_def
 import nvidia.dali.types as types
 import nvidia.dali.fn as fn
-from threading import Lock
-from typing import Any, Optional
+from typing import Any, Dict, List
 
 test_data_root = os.environ["DALI_EXTRA_PATH"]
 image_file = os.path.join(test_data_root, "db", "single", "jpeg", "100", "swan-3584559_640.jpg")
