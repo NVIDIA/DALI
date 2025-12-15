@@ -623,7 +623,7 @@ def build_operators():
         setattr(module, what, op_map[in_favor])
 
     # Protect from infinite recursion when calling to_device, which internally uses operator Copy.
-    op_map["Copy"].input_device = lambda self, index, actual_device=None: None
+    op_map["Copy"]._input_device = lambda self, index, actual_device=None: None
 
     all_fn_wrappers = build_fn_wrappers(all_op_classes)
 
