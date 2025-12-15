@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import copy
-from typing import Any, Optional, Tuple, Union
+from typing import Any, Optional, SupportsInt, Tuple, Union
 
 import nvidia.dali.backend as _backend
 import nvidia.dali.types
@@ -483,6 +483,17 @@ class Tensor:
             raise AttributeError(
                 "This is not a GPU tensor. Use `.gpu()` to get the CUDA array interface."
             )
+
+    def __dlpack__(
+        self,
+        stream: SupportsInt | None = None,
+        dl_device: tuple[_backend.DLDeviceType, SupportsInt] | None = None,
+        # TensorCPU and TensorGPU don't accept the copy parameter
+    ):
+        return self.evaluate()._storage.__dlpack__(stream, dl_device)
+
+    def __dlpack_device__(self) -> tuple[_backend.DLDeviceType, int]:
+        return self.evaluate()._storage.__dlpack_device__()
 
     def evaluate(self):
         """
