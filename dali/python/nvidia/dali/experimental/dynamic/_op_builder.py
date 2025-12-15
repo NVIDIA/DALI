@@ -17,11 +17,11 @@ from nvidia.dali.fn import _to_snake_case
 import makefun
 from ._batch import Batch, _get_batch_size, as_batch as _as_batch
 from ._tensor import Tensor
-from . import ops
+from . import _ops
 from . import _type
 import copy
 from . import _invocation, _device, _eval_mode, _eval_context
-import nvidia.dali.ops as _ops
+import nvidia.dali.ops as _legacy_ops
 import nvidia.dali.types
 import nvtx
 from nvidia.dali import internal as _internal
@@ -165,7 +165,7 @@ def build_operator_class(schema):
 
         module = parent
     else:
-        module = ops
+        module = _ops
     legacy_op_class = None
     import nvidia.dali.ops
 
@@ -175,9 +175,9 @@ def build_operator_class(schema):
     module = _find_or_create_module(module, module_path)
 
     legacy_op_class = getattr(legacy_op_module, class_name)
-    base = ops.Operator
+    base = _ops.Operator
     if "readers" in module.__name__:
-        base = ops.Reader
+        base = _ops.Reader
     op_class = type(class_name, (base,), {})  # create a subclass
     op_class._schema = schema
     op_class._schema_name = schema.Name()
@@ -602,7 +602,7 @@ def build_fn_wrappers(all_ops):
 def build_operators():
     """Main entry point for dynamic mode operator discovery and construction.
     Returns a tuple of all operator classes and functional wrappers."""
-    _all_ops = _ops._registry._all_registered_ops()
+    _all_ops = _legacy_ops._registry._all_registered_ops()
     all_op_classes = []
     deprecated = {}
     op_map = {}
@@ -619,7 +619,7 @@ def build_operators():
         op_map[schema_name] = cls
     for what, in_favor in deprecated.items():
         schema = _b.GetSchema(what)
-        module = _find_or_create_module(ops, schema.ModulePath())
+        module = _find_or_create_module(_ops, schema.ModulePath())
         setattr(module, what, op_map[in_favor])
 
     all_fn_wrappers = build_fn_wrappers(all_op_classes)

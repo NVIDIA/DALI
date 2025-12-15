@@ -19,10 +19,10 @@ from test_utils import get_dali_extra_path
 
 
 def _conversion_test_op(check_arg_func):
-    class Resize2(ndd.ops.Resize):
+    class Resize2(ndd._ops.Resize):
         def _run(self, ctx, *inputs, **args):
             check_arg_func(args)
-            return ndd.ops.Resize._run(self, ctx, *inputs, **args)
+            return ndd._ops.Resize._run(self, ctx, *inputs, **args)
 
     resize2_func = ndd._op_builder.build_fn_wrapper(Resize2)
     return resize2_func

@@ -23,8 +23,8 @@ def asnumpy(tensor_or_batch):
 
 
 ops = {
-    "uniform": ndd.ops.random.Uniform,
-    "normal": ndd.ops.random.Normal,
+    "uniform": ndd._ops.random.Uniform,
+    "normal": ndd._ops.random.Normal,
 }
 
 fn = {
@@ -89,8 +89,8 @@ def test_rng_seed_exclusion(device_type):
     rng2 = ndd.random.RNG(seed=2222)
 
     # This should work - rng should override seed (seed is an init-time argument)
-    uniform_op1 = ndd.ops.random.Uniform(device=device_type, seed=42)
-    uniform_op2 = ndd.ops.random.Uniform(device=device_type, seed=42)
+    uniform_op1 = ndd._ops.random.Uniform(device=device_type, seed=42)
+    uniform_op2 = ndd._ops.random.Uniform(device=device_type, seed=42)
     result1 = uniform_op1(range=[0.0, 1.0], shape=[10], rng=rng1)  # This should override the seed
     result2 = uniform_op2(range=[0.0, 1.0], shape=[10], rng=rng2)  # This should override the seed
     result_np1 = asnumpy(result1)

@@ -280,7 +280,7 @@ def dynamic_readers_autodoc(
             k
             for k, v in dali_module.__dict__.items()
             if inspect.isclass(v)
-            and issubclass(v, nvidia.dali.experimental.dynamic.ops.Reader)
+            and issubclass(v, nvidia.dali.experimental.dynamic._ops.Reader)
         ]
 
         write_module_file(generated_path, module, readers_in_module, references)
