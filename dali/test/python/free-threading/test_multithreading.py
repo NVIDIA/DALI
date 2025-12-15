@@ -31,7 +31,7 @@ class Result:
     def all_equal(self) -> bool:
         with self._lock:
             lists = [list(vs) for vs in self._result_by_thread.values()]
-    
+
         # find a reference element
         ref = None
         for vs in lists:
@@ -39,7 +39,7 @@ class Result:
                 ref = vs[0]
                 break
         assert ref is not None
-    
+
         for vs in lists:
             for v in vs:
                 if not bool(np.all(np.equal(v, ref))):
@@ -93,4 +93,3 @@ def test_parallel_pipelines():
             future.result()
 
     assert results.all_equal()
-
