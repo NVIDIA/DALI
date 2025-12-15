@@ -13,8 +13,6 @@
 # limitations under the License.
 
 import copy
-import threading
-from collections import UserDict
 
 import makefun
 import nvidia.dali.backend as _b
@@ -30,24 +28,7 @@ from . import random as _random
 from ._batch import Batch, _get_batch_size
 from ._batch import as_batch as _as_batch
 from ._tensor import Tensor
-
-
-class TLSDict(UserDict):
-    """Thread-local dictionary used for the instance cache"""
-
-    def __init__(self, *args, **kwargs):
-        self._local = threading.local()
-        super().__init__(*args, **kwargs)
-
-    @property
-    def data(self):
-        if not hasattr(self._local, "store"):
-            self._local.store = {}
-        return self._local.store
-
-    @data.setter
-    def data(self, value):
-        self._local.store = value
+from ._tls_dict import TLSDict
 
 
 def is_external(x):

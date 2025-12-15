@@ -842,6 +842,7 @@ class TensorSlice:
             return result._run()
 
     def _run(self):
+        """Executes the slicing operation and returns the resulting Tensor."""
         with _EvalContext.current():
             if len(self._ranges) == 0:
                 return self._tensor

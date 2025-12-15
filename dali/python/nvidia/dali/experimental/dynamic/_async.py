@@ -55,8 +55,9 @@ class _Future:
 class _AsyncExecutor:
     """
     Schedule invocation of operators in a background thread.
-    It has less overhead than ThreadPoolExecutor because a weaker guarantees.
-    Since eval contexts are per thread, we can assume SCSP.
+    It has less overhead than ThreadPoolExecutor because a stronger guarantees (SCSP):
+      - Users shouldn't share eval contexts between threads
+      - The executor only starts one thread
     """
 
     def __init__(self):
