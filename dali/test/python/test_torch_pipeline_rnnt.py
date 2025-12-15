@@ -40,7 +40,7 @@ def _convert_samples_to_float32(samples):
     Integers will be scaled to [-1, 1] in float32.
     """
     float32_samples = samples.astype("float32")
-    if samples.dtype in np.sctypes["int"]:
+    if np.issubdtype(samples.dtype, np.integer):
         bits = np.iinfo(samples.dtype).bits
         float32_samples *= 1.0 / 2 ** (bits - 1)
     elif samples.dtype in np.sctypes["float"]:

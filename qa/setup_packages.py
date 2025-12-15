@@ -549,8 +549,24 @@ all_packages = [
     CudaPackage(
         "cupy",
         {
-            "120": [PckgVer("13.6.0", python_min_ver="3.9", alias="cupy-cuda12x")],
-            "130": [PckgVer("13.6.0", python_min_ver="3.9", alias="cupy-cuda13x")],
+            "120": [
+                PckgVer(
+                    "13.6.0",
+                    python_min_ver="3.9",
+                    alias="cupy-cuda12x",
+                    # CuPy does not support free-threaded Python yet
+                    python_free_threaded=False,
+                )
+            ],
+            "130": [
+                PckgVer(
+                    "13.6.0",
+                    python_min_ver="3.9",
+                    alias="cupy-cuda13x",
+                    # CuPy does not support free-threaded Python yet
+                    python_free_threaded=False,
+                )
+            ],
         },
     ),
     CudaPackage(
