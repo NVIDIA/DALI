@@ -465,12 +465,12 @@ class Tensor:
         with _EvalContext.current():
             return np.array(self.cpu().evaluate()._storage).item()
 
-    def __array__(self):
+    def __array__(self, dtype: Any | None = None, copy: bool | None = None):
         b = self.evaluate()._storage
         if isinstance(b, _backend.TensorCPU):
             import numpy as np
 
-            return np.array(b)
+            return np.array(b, dtype=dtype, copy=copy)
         else:
             raise TypeError("This is not a CPU tensor. Use `.cpu()` to get the array interface.")
 
