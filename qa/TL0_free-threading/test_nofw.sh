@@ -1,7 +1,5 @@
 #!/bin/bash -e
 
-echo "test_nofw.sh Sanity check: PYTHON_GIL=${PYTHON_GIL}"
-
 # used pip packages
 pip_packages='${python_test_runner_package} numpy'
 
