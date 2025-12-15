@@ -470,6 +470,9 @@ class Tensor:
         if isinstance(b, _backend.TensorCPU):
             import numpy as np
 
+            if np.lib.NumpyVersion(np.__version__) < "2.0.0" and copy is None:
+                copy = False
+
             return np.array(b, dtype=dtype, copy=copy)
         else:
             raise TypeError("This is not a CPU tensor. Use `.cpu()` to get the array interface.")
