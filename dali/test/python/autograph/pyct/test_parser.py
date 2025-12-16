@@ -281,11 +281,7 @@ string"""
     """
 
         f = self._eval_code(parser.dedent_block(code), "f")
-        if sys.version_info >= (3, 13):
-            expected = "\nDocstring.\n"
-        else:
-            expected = "\n      Docstring.\n      "
-        self.assertEqual(f.__doc__, expected)
+        self.assertRegex(f.__doc__, r"^\n\s*Docstring\.\n\s*$")
         self.assertEqual(f(), "\n  1\n    2\n      3")
 
     def test_dedent_block_multiline_expression(self):

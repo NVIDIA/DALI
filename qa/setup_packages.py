@@ -63,7 +63,7 @@ class PckgVer:
         self.python_max_ver = python_max_ver
         self.name_alias = alias
         self.dependent_packages = dependencies
-        self.constraints_list = constraints
+        self.constraint_list = constraints
         self.python_free_threaded = python_free_threaded
 
     def __bool__(self):
@@ -92,7 +92,7 @@ class PckgVer:
 
     @property
     def constraints(self) -> list[str]:
-        return self.constraints_list
+        return self.constraint_list
 
 
 class BasePackage:
