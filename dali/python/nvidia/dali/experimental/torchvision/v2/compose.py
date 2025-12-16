@@ -119,14 +119,24 @@ class Compose(Pipeline):
             input_node = op(input_node)
         return input_node
 
-    def _convert_tensor_to_image(sefl, img):
-        if img.shape[-1] == 1:
-            mode = "L"
-            img = img.squeeze(-1)
-        else:
-            mode = "RGB"
+    def _convert_tensor_to_image(sefl, in_tensor: torch.Tensor, layout: str):
 
-        return Image.fromarray(img.numpy(), mode=mode)
+        if layout == "HWC":
+            channels = -1
+        elif layout == "CHW":
+            channels = -3
+        else:
+            raise ValueError(f"Unsupported layout: {layout}")
+        # TODO: consider when to convert to PIL.Image - e.g. if it make sense for channels < 3
+        if in_tensor.shape[channels] == 1:
+            mode = "L"
+            in_tensor = in_tensor.squeeze(-1)
+        elif in_tensor.shape[channels] == 3:
+            mode = "RGB"
+        else:
+            raise ValueError(f"Unsupported channels cound: {channels}")
+        # We need to convert tensor to CPU, otherwise it will be unsable
+        return Image.fromarray(in_tensor.cpu().numpy(), mode=mode)
 
     def __call__(self, data_input):
         """
@@ -165,26 +175,22 @@ class Compose(Pipeline):
         output = to_torch_tensor(output)
         # ToTensor
         if isinstance(self.op_list[-1], ToTensor):
-            # TODO:Support batches of tensors, like [...., C, H, W]
-            if output.shape[0] > 1:
+            if output.shape[-4] > 1:
                 raise NotImplementedError("ToTensor does not currently work for batches")
-            # else:
-            #    output = output[0].permute(2, 1, 0)
 
         # Convert to PIL.Image
-        # TODO: consider when to return PIL.Image - e.g. if it is feasible for channels < 3
         elif isinstance(data_input, Image.Image):
             if isinstance(output, tuple):
-                output = self._convert_tensor_to_image(output[0])
+                output = self._convert_tensor_to_image(output[0], layout)
             else:
                 # batches
                 if output.shape[0] > 1:
                     output_list = []
                     for i in range(output.shape[0]):
-                        output_list.append(self._convert_tensor_to_image(output[i]))
+                        output_list.append(self._convert_tensor_to_image(output[i]), layout)
                     output = output_list
                 else:
-                    output = self._convert_tensor_to_image(output[0])
+                    output = self._convert_tensor_to_image(output[0], layout)
 
         elif isinstance(data_input, torch.Tensor):
             if data_input.ndim == 3:

@@ -15,13 +15,13 @@
 import os
 
 import numpy as np
-from nose2.tools import params
+from nose2.tools import params, cartesian_params
 from nose_utils import assert_raises
 from PIL import Image
 import torch
 import torchvision.transforms.v2 as transforms
 
-from nvidia.dali.experimental.torchvision import Compose, Grayscale
+from nvidia.dali.experimental.torchvision import Compose, Grayscale, ColorJitter
 
 
 def verify_non_one_off(t1: torch.Tensor, t2: torch.Tensor):
@@ -58,20 +58,15 @@ def loop_images_test(t, td):
     for fn in test_files:
         img = Image.open(fn)
 
-        # t(img).save(f"{fn}_gs_tv.png")
-        # td(img).save(f"{fn}_dali_gs_tv.png")
         out_tv = transforms.functional.pil_to_tensor(t(img))
         out_dali_tv = transforms.functional.pil_to_tensor(td(img))
 
         assert verify_non_one_off(out_tv, out_dali_tv), f"Images differ {fn}"
 
 
-@params(
-    1,
-    3,
-)
-def test_grayscale(output_channels):
-    td = Compose([Grayscale(num_output_channels=output_channels)])
+@cartesian_params((1, 3), ("cpu", "gpu"))
+def test_grayscale(output_channels, device):
+    td = Compose([Grayscale(num_output_channels=output_channels, device=device)])
     t = transforms.Compose([transforms.Grayscale(num_output_channels=output_channels)])
 
     loop_images_test(t, td)
@@ -86,3 +81,106 @@ def test_invalid_channel_count_grayscale(output_channels):
         # we need to raise it from the constructor
         td = Compose([Grayscale(num_output_channels=output_channels)])
         out_dali_tv = transforms.functional.pil_to_tensor(td(img))  # noqa
+
+
+def make_tensor_inputs():
+    # Single CHW tensor and batched NCHW tensor
+    img = torch.rand(3, 64, 64)
+    batch = torch.rand(4, 3, 64, 64)
+    return (img, batch)
+
+
+@cartesian_params(
+    (
+        # brightness, contrast, saturation, hue
+        (0.0, 0.0, 0.0, 0.0),
+        (0.2, 0.0, 0.0, 0.0),
+        (0.0, 0.3, 0.0, 0.0),
+        (0.0, 0.0, 0.4, 0.0),
+        (0.0, 0.0, 0.0, 0.1),
+        (0.5, 0.5, 0.5, 0.1),
+        ((0.5, 1.5), (0.5, 1.5), (0.5, 1.5), (-0.1, 0.1)),
+    ),
+    ("cpu", "gpu"),
+)
+def test_colorjitter_images(cj_params, device):
+    brightness, contrast, saturation, hue = cj_params
+    img, batch = make_tensor_inputs()
+
+    cj = Compose(
+        [
+            ColorJitter(
+                brightness=brightness,
+                contrast=contrast,
+                saturation=saturation,
+                hue=hue,
+                device=device,
+            )
+        ]
+    )
+
+    for fn in test_files:
+        img = Image.open(fn)
+        _ = cj(img)
+
+
+"""
+TODO: DALI ColorJitter does not work on tensors
+@params(
+    # brightness, contrast, saturation, hue
+    (0.0, 0.0, 0.0, 0.0),
+    (0.2, 0.0, 0.0, 0.0),
+    (0.0, 0.3, 0.0, 0.0),
+    (0.0, 0.0, 0.4, 0.0),
+    (0.0, 0.0, 0.0, 0.1),
+    (0.5, 0.5, 0.5, 0.1),
+    ((0.5, 1.5), (0.5, 1.5), (0.5, 1.5), (-0.1, 0.1)),
+)
+def test_colorjitter_tensor(brightness, contrast, saturation, hue):
+    img, batch = make_tensor_inputs()
+
+    cj = Compose( [ColorJitter(
+        brightness=brightness,
+        contrast=contrast,
+        saturation=saturation,
+        hue=hue,)]
+    )
+
+    cj_batched = Compose( [ColorJitter(
+        brightness=brightness,
+        contrast=contrast,
+        saturation=saturation,
+        hue=hue,)],
+        batch_size = 4
+    )
+
+    _ = cj(img)
+    _ = cj_batched(batch)
+"""
+
+
+@params(
+    # invalid brightness / contrast / saturation (negative or bad ranges)
+    (-0.1, 0.0, 0.0, 0.0),
+    ((1.5, 0.5), 0.0, 0.0, 0.0),
+    (0.0, -0.2, 0.0, 0.0),
+    (0.0, 0.0, -0.3, 0.0),
+    # invalid hue beyond allowed range [-0.5, 0.5]
+    (0.0, 0.0, 0.0, 0.6),
+    (0.0, 0.0, 0.0, (-1.0, 0.2)),
+)
+def test_colorjitter_invalid_params_match_errors(brightness, contrast, saturation, hue):
+    img, _ = make_tensor_inputs()
+
+    with assert_raises(ValueError):
+        cj_my = Compose(
+            [
+                ColorJitter(
+                    brightness=brightness,
+                    contrast=contrast,
+                    saturation=saturation,
+                    hue=hue,
+                )
+            ]
+        )
+        _ = cj_my(img)

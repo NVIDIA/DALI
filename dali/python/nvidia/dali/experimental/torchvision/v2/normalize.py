@@ -40,13 +40,18 @@ class Normalize:
         inplace: bool = False,
         device: Literal["cpu", "gpu"] = "cpu",
     ):
-        self.mean = np.asarray(mean)[None, None, :]
-        self.std = np.asarray(std)[None, None, :]
-        self.inplace = inplace
+        self.mean = np.asarray(mean)[:, None, None]
+        self.std = np.asarray(std)[:, None, None]
+        self.inplace = inplace  # TODO: provide proper implementation
         self.device = device
 
     def __call__(self, data_input):
         if self.device == "gpu":
             data_input = data_input.gpu()
 
-        return fn.normalize(data_input, mean=self.mean, stddev=self.std, device=self.device)
+        return fn.normalize(
+            data_input,
+            mean=self.mean,
+            stddev=self.std,
+            device=self.device,
+        )

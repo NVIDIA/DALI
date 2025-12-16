@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Sequence, Union
+from typing import Sequence, Union, Literal
 
 import torch
 import numpy as np
@@ -23,10 +23,12 @@ from nvidia.dali.experimental.torchvision import Compose, CenterCrop
 import torchvision.transforms.v2 as transforms
 
 
-def build_centercrop_transform(size: Union[int, Sequence[int]]):
+def build_centercrop_transform(
+    size: Union[int, Sequence[int]], batch_size: int = 1, device: Literal["cpu", "gpu"] = "cpu"
+):
     t = transforms.Compose([transforms.CenterCrop(size=size)])
 
-    td = Compose([CenterCrop(size=size)])
+    td = Compose([CenterCrop(size=size, device=device)], batch_size=batch_size)
 
     return t, td
 
@@ -95,8 +97,7 @@ def test_center_crop_larger_than_image(size):
 )
 def test_invalid_type(size):
     with assert_raises(TypeError):
-        td = Compose([CenterCrop(size=size)])
-        del td
+        _ = Compose([CenterCrop(size=size)])
 
 
 @params(
@@ -109,15 +110,19 @@ def test_invalid_type(size):
 )
 def test_value_error(size):
     with assert_raises(ValueError):
-        td = Compose([CenterCrop(size=size)])
-        del td
+        _ = Compose([CenterCrop(size=size)])
 
 
-"""
-TODO: decide if this is our use case
-def test_batched_input_shape():
-    batched = torch.randn(2, 3, 12, 14)
-    crop = CenterCrop((8, 8))
-    out = crop(batched)
-    assert out.shape == (2, 3, 8, 8)
-"""
+@params(
+    (5, "cpu", [8, 8]),
+    (1, "gpu", [5, 3]),
+    (16, "gpu", [3, 9]),
+)
+def test_batched_input_shape(batch_size, device, size):
+    batched = torch.randn(batch_size, 3, 12, 14)
+
+    t, td = build_centercrop_transform(size, batch_size=batch_size, device=device)
+    out_tv = t(batched)
+    out_dali_tv = td(batched).cpu()
+
+    assert out_tv.shape == out_dali_tv.shape

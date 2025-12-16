@@ -44,17 +44,20 @@ class ColorJitter:
             validated_param = param
 
         if validated_param is not None and (
-            len(validated_param) != 2 or validated_param[0] < 0 or validated_param[1] < 0
+            len(validated_param) != 2
+            or validated_param[0] < 0
+            or validated_param[1] < 0
+            or validated_param[0] > validated_param[1]
         ):
             raise ValueError("Parameters must be > 0")
         return validated_param
 
     def __init__(
         self,
-        brightness: Optional[Union[float, Sequence[float]]] = None,
-        contrast: Optional[Union[float, Sequence[float]]] = None,
-        saturation: Optional[Union[float, Sequence[float]]] = None,
-        hue: Optional[Union[float, Sequence[float]]] = None,
+        brightness: Optional[Union[float, Sequence[float]]] = 1.0,
+        contrast: Optional[Union[float, Sequence[float]]] = 1.0,
+        saturation: Optional[Union[float, Sequence[float]]] = 1.0,
+        hue: Optional[Union[float, Sequence[float]]] = 0.0,
         device: Literal["cpu", "gpu"] = "cpu",
     ):
         self.brightness = self._create_validated_param(brightness)
@@ -76,25 +79,28 @@ class ColorJitter:
         Performs the color jitter.
         """
 
-        if self.brightness is None:
-            brightness = 1
+        if self.brightness[0] == self.brightness[1]:
+            brightness = self.brightness[0]
         else:
             brightness = fn.random.uniform(range=self.brightness)
 
-        if self.contrast is None:
-            contrast = 1
+        if self.contrast[0] == self.contrast[1]:
+            contrast = self.contrast[0]
         else:
             contrast = fn.random.uniform(range=self.contrast)
 
-        if self.saturation is None:
-            saturation = 1
+        if self.saturation[0] == self.saturation[1]:
+            saturation = self.saturation[0]
         else:
             saturation = fn.random.uniform(range=self.saturation)
 
-        if self.hue is None:
-            hue = 1
+        if self.hue[0] == self.hue[1]:
+            hue = self.hue[0]
         else:
             hue = fn.random.uniform(range=self.hue)
+
+        if self.device == "gpu":
+            data_input = data_input.gpu()
 
         data_input = fn.color_twist(
             data_input,

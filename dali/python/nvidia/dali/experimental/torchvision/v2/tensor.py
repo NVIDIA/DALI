@@ -22,8 +22,6 @@ class ToTensor:
     [DEPRECATED but used]
     """
 
-    def __init__(self): ...
-
     def __call__(self, data_input):
         """
         Performs to tensor conversion it only converts to float, the remaining part is being done

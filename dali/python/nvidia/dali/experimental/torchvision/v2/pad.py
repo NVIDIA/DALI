@@ -16,6 +16,8 @@ import collections
 from typing import Sequence, Union, Literal
 from types import NoneType
 
+
+import numpy as np
 import nvidia.dali as dali
 import nvidia.dali.fn as fn
 
@@ -58,9 +60,17 @@ class PadBase:
         self.boarder_type = boarder_type
 
     def __call__(self, data_input):
-        # TODO: different layouts ?
-        input_height = data_input.shape()[0]
-        input_width = data_input.shape()[1]
+        layout = data_input.property("layout")[0]
+
+        # CWH
+        if layout == np.frombuffer(bytes("C", "utf-8"), dtype=np.uint8)[0]:
+            input_height = data_input.shape()[1]
+            input_width = data_input.shape()[2]
+        # HWC
+        else:
+            input_height = data_input.shape()[0]
+            input_width = data_input.shape()[1]
+
         if self.device == "gpu":
             data_input = data_input.gpu()
 

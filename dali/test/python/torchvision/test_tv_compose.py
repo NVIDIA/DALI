@@ -57,8 +57,7 @@ def test_compose_tensor():
 def test_compose_invalid_batch_tensor():
     test_tensor = make_test_tensor(shape=(5, 5, 5, 1))
     with assert_raises(RuntimeError):
-        dali_out = Compose([RandomHorizontalFlip(p=1.0)], batch_size=1)(test_tensor)
-        print(dali_out)
+        _ = Compose([RandomHorizontalFlip(p=1.0)], batch_size=1)(test_tensor)
 
 
 def test_compose_images():

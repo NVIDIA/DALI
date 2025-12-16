@@ -16,13 +16,13 @@ import os
 from typing import Sequence, Union
 
 import numpy as np
-from nose2.tools import params
+from nose2.tools import params, cartesian_params
 from nose_utils import assert_raises
 from PIL import Image
 import torch
 import torchvision.transforms.v2 as transforms
 
-from nvidia.dali.experimental.torchvision import Resize, Compose
+from nvidia.dali.experimental.torchvision import Resize, Compose, ToTensor
 
 
 def read_file(path):
@@ -83,6 +83,26 @@ def loop_images_test(t, td):
         # assert torch.equal(out_tv, out_dali_tv)
 
 
+@cartesian_params(
+    (512, 2048, ([512, 512]), ([2048, 2048])),
+    ("cpu", "gpu"),
+)
+def test_resize_and_tensor(resize, device):
+    # Resize with single int (preserve aspect ratio)
+    td = Compose(
+        [
+            Resize(size=resize, device=device),
+            ToTensor(),
+        ]
+    )
+
+    img = Image.open(test_files[0])
+    out = td(img)
+
+    assert isinstance(out, torch.Tensor), f"Should be torch.Tensor type is {type(out)}"
+    assert torch.all(out <= 1).item(), "Tensor elements should be <0;1>"
+
+
 @params(512, 2048, ([512, 512]), ([2048, 2048]))
 def test_resize_sizes(resize):
     # Resize with single int (preserve aspect ratio)
@@ -99,18 +119,18 @@ def test_resize_max_sizes(resize, max_size):
         or (not isinstance(resize, int))
     ):
         with assert_raises(ValueError):
-            td = Compose(
+            _ = Compose(
                 [
                     Resize(resize, max_size=max_size),
                 ]
             )
         return
-    else:
-        td = Compose(
-            [
-                Resize(resize, max_size=max_size),
-            ]
-        )
+
+    td = Compose(
+        [
+            Resize(resize, max_size=max_size),
+        ]
+    )
     t = transforms.Compose(
         [
             transforms.Resize(resize, max_size=max_size),

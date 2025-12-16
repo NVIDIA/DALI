@@ -15,15 +15,16 @@
 from typing import Sequence, Literal
 
 from nose2.tools import params
-
-# from nose_utils import assert_raises
+from nose_utils import assert_raises
+import numpy as np
+from PIL import Image
 import torch
 import torchvision.transforms.v2 as transforms
 
 from nvidia.dali.experimental.torchvision import Normalize, Compose
 
 
-def make_test_tensor(shape=(1, 10, 10, 1)):
+def make_test_tensor(shape=(1, 1, 10, 10)):
     total = 1.0
     for s in shape:
         total *= float(s)
@@ -69,19 +70,16 @@ def test_normalize_channels(channels: int, mean: Sequence[float], std: Sequence[
     test_normalize_core(intensor, mean, std)
 
 
-"""
 def make_sample_tensor():
     # 3x2x2 (C, H, W)
     return torch.tensor(
         [
-            [[1.0, 2.0],
-             [3.0, 4.0]],
-            [[5.0, 6.0],
-             [7.0, 8.0]],
-            [[9.0, 10.0],
-             [11.0, 12.0]],
+            [[1.0, 2.0], [3.0, 4.0]],
+            [[5.0, 6.0], [7.0, 8.0]],
+            [[9.0, 10.0], [11.0, 12.0]],
         ]
     )
+
 
 @params(
     ([1.0, 2.0, 3.0], [1.0, 1.0, 1.0]),
@@ -91,7 +89,7 @@ def make_sample_tensor():
 def test_mean_std_sequence_lengths_match_channels(mean, std):
     x = make_sample_tensor()
     norm = transforms.Normalize(mean=mean, std=std)
-    dnorm = Compose([Normalize(mean = mean, std=std)])
+    dnorm = Compose([Normalize(mean=mean, std=std)])
     out = norm(x)
     dout = dnorm(x)
     assert out.shape == x.shape
@@ -123,9 +121,7 @@ def test_std_must_be_non_zero(mean, std):
 @params(False, True)
 def test_inplace_behavior(inplace):
     x = make_sample_tensor()
-    norm = transforms.Normalize(mean=[1.0, 2.0, 3.0],
-                                std=[1.0, 1.0, 1.0],
-                                inplace=inplace)
+    norm = transforms.Normalize(mean=[1.0, 2.0, 3.0], std=[1.0, 1.0, 1.0], inplace=inplace)
     orig = x.clone()
     out = norm(x)
 
@@ -140,10 +136,10 @@ def test_inplace_behavior(inplace):
 
 def test_non_tensor_input_not_supported():
     norm = transforms.Normalize(mean=[0.5], std=[0.5])
-    imarray = np.random.rand(100,100,3) * 255
-    im = Image.fromarray(imarray.astype('uint8')).convert('RGBA')
+    imarray = np.random.rand(100, 100, 3) * 255
+    im = Image.fromarray(imarray.astype("uint8")).convert("RGBA")
     with assert_raises(TypeError):
-        #_ = norm([[1.0, 2.0], [3.0, 4.0]])  # not a tensor
+        # _ = norm([[1.0, 2.0], [3.0, 4.0]])  # not a tensor
         _ = norm(im)  # not a tensor
 
 
@@ -167,7 +163,7 @@ def test_broadcast_over_spatial_dimensions():
 
     out_expect = torch.zeros_like(out)
     for i in range(len(mean)):
-        out_expect[i] = (x[i]-mean[i])/std[i]
+        out_expect[i] = (x[i] - mean[i]) / std[i]
     # Channel 0, value 1 -> (1 - 1) / 1 = 0
     # Channel 1, value 6 -> (6 - 5) / 1 = 1
     # Channel 2, value 12 -> (12 - 9) / 1 = 3
@@ -183,7 +179,6 @@ def test_different_std_per_channel():
 
     out_expect = torch.zeros_like(out)
     for i in range(len(mean)):
-        out_expect[i] = (x[i]-mean[i])/std[i]
+        out_expect[i] = (x[i] - mean[i]) / std[i]
     # Channel 0 unchanged, channel 1 halved, channel 2 quartered
     assert torch.allclose(out, out_expect)
-"""
