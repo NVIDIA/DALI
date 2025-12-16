@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Optional, Sequence, Union, Tuple, Literal
+from typing import Optional, Sequence, Union, Literal
 
 import nvidia.dali as dali
 import nvidia.dali.fn as fn
@@ -65,7 +65,7 @@ class Resize:
         self,
         size: Optional[Union[int, Sequence[int]]],
         max_size: Optional[int] = None,
-    ) -> Tuple[int, int]:
+    ) -> Union[int, Sequence[int]]:
 
         self.mode = "default"
 

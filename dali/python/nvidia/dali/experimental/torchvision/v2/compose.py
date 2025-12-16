@@ -119,7 +119,7 @@ class Compose(Pipeline):
             input_node = op(input_node)
         return input_node
 
-    def _convert_tensor_to_image(sefl, in_tensor: torch.Tensor, layout: str):
+    def _convert_tensor_to_image(self, in_tensor: torch.Tensor, layout: str):
 
         if layout == "HWC":
             channels = -1
@@ -153,17 +153,14 @@ class Compose(Pipeline):
         if not isinstance(data_input, (Image.Image, torch.Tensor)):
             raise TypeError(f"input should be PIL Image or torch.Tensor. Got {type(data_input)}")
 
+        layout = "CHW"
+        _input = data_input
         if isinstance(data_input, Image.Image):
             _input = torch.as_tensor(np.array(data_input, copy=True)).unsqueeze(0)
             layout = "HWC"
-        elif isinstance(data_input, torch.Tensor):
-            _input = data_input
-            if data_input.ndim == 3:
-                # DALI requires batch size to be present
-                _input = _input.unsqueeze(0)
-            layout = "CHW"
-        else:
-            _input = data_input  # TODO: exception (?)
+        elif isinstance(data_input, torch.Tensor) and data_input.ndim == 3:
+            # DALI requires batch size to be present
+            _input = _input.unsqueeze(0)
 
         self.build()
         self.feed_input(data_node=self.input_node_name, layout=layout, data=_input)

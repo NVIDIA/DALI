@@ -80,7 +80,7 @@ def test_invalid_channel_count_grayscale(output_channels):
         # Torchvision raises the exception when executing kernel,
         # we need to raise it from the constructor
         td = Compose([Grayscale(num_output_channels=output_channels)])
-        out_dali_tv = transforms.functional.pil_to_tensor(td(img))  # noqa
+        _ = transforms.functional.pil_to_tensor(td(img))
 
 
 def make_tensor_inputs():
