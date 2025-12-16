@@ -22,6 +22,7 @@ import random
 import re
 from functools import partial
 from nose_utils import SkipTest, attr, nottest
+from nose2.tools import params
 from nvidia.dali.pipeline import Pipeline, pipeline_def
 from nvidia.dali.pipeline.experimental import pipeline_def as experimental_pipeline_def
 from nvidia.dali.types import DALIDataType
@@ -347,6 +348,7 @@ ops_image_custom_args = [
     (fn.coord_transform, {"M": 0.5}),
     (fn.crop, {"crop": (5, 5)}),
     (fn.experimental.equalize, {"devices": ["gpu"]}),
+    (fn.equalize, {"devices": ["gpu"]}),
     (
         fn.erase,
         {
@@ -375,6 +377,7 @@ ops_image_custom_args = [
     (fn.resize, {"resize_x": 50, "resize_y": 50}),
     (fn.resize_crop_mirror, {"crop": [5, 5], "resize_shorter": 10, "devices": ["cpu"]}),
     (fn.experimental.tensor_resize, {"sizes": [50, 50], "axes": [0, 1]}),
+    (fn.tensor_resize, {"sizes": [50, 50], "axes": [0, 1]}),
     (fn.rotate, {"angle": 25}),
     (fn.transpose, {"perm": [2, 0, 1]}),
     (fn.warp_affine, {"matrix": (0.1, 0.9, 10, 0.8, -0.2, -20)}),
@@ -405,25 +408,27 @@ if check_numba_compatibility_cpu(False):
     numba_compatible_devices.append("cpu")
 
 if len(numba_compatible_devices) > 0 and not os.environ.get("DALI_ENABLE_SANITIZERS", None):
-    from nvidia.dali.plugin.numba.fn.experimental import numba_function
-
-    ops_image_custom_args.append(
-        (
-            numba_function,
-            {
-                "batch_processing": False,
-                "devices": numba_compatible_devices,
-                "in_types": [types.UINT8],
-                "ins_ndim": [3],
-                "out_types": [types.UINT8],
-                "outs_ndim": [3],
-                "blocks": [32, 32, 1],
-                "threads_per_block": [32, 16, 1],
-                "run_fn": numba_set_all_values_to_255_batch,
-                "setup_fn": numba_setup_out_shape,
-            },
-        )
+    from nvidia.dali.plugin.numba.fn.experimental import (
+        numba_function as experimental_numba_function,
     )
+    from nvidia.dali.plugin.numba.fn import numba_function
+
+    numba_function_args = {
+        "batch_processing": False,
+        "devices": numba_compatible_devices,
+        "in_types": [types.UINT8],
+        "ins_ndim": [3],
+        "out_types": [types.UINT8],
+        "outs_ndim": [3],
+        "blocks": [32, 32, 1],
+        "threads_per_block": [32, 16, 1],
+        "run_fn": numba_set_all_values_to_255_batch,
+        "setup_fn": numba_setup_out_shape,
+    }
+
+    # Test both experimental and regular numba_function
+    ops_image_custom_args.append((experimental_numba_function, numba_function_args))
+    ops_image_custom_args.append((numba_function, numba_function_args))
 
 
 def test_ops_image_custom_args():
@@ -1427,11 +1432,12 @@ def test_crop_argument_from_external_source():
     pipe.run()
 
 
-def test_video_decoder():
+@params(fn.experimental.decoders.video, fn.decoders.video)
+def test_video_decoder(decoder):
     def video_decoder_pipe(max_batch_size, input_data, device):
         pipe = Pipeline(batch_size=max_batch_size, num_threads=4, device_id=0)
         encoded = fn.external_source(source=input_data, cycle=False, device="cpu")
-        decoded = fn.experimental.decoders.video(encoded, device=device)
+        decoded = decoder(encoded, device=device)
         pipe.set_outputs(decoded)
         return pipe
 
@@ -1480,7 +1486,8 @@ def test_inflate():
     check_pipeline(batches, inflate_pipline, devices=["gpu"])
 
 
-def test_debayer():
+@params(fn.experimental.debayer, fn.debayer)
+def test_debayer(debayer_op):
     from debayer_test_utils import rgb2bayer, bayer_patterns, blue_position
 
     def debayer_pipline(max_batch_size, inputs, device):
@@ -1494,7 +1501,7 @@ def test_debayer():
             positions = fn.external_source(source=blue_positions)
             if device == "gpu":
                 bayered = bayered.gpu()
-            return fn.experimental.debayer(bayered, blue_position=positions)
+            return debayer_op(bayered, blue_position=positions)
 
         return piepline(batch_size=max_batch_size, num_threads=4, device_id=0)
 
@@ -1522,7 +1529,8 @@ def test_debayer():
     check_pipeline(batches, debayer_pipline, devices=["gpu", "cpu"])
 
 
-def test_filter():
+@params(fn.experimental.filter, fn.filter)
+def test_filter(filter_op):
     def filter_pipeline(max_batch_size, inputs, device):
         batches = [list(zip(*batch)) for batch in inputs]
         sample_batches = [list(inp_batch) for inp_batch, _, _ in batches]
@@ -1534,7 +1542,7 @@ def test_filter():
             samples = fn.external_source(source=sample_batches, layout="HWC")
             filters = fn.external_source(source=filter_batches)
             fill_values = fn.external_source(source=fill_value_bacthes)
-            return fn.experimental.filter(samples.gpu(), filters, fill_values, border="constant")
+            return filter_op(samples.gpu(), filters, fill_values, border="constant")
 
         return pipeline(batch_size=max_batch_size, num_threads=4, device_id=0)
 
@@ -1803,20 +1811,24 @@ tested_methods = [
     "decoders.image_random_crop",
     "decoders.image_slice",
     "decoders.numpy",
+    "decoders.video",
     "dl_tensor_python_function",
     "dump_image",
-    "experimental.equalize",
+    "equalize",
     "element_extract",
     "erase",
     "expand_dims",
+    "debayer",
     "experimental.debayer",
     "experimental.decoders.image",
     "experimental.decoders.image_crop",
     "experimental.decoders.image_slice",
     "experimental.decoders.image_random_crop",
     "experimental.decoders.video",
+    "experimental.decoders.hidden.video",
     "experimental.dilate",
     "experimental.erode",
+    "experimental.equalize",
     "experimental.filter",
     "decoders.inflate",
     "experimental.inflate",
@@ -1824,9 +1836,11 @@ tested_methods = [
     "experimental.peek_image_shape",
     "experimental.remap",
     "experimental.resize",
+    "experimental.tensor_resize",
     "experimental.warp_perspective",
     "external_source",
     "fast_resize_crop_mirror",
+    "filter",
     "flip",
     "gaussian_blur",
     "get_property",
@@ -1879,6 +1893,7 @@ tested_methods = [
     "normal_distribution",
     "normalize",
     "numba.fn.experimental.numba_function",
+    "numba.fn.numba_function",
     "one_hot",
     "optical_flow",
     "pad",
@@ -1909,7 +1924,7 @@ tested_methods = [
     "reshape",
     "resize",
     "resize_crop_mirror",
-    "experimental.tensor_resize",
+    "tensor_resize",
     "roi_random_crop",
     "rotate",
     "saturation",
