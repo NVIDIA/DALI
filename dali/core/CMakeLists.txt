@@ -14,7 +14,6 @@
 
 project(dali_core CUDA CXX C)
 
-add_subdirectory(exec)
 add_subdirectory(mm)
 add_subdirectory(os)
 add_subdirectory(exec)
