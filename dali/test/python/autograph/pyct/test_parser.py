@@ -15,7 +15,6 @@
 """Tests for parser module."""
 
 import re
-import sys
 import textwrap
 import unittest
 
