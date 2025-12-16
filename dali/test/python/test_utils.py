@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -955,12 +955,15 @@ def check_numba_compatibility_cpu(if_skip=True):
         return True
 
 
-def check_numba_compatibility_gpu(if_skip=True):
-    import nvidia.dali.plugin.numba.experimental as ex
+def check_numba_compatibility_gpu(if_skip=True, use_experimental: bool = False):
+    if use_experimental:
+        from nvidia.dali.plugin.numba.experimental import NumbaFunction
+    else:
+        from nvidia.dali.plugin.numba import NumbaFunction
 
-    if not ex.NumbaFunction._check_minimal_numba_version(
+    if not NumbaFunction._check_minimal_numba_version(
         False
-    ) or not ex.NumbaFunction._check_cuda_compatibility(False):
+    ) or not NumbaFunction._check_cuda_compatibility(False):
         if if_skip:
             raise SkipTest()
         else:
