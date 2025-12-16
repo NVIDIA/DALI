@@ -1,4 +1,4 @@
-# Copyright (c) 2023-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2023-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -40,7 +40,7 @@ def equalize_cv_baseline(img, layout):
 
 
 @pipeline_def
-def images_pipeline(layout, dev):
+def images_pipeline(layout, dev, equalize_op):
     images, _ = fn.readers.file(
         name="Reader", file_root=images_dir, prefetch_queue_depth=2, random_shuffle=True, seed=42
     )
@@ -53,7 +53,7 @@ def images_pipeline(layout, dev):
         images = fn.decoders.image(images, device=decoder, output_type=types.RGB)
         if layout == "CHW":
             images = fn.transpose(images, perm=[2, 0, 1])
-    equalized = fn.experimental.equalize(images)
+    equalized = equalize_op(images)
     return equalized, images
 
 
@@ -62,15 +62,21 @@ def images_pipeline(layout, dev):
         itertools.product(
             ("cpu", "gpu"),
             (("HWC", 1), ("HWC", 32), ("CHW", 1), ("CHW", 7), ("HW", 253), ("HW", 128)),
+            (fn.experimental.equalize, fn.equalize),
         )
     )
 )
-def test_image_pipeline(dev, layout_batch_size):
+def test_image_pipeline(dev, layout_batch_size, equalize_op):
     layout, batch_size = layout_batch_size
     num_iters = 2
 
     pipe = images_pipeline(
-        num_threads=4, device_id=0, batch_size=batch_size, layout=layout, dev=dev
+        num_threads=4,
+        device_id=0,
+        batch_size=batch_size,
+        layout=layout,
+        dev=dev,
+        equalize_op=equalize_op,
     )
 
     for _ in range(num_iters):
@@ -107,7 +113,7 @@ def test_multichannel(dev):
         input = fn.external_source(input_sample, batch=False)
         if dev == "gpu":
             input = input.gpu()
-        return fn.experimental.equalize(input), input
+        return fn.equalize(input), input
 
     pipe = pipeline()
 
