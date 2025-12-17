@@ -17,7 +17,7 @@
 
 namespace dali {
 
-DALI_SCHEMA(experimental__decoders__Video)
+DALI_SCHEMA(decoders__Video)
     .DocStr(
         R"code(Decodes videos from in-memory streams.
 
@@ -195,6 +195,19 @@ Building an index is particularly useful when decoding a small number of frames 
 apart or starting playback from a frame deep into the video.)code",
                     true);
 
+DALI_SCHEMA(experimental__decoders__Video)
+    .AddParent("decoders__Video")
+    .DocStr("Legacy alias for :meth:`decoders.video`.")
+    .NumInput(1)
+    .NumOutput(1)
+    .MakeDocHidden()
+    .Deprecate(
+        "2.0",
+        "decoders__Video",
+        "This operator was moved out from the experimental phase, "
+        "and is now a regular DALI operator. This is just a deprecated "
+        "alias kept for backward compatibility.");
+
 class VideoDecoderCpu : public VideoDecoderBase<CPUBackend, FramesDecoderCpu> {
  public:
   explicit VideoDecoderCpu(const OpSpec &spec) :
@@ -202,5 +215,6 @@ class VideoDecoderCpu : public VideoDecoderBase<CPUBackend, FramesDecoderCpu> {
 };
 
 DALI_REGISTER_OPERATOR(experimental__decoders__Video, VideoDecoderCpu, CPU);
+DALI_REGISTER_OPERATOR(decoders__Video, VideoDecoderCpu, CPU);
 
 }  // namespace dali
