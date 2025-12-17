@@ -60,10 +60,21 @@ def check_frame(
     xeps = np.ceil(2 + 2 * w / out_w)
     yeps = np.ceil(2 + 2 * h / out_h)
     if frame_index == 0:
-        roi_w_max = min((x1 - x0) * w / value_range + xeps, w)
-        roi_w_min = max((x1 - x0) * w / value_range - xeps, 1)
-        roi_h_max = min((y1 - y0) * h / value_range + yeps, h)
-        roi_h_min = max((y1 - y0) * h / value_range - xeps, 1)
+        x0_u32 = np.uint32(x0)
+        x1_u32 = np.uint32(x1)
+        y0_u32 = np.uint32(y0)
+        y1_u32 = np.uint32(y1)
+        w_u32 = np.uint32(w)
+        h_u32 = np.uint32(h)
+        value_range_u32 = np.uint32(value_range)
+
+        roi_w = (x1_u32 - x0_u32) * w_u32 / value_range_u32
+        roi_h = (y1_u32 - y0_u32) * h_u32 / value_range_u32
+
+        roi_w_max = min(roi_w + xeps, w)
+        roi_w_min = max(roi_w - xeps, 1)
+        roi_h_max = min(roi_h + yeps, h)
+        roi_h_min = max(roi_h - xeps, 1)
         ratio_min = roi_w_min / roi_h_max
         ratio_max = roi_w_max / roi_h_min
         area_min = roi_w_min * roi_h_min / (w * h)

@@ -102,7 +102,7 @@ class Batch3DOverflow(Batch3D):
 
         for batch in self._data:
             for sample in batch:
-                sample *= 100000
+                sample[...] = (sample.astype(np.int64) * 100000).astype(sample.dtype)
 
 
 class Batch3DNegativeAxes(Batch3D):

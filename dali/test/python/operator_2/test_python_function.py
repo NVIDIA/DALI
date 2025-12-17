@@ -640,7 +640,7 @@ def test_python_function_conditionals():
     numpy.uint16,
     numpy.uint32,
     numpy.uint64,
-    numpy.float_,
+    numpy.float64,
     numpy.float32,
     numpy.float16,
     numpy.short,

@@ -27,7 +27,16 @@ def ref_cast(x, dtype):
         hi = np.iinfo(dtype).max
         if np.issubdtype(x.dtype, np.floating):
             x = np.round(x)
-        return x.clip(lo, hi).astype(dtype)
+        orig_sign = np.sign(x)
+        x = x.clip(lo, hi).astype(dtype)
+        new_sign = np.sign(x)
+        mismatch = orig_sign != new_sign
+        # there could be an overflow even when we clip, so fix it after cast by checking the sing
+        # np.array([3.5045604e+09], dtype=np.float32).
+        #          clip(np.iinfo(np.int32).min, np.iinfo(np.int32).max).astype(dtype=np.int32)
+        # array([-2147483648], dtype=int32)
+        x = np.where(mismatch, np.where(orig_sign > 0, hi, lo), x)
+        return x
     else:
         return x.astype(dtype)
 
@@ -116,7 +125,7 @@ def generate(
         for x in out:
             # avoid exactly halfway numbers - rounding is different for CPU and GPU
             halfway = x[x - np.floor(x) == 0.5]
-            x[x - np.floor(x) == 0.5] = np.nextafter(halfway, np.Infinity)
+            x[x - np.floor(x) == 0.5] = np.nextafter(halfway, np.inf)
     return out
 
 
