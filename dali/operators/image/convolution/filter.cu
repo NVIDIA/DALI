@@ -1,4 +1,4 @@
-// Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2023-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -46,6 +46,9 @@ std::unique_ptr<OpImplBase<GPUBackend>> Filter<GPUBackend>::GetFilterImpl(
   return filter::get_filter_gpu_op_impl<Out, In, W>(spec, input_desc);
 }
 
+// Kept for backwards compatibility
 DALI_REGISTER_OPERATOR(experimental__Filter, Filter<GPUBackend>, GPU);
+
+DALI_REGISTER_OPERATOR(Filter, Filter<GPUBackend>, GPU);
 
 }  // namespace dali
