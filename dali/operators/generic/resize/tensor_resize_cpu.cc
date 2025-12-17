@@ -1,4 +1,4 @@
-// Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -36,7 +36,7 @@ class TensorResizeCPU : public TensorResize<CPUBackend> {
 }  // namespace tensor_resize
 
 
-DALI_SCHEMA(experimental__TensorResize)
+DALI_SCHEMA(TensorResize)
     .DocStr(R"code(Resize tensors.)code")
     .NumInput(1)
     .NumOutput(1)
@@ -45,8 +45,26 @@ DALI_SCHEMA(experimental__TensorResize)
     .AddParent("ResamplingFilterAttr")
     .AddParent("TensorResizeAttr");
 
+// Deprecated alias
+DALI_SCHEMA(experimental__TensorResize)
+    .AddParent("TensorResize")
+    .DocStr("Legacy alias for :meth:`tensor_resize`.")
+    .NumInput(1)
+    .NumOutput(1)
+    .MakeDocHidden()
+    .SupportVolumetric()
+    .AllowSequences()
+    .Deprecate(
+        "2.0",
+        "TensorResize",
+        "This operator was moved out from the experimental phase, "
+        "and is now a regular DALI operator. This is just a deprecated "
+        "alias kept for backward compatibility.");
 
+// Kept for backwards compatibility
 DALI_REGISTER_OPERATOR(experimental__TensorResize, tensor_resize::TensorResizeCPU, CPU);
+
+DALI_REGISTER_OPERATOR(TensorResize, tensor_resize::TensorResizeCPU, CPU);
 
 
 }  // namespace dali
