@@ -56,7 +56,7 @@ class Compose(Pipeline):
 
     This class inherits from nvidia.dali.Pipeline and allows chaining multiple
     DALI operations in a sequential manner, similar to torchvision.transforms.Compose.
-    The Compose runs implements a callable which runst a pipeline.
+    The Compose runs implements a callable which runs a pipeline.
 
     """
 
@@ -134,8 +134,8 @@ class Compose(Pipeline):
         elif in_tensor.shape[channels] == 3:
             mode = "RGB"
         else:
-            raise ValueError(f"Unsupported channels cound: {channels}")
-        # We need to convert tensor to CPU, otherwise it will be unsable
+            raise ValueError(f"Unsupported channels count: {channels}")
+        # We need to convert tensor to CPU, otherwise it will be unusable
         return Image.fromarray(in_tensor.cpu().numpy(), mode=mode)
 
     def __call__(self, data_input):
@@ -184,7 +184,7 @@ class Compose(Pipeline):
                 if output.shape[0] > 1:
                     output_list = []
                     for i in range(output.shape[0]):
-                        output_list.append(self._convert_tensor_to_image(output[i]), layout)
+                        output_list.append(self._convert_tensor_to_image(output[i], layout))
                     output = output_list
                 else:
                     output = self._convert_tensor_to_image(output[0], layout)

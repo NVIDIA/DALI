@@ -37,7 +37,7 @@ class Resize:
         interpolation (InterpolationMode or optional) - Desired interpolation enum defined by
                                torchvision.transforms.InterpolationMode. Default is
                                InterpolationMode.BILINEAR.
-        max_size (int, optional) - The maximum allowed for the longer edge of the resizedimage.
+        max_size (int, optional) - The maximum allowed for the longer edge of the resized image.
                                If size is an int: if the longer edge of the image is greater than
                                max_size after being resized according to size, size will be
                                overruled so that the longer edge is equal to max_size. As a result,
@@ -93,7 +93,7 @@ class Resize:
                     "max_size should only be passed if size specifies the length of the smaller \
                      edge, i.e. size should be an int"
                 )
-            return size
+        return size
 
     def __init__(
         self,
@@ -109,7 +109,6 @@ class Resize:
             self.size is not None
             and not isinstance(self.size, int)
             and not isinstance(self.size, (tuple, list))
-            and len(self.size) == 2
         ):
             raise ValueError(
                 "Invalid combination: size must be int, None, or sequence of two ints. "

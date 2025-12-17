@@ -26,7 +26,7 @@ class PadBase:
     def __init__(
         self,
         padding: Union[int, Sequence[int]],
-        boarder_type: Literal["pad", "reflect_1001", "reflect_101", "clamp"],
+        border_type: Literal["pad", "reflect_1001", "reflect_101", "clamp"],
         fill: Union[
             int,
             float,
@@ -57,7 +57,7 @@ class PadBase:
             self.pad_left, self.pad_top, self.pad_right, self.pad_bottom = padding
         self.fill = fill
         self.device = device
-        self.boarder_type = boarder_type
+        self.border_type = border_type
 
     def __call__(self, data_input):
         layout = data_input.property("layout")[0]
@@ -84,7 +84,7 @@ class PadBase:
                 input_width + self.pad_right + self.pad_left,
                 input_height + self.pad_bottom + self.pad_top,
             ),  # __shape
-            out_of_bounds_policy=self.boarder_type,
+            out_of_bounds_policy=self.border_type,
             fill_values=self.fill,
         )
 
@@ -118,7 +118,7 @@ class PadConstant(PadBase):
         ] = 0,
         device: Literal["cpu", "gpu"] = "cpu",
     ):
-        super().__init__(padding, fill=fill, boarder_type="pad", device=device)
+        super().__init__(padding, fill=fill, border_type="pad", device=device)
 
 
 class PadEdge(PadBase):
@@ -129,7 +129,7 @@ class PadEdge(PadBase):
     """
 
     def __init__(self, padding: Union[int, Sequence[int]], device: Literal["cpu", "gpu"] = "cpu"):
-        super().__init__(padding, fill=0, boarder_type="clamp", device=device)
+        super().__init__(padding, fill=0, border_type="clamp", device=device)
 
 
 class PadSymmetric(PadBase):
@@ -141,7 +141,7 @@ class PadSymmetric(PadBase):
     """
 
     def __init__(self, padding: Union[int, Sequence[int]], device: Literal["cpu", "gpu"] = "cpu"):
-        super().__init__(padding, fill=0, boarder_type="reflect_1001", device=device)
+        super().__init__(padding, fill=0, border_type="reflect_1001", device=device)
 
 
 class PadReflect(PadBase):
@@ -153,7 +153,7 @@ class PadReflect(PadBase):
     """
 
     def __init__(self, padding: Union[int, Sequence[int]], device: Literal["cpu", "gpu"] = "cpu"):
-        super().__init__(padding, fill=0, boarder_type="reflect_101", device=device)
+        super().__init__(padding, fill=0, border_type="reflect_101", device=device)
 
 
 PADDING_CLASS = {
