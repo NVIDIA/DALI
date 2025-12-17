@@ -2533,7 +2533,7 @@ auto GetSupportedBackends(OpSchema &schema) {
   return ret;
 }
 
-PYBIND11_MODULE(backend_impl, m) {
+PYBIND11_MODULE(backend_impl, m, py::mod_gil_not_used()) {
   dali::InitOperatorsLib();
   m.doc() = "Python bindings for the C++ portions of DALI";
 

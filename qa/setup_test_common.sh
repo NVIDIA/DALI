@@ -4,8 +4,12 @@ CUDA_VERSION=$(echo $(nvcc --version) | sed 's/.*\(release \)\([0-9]\+\)\.\([0-9
 CUDA_VERSION=${CUDA_VERSION:-100}
 CUDA_VERSION_MAJOR=${CUDA_VERSION:0:2}
 
+export PYTHON_GIL=$(python3 -c "import sysconfig; ret=sysconfig.get_config_var('Py_GIL_DISABLED'); print(0 if ret else 1)")
 PYTHON_VERSION=$(python -c "import sys; print(\"{}.{}\".format(sys.version_info[0],sys.version_info[1]))")
 PYTHON_VERSION_SHORT=${PYTHON_VERSION/\./}
+if [ $PYTHON_GIL -eq 0 ]; then
+  PYTHON_VERSION_SHORT="${PYTHON_VERSION_SHORT}t"
+fi
 
 NVIDIA_SMI_DRIVER_VERSION=$(nvidia-smi | grep -Po '(?<=Driver Version: )\d+.\d+') || true
 

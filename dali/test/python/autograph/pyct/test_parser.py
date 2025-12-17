@@ -280,7 +280,7 @@ string"""
     """
 
         f = self._eval_code(parser.dedent_block(code), "f")
-        self.assertEqual(f.__doc__, "\n      Docstring.\n      ")
+        self.assertRegex(f.__doc__, r"^\n\s*Docstring\.\n\s*$")
         self.assertEqual(f(), "\n  1\n    2\n      3")
 
     def test_dedent_block_multiline_expression(self):

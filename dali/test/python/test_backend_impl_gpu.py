@@ -205,7 +205,11 @@ def test_cuda_array_interface_tensor_list_gpu_to_cpu_device_id():
 
 
 def check_cuda_array_types(t):
-    arr = cp.array([[-0.39, 1.5], [-1.5, 0.33]], dtype=t)
+    if cp.issubdtype(t, cp.unsignedinteger):
+        arr = [[0.39, 1.5], [1.5, 0.33]]
+    else:
+        arr = [[-0.39, 1.5], [-1.5, 0.33]]
+    arr = cp.array(arr, dtype=t)
     tensor = TensorGPU(arr, "HW")
     assert cp.allclose(arr, cp.asanyarray(tensor))
 
@@ -229,7 +233,11 @@ def test_cuda_array_interface_types():
 
 
 def check_dlpack_types(t):
-    arr = cp.array([[-0.39, 1.5], [-1.5, 0.33]], dtype=t)
+    if cp.issubdtype(t, cp.unsignedinteger):
+        _arr = [[0.39, 1.5], [1.5, 0.33]]
+    else:
+        _arr = [[-0.39, 1.5], [-1.5, 0.33]]
+    arr = cp.array(_arr, dtype=t)
     tensor = TensorGPU(arr.toDlpack(), "HW")
     assert cp.allclose(arr, cp.asanyarray(tensor))
 
