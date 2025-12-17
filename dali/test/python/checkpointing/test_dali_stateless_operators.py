@@ -213,10 +213,10 @@ def test_resize_stateless(device):
     check_single_input(fn.resize, device, resize_x=50, resize_y=50)
 
 
-@params("cpu", "gpu")
-@stateless_signed_off("experimental.tensor_resize")
-def test_tensor_resize_stateless(device):
-    check_single_input(fn.experimental.tensor_resize, device, axes=[0, 1], sizes=[40, 40])
+@cartesian_params(("cpu", "gpu"), (fn.experimental.tensor_resize, fn.tensor_resize))
+@stateless_signed_off("experimental.tensor_resize", "tensor_resize")
+def test_tensor_resize_stateless(device, tensor_resize_op):
+    check_single_input(tensor_resize_op, device, axes=[0, 1], sizes=[40, 40])
 
 
 @params("cpu", "gpu")
@@ -334,10 +334,10 @@ def test_reductions_variance_stateless(device):
     check_single_input(lambda x, **kwargs: fn.reductions.variance(x, 5.0, **kwargs), device)
 
 
-@params("cpu", "gpu")
-@stateless_signed_off("experimental.equalize")
-def test_equalize_stateless(device):
-    check_single_input(fn.experimental.equalize, device)
+@cartesian_params(("cpu", "gpu"), (fn.experimental.equalize, fn.equalize))
+@stateless_signed_off("experimental.equalize", "equalize")
+def test_equalize_stateless(device, equalize_op):
+    check_single_input(equalize_op, device)
 
 
 @stateless_signed_off("transforms.crop")
@@ -468,11 +468,11 @@ def test_sphere_stateless(device):
     check_single_input(fn.sphere, device)
 
 
-@params("cpu", "gpu")
-@stateless_signed_off("experimental.filter")
-def test_filter_stateless(device):
+@cartesian_params(("cpu", "gpu"), (fn.experimental.filter, fn.filter))
+@stateless_signed_off("experimental.filter", "filter")
+def test_filter_stateless(device, filter_op):
     check_single_input(
-        lambda x, **kwargs: fn.experimental.filter(x, np.full((3, 3), 1 / 9), **kwargs),
+        lambda x, **kwargs: filter_op(x, np.full((3, 3), 1 / 9), **kwargs),
         device,
     )
 
@@ -494,15 +494,15 @@ def test_remap_stateless():
     check_is_pipeline_stateless(pipeline_factory)
 
 
-@params("cpu", "gpu")
-@stateless_signed_off("experimental.debayer")
-def test_debayer_stateless(device):
+@cartesian_params(("cpu", "gpu"), (fn.experimental.debayer, fn.debayer))
+@stateless_signed_off("experimental.debayer", "debayer")
+def test_debayer_stateless(device, debayer_op):
     @pipeline_def(enable_checkpointing=True)
     def pipeline_factory():
         data = fn.external_source(source=RandomBatch((40, 40)), layout="HW", batch=True)
         if device == "gpu":
             data = data.gpu()
-        return fn.experimental.debayer(data, blue_position=[0, 0])
+        return debayer_op(data, blue_position=[0, 0])
 
     check_is_pipeline_stateless(pipeline_factory)
 
@@ -772,8 +772,9 @@ def test_dl_tensor_python_function_stateless(device):
 
 
 @attr("numba")
-@stateless_signed_off("experimental.numba_function")
-def test_numba_function_stateless():
+@params(True, False)
+@stateless_signed_off("experimental.numba_function", "numba_function")
+def test_numba_function_stateless(use_experimental):
     import nvidia.dali.plugin.numba as dali_numba
 
     check_numba_compatibility_cpu()
@@ -781,12 +782,18 @@ def test_numba_function_stateless():
     def double_sample(out_sample, in_sample):
         out_sample[:] = 2 * in_sample[:]
 
+    numba_function_op = (
+        dali_numba.fn.experimental.numba_function
+        if use_experimental
+        else dali_numba.fn.numba_function
+    )
+
     @pipeline_def(batch_size=2, device_id=0, num_threads=4, enable_checkpointing=True)
     def numba_pipe():
         forty_two = fn.external_source(
             source=lambda x: np.full((2,), 42, dtype=np.uint8), batch=False
         )
-        out = dali_numba.fn.experimental.numba_function(
+        out = numba_function_op(
             forty_two,
             run_fn=double_sample,
             out_types=[types.DALIDataType.UINT8],
