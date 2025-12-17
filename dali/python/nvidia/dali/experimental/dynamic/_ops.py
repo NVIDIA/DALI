@@ -12,14 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from . import _device
-from . import _invocation
-from . import _eval_context
-import nvidia.dali as dali
 from typing import Optional
+
+import nvidia.dali as dali
 import nvidia.dali.backend_impl as _b
-from ._tensor import Tensor
+
+from . import _device, _eval_context, _invocation
 from ._batch import Batch
+from ._tensor import Tensor
 
 
 class Operator:
@@ -43,7 +43,6 @@ class Operator:
     # Indicates if this operator is generated and we can autogenerate the stubs or we need
     # to reimport the operator from py to pyi file.
     _generated = False
-    _instance_cache = {}
 
     def __init__(
         self,
@@ -114,8 +113,9 @@ class Operator:
             return tuple([(k, freeze_arg(args[k])) for k in sorted_keys])
 
         call_arg_names = freeze_arg(call_arg_names)
-        key = (device, max_batch_size, num_inputs, call_arg_names, freeze_args(init_args))
-        inst = cls._instance_cache.get(key, None)
+        key = (cls, device, max_batch_size, num_inputs, call_arg_names, freeze_args(init_args))
+        ctx = _eval_context.EvalContext.current()
+        inst = ctx._instance_cache.get(key, None)
         if inst is None:
             with device:
                 inst = cls(
@@ -124,7 +124,7 @@ class Operator:
                     device=device,
                     **init_args,
                 )
-                cls._instance_cache[key] = inst
+                ctx._instance_cache[key] = inst
         return inst
 
     def _infer_num_outputs(self, *inputs, **args):

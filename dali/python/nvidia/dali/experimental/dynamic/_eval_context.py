@@ -75,9 +75,11 @@ class EvalContext:
         if self._cuda_stream is None and self._device.device_type == "gpu":
             self._cuda_stream = _b.Stream(self._device.device_id)
 
+        self._num_threads = num_threads or _default_num_threads()
+        self._instance_cache = {}
+
         # The thread pool needs to be thread-local because of eager execution
         self._tls = local()
-        self._num_threads = num_threads or _default_num_threads()
 
         self._async_executor = _AsyncExecutor()
         weakref.finalize(self, self._async_executor.shutdown)

@@ -28,7 +28,6 @@ from . import random as _random
 from ._batch import Batch, _get_batch_size
 from ._batch import as_batch as _as_batch
 from ._tensor import Tensor
-from ._tls_dict import TLSDict
 
 
 def is_external(x):
@@ -188,7 +187,6 @@ def build_operator_class(schema):
     op_class._legacy_op = legacy_op_class
     op_class._is_stateful = schema.IsStateful()
     op_class._has_random_state_arg = schema.HasRandomStateArg()
-    op_class._instance_cache = TLSDict()
     op_class._generated = True
     op_class.__init__ = build_constructor(schema, op_class)
     op_class.__call__ = build_call_function(schema, op_class)
