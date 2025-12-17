@@ -181,13 +181,11 @@ def RN50Pipeline(minibatch_size, decoders_module=fn.decoders, hw_load=0):
         preallocate_height_hint=args.height_hint,
     )
     images = fn.resize(images, resize_x=224, resize_y=224, minibatch_size=minibatch_size)
-    layout = types.NCHW
-    out_type = types.FLOAT16
     coin_flip = fn.random.coin_flip(probability=0.5)
     images = fn.crop_mirror_normalize(
         images,
-        dtype=out_type,
-        output_layout=layout,
+        dtype=types.FLOAT16,
+        output_layout="CHW",
         crop=(224, 224),
         mean=[0.485 * 255, 0.456 * 255, 0.406 * 255],
         std=[0.229 * 255, 0.224 * 255, 0.225 * 255],
@@ -207,14 +205,13 @@ class NDDRN50Pipeline:
         hw_load=0,
     ):
         self.batch_size = batch_size
-        self.device = "mixed" if args.device == "gpu" else "cpu"
+        self.device = args.device
         self.device_id = device_id
         self.num_threads = num_threads
         self.decoders_module = decoders_module
         self.hw_load = hw_load
         self.minibatch_size = minibatch_size
-        rng = ndd.random.RNG(seed=42)
-        self.rng_copy = rng.clone()
+        self.rng = ndd.random.RNG(seed=42)
         self.reader = ndd.readers.File(file_root=args.images_dir)
         self.next_input_data = None
         self.eval_context = ndd.EvalContext(num_threads=self.num_threads, device_id=self.device_id)
@@ -241,17 +238,15 @@ class NDDRN50Pipeline:
                 preallocate_height_hint=args.height_hint,
             )
             coin_flip = ndd.random.coin_flip(
-                batch_size=self.batch_size, probability=0.5, rng=self.rng_copy
+                batch_size=self.batch_size, probability=0.5, rng=self.rng
             )
-            layout = types.NCHW
-            out_type = types.FLOAT16
             images = ndd.resize(
                 images, resize_x=224, resize_y=224, minibatch_size=self.minibatch_size
             )
             output = ndd.crop_mirror_normalize(
                 images,
-                dtype=out_type,
-                output_layout=layout,
+                dtype=ndd.float16,
+                output_layout="CHW",
                 crop=(224, 224),
                 mean=[0.485 * 255, 0.456 * 255, 0.406 * 255],
                 std=[0.229 * 255, 0.224 * 255, 0.225 * 255],
@@ -282,7 +277,7 @@ def EfficientnetTrainingPipeline(
     hw_load=0,
 ):
     dali_device = args.device
-    output_layout = types.NCHW
+    output_layout = "CHW"
     rng = fn.random.coin_flip(probability=0.5)
 
     jpegs, _ = fn.readers.file(

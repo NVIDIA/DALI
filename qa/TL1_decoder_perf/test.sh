@@ -52,11 +52,24 @@ test_body() {
     grep -oP 'Total Throughput: \K[0-9]+(\.[0-9]+)?(?= frames/sec)' "${log_file}"
   }
 
+
   perf_check() {
+    #  Checks if the extracted performance value from the specified log file
+    # is within a given percentage tolerance of a minimum threshold.
+
+    # Args:
+    #   $1: The log file to extract the throughput value from.
+    #   $2: The minimum threshold value to compare against.
+    #   $3: (Optional) Percent tolerance. If specified, allows value to be
+    #       within $2 * (1 - percent/100). Defaults to 0.
+
+    # Returns:
+    #   Prints "OK" if value >= min_value*(1-tolerance), "FAIL" otherwise.
+
     local value=$(extract_perf "$1")
     local min_value=$2
     local percent=${3:-0}
-    # Check if value is within percent% of min_value both above and below
+    # Check if value is within percent% of min_value below
     local tolerance=$(awk -v p="$percent" 'BEGIN{print p/100}')
     echo "$value $min_value" | awk -v tol="$tolerance" '{
       lower = $2 * (1 - tol);
