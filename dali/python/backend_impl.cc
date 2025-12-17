@@ -483,7 +483,7 @@ void CopyToExternalImplGPU(SourceObject &src,
   }
 
   void *ptr = ctypes_void_ptr(dst_ptr);
-  CopyToExternal<mm::memory_kind::device>(ptr, src, copy_order, use_copy_kernel);
+  CopyToExternal<mm::memory_kind::device>(ptr, std::nullopt, src, copy_order, use_copy_kernel);
 
   wait_order.wait(copy_order);
 }
@@ -845,7 +845,8 @@ void ExposeTensor(py::module &m) {
       py::return_value_policy::take_ownership)
     .def("copy_to_external",
         [](Tensor<CPUBackend> &t, py::object p) {
-          CopyToExternal<mm::memory_kind::host>(ctypes_void_ptr(p), t, AccessOrder::host(), false);
+          CopyToExternal<mm::memory_kind::host>(
+              ctypes_void_ptr(p), std::nullopt, t, AccessOrder::host(), false);
         },
       "ptr"_a,
       R"code(
@@ -1465,7 +1466,8 @@ void ExposeTensorListCPU(py::module &m) {
       )code")
     .def("copy_to_external",
         [](TensorList<CPUBackend> &tl, py::object p) {
-          CopyToExternal<mm::memory_kind::host>(ctypes_void_ptr(p), tl, AccessOrder::host(), false);
+          CopyToExternal<mm::memory_kind::host>(
+              ctypes_void_ptr(p), std::nullopt, tl, AccessOrder::host(), false);
         },
       R"code(
       Copy the contents of this `TensorList` to an external pointer

@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -22,6 +22,7 @@
 #include <functional>
 #include <list>
 #include <mutex>
+#include <optional>
 #include <string>
 #include <type_traits>
 #include <typeindex>
@@ -149,34 +150,50 @@ class DLL_PUBLIC TypeInfo {
   /**
    * @brief Copies from SrcBackend memory to DstBackend memory
    * @param dst destination pointer
+   * @param dst_device_id the optional device id of the destination buffer
    * @param src source pointer
+   * @param src_device_id the optional device id of the source buffer
    * @param n number of elements to copy
    * @param stream CUDA stream used to perform copy. Only relevant when copying from/to GPUBackend
    * @param use_copy_kernel If true, a copy kernel will be used instead of cudaMemcpyAsync when applicable
    *        (only relevant for device and host pinned memory)
+   *
+   * If the device ids are not set, the copy will be peformed on the current device.
+   * If both devices are set and are different, the copy will be peformed using cudaMemcpyPeerAsync.
    */
   template <typename DstBackend, typename SrcBackend>
-  DLL_PUBLIC void Copy(void *dst, const void *src, Index n, cudaStream_t stream,
+  DLL_PUBLIC void Copy(void *dst, std::optional<int> dst_device_id,
+                       const void *src, std::optional<int> src_device_id,
+                       Index n, cudaStream_t stream,
                        bool use_copy_kernel = false) const;
 
   /**
    * @brief Copies from scattered locations from SrcBackend to DstBackend
-   * @param dst destination pointers
+   * @param dsts destination pointers
+   * @param dst_device_id the optional device id of the destination buffers
    * @param srcs source pointers
+   * @param src_device_id the optional device id of the source buffers
    * @param sizes number of elements for each of the pointers specified in srcs
    * @param n number of copies to process
    * @param stream CUDA stream used to perform copy. Only relevant when copying from/to GPUBackend
    * @param use_copy_kernel If true, a copy kernel will be used instead of cudaMemcpyAsync when applicable
    *        (only relevant for device and host pinned memory)
+   *
+   * If the device ids are not set, the copy will be peformed on the current device.
+   * If both devices are set and are different, the copy will be peformed using cudaMemcpyPeerAsync.
    */
   template <typename DstBackend, typename SrcBackend>
-  DLL_PUBLIC void Copy(void **dst, const void **srcs, const Index *sizes, int n,
+  DLL_PUBLIC void Copy(void **dsts, std::optional<int> dst_device_id,
+                       const void **srcs, std::optional<int> src_device_id,
+                       const Index *sizes, int n,
                        cudaStream_t stream, bool use_copy_kernel = false) const;
 
   /**
    * @brief Copies from SrcBackend scattered locations to a contiguous DstBackend buffer
    * @param dst destination pointer
+   * @param dst_device_id the optional device id of the destination buffer
    * @param srcs source pointers
+   * @param src_device_id the optional device id of the source buffers
    * @param sizes number of elements for each of the pointers specified in srcs
    * @param n number of copies to process
    * @param stream CUDA stream used to perform copy. Only relevant when copying from/to GPUBackend
@@ -184,13 +201,17 @@ class DLL_PUBLIC TypeInfo {
    *        (only relevant for device and host pinned memory)
    */
   template <typename DstBackend, typename SrcBackend>
-  DLL_PUBLIC void Copy(void *dst, const void **srcs, const Index *sizes, int n, cudaStream_t stream,
+  DLL_PUBLIC void Copy(void *dst, std::optional<int> dst_device_id,
+                       const void **srcs, std::optional<int> src_device_id,
+                       const Index *sizes, int n, cudaStream_t stream,
                        bool use_copy_kernel = false) const;
 
   /**
    * @brief Copies from SrcBackend contiguous buffer to DstBackend scattered locations
    * @param dsts destination pointers
+   * @param dst_device_id the optional device id of the destination buffers
    * @param src source pointer
+   * @param src_device_id the optional device id of the source buffer
    * @param sizes number of elements for each of the pointers specified in dsts
    * @param n number of copies to process
    * @param stream CUDA stream used to perform copy. Only relevant when copying from/to GPUBackend
@@ -198,8 +219,10 @@ class DLL_PUBLIC TypeInfo {
    *        (only relevant for device and host pinned memory)
    */
   template <typename DstBackend, typename SrcBackend>
-  DLL_PUBLIC void Copy(void **dsts, const void *src, const Index *sizes, int n, cudaStream_t stream,
-                       bool use_copy_kernel = false) const;
+  DLL_PUBLIC void Copy(void **dsts, std::optional<int> dst_device_id,
+                       const void *src, std::optional<int> src_device_id,
+                       const Index *sizes, int n,
+                       cudaStream_t stream, bool use_copy_kernel = false) const;
 
   DLL_PUBLIC inline DALIDataType id() const {
     return id_;

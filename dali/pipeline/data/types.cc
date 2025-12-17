@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -84,121 +84,269 @@ TypeTable &TypeTable::instance() {
 }
 
 template <typename DstBackend, typename SrcBackend>
-void TypeInfo::Copy(void *dst,
-    const void *src, Index n, cudaStream_t stream, bool use_copy_kernel) const {
+void TypeInfo::Copy(
+      void *dst,
+      std::optional<int> dst_dev_id,
+      const void *src,
+      std::optional<int> src_dev_id,
+      Index n,
+      cudaStream_t stream,
+      bool use_copy_kernel) const {
   constexpr bool is_host_to_host = std::is_same<DstBackend, CPUBackend>::value &&
                                    std::is_same<SrcBackend, CPUBackend>::value;
   if (n == 0)
     return;
 
+  bool cross_device = src_dev_id && dst_dev_id && *src_dev_id != *dst_dev_id;
+
   if (is_host_to_host) {
+    // We don't honor stream order for H2H copies so we error out if a stream is passed
     if (stream)
       throw std::logic_error("Cannot issue a H2H copy on a stream");
 
     // Call our copy function
     copier_(dst, src, n);
-  } else if (use_copy_kernel) {
+  } else if (use_copy_kernel && !cross_device) {
     detail::LaunchCopyKernel(dst, src, n * size(), stream);
   } else {
-    MemCopy(dst, src, n*size(), stream);
-  }
-}
-
-template void TypeInfo::Copy<CPUBackend, CPUBackend>(void *dst,
-    const void *src, Index n, cudaStream_t stream, bool use_copy_kernel) const;
-
-template void TypeInfo::Copy<CPUBackend, GPUBackend>(void *dst,
-    const void *src, Index n, cudaStream_t stream, bool use_copy_kernel) const;
-
-template void TypeInfo::Copy<GPUBackend, CPUBackend>(void *dst,
-    const void *src, Index n, cudaStream_t stream, bool use_copy_kernel) const;
-
-template void TypeInfo::Copy<GPUBackend, GPUBackend>(void *dst,
-    const void *src, Index n, cudaStream_t stream, bool use_copy_kernel) const;
-
-template <typename DstBackend, typename SrcBackend>
-void TypeInfo::Copy(void **dsts, const void** srcs, const Index* sizes, int n,
-                    cudaStream_t stream, bool use_copy_kernel) const {
-  constexpr bool is_host_to_host = std::is_same<DstBackend, CPUBackend>::value &&
-                                   std::is_same<SrcBackend, CPUBackend>::value;
-  if (!is_host_to_host && use_copy_kernel) {
-    detail::ScatterGatherCopy(dsts, srcs, sizes, n, size(), stream);
-  } else {
-    for (int i = 0; i < n; i++) {
-      Copy<DstBackend, SrcBackend>(dsts[i], srcs[i], sizes[i], stream);
+    if (cross_device) {
+      CUDA_CALL(cudaMemcpyPeerAsync(dst, *dst_dev_id, src, *src_dev_id, n*size(), stream));
+    } else {
+      MemCopy(dst, src, n*size(), stream);
     }
   }
 }
 
-template void TypeInfo::Copy<CPUBackend, CPUBackend>(void **dsts,
-    const void **src, const Index *sizes, int n, cudaStream_t stream, bool use_copy_kernel) const;
+template void TypeInfo::Copy<CPUBackend, CPUBackend>(
+    void *dst,
+    std::optional<int> dst_dev_id,
+    const void *src,
+    std::optional<int> src_dev_id,
+    Index n,
+    cudaStream_t stream,
+    bool use_copy_kernel) const;
 
-template void TypeInfo::Copy<CPUBackend, GPUBackend>(void **dsts,
-    const void **src, const Index *sizes, int n, cudaStream_t stream, bool use_copy_kernel) const;
+template void TypeInfo::Copy<CPUBackend, GPUBackend>(
+    void *dst,
+    std::optional<int> dst_dev_id,
+    const void *src,
+    std::optional<int> src_dev_id,
+    Index n,
+    cudaStream_t stream,
+    bool use_copy_kernel) const;
 
-template void TypeInfo::Copy<GPUBackend, CPUBackend>(void **dsts,
-    const void **src, const Index *sizes, int n, cudaStream_t stream, bool use_copy_kernel) const;
+template void TypeInfo::Copy<GPUBackend, CPUBackend>(
+    void *dst,
+    std::optional<int> dst_dev_id,
+    const void *src,
+    std::optional<int> src_dev_id,
+    Index n,
+    cudaStream_t stream,
+    bool use_copy_kernel) const;
 
-template void TypeInfo::Copy<GPUBackend, GPUBackend>(void **dsts,
-    const void **src, const Index *sizes, int n, cudaStream_t stream, bool use_copy_kernel) const;
+template void TypeInfo::Copy<GPUBackend, GPUBackend>(
+    void *dst,
+    std::optional<int> dst_dev_id,
+    const void *src,
+    std::optional<int> src_dev_id,
+    Index n,
+    cudaStream_t stream,
+    bool use_copy_kernel) const;
+
+template <typename DstBackend, typename SrcBackend>
+void TypeInfo::Copy(
+      void **dsts,
+      std::optional<int> dst_dev_id,
+      const void** srcs,
+      std::optional<int> src_dev_id,
+      const Index* sizes,
+      int n,
+      cudaStream_t stream,
+      bool use_copy_kernel) const {
+  constexpr bool is_host_to_host = std::is_same<DstBackend, CPUBackend>::value &&
+                                   std::is_same<SrcBackend, CPUBackend>::value;
+  // assume same device if either is not set
+  bool cross_device = src_dev_id && dst_dev_id && *src_dev_id != *dst_dev_id;
+  if (!is_host_to_host && use_copy_kernel && !cross_device) {
+    detail::ScatterGatherCopy(dsts, srcs, sizes, n, size(), stream);
+  } else {
+    for (int i = 0; i < n; i++) {
+      Copy<DstBackend, SrcBackend>(dsts[i], dst_dev_id, srcs[i], src_dev_id, sizes[i], stream);
+    }
+  }
+}
+
+template void TypeInfo::Copy<CPUBackend, CPUBackend>(
+    void **dsts,
+    std::optional<int> dst_dev_id,
+    const void **src,
+    std::optional<int> src_dev_id,
+    const Index *sizes,
+    int n,
+    cudaStream_t stream,
+    bool use_copy_kernel) const;
+
+template void TypeInfo::Copy<CPUBackend, GPUBackend>(
+    void **dsts,
+    std::optional<int> dst_dev_id,
+    const void **src,
+    std::optional<int> src_dev_id,
+    const Index *sizes,
+    int n,
+    cudaStream_t stream,
+    bool use_copy_kernel) const;
+
+template void TypeInfo::Copy<GPUBackend, CPUBackend>(
+    void **dsts,
+    std::optional<int> dst_dev_id,
+    const void **src,
+    std::optional<int> src_dev_id,
+    const Index *sizes,
+    int n,
+    cudaStream_t stream,
+    bool use_copy_kernel) const;
+
+template void TypeInfo::Copy<GPUBackend, GPUBackend>(
+    void **dsts,
+    std::optional<int> dst_dev_id,
+    const void **src,
+    std::optional<int> src_dev_id,
+    const Index *sizes,
+    int n,
+    cudaStream_t stream,
+    bool use_copy_kernel) const;
 
 
 template <typename DstBackend, typename SrcBackend>
-void TypeInfo::Copy(void *dst, const void** srcs, const Index* sizes, int n,
-                    cudaStream_t stream, bool use_copy_kernel) const {
+void TypeInfo::Copy(
+      void *dst,
+      std::optional<int> dst_dev_id,
+      const void** srcs,
+      std::optional<int> src_dev_id,
+      const Index* sizes,
+      int n,
+      cudaStream_t stream,
+      bool use_copy_kernel) const {
   constexpr bool is_host_to_host = std::is_same<DstBackend, CPUBackend>::value &&
                                    std::is_same<SrcBackend, CPUBackend>::value;
-  if (!is_host_to_host && use_copy_kernel) {
+  // assume same device if either is not set
+  bool cross_device = src_dev_id && dst_dev_id && *src_dev_id != *dst_dev_id;
+  if (!is_host_to_host && use_copy_kernel && !cross_device) {
     detail::ScatterGatherCopy(dst, srcs, sizes, n, size(), stream);
   } else {
     auto sample_dst = static_cast<uint8_t*>(dst);
     for (int i = 0; i < n; i++) {
-      Copy<DstBackend, SrcBackend>(sample_dst, srcs[i], sizes[i], stream);
+      Copy<DstBackend, SrcBackend>(sample_dst, dst_dev_id, srcs[i], src_dev_id, sizes[i], stream);
       sample_dst += sizes[i] * size();
     }
   }
 }
 
 
-template void TypeInfo::Copy<CPUBackend, CPUBackend>(void *dst,
-    const void **src, const Index *sizes, int n, cudaStream_t stream, bool use_copy_kernel) const;
+template void TypeInfo::Copy<CPUBackend, CPUBackend>(
+    void *dst,
+    std::optional<int> dst_dev_id,
+    const void **src,
+    std::optional<int> src_dev_id,
+    const Index *sizes,
+    int n,
+    cudaStream_t stream,
+    bool use_copy_kernel) const;
 
-template void TypeInfo::Copy<CPUBackend, GPUBackend>(void *dst,
-    const void **src, const Index *sizes, int n, cudaStream_t stream, bool use_copy_kernel) const;
+template void TypeInfo::Copy<CPUBackend, GPUBackend>(
+    void *dst,
+    std::optional<int> dst_dev_id,
+    const void **src,
+    std::optional<int> src_dev_id,
+    const Index *sizes,
+    int n,
+    cudaStream_t stream,
+    bool use_copy_kernel) const;
 
-template void TypeInfo::Copy<GPUBackend, CPUBackend>(void *dst,
-    const void **src, const Index *sizes, int n, cudaStream_t stream, bool use_copy_kernel) const;
+template void TypeInfo::Copy<GPUBackend, CPUBackend>(
+    void *dst,
+    std::optional<int> dst_dev_id,
+    const void **src,
+    std::optional<int> src_dev_id,
+    const Index *sizes,
+    int n,
+    cudaStream_t stream,
+    bool use_copy_kernel) const;
 
-template void TypeInfo::Copy<GPUBackend, GPUBackend>(void *dst,
-    const void **src, const Index *sizes, int n, cudaStream_t stream, bool use_copy_kernel) const;
+template void TypeInfo::Copy<GPUBackend, GPUBackend>(
+    void *dst,
+    std::optional<int> dst_dev_id,
+    const void **src,
+    std::optional<int> src_dev_id,
+    const Index *sizes,
+    int n,
+    cudaStream_t stream,
+    bool use_copy_kernel) const;
 
 
 template <typename DstBackend, typename SrcBackend>
-void TypeInfo::Copy(void **dsts, const void* src, const Index* sizes, int n,
-                    cudaStream_t stream, bool use_copy_kernel) const {
+void TypeInfo::Copy(
+      void **dsts,
+      std::optional<int> dst_dev_id,
+      const void* src,
+      std::optional<int> src_dev_id,
+      const Index* sizes,
+      int n,
+      cudaStream_t stream,
+      bool use_copy_kernel) const {
   constexpr bool is_host_to_host = std::is_same<DstBackend, CPUBackend>::value &&
                                    std::is_same<SrcBackend, CPUBackend>::value;
-  if (!is_host_to_host && use_copy_kernel) {
+  // assume same device if either is not set
+  bool cross_device = src_dev_id && dst_dev_id && *src_dev_id != *dst_dev_id;
+  if (!is_host_to_host && use_copy_kernel && !cross_device) {
     detail::ScatterGatherCopy(dsts, src, sizes, n, size(), stream);
   } else {
     auto sample_src = reinterpret_cast<const uint8_t*>(src);
     for (int i = 0; i < n; i++) {
-      Copy<DstBackend, SrcBackend>(dsts[i], sample_src, sizes[i], stream);
+      Copy<DstBackend, SrcBackend>(dsts[i], dst_dev_id, sample_src, src_dev_id, sizes[i], stream);
       sample_src += sizes[i] * size();
     }
   }
 }
 
-template void TypeInfo::Copy<CPUBackend, CPUBackend>(void **dsts,
-    const void *src, const Index *sizes, int n, cudaStream_t stream, bool use_copy_kernel) const;
+template void TypeInfo::Copy<CPUBackend, CPUBackend>(
+    void **dsts,
+    std::optional<int> dst_dev_id,
+    const void *src,
+    std::optional<int> src_dev_id,
+    const Index *sizes,
+    int n,
+    cudaStream_t stream,
+    bool use_copy_kernel) const;
 
-template void TypeInfo::Copy<CPUBackend, GPUBackend>(void **dsts,
-    const void *src, const Index *sizes, int n, cudaStream_t stream, bool use_copy_kernel) const;
+template void TypeInfo::Copy<CPUBackend, GPUBackend>(
+    void **dsts,
+    std::optional<int> dst_dev_id,
+    const void *src,
+    std::optional<int> src_dev_id,
+    const Index *sizes,
+    int n,
+    cudaStream_t stream,
+    bool use_copy_kernel) const;
 
-template void TypeInfo::Copy<GPUBackend, CPUBackend>(void **dsts,
-    const void *src, const Index *sizes, int n, cudaStream_t stream, bool use_copy_kernel) const;
+template void TypeInfo::Copy<GPUBackend, CPUBackend>(
+    void **dsts,
+    std::optional<int> dst_dev_id,
+    const void *src,
+    std::optional<int> src_dev_id,
+    const Index *sizes,
+    int n,
+    cudaStream_t stream,
+    bool use_copy_kernel) const;
 
-template void TypeInfo::Copy<GPUBackend, GPUBackend>(void **dsts,
-    const void *src, const Index *sizes, int n, cudaStream_t stream, bool use_copy_kernel) const;
+template void TypeInfo::Copy<GPUBackend, GPUBackend>(
+    void **dsts,
+    std::optional<int> dst_dev_id,
+    const void *src,
+    std::optional<int> src_dev_id,
+    const Index *sizes,
+    int n,
+    cudaStream_t stream,
+    bool use_copy_kernel) const;
 
 }  // namespace dali

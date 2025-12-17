@@ -776,13 +776,17 @@ void TestForceFlagRun(bool ext_src_no_copy, unsigned int flag_to_test, int devic
 
   for (int i = 0; i < prefetch_queue_depth; i++) {
     SequentialFill(TensorListView<StorageCPU, uint8_t>(input_cpu.get(), input_shape), 42 * i);
-    if constexpr (std::is_same_v<TypeParam, CPUBackend>)
+    AccessOrder order;
+    if constexpr (std::is_same_v<TypeParam, CPUBackend>) {
       memcpy(data[i].get(), input_cpu.get(), num_elems);
-    else
+      order = AccessOrder::host();
+    } else {
       MemCopy(data[i].get(), input_cpu.get(), num_elems, cuda_stream);
+      order = AccessOrder(cuda_stream);
+    }
 
     input_wrapper[i].ShareData(std::static_pointer_cast<void>(data[i]), num_elems,
-                               false, input_shape, DALI_UINT8, device_id);
+                               false, input_shape, DALI_UINT8, device_id, order);
     pipe_ptr->SetExternalInput(input_name, input_wrapper[i]);
     if (flag_to_test == DALI_ext_force_no_copy) {
       // for no copy, we just pass the view to data
