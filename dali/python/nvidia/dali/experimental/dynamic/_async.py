@@ -55,7 +55,7 @@ class _Future:
 class _AsyncExecutor:
     """
     Schedule invocation of operators in a background thread.
-    It has less overhead than ThreadPoolExecutor because a stronger guarantees (SCSP):
+    It has less overhead than ThreadPoolExecutor because of stronger guarantees (SCSP):
       - Users shouldn't share eval contexts between threads
       - The executor only starts one thread
     """

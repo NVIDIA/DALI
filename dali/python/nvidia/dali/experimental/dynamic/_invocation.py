@@ -43,8 +43,8 @@ class Invocation:
         self,
         operator_instance: "Operator",
         call_id: Optional[int],
-        inputs: list[Any] = [],
-        args: dict[str, Any] = {},
+        inputs: list[Any] | None = None,
+        args: dict[str, Any] | None = None,
         is_batch: bool = False,
         batch_size: Optional[int] = None,
         previous_invocation: Optional["Invocation"] = None,
@@ -73,8 +73,8 @@ class Invocation:
         """
         self._operator = operator_instance
         self._call_id = call_id
-        self._inputs = inputs
-        self._args = args
+        self._inputs = inputs or []
+        self._args = args or {}
         self._is_batch = is_batch
         self._results: tuple[Any] | None = None
         self._batch_size = batch_size
