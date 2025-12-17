@@ -1,4 +1,4 @@
-// Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -37,6 +37,9 @@ class TensorResizeGPU : public TensorResize<GPUBackend> {
 
 }  // namespace tensor_resize
 
+// Kept for backwards compatibility
 DALI_REGISTER_OPERATOR(experimental__TensorResize, tensor_resize::TensorResizeGPU, GPU);
+
+DALI_REGISTER_OPERATOR(TensorResize, tensor_resize::TensorResizeGPU, GPU);
 
 }  // namespace dali
