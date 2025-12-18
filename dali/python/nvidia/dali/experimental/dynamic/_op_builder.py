@@ -152,6 +152,18 @@ def _argument_type_conversion(dtype_id):
         return None
 
 
+def _get_module_name(module, legacy_op_class):
+    """
+    Replicates behaviour of _names._process_op_name() + _adjust_operator_module()
+    for the dynamic mode - changing the module attribute
+    to prevent Sphinx from autodocing the operator.
+    """
+    module_name = module.__name__
+    if legacy_op_class is not None and legacy_op_class.__module__.endswith("hidden"):
+        module_name += ".hidden"
+    return module_name
+
+
 def build_operator_class(schema):
     """
     Generates an Operator subclass based on a schema, fills the members and implements the __init__
@@ -191,7 +203,7 @@ def build_operator_class(schema):
     op_class._generated = True
     op_class.__init__ = build_constructor(schema, op_class)
     op_class.__call__ = build_call_function(schema, op_class)
-    op_class.__module__ = module.__name__
+    op_class.__module__ = _get_module_name(module, legacy_op_class)
     op_class.__qualname__ = class_name
     op_class._argument_conversion_map = {
         arg: _argument_type_conversion(schema.GetArgumentType(arg))
@@ -583,7 +595,7 @@ def build_fn_wrapper(op):
     function._schema = schema
     function._schema_name = schema.Name()
     function._generated = True
-    function.__module__ = module.__name__
+    function.__module__ = _get_module_name(module, op._legacy_op)
     setattr(module, fn_name, function)
     return function
 
