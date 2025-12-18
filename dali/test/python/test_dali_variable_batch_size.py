@@ -1819,6 +1819,7 @@ tested_methods = [
     "experimental.erode",
     "experimental.filter",
     "decoders.inflate",
+    "experimental.inflate",
     "experimental.median_blur",
     "experimental.peek_image_shape",
     "experimental.remap",
@@ -1949,6 +1950,7 @@ tested_methods = [
 
 excluded_methods = [
     "hidden.*",
+    "experimental.hidden.*",
     "_conditional.hidden.*",
     "multi_paste",  # ToDo - crashes
     "coco_reader",  # readers do not support variable batch size yet
