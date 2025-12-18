@@ -18,8 +18,8 @@
 
 namespace dali {
 
-DALI_SCHEMA(experimental__Inflate)
-    .DocStr(R"code(Inflates/decompresses the input using specified decompression algorithm.
+DALI_SCHEMA(decoders__Inflate)
+    .DocStr(R"code(Decompresses the input using specified decompression algorithm.
 
 The input must be a 1D tensor of bytes (uint8). Passing the `shape` and `dtype` of the
 decompressed samples is required.
@@ -41,7 +41,7 @@ concatenating compressed frames from the corresponding sequences.::
   @pipeline_def
   def inflate_sequence_pipeline():
     compres_seq, uncompres_hwc_shape, compres_chunk_sizes = fn.external_source(...)
-    sequences = fn.experimental.inflate(
+    sequences = fn.decoders.inflate(
         compres_seq.gpu(),
         chunk_sizes=compres_chunk_sizes,  # refers to sizes in ``compres_seq``
         shape=uncompres_hwc_shape,
@@ -86,5 +86,19 @@ The value is ignored if the `layout` is not specified or the input is not a sequ
 ( neither `chunk_offsets` nor `chunk_sizes` is specified).
 )code",
                     TensorLayout("F"));
+
+DALI_SCHEMA(experimental__Inflate)
+    .DocStr("Deprecated alias for :meth:`decoders.inflate`")
+    .NumInput(1)
+    .NumOutput(1)
+    .AddArg(inflate::shapeArgName, "", DALI_INT_VEC, true)
+    .AddOptionalTypeArg(inflate::dTypeArgName, "", DALI_UINT8)
+    .AddOptionalArg<std::vector<int>>(inflate::offsetArgName, "", nullptr, true)
+    .AddOptionalArg<std::vector<int>>(inflate::sizeArgName, "", nullptr, true)
+    .AddOptionalArg(inflate::algArgName, "", "LZ4")
+    .AddOptionalArg(inflate::layoutArgName, "", TensorLayout(""))
+    .AddOptionalArg(inflate::sequenceLayoutArgName, "", TensorLayout("F"))
+    .Deprecate("2.0", "decoders__Inflate")
+    .MakeDocHidden();
 
 }  // namespace dali
