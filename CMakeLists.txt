@@ -146,7 +146,7 @@ cmake_dependent_option(BUILD_NVML "Build with NVIDIA Management Library (NVML) s
 cmake_dependent_option(WITH_DYNAMIC_NVJPEG "Dynamicly load nvJPEG" ON
                       "WITH_DYNAMIC_CUDA_TOOLKIT;BUILD_NVJPEG" OFF)
 cmake_dependent_option(WITH_DYNAMIC_CUFFT "Dynamicly load cuFFT" ON
-                      "WITH_DYNAMIC_CUDA_TOOLKIT" OFF)
+                      "WITH_DYNAMIC_CUDA_TOOLKIT;BUILD_FFTS" OFF)
 cmake_dependent_option(WITH_DYNAMIC_NPP "Dynamicly load npp" ON
                       "WITH_DYNAMIC_CUDA_TOOLKIT" OFF)
 
