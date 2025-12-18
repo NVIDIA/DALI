@@ -12,15 +12,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Optional, Tuple, Union
-from ._type import DType, dtype as _dtype, type_id as _type_id
-from ._device import Device, device as _device
-import nvidia.dali.backend as _backend
-from ._eval_context import EvalContext as _EvalContext
-from . import _eval_mode
-from . import _invocation
 import copy
+from typing import Any, Optional, SupportsInt, Tuple, Union
+
+import nvidia.dali.backend as _backend
 import nvidia.dali.types
+
+from . import _eval_mode, _invocation
+from ._device import Device
+from ._device import device as _device
+from ._eval_context import EvalContext as _EvalContext
+from ._type import DType
+from ._type import dtype as _dtype
+from ._type import type_id as _type_id
 
 
 def _volume(shape: Tuple[int, ...]) -> int:
@@ -461,12 +465,15 @@ class Tensor:
         with _EvalContext.current():
             return np.array(self.cpu().evaluate()._storage).item()
 
-    def __array__(self):
+    def __array__(self, dtype: Any | None = None, copy: bool | None = None):
         b = self.evaluate()._storage
         if isinstance(b, _backend.TensorCPU):
             import numpy as np
 
-            return np.array(b)
+            if np.lib.NumpyVersion(np.__version__) < "2.0.0" and copy is None:
+                copy = False
+
+            return np.array(b, dtype=dtype, copy=copy)
         else:
             raise TypeError("This is not a CPU tensor. Use `.cpu()` to get the array interface.")
 
@@ -476,9 +483,20 @@ class Tensor:
         if isinstance(b, _backend.TensorGPU):
             return b.__cuda_array_interface__
         else:
-            raise TypeError(
+            raise AttributeError(
                 "This is not a GPU tensor. Use `.gpu()` to get the CUDA array interface."
             )
+
+    def __dlpack__(
+        self,
+        stream: SupportsInt | None = None,
+        dl_device: tuple[_backend.DLDeviceType, SupportsInt] | None = None,
+        # TensorCPU and TensorGPU don't accept the copy parameter
+    ):
+        return self.evaluate()._storage.__dlpack__(stream, dl_device)
+
+    def __dlpack_device__(self) -> tuple[_backend.DLDeviceType, int]:
+        return self.evaluate()._storage.__dlpack_device__()
 
     def evaluate(self):
         """
