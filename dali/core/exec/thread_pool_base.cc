@@ -41,8 +41,11 @@ void Job::Wait() {
     if (!result)
       throw std::logic_error("The thread pool was stopped");
   } else {
-    std::unique_lock lock(mtx_);
-    cv_.wait(lock, ready);
+    int old = num_pending_tasks_.load(std::memory_order_acquire);
+    while (old > 0) {
+      num_pending_tasks_.wait(old, std::memory_order_acquire);
+      old = num_pending_tasks_.load(std::memory_order_acquire);
+    }
     waited_for_ = true;
   }
 
@@ -56,6 +59,24 @@ void Job::Wait() {
     std::rethrow_exception(errors[0]);
   else if (errors.size() > 1)
     throw MultipleErrors(std::move(errors));
+}
+
+void Job::Run(ThreadPoolBase &tp, bool wait) {
+  if (started_)
+    throw std::logic_error("This job has already been started.");
+  started_ = true;
+  {
+    auto batch = tp.BulkAdd();
+    for (auto &x : tasks_) {
+      batch.Add(std::move(x.second.func));
+      num_pending_tasks_.fetch_add(1, std::memory_order_acq_rel);
+      // increase after successfully scheduling the task - the value
+      // may hit 0 or go below if the task is done before we increment
+      // the counter, but we don't care if we aren't waiting yet
+    }
+  }
+  if (wait && !tasks_.empty())
+    Wait();
 }
 
 void Job::Scrap() {
@@ -97,12 +118,16 @@ void ThreadPoolBase::Shutdown() {
   assert(tasks_.empty());
 }
 
-void ThreadPoolBase::AddTask(TaskFunc f) {
+void ThreadPoolBase::AddTaskNoLock(TaskFunc &&f) {
+  if (shutdown_pending_)
+    throw std::logic_error("The thread pool is stopped and no longer accepts new tasks.");
+  tasks_.push(std::move(f));
+}
+
+void ThreadPoolBase::AddTask(TaskFunc &&f) {
   {
     std::lock_guard<std::mutex> g(mtx_);
-    if (shutdown_pending_)
-      throw std::logic_error("The thread pool is stopped and no longer accepts new tasks.");
-    tasks_.push(std::move(f));
+    AddTaskNoLock(std::move(f));
   }
   cv_.notify_one();
 }

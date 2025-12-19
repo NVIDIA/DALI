@@ -31,6 +31,8 @@
 
 namespace dali {
 
+class ThreadPoolBase;
+
 /**
  * @brief A collection of tasks, ordered by priority
  *
@@ -55,9 +57,10 @@ class DLL_PUBLIC Job {
         } catch (...) {
           task->error = std::current_exception();
         }
-        if (--num_pending_tasks_ == 0) {
-          std::lock_guard<std::mutex> g(mtx_);
-          cv_.notify_one();
+
+        if (num_pending_tasks_.fetch_sub(1, std::memory_order_release) == 1) {
+          num_pending_tasks_.notify_all();
+          cv_.notify_all();
         }
       };
     } catch (...) {  // if, for whatever reason, we cannot initialize the task, we should erase it
@@ -67,19 +70,9 @@ class DLL_PUBLIC Job {
   }
 
   template <typename Executor>
-  void Run(Executor &executor, bool wait) {
-    if (started_)
-      throw std::logic_error("This job has already been started.");
-    started_ = true;
-    for (auto &x : tasks_) {
-      executor.AddTask(std::move(x.second.func));
-      num_pending_tasks_++;  // increase after successfully scheduling the task - the value
-                             // may hit 0 or go below if the task is done before we increment
-                             // the counter, but we don't care if we aren't waiting yet
-    }
-    if (wait)
-      Wait();
-  }
+  void Run(Executor &executor, bool wait);
+
+  void Run(ThreadPoolBase &tp, bool wait);
 
   void Wait();
 
@@ -117,7 +110,38 @@ class DLL_PUBLIC ThreadPoolBase {
     Shutdown();
   }
 
-  void AddTask(TaskFunc f);
+  void AddTask(TaskFunc &&f);
+
+  void AddTaskNoLock(TaskFunc &&f);
+
+  class TaskBulkAdd {
+   public:
+    void Add(TaskFunc &&f) {
+      if (!lock.owns_lock())
+        lock.lock();
+      owner->AddTaskNoLock(std::move(f));
+      tasks_added++;
+    }
+
+    ~TaskBulkAdd() {
+      if (lock.owns_lock()) {
+        lock.unlock();
+        if (tasks_added > 1)
+          owner->cv_.notify_all();
+        else
+          owner->cv_.notify_one();
+      }
+    }
+   private:
+    friend class ThreadPoolBase;
+    explicit TaskBulkAdd(ThreadPoolBase *o) : owner(o), lock(o->mtx_, std::defer_lock) {}
+    ThreadPoolBase *owner;
+    std::unique_lock<std::mutex> lock;
+    int tasks_added;
+  };
+  friend class TaskBulkAdd;
+
+  TaskBulkAdd BulkAdd() & { return TaskBulkAdd(this); }
 
   /**
    * @brief Returns the thread pool that owns the calling thread (or nullptr)
@@ -167,9 +191,6 @@ class ThreadedExecutionengine {
  public:
   ThreadedExecutionengine(ThreadPool &tp) : tp_(tp) {}  // NOLINT
 
-  /**
-   * @brief Immediately execute a callable object `f` with thread index 0.
-   */
   template <typename FunctionLike>
   void AddWork(FunctionLike &&f, int64_t priority = 0) {
     job_.AddTask(std::forward<FunctionLike>(f), priority);
@@ -192,6 +213,24 @@ class ThreadedExecutionengine {
   Job job_;
 };
 
+template <typename Executor>
+void Job::Run(Executor &executor, bool wait) {
+  if constexpr (std::is_base_of_v<ThreadPoolBase, Executor>) {
+    Run(static_cast<ThreadPoolBase &>(executor), wait);
+  } else {
+    if (started_)
+      throw std::logic_error("This job has already been started.");
+    started_ = true;
+    for (auto &x : tasks_) {
+      executor.AddTask(std::move(x.second.func));
+      num_pending_tasks_++;  // increase after successfully scheduling the task - the value
+                            // may hit 0 or go below if the task is done before we increment
+                            // the counter, but we don't care if we aren't waiting yet
+    }
+    if (wait && !tasks_.empty())
+      Wait();
+  }
+}
 
 }  // namespace dali
 
