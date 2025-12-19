@@ -12,21 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Optional, Union, Sequence
-from ._type import DType, dtype as _dtype
-from ._tensor import (
-    Tensor,
-    _is_full_slice,
-    _try_convert_enums,
-    tensor as _tensor,
-    as_tensor as _as_tensor,
-)
+from typing import Any, Optional, Sequence, Union
+
 import nvidia.dali.backend as _backend
 import nvidia.dali.types as _dali_types
-from ._device import Device, device as _device
-from . import _eval_mode
-from . import _invocation
 import nvtx
+
+from . import _eval_mode, _invocation
+from ._device import Device
+from ._device import device as _device
+from ._tensor import Tensor, _is_full_slice, _try_convert_enums
+from ._tensor import as_tensor as _as_tensor
+from ._tensor import tensor as _tensor
+from ._type import DType
+from ._type import dtype as _dtype
 
 
 def _backend_device(backend: Union[_backend.TensorListCPU, _backend.TensorListGPU]) -> Device:
@@ -382,7 +381,7 @@ class Batch:
 
                 self._assign(cast(self, dtype=dtype, device=device))
 
-        if _eval_mode.EvalMode.current().value >= _eval_mode.EvalMode.eager.value:
+        if _eval_mode.EvalMode.current().value > _eval_mode.EvalMode.eager.value:
             self.evaluate()
 
     def _is_external(self) -> bool:
@@ -615,13 +614,19 @@ class Batch:
 
     def _get_tensor(self, i):
         if self._tensors is None:
-            self._tensors = [None] * self.batch_size
+            self._tensors: list[Tensor | None] = [None] * self.batch_size
 
         t = self._tensors[i]
         if t is None:
-            t = self._tensors[i] = Tensor(batch=self, index_in_batch=i)
+            # Without deferred execution, t.evaluate() requires self._tensors[i] to be assigned
+            # Do assignment and evaluation in two steps
+            with _eval_mode.EvalMode.deferred:
+                t = self._tensors[i] = Tensor(batch=self, index_in_batch=i)
             if self._storage:
                 t._storage = self._storage[i]
+            if _eval_mode.EvalMode.current().value > _eval_mode.EvalMode.eager.value:
+                t.evaluate()
+
         return t
 
     def _plain_slice(self, ranges):
