@@ -21,7 +21,7 @@ import nvidia.dali.types as types
 import glob
 import os
 import random
-from itertools import cycle
+from itertools import cycle, product
 from test_utils import get_dali_extra_path, is_mulit_gpu, skip_if_m60
 from nose2.tools import params
 from nose_utils import SkipTest, attr, assert_raises
@@ -215,7 +215,7 @@ def ref_iter(epochs=1, device="cpu"):
             yield np.array(output[0])
 
 
-@params(("mixed", fn.experimental))
+@params(("mixed", fn.experimental), ("mixed", fn))
 def test_video_decoder(device, module):
     skip_if_m60()
     batch_size = 3
@@ -283,8 +283,8 @@ def test_full_range_video_in_memory(device):
 
 
 @attr("multi_gpu")
-@params("cpu", "mixed")
-def test_multi_gpu_video(device):
+@params(*product(["cpu", "mixed"], [fn.experimental.decoders.video, fn.decoders.video]))
+def test_multi_gpu_video(device, decoder):
     skip_if_m60()
     if not is_mulit_gpu():
         raise SkipTest()
@@ -308,7 +308,7 @@ def test_multi_gpu_video(device):
     @pipeline_def
     def test_pipeline():
         vid = fn.external_source(device="cpu", source=input_gen(batch_size))
-        seq = fn.experimental.decoders.video(vid, device=device)
+        seq = decoder(vid, device=device)
         return seq
 
     video_pipeline_0 = test_pipeline(batch_size=1, num_threads=1, device_id=0)
@@ -353,8 +353,8 @@ def test_source_info(device):
         samples_read += batch_size
 
 
-@params("cpu", "mixed")
-def test_error_source_info(device):
+@params(*product(["cpu", "mixed"], [fn.experimental.decoders.video, fn.decoders.video]))
+def test_error_source_info(device, decoder):
     skip_if_m60()
     error_file = "README.txt"
     filenames = os.path.join(get_dali_extra_path(), "db/video/cfr/", error_file)
@@ -362,7 +362,7 @@ def test_error_source_info(device):
     @pipeline_def
     def test_pipeline():
         data, _ = fn.readers.file(files=filenames)
-        return fn.experimental.decoders.video(data, device=device)
+        return decoder(data, device=device)
 
     batch_size = 4
     p = test_pipeline(batch_size=batch_size, num_threads=1, device_id=0)
@@ -372,34 +372,61 @@ def test_error_source_info(device):
 
 @params(
     # Test case 1: Constant frame rate video with sequence_length
-    *[(device, 3, cfr_files, 5, 3, 1, None, True) for device in ["cpu", "mixed"]],
+    *[
+        (device, 3, cfr_files, 5, 3, 1, None, True, decoder)
+        for device in ["cpu", "mixed"]
+        for decoder in [fn.experimental.decoders.video, fn.decoders.video]
+    ],
     # Test case 2: Variable frame rate video with sequence_length
-    *[(device, 3, vfr_files, 0, 4, 2, None, True) for device in ["cpu", "mixed"]],
+    *[
+        (device, 3, vfr_files, 0, 4, 2, None, True, decoder)
+        for device in ["cpu", "mixed"]
+        for decoder in [fn.experimental.decoders.video, fn.decoders.video]
+    ],
     # Test case 3: Constant frame rate video with sequence_length and padding
     *[
-        (device, 3, cfr_files, 0, 10, 11, pad_mode, True)
+        (device, 3, cfr_files, 0, 10, 11, pad_mode, True, decoder)
         for device in ["cpu", "mixed"]
         for pad_mode in ["constant", "edge", "symmetric", "reflect"]
+        for decoder in [fn.experimental.decoders.video, fn.decoders.video]
     ],
     # Test case 4: Constant frame rate video with end_frame
-    *[(device, 3, cfr_files, 5, 8, 1, None, False) for device in ["cpu", "mixed"]],
+    *[
+        (device, 3, cfr_files, 5, 8, 1, None, False, decoder)
+        for device in ["cpu", "mixed"]
+        for decoder in [fn.experimental.decoders.video, fn.decoders.video]
+    ],
     # Test case 5: Variable frame rate video with end_frame
-    *[(device, 3, vfr_files, 0, 8, 2, None, False) for device in ["cpu", "mixed"]],
+    *[
+        (device, 3, vfr_files, 0, 8, 2, None, False, decoder)
+        for device in ["cpu", "mixed"]
+        for decoder in [fn.experimental.decoders.video, fn.decoders.video]
+    ],
     # Test case 6: Constant frame rate video with end_frame and padding
     *[
-        (device, 3, cfr_files, 0, 110, 11, pad_mode, False)
+        (device, 3, cfr_files, 0, 110, 11, pad_mode, False, decoder)
         for device in ["cpu", "mixed"]
         for pad_mode in ["constant", "edge", "symmetric", "reflect"]
+        for decoder in [fn.experimental.decoders.video, fn.decoders.video]
     ],
     # Test case 7: Random parameters for both sequence_length and end_frame
     *[
-        (device, 3, cfr_files, "random", "random", "random", None, use_seq_len)
+        (device, 3, cfr_files, "random", "random", "random", None, use_seq_len, decoder)
         for device in ["cpu", "mixed"]
         for use_seq_len in [True, False]
+        for decoder in [fn.experimental.decoders.video, fn.decoders.video]
     ],
 )
 def test_video_decoder_frame_start_end_stride(
-    device, batch_size, filenames, start_frame, length_or_end, stride, pad_mode, use_sequence_length
+    device,
+    batch_size,
+    filenames,
+    start_frame,
+    length_or_end,
+    stride,
+    pad_mode,
+    use_sequence_length,
+    decoder,
 ):
     skip_if_m60()
     num_iters = 1
@@ -416,7 +443,7 @@ def test_video_decoder_frame_start_end_stride(
     @pipeline_def
     def test_pipeline():
         encoded = fn.external_source(source=get_batch, device="cpu")
-        reference = fn.experimental.decoders.video(encoded, device=device)
+        reference = decoder(encoded, device=device)
 
         start_frame_arg = (
             fn.random.uniform(range=(0, 5), dtype=types.INT32)
@@ -436,7 +463,7 @@ def test_video_decoder_frame_start_end_stride(
             fn.random.uniform(range=(1, 4), dtype=types.INT32) if stride == "random" else stride
         )
 
-        decoded = fn.experimental.decoders.video(
+        decoded = decoder(
             encoded,
             device=device,
             start_frame=start_frame_arg,
@@ -474,22 +501,43 @@ def test_video_decoder_frame_start_end_stride(
 
 @params(
     # Test single constant frame rate video with simple frame indices
-    *[(device, 3, cfr_files, [0, 5, 10], "none") for device in ["cpu", "mixed"]],
+    *[
+        (device, 3, cfr_files, [0, 5, 10], "none", decoder)
+        for device in ["cpu", "mixed"]
+        for decoder in [fn.experimental.decoders.video, fn.decoders.video]
+    ],
     # Test multiple variable frame rate videos with non-sequential frames
-    *[(device, 3, vfr_files, [2, 4, 8], "none") for device in ["cpu", "mixed"]],
+    *[
+        (device, 3, vfr_files, [2, 4, 8], "none", decoder)
+        for device in ["cpu", "mixed"]
+        for decoder in [fn.experimental.decoders.video, fn.decoders.video]
+    ],
     # Test single constant frame rate video with non-monotonic frame indices
-    *[(device, 3, cfr_files, [0, 5, 10, 8, 7, 6], "none") for device in ["cpu", "mixed"]],
+    *[
+        (device, 3, cfr_files, [0, 5, 10, 8, 7, 6], "none", decoder)
+        for device in ["cpu", "mixed"]
+        for decoder in [fn.experimental.decoders.video, fn.decoders.video]
+    ],
     # Test single constant frame rate video with repeated frame indices
-    *[(device, 3, cfr_files, [0, 5, 10, 8, 10, 5, 0, 0], "none") for device in ["cpu", "mixed"]],
+    *[
+        (device, 3, cfr_files, [0, 5, 10, 8, 10, 5, 0, 0], "none", decoder)
+        for device in ["cpu", "mixed"]
+        for decoder in [fn.experimental.decoders.video, fn.decoders.video]
+    ],
     # Test multiple constant frame rate videos with random indices
-    *[(device, 3, cfr_files, None, "none") for device in ["cpu", "mixed"]],
+    *[
+        (device, 3, cfr_files, None, "none", decoder)
+        for device in ["cpu", "mixed"]
+        for decoder in [fn.experimental.decoders.video, fn.decoders.video]
+    ],
     # Test out of bounds frame indices
     *[
-        (device, 3, cfr_files, [0, 100, 1, 100, 2, 100, 3, 100], "constant")
+        (device, 3, cfr_files, [0, 100, 1, 100, 2, 100, 3, 100], "constant", decoder)
         for device in ["cpu", "mixed"]
+        for decoder in [fn.experimental.decoders.video, fn.decoders.video]
     ],
 )
-def test_video_decoder_frame_indices(device, batch_size, filenames, frames, pad_mode):
+def test_video_decoder_frame_indices(device, batch_size, filenames, frames, pad_mode, decoder):
     skip_if_m60()
     num_iters = 1
     batch = []
@@ -505,13 +553,13 @@ def test_video_decoder_frame_indices(device, batch_size, filenames, frames, pad_
     @pipeline_def
     def test_pipeline():
         encoded = fn.external_source(source=get_batch, device="cpu")
-        reference = fn.experimental.decoders.video(encoded, device=device)
+        reference = decoder(encoded, device=device)
         if frames is None:
             frames_shape = fn.random.uniform(range=(1, 10), shape=(1,), dtype=types.INT32)
             frames_arg = fn.random.uniform(range=(0, 10), shape=frames_shape, dtype=types.INT32)
         else:
             frames_arg = frames
-        decoded = fn.experimental.decoders.video(
+        decoded = decoder(
             encoded, device=device, frames=frames_arg, pad_mode=pad_mode, fill_value=fill_value
         )
         return (reference, decoded, frames_arg)
@@ -543,11 +591,19 @@ def test_video_decoder_frame_indices(device, batch_size, filenames, frames, pad_
 
 @params(
     # Test single constant frame rate video with start_frame near the end
-    *[(device, 3, cfr_files, 1, 1000) for device in ["cpu", "mixed"]],
+    *[
+        (device, 3, cfr_files, 1, 1000, decoder)
+        for device in ["cpu", "mixed"]
+        for decoder in [fn.experimental.decoders.video, fn.decoders.video]
+    ],
     # Test multiple variable frame rate videos with large stride
-    *[(device, 3, vfr_files, 2, 1000) for device in ["cpu", "mixed"]],
+    *[
+        (device, 3, vfr_files, 2, 1000, decoder)
+        for device in ["cpu", "mixed"]
+        for decoder in [fn.experimental.decoders.video, fn.decoders.video]
+    ],
 )
-def test_video_decoder_no_padding(device, batch_size, filenames, stride, sequence_length):
+def test_video_decoder_no_padding(device, batch_size, filenames, stride, sequence_length, decoder):
     skip_if_m60()
     batch = []
     for i in range(batch_size):
@@ -561,9 +617,9 @@ def test_video_decoder_no_padding(device, batch_size, filenames, stride, sequenc
     def test_pipeline():
         encoded = fn.external_source(source=get_batch, device="cpu")
         # Get full video first as reference
-        reference = fn.experimental.decoders.video(encoded, device=device, stride=stride)
+        reference = decoder(encoded, device=device, stride=stride)
         # Request frames that would exceed video length
-        decoded = fn.experimental.decoders.video(
+        decoded = decoder(
             encoded,
             device=device,
             stride=stride,
@@ -582,8 +638,8 @@ def test_video_decoder_no_padding(device, batch_size, filenames, stride, sequenc
         compare_videos(ref, actual)
 
 
-@params("cpu", "mixed")
-def test_incompatible_args(device):
+@params(*product(["cpu", "mixed"], [fn.experimental.decoders.video, fn.decoders.video]))
+def test_incompatible_args(device, decoder):
     skip_if_m60()
     batch = []
     with open(cfr_files[0], "rb") as f:
@@ -598,7 +654,7 @@ def test_incompatible_args(device):
         frames=None, start_frame=None, stride=None, sequence_length=None, end_frame=None
     ):
         encoded = fn.external_source(source=get_batch, device="cpu")
-        decoded = fn.experimental.decoders.video(
+        decoded = decoder(
             encoded,
             device=device,
             frames=frames,
@@ -652,8 +708,8 @@ def test_incompatible_args(device):
             pipe.build()
 
 
-@params("cpu", "mixed")
-def test_multichannel_fill_value(device):
+@params(*product(["cpu", "mixed"], [fn.experimental.decoders.video, fn.decoders.video]))
+def test_multichannel_fill_value(device, decoder):
     skip_if_m60()
     batch = []
     batch_size = 3
@@ -670,13 +726,13 @@ def test_multichannel_fill_value(device):
     @pipeline_def
     def test_pipeline():
         encoded = fn.external_source(source=get_batch, device="cpu")
-        decoded0 = fn.experimental.decoders.video(
+        decoded0 = decoder(
             encoded,
             stride=10,
             device=device,
             pad_mode="none",
         )
-        decoded1 = fn.experimental.decoders.video(
+        decoded1 = decoder(
             encoded,
             device=device,
             stride=10,
@@ -786,7 +842,7 @@ def compare_frames(frame, ref_frame, frame_idx, diff_step=2, threshold=0.03):
 
 @params(
     *[
-        (device, codec, start_frame, sequence_length, end_frame, stride)
+        (device, codec, start_frame, sequence_length, end_frame, stride, decoder)
         for device in ["cpu", "mixed"]
         for codec in ["h264", "hevc", "vp8", "vp9", "av1", "mpeg4"]
         for start_frame, sequence_length, end_frame, stride in [
@@ -794,10 +850,11 @@ def compare_frames(frame, ref_frame, frame_idx, diff_step=2, threshold=0.03):
             (5, 3, None, 2),  # start_frame, sequence_length and stride
             (5, None, 10, 2),  # start_frame, end_frame and stride
         ]
+        for decoder in [fn.experimental.decoders.video, fn.decoders.video]
     ]
 )
 def test_decoder_operator_codec_support(
-    device, codec, start_frame, sequence_length, end_frame, stride
+    device, codec, start_frame, sequence_length, end_frame, stride, decoder
 ):
     skip_if_m60()
     filenames = codec_files[codec]
@@ -823,7 +880,7 @@ def test_decoder_operator_codec_support(
     @pipeline_def
     def decoder_pipeline():
         files = fn.external_source(source=get_batch)
-        videos = fn.experimental.decoders.video(
+        videos = decoder(
             files,
             device=device,
             start_frame=start_frame,

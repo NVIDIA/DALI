@@ -1,4 +1,4 @@
-# Copyright (c) 2023-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2023-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -66,7 +66,7 @@ def create_sample_source(shapes, dtype):
 
 
 @pipeline_def
-def images_pipeline(dev, shapes, border, in_dtype, mode):
+def images_pipeline(dev, shapes, border, in_dtype, mode, filter_op):
     images, _ = fn.readers.file(
         name="Reader", file_root=images_dir, prefetch_queue_depth=2, random_shuffle=True, seed=42
     )
@@ -81,18 +81,18 @@ def images_pipeline(dev, shapes, border, in_dtype, mode):
     fill_val_limit = 1 if not np.issubdtype(in_dtype, np.integer) else np.iinfo(in_dtype).max
     fill_values = fn.random.uniform(range=[0, fill_val_limit], dtype=np_type_to_dali(in_dtype))
     if border == "constant":
-        convolved = fn.experimental.filter(
+        convolved = filter_op(
             images, filters, fill_values, anchor=anchors, border=border, mode=mode
         )
     else:
-        convolved = fn.experimental.filter(
-            images, filters, anchor=anchors, border=border, mode=mode
-        )
+        convolved = filter_op(images, filters, anchor=anchors, border=border, mode=mode)
     return convolved, images, filters, anchors, fill_values
 
 
 @pipeline_def
-def sample_pipeline(sample_shapes, sample_layout, filter_shapes, border, in_dtype, mode, dev):
+def sample_pipeline(
+    sample_shapes, sample_layout, filter_shapes, border, in_dtype, mode, dev, filter_op
+):
     samples = fn.external_source(
         source=create_sample_source(sample_shapes, in_dtype), batch=False, layout=sample_layout
     )
@@ -107,13 +107,11 @@ def sample_pipeline(sample_shapes, sample_layout, filter_shapes, border, in_dtyp
     fill_values = fn.cast_like(fill_values, samples)
     in_samples = samples.gpu() if dev == "gpu" else samples
     if border == "constant":
-        convolved = fn.experimental.filter(
+        convolved = filter_op(
             in_samples, filters, fill_values, anchor=anchors, border=border, mode=mode
         )
     else:
-        convolved = fn.experimental.filter(
-            in_samples, filters, anchor=anchors, border=border, mode=mode
-        )
+        convolved = filter_op(in_samples, filters, anchor=anchors, border=border, mode=mode)
     return convolved, samples, filters, anchors, fill_values
 
 
@@ -121,8 +119,8 @@ def sample_pipeline(sample_shapes, sample_layout, filter_shapes, border, in_dtyp
 @attr("scipy")
 @params(
     *tuple(
-        (dev,) + params
-        for dev, params in itertools.product(
+        (dev,) + params + (filter_op,)
+        for dev, params, filter_op in itertools.product(
             ["cpu", "gpu"],
             [
                 (np.uint8, 16, "101", "same"),
@@ -139,11 +137,12 @@ def sample_pipeline(sample_shapes, sample_layout, filter_shapes, border, in_dtyp
                 (np.uint8, 4, "constant", "valid"),
                 (np.float32, 7, "101", "valid"),
             ],
+            [fn.experimental.filter, fn.filter],
         )
         if dev != "cpu" or params[0] != np.int8
     )
 )
-def test_image_pipeline(dev, dtype, batch_size, border, mode):
+def test_image_pipeline(dev, dtype, batch_size, border, mode, filter_op):
     shapes = [
         (3, 3),
         (8, 8),
@@ -168,6 +167,7 @@ def test_image_pipeline(dev, dtype, batch_size, border, mode):
         shapes=shapes,
         mode=mode,
         dev=dev,
+        filter_op=filter_op,
     )
     atol = 1 if np.issubdtype(dtype, np.integer) else 1e-5
     for _ in range(num_iters):
@@ -326,9 +326,15 @@ sample_3d_cases = (
 
 @attr("scipy")
 @attr("slow")
-@params(*(sample_2d_cases + sample_3d_cases))
+@params(
+    *tuple(
+        case + (filter_op,)
+        for case in (sample_2d_cases + sample_3d_cases)
+        for filter_op in [fn.experimental.filter, fn.filter]
+    )
+)
 def slow_test_samples(
-    dev, dtype, sample_layout, sample_shapes, filter_shapes, batch_size, border, mode
+    dev, dtype, sample_layout, sample_shapes, filter_shapes, batch_size, border, mode, filter_op
 ):
     num_iters = 2
 
@@ -343,6 +349,7 @@ def slow_test_samples(
         in_dtype=dtype,
         mode=mode,
         dev=dev,
+        filter_op=filter_op,
     )
     if dtype == np.float32:
         atol = 1e-5

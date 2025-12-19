@@ -134,6 +134,9 @@ class DebayerCPU : public Debayer<CPUBackend> {
   }
 };
 
+// Kept for backwards compatibility
 DALI_REGISTER_OPERATOR(experimental__Debayer, DebayerCPU, CPU);
+
+DALI_REGISTER_OPERATOR(Debayer, DebayerCPU, CPU);
 
 }  // namespace dali

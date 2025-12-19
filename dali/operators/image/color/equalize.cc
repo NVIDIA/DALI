@@ -1,4 +1,4 @@
-// Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2023-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -22,7 +22,7 @@
 
 namespace dali {
 
-DALI_SCHEMA(experimental__Equalize)
+DALI_SCHEMA(Equalize)
     .DocStr(R"code(Performs grayscale/per-channel histogram equalization.
 
 The supported inputs are images and videos of uint8_t type.)code")
@@ -30,6 +30,22 @@ The supported inputs are images and videos of uint8_t type.)code")
     .NumOutput(1)
     .InputLayout(0, {"HW", "HWC", "CHW", "FHW", "FHWC", "FCHW"})
     .AllowSequences();
+
+// Deprecated alias
+DALI_SCHEMA(experimental__Equalize)
+    .AddParent("Equalize")
+    .DocStr("Legacy alias for :meth:`equalize`.")
+    .NumInput(1)
+    .NumOutput(1)
+    .MakeDocHidden()
+    .InputLayout(0, {"HW", "HWC", "CHW", "FHW", "FHWC", "FCHW"})
+    .AllowSequences()
+    .Deprecate(
+        "2.0",
+        "Equalize",
+        "This operator was moved out from the experimental phase, "
+        "and is now a regular DALI operator. This is just a deprecated "
+        "alias kept for backward compatibility.");
 
 namespace equalize {
 
@@ -100,6 +116,9 @@ class EqualizeCPU : public Equalize<CPUBackend> {
 
 }  // namespace equalize
 
+// Kept for backwards compatibility
 DALI_REGISTER_OPERATOR(experimental__Equalize, equalize::EqualizeCPU, CPU);
+
+DALI_REGISTER_OPERATOR(Equalize, equalize::EqualizeCPU, CPU);
 
 }  // namespace dali
