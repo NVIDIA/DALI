@@ -97,7 +97,7 @@ def _test_sample_inflate(op, batch_size, np_dtype, seed):
 
             def sample(sample_size):
                 start = (sample_size - 1) * sample_size // 2
-                sample = np.arange(start, start + sample_size, dtype=np_dtype)
+                sample = np.arange(start, start + sample_size, dtype=np.int64).astype(np_dtype)
                 return sample, sample_to_lz4(sample)
 
             samples, deflated = list(zip(*[sample(sample_size) for sample_size in sample_sizes]))

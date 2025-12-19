@@ -519,17 +519,10 @@ class CudaHttpPackage(CudaPackage):
 
 all_packages = [
     PlainPackage(
-        "numpy",
-        [
-            PckgVer(">=2"),
-        ],
-    ),
-    PlainPackage(
         "jupyter",
         [
             PckgVer(
                 "1.1.1",
-                dependencies=["numpy<2"],
                 # Free-threaded Python build is incompatible with numpy<2.
                 python_free_threaded=False,
             ),
@@ -540,7 +533,6 @@ all_packages = [
         [
             PckgVer(
                 "4.12.0.88",
-                dependencies=["numpy<2"],
                 # Free-threaded Python build is incompatible with numpy<2.
                 python_free_threaded=False,
             )
@@ -582,7 +574,6 @@ all_packages = [
                         "protobuf<4",
                         "urllib3<2.0",
                         "tf_keras==2.19",
-                        "numpy<2",
                     ],
                     # Free-threaded Python build is incompatible with numpy<2.
                     python_free_threaded=False,
@@ -596,7 +587,6 @@ all_packages = [
                         "protobuf",
                         "urllib3<2.0",
                         "tf_keras==2.20",
-                        "numpy<2",
                     ],
                     # Free-threaded Python build is incompatible with numpy<2.
                     python_free_threaded=False,
@@ -662,7 +652,6 @@ all_packages = [
         [
             PckgVer(
                 "0.7.4",
-                dependencies=["numpy<2"],
                 # Free-threaded Python build is incompatible with numpy<2.
                 python_free_threaded=False,
                 constraints=["jax==0.4.16"],
@@ -674,7 +663,6 @@ all_packages = [
         [
             PckgVer(
                 "0.0.12",
-                dependencies=["numpy<2"],
                 # Free-threaded Python build is incompatible with numpy<2.
                 python_free_threaded=False,
                 constraints=["jax==0.4.16"],
@@ -694,9 +682,8 @@ all_packages = [
                     python_free_threaded=False,
                 ),
                 PckgVer(
-                    "0.61.2",
+                    "0.63.1",
                     python_min_ver="3.10",
-                    dependencies=["numpy<2"],
                     # Free-threaded Python build is incompatible with numpy<2.
                     python_free_threaded=False,
                 ),
