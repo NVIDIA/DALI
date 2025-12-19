@@ -25,11 +25,11 @@ RUN apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/
     libtool-bin \
     autogen \
     zip \
-    python3.9 python3.9-dev \
     python3.10 python3.10-dev \
     python3.11 python3.11-dev \
     python3.12 python3.12-dev \
-    python3.13 python3.13-dev python3.13-nogil && \
+    python3.13 python3.13-dev python3.13-nogil \
+    python3.14 python3.14-dev python3.14-nogil && \
     apt-key adv --fetch-key http://repo.download.nvidia.com/jetson/jetson-ota-public.asc && \
     add-apt-repository 'deb https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/cross-linux-aarch64/ /' && \
     apt-get update && \
@@ -96,7 +96,7 @@ RUN /bin/bash -c 'DALI_DEPS_VERSION_SHA=${DALI_DEPS_VERSION_SHA:-$(cat /tmp/DALI
 
 # hack - install cross headers in the default python paths, so host python3-config would point to them
 #        free-threaded sources are included in 3.13.0
-RUN export PYVERS="3.9.0 3.10.0 3.11.0 3.12.0 3.13.0" && \
+RUN export PYVERS="3.10.0 3.11.0 3.12.0 3.13.0 3.14.0" && \
     for PYVER in ${PYVERS}; do \
         cd /tmp && (curl -L https://www.python.org/ftp/python/${PYVER}/Python-${PYVER}.tgz | tar -xzf - || exit 1) && \
         rm -rf *.tgz && cd Python*                                                                     && \
@@ -105,6 +105,14 @@ RUN export PYVERS="3.9.0 3.10.0 3.11.0 3.12.0 3.13.0" && \
             --build=x86_64-pc-linux-gnu --host=aarch64-linux-gnu --prefix=/usr/                           \
             --with-build-python=python${PYVER%.*}                                                      && \
         make -j"$(grep ^processor /proc/cpuinfo | wc -l)" inclinstall                                  && \
+        if [ "$(printf '%s\n' "$PYVER" "3.13.0" | sort -V | head -n1)" = "3.13.0" ]; then                 \
+            make clean                                                                                 && \
+            ./configure --disable-ipv6 ac_cv_file__dev_ptmx=no ac_cv_file__dev_ptc=no                     \
+                --disable-shared CC=aarch64-linux-gnu-gcc CXX=aarch64-linux-gnu-g++                       \
+                --build=x86_64-pc-linux-gnu --host=aarch64-linux-gnu --disable-gil --prefix=/usr/         \
+                --with-build-python=python${PYVER%.*}                                                  && \
+            make -j"$(grep ^processor /proc/cpuinfo | wc -l)" inclinstall;                                \
+        fi                                                                                             && \
         cd / && rm -rf /tmp/Python*;                                                                      \
     done                                                                                               && \
     # hack - patch the host pythonX-config to return --extension-suffix for the target
