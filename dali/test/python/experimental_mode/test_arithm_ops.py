@@ -17,6 +17,7 @@ import itertools
 import numpy as np
 import nvidia.dali.experimental.dynamic as ndd
 from nose2.tools import params
+from nose_utils import assert_raises
 from test_tensor import asnumpy
 
 
@@ -131,3 +132,12 @@ def test_binary_scalars(device: str, op: str, batch_size: int | None):
         if not np.allclose(result.cpu(), ref):
             msg = f"{tensor} {op} {scalar} = \n{result}\n!=\n{ref}"
             raise AssertionError(msg)
+
+
+@params(*binary_ops)
+def test_incompatible_devices(op: str):
+    a = ndd.tensor([1, 2, 3], device="cpu")
+    b = ndd.tensor([4, 5, 6], device="gpu")
+
+    with assert_raises(ValueError, regex="[CG]PU and [CG]PU"):
+        apply_bin_op(op, a, b)
