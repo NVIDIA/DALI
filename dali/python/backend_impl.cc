@@ -1609,8 +1609,8 @@ void ExposeTesorListGPU(py::module &m) {
       R"code(
       List of tensors residing in the GPU memory.
       )code")
-    .def_static("broadcast", [](const Tensor<CPUBackend> &t, int num_samples) {
-        return std::make_shared<TensorList<CPUBackend>>(t, num_samples);
+    .def_static("broadcast", [](const Tensor<GPUBackend> &t, int num_samples) {
+        return std::make_shared<TensorList<GPUBackend>>(t, num_samples);
       })
     .def("as_cpu", [](TensorList<GPUBackend> &t) {
           DeviceGuard g(t.device_id());
