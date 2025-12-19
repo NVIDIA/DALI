@@ -1,4 +1,4 @@
-# Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@ import nvidia.dali.types as _dali_types
 import nvtx
 
 from . import _eval_mode, _invocation
+from ._arithmetic import _arithm_op
 from ._device import Device
 from ._device import device as _device
 from ._tensor import Tensor, _is_full_slice, _try_convert_enums
@@ -94,36 +95,6 @@ class BatchedSlice:
         from . import _tensor_subscript
 
         return _tensor_subscript(self._batch, **args)
-
-
-def _arithm_op(name, *args, **kwargs):
-    from . import _arithmetic_generic_op
-
-    argsstr = " ".join(f"&{i}" for i in range(len(args)))
-    gpu = False
-    new_args = [None] * len(args)
-    for i, a in enumerate(args):
-        if isinstance(a, (Batch, Tensor)):
-            if a.device.device_type == "gpu":
-                gpu = True
-        else:
-            # TODO(michalz): We might use some caching here for common values.
-            if new_args is None:
-                new_args = list(args)
-            if gpu:
-                new_args[i] = _as_tensor(a, device="gpu")
-            else:
-                new_args[i] = _as_tensor(a)
-                if new_args[i].device.device_type == "gpu":
-                    gpu = True
-
-    for i in range(len(args)):
-        if new_args[i] is None:
-            if (args[i].device.device_type == "gpu") != gpu:
-                raise ValueError("Cannot mix GPU and CPU inputs.")
-            new_args[i] = args[i]
-
-    return _arithmetic_generic_op(*new_args, expression_desc=f"{name}({argsstr})")
 
 
 class _TensorList:

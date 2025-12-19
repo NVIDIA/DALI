@@ -1,4 +1,4 @@
-# Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,10 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import itertools
+
+import numpy as np
 import nvidia.dali.experimental.dynamic as ndd
 from nose2.tools import params
-import numpy as np
-import itertools
 from test_tensor import asnumpy
 
 
@@ -102,4 +103,31 @@ def test_unary_ops(device, op):
         ref_y = apply_un_op(op, ref_x)
         if not np.array_equal(asnumpy(y), ref_y):
             msg = f"{ref_x} {op} = \n{asnumpy(y)}\n!=\n{ref_y}"
+            raise AssertionError(msg)
+
+
+@params(*itertools.product(["gpu", "cpu"], binary_ops, (None, 4)))
+def test_binary_scalars(device: str, op: str, batch_size: int | None):
+    tensors = [
+        np.array([[1, 2, 3], [4, 5, 6]]),
+        np.array([[1], [2], [3]]),
+        np.array([[1, 2, 3], [4, 5, 6]]),
+    ]
+    scalars = [3, [4, 5, 6]]
+
+    for tensor, scalar in itertools.product(tensors, scalars):
+        if op == "/":
+            tensor = tensor.astype(np.float32)
+
+        if batch_size is None:
+            x = ndd.as_tensor(tensor, device=device)
+        else:
+            x = ndd.Batch.broadcast(tensor, batch_size=batch_size, device=device)
+
+        result = ndd.as_tensor(apply_bin_op(op, x, scalar))
+        ref = apply_bin_op(op, tensor, scalar)
+
+        # np.allclose supports broadcasting
+        if not np.allclose(result.cpu(), ref):
+            msg = f"{tensor} {op} {scalar} = \n{result}\n!=\n{ref}"
             raise AssertionError(msg)
