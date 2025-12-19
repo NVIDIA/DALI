@@ -13,21 +13,22 @@
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 #
 # sys.path.insert(0, os.path.abspath('..'))
+import inspect
+import json
 import os
-import sys
-from sphinx.ext.autodoc.mock import mock
-from sphinx.ext.autodoc import between, ClassDocumenter, AttributeDocumenter
-from builtins import str
-from enum import Enum
 import re
 import subprocess
-from pathlib import Path
-from datetime import date
-import json
-from packaging.version import Version
-import httplib2
-import inspect
+import sys
 import warnings
+from builtins import str
+from datetime import date
+from enum import Enum
+from pathlib import Path
+
+import httplib2
+from packaging.version import Version
+from sphinx.ext.autodoc import AttributeDocumenter, ClassDocumenter, between
+from sphinx.ext.autodoc.mock import mock
 
 # -- Project information -----------------------------------------------------
 
@@ -112,6 +113,11 @@ with mock(["torch", "numba"]):
         [],
     )
 
+    # Generate mode variants manifest for pipeline/dynamic mode toggle
+    import generate_mode_manifest
+
+    generate_mode_manifest.generate(Path("_static/mode_variants.json"))
+
 # Uncomment to keep warnings in the output. Useful for verbose build and output debugging.
 # keep_warnings = True
 
@@ -152,6 +158,7 @@ extensions = [
     "sphinx.ext.intersphinx",
     "sphinx.ext.autosectionlabel",
     "sphinx_paramlinks",
+    "sphinx_design",
 ]
 
 # https://stackoverflow.com/questions/67473396/shorten-display-format-of-python-type-annotations-in-sphinx
@@ -257,6 +264,10 @@ html_theme_options.update(
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = ["_static"]
+
+# Custom JS/CSS for mode toggle (pipeline/dynamic mode switching)
+html_js_files = ["mode_toggle.js"]
+html_css_files = ["mode_toggle.css"]
 
 switcher_path = os.path.join(html_static_path[0], "switcher.json")
 versions = []
