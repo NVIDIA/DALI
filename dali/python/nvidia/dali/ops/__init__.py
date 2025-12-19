@@ -729,6 +729,10 @@ def _load_ops():
         # with register_xxx_op(). Now it relies on those class being present in this module
         # at the time of registration.
         schema = _b.TryGetSchema(op_reg_name)
+        # The ops that should be hidden from the documentation land in hidden module,
+        # and are rexported in the original module, making the actual module and
+        # the __module__ attribute mismatch.
+        # This prevents Sphinx from autodocing the operator.
         make_hidden = schema.IsDocHidden() if schema else False
         _, submodule, op_name = _process_op_name(op_reg_name, make_hidden)
         module = _internal.get_submodule(ops_module, submodule)
