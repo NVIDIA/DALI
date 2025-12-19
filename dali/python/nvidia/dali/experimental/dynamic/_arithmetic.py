@@ -17,7 +17,7 @@ from typing import Any, SupportsFloat, SupportsInt
 
 
 def _implicitly_convertible(value: Any):
-    return isinstance(value, SupportsInt | SupportsFloat | list | tuple)
+    return isinstance(value, (SupportsInt, SupportsFloat, list, tuple))
 
 
 def _arithm_op(name: str, *args):
@@ -27,20 +27,18 @@ def _arithm_op(name: str, *args):
 
     # scalar arguments are turned into tensors
     argsstr = " ".join(f"&{i}" for i in range(len(args)))
-    gpu = False
+    gpu = any(arg.device.device_type == "gpu" for arg in args if isinstance(arg, (Tensor, Batch)))
 
-    new_args: list[Tensor | Batch] = []
-    for i, arg in enumerate(args):
-        if not isinstance(arg, Tensor | Batch):
+    new_args = []
+    for arg in args:
+        if not isinstance(arg, (Tensor, Batch)):
             if gpu and not _implicitly_convertible(arg):
-                raise ValueError(f"Type {type(arg)} is not implictly copyable to the GPU.")
+                raise ValueError(f"Type {type(arg)} is not implicitly copyable to the GPU.")
 
             device = "gpu" if gpu else None
             arg = as_tensor(arg, device=device)
 
         new_args.append(arg)
-        if arg.device.device_type == "gpu":
-            gpu = True
 
     if any((arg.device.device_type == "gpu") != gpu for arg in new_args):
         raise ValueError("Cannot mix GPU and CPU inputs.")
