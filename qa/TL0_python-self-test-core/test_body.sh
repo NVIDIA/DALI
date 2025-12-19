@@ -1,5 +1,16 @@
 #!/bin/bash -e
 
+test_different_numpy_versions() {
+    # Testing with older numpy version as we mostly run tests with numpy 2.x
+    # to check that we are still compatible with it
+    install_pip_pkg "pip install --upgrade numpy<2 -f /pip-packages"
+    for test_script in $(ls test_pipeline.py \
+                            test_pipeline_decorator.py \
+                            test_pipeline_segmentation.py); do
+        ${python_invoke_test} ${test_script}
+    done
+}
+
 test_py_with_framework() {
     # Note that we do not filter '!numba' below as it is installed as dependency
     for test_script in $(ls test_pipeline.py \
