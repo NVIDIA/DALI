@@ -27,6 +27,17 @@ def _op_alias():
             yield op
 
 
+def _get_alias_and_ctx(op):
+    if op == "experimental":
+        op = fn.experimental.inflate
+        chck_ctx = assert_warns(Warning, glob="*deprecated*decoders.inflate*")
+    else:
+        assert op == "decoders"
+        op = fn.decoders.inflate
+        chck_ctx = contextlib.nullcontext()
+    return op, chck_ctx
+
+
 def sample_to_lz4(sample):
     import lz4.block
 
@@ -92,13 +103,7 @@ def _test_sample_inflate(op, batch_size, np_dtype, seed):
             samples, deflated = list(zip(*[sample(sample_size) for sample_size in sample_sizes]))
             yield list(samples), list(deflated), np.array(sample_sizes, dtype=np.int32)
 
-    if op == "experimental":
-        op = fn.experimental.inflate
-        chck_ctx = assert_warns(Warning, glob="*deprecated*")
-    else:
-        assert op == "decoders"
-        op = fn.decoders.inflate
-        chck_ctx = contextlib.nullcontext()
+    op, chck_ctx = _get_alias_and_ctx(op)
 
     @pipeline_def
     def pipeline():
@@ -220,10 +225,11 @@ def seq_source(rng, ndim, dtype, mode, permute, oversized_shape):
 
 
 def _test_chunks(
-    seed, batch_size, ndim, dtype, layout, mode, permute, oversized_shape, sequence_axis_name
+    op, seed, batch_size, ndim, dtype, layout, mode, permute, oversized_shape, sequence_axis_name
 ):
     rng = np.random.default_rng(seed=seed)
     source = seq_source(rng, ndim, dtype, mode, permute, oversized_shape)
+    op, chck_ctx = _get_alias_and_ctx(op)
 
     @pipeline_def
     def pipeline():
@@ -238,7 +244,7 @@ def _test_chunks(
             offsets = None
         else:
             offsets, sizes = rest
-        inflated = fn.decoders.inflate(
+        inflated = op(
             deflated.gpu(),
             shape=reported_shape,
             dtype=np_type_to_dali(dtype),
@@ -249,7 +255,8 @@ def _test_chunks(
         )
         return inflated, baseline
 
-    pipe = pipeline(batch_size=batch_size, num_threads=4, device_id=0)
+    with chck_ctx:
+        pipe = pipeline(batch_size=batch_size, num_threads=4, device_id=0)
     if layout:
         layout = (sequence_axis_name or "F") + layout
     for _ in range(4):
@@ -260,6 +267,7 @@ def _test_chunks(
 @has_operator("decoders.inflate")
 @restrict_platform(min_compute_cap=6.0)
 def test_chunks():
+    aliases = _op_alias()
     seed = 42
     batch_sizes = [1, 9, 31]
     for dtype in [np.uint8, np.int16, np.float32]:
@@ -281,6 +289,7 @@ def test_chunks():
                 oversized_shape = ndim > 0 and seed % 2 == 1
                 yield (
                     _test_chunks,
+                    next(aliases),
                     seed,
                     batch_size,
                     ndim,

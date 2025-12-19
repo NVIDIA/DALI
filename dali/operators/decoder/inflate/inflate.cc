@@ -88,16 +88,9 @@ The value is ignored if the `layout` is not specified or the input is not a sequ
                     TensorLayout("F"));
 
 DALI_SCHEMA(experimental__Inflate)
-    .DocStr("Deprecated alias for :meth:`decoders.inflate`")
+    .AddParent("decoders__Inflate")
     .NumInput(1)
     .NumOutput(1)
-    .AddArg(inflate::shapeArgName, "", DALI_INT_VEC, true)
-    .AddOptionalTypeArg(inflate::dTypeArgName, "", DALI_UINT8)
-    .AddOptionalArg<std::vector<int>>(inflate::offsetArgName, "", nullptr, true)
-    .AddOptionalArg<std::vector<int>>(inflate::sizeArgName, "", nullptr, true)
-    .AddOptionalArg(inflate::algArgName, "", "LZ4")
-    .AddOptionalArg(inflate::layoutArgName, "", TensorLayout(""))
-    .AddOptionalArg(inflate::sequenceLayoutArgName, "", TensorLayout("F"))
     .Deprecate("2.0", "decoders__Inflate")
     .MakeDocHidden();
 
