@@ -11,8 +11,8 @@ test_body() {
     # CPU only test, remove CUDA from the search path just in case
     export LD_LIBRARY_PATH=""
     export PATH=${PATH/cuda/}
-    ${python_invoke_test} test_dali_tf_plugin_cpu_only.py
-    ${python_invoke_test} test_dali_tf_plugin_cpu_only_dataset.py
+    ${python_new_invoke_test} test_dali_tf_plugin_cpu_only
+    ${python_new_invoke_test} test_dali_tf_plugin_cpu_only_dataset
   fi
 }
 
