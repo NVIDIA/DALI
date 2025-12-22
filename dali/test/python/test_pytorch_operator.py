@@ -114,7 +114,7 @@ def check_pytorch_operator(device):
             assert numpy.allclose(res2, exp2_t.numpy())
 
 
-@attr('pytorch')
+@attr("pytorch")
 def test_pytorch_operator():
     for device in {"cpu", "gpu"}:
         yield check_pytorch_operator, device
@@ -138,7 +138,7 @@ def check_pytorch_operator_batch_processing(device):
             assert numpy.allclose(res2, exp2[i].numpy())
 
 
-@attr('pytorch')
+@attr("pytorch")
 def test_pytorch_operator_batch_processing():
     for device in {"cpu", "gpu"}:
         yield check_pytorch_operator_batch_processing, device
