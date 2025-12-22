@@ -35,7 +35,7 @@ test_body() {
   # test Optical Flow
   ${python_new_invoke_test} -s operator_1 test_optical_flow
   ${python_new_invoke_test} -s checkpointing test_dali_stateless_operators.test_optical_flow_stateless
-  ${python_new_invoke_test} test_dali_variable_batch_size:test_optical_flow
+  ${python_new_invoke_test} test_dali_variable_batch_size.test_optical_flow
 }
 
 pushd ../..
