@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,7 +20,6 @@ import numpy as np
 from nose_utils import assert_raises, attr
 import sys
 import inspect
-import nose
 
 
 def _test_fn_rotate(device):
@@ -185,7 +184,7 @@ def _test_schema_name_for_module(module_name, base_name=""):
             # Check if we can reconstruct the name of the op from provided schema
             assert hasattr(member, "_schema_name")
             full_name = ops._op_name(member._schema_name)
-            nose.tools.eq_(base_name + "." + full_name, module_name + "." + member_name)
+            assert base_name + "." + full_name == module_name + "." + member_name
         elif inspect.ismodule(member) and (module_name + "." + member_name) in sys.modules.keys():
             # Recurse on DALI submodule (filter out non-DALI reexported modules like `sys`)
             _test_schema_name_for_module(module_name + "." + member_name, base_name)
