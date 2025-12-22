@@ -10,7 +10,7 @@ prolog=(enable_conda)
 epilog=(disable_conda)
 
 test_body() {
-    ${python_new_invoke_test} test_dali_tf_plugin:TestDaliTfPluginLoadOk
+    ${python_new_invoke_test} test_dali_tf_plugin.TestDaliTfPluginLoadOk
 
     # DALI TF run
     ${python_new_invoke_test} test_dali_tf_plugin_run
