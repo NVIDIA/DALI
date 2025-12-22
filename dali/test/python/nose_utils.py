@@ -69,6 +69,11 @@ class empty_case(unittest.TestCase):
         pass
 
 
+# Module-level TestCase instance for assertions
+_test_case = unittest.TestCase()
+_test_case.maxDiff = None  # Show full diff on assertion failures
+
+
 def assert_equals(x, y):
     foo = empty_case()
     foo.assertEqual(x, y)
@@ -126,20 +131,17 @@ def assert_raises(exception, *args, glob=None, regex=None, match_case=None, **kw
 
         assert_raises(Exception, callable, arg1, arg2, kwarg=value)
     """
-    tc = unittest.TestCase()
-    tc.maxDiff = None  # Show full diff on assertion failures
-
     if glob is None and regex is None:
         # Use unittest's assertRaises
         if args:
             # Called with callable: assert_raises(Exception, callable, *args, **kwargs)
             callable_func = args[0]
             callable_args = args[1:]
-            with tc.assertRaises(exception):
+            with _test_case.assertRaises(exception):
                 callable_func(*callable_args, **kwargs)
         else:
             # Used as context manager
-            return tc.assertRaises(exception)
+            return _test_case.assertRaises(exception)
     else:
         pattern = get_pattern(glob, regex, match_case)
         # Use unittest's assertRaisesRegex
@@ -147,11 +149,11 @@ def assert_raises(exception, *args, glob=None, regex=None, match_case=None, **kw
             # Called with callable
             callable_func = args[0]
             callable_args = args[1:]
-            with tc.assertRaisesRegex(exception, pattern):
+            with _test_case.assertRaisesRegex(exception, pattern):
                 callable_func(*callable_args, **kwargs)
         else:
             # Used as context manager
-            return tc.assertRaisesRegex(exception, pattern)
+            return _test_case.assertRaisesRegex(exception, pattern)
 
 
 def assert_warns(exception=Warning, *args, glob=None, regex=None, match_case=None, **kwargs):
@@ -164,20 +166,17 @@ def assert_warns(exception=Warning, *args, glob=None, regex=None, match_case=Non
 
         assert_warns(UserWarning, callable, arg1, arg2, kwarg=value)
     """
-    tc = unittest.TestCase()
-    tc.maxDiff = None
-
     if glob is None and regex is None:
         # Use unittest's assertWarns
         if args:
             # Called with callable
             callable_func = args[0]
             callable_args = args[1:]
-            with tc.assertWarns(exception):
+            with _test_case.assertWarns(exception):
                 callable_func(*callable_args, **kwargs)
         else:
             # Used as context manager
-            return tc.assertWarns(exception)
+            return _test_case.assertWarns(exception)
     else:
         pattern = get_pattern(glob, regex, match_case)
         # Use unittest's assertWarnsRegex
@@ -185,11 +184,11 @@ def assert_warns(exception=Warning, *args, glob=None, regex=None, match_case=Non
             # Called with callable
             callable_func = args[0]
             callable_args = args[1:]
-            with tc.assertWarnsRegex(exception, pattern):
+            with _test_case.assertWarnsRegex(exception, pattern):
                 callable_func(*callable_args, **kwargs)
         else:
             # Used as context manager
-            return tc.assertWarnsRegex(exception, pattern)
+            return _test_case.assertWarnsRegex(exception, pattern)
 
 
 def raises(exception, glob=None, regex=None, match_case=None):
