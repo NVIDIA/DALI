@@ -74,7 +74,7 @@ def test_mxnet_pipeline_dynamic_shape():
         assert data is not None
 
 
-@attr('pytorch')
+@attr("pytorch")
 def test_pytorch_pipeline_dynamic_shape():
     from nvidia.dali.plugin.pytorch import DALIGenericIterator as PyTorchIterator
 
@@ -87,7 +87,7 @@ def test_pytorch_pipeline_dynamic_shape():
         assert data is not None
 
 
-@attr('paddle')
+@attr("paddle")
 def test_paddle_pipeline_dynamic_shape():
     from nvidia.dali.plugin.paddle import DALIGenericIterator as PaddleIterator
 
@@ -100,7 +100,7 @@ def test_paddle_pipeline_dynamic_shape():
         assert data is not None
 
 
-@attr('pytorch')
+@attr("pytorch")
 def test_api_fw_check1_pytorch():
     from nvidia.dali.plugin.pytorch import DALIGenericIterator as PyTorchIterator
 
@@ -120,7 +120,7 @@ def test_api_fw_check1_mxnet():
     )
 
 
-@attr('paddle')
+@attr("paddle")
 def test_api_fw_check1_paddle():
     from nvidia.dali.plugin.paddle import DALIGenericIterator as PaddleIterator
 
@@ -176,14 +176,14 @@ def test_api_fw_check2_mxnet():
     )
 
 
-@attr('pytorch')
+@attr("pytorch")
 def test_api_fw_check2_pytorch():
     from nvidia.dali.plugin.pytorch import DALIGenericIterator as PyTorchIterator
 
     yield from test_api_fw_check2(PyTorchIterator, ["data", "bboxes", "label"])
 
 
-@attr('paddle')
+@attr("paddle")
 def test_api_fw_check2_paddle():
     from nvidia.dali.plugin.paddle import DALIGenericIterator as PaddleIterator
 
