@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,7 +17,7 @@ import os
 from nvidia.dali.pipeline import Pipeline
 
 from test_utils import get_dali_extra_path
-from nose_utils import assert_raises
+from nose_utils import assert_raises, attr
 
 DALI_EXTRA_PATH = get_dali_extra_path()
 EPOCH_SIZE = 32
@@ -74,6 +74,7 @@ def test_mxnet_pipeline_dynamic_shape():
         assert data is not None
 
 
+@attr('pytorch')
 def test_pytorch_pipeline_dynamic_shape():
     from nvidia.dali.plugin.pytorch import DALIGenericIterator as PyTorchIterator
 
@@ -86,6 +87,7 @@ def test_pytorch_pipeline_dynamic_shape():
         assert data is not None
 
 
+@attr('paddle')
 def test_paddle_pipeline_dynamic_shape():
     from nvidia.dali.plugin.paddle import DALIGenericIterator as PaddleIterator
 
@@ -98,6 +100,7 @@ def test_paddle_pipeline_dynamic_shape():
         assert data is not None
 
 
+@attr('pytorch')
 def test_api_fw_check1_pytorch():
     from nvidia.dali.plugin.pytorch import DALIGenericIterator as PyTorchIterator
 
@@ -117,6 +120,7 @@ def test_api_fw_check1_mxnet():
     )
 
 
+@attr('paddle')
 def test_api_fw_check1_paddle():
     from nvidia.dali.plugin.paddle import DALIGenericIterator as PaddleIterator
 
@@ -172,12 +176,14 @@ def test_api_fw_check2_mxnet():
     )
 
 
+@attr('pytorch')
 def test_api_fw_check2_pytorch():
     from nvidia.dali.plugin.pytorch import DALIGenericIterator as PyTorchIterator
 
     yield from test_api_fw_check2(PyTorchIterator, ["data", "bboxes", "label"])
 
 
+@attr('paddle')
 def test_api_fw_check2_paddle():
     from nvidia.dali.plugin.paddle import DALIGenericIterator as PaddleIterator
 

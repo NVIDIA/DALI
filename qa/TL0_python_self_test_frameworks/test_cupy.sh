@@ -4,7 +4,7 @@ pip_packages='${python_test_runner_package} numpy cupy pycuda'
 target_dir=./dali/test/python
 
 test_body() {
-    ${python_new_invoke_test} -m '(?:^|[\b_\./-])[Tt]est.*cupy' test_dltensor_operator
+    ${python_new_invoke_test} -A 'cupy' test_dltensor_operator
     ${python_new_invoke_test} test_gpu_python_function_operator
     ${python_new_invoke_test} test_backend_impl_gpu
     ${python_new_invoke_test} test_external_source_cupy
