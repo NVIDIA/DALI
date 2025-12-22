@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -21,6 +21,7 @@ import torch
 from nvidia.dali.pipeline import Pipeline
 
 from test_utils import get_dali_extra_path
+from nose_utils import attr
 
 test_data_root = get_dali_extra_path()
 images_dir = os.path.join(test_data_root, "db", "single", "jpeg")
@@ -113,6 +114,7 @@ def check_pytorch_operator(device):
             assert numpy.allclose(res2, exp2_t.numpy())
 
 
+@attr('pytorch')
 def test_pytorch_operator():
     for device in {"cpu", "gpu"}:
         yield check_pytorch_operator, device
@@ -136,6 +138,7 @@ def check_pytorch_operator_batch_processing(device):
             assert numpy.allclose(res2, exp2[i].numpy())
 
 
+@attr('pytorch')
 def test_pytorch_operator_batch_processing():
     for device in {"cpu", "gpu"}:
         yield check_pytorch_operator_batch_processing, device
