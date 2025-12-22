@@ -17,7 +17,7 @@ test_jpeg_scan_limit() {
     # test various broken cases with smaller limit for speed
     DALI_MAX_JPEG_SCANS=30 ${python_new_invoke_test} -s decoder test_jpeg_scan_limit
     # test default limit for one case
-    ${python_new_invoke_test} -s decoder test_jpeg_scan_limit.ProgressiveJpeg.test_scans_limit:1
+    ${python_new_invoke_test} -s decoder test_jpeg_scan_limit.ProgressiveJpeg.test_scans_limit.1
 }
 
 test_py() {
