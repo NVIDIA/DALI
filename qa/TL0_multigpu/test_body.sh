@@ -37,12 +37,12 @@ test_gtest() {
 }
 
 test_cupy() {
-    ${python_invoke_test} --attr 'multigpu' test_external_source_cupy.py
+    ${python_new_invoke_test} -A 'multigpu' test_external_source_cupy
 }
 
 
 test_pytorch() {
-    ${python_invoke_test} --attr 'multigpu' test_external_source_pytorch_gpu.py
+    ${python_new_invoke_test} -A 'multigpu' test_external_source_pytorch_gpu
     ${python_new_invoke_test} -A 'pytorch,multi_gpu' -s experimental_mode
 }
 
