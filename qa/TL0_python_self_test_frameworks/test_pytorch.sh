@@ -4,8 +4,8 @@ pip_packages='${python_test_runner_package} numpy librosa torch psutil torchvisi
 target_dir=./dali/test/python
 
 test_body() {
-    ${python_new_invoke_test} -m '(?:^|[\b_\./-])[Tt]est.*pytorch' test_pytorch_operator
-    ${python_new_invoke_test} -m '(?:^|[\b_\./-])[Tt]est.*pytorch' test_dltensor_operator
+    ${python_new_invoke_test} -A 'pytorch' test_pytorch_operator
+    ${python_new_invoke_test} -A 'pytorch' test_dltensor_operator
     ${python_new_invoke_test} test_torch_pipeline_rnnt
     ${python_new_invoke_test} test_external_source_pytorch_cpu
     ${python_new_invoke_test} test_external_source_pytorch_gpu

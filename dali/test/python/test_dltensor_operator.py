@@ -1,4 +1,4 @@
-# Copyright (c) 2019, 2022-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019, 2022-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -21,6 +21,7 @@ from functools import partial
 from nvidia.dali.pipeline import Pipeline
 from nvidia.dali import fn, pipeline_def
 from nvidia.dali.python_function_plugin import current_dali_stream
+from nose_utils import attr
 
 test_data_root = os.environ["DALI_EXTRA_PATH"]
 images_dir = os.path.join(test_data_root, "db", "single", "jpeg")
@@ -182,6 +183,7 @@ def pytorch_red_channel_op(in1, in2):
     return [t.narrow(2, 0, 1).squeeze() for t in in1], [t.narrow(2, 0, 1).squeeze() for t in in2]
 
 
+@attr('pytorch')
 def test_pytorch():
     setup_pytorch()
     for testcase in [simple_pytorch_op, pytorch_red_channel_op]:
@@ -327,6 +329,7 @@ def cupy_kernel_gray_scale(in1, in2, stream=None):
     return out1, out2
 
 
+@attr('cupy')
 def test_cupy():
     setup_cupy()
     print(cupy)
@@ -335,6 +338,7 @@ def test_cupy():
     yield from _cupy_flip_with_negative_strides_suite()
 
 
+@attr('cupy')
 def test_cupy_kernel_gray_scale():
     setup_cupy()
     cupy_case(cupy_kernel_gray_scale, synchronize=False)
