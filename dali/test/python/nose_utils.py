@@ -12,13 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nose2.tools.decorators import with_setup as _nose2_with_setup, with_teardown as _nose2_with_teardown
+from nose2.tools.decorators import (
+    with_setup as _nose2_with_setup,
+    with_teardown as _nose2_with_teardown,
+)
 from unittest import SkipTest  # noqa: F401
 import unittest
 import re
 import fnmatch
 import functools
-import warnings
 
 
 def with_setup(setup=None, teardown=None):
@@ -31,12 +33,14 @@ def with_setup(setup=None, teardown=None):
         @with_setup(setup_func, teardown_func)
         @with_setup(teardown=teardown_func)
     """
+
     def decorator(func):
         if setup is not None:
             func = _nose2_with_setup(setup)(func)
         if teardown is not None:
             func = _nose2_with_teardown(teardown)(func)
         return func
+
     return decorator
 
 
@@ -51,10 +55,12 @@ def attr(*tags):
     Usage: @attr("pytorch", "slow")
     Filtering: nose2 -A 'pytorch' or nose2 -A '!slow'
     """
+
     def decorator(func):
         for tag in tags:
             setattr(func, tag, True)
         return func
+
     return decorator
 
 
