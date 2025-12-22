@@ -33,9 +33,9 @@ test_body() {
     "$FULLPATH" --gtest_filter="*CpuOnly*:*CApi*/0.*-*0.UseCopyKernel:*ForceNoCopyFail:*daliOutputCopySamples"
   done
   if [ -z "$DALI_ENABLE_SANITIZERS" ]; then
-    ${python_invoke_test} --attr '!pytorch' test_dali_cpu_only.py
+    ${python_new_invoke_test} -A '!pytorch' test_dali_cpu_only
   else
-    ${python_invoke_test} --attr '!pytorch,!numba' test_dali_cpu_only.py
+    ${python_new_invoke_test} -A '!pytorch,!numba' test_dali_cpu_only
   fi
 }
 

@@ -28,7 +28,7 @@ test_body() {
         pip install -v ../../../nvidia_dali_video*.tar.gz --no-build-isolation
 
     # Check that the plugin can be loaded
-    ${python_invoke_test} test_dali_video_plugin.py:TestDaliVideoPluginLoadOk
+    ${python_new_invoke_test} test_dali_video_plugin:TestDaliVideoPluginLoadOk
 
     ${python_new_invoke_test} -s . test_dali_video_plugin_decoder
 }
