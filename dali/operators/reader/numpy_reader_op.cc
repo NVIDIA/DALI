@@ -296,7 +296,7 @@ void NumpyReaderCPU::Prefetch() {
 
       // split data into chunks and copy separately
       auto file = dynamic_cast<ODirectFileStream*>(target->current_file.get());
-      auto read_tail = alignment_offset(target->data_offset + target->nbytes, o_direct_chunk_size_);
+      auto read_tail = alignment_offset(target_data_offset + target->nbytes, o_direct_chunk_size_);
       for (size_t read_offset = 0; read_offset < aligned_len; read_offset += o_direct_chunk_size_) {
         // read whole chunk or just aligned number of blocks to match aligned_len
         auto read_size = std::min(o_direct_chunk_size_, aligned_len - read_offset);

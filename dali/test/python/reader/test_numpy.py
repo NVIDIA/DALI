@@ -22,6 +22,7 @@ import os
 import platform
 import random
 import tempfile
+import struct
 from nose_utils import assert_raises, SkipTest
 from nose2.tools import params, cartesian_params
 from test_utils import compare_pipelines, to_array
@@ -1083,3 +1084,51 @@ def test_shuffling(shuffling, pad_last_batch):
         for _ in range(num_samples // batch_size * 2):
             (cpu_arr, gpu_arr) = pipe.run()
             assert_array_equal(to_array(cpu_arr), to_array(gpu_arr))
+
+
+def test_o_direct_alignment():
+    def save_aligned_numpy(filename, data):
+        # standard header
+        header_dict = {
+            "descr": np.dtype(data.dtype).str,
+            "fortran_order": False,
+            "shape": data.shape,
+        }
+        header_str = str(header_dict)
+
+        # calculate padding
+        # Magic(6 bytes) + Version(2 bytes) + HeaderLen(2 bytes) + HeaderStr + Padding + '\n'
+        # make header 4096-aligned
+
+        MAGIC_LEN = 6 + 2 + 2  # 10 bytes
+        current_len = len(header_str) + 1  # +1 for newline
+
+        pad_len = 4096 - MAGIC_LEN - current_len
+
+        final_header_str = header_str + (" " * pad_len) + "\n"
+
+        with open(filename, "wb") as f:
+            f.write(b"\x93NUMPY")
+            f.write(b"\x01\x00")
+            header_len_val = len(final_header_str)
+            f.write(struct.pack("<H", header_len_val))
+
+            f.write(final_header_str.encode("ascii"))
+            f.write(data.tobytes())
+
+    with tempfile.TemporaryDirectory(prefix=gds_data_root) as test_data_root:
+        index = 0
+        fname = os.path.join(test_data_root, "test_{:02d}.npy".format(index))
+        data = np.random.rand(1024, 128).astype("float32")
+        save_aligned_numpy(fname, data)
+
+        @pipeline_def(device_id=0, batch_size=1, num_threads=1)
+        def my_pipeline(files):
+            data = fn.readers.numpy(
+                device="cpu", dont_use_mmap=True, files=files, use_o_direct=True
+            )
+            return data
+
+        p = my_pipeline(files=[fname])
+        # shouldn't throw
+        assert_array_equal(p.run()[0][0], data)
