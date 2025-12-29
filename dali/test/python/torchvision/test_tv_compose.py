@@ -47,7 +47,8 @@ test_input_filenames = [read_filepath(fname) for fname in test_files]
 
 def test_compose_tensor():
     test_tensor = make_test_tensor(shape=(5, 5, 5, 3))
-    dali_out = Compose([RandomHorizontalFlip(p=1.0)], batch_size=test_tensor.shape[0])(test_tensor)
+    dali_pipeline = Compose([RandomHorizontalFlip(p=1.0)], batch_size=test_tensor.shape[0])
+    dali_out = dali_pipeline(test_tensor)
     tv_out = tv.RandomHorizontalFlip(p=1.0)(test_tensor)
 
     assert isinstance(dali_out, torch.Tensor)
@@ -57,7 +58,8 @@ def test_compose_tensor():
 def test_compose_invalid_batch_tensor():
     test_tensor = make_test_tensor(shape=(5, 5, 5, 1))
     with assert_raises(RuntimeError):
-        _ = Compose([RandomHorizontalFlip(p=1.0)], batch_size=1)(test_tensor)
+        dali_pipeline = Compose([RandomHorizontalFlip(p=1.0)], batch_size=1)
+        _ = dali_pipeline(test_tensor)
 
 
 def test_compose_images():

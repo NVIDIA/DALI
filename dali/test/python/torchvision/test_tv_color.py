@@ -125,7 +125,7 @@ def test_colorjitter_images(cj_params, device):
 
 
 """
-TODO: DALI ColorJitter does not work on tensors
+TODO: DALI ColorJitter does not currently on CHW layout
 @params(
     # brightness, contrast, saturation, hue
     (0.0, 0.0, 0.0, 0.0),

@@ -54,7 +54,9 @@ def test_vertical_random_flip_probability(device):
 
 def test_flip_preserves_shape():
     img = make_test_tensor((1, 15, 20, 3))
-    hflip = Compose([RandomHorizontalFlip(p=1.0)])(img)
-    vflip = Compose([RandomVerticalFlip(p=1.0)])(img)
+    hflip_pipeline = Compose([RandomHorizontalFlip(p=1.0)])
+    hflip = hflip_pipeline(img)
+    vflip_pipeline = Compose([RandomVerticalFlip(p=1.0)])
+    vflip = vflip_pipeline(img)
     assert hflip.shape == img.shape
     assert vflip.shape == img.shape
