@@ -17,6 +17,7 @@ from typing import Any, Optional, SupportsInt, Tuple, Union
 
 import nvidia.dali.backend as _backend
 import nvidia.dali.types
+import numpy as np
 
 from . import _eval_mode, _invocation
 from ._device import Device
@@ -58,7 +59,6 @@ def _try_convert_enums(arr):
     if arr.size == 0:
         raise ValueError("Cannot convert an empty array of `object` type.")
     item = arr.flat[0]
-    import numpy as np
 
     if isinstance(item, nvidia.dali.types.DALIInterpType):
         return arr.astype(np.int32), nvidia.dali.types.INTERP_TYPE
@@ -216,15 +216,20 @@ class Tensor:
                 self._storage = _backend.TensorCPU(a, layout)
                 self._wraps_external_data = True
             else:
-                import numpy as np
-
                 if dtype is not None:
-                    # TODO(michalz): Built-in enum handling
+                    if dtype.kind == DType.Kind.enum:
+                        numpy_type = np.int32
+                    else:
+                        numpy_type = nvidia.dali.types.to_numpy_type(dtype.type_id)
+
                     self._storage = _backend.TensorCPU(
-                        np.array(data, dtype=nvidia.dali.types.to_numpy_type(dtype.type_id)),
+                        np.array(data, dtype=numpy_type),
                         layout,
                         False,
                     )
+                    if dtype.kind == DType.Kind.enum:
+                        self._storage.reinterpret(dtype.type_id)
+
                     copied = True
                     self._wraps_external_data = False
                     self._dtype = dtype
@@ -460,7 +465,6 @@ class Tensor:
         """
         if self.size != 1:
             raise ValueError(f"Tensor has {self.size} elements, expected 1")
-        import numpy as np
 
         with _EvalContext.current():
             return np.array(self.cpu().evaluate()._storage).item()
@@ -468,8 +472,6 @@ class Tensor:
     def __array__(self, dtype: Any | None = None, copy: bool | None = None):
         b = self.evaluate()._storage
         if isinstance(b, _backend.TensorCPU):
-            import numpy as np
-
             if np.lib.NumpyVersion(np.__version__) < "2.0.0" and copy is None:
                 copy = False
 
