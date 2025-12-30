@@ -62,7 +62,7 @@ class PadBase:
     def __call__(self, data_input):
         layout = data_input.property("layout")[0]
 
-        # CWH
+        # CHW
         if layout == np.frombuffer(bytes("C", "utf-8"), dtype=np.uint8)[0]:
             input_height = data_input.shape()[1]
             input_width = data_input.shape()[2]

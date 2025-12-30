@@ -82,7 +82,7 @@ class PipelineLayouted:
         )
 
     def run(self, data_input):
-        output = self.pipe.run(input_data=data_input)  # TODO: get stream
+        output = self.pipe.run(input_data=data_input)
 
         if output is None:
             return output
@@ -145,7 +145,7 @@ class PipelineHWC(PipelineLayouted):
         if isinstance(data_input, Image.Image):
             _input = torch.as_tensor(np.array(data_input, copy=True)).unsqueeze(0)
         else:
-            ValueError(
+            raise ValueError(
                 "HWC layout is currently supported for PIL Images only.\
                 Please check if samples have the same format."
             )
@@ -205,7 +205,7 @@ class PipelineCHW(PipelineLayouted):
                 # DALI requires batch size to be present
                 _input = data_input.unsqueeze(0)
         else:
-            ValueError(
+            raise ValueError(
                 "CHW layout is currently supported for torch.Tensor only.\
                 Please check if samples have the same format."
             )
@@ -257,7 +257,7 @@ class Compose:
                 self.op_list, self.batch_size, self.num_threads, *self.dali_pipeline_kwargs
             )
         else:
-            raise ValueError("Currently only PILImages and torch.Tesors are supported")
+            raise ValueError("Currently only PILImages and torch.Tensors are supported")
 
     def __call__(self, data_input):
         """
