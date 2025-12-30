@@ -15,11 +15,29 @@
 from doc_index import doc, doc_entry, op_reference
 
 doc(
-    title="Dynamic Mode",
+    title="Augmentation Gallery",
     underline_char="=",
+    options=":maxdepth: 1",
     entries=[
         doc_entry(
-            "augmentation_gallery.ipynb",
+            "Pipeline Mode <pipeline_mode.ipynb>",
+            [
+                op_reference("fn.erase", "Augmentation gallery"),
+                op_reference("fn.water", "Augmentation gallery"),
+                op_reference("fn.sphere", "Augmentation gallery"),
+                op_reference("fn.warp_affine", "Augmentation gallery"),
+                op_reference(
+                    "fn.jpeg_compression_distortion", "Augmentation gallery"
+                ),
+                op_reference("fn.paste", "Augmentation gallery"),
+                op_reference("fn.flip", "Augmentation gallery"),
+                op_reference("fn.rotate", "Augmentation gallery"),
+                op_reference("fn.hsv", "Augmentation gallery"),
+                op_reference("fn.brightness_contrast", "Augmentation gallery"),
+            ],
+        ),
+        doc_entry(
+            "Dynamic Mode <dynamic_mode.ipynb>",
             [
                 op_reference("dynamic.erase", "Augmentation gallery"),
                 op_reference("dynamic.water", "Augmentation gallery"),

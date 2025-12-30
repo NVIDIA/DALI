@@ -18,23 +18,7 @@ doc(
     title="Image Processing",
     underline_char="=",
     entries=[
-        doc_entry(
-            "augmentation_gallery.ipynb",
-            [
-                op_reference("fn.erase", "Augmentation gallery"),
-                op_reference("fn.water", "Augmentation gallery"),
-                op_reference("fn.sphere", "Augmentation gallery"),
-                op_reference("fn.warp_affine", "Augmentation gallery"),
-                op_reference(
-                    "fn.jpeg_compression_distortion", "Augmentation gallery"
-                ),
-                op_reference("fn.paste", "Augmentation gallery"),
-                op_reference("fn.flip", "Augmentation gallery"),
-                op_reference("fn.rotate", "Augmentation gallery"),
-                op_reference("fn.hsv", "Augmentation gallery"),
-                op_reference("fn.brightness_contrast", "Augmentation gallery"),
-            ],
-        ),
+        "augmentation_gallery/index.py",
         "brightness_contrast/index.py",
         "clahe/index.py",
         "color_space_conversion/index.py",
