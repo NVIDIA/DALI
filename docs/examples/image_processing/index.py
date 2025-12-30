@@ -35,55 +35,17 @@ doc(
                 op_reference("fn.brightness_contrast", "Augmentation gallery"),
             ],
         ),
-        doc_entry(
-            "brightness_contrast_example.ipynb",
-            op_reference(
-                "fn.brightness_contrast", "BrightnessContrast example", 0
-            ),
-        ),
-        doc_entry(
-            "clahe_example.ipynb",
-            op_reference("fn.clahe", "CLAHE example", 0),
-        ),
-        doc_entry(
-            "color_space_conversion.ipynb",
-            op_reference(
-                "fn.color_space_conversion",
-                "Color space conversion tutorial",
-                0,
-            ),
-        ),
-        doc_entry(
-            "decoder_examples.ipynb",
-            [
-                op_reference("fn.decoders.image", "Image decoder examples", 0),
-                op_reference(
-                    "fn.decoders.image_random_crop", "Image decoder examples", 0
-                ),
-                op_reference(
-                    "fn.decoders.image_crop", "Image decoder examples", 0
-                ),
-                op_reference(
-                    "fn.decoders.image_slice", "Image decoder examples", 0
-                ),
-            ],
-        ),
-        doc_entry(
-            "hsv_example.ipynb",
-            op_reference("fn.hsv", "HSV example", 0),
-        ),
+        "brightness_contrast/index.py",
+        "clahe/index.py",
+        "color_space_conversion/index.py",
+        "decoder/index.py",
+        "hsv/index.py",
         doc_entry(
             "interp_types.ipynb",
             op_reference("fn.resize", "Interpolation methods", 1),
         ),
-        doc_entry(
-            "resize.ipynb",
-            op_reference("fn.resize", "Resize operator tutorial", 0),
-        ),
-        doc_entry(
-            "warp.ipynb",
-            op_reference("fn.warp_affine", "WarpAffine example", 0),
-        ),
+        "resize/index.py",
+        "warp/index.py",
         doc_entry(
             "3d_transforms.ipynb",
             [
