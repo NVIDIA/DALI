@@ -75,6 +75,13 @@ class DocEntry:
             return str(Path(self.name).with_suffix(".rst"))
         return self.name
 
+    def name_to_path(self):
+        name = self.name_to_sphinx()
+        # Handle sphinx toctree "Title <filename>" syntax
+        if "<" in name and name.endswith(">"):
+            name = name[name.index("<") + 1 : -1]
+        return name
+
 
 class OpReference:
     def __init__(self, operator, docstring, order=None):
@@ -152,7 +159,7 @@ def _obtain_doc(py_file):
         return doc_return_value
 
 
-def _collect_references(base_path, entry_name, operator_refs, result_dict):
+def _collect_references(base_path, entry_path, operator_refs, result_dict):
     if operator_refs is None:
         return
     for op_ref in operator_refs:
@@ -162,7 +169,7 @@ def _collect_references(base_path, entry_name, operator_refs, result_dict):
         result_dict[op_ref.operator].append(
             (
                 op_ref.docstring,
-                str((base_path / entry_name).with_suffix(".html")),
+                str((base_path / entry_path).with_suffix(".html")),
                 op_ref,
             )
         )
@@ -190,7 +197,7 @@ def _document_examples(path, result_dict={}):
     base_path = canonical_path.parent
     for entry in doc_contents.entries:
         _collect_references(
-            base_path, entry.name_to_sphinx(), entry.operator_refs, result_dict
+            base_path, entry.name_to_path(), entry.operator_refs, result_dict
         )
         # For Python index files do the recursion on the actual value stored in entry.name
         if entry.python_index:
