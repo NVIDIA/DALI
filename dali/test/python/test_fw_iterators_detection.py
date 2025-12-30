@@ -17,7 +17,7 @@ import os
 from nvidia.dali.pipeline import Pipeline
 
 from test_utils import get_dali_extra_path
-from nose_utils import assert_raises, attr
+from nose_utils import assert_raises, attr, nottest
 
 DALI_EXTRA_PATH = get_dali_extra_path()
 EPOCH_SIZE = 32
@@ -52,26 +52,6 @@ def data_paths():
 ##############
 # Unit tests #
 ##############
-
-
-def test_mxnet_pipeline_dynamic_shape():
-    from nvidia.dali.plugin.mxnet import DALIGenericIterator as MXNetIterator
-
-    root, annotations = data_paths()
-    pipeline = DetectionPipeline(BATCH_SIZE, 0, root, annotations)
-    train_loader = MXNetIterator(
-        [pipeline],
-        [
-            ("data", MXNetIterator.DATA_TAG),
-            ("bboxes", MXNetIterator.LABEL_TAG),
-            ("label", MXNetIterator.LABEL_TAG),
-        ],
-        EPOCH_SIZE,
-        auto_reset=False,
-        dynamic_shape=True,
-    )
-    for data in train_loader:
-        assert data is not None
 
 
 @attr("pytorch")
@@ -127,6 +107,7 @@ def test_api_fw_check1_paddle():
     yield from test_api_fw_check1(PaddleIterator, ["data", "bboxes", "label"])
 
 
+@nottest
 def test_api_fw_check1(iter_type, data_definition):
     root, annotations = data_paths()
     pipe = DetectionPipeline(BATCH_SIZE, 0, root, annotations)
@@ -163,19 +144,6 @@ def test_api_fw_check1(iter_type, data_definition):
     yield check, iter_type
 
 
-def test_api_fw_check2_mxnet():
-    from nvidia.dali.plugin.mxnet import DALIGenericIterator as MXNetIterator
-
-    yield from test_api_fw_check2(
-        MXNetIterator,
-        [
-            ("data", MXNetIterator.DATA_TAG),
-            ("bboxes", MXNetIterator.LABEL_TAG),
-            ("label", MXNetIterator.LABEL_TAG),
-        ],
-    )
-
-
 @attr("pytorch")
 def test_api_fw_check2_pytorch():
     from nvidia.dali.plugin.pytorch import DALIGenericIterator as PyTorchIterator
@@ -190,6 +158,7 @@ def test_api_fw_check2_paddle():
     yield from test_api_fw_check2(PaddleIterator, ["data", "bboxes", "label"])
 
 
+@nottest
 def test_api_fw_check2(iter_type, data_definition):
     root, annotations = data_paths()
 
