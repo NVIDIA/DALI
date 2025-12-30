@@ -23,6 +23,9 @@ doc(
             "Pipeline Mode <pipeline_mode.ipynb>",
             op_reference("fn.warp_affine", "WarpAffine example", 0),
         ),
-        doc_entry("Dynamic Mode <dynamic_mode.ipynb>"),
+        doc_entry(
+            "Dynamic Mode <dynamic_mode.ipynb>",
+            op_reference("dynamic.warp_affine", "WarpAffine example", 0),
+        ),
     ],
 )

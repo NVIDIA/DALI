@@ -23,11 +23,31 @@ doc(
             "Pipeline Mode <pipeline_mode.ipynb>",
             [
                 op_reference("fn.decoders.image", "Image decoder examples", 0),
-                op_reference("fn.decoders.image_random_crop", "Image decoder examples", 0),
-                op_reference("fn.decoders.image_crop", "Image decoder examples", 0),
-                op_reference("fn.decoders.image_slice", "Image decoder examples", 0),
+                op_reference(
+                    "fn.decoders.image_random_crop", "Image decoder examples", 0
+                ),
+                op_reference(
+                    "fn.decoders.image_crop", "Image decoder examples", 0
+                ),
+                op_reference(
+                    "fn.decoders.image_slice", "Image decoder examples", 0
+                ),
             ],
         ),
-        doc_entry("Dynamic Mode <dynamic_mode.ipynb>"),
+        doc_entry(
+            "Dynamic Mode <dynamic_mode.ipynb>",
+            [
+                op_reference("dynamic.decoders.image", "Image decoder examples", 0),
+                op_reference(
+                    "dynamic.decoders.image_random_crop", "Image decoder examples", 0
+                ),
+                op_reference(
+                    "dynamic.decoders.image_crop", "Image decoder examples", 0
+                ),
+                op_reference(
+                    "dynamic.decoders.image_slice", "Image decoder examples", 0
+                ),
+            ],
+        ),
     ],
 )

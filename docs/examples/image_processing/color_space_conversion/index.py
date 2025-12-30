@@ -21,8 +21,19 @@ doc(
     entries=[
         doc_entry(
             "Pipeline Mode <pipeline_mode.ipynb>",
-            op_reference("fn.color_space_conversion", "Color space conversion tutorial", 0),
+            op_reference(
+                "fn.color_space_conversion",
+                "Color space conversion tutorial",
+                0,
+            ),
         ),
-        doc_entry("Dynamic Mode <dynamic_mode.ipynb>"),
+        doc_entry(
+            "Dynamic Mode <dynamic_mode.ipynb>",
+            op_reference(
+                "dynamic.color_space_conversion",
+                "Color space conversion tutorial",
+                0,
+            ),
+        ),
     ],
 )
