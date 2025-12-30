@@ -23,6 +23,9 @@ doc(
             "Pipeline Mode <pipeline_mode.ipynb>",
             op_reference("fn.clahe", "CLAHE example", 0),
         ),
-        doc_entry("Dynamic Mode <dynamic_mode.ipynb>"),
+        doc_entry(
+            "Dynamic Mode <dynamic_mode.ipynb>",
+            op_reference("dynamic.clahe", "CLAHE example", 0),
+        ),
     ],
 )

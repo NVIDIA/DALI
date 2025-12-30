@@ -85,6 +85,8 @@ class DocEntry:
 
 class OpReference:
     def __init__(self, operator, docstring, order=None):
+        if operator.startswith("dynamic."):
+            operator = "experimental." + operator
         self.operator = operator
         self.docstring = docstring
         self.order = 1000000 if order is None else order
