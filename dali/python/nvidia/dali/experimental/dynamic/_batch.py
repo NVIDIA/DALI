@@ -250,6 +250,10 @@ class Batch:
         self._device = None
         self._invocation_result = None  # The result of a DALI operator invocation.
         copied = False
+
+        if dtype is not None and not isinstance(dtype, DType):
+            dtype = _dtype(dtype)
+
         if tensors is not None:
             if isinstance(tensors, (_backend.TensorListCPU, _backend.TensorListGPU)):
                 backend_dev = _backend_device(tensors)

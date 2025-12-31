@@ -90,6 +90,7 @@ For more details please check the
           'six >= 1.16, <= 1.17',
           'dm-tree <= 0.1.9; python_version>="3.10"',
           'packaging <= 25.0',
+          'numpy',
           'nvtx',
           'makefun',
           @DALI_INSTALL_REQUIRES_NVIMGCODEC@
