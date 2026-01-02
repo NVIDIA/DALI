@@ -214,11 +214,10 @@ class Invocation:
                 batch_size=self._batch_size if self._is_batch else None,
                 **self._args,
             )
-            if isinstance(r, tuple) or isinstance(r, list):
+            if isinstance(r, (tuple, list, dict)):
                 self._results = tuple(r)
             else:
                 self._results = (r,)
-            self._results = tuple(self._results)
             ctx.cache_results(self, self._results)
 
     def values(self, ctx: Optional[_EvalContext] = None):

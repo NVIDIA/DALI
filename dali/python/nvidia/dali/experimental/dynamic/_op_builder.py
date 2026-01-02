@@ -435,20 +435,17 @@ def build_call_function(schema, op_class):
                 # if ctx is not None:
                 # ctx._add_invocation(invocation, weak=not self._is_stateful)
 
-            if is_batch:
-                if len(invocation) == 1:
-                    return Batch(invocation_result=invocation[0])
-                else:
-                    return tuple(
-                        Batch(invocation_result=invocation[i]) for i in range(len(invocation))
-                    )
+            cls = Batch if is_batch else Tensor
+
+            if len(invocation) == 1:
+                return cls(invocation_result=invocation[0])
+            elif self._output_names is None:
+                return tuple(cls(invocation_result=res) for res in invocation)
             else:
-                if len(invocation) == 1:
-                    return Tensor(invocation_result=invocation[0])
-                else:
-                    return tuple(
-                        Tensor(invocation_result=invocation[i]) for i in range(len(invocation))
-                    )
+                return {
+                    name: cls(invocation_result=res)
+                    for name, res in zip(self._output_names, invocation)
+                }
 
     doc = _docs._docstring_generator_call(schema.Name(), api="dynamic", args=used_kwargs)
     function = makefun.create_function(header, call, doc=doc)
