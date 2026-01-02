@@ -19,16 +19,11 @@ test_py_with_framework() {
         for exclude in "${EXCLUDE_PACKAGES[@]}"; do
             grep -qiE ${exclude} ${test_script} && status=$((status+1))
         done
-        # if nose2 is used isnide the test use it
-        if grep -qiE "nose2" ${test_script}; then
-            PYTHON_TEST_CMD=${python_new_invoke_test}
-            test_script=${test_script/.py/}
-        else
-            PYTHON_TEST_CMD=${python_invoke_test}
-        fi
+        # All tests now use nose2 - strip .py extension
+        test_script=${test_script%.py}
         # execute only when no matches are found
         if [ ${status} -eq 0 ]; then
-            ${PYTHON_TEST_CMD} --attr '!slow,!pytorch,!mxnet,!cupy,!numba,!scipy' ${test_script}
+            ${python_new_invoke_test} -A '!slow,!pytorch,!mxnet,!cupy,!numba,!scipy' ${test_script}
         fi
     done
 

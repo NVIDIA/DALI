@@ -18,7 +18,7 @@ test_body() {
             python test_RN50_data_fw_iterators.py --framework ${fw} --gpus ${NUM_GPUS} -b 13 \
                 --workers 3 --prefetch 2 -i 2 --epochs 2 --fp16
         done
-        ${python_invoke_test} -m '(?:^|[\b_\./-])[Tt]est.*paddle*' test_fw_iterators_detection.py
+        ${python_new_invoke_test} -A 'paddle' test_fw_iterators_detection
     fi
     ${python_new_invoke_test} -A 'paddle' test_fw_iterators
 }
