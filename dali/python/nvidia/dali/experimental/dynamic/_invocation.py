@@ -126,6 +126,10 @@ class Invocation:
             self.run(self._eval_context)
         return self._results[result_index].layout()
 
+    def __iter__(self):
+        for index in range(len(self)):
+            yield InvocationResult(self, index)
+
     def __getitem__(self, index):
         """
         Returns a proxy to the index-th result of the invocation.
@@ -135,6 +139,7 @@ class Invocation:
     def __len__(self):
         if self._num_outputs is None:
             self._num_outputs = self._operator._infer_num_outputs(*self._inputs, **self._args)
+        assert self._num_outputs is not None
         return self._num_outputs
 
     @property
