@@ -13,21 +13,22 @@
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 #
 # sys.path.insert(0, os.path.abspath('..'))
+import inspect
+import json
 import os
-import sys
-from sphinx.ext.autodoc.mock import mock
-from sphinx.ext.autodoc import between, ClassDocumenter, AttributeDocumenter
-from builtins import str
-from enum import Enum
 import re
 import subprocess
-from pathlib import Path
-from datetime import date
-import json
-from packaging.version import Version
-import httplib2
-import inspect
+import sys
 import warnings
+from builtins import str
+from datetime import date
+from enum import Enum
+from pathlib import Path
+
+import httplib2
+from packaging.version import Version
+from sphinx.ext.autodoc import AttributeDocumenter, ClassDocumenter, between
+from sphinx.ext.autodoc.mock import mock
 
 # -- Project information -----------------------------------------------------
 
@@ -97,19 +98,21 @@ with mock(["torch", "numba"]):
 
     autodoc_submodules.op_autodoc(generated_path / "op_autodoc")
     autodoc_submodules.fn_autodoc(
-        generated_path / "fn_autodoc", generated_path, references
+        generated_path / "fn_autodoc",
+        generated_path,
+        references,
     )
     autodoc_submodules.dynamic_autodoc(
         generated_dynamic_path / "dynamic_autodoc",
         generated_dynamic_path,
         relative_generated_dynamic_path,
-        [],
+        references,
     )
     autodoc_submodules.dynamic_readers_autodoc(
         generated_dynamic_path / "dynamic_readers_autodoc",
         generated_dynamic_path,
         relative_generated_dynamic_path,
-        [],
+        references,
     )
 
 # Uncomment to keep warnings in the output. Useful for verbose build and output debugging.
@@ -152,6 +155,7 @@ extensions = [
     "sphinx.ext.intersphinx",
     "sphinx.ext.autosectionlabel",
     "sphinx_paramlinks",
+    "sphinx_design",
 ]
 
 # https://stackoverflow.com/questions/67473396/shorten-display-format-of-python-type-annotations-in-sphinx
