@@ -778,13 +778,19 @@ def _try_extend_reader_signature(schema: _b.OpSchema, op_name: str):
     if op is None or not issubclass(op, dynamic._ops.Reader):
         return ""
 
+    def ret_type(type_name: str):
+        if op_name == "TFRecord":
+            return f"dict[str, {type_name}]"
+
+        return f"Iterable[tuple[{type_name}, ...]]"
+
     doc = getdoc(op)
     return f"""
     @overload
     def next_epoch(
         self,
         ctx: Optional[EvalContext] = None,
-    ) -> Union[Iterable[tuple[Tensor, ...]], Iterable[tuple[Batch, ...]]]:
+    ) -> Iterable[{ret_type('Tensor')}]:
         \"""{doc}
         \"""
 
@@ -792,7 +798,7 @@ def _try_extend_reader_signature(schema: _b.OpSchema, op_name: str):
     def next_epoch(
         self,
         batch_size: int, ctx: Optional[EvalContext] = None,
-    ) -> Iterable[tuple[Batch, ...]]:
+    ) -> Iterable[{ret_type('Batch')}]:
         \"""{doc}
         \"""
 """

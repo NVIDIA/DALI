@@ -126,6 +126,10 @@ class Invocation:
             self.run(self._eval_context)
         return self._results[result_index].layout()
 
+    def __iter__(self):
+        for index in range(len(self)):
+            yield InvocationResult(self, index)
+
     def __getitem__(self, index):
         """
         Returns a proxy to the index-th result of the invocation.
@@ -135,6 +139,7 @@ class Invocation:
     def __len__(self):
         if self._num_outputs is None:
             self._num_outputs = self._operator._infer_num_outputs(*self._inputs, **self._args)
+        assert self._num_outputs is not None
         return self._num_outputs
 
     @property
@@ -209,11 +214,10 @@ class Invocation:
                 batch_size=self._batch_size if self._is_batch else None,
                 **self._args,
             )
-            if isinstance(r, tuple) or isinstance(r, list):
+            if isinstance(r, (tuple, list, dict)):
                 self._results = tuple(r)
             else:
                 self._results = (r,)
-            self._results = tuple(self._results)
             ctx.cache_results(self, self._results)
 
     def values(self, ctx: Optional[_EvalContext] = None):
