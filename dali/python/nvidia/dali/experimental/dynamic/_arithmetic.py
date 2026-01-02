@@ -13,11 +13,12 @@
 # limitations under the License.
 
 
-from typing import Any, SupportsFloat, SupportsInt
+import numbers
+from typing import Any
 
 
 def _implicitly_convertible(value: Any):
-    return isinstance(value, (SupportsInt, SupportsFloat, list, tuple))
+    return isinstance(value, (numbers.Real, list, tuple))
 
 
 def _arithm_op(name: str, *args):
