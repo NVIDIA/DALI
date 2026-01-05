@@ -435,15 +435,15 @@ def build_call_function(schema, op_class):
                 # if ctx is not None:
                 # ctx._add_invocation(invocation, weak=not self._is_stateful)
 
-            cls = Batch if is_batch else Tensor
+            ResultType = Batch if is_batch else Tensor
 
             if len(invocation) == 1:
-                return cls(invocation_result=invocation[0])
+                return ResultType(invocation_result=invocation[0])
             elif self._output_names is None:
-                return tuple(cls(invocation_result=res) for res in invocation)
+                return tuple(ResultType(invocation_result=res) for res in invocation)
             else:
                 return {
-                    name: cls(invocation_result=res)
+                    name: ResultType(invocation_result=res)
                     for name, res in zip(self._output_names, invocation)
                 }
 
