@@ -78,6 +78,8 @@ class Operator:
         self._arg_meta = {}
         # Number of outputs
         self._num_outputs = None
+        # When an operator (e.g. TFRecord) returns a dictionnary, outputs are named
+        self._output_names = None
         # Expected device placement of the outputs
         self._output_devices = None
         # Instance of the legacy Python Operator from the nvidia.dali.ops module
@@ -190,6 +192,9 @@ class Operator:
                 out = op(*input_nodes, **arg_nodes)
                 if isinstance(out, (list, tuple)):
                     spec = out[0].source.spec
+                elif isinstance(out, dict):
+                    spec = next(iter(out.values())).source.spec
+                    self._output_names = tuple(out.keys())
                 else:
                     spec = out.source.spec
 
@@ -202,6 +207,12 @@ class Operator:
                         device_type = o.device
                         device_id = self._device.device_id
                         self._output_devices.append(_device.Device(device_type, device_id))
+                elif isinstance(out, dict):
+                    self._num_outputs = len(out)
+                    device_id = self._device.device_id
+                    self._output_devices = [
+                        _device.Device(o.device, device_id) for o in out.values()
+                    ]
                 else:
                     self._num_outputs = 1
                     self._output_devices = [_device.Device(out.device, self._device.device_id)]
@@ -277,11 +288,9 @@ class Operator:
                 workspace.AddArgumentInput(name, self._to_batch(arg).evaluate()._storage)
             self._op_backend.SetupAndRun(workspace, batch_size)
             out = workspace.GetOutputs()
-            if is_batch:
-                return tuple(out)
-            else:
-                tensors = tuple(o[0] for o in out)
-                return tensors
+
+            result = out if is_batch else tuple(o[0] for o in out)
+            return result if self._output_names is None else dict(zip(self._output_names, result))
 
     def _to_batch(self, x):
         if not isinstance(x, Batch):
@@ -467,12 +476,20 @@ class Reader(Operator):
             idx = 0
             while idx < meta["epoch_size_padded"]:
                 outputs = super()._run(ctx, batch_size=self._actual_batch_size)
-                batch_size = len(outputs[0])
+                batch_size = len(
+                    outputs[0] if isinstance(outputs, tuple) else next(iter(outputs.values()))
+                )
                 assert batch_size == self._actual_batch_size
                 idx += batch_size
-                for x in zip(*outputs):
-                    outs = tuple(Tensor(o) for o in x)
-                    yield outs
+                if isinstance(outputs, tuple):
+                    for x in zip(*outputs):
+                        outs = tuple(Tensor(o) for o in x)
+                        yield outs
+                else:
+                    names = outputs.keys()
+                    for x in zip(*outputs.values()):
+                        outs = tuple(Tensor(o) for o in x)
+                        yield dict(zip(names, outs))
 
     def _batches(self, batch_size=None, ctx: Optional[_eval_context.EvalContext] = None):
         if self._api_type is None:
@@ -505,10 +522,15 @@ class Reader(Operator):
             idx = 0
             while idx < meta["epoch_size_padded"]:
                 outputs = super()._run(ctx, batch_size=batch_size)
-                batch_size_returned = len(outputs[0])
+                batch_size_returned = batch_size = len(
+                    outputs[0] if isinstance(outputs, tuple) else next(iter(outputs.values()))
+                )
                 assert batch_size_returned == batch_size
                 idx += batch_size_returned
-                yield tuple(Batch(o) for o in outputs)
+                if isinstance(outputs, tuple):
+                    yield tuple(Batch(o) for o in outputs)
+                else:
+                    yield {name: Batch(o) for name, o in outputs.items()}
 
 
 _all_ops = []

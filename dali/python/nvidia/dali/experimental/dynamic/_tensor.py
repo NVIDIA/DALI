@@ -15,9 +15,9 @@
 import copy
 from typing import Any, Optional, SupportsInt, Tuple, Union
 
+import numpy as np
 import nvidia.dali.backend as _backend
 import nvidia.dali.types
-import numpy as np
 
 from . import _eval_mode, _invocation
 from ._device import Device
@@ -67,7 +67,7 @@ def _try_convert_enums(arr):
     elif isinstance(item, nvidia.dali.types.DALIImageType):
         return arr.astype(np.int32), nvidia.dali.types.IMAGE_TYPE
     else:
-        raise TypeError("Unexpected element type f{type(item)}")
+        raise TypeError(f"Unexpected element type {type(item)}")
 
 
 class Tensor:
