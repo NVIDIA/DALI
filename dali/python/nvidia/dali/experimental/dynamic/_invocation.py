@@ -136,11 +136,10 @@ class Invocation:
         """
         return InvocationResult(self, index)
 
-    def __len__(self):
+    def __len__(self) -> int:
         if self._num_outputs is None:
             self._num_outputs = self._operator._infer_num_outputs(*self._inputs, **self._args)
-        assert self._num_outputs is not None
-        return self._num_outputs
+        return self._num_outputs  # type: ignore
 
     @property
     def is_batch(self):
