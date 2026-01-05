@@ -164,7 +164,7 @@ class DLL_PUBLIC ThreadPoolBase {
 
   virtual void Init(int num_threads, const std::function<OnThreadStartFn> &on_thread_start = {});
 
-  ~ThreadPoolBase() {
+  virtual ~ThreadPoolBase() {
     Shutdown(true);
   }
 
