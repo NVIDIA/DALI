@@ -289,13 +289,8 @@ class Operator:
             self._op_backend.SetupAndRun(workspace, batch_size)
             out = workspace.GetOutputs()
 
-            if self._output_names is not None:
-                return dict(zip(self._output_names, tuple(out)))
-            elif is_batch:
-                return tuple(out)
-            else:
-                tensors = tuple(o[0] for o in out)
-                return tensors
+            result = out if is_batch else tuple(o[0] for o in out)
+            return result if self._output_names is None else dict(zip(self._output_names, result))
 
     def _to_batch(self, x):
         if not isinstance(x, Batch):
