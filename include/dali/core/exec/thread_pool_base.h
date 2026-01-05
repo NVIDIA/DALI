@@ -15,10 +15,13 @@
 #ifndef DALI_CORE_EXEC_THREAD_POOL_BASE_H_
 #define DALI_CORE_EXEC_THREAD_POOL_BASE_H_
 
+#include <any>
 #include <cassert>
 #include <functional>
+#include <list>
 #include <map>
 #include <memory>
+#include <optional>
 #include <queue>
 #include <string>
 #include <utility>
@@ -49,6 +52,7 @@ class DLL_PUBLIC Job {
   AddTask(Runnable &&runnable, priority_t priority = {}) {
     if (started_)
       throw std::logic_error("This job has already been started - cannot add more tasks to it");
+
     auto it = tasks_.emplace(priority, Task());
     try {
       it->second.func = [this, task = &it->second, f = std::move(runnable)]() noexcept {
@@ -79,7 +83,7 @@ class DLL_PUBLIC Job {
   void Scrap();
 
  private:
-  std::mutex mtx_;  // could just probably use atomic_wait on num_pending_tasks_ - needs C++20
+  // atomic wait has no timeout, so we're stuck with condvar for reentrance
   std::condition_variable cv_;
   std::atomic_int num_pending_tasks_{0};
   bool started_ = false;
@@ -95,6 +99,50 @@ class DLL_PUBLIC Job {
                 mm::detail::object_pool_allocator<std::pair<const priority_t, Task>>> tasks_;
 };
 
+/** A job which can be extended with new tasks while already running.
+ *
+ * Unlike the regular `Job`, this job class doesn't prohibit adding new tasks after
+ * calling `Run`. It's still illegal to add new jobs while already waiting for completion.
+ *
+ * In this job, the tasks are processed strictly in FIFO order - there are no priorities.
+ *
+ * Calls to AddTask, Run and Wait are not thread safe and require external synchronization if
+ * called from different threads.
+ */
+class DLL_PUBLIC IncrementalJob {
+ public:
+  ~IncrementalJob() noexcept(false);
+
+  template <typename Runnable>
+  std::enable_if_t<std::is_convertible_v<Runnable, std::function<void()>>>
+  AddTask(Runnable &&runnable);
+
+  template <typename Executor>
+  void Run(Executor &executor, bool wait);
+
+  void Run(ThreadPoolBase &tp, bool wait);
+
+  void Wait();
+
+  void Scrap();
+
+ private:
+  struct Task {
+    std::function<void()> func;
+    std::exception_ptr error;
+  };
+
+  const void *executor_ = nullptr;
+  bool waited_for_ = false;
+  // atomic wait has no timeout, so we're stuck with condvar for reentrance
+  std::condition_variable cv_;
+  std::atomic_int num_pending_tasks_{0};
+  using task_list_t = std::list<Task, mm::detail::object_pool_allocator<Task>>;
+  task_list_t tasks_;
+  std::optional<task_list_t::iterator> last_task_run_;
+};
+
+
 class DLL_PUBLIC ThreadPoolBase {
  public:
   using TaskFunc = std::function<void()>;
@@ -104,10 +152,20 @@ class DLL_PUBLIC ThreadPoolBase {
     Init(num_threads);
   }
 
-  void Init(int num_threads);
+  /** A function called upon thread start.
+   *
+   * @param thread_idx Index of the thread within this thread pool.
+   * @return A RAII object that lives until the thread's processing loop runs
+   *
+   * @note This callback doesn't explicitly take `this` pointer - if necessary, a lambda function
+   *       can be used that captures the current thread pool instance.
+   */
+  using OnThreadStartFn = std::any(int thread_idx);
+
+  virtual void Init(int num_threads, const std::function<OnThreadStartFn> &on_thread_start = {});
 
   ~ThreadPoolBase() {
-    Shutdown();
+    Shutdown(true);
   }
 
   void AddTask(TaskFunc &&f);
@@ -143,6 +201,10 @@ class DLL_PUBLIC ThreadPoolBase {
 
   TaskBulkAdd BulkAdd() & { return TaskBulkAdd(this); }
 
+  int NumThreads() const {
+    return threads_.size();
+  }
+
   /**
    * @brief Returns the thread pool that owns the calling thread (or nullptr)
    */
@@ -160,13 +222,11 @@ class DLL_PUBLIC ThreadPoolBase {
   }
 
  protected:
-  void Shutdown();
+  void Shutdown(bool join);
 
  private:
   friend class Job;
-
-  virtual void OnThreadStart(int thread_idx) noexcept {}
-  virtual void OnThreadStop(int thread_idx) noexcept {}
+  friend class IncrementalJob;
 
   template <typename Condition>
   bool WaitOrRunTasks(std::condition_variable &cv, Condition &&condition);
@@ -176,7 +236,7 @@ class DLL_PUBLIC ThreadPoolBase {
   static thread_local ThreadPoolBase *this_thread_pool_;
   static thread_local int this_thread_idx_;
 
-  void Run(int index) noexcept;
+  void Run(int index, const std::function<OnThreadStartFn> &on_thread_start) noexcept;
 
   std::mutex mtx_;
   std::condition_variable cv_;
@@ -226,6 +286,53 @@ void Job::Run(Executor &executor, bool wait) {
       num_pending_tasks_++;  // increase after successfully scheduling the task - the value
                             // may hit 0 or go below if the task is done before we increment
                             // the counter, but we don't care if we aren't waiting yet
+    }
+    if (wait && !tasks_.empty())
+      Wait();
+  }
+}
+
+template <typename Runnable>
+std::enable_if_t<std::is_convertible_v<Runnable, std::function<void()>>>
+IncrementalJob::AddTask(Runnable &&runnable) {
+  if (waited_for_)
+    throw std::logic_error("This job has already been waited for - cannot add more tasks to it");
+
+  assert(executor_ == nullptr || executor_ != ThreadPoolBase::this_thread_pool());
+
+  auto it = tasks_.emplace(tasks_.end(), Task());
+  try {
+    it->func = [this, task = &*it, f = std::move(runnable)]() noexcept {
+      try {
+        f();
+      } catch (...) {
+        task->error = std::current_exception();
+      }
+
+      if (num_pending_tasks_.fetch_sub(1, std::memory_order_release) == 1) {
+        num_pending_tasks_.notify_all();
+        cv_.notify_all();
+      }
+    };
+  } catch (...) {  // if, for whatever reason, we cannot initialize the task, we should erase it
+    tasks_.erase(it);
+    throw;
+  }
+  num_pending_tasks_.fetch_add(1, std::memory_order_acq_rel);
+}
+
+template <typename Executor>
+void IncrementalJob::Run(Executor &executor, bool wait) {
+  if constexpr (std::is_base_of_v<ThreadPoolBase, Executor>) {
+    Run(static_cast<ThreadPoolBase &>(executor), wait);
+  } else {
+    if (executor_ && executor_ != &executor)
+      throw std::logic_error("This job is already running in a different executor.");
+    executor_ = &executor;
+    auto it = last_task_run_.has_value() ? std::next(*last_task_run_) : tasks_.begin();
+    for (; it != tasks_.end(); ++it) {
+      executor.AddTask(std::move(it->func));
+      last_task_run_ = it;
     }
     if (wait && !tasks_.empty())
       Wait();

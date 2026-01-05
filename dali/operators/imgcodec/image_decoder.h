@@ -31,6 +31,7 @@
 #include "dali/pipeline/operator/checkpointing/stateless_operator.h"
 #include "dali/pipeline/operator/common.h"
 #include "dali/pipeline/operator/operator.h"
+#include "dali/pipeline/util/new_thread_pool.h"
 
 #if not(WITH_DYNAMIC_NVIMGCODEC_ENABLED)
 nvimgcodecStatus_t get_libjpeg_turbo_extension_desc(nvimgcodecExtensionDesc_t *ext_desc);
@@ -229,7 +230,7 @@ class ImageDecoder : public StatelessOperator<Backend> {
     GetDecoderSpecificArguments(spec);
 
     if (std::is_same<MixedBackend, Backend>::value) {
-      thread_pool_ = std::make_unique<ThreadPool>(num_threads_, device_id_,
+      thread_pool_ = std::make_unique<NewThreadPool>(num_threads_, device_id_,
                                                   spec.GetArgument<bool>("affine"), "MixedDecoder");
       if (spec_.HasArgument("cache_size"))
         cache_ = std::make_unique<CachedDecoderImpl>(spec_);
@@ -410,23 +411,29 @@ class ImageDecoder : public StatelessOperator<Backend> {
   nvimgcodecStatus_t schedule(int device_id, int sample_idx, void *task_context,
                               void (*task)(int thread_id, int sample_idx, void *task_context)) {
     assert(tp_);
-    nvimgcodec_scheduled_tasks_.emplace_back([=](int tid) { task(tid, sample_idx, task_context); });
+    nvimgcodec_scheduled_tasks_.emplace_back([=]() {
+      task(NewThreadPool::this_thread_idx(), sample_idx, task_context);
+    });
     return NVIMGCODEC_STATUS_SUCCESS;
   }
 
   nvimgcodecStatus_t run(int device_id) {
     assert(tp_);
+    if (!job_)
+      job_.emplace();
     for (int i = 0; i < static_cast<int>(nvimgcodec_scheduled_tasks_.size()); i++) {
-      tp_->AddWork(std::move(nvimgcodec_scheduled_tasks_[i]), -i);
+      job_->AddTask(std::move(nvimgcodec_scheduled_tasks_[i]));
     }
     nvimgcodec_scheduled_tasks_.clear();
-    tp_->RunAll(false);
+    job_->Run(*tp_, false);
     return NVIMGCODEC_STATUS_SUCCESS;
   }
 
   nvimgcodecStatus_t wait(int device_id) {
-    assert(tp_);
-    tp_->WaitForWork();
+    if (job_) {
+      job_->Wait();
+      job_.reset();
+    }
     return NVIMGCODEC_STATUS_SUCCESS;
   }
 
@@ -525,8 +532,8 @@ class ImageDecoder : public StatelessOperator<Backend> {
       throw std::runtime_error(make_string("Invalid sample_type: ", sample_type));
   }
 
-  ThreadPool *GetThreadPool(const Workspace &ws) {
-    return std::is_same<MixedBackend, Backend>::value ? thread_pool_.get() : &ws.GetThreadPool();
+  NewThreadPool *GetThreadPool(const Workspace &ws) {
+    return thread_pool_.get();
   }
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
@@ -672,7 +679,7 @@ class ImageDecoder : public StatelessOperator<Backend> {
     TensorListShape<> out_shape(nsamples, 3);
 
     const bool use_cache = cache_ && cache_->IsCacheEnabled() && dtype_ == DALI_UINT8;
-    auto setup_block = [&](int block_idx, int nblocks, int tid) {
+    auto setup_block = [&](int block_idx, int nblocks) {
       int i_start = nsamples * block_idx / nblocks;
       int i_end = nsamples * (block_idx + 1) / nblocks;
       DomainTimeRange tr("Setup #" + std::to_string(block_idx) + "/" + std::to_string(nblocks),
@@ -751,25 +758,26 @@ class ImageDecoder : public StatelessOperator<Backend> {
 
     if (ntasks < 2) {
       DomainTimeRange tr("Setup", DomainTimeRange::kOrange);
-      setup_block(0, 1, -1);  // run all in current thread
+      setup_block(0, 1);  // run all in current thread
     } else {
+      Job job;
       int block_idx = 0;
       atomic_idx_.store(0);
-      auto setup_task = [&, nblocks](int tid) {
+      auto setup_task = [&, nblocks]() {
         DomainTimeRange tr("Setup", DomainTimeRange::kOrange);
         int block_idx;
         while ((block_idx = atomic_idx_.fetch_add(1)) < nblocks) {
-          setup_block(block_idx, nblocks, tid);
+          setup_block(block_idx, nblocks);
         }
       };
 
       for (int task_idx = 0; task_idx < ntasks - 1; task_idx++) {
-        tp_->AddWork(setup_task, -task_idx);
+        job.AddTask(setup_task);
       }
       assert(ntasks >= 2);
-      tp_->RunAll(false);  // start work but not wait
-      setup_task(-1);      // last task in current thread
-      tp_->WaitForWork();  // wait for the other threads
+      job.Run(*tp_, false);  // start work but not wait
+      setup_task();      // last task in current thread
+      job.Wait();  // wait for the other threads
     }
 
     // Allocate the memory for the outputs...
@@ -844,7 +852,10 @@ class ImageDecoder : public StatelessOperator<Backend> {
         // before it issues stream synchronization with the user stream. Even if we didn't have that
         // race, we probably want to wait for all threads to finish anyway because we can't
         // guarantee that the thread pool from the workspace outlives RunImplImpl call.
-        tp_->WaitForWork();
+        if (job_) {
+          job_->Wait();
+          job_.reset();
+        }
       }
       if (decode_status_size != nsamples_decode)
         throw std::runtime_error("Failed to run decoder");
@@ -857,12 +868,13 @@ class ImageDecoder : public StatelessOperator<Backend> {
         }
       }
       if (any_need_processing) {
+        Job job;
         for (size_t idx = 0; idx < nsamples_decode; idx++) {
           size_t orig_idx = decode_sample_idxs_[idx];
           auto st_ptr = state_[orig_idx].get();
           if (st_ptr->need_processing) {
-            tp_->AddWork(
-                [&, out = output[orig_idx], st_ptr, orig_idx](int tid) {
+            job.AddTask(
+                [&, out = output[orig_idx], st_ptr, orig_idx]() {
                   DomainTimeRange tr(make_string("Convert #", orig_idx), DomainTimeRange::kOrange);
                   auto &st = *st_ptr;
                   if constexpr (std::is_same<MixedBackend, Backend>::value) {
@@ -876,11 +888,10 @@ class ImageDecoder : public StatelessOperator<Backend> {
                                st.req_layout, st.orig_img_type, ROI{}, nvimgcodecOrientation_t{});
                     st.host_buf.reset();
                   }
-                },
-                -idx);
+                });
           }
         }
-        tp_->RunAll(true);
+        job.Run(*tp_, true);
       }
     }
 
@@ -904,7 +915,7 @@ class ImageDecoder : public StatelessOperator<Backend> {
     }
   }
 
-  std::unique_ptr<ThreadPool> thread_pool_;
+  std::unique_ptr<NewThreadPool> thread_pool_;
   std::unique_ptr<CachedDecoderImpl> cache_;
 
   NvImageCodecInstance instance_ = {};
@@ -934,7 +945,8 @@ class ImageDecoder : public StatelessOperator<Backend> {
   bool use_orientation_ = true;
   int max_batch_size_ = 1;
   int num_threads_ = -1;
-  ThreadPool *tp_ = nullptr;
+  NewThreadPool *tp_ = nullptr;
+  std::optional<IncrementalJob> job_;
   std::vector<std::unique_ptr<SampleState>> state_;
   std::vector<nvimgcodecCodeStream_t> batch_encoded_streams_;
   std::vector<nvimgcodecImage_t> batch_images_;
@@ -950,7 +962,7 @@ class ImageDecoder : public StatelessOperator<Backend> {
   std::vector<nvimgcodecExtensionDesc_t> extensions_descs_;
   std::vector<nvimgcodecExtension_t> extensions_;
 
-  std::vector<std::function<void(int)>> nvimgcodec_scheduled_tasks_;
+  std::vector<std::function<void()>> nvimgcodec_scheduled_tasks_;
 };
 
 }  // namespace imgcodec
