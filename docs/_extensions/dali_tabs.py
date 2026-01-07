@@ -12,109 +12,74 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from docutils import nodes
+import re
+
 from sphinx.application import Sphinx
-from sphinx.transforms.post_transforms import SphinxPostTransform
+
+# Pattern to match container:: dali-tabs blocks
+CONTAINER_PATTERN = re.compile(
+    r"^\.\. container:: dali-tabs\n((?:[ ]{3,}[^\n]*\n|\n)*)",
+    re.MULTILINE,
+)
+
+# Pattern to match **Tab Name:** headers
+TAB_HEADER_PATTERN = re.compile(r"^[ ]*\*\*([^*]+):\*\*\s*$", re.MULTILINE)
 
 
-class DaliTabsTransform(SphinxPostTransform):
-    """Transform ``.. container:: dali-tabs`` into sphinx-design tab-sets.
-
-    Usage::
-
-        .. container:: dali-tabs
-
-           **Pipeline mode:**
-
-           .. code-block:: python
-
-              # pipeline code
-
-           **Dynamic mode:**
-
-           .. code-block:: python
-
-              # dynamic code
+def _transform_container_to_tabset(match: re.Match) -> str:
     """
+    Transform a ``.. container:: dali-tabs`` block into ``.. tab-set::`` RST.
+    See README.rst for an example of usage.
+    """
+    content = match.group(1)
 
-    default_priority = 199
+    # Split by tab headers: [before, name1, content1, name2, content2, ...]
+    parts = TAB_HEADER_PATTERN.split(content)
+    if len(parts) < 3:
+        return match.group(0)  # No tabs found, return unchanged
 
-    def run(self) -> None:
-        for container in list(self.document.findall(nodes.container)):
-            if "dali-tabs" in container.get("classes", []):
-                self._transform_to_tabs(container)
+    lines = [".. tab-set::", "   :sync-group: dali-mode", ""]
 
-    def _transform_to_tabs(self, container: nodes.container) -> None:
-        tabs = self._extract_tabs(container)
-        if not tabs:
-            return
+    for i in range(1, len(parts), 2):
+        tab_name = parts[i].strip()
+        tab_content = parts[i + 1] if i + 1 < len(parts) else ""
+        sync_key = tab_name.lower().replace(" ", "-")
 
-        tab_set = nodes.container(classes=["sd-tab-set", "docutils"])
-        tab_set_id = id(container)
+        lines.append(f"   .. tab-item:: {tab_name}")
+        lines.append(f"      :sync: {sync_key}")
+        lines.append("")
 
-        for i, (tab_name, content_nodes) in enumerate(tabs):
-            sync_key = tab_name.lower().replace(" ", "-")
-            tab_id = f"sd-tab-item-{tab_set_id}-{i}"
-            checked = ' checked="checked"' if i == 0 else ""
+        # Re-indent: content has 3-space indent from container, add 3 more for tab-item
+        for line in tab_content.rstrip().split("\n"):
+            if line.strip():
+                lines.append(f"   {line}")
+            else:
+                lines.append("")
+        lines.append("")
 
-            tab_set += nodes.raw(
-                "",
-                f'<input{checked} id="{tab_id}" '
-                f'name="sd-tab-set-{tab_set_id}" type="radio">',
-                format="html",
-            )
-            tab_set += nodes.raw(
-                "",
-                f'<label class="sd-tab-label" data-sync-group="dali-mode" '
-                f'data-sync-id="{sync_key}" for="{tab_id}">\n{tab_name}</label>',
-                format="html",
-            )
-
-            tab_content = nodes.container(
-                classes=["sd-tab-content", "docutils"]
-            )
-            for node in content_nodes:
-                tab_content += node.deepcopy()
-            tab_set += tab_content
-
-        container.replace_self(tab_set)
-
-    def _extract_tabs(
-        self, container: nodes.container
-    ) -> list[tuple[str, list[nodes.Node]]]:
-        """Extract tabs from container children.
-
-        Looks for ``**Tab Name:**`` patterns (bold text ending with colon)
-        followed by content until the next tab header.
-        """
-        tabs = []
-        current_tab = None
-        current_content = []
-
-        for child in container.children:
-            if self._is_tab_header(child):
-                if current_tab is not None:
-                    tabs.append((current_tab, current_content))
-                current_tab = child.astext()[:-1]  # Remove trailing colon
-                current_content = []
-            elif current_tab is not None:
-                current_content.append(child)
-
-        if current_tab is not None:
-            tabs.append((current_tab, current_content))
-
-        return tabs
-
-    def _is_tab_header(self, node: nodes.Node) -> bool:
-        """Check if node is a paragraph containing only bold text ending with colon."""
-        if not isinstance(node, nodes.paragraph) or len(node.children) != 1:
-            return False
-        child = node.children[0]
-        return isinstance(child, nodes.strong) and child.astext().endswith(":")
+    return "\n".join(lines)
 
 
-def setup(app: Sphinx) -> dict:
-    app.add_post_transform(DaliTabsTransform)
+def include_read_handler(
+    app: Sphinx,
+    relative_path: str,
+    parent_docname: str,
+    content: list[str],
+) -> None:
+    """Transform container:: dali-tabs in included files."""
+    if not content:
+        return
+
+    text = content[0]
+    if "dali-tabs" not in text:
+        return
+    transformed = CONTAINER_PATTERN.sub(_transform_container_to_tabset, text)
+    if transformed != text:
+        content[0] = transformed
+
+
+def setup(app: Sphinx):
+    app.connect("include-read", include_read_handler)
     return {
         "version": "1.0",
         "parallel_read_safe": True,
