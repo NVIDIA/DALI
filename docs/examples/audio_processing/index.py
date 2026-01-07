@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from doc_index import doc, doc_entry, op_reference
+from doc_index import doc
 
 doc(
     title="Audio Processing",
