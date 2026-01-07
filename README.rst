@@ -32,7 +32,7 @@ can easily be retargeted to TensorFlow, PyTorch, and PaddlePaddle.
 
 DALI in action:
 
-.. dali-tabs::
+.. container:: dali-tabs
 
    **Pipeline mode:**
 
