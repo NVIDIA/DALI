@@ -37,7 +37,7 @@ docs/examples/image_processing/**/index.rst
 docs/examples/index.rst
 docs/examples/operations_index.rst
 docs/examples/other_index.rst
-docs/examples/sequence_processing/index.rst
+docs/examples/sequence_processing/**/index.rst
 docs/examples/use_cases/index.rst
 docs/examples/use_cases/paddle/index.rst
 .DS_Store
