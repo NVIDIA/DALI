@@ -28,7 +28,7 @@ docs/dali.png
 docs/nvidia.ico
 docs/operations/*
 docs/dali_dynamic/operations/*
-docs/examples/audio_processing/index.rst
+docs/examples/audio_processing/**/index.rst
 docs/examples/custom_operations/index.rst
 docs/examples/general/data_loading/**/index.rst
 docs/examples/general/expressions/index.rst

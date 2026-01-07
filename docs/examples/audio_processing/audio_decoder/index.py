@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,10 +15,17 @@
 from doc_index import doc, doc_entry, op_reference
 
 doc(
-    title="Audio Processing",
+    title="Audio Decoder",
     underline_char="=",
+    options=":maxdepth: 1",
     entries=[
-        "audio_decoder/index.py",
-        "spectrogram/index.py",
+        doc_entry(
+            "Pipeline Mode <pipeline_mode.ipynb>",
+            op_reference("fn.decoders.audio", "Audio decoder tutorial"),
+        ),
+        doc_entry(
+            "Dynamic Mode <dynamic_mode.ipynb>",
+            op_reference("dynamic.decoders.audio", "Audio decoder tutorial"),
+        ),
     ],
 )
