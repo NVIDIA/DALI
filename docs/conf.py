@@ -74,6 +74,9 @@ generated_dynamic_path = Path("./dali_dynamic/operations")
 relative_generated_dynamic_path = Path("./operations")
 generated_dynamic_path.mkdir(exist_ok=True)
 
+# Add custom extensions directory to path
+sys.path.insert(0, os.path.abspath("./_extensions"))
+
 # generate table of supported operators and their devices
 # mock torch required by supported_op_devices
 with mock(["torch", "numba"]):
@@ -156,6 +159,7 @@ extensions = [
     "sphinx.ext.autosectionlabel",
     "sphinx_paramlinks",
     "sphinx_design",
+    "dali_tabs",
 ]
 
 # https://stackoverflow.com/questions/67473396/shorten-display-format-of-python-type-annotations-in-sphinx

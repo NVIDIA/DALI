@@ -32,119 +32,116 @@ can easily be retargeted to TensorFlow, PyTorch, and PaddlePaddle.
 
 DALI in action:
 
-.. tab-set::
-    :sync-group: dali-mode
+.. dali-tabs::
 
-    .. tab-item:: Pipeline mode
-        :sync: pipeline
+   **Pipeline mode:**
 
-        .. code-block:: python
+   .. code-block:: python
 
-            from nvidia.dali.pipeline import pipeline_def
-            import nvidia.dali.types as types
-            import nvidia.dali.fn as fn
-            from nvidia.dali.plugin.pytorch import DALIGenericIterator
-            import os
+      from nvidia.dali.pipeline import pipeline_def
+      import nvidia.dali.types as types
+      import nvidia.dali.fn as fn
+      from nvidia.dali.plugin.pytorch import DALIGenericIterator
+      import os
 
-            # To run with different data, see documentation of nvidia.dali.fn.readers.file
-            # points to https://github.com/NVIDIA/DALI_extra
-            data_root_dir = os.environ['DALI_EXTRA_PATH']
-            images_dir = os.path.join(data_root_dir, 'db', 'single', 'jpeg')
+      # To run with different data, see documentation of nvidia.dali.fn.readers.file
+      # points to https://github.com/NVIDIA/DALI_extra
+      data_root_dir = os.environ['DALI_EXTRA_PATH']
+      images_dir = os.path.join(data_root_dir, 'db', 'single', 'jpeg')
 
 
-            def loss_func(pred, y):
-                pass
+      def loss_func(pred, y):
+          pass
 
 
-            def model(x):
-                pass
+      def model(x):
+          pass
 
 
-            def backward(loss, model):
-                pass
+      def backward(loss, model):
+          pass
 
 
-            @pipeline_def(num_threads=4, device_id=0)
-            def get_dali_pipeline():
-                images, labels = fn.readers.file(
-                    file_root=images_dir, random_shuffle=True, name="Reader")
-                # decode data on the GPU
-                images = fn.decoders.image_random_crop(
-                    images, device="mixed", output_type=types.RGB)
-                # the rest of processing happens on the GPU as well
-                images = fn.resize(images, resize_x=256, resize_y=256)
-                images = fn.crop_mirror_normalize(
-                    images,
-                    crop_h=224,
-                    crop_w=224,
-                    mean=[0.485 * 255, 0.456 * 255, 0.406 * 255],
-                    std=[0.229 * 255, 0.224 * 255, 0.225 * 255],
-                    mirror=fn.random.coin_flip())
-                return images, labels
+      @pipeline_def(num_threads=4, device_id=0)
+      def get_dali_pipeline():
+          images, labels = fn.readers.file(
+              file_root=images_dir, random_shuffle=True, name="Reader")
+          # decode data on the GPU
+          images = fn.decoders.image_random_crop(
+              images, device="mixed", output_type=types.RGB)
+          # the rest of processing happens on the GPU as well
+          images = fn.resize(images, resize_x=256, resize_y=256)
+          images = fn.crop_mirror_normalize(
+              images,
+              crop_h=224,
+              crop_w=224,
+              mean=[0.485 * 255, 0.456 * 255, 0.406 * 255],
+              std=[0.229 * 255, 0.224 * 255, 0.225 * 255],
+              mirror=fn.random.coin_flip())
+          return images, labels
 
 
-            train_data = DALIGenericIterator(
-                [get_dali_pipeline(batch_size=16)],
-                ['data', 'label'],
-                reader_name='Reader'
-            )
+      train_data = DALIGenericIterator(
+          [get_dali_pipeline(batch_size=16)],
+          ['data', 'label'],
+          reader_name='Reader'
+      )
 
 
-            for i, data in enumerate(train_data):
-                x, y = data[0]['data'], data[0]['label']
-                pred = model(x)
-                loss = loss_func(pred, y)
-                backward(loss, model)
+      for i, data in enumerate(train_data):
+          x, y = data[0]['data'], data[0]['label']
+          pred = model(x)
+          loss = loss_func(pred, y)
+          backward(loss, model)
 
-    .. tab-item:: Dynamic mode
-        :sync: dynamic
+   **Dynamic mode:**
 
-        .. code-block:: python
+   .. code-block:: python
 
-            import os
-            import nvidia.dali.types as types
-            import nvidia.dali.experimental.dynamic as ndd
-            import torch
+      import os
+      import nvidia.dali.types as types
+      import nvidia.dali.experimental.dynamic as ndd
+      import torch
 
-            # To run with different data, see documentation of ndd.readers.File
-            # points to https://github.com/NVIDIA/DALI_extra
-            data_root_dir = os.environ['DALI_EXTRA_PATH']
-            images_dir = os.path.join(data_root_dir, 'db', 'single', 'jpeg')
-
-
-            def loss_func(pred, y):
-                pass
+      # To run with different data, see documentation of ndd.readers.File
+      # points to https://github.com/NVIDIA/DALI_extra
+      data_root_dir = os.environ['DALI_EXTRA_PATH']
+      images_dir = os.path.join(data_root_dir, 'db', 'single', 'jpeg')
 
 
-            def model(x):
-                pass
+      def loss_func(pred, y):
+          pass
 
 
-            def backward(loss, model):
-                pass
+      def model(x):
+          pass
 
 
-            reader = ndd.readers.File(file_root=images_dir, random_shuffle=True)
+      def backward(loss, model):
+          pass
 
-            for images, labels in reader.next_epoch(batch_size=16):
-                images = ndd.decoders.image_random_crop(images, device="gpu", output_type=types.RGB)
-                # the rest of processing happens on the GPU as well
-                images = ndd.resize(images, resize_x=256, resize_y=256)
-                images = ndd.crop_mirror_normalize(
-                    images,
-                    crop_h=224,
-                    crop_w=224,
-                    mean=[0.485 * 255, 0.456 * 255, 0.406 * 255],
-                    std=[0.229 * 255, 0.224 * 255, 0.225 * 255],
-                    mirror=ndd.random.coin_flip(),
-                )
 
-                x = torch.as_tensor(images)
-                y = torch.as_tensor(labels.gpu())
+      reader = ndd.readers.File(file_root=images_dir, random_shuffle=True)
 
-                pred = model(x)
-                loss = loss_func(pred, y)
-                backward(loss, model)
+      for images, labels in reader.next_epoch(batch_size=16):
+          images = ndd.decoders.image_random_crop(images, device="gpu", output_type=types.RGB)
+          # the rest of processing happens on the GPU as well
+          images = ndd.resize(images, resize_x=256, resize_y=256)
+          images = ndd.crop_mirror_normalize(
+              images,
+              crop_h=224,
+              crop_w=224,
+              mean=[0.485 * 255, 0.456 * 255, 0.406 * 255],
+              std=[0.229 * 255, 0.224 * 255, 0.225 * 255],
+              mirror=ndd.random.coin_flip(),
+          )
+
+          x = torch.as_tensor(images)
+          y = torch.as_tensor(labels.gpu())
+
+          pred = model(x)
+          loss = loss_func(pred, y)
+          backward(loss, model)
 
 
 Highlights
