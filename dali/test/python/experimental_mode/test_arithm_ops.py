@@ -16,6 +16,7 @@ import itertools
 
 import numpy as np
 import nvidia.dali.experimental.dynamic as ndd
+from eval_mode_utils import eval_modes
 from nose2.tools import params
 from nose_utils import assert_raises, attr
 from test_tensor import asnumpy
@@ -67,6 +68,7 @@ binary_ops = ["+", "-", "*", "/", "//", "**", "&", "|", "^", "==", "!=", "<", "<
 unary_ops = ["+", "-"]  # TODO(michalz): ~ missing in DALI - fix!
 
 
+@eval_modes()
 @params(*itertools.product(["cpu", "gpu"], binary_ops))
 def test_binary_ops(device, op):
     values = [
@@ -90,6 +92,7 @@ def test_binary_ops(device, op):
                 raise AssertionError(msg)
 
 
+@eval_modes()
 @params(*itertools.product(["cpu", "gpu"], unary_ops))
 def test_unary_ops(device, op):
     values = [
