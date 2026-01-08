@@ -422,7 +422,7 @@ class ImageDecoder : public StatelessOperator<Backend> {
     if (!job_)
       job_.emplace();
     for (int i = 0; i < static_cast<int>(nvimgcodec_scheduled_tasks_.size()); i++) {
-      job_->AddTask(std::move(nvimgcodec_scheduled_tasks_[i]), -i);
+      job_->AddTask(std::move(nvimgcodec_scheduled_tasks_[i]));
     }
     nvimgcodec_scheduled_tasks_.clear();
     job_->Run(*tp_, false);

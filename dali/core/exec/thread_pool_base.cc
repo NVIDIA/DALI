@@ -37,10 +37,11 @@ void Job::Wait() {
     if (!result)
       throw std::logic_error("The thread pool was stopped");
   } else {
-    int old = num_pending_tasks_.load(std::memory_order_acquire);
-    while (old > 0) {
-      num_pending_tasks_.wait(old, std::memory_order_acquire);
-      old = num_pending_tasks_.load(std::memory_order_acquire);
+    int old = num_pending_tasks_.load();
+    while (old != 0) {
+      num_pending_tasks_.wait(old);
+      old = num_pending_tasks_.load();
+      assert(old >= 0);
     }
     waited_for_ = true;
   }
@@ -63,13 +64,11 @@ void Job::Run(ThreadPoolBase &tp, bool wait) {
   started_ = true;
   {
     auto batch = tp.BulkAdd();
+    num_pending_tasks_ += tasks_.size();
     for (auto &x : tasks_) {
       batch.Add(std::move(x.second.func));
-      num_pending_tasks_.fetch_add(1, std::memory_order_acq_rel);
-      // increase after successfully scheduling the task - the value
-      // may hit 0 or go below if the task is done before we increment
-      // the counter, but we don't care if we aren't waiting yet
     }
+    batch.Submit();
   }
   if (wait && !tasks_.empty())
     Wait();
@@ -103,10 +102,11 @@ void IncrementalJob::Wait() {
     if (!result)
       throw std::logic_error("The thread pool was stopped");
   } else {
-    int old = num_pending_tasks_.load(std::memory_order_acquire);
-    while (old > 0) {
-      num_pending_tasks_.wait(old, std::memory_order_acquire);
-      old = num_pending_tasks_.load(std::memory_order_acquire);
+    int old = num_pending_tasks_.load();
+    while (old != 0) {
+      num_pending_tasks_.wait(old);
+      old = num_pending_tasks_.load();
+      assert(old >= 0);
     }
     waited_for_ = true;
   }
