@@ -282,10 +282,13 @@ void Job::Run(Executor &executor, bool wait) {
       throw std::logic_error("This job has already been started.");
     started_ = true;
     for (auto &x : tasks_) {
-      executor.AddTask(std::move(x.second.func));
-      num_pending_tasks_++;  // increase after successfully scheduling the task - the value
-                            // may hit 0 or go below if the task is done before we increment
-                            // the counter, but we don't care if we aren't waiting yet
+      num_pending_tasks_++;  // increase before scheduling to avoid ABA condition
+      try {
+        executor.AddTask(std::move(x.second.func));
+      } catch (...) {
+        num_pending_tasks_--;  // scheduling failed
+        throw;
+      }
     }
     if (wait && !tasks_.empty())
       Wait();
