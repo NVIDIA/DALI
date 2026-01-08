@@ -229,9 +229,9 @@ class ImageDecoder : public StatelessOperator<Backend> {
     num_threads_ = spec.GetArgument<int>("num_threads");
     GetDecoderSpecificArguments(spec);
 
+    thread_pool_ = std::make_unique<NewThreadPool>(num_threads_, device_id_,
+                                                spec.GetArgument<bool>("affine"), "MixedDecoder");
     if (std::is_same<MixedBackend, Backend>::value) {
-      thread_pool_ = std::make_unique<NewThreadPool>(num_threads_, device_id_,
-                                                  spec.GetArgument<bool>("affine"), "MixedDecoder");
       if (spec_.HasArgument("cache_size"))
         cache_ = std::make_unique<CachedDecoderImpl>(spec_);
     }
@@ -422,7 +422,7 @@ class ImageDecoder : public StatelessOperator<Backend> {
     if (!job_)
       job_.emplace();
     for (int i = 0; i < static_cast<int>(nvimgcodec_scheduled_tasks_.size()); i++) {
-      job_->AddTask(std::move(nvimgcodec_scheduled_tasks_[i]));
+      job_->AddTask(std::move(nvimgcodec_scheduled_tasks_[i]), -i);
     }
     nvimgcodec_scheduled_tasks_.clear();
     job_->Run(*tp_, false);
@@ -772,7 +772,7 @@ class ImageDecoder : public StatelessOperator<Backend> {
       };
 
       for (int task_idx = 0; task_idx < ntasks - 1; task_idx++) {
-        job.AddTask(setup_task);
+        job.AddTask(setup_task, -task_idx);
       }
       assert(ntasks >= 2);
       job.Run(*tp_, false);  // start work but not wait
@@ -888,7 +888,7 @@ class ImageDecoder : public StatelessOperator<Backend> {
                                st.req_layout, st.orig_img_type, ROI{}, nvimgcodecOrientation_t{});
                     st.host_buf.reset();
                   }
-                });
+                }, -idx);
           }
         }
         job.Run(*tp_, true);

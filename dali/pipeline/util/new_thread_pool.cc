@@ -27,7 +27,7 @@ NewThreadPool::NewThreadPool(
       std::string name) {
 #if NVML_ENABLED
   // We use NVML only for setting thread affinity
-  if (device_id != CPU_ONLY_DEVICE_ID && set_affinity) {
+  if (device_id.has_value() && set_affinity) {
     nvml_handle_ = nvml::NvmlInstance::CreateNvmlInstance();
   }
 #endif
