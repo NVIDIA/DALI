@@ -18,6 +18,7 @@
 #include <any>
 #include <cassert>
 #include <functional>
+#include <iostream>
 #include <list>
 #include <map>
 #include <memory>
@@ -31,6 +32,7 @@
 #include "dali/core/api_helper.h"
 #include "dali/core/multi_error.h"
 #include "dali/core/mm/detail/aux_alloc.h"
+#include "dali/core/format.h"
 
 namespace dali {
 
@@ -62,10 +64,12 @@ class DLL_PUBLIC Job {
           task->error = std::current_exception();
         }
 
-        if (num_pending_tasks_.fetch_sub(1, std::memory_order_release) == 1) {
+        if (--num_pending_tasks_ == 0) {
           num_pending_tasks_.notify_all();
+          std::cerr << make_string((void *)this, " notified.") << std::endl;
           cv_.notify_all();
         }
+        assert(num_pending_tasks_ >= 0);
       };
     } catch (...) {  // if, for whatever reason, we cannot initialize the task, we should erase it
       tasks_.erase(it);
@@ -182,6 +186,10 @@ class DLL_PUBLIC ThreadPoolBase {
     }
 
     ~TaskBulkAdd() {
+      Submit();
+    }
+
+    void Submit() {
       if (lock.owns_lock()) {
         lock.unlock();
         if (tasks_added > 1)
@@ -282,11 +290,14 @@ void Job::Run(Executor &executor, bool wait) {
       throw std::logic_error("This job has already been started.");
     started_ = true;
     for (auto &x : tasks_) {
-      num_pending_tasks_++;  // increase before scheduling to avoid ABA condition
+      num_pending_tasks_++;
       try {
         executor.AddTask(std::move(x.second.func));
       } catch (...) {
-        num_pending_tasks_--;  // scheduling failed
+        if (--num_pending_tasks_ == 0) {
+          num_pending_tasks_.notify_all();
+          cv_.notify_all();
+        }
         throw;
       }
     }
@@ -312,16 +323,17 @@ IncrementalJob::AddTask(Runnable &&runnable) {
         task->error = std::current_exception();
       }
 
-      if (num_pending_tasks_.fetch_sub(1, std::memory_order_release) == 1) {
+      if (--num_pending_tasks_ == 0) {
         num_pending_tasks_.notify_all();
         cv_.notify_all();
       }
+      assert(num_pending_tasks_ >= 0);
     };
   } catch (...) {  // if, for whatever reason, we cannot initialize the task, we should erase it
     tasks_.erase(it);
     throw;
   }
-  num_pending_tasks_.fetch_add(1, std::memory_order_acq_rel);
+  num_pending_tasks_++;
 }
 
 template <typename Executor>
