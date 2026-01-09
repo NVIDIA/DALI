@@ -17,7 +17,7 @@ import itertools
 import numpy as np
 import nvidia.dali.experimental.dynamic as ndd
 from nose2.tools import params
-from nose_utils import assert_raises
+from nose_utils import assert_raises, attr
 from test_tensor import asnumpy
 
 
@@ -140,6 +140,21 @@ def test_binary_scalars(device: str, op: str, batch_size: int | None):
             raise AssertionError(msg)
 
 
+@attr("pytorch")
+@params(*binary_ops)
+def test_binary_pytorch_gpu(op: str):
+    import torch
+
+    a = torch.tensor([1, 2, 3], device="cuda")
+    b = ndd.as_tensor(a)
+
+    result = apply_bin_op(op, a, b)
+    result_rev = apply_bin_op(op, b, a)
+    expected = apply_bin_op(op, a, a)
+    np.testing.assert_array_equal(result.cpu(), expected.cpu())
+    np.testing.assert_array_equal(expected.cpu(), result_rev.cpu())
+
+
 @params(*binary_ops)
 def test_incompatible_devices(op: str):
     a = ndd.tensor([1, 2, 3], device="cpu")
@@ -147,3 +162,25 @@ def test_incompatible_devices(op: str):
 
     with assert_raises(ValueError, regex="[CG]PU and [CG]PU"):
         apply_bin_op(op, a, b)
+    with assert_raises(ValueError, regex="[CG]PU and [CG]PU"):
+        apply_bin_op(op, b, a)
+
+
+@attr("pytorch")
+@params(*binary_ops)
+def test_binary_pytorch_incompatible(op: str):
+    import torch
+
+    devices = [
+        ("cpu", "gpu"),
+        ("cuda", "cpu"),
+    ]
+
+    for torch_device, ndd_device in devices:
+        a = torch.tensor([1, 2, 3], device=torch_device)
+        b = ndd.tensor([1, 2, 3], device=ndd_device)
+
+        with assert_raises(ValueError, regex="[CG]PU and [CG]PU"):
+            apply_bin_op(op, a, b)
+        with assert_raises(ValueError, regex="[CG]PU and [CG]PU"):
+            apply_bin_op(op, b, a)

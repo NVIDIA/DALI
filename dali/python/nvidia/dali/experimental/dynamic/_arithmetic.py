@@ -33,15 +33,14 @@ def _arithm_op(name: str, *args):
     new_args = []
     for arg in args:
         if not isinstance(arg, (Tensor, Batch)):
-            if gpu and not _implicitly_convertible(arg):
-                raise ValueError(f"Type {type(arg)} is not implicitly copyable to the GPU.")
+            if gpu and _implicitly_convertible(arg):
+                arg = as_tensor(arg, device="gpu")
+            else:
+                arg = as_tensor(arg)
 
-            device = "gpu" if gpu else None
-            arg = as_tensor(arg, device=device)
+        if (arg.device.device_type == "gpu") != gpu:
+            raise ValueError("Cannot mix GPU and CPU inputs.")
 
         new_args.append(arg)
-
-    if any((arg.device.device_type == "gpu") != gpu for arg in new_args):
-        raise ValueError("Cannot mix GPU and CPU inputs.")
 
     return _arithmetic_generic_op(*new_args, expression_desc=f"{name}({argsstr})")
