@@ -13,11 +13,12 @@
 # limitations under the License.
 
 import torch
-import torchvision.transforms as T
+import torchvision.transforms.v2 as T
 
 from nose_utils import assert_raises
 from nose2.tools import params
 from nvidia.dali.experimental.torchvision import GaussianBlur, Compose
+from nvidia.dali.experimental.torchvision.v2.functional import gaussian_blur
 
 
 def make_input_tensors():
@@ -49,14 +50,26 @@ def test_gaussian_blur_tensor_equivalence(kernel_size, sigma):
     dali_out_img = dali_blur(img)
     dali_out_batch = dali_blur(batch)
 
+    torch.manual_seed(1234)
+    dali_out_fn_img = gaussian_blur(img, kernel_size=kernel_size, sigma=sigma)
+    dali_out_fn_batch = gaussian_blur(batch, kernel_size=kernel_size, sigma=sigma)
+
+    torch.manual_seed(1234)
+    tv_out_fn_img = T.functional.gaussian_blur(img, kernel_size=kernel_size, sigma=sigma)
+    tv_out_fn_batch = T.functional.gaussian_blur(batch, kernel_size=kernel_size, sigma=sigma)
+
     assert tv_out_img.shape == dali_out_img.shape
+    assert tv_out_fn_img.shape == dali_out_fn_img.shape
     assert tv_out_batch.shape == dali_out_batch.shape
+    assert tv_out_fn_batch.shape == dali_out_fn_batch.shape
 
     # allow for small numerical differences
     # TODO: results will differ for min, max due to the random seed
     if isinstance(sigma, float):
         assert torch.allclose(tv_out_img, dali_out_img, atol=1e-5, rtol=1e-4)
+        assert torch.allclose(tv_out_fn_img, dali_out_fn_img, atol=1e-5, rtol=1e-4)
         assert torch.allclose(tv_out_batch, dali_out_batch, atol=1e-5, rtol=1e-4)
+        assert torch.allclose(tv_out_fn_batch, dali_out_fn_batch, atol=1e-5, rtol=1e-4)
 
 
 @params(
@@ -75,10 +88,18 @@ def test_gaussian_blur_scalar_kernel_size_expansion(kernel_size, sigma):
     dali_blur = Compose([GaussianBlur(kernel_size=kernel_size, sigma=sigma)])
     dali_out = dali_blur(img)
 
+    torch.manual_seed(7)
+    dali_out_fn = gaussian_blur(img, kernel_size=kernel_size, sigma=sigma)
+
+    torch.manual_seed(7)
+    tv_out_fn = T.functional.gaussian_blur(img, kernel_size=kernel_size, sigma=sigma)
+
     assert tv_out.shape == dali_out.shape
+    assert tv_out.shape == dali_out_fn.shape
     # TODO: results will differ for min, max due to the random seed
     if isinstance(sigma, float):
         assert torch.allclose(tv_out, dali_out, atol=1e-5, rtol=1e-4)
+        assert torch.allclose(tv_out_fn, dali_out_fn, atol=1e-5, rtol=1e-4)
 
 
 """
@@ -110,12 +131,18 @@ def test_gaussian_blur_random_sigma_distribution(kernel_size, sigma):
 def test_gaussian_blur_invalid_params_match_errors(kernel_size, sigma):
     img, _ = make_input_tensors()
 
-    # torchvision error
     with assert_raises(ValueError):
         tv_blur = T.GaussianBlur(kernel_size=kernel_size, sigma=sigma)
         _ = tv_blur(img)
 
-    # my implementation error
     with assert_raises(ValueError):
         dali_blur = Compose([GaussianBlur(kernel_size=kernel_size, sigma=sigma)])
         _ = dali_blur(img)
+
+    """ Both do not raise ValueError 
+    with assert_raises(ValueError):
+        _ = gaussian_blur(img, kernel_size=kernel_size, sigma=sigma)
+
+    with assert_raises(ValueError):
+        _ = T.functional.gaussian_blur(img, kernel_size=kernel_size, sigma=sigma)
+    """

@@ -16,8 +16,17 @@ import numpy as np
 from typing import Sequence, Literal
 import nvidia.dali.fn as fn
 
+from .operator import Operator, VerificationIsTensor, ArgumentVerificationRule
 
-class Normalize:
+
+class VerifyStd(ArgumentVerificationRule):
+    @classmethod
+    def verify(cls, *, std, **_) -> None:
+        if np.any(np.array(std) == 0):
+            raise ValueError("Std must not be 0")
+
+
+class Normalize(Operator):
     """
     Normalize a tensor image or video with mean and standard deviation.
 
@@ -33,6 +42,9 @@ class Normalize:
     inplace (bool,optional) – Bool to make this operation in-place.
     """
 
+    arg_rules = [VerifyStd]
+    input_rules = [VerificationIsTensor]
+
     def __init__(
         self,
         mean: Sequence[float],
@@ -40,14 +52,13 @@ class Normalize:
         inplace: bool = False,
         device: Literal["cpu", "gpu"] = "cpu",
     ):
+        super().__init__(device=device, std=std)
+
         self.mean = np.asarray(mean)[:, None, None]
         self.std = np.asarray(std)[:, None, None]
         self.inplace = inplace  # TODO: provide proper implementation
-        self.device = device
 
-    def __call__(self, data_input):
-        if self.device == "gpu":
-            data_input = data_input.gpu()
+    def _kernel(self, data_input):
 
         return fn.normalize(
             data_input,

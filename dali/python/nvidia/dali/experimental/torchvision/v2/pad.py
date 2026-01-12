@@ -21,12 +21,42 @@ import numpy as np
 import nvidia.dali as dali
 import nvidia.dali.fn as fn
 
+from .operator import Operator
 
-class PadBase:
+
+def get_inputHW(data_input):
+    layout = data_input.property("layout")[0]
+
+    # CWH
+    if layout == np.frombuffer(bytes("C", "utf-8"), dtype=np.uint8)[0]:
+        input_height = data_input.shape()[1]
+        input_width = data_input.shape()[2]
+    # HWC
+    else:
+        input_height = data_input.shape()[0]
+        input_width = data_input.shape()[1]
+
+    return input_height, input_width, data_input
+
+
+class PadBase(Operator):
+    preprocess_data = get_inputHW
+    border_type = ""
+
+    @staticmethod
+    def get_padding(padding):
+        if isinstance(padding, int):
+            return (
+                padding,
+                padding,
+                padding,
+                padding,
+            )
+        return padding
+
     def __init__(
         self,
         padding: Union[int, Sequence[int]],
-        border_type: Literal["pad", "reflect_1001", "reflect_101", "clamp"],
         fill: Union[
             int,
             float,
@@ -46,33 +76,14 @@ class PadBase:
         ] = 0,
         device: Literal["cpu", "gpu"] = "cpu",
     ):
-        if isinstance(padding, int):
-            self.pad_left, self.pad_top, self.pad_right, self.pad_bottom = (
-                padding,
-                padding,
-                padding,
-                padding,
-            )
-        else:
-            self.pad_left, self.pad_top, self.pad_right, self.pad_bottom = padding
+        super().__init__(device=device)
+
+        self.pad_left, self.pad_top, self.pad_right, self.pad_bottom = PadBase.get_padding(padding)
         self.fill = fill
-        self.device = device
-        self.border_type = border_type
+        self.border_type = type(self).border_type
 
-    def __call__(self, data_input):
-        layout = data_input.property("layout")[0]
-
-        # CWH
-        if layout == np.frombuffer(bytes("C", "utf-8"), dtype=np.uint8)[0]:
-            input_height = data_input.shape()[1]
-            input_width = data_input.shape()[2]
-        # HWC
-        else:
-            input_height = data_input.shape()[0]
-            input_width = data_input.shape()[1]
-
-        if self.device == "gpu":
-            data_input = data_input.gpu()
+    def _kernel(self, data_input):
+        input_height, input_width, data_input = data_input
 
         data_input = fn.slice(
             data_input,
@@ -86,6 +97,7 @@ class PadBase:
             ),  # __shape
             out_of_bounds_policy=self.border_type,
             fill_values=self.fill,
+            device=self.device,
         )
 
         return data_input
@@ -96,29 +108,7 @@ class PadConstant(PadBase):
     Implementation of padding with a constant value.
     """
 
-    def __init__(
-        self,
-        padding: Union[int, Sequence[int]],
-        fill: Union[
-            int,
-            float,
-            Sequence[int],
-            Sequence[float],
-            None,
-            dict[
-                Union[type, str],
-                Union[
-                    int,
-                    float,
-                    collections.abc.Sequence[int],
-                    collections.abc.Sequence[float],
-                    NoneType,
-                ],
-            ],
-        ] = 0,
-        device: Literal["cpu", "gpu"] = "cpu",
-    ):
-        super().__init__(padding, fill=fill, border_type="pad", device=device)
+    border_type = "pad"
 
 
 class PadEdge(PadBase):
@@ -128,8 +118,7 @@ class PadEdge(PadBase):
     padded: [1, 1, 1, 1, 2, 3, 4, 5, 6, 6, 6]
     """
 
-    def __init__(self, padding: Union[int, Sequence[int]], device: Literal["cpu", "gpu"] = "cpu"):
-        super().__init__(padding, fill=0, border_type="clamp", device=device)
+    border_type = "clamp"
 
 
 class PadSymmetric(PadBase):
@@ -140,8 +129,7 @@ class PadSymmetric(PadBase):
     notice, that the first value in padding is repeated
     """
 
-    def __init__(self, padding: Union[int, Sequence[int]], device: Literal["cpu", "gpu"] = "cpu"):
-        super().__init__(padding, fill=0, border_type="reflect_1001", device=device)
+    border_type = "reflect_1001"
 
 
 class PadReflect(PadBase):
@@ -152,8 +140,7 @@ class PadReflect(PadBase):
     notice, that the first value in padding is not repeated
     """
 
-    def __init__(self, padding: Union[int, Sequence[int]], device: Literal["cpu", "gpu"] = "cpu"):
-        super().__init__(padding, fill=0, border_type="reflect_101", device=device)
+    border_type = "reflect_101"
 
 
 PADDING_CLASS = {
@@ -222,12 +209,7 @@ class Pad:
         device: Literal["cpu", "gpu"] = "cpu",
     ):
         self.device = device
-        if padding_mode == "constant":
-            self.pad = PADDING_CLASS[padding_mode](padding, fill, device)
-        else:
-            self.pad = PADDING_CLASS[padding_mode](padding, device)
+        self.pad = PADDING_CLASS[padding_mode](padding, fill, device)
 
     def __call__(self, data_input):
-        if self.device == "gpu":
-            data_input = data_input.gpu()
         return self.pad(data_input)

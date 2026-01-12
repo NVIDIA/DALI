@@ -82,7 +82,11 @@ class PipelineLayouted:
         )
 
     def run(self, data_input):
-        output = self.pipe.run(input_data=data_input)  # TODO: get stream
+        output = None
+
+        stream = torch.cuda.Stream(0)
+        with torch.cuda.stream(stream):
+            output = self.pipe.run(stream, input_data=data_input)
 
         if output is None:
             return output
@@ -136,8 +140,12 @@ class PipelineHWC(PipelineLayouted):
             in_tensor = in_tensor.squeeze(-1)
         elif in_tensor.shape[channels] == 3:
             mode = "RGB"
+        elif in_tensor.shape[channels] == 4:
+            mode = "RGBA"
         else:
-            raise ValueError(f"Unsupported number of channels: {channels}. Should be 1 or 3.")
+            raise ValueError(
+                f"Unsupported number of channels: {in_tensor.shape[channels]}. Should be 1 or 3."
+            )
         # We need to convert tensor to CPU, otherwise it will be unsable
         return Image.fromarray(in_tensor.cpu().numpy(), mode=mode)
 
@@ -209,7 +217,6 @@ class PipelineCHW(PipelineLayouted):
                 "CHW layout is currently supported for torch.Tensor only.\
                 Please check if samples have the same format."
             )
-
         output = super().run(_input)
 
         if data_input.ndim == 3:

@@ -22,6 +22,7 @@ import torch
 import torchvision.transforms.v2 as transforms
 
 from nvidia.dali.experimental.torchvision import Compose, Grayscale, ColorJitter
+from nvidia.dali.experimental.torchvision.v2.functional import to_grayscale, rgb_to_grayscale
 
 
 def verify_non_one_off(t1: torch.Tensor, t2: torch.Tensor):

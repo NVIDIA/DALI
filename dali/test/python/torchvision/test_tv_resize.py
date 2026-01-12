@@ -21,8 +21,10 @@ from nose_utils import assert_raises
 from PIL import Image
 import torch
 import torchvision.transforms.v2 as transforms
+import torchvision.transforms.v2.functional as fn_tv
 
 from nvidia.dali.experimental.torchvision import Resize, Compose, ToTensor
+import nvidia.dali.experimental.torchvision.v2.functional as fn_dali
 
 
 def read_file(path):
@@ -66,9 +68,28 @@ def build_resize_transform(
     return t, td
 
 
-def loop_images_test(t, td):
+def loop_images_test(
+    resize: Union[int, Sequence[int]],
+    max_size: int = None,
+    interpolation: transforms.InterpolationMode = transforms.InterpolationMode.BILINEAR,
+    antialias: bool = False,
+):
+    t, td = build_resize_transform(resize, max_size, interpolation, antialias)
+
     for fn in test_files:
         img = Image.open(fn)
+        out_fn = fn_tv.resize(
+            img, size=resize, max_size=max_size, interpolation=interpolation, antialias=antialias
+        )
+        out_dali_fn = transforms.functional.pil_to_tensor(
+            fn_dali.resize(
+                img,
+                size=resize,
+                max_size=max_size,
+                interpolation=interpolation,
+                antialias=antialias,
+            )
+        )
 
         out_tv = transforms.functional.pil_to_tensor(t(img)).unsqueeze(0).permute(0, 2, 3, 1)
         out_dali_tv = transforms.functional.pil_to_tensor(td(img)).unsqueeze(0).permute(0, 2, 3, 1)
@@ -80,6 +101,13 @@ def loop_images_test(t, td):
         assert (
             tv_shape_lower[1] <= out_dali_tv.shape[2] <= tv_shape_upper[1]
         ), f"Should be:{out_tv.shape} is:{out_dali_tv.shape}"
+
+        assert (
+            tv_shape_lower[0] <= out_dali_fn.shape[1] <= tv_shape_upper[0]
+        ), f"Should be:{out_tv.shape} is:{out_dali_fn.shape}"
+        assert (
+            tv_shape_lower[1] <= out_dali_fn.shape[2] <= tv_shape_upper[1]
+        ), f"Should be:{out_tv.shape} is:{out_dali_fn.shape}"
         # assert torch.equal(out_tv, out_dali_tv)
 
 
@@ -106,9 +134,7 @@ def test_resize_and_tensor(resize, device):
 @params(512, 2048, ([512, 512]), ([2048, 2048]))
 def test_resize_sizes(resize):
     # Resize with single int (preserve aspect ratio)
-    t, td = build_resize_transform(resize)
-
-    loop_images_test(t, td)
+    loop_images_test(resize=resize)
 
 
 @params((480, 512), (100, 124), (None, 512), (1024, 512), ([256, 256], 512))
@@ -126,17 +152,7 @@ def test_resize_max_sizes(resize, max_size):
             )
         return
 
-    td = Compose(
-        [
-            Resize(resize, max_size=max_size),
-        ]
-    )
-    t = transforms.Compose(
-        [
-            transforms.Resize(resize, max_size=max_size),
-        ]
-    )
-    loop_images_test(t, td)
+    loop_images_test(resize=resize, max_size=max_size)
 
 
 @params(
@@ -146,11 +162,9 @@ def test_resize_max_sizes(resize, max_size):
     (640, transforms.InterpolationMode.BICUBIC),
 )
 def test_resize_interploation(resize, interpolation):
-    t, td = build_resize_transform(resize, interpolation=interpolation)
-    loop_images_test(t, td)
+    loop_images_test(resize=resize, interpolation=interpolation)
 
 
 @params((512, True), (2048, True), ([512, 512], True), ([2048, 2048], True))
 def test_resize_antialiasing(resize, antialiasing):
-    t, td = build_resize_transform(resize, antialias=antialiasing)
-    loop_images_test(t, td)
+    loop_images_test(resize=resize, antialias=antialiasing)

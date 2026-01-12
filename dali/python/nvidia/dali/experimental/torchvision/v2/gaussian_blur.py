@@ -12,11 +12,26 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Union, Sequence, Literal
+from typing import Sequence, Literal
 import nvidia.dali.fn as fn
+from .operator import Operator, ArgumentVerificationRule, VerifyIfPositive
 
 
-class GaussianBlur:
+class VerifyKernel(ArgumentVerificationRule):
+    @classmethod
+    def verify(cls, *, kernel_size, **_) -> None:
+        VerifyIfPositive.verify(values=kernel_size)
+
+
+class VerifySigma(ArgumentVerificationRule):
+    @classmethod
+    def verify(cls, *, sigma, **_) -> None:
+        VerifyIfPositive.verify(values=sigma)
+        if isinstance(sigma, (list, tuple)) and sigma[1] < sigma[0]:
+            raise ValueError("sigma values should be positive and of the form (min, max)")
+
+
+class GaussianBlur(Operator):
     """
     Blurs image with randomly chosen Gaussian blur kernel.
 
@@ -37,31 +52,20 @@ class GaussianBlur:
 
     """
 
+    arg_rules = [VerifyKernel, VerifySigma]
+
     def __init__(
         self,
-        kernel_size: Union[int, Sequence[int]],
-        sigma: Union[int, float, Sequence[float]] = (0.1, 2.0),
+        kernel_size: int | Sequence[int],
+        sigma: int | float | Sequence[float] = (0.1, 2.0),
         device: Literal["cpu", "gpu"] = "cpu",
     ):
-        if isinstance(kernel_size, int) and kernel_size <= 0:
-            raise ValueError("Kernel size value should be an odd and positive number")
-        elif isinstance(kernel_size, (list, tuple)) and any(k <= 0 for k in kernel_size):
-            raise ValueError("Kernel size value should be an odd and positive number")
-
-        if isinstance(sigma, (int, float)) and sigma < 0:
-            raise ValueError("If sigma is a single number, it must be positive")
-        elif isinstance(sigma, (list, tuple)) and (
-            sigma[1] < sigma[0] or any(s < 0 for s in sigma)
-        ):
-            raise ValueError("sigma values should be positive and of the form (min, max)")
+        super().__init__(device=device, kernel_size=kernel_size, sigma=sigma)
 
         self.kernel_size = kernel_size
         self.sigma = sigma
-        self.device = device
 
-    def __call__(self, data_input):
-        if self.device == "gpu":
-            data_input = data_input.gpu()
+    def _kernel(self, data_input):
 
         return fn.gaussian_blur(
             data_input,

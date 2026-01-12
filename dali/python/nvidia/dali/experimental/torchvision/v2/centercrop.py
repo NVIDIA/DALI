@@ -13,11 +13,11 @@
 # limitations under the License.
 
 from typing import Union, Sequence
-
+from .operator import Operator, VerificationSize
 import nvidia.dali.fn as fn
 
 
-class CenterCrop:
+class CenterCrop(Operator):
     """
     Crop the input at the center.
 
@@ -35,6 +35,20 @@ class CenterCrop:
                                interpreted as (size[0], size[0]).
     """
 
+    arg_rules = [VerificationSize]
+
+    @staticmethod
+    def adjust_size(size: int | Sequence[int]) -> Sequence[int]:
+        if isinstance(size, int):
+            return (size, size)
+        elif isinstance(size, (list, tuple)):
+            if len(size) == 1:
+                return (size[0], size[0])
+            elif len(size) == 2:
+                return tuple(size)
+
+        return size
+
     def __init__(self, size: Union[int, Sequence[int]], device: str = "cpu"):
         """
         Initialize CenterCrop with the desired output size.
@@ -49,27 +63,11 @@ class CenterCrop:
             TypeError: If size is not int or sequence
             ValueError: If size values are not positive integers or sequence length is invalid
         """
-        # Input validation
-        if isinstance(size, int):
-            if size <= 0:
-                raise ValueError(f"Size must be positive, got {size}")
-            self.size = (size, size)
-        elif isinstance(size, (list, tuple)):
-            if len(size) == 1:
-                if size[0] <= 0:
-                    raise ValueError(f"Size must be positive, got {size[0]}")
-                self.size = (size[0], size[0])
-            elif len(size) == 2:
-                if size[0] <= 0 or size[1] <= 0:
-                    raise ValueError(f"Size values must be positive, got {size}")
-                self.size = tuple(size)
-            else:
-                raise ValueError(f"Size sequence must have length 1 or 2, got {len(size)}")
-        else:
-            raise TypeError(f"Size must be int or sequence, got {type(size)}")
-        self.device = device
+        super().__init__(device=device, size=size)
 
-    def __call__(self, data):
+        self.size = CenterCrop.adjust_size(size)
+
+    def _kernel(self, data):
         """
         Apply center crop to the input data.
 
@@ -82,10 +80,6 @@ class CenterCrop:
         Returns:
             Center cropped data using DALI operations
         """
-
-        if self.device == "gpu":
-            data = data.gpu()
-
         return fn.crop(
             data,
             device=self.device,

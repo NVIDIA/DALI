@@ -13,10 +13,11 @@
 # limitations under the License.
 
 from typing import Literal
+from .operator import Operator
 import nvidia.dali.fn as fn
 
 
-class RandomFlip:
+class RandomFlip(Operator):
     """
     Randomly flips the given image randomly with a given probability.
 
@@ -26,17 +27,15 @@ class RandomFlip:
     """
 
     def __init__(self, p: float = 0.5, horizontal: int = 1, device: Literal["cpu", "gpu"] = "cpu"):
+        super().__init__(device=device)
         self.prob = p
         self.device = device
         self.horizontal = horizontal
 
-    def __call__(self, data_input):
+    def _kernel(self, data_input):
         """
         Performs the horizontal flip if coin_flip >= p
         """
-        if self.device == "gpu":
-            data_input = data_input.gpu()
-
         if self.horizontal:
             data_input = fn.flip(
                 data_input, horizontal=fn.random.coin_flip(probability=self.prob), vertical=0
