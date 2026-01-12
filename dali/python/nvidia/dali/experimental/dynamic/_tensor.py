@@ -1,4 +1,4 @@
-# Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,15 +12,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Optional, Tuple, Union
-from ._type import DType, dtype as _dtype, type_id as _type_id
-from ._device import Device, device as _device
-import nvidia.dali.backend as _backend
-from ._eval_context import EvalContext as _EvalContext
-from . import _eval_mode
-from . import _invocation
 import copy
+from typing import Any, Optional, SupportsInt, Tuple, Union
+
+import numpy as np
+import nvidia.dali.backend as _backend
 import nvidia.dali.types
+
+from . import _eval_mode, _invocation
+from ._arithmetic import _arithm_op
+from ._device import Device
+from ._device import device as _device
+from ._eval_context import EvalContext as _EvalContext
+from ._type import DType
+from ._type import dtype as _dtype
+from ._type import type_id as _type_id
 
 
 def _volume(shape: Tuple[int, ...]) -> int:
@@ -54,7 +60,6 @@ def _try_convert_enums(arr):
     if arr.size == 0:
         raise ValueError("Cannot convert an empty array of `object` type.")
     item = arr.flat[0]
-    import numpy as np
 
     if isinstance(item, nvidia.dali.types.DALIInterpType):
         return arr.astype(np.int32), nvidia.dali.types.INTERP_TYPE
@@ -63,7 +68,7 @@ def _try_convert_enums(arr):
     elif isinstance(item, nvidia.dali.types.DALIImageType):
         return arr.astype(np.int32), nvidia.dali.types.IMAGE_TYPE
     else:
-        raise TypeError("Unexpected element type f{type(item)}")
+        raise TypeError(f"Unexpected element type {type(item)}")
 
 
 class Tensor:
@@ -212,15 +217,20 @@ class Tensor:
                 self._storage = _backend.TensorCPU(a, layout)
                 self._wraps_external_data = True
             else:
-                import numpy as np
-
                 if dtype is not None:
-                    # TODO(michalz): Built-in enum handling
+                    if dtype.kind == DType.Kind.enum:
+                        numpy_type = np.int32
+                    else:
+                        numpy_type = nvidia.dali.types.to_numpy_type(dtype.type_id)
+
                     self._storage = _backend.TensorCPU(
-                        np.array(data, dtype=nvidia.dali.types.to_numpy_type(dtype.type_id)),
+                        np.array(data, dtype=numpy_type),
                         layout,
                         False,
                     )
+                    if dtype.kind == DType.Kind.enum:
+                        self._storage.reinterpret(dtype.type_id)
+
                     copied = True
                     self._wraps_external_data = False
                     self._dtype = dtype
@@ -276,7 +286,7 @@ class Tensor:
             self._assign(cast(self, dtype=dtype, device=self.device).evaluate())
             copied = True
 
-        if _eval_mode.EvalMode.current().value >= _eval_mode.EvalMode.eager.value:
+        if _eval_mode.EvalMode.current().value > _eval_mode.EvalMode.eager.value:
             self.evaluate()
 
         if copy and self._storage is not None and not copied:
@@ -456,17 +466,17 @@ class Tensor:
         """
         if self.size != 1:
             raise ValueError(f"Tensor has {self.size} elements, expected 1")
-        import numpy as np
 
         with _EvalContext.current():
             return np.array(self.cpu().evaluate()._storage).item()
 
-    def __array__(self):
+    def __array__(self, dtype: Any | None = None, copy: bool | None = None):
         b = self.evaluate()._storage
         if isinstance(b, _backend.TensorCPU):
-            import numpy as np
+            if np.lib.NumpyVersion(np.__version__) < "2.0.0" and copy is None:
+                copy = False
 
-            return np.array(b)
+            return np.array(b, dtype=dtype, copy=copy)
         else:
             raise TypeError("This is not a CPU tensor. Use `.cpu()` to get the array interface.")
 
@@ -476,9 +486,20 @@ class Tensor:
         if isinstance(b, _backend.TensorGPU):
             return b.__cuda_array_interface__
         else:
-            raise TypeError(
+            raise AttributeError(
                 "This is not a GPU tensor. Use `.gpu()` to get the CUDA array interface."
             )
+
+    def __dlpack__(
+        self,
+        stream: SupportsInt | None = None,
+        dl_device: tuple[_backend.DLDeviceType, SupportsInt] | None = None,
+        # TensorCPU and TensorGPU don't accept the copy parameter
+    ):
+        return self.evaluate()._storage.__dlpack__(stream, dl_device)
+
+    def __dlpack_device__(self) -> tuple[_backend.DLDeviceType, int]:
+        return self.evaluate()._storage.__dlpack_device__()
 
     def evaluate(self):
         """
@@ -612,13 +633,6 @@ class Tensor:
         return _arithm_op("bitxor", other, self)
 
 
-def _arithm_op(name, *args, **kwargs):
-    argsstr = " ".join(f"&{i}" for i in range(len(args)))
-    from . import _arithmetic_generic_op
-
-    return _arithmetic_generic_op(*args, expression_desc=f"{name}({argsstr})")
-
-
 def _is_int_value(tested: Any, reference: int) -> bool:
     return isinstance(tested, int) and tested == reference
 
@@ -717,12 +731,14 @@ class TensorSlice:
 
         j = 0
         layout = ""
-        for i, r in enumerate(self._ranges):
+        for r in self._ranges:
             if isinstance(r, slice):
                 layout += input_layout[j]
                 j += 1
             elif r is Ellipsis:
-                j += self._tensor.ndim - len(self._ranges) + 1
+                skip = self._tensor.ndim - len(self._ranges) + 1
+                layout += input_layout[j : j + skip]
+                j += skip
             else:
                 j += 1  # skip this dimension
         self._layout = layout
@@ -819,17 +835,16 @@ class TensorSlice:
                         abs_ranges[d] = r.start + ranges[i] * r.step
                     i += 1
             result = TensorSlice(self._tensor, tuple(abs_ranges), True)
-            if _eval_mode.EvalMode.current().value >= _eval_mode.EvalMode.eager.value:
-                result.evaluate()
-            return Tensor(result)
+            return result._run()
 
-    def evaluate(self):
+    def _run(self):
+        """Executes the slicing operation and returns the resulting Tensor."""
         with _EvalContext.current():
             if len(self._ranges) == 0:
-                return self._tensor.evaluate()
+                return self._tensor
 
             if all(_is_full_slice(r) for r in self._ranges):
-                return self._tensor.evaluate()
+                return self._tensor
 
             args = {}
             d = 0
@@ -850,7 +865,10 @@ class TensorSlice:
 
             from . import _tensor_subscript
 
-            return _tensor_subscript(self._tensor, **args).evaluate()
+            return _tensor_subscript(self._tensor, **args)
+
+    def evaluate(self):
+        return self._run().evaluate()
 
 
 def tensor(

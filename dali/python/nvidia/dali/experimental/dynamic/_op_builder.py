@@ -12,22 +12,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import nvidia.dali.backend as _b
-from nvidia.dali.fn import _to_snake_case
-import makefun
-from ._batch import Batch, _get_batch_size, as_batch as _as_batch
-from ._tensor import Tensor
-from . import _ops
-from . import _type
 import copy
-from . import _invocation, _device, _eval_mode, _eval_context
+
+import makefun
+import nvidia.dali.backend as _b
 import nvidia.dali.ops as _legacy_ops
 import nvidia.dali.types
 import nvtx
 from nvidia.dali import internal as _internal
+from nvidia.dali.fn import _to_snake_case
 from nvidia.dali.ops import _docs, _names
+
+from . import _device, _eval_context, _eval_mode, _invocation, _op_filter, _ops, _type
 from . import random as _random
-from . import _op_filter
+from ._batch import Batch, _get_batch_size
+from ._batch import as_batch as _as_batch
+from ._tensor import Tensor
 
 
 def is_external(x):
@@ -152,6 +152,18 @@ def _argument_type_conversion(dtype_id):
         return None
 
 
+def _get_module_name(module, legacy_op_class):
+    """
+    Replicates behaviour of _names._process_op_name() + _adjust_operator_module()
+    for the dynamic mode - changing the module attribute
+    to prevent Sphinx from autodocing the operator.
+    """
+    module_name = module.__name__
+    if legacy_op_class is not None and legacy_op_class.__module__.endswith("hidden"):
+        module_name += ".hidden"
+    return module_name
+
+
 def build_operator_class(schema):
     """
     Generates an Operator subclass based on a schema, fills the members and implements the __init__
@@ -187,11 +199,10 @@ def build_operator_class(schema):
     op_class._legacy_op = legacy_op_class
     op_class._is_stateful = schema.IsStateful()
     op_class._has_random_state_arg = schema.HasRandomStateArg()
-    op_class._instance_cache = {}  # TODO(michalz): Make it thread-local
     op_class._generated = True
     op_class.__init__ = build_constructor(schema, op_class)
     op_class.__call__ = build_call_function(schema, op_class)
-    op_class.__module__ = module.__name__
+    op_class.__module__ = _get_module_name(module, legacy_op_class)
     op_class.__qualname__ = class_name
     op_class._argument_conversion_map = {
         arg: _argument_type_conversion(schema.GetArgumentType(arg))
@@ -405,19 +416,16 @@ def build_call_function(schema, op_class):
                 self._last_invocation = invocation
 
             if (
-                _eval_mode.EvalMode.current() == _eval_mode.EvalMode.eager
-                or _eval_mode.EvalMode.current() == _eval_mode.EvalMode.sync_cpu
-                or _eval_mode.EvalMode.current() == _eval_mode.EvalMode.sync_full
-                or (
-                    _eval_mode.EvalMode.current() == _eval_mode.EvalMode.default
-                    and (
-                        any(is_external(x) for x in inputs)
-                        or any(is_external(x) for x in kwargs.values())
-                    )
-                )
+                _eval_mode.EvalMode.current() is _eval_mode.EvalMode.sync_cpu
+                or _eval_mode.EvalMode.current() is _eval_mode.EvalMode.sync_full
+                or any(is_external(x) for x in inputs)
+                or any(is_external(x) for x in kwargs.values())
             ):
                 # Evaluate immediately
                 invocation.run(_eval_context.EvalContext.current())
+            elif _eval_mode.EvalMode.current() is _eval_mode.EvalMode.eager:
+                with nvtx.annotate("__call__: eager scheduling", domain="op_builder"):
+                    invocation.schedule(_eval_context.EvalContext.current())
             else:
                 pass
                 # Lazy evaluation
@@ -427,20 +435,17 @@ def build_call_function(schema, op_class):
                 # if ctx is not None:
                 # ctx._add_invocation(invocation, weak=not self._is_stateful)
 
-            if is_batch:
-                if len(invocation) == 1:
-                    return Batch(invocation_result=invocation[0])
-                else:
-                    return tuple(
-                        Batch(invocation_result=invocation[i]) for i in range(len(invocation))
-                    )
+            ResultType = Batch if is_batch else Tensor
+
+            if len(invocation) == 1:
+                return ResultType(invocation_result=invocation[0])
+            elif self._output_names is None:
+                return tuple(ResultType(invocation_result=res) for res in invocation)
             else:
-                if len(invocation) == 1:
-                    return Tensor(invocation_result=invocation[0])
-                else:
-                    return tuple(
-                        Tensor(invocation_result=invocation[i]) for i in range(len(invocation))
-                    )
+                return {
+                    name: ResultType(invocation_result=res)
+                    for name, res in zip(self._output_names, invocation)
+                }
 
     doc = _docs._docstring_generator_call(schema.Name(), api="dynamic", args=used_kwargs)
     function = makefun.create_function(header, call, doc=doc)
@@ -583,7 +588,7 @@ def build_fn_wrapper(op):
     function._schema = schema
     function._schema_name = schema.Name()
     function._generated = True
-    function.__module__ = module.__name__
+    function.__module__ = _get_module_name(module, op._legacy_op)
     setattr(module, fn_name, function)
     return function
 

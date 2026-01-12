@@ -1,4 +1,4 @@
-# Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,21 +12,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Optional, Union, Sequence
-from ._type import DType, dtype as _dtype
-from ._tensor import (
-    Tensor,
-    _is_full_slice,
-    _try_convert_enums,
-    tensor as _tensor,
-    as_tensor as _as_tensor,
-)
+from typing import Any, Optional, Sequence, Union
+
 import nvidia.dali.backend as _backend
 import nvidia.dali.types as _dali_types
-from ._device import Device, device as _device
-from . import _eval_mode
-from . import _invocation
 import nvtx
+
+from . import _eval_mode, _invocation
+from ._arithmetic import _arithm_op
+from ._device import Device
+from ._device import device as _device
+from ._tensor import Tensor, _is_full_slice, _try_convert_enums
+from ._tensor import as_tensor as _as_tensor
+from ._tensor import tensor as _tensor
+from ._type import DType
+from ._type import dtype as _dtype
 
 
 def _backend_device(backend: Union[_backend.TensorListCPU, _backend.TensorListGPU]) -> Device:
@@ -95,36 +95,6 @@ class BatchedSlice:
         from . import _tensor_subscript
 
         return _tensor_subscript(self._batch, **args)
-
-
-def _arithm_op(name, *args, **kwargs):
-    from . import _arithmetic_generic_op
-
-    argsstr = " ".join(f"&{i}" for i in range(len(args)))
-    gpu = False
-    new_args = [None] * len(args)
-    for i, a in enumerate(args):
-        if isinstance(a, (Batch, Tensor)):
-            if a.device.device_type == "gpu":
-                gpu = True
-        else:
-            # TODO(michalz): We might use some caching here for common values.
-            if new_args is None:
-                new_args = list(args)
-            if gpu:
-                new_args[i] = _as_tensor(a, device="gpu")
-            else:
-                new_args[i] = _as_tensor(a)
-                if new_args[i].device.device_type == "gpu":
-                    gpu = True
-
-    for i in range(len(args)):
-        if new_args[i] is None:
-            if (args[i].device.device_type == "gpu") != gpu:
-                raise ValueError("Cannot mix GPU and CPU inputs.")
-            new_args[i] = args[i]
-
-    return _arithmetic_generic_op(*new_args, expression_desc=f"{name}({argsstr})")
 
 
 class _TensorList:
@@ -251,6 +221,10 @@ class Batch:
         self._device = None
         self._invocation_result = None  # The result of a DALI operator invocation.
         copied = False
+
+        if dtype is not None and not isinstance(dtype, DType):
+            dtype = _dtype(dtype)
+
         if tensors is not None:
             if isinstance(tensors, (_backend.TensorListCPU, _backend.TensorListGPU)):
                 backend_dev = _backend_device(tensors)
@@ -382,7 +356,7 @@ class Batch:
 
                 self._assign(cast(self, dtype=dtype, device=device))
 
-        if _eval_mode.EvalMode.current().value >= _eval_mode.EvalMode.eager.value:
+        if _eval_mode.EvalMode.current().value > _eval_mode.EvalMode.eager.value:
             self.evaluate()
 
     def _is_external(self) -> bool:
@@ -615,13 +589,19 @@ class Batch:
 
     def _get_tensor(self, i):
         if self._tensors is None:
-            self._tensors = [None] * self.batch_size
+            self._tensors: list[Tensor | None] = [None] * self.batch_size
 
         t = self._tensors[i]
         if t is None:
-            t = self._tensors[i] = Tensor(batch=self, index_in_batch=i)
+            # Without deferred execution, t.evaluate() requires self._tensors[i] to be assigned
+            # Do assignment and evaluation in two steps
+            with _eval_mode.EvalMode.deferred:
+                t = self._tensors[i] = Tensor(batch=self, index_in_batch=i)
             if self._storage:
                 t._storage = self._storage[i]
+            if _eval_mode.EvalMode.current().value > _eval_mode.EvalMode.eager.value:
+                t.evaluate()
+
         return t
 
     def _plain_slice(self, ranges):

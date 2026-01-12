@@ -331,7 +331,7 @@ Optional CMake Build Parameters
 -  ``BUILD_NVJPEG`` - build with ``nvJPEG`` support (default: ON)
 -  ``BUILD_NVJPEG2K`` - build with ``nvJPEG2k`` support (default: ON)
 -  ``BUILD_LIBTIFF`` - build with ``libtiff`` support (default: ON)
--  ``BUILD_FFTS`` - build with ``ffts`` support (default: ON)
+-  ``BUILD_FFTS`` - build with ``ffts`` support (what includes GPU operator based on cuFFT) (default: ON)
 -  ``BUILD_CFITSIO`` - build with ``CFITSIO`` support (default: ON)
 -  ``BUILD_LIBSND`` - build with libsnd support (default: ON)
 -  ``BUILD_LIBTAR`` - build with libtar support (default: ON)

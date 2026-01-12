@@ -19,6 +19,7 @@ from nose_utils import attr, SkipTest
 from nose2.tools import params
 from nose_utils import assert_raises
 import test_tensor
+import nvidia.dali as dali
 
 
 def asnumpy(batch_or_tensor):
@@ -280,3 +281,45 @@ def test_cross_device_copy():
     g0 = g1.to_device("gpu:0")
     c0 = g0.cpu()
     assert batch_equal(asnumpy(c0), asnumpy(c1))
+
+
+@params(("cpu",), ("gpu",))
+def test_batch_from_enum_auto(device_type):
+    for value, type in [
+        (dali.types.INTERP_CUBIC, ndd.InterpType),
+        (dali.types.YCbCr, ndd.ImageType),
+        (dali.types.INT32, ndd.DataType),
+    ]:
+        t = ndd.Batch([value, value], device=device_type)
+        assert t.dtype == type
+        as_int = ndd.batch(t, dtype=ndd.int32, device="cpu")
+        assert as_int.tensors[0].item() == int(value)
+        assert as_int.tensors[1].item() == int(value)
+
+
+@params(("cpu",), ("gpu",))
+def test_batch_from_enum_with_dtype(device_type):
+    for value, type in [
+        (dali.types.INTERP_CUBIC, ndd.InterpType),
+        (dali.types.YCbCr, ndd.ImageType),
+        (dali.types.INT32, ndd.DataType),
+    ]:
+        t = ndd.Batch([value, value], device=device_type, dtype=type)
+        assert t.dtype == type
+        as_int = ndd.batch(t, dtype=ndd.int32, device="cpu")
+        assert as_int.tensors[0].item() == int(value)
+        assert as_int.tensors[1].item() == int(value)
+
+
+@params(("cpu",), ("gpu",))
+def test_batch_from_enum_value_and_dtype(device_type):
+    for value, type in [
+        (dali.types.INTERP_CUBIC, ndd.InterpType),
+        (dali.types.YCbCr, ndd.ImageType),
+        (dali.types.INT32, ndd.DataType),
+    ]:
+        t = ndd.Batch([int(value), int(value)], device=device_type, dtype=type)
+        assert t.dtype == type
+        as_int = ndd.batch(t, dtype=ndd.int32, device="cpu")
+        assert as_int.tensors[0].item() == int(value)
+        assert as_int.tensors[1].item() == int(value)

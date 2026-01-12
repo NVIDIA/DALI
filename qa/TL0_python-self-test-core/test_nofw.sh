@@ -9,6 +9,7 @@ source test_body.sh
 
 test_body() {
   test_no_fw
+  test_different_numpy_versions
 }
 
 pushd ../..

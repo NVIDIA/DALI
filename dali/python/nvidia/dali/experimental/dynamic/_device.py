@@ -147,13 +147,13 @@ class Device:
         return hash((self.device_type, self.device_id))
 
     @staticmethod
-    def current():
+    def current() -> "Device":
         """
         Returns the device on top of the thread-local device stack.
 
         If the stack is empty, returns the default GPU for the calling thread.
         """
-        if not Device._thread_local.devices:
+        if not getattr(Device._thread_local, "devices", None):
             return Device("gpu")
         return Device._thread_local.devices[-1]
 
@@ -164,11 +164,11 @@ class Device:
         by device_id. If the device is CPU, then it does nothing.
         """
         if self.device_type == "gpu" or self.device_type == "mixed":  # TODO(michalz): Remove mixed
-            if Device._thread_local.previous_device_ids is None:
+            if getattr(Device._thread_local, "previous_device_ids", None) is None:
                 Device._thread_local.previous_device_ids = []
             Device._thread_local.previous_device_ids.append(_backend.GetCUDACurrentDevice())
             _backend.SetCUDACurrentDevice(self.device_id)
-        if Device._thread_local.devices is None:
+        if getattr(Device._thread_local, "devices", None) is None:
             Device._thread_local.devices = []
         Device._thread_local.devices.append(self)
 
@@ -184,10 +184,6 @@ class Device:
         dev = Device.current()
         if dev.device_type == "gpu":
             _backend.SetCUDACurrentDevice(dev.device_id)
-
-
-Device._thread_local.devices = None
-Device._thread_local.previous_device_ids = None
 
 
 def device(
