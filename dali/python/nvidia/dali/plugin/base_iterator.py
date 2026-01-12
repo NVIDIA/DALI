@@ -13,7 +13,6 @@
 # limitations under the License.
 
 from nvidia.dali import types
-
 import math
 import logging
 import numpy as np
