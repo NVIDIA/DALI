@@ -1,4 +1,4 @@
-# Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@ import nvidia.dali.backend as _backend
 import nvidia.dali.types
 
 from . import _eval_mode, _invocation
+from ._arithmetic import _arithm_op
 from ._device import Device
 from ._device import device as _device
 from ._eval_context import EvalContext as _EvalContext
@@ -630,13 +631,6 @@ class Tensor:
 
     def __rxor__(self, other):
         return _arithm_op("bitxor", other, self)
-
-
-def _arithm_op(name, *args, **kwargs):
-    argsstr = " ".join(f"&{i}" for i in range(len(args)))
-    from . import _arithmetic_generic_op
-
-    return _arithmetic_generic_op(*args, expression_desc=f"{name}({argsstr})")
 
 
 def _is_int_value(tested: Any, reference: int) -> bool:
