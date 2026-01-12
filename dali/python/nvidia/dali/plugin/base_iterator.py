@@ -13,11 +13,12 @@
 # limitations under the License.
 
 from nvidia.dali import types
+
 import math
 import logging
 import numpy as np
 import warnings
-import pickle  # nosec B403
+import json
 from enum import Enum, unique
 from collections.abc import Iterable
 
@@ -269,13 +270,13 @@ class _DaliBaseIterator(object):
             )
             return
 
-        iterator_data = pickle.loads(iterator_data)  # nosec B301
+        iterator_data = json.loads(iterator_data)  # nosec B301
         for field in self._checkpointed_fields():
             if hasattr(self, field):
                 setattr(self, field, iterator_data[field])
 
     def _save_state(self):
-        iterator_data = pickle.dumps(
+        iterator_data = json.dumps(
             {
                 field: getattr(self, field)
                 for field in self._checkpointed_fields()
