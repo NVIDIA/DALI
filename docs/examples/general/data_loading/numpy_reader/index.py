@@ -31,7 +31,7 @@ doc(
         doc_entry(
             "Dynamic Mode <dynamic_mode.ipynb>",
             op_reference(
-                "dynamic.readers.numpy",
+                "dynamic.readers.Numpy",
                 "Example of reading NumPy array files, "
                 "including reading directly to GPU memory utilizing the GPUDirect storage",
                 0,
