@@ -29,6 +29,7 @@
 #include <vector>
 #include <mutex>
 #include <condition_variable>
+#include "dali/core/semaphore.h"
 #include "dali/core/api_helper.h"
 #include "dali/core/multi_error.h"
 #include "dali/core/mm/detail/aux_alloc.h"
@@ -66,10 +67,14 @@ class DLL_PUBLIC Job {
 
         if (--num_pending_tasks_ == 0) {
           num_pending_tasks_.notify_all();
-          std::cerr << make_string((void *)this, " notified.") << std::endl;
+          (void)std::lock_guard(mtx_);
           cv_.notify_all();
+          // We need this second flag to avoid a race condition where the
+          // desctructor is called between decrementing num_pending_tasks_ and notification_
+          // without excessive use of mutexes.  This must be the very last operation in the task
+          // function that touches `this`.
+          running_ = false;
         }
-        assert(num_pending_tasks_ >= 0);
       };
     } catch (...) {  // if, for whatever reason, we cannot initialize the task, we should erase it
       tasks_.erase(it);
@@ -88,8 +93,10 @@ class DLL_PUBLIC Job {
 
  private:
   // atomic wait has no timeout, so we're stuck with condvar for reentrance
+  std::mutex mtx_;
   std::condition_variable cv_;
   std::atomic_int num_pending_tasks_{0};
+  std::atomic_bool running_{false};
   bool started_ = false;
   bool waited_for_ = false;
 
@@ -139,8 +146,10 @@ class DLL_PUBLIC IncrementalJob {
   const void *executor_ = nullptr;
   bool waited_for_ = false;
   // atomic wait has no timeout, so we're stuck with condvar for reentrance
+  std::mutex mtx_;
   std::condition_variable cv_;
   std::atomic_int num_pending_tasks_{0};
+  std::atomic_bool running_{false};
   using task_list_t = std::list<Task, mm::detail::object_pool_allocator<Task>>;
   task_list_t tasks_;
   std::optional<task_list_t::iterator> last_task_run_;
@@ -192,18 +201,20 @@ class DLL_PUBLIC ThreadPoolBase {
     void Submit() {
       if (lock.owns_lock()) {
         lock.unlock();
-        if (tasks_added > 1)
-          owner->cv_.notify_all();
-        else
-          owner->cv_.notify_one();
+        owner->sem_.release(tasks_added);
       }
     }
+
+    int Size() const {
+      return tasks_added;
+    }
+
    private:
     friend class ThreadPoolBase;
     explicit TaskBulkAdd(ThreadPoolBase *o) : owner(o), lock(o->mtx_, std::defer_lock) {}
-    ThreadPoolBase *owner;
+    ThreadPoolBase *owner = nullptr;
     std::unique_lock<std::mutex> lock;
-    int tasks_added;
+    int tasks_added = 0;
   };
   friend class TaskBulkAdd;
 
@@ -247,7 +258,7 @@ class DLL_PUBLIC ThreadPoolBase {
   void Run(int index, const std::function<OnThreadStartFn> &on_thread_start) noexcept;
 
   std::mutex mtx_;
-  std::condition_variable cv_;
+  counting_semaphore sem_{0};
   bool shutdown_pending_ = false;
   std::queue<TaskFunc> tasks_;
   std::vector<std::thread> threads_;
@@ -289,6 +300,7 @@ void Job::Run(Executor &executor, bool wait) {
     if (started_)
       throw std::logic_error("This job has already been started.");
     started_ = true;
+    running_ = !tasks_.empty();
     for (auto &x : tasks_) {
       num_pending_tasks_++;
       try {
@@ -296,6 +308,7 @@ void Job::Run(Executor &executor, bool wait) {
       } catch (...) {
         if (--num_pending_tasks_ == 0) {
           num_pending_tasks_.notify_all();
+          (void)std::lock_guard(mtx_);
           cv_.notify_all();
         }
         throw;
@@ -325,9 +338,14 @@ IncrementalJob::AddTask(Runnable &&runnable) {
 
       if (--num_pending_tasks_ == 0) {
         num_pending_tasks_.notify_all();
+        (void)std::lock_guard(mtx_);
         cv_.notify_all();
+        // We need this second flag to avoid a race condition where the
+        // desctructor is called between decrementing num_pending_tasks_ and notification_
+        // without excessive use of mutexes. This must be the very last operation in the task
+        // function that touches `this`.
+        running_ = false;
       }
-      assert(num_pending_tasks_ >= 0);
     };
   } catch (...) {  // if, for whatever reason, we cannot initialize the task, we should erase it
     tasks_.erase(it);
@@ -346,6 +364,7 @@ void IncrementalJob::Run(Executor &executor, bool wait) {
     executor_ = &executor;
     auto it = last_task_run_.has_value() ? std::next(*last_task_run_) : tasks_.begin();
     for (; it != tasks_.end(); ++it) {
+      running_ = true;
       executor.AddTask(std::move(it->func));
       last_task_run_ = it;
     }

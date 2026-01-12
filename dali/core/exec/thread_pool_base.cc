@@ -21,6 +21,8 @@ Job::~Job() noexcept(false) {
   if (!tasks_.empty() && !waited_for_) {
     throw std::logic_error("The job is not empty, but hasn't been scrapped or waited for.");
   }
+  while (running_)
+    std::this_thread::yield();
 }
 
 void Job::Wait() {
@@ -30,8 +32,8 @@ void Job::Wait() {
   if (waited_for_)
     throw std::logic_error("This job has already been waited for.");
 
+  auto ready = [&]() { return num_pending_tasks_ == 0; };
   if (ThreadPoolBase::this_thread_pool() != nullptr) {
-    auto ready = [&]() { return num_pending_tasks_ == 0; };
     bool result = ThreadPoolBase::this_thread_pool()->WaitOrRunTasks(cv_, ready);
     waited_for_ = true;
     if (!result)
@@ -62,6 +64,7 @@ void Job::Run(ThreadPoolBase &tp, bool wait) {
   if (started_)
     throw std::logic_error("This job has already been started.");
   started_ = true;
+  running_ = !tasks_.empty();
   {
     auto batch = tp.BulkAdd();
     num_pending_tasks_ += tasks_.size();
@@ -86,6 +89,8 @@ IncrementalJob::~IncrementalJob() noexcept(false) {
   if (!tasks_.empty() && !waited_for_) {
     throw std::logic_error("The job is not empty, but hasn't been scrapped or waited for.");
   }
+  while (running_)
+    std::this_thread::yield();
 }
 
 void IncrementalJob::Wait() {
@@ -95,8 +100,8 @@ void IncrementalJob::Wait() {
   if (waited_for_)
     throw std::logic_error("This job has already been waited for.");
 
+  auto ready = [&]() { return num_pending_tasks_ == 0; };
   if (ThreadPoolBase::this_thread_pool() != nullptr) {
-    auto ready = [&]() { return num_pending_tasks_ == 0; };
     bool result = ThreadPoolBase::this_thread_pool()->WaitOrRunTasks(cv_, ready);
     waited_for_ = true;
     if (!result)
@@ -134,6 +139,8 @@ void IncrementalJob::Run(ThreadPoolBase &tp, bool wait) {
       batch.Add(std::move(it->func));
       last_task_run_ = it;
     }
+    running_ = batch.Size() > 0;
+    batch.Submit();
   }
   if (wait && !tasks_.empty())
     Wait();
@@ -148,7 +155,7 @@ void IncrementalJob::Scrap() {
 ///////////////////////////////////////////////////////////////////////////
 
 thread_local ThreadPoolBase *ThreadPoolBase::this_thread_pool_ = nullptr;
-thread_local int ThreadPoolBase::this_thread_idx_ = -1;;
+thread_local int ThreadPoolBase::this_thread_idx_ = -1;
 
 void ThreadPoolBase::Init(int num_threads, const std::function<OnThreadStartFn> &on_thread_start) {
   if (shutdown_pending_)
@@ -162,20 +169,19 @@ void ThreadPoolBase::Init(int num_threads, const std::function<OnThreadStartFn> 
 }
 
 void ThreadPoolBase::Shutdown(bool join) {
-  if (shutdown_pending_ && !join)
+  if ((shutdown_pending_ && !join) || threads_.empty())
     return;
   {
     std::lock_guard<std::mutex> g(mtx_);
     if (shutdown_pending_ && !join)
       return;
     shutdown_pending_ = true;
-    cv_.notify_all();
+    sem_.release(threads_.size());
   }
 
   for (auto &t : threads_)
     t.join();
-
-  assert(tasks_.empty());
+  threads_.clear();
 }
 
 void ThreadPoolBase::AddTaskNoLock(TaskFunc &&f) {
@@ -189,7 +195,6 @@ void ThreadPoolBase::AddTask(TaskFunc &&f) {
     std::lock_guard<std::mutex> g(mtx_);
     AddTaskNoLock(std::move(f));
   }
-  cv_.notify_one();
 }
 
 void ThreadPoolBase::Run(
@@ -200,11 +205,12 @@ void ThreadPoolBase::Run(
   std::any scope;
   if (on_thread_start)
     scope = on_thread_start(index);
-  std::unique_lock lock(mtx_);
   while (!shutdown_pending_ || !tasks_.empty()) {
-    cv_.wait(lock, [&]() { return shutdown_pending_ || !tasks_.empty(); });
-    if (tasks_.empty())
+    sem_.acquire();
+    std::unique_lock lock(mtx_);
+    if (shutdown_pending_)
       break;
+    assert(!tasks_.empty() && "Semaphore acquired but no tasks present.");
     PopAndRunTask(lock);
   }
 }
@@ -228,11 +234,12 @@ bool ThreadPoolBase::WaitOrRunTasks(std::condition_variable &cv, Condition &&con
 
     if (ret || condition())  // re-evaluate the condition, just in case
       return true;
-    if (tasks_.empty()) {
-      assert(shutdown_pending_);
+    if (shutdown_pending_)
       return condition();
-    }
+    if (!sem_.try_acquire())
+      continue;
 
+    assert(!tasks_.empty() && "Semaphore acquired but no tasks present.");
     PopAndRunTask(lock);
   }
   return condition();
