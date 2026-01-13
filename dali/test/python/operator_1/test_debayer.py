@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2022-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -126,9 +126,15 @@ class DebayerTest(unittest.TestCase):
             return cls.bayered_imgs, cls.npp_baseline
         return cls.bayered_imgs16t, cls.npp_baseline16t
 
-    @params(*enumerate(itertools.product([1, 64], bayer_patterns, ("gpu", "cpu"))))
+    @params(
+        *enumerate(
+            itertools.product(
+                [1, 64], bayer_patterns, ("gpu", "cpu"), (fn.experimental.debayer, fn.debayer)
+            )
+        )
+    )
     def test_debayer_fixed_pattern(self, i, args):
-        (batch_size, pattern, device) = args
+        (batch_size, pattern, device, debayer_op) = args
         num_iterations = 3
         test_hwc_single_channel_input = i % 2 == 1
         bayered_imgs, npp_baseline = self.get_test_data(np.uint8)
@@ -147,9 +153,7 @@ class DebayerTest(unittest.TestCase):
             bayer_imgs, idxs = fn.external_source(source=source, batch=False, num_outputs=2)
             if device == "gpu":
                 bayer_imgs = bayer_imgs.gpu()
-            debayered_imgs = fn.experimental.debayer(
-                bayer_imgs, blue_position=blue_position(pattern)
-            )
+            debayered_imgs = debayer_op(bayer_imgs, blue_position=blue_position(pattern))
             return debayered_imgs, idxs
 
         pipe = debayer_pipeline(batch_size=batch_size, device_id=0, num_threads=4)
@@ -176,8 +180,10 @@ class DebayerTest(unittest.TestCase):
                 else:
                     assert compare_image_equality(baseline, img_debayered)
 
-    @cartesian_params((1, 11, 184), (np.uint8, np.uint16), ("gpu", "cpu"))
-    def test_debayer_per_sample_pattern(self, batch_size, dtype, device):
+    @cartesian_params(
+        (1, 11, 184), (np.uint8, np.uint16), ("gpu", "cpu"), (fn.experimental.debayer, fn.debayer)
+    )
+    def test_debayer_per_sample_pattern(self, batch_size, dtype, device, debayer_op):
         num_iterations = 3
         num_patterns = len(bayer_patterns)
         rng = np.random.default_rng(seed=42 + batch_size)
@@ -200,7 +206,7 @@ class DebayerTest(unittest.TestCase):
             )
             if device == "gpu":
                 bayer_imgs = bayer_imgs.gpu()
-            debayered_imgs = fn.experimental.debayer(bayer_imgs, blue_position=blue_poses)
+            debayered_imgs = debayer_op(bayer_imgs, blue_position=blue_poses)
             return debayered_imgs, blue_poses, idxs
 
         pipe = debayer_pipeline(batch_size=batch_size, device_id=0, num_threads=4)
@@ -229,9 +235,11 @@ class DebayerTest(unittest.TestCase):
                     assert compare_image_equality(img_debayered, baseline)
 
     @cartesian_params(
-        ("bilinear_ocv", "edgeaware_ocv", "vng_ocv", "gray_ocv"), (np.uint8, np.uint16)
+        ("bilinear_ocv", "edgeaware_ocv", "vng_ocv", "gray_ocv"),
+        (np.uint8, np.uint16),
+        (fn.experimental.debayer, fn.debayer),
     )
-    def test_cpu_algorithms(self, algorithm: str, dtype: np.dtype):
+    def test_cpu_algorithms(self, algorithm: str, dtype: np.dtype, debayer_op):
         if algorithm == "vng_ocv" and dtype == np.uint16:
             # VNG algorithm is not supported for uint16
             return
@@ -252,7 +260,7 @@ class DebayerTest(unittest.TestCase):
         @pipeline_def
         def debayer_pipeline():
             bayer_imgs, idxs = fn.external_source(source=source, batch=False, num_outputs=2)
-            debayered_imgs = fn.experimental.debayer(
+            debayered_imgs = debayer_op(
                 bayer_imgs, blue_position=blue_position(pattern), algorithm=algorithm
             )
             return debayered_imgs, idxs
@@ -315,9 +323,7 @@ class DebayerVideoTest(unittest.TestCase):
             )
             if device == "gpu":
                 bayered_vid = bayered_vid.gpu()
-            debayered_vid = fn.experimental.debayer(
-                bayered_vid, blue_position=fn.per_frame(blue_positions)
-            )
+            debayered_vid = fn.debayer(bayered_vid, blue_position=fn.per_frame(blue_positions))
             return debayered_vid, idxs
 
         pipe = debayer_pipeline(batch_size=batch_size, device_id=0, num_threads=4)
@@ -353,7 +359,7 @@ def _test_shape_pipeline(shape, dtype):
     @pipeline_def
     def pipeline():
         bayer_imgs = fn.external_source(source_full_array(shape, dtype), batch=False)
-        return fn.experimental.debayer(bayer_imgs, blue_position=[0, 0], algorithm="bilinear_ocv")
+        return fn.debayer(bayer_imgs, blue_position=[0, 0], algorithm="bilinear_ocv")
 
     pipe = pipeline(batch_size=8, num_threads=4, device_id=0)
     pipe.run()
@@ -391,7 +397,7 @@ def test_no_blue_position_specified():
         @pipeline_def
         def pipeline():
             bayer_imgs = fn.external_source(source_full_array((20, 20), np.uint8), batch=False)
-            return fn.experimental.debayer(bayer_imgs)
+            return fn.debayer(bayer_imgs)
 
         pipe = pipeline(batch_size=8, num_threads=4, device_id=0)
         pipe.run()
@@ -404,7 +410,7 @@ def test_blue_position_outside_of_2x2_tile(blue_position_):
         @pipeline_def
         def pipeline():
             bayer_imgs = fn.external_source(source_full_array((20, 20), np.uint8), batch=False)
-            return fn.experimental.debayer(bayer_imgs, blue_position=blue_position_)
+            return fn.debayer(bayer_imgs, blue_position=blue_position_)
 
         pipe = pipeline(batch_size=8, num_threads=4, device_id=0)
         pipe.run()
@@ -419,9 +425,7 @@ def test_gpu_algorithm_unsupported(algorithm):
         @pipeline_def
         def pipeline():
             bayer_imgs = fn.external_source(source_full_array((20, 20), np.uint8), batch=False)
-            return fn.experimental.debayer(
-                bayer_imgs.gpu(), blue_position=[0, 0], algorithm=algorithm
-            )
+            return fn.debayer(bayer_imgs.gpu(), blue_position=[0, 0], algorithm=algorithm)
 
         pipe = pipeline(batch_size=8, num_threads=4, device_id=0)
         pipe.run()
@@ -434,7 +438,7 @@ def test_cpu_algorithm_unsupported(algorithm):
         @pipeline_def
         def pipeline():
             bayer_imgs = fn.external_source(source_full_array((20, 20), np.uint8), batch=False)
-            return fn.experimental.debayer(bayer_imgs, blue_position=[0, 0], algorithm=algorithm)
+            return fn.debayer(bayer_imgs, blue_position=[0, 0], algorithm=algorithm)
 
         pipe = pipeline(batch_size=8, num_threads=4, device_id=0)
         pipe.run()
