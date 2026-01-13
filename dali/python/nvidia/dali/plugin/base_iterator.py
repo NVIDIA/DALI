@@ -264,7 +264,7 @@ class _DaliBaseIterator(object):
         if field_type is np.int64:
             return int(value)
         return value
-    
+
     def _deserialize_value(self, value, field_type):
         if isinstance(field_type, tuple) and len(field_type) == 2 and field_type[0] is np.ndarray:
             return np.asarray(value, dtype=field_type[1])
@@ -290,11 +290,13 @@ class _DaliBaseIterator(object):
 
     def _save_state(self):
         checkpointed_fields = self._checkpointed_fields()
-        iterator_data = json.dumps({
-            field: self._serialize_value(getattr(self, field), field_type)
-            for field, field_type in checkpointed_fields
-            if hasattr(self, field)
-        })
+        iterator_data = json.dumps(
+            {
+                field: self._serialize_value(getattr(self, field), field_type)
+                for field, field_type in checkpointed_fields
+                if hasattr(self, field)
+            }
+        )
         return iterator_data
 
     def _calculate_shard_sizes(self, shard_nums):
