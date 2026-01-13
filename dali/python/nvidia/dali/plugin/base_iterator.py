@@ -251,12 +251,26 @@ class _DaliBaseIterator(object):
 
     def _checkpointed_fields(self):
         return [
-            "_counter",
-            "_counter_per_gpu",
-            "_shard_sizes_per_gpu",
-            "_shards_id",
-            "_size",
+            ("_counter", np.int64),
+            ("_counter_per_gpu", (np.ndarray, np.int64)),
+            ("_shard_sizes_per_gpu", (np.ndarray, np.int64)),
+            ("_shards_id", (np.ndarray, np.int64)),
+            ("_size", None),
         ]
+
+    def _serialize_value(self, value, field_type):
+        if isinstance(field_type, tuple) and len(field_type) == 2 and field_type[0] is np.ndarray:
+            return value.tolist()
+        if field_type is np.int64:
+            return int(value)
+        return value
+    
+    def _deserialize_value(self, value, field_type):
+        if isinstance(field_type, tuple) and len(field_type) == 2 and field_type[0] is np.ndarray:
+            return np.asarray(value, dtype=field_type[1])
+        if field_type is np.int64:
+            return np.int64(value)
+        return value
 
     def _restore_state(self, iterator_data):
         """
@@ -270,18 +284,17 @@ class _DaliBaseIterator(object):
             return
 
         iterator_data = json.loads(iterator_data)  # nosec B301
-        for field in self._checkpointed_fields():
+        for field, field_type in self._checkpointed_fields():
             if hasattr(self, field):
-                setattr(self, field, iterator_data[field])
+                setattr(self, field, self._deserialize_value(iterator_data[field], field_type))
 
     def _save_state(self):
-        iterator_data = json.dumps(
-            {
-                field: getattr(self, field)
-                for field in self._checkpointed_fields()
-                if hasattr(self, field)
-            }
-        )
+        checkpointed_fields = self._checkpointed_fields()
+        iterator_data = json.dumps({
+            field: self._serialize_value(getattr(self, field), field_type)
+            for field, field_type in checkpointed_fields
+            if hasattr(self, field)
+        })
         return iterator_data
 
     def _calculate_shard_sizes(self, shard_nums):
