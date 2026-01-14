@@ -21,6 +21,7 @@ def capture_processes(pool):
     """Need to be called to register the processes created by the pool. It is later used
     by the teardown_function to check if no process stayed alive after the test finished.
     """
+    global pools, pool_processes, pool_threads
     if pool is not None:
         pools.append(weakref.ref(pool))
         pool_processes.extend(pool.pids())
@@ -44,6 +45,7 @@ def teardown_function():
 
     Be sure to call `capture_processes` in the test.
     """
+    global pools, pool_processes, pool_threads
     assert len(pool_processes), "No processes where tracked - did the test call capture_processes?"
     pools_not_collected = [pool_ref() is not None for pool_ref in pools]
     current_process = psutil.Process()
