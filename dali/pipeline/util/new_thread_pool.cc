@@ -40,7 +40,7 @@ NewThreadPool::NewThreadPool(
 }
 
 std::any NewThreadPool::OnThreadStart(int thread_idx, bool set_affinity) {
-  std::string name = make_string("[DALI][NT", thread_idx, "]", name);
+  std::string name = make_string("[DALI][NT", thread_idx, "]", name_);
   SetThreadName(name.c_str());
   std::any dg;
   if (device_id_.has_value())
