@@ -28,61 +28,45 @@ struct SerialExecutor {
   }
 };
 
-TEST(NewThreadPool, Abandon) {
-  EXPECT_NO_THROW({
-    Job job;
-    job.AddTask([]() {});
-    job.Abandon();
-  });
-}
+TEST(NewThreadPool, AddTask) {
+  ThreadPoolBase tp(4);
+  std::atomic_int flag{0};
+  for (int i = 0; i < 16; i++)
+    tp.AddTask([&, i]() {
+      int f = (flag |= (1 << i));
+      if (f == 0xffff)
+        flag.notify_all();
+    });
 
-TEST(NewThreadPool, IncrementalJobAbandon) {
-  EXPECT_NO_THROW({
-    IncrementalJob job;
-    job.AddTask([]() {});
-    job.Abandon();
-  });
-}
-
-TEST(NewThreadPool, ErrorJobNotStarted) {
-  try {
-    Job job;
-    job.AddTask([]() {});
-  } catch (std::logic_error &e) {
-    EXPECT_NE(nullptr, strstr(e.what(), "The job is not empty"));
-    return;
+  int f = flag.load();
+  while (f != 0xffff) {
+    flag.wait(f);
+    f = flag.load();
   }
-  GTEST_FAIL() << "Expected a logic error.";
+  // No conditions - this test succeeds if it doesn't hang
 }
 
-TEST(NewThreadPool, ErrorIncrementalJobNotStarted) {
-  try {
-    IncrementalJob job;
-    job.AddTask([]() {});
-  } catch (std::logic_error &e) {
-    EXPECT_NE(nullptr, strstr(e.what(), "The job is not empty"));
-    return;
+TEST(NewThreadPool, BulkAddTask) {
+  ThreadPoolBase tp(4);
+  std::atomic_int flag{0};
+  {
+    ThreadPoolBase::TaskBulkAdd bulk = tp.BeginBulkAdd();
+    for (int i = 0; i < 16; i++)
+      bulk.Add([&, i]() {
+        int f = (flag |= (1 << i));
+        if (f == 0xffff)
+          flag.notify_all();
+      });
+    EXPECT_EQ(bulk.Size(), 16);
+    // submitted automatically on destruction
   }
-  GTEST_FAIL() << "Expected a logic error.";
-}
 
-TEST(NewThreadPool, RunJobInSeries) {
-  Job job;
-  SerialExecutor tp;
-  int a = 0, b = 0, c = 0;
-  job.AddTask([&]() {
-    a = 1;
-  });
-  job.AddTask([&]() {
-    b = 2;
-  });
-  job.AddTask([&]() {
-    c = 3;
-  });
-  job.Run(tp, true);
-  EXPECT_EQ(a, 1);
-  EXPECT_EQ(b, 2);
-  EXPECT_EQ(c, 3);
+  int f = flag.load();
+  while (f != 0xffff) {
+    flag.wait(f);
+    f = flag.load();
+  }
+  // No conditions - this test succeeds if it doesn't hang
 }
 
 TEST(NewThreadPool, RunJobInThreadPool) {
@@ -172,6 +156,47 @@ class NewThreadPoolJobTest : public ::testing::Test {};
 
 using JobTypes = ::testing::Types<Job, IncrementalJob>;
 TYPED_TEST_SUITE(NewThreadPoolJobTest, JobTypes);
+
+
+TYPED_TEST(NewThreadPoolJobTest, RunJobInSeries) {
+  TypeParam job;
+  SerialExecutor tp;
+  int a = 0, b = 0, c = 0;
+  job.AddTask([&]() {
+    a = 1;
+  });
+  job.AddTask([&]() {
+    b = 2;
+  });
+  job.AddTask([&]() {
+    c = 3;
+  });
+  job.Run(tp, true);
+  EXPECT_EQ(a, 1);
+  EXPECT_EQ(b, 2);
+  EXPECT_EQ(c, 3);
+}
+
+
+TYPED_TEST(NewThreadPoolJobTest, Abandon) {
+  EXPECT_NO_THROW({
+    TypeParam job;
+    job.AddTask([]() {});
+    job.Abandon();
+  });
+}
+
+
+TYPED_TEST(NewThreadPoolJobTest, ErrorIncrementalJobNotStarted) {
+  try {
+    TypeParam job;
+    job.AddTask([]() {});
+  } catch (std::logic_error &e) {
+    EXPECT_NE(nullptr, strstr(e.what(), "The job is not empty"));
+    return;
+  }
+  GTEST_FAIL() << "Expected a logic error.";
+}
 
 
 TYPED_TEST(NewThreadPoolJobTest, RethrowMultipleErrors) {

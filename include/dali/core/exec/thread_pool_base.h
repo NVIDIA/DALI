@@ -219,7 +219,7 @@ class DLL_PUBLIC ThreadPoolBase {
   };
   friend class TaskBulkAdd;
 
-  TaskBulkAdd BulkAdd() & { return TaskBulkAdd(this); }
+  TaskBulkAdd BeginBulkAdd() & { return TaskBulkAdd(this); }
 
   int NumThreads() const {
     return threads_.size();
