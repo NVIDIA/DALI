@@ -69,7 +69,7 @@ void Job::Run(ThreadPoolBase &tp, bool wait) {
   executor_ = &tp;
   running_ = !tasks_.empty();
   {
-    auto batch = tp.BulkAdd();
+    auto batch = tp.BeginBulkAdd();
     for (auto &x : tasks_) {
       batch.Add(std::move(x.second.func));
     }
@@ -114,7 +114,7 @@ void IncrementalJob::Run(ThreadPoolBase &tp, bool wait) {
   executor_ = &tp;
   {
     auto it = last_task_run_.has_value() ? std::next(*last_task_run_) : tasks_.begin();
-    auto batch = tp.BulkAdd();
+    auto batch = tp.BeginBulkAdd();
     for (; it != tasks_.end(); ++it) {
       batch.Add(std::move(it->func));
       last_task_run_ = it;
@@ -194,6 +194,7 @@ void ThreadPoolBase::AddTask(TaskFunc &&f) {
     std::lock_guard<std::mutex> g(mtx_);
     AddTaskNoLock(std::move(f));
   }
+  sem_.release(1);
 }
 
 void ThreadPoolBase::Run(
