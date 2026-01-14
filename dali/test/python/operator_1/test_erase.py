@@ -17,6 +17,7 @@ import nvidia.dali.ops as ops
 import numpy as np
 from functools import partial
 
+from nose2.tools import params
 from test_utils import compare_pipelines
 from test_utils import RandomDataIterator
 
@@ -269,8 +270,7 @@ def test_operator_erase_vs_python():
                     assert len(axes) > 0
                     assert len(anchor) % len(axes) == 0
 
-                yield (
-                    check_operator_erase_vs_python,
+                check_operator_erase_vs_python(
                     device,
                     batch_size,
                     input_shape,
@@ -418,8 +418,7 @@ def test_operator_erase_with_normalized_coords():
                 ]:
                     anchor_norm_arg = anchor_norm if normalized_anchor else anchor
                     shape_norm_arg = shape_norm if normalized_shape else shape
-                    yield (
-                        check_operator_erase_with_normalized_coords,
+                    check_operator_erase_with_normalized_coords(
                         device,
                         batch_size,
                         input_shape,
@@ -445,8 +444,7 @@ def test_operator_erase_with_out_of_bounds_roi_coords():
     # second region is completely out of bounds
     anchor_norm_arg = (4 / 60.0, 10 / 80.0, 2000, 2000, 10 / 60.0, 4 / 80.0)
     shape_norm_arg = (40 / 60.0, 50 / 80.0, 200, 200, 50 / 60.0, 40 / 80.0)
-    yield (
-        check_operator_erase_with_normalized_coords,
+    check_operator_erase_with_normalized_coords(
         device,
         batch_size,
         input_shape,

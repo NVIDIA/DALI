@@ -18,6 +18,7 @@ import nvidia.dali.plugin.tf as dali_tf
 import tensorflow as tf
 from nvidia.dali import Pipeline, fn
 
+from nose2.tools import params
 from test_utils import RandomlyShapedDataIterator
 
 

@@ -18,6 +18,7 @@ import numpy as np
 import nvidia.dali as dali
 import nvidia.dali.fn as fn
 from test_utils import get_dali_extra_path
+from nose2.tools import params
 from nose_utils import raises
 import tempfile
 
@@ -47,9 +48,9 @@ def _test_file_properties(device):
             assert _uint8_tensor_to_string(source_info) == ref
 
 
-def test_file_properties():
-    for dev in ["cpu", "gpu"]:
-        yield _test_file_properties, dev
+@params("cpu", "gpu")
+def test_file_properties(dev):
+    _test_file_properties(dev)
 
 
 @pipeline_def(exec_dynamic=True)
@@ -96,10 +97,9 @@ def _test_wds_source_info(device, generate_index):
             assert _uint8_tensor_to_string(source_info) == f"{root_path}:{ref_idx}:{ref_fname}"
 
 
-def test_wds_source_info():
-    for dev in ["cpu", "gpu"]:
-        for gen_idx in [True, False]:
-            yield _test_wds_source_info, dev, gen_idx
+@params(*[(dev, gen_idx) for dev in ["cpu", "gpu"] for gen_idx in [True, False]])
+def test_wds_source_info(dev, gen_idx):
+    _test_wds_source_info(dev, gen_idx)
 
 
 @pipeline_def
@@ -131,9 +131,9 @@ def _test_tfr_properties(device):
             assert _uint8_tensor_to_string(source_info) == f"{root_path} at index {ref_idx}"
 
 
-def test_tfr_properties():
-    for dev in ["cpu", "gpu"]:
-        yield _test_tfr_properties, dev
+@params("cpu", "gpu")
+def test_tfr_properties(dev):
+    _test_tfr_properties(dev)
 
 
 @pipeline_def
@@ -164,9 +164,9 @@ def _test_es_properties(device):
             assert _uint8_tensor_to_string(sample), lt
 
 
-def test_es_properties():
-    for dev in ["cpu", "gpu"]:
-        yield _test_es_properties, dev
+@params("cpu", "gpu")
+def test_es_properties(dev):
+    _test_es_properties(dev)
 
 
 @pipeline_def
@@ -182,9 +182,9 @@ def _test_improper_property(device):
     p.run()
 
 
-def test_improper_property():
-    for dev in ["cpu", "gpu"]:
-        yield _test_improper_property, dev
+@params("cpu", "gpu")
+def test_improper_property(dev):
+    _test_improper_property(dev)
 
 
 def test_get_property_gpu2cpu():

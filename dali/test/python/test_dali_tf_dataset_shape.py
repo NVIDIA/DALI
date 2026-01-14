@@ -20,6 +20,7 @@ import nvidia.dali.types as dali_types
 from test_utils_tensorflow import skip_for_incompatible_tf
 
 import os
+from nose2.tools import params
 from nose_utils import raises, assert_equals
 import itertools
 import warnings
@@ -70,43 +71,58 @@ def dali_pipe_batch_1(shapes, types, as_single_tuple=False):
             assert_equals(image.shape, image_ref[0].shape())
 
 
-def test_batch_1_different_shapes():
-    for shape in [
-        None,
-        (None, None, None, None),
-        (None, None, None),
-        (1, None, None, None),
-        (1, None, None, 3),
-        (None, None, 3),
-    ]:
-        yield dali_pipe_batch_1, shape, tf.uint8
-        yield dali_pipe_batch_1, (shape,), (tf.uint8,), True
+_batch_1_different_shapes_params = []
+for shape in [
+    None,
+    (None, None, None, None),
+    (None, None, None),
+    (1, None, None, None),
+    (1, None, None, 3),
+    (None, None, 3),
+]:
+    _batch_1_different_shapes_params.append((shape, tf.uint8, False))
+    _batch_1_different_shapes_params.append(((shape,), (tf.uint8,), True))
 
 
-def test_batch_1_mixed_tuple():
-    for shape in [
-        (None, None, None, None),
-        (None, None, None),
-        (1, None, None, None),
-        (1, None, None, 3),
-        (None, None, 3),
-    ]:
-        yield raises(ValueError, "The two structures don't have the same sequence length.")(
-            dali_pipe_batch_1
-        ), shape, (tf.uint8,)
-        expected_msg = (
-            "Dimension value must be integer or None * got value * " "with type '<class 'tuple'>'"
-        )
-        yield raises(TypeError, expected_msg)(dali_pipe_batch_1), (shape,), tf.uint8
+@params(*_batch_1_different_shapes_params)
+def test_batch_1_different_shapes(shape, dtype, as_single_tuple):
+    dali_pipe_batch_1(shape, dtype, as_single_tuple)
 
 
-def test_batch_1_wrong_shape():
-    for shape in [(2, None, None, None), (None, None, 4), (2, None, None, 4), (None, 0, None, 3)]:
-        yield raises(
-            tf.errors.InvalidArgumentError,
-            "The shape provided for output `0` is not compatible with the "
-            "shape returned by DALI Pipeline",
-        )(dali_pipe_batch_1), shape, tf.uint8
+_batch_1_mixed_tuple_shapes = [
+    (None, None, None, None),
+    (None, None, None),
+    (1, None, None, None),
+    (1, None, None, 3),
+    (None, None, 3),
+]
+
+
+@params(*_batch_1_mixed_tuple_shapes)
+def test_batch_1_mixed_tuple_raises_value_error(shape):
+    raises(ValueError, "The two structures don't have the same sequence length.")(
+        dali_pipe_batch_1
+    )(shape, (tf.uint8,))
+
+
+@params(*_batch_1_mixed_tuple_shapes)
+def test_batch_1_mixed_tuple_raises_type_error(shape):
+    expected_msg = (
+        "Dimension value must be integer or None * got value * " "with type '<class 'tuple'>'"
+    )
+    raises(TypeError, expected_msg)(dali_pipe_batch_1)((shape,), tf.uint8)
+
+
+_batch_1_wrong_shapes = [(2, None, None, None), (None, None, 4), (2, None, None, 4), (None, 0, None, 3)]
+
+
+@params(*_batch_1_wrong_shapes)
+def test_batch_1_wrong_shape(shape):
+    raises(
+        tf.errors.InvalidArgumentError,
+        "The shape provided for output `0` is not compatible with the "
+        "shape returned by DALI Pipeline",
+    )(dali_pipe_batch_1)(shape, tf.uint8)
 
 
 def dali_pipe_batch_N(shapes, types, batch):
@@ -134,22 +150,29 @@ def dali_pipe_batch_N(shapes, types, batch):
             assert_equals(image.shape, (200, 200, 3))
 
 
-def test_batch_N_valid_shapes():
+def _generate_batch_N_valid_shapes_params():
+    result = []
     for batch in [1, 10]:
         # No shape
-        yield dali_pipe_batch_N, None, tf.uint8, batch
+        result.append((None, tf.uint8, batch))
         # Full shape
         output_shape = (batch, 200, 200, 3)
         for i in range(2 ** len(output_shape)):
             noned_shape = tuple(
                 (dim if i & (2**idx) else None) for idx, dim in enumerate(output_shape)
             )
-            yield dali_pipe_batch_N, noned_shape, tf.uint8, batch
+            result.append((noned_shape, tf.uint8, batch))
     # Omitted batch of size `1`
     output_shape = (200, 200, 3)
     for i in range(2 ** len(output_shape)):
         noned_shape = tuple((dim if i & (2**idx) else None) for idx, dim in enumerate(output_shape))
-        yield dali_pipe_batch_N, noned_shape, tf.uint8, 1
+        result.append((noned_shape, tf.uint8, 1))
+    return result
+
+
+@params(*_generate_batch_N_valid_shapes_params())
+def test_batch_N_valid_shapes(shapes, types, batch):
+    dali_pipe_batch_N(shapes, types, batch)
 
 
 def dali_pipe_multiple_out(shapes, types, batch):
@@ -181,7 +204,8 @@ def dali_pipe_multiple_out(shapes, types, batch):
             assert_equals(label.shape, (batch,))
 
 
-def test_multiple_input_valid_shapes():
+def _generate_multiple_input_valid_shapes_params():
+    result = []
     for batch in [1, 10]:
         for shapes in [
             None,
@@ -190,15 +214,28 @@ def test_multiple_input_valid_shapes():
             (None, (batch, 1)),
             (None, (batch,)),
         ]:
-            yield dali_pipe_multiple_out, shapes, (tf.uint8, tf.int32), batch
+            result.append((shapes, (tf.uint8, tf.int32), batch))
+    return result
 
 
-def test_multiple_input_invalid():
+@params(*_generate_multiple_input_valid_shapes_params())
+def test_multiple_input_valid_shapes(shapes, types, batch):
+    dali_pipe_multiple_out(shapes, types, batch)
+
+
+def _generate_multiple_input_invalid_params():
+    result = []
     for batch in [1, 10]:
         for shapes in [(None,), (batch, 200, 200, 3, None), (None, None, None)]:
-            yield raises(ValueError, "The two structures don't have the same sequence length.")(
-                dali_pipe_multiple_out
-            ), shapes, (tf.uint8, tf.uint8), batch
+            result.append((shapes, (tf.uint8, tf.uint8), batch))
+    return result
+
+
+@params(*_generate_multiple_input_invalid_params())
+def test_multiple_input_invalid(shapes, types, batch):
+    raises(ValueError, "The two structures don't have the same sequence length.")(
+        dali_pipe_multiple_out
+    )(shapes, types, batch)
 
 
 def dali_pipe_artificial_shape(shapes, tf_type, dali_type, batch):
@@ -231,7 +268,8 @@ def dali_pipe_artificial_shape(shapes, tf_type, dali_type, batch):
             assert_equals(out.shape, (2,))
 
 
-def test_artificial_match():
+def _generate_artificial_match_params():
+    result = []
     for batch in [1, 10]:
         for shape in [
             (None, None, None, None),
@@ -239,19 +277,28 @@ def test_artificial_match():
             (batch, None, None, None),
             (batch, None, 2),
         ]:
-            yield dali_pipe_artificial_shape, shape, tf.uint8, dali_types.UINT8, batch
-    yield dali_pipe_artificial_shape, (10, 2), tf.uint8, dali_types.UINT8, 10
-    yield dali_pipe_artificial_shape, (2,), tf.uint8, dali_types.UINT8, 1
+            result.append((shape, tf.uint8, dali_types.UINT8, batch))
+    result.append(((10, 2), tf.uint8, dali_types.UINT8, 10))
+    result.append(((2,), tf.uint8, dali_types.UINT8, 1))
+    return result
 
 
-def test_artificial_no_match():
+@params(*_generate_artificial_match_params())
+def test_artificial_match(shape, tf_type, dali_type, batch):
+    dali_pipe_artificial_shape(shape, tf_type, dali_type, batch)
+
+
+_artificial_no_match_shapes = [(11, None, None, None), (None, None, 3), (10, 2, 1, 1)]
+
+
+@params(*_artificial_no_match_shapes)
+def test_artificial_no_match(shape):
     batch = 10
-    for shape in [(batch + 1, None, None, None), (None, None, 3), (batch, 2, 1, 1)]:
-        yield raises(
-            tf.errors.InvalidArgumentError,
-            "The shape provided for output `0` is not compatible with the "
-            "shape returned by DALI Pipeline",
-        )(dali_pipe_artificial_shape), shape, tf.uint8, dali_types.UINT8, batch
+    raises(
+        tf.errors.InvalidArgumentError,
+        "The shape provided for output `0` is not compatible with the "
+        "shape returned by DALI Pipeline",
+    )(dali_pipe_artificial_shape)(shape, tf.uint8, dali_types.UINT8, batch)
 
 
 def dali_pipe_types(tf_type, dali_type):
@@ -302,15 +349,18 @@ all_types = itertools.product(tf_type_list, dali_type_list)
 not_matching_types = list(set(all_types).difference(set(matching_types)))
 
 
-def test_type_returns():
-    for tf_t, dali_t in matching_types:
-        yield dali_pipe_types, tf_t, dali_t
-    for tf_t, dali_t in not_matching_types:
-        yield raises(
-            tf.errors.InvalidArgumentError,
-            "The type provided for output `0` is not compatible with the type "
-            "returned by DALI Pipeline",
-        )(dali_pipe_types), tf_t, dali_t
+@params(*matching_types)
+def test_type_returns_matching(tf_t, dali_t):
+    dali_pipe_types(tf_t, dali_t)
+
+
+@params(*not_matching_types)
+def test_type_returns_not_matching(tf_t, dali_t):
+    raises(
+        tf.errors.InvalidArgumentError,
+        "The type provided for output `0` is not compatible with the type "
+        "returned by DALI Pipeline",
+    )(dali_pipe_types)(tf_t, dali_t)
 
 
 def dali_pipe_deprecated(
@@ -340,61 +390,39 @@ def dali_pipe_deprecated(
 
 
 def test_deprecated():
-    yield dali_pipe_deprecated, {
-        "shapes": 2,
-        "dtypes": tf.uint8,
-    }, 2, tf.uint8, dali_types.UINT8, 1, 2
-    yield dali_pipe_deprecated, {"shapes": [4, 2], "dtypes": tf.uint8}, [
-        4,
-        2,
-    ], tf.uint8, dali_types.UINT8, 4, 2
-    yield dali_pipe_deprecated, {"shapes": [[4, 2]], "dtypes": [tf.uint8]}, [
-        4,
-        2,
-    ], tf.uint8, dali_types.UINT8, 4, 2
-    yield dali_pipe_deprecated, {
-        "output_shapes": 2,
-        "dtypes": tf.uint8,
-    }, 2, tf.uint8, dali_types.UINT8, 1, 1
-    yield dali_pipe_deprecated, {"output_shapes": (4, 2), "dtypes": tf.uint8}, [
-        4,
-        2,
-    ], tf.uint8, dali_types.UINT8, 4, 1
-    yield dali_pipe_deprecated, {"output_shapes": ((4, 2),), "dtypes": [tf.uint8]}, [
-        4,
-        2,
-    ], tf.uint8, dali_types.UINT8, 4, 1
-    yield dali_pipe_deprecated, {
-        "shapes": 2,
-        "output_dtypes": tf.uint8,
-    }, 2, tf.uint8, dali_types.UINT8, 1, 1
-    yield dali_pipe_deprecated, {"shapes": [4, 2], "output_dtypes": tf.uint8}, [
-        4,
-        2,
-    ], tf.uint8, dali_types.UINT8, 4, 1
-    yield dali_pipe_deprecated, {"shapes": [[4, 2]], "output_dtypes": (tf.uint8,)}, [
-        4,
-        2,
-    ], tf.uint8, dali_types.UINT8, 4, 1
+    dali_pipe_deprecated({"shapes": 2, "dtypes": tf.uint8}, 2, tf.uint8, dali_types.UINT8, 1, 2)
+    dali_pipe_deprecated({"shapes": [4, 2], "dtypes": tf.uint8}, [4, 2], tf.uint8, dali_types.UINT8, 4, 2)
+    dali_pipe_deprecated({"shapes": [[4, 2]], "dtypes": [tf.uint8]}, [4, 2], tf.uint8, dali_types.UINT8, 4, 2)
+    dali_pipe_deprecated({"output_shapes": 2, "dtypes": tf.uint8}, 2, tf.uint8, dali_types.UINT8, 1, 1)
+    dali_pipe_deprecated({"output_shapes": (4, 2), "dtypes": tf.uint8}, [4, 2], tf.uint8, dali_types.UINT8, 4, 1)
+    dali_pipe_deprecated({"output_shapes": ((4, 2),), "dtypes": [tf.uint8]}, [4, 2], tf.uint8, dali_types.UINT8, 4, 1)
+    dali_pipe_deprecated({"shapes": 2, "output_dtypes": tf.uint8}, 2, tf.uint8, dali_types.UINT8, 1, 1)
+    dali_pipe_deprecated({"shapes": [4, 2], "output_dtypes": tf.uint8}, [4, 2], tf.uint8, dali_types.UINT8, 4, 1)
+    dali_pipe_deprecated({"shapes": [[4, 2]], "output_dtypes": (tf.uint8,)}, [4, 2], tf.uint8, dali_types.UINT8, 4, 1)
 
 
-def test_deprecated_double_def():
+def test_deprecated_double_def_shapes():
     error_msg = (
         "Usage of `{}` is deprecated in favor of `output_{}`*only `output_{}` "
         "should be provided."
     )
     shapes_error_msg = error_msg.format(*(("shapes",) * 3))
-    yield raises(ValueError, shapes_error_msg)(dali_pipe_deprecated), {
-        "shapes": 2,
-        "output_shapes": 2,
-        "dtypes": tf.uint8,
-    }, 2, tf.uint8, dali_types.UINT8, 1, 2
+    raises(ValueError, shapes_error_msg)(dali_pipe_deprecated)(
+        {"shapes": 2, "output_shapes": 2, "dtypes": tf.uint8},
+        2, tf.uint8, dali_types.UINT8, 1, 2
+    )
+
+
+def test_deprecated_double_def_dtypes():
+    error_msg = (
+        "Usage of `{}` is deprecated in favor of `output_{}`*only `output_{}` "
+        "should be provided."
+    )
     dtypes_error_msg = error_msg.format(*(("dtypes",) * 3))
-    yield raises(ValueError, dtypes_error_msg)(dali_pipe_deprecated), {
-        "shapes": 2,
-        "dtypes": tf.uint8,
-        "output_dtypes": tf.uint8,
-    }, 2, tf.uint8, dali_types.UINT8, 1, 2
+    raises(ValueError, dtypes_error_msg)(dali_pipe_deprecated)(
+        {"shapes": 2, "dtypes": tf.uint8, "output_dtypes": tf.uint8},
+        2, tf.uint8, dali_types.UINT8, 1, 2
+    )
 
 
 def test_no_output_dtypes():
@@ -402,6 +430,6 @@ def test_no_output_dtypes():
         "`output_dtypes` should be provided as single tf.DType value or a tuple of "
         "tf.DType values"
     )
-    yield raises(TypeError, expected_msg)(dali_pipe_deprecated), {
-        "shapes": 2
-    }, 2, tf.uint8, dali_types.UINT8, 1, 2
+    raises(TypeError, expected_msg)(dali_pipe_deprecated)(
+        {"shapes": 2}, 2, tf.uint8, dali_types.UINT8, 1, 2
+    )

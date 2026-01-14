@@ -210,27 +210,42 @@ def check_reshape_with_arg_input(device, batch_size, relative, use_wildcard):
         verify_make_tall(imgs, reshaped)
 
 
-def test_reshape_arg():
-    for device in ["cpu", "gpu"]:
-        for batch_size in [16]:
-            for relative in [False, True]:
-                for use_wildcard in [False, True]:
-                    yield check_reshape, device, batch_size, relative, use_wildcard
+_reshape_arg_test_cases = [
+    (device, 16, relative, use_wildcard)
+    for device in ["cpu", "gpu"]
+    for relative in [False, True]
+    for use_wildcard in [False, True]
+]
 
 
-def test_reshape_input():
-    for device in ["cpu", "gpu"]:
-        for batch_size in [16]:
-            for use_wildcard in [False, True]:
-                yield check_reshape_with_input, device, batch_size, use_wildcard
+@params(*_reshape_arg_test_cases)
+def test_reshape_arg(device, batch_size, relative, use_wildcard):
+    check_reshape(device, batch_size, relative, use_wildcard)
 
 
-def test_reshape_arg_input():
-    for device in ["cpu", "gpu"]:
-        for batch_size in [16]:
-            for relative in [False, True]:
-                for use_wildcard in [False, True]:
-                    yield check_reshape_with_arg_input, device, batch_size, relative, use_wildcard
+_reshape_input_test_cases = [
+    (device, 16, use_wildcard)
+    for device in ["cpu", "gpu"]
+    for use_wildcard in [False, True]
+]
+
+
+@params(*_reshape_input_test_cases)
+def test_reshape_input(device, batch_size, use_wildcard):
+    check_reshape_with_input(device, batch_size, use_wildcard)
+
+
+_reshape_arg_input_test_cases = [
+    (device, 16, relative, use_wildcard)
+    for device in ["cpu", "gpu"]
+    for relative in [False, True]
+    for use_wildcard in [False, True]
+]
+
+
+@params(*_reshape_arg_input_test_cases)
+def test_reshape_arg_input(device, batch_size, relative, use_wildcard):
+    check_reshape_with_arg_input(device, batch_size, relative, use_wildcard)
 
 
 class ReinterpretPipelineWithDefaultShape(Pipeline):
@@ -274,9 +289,9 @@ def _test_reinterpret_default_shape(device):
         assert_array_equal(ref, out)
 
 
-def test_reinterpret_default_shape():
-    for device in ["cpu", "gpu"]:
-        yield _test_reinterpret_default_shape, device
+@params("cpu", "gpu")
+def test_reinterpret_default_shape(device):
+    _test_reinterpret_default_shape(device)
 
 
 class ReinterpretPipelineWildcardDim(Pipeline):
@@ -316,9 +331,9 @@ def _test_reinterpret_wildcard_shape(device):
         assert_array_equal(ref, out)
 
 
-def test_reinterpret_wildcard_shape():
-    for device in ["cpu", "gpu"]:
-        yield _test_reinterpret_wildcard_shape, device
+@params("cpu", "gpu")
+def test_reinterpret_wildcard_shape(device):
+    _test_reinterpret_wildcard_shape(device)
 
 
 def get_data(shapes):
@@ -348,26 +363,31 @@ def _testimpl_reshape_src_dims_arg(src_dims, rel_shape, shapes, expected_out_sha
             assert out_arr.shape == expected_out_shapes[i]
 
 
-def test_reshape_src_dims_arg():
+def _generate_reshape_src_dims_arg_test_cases():
     # src_dims, rel_shape, shapes, expected_out_shapes
     args = [
         ([0, 1], None, [[200, 300, 1], [300, 400, 1]], [(200, 300), (300, 400)]),
-        (
-            [1, 2, 0],
-            None,
-            [[10, 20, 30], [30, 20, 10], [2, 1, 3]],
-            [(20, 30, 10), (20, 10, 30), (1, 3, 2)],
-        ),
+        ([1, 2, 0], None, [[10, 20, 30], [30, 20, 10], [2, 1, 3]], [(20, 30, 10), (20, 10, 30), (1, 3, 2)]),
         ([1], None, [[1, 2, 1], [1, 3, 1]], [(2,), (3,)]),
         ([2, -1, 1, 0], None, [[10, 20, 30]], [(30, 1, 20, 10)]),
         ([-1, 2], None, [[1, 1, 30], [1, 1, 70]], [(1, 30), (1, 70)]),
         ([2, 0, 1], [0.5, 0.5, -1], [[200, 300, 100]], [(50, 100, 1200)]),
         ([], None, [[1]], [()]),
     ]
+    cases = []
     for src_dims, rel_shape, shapes, expected_out_shapes in args:
-        yield _testimpl_reshape_src_dims_arg, src_dims, rel_shape, shapes, expected_out_shapes
+        cases.append((src_dims, rel_shape, shapes, expected_out_shapes))
         if rel_shape is not None:
-            yield _testimpl_reshape_src_dims_arg, src_dims, rel_shape, shapes, expected_out_shapes
+            cases.append((src_dims, rel_shape, shapes, expected_out_shapes))
+    return cases
+
+
+_reshape_src_dims_arg_test_cases = _generate_reshape_src_dims_arg_test_cases()
+
+
+@params(*_reshape_src_dims_arg_test_cases)
+def test_reshape_src_dims_arg(src_dims, rel_shape, shapes, expected_out_shapes):
+    _testimpl_reshape_src_dims_arg(src_dims, rel_shape, shapes, expected_out_shapes)
 
 
 @params(

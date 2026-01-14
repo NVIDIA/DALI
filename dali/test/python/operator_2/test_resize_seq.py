@@ -17,6 +17,7 @@ import nvidia.dali.fn as fn
 import nvidia.dali.types as types
 import numpy as np
 import os.path
+from nose2.tools import params
 from test_utils import check_batch
 import PIL.Image
 
@@ -173,7 +174,8 @@ def _test_resize(layout, interp, dtype, w, h):
         check_batch(ext_size, size_gpu, 2)
 
 
-def test_resize():
+def _generate_resize_test_cases():
+    cases = []
     channel_first = False
     for interp, w, h in [
         (types.INTERP_NN, 640, 480),
@@ -183,4 +185,13 @@ def test_resize():
         for dtype in [None, types.UINT8, types.FLOAT]:
             layout = "FCHW" if channel_first else "FHWC"
             channel_first = not channel_first  # alternating pattern cuts number of cases by half
-            yield _test_resize, layout, interp, dtype, w, h
+            cases.append((layout, interp, dtype, w, h))
+    return cases
+
+
+_resize_test_cases = _generate_resize_test_cases()
+
+
+@params(*_resize_test_cases)
+def test_resize(layout, interp, dtype, w, h):
+    _test_resize(layout, interp, dtype, w, h)

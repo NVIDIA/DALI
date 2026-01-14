@@ -19,6 +19,7 @@ import cv2
 from nvidia.dali.pipeline import pipeline_def
 from nvidia.dali import fn, types
 from test_utils import get_dali_extra_path, get_arch, is_of_supported
+from nose2.tools import params
 from nose_utils import raises, assert_raises, SkipTest
 
 test_data_root = get_dali_extra_path()
@@ -216,7 +217,12 @@ def flow_to_color(flow_uv, clip_flow=None, convert_to_bgr=False):
 interactive = False
 
 
-def check_optflow(output_grid=1, hint_grid=1, use_temporal_hints=False):
+@params(*[
+    (output_grid, random.choice([None, 1, 2, 4, 8]), use_temporal_hints)
+    for output_grid in [1, 2, 4]
+    for use_temporal_hints in [True, False]
+])
+def test_optflow(output_grid, hint_grid, use_temporal_hints):
     if not is_of_supported():
         raise SkipTest("Optical Flow is not supported on this platform")
     batch_size = 3
@@ -260,13 +266,6 @@ def check_optflow(output_grid=1, hint_grid=1, use_temporal_hints=False):
             assert np.max(err) < 100  # no point more than 100px off
             assert np.sum(err > 1) / np.prod(err.shape) < 0.1  # 90% are within 1px
             assert np.sum(err > 2) / np.prod(err.shape) < 0.05  # 95% are within 2px
-
-
-def test_optflow():
-    for output_grid in [1, 2, 4]:
-        hint_grid = random.choice([None, 1, 2, 4, 8])
-        for use_temporal_hints in [True, False]:
-            yield check_optflow, output_grid, hint_grid, use_temporal_hints
 
 
 @raises(RuntimeError, "Output grid size: 3 is not supported, supported are:")

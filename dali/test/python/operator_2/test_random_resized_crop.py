@@ -215,8 +215,7 @@ def test_random_resized_crop():
                 input_type = types[np.random.randint(0, len(types))]
                 output_type = dali.types.FLOAT if np.random.randint(0, 2) else None
                 size = sizes[np.random.randint(0, len(sizes))]
-                yield (
-                    _test_rrc,
+                _test_rrc(
                     device,
                     max_frames,
                     layout,

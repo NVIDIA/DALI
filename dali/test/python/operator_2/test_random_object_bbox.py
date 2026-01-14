@@ -14,6 +14,7 @@
 
 
 # nose_utils goes first to deal with Python 3.10 incompatibility
+from nose2.tools import params
 from nose_utils import attr, nottest, assert_raises
 import nvidia.dali as dali
 import nvidia.dali.fn as fn
@@ -76,17 +77,20 @@ def _test_use_foreground(classes, weights, bg):
         assert outs[2].at(i) != (bg or 0)
 
 
-def test_use_foreground():
+_use_foreground_test_cases = [
+    (None, None, None),
+    (None, None, 1),
+    ([1, 2, 3], None, None),
+    (None, [1, 1, 1], None),
+    (None, [1, 1, 1], 0),
+    ([1, 2, 3], [1, 1, 1], None),
+]
+
+
+@params(*_use_foreground_test_cases)
+def test_use_foreground(classes, weights, bg):
     """Test that a foreground box is returned when required (prob=1) and possible (fixed data)"""
-    for classes, weights, bg in [
-        (None, None, None),
-        (None, None, 1),
-        ([1, 2, 3], None, None),
-        (None, [1, 1, 1], None),
-        (None, [1, 1, 1], 0),
-        ([1, 2, 3], [1, 1, 1], None),
-    ]:
-        yield _test_use_foreground, classes, weights, bg
+    _test_use_foreground(classes, weights, bg)
 
 
 def objects2boxes(objects, input_shape):
@@ -418,8 +422,7 @@ def test_random_object_bbox_with_class():
                 fmt = (fmt + 1) % len(formats)
                 dtype = random.choice(types)
                 cache = np.random.randint(2) == 1
-                yield (
-                    _test_random_object_bbox_with_class,
+                _test_random_object_bbox_with_class(
                     4,
                     ndim,
                     dtype,
@@ -496,8 +499,7 @@ def test_random_object_bbox_ignore_class():
             k_largest_opt = [None, 1, 2, 5]
             k_largest = random.choice(k_largest_opt)
 
-            yield (
-                _test_random_object_bbox_ignore_class,
+            _test_random_object_bbox_ignore_class(
                 5,
                 ndim,
                 dtype,
@@ -527,16 +529,19 @@ def _test_random_object_bbox_auto_bg(fg_labels, expected_bg):
     assert int(labels.at(0)) == expected_bg
 
 
-def test_random_object_bbox_auto_bg():
-    for fg, expected_bg in [
-        ([1, 2, 3], 0),
-        ([0, 1, 2], -1),
-        ([-1, 1], 0),
-        ([0, -5], -6),
-        ([-0x80000000, 0x7FFFFFFF], 0),
-        ([-0x80000000, 0x7FFFFFFF, 0, 0x7FFFFFFE], 0x7FFFFFFD),
-    ]:
-        yield _test_random_object_bbox_auto_bg, fg, expected_bg
+_auto_bg_test_cases = [
+    ([1, 2, 3], 0),
+    ([0, 1, 2], -1),
+    ([-1, 1], 0),
+    ([0, -5], -6),
+    ([-0x80000000, 0x7FFFFFFF], 0),
+    ([-0x80000000, 0x7FFFFFFF, 0, 0x7FFFFFFE], 0x7FFFFFFD),
+]
+
+
+@params(*_auto_bg_test_cases)
+def test_random_object_bbox_auto_bg(fg, expected_bg):
+    _test_random_object_bbox_auto_bg(fg, expected_bg)
 
 
 @nottest
@@ -589,8 +594,4 @@ def test_err_threshold_dim_clash():
 
 @attr("slow")
 def slow_test_large_data():
-    yield _test_random_object_bbox_with_class, 4, 5, np.int32, None, 1.0, [
-        1,
-        2,
-        3,
-    ], None, None, None, 10
+    _test_random_object_bbox_with_class(4, 5, np.int32, None, 1.0, [1, 2, 3], None, None, None, 10)

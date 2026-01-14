@@ -85,17 +85,21 @@ def check_nonsilence_operator(
             np.testing.assert_allclose(len_cpu, len_gpu, atol=10)
 
 
-def test_nonsilence_operator():
-    batch_size = 3
-    window_sizes = [512, 1024]
-    reset_intervals = [-1, 2048, 8192]
-    references_power = [None, 0.0003]
-    cutoff_coeffs = [-10, -60, -80]
-    for ws in window_sizes:
-        for ri in reset_intervals:
-            for rp in references_power:
-                for cc in cutoff_coeffs:
-                    yield check_nonsilence_operator, batch_size, cc, ws, rp, ri, ws
+from nose2.tools import params
+
+
+_nonsilence_operator_test_cases = [
+    (3, cc, ws, rp, ri, ws)
+    for ws in [512, 1024]
+    for ri in [-1, 2048, 8192]
+    for rp in [None, 0.0003]
+    for cc in [-10, -60, -80]
+]
+
+
+@params(*_nonsilence_operator_test_cases)
+def test_nonsilence_operator(batch_size, cutoff_value, window_size, reference_power, reset_interval, eps):
+    check_nonsilence_operator(batch_size, cutoff_value, window_size, reference_power, reset_interval, eps)
 
 
 def test_cpu_vs_gpu():

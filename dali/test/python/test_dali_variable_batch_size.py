@@ -21,6 +21,7 @@ import os
 import random
 import re
 from functools import partial
+from nose2.tools import params
 from nose_utils import SkipTest, attr, nottest
 from nvidia.dali.pipeline import Pipeline, pipeline_def
 from nvidia.dali.pipeline.experimental import pipeline_def as experimental_pipeline_def
@@ -325,9 +326,9 @@ ops_image_default_args = [
 ]
 
 
-def test_ops_image_default_args():
-    for op in ops_image_default_args:
-        yield image_data_helper, op, {}
+@params(*[(op, {}) for op in ops_image_default_args])
+def test_ops_image_default_args(op, args):
+    image_data_helper(op, args)
 
 
 def numba_set_all_values_to_255_batch(out0, in0):
@@ -426,9 +427,9 @@ if len(numba_compatible_devices) > 0 and not os.environ.get("DALI_ENABLE_SANITIZ
     )
 
 
-def test_ops_image_custom_args():
-    for op, args in ops_image_custom_args:
-        yield image_data_helper, op, args
+@params(*ops_image_custom_args)
+def test_ops_image_custom_args(op, args):
+    image_data_helper(op, args)
 
 
 float_array_ops = [
@@ -440,9 +441,9 @@ float_array_ops = [
 ]
 
 
-def test_float_array_ops():
-    for op, args in float_array_ops:
-        yield float_array_helper, op, args
+@params(*float_array_ops)
+def test_float_array_ops(op, args):
+    float_array_helper(op, args)
 
 
 random_ops = [
@@ -464,9 +465,9 @@ random_ops = [
 ]
 
 
-def test_random_ops():
-    for op, args in random_ops:
-        yield random_op_helper, op, args
+@params(*random_ops)
+def test_random_ops(op, args):
+    random_op_helper(op, args)
 
 
 sequence_ops = [
@@ -492,9 +493,9 @@ sequence_ops = [
 ]
 
 
-def test_sequence_ops():
-    for op, args in sequence_ops:
-        yield sequence_op_helper, op, args
+@params(*sequence_ops)
+def test_sequence_ops(op, args):
+    sequence_op_helper(op, args)
 
 
 def test_batch_permute():
@@ -631,9 +632,9 @@ no_input_ops = [
 ]
 
 
-def test_no_input_ops():
-    for op, args in no_input_ops:
-        yield no_input_op_helper, op, args
+@params(*no_input_ops)
+def test_no_input_ops(op, args):
+    no_input_op_helper(op, args)
 
 
 def test_combine_transforms():
@@ -1177,7 +1178,7 @@ def test_audio_decoders():
         return pipe
 
     audio_path = os.path.join(test_utils.get_dali_extra_path(), "db", "audio")
-    yield test_decoders_check, audio_decoder_pipe, audio_path, ".wav"
+    test_decoders_check(audio_decoder_pipe, audio_path, ".wav")
 
 
 def test_image_decoders():
@@ -1232,32 +1233,18 @@ def test_image_decoders():
     for ext in image_decoder_extensions:
         for pipe_template in image_decoder_pipes:
             pipe = partial(pipe_template, fn.decoders)
-            yield (
-                test_decoders_check,
-                pipe,
-                data_path,
-                ext,
-                ["cpu", "mixed"],
-                exclude_subdirs,
-            )
+            test_decoders_check(pipe, data_path, ext, ["cpu", "mixed"], exclude_subdirs)
             pipe = partial(pipe_template, fn.experimental.decoders)
-            yield (
-                test_decoders_check,
-                pipe,
-                data_path,
-                ext,
-                ["cpu", "mixed"],
-                exclude_subdirs,
-            )
+            test_decoders_check(pipe, data_path, ext, ["cpu", "mixed"], exclude_subdirs)
         pipe = partial(image_decoder_rcrop_pipe, fn.decoders)
-        yield test_decoders_run, pipe, data_path, ext, ["cpu", "mixed"], exclude_subdirs
+        test_decoders_run(pipe, data_path, ext, ["cpu", "mixed"], exclude_subdirs)
         pipe = partial(image_decoder_rcrop_pipe, fn.experimental.decoders)
-        yield test_decoders_run, pipe, data_path, ext, ["cpu", "mixed"], exclude_subdirs
+        test_decoders_run(pipe, data_path, ext, ["cpu", "mixed"], exclude_subdirs)
 
     pipe = partial(peek_image_shape_pipe, fn)
-    yield test_decoders_check, pipe, data_path, ".jpg", ["cpu"], exclude_subdirs
+    test_decoders_check(pipe, data_path, ".jpg", ["cpu"], exclude_subdirs)
     pipe = partial(peek_image_shape_pipe, fn.experimental)
-    yield test_decoders_check, pipe, data_path, ".jpg", ["cpu"], exclude_subdirs
+    test_decoders_check(pipe, data_path, ".jpg", ["cpu"], exclude_subdirs)
 
 
 def test_numpy_decoder():

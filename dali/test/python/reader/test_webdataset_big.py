@@ -17,6 +17,7 @@ import os
 from glob import glob
 
 import webdataset_base as base
+from nose2.tools import params
 from test_utils import compare_pipelines, get_dali_extra_path
 
 

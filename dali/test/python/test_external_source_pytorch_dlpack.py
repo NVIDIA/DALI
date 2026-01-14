@@ -20,6 +20,7 @@ from nvidia.dali.backend_impl import *  # noqa: F401, F403
 from nvidia.dali import Pipeline
 from torch.utils.dlpack import to_dlpack, from_dlpack
 
+from nose2.tools import params
 from test_utils import check_output
 
 
@@ -140,12 +141,18 @@ def _test_iter_setup(use_fn_api, by_name, src_device, gen_device):
     run_and_check(pipe, source)
 
 
-def test_iter_setup():
-    for use_fn_api in [False, True]:
-        for by_name in [False, True]:
-            for src_device in ["cpu", "gpu"]:
-                for gen_device in ["cpu", "cuda"]:
-                    yield _test_iter_setup, use_fn_api, by_name, src_device, gen_device
+_iter_setup_test_cases = [
+    (use_fn_api, by_name, src_device, gen_device)
+    for use_fn_api in [False, True]
+    for by_name in [False, True]
+    for src_device in ["cpu", "gpu"]
+    for gen_device in ["cpu", "cuda"]
+]
+
+
+@params(*_iter_setup_test_cases)
+def test_iter_setup(use_fn_api, by_name, src_device, gen_device):
+    _test_iter_setup(use_fn_api, by_name, src_device, gen_device)
 
 
 def _test_external_source_callback_torch_stream(src_device, gen_device):
@@ -172,7 +179,13 @@ def _test_external_source_callback_torch_stream(src_device, gen_device):
                 )
 
 
-def test_external_source_callback_torch_stream():
-    for src_device in ["cpu", "gpu"]:
-        for gen_device in ["cpu", "cuda"]:
-            yield _test_external_source_callback_torch_stream, src_device, gen_device
+_external_source_callback_torch_stream_test_cases = [
+    (src_device, gen_device)
+    for src_device in ["cpu", "gpu"]
+    for gen_device in ["cpu", "cuda"]
+]
+
+
+@params(*_external_source_callback_torch_stream_test_cases)
+def test_external_source_callback_torch_stream(src_device, gen_device):
+    _test_external_source_callback_torch_stream(src_device, gen_device)

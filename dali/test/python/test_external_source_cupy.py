@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from nose2.tools import params
 from nose_utils import attr
 
 # it is enough to just import all functions from test_internals_operator_external_source
@@ -112,13 +113,19 @@ def _test_cross_device(src, dst, use_dali_tensor=False):
                 )
 
 
+_cross_device_test_cases = [
+    (src, dst, use_dali_tensor)
+    for src in [0, 1]
+    for dst in [0, 1]
+    for use_dali_tensor in [True, False]
+]
+
+
 @attr("multigpu")
-def test_cross_device():
+@params(*_cross_device_test_cases)
+def test_cross_device(src, dst, use_dali_tensor):
     if cp.cuda.runtime.getDeviceCount() > 1:
-        for src in [0, 1]:
-            for dst in [0, 1]:
-                for use_dali_tensor in [True, False]:
-                    yield _test_cross_device, src, dst, use_dali_tensor
+        _test_cross_device(src, dst, use_dali_tensor)
 
 
 def _test_memory_consumption(device, test_case):
@@ -169,7 +176,13 @@ def _test_memory_consumption(device, test_case):
         pipe.run()
 
 
-def test_memory_consumption():
-    for device in ["cpu", "gpu"]:
-        for test_case in ["no_copy_sample", "copy_sample", "copy_batch"]:
-            yield _test_memory_consumption, device, test_case
+_memory_consumption_test_cases = [
+    (device, test_case)
+    for device in ["cpu", "gpu"]
+    for test_case in ["no_copy_sample", "copy_sample", "copy_batch"]
+]
+
+
+@params(*_memory_consumption_test_cases)
+def test_memory_consumption(device, test_case):
+    _test_memory_consumption(device, test_case)

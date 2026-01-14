@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -589,13 +589,14 @@ def _test_ND(
         check_batch(dali_interior, ref_interior, batch_size, max_avg_err, max_err)
 
 
-def _tests(dim, backend):
+def _generate_test_cases(dim, backend):
     batch_size = 2 if dim == 3 else 10
     # - Cannot test linear against PIL, because PIL uses triangular filter when downscaling
     # - Cannot test Nearest Neighbor because rounding errors cause gross discrepancies (pixel shift)
+    test_cases = []
     for mode in ["default", "stretch", "not_smaller", "not_larger"]:
         for (
-            interp,
+            interp_idx,
             dtype,
             channel_first,
             use_size_arg,
@@ -612,53 +613,54 @@ def _tests(dim, backend):
             (0, types.UINT8, True, True, False, False, False, False, True),
             (1, types.UINT8, False, True, True, False, False, False, False),
         ]:
-            interp = [types.INTERP_TRIANGULAR, types.INTERP_LANCZOS3][interp]
-            yield (
-                _test_ND,
-                backend,
-                dim,
-                batch_size,
-                channel_first,
-                mode,
-                interp,
-                dtype,
-                w_input,
-                h_input,
-                d_input,
-                use_size_arg,
-                use_size_input,
-                use_roi,
-            )
+            interp = [types.INTERP_TRIANGULAR, types.INTERP_LANCZOS3][interp_idx]
+            test_cases.append((
+                backend, dim, batch_size, channel_first, mode, interp, dtype,
+                w_input, h_input, d_input, use_size_arg, use_size_input, use_roi
+            ))
+    return test_cases
 
 
-def test_2D_gpu():
-    for f, *args in _tests(2, "gpu"):
-        yield (f, *args)
+@params(*_generate_test_cases(2, "gpu"))
+def test_2D_gpu(backend, dim, batch_size, channel_first, mode, interp, dtype,
+                w_input, h_input, d_input, use_size_arg, use_size_input, use_roi):
+    _test_ND(backend, dim, batch_size, channel_first, mode, interp, dtype,
+             w_input, h_input, d_input, use_size_arg, use_size_input, use_roi)
 
 
-def test_3D_gpu():
-    for f, *args in _tests(3, "gpu"):
-        yield (f, *args)
+@params(*_generate_test_cases(3, "gpu"))
+def test_3D_gpu(backend, dim, batch_size, channel_first, mode, interp, dtype,
+                w_input, h_input, d_input, use_size_arg, use_size_input, use_roi):
+    _test_ND(backend, dim, batch_size, channel_first, mode, interp, dtype,
+             w_input, h_input, d_input, use_size_arg, use_size_input, use_roi)
 
 
-def test_2D_cpu():
-    for f, *args in _tests(2, "cpu"):
-        yield (f, *args)
+@params(*_generate_test_cases(2, "cpu"))
+def test_2D_cpu(backend, dim, batch_size, channel_first, mode, interp, dtype,
+                w_input, h_input, d_input, use_size_arg, use_size_input, use_roi):
+    _test_ND(backend, dim, batch_size, channel_first, mode, interp, dtype,
+             w_input, h_input, d_input, use_size_arg, use_size_input, use_roi)
 
 
-def test_3D_cpu():
-    for f, *args in _tests(3, "cpu"):
-        yield (f, *args)
+@params(*_generate_test_cases(3, "cpu"))
+def test_3D_cpu(backend, dim, batch_size, channel_first, mode, interp, dtype,
+                w_input, h_input, d_input, use_size_arg, use_size_input, use_roi):
+    _test_ND(backend, dim, batch_size, channel_first, mode, interp, dtype,
+             w_input, h_input, d_input, use_size_arg, use_size_input, use_roi)
 
 
-def test_2D_cvcuda():
-    for f, *args in _tests(2, "cvcuda"):
-        yield (f, *args)
+@params(*_generate_test_cases(2, "cvcuda"))
+def test_2D_cvcuda(backend, dim, batch_size, channel_first, mode, interp, dtype,
+                   w_input, h_input, d_input, use_size_arg, use_size_input, use_roi):
+    _test_ND(backend, dim, batch_size, channel_first, mode, interp, dtype,
+             w_input, h_input, d_input, use_size_arg, use_size_input, use_roi)
 
 
-def test_3D_cvcuda():
-    for f, *args in _tests(3, "cvcuda"):
-        yield (f, *args)
+@params(*_generate_test_cases(3, "cvcuda"))
+def test_3D_cvcuda(backend, dim, batch_size, channel_first, mode, interp, dtype,
+                   w_input, h_input, d_input, use_size_arg, use_size_input, use_roi):
+    _test_ND(backend, dim, batch_size, channel_first, mode, interp, dtype,
+             w_input, h_input, d_input, use_size_arg, use_size_input, use_roi)
 
 
 def _test_stitching(backend, dim, channel_first, dtype, interp):
@@ -746,18 +748,16 @@ def _test_stitching(backend, dim, channel_first, dtype, interp):
         check_batch(tiled, whole, batch_size, 1e-4, max_err, compare_layouts=False)
 
 
-def test_stitching():
-    for backend in ["cpu", "gpu", "cvcuda"]:
-        for dim in [3]:
-            for dtype in [types.UINT8, types.FLOAT]:
-                for channel_first in [False, True]:
-                    for interp in [
-                        types.INTERP_LINEAR,
-                        types.INTERP_CUBIC,
-                        types.INTERP_TRIANGULAR,
-                        types.INTERP_LANCZOS3,
-                    ]:
-                        yield _test_stitching, backend, dim, channel_first, dtype, interp
+@params(*[
+    (backend, dim, channel_first, dtype, interp)
+    for backend in ["cpu", "gpu", "cvcuda"]
+    for dim in [3]
+    for dtype in [types.UINT8, types.FLOAT]
+    for channel_first in [False, True]
+    for interp in [types.INTERP_LINEAR, types.INTERP_CUBIC, types.INTERP_TRIANGULAR, types.INTERP_LANCZOS3]
+])
+def test_stitching(backend, dim, channel_first, dtype, interp):
+    _test_stitching(backend, dim, channel_first, dtype, interp)
 
 
 def _test_empty_input(dim, backend):
@@ -799,10 +799,13 @@ def _test_empty_input(dim, backend):
                 assert np.prod(out_with_empty.at(i).shape) == 0
 
 
-def test_empty_input():
-    for backend in ["cpu", "gpu", "cvcuda"]:
-        for dim in [2, 3]:
-            yield _test_empty_input, dim, backend
+@params(*[
+    (dim, backend)
+    for backend in ["cpu", "gpu", "cvcuda"]
+    for dim in [2, 3]
+])
+def test_empty_input(dim, backend):
+    _test_empty_input(dim, backend)
 
 
 def _test_very_small_output(dim, backend):
@@ -827,10 +830,13 @@ def _test_very_small_output(dim, backend):
             assert t.shape() == ref_size
 
 
-def test_very_small_output():
-    for backend in ["cpu", "gpu", "cvcuda"]:
-        for dim in [2, 3]:
-            yield _test_very_small_output, dim, backend
+@params(*[
+    (dim, backend)
+    for backend in ["cpu", "gpu", "cvcuda"]
+    for dim in [2, 3]
+])
+def test_very_small_output(dim, backend):
+    _test_very_small_output(dim, backend)
 
 
 large_data = None
@@ -916,6 +922,45 @@ def test_nn_on_one_axis(device, axis):
     check_batch(out, [ref], 1, 1e-5, 1e-5, None, False)
 
 
+def _test_checkerboard_impl(device, interp_type, antialias, ref_data, checkerboard, out_size):
+    ref = ref_data[interp_type][antialias]
+
+    @pipeline_def(batch_size=1, num_threads=3, device_id=0)
+    def pipe():
+        data = types.Constant(checkerboard, device=device)
+        data = fn.expand_dims(data, axes=[2])
+        resized = fn.resize(
+            data,
+            dtype=types.FLOAT,
+            min_filter=interp_type,
+            mag_filter=interp_type,
+            size=out_size,
+            antialias=antialias,
+        )
+        resized = fn.squeeze(resized, axes=[2])
+        return resized
+
+    p = pipe()
+    (out,) = p.run()
+
+    out_dali = as_array(out[0])
+    abs_diff = np.abs(ref - out_dali)
+    max_error = np.max(abs_diff)
+
+    if max_error > 1:
+        suffix_str = "cubic" if interp_type == types.INTERP_CUBIC else "linear"
+        img1 = PIL.Image.fromarray(np.clip(ref, 0, 255).astype(np.uint8))
+        img1.save(f"ref_resized_{suffix_str}.png")
+
+        img2 = PIL.Image.fromarray(np.clip(out_dali, 0, 255).astype(np.uint8))
+        img2.save(f"dali_resized_{suffix_str}.png")
+
+        img2 = PIL.Image.fromarray(np.clip(127 + abs_diff, 0, 255).astype(np.uint8))
+        img2.save(f"diff_resized_{suffix_str}.png")
+
+    np.testing.assert_allclose(out_dali, ref, atol=1)
+
+
 def test_checkerboard_dali_vs_onnx_ref():
     improc_data_dir = os.path.join(test_data_root, "db", "imgproc")
     ref_dir = os.path.join(improc_data_dir, "ref", "resampling")
@@ -935,25 +980,6 @@ def test_checkerboard_dali_vs_onnx_ref():
     ref_resized_cubic_antialias_filename = os.path.join(
         ref_dir, f"checkerboard_cubic_antialias_{out_size_str}.npy"
     )
-
-    # Reference generated with ONNX reference code. To regenerate uncomment
-    # from onnx.backend.test.case.node.resize import interpolate_nd, linear_coeffs, \
-    #     linear_coeffs_antialias, cubic_coeffs, cubic_coeffs_antialias
-    #
-    # ref_resized_linear = interpolate_nd(checkerboard, lambda x, _: linear_coeffs(x),
-    #                                     output_size=out_size)
-    # np.save(ref_resized_linear_filename, ref_resized_linear)
-    # ref_resized_linear_antialias = interpolate_nd(checkerboard, linear_coeffs_antialias,
-    #                                               output_size=out_size)
-    # np.save(ref_resized_linear_antialias_filename, ref_resized_linear_antialias)
-    # ref_resized_cubic = interpolate_nd(checkerboard, lambda x, _: cubic_coeffs(x, A=-0.5),
-    #                                    output_size=out_size)
-    # np.save(ref_resized_cubic_filename, ref_resized_cubic)
-    # ref_resized_cubic_antialias = interpolate_nd(checkerboard,
-    #                                              lambda x, scale: cubic_coeffs_antialias(x, scale,
-    #                                                                                      A=-0.5),
-    #                                              output_size=out_size)
-    # np.save(ref_resized_cubic_antialias_filename, ref_resized_cubic_antialias)
 
     ref_resized_linear = np.load(ref_resized_linear_filename)
     assert ref_resized_linear.shape == out_size
@@ -980,46 +1006,7 @@ def test_checkerboard_dali_vs_onnx_ref():
         },
     }
 
-    @pipeline_def(batch_size=1, num_threads=3, device_id=0)
-    def pipe(device, interp_type, antialias, test_data=checkerboard, out_size=out_size):
-        data = types.Constant(test_data, device=device)
-        data = fn.expand_dims(data, axes=[2])
-        resized = fn.resize(
-            data,
-            dtype=types.FLOAT,
-            min_filter=interp_type,
-            mag_filter=interp_type,
-            size=out_size,
-            antialias=antialias,
-        )
-        resized = fn.squeeze(resized, axes=[2])
-        return resized
-
-    def impl(device, interp_type, antialias):
-        assert interp_type in ref_data
-        ref = ref_data[interp_type][antialias]
-
-        p = pipe(device, interp_type, antialias)
-        (out,) = p.run()
-
-        out_dali = as_array(out[0])
-        abs_diff = np.abs(ref - out_dali)
-        max_error = np.max(abs_diff)
-
-        if max_error > 1:
-            suffix_str = "cubic" if interp_type == types.INTERP_CUBIC else "linear"
-            img1 = PIL.Image.fromarray(np.clip(ref, 0, 255).astype(np.uint8))
-            img1.save(f"ref_resized_{suffix_str}.png")
-
-            img2 = PIL.Image.fromarray(np.clip(out_dali, 0, 255).astype(np.uint8))
-            img2.save(f"dali_resized_{suffix_str}.png")
-
-            img2 = PIL.Image.fromarray(np.clip(127 + abs_diff, 0, 255).astype(np.uint8))
-            img2.save(f"diff_resized_{suffix_str}.png")
-
-        np.testing.assert_allclose(out_dali, ref, atol=1)
-
     for device in ["cpu", "gpu"]:
         for interp_type in [types.INTERP_LINEAR, types.INTERP_CUBIC]:
             for antialias in [antialias_OFF, antialias_ON]:
-                yield impl, device, interp_type, antialias
+                _test_checkerboard_impl(device, interp_type, antialias, ref_data, checkerboard, out_size)

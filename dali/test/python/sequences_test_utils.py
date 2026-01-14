@@ -408,8 +408,7 @@ def sequence_suite_helper(rng, input_cases: List[ArgData], ops_test_cases, num_i
                     input_desc.name, input_desc.expandable_prefix, device, input_desc.layout
                 )
                 arg_data = ArgData(arg_desc, input_case.data)
-                yield (
-                    _test_seq_input,
+                _test_seq_input(
                     num_iters,
                     test_case.operator_fn,
                     test_case.fixed_params,
@@ -519,4 +518,4 @@ def video_suite_helper(ops_test_cases, test_channel_first=True, expand_channels=
         for input_layout in layouts
         for input_data in get_video_input_cases(input_layout, rng)
     ]
-    yield from sequence_suite_helper(rng, input_cases, ops_test_cases)
+    sequence_suite_helper(rng, input_cases, ops_test_cases)

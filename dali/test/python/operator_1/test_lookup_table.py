@@ -164,8 +164,7 @@ def test_lookup_table_vs_python_op():
                 (10, (300, 300, 3), "random", 0.9),
                 (3, (300, 300, 3), "small", 0.4),
             ]:
-                yield (
-                    check_lookup_table_vs_python_op,
+                check_lookup_table_vs_python_op(
                     device,
                     batch_size,
                     layout,

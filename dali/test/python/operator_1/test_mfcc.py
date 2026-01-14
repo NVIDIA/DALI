@@ -230,8 +230,7 @@ def test_operator_mfcc_wrong_args():
                 "Unsupported DCT type: 10. Supported types are: 1, 2, 3, 4",
             ),
         ]:
-            yield (
-                check_operator_mfcc_wrong_args,
+            check_operator_mfcc_wrong_args(
                 device,
                 batch_size,
                 shape,

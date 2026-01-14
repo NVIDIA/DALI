@@ -468,45 +468,49 @@ def check_slice_synth_data_vs_numpy(
     )
 
 
-def test_slice_synth_data_vs_numpy():
-    for device in ["cpu", "gpu"]:
-        for batch_size in {1, 8}:
-            for input_shape, layout, axes, axis_names, input_type, output_type in [
-                ((200, 400, 3), "HWC", None, "WH", types.FLOAT, None),
-                ((200, 400, 3), "HWC", None, "HW", types.FLOAT, None),
-                ((200, 400, 3), "HWC", None, "HW", types.INT32, types.FLOAT),
-                ((200, 400, 3), "HWC", None, "HW", types.INT64, types.UINT8),
-                ((200, 400, 3), "HWC", None, "C", types.FLOAT, None),
-                ((200, 400, 3), "HWC", (1, 0), None, types.FLOAT, types.FLOAT16),
-                ((200, 400, 3), "HWC", (0, 1), None, types.FLOAT16, types.FLOAT16),
-                ((200, 400, 3), "HWC", (2,), None, types.FLOAT, None),
-                ((200,), "H", (0,), None, types.FLOAT, None),
-                ((200,), "H", None, "H", types.FLOAT, None),
-                ((200, 400), "HW", (1,), None, types.FLOAT, None),
-                ((200, 400), "HW", None, "W", types.FLOAT, None),
-                ((80, 30, 20, 3), "DHWC", (2, 1, 0), None, types.FLOAT, None),
-                ((80, 30, 20, 3), "DHWC", (0, 1, 2), None, types.FLOAT, None),
-                ((80, 30, 20, 3), "DHWC", (2, 1), None, types.FLOAT, None),
-                ((80, 30, 20, 3), "DHWC", None, "WHD", types.FLOAT, None),
-                ((80, 30, 20, 3), "DHWC", None, "DHW", types.FLOAT, None),
-                ((80, 30, 20, 3), "DHWC", None, "WH", types.FLOAT, None),
-                ((80, 30, 20, 3), "DHWC", None, "C", types.FLOAT, None),
-            ]:
-                normalized_anchor = np.random.choice([True, False])
-                normalized_shape = np.random.choice([True, False])
-                yield (
-                    check_slice_synth_data_vs_numpy,
-                    device,
-                    batch_size,
-                    input_shape,
-                    layout,
-                    axes,
-                    axis_names,
-                    normalized_anchor,
-                    normalized_shape,
-                    input_type,
-                    output_type,
-                )
+# Pre-generate deterministic normalized_anchor/normalized_shape values for test cases
+_rng_for_params = np.random.default_rng(42)
+_slice_synth_test_configs = [
+    ((200, 400, 3), "HWC", None, "WH", types.FLOAT, None),
+    ((200, 400, 3), "HWC", None, "HW", types.FLOAT, None),
+    ((200, 400, 3), "HWC", None, "HW", types.INT32, types.FLOAT),
+    ((200, 400, 3), "HWC", None, "HW", types.INT64, types.UINT8),
+    ((200, 400, 3), "HWC", None, "C", types.FLOAT, None),
+    ((200, 400, 3), "HWC", (1, 0), None, types.FLOAT, types.FLOAT16),
+    ((200, 400, 3), "HWC", (0, 1), None, types.FLOAT16, types.FLOAT16),
+    ((200, 400, 3), "HWC", (2,), None, types.FLOAT, None),
+    ((200,), "H", (0,), None, types.FLOAT, None),
+    ((200,), "H", None, "H", types.FLOAT, None),
+    ((200, 400), "HW", (1,), None, types.FLOAT, None),
+    ((200, 400), "HW", None, "W", types.FLOAT, None),
+    ((80, 30, 20, 3), "DHWC", (2, 1, 0), None, types.FLOAT, None),
+    ((80, 30, 20, 3), "DHWC", (0, 1, 2), None, types.FLOAT, None),
+    ((80, 30, 20, 3), "DHWC", (2, 1), None, types.FLOAT, None),
+    ((80, 30, 20, 3), "DHWC", None, "WHD", types.FLOAT, None),
+    ((80, 30, 20, 3), "DHWC", None, "DHW", types.FLOAT, None),
+    ((80, 30, 20, 3), "DHWC", None, "WH", types.FLOAT, None),
+    ((80, 30, 20, 3), "DHWC", None, "C", types.FLOAT, None),
+]
+
+_slice_synth_test_cases = []
+for device in ["cpu", "gpu"]:
+    for batch_size in [1, 8]:
+        for input_shape, layout, axes, axis_names, input_type, output_type in _slice_synth_test_configs:
+            normalized_anchor = bool(_rng_for_params.choice([True, False]))
+            normalized_shape = bool(_rng_for_params.choice([True, False]))
+            _slice_synth_test_cases.append((
+                device, batch_size, input_shape, layout, axes, axis_names,
+                normalized_anchor, normalized_shape, input_type, output_type
+            ))
+
+
+@params(*_slice_synth_test_cases)
+def test_slice_synth_data_vs_numpy(device, batch_size, input_shape, layout, axes, axis_names,
+                                   normalized_anchor, normalized_shape, input_type, output_type):
+    check_slice_synth_data_vs_numpy(
+        device, batch_size, input_shape, layout, axes, axis_names,
+        normalized_anchor, normalized_shape, input_type, output_type
+    )
 
 
 def check_slice_vs_fused_decoder(device, batch_size, axes, axis_names):
@@ -536,11 +540,13 @@ def check_slice_vs_fused_decoder(device, batch_size, axes, axis_names):
     )
 
 
-def test_slice_vs_fused_decoder():
-    for device in ["cpu", "gpu"]:
-        for batch_size in {1}:
-            for axes, axis_names in [(None, "WH"), (None, "HW"), ((1, 0), None), ((0, 1), None)]:
-                yield check_slice_vs_fused_decoder, device, batch_size, axes, axis_names
+@params(*[
+    (device, 1, axes, axis_names)
+    for device in ["cpu", "gpu"]
+    for axes, axis_names in [(None, "WH"), (None, "HW"), ((1, 0), None), ((0, 1), None)]
+])
+def test_slice_vs_fused_decoder(device, batch_size, axes, axis_names):
+    check_slice_vs_fused_decoder(device, batch_size, axes, axis_names)
 
 
 def check_slice_vs_numpy(device, batch_size, axes, axis_names):
@@ -556,11 +562,13 @@ def check_slice_vs_numpy(device, batch_size, axes, axis_names):
     )
 
 
-def test_slice_vs_numpy():
-    for device in ["cpu", "gpu"]:
-        for batch_size in {1}:
-            for axes, axis_names in [(None, "WH"), (None, "HW"), ((1, 0), None), ((0, 1), None)]:
-                yield check_slice_vs_numpy, device, batch_size, axes, axis_names
+@params(*[
+    (device, 1, axes, axis_names)
+    for device in ["cpu", "gpu"]
+    for axes, axis_names in [(None, "WH"), (None, "HW"), ((1, 0), None), ((0, 1), None)]
+])
+def test_slice_vs_numpy(device, batch_size, axes, axis_names):
+    check_slice_vs_numpy(device, batch_size, axes, axis_names)
 
 
 def check_slice_output(
@@ -739,23 +747,21 @@ def check_slice_with_out_of_bounds_policy_support(
             )
 
 
-def test_slice_with_out_of_bounds_policy_support():
-    in_shape = (40, 80, 3)
-    for out_of_bounds_policy in ["pad", "trim_to_shape"]:
-        for device in ["gpu", "cpu"]:
-            for batch_size in [1, 3]:
-                for normalized_anchor, normalized_shape in [(False, False), (True, True)]:
-                    for fill_values in [None, (0x76, 0xB0, 0x00)]:
-                        yield (
-                            check_slice_with_out_of_bounds_policy_support,
-                            device,
-                            batch_size,
-                            in_shape,
-                            out_of_bounds_policy,
-                            fill_values,
-                            normalized_anchor,
-                            normalized_shape,
-                        )
+@params(*[
+    (device, batch_size, (40, 80, 3), out_of_bounds_policy, fill_values, normalized_anchor, normalized_shape)
+    for out_of_bounds_policy in ["pad", "trim_to_shape"]
+    for device in ["gpu", "cpu"]
+    for batch_size in [1, 3]
+    for normalized_anchor, normalized_shape in [(False, False), (True, True)]
+    for fill_values in [None, (0x76, 0xB0, 0x00)]
+])
+def test_slice_with_out_of_bounds_policy_support(device, batch_size, input_shape,
+                                                  out_of_bounds_policy, fill_values,
+                                                  normalized_anchor, normalized_shape):
+    check_slice_with_out_of_bounds_policy_support(
+        device, batch_size, input_shape, out_of_bounds_policy, fill_values,
+        normalized_anchor, normalized_shape
+    )
 
 
 def check_slice_with_out_of_bounds_error(
@@ -801,19 +807,16 @@ def check_slice_with_out_of_bounds_error(
         _ = pipe.run()
 
 
-def test_slice_with_out_of_bounds_error():
-    in_shape = (40, 80, 3)
-    for device in ["gpu", "cpu"]:
-        for batch_size in [1, 3]:
-            for normalized_anchor, normalized_shape in [(False, False), (True, True)]:
-                yield (
-                    check_slice_with_out_of_bounds_error,
-                    device,
-                    batch_size,
-                    in_shape,
-                    normalized_anchor,
-                    normalized_shape,
-                )
+@params(*[
+    (device, batch_size, (40, 80, 3), normalized_anchor, normalized_shape)
+    for device in ["gpu", "cpu"]
+    for batch_size in [1, 3]
+    for normalized_anchor, normalized_shape in [(False, False), (True, True)]
+])
+def test_slice_with_out_of_bounds_error(device, batch_size, input_shape,
+                                        normalized_anchor, normalized_shape):
+    check_slice_with_out_of_bounds_error(device, batch_size, input_shape,
+                                         normalized_anchor, normalized_shape)
 
 
 def check_slice_named_args(device, batch_size):
@@ -872,9 +875,9 @@ def check_slice_named_args(device, batch_size):
                 np.testing.assert_equal(np.array(outs[0][sample]), np.array(outs[out_idx][sample]))
 
 
-def test_slice_named_args():
-    yield check_slice_named_args, "cpu", 3
-    yield check_slice_named_args, "gpu", 3
+@params(("cpu", 3), ("gpu", 3))
+def test_slice_named_args(device, batch_size):
+    check_slice_named_args(device, batch_size)
 
 
 def check_slice_named_args_default_start_or_end(device, batch_size):
@@ -908,9 +911,9 @@ def check_slice_named_args_default_start_or_end(device, batch_size):
             np.testing.assert_equal(np.array(outs[1][sample]), np.array(outs[3][sample]))
 
 
-def test_slice_named_default_start_or_end_args():
-    yield check_slice_named_args_default_start_or_end, "cpu", 3
-    yield check_slice_named_args_default_start_or_end, "gpu", 3
+@params(("cpu", 3), ("gpu", 3))
+def test_slice_named_default_start_or_end_args(device, batch_size):
+    check_slice_named_args_default_start_or_end(device, batch_size)
 
 
 def check_slice_named_args_errors(device, batch_size):
@@ -942,9 +945,9 @@ def check_slice_named_args_errors(device, batch_size):
             outs = pipe.run()
 
 
-def test_slice_named_args_errors():
-    yield check_slice_named_args_errors, "cpu", 1
-    yield check_slice_named_args_errors, "gpu", 1
+@params(("cpu", 1), ("gpu", 1))
+def test_slice_named_args_errors(device, batch_size):
+    check_slice_named_args_errors(device, batch_size)
 
 
 def check_no_slice(device, dtype, batch_size, num_threads):
@@ -969,12 +972,13 @@ def check_no_slice(device, dtype, batch_size, num_threads):
             np.testing.assert_array_equal(in_img, out_img)
 
 
-def test_no_slice():
-    batch_size = 4
-    num_threads = 3
-    for device in ["cpu", "gpu"]:
-        for dtype in [types.UINT8, types.UINT16, types.FLOAT]:
-            yield check_no_slice, device, dtype, batch_size, num_threads
+@params(*[
+    (device, dtype, 4, 3)
+    for device in ["cpu", "gpu"]
+    for dtype in [types.UINT8, types.UINT16, types.FLOAT]
+])
+def test_no_slice(device, dtype, batch_size, num_threads):
+    check_no_slice(device, dtype, batch_size, num_threads)
 
 
 def check_rel_start_rel_shape(
@@ -1048,25 +1052,19 @@ def check_dynamic_axes(device, batch_size, num_threads, use_negative, use_empty)
     )
 
 
-def test_dynamic_axes():
-    batch_size = 10
-    num_threads = 3
-    for device in ["cpu", "gpu"]:
-        yield check_dynamic_axes, device, batch_size, num_threads, False, False
+@params(*[(device, 10, 3, False, False) for device in ["cpu", "gpu"]])
+def test_dynamic_axes(device, batch_size, num_threads, use_negative, use_empty):
+    check_dynamic_axes(device, batch_size, num_threads, use_negative, use_empty)
 
 
-def test_negative_axes():
-    batch_size = 10
-    num_threads = 3
-    for device in ["cpu", "gpu"]:
-        yield check_dynamic_axes, device, batch_size, num_threads, True, False
+@params(*[(device, 10, 3, True, False) for device in ["cpu", "gpu"]])
+def test_negative_axes(device, batch_size, num_threads, use_negative, use_empty):
+    check_dynamic_axes(device, batch_size, num_threads, use_negative, use_empty)
 
 
-def test_empty_axes():
-    batch_size = 10
-    num_threads = 3
-    for device in ["cpu", "gpu"]:
-        yield check_dynamic_axes, device, batch_size, num_threads, False, True
+@params(*[(device, 10, 3, False, True) for device in ["cpu", "gpu"]])
+def test_empty_axes(device, batch_size, num_threads, use_negative, use_empty):
+    check_dynamic_axes(device, batch_size, num_threads, use_negative, use_empty)
 
 
 def check_wrong_axes(device, wrong_axes_range=None, named_args=False):
@@ -1091,11 +1089,14 @@ def check_wrong_axes(device, wrong_axes_range=None, named_args=False):
     )
 
 
-def test_wrong_axes():
-    for device in ["cpu", "gpu"]:
-        for wrong_axes_range in [(-10, -4), (3, 10)]:
-            for named_args in [False, True]:
-                yield check_wrong_axes, device, wrong_axes_range, named_args
+@params(*[
+    (device, wrong_axes_range, named_args)
+    for device in ["cpu", "gpu"]
+    for wrong_axes_range in [(-10, -4), (3, 10)]
+    for named_args in [False, True]
+])
+def test_wrong_axes(device, wrong_axes_range, named_args):
+    check_wrong_axes(device, wrong_axes_range, named_args)
 
 
 def check_scalar(device):
@@ -1125,9 +1126,9 @@ def check_scalar(device):
         np.testing.assert_allclose(d, r[a : a + s])
 
 
-def test_scalar():
-    for device in ["cpu", "gpu"]:
-        yield check_scalar, device
+@params("cpu", "gpu")
+def test_scalar(device):
+    check_scalar(device)
 
 
 def test_gpu_args():

@@ -22,6 +22,7 @@ import math
 import os
 import cv2
 from sequences_test_utils import video_suite_helper, SampleDesc, ArgCb
+from nose2.tools import params
 from test_utils import compare_pipelines
 import random
 
@@ -229,34 +230,48 @@ io_types = [
 ]
 
 
-def test_vs_cv():
-    def impl(device, batch_size, use_input, otype, itype, inv_map):
-        cv_pipeline = CVPipeline(batch_size, otype, itype, use_input, inv_map=inv_map)
-        cpu_pipeline = WarpPipeline(device, batch_size, otype, itype, use_input, inv_map=inv_map)
-        compare(cv_pipeline, cpu_pipeline, 8)
-
-    random.seed(1009)
+def _generate_vs_cv_test_cases():
+    cases = []
+    rng = random.Random(1009)
     for device in ["cpu", "gpu"]:
         for use_input in [False, True]:
             for itype, otype in io_types:
-                inv_map = random.choice([False, True])
-                batch_size = random.choice([1, 4, 19])
-                yield impl, device, batch_size, use_input, otype, itype, inv_map
+                inv_map = rng.choice([False, True])
+                batch_size = rng.choice([1, 4, 19])
+                cases.append((device, batch_size, use_input, otype, itype, inv_map))
+    return cases
 
 
-def test_gpu_vs_cpu():
-    def impl(batch_size, use_input, otype, itype, inv_map):
-        cpu_pipeline = WarpPipeline("cpu", batch_size, otype, itype, use_input, inv_map=inv_map)
-        cpu_pipeline.build()
-        gpu_pipeline = WarpPipeline("gpu", batch_size, otype, itype, use_input, inv_map=inv_map)
-        gpu_pipeline.build()
+_vs_cv_test_cases = _generate_vs_cv_test_cases()
 
-    random.seed(1006)
+
+@params(*_vs_cv_test_cases)
+def test_vs_cv(device, batch_size, use_input, otype, itype, inv_map):
+    cv_pipeline = CVPipeline(batch_size, otype, itype, use_input, inv_map=inv_map)
+    cpu_pipeline = WarpPipeline(device, batch_size, otype, itype, use_input, inv_map=inv_map)
+    compare(cv_pipeline, cpu_pipeline, 8)
+
+
+def _generate_gpu_vs_cpu_test_cases():
+    cases = []
+    rng = random.Random(1006)
     for use_input in [False, True]:
         for itype, otype in io_types:
-            inv_map = random.choice([False, True])
-            batch_size = random.choice([1, 4, 19])
-            yield impl, batch_size, use_input, otype, itype, inv_map
+            inv_map = rng.choice([False, True])
+            batch_size = rng.choice([1, 4, 19])
+            cases.append((batch_size, use_input, otype, itype, inv_map))
+    return cases
+
+
+_gpu_vs_cpu_test_cases = _generate_gpu_vs_cpu_test_cases()
+
+
+@params(*_gpu_vs_cpu_test_cases)
+def test_gpu_vs_cpu(batch_size, use_input, otype, itype, inv_map):
+    cpu_pipeline = WarpPipeline("cpu", batch_size, otype, itype, use_input, inv_map=inv_map)
+    cpu_pipeline.build()
+    gpu_pipeline = WarpPipeline("gpu", batch_size, otype, itype, use_input, inv_map=inv_map)
+    gpu_pipeline.build()
 
 
 def _test_extremely_large_data(device):
@@ -299,9 +314,9 @@ def _test_extremely_large_data(device):
         assert out[0, 0, c] == c
 
 
-def test_extremely_large_data():
-    for device in ["cpu", "gpu"]:
-        yield _test_extremely_large_data, device
+@params("cpu", "gpu")
+def test_extremely_large_data(device):
+    _test_extremely_large_data(device)
 
 
 def test_video():
@@ -370,6 +385,6 @@ def test_video():
         (fn.warp_affine, {}, [ArgCb(1, random_mx, False, dest_device="gpu")], ["gpu"]),
     ]
 
-    yield from video_suite_helper(
+    video_suite_helper(
         video_test_cases, test_channel_first=False, expand_channels=False, rng=rng
     )

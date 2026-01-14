@@ -88,16 +88,17 @@ def check_operator_coco_reader_custom_order(order=None, add_invalid_paths=False)
         assert lines.sort() == images.sort()
 
 
-def test_operator_coco_reader_custom_order():
-    custom_orders = [
-        None,  # natural order
-        [0, 2, 4, 6, 1, 3, 5, 7],  # altered order
-        [0, 1, 2, 3, 2, 1, 4, 1, 5, 2, 6, 7],  # with repetitions
-    ]
+_coco_reader_custom_order_test_cases = [
+    (None, False),  # natural order
+    ([0, 2, 4, 6, 1, 3, 5, 7], False),  # altered order
+    ([0, 1, 2, 3, 2, 1, 4, 1, 5, 2, 6, 7], False),  # with repetitions
+    (None, True),  # Natural order plus an invalid path
+]
 
-    for order in custom_orders:
-        yield check_operator_coco_reader_custom_order, order, False
-    yield check_operator_coco_reader_custom_order, None, True  # Natural order plus an invalid path
+
+@params(*_coco_reader_custom_order_test_cases)
+def test_operator_coco_reader_custom_order(order, with_invalid_path):
+    check_operator_coco_reader_custom_order(order, with_invalid_path)
 
 
 @params(True, False)
@@ -219,21 +220,26 @@ def coco_pipe(coco_op, file_root, annotations_file, polygon_masks, pixelwise_mas
     return inputs, boxes, labels
 
 
-def test_coco_reader_alias():
-    def check_coco_reader_alias(polygon_masks, pixelwise_masks):
-        new_pipe = coco_pipe(
-            fn.readers.coco, file_root, train_annotations, polygon_masks, pixelwise_masks
-        )
-        legacy_pipe = coco_pipe(
-            fn.coco_reader, file_root, train_annotations, polygon_masks, pixelwise_masks
-        )
-        compare_pipelines(new_pipe, legacy_pipe, batch_size_alias_test, 5)
+_coco_reader_alias_file_root = os.path.join(test_data_root, "db", "coco_pixelwise", "images")
+_coco_reader_alias_annotations = os.path.join(test_data_root, "db", "coco_pixelwise", "instances.json")
 
-    file_root = os.path.join(test_data_root, "db", "coco_pixelwise", "images")
-    train_annotations = os.path.join(test_data_root, "db", "coco_pixelwise", "instances.json")
 
-    for polygon_masks, pixelwise_masks in [(None, None), (True, None), (None, True)]:
-        yield check_coco_reader_alias, polygon_masks, pixelwise_masks
+def _check_coco_reader_alias(polygon_masks, pixelwise_masks):
+    new_pipe = coco_pipe(
+        fn.readers.coco, _coco_reader_alias_file_root, _coco_reader_alias_annotations, polygon_masks, pixelwise_masks
+    )
+    legacy_pipe = coco_pipe(
+        fn.coco_reader, _coco_reader_alias_file_root, _coco_reader_alias_annotations, polygon_masks, pixelwise_masks
+    )
+    compare_pipelines(new_pipe, legacy_pipe, batch_size_alias_test, 5)
+
+
+_coco_reader_alias_test_cases = [(None, None), (True, None), (None, True)]
+
+
+@params(*_coco_reader_alias_test_cases)
+def test_coco_reader_alias(polygon_masks, pixelwise_masks):
+    _check_coco_reader_alias(polygon_masks, pixelwise_masks)
 
 
 @params(True, False)

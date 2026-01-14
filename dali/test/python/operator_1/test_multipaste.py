@@ -700,8 +700,8 @@ def test_operator_multipaste():
     ]
     for t in tests:
         use_rel = tuple(bool(s) for s in rng.choice(2, size=3))
-        yield (check_operator_multipaste, *t, "cpu", *use_rel)
-        yield (check_operator_multipaste, *t, "gpu", *use_rel)
+        check_operator_multipaste(*t, "cpu", *use_rel)
+        check_operator_multipaste(*t, "gpu", *use_rel)
 
 
 @cartesian_params(("cpu", "gpu"), (True, False), (True, False), (None, (501, 501)))

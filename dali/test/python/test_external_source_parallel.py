@@ -16,6 +16,7 @@ import numpy as np
 import nvidia.dali as dali
 from nvidia.dali.types import SampleInfo, BatchInfo
 import test_external_source_parallel_utils as utils
+from nose2.tools import params
 from nose_utils import raises, with_setup
 
 
@@ -128,7 +129,7 @@ def test_wrong_source():
         (generator_fun(), (TypeError, batch_required_msg.format("an iterable"))),
     ]
     for source, (error_type, error_msg) in disallowed_sources:
-        yield raises(error_type, error_msg)(check_source_build), source
+        raises(error_type, error_msg)(check_source_build)(source)
 
 
 # Test that we can launch several CPU-only pipelines by fork as we don't touch CUDA context.
@@ -232,32 +233,30 @@ def test_parallel_fork():
     for parallel_pipe, _, _, _ in pipes:
         parallel_pipe.start_py_workers()
     for parallel_pipe, pipe, dtype, batch_size in pipes:
-        yield utils.check_callback, parallel_pipe, pipe, epoch_size, batch_size, dtype
-        # explicitly call py_pool close
-        # as nose might still reference parallel_pipe from the yield above
+        utils.check_callback(parallel_pipe, pipe, epoch_size, batch_size, dtype)
         parallel_pipe._py_pool.close()
     # test that another pipeline with forking initialization fails
     # as there is CUDA contexts already initialized
     parallel_pipe = utils.create_pipe(
         callback, "cpu", 16, py_num_workers=4, py_start_method="fork", parallel=True
     )
-    yield raises(
+    raises(
         RuntimeError, "Cannot fork a process when the CUDA has been initialized in the process."
-    )(utils.build_and_run_pipeline), parallel_pipe, 1
+    )(utils.build_and_run_pipeline)(parallel_pipe, 1)
 
 
 def test_dtypes():
-    yield from utils.check_spawn_with_callback(utils.ExtCallback)
+    utils.check_spawn_with_callback(utils.ExtCallback)
 
 
 def test_random_data():
-    yield from utils.check_spawn_with_callback(
+    utils.check_spawn_with_callback(
         utils.ExtCallback, shapes=[(100, 40, 3), (8, 64, 64, 3)], random_data=True
     )
 
 
 def test_randomly_shaped_data():
-    yield from utils.check_spawn_with_callback(
+    utils.check_spawn_with_callback(
         utils.ExtCallback,
         shapes=[(100, 40, 3), (8, 64, 64, 3)],
         random_data=True,
@@ -266,7 +265,7 @@ def test_randomly_shaped_data():
 
 
 def test_num_outputs():
-    yield from utils.check_spawn_with_callback(
+    utils.check_spawn_with_callback(
         utils.ExtCallbackMultipleOutputs,
         utils.ExtCallbackMultipleOutputs,
         num_outputs=2,
@@ -275,7 +274,7 @@ def test_num_outputs():
 
 
 def test_tensor_cpu():
-    yield from utils.check_spawn_with_callback(utils.ExtCallbackTensorCPU)
+    utils.check_spawn_with_callback(utils.ExtCallbackTensorCPU)
 
 
 @with_setup(utils.setup_function, utils.teardown_function)
@@ -291,12 +290,22 @@ def _test_exception_propagation(callback, batch_size, num_workers, expected):
     raises(expected)(utils.build_and_run_pipeline)(pipe, None)
 
 
-def test_exception_propagation():
+def _generate_exception_propagation_test_cases():
+    cases = []
     for raised, expected in [(StopIteration, StopIteration), (utils.CustomException, Exception)]:
         callback = utils.ExtCallback((4, 4), 250, np.int32, exception_class=raised)
         for num_workers in [1, 4]:
             for batch_size in [1, 15, 150]:
-                yield _test_exception_propagation, callback, batch_size, num_workers, expected
+                cases.append((callback, batch_size, num_workers, expected))
+    return cases
+
+
+_exception_propagation_test_cases = _generate_exception_propagation_test_cases()
+
+
+@params(*_exception_propagation_test_cases)
+def test_exception_propagation(callback, batch_size, num_workers, expected):
+    _test_exception_propagation(callback, batch_size, num_workers, expected)
 
 
 @with_setup(utils.setup_function, utils.teardown_function)
@@ -313,12 +322,22 @@ def _test_stop_iteration_resume(callback, batch_size, layout, num_workers):
     utils.check_stop_iteration_resume(pipe, batch_size, layout)
 
 
-def test_stop_iteration_resume():
+def _generate_stop_iteration_resume_test_cases():
     callback = utils.ExtCallback((4, 4), 250, "int32")
     layout = "XY"
+    cases = []
     for num_workers in [1, 4]:
         for batch_size in [1, 15, 150]:
-            yield _test_stop_iteration_resume, callback, batch_size, layout, num_workers
+            cases.append((callback, batch_size, layout, num_workers))
+    return cases
+
+
+_stop_iteration_resume_test_cases = _generate_stop_iteration_resume_test_cases()
+
+
+@params(*_stop_iteration_resume_test_cases)
+def test_stop_iteration_resume(callback, batch_size, layout, num_workers):
+    _test_stop_iteration_resume(callback, batch_size, layout, num_workers)
 
 
 @with_setup(utils.setup_function, utils.teardown_function)
@@ -335,12 +354,22 @@ def _test_layout(callback, batch_size, layout, num_workers):
     utils.check_layout(pipe, layout)
 
 
-def test_layout():
+def _generate_layout_test_cases():
+    cases = []
     for layout, dims in zip(["X", "XY", "XYZ"], ((4,), (4, 4), (4, 4, 4))):
         callback = utils.ExtCallback(dims, 1024, "int32")
         for num_workers in [1, 4]:
             for batch_size in [1, 256, 600]:
-                yield _test_layout, callback, batch_size, layout, num_workers
+                cases.append((callback, batch_size, layout, num_workers))
+    return cases
+
+
+_layout_test_cases = _generate_layout_test_cases()
+
+
+@params(*_layout_test_cases)
+def test_layout(callback, batch_size, layout, num_workers):
+    _test_layout(callback, batch_size, layout, num_workers)
 
 
 class ext_cb:
@@ -375,13 +404,23 @@ def _test_vs_non_parallel(batch_size, cb_parallel, cb_seq, batch, py_num_workers
             assert np.array_equal(s, p)
 
 
-def test_vs_non_parallel():
+def _generate_vs_non_parallel_test_cases():
+    cases = []
     for shape in [[], [10], [100, 100, 100]]:
         for batch_size, cb_parallel, cb_seq, batch, py_num_workers in [
             (50, ext_cb("cb 1", shape), ext_cb("cb 2", shape), False, 14),
             (50, Iterable(50, shape), Iterable(50, shape), True, 1),
         ]:
-            yield _test_vs_non_parallel, batch_size, cb_parallel, cb_seq, batch, py_num_workers
+            cases.append((batch_size, cb_parallel, cb_seq, batch, py_num_workers))
+    return cases
+
+
+_vs_non_parallel_test_cases = _generate_vs_non_parallel_test_cases()
+
+
+@params(*_vs_non_parallel_test_cases)
+def test_vs_non_parallel(batch_size, cb_parallel, cb_seq, batch, py_num_workers):
+    _test_vs_non_parallel(batch_size, cb_parallel, cb_seq, batch, py_num_workers)
 
 
 def generator_shape_empty():
@@ -402,9 +441,9 @@ def generator_shape_100x3():
         yield [np.full([10, 10, 10], count + i) for i in range(50)]
 
 
-def test_generator_vs_non_parallel():
-    for cb in [generator_shape_empty, generator_shape_10, generator_shape_100x3]:
-        yield _test_vs_non_parallel, 50, cb, cb, True, 1
+@params(generator_shape_empty, generator_shape_10, generator_shape_100x3)
+def test_generator_vs_non_parallel(cb):
+    _test_vs_non_parallel(50, cb, cb, True, 1)
 
 
 @with_setup(utils.setup_function, utils.teardown_function)
@@ -461,8 +500,9 @@ def generator_epoch_size_4():
         yield [np.full((4, 5), j + i) for i in range(20)]
 
 
-def test_cycle_raise():
+def _generate_cycle_raise_test_cases():
     batch_size = 20
+    cases = []
     for epoch_size, cb, is_gen_fun in [
         (1, Iterable(batch_size, (4, 5), epoch_size=1), False),
         (4, Iterable(batch_size, (4, 5), epoch_size=4), False),
@@ -470,7 +510,16 @@ def test_cycle_raise():
         (4, generator_epoch_size_4, True),
     ]:
         for reader_queue_size in (1, 2, 6):
-            yield _test_cycle_raise, cb, is_gen_fun, batch_size, epoch_size, reader_queue_size
+            cases.append((cb, is_gen_fun, batch_size, epoch_size, reader_queue_size))
+    return cases
+
+
+_cycle_raise_test_cases = _generate_cycle_raise_test_cases()
+
+
+@params(*_cycle_raise_test_cases)
+def test_cycle_raise(cb, is_gen_fun, batch_size, epoch_size, reader_queue_size):
+    _test_cycle_raise(cb, is_gen_fun, batch_size, epoch_size, reader_queue_size)
 
 
 @with_setup(utils.setup_function, utils.teardown_function)
@@ -506,8 +555,9 @@ def _test_cycle_quiet(cb, is_gen_fun, batch_size, epoch_size, reader_queue_size)
             np.testing.assert_equal(sample, expected_sample)
 
 
-def test_cycle_quiet():
+def _generate_cycle_quiet_test_cases():
     batch_size = 20
+    cases = []
     for epoch_size, cb, is_gen_fun in [
         (1, Iterable(batch_size, (4, 5), epoch_size=1), False),
         (4, Iterable(batch_size, (4, 5), epoch_size=4), False),
@@ -515,7 +565,16 @@ def test_cycle_quiet():
         (4, generator_epoch_size_4, True),
     ]:
         for reader_queue_size in (1, 2, 6):
-            yield _test_cycle_quiet, cb, is_gen_fun, batch_size, epoch_size, reader_queue_size
+            cases.append((cb, is_gen_fun, batch_size, epoch_size, reader_queue_size))
+    return cases
+
+
+_cycle_quiet_test_cases = _generate_cycle_quiet_test_cases()
+
+
+@params(*_cycle_quiet_test_cases)
+def test_cycle_quiet(cb, is_gen_fun, batch_size, epoch_size, reader_queue_size):
+    _test_cycle_quiet(cb, is_gen_fun, batch_size, epoch_size, reader_queue_size)
 
 
 @with_setup(utils.setup_function, utils.teardown_function)
@@ -551,12 +610,19 @@ def _test_cycle_quiet_non_resetable(iterable, reader_queue_size, batch_size, epo
         assert False, "Expected stop iteration at the end of the epoch"
 
 
-def test_cycle_quiet_non_resetable():
+def _generate_cycle_quiet_non_resetable_test_cases():
     epoch_size = 3
     batch_size = 20
     iterable = FaultyResetIterable(batch_size, (5, 4), epoch_size=epoch_size)
-    for reader_queue_size in (1, 3, 6):
-        yield _test_cycle_quiet_non_resetable, iterable, reader_queue_size, batch_size, epoch_size
+    return [(iterable, reader_queue_size, batch_size, epoch_size) for reader_queue_size in (1, 3, 6)]
+
+
+_cycle_quiet_non_resetable_test_cases = _generate_cycle_quiet_non_resetable_test_cases()
+
+
+@params(*_cycle_quiet_non_resetable_test_cases)
+def test_cycle_quiet_non_resetable(iterable, reader_queue_size, batch_size, epoch_size):
+    _test_cycle_quiet_non_resetable(iterable, reader_queue_size, batch_size, epoch_size)
 
 
 @with_setup(utils.setup_function, utils.teardown_function)
@@ -596,9 +662,9 @@ def test_cycle_no_resetting():
         (4, generator_epoch_size_4),
     ]:
         for reader_queue_size in (1, 2, 6):
-            yield raises(StopIteration)(
+            raises(StopIteration)(
                 _test_cycle_no_resetting
-            ), cb, batch_size, epoch_size, reader_queue_size
+            )(cb, batch_size, epoch_size, reader_queue_size)
 
 
 @with_setup(utils.setup_function, utils.teardown_function)
@@ -678,8 +744,7 @@ def test_all_kinds_parallel():
                     (1, 1, 3),
                 ):
                     for num_workers in (1, 7):
-                        yield (
-                            _test_all_kinds_parallel,
+                        _test_all_kinds_parallel(
                             sample_cb,
                             batch_cb,
                             iterator_cb,
@@ -775,8 +840,7 @@ def test_cycle_multiple_iterators():
             (True, True),
         ):
             for epoch_sizes in ((8, 4, 6), (8, 6, 4), (4, 6, 8), (1, 1, 1)):
-                yield (
-                    _test_cycle_multiple_iterators,
+                _test_cycle_multiple_iterators(
                     batch_size,
                     iters_num,
                     num_workers,
@@ -897,8 +961,7 @@ def test_epoch_idx():
         for epoch_size in (1, 3, 7):
             for reader_queue_depth in (1, 5):
                 sample_cb = SampleCb(batch_size, epoch_size)
-                yield (
-                    _test_epoch_idx,
+                _test_epoch_idx(
                     batch_size,
                     epoch_size,
                     sample_cb,
@@ -909,8 +972,7 @@ def test_epoch_idx():
                     None,
                 )
                 batch_cb = SampleCallbackBatched(sample_cb, batch_size, True)
-                yield (
-                    _test_epoch_idx,
+                _test_epoch_idx(
                     batch_size,
                     epoch_size,
                     batch_cb,
@@ -921,8 +983,7 @@ def test_epoch_idx():
                     True,
                 )
                 batch_cb = SampleCallbackBatched(sample_cb, batch_size, False)
-                yield (
-                    _test_epoch_idx,
+                _test_epoch_idx(
                     batch_size,
                     epoch_size,
                     batch_cb,
@@ -1006,8 +1067,7 @@ def test_permute_dataset():
         for epoch_size in (3, 7):
             cb = PermutableSampleCb(batch_size, epoch_size, trailing_samples=trailing_samples)
             for reader_queue_depth in (1, 5):
-                yield (
-                    _test_permute_dataset,
+                _test_permute_dataset(
                     batch_size,
                     epoch_size,
                     trailing_samples,

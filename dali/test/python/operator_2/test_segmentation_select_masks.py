@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from nose2.tools import params
 from nose_utils import assert_raises
 import numpy as np
 import nvidia.dali as dali
@@ -94,8 +95,7 @@ def test_select_masks():
         for vertex_ndim in [2, 3, 6]:
             for vertex_dtype in [float, random.choice([np.int8, np.int16, np.int32, np.int64])]:
                 reindex_masks = random.choice([False, True])
-                yield (
-                    check_select_masks,
+                check_select_masks(
                     batch_size,
                     npolygons_range,
                     nvertices_range,

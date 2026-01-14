@@ -19,6 +19,7 @@ from nvidia.dali.pipeline import do_not_convert
 import nvidia.dali as dali
 import nvidia.dali.fn as fn
 import nvidia.dali.types as dali_types
+from nose2.tools import params
 from nose_utils import with_setup, attr
 from test_utils import (
     get_dali_extra_path,
@@ -308,8 +309,7 @@ def test_numba_func():
         batch_processing,
         expected_out,
     ) in args:
-        yield (
-            _testimpl_numba_func,
+        _testimpl_numba_func(
             device,
             shape,
             dtype,
@@ -453,8 +453,7 @@ def test_numba_func_gpu():
         batch_processing,
         expected_out,
     ) in args:
-        yield (
-            _testimpl_numba_func,
+        _testimpl_numba_func(
             device,
             shape,
             dtype,
@@ -646,8 +645,7 @@ def test_numba_func_image():
         batch_processing,
         transform,
     ) in args:
-        yield (
-            _testimpl_numba_func_image,
+        _testimpl_numba_func_image(
             device,
             run_fn,
             out_types,
@@ -698,8 +696,7 @@ def test_numba_func_image_gpu():
         batch_processing,
         transform,
     ) in args:
-        yield (
-            _testimpl_numba_func_image,
+        _testimpl_numba_func_image(
             device,
             run_fn,
             out_types,

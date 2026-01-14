@@ -203,8 +203,7 @@ def test_operator_spectrogram_vs_python():
                     (10, 10, 5, (1, 1000)),
                     (None, 10, 5, (1, 1000)),
                 ]:
-                    yield (
-                        check_operator_spectrogram_vs_python,
+                    check_operator_spectrogram_vs_python(
                         device,
                         batch_size,
                         shape,
@@ -266,8 +265,7 @@ def test_operator_spectrogram_vs_python_wave():
                     # Librosa seems to disregard window_length
                     # and extract windows of nfft size regardless
                     for center in [False, True] if nfft == window_length else [True]:
-                        yield (
-                            check_operator_spectrogram_vs_python_wave_1d,
+                        check_operator_spectrogram_vs_python_wave_1d(
                             device,
                             batch_size,
                             length,
@@ -408,8 +406,7 @@ def test_operator_decoder_and_spectrogram():
                     # Librosa seems to disregards window_length
                     # and extract windows of nfft size regardless
                     for center in [False, True] if nfft == window_length else [True]:
-                        yield (
-                            check_operator_decoder_and_spectrogram_vs_python,
+                        check_operator_decoder_and_spectrogram_vs_python(
                             device,
                             batch_size,
                             nfft,

@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import numpy as np
+from nose2.tools import params
 from nose_utils import with_setup
 from nvidia.dali import pipeline_def
 import nvidia.dali.fn as fn
@@ -61,6 +62,6 @@ def _test_large_sample(start_method):
                 )
 
 
-def test_large_sample():
-    for start_method in ("fork", "spawn"):
-        yield _test_large_sample, start_method
+@params("fork", "spawn")
+def test_large_sample(start_method):
+    _test_large_sample(start_method)

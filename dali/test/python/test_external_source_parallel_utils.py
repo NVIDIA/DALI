@@ -14,6 +14,7 @@
 
 import numpy as np
 import nvidia.dali as dali
+from nose2.tools import params
 from nose_utils import with_setup
 from test_pool_utils import capture_processes, teardown_function, setup_function
 from test_utils import (
@@ -177,8 +178,7 @@ def check_spawn_with_callback(
             )
             for workers_num in [1, 4]:
                 for batch_size in [1, 16, 150]:
-                    yield (
-                        _check_spawn_with_callback,
+                    _check_spawn_with_callback(
                         callback,
                         callback_ref,
                         batch_size,

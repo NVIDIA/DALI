@@ -47,10 +47,13 @@ test_body() {
     python video_label_example.py
 
     echo $(pwd)
-    ${python_invoke_test} ../../../../dali/test/python/test_video_pipeline.py
-    ${python_invoke_test} ../../../../dali/test/python/test_video_reader_resize.py
+    pushd ../../../../dali/test/python/
+    echo $(pwd)
+    ${python_new_invoke_test} test_video_pipeline
+    ${python_new_invoke_test} test_video_reader_resize
 
-    cd ../../../../dali/test/python/
+    popd
+    echo $(pwd)
     ${python_new_invoke_test} test_video_reader
 }
 

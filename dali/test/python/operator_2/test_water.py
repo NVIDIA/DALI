@@ -21,6 +21,7 @@ import nvidia.dali as dali
 import numpy as np
 import os
 import cv2
+from nose2.tools import params
 from test_utils import compare_pipelines
 from test_utils import get_dali_extra_path
 
@@ -167,12 +168,17 @@ def check_water_cpu_vs_gpu(batch_size, niter, dtype, do_mask):
     )
 
 
-def test_water_cpu_vs_gpu():
-    niter = 3
-    for batch_size in [1, 3]:
-        for do_mask in [False, True]:
-            for dtype in [types.UINT8, types.FLOAT]:
-                yield check_water_cpu_vs_gpu, batch_size, niter, dtype, do_mask
+_water_cpu_vs_gpu_test_cases = [
+    (batch_size, 3, dtype, do_mask)
+    for batch_size in [1, 3]
+    for do_mask in [False, True]
+    for dtype in [types.UINT8, types.FLOAT]
+]
+
+
+@params(*_water_cpu_vs_gpu_test_cases)
+def test_water_cpu_vs_gpu(batch_size, niter, dtype, do_mask):
+    check_water_cpu_vs_gpu(batch_size, niter, dtype, do_mask)
 
 
 def check_water_vs_cv(device, batch_size, niter, dtype, prime_size):
@@ -206,10 +212,15 @@ def check_water_vs_cv(device, batch_size, niter, dtype, prime_size):
     )
 
 
-def test_water_vs_cv():
-    niter = 3
-    for device in ["cpu", "gpu"]:
-        for batch_size in [1, 3]:
-            for dtype in [types.UINT8, types.FLOAT]:
-                for prime_size in [False, True]:
-                    yield check_water_vs_cv, device, batch_size, niter, dtype, prime_size
+_water_vs_cv_test_cases = [
+    (device, batch_size, 3, dtype, prime_size)
+    for device in ["cpu", "gpu"]
+    for batch_size in [1, 3]
+    for dtype in [types.UINT8, types.FLOAT]
+    for prime_size in [False, True]
+]
+
+
+@params(*_water_vs_cv_test_cases)
+def test_water_vs_cv(device, batch_size, niter, dtype, prime_size):
+    check_water_vs_cv(device, batch_size, niter, dtype, prime_size)

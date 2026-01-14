@@ -23,6 +23,7 @@ import nvidia.dali.types as types
 import os
 import re
 from collections.abc import Iterable
+from nose2.tools import params
 from nose_utils import attr, nottest, assert_raises
 from nvidia.dali.pipeline import Pipeline, pipeline_def
 from nvidia.dali.pipeline.experimental import pipeline_def as experimental_pipeline_def
@@ -126,15 +127,15 @@ def check_bad_device(device_id, error_msg):
     assert_raises(RuntimeError, pipe.build, glob=error_msg)
 
 
-def test_gpu_op_bad_device():
-    device_ids = [None, 0]
-    error_msgs = [
-        "The pipeline requires a CUDA-capable GPU but *",
-        "You are trying to create a GPU DALI pipeline while CUDA is not available.*",
-    ]
+_gpu_op_bad_device_test_cases = [
+    (None, "The pipeline requires a CUDA-capable GPU but *"),
+    (0, "You are trying to create a GPU DALI pipeline while CUDA is not available.*"),
+]
 
-    for device_id, error_msg in zip(device_ids, error_msgs):
-        yield check_bad_device, device_id, error_msg
+
+@params(*_gpu_op_bad_device_test_cases)
+def test_gpu_op_bad_device(device_id, error_msg):
+    check_bad_device(device_id, error_msg)
 
 
 def check_mixed_op_bad_device(device_id, error_msg):
@@ -145,15 +146,15 @@ def check_mixed_op_bad_device(device_id, error_msg):
     assert_raises(RuntimeError, pipe.build, glob=error_msg)
 
 
-def test_mixed_op_bad_device():
-    device_ids = [None, 0]
-    error_msgs = [
-        "The pipeline requires a CUDA-capable GPU but *",
-        "You are trying to create a GPU DALI pipeline while CUDA is not available.*",
-    ]
+_mixed_op_bad_device_test_cases = [
+    (None, "The pipeline requires a CUDA-capable GPU but *"),
+    (0, "You are trying to create a GPU DALI pipeline while CUDA is not available.*"),
+]
 
-    for device_id, error_msg in zip(device_ids, error_msgs):
-        yield check_mixed_op_bad_device, device_id, error_msg
+
+@params(*_mixed_op_bad_device_test_cases)
+def test_mixed_op_bad_device(device_id, error_msg):
+    check_mixed_op_bad_device(device_id, error_msg)
 
 
 def check_single_input(

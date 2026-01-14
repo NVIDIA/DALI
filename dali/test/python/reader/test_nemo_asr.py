@@ -21,6 +21,7 @@ import json
 import tempfile
 import os
 from test_audio_decoder_utils import generate_waveforms
+from nose2.tools import params
 from test_utils import compare_pipelines
 
 
@@ -370,10 +371,10 @@ def test_nemo_asr_reader_pad_last_batch():
     # This is meant to reproduce an error found when combining pad_last_sample=True,
     # using ShareData to replicate the last sample, and trying to resize to a bigger
     # buffer after ShareData.
-    yield _testimpl_nemo_asr_reader_pad_last_batch, 2
+    _testimpl_nemo_asr_reader_pad_last_batch(2)
 
     # Trying to catch race conditions (A lot of samples in the batch to be replicated)
-    yield _testimpl_nemo_asr_reader_pad_last_batch, 128
+    _testimpl_nemo_asr_reader_pad_last_batch(128)
 
 
 def test_read_idxs():

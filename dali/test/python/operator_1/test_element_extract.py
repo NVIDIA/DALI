@@ -16,6 +16,7 @@ from nvidia.dali.pipeline import Pipeline
 from nvidia.dali import fn, pipeline_def
 import nvidia.dali.ops as ops
 from test_utils import RandomlyShapedDataIterator, to_array
+from nose2.tools import params
 from nose_utils import assert_raises
 
 import numpy as np
@@ -134,14 +135,24 @@ def check_element_extract(shape, layout, element_map, dev, dtype=np.uint8):
                 np.testing.assert_array_equal(expected, obtained)
 
 
-def test_element_extract_layout():
+def _generate_element_extract_layout_test_cases():
+    cases = []
     for shape, layout in [([4, 2, 2], "FHW"), ([6, 1], "FX"), ([8, 10, 10, 3], "FHWC")]:
         for element_map in [[1, 3], [0], [2, 2], [0, 1, 2]]:
             for device in ["cpu", "gpu"]:
                 for dtype in [np.uint8, np.int32]:
-                    yield check_element_extract, shape, layout, element_map, device, dtype
+                    cases.append((shape, layout, element_map, device, dtype))
     for device in ["cpu", "gpu"]:
-        yield check_element_extract, [4, 3, 3], "FXY", [0, 1, 2, 3, 3, 2, 1, 0], device
+        cases.append(([4, 3, 3], "FXY", [0, 1, 2, 3, 3, 2, 1, 0], device, np.uint8))
+    return cases
+
+
+_element_extract_layout_test_cases = _generate_element_extract_layout_test_cases()
+
+
+@params(*_element_extract_layout_test_cases)
+def test_element_extract_layout(shape, layout, element_map, device, dtype):
+    check_element_extract(shape, layout, element_map, device, dtype)
 
 
 def test_raises():

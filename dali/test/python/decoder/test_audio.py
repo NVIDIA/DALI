@@ -21,6 +21,7 @@ import numpy as np
 import os
 from test_audio_decoder_utils import generate_waveforms, rosa_resample
 from test_utils import compare_pipelines, get_files
+from nose2.tools import params
 from nose_utils import attr
 
 names = ["/tmp/dali_test_1C.wav", "/tmp/dali_test_2C.wav", "/tmp/dali_test_4C.wav"]
@@ -167,12 +168,18 @@ def check_audio_decoder_alias(sample_rate, downmix, quality, dtype):
     compare_pipelines(new_pipe, legacy_pipe, batch_size_alias_test, 10)
 
 
-def test_audio_decoder_alias():
-    for sample_rate in [None, 16000, 12999]:
-        for downmix in [False, True]:
-            for quality in [0, 50, 100]:
-                for dtype in [types.INT16, types.INT32, types.FLOAT]:
-                    yield check_audio_decoder_alias, sample_rate, downmix, quality, dtype
+_audio_decoder_alias_test_cases = [
+    (sample_rate, downmix, quality, dtype)
+    for sample_rate in [None, 16000, 12999]
+    for downmix in [False, True]
+    for quality in [0, 50, 100]
+    for dtype in [types.INT16, types.INT32, types.FLOAT]
+]
+
+
+@params(*_audio_decoder_alias_test_cases)
+def test_audio_decoder_alias(sample_rate, downmix, quality, dtype):
+    check_audio_decoder_alias(sample_rate, downmix, quality, dtype)
 
 
 def check_audio_decoder_correctness(fmt, dtype):
@@ -211,7 +218,6 @@ def check_audio_decoder_correctness(fmt, dtype):
                 np.testing.assert_equal(arr, ref)
 
 
-def test_audio_decoder_correctness():
-    dtype = types.INT16
-    for fmt in ["wav", "flac", "ogg"]:
-        yield check_audio_decoder_correctness, fmt, dtype
+@params(*[("wav", types.INT16), ("flac", types.INT16), ("ogg", types.INT16)])
+def test_audio_decoder_correctness(fmt, dtype):
+    check_audio_decoder_correctness(fmt, dtype)
