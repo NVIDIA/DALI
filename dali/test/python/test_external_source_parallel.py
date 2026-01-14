@@ -614,7 +614,9 @@ def _generate_cycle_quiet_non_resetable_test_cases():
     epoch_size = 3
     batch_size = 20
     iterable = FaultyResetIterable(batch_size, (5, 4), epoch_size=epoch_size)
-    return [(iterable, reader_queue_size, batch_size, epoch_size) for reader_queue_size in (1, 3, 6)]
+    return [
+        (iterable, reader_queue_size, batch_size, epoch_size) for reader_queue_size in (1, 3, 6)
+    ]
 
 
 _cycle_quiet_non_resetable_test_cases = _generate_cycle_quiet_non_resetable_test_cases()
@@ -653,18 +655,22 @@ def _test_cycle_no_resetting(cb, batch_size, epoch_size, reader_queue_size):
     pipe.run()
 
 
-def test_cycle_no_resetting():
-    batch_size = 20
-    for epoch_size, cb in [
-        (1, Iterable(batch_size, (4, 5), epoch_size=1)),
-        (4, Iterable(batch_size, (4, 5), epoch_size=4)),
-        (1, generator_epoch_size_1),
-        (4, generator_epoch_size_4),
-    ]:
-        for reader_queue_size in (1, 2, 6):
-            raises(StopIteration)(
-                _test_cycle_no_resetting
-            )(cb, batch_size, epoch_size, reader_queue_size)
+@params(
+    (Iterable(20, (4, 5), epoch_size=1), 20, 1, 1),
+    (Iterable(20, (4, 5), epoch_size=1), 20, 1, 2),
+    (Iterable(20, (4, 5), epoch_size=1), 20, 1, 6),
+    (Iterable(20, (4, 5), epoch_size=4), 20, 4, 1),
+    (Iterable(20, (4, 5), epoch_size=4), 20, 4, 2),
+    (Iterable(20, (4, 5), epoch_size=4), 20, 4, 6),
+    (generator_epoch_size_1, 20, 1, 1),
+    (generator_epoch_size_1, 20, 1, 2),
+    (generator_epoch_size_1, 20, 1, 6),
+    (generator_epoch_size_4, 20, 4, 1),
+    (generator_epoch_size_4, 20, 4, 2),
+    (generator_epoch_size_4, 20, 4, 6),
+)
+def test_cycle_no_resetting(cb, batch_size, epoch_size, reader_queue_size):
+    raises(StopIteration)(_test_cycle_no_resetting)(cb, batch_size, epoch_size, reader_queue_size)
 
 
 @with_setup(utils.setup_function, utils.teardown_function)
@@ -725,7 +731,8 @@ def _test_all_kinds_parallel(
                 break
 
 
-def test_all_kinds_parallel():
+def _make_all_kinds_parallel_cases():
+    cases = []
     for batch_size in (1, 17):
         for num_iters in (1, 3, 31):
             for trailing in (0, 30):
@@ -744,15 +751,39 @@ def test_all_kinds_parallel():
                     (1, 1, 3),
                 ):
                     for num_workers in (1, 7):
-                        _test_all_kinds_parallel(
-                            sample_cb,
-                            batch_cb,
-                            iterator_cb,
-                            batch_size,
-                            num_workers,
-                            reader_queue_sizes,
-                            num_iters,
+                        cases.append(
+                            (
+                                sample_cb,
+                                batch_cb,
+                                iterator_cb,
+                                batch_size,
+                                num_workers,
+                                reader_queue_sizes,
+                                num_iters,
+                            )
                         )
+    return cases
+
+
+@params(*_make_all_kinds_parallel_cases())
+def test_all_kinds_parallel(
+    sample_cb,
+    batch_cb,
+    iterator_cb,
+    batch_size,
+    num_workers,
+    reader_queue_sizes,
+    num_iters,
+):
+    _test_all_kinds_parallel(
+        sample_cb,
+        batch_cb,
+        iterator_cb,
+        batch_size,
+        num_workers,
+        reader_queue_sizes,
+        num_iters,
+    )
 
 
 def collect_iterations(pipe, num_iters):
@@ -827,27 +858,31 @@ def _test_cycle_multiple_iterators(
                 np.testing.assert_equal(np.array(sample_parallel), np.array(sample_seq))
 
 
-def test_cycle_multiple_iterators():
-    batch_size = 50
-    iters_num = 17
-    num_workers = 4
-    for prefetch_queue_depths in ((3, 1, 1), (1, 3, 1), (1, 1, 3), (1, 1, 1), (3, 3, 3)):
+@params(
+    *[
+        (50, 17, 4, prefetch_queue_depths, cycle_policies, epoch_sizes)
+        for prefetch_queue_depths in ((3, 1, 1), (1, 3, 1), (1, 1, 3), (1, 1, 1), (3, 3, 3))
         for cycle_policies in (
             ("raise", "raise"),
             ("quiet", "raise"),
             ("raise", "quiet"),
             ("quiet", "quiet"),
             (True, True),
-        ):
-            for epoch_sizes in ((8, 4, 6), (8, 6, 4), (4, 6, 8), (1, 1, 1)):
-                _test_cycle_multiple_iterators(
-                    batch_size,
-                    iters_num,
-                    num_workers,
-                    prefetch_queue_depths,
-                    cycle_policies,
-                    epoch_sizes,
-                )
+        )
+        for epoch_sizes in ((8, 4, 6), (8, 6, 4), (4, 6, 8), (1, 1, 1))
+    ]
+)
+def test_cycle_multiple_iterators(
+    batch_size, iters_num, num_workers, prefetch_queue_depths, cycle_policies, epoch_sizes
+):
+    _test_cycle_multiple_iterators(
+        batch_size,
+        iters_num,
+        num_workers,
+        prefetch_queue_depths,
+        cycle_policies,
+        epoch_sizes,
+    )
 
 
 def ext_cb2(sinfo):
@@ -1062,20 +1097,45 @@ def _test_permute_dataset(
             assert False, "expected StopIteration"
 
 
-def test_permute_dataset():
+def _generate_permute_dataset_params():
+    params_list = []
     for batch_size, trailing_samples in ((4, 0), (100, 0), (100, 99)):
         for epoch_size in (3, 7):
             cb = PermutableSampleCb(batch_size, epoch_size, trailing_samples=trailing_samples)
             for reader_queue_depth in (1, 5):
-                _test_permute_dataset(
-                    batch_size,
-                    epoch_size,
-                    trailing_samples,
-                    cb,
-                    4,
-                    1,
-                    reader_queue_depth,
+                params_list.append(
+                    (
+                        batch_size,
+                        epoch_size,
+                        trailing_samples,
+                        cb,
+                        4,  # py_num_workers
+                        1,  # prefetch_queue_depth
+                        reader_queue_depth,
+                    )
                 )
+    return params_list
+
+
+@params(*_generate_permute_dataset_params())
+def test_permute_dataset(
+    batch_size,
+    epoch_size,
+    trailing_samples,
+    cb,
+    py_num_workers,
+    prefetch_queue_depth,
+    reader_queue_depth,
+):
+    _test_permute_dataset(
+        batch_size,
+        epoch_size,
+        trailing_samples,
+        cb,
+        py_num_workers,
+        prefetch_queue_depth,
+        reader_queue_depth,
+    )
 
 
 class PerIterShapeSource:
