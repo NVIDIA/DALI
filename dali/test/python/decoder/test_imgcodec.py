@@ -29,7 +29,6 @@ from test_utils import get_dali_extra_path
 from test_utils import to_array
 from test_utils import get_arch
 from test_utils import dump_as_core_artifacts
-from nose2.tools import params
 
 
 def get_img_files(data_path, subdir="*", ext=None):

@@ -636,7 +636,7 @@ _auto_bg_test_cases = [
 
 
 @params(*_auto_bg_test_cases)
-def test_random_object_bbox_auto_bg(fg, expected_bg):
+def test_random_object_bbox_auto_bg(fg_labels, expected_bg):
     """Checks that a correct background labels is chosen:
     0, if 0 is not present in the list of foreground classes
     smallest label - 1 if 0 is present

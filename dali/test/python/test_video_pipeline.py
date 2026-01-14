@@ -141,7 +141,7 @@ ALL_TYPES = list(types.DALIDataType.__members__.values())
 
 
 @params(*SUPPORTED_TYPES)
-def test_simple_videopipeline_supported_types(type):
+def test_simple_videopipeline_supported_types(dtype):
     pipe = VideoPipe(batch_size=BATCH_SIZE, data=VIDEO_FILES, dtype=dtype)
     for i in range(ITER):
         _ = pipe.run()
@@ -153,7 +153,7 @@ _unsupported_types = list(set(ALL_TYPES) - set(SUPPORTED_TYPES))
 
 @raises(RuntimeError, glob="Data type must be FLOAT or UINT8")
 @params(*_unsupported_types)
-def test_simple_videopipeline_not_supported_types(type):
+def test_simple_videopipeline_not_supported_types(dtype):
     pipe = VideoPipe(batch_size=BATCH_SIZE, data=VIDEO_FILES, dtype=dtype)
     pipe.build()
 

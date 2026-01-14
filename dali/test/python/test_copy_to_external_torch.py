@@ -19,7 +19,7 @@ import torch
 from nvidia.dali import pipeline_def
 from nvidia.dali import types
 from nvidia.dali.backend import TensorListGPU
-from nose2.tools import params, cartesian_params
+from nose2.tools import cartesian_params
 
 shape = [4000000]
 batch_size = 2

@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nose2.tools import params, cartesian_params
+from nose2.tools import cartesian_params
 from nose_utils import attr, SkipTest
 
 # it is enough to just import all functions from test_internals_operator_external_source

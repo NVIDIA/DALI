@@ -36,7 +36,7 @@ _deserialization_test_cases = [
 
 
 @params(*_deserialization_test_cases)
-def test_deserialization(bs, nt, sh):
+def test_deserialization(batch_size, num_threads, shape):
     ref_pipe = TestPipeline(batch_size=batch_size, num_threads=num_threads, shape=shape)
     serialized = ref_pipe.serialize()
     test_pipe = Pipeline.deserialize(serialized)

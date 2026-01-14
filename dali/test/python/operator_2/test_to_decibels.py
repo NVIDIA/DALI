@@ -18,7 +18,7 @@ import numpy as np
 from functools import partial
 from test_utils import compare_pipelines
 from test_utils import RandomDataIterator
-from nose2.tools import params, cartesian_params
+from nose2.tools import cartesian_params
 from nose_utils import raises
 
 

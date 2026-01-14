@@ -467,6 +467,7 @@ _rnnt_test_cases = list(
 
 @params(*_rnnt_test_cases)
 def test_rnnt_data_pipeline(device, frame_splicing_params, normalize_type, pad_amount):
+    batch_size = 32
     preemph_coeff = 0.97
     window_size = 0.02
     window_stride = 0.01

@@ -17,7 +17,7 @@ import nvidia.dali as dali
 import nvidia.dali.fn as fn
 import nvidia.dali.types as types
 import random
-from nose2.tools import params, cartesian_params
+from nose2.tools import cartesian_params
 from nose_utils import assert_raises
 
 np.random.seed(4321)
@@ -167,11 +167,13 @@ def check_roi_random_crop(
 
 @cartesian_params(
     [2, 3],  # ndim
+    # (roi_start_min, roi_start_max, roi_extent_min, roi_extent_max, crop_extent_min,
+    # crop_extent_max)
     [
         (20, 50, 10, 20, 30, 40),
         (20, 50, 100, 140, 30, 40),
         (0, 1, 10, 20, 80, 100),
-    ],  # (roi_start_min, roi_start_max, roi_extent_min, roi_extent_max, crop_extent_min, crop_extent_max)
+    ],
 )
 def test_roi_random_crop(ndim, params_tuple):
     batch_size = 16

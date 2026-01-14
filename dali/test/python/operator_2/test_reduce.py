@@ -628,7 +628,7 @@ _reduce_large_data_test_cases = _generate_reduce_large_data_test_cases()
 
 
 @params(*_reduce_large_data_test_cases)
-def test_reduce_large_data(rank, axes, device, layout):
+def test_reduce_large_data(rank, axes, device, in_layout):
     batch_size = 16
     num_batches = 2
     data = fast_large_random_batches(rank, batch_size, num_batches)
@@ -727,7 +727,7 @@ _std_dev_large_data_test_cases = _generate_std_dev_large_data_test_cases()
 
 
 @params(*_std_dev_large_data_test_cases)
-def test_std_dev_large_data(rank, axes, device, layout):
+def test_std_dev_large_data(rank, axes, device, in_layout):
     batch_size = 16
     num_batches = 2
     data = fast_large_random_batches(rank, batch_size, num_batches)

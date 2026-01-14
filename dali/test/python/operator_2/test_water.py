@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import nose_utils  # noqa:F401   - for Python 3.10
 from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.ops as ops
 import nvidia.dali.fn as fn
@@ -21,7 +20,7 @@ import nvidia.dali as dali
 import numpy as np
 import os
 import cv2
-from nose2.tools import params, cartesian_params
+from nose2.tools import cartesian_params
 from test_utils import compare_pipelines
 from test_utils import get_dali_extra_path
 
