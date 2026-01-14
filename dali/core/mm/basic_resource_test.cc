@@ -1,4 +1,4 @@
-// Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -53,7 +53,11 @@ struct MMBasicResourceTest : public ::testing::Test {
 
   void OOMTest() {
     Resource res;
-    EXPECT_THROW((res.allocate(static_cast<size_t>(-1L) / 4)), std::bad_alloc);
+    void *ptr = nullptr;
+    size_t size = static_cast<size_t>(-1L) / 4;
+    EXPECT_THROW((ptr = res.allocate(size)), std::bad_alloc);
+    if (ptr)
+      res.deallocate(ptr, size);
     // TODO(michalz): Remove when error handling is fixed in RMM
     (void)cudaGetLastError();
   }
