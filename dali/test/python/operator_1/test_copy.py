@@ -37,12 +37,14 @@ def copy_pipe(shape, layout, dev, dtype):
     return input, output
 
 
-@params(*[
-    (shape, layout, device, dtype)
-    for shape, layout in [([4, 2, 3], "HWC"), ([6, 1], "FX"), ([8, 10, 10, 3], "FHWC")]
-    for device in ["cpu", "gpu"]
-    for dtype in [np.uint8, np.float16, np.int32]
-])
+@params(
+    *[
+        (shape, layout, device, dtype)
+        for shape, layout in [([4, 2, 3], "HWC"), ([6, 1], "FX"), ([8, 10, 10, 3], "FHWC")]
+        for device in ["cpu", "gpu"]
+        for dtype in [np.uint8, np.float16, np.int32]
+    ]
+)
 def test_copy(shape, layout, device, dtype):
     pipe = copy_pipe(shape, layout, device, dtype)
     for i in range(10):

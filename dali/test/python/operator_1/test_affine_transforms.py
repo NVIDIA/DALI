@@ -89,8 +89,12 @@ _translation_test_cases = [
 
 
 @params(*_translation_test_cases)
-def test_transform_translation_op(offset, has_input, reverse_order, batch_size, num_threads, device_id):
-    check_transform_translation_op(offset, has_input, reverse_order, batch_size, num_threads, device_id)
+def test_transform_translation_op(
+    offset, has_input, reverse_order, batch_size, num_threads, device_id
+):
+    check_transform_translation_op(
+        offset, has_input, reverse_order, batch_size, num_threads, device_id
+    )
 
 
 def scale_affine_mat(scale, center=None, ndim=None):
@@ -160,8 +164,12 @@ _scale_test_cases = [
 
 
 @params(*_scale_test_cases)
-def test_transform_scale_op(scale, center, has_input, reverse_order, ndim, batch_size, num_threads, device_id):
-    check_transform_scale_op(scale, center, has_input, reverse_order, ndim, batch_size, num_threads, device_id)
+def test_transform_scale_op(
+    scale, center, has_input, reverse_order, ndim, batch_size, num_threads, device_id
+):
+    check_transform_scale_op(
+        scale, center, has_input, reverse_order, ndim, batch_size, num_threads, device_id
+    )
 
 
 def rotate_affine_mat(angle, axis=None, center=None):
@@ -258,8 +266,12 @@ _rotation_test_cases = [
 
 
 @params(*_rotation_test_cases)
-def test_transform_rotation_op(angle, axis, center, has_input, reverse_order, batch_size, num_threads, device_id):
-    check_transform_rotation_op(angle, axis, center, has_input, reverse_order, batch_size, num_threads, device_id)
+def test_transform_rotation_op(
+    angle, axis, center, has_input, reverse_order, batch_size, num_threads, device_id
+):
+    check_transform_rotation_op(
+        angle, axis, center, has_input, reverse_order, batch_size, num_threads, device_id
+    )
 
 
 def shear_affine_mat(shear=None, angles=None, center=None):
@@ -409,8 +421,12 @@ _shear_test_cases = [
 
 
 @params(*_shear_test_cases)
-def test_transform_shear_op(shear, angles, center, has_input, reverse_order, batch_size, num_threads, device_id):
-    check_transform_shear_op(shear, angles, center, has_input, reverse_order, batch_size, num_threads, device_id)
+def test_transform_shear_op(
+    shear, angles, center, has_input, reverse_order, batch_size, num_threads, device_id
+):
+    check_transform_shear_op(
+        shear, angles, center, has_input, reverse_order, batch_size, num_threads, device_id
+    )
 
 
 _shear_runtime_args_test_cases = [
@@ -424,8 +440,12 @@ _shear_runtime_args_test_cases = [
 
 
 @params(*_shear_runtime_args_test_cases)
-def test_transform_shear_op_runtime_args(ndim, use_angles, use_center, has_input, reverse_order, batch_size, num_threads):
-    check_transform_shear_op_runtime_args(ndim, use_angles, use_center, has_input, reverse_order, batch_size, num_threads)
+def test_transform_shear_op_runtime_args(
+    ndim, use_angles, use_center, has_input, reverse_order, batch_size, num_threads
+):
+    check_transform_shear_op_runtime_args(
+        ndim, use_angles, use_center, has_input, reverse_order, batch_size, num_threads
+    )
 
 
 def get_ndim(from_start, from_end, to_start, to_end):
@@ -543,13 +563,37 @@ def _generate_crop_test_cases():
         ((0.1, 0.2, 0.3), (1.0, 1.2, 1.3), None, None),
     ]:
         for has_input in [False, True]:
-            for reverse_order in ([False, True] if has_input else [False]):
-                cases.append((from_start, from_end, to_start, to_end, False, has_input,
-                              reverse_order, batch_size, num_threads, device_id))
+            for reverse_order in [False, True] if has_input else [False]:
+                cases.append(
+                    (
+                        from_start,
+                        from_end,
+                        to_start,
+                        to_end,
+                        False,
+                        has_input,
+                        reverse_order,
+                        batch_size,
+                        num_threads,
+                        device_id,
+                    )
+                )
                 # Reversed start and end
                 for absolute in [False, True]:
-                    cases.append((from_end, from_start, to_end, to_start, absolute, has_input,
-                                  reverse_order, batch_size, num_threads, device_id))
+                    cases.append(
+                        (
+                            from_end,
+                            from_start,
+                            to_end,
+                            to_start,
+                            absolute,
+                            has_input,
+                            reverse_order,
+                            batch_size,
+                            num_threads,
+                            device_id,
+                        )
+                    )
     return cases
 
 
@@ -557,10 +601,30 @@ _crop_test_cases = _generate_crop_test_cases()
 
 
 @params(*_crop_test_cases)
-def test_transform_crop_op(from_start, from_end, to_start, to_end, absolute, has_input,
-                           reverse_order, batch_size, num_threads, device_id):
-    check_transform_crop_op(from_start, from_end, to_start, to_end, absolute, has_input,
-                            reverse_order, batch_size, num_threads, device_id)
+def test_transform_crop_op(
+    from_start,
+    from_end,
+    to_start,
+    to_end,
+    absolute,
+    has_input,
+    reverse_order,
+    batch_size,
+    num_threads,
+    device_id,
+):
+    check_transform_crop_op(
+        from_start,
+        from_end,
+        to_start,
+        to_end,
+        absolute,
+        has_input,
+        reverse_order,
+        batch_size,
+        num_threads,
+        device_id,
+    )
 
 
 def check_combine_transforms(
@@ -601,8 +665,12 @@ _combine_test_cases = [
 
 
 @params(*_combine_test_cases)
-def test_combine_transforms(num_transforms, ndim, reverse_order, batch_size, num_threads, device_id):
-    check_combine_transforms(num_transforms, ndim, reverse_order, batch_size, num_threads, device_id)
+def test_combine_transforms(
+    num_transforms, ndim, reverse_order, batch_size, num_threads, device_id
+):
+    check_combine_transforms(
+        num_transforms, ndim, reverse_order, batch_size, num_threads, device_id
+    )
 
 
 def test_combine_transforms_correct_order():

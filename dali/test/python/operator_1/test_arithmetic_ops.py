@@ -894,8 +894,7 @@ def check_arithm_div(kinds, types, shape):
 
 
 _arithmetic_division_big_test_cases = [
-    (kinds, (np.int8, np.int8), shape_big)
-    for kinds in bin_input_kinds
+    (kinds, (np.int8, np.int8), shape_big) for kinds in bin_input_kinds
 ]
 
 
@@ -988,7 +987,9 @@ def _generate_bool_disallowed_test_cases():
             cases.append((kinds, (np.bool_, np.bool_), op, shape_small, op_desc, error_msg))
     for kinds in selected_ternary_input_kinds:
         for op, op_desc in ternary_operations:
-            cases.append((kinds, (np.bool_, np.bool_, np.bool_), op, shape_small, op_desc, error_msg))
+            cases.append(
+                (kinds, (np.bool_, np.bool_, np.bool_), op, shape_small, op_desc, error_msg)
+            )
     return cases
 
 

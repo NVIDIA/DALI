@@ -87,6 +87,7 @@ def test_pytorch_pipeline_dynamic_shape():
     for data in train_loader:
         assert data is not None
 
+
 @attr("paddle")
 def test_paddle_pipeline_dynamic_shape():
     from nvidia.dali.plugin.paddle import DALIGenericIterator as PaddleIterator

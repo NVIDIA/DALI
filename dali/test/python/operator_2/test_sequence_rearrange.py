@@ -15,7 +15,7 @@
 from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.fn as fn
 import numpy as np
-from nose2.tools import params
+from nose2.tools import params, cartesian_params
 from nose_utils import raises
 
 
@@ -139,24 +139,28 @@ _fail_sequence_rearrange_error_msgs = [
 _fail_sequence_rearrange_test_cases = [
     (2, [5, 1], new_order, per_sample, dev, error_msg)
     for dev in ["cpu", "gpu"]
-    for (new_order, per_sample), error_msg in zip(_fail_sequence_rearrange_orders, _fail_sequence_rearrange_error_msgs)
+    for (new_order, per_sample), error_msg in zip(
+        _fail_sequence_rearrange_orders, _fail_sequence_rearrange_error_msgs
+    )
 ]
 
 
 @params(*_fail_sequence_rearrange_test_cases)
 def test_fail_sequence_rearrange(batch_size, shape, new_order, per_sample, dev, error_msg):
-    raises(RuntimeError, glob=error_msg)(check_fail_sequence_rearrange)(batch_size, shape, new_order, per_sample, dev)
+    raises(RuntimeError, glob=error_msg)(check_fail_sequence_rearrange)(
+        batch_size, shape, new_order, per_sample, dev
+    )
 
 
-_wrong_layouts_test_cases = [
-    (5, [5, 1], [0, 2, 1, 3, 4], False, dev, layout)
-    for dev in ["cpu", "gpu"]
-    for layout in ["HF", "HW"]
-]
-
-
-@params(*_wrong_layouts_test_cases)
-def test_wrong_layouts_sequence_rearrange(batch_size, shape, new_order, per_sample, dev, layout):
+@cartesian_params(
+    ["cpu", "gpu"],  # dev
+    ["HF", "HW"],  # layout
+)
+def test_wrong_layouts_sequence_rearrange(dev, layout):
+    batch_size = 5
+    shape = [5, 1]
+    new_order = [0, 2, 1, 3, 4]
+    per_sample = False
     raises(
         RuntimeError,
         glob=(

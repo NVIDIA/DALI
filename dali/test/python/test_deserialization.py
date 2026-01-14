@@ -30,14 +30,21 @@ class TestPipeline(Pipeline):
         return cf
 
 
-def check_deserialization(batch_size, num_threads, shape):
+_deserialization_test_cases = [
+    (bs, nt, sh) for bs in [3] for nt in [1] for sh in [[6], [2, 5], [3, 1, 6]]
+]
+
+
+@params(*_deserialization_test_cases)
+def test_deserialization(bs, nt, sh):
     ref_pipe = TestPipeline(batch_size=batch_size, num_threads=num_threads, shape=shape)
     serialized = ref_pipe.serialize()
     test_pipe = Pipeline.deserialize(serialized)
     test_utils.compare_pipelines(ref_pipe, test_pipe, batch_size=batch_size, N_iterations=3)
 
 
-def check_deserialization_with_params(batch_size, num_threads, shape):
+@params(*_deserialization_test_cases)
+def test_deserialization_with_params(batch_size, num_threads, shape):
     init_pipe = TestPipeline(batch_size=batch_size, num_threads=num_threads, shape=shape)
     serialized = init_pipe.serialize()
     ref_pipe = TestPipeline(batch_size=batch_size**2, num_threads=num_threads + 1, shape=shape)
@@ -47,7 +54,8 @@ def check_deserialization_with_params(batch_size, num_threads, shape):
     test_utils.compare_pipelines(ref_pipe, test_pipe, batch_size=batch_size**2, N_iterations=3)
 
 
-def check_deserialization_from_file(batch_size, num_threads, shape):
+@params(*_deserialization_test_cases)
+def test_deserialization_from_file(batch_size, num_threads, shape):
     filename = "/tmp/dali.serialize.pipeline.test"
     ref_pipe = TestPipeline(batch_size=batch_size, num_threads=num_threads, shape=shape)
     ref_pipe.serialize(filename=filename)
@@ -55,7 +63,8 @@ def check_deserialization_from_file(batch_size, num_threads, shape):
     test_utils.compare_pipelines(ref_pipe, test_pipe, batch_size=batch_size, N_iterations=3)
 
 
-def check_deserialization_from_file_with_params(batch_size, num_threads, shape):
+@params(*_deserialization_test_cases)
+def test_deserialization_from_file_with_params(batch_size, num_threads, shape):
     filename = "/tmp/dali.serialize.pipeline.test"
     init_pipe = TestPipeline(batch_size=batch_size, num_threads=num_threads, shape=shape)
     init_pipe.serialize(filename=filename)
@@ -64,34 +73,6 @@ def check_deserialization_from_file_with_params(batch_size, num_threads, shape):
         filename=filename, batch_size=batch_size**2, num_threads=num_threads + 1
     )
     test_utils.compare_pipelines(ref_pipe, test_pipe, batch_size=batch_size**2, N_iterations=3)
-
-
-_deserialization_test_cases = [
-    (bs, nt, sh)
-    for bs in [3]
-    for nt in [1]
-    for sh in [[6], [2, 5], [3, 1, 6]]
-]
-
-
-@params(*_deserialization_test_cases)
-def test_deserialization(bs, nt, sh):
-    check_deserialization(bs, nt, sh)
-
-
-@params(*_deserialization_test_cases)
-def test_deserialization_with_params(bs, nt, sh):
-    check_deserialization_with_params(bs, nt, sh)
-
-
-@params(*_deserialization_test_cases)
-def test_deserialization_from_file(bs, nt, sh):
-    check_deserialization(bs, nt, sh)
-
-
-@params(*_deserialization_test_cases)
-def test_deserialization_from_file_with_params(bs, nt, sh):
-    check_deserialization_with_params(bs, nt, sh)
 
 
 @raises(

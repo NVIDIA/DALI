@@ -495,21 +495,56 @@ _slice_synth_test_configs = [
 _slice_synth_test_cases = []
 for device in ["cpu", "gpu"]:
     for batch_size in [1, 8]:
-        for input_shape, layout, axes, axis_names, input_type, output_type in _slice_synth_test_configs:
+        for (
+            input_shape,
+            layout,
+            axes,
+            axis_names,
+            input_type,
+            output_type,
+        ) in _slice_synth_test_configs:
             normalized_anchor = bool(_rng_for_params.choice([True, False]))
             normalized_shape = bool(_rng_for_params.choice([True, False]))
-            _slice_synth_test_cases.append((
-                device, batch_size, input_shape, layout, axes, axis_names,
-                normalized_anchor, normalized_shape, input_type, output_type
-            ))
+            _slice_synth_test_cases.append(
+                (
+                    device,
+                    batch_size,
+                    input_shape,
+                    layout,
+                    axes,
+                    axis_names,
+                    normalized_anchor,
+                    normalized_shape,
+                    input_type,
+                    output_type,
+                )
+            )
 
 
 @params(*_slice_synth_test_cases)
-def test_slice_synth_data_vs_numpy(device, batch_size, input_shape, layout, axes, axis_names,
-                                   normalized_anchor, normalized_shape, input_type, output_type):
+def test_slice_synth_data_vs_numpy(
+    device,
+    batch_size,
+    input_shape,
+    layout,
+    axes,
+    axis_names,
+    normalized_anchor,
+    normalized_shape,
+    input_type,
+    output_type,
+):
     check_slice_synth_data_vs_numpy(
-        device, batch_size, input_shape, layout, axes, axis_names,
-        normalized_anchor, normalized_shape, input_type, output_type
+        device,
+        batch_size,
+        input_shape,
+        layout,
+        axes,
+        axis_names,
+        normalized_anchor,
+        normalized_shape,
+        input_type,
+        output_type,
     )
 
 
@@ -540,11 +575,13 @@ def check_slice_vs_fused_decoder(device, batch_size, axes, axis_names):
     )
 
 
-@params(*[
-    (device, 1, axes, axis_names)
-    for device in ["cpu", "gpu"]
-    for axes, axis_names in [(None, "WH"), (None, "HW"), ((1, 0), None), ((0, 1), None)]
-])
+@params(
+    *[
+        (device, 1, axes, axis_names)
+        for device in ["cpu", "gpu"]
+        for axes, axis_names in [(None, "WH"), (None, "HW"), ((1, 0), None), ((0, 1), None)]
+    ]
+)
 def test_slice_vs_fused_decoder(device, batch_size, axes, axis_names):
     check_slice_vs_fused_decoder(device, batch_size, axes, axis_names)
 
@@ -562,11 +599,13 @@ def check_slice_vs_numpy(device, batch_size, axes, axis_names):
     )
 
 
-@params(*[
-    (device, 1, axes, axis_names)
-    for device in ["cpu", "gpu"]
-    for axes, axis_names in [(None, "WH"), (None, "HW"), ((1, 0), None), ((0, 1), None)]
-])
+@params(
+    *[
+        (device, 1, axes, axis_names)
+        for device in ["cpu", "gpu"]
+        for axes, axis_names in [(None, "WH"), (None, "HW"), ((1, 0), None), ((0, 1), None)]
+    ]
+)
 def test_slice_vs_numpy(device, batch_size, axes, axis_names):
     check_slice_vs_numpy(device, batch_size, axes, axis_names)
 
@@ -747,20 +786,41 @@ def check_slice_with_out_of_bounds_policy_support(
             )
 
 
-@params(*[
-    (device, batch_size, (40, 80, 3), out_of_bounds_policy, fill_values, normalized_anchor, normalized_shape)
-    for out_of_bounds_policy in ["pad", "trim_to_shape"]
-    for device in ["gpu", "cpu"]
-    for batch_size in [1, 3]
-    for normalized_anchor, normalized_shape in [(False, False), (True, True)]
-    for fill_values in [None, (0x76, 0xB0, 0x00)]
-])
-def test_slice_with_out_of_bounds_policy_support(device, batch_size, input_shape,
-                                                  out_of_bounds_policy, fill_values,
-                                                  normalized_anchor, normalized_shape):
+@params(
+    *[
+        (
+            device,
+            batch_size,
+            (40, 80, 3),
+            out_of_bounds_policy,
+            fill_values,
+            normalized_anchor,
+            normalized_shape,
+        )
+        for out_of_bounds_policy in ["pad", "trim_to_shape"]
+        for device in ["gpu", "cpu"]
+        for batch_size in [1, 3]
+        for normalized_anchor, normalized_shape in [(False, False), (True, True)]
+        for fill_values in [None, (0x76, 0xB0, 0x00)]
+    ]
+)
+def test_slice_with_out_of_bounds_policy_support(
+    device,
+    batch_size,
+    input_shape,
+    out_of_bounds_policy,
+    fill_values,
+    normalized_anchor,
+    normalized_shape,
+):
     check_slice_with_out_of_bounds_policy_support(
-        device, batch_size, input_shape, out_of_bounds_policy, fill_values,
-        normalized_anchor, normalized_shape
+        device,
+        batch_size,
+        input_shape,
+        out_of_bounds_policy,
+        fill_values,
+        normalized_anchor,
+        normalized_shape,
     )
 
 
@@ -807,16 +867,20 @@ def check_slice_with_out_of_bounds_error(
         _ = pipe.run()
 
 
-@params(*[
-    (device, batch_size, (40, 80, 3), normalized_anchor, normalized_shape)
-    for device in ["gpu", "cpu"]
-    for batch_size in [1, 3]
-    for normalized_anchor, normalized_shape in [(False, False), (True, True)]
-])
-def test_slice_with_out_of_bounds_error(device, batch_size, input_shape,
-                                        normalized_anchor, normalized_shape):
-    check_slice_with_out_of_bounds_error(device, batch_size, input_shape,
-                                         normalized_anchor, normalized_shape)
+@params(
+    *[
+        (device, batch_size, (40, 80, 3), normalized_anchor, normalized_shape)
+        for device in ["gpu", "cpu"]
+        for batch_size in [1, 3]
+        for normalized_anchor, normalized_shape in [(False, False), (True, True)]
+    ]
+)
+def test_slice_with_out_of_bounds_error(
+    device, batch_size, input_shape, normalized_anchor, normalized_shape
+):
+    check_slice_with_out_of_bounds_error(
+        device, batch_size, input_shape, normalized_anchor, normalized_shape
+    )
 
 
 def check_slice_named_args(device, batch_size):
@@ -972,11 +1036,13 @@ def check_no_slice(device, dtype, batch_size, num_threads):
             np.testing.assert_array_equal(in_img, out_img)
 
 
-@params(*[
-    (device, dtype, 4, 3)
-    for device in ["cpu", "gpu"]
-    for dtype in [types.UINT8, types.UINT16, types.FLOAT]
-])
+@params(
+    *[
+        (device, dtype, 4, 3)
+        for device in ["cpu", "gpu"]
+        for dtype in [types.UINT8, types.UINT16, types.FLOAT]
+    ]
+)
 def test_no_slice(device, dtype, batch_size, num_threads):
     check_no_slice(device, dtype, batch_size, num_threads)
 
@@ -1089,12 +1155,14 @@ def check_wrong_axes(device, wrong_axes_range=None, named_args=False):
     )
 
 
-@params(*[
-    (device, wrong_axes_range, named_args)
-    for device in ["cpu", "gpu"]
-    for wrong_axes_range in [(-10, -4), (3, 10)]
-    for named_args in [False, True]
-])
+@params(
+    *[
+        (device, wrong_axes_range, named_args)
+        for device in ["cpu", "gpu"]
+        for wrong_axes_range in [(-10, -4), (3, 10)]
+        for named_args in [False, True]
+    ]
+)
 def test_wrong_axes(device, wrong_axes_range, named_args):
     check_wrong_axes(device, wrong_axes_range, named_args)
 

@@ -22,7 +22,7 @@ from numpy.testing import assert_array_equal
 import os
 
 from nose_utils import assert_raises
-from nose2.tools import params
+from nose2.tools import params, cartesian_params
 
 test_data_root = os.environ["DALI_EXTRA_PATH"]
 caffe_db_folder = os.path.join(test_data_root, "db", "lmdb")
@@ -200,7 +200,32 @@ def check_reshape_with_input(device, batch_size, use_wildcard):
         verify_flatten(imgs, reshaped)
 
 
-def check_reshape_with_arg_input(device, batch_size, relative, use_wildcard):
+@cartesian_params(
+    ["cpu", "gpu"],  # device
+    [16],  # batch_size
+    [False, True],  # relative
+    [False, True],  # use_wildcard
+)
+def test_reshape_arg(device, batch_size, relative, use_wildcard):
+    check_reshape(device, batch_size, relative, use_wildcard)
+
+
+@cartesian_params(
+    ["cpu", "gpu"],  # device
+    [16],  # batch_size
+    [False, True],  # use_wildcard
+)
+def test_reshape_input(device, batch_size, use_wildcard):
+    check_reshape_with_input(device, batch_size, use_wildcard)
+
+
+@cartesian_params(
+    ["cpu", "gpu"],  # device
+    [16],  # batch_size
+    [False, True],  # relative
+    [False, True],  # use_wildcard
+)
+def test_reshape_arg_input(device, batch_size, relative, use_wildcard):
     pipe = ReshapeWithArgInput(device, batch_size, relative, use_wildcard)
     for iter in range(2):
         imgs, reshaped = pipe.run()
@@ -208,44 +233,6 @@ def check_reshape_with_arg_input(device, batch_size, relative, use_wildcard):
             imgs = imgs.as_cpu()
             reshaped = reshaped.as_cpu()
         verify_make_tall(imgs, reshaped)
-
-
-_reshape_arg_test_cases = [
-    (device, 16, relative, use_wildcard)
-    for device in ["cpu", "gpu"]
-    for relative in [False, True]
-    for use_wildcard in [False, True]
-]
-
-
-@params(*_reshape_arg_test_cases)
-def test_reshape_arg(device, batch_size, relative, use_wildcard):
-    check_reshape(device, batch_size, relative, use_wildcard)
-
-
-_reshape_input_test_cases = [
-    (device, 16, use_wildcard)
-    for device in ["cpu", "gpu"]
-    for use_wildcard in [False, True]
-]
-
-
-@params(*_reshape_input_test_cases)
-def test_reshape_input(device, batch_size, use_wildcard):
-    check_reshape_with_input(device, batch_size, use_wildcard)
-
-
-_reshape_arg_input_test_cases = [
-    (device, 16, relative, use_wildcard)
-    for device in ["cpu", "gpu"]
-    for relative in [False, True]
-    for use_wildcard in [False, True]
-]
-
-
-@params(*_reshape_arg_input_test_cases)
-def test_reshape_arg_input(device, batch_size, relative, use_wildcard):
-    check_reshape_with_arg_input(device, batch_size, relative, use_wildcard)
 
 
 class ReinterpretPipelineWithDefaultShape(Pipeline):
@@ -367,7 +354,12 @@ def _generate_reshape_src_dims_arg_test_cases():
     # src_dims, rel_shape, shapes, expected_out_shapes
     args = [
         ([0, 1], None, [[200, 300, 1], [300, 400, 1]], [(200, 300), (300, 400)]),
-        ([1, 2, 0], None, [[10, 20, 30], [30, 20, 10], [2, 1, 3]], [(20, 30, 10), (20, 10, 30), (1, 3, 2)]),
+        (
+            [1, 2, 0],
+            None,
+            [[10, 20, 30], [30, 20, 10], [2, 1, 3]],
+            [(20, 30, 10), (20, 10, 30), (1, 3, 2)],
+        ),
         ([1], None, [[1, 2, 1], [1, 3, 1]], [(2,), (3,)]),
         ([2, -1, 1, 0], None, [[10, 20, 30]], [(30, 1, 20, 10)]),
         ([-1, 2], None, [[1, 1, 30], [1, 1, 70]], [(1, 30), (1, 70)]),

@@ -175,9 +175,7 @@ def test_constant_op(device):
 
 
 _constant_fn_test_cases = [
-    (device, array_interface)
-    for device in ["cpu", "gpu"]
-    for array_interface in array_interfaces
+    (device, array_interface) for device in ["cpu", "gpu"] for array_interface in array_interfaces
 ]
 
 

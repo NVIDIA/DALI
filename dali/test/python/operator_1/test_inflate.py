@@ -303,8 +303,20 @@ def _generate_chunks_test_cases():
             ]:
                 batch_size = batch_sizes[seed % len(batch_sizes)]
                 oversized_shape = ndim > 0 and seed % 2 == 1
-                cases.append((aliases[idx % 2], seed, batch_size, ndim, dtype, layout, mode,
-                              permute, oversized_shape, sequence_axis_name))
+                cases.append(
+                    (
+                        aliases[idx % 2],
+                        seed,
+                        batch_size,
+                        ndim,
+                        dtype,
+                        layout,
+                        mode,
+                        permute,
+                        oversized_shape,
+                        sequence_axis_name,
+                    )
+                )
                 seed += 1
                 idx += 1
     return cases
@@ -316,8 +328,21 @@ _chunks_test_cases = _generate_chunks_test_cases()
 @has_operator("decoders.inflate")
 @restrict_platform(min_compute_cap=6.0)
 @params(*_chunks_test_cases)
-def test_chunks(op, seed, batch_size, ndim, dtype, layout, mode, permute, oversized_shape, sequence_axis_name):
-    _test_chunks(op, seed, batch_size, ndim, dtype, layout, mode, permute, oversized_shape, sequence_axis_name)
+def test_chunks(
+    op, seed, batch_size, ndim, dtype, layout, mode, permute, oversized_shape, sequence_axis_name
+):
+    _test_chunks(
+        op,
+        seed,
+        batch_size,
+        ndim,
+        dtype,
+        layout,
+        mode,
+        permute,
+        oversized_shape,
+        sequence_axis_name,
+    )
 
 
 @has_operator("decoders.inflate")
@@ -480,18 +505,38 @@ def test_validation():
         return inflated
 
     _test_validation(pipeline_2d_shape, "The shape argument must be a scalar or a 1D tensor")
-    _test_validation(pipeline_non_elementary_dtype, "The inflate output type must have floating point or integral type")
+    _test_validation(
+        pipeline_non_elementary_dtype,
+        "The inflate output type must have floating point or integral type",
+    )
     _test_validation(pipeline_input_float, "Got tensor of type `float` instead")
     _test_validation(pipeline_input_scalar, "Got input with 0 dimensions instead")
     _test_validation(pipeline_input_algorithm, "Unknown inflate algorithm")
     _test_validation(pipeline_too_big_chunk, "Input chunk size cannot exceed the sample size")
-    _test_validation(pipeline_too_big_chunks, "The sum of chunk sizes for sample of idx 0 exceeds the total size of the sample.")
+    _test_validation(
+        pipeline_too_big_chunks,
+        "The sum of chunk sizes for sample of idx 0 exceeds the total size of the sample.",
+    )
     _test_validation(pipeline_empty_chunk, "Got chunk size 0 for sample of idx 0")
     _test_validation(pipeline_neg_chunk, "Got chunk size -1 for sample of idx 0")
-    _test_validation(pipeline_too_big_offsets, "Got chunk offset 5 while the sample size is 5 for sample of idx 0")
-    _test_validation(pipeline_too_zero_size_inferred, "The inferred size of a chunk would be non-positive for sample of idx 0")
-    _test_validation(pipeline_sizes_offsets_mismatched, "for sample of idx 0 there are 2 offsets and 3 sizes")
+    _test_validation(
+        pipeline_too_big_offsets,
+        "Got chunk offset 5 while the sample size is 5 for sample of idx 0",
+    )
+    _test_validation(
+        pipeline_too_zero_size_inferred,
+        "The inferred size of a chunk would be non-positive for sample of idx 0",
+    )
+    _test_validation(
+        pipeline_sizes_offsets_mismatched, "for sample of idx 0 there are 2 offsets and 3 sizes"
+    )
     _test_validation(pipeline_negative_offset, "Input chunks offsets must be non-negative")
     _test_validation(pipeline_chunk_exceeding_sample, "Input chunk cannot exceed the sample size")
-    _test_validation(pipeline_sequence_axis_no_name, 'The `sequence_axis_name` must be a single character, got ""')
-    _test_validation(pipeline_sequence_axis_too_long_name, 'The `sequence_axis_name` must be a single character, got "AB"')
+    _test_validation(
+        pipeline_sequence_axis_no_name,
+        'The `sequence_axis_name` must be a single character, got ""',
+    )
+    _test_validation(
+        pipeline_sequence_axis_too_long_name,
+        'The `sequence_axis_name` must be a single character, got "AB"',
+    )

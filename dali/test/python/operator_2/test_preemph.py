@@ -105,13 +105,15 @@ class PreemphasisPythonPipeline(Pipeline):
             return self.preemph(data)
 
 
-@params(*[
-    (device, batch_size, border, coef, per_sample_coeff)
-    for device in ["cpu", "gpu"]
-    for batch_size in [1, 3, 128]
-    for border in ["zero", "clamp", "reflect"]
-    for coef, per_sample_coeff in [(0.97, False), (0.0, False), (None, True)]
-])
+@params(
+    *[
+        (device, batch_size, border, coef, per_sample_coeff)
+        for device in ["cpu", "gpu"]
+        for batch_size in [1, 3, 128]
+        for border in ["zero", "clamp", "reflect"]
+        for coef, per_sample_coeff in [(0.97, False), (0.0, False), (None, True)]
+    ]
+)
 def test_preemphasis_operator(device, batch_size, border, coef, per_sample_coeff):
     eii1 = RandomlyShapedDataIterator(
         batch_size, min_shape=(100,), max_shape=(10000,), dtype=np.float32

@@ -205,16 +205,6 @@ def test_cuda_array_interface_tensor_list_gpu_to_cpu_device_id():
     assert np.allclose(arr.get(), tensor_list.as_cpu().as_tensor())
 
 
-def check_cuda_array_types(t):
-    if cp.issubdtype(t, cp.unsignedinteger):
-        arr = [[0.39, 1.5], [1.5, 0.33]]
-    else:
-        arr = [[-0.39, 1.5], [-1.5, 0.33]]
-    arr = cp.array(arr, dtype=t)
-    tensor = TensorGPU(arr, "HW")
-    assert cp.allclose(arr, cp.asanyarray(tensor))
-
-
 _cuda_array_interface_types = [
     cp.bool_,
     cp.int8,
@@ -233,16 +223,12 @@ _cuda_array_interface_types = [
 
 @params(*_cuda_array_interface_types)
 def test_cuda_array_interface_types(t):
-    check_cuda_array_types(t)
-
-
-def check_dlpack_types(t):
     if cp.issubdtype(t, cp.unsignedinteger):
-        _arr = [[0.39, 1.5], [1.5, 0.33]]
+        arr = [[0.39, 1.5], [1.5, 0.33]]
     else:
-        _arr = [[-0.39, 1.5], [-1.5, 0.33]]
-    arr = cp.array(_arr, dtype=t)
-    tensor = TensorGPU(arr.toDlpack(), "HW")
+        arr = [[-0.39, 1.5], [-1.5, 0.33]]
+    arr = cp.array(arr, dtype=t)
+    tensor = TensorGPU(arr, "HW")
     assert cp.allclose(arr, cp.asanyarray(tensor))
 
 
@@ -263,7 +249,13 @@ _dlpack_interface_types = [
 
 @params(*_dlpack_interface_types)
 def test_dlpack_interface_types(t):
-    check_dlpack_types(t)
+    if cp.issubdtype(t, cp.unsignedinteger):
+        _arr = [[0.39, 1.5], [1.5, 0.33]]
+    else:
+        _arr = [[-0.39, 1.5], [-1.5, 0.33]]
+    arr = cp.array(_arr, dtype=t)
+    tensor = TensorGPU(arr.toDlpack(), "HW")
+    assert cp.allclose(arr, cp.asanyarray(tensor))
 
 
 @raises(RuntimeError, glob="Provided object doesn't support cuda array interface protocol.")

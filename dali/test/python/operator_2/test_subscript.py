@@ -16,7 +16,7 @@ from nvidia import dali
 from nvidia.dali import fn
 import numpy as np
 from nvidia.dali.pipeline import Pipeline
-from nose2.tools import params
+from nose2.tools import params, cartesian_params
 from nose_utils import assert_raises
 from nose2.tools import params
 
@@ -218,18 +218,15 @@ def _test_invalid_args(device, args, message, run):
             pipe.run()
 
 
-_inconsistent_args_test_cases = [
-    (device, args, message)
-    for device in ["cpu", "gpu"]
-    for args, message in [
+@cartesian_params(
+    ["cpu", "gpu"],  # device
+    [
         ({"lo_0": 0, "at_0": 0}, "both as an index"),
         ({"at_0": 0, "step_0": 1}, "cannot have a step"),
-    ]
-]
-
-
-@params(*_inconsistent_args_test_cases)
-def test_inconsistent_args(device, args, message):
+    ],  # (args, message)
+)
+def test_inconsistent_args(device, args_message_tuple):
+    args, message = args_message_tuple
     _test_invalid_args(device, args, message, False)
 
 
@@ -241,7 +238,10 @@ def _test_out_of_range(device, idx):
         _ = pipe.run()
 
 
-@params(*[(device, idx) for device in ["cpu", "gpu"] for idx in [-3, 2]])
+@cartesian_params(
+    ["cpu", "gpu"],  # device
+    [-3, 2],  # idx
+)
 def test_out_of_range(device, idx):
     _test_out_of_range(device, idx)
 

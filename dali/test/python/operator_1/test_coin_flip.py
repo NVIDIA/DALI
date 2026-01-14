@@ -25,12 +25,14 @@ def random_shape(max_shape, diff=100):
     return np.array([np.random.randint(s - diff, s) for s in max_shape], dtype=np.int32)
 
 
-@params(*[
-    (device, 8, max_shape, probability, use_shape_like_in)
-    for device in ["cpu", "gpu"]
-    for max_shape, use_shape_like_in in [([100000], False), ([100000], True), (None, False)]
-    for probability in [None, 0.7, 0.5, 0.0, 1.0]
-])
+@params(
+    *[
+        (device, 8, max_shape, probability, use_shape_like_in)
+        for device in ["cpu", "gpu"]
+        for max_shape, use_shape_like_in in [([100000], False), ([100000], True), (None, False)]
+        for probability in [None, 0.7, 0.5, 0.0, 1.0]
+    ]
+)
 def test_coin_flip(device, batch_size, max_shape, probability, use_shape_like_in):
     pipe = Pipeline(batch_size=batch_size, device_id=0, num_threads=3, seed=123456)
     with pipe:
@@ -51,7 +53,11 @@ def test_coin_flip(device, batch_size, max_shape, probability, use_shape_like_in
             else:
                 shape_arg = dali.fn.external_source(shape_gen_f, batch=False)
                 shape_out = shape_arg
-        outputs = [dali.fn.random.coin_flip(*inputs, device=device, probability=probability, shape=shape_arg)]
+        outputs = [
+            dali.fn.random.coin_flip(
+                *inputs, device=device, probability=probability, shape=shape_arg
+            )
+        ]
         if shape_out is not None:
             outputs += [shape_out]
         pipe.set_outputs(*outputs)

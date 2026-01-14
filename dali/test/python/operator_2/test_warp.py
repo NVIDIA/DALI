@@ -274,7 +274,8 @@ def test_gpu_vs_cpu(batch_size, use_input, otype, itype, inv_map):
     gpu_pipeline.build()
 
 
-def _test_extremely_large_data(device):
+@params("cpu", "gpu")
+def test_extremely_large_data(device):
     in_size = 30000
     out_size = 10
     channels = 3
@@ -312,11 +313,6 @@ def _test_extremely_large_data(device):
     assert out.shape == (out_size, out_size, channels)
     for c in range(channels):
         assert out[0, 0, c] == c
-
-
-@params("cpu", "gpu")
-def test_extremely_large_data(device):
-    _test_extremely_large_data(device)
 
 
 def test_video():
@@ -385,6 +381,4 @@ def test_video():
         (fn.warp_affine, {}, [ArgCb(1, random_mx, False, dest_device="gpu")], ["gpu"]),
     ]
 
-    video_suite_helper(
-        video_test_cases, test_channel_first=False, expand_channels=False, rng=rng
-    )
+    video_suite_helper(video_test_cases, test_channel_first=False, expand_channels=False, rng=rng)

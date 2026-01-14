@@ -180,9 +180,7 @@ def _test_external_source_callback_torch_stream(src_device, gen_device):
 
 
 _external_source_callback_torch_stream_test_cases = [
-    (src_device, gen_device)
-    for src_device in ["cpu", "gpu"]
-    for gen_device in ["cpu", "cuda"]
+    (src_device, gen_device) for src_device in ["cpu", "gpu"] for gen_device in ["cpu", "cuda"]
 ]
 
 

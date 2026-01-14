@@ -989,45 +989,79 @@ def _test_epoch_idx(
             assert False, "expected StopIteration"
 
 
-def test_epoch_idx():
+def _generate_epoch_idx_test_cases():
     num_workers = 4
     prefetch_queue_depth = 2
+    cases = []
     for batch_size in (1, 50):
         for epoch_size in (1, 3, 7):
             for reader_queue_depth in (1, 5):
                 sample_cb = SampleCb(batch_size, epoch_size)
-                _test_epoch_idx(
-                    batch_size,
-                    epoch_size,
-                    sample_cb,
-                    num_workers,
-                    prefetch_queue_depth,
-                    reader_queue_depth,
-                    False,
-                    None,
+                cases.append(
+                    (
+                        batch_size,
+                        epoch_size,
+                        sample_cb,
+                        num_workers,
+                        prefetch_queue_depth,
+                        reader_queue_depth,
+                        False,
+                        None,
+                    )
                 )
-                batch_cb = SampleCallbackBatched(sample_cb, batch_size, True)
-                _test_epoch_idx(
-                    batch_size,
-                    epoch_size,
-                    batch_cb,
-                    num_workers,
-                    prefetch_queue_depth,
-                    reader_queue_depth,
-                    True,
-                    True,
+                batch_cb_true = SampleCallbackBatched(sample_cb, batch_size, True)
+                cases.append(
+                    (
+                        batch_size,
+                        epoch_size,
+                        batch_cb_true,
+                        num_workers,
+                        prefetch_queue_depth,
+                        reader_queue_depth,
+                        True,
+                        True,
+                    )
                 )
-                batch_cb = SampleCallbackBatched(sample_cb, batch_size, False)
-                _test_epoch_idx(
-                    batch_size,
-                    epoch_size,
-                    batch_cb,
-                    num_workers,
-                    prefetch_queue_depth,
-                    reader_queue_depth,
-                    True,
-                    False,
+                batch_cb_false = SampleCallbackBatched(sample_cb, batch_size, False)
+                cases.append(
+                    (
+                        batch_size,
+                        epoch_size,
+                        batch_cb_false,
+                        num_workers,
+                        prefetch_queue_depth,
+                        reader_queue_depth,
+                        True,
+                        False,
+                    )
                 )
+    return cases
+
+
+_epoch_idx_test_cases = _generate_epoch_idx_test_cases()
+
+
+@params(*_epoch_idx_test_cases)
+def test_epoch_idx(
+    batch_size,
+    epoch_size,
+    cb,
+    py_num_workers,
+    prefetch_queue_depth,
+    reader_queue_depth,
+    batch_mode,
+    batch_info,
+):
+    _test_epoch_idx(
+        batch_size,
+        epoch_size,
+        cb,
+        py_num_workers,
+        prefetch_queue_depth,
+        reader_queue_depth,
+        batch_mode,
+        batch_info,
+    )
 
 
 class PermutableSampleCb:

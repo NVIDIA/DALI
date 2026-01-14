@@ -42,14 +42,18 @@ def pipe_gaussian_noise(mean, stddev, variable_dist_params, device=None):
     return out_data1, out_data2
 
 
-@params(*[
-    (device, mean, stddev, variable_dist_params, batch_size, niter)
-    for device in ("cpu", "gpu")
-    for batch_size in (1, 3)
-    for mean, stddev, variable_dist_params in [(10.0, 57.0, False), (0.0, 0.0, True)]
-    for niter in [3]
-])
-def test_operator_noise_gaussian_vs_add_normal_dist(device, mean, stddev, variable_dist_params, batch_size, niter):
+@params(
+    *[
+        (device, mean, stddev, variable_dist_params, batch_size, niter)
+        for device in ("cpu", "gpu")
+        for batch_size in (1, 3)
+        for mean, stddev, variable_dist_params in [(10.0, 57.0, False), (0.0, 0.0, True)]
+        for niter in [3]
+    ]
+)
+def test_operator_noise_gaussian_vs_add_normal_dist(
+    device, mean, stddev, variable_dist_params, batch_size, niter
+):
     pipe = pipe_gaussian_noise(
         mean,
         stddev,

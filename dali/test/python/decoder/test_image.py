@@ -208,9 +208,17 @@ def _generate_fused_test_cases():
 
         for device in ["cpu", "mixed"]:
             for img_type in test_good_path:
-                test_cases.append((
-                    test_fun, good_path, img_type, batch_size, device, threads, validation_fun_name
-                ))
+                test_cases.append(
+                    (
+                        test_fun,
+                        good_path,
+                        img_type,
+                        batch_size,
+                        device,
+                        threads,
+                        validation_fun_name,
+                    )
+                )
     return test_cases
 
 
@@ -222,7 +230,9 @@ def _get_validation_fun(name):
 
 
 @params(*_generate_fused_test_cases())
-def test_image_decoder_fused(test_fun, path, img_type, batch_size, device, threads, validation_fun_name):
+def test_image_decoder_fused(
+    test_fun, path, img_type, batch_size, device, threads, validation_fun_name
+):
     validation_fun = _get_validation_fun(validation_fun_name)
     run_decode_fused(test_fun, path, img_type, batch_size, device, threads, validation_fun)
 
@@ -253,12 +263,14 @@ def check_FastDCT_body(batch_size, img_type, device):
     )
 
 
-@params(*[
-    (batch_size, img_type, device)
-    for device in ["cpu", "mixed"]
-    for batch_size in [1, 8]
-    for img_type in test_good_path
-])
+@params(
+    *[
+        (batch_size, img_type, device)
+        for device in ["cpu", "mixed"]
+        for batch_size in [1, 8]
+        for img_type in test_good_path
+    ]
+)
 def test_FastDCT(batch_size, img_type, device):
     check_FastDCT_body(batch_size, img_type, device)
 
@@ -321,10 +333,7 @@ def _check_memory_stats(img_type, size, device, threads):
 
 # Pre-generate memory stats test cases
 _rng2 = random.Random(43)
-_memory_stats_test_cases = [
-    ("jpeg", size, "mixed", _rng2.choice([1, 2, 3, 4]))
-    for size in [1, 10]
-]
+_memory_stats_test_cases = [("jpeg", size, "mixed", _rng2.choice([1, 2, 3, 4])) for size in [1, 10]]
 
 
 @params(*_memory_stats_test_cases)
@@ -398,12 +407,14 @@ def _testimpl_image_decoder_tiff_with_alpha_16bit(device, out_type, path, ext):
     assert out.shape[2] == expected_channels, f"Expected {expected_channels} but got {out.shape[2]}"
 
 
-@params(*[
-    (device, out_type, "db/single/multichannel/with_alpha_16bit", ext)
-    for device in ["cpu", "mixed"]
-    for out_type in [types.RGB, types.BGR, types.YCbCr, types.ANY_DATA]
-    for ext in [("png", "tiff", "jp2")]
-])
+@params(
+    *[
+        (device, out_type, "db/single/multichannel/with_alpha_16bit", ext)
+        for device in ["cpu", "mixed"]
+        for out_type in [types.RGB, types.BGR, types.YCbCr, types.ANY_DATA]
+        for ext in [("png", "tiff", "jp2")]
+    ]
+)
 def test_image_decoder_tiff_with_alpha_16bit(device, out_type, path, ext):
     _testimpl_image_decoder_tiff_with_alpha_16bit(device, out_type, path, ext)
 
@@ -423,16 +434,18 @@ def check_image_decoder_alias(new_op, old_op, file_root, device, use_fast_idct):
     compare_pipelines(new_pipe, legacy_pipe, batch_size=batch_size_test, N_iterations=3)
 
 
-@params(*[
-    (new_op, old_op, os.path.join(test_data_root, good_path, "jpeg"), device, use_fast_idct)
-    for new_op, old_op in [
-        (fn.decoders.image, fn.image_decoder),
-        (fn.decoders.image_crop, fn.image_decoder_crop),
-        (fn.decoders.image_random_crop, fn.image_decoder_random_crop),
+@params(
+    *[
+        (new_op, old_op, os.path.join(test_data_root, good_path, "jpeg"), device, use_fast_idct)
+        for new_op, old_op in [
+            (fn.decoders.image, fn.image_decoder),
+            (fn.decoders.image_crop, fn.image_decoder_crop),
+            (fn.decoders.image_random_crop, fn.image_decoder_random_crop),
+        ]
+        for device in ["cpu", "mixed"]
+        for use_fast_idct in [True, False]
     ]
-    for device in ["cpu", "mixed"]
-    for use_fast_idct in [True, False]
-])
+)
 def test_image_decoder_alias(new_op, old_op, data_path, device, use_fast_idct):
     check_image_decoder_alias(new_op, old_op, data_path, device, use_fast_idct)
 
@@ -454,12 +467,19 @@ def check_image_decoder_slice_alias(new_op, old_op, file_root, device, use_fast_
     compare_pipelines(new_pipe, legacy_pipe, batch_size=batch_size_test, N_iterations=3)
 
 
-@params(*[
-    (fn.decoders.image_slice, fn.image_decoder_slice,
-     os.path.join(test_data_root, good_path, "jpeg"), device, use_fast_idct)
-    for device in ["cpu", "mixed"]
-    for use_fast_idct in [True, False]
-])
+@params(
+    *[
+        (
+            fn.decoders.image_slice,
+            fn.image_decoder_slice,
+            os.path.join(test_data_root, good_path, "jpeg"),
+            device,
+            use_fast_idct,
+        )
+        for device in ["cpu", "mixed"]
+        for use_fast_idct in [True, False]
+    ]
+)
 def test_image_decoder_slice_alias(new_op, old_op, data_path, device, use_fast_idct):
     check_image_decoder_slice_alias(new_op, old_op, data_path, device, use_fast_idct)
 

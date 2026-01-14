@@ -141,11 +141,7 @@ def run_for_params(batch_size, video_reader_params, resize_params):
     gc.collect()
 
 
-_video_resize_test_cases = [
-    (2, vp, rp)
-    for vp in video_reader_params
-    for rp in resize_params
-]
+_video_resize_test_cases = [(2, vp, rp) for vp in video_reader_params for rp in resize_params]
 
 
 @params(*_video_resize_test_cases)

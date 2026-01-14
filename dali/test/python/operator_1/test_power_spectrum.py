@@ -80,20 +80,22 @@ class PowerSpectrumNumpyPipeline(Pipeline):
         self.feed_input(self.data, data)
 
 
-@params(*[
-    (device, batch_size, shape, nfft, axis)
-    for device in ["cpu"]
-    for batch_size in [3]
-    for nfft, axis, shape in [
-        (16, 1, (2, 16)),
-        (1024, 1, (1, 1024)),
-        (1024, 0, (1024,)),
-        (128, 1, (1, 100)),
-        (128, 0, (100,)),
-        (16, 0, (16, 2)),
-        (8, 1, (2, 8, 2)),
+@params(
+    *[
+        (device, batch_size, shape, nfft, axis)
+        for device in ["cpu"]
+        for batch_size in [3]
+        for nfft, axis, shape in [
+            (16, 1, (2, 16)),
+            (1024, 1, (1, 1024)),
+            (1024, 0, (1024,)),
+            (128, 1, (1, 100)),
+            (128, 0, (100,)),
+            (16, 0, (16, 2)),
+            (8, 1, (2, 8, 2)),
+        ]
     ]
-])
+)
 def test_operator_power_spectrum(device, batch_size, shape, nfft, axis):
     eii1 = RandomDataIterator(batch_size, shape=shape, dtype=np.float32)
     eii2 = RandomDataIterator(batch_size, shape=shape, dtype=np.float32)

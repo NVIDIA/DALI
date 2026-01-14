@@ -156,13 +156,9 @@ def caffe2_pipe(caffe2_op, path, label_type):
         return data, label
 
 
-def check_caffe2(label_type):
+@params(0, 4)
+def test_caffe2_reader_alias(label_type):
     path = c2lmdb_no_label_db_folder if label_type == 4 else c2lmdb_db_folder
     new_pipe = caffe2_pipe(fn.readers.caffe2, path, label_type)
     legacy_pipe = caffe2_pipe(fn.caffe2_reader, path, label_type)
     compare_pipelines(new_pipe, legacy_pipe, batch_size_alias_test, 50)
-
-
-@params(0, 4)
-def test_caffe2_reader_alias(label_type):
-    check_caffe2(label_type)

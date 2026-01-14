@@ -90,7 +90,9 @@ def _generate_coord_transform_test_cases():
                 else:
                     out_dims = [in_dim]
                 for out_dim in out_dims:
-                    cases.append((device, 2, out_dim, in_dim, np.float32, np.float32, M_kind, "vector"))
+                    cases.append(
+                        (device, 2, out_dim, in_dim, np.float32, np.float32, M_kind, "vector")
+                    )
 
     # Fourth batch
     for device in ["cpu", "gpu"]:
@@ -101,7 +103,9 @@ def _generate_coord_transform_test_cases():
                 else:
                     out_dims = [in_dim]
                 for out_dim in out_dims:
-                    cases.append((device, 2, out_dim, in_dim, np.float32, np.float32, MT_kind, "fused"))
+                    cases.append(
+                        (device, 2, out_dim, in_dim, np.float32, np.float32, MT_kind, "fused")
+                    )
 
     return cases
 

@@ -249,7 +249,9 @@ def run_tf_with_dali_external_source(dev, es_args, ed_dev, dtype, *_):
     )
 
 
-_tf_with_dali_external_source_test_cases = list(gen_tf_with_dali_external_source(run_tf_with_dali_external_source))
+_tf_with_dali_external_source_test_cases = list(
+    gen_tf_with_dali_external_source(run_tf_with_dali_external_source)
+)
 
 
 @with_setup(skip_inputs_for_incompatible_tf)

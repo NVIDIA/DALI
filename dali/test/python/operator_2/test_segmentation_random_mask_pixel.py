@@ -18,11 +18,16 @@ import nvidia.dali as dali
 import nvidia.dali.fn as fn
 import nvidia.dali.types as types
 import nvidia.dali.math as math
+from nose2.tools import params
 
 np.random.seed(4321)
 
 
-def check_random_mask_pixel(ndim=2, batch_size=3, min_extent=20, max_extent=50):
+@params(2, 3)
+def test_random_mask_pixel(ndim):
+    batch_size = 3
+    min_extent = 20
+    max_extent = 50
     pipe = dali.pipeline.Pipeline(batch_size=batch_size, num_threads=4, device_id=0, seed=1234)
     with pipe:
         # Input mask
@@ -86,11 +91,3 @@ def check_random_mask_pixel(ndim=2, batch_size=3, min_extent=20, max_extent=50):
             for d in range(ndim):
                 assert 0 <= anchor[d] and anchor[d] + crop_shape[d] <= in_mask.shape[d]
             assert out_mask.shape == tuple(crop_shape)
-
-
-from nose2.tools import params
-
-
-@params(2, 3)
-def test_random_mask_pixel(ndim):
-    check_random_mask_pixel(ndim)

@@ -18,7 +18,6 @@ from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.ops as ops
 import numpy as np
 import os
-from nose2.tools import params
 from test_utils import get_dali_extra_path
 
 

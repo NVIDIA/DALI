@@ -166,39 +166,48 @@ def _test_operator_cast(ndim, batch_size, in_dtype, out_dtype, device, empty_vol
                 print(f"Result: {np.count_nonzero(mask)} wrong values out of {mask.size}.")
                 assert np.array_equal(out[i], ref[i])
 
+
 cast_test_types = [
-        np.uint8,
-        np.int8,
-        np.uint16,
-        np.int16,
-        np.uint32,
-        np.int32,
-        np.uint64,
-        np.int64,
-        np.float16,
-        np.float32,
+    np.uint8,
+    np.int8,
+    np.uint16,
+    np.int16,
+    np.uint32,
+    np.int32,
+    np.uint64,
+    np.int64,
+    np.float16,
+    np.float32,
+]
+
+
+@params(
+    *[
+        (rng.integers(0, 4), rng.integers(1, 11), in_type, out_type, device)
+        for device in ["cpu", "gpu"]
+        for in_type in cast_test_types
+        for out_type in cast_test_types
     ]
-@params(*[
-    (rng.integers(0, 4), rng.integers(1, 11), in_type, out_type, device)
-    for device in ["cpu", "gpu"]
-    for in_type in cast_test_types
-    for out_type in cast_test_types
-])
+)
 def test_operator_cast(ndim, batch_size, in_type, out_type, device):
     _test_operator_cast(ndim, batch_size, in_type, out_type, device)
 
 
-@params(*[
-    (rng.integers(0, 4), rng.integers(12, 64), in_type, out_type, device, empty_volume_policy)
-    for device in ["cpu", "gpu"]
-    for in_type in [np.uint8, np.int32, np.float32]
-    for out_type in [np.uint8, np.int32, np.float32]
-    for empty_volume_policy in [
-        rng.choice(["left", "right", "middle", "mixed"]),
-        "all",
+@params(
+    *[
+        (rng.integers(0, 4), rng.integers(12, 64), in_type, out_type, device, empty_volume_policy)
+        for device in ["cpu", "gpu"]
+        for in_type in [np.uint8, np.int32, np.float32]
+        for out_type in [np.uint8, np.int32, np.float32]
+        for empty_volume_policy in [
+            rng.choice(["left", "right", "middle", "mixed"]),
+            "all",
+        ]
     ]
-])
-def test_operator_cast_empty_volumes(ndim, batch_size, in_type, out_type, device, empty_volume_policy):
+)
+def test_operator_cast_empty_volumes(
+    ndim, batch_size, in_type, out_type, device, empty_volume_policy
+):
     def src():
         return generate(rng, ndim, batch_size, in_type, out_type, empty_volume_policy)
 
@@ -223,9 +232,7 @@ def test_operator_cast_empty_volumes(ndim, batch_size, in_type, out_type, device
         # promotes it to fp64, resulting in insufficient epsilon - we want an epsilon of the
         # type specified in out_type
         eps = (
-            0
-            if np.issubdtype(out_type, np.integer)
-            else (np.nextafter(out_type([1]), 2) - 1.0)[0]
+            0 if np.issubdtype(out_type, np.integer) else (np.nextafter(out_type([1]), 2) - 1.0)[0]
         )
 
         for i in range(batch_size):

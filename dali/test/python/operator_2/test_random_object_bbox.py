@@ -14,7 +14,7 @@
 
 
 # nose_utils goes first to deal with Python 3.10 incompatibility
-from nose2.tools import params
+from nose2.tools import params, cartesian_params
 from nose_utils import attr, nottest, assert_raises
 import nvidia.dali as dali
 import nvidia.dali.fn as fn
@@ -59,8 +59,9 @@ def test_num_output():
             )
 
 
-@nottest
-def _test_use_foreground(classes, weights, bg):
+@cartesian_params([None, [1, 2, 3]], [None, [1, 1, 1]], [None, 0, 1])
+def test_use_foreground(classes, weights, bg):
+    """Test that a foreground box is returned when required (prob=1) and possible (fixed data)"""
     inp = fn.external_source(data, batch=False, cycle="quiet")
     pipe = dali.pipeline.Pipeline(10, 4, 0, 12345)
     pipe_outs = fn.segmentation.random_object_bbox(
@@ -75,22 +76,6 @@ def _test_use_foreground(classes, weights, bg):
     outs = pipe.run()
     for i in range(len(outs[2])):
         assert outs[2].at(i) != (bg or 0)
-
-
-_use_foreground_test_cases = [
-    (None, None, None),
-    (None, None, 1),
-    ([1, 2, 3], None, None),
-    (None, [1, 1, 1], None),
-    (None, [1, 1, 1], 0),
-    ([1, 2, 3], [1, 1, 1], None),
-]
-
-
-@params(*_use_foreground_test_cases)
-def test_use_foreground(classes, weights, bg):
-    """Test that a foreground box is returned when required (prob=1) and possible (fixed data)"""
-    _test_use_foreground(classes, weights, bg)
 
 
 def objects2boxes(objects, input_shape):
@@ -381,60 +366,165 @@ def _test_random_object_bbox_with_class(
             assert contains_box(cls_boxes, boxes[i])
 
 
-def test_random_object_bbox_with_class():
+def _get_class_weight_combinations_static_bg():
+    """Generate valid (bg, classes, weights) combinations for static backgrounds"""
+    combinations = []
+    for bg in [None, 0, -1, 5]:
+        # Build class options based on bg
+        class_opts = [None, [0], [1], [2, 4, 5, 7]]
+        # Remove bg from class lists if present
+        for x in class_opts:
+            if isinstance(x, list) and bg in x:
+                x.remove(bg)
+        # Remove empty lists
+        class_opts = [x for x in class_opts if x != []]
+
+        for classes in class_opts:
+            if classes is None:
+                weights_opts = [None, [1], [0.5, 1, 0.1, 0.2]]
+            else:  # isinstance(classes, list)
+                weights_opts = [None, list(range(1, 1 + len(classes)))]
+
+            for weights in weights_opts:
+                combinations.append((bg, classes, weights))
+    return combinations
+
+
+@params(*_get_class_weight_combinations_static_bg())
+def test_random_object_bbox_with_class_static_bg(bg, classes, weights):
     np.random.seed(12345)
     types = [np.int8, np.uint8, np.int16, np.uint16, np.int32, np.uint32]
-
     formats = [None, "anchor_shape", "start_end", "box"]
-    fmt = 0
-    for bg in [None, 0, -1, 5, random_background()]:
-        if bg is None or isinstance(bg, int):
-            class_opt = [None, [0], [1], [2, 4, 5, 7]]
-            for x in class_opt:
-                if isinstance(x, list) and bg in x:
-                    x.remove(bg)
-            if [] in class_opt:
-                class_opt.remove([])
-            # putting this in the list interfered with remove
-            class_opt.append(random_classes(0 if bg is None else bg))
-        else:
-            class_opt = [None]
-        for classes in class_opt:
-            if classes is None:
-                weights_opt = [None, [1], [0.5, 1, 0.1, 0.2], random_weights()]
-            elif isinstance(classes, list):
-                weights_opt = [None, list(range(1, 1 + len(classes)))]
-            else:
-                weights_opt = [None]
 
-            for weights in weights_opt:
-                ndim = np.random.randint(1, 5)
+    ndim = np.random.randint(1, 5)
+    threshold_opt = [None, 3, list(range(1, 1 + ndim)), random_threshold(ndim)]
+    threshold = random.choice(threshold_opt)
+    k_largest_opt = [None, 1, 2, 5]
+    k_largest = random.choice(k_largest_opt)
+    fg_prob_opt = [None, 0.1, 0.7, fn.random.uniform(range=(0, 1), seed=1515)]
+    fg_prob = random.choice(fg_prob_opt)
+    format = random.choice(formats)
+    dtype = random.choice(types)
+    cache = np.random.randint(2) == 1
 
-                threshold_opt = [None, 3, list(range(1, 1 + ndim)), random_threshold(ndim)]
-                threshold = random.choice(threshold_opt)
-                k_largest_opt = [None, 1, 2, 5]
-                k_largest = random.choice(k_largest_opt)
+    _test_random_object_bbox_with_class(
+        4,
+        ndim,
+        dtype,
+        format,
+        fg_prob,
+        classes,
+        weights,
+        bg,
+        threshold,
+        k_largest,
+        cache,
+    )
 
-                fg_prob_opt = [None, 0.1, 0.7, fn.random.uniform(range=(0, 1), seed=1515)]
-                fg_prob = random.choice(fg_prob_opt)
 
-                format = formats[fmt]
-                fmt = (fmt + 1) % len(formats)
-                dtype = random.choice(types)
-                cache = np.random.randint(2) == 1
-                _test_random_object_bbox_with_class(
-                    4,
-                    ndim,
-                    dtype,
-                    format,
-                    fg_prob,
-                    classes,
-                    weights,
-                    bg,
-                    threshold,
-                    k_largest,
-                    cache,
-                )
+@params(None, [1], [0.5, 1, 0.1, 0.2])
+def test_random_object_bbox_with_class_random_bg_static_weights(weights):
+    """Test with random background and static weight options"""
+    np.random.seed(12345)
+    types = [np.int8, np.uint8, np.int16, np.uint16, np.int32, np.uint32]
+    formats = [None, "anchor_shape", "start_end", "box"]
+
+    bg = random_background()
+    classes = None
+    ndim = np.random.randint(1, 5)
+    threshold_opt = [None, 3, list(range(1, 1 + ndim)), random_threshold(ndim)]
+    threshold = random.choice(threshold_opt)
+    k_largest_opt = [None, 1, 2, 5]
+    k_largest = random.choice(k_largest_opt)
+    fg_prob_opt = [None, 0.1, 0.7, fn.random.uniform(range=(0, 1), seed=1515)]
+    fg_prob = random.choice(fg_prob_opt)
+    format = random.choice(formats)
+    dtype = random.choice(types)
+    cache = np.random.randint(2) == 1
+
+    _test_random_object_bbox_with_class(
+        4,
+        ndim,
+        dtype,
+        format,
+        fg_prob,
+        classes,
+        weights,
+        bg,
+        threshold,
+        k_largest,
+        cache,
+    )
+
+
+def test_random_object_bbox_with_class_random_bg_random_weights():
+    """Test with random background and random weights"""
+    np.random.seed(12345)
+    types = [np.int8, np.uint8, np.int16, np.uint16, np.int32, np.uint32]
+    formats = [None, "anchor_shape", "start_end", "box"]
+
+    bg = random_background()
+    classes = None
+    weights = random_weights()
+    ndim = np.random.randint(1, 5)
+    threshold_opt = [None, 3, list(range(1, 1 + ndim)), random_threshold(ndim)]
+    threshold = random.choice(threshold_opt)
+    k_largest_opt = [None, 1, 2, 5]
+    k_largest = random.choice(k_largest_opt)
+    fg_prob_opt = [None, 0.1, 0.7, fn.random.uniform(range=(0, 1), seed=1515)]
+    fg_prob = random.choice(fg_prob_opt)
+    format = random.choice(formats)
+    dtype = random.choice(types)
+    cache = np.random.randint(2) == 1
+
+    _test_random_object_bbox_with_class(
+        4,
+        ndim,
+        dtype,
+        format,
+        fg_prob,
+        classes,
+        weights,
+        bg,
+        threshold,
+        k_largest,
+        cache,
+    )
+
+
+def test_random_object_bbox_with_class_static_bg_random_classes():
+    """Test with static backgrounds and random classes"""
+    np.random.seed(12345)
+    types = [np.int8, np.uint8, np.int16, np.uint16, np.int32, np.uint32]
+    formats = [None, "anchor_shape", "start_end", "box"]
+
+    for bg in [None, 0, -1, 5]:
+        classes = random_classes(0 if bg is None else bg)
+        weights = None
+        ndim = np.random.randint(1, 5)
+        threshold_opt = [None, 3, list(range(1, 1 + ndim)), random_threshold(ndim)]
+        threshold = random.choice(threshold_opt)
+        k_largest_opt = [None, 1, 2, 5]
+        k_largest = random.choice(k_largest_opt)
+        fg_prob_opt = [None, 0.1, 0.7, fn.random.uniform(range=(0, 1), seed=1515)]
+        fg_prob = random.choice(fg_prob_opt)
+        format = random.choice(formats)
+        dtype = random.choice(types)
+        cache = np.random.randint(2) == 1
+
+        _test_random_object_bbox_with_class(
+            4,
+            ndim,
+            dtype,
+            format,
+            fg_prob,
+            classes,
+            weights,
+            bg,
+            threshold,
+            k_largest,
+            cache,
+        )
 
 
 @nottest
@@ -487,31 +577,66 @@ def _test_random_object_bbox_ignore_class(
                 assert contains_box(ref_boxes, boxes[i])
 
 
-def test_random_object_bbox_ignore_class():
+@cartesian_params(
+    [None, 0, -1, 5],  # bg (static backgrounds)
+    [None, "anchor_shape", "start_end", "box"],  # format
+)
+def test_random_object_bbox_ignore_class_static_bg(bg, format):
     np.random.seed(43210)
     types = [np.int8, np.uint8, np.int16, np.uint16, np.int32, np.uint32]
-    for bg in [None, 0, -1, 5, random_background()]:
-        ndim = np.random.randint(1, 5)
-        dtype = random.choice(types)
-        for format in [None, "anchor_shape", "start_end", "box"]:
-            threshold_opt = [None, 3, list(range(1, 1 + ndim)), random_threshold(ndim)]
-            threshold = random.choice(threshold_opt)
-            k_largest_opt = [None, 1, 2, 5]
-            k_largest = random.choice(k_largest_opt)
+    ndim = np.random.randint(1, 5)
+    dtype = random.choice(types)
+    threshold_opt = [None, 3, list(range(1, 1 + ndim)), random_threshold(ndim)]
+    threshold = random.choice(threshold_opt)
+    k_largest_opt = [None, 1, 2, 5]
+    k_largest = random.choice(k_largest_opt)
 
-            _test_random_object_bbox_ignore_class(
-                5,
-                ndim,
-                dtype,
-                format,
-                bg,
-                threshold,
-                k_largest,
-            )
+    _test_random_object_bbox_ignore_class(
+        5,
+        ndim,
+        dtype,
+        format,
+        bg,
+        threshold,
+        k_largest,
+    )
 
 
-@nottest
-def _test_random_object_bbox_auto_bg(fg_labels, expected_bg):
+@params(None, "anchor_shape", "start_end", "box")
+def test_random_object_bbox_ignore_class_random_bg(format):
+    np.random.seed(43210)
+    types = [np.int8, np.uint8, np.int16, np.uint16, np.int32, np.uint32]
+    bg = random_background()
+    ndim = np.random.randint(1, 5)
+    dtype = random.choice(types)
+    threshold_opt = [None, 3, list(range(1, 1 + ndim)), random_threshold(ndim)]
+    threshold = random.choice(threshold_opt)
+    k_largest_opt = [None, 1, 2, 5]
+    k_largest = random.choice(k_largest_opt)
+
+    _test_random_object_bbox_ignore_class(
+        5,
+        ndim,
+        dtype,
+        format,
+        bg,
+        threshold,
+        k_largest,
+    )
+
+
+_auto_bg_test_cases = [
+    ([1, 2, 3], 0),
+    ([0, 1, 2], -1),
+    ([-1, 1], 0),
+    ([0, -5], -6),
+    ([-0x80000000, 0x7FFFFFFF], 0),
+    ([-0x80000000, 0x7FFFFFFF, 0, 0x7FFFFFFE], 0x7FFFFFFD),
+]
+
+
+@params(*_auto_bg_test_cases)
+def test_random_object_bbox_auto_bg(fg, expected_bg):
     """Checks that a correct background labels is chosen:
     0, if 0 is not present in the list of foreground classes
     smallest label - 1 if 0 is present
@@ -527,21 +652,6 @@ def _test_random_object_bbox_auto_bg(fg_labels, expected_bg):
     pipe.set_outputs(box, label)
     _, labels = pipe.run()
     assert int(labels.at(0)) == expected_bg
-
-
-_auto_bg_test_cases = [
-    ([1, 2, 3], 0),
-    ([0, 1, 2], -1),
-    ([-1, 1], 0),
-    ([0, -5], -6),
-    ([-0x80000000, 0x7FFFFFFF], 0),
-    ([-0x80000000, 0x7FFFFFFF, 0, 0x7FFFFFFE], 0x7FFFFFFD),
-]
-
-
-@params(*_auto_bg_test_cases)
-def test_random_object_bbox_auto_bg(fg, expected_bg):
-    _test_random_object_bbox_auto_bg(fg, expected_bg)
 
 
 @nottest

@@ -160,13 +160,45 @@ def _testimpl_operator_noise_salt_and_pepper(
             np.testing.assert_allclose(psnr_out, psnr_ref, atol=1)
 
 
-@params(*[
-    (device, per_channel, prob, random.choice([None, 1.0, 0.5, 0.0]), channel_first, salt_val, pepper_val, random.choice([1, 3]), 3)
-    for device in ["cpu", "gpu"]
-    for per_channel in [False, True]
-    for channel_first in [False, True]
-    for pepper_val, salt_val in [(None, None), (10, 50)]
-    for prob in [None, 0.021, 0.5]
-])
-def test_operator_noise_salt_and_pepper(device, per_channel, prob, salt_and_pepper_prob, channel_first, salt_val, pepper_val, batch_size, niter):
-    _testimpl_operator_noise_salt_and_pepper(device, per_channel, prob, salt_and_pepper_prob, channel_first, salt_val, pepper_val, batch_size, niter)
+@params(
+    *[
+        (
+            device,
+            per_channel,
+            prob,
+            random.choice([None, 1.0, 0.5, 0.0]),
+            channel_first,
+            salt_val,
+            pepper_val,
+            random.choice([1, 3]),
+            3,
+        )
+        for device in ["cpu", "gpu"]
+        for per_channel in [False, True]
+        for channel_first in [False, True]
+        for pepper_val, salt_val in [(None, None), (10, 50)]
+        for prob in [None, 0.021, 0.5]
+    ]
+)
+def test_operator_noise_salt_and_pepper(
+    device,
+    per_channel,
+    prob,
+    salt_and_pepper_prob,
+    channel_first,
+    salt_val,
+    pepper_val,
+    batch_size,
+    niter,
+):
+    _testimpl_operator_noise_salt_and_pepper(
+        device,
+        per_channel,
+        prob,
+        salt_and_pepper_prob,
+        channel_first,
+        salt_val,
+        pepper_val,
+        batch_size,
+        niter,
+    )

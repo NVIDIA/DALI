@@ -21,7 +21,7 @@ import nvidia.dali as dali
 import numpy as np
 import os
 import cv2
-from nose2.tools import params
+from nose2.tools import params, cartesian_params
 from test_utils import compare_pipelines
 from test_utils import get_dali_extra_path
 
@@ -130,7 +130,13 @@ class WaterPythonPipeline(Pipeline):
         return images
 
 
-def check_water_cpu_vs_gpu(batch_size, niter, dtype, do_mask):
+@cartesian_params(
+    [1, 3],  # batch_size
+    [False, True],  # do_mask
+    [types.UINT8, types.FLOAT],  # dtype
+)
+def test_water_cpu_vs_gpu(batch_size, do_mask, dtype):
+    niter = 3
     phase_y = 0.5
     phase_x = 0.2
     freq_x = 0.06
@@ -168,20 +174,14 @@ def check_water_cpu_vs_gpu(batch_size, niter, dtype, do_mask):
     )
 
 
-_water_cpu_vs_gpu_test_cases = [
-    (batch_size, 3, dtype, do_mask)
-    for batch_size in [1, 3]
-    for do_mask in [False, True]
-    for dtype in [types.UINT8, types.FLOAT]
-]
-
-
-@params(*_water_cpu_vs_gpu_test_cases)
-def test_water_cpu_vs_gpu(batch_size, niter, dtype, do_mask):
-    check_water_cpu_vs_gpu(batch_size, niter, dtype, do_mask)
-
-
-def check_water_vs_cv(device, batch_size, niter, dtype, prime_size):
+@cartesian_params(
+    ["cpu", "gpu"],  # device
+    [1, 3],  # batch_size
+    [types.UINT8, types.FLOAT],  # dtype
+    [False, True],  # prime_size
+)
+def test_water_vs_cv(device, batch_size, dtype, prime_size):
+    niter = 3
     phase_y = 0.5
     phase_x = 0.2
     freq_x = 0.06
@@ -210,17 +210,3 @@ def check_water_vs_cv(device, batch_size, niter, dtype, prime_size):
         N_iterations=niter,
         eps=8,
     )
-
-
-_water_vs_cv_test_cases = [
-    (device, batch_size, 3, dtype, prime_size)
-    for device in ["cpu", "gpu"]
-    for batch_size in [1, 3]
-    for dtype in [types.UINT8, types.FLOAT]
-    for prime_size in [False, True]
-]
-
-
-@params(*_water_vs_cv_test_cases)
-def test_water_vs_cv(device, batch_size, niter, dtype, prime_size):
-    check_water_vs_cv(device, batch_size, niter, dtype, prime_size)

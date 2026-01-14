@@ -205,99 +205,107 @@ def _testimpl_numba_func(
 
 @attr("sanitizer_skip")
 @with_setup(check_numba_compatibility_cpu)
-def test_numba_func():
-    # shape, dtype, run_fn, out_types,
-    # in_types, out_ndim, in_ndim, setup_fn, batch_processing,
-    # expected_out
-    args = [
-        (
-            [(10, 10, 10)],
-            np.bool_,
-            set_all_values_to_1_batch,
-            [dali_types.BOOL],
-            [dali_types.BOOL],
-            [3],
-            [3],
-            None,
-            True,
-            [np.full((10, 10, 10), 1, dtype=np.bool_)],
-        ),
-        (
-            [(10, 10, 10)],
-            np.uint8,
-            set_all_values_to_255_batch,
-            [dali_types.UINT8],
-            [dali_types.UINT8],
-            [3],
-            [3],
-            None,
-            True,
-            [np.full((10, 10, 10), 255, dtype=np.uint8)],
-        ),
-        (
-            [(10, 10, 10)],
-            np.uint8,
-            set_all_values_to_255_sample,
-            [dali_types.UINT8],
-            [dali_types.UINT8],
-            [3],
-            [3],
-            None,
-            None,
-            [np.full((10, 10, 10), 255, dtype=np.uint8)],
-        ),
-        (
-            [(10, 10, 10)],
-            np.float32,
-            set_all_values_to_float_batch,
-            [dali_types.FLOAT],
-            [dali_types.FLOAT],
-            [3],
-            [3],
-            None,
-            True,
-            [np.full((10, 10, 10), 0.5, dtype=np.float32)],
-        ),
-        (
-            [(10, 10, 10)],
-            np.float32,
-            set_all_values_to_float_sample,
-            [dali_types.FLOAT],
-            [dali_types.FLOAT],
-            [3],
-            [3],
-            None,
-            None,
-            [np.full((10, 10, 10), 0.5, dtype=np.float32)],
-        ),
-        (
-            [(10, 20, 30), (20, 10, 30)],
-            np.int64,
-            change_out_shape_batch,
-            [dali_types.INT64],
-            [dali_types.INT64],
-            [3],
-            [3],
-            setup_change_out_shape,
-            True,
-            [np.full((20, 30, 10), 42, dtype=np.int32), np.full((10, 30, 20), 42, dtype=np.int32)],
-        ),
-        (
-            [(10, 20, 30), (20, 10, 30)],
-            np.int64,
-            change_out_shape_sample,
-            [dali_types.INT64],
-            [dali_types.INT64],
-            [3],
-            [3],
-            setup_change_out_shape,
-            None,
-            [np.full((20, 30, 10), 42, dtype=np.int32), np.full((10, 30, 20), 42, dtype=np.int32)],
-        ),
-    ]
-
+@params(
+    (
+        [(10, 10, 10)],
+        np.bool_,
+        set_all_values_to_1_batch,
+        [dali_types.BOOL],
+        [dali_types.BOOL],
+        [3],
+        [3],
+        None,
+        True,
+        [np.full((10, 10, 10), 1, dtype=np.bool_)],
+    ),
+    (
+        [(10, 10, 10)],
+        np.uint8,
+        set_all_values_to_255_batch,
+        [dali_types.UINT8],
+        [dali_types.UINT8],
+        [3],
+        [3],
+        None,
+        True,
+        [np.full((10, 10, 10), 255, dtype=np.uint8)],
+    ),
+    (
+        [(10, 10, 10)],
+        np.uint8,
+        set_all_values_to_255_sample,
+        [dali_types.UINT8],
+        [dali_types.UINT8],
+        [3],
+        [3],
+        None,
+        None,
+        [np.full((10, 10, 10), 255, dtype=np.uint8)],
+    ),
+    (
+        [(10, 10, 10)],
+        np.float32,
+        set_all_values_to_float_batch,
+        [dali_types.FLOAT],
+        [dali_types.FLOAT],
+        [3],
+        [3],
+        None,
+        True,
+        [np.full((10, 10, 10), 0.5, dtype=np.float32)],
+    ),
+    (
+        [(10, 10, 10)],
+        np.float32,
+        set_all_values_to_float_sample,
+        [dali_types.FLOAT],
+        [dali_types.FLOAT],
+        [3],
+        [3],
+        None,
+        None,
+        [np.full((10, 10, 10), 0.5, dtype=np.float32)],
+    ),
+    (
+        [(10, 20, 30), (20, 10, 30)],
+        np.int64,
+        change_out_shape_batch,
+        [dali_types.INT64],
+        [dali_types.INT64],
+        [3],
+        [3],
+        setup_change_out_shape,
+        True,
+        [np.full((20, 30, 10), 42, dtype=np.int32), np.full((10, 30, 20), 42, dtype=np.int32)],
+    ),
+    (
+        [(10, 20, 30), (20, 10, 30)],
+        np.int64,
+        change_out_shape_sample,
+        [dali_types.INT64],
+        [dali_types.INT64],
+        [3],
+        [3],
+        setup_change_out_shape,
+        None,
+        [np.full((20, 30, 10), 42, dtype=np.int32), np.full((10, 30, 20), 42, dtype=np.int32)],
+    ),
+)
+def test_numba_func(
+    shape,
+    dtype,
+    run_fn,
+    out_types,
+    in_types,
+    outs_ndim,
+    ins_ndim,
+    setup_fn,
+    batch_processing,
+    expected_out,
+):
     device = "cpu"
-    for (
+    _testimpl_numba_func(
+        device,
         shape,
         dtype,
         run_fn,
@@ -308,20 +316,7 @@ def test_numba_func():
         setup_fn,
         batch_processing,
         expected_out,
-    ) in args:
-        _testimpl_numba_func(
-            device,
-            shape,
-            dtype,
-            run_fn,
-            out_types,
-            in_types,
-            outs_ndim,
-            ins_ndim,
-            setup_fn,
-            batch_processing,
-            expected_out,
-        )
+    )
 
 
 @attr("sanitizer_skip")
@@ -368,80 +363,88 @@ def test_numba_func_with_cond_do_not_convert():
 
 @attr("sanitizer_skip")
 @with_setup(check_numba_compatibility_gpu)
-def test_numba_func_gpu():
-    # shape, dtype, run_fn, out_types,
-    # in_types, out_ndim, in_ndim, setup_fn, batch_processing,
-    # expected_out
-    args = [
-        (
-            [(10, 10, 10)],
-            np.bool_,
-            set_all_values_to_1_sample_gpu,
-            [dali_types.BOOL],
-            [dali_types.BOOL],
-            [3],
-            [3],
-            None,
-            None,
-            [np.full((10, 10, 10), 1, dtype=np.bool_)],
-        ),
-        (
-            [(10, 10, 10)],
-            np.uint8,
-            set_all_values_to_255_sample_gpu,
-            [dali_types.UINT8],
-            [dali_types.UINT8],
-            [3],
-            [3],
-            None,
-            None,
-            [np.full((10, 10, 10), 255, dtype=np.uint8)],
-        ),
-        (
-            [(10, 10, 10)],
-            np.float32,
-            set_all_values_to_float_sample_gpu,
-            [dali_types.FLOAT],
-            [dali_types.FLOAT],
-            [3],
-            [3],
-            None,
-            None,
-            [np.full((10, 10, 10), 0.5, dtype=np.float32)],
-        ),
-        (
-            [(100, 20, 30), (20, 100, 30)],
-            np.int64,
-            change_out_shape_sample_gpu,
-            [dali_types.INT64],
-            [dali_types.INT64],
-            [3],
-            [3],
-            setup_change_out_shape,
-            None,
-            [
-                np.full((20, 30, 100), 42, dtype=np.int32),
-                np.full((100, 30, 20), 42, dtype=np.int32),
-            ],
-        ),
-        (
-            [(20), (30)],
-            np.int32,
-            change_ndim_gpu,
-            [dali_types.INT32],
-            [dali_types.INT32],
-            [4],
-            [1],
-            change_ndim_setup,
-            None,
-            [change_dim_expected_out(20), change_dim_expected_out(30)],
-        ),
-    ]
-
+@params(
+    (
+        [(10, 10, 10)],
+        np.bool_,
+        set_all_values_to_1_sample_gpu,
+        [dali_types.BOOL],
+        [dali_types.BOOL],
+        [3],
+        [3],
+        None,
+        None,
+        [np.full((10, 10, 10), 1, dtype=np.bool_)],
+    ),
+    (
+        [(10, 10, 10)],
+        np.uint8,
+        set_all_values_to_255_sample_gpu,
+        [dali_types.UINT8],
+        [dali_types.UINT8],
+        [3],
+        [3],
+        None,
+        None,
+        [np.full((10, 10, 10), 255, dtype=np.uint8)],
+    ),
+    (
+        [(10, 10, 10)],
+        np.float32,
+        set_all_values_to_float_sample_gpu,
+        [dali_types.FLOAT],
+        [dali_types.FLOAT],
+        [3],
+        [3],
+        None,
+        None,
+        [np.full((10, 10, 10), 0.5, dtype=np.float32)],
+    ),
+    (
+        [(100, 20, 30), (20, 100, 30)],
+        np.int64,
+        change_out_shape_sample_gpu,
+        [dali_types.INT64],
+        [dali_types.INT64],
+        [3],
+        [3],
+        setup_change_out_shape,
+        None,
+        [
+            np.full((20, 30, 100), 42, dtype=np.int32),
+            np.full((100, 30, 20), 42, dtype=np.int32),
+        ],
+    ),
+    (
+        [(20), (30)],
+        np.int32,
+        change_ndim_gpu,
+        [dali_types.INT32],
+        [dali_types.INT32],
+        [4],
+        [1],
+        change_ndim_setup,
+        None,
+        [change_dim_expected_out(20), change_dim_expected_out(30)],
+    ),
+)
+def test_numba_func_gpu(
+    shape,
+    dtype,
+    run_fn,
+    out_types,
+    in_types,
+    outs_ndim,
+    ins_ndim,
+    setup_fn,
+    batch_processing,
+    expected_out,
+):
     device = "gpu"
     blocks = [32, 32, 1]
     threads_per_block = [32, 16, 1]
-    for (
+    _testimpl_numba_func(
+        device,
         shape,
         dtype,
         run_fn,
@@ -452,22 +455,9 @@ def test_numba_func_gpu():
         setup_fn,
         batch_processing,
         expected_out,
-    ) in args:
-        _testimpl_numba_func(
-            device,
-            shape,
-            dtype,
-            run_fn,
-            out_types,
-            in_types,
-            outs_ndim,
-            ins_ndim,
-            setup_fn,
-            batch_processing,
-            expected_out,
-            blocks,
-            threads_per_block,
-        )
+        blocks,
+        threads_per_block,
+    )
 
 
 @pipeline_def
@@ -591,51 +581,54 @@ def rot_image_setup(outs, ins):
 
 @attr("sanitizer_skip")
 @with_setup(check_numba_compatibility_cpu)
-def test_numba_func_image():
-    args = [
-        (
-            reverse_col_batch,
-            [dali_types.UINT8],
-            [dali_types.UINT8],
-            [3],
-            [3],
-            None,
-            True,
-            lambda x: 255 - x,
-        ),
-        (
-            reverse_col_sample,
-            [dali_types.UINT8],
-            [dali_types.UINT8],
-            [3],
-            [3],
-            None,
-            None,
-            lambda x: 255 - x,
-        ),
-        (
-            rot_image_batch,
-            [dali_types.UINT8],
-            [dali_types.UINT8],
-            [3],
-            [3],
-            rot_image_setup,
-            True,
-            lambda x: np.rot90(x),
-        ),
-        (
-            rot_image_sample,
-            [dali_types.UINT8],
-            [dali_types.UINT8],
-            [3],
-            [3],
-            rot_image_setup,
-            None,
-            lambda x: np.rot90(x),
-        ),
-    ]
+@params(
+    (
+        reverse_col_batch,
+        [dali_types.UINT8],
+        [dali_types.UINT8],
+        [3],
+        [3],
+        None,
+        True,
+        lambda x: 255 - x,
+    ),
+    (
+        reverse_col_sample,
+        [dali_types.UINT8],
+        [dali_types.UINT8],
+        [3],
+        [3],
+        None,
+        None,
+        lambda x: 255 - x,
+    ),
+    (
+        rot_image_batch,
+        [dali_types.UINT8],
+        [dali_types.UINT8],
+        [3],
+        [3],
+        rot_image_setup,
+        True,
+        lambda x: np.rot90(x),
+    ),
+    (
+        rot_image_sample,
+        [dali_types.UINT8],
+        [dali_types.UINT8],
+        [3],
+        [3],
+        rot_image_setup,
+        None,
+        lambda x: np.rot90(x),
+    ),
+)
+def test_numba_func_image(
+    run_fn, out_types, in_types, outs_ndim, ins_ndim, setup_fn, batch_processing, transform
+):
     device = "cpu"
-    for (
+    _testimpl_numba_func_image(
+        device,
         run_fn,
         out_types,
         in_types,
@@ -644,49 +637,41 @@ def test_numba_func_image():
         setup_fn,
         batch_processing,
         transform,
-    ) in args:
-        _testimpl_numba_func_image(
-            device,
-            run_fn,
-            out_types,
-            in_types,
-            outs_ndim,
-            ins_ndim,
-            setup_fn,
-            batch_processing,
-            transform,
-        )
+    )
 
 
 @attr("sanitizer_skip")
 @with_setup(check_numba_compatibility_gpu)
-def test_numba_func_image_gpu():
-    args = [
-        (
-            reverse_col_sample_gpu,
-            [dali_types.UINT8],
-            [dali_types.UINT8],
-            [3],
-            [3],
-            None,
-            None,
-            lambda x: 255 - x,
-        ),
-        (
-            rot_image_sample_gpu,
-            [dali_types.UINT8],
-            [dali_types.UINT8],
-            [3],
-            [3],
-            rot_image_setup,
-            None,
-            np.rot90,
-        ),
-    ]
+@params(
+    (
+        reverse_col_sample_gpu,
+        [dali_types.UINT8],
+        [dali_types.UINT8],
+        [3],
+        [3],
+        None,
+        None,
+        lambda x: 255 - x,
+    ),
+    (
+        rot_image_sample_gpu,
+        [dali_types.UINT8],
+        [dali_types.UINT8],
+        [3],
+        [3],
+        rot_image_setup,
+        None,
+        np.rot90,
+    ),
+)
+def test_numba_func_image_gpu(
+    run_fn, out_types, in_types, outs_ndim, ins_ndim, setup_fn, batch_processing, transform
+):
     device = "gpu"
     blocks = [32, 32, 1]
     threads_per_block = [32, 8, 1]
-    for (
+    _testimpl_numba_func_image(
+        device,
         run_fn,
         out_types,
         in_types,
@@ -695,20 +680,9 @@ def test_numba_func_image_gpu():
         setup_fn,
         batch_processing,
         transform,
-    ) in args:
-        _testimpl_numba_func_image(
-            device,
-            run_fn,
-            out_types,
-            in_types,
-            outs_ndim,
-            ins_ndim,
-            setup_fn,
-            batch_processing,
-            transform,
-            blocks,
-            threads_per_block,
-        )
+        blocks,
+        threads_per_block,
+    )
 
 
 def split_images_col_sample(out0, out1, out2, in0):

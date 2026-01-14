@@ -315,10 +315,12 @@ def test_tf_dataset_wrong_input_type():
         check_tf_dataset_wrong_input_type(wrong_input_dataset)
     # wrong values in dictionary
     for wrong_input_dataset in ["str", [input_dataset]]:
-        check_tf_dataset_wrong_input_type({
-            "a": wrong_input_dataset,
-            "b": wrong_input_dataset,
-        })
+        check_tf_dataset_wrong_input_type(
+            {
+                "a": wrong_input_dataset,
+                "b": wrong_input_dataset,
+            }
+        )
     # wrong keys in dictionary
     for wrong_input_name in [42, ("a", "b")]:
         check_tf_dataset_wrong_input_type({wrong_input_name: input_dataset})
@@ -421,7 +423,9 @@ def run_tf_with_dali_external_source(dev, es_args, ed_dev, dtype, *_):
     )
 
 
-_tf_with_dali_external_source_test_cases = list(gen_tf_with_dali_external_source(run_tf_with_dali_external_source))
+_tf_with_dali_external_source_test_cases = list(
+    gen_tf_with_dali_external_source(run_tf_with_dali_external_source)
+)
 
 
 @with_setup(skip_inputs_for_incompatible_tf)

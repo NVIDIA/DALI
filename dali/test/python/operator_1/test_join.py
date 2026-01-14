@@ -127,35 +127,6 @@ def ref_stack(input_batches, axis):
     return out
 
 
-def _run_test_cat(num_inputs, layout, ndim, axis, axis_name):
-    num_iter = 3
-    batch_size = 4
-    if ndim is None:
-        ndim = len(layout)
-
-    ref_axis = layout.find(axis_name) if axis_name is not None else axis if axis is not None else 0
-    assert ref_axis >= -ndim and ref_axis < ndim
-
-    axis_arg = None if axis_name else axis
-
-    pipe = dali.pipeline.Pipeline(batch_size=batch_size, num_threads=3, device_id=0)
-    with pipe:
-        inputs = fn.external_source(
-            input_generator(num_inputs, batch_size, ndim, ref_axis),
-            num_outputs=num_inputs,
-            layout=layout,
-        )
-        out_cpu = fn.cat(*inputs, axis=axis_arg, axis_name=axis_name)
-        out_gpu = fn.cat(*(x.gpu() for x in inputs), axis=axis_arg, axis_name=axis_name)
-        pipe.set_outputs(out_cpu, out_gpu, *inputs)
-
-    for iter in range(num_iter):
-        o_cpu, o_gpu, *inputs = pipe.run()
-        ref = ref_cat(inputs, ref_axis)
-        check_batch(o_cpu, ref, batch_size, eps=0, expected_layout=layout)
-        check_batch(o_gpu, ref, batch_size, eps=0, expected_layout=layout)
-
-
 def _run_test_stack(num_inputs, layout, ndim, axis, axis_name):
     num_iter = 3
     batch_size = 4
@@ -210,7 +181,32 @@ _cat_test_cases = _generate_cat_test_cases()
 
 @params(*_cat_test_cases)
 def test_cat(num_inputs, layout, ndim, axis, axis_name):
-    _run_test_cat(num_inputs, layout, ndim, axis, axis_name)
+    num_iter = 3
+    batch_size = 4
+    if ndim is None:
+        ndim = len(layout)
+
+    ref_axis = layout.find(axis_name) if axis_name is not None else axis if axis is not None else 0
+    assert ref_axis >= -ndim and ref_axis < ndim
+
+    axis_arg = None if axis_name else axis
+
+    pipe = dali.pipeline.Pipeline(batch_size=batch_size, num_threads=3, device_id=0)
+    with pipe:
+        inputs = fn.external_source(
+            input_generator(num_inputs, batch_size, ndim, ref_axis),
+            num_outputs=num_inputs,
+            layout=layout,
+        )
+        out_cpu = fn.cat(*inputs, axis=axis_arg, axis_name=axis_name)
+        out_gpu = fn.cat(*(x.gpu() for x in inputs), axis=axis_arg, axis_name=axis_name)
+        pipe.set_outputs(out_cpu, out_gpu, *inputs)
+
+    for iter in range(num_iter):
+        o_cpu, o_gpu, *inputs = pipe.run()
+        ref = ref_cat(inputs, ref_axis)
+        check_batch(o_cpu, ref, batch_size, eps=0, expected_layout=layout)
+        check_batch(o_gpu, ref, batch_size, eps=0, expected_layout=layout)
 
 
 def _generate_stack_test_cases():
