@@ -162,6 +162,15 @@ extensions = [
     "dali_tabs",
 ]
 
+nbsphinx_prolog = """
+{% if 'dynamic_mode' in env.docname %}
+:bdg-primary:`Dynamic Mode`
+{% endif %}
+{% if 'pipeline_mode' in env.docname %}
+:bdg-primary:`Pipeline Mode`
+{% endif %}
+"""
+
 # https://stackoverflow.com/questions/67473396/shorten-display-format-of-python-type-annotations-in-sphinx
 autodoc_typehints_format = "short"
 python_use_unqualified_type_names = True
@@ -714,6 +723,13 @@ def replace_params_with_paramrefs(app, what, name, obj, options, lines):
     lines[:] = [map_line(line, s.parameters) for line in lines]
 
 
+def _override_breadcrumb_title(app, pagename, templatename, context, doctree):
+    if "dynamic_mode" in pagename:
+        context["title"] = "Dynamic Mode"
+    elif "pipeline_mode" in pagename:
+        context["title"] = "Pipeline Mode"
+
+
 def setup(app):
     if count_unique_visitor_script:
         app.add_js_file(count_unique_visitor_script)
@@ -727,6 +743,7 @@ def setup(app):
     app.connect(
         "autodoc-process-docstring", replace_params_with_paramrefs, priority=450
     )
+    app.connect("html-page-context", _override_breadcrumb_title)
     app.add_autodocumenter(EnumDocumenter)
     app.add_autodocumenter(EnumAttributeDocumenter)
     return app
