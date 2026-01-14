@@ -95,7 +95,17 @@ def run_and_check(pipe, ref_iterable):
     assert i == len(ref_iterable)
 
 
-def _test_iter_setup(use_fn_api, by_name, src_device, gen_device):
+_iter_setup_test_cases = [
+    (use_fn_api, by_name, src_device, gen_device)
+    for use_fn_api in [False, True]
+    for by_name in [False, True]
+    for src_device in ["cpu", "gpu"]
+    for gen_device in ["cpu", "cuda"]
+]
+
+
+@params(*_iter_setup_test_cases)
+def test_iter_setup(use_fn_api, by_name, src_device, gen_device):
     batch_size = 7
 
     class IterSetupPipeline(Pipeline):
@@ -141,21 +151,13 @@ def _test_iter_setup(use_fn_api, by_name, src_device, gen_device):
     run_and_check(pipe, source)
 
 
-_iter_setup_test_cases = [
-    (use_fn_api, by_name, src_device, gen_device)
-    for use_fn_api in [False, True]
-    for by_name in [False, True]
-    for src_device in ["cpu", "gpu"]
-    for gen_device in ["cpu", "cuda"]
+_external_source_callback_torch_stream_test_cases = [
+    (src_device, gen_device) for src_device in ["cpu", "gpu"] for gen_device in ["cpu", "cuda"]
 ]
 
 
-@params(*_iter_setup_test_cases)
-def test_iter_setup(use_fn_api, by_name, src_device, gen_device):
-    _test_iter_setup(use_fn_api, by_name, src_device, gen_device)
-
-
-def _test_external_source_callback_torch_stream(src_device, gen_device):
+@params(*_external_source_callback_torch_stream_test_cases)
+def test_external_source_callback_torch_stream(src_device, gen_device):
     with torch.cuda.stream(torch.cuda.Stream()):
         for attempt in range(10):
             t0 = torch.tensor([attempt * 100 + 1.5], dtype=torch.float32, device=gen_device)
@@ -177,13 +179,3 @@ def _test_external_source_callback_torch_stream(src_device, gen_device):
                 check_output(
                     pipe.run(), [np.array([attempt * 100 + (i + 1) * 10 + 1.5], dtype=np.float32)]
                 )
-
-
-_external_source_callback_torch_stream_test_cases = [
-    (src_device, gen_device) for src_device in ["cpu", "gpu"] for gen_device in ["cpu", "cuda"]
-]
-
-
-@params(*_external_source_callback_torch_stream_test_cases)
-def test_external_source_callback_torch_stream(src_device, gen_device):
-    _test_external_source_callback_torch_stream(src_device, gen_device)

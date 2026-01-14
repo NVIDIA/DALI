@@ -24,6 +24,7 @@ import torch
 import math
 import random
 import os
+from itertools import product
 
 # Filtering librispeech samples
 audio_files = get_files("db/audio/wav", "wav")
@@ -453,22 +454,28 @@ nrecordings = len(recordings)
 # aka "speed perturbation") are turned off
 
 
-def _testimpl_rnnt_data_pipeline(
-    device,
-    pad_amount=0,
-    preemph_coeff=0.97,
-    window_size=0.02,
-    window_stride=0.01,
-    window="hann",
-    nfeatures=64,
-    n_fft=512,
-    frame_splicing_stack=1,
-    frame_splicing_subsample=1,
-    lowfreq=0.0,
-    highfreq=None,
-    normalize_type="per_feature",
-    batch_size=32,
-):
+# Generate Cartesian product of test parameters
+_rnnt_test_cases = list(
+    product(
+        ["cpu", "gpu"],  # device
+        [(1, 1), (3, 2)],  # (frame_splicing_stack, frame_splicing_subsample)
+        ["per_feature", "all_features"],  # normalize_type
+        [random.choice([0, 16])],  # pad_amount
+    )
+)
+
+
+@params(*_rnnt_test_cases)
+def test_rnnt_data_pipeline(device, frame_splicing_params, normalize_type, pad_amount):
+    preemph_coeff = 0.97
+    window_size = 0.02
+    window_stride = 0.01
+    window = "hann"
+    nfeatures = 64
+    n_fft = 512
+    lowfreq = 0.0
+    highfreq = None
+    frame_splicing_stack, frame_splicing_subsample = frame_splicing_params
     sample_rate = npy_files_sr
     speed_perturb = False
     silence_trim = False
@@ -592,36 +599,6 @@ def _testimpl_rnnt_data_pipeline(
             np.testing.assert_allclose(norm_log_features, ref, atol=1e-3)
 
             i += 1
-
-
-def test_rnnt_data_pipeline():
-    preemph_coeff = 0.97
-    window_size = 0.02
-    window_stride = 0.01
-    window = "hann"
-    nfeatures = 64
-    n_fft = 512
-    lowfreq = 0.0
-    highfreq = None
-    for device in ["cpu", "gpu"]:
-        for frame_splicing_stack, frame_splicing_subsample in [(1, 1), (3, 2)]:
-            for normalize_type in ["per_feature", "all_features"]:
-                pad_amount = random.choice([0, 16])
-                _testimpl_rnnt_data_pipeline(
-                    device,
-                    pad_amount,
-                    preemph_coeff,
-                    window_size,
-                    window_stride,
-                    window,
-                    nfeatures,
-                    n_fft,
-                    frame_splicing_stack,
-                    frame_splicing_subsample,
-                    lowfreq,
-                    highfreq,
-                    normalize_type,
-                )
 
 
 @nottest  # To be run manually to check perf

@@ -98,7 +98,9 @@ def torch_batch_operation(tensors):
     return [p[0] for p in out], [p[1] for p in out]
 
 
-def check_pytorch_operator(device):
+@attr("pytorch")
+@params("cpu", "gpu")
+def test_pytorch_operator(device):
     pipe = BasicPipeline()
     pt_pipe = TorchPythonFunctionPipeline(torch_operation, device)
     for it in range(ITERS):
@@ -117,11 +119,7 @@ def check_pytorch_operator(device):
 
 @attr("pytorch")
 @params("cpu", "gpu")
-def test_pytorch_operator(device):
-    check_pytorch_operator(device)
-
-
-def check_pytorch_operator_batch_processing(device):
+def test_pytorch_operator_batch_processing(device):
     pipe = BasicPipeline()
     pt_pipe = TorchPythonFunctionPipeline(torch_batch_operation, device, True)
     for it in range(ITERS):
@@ -137,12 +135,6 @@ def check_pytorch_operator_batch_processing(device):
             res2 = output2.at(i)
             assert numpy.allclose(res1, exp1[i].numpy())
             assert numpy.allclose(res2, exp2[i].numpy())
-
-
-@attr("pytorch")
-@params("cpu", "gpu")
-def test_pytorch_operator_batch_processing(device):
-    check_pytorch_operator_batch_processing(device)
 
 
 def verify_pipeline(pipeline, input):

@@ -21,7 +21,7 @@ import numpy as np
 import os
 from test_audio_decoder_utils import generate_waveforms, rosa_resample
 from test_utils import compare_pipelines, get_files
-from nose2.tools import params
+from nose2.tools import params, cartesian_param
 from nose_utils import attr
 
 names = ["/tmp/dali_test_1C.wav", "/tmp/dali_test_2C.wav", "/tmp/dali_test_4C.wav"]
@@ -162,16 +162,12 @@ def decoder_pipe(decoder_op, fnames, sample_rate, downmix, quality, dtype):
     return decoded, rates
 
 
-_audio_decoder_alias_test_cases = [
-    (sample_rate, downmix, quality, dtype)
-    for sample_rate in [None, 16000, 12999]
-    for downmix in [False, True]
-    for quality in [0, 50, 100]
-    for dtype in [types.INT16, types.INT32, types.FLOAT]
-]
-
-
-@params(*_audio_decoder_alias_test_cases)
+@cartesian_param(
+    [None, 16000, 12999],
+    [False, True],
+    [0, 50, 100],
+    [types.INT16, types.INT32, types.FLOAT],
+)
 def test_audio_decoder_alias(sample_rate, downmix, quality, dtype):
     new_pipe = decoder_pipe(fn.decoders.audio, names, sample_rate, downmix, quality, dtype)
     legacy_pipe = decoder_pipe(fn.audio_decoder, names, sample_rate, downmix, quality, dtype)
