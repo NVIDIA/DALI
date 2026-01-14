@@ -76,6 +76,17 @@ constexpr uint32_t verbosity_to_severity(int verbose) {
 static constexpr size_t kDevAlignment = 256;  // warp alignment for 32x64-bit
 static constexpr size_t kHostAlignment = 64;  // cache alignment
 
+inline std::mutex &print_mutex() {
+  static std::mutex mtx;
+  return mtx;
+}
+
+template <typename... Args>
+inline void sync_print(Args &&... args) {
+  std::lock_guard g(print_mutex());
+  print(std::cout, std::forward<Args>(args)...);
+}
+
 inline int static_dali_device_malloc(void *ctx, void **ptr, size_t size, cudaStream_t stream) {
   auto *mr = static_cast<mm::device_async_resource *>(ctx);
   try {
@@ -419,6 +430,7 @@ class ImageDecoder : public StatelessOperator<Backend> {
 
   nvimgcodecStatus_t run(int device_id) {
     assert(tp_);
+    sync_print("Scheduling from thread ", std::this_thread::get_id(), "\n");
     if (!job_)
       job_.emplace();
     for (int i = 0; i < static_cast<int>(nvimgcodec_scheduled_tasks_.size()); i++) {
@@ -431,6 +443,7 @@ class ImageDecoder : public StatelessOperator<Backend> {
 
   nvimgcodecStatus_t wait(int device_id) {
     if (job_) {
+      sync_print("Waiting in thread ", std::this_thread::get_id(), "\n");
       job_->Wait();
       job_.reset();
     }
@@ -853,6 +866,7 @@ class ImageDecoder : public StatelessOperator<Backend> {
         // race, we probably want to wait for all threads to finish anyway because we can't
         // guarantee that the thread pool from the workspace outlives RunImplImpl call.
         if (job_) {
+          sync_print("Waiting in thread ", std::this_thread::get_id(), "\n");
           job_->Wait();
           job_.reset();
         }

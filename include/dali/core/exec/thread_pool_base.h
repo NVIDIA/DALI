@@ -44,16 +44,50 @@ class ThreadPoolBase;
  *
  * Tasks are added to a job first and then the entire work is scheduled as a whole.
  */
-class DLL_PUBLIC Job {
+class DLL_PUBLIC JobBase {
+ protected:
+  JobBase() = default;
+  ~JobBase() noexcept(false);
+
+  /** Waits for all tasks to complete. Errors are NOT rethrown.
+   *
+   * NOTE: This function must not be inline and must be defined in the same dynamic shared object
+   *       as the DoNotify function.
+   */
+  void DoWait();
+
+  /** Notifies the job that all pending tasks have completed
+   *
+   * NOTE: This function must not be inline and must be defined in the same dynamic shared object
+   *       as the DoWait function.
+   */
+  void DoNotify();
+
+  // atomic wait has no timeout, so we're stuck with condvar for reentrance
+  std::mutex mtx_;
+  std::condition_variable cv_;
+  std::atomic_int num_pending_tasks_{0};
+  std::atomic_bool running_{false};
+  int total_tasks_ = 0;
+  bool waited_for_ = false;
+  const void *executor_ = nullptr;
+
+  struct Task {
+    std::function<void()> func;
+    std::exception_ptr error;
+  };
+};
+
+class DLL_PUBLIC Job final : public JobBase {
  public:
-  ~Job() noexcept(false);
+  ~Job() noexcept(false) = default;
 
   using priority_t = int64_t;
 
   template <typename Runnable>
   std::enable_if_t<std::is_convertible_v<Runnable, std::function<void()>>>
   AddTask(Runnable &&runnable, priority_t priority = {}) {
-    if (started_)
+    if (executor_ != nullptr)
       throw std::logic_error("This job has already been started - cannot add more tasks to it");
 
     auto it = tasks_.emplace(priority, Task());
@@ -65,17 +99,10 @@ class DLL_PUBLIC Job {
           task->error = std::current_exception();
         }
 
-        if (--num_pending_tasks_ == 0) {
-          num_pending_tasks_.notify_all();
-          (void)std::lock_guard(mtx_);
-          cv_.notify_all();
-          // We need this second flag to avoid a race condition where the
-          // desctructor is called between decrementing num_pending_tasks_ and notification_
-          // without excessive use of mutexes.  This must be the very last operation in the task
-          // function that touches `this`.
-          running_ = false;
-        }
+        if (--num_pending_tasks_ == 0)
+          DoNotify();
       };
+      total_tasks_++;
     } catch (...) {  // if, for whatever reason, we cannot initialize the task, we should erase it
       tasks_.erase(it);
       throw;
@@ -89,22 +116,9 @@ class DLL_PUBLIC Job {
 
   void Wait();
 
-  void Scrap();
+  void Abandon();
 
  private:
-  // atomic wait has no timeout, so we're stuck with condvar for reentrance
-  std::mutex mtx_;
-  std::condition_variable cv_;
-  std::atomic_int num_pending_tasks_{0};
-  std::atomic_bool running_{false};
-  bool started_ = false;
-  bool waited_for_ = false;
-
-  struct Task {
-    std::function<void()> func;
-    std::exception_ptr error;
-  };
-
   // This needs to be a container which never invalidates references when inserting new items.
   std::multimap<priority_t, Task, std::greater<priority_t>,
                 mm::detail::object_pool_allocator<std::pair<const priority_t, Task>>> tasks_;
@@ -120,9 +134,9 @@ class DLL_PUBLIC Job {
  * Calls to AddTask, Run and Wait are not thread safe and require external synchronization if
  * called from different threads.
  */
-class DLL_PUBLIC IncrementalJob {
+class DLL_PUBLIC IncrementalJob final : public JobBase {
  public:
-  ~IncrementalJob() noexcept(false);
+  ~IncrementalJob() noexcept(false) = default;
 
   template <typename Runnable>
   std::enable_if_t<std::is_convertible_v<Runnable, std::function<void()>>>
@@ -135,21 +149,9 @@ class DLL_PUBLIC IncrementalJob {
 
   void Wait();
 
-  void Scrap();
+  void Abandon();
 
  private:
-  struct Task {
-    std::function<void()> func;
-    std::exception_ptr error;
-  };
-
-  const void *executor_ = nullptr;
-  bool waited_for_ = false;
-  // atomic wait has no timeout, so we're stuck with condvar for reentrance
-  std::mutex mtx_;
-  std::condition_variable cv_;
-  std::atomic_int num_pending_tasks_{0};
-  std::atomic_bool running_{false};
   using task_list_t = std::list<Task, mm::detail::object_pool_allocator<Task>>;
   task_list_t tasks_;
   std::optional<task_list_t::iterator> last_task_run_;
@@ -244,8 +246,7 @@ class DLL_PUBLIC ThreadPoolBase {
   void Shutdown(bool join);
 
  private:
-  friend class Job;
-  friend class IncrementalJob;
+  friend class JobBase;
 
   template <typename Condition>
   bool WaitOrRunTasks(std::condition_variable &cv, Condition &&condition);
@@ -297,20 +298,17 @@ void Job::Run(Executor &executor, bool wait) {
   if constexpr (std::is_base_of_v<ThreadPoolBase, Executor>) {
     Run(static_cast<ThreadPoolBase &>(executor), wait);
   } else {
-    if (started_)
+    if (executor_ != nullptr)
       throw std::logic_error("This job has already been started.");
-    started_ = true;
+    executor_ = &executor;
     running_ = !tasks_.empty();
     for (auto &x : tasks_) {
       num_pending_tasks_++;
       try {
         executor.AddTask(std::move(x.second.func));
       } catch (...) {
-        if (--num_pending_tasks_ == 0) {
-          num_pending_tasks_.notify_all();
-          (void)std::lock_guard(mtx_);
-          cv_.notify_all();
-        }
+        if (--num_pending_tasks_ == 0)
+          DoNotify();
         throw;
       }
     }
@@ -336,22 +334,14 @@ IncrementalJob::AddTask(Runnable &&runnable) {
         task->error = std::current_exception();
       }
 
-      if (--num_pending_tasks_ == 0) {
-        num_pending_tasks_.notify_all();
-        (void)std::lock_guard(mtx_);
-        cv_.notify_all();
-        // We need this second flag to avoid a race condition where the
-        // desctructor is called between decrementing num_pending_tasks_ and notification_
-        // without excessive use of mutexes. This must be the very last operation in the task
-        // function that touches `this`.
-        running_ = false;
-      }
+      if (--num_pending_tasks_ == 0)
+        DoNotify();
     };
+    total_tasks_++;
   } catch (...) {  // if, for whatever reason, we cannot initialize the task, we should erase it
     tasks_.erase(it);
     throw;
   }
-  num_pending_tasks_++;
 }
 
 template <typename Executor>
@@ -365,6 +355,7 @@ void IncrementalJob::Run(Executor &executor, bool wait) {
     auto it = last_task_run_.has_value() ? std::next(*last_task_run_) : tasks_.begin();
     for (; it != tasks_.end(); ++it) {
       running_ = true;
+      num_pending_tasks_++;
       executor.AddTask(std::move(it->func));
       last_task_run_ = it;
     }

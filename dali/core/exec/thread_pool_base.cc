@@ -17,16 +17,16 @@
 
 namespace dali {
 
-Job::~Job() noexcept(false) {
-  if (!tasks_.empty() && !waited_for_) {
-    throw std::logic_error("The job is not empty, but hasn't been scrapped or waited for.");
+JobBase::~JobBase() noexcept(false) {
+  if (total_tasks_ > 0 && !waited_for_) {
+    throw std::logic_error("The job is not empty, but hasn't been abandoned or waited for.");
   }
   while (running_)
     std::this_thread::yield();
 }
 
-void Job::Wait() {
-  if (!started_)
+void JobBase::DoWait() {
+  if (executor_ == nullptr)
     throw std::logic_error("This job hasn't been run - cannot wait for it.");
 
   if (waited_for_)
@@ -47,6 +47,44 @@ void Job::Wait() {
     }
     waited_for_ = true;
   }
+}
+
+void JobBase::DoNotify() {
+  num_pending_tasks_.notify_all();
+  (void)std::lock_guard(mtx_);
+  cv_.notify_all();
+  // We need this second flag to avoid a race condition where the
+  // desctructor is called between decrementing num_pending_tasks_ and notification_
+  // without excessive use of mutexes.  This must be the very last operation in the task
+  // function that touches `this`.
+  running_ = false;
+}
+
+///////////////////////////////////////////////////////////////////////////
+
+void Job::Run(ThreadPoolBase &tp, bool wait) {
+  if (executor_ != nullptr)
+    throw std::logic_error("This job has already been started.");
+  executor_ = &tp;
+  running_ = !tasks_.empty();
+  {
+    auto batch = tp.BulkAdd();
+    for (auto &x : tasks_) {
+      batch.Add(std::move(x.second.func));
+    }
+    int added = batch.Size();
+    if (added) {
+      num_pending_tasks_ += added;
+      running_ = true;
+    }
+    batch.Submit();
+  }
+  if (wait && !tasks_.empty())
+    Wait();
+}
+
+void Job::Wait() {
+  DoWait();
 
   // note - this vector is not allocated unless there were exceptions thrown
   std::vector<std::exception_ptr> errors;
@@ -60,73 +98,14 @@ void Job::Wait() {
     throw MultipleErrors(std::move(errors));
 }
 
-void Job::Run(ThreadPoolBase &tp, bool wait) {
-  if (started_)
-    throw std::logic_error("This job has already been started.");
-  started_ = true;
-  running_ = !tasks_.empty();
-  {
-    auto batch = tp.BulkAdd();
-    num_pending_tasks_ += tasks_.size();
-    for (auto &x : tasks_) {
-      batch.Add(std::move(x.second.func));
-    }
-    batch.Submit();
-  }
-  if (wait && !tasks_.empty())
-    Wait();
-}
-
-void Job::Scrap() {
-  if (started_)
-    throw std::logic_error("Cannot scrap a job that has already been started");
+void Job::Abandon() {
+  if (executor_ != nullptr)
+    throw std::logic_error("Cannot abandon a job that has already been started");
   tasks_.clear();
+  total_tasks_ = 0;
 }
 
 ///////////////////////////////////////////////////////////////////////////
-
-IncrementalJob::~IncrementalJob() noexcept(false) {
-  if (!tasks_.empty() && !waited_for_) {
-    throw std::logic_error("The job is not empty, but hasn't been scrapped or waited for.");
-  }
-  while (running_)
-    std::this_thread::yield();
-}
-
-void IncrementalJob::Wait() {
-  if (!executor_)
-    throw std::logic_error("This job hasn't been run - cannot wait for it.");
-
-  if (waited_for_)
-    throw std::logic_error("This job has already been waited for.");
-
-  auto ready = [&]() { return num_pending_tasks_ == 0; };
-  if (ThreadPoolBase::this_thread_pool() != nullptr) {
-    bool result = ThreadPoolBase::this_thread_pool()->WaitOrRunTasks(cv_, ready);
-    waited_for_ = true;
-    if (!result)
-      throw std::logic_error("The thread pool was stopped");
-  } else {
-    int old = num_pending_tasks_.load();
-    while (old != 0) {
-      num_pending_tasks_.wait(old);
-      old = num_pending_tasks_.load();
-      assert(old >= 0);
-    }
-    waited_for_ = true;
-  }
-
-  // note - this vector is not allocated unless there were exceptions thrown
-  std::vector<std::exception_ptr> errors;
-  for (auto &x : tasks_) {
-    if (x.error)
-      errors.push_back(std::move(x.error));
-  }
-  if (errors.size() == 1)
-    std::rethrow_exception(errors[0]);
-  else if (errors.size() > 1)
-    throw MultipleErrors(std::move(errors));
-}
 
 void IncrementalJob::Run(ThreadPoolBase &tp, bool wait) {
   if (executor_ && executor_ != &tp)
@@ -139,17 +118,36 @@ void IncrementalJob::Run(ThreadPoolBase &tp, bool wait) {
       batch.Add(std::move(it->func));
       last_task_run_ = it;
     }
-    running_ = batch.Size() > 0;
+    int added = batch.Size();
+    if (added) {
+      num_pending_tasks_ += added;
+      running_ = true;
+    }
     batch.Submit();
   }
   if (wait && !tasks_.empty())
     Wait();
 }
 
-void IncrementalJob::Scrap() {
+void IncrementalJob::Abandon() {
   if (executor_)
-    throw std::logic_error("Cannot scrap a job that has already been started");
+    throw std::logic_error("Cannot abandon a job that has already been started");
   tasks_.clear();
+  total_tasks_ = 0;
+}
+
+void IncrementalJob::Wait() {
+  DoWait();
+  // note - this vector is not allocated unless there were exceptions thrown
+  std::vector<std::exception_ptr> errors;
+  for (auto &x : tasks_) {
+    if (x.error)
+      errors.push_back(std::move(x.error));
+  }
+  if (errors.size() == 1)
+    std::rethrow_exception(errors[0]);
+  else if (errors.size() > 1)
+    throw MultipleErrors(std::move(errors));
 }
 
 ///////////////////////////////////////////////////////////////////////////
