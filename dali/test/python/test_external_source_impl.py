@@ -334,9 +334,7 @@ def _test_external_source_iter(use_fn_api, device):
 
 
 _external_source_iter_test_cases = [
-    (use_fn_api, device)
-    for use_fn_api in [False, True]
-    for device in ["cpu", "gpu"]
+    (use_fn_api, device) for use_fn_api in [False, True] for device in ["cpu", "gpu"]
 ]
 
 
@@ -365,9 +363,7 @@ def _test_external_source_iter_split(use_fn_api, device):
 
 
 _external_source_iter_split_test_cases = [
-    (use_fn_api, device)
-    for use_fn_api in [False, True]
-    for device in ["cpu", "gpu"]
+    (use_fn_api, device) for use_fn_api in [False, True] for device in ["cpu", "gpu"]
 ]
 
 
@@ -815,18 +811,17 @@ def _test_iter_setup_zero_copy(use_fn_api, by_name, as_tensor, device, additiona
         run_and_check(pipe, source)
 
 
-def test_iter_setup_zero_copy():
-    for use_fn_api in [False, True]:
-        for by_name in [False, True]:
-            for as_tensor in [False, True]:
-                for device in ["cpu", "gpu"]:
-                    # make it -4 as -1 sometimes fails due to being close to the limit
-                    for additional_num_keep_samples in [-4, 0, 1]:
-                        yield (
-                            _test_iter_setup_zero_copy,
-                            use_fn_api,
-                            by_name,
-                            as_tensor,
-                            device,
-                            additional_num_keep_samples,
-                        )
+_iter_setup_zero_copy_test_cases = [
+    (use_fn_api, by_name, as_tensor, device, additional_num_keep_samples)
+    for use_fn_api in [False, True]
+    for by_name in [False, True]
+    for as_tensor in [False, True]
+    for device in ["cpu", "gpu"]
+    # make it -4 as -1 sometimes fails due to being close to the limit
+    for additional_num_keep_samples in [-4, 0, 1]
+]
+
+
+@params(*_iter_setup_zero_copy_test_cases)
+def test_iter_setup_zero_copy(use_fn_api, by_name, as_tensor, device, additional_num_keep_samples):
+    _test_iter_setup_zero_copy(use_fn_api, by_name, as_tensor, device, additional_num_keep_samples)

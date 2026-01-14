@@ -263,9 +263,7 @@ def check_full_pipe_multichannel_vs_numpy(device, batch_size):
 
 
 _full_pipe_multichannel_vs_numpy_test_cases = [
-    (device, batch_size)
-    for device in ["cpu", "gpu"]
-    for batch_size in [1, 3]
+    (device, batch_size) for device in ["cpu", "gpu"] for batch_size in [1, 3]
 ]
 
 

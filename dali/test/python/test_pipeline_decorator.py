@@ -88,9 +88,7 @@ def _check_pipeline_override(flip_vertical, flip_horizontal, batch_size):
     compare_pipelines(put_combined, ref, batch_size=batch_size, N_iterations=N_ITER)
 
 
-_pipeline_decorator_params = [
-    (vert, hori) for vert in [0, 1] for hori in [0, 1]
-]
+_pipeline_decorator_params = [(vert, hori) for vert in [0, 1] for hori in [0, 1]]
 
 
 @params(*_pipeline_decorator_params)

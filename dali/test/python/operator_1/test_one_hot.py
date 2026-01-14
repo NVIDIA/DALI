@@ -138,9 +138,7 @@ def check_one_hot_operator(
 
 
 _one_hot_scalar_test_cases = [
-    (random_scalars_batch, device)
-    for device in ["cpu", "gpu"]
-    for i in range(10)
+    (random_scalars_batch, device) for device in ["cpu", "gpu"] for i in range(10)
 ]
 
 
@@ -175,16 +173,17 @@ def test_one_hot_legacy(nested_level, layout, device):
             return random_scalar_like_tensors_batch(self.i)
 
     check_one_hot_operator(
-        RandomScalarLikeTensors(nested_level), device, axis=None, axis_name="O",
-        expected_output_dim=1, initial_layout=layout
+        RandomScalarLikeTensors(nested_level),
+        device,
+        axis=None,
+        axis_name="O",
+        expected_output_dim=1,
+        initial_layout=layout,
     )
 
 
 _one_hot_test_cases = [
-    (device, axis)
-    for device in ["cpu", "gpu"]
-    for i in range(10)
-    for axis in [-1, 0, 1, 2, 3]
+    (device, axis) for device in ["cpu", "gpu"] for i in range(10) for axis in [-1, 0, 1, 2, 3]
 ]
 
 
@@ -192,7 +191,9 @@ _one_hot_test_cases = [
 def test_one_hot(device, axis):
     np.random.seed(42)
     layout = get_initial_layout(3)
-    check_one_hot_operator(random_3d_tensors_batch, device, axis, axis_name="O", initial_layout=layout)
+    check_one_hot_operator(
+        random_3d_tensors_batch, device, axis, axis_name="O", initial_layout=layout
+    )
 
 
 @params(*[-1, 0, 1, 2, 3])
@@ -222,17 +223,26 @@ def test_one_hot_reset_layout(test_type, layout, axis, device):
     elif test_type == "scalar":
         check_one_hot_operator(random_scalars_batch)
     elif test_type == "scalar_like":
+
         def random_scalar_like_tensors():
             return random_scalar_like_tensors_batch(3)
-        check_one_hot_operator(random_scalar_like_tensors, device, axis=None,
-                              expected_output_dim=1, initial_layout=layout)
+
+        check_one_hot_operator(
+            random_scalar_like_tensors,
+            device,
+            axis=None,
+            expected_output_dim=1,
+            initial_layout=layout,
+        )
 
 
 @params(*list("Xx01"))
 def test_one_hot_custom_layout_axis_name(axis_name):
     np.random.seed(42)
     layout = get_initial_layout(3)
-    check_one_hot_operator(random_3d_tensors_batch, axis=-1, initial_layout=layout, axis_name=axis_name)
+    check_one_hot_operator(
+        random_3d_tensors_batch, axis=-1, initial_layout=layout, axis_name=axis_name
+    )
 
 
 @raises(RuntimeError, glob="Unsupported axis_name value")

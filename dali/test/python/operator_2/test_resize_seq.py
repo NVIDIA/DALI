@@ -138,7 +138,26 @@ def create_dali_pipe(channel_first, seq_len, interp, dtype, w, h, batch_size=2):
     return pipe
 
 
-def _test_resize(layout, interp, dtype, w, h):
+def _generate_resize_test_cases():
+    cases = []
+    channel_first = False
+    for interp, w, h in [
+        (types.INTERP_NN, 640, 480),
+        (types.INTERP_TRIANGULAR, 100, 80),
+        (types.INTERP_LANCZOS3, 200, 100),
+    ]:
+        for dtype in [None, types.UINT8, types.FLOAT]:
+            layout = "FCHW" if channel_first else "FHWC"
+            channel_first = not channel_first  # alternating pattern cuts number of cases by half
+            cases.append((layout, interp, dtype, w, h))
+    return cases
+
+
+_resize_test_cases = _generate_resize_test_cases()
+
+
+@params(*_resize_test_cases)
+def test_resize(layout, interp, dtype, w, h):
     channel_first = layout == "FCHW"
     pipe_dali = create_dali_pipe(channel_first, 8, interp, dtype, w, h)
     pipe_ref = create_ref_pipe(channel_first, 8, interp, dtype, w, h)
@@ -172,26 +191,3 @@ def _test_resize(layout, interp, dtype, w, h):
         size_gpu = out_dali[4]
         check_batch(ext_size, size_cpu, 2)
         check_batch(ext_size, size_gpu, 2)
-
-
-def _generate_resize_test_cases():
-    cases = []
-    channel_first = False
-    for interp, w, h in [
-        (types.INTERP_NN, 640, 480),
-        (types.INTERP_TRIANGULAR, 100, 80),
-        (types.INTERP_LANCZOS3, 200, 100),
-    ]:
-        for dtype in [None, types.UINT8, types.FLOAT]:
-            layout = "FCHW" if channel_first else "FHWC"
-            channel_first = not channel_first  # alternating pattern cuts number of cases by half
-            cases.append((layout, interp, dtype, w, h))
-    return cases
-
-
-_resize_test_cases = _generate_resize_test_cases()
-
-
-@params(*_resize_test_cases)
-def test_resize(layout, interp, dtype, w, h):
-    _test_resize(layout, interp, dtype, w, h)

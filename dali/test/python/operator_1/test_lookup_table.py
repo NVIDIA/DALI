@@ -19,6 +19,7 @@ from nvidia.dali.pipeline import Pipeline
 from test_utils import RandomlyShapedDataIterator
 from test_utils import compare_pipelines
 from nose2.tools import params
+from itertools import product
 
 
 class LookupTablePipeline(Pipeline):
@@ -115,9 +116,26 @@ def lookup_func(image, dictionary, default_value):
     return lut[image]
 
 
-def check_lookup_table_vs_python_op(
-    device, batch_size, layout, shape, dtype, dictionary_type, default_value
+_lookup_table_vs_python_op_cases = [
+    (device, dtype, batch_size, shape, dictionary_type, default_value)
+    for device, dtype, (batch_size, shape, dictionary_type, default_value) in product(
+        ["cpu", "gpu"],
+        [types.FLOAT, types.FLOAT16, types.INT64],
+        [
+            (1, (300, 300, 3), "random", 0.0),
+            (1, (300, 300, 3), "empty", 0.33),
+            (10, (300, 300, 3), "random", 0.9),
+            (3, (300, 300, 3), "small", 0.4),
+        ],
+    )
+]
+
+
+@params(*_lookup_table_vs_python_op_cases)
+def test_lookup_table_vs_python_op(
+    device, dtype, batch_size, shape, dictionary_type, default_value
 ):
+    layout = types.NHWC
     eii1 = RandomlyShapedDataIterator(batch_size, max_shape=shape)
     eii2 = RandomlyShapedDataIterator(batch_size, max_shape=shape)
     if dictionary_type == "empty":
@@ -152,27 +170,6 @@ def check_lookup_table_vs_python_op(
         batch_size=batch_size,
         N_iterations=3,
     )
-
-
-def test_lookup_table_vs_python_op():
-    layout = types.NHWC
-    for device in {"cpu", "gpu"}:
-        for dtype in {types.FLOAT, types.FLOAT16, types.INT64}:
-            for batch_size, shape, dictionary_type, default_value in [
-                (1, (300, 300, 3), "random", 0.0),
-                (1, (300, 300, 3), "empty", 0.33),
-                (10, (300, 300, 3), "random", 0.9),
-                (3, (300, 300, 3), "small", 0.4),
-            ]:
-                check_lookup_table_vs_python_op(
-                    device,
-                    batch_size,
-                    layout,
-                    shape,
-                    dtype,
-                    dictionary_type,
-                    default_value,
-                )
 
 
 @params("cpu", "gpu")

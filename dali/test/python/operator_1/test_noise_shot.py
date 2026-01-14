@@ -43,11 +43,13 @@ def pipe_shot_noise(factor, device="cpu"):
     return in_data, out_data, factor_arg
 
 
-@params(*[
-    (device, factor, random.choice([1, 3]), 3)
-    for device in ("cpu", "gpu")
-    for factor in [None, 0.2, 4, 21.25, 85]
-])
+@params(
+    *[
+        (device, factor, random.choice([1, 3]), 3)
+        for device in ("cpu", "gpu")
+        for factor in [None, 0.2, 4, 21.25, 85]
+    ]
+)
 def test_operator_noise_shot(device, factor, batch_size, niter):
     pipe = pipe_shot_noise(
         factor, device=device, batch_size=batch_size, num_threads=3, device_id=0, seed=12345

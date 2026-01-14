@@ -221,25 +221,28 @@ def coco_pipe(coco_op, file_root, annotations_file, polygon_masks, pixelwise_mas
 
 
 _coco_reader_alias_file_root = os.path.join(test_data_root, "db", "coco_pixelwise", "images")
-_coco_reader_alias_annotations = os.path.join(test_data_root, "db", "coco_pixelwise", "instances.json")
+_coco_reader_alias_annotations = os.path.join(
+    test_data_root, "db", "coco_pixelwise", "instances.json"
+)
 
 
-def _check_coco_reader_alias(polygon_masks, pixelwise_masks):
+@params((None, None), (True, None), (None, True))
+def test_coco_reader_alias(polygon_masks, pixelwise_masks):
     new_pipe = coco_pipe(
-        fn.readers.coco, _coco_reader_alias_file_root, _coco_reader_alias_annotations, polygon_masks, pixelwise_masks
+        fn.readers.coco,
+        _coco_reader_alias_file_root,
+        _coco_reader_alias_annotations,
+        polygon_masks,
+        pixelwise_masks,
     )
     legacy_pipe = coco_pipe(
-        fn.coco_reader, _coco_reader_alias_file_root, _coco_reader_alias_annotations, polygon_masks, pixelwise_masks
+        fn.coco_reader,
+        _coco_reader_alias_file_root,
+        _coco_reader_alias_annotations,
+        polygon_masks,
+        pixelwise_masks,
     )
     compare_pipelines(new_pipe, legacy_pipe, batch_size_alias_test, 5)
-
-
-_coco_reader_alias_test_cases = [(None, None), (True, None), (None, True)]
-
-
-@params(*_coco_reader_alias_test_cases)
-def test_coco_reader_alias(polygon_masks, pixelwise_masks):
-    _check_coco_reader_alias(polygon_masks, pixelwise_masks)
 
 
 @params(True, False)

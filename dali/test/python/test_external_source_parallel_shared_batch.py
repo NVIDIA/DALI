@@ -267,7 +267,10 @@ def _generate_queue_large_failure_test_cases():
 _queue_large_failure_test_cases = _generate_queue_large_failure_test_cases()
 
 
-@raises(RuntimeError, "Failed to serialize object as C-like structure. Tried to populate following fields:")
+@raises(
+    RuntimeError,
+    "Failed to serialize object as C-like structure. Tried to populate following fields:",
+)
 def _check_queue_large_failure(start_method, msg_values):
     _test_queue_large(start_method, msg_values)
 

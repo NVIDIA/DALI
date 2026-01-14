@@ -114,7 +114,14 @@ def test_move_to_device_middle():
     )
 
 
-def check_bad_device(device_id, error_msg):
+_gpu_op_bad_device_test_cases = [
+    (None, "The pipeline requires a CUDA-capable GPU but *"),
+    (0, "You are trying to create a GPU DALI pipeline while CUDA is not available.*"),
+]
+
+
+@params(*_gpu_op_bad_device_test_cases)
+def test_gpu_op_bad_device(device_id, error_msg):
     test_data_shape = [1, 3, 0, 4]
 
     def get_data():
@@ -127,25 +134,6 @@ def check_bad_device(device_id, error_msg):
     assert_raises(RuntimeError, pipe.build, glob=error_msg)
 
 
-_gpu_op_bad_device_test_cases = [
-    (None, "The pipeline requires a CUDA-capable GPU but *"),
-    (0, "You are trying to create a GPU DALI pipeline while CUDA is not available.*"),
-]
-
-
-@params(*_gpu_op_bad_device_test_cases)
-def test_gpu_op_bad_device(device_id, error_msg):
-    check_bad_device(device_id, error_msg)
-
-
-def check_mixed_op_bad_device(device_id, error_msg):
-    pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=device_id)
-    input, _ = fn.readers.file(file_root=images_dir, shard_id=0, num_shards=1)
-    decoded = fn.decoders.image(input, device="mixed", output_type=types.RGB)
-    pipe.set_outputs(decoded)
-    assert_raises(RuntimeError, pipe.build, glob=error_msg)
-
-
 _mixed_op_bad_device_test_cases = [
     (None, "The pipeline requires a CUDA-capable GPU but *"),
     (0, "You are trying to create a GPU DALI pipeline while CUDA is not available.*"),
@@ -154,7 +142,11 @@ _mixed_op_bad_device_test_cases = [
 
 @params(*_mixed_op_bad_device_test_cases)
 def test_mixed_op_bad_device(device_id, error_msg):
-    check_mixed_op_bad_device(device_id, error_msg)
+    pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=device_id)
+    input, _ = fn.readers.file(file_root=images_dir, shard_id=0, num_shards=1)
+    decoded = fn.decoders.image(input, device="mixed", output_type=types.RGB)
+    pipe.set_outputs(decoded)
+    assert_raises(RuntimeError, pipe.build, glob=error_msg)
 
 
 def check_single_input(

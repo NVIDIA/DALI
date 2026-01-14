@@ -215,7 +215,14 @@ def _test_file_list_starts_videopipeline(start, end):
 
 
 _file_list_starts_ends_videopipeline_test_cases = [
-    (0, None), (1, None), (0, -1), (2, None), (0, -2), (0, 1), (-1, None), (-3, -1)
+    (0, None),
+    (1, None),
+    (0, -1),
+    (2, None),
+    (0, -2),
+    (0, 1),
+    (-1, None),
+    (-3, -1),
 ]
 
 

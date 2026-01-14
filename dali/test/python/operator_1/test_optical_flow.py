@@ -217,11 +217,13 @@ def flow_to_color(flow_uv, clip_flow=None, convert_to_bgr=False):
 interactive = False
 
 
-@params(*[
-    (output_grid, random.choice([None, 1, 2, 4, 8]), use_temporal_hints)
-    for output_grid in [1, 2, 4]
-    for use_temporal_hints in [True, False]
-])
+@params(
+    *[
+        (output_grid, random.choice([None, 1, 2, 4, 8]), use_temporal_hints)
+        for output_grid in [1, 2, 4]
+        for use_temporal_hints in [True, False]
+    ]
+)
 def test_optflow(output_grid, hint_grid, use_temporal_hints):
     if not is_of_supported():
         raise SkipTest("Optical Flow is not supported on this platform")

@@ -40,9 +40,7 @@ def _test_wds_index_file_pipeline(idx_path, device):
 _idx_files = glob.glob(test_data_root + "/*.idx")
 
 _wds_index_file_pipeline_test_cases = [
-    (idx_path, device)
-    for idx_path in _idx_files
-    for device in ["cpu", "gpu"]
+    (idx_path, device) for idx_path in _idx_files for device in ["cpu", "gpu"]
 ]
 
 

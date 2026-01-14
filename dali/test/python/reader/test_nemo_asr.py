@@ -21,7 +21,6 @@ import json
 import tempfile
 import os
 from test_audio_decoder_utils import generate_waveforms
-from nose2.tools import params
 from test_utils import compare_pipelines
 
 

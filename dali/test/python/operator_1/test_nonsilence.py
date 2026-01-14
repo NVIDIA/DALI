@@ -19,6 +19,7 @@ import os
 import nvidia.dali.fn as fn
 from nvidia.dali import pipeline_def
 from test_audio_utils_librosa_ref import nonsilent_region
+from nose2.tools import params
 
 audio_files = test_utils.get_files(os.path.join("db", "audio", "wav"), "wav")
 
@@ -85,9 +86,6 @@ def check_nonsilence_operator(
             np.testing.assert_allclose(len_cpu, len_gpu, atol=10)
 
 
-from nose2.tools import params
-
-
 _nonsilence_operator_test_cases = [
     (3, cc, ws, rp, ri, ws)
     for ws in [512, 1024]
@@ -98,8 +96,12 @@ _nonsilence_operator_test_cases = [
 
 
 @params(*_nonsilence_operator_test_cases)
-def test_nonsilence_operator(batch_size, cutoff_value, window_size, reference_power, reset_interval, eps):
-    check_nonsilence_operator(batch_size, cutoff_value, window_size, reference_power, reset_interval, eps)
+def test_nonsilence_operator(
+    batch_size, cutoff_value, window_size, reference_power, reset_interval, eps
+):
+    check_nonsilence_operator(
+        batch_size, cutoff_value, window_size, reference_power, reset_interval, eps
+    )
 
 
 def test_cpu_vs_gpu():

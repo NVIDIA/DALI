@@ -127,9 +127,7 @@ def check_cmn_no_crop_args_vs_decoder_only(cmn_op, device, batch_size):
 
 
 _cmn_no_crop_args_vs_decoder_only_test_cases = [
-    (cmn_op, device, batch_size)
-    for cmn_op, device in op_dev_pairs
-    for batch_size in [1, 4]
+    (cmn_op, device, batch_size) for cmn_op, device in op_dev_pairs for batch_size in [1, 4]
 ]
 
 
@@ -980,8 +978,7 @@ def check_crop_mirror_normalize_empty_layout(cmn_fn, device, batch_size, input_s
 
 
 _crop_mirror_normalize_empty_layout_test_cases = [
-    (cmn_fn, device, 3, (40, 80, 3))
-    for cmn_fn, device in fn_dev_pairs
+    (cmn_fn, device, 3, (40, 80, 3)) for cmn_fn, device in fn_dev_pairs
 ]
 
 

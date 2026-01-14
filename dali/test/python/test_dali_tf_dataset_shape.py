@@ -113,7 +113,12 @@ def test_batch_1_mixed_tuple_raises_type_error(shape):
     raises(TypeError, expected_msg)(dali_pipe_batch_1)((shape,), tf.uint8)
 
 
-_batch_1_wrong_shapes = [(2, None, None, None), (None, None, 4), (2, None, None, 4), (None, 0, None, 3)]
+_batch_1_wrong_shapes = [
+    (2, None, None, None),
+    (None, None, 4),
+    (2, None, None, 4),
+    (None, 0, None, 3),
+]
 
 
 @params(*_batch_1_wrong_shapes)
@@ -391,14 +396,30 @@ def dali_pipe_deprecated(
 
 def test_deprecated():
     dali_pipe_deprecated({"shapes": 2, "dtypes": tf.uint8}, 2, tf.uint8, dali_types.UINT8, 1, 2)
-    dali_pipe_deprecated({"shapes": [4, 2], "dtypes": tf.uint8}, [4, 2], tf.uint8, dali_types.UINT8, 4, 2)
-    dali_pipe_deprecated({"shapes": [[4, 2]], "dtypes": [tf.uint8]}, [4, 2], tf.uint8, dali_types.UINT8, 4, 2)
-    dali_pipe_deprecated({"output_shapes": 2, "dtypes": tf.uint8}, 2, tf.uint8, dali_types.UINT8, 1, 1)
-    dali_pipe_deprecated({"output_shapes": (4, 2), "dtypes": tf.uint8}, [4, 2], tf.uint8, dali_types.UINT8, 4, 1)
-    dali_pipe_deprecated({"output_shapes": ((4, 2),), "dtypes": [tf.uint8]}, [4, 2], tf.uint8, dali_types.UINT8, 4, 1)
-    dali_pipe_deprecated({"shapes": 2, "output_dtypes": tf.uint8}, 2, tf.uint8, dali_types.UINT8, 1, 1)
-    dali_pipe_deprecated({"shapes": [4, 2], "output_dtypes": tf.uint8}, [4, 2], tf.uint8, dali_types.UINT8, 4, 1)
-    dali_pipe_deprecated({"shapes": [[4, 2]], "output_dtypes": (tf.uint8,)}, [4, 2], tf.uint8, dali_types.UINT8, 4, 1)
+    dali_pipe_deprecated(
+        {"shapes": [4, 2], "dtypes": tf.uint8}, [4, 2], tf.uint8, dali_types.UINT8, 4, 2
+    )
+    dali_pipe_deprecated(
+        {"shapes": [[4, 2]], "dtypes": [tf.uint8]}, [4, 2], tf.uint8, dali_types.UINT8, 4, 2
+    )
+    dali_pipe_deprecated(
+        {"output_shapes": 2, "dtypes": tf.uint8}, 2, tf.uint8, dali_types.UINT8, 1, 1
+    )
+    dali_pipe_deprecated(
+        {"output_shapes": (4, 2), "dtypes": tf.uint8}, [4, 2], tf.uint8, dali_types.UINT8, 4, 1
+    )
+    dali_pipe_deprecated(
+        {"output_shapes": ((4, 2),), "dtypes": [tf.uint8]}, [4, 2], tf.uint8, dali_types.UINT8, 4, 1
+    )
+    dali_pipe_deprecated(
+        {"shapes": 2, "output_dtypes": tf.uint8}, 2, tf.uint8, dali_types.UINT8, 1, 1
+    )
+    dali_pipe_deprecated(
+        {"shapes": [4, 2], "output_dtypes": tf.uint8}, [4, 2], tf.uint8, dali_types.UINT8, 4, 1
+    )
+    dali_pipe_deprecated(
+        {"shapes": [[4, 2]], "output_dtypes": (tf.uint8,)}, [4, 2], tf.uint8, dali_types.UINT8, 4, 1
+    )
 
 
 def test_deprecated_double_def_shapes():
@@ -408,8 +429,7 @@ def test_deprecated_double_def_shapes():
     )
     shapes_error_msg = error_msg.format(*(("shapes",) * 3))
     raises(ValueError, shapes_error_msg)(dali_pipe_deprecated)(
-        {"shapes": 2, "output_shapes": 2, "dtypes": tf.uint8},
-        2, tf.uint8, dali_types.UINT8, 1, 2
+        {"shapes": 2, "output_shapes": 2, "dtypes": tf.uint8}, 2, tf.uint8, dali_types.UINT8, 1, 2
     )
 
 
@@ -421,7 +441,11 @@ def test_deprecated_double_def_dtypes():
     dtypes_error_msg = error_msg.format(*(("dtypes",) * 3))
     raises(ValueError, dtypes_error_msg)(dali_pipe_deprecated)(
         {"shapes": 2, "dtypes": tf.uint8, "output_dtypes": tf.uint8},
-        2, tf.uint8, dali_types.UINT8, 1, 2
+        2,
+        tf.uint8,
+        dali_types.UINT8,
+        1,
+        2,
     )
 
 

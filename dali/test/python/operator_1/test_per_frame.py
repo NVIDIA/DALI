@@ -51,12 +51,24 @@ def test_set_layout(device, num_dim):
     run_pipeline(device, num_dim)
 
 
-@params(*[(device, num_dim, True, "XYZ"[:num_dim]) for device in ["cpu", "gpu"] for num_dim in (1, 2, 3)])
+@params(
+    *[
+        (device, num_dim, True, "XYZ"[:num_dim])
+        for device in ["cpu", "gpu"]
+        for num_dim in (1, 2, 3)
+    ]
+)
 def test_replace_layout(device, num_dim, replace, layout):
     run_pipeline(device, num_dim, replace, layout)
 
 
-@params(*[(device, num_dim, False, "FYZ"[:num_dim]) for device in ["cpu", "gpu"] for num_dim in (1, 2, 3)])
+@params(
+    *[
+        (device, num_dim, False, "FYZ"[:num_dim])
+        for device in ["cpu", "gpu"]
+        for num_dim in (1, 2, 3)
+    ]
+)
 def test_verify_layout(device, num_dim, replace, layout):
     run_pipeline(device, num_dim, replace, layout)
 

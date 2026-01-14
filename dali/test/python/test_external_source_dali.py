@@ -95,10 +95,14 @@ def _test_callback(device, as_tensors, change_layout_to=None):
         check_batch(out[0], ref[0], batch_size, 0, 0)
 
 
-@params(*[(device, as_tensors, change_layout)
-          for device in ["cpu", "gpu"]
-          for as_tensors in [False, True]
-          for change_layout in [None, "AB"]])
+@params(
+    *[
+        (device, as_tensors, change_layout)
+        for device in ["cpu", "gpu"]
+        for as_tensors in [False, True]
+        for change_layout in [None, "AB"]
+    ]
+)
 def test_callback(device, as_tensors, change_layout):
     _test_callback(device, as_tensors, change_layout)
 
@@ -515,7 +519,13 @@ def _test_partially_utilized_external_source_warning(usage_mask, source_type):
 
 def _generate_partially_utilized_external_source_warning_test_cases():
     rng = random.Random(42)
-    source_types = ["sample_cb_source", "batch_cb_source", "gen_fun_source", "generator", "IteratorSource"]
+    source_types = [
+        "sample_cb_source",
+        "batch_cb_source",
+        "gen_fun_source",
+        "generator",
+        "IteratorSource",
+    ]
     source_idx = 0
     cases = []
     for num_outputs in (2, 3, 4):
@@ -527,7 +537,9 @@ def _generate_partially_utilized_external_source_warning_test_cases():
     return cases
 
 
-_partially_utilized_external_source_warning_test_cases = _generate_partially_utilized_external_source_warning_test_cases()
+_partially_utilized_external_source_warning_test_cases = (
+    _generate_partially_utilized_external_source_warning_test_cases()
+)
 
 
 @params(*_partially_utilized_external_source_warning_test_cases)

@@ -54,13 +54,15 @@ def to_batch(tl, batch_size):
 # Simple check if laplacian of a square matrix that has zeros everywhere except
 # the middle cell, gives sum of separable convolution kernels used to compute
 # the partial derivatives, i.e. sum of the products of 1D convolution windows.
-@params(*[
-    (device, num_dims, smoothing, normalize)
-    for device in ["cpu", "gpu"]
-    for num_dims in [1, 2, 3]
-    for normalize in [True, False]
-    for smoothing in [True, False]
-])
+@params(
+    *[
+        (device, num_dims, smoothing, normalize)
+        for device in ["cpu", "gpu"]
+        for num_dims in [1, 2, 3]
+        for normalize in [True, False]
+        for smoothing in [True, False]
+    ]
+)
 def test_kernels(device, num_dims, smoothing, normalize):
     batch_size = (max_window_size + 2 - min_window_size) // 2
 
@@ -511,8 +513,21 @@ _per_sample_laplacian_test_cases = [
 
 
 @params(*_per_sample_laplacian_test_cases)
-def test_per_sample_laplacian(device, batch_size, window_dim, smoothing_dim, normalize, shape, layout, axes, in_type, out_type):
-    check_per_sample_laplacian(device, batch_size, window_dim, smoothing_dim, normalize, shape, layout, axes, in_type, out_type)
+def test_per_sample_laplacian(
+    device, batch_size, window_dim, smoothing_dim, normalize, shape, layout, axes, in_type, out_type
+):
+    check_per_sample_laplacian(
+        device,
+        batch_size,
+        window_dim,
+        smoothing_dim,
+        normalize,
+        shape,
+        layout,
+        axes,
+        in_type,
+        out_type,
+    )
 
 
 @attr("slow")
@@ -739,42 +754,200 @@ def check_tensor_input_fail(
 
 def _generate_fail_laplacian_test_cases():
     args = [
-        ((20, 20, 30, 3), "DHCW", 3, "Only channel-first or channel-last layouts are supported, got: .*\\."),
-        ((5, 20, 30, 3), "HFWC", 2, "For sequences, layout should begin with 'F' or 'C', got: .*\\."),
-        ((5, 10, 10, 10, 7, 3), "FWXYZC", 4, "Too many dimensions, found: \\d+ data axes, maximum supported is: 3\\."),
-        ((5, 3, 20, 3, 30), "FCHCW", 2, "Only channel-first or channel-last layouts are supported, got: .*\\."),
-        ((5, 3, 20, 3, 30), "FCCHW", 2, "Found more the one occurrence of 'F' or 'C' axes in layout: .*\\."),
+        (
+            (20, 20, 30, 3),
+            "DHCW",
+            3,
+            "Only channel-first or channel-last layouts are supported, got: .*\\.",
+        ),
+        (
+            (5, 20, 30, 3),
+            "HFWC",
+            2,
+            "For sequences, layout should begin with 'F' or 'C', got: .*\\.",
+        ),
+        (
+            (5, 10, 10, 10, 7, 3),
+            "FWXYZC",
+            4,
+            "Too many dimensions, found: \\d+ data axes, maximum supported is: 3\\.",
+        ),
+        (
+            (5, 3, 20, 3, 30),
+            "FCHCW",
+            2,
+            "Only channel-first or channel-last layouts are supported, got: .*\\.",
+        ),
+        (
+            (5, 3, 20, 3, 30),
+            "FCCHW",
+            2,
+            "Found more the one occurrence of 'F' or 'C' axes in layout: .*\\.",
+        ),
         ((5, 3), "CF", 2, "No spatial axes found in the layout"),
     ]
     cases = []
     for device in ["cpu", "gpu"]:
         for shape, layout, axes, err_regex in args:
-            cases.append(("build_time", device, 10, shape, layout, axes, 11, 11, 1.0, False, err_regex, None))
-        cases.append(("tensor_input", device, 10, (10, 10, 3), "HWC", None, 11, 11, 1.0, False,
-                      "Output data type must be same as input, FLOAT or skipped", types.UINT16))
-        cases.append(("build_time", device, 10, (10, 10, 3), "HWC", 2, 11, 11, 1.0, True,
-                      "Parameter ``scale`` cannot be specified when ``normalized_kernel`` is set to True", None))
+            cases.append(
+                ("build_time", device, 10, shape, layout, axes, 11, 11, 1.0, False, err_regex, None)
+            )
+        cases.append(
+            (
+                "tensor_input",
+                device,
+                10,
+                (10, 10, 3),
+                "HWC",
+                None,
+                11,
+                11,
+                1.0,
+                False,
+                "Output data type must be same as input, FLOAT or skipped",
+                types.UINT16,
+            )
+        )
+        cases.append(
+            (
+                "build_time",
+                device,
+                10,
+                (10, 10, 3),
+                "HWC",
+                2,
+                11,
+                11,
+                1.0,
+                True,
+                "Parameter ``scale`` cannot be specified when ``normalized_kernel`` is set to True",
+                None,
+            )
+        )
         for window_size in [-3, 10, max_window_size + 1]:
-            cases.append(("build_time", device, 10, (10, 10, 3), "HWC", 2, window_size, 5, 1.0, False,
-                          "Window size must be an odd integer between 3 and \\d", None))
-            cases.append(("tensor_input", device, 10, (10, 10, 3), "HWC", None, window_size, 5, 1.0, False,
-                          "Window size must be an odd integer between 3 and \\d", types.FLOAT))
+            cases.append(
+                (
+                    "build_time",
+                    device,
+                    10,
+                    (10, 10, 3),
+                    "HWC",
+                    2,
+                    window_size,
+                    5,
+                    1.0,
+                    False,
+                    "Window size must be an odd integer between 3 and \\d",
+                    None,
+                )
+            )
+            cases.append(
+                (
+                    "tensor_input",
+                    device,
+                    10,
+                    (10, 10, 3),
+                    "HWC",
+                    None,
+                    window_size,
+                    5,
+                    1.0,
+                    False,
+                    "Window size must be an odd integer between 3 and \\d",
+                    types.FLOAT,
+                )
+            )
         for window_size in [[3, 6], -1, max_window_size + 1]:
-            cases.append(("build_time", device, 10, (10, 10, 3), "HWC", 2, 3, window_size, 1.0, False,
-                          "Smoothing window size must be an odd integer between 1 and \\d", None))
+            cases.append(
+                (
+                    "build_time",
+                    device,
+                    10,
+                    (10, 10, 3),
+                    "HWC",
+                    2,
+                    3,
+                    window_size,
+                    1.0,
+                    False,
+                    "Smoothing window size must be an odd integer between 1 and \\d",
+                    None,
+                )
+            )
         for window_size in [6, -1, max_window_size + 1]:
-            cases.append(("tensor_input", device, 10, (10, 10, 3), "HWC", None, 3, window_size, 1.0, False,
-                          "Smoothing window size must be an odd integer between 1 and \\d", types.FLOAT))
+            cases.append(
+                (
+                    "tensor_input",
+                    device,
+                    10,
+                    (10, 10, 3),
+                    "HWC",
+                    None,
+                    3,
+                    window_size,
+                    1.0,
+                    False,
+                    "Smoothing window size must be an odd integer between 1 and \\d",
+                    types.FLOAT,
+                )
+            )
         for window_size in [[3, 7, 3], [7, 7, 7, 7, 7]]:
             err_msg = f'Argument "window_size" expects either a single value or a list of 2 elements. {len(window_size)} given'
-            cases.append(("build_time", device, 10, (10, 10, 3), "HWC", 2, window_size, 11, 1.0, False, err_msg, None))
+            cases.append(
+                (
+                    "build_time",
+                    device,
+                    10,
+                    (10, 10, 3),
+                    "HWC",
+                    2,
+                    window_size,
+                    11,
+                    1.0,
+                    False,
+                    err_msg,
+                    None,
+                )
+            )
             err_msg = f"Argument window_size for sample 0 is expected to have 1 or 2 elements, got: {len(window_size)}"
-            cases.append(("tensor_input", device, 10, (10, 10, 3), "HWC", None, window_size, 11, 1.0, False, err_msg, types.FLOAT))
+            cases.append(
+                (
+                    "tensor_input",
+                    device,
+                    10,
+                    (10, 10, 3),
+                    "HWC",
+                    None,
+                    window_size,
+                    11,
+                    1.0,
+                    False,
+                    err_msg,
+                    types.FLOAT,
+                )
+            )
         for scale in [[3, 7, 3], [7, 7, 7, 7, 7]]:
             err_msg = f'Argument "scale" expects either a single value or a list of 2 elements. {len(scale)} given.'
-            cases.append(("build_time", device, 10, (10, 10, 3), "HWC", 2, 3, 3, scale, False, err_msg, None))
+            cases.append(
+                ("build_time", device, 10, (10, 10, 3), "HWC", 2, 3, 3, scale, False, err_msg, None)
+            )
             err_msg = f"Argument scale for sample 0 is expected to have 1 or 2 elements, got: {len(scale)}"
-            cases.append(("tensor_input", device, 10, (10, 10, 3), "HWC", None, 5, 5, scale, False, err_msg, types.FLOAT))
+            cases.append(
+                (
+                    "tensor_input",
+                    device,
+                    10,
+                    (10, 10, 3),
+                    "HWC",
+                    None,
+                    5,
+                    5,
+                    scale,
+                    False,
+                    err_msg,
+                    types.FLOAT,
+                )
+            )
     return cases
 
 
@@ -782,11 +955,46 @@ _fail_laplacian_test_cases = _generate_fail_laplacian_test_cases()
 
 
 @params(*_fail_laplacian_test_cases)
-def test_fail_laplacian(test_type, device, batch_size, shape, layout, axes, window_size, smoothing_size, scale, normalize, err_regex, dtype):
+def test_fail_laplacian(
+    test_type,
+    device,
+    batch_size,
+    shape,
+    layout,
+    axes,
+    window_size,
+    smoothing_size,
+    scale,
+    normalize,
+    err_regex,
+    dtype,
+):
     if test_type == "build_time":
-        check_build_time_fail(device, batch_size, shape, layout, axes, window_size, smoothing_size, scale, normalize, err_regex)
+        check_build_time_fail(
+            device,
+            batch_size,
+            shape,
+            layout,
+            axes,
+            window_size,
+            smoothing_size,
+            scale,
+            normalize,
+            err_regex,
+        )
     else:
-        check_tensor_input_fail(device, batch_size, shape, layout, window_size, smoothing_size, scale, normalize, dtype, err_regex)
+        check_tensor_input_fail(
+            device,
+            batch_size,
+            shape,
+            layout,
+            window_size,
+            smoothing_size,
+            scale,
+            normalize,
+            dtype,
+            err_regex,
+        )
 
 
 def test_per_frame():

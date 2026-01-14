@@ -492,8 +492,12 @@ _types_test_cases = [
 
 
 @params(*_types_test_cases)
-def test_types(device, batch_size, dim, axes, axis_names, batch_norm, out_type, in_type, shift, scale):
-    _run_test(device, batch_size, dim, axes, axis_names, batch_norm, out_type, in_type, shift, scale)
+def test_types(
+    device, batch_size, dim, axes, axis_names, batch_norm, out_type, in_type, shift, scale
+):
+    _run_test(
+        device, batch_size, dim, axes, axis_names, batch_norm, out_type, in_type, shift, scale
+    )
 
 
 @params("cpu", "gpu")

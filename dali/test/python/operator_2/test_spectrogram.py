@@ -25,7 +25,7 @@ from test_utils import ConstantDataIterator
 import math
 from test_audio_utils_librosa_ref import stft
 
-from nose2.tools import params
+from nose2.tools import params, cartesian_params
 from nose_utils import assert_raises
 
 
@@ -190,28 +190,31 @@ def check_operator_spectrogram_vs_python(
     )
 
 
-def test_operator_spectrogram_vs_python():
-    for device in ["cpu", "gpu"]:
-        for batch_size in [3]:
-            for center in [False, True]:
-                for nfft, window_length, window_step, shape in [
-                    (256, 256, 128, (1, 4096)),
-                    (256, 256, 128, (4096,)),
-                    (256, 256, 128, (4096, 1)),
-                    (256, 256, 128, (1, 1, 4096, 1)),
-                    (16, 16, 8, (1, 1000)),
-                    (10, 10, 5, (1, 1000)),
-                    (None, 10, 5, (1, 1000)),
-                ]:
-                    check_operator_spectrogram_vs_python(
-                        device,
-                        batch_size,
-                        shape,
-                        nfft,
-                        window_length,
-                        window_step,
-                        center,
-                    )
+@cartesian_params(
+    ["cpu", "gpu"],  # device
+    [3],  # batch_size
+    [False, True],  # center
+    [
+        (256, 256, 128, (1, 4096)),
+        (256, 256, 128, (4096,)),
+        (256, 256, 128, (4096, 1)),
+        (256, 256, 128, (1, 1, 4096, 1)),
+        (16, 16, 8, (1, 1000)),
+        (10, 10, 5, (1, 1000)),
+        (None, 10, 5, (1, 1000)),
+    ],  # (nfft, window_length, window_step, shape)
+)
+def test_operator_spectrogram_vs_python(device, batch_size, center, params_tuple):
+    nfft, window_length, window_step, shape = params_tuple
+    check_operator_spectrogram_vs_python(
+        device,
+        batch_size,
+        shape,
+        nfft,
+        window_length,
+        window_step,
+        center,
+    )
 
 
 def check_operator_spectrogram_vs_python_wave_1d(
@@ -252,29 +255,36 @@ def check_operator_spectrogram_vs_python_wave_1d(
     )
 
 
-def test_operator_spectrogram_vs_python_wave():
-    for device in ["cpu", "gpu"]:
-        for window in [None, hann_win, cos_win]:
-            for batch_size in [3]:
-                for nfft, window_length, window_step, length in [
-                    (256, 256, 128, 4096),
-                    (128, 100, 61, 1000),
-                    (10, 10, 5, 1000),
-                ]:
-                    # Note: center_windows=False and nfft > window_length doesn't work like librosa.
-                    # Librosa seems to disregard window_length
-                    # and extract windows of nfft size regardless
-                    for center in [False, True] if nfft == window_length else [True]:
-                        check_operator_spectrogram_vs_python_wave_1d(
-                            device,
-                            batch_size,
-                            length,
-                            nfft,
-                            window_length,
-                            window_step,
-                            window,
-                            center,
-                        )
+@cartesian_params(
+    ["cpu", "gpu"],  # device
+    [None, hann_win, cos_win],  # window
+    [3],  # batch_size
+    [
+        (256, 256, 128, 4096),
+        (128, 100, 61, 1000),
+        (10, 10, 5, 1000),
+    ],  # nfft, window_length, window_step, length
+    [False, True],  # center (will be filtered below)
+)
+def test_operator_spectrogram_vs_python_wave(
+    device, window, batch_size, nfft_wlen_step_len, center
+):
+    nfft, window_length, window_step, length = nfft_wlen_step_len
+    # Note: center_windows=False and nfft > window_length doesn't work like librosa.
+    # Librosa seems to disregard window_length and extract windows of nfft size regardless
+    if nfft != window_length and not center:
+        # skip invalid configuration
+        return
+    check_operator_spectrogram_vs_python_wave_1d(
+        device,
+        batch_size,
+        length,
+        nfft,
+        window_length,
+        window_step,
+        window,
+        center,
+    )
 
 
 class AudioSpectrogramPipeline(Pipeline):
@@ -373,57 +383,44 @@ def check_operator_decoder_and_spectrogram_vs_python(
     )
 
 
-def test_operator_decoder_and_spectrogram():
-    for device in ["cpu", "gpu"]:
-        for layout in ["tf", "ft"]:
-            for batch_size in [3]:
-                for nfft, window_length, window_step in [
-                    (256, 256, 128),
-                    (256, 256, 128),
-                    (256, 256, 128),
-                    (
-                        256,
-                        256,
-                        128,
-                    ),
-                    (
-                        256,
-                        256,
-                        128,
-                    ),
-                    (
-                        16,
-                        16,
-                        8,
-                    ),
-                    (
-                        10,
-                        10,
-                        5,
-                    ),
-                ]:
-                    # Note: center_windows=False and nfft > window_length doesn't work like librosa.
-                    # Librosa seems to disregards window_length
-                    # and extract windows of nfft size regardless
-                    for center in [False, True] if nfft == window_length else [True]:
-                        check_operator_decoder_and_spectrogram_vs_python(
-                            device,
-                            batch_size,
-                            nfft,
-                            window_length,
-                            window_step,
-                            center,
-                            layout,
-                        )
-
-
 @params(
     *[
-        (device, inp, center)
+        (device, layout, batch_size, nfft, window_length, window_step, center)
         for device in ["cpu", "gpu"]
-        for inp in ["arange", "zero_vol", "empty_batch"]
-        for center in [False, True]
-    ],
+        for layout in ["tf", "ft"]
+        for batch_size in [3]
+        for nfft, window_length, window_step in [
+            (256, 256, 128),
+            (256, 256, 128),
+            (256, 256, 128),
+            (256, 256, 128),
+            (256, 256, 128),
+            (16, 16, 8),
+            (10, 10, 5),
+        ]
+        # Note: center_windows=False and nfft > window_length doesn't work like librosa.
+        # Librosa seems to disregard window_length and extract windows of nfft size regardless
+        for center in ([False, True] if nfft == window_length else [True])
+    ]
+)
+def test_operator_decoder_and_spectrogram(
+    device, layout, batch_size, nfft, window_length, window_step, center
+):
+    check_operator_decoder_and_spectrogram_vs_python(
+        device,
+        batch_size,
+        nfft,
+        window_length,
+        window_step,
+        center,
+        layout,
+    )
+
+
+@cartesian_params(
+    ["cpu", "gpu"],  # device
+    ["arange", "zero_vol", "empty_batch"],  # inp
+    [False, True],  # center
 )
 def test_no_windows(device, inp, center):
     def sample(sample_info):

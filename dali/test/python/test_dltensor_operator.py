@@ -189,6 +189,7 @@ _pytorch_test_params = [
     for device in ["cpu", "gpu"]
 ]
 
+
 @attr("pytorch")
 @params(*_pytorch_test_params)
 def test_pytorch(testcase, device):
@@ -526,8 +527,6 @@ def _gpu_sliced_torch_case(case_name, dtype, g):
     numpy.testing.assert_equal(out, ref)
 
 
-
-
 def get_permute_extents_case(case_name):
     rng = random.Random(44)
 
@@ -666,8 +665,6 @@ def _gpu_permuted_extents_torch_case(case_name, dtype, g):
     numpy.testing.assert_equal(out, ref)
 
 
-
-
 def _cupy_negative_strides_case(dtype, batch_size, steps):
     @pipeline_def(batch_size=batch_size, num_threads=4, device_id=0, seed=42)
     def baseline_pipeline():
@@ -707,8 +704,6 @@ def _cupy_negative_strides_case(dtype, batch_size, steps):
         assert len(batch) == len(baseline_batch) == batch_size
         for sample, baseline_sample in zip(batch, baseline_batch):
             numpy.testing.assert_equal(sample, baseline_sample)
-
-
 
 
 def verify_pipeline(pipeline, input):

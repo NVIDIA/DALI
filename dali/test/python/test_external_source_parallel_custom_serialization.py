@@ -20,7 +20,7 @@ import os
 from nvidia.dali import pipeline_def
 from pickle import PicklingError
 
-from nose2.tools import params
+from nose2.tools import params, cartesian_params
 from nose_utils import raises
 from test_utils import get_dali_extra_path, restrict_python_version
 
@@ -585,12 +585,17 @@ def _check_numpy_closure(shape, py_callback_pickler):
     _build_and_compare_pipelines_epochs(epochs_num, batch_size, parallel_pipeline, serial_pipeline)
 
 
+def _test_numpy_closure_impl(name, py_callback_pickler, shape):
+    _check_numpy_closure(shape, py_callback_pickler)
+
+
 @register_case(tests_dali_pickling)
 @register_case(tests_dill_pickling)
 @register_case(tests_cloudpickle_pickling)
 def _test_numpy_closure(name, py_callback_pickler):
+    # Call for each shape
     for shape in [tuple(), (5, 5, 5)]:
-        _check_numpy_closure(shape, py_callback_pickler)
+        _test_numpy_closure_impl(name, py_callback_pickler, shape)
 
 
 @register_case(tests_dali_pickling)
@@ -635,33 +640,41 @@ def _test_generator_closure(name, py_callback_pickler):
 
 
 def _generate_dali_pickling_params():
-    return [(i, test, "{}. {}".format(i, test.__name__.strip("_")), None)
-            for i, test in enumerate(tests_dali_pickling, start=1)]
+    return [
+        (i, test, "{}. {}".format(i, test.__name__.strip("_")), None)
+        for i, test in enumerate(tests_dali_pickling, start=1)
+    ]
 
 
 def _generate_cloudpickle_pickling_params():
     import cloudpickle
-    return [(i, test, "{}. {}".format(i, test.__name__.strip("_")), cloudpickle)
-            for i, test in enumerate(tests_cloudpickle_pickling, start=1)]
+
+    return [
+        (i, test, "{}. {}".format(i, test.__name__.strip("_")), cloudpickle)
+        for i, test in enumerate(tests_cloudpickle_pickling, start=1)
+    ]
 
 
 def _generate_dill_pickling_params():
     import dill
-    return [(i, test, "{}. {}".format(i, test.__name__.strip("_")), (dill, {"recurse": True}))
-            for i, test in enumerate(tests_dill_pickling, start=1)]
+
+    return [
+        (i, test, "{}. {}".format(i, test.__name__.strip("_")), (dill, {"recurse": True}))
+        for i, test in enumerate(tests_dill_pickling, start=1)
+    ]
 
 
 @restrict_python_version(3, 8)
-def test_dali_pickling():
-    for i, test, name, py_callback_pickler in _generate_dali_pickling_params():
-        test(name, py_callback_pickler)
+@params(*_generate_dali_pickling_params())
+def test_dali_pickling(i, test, name, py_callback_pickler):
+    test(name, py_callback_pickler)
 
 
-def test_cloudpickle_pickling():
-    for i, test, name, py_callback_pickler in _generate_cloudpickle_pickling_params():
-        test(name, py_callback_pickler)
+@params(*_generate_cloudpickle_pickling_params())
+def test_cloudpickle_pickling(i, test, name, py_callback_pickler):
+    test(name, py_callback_pickler)
 
 
-def test_dill_pickling():
-    for i, test, name, py_callback_pickler in _generate_dill_pickling_params():
-        test(name, py_callback_pickler)
+@params(*_generate_dill_pickling_params())
+def test_dill_pickling(i, test, name, py_callback_pickler):
+    test(name, py_callback_pickler)

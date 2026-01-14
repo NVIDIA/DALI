@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import functools
-import itertools
 import os
 import random
 from tempfile import TemporaryFile
@@ -20,7 +19,7 @@ from tempfile import TemporaryFile
 import numpy as np
 from nvidia.dali import fn, ops, pipeline_def, types
 from nvidia.dali.pipeline import Pipeline
-from nose2.tools import params
+from nose2.tools import params, cartesian_params
 
 bbox_2d_ltrb_1 = [0.0123, 0.0123, 0.2123, 0.2123]
 bbox_2d_ltrb_2 = [0.1123, 0.1123, 0.19123, 0.19123]
@@ -351,28 +350,50 @@ def check_random_bbox_crop_variable_shape(
             )
 
 
-def test_random_bbox_crop_variable_shape():
+@cartesian_params(
+    [3],  # batch_size
+    [[0.3, 0.5], [0.1, 0.3], [0.9, 0.99]],  # scaling
+    [None, 0.0, 0.1, 0.3, 0.5],  # prune_thresh
+    [[0.01, 100], [0.5, 2.0], [1.0, 1.0]],  # aspect_ratio (2D)
+)
+def test_random_bbox_crop_variable_shape_2d(batch_size, scaling, prune_thresh, aspect_ratio):
     random.seed(1234)
-    aspect_ratio_ranges = {
-        2: [[0.01, 100], [0.5, 2.0], [1.0, 1.0]],
-        3: [[0.5, 2.0, 0.6, 2.1, 0.4, 1.9], [1.0, 1.0], [0.5, 0.5, 0.25, 0.25, 0.5, 0.5]],
-    }
-    scalings = [[0.3, 0.5], [0.1, 0.3], [0.9, 0.99]]
-    for batch_size, ndim, scaling, prune_thresh in itertools.product(
-        [3], [2, 3], scalings, [None, 0.0, 0.1, 0.3, 0.5]
-    ):
-        for aspect_ratio in aspect_ratio_ranges[ndim]:
-            use_labels = random.choice([True, False])
-            out_bbox_indices = random.choice([True, False])
-            check_random_bbox_crop_variable_shape(
-                batch_size,
-                ndim,
-                scaling,
-                aspect_ratio,
-                use_labels,
-                out_bbox_indices,
-                prune_thresh,
-            )
+    use_labels = random.choice([True, False])
+    out_bbox_indices = random.choice([True, False])
+    check_random_bbox_crop_variable_shape(
+        batch_size,
+        2,  # ndim
+        scaling,
+        aspect_ratio,
+        use_labels,
+        out_bbox_indices,
+        prune_thresh,
+    )
+
+
+@cartesian_params(
+    [3],  # batch_size
+    [[0.3, 0.5], [0.1, 0.3], [0.9, 0.99]],  # scaling
+    [None, 0.0, 0.1, 0.3, 0.5],  # prune_thresh
+    [
+        [0.5, 2.0, 0.6, 2.1, 0.4, 1.9],
+        [1.0, 1.0],
+        [0.5, 0.5, 0.25, 0.25, 0.5, 0.5],
+    ],  # aspect_ratio (3D)
+)
+def test_random_bbox_crop_variable_shape_3d(batch_size, scaling, prune_thresh, aspect_ratio):
+    random.seed(1234)
+    use_labels = random.choice([True, False])
+    out_bbox_indices = random.choice([True, False])
+    check_random_bbox_crop_variable_shape(
+        batch_size,
+        3,  # ndim
+        scaling,
+        aspect_ratio,
+        use_labels,
+        out_bbox_indices,
+        prune_thresh,
+    )
 
 
 def check_random_bbox_crop_fixed_shape(
@@ -414,27 +435,44 @@ def check_random_bbox_crop_fixed_shape(
             )
 
 
-def test_random_bbox_crop_fixed_shape():
-    input_shapes = {2: [[400, 300]], 3: [[400, 300, 64]]}
+@cartesian_params(
+    [3],  # batch_size
+    [None, 0.0, 0.1, 0.3, 0.5],  # prune_thresh
+    [[400, 300]],  # input_shape (2D)
+    [[100, 50], [400, 300], [600, 400]],  # crop_shape (2D)
+    [True, False],  # use_labels
+)
+def test_random_bbox_crop_fixed_shape_2d(
+    batch_size, prune_thresh, input_shape, crop_shape, use_labels
+):
+    check_random_bbox_crop_fixed_shape(
+        batch_size,
+        2,  # ndim
+        crop_shape,
+        input_shape,
+        use_labels,
+        prune_thresh,
+    )
 
-    crop_shapes = {
-        2: [[100, 50], [400, 300], [600, 400]],
-        3: [[100, 50, 32], [400, 300, 64], [600, 400, 48]],
-    }
-    for batch_size, ndim, prune_thresh in itertools.product(
-        [3], [2, 3], [None, 0.0, 0.1, 0.3, 0.5]
-    ):
-        for input_shape, crop_shape, use_labels in itertools.product(
-            input_shapes[ndim], crop_shapes[ndim], [True, False]
-        ):
-            check_random_bbox_crop_fixed_shape(
-                batch_size,
-                ndim,
-                crop_shape,
-                input_shape,
-                use_labels,
-                prune_thresh,
-            )
+
+@cartesian_params(
+    [3],  # batch_size
+    [None, 0.0, 0.1, 0.3, 0.5],  # prune_thresh
+    [[400, 300, 64]],  # input_shape (3D)
+    [[100, 50, 32], [400, 300, 64], [600, 400, 48]],  # crop_shape (3D)
+    [True, False],  # use_labels
+)
+def test_random_bbox_crop_fixed_shape_3d(
+    batch_size, prune_thresh, input_shape, crop_shape, use_labels
+):
+    check_random_bbox_crop_fixed_shape(
+        batch_size,
+        3,  # ndim
+        crop_shape,
+        input_shape,
+        use_labels,
+        prune_thresh,
+    )
 
 
 def check_random_bbox_crop_overlap(batch_size, ndim, crop_shape, input_shape, use_labels):
@@ -481,20 +519,36 @@ def check_random_bbox_crop_overlap(batch_size, ndim, crop_shape, input_shape, us
             assert at_least_one_box_in
 
 
-def test_random_bbox_crop_overlap():
-    input_shapes = {2: [[400, 300]], 3: [[400, 300, 64]]}
-    crop_shapes = {2: [[150, 150], [400, 300]], 3: [[50, 50, 32], [400, 300, 64]]}
-    for batch_size, ndim in itertools.product([3], [2, 3]):
-        for input_shape, crop_shape, use_labels in itertools.product(
-            input_shapes[ndim], crop_shapes[ndim], [True, False]
-        ):
-            check_random_bbox_crop_overlap(
-                batch_size,
-                ndim,
-                crop_shape,
-                input_shape,
-                use_labels,
-            )
+@cartesian_params(
+    [3],  # batch_size
+    [[400, 300]],  # input_shape (2D)
+    [[150, 150], [400, 300]],  # crop_shape (2D)
+    [True, False],  # use_labels
+)
+def test_random_bbox_crop_overlap_2d(batch_size, input_shape, crop_shape, use_labels):
+    check_random_bbox_crop_overlap(
+        batch_size,
+        2,  # ndim
+        crop_shape,
+        input_shape,
+        use_labels,
+    )
+
+
+@cartesian_params(
+    [3],  # batch_size
+    [[400, 300, 64]],  # input_shape (3D)
+    [[50, 50, 32], [400, 300, 64]],  # crop_shape (3D)
+    [True, False],  # use_labels
+)
+def test_random_bbox_crop_overlap_3d(batch_size, input_shape, crop_shape, use_labels):
+    check_random_bbox_crop_overlap(
+        batch_size,
+        3,  # ndim
+        crop_shape,
+        input_shape,
+        use_labels,
+    )
 
 
 def test_random_bbox_crop_no_labels():

@@ -36,11 +36,13 @@ test_types = [
 ]
 
 
-@params(*[
-    (os.path.join(test_data_root, path, img_type), out_type)
-    for img_type in file_types
-    for out_type in test_types
-])
+@params(
+    *[
+        (os.path.join(test_data_root, path, img_type), out_type)
+        for img_type in file_types
+        for out_type in test_types
+    ]
+)
 def test_operator_peek_image_shape(data_path, out_type):
     batch_size = 4
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=0)

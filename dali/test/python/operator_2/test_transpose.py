@@ -18,7 +18,7 @@ from nvidia.dali import fn, pipeline_def
 import math
 from test_utils import compare_pipelines, as_array, RandomDataIterator, RandomlyShapedDataIterator
 import itertools
-from nose2.tools import params
+from nose2.tools import params, cartesian_params
 import numpy as np
 
 
@@ -164,13 +164,18 @@ _transpose_layout_test_cases = [
 
 
 @params(*_transpose_layout_test_cases)
-def test_transpose_layout(device, batch_size, shape, in_layout, permutation,
-                          transpose_layout, out_layout_arg):
-    check_transpose_layout(device, batch_size, shape, in_layout, permutation,
-                           transpose_layout, out_layout_arg)
+def test_transpose_layout(
+    device, batch_size, shape, in_layout, permutation, transpose_layout, out_layout_arg
+):
+    check_transpose_layout(
+        device, batch_size, shape, in_layout, permutation, transpose_layout, out_layout_arg
+    )
 
 
-@params(*itertools.product(("cpu", "gpu"), ((10, 20, 3), (10, 20), (1,), (), (3, 3, 2, 2, 3))))
+@cartesian_params(
+    ["cpu", "gpu"],  # device
+    [(10, 20, 3), (10, 20), (1,), (), (3, 3, 2, 2, 3)],  # shape
+)
 def test_transpose_default(device, shape):
     @pipeline_def(batch_size=1, num_threads=3, device_id=0)
     def pipe():

@@ -334,8 +334,12 @@ _one_sized_extent_test_cases = _generate_one_sized_extent_test_cases()
 
 
 @params(*_one_sized_extent_test_cases)
-def test_one_sized_extent(batch_size, sigma, window_size, shape, layout, axes, dev, in_dtype, out_dtype, random_shape):
-    check_generic_gaussian_blur(batch_size, sigma, window_size, shape, layout, axes, dev, in_dtype, out_dtype, random_shape)
+def test_one_sized_extent(
+    batch_size, sigma, window_size, shape, layout, axes, dev, in_dtype, out_dtype, random_shape
+):
+    check_generic_gaussian_blur(
+        batch_size, sigma, window_size, shape, layout, axes, dev, in_dtype, out_dtype, random_shape
+    )
 
 
 @attr("slow")
@@ -471,17 +475,67 @@ def _generate_fail_gaussian_blur_test_cases():
         for shape, layout, axes, err_regex in args:
             cases.append((10, 1.0, 11, shape, layout, axes, dev, err_regex))
         # Negative, disallowed or both unspecified values of sigma and window size
-        cases.append((10, 0.0, 0, (100, 20, 3), "HWC", 3, dev,
-                      r"`sigma` and `window_size` shouldn't be 0 at the same time for sample: \d+, axis: \d+\."))
-        cases.append((10, -1.0, 0, (100, 20, 3), "HWC", 3, dev,
-                      r"`sigma` must have non-negative values, got .\d* for sample: \d*, axis: \d*\."))
-        cases.append((10, 0.0, -11, (100, 20, 3), "HWC", 3, dev,
-                      r"`window_size` must have non-negative values, got .\d* for sample: \d*, axis : \d*\."))
+        cases.append(
+            (
+                10,
+                0.0,
+                0,
+                (100, 20, 3),
+                "HWC",
+                3,
+                dev,
+                r"`sigma` and `window_size` shouldn't be 0 at the same time for sample: \d+, axis: \d+\.",
+            )
+        )
+        cases.append(
+            (
+                10,
+                -1.0,
+                0,
+                (100, 20, 3),
+                "HWC",
+                3,
+                dev,
+                r"`sigma` must have non-negative values, got .\d* for sample: \d*, axis: \d*\.",
+            )
+        )
+        cases.append(
+            (
+                10,
+                0.0,
+                -11,
+                (100, 20, 3),
+                "HWC",
+                3,
+                dev,
+                r"`window_size` must have non-negative values, got .\d* for sample: \d*, axis : \d*\.",
+            )
+        )
 
-    cases.append((10, 0.0, 2, (100, 20, 3), "HWC", 3, "cpu",
-                  r"Kernel window should have odd length, got: \d*\."))
-    cases.append((10, 0.0, 2, (100, 20, 3), "HWC", 3, "gpu",
-                  r"Even or non-centered windows are not supported yet, got window with even length: [\s\S]* for sample \d*\."))
+    cases.append(
+        (
+            10,
+            0.0,
+            2,
+            (100, 20, 3),
+            "HWC",
+            3,
+            "cpu",
+            r"Kernel window should have odd length, got: \d*\.",
+        )
+    )
+    cases.append(
+        (
+            10,
+            0.0,
+            2,
+            (100, 20, 3),
+            "HWC",
+            3,
+            "gpu",
+            r"Even or non-centered windows are not supported yet, got window with even length: [\s\S]* for sample \d*\.",
+        )
+    )
     return cases
 
 

@@ -233,54 +233,63 @@ def check_operator_erase_vs_python(
     )
 
 
-def test_operator_erase_vs_python():
-    # layout, shape, axis_names, axes, anchor, shape, fill_value
-    rois = [
-        ("HWC", (60, 80, 3), "HW", None, (4, 10), (40, 50), 0),
-        ("HWC", (60, 80, 3), "HW", None, (4, 10), (40, 50), None),
-        ("HWC", (60, 80, 3), "HW", None, (4, 2, 3, 4), (50, 10, 10, 50), -1),
-        ("HWC", (60, 80, 3), "HW", None, (4, 2, 3, 4), (50, 10, 10, 50), (118, 185, 0)),
-        ("HWC", (60, 80, 3), "HW", None, (4, 2, 3, 4), (50, 10, 10, 50), "random"),
-        ("HWC", (60, 80, 3), "H", None, (4,), (7,), 0),
-        ("HWC", (60, 80, 3), "H", None, (4, 15), (7, 8), 0),
-        ("HWC", (60, 80, 3), "W", None, (4,), (7,), 0),
-        ("HWC", (60, 80, 3), "W", None, (4, 15), (7, 8), 0),
-        ("HWC", (60, 80, 3), "W", None, (4, 15), (7, 8), "random"),
-        ("HWC", (60, 80, 3), None, (0, 1), (4, 10), (40, 50), 0),
-        ("HWC", (60, 80, 3), None, (0, 1), (4, 2, 3, 4), (50, 10, 10, 50), 0),
-        ("HWC", (60, 80, 3), None, (0,), (4,), (7,), 0),
-        ("HWC", (60, 80, 3), None, (0,), (4, 15), (7, 8), 0),
-        ("HWC", (60, 80, 3), None, (1,), (4,), (7,), 0),
-        ("HWC", (60, 80, 3), None, (1,), (4, 15), (7, 8), 0),
-        ("HWC", (60, 80, 3), None, (1,), (4, 15), (7, 8), "random"),
-        ("DHWC", (10, 60, 80, 3), "DHW", None, (2, 4, 15), (3, 7, 8), 0),
-        ("HWC", (60, 80, 1), "HW", None, (4, 15), (7, 8), 0),
-        ("XYZ", (60, 80, 3), "XY", None, (4, 10), (40, 50), -1),
+# Define all combinations as param sets
+_rois = [
+    # (input_layout, input_shape, axis_names, axes, anchor, shape, fill_value)
+    ("HWC", (60, 80, 3), "HW", None, (4, 10), (40, 50), 0),
+    ("HWC", (60, 80, 3), "HW", None, (4, 10), (40, 50), None),
+    ("HWC", (60, 80, 3), "HW", None, (4, 2, 3, 4), (50, 10, 10, 50), -1),
+    ("HWC", (60, 80, 3), "HW", None, (4, 2, 3, 4), (50, 10, 10, 50), (118, 185, 0)),
+    ("HWC", (60, 80, 3), "HW", None, (4, 2, 3, 4), (50, 10, 10, 50), "random"),
+    ("HWC", (60, 80, 3), "H", None, (4,), (7,), 0),
+    ("HWC", (60, 80, 3), "H", None, (4, 15), (7, 8), 0),
+    ("HWC", (60, 80, 3), "W", None, (4,), (7,), 0),
+    ("HWC", (60, 80, 3), "W", None, (4, 15), (7, 8), 0),
+    ("HWC", (60, 80, 3), "W", None, (4, 15), (7, 8), "random"),
+    ("HWC", (60, 80, 3), None, (0, 1), (4, 10), (40, 50), 0),
+    ("HWC", (60, 80, 3), None, (0, 1), (4, 2, 3, 4), (50, 10, 10, 50), 0),
+    ("HWC", (60, 80, 3), None, (0,), (4,), (7,), 0),
+    ("HWC", (60, 80, 3), None, (0,), (4, 15), (7, 8), 0),
+    ("HWC", (60, 80, 3), None, (1,), (4,), (7,), 0),
+    ("HWC", (60, 80, 3), None, (1,), (4, 15), (7, 8), 0),
+    ("HWC", (60, 80, 3), None, (1,), (4, 15), (7, 8), "random"),
+    ("DHWC", (10, 60, 80, 3), "DHW", None, (2, 4, 15), (3, 7, 8), 0),
+    ("HWC", (60, 80, 1), "HW", None, (4, 15), (7, 8), 0),
+    ("XYZ", (60, 80, 3), "XY", None, (4, 10), (40, 50), -1),
+]
+
+
+@params(
+    *[
+        (device, batch_size, input_layout, input_shape, axis_names, axes, anchor, shape, fill_value)
+        for device in ["cpu"]
+        for batch_size in [1, 8]
+        for (input_layout, input_shape, axis_names, axes, anchor, shape, fill_value) in _rois
     ]
+)
+def test_operator_erase_vs_python(
+    device, batch_size, input_layout, input_shape, axis_names, axes, anchor, shape, fill_value
+):
+    assert len(input_layout) == len(input_shape)
+    assert len(anchor) == len(shape)
+    if axis_names:
+        assert axes is None
+        assert len(anchor) % len(axis_names) == 0
+    else:
+        assert len(axes) > 0
+        assert len(anchor) % len(axes) == 0
 
-    for device in ["cpu"]:
-        for batch_size in [1, 8]:
-            for input_layout, input_shape, axis_names, axes, anchor, shape, fill_value in rois:
-                assert len(input_layout) == len(input_shape)
-                assert len(anchor) == len(shape)
-                if axis_names:
-                    assert axes is None
-                    assert len(anchor) % len(axis_names) == 0
-                else:
-                    assert len(axes) > 0
-                    assert len(anchor) % len(axes) == 0
-
-                check_operator_erase_vs_python(
-                    device,
-                    batch_size,
-                    input_shape,
-                    anchor,
-                    shape,
-                    axis_names,
-                    axes,
-                    input_layout,
-                    fill_value,
-                )
+    check_operator_erase_vs_python(
+        device,
+        batch_size,
+        input_shape,
+        anchor,
+        shape,
+        axis_names,
+        axes,
+        input_layout,
+        fill_value,
+    )
 
 
 def check_operator_erase_with_normalized_coords(
@@ -329,74 +338,137 @@ def check_operator_erase_with_normalized_coords(
     )
 
 
-def test_operator_erase_with_normalized_coords():
-    # layout, shape, axis_names, anchor, shape, anchor_norm, shape_norm
-    rois = [
-        (
-            "HWC",
-            (60, 80, 3),
-            "HW",
-            (4, 10),
-            (40, 50),
-            (4 / 60.0, 10 / 80.0),
-            (40 / 60.0, 50 / 80.0),
-            0,
-        ),
-        (
-            "HWC",
-            (60, 80, 3),
-            "HW",
-            (4, 10),
-            (40, 50),
-            (4 / 60.0, 10 / 80.0),
-            (40 / 60.0, 50 / 80.0),
-            -1,
-        ),
-        (
-            "HWC",
-            (60, 80, 3),
-            "HW",
-            (4, 10),
-            (40, 50),
-            (4 / 60.0, 10 / 80.0),
-            (40 / 60.0, 50 / 80.0),
-            (118, 186, 0),
-        ),
-        (
-            "HWC",
-            (60, 80, 3),
-            "HW",
-            (4, 2, 3, 4),
-            (50, 10, 10, 50),
-            (4 / 60.0, 2 / 80.0, 3 / 60.0, 4 / 80.0),
-            (50 / 60.0, 10 / 80.0, 10 / 60.0, 50 / 80.0),
-            0,
-        ),
-        ("HWC", (60, 80, 3), "H", (4,), (7,), (4 / 60.0,), (7 / 60.0,), 0),
-        (
-            "DHWC",
-            (10, 60, 80, 3),
-            "DHW",
-            (2, 4, 10),
-            (5, 40, 50),
-            (2 / 10.0, 4 / 60.0, 10 / 80.0),
-            (5 / 10.0, 40 / 60.0, 50 / 80.0),
-            0,
-        ),
-        (
-            "HWC",
-            (60, 80, 1),
-            "WH",
-            (10, 4),
-            (50, 40),
-            (10 / 80.0, 4 / 60.0),
-            (50 / 80.0, 40 / 60.0),
-            0,
-        ),
-        ("XYZ", (60, 80, 3), "X", (4,), (7,), (4 / 60.0,), (7 / 60.0,), -10),
-    ]
+# layout, shape, axis_names, anchor, shape, anchor_norm, shape_norm, fill_value
+_rois = [
+    (
+        "HWC",
+        (60, 80, 3),
+        "HW",
+        (4, 10),
+        (40, 50),
+        (4 / 60.0, 10 / 80.0),
+        (40 / 60.0, 50 / 80.0),
+        0,
+    ),
+    (
+        "HWC",
+        (60, 80, 3),
+        "HW",
+        (4, 10),
+        (40, 50),
+        (4 / 60.0, 10 / 80.0),
+        (40 / 60.0, 50 / 80.0),
+        -1,
+    ),
+    (
+        "HWC",
+        (60, 80, 3),
+        "HW",
+        (4, 10),
+        (40, 50),
+        (4 / 60.0, 10 / 80.0),
+        (40 / 60.0, 50 / 80.0),
+        (118, 186, 0),
+    ),
+    (
+        "HWC",
+        (60, 80, 3),
+        "HW",
+        (4, 2, 3, 4),
+        (50, 10, 10, 50),
+        (4 / 60.0, 2 / 80.0, 3 / 60.0, 4 / 80.0),
+        (50 / 60.0, 10 / 80.0, 10 / 60.0, 50 / 80.0),
+        0,
+    ),
+    ("HWC", (60, 80, 3), "H", (4,), (7,), (4 / 60.0,), (7 / 60.0,), 0),
+    (
+        "DHWC",
+        (10, 60, 80, 3),
+        "DHW",
+        (2, 4, 10),
+        (5, 40, 50),
+        (2 / 10.0, 4 / 60.0, 10 / 80.0),
+        (5 / 10.0, 40 / 60.0, 50 / 80.0),
+        0,
+    ),
+    (
+        "HWC",
+        (60, 80, 1),
+        "WH",
+        (10, 4),
+        (50, 40),
+        (10 / 80.0, 4 / 60.0),
+        (50 / 80.0, 40 / 60.0),
+        0,
+    ),
+    ("XYZ", (60, 80, 3), "X", (4,), (7,), (4 / 60.0,), (7 / 60.0,), -10),
+]
 
-    for device in ["cpu", "gpu"]:
+
+# Prepare all combinations using params for device, batch_size, and each ROI
+@params(
+    *[
+        (
+            device,
+            batch_size,
+            input_layout,
+            input_shape,
+            axis_names,
+            anchor,
+            shape,
+            anchor_norm,
+            shape_norm,
+            fill_value,
+        )
+        for device in ["cpu", "gpu"]
+        for batch_size in [1, 8]
+        for (
+            input_layout,
+            input_shape,
+            axis_names,
+            anchor,
+            shape,
+            anchor_norm,
+            shape_norm,
+            fill_value,
+        ) in _rois
+    ]
+)
+def test_operator_erase_with_normalized_coords(
+    device,
+    batch_size,
+    input_layout,
+    input_shape,
+    axis_names,
+    anchor,
+    shape,
+    anchor_norm,
+    shape_norm,
+    fill_value,
+):
+    assert len(input_layout) == len(input_shape)
+    assert len(anchor) == len(shape)
+    assert len(anchor) % len(axis_names) == 0
+    for normalized_anchor, normalized_shape in [
+        (True, True),
+        (True, False),
+        (False, True),
+    ]:
+        anchor_norm_arg = anchor_norm if normalized_anchor else anchor
+        shape_norm_arg = shape_norm if normalized_shape else shape
+        check_operator_erase_with_normalized_coords(
+            device,
+            batch_size,
+            input_shape,
+            anchor,
+            shape,
+            axis_names,
+            input_layout,
+            anchor_norm_arg,
+            shape_norm_arg,
+            normalized_anchor,
+            normalized_shape,
+        )
         for batch_size in [1, 8]:
             for (
                 input_layout,

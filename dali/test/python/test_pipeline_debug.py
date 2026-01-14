@@ -168,12 +168,12 @@ def test_injection_numpy():
 def test_injection_torch():
     import torch
 
-    _test_injection("cpu", "torch cpu tensor", lambda xs: [
-        torch.tensor(np.array(x), device="cpu") for x in xs
-    ])
-    _test_injection("gpu", "torch gpu tensor", lambda xs: [
-        torch.tensor(np.array(x), device="cuda") for x in xs
-    ])
+    _test_injection(
+        "cpu", "torch cpu tensor", lambda xs: [torch.tensor(np.array(x), device="cpu") for x in xs]
+    )
+    _test_injection(
+        "gpu", "torch gpu tensor", lambda xs: [torch.tensor(np.array(x), device="cuda") for x in xs]
+    )
 
 
 @attr("cupy")
@@ -269,9 +269,7 @@ def _test_external_source_debug(source, batch):
 
 
 _external_source_debug_test_cases = [
-    (source, batch)
-    for source in [np.random.rand(8, 8, 1), None]
-    for batch in [True, False]
+    (source, batch) for source in [np.random.rand(8, 8, 1), None] for batch in [True, False]
 ]
 
 

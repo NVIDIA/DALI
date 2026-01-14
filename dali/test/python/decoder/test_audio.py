@@ -162,12 +162,6 @@ def decoder_pipe(decoder_op, fnames, sample_rate, downmix, quality, dtype):
     return decoded, rates
 
 
-def check_audio_decoder_alias(sample_rate, downmix, quality, dtype):
-    new_pipe = decoder_pipe(fn.decoders.audio, names, sample_rate, downmix, quality, dtype)
-    legacy_pipe = decoder_pipe(fn.audio_decoder, names, sample_rate, downmix, quality, dtype)
-    compare_pipelines(new_pipe, legacy_pipe, batch_size_alias_test, 10)
-
-
 _audio_decoder_alias_test_cases = [
     (sample_rate, downmix, quality, dtype)
     for sample_rate in [None, 16000, 12999]
@@ -179,10 +173,13 @@ _audio_decoder_alias_test_cases = [
 
 @params(*_audio_decoder_alias_test_cases)
 def test_audio_decoder_alias(sample_rate, downmix, quality, dtype):
-    check_audio_decoder_alias(sample_rate, downmix, quality, dtype)
+    new_pipe = decoder_pipe(fn.decoders.audio, names, sample_rate, downmix, quality, dtype)
+    legacy_pipe = decoder_pipe(fn.audio_decoder, names, sample_rate, downmix, quality, dtype)
+    compare_pipelines(new_pipe, legacy_pipe, batch_size_alias_test, 10)
 
 
-def check_audio_decoder_correctness(fmt, dtype):
+@params(*[("wav", types.INT16), ("flac", types.INT16), ("ogg", types.INT16)])
+def test_audio_decoder_correctness(fmt, dtype):
     batch_size = 16
     niterations = 10
 
@@ -216,8 +213,3 @@ def check_audio_decoder_correctness(fmt, dtype):
                 # np.testing.assert_allclose(arr, ref, atol=1)
             else:
                 np.testing.assert_equal(arr, ref)
-
-
-@params(*[("wav", types.INT16), ("flac", types.INT16), ("ogg", types.INT16)])
-def test_audio_decoder_correctness(fmt, dtype):
-    check_audio_decoder_correctness(fmt, dtype)

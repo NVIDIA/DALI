@@ -66,15 +66,6 @@ def test_dlpack_tensor_list_gpu_to_cpu():
     assert torch.all(arr.cpu().eq(dali_torch_tensor.cpu()))
 
 
-def check_dlpack_types_gpu(t):
-    arr = torch.tensor([[[0.39], [1.5]], [[1.5], [0.33]]], device="cuda", dtype=t)
-    tensor = TensorGPU(to_dlpack(arr), "HWC")
-    dali_torch_tensor = convert_to_torch(
-        tensor, device=arr.device, dtype=arr.dtype, size=tensor.shape()
-    )
-    assert torch.all(arr.eq(dali_torch_tensor))
-
-
 _dlpack_interface_types_gpu = [
     torch.int8,
     torch.int16,
@@ -89,7 +80,12 @@ _dlpack_interface_types_gpu = [
 
 @params(*_dlpack_interface_types_gpu)
 def test_dlpack_interface_types(t):
-    check_dlpack_types_gpu(t)
+    arr = torch.tensor([[[0.39], [1.5]], [[1.5], [0.33]]], device="cuda", dtype=t)
+    tensor = TensorGPU(to_dlpack(arr), "HWC")
+    dali_torch_tensor = convert_to_torch(
+        tensor, device=arr.device, dtype=arr.dtype, size=tensor.shape()
+    )
+    assert torch.all(arr.eq(dali_torch_tensor))
 
 
 def test_dlpack_tensor_cpu_direct_creation():
@@ -160,15 +156,6 @@ def test_tensor_list_gpu_from_dlpack():
         np.testing.assert_array_equal(tl.as_cpu().as_array(), np.full((4, 4), i))
 
 
-def check_dlpack_types_cpu(t):
-    arr = torch.tensor([[[0.39], [1.5]], [[1.5], [0.33]]], device="cpu", dtype=t)
-    tensor = TensorCPU(to_dlpack(arr), "HWC")
-    dali_torch_tensor = convert_to_torch(
-        tensor, device=arr.device, dtype=arr.dtype, size=tensor.shape()
-    )
-    assert torch.all(arr.eq(dali_torch_tensor))
-
-
 _dlpack_interface_types_cpu = [
     torch.int8,
     torch.int16,
@@ -182,7 +169,12 @@ _dlpack_interface_types_cpu = [
 
 @params(*_dlpack_interface_types_cpu)
 def test_dlpack_interface_types_cpu(t):
-    check_dlpack_types_cpu(t)
+    arr = torch.tensor([[[0.39], [1.5]], [[1.5], [0.33]]], device="cpu", dtype=t)
+    tensor = TensorCPU(to_dlpack(arr), "HWC")
+    dali_torch_tensor = convert_to_torch(
+        tensor, device=arr.device, dtype=arr.dtype, size=tensor.shape()
+    )
+    assert torch.all(arr.eq(dali_torch_tensor))
 
 
 def test_CheckDLPackCapsuleNone():
