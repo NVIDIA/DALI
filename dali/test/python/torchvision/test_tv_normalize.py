@@ -150,13 +150,13 @@ def test_std_must_be_non_zero(mean, std):
 
 
 """
-TODO: not supported 
+TODO: not supported
 @params(False, True)
 def test_inplace_behavior(inplace):
     x = make_sample_tensor()
     norm = transforms.Normalize(mean=[1.0, 2.0, 3.0], std=[1.0, 1.0, 1.0], inplace=inplace)
     orig = x.clone()
-    out = norm(x)    
+    out = norm(x)
 
     if inplace:
         # In-place: returned tensor and input should be same storage
@@ -177,7 +177,7 @@ def test_non_tensor_input_not_supported():
         _ = norm(im)  # not a tensor
     """
     Because of how it is implemented the Normalize allows PIL Image input
-    dnorm = Compose([Normalize(mean=[0.5], std=[0.5])])    
+    dnorm = Compose([Normalize(mean=[0.5], std=[0.5])])
     with assert_raises(TypeError):
         _ = dnorm(im)
     """

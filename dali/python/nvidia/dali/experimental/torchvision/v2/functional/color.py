@@ -24,8 +24,7 @@ from ..operator import adjust_input  # noqa: E402
 from ..color import Grayscale  # noqa: E402
 
 
-@adjust_input
-def to_grayscale(
+def _grayscale(
     img: Tensor,
     num_output_channels: int = 1,
     device: Literal["cpu", "gpu"] = "cpu",
@@ -33,7 +32,7 @@ def to_grayscale(
 
     Grayscale.verify_args(num_output_channels=num_output_channels)
 
-    c = img.shape()[-1]
+    c = img.shape[-1]
     if num_output_channels == 1 and c == 3:  # RGB (TODO: what if it is HSV?)
         return ndd.color_space_conversion(
             img,
@@ -46,7 +45,16 @@ def to_grayscale(
 
 
 @adjust_input
+def to_grayscale(
+    img: Tensor,
+    num_output_channels: int = 1,
+    device: Literal["cpu", "gpu"] = "cpu",
+) -> Tensor:
+    return _grayscale(img, num_output_channels, device)
+
+
+@adjust_input
 def rgb_to_grayscale(
     img: Tensor, num_output_channels: int = 1, device: Literal["cpu", "gpu"] = "cpu"
 ) -> Tensor:
-    return to_grayscale(img, num_output_channels, device)
+    return _grayscale(img, num_output_channels, device)

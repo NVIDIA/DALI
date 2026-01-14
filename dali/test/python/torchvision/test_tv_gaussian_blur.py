@@ -139,7 +139,7 @@ def test_gaussian_blur_invalid_params_match_errors(kernel_size, sigma):
         dali_blur = Compose([GaussianBlur(kernel_size=kernel_size, sigma=sigma)])
         _ = dali_blur(img)
 
-    """ Both do not raise ValueError 
+    """ Both do not raise ValueError
     with assert_raises(ValueError):
         _ = gaussian_blur(img, kernel_size=kernel_size, sigma=sigma)
 

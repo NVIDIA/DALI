@@ -47,7 +47,9 @@ def test_pad_core(mode: str, device: str, padding: list, fill=0.0):
         out_fn = out_fn.cpu()
 
     assert torch.equal(out, out_tv), f"DALI shape: {out.shape}, TV shape: {out_tv.shape}"
-    assert torch.equal(out_fn, out_tv_fn), f"DALI shape: {out_fn.shape}, TV shape: {out_tv_fn.shape}"
+    assert torch.equal(
+        out_fn, out_tv_fn
+    ), f"DALI shape: {out_fn.shape}, TV shape: {out_tv_fn.shape}"
 
 
 @cartesian_params(

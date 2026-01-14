@@ -50,6 +50,7 @@ def test_vertical_random_flip_probability(device):
     out_tv = tv.RandomVerticalFlip(p=1.0)(img)
     out_fn = vertical_flip(img).cpu()
     assert torch.equal(out, out_tv)
+    assert torch.equal(out, out_fn)
 
     transform = Compose([RandomVerticalFlip(p=0.0, device=device)])  # never flip
     out = transform(img).cpu()

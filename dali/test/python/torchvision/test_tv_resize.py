@@ -78,8 +78,14 @@ def loop_images_test(
 
     for fn in test_files:
         img = Image.open(fn)
-        out_fn = fn_tv.resize(
-            img, size=resize, max_size=max_size, interpolation=interpolation, antialias=antialias
+        out_fn = transforms.functional.pil_to_tensor(
+            fn_tv.resize(
+                img,
+                size=resize,
+                max_size=max_size,
+                interpolation=interpolation,
+                antialias=antialias,
+            )
         )
         out_dali_fn = transforms.functional.pil_to_tensor(
             fn_dali.resize(
@@ -95,6 +101,10 @@ def loop_images_test(
         out_dali_tv = transforms.functional.pil_to_tensor(td(img)).unsqueeze(0).permute(0, 2, 3, 1)
         tv_shape_lower = torch.Size([out_tv.shape[1] - 1, out_tv.shape[2] - 1])
         tv_shape_upper = torch.Size([out_tv.shape[1] + 1, out_tv.shape[2] + 1])
+
+        tv_fn_shape_lower = torch.Size([out_fn.shape[1] - 1, out_fn.shape[2] - 1])
+        tv_fn_shape_upper = torch.Size([out_fn.shape[1] + 1, out_fn.shape[2] + 1])
+
         assert (
             tv_shape_lower[0] <= out_dali_tv.shape[1] <= tv_shape_upper[0]
         ), f"Should be:{out_tv.shape} is:{out_dali_tv.shape}"
@@ -103,10 +113,10 @@ def loop_images_test(
         ), f"Should be:{out_tv.shape} is:{out_dali_tv.shape}"
 
         assert (
-            tv_shape_lower[0] <= out_dali_fn.shape[1] <= tv_shape_upper[0]
+            tv_fn_shape_lower[0] <= out_dali_fn.shape[1] <= tv_fn_shape_upper[0]
         ), f"Should be:{out_tv.shape} is:{out_dali_fn.shape}"
         assert (
-            tv_shape_lower[1] <= out_dali_fn.shape[2] <= tv_shape_upper[1]
+            tv_fn_shape_lower[1] <= out_dali_fn.shape[2] <= tv_fn_shape_upper[1]
         ), f"Should be:{out_tv.shape} is:{out_dali_fn.shape}"
         # assert torch.equal(out_tv, out_dali_tv)
 

@@ -166,31 +166,34 @@ def adjust_input(func):
             if inpt.ndim <= 3:
                 _input = ndd.Tensor(inpt, layout="CHW")
             else:
-                _input = ndd.as_batch(inpt)  # , layout="BCHW")
+                # The following should work, bug: https://jirasw.nvidia.com/browse/DALI-4566
+                # _input = ndd.as_batch(inpt, layout="NCHW")
+                # WAR:
+                _input = ndd.as_batch(ndd.as_tensor(inpt), layout="CHW")
         else:
             raise ValueError(f"Data type: {type(inpt)} is not supported")
         output = func(_input, *args, **kwargs)
 
+        output = output.evaluate()
+
         if isinstance(inpt, Image.Image):
-            return Image.fromarray(np.asarray(output.evaluate()), mode=mode)
+            if output.shape[-1] == 1:
+                output = np.asarray(output).squeeze(2)
+                mode = "L"
+            return Image.fromarray(np.asarray(output), mode=mode)
         elif isinstance(inpt, torch.Tensor):
-            """
             if isinstance(output, ndd.Batch):
-                return torch.as_tensor(ndd.as_tensor(output))
+                output = ndd.as_tensor(output)
             elif isinstance(output, ndd.Tensor):
-                return torch.as_tensor(output)
+                output = output
             else:
                 raise TypeError(f"Invalid output type: {type(output)}")
-            """
-            if isinstance(output, ndd.Tensor):
-                output = output.evaluate()
-                if isinstance(output, ndd.Batch):
-                    output = ndd.as_tensor(output)
 
-                if output.device.device_type == 'gpu':
-                    return torch.from_dlpack(ndd.as_tensor(output)._storage)
-                else:
-                    return torch.Tensor(np.asarray(output._storage))
+            # This is WAR for DLPpack not supporting pinned memory
+            if output.device.device_type == "cpu":
+                output = np.asarray(output)
+
+            return torch.as_tensor(output)
         else:
             return output
 

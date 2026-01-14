@@ -89,17 +89,25 @@ def test_center_crop_larger_than_image(size):
     img = make_img(size // 2, size // 2)
     t, td = build_centercrop_transform((size, size))
 
-    out_tf = tv_fn.center_crop(img, (size, size))
-    out_dali_tf = center_crop(img, (size, size))
+    out_fn = tv_fn.center_crop(img, (size, size))
+    out_dali_fn = center_crop(img, (size, size))
 
     out_tv = t(img)
     out_dali_tv = td(img).cpu()
 
     assert out_tv.shape == out_dali_tv.shape, f"Is: {out_dali_tv.shape} should be {out_tv.shape}"
+    assert out_fn.shape == out_dali_fn.shape, f"Is: {out_dali_tv.shape} should be {out_tv.shape}"
 
     center = out_tv[:, size // 4 : size - size // 4, size // 4 : size - size // 4]
     assert torch.equal(center, img)
+
+    center = out_fn[:, size // 4 : size - size // 4, size // 4 : size - size // 4]
+    assert torch.equal(center, img)
+
     center = out_dali_tv[:, size // 4 : size - size // 4, size // 4 : size - size // 4]
+    assert torch.equal(center, img)
+
+    center = out_dali_fn[:, size // 4 : size - size // 4, size // 4 : size - size // 4]
     assert torch.equal(center, img)
 
 
@@ -141,6 +149,8 @@ def test_batched_input_shape(batch_size, device, size):
     t, td = build_centercrop_transform(size, batch_size=batch_size, device=device)
     out_tv = t(batched)
     out_dali_tv = td(batched).cpu()
+    out_fn = tv_fn.center_crop(batched, output_size=size)
     out_dali_fn = center_crop(batched, output_size=size)
 
-    assert out_tv.shape == out_dali_tv.shape
+    assert out_tv.shape == out_dali_tv.shape, f"Expected {out_tv.shape}, got: {out_dali_tv.shape}"
+    assert out_fn.shape == out_dali_fn.shape, f"Expected {out_fn.shape}, got: {out_dali_fn.shape}"
