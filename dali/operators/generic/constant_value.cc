@@ -1,4 +1,4 @@
-// Copyright (c) 2024-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2024-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -144,21 +144,40 @@ void ConstantValue<CPUBackend>::RunImpl(Workspace &ws) {
                             "Supported types are : ", ListTypeNames<DALI_CONSTANT_VALUE_TYPES>()));
     ));  // NOLINT
   }
+
+  if (has_layout_) {
+    output.SetLayout(layout_);
+  } else if (is_shape_like_) {
+    output.SetLayout(ws.Input<CPUBackend>(shape_like_input_idx_).GetLayout());
+  }
 }
 
 DALI_SCHEMA(Full)
-    .DocStr(R"code(Returns new data of given shape and type, filled with a fill value.)code")
+    .DocStr(R"code(Returns new data of given shape and type, filled with a fill value.
+
+If the fill_value is not a scalar, it must be broadcastable to the output shape (NumPy-style broadcasting).
+Dimensions are compared from innermost to outermost, and each dimension must either match or one of them must be 1.
+In case of different dimensionality, the shape is padded with 1s for the missing outermost dimensions.
+)code")
     .NumInput(1)
     .InputDox(0, "fill_value", "TensorList", R"code(The fill value.)code")
     .NumOutput(1)
     .AddOptionalArg<std::vector<int>>("shape", R"code(Shape of the output data.)code", nullptr,
-                                      true);
+                                      true)
+    .AddOptionalArg<TensorLayout>("layout", R"code(Output layout.
+
+If set and not empty, the layout must match the dimensionality of the output.)code", nullptr);
+
 DALI_REGISTER_OPERATOR(Full, Full<CPUBackend>, CPU);
 
 DALI_SCHEMA(FullLike)
-    .DocStr(R"code(Returns new data with the same shape and type as the input data, filled with a `fill_value`.)code")
+    .DocStr(R"code(Returns new data with the same shape, type and layout as the input data, filled with a `fill_value`.
+
+If the fill_value is not a scalar, it must be broadcastable to the output shape (NumPy-style broadcasting).
+Dimensions are compared from innermost to outermost, and each dimension must either match or one of them must be 1.
+In case of different dimensionality, the shape is padded with 1s for the missing outermost dimensions.)code")
     .NumInput(2)
-    .InputDox(0, "data_like", "TensorList", R"code(The input data value to copy the shape and type from.)code")
+    .InputDox(0, "data_like", "TensorList", R"code(The input data value to copy the shape, type and layout from.)code")
     .InputDevice(0, InputDevice::Metadata)
     .InputDox(1, "fill_value", "TensorList", R"code(The fill value.)code")
     .NumOutput(1);
@@ -170,11 +189,14 @@ DALI_SCHEMA(Zeros)
     .NumOutput(1)
     .AddOptionalArg<std::vector<int>>("shape", R"code(Shape of the output data.)code", nullptr,
                                       true)
+    .AddOptionalArg<TensorLayout>("layout", R"code(Output layout.
+
+If set and not empty, the layout must match the dimensionality of the output.)code", nullptr)
     .AddOptionalTypeArg("dtype", R"code(Output data type.)code", DALI_INT32);
 DALI_REGISTER_OPERATOR(Zeros, Zeros<CPUBackend>, CPU);
 
 DALI_SCHEMA(ZerosLike)
-    .DocStr(R"code(Returns new data with the same shape and type as the input array, filled with zeros.)code")
+    .DocStr(R"code(Returns new data with the same shape, type and layout as the input array, filled with zeros.)code")
     .NumInput(1)
     .InputDox(0, "data_like", "TensorList", R"code(The input data value to copy the shape and type from.)code")
     .InputDevice(0, InputDevice::Metadata)
@@ -188,13 +210,16 @@ DALI_SCHEMA(Ones)
     .NumOutput(1)
     .AddOptionalArg<std::vector<int>>("shape", R"code(Shape of the output data.)code", nullptr,
                                       true)
+    .AddOptionalArg<TensorLayout>("layout", R"code(Output layout.
+
+If set and not empty, the layout must match the dimensionality of the output.)code", nullptr)
     .AddOptionalTypeArg("dtype", R"code(Output data type.)code", DALI_INT32);
 DALI_REGISTER_OPERATOR(Ones, Ones<CPUBackend>, CPU);
 
 DALI_SCHEMA(OnesLike)
-    .DocStr(R"code(Returns new data with the same shape and type as the input array, filled with ones.)code")
+    .DocStr(R"code(Returns new data with the same shape, type and layout as the input array, filled with ones.)code")
     .NumInput(1)
-    .InputDox(0, "data_like", "TensorList", R"code(The input data value to copy the shape and type from.)code")
+    .InputDox(0, "data_like", "TensorList", R"code(The input data value to copy the shape, type and layout from.)code")
     .InputDevice(0, InputDevice::Metadata)
     .NumOutput(1)
     .AddOptionalTypeArg("dtype", R"code(Overrides the output data type.)code", DALI_INT32);
