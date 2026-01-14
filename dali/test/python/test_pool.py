@@ -17,9 +17,9 @@ from nvidia.dali._multiproc.messages import TaskArgs, SampleRange
 from contextlib import closing
 from nvidia.dali._utils.external_source_impl import get_callback_from_source
 from nvidia.dali.types import SampleInfo
-from functools import wraps
 import numpy as np
 import os
+from nose2.tools import params
 from nose_utils import raises, with_setup
 
 from test_pool_utils import capture_processes, setup_function, teardown_function
@@ -94,36 +94,14 @@ def assert_scheduled_num(context, num_tasks):
 
 start_methods = ["fork", "spawn"]
 
-# Invoke the `fn` with all start methods. Call setup and teardown before and after the test.
-#
-# We do this to not repeat the pattern of:
-#
-# def check_something(start_method):
-#    ...
-#
-# @with_setup(setup_function, teardown_function)
-# def test_something():
-#   for start_method in start_methods:
-#      yield check_something, start_method
-
-
-def check_pool(fn):
-    @wraps(fn)
-    def wrapper():
-        for start_method in start_methods:
-            setup_function()
-            yield fn, start_method
-            teardown_function()
-
-    return wrapper
-
 
 # ################################################################################################ #
 # 1 callback, 1 worker tests
 # ################################################################################################ #
 
 
-@check_pool
+@params(*start_methods)
+@with_setup(setup_function, teardown_function)
 def test_pool_one_task(start_method):
     groups = [MockGroup.from_callback(simple_callback)]
     with create_pool(
@@ -139,7 +117,8 @@ def test_pool_one_task(start_method):
             np.testing.assert_array_equal(answer(pid, *task), sample)
 
 
-@check_pool
+@params(*start_methods)
+@with_setup(setup_function, teardown_function)
 def test_pool_multi_task(start_method):
     groups = [MockGroup.from_callback(simple_callback)]
     with create_pool(
@@ -156,7 +135,8 @@ def test_pool_multi_task(start_method):
 
 
 # Test that we can safely hold as many results as the keep_alive_queue_size
-@check_pool
+@params(*start_methods)
+@with_setup(setup_function, teardown_function)
 def test_pool_no_overwrite_batch(start_method):
     groups = [MockGroup.from_callback(simple_callback, prefetch_queue_depth=0)]
     for depth in [1, 2, 4, 8]:
@@ -185,7 +165,8 @@ def test_pool_no_overwrite_batch(start_method):
 # ################################################################################################ #
 
 
-@check_pool
+@params(*start_methods)
+@with_setup(setup_function, teardown_function)
 def test_pool_work_split_multiple_tasks(start_method):
     callbacks = [MockGroup.from_callback(simple_callback)]
     with create_pool(
@@ -207,7 +188,8 @@ def test_pool_work_split_multiple_tasks(start_method):
 # ################################################################################################ #
 
 
-@check_pool
+@params(*start_methods)
+@with_setup(setup_function, teardown_function)
 def test_pool_iterator_dedicated_worker(start_method):
     groups = [
         MockGroup.from_callback(simple_callback, prefetch_queue_depth=3),
@@ -244,7 +226,8 @@ def test_pool_iterator_dedicated_worker(start_method):
                 np.testing.assert_array_equal(np.array([iter_worker_pid, i + 1]), sample)
 
 
-@check_pool
+@params(*start_methods)
+@with_setup(setup_function, teardown_function)
 def test_pool_many_ctxs(start_method):
     callbacks = [simple_callback, another_callback]
     groups = [MockGroup.from_callback(cb) for cb in callbacks]
@@ -265,7 +248,8 @@ def test_pool_many_ctxs(start_method):
             np.testing.assert_array_equal(answer(pid, *task) + 100, sample)
 
 
-@check_pool
+@params(*start_methods)
+@with_setup(setup_function, teardown_function)
 def test_pool_context_sync(start_method):
     callbacks = [simple_callback, another_callback]
     groups = [MockGroup.from_callback(cb, prefetch_queue_depth=3) for cb in callbacks]
@@ -326,9 +310,9 @@ def _test_multiple_stateful_sources_single_worker(num_workers):
             assert iter_worker_pid_0 != iter_worker_pid_1
 
 
-def test_multiple_stateful_sources_single_worker():
-    for num_workers in (1, 4):
-        yield _test_multiple_stateful_sources_single_worker, num_workers
+@params(1, 4)
+def test_multiple_stateful_sources_single_worker(num_workers):
+    _test_multiple_stateful_sources_single_worker(num_workers)
 
 
 # ################################################################################################ #

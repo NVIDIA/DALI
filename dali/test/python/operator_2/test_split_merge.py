@@ -98,17 +98,24 @@ def check_conditional_split_merge(dev, pred_gen):
         check_batch(out, out_baseline, bs)
 
 
-def test_conditional_split_merge():
-    rng = np.random.default_rng()
-    for dev in ["cpu", "gpu"]:
-        for pred_gen in [
-            lambda x: np.array(x < 3),
-            lambda x: np.array(x % 2 == 0),
-            lambda x: np.array(x % 3 == 0),
-            lambda _: np.array(False),
-            lambda _: rng.choice([np.array(True), np.array(False)]),
-        ]:
-            yield check_conditional_split_merge, dev, pred_gen
+_rng_for_split_merge = np.random.default_rng(42)
+
+_conditional_split_merge_test_cases = [
+    (dev, pred_gen)
+    for dev in ["cpu", "gpu"]
+    for pred_gen in [
+        lambda x: np.array(x < 3),
+        lambda x: np.array(x % 2 == 0),
+        lambda x: np.array(x % 3 == 0),
+        lambda _: np.array(False),
+        lambda _, rng=_rng_for_split_merge: rng.choice([np.array(True), np.array(False)]),
+    ]
+]
+
+
+@params(*_conditional_split_merge_test_cases)
+def test_conditional_split_merge(dev, pred_gen):
+    check_conditional_split_merge(dev, pred_gen)
 
 
 @pipeline_def

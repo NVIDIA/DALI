@@ -22,6 +22,7 @@ import numpy as np
 import torch
 
 import test_external_source_parallel_utils as utils
+from nose2.tools import params
 from nose_utils import raises
 
 
@@ -48,7 +49,7 @@ def test_pytorch_cuda_context():
 
 
 def test_pytorch():
-    yield from utils.check_spawn_with_callback(ExtCallbackTorch)
+    utils.check_spawn_with_callback(ExtCallbackTorch)
 
 
 class ExtCallbackTorchCuda(utils.ExtCallback):

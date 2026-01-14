@@ -18,6 +18,7 @@ import numpy as np
 import torch
 from torch.utils.dlpack import to_dlpack
 import ctypes
+from nose2.tools import params
 from nvidia.dali.backend import CheckDLPackCapsule
 
 
@@ -74,20 +75,21 @@ def check_dlpack_types_gpu(t):
     assert torch.all(arr.eq(dali_torch_tensor))
 
 
-def test_dlpack_interface_types():
-    for t in [
-        # the more recent PyTorch doesn't support
-        # torch.bool,
-        torch.int8,
-        torch.int16,
-        torch.int32,
-        torch.int64,
-        torch.uint8,
-        torch.float64,
-        torch.float32,
-        torch.float16,
-    ]:
-        yield check_dlpack_types_gpu, t
+_dlpack_interface_types_gpu = [
+    torch.int8,
+    torch.int16,
+    torch.int32,
+    torch.int64,
+    torch.uint8,
+    torch.float64,
+    torch.float32,
+    torch.float16,
+]
+
+
+@params(*_dlpack_interface_types_gpu)
+def test_dlpack_interface_types(t):
+    check_dlpack_types_gpu(t)
 
 
 def test_dlpack_tensor_cpu_direct_creation():
@@ -167,19 +169,20 @@ def check_dlpack_types_cpu(t):
     assert torch.all(arr.eq(dali_torch_tensor))
 
 
-def test_dlpack_interface_types_cpu():
-    for t in [
-        # the more recent PyTorch doesn't support
-        # torch.bool,
-        torch.int8,
-        torch.int16,
-        torch.int32,
-        torch.int64,
-        torch.uint8,
-        torch.float64,
-        torch.float32,
-    ]:
-        yield check_dlpack_types_cpu, t
+_dlpack_interface_types_cpu = [
+    torch.int8,
+    torch.int16,
+    torch.int32,
+    torch.int64,
+    torch.uint8,
+    torch.float64,
+    torch.float32,
+]
+
+
+@params(*_dlpack_interface_types_cpu)
+def test_dlpack_interface_types_cpu(t):
+    check_dlpack_types_cpu(t)
 
 
 def test_CheckDLPackCapsuleNone():

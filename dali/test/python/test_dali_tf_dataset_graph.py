@@ -16,6 +16,7 @@ import itertools
 import numpy as np
 import random as random
 import tensorflow as tf
+from nose2.tools import params
 from nose_utils import with_setup, raises
 from test_dali_tf_dataset_pipelines import (
     FixedSampleIterator,
@@ -63,14 +64,25 @@ def run_tf_dataset_with_constant_input(dev, shape, value, dtype, batch):
     )
 
 
-@with_setup(skip_inputs_for_incompatible_tf)
-def test_tf_dataset_with_constant_input():
+def _generate_tf_dataset_with_constant_input_test_cases():
+    rng = random.Random(42)
+    cases = []
     for dev in ["cpu", "gpu"]:
         for shape in [(7, 42), (64, 64, 3), (3, 40, 40, 4)]:
             for dtype in [np.uint8, np.int32, np.float32]:
                 for batch in ["dataset", True, False, None]:
-                    value = random.choice([42, 255])
-                    yield run_tf_dataset_with_constant_input, dev, shape, value, dtype, batch
+                    value = rng.choice([42, 255])
+                    cases.append((dev, shape, value, dtype, batch))
+    return cases
+
+
+_tf_dataset_with_constant_input_test_cases = _generate_tf_dataset_with_constant_input_test_cases()
+
+
+@with_setup(skip_inputs_for_incompatible_tf)
+@params(*_tf_dataset_with_constant_input_test_cases)
+def test_tf_dataset_with_constant_input(dev, shape, value, dtype, batch):
+    run_tf_dataset_with_constant_input(dev, shape, value, dtype, batch)
 
 
 def run_tf_dataset_with_random_input(dev, max_shape, dtype, batch):
@@ -85,13 +97,19 @@ def run_tf_dataset_with_random_input(dev, max_shape, dtype, batch):
     )
 
 
+_tf_dataset_with_random_input_test_cases = [
+    (dev, max_shape, dtype, batch)
+    for dev in ["cpu", "gpu"]
+    for max_shape in [(10, 20), (120, 120, 3), (3, 40, 40, 4)]
+    for dtype in [np.uint8, np.int32, np.float32]
+    for batch in ["dataset", True, False, None]
+]
+
+
 @with_setup(skip_inputs_for_incompatible_tf)
-def test_tf_dataset_with_random_input():
-    for dev in ["cpu", "gpu"]:
-        for max_shape in [(10, 20), (120, 120, 3), (3, 40, 40, 4)]:
-            for dtype in [np.uint8, np.int32, np.float32]:
-                for batch in ["dataset", True, False, None]:
-                    yield run_tf_dataset_with_random_input, dev, max_shape, dtype, batch
+@params(*_tf_dataset_with_random_input_test_cases)
+def test_tf_dataset_with_random_input(dev, max_shape, dtype, batch):
+    run_tf_dataset_with_random_input(dev, max_shape, dtype, batch)
 
 
 # Run with everything on GPU (External Source op as well)
@@ -107,12 +125,18 @@ def run_tf_dataset_with_random_input_gpu(max_shape, dtype, batch):
     )
 
 
+_tf_dataset_with_random_input_gpu_test_cases = [
+    (max_shape, dtype, batch)
+    for max_shape in [(10, 20), (120, 120, 3), (3, 40, 40, 4)]
+    for dtype in [np.uint8, np.int32, np.float32]
+    for batch in ["dataset", True, False, None]
+]
+
+
 @with_setup(skip_inputs_for_incompatible_tf)
-def test_tf_dataset_with_random_input_gpu():
-    for max_shape in [(10, 20), (120, 120, 3), (3, 40, 40, 4)]:
-        for dtype in [np.uint8, np.int32, np.float32]:
-            for batch in ["dataset", True, False, None]:
-                yield run_tf_dataset_with_random_input_gpu, max_shape, dtype, batch
+@params(*_tf_dataset_with_random_input_gpu_test_cases)
+def test_tf_dataset_with_random_input_gpu(max_shape, dtype, batch):
+    run_tf_dataset_with_random_input_gpu(max_shape, dtype, batch)
 
 
 def run_tf_dataset_no_copy(max_shape, dtype, dataset_dev, es_dev, no_copy):
@@ -126,15 +150,25 @@ def run_tf_dataset_no_copy(max_shape, dtype, dataset_dev, es_dev, no_copy):
 
 
 # Check if setting no_copy flags in all placement scenarios is ok as we override it internally
-@with_setup(skip_inputs_for_incompatible_tf)
-def test_tf_dataset_with_no_copy():
+def _generate_tf_dataset_with_no_copy_test_cases():
+    cases = []
     for max_shape in [(10, 20), (120, 120, 3)]:
         for dataset_dev in ["cpu", "gpu"]:
             for es_dev in ["cpu", "gpu"]:
                 if dataset_dev == "cpu" and es_dev == "gpu":
                     continue  # GPU op in CPU dataset not supported
                 for no_copy in [True, False, None]:
-                    yield run_tf_dataset_no_copy, max_shape, np.uint8, dataset_dev, es_dev, no_copy
+                    cases.append((max_shape, np.uint8, dataset_dev, es_dev, no_copy))
+    return cases
+
+
+_tf_dataset_with_no_copy_test_cases = _generate_tf_dataset_with_no_copy_test_cases()
+
+
+@with_setup(skip_inputs_for_incompatible_tf)
+@params(*_tf_dataset_with_no_copy_test_cases)
+def test_tf_dataset_with_no_copy(max_shape, dtype, dataset_dev, es_dev, no_copy):
+    run_tf_dataset_no_copy(max_shape, dtype, dataset_dev, es_dev, no_copy)
 
 
 def run_tf_dataset_with_stop_iter(dev, max_shape, dtype, stop_samples):
@@ -187,13 +221,23 @@ start_values = [
 input_names = [["input_{}".format(i) for i, _ in enumerate(vals)] for vals in start_values]
 
 
-@with_setup(skip_inputs_for_incompatible_tf)
-def test_tf_dataset_multi_input():
+def _generate_tf_dataset_multi_input_test_cases():
+    cases = []
     for dev in ["cpu", "gpu"]:
         for starts, names in zip(start_values, input_names):
-            yield run_tf_dataset_multi_input, dev, starts, names, ["dataset" for _ in input_names]
+            cases.append((dev, starts, names, ["dataset" for _ in input_names]))
             for batches in list(itertools.product([True, False], repeat=len(input_names))):
-                yield run_tf_dataset_multi_input, dev, starts, names, batches
+                cases.append((dev, starts, names, batches))
+    return cases
+
+
+_tf_dataset_multi_input_test_cases = _generate_tf_dataset_multi_input_test_cases()
+
+
+@with_setup(skip_inputs_for_incompatible_tf)
+@params(*_tf_dataset_multi_input_test_cases)
+def test_tf_dataset_multi_input(dev, starts, names, batches):
+    run_tf_dataset_multi_input(dev, starts, names, batches)
 
 
 def run_tf_with_dali_external_source(dev, es_args, ed_dev, dtype, *_):
@@ -205,9 +249,13 @@ def run_tf_with_dali_external_source(dev, es_args, ed_dev, dtype, *_):
     )
 
 
+_tf_with_dali_external_source_test_cases = list(gen_tf_with_dali_external_source(run_tf_with_dali_external_source))
+
+
 @with_setup(skip_inputs_for_incompatible_tf)
-def test_tf_with_dali_external_source():
-    yield from gen_tf_with_dali_external_source(run_tf_with_dali_external_source)
+@params(*_tf_with_dali_external_source_test_cases)
+def test_tf_with_dali_external_source(test_run, dev, es_args, es_dev, dtype, iter_limit, dense):
+    test_run(dev, es_args, es_dev, dtype, iter_limit, dense)
 
 
 tf_dataset_wrong_placement_error_msg = (

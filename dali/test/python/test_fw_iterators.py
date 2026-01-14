@@ -558,8 +558,7 @@ def test_mxnet_iterator_pass_reader_name():
                     ]:
                         for iters in [1, 2, 3, 2 * shards_num]:
                             for pipes_number in [1, shards_num]:
-                                yield (
-                                    check_mxnet_iterator_pass_reader_name,
+                                check_mxnet_iterator_pass_reader_name(
                                     shards_num,
                                     pipes_number,
                                     batch_size,
@@ -574,8 +573,7 @@ def test_mxnet_iterator_pass_reader_name():
 @attr("mxnet")
 def test_mxnet_iterator_pass_reader_name_autoreset():
     for auto_reset in [True, False]:
-        yield (
-            check_mxnet_iterator_pass_reader_name,
+        check_mxnet_iterator_pass_reader_name(
             3,
             1,
             3,
@@ -870,8 +868,7 @@ def test_gluon_iterator_pass_reader_name():
                     ]:
                         for iters in [1, 2, 3, 2 * shards_num]:
                             for pipes_number in [1, shards_num]:
-                                yield (
-                                    check_gluon_iterator_pass_reader_name,
+                                check_gluon_iterator_pass_reader_name(
                                     shards_num,
                                     pipes_number,
                                     batch_size,
@@ -886,8 +883,7 @@ def test_gluon_iterator_pass_reader_name():
 @attr("gluon")
 def test_gluon_iterator_pass_reader_name_autoreset():
     for auto_reset in [True, False]:
-        yield (
-            check_gluon_iterator_pass_reader_name,
+        check_gluon_iterator_pass_reader_name(
             3,
             1,
             3,
@@ -1222,7 +1218,7 @@ def test_pytorch_iterator_feed_ndarray_types():
         np.int64,
     ]
     for data_type in types:
-        yield check_pytorch_iterator_feed_ndarray_types, data_type
+        check_pytorch_iterator_feed_ndarray_types(data_type)
 
 
 @params((False,), (True,))
@@ -1369,7 +1365,7 @@ def test_mxnet_iterator_feed_ndarray_types():
     # MXNet doesn't support int16
     types = [np.float32, np.float64, np.float16, np.uint8, np.int8, np.bool_, np.int32, np.int64]
     for data_type in types:
-        yield check_mxnet_iterator_feed_ndarray_types, data_type
+        check_mxnet_iterator_feed_ndarray_types(data_type)
 
 
 @attr("paddle")
@@ -1462,7 +1458,7 @@ def test_paddle_iterator_feed_ndarray_types():
         np.int64,
     ]
     for data_type in types:
-        yield check_paddle_iterator_feed_ndarray_types, data_type
+        check_paddle_iterator_feed_ndarray_types(data_type)
 
 
 @attr("pytorch")
@@ -1576,8 +1572,7 @@ def test_pytorch_iterator_pass_reader_name():
                     ]:
                         for exec_dynamic in [False, True]:
                             for pipes_number in [1, shards_num]:
-                                yield (
-                                    check_pytorch_iterator_pass_reader_name,
+                                check_pytorch_iterator_pass_reader_name(
                                     shards_num,
                                     pipes_number,
                                     batch_size,
@@ -1593,8 +1588,7 @@ def test_pytorch_iterator_pass_reader_name():
 @attr("pytorch")
 def test_pytorch_iterator_pass_reader_name_autoreset():
     for auto_reset in [True, False]:
-        yield (
-            check_pytorch_iterator_pass_reader_name,
+        check_pytorch_iterator_pass_reader_name(
             3,
             1,
             3,
@@ -1859,8 +1853,7 @@ def test_paddle_iterator_pass_reader_name():
                         for iters in [1, max(3, 2 * shards_num)]:
                             for exec_dynamic in [False, True]:
                                 for pipes_number in [1, shards_num]:
-                                    yield (
-                                        check_paddle_iterator_pass_reader_name,
+                                    check_paddle_iterator_pass_reader_name(
                                         shards_num,
                                         pipes_number,
                                         batch_size,
@@ -1876,8 +1869,7 @@ def test_paddle_iterator_pass_reader_name():
 @attr("paddle")
 def test_paddle_iterator_pass_reader_name_autoreset():
     for auto_reset in [True, False]:
-        yield (
-            check_paddle_iterator_pass_reader_name,
+        check_paddle_iterator_pass_reader_name(
             3,
             1,
             3,
@@ -2246,9 +2238,9 @@ def check_mxnet_iterator_properties(prepare_ahead):
 
 
 @attr("mxnet")
-def test_mxnet_iterator_properties():
-    for prep in [True, False]:
-        yield check_mxnet_iterator_properties, prep
+@params(True, False)
+def test_mxnet_iterator_properties(prep):
+    check_mxnet_iterator_properties(prep)
 
 
 @attr("mxnet")

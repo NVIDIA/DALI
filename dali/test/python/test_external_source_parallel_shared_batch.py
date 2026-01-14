@@ -29,6 +29,7 @@ from nvidia.dali._multiproc.shared_queue import ShmQueue
 from nvidia.dali._multiproc.messages import ShmMessageDesc
 
 from test_utils import RandomlyShapedDataIterator
+from nose2.tools import params
 from nose_utils import raises
 
 
@@ -43,7 +44,8 @@ def check_serialize_deserialize(batch):
             np.testing.assert_array_equal(batch[i], deserialized_batch[i])
 
 
-def test_serialize_deserialize():
+def _generate_serialize_deserialize_test_cases():
+    cases = []
     for shapes in [
         [(10,)],
         [(10, 20)],
@@ -54,17 +56,36 @@ def test_serialize_deserialize():
         [],
     ]:
         for dtype in [np.int8, float, np.int32]:
-            yield check_serialize_deserialize, [np.full(s, 42, dtype=dtype) for s in shapes]
+            cases.append(([np.full(s, 42, dtype=dtype) for s in shapes],))
+    return cases
 
 
-def test_serialize_deserialize_random():
+_serialize_deserialize_test_cases = _generate_serialize_deserialize_test_cases()
+
+
+@params(*_serialize_deserialize_test_cases)
+def test_serialize_deserialize(batch):
+    check_serialize_deserialize(batch)
+
+
+def _generate_serialize_deserialize_random_test_cases():
+    cases = []
     for max_shape in [(12, 200, 100, 3), (200, 300, 3), (300, 2)]:
         for dtype in [np.uint8, float]:
             rsdi = RandomlyShapedDataIterator(10, max_shape=max_shape, dtype=dtype)
             for i, batch in enumerate(rsdi):
                 if i == 10:
                     break
-                yield check_serialize_deserialize, batch
+                cases.append((batch,))
+    return cases
+
+
+_serialize_deserialize_random_test_cases = _generate_serialize_deserialize_random_test_cases()
+
+
+@params(*_serialize_deserialize_random_test_cases)
+def test_serialize_deserialize_random(batch):
+    check_serialize_deserialize(batch)
 
 
 def worker(start_method, sock, task_queue, res_queue, worker_cb, worker_params):
@@ -113,14 +134,29 @@ def _put_msgs(queue, msgs, one_by_one):
             queue.put([msg])
 
 
-def test_queue_full_assertion():
+def _generate_queue_full_assertion_test_cases():
+    cases = []
     for start_method in ("spawn", "fork"):
         for capacity in [1, 4]:
             for one_by_one in (True, False):
-                mp = multiprocessing.get_context(start_method)
-                queue = ShmQueue(mp, capacity)
-                msgs = [ShmMessageDesc(i, i, i, i, i) for i in range(capacity + 1)]
-                yield raises(RuntimeError, "The queue is full")(_put_msgs), queue, msgs, one_by_one
+                cases.append((start_method, capacity, one_by_one))
+    return cases
+
+
+_queue_full_assertion_test_cases = _generate_queue_full_assertion_test_cases()
+
+
+@raises(RuntimeError, "The queue is full")
+def _check_queue_full_assertion(start_method, capacity, one_by_one):
+    mp = multiprocessing.get_context(start_method)
+    queue = ShmQueue(mp, capacity)
+    msgs = [ShmMessageDesc(i, i, i, i, i) for i in range(capacity + 1)]
+    _put_msgs(queue, msgs, one_by_one)
+
+
+@params(*_queue_full_assertion_test_cases)
+def test_queue_full_assertion(start_method, capacity, one_by_one):
+    _check_queue_full_assertion(start_method, capacity, one_by_one)
 
 
 def copy_callback(task_queue, res_queue, num_samples):
@@ -194,7 +230,7 @@ def _test_queue_large(start_method, msg_values):
             assert all(msg == recv_msg for msg, recv_msg in zip(values, recv_msg_values))
 
 
-def test_queue_large():
+def _generate_queue_large_test_cases():
     max_int32 = 2**31 - 1
     max_uint32 = 2**32 - 1
     max_uint64 = 2**64 - 1
@@ -203,21 +239,39 @@ def test_queue_large():
         (max_int32, max_int32, max_uint32, max_uint32, max_uint32),
         (max_int32, max_int32, max_uint64, max_uint64, max_uint64),
     ]
+    cases = []
     for start_method in ("spawn", "fork"):
         for msg in msgs:
-            yield _test_queue_large, start_method, [msg]
+            cases.append((start_method, [msg]))
+    return cases
 
 
-def test_queue_large_failure():
+_queue_large_test_cases = _generate_queue_large_test_cases()
+
+
+@params(*_queue_large_test_cases)
+def test_queue_large(start_method, msg_values):
+    _test_queue_large(start_method, msg_values)
+
+
+def _generate_queue_large_failure_test_cases():
     max_int32 = 2**31 - 1
     max_uint32 = 2**32 - 1
-    error_message = (
-        "Failed to serialize object as C-like structure. " "Tried to populate following fields:"
-    )
+    cases = []
     for start_method in ("spawn", "fork"):
-        yield raises(RuntimeError, error_message)(_test_queue_large), start_method, [
-            (max_int32 + 1, 0, max_uint32, max_uint32, max_uint32)
-        ]
-        yield raises(RuntimeError, error_message)(_test_queue_large), start_method, [
-            (max_int32, max_int32, -1, 0, 0)
-        ]
+        cases.append((start_method, [(max_int32 + 1, 0, max_uint32, max_uint32, max_uint32)]))
+        cases.append((start_method, [(max_int32, max_int32, -1, 0, 0)]))
+    return cases
+
+
+_queue_large_failure_test_cases = _generate_queue_large_failure_test_cases()
+
+
+@raises(RuntimeError, "Failed to serialize object as C-like structure. Tried to populate following fields:")
+def _check_queue_large_failure(start_method, msg_values):
+    _test_queue_large(start_method, msg_values)
+
+
+@params(*_queue_large_failure_test_cases)
+def test_queue_large_failure(start_method, msg_values):
+    _check_queue_large_failure(start_method, msg_values)

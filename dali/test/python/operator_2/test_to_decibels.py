@@ -18,6 +18,7 @@ import numpy as np
 from functools import partial
 from test_utils import compare_pipelines
 from test_utils import RandomDataIterator
+from nose2.tools import params
 from nose_utils import raises
 
 
@@ -121,23 +122,20 @@ def check_operator_to_decibels_vs_python(
     )
 
 
-def test_operator_to_decibels_vs_python():
-    for device in ["cpu", "gpu"]:
-        for batch_size in [3]:
-            for multiplier, reference, cutoff_db, shape in [
-                (10.0, None, -80.0, (1, 4096)),
-                (20.0, 1.0, -200.0, (2, 1000)),
-                (20.0, 1e-6, -120.0, (2, 3, 40)),
-            ]:
-                yield (
-                    check_operator_to_decibels_vs_python,
-                    device,
-                    batch_size,
-                    shape,
-                    multiplier,
-                    reference,
-                    cutoff_db,
-                )
+_to_decibels_vs_python_test_cases = [
+    (device, 3, shape, multiplier, reference, cutoff_db)
+    for device in ["cpu", "gpu"]
+    for multiplier, reference, cutoff_db, shape in [
+        (10.0, None, -80.0, (1, 4096)),
+        (20.0, 1.0, -200.0, (2, 1000)),
+        (20.0, 1e-6, -120.0, (2, 3, 40)),
+    ]
+]
+
+
+@params(*_to_decibels_vs_python_test_cases)
+def test_operator_to_decibels_vs_python(device, batch_size, shape, multiplier, reference, cutoff_db):
+    check_operator_to_decibels_vs_python(device, batch_size, shape, multiplier, reference, cutoff_db)
 
 
 class NaturalLogarithmPipeline(Pipeline):
@@ -201,12 +199,16 @@ def check_natural_logarithm(device, batch_size, input_shape):
     )
 
 
-def test_operator_natural_logarithm():
-    shapes = [(1, 4096), (2, 1000), (2, 3, 40)]
-    batch_size = 3
-    for device in ["cpu", "gpu"]:
-        for sh in shapes:
-            yield check_natural_logarithm, device, batch_size, sh
+_natural_logarithm_test_cases = [
+    (device, 3, sh)
+    for device in ["cpu", "gpu"]
+    for sh in [(1, 4096), (2, 1000), (2, 3, 40)]
+]
+
+
+@params(*_natural_logarithm_test_cases)
+def test_operator_natural_logarithm(device, batch_size, input_shape):
+    check_natural_logarithm(device, batch_size, input_shape)
 
 
 @raises(RuntimeError, glob="`reference` argument can't be zero")

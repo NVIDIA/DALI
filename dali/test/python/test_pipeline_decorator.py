@@ -14,6 +14,7 @@
 
 from nvidia.dali import Pipeline, pipeline_def
 from nvidia.dali.pipeline import do_not_convert
+from nose2.tools import params
 from nose_utils import raises, assert_raises, nottest
 import nvidia.dali.fn as fn
 from test_utils import get_dali_extra_path, compare_pipelines
@@ -57,15 +58,13 @@ def pipeline_runtime(flip_vertical, flip_horizontal):
     return flipped, img
 
 
-@nottest
-def test_pipeline_static(flip_vertical, flip_horizontal):
+def _check_pipeline_static(flip_vertical, flip_horizontal):
     put_args = pipeline_static(flip_vertical, flip_horizontal)
     ref = reference_pipeline(flip_vertical, flip_horizontal)
     compare_pipelines(put_args, ref, batch_size=max_batch_size, N_iterations=N_ITER)
 
 
-@nottest
-def test_pipeline_runtime(flip_vertical, flip_horizontal):
+def _check_pipeline_runtime(flip_vertical, flip_horizontal):
     put_combined = pipeline_runtime(
         flip_vertical,
         flip_horizontal,
@@ -77,8 +76,7 @@ def test_pipeline_runtime(flip_vertical, flip_horizontal):
     compare_pipelines(put_combined, ref, batch_size=max_batch_size, N_iterations=N_ITER)
 
 
-@nottest
-def test_pipeline_override(flip_vertical, flip_horizontal, batch_size):
+def _check_pipeline_override(flip_vertical, flip_horizontal, batch_size):
     put_combined = pipeline_static(
         flip_vertical,
         flip_horizontal,
@@ -90,14 +88,32 @@ def test_pipeline_override(flip_vertical, flip_horizontal, batch_size):
     compare_pipelines(put_combined, ref, batch_size=batch_size, N_iterations=N_ITER)
 
 
-def test_pipeline_decorator():
-    for vert in [0, 1]:
-        for hori in [0, 1]:
-            yield test_pipeline_static, vert, hori
-            yield test_pipeline_runtime, vert, hori
-            yield test_pipeline_override, vert, hori, 5
-    yield test_pipeline_runtime, fn.random.coin_flip(seed=123), fn.random.coin_flip(seed=234)
-    yield test_pipeline_static, fn.random.coin_flip(seed=123), fn.random.coin_flip(seed=234)
+_pipeline_decorator_params = [
+    (vert, hori) for vert in [0, 1] for hori in [0, 1]
+]
+
+
+@params(*_pipeline_decorator_params)
+def test_pipeline_static(flip_vertical, flip_horizontal):
+    _check_pipeline_static(flip_vertical, flip_horizontal)
+
+
+@params(*_pipeline_decorator_params)
+def test_pipeline_runtime(flip_vertical, flip_horizontal):
+    _check_pipeline_runtime(flip_vertical, flip_horizontal)
+
+
+@params(*[(vert, hori, 5) for vert in [0, 1] for hori in [0, 1]])
+def test_pipeline_override(flip_vertical, flip_horizontal, batch_size):
+    _check_pipeline_override(flip_vertical, flip_horizontal, batch_size)
+
+
+def test_pipeline_runtime_coin_flip():
+    _check_pipeline_runtime(fn.random.coin_flip(seed=123), fn.random.coin_flip(seed=234))
+
+
+def test_pipeline_static_coin_flip():
+    _check_pipeline_static(fn.random.coin_flip(seed=123), fn.random.coin_flip(seed=234))
 
 
 def test_duplicated_argument():

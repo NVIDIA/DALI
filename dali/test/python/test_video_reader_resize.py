@@ -16,6 +16,7 @@ import gc
 import numpy as np
 import nvidia.dali as dali
 import nvidia.dali.types as types
+from nose2.tools import params
 
 video_directory = "/tmp/labelled_videos/"
 video_directory_multiple_resolutions = "/tmp/video_resolution/"
@@ -140,7 +141,13 @@ def run_for_params(batch_size, video_reader_params, resize_params):
     gc.collect()
 
 
-def test_video_resize(batch_size=2):
-    for vp in video_reader_params:
-        for rp in resize_params:
-            yield run_for_params, batch_size, vp, rp
+_video_resize_test_cases = [
+    (2, vp, rp)
+    for vp in video_reader_params
+    for rp in resize_params
+]
+
+
+@params(*_video_resize_test_cases)
+def test_video_resize(batch_size, video_params, resize_p):
+    run_for_params(batch_size, video_params, resize_p)

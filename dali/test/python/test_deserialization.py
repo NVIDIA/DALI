@@ -16,6 +16,7 @@ import nvidia.dali.ops as ops
 from nvidia.dali.pipeline import Pipeline
 
 import test_utils
+from nose2.tools import params
 from nose_utils import raises
 
 
@@ -65,44 +66,32 @@ def check_deserialization_from_file_with_params(batch_size, num_threads, shape):
     test_utils.compare_pipelines(ref_pipe, test_pipe, batch_size=batch_size**2, N_iterations=3)
 
 
-def test_deserialization():
-    batch_sizes = [3]
-    nums_thread = [1]
-    shapes = [[6], [2, 5], [3, 1, 6]]
-    for bs in batch_sizes:
-        for nt in nums_thread:
-            for sh in shapes:
-                yield check_deserialization, bs, nt, sh
+_deserialization_test_cases = [
+    (bs, nt, sh)
+    for bs in [3]
+    for nt in [1]
+    for sh in [[6], [2, 5], [3, 1, 6]]
+]
 
 
-def test_deserialization_with_params():
-    batch_sizes = [3]
-    nums_thread = [1]
-    shapes = [[6], [2, 5], [3, 1, 6]]
-    for bs in batch_sizes:
-        for nt in nums_thread:
-            for sh in shapes:
-                yield check_deserialization_with_params, bs, nt, sh
+@params(*_deserialization_test_cases)
+def test_deserialization(bs, nt, sh):
+    check_deserialization(bs, nt, sh)
 
 
-def test_deserialization_from_file():
-    batch_sizes = [3]
-    nums_thread = [1]
-    shapes = [[6], [2, 5], [3, 1, 6]]
-    for bs in batch_sizes:
-        for nt in nums_thread:
-            for sh in shapes:
-                yield check_deserialization, bs, nt, sh
+@params(*_deserialization_test_cases)
+def test_deserialization_with_params(bs, nt, sh):
+    check_deserialization_with_params(bs, nt, sh)
 
 
-def test_deserialization_from_file_with_params():
-    batch_sizes = [3]
-    nums_thread = [1]
-    shapes = [[6], [2, 5], [3, 1, 6]]
-    for bs in batch_sizes:
-        for nt in nums_thread:
-            for sh in shapes:
-                yield check_deserialization_with_params, bs, nt, sh
+@params(*_deserialization_test_cases)
+def test_deserialization_from_file(bs, nt, sh):
+    check_deserialization(bs, nt, sh)
+
+
+@params(*_deserialization_test_cases)
+def test_deserialization_from_file_with_params(bs, nt, sh):
+    check_deserialization_with_params(bs, nt, sh)
 
 
 @raises(

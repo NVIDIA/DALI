@@ -20,6 +20,7 @@ import nvidia.dali.types as types
 import os
 from nvidia.dali import Pipeline
 
+from nose2.tools import params
 from test_utils import check_batch
 from test_utils import get_dali_extra_path
 
@@ -168,20 +169,26 @@ def _test_scalar_constant_promotion(device):
                 check(out[o].at(i), ref[o])
 
 
-def test_constant_op():
-    yield _test_op, "cpu"
-    yield _test_op, "gpu"
+@params("cpu", "gpu")
+def test_constant_op(device):
+    _test_op(device)
 
 
-def test_constant_fn():
-    for device in ["cpu", "gpu"]:
-        for array_interface in array_interfaces:
-            yield _test_func, device, array_interface
+_constant_fn_test_cases = [
+    (device, array_interface)
+    for device in ["cpu", "gpu"]
+    for array_interface in array_interfaces
+]
 
 
-def test_scalar_constant_promotion():
-    yield _test_scalar_constant_promotion, "cpu"
-    yield _test_scalar_constant_promotion, "gpu"
+@params(*_constant_fn_test_cases)
+def test_constant_fn(device, array_interface):
+    _test_func(device, array_interface)
+
+
+@params("cpu", "gpu")
+def test_scalar_constant_promotion(device):
+    _test_scalar_constant_promotion(device)
 
 
 def test_variable_batch():

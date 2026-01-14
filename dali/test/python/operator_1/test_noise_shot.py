@@ -18,6 +18,7 @@ import nvidia.dali.types as types
 import random
 import numpy as np
 import os
+from nose2.tools import params
 from test_utils import get_dali_extra_path
 from test_noise_utils import PSNR
 
@@ -42,7 +43,12 @@ def pipe_shot_noise(factor, device="cpu"):
     return in_data, out_data, factor_arg
 
 
-def _testimpl_operator_noise_shot(device, factor, batch_size, niter):
+@params(*[
+    (device, factor, random.choice([1, 3]), 3)
+    for device in ("cpu", "gpu")
+    for factor in [None, 0.2, 4, 21.25, 85]
+])
+def test_operator_noise_shot(device, factor, batch_size, niter):
     pipe = pipe_shot_noise(
         factor, device=device, batch_size=batch_size, num_threads=3, device_id=0, seed=12345
     )
@@ -71,12 +77,3 @@ def _testimpl_operator_noise_shot(device, factor, batch_size, niter):
                     f"./shotnoise_out_p{factor}_s{s}.png",
                     cv2.cvtColor(sample_out, cv2.COLOR_BGR2RGB),
                 )
-
-
-def test_operator_noise_shot():
-    niter = 3
-    factors = [None, 0.2, 4, 21.25, 85]
-    for device in ("cpu", "gpu"):
-        for factor in factors:
-            batch_size = random.choice([1, 3])
-            yield _testimpl_operator_noise_shot, device, factor, batch_size, niter

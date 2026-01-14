@@ -88,6 +88,9 @@ def check_random_mask_pixel(ndim=2, batch_size=3, min_extent=20, max_extent=50):
             assert out_mask.shape == tuple(crop_shape)
 
 
-def test_random_mask_pixel():
-    for ndim in (2, 3):
-        yield check_random_mask_pixel, ndim
+from nose2.tools import params
+
+
+@params(2, 3)
+def test_random_mask_pixel(ndim):
+    check_random_mask_pixel(ndim)

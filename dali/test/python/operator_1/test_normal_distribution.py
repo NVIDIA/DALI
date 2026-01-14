@@ -145,9 +145,14 @@ def check_normal_distribution(
                 assert pvalues_anderson[2] > 0.5
 
 
-def test_normal_distribution():
+from nose2.tools import params
+
+
+def _generate_normal_distribution_test_cases():
     niter = 3
     batch_size = 3
+    cases = []
+    random.seed(42)
     for device in ("cpu", "gpu"):
         for dtype in test_types:
             for mean, stddev, variable_dist_params in [
@@ -158,77 +163,50 @@ def test_normal_distribution():
                 for shape in [(100,), (10, 20, 30), (1, 2, 3, 4, 5, 6)]:
                     use_shape_like_in = False if shape is None else random.choice([True, False])
                     variable_shape = random.choice([True, False])
-                    shape_arg = None
-                    if variable_shape:
-
-                        def shape_gen_f():
-                            return random_shape(shape)
-
-                    else:
-                        shape_arg = shape
-                        shape_gen_f = None
-                    yield (
-                        check_normal_distribution,
-                        device,
-                        dtype,
-                        shape_arg,
-                        use_shape_like_in,
-                        variable_shape,
-                        mean,
-                        stddev,
-                        variable_dist_params,
-                        shape_gen_f,
-                        niter,
-                        batch_size,
-                    )
+                    shape_arg = None if variable_shape else shape
+                    # Store shape tuple for lambda closure
+                    cases.append((device, dtype, shape_arg, use_shape_like_in, variable_shape,
+                                  mean, stddev, variable_dist_params, shape, niter, batch_size))
+    return cases
 
 
-def test_normal_distribution_scalar_and_one_elem():
-    niter = 3
-    batch_size = 3
-    mean = 100.0
-    stddev = 20.0
-    for device in ("cpu", "gpu"):
-        for dtype in [types.FLOAT, types.INT16]:
-            for shape in [None, (), (1,)]:
-                yield (
-                    check_normal_distribution,
-                    device,
-                    dtype,
-                    shape,
-                    False,
-                    False,
-                    mean,
-                    stddev,
-                    False,
-                    None,
-                    niter,
-                    batch_size,
-                )
+_normal_distribution_test_cases = _generate_normal_distribution_test_cases()
 
 
-def test_normal_distribution_empty_shapes():
-    niter = 3
-    batch_size = 20
-    dtype = types.FLOAT
-    mean = 100.0
-    stddev = 20.0
+@params(*_normal_distribution_test_cases)
+def test_normal_distribution(device, dtype, shape_arg, use_shape_like_in, variable_shape,
+                             mean, stddev, variable_dist_params, shape_for_gen, niter, batch_size):
+    shape_gen_f = None
+    if variable_shape:
+        def shape_gen_f(s=shape_for_gen):
+            return random_shape(s)
+    check_normal_distribution(device, dtype, shape_arg, use_shape_like_in, variable_shape,
+                              mean, stddev, variable_dist_params, shape_gen_f, niter, batch_size)
+
+
+_normal_distribution_scalar_test_cases = [
+    (device, dtype, shape, False, False, 100.0, 20.0, False, None, 3, 3)
+    for device in ("cpu", "gpu")
+    for dtype in [types.FLOAT, types.INT16]
+    for shape in [None, (), (1,)]
+]
+
+
+@params(*_normal_distribution_scalar_test_cases)
+def test_normal_distribution_scalar_and_one_elem(device, dtype, shape, use_shape_like_input,
+                                                  variable_shape, mean, stddev, variable_dist_params,
+                                                  shape_gen_f, niter, batch_size):
+    check_normal_distribution(device, dtype, shape, use_shape_like_input, variable_shape,
+                              mean, stddev, variable_dist_params, shape_gen_f, niter, batch_size)
+
+
+@params("cpu", "gpu")
+def test_normal_distribution_empty_shapes_zero(device):
+    check_normal_distribution(device, types.FLOAT, (0,), False, False, 100.0, 20.0, False, None, 3, 20)
+
+
+@params("cpu", "gpu")
+def test_normal_distribution_empty_shapes_random(device):
     max_shape = (200, 300, 3)
-    for device in ("cpu", "gpu"):
-        yield check_normal_distribution, device, dtype, (
-            0,
-        ), False, False, mean, stddev, False, None, niter, batch_size
-        yield (
-            check_normal_distribution,
-            device,
-            dtype,
-            None,
-            False,
-            False,
-            mean,
-            stddev,
-            False,
-            lambda: random_shape_or_empty(max_shape),
-            niter,
-            batch_size,
-        )
+    check_normal_distribution(device, types.FLOAT, None, False, False, 100.0, 20.0, False,
+                              lambda: random_shape_or_empty(max_shape), 3, 20)

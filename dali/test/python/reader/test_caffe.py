@@ -19,6 +19,7 @@ import nvidia.dali.types as types
 from numpy.testing import assert_array_equal
 import os
 
+from nose2.tools import params
 from test_utils import compare_pipelines
 from test_utils import get_dali_extra_path
 
@@ -162,6 +163,6 @@ def check_caffe2(label_type):
     compare_pipelines(new_pipe, legacy_pipe, batch_size_alias_test, 50)
 
 
-def test_caffe2_reader_alias():
-    for label_type in [0, 4]:
-        yield check_caffe2, label_type
+@params(0, 4)
+def test_caffe2_reader_alias(label_type):
+    check_caffe2(label_type)

@@ -36,6 +36,7 @@ from test_utils import (
     get_dali_extra_path,
     RandomDataIterator,
 )
+from nose2.tools import params
 from nose_utils import raises, assert_raises, assert_warns, SkipTest
 
 test_data_root = get_dali_extra_path()
@@ -1332,15 +1333,18 @@ def check_duplicated_outs_pipeline(first_device, second_device):
         np.testing.assert_array_equal(out1, out3)
 
 
-def test_duplicated_outs_pipeline():
-    for first_device, second_device in [
-        ("cpu", None),
-        ("cpu", "cpu"),
-        ("cpu", "gpu"),
-        ("mixed", None),
-        ("mixed", "gpu"),
-    ]:
-        yield check_duplicated_outs_pipeline, first_device, second_device
+_duplicated_outs_pipeline_test_cases = [
+    ("cpu", None),
+    ("cpu", "cpu"),
+    ("cpu", "gpu"),
+    ("mixed", None),
+    ("mixed", "gpu"),
+]
+
+
+@params(*_duplicated_outs_pipeline_test_cases)
+def test_duplicated_outs_pipeline(first_device, second_device):
+    check_duplicated_outs_pipeline(first_device, second_device)
 
 
 def check_serialized_outs_duplicated_pipeline(first_device, second_device):
@@ -1368,15 +1372,9 @@ def check_serialized_outs_duplicated_pipeline(first_device, second_device):
         np.testing.assert_array_equal(out1, out3)
 
 
-def test_serialized_outs_duplicated_pipeline():
-    for first_device, second_device in [
-        ("cpu", None),
-        ("cpu", "cpu"),
-        ("cpu", "gpu"),
-        ("mixed", None),
-        ("mixed", "gpu"),
-    ]:
-        yield check_serialized_outs_duplicated_pipeline, first_device, second_device
+@params(*_duplicated_outs_pipeline_test_cases)
+def test_serialized_outs_duplicated_pipeline(first_device, second_device):
+    check_serialized_outs_duplicated_pipeline(first_device, second_device)
 
 
 def check_duplicated_outs_cpu_to_gpu(device):
@@ -1564,11 +1562,11 @@ def check_duplicated_outs_cpu_to_gpu(device):
     assert not isinstance(out[2][0], dali.backend_impl.TensorGPU)
 
 
-def test_duplicated_outs_cpu_op_to_gpu():
+@params("cpu", "gpu")
+def test_duplicated_outs_cpu_op_to_gpu(device):
     # check if it is possible to return outputs from CPU op that goes directly to the GPU op without
     # MakeContiguous as a CPU output from the pipeline
-    for device in ["cpu", "gpu"]:
-        yield check_duplicated_outs_cpu_to_gpu, device
+    check_duplicated_outs_cpu_to_gpu(device)
 
 
 def test_ref_count():
@@ -2010,13 +2008,13 @@ def test_one_output_dtype_ndim():
     ]
 
     for pipe_under_test, dtype, ndim in correct_test_packages:
-        yield check_dtype_ndim, pipe_under_test, dtype, ndim, 1
+        check_dtype_ndim(pipe_under_test, dtype, ndim, 1)
     for pipe_under_test, dtype, ndim in test_ndim_packages_with_raise:
-        yield check_ndim_with_raise, pipe_under_test, dtype, ndim, 1
+        check_ndim_with_raise(pipe_under_test, dtype, ndim, 1)
     for pipe_under_test, dtype, ndim in test_dtype_packages_with_raise:
-        yield check_dtype_with_raise, pipe_under_test, dtype, ndim, 1
+        check_dtype_with_raise(pipe_under_test, dtype, ndim, 1)
     for pipe_under_test, dtype, ndim in test_packages_length_mismatch:
-        yield check_length_error, pipe_under_test, dtype, ndim, 1
+        check_length_error(pipe_under_test, dtype, ndim, 1)
 
 
 def test_double_output_dtype_ndim():
@@ -2077,13 +2075,13 @@ def test_double_output_dtype_ndim():
     ]
 
     for pipe_under_test, dtype, ndim in correct_test_packages:
-        yield check_dtype_ndim, pipe_under_test, dtype, ndim, 2
+        check_dtype_ndim(pipe_under_test, dtype, ndim, 2)
     for pipe_under_test, dtype, ndim in test_ndim_packages_with_raise:
-        yield check_ndim_with_raise, pipe_under_test, dtype, ndim, 2
+        check_ndim_with_raise(pipe_under_test, dtype, ndim, 2)
     for pipe_under_test, dtype, ndim in test_dtype_packages_with_raise:
-        yield check_dtype_with_raise, pipe_under_test, dtype, ndim, 2
+        check_dtype_with_raise(pipe_under_test, dtype, ndim, 2)
     for pipe_under_test, dtype, ndim in test_packages_length_mismatch:
-        yield check_length_error, pipe_under_test, dtype, ndim, 2
+        check_length_error(pipe_under_test, dtype, ndim, 2)
     with assert_raises(ValueError, glob="*must be non-negative*"):
         create_test_package(output_ndim=-1)
         create_test_package(output_ndim=-2137)

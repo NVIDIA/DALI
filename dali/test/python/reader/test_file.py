@@ -20,6 +20,7 @@ import random
 import tempfile
 from nvidia.dali import Pipeline, pipeline_def
 
+from nose2.tools import params
 from nose_utils import assert_raises
 from test_utils import compare_pipelines
 
@@ -90,11 +91,17 @@ def _test_reader_files_arg(use_root, use_labels, shuffle):
             assert contents == ref_contents(fnames[index])
 
 
-def test_file_reader():
-    for use_root in [False, True]:
-        for use_labels in [False, True]:
-            for shuffle in [False, True]:
-                yield _test_reader_files_arg, use_root, use_labels, shuffle
+_file_reader_test_cases = [
+    (use_root, use_labels, shuffle)
+    for use_root in [False, True]
+    for use_labels in [False, True]
+    for shuffle in [False, True]
+]
+
+
+@params(*_file_reader_test_cases)
+def test_file_reader(use_root, use_labels, shuffle):
+    _test_reader_files_arg(use_root, use_labels, shuffle)
 
 
 def test_file_reader_relpath():
@@ -164,34 +171,28 @@ def _test_file_reader_filter(
                 assert all(contents == out_f.at(j))
 
 
-def test_file_reader_filters():
+def _generate_file_reader_filters_test_cases():
+    cases = []
+    random.seed(42)
     for filters in [["*.jpg"], ["*.jpg", "*.png", "*.jpeg"], ["dog*.jpg", "cat*.png", "*.jpg"]]:
         num_threads = random.choice([1, 2, 4, 8])
         batch_size = random.choice([1, 3, 10])
-        yield (
-            _test_file_reader_filter,
-            filters,
-            filters,
-            batch_size,
-            num_threads,
-            "db/single/mixed",
-            False,
-        )
+        cases.append((filters, filters, batch_size, num_threads, "db/single/mixed", False))
+    cases.append((["*.jPg", "*.JPg"], ["*.jPg", "*.JPg"], 3, 1, "db/single/case_sensitive", True))
+    cases.append((
+        ["*.JPG"],
+        ["*.jpg", "*.jpG", "*.jPg", "*.jPG", "*.Jpg", "*.JpG", "*.JPg", "*.JPG"],
+        3, 1, "db/single/case_sensitive", False
+    ))
+    return cases
 
-    yield _test_file_reader_filter, ["*.jPg", "*.JPg"], [
-        "*.jPg",
-        "*.JPg",
-    ], 3, 1, "db/single/case_sensitive", True
-    yield _test_file_reader_filter, ["*.JPG"], [
-        "*.jpg",
-        "*.jpG",
-        "*.jPg",
-        "*.jPG",
-        "*.Jpg",
-        "*.JpG",
-        "*.JPg",
-        "*.JPG",
-    ], 3, 1, "db/single/case_sensitive", False
+
+_file_reader_filters_test_cases = _generate_file_reader_filters_test_cases()
+
+
+@params(*_file_reader_filters_test_cases)
+def test_file_reader_filters(filters, glob_filters, batch_size, num_threads, subpath, case_sensitive_filter):
+    _test_file_reader_filter(filters, glob_filters, batch_size, num_threads, subpath, case_sensitive_filter)
 
 
 batch_size_alias_test = 64

@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -88,17 +88,24 @@ def run_decode(_img_type, data_path, batch, device, threads, memory_stats=False)
     del pipe
 
 
-def test_image_decoder():
-    for device in ["cpu", "mixed"]:
-        for batch_size in [1, 10]:
-            for img_type in test_good_path:
-                for threads in [1, random.choice([2, 3, 4])]:
-                    data_path = os.path.join(test_data_root, good_path, img_type)
-                    yield run_decode, img_type, data_path, batch_size, device, threads
-            for img_type in test_misnamed_path:
-                for threads in [1, random.choice([2, 3, 4])]:
-                    data_path = os.path.join(test_data_root, misnamed_path, img_type)
-                    yield run_decode, img_type, data_path, batch_size, device, threads
+# Pre-generate test cases with deterministic random choices
+_rng = random.Random(42)
+_image_decoder_test_cases = []
+for device in ["cpu", "mixed"]:
+    for batch_size in [1, 10]:
+        for img_type in test_good_path:
+            threads = _rng.choice([1, 2, 3, 4])
+            data_path = os.path.join(test_data_root, good_path, img_type)
+            _image_decoder_test_cases.append((img_type, data_path, batch_size, device, threads))
+        for img_type in test_misnamed_path:
+            threads = _rng.choice([1, 2, 3, 4])
+            data_path = os.path.join(test_data_root, misnamed_path, img_type)
+            _image_decoder_test_cases.append((img_type, data_path, batch_size, device, threads))
+
+
+@params(*_image_decoder_test_cases)
+def test_image_decoder(img_type, data_path, batch_size, device, threads):
+    run_decode(img_type, data_path, batch_size, device, threads)
 
 
 @pipeline_def
@@ -180,9 +187,10 @@ def run_decode_fused(test_fun, path, img_type, batch, device, threads, validatio
             assert validation_fun(img_1, img_2)
 
 
-def test_image_decoder_fused():
+def _generate_fused_test_cases():
     threads = 4
     batch_size = 10
+    test_cases = []
     for test_fun in [
         create_decoder_slice_pipeline,
         create_decoder_crop_pipeline,
@@ -194,31 +202,29 @@ def test_image_decoder_fused():
             test_fun == create_decoder_random_crop_pipeline
             or nvidia.dali.backend.GetNvjpegVersion() < 11040
         ):
-            # random_resized_crop can properly handle border as it has pixels that are cropped out,
-            # while plain resize following image_decoder_random_crop cannot do that
-            # and must duplicate the border pixels
-            def mean_close(x, y):
-                return np.mean(np.abs(x - y) < 0.5)
-
-            validation_fun = mean_close
+            validation_fun_name = "mean_close_approx"
         else:
+            validation_fun_name = "mean_close_strict"
 
-            def mean_close(x, y):
-                return np.allclose(x, y)
-
-            validation_fun = mean_close
         for device in ["cpu", "mixed"]:
             for img_type in test_good_path:
-                yield (
-                    run_decode_fused,
-                    test_fun,
-                    good_path,
-                    img_type,
-                    batch_size,
-                    device,
-                    threads,
-                    validation_fun,
-                )
+                test_cases.append((
+                    test_fun, good_path, img_type, batch_size, device, threads, validation_fun_name
+                ))
+    return test_cases
+
+
+def _get_validation_fun(name):
+    if name == "mean_close_approx":
+        return lambda x, y: np.mean(np.abs(x - y) < 0.5)
+    else:
+        return lambda x, y: np.allclose(x, y)
+
+
+@params(*_generate_fused_test_cases())
+def test_image_decoder_fused(test_fun, path, img_type, batch_size, device, threads, validation_fun_name):
+    validation_fun = _get_validation_fun(validation_fun_name)
+    run_decode_fused(test_fun, path, img_type, batch_size, device, threads, validation_fun)
 
 
 def check_FastDCT_body(batch_size, img_type, device):
@@ -247,11 +253,14 @@ def check_FastDCT_body(batch_size, img_type, device):
     )
 
 
-def test_FastDCT():
-    for device in ["cpu", "mixed"]:
-        for batch_size in [1, 8]:
-            for img_type in test_good_path:
-                yield check_FastDCT_body, batch_size, img_type, device
+@params(*[
+    (batch_size, img_type, device)
+    for device in ["cpu", "mixed"]
+    for batch_size in [1, 8]
+    for img_type in test_good_path
+])
+def test_FastDCT(batch_size, img_type, device):
+    check_FastDCT_body(batch_size, img_type, device)
 
 
 def check_fancy_upsampling_body(batch_size, img_type, device):
@@ -298,24 +307,29 @@ def test_fancy_upsampling(batch_size):
     )
 
 
-def test_image_decoder_memory_stats():
-    device = "mixed"
-    img_type = "jpeg"
+def _check_memory_stats(img_type, size, device, threads):
+    data_path = os.path.join(test_data_root, good_path, img_type)
+    # largest allocation should match our (in this case) memory padding settings
+    # (assuming no reallocation was needed here as the hint is big enough)
+    pattern = (
+        r"Device memory: \d+ allocations, largest = 16777216 bytes\n.*"
+        r"Host \(pinned|regular\) memory: \d+ allocations, largest = 8388608 bytes\n"
+    )
+    with check_output_pattern(pattern):
+        run_decode(img_type, data_path, size, device, threads, memory_stats=True)
 
-    def check(img_type, size, device, threads):
-        data_path = os.path.join(test_data_root, good_path, img_type)
-        # largest allocation should match our (in this case) memory padding settings
-        # (assuming no reallocation was needed here as the hint is big enough)
-        pattern = (
-            r"Device memory: \d+ allocations, largest = 16777216 bytes\n.*"
-            r"Host \(pinned|regular\) memory: \d+ allocations, largest = 8388608 bytes\n"
-        )
-        with check_output_pattern(pattern):
-            run_decode(img_type, data_path, size, device, threads, memory_stats=True)
 
-    for size in [1, 10]:
-        for threads in [1, random.choice([2, 3, 4])]:
-            yield check, img_type, size, device, threads
+# Pre-generate memory stats test cases
+_rng2 = random.Random(43)
+_memory_stats_test_cases = [
+    ("jpeg", size, "mixed", _rng2.choice([1, 2, 3, 4]))
+    for size in [1, 10]
+]
+
+
+@params(*_memory_stats_test_cases)
+def test_image_decoder_memory_stats(img_type, size, device, threads):
+    _check_memory_stats(img_type, size, device, threads)
 
 
 batch_size_test = 16
@@ -344,19 +358,25 @@ def _testimpl_image_decoder_consistency(img_out_type, file_fmt, path, subdir="*"
     )
 
 
-def test_image_decoder_consistency():
-    for out_img_type in [types.RGB, types.BGR, types.YCbCr, types.GRAY, types.ANY_DATA]:
-        for file_fmt in test_good_path:
-            path = os.path.join(good_path, file_fmt)
-            yield _testimpl_image_decoder_consistency, out_img_type, file_fmt, path
+# Generate consistency test cases
+_consistency_test_cases = []
+for out_img_type in [types.RGB, types.BGR, types.YCbCr, types.GRAY, types.ANY_DATA]:
+    for file_fmt in test_good_path:
+        path = os.path.join(good_path, file_fmt)
+        _consistency_test_cases.append((out_img_type, file_fmt, path, "*", None))
 
-        for file_fmt, path, ext in [
-            ("tiff", "db/single/multichannel/tiff_multichannel", "tif"),
-            ("jpeg2k", "db/single/multichannel/with_alpha", "jp2"),
-            ("png", "db/single/multichannel/with_alpha", "png"),
-        ]:
-            subdir = None  # In those paths the images are not organized in subdirs
-            yield _testimpl_image_decoder_consistency, out_img_type, file_fmt, path, subdir, ext
+    for file_fmt, path, ext in [
+        ("tiff", "db/single/multichannel/tiff_multichannel", "tif"),
+        ("jpeg2k", "db/single/multichannel/with_alpha", "jp2"),
+        ("png", "db/single/multichannel/with_alpha", "png"),
+    ]:
+        subdir = None  # In those paths the images are not organized in subdirs
+        _consistency_test_cases.append((out_img_type, file_fmt, path, subdir, ext))
+
+
+@params(*_consistency_test_cases)
+def test_image_decoder_consistency(out_img_type, file_fmt, path, subdir, ext):
+    _testimpl_image_decoder_consistency(out_img_type, file_fmt, path, subdir, ext)
 
 
 def _testimpl_image_decoder_tiff_with_alpha_16bit(device, out_type, path, ext):
@@ -378,12 +398,14 @@ def _testimpl_image_decoder_tiff_with_alpha_16bit(device, out_type, path, ext):
     assert out.shape[2] == expected_channels, f"Expected {expected_channels} but got {out.shape[2]}"
 
 
-def test_image_decoder_tiff_with_alpha_16bit():
-    for device in ["cpu", "mixed"]:
-        for out_type in [types.RGB, types.BGR, types.YCbCr, types.ANY_DATA]:
-            path = "db/single/multichannel/with_alpha_16bit"
-            for ext in [("png", "tiff", "jp2")]:
-                yield _testimpl_image_decoder_tiff_with_alpha_16bit, device, out_type, path, ext
+@params(*[
+    (device, out_type, "db/single/multichannel/with_alpha_16bit", ext)
+    for device in ["cpu", "mixed"]
+    for out_type in [types.RGB, types.BGR, types.YCbCr, types.ANY_DATA]
+    for ext in [("png", "tiff", "jp2")]
+])
+def test_image_decoder_tiff_with_alpha_16bit(device, out_type, path, ext):
+    _testimpl_image_decoder_tiff_with_alpha_16bit(device, out_type, path, ext)
 
 
 @pipeline_def(batch_size=batch_size_test, device_id=0, num_threads=4)
@@ -401,16 +423,18 @@ def check_image_decoder_alias(new_op, old_op, file_root, device, use_fast_idct):
     compare_pipelines(new_pipe, legacy_pipe, batch_size=batch_size_test, N_iterations=3)
 
 
-def test_image_decoder_alias():
-    data_path = os.path.join(test_data_root, good_path, "jpeg")
+@params(*[
+    (new_op, old_op, os.path.join(test_data_root, good_path, "jpeg"), device, use_fast_idct)
     for new_op, old_op in [
         (fn.decoders.image, fn.image_decoder),
         (fn.decoders.image_crop, fn.image_decoder_crop),
         (fn.decoders.image_random_crop, fn.image_decoder_random_crop),
-    ]:
-        for device in ["cpu", "mixed"]:
-            for use_fast_idct in [True, False]:
-                yield check_image_decoder_alias, new_op, old_op, data_path, device, use_fast_idct
+    ]
+    for device in ["cpu", "mixed"]
+    for use_fast_idct in [True, False]
+])
+def test_image_decoder_alias(new_op, old_op, data_path, device, use_fast_idct):
+    check_image_decoder_alias(new_op, old_op, data_path, device, use_fast_idct)
 
 
 @pipeline_def(batch_size=batch_size_test, device_id=0, num_threads=4)
@@ -430,12 +454,14 @@ def check_image_decoder_slice_alias(new_op, old_op, file_root, device, use_fast_
     compare_pipelines(new_pipe, legacy_pipe, batch_size=batch_size_test, N_iterations=3)
 
 
-def test_image_decoder_slice_alias():
-    data_path = os.path.join(test_data_root, good_path, "jpeg")
-    new_op, old_op = fn.decoders.image_slice, fn.image_decoder_slice
-    for device in ["cpu", "mixed"]:
-        for use_fast_idct in [True, False]:
-            yield check_image_decoder_slice_alias, new_op, old_op, data_path, device, use_fast_idct
+@params(*[
+    (fn.decoders.image_slice, fn.image_decoder_slice,
+     os.path.join(test_data_root, good_path, "jpeg"), device, use_fast_idct)
+    for device in ["cpu", "mixed"]
+    for use_fast_idct in [True, False]
+])
+def test_image_decoder_slice_alias(new_op, old_op, data_path, device, use_fast_idct):
+    check_image_decoder_slice_alias(new_op, old_op, data_path, device, use_fast_idct)
 
 
 def _testimpl_image_decoder_crop_error_oob(device):
@@ -453,9 +479,9 @@ def _testimpl_image_decoder_crop_error_oob(device):
     )
 
 
-def test_image_decoder_crop_error_oob():
-    for device in ["cpu", "mixed"]:
-        yield _testimpl_image_decoder_crop_error_oob, device
+@params("cpu", "mixed")
+def test_image_decoder_crop_error_oob(device):
+    _testimpl_image_decoder_crop_error_oob(device)
 
 
 def _testimpl_image_decoder_slice_error_oob(device):
@@ -473,9 +499,9 @@ def _testimpl_image_decoder_slice_error_oob(device):
     )
 
 
-def test_image_decoder_slice_error_oob():
-    for device in ["cpu", "mixed"]:
-        yield _testimpl_image_decoder_slice_error_oob, device
+@params("cpu", "mixed")
+def test_image_decoder_slice_error_oob(device):
+    _testimpl_image_decoder_slice_error_oob(device)
 
 
 def test_pinned_input_hw_decoder():

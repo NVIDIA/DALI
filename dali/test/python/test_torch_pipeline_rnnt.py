@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from nose2.tools import params
 from nose_utils import nottest
 import nvidia.dali.fn as fn
 from nvidia.dali import pipeline_def
@@ -606,8 +607,7 @@ def test_rnnt_data_pipeline():
         for frame_splicing_stack, frame_splicing_subsample in [(1, 1), (3, 2)]:
             for normalize_type in ["per_feature", "all_features"]:
                 pad_amount = random.choice([0, 16])
-                yield (
-                    _testimpl_rnnt_data_pipeline,
+                _testimpl_rnnt_data_pipeline(
                     device,
                     pad_amount,
                     preemph_coeff,

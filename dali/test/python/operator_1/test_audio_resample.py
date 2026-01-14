@@ -17,6 +17,7 @@ import scipy.io.wavfile
 from nvidia.dali import fn, pipeline_def, types
 
 from test_audio_decoder_utils import generate_waveforms
+from nose2.tools import params
 from test_utils import check_batch, dali_type_to_np, as_array
 
 names = ["/tmp/dali_test_1C.wav", "/tmp/dali_test_2C.wav", "/tmp/dali_test_4C.wav"]
@@ -65,9 +66,9 @@ def _test_standalone_vs_fused(device):
         check_batch(outs[0], outs[3], eps=1e-4, max_allowed_error=1)
 
 
-def test_standalone_vs_fused():
-    for device in ("gpu", "cpu"):
-        yield _test_standalone_vs_fused, device
+@params("gpu", "cpu")
+def test_standalone_vs_fused(device):
+    _test_standalone_vs_fused(device)
 
 
 def _test_type_conversion(device, src_type, in_values, dst_type, out_values, eps):
@@ -98,7 +99,8 @@ def _test_type_conversion(device, src_type, in_values, dst_type, out_values, eps
                 assert np.allclose(out_arr, ref, 1e-6, eps)
 
 
-def test_dynamic_ranges():
+_dynamic_ranges_test_cases = [
+    (device, type, values, type, values, eps)
     for type, values, eps in [
         (
             types.FLOAT,
@@ -111,12 +113,17 @@ def test_dynamic_ranges():
         (types.INT16, [-32768, -32767, -100, -1, 0, 1, 100, 32767], 0),
         (types.UINT32, [0, 1, 0x7FFFFFFF, 0x80000000, 0xFFFFFFFE, 0xFFFFFFFF], 128),
         (types.INT32, [-0x80000000, -0x7FFFFFFF, -100, -1, 0, 1, 0x7FFFFFFF], 128),
-    ]:
-        for device in ("cpu", "gpu"):
-            yield _test_type_conversion, device, type, values, type, values, eps
+    ]
+    for device in ("cpu", "gpu")
+]
 
 
-def test_type_conversion():
+@params(*_dynamic_ranges_test_cases)
+def test_dynamic_ranges(device, src_type, in_values, dst_type, out_values, eps):
+    _test_type_conversion(device, src_type, in_values, dst_type, out_values, eps)
+
+
+def _generate_type_conversion_test_cases():
     type_ranges = [
         (types.FLOAT, [-1, 1]),
         (types.UINT8, [0, 255]),
@@ -126,7 +133,7 @@ def test_type_conversion():
         (types.INT32, [-0x7FFFFFFF, 0x7FFFFFFF]),
         (types.UINT32, [0, 0xFFFFFFFF]),
     ]
-
+    cases = []
     for src_type, src_range in type_ranges:
         i_lo, i_hi = src_range
         if i_lo == -i_hi:
@@ -151,11 +158,19 @@ def test_type_conversion():
             if dst_type != types.FLOAT:
                 out_values = list(map(int, out_values))
             eps = (o_hi - o_lo) / 2**24 + (i_hi - i_lo) / 2**24
-            print(src_type, in_values, dst_type, out_values)
 
             # the result will be halfway - add epsilon of 1
             if eps < 1 and (o_lo != -o_hi or (i_hi != i_lo and dst_type != types.FLOAT)):
                 eps = 1
 
             for device in ("cpu", "gpu"):
-                yield _test_type_conversion, device, src_type, in_values, dst_type, out_values, eps
+                cases.append((device, src_type, in_values, dst_type, out_values, eps))
+    return cases
+
+
+_type_conversion_test_cases = _generate_type_conversion_test_cases()
+
+
+@params(*_type_conversion_test_cases)
+def test_type_conversion(device, src_type, in_values, dst_type, out_values, eps):
+    _test_type_conversion(device, src_type, in_values, dst_type, out_values, eps)

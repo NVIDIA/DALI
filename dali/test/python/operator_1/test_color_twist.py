@@ -21,6 +21,7 @@ import random
 from nvidia.dali import pipeline_def
 
 from sequences_test_utils import ArgCb, video_suite_helper
+from nose2.tools import params
 from test_utils import RandomDataIterator
 
 
@@ -142,11 +143,22 @@ def check_ref(inp_dtype, out_dtype, has_3_dims):
             check(inp.at(i), out_cpu.at(i), out_gpu.at(i), h, s, b, c, dali_type_to_np(out_dtype))
 
 
-def test_color_twist():
+def _generate_color_twist_test_cases():
+    rng = random.Random(42)
+    cases = []
     for inp_dtype in [types.FLOAT, types.INT16, types.UINT8]:
         for out_dtype in [types.FLOAT, types.INT16, types.UINT8]:
-            has_3_dims = random.choice([False, True])
-            yield check_ref, inp_dtype, out_dtype, has_3_dims
+            has_3_dims = rng.choice([False, True])
+            cases.append((inp_dtype, out_dtype, has_3_dims))
+    return cases
+
+
+_color_twist_test_cases = _generate_color_twist_test_cases()
+
+
+@params(*_color_twist_test_cases)
+def test_color_twist(inp_dtype, out_dtype, has_3_dims):
+    check_ref(inp_dtype, out_dtype, has_3_dims)
 
 
 def test_video():
@@ -199,23 +211,27 @@ def test_video():
         (fn.color_twist, {}, [ArgCb("brightness", brightness, True), ArgCb("hue", hue, False)]),
     ]
 
-    yield from video_suite_helper(video_test_cases, test_channel_first=False)
+    video_suite_helper(video_test_cases, test_channel_first=False)
 
 
-def test_color_twist_default_dtype():
-    np_types = [types.FLOAT, types.INT32, types.INT16, types.UINT8]  # Just some types
+def _color_twist_default_dtype_impl(op, device, type):
+    @pipeline_def(batch_size=1, num_threads=3, device_id=0)
+    def pipeline():
+        data = types.Constant(255, shape=(10, 10, 3), dtype=type, device=device)
+        return op(data)
 
-    def impl(op, device, type):
-        @pipeline_def(batch_size=1, num_threads=3, device_id=0)
-        def pipeline():
-            data = types.Constant(255, shape=(10, 10, 3), dtype=type, device=device)
-            return op(data)
+    pipe = pipeline()
+    (data,) = pipe.run()
+    assert data[0].dtype == type, f"{data[0].dtype} != {type}"
 
-        pipe = pipeline()
-        (data,) = pipe.run()
-        assert data[0].dtype == type, f"{data[0].dtype} != {type}"
 
-    for device in ["gpu", "cpu"]:
-        for type in np_types:
-            for op in [fn.hue]:
-                yield impl, op, device, type
+_color_twist_default_dtype_test_cases = [
+    (fn.hue, device, type)
+    for device in ["gpu", "cpu"]
+    for type in [types.FLOAT, types.INT32, types.INT16, types.UINT8]
+]
+
+
+@params(*_color_twist_default_dtype_test_cases)
+def test_color_twist_default_dtype(op, device, type):
+    _color_twist_default_dtype_impl(op, device, type)

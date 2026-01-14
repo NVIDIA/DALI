@@ -20,6 +20,7 @@ from tempfile import TemporaryFile
 import numpy as np
 from nvidia.dali import fn, ops, pipeline_def, types
 from nvidia.dali.pipeline import Pipeline
+from nose2.tools import params
 
 bbox_2d_ltrb_1 = [0.0123, 0.0123, 0.2123, 0.2123]
 bbox_2d_ltrb_2 = [0.1123, 0.1123, 0.19123, 0.19123]
@@ -363,8 +364,7 @@ def test_random_bbox_crop_variable_shape():
         for aspect_ratio in aspect_ratio_ranges[ndim]:
             use_labels = random.choice([True, False])
             out_bbox_indices = random.choice([True, False])
-            yield (
-                check_random_bbox_crop_variable_shape,
+            check_random_bbox_crop_variable_shape(
                 batch_size,
                 ndim,
                 scaling,
@@ -427,8 +427,7 @@ def test_random_bbox_crop_fixed_shape():
         for input_shape, crop_shape, use_labels in itertools.product(
             input_shapes[ndim], crop_shapes[ndim], [True, False]
         ):
-            yield (
-                check_random_bbox_crop_fixed_shape,
+            check_random_bbox_crop_fixed_shape(
                 batch_size,
                 ndim,
                 crop_shape,
@@ -489,8 +488,7 @@ def test_random_bbox_crop_overlap():
         for input_shape, crop_shape, use_labels in itertools.product(
             input_shapes[ndim], crop_shapes[ndim], [True, False]
         ):
-            yield (
-                check_random_bbox_crop_overlap,
+            check_random_bbox_crop_overlap(
                 batch_size,
                 ndim,
                 crop_shape,
@@ -623,6 +621,6 @@ def _testimpl_random_bbox_crop_square(use_input_shape):
                 np.testing.assert_allclose(out_crop_shape[0], out_crop_shape[1], rtol=1e-06)
 
 
-def test_random_bbox_crop_square():
-    for use_input_shape in [False, True]:
-        yield _testimpl_random_bbox_crop_square, use_input_shape
+@params(False, True)
+def test_random_bbox_crop_square(use_input_shape):
+    _testimpl_random_bbox_crop_square(use_input_shape)

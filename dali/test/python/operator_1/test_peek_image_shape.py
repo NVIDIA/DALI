@@ -17,6 +17,7 @@ import nvidia.dali.fn as fn
 from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.types as types
 import os
+from nose2.tools import params
 from test_utils import get_dali_extra_path, dali_type_to_np
 
 test_data_root = get_dali_extra_path()
@@ -24,7 +25,23 @@ path = "db/single"
 file_types = {"jpeg", "mixed", "png", "tiff", "pnm", "bmp", "jpeg2k"}
 
 
-def run_decode(data_path, out_type):
+test_types = [
+    None,
+    types.INT32,
+    types.UINT32,
+    types.INT64,
+    types.UINT64,
+    types.FLOAT,
+    types.FLOAT64,
+]
+
+
+@params(*[
+    (os.path.join(test_data_root, path, img_type), out_type)
+    for img_type in file_types
+    for out_type in test_types
+])
+def test_operator_peek_image_shape(data_path, out_type):
     batch_size = 4
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=0)
     input, _ = fn.readers.file(file_root=data_path, shard_id=0, num_shards=1, name="reader")
@@ -52,21 +69,3 @@ def run_decode(data_path, out_type):
                 assert raw_shape.at(i)[d].dtype == shape_type, "{} vs {}".format(
                     raw_shape.at(i)[d].dtyp, shape_type
                 )
-
-
-test_types = [
-    None,
-    types.INT32,
-    types.UINT32,
-    types.INT64,
-    types.UINT64,
-    types.FLOAT,
-    types.FLOAT64,
-]
-
-
-def test_operator_peek_image_shape():
-    for img_type in file_types:
-        for out_type in test_types:
-            data_path = os.path.join(test_data_root, path, img_type)
-            yield run_decode, data_path, out_type

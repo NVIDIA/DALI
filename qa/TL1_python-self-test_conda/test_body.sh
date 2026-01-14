@@ -2,7 +2,7 @@
 
 test_py_with_framework() {
     for test_script in $(ls test_pipeline*.py test_external_source_dali.py test_external_source_numpy.py test_external_source_parallel_garbage_collection_order.py test_functional_api.py); do
-        ${python_invoke_test} --attr '!slow,!pytorch,!mxnet,!cupy,!numba' ${test_script}
+        ${python_new_invoke_test} -A '!slow,!pytorch,!mxnet,!cupy,!numba' ${test_script%.py}
     done
 
     ${python_new_invoke_test} -A '!slow,!pytorch,!mxnet,!cupy' test_backend_impl
@@ -17,7 +17,7 @@ test_jpeg_scan_limit() {
     # test various broken cases with smaller limit for speed
     DALI_MAX_JPEG_SCANS=30 ${python_new_invoke_test} -s decoder test_jpeg_scan_limit
     # test default limit for one case
-    ${python_new_invoke_test} -s decoder test_jpeg_scan_limit.ProgressiveJpeg.test_scans_limit:1
+    ${python_new_invoke_test} -s decoder test_jpeg_scan_limit.ProgressiveJpeg.test_scans_limit,1
 }
 
 test_py() {

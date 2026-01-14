@@ -485,18 +485,30 @@ def check_unary_op(kind, type, op, shape, _):
             np.testing.assert_array_equal(out, op(in_np))
 
 
-def test_unary_arithmetic_ops():
-    for kinds in unary_input_kinds:
-        for op, op_desc in unary_operations:
-            for types_in in input_types:
-                if types_in != np.bool_:
-                    yield check_unary_op, kinds, types_in, op, shape_small, op_desc
+_unary_arithmetic_ops_test_cases = [
+    (kinds, types_in, op, shape_small, op_desc)
+    for kinds in unary_input_kinds
+    for op, op_desc in unary_operations
+    for types_in in input_types
+    if types_in != np.bool_
+]
 
 
-def test_unary_arithmetic_ops_big():
-    for kinds in unary_input_kinds:
-        for op, op_desc in unary_operations:
-            yield check_unary_op, kinds, np.int8, op, shape_big, op_desc
+@params(*_unary_arithmetic_ops_test_cases)
+def test_unary_arithmetic_ops(kinds, types_in, op, shape, op_desc):
+    check_unary_op(kinds, types_in, op, shape, op_desc)
+
+
+_unary_arithmetic_ops_big_test_cases = [
+    (kinds, np.int8, op, shape_big, op_desc)
+    for kinds in unary_input_kinds
+    for op, op_desc in unary_operations
+]
+
+
+@params(*_unary_arithmetic_ops_big_test_cases)
+def test_unary_arithmetic_ops_big(kinds, types_in, op, shape, op_desc):
+    check_unary_op(kinds, types_in, op, shape, op_desc)
 
 
 def check_math_function_op(kind, type, op, np_op, shape, get_range, op_desc, eps):
@@ -517,39 +529,30 @@ def check_math_function_op(kind, type, op, np_op, shape, get_range, op_desc, eps
         )
 
 
-def test_math_function_ops():
-    for kinds in unary_input_kinds:
-        for op, np_op, op_desc, get_range, eps in math_function_operations:
-            for types_in in input_types:
-                if types_in != np.bool_:
-                    yield (
-                        check_math_function_op,
-                        kinds,
-                        types_in,
-                        op,
-                        np_op,
-                        shape_small,
-                        get_range,
-                        op_desc,
-                        eps,
-                    )
+_math_function_ops_test_cases = [
+    (kinds, types_in, op, np_op, shape_small, get_range, op_desc, eps)
+    for kinds in unary_input_kinds
+    for op, np_op, op_desc, get_range, eps in math_function_operations
+    for types_in in input_types
+    if types_in != np.bool_
+]
 
 
-def test_math_function_ops_big():
-    for kinds in unary_input_kinds:
-        for op, np_op, op_desc, get_range, eps in math_function_operations:
-            for types_in in [np.int8]:
-                yield (
-                    check_math_function_op,
-                    kinds,
-                    types_in,
-                    op,
-                    np_op,
-                    shape_big,
-                    get_range,
-                    op_desc,
-                    eps,
-                )
+@params(*_math_function_ops_test_cases)
+def test_math_function_ops(kinds, types_in, op, np_op, shape, get_range, op_desc, eps):
+    check_math_function_op(kinds, types_in, op, np_op, shape, get_range, op_desc, eps)
+
+
+_math_function_ops_big_test_cases = [
+    (kinds, np.int8, op, np_op, shape_big, get_range, op_desc, eps)
+    for kinds in unary_input_kinds
+    for op, np_op, op_desc, get_range, eps in math_function_operations
+]
+
+
+@params(*_math_function_ops_big_test_cases)
+def test_math_function_ops_big(kinds, types_in, op, np_op, shape, get_range, op_desc, eps):
+    check_math_function_op(kinds, types_in, op, np_op, shape, get_range, op_desc, eps)
 
 
 def check_arithm_op(kinds, types, op, shape, get_range, op_desc):
@@ -603,93 +606,144 @@ def check_ternary_op(kinds, types, op, shape, _):
             np.testing.assert_array_equal(out, numpy_op(x, y, z))
 
 
-def test_arithmetic_ops_big():
-    for kinds in bin_input_kinds:
-        for op, op_desc, get_range in sane_operations:
-            for types_in in [(np.int8, np.int8)]:
-                yield check_arithm_op, kinds, types_in, op, shape_big, get_range, op_desc
+_arithmetic_ops_big_test_cases = [
+    (kinds, (np.int8, np.int8), op, shape_big, get_range, op_desc)
+    for kinds in bin_input_kinds
+    for op, op_desc, get_range in sane_operations
+]
 
 
-def test_arithmetic_ops_selected():
-    for kinds in selected_bin_input_kinds:
-        for op, op_desc, get_range in sane_operations:
-            for types_in in itertools.product(selected_input_types, selected_input_types):
-                if types_in != (np.bool_, np.bool_) or op_desc == "*":
-                    yield check_arithm_op, kinds, types_in, op, shape_small, get_range, op_desc
+@params(*_arithmetic_ops_big_test_cases)
+def test_arithmetic_ops_big(kinds, types_in, op, shape, get_range, op_desc):
+    check_arithm_op(kinds, types_in, op, shape, get_range, op_desc)
+
+
+_arithmetic_ops_selected_test_cases = [
+    (kinds, types_in, op, shape_small, get_range, op_desc)
+    for kinds in selected_bin_input_kinds
+    for op, op_desc, get_range in sane_operations
+    for types_in in itertools.product(selected_input_types, selected_input_types)
+    if types_in != (np.bool_, np.bool_) or op_desc == "*"
+]
+
+
+@params(*_arithmetic_ops_selected_test_cases)
+def test_arithmetic_ops_selected(kinds, types_in, op, shape, get_range, op_desc):
+    check_arithm_op(kinds, types_in, op, shape, get_range, op_desc)
+
+
+_slow_arithmetic_ops_test_cases = [
+    (kinds, types_in, op, shape_small, get_range, op_desc)
+    for kinds in bin_input_kinds
+    for op, op_desc, get_range in sane_operations
+    for types_in in itertools.product(input_types, input_types)
+    if types_in != (np.bool_, np.bool_) or op_desc == "*"
+]
 
 
 @attr("slow")
-def slow_test_arithmetic_ops():
-    for kinds in bin_input_kinds:
-        for op, op_desc, get_range in sane_operations:
-            for types_in in itertools.product(input_types, input_types):
-                if types_in != (np.bool_, np.bool_) or op_desc == "*":
-                    yield check_arithm_op, kinds, types_in, op, shape_small, get_range, op_desc
+@params(*_slow_arithmetic_ops_test_cases)
+def slow_test_arithmetic_ops(kinds, types_in, op, shape, get_range, op_desc):
+    check_arithm_op(kinds, types_in, op, shape, get_range, op_desc)
 
 
-def test_ternary_ops_big():
-    for kinds in selected_ternary_input_kinds:
-        for op, op_desc in ternary_operations:
-            for types_in in [
-                (np.int32, np.int32, np.int32),
-                (np.int32, np.int8, np.int16),
-                (np.int32, np.uint8, np.float32),
-            ]:
-                yield check_ternary_op, kinds, types_in, op, shape_big, op_desc
+_ternary_ops_big_test_cases = [
+    (kinds, types_in, op, shape_big, op_desc)
+    for kinds in selected_ternary_input_kinds
+    for op, op_desc in ternary_operations
+    for types_in in [
+        (np.int32, np.int32, np.int32),
+        (np.int32, np.int8, np.int16),
+        (np.int32, np.uint8, np.float32),
+    ]
+]
 
 
-def test_ternary_ops_selected():
-    for kinds in selected_ternary_input_kinds:
-        for op, op_desc in ternary_operations:
-            for types_in in itertools.product(
-                selected_input_arithm_types,
-                selected_input_arithm_types,
-                selected_input_arithm_types,
-            ):
-                yield check_ternary_op, kinds, types_in, op, shape_small, op_desc
+@params(*_ternary_ops_big_test_cases)
+def test_ternary_ops_big(kinds, types_in, op, shape, op_desc):
+    check_ternary_op(kinds, types_in, op, shape, op_desc)
+
+
+_ternary_ops_selected_test_cases = [
+    (kinds, types_in, op, shape_small, op_desc)
+    for kinds in selected_ternary_input_kinds
+    for op, op_desc in ternary_operations
+    for types_in in itertools.product(
+        selected_input_arithm_types,
+        selected_input_arithm_types,
+        selected_input_arithm_types,
+    )
+]
+
+
+@params(*_ternary_ops_selected_test_cases)
+def test_ternary_ops_selected(kinds, types_in, op, shape, op_desc):
+    check_ternary_op(kinds, types_in, op, shape, op_desc)
 
 
 # Only selected types, otherwise it takes too long
 
-
-@attr("slow")
-def slow_test_ternary_ops_kinds():
-    for kinds in ternary_input_kinds:
-        for op, op_desc in ternary_operations:
-            for types_in in [
-                (np.int32, np.int32, np.int32),
-                (np.float32, np.int32, np.int32),
-                (np.uint8, np.float32, np.float32),
-                (np.int32, np.float32, np.float32),
-            ]:
-                yield check_ternary_op, kinds, types_in, op, shape_small, op_desc
-
-
-@attr("slow")
-def slow_test_ternary_ops_types():
-    for kinds in selected_ternary_input_kinds:
-        for op, op_desc in ternary_operations:
-            for types_in in list_product(input_types, input_types, input_types):
-                if types_in == (np.bool_, np.bool_, np.bool_):
-                    continue
-                yield check_ternary_op, kinds, types_in, op, shape_small, op_desc
-
-
-def test_bitwise_ops_selected():
-    for kinds in selected_bin_input_kinds:
-        for op, op_desc in bitwise_operations:
-            for types_in in itertools.product(selected_input_types, selected_input_types):
-                if types_in[0] in integer_types and types_in[1] in integer_types:
-                    yield check_arithm_op, kinds, types_in, op, shape_small, default_range, op_desc
+_slow_ternary_ops_kinds_test_cases = [
+    (kinds, types_in, op, shape_small, op_desc)
+    for kinds in ternary_input_kinds
+    for op, op_desc in ternary_operations
+    for types_in in [
+        (np.int32, np.int32, np.int32),
+        (np.float32, np.int32, np.int32),
+        (np.uint8, np.float32, np.float32),
+        (np.int32, np.float32, np.float32),
+    ]
+]
 
 
 @attr("slow")
-def slow_test_bitwise_ops():
-    for kinds in bin_input_kinds:
-        for op, op_desc in bitwise_operations:
-            for types_in in itertools.product(input_types, input_types):
-                if types_in[0] in integer_types and types_in[1] in integer_types:
-                    yield check_arithm_op, kinds, types_in, op, shape_small, default_range, op_desc
+@params(*_slow_ternary_ops_kinds_test_cases)
+def slow_test_ternary_ops_kinds(kinds, types_in, op, shape, op_desc):
+    check_ternary_op(kinds, types_in, op, shape, op_desc)
+
+
+_slow_ternary_ops_types_test_cases = [
+    (kinds, types_in, op, shape_small, op_desc)
+    for kinds in selected_ternary_input_kinds
+    for op, op_desc in ternary_operations
+    for types_in in list_product(input_types, input_types, input_types)
+    if types_in != (np.bool_, np.bool_, np.bool_)
+]
+
+
+@attr("slow")
+@params(*_slow_ternary_ops_types_test_cases)
+def slow_test_ternary_ops_types(kinds, types_in, op, shape, op_desc):
+    check_ternary_op(kinds, types_in, op, shape, op_desc)
+
+
+_bitwise_ops_selected_test_cases = [
+    (kinds, types_in, op, shape_small, default_range, op_desc)
+    for kinds in selected_bin_input_kinds
+    for op, op_desc in bitwise_operations
+    for types_in in itertools.product(selected_input_types, selected_input_types)
+    if types_in[0] in integer_types and types_in[1] in integer_types
+]
+
+
+@params(*_bitwise_ops_selected_test_cases)
+def test_bitwise_ops_selected(kinds, types_in, op, shape, get_range, op_desc):
+    check_arithm_op(kinds, types_in, op, shape, get_range, op_desc)
+
+
+_slow_bitwise_ops_test_cases = [
+    (kinds, types_in, op, shape_small, default_range, op_desc)
+    for kinds in bin_input_kinds
+    for op, op_desc in bitwise_operations
+    for types_in in itertools.product(input_types, input_types)
+    if types_in[0] in integer_types and types_in[1] in integer_types
+]
+
+
+@attr("slow")
+@params(*_slow_bitwise_ops_test_cases)
+def slow_test_bitwise_ops(kinds, types_in, op, shape, get_range, op_desc):
+    check_arithm_op(kinds, types_in, op, shape, get_range, op_desc)
 
 
 def check_comparsion_op(kinds, types, op, shape, _):
@@ -705,19 +759,31 @@ def check_comparsion_op(kinds, types, op, shape, _):
         np.testing.assert_array_equal(out, op(l_np, r_np), err_msg=f"{l_np} op\n{r_np} =\n{out}")
 
 
-def test_comparison_ops_selected():
-    for kinds in selected_bin_input_kinds:
-        for op, op_desc in comparisons_operations:
-            for types_in in itertools.product(selected_input_types, selected_input_types):
-                yield check_comparsion_op, kinds, types_in, op, shape_small, op_desc
+_comparison_ops_selected_test_cases = [
+    (kinds, types_in, op, shape_small, op_desc)
+    for kinds in selected_bin_input_kinds
+    for op, op_desc in comparisons_operations
+    for types_in in itertools.product(selected_input_types, selected_input_types)
+]
+
+
+@params(*_comparison_ops_selected_test_cases)
+def test_comparison_ops_selected(kinds, types_in, op, shape, op_desc):
+    check_comparsion_op(kinds, types_in, op, shape, op_desc)
+
+
+_slow_comparison_ops_test_cases = [
+    (kinds, types_in, op, shape_small, op_desc)
+    for kinds in bin_input_kinds
+    for op, op_desc in comparisons_operations
+    for types_in in itertools.product(input_types, input_types)
+]
 
 
 @attr("slow")
-def slow_test_comparison_ops():
-    for kinds in bin_input_kinds:
-        for op, op_desc in comparisons_operations:
-            for types_in in itertools.product(input_types, input_types):
-                yield check_comparsion_op, kinds, types_in, op, shape_small, op_desc
+@params(*_slow_comparison_ops_test_cases)
+def slow_test_comparison_ops(kinds, types_in, op, shape, op_desc):
+    check_comparsion_op(kinds, types_in, op, shape, op_desc)
 
 
 # The div operator that always returns floating point values
@@ -755,44 +821,45 @@ def check_arithm_binary_float(kinds, types, op, shape, get_range, _):
         )
 
 
-def test_arithmetic_binary_float_big():
-    for kinds in bin_input_kinds:
-        for types_in in [(np.int8, np.int8)]:
-            for op, op_desc, get_range in floaty_operations:
-                yield check_arithm_binary_float, kinds, types_in, op, shape_big, get_range, op_desc
+_arithmetic_binary_float_big_test_cases = [
+    (kinds, (np.int8, np.int8), op, shape_big, get_range, op_desc)
+    for kinds in bin_input_kinds
+    for op, op_desc, get_range in floaty_operations
+]
 
 
-def test_arithmetic_binary_float_selected():
-    for kinds in selected_bin_input_kinds:
-        for types_in in itertools.product(selected_input_types, selected_input_types):
-            for op, op_desc, get_range in floaty_operations:
-                if types_in != (np.bool_, np.bool_):
-                    yield (
-                        check_arithm_binary_float,
-                        kinds,
-                        types_in,
-                        op,
-                        shape_small,
-                        get_range,
-                        op_desc,
-                    )
+@params(*_arithmetic_binary_float_big_test_cases)
+def test_arithmetic_binary_float_big(kinds, types_in, op, shape, get_range, op_desc):
+    check_arithm_binary_float(kinds, types_in, op, shape, get_range, op_desc)
+
+
+_arithmetic_binary_float_selected_test_cases = [
+    (kinds, types_in, op, shape_small, get_range, op_desc)
+    for kinds in selected_bin_input_kinds
+    for types_in in itertools.product(selected_input_types, selected_input_types)
+    for op, op_desc, get_range in floaty_operations
+    if types_in != (np.bool_, np.bool_)
+]
+
+
+@params(*_arithmetic_binary_float_selected_test_cases)
+def test_arithmetic_binary_float_selected(kinds, types_in, op, shape, get_range, op_desc):
+    check_arithm_binary_float(kinds, types_in, op, shape, get_range, op_desc)
+
+
+_slow_arithmetic_binary_float_test_cases = [
+    (kinds, types_in, op, shape_small, get_range, op_desc)
+    for kinds in bin_input_kinds
+    for types_in in itertools.product(input_types, input_types)
+    for op, op_desc, get_range in floaty_operations
+    if types_in != (np.bool_, np.bool_)
+]
 
 
 @attr("slow")
-def slow_test_arithmetic_binary_float():
-    for kinds in bin_input_kinds:
-        for types_in in itertools.product(input_types, input_types):
-            for op, op_desc, get_range in floaty_operations:
-                if types_in != (np.bool_, np.bool_):
-                    yield (
-                        check_arithm_binary_float,
-                        kinds,
-                        types_in,
-                        op,
-                        shape_small,
-                        get_range,
-                        op_desc,
-                    )
+@params(*_slow_arithmetic_binary_float_test_cases)
+def slow_test_arithmetic_binary_float(kinds, types_in, op, shape, get_range, op_desc):
+    check_arithm_binary_float(kinds, types_in, op, shape, get_range, op_desc)
 
 
 def check_arithm_div(kinds, types, shape):
@@ -826,25 +893,42 @@ def check_arithm_div(kinds, types, shape):
             np.testing.assert_array_equal(out, result)
 
 
-def test_arithmetic_division_big():
-    for kinds in bin_input_kinds:
-        for types_in in [(np.int8, np.int8)]:
-            yield check_arithm_div, kinds, types_in, shape_big
+_arithmetic_division_big_test_cases = [
+    (kinds, (np.int8, np.int8), shape_big)
+    for kinds in bin_input_kinds
+]
 
 
-def test_arithmetic_division_selected():
-    for kinds in selected_bin_input_kinds:
-        for types_in in itertools.product(selected_input_types, selected_input_types):
-            if types_in != (np.bool_, np.bool_):
-                yield check_arithm_div, kinds, types_in, shape_small
+@params(*_arithmetic_division_big_test_cases)
+def test_arithmetic_division_big(kinds, types_in, shape):
+    check_arithm_div(kinds, types_in, shape)
+
+
+_arithmetic_division_selected_test_cases = [
+    (kinds, types_in, shape_small)
+    for kinds in selected_bin_input_kinds
+    for types_in in itertools.product(selected_input_types, selected_input_types)
+    if types_in != (np.bool_, np.bool_)
+]
+
+
+@params(*_arithmetic_division_selected_test_cases)
+def test_arithmetic_division_selected(kinds, types_in, shape):
+    check_arithm_div(kinds, types_in, shape)
+
+
+_slow_arithmetic_division_test_cases = [
+    (kinds, types_in, shape_small)
+    for kinds in bin_input_kinds
+    for types_in in itertools.product(input_types, input_types)
+    if types_in != (np.bool_, np.bool_)
+]
 
 
 @attr("slow")
-def slow_test_arithmetic_division():
-    for kinds in bin_input_kinds:
-        for types_in in itertools.product(input_types, input_types):
-            if types_in != (np.bool_, np.bool_):
-                yield check_arithm_div, kinds, types_in, shape_small
+@params(*_slow_arithmetic_division_test_cases)
+def slow_test_arithmetic_division(kinds, types_in, shape):
+    check_arithm_div(kinds, types_in, shape)
 
 
 def check_raises(kinds, types, op, shape):
@@ -890,43 +974,58 @@ bool_disallowed = [
 ]
 
 
-def test_bool_disallowed():
+def _generate_bool_disallowed_test_cases():
     error_msg = (
         "Input[s]? to arithmetic operator `[\\S]*` cannot be [a]?[ ]?boolean[s]?."
         " Consider using bitwise operator[s]?"
     )
+    cases = []
     for kinds in unary_input_kinds:
         for op, _, op_desc, _, _ in math_function_operations:
-            yield check_raises_re, kinds, np.bool_, op, shape_small, op_desc, error_msg
+            cases.append((kinds, np.bool_, op, shape_small, op_desc, error_msg))
     for kinds in bin_input_kinds:
         for op, op_desc in bool_disallowed:
-            yield check_raises_re, kinds, (np.bool_, np.bool_), op, shape_small, op_desc, error_msg
+            cases.append((kinds, (np.bool_, np.bool_), op, shape_small, op_desc, error_msg))
     for kinds in selected_ternary_input_kinds:
         for op, op_desc in ternary_operations:
-            yield (
-                check_raises_re,
-                kinds,
-                (np.bool_, np.bool_, np.bool_),
-                op,
-                shape_small,
-                op_desc,
-                error_msg,
-            )
+            cases.append((kinds, (np.bool_, np.bool_, np.bool_), op, shape_small, op_desc, error_msg))
+    return cases
 
 
-def test_bitwise_disallowed():
-    error_msg = "Inputs to bitwise operator `[\\S]*` must be of integral type."
-    for kinds in bin_input_kinds:
-        for op, op_desc in bitwise_operations:
-            for types_in in itertools.product(selected_input_types, selected_input_types):
-                if types_in[0] in float_types or types_in[1] in float_types:
-                    yield check_raises_re, kinds, types_in, op, shape_small, op_desc, error_msg
+_bool_disallowed_test_cases = _generate_bool_disallowed_test_cases()
 
 
-def test_prohibit_min_max():
-    for kinds in bin_input_kinds:
-        for op, op_desc in [(min, "min"), (max, "max")]:
-            yield check_raises_te, kinds, (np.int32, np.int32), op, shape_small, op_desc
+@params(*_bool_disallowed_test_cases)
+def test_bool_disallowed(kinds, types_in, op, shape, op_desc, error_msg):
+    check_raises_re(kinds, types_in, op, shape, op_desc, error_msg)
+
+
+_bitwise_disallowed_error_msg = "Inputs to bitwise operator `[\\S]*` must be of integral type."
+
+_bitwise_disallowed_test_cases = [
+    (kinds, types_in, op, shape_small, op_desc, _bitwise_disallowed_error_msg)
+    for kinds in bin_input_kinds
+    for op, op_desc in bitwise_operations
+    for types_in in itertools.product(selected_input_types, selected_input_types)
+    if types_in[0] in float_types or types_in[1] in float_types
+]
+
+
+@params(*_bitwise_disallowed_test_cases)
+def test_bitwise_disallowed(kinds, types_in, op, shape, op_desc, error_msg):
+    check_raises_re(kinds, types_in, op, shape, op_desc, error_msg)
+
+
+_prohibit_min_max_test_cases = [
+    (kinds, (np.int32, np.int32), op, shape_small, op_desc)
+    for kinds in bin_input_kinds
+    for op, op_desc in [(min, "min"), (max, "max")]
+]
+
+
+@params(*_prohibit_min_max_test_cases)
+def test_prohibit_min_max(kinds, types_in, op, shape, op_desc):
+    check_raises_te(kinds, types_in, op, shape, op_desc)
 
 
 @raises(
@@ -945,46 +1044,60 @@ def test_bool_raises():
     bool(DataNode("dummy"))
 
 
-def test_binary_ops_broadcasting():
-    def get_sh(arg_idx):
-        shapes0 = [(43, 42, 3), (4, 3, 16), (8, 1, 2), (1, 2, 64)]
-        shapes1 = [(1, 1, 3), (1, 1, 1), (1, 8, 2), (1, 2, 64)]
-        if arg_idx == 0:
-            return shapes0
-        elif arg_idx == 1:
-            return shapes1
-        else:
-            assert False
-
-    for kinds in list_product(["cpu", "gpu"], ["cpu", "gpu"]):
-        for op, op_desc, get_range in sane_operations:
-            for types_in in itertools.product(selected_input_types, selected_input_types):
-                if types_in != (np.bool_, np.bool_) or op_desc == "*":
-                    yield check_arithm_op, kinds, types_in, op, get_sh, get_range, op_desc
+def _get_sh_binary_broadcasting(arg_idx):
+    shapes0 = [(43, 42, 3), (4, 3, 16), (8, 1, 2), (1, 2, 64)]
+    shapes1 = [(1, 1, 3), (1, 1, 1), (1, 8, 2), (1, 2, 64)]
+    if arg_idx == 0:
+        return shapes0
+    elif arg_idx == 1:
+        return shapes1
+    else:
+        assert False
 
 
-def test_ternary_ops_broadcasting():
-    def get_sh(arg_idx):
-        shapes0 = [(43, 42, 3), (4, 3, 16), (8, 1, 2), (1, 2, 64)]
-        shapes1 = [(1, 1, 3), (1, 1, 1), (1, 8, 2), (1, 2, 64)]
-        shapes2 = [(43, 1, 3), (4, 1, 16), (8, 1, 2), (1, 1, 1)]
-        if arg_idx == 0:
-            return shapes0
-        elif arg_idx == 1:
-            return shapes1
-        elif arg_idx == 2:
-            return shapes2
-        else:
-            assert False
+_binary_ops_broadcasting_test_cases = [
+    (kinds, types_in, op, _get_sh_binary_broadcasting, get_range, op_desc)
+    for kinds in list_product(["cpu", "gpu"], ["cpu", "gpu"])
+    for op, op_desc, get_range in sane_operations
+    for types_in in itertools.product(selected_input_types, selected_input_types)
+    if types_in != (np.bool_, np.bool_) or op_desc == "*"
+]
 
-    for kinds in ("cpu", "cpu", "cpu"), ("gpu", "gpu", "gpu"):
-        for op, op_desc in ternary_operations:
-            for types_in in itertools.product(
-                selected_input_arithm_types,
-                selected_input_arithm_types,
-                selected_input_arithm_types,
-            ):
-                yield check_ternary_op, kinds, types_in, op, get_sh, op_desc
+
+@params(*_binary_ops_broadcasting_test_cases)
+def test_binary_ops_broadcasting(kinds, types_in, op, get_sh, get_range, op_desc):
+    check_arithm_op(kinds, types_in, op, get_sh, get_range, op_desc)
+
+
+def _get_sh_ternary_broadcasting(arg_idx):
+    shapes0 = [(43, 42, 3), (4, 3, 16), (8, 1, 2), (1, 2, 64)]
+    shapes1 = [(1, 1, 3), (1, 1, 1), (1, 8, 2), (1, 2, 64)]
+    shapes2 = [(43, 1, 3), (4, 1, 16), (8, 1, 2), (1, 1, 1)]
+    if arg_idx == 0:
+        return shapes0
+    elif arg_idx == 1:
+        return shapes1
+    elif arg_idx == 2:
+        return shapes2
+    else:
+        assert False
+
+
+_ternary_ops_broadcasting_test_cases = [
+    (kinds, types_in, op, _get_sh_ternary_broadcasting, op_desc)
+    for kinds in [("cpu", "cpu", "cpu"), ("gpu", "gpu", "gpu")]
+    for op, op_desc in ternary_operations
+    for types_in in itertools.product(
+        selected_input_arithm_types,
+        selected_input_arithm_types,
+        selected_input_arithm_types,
+    )
+]
+
+
+@params(*_ternary_ops_broadcasting_test_cases)
+def test_ternary_ops_broadcasting(kinds, types_in, op, get_sh, op_desc):
+    check_ternary_op(kinds, types_in, op, get_sh, op_desc)
 
 
 def generate_layout_broadcasting_cases():

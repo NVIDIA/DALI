@@ -21,6 +21,7 @@ import nvidia.dali.types as types
 import numpy as np
 from nvidia.dali import Pipeline, pipeline_def
 from test_utils import check_batch
+from nose2.tools import params
 from nose_utils import raises, assert_warns, assert_raises
 from nvidia.dali.types import DALIDataType
 from numpy.random import default_rng
@@ -70,10 +71,9 @@ def _test_feed_input(device, is_serialized):
         check_batch(out2[0], out1[0], batch_size, 0, 0, "XY")
 
 
-def test_feed_input():
-    for device in ["cpu", "gpu"]:
-        for is_serialized in [True, False]:
-            yield _test_feed_input, device, is_serialized
+@params(*[(device, is_serialized) for device in ["cpu", "gpu"] for is_serialized in [True, False]])
+def test_feed_input(device, is_serialized):
+    _test_feed_input(device, is_serialized)
 
 
 def _test_callback(device, as_tensors, change_layout_to=None):
@@ -95,11 +95,12 @@ def _test_callback(device, as_tensors, change_layout_to=None):
         check_batch(out[0], ref[0], batch_size, 0, 0)
 
 
-def test_callback():
-    for device in ["cpu", "gpu"]:
-        for as_tensors in [False, True]:
-            for change_layout in [None, "AB"]:
-                yield _test_callback, device, as_tensors, change_layout
+@params(*[(device, as_tensors, change_layout)
+          for device in ["cpu", "gpu"]
+          for as_tensors in [False, True]
+          for change_layout in [None, "AB"]])
+def test_callback(device, as_tensors, change_layout):
+    _test_callback(device, as_tensors, change_layout)
 
 
 def _test_scalar(device, as_tensors):
@@ -124,10 +125,9 @@ def _test_scalar(device, as_tensors):
         check_batch(src[0], dst[0], batch_size, 0, 0, "")
 
 
-def test_scalar():
-    for device in ["cpu", "gpu"]:
-        for as_tensors in [False, True]:
-            yield _test_scalar, device, as_tensors
+@params(*[(device, as_tensors) for device in ["cpu", "gpu"] for as_tensors in [False, True]])
+def test_scalar(device, as_tensors):
+    _test_scalar(device, as_tensors)
 
 
 class BatchCb:
@@ -179,14 +179,17 @@ def _test_batch_info_flag_default(cb, batch_size):
     pipe.run()
 
 
-def test_batch_info_flag_default():
+def test_batch_info_flag_default_int_cb():
     batch_size = 5
     cb_int = BatchCb(False, batch_size, 1)
-    yield _test_batch_info_flag_default, cb_int, batch_size
+    _test_batch_info_flag_default(cb_int, batch_size)
+
+
+@raises(AssertionError, "Expected BatchInfo instance as cb argument")
+def test_batch_info_flag_default_batch_info_cb():
+    batch_size = 5
     cb_batch_info = BatchCb(True, batch_size, 1)
-    yield raises(AssertionError, "Expected BatchInfo instance as cb argument")(
-        _test_batch_info_flag_default
-    ), cb_batch_info, batch_size
+    _test_batch_info_flag_default(cb_batch_info, batch_size)
 
 
 def _test_epoch_idx(batch_size, epoch_size, cb, batch_info, batch_mode):
@@ -215,14 +218,19 @@ def _test_epoch_idx(batch_size, epoch_size, cb, batch_info, batch_mode):
             assert False, "expected StopIteration"
 
 
-def test_epoch_idx():
+@params(True, False)
+def test_epoch_idx_batch(batch_info):
     batch_size = 3
     epoch_size = 4
-    for batch_info in (True, False):
-        batch_cb = BatchCb(batch_info, batch_size, epoch_size)
-        yield _test_epoch_idx, batch_size, epoch_size, batch_cb, batch_info, True
+    batch_cb = BatchCb(batch_info, batch_size, epoch_size)
+    _test_epoch_idx(batch_size, epoch_size, batch_cb, batch_info, True)
+
+
+def test_epoch_idx_sample():
+    batch_size = 3
+    epoch_size = 4
     sample_cb = SampleCb(batch_size, epoch_size)
-    yield _test_epoch_idx, batch_size, epoch_size, sample_cb, None, False
+    _test_epoch_idx(batch_size, epoch_size, sample_cb, None, False)
 
 
 def test_dtype_arg():
@@ -505,27 +513,26 @@ def _test_partially_utilized_external_source_warning(usage_mask, source_type):
         pipe.build()
 
 
-def test_partially_utilized_external_source_warning():
+def _generate_partially_utilized_external_source_warning_test_cases():
     rng = random.Random(42)
-
-    def sources():
-        while True:
-            for source in (
-                "sample_cb_source",
-                "batch_cb_source",
-                "gen_fun_source",
-                "generator",
-                "IteratorSource",
-            ):
-                yield source
-
-    source_type = sources()
-
+    source_types = ["sample_cb_source", "batch_cb_source", "gen_fun_source", "generator", "IteratorSource"]
+    source_idx = 0
+    cases = []
     for num_outputs in (2, 3, 4):
         for num_unused in range(1, num_outputs):
             unused = rng.sample(list(range(num_outputs)), num_unused)
-            usage_mask = [i not in unused for i in range(num_outputs)]
-            yield _test_partially_utilized_external_source_warning, usage_mask, next(source_type)
+            usage_mask = tuple(i not in unused for i in range(num_outputs))
+            cases.append((usage_mask, source_types[source_idx % len(source_types)]))
+            source_idx += 1
+    return cases
+
+
+_partially_utilized_external_source_warning_test_cases = _generate_partially_utilized_external_source_warning_test_cases()
+
+
+@params(*_partially_utilized_external_source_warning_test_cases)
+def test_partially_utilized_external_source_warning(usage_mask, source_type):
+    _test_partially_utilized_external_source_warning(list(usage_mask), source_type)
 
 
 def _test_partially_utilized_es_old_style(usage_mask):
@@ -559,13 +566,23 @@ def _test_partially_utilized_es_old_style(usage_mask):
     pipe.run()
 
 
-def test_partially_utilized_es_old_style():
+def _generate_partially_utilized_es_old_style_test_cases():
     rng = random.Random(42)
+    cases = []
     for num_outputs in (2, 3, 4):
         for num_unused in range(1, num_outputs):
             unused = rng.sample(list(range(num_outputs)), num_unused)
-            usage_mask = [i not in unused for i in range(num_outputs)]
-            yield _test_partially_utilized_es_old_style, usage_mask
+            usage_mask = tuple(i not in unused for i in range(num_outputs))
+            cases.append((usage_mask,))
+    return cases
+
+
+_partially_utilized_es_old_style_test_cases = _generate_partially_utilized_es_old_style_test_cases()
+
+
+@params(*_partially_utilized_es_old_style_test_cases)
+def test_partially_utilized_es_old_style(usage_mask):
+    _test_partially_utilized_es_old_style(list(usage_mask))
 
 
 def _test_non_utilized_external_source_pruning(num_outputs):
@@ -587,10 +604,10 @@ def _test_non_utilized_external_source_pruning(num_outputs):
     pipe.run()
 
 
-def test_non_utilized_external_source_pruning():
+@params(None, 1, 2, 3, 4)
+def test_non_utilized_external_source_pruning(num_outputs):
     # if all outputs are unused, ES should simply be pruned not preventing pipeline from operation
-    for num_outputs in (None, 1, 2, 3, 4):
-        yield _test_non_utilized_external_source_pruning, num_outputs
+    _test_non_utilized_external_source_pruning(num_outputs)
 
 
 def __test_empty_es():
@@ -760,9 +777,9 @@ def _check_repeat_last_var_batch(device):
     assert len(b) == len(data1)
 
 
-def test_repeat_last_var_batch():
-    for device in ["cpu", "gpu"]:
-        yield _check_repeat_last_var_batch, device
+@params("cpu", "gpu")
+def test_repeat_last_var_batch(device):
+    _check_repeat_last_var_batch(device)
 
 
 def _check_blocking(device):
@@ -801,9 +818,9 @@ def _check_blocking(device):
         pipe.feed_input("test_source", data_to_feed)
 
 
-def test_blocking():
-    for device in ["cpu", "gpu"]:
-        yield _check_blocking, device
+@params("cpu", "gpu")
+def test_blocking(device):
+    _check_blocking(device)
 
 
 def _blocking_destructor(device):
@@ -834,9 +851,9 @@ def _blocking_destructor(device):
     _ = pipe.run()
 
 
-def test_blocking_destructor():
-    for device in ["cpu", "gpu"]:
-        yield _blocking_destructor, device
+@params("cpu", "gpu")
+def test_blocking_destructor(device):
+    _blocking_destructor(device)
 
 
 def test_decorated_external_source():

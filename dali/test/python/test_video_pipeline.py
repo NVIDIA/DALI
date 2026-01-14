@@ -24,6 +24,7 @@ import numpy as np
 import tempfile
 from test_utils import check_output_pattern, skip_if_m60
 
+from nose2.tools import params
 from nose_utils import assert_raises, raises
 
 VIDEO_DIRECTORY = "/tmp/video_files"
@@ -152,14 +153,17 @@ SUPPORTED_TYPES = [types.DALIDataType.FLOAT, types.DALIDataType.UINT8]
 ALL_TYPES = list(types.DALIDataType.__members__.values())
 
 
-def test_simple_videopipeline_supported_types():
-    for type in SUPPORTED_TYPES:
-        yield check_videopipeline_supported_type, type
+@params(*SUPPORTED_TYPES)
+def test_simple_videopipeline_supported_types(type):
+    check_videopipeline_supported_type(type)
 
 
-def test_simple_videopipeline_not_supported_types():
-    for type in set(ALL_TYPES) - set(SUPPORTED_TYPES):
-        yield check_videopipeline_unsupported_type, type
+_unsupported_types = list(set(ALL_TYPES) - set(SUPPORTED_TYPES))
+
+
+@params(*_unsupported_types)
+def test_simple_videopipeline_not_supported_types(type):
+    check_videopipeline_unsupported_type(type)
 
 
 def test_file_list_videopipeline():
@@ -210,10 +214,14 @@ def _test_file_list_starts_videopipeline(start, end):
     os.remove(list_file.name)
 
 
-def test_file_list_starts_ends_videopipeline():
-    ranges = [[0, None], [1, None], [0, -1], [2, None], [0, -2], [0, 1], [-1, None], [-3, -1]]
-    for r in ranges:
-        yield _test_file_list_starts_videopipeline, r[0], r[1]
+_file_list_starts_ends_videopipeline_test_cases = [
+    (0, None), (1, None), (0, -1), (2, None), (0, -2), (0, 1), (-1, None), (-3, -1)
+]
+
+
+@params(*_file_list_starts_ends_videopipeline_test_cases)
+def test_file_list_starts_ends_videopipeline(start, end):
+    _test_file_list_starts_videopipeline(start, end)
 
 
 def test_source_info():
@@ -300,10 +308,12 @@ def _test_file_list_invalid_range(start, end):
     os.remove(list_file.name)
 
 
-def test_file_list_invalid_range():
-    invalid_ranges = [[-1, 1], [1000000, None], [0, -1000]]
-    for r in invalid_ranges:
-        yield _test_file_list_invalid_range, r[0], r[1]
+_file_list_invalid_range_test_cases = [(-1, 1), (1000000, None), (0, -1000)]
+
+
+@params(*_file_list_invalid_range_test_cases)
+def test_file_list_invalid_range(start, end):
+    _test_file_list_invalid_range(start, end)
 
 
 def test_file_list_empty_range():
@@ -394,7 +404,7 @@ def test_corrupted_videos():
     ]
     for reader_op, reader_args in reader_opts:
         for wrong_video, msg in corrupted_videos:
-            yield check_corrupted_videos, reader_op, reader_args, wrong_video, msg
+            check_corrupted_videos(reader_op, reader_args, wrong_video, msg)
 
 
 def check_container(cont):
@@ -418,9 +428,9 @@ def check_container(cont):
         pipe.run()
 
 
-def test_container():
-    for cont in video_types:
-        yield check_container, cont
+@params(*video_types)
+def test_container(cont):
+    check_container(cont)
 
 
 def test_pad_sequence():

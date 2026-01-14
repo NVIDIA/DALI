@@ -16,6 +16,7 @@ import nvidia.dali as dali
 import nvidia.dali.fn as fn
 import numpy as np
 import math
+from nose2.tools import params
 from test_utils import check_batch
 
 np.random.seed(1234)
@@ -186,7 +187,8 @@ def _run_test_stack(num_inputs, layout, ndim, axis, axis_name):
         check_batch(o_gpu, ref, batch_size, eps=0, expected_layout=ref_layout)
 
 
-def test_cat():
+def _generate_cat_test_cases():
+    cases = []
     for num_inputs in [1, 2, 3, 100]:
         for layout, ndim in [
             (None, 0),
@@ -197,12 +199,22 @@ def test_cat():
             (None, 3),
             ("DHW", 3),
         ]:
-            for axis in range(-ndim, ndim):
+            for axis in range(-ndim, ndim) if ndim > 0 else [0]:
                 axis_name = layout[axis] if layout else None
-                yield _run_test_cat, num_inputs, layout, ndim, axis, axis_name
+                cases.append((num_inputs, layout, ndim, axis, axis_name))
+    return cases
 
 
-def test_stack():
+_cat_test_cases = _generate_cat_test_cases()
+
+
+@params(*_cat_test_cases)
+def test_cat(num_inputs, layout, ndim, axis, axis_name):
+    _run_test_cat(num_inputs, layout, ndim, axis, axis_name)
+
+
+def _generate_stack_test_cases():
+    cases = []
     for num_inputs in [1, 2, 3, 100]:
         for layout, ndim in [
             (None, 0),
@@ -213,7 +225,16 @@ def test_stack():
             (None, 3),
             ("DHW", 3),
         ]:
-            for axis in range(-ndim, ndim + 1):
+            for axis in range(-ndim, ndim + 1) if ndim > 0 else [0]:
                 axis_names = [None] if layout is None and ndim > 0 else [None, "C"]
                 for axis_name in axis_names:
-                    yield _run_test_stack, num_inputs, layout, ndim, axis, axis_name
+                    cases.append((num_inputs, layout, ndim, axis, axis_name))
+    return cases
+
+
+_stack_test_cases = _generate_stack_test_cases()
+
+
+@params(*_stack_test_cases)
+def test_stack(num_inputs, layout, ndim, axis, axis_name):
+    _run_test_stack(num_inputs, layout, ndim, axis, axis_name)

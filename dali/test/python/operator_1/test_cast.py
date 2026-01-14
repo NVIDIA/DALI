@@ -166,9 +166,7 @@ def _test_operator_cast(ndim, batch_size, in_dtype, out_dtype, device, empty_vol
                 print(f"Result: {np.count_nonzero(mask)} wrong values out of {mask.size}.")
                 assert np.array_equal(out[i], ref[i])
 
-
-def test_operator_cast():
-    types = [
+cast_test_types = [
         np.uint8,
         np.int8,
         np.uint16,
@@ -180,35 +178,66 @@ def test_operator_cast():
         np.float16,
         np.float32,
     ]
-    for device in ["cpu", "gpu"]:
-        for in_type in types:
-            for out_type in types:
-                ndim = rng.integers(0, 4)
-                batch_size = rng.integers(1, 11)
-                yield _test_operator_cast, ndim, batch_size, in_type, out_type, device
+@params(*[
+    (rng.integers(0, 4), rng.integers(1, 11), in_type, out_type, device)
+    for device in ["cpu", "gpu"]
+    for in_type in cast_test_types
+    for out_type in cast_test_types
+])
+def test_operator_cast(ndim, batch_size, in_type, out_type, device):
+    _test_operator_cast(ndim, batch_size, in_type, out_type, device)
 
 
-def test_operator_cast_empty_volumes():
-    types = [np.uint8, np.int32, np.float32]
-    for device in ["cpu", "gpu"]:
-        for in_type in types:
-            for out_type in types:
-                ndim = rng.integers(0, 4)
+@params(*[
+    (rng.integers(0, 4), rng.integers(12, 64), in_type, out_type, device, empty_volume_policy)
+    for device in ["cpu", "gpu"]
+    for in_type in [np.uint8, np.int32, np.float32]
+    for out_type in [np.uint8, np.int32, np.float32]
+    for empty_volume_policy in [
+        rng.choice(["left", "right", "middle", "mixed"]),
+        "all",
+    ]
+])
+def test_operator_cast_empty_volumes(ndim, batch_size, in_type, out_type, device, empty_volume_policy):
+    def src():
+        return generate(rng, ndim, batch_size, in_type, out_type, empty_volume_policy)
 
-                batch_size = rng.integers(12, 64)
-                for empty_volume_policy in [
-                    rng.choice(["left", "right", "middle", "mixed"]),
-                    "all",
-                ]:
-                    yield (
-                        _test_operator_cast,
-                        ndim,
-                        batch_size,
-                        in_type,
-                        out_type,
-                        device,
-                        empty_volume_policy,
-                    )
+    @pipeline_def(
+        batch_size=batch_size,
+        num_threads=4,
+        device_id=None if device == "cpu" else 0,
+    )
+    def cast_pipe():
+        inp = fn.external_source(src)
+        inp_dev = inp.gpu() if device == "gpu" else inp
+        return inp, fn.cast(inp_dev, dtype=np_type_to_dali(out_type))
+
+    pipe = cast_pipe()
+    for _ in range(10):
+        inp, out = pipe.run()
+        if device == "gpu":
+            out = out.as_cpu()
+        ref = [ref_cast(np.array(x), out_type) for x in inp]
+
+        # work around a bug in numpy: when the argument is a scalar fp32 or fp16, nextafter
+        # promotes it to fp64, resulting in insufficient epsilon - we want an epsilon of the
+        # type specified in out_type
+        eps = (
+            0
+            if np.issubdtype(out_type, np.integer)
+            else (np.nextafter(out_type([1]), 2) - 1.0)[0]
+        )
+
+        for i in range(batch_size):
+            if not np.allclose(out[i], ref[i], eps):
+                matI = np.array(inp[i])
+                matO = np.array(out[i])
+                matR = ref[i]
+                mask = np.logical_not(np.isclose(matO, matR, eps))
+                print(f"At sample {i}:\nI:\n{matI}\nO\n{matO}\nR\n{matR}")
+                print(f"Differences at {mask}:\nI:\n{matI[mask]}\nO\n{matO[mask]}\nR\n{matR[mask]}")
+                print(f"Result: {np.count_nonzero(mask)} wrong values out of {mask.size}.")
+                assert np.array_equal(out[i], ref[i])
 
 
 @params(

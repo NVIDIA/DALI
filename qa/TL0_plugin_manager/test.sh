@@ -12,7 +12,7 @@ if [ -z "$DALI_ENABLE_SANITIZERS" ]; then
 fi
 
 test_body() {
-    ${python_invoke_test} test_plugin_manager.py
+    ${python_new_invoke_test} test_plugin_manager
 }
 
 pushd ../..

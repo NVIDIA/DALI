@@ -19,6 +19,7 @@
 # to switch between the default numpy and cupy
 
 import mxnet as mx
+from nose2.tools import params
 from nose_utils import raises, with_setup
 
 from test_pool_utils import setup_function

@@ -17,6 +17,7 @@ import nvidia.dali.ops as ops
 import nvidia.dali.fn as fn
 import numpy as np
 from functools import partial
+from nose2.tools import params
 from test_utils import compare_pipelines
 from test_utils import RandomlyShapedDataIterator
 
@@ -104,7 +105,14 @@ class PreemphasisPythonPipeline(Pipeline):
             return self.preemph(data)
 
 
-def check_preemphasis_operator(device, batch_size, border, preemph_coeff, per_sample_coeff):
+@params(*[
+    (device, batch_size, border, coef, per_sample_coeff)
+    for device in ["cpu", "gpu"]
+    for batch_size in [1, 3, 128]
+    for border in ["zero", "clamp", "reflect"]
+    for coef, per_sample_coeff in [(0.97, False), (0.0, False), (None, True)]
+])
+def test_preemphasis_operator(device, batch_size, border, coef, per_sample_coeff):
     eii1 = RandomlyShapedDataIterator(
         batch_size, min_shape=(100,), max_shape=(10000,), dtype=np.float32
     )
@@ -117,7 +125,7 @@ def check_preemphasis_operator(device, batch_size, border, preemph_coeff, per_sa
             batch_size,
             iter(eii1),
             border=border,
-            preemph_coeff=preemph_coeff,
+            preemph_coeff=coef,
             per_sample_coeff=per_sample_coeff,
         ),
         PreemphasisPythonPipeline(
@@ -125,24 +133,9 @@ def check_preemphasis_operator(device, batch_size, border, preemph_coeff, per_sa
             batch_size,
             iter(eii2),
             border=border,
-            preemph_coeff=preemph_coeff,
+            preemph_coeff=coef,
             per_sample_coeff=per_sample_coeff,
         ),
         batch_size=batch_size,
         N_iterations=3,
     )
-
-
-def test_preemphasis_operator():
-    for device in ["cpu", "gpu"]:
-        for batch_size in [1, 3, 128]:
-            for border in ["zero", "clamp", "reflect"]:
-                for coef, per_sample_coeff in [(0.97, False), (0.0, False), (None, True)]:
-                    yield (
-                        check_preemphasis_operator,
-                        device,
-                        batch_size,
-                        border,
-                        coef,
-                        per_sample_coeff,
-                    )

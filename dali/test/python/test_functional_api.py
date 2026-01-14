@@ -17,6 +17,7 @@ import nvidia.dali.ops as ops
 from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.types as types
 import numpy as np
+from nose2.tools import params
 from nose_utils import assert_raises, attr
 import sys
 import inspect
@@ -71,9 +72,9 @@ def test_set_outputs_err_msg_random_type():
         pipe.build()
 
 
-def test_fn_rotate():
-    for device in ["cpu", "gpu"]:
-        yield _test_fn_rotate, device
+@params("cpu", "gpu")
+def test_fn_rotate(device):
+    _test_fn_rotate(device)
 
 
 def test_fn_python_function():

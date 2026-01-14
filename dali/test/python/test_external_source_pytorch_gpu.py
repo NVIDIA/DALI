@@ -18,6 +18,7 @@
 # so it is better to store everything in one file and just call `use_cupy`
 # to switch between the default numpy and cupy
 
+from nose2.tools import params
 from nose_utils import attr
 from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.fn as fn
@@ -75,9 +76,15 @@ def _test_cross_device(src, dst):
         assert np.array_equal(np.array(out[0].as_cpu()), np.array([[1, 2, 3, 4], [5, 6, 7, 8]]) + i)
 
 
+_cross_device_test_cases = [
+    (src, dst)
+    for src in [0, 1]
+    for dst in [0, 1]
+]
+
+
 @attr("multigpu")
-def test_cross_device():
+@params(*_cross_device_test_cases)
+def test_cross_device(src, dst):
     if torch.cuda.device_count() > 1:
-        for src in [0, 1]:
-            for dst in [0, 1]:
-                yield _test_cross_device, src, dst
+        _test_cross_device(src, dst)

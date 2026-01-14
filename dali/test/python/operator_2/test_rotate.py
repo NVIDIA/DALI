@@ -22,6 +22,7 @@ from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.ops as ops
 import nvidia.dali.types as types
 import nvidia.dali as dali
+from nose2.tools import params
 from test_utils import compare_pipelines
 from sequences_test_utils import (
     ArgData,
@@ -244,32 +245,44 @@ def create_pipeline(backend, *args):
         return RotatePipeline(backend, *args)
 
 
-def run_cases(backend1, backend2, epsilon):
+def _generate_run_cases(backend1, backend2, epsilon):
+    np.random.seed(42)
+    cases = []
     for output_size in [None, (160, 240)]:
         for itype, otype in io_types:
             batch_size = np.random.choice([1, 4, 19])
-
-            def run_case(backend1, backend2, *args):
-                pipe1 = create_pipeline(backend1, *args)
-                pipe2 = create_pipeline(backend2, *args)
-                compare(pipe1, pipe2, epsilon)
-
-            yield run_case, backend1, backend2, batch_size, otype, itype, output_size
+            cases.append((backend1, backend2, batch_size, otype, itype, output_size, epsilon))
+    return cases
 
 
-def test_gpu_vs_cv():
-    for test in run_cases("gpu", "cv", 8):
-        yield test
+def _run_case_impl(backend1, backend2, batch_size, otype, itype, output_size, epsilon):
+    pipe1 = create_pipeline(backend1, batch_size, otype, itype, output_size)
+    pipe2 = create_pipeline(backend2, batch_size, otype, itype, output_size)
+    compare(pipe1, pipe2, epsilon)
 
 
-def test_cpu_vs_cv():
-    for test in run_cases("cpu", "cv", 8):
-        yield test
+_gpu_vs_cv_test_cases = _generate_run_cases("gpu", "cv", 8)
 
 
-def test_gpu_vs_cpu():
-    for test in run_cases("gpu", "cpu", 1):
-        yield test
+@params(*_gpu_vs_cv_test_cases)
+def test_gpu_vs_cv(backend1, backend2, batch_size, otype, itype, output_size, epsilon):
+    _run_case_impl(backend1, backend2, batch_size, otype, itype, output_size, epsilon)
+
+
+_cpu_vs_cv_test_cases = _generate_run_cases("cpu", "cv", 8)
+
+
+@params(*_cpu_vs_cv_test_cases)
+def test_cpu_vs_cv(backend1, backend2, batch_size, otype, itype, output_size, epsilon):
+    _run_case_impl(backend1, backend2, batch_size, otype, itype, output_size, epsilon)
+
+
+_gpu_vs_cpu_test_cases = _generate_run_cases("gpu", "cpu", 1)
+
+
+@params(*_gpu_vs_cpu_test_cases)
+def test_gpu_vs_cpu(backend1, backend2, batch_size, otype, itype, output_size, epsilon):
+    _run_case_impl(backend1, backend2, batch_size, otype, itype, output_size, epsilon)
 
 
 def infer_sequence_size(input_shapes, angles, axes=None):
@@ -385,7 +398,7 @@ def test_video():
     rng = random.Random(42)
     video_cases = get_video_input_cases("FHWC", rng, larger_shape=(512, 287))
     input_cases = [ArgData(ArgDesc(0, "F", "", "FHWC"), input_data) for input_data in video_cases]
-    yield from sequence_suite_helper(rng, input_cases, video_test_cases)
+    sequence_suite_helper(rng, input_cases, video_test_cases)
 
 
 def test_3d_sequence():
@@ -432,4 +445,4 @@ def test_3d_sequence():
             ),
         ),
     ]
-    yield from sequence_suite_helper(rng, input_cases, test_cases)
+    sequence_suite_helper(rng, input_cases, test_cases)
