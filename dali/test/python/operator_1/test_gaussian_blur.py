@@ -484,7 +484,8 @@ def _generate_fail_gaussian_blur_test_cases():
                 "HWC",
                 3,
                 dev,
-                r"`sigma` and `window_size` shouldn't be 0 at the same time for sample: \d+, axis: \d+\.",
+                r"`sigma` and `window_size` shouldn't be 0 at the same time for"
+                + r"sample: \d+, axis: \d+\.",
             )
         )
         cases.append(
@@ -496,7 +497,8 @@ def _generate_fail_gaussian_blur_test_cases():
                 "HWC",
                 3,
                 dev,
-                r"`sigma` must have non-negative values, got .\d* for sample: \d*, axis: \d*\.",
+                r"`sigma` must have non-negative values, got .\d* for sample:"
+                + r"\d*, axis: \d*\.",
             )
         )
         cases.append(
@@ -508,7 +510,8 @@ def _generate_fail_gaussian_blur_test_cases():
                 "HWC",
                 3,
                 dev,
-                r"`window_size` must have non-negative values, got .\d* for sample: \d*, axis : \d*\.",
+                r"`window_size` must have non-negative values, got .\d* for sample:"
+                + r"\d*, axis : \d*\.",
             )
         )
 
@@ -533,7 +536,8 @@ def _generate_fail_gaussian_blur_test_cases():
             "HWC",
             3,
             "gpu",
-            r"Even or non-centered windows are not supported yet, got window with even length: [\s\S]* for sample \d*\.",
+            r"Even or non-centered windows are not supported yet, got window with even"
+            + r"length: [\s\S]* for sample \d*\.",
         )
     )
     return cases

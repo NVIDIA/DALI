@@ -20,7 +20,7 @@ from test_utils import compare_pipelines
 from test_utils import RandomDataIterator
 import librosa as librosa
 from nose_utils import assert_raises, attr, SkipTest
-from nose2.tools import cartesian_params
+from nose2.tools import cartesian_params, params
 
 
 class MFCCPipeline(Pipeline):
@@ -219,7 +219,7 @@ _mfcc_wrong_args_cases = [
 
 
 @params(*_mfcc_wrong_args_cases)
-def test_operator_mfcc_wrong_args(device, dct_type, norm, axis, n_mfcc, lifter, shape, msg):
+def test_operator_mfcc_wrong_args(device, dct_type, norm, axis, n_mfcc, lifter, input_shape, msg):
     batch_size = 3
     with assert_raises(RuntimeError, regex=msg):
         eii1 = RandomDataIterator(batch_size, shape=input_shape, dtype=np.float32)

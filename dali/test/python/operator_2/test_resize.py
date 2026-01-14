@@ -901,7 +901,7 @@ def test_stitching(backend, dim, channel_first, dtype, interp):
 
         pipe.set_outputs(*outputs)
 
-    for iter in range(1):
+    for _ in range(1):
         out = pipe.run()
         if backend_device(backend) == "gpu":
             out = [x.as_cpu() for x in out]
@@ -934,6 +934,7 @@ def test_stitching(backend, dim, channel_first, dtype, interp):
     ["cpu", "gpu", "cvcuda"],  # backend
 )
 def test_empty_input(dim, backend):
+    batch_size = 8
     pipe = Pipeline(batch_size=batch_size, num_threads=8, device_id=0, seed=1234)
     if dim == 2:
         files, labels = dali.fn.readers.caffe(path=db_2d_folder, random_shuffle=True)

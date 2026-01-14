@@ -168,10 +168,10 @@ def test_random_resized_crop(device, layout_maxframes, aspect_area):
     types = [dali.types.UINT8, dali.types.INT16, dali.types.FLOAT]
     sizes = [(100, 100), (320, 240)]
     layout, max_frames = layout_maxframes
-    aspect, area = aspect_area
+    aspect_ratio_range, area_range = aspect_area
     input_type = types[np.random.randint(0, len(types))]
     output_type = dali.types.FLOAT if np.random.randint(0, 2) else None
-    size = sizes[np.random.randint(0, len(sizes))]
+    output_size = sizes[np.random.randint(0, len(sizes))]
     batch_size = 4
     pipe = dali.pipeline.Pipeline(batch_size, 4, 0)
     channel_dim = layout.find("C")
@@ -195,7 +195,7 @@ def test_random_resized_crop(device, layout_maxframes, aspect_area):
         dtype=output_type,
     )
     pipe.set_outputs(out, shape)
-    for iter in range(3):
+    for _ in range(3):
         outputs, input_shapes = pipe.run()
         if device == "gpu":
             outputs = outputs.as_cpu()

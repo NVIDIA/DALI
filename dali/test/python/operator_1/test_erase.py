@@ -469,40 +469,6 @@ def test_operator_erase_with_normalized_coords(
             normalized_anchor,
             normalized_shape,
         )
-        for batch_size in [1, 8]:
-            for (
-                input_layout,
-                input_shape,
-                axis_names,
-                anchor,
-                shape,
-                anchor_norm,
-                shape_norm,
-                fill_value,
-            ) in rois:
-                assert len(input_layout) == len(input_shape)
-                assert len(anchor) == len(shape)
-                assert len(anchor) % len(axis_names) == 0
-                for normalized_anchor, normalized_shape in [
-                    (True, True),
-                    (True, False),
-                    (False, True),
-                ]:
-                    anchor_norm_arg = anchor_norm if normalized_anchor else anchor
-                    shape_norm_arg = shape_norm if normalized_shape else shape
-                    check_operator_erase_with_normalized_coords(
-                        device,
-                        batch_size,
-                        input_shape,
-                        anchor,
-                        shape,
-                        axis_names,
-                        input_layout,
-                        anchor_norm_arg,
-                        shape_norm_arg,
-                        normalized_anchor,
-                        normalized_shape,
-                    )
 
 
 def test_operator_erase_with_out_of_bounds_roi_coords():

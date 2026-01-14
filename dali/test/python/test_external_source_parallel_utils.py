@@ -14,7 +14,6 @@
 
 import numpy as np
 import nvidia.dali as dali
-from nose2.tools import params
 from nose_utils import with_setup
 from test_pool_utils import capture_processes, teardown_function, setup_function
 from test_utils import (

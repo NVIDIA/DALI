@@ -361,7 +361,7 @@ for out_img_type in [types.RGB, types.BGR, types.YCbCr, types.GRAY, types.ANY_DA
 
 
 @params(*_consistency_test_cases)
-def test_image_decoder_consistency(out_img_type, file_fmt, path, subdir, ext):
+def test_image_decoder_consistency(img_out_type, file_fmt, path, subdir, ext):
     eps = 1
     if file_fmt == "jpeg" or file_fmt == "mixed":
         eps = 4
@@ -456,8 +456,8 @@ def decoder_slice_pipe(decoder_op, file_root, device, use_fast_idct):
     [True, False],
 )
 def test_image_decoder_slice_alias(new_op, old_op, data_path, device, use_fast_idct):
-    new_pipe = decoder_slice_pipe(new_op, file_root, device, use_fast_idct)
-    legacy_pipe = decoder_slice_pipe(old_op, file_root, device, use_fast_idct)
+    new_pipe = decoder_slice_pipe(new_op, data_path, device, use_fast_idct)
+    legacy_pipe = decoder_slice_pipe(old_op, data_path, device, use_fast_idct)
     compare_pipelines(new_pipe, legacy_pipe, batch_size=batch_size_test, N_iterations=3)
 
 

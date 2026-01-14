@@ -17,7 +17,7 @@ import nvidia.dali.fn as fn
 import nvidia.dali.types as types
 import numpy as np
 import scipy.stats as st
-import rand
+import random
 from nose2.tools import params
 
 test_types = [types.INT8, types.INT16, types.INT32, types.FLOAT, types.FLOAT64]
@@ -198,11 +198,13 @@ def test_normal_distribution(
     niter,
     batch_size,
 ):
-    shape_gen_f = None
     if variable_shape:
 
         def shape_gen_f(s=shape_for_gen):
             return random_shape(s)
+
+    else:
+        shape_gen_f = None
 
     check_normal_distribution(
         device,

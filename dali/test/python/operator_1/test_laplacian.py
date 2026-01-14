@@ -892,7 +892,10 @@ def _generate_fail_laplacian_test_cases():
                 )
             )
         for window_size in [[3, 7, 3], [7, 7, 7, 7, 7]]:
-            err_msg = f'Argument "window_size" expects either a single value or a list of 2 elements. {len(window_size)} given'
+            err_msg = (
+                f'Argument "window_size" expects either a single value or a list of 2 '
+                f"elements. {len(window_size)} given"
+            )
             cases.append(
                 (
                     "build_time",
@@ -909,7 +912,10 @@ def _generate_fail_laplacian_test_cases():
                     None,
                 )
             )
-            err_msg = f"Argument window_size for sample 0 is expected to have 1 or 2 elements, got: {len(window_size)}"
+            err_msg = (
+                f"Argument window_size for sample 0 is expected to have 1 or 2 "
+                f"elements, got: {len(window_size)}"
+            )
             cases.append(
                 (
                     "tensor_input",
@@ -927,11 +933,17 @@ def _generate_fail_laplacian_test_cases():
                 )
             )
         for scale in [[3, 7, 3], [7, 7, 7, 7, 7]]:
-            err_msg = f'Argument "scale" expects either a single value or a list of 2 elements. {len(scale)} given.'
+            err_msg = (
+                f'Argument "scale" expects either a single value or a list of 2 '
+                f"elements. {len(scale)} given."
+            )
             cases.append(
                 ("build_time", device, 10, (10, 10, 3), "HWC", 2, 3, 3, scale, False, err_msg, None)
             )
-            err_msg = f"Argument scale for sample 0 is expected to have 1 or 2 elements, got: {len(scale)}"
+            err_msg = (
+                f"Argument scale for sample 0 is expected to have 1 or 2 elements, "
+                f"got: {len(scale)}"
+            )
             cases.append(
                 (
                     "tensor_input",

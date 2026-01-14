@@ -20,7 +20,7 @@ import os
 from nvidia.dali import pipeline_def
 from pickle import PicklingError
 
-from nose2.tools import params, cartesian_params
+from nose2.tools import params
 from nose_utils import raises
 from test_utils import get_dali_extra_path, restrict_python_version
 

@@ -20,7 +20,7 @@ import nvidia.dali.fn as fn
 import numpy as np
 import os
 from test_utils import get_dali_extra_path
-from nose_utils import raises, assert_raises, nottest, attr
+from nose_utils import raises, assert_raises, nottest, attr, SkipTest
 from nose2.tools import params, cartesian_params
 from nvidia.dali.plugin.base_iterator import LastBatchPolicy as LastBatchPolicy
 import random
@@ -608,6 +608,94 @@ def test_paddle_iterator_feed_ndarray_types(data_type):
     check_paddle_iterator_feed_ndarray_types(data_type)
 
 
+def check_iterator_results(
+    pad,
+    pipes_number,
+    shards_num,
+    out_set,
+    last_batch_policy,
+    img_ids_list,
+    ids,
+    data_set_size,
+    sample_counter,
+    per_gpu_counter,
+    stick_to_shard,
+    epoch_counter,
+    rounded_shard_size,
+):
+    if pad and pipes_number == shards_num:
+        assert len(set.intersection(*out_set)) == 0, "Shards should not overlaps in the epoch"
+    if last_batch_policy == LastBatchPolicy.DROP:
+        if pad:
+            assert len(set.union(*out_set)) <= sum(
+                [len(v) for v in img_ids_list]
+            ), "Data returned from shard should not duplicate values"
+        for id_list, id_set, id in zip(img_ids_list, out_set, ids):
+            shard_size = int((id + 1) * data_set_size / shards_num) - int(
+                id * data_set_size / shards_num
+            )
+            assert len(id_list) <= shard_size
+            assert len(id_set) <= shard_size
+    elif last_batch_policy == LastBatchPolicy.PARTIAL:
+        if pad:
+            assert len(set.union(*out_set)) == sum(
+                [len(v) for v in img_ids_list]
+            ), "Data returned from shard should not duplicate values"
+        for id_list, id_set, id in zip(img_ids_list, out_set, ids):
+            shard_size = int((id + 1) * data_set_size / shards_num) - int(
+                id * data_set_size / shards_num
+            )
+            assert len(id_list) == shard_size
+            assert len(id_set) == shard_size
+    else:
+        sample_counter -= min(per_gpu_counter)
+        per_gpu_counter = [v + sample_counter for v in per_gpu_counter]
+
+        if not stick_to_shard:
+            shard_id_mod = epoch_counter
+        else:
+            shard_id_mod = 0
+        shard_beg = [
+            int(((id + shard_id_mod) % shards_num) * data_set_size / shards_num)
+            for id in range(shards_num)
+        ]
+        shard_end = [
+            int((((id + shard_id_mod) % shards_num) + 1) * data_set_size / shards_num)
+            for id in range(shards_num)
+        ]
+        shard_sizes = [
+            int((id + 1) * data_set_size / shards_num) - int(id * data_set_size / shards_num)
+            for id in ids
+        ]
+        per_gpu_counter = [c - (e - b) for c, b, e in zip(per_gpu_counter, shard_beg, shard_end)]
+        if pad:
+            assert len(set.union(*out_set)) == sum(shard_sizes)
+        for id_list, id_set, size in zip(img_ids_list, out_set, shard_sizes):
+            if not pad:
+                assert len(id_list) == sample_counter
+            else:
+                assert len(id_list) == rounded_shard_size
+            if not stick_to_shard:
+                if not pad:
+                    assert len(id_list) == len(id_set)
+                else:
+                    assert len(id_list) == rounded_shard_size
+                    assert len(id_set) == size
+            else:
+                assert len(id_set) == min(size, sample_counter)
+        if not pad:
+            sample_counter = min(per_gpu_counter)
+        else:
+            sample_counter = 0
+
+    if not stick_to_shard:
+        ids = [(id + 1) % shards_num for id in ids]
+    epoch_counter += 1
+
+    # these values are modified so return them
+    return (ids, sample_counter, per_gpu_counter, epoch_counter, rounded_shard_size)
+
+
 @attr("pytorch")
 def check_pytorch_iterator_pass_reader_name(
     shards_num,
@@ -727,29 +815,7 @@ def test_pytorch_iterator_pass_reader_name(
 ):
     # Only allow pipes_number to be 1 or shards_num
     if pipes_number != 1 and pipes_number != shards_num:
-        return
-    check_pytorch_iterator_pass_reader_name(
-        shards_num,
-        pipes_number,
-        batch_size,
-        stick_to_shard,
-        pad,
-        exec_dynamic,
-        3 * shards_num,
-        last_batch_policy,
-        False,
-    )
-
-
-def test_pytorch_iterator_pass_reader_name(
-    shards_num,
-    pipes_number,
-    batch_size,
-    stick_to_shard,
-    pad,
-    exec_dynamic,
-    last_batch_policy,
-):
+        SkipTest(f"pipes_number {pipes_number} is not supported for shards_num {shards_num}")
     check_pytorch_iterator_pass_reader_name(
         shards_num,
         pipes_number,
