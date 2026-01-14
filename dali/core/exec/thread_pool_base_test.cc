@@ -28,19 +28,19 @@ struct SerialExecutor {
   }
 };
 
-TEST(NewThreadPool, Scrap) {
+TEST(NewThreadPool, Abandon) {
   EXPECT_NO_THROW({
     Job job;
     job.AddTask([]() {});
-    job.Scrap();
+    job.Abandon();
   });
 }
 
-TEST(NewThreadPool, IncrementalJobScrap) {
+TEST(NewThreadPool, IncrementalJobAbandon) {
   EXPECT_NO_THROW({
     IncrementalJob job;
     job.AddTask([]() {});
-    job.Scrap();
+    job.Abandon();
   });
 }
 
@@ -236,14 +236,18 @@ TYPED_TEST(NewThreadPoolJobTest, JobPerf) {
   auto do_test = [&](int jobs, int tasks) {
     std::vector<int> v(tasks);
     auto start = test::perf_timer::now();
+    std::optional<JobType> j;
     for (int i = 0; i < jobs; i++) {
-      JobType j;
-      for (int t = 0; t < tasks; t++) {
-        j.AddTask([&, t]() {
+      j.emplace();
+      for (int t = 1; t < tasks; t++) {
+        j->AddTask([&, t]() {
           v[t]++;
         });
       }
-      j.Run(tp, true);
+      j->Run(tp, false);
+      v[0]++;
+      j->Wait();
+      j.reset();
     }
     auto end = test::perf_timer::now();
 
