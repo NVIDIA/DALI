@@ -22,7 +22,6 @@ import numpy as np
 import torch
 
 import test_external_source_parallel_utils as utils
-from nose2.tools import params
 from nose_utils import raises
 
 

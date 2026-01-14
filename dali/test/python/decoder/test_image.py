@@ -22,7 +22,7 @@ import os
 import random
 from nvidia.dali import pipeline_def
 
-from nose2.tools import params
+from nose2.tools import params, cartesian_param
 from nose_utils import assert_raises, SkipTest
 from test_utils import check_output_pattern
 from test_utils import compare_pipelines
@@ -263,14 +263,7 @@ def check_FastDCT_body(batch_size, img_type, device):
     )
 
 
-@params(
-    *[
-        (batch_size, img_type, device)
-        for device in ["cpu", "mixed"]
-        for batch_size in [1, 8]
-        for img_type in test_good_path
-    ]
-)
+@cartesian_param([1, 8], test_good_path, ["cpu", "mixed"])
 def test_FastDCT(batch_size, img_type, device):
     check_FastDCT_body(batch_size, img_type, device)
 
@@ -351,22 +344,6 @@ def img_decoder_pipe(device, out_type, files):
     return decoded
 
 
-def _testimpl_image_decoder_consistency(img_out_type, file_fmt, path, subdir="*", ext=None):
-    eps = 1
-    if file_fmt == "jpeg" or file_fmt == "mixed":
-        eps = 4
-    if (file_fmt == "jpeg2k" or file_fmt == "mixed") and img_out_type == types.YCbCr:
-        eps = 6
-    files = get_img_files(os.path.join(test_data_root, path), subdir=subdir, ext=ext)
-    compare_pipelines(
-        img_decoder_pipe("cpu", out_type=img_out_type, files=files),
-        img_decoder_pipe("mixed", out_type=img_out_type, files=files),
-        batch_size=batch_size_test,
-        N_iterations=3,
-        eps=eps,
-    )
-
-
 # Generate consistency test cases
 _consistency_test_cases = []
 for out_img_type in [types.RGB, types.BGR, types.YCbCr, types.GRAY, types.ANY_DATA]:
@@ -385,7 +362,19 @@ for out_img_type in [types.RGB, types.BGR, types.YCbCr, types.GRAY, types.ANY_DA
 
 @params(*_consistency_test_cases)
 def test_image_decoder_consistency(out_img_type, file_fmt, path, subdir, ext):
-    _testimpl_image_decoder_consistency(out_img_type, file_fmt, path, subdir, ext)
+    eps = 1
+    if file_fmt == "jpeg" or file_fmt == "mixed":
+        eps = 4
+    if (file_fmt == "jpeg2k" or file_fmt == "mixed") and img_out_type == types.YCbCr:
+        eps = 6
+    files = get_img_files(os.path.join(test_data_root, path), subdir=subdir, ext=ext)
+    compare_pipelines(
+        img_decoder_pipe("cpu", out_type=img_out_type, files=files),
+        img_decoder_pipe("mixed", out_type=img_out_type, files=files),
+        batch_size=batch_size_test,
+        N_iterations=3,
+        eps=eps,
+    )
 
 
 def _testimpl_image_decoder_tiff_with_alpha_16bit(device, out_type, path, ext):
@@ -407,13 +396,10 @@ def _testimpl_image_decoder_tiff_with_alpha_16bit(device, out_type, path, ext):
     assert out.shape[2] == expected_channels, f"Expected {expected_channels} but got {out.shape[2]}"
 
 
-@params(
-    *[
-        (device, out_type, "db/single/multichannel/with_alpha_16bit", ext)
-        for device in ["cpu", "mixed"]
-        for out_type in [types.RGB, types.BGR, types.YCbCr, types.ANY_DATA]
-        for ext in [("png", "tiff", "jp2")]
-    ]
+@cartesian_param(
+    ["cpu", "mixed"],
+    [types.RGB, types.BGR, types.YCbCr, types.ANY_DATA],
+    [("png", "tiff", "jp2")],
 )
 def test_image_decoder_tiff_with_alpha_16bit(device, out_type, path, ext):
     _testimpl_image_decoder_tiff_with_alpha_16bit(device, out_type, path, ext)
@@ -434,17 +420,14 @@ def check_image_decoder_alias(new_op, old_op, file_root, device, use_fast_idct):
     compare_pipelines(new_pipe, legacy_pipe, batch_size=batch_size_test, N_iterations=3)
 
 
-@params(
-    *[
-        (new_op, old_op, os.path.join(test_data_root, good_path, "jpeg"), device, use_fast_idct)
-        for new_op, old_op in [
-            (fn.decoders.image, fn.image_decoder),
-            (fn.decoders.image_crop, fn.image_decoder_crop),
-            (fn.decoders.image_random_crop, fn.image_decoder_random_crop),
-        ]
-        for device in ["cpu", "mixed"]
-        for use_fast_idct in [True, False]
-    ]
+@cartesian_param(
+    [
+        (fn.decoders.image, fn.image_decoder),
+        (fn.decoders.image_crop, fn.image_decoder_crop),
+        (fn.decoders.image_random_crop, fn.image_decoder_random_crop),
+    ],
+    ["cpu", "mixed"],
+    [True, False],
 )
 def test_image_decoder_alias(new_op, old_op, data_path, device, use_fast_idct):
     check_image_decoder_alias(new_op, old_op, data_path, device, use_fast_idct)
@@ -461,30 +444,25 @@ def decoder_slice_pipe(decoder_op, file_root, device, use_fast_idct):
     return decoded
 
 
-def check_image_decoder_slice_alias(new_op, old_op, file_root, device, use_fast_idct):
+@cartesian_param(
+    [
+        (
+            fn.decoders.image_slice,
+            fn.image_decoder_slice,
+            os.path.join(test_data_root, good_path, "jpeg"),
+        )
+    ],
+    ["cpu", "mixed"],
+    [True, False],
+)
+def test_image_decoder_slice_alias(new_op, old_op, data_path, device, use_fast_idct):
     new_pipe = decoder_slice_pipe(new_op, file_root, device, use_fast_idct)
     legacy_pipe = decoder_slice_pipe(old_op, file_root, device, use_fast_idct)
     compare_pipelines(new_pipe, legacy_pipe, batch_size=batch_size_test, N_iterations=3)
 
 
-@params(
-    *[
-        (
-            fn.decoders.image_slice,
-            fn.image_decoder_slice,
-            os.path.join(test_data_root, good_path, "jpeg"),
-            device,
-            use_fast_idct,
-        )
-        for device in ["cpu", "mixed"]
-        for use_fast_idct in [True, False]
-    ]
-)
-def test_image_decoder_slice_alias(new_op, old_op, data_path, device, use_fast_idct):
-    check_image_decoder_slice_alias(new_op, old_op, data_path, device, use_fast_idct)
-
-
-def _testimpl_image_decoder_crop_error_oob(device):
+@params("cpu", "mixed")
+def test_image_decoder_crop_error_oob(device):
     file_root = os.path.join(test_data_root, good_path, "jpeg")
 
     @pipeline_def(batch_size=batch_size_test, device_id=0, num_threads=4)
@@ -497,11 +475,6 @@ def _testimpl_image_decoder_crop_error_oob(device):
     assert_raises(
         RuntimeError, p.run, glob="cropping window*..*..*is not valid for image dimensions*[*x*]"
     )
-
-
-@params("cpu", "mixed")
-def test_image_decoder_crop_error_oob(device):
-    _testimpl_image_decoder_crop_error_oob(device)
 
 
 def _testimpl_image_decoder_slice_error_oob(device):

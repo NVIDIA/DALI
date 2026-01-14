@@ -17,7 +17,6 @@ import os
 from nvidia.dali.pipeline import Pipeline
 
 from test_utils import get_dali_extra_path
-from nose2.tools import params
 from nose_utils import assert_raises, attr
 
 DALI_EXTRA_PATH = get_dali_extra_path()
@@ -53,26 +52,6 @@ def data_paths():
 ##############
 # Unit tests #
 ##############
-
-
-def test_mxnet_pipeline_dynamic_shape():
-    from nvidia.dali.plugin.mxnet import DALIGenericIterator as MXNetIterator
-
-    root, annotations = data_paths()
-    pipeline = DetectionPipeline(BATCH_SIZE, 0, root, annotations)
-    train_loader = MXNetIterator(
-        [pipeline],
-        [
-            ("data", MXNetIterator.DATA_TAG),
-            ("bboxes", MXNetIterator.LABEL_TAG),
-            ("label", MXNetIterator.LABEL_TAG),
-        ],
-        EPOCH_SIZE,
-        auto_reset=False,
-        dynamic_shape=True,
-    )
-    for data in train_loader:
-        assert data is not None
 
 
 @attr("pytorch")
@@ -143,19 +122,6 @@ def test_api_fw_check1_pytorch():
     _check_api_fw_check1(PyTorchIterator, ["data", "bboxes", "label"])
 
 
-def test_api_fw_check1_mxnet():
-    from nvidia.dali.plugin.mxnet import DALIGenericIterator as MXNetIterator
-
-    _check_api_fw_check1(
-        MXNetIterator,
-        [
-            ("data", MXNetIterator.DATA_TAG),
-            ("bboxes", MXNetIterator.LABEL_TAG),
-            ("label", MXNetIterator.LABEL_TAG),
-        ],
-    )
-
-
 @attr("paddle")
 def test_api_fw_check1_paddle():
     from nvidia.dali.plugin.paddle import DALIGenericIterator as PaddleIterator
@@ -193,19 +159,6 @@ def _check_api_fw_check2(iter_type, data_definition):
         assert True
     except RuntimeError:
         assert False
-
-
-def test_api_fw_check2_mxnet():
-    from nvidia.dali.plugin.mxnet import DALIGenericIterator as MXNetIterator
-
-    _check_api_fw_check2(
-        MXNetIterator,
-        [
-            ("data", MXNetIterator.DATA_TAG),
-            ("bboxes", MXNetIterator.LABEL_TAG),
-            ("label", MXNetIterator.LABEL_TAG),
-        ],
-    )
 
 
 @attr("pytorch")
