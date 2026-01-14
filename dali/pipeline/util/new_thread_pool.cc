@@ -24,7 +24,10 @@ NewThreadPool::NewThreadPool(
       int num_threads,
       std::optional<int> device_id,
       bool set_affinity,
-      std::string name) {
+      std::string name)
+      : name_(name) {
+  if (device_id.has_value() && *device_id == CPU_ONLY_DEVICE_ID)
+    device_id = std::nullopt;
 #if NVML_ENABLED
   // We use NVML only for setting thread affinity
   if (device_id.has_value() && set_affinity) {
@@ -37,7 +40,8 @@ NewThreadPool::NewThreadPool(
 }
 
 std::any NewThreadPool::OnThreadStart(int thread_idx, bool set_affinity) {
-  SetThreadName(name_.c_str());
+  std::string name = make_string("[DALI][NT", thread_idx, "]", name);
+  SetThreadName(name.c_str());
   std::any dg;
   if (device_id_.has_value())
     dg.emplace<DeviceGuard>(*device_id_);
