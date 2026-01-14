@@ -1,4 +1,4 @@
-// Copyright (c) 2022-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,24 +16,23 @@
 #define DALI_CORE_EXEC_THREAD_POOL_BASE_H_
 
 #include <any>
+#include <atomic>
 #include <cassert>
+#include <condition_variable>
 #include <functional>
-#include <iostream>
 #include <list>
 #include <map>
-#include <memory>
+#include <mutex>
 #include <optional>
 #include <queue>
 #include <string>
 #include <utility>
 #include <vector>
-#include <mutex>
-#include <condition_variable>
-#include "dali/core/semaphore.h"
 #include "dali/core/api_helper.h"
-#include "dali/core/multi_error.h"
-#include "dali/core/mm/detail/aux_alloc.h"
 #include "dali/core/format.h"
+#include "dali/core/multi_error.h"
+#include "dali/core/semaphore.h"
+#include "dali/core/mm/detail/aux_alloc.h"
 
 namespace dali {
 
