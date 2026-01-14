@@ -35,11 +35,13 @@ def with_setup(setup=None, teardown=None):
     """
 
     def decorator(func):
-        if setup is not None:
-            func = _nose2_with_setup(setup)(func)
+        # Apply teardown first, then setup (order matters for decorator chaining)
+        result = func
         if teardown is not None:
-            func = _nose2_with_teardown(teardown)(func)
-        return func
+            result = _nose2_with_teardown(teardown)(result)
+        if setup is not None:
+            result = _nose2_with_setup(setup)(result)
+        return result
 
     return decorator
 
