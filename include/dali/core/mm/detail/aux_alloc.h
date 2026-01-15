@@ -107,6 +107,8 @@ struct fixed_size_allocator {
     free_list_ = bptr;
     count_++;
     if (threshold && count_ > threshold) {
+      // Once we're above the threshold, free half of the items - we want to keep
+      // _some_ available in the pool for future use.
       while (count_ > threshold / 2) {
         assert(free_list_);
         Block *next = free_list_->next;
