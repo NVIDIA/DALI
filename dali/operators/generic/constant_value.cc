@@ -198,7 +198,7 @@ DALI_REGISTER_OPERATOR(Zeros, Zeros<CPUBackend>, CPU);
 DALI_SCHEMA(ZerosLike)
     .DocStr(R"code(Returns new data with the same shape, type and layout as the input array, filled with zeros.)code")
     .NumInput(1)
-    .InputDox(0, "data_like", "TensorList", R"code(The input data value to copy the shape and type from.)code")
+    .InputDox(0, "data_like", "TensorList", R"code(The input data value to copy the shape, type and layout from.)code")
     .InputDevice(0, InputDevice::Metadata)
     .NumOutput(1)
     .AddOptionalTypeArg("dtype", R"code(Overrides the output data type.)code", DALI_INT32);
