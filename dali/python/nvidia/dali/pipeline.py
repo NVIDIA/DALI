@@ -1164,7 +1164,13 @@ class Pipeline(object):
     def _restore_state_from_checkpoint(self):
         if self._checkpoint is not None:
             external_ctx_cpt = self._pipe.RestoreFromSerializedCheckpoint(self._checkpoint)
-            pipeline_data = json.loads(external_ctx_cpt.pipeline_data)  # nosec B301
+            try:
+                pipeline_data = json.loads(external_ctx_cpt.pipeline_data)
+            except json.JSONDecodeError:
+                raise ValueError(
+                    "Pipeline checkpoint data is not a valid JSON string. "
+                    "Please make sure that the checkpoint was created with the same version of DALI."
+                )
             self._consumer_epoch_idx = self._epoch_idx = pipeline_data["epoch_idx"]
             self._consumer_iter = pipeline_data["iter"]
             if self._input_callbacks:

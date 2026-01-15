@@ -283,7 +283,13 @@ class _DaliBaseIterator(object):
             )
             return
 
-        iterator_data = json.loads(iterator_data)  # nosec B301
+        try:
+            iterator_data = json.loads(iterator_data)
+        except json.JSONDecodeError:
+            raise ValueError(
+                "Iterator checkpoint data is not a valid JSON string. "
+                "Please make sure that the checkpoint was created with the same version of DALI."
+            )
         for field, field_type in self._checkpointed_fields():
             if hasattr(self, field):
                 setattr(self, field, self._deserialize_value(iterator_data[field], field_type))
