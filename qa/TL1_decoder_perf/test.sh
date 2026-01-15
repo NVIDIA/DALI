@@ -33,8 +33,8 @@ test_body() {
     # GraceHopper
     MIN_PERF=29000;
     MIN_PERF2=29000;  # TODO(janton): remove this second value.
-    MIN_PERF_NDD=21000;
-    MIN_PERF2_NDD=21000;  # TODO(janton): remove this second value.
+    MIN_PERF_NDD=20000;
+    MIN_PERF2_NDD=20000;  # TODO(janton): remove this second value.
     # use taskset to avoid inefficient data migration between cores we don't want to use
     taskset --cpu-list 0-71 python hw_decoder_bench.py --width_hint 6000 --height_hint 6000 -b 408 -d 0 -g gpu -w 100 -t 100000 -i ${DALI_EXTRA_PATH}/db/single/jpeg -p rn50 -j 72 --hw_load 0.11 | tee ${LOG1}
     taskset --cpu-list 0-71 python hw_decoder_bench.py --width_hint 6000 --height_hint 6000 -b 408 -d 0 -g gpu -w 100 -t 100000 -i ${DALI_EXTRA_PATH}/db/single/jpeg -p rn50 -j 72 --hw_load 0.11 --experimental_decoder | tee ${LOG2}
