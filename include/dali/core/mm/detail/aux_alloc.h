@@ -103,20 +103,13 @@ struct fixed_size_allocator {
   void deallocate(void *ptr) {
     lock_guard guard(lock_);
     Block *bptr = static_cast<Block*>(ptr);
+    if (threshold && count_ >= threshold) {
+      free(bptr);
+      return;
+    }
     bptr->next = free_list_;
     free_list_ = bptr;
     count_++;
-    if (threshold && count_ > threshold) {
-      // Once we're above the threshold, free half of the items - we want to keep
-      // _some_ available in the pool for future use.
-      while (count_ > threshold / 2) {
-        assert(free_list_);
-        Block *next = free_list_->next;
-        free(free_list_);
-        free_list_ = next;
-        count_--;
-      }
-    }
   }
 
   /**
