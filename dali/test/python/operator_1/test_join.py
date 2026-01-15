@@ -16,8 +16,8 @@ import nvidia.dali as dali
 import nvidia.dali.fn as fn
 import numpy as np
 import math
-from nose2.tools import params
 from test_utils import check_batch
+from nose2.tools import params
 
 np.random.seed(1234)
 
@@ -127,6 +127,35 @@ def ref_stack(input_batches, axis):
     return out
 
 
+def _run_test_cat(num_inputs, layout, ndim, axis, axis_name):
+    num_iter = 3
+    batch_size = 4
+    if ndim is None:
+        ndim = len(layout)
+
+    ref_axis = layout.find(axis_name) if axis_name is not None else axis if axis is not None else 0
+    assert ref_axis >= -ndim and ref_axis < ndim
+
+    axis_arg = None if axis_name else axis
+
+    pipe = dali.pipeline.Pipeline(batch_size=batch_size, num_threads=3, device_id=0)
+    with pipe:
+        inputs = fn.external_source(
+            input_generator(num_inputs, batch_size, ndim, ref_axis),
+            num_outputs=num_inputs,
+            layout=layout,
+        )
+        out_cpu = fn.cat(*inputs, axis=axis_arg, axis_name=axis_name)
+        out_gpu = fn.cat(*(x.gpu() for x in inputs), axis=axis_arg, axis_name=axis_name)
+        pipe.set_outputs(out_cpu, out_gpu, *inputs)
+
+    for iter in range(num_iter):
+        o_cpu, o_gpu, *inputs = pipe.run()
+        ref = ref_cat(inputs, ref_axis)
+        check_batch(o_cpu, ref, batch_size, eps=0, expected_layout=layout)
+        check_batch(o_gpu, ref, batch_size, eps=0, expected_layout=layout)
+
+
 def _run_test_stack(num_inputs, layout, ndim, axis, axis_name):
     num_iter = 3
     batch_size = 4
@@ -158,8 +187,9 @@ def _run_test_stack(num_inputs, layout, ndim, axis, axis_name):
         check_batch(o_gpu, ref, batch_size, eps=0, expected_layout=ref_layout)
 
 
-def _generate_cat_test_cases():
-    cases = []
+def _generate_test_cat_params():
+    """Generate all parameter combinations for test_cat"""
+    params_list = []
     for num_inputs in [1, 2, 3, 100]:
         for layout, ndim in [
             (None, 0),
@@ -170,47 +200,20 @@ def _generate_cat_test_cases():
             (None, 3),
             ("DHW", 3),
         ]:
-            for axis in range(-ndim, ndim) if ndim > 0 else [0]:
+            for axis in range(-ndim, ndim):
                 axis_name = layout[axis] if layout else None
-                cases.append((num_inputs, layout, ndim, axis, axis_name))
-    return cases
+                params_list.append((num_inputs, layout, ndim, axis, axis_name))
+    return params_list
 
 
-_cat_test_cases = _generate_cat_test_cases()
-
-
-@params(*_cat_test_cases)
+@params(*_generate_test_cat_params())
 def test_cat(num_inputs, layout, ndim, axis, axis_name):
-    num_iter = 3
-    batch_size = 4
-    if ndim is None:
-        ndim = len(layout)
-
-    ref_axis = layout.find(axis_name) if axis_name is not None else axis if axis is not None else 0
-    assert ref_axis >= -ndim and ref_axis < ndim
-
-    axis_arg = None if axis_name else axis
-
-    pipe = dali.pipeline.Pipeline(batch_size=batch_size, num_threads=3, device_id=0)
-    with pipe:
-        inputs = fn.external_source(
-            input_generator(num_inputs, batch_size, ndim, ref_axis),
-            num_outputs=num_inputs,
-            layout=layout,
-        )
-        out_cpu = fn.cat(*inputs, axis=axis_arg, axis_name=axis_name)
-        out_gpu = fn.cat(*(x.gpu() for x in inputs), axis=axis_arg, axis_name=axis_name)
-        pipe.set_outputs(out_cpu, out_gpu, *inputs)
-
-    for iter in range(num_iter):
-        o_cpu, o_gpu, *inputs = pipe.run()
-        ref = ref_cat(inputs, ref_axis)
-        check_batch(o_cpu, ref, batch_size, eps=0, expected_layout=layout)
-        check_batch(o_gpu, ref, batch_size, eps=0, expected_layout=layout)
+    _run_test_cat(num_inputs, layout, ndim, axis, axis_name)
 
 
-def _generate_stack_test_cases():
-    cases = []
+def _generate_test_stack_params():
+    """Generate all parameter combinations for test_stack"""
+    params_list = []
     for num_inputs in [1, 2, 3, 100]:
         for layout, ndim in [
             (None, 0),
@@ -221,16 +224,13 @@ def _generate_stack_test_cases():
             (None, 3),
             ("DHW", 3),
         ]:
-            for axis in range(-ndim, ndim + 1) if ndim > 0 else [0]:
+            for axis in range(-ndim, ndim + 1):
                 axis_names = [None] if layout is None and ndim > 0 else [None, "C"]
                 for axis_name in axis_names:
-                    cases.append((num_inputs, layout, ndim, axis, axis_name))
-    return cases
+                    params_list.append((num_inputs, layout, ndim, axis, axis_name))
+    return params_list
 
 
-_stack_test_cases = _generate_stack_test_cases()
-
-
-@params(*_stack_test_cases)
+@params(*_generate_test_stack_params())
 def test_stack(num_inputs, layout, ndim, axis, axis_name):
     _run_test_stack(num_inputs, layout, ndim, axis, axis_name)

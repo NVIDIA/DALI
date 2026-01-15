@@ -114,10 +114,10 @@ def test_batch_1_mixed_tuple_raises_type_error(shape):
 
 
 _batch_1_wrong_shapes = [
-    (2, None, None, None),
-    (None, None, 4),
-    (2, None, None, 4),
-    (None, 0, None, 3),
+    ((2, None, None, None),),
+    ((None, None, 4),),
+    ((2, None, None, 4),),
+    ((None, 0, None, 3),),
 ]
 
 

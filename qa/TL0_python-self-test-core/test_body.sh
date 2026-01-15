@@ -24,9 +24,9 @@ test_py_with_framework() {
                             test_dali_variable_batch_size.py \
                             test_external_source_impl_utils.py); do
         if [ -z "$DALI_ENABLE_SANITIZERS" ]; then
-            ${python_new_invoke_test} -A ${test_script%.py}
+            ${python_new_invoke_test} ${test_script%.py}
         else
-            ${python_new_invoke_test} -A ${test_script%.py}
+            ${python_new_invoke_test} ${test_script%.py}
         fi
     done
 

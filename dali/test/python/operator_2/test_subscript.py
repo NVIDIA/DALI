@@ -206,17 +206,6 @@ def test_new_axis(input_layout, output_layout, dali_index_func, ref_index_func):
     _test_indexing(_data_gen_new_axis, input_layout, output_layout, dali_index_func, ref_index_func)
 
 
-def _test_invalid_args(device, args, message, run):
-    data = [np.uint8([[1, 2, 3]]), np.uint8([[1, 2]])]
-    pipe = Pipeline(2, 1, 0)
-    src = fn.external_source(lambda: data, device=device)
-    pipe.set_outputs(fn._tensor_subscript(src, **args))
-    with assert_raises(RuntimeError, glob=message):
-        pipe.build()
-        if run:
-            pipe.run()
-
-
 @cartesian_params(
     ["cpu", "gpu"],  # device
     [
@@ -226,15 +215,12 @@ def _test_invalid_args(device, args, message, run):
 )
 def test_inconsistent_args(device, args_message_tuple):
     args, message = args_message_tuple
-    _test_invalid_args(device, args, message, False)
-
-
-def _test_out_of_range(device, idx):
-    data = [np.uint8([1, 2, 3]), np.uint8([1, 2])]
+    data = [np.uint8([[1, 2, 3]]), np.uint8([[1, 2]])]
+    pipe = Pipeline(2, 1, 0)
     src = fn.external_source(lambda: data, device=device)
-    pipe = index_pipe(src, lambda x: x[idx])
-    with assert_raises(RuntimeError, glob="out of range"):
-        _ = pipe.run()
+    pipe.set_outputs(fn._tensor_subscript(src, **args))
+    with assert_raises(RuntimeError, glob=message):
+        pipe.build()
 
 
 @cartesian_params(
@@ -242,10 +228,15 @@ def _test_out_of_range(device, idx):
     [-3, 2],  # idx
 )
 def test_out_of_range(device, idx):
-    _test_out_of_range(device, idx)
+    data = [np.uint8([1, 2, 3]), np.uint8([1, 2])]
+    src = fn.external_source(lambda: data, device=device)
+    pipe = index_pipe(src, lambda x: x[idx])
+    with assert_raises(RuntimeError, glob="out of range"):
+        _ = pipe.run()
 
 
-def _test_too_many_indices(device):
+@params("cpu", "gpu")
+def test_too_many_indices(device):
     data = [np.uint8([1, 2, 3]), np.uint8([1, 2])]
     src = fn.external_source(lambda: data, device=device)
     pipe = index_pipe(src, lambda x: x[1, :])
@@ -276,11 +267,6 @@ def test_zero_stride_error():
     pipe = index_pipe(src, lambda x: x[::0])
     with assert_raises(RuntimeError, glob="Step cannot be zero"):
         _ = pipe.run()
-
-
-@params("cpu", "gpu")
-def test_too_many_indices(device):
-    _test_too_many_indices(device)
 
 
 def test_ellipsis_not_implemented():

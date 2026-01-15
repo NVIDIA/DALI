@@ -1091,7 +1091,6 @@ def check_paddle_iterator_pass_reader_name(
     [False, True],  # stick_to_shard
     [True, False],  # pad
     [LastBatchPolicy.PARTIAL, LastBatchPolicy.FILL, LastBatchPolicy.DROP],  # last_batch_policy
-    [1],  # iters (always 1)
     [False, True],  # exec_dynamic
 )
 def test_paddle_iterator_pass_reader_name(
@@ -1104,17 +1103,18 @@ def test_paddle_iterator_pass_reader_name(
     last_batch_policy,
     exec_dynamic,
 ):
-    check_paddle_iterator_pass_reader_name(
-        shards_num,
-        pipes_number,
-        batch_size,
-        stick_to_shard,
-        pad,
-        iters,
-        last_batch_policy,
-        False,
-        exec_dynamic,
-    )
+    for iters in [1, max(3, 2 * shards_num)]:
+        check_paddle_iterator_pass_reader_name(
+            shards_num,
+            pipes_number,
+            batch_size,
+            stick_to_shard,
+            pad,
+            iters,
+            last_batch_policy,
+            False,
+            exec_dynamic,
+        )
 
 
 @attr("paddle")

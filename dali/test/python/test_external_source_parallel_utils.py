@@ -14,8 +14,7 @@
 
 import numpy as np
 import nvidia.dali as dali
-from nose_utils import with_setup
-from test_pool_utils import capture_processes, teardown_function, setup_function
+from test_pool_utils import capture_processes
 from test_utils import (
     compare_pipelines,
     check_batch,
@@ -136,7 +135,6 @@ def check_callback(parallel_pipe, pipe, epoch_size, batch_size, dtype=None):
     compare_pipelines(parallel_pipe, pipe, batch_size, iters_no)
 
 
-@with_setup(setup_function, teardown_function)
 def _check_spawn_with_callback(
     callback, callback_ref, batch_size, num_outputs, layout, workers_num, epoch_size, dtype
 ):

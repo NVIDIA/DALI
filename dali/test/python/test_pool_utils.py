@@ -16,11 +16,6 @@ import os
 import psutil
 import weakref
 
-# Module-level variables for tracking pools and processes
-pool_processes = []
-pool_threads = []
-pools = []
-
 
 def capture_processes(pool):
     """Need to be called to register the processes created by the pool. It is later used
