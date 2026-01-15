@@ -316,7 +316,7 @@ def test_empty_slice():
 )
 def test_negative_stride(length, ranges):
     def slice_func(x):
-        return x.__getitem__(ranges)
+        return x[ranges]
 
     data = [np.arange(length, dtype=np.int32)]
     src = fn.external_source(lambda: data)

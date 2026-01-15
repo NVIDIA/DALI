@@ -254,9 +254,6 @@ class TensorSubscript : public StatelessOperator<Backend> {
 
         start_.tensor_shape_span(i)[d] = lo;
 
-        if (step < 0 && !s.hi.IsDefined()) {
-          hi = -1_i64;
-        }
         int64_t out_extent = step > 0 ? div_ceil(hi - lo, step) : div_ceil(lo - hi, -step);
 
         if (out_extent < 0)
