@@ -20,7 +20,7 @@ import nvidia.dali.fn as fn
 import numpy as np
 import os
 from test_utils import get_dali_extra_path
-from nose_utils import raises, assert_raises, nottest, attr, SkipTest
+from nose_utils import raises, assert_raises, nottest, attr
 from nose2.tools import params, cartesian_params
 from nvidia.dali.plugin.base_iterator import LastBatchPolicy as LastBatchPolicy
 import random
@@ -703,10 +703,10 @@ def check_pytorch_iterator_pass_reader_name(
     batch_size,
     stick_to_shard,
     pad,
-    exec_dynamic,
     iters,
     last_batch_policy,
     auto_reset=False,
+    exec_dynamic=False,
 ):
     from nvidia.dali.plugin.pytorch import DALIGenericIterator as PyTorchIterator
 
@@ -813,20 +813,18 @@ def test_pytorch_iterator_pass_reader_name(
     exec_dynamic,
     last_batch_policy,
 ):
-    # Only allow pipes_number to be 1 or shards_num
-    if pipes_number != 1 and pipes_number != shards_num:
-        SkipTest(f"pipes_number {pipes_number} is not supported for shards_num {shards_num}")
-    check_pytorch_iterator_pass_reader_name(
-        shards_num,
-        pipes_number,
-        batch_size,
-        stick_to_shard,
-        pad,
-        exec_dynamic,
-        3 * shards_num,
-        last_batch_policy,
-        False,
-    )
+    for iters in [1, max(3, 2 * shards_num)]:
+        check_pytorch_iterator_pass_reader_name(
+            shards_num,
+            pipes_number,
+            batch_size,
+            stick_to_shard,
+            pad,
+            iters,
+            last_batch_policy,
+            False,
+            exec_dynamic,
+        )
 
 
 @attr("pytorch")
@@ -839,9 +837,9 @@ def test_pytorch_iterator_pass_reader_name_autoreset(auto_reset):
         False,
         True,
         False,
-        3,
         LastBatchPolicy.DROP,
         auto_reset,
+        3,
     )
 
 
@@ -1091,7 +1089,6 @@ def check_paddle_iterator_pass_reader_name(
     [False, True],  # stick_to_shard
     [True, False],  # pad
     [LastBatchPolicy.PARTIAL, LastBatchPolicy.FILL, LastBatchPolicy.DROP],  # last_batch_policy
-    [1],  # iters (always 1)
     [False, True],  # exec_dynamic
 )
 def test_paddle_iterator_pass_reader_name(
@@ -1100,21 +1097,21 @@ def test_paddle_iterator_pass_reader_name(
     batch_size,
     stick_to_shard,
     pad,
-    iters,
     last_batch_policy,
     exec_dynamic,
 ):
-    check_paddle_iterator_pass_reader_name(
-        shards_num,
-        pipes_number,
-        batch_size,
-        stick_to_shard,
-        pad,
-        iters,
-        last_batch_policy,
-        False,
-        exec_dynamic,
-    )
+    for iters in [1, max(3, 2 * shards_num)]:
+        check_paddle_iterator_pass_reader_name(
+            shards_num,
+            pipes_number,
+            batch_size,
+            stick_to_shard,
+            pad,
+            iters,
+            last_batch_policy,
+            False,
+            exec_dynamic,
+        )
 
 
 @attr("paddle")

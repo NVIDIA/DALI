@@ -24,7 +24,7 @@ python_new_test_runner="python -m nose2"
 python_new_test_args="--verbose --plugin=nose2_test_timer.plugin --with-timer --timer-color --timer-top-n 20"
 python_new_invoke_test="${python_new_test_runner} ${python_new_test_args}"
 
-# Set proper CUDA version for packages, like MXNet, requiring it
+# Set proper CUDA version for packages, requiring it
 pip_packages=$(eval "echo \"${pip_packages}\"" | sed "s/##CUDA_VERSION##/${CUDA_VERSION}/")
 last_config_index=$($topdir/qa/setup_packages.py -n -u $pip_packages --cuda ${CUDA_VERSION})
 

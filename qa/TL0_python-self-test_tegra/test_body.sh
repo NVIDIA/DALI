@@ -23,7 +23,7 @@ test_py_with_framework() {
         test_script=${test_script%.py}
         # execute only when no matches are found
         if [ ${status} -eq 0 ]; then
-            ${PYTHON_TEST_CMD} -A '!slow,!pytorch,!mxnet,!cupy,!numba,!scipy' ${test_script}
+            ${PYTHON_TEST_CMD} -A '!slow,!pytorch,!cupy,!numba,!scipy' ${test_script}
         fi
     done
 
@@ -70,9 +70,9 @@ test_py_with_framework() {
         fi
     done
 
-    ${python_new_invoke_test} -A '!slow,!pytorch,!mxnet,!cupy,!numba,!scipy' -s operator_1 $XAVIER_OPERATOR_1_TESTS
-    ${python_new_invoke_test} -A '!slow,!pytorch,!mxnet,!cupy,!numba,!scipy' -s operator_2 $XAVIER_OPERATOR_2_TESTS
-    ${python_new_invoke_test} -A '!slow,!pytorch,!mxnet,!cupy,!numba,!scipy' -s reader $XAVIER_READER_TESTS
+    ${python_new_invoke_test} -A '!slow,!pytorch,!cupy,!numba,!scipy' -s operator_1 $XAVIER_OPERATOR_1_TESTS
+    ${python_new_invoke_test} -A '!slow,!pytorch,!cupy,!numba,!scipy' -s operator_2 $XAVIER_OPERATOR_2_TESTS
+    ${python_new_invoke_test} -A '!slow,!pytorch,!cupy,!numba,!scipy' -s reader $XAVIER_READER_TESTS
 }
 
 test_py() {

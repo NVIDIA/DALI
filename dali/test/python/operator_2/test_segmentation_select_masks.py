@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nose2.tools import cartesian_param
+from nose2.tools import cartesian_params
 from nose_utils import assert_raises
 import numpy as np
 import nvidia.dali as dali
@@ -24,7 +24,7 @@ random.seed(1234)
 np.random.seed(4321)
 
 
-@cartesian_param(
+@cartesian_params(
     [1, 3],
     [2, 3, 6],
     [float, np.int8, np.int16, np.int32, np.int64],

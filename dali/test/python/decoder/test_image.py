@@ -237,7 +237,8 @@ def test_image_decoder_fused(
     run_decode_fused(test_fun, path, img_type, batch_size, device, threads, validation_fun)
 
 
-def check_FastDCT_body(batch_size, img_type, device):
+@cartesian_param([1, 8], test_good_path, ["cpu", "mixed"])
+def test_FastDCT(batch_size, img_type, device):
     data_path = os.path.join(test_data_root, good_path, img_type)
     compare_pipelines(
         decoder_pipe(
@@ -261,11 +262,6 @@ def check_FastDCT_body(batch_size, img_type, device):
         N_iterations=3,
         eps=3,
     )
-
-
-@cartesian_param([1, 8], test_good_path, ["cpu", "mixed"])
-def test_FastDCT(batch_size, img_type, device):
-    check_FastDCT_body(batch_size, img_type, device)
 
 
 def check_fancy_upsampling_body(batch_size, img_type, device):
@@ -312,7 +308,13 @@ def test_fancy_upsampling(batch_size):
     )
 
 
-def _check_memory_stats(img_type, size, device, threads):
+# Pre-generate memory stats test cases
+_rng2 = random.Random(43)
+_memory_stats_test_cases = [("jpeg", size, "mixed", _rng2.choice([1, 2, 3, 4])) for size in [1, 10]]
+
+
+@params(*_memory_stats_test_cases)
+def test_image_decoder_memory_stats(img_type, size, device, threads):
     data_path = os.path.join(test_data_root, good_path, img_type)
     # largest allocation should match our (in this case) memory padding settings
     # (assuming no reallocation was needed here as the hint is big enough)
@@ -322,16 +324,6 @@ def _check_memory_stats(img_type, size, device, threads):
     )
     with check_output_pattern(pattern):
         run_decode(img_type, data_path, size, device, threads, memory_stats=True)
-
-
-# Pre-generate memory stats test cases
-_rng2 = random.Random(43)
-_memory_stats_test_cases = [("jpeg", size, "mixed", _rng2.choice([1, 2, 3, 4])) for size in [1, 10]]
-
-
-@params(*_memory_stats_test_cases)
-def test_image_decoder_memory_stats(img_type, size, device, threads):
-    _check_memory_stats(img_type, size, device, threads)
 
 
 batch_size_test = 16
@@ -414,12 +406,6 @@ def decoder_pipe_with_name(decoder_op, file_root, device, use_fast_idct):
     return decoded
 
 
-def check_image_decoder_alias(new_op, old_op, file_root, device, use_fast_idct):
-    new_pipe = decoder_pipe_with_name(new_op, file_root, device, use_fast_idct)
-    legacy_pipe = decoder_pipe_with_name(old_op, file_root, device, use_fast_idct)
-    compare_pipelines(new_pipe, legacy_pipe, batch_size=batch_size_test, N_iterations=3)
-
-
 @cartesian_param(
     [
         (fn.decoders.image, fn.image_decoder),
@@ -429,8 +415,10 @@ def check_image_decoder_alias(new_op, old_op, file_root, device, use_fast_idct):
     ["cpu", "mixed"],
     [True, False],
 )
-def test_image_decoder_alias(new_op, old_op, data_path, device, use_fast_idct):
-    check_image_decoder_alias(new_op, old_op, data_path, device, use_fast_idct)
+def test_image_decoder_alias(new_op, old_op, file_root, device, use_fast_idct):
+    new_pipe = decoder_pipe_with_name(new_op, file_root, device, use_fast_idct)
+    legacy_pipe = decoder_pipe_with_name(old_op, file_root, device, use_fast_idct)
+    compare_pipelines(new_pipe, legacy_pipe, batch_size=batch_size_test, N_iterations=3)
 
 
 @pipeline_def(batch_size=batch_size_test, device_id=0, num_threads=4)
@@ -477,7 +465,8 @@ def test_image_decoder_crop_error_oob(device):
     )
 
 
-def _testimpl_image_decoder_slice_error_oob(device):
+@params("cpu", "mixed")
+def test_image_decoder_slice_error_oob(device):
     file_root = os.path.join(test_data_root, good_path, "jpeg")
 
     @pipeline_def(batch_size=batch_size_test, device_id=0, num_threads=4)
@@ -490,11 +479,6 @@ def _testimpl_image_decoder_slice_error_oob(device):
     assert_raises(
         RuntimeError, p.run, glob="cropping window*..*..*is not valid for image dimensions*[*x*]"
     )
-
-
-@params("cpu", "mixed")
-def test_image_decoder_slice_error_oob(device):
-    _testimpl_image_decoder_slice_error_oob(device)
 
 
 def test_pinned_input_hw_decoder():

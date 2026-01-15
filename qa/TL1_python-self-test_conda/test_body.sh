@@ -2,15 +2,15 @@
 
 test_py_with_framework() {
     for test_script in $(ls test_pipeline*.py test_external_source_dali.py test_external_source_numpy.py test_external_source_parallel_garbage_collection_order.py test_functional_api.py); do
-        ${python_new_invoke_test} -A '!slow,!pytorch,!mxnet,!cupy,!numba' ${test_script%.py}
+        ${python_new_invoke_test} -A '!slow,!pytorch,!cupy,!numba' ${test_script%.py}
     done
 
-    ${python_new_invoke_test} -A '!slow,!pytorch,!mxnet,!cupy' test_backend_impl
+    ${python_new_invoke_test} -A '!slow,!pytorch,!cupy' test_backend_impl
 
-    ${python_new_invoke_test} -A '!slow,!pytorch,!mxnet,!cupy,!numba' -s operator_1
-    ${python_new_invoke_test} -A '!slow,!pytorch,!mxnet,!cupy,!numba' -s operator_2
-    ${python_new_invoke_test} -A '!slow,!pytorch,!mxnet,!cupy,!numba' -s reader
-    ${python_new_invoke_test} -A '!slow,!pytorch,!mxnet,!cupy,!numba,!jpeg_scans_limit' -s decoder
+    ${python_new_invoke_test} -A '!slow,!pytorch,!cupy,!numba' -s operator_1
+    ${python_new_invoke_test} -A '!slow,!pytorch,!cupy,!numba' -s operator_2
+    ${python_new_invoke_test} -A '!slow,!pytorch,!cupy,!numba' -s reader
+    ${python_new_invoke_test} -A '!slow,!pytorch,!cupy,!numba,!jpeg_scans_limit' -s decoder
 }
 
 test_jpeg_scan_limit() {

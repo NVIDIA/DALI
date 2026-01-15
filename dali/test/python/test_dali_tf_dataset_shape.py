@@ -90,11 +90,11 @@ def test_batch_1_different_shapes(shape, dtype, as_single_tuple):
 
 
 _batch_1_mixed_tuple_shapes = [
-    (None, None, None, None),
-    (None, None, None),
-    (1, None, None, None),
-    (1, None, None, 3),
-    (None, None, 3),
+    ((None, None, None, None),),
+    ((None, None, None),),
+    ((1, None, None, None),),
+    ((1, None, None, 3),),
+    ((None, None, 3),),
 ]
 
 
@@ -114,10 +114,10 @@ def test_batch_1_mixed_tuple_raises_type_error(shape):
 
 
 _batch_1_wrong_shapes = [
-    (2, None, None, None),
-    (None, None, 4),
-    (2, None, None, 4),
-    (None, 0, None, 3),
+    ((2, None, None, None),),
+    ((None, None, 4),),
+    ((2, None, None, 4),),
+    ((None, 0, None, 3),),
 ]
 
 
@@ -293,7 +293,11 @@ def test_artificial_match(shape, tf_type, dali_type, batch):
     dali_pipe_artificial_shape(shape, tf_type, dali_type, batch)
 
 
-_artificial_no_match_shapes = [(11, None, None, None), (None, None, 3), (10, 2, 1, 1)]
+_artificial_no_match_shapes = [
+    ((11, None, None, None),),
+    ((None, None, 3),),
+    ((10, 2, 1, 1),),
+]
 
 
 @params(*_artificial_no_match_shapes)

@@ -24,7 +24,7 @@ test_body() {
     # test all jupyters except one related to a particular FW,
     # and one requiring a dedicated HW (multiGPU, GDS and OF)
     # optical flow requires TU102 architecture whilst this test can be run on any GPU
-    exclude_files="multigpu\|mxnet\|tensorflow\|pytorch\|paddle\|jax\|external_input.ipynb\|numpy_reader.ipynb\|webdataset-externalsource.ipynb\|optical_flow\|python_operator\|#"
+    exclude_files="multigpu\|tensorflow\|pytorch\|paddle\|jax\|external_input.ipynb\|numpy_reader.ipynb\|webdataset-externalsource.ipynb\|optical_flow\|python_operator\|#"
 
     find * -name "*.ipynb" | sed "/${exclude_files}/d" | xargs -i jupyter nbconvert \
                     --to notebook --inplace --execute \
