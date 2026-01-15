@@ -175,7 +175,7 @@ DALI_SCHEMA(FullLike)
 
 If the fill_value is not a scalar, it must be broadcastable to the output shape (NumPy-style broadcasting).
 Dimensions are compared from innermost to outermost, and each dimension must either match or one of them must be 1.
-In case of different dimensionality, the shape is padded with 1s for the missing outermost dimensions.)code")
+In case of different dimensionality, the input shape is padded with 1s for the missing outermost dimensions.)code")
     .NumInput(2)
     .InputDox(0, "data_like", "TensorList", R"code(The input data value to copy the shape, type and layout from.)code")
     .InputDevice(0, InputDevice::Metadata)
