@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -232,7 +232,7 @@ class TensorSubscript : public StatelessOperator<Backend> {
           hi = s.hi.IsDefined() ? s.hi.values[i] : in_extent;
         } else if (step < 0) {
           lo = s.lo.IsDefined() ? s.lo.values[i] : -1_i64;
-          hi = s.hi.IsDefined() ? s.hi.values[i] : 0_i64;
+          hi = s.hi.IsDefined() ? s.hi.values[i] : -1 - in_extent;  // insane Python indexing
         } else {
           DALI_FAIL(make_string("Step cannot be zero. Detetected step == 0 at axis ", d,
                                 " while processing sample #", i));
@@ -244,7 +244,10 @@ class TensorSubscript : public StatelessOperator<Backend> {
           if (hi < 0)
             hi += in_extent;
           lo = clamp(lo, 0_i64, in_extent - 1);
-          hi = clamp(hi, 0_i64, in_extent);
+          if (step < 0)  // the "upper" bound is exclusive, so we have to allow it to be -1
+            hi = clamp(hi, -1_i64, in_extent - 1);
+          else
+            hi = clamp(hi, 0_i64, in_extent);
         } else {
           lo = hi = 0;
         }
