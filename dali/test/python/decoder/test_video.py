@@ -215,7 +215,7 @@ def ref_iter(epochs=1, device="cpu"):
             yield np.array(output[0])
 
 
-@params(("mixed", fn.experimental))
+@params(("mixed", fn.experimental), ("mixed", fn))
 def test_video_decoder(device, module):
     skip_if_m60()
     batch_size = 3

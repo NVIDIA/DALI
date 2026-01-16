@@ -1,4 +1,4 @@
-// Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,7 +16,7 @@
 
 namespace dali {
 
-DALI_SCHEMA(experimental__Debayer)
+DALI_SCHEMA(Debayer)
     .DocStr(R"code(Performs image demosaicing/debayering.
 
 Converts single-channel image to RGB using specified color filter array.
@@ -113,5 +113,21 @@ Different algorithms are supported on the GPU and CPU.
         nullptr)
     .InputLayout(0, {"HW", "HWC", "FHW", "FHWC"})
     .AllowSequences();
+
+// Deprecated alias
+DALI_SCHEMA(experimental__Debayer)
+    .AddParent("Debayer")
+    .DocStr("Legacy alias for :meth:`debayer`.")
+    .NumInput(1)
+    .NumOutput(1)
+    .MakeDocHidden()
+    .InputLayout(0, {"HW", "HWC", "FHW", "FHWC"})
+    .AllowSequences()
+    .Deprecate(
+        "2.0",
+        "Debayer",
+        "This operator was moved out from the experimental phase, "
+        "and is now a regular DALI operator. This is just a deprecated "
+        "alias kept for backward compatibility.");
 
 }  // namespace dali

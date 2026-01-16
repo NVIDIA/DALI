@@ -214,9 +214,9 @@ def test_resize_stateless(device):
 
 
 @params("cpu", "gpu")
-@stateless_signed_off("experimental.tensor_resize")
+@stateless_signed_off("experimental.tensor_resize", "tensor_resize")
 def test_tensor_resize_stateless(device):
-    check_single_input(fn.experimental.tensor_resize, device, axes=[0, 1], sizes=[40, 40])
+    check_single_input(fn.tensor_resize, device, axes=[0, 1], sizes=[40, 40])
 
 
 @params("cpu", "gpu")
@@ -335,9 +335,9 @@ def test_reductions_variance_stateless(device):
 
 
 @params("cpu", "gpu")
-@stateless_signed_off("experimental.equalize")
+@stateless_signed_off("experimental.equalize", "equalize")
 def test_equalize_stateless(device):
-    check_single_input(fn.experimental.equalize, device)
+    check_single_input(fn.equalize, device)
 
 
 @stateless_signed_off("transforms.crop")
@@ -469,10 +469,10 @@ def test_sphere_stateless(device):
 
 
 @params("cpu", "gpu")
-@stateless_signed_off("experimental.filter")
+@stateless_signed_off("experimental.filter", "filter")
 def test_filter_stateless(device):
     check_single_input(
-        lambda x, **kwargs: fn.experimental.filter(x, np.full((3, 3), 1 / 9), **kwargs),
+        lambda x, **kwargs: fn.filter(x, np.full((3, 3), 1 / 9), **kwargs),
         device,
     )
 
@@ -495,14 +495,14 @@ def test_remap_stateless():
 
 
 @params("cpu", "gpu")
-@stateless_signed_off("experimental.debayer")
+@stateless_signed_off("experimental.debayer", "debayer")
 def test_debayer_stateless(device):
     @pipeline_def(enable_checkpointing=True)
     def pipeline_factory():
         data = fn.external_source(source=RandomBatch((40, 40)), layout="HW", batch=True)
         if device == "gpu":
             data = data.gpu()
-        return fn.experimental.debayer(data, blue_position=[0, 0])
+        return fn.debayer(data, blue_position=[0, 0])
 
     check_is_pipeline_stateless(pipeline_factory)
 
@@ -772,7 +772,7 @@ def test_dl_tensor_python_function_stateless(device):
 
 
 @attr("numba")
-@stateless_signed_off("experimental.numba_function")
+@stateless_signed_off("experimental.numba_function", "numba_function")
 def test_numba_function_stateless():
     import nvidia.dali.plugin.numba as dali_numba
 
@@ -786,7 +786,7 @@ def test_numba_function_stateless():
         forty_two = fn.external_source(
             source=lambda x: np.full((2,), 42, dtype=np.uint8), batch=False
         )
-        out = dali_numba.fn.experimental.numba_function(
+        out = dali_numba.fn.numba_function(
             forty_two,
             run_fn=double_sample,
             out_types=[types.DALIDataType.UINT8],
