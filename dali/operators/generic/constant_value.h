@@ -1,4 +1,4 @@
-// Copyright (c) 2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2024-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@
 
 #include <vector>
 #include "dali/core/static_switch.h"
+#include "dali/core/tensor_layout.h"
 #include "dali/core/tensor_shape_print.h"
 #include "dali/pipeline/operator/checkpointing/stateless_operator.h"
 #include "dali/core/float16.h"
@@ -30,14 +31,27 @@ namespace dali {
 template <typename Backend>
 class ConstantValue : public StatelessOperator<Backend> {
  public:
+  /**
+   * @brief Operator that returns new data of requested shape and type, filled with a fill value.
+   *
+   * @param spec
+   * @param has_fill_value If true, accepts input tensor for fill value (Full, FullLike).
+   *                       If false, uses constant set via SetConstValue() (Zeros, Ones variants).
+   * @param is_shape_like If true, shape matches input tensor ("Like" operators).
+   *                      If false, takes shape from "shape" argument (Full, Zeros, Ones).
+   */
   explicit ConstantValue(const OpSpec &spec, bool has_fill_value = false,
                          bool is_shape_like = false)
       : StatelessOperator<Backend>(spec),
         has_fill_value_(has_fill_value),
         is_shape_like_(is_shape_like),
         has_shape_(spec.ArgumentDefined("shape")),
-        has_dtype_(spec.ArgumentDefined("dtype")) {
+        has_dtype_(spec.ArgumentDefined("dtype")),
+        has_layout_(spec.ArgumentDefined("layout")) {
     dtype_ = has_dtype_ ? spec.GetArgument<DALIDataType>("dtype") : DALI_INT32;
+    if (has_layout_) {
+      layout_ = spec.GetArgument<TensorLayout>("layout");
+    }
   }
 
   int GetBatchSize(const Workspace &ws) const {
@@ -96,6 +110,13 @@ class ConstantValue : public StatelessOperator<Backend> {
         dtype = fill_value_dtype;
       }
     }
+
+    if (has_layout_ && !layout_.empty()) {
+      DALI_ENFORCE(layout_.ndim() == shape.sample_dim(),
+        make_string("Layout '", layout_, "' has ", layout_.ndim(),
+                    " dimensions but output shape has ", shape.sample_dim(), " dimensions."));
+    }
+
     return true;
   }
 
@@ -111,8 +132,9 @@ class ConstantValue : public StatelessOperator<Backend> {
   using Operator<Backend>::max_batch_size_;
   bool has_fill_value_;
   bool is_shape_like_;
-  bool has_shape_, has_dtype_;
+  bool has_shape_, has_dtype_, has_layout_;
   DALIDataType dtype_;
+  TensorLayout layout_;
 
   bool has_const_value_ = false;
   int const_value_ = 0;
