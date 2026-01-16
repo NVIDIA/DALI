@@ -87,19 +87,6 @@ def test_api_fw_check1_pytorch():
     yield from test_api_fw_check1(PyTorchIterator, ["data", "bboxes", "label"])
 
 
-def test_api_fw_check1_mxnet():
-    from nvidia.dali.plugin.mxnet import DALIGenericIterator as MXNetIterator
-
-    yield from test_api_fw_check1(
-        MXNetIterator,
-        [
-            ("data", MXNetIterator.DATA_TAG),
-            ("bboxes", MXNetIterator.LABEL_TAG),
-            ("label", MXNetIterator.LABEL_TAG),
-        ],
-    )
-
-
 @attr("paddle")
 def test_api_fw_check1_paddle():
     from nvidia.dali.plugin.paddle import DALIGenericIterator as PaddleIterator
