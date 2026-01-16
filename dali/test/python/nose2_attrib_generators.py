@@ -19,6 +19,7 @@ before they are called (preventing imports of optional dependencies or other cod
 This plugin monkey-patches the Generators plugin's _testsFromGeneratorFunc
 method to check attributes before calling generator functions.
 """
+
 from nose2.events import Plugin
 import logging
 
