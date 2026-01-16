@@ -174,6 +174,8 @@ class Invocation:
             with eval_context, eval_mode, device:
                 self._run_impl(eval_context)
 
+        # Call _init_spec early to prevent a race condition
+        self._operator._init_spec(self._inputs, self._args)
         self._future = eval_context._async_executor.submit(_run)
 
     def _run_impl(self, ctx: _EvalContext):
