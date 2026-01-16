@@ -1,4 +1,4 @@
-# Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -32,8 +32,19 @@ _tls = _ThreadLocalStorage()
 
 
 def _default_num_threads():
-    # TODO(michalz): implement some more elaborate logic here
-    return 4
+    """Gets the default number of threads used in DALI dynamic mode."""
+    import sys
+    import os
+    from functools import wraps
+    mod = sys.modules[__name__]
+
+    n = len(os.sched_getaffinity(0))
+    print("NDD: default number of threads", n)
+    @wraps(_default_num_threads)
+    def __default_num_threads():
+      return n
+    mod._default_num_threads = __default_num_threads
+    return n
 
 
 class EvalContext:
@@ -72,9 +83,6 @@ class EvalContext:
         else:
             self._device = _device.Device.current()
 
-        if self._cuda_stream is None and self._device.device_type == "gpu":
-            self._cuda_stream = _b.Stream(self._device.device_id)
-
         self._num_threads = num_threads or _default_num_threads()
         self._instance_cache = {}
 
@@ -90,6 +98,14 @@ class EvalContext:
             self._tls.thread_pool = _b._ThreadPool(self._num_threads)
 
         return self._tls.thread_pool
+
+    @property
+    def cuda_stream(self):
+        if self._cuda_stream is None:
+            s = EvalContext._thread_stream or EvalContext._thread_stream or self._default_stream
+            if s is None and self._device.device_type == "gpu":
+                s = self._default_stream = _b.Stream(self._device.device_id)
+            return s
 
     @staticmethod
     def current() -> "EvalContext":
@@ -169,4 +185,12 @@ class EvalContext:
         self._invocations.append(weakref.ref(invocation) if weak else invocation)
 
 
-__all__ = ["EvalContext"]
+__all__ = [
+    "EvalContext",
+    # "get_default_stream",
+    # "set_default_stream",
+    # "get_thread_default_stream",
+    # "set_thread_default_stream",
+    # "get_default_num_threads",
+    # "set_default_num_threads",
+]
