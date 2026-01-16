@@ -18,6 +18,7 @@ import nvidia.dali.fn as fn
 import nvidia.dali.ops as ops
 from nvidia.dali import Pipeline
 
+from nose2.tools import params
 from nose_utils import assert_raises
 from test_utils import check_output
 
@@ -229,11 +230,17 @@ def _test_iter_setup(use_fn_api, by_name, device):
     run_and_check(pipe, source)
 
 
-def test_iter_setup():
-    for use_fn_api in [False, True]:
-        for by_name in [False, True]:
-            for device in ["cpu", "gpu"]:
-                yield _test_iter_setup, use_fn_api, by_name, device
+_iter_setup_test_cases = [
+    (use_fn_api, by_name, device)
+    for use_fn_api in [False, True]
+    for by_name in [False, True]
+    for device in ["cpu", "gpu"]
+]
+
+
+@params(*_iter_setup_test_cases)
+def test_iter_setup(use_fn_api, by_name, device):
+    _test_iter_setup(use_fn_api, by_name, device)
 
 
 def _test_external_source_callback(use_fn_api, batch, as_tensor, device):
@@ -257,12 +264,18 @@ def _test_external_source_callback(use_fn_api, batch, as_tensor, device):
     run_and_check(pipe, source)
 
 
-def test_external_source_callback():
-    for use_fn_api in [False, True]:
-        for device in ["cpu", "gpu"]:
-            for batch in [True, False]:
-                for as_tensor in [False, True]:
-                    yield _test_external_source_callback, use_fn_api, batch, as_tensor, device
+_external_source_callback_test_cases = [
+    (use_fn_api, batch, as_tensor, device)
+    for use_fn_api in [False, True]
+    for device in ["cpu", "gpu"]
+    for batch in [True, False]
+    for as_tensor in [False, True]
+]
+
+
+@params(*_external_source_callback_test_cases)
+def test_external_source_callback(use_fn_api, batch, as_tensor, device):
+    _test_external_source_callback(use_fn_api, batch, as_tensor, device)
 
 
 def _test_external_source_callback_split(use_fn_api, batch, as_tensor, device):
@@ -287,12 +300,18 @@ def _test_external_source_callback_split(use_fn_api, batch, as_tensor, device):
     run_and_check(pipe, source)
 
 
-def test_external_source_callback_split():
-    for use_fn_api in [False, True]:
-        for device in ["cpu", "gpu"]:
-            for batch in [True, False]:
-                for as_tensor in [False, True]:
-                    yield _test_external_source_callback_split, use_fn_api, batch, as_tensor, device
+_external_source_callback_split_test_cases = [
+    (use_fn_api, batch, as_tensor, device)
+    for use_fn_api in [False, True]
+    for device in ["cpu", "gpu"]
+    for batch in [True, False]
+    for as_tensor in [False, True]
+]
+
+
+@params(*_external_source_callback_split_test_cases)
+def test_external_source_callback_split(use_fn_api, batch, as_tensor, device):
+    _test_external_source_callback_split(use_fn_api, batch, as_tensor, device)
 
 
 def _test_external_source_iter(use_fn_api, device):
@@ -314,10 +333,14 @@ def _test_external_source_iter(use_fn_api, device):
     run_and_check(pipe, source)
 
 
-def test_external_source_iter():
-    for use_fn_api in [False, True]:
-        for device in ["cpu", "gpu"]:
-            yield _test_external_source_iter, use_fn_api, device
+_external_source_iter_test_cases = [
+    (use_fn_api, device) for use_fn_api in [False, True] for device in ["cpu", "gpu"]
+]
+
+
+@params(*_external_source_iter_test_cases)
+def test_external_source_iter(use_fn_api, device):
+    _test_external_source_iter(use_fn_api, device)
 
 
 def _test_external_source_iter_split(use_fn_api, device):
@@ -339,10 +362,14 @@ def _test_external_source_iter_split(use_fn_api, device):
     run_and_check(pipe, source)
 
 
-def test_external_source_iter_split():
-    for use_fn_api in [False, True]:
-        for device in ["cpu", "gpu"]:
-            yield _test_external_source_iter_split, use_fn_api, device
+_external_source_iter_split_test_cases = [
+    (use_fn_api, device) for use_fn_api in [False, True] for device in ["cpu", "gpu"]
+]
+
+
+@params(*_external_source_iter_split_test_cases)
+def test_external_source_iter_split(use_fn_api, device):
+    _test_external_source_iter_split(use_fn_api, device)
 
 
 def test_external_source_collection():
@@ -605,7 +632,7 @@ def external_data_veri(external_data, batch_size):
             assert out[0].as_array()[i] == external_data[i]
 
 
-def test_external_source_scalar_list():
+def _generate_external_source_scalar_list_test_cases():
     batch_size = 3
     label_data = 10
     lists = []
@@ -613,8 +640,15 @@ def test_external_source_scalar_list():
     for i in range(batch_size):
         lists.append([label_data + i])
         scalars.append(label_data + i * 10)
-    for external_data in [lists, scalars]:
-        yield external_data_veri, external_data, batch_size
+    return [(lists, batch_size), (scalars, batch_size)]
+
+
+_external_source_scalar_list_test_cases = _generate_external_source_scalar_list_test_cases()
+
+
+@params(*_external_source_scalar_list_test_cases)
+def test_external_source_scalar_list(external_data, batch_size):
+    external_data_veri(external_data, batch_size)
 
 
 def test_external_source_gpu():
@@ -777,18 +811,17 @@ def _test_iter_setup_zero_copy(use_fn_api, by_name, as_tensor, device, additiona
         run_and_check(pipe, source)
 
 
-def test_iter_setup_zero_copy():
-    for use_fn_api in [False, True]:
-        for by_name in [False, True]:
-            for as_tensor in [False, True]:
-                for device in ["cpu", "gpu"]:
-                    # make it -4 as -1 sometimes fails due to being close to the limit
-                    for additional_num_keep_samples in [-4, 0, 1]:
-                        yield (
-                            _test_iter_setup_zero_copy,
-                            use_fn_api,
-                            by_name,
-                            as_tensor,
-                            device,
-                            additional_num_keep_samples,
-                        )
+_iter_setup_zero_copy_test_cases = [
+    (use_fn_api, by_name, as_tensor, device, additional_num_keep_samples)
+    for use_fn_api in [False, True]
+    for by_name in [False, True]
+    for as_tensor in [False, True]
+    for device in ["cpu", "gpu"]
+    # make it -4 as -1 sometimes fails due to being close to the limit
+    for additional_num_keep_samples in [-4, 0, 1]
+]
+
+
+@params(*_iter_setup_zero_copy_test_cases)
+def test_iter_setup_zero_copy(use_fn_api, by_name, as_tensor, device, additional_num_keep_samples):
+    _test_iter_setup_zero_copy(use_fn_api, by_name, as_tensor, device, additional_num_keep_samples)

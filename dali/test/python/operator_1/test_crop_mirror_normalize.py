@@ -126,10 +126,14 @@ def check_cmn_no_crop_args_vs_decoder_only(cmn_op, device, batch_size):
     )
 
 
-def test_cmn_no_crop_args_vs_decoder_only():
-    for cmn_op, device in op_dev_pairs:
-        for batch_size in {1, 4}:
-            yield check_cmn_no_crop_args_vs_decoder_only, cmn_op, device, batch_size
+_cmn_no_crop_args_vs_decoder_only_test_cases = [
+    (cmn_op, device, batch_size) for cmn_op, device in op_dev_pairs for batch_size in [1, 4]
+]
+
+
+@params(*_cmn_no_crop_args_vs_decoder_only_test_cases)
+def test_cmn_no_crop_args_vs_decoder_only(cmn_op, device, batch_size):
+    check_cmn_no_crop_args_vs_decoder_only(cmn_op, device, batch_size)
 
 
 class PythonOpPipeline(Pipeline):
@@ -372,8 +376,7 @@ def test_cmn_vs_numpy():
                         ]
                         shift = default_shift if mean and mean[0] > 1 else None
                         scale = default_scale if std and std[0] > 1 else None
-                        yield (
-                            check_cmn_vs_numpy,
+                        check_cmn_vs_numpy(
                             cmn_op,
                             device,
                             batch_size,
@@ -610,8 +613,7 @@ def test_cmn_random_data_vs_numpy():
                                 ]
                                 shift = default_shift if mean and mean[0] > 1 else None
                                 scale = default_scale if std and std[0] > 1 else None
-                                yield (
-                                    check_cmn_random_data_vs_numpy,
+                                check_cmn_random_data_vs_numpy(
                                     cmn_op,
                                     device,
                                     batch_size,
@@ -697,8 +699,7 @@ def test_cmn_crop_sequence_length():
                 for input_shape in input_shapes[input_layout]:
                     assert len(input_layout) == len(input_shape)
                     for output_layout in output_layouts[input_layout]:
-                        yield (
-                            check_cmn_crop_sequence_length,
+                        check_cmn_crop_sequence_length(
                             cmn_op,
                             device,
                             batch_size,
@@ -814,8 +815,7 @@ def test_cmn_with_out_of_bounds_policy_support():
                 for out_layout in ["HWC", "CHW"]:
                     for mirror_probability in [0.5]:
                         for should_pad in [False, True]:
-                            yield (
-                                check_cmn_with_out_of_bounds_policy_support,
+                            check_cmn_with_out_of_bounds_policy_support(
                                 cmn_op,
                                 device,
                                 batch_size,
@@ -860,13 +860,21 @@ def check_cmn_with_out_of_bounds_error(cmn_op, device, batch_size, input_shape=(
     pipe.run()
 
 
-def test_slice_with_out_of_bounds_error():
-    in_shape = (40, 80, 3)
-    for cmn_op, device in op_dev_pairs:
-        for batch_size in [1, 3]:
-            yield raises(RuntimeError, "Slice can't be placed out of bounds with current policy.")(
-                check_cmn_with_out_of_bounds_error
-            ), cmn_op, device, batch_size, in_shape
+_slice_with_out_of_bounds_error_test_cases = [
+    (cmn_op, device, batch_size, (40, 80, 3))
+    for cmn_op, device in op_dev_pairs
+    for batch_size in [1, 3]
+]
+
+
+@raises(RuntimeError, "Slice can't be placed out of bounds with current policy.")
+def _check_cmn_with_out_of_bounds_error_impl(cmn_op, device, batch_size, in_shape):
+    check_cmn_with_out_of_bounds_error(cmn_op, device, batch_size, in_shape)
+
+
+@params(*_slice_with_out_of_bounds_error_test_cases)
+def test_slice_with_out_of_bounds_error(cmn_op, device, batch_size, in_shape):
+    _check_cmn_with_out_of_bounds_error_impl(cmn_op, device, batch_size, in_shape)
 
 
 def check_cmn_per_sample_norm_args(cmn_fn, device, rand_mean, rand_stdev, scale, shift):
@@ -908,8 +916,7 @@ def test_per_sample_norm_args():
     for cmn_fn, device in fn_dev_pairs:
         for random_mean, random_std in [(True, True), (True, False), (False, True)]:
             for scale, shift in [(None, None), (255.0, -128.0)]:
-                yield (
-                    check_cmn_per_sample_norm_args,
+                check_cmn_per_sample_norm_args(
                     cmn_fn,
                     device,
                     random_mean,
@@ -945,8 +952,7 @@ def test_crop_mirror_normalize_wrong_layout():
     batch_size = 3
     for cmn_fn, device in fn_dev_pairs:
         for layout in ["ABC"]:
-            yield (
-                check_crop_mirror_normalize_wrong_layout,
+            check_crop_mirror_normalize_wrong_layout(
                 cmn_fn,
                 device,
                 batch_size,
@@ -971,11 +977,14 @@ def check_crop_mirror_normalize_empty_layout(cmn_fn, device, batch_size, input_s
         assert as_array(data[i]).shape == (3, 10, 20)  # CHW by default
 
 
-def test_crop_mirror_normalize_empty_layout():
-    in_shape = (40, 80, 3)
-    batch_size = 3
-    for cmn_fn, device in fn_dev_pairs:
-        yield check_crop_mirror_normalize_empty_layout, cmn_fn, device, batch_size, in_shape
+_crop_mirror_normalize_empty_layout_test_cases = [
+    (cmn_fn, device, 3, (40, 80, 3)) for cmn_fn, device in fn_dev_pairs
+]
+
+
+@params(*_crop_mirror_normalize_empty_layout_test_cases)
+def test_crop_mirror_normalize_empty_layout(cmn_fn, device, batch_size, in_shape):
+    check_crop_mirror_normalize_empty_layout(cmn_fn, device, batch_size, in_shape)
 
 
 batch_sizes = [1, 4]

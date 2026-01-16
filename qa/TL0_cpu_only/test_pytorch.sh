@@ -8,7 +8,7 @@ test_body() {
   # CPU only test, remove CUDA from the search path just in case
   export LD_LIBRARY_PATH=""
   export PATH=${PATH/cuda/}
-  ${python_invoke_test} --attr 'pytorch' test_dali_cpu_only.py
+  ${python_new_invoke_test} -A 'pytorch' test_dali_cpu_only
 }
 
 pushd ../..

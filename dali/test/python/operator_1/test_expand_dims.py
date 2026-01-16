@@ -16,6 +16,7 @@
 from nvidia.dali import pipeline_def
 import nvidia.dali.fn as fn
 import numpy as np
+from nose2.tools import params
 from nose_utils import assert_raises
 
 
@@ -29,9 +30,40 @@ def expand_dims_pipe(shapes, axes=None, new_axis_names=None, layout=None):
     return fn.expand_dims(data, axes=axes, new_axis_names=new_axis_names)
 
 
-def _testimpl_expand_dims(
-    axes, new_axis_names, layout, shapes, expected_out_shapes, expected_layout
-):
+@params(
+    ([0, 2], "AB", "XYZ", [(10, 20, 30)], [(1, 10, 1, 20, 30)], "AXBYZ"),
+    ([0, 3], None, "XYZ", [(10, 20, 30)], [(1, 10, 20, 1, 30)], ""),
+    (
+        [3],
+        None,
+        "XYZ",
+        [(10, 20, 30), (100, 200, 300)],
+        [(10, 20, 30, 1), (100, 200, 300, 1)],
+        "",
+    ),
+    (
+        [4, 3],
+        None,
+        "XYZ",
+        [(10, 20, 30), (100, 200, 300)],
+        [(10, 20, 30, 1, 1), (100, 200, 300, 1, 1)],
+        "",
+    ),
+    (
+        [0, 1, 3, 5, 7],
+        "ABCDE",
+        "XYZ",
+        [(11, 22, 33)],
+        [(1, 1, 11, 1, 22, 1, 33, 1)],
+        "ABXCYDZE",
+    ),
+    ([], "", "HW", [(10, 20)], [(10, 20)], "HW"),
+    ([0, 1], "", "", [()], [(1, 1)], ""),
+    ([0], "", "HW", [(10, 20)], [(1, 10, 20)], ""),
+    ([4, 3], "AB", "XYZ", [(10, 20, 30)], [(10, 20, 30, 1, 1)], "XYZBA"),
+    ([0], "X", "", [()], [(1,)], "X"),
+)
+def test_expand_dims(axes, new_axis_names, layout, shapes, expected_out_shapes, expected_layout):
     batch_size = len(shapes)
     pipe = expand_dims_pipe(
         batch_size=batch_size,
@@ -48,53 +80,6 @@ def _testimpl_expand_dims(
         for i in range(batch_size):
             out_arr = np.array(outs[0][i])
             assert out_arr.shape == expected_out_shapes[i]
-
-
-def test_expand_dims():
-    # axes, new_axis_names, layout, shapes, expected_shapes, expected_layout
-    args = [
-        ([0, 2], "AB", "XYZ", [(10, 20, 30)], [(1, 10, 1, 20, 30)], "AXBYZ"),
-        ([0, 3], None, "XYZ", [(10, 20, 30)], [(1, 10, 20, 1, 30)], ""),
-        (
-            [3],
-            None,
-            "XYZ",
-            [(10, 20, 30), (100, 200, 300)],
-            [(10, 20, 30, 1), (100, 200, 300, 1)],
-            "",
-        ),
-        (
-            [4, 3],
-            None,
-            "XYZ",
-            [(10, 20, 30), (100, 200, 300)],
-            [(10, 20, 30, 1, 1), (100, 200, 300, 1, 1)],
-            "",
-        ),
-        (
-            [0, 1, 3, 5, 7],
-            "ABCDE",
-            "XYZ",
-            [(11, 22, 33)],
-            [(1, 1, 11, 1, 22, 1, 33, 1)],
-            "ABXCYDZE",
-        ),
-        ([], "", "HW", [(10, 20)], [(10, 20)], "HW"),
-        ([0, 1], "", "", [()], [(1, 1)], ""),
-        ([0], "", "HW", [(10, 20)], [(1, 10, 20)], ""),
-        ([4, 3], "AB", "XYZ", [(10, 20, 30)], [(10, 20, 30, 1, 1)], "XYZBA"),
-        ([0], "X", "", [()], [(1,)], "X"),
-    ]
-    for axes, new_axis_names, layout, shapes, expected_out_shapes, expected_layout in args:
-        yield (
-            _testimpl_expand_dims,
-            axes,
-            new_axis_names,
-            layout,
-            shapes,
-            expected_out_shapes,
-            expected_layout,
-        )
 
 
 def test_expand_dims_throw_error():

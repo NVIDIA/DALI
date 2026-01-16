@@ -457,49 +457,47 @@ def axes2names(axes, layout="abcdefghijklmnopqrstuvwxyz"):
     return "".join([layout[axis] for axis in axes])
 
 
-def _test_up_to_5D_all_axis_combinations(device):
+def _generate_up_to_5D_all_axis_combinations_test_cases():
     batch_size = 5
-    for batch_norm in [False, True]:
-        for dim in range(1, 6):
-            for axes in all_axes(dim):
-                yield _run_test, device, batch_size, dim, axes, None, batch_norm
-                if axes is not None and dim < 5:
-                    axis_names = axes2names(axes)
-                    yield _run_test, device, batch_size, dim, None, axis_names, batch_norm
-
-
-def test_cpu_up_to_5D_all_axis_combinations():
+    cases = []
     for device in ["cpu", "gpu"]:
-        for x in _test_up_to_5D_all_axis_combinations(device):
-            yield x
+        for batch_norm in [False, True]:
+            for dim in range(1, 6):
+                for axes in all_axes(dim):
+                    cases.append((device, batch_size, dim, axes, None, batch_norm))
+                    if axes is not None and dim < 5:
+                        axis_names = axes2names(axes)
+                        cases.append((device, batch_size, dim, None, axis_names, batch_norm))
+    return cases
 
 
-def test_types():
-    batch_size = 50
-    dim = 4
-    axes = [1, 2]
-    out_type = np.uint8
-    in_type = None
-    for device in ["cpu", "gpu"]:
-        for out_type, scale, shift in [
-            (np.uint8, 64, 128),
-            (np.int16, 1000, 0),
-            (np.float32, 0.5, 0.5),
-        ]:
-            for in_type in [None, np.uint8, np.int16, np.float32]:
-                yield (
-                    _run_test,
-                    device,
-                    batch_size,
-                    dim,
-                    axes,
-                    None,
-                    False,
-                    out_type,
-                    in_type,
-                    shift,
-                    scale,
-                )
+_up_to_5D_all_axis_combinations_test_cases = _generate_up_to_5D_all_axis_combinations_test_cases()
+
+
+@params(*_up_to_5D_all_axis_combinations_test_cases)
+def test_cpu_up_to_5D_all_axis_combinations(device, batch_size, dim, axes, axis_names, batch_norm):
+    _run_test(device, batch_size, dim, axes, axis_names, batch_norm)
+
+
+_types_test_cases = [
+    (device, 50, 4, [1, 2], None, False, out_type, in_type, shift, scale)
+    for device in ["cpu", "gpu"]
+    for out_type, scale, shift in [
+        (np.uint8, 64, 128),
+        (np.int16, 1000, 0),
+        (np.float32, 0.5, 0.5),
+    ]
+    for in_type in [None, np.uint8, np.int16, np.float32]
+]
+
+
+@params(*_types_test_cases)
+def test_types(
+    device, batch_size, dim, axes, axis_names, batch_norm, out_type, in_type, shift, scale
+):
+    _run_test(
+        device, batch_size, dim, axes, axis_names, batch_norm, out_type, in_type, shift, scale
+    )
 
 
 @params("cpu", "gpu")

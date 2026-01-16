@@ -24,6 +24,7 @@ import numpy as np
 import tempfile
 from test_utils import check_output_pattern, skip_if_m60
 
+from nose2.tools import params
 from nose_utils import assert_raises, raises
 
 VIDEO_DIRECTORY = "/tmp/video_files"
@@ -135,31 +136,26 @@ def test_wrong_length_sequence_videopipeline():
         pipe.build()
 
 
-def check_videopipeline_supported_type(dtype):
+SUPPORTED_TYPES = [types.DALIDataType.FLOAT, types.DALIDataType.UINT8]
+ALL_TYPES = list(types.DALIDataType.__members__.values())
+
+
+@params(*SUPPORTED_TYPES)
+def test_simple_videopipeline_supported_types(dtype):
     pipe = VideoPipe(batch_size=BATCH_SIZE, data=VIDEO_FILES, dtype=dtype)
     for i in range(ITER):
         _ = pipe.run()
     del pipe
 
 
+_unsupported_types = list(set(ALL_TYPES) - set(SUPPORTED_TYPES))
+
+
 @raises(RuntimeError, glob="Data type must be FLOAT or UINT8")
-def check_videopipeline_unsupported_type(dtype):
+@params(*_unsupported_types)
+def test_simple_videopipeline_not_supported_types(dtype):
     pipe = VideoPipe(batch_size=BATCH_SIZE, data=VIDEO_FILES, dtype=dtype)
     pipe.build()
-
-
-SUPPORTED_TYPES = [types.DALIDataType.FLOAT, types.DALIDataType.UINT8]
-ALL_TYPES = list(types.DALIDataType.__members__.values())
-
-
-def test_simple_videopipeline_supported_types():
-    for type in SUPPORTED_TYPES:
-        yield check_videopipeline_supported_type, type
-
-
-def test_simple_videopipeline_not_supported_types():
-    for type in set(ALL_TYPES) - set(SUPPORTED_TYPES):
-        yield check_videopipeline_unsupported_type, type
 
 
 def test_file_list_videopipeline():
@@ -169,7 +165,20 @@ def test_file_list_videopipeline():
     del pipe
 
 
-def _test_file_list_starts_videopipeline(start, end):
+_file_list_starts_ends_videopipeline_test_cases = [
+    (0, None),
+    (1, None),
+    (0, -1),
+    (2, None),
+    (0, -2),
+    (0, 1),
+    (-1, None),
+    (-3, -1),
+]
+
+
+@params(*_file_list_starts_ends_videopipeline_test_cases)
+def test_file_list_starts_ends_videopipeline(start, end):
     files = sorted(os.listdir(VIDEO_DIRECTORY))
     list_file = tempfile.NamedTemporaryFile(mode="w", delete=False)
     list_file.write("{} {}\n".format(os.path.join(VIDEO_DIRECTORY, files[0]), 0))
@@ -208,12 +217,6 @@ def _test_file_list_starts_videopipeline(start, end):
         reference_seq_num, expected_seq_num, seq_num
     )
     os.remove(list_file.name)
-
-
-def test_file_list_starts_ends_videopipeline():
-    ranges = [[0, None], [1, None], [0, -1], [2, None], [0, -2], [0, 1], [-1, None], [-3, -1]]
-    for r in ranges:
-        yield _test_file_list_starts_videopipeline, r[0], r[1]
 
 
 def test_source_info():
@@ -282,7 +285,11 @@ def test_file_list_include_preceding_frame_fail():
     os.remove(list_file_name)
 
 
-def _test_file_list_invalid_range(start, end):
+_file_list_invalid_range_test_cases = [(-1, 1), (1000000, None), (0, -1000)]
+
+
+@params(*_file_list_invalid_range_test_cases)
+def test_file_list_invalid_range(start, end):
     files = sorted(os.listdir(VIDEO_DIRECTORY))
     list_file = tempfile.NamedTemporaryFile(mode="w", delete=False)
     if end is None:
@@ -298,12 +305,6 @@ def _test_file_list_invalid_range(start, end):
     with assert_raises(RuntimeError, glob=expected_msg):
         pipe.build()
     os.remove(list_file.name)
-
-
-def test_file_list_invalid_range():
-    invalid_ranges = [[-1, 1], [1000000, None], [0, -1000]]
-    for r in invalid_ranges:
-        yield _test_file_list_invalid_range, r[0], r[1]
 
 
 def test_file_list_empty_range():
@@ -394,10 +395,11 @@ def test_corrupted_videos():
     ]
     for reader_op, reader_args in reader_opts:
         for wrong_video, msg in corrupted_videos:
-            yield check_corrupted_videos, reader_op, reader_args, wrong_video, msg
+            check_corrupted_videos(reader_op, reader_args, wrong_video, msg)
 
 
-def check_container(cont):
+@params(*video_types)
+def test_container(cont):
     pipe = Pipeline(batch_size=1, num_threads=4, device_id=0)
     path = os.path.join(video_containers_data_root, cont)
     test_videos = [path + "/" + f for f in os.listdir(path)]
@@ -416,11 +418,6 @@ def check_container(cont):
     iter_num = pipe.reader_meta("Reader")["epoch_size"]
     for _ in range(iter_num):
         pipe.run()
-
-
-def test_container():
-    for cont in video_types:
-        yield check_container, cont
 
 
 def test_pad_sequence():

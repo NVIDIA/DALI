@@ -22,6 +22,7 @@ import cv2
 from scipy.ndimage import convolve1d
 import os
 from nose_utils import assert_raises, raises, attr
+from nose2.tools import params
 
 from sequences_test_utils import video_suite_helper, ArgCb
 from test_utils import (
@@ -134,28 +135,44 @@ def check_gaussian_blur(batch_size, sigma, window_size, op_type="cpu"):
         check_batch(result, baseline_cv, batch_size, max_allowed_error=1, expected_layout="HWC")
 
 
-def test_image_gaussian_blur():
+def _generate_test_image_gaussian_blur_params():
+    """Generate all parameter combinations for test_image_gaussian_blur"""
+    params_list = []
     for dev in ["cpu", "gpu"]:
         for sigma in [1.0]:
             for window_size in [3, 5, None]:
                 if sigma is None and window_size is None:
                     continue
-                yield check_gaussian_blur, 10, sigma, window_size, dev
+                params_list.append((10, sigma, window_size, dev))
         # OpenCv uses fixed values for small windows that are different that Gaussian function
-        yield check_gaussian_blur, 10, None, 11, dev
+        params_list.append((10, None, 11, dev))
+    return params_list
 
 
-@attr("slow")
-def slow_test_image_gaussian_blur():
+@params(*_generate_test_image_gaussian_blur_params())
+def test_image_gaussian_blur(batch_size, sigma, window_size, dev):
+    check_gaussian_blur(batch_size, sigma, window_size, dev)
+
+
+def _generate_slow_test_image_gaussian_blur_params():
+    """Generate all parameter combinations for slow_test_image_gaussian_blur"""
+    params_list = []
     for dev in ["cpu", "gpu"]:
         for sigma in [1.0, [1.0, 2.0]]:
             for window_size in [3, 5, [7, 5], [5, 9], None]:
                 if sigma is None and window_size is None:
                     continue
-                yield check_gaussian_blur, 10, sigma, window_size, dev
+                params_list.append((10, sigma, window_size, dev))
         # OpenCv uses fixed values for small windows that are different that Gaussian function
         for window_size in [15, [17, 31]]:
-            yield check_gaussian_blur, 10, None, window_size, dev
+            params_list.append((10, None, window_size, dev))
+    return params_list
+
+
+@attr("slow")
+@params(*_generate_slow_test_image_gaussian_blur_params())
+def slow_test_image_gaussian_blur(batch_size, sigma, window_size, dev):
+    check_gaussian_blur(batch_size, sigma, window_size, dev)
 
 
 def check_gaussian_blur_cpu_gpu(batch_size, sigma, window_size):
@@ -164,18 +181,34 @@ def check_gaussian_blur_cpu_gpu(batch_size, sigma, window_size):
     compare_pipelines(cpu_pipe, gpu_pipe, batch_size, 16, max_allowed_error=1)
 
 
-def test_gaussian_blur_cpu_gpu():
+def _generate_test_gaussian_blur_cpu_gpu_params():
+    """Generate all parameter combinations for test_gaussian_blur_cpu_gpu"""
+    params_list = []
     for window_size in [5, [7, 13]]:
-        yield check_gaussian_blur_cpu_gpu, 10, None, window_size
+        params_list.append((10, None, window_size))
+    return params_list
 
 
-@attr("slow")
-def slow_test_gaussian_blur_cpu_gpu():
+@params(*_generate_test_gaussian_blur_cpu_gpu_params())
+def test_gaussian_blur_cpu_gpu(batch_size, sigma, window_size):
+    check_gaussian_blur_cpu_gpu(batch_size, sigma, window_size)
+
+
+def _generate_slow_test_gaussian_blur_cpu_gpu_params():
+    """Generate all parameter combinations for slow_test_gaussian_blur_cpu_gpu"""
+    params_list = []
     for sigma in [1.0, [1.0, 2.0], None]:
         for window_size in [3, 5, [7, 5], [5, 9], 11, 15, 31, None]:
             if sigma is None and window_size is None:
                 continue
-            yield check_gaussian_blur_cpu_gpu, 10, sigma, window_size
+            params_list.append((10, sigma, window_size))
+    return params_list
+
+
+@attr("slow")
+@params(*_generate_slow_test_gaussian_blur_cpu_gpu_params())
+def slow_test_gaussian_blur_cpu_gpu(batch_size, sigma, window_size):
+    check_gaussian_blur_cpu_gpu(batch_size, sigma, window_size)
 
 
 def count_skip_axes(layout):
@@ -240,51 +273,51 @@ def check_generic_gaussian_blur(
 
 # Generate tests for single or per-axis sigma and window_size arguments
 def generate_generic_cases(dev, t_in, t_out):
+    params_list = []
     for shape, layout, axes in shape_layout_axes_cases:
         for sigma in [1.0, [1.0, 2.0, 3.0]]:
             for window_size in [3, 5, [7, 5, 9], [3, 5, 9], None]:
                 if isinstance(sigma, list):
-                    sigma = sigma[0:axes]
+                    sigma_use = sigma[0:axes]
+                else:
+                    sigma_use = sigma
                 if isinstance(window_size, list):
-                    window_size = window_size[0:axes]
-                yield (
-                    check_generic_gaussian_blur,
-                    10,
-                    sigma,
-                    window_size,
-                    shape,
-                    layout,
-                    axes,
-                    dev,
-                    t_in,
-                    t_out,
+                    window_size_use = window_size[0:axes]
+                else:
+                    window_size_use = window_size
+                params_list.append(
+                    (10, sigma_use, window_size_use, shape, layout, axes, dev, t_in, t_out)
                 )
     for window_size in [11, 15]:
-        yield (
-            check_generic_gaussian_blur,
-            10,
-            None,
-            window_size,
-            shape,
-            layout,
-            axes,
-            dev,
-            t_in,
-            t_out,
-        )
+        params_list.append((10, None, window_size, shape, layout, axes, dev, t_in, t_out))
+    return params_list
 
 
-def test_generic_gaussian_blur():
+def _generate_test_generic_gaussian_blur_params():
+    """Generate all parameter combinations for test_generic_gaussian_blur"""
+    params_list = []
     for dev in ["cpu", "gpu"]:
         for t_in, t_out in [
             (np.uint8, types.NO_TYPE),
             (np.float32, types.FLOAT),
             (np.uint8, types.FLOAT),
         ]:
-            yield from generate_generic_cases(dev, t_in, t_out)
+            params_list.extend(generate_generic_cases(dev, t_in, t_out))
+    return params_list
 
 
-def test_one_sized_extent():
+@params(*_generate_test_generic_gaussian_blur_params())
+def test_generic_gaussian_blur(
+    batch_size, sigma, window_size, shape, layout, axes, dev, t_in, t_out
+):
+    check_generic_gaussian_blur(
+        batch_size, sigma, window_size, shape, layout, axes, dev, t_in, t_out
+    )
+
+
+def _generate_test_one_sized_extent_params():
+    """Generate all parameter combinations for test_one_sized_extent"""
+    params_list = []
     for dev in ["cpu", "gpu"]:
         for shape, layout in [
             ((1, 10, 6), "DHW"),
@@ -294,27 +327,39 @@ def test_one_sized_extent():
             ((10, 1), "HW"),
         ]:
             axes = len(layout) - ("C" in layout)
-            yield (
-                check_generic_gaussian_blur,
-                10,
-                2.0,
-                5,
-                shape,
-                layout,
-                axes,
-                dev,
-                np.float32,
-                types.FLOAT,
-                False,
+            params_list.append(
+                (10, 2.0, 5, shape, layout, axes, dev, np.float32, types.FLOAT, False)
             )
+    return params_list
 
 
-@attr("slow")
-def slow_test_generic_gaussian_blur():
+@params(*_generate_test_one_sized_extent_params())
+def test_one_sized_extent(
+    batch_size, sigma, window_size, shape, layout, axes, dev, in_dtype, out_dtype, random_shape
+):
+    check_generic_gaussian_blur(
+        batch_size, sigma, window_size, shape, layout, axes, dev, in_dtype, out_dtype, random_shape
+    )
+
+
+def _generate_slow_test_generic_gaussian_blur_params():
+    """Generate all parameter combinations for slow_test_generic_gaussian_blur"""
+    params_list = []
     for dev in ["cpu", "gpu"]:
         for t_in in [np.uint8, np.int32, np.float32]:
             for t_out in [types.NO_TYPE, types.FLOAT, dali_type(t_in)]:
-                yield from generate_generic_cases(dev, t_in, t_out)
+                params_list.extend(generate_generic_cases(dev, t_in, t_out))
+    return params_list
+
+
+@attr("slow")
+@params(*_generate_slow_test_generic_gaussian_blur_params())
+def slow_test_generic_gaussian_blur(
+    batch_size, sigma, window_size, shape, layout, axes, dev, t_in, t_out
+):
+    check_generic_gaussian_blur(
+        batch_size, sigma, window_size, shape, layout, axes, dev, t_in, t_out
+    )
 
 
 @attr("sanitizer_skip")
@@ -363,24 +408,24 @@ def check_per_sample_gaussian_blur(
         check_batch(result, baseline, batch_size, max_allowed_error=1, expected_layout=layout)
 
 
-# TODO(klecki): consider checking mixed ArgumentInput/Scalar value cases
-def test_per_sample_gaussian_blur():
+def _generate_test_per_sample_gaussian_blur_params():
+    """Generate all parameter combinations for test_per_sample_gaussian_blur"""
+    params_list = []
     for dev in ["cpu", "gpu"]:
         for shape, layout, axes in shape_layout_axes_cases:
             for sigma_dim in [None, 1, axes]:
                 for window_size_dim in [None, 1, axes]:
                     if sigma_dim is None and window_size_dim is None:
                         continue
-                    yield (
-                        check_per_sample_gaussian_blur,
-                        10,
-                        sigma_dim,
-                        window_size_dim,
-                        shape,
-                        layout,
-                        axes,
-                        dev,
-                    )
+                    params_list.append((10, sigma_dim, window_size_dim, shape, layout, axes, dev))
+    return params_list
+
+
+# TODO(klecki): consider checking mixed ArgumentInput/Scalar value cases
+@attr("sanitizer_skip")
+@params(*_generate_test_per_sample_gaussian_blur_params())
+def test_per_sample_gaussian_blur(batch_size, sigma_dim, window_size_dim, shape, layout, axes, dev):
+    check_per_sample_gaussian_blur(batch_size, sigma_dim, window_size_dim, shape, layout, axes, dev)
 
 
 def check_fail_gaussian_blur(
@@ -401,7 +446,9 @@ def check_fail_gaussian_blur(
         )
 
 
-def test_fail_gaussian_blur():
+def _generate_test_fail_gaussian_blur_params():
+    """Generate all parameter combinations for test_fail_gaussian_blur"""
+    params_list = []
     for dev in ["cpu", "gpu"]:
         # Check layout and channel placement errors
         args = [
@@ -437,92 +484,89 @@ def test_fail_gaussian_blur():
             ),
         ]
         for shape, layout, axes, err_regex in args:
-            yield check_fail_gaussian_blur, 10, 1.0, 11, shape, layout, axes, dev, err_regex
+            params_list.append((10, 1.0, 11, shape, layout, axes, dev, err_regex))
         # Negative, disallowed or both unspecified values of sigma and window size
-        yield (
-            check_fail_gaussian_blur,
-            10,
-            0.0,
-            0,
+        params_list.append(
             (
-                100,
-                20,
+                10,
+                0.0,
+                0,
+                (100, 20, 3),
+                "HWC",
                 3,
-            ),
-            "HWC",
-            3,
-            dev,
-            r"`sigma` and `window_size` shouldn't be 0 at the same time for sample: \d+, "
-            r"axis: \d+\.",
+                dev,
+                r"`sigma` and `window_size` shouldn't be 0 at the same time for sample: \d+, "
+                r"axis: \d+\.",
+            )
         )
-        yield (
-            check_fail_gaussian_blur,
-            10,
-            -1.0,
-            0,
+        params_list.append(
             (
-                100,
-                20,
+                10,
+                -1.0,
+                0,
+                (100, 20, 3),
+                "HWC",
                 3,
-            ),
-            "HWC",
-            3,
-            dev,
-            r"`sigma` must have non-negative values, got .\d* for sample: \d*, axis: \d*\.",
+                dev,
+                r"`sigma` must have non-negative values, got .\d* for sample: \d*, axis: \d*\.",
+            )
         )
-        yield (
-            check_fail_gaussian_blur,
-            10,
-            0.0,
-            -11,
+        params_list.append(
             (
-                100,
-                20,
+                10,
+                0.0,
+                -11,
+                (100, 20, 3),
+                "HWC",
                 3,
-            ),
-            "HWC",
-            3,
-            dev,
-            r"`window_size` must have non-negative values, got .\d* for sample: \d*, axis : \d*\.",
+                dev,
+                r"`window_size` must have non-negative values, got .\d* for sample: "
+                r"\d*, axis : \d*\.",
+            )
         )
 
-    yield (
-        check_fail_gaussian_blur,
-        10,
-        0.0,
-        2,
+    params_list.append(
         (
-            100,
-            20,
+            10,
+            0.0,
+            2,
+            (100, 20, 3),
+            "HWC",
             3,
-        ),
-        "HWC",
-        3,
-        "cpu",
-        r"Kernel window should have odd length, got: \d*\.",
+            "cpu",
+            r"Kernel window should have odd length, got: \d*\.",
+        )
     )
-    yield (
-        check_fail_gaussian_blur,
-        10,
-        0.0,
-        2,
+    params_list.append(
         (
-            100,
-            20,
+            10,
+            0.0,
+            2,
+            (100, 20, 3),
+            "HWC",
             3,
-        ),
-        "HWC",
-        3,
-        "gpu",
-        (
-            r"Even or non-centered windows are not supported yet, got window with even length: "
-            r"[\s\S]* for sample \d*\."
-        ),
+            "gpu",
+            (
+                r"Even or non-centered windows are not supported yet, got window with even length: "
+                r"[\s\S]* for sample \d*\."
+            ),
+        )
+    )
+    return params_list
+
+
+@params(*_generate_test_fail_gaussian_blur_params())
+def test_fail_gaussian_blur(
+    batch_size, sigma, window_size, shape, layout, axes, op_type, err_regex
+):
+    check_fail_gaussian_blur(
+        batch_size, sigma, window_size, shape, layout, axes, op_type, err_regex
     )
 
 
-@attr("sanitizer_skip")
-def test_per_frame():
+def _generate_test_per_frame_params():
+    """Generate all parameter combinations for test_per_frame"""
+
     def window_size(sample_desc):
         return np.array(2 * sample_desc.rng.randint(1, 15) + 1, dtype=np.int32)
 
@@ -536,29 +580,39 @@ def test_per_frame():
         return np.array([sigma(sample_desc) for _ in range(2)])
 
     video_test_cases = [
-        (fn.gaussian_blur, {"window_size": 3}, []),
-        (fn.gaussian_blur, {}, [ArgCb("window_size", window_size, True)]),
-        (fn.gaussian_blur, {}, [ArgCb("window_size", per_axis_window_size, True)]),
-        (fn.gaussian_blur, {}, [ArgCb("sigma", sigma, True)]),
+        ((fn.gaussian_blur, {"window_size": 3}, []),),
+        ((fn.gaussian_blur, {}, [ArgCb("window_size", window_size, True)]),),
+        ((fn.gaussian_blur, {}, [ArgCb("window_size", per_axis_window_size, True)]),),
+        ((fn.gaussian_blur, {}, [ArgCb("sigma", sigma, True)]),),
         (
-            fn.gaussian_blur,
-            {},
-            [
-                ArgCb("window_size", per_axis_window_size, True),
-                ArgCb("sigma", per_axis_sigma, True),
-            ],
+            (
+                fn.gaussian_blur,
+                {},
+                [
+                    ArgCb("window_size", per_axis_window_size, True),
+                    ArgCb("sigma", per_axis_sigma, True),
+                ],
+            ),
         ),
         (
-            fn.gaussian_blur,
-            {"dtype": types.FLOAT},
-            [
-                ArgCb("window_size", per_axis_window_size, False),
-                ArgCb("sigma", per_axis_sigma, True),
-            ],
+            (
+                fn.gaussian_blur,
+                {"dtype": types.FLOAT},
+                [
+                    ArgCb("window_size", per_axis_window_size, False),
+                    ArgCb("sigma", per_axis_sigma, True),
+                ],
+            ),
         ),
     ]
 
-    yield from video_suite_helper(video_test_cases, expand_channels=True)
+    return video_test_cases
+
+
+@attr("sanitizer_skip")
+@params(*_generate_test_per_frame_params())
+def test_per_frame(video_test_cases):
+    video_suite_helper([video_test_cases], expand_channels=True)
 
 
 # test if SequenceOperator properly errors out on per-frame argument when input is expanded only

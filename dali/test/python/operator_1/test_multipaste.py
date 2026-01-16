@@ -390,7 +390,8 @@ def check_operator_multipaste(
             assert False
 
 
-def test_operator_multipaste():
+def _generate_test_operator_multipaste_params():
+    """Generate all parameter combinations for test_operator_multipaste"""
     in_anchor = ((10, 10), (20, 20))
     rng = np.random.default_rng(42)
     tests = [
@@ -698,10 +699,55 @@ def test_operator_multipaste():
             4,
         ],
     ]
+    params_list = []
     for t in tests:
         use_rel = tuple(bool(s) for s in rng.choice(2, size=3))
-        yield (check_operator_multipaste, *t, "cpu", *use_rel)
-        yield (check_operator_multipaste, *t, "gpu", *use_rel)
+        params_list.append(tuple([*t, "cpu", *use_rel]))
+        params_list.append(tuple([*t, "gpu", *use_rel]))
+    return params_list
+
+
+@params(*_generate_test_operator_multipaste_params())
+def test_operator_multipaste(
+    bs,
+    pastes,
+    in_size,
+    out_size,
+    even_paste_count,
+    use_positional,
+    no_intersections,
+    full_input,
+    in_anchor_top_left,
+    in_anchor_range,
+    out_anchor_top_left,
+    out_anchor_range,
+    out_dtype,
+    num_out_of_bounds,
+    device,
+    use_shapes_rel,
+    use_in_anchors_rel,
+    use_out_anchors_rel,
+):
+    check_operator_multipaste(
+        bs,
+        pastes,
+        in_size,
+        out_size,
+        even_paste_count,
+        use_positional,
+        no_intersections,
+        full_input,
+        in_anchor_top_left,
+        in_anchor_range,
+        out_anchor_top_left,
+        out_anchor_range,
+        out_dtype,
+        num_out_of_bounds,
+        device,
+        use_shapes_rel,
+        use_in_anchors_rel,
+        use_out_anchors_rel,
+    )
 
 
 @cartesian_params(("cpu", "gpu"), (True, False), (True, False), (None, (501, 501)))

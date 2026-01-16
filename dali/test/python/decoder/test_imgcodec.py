@@ -23,12 +23,12 @@ import random
 from nvidia.dali import pipeline_def
 
 from nose_utils import assert_raises, SkipTest
+from nose2.tools import params, cartesian_param
 from test_utils import compare_pipelines
 from test_utils import get_dali_extra_path
 from test_utils import to_array
 from test_utils import get_arch
 from test_utils import dump_as_core_artifacts
-from nose2.tools import params
 
 
 def get_img_files(data_path, subdir="*", ext=None):
@@ -83,17 +83,28 @@ def run_decode(data_path, batch, device, threads):
         pipe.run()
 
 
-def test_image_decoder():
+def _generate_image_decoder_test_cases():
+    rng = random.Random(42)
+    cases = []
     for device in ["cpu", "mixed"]:
         for batch_size in [1, 10]:
             for img_type in test_good_path:
-                for threads in [1, random.choice([2, 3, 4])]:
+                for threads in [1, rng.choice([2, 3, 4])]:
                     data_path = os.path.join(test_data_root, good_path, img_type)
-                    yield run_decode, data_path, batch_size, device, threads
+                    cases.append((data_path, batch_size, device, threads))
             for img_type in test_misnamed_path:
-                for threads in [1, random.choice([2, 3, 4])]:
+                for threads in [1, rng.choice([2, 3, 4])]:
                     data_path = os.path.join(test_data_root, misnamed_path, img_type)
-                    yield run_decode, data_path, batch_size, device, threads
+                    cases.append((data_path, batch_size, device, threads))
+    return cases
+
+
+_image_decoder_test_cases = _generate_image_decoder_test_cases()
+
+
+@params(*_image_decoder_test_cases)
+def test_image_decoder(data_path, batch_size, device, threads):
+    run_decode(data_path, batch_size, device, threads)
 
 
 @pipeline_def
@@ -219,7 +230,8 @@ def test_image_decoder_fused():
                 )
 
 
-def check_FastDCT_body(batch_size, img_type, device):
+@cartesian_param(["cpu", "mixed"], [1, 8], test_good_path)
+def test_FastDCT(batch_size, img_type, device):
     data_path = os.path.join(test_data_root, good_path, img_type)
     compare_pipelines(
         decoder_pipe(
@@ -243,13 +255,6 @@ def check_FastDCT_body(batch_size, img_type, device):
         N_iterations=3,
         eps=3,
     )
-
-
-def test_FastDCT():
-    for device in ["cpu", "mixed"]:
-        for batch_size in [1, 8]:
-            for img_type in test_good_path:
-                yield check_FastDCT_body, batch_size, img_type, device
 
 
 def check_fancy_upsampling_body(batch_size, img_type, device):
@@ -306,7 +311,28 @@ def img_decoder_pipe(device, out_type, files):
     return decoded
 
 
-def _testimpl_image_decoder_consistency(img_out_type, file_fmt, path, subdir="*", ext=None):
+def _generate_image_decoder_consistency_test_cases():
+    cases = []
+    for out_img_type in [types.RGB, types.BGR, types.YCbCr, types.GRAY, types.ANY_DATA]:
+        for file_fmt in test_good_path:
+            path = os.path.join(good_path, file_fmt)
+            cases.append((out_img_type, file_fmt, path, "0", None))
+
+        for file_fmt, path, ext in [
+            ("tiff", "db/single/multichannel/tiff_multichannel", "tif"),
+            ("jpeg2k", "db/single/multichannel/with_alpha", "jp2"),
+            ("png", "db/single/multichannel/with_alpha", "png"),
+        ]:
+            subdir = None  # In those paths the images are not organized in subdirs
+            cases.append((out_img_type, file_fmt, path, subdir, ext))
+    return cases
+
+
+_image_decoder_consistency_test_cases = _generate_image_decoder_consistency_test_cases()
+
+
+@params(*_image_decoder_consistency_test_cases)
+def test_image_decoder_consistency(img_out_type, file_fmt, path, subdir, ext):
     eps = 1
     if file_fmt == "jpeg" or file_fmt == "mixed":
         eps = 4
@@ -322,22 +348,16 @@ def _testimpl_image_decoder_consistency(img_out_type, file_fmt, path, subdir="*"
     )
 
 
-def test_image_decoder_consistency():
-    for out_img_type in [types.RGB, types.BGR, types.YCbCr, types.GRAY, types.ANY_DATA]:
-        for file_fmt in test_good_path:
-            path = os.path.join(good_path, file_fmt)
-            yield _testimpl_image_decoder_consistency, out_img_type, file_fmt, path
-
-        for file_fmt, path, ext in [
-            ("tiff", "db/single/multichannel/tiff_multichannel", "tif"),
-            ("jpeg2k", "db/single/multichannel/with_alpha", "jp2"),
-            ("png", "db/single/multichannel/with_alpha", "png"),
-        ]:
-            subdir = None  # In those paths the images are not organized in subdirs
-            yield _testimpl_image_decoder_consistency, out_img_type, file_fmt, path, subdir, ext
+_image_decoder_tiff_with_alpha_16bit_test_cases = [
+    (device, out_type, "db/single/multichannel/with_alpha_16bit", ext)
+    for device in ["cpu", "mixed"]
+    for out_type in [types.RGB, types.BGR, types.YCbCr, types.ANY_DATA]
+    for ext in [("png", "tiff", "jp2")]
+]
 
 
-def _testimpl_image_decoder_tiff_with_alpha_16bit(device, out_type, path, ext):
+@params(*_image_decoder_tiff_with_alpha_16bit_test_cases)
+def test_image_decoder_tiff_with_alpha_16bit(device, out_type, path, ext):
     @pipeline_def(batch_size=1, device_id=0, num_threads=1)
     def pipe(device, out_type, files):
         encoded, _ = fn.readers.file(files=files)
@@ -356,15 +376,8 @@ def _testimpl_image_decoder_tiff_with_alpha_16bit(device, out_type, path, ext):
     assert out.shape[2] == expected_channels, f"Expected {expected_channels} but got {out.shape[2]}"
 
 
-def test_image_decoder_tiff_with_alpha_16bit():
-    for device in ["cpu", "mixed"]:
-        for out_type in [types.RGB, types.BGR, types.YCbCr, types.ANY_DATA]:
-            path = "db/single/multichannel/with_alpha_16bit"
-            for ext in [("png", "tiff", "jp2")]:
-                yield _testimpl_image_decoder_tiff_with_alpha_16bit, device, out_type, path, ext
-
-
-def _testimpl_image_decoder_crop_error_oob(device):
+@params("cpu", "mixed")
+def test_image_decoder_crop_error_oob(device):
     file_root = os.path.join(test_data_root, good_path, "jpeg")
 
     @pipeline_def(batch_size=batch_size_test, device_id=0, num_threads=4)
@@ -381,12 +394,8 @@ def _testimpl_image_decoder_crop_error_oob(device):
     )
 
 
-def test_image_decoder_crop_error_oob():
-    for device in ["cpu", "mixed"]:
-        yield _testimpl_image_decoder_crop_error_oob, device
-
-
-def _testimpl_image_decoder_slice_error_oob(device):
+@params("cpu", "mixed")
+def test_image_decoder_slice_error_oob(device):
     file_root = os.path.join(test_data_root, good_path, "jpeg")
 
     @pipeline_def(batch_size=batch_size_test, device_id=0, num_threads=4)
@@ -401,11 +410,6 @@ def _testimpl_image_decoder_slice_error_oob(device):
     assert_raises(
         RuntimeError, p.run, glob="cropping window*..*..*is not valid for image dimensions*[*x*]"
     )
-
-
-def test_image_decoder_slice_error_oob():
-    for device in ["cpu", "mixed"]:
-        yield _testimpl_image_decoder_slice_error_oob, device
 
 
 def test_tiff_palette():
@@ -429,9 +433,28 @@ def test_tiff_palette():
     assert np.quantile(delta, 0.9) < 0.05, "Original and palette TIFF differ significantly"
 
 
-def _testimpl_image_decoder_peek_shape(
-    name, expected_shape, image_type=types.ANY_DATA, adjust_orientation=True
-):
+_peek_shape_test_cases = [
+    ("bmp/0/cat-1245673_640.bmp", (423, 640, 3), None, None),
+    ("bmp/0/cat-111793_640_grayscale.bmp", (426, 640, 1), None, None),
+    ("jpeg/641/maracas-706753_1280.jpg", (1280, 919, 3), None, None),
+    ("jpeg2k/0/cat-3449999_640.jp2", (426, 640, 3), None, None),
+    ("tiff/0/cat-300572_640.tiff", (536, 640, 3), None, None),
+    ("png/0/cat-3591348_640.png", (427, 640, 3), None, None),
+    ("pnm/0/cat-3591348_640.pbm", (427, 640, 1), None, None),
+    ("tiff/0/kitty-2948404_640.tiff", (433, 640, 3), None, None),
+    ("tiff/0/cat-111793_640_gray.tiff", (475, 640, 1), None, None),
+    ("webp/lossless/cat-111793_640.webp", (426, 640, 3), None, None),
+    ("jpeg_lossless/0/cat-1245673_640_grayscale_16bit.jpg", (423, 640, 1), None, None),
+    ("multichannel/with_alpha/cat-111793_640-alpha.jp2", (426, 640, 4), None, None),
+    ("multichannel/with_alpha/cat-111793_640-alpha.png", (426, 640, 4), None, None),
+    ("multichannel/tiff_multichannel/cat-111793_640_multichannel.tif", (475, 640, 6), None, None),
+    ("tiff/0/kitty-2948404_640.tiff", (433, 640, 1), types.GRAY, True),
+    ("bmp/0/cat-111793_640_grayscale.bmp", (426, 640, 3), types.RGB, True),
+]
+
+
+@params(*_peek_shape_test_cases)
+def test_peek_shape(name, expected_shape, image_type, adjust_orientation):
     file = os.path.join(test_data_root, good_path, name)
 
     @pipeline_def(batch_size=1, device_id=0, num_threads=1)
@@ -444,39 +467,6 @@ def _testimpl_image_decoder_peek_shape(
     pipe = peek_shape_pipeline(file)
     shape = tuple(np.asarray(pipe.run()[0][0]))
     assert shape == expected_shape, f"Expected shape {expected_shape} but got {shape}"
-
-
-def test_peek_shape():
-    tests = [
-        ("bmp/0/cat-1245673_640.bmp", (423, 640, 3)),
-        ("bmp/0/cat-111793_640_grayscale.bmp", (426, 640, 1)),
-        ("jpeg/641/maracas-706753_1280.jpg", (1280, 919, 3)),
-        ("jpeg2k/0/cat-3449999_640.jp2", (426, 640, 3)),
-        ("tiff/0/cat-300572_640.tiff", (536, 640, 3)),
-        ("png/0/cat-3591348_640.png", (427, 640, 3)),
-        ("pnm/0/cat-3591348_640.pbm", (427, 640, 1)),
-        ("tiff/0/kitty-2948404_640.tiff", (433, 640, 3)),
-        ("tiff/0/cat-111793_640_gray.tiff", (475, 640, 1)),
-        ("webp/lossless/cat-111793_640.webp", (426, 640, 3)),
-        ("jpeg_lossless/0/cat-1245673_640_grayscale_16bit.jpg", (423, 640, 1)),
-        ("multichannel/with_alpha/cat-111793_640-alpha.jp2", (426, 640, 4)),
-        ("multichannel/with_alpha/cat-111793_640-alpha.png", (426, 640, 4)),
-        ("multichannel/tiff_multichannel/cat-111793_640_multichannel.tif", (475, 640, 6)),
-    ]
-
-    for name, expected_shape in tests:
-        yield _testimpl_image_decoder_peek_shape, name, expected_shape
-
-    yield _testimpl_image_decoder_peek_shape, "tiff/0/kitty-2948404_640.tiff", (
-        433,
-        640,
-        1,
-    ), types.GRAY, True
-    yield _testimpl_image_decoder_peek_shape, "bmp/0/cat-111793_640_grayscale.bmp", (
-        426,
-        640,
-        3,
-    ), types.RGB, True
 
 
 def is_nvjpeg_lossless_supported(device_id):

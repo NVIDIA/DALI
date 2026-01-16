@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from nose2.tools import cartesian_params
 from nose_utils import assert_raises
 import numpy as np
 import nvidia.dali as dali
@@ -23,14 +24,16 @@ random.seed(1234)
 np.random.seed(4321)
 
 
-def check_select_masks(
-    batch_size,
-    npolygons_range=(1, 10),
-    nvertices_range=(3, 40),
-    vertex_ndim=2,
-    vertex_dtype=np.float32,
-    reindex_masks=False,
-):
+@cartesian_params(
+    [1, 3],
+    [2, 3, 6],
+    [float, np.int8, np.int16, np.int32, np.int64],
+    [False, True],
+)
+def test_select_masks(batch_size, vertex_ndim, vertex_dtype, reindex_masks):
+    npolygons_range = (1, 10)
+    nvertices_range = (3, 40)
+
     def get_data_source(*args, **kwargs):
         return lambda: make_batch_select_masks(*args, **kwargs)
 
@@ -85,24 +88,6 @@ def check_select_masks(
                 expected_out_vertex = in_vertices[in_vertex_start:in_vertex_end]
                 out_vertex = out_vertices[out_vertex_start:out_vertex_end]
                 assert (expected_out_vertex == out_vertex).all()
-
-
-def test_select_masks():
-    npolygons_range = (1, 10)
-    nvertices_range = (3, 40)
-    for batch_size in [1, 3]:
-        for vertex_ndim in [2, 3, 6]:
-            for vertex_dtype in [float, random.choice([np.int8, np.int16, np.int32, np.int64])]:
-                reindex_masks = random.choice([False, True])
-                yield (
-                    check_select_masks,
-                    batch_size,
-                    npolygons_range,
-                    nvertices_range,
-                    vertex_ndim,
-                    vertex_dtype,
-                    reindex_masks,
-                )
 
 
 @dali.pipeline_def(batch_size=1, num_threads=4, device_id=0, seed=1234)

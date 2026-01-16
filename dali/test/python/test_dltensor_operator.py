@@ -21,6 +21,8 @@ from functools import partial
 from nvidia.dali.pipeline import Pipeline
 from nvidia.dali import fn, pipeline_def
 from nvidia.dali.python_function_plugin import current_dali_stream
+from nose_utils import attr
+from nose2.tools import params
 
 test_data_root = os.environ["DALI_EXTRA_PATH"]
 images_dir = os.path.join(test_data_root, "db", "single", "jpeg")
@@ -34,11 +36,6 @@ def setup_pytorch():
 
     global torch_stream
     torch_stream = torch.cuda.Stream()
-
-
-def setup_mxnet():
-    global mxnd
-    from mxnet import ndarray as mxnd
 
 
 def setup_cupy():
@@ -182,59 +179,46 @@ def pytorch_red_channel_op(in1, in2):
     return [t.narrow(2, 0, 1).squeeze() for t in in1], [t.narrow(2, 0, 1).squeeze() for t in in2]
 
 
-def test_pytorch():
+_pytorch_test_params = [
+    (testcase, device)
+    for testcase in [simple_pytorch_op, pytorch_red_channel_op]
+    for device in ["cpu", "gpu"]
+]
+
+
+@attr("pytorch")
+@params(*_pytorch_test_params)
+def test_pytorch(testcase, device):
     setup_pytorch()
-    for testcase in [simple_pytorch_op, pytorch_red_channel_op]:
-        for device in ["cpu", "gpu"]:
-            yield pytorch_case, testcase, device
-
-    yield from _gpu_sliced_torch_suite()
-    yield from _gpu_permuted_extents_torch_suite()
+    pytorch_case(testcase, device)
 
 
-def mxnet_adapter(fun, in1, in2):
-    tin1 = [mxnd.from_dlpack(dltensor) for dltensor in in1]
-    tin2 = [mxnd.from_dlpack(dltensor) for dltensor in in2]
-    tout1, tout2 = fun(tin1, tin2)
-    return [mxnd.to_dlpack_for_read(tout) for tout in tout1], [
-        mxnd.to_dlpack_for_read(tout) for tout in tout2
-    ]
+@attr("pytorch")
+def test_pytorch_gpu_sliced():
+    setup_pytorch()
+    g = torch.Generator()
+    g.manual_seed(42)
+    for case_name in ("slice_images", "slice_grey_images", "slice_vid", "slice_ndim_11"):
+        for dtype in (torch.uint8, torch.int16, torch.float32, torch.float64):
+            _gpu_sliced_torch_case(case_name, dtype, g)
 
 
-def mxnet_wrapper(fun):
-    return lambda in1, in2: mxnet_adapter(fun, in1, in2)
-
-
-def mxnet_compare(fun, pre1, pre2, post1, post2):
-    mxnet_pre1 = [mxnd.array(pre1.at(i)) for i in range(BATCH_SIZE)]
-    mxnet_pre2 = [mxnd.array(pre2.at(i)) for i in range(BATCH_SIZE)]
-    mxnet_post1, mxnet_post2 = fun(mxnet_pre1, mxnet_pre2)
-    for i in range(BATCH_SIZE):
-        assert numpy.array_equal(post1.at(i), mxnet_post1[i].asnumpy())
-        assert numpy.array_equal(post2.at(i), mxnet_post2[i].asnumpy())
-
-
-def mxnet_case(fun, device):
-    setup_mxnet()
-    common_case(mxnet_wrapper(fun), device, partial(mxnet_compare, fun))
-
-
-def mxnet_flatten(in1, in2):
-    return [mxnd.flatten(t) for t in in1], [mxnd.flatten(t) for t in in2]
-
-
-def mxnet_slice(in1, in2):
-    return [t[:, :, 1] for t in in1], [t[:, :, 2] for t in in2]
-
-
-def mxnet_cast(in1, in2):
-    return [mxnd.cast(t, dtype="float32") for t in in1], [mxnd.cast(t, dtype="int64") for t in in2]
-
-
-def test_mxnet():
-    for testcase in [mxnet_flatten, mxnet_slice, mxnet_cast]:
-        for device in ["cpu", "gpu"]:
-            yield mxnet_case, testcase, device
+@attr("pytorch")
+def test_pytorch_gpu_permuted_extents():
+    setup_pytorch()
+    g = torch.Generator()
+    g.manual_seed(44)
+    for case_name in (
+        "transpose_channels_image",
+        "transpose_hw_image",
+        "image_random_permutation",
+        "transpose_channels_video",
+        "ndim_6_permute_outermost_3",
+        "ndim_6_permute_all",
+        "ndim_15_permute_all",
+    ):
+        for dtype in (torch.uint8, torch.int16, torch.int32, torch.float64):
+            _gpu_permuted_extents_torch_case(case_name, dtype, g)
 
 
 def cupy_adapter_sync(fun, in1, in2):
@@ -327,14 +311,37 @@ def cupy_kernel_gray_scale(in1, in2, stream=None):
     return out1, out2
 
 
-def test_cupy():
+_cupy_test_cases = [cupy_simple, cupy_kernel_square_diff, cupy_kernel_mix_channels]
+
+
+@params(*_cupy_test_cases)
+def test_cupy(testcase):
     setup_cupy()
     print(cupy)
-    for testcase in [cupy_simple, cupy_kernel_square_diff, cupy_kernel_mix_channels]:
-        yield cupy_case, testcase
-    yield from _cupy_flip_with_negative_strides_suite()
+    cupy_case(testcase)
 
 
+_cupy_flip_negative_strides_params = [
+    (types.DALIDataType.UINT8, 4, (-1, -1, None)),
+    (types.DALIDataType.UINT8, 16, (-1, None, None)),
+    (types.DALIDataType.UINT8, 2, (None, None, -1)),
+    (types.DALIDataType.UINT8, 5, (-1, -1, -1)),
+    (types.DALIDataType.UINT8, 16, (-2, -2, None)),
+    (types.DALIDataType.UINT16, 11, (None, -1, None)),
+    (types.DALIDataType.FLOAT, 16, (2, -2, None)),
+    (types.DALIDataType.INT32, 12, (-2, None, None)),
+    (types.DALIDataType.FLOAT64, 11, (-2, 4, -1)),
+]
+
+
+@attr("cupy")
+@params(*_cupy_flip_negative_strides_params)
+def test_cupy_flip_negative_strides(dtype, batch_size, steps):
+    setup_cupy()
+    _cupy_negative_strides_case(dtype, batch_size, steps)
+
+
+@attr("cupy")
 def test_cupy_kernel_gray_scale():
     setup_cupy()
     cupy_case(cupy_kernel_gray_scale, synchronize=False)
@@ -463,15 +470,6 @@ def _gpu_sliced_torch_case(case_name, dtype, g):
     ref = [numpy.array(sample)[sl] for sample, sl in zip(input_batch, slices)]
 
     numpy.testing.assert_equal(out, ref)
-
-
-def _gpu_sliced_torch_suite():
-    g = torch.Generator()
-    g.manual_seed(42)
-
-    for case_name in ("slice_images", "slice_grey_images", "slice_vid", "slice_ndim_11"):
-        for dtype in (torch.uint8, torch.int16, torch.float32, torch.float64):
-            yield _gpu_sliced_torch_case, case_name, dtype, g
 
 
 def get_permute_extents_case(case_name):
@@ -612,23 +610,6 @@ def _gpu_permuted_extents_torch_case(case_name, dtype, g):
     numpy.testing.assert_equal(out, ref)
 
 
-def _gpu_permuted_extents_torch_suite():
-    g = torch.Generator()
-    g.manual_seed(44)
-
-    for case_name in (
-        "transpose_channels_image",
-        "transpose_hw_image",
-        "image_random_permutation",
-        "transpose_channels_video",
-        "ndim_6_permute_outermost_3",
-        "ndim_6_permute_all",
-        "ndim_15_permute_all",
-    ):
-        for dtype in (torch.uint8, torch.int16, torch.int32, torch.float64):
-            yield _gpu_permuted_extents_torch_case, case_name, dtype, g
-
-
 def _cupy_negative_strides_case(dtype, batch_size, steps):
     @pipeline_def(batch_size=batch_size, num_threads=4, device_id=0, seed=42)
     def baseline_pipeline():
@@ -668,21 +649,6 @@ def _cupy_negative_strides_case(dtype, batch_size, steps):
         assert len(batch) == len(baseline_batch) == batch_size
         for sample, baseline_sample in zip(batch, baseline_batch):
             numpy.testing.assert_equal(sample, baseline_sample)
-
-
-def _cupy_flip_with_negative_strides_suite():
-    for dtype, batch_size, steps in [
-        (types.DALIDataType.UINT8, 4, (-1, -1, None)),
-        (types.DALIDataType.UINT8, 16, (-1, None, None)),
-        (types.DALIDataType.UINT8, 2, (None, None, -1)),
-        (types.DALIDataType.UINT8, 5, (-1, -1, -1)),
-        (types.DALIDataType.UINT8, 16, (-2, -2, None)),
-        (types.DALIDataType.UINT16, 11, (None, -1, None)),
-        (types.DALIDataType.FLOAT, 16, (2, -2, None)),
-        (types.DALIDataType.INT32, 12, (-2, None, None)),
-        (types.DALIDataType.FLOAT64, 11, (-2, 4, -1)),
-    ]:
-        yield _cupy_negative_strides_case, dtype, batch_size, steps
 
 
 def verify_pipeline(pipeline, input):

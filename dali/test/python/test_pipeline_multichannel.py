@@ -17,6 +17,7 @@ import nvidia.dali.ops as ops
 import nvidia.dali.types as types
 import numpy as np
 import os
+from nose2.tools import cartesian_param
 from test_utils import compare_pipelines
 from test_utils import RandomDataIterator
 import cv2
@@ -188,8 +189,7 @@ def test_multichannel_synth_data_vs_numpy():
         for device in supported_devices:
             for batch_size in {3}:
                 for shape in {(2048, 512, 8)}:
-                    yield (
-                        check_multichannel_synth_data_vs_numpy,
+                    check_multichannel_synth_data_vs_numpy(
                         tested_operator,
                         device,
                         batch_size,
@@ -252,7 +252,8 @@ class MultichannelPythonOpPipeline(Pipeline):
         return out
 
 
-def check_full_pipe_multichannel_vs_numpy(device, batch_size):
+@cartesian_param(["cpu", "gpu"], [1, 3])
+def test_full_pipe_multichannel_vs_numpy(device, batch_size):
     compare_pipelines(
         MultichannelPipeline(device, batch_size),
         MultichannelPythonOpPipeline(full_pipe_func, batch_size),
@@ -260,9 +261,3 @@ def check_full_pipe_multichannel_vs_numpy(device, batch_size):
         N_iterations=3,
         eps=1e-03,
     )
-
-
-def test_full_pipe_multichannel_vs_numpy():
-    for device in {"cpu", "gpu"}:
-        for batch_size in {1, 3}:
-            yield check_full_pipe_multichannel_vs_numpy, device, batch_size

@@ -16,8 +16,8 @@ from nvidia import dali
 from nvidia.dali import fn
 import numpy as np
 from nvidia.dali.pipeline import Pipeline
+from nose2.tools import params, cartesian_params
 from nose_utils import assert_raises
-from nose2.tools import params
 
 
 @dali.pipeline_def(batch_size=2, num_threads=3, device_id=0)
@@ -54,34 +54,41 @@ def _test_indexing(data_gen, input_layout, output_layout, dali_index_func, ref_i
         assert gpu.layout() == output_layout
 
 
-def test_constant_ranges():
-    def data_gen():
-        return [
-            np.float32([[0, 1, 2], [3, 4, 5]]),
-            np.float32([[0, 1], [2, 3], [4, 5]]),
-        ]
+def _data_gen_constant_ranges():
+    return [
+        np.float32([[0, 1, 2], [3, 4, 5]]),
+        np.float32([[0, 1], [2, 3], [4, 5]]),
+    ]
 
-    yield _test_indexing, data_gen, "AB", "AB", lambda x: x[1:, :2], None
-    yield _test_indexing, data_gen, "AB", "AB", lambda x: x[-1:, :-2], None
-    yield _test_indexing, data_gen, "AB", "AB", lambda x: x[:-1, :-1], None
-    yield _test_indexing, data_gen, "AB", "B", lambda x: x[1, :2], None
-    yield _test_indexing, data_gen, "AB", "B", lambda x: x[1, :-2], None
-    yield _test_indexing, data_gen, "AB", "A", lambda x: x[:-1, -1], None
-    yield _test_indexing, data_gen, "AB", "A", lambda x: x[:-1, 0], None
-    yield _test_indexing, data_gen, "AB", "AB", lambda x: x[::-1, :], None
-    yield _test_indexing, data_gen, "AB", "AB", lambda x: x[::-2, :], None
-    yield _test_indexing, data_gen, "AB", "AB", lambda x: x[::2, :], None
-    yield _test_indexing, data_gen, "AB", "AB", lambda x: x[:, ::-1], None
-    yield _test_indexing, data_gen, "AB", "AB", lambda x: x[:, ::2], None
-    yield _test_indexing, data_gen, "AB", "AB", lambda x: x[:, ::-2], None
-    yield _test_indexing, data_gen, "AB", "AB", lambda x: x[:, 1::-2], None
-    yield _test_indexing, data_gen, "AB", "AB", lambda x: x[:, -2::-1], None
-    yield _test_indexing, data_gen, "AB", "AB", lambda x: x[:-2:2, :], None
-    yield _test_indexing, data_gen, "AB", "AB", lambda x: x[:, 2::-2], None
-    yield _test_indexing, data_gen, "AB", "AB", lambda x: x[:, :1:-1], None
-    yield _test_indexing, data_gen, "AB", "AB", lambda x: x[::2, ::2], None
-    yield _test_indexing, data_gen, "AB", "AB", lambda x: x[::-1, ::-1], None
-    yield _test_indexing, data_gen, "AB", "AB", lambda x: x[::-2, ::-2], None
+
+_constant_ranges_test_cases = [
+    ("AB", "AB", lambda x: x[1:, :2]),
+    ("AB", "AB", lambda x: x[-1:, :-2]),
+    ("AB", "AB", lambda x: x[:-1, :-1]),
+    ("AB", "B", lambda x: x[1, :2]),
+    ("AB", "B", lambda x: x[1, :-2]),
+    ("AB", "A", lambda x: x[:-1, -1]),
+    ("AB", "A", lambda x: x[:-1, 0]),
+    ("AB", "AB", lambda x: x[::-1, :]),
+    ("AB", "AB", lambda x: x[::-2, :]),
+    ("AB", "AB", lambda x: x[::2, :]),
+    ("AB", "AB", lambda x: x[:, ::-1]),
+    ("AB", "AB", lambda x: x[:, ::2]),
+    ("AB", "AB", lambda x: x[:, ::-2]),
+    ("AB", "AB", lambda x: x[:, 1::-2]),
+    ("AB", "AB", lambda x: x[:, -2::-1]),
+    ("AB", "AB", lambda x: x[:-2:2, :]),
+    ("AB", "AB", lambda x: x[:, 2::-2]),
+    ("AB", "AB", lambda x: x[:, :1:-1]),
+    ("AB", "AB", lambda x: x[::2, ::2]),
+    ("AB", "AB", lambda x: x[::-1, ::-1]),
+    ("AB", "AB", lambda x: x[::-2, ::-2]),
+]
+
+
+@params(*_constant_ranges_test_cases)
+def test_constant_ranges(input_layout, output_layout, index_func):
+    _test_indexing(_data_gen_constant_ranges, input_layout, output_layout, index_func, None)
 
 
 def test_swapped_ends():
@@ -179,50 +186,48 @@ def test_runtime_stride_dim2():
             j = (j + 1) % len(strides)
 
 
-def test_new_axis():
-    def data_gen():
-        return [
-            np.float32([[0, 1, 2], [3, 4, 5]]),
-            np.float32([[0, 1], [2, 3], [4, 5]]),
-        ]
-
-    # fmt: off
-    yield (_test_indexing, data_gen, "AB", "",
-           lambda x: x[1:, dali.newaxis, :2],
-           lambda x: x[1:, np.newaxis, :2])
-    yield (_test_indexing, data_gen, "AB", "CAB",
-           lambda x: x[dali.newaxis("C"), -1:, :-2],
-           lambda x: x[np.newaxis, -1:, :-2])
-    yield (_test_indexing, data_gen, "AB", "ACB",
-           lambda x: x[:, dali.newaxis("C"), :],
-           lambda x: x[:, np.newaxis, :])
-    yield (_test_indexing, data_gen, "AB", "C",
-           lambda x: x[1, dali.newaxis("C"), 1],
-           lambda x: x[1, np.newaxis, 1])
-    # fmt: on
+def _data_gen_new_axis():
+    return [
+        np.float32([[0, 1, 2], [3, 4, 5]]),
+        np.float32([[0, 1], [2, 3], [4, 5]]),
+    ]
 
 
-def _test_invalid_args(device, args, message, run):
+_new_axis_test_cases = [
+    ("AB", "", lambda x: x[1:, dali.newaxis, :2], lambda x: x[1:, np.newaxis, :2]),
+    ("AB", "CAB", lambda x: x[dali.newaxis("C"), -1:, :-2], lambda x: x[np.newaxis, -1:, :-2]),
+    ("AB", "ACB", lambda x: x[:, dali.newaxis("C"), :], lambda x: x[:, np.newaxis, :]),
+    ("AB", "C", lambda x: x[1, dali.newaxis("C"), 1], lambda x: x[1, np.newaxis, 1]),
+]
+
+
+@params(*_new_axis_test_cases)
+def test_new_axis(input_layout, output_layout, dali_index_func, ref_index_func):
+    _test_indexing(_data_gen_new_axis, input_layout, output_layout, dali_index_func, ref_index_func)
+
+
+@cartesian_params(
+    ["cpu", "gpu"],  # device
+    [
+        ({"lo_0": 0, "at_0": 0}, "both as an index"),
+        ({"at_0": 0, "step_0": 1}, "cannot have a step"),
+    ],  # (args, message)
+)
+def test_inconsistent_args(device, args_message_tuple):
+    args, message = args_message_tuple
     data = [np.uint8([[1, 2, 3]]), np.uint8([[1, 2]])]
     pipe = Pipeline(2, 1, 0)
     src = fn.external_source(lambda: data, device=device)
     pipe.set_outputs(fn._tensor_subscript(src, **args))
     with assert_raises(RuntimeError, glob=message):
         pipe.build()
-        if run:
-            pipe.run()
 
 
-def test_inconsistent_args():
-    for device in ["cpu", "gpu"]:
-        for args, message in [
-            ({"lo_0": 0, "at_0": 0}, "both as an index"),
-            ({"at_0": 0, "step_0": 1}, "cannot have a step"),
-        ]:
-            yield _test_invalid_args, device, args, message, False
-
-
-def _test_out_of_range(device, idx):
+@cartesian_params(
+    ["cpu", "gpu"],  # device
+    [-3, 2],  # idx
+)
+def test_out_of_range(device, idx):
     data = [np.uint8([1, 2, 3]), np.uint8([1, 2])]
     src = fn.external_source(lambda: data, device=device)
     pipe = index_pipe(src, lambda x: x[idx])
@@ -230,13 +235,8 @@ def _test_out_of_range(device, idx):
         _ = pipe.run()
 
 
-def test_out_of_range():
-    for device in ["cpu", "gpu"]:
-        for idx in [-3, 2]:
-            yield _test_out_of_range, device, idx
-
-
-def _test_too_many_indices(device):
+@params("cpu", "gpu")
+def test_too_many_indices(device):
     data = [np.uint8([1, 2, 3]), np.uint8([1, 2])]
     src = fn.external_source(lambda: data, device=device)
     pipe = index_pipe(src, lambda x: x[1, :])
@@ -267,11 +267,6 @@ def test_zero_stride_error():
     pipe = index_pipe(src, lambda x: x[::0])
     with assert_raises(RuntimeError, glob="Step cannot be zero"):
         _ = pipe.run()
-
-
-def test_too_many_indices():
-    for device in ["cpu", "gpu"]:
-        yield _test_too_many_indices, device
 
 
 def test_ellipsis_not_implemented():

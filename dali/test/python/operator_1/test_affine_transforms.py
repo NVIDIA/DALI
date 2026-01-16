@@ -25,6 +25,7 @@ import nvidia.dali.fn as fn
 from nvidia.dali import pipeline_def
 
 from sequences_test_utils import ArgData, ArgDesc, sequence_suite_helper, ArgCb, ParamsProvider
+from nose2.tools import params
 from nose_utils import assert_raises, assert_warns
 
 
@@ -79,19 +80,21 @@ def check_transform_translation_op(
     check_results(outs[0], batch_size, ref_mat, T0, reverse_order)
 
 
-def test_transform_translation_op(batch_size=3, num_threads=4, device_id=0):
-    for offset in [(0.0, 1.0), (2.0, 1.0, 3.0)]:
-        for has_input in [False, True]:
-            for reverse_order in [False, True] if has_input else [False]:
-                yield (
-                    check_transform_translation_op,
-                    offset,
-                    has_input,
-                    reverse_order,
-                    batch_size,
-                    num_threads,
-                    device_id,
-                )
+_translation_test_cases = [
+    (offset, has_input, reverse_order, 3, 4, 0)
+    for offset in [(0.0, 1.0), (2.0, 1.0, 3.0)]
+    for has_input in [False, True]
+    for reverse_order in ([False, True] if has_input else [False])
+]
+
+
+@params(*_translation_test_cases)
+def test_transform_translation_op(
+    offset, has_input, reverse_order, batch_size, num_threads, device_id
+):
+    check_transform_translation_op(
+        offset, has_input, reverse_order, batch_size, num_threads, device_id
+    )
 
 
 def scale_affine_mat(scale, center=None, ndim=None):
@@ -147,26 +150,26 @@ def check_transform_scale_op(
     check_results(outs[0], batch_size, ref_mat, T0, reverse_order)
 
 
-def test_transform_scale_op(batch_size=3, num_threads=4, device_id=0):
+_scale_test_cases = [
+    (scale, center, has_input, reverse_order, ndim, 3, 4, 0)
     for scale, center, ndim in [
         ((0.0, 1.0), None, None),
         ((2.0, 1.0, 3.0), None, None),
         ((2.0, 1.0), (1.0, 0.5), None),
         ((2.0,), (1.0, 0.5), 2),
-    ]:
-        for has_input in [False, True]:
-            for reverse_order in [False, True] if has_input else [False]:
-                yield (
-                    check_transform_scale_op,
-                    scale,
-                    center,
-                    has_input,
-                    reverse_order,
-                    ndim,
-                    batch_size,
-                    num_threads,
-                    device_id,
-                )
+    ]
+    for has_input in [False, True]
+    for reverse_order in ([False, True] if has_input else [False])
+]
+
+
+@params(*_scale_test_cases)
+def test_transform_scale_op(
+    scale, center, has_input, reverse_order, ndim, batch_size, num_threads, device_id
+):
+    check_transform_scale_op(
+        scale, center, has_input, reverse_order, ndim, batch_size, num_threads, device_id
+    )
 
 
 def rotate_affine_mat(angle, axis=None, center=None):
@@ -246,7 +249,8 @@ def check_transform_rotation_op(
         check_results_sample(outs[0].at(idx), ref_mat, T0, reverse_order, atol=2e-6)
 
 
-def test_transform_rotation_op(batch_size=3, num_threads=4, device_id=0):
+_rotation_test_cases = [
+    (angle, axis, center, has_input, reverse_order, 3, 4, 0)
     for angle, axis, center in [
         (None, None, None),
         (30.0, None, None),
@@ -255,20 +259,19 @@ def test_transform_rotation_op(batch_size=3, num_threads=4, device_id=0):
         (40.0, (0.4, 0.3, 0.1), None),
         (40.0, (0.4, 0.3, 0.1), (1.0, -0.4, 10.0)),
         (None, (0.4, 0.3, 0.1), (1.0, -0.4, 10.0)),
-    ]:
-        for has_input in [False, True]:
-            for reverse_order in [False, True] if has_input else [False]:
-                yield (
-                    check_transform_rotation_op,
-                    angle,
-                    axis,
-                    center,
-                    has_input,
-                    reverse_order,
-                    batch_size,
-                    num_threads,
-                    device_id,
-                )
+    ]
+    for has_input in [False, True]
+    for reverse_order in ([False, True] if has_input else [False])
+]
+
+
+@params(*_rotation_test_cases)
+def test_transform_rotation_op(
+    angle, axis, center, has_input, reverse_order, batch_size, num_threads, device_id
+):
+    check_transform_rotation_op(
+        angle, axis, center, has_input, reverse_order, batch_size, num_threads, device_id
+    )
 
 
 def shear_affine_mat(shear=None, angles=None, center=None):
@@ -400,7 +403,8 @@ def check_transform_shear_op_runtime_args(
             check_results_sample(outs[0].at(idx), ref_mat, inp, reverse_order, atol=1e-6)
 
 
-def test_transform_shear_op(batch_size=3, num_threads=4, device_id=0):
+_shear_test_cases = [
+    (shear, angles, center, has_input, reverse_order, 3, 4, 0)
     for shear, angles, center in [
         ((1.0, 2.0), None, None),
         ((1.0, 2.0), None, (0.4, 0.5)),
@@ -410,38 +414,38 @@ def test_transform_shear_op(batch_size=3, num_threads=4, device_id=0):
         (None, (30.0, 10.0), (0.4, 0.5)),
         (None, (40.0, 30.0, 10.0, 35.0, 25.0, 15.0), None),
         (None, (40.0, 30.0, 10.0, 35.0, 25.0, 15.0), (0.4, 0.5, 0.6)),
-    ]:
-        for has_input in [False, True]:
-            for reverse_order in [False, True] if has_input else [False]:
-                yield (
-                    check_transform_shear_op,
-                    shear,
-                    angles,
-                    center,
-                    has_input,
-                    reverse_order,
-                    batch_size,
-                    num_threads,
-                    device_id,
-                )
+    ]
+    for has_input in [False, True]
+    for reverse_order in ([False, True] if has_input else [False])
+]
 
 
-def test_transform_shear_op_runtime_args(batch_size=3, num_threads=4, device_id=0):
-    for ndim in [2, 3]:
-        for use_angles in [False, True]:
-            for use_center in [False, True]:
-                for has_input in [False, True]:
-                    for reverse_order in [False, True] if has_input else [False]:
-                        yield (
-                            check_transform_shear_op_runtime_args,
-                            ndim,
-                            use_angles,
-                            use_center,
-                            has_input,
-                            reverse_order,
-                            4,
-                            4,
-                        )
+@params(*_shear_test_cases)
+def test_transform_shear_op(
+    shear, angles, center, has_input, reverse_order, batch_size, num_threads, device_id
+):
+    check_transform_shear_op(
+        shear, angles, center, has_input, reverse_order, batch_size, num_threads, device_id
+    )
+
+
+_shear_runtime_args_test_cases = [
+    (ndim, use_angles, use_center, has_input, reverse_order, 4, 4)
+    for ndim in [2, 3]
+    for use_angles in [False, True]
+    for use_center in [False, True]
+    for has_input in [False, True]
+    for reverse_order in ([False, True] if has_input else [False])
+]
+
+
+@params(*_shear_runtime_args_test_cases)
+def test_transform_shear_op_runtime_args(
+    ndim, use_angles, use_center, has_input, reverse_order, batch_size, num_threads
+):
+    check_transform_shear_op_runtime_args(
+        ndim, use_angles, use_center, has_input, reverse_order, batch_size, num_threads
+    )
 
 
 def get_ndim(from_start, from_end, to_start, to_end):
@@ -546,7 +550,9 @@ def check_transform_crop_op(
             assert np.allclose(np.dot(M, from_end) + T, to_end, atol=1e-6)
 
 
-def test_transform_crop_op(batch_size=3, num_threads=4, device_id=0):
+def _generate_crop_test_cases():
+    batch_size, num_threads, device_id = 3, 4, 0
+    cases = []
     for from_start, from_end, to_start, to_end in [
         (None, None, None, None),
         ((0.1, 0.2), (1.0, 1.2), (0.3, 0.2), (0.5, 0.6)),
@@ -558,34 +564,67 @@ def test_transform_crop_op(batch_size=3, num_threads=4, device_id=0):
     ]:
         for has_input in [False, True]:
             for reverse_order in [False, True] if has_input else [False]:
-                yield (
-                    check_transform_crop_op,
-                    from_start,
-                    from_end,
-                    to_start,
-                    to_end,
-                    False,
-                    has_input,
-                    reverse_order,
-                    batch_size,
-                    num_threads,
-                    device_id,
-                )
-                # Reversed start and end
-                for absolute in [False, True]:
-                    yield (
-                        check_transform_crop_op,
-                        from_end,
+                cases.append(
+                    (
                         from_start,
-                        to_end,
+                        from_end,
                         to_start,
-                        absolute,
+                        to_end,
+                        False,
                         has_input,
                         reverse_order,
                         batch_size,
                         num_threads,
                         device_id,
                     )
+                )
+                # Reversed start and end
+                for absolute in [False, True]:
+                    cases.append(
+                        (
+                            from_end,
+                            from_start,
+                            to_end,
+                            to_start,
+                            absolute,
+                            has_input,
+                            reverse_order,
+                            batch_size,
+                            num_threads,
+                            device_id,
+                        )
+                    )
+    return cases
+
+
+_crop_test_cases = _generate_crop_test_cases()
+
+
+@params(*_crop_test_cases)
+def test_transform_crop_op(
+    from_start,
+    from_end,
+    to_start,
+    to_end,
+    absolute,
+    has_input,
+    reverse_order,
+    batch_size,
+    num_threads,
+    device_id,
+):
+    check_transform_crop_op(
+        from_start,
+        from_end,
+        to_start,
+        to_end,
+        absolute,
+        has_input,
+        reverse_order,
+        batch_size,
+        num_threads,
+        device_id,
+    )
 
 
 def check_combine_transforms(
@@ -617,19 +656,21 @@ def check_combine_transforms(
         assert np.allclose(outs[0].at(idx), ref_mat[:ndim, :], atol=1e-6)
 
 
-def test_combine_transforms(batch_size=3, num_threads=4, device_id=0):
-    for num_transforms in [2, 3, 10]:
-        for ndim in [2, 3, 6]:
-            for reverse_order in [False, True]:
-                yield (
-                    check_combine_transforms,
-                    num_transforms,
-                    ndim,
-                    reverse_order,
-                    batch_size,
-                    num_threads,
-                    device_id,
-                )
+_combine_test_cases = [
+    (num_transforms, ndim, reverse_order, 3, 4, 0)
+    for num_transforms in [2, 3, 10]
+    for ndim in [2, 3, 6]
+    for reverse_order in [False, True]
+]
+
+
+@params(*_combine_test_cases)
+def test_combine_transforms(
+    num_transforms, ndim, reverse_order, batch_size, num_threads, device_id
+):
+    check_combine_transforms(
+        num_transforms, ndim, reverse_order, batch_size, num_threads, device_id
+    )
 
 
 def test_combine_transforms_correct_order():
@@ -771,7 +812,7 @@ def test_sequences():
 
     seq_cases = test_cases + only_with_seq_input_cases
     main_input = ArgData(desc=ArgDesc(0, "F", "", "F**"), data=per_frame_input(mt))
-    yield from sequence_suite_helper(rng, [main_input], seq_cases, num_iters)
+    sequence_suite_helper(rng, [main_input], seq_cases, num_iters)
 
     # transform the test cases to test the transforms with per-frame args but:
     # 1. with the positional input that does not contain frames
@@ -795,7 +836,7 @@ def test_sequences():
         main_input = ArgData(
             desc=ArgDesc(main_source.desc.name, "F", "", data_layout), data=per_frame_data
         )
-        yield from sequence_suite_helper(rng, [main_input], cases, num_iters)
+        sequence_suite_helper(rng, [main_input], cases, num_iters)
 
 
 def test_combine_shape_mismatch():

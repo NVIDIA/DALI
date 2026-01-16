@@ -18,6 +18,7 @@ import nvidia.dali.types as types
 import numpy as np
 import scipy.stats as st
 import random
+from nose2.tools import params
 
 test_types = [types.INT8, types.INT16, types.INT32, types.FLOAT, types.FLOAT64]
 
@@ -145,9 +146,11 @@ def check_normal_distribution(
                 assert pvalues_anderson[2] > 0.5
 
 
-def test_normal_distribution():
+def _generate_test_normal_distribution_params():
+    """Generate all parameter combinations for test_normal_distribution"""
     niter = 3
     batch_size = 3
+    params_list = []
     for device in ("cpu", "gpu"):
         for dtype in test_types:
             for mean, stddev, variable_dist_params in [
@@ -159,76 +162,173 @@ def test_normal_distribution():
                     use_shape_like_in = False if shape is None else random.choice([True, False])
                     variable_shape = random.choice([True, False])
                     shape_arg = None
+                    shape_gen_f = None
                     if variable_shape:
-
-                        def shape_gen_f():
-                            return random_shape(shape)
-
+                        # Capture shape in closure
+                        shape_gen_f = (lambda s: lambda: random_shape(s))(shape)
                     else:
                         shape_arg = shape
-                        shape_gen_f = None
-                    yield (
-                        check_normal_distribution,
-                        device,
-                        dtype,
-                        shape_arg,
-                        use_shape_like_in,
-                        variable_shape,
-                        mean,
-                        stddev,
-                        variable_dist_params,
-                        shape_gen_f,
-                        niter,
-                        batch_size,
+                    params_list.append(
+                        (
+                            device,
+                            dtype,
+                            shape_arg,
+                            use_shape_like_in,
+                            variable_shape,
+                            mean,
+                            stddev,
+                            variable_dist_params,
+                            shape_gen_f,
+                            niter,
+                            batch_size,
+                        )
                     )
+    return params_list
 
 
-def test_normal_distribution_scalar_and_one_elem():
+@params(*_generate_test_normal_distribution_params())
+def test_normal_distribution(
+    device,
+    dtype,
+    shape,
+    use_shape_like_input,
+    variable_shape,
+    mean,
+    stddev,
+    variable_dist_params,
+    shape_gen_f,
+    niter,
+    batch_size,
+):
+    check_normal_distribution(
+        device,
+        dtype,
+        shape,
+        use_shape_like_input,
+        variable_shape,
+        mean,
+        stddev,
+        variable_dist_params,
+        shape_gen_f,
+        niter,
+        batch_size,
+    )
+
+
+def _generate_test_normal_distribution_scalar_and_one_elem_params():
+    """Generate all parameter combinations for test_normal_distribution_scalar_and_one_elem"""
     niter = 3
     batch_size = 3
     mean = 100.0
     stddev = 20.0
+    params_list = []
     for device in ("cpu", "gpu"):
         for dtype in [types.FLOAT, types.INT16]:
             for shape in [None, (), (1,)]:
-                yield (
-                    check_normal_distribution,
-                    device,
-                    dtype,
-                    shape,
-                    False,
-                    False,
-                    mean,
-                    stddev,
-                    False,
-                    None,
-                    niter,
-                    batch_size,
+                params_list.append(
+                    (
+                        device,
+                        dtype,
+                        shape,
+                        False,
+                        False,
+                        mean,
+                        stddev,
+                        False,
+                        None,
+                        niter,
+                        batch_size,
+                    )
                 )
+    return params_list
 
 
-def test_normal_distribution_empty_shapes():
+@params(*_generate_test_normal_distribution_scalar_and_one_elem_params())
+def test_normal_distribution_scalar_and_one_elem(
+    device,
+    dtype,
+    shape,
+    use_shape_like_input,
+    variable_shape,
+    mean,
+    stddev,
+    variable_dist_params,
+    shape_gen_f,
+    niter,
+    batch_size,
+):
+    check_normal_distribution(
+        device,
+        dtype,
+        shape,
+        use_shape_like_input,
+        variable_shape,
+        mean,
+        stddev,
+        variable_dist_params,
+        shape_gen_f,
+        niter,
+        batch_size,
+    )
+
+
+def _generate_test_normal_distribution_empty_shapes_params():
+    """Generate all parameter combinations for test_normal_distribution_empty_shapes"""
     niter = 3
     batch_size = 20
     dtype = types.FLOAT
     mean = 100.0
     stddev = 20.0
     max_shape = (200, 300, 3)
+    params_list = []
     for device in ("cpu", "gpu"):
-        yield check_normal_distribution, device, dtype, (
-            0,
-        ), False, False, mean, stddev, False, None, niter, batch_size
-        yield (
-            check_normal_distribution,
-            device,
-            dtype,
-            None,
-            False,
-            False,
-            mean,
-            stddev,
-            False,
-            lambda: random_shape_or_empty(max_shape),
-            niter,
-            batch_size,
+        # First test case: fixed empty shape
+        params_list.append(
+            (device, dtype, (0,), False, False, mean, stddev, False, None, niter, batch_size)
         )
+        # Second test case: variable shapes with random_shape_or_empty
+        params_list.append(
+            (
+                device,
+                dtype,
+                None,
+                False,
+                False,
+                mean,
+                stddev,
+                False,
+                lambda: random_shape_or_empty(max_shape),
+                niter,
+                batch_size,
+            )
+        )
+    return params_list
+
+
+@params(*_generate_test_normal_distribution_empty_shapes_params())
+def test_normal_distribution_empty_shapes(
+    device,
+    dtype,
+    shape,
+    use_shape_like_input,
+    variable_shape,
+    mean,
+    stddev,
+    variable_dist_params,
+    shape_gen_f,
+    niter,
+    batch_size,
+):
+    check_normal_distribution(
+        device,
+        dtype,
+        shape,
+        use_shape_like_input,
+        variable_shape,
+        mean,
+        stddev,
+        variable_dist_params,
+        shape_gen_f,
+        niter,
+        batch_size,
+    )

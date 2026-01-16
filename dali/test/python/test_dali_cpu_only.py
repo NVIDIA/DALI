@@ -23,6 +23,7 @@ import nvidia.dali.types as types
 import os
 import re
 from collections.abc import Iterable
+from nose2.tools import params
 from nose_utils import attr, nottest, assert_raises
 from nvidia.dali.pipeline import Pipeline, pipeline_def
 from nvidia.dali.pipeline.experimental import pipeline_def as experimental_pipeline_def
@@ -113,7 +114,14 @@ def test_move_to_device_middle():
     )
 
 
-def check_bad_device(device_id, error_msg):
+_gpu_op_bad_device_test_cases = [
+    (None, "The pipeline requires a CUDA-capable GPU but *"),
+    (0, "You are trying to create a GPU DALI pipeline while CUDA is not available.*"),
+]
+
+
+@params(*_gpu_op_bad_device_test_cases)
+def test_gpu_op_bad_device(device_id, error_msg):
     test_data_shape = [1, 3, 0, 4]
 
     def get_data():
@@ -126,34 +134,19 @@ def check_bad_device(device_id, error_msg):
     assert_raises(RuntimeError, pipe.build, glob=error_msg)
 
 
-def test_gpu_op_bad_device():
-    device_ids = [None, 0]
-    error_msgs = [
-        "The pipeline requires a CUDA-capable GPU but *",
-        "You are trying to create a GPU DALI pipeline while CUDA is not available.*",
-    ]
-
-    for device_id, error_msg in zip(device_ids, error_msgs):
-        yield check_bad_device, device_id, error_msg
+_mixed_op_bad_device_test_cases = [
+    (None, "The pipeline requires a CUDA-capable GPU but *"),
+    (0, "You are trying to create a GPU DALI pipeline while CUDA is not available.*"),
+]
 
 
-def check_mixed_op_bad_device(device_id, error_msg):
+@params(*_mixed_op_bad_device_test_cases)
+def test_mixed_op_bad_device(device_id, error_msg):
     pipe = Pipeline(batch_size=batch_size, num_threads=4, device_id=device_id)
     input, _ = fn.readers.file(file_root=images_dir, shard_id=0, num_shards=1)
     decoded = fn.decoders.image(input, device="mixed", output_type=types.RGB)
     pipe.set_outputs(decoded)
     assert_raises(RuntimeError, pipe.build, glob=error_msg)
-
-
-def test_mixed_op_bad_device():
-    device_ids = [None, 0]
-    error_msgs = [
-        "The pipeline requires a CUDA-capable GPU but *",
-        "You are trying to create a GPU DALI pipeline while CUDA is not available.*",
-    ]
-
-    for device_id, error_msg in zip(device_ids, error_msgs):
-        yield check_mixed_op_bad_device, device_id, error_msg
 
 
 def check_single_input(

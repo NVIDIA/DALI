@@ -15,7 +15,7 @@
 import numpy as np
 import nvidia.dali as dali
 import nvidia.dali.fn as fn
-
+from nose2.tools import cartesian_params
 import test_utils
 
 
@@ -158,9 +158,20 @@ def generator(batch_size, max_frames, channel_dim, type):
     return generate
 
 
-def _test_rrc(
-    device, max_frames, layout, aspect_ratio_range, area_range, output_size, input_type, output_type
-):
+@cartesian_params(
+    ["cpu", "gpu"],
+    [("FHWC", 8), ("FCHW", 1), ("CFHW", 1), ("HWC", None), ("CHW", None)],
+    [((0.5, 2), (0.1, 0.8)), ((1, 2), (0.4, 1.0)), ((0.5, 1), (0.1, 0.5))],
+)
+def test_random_resized_crop(device, layout_maxframes, aspect_area):
+    np.random.seed(12345)
+    types = [dali.types.UINT8, dali.types.INT16, dali.types.FLOAT]
+    sizes = [(100, 100), (320, 240)]
+    layout, max_frames = layout_maxframes
+    aspect_ratio_range, area_range = aspect_area
+    input_type = types[np.random.randint(0, len(types))]
+    output_type = dali.types.FLOAT if np.random.randint(0, 2) else None
+    output_size = sizes[np.random.randint(0, len(sizes))]
     batch_size = 4
     pipe = dali.pipeline.Pipeline(batch_size, 4, 0)
     channel_dim = layout.find("C")
@@ -184,7 +195,7 @@ def _test_rrc(
         dtype=output_type,
     )
     pipe.set_outputs(out, shape)
-    for iter in range(3):
+    for _ in range(3):
         outputs, input_shapes = pipe.run()
         if device == "gpu":
             outputs = outputs.as_cpu()
@@ -193,36 +204,3 @@ def _test_rrc(
             out = outputs.at(i)
             input_shape = input_shapes.at(i).tolist()
             check_output(out, channel_dim, input_shape, aspect_ratio_range, area_range, value_range)
-
-
-def test_random_resized_crop():
-    np.random.seed(12345)
-    types = [dali.types.UINT8, dali.types.INT16, dali.types.FLOAT]
-    sizes = [(100, 100), (320, 240)]
-    for device in ["cpu", "gpu"]:
-        for layout, max_frames in [
-            ("FHWC", 8),
-            ("FCHW", 1),
-            ("CFHW", 1),
-            ("HWC", None),
-            ("CHW", None),
-        ]:
-            for aspect, area in [
-                ((0.5, 2), (0.1, 0.8)),
-                ((1, 2), (0.4, 1.0)),
-                ((0.5, 1), (0.1, 0.5)),
-            ]:
-                input_type = types[np.random.randint(0, len(types))]
-                output_type = dali.types.FLOAT if np.random.randint(0, 2) else None
-                size = sizes[np.random.randint(0, len(sizes))]
-                yield (
-                    _test_rrc,
-                    device,
-                    max_frames,
-                    layout,
-                    aspect,
-                    area,
-                    size,
-                    input_type,
-                    output_type,
-                )

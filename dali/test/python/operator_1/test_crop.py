@@ -92,10 +92,9 @@ def check_crop_vs_fused_decoder(device, batch_size):
     )
 
 
-def test_crop_vs_fused_decoder():
-    for device in {"cpu", "gpu"}:
-        for batch_size in {1, 32}:
-            yield check_crop_vs_fused_decoder, device, batch_size
+@params(*[(device, batch_size) for device in ["cpu", "gpu"] for batch_size in [1, 32]])
+def test_crop_vs_fused_decoder(device, batch_size):
+    check_crop_vs_fused_decoder(device, batch_size)
 
 
 def check_crop_cpu_vs_gpu(batch_size):
@@ -107,9 +106,9 @@ def check_crop_cpu_vs_gpu(batch_size):
     )
 
 
-def test_crop_cpu_vs_gpu():
-    for batch_size in {1, 32}:
-        yield check_crop_cpu_vs_gpu, batch_size
+@params(1, 32)
+def test_crop_cpu_vs_gpu(batch_size):
+    check_crop_cpu_vs_gpu(batch_size)
 
 
 class CropSequencePipeline(Pipeline):
@@ -197,10 +196,9 @@ def check_crop_NFHWC_vs_python_op_crop(device, batch_size):
     )
 
 
-def test_crop_NFHWC_vs_python_op_crop():
-    for device in {"cpu", "gpu"}:
-        for batch_size in {1, 4}:
-            yield check_crop_NFHWC_vs_python_op_crop, device, batch_size
+@params(*[(device, batch_size) for device in ["cpu", "gpu"] for batch_size in [1, 4]])
+def test_crop_NFHWC_vs_python_op_crop(device, batch_size):
+    check_crop_NFHWC_vs_python_op_crop(device, batch_size)
 
 
 def check_crop_NHWC_vs_python_op_crop(device, batch_size):
@@ -214,10 +212,9 @@ def check_crop_NHWC_vs_python_op_crop(device, batch_size):
     )
 
 
-def test_crop_NHWC_vs_python_op_crop():
-    for device in {"cpu", "gpu"}:
-        for batch_size in {1, 4}:
-            yield check_crop_NHWC_vs_python_op_crop, device, batch_size
+@params(*[(device, batch_size) for device in ["cpu", "gpu"] for batch_size in [1, 4]])
+def test_crop_NHWC_vs_python_op_crop(device, batch_size):
+    check_crop_NHWC_vs_python_op_crop(device, batch_size)
 
 
 class CropCastPipeline(Pipeline):
@@ -274,10 +271,9 @@ def check_crop_no_cast_vs_cast_to_float_and_back(device, batch_size):
     )
 
 
-def test_crop_no_cast_vs_cast_to_float_and_back():
-    for device in {"cpu", "gpu"}:
-        for batch_size in {1, 4}:
-            yield check_crop_no_cast_vs_cast_to_float_and_back, device, batch_size
+@params(*[(device, batch_size) for device in ["cpu", "gpu"] for batch_size in [1, 4]])
+def test_crop_no_cast_vs_cast_to_float_and_back(device, batch_size):
+    check_crop_no_cast_vs_cast_to_float_and_back(device, batch_size)
 
 
 class Crop3dPipeline(Pipeline):
@@ -425,19 +421,24 @@ def check_crop_3d_vs_python_op_crop(device, batch_size, layout, shape, separate_
     )
 
 
-def test_crop_3d_vs_python_op_crop():
-    for device in {"cpu", "gpu"}:
-        for batch_size in {1, 4}:
-            for layout, shape in {
-                ("DHWC", (300, 100, 10, 3)),
-                ("DHWC", (100, 300, 10, 1)),
-                ("DHWC", (10, 30, 300, 1)),
-                ("DHWC", (20, 50, 60, 8)),
-                ("CDHW", (3, 300, 100, 10)),
-                ("CDHW", (3, 300, 10, 100)),
-                ("CDHW", (8, 30, 10, 50)),
-            }:
-                yield check_crop_3d_vs_python_op_crop, device, batch_size, layout, shape
+@params(
+    *[
+        (device, batch_size, layout, shape)
+        for device in ["cpu", "gpu"]
+        for batch_size in [1, 4]
+        for layout, shape in [
+            ("DHWC", (300, 100, 10, 3)),
+            ("DHWC", (100, 300, 10, 1)),
+            ("DHWC", (10, 30, 300, 1)),
+            ("DHWC", (20, 50, 60, 8)),
+            ("CDHW", (3, 300, 100, 10)),
+            ("CDHW", (3, 300, 10, 100)),
+            ("CDHW", (8, 30, 10, 50)),
+        ]
+    ]
+)
+def test_crop_3d_vs_python_op_crop(device, batch_size, layout, shape):
+    check_crop_3d_vs_python_op_crop(device, batch_size, layout, shape)
 
 
 def test_crop_3d_vs_python_op_crop_separate_crop_dims():
@@ -483,23 +484,17 @@ def check_crop_sequence_length(device, batch_size, dtype, input_layout, input_sh
 
 
 # Tests cropping along the sequence dimension as if it was depth
-
-
-def test_cmn_crop_sequence_length():
-    input_configs = {("FHWC", (10, 60, 80, 3)), ("FCHW", (10, 3, 60, 80))}
-    for device in ["cpu"]:
-        for batch_size in [8]:
-            for dtype in [types.FLOAT]:
-                for input_layout, input_shape in input_configs:
-                    assert len(input_layout) == len(input_shape)
-                    yield (
-                        check_crop_sequence_length,
-                        device,
-                        batch_size,
-                        dtype,
-                        input_layout,
-                        input_shape,
-                    )
+@params(
+    *[
+        (device, batch_size, dtype, input_layout, input_shape)
+        for device in ["cpu"]
+        for batch_size in [8]
+        for dtype in [types.FLOAT]
+        for input_layout, input_shape in [("FHWC", (10, 60, 80, 3)), ("FCHW", (10, 3, 60, 80))]
+    ]
+)
+def test_cmn_crop_sequence_length(device, batch_size, dtype, input_layout, input_shape):
+    check_crop_sequence_length(device, batch_size, dtype, input_layout, input_shape)
 
 
 class CropSynthPipe(Pipeline):
@@ -606,20 +601,21 @@ def check_crop_with_out_of_bounds_policy_support(
             )
 
 
-def test_crop_with_out_of_bounds_policy_support():
-    in_shape = (40, 80, 3)
-    for out_of_bounds_policy in ["pad", "trim_to_shape"]:
-        for device in ["gpu", "cpu"]:
-            for batch_size in [1, 3]:
-                for fill_values in [None, (0x76, 0xB0, 0x00)]:
-                    yield (
-                        check_crop_with_out_of_bounds_policy_support,
-                        device,
-                        batch_size,
-                        in_shape,
-                        out_of_bounds_policy,
-                        fill_values,
-                    )
+@params(
+    *[
+        (device, batch_size, (40, 80, 3), out_of_bounds_policy, fill_values)
+        for out_of_bounds_policy in ["pad", "trim_to_shape"]
+        for device in ["gpu", "cpu"]
+        for batch_size in [1, 3]
+        for fill_values in [None, (0x76, 0xB0, 0x00)]
+    ]
+)
+def test_crop_with_out_of_bounds_policy_support(
+    device, batch_size, input_shape, out_of_bounds_policy, fill_values
+):
+    check_crop_with_out_of_bounds_policy_support(
+        device, batch_size, input_shape, out_of_bounds_policy, fill_values
+    )
 
 
 def check_crop_with_out_of_bounds_error(device, batch_size, input_shape=(100, 200, 3)):
@@ -648,11 +644,9 @@ def check_crop_with_out_of_bounds_error(device, batch_size, input_shape=(100, 20
         _ = pipe.run()
 
 
-def test_slice_with_out_of_bounds_error():
-    in_shape = (40, 80, 3)
-    for device in ["gpu", "cpu"]:
-        for batch_size in [1, 3]:
-            yield check_crop_with_out_of_bounds_error, device, batch_size, in_shape
+@params(*[(device, batch_size, (40, 80, 3)) for device in ["gpu", "cpu"] for batch_size in [1, 3]])
+def test_slice_with_out_of_bounds_error(device, batch_size, input_shape):
+    check_crop_with_out_of_bounds_error(device, batch_size, input_shape)
 
 
 def check_crop_wrong_layout(device, batch_size, input_shape=(100, 200, 3), layout="ABC"):
@@ -674,12 +668,9 @@ def check_crop_wrong_layout(device, batch_size, input_shape=(100, 200, 3), layou
         pipe.run()
 
 
-def test_crop_wrong_layout():
-    in_shape = (40, 80, 3)
-    batch_size = 3
-    for device in ["gpu", "cpu"]:
-        for layout in ["ABC"]:
-            yield check_crop_wrong_layout, device, batch_size, in_shape, layout
+@params(*[(device, 3, (40, 80, 3), layout) for device in ["gpu", "cpu"] for layout in ["ABC"]])
+def test_crop_wrong_layout(device, batch_size, input_shape, layout):
+    check_crop_wrong_layout(device, batch_size, input_shape, layout)
 
 
 def check_crop_empty_layout(device, batch_size, input_shape=(100, 200, 3)):
@@ -698,11 +689,9 @@ def check_crop_empty_layout(device, batch_size, input_shape=(100, 200, 3)):
         assert as_array(data[i]).shape == (10, 20, 3)
 
 
-def test_crop_empty_layout():
-    in_shape = (40, 80, 3)
-    batch_size = 3
-    for device in ["gpu", "cpu"]:
-        yield check_crop_empty_layout, device, batch_size, in_shape
+@params(*[(device, 3, (40, 80, 3)) for device in ["gpu", "cpu"]])
+def test_crop_empty_layout(device, batch_size, input_shape):
+    check_crop_empty_layout(device, batch_size, input_shape)
 
 
 @params(*itertools.product(("cpu", "gpu"), ("HWC", "FHWC", "CHW")))

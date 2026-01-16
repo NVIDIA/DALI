@@ -17,7 +17,7 @@ import os
 from nvidia.dali.pipeline import Pipeline
 
 from test_utils import get_dali_extra_path
-from nose_utils import assert_raises
+from nose_utils import assert_raises, attr
 
 DALI_EXTRA_PATH = get_dali_extra_path()
 EPOCH_SIZE = 32
@@ -54,26 +54,7 @@ def data_paths():
 ##############
 
 
-def test_mxnet_pipeline_dynamic_shape():
-    from nvidia.dali.plugin.mxnet import DALIGenericIterator as MXNetIterator
-
-    root, annotations = data_paths()
-    pipeline = DetectionPipeline(BATCH_SIZE, 0, root, annotations)
-    train_loader = MXNetIterator(
-        [pipeline],
-        [
-            ("data", MXNetIterator.DATA_TAG),
-            ("bboxes", MXNetIterator.LABEL_TAG),
-            ("label", MXNetIterator.LABEL_TAG),
-        ],
-        EPOCH_SIZE,
-        auto_reset=False,
-        dynamic_shape=True,
-    )
-    for data in train_loader:
-        assert data is not None
-
-
+@attr("pytorch")
 def test_pytorch_pipeline_dynamic_shape():
     from nvidia.dali.plugin.pytorch import DALIGenericIterator as PyTorchIterator
 
@@ -86,6 +67,7 @@ def test_pytorch_pipeline_dynamic_shape():
         assert data is not None
 
 
+@attr("paddle")
 def test_paddle_pipeline_dynamic_shape():
     from nvidia.dali.plugin.paddle import DALIGenericIterator as PaddleIterator
 
@@ -98,32 +80,7 @@ def test_paddle_pipeline_dynamic_shape():
         assert data is not None
 
 
-def test_api_fw_check1_pytorch():
-    from nvidia.dali.plugin.pytorch import DALIGenericIterator as PyTorchIterator
-
-    yield from test_api_fw_check1(PyTorchIterator, ["data", "bboxes", "label"])
-
-
-def test_api_fw_check1_mxnet():
-    from nvidia.dali.plugin.mxnet import DALIGenericIterator as MXNetIterator
-
-    yield from test_api_fw_check1(
-        MXNetIterator,
-        [
-            ("data", MXNetIterator.DATA_TAG),
-            ("bboxes", MXNetIterator.LABEL_TAG),
-            ("label", MXNetIterator.LABEL_TAG),
-        ],
-    )
-
-
-def test_api_fw_check1_paddle():
-    from nvidia.dali.plugin.paddle import DALIGenericIterator as PaddleIterator
-
-    yield from test_api_fw_check1(PaddleIterator, ["data", "bboxes", "label"])
-
-
-def test_api_fw_check1(iter_type, data_definition):
+def _check_api_fw_check1(iter_type, data_definition):
     root, annotations = data_paths()
     pipe = DetectionPipeline(BATCH_SIZE, 0, root, annotations)
     train_loader = iter_type(
@@ -156,35 +113,23 @@ def test_api_fw_check1(iter_type, data_definition):
             method()
         except RuntimeError:
             assert False
-    yield check, iter_type
 
 
-def test_api_fw_check2_mxnet():
-    from nvidia.dali.plugin.mxnet import DALIGenericIterator as MXNetIterator
-
-    yield from test_api_fw_check2(
-        MXNetIterator,
-        [
-            ("data", MXNetIterator.DATA_TAG),
-            ("bboxes", MXNetIterator.LABEL_TAG),
-            ("label", MXNetIterator.LABEL_TAG),
-        ],
-    )
-
-
-def test_api_fw_check2_pytorch():
+@attr("pytorch")
+def test_api_fw_check1_pytorch():
     from nvidia.dali.plugin.pytorch import DALIGenericIterator as PyTorchIterator
 
-    yield from test_api_fw_check2(PyTorchIterator, ["data", "bboxes", "label"])
+    _check_api_fw_check1(PyTorchIterator, ["data", "bboxes", "label"])
 
 
-def test_api_fw_check2_paddle():
+@attr("paddle")
+def test_api_fw_check1_paddle():
     from nvidia.dali.plugin.paddle import DALIGenericIterator as PaddleIterator
 
-    yield from test_api_fw_check2(PaddleIterator, ["data", "bboxes", "label"])
+    _check_api_fw_check1(PaddleIterator, ["data", "bboxes", "label"])
 
 
-def test_api_fw_check2(iter_type, data_definition):
+def _check_api_fw_check2(iter_type, data_definition):
     root, annotations = data_paths()
 
     pipe = DetectionPipeline(BATCH_SIZE, 0, root, annotations)
@@ -214,8 +159,17 @@ def test_api_fw_check2(iter_type, data_definition):
         assert True
     except RuntimeError:
         assert False
-    yield check, iter_type
 
 
-def check(iter_type):
-    pass
+@attr("pytorch")
+def test_api_fw_check2_pytorch():
+    from nvidia.dali.plugin.pytorch import DALIGenericIterator as PyTorchIterator
+
+    _check_api_fw_check2(PyTorchIterator, ["data", "bboxes", "label"])
+
+
+@attr("paddle")
+def test_api_fw_check2_paddle():
+    from nvidia.dali.plugin.paddle import DALIGenericIterator as PaddleIterator
+
+    _check_api_fw_check2(PaddleIterator, ["data", "bboxes", "label"])

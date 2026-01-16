@@ -142,9 +142,9 @@ def check_transfer(dali_type):
         np.testing.assert_array_equal(arr, np.array(data_cpu))
 
 
-def test_transfer_cpu_gpu():
-    for dali_type in [TensorCPU, TensorListCPU]:
-        yield check_transfer, dali_type
+@params(TensorCPU, TensorListCPU)
+def test_transfer_cpu_gpu(dali_type):
+    check_transfer(dali_type)
 
 
 def check_array_types(t):
@@ -153,29 +153,29 @@ def check_array_types(t):
     assert np.allclose(np.array(arr), np.asanyarray(tensor))
 
 
-def test_array_interface_types():
-    for t in [
-        np.bool_,
-        np.int_,
-        np.intc,
-        np.intp,
-        np.int8,
-        np.int16,
-        np.int32,
-        np.int64,
-        np.uint8,
-        np.uint16,
-        np.uint32,
-        np.uint64,
-        np.float32,
-        np.float16,
-        np.short,
-        int,
-        np.longlong,
-        np.ushort,
-        np.ulonglong,
-    ]:
-        yield check_array_types, t
+@params(
+    np.bool_,
+    np.int_,
+    np.intc,
+    np.intp,
+    np.int8,
+    np.int16,
+    np.int32,
+    np.int64,
+    np.uint8,
+    np.uint16,
+    np.uint32,
+    np.uint64,
+    np.float32,
+    np.float16,
+    np.short,
+    int,
+    np.longlong,
+    np.ushort,
+    np.ulonglong,
+)
+def test_array_interface_types(t):
+    check_array_types(t)
 
 
 def layout_compatible(a, b):
@@ -186,36 +186,37 @@ def layout_compatible(a, b):
     return a == b
 
 
-def test_tensor_cpu_squeeze():
-    def check_squeeze(shape, dim, in_layout, expected_out_layout):
-        arr = np.random.rand(*shape)
-        t = TensorCPU(arr, in_layout)
-        is_squeezed = t.squeeze(dim)
-        should_squeeze = len(expected_out_layout) < len(in_layout)
-        arr_squeeze = arr.squeeze(dim)
-        t_shape = tuple(t.shape())
-        assert t_shape == arr_squeeze.shape, f"{t_shape} != {arr_squeeze.shape}"
-        assert t.layout() == expected_out_layout, f"{t.layout()} != {expected_out_layout}"
-        assert layout_compatible(
-            t.get_property("layout"), expected_out_layout
-        ), f'{t.get_property("layout")} doesn\'t match {expected_out_layout}'
-        assert np.allclose(arr_squeeze, np.array(t))
-        assert is_squeezed == should_squeeze, f"{is_squeezed} != {should_squeeze}"
+def check_squeeze(shape, dim, in_layout, expected_out_layout):
+    arr = np.random.rand(*shape)
+    t = TensorCPU(arr, in_layout)
+    is_squeezed = t.squeeze(dim)
+    should_squeeze = len(expected_out_layout) < len(in_layout)
+    arr_squeeze = arr.squeeze(dim)
+    t_shape = tuple(t.shape())
+    assert t_shape == arr_squeeze.shape, f"{t_shape} != {arr_squeeze.shape}"
+    assert t.layout() == expected_out_layout, f"{t.layout()} != {expected_out_layout}"
+    assert layout_compatible(
+        t.get_property("layout"), expected_out_layout
+    ), f'{t.get_property("layout")} doesn\'t match {expected_out_layout}'
+    assert np.allclose(arr_squeeze, np.array(t))
+    assert is_squeezed == should_squeeze, f"{is_squeezed} != {should_squeeze}"
 
-    for dim, shape, in_layout, expected_out_layout in [
-        (None, (3, 5, 6), "ABC", "ABC"),
-        (None, (3, 1, 6), "ABC", "AC"),
-        (1, (3, 1, 6), "ABC", "AC"),
-        (-2, (3, 1, 6), "ABC", "AC"),
-        (None, (1, 1, 6), "ABC", "C"),
-        (1, (1, 1, 6), "ABC", "AC"),
-        (None, (1, 1, 1), "ABC", ""),
-        (None, (1, 5, 1), "ABC", "B"),
-        (-1, (1, 5, 1), "ABC", "AB"),
-        (0, (1, 5, 1), "ABC", "BC"),
-        (None, (3, 5, 1), "ABC", "AB"),
-    ]:
-        yield check_squeeze, shape, dim, in_layout, expected_out_layout
+
+@params(
+    (None, (3, 5, 6), "ABC", "ABC"),
+    (None, (3, 1, 6), "ABC", "AC"),
+    (1, (3, 1, 6), "ABC", "AC"),
+    (-2, (3, 1, 6), "ABC", "AC"),
+    (None, (1, 1, 6), "ABC", "C"),
+    (1, (1, 1, 6), "ABC", "AC"),
+    (None, (1, 1, 1), "ABC", ""),
+    (None, (1, 5, 1), "ABC", "B"),
+    (-1, (1, 5, 1), "ABC", "AB"),
+    (0, (1, 5, 1), "ABC", "BC"),
+    (None, (3, 5, 1), "ABC", "AB"),
+)
+def test_tensor_cpu_squeeze(dim, shape, in_layout, expected_out_layout):
+    check_squeeze(shape, dim, in_layout, expected_out_layout)
 
 
 def test_tensorlist_shape():
@@ -396,7 +397,7 @@ def test_tensor_from_numpy_dlpack():
     assert a.ctypes.data == t.data_ptr()
 
 
-@params((TensorCPU,), (TensorGPU,))
+@params(TensorCPU, TensorGPU)
 def test_dlpack_reimport(tensor_type):
     a = np.array([[1, 2, 3], [4, 5, 6]], dtype=np.int32)
     t = TensorCPU(a)
@@ -489,7 +490,7 @@ def test_schema_get_input_device():
             )
 
 
-@params((TensorCPU,), (TensorGPU,))
+@params(TensorCPU, TensorGPU)
 def test_reinterpret_tensor(TensorType):
     t = TensorCPU(np.array([0x3F800000, 0x3FC00000, 0x40000000], np.int32))
     if TensorType is TensorGPU:
@@ -506,7 +507,7 @@ def test_reinterpret_tensor(TensorType):
         t.reinterpret(types.FLOAT64)
 
 
-@params((TensorListCPU,), (TensorListGPU,))
+@params(TensorListCPU, TensorListGPU)
 def test_reinterpret_tensor_list(TensorListType):
     t = TensorListCPU(np.array([[1, 2, 3], [5, 6, 7]], np.int32))
     if TensorListType is TensorListGPU:

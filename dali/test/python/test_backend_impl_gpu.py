@@ -18,6 +18,7 @@ import nvidia.dali.ops as ops
 import nvidia.dali.tensors as tensors
 import nvidia.dali.types as types
 import numpy as np
+from nose2.tools import params
 from nose_utils import assert_raises, raises
 import cupy as cp
 from test_utils import py_buffer_from_address
@@ -204,7 +205,24 @@ def test_cuda_array_interface_tensor_list_gpu_to_cpu_device_id():
     assert np.allclose(arr.get(), tensor_list.as_cpu().as_tensor())
 
 
-def check_cuda_array_types(t):
+_cuda_array_interface_types = [
+    cp.bool_,
+    cp.int8,
+    cp.int16,
+    cp.int32,
+    cp.int64,
+    cp.uint8,
+    cp.uint16,
+    cp.uint32,
+    cp.uint64,
+    cp.float64,
+    cp.float32,
+    cp.float16,
+]
+
+
+@params(*_cuda_array_interface_types)
+def test_cuda_array_interface_types(t):
     if cp.issubdtype(t, cp.unsignedinteger):
         arr = [[0.39, 1.5], [1.5, 0.33]]
     else:
@@ -214,25 +232,23 @@ def check_cuda_array_types(t):
     assert cp.allclose(arr, cp.asanyarray(tensor))
 
 
-def test_cuda_array_interface_types():
-    for t in [
-        cp.bool_,
-        cp.int8,
-        cp.int16,
-        cp.int32,
-        cp.int64,
-        cp.uint8,
-        cp.uint16,
-        cp.uint32,
-        cp.uint64,
-        cp.float64,
-        cp.float32,
-        cp.float16,
-    ]:
-        yield check_cuda_array_types, t
+_dlpack_interface_types = [
+    cp.int8,
+    cp.int16,
+    cp.int32,
+    cp.int64,
+    cp.uint8,
+    cp.uint16,
+    cp.uint32,
+    cp.uint64,
+    cp.float64,
+    cp.float32,
+    cp.float16,
+]
 
 
-def check_dlpack_types(t):
+@params(*_dlpack_interface_types)
+def test_dlpack_interface_types(t):
     if cp.issubdtype(t, cp.unsignedinteger):
         _arr = [[0.39, 1.5], [1.5, 0.33]]
     else:
@@ -240,23 +256,6 @@ def check_dlpack_types(t):
     arr = cp.array(_arr, dtype=t)
     tensor = TensorGPU(arr.toDlpack(), "HW")
     assert cp.allclose(arr, cp.asanyarray(tensor))
-
-
-def test_dlpack_interface_types():
-    for t in [
-        cp.int8,
-        cp.int16,
-        cp.int32,
-        cp.int64,
-        cp.uint8,
-        cp.uint16,
-        cp.uint32,
-        cp.uint64,
-        cp.float64,
-        cp.float32,
-        cp.float16,
-    ]:
-        yield check_dlpack_types, t
 
 
 @raises(RuntimeError, glob="Provided object doesn't support cuda array interface protocol.")
@@ -272,18 +271,6 @@ def test_cuda_array_interface_tensor_list_gpu_create_from_numpy():
 
 
 def test_tensor_gpu_squeeze():
-    def check_squeeze(shape, dim, in_layout, expected_out_layout):
-        arr = cp.random.rand(*shape)
-        t = TensorGPU(arr, in_layout)
-        is_squeezed = t.squeeze(dim)
-        should_squeeze = len(expected_out_layout) < len(in_layout)
-        arr_squeeze = arr.squeeze(dim)
-        t_shape = tuple(t.shape())
-        assert t_shape == arr_squeeze.shape, f"{t_shape} != {arr_squeeze.shape}"
-        assert t.layout() == expected_out_layout, f"{t.layout()} != {expected_out_layout}"
-        assert cp.allclose(arr_squeeze, cp.asanyarray(t))
-        assert is_squeezed == should_squeeze, f"{is_squeezed} != {should_squeeze}"
-
     for dim, shape, in_layout, expected_out_layout in [
         (None, (3, 5, 6), "ABC", "ABC"),
         (None, (3, 1, 6), "ABC", "AC"),
@@ -297,7 +284,16 @@ def test_tensor_gpu_squeeze():
         (0, (1, 5, 1), "ABC", "BC"),
         (None, (3, 5, 1), "ABC", "AB"),
     ]:
-        yield check_squeeze, shape, dim, in_layout, expected_out_layout
+        arr = cp.random.rand(*shape)
+        t = TensorGPU(arr, in_layout)
+        is_squeezed = t.squeeze(dim)
+        should_squeeze = len(expected_out_layout) < len(in_layout)
+        arr_squeeze = arr.squeeze(dim)
+        t_shape = tuple(t.shape())
+        assert t_shape == arr_squeeze.shape, f"{t_shape} != {arr_squeeze.shape}"
+        assert t.layout() == expected_out_layout, f"{t.layout()} != {expected_out_layout}"
+        assert cp.allclose(arr_squeeze, cp.asanyarray(t))
+        assert is_squeezed == should_squeeze, f"{is_squeezed} != {should_squeeze}"
 
 
 # Those tests verify that the Tensor[List]Cpu/Gpu created in Python in a similar fashion

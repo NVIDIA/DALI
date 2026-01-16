@@ -15,6 +15,7 @@
 
 # nose_utils goes first to deal with Python 3.10 incompatibility
 from nose_utils import attr, nottest, assert_raises
+from nose2.tools import params
 import nvidia.dali as dali
 import nvidia.dali.fn as fn
 import nvidia.dali.ops as ops
@@ -76,8 +77,9 @@ def _test_use_foreground(classes, weights, bg):
         assert outs[2].at(i) != (bg or 0)
 
 
-def test_use_foreground():
-    """Test that a foreground box is returned when required (prob=1) and possible (fixed data)"""
+def _generate_test_use_foreground_params():
+    """Generate all parameter combinations for test_use_foreground"""
+    params_list = []
     for classes, weights, bg in [
         (None, None, None),
         (None, None, 1),
@@ -86,7 +88,14 @@ def test_use_foreground():
         (None, [1, 1, 1], 0),
         ([1, 2, 3], [1, 1, 1], None),
     ]:
-        yield _test_use_foreground, classes, weights, bg
+        params_list.append((classes, weights, bg))
+    return params_list
+
+
+@params(*_generate_test_use_foreground_params())
+def test_use_foreground(classes, weights, bg):
+    """Test that a foreground box is returned when required (prob=1) and possible (fixed data)"""
+    _test_use_foreground(classes, weights, bg)
 
 
 def objects2boxes(objects, input_shape):
@@ -377,12 +386,14 @@ def _test_random_object_bbox_with_class(
             assert contains_box(cls_boxes, boxes[i])
 
 
-def test_random_object_bbox_with_class():
+def _generate_test_random_object_bbox_with_class_params():
+    """Generate all parameter combinations for test_random_object_bbox_with_class"""
     np.random.seed(12345)
     types = [np.int8, np.uint8, np.int16, np.uint16, np.int32, np.uint32]
 
     formats = [None, "anchor_shape", "start_end", "box"]
     fmt = 0
+    params_list = []
     for bg in [None, 0, -1, 5, random_background()]:
         if bg is None or isinstance(bg, int):
             class_opt = [None, [0], [1], [2, 4, 5, 7]]
@@ -418,20 +429,41 @@ def test_random_object_bbox_with_class():
                 fmt = (fmt + 1) % len(formats)
                 dtype = random.choice(types)
                 cache = np.random.randint(2) == 1
-                yield (
-                    _test_random_object_bbox_with_class,
-                    4,
-                    ndim,
-                    dtype,
-                    format,
-                    fg_prob,
-                    classes,
-                    weights,
-                    bg,
-                    threshold,
-                    k_largest,
-                    cache,
+                params_list.append(
+                    (
+                        4,
+                        ndim,
+                        dtype,
+                        format,
+                        fg_prob,
+                        classes,
+                        weights,
+                        bg,
+                        threshold,
+                        k_largest,
+                        cache,
+                    )
                 )
+    return params_list
+
+
+@params(*_generate_test_random_object_bbox_with_class_params())
+def test_random_object_bbox_with_class(
+    max_batch_size, ndim, dtype, format, fg_prob, classes, weights, bg, threshold, k_largest, cache
+):
+    _test_random_object_bbox_with_class(
+        max_batch_size,
+        ndim,
+        dtype,
+        format,
+        fg_prob,
+        classes,
+        weights,
+        bg,
+        threshold,
+        k_largest,
+        cache,
+    )
 
 
 @nottest
@@ -484,9 +516,11 @@ def _test_random_object_bbox_ignore_class(
                 assert contains_box(ref_boxes, boxes[i])
 
 
-def test_random_object_bbox_ignore_class():
+def _generate_test_random_object_bbox_ignore_class_params():
+    """Generate all parameter combinations for test_random_object_bbox_ignore_class"""
     np.random.seed(43210)
     types = [np.int8, np.uint8, np.int16, np.uint16, np.int32, np.uint32]
+    params_list = []
     for bg in [None, 0, -1, 5, random_background()]:
         ndim = np.random.randint(1, 5)
         dtype = random.choice(types)
@@ -496,16 +530,27 @@ def test_random_object_bbox_ignore_class():
             k_largest_opt = [None, 1, 2, 5]
             k_largest = random.choice(k_largest_opt)
 
-            yield (
-                _test_random_object_bbox_ignore_class,
-                5,
-                ndim,
-                dtype,
-                format,
-                bg,
-                threshold,
-                k_largest,
+            params_list.append(
+                (
+                    5,
+                    ndim,
+                    dtype,
+                    format,
+                    bg,
+                    threshold,
+                    k_largest,
+                )
             )
+    return params_list
+
+
+@params(*_generate_test_random_object_bbox_ignore_class_params())
+def test_random_object_bbox_ignore_class(
+    max_batch_size, ndim, dtype, format, bg, threshold, k_largest
+):
+    _test_random_object_bbox_ignore_class(
+        max_batch_size, ndim, dtype, format, bg, threshold, k_largest
+    )
 
 
 @nottest
@@ -527,7 +572,9 @@ def _test_random_object_bbox_auto_bg(fg_labels, expected_bg):
     assert int(labels.at(0)) == expected_bg
 
 
-def test_random_object_bbox_auto_bg():
+def _generate_test_random_object_bbox_auto_bg_params():
+    """Generate all parameter combinations for test_random_object_bbox_auto_bg"""
+    params_list = []
     for fg, expected_bg in [
         ([1, 2, 3], 0),
         ([0, 1, 2], -1),
@@ -536,7 +583,13 @@ def test_random_object_bbox_auto_bg():
         ([-0x80000000, 0x7FFFFFFF], 0),
         ([-0x80000000, 0x7FFFFFFF, 0, 0x7FFFFFFE], 0x7FFFFFFD),
     ]:
-        yield _test_random_object_bbox_auto_bg, fg, expected_bg
+        params_list.append((fg, expected_bg))
+    return params_list
+
+
+@params(*_generate_test_random_object_bbox_auto_bg_params())
+def test_random_object_bbox_auto_bg(fg, expected_bg):
+    _test_random_object_bbox_auto_bg(fg, expected_bg)
 
 
 @nottest
@@ -588,9 +641,22 @@ def test_err_threshold_dim_clash():
 
 
 @attr("slow")
-def slow_test_large_data():
-    yield _test_random_object_bbox_with_class, 4, 5, np.int32, None, 1.0, [
-        1,
-        2,
-        3,
-    ], None, None, None, 10
+@params(
+    (4, 5, np.int32, None, 1.0, [1, 2, 3], None, None, None, 10),
+)
+def slow_test_large_data(
+    max_batch_size, ndim, dtype, format, fg_prob, classes, weights, bg, threshold, k_largest
+):
+    _test_random_object_bbox_with_class(
+        max_batch_size,
+        ndim,
+        dtype,
+        format,
+        fg_prob,
+        classes,
+        weights,
+        bg,
+        threshold,
+        k_largest,
+        None,
+    )

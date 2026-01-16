@@ -20,7 +20,9 @@ import os
 import torch
 from nvidia.dali.pipeline import Pipeline
 
+from nose2.tools import params
 from test_utils import get_dali_extra_path
+from nose_utils import attr
 
 test_data_root = get_dali_extra_path()
 images_dir = os.path.join(test_data_root, "db", "single", "jpeg")
@@ -96,7 +98,9 @@ def torch_batch_operation(tensors):
     return [p[0] for p in out], [p[1] for p in out]
 
 
-def check_pytorch_operator(device):
+@attr("pytorch")
+@params("cpu", "gpu")
+def test_pytorch_operator(device):
     pipe = BasicPipeline()
     pt_pipe = TorchPythonFunctionPipeline(torch_operation, device)
     for it in range(ITERS):
@@ -113,12 +117,9 @@ def check_pytorch_operator(device):
             assert numpy.allclose(res2, exp2_t.numpy())
 
 
-def test_pytorch_operator():
-    for device in {"cpu", "gpu"}:
-        yield check_pytorch_operator, device
-
-
-def check_pytorch_operator_batch_processing(device):
+@attr("pytorch")
+@params("cpu", "gpu")
+def test_pytorch_operator_batch_processing(device):
     pipe = BasicPipeline()
     pt_pipe = TorchPythonFunctionPipeline(torch_batch_operation, device, True)
     for it in range(ITERS):
@@ -134,11 +135,6 @@ def check_pytorch_operator_batch_processing(device):
             res2 = output2.at(i)
             assert numpy.allclose(res1, exp1[i].numpy())
             assert numpy.allclose(res2, exp2[i].numpy())
-
-
-def test_pytorch_operator_batch_processing():
-    for device in {"cpu", "gpu"}:
-        yield check_pytorch_operator_batch_processing, device
 
 
 def verify_pipeline(pipeline, input):

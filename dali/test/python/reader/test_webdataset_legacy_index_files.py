@@ -15,6 +15,7 @@
 from nvidia.dali import pipeline_def, fn
 import os
 import glob
+from nose2.tools import params
 from test_utils import get_dali_extra_path
 
 test_data_root = os.path.join(get_dali_extra_path(), "db", "webdataset", "legacy_index_formats")
@@ -36,8 +37,13 @@ def _test_wds_index_file_pipeline(idx_path, device):
     p.run()
 
 
-def test_wds_index_file_pipeline():
-    idx_files = glob.glob(test_data_root + "/*.idx")
-    for idx_path in idx_files:
-        for device in ["cpu", "gpu"]:
-            yield _test_wds_index_file_pipeline, idx_path, device
+_idx_files = glob.glob(test_data_root + "/*.idx")
+
+_wds_index_file_pipeline_test_cases = [
+    (idx_path, device) for idx_path in _idx_files for device in ["cpu", "gpu"]
+]
+
+
+@params(*_wds_index_file_pipeline_test_cases)
+def test_wds_index_file_pipeline(idx_path, device):
+    _test_wds_index_file_pipeline(idx_path, device)

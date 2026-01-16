@@ -18,6 +18,7 @@ from nvidia.dali import pipeline_def
 import nvidia.dali.fn as fn
 
 from test_utils import check_batch
+from nose2.tools import params
 from nose_utils import raises
 
 batch_sizes = [5, 256, 128, 7]
@@ -45,28 +46,41 @@ def run_pipeline(device, num_dim, replace=False, layout=None):
         check_batch(out, baseline, len(baseline), expected_layout=expected_layout)
 
 
-def test_set_layout():
-    for device in ["cpu", "gpu"]:
-        for num_dim in (1, 2, 3):
-            yield run_pipeline, device, num_dim
+@params(*[(device, num_dim) for device in ["cpu", "gpu"] for num_dim in (1, 2, 3)])
+def test_set_layout(device, num_dim):
+    run_pipeline(device, num_dim)
 
 
-def test_replace_layout():
-    for device in ["cpu", "gpu"]:
-        for num_dim in (1, 2, 3):
-            yield run_pipeline, device, num_dim, True, "XYZ"[:num_dim]
+@params(
+    *[
+        (device, num_dim, True, "XYZ"[:num_dim])
+        for device in ["cpu", "gpu"]
+        for num_dim in (1, 2, 3)
+    ]
+)
+def test_replace_layout(device, num_dim, replace, layout):
+    run_pipeline(device, num_dim, replace, layout)
 
 
-def test_verify_layout():
-    for device in ["cpu", "gpu"]:
-        for num_dim in (1, 2, 3):
-            yield run_pipeline, device, num_dim, False, "FYZ"[:num_dim]
+@params(
+    *[
+        (device, num_dim, False, "FYZ"[:num_dim])
+        for device in ["cpu", "gpu"]
+        for num_dim in (1, 2, 3)
+    ]
+)
+def test_verify_layout(device, num_dim, replace, layout):
+    run_pipeline(device, num_dim, replace, layout)
 
 
-def test_zero_dim_not_allowed():
-    expected_msg = "Cannot mark zero-dimensional input as a sequence"
-    for device in ["cpu", "gpu"]:
-        yield raises(RuntimeError, expected_msg)(run_pipeline), device, 0
+@raises(RuntimeError, "Cannot mark zero-dimensional input as a sequence")
+def _test_zero_dim_not_allowed_impl(device):
+    run_pipeline(device, 0)
+
+
+@params("cpu", "gpu")
+def test_zero_dim_not_allowed(device):
+    _test_zero_dim_not_allowed_impl(device)
 
 
 @raises(
@@ -77,10 +91,9 @@ def _test_not_a_sequence_layout(device, num_dim, layout):
     run_pipeline(device, num_dim=num_dim, layout=layout)
 
 
-def test_not_a_sequence_layout():
-    for device in ["cpu", "gpu"]:
-        for num_dim in (1, 2, 3):
-            yield _test_not_a_sequence_layout, device, num_dim, "XYZ"[:num_dim]
+@params(*[(device, num_dim, "XYZ"[:num_dim]) for device in ["cpu", "gpu"] for num_dim in (1, 2, 3)])
+def test_not_a_sequence_layout(device, num_dim, layout):
+    _test_not_a_sequence_layout(device, num_dim, layout)
 
 
 def _test_pass_through():

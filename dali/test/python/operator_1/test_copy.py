@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from nvidia.dali import fn, pipeline_def
+from nose2.tools import params
 from test_utils import RandomlyShapedDataIterator, to_array
 
 import numpy as np
@@ -36,8 +37,16 @@ def copy_pipe(shape, layout, dev, dtype):
     return input, output
 
 
-def check_copy(shape, layout, dev, dtype=np.uint8):
-    pipe = copy_pipe(shape, layout, dev, dtype)
+@params(
+    *[
+        (shape, layout, device, dtype)
+        for shape, layout in [([4, 2, 3], "HWC"), ([6, 1], "FX"), ([8, 10, 10, 3], "FHWC")]
+        for device in ["cpu", "gpu"]
+        for dtype in [np.uint8, np.float16, np.int32]
+    ]
+)
+def test_copy(shape, layout, device, dtype):
+    pipe = copy_pipe(shape, layout, device, dtype)
     for i in range(10):
         input, output = pipe.run()
         for i in range(batch_size):
@@ -45,10 +54,3 @@ def check_copy(shape, layout, dev, dtype=np.uint8):
             expected = to_array(input[i])
             obtained = to_array(output[i])
             np.testing.assert_array_equal(expected, obtained)
-
-
-def test_copy():
-    for shape, layout in [([4, 2, 3], "HWC"), ([6, 1], "FX"), ([8, 10, 10, 3], "FHWC")]:
-        for device in ["cpu", "gpu"]:
-            for dtype in [np.uint8, np.float16, np.int32]:
-                yield check_copy, shape, layout, device, dtype

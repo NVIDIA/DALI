@@ -16,6 +16,7 @@ import nvidia.dali.fn as fn
 from nvidia.dali import pipeline_def
 import nvidia.dali.types as types
 import numpy as np
+from nose2.tools import params
 from test_utils import compare_pipelines, python_function
 from test_utils import RandomDataIterator
 from sequences_test_utils import ArgCb, video_suite_helper
@@ -172,8 +173,9 @@ def check_equivalence(device, inp_dtype, out_dtype, op, has_3_dims, use_const_co
     compare_pipelines(pipe1, pipe2, batch_size, n_iters, eps=eps)
 
 
-def test_equivalence():
+def _generate_equivalence_test_cases():
     rng = random.Random(42)
+    cases = []
     for device in ["cpu", "gpu"]:
         for inp_dtype in [types.FLOAT, types.INT16, types.UINT8]:
             for out_dtype in [types.FLOAT, types.INT16, types.UINT8]:
@@ -181,15 +183,18 @@ def test_equivalence():
                     for has_3_dims, use_const_contr_center in rng.sample(
                         [(b1, b2) for b1 in [True, False] for b2 in [True, False]], 2
                     ):
-                        yield (
-                            check_equivalence,
-                            device,
-                            inp_dtype,
-                            out_dtype,
-                            op,
-                            has_3_dims,
-                            use_const_contr_center,
+                        cases.append(
+                            (device, inp_dtype, out_dtype, op, has_3_dims, use_const_contr_center)
                         )
+    return cases
+
+
+_equivalence_test_cases = _generate_equivalence_test_cases()
+
+
+@params(*_equivalence_test_cases)
+def test_equivalence(device, inp_dtype, out_dtype, op, has_3_dims, use_const_contr_center):
+    check_equivalence(device, inp_dtype, out_dtype, op, has_3_dims, use_const_contr_center)
 
 
 def check_vs_ref(device, inp_dtype, out_dtype, has_3_dims, use_const_contr_center):
@@ -212,22 +217,25 @@ def check_vs_ref(device, inp_dtype, out_dtype, has_3_dims, use_const_contr_cente
     compare_pipelines(pipe1, pipe2, batch_size, n_iters, eps=eps)
 
 
-def test_vs_ref():
+def _generate_vs_ref_test_cases():
     rng = random.Random(42)
+    cases = []
     for device in ["cpu", "gpu"]:
         for inp_dtype in [types.FLOAT, types.INT16, types.UINT8]:
             for out_dtype in [types.FLOAT, types.INT16, types.UINT8]:
                 for has_3_dims, use_const_contr_center in rng.sample(
                     [(b1, b2) for b1 in [True, False] for b2 in [True, False]], 2
                 ):
-                    yield (
-                        check_vs_ref,
-                        device,
-                        inp_dtype,
-                        out_dtype,
-                        has_3_dims,
-                        use_const_contr_center,
-                    )
+                    cases.append((device, inp_dtype, out_dtype, has_3_dims, use_const_contr_center))
+    return cases
+
+
+_vs_ref_test_cases = _generate_vs_ref_test_cases()
+
+
+@params(*_vs_ref_test_cases)
+def test_vs_ref(device, inp_dtype, out_dtype, has_3_dims, use_const_contr_center):
+    check_vs_ref(device, inp_dtype, out_dtype, has_3_dims, use_const_contr_center)
 
 
 def test_video():
@@ -281,4 +289,4 @@ def test_video():
         ),
     ]
 
-    yield from video_suite_helper(video_test_cases, test_channel_first=False)
+    video_suite_helper(video_test_cases, test_channel_first=False)

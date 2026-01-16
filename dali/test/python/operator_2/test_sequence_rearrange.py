@@ -15,6 +15,7 @@
 from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.fn as fn
 import numpy as np
+from nose2.tools import params, cartesian_params
 from nose_utils import raises
 
 
@@ -95,12 +96,18 @@ order_2 = (
 )
 
 
-def test_sequence_rearrange():
-    for dev in ["cpu", "gpu"]:
-        for shape in [[4, 3, 2], [5, 1]]:
-            for new_order, per_sample in [order_0, order_1, order_2]:
-                for layout in ["FHW"[: len(shape)], ""]:
-                    yield check_sequence_rearrange, 5, shape, new_order, per_sample, dev, layout
+_sequence_rearrange_test_cases = [
+    (5, shape, new_order, per_sample, dev, layout)
+    for dev in ["cpu", "gpu"]
+    for shape in [[4, 3, 2], [5, 1]]
+    for new_order, per_sample in [order_0, order_1, order_2]
+    for layout in ["FHW"[: len(shape)], ""]
+]
+
+
+@params(*_sequence_rearrange_test_cases)
+def test_sequence_rearrange(batch_size, shape, reorders, persample_reorder, op_type, layout):
+    check_sequence_rearrange(batch_size, shape, reorders, persample_reorder, op_type, layout)
 
 
 def check_fail_sequence_rearrange(
@@ -109,46 +116,55 @@ def check_fail_sequence_rearrange(
     check_sequence_rearrange(batch_size, shape, reorders, persample_reorder, op_type, layout)
 
 
-def test_fail_sequence_rearrange():
-    shape = [5, 1]
-    orders = [
-        ([6, 7], False),
-        ([-1], False),
-        ([], False),
-        ([np.int32([0]), np.int32([])], True),
-        ([np.int32([6, 7]), np.int32([0])], True),
-        ([np.int32([-1]), np.int32([0])], True),
-        ([np.int32([[1], [2]]), np.int32([[1], [2]])], True),
-    ]
-    error_msgs = [
-        "new_order[[]*[]] must be between * and input_sequence_length = * for sample *, but it is: *",  # noqa:E501
-        "new_order[[]*[]] must be between * and input_sequence_length = * for sample *, but it is: *",  # noqa:E501
-        "Empty result sequences are not allowed",
-        "Empty `new_order` for sample * is not allowed",
-        "new_order[[]*[]] must be between * and input_sequence_length = * for sample *, but it is: *",  # noqa:E501
-        "new_order[[]*[]] must be between * and input_sequence_length = * for sample *, but it is: *",  # noqa:E501
-        "Input with dimension * cannot be converted to dimension *",
-    ]
+_fail_sequence_rearrange_orders = [
+    ([6, 7], False),
+    ([-1], False),
+    ([], False),
+    ([np.int32([0]), np.int32([])], True),
+    ([np.int32([6, 7]), np.int32([0])], True),
+    ([np.int32([-1]), np.int32([0])], True),
+    ([np.int32([[1], [2]]), np.int32([[1], [2]])], True),
+]
 
-    assert len(orders) == len(error_msgs)
+_fail_sequence_rearrange_error_msgs = [
+    "new_order[[]*[]] must be between * and input_sequence_length = * for sample *, but it is: *",
+    "new_order[[]*[]] must be between * and input_sequence_length = * for sample *, but it is: *",
+    "Empty result sequences are not allowed",
+    "Empty `new_order` for sample * is not allowed",
+    "new_order[[]*[]] must be between * and input_sequence_length = * for sample *, but it is: *",
+    "new_order[[]*[]] must be between * and input_sequence_length = * for sample *, but it is: *",
+    "Input with dimension * cannot be converted to dimension *",
+]
 
-    for dev in ["cpu", "gpu"]:
-        for [new_order, per_sample], error_msg in zip(orders, error_msgs):
-            yield raises(RuntimeError, glob=error_msg)(
-                check_fail_sequence_rearrange
-            ), 2, shape, new_order, per_sample, dev
+_fail_sequence_rearrange_test_cases = [
+    (2, [5, 1], new_order, per_sample, dev, error_msg)
+    for dev in ["cpu", "gpu"]
+    for (new_order, per_sample), error_msg in zip(
+        _fail_sequence_rearrange_orders, _fail_sequence_rearrange_error_msgs
+    )
+]
 
 
-def test_wrong_layouts_sequence_rearrange():
+@params(*_fail_sequence_rearrange_test_cases)
+def test_fail_sequence_rearrange(batch_size, shape, new_order, per_sample, dev, error_msg):
+    raises(RuntimeError, glob=error_msg)(check_fail_sequence_rearrange)(
+        batch_size, shape, new_order, per_sample, dev
+    )
+
+
+@cartesian_params(
+    ["cpu", "gpu"],  # dev
+    ["HF", "HW"],  # layout
+)
+def test_wrong_layouts_sequence_rearrange(dev, layout):
+    batch_size = 5
     shape = [5, 1]
     new_order = [0, 2, 1, 3, 4]
     per_sample = False
-    for dev in ["cpu", "gpu"]:
-        for layout in ["HF", "HW"]:
-            yield raises(
-                RuntimeError,
-                glob=(
-                    "Expected sequence as the input, where outermost dimension represents"
-                    ' frames dimension `F`, got data with layout = "H[WF]"'
-                ),
-            )(check_fail_sequence_rearrange), 5, shape, new_order, per_sample, dev, layout
+    raises(
+        RuntimeError,
+        glob=(
+            "Expected sequence as the input, where outermost dimension represents"
+            ' frames dimension `F`, got data with layout = "H[WF]"'
+        ),
+    )(check_fail_sequence_rearrange)(batch_size, shape, new_order, per_sample, dev, layout)

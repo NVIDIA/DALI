@@ -32,19 +32,19 @@ test_array = np.array([[42, 42], [42, 42]], dtype=np.uint8)
 
 def run_checks(samples_allowed, batches_allowed, samples_disallowed, batches_disallowed):
     for sample, baseline in samples_allowed:
-        yield passes_assert, external_source_impl.assert_cpu_sample_data_type, sample
-        yield converts, external_source_impl.sample_to_numpy, sample, baseline
+        passes_assert(external_source_impl.assert_cpu_sample_data_type, sample)
+        converts(external_source_impl.sample_to_numpy, sample, baseline)
     for sample, baseline in samples_allowed + batches_allowed:
-        yield passes_assert, external_source_impl.assert_cpu_batch_data_type, sample
-        yield converts, external_source_impl.batch_to_numpy, sample, baseline
+        passes_assert(external_source_impl.assert_cpu_batch_data_type, sample)
+        converts(external_source_impl.batch_to_numpy, sample, baseline)
     for sample in samples_disallowed:
-        yield raises(TypeError, "Unsupported callback return type.")(
+        raises(TypeError, "Unsupported callback return type.")(
             external_source_impl.assert_cpu_sample_data_type
-        ), sample
+        )(sample)
     for sample in samples_disallowed + batches_disallowed:
-        yield raises(TypeError, "Unsupported callback return type")(
+        raises(TypeError, "Unsupported callback return type")(
             external_source_impl.assert_cpu_batch_data_type
-        ), sample
+        )(sample)
 
 
 def non_uniform_tl():
@@ -68,15 +68,15 @@ def test_regular_containers():
         ([tensors.TensorCPU(test_array)] * 4, [test_array] * 4),
         (tensors.TensorListCPU(test_array), test_array),
     ]
-    yield from run_checks(samples_cpu, batches_cpu, [], [])
+    run_checks(samples_cpu, batches_cpu, [], [])
 
 
 def test_non_uniform_batch():
     batches_disallowed = [[test_array, np.array([[42, 42]], dtype=np.uint8)], non_uniform_tl()]
     for b in batches_disallowed:
-        yield raises(ValueError, "Uniform input is required (batch of tensors of equal shapes)")(
+        raises(ValueError, "Uniform input is required (batch of tensors of equal shapes)")(
             external_source_impl.batch_to_numpy
-        ), b
+        )(b)
 
 
 @attr("pytorch")
@@ -93,7 +93,7 @@ def test_pytorch_containers():
     disallowed_samples = [
         torch.tensor(test_array).cuda(),
     ]
-    yield from run_checks(samples_cpu, batches_cpu, disallowed_samples, [])
+    run_checks(samples_cpu, batches_cpu, disallowed_samples, [])
 
 
 @attr("mxnet")
@@ -108,7 +108,7 @@ def test_mxnet_containers():
         ([mx.nd.array(test_array)] * 4, [test_array] * 4),
     ]
     disallowed_samples = [mx.nd.array(test_array, ctx=mx.gpu(0))]
-    yield from run_checks(samples_cpu, batches_cpu, disallowed_samples, [])
+    run_checks(samples_cpu, batches_cpu, disallowed_samples, [])
 
 
 @attr("cupy")
@@ -118,4 +118,4 @@ def test_cupy_containers():
     test_array = cp.array([[42, 42], [42, 42]], dtype=cp.uint8)
     disallowed_samples = [test_array, tensors.TensorGPU(test_array)]
     disallowed_batches = [tensors.TensorListGPU(test_array)]
-    yield from run_checks([], [], disallowed_samples, disallowed_batches)
+    run_checks([], [], disallowed_samples, disallowed_batches)

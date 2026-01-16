@@ -118,15 +118,27 @@ def _test_sample_inflate(op, batch_size, np_dtype, seed):
             check_batch(inflated, baseline, iter_size)
 
 
-@has_operator("decoders.inflate")
-@restrict_platform(min_compute_cap=6.0)
-def test_sample_inflate():
-    aliases = _op_alias()
+def _generate_sample_inflate_test_cases():
+    cases = []
+    aliases = ["decoders", "experimental"]
     seed = 42
+    idx = 0
     for batch_size in [1, 64, 348]:
         for dtype in [np.uint8, np.int8, np.uint16, np.int32, np.float32, np.float16]:
-            yield _test_sample_inflate, next(aliases), batch_size, dtype, seed
+            cases.append((aliases[idx % 2], batch_size, dtype, seed))
             seed += 1
+            idx += 1
+    return cases
+
+
+_sample_inflate_test_cases = _generate_sample_inflate_test_cases()
+
+
+@has_operator("decoders.inflate")
+@restrict_platform(min_compute_cap=6.0)
+@params(*_sample_inflate_test_cases)
+def test_sample_inflate(op, batch_size, dtype, seed):
+    _test_sample_inflate(op, batch_size, dtype, seed)
 
 
 def _test_scalar_shape(dtype, shape, layout):
@@ -156,15 +168,12 @@ def _test_scalar_shape(dtype, shape, layout):
         check_batch(inflated, baseline, batch_size, layout)
 
 
-@has_operator("decoders.inflate")
-@restrict_platform(min_compute_cap=6.0)
-def test_scalar_shape():
-    largest_prime_smaller_than_2_to_16 = 65521
-    prime_larger_than_2_to_16 = 262147
+_scalar_shape_test_cases = [
+    (dtype, shape, layout)
     for shape, layout in [
-        (largest_prime_smaller_than_2_to_16, "X"),
-        (largest_prime_smaller_than_2_to_16, None),
-        (prime_larger_than_2_to_16, "Y"),
+        (65521, "X"),  # largest_prime_smaller_than_2_to_16
+        (65521, None),
+        (262147, "Y"),  # prime_larger_than_2_to_16
         ([3, 5, 7], "ABC"),
         ([3, 5, 7], ""),
         ([13, 15, 7], None),
@@ -172,9 +181,16 @@ def test_scalar_shape():
         ([4, 8, 16, 2], "FGNH"),
         ([100, 10], "WW"),
         (np.array([], dtype=np.int32), None),
-    ]:
-        for dtype in [np.uint8, np.float32, np.uint16]:
-            yield _test_scalar_shape, dtype, shape, layout
+    ]
+    for dtype in [np.uint8, np.float32, np.uint16]
+]
+
+
+@has_operator("decoders.inflate")
+@restrict_platform(min_compute_cap=6.0)
+@params(*_scalar_shape_test_cases)
+def test_scalar_shape(dtype, shape, layout):
+    _test_scalar_shape(dtype, shape, layout)
 
 
 def seq_source(rng, ndim, dtype, mode, permute, oversized_shape):
@@ -264,12 +280,12 @@ def _test_chunks(
         check_batch(inflated, baseline, batch_size, layout, oversized_shape=oversized_shape)
 
 
-@has_operator("decoders.inflate")
-@restrict_platform(min_compute_cap=6.0)
-def test_chunks():
-    aliases = _op_alias()
+def _generate_chunks_test_cases():
+    aliases = ["decoders", "experimental"]
     seed = 42
     batch_sizes = [1, 9, 31]
+    cases = []
+    idx = 0
     for dtype in [np.uint8, np.int16, np.float32]:
         for ndim, layout, sequence_axis_name in [
             (0, None, None),
@@ -287,20 +303,46 @@ def test_chunks():
             ]:
                 batch_size = batch_sizes[seed % len(batch_sizes)]
                 oversized_shape = ndim > 0 and seed % 2 == 1
-                yield (
-                    _test_chunks,
-                    next(aliases),
-                    seed,
-                    batch_size,
-                    ndim,
-                    dtype,
-                    layout,
-                    mode,
-                    permute,
-                    oversized_shape,
-                    sequence_axis_name,
+                cases.append(
+                    (
+                        aliases[idx % 2],
+                        seed,
+                        batch_size,
+                        ndim,
+                        dtype,
+                        layout,
+                        mode,
+                        permute,
+                        oversized_shape,
+                        sequence_axis_name,
+                    )
                 )
                 seed += 1
+                idx += 1
+    return cases
+
+
+_chunks_test_cases = _generate_chunks_test_cases()
+
+
+@has_operator("decoders.inflate")
+@restrict_platform(min_compute_cap=6.0)
+@params(*_chunks_test_cases)
+def test_chunks(
+    op, seed, batch_size, ndim, dtype, layout, mode, permute, oversized_shape, sequence_axis_name
+):
+    _test_chunks(
+        op,
+        seed,
+        batch_size,
+        ndim,
+        dtype,
+        layout,
+        mode,
+        permute,
+        oversized_shape,
+        sequence_axis_name,
+    )
 
 
 @has_operator("decoders.inflate")
@@ -462,59 +504,39 @@ def test_validation():
         inflated = fn.decoders.inflate(inp.gpu(), shape=5, sequence_axis_name="AB")
         return inflated
 
-    yield (
-        _test_validation,
-        pipeline_2d_shape,
-        "The shape argument must be a scalar or a 1D tensor",
-    )
-    yield (
-        _test_validation,
+    _test_validation(pipeline_2d_shape, "The shape argument must be a scalar or a 1D tensor")
+    _test_validation(
         pipeline_non_elementary_dtype,
         "The inflate output type must have floating point or integral type",
     )
-    yield (_test_validation, pipeline_input_float, "Got tensor of type `float` instead")
-    yield (_test_validation, pipeline_input_scalar, "Got input with 0 dimensions instead")
-    yield (_test_validation, pipeline_input_algorithm, "Unknown inflate algorithm")
-    yield (
-        _test_validation,
-        pipeline_too_big_chunk,
-        "Input chunk size cannot exceed the sample size",
-    )
-    yield (
-        _test_validation,
+    _test_validation(pipeline_input_float, "Got tensor of type `float` instead")
+    _test_validation(pipeline_input_scalar, "Got input with 0 dimensions instead")
+    _test_validation(pipeline_input_algorithm, "Unknown inflate algorithm")
+    _test_validation(pipeline_too_big_chunk, "Input chunk size cannot exceed the sample size")
+    _test_validation(
         pipeline_too_big_chunks,
         "The sum of chunk sizes for sample of idx 0 exceeds the total size of the sample.",
     )
-    yield (_test_validation, pipeline_empty_chunk, "Got chunk size 0 for sample of idx 0")
-    yield (_test_validation, pipeline_neg_chunk, "Got chunk size -1 for sample of idx 0")
-    yield (
-        _test_validation,
+    _test_validation(pipeline_empty_chunk, "Got chunk size 0 for sample of idx 0")
+    _test_validation(pipeline_neg_chunk, "Got chunk size -1 for sample of idx 0")
+    _test_validation(
         pipeline_too_big_offsets,
         "Got chunk offset 5 while the sample size is 5 for sample of idx 0",
     )
-    yield (
-        _test_validation,
+    _test_validation(
         pipeline_too_zero_size_inferred,
         "The inferred size of a chunk would be non-positive for sample of idx 0",
     )
-    yield (
-        _test_validation,
-        pipeline_sizes_offsets_mismatched,
-        "for sample of idx 0 there are 2 offsets and 3 sizes",
+    _test_validation(
+        pipeline_sizes_offsets_mismatched, "for sample of idx 0 there are 2 offsets and 3 sizes"
     )
-    yield (_test_validation, pipeline_negative_offset, "Input chunks offsets must be non-negative")
-    yield (
-        _test_validation,
-        pipeline_chunk_exceeding_sample,
-        "Input chunk cannot exceed the sample size",
-    )
-    yield (
-        _test_validation,
+    _test_validation(pipeline_negative_offset, "Input chunks offsets must be non-negative")
+    _test_validation(pipeline_chunk_exceeding_sample, "Input chunk cannot exceed the sample size")
+    _test_validation(
         pipeline_sequence_axis_no_name,
         'The `sequence_axis_name` must be a single character, got ""',
     )
-    yield (
-        _test_validation,
+    _test_validation(
         pipeline_sequence_axis_too_long_name,
         'The `sequence_axis_name` must be a single character, got "AB"',
     )

@@ -17,6 +17,7 @@ import nvidia.dali.fn as fn
 import nvidia.dali.types as types
 from random import shuffle
 import numpy as np
+from nose2.tools import params
 from test_utils import as_array
 import os
 import cv2
@@ -131,12 +132,18 @@ def _testimpl_jpeg_compression_distortion(batch_size, device, quality, layout):
                 _compare_to_cv_distortion(in_tensor, out_tensor, q, (i, 0))
 
 
-def test_jpeg_compression_distortion():
-    for batch_size in [1, 15]:
-        for device in ["cpu", "gpu"]:
-            for quality in [2, None, 50]:
-                for layout in ["HWC", "FHWC"]:
-                    yield _testimpl_jpeg_compression_distortion, batch_size, device, quality, layout
+_jpeg_compression_distortion_test_cases = [
+    (batch_size, device, quality, layout)
+    for batch_size in [1, 15]
+    for device in ["cpu", "gpu"]
+    for quality in [2, None, 50]
+    for layout in ["HWC", "FHWC"]
+]
+
+
+@params(*_jpeg_compression_distortion_test_cases)
+def test_jpeg_compression_distortion(batch_size, device, quality, layout):
+    _testimpl_jpeg_compression_distortion(batch_size, device, quality, layout)
 
 
 def _testimpl_jpeg_compression_distortion_sequence(batch_size, device, seq_len, quality):
@@ -170,15 +177,14 @@ def _testimpl_jpeg_compression_distortion_sequence(batch_size, device, seq_len, 
                 np.testing.assert_array_equal(out_data1, out_data2)
 
 
-def test_jpeg_compression_distortion_sequence():
-    seq_len = 10
-    for batch_size in [1, 15]:
-        for device in ["cpu", "gpu"]:
-            for quality in [2, None, 50]:
-                yield (
-                    _testimpl_jpeg_compression_distortion_sequence,
-                    batch_size,
-                    device,
-                    seq_len,
-                    quality,
-                )
+_jpeg_compression_distortion_sequence_test_cases = [
+    (batch_size, device, 10, quality)
+    for batch_size in [1, 15]
+    for device in ["cpu", "gpu"]
+    for quality in [2, None, 50]
+]
+
+
+@params(*_jpeg_compression_distortion_sequence_test_cases)
+def test_jpeg_compression_distortion_sequence(batch_size, device, seq_len, quality):
+    _testimpl_jpeg_compression_distortion_sequence(batch_size, device, seq_len, quality)

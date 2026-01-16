@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2017-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -11,12 +11,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from functools import partial
-
 from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.ops as ops
 import nvidia.dali.types as types
 from test_utils import check_batch
+from nose2.tools import params
 from nose_utils import raises
 import numpy as np
 
@@ -136,80 +135,112 @@ def check_one_hot_operator(
     )
 
 
-def test_one_hot_scalar():
-    np.random.seed(42)
-    for device in ["cpu", "gpu"]:
-        for i in range(10):
-            yield partial(check_one_hot_operator, axis_name="O"), random_scalars_batch, device
+_one_hot_scalar_test_cases = [
+    (random_scalars_batch, device) for device in ["cpu", "gpu"] for i in range(10)
+]
 
 
-def test_one_hot_legacy():
+@params(*_one_hot_scalar_test_cases)
+def test_one_hot_scalar(source, device):
     np.random.seed(42)
+    check_one_hot_operator(source, device, axis_name="O")
+
+
+def _generate_one_hot_legacy_test_cases():
+    cases = []
     for device in ["cpu", "gpu"]:
         for j in range(1, 5):  # test 1..4 levels of nested 'multi-dimensional' scalars
             layout = get_initial_layout(j)
-
-            class RandomScalarLikeTensors:
-                def __init__(self, i):
-                    self.i = i
-
-                def __call__(self):
-                    return random_scalar_like_tensors_batch(self.i)
-
             for i in range(5):
-                yield partial(
-                    check_one_hot_operator,
-                    axis=None,
-                    axis_name="O",
-                    expected_output_dim=1,
-                    initial_layout=layout,
-                ), RandomScalarLikeTensors(j), device
+                cases.append((j, layout, device))
+    return cases
 
 
-def test_one_hot():
+_one_hot_legacy_test_cases = _generate_one_hot_legacy_test_cases()
+
+
+@params(*_one_hot_legacy_test_cases)
+def test_one_hot_legacy(nested_level, layout, device):
     np.random.seed(42)
-    for device in ["cpu", "gpu"]:
-        layout = get_initial_layout(3)
-        for i in range(10):
-            for axis in [-1, 0, 1, 2, 3]:
-                yield partial(
-                    check_one_hot_operator, axis_name="O", initial_layout=layout
-                ), random_3d_tensors_batch, device, axis
+
+    class RandomScalarLikeTensors:
+        def __init__(self, i):
+            self.i = i
+
+        def __call__(self):
+            return random_scalar_like_tensors_batch(self.i)
+
+    check_one_hot_operator(
+        RandomScalarLikeTensors(nested_level),
+        device,
+        axis=None,
+        axis_name="O",
+        expected_output_dim=1,
+        initial_layout=layout,
+    )
 
 
-def test_multi_dim_one_hot_no_initial_layout():
-    np.random.seed(42)
-    for axis in [-1, 0, 1, 2, 3]:
-        yield partial(
-            check_one_hot_operator, initial_layout=None
-        ), random_3d_tensors_batch, "cpu", axis
+_one_hot_test_cases = [
+    (device, axis) for device in ["cpu", "gpu"] for i in range(10) for axis in [-1, 0, 1, 2, 3]
+]
 
 
-def test_one_hot_reset_layout():
-    np.random.seed(42)
-    layout = get_initial_layout(3)
-    for axis in [-1, 0, 1, 2, 3]:
-        yield partial(
-            check_one_hot_operator, initial_layout=layout
-        ), random_3d_tensors_batch, "cpu", axis
-
-    yield check_one_hot_operator, random_scalars_batch
-
-    def random_scalar_like_tensors():
-        return random_scalar_like_tensors_batch(3)
-
-    yield partial(
-        check_one_hot_operator, axis=None, expected_output_dim=1, initial_layout=layout
-    ), random_scalar_like_tensors, "cpu"
-
-
-def test_one_hot_custom_layout_axis_name():
+@params(*_one_hot_test_cases)
+def test_one_hot(device, axis):
     np.random.seed(42)
     layout = get_initial_layout(3)
-    for axis_name in "Xx01":
-        yield partial(
-            check_one_hot_operator, axis=-1, initial_layout=layout, axis_name=axis_name
-        ), random_3d_tensors_batch
+    check_one_hot_operator(
+        random_3d_tensors_batch, device, axis, axis_name="O", initial_layout=layout
+    )
+
+
+@params(*[-1, 0, 1, 2, 3])
+def test_multi_dim_one_hot_no_initial_layout(axis):
+    np.random.seed(42)
+    check_one_hot_operator(random_3d_tensors_batch, "cpu", axis, initial_layout=None)
+
+
+def _generate_one_hot_reset_layout_test_cases():
+    layout = get_initial_layout(3)
+    cases = []
+    for axis in [-1, 0, 1, 2, 3]:
+        cases.append(("3d", layout, axis, "cpu"))
+    cases.append(("scalar", None, None, "cpu"))
+    cases.append(("scalar_like", layout, None, "cpu"))
+    return cases
+
+
+_one_hot_reset_layout_test_cases = _generate_one_hot_reset_layout_test_cases()
+
+
+@params(*_one_hot_reset_layout_test_cases)
+def test_one_hot_reset_layout(test_type, layout, axis, device):
+    np.random.seed(42)
+    if test_type == "3d":
+        check_one_hot_operator(random_3d_tensors_batch, device, axis, initial_layout=layout)
+    elif test_type == "scalar":
+        check_one_hot_operator(random_scalars_batch)
+    elif test_type == "scalar_like":
+
+        def random_scalar_like_tensors():
+            return random_scalar_like_tensors_batch(3)
+
+        check_one_hot_operator(
+            random_scalar_like_tensors,
+            device,
+            axis=None,
+            expected_output_dim=1,
+            initial_layout=layout,
+        )
+
+
+@params(*list("Xx01"))
+def test_one_hot_custom_layout_axis_name(axis_name):
+    np.random.seed(42)
+    layout = get_initial_layout(3)
+    check_one_hot_operator(
+        random_3d_tensors_batch, axis=-1, initial_layout=layout, axis_name=axis_name
+    )
 
 
 @raises(RuntimeError, glob="Unsupported axis_name value")

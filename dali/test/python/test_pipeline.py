@@ -36,6 +36,7 @@ from test_utils import (
     get_dali_extra_path,
     RandomDataIterator,
 )
+from nose2.tools import params
 from nose_utils import raises, assert_raises, assert_warns, SkipTest
 
 test_data_root = get_dali_extra_path()
@@ -323,7 +324,8 @@ def test_cropmirrornormalize_layout():
         assert np.sum(np.abs(np.transpose(t_nchw, (1, 2, 0)) - t_nhwc)) == 0
 
 
-def test_cropmirrornormalize_pad():
+@params(types.NCHW, types.NHWC)
+def test_cropmirrornormalize_pad(layout):
     batch_size = 128
 
     class HybridPipe(Pipeline):
@@ -359,32 +361,32 @@ def test_cropmirrornormalize_pad():
             output = self.cmnp(images.gpu())
             return (output, output_pad)
 
-    for layout in [types.NCHW, types.NHWC]:
-        pipe = HybridPipe(layout, batch_size=batch_size, num_threads=1, device_id=0, num_gpus=1)
-        out = pipe.run()
-        assert out[0].is_dense_tensor()
-        assert out[1].is_dense_tensor()
-        shape = out[0].as_tensor().shape()
-        shape_pad = out[1].as_tensor().shape()
-        assert shape[0] == shape_pad[0]
-        a = out[0].as_cpu()
-        a_pad = out[1].as_cpu()
-        for i in range(batch_size):
-            t = a.at(i)
-            t_pad = a_pad.at(i)
-            if layout == types.NCHW:
-                assert t.shape == (3, 224, 224)
-                assert t_pad.shape == (4, 224, 224)
-                assert np.sum(np.abs(t - t_pad[:3, :, :])) == 0
-                assert np.sum(np.abs(t_pad[3, :, :])) == 0
-            else:
-                assert t.shape == (224, 224, 3)
-                assert t_pad.shape == (224, 224, 4)
-                assert np.sum(np.abs(t - t_pad[:, :, :3])) == 0
-                assert np.sum(np.abs(t_pad[:, :, 3])) == 0
+    pipe = HybridPipe(layout, batch_size=batch_size, num_threads=1, device_id=0, num_gpus=1)
+    out = pipe.run()
+    assert out[0].is_dense_tensor()
+    assert out[1].is_dense_tensor()
+    shape = out[0].as_tensor().shape()
+    shape_pad = out[1].as_tensor().shape()
+    assert shape[0] == shape_pad[0]
+    a = out[0].as_cpu()
+    a_pad = out[1].as_cpu()
+    for i in range(batch_size):
+        t = a.at(i)
+        t_pad = a_pad.at(i)
+        if layout == types.NCHW:
+            assert t.shape == (3, 224, 224)
+            assert t_pad.shape == (4, 224, 224)
+            assert np.sum(np.abs(t - t_pad[:3, :, :])) == 0
+            assert np.sum(np.abs(t_pad[3, :, :])) == 0
+        else:
+            assert t.shape == (224, 224, 3)
+            assert t_pad.shape == (224, 224, 4)
+            assert np.sum(np.abs(t - t_pad[:, :, :3])) == 0
+            assert np.sum(np.abs(t_pad[:, :, 3])) == 0
 
 
-def test_cropmirrornormalize_multiple_inputs():
+@params("cpu", "gpu")
+def test_cropmirrornormalize_multiple_inputs(device):
     batch_size = 13
 
     class HybridPipe(Pipeline):
@@ -418,14 +420,13 @@ def test_cropmirrornormalize_multiple_inputs():
             output4 = self.cmnp([images2_device])
             return (output1, output2, output3, output4)
 
-    for device in ["cpu", "gpu"]:
-        pipe = HybridPipe(batch_size=batch_size, device=device)
-        for _ in range(5):
-            out1, out2, out3, out4 = pipe.run()
-            outs = [out.as_cpu() if device == "gpu" else out for out in [out1, out2, out3, out4]]
-            check_batch(outs[0], outs[1], batch_size)
-            check_batch(outs[0], outs[2], batch_size)
-            check_batch(outs[1], outs[3], batch_size)
+    pipe = HybridPipe(batch_size=batch_size, device=device)
+    for _ in range(5):
+        out1, out2, out3, out4 = pipe.run()
+        outs = [out.as_cpu() if device == "gpu" else out for out in [out1, out2, out3, out4]]
+        check_batch(outs[0], outs[1], batch_size)
+        check_batch(outs[0], outs[2], batch_size)
+        check_batch(outs[1], outs[3], batch_size)
 
 
 def test_seed():
@@ -988,57 +989,56 @@ class CachedPipeline(Pipeline):
         return (images, labels)
 
 
-def test_nvjpeg_cached_batch_copy_pipelines():
+_reader_types_all = [
+    "readers.MXNet",
+    "readers.Caffe",
+    "readers.Caffe2",
+    "readers.File",
+    "readers.TFRecord",
+    "readers.Webdataset",
+]
+
+
+@params(*_reader_types_all)
+def test_nvjpeg_cached_batch_copy_pipelines(reader_type):
     batch_size = 26
-    for reader_type in [
-        "readers.MXNet",
-        "readers.Caffe",
-        "readers.Caffe2",
-        "readers.File",
-        "readers.TFRecord",
-        "readers.Webdataset",
-    ]:
-        compare_pipelines(
-            CachedPipeline(reader_type, batch_size, is_cached=True, is_cached_batch_copy=True),
-            CachedPipeline(reader_type, batch_size, is_cached=True, is_cached_batch_copy=False),
-            batch_size=batch_size,
-            N_iterations=20,
-        )
+    compare_pipelines(
+        CachedPipeline(reader_type, batch_size, is_cached=True, is_cached_batch_copy=True),
+        CachedPipeline(reader_type, batch_size, is_cached=True, is_cached_batch_copy=False),
+        batch_size=batch_size,
+        N_iterations=20,
+    )
 
 
-def test_nvjpeg_cached_pipelines():
+@params(*_reader_types_all)
+def test_nvjpeg_cached_pipelines(reader_type):
     batch_size = 26
-    for reader_type in [
-        "readers.MXNet",
-        "readers.Caffe",
-        "readers.Caffe2",
-        "readers.File",
-        "readers.TFRecord",
-        "readers.Webdataset",
-    ]:
-        compare_pipelines(
-            CachedPipeline(reader_type, batch_size, is_cached=False),
-            CachedPipeline(reader_type, batch_size, is_cached=True),
-            batch_size=batch_size,
-            N_iterations=20,
-        )
+    compare_pipelines(
+        CachedPipeline(reader_type, batch_size, is_cached=False),
+        CachedPipeline(reader_type, batch_size, is_cached=True),
+        batch_size=batch_size,
+        N_iterations=20,
+    )
 
 
-def test_skip_cached_images():
+_reader_types_skip_cached = [
+    "readers.MXNet",
+    "readers.Caffe",
+    "readers.Caffe2",
+    "readers.File",
+    "readers.Webdataset",
+]
+
+
+@params(*_reader_types_skip_cached)
+def test_skip_cached_images(reader_type):
     batch_size = 1
-    for reader_type in [
-        "readers.MXNet",
-        "readers.Caffe",
-        "readers.Caffe2",
-        "readers.File",
-        "readers.Webdataset",
-    ]:
-        compare_pipelines(
-            CachedPipeline(reader_type, batch_size, is_cached=False),
-            CachedPipeline(reader_type, batch_size, is_cached=True, skip_cached_images=True),
-            batch_size=batch_size,
-            N_iterations=100,
-        )
+    compare_pipelines(
+        CachedPipeline(reader_type, batch_size, is_cached=False),
+        CachedPipeline(reader_type, batch_size, is_cached=True, skip_cached_images=True),
+        batch_size=batch_size,
+        N_iterations=100,
+    )
 
 
 def test_caffe_no_label():
@@ -1311,7 +1311,17 @@ class DupPipeline(Pipeline):
         return images, images_2, images, decoded_images
 
 
-def check_duplicated_outs_pipeline(first_device, second_device):
+_duplicated_outs_pipeline_test_cases = [
+    ("cpu", None),
+    ("cpu", "cpu"),
+    ("cpu", "gpu"),
+    ("mixed", None),
+    ("mixed", "gpu"),
+]
+
+
+@params(*_duplicated_outs_pipeline_test_cases)
+def test_duplicated_outs_pipeline(first_device, second_device):
     batch_size = 5
     pipe = DupPipeline(
         batch_size=batch_size,
@@ -1332,18 +1342,8 @@ def check_duplicated_outs_pipeline(first_device, second_device):
         np.testing.assert_array_equal(out1, out3)
 
 
-def test_duplicated_outs_pipeline():
-    for first_device, second_device in [
-        ("cpu", None),
-        ("cpu", "cpu"),
-        ("cpu", "gpu"),
-        ("mixed", None),
-        ("mixed", "gpu"),
-    ]:
-        yield check_duplicated_outs_pipeline, first_device, second_device
-
-
-def check_serialized_outs_duplicated_pipeline(first_device, second_device):
+@params(*_duplicated_outs_pipeline_test_cases)
+def test_serialized_outs_duplicated_pipeline(first_device, second_device):
     batch_size = 5
     pipe = DupPipeline(
         batch_size=batch_size,
@@ -1368,18 +1368,10 @@ def check_serialized_outs_duplicated_pipeline(first_device, second_device):
         np.testing.assert_array_equal(out1, out3)
 
 
-def test_serialized_outs_duplicated_pipeline():
-    for first_device, second_device in [
-        ("cpu", None),
-        ("cpu", "cpu"),
-        ("cpu", "gpu"),
-        ("mixed", None),
-        ("mixed", "gpu"),
-    ]:
-        yield check_serialized_outs_duplicated_pipeline, first_device, second_device
-
-
-def check_duplicated_outs_cpu_to_gpu(device):
+@params("cpu", "gpu")
+def test_duplicated_outs_cpu_op_to_gpu(device):
+    # check if it is possible to return outputs from CPU op that goes directly to the GPU op without
+    # MakeContiguous as a CPU output from the pipeline
     class SliceArgsIterator(object):
         def __init__(
             self,
@@ -1562,13 +1554,6 @@ def check_duplicated_outs_cpu_to_gpu(device):
     assert isinstance(out[0][0], dali.backend_impl.TensorGPU) or device == "cpu"
     assert not isinstance(out[1][0], dali.backend_impl.TensorGPU)
     assert not isinstance(out[2][0], dali.backend_impl.TensorGPU)
-
-
-def test_duplicated_outs_cpu_op_to_gpu():
-    # check if it is possible to return outputs from CPU op that goes directly to the GPU op without
-    # MakeContiguous as a CPU output from the pipeline
-    for device in ["cpu", "gpu"]:
-        yield check_duplicated_outs_cpu_to_gpu, device
 
 
 def test_ref_count():
@@ -2010,13 +1995,13 @@ def test_one_output_dtype_ndim():
     ]
 
     for pipe_under_test, dtype, ndim in correct_test_packages:
-        yield check_dtype_ndim, pipe_under_test, dtype, ndim, 1
+        check_dtype_ndim(pipe_under_test, dtype, ndim, 1)
     for pipe_under_test, dtype, ndim in test_ndim_packages_with_raise:
-        yield check_ndim_with_raise, pipe_under_test, dtype, ndim, 1
+        check_ndim_with_raise(pipe_under_test, dtype, ndim, 1)
     for pipe_under_test, dtype, ndim in test_dtype_packages_with_raise:
-        yield check_dtype_with_raise, pipe_under_test, dtype, ndim, 1
+        check_dtype_with_raise(pipe_under_test, dtype, ndim, 1)
     for pipe_under_test, dtype, ndim in test_packages_length_mismatch:
-        yield check_length_error, pipe_under_test, dtype, ndim, 1
+        check_length_error(pipe_under_test, dtype, ndim, 1)
 
 
 def test_double_output_dtype_ndim():
@@ -2077,13 +2062,13 @@ def test_double_output_dtype_ndim():
     ]
 
     for pipe_under_test, dtype, ndim in correct_test_packages:
-        yield check_dtype_ndim, pipe_under_test, dtype, ndim, 2
+        check_dtype_ndim(pipe_under_test, dtype, ndim, 2)
     for pipe_under_test, dtype, ndim in test_ndim_packages_with_raise:
-        yield check_ndim_with_raise, pipe_under_test, dtype, ndim, 2
+        check_ndim_with_raise(pipe_under_test, dtype, ndim, 2)
     for pipe_under_test, dtype, ndim in test_dtype_packages_with_raise:
-        yield check_dtype_with_raise, pipe_under_test, dtype, ndim, 2
+        check_dtype_with_raise(pipe_under_test, dtype, ndim, 2)
     for pipe_under_test, dtype, ndim in test_packages_length_mismatch:
-        yield check_length_error, pipe_under_test, dtype, ndim, 2
+        check_length_error(pipe_under_test, dtype, ndim, 2)
     with assert_raises(ValueError, glob="*must be non-negative*"):
         create_test_package(output_ndim=-1)
         create_test_package(output_ndim=-2137)
@@ -2484,23 +2469,26 @@ def test_device_auto():
     assert np.array(o.as_cpu()[0]) == 42
 
 
-def test_executor_flags():
+_executor_flags_test_cases = [
+    (dali.StreamPolicy.PER_BACKEND, dali.OperatorConcurrency.BACKEND),
+    (dali.StreamPolicy.PER_OPERATOR, dali.OperatorConcurrency.NONE),
+    (dali.StreamPolicy.SINGLE, dali.OperatorConcurrency.FULL),
+]
+
+
+@params(*_executor_flags_test_cases)
+def test_executor_flags(stream_policy, concurrency):
     @pipeline_def(batch_size=1, num_threads=1)
     def dummy():
         return types.Constant(42, device="cpu")
 
-    for stream_policy, concurrency in [
-        (dali.StreamPolicy.PER_BACKEND, dali.OperatorConcurrency.BACKEND),
-        (dali.StreamPolicy.PER_OPERATOR, dali.OperatorConcurrency.NONE),
-        (dali.StreamPolicy.SINGLE, dali.OperatorConcurrency.FULL),
-    ]:
-        p = dummy(stream_policy=stream_policy, concurrency=concurrency)
-        # check that the properties are set correctly
-        assert p.stream_policy == stream_policy
-        assert p.concurrency == concurrency
+    p = dummy(stream_policy=stream_policy, concurrency=concurrency)
+    # check that the properties are set correctly
+    assert p.stream_policy == stream_policy
+    assert p.concurrency == concurrency
 
-        # check that the flags survive serialization
-        s = p.serialize()
-        p2 = Pipeline.deserialize(s)
-        assert p2.stream_policy == stream_policy
-        assert p2.concurrency == concurrency
+    # check that the flags survive serialization
+    s = p.serialize()
+    p2 = Pipeline.deserialize(s)
+    assert p2.stream_policy == stream_policy
+    assert p2.concurrency == concurrency

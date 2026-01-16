@@ -16,6 +16,7 @@ import nvidia.dali.fn as fn
 from nvidia.dali.pipeline import Pipeline
 import numpy as np
 from test_utils import check_batch
+from nose2.tools import params
 from nose_utils import raises
 
 
@@ -39,10 +40,16 @@ def _test_permutation_generator(allow_repetitions, no_fixed):
             assert all(x != i for i, x in enumerate(idxs))
 
 
-def test_permutation_generator():
-    for allow_repetitions in [None, False, True]:
-        for no_fixed in [None, False, True]:
-            yield _test_permutation_generator, allow_repetitions, no_fixed
+_permutation_generator_test_cases = [
+    (allow_repetitions, no_fixed)
+    for allow_repetitions in [None, False, True]
+    for no_fixed in [None, False, True]
+]
+
+
+@params(*_permutation_generator_test_cases)
+def test_permutation_generator(allow_repetitions, no_fixed):
+    _test_permutation_generator(allow_repetitions, no_fixed)
 
 
 def random_sample():
@@ -71,10 +78,16 @@ def _test_permute_batch(device, type):
         check_batch(permuted, ref, len(ref), 0, 0, "abc")
 
 
-def test_permute_batch():
-    for type in [np.uint8, np.int16, np.uint32, np.int64, np.float32]:
-        for device in ["cpu", "gpu"]:
-            yield _test_permute_batch, device, type
+_permute_batch_test_cases = [
+    (device, type)
+    for type in [np.uint8, np.int16, np.uint32, np.int64, np.float32]
+    for device in ["cpu", "gpu"]
+]
+
+
+@params(*_permute_batch_test_cases)
+def test_permute_batch(device, type):
+    _test_permute_batch(device, type)
 
 
 def _test_permute_batch_fixed(device):
@@ -93,9 +106,9 @@ def _test_permute_batch_fixed(device):
         check_batch(permuted, ref, len(ref), 0, 0, "abc")
 
 
-def test_permute_batch_fixed():
-    for device in ["cpu", "gpu"]:
-        yield _test_permute_batch_fixed, device
+@params("cpu", "gpu")
+def test_permute_batch_fixed(device):
+    _test_permute_batch_fixed(device)
 
 
 @raises(
@@ -113,6 +126,6 @@ def _test_permute_batch_out_of_range(device):
     pipe.run()
 
 
-def test_permute_batch_out_of_range():
-    for device in ["cpu", "gpu"]:
-        yield _test_permute_batch_out_of_range, device
+@params("cpu", "gpu")
+def test_permute_batch_out_of_range(device):
+    _test_permute_batch_out_of_range(device)

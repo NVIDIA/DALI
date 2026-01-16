@@ -17,6 +17,7 @@ import nvidia.dali.fn as fn
 import numpy as np
 import math
 from test_utils import check_batch
+from nose2.tools import params
 
 np.random.seed(1234)
 
@@ -186,7 +187,9 @@ def _run_test_stack(num_inputs, layout, ndim, axis, axis_name):
         check_batch(o_gpu, ref, batch_size, eps=0, expected_layout=ref_layout)
 
 
-def test_cat():
+def _generate_test_cat_params():
+    """Generate all parameter combinations for test_cat"""
+    params_list = []
     for num_inputs in [1, 2, 3, 100]:
         for layout, ndim in [
             (None, 0),
@@ -199,10 +202,18 @@ def test_cat():
         ]:
             for axis in range(-ndim, ndim):
                 axis_name = layout[axis] if layout else None
-                yield _run_test_cat, num_inputs, layout, ndim, axis, axis_name
+                params_list.append((num_inputs, layout, ndim, axis, axis_name))
+    return params_list
 
 
-def test_stack():
+@params(*_generate_test_cat_params())
+def test_cat(num_inputs, layout, ndim, axis, axis_name):
+    _run_test_cat(num_inputs, layout, ndim, axis, axis_name)
+
+
+def _generate_test_stack_params():
+    """Generate all parameter combinations for test_stack"""
+    params_list = []
     for num_inputs in [1, 2, 3, 100]:
         for layout, ndim in [
             (None, 0),
@@ -216,4 +227,10 @@ def test_stack():
             for axis in range(-ndim, ndim + 1):
                 axis_names = [None] if layout is None and ndim > 0 else [None, "C"]
                 for axis_name in axis_names:
-                    yield _run_test_stack, num_inputs, layout, ndim, axis, axis_name
+                    params_list.append((num_inputs, layout, ndim, axis, axis_name))
+    return params_list
+
+
+@params(*_generate_test_stack_params())
+def test_stack(num_inputs, layout, ndim, axis, axis_name):
+    _run_test_stack(num_inputs, layout, ndim, axis, axis_name)

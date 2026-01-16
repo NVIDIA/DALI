@@ -16,6 +16,7 @@ import nvidia.dali as dali
 from nvidia.dali.pipeline import Pipeline
 import numpy as np
 import scipy.stats as st
+from nose2.tools import params, cartesian_params
 
 
 def check_uniform_default(
@@ -47,21 +48,17 @@ def check_uniform_default(
         assert np.mean(pvs) > 0.05, f"data is not a uniform distribution. pv = {np.mean(pvs)}"
 
 
-def test_uniform_continuous():
-    batch_size = 4
-    shape = [100000]
-    niter = 3
-    for device in ["cpu", "gpu"]:
-        for val_range in [None, (200.0, 400.0)]:
-            yield check_uniform_default, device, batch_size, shape, val_range, niter
+@cartesian_params(
+    ["cpu", "gpu"],  # device
+    [None, (200.0, 400.0)],  # val_range
+)
+def test_uniform_continuous(device, val_range):
+    check_uniform_default(device, 4, [100000], val_range, 3)
 
 
-def test_uniform_large_batch():
-    batch_size = 2000
-    shape = [2000]
-    niter = 2
-    for device in ["cpu", "gpu"]:
-        yield check_uniform_default, device, batch_size, shape, [-1, 1], niter, 0.45
+@params("cpu", "gpu")
+def test_uniform_large_batch(device):
+    check_uniform_default(device, 2000, [2000], [-1, 1], 2, 0.45)
 
 
 def check_uniform_continuous_next_after(device="cpu", batch_size=32, shape=[1e5], niter=3):
@@ -79,12 +76,9 @@ def check_uniform_continuous_next_after(device="cpu", batch_size=32, shape=[1e5]
             assert (val_range[0] == data).all(), f"{data} is outside of requested range"
 
 
-def test_uniform_continuous_next_after():
-    batch_size = 4
-    shape = [100000]
-    niter = 3
-    for device in ["cpu", "gpu"]:
-        yield check_uniform_continuous_next_after, device, batch_size, shape, niter
+@params("cpu", "gpu")
+def test_uniform_continuous_next_after(device):
+    check_uniform_continuous_next_after(device, 4, [100000], 3)
 
 
 def check_uniform_discrete(device="cpu", batch_size=32, shape=[1e5], values=None, niter=10):
@@ -108,13 +102,12 @@ def check_uniform_discrete(device="cpu", batch_size=32, shape=[1e5], values=None
         assert np.mean(pvs) > 0.05, f"data is not a uniform distribution. pv = {np.mean(pvs)}"
 
 
-def test_uniform_discrete():
-    batch_size = 4
-    shape = [10000]
-    niter = 3
-    for device in ["cpu", "gpu"]:
-        for values in [(0, 1, 2, 3, 4, 5), (200, 400, 5000, 1)]:
-            yield check_uniform_discrete, device, batch_size, shape, values, niter
+@cartesian_params(
+    ["cpu", "gpu"],  # device
+    [(0, 1, 2, 3, 4, 5), (200, 400, 5000, 1)],  # values
+)
+def test_uniform_discrete(device, values):
+    check_uniform_discrete(device, 4, [10000], values, 3)
 
 
 def check_uniform_with_random_state(device, batch_size, shape, niter):
@@ -171,9 +164,6 @@ def check_uniform_with_random_state(device, batch_size, shape, niter):
                 assert np.array_equal(data2_b, outputs[0][3][i])
 
 
-def test_uniform_random_state():
-    batch_size = 4
-    shape = [1000]
-    niter = 4
-    for device in ["cpu", "gpu"]:
-        yield check_uniform_with_random_state, device, batch_size, shape, niter
+@params("cpu", "gpu")
+def test_uniform_random_state(device):
+    check_uniform_with_random_state(device, 4, [1000], 4)

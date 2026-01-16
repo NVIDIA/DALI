@@ -17,6 +17,7 @@ import numpy as np
 import nvidia.dali as dali
 import nvidia.dali.fn as fn
 
+from nose2.tools import params
 from test_utils import check_batch, dali_type
 from sequences_test_utils import ArgData, ArgDesc, sequence_suite_helper, ArgCb
 
@@ -64,7 +65,53 @@ def get_data_source(batch_size, in_dim, type):
     return lambda: make_data_batch(batch_size, in_dim, type)
 
 
-def _run_test(device, batch_size, out_dim, in_dim, in_dtype, out_dtype, M_kind, T_kind):
+def _generate_coord_transform_test_cases():
+    cases = []
+    # First batch
+    for device in ["cpu", "gpu"]:
+        for M_kind in [None, "vector", "scalar", "input", "scalar input"]:
+            for T_kind in [None, "vector", "scalar", "input", "scalar input"]:
+                for batch_size in [1, 3]:
+                    cases.append((device, batch_size, 3, 3, np.float32, np.float32, M_kind, T_kind))
+
+    # Second batch
+    for device in ["cpu", "gpu"]:
+        for in_dtype in [np.uint8, np.uint16, np.int16, np.int32, np.float32]:
+            for out_dtype in set([in_dtype, np.float32]):
+                for batch_size in [1, 8]:
+                    cases.append((device, batch_size, 3, 3, in_dtype, out_dtype, "input", "input"))
+
+    # Third batch
+    for device in ["cpu", "gpu"]:
+        for M_kind in ["input", "vector", None]:
+            for in_dim in [1, 2, 3, 4, 5, 6]:
+                if M_kind == "vector" or M_kind == "input":
+                    out_dims = [1, 2, 3, 4, 5, 6]
+                else:
+                    out_dims = [in_dim]
+                for out_dim in out_dims:
+                    cases.append(
+                        (device, 2, out_dim, in_dim, np.float32, np.float32, M_kind, "vector")
+                    )
+
+    # Fourth batch
+    for device in ["cpu", "gpu"]:
+        for MT_kind in ["vector", "input", "scalar"]:
+            for in_dim in [1, 2, 3, 4, 5, 6]:
+                if MT_kind == "vector" or MT_kind == "input":
+                    out_dims = [1, 2, 3, 4, 5, 6]
+                else:
+                    out_dims = [in_dim]
+                for out_dim in out_dims:
+                    cases.append(
+                        (device, 2, out_dim, in_dim, np.float32, np.float32, MT_kind, "fused")
+                    )
+
+    return cases
+
+
+@params(*_generate_coord_transform_test_cases())
+def test_all(device, batch_size, out_dim, in_dim, in_dtype, out_dtype, M_kind, T_kind):
     pipe = dali.pipeline.Pipeline(batch_size=batch_size, num_threads=4, device_id=0, seed=1234)
     with pipe:
         X = fn.external_source(
@@ -142,80 +189,6 @@ def _run_test(device, batch_size, out_dim, in_dim, in_dtype, out_dtype, M_kind, 
         check_batch(outputs[1], ref, batch_size, eps, eps, expected_layout="NX")
 
 
-def test_all():
-    for device in ["cpu", "gpu"]:
-        for M_kind in [None, "vector", "scalar", "input", "scalar input"]:
-            for T_kind in [None, "vector", "scalar", "input", "scalar input"]:
-                for batch_size in [1, 3]:
-                    yield (
-                        _run_test,
-                        device,
-                        batch_size,
-                        3,
-                        3,
-                        np.float32,
-                        np.float32,
-                        M_kind,
-                        T_kind,
-                    )
-
-    for device in ["cpu", "gpu"]:
-        for in_dtype in [np.uint8, np.uint16, np.int16, np.int32, np.float32]:
-            for out_dtype in set([in_dtype, np.float32]):
-                for batch_size in [1, 8]:
-                    yield (
-                        _run_test,
-                        device,
-                        batch_size,
-                        3,
-                        3,
-                        in_dtype,
-                        out_dtype,
-                        "input",
-                        "input",
-                    )
-
-    for device in ["cpu", "gpu"]:
-        for M_kind in ["input", "vector", None]:
-            for in_dim in [1, 2, 3, 4, 5, 6]:
-                if M_kind == "vector" or M_kind == "input":
-                    out_dims = [1, 2, 3, 4, 5, 6]
-                else:
-                    out_dims = [in_dim]
-                for out_dim in out_dims:
-                    yield (
-                        _run_test,
-                        device,
-                        2,
-                        out_dim,
-                        in_dim,
-                        np.float32,
-                        np.float32,
-                        M_kind,
-                        "vector",
-                    )
-
-    for device in ["cpu", "gpu"]:
-        for MT_kind in ["vector", "input", "scalar"]:
-            for in_dim in [1, 2, 3, 4, 5, 6]:
-                if MT_kind == "vector" or MT_kind == "input":
-                    out_dims = [1, 2, 3, 4, 5, 6]
-                else:
-                    out_dims = [in_dim]
-                for out_dim in out_dims:
-                    yield (
-                        _run_test,
-                        device,
-                        2,
-                        out_dim,
-                        in_dim,
-                        np.float32,
-                        np.float32,
-                        MT_kind,
-                        "fused",
-                    )
-
-
 def _test_empty_input(device):
     pipe = dali.pipeline.Pipeline(batch_size=2, num_threads=4, device_id=0, seed=1234)
     with pipe:
@@ -231,9 +204,9 @@ def _test_empty_input(device):
         assert o[0].at(0).size == 0
 
 
-def test_empty_input():
-    for device in ["cpu", "gpu"]:
-        yield _test_empty_input, device
+@params("cpu", "gpu")
+def test_empty_input(device):
+    _test_empty_input(device)
 
 
 def test_sequences():
@@ -282,7 +255,7 @@ def test_sequences():
 
     main_input = ArgData(desc=ArgDesc(0, "F", "", "F**"), data=input_seq_data)
 
-    yield from sequence_suite_helper(rng, [main_input], input_cases, num_iters)
+    sequence_suite_helper(rng, [main_input], input_cases, num_iters)
 
     input_broadcast_cases = [
         (fn.coord_transform, {}, [ArgCb(0, lambda _: points(), False, "cpu")], ["cpu"]),
@@ -299,4 +272,4 @@ def test_sequences():
 
     main_input = ArgData(desc=ArgDesc("MT", "F", "", "F**"), data=input_mt_data)
 
-    yield from sequence_suite_helper(rng, [main_input], input_broadcast_cases, num_iters)
+    sequence_suite_helper(rng, [main_input], input_broadcast_cases, num_iters)

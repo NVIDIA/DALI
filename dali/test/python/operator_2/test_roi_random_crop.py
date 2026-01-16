@@ -17,6 +17,7 @@ import nvidia.dali as dali
 import nvidia.dali.fn as fn
 import nvidia.dali.types as types
 import random
+from nose2.tools import cartesian_params
 from nose_utils import assert_raises
 
 np.random.seed(4321)
@@ -164,34 +165,42 @@ def check_roi_random_crop(
                 )
 
 
-def test_roi_random_crop():
+@cartesian_params(
+    [2, 3],  # ndim
+    # (roi_start_min, roi_start_max, roi_extent_min, roi_extent_max, crop_extent_min,
+    # crop_extent_max)
+    [
+        (20, 50, 10, 20, 30, 40),
+        (20, 50, 100, 140, 30, 40),
+        (0, 1, 10, 20, 80, 100),
+    ],
+)
+def test_roi_random_crop(ndim, params_tuple):
     batch_size = 16
     niter = 3
-    for ndim in (2, 3):
-        in_shape_min = 250
-        in_shape_max = 300
-        for (
-            roi_start_min,
-            roi_start_max,
-            roi_extent_min,
-            roi_extent_max,
-            crop_extent_min,
-            crop_extent_max,
-        ) in [(20, 50, 10, 20, 30, 40), (20, 50, 100, 140, 30, 40), (0, 1, 10, 20, 80, 100)]:
-            yield (
-                check_roi_random_crop,
-                ndim,
-                batch_size,
-                roi_start_min,
-                roi_start_max,
-                roi_extent_min,
-                roi_extent_max,
-                crop_extent_min,
-                crop_extent_max,
-                in_shape_min,
-                in_shape_max,
-                niter,
-            )
+    in_shape_min = 250
+    in_shape_max = 300
+    (
+        roi_start_min,
+        roi_start_max,
+        roi_extent_min,
+        roi_extent_max,
+        crop_extent_min,
+        crop_extent_max,
+    ) = params_tuple
+    check_roi_random_crop(
+        ndim,
+        batch_size,
+        roi_start_min,
+        roi_start_max,
+        roi_extent_min,
+        roi_extent_max,
+        crop_extent_min,
+        crop_extent_max,
+        in_shape_min,
+        in_shape_max,
+        niter,
+    )
 
 
 def check_roi_random_crop_error(
@@ -229,8 +238,7 @@ def test_roi_random_crop_error_incompatible_args():
     roi_start = np.array([1, 1])
     roi_shape = np.array([1, 1])
     roi_end = np.array([2, 2])
-    yield (
-        check_roi_random_crop_error,
+    check_roi_random_crop_error(
         np.zeros(in_shape),
         in_shape,
         crop_shape,
@@ -239,8 +247,7 @@ def test_roi_random_crop_error_incompatible_args():
         None,
         "``in_shape`` argument is incompatible with providing an input.",
     )
-    yield (
-        check_roi_random_crop_error,
+    check_roi_random_crop_error(
         np.zeros(in_shape),
         None,
         crop_shape,
@@ -257,8 +264,7 @@ def test_roi_random_crop_error_wrong_args():
     roi_start = np.array([1, 1])
     roi_shape = np.array([1, 1])
     # Negative shape
-    yield (
-        check_roi_random_crop_error,
+    check_roi_random_crop_error(
         None,
         np.array([-4, 4]),
         crop_shape,
@@ -267,8 +273,7 @@ def test_roi_random_crop_error_wrong_args():
         None,
         "Input shape can't be negative.",
     )
-    yield (
-        check_roi_random_crop_error,
+    check_roi_random_crop_error(
         None,
         in_shape,
         np.array([1, -1]),
@@ -278,8 +283,7 @@ def test_roi_random_crop_error_wrong_args():
         "Crop shape can't be negative",
     )
     # Out of bounds ROI
-    yield (
-        check_roi_random_crop_error,
+    check_roi_random_crop_error(
         None,
         in_shape,
         crop_shape,
@@ -288,8 +292,7 @@ def test_roi_random_crop_error_wrong_args():
         None,
         "ROI can't be out of bounds.",
     )
-    yield (
-        check_roi_random_crop_error,
+    check_roi_random_crop_error(
         None,
         in_shape,
         crop_shape,
@@ -298,8 +301,7 @@ def test_roi_random_crop_error_wrong_args():
         None,
         "ROI can't be out of bounds.",
     )
-    yield (
-        check_roi_random_crop_error,
+    check_roi_random_crop_error(
         None,
         in_shape,
         crop_shape,
@@ -309,8 +311,7 @@ def test_roi_random_crop_error_wrong_args():
         "ROI can't be out of bounds.",
     )
     # Out of bounds crop
-    yield (
-        check_roi_random_crop_error,
+    check_roi_random_crop_error(
         None,
         in_shape,
         np.array([10, 10]),

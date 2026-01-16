@@ -18,6 +18,7 @@ import numpy as np
 from functools import partial
 from test_utils import compare_pipelines
 from test_utils import RandomDataIterator
+from nose2.tools import cartesian_params
 from nose_utils import raises
 
 
@@ -93,11 +94,19 @@ class ToDecibelsPythonPipeline(Pipeline):
         self.feed_input(self.data, data)
 
 
-def check_operator_to_decibels_vs_python(
-    device, batch_size, input_shape, multiplier, reference, cutoff_db
-):
-    eii1 = RandomDataIterator(batch_size, shape=input_shape, dtype=np.float32)
-    eii2 = RandomDataIterator(batch_size, shape=input_shape, dtype=np.float32)
+@cartesian_params(
+    ["cpu", "gpu"],  # device
+    [3],  # batch_size
+    [
+        (10.0, None, -80.0, (1, 4096)),
+        (20.0, 1.0, -200.0, (2, 1000)),
+        (20.0, 1e-6, -120.0, (2, 3, 40)),
+    ],  # (multiplier, reference, cutoff_db, shape)
+)
+def test_operator_to_decibels_vs_python(device, batch_size, params_tuple):
+    multiplier, reference, cutoff_db, shape = params_tuple
+    eii1 = RandomDataIterator(batch_size, shape=shape, dtype=np.float32)
+    eii2 = RandomDataIterator(batch_size, shape=shape, dtype=np.float32)
     compare_pipelines(
         ToDecibelsPipeline(
             device,
@@ -119,25 +128,6 @@ def check_operator_to_decibels_vs_python(
         N_iterations=3,
         eps=1e-04,
     )
-
-
-def test_operator_to_decibels_vs_python():
-    for device in ["cpu", "gpu"]:
-        for batch_size in [3]:
-            for multiplier, reference, cutoff_db, shape in [
-                (10.0, None, -80.0, (1, 4096)),
-                (20.0, 1.0, -200.0, (2, 1000)),
-                (20.0, 1e-6, -120.0, (2, 3, 40)),
-            ]:
-                yield (
-                    check_operator_to_decibels_vs_python,
-                    device,
-                    batch_size,
-                    shape,
-                    multiplier,
-                    reference,
-                    cutoff_db,
-                )
 
 
 class NaturalLogarithmPipeline(Pipeline):
@@ -189,7 +179,12 @@ class NLPythonPipeline(NaturalLogarithmPipeline):
         self.log = ops.PythonFunction(function=function)
 
 
-def check_natural_logarithm(device, batch_size, input_shape):
+@cartesian_params(
+    ["cpu", "gpu"],  # device
+    [3],  # batch_size
+    [(1, 4096), (2, 1000), (2, 3, 40)],  # input_shape
+)
+def test_operator_natural_logarithm(device, batch_size, input_shape):
     eii1 = RandomDataIterator(batch_size, shape=input_shape, dtype=np.float32)
     eii2 = RandomDataIterator(batch_size, shape=input_shape, dtype=np.float32)
     compare_pipelines(
@@ -199,14 +194,6 @@ def check_natural_logarithm(device, batch_size, input_shape):
         N_iterations=3,
         eps=1e-04,
     )
-
-
-def test_operator_natural_logarithm():
-    shapes = [(1, 4096), (2, 1000), (2, 3, 40)]
-    batch_size = 3
-    for device in ["cpu", "gpu"]:
-        for sh in shapes:
-            yield check_natural_logarithm, device, batch_size, sh
 
 
 @raises(RuntimeError, glob="`reference` argument can't be zero")

@@ -18,6 +18,7 @@ from nvidia.dali import fn
 from nvidia.dali import tensors
 from nvidia.dali import types
 from nvidia.dali.pipeline.experimental import pipeline_def
+from nose2.tools import params
 from nose_utils import attr, raises, assert_raises
 from test_utils import compare_pipelines, get_dali_extra_path
 
@@ -167,12 +168,12 @@ def test_injection_numpy():
 def test_injection_torch():
     import torch
 
-    yield _test_injection, "cpu", "torch cpu tensor", lambda xs: [
-        torch.tensor(np.array(x), device="cpu") for x in xs
-    ]
-    yield _test_injection, "gpu", "torch gpu tensor", lambda xs: [
-        torch.tensor(np.array(x), device="cuda") for x in xs
-    ]
+    _test_injection(
+        "cpu", "torch cpu tensor", lambda xs: [torch.tensor(np.array(x), device="cpu") for x in xs]
+    )
+    _test_injection(
+        "gpu", "torch gpu tensor", lambda xs: [torch.tensor(np.array(x), device="cuda") for x in xs]
+    )
 
 
 @attr("cupy")
@@ -183,9 +184,9 @@ def test_injection_cupy():
 
 
 def test_injection_dali_types():
-    yield _test_injection, "gpu", "list of TensorGPU", lambda xs: [x._as_gpu() for x in xs]
-    yield _test_injection, "cpu", "TensorListCPU", lambda xs: xs
-    yield _test_injection, "gpu", "TensorListGPU", lambda xs: xs._as_gpu()
+    _test_injection("gpu", "list of TensorGPU", lambda xs: [x._as_gpu() for x in xs])
+    _test_injection("cpu", "TensorListCPU", lambda xs: xs)
+    _test_injection("gpu", "TensorListGPU", lambda xs: xs._as_gpu())
 
 
 @pipeline_def(batch_size=8, num_threads=3, device_id=0, debug=True)
@@ -267,10 +268,14 @@ def _test_external_source_debug(source, batch):
     compare_pipelines(pipe_standard, pipe_debug, 8, n_iters)
 
 
-def test_external_source_debug():
-    for source in [np.random.rand(8, 8, 1), None]:
-        for batch in [True, False]:
-            yield _test_external_source_debug, source, batch
+_external_source_debug_test_cases = [
+    (source, batch) for source in [np.random.rand(8, 8, 1), None] for batch in [True, False]
+]
+
+
+@params(*_external_source_debug_test_cases)
+def test_external_source_debug(source, batch):
+    _test_external_source_debug(source, batch)
 
 
 @pipeline_def(num_threads=3, device_id=0)
@@ -440,9 +445,9 @@ def _test_shape_pipeline(device):
     assert res.shape() == [tuple(im.shape()) for im in res]
 
 
-def test_shape_pipeline():
-    for device in ["cpu", "mixed"]:
-        yield _test_shape_pipeline, device
+@params("cpu", "mixed")
+def test_shape_pipeline(device):
+    _test_shape_pipeline(device)
 
 
 @pipeline_def(batch_size=8, num_threads=3, device_id=0, seed=47, debug=True)
@@ -667,10 +672,9 @@ def _test_es_unused_args(kwargs):
     pipe.run()
 
 
-def test_external_source_unused_args():
-    kwargs_list = [{"parallel": True}, {"foo": 123, "bar": "BAR"}]
-    for kwargs in kwargs_list:
-        yield _test_es_unused_args, kwargs
+@params({"parallel": True}, {"foo": 123, "bar": "BAR"})
+def test_external_source_unused_args(kwargs):
+    _test_es_unused_args(kwargs)
 
 
 @pipeline_def(batch_size=8, num_threads=3, device_id=0, seed=47, debug=True)
@@ -688,7 +692,7 @@ def test_es_device_change():
     cpu_data = np.zeros((8, 1))
     gpu_data = tensors.TensorListCPU(cpu_data)._as_gpu()
     for data, device in zip([gpu_data], ["cpu"]):
-        yield _test_es_device_change, data, device
+        _test_es_device_change(data, device)
 
 
 @pipeline_def(batch_size=8, num_threads=3, device_id=0, seed=47, debug=True)
@@ -705,10 +709,10 @@ def _test_nan_check(values):
 def test_nan_check():
     err_msg = "Argument 'fdata' for operator 'constant' unexpectedly changed value from*"
     for values in [[np.nan, 1], [1, np.nan]]:
-        yield raises(RuntimeError, glob=err_msg)(_test_nan_check), values
+        raises(RuntimeError, glob=err_msg)(_test_nan_check)(values)
 
     for values in [[1, 1], [np.nan, np.nan]]:
-        yield _test_nan_check, values
+        _test_nan_check(values)
 
 
 def test_debug_pipeline_conditionals():
@@ -782,33 +786,61 @@ def test_debug_pipeline_conditional_repeated_op():
     compare_pipelines(pipe_standard, pipe_cond, 8, 5)
 
 
-def test_against_split_merge():
-    for base_debug, conditional_debug in [(True, False), (False, True), (True, True)]:
-        yield _impl_against_split_merge, {"debug": base_debug}, {"debug": conditional_debug}
+_against_split_merge_test_cases = [
+    ({"debug": base_debug}, {"debug": conditional_debug})
+    for base_debug, conditional_debug in [(True, False), (False, True), (True, True)]
+]
 
 
-def test_dot_gpu():
-    for base_debug, conditional_debug in [(True, False), (False, True), (True, True)]:
-        yield _impl_dot_gpu, {"debug": base_debug}, {"debug": conditional_debug}
+@params(*_against_split_merge_test_cases)
+def test_against_split_merge(base_kwargs, conditional_kwargs):
+    _impl_against_split_merge(base_kwargs, conditional_kwargs)
 
 
-def test_arg_inputs_scoped_tracking():
-    for global_debug, scoped_debug in [(True, False), (False, True), (True, True)]:
-        yield _impl_arg_inputs_scoped_tracking, {"debug": global_debug}, {"debug": scoped_debug}
+_dot_gpu_test_cases = [
+    ({"debug": base_debug}, {"debug": conditional_debug})
+    for base_debug, conditional_debug in [(True, False), (False, True), (True, True)]
+]
+
+
+@params(*_dot_gpu_test_cases)
+def test_dot_gpu(base_kwargs, conditional_kwargs):
+    _impl_dot_gpu(base_kwargs, conditional_kwargs)
+
+
+_arg_inputs_scoped_tracking_test_cases = [
+    ({"debug": global_debug}, {"debug": scoped_debug})
+    for global_debug, scoped_debug in [(True, False), (False, True), (True, True)]
+]
+
+
+@params(*_arg_inputs_scoped_tracking_test_cases)
+def test_arg_inputs_scoped_tracking(global_kwargs, scoped_kwargs):
+    _impl_arg_inputs_scoped_tracking(global_kwargs, scoped_kwargs)
 
 
 def test_arg_inputs_scoped_uninitialized():
-    yield _impl_arg_inputs_scoped_uninitialized, {"debug": True}
+    _impl_arg_inputs_scoped_uninitialized({"debug": True})
 
 
-def test_generators():
+def _generate_generators_test_cases():
+    cases = []
     for pred in pred_gens[:-1]:
         for base_debug, conditional_debug in [(True, False), (False, True), (True, True)]:
-            yield _impl_generators, pred, {"debug": base_debug}, {"debug": conditional_debug}
+            cases.append((pred, {"debug": base_debug}, {"debug": conditional_debug}))
+    return cases
+
+
+_generators_test_cases = _generate_generators_test_cases()
+
+
+@params(*_generators_test_cases)
+def test_generators(pred, base_kwargs, conditional_kwargs):
+    _impl_generators(pred, base_kwargs, conditional_kwargs)
 
 
 def test_uninitialized():
-    yield _impl_uninitialized, {"debug": True}
+    _impl_uninitialized({"debug": True})
 
 
 def test_debug_pipeline_conditional_without_data_node():

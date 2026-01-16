@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -18,7 +18,7 @@ from nvidia.dali import fn, pipeline_def
 import math
 from test_utils import compare_pipelines, as_array, RandomDataIterator, RandomlyShapedDataIterator
 import itertools
-from nose2.tools import params
+from nose2.tools import params, cartesian_params
 import numpy as np
 
 
@@ -105,12 +105,19 @@ def all_permutations(n):
     return itertools.permutations(range(n))
 
 
-def test_transpose_vs_numpy():
-    for device in ["cpu", "gpu"]:
-        for batch_size in [1, 3, 10, 100]:
-            for dim in range(2, 5):
-                for permutation in all_permutations(dim):
-                    yield check_transpose_vs_numpy, device, batch_size, dim, 1000000, permutation
+# Generate test cases for transpose_vs_numpy
+_transpose_test_cases = [
+    (device, batch_size, dim, 1000000, permutation)
+    for device in ["cpu", "gpu"]
+    for batch_size in [1, 3, 10, 100]
+    for dim in range(2, 5)
+    for permutation in all_permutations(dim)
+]
+
+
+@params(*_transpose_test_cases)
+def test_transpose_vs_numpy(device, batch_size, dim, total_volume, permutation):
+    check_transpose_vs_numpy(device, batch_size, dim, total_volume, permutation)
 
 
 def check_transpose_layout(
@@ -139,32 +146,36 @@ def check_transpose_layout(
     assert out[0].layout() == expected_out_layout
 
 
-def test_transpose_layout():
-    batch_size = 3
-    for device in {"cpu", "gpu"}:
-        for batch_size in (1, 3):
-            for shape in [(600, 400, 3), (600, 400, 1)]:
-                for permutation, in_layout, transpose_layout, out_layout_arg in [
-                    ((2, 0, 1), "HWC", True, None),
-                    ((2, 0, 1), "HWC", True, "CHW"),
-                    ((2, 0, 1), "HWC", False, "CHW"),
-                    ((1, 0, 2), None, False, None),
-                    ((1, 0, 2), "XYZ", True, None),
-                    ((1, 0, 2), None, None, "ABC"),
-                ]:
-                    yield (
-                        check_transpose_layout,
-                        device,
-                        batch_size,
-                        shape,
-                        in_layout,
-                        permutation,
-                        transpose_layout,
-                        out_layout_arg,
-                    )
+# Generate test cases for transpose_layout
+_transpose_layout_test_cases = [
+    (device, batch_size, shape, in_layout, permutation, transpose_layout, out_layout_arg)
+    for device in ["cpu", "gpu"]
+    for batch_size in [1, 3]
+    for shape in [(600, 400, 3), (600, 400, 1)]
+    for permutation, in_layout, transpose_layout, out_layout_arg in [
+        ((2, 0, 1), "HWC", True, None),
+        ((2, 0, 1), "HWC", True, "CHW"),
+        ((2, 0, 1), "HWC", False, "CHW"),
+        ((1, 0, 2), None, False, None),
+        ((1, 0, 2), "XYZ", True, None),
+        ((1, 0, 2), None, None, "ABC"),
+    ]
+]
 
 
-@params(*itertools.product(("cpu", "gpu"), ((10, 20, 3), (10, 20), (1,), (), (3, 3, 2, 2, 3))))
+@params(*_transpose_layout_test_cases)
+def test_transpose_layout(
+    device, batch_size, shape, in_layout, permutation, transpose_layout, out_layout_arg
+):
+    check_transpose_layout(
+        device, batch_size, shape, in_layout, permutation, transpose_layout, out_layout_arg
+    )
+
+
+@cartesian_params(
+    ["cpu", "gpu"],  # device
+    [(10, 20, 3), (10, 20), (1,), (), (3, 3, 2, 2, 3)],  # shape
+)
 def test_transpose_default(device, shape):
     @pipeline_def(batch_size=1, num_threads=3, device_id=0)
     def pipe():

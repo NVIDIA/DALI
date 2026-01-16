@@ -19,6 +19,7 @@ import torch
 from nvidia.dali import pipeline_def
 from nvidia.dali import types
 from nvidia.dali.backend import TensorListGPU
+from nose2.tools import cartesian_params
 
 shape = [4000000]
 batch_size = 2
@@ -147,7 +148,9 @@ def _test_copy_to_external(use_tensor_list, non_blocking):
             del pipe
 
 
-def test_copy_to_external():
-    for use_tl in [False, True]:
-        for non_blocking in [False, True]:
-            yield _test_copy_to_external, use_tl, non_blocking
+@cartesian_params(
+    [False, True],  # use_tl
+    [False, True],  # non_blocking
+)
+def test_copy_to_external(use_tl, non_blocking):
+    _test_copy_to_external(use_tl, non_blocking)

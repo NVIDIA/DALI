@@ -48,7 +48,7 @@ def test_pytorch_cuda_context():
 
 
 def test_pytorch():
-    yield from utils.check_spawn_with_callback(ExtCallbackTorch)
+    utils.check_spawn_with_callback(ExtCallbackTorch)
 
 
 class ExtCallbackTorchCuda(utils.ExtCallback):

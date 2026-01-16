@@ -18,6 +18,7 @@ import nvidia.dali.types as types
 import numpy as np
 import os
 
+from nose2.tools import params
 from test_utils import compare_pipelines
 from test_utils import RandomDataIterator
 from test_utils import get_dali_extra_path
@@ -122,7 +123,24 @@ class SynthPythonFlipPipeline(Pipeline):
         self.feed_input(self.data, self.iterator.next(), layout=self.layout)
 
 
-def check_flip(batch_size, layout, shape, device):
+@params(
+    *[
+        (batch_size, layout, shape, device)
+        for batch_size in [1, 8, 32]
+        for device in ["cpu", "gpu"]
+        for layout, shape in [
+            ("HWC", (15, 20, 3)),
+            ("CHW", (4, 20, 25)),
+            ("DHWC", (10, 20, 30, 2)),
+            ("CDHW", (2, 5, 10, 15)),
+            ("FHWC", (3, 90, 120, 3)),
+            ("FCHW", (4, 3, 100, 150)),
+            ("FDHWC", (4, 20, 50, 30, 3)),
+            ("FCDHW", (3, 3, 20, 50, 30)),
+        ]
+    ]
+)
+def test_flip_vs_numpy(batch_size, layout, shape, device):
     eiis = [RandomDataIterator(batch_size, shape=shape) for k in range(2)]
     compare_pipelines(
         SynthFlipPipeline(batch_size, layout, iter(eiis[0]), device),
@@ -130,19 +148,3 @@ def check_flip(batch_size, layout, shape, device):
         batch_size=batch_size,
         N_iterations=3,
     )
-
-
-def test_flip_vs_numpy():
-    for batch_size in [1, 8, 32]:
-        for device in ["cpu", "gpu"]:
-            for layout, shape in [
-                ("HWC", (15, 20, 3)),
-                ("CHW", (4, 20, 25)),
-                ("DHWC", (10, 20, 30, 2)),
-                ("CDHW", (2, 5, 10, 15)),
-                ("FHWC", (3, 90, 120, 3)),
-                ("FCHW", (4, 3, 100, 150)),
-                ("FDHWC", (4, 20, 50, 30, 3)),
-                ("FCDHW", (3, 3, 20, 50, 30)),
-            ]:
-                yield check_flip, batch_size, layout, shape, device

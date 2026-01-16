@@ -16,6 +16,7 @@ from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.ops as ops
 import numpy as np
 from functools import partial
+from nose2.tools import params
 from test_utils import compare_pipelines
 from test_utils import RandomDataIterator
 
@@ -79,9 +80,25 @@ class PowerSpectrumNumpyPipeline(Pipeline):
         self.feed_input(self.data, data)
 
 
-def check_operator_power_spectrum(device, batch_size, input_shape, nfft, axis):
-    eii1 = RandomDataIterator(batch_size, shape=input_shape, dtype=np.float32)
-    eii2 = RandomDataIterator(batch_size, shape=input_shape, dtype=np.float32)
+@params(
+    *[
+        (device, batch_size, shape, nfft, axis)
+        for device in ["cpu"]
+        for batch_size in [3]
+        for nfft, axis, shape in [
+            (16, 1, (2, 16)),
+            (1024, 1, (1, 1024)),
+            (1024, 0, (1024,)),
+            (128, 1, (1, 100)),
+            (128, 0, (100,)),
+            (16, 0, (16, 2)),
+            (8, 1, (2, 8, 2)),
+        ]
+    ]
+)
+def test_operator_power_spectrum(device, batch_size, shape, nfft, axis):
+    eii1 = RandomDataIterator(batch_size, shape=shape, dtype=np.float32)
+    eii2 = RandomDataIterator(batch_size, shape=shape, dtype=np.float32)
     compare_pipelines(
         PowerSpectrumPipeline(device, batch_size, iter(eii1), axis=axis, nfft=nfft),
         PowerSpectrumNumpyPipeline(device, batch_size, iter(eii2), axis=axis, nfft=nfft),
@@ -89,18 +106,3 @@ def check_operator_power_spectrum(device, batch_size, input_shape, nfft, axis):
         N_iterations=3,
         eps=1e-04,
     )
-
-
-def test_operator_power_spectrum():
-    for device in ["cpu"]:
-        for batch_size in [3]:
-            for nfft, axis, shape in [
-                (16, 1, (2, 16)),
-                (1024, 1, (1, 1024)),
-                (1024, 0, (1024,)),
-                (128, 1, (1, 100)),
-                (128, 0, (100,)),
-                (16, 0, (16, 2)),
-                (8, 1, (2, 8, 2)),
-            ]:
-                yield check_operator_power_spectrum, device, batch_size, shape, nfft, axis

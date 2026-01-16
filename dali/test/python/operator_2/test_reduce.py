@@ -249,7 +249,8 @@ def run_reduce(keep_dims, reduction_name, batch_gen, input_type, output_type=Non
             compare(dali_res_gpu[iteration], np_res[iteration])
 
 
-def test_reduce():
+def _generate_test_reduce_params():
+    """Generate all parameter combinations for test_reduce"""
     reductions = ["sum", "min", "max"]
     batch_gens = [Batch1D, Batch2D, Batch3D]
     types = [
@@ -265,22 +266,39 @@ def test_reduce():
     ]
 
     rng = np.random.default_rng(1000)
+    params_list = []
     for keep_dims in [False, True]:
         for reduction_name in reductions:
             for ndim, batch_gen in enumerate(batch_gens, start=1):
                 type_id = rng.choice(types)
                 layout = rng.choice([None, "XYZ"[:ndim]])
-                yield run_reduce, keep_dims, reduction_name, batch_gen, type_id, None, layout
+                params_list.append((keep_dims, reduction_name, batch_gen, type_id, None, layout))
+    return params_list
 
 
-def test_reduce_negative_axes():
+@params(*_generate_test_reduce_params())
+def test_reduce(keep_dims, reduction_name, batch_gen, type_id, output_type, layout):
+    run_reduce(keep_dims, reduction_name, batch_gen, type_id, output_type, layout)
+
+
+def _generate_test_reduce_negative_axes_params():
+    """Generate all parameter combinations for test_reduce_negative_axes"""
     reductions = ["sum", "max"]
     type = np.uint8
 
+    params_list = []
     for layout in ["FGH", None]:
         for keep_dims in [False, True]:
             for reduction_name in reductions:
-                yield run_reduce, keep_dims, reduction_name, Batch3DNegativeAxes, type, None, layout
+                params_list.append(
+                    (keep_dims, reduction_name, Batch3DNegativeAxes, type, None, layout)
+                )
+    return params_list
+
+
+@params(*_generate_test_reduce_negative_axes_params())
+def test_reduce_negative_axes(keep_dims, reduction_name, batch_gen, type_id, output_type, layout):
+    run_reduce(keep_dims, reduction_name, batch_gen, type_id, output_type, layout)
 
 
 def test_reduce_invalid_axes():
@@ -298,37 +316,60 @@ def test_reduce_invalid_axes():
             )
 
 
-def test_reduce_with_promotion():
+def _generate_test_reduce_with_promotion_params():
+    """Generate all parameter combinations for test_reduce_with_promotion"""
     reductions = ["rms", "mean_square"]
 
     batch_gens = [Batch3D]
     types = [np.uint8, np.int8, np.uint16, np.int16, np.uint32, np.int32, np.float32]
 
     rng = np.random.default_rng(1041)
+    params_list = []
     for keep_dims in [False, True]:
         for reduction_name in reductions:
             for batch_gen in batch_gens:
                 for type_id in types:
                     layout = rng.choice([None, "ABC"])
-                    yield run_reduce, keep_dims, reduction_name, batch_gen, type_id, None, layout
+                    params_list.append(
+                        (keep_dims, reduction_name, batch_gen, type_id, None, layout)
+                    )
+    return params_list
 
 
-def test_reduce_with_promotion_with_overflow():
+@params(*_generate_test_reduce_with_promotion_params())
+def test_reduce_with_promotion(keep_dims, reduction_name, batch_gen, type_id, output_type, layout):
+    run_reduce(keep_dims, reduction_name, batch_gen, type_id, output_type, layout)
+
+
+def _generate_test_reduce_with_promotion_with_overflow_params():
+    """Generate all parameter combinations for test_reduce_with_promotion_with_overflow"""
     reductions = ["sum", "mean"]
 
     batch_gens = [Batch3DOverflow]
     types = [np.uint8, np.int8, np.uint16, np.int16, np.uint32, np.int32, np.float32]
 
     rng = np.random.default_rng(1042)
+    params_list = []
     for keep_dims in [False, True]:
         for reduction_name in reductions:
             for batch_gen in batch_gens:
                 for type_id in types:
                     layout = rng.choice([None, "ABC"])
-                    yield run_reduce, keep_dims, reduction_name, batch_gen, type_id, None, layout
+                    params_list.append(
+                        (keep_dims, reduction_name, batch_gen, type_id, None, layout)
+                    )
+    return params_list
 
 
-def test_sum_with_output_type():
+@params(*_generate_test_reduce_with_promotion_with_overflow_params())
+def test_reduce_with_promotion_with_overflow(
+    keep_dims, reduction_name, batch_gen, type_id, output_type, layout
+):
+    run_reduce(keep_dims, reduction_name, batch_gen, type_id, output_type, layout)
+
+
+def _generate_test_sum_with_output_type_params():
+    """Generate all parameter combinations for test_sum_with_output_type"""
     reductions = ["sum"]
 
     batch_gens = [Batch3DOverflow]
@@ -342,6 +383,7 @@ def test_sum_with_output_type():
     ]
 
     rng = np.random.default_rng(1043)
+    params_list = []
     for reduction_name in reductions:
         for batch_gen in batch_gens:
             for type_map in types:
@@ -349,15 +391,17 @@ def test_sum_with_output_type():
                 keep_dims = np.random.choice([False, True])
                 for output_type in type_map[1]:
                     layout = rng.choice([None, "RGB"])
-                    yield (
-                        run_reduce,
-                        keep_dims,
-                        reduction_name,
-                        batch_gen,
-                        input_type,
-                        output_type,
-                        layout,
+                    params_list.append(
+                        (keep_dims, reduction_name, batch_gen, input_type, output_type, layout)
                     )
+    return params_list
+
+
+@params(*_generate_test_sum_with_output_type_params())
+def test_sum_with_output_type(
+    keep_dims, reduction_name, batch_gen, input_type, output_type, layout
+):
+    run_reduce(keep_dims, reduction_name, batch_gen, input_type, output_type, layout)
 
 
 def run_reduce_with_mean_input(
@@ -401,7 +445,8 @@ def run_reduce_with_mean_input(
                 compare(dali_res_gpu[iteration], np_res[iteration])
 
 
-def test_reduce_with_mean_input():
+def _generate_test_reduce_with_mean_input_params():
+    """Generate all parameter combinations for test_reduce_with_mean_input"""
     reductions = ["std_dev", "variance"]
 
     batch_gens = [Batch1D, Batch2D, Batch3D]
@@ -418,20 +463,19 @@ def test_reduce_with_mean_input():
     ]
 
     rng = np.random.default_rng(1044)
+    params_list = []
     for keep_dims in [False, True]:
         for reduction_name in reductions:
             for ndim, batch_gen in enumerate(batch_gens, start=1):
                 type_id = np.random.choice(types)
                 layout = rng.choice([None, "CDE"[:ndim]])
-                yield (
-                    run_reduce_with_mean_input,
-                    keep_dims,
-                    reduction_name,
-                    batch_gen,
-                    type_id,
-                    None,
-                    layout,
-                )
+                params_list.append((keep_dims, reduction_name, batch_gen, type_id, None, layout))
+    return params_list
+
+
+@params(*_generate_test_reduce_with_mean_input_params())
+def test_reduce_with_mean_input(keep_dims, reduction_name, batch_gen, type_id, output_type, layout):
+    run_reduce_with_mean_input(keep_dims, reduction_name, batch_gen, type_id, output_type, layout)
 
 
 def run_and_compare_with_layout(batch_gen, pipe):
@@ -473,7 +517,8 @@ def run_reduce_with_layout_with_mean_input(
     run_and_compare_with_layout(batch_fn, pipe)
 
 
-def test_reduce_axis_names():
+def _generate_test_reduce_axis_names_params():
+    """Generate all parameter combinations for test_reduce_axis_names"""
     reductions = [
         fn.reductions.max,
         fn.reductions.min,
@@ -502,27 +547,38 @@ def test_reduce_axis_names():
         ((0, 1, 2), "ABC"),
     ]
 
+    params_list = []
     for axes, axis_names in axes_and_names:
         for reduction in reductions:
-            yield (
-                run_reduce_with_layout,
-                batch_size,
-                get_batch,
-                reduction,
-                axes,
-                axis_names,
-                batch_fn,
+            params_list.append(
+                (
+                    run_reduce_with_layout,
+                    batch_size,
+                    get_batch,
+                    reduction,
+                    axes,
+                    axis_names,
+                    batch_fn,
+                )
             )
         for reduction in reductions_with_mean_input:
-            yield (
-                run_reduce_with_layout_with_mean_input,
-                batch_size,
-                get_batch,
-                reduction,
-                axes,
-                axis_names,
-                batch_fn,
+            params_list.append(
+                (
+                    run_reduce_with_layout_with_mean_input,
+                    batch_size,
+                    get_batch,
+                    reduction,
+                    axes,
+                    axis_names,
+                    batch_fn,
+                )
             )
+    return params_list
+
+
+@params(*_generate_test_reduce_axis_names_params())
+def test_reduce_axis_names(test_func, batch_size, get_batch, reduction, axes, axis_names, batch_fn):
+    test_func(batch_size, get_batch, reduction, axes, axis_names, batch_fn)
 
 
 _random_buf = None
@@ -586,8 +642,10 @@ def _test_reduce_large_data(rank, axes, device, in_layout):
             assert np.allclose(out[i], ref, 1e-5, 1e-5)
 
 
-def test_reduce_large_data():
+def _generate_test_reduce_large_data_params():
+    """Generate all parameter combinations for test_reduce_large_data"""
     np.random.seed(12344)
+    params_list = []
     for device in ["cpu", "gpu"]:
         for rank in [1, 2, 3]:
             for axis_mask in range(1, 2**rank):
@@ -597,7 +655,13 @@ def test_reduce_large_data():
                         lambda x: x >= 0, (i if axis_mask & (1 << i) else -1 for i in range(rank))
                     )
                 )
-                yield _test_reduce_large_data, rank, axes, device, layout
+                params_list.append((rank, axes, device, layout))
+    return params_list
+
+
+@params(*_generate_test_reduce_large_data_params())
+def test_reduce_large_data(rank, axes, device, layout):
+    _test_reduce_large_data(rank, axes, device, layout)
 
 
 def empty_batches(rank, axes, batch_size, num_batches):
@@ -635,8 +699,10 @@ def _test_reduce_empty_data(rank, axes, device, in_layout):
             assert np.allclose(out[i], ref, 1e-5, 1e-5)
 
 
-def test_reduce_empty_data():
+def _generate_test_reduce_empty_data_params():
+    """Generate all parameter combinations for test_reduce_empty_data"""
     np.random.seed(12344)
+    params_list = []
     for device in ["cpu", "gpu"]:
         for rank in [1, 2, 3]:
             for axis_mask in range(1, 2**rank):
@@ -646,7 +712,13 @@ def test_reduce_empty_data():
                         lambda x: x >= 0, (i if axis_mask & (1 << i) else -1 for i in range(rank))
                     )
                 )
-                yield _test_reduce_empty_data, rank, axes, device, layout
+                params_list.append((rank, axes, device, layout))
+    return params_list
+
+
+@params(*_generate_test_reduce_empty_data_params())
+def test_reduce_empty_data(rank, axes, device, layout):
+    _test_reduce_empty_data(rank, axes, device, layout)
 
 
 @nottest
@@ -671,8 +743,10 @@ def _test_std_dev_large_data(rank, axes, device, in_layout):
             assert np.allclose(out[i], ref, 1e-5, 1e-5)
 
 
-def test_std_dev_large_data():
+def _generate_test_std_dev_large_data_params():
+    """Generate all parameter combinations for test_std_dev_large_data"""
     np.random.seed(12344)
+    params_list = []
     for device in ["cpu", "gpu"]:
         for rank in [1, 2, 3, 4]:
             for axis_mask in range(1, 2**rank):
@@ -682,7 +756,13 @@ def test_std_dev_large_data():
                         lambda x: x >= 0, (i if axis_mask & (1 << i) else -1 for i in range(rank))
                     )
                 )
-                yield _test_std_dev_large_data, rank, axes, device, layout
+                params_list.append((rank, axes, device, layout))
+    return params_list
+
+
+@params(*_generate_test_std_dev_large_data_params())
+def test_std_dev_large_data(rank, axes, device, layout):
+    _test_std_dev_large_data(rank, axes, device, layout)
 
 
 @params(
