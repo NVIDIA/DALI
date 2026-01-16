@@ -1,4 +1,4 @@
-// Copyright (c) 2020, 2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020, 2024, 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -37,7 +37,10 @@ namespace detail {
  * as size and alignment requirements match and if the purge function links against the same
  * C runtime library.
  */
-template <size_t size, size_t alignment, class LockObject = dali::spinlock>
+template <size_t size,
+          size_t alignment,
+          class LockObject = dali::spinlock,
+          size_t threshold = (1 << 10)>
 struct fixed_size_allocator {
   ~fixed_size_allocator() {
     purge();
@@ -52,7 +55,9 @@ struct fixed_size_allocator {
       Block *next = free_list_->next;
       free(free_list_);
       free_list_ = next;
+      count_--;
     }
+    assert(count_ == 0);
   }
 
   /**
@@ -77,6 +82,7 @@ struct fixed_size_allocator {
       if (Block *blk = free_list_) {
         free_list_ = blk->next;
         blk->next = nullptr;
+        count_--;
         return reinterpret_cast<T*>(blk->storage);
       }
     }
@@ -97,8 +103,13 @@ struct fixed_size_allocator {
   void deallocate(void *ptr) {
     lock_guard guard(lock_);
     Block *bptr = static_cast<Block*>(ptr);
+    if (threshold && count_ >= threshold) {
+      free(bptr);
+      return;
+    }
     bptr->next = free_list_;
     free_list_ = bptr;
+    count_++;
   }
 
   /**
@@ -117,8 +128,10 @@ struct fixed_size_allocator {
    *
    * It is not safe to pass this reference to threads other than the calling one.
    */
-  static fixed_size_allocator<size, alignment, dummy_lock> &thread_instance() {
-    static thread_local fixed_size_allocator<size, alignment, dummy_lock> inst;
+  static auto &thread_instance() {
+    // If there's no threshold, the per-thread instance shall have a limit of items
+    constexpr size_t thresh = threshold ? threshold : (1 << 10);
+    static thread_local fixed_size_allocator<size, alignment, dummy_lock, thresh> inst;
     return inst;
   }
 
@@ -127,6 +140,7 @@ struct fixed_size_allocator {
     Block *next;
   };
   Block *free_list_ = nullptr;
+  size_t count_ = 0;
   LockObject lock_;
   using lock_guard = std::lock_guard<LockObject>;
 };
