@@ -19,7 +19,8 @@ from nvidia.dali.pipeline import do_not_convert
 import nvidia.dali as dali
 import nvidia.dali.fn as fn
 import nvidia.dali.types as dali_types
-from nose_utils import with_setup, attr
+from nose2.tools import params
+from nose_utils import attr
 from test_utils import (
     get_dali_extra_path,
     to_array,
@@ -202,13 +203,12 @@ def _testimpl_numba_func(
             assert np.array_equal(out_arr, expected_out[i])
 
 
-@attr("sanitizer_skip")
-@with_setup(check_numba_compatibility_cpu)
-def test_numba_func():
-    # shape, dtype, run_fn, out_types,
-    # in_types, out_ndim, in_ndim, setup_fn, batch_processing,
-    # expected_out
-    args = [
+class TestNumbaFuncCPU:
+    def setUp(self):
+        check_numba_compatibility_cpu()
+
+    @attr("sanitizer_skip")
+    @params(
         (
             [(10, 10, 10)],
             np.bool_,
@@ -293,10 +293,9 @@ def test_numba_func():
             None,
             [np.full((20, 30, 10), 42, dtype=np.int32), np.full((10, 30, 20), 42, dtype=np.int32)],
         ),
-    ]
-
-    device = "cpu"
-    for (
+    )
+    def test_numba_func(
+        self,
         shape,
         dtype,
         run_fn,
@@ -307,9 +306,9 @@ def test_numba_func():
         setup_fn,
         batch_processing,
         expected_out,
-    ) in args:
-        yield (
-            _testimpl_numba_func,
+    ):
+        device = "cpu"
+        _testimpl_numba_func(
             device,
             shape,
             dtype,
@@ -323,56 +322,49 @@ def test_numba_func():
             expected_out,
         )
 
+    def test_numba_func_with_cond(self):
+        # When the function is not converted, the numba still works with no issues.
+        # AG conversion or using a complex enough decorator would break this.
+        # TODO(klecki): Can we add any additional safeguards?
+        _testimpl_numba_func(
+            device="cpu",
+            shapes=[(10, 10, 10)],
+            dtype=np.uint8,
+            run_fn=set_all_values_to_255_batch,
+            out_types=[dali_types.UINT8],
+            in_types=[dali_types.UINT8],
+            outs_ndim=[3],
+            ins_ndim=[3],
+            setup_fn=None,
+            batch_processing=True,
+            expected_out=[np.full((10, 10, 10), 255, dtype=np.uint8)],
+            enable_conditionals=True,
+        )
 
-@attr("sanitizer_skip")
-@with_setup(check_numba_compatibility_cpu)
-def test_numba_func_with_cond():
-    # When the function is not converted, the numba still works with no issues.
-    # AG conversion or using a complex enough decorator would break this.
-    # TODO(klecki): Can we add any additional safeguards?
-    _testimpl_numba_func(
-        device="cpu",
-        shapes=[(10, 10, 10)],
-        dtype=np.uint8,
-        run_fn=set_all_values_to_255_batch,
-        out_types=[dali_types.UINT8],
-        in_types=[dali_types.UINT8],
-        outs_ndim=[3],
-        ins_ndim=[3],
-        setup_fn=None,
-        batch_processing=True,
-        expected_out=[np.full((10, 10, 10), 255, dtype=np.uint8)],
-        enable_conditionals=True,
-    )
-
-
-@attr("sanitizer_skip")
-@with_setup(check_numba_compatibility_cpu)
-def test_numba_func_with_cond_do_not_convert():
-    # Test if do_not_convert decorated functions still work.
-    _testimpl_numba_func(
-        device="cpu",
-        shapes=[(10, 10, 10)],
-        dtype=np.uint8,
-        run_fn=do_not_convert(set_all_values_to_255_batch),
-        out_types=[dali_types.UINT8],
-        in_types=[dali_types.UINT8],
-        outs_ndim=[3],
-        ins_ndim=[3],
-        setup_fn=None,
-        batch_processing=True,
-        expected_out=[np.full((10, 10, 10), 255, dtype=np.uint8)],
-        enable_conditionals=True,
-    )
+    def test_numba_func_with_cond_do_not_convert(self):
+        # Test if do_not_convert decorated functions still work.
+        _testimpl_numba_func(
+            device="cpu",
+            shapes=[(10, 10, 10)],
+            dtype=np.uint8,
+            run_fn=do_not_convert(set_all_values_to_255_batch),
+            out_types=[dali_types.UINT8],
+            in_types=[dali_types.UINT8],
+            outs_ndim=[3],
+            ins_ndim=[3],
+            setup_fn=None,
+            batch_processing=True,
+            expected_out=[np.full((10, 10, 10), 255, dtype=np.uint8)],
+            enable_conditionals=True,
+        )
 
 
-@attr("sanitizer_skip")
-@with_setup(check_numba_compatibility_gpu)
-def test_numba_func_gpu():
-    # shape, dtype, run_fn, out_types,
-    # in_types, out_ndim, in_ndim, setup_fn, batch_processing,
-    # expected_out
-    args = [
+class TestNumbaFuncGPU:
+    def setUp(self):
+        check_numba_compatibility_gpu()
+
+    @attr("sanitizer_skip")
+    @params(
         (
             [(10, 10, 10)],
             np.bool_,
@@ -436,12 +428,9 @@ def test_numba_func_gpu():
             None,
             [change_dim_expected_out(20), change_dim_expected_out(30)],
         ),
-    ]
-
-    device = "gpu"
-    blocks = [32, 32, 1]
-    threads_per_block = [32, 16, 1]
-    for (
+    )
+    def test_numba_func_gpu(
+        self,
         shape,
         dtype,
         run_fn,
@@ -452,9 +441,11 @@ def test_numba_func_gpu():
         setup_fn,
         batch_processing,
         expected_out,
-    ) in args:
-        yield (
-            _testimpl_numba_func,
+    ):
+        device = "gpu"
+        blocks = [32, 32, 1]
+        threads_per_block = [32, 16, 1]
+        _testimpl_numba_func(
             device,
             shape,
             dtype,
@@ -590,10 +581,12 @@ def rot_image_setup(outs, ins):
         out0[sample_id][2] = in0[sample_id][2]
 
 
-@attr("sanitizer_skip")
-@with_setup(check_numba_compatibility_cpu)
-def test_numba_func_image():
-    args = [
+class TestNumbaFuncImageCPU:
+    def setUp(self):
+        check_numba_compatibility_cpu()
+
+    @attr("sanitizer_skip")
+    @params(
         (
             reverse_col_batch,
             [dali_types.UINT8],
@@ -634,9 +627,9 @@ def test_numba_func_image():
             None,
             lambda x: np.rot90(x),
         ),
-    ]
-    device = "cpu"
-    for (
+    )
+    def test_numba_func_image(
+        self,
         run_fn,
         out_types,
         in_types,
@@ -645,9 +638,9 @@ def test_numba_func_image():
         setup_fn,
         batch_processing,
         transform,
-    ) in args:
-        yield (
-            _testimpl_numba_func_image,
+    ):
+        device = "cpu"
+        _testimpl_numba_func_image(
             device,
             run_fn,
             out_types,
@@ -660,10 +653,12 @@ def test_numba_func_image():
         )
 
 
-@attr("sanitizer_skip")
-@with_setup(check_numba_compatibility_gpu)
-def test_numba_func_image_gpu():
-    args = [
+class TestNumbaFuncImageGPU:
+    def setUp(self):
+        check_numba_compatibility_gpu()
+
+    @attr("sanitizer_skip")
+    @params(
         (
             reverse_col_sample_gpu,
             [dali_types.UINT8],
@@ -684,11 +679,9 @@ def test_numba_func_image_gpu():
             None,
             np.rot90,
         ),
-    ]
-    device = "gpu"
-    blocks = [32, 32, 1]
-    threads_per_block = [32, 8, 1]
-    for (
+    )
+    def test_numba_func_image_gpu(
+        self,
         run_fn,
         out_types,
         in_types,
@@ -697,9 +690,11 @@ def test_numba_func_image_gpu():
         setup_fn,
         batch_processing,
         transform,
-    ) in args:
-        yield (
-            _testimpl_numba_func_image,
+    ):
+        device = "gpu"
+        blocks = [32, 32, 1]
+        threads_per_block = [32, 8, 1]
+        _testimpl_numba_func_image(
             device,
             run_fn,
             out_types,
@@ -778,53 +773,61 @@ def numba_func_split_image_pipe(
     return images_in, out0, out1, out2
 
 
-@attr("sanitizer_skip")
-@with_setup(check_numba_compatibility_cpu)
-def test_split_images_col():
-    pipe = numba_func_split_image_pipe(
-        batch_size=8,
-        num_threads=1,
-        device_id=0,
-        run_fn=split_images_col_sample,
-        setup_fn=setup_split_images_col,
-        out_types=[dali_types.UINT8 for i in range(3)],
-        in_types=[dali_types.UINT8],
-        outs_ndim=[2, 2, 2],
-        ins_ndim=[3],
-        device="cpu",
-    )
-    for _ in range(3):
-        images_in, R, G, B = pipe.run()
-        for i in range(len(images_in)):
-            assert np.array_equal(images_in.at(i), np.stack([R.at(i), G.at(i), B.at(i)], axis=2))
+class TestSplitImagesCol:
+    def setUp(self):
+        check_numba_compatibility_cpu()
+
+    @attr("sanitizer_skip")
+    def test_split_images_col(self):
+        pipe = numba_func_split_image_pipe(
+            batch_size=8,
+            num_threads=1,
+            device_id=0,
+            run_fn=split_images_col_sample,
+            setup_fn=setup_split_images_col,
+            out_types=[dali_types.UINT8 for i in range(3)],
+            in_types=[dali_types.UINT8],
+            outs_ndim=[2, 2, 2],
+            ins_ndim=[3],
+            device="cpu",
+        )
+        for _ in range(3):
+            images_in, R, G, B = pipe.run()
+            for i in range(len(images_in)):
+                assert np.array_equal(
+                    images_in.at(i), np.stack([R.at(i), G.at(i), B.at(i)], axis=2)
+                )
 
 
-@attr("sanitizer_skip")
-@with_setup(check_numba_compatibility_gpu)
-def test_split_images_col_gpu():
-    blocks = [32, 32, 1]
-    threads_per_block = [32, 8, 1]
-    pipe = numba_func_split_image_pipe(
-        batch_size=8,
-        num_threads=1,
-        device_id=0,
-        run_fn=split_images_col_sample_gpu,
-        setup_fn=setup_split_images_col,
-        out_types=[dali_types.UINT8 for i in range(3)],
-        in_types=[dali_types.UINT8],
-        outs_ndim=[2, 2, 2],
-        ins_ndim=[3],
-        device="gpu",
-        blocks=blocks,
-        threads_per_block=threads_per_block,
-    )
-    for _ in range(3):
-        images_in, R, G, B = pipe.run()
-        for i in range(len(images_in)):
-            assert np.array_equal(
-                to_array(images_in[i]),
-                np.stack([to_array(R[i]), to_array(G[i]), to_array(B[i])], axis=2),
-            )
+class TestSplitImagesColGPU:
+    def setUp(self):
+        check_numba_compatibility_gpu()
+
+    @attr("sanitizer_skip")
+    def test_split_images_col_gpu(self):
+        blocks = [32, 32, 1]
+        threads_per_block = [32, 8, 1]
+        pipe = numba_func_split_image_pipe(
+            batch_size=8,
+            num_threads=1,
+            device_id=0,
+            run_fn=split_images_col_sample_gpu,
+            setup_fn=setup_split_images_col,
+            out_types=[dali_types.UINT8 for i in range(3)],
+            in_types=[dali_types.UINT8],
+            outs_ndim=[2, 2, 2],
+            ins_ndim=[3],
+            device="gpu",
+            blocks=blocks,
+            threads_per_block=threads_per_block,
+        )
+        for _ in range(3):
+            images_in, R, G, B = pipe.run()
+            for i in range(len(images_in)):
+                assert np.array_equal(
+                    to_array(images_in[i]),
+                    np.stack([to_array(R[i]), to_array(G[i]), to_array(B[i])], axis=2),
+                )
 
 
 def multiple_ins_setup(outs, ins):
@@ -891,54 +894,60 @@ def numba_multiple_ins_pipe(
     )
 
 
-@attr("sanitizer_skip")
-@with_setup(check_numba_compatibility_cpu)
-def test_multiple_ins():
-    pipe = numba_multiple_ins_pipe(
-        shapes=[(10, 10)],
-        dtype=np.uint8,
-        batch_size=8,
-        num_threads=1,
-        device_id=0,
-        run_fn=multiple_ins_run,
-        setup_fn=multiple_ins_setup,
-        out_types=[dali_types.UINT8],
-        in_types=[dali_types.UINT8 for i in range(3)],
-        outs_ndim=[3],
-        ins_ndim=[2, 2, 2],
-        device="cpu",
-    )
-    for _ in range(3):
-        outs = pipe.run()
-        out_arr = np.array(outs[0][0])
-        assert np.array_equal(out_arr, np.zeros((10, 10, 3), dtype=np.uint8))
+class TestMultipleIns:
+    def setUp(self):
+        check_numba_compatibility_cpu()
+
+    @attr("sanitizer_skip")
+    def test_multiple_ins(self):
+        pipe = numba_multiple_ins_pipe(
+            shapes=[(10, 10)],
+            dtype=np.uint8,
+            batch_size=8,
+            num_threads=1,
+            device_id=0,
+            run_fn=multiple_ins_run,
+            setup_fn=multiple_ins_setup,
+            out_types=[dali_types.UINT8],
+            in_types=[dali_types.UINT8 for i in range(3)],
+            outs_ndim=[3],
+            ins_ndim=[2, 2, 2],
+            device="cpu",
+        )
+        for _ in range(3):
+            outs = pipe.run()
+            out_arr = np.array(outs[0][0])
+            assert np.array_equal(out_arr, np.zeros((10, 10, 3), dtype=np.uint8))
 
 
-@attr("sanitizer_skip")
-@with_setup(check_numba_compatibility_gpu)
-def test_multiple_ins_gpu():
-    blocks = [32, 32, 1]
-    threads_per_block = [32, 8, 1]
-    pipe = numba_multiple_ins_pipe(
-        shapes=[(10, 10)],
-        dtype=np.uint8,
-        batch_size=8,
-        num_threads=1,
-        device_id=0,
-        run_fn=multiple_ins_run_gpu,
-        setup_fn=multiple_ins_setup,
-        out_types=[dali_types.UINT8],
-        in_types=[dali_types.UINT8 for i in range(3)],
-        outs_ndim=[3],
-        ins_ndim=[2, 2, 2],
-        device="gpu",
-        blocks=blocks,
-        threads_per_block=threads_per_block,
-    )
-    for _ in range(3):
-        outs = pipe.run()
-        out_arr = to_array(outs[0][0])
-        assert np.array_equal(out_arr, np.zeros((10, 10, 3), dtype=np.uint8))
+class TestMultipleInsGPU:
+    def setUp(self):
+        check_numba_compatibility_gpu()
+
+    @attr("sanitizer_skip")
+    def test_multiple_ins_gpu(self):
+        blocks = [32, 32, 1]
+        threads_per_block = [32, 8, 1]
+        pipe = numba_multiple_ins_pipe(
+            shapes=[(10, 10)],
+            dtype=np.uint8,
+            batch_size=8,
+            num_threads=1,
+            device_id=0,
+            run_fn=multiple_ins_run_gpu,
+            setup_fn=multiple_ins_setup,
+            out_types=[dali_types.UINT8],
+            in_types=[dali_types.UINT8 for i in range(3)],
+            outs_ndim=[3],
+            ins_ndim=[2, 2, 2],
+            device="gpu",
+            blocks=blocks,
+            threads_per_block=threads_per_block,
+        )
+        for _ in range(3):
+            outs = pipe.run()
+            out_arr = to_array(outs[0][0])
+            assert np.array_equal(out_arr, np.zeros((10, 10, 3), dtype=np.uint8))
 
 
 def nonuniform_types_setup(outs, ins):
@@ -1002,52 +1011,58 @@ def nonuniform_types_pipe(
     return images_in, out_img, out_shape
 
 
-@attr("sanitizer_skip")
-@with_setup(check_numba_compatibility_cpu)
-def test_nonuniform_types_cpu():
-    pipe = nonuniform_types_pipe(
-        batch_size=8,
-        num_threads=1,
-        device_id=0,
-        run_fn=nonuniform_types_run_cpu,
-        out_types=[dali_types.UINT8, dali_types.INT64],
-        in_types=[dali_types.UINT8],
-        outs_ndim=[3, 1],
-        ins_ndim=[3],
-        device="cpu",
-    )
-    for _ in range(3):
-        images_in, images_out, img_shape = pipe.run()
-        for i in range(len(images_in)):
-            assert np.array_equal(255 - images_in.at(i), images_out.at(i))
-            assert np.array_equal(images_out.at(i).shape, img_shape.at(i))
+class TestNonuniformTypes:
+    def setUp(self):
+        check_numba_compatibility_cpu()
 
-
-@attr("sanitizer_skip")
-@with_setup(check_numba_compatibility_gpu)
-def test_nonuniform_types_gpu():
-    blocks = [16, 16, 1]
-    threads_per_block = [32, 16, 1]
-    pipe = nonuniform_types_pipe(
-        batch_size=8,
-        num_threads=1,
-        device_id=0,
-        run_fn=nonuniform_types_run_gpu,
-        out_types=[dali_types.UINT8, dali_types.INT64],
-        in_types=[dali_types.UINT8],
-        outs_ndim=[3, 1],
-        ins_ndim=[3],
-        device="gpu",
-        blocks=blocks,
-        threads_per_block=threads_per_block,
-    )
-    for _ in range(3):
-        images_in, images_out, img_shape = pipe.run()
-        images_in, images_out, img_shape = (
-            images_in.as_cpu(),
-            images_out.as_cpu(),
-            img_shape.as_cpu(),
+    @attr("sanitizer_skip")
+    def test_nonuniform_types_cpu(self):
+        pipe = nonuniform_types_pipe(
+            batch_size=8,
+            num_threads=1,
+            device_id=0,
+            run_fn=nonuniform_types_run_cpu,
+            out_types=[dali_types.UINT8, dali_types.INT64],
+            in_types=[dali_types.UINT8],
+            outs_ndim=[3, 1],
+            ins_ndim=[3],
+            device="cpu",
         )
-        for i in range(len(images_in)):
-            assert np.array_equal(255 - images_in.at(i), images_out.at(i))
-            assert np.array_equal(images_out.at(i).shape, img_shape.at(i))
+        for _ in range(3):
+            images_in, images_out, img_shape = pipe.run()
+            for i in range(len(images_in)):
+                assert np.array_equal(255 - images_in.at(i), images_out.at(i))
+                assert np.array_equal(images_out.at(i).shape, img_shape.at(i))
+
+
+class TestNonuniformTypesGPU:
+    def setUp(self):
+        check_numba_compatibility_gpu()
+
+    @attr("sanitizer_skip")
+    def test_nonuniform_types_gpu(self):
+        blocks = [16, 16, 1]
+        threads_per_block = [32, 16, 1]
+        pipe = nonuniform_types_pipe(
+            batch_size=8,
+            num_threads=1,
+            device_id=0,
+            run_fn=nonuniform_types_run_gpu,
+            out_types=[dali_types.UINT8, dali_types.INT64],
+            in_types=[dali_types.UINT8],
+            outs_ndim=[3, 1],
+            ins_ndim=[3],
+            device="gpu",
+            blocks=blocks,
+            threads_per_block=threads_per_block,
+        )
+        for _ in range(3):
+            images_in, images_out, img_shape = pipe.run()
+            images_in, images_out, img_shape = (
+                images_in.as_cpu(),
+                images_out.as_cpu(),
+                img_shape.as_cpu(),
+            )
+            for i in range(len(images_in)):
+                assert np.array_equal(255 - images_in.at(i), images_out.at(i))
+                assert np.array_equal(images_out.at(i).shape, img_shape.at(i))

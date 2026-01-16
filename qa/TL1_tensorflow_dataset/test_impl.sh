@@ -17,7 +17,7 @@ test_body() {
         ${python_new_invoke_test} test_dali_tf_dataset_graph._test_tf_dataset_multigpu_manual_placement
         ${python_new_invoke_test} test_dali_tf_dataset_eager._test_tf_dataset_other_gpu
         ${python_new_invoke_test} test_dali_tf_dataset_eager._test_tf_dataset_multigpu_manual_placement
-        ${python_new_invoke_test} test_dali_tf_dataset_eager._test_tf_dataset_multigpu_mirrored_strategy
+        ${python_new_invoke_test} test_dali_tf_dataset_eager.TestTFDatasetMultiGPU._test_tf_dataset_multigpu_mirrored_strategy
         ${python_new_invoke_test} test_dali_tf_dataset_mnist_eager
         ${python_new_invoke_test} test_dali_tf_dataset_mnist_graph
 

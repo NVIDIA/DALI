@@ -23,9 +23,9 @@ test_py_with_framework() {
                             test_functional_api.py \
                             test_external_source_impl_utils.py); do
         if [ -z "$DALI_ENABLE_SANITIZERS" ]; then
-            ${python_new_invoke_test} -A "!slow,!pytorch,!mxnet,!cupy" ${test_script%.py}
+            ${python_new_invoke_test} -A "!slow,!pytorch,!cupy" ${test_script%.py}
         else
-            ${python_new_invoke_test} -A "!slow,!pytorch,!mxnet,!cupy,!numba" ${test_script%.py}
+            ${python_new_invoke_test} -A "!slow,!pytorch,!cupy,!numba" ${test_script%.py}
         fi
     done
 
@@ -35,7 +35,7 @@ test_py_with_framework() {
         ${python_new_invoke_test} -A "!slow,!pytorch,!mxnet,!cupy,!numba" test_dali_variable_batch_size
     fi
 
-    ${python_new_invoke_test} -A '!slow,!pytorch,!mxnet,!cupy' test_backend_impl
+    ${python_new_invoke_test} -A '!slow,!pytorch,!cupy' test_backend_impl
 
     if [ -z "$DALI_ENABLE_SANITIZERS" ]; then
         ${python_new_invoke_test} -A 'numba' -s type_annotations
@@ -87,18 +87,18 @@ test_pytorch() {
 
 test_checkpointing() {
     if [ -z "$DALI_ENABLE_SANITIZERS" ]; then
-        ${python_new_invoke_test} -A '!slow,!pytorch,!mxnet,!cupy,!numba' checkpointing.test_dali_checkpointing
-        ${python_new_invoke_test} -A '!slow,!pytorch,!mxnet,!cupy,!numba' checkpointing.test_dali_stateless_operators
+        ${python_new_invoke_test} -A '!slow,!pytorch,!cupy,!numba' checkpointing.test_dali_checkpointing
+        ${python_new_invoke_test} -A '!slow,!pytorch,!cupy,!numba' checkpointing.test_dali_stateless_operators
     else
-        ${python_new_invoke_test} -A '!slow,!pytorch,!mxnet,!cupy,!numba,!sanitizer_skip' checkpointing.test_dali_checkpointing
+        ${python_new_invoke_test} -A '!slow,!pytorch,!cupy,!numba,!sanitizer_skip' checkpointing.test_dali_checkpointing
 
         # External source tests are slow and Python-side mostly, but let's run just one of them
-        ${python_new_invoke_test} -A '!slow,!pytorch,!mxnet,!cupy,!numba' checkpointing.test_dali_checkpointing.test_external_source_checkpointing.1
+        ${python_new_invoke_test} -A '!slow,!pytorch,!cupy,!numba' checkpointing.test_dali_checkpointing.test_external_source_checkpointing.1
     fi
 }
 
 test_experimental_mode() {
-    ${python_new_invoke_test}  -A '!slow,!pytorch,!mxnet,!cupy,!numba' -s experimental_mode
+    ${python_new_invoke_test}  -A '!slow,!pytorch,!cupy,!numba' -s experimental_mode
 }
 
 

@@ -23,10 +23,11 @@ test_py_with_framework() {
         test_script=${test_script%.py}
         # execute only when no matches are found
         if [ ${status} -eq 0 ]; then
-            ${python_new_invoke_test} -A '!slow,!pytorch,!mxnet,!cupy,!numba,!scipy' ${test_script}
+            ${python_new_invoke_test} -A '!slow,!pytorch,!cupy,!numba,!scipy' ${test_script}
         fi
     done
 
+    ${python_new_invoke_test} -A '!slow,!pytorch,!cupy,!numba' test_external_source_parallel.TestParallelFork._test_parallel_fork_cpu_only
 
     XAVIER_OPERATOR_1_TESTS=""
     for test_script in $(ls operator_1/test_*.py); do
@@ -70,9 +71,9 @@ test_py_with_framework() {
         fi
     done
 
-    ${python_new_invoke_test} -A '!slow,!pytorch,!mxnet,!cupy,!numba,!scipy' -s operator_1 $XAVIER_OPERATOR_1_TESTS
-    ${python_new_invoke_test} -A '!slow,!pytorch,!mxnet,!cupy,!numba,!scipy' -s operator_2 $XAVIER_OPERATOR_2_TESTS
-    ${python_new_invoke_test} -A '!slow,!pytorch,!mxnet,!cupy,!numba,!scipy' -s reader $XAVIER_READER_TESTS
+    ${python_new_invoke_test} -A '!slow,!pytorch,!cupy,!numba,!scipy' -s operator_1 $XAVIER_OPERATOR_1_TESTS
+    ${python_new_invoke_test} -A '!slow,!pytorch,!cupy,!numba,!scipy' -s operator_2 $XAVIER_OPERATOR_2_TESTS
+    ${python_new_invoke_test} -A '!slow,!pytorch,!cupy,!numba,!scipy' -s reader $XAVIER_READER_TESTS
 }
 
 test_py() {

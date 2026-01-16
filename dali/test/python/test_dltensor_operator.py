@@ -37,11 +37,6 @@ def setup_pytorch():
     torch_stream = torch.cuda.Stream()
 
 
-def setup_mxnet():
-    global mxnd
-    from mxnet import ndarray as mxnd
-
-
 def setup_cupy():
     global cupy
     global cupy_stream
@@ -192,51 +187,6 @@ def test_pytorch():
 
     yield from _gpu_sliced_torch_suite()
     yield from _gpu_permuted_extents_torch_suite()
-
-
-def mxnet_adapter(fun, in1, in2):
-    tin1 = [mxnd.from_dlpack(dltensor) for dltensor in in1]
-    tin2 = [mxnd.from_dlpack(dltensor) for dltensor in in2]
-    tout1, tout2 = fun(tin1, tin2)
-    return [mxnd.to_dlpack_for_read(tout) for tout in tout1], [
-        mxnd.to_dlpack_for_read(tout) for tout in tout2
-    ]
-
-
-def mxnet_wrapper(fun):
-    return lambda in1, in2: mxnet_adapter(fun, in1, in2)
-
-
-def mxnet_compare(fun, pre1, pre2, post1, post2):
-    mxnet_pre1 = [mxnd.array(pre1.at(i)) for i in range(BATCH_SIZE)]
-    mxnet_pre2 = [mxnd.array(pre2.at(i)) for i in range(BATCH_SIZE)]
-    mxnet_post1, mxnet_post2 = fun(mxnet_pre1, mxnet_pre2)
-    for i in range(BATCH_SIZE):
-        assert numpy.array_equal(post1.at(i), mxnet_post1[i].asnumpy())
-        assert numpy.array_equal(post2.at(i), mxnet_post2[i].asnumpy())
-
-
-def mxnet_case(fun, device):
-    setup_mxnet()
-    common_case(mxnet_wrapper(fun), device, partial(mxnet_compare, fun))
-
-
-def mxnet_flatten(in1, in2):
-    return [mxnd.flatten(t) for t in in1], [mxnd.flatten(t) for t in in2]
-
-
-def mxnet_slice(in1, in2):
-    return [t[:, :, 1] for t in in1], [t[:, :, 2] for t in in2]
-
-
-def mxnet_cast(in1, in2):
-    return [mxnd.cast(t, dtype="float32") for t in in1], [mxnd.cast(t, dtype="int64") for t in in2]
-
-
-def test_mxnet():
-    for testcase in [mxnet_flatten, mxnet_slice, mxnet_cast]:
-        for device in ["cpu", "gpu"]:
-            yield mxnet_case, testcase, device
 
 
 def cupy_adapter_sync(fun, in1, in2):

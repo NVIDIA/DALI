@@ -14,8 +14,13 @@ test_py_with_framework() {
       test_pool.py test_external_source_parallel.py test_external_source_parallel_shared_batch.py \
       test_external_source_parallel_large_sample.py \
       | sed "/$FILTER_PATTERN/d"); do
-        ${python_new_invoke_test} -A '!slow,!pytorch,!mxnet,!cupy,!numba' ${test_script%.py}
+        ${python_new_invoke_test} -A '!slow,!pytorch,!cupy,!numba' ${test_script%.py}
     done
+    # run this test explicitly as it needs not GPU context in the process
+    if [ -z "$DALI_ENABLE_SANITIZERS" ]; then
+        ${python_new_invoke_test} -A '!slow,!pytorch,!cupy,!numba' test_external_source_parallel.TestParallelFork._test_parallel_fork_cpu_only
+        ${python_new_invoke_test} -A '!slow,!pytorch,!cupy,!numba' test_external_source_parallel_custom_serialization._test_no_pickling_in_forking_mode
+    fi
 
 
     if [ -n "$DALI_ENABLE_SANITIZERS" ]; then
@@ -52,10 +57,10 @@ test_jpeg_scan_limit() {
       # test various broken cases with smaller limit to make the test faster
       DALI_MAX_JPEG_SCANS=30 ${python_new_invoke_test} -s decoder test_jpeg_scan_limit
       # test default limit for one case
-      ${python_new_invoke_test} -s decoder test_jpeg_scan_limit.ProgressiveJpeg.test_scans_limit.1
+      ${python_new_invoke_test} -s decoder test_jpeg_scan_limit.ProgressiveJpeg.test_scans_limit:1
     else
       # let's check if error handling does not lead to leaks
-      DALI_MAX_JPEG_SCANS=30 ${python_new_invoke_test} -s decoder test_jpeg_scan_limit.ProgressiveJpeg.test_scans_limit.1
+      DALI_MAX_JPEG_SCANS=30 ${python_new_invoke_test} -s decoder test_jpeg_scan_limit.ProgressiveJpeg.test_scans_limit:1
     fi
 }
 
