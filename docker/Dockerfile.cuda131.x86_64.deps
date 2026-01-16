@@ -4,36 +4,33 @@ FROM ${TOOLKIT_BASE_IMAGE} AS cuda
 ENV DEBIAN_FRONTEND=noninteractive
 
 # Change cuda version to pick the latest update
-RUN CUDA_SUBVERSION=13.1.80-1 && \
+RUN CUDA_SUBVERSION=13.1.1-1 && \
     NVJPEG2K_VERSION=0.9.0.43-1 && \
-    CUFILE_VERSION=1.16.0.49-1 && \
+    CUFILE_VERSION=1.16.1.26-1 && \
     CUDA_VERSION_MAJOR=13 && \
+    CUDA_VERSION_MINOR=1 && \
     apt-get update && \
     apt-get install wget software-properties-common -y && \
     apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/3bf863cc.pub && \
     add-apt-repository "deb https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/ /" && \
     apt-get update && \
     apt install -y \
-        cuda-cudart-13-1=${CUDA_SUBVERSION} \
-        cuda-cudart-dev-13-1 \
-        cuda-driver-dev-13-1 \
-        cuda-cccl-13-1 \
-        cuda-nvcc-13-1 \
-        cuda-nvdisasm-13-1 \
-        cuda-nvml-dev-13-1 \
-        cuda-nvtx-13-1 \
-        libcurand-13-1 \
-        libcurand-dev-13-1 \
-        libnpp-13-1 \
-        libnpp-dev-13-1 \
-        libnvjpeg-13-1 \
-        libnvjpeg-dev-13-1 \
-        libcufft-13-1 \
-        libcufft-dev-13-1 \
-        libcusolver-dev-13-1 \
-        libcublas-dev-13-1 \
-        cuda-compat-13-1 \
-        libcufile-dev-13-1=${CUFILE_VERSION} && \
+        cuda-minimal-build-${CUDA_VERSION_MAJOR}-${CUDA_VERSION_MINOR}=${CUDA_SUBVERSION} \
+        cuda-nvdisasm-${CUDA_VERSION_MAJOR}-${CUDA_VERSION_MINOR} \
+        cuda-nvml-dev-${CUDA_VERSION_MAJOR}-${CUDA_VERSION_MINOR} \
+        cuda-nvtx-${CUDA_VERSION_MAJOR}-${CUDA_VERSION_MINOR} \
+        libcurand-${CUDA_VERSION_MAJOR}-${CUDA_VERSION_MINOR} \
+        libcurand-dev-${CUDA_VERSION_MAJOR}-${CUDA_VERSION_MINOR} \
+        libnpp-${CUDA_VERSION_MAJOR}-${CUDA_VERSION_MINOR} \
+        libnpp-dev-${CUDA_VERSION_MAJOR}-${CUDA_VERSION_MINOR} \
+        libnvjpeg-${CUDA_VERSION_MAJOR}-${CUDA_VERSION_MINOR} \
+        libnvjpeg-dev-${CUDA_VERSION_MAJOR}-${CUDA_VERSION_MINOR} \
+        libcufft-${CUDA_VERSION_MAJOR}-${CUDA_VERSION_MINOR} \
+        libcufft-dev-${CUDA_VERSION_MAJOR}-${CUDA_VERSION_MINOR} \
+        libcusolver-dev-${CUDA_VERSION_MAJOR}-${CUDA_VERSION_MINOR} \
+        libcublas-dev-${CUDA_VERSION_MAJOR}-${CUDA_VERSION_MINOR} \
+        cuda-compat-${CUDA_VERSION_MAJOR}-${CUDA_VERSION_MINOR} \
+        libcufile-dev-${CUDA_VERSION_MAJOR}-${CUDA_VERSION_MINOR}=${CUFILE_VERSION} && \
     apt-get install libnvjpeg2k0-dev-cuda-${CUDA_VERSION_MAJOR}=${NVJPEG2K_VERSION} \
                     libnvjpeg2k0-cuda-${CUDA_VERSION_MAJOR}=${NVJPEG2K_VERSION} \
                     libnvjpeg2k0-static-cuda-${CUDA_VERSION_MAJOR}=${NVJPEG2K_VERSION} -y && \
