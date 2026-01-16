@@ -7,7 +7,7 @@ test_py_with_framework() {
 
 test_py() {
   ${python_new_invoke_test} -s decoder -A 'multi_gpu'
-  ${python_new_invoke_test} -A '!slow,!pytorch,!mxnet,!cupy,!numba,multi_gpu' -s experimental_mode
+  ${python_new_invoke_test} -A '!slow,!pytorch,!cupy,!numba,multi_gpu' -s experimental_mode
 }
 
 test_gtest() {

@@ -12,41 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nose2.tools.decorators import (
-    with_setup as _nose2_with_setup,
-    with_teardown as _nose2_with_teardown,
-)
 from unittest import SkipTest  # noqa: F401
 import unittest
 import re
 import fnmatch
 import functools
-
-
-def with_setup(setup=None, teardown=None):
-    """
-    Decorator to add setup and/or teardown functions to a test function.
-    Compatible with nose's with_setup(setup, teardown) signature.
-
-    Usage:
-        @with_setup(setup_func)
-        @with_setup(setup_func, teardown_func)
-        @with_setup(teardown=teardown_func)
-    """
-
-    def decorator(func):
-        if setup is not None:
-            func = _nose2_with_setup(setup)(func)
-        if teardown is not None:
-            func = _nose2_with_teardown(teardown)(func)
-        return func
-
-    return decorator
-
-
-def with_teardown(teardown):
-    """Decorator to add teardown function to a test function."""
-    return _nose2_with_teardown(teardown)
 
 
 def attr(*tags):

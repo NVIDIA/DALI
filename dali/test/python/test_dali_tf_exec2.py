@@ -19,9 +19,9 @@ from nvidia.dali import pipeline_def
 import nvidia.dali.fn as fn
 import nvidia.dali.types as types
 import nvidia.dali.plugin.tf as dali_tf
-from nose_utils import with_setup
 from test_utils_tensorflow import skip_inputs_for_incompatible_tf
 from test_utils import get_dali_extra_path
+import unittest
 
 
 test_data_root = get_dali_extra_path()
@@ -44,34 +44,55 @@ def dali_exec2_pipeline():
     return output.cpu()
 
 
-@with_setup(skip_inputs_for_incompatible_tf)
-def test_tf_dataset_exec2():
-    """Test that exec_dynamic is propagated to DALI pipeline from dali_tf.DALIDatasetWithInputs"""
-    # From Tensorflow's perspective, this is a CPU pipeline
-    with tf.device("/cpu:0"):
-        dali_dataset = dali_tf.experimental.DALIDatasetWithInputs(
-            pipeline=dali_exec2_pipeline(),
-            batch_size=5,
-            output_shapes=(5,),
-            output_dtypes=(tf.int32),
-            num_threads=4,
-            device_id=0,
-        )
+class TestTFDatasetExec2(unittest.TestCase):
+    def setUp(self):
+        skip_inputs_for_incompatible_tf()
 
-        @tf.function
-        def tf_function_with_conditionals(dali_dataset):
-            negative = tf.constant(0)
-            positive = tf.constant(0)
-            for input in dali_dataset:
-                if tf.reduce_sum(input) < 0:
-                    negative = negative + 1
-                else:
-                    positive = positive + 1
-            return negative, positive
+    def test_tf_dataset_exec2(self):
+        """Test that exec_dynamic is propagated to DALI pipeline
+        by dali_tf.DALIDatasetWithInputs"""
+        # From Tensorflow's perspective, this is a CPU pipeline
+        with tf.device("/cpu:0"):
+            dali_dataset = dali_tf.experimental.DALIDatasetWithInputs(
+                pipeline=dali_exec2_pipeline(),
+                batch_size=5,
+                output_shapes=(5,),
+                output_dtypes=(tf.int32),
+                num_threads=4,
+                device_id=0,
+            )
 
-        pos, neg = tf_function_with_conditionals(dali_dataset.take(5))
-        assert pos == 3
-        assert neg == 2
+            @tf.function
+            def tf_function_with_conditionals(dali_dataset):
+                negative = tf.constant(0)
+                positive = tf.constant(0)
+                for input in dali_dataset:
+                    if tf.reduce_sum(input) < 0:
+                        negative = negative + 1
+                    else:
+                        positive = positive + 1
+                return negative, positive
+
+            pos, neg = tf_function_with_conditionals(dali_dataset.take(5))
+            # Eager mode: integers, graph mode: tensors, need to fetch value if it's Tensor
+            if (
+                tf.executing_eagerly() is False
+                or getattr(tf.compat.v1, "_eager_context", None) is not None
+            ):
+                # get concrete function and run in session for static graph mode
+                # fallback for session-based TF execution (e.g. when other test turned eager off)
+                try:
+                    from tensorflow.compat.v1 import Session
+                except ImportError:
+                    # Older TF versions don't have compat.v1 layer
+                    from tensorflow import Session
+
+                with Session() as sess:
+                    pos_val, neg_val = sess.run([pos, neg])
+            else:
+                pos_val, neg_val = pos, neg
+            assert pos_val == 3
+            assert neg_val == 2
 
 
 @pipeline_def(num_threads=4, exec_dynamic=True)
