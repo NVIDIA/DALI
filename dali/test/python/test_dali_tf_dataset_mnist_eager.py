@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import tensorflow as tf
-from nose_utils import with_setup, raises, SkipTest
+from nose_utils import raises, SkipTest
 
 import test_dali_tf_dataset_mnist as mnist
 from test_utils_tensorflow import skip_for_incompatible_tf, available_gpus
@@ -34,54 +34,60 @@ def test_keras_single_cpu():
     mnist.run_keras_single_device("cpu", 0)
 
 
-@with_setup(skip_for_incompatible_tf)
-@raises(tf.errors.OpError, "TF device and DALI device mismatch")
-def test_keras_wrong_placement_gpu():
-    with tf.device("cpu:0"):
-        model = mnist.keras_model()
-        train_dataset = mnist.get_dataset("gpu", 0)
+class TestKerasWrongPlacement:
+    def setUp(self):
+        skip_for_incompatible_tf()
+
+    @raises(tf.errors.OpError, "TF device and DALI device mismatch")
+    def test_keras_wrong_placement_gpu(self):
+        with tf.device("cpu:0"):
+            model = mnist.keras_model()
+            train_dataset = mnist.get_dataset("gpu", 0)
+
+            model.fit(train_dataset, epochs=mnist.EPOCHS, steps_per_epoch=mnist.ITERATIONS)
+
+    @raises(tf.errors.OpError, "TF device and DALI device mismatch")
+    def test_keras_wrong_placement_cpu(self):
+        with tf.device("gpu:0"):
+            model = mnist.keras_model()
+            train_dataset = mnist.get_dataset("cpu", 0)
+
+            model.fit(train_dataset, epochs=mnist.EPOCHS, steps_per_epoch=mnist.ITERATIONS)
+
+
+class TestKerasMultiGPUMirroredStrategy:
+    def setUp(self):
+        skip_for_incompatible_tf()
+
+    def test_keras_multi_gpu_mirrored_strategy(self):
+        # due to compatibility problems between the driver, cuda version and
+        # TensorFlow 2.12 test_keras_multi_gpu_mirrored_strategy doesn't work.
+        if Version(tf.__version__) >= Version("2.12.0"):
+            raise SkipTest("This test is not supported for TensorFlow 2.12")
+        strategy = tf.distribute.MirroredStrategy(devices=available_gpus())
+
+        with strategy.scope():
+            model = mnist.keras_model()
+
+        train_dataset = mnist.get_dataset_multi_gpu(strategy)
 
         model.fit(train_dataset, epochs=mnist.EPOCHS, steps_per_epoch=mnist.ITERATIONS)
 
-
-@with_setup(skip_for_incompatible_tf)
-@raises(tf.errors.OpError, "TF device and DALI device mismatch")
-def test_keras_wrong_placement_cpu():
-    with tf.device("gpu:0"):
-        model = mnist.keras_model()
-        train_dataset = mnist.get_dataset("cpu", 0)
-
-        model.fit(train_dataset, epochs=mnist.EPOCHS, steps_per_epoch=mnist.ITERATIONS)
+        assert model.evaluate(train_dataset, steps=mnist.ITERATIONS)[1] > mnist.TARGET
 
 
-@with_setup(skip_for_incompatible_tf)
-def test_keras_multi_gpu_mirrored_strategy():
-    # due to compatibility problems between the driver, cuda version and
-    # TensorFlow 2.12 test_keras_multi_gpu_mirrored_strategy doesn't work.
-    if Version(tf.__version__) >= Version("2.12.0"):
-        raise SkipTest("This test is not supported for TensorFlow 2.12")
-    strategy = tf.distribute.MirroredStrategy(devices=available_gpus())
+class TestEstimators:
+    def setUp(self):
+        mnist.clear_checkpoints()
 
-    with strategy.scope():
-        model = mnist.keras_model()
+    def tearDown(self):
+        mnist.clear_checkpoints()
 
-    train_dataset = mnist.get_dataset_multi_gpu(strategy)
+    def test_estimators_single_gpu(self):
+        mnist.run_estimators_single_device("gpu", 0)
 
-    model.fit(train_dataset, epochs=mnist.EPOCHS, steps_per_epoch=mnist.ITERATIONS)
+    def test_estimators_single_other_gpu(self):
+        mnist.run_estimators_single_device("gpu", 1)
 
-    assert model.evaluate(train_dataset, steps=mnist.ITERATIONS)[1] > mnist.TARGET
-
-
-@with_setup(mnist.clear_checkpoints, mnist.clear_checkpoints)
-def test_estimators_single_gpu():
-    mnist.run_estimators_single_device("gpu", 0)
-
-
-@with_setup(mnist.clear_checkpoints, mnist.clear_checkpoints)
-def test_estimators_single_other_gpu():
-    mnist.run_estimators_single_device("gpu", 1)
-
-
-@with_setup(mnist.clear_checkpoints, mnist.clear_checkpoints)
-def test_estimators_single_cpu():
-    mnist.run_estimators_single_device("cpu", 0)
+    def test_estimators_single_cpu(self):
+        mnist.run_estimators_single_device("cpu", 0)

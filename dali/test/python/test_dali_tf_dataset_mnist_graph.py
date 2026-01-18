@@ -14,32 +14,23 @@
 
 import tensorflow as tf
 import tensorflow.compat.v1 as tf_v1
-from nose_utils import with_setup, SkipTest, raises
+from nose2.tools import params
+from nose_utils import SkipTest, raises
 import test_dali_tf_dataset_mnist as mnist
 from packaging.version import Version
 
 mnist.tf.compat.v1.disable_eager_execution()
 
 
-@with_setup(tf.keras.backend.clear_session)
-def test_keras_single_gpu():
-    if Version(tf.__version__) >= Version("2.16"):
-        raise SkipTest("TF < 2.16 is required for this test")
-    mnist.run_keras_single_device("gpu", 0)
+class TestKeras:
+    def setUp(self):
+        tf.keras.backend.clear_session()
 
-
-@with_setup(tf.keras.backend.clear_session)
-def test_keras_single_other_gpu():
-    if Version(tf.__version__) >= Version("2.16"):
-        raise SkipTest("TF < 2.16 is required for this test")
-    mnist.run_keras_single_device("gpu", 1)
-
-
-@with_setup(tf.keras.backend.clear_session)
-def test_keras_single_cpu():
-    if Version(tf.__version__) >= Version("2.16"):
-        raise SkipTest("TF < 2.16 is required for this test")
-    mnist.run_keras_single_device("cpu", 0)
+    @params(("gpu", 0), ("gpu", 1), ("cpu", 0))
+    def test_keras_single_device(self, device, device_id):
+        if Version(tf.__version__) >= Version("2.16"):
+            raise SkipTest("TF < 2.16 is required for this test")
+        mnist.run_keras_single_device(device, device_id)
 
 
 @raises(tf.errors.OpError, "TF device and DALI device mismatch. TF*: CPU, DALI*: GPU for output")
@@ -64,19 +55,13 @@ def test_keras_wrong_placement_cpu():
         model.fit(train_dataset, epochs=mnist.EPOCHS, steps_per_epoch=mnist.ITERATIONS)
 
 
-@with_setup(tf.compat.v1.reset_default_graph)
-def test_graph_single_gpu():
-    mnist.run_graph_single_device("gpu", 0)
+class TestGraph:
+    def setUp(self):
+        tf.compat.v1.reset_default_graph()
 
-
-@with_setup(tf.compat.v1.reset_default_graph)
-def test_graph_single_cpu():
-    mnist.run_graph_single_device("cpu", 0)
-
-
-@with_setup(tf.compat.v1.reset_default_graph)
-def test_graph_single_other_gpu():
-    mnist.run_graph_single_device("gpu", 1)
+    @params(("gpu", 0), ("cpu", 0), ("gpu", 1))
+    def test_graph_single_device(self, device, device_id):
+        mnist.run_graph_single_device(device, device_id)
 
 
 # This function is copied form:
@@ -107,61 +92,64 @@ def average_gradients(tower_grads):
     return average_grads
 
 
-@with_setup(tf_v1.reset_default_graph)
-def test_graph_multi_gpu():
-    iterator_initializers = []
+class TestGraphMultiGPU:
+    def setUp(self):
+        tf_v1.reset_default_graph()
 
-    with tf.device("/cpu:0"):
-        tower_grads = []
+    def test_graph_multi_gpu(self):
+        iterator_initializers = []
 
-        for i in range(mnist.num_available_gpus()):
-            with tf.device("/gpu:{}".format(i)):
-                daliset = mnist.get_dataset("gpu", i, i, mnist.num_available_gpus())
+        with tf.device("/cpu:0"):
+            tower_grads = []
 
-                iterator = tf_v1.data.make_initializable_iterator(daliset)
-                iterator_initializers.append(iterator.initializer)
-                images, labels = iterator.get_next()
+            for i in range(mnist.num_available_gpus()):
+                with tf.device("/gpu:{}".format(i)):
+                    daliset = mnist.get_dataset("gpu", i, i, mnist.num_available_gpus())
 
-                images = tf_v1.reshape(
-                    images, [mnist.BATCH_SIZE, mnist.IMAGE_SIZE * mnist.IMAGE_SIZE]
-                )
-                labels = tf_v1.reshape(
-                    tf_v1.one_hot(labels, mnist.NUM_CLASSES), [mnist.BATCH_SIZE, mnist.NUM_CLASSES]
-                )
+                    iterator = tf_v1.data.make_initializable_iterator(daliset)
+                    iterator_initializers.append(iterator.initializer)
+                    images, labels = iterator.get_next()
 
-                logits_train = mnist.graph_model(images, reuse=(i != 0), is_training=True)
-                logits_test = mnist.graph_model(images, reuse=True, is_training=False)
-
-                loss_op = tf_v1.reduce_mean(
-                    tf_v1.nn.softmax_cross_entropy_with_logits(logits=logits_train, labels=labels)
-                )
-                optimizer = tf_v1.train.AdamOptimizer()
-                grads = optimizer.compute_gradients(loss_op)
-
-                if i == 0:
-                    correct_pred = tf_v1.equal(
-                        tf_v1.argmax(logits_test, 1), tf_v1.argmax(labels, 1)
+                    images = tf_v1.reshape(
+                        images, [mnist.BATCH_SIZE, mnist.IMAGE_SIZE * mnist.IMAGE_SIZE]
                     )
-                    accuracy = tf_v1.reduce_mean(tf_v1.cast(correct_pred, tf_v1.float32))
+                    labels = tf_v1.reshape(
+                        tf_v1.one_hot(labels, mnist.NUM_CLASSES),
+                        [mnist.BATCH_SIZE, mnist.NUM_CLASSES],
+                    )
 
-                tower_grads.append(grads)
+                    logits_train = mnist.graph_model(images, reuse=(i != 0), is_training=True)
+                    logits_test = mnist.graph_model(images, reuse=True, is_training=False)
 
-        tower_grads = average_gradients(tower_grads)
-        train_step = optimizer.apply_gradients(tower_grads)
+                    loss_op = tf_v1.reduce_mean(
+                        tf_v1.nn.softmax_cross_entropy_with_logits(
+                            logits=logits_train, labels=labels
+                        )
+                    )
+                    optimizer = tf_v1.train.AdamOptimizer()
+                    grads = optimizer.compute_gradients(loss_op)
 
-    mnist.train_graph(iterator_initializers, train_step, accuracy)
+                    if i == 0:
+                        correct_pred = tf_v1.equal(
+                            tf_v1.argmax(logits_test, 1), tf_v1.argmax(labels, 1)
+                        )
+                        accuracy = tf_v1.reduce_mean(tf_v1.cast(correct_pred, tf_v1.float32))
+
+                    tower_grads.append(grads)
+
+            tower_grads = average_gradients(tower_grads)
+            train_step = optimizer.apply_gradients(tower_grads)
+
+        mnist.train_graph(iterator_initializers, train_step, accuracy)
 
 
-@with_setup(mnist.clear_checkpoints, mnist.clear_checkpoints)
-def test_estimators_single_gpu():
-    mnist.run_estimators_single_device("gpu", 0)
+class TestEstimators:
+    def setUp(self):
+        mnist.clear_checkpoints()
 
+    def tearDown(self):
+        mnist.clear_checkpoints()
 
-@with_setup(mnist.clear_checkpoints, mnist.clear_checkpoints)
-def test_estimators_single_other_gpu():
-    mnist.run_estimators_single_device("gpu", 1)
-
-
-@with_setup(mnist.clear_checkpoints, mnist.clear_checkpoints)
-def test_estimators_single_cpu():
-    mnist.run_estimators_single_device("cpu", 0)
+    @params(("gpu", 0), ("gpu", 1), ("cpu", 0))
+    def test_estimators_single_device(self, device, device_id):
+        mnist.run_estimators_single_device(device, device_id)

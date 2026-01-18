@@ -231,12 +231,6 @@ def test_fw_iter(IteratorClass, args):
                     break
 
 
-def import_mxnet():
-    from nvidia.dali.plugin.mxnet import DALIClassificationIterator as MXNetIterator
-
-    return MXNetIterator
-
-
 def import_pytorch():
     from nvidia.dali.plugin.pytorch import DALIClassificationIterator as PyTorchIterator
 
@@ -275,7 +269,6 @@ def import_tf():
 
 
 Iterators = {
-    "mxnet": [import_mxnet],
     "pytorch": [import_pytorch],
     "tf": [import_tf],
     "paddle": [import_paddle],

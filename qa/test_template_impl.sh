@@ -17,20 +17,13 @@ source $topdir/qa/setup_test_common.sh
 
 # Set runner for python tests
 export PYTHONPATH=${PYTHONPATH}:$topdir/qa:$topdir/dali/test/python
-python_test_runner_package="nose nose2 nose-timer nose2-test-timer"
-# use DALI nose wrapper to patch nose to support Python 3.10
-python_test_runner="python -m nose_wrapper"
-python_test_args="--verbose --with-timer --timer-top-n 20 -s"
-python_invoke_test="${python_test_runner} ${python_test_args}"
-
-# New framework for Python Tests
-# During the transition we run both
-# When all tests are ported old will be removed
+python_test_runner_package="nose2 nose2-test-timer"
+# Python test runner (nose2)
 python_new_test_runner="python -m nose2"
 python_new_test_args="--verbose --plugin=nose2_test_timer.plugin --with-timer --timer-color --timer-top-n 20"
 python_new_invoke_test="${python_new_test_runner} ${python_new_test_args}"
 
-# Set proper CUDA version for packages, like MXNet, requiring it
+# Set proper CUDA version for packages, requiring it
 pip_packages=$(eval "echo \"${pip_packages}\"" | sed "s/##CUDA_VERSION##/${CUDA_VERSION}/")
 last_config_index=$($topdir/qa/setup_packages.py -n -u $pip_packages --cuda ${CUDA_VERSION})
 
