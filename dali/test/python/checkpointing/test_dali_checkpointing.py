@@ -1240,7 +1240,9 @@ unsupported_ops = [
     "hidden.*",
     "experimental.hidden.*",
     "clahe",
+    "decoders.video",
     "experimental.decoders.video",
+    "experimental.decoders.hidden.video",
     "experimental.inputs.video",
     "plugin.video.decoder",
 ]
