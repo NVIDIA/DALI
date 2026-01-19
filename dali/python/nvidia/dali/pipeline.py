@@ -1169,7 +1169,8 @@ class Pipeline(object):
             except json.JSONDecodeError:
                 raise ValueError(
                     "Pipeline checkpoint data is not a valid JSON string. "
-                    "Please make sure that the checkpoint was created with the same version of DALI."
+                    "Please make sure that the checkpoint was created with the same version "
+                    "of DALI."
                 )
             self._consumer_epoch_idx = self._epoch_idx = pipeline_data["epoch_idx"]
             self._consumer_iter = pipeline_data["iter"]
