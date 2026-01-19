@@ -1,4 +1,4 @@
-# Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -234,3 +234,21 @@ def test_device_match_mixed_operator(device_id):
         assert output.ndim == 3
         assert output.shape == (408, 640, 3)
         assert output.dtype == ndd.uint8
+
+
+def test_get_set_num_threads():
+    ndd.set_num_threads(None)
+    try:
+        assert ndd.get_num_threads() == len(os.sched_getaffinity(0))
+        ctx = ndd.EvalContext()
+        assert ctx._thread_pool.num_threads == len(os.sched_getaffinity(0))
+        ndd.set_num_threads(42)
+        assert ndd.get_num_threads() == 42
+        assert ctx.num_threads == 42
+        assert ctx._thread_pool.num_threads == 42
+        ndd.set_num_threads(None)
+        assert ndd.get_num_threads() == len(os.sched_getaffinity(0))
+        assert ctx.num_threads == len(os.sched_getaffinity(0))
+        assert ctx._thread_pool.num_threads == len(os.sched_getaffinity(0))
+    finally:
+        ndd.set_num_threads(None)
