@@ -19,6 +19,8 @@ from nvidia.dali.data_node import DataNode
 from nvidia.dali.types import DALIDataType
 from nvidia.dali._typing import TensorLikeIn
 
+from . import fn as fn
+
 class NumbaFunction:
     """Invokes a njit compiled Numba function.
 

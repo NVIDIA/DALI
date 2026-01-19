@@ -19,6 +19,8 @@ from nvidia.dali.data_node import DataNode
 from nvidia.dali.types import DALIDataType
 from nvidia.dali._typing import TensorLikeIn
 
+from . import experimental as experimental
+
 def numba_function(
     __input_0: Union[DataNode, TensorLikeIn],
     __input_1: Union[DataNode, TensorLikeIn, None] = None,
