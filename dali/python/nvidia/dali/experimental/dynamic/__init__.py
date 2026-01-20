@@ -27,5 +27,6 @@ from ._imread import imread  # noqa: F401
 from . import _ops
 from . import math  # noqa: F401
 from . import random  # noqa: F401
+from nvidia.dali.backend_impl import Stream
 
 _ops._initialize()

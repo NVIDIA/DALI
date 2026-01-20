@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import copy
 import weakref
 from threading import local
 
@@ -62,6 +63,7 @@ _global_num_threads = None
 
 
 def set_stream(stream):
+    global _global_stream
     _global_stream = stream
 
 
@@ -262,6 +264,14 @@ class EvalContext:
 
     def _add_invocation(self, invocation, weak=True):
         self._invocations.append(weakref.ref(invocation) if weak else invocation)
+
+    def _snapshot(self):
+        ctx = copy.copy(self)
+        if ctx._cuda_stream is None:
+            ctx._cuda_stream = self.cuda_stream
+        if ctx._num_threads is None:
+            ctx._num_threads = self.num_threads
+        return ctx
 
 
 __all__ = [

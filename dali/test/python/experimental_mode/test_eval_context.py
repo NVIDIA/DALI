@@ -252,3 +252,80 @@ def test_get_set_num_threads():
         assert ctx._thread_pool.num_threads == len(os.sched_getaffinity(0))
     finally:
         ndd.set_num_threads(None)
+
+
+def test_default_stream():
+    ndd.set_stream(None)
+    try:
+        s1 = ndd.EvalContext.current().cuda_stream
+        s2 = ndd.EvalContext.current().cuda_stream
+        assert s1 is s2
+        s = ndd.Stream(0)
+        assert s is not s1
+        ndd.set_stream(s)
+        assert ndd.get_stream() is s
+        s3 = ndd.EvalContext.current().cuda_stream
+        assert s3 is s
+
+        ndd.set_stream(None)
+        s4 = ndd.EvalContext.current().cuda_stream
+        assert s4 is not s3
+        s5 = ndd.EvalContext.current().cuda_stream
+        assert s5 is s4
+    finally:
+        ndd.set_stream(None)
+
+
+def _ctx_test_op(check_func):
+    class Flip2(ndd._ops.Flip):
+        def _run(self, ctx, *inputs, **args):
+            check_func(ctx)
+            return ndd._ops.Flip._run(self, ctx, *inputs, **args)
+
+    resize2_func = ndd._op_builder.build_fn_wrapper(Flip2)
+    return resize2_func
+
+
+def test_deferred_param_change():
+    calls = 0
+    expected_num_threads = 8
+    expected_stream = None
+
+    def check(ctx):
+        nonlocal calls
+        assert ctx.cuda_stream is expected_stream
+        assert ctx._thread_pool.num_threads == expected_num_threads
+        calls += 1
+
+    try:
+        with ndd.EvalMode.deferred:
+            expected_num_threads = 8
+            s0 = ndd.Stream(0)
+            s1 = ndd.Stream(0)
+            expected_stream = s0
+            ndd.set_num_threads(expected_num_threads)
+            ndd.set_stream(expected_stream)
+
+            op = _ctx_test_op(check)
+            data = ndd.tensor(np.zeros((480, 640, 3), dtype=np.int8))
+
+            t = op(data)  # this should use s0 and 8...
+            ndd.set_num_threads(42)
+            ndd.set_stream(s1)
+            assert calls == 0  # even though it wasn't evaluated before the global values changed
+
+            t.evaluate()  # evaluate now and...
+            assert calls == 1  # ...make sure the test function did run
+
+            expected_stream = s1
+            expected_num_threads = 42
+
+            t = op(data)  # this should use s1 and 42...
+            ndd.set_num_threads(None)
+            ndd.set_stream(None)
+            assert calls == 1
+            t.evaluate()
+            assert calls == 2  # make sure the test function ran again
+    finally:
+        ndd.set_num_threads(None)
+        ndd.set_stream(None)

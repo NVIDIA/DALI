@@ -2340,6 +2340,12 @@ void ExposeStream(py::module &m) {
     })
     .def_property_readonly("handle", [](dali::CUDAStreamLease &self) {
       return reinterpret_cast<uintptr_t>(self.get());
+    })
+    .def("__repr__", [](dali::CUDAStreamLease &self) {
+      return make_string("Stream(", self.get(), ")");
+    })
+    .def("__str__", [](dali::CUDAStreamLease &self) {
+      return make_string("Stream(", self.get(), ")");
     });
 }
 

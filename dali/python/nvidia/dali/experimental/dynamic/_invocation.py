@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import copy
 import threading
 from typing import TYPE_CHECKING, Any, Optional
 
@@ -82,7 +81,7 @@ class Invocation:
         self._num_outputs: int | None = None
         self._output_devices: list[Device] | None = None
         self._previous_invocation = previous_invocation
-        self._eval_context = copy.copy(_EvalContext.current())
+        self._eval_context = _EvalContext.current()._snapshot()
         self._future: Optional[_Future] = None
         self._run_lock = threading.Lock()
 
