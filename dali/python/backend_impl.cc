@@ -600,11 +600,15 @@ AccessOrder AccessOrderFromPythonStreamObj(const py::object &cuda_stream) {
       auto [version, stream_ptr] = cuda_stream_interface().cast<std::tuple<int, uintptr_t>>();
       cudaStream_t stream = reinterpret_cast<cudaStream_t>(stream_ptr);
       order = AccessOrder(stream);
-    } else if (py::hasattr(cuda_stream, "value")) {
-      cudaStream_t stream = static_cast<cudaStream_t>(ctypes_void_ptr(cuda_stream));
     } else if (py::isinstance<py::int_>(cuda_stream)) {
       cudaStream_t stream = reinterpret_cast<cudaStream_t>(py::cast<uintptr_t>(cuda_stream));
       order = AccessOrder(stream);
+    } else if (py::hasattr(cuda_stream, "value")) {
+      cudaStream_t stream = static_cast<cudaStream_t>(ctypes_void_ptr(cuda_stream));
+    } else if (auto cuda_stream_prop = getattr(cuda_stream, "cuda_stream", py::none())) {
+      return AccessOrderFromPythonStreamObj(cuda_stream_prop);
+    } else if (auto handle_prop = getattr(cuda_stream, "handle", py::none())) {
+      return AccessOrderFromPythonStreamObj(handle_prop);
     }
   } else {
     order = AccessOrder::host();
@@ -1880,6 +1884,9 @@ void ExposeBufferPolicyFunctions(py::module &m) {
     CUDA_CALL(cudaGetDevice(&device_id));
     return device_id;
   });
+  m.def("GetCUDAStreamDevice", [](py::object stream) {
+    return DeviceFromStream(AccessOrderFromPythonStreamObj(stream).stream());
+  });
   m.def("PreallocateDeviceMemory", mm::PreallocateDeviceMemory,
 R"(Preallocate memory on given device
 
@@ -2402,8 +2409,7 @@ void ExposeWorkspace(py::module &m) {
       auto ws = std::make_unique<PyWorkspace>();
       ws->SetThreadPool(std::move(thread_pool));
       if (!stream.is_none()) {
-        cudaStream_t s = static_cast<cudaStream_t>(ctypes_void_ptr(stream));
-        ws->set_output_order(s);
+        ws->SetStream(stream);
       }
       return ws;
     }), "thread_pool"_a = nullptr, "stream"_a = py::none())

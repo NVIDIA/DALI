@@ -329,3 +329,22 @@ def test_global_param_change_delay():
     finally:
         ndd.set_num_threads(None)
         ndd.set_stream(None)
+
+
+@attr("pytorch")
+def test_use_torch_stream():
+    import torch
+
+    try:
+        s = torch.cuda.Stream()
+        with torch.cuda.stream(s):
+            t = torch.arange(100000, dtype=torch.int32, device="cuda")
+            ndd.set_stream(s)
+            tensor = ndd.as_tensor(t).evaluate()
+            x = tensor[1::]
+            cmp = x.cpu().evaluate()
+            assert np.array_equal(np.arange(100000, dtype=np.int32)[1::], cmp)
+
+    finally:
+        ndd.set_num_threads(None)
+        ndd.set_stream(None)
