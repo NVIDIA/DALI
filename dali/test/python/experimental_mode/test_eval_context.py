@@ -286,7 +286,7 @@ def _ctx_test_op(check_func):
     return resize2_func
 
 
-def test_deferred_param_change():
+def test_global_param_change_delay():
     calls = 0
     expected_num_threads = 8
     expected_stream = None
