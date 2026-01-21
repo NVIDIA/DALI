@@ -605,6 +605,7 @@ AccessOrder AccessOrderFromPythonStreamObj(const py::object &cuda_stream) {
       order = AccessOrder(stream);
     } else if (py::hasattr(cuda_stream, "value")) {
       cudaStream_t stream = static_cast<cudaStream_t>(ctypes_void_ptr(cuda_stream));
+      order = AccessOrder(stream);
     } else if (auto cuda_stream_prop = getattr(cuda_stream, "cuda_stream", py::none())) {
       return AccessOrderFromPythonStreamObj(cuda_stream_prop);
     } else if (auto handle_prop = getattr(cuda_stream, "handle", py::none())) {

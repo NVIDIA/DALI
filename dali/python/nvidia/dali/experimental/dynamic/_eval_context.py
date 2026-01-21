@@ -45,8 +45,6 @@ def _default_num_threads():
     else:
         n = len(os.sched_getaffinity(0))
 
-    print("NDD: default number of threads", n)
-
     @wraps(_default_num_threads)
     def __default_num_threads():
         return n
@@ -63,7 +61,7 @@ def get_num_threads():
     Gets the number of threads in the default thread pool.
 
     The value is determined by (in decreasing priority):
-    1. The value (not None) passed to :meth:`set_num_threads``
+    1. The value (not None) passed to :meth:`set_num_threads`
     2. The value from DALI_NUM_THREADS environment variable.
     3. The number of CPUs in the calling process affinity list: ``len(os.sched_getaffinity(0))``
     """
@@ -74,7 +72,7 @@ def set_num_threads(n):
     """
     Sets (or clears) the number of threads in the default thread pool.
 
-    Changing this value will cause all EvalCotnexts which were constructed without an explicitly
+    Changing this value will cause all EvalContexts which were constructed without an explicitly
     given number of threads to recreate their associated thread pools.
 
     Setting None will cause the default value to be used.
