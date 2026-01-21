@@ -18,7 +18,8 @@ from threading import local
 
 import nvidia.dali.backend_impl as _b
 
-from . import _device, _stream
+from . import _device
+from . import _stream
 from ._async import _AsyncExecutor
 
 

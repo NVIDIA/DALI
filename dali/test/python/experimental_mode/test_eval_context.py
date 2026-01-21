@@ -282,8 +282,8 @@ def _ctx_test_op(check_func):
             check_func(ctx)
             return ndd._ops.Flip._run(self, ctx, *inputs, **args)
 
-    resize2_func = ndd._op_builder.build_fn_wrapper(Flip2)
-    return resize2_func
+    flip2_func = ndd._op_builder.build_fn_wrapper(Flip2)
+    return flip2_func
 
 
 def test_global_param_change_delay():
