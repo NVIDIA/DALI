@@ -33,7 +33,9 @@ def resize(
     antialias: Optional[bool] = True,
     device: Literal["cpu", "gpu"] = "cpu",
 ) -> Tensor:
-
+    """
+    Please refer to the ``Resize`` operator for more details.
+    """
     Resize.verify_args(
         size=size, max_size=max_size, interpolation=interpolation, antialias=antialias
     )

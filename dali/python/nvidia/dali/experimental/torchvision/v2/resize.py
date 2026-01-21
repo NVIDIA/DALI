@@ -1,4 +1,4 @@
-# Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -21,6 +21,7 @@ import nvidia.dali.fn as fn
 from nvidia.dali.types import DALIInterpType
 
 from torchvision.transforms import InterpolationMode
+import numpy as np
 
 
 class VerificationSize(ArgumentVerificationRule):
@@ -33,8 +34,8 @@ class VerificationSize(ArgumentVerificationRule):
             )
         if size is None and max_size is None:
             raise ValueError("Must provide max_size if size is None.")
-        if isinstance(size, int) and max_size is not None and size > max_size:
-            raise ValueError("max_size should not be smaller than actual size")
+        if size is not None and max_size is not None and np.min(size) > max_size:
+            raise ValueError("max_size should not be smaller than the actual size")
         if isinstance(size, (tuple, list)) and len(size) == 2 and max_size is not None:
             raise ValueError(
                 "max_size should only be passed if size specifies the length of the smaller \
@@ -46,31 +47,31 @@ class VerificationSize(ArgumentVerificationRule):
 
 class Resize(Operator):
     """
-    Resize the input to the given size.
+    Resize the input image to the given size
+    If the image is torch Tensor, it is expected to have […, H, W] shape, where … means a maximum
+    of two leading dimensions
 
-    If the input is a torch.Tensor or a TVTensor (e.g. Image, Video, BoundingBoxes etc.)
-    it can have arbitrary number of leading batch dimensions. For example, the image can
-    have [..., C, H, W] shape. A bounding box can have [..., 4] shape.
-
-    Parameters:
-        size (sequence or int) – Desired output size of the crop. If size is an int
-                               instead of sequence like (h, w), a square crop (size, size)
-                               is made. If provided a sequence of length 1, it will be
-                               interpreted as (size[0], size[0]).
-        interpolation (InterpolationMode or optional) - Desired interpolation enum defined by
-                               torchvision.transforms.InterpolationMode. Default is
-                               InterpolationMode.BILINEAR.
-        max_size (int, optional) - The maximum allowed for the longer edge of the resized image.
-                               If size is an int: if the longer edge of the image is greater than
-                               max_size after being resized according to size, size will be
-                               overruled so that the longer edge is equal to max_size. As a result,
-                               the smaller edge may be shorter than size. This is only supported if
-                               size is an int. If size is None: the longer edge of the image will be
-                               matched to max_size. i.e, if height > width, then image will be
-                               rescaled to (max_size, max_size * width / height).
-        antialias (bool, optional) - Whether to apply antialiasing.
-                               True (default): will apply antialiasing
-                               False: will not apply antialiasing
+    Parameters
+    ----------
+        size:sequence or int
+            Desired output size. If size is a sequence like (h, w), output size will be matched
+            to this. If size is an int, smaller edge of the image will be matched to this number.
+            i.e, if height > width, then image will be rescaled to (size * height / width, size).
+        interpolation : InterpolationMode or int
+            ``torchvision.transforms.InterpolationMode``. Default is InterpolationMode.BILINEAR.
+            If input is Tensor, only ``InterpolationMode.NEAREST``,
+            ``InterpolationMode.NEAREST_EXACT``, ``InterpolationMode.BILINEAR`` and
+            ``InterpolationMode.BICUBIC`` are supported.
+        max_size : int, optional
+            The maximum allowed for the longer edge of the resized image. If the longer edge of
+            the image is greater than max_size after being resized according to size, size will
+            be overruled so that the longer edge is equal to max_size. As a result, the smaller
+            edge may be shorter than size. This is only supported if size is an int.
+        antialias : bool, optional
+            Whether to apply antialiasing. If ``True``, antialiasing will be applied. If ``False``,
+            antialiasing will not be applied.
+        device : Literal["cpu", "gpu"], optional, default = "cpu"
+            Device to use for the resize. Can be ``"cpu"`` or ``"gpu"``.
     """
 
     # 'NEAREST', 'NEAREST_EXACT', 'BILINEAR', 'BICUBIC', 'BOX', 'HAMMING', 'LANCZOS'
@@ -156,7 +157,8 @@ class Resize(Operator):
     def _kernel(self, data_input):
         """
         Performs the resize. The method infers the requested size in compliance
-        with Torchvision resize documentation and applies DALI operator on the data_input.
+        with ``torchvision.transforms.Resize`` documentation and applies DALI operator on the
+        ``data_input``.
         """
 
         target_h, target_w = Resize.calculate_target_size(

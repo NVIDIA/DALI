@@ -68,14 +68,14 @@ def build_resize_transform(
     return t, td
 
 
-def loop_images_test(
+def loop_images_test_no_build(
+    t: transforms.Resize,
+    td: Resize,
     resize: Union[int, Sequence[int]],
     max_size: int = None,
     interpolation: transforms.InterpolationMode = transforms.InterpolationMode.BILINEAR,
     antialias: bool = False,
 ):
-    t, td = build_resize_transform(resize, max_size, interpolation, antialias)
-
     for fn in test_files:
         img = Image.open(fn)
         out_fn = transforms.functional.pil_to_tensor(
@@ -121,6 +121,16 @@ def loop_images_test(
         # assert torch.equal(out_tv, out_dali_tv)
 
 
+def loop_images_test(
+    resize: Union[int, Sequence[int]],
+    max_size: int = None,
+    interpolation: transforms.InterpolationMode = transforms.InterpolationMode.BILINEAR,
+    antialias: bool = False,
+):
+    t, td = build_resize_transform(resize, max_size, interpolation, antialias)
+    loop_images_test_no_build(t, td, resize, max_size, interpolation, antialias)
+
+
 @cartesian_params(
     (512, 2048, ([512, 512]), ([2048, 2048])),
     ("cpu", "gpu"),
@@ -147,13 +157,43 @@ def test_resize_sizes(resize):
     loop_images_test(resize=resize)
 
 
-@params((480, 512), (100, 124), (None, 512), (1024, 512), ([256, 256], 512))
+@params((480, 512), (100, 124), (None, 512), (1024, 512), ([256, 256], 512), (None, None))
 def test_resize_max_sizes(resize, max_size):
     # Resize with single int (preserve aspect ratio)
-    if resize is not None and (
-        (isinstance(resize, int) and max_size is not None and max_size < resize)
-        or (not isinstance(resize, int))
-    ):
+    if resize is not None and max_size is not None and np.min(np.array(resize, int)) > max_size:
+
+        """
+        with assert_raises(ValueError):
+            _ = transforms.Resize(resize, max_size)
+        This exception is called later - when executing the operation
+        """
+
+        with assert_raises(ValueError):
+            _ = Compose(
+                [
+                    Resize(resize, max_size=max_size),
+                ]
+            )
+        return
+    if resize is None and max_size is None:
+        with assert_raises(ValueError):
+            _ = transforms.Resize(resize, max_size)
+
+        with assert_raises(ValueError):
+            _ = Compose(
+                [
+                    Resize(resize, max_size=max_size),
+                ]
+            )
+        return
+
+    if isinstance(resize, Sequence) and len(resize) != 1 and max_size is not None:
+        """
+        with assert_raises(ValueError):
+            _ = transforms.Resize(resize, max_size)
+        This exception is called later - when executing the operation
+        """
+
         with assert_raises(ValueError):
             _ = Compose(
                 [

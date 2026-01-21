@@ -25,9 +25,7 @@ from ..operator import adjust_input  # noqa: E402
 def horizontal_flip(inpt: ndd.Tensor) -> ndd.Tensor:
     """
     Horizontally flips the given tensor.
-
-    Parameters:
-        inpt - input tensor
+    Refer to ``HorizontalFlip`` for more details.
     """
     return ndd.flip(inpt, horizontal=1, vertical=0)
 
@@ -35,9 +33,7 @@ def horizontal_flip(inpt: ndd.Tensor) -> ndd.Tensor:
 @adjust_input
 def vertical_flip(inpt: ndd.Tensor) -> ndd.Tensor:
     """
-    Vertically flips the given tensor
-
-    Parameters:
-        inpt - input tensor
+    Vertically flips the given tensor.
+    Refer to ``VerticalFlip`` for more details.
     """
     return ndd.flip(inpt, horizontal=0, vertical=1)

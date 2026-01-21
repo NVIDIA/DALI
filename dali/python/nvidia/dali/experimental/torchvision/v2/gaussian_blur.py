@@ -14,42 +14,66 @@
 
 from typing import Sequence, Literal
 import nvidia.dali.fn as fn
-from .operator import Operator, ArgumentVerificationRule, VerifyIfPositive
+from .operator import Operator, ArgumentVerificationRule, VerifyIfPositive, VerifyIfOrderedPair
 
 
 class VerifyKernel(ArgumentVerificationRule):
+    """
+    Verifies the kernel size argument for the GaussianBlur operator.
+
+    Parameters
+    ----------
+    kernel_size : sequence or int
+        Size of the Gaussian kernel. Should be a positive integer or a sequence of two positive
+        integers.
+    """
+
     @classmethod
     def verify(cls, *, kernel_size, **_) -> None:
-        VerifyIfPositive.verify(values=kernel_size)
+        VerifyIfPositive.verify(values=kernel_size, name="kernel_size")
 
 
 class VerifySigma(ArgumentVerificationRule):
+    """
+    Verifies the sigma argument for the GaussianBlur operator.
+
+    Parameters
+    ----------
+    sigma : float or tuple of float
+        Standard deviation to be used for creating kernel to perform blurring. If float, sigma
+        is fixed.
+        If it is tuple of float (min, max), sigma is chosen uniformly at random to lie
+        in the given range.
+    """
+
     @classmethod
     def verify(cls, *, sigma, **_) -> None:
-        VerifyIfPositive.verify(values=sigma)
-        if isinstance(sigma, (list, tuple)) and sigma[1] < sigma[0]:
-            raise ValueError("sigma values should be positive and of the form (min, max)")
+        VerifyIfPositive.verify(values=sigma, name="sigma")
+        VerifyIfOrderedPair.verify(values=sigma, name="sigma")
 
 
 class GaussianBlur(Operator):
     """
     Blurs image with randomly chosen Gaussian blur kernel.
 
-    The convolution will be using reflection padding corresponding to the kernel size,
+    The convolution will be using reflection padding corresponding to the ``kernel size``,
     to maintain the input shape.
 
-    If the input is a Tensor, it is expected to have […, C, H, W] shape, where … means
+    If the input is a ``Tensor``, it is expected to have […, C, H, W] shape, where … means
     an arbitrary number of leading dimensions.
-    Normalize a tensor image or video with mean and standard deviation.
 
-    Parameters:
-
-    kernel_size (int or sequence) – Size of the Gaussian kernel.
-    sigma (float or tuple of python:float (min, max)) – Standard deviation to be used
-            for creating kernel to perform blurring. If float, sigma is fixed.
-            If it is tuple of float (min, max), sigma is chosen uniformly at random
-            to lie in the given range.
-
+    Parameters
+    ----------
+    kernel_size : int or sequence
+        Size of the Gaussian kernel. Should be a positive integer or a sequence of two positive
+        integers.
+    sigma : float or tuple of float
+        Standard deviation to be used for creating kernel to perform blurring. If float, sigma
+        is fixed.
+        If it is tuple of float (min, max), sigma is chosen uniformly at random to lie
+        in the given range.
+    device : Literal["cpu", "gpu"], optional, default = "cpu"
+        Device to use for the GaussianBlur. Can be ``"cpu"`` or ``"gpu"``.
     """
 
     arg_rules = [VerifyKernel, VerifySigma]

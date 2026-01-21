@@ -30,7 +30,9 @@ def gaussian_blur(
     sigma: int | float | Sequence[float] = (0.1, 2.0),
     device: Literal["cpu", "gpu"] = "cpu",
 ) -> Tensor:
-
+    """
+    Please refer to the ``GaussianBlur`` operator for more details.
+    """
     GaussianBlur.verify_args(kernel_size=kernel_size, sigma=sigma)
 
     return ndd.gaussian_blur(img, window_size=kernel_size, sigma=sigma, device=device)

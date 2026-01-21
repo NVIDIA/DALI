@@ -15,34 +15,46 @@
 from typing import Sequence, Union, Literal, Optional
 import nvidia.dali.fn as fn
 import nvidia.dali as dali
-from .operator import ArgumentVerificationRule, Operator
+from .operator import ArgumentVerificationRule, Operator, VerifyIfOrderedPair
 
 
 class VerificationBCS(ArgumentVerificationRule):
     """
     Verify Brighness, Contrast and Saturation values
+
+    Parameters
+    ----------
+    brightness : float or tuple of float
+        How much to jitter brightness.
+    contrast : float or tuple of float
+        How much to jitter contrast.
+    saturation : float or tuple of float
+        How much to jitter saturation.
     """
 
     @classmethod
-    def _validate_param(cls, param: Union[float, Sequence[float]]):
+    def _validate_param(cls, param: Union[float, Sequence[float]], name: str):
         if isinstance(param, float):
             param = [max(0, 1 - param), 1 + param]
 
-        if param is not None and (
-            len(param) != 2 or param[0] < 0 or param[1] < 0 or param[0] > param[1]
-        ):
-            raise ValueError("Parameters must be > 0")
+        if param is not None:
+            VerifyIfOrderedPair.verify(values=param, name=name)
 
     @classmethod
     def verify(cls, *, saturation, brightness, contrast, **_) -> None:
-        VerificationBCS._validate_param(brightness)
-        VerificationBCS._validate_param(saturation)
-        VerificationBCS._validate_param(contrast)
+        VerificationBCS._validate_param(brightness, "brightness")
+        VerificationBCS._validate_param(saturation, "saturation")
+        VerificationBCS._validate_param(contrast, "contrast")
 
 
 class VerificationHue(ArgumentVerificationRule):
     """
     Verify Hue
+
+    Parameters
+    ----------
+    hue : float or tuple of float
+        How much to jitter hue.
     """
 
     @classmethod
@@ -51,10 +63,24 @@ class VerificationHue(ArgumentVerificationRule):
             hue = (-hue, hue)
 
         if hue is not None and (len(hue) != 2 or hue[0] < -0.5 or hue[1] > 0.5):
-            raise ValueError(f"hue values should be between (-0.5, 0.5) but got {hue}")
+            raise ValueError(f"hue values should be between [-0.5, 0.5], but got {hue}")
 
 
 def get_BCSH(brightness, contrast, saturation, hue, random_function):
+    """
+    Gets random: brightness, contrast, saturation and hue.
+
+    Parameters
+    ----------
+    brightness : float or tuple of float
+        How much to jitter brightness.
+    contrast : float or tuple of float
+        How much to jitter contrast.
+    saturation : float or tuple of float
+        How much to jitter saturation.
+    hue : float or tuple of float
+        How much to jitter hue.
+    """
     if brightness[0] == brightness[1]:
         brightness = brightness[0]
     else:
@@ -82,20 +108,26 @@ class ColorJitter(Operator):
     """
     Randomly change the brightness, contrast, saturation and hue of an image or video.
 
-    Parameters:
-        brightness (float or tuple of python:float (min, max)) – How much to jitter brightness.
-                brightness_factor is chosen uniformly from [max(0, 1 - brightness), 1 + brightness]
-                or the given [min, max]. Should be non negative numbers.
-        contrast (float or tuple of python:float (min, max)) – How much to jitter contrast.
-                contrast_factor is chosen uniformly from [max(0, 1 - contrast), 1 + contrast]
-                or the given [min, max]. Should be non-negative numbers.
-        saturation (float or tuple of python:float (min, max)) – How much to jitter saturation.
-                saturation_factor is chosen uniformly from [max(0, 1 - saturation), 1 + saturation]
-                or the given [min, max]. Should be non negative numbers.
-        hue (float or tuple of python:float (min, max)) – How much to jitter hue.
-                hue_factor is chosen uniformly from [-hue, hue] or the given [min, max].
-                Should have 0<= hue <= 0.5 or -0.5 <= min <= max <= 0.5. To jitter hue, the pixel
-                values of the input image has to be non-negative for conversion to HSV space
+    Parameters
+    ----------
+    brightness : float or tuple of float (min, max)
+        How much to jitter brightness. brightness_factor is chosen uniformly from
+        [max(0, 1 - brightness), 1 + brightness] or the given [min, max]. Should be non negative
+        numbers.
+    contrast : float or tuple of float (min, max)
+        How much to jitter contrast. contrast_factor is chosen uniformly from
+        [max(0, 1 - contrast), 1 + contrast] or the given [min, max]. Should be non-negative
+        numbers.
+    saturation : float or tuple of float (min, max)
+        How much to jitter saturation. saturation_factor is chosen uniformly from
+        [max(0, 1 - saturation), 1 + saturation] or the given [min, max]. Should be non negative
+        numbers.
+    hue : float or tuple of float (min, max)
+        How much to jitter hue. hue_factor is chosen uniformly from [-hue, hue] or the given
+        [min, max]. Should have 0<= hue <= 0.5 or -0.5 <= min <= max <= 0.5. To jitter hue,
+        the pixel values of the input image has to be non-negative for conversion to HSV space.
+    device : Literal["cpu", "gpu"], optional, default = "cpu"
+        Device to use for the color jitter. Can be ``"cpu"`` or ``"gpu"``.
     """
 
     arg_rules = [VerificationBCS, VerificationHue]
@@ -132,7 +164,7 @@ class ColorJitter(Operator):
 
     def _kernel(self, data_input):
         """
-        Performs the color jitter.
+        Performs the color jitter using the ``fn.color_twist`` operator.
         """
         brightness, contrast, saturation, hue = get_BCSH(
             self.brightness, self.contrast, self.saturation, self.hue, fn.random.uniform
@@ -151,6 +183,15 @@ class ColorJitter(Operator):
 
 
 class VerificationGSOutputChannels(ArgumentVerificationRule):
+    """
+    Verify the number of output channels for the Grayscale operator.
+
+    Parameters
+    ----------
+    num_output_channels : int
+        Number of channels desired for output image. Should be 1 or 3.
+    """
+
     @classmethod
     def verify(cls, *, num_output_channels, **_):
         if num_output_channels not in [1, 3]:
@@ -161,8 +202,10 @@ class Grayscale(Operator):
     """
     Convert images or videos to grayscale.
 
-    Parameters:
-        num_output_channels (int) – (1 or 3) number of channels desired for output image
+    Parameters
+    ----------
+    num_output_channels : int
+        Number of channels desired for output image. Should be 1 or 3.
     """
 
     arg_rules = [VerificationGSOutputChannels]
@@ -174,7 +217,8 @@ class Grayscale(Operator):
 
     def _kernel(self, data_input):
         """
-        Converts an image to a grayscale
+        Converts an image to a grayscale using the ``fn.color_space_conversion`` or ``fn.hsv``
+        operators.
         """
         c = data_input.shape()[-1]
         if self.num_output_channels == 1 and c == 3:  # RGB (TODO: what if it is HSV?)

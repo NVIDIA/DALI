@@ -66,7 +66,9 @@ def pad(
     padding_mode: Literal["constant", "edge", "reflect", "symmetric"] = "constant",
     device: Literal["cpu", "gpu"] = "cpu",
 ) -> ndd.Tensor:
-
+    """
+    Please refer to the ``Pad`` operator for more details.
+    """
     if isinstance(img, Image.Image):
         axes = [-3, -2]
     elif isinstance(img, torch.Tensor):

@@ -52,7 +52,9 @@ def normalize(
     inplace: bool = False,
     device: Literal["cpu", "gpu"] = "cpu",
 ) -> ndd.Tensor:
-
+    """
+    Please refer to the ``Normalize`` operator for more details.
+    """
     Normalize.verify_args(std=std)
     Normalize.verify_data(input_data)
 

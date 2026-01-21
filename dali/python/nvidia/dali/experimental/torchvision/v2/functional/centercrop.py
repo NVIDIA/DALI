@@ -29,7 +29,9 @@ def center_crop(
     output_size: List[int],
     device: Literal["cpu", "gpu"] = "cpu",
 ) -> Tensor:
-
+    """
+    Please refer to the ``CenterCrop`` operator for more details.
+    """
     CenterCrop.verify_args(size=output_size)
 
     return ndd.crop(

@@ -20,6 +20,15 @@ from .operator import Operator, VerificationIsTensor, ArgumentVerificationRule
 
 
 class VerifyStd(ArgumentVerificationRule):
+    """
+    Verify the standard deviation argument for the Normalize operator.
+
+    Parameters
+    ----------
+    std : sequence
+        Sequence of standard deviations for each channel.
+    """
+
     @classmethod
     def verify(cls, *, std, **_) -> None:
         if np.any(np.array(std) == 0):
@@ -35,11 +44,14 @@ class Normalize(Operator):
     this transform will normalize each channel of the input torch.*Tensor
     i.e., output[channel] = (input[channel] - mean[channel]) / std[channel]
 
-    Parameters:
-
-    mean (sequence) – Sequence of means for each channel.
-    std (sequence) – Sequence of standard deviations for each channel.
-    inplace (bool,optional) – Bool to make this operation in-place.
+    Parameters
+    ----------
+    mean : sequence
+        Sequence of means for each channel.
+    std : sequence
+        Sequence of standard deviations for each channel.
+    inplace : bool, optional
+        Bool to make this operation in-place. Not supported.
     """
 
     arg_rules = [VerifyStd]
@@ -56,7 +68,8 @@ class Normalize(Operator):
 
         self.mean = np.asarray(mean)[:, None, None]
         self.std = np.asarray(std)[:, None, None]
-        self.inplace = inplace  # TODO: provide proper implementation
+        if inplace:
+            raise ValueError("inplace is not supported")
 
     def _kernel(self, data_input):
 

@@ -21,9 +21,14 @@ class RandomFlip(Operator):
     """
     Randomly flips the given image randomly with a given probability.
 
-    Parameters:
-        p (float) – probability of the image being flipped. Default value is 0.5
-        device (string) - operator execution device
+    Parameters
+    ----------
+        p : float
+            Probability of the image being flipped. Default value is 0.5
+        horizontal : int
+            Flip the horizontal dimension.
+        device : Literal["cpu", "gpu"], optional, default = "cpu"
+            Device to use for the flip. Can be ``"cpu"`` or ``"gpu"``.
     """
 
     def __init__(self, p: float = 0.5, horizontal: int = 1, device: Literal["cpu", "gpu"] = "cpu"):
@@ -33,9 +38,6 @@ class RandomFlip(Operator):
         self.horizontal = horizontal
 
     def _kernel(self, data_input):
-        """
-        Performs the horizontal flip if coin_flip >= p
-        """
         if self.horizontal:
             data_input = fn.flip(
                 data_input, horizontal=fn.random.coin_flip(probability=self.prob), vertical=0
@@ -52,9 +54,12 @@ class RandomHorizontalFlip(RandomFlip):
     """
     Randomly horizontally flips the given image randomly with a given probability.
 
-    Parameters:
-        p (float) – probability of the image being flipped. Default value is 0.5
-        device (string) - operator execution device
+    Parameters
+    ----------
+    p : float
+        Probability of the image being flipped. Default value is 0.5
+    device : Literal["cpu", "gpu"], optional, default = "cpu"
+        Device to use for the flip. Can be ``"cpu"`` or ``"gpu"``.
     """
 
     def __init__(self, p: float = 0.5, device: Literal["cpu", "gpu"] = "cpu"):
@@ -65,9 +70,12 @@ class RandomVerticalFlip(RandomFlip):
     """
     Randomly vertically flips the given image randomly with a given probability.
 
-    Parameters:
-        p (float) – probability of the image being flipped. Default value is 0.5
-        device (string) - operator execution device
+    Parameters
+    ----------
+    p : float
+        Probability of the image being flipped. Default value is 0.5
+    device : Literal["cpu", "gpu"], optional, default = "cpu"
+        Device to use for the flip. Can be ``"cpu"`` or ``"gpu"``.
     """
 
     def __init__(self, p: float = 0.5, device: Literal["cpu", "gpu"] = "cpu"):

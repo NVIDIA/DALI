@@ -50,6 +50,9 @@ def to_grayscale(
     num_output_channels: int = 1,
     device: Literal["cpu", "gpu"] = "cpu",
 ) -> Tensor:
+    """
+    Please refer to the ``Grayscale`` operator for more details.
+    """
     return _grayscale(img, num_output_channels, device)
 
 
@@ -57,4 +60,7 @@ def to_grayscale(
 def rgb_to_grayscale(
     img: Tensor, num_output_channels: int = 1, device: Literal["cpu", "gpu"] = "cpu"
 ) -> Tensor:
+    """
+    Please refer to the ``Grayscale`` operator for more details.
+    """
     return _grayscale(img, num_output_channels, device)

@@ -37,6 +37,7 @@ def test_pad_core(mode: str, device: str, padding: list, fill=0.0):
     else:
         transform = Compose([Pad(padding=padding, padding_mode=mode, device=device)])
         transform_tv = tv.Pad(padding, padding_mode=mode)
+
     out = transform(img)
     out_tv = transform_tv(img)
     out_tv_fn = tv.functional.pad(img, padding=padding, padding_mode=mode)
@@ -86,6 +87,12 @@ def test_pad_symetric_single(mode, device, padding):
         [1, 1, 0, 0],
         [0, 0, 1, 1],
         [0, 1, 0, 1],
+        [1, 0],
+        [0, 1],
+        [2, 0],
+        [0, 2],
+        [3, 0],
+        [0, 3],
     ),
 )
 def test_pad_multi(mode: str, device: str, padding: list):
