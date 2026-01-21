@@ -16,7 +16,7 @@ install_cuda_compat
 cd /opt/dali/docs/examples/use_cases/pytorch/single_stage_detector/
 
 pip install mlperf_compliance Cython
-pip install git+https://github.com/NVIDIA/cocoapi.git#subdirectory=PythonAPI
+pip install git+https://github.com/NVIDIA/cocoapi.git#subdirectory=PythonAPI --no-build-isolation
 
 NUM_GPUS=$(nvidia-smi -L | wc -l)
 

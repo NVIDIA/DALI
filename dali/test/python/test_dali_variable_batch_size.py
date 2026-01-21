@@ -1441,7 +1441,7 @@ def test_video_decoder():
     check_pipeline(batches, video_decoder_pipe, devices=["cpu", "mixed"])
 
 
-@has_operator("experimental.inflate")
+@has_operator("decoders.inflate")
 @restrict_platform(min_compute_cap=6.0)
 def test_inflate():
     import lz4.block
@@ -1460,7 +1460,7 @@ def test_inflate():
         def piepline():
             defalted = fn.external_source(source=input_data)
             shape = fn.external_source(source=input_shape)
-            return fn.experimental.inflate(defalted.gpu(), shape=shape)
+            return fn.decoders.inflate(defalted.gpu(), shape=shape)
 
         return piepline(batch_size=max_batch_size, num_threads=4, device_id=0)
 
@@ -1818,6 +1818,7 @@ tested_methods = [
     "experimental.dilate",
     "experimental.erode",
     "experimental.filter",
+    "decoders.inflate",
     "experimental.inflate",
     "experimental.median_blur",
     "experimental.peek_image_shape",
@@ -1949,6 +1950,7 @@ tested_methods = [
 
 excluded_methods = [
     "hidden.*",
+    "experimental.hidden.*",
     "_conditional.hidden.*",
     "multi_paste",  # ToDo - crashes
     "coco_reader",  # readers do not support variable batch size yet

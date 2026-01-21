@@ -16,8 +16,26 @@ import numpy as np
 from typing import Sequence, Literal
 import nvidia.dali.fn as fn
 
+from .operator import Operator, VerificationIsTensor, ArgumentVerificationRule
 
-class Normalize:
+
+class VerifyStd(ArgumentVerificationRule):
+    """
+    Verify the standard deviation argument for the Normalize operator.
+
+    Parameters
+    ----------
+    std : sequence
+        Sequence of standard deviations for each channel.
+    """
+
+    @classmethod
+    def verify(cls, *, std, **_) -> None:
+        if np.any(np.array(std) == 0):
+            raise ValueError("Std must not be 0")
+
+
+class Normalize(Operator):
     """
     Normalize a tensor image or video with mean and standard deviation.
 
@@ -26,12 +44,18 @@ class Normalize:
     this transform will normalize each channel of the input torch.*Tensor
     i.e., output[channel] = (input[channel] - mean[channel]) / std[channel]
 
-    Parameters:
-
-    mean (sequence) – Sequence of means for each channel.
-    std (sequence) – Sequence of standard deviations for each channel.
-    inplace (bool,optional) – Bool to make this operation in-place.
+    Parameters
+    ----------
+    mean : sequence
+        Sequence of means for each channel.
+    std : sequence
+        Sequence of standard deviations for each channel.
+    inplace : bool, optional
+        Bool to make this operation in-place. Not supported.
     """
+
+    arg_rules = [VerifyStd]
+    input_rules = [VerificationIsTensor]
 
     def __init__(
         self,
@@ -40,14 +64,14 @@ class Normalize:
         inplace: bool = False,
         device: Literal["cpu", "gpu"] = "cpu",
     ):
+        super().__init__(device=device, std=std)
+
         self.mean = np.asarray(mean)[:, None, None]
         self.std = np.asarray(std)[:, None, None]
-        self.inplace = inplace  # TODO: provide proper implementation
-        self.device = device
+        if inplace:
+            raise ValueError("inplace is not supported")
 
-    def __call__(self, data_input):
-        if self.device == "gpu":
-            data_input = data_input.gpu()
+    def _kernel(self, data_input):
 
         return fn.normalize(
             data_input,

@@ -800,9 +800,9 @@ def test_numba_function_stateless():
     check_is_pipeline_stateless(numba_pipe)
 
 
-@has_operator("experimental.inflate")
+@has_operator("decoders.inflate")
 @restrict_platform(min_compute_cap=6.0)
-@stateless_signed_off("experimental.inflate")
+@stateless_signed_off("decoders.inflate", "experimental.inflate")
 def test_inflate_stateless():
     import lz4.block
 
@@ -820,7 +820,7 @@ def test_inflate_stateless():
     def pipeline():
         deflated = fn.external_source(source=itertools.repeat(input_data))
         shape = fn.external_source(source=itertools.repeat(input_shape))
-        return fn.experimental.inflate(deflated.gpu(), shape=shape)
+        return fn.decoders.inflate(deflated.gpu(), shape=shape)
 
     check_is_pipeline_stateless(pipeline)
 

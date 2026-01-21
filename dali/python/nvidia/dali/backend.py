@@ -92,6 +92,9 @@ if not initialized:
             "Please update your environment to use Python 3.10, "
             "or newer."
         )
+    # py3.14 warning
+    if sys.version_info[0] == 3 and sys.version_info[1] == 14:
+        deprecation_warning("Python 3.14 support is experimental and not officially tested.")
 
     if int(str(__cuda_version__)[:2]) < 11:
         deprecation_warning(

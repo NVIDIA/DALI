@@ -20,6 +20,7 @@ from nvidia.dali.data_node import DataNode as _DataNode
 from nvidia.dali.backend import TensorListCPU, TensorListGPU
 
 from .tensor import ToTensor
+from .operator import VerificationTensorOrImage
 
 import numpy as np
 import multiprocessing
@@ -40,7 +41,14 @@ def _to_torch_tensor(tensor_or_tl: Union[TensorListGPU, TensorListCPU]) -> torch
 
 
 def to_torch_tensor(tensor_or_tl: Union[tuple, TensorListGPU, TensorListCPU]) -> torch.Tensor:
+    """
+    Converts a DALI tensor or tensor list to a PyTorch tensor.
 
+    Parameters
+    ----------
+        tensor_or_tl : tuple, TensorListGPU, TensorListCPU
+            DALI tensor or tensor list.
+    """
     if isinstance(tensor_or_tl, tuple) and len(tensor_or_tl) > 1:
         tl = []
         for elem in tensor_or_tl:
@@ -54,7 +62,16 @@ def to_torch_tensor(tensor_or_tl: Union[tuple, TensorListGPU, TensorListCPU]) ->
 
 @pipeline_def(enable_conditionals=True, exec_dynamic=True, prefetch_queue_depth=1)
 def _pipeline_function(op_list, layout="HWC"):
+    """
+    Builds a DALI pipeline from a list of operators.
 
+    Parameters
+    ----------
+        op_list : list
+            List of DALI operators.
+        layout : str
+            Layout of the data.
+    """
     input_node = fn.external_source(name="input_data", no_copy=True, layout=layout)
     for op in op_list:
         if isinstance(op, ToTensor) and op != op_list[-1]:
@@ -64,6 +81,26 @@ def _pipeline_function(op_list, layout="HWC"):
 
 
 class PipelineLayouted:
+    """Base class for pipeline layouts.
+
+    This class is a base class for DALI pipelines with a specific layout. It is used to handle
+    the layout of the data.
+    Single DALI Pipeline can only use one layout at a time.
+
+    Parameters
+    ----------
+    op_list : list
+        List of DALI operators.
+    layout : str
+        Layout of the data.
+    batch_size : int, optional, default = DEFAULT_BATCH_SIZE
+        Batch size.
+    num_threads : int, optional, default = DEFAULT_NUM_THREADS
+        Number of threads.
+    **dali_pipeline_kwargs
+        Additional keyword arguments for the DALI pipeline.
+    """
+
     def __init__(
         self,
         op_list: List[Callable[..., Union[Sequence[_DataNode], _DataNode]]],
@@ -82,7 +119,11 @@ class PipelineLayouted:
         )
 
     def run(self, data_input):
-        output = self.pipe.run(input_data=data_input)
+        output = None
+
+        stream = torch.cuda.Stream(0)
+        with torch.cuda.stream(stream):
+            output = self.pipe.run(stream, input_data=data_input)
 
         if output is None:
             return output
@@ -104,11 +145,21 @@ class PipelineLayouted:
 
 
 class PipelineHWC(PipelineLayouted):
-    """
-    Handles PIL Images in HWC format
+    """Handles ``PIL.Image`` in HWC format.
 
     This class prepares data to be passed to a DALI pipeline, runs the pipeline and converts
-    pipeline output to a PIL Image
+    the output to a ``PIL.Image``.
+
+    Parameters
+    ----------
+    op_list : list
+        List of DALI operators.
+    batch_size : int, optional, default = DEFAULT_BATCH_SIZE
+        Batch size.
+    num_threads : int, optional, default = DEFAULT_NUM_THREADS
+        Number of threads.
+    **dali_pipeline_kwargs
+        Additional keyword arguments for the DALI pipeline.
     """
 
     def __init__(
@@ -136,9 +187,13 @@ class PipelineHWC(PipelineLayouted):
             in_tensor = in_tensor.squeeze(-1)
         elif in_tensor.shape[channels] == 3:
             mode = "RGB"
+        elif in_tensor.shape[channels] == 4:
+            mode = "RGBA"
         else:
-            raise ValueError(f"Unsupported number of channels: {channels}. Should be 1 or 3.")
-        # We need to convert tensor to CPU, otherwise it will be unsable
+            raise ValueError(
+                f"Unsupported number of channels: {in_tensor.shape[channels]}. Should be 1 or 3."
+            )
+        # We need to convert tensor to CPU, PIL does not support CUDA tensors
         return Image.fromarray(in_tensor.cpu().numpy(), mode=mode)
 
     def run(self, data_input):
@@ -177,10 +232,21 @@ class PipelineHWC(PipelineLayouted):
 
 
 class PipelineCHW(PipelineLayouted):
-    """
-    Handles torch.Tensors in CHW format
+    """Handles ``torch.Tensors`` in CHW format.
 
-    This class prepares data to be passed to a DALI pipeline and runs the pipeline
+    This class prepares data to be passed to a DALI pipeline and runs the pipeline, converting
+    the output to a ``torch.Tensor``.
+
+    Parameters
+    ----------
+    op_list : list
+        List of DALI operators.
+    batch_size : int, optional, default = DEFAULT_BATCH_SIZE
+        Batch size.
+    num_threads : int, optional, default = DEFAULT_NUM_THREADS
+        Number of threads.
+    **dali_pipeline_kwargs
+        Additional keyword arguments for the DALI pipeline.
     """
 
     def __init__(
@@ -209,7 +275,6 @@ class PipelineCHW(PipelineLayouted):
                 "CHW layout is currently supported for torch.Tensor only.\
                 Please check if samples have the same format."
             )
-
         output = super().run(_input)
 
         if data_input.ndim == 3:
@@ -228,10 +293,20 @@ class Compose:
     """
     Composes transforms together in a single pipeline
 
-    This class chaining multiple DALI operations in a sequential manner,
-    similar to torchvision.transforms.Compose. The Compose implements a callable
-    which runs a pipeline.
+    This class chains multiple DALI operations in a sequential manner, similar to
+    ``torchvision.transforms.Compose``. The ``Compose`` class implements a callable which runs
+    the pipeline.
 
+    Parameters
+    ----------
+    op_list : list
+        List of DALI operators.
+    batch_size : int, optional, default = DEFAULT_BATCH_SIZE
+        Batch size.
+    num_threads : int, optional, default = DEFAULT_NUM_THREADS
+        Number of threads.
+    **dali_pipeline_kwargs
+        Additional keyword arguments for the DALI pipeline.
     """
 
     def __init__(
@@ -261,18 +336,19 @@ class Compose:
 
     def __call__(self, data_input):
         """
-        Runs a pipeline
+        Runs the pipeline
 
-        The Pipeline class builds a graph based on the operations list passed in the constructor.
-        Next, whenever the Compose object is called it starts the pipeline and returns results.
+        The ``Pipeline`` class builds a graph based on the operations list passed in
+        the constructor. Next, whenever the ``Compose`` object is called it starts the pipeline
+        and returns results.
 
-        Args:
-            data_input: Input tensor or PIL Image.
+        Parameters
+        ----------
+            data_input: Tensor or PIL Image
                 In case of PIL image it will be converted to tensor before sending to pipeline
         """
 
-        if not isinstance(data_input, (Image.Image, torch.Tensor)):
-            raise TypeError(f"input should be PIL Image or torch.Tensor. Got {type(data_input)}")
+        VerificationTensorOrImage.verify(data_input)
 
         if self.active_pipeline is None:
             self._build_pipeline(data_input)

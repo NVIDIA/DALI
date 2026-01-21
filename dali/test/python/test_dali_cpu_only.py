@@ -1657,6 +1657,7 @@ tested_methods = [
 
 excluded_methods = [
     "hidden.*",
+    "experimental.hidden.*",
     "_conditional.hidden.*",
     "jitter",  # not supported for CPU
     "video_reader",  # not supported for CPU
@@ -1667,6 +1668,7 @@ excluded_methods = [
     "experimental.audio_resample",  # Alias of audio_resample (already tested)
     "experimental.equalize",  # not supported for CPU
     "experimental.filter",  # not supported for CPU
+    "decoders.inflate",  # not supported for CPU
     "experimental.inflate",  # not supported for CPU
     "experimental.remap",  # operator is GPU-only
     "experimental.readers.fits",  # lacking test files in DALI_EXTRA

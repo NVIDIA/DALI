@@ -22,6 +22,7 @@ import torch
 import torchvision.transforms.v2 as transforms
 
 from nvidia.dali.experimental.torchvision import Compose, Grayscale, ColorJitter
+from nvidia.dali.experimental.torchvision.v2.functional import to_grayscale, rgb_to_grayscale
 
 
 def verify_non_one_off(t1: torch.Tensor, t2: torch.Tensor):
@@ -60,8 +61,12 @@ def loop_images_test(t, td):
 
         out_tv = transforms.functional.pil_to_tensor(t(img))
         out_dali_tv = transforms.functional.pil_to_tensor(td(img))
+        out_dali_fn = transforms.functional.pil_to_tensor(to_grayscale(img))
+        out_dali_fn1 = transforms.functional.pil_to_tensor(rgb_to_grayscale(img))
 
         assert verify_non_one_off(out_tv, out_dali_tv), f"Images differ {fn}"
+        assert verify_non_one_off(out_tv, out_dali_fn), f"Images differ {fn}"
+        assert verify_non_one_off(out_tv, out_dali_fn1), f"Images differ {fn}"
 
 
 @cartesian_params((1, 3), ("cpu", "gpu"))

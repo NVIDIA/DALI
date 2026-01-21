@@ -39,7 +39,7 @@ def analyze_frame(image, channel_dim):
     assert close(y0, y1), "y0 = {} != y1 = {}".format(y0, y1)
     assert close(y2, y3), "y2 = {} != y3 = {}".format(y2, y3)
     assert close(f0, f1) and close(f0, f2) and close(f0, f3)
-    return x0, y0, x3, y3, int(np.round(f0))
+    return np.int32(x0), np.int32(y0), np.int32(x3), np.int32(y3), np.int32(np.round(f0))
 
 
 def check_frame(

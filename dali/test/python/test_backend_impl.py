@@ -148,7 +148,7 @@ def test_transfer_cpu_gpu():
 
 
 def check_array_types(t):
-    arr = np.array([[-0.39, 1.5], [-1.5, 0.33]], dtype=t)
+    arr = np.array([[-0.39, 1.5], [-1.5, 0.33]], dtype=float).astype(t)
     tensor = TensorCPU(arr, "HW")
     assert np.allclose(np.array(arr), np.asanyarray(tensor))
 

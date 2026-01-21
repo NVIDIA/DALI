@@ -12,14 +12,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from threading import local
-from . import _device
-import nvidia.dali.backend_impl as _b
 import weakref
+from threading import local
 
-_tls = local()
-_tls.default = {}  # per-device default context
-_tls.stack = []
+import nvidia.dali.backend_impl as _b
+
+from . import _device
+from ._async import _AsyncExecutor
+
+
+class _ThreadLocalStorage(local):
+    def __init__(self):
+        super().__init__()
+        self.default = {}  # per-device default context
+        self.stack = []
+
+
+_tls = _ThreadLocalStorage()
 
 
 def _default_num_threads():
@@ -66,10 +75,24 @@ class EvalContext:
         if self._cuda_stream is None and self._device.device_type == "gpu":
             self._cuda_stream = _b.Stream(self._device.device_id)
 
-        self._thread_pool = _b._ThreadPool(num_threads or _default_num_threads())
+        self._num_threads = num_threads or _default_num_threads()
+        self._instance_cache = {}
+
+        # The thread pool needs to be thread-local because of eager execution
+        self._tls = local()
+
+        self._async_executor = _AsyncExecutor()
+        weakref.finalize(self, self._async_executor.shutdown)
+
+    @property
+    def _thread_pool(self):
+        if not hasattr(self._tls, "thread_pool"):
+            self._tls.thread_pool = _b._ThreadPool(self._num_threads)
+
+        return self._tls.thread_pool
 
     @staticmethod
-    def current():
+    def current() -> "EvalContext":
         """
         Returns the currently active EvalContext for the calling thread.
         """
@@ -119,7 +142,7 @@ class EvalContext:
         return self._cuda_stream
 
     @staticmethod
-    def default():
+    def default() -> "EvalContext":
         current_device_id = _device.Device.default_device_id("gpu")
         if current_device_id not in _tls.default:
             _tls.default[current_device_id] = EvalContext(device_id=current_device_id)

@@ -95,6 +95,28 @@ if sys.version_info >= (3, 12):
     imp_module.__dict__.update(context)
     sys.modules["imp"] = imp_module
     unittest._TextTestResult = unittest.TextTestResult
+
+# Handle pkg_resources deprecation/removal
+try:
+    import pkg_resources  # noqa: F401
+except ImportError:
+    from importlib import metadata
+    import types
+
+    def iter_entry_points(group, name=None):
+        """Mimics pkg_resources.iter_entry_points using importlib.metadata."""
+        eps = metadata.entry_points()
+        selected = eps.select(group=group)
+
+        if name is not None:
+            selected = [ep for ep in selected if ep.name == name]
+
+        return selected
+
+    pkg_resources_module = types.ModuleType("pkg_resources", "Mimics pkg_resources module")
+    pkg_resources_module.iter_entry_points = iter_entry_points
+    sys.modules["pkg_resources"] = pkg_resources_module
+
 import nose.case
 import nose.inspector
 import nose.loader

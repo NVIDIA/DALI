@@ -12,12 +12,30 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import contextlib
 import numpy as np
 
 from nvidia.dali import pipeline_def, fn, types
 from test_utils import np_type_to_dali, has_operator, restrict_platform
-from nose_utils import assert_raises
+from nose_utils import assert_raises, assert_warns
 from nose2.tools import params
+
+
+def _op_alias():
+    while True:
+        for op in ["decoders", "experimental"]:
+            yield op
+
+
+def _get_alias_and_ctx(op):
+    if op == "experimental":
+        op = fn.experimental.inflate
+        chck_ctx = assert_warns(Warning, glob="*deprecated*decoders.inflate*")
+    else:
+        assert op == "decoders"
+        op = fn.decoders.inflate
+        chck_ctx = contextlib.nullcontext()
+    return op, chck_ctx
 
 
 def sample_to_lz4(sample):
@@ -54,7 +72,7 @@ def check_batch(inflated, baseline, batch_size, layout=None, oversized_shape=Fal
                 )
 
 
-def _test_sample_inflate(batch_size, np_dtype, seed):
+def _test_sample_inflate(op, batch_size, np_dtype, seed):
     epoch_size = 10 * batch_size
     rng = np.random.default_rng(seed=seed)
     permutation = rng.permutation(epoch_size)
@@ -79,31 +97,35 @@ def _test_sample_inflate(batch_size, np_dtype, seed):
 
             def sample(sample_size):
                 start = (sample_size - 1) * sample_size // 2
-                sample = np.arange(start, start + sample_size, dtype=np_dtype)
+                sample = np.arange(start, start + sample_size, dtype=np.int64).astype(np_dtype)
                 return sample, sample_to_lz4(sample)
 
             samples, deflated = list(zip(*[sample(sample_size) for sample_size in sample_sizes]))
             yield list(samples), list(deflated), np.array(sample_sizes, dtype=np.int32)
 
+    op, chck_ctx = _get_alias_and_ctx(op)
+
     @pipeline_def
     def pipeline():
         sample, deflated, shape = fn.external_source(source=source, batch=True, num_outputs=3)
-        inflated = fn.experimental.inflate(deflated.gpu(), shape=shape, dtype=dtype)
+        inflated = op(deflated.gpu(), shape=shape, dtype=dtype)
         return inflated, sample
 
-    pipe = pipeline(batch_size=batch_size, num_threads=4, device_id=0)
-    for iter_size in iteration_sizes:
-        inflated, baseline = pipe.run()
-        check_batch(inflated, baseline, iter_size)
+    with chck_ctx:
+        pipe = pipeline(batch_size=batch_size, num_threads=4, device_id=0)
+        for iter_size in iteration_sizes:
+            inflated, baseline = pipe.run()
+            check_batch(inflated, baseline, iter_size)
 
 
-@has_operator("experimental.inflate")
+@has_operator("decoders.inflate")
 @restrict_platform(min_compute_cap=6.0)
 def test_sample_inflate():
+    aliases = _op_alias()
     seed = 42
     for batch_size in [1, 64, 348]:
         for dtype in [np.uint8, np.int8, np.uint16, np.int32, np.float32, np.float16]:
-            yield _test_sample_inflate, batch_size, dtype, seed
+            yield _test_sample_inflate, next(aliases), batch_size, dtype, seed
             seed += 1
 
 
@@ -122,7 +144,7 @@ def _test_scalar_shape(dtype, shape, layout):
     def pipeline():
         baseline = fn.external_source(source=sample_source, batch=False)
         deflated = fn.external_source(source=deflated_source, batch=False, device="gpu")
-        inflated = fn.experimental.inflate(
+        inflated = fn.decoders.inflate(
             deflated, shape=shape, dtype=np_type_to_dali(dtype), layout=layout
         )
         return inflated, baseline
@@ -134,7 +156,7 @@ def _test_scalar_shape(dtype, shape, layout):
         check_batch(inflated, baseline, batch_size, layout)
 
 
-@has_operator("experimental.inflate")
+@has_operator("decoders.inflate")
 @restrict_platform(min_compute_cap=6.0)
 def test_scalar_shape():
     largest_prime_smaller_than_2_to_16 = 65521
@@ -203,10 +225,11 @@ def seq_source(rng, ndim, dtype, mode, permute, oversized_shape):
 
 
 def _test_chunks(
-    seed, batch_size, ndim, dtype, layout, mode, permute, oversized_shape, sequence_axis_name
+    op, seed, batch_size, ndim, dtype, layout, mode, permute, oversized_shape, sequence_axis_name
 ):
     rng = np.random.default_rng(seed=seed)
     source = seq_source(rng, ndim, dtype, mode, permute, oversized_shape)
+    op, chck_ctx = _get_alias_and_ctx(op)
 
     @pipeline_def
     def pipeline():
@@ -221,7 +244,7 @@ def _test_chunks(
             offsets = None
         else:
             offsets, sizes = rest
-        inflated = fn.experimental.inflate(
+        inflated = op(
             deflated.gpu(),
             shape=reported_shape,
             dtype=np_type_to_dali(dtype),
@@ -232,7 +255,8 @@ def _test_chunks(
         )
         return inflated, baseline
 
-    pipe = pipeline(batch_size=batch_size, num_threads=4, device_id=0)
+    with chck_ctx:
+        pipe = pipeline(batch_size=batch_size, num_threads=4, device_id=0)
     if layout:
         layout = (sequence_axis_name or "F") + layout
     for _ in range(4):
@@ -240,9 +264,10 @@ def _test_chunks(
         check_batch(inflated, baseline, batch_size, layout, oversized_shape=oversized_shape)
 
 
-@has_operator("experimental.inflate")
+@has_operator("decoders.inflate")
 @restrict_platform(min_compute_cap=6.0)
 def test_chunks():
+    aliases = _op_alias()
     seed = 42
     batch_sizes = [1, 9, 31]
     for dtype in [np.uint8, np.int16, np.float32]:
@@ -264,6 +289,7 @@ def test_chunks():
                 oversized_shape = ndim > 0 and seed % 2 == 1
                 yield (
                     _test_chunks,
+                    next(aliases),
                     seed,
                     batch_size,
                     ndim,
@@ -277,7 +303,7 @@ def test_chunks():
                 seed += 1
 
 
-@has_operator("experimental.inflate")
+@has_operator("decoders.inflate")
 @restrict_platform(min_compute_cap=6.0)
 @params(
     {"chunk_offsets": []},
@@ -294,9 +320,7 @@ def test_total_no_chunks(ex_kwargs):
     @pipeline_def
     def pipeline():
         inflate = fn.external_source(source=lambda _: deflated, batch=False)
-        return fn.experimental.inflate(
-            inflate.gpu(), shape=(128, 128, 3), layout="HWC", **ex_kwargs
-        )
+        return fn.decoders.inflate(inflate.gpu(), shape=(128, 128, 3), layout="HWC", **ex_kwargs)
 
     batch_size = 8
     pipe = pipeline(batch_size=batch_size, num_threads=4, device_id=0)
@@ -311,23 +335,19 @@ def _test_validation(pipeline, error_glob, kwargs=None):
         pipe.run()
 
 
-@has_operator("experimental.inflate")
+@has_operator("decoders.inflate")
 @restrict_platform(min_compute_cap=6.0)
 def test_validation():
     @pipeline_def
     def pipeline_2d_shape():
         inp = fn.external_source(source=lambda: np.array([1, 2, 3, 4], dtype=np.uint8), batch=False)
-        inflated = fn.experimental.inflate(
-            inp.gpu(), shape=np.array([[1, 5], [4, 5]], dtype=np.int32)
-        )
+        inflated = fn.decoders.inflate(inp.gpu(), shape=np.array([[1, 5], [4, 5]], dtype=np.int32))
         return inflated
 
     @pipeline_def
     def pipeline_non_elementary_dtype():
         inp = fn.external_source(source=lambda: np.array([1, 2, 3, 4], dtype=np.uint8), batch=False)
-        inflated = fn.experimental.inflate(
-            inp.gpu(), shape=4, dtype=types.DALIDataType.TENSOR_LAYOUT
-        )
+        inflated = fn.decoders.inflate(inp.gpu(), shape=4, dtype=types.DALIDataType.TENSOR_LAYOUT)
         return inflated
 
     @pipeline_def
@@ -335,19 +355,19 @@ def test_validation():
         inp = fn.external_source(
             source=lambda: np.array([1, 2, 3, 4], dtype=np.float32), batch=False
         )
-        inflated = fn.experimental.inflate(inp.gpu(), shape=42)
+        inflated = fn.decoders.inflate(inp.gpu(), shape=42)
         return inflated
 
     @pipeline_def
     def pipeline_input_scalar():
         inp = fn.external_source(source=lambda: np.array(1, dtype=np.uint8), batch=False)
-        inflated = fn.experimental.inflate(inp.gpu(), shape=42)
+        inflated = fn.decoders.inflate(inp.gpu(), shape=42)
         return inflated
 
     @pipeline_def
     def pipeline_input_algorithm():
         inp = fn.external_source(source=lambda: np.array([1], dtype=np.uint8), batch=False)
-        inflated = fn.experimental.inflate(inp.gpu(), shape=42, algorithm="")
+        inflated = fn.decoders.inflate(inp.gpu(), shape=42, algorithm="")
         return inflated
 
     @pipeline_def
@@ -355,7 +375,7 @@ def test_validation():
         inp = fn.external_source(
             source=lambda: np.array([1, 2, 3, 4, 5], dtype=np.uint8), batch=False
         )
-        inflated = fn.experimental.inflate(inp.gpu(), shape=42, chunk_sizes=[6])
+        inflated = fn.decoders.inflate(inp.gpu(), shape=42, chunk_sizes=[6])
         return inflated
 
     @pipeline_def
@@ -363,7 +383,7 @@ def test_validation():
         inp = fn.external_source(
             source=lambda: np.array([1, 2, 3, 4, 5], dtype=np.uint8), batch=False
         )
-        inflated = fn.experimental.inflate(inp.gpu(), shape=42, chunk_sizes=[3, 3])
+        inflated = fn.decoders.inflate(inp.gpu(), shape=42, chunk_sizes=[3, 3])
         return inflated
 
     @pipeline_def
@@ -371,7 +391,7 @@ def test_validation():
         inp = fn.external_source(
             source=lambda: np.array([1, 2, 3, 4, 5], dtype=np.uint8), batch=False
         )
-        inflated = fn.experimental.inflate(inp.gpu(), shape=42, chunk_sizes=[0])
+        inflated = fn.decoders.inflate(inp.gpu(), shape=42, chunk_sizes=[0])
         return inflated
 
     @pipeline_def
@@ -379,7 +399,7 @@ def test_validation():
         inp = fn.external_source(
             source=lambda: np.array([1, 2, 3, 4, 5], dtype=np.uint8), batch=False
         )
-        inflated = fn.experimental.inflate(inp.gpu(), shape=42, chunk_sizes=[3, -1])
+        inflated = fn.decoders.inflate(inp.gpu(), shape=42, chunk_sizes=[3, -1])
         return inflated
 
     @pipeline_def
@@ -387,7 +407,7 @@ def test_validation():
         inp = fn.external_source(
             source=lambda: np.array([1, 2, 3, 4, 5], dtype=np.uint8), batch=False
         )
-        inflated = fn.experimental.inflate(inp.gpu(), shape=42, chunk_offsets=[0, 5])
+        inflated = fn.decoders.inflate(inp.gpu(), shape=42, chunk_offsets=[0, 5])
         return inflated
 
     @pipeline_def
@@ -395,7 +415,7 @@ def test_validation():
         inp = fn.external_source(
             source=lambda: np.array([1, 2, 3, 4, 5], dtype=np.uint8), batch=False
         )
-        inflated = fn.experimental.inflate(inp.gpu(), shape=42, chunk_offsets=[1, 1])
+        inflated = fn.decoders.inflate(inp.gpu(), shape=42, chunk_offsets=[1, 1])
         return inflated
 
     @pipeline_def
@@ -403,7 +423,7 @@ def test_validation():
         inp = fn.external_source(
             source=lambda: np.array([1, 2, 3, 4, 5], dtype=np.uint8), batch=False
         )
-        inflated = fn.experimental.inflate(
+        inflated = fn.decoders.inflate(
             inp.gpu(), shape=42, chunk_offsets=[1, 1], chunk_sizes=[1, 1, 1]
         )
         return inflated
@@ -413,7 +433,7 @@ def test_validation():
         inp = fn.external_source(
             source=lambda: np.array([1, 2, 3, 4, 5], dtype=np.uint8), batch=False
         )
-        inflated = fn.experimental.inflate(
+        inflated = fn.decoders.inflate(
             inp.gpu(), shape=42, chunk_offsets=[-5, 0], chunk_sizes=[5, 5]
         )
         return inflated
@@ -423,7 +443,7 @@ def test_validation():
         inp = fn.external_source(
             source=lambda: np.array([1, 2, 3, 4, 5], dtype=np.uint8), batch=False
         )
-        inflated = fn.experimental.inflate(inp.gpu(), shape=42, chunk_offsets=[2], chunk_sizes=[4])
+        inflated = fn.decoders.inflate(inp.gpu(), shape=42, chunk_offsets=[2], chunk_sizes=[4])
         return inflated
 
     @pipeline_def
@@ -431,7 +451,7 @@ def test_validation():
         inp = fn.external_source(
             source=lambda: np.array([1, 2, 3, 4, 5], dtype=np.uint8), batch=False
         )
-        inflated = fn.experimental.inflate(inp.gpu(), shape=5, sequence_axis_name="")
+        inflated = fn.decoders.inflate(inp.gpu(), shape=5, sequence_axis_name="")
         return inflated
 
     @pipeline_def
@@ -439,7 +459,7 @@ def test_validation():
         inp = fn.external_source(
             source=lambda: np.array([1, 2, 3, 4, 5], dtype=np.uint8), batch=False
         )
-        inflated = fn.experimental.inflate(inp.gpu(), shape=5, sequence_axis_name="AB")
+        inflated = fn.decoders.inflate(inp.gpu(), shape=5, sequence_axis_name="AB")
         return inflated
 
     yield (

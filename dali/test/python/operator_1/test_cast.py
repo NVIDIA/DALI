@@ -26,8 +26,9 @@ def ref_cast(x, dtype):
         lo = np.iinfo(dtype).min
         hi = np.iinfo(dtype).max
         if np.issubdtype(x.dtype, np.floating):
-            x = np.round(x)
-        return x.clip(lo, hi).astype(dtype)
+            x = np.round(x).astype(np.float64)
+        x = x.clip(lo, hi).astype(dtype)
+        return x
     else:
         return x.astype(dtype)
 
@@ -116,7 +117,7 @@ def generate(
         for x in out:
             # avoid exactly halfway numbers - rounding is different for CPU and GPU
             halfway = x[x - np.floor(x) == 0.5]
-            x[x - np.floor(x) == 0.5] = np.nextafter(halfway, np.Infinity)
+            x[x - np.floor(x) == 0.5] = np.nextafter(halfway, np.inf)
     return out
 
 

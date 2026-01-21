@@ -20,7 +20,9 @@ import numpy as np
 from nose2.tools import params
 from nose_utils import assert_raises
 from nvidia.dali.experimental.torchvision import Compose, CenterCrop
+from nvidia.dali.experimental.torchvision.v2.functional import center_crop
 import torchvision.transforms.v2 as transforms
+import torchvision.transforms.v2.functional as tv_fn
 
 
 def build_centercrop_transform(
@@ -59,10 +61,16 @@ def test_center_crop_square_int(size):
 
     out_tv = t(img)
     out_dali_tv = td(img).cpu()
+    out_tf = tv_fn.center_crop(img, size)
+    out_dali_tf = center_crop(img, size)
 
     assert (
         out_tv.shape[-3:] == out_dali_tv.shape[-3:]
     ), f"Is: {out_dali_tv.shape} should be: {out_tv.shape}"
+
+    assert (
+        out_tf.shape[-3:] == out_dali_tf.shape[-3:]
+    ), f"Is: {out_dali_tf.shape} should be: {out_tf.shape}"
 
 
 def test_center_crop_equal_size():
@@ -81,14 +89,25 @@ def test_center_crop_larger_than_image(size):
     img = make_img(size // 2, size // 2)
     t, td = build_centercrop_transform((size, size))
 
+    out_fn = tv_fn.center_crop(img, (size, size))
+    out_dali_fn = center_crop(img, (size, size))
+
     out_tv = t(img)
     out_dali_tv = td(img).cpu()
 
     assert out_tv.shape == out_dali_tv.shape, f"Is: {out_dali_tv.shape} should be {out_tv.shape}"
+    assert out_fn.shape == out_dali_fn.shape, f"Is: {out_dali_tv.shape} should be {out_tv.shape}"
 
     center = out_tv[:, size // 4 : size - size // 4, size // 4 : size - size // 4]
     assert torch.equal(center, img)
+
+    center = out_fn[:, size // 4 : size - size // 4, size // 4 : size - size // 4]
+    assert torch.equal(center, img)
+
     center = out_dali_tv[:, size // 4 : size - size // 4, size // 4 : size - size // 4]
+    assert torch.equal(center, img)
+
+    center = out_dali_fn[:, size // 4 : size - size // 4, size // 4 : size - size // 4]
     assert torch.equal(center, img)
 
 
@@ -98,6 +117,9 @@ def test_center_crop_larger_than_image(size):
 def test_invalid_type(size):
     with assert_raises(TypeError):
         _ = Compose([CenterCrop(size=size)])
+
+    with assert_raises(TypeError):
+        _ = center_crop(torch.ones((3, 256, 256)), output_size=size)
 
 
 @params(
@@ -112,6 +134,9 @@ def test_value_error(size):
     with assert_raises(ValueError):
         _ = Compose([CenterCrop(size=size)])
 
+    with assert_raises(ValueError):
+        _ = center_crop(torch.ones((3, 256, 256)), output_size=size)
+
 
 @params(
     (5, "cpu", [8, 8]),
@@ -124,5 +149,8 @@ def test_batched_input_shape(batch_size, device, size):
     t, td = build_centercrop_transform(size, batch_size=batch_size, device=device)
     out_tv = t(batched)
     out_dali_tv = td(batched).cpu()
+    out_fn = tv_fn.center_crop(batched, output_size=size)
+    out_dali_fn = center_crop(batched, output_size=size)
 
-    assert out_tv.shape == out_dali_tv.shape
+    assert out_tv.shape == out_dali_tv.shape, f"Expected {out_tv.shape}, got: {out_dali_tv.shape}"
+    assert out_fn.shape == out_dali_fn.shape, f"Expected {out_fn.shape}, got: {out_dali_fn.shape}"

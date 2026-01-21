@@ -21,12 +21,83 @@ import numpy as np
 import nvidia.dali as dali
 import nvidia.dali.fn as fn
 
+from .operator import Operator
 
-class PadBase:
+
+def get_inputHW(data_input):
+    """
+    Gets the height and width of the input data.
+
+    Parameters
+    ----------
+    data_input : Tensor
+        Input data to get the height and width of.
+
+    Returns
+    -------
+    input_height : int
+        Height of the input data.
+    input_width : int
+        Width of the input data.
+    """
+    layout = data_input.property("layout")[0]
+
+    # CWH
+    if layout == np.frombuffer(bytes("C", "utf-8"), dtype=np.uint8)[0]:
+        input_height = data_input.shape()[1]
+        input_width = data_input.shape()[2]
+    # HWC
+    else:
+        input_height = data_input.shape()[0]
+        input_width = data_input.shape()[1]
+
+    return input_height, input_width, data_input
+
+
+class PadBase(Operator):
+    """
+    Base class for padding operators.
+
+    Set ``border_type`` in child class to the desired border type.
+
+    Parameters
+    ----------
+    padding : int or sequence
+        Padding on each border. If a single int is provided this is used to pad all borders.
+        If sequence of length 2 is provided this is the padding on left/right and top/bottom
+        respectively. If a sequence of length 4 is provided this is the padding for the left,
+        top, right and bottom borders respectively.
+    fill : number or tuple or dict, optional, default = 0
+        Pixel fill value used when the padding_mode is constant.
+    device : Literal["cpu", "gpu"], optional, default = "cpu"
+        Device to use for the padding. Can be ``"cpu"`` or ``"gpu"``.
+    """
+
+    preprocess_data = get_inputHW
+    border_type = ""
+
+    @classmethod
+    def get_padding(cls, padding):
+        if isinstance(padding, int):
+            return (
+                padding,
+                padding,
+                padding,
+                padding,
+            )
+        elif isinstance(padding, Sequence):
+            if len(padding) == 2:
+                return (padding[0], padding[1], padding[0], padding[1])
+            elif len(padding) == 4:
+                return padding
+
+        raise TypeError(
+            f"Padding must be an int or a sequence of length 2 or 4, got {type(padding)}"
+        )
+
     def __init__(
         self,
         padding: Union[int, Sequence[int]],
-        border_type: Literal["pad", "reflect_1001", "reflect_101", "clamp"],
         fill: Union[
             int,
             float,
@@ -46,33 +117,26 @@ class PadBase:
         ] = 0,
         device: Literal["cpu", "gpu"] = "cpu",
     ):
-        if isinstance(padding, int):
-            self.pad_left, self.pad_top, self.pad_right, self.pad_bottom = (
-                padding,
-                padding,
-                padding,
-                padding,
-            )
-        else:
-            self.pad_left, self.pad_top, self.pad_right, self.pad_bottom = padding
+        super().__init__(device=device)
+        self.pad_left, self.pad_top, self.pad_right, self.pad_bottom = PadBase.get_padding(padding)
         self.fill = fill
-        self.device = device
-        self.border_type = border_type
+        self.border_type = type(self).border_type
 
-    def __call__(self, data_input):
-        layout = data_input.property("layout")[0]
+    def _kernel(self, data_input):
+        """ "
+        Applies the padding to the input data using the ``fn.slice`` operator.
 
-        # CHW
-        if layout == np.frombuffer(bytes("C", "utf-8"), dtype=np.uint8)[0]:
-            input_height = data_input.shape()[1]
-            input_width = data_input.shape()[2]
-        # HWC
-        else:
-            input_height = data_input.shape()[0]
-            input_width = data_input.shape()[1]
+        Parameters
+        ----------
+        data_input : Tensor
+            Input data to apply the padding to.
 
-        if self.device == "gpu":
-            data_input = data_input.gpu()
+        Returns
+        -------
+        Tensor
+            Padded data.
+        """
+        input_height, input_width, data_input = data_input
 
         data_input = fn.slice(
             data_input,
@@ -86,6 +150,7 @@ class PadBase:
             ),  # __shape
             out_of_bounds_policy=self.border_type,
             fill_values=self.fill,
+            device=self.device,
         )
 
         return data_input
@@ -96,29 +161,7 @@ class PadConstant(PadBase):
     Implementation of padding with a constant value.
     """
 
-    def __init__(
-        self,
-        padding: Union[int, Sequence[int]],
-        fill: Union[
-            int,
-            float,
-            Sequence[int],
-            Sequence[float],
-            None,
-            dict[
-                Union[type, str],
-                Union[
-                    int,
-                    float,
-                    collections.abc.Sequence[int],
-                    collections.abc.Sequence[float],
-                    NoneType,
-                ],
-            ],
-        ] = 0,
-        device: Literal["cpu", "gpu"] = "cpu",
-    ):
-        super().__init__(padding, fill=fill, border_type="pad", device=device)
+    border_type = "pad"
 
 
 class PadEdge(PadBase):
@@ -128,8 +171,7 @@ class PadEdge(PadBase):
     padded: [1, 1, 1, 1, 2, 3, 4, 5, 6, 6, 6]
     """
 
-    def __init__(self, padding: Union[int, Sequence[int]], device: Literal["cpu", "gpu"] = "cpu"):
-        super().__init__(padding, fill=0, border_type="clamp", device=device)
+    border_type = "clamp"
 
 
 class PadSymmetric(PadBase):
@@ -140,8 +182,7 @@ class PadSymmetric(PadBase):
     notice, that the first value in padding is repeated
     """
 
-    def __init__(self, padding: Union[int, Sequence[int]], device: Literal["cpu", "gpu"] = "cpu"):
-        super().__init__(padding, fill=0, border_type="reflect_1001", device=device)
+    border_type = "reflect_1001"
 
 
 class PadReflect(PadBase):
@@ -152,8 +193,7 @@ class PadReflect(PadBase):
     notice, that the first value in padding is not repeated
     """
 
-    def __init__(self, padding: Union[int, Sequence[int]], device: Literal["cpu", "gpu"] = "cpu"):
-        super().__init__(padding, fill=0, border_type="reflect_101", device=device)
+    border_type = "reflect_101"
 
 
 PADDING_CLASS = {
@@ -166,36 +206,28 @@ PADDING_CLASS = {
 
 class Pad:
     """
-    Pad the input on all sides with the given “pad” value.
+    Pad the input on all sides with the given ``padding_mode`` type and ``fill`` value.
 
-    Parameters:
-        padding (int or sequence) – Padding on each border. If a single int is provided this is
-                               used to pad all borders. If sequence of length 2 is provided this is
-                               the padding on left/right and top/bottom respectively. If a sequence
-                               of length 4 is provided this is the padding for the left, top, right
-                               and bottom borders respectively.
-
-        fill (number or tuple or dict, optional) – Pixel fill value used when the padding_mode is
-                               constant. Default is 0. If a tuple of length 3, it is used to fill
-                               R, G, B channels respectively. Fill value can be also a dictionary
-                               mapping data type to the fill value,
-                               e.g. fill={tv_tensors.Image: 127, tv_tensors.Mask: 0} where Image
-                               will be filled with 127 and Mask will be filled with 0.
-
-        padding_mode (str, optional) – Type of padding. Should be: constant, edge, reflect or
-                               symmetric. Default is “constant”.
-                               constant: pads with a constant value, this value is specified with
-                                    fill
-                               edge: pads with the last value at the edge of the image.
-                               reflect: pads with reflection of image without repeating the last
-                                    value on the edge. For example, padding [1, 2, 3, 4] with 2
-                                    elements on both sides in reflect mode will result in
-                                    [3, 2, 1, 2, 3, 4, 3, 2]
-                               symmetric: pads with reflection of image repeating the last value on
-                                    the edge. For example, padding [1, 2, 3, 4] with 2 elements on
-                                    both sides in symmetric mode will result in
-                                    [2, 1, 1, 2, 3, 4, 4, 3]
-        device (string) - operator execution device
+    Parameters
+    ----------
+    padding : int or sequence
+        Padding on each border. If a single int is provided this is used to pad all borders.
+        If sequence of length 2 is provided this is the padding on left/right and top/bottom
+        respectively. If a sequence of length 4 is provided this is the padding for the left,
+        top, right and bottom borders respectively.
+    fill : number or tuple or dict, optional, default = 0
+        Pixel fill value used when the padding_mode is constant.
+    padding_mode : Literal["constant", "edge", "reflect", "symmetric"], optional,
+        Type of padding. Should be: constant, edge, reflect or symmetric. Default is “constant”.
+            constant: pads with a constant value, this value is specified with ``fill``
+            edge: pads with the last value at the edge of the image.
+            reflect: pads with reflection of image without repeating the last value on the edge.
+                For example, padding [1, 2, 3, 4] with 2 elements on both sides in reflect mode
+                will result in [3, 2, 1, 2, 3, 4, 3, 2]
+            symmetric: pads with reflection of image repeating the last value on the edge.
+                For example, padding [1, 2, 3, 4] with 2 elements on both sides in symmetric mode
+                will result in [2, 1, 1, 2, 3, 4, 4, 3]
+    device : Literal["cpu", "gpu"], optional, default = "cpu"
     """
 
     def __init__(
@@ -222,12 +254,7 @@ class Pad:
         device: Literal["cpu", "gpu"] = "cpu",
     ):
         self.device = device
-        if padding_mode == "constant":
-            self.pad = PADDING_CLASS[padding_mode](padding, fill, device)
-        else:
-            self.pad = PADDING_CLASS[padding_mode](padding, device)
+        self.pad = PADDING_CLASS[padding_mode](padding, fill, device)
 
     def __call__(self, data_input):
-        if self.device == "gpu":
-            data_input = data_input.gpu()
         return self.pad(data_input)

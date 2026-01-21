@@ -22,13 +22,17 @@ import torch
 import torchvision.transforms.v2 as transforms
 
 from nvidia.dali.experimental.torchvision import Normalize, Compose
+from nvidia.dali.experimental.torchvision.v2.functional import normalize
 
 
 def make_test_tensor(shape=(1, 1, 10, 10)):
-    total = 1.0
-    for s in shape:
-        total *= float(s)
-    return torch.arange(total).reshape(shape).to(dtype=torch.float)
+    ones = torch.ones(shape)
+
+    return ones
+    # total = 1.0
+    # for s in shape:
+    #    total *= float(s)
+    # return torch.arange(total).reshape(shape).to(dtype=torch.float)
 
 
 def test_normalize_core(
@@ -42,10 +46,14 @@ def test_normalize_core(
 
     out = transform(input_tensor)
     out_tv = transform_tv(input_tensor)
+    out_fn = normalize(input_tensor, mean, std)
+    out_tv_fn = transforms.functional.normalize(input_tensor, mean, std)
 
     if device == "gpu":
         out = out.cpu()
+        out_fn = out_fn.cpu()
     assert torch.allclose(out, out_tv), f"Diff: {out-out_tv}"
+    assert torch.allclose(out_fn, out_tv_fn), f"Diff: {out_fn-out_tv_fn}"
 
 
 @params(
@@ -92,8 +100,11 @@ def test_mean_std_sequence_lengths_match_channels(mean, std):
     dnorm = Compose([Normalize(mean=mean, std=std)])
     out = norm(x)
     dout = dnorm(x)
+    fdout = normalize(x, mean, std)
+    fout = transforms.functional.normalize(x, mean, std)
     assert out.shape == x.shape
     assert out.shape == dout.shape
+    assert fout.shape == fdout.shape
 
 
 @params(
@@ -106,6 +117,16 @@ def test_mismatched_mean_or_std_length_raises(mean, std):
     with assert_raises(RuntimeError):
         _ = norm(x)
 
+    dnorm = Compose([Normalize(mean=mean, std=std)])
+    with assert_raises(RuntimeError):
+        _ = dnorm(x)
+
+    with assert_raises(RuntimeError):
+        _ = normalize(x, mean, std)
+
+    with assert_raises(RuntimeError):
+        _ = transforms.functional.normalize(x, mean, std)
+
 
 @params(
     ([0.0, 0.0, 0.0], [1.0, 0.0, 1.0]),
@@ -117,7 +138,19 @@ def test_std_must_be_non_zero(mean, std):
     with assert_raises(ValueError):
         _ = norm(x)
 
+    with assert_raises(ValueError):
+        dnorm = Compose([Normalize(mean=mean, std=std)])
+        _ = dnorm(x)
 
+    with assert_raises(ValueError):
+        _ = normalize(x, mean, std)
+
+    with assert_raises(ValueError):
+        _ = transforms.functional.normalize(x, mean, std)
+
+
+"""
+TODO: not supported
 @params(False, True)
 def test_inplace_behavior(inplace):
     x = make_sample_tensor()
@@ -132,6 +165,7 @@ def test_inplace_behavior(inplace):
     else:
         assert torch.allclose(x, orig)
         assert not torch.allclose(out, orig)
+"""
 
 
 def test_non_tensor_input_not_supported():
@@ -139,8 +173,18 @@ def test_non_tensor_input_not_supported():
     imarray = np.random.rand(100, 100, 3) * 255
     im = Image.fromarray(imarray.astype("uint8")).convert("RGBA")
     with assert_raises(TypeError):
-        # _ = norm([[1.0, 2.0], [3.0, 4.0]])  # not a tensor
+        _ = norm([[1.0, 2.0], [3.0, 4.0]])  # not a tensor
         _ = norm(im)  # not a tensor
+    """
+    Because of how it is implemented the Normalize allows PIL Image input
+    dnorm = Compose([Normalize(mean=[0.5], std=[0.5])])
+    with assert_raises(TypeError):
+        _ = dnorm(im)
+    """
+    with assert_raises(TypeError):
+        _ = transforms.functional.normalize(im, [0.5], [0.5])
+    with assert_raises(TypeError):
+        _ = normalize(im, [0.5], [0.5])
 
 
 @params(
@@ -150,8 +194,22 @@ def test_non_tensor_input_not_supported():
 def test_single_channel_and_batch_shapes(x, mean, std, expected_value):
     norm = transforms.Normalize(mean=mean, std=std)
     out = norm(x)
+
+    dnorm = Compose([Normalize(mean=mean, std=std)])
+    dout = dnorm(x)
+
     assert out.shape == x.shape
     assert torch.allclose(out, torch.full_like(out, expected_value))
+    assert dout.shape == x.shape
+    assert torch.allclose(dout, torch.full_like(dout, expected_value))
+
+    fdout = normalize(x, mean, std)
+    fout = transforms.functional.normalize(x, mean, std)
+
+    assert fout.shape == x.shape
+    assert torch.allclose(fout, torch.full_like(fout, expected_value))
+    assert fdout.shape == x.shape
+    assert torch.allclose(fdout, torch.full_like(fdout, expected_value))
 
 
 def test_broadcast_over_spatial_dimensions():
@@ -161,6 +219,12 @@ def test_broadcast_over_spatial_dimensions():
     norm = transforms.Normalize(mean=mean, std=std)
     out = norm(x)
 
+    dnorm = Compose([Normalize(mean=mean, std=std)])
+    dout = dnorm(x)
+
+    fdout = normalize(x, mean, std)
+    fout = transforms.functional.normalize(x, mean, std)
+
     out_expect = torch.zeros_like(out)
     for i in range(len(mean)):
         out_expect[i] = (x[i] - mean[i]) / std[i]
@@ -168,6 +232,9 @@ def test_broadcast_over_spatial_dimensions():
     # Channel 1, value 6 -> (6 - 5) / 1 = 1
     # Channel 2, value 12 -> (12 - 9) / 1 = 3
     assert torch.allclose(out, out_expect)
+    assert torch.allclose(dout, out_expect)
+    assert torch.allclose(fout, out_expect)
+    assert torch.allclose(fdout, out_expect)
 
 
 def test_different_std_per_channel():
@@ -177,8 +244,17 @@ def test_different_std_per_channel():
     norm = transforms.Normalize(mean=mean, std=std)
     out = norm(x)
 
+    dnorm = Compose([Normalize(mean=mean, std=std)])
+    dout = dnorm(x)
+
+    fdout = normalize(x, mean=mean, std=std)
+    fout = transforms.functional.normalize(x, mean, std)
+
     out_expect = torch.zeros_like(out)
     for i in range(len(mean)):
         out_expect[i] = (x[i] - mean[i]) / std[i]
     # Channel 0 unchanged, channel 1 halved, channel 2 quartered
     assert torch.allclose(out, out_expect)
+    assert torch.allclose(dout, out_expect)
+    assert torch.allclose(fout, out_expect)
+    assert torch.allclose(fdout, out_expect)

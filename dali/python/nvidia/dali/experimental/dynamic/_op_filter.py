@@ -19,7 +19,7 @@ from packaging.version import Version
 PythonBasedOps = ["ExternalSource", "PythonFunction", "NumbaFunction", "JaxFunction"]
 
 # Operators that were deprecated before this version will not be exposed in dynamic mode
-DynamicModeOpCutoff = Version("1.54")
+DynamicModeOpCutoff = Version("2.0")
 
 
 def should_create_dynamic_op(schema_name: str) -> bool:
@@ -33,6 +33,6 @@ def should_create_dynamic_op(schema_name: str) -> bool:
         return False
     if schema.IsDeprecated():
         deprecated_version = Version(schema.DeprecatedInVersion())
-        if deprecated_version < DynamicModeOpCutoff:
+        if deprecated_version <= DynamicModeOpCutoff:
             return False
     return True

@@ -1,4 +1,4 @@
-# Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,40 +14,64 @@
 
 from typing import Optional, Sequence, Union, Literal
 
+from .operator import Operator, ArgumentVerificationRule
+
 import nvidia.dali as dali
 import nvidia.dali.fn as fn
 from nvidia.dali.types import DALIInterpType
 
 from torchvision.transforms import InterpolationMode
+import numpy as np
 
 
-class Resize:
+class VerificationSize(ArgumentVerificationRule):
+    @classmethod
+    def verify(self, *, size, max_size, interpolation, **_):
+        if size is not None and not isinstance(size, int) and not isinstance(size, (tuple, list)):
+            raise ValueError(
+                "Invalid combination: size must be int, None, or sequence of two ints. "
+                "max_size only applies when size is int or None."
+            )
+        if size is None and max_size is None:
+            raise ValueError("Must provide max_size if size is None.")
+        if size is not None and max_size is not None and np.min(size) > max_size:
+            raise ValueError("max_size should not be smaller than the actual size")
+        if isinstance(size, (tuple, list)) and len(size) == 2 and max_size is not None:
+            raise ValueError(
+                "max_size should only be passed if size specifies the length of the smaller \
+                 edge, i.e. size should be an int"
+            )
+        if interpolation not in Resize.interpolation_modes.keys():
+            raise ValueError(f"Interpolation {type(interpolation)} is not supported")
+
+
+class Resize(Operator):
     """
-    Resize the input to the given size.
+    Resize the input image to the given size
+    If the image is torch Tensor, it is expected to have […, H, W] shape, where … means a maximum
+    of two leading dimensions
 
-    If the input is a torch.Tensor or a TVTensor (e.g. Image, Video, BoundingBoxes etc.)
-    it can have arbitrary number of leading batch dimensions. For example, the image can
-    have [..., C, H, W] shape. A bounding box can have [..., 4] shape.
-
-    Parameters:
-        size (sequence or int) – Desired output size of the crop. If size is an int
-                               instead of sequence like (h, w), a square crop (size, size)
-                               is made. If provided a sequence of length 1, it will be
-                               interpreted as (size[0], size[0]).
-        interpolation (InterpolationMode or optional) - Desired interpolation enum defined by
-                               torchvision.transforms.InterpolationMode. Default is
-                               InterpolationMode.BILINEAR.
-        max_size (int, optional) - The maximum allowed for the longer edge of the resized image.
-                               If size is an int: if the longer edge of the image is greater than
-                               max_size after being resized according to size, size will be
-                               overruled so that the longer edge is equal to max_size. As a result,
-                               the smaller edge may be shorter than size. This is only supported if
-                               size is an int. If size is None: the longer edge of the image will be
-                               matched to max_size. i.e, if height > width, then image will be
-                               rescaled to (max_size, max_size * width / height).
-        antialias (bool, optional) - Whether to apply antialiasing.
-                               True (default): will apply antialiasing
-                               False: will not apply antialiasing
+    Parameters
+    ----------
+        size:sequence or int
+            Desired output size. If size is a sequence like (h, w), output size will be matched
+            to this. If size is an int, smaller edge of the image will be matched to this number.
+            i.e, if height > width, then image will be rescaled to (size * height / width, size).
+        interpolation : InterpolationMode or int
+            ``torchvision.transforms.InterpolationMode``. Default is InterpolationMode.BILINEAR.
+            If input is Tensor, only ``InterpolationMode.NEAREST``,
+            ``InterpolationMode.NEAREST_EXACT``, ``InterpolationMode.BILINEAR`` and
+            ``InterpolationMode.BICUBIC`` are supported.
+        max_size : int, optional
+            The maximum allowed for the longer edge of the resized image. If the longer edge of
+            the image is greater than max_size after being resized according to size, size will
+            be overruled so that the longer edge is equal to max_size. As a result, the smaller
+            edge may be shorter than size. This is only supported if size is an int.
+        antialias : bool, optional
+            Whether to apply antialiasing. If ``True``, antialiasing will be applied. If ``False``,
+            antialiasing will not be applied.
+        device : Literal["cpu", "gpu"], optional, default = "cpu"
+            Device to use for the resize. Can be ``"cpu"`` or ``"gpu"``.
     """
 
     # 'NEAREST', 'NEAREST_EXACT', 'BILINEAR', 'BICUBIC', 'BOX', 'HAMMING', 'LANCZOS'
@@ -60,40 +84,53 @@ class Resize:
         InterpolationMode.HAMMING: DALIInterpType.INTERP_GAUSSIAN,  # TODO:
         InterpolationMode.LANCZOS: DALIInterpType.INTERP_LANCZOS3,
     }
+    arg_rules = [VerificationSize]
 
-    def _infer_effective_size(
-        self,
+    @classmethod
+    def infer_effective_size(
+        cls,
         size: Optional[Union[int, Sequence[int]]],
         max_size: Optional[int] = None,
     ) -> Union[int, Sequence[int]]:
 
-        self.mode = "default"
+        mode = "default"
 
         if isinstance(size, (tuple, list)) and len(size) == 1:
             size = size[0]
 
         if isinstance(size, int):
-            if max_size is not None and size > max_size:
-                raise ValueError
-
             # If size is an int, smaller edge of the image will be matched to this number.
             # If size is an int: if the longer edge of the image is greater than max_size
             # after being resized according to size, size will be overruled so that the
             # longer edge is equal to max_size. As a result, the smaller edge may be shorter
             # than size.
-            self.mode = "resize_shorter"
+            mode = "resize_shorter"
 
-            return (size, size)
+            return ((size, size), mode)
+
         if size is None:
-            self.mode = "not_larger"
-            return (max_size, max_size)
-        if isinstance(size, (tuple, list)) and len(size) == 2:
-            if max_size is not None:
-                raise ValueError(
-                    "max_size should only be passed if size specifies the length of the smaller \
-                     edge, i.e. size should be an int"
-                )
-        return size
+            mode = "not_larger"
+            return ((max_size, max_size), mode)
+
+        return size, mode
+
+    @classmethod
+    def calculate_target_size(
+        cls, orig_size: Sequence[int], effective_size: Sequence[int], max_size: int, no_size: bool
+    ):
+        orig_h = orig_size[0]
+        orig_w = orig_size[1]
+        target_h = effective_size[0]
+        target_w = effective_size[1]
+
+        # If size is None, then effective_size is max_size
+        if no_size:
+            if orig_h > orig_w:
+                target_w = (max_size * orig_w) / orig_h
+            else:
+                target_h = (max_size * orig_h) / orig_w
+
+        return target_h, target_w
 
     def __init__(
         self,
@@ -104,47 +141,29 @@ class Resize:
         device: Literal["cpu", "gpu"] = "cpu",
     ):
 
+        super().__init__(
+            device=device,
+            size=size,
+            max_size=max_size,
+            interpolation=interpolation,
+        )
+
         self.size = size
-        if (
-            self.size is not None
-            and not isinstance(self.size, int)
-            and not isinstance(self.size, (tuple, list))
-        ):
-            raise ValueError(
-                "Invalid combination: size must be int, None, or sequence of two ints. "
-                "max_size only applies when size is int or None."
-            )
-
         self.max_size = max_size
-
-        if self.size is None and self.max_size is None:
-            raise ValueError("Must provide max_size if size is None.")
-
         self.interpolation = Resize.interpolation_modes[interpolation]
-        self.effective_size = self._infer_effective_size(size, max_size)
+        self.effective_size, self.mode = Resize.infer_effective_size(size, max_size)
         self.antialias = antialias
-        self.device = device
 
-    def __call__(self, data_input):
+    def _kernel(self, data_input):
         """
         Performs the resize. The method infers the requested size in compliance
-        with Torchvision resize documentation and applies DALI operator on the data_input.
+        with ``torchvision.transforms.Resize`` documentation and applies DALI operator on the
+        ``data_input``.
         """
 
-        orig_size = data_input.shape()
-        orig_h = orig_size[0]
-        orig_w = orig_size[1]
-        target_h = self.effective_size[0]
-        target_w = self.effective_size[1]
-        if self.device == "gpu":
-            data_input = data_input.gpu()
-
-        # If size is None, then effective_size is max_size
-        if self.size is None:
-            if orig_h > orig_w:
-                target_w = (self.max_size * orig_w) / orig_h
-            else:
-                target_h = (self.max_size * orig_h) / orig_w
+        target_h, target_w = Resize.calculate_target_size(
+            data_input.shape(), self.effective_size, self.max_size, self.size is None
+        )
 
         # Shorter edge limited by max size
         if self.mode == "resize_shorter":
