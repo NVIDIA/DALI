@@ -18,11 +18,8 @@ from threading import local
 
 import nvidia.dali.backend_impl as _b
 
-from . import _device
+from . import _device, _stream
 from ._async import _AsyncExecutor
-
-
-_global_streams = None
 
 
 class _ThreadLocalStorage(local):
@@ -59,56 +56,6 @@ def _default_num_threads():
 
 
 _global_num_threads = None
-
-
-def _get_stream_device(s):
-    if s is None:
-        return None
-    dev_id = getattr(s, "device_id", None)
-    if dev_id is not None:
-        return dev_id
-    dev = getattr(s, "device", None)
-    if dev is not None:
-        if isinstance(dev, int):
-            return dev
-        idx = getattr(dev, "index", None)
-        if idx is not None:
-            return idx
-        id = getattr(dev, "id", None)
-        if id is not None:
-            return id
-    return _b.GetCUDAStreamDevice(s)
-
-
-def set_stream(stream, device_id=None):
-    """
-    Sets the default stream for a CUDA device. If the device id is not specified,
-    the device associated with the stream will be used. If there's no device associated with the
-    stream, current CUDA device is used.
-    """
-    global _global_streams
-    if not _global_streams:
-        _global_streams = [None] * _b.GetCUDADeviceCount()
-    if stream is not None:
-        stream_dev = _get_stream_device(stream)
-        if device_id is not None and stream_dev is not None and device_id != stream_dev:
-            raise ValueError(
-                f"The device_id {device_id} doesn't match the device associated "
-                f"with the stream {stream_dev}"
-            )
-        if device_id is None:
-            device_id = stream_dev
-
-    if device_id is None:
-        device_id = _b.GetCUDACurrentDevice()
-
-    _global_streams[device_id] = stream
-
-
-def get_stream(device_id=None):
-    if device_id is None:
-        device_id = _b.GetCUDACurrentDevice()
-    return _global_streams[device_id]
 
 
 def get_num_threads():
@@ -267,7 +214,7 @@ class EvalContext:
         CUDA stream for this EvalContext
         """
         if self._cuda_stream is None:
-            s = _global_streams[self.device_id] if _global_streams else None
+            s = _stream.get_stream(self.device_id)
             if s is None and self._device.device_type == "gpu":
                 if self._default_stream is None:
                     self._default_stream = _b.Stream(self._device.device_id)
@@ -316,8 +263,6 @@ class EvalContext:
 
 __all__ = [
     "EvalContext",
-    "get_stream",
-    "set_stream",
     "get_num_threads",
     "set_num_threads",
 ]

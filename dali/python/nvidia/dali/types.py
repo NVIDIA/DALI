@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2017-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -390,6 +390,8 @@ def _is_numpy_array(value):
 def _raw_cuda_stream(stream_obj):
     if stream_obj is None:
         return None
+    elif isinstance(stream_obj, backend_impl.Stream):
+        return stream_obj.handle
     elif hasattr(stream_obj, "cuda_stream"):  # torch
         return stream_obj.cuda_stream
     elif hasattr(stream_obj, "ptr"):  # cupy

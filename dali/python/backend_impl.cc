@@ -1536,14 +1536,20 @@ void ExposeTesorListGPU(py::module &m) {
       py::class_<TensorList<GPUBackend>, std::shared_ptr<TensorList<GPUBackend>>>(
           m, "TensorListGPU", py::buffer_protocol())
     .def_property_readonly_static("__module__", tensor_module_impl)
-    .def(py::init([](py::capsule &capsule, std::optional<std::string> layout = {}) {
-            DomainTimeRange range("TensorListGPU::init from a DLPack capsule", kGPUTensorColor);
-            auto t = std::make_shared<TensorList<GPUBackend>>();
-            FillTensorFromDlPack(capsule, t.get(), layout);
-            return t;
-          }),
+    .def(py::init([](
+              py::capsule &capsule,
+              std::optional<std::string> layout = {},
+              py::object stream = py::none()) {
+          DomainTimeRange range("TensorListGPU::init from a DLPack capsule", kGPUTensorColor);
+          auto t = std::make_shared<TensorList<GPUBackend>>();
+          FillTensorFromDlPack(capsule, t.get(), layout);
+          if (!stream.is_none())  // use a separately provided stream - there's none in the capsule
+            t->set_order(AccessOrderFromPythonStreamObj(stream));
+          return t;
+        }),
         "object"_a,
         "layout"_a = py::none(),
+        "stream"_a = py::none(),
         R"code(
         List of tensors residing in the GPU memory.
 

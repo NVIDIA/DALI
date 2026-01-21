@@ -19,7 +19,7 @@ import numpy as np
 import nvidia.dali.backend as _backend
 import nvidia.dali.types
 
-from . import _eval_mode, _invocation
+from . import _eval_mode, _invocation, _stream
 from ._arithmetic import _arithm_op
 from ._device import Device
 from ._device import device as _device
@@ -204,7 +204,7 @@ class Tensor:
                         stream = ctx.cuda_stream
                     else:
                         stream = _backend.Stream(device_id)
-                    args = {"stream": stream.handle}
+                    args = {"stream": _stream._raw_cuda_stream(stream)}
                     self._storage = _backend.TensorGPU(
                         data.__dlpack__(**args),
                         layout=layout,
