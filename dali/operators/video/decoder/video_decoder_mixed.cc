@@ -23,5 +23,6 @@ class VideoDecoderMixed : public VideoDecoderBase<MixedBackend, FramesDecoderGpu
 };
 
 DALI_REGISTER_OPERATOR(experimental__decoders__Video, VideoDecoderMixed, Mixed);
+DALI_REGISTER_OPERATOR(decoders__Video, VideoDecoderMixed, Mixed);
 
 }  // namespace dali

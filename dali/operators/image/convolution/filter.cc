@@ -1,4 +1,4 @@
-// Copyright (c) 2023-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2023-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -25,7 +25,7 @@
 
 namespace dali {
 
-DALI_SCHEMA(experimental__Filter)
+DALI_SCHEMA(Filter)
     .DocStr(R"code(Convolves the image with the provided filter.
 
 .. note::
@@ -117,6 +117,22 @@ If not set, the input type is used.
   The intermediate type used for actual computation is float32. If the output is of integral type,
   the values will be clamped to the output type range.
 )code");
+
+// Deprecated alias
+DALI_SCHEMA(experimental__Filter)
+    .AddParent("Filter")
+    .DocStr("Legacy alias for :meth:`filter`.")
+    .NumInput(2, 3)
+    .NumOutput(1)
+    .InputDevice(1, 3, InputDevice::MatchBackendOrCPU)
+    .AllowSequences()
+    .MakeDocHidden()
+    .Deprecate(
+        "2.0",
+        "Filter",
+        "This operator was moved out from the experimental phase, "
+        "and is now a regular DALI operator. This is just a deprecated "
+        "alias kept for backward compatibility.");
 
 namespace filter {
 
@@ -352,6 +368,9 @@ std::unique_ptr<OpImplBase<CPUBackend>> Filter<CPUBackend>::GetFilterImpl(
   return filter::get_filter_cpu_op_impl<Out, In>(spec, input_desc);
 }
 
+// Kept for backwards compatibility
 DALI_REGISTER_OPERATOR(experimental__Filter, Filter<CPUBackend>, CPU);
+
+DALI_REGISTER_OPERATOR(Filter, Filter<CPUBackend>, CPU);
 
 }  // namespace dali

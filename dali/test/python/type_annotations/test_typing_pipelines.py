@@ -1,4 +1,4 @@
-# Copyright (c) 2023-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2023-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -25,6 +25,7 @@ from nvidia.dali.pipeline import pipeline_def, Pipeline
 
 from test_utils import get_dali_extra_path, check_numba_compatibility_cpu
 from nose_utils import attr  # type: ignore
+from nose2.tools import params  # type: ignore
 
 _test_root = Path(get_dali_extra_path())
 
@@ -328,7 +329,8 @@ def test_pytorch_plugin():
 
 
 @attr("numba")
-def test_numba_plugin():
+@params(True, False)
+def test_numba_plugin(use_experimental):
     import nvidia.dali.plugin.numba as dali_numba
 
     check_numba_compatibility_cpu()
@@ -336,12 +338,18 @@ def test_numba_plugin():
     def double_sample(out_sample, in_sample):
         out_sample[:] = 2 * in_sample[:]
 
+    numba_function = (
+        dali_numba.fn.experimental.numba_function
+        if use_experimental
+        else dali_numba.fn.numba_function
+    )
+
     @pipeline_def(batch_size=2, device_id=0, num_threads=4)
     def numba_pipe():
         forty_two = fn.external_source(
             source=lambda x: np.full((2,), 42, dtype=np.uint8), batch=False
         )
-        out = dali_numba.fn.experimental.numba_function(
+        out = numba_function(
             forty_two,
             run_fn=double_sample,
             out_types=[types.DALIDataType.UINT8],
@@ -350,7 +358,7 @@ def test_numba_plugin():
             ins_ndim=[1],
             batch_processing=False,
         )
-        out_from_const = dali_numba.fn.experimental.numba_function(
+        out_from_const = numba_function(
             [42],
             run_fn=double_sample,
             out_types=[types.DALIDataType.INT32],

@@ -261,7 +261,7 @@ def test_resize_cpu():
 
 
 def test_tensor_resize_cpu():
-    check_single_input(fn.experimental.tensor_resize, sizes=[50, 50], axes=[0, 1])
+    check_single_input(fn.tensor_resize, sizes=[50, 50], axes=[0, 1])
 
 
 def test_per_frame_cpu():
@@ -1451,7 +1451,7 @@ def test_io_file_read_cpu():
 
 def test_debayer():
     check_single_input(
-        fn.experimental.debayer,
+        fn.debayer,
         get_data=lambda: np.full((256, 256), 128, dtype=np.uint8),
         batch=False,
         input_layout="HW",
@@ -1480,6 +1480,7 @@ tested_methods = [
     "decoders.image_random_crop",
     "decoders.numpy",
     "experimental.debayer",
+    "debayer",
     "experimental.decoders.image",
     "experimental.decoders.image_crop",
     "experimental.decoders.image_slice",
@@ -1551,6 +1552,7 @@ tested_methods = [
     "cast_like",
     "resize",
     "experimental.tensor_resize",
+    "tensor_resize",
     "gaussian_blur",
     "laplacian",
     "crop_mirror_normalize",
@@ -1644,7 +1646,9 @@ tested_methods = [
     "dl_tensor_python_function",
     "experimental.warp_perspective",
     "audio_resample",
+    "experimental.decoders.hidden.video",
     "experimental.decoders.video",
+    "decoders.video",
     "zeros",
     "zeros_like",
     "ones",
@@ -1667,7 +1671,9 @@ excluded_methods = [
     "optical_flow",  # not supported for CPU
     "experimental.audio_resample",  # Alias of audio_resample (already tested)
     "experimental.equalize",  # not supported for CPU
+    "equalize",  # not supported for CPU
     "experimental.filter",  # not supported for CPU
+    "filter",  # not supported for CPU
     "decoders.inflate",  # not supported for CPU
     "experimental.inflate",  # not supported for CPU
     "experimental.remap",  # operator is GPU-only
