@@ -551,7 +551,14 @@ class Tensor:
         )
 
     def __str__(self) -> str:
-        return "Tensor(\n" + str(self.evaluate()._storage) + ")"
+        from nvidia.dali._tensor_formatting import format_tensor, DynamicTensorAdapter
+
+        return format_tensor(self.evaluate(), show_data=True, adapter=DynamicTensorAdapter())
+
+    def __repr__(self) -> str:
+        from nvidia.dali._tensor_formatting import format_tensor, DynamicTensorAdapter
+
+        return format_tensor(self.evaluate(), show_data=True, adapter=DynamicTensorAdapter())
 
     def __add__(self, other):
         return _arithm_op("add", self, other)

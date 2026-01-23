@@ -660,7 +660,14 @@ class Batch:
             return [t.shape for t in self._tensors]
 
     def __str__(self) -> str:
-        return "Batch(\n" + str(self.evaluate()._storage) + ")"
+        from nvidia.dali._tensor_formatting import format_batch, DynamicBatchAdapter
+
+        return format_batch(self.evaluate(), show_data=True, adapter=DynamicBatchAdapter())
+
+    def __repr__(self) -> str:
+        from nvidia.dali._tensor_formatting import format_batch, DynamicBatchAdapter
+
+        return format_batch(self.evaluate(), show_data=True, adapter=DynamicBatchAdapter())
 
     def evaluate(self):
         """
