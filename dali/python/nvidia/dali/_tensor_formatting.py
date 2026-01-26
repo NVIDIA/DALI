@@ -342,8 +342,11 @@ def format_batch(
             # Let adapter handle the cropping efficiently
             data_arrays = adapter.to_numpy(data, edgeitems=edgeitem_samples if crop else None)
 
-            # Separator matching numpy standard.
-            sep = "\n" * data_arrays[0].ndim + spaces_indent
+            # Separator between samples in batch.
+            if data_arrays[0].ndim == 0:
+                sep = ", "
+            else:
+                sep = ",\n" + "\n" * (data_arrays[0].ndim - 1) + spaces_indent
 
             # Convert samples to strings
             data_arrays = [
@@ -351,7 +354,10 @@ def format_batch(
                 for tensor in data_arrays
             ]
             joined = _join_string(
-                data_arrays, edgeitems=edgeitem_samples, sep=sep, force_ellipsis=crop
+                data_arrays,
+                edgeitems=edgeitem_samples if crop else None,
+                sep=sep,
+                force_ellipsis=crop,
             )
             data_str = f"[{joined}]"
 
