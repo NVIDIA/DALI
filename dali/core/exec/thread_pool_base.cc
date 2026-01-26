@@ -1,4 +1,4 @@
-// Copyright (c) 2022-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,24 +19,30 @@
 namespace dali {
 
 JobBase::~JobBase() noexcept(false) {
-  if (total_tasks_ > 0 && !waited_for_) {
-    throw std::logic_error("The job is not empty, but hasn't been abandoned or waited for.");
+  if (total_tasks_ > 0 && !wait_completed_) {
+    throw std::logic_error("The job is not empty, but hasn't been discarded or waited for.");
   }
   while (running_)
     std::this_thread::yield();
 }
 
 void JobBase::DoWait() {
+  if (wait_started_)
+    throw std::logic_error("This job has already been waited for.");
+  wait_started_ = true;
+
+  if (total_tasks_ == 0) {
+    wait_completed_ = true;
+    return;
+  }
+
   if (executor_ == nullptr)
     throw std::logic_error("This job hasn't been run - cannot wait for it.");
-
-  if (waited_for_)
-    throw std::logic_error("This job has already been waited for.");
 
   auto ready = [&]() { return num_pending_tasks_ == 0; };
   if (ThreadPoolBase::this_thread_pool() != nullptr) {
     bool result = ThreadPoolBase::this_thread_pool()->WaitOrRunTasks(cv_, ready);
-    waited_for_ = true;
+    wait_completed_ = true;
     if (!result)
       throw std::logic_error("The thread pool was stopped");
   } else {
@@ -46,7 +52,7 @@ void JobBase::DoWait() {
       old = num_pending_tasks_.load();
       assert(old >= 0);
     }
-    waited_for_ = true;
+    wait_completed_ = true;
   }
 }
 
@@ -54,14 +60,13 @@ void JobBase::DoNotify() {
   num_pending_tasks_.notify_all();
   (void)std::lock_guard(mtx_);
   cv_.notify_all();
-  // We need this second flag to avoid a race condition where the
-  // desctructor is called between decrementing num_pending_tasks_ and notification_
-  // without excessive use of mutexes.  This must be the very last operation in the task
-  // function that touches `this`.
+  // We need this second flag to avoid a race condition where the desctructor is called between
+  // decrementing num_pending_tasks_ and notification_ without excessive use of mutexes.
+  // This must be the very last operation in the task function that touches `this`.
   running_ = false;
 }
 
-///////////////////////////////////////////////////////////////////////////
+// Job ////////////////////////////////////////////////////////////////////
 
 void Job::Run(ThreadPoolBase &tp, bool wait) {
   if (executor_ != nullptr)
@@ -99,14 +104,14 @@ void Job::Wait() {
     throw MultipleErrors(std::move(errors));
 }
 
-void Job::Abandon() {
+void Job::Discard() {
   if (executor_ != nullptr)
-    throw std::logic_error("Cannot abandon a job that has already been started");
+    throw std::logic_error("Cannot discard a job that has already been started");
   tasks_.clear();
   total_tasks_ = 0;
 }
 
-///////////////////////////////////////////////////////////////////////////
+// IncrementalJob /////////////////////////////////////////////////////////
 
 void IncrementalJob::Run(ThreadPoolBase &tp, bool wait) {
   if (executor_ && executor_ != &tp)
@@ -130,9 +135,9 @@ void IncrementalJob::Run(ThreadPoolBase &tp, bool wait) {
     Wait();
 }
 
-void IncrementalJob::Abandon() {
+void IncrementalJob::Discard() {
   if (executor_)
-    throw std::logic_error("Cannot abandon a job that has already been started");
+    throw std::logic_error("Cannot discard a job that has already been started");
   tasks_.clear();
   total_tasks_ = 0;
 }

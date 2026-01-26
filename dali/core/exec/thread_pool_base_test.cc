@@ -1,4 +1,4 @@
-// Copyright (c) 2022-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -113,7 +113,6 @@ TEST(NewThreadPool, RunIncrementalJobInThreadPool) {
   EXPECT_EQ(c.load(), 3);
 }
 
-
 TEST(NewThreadPool, RunLargeIncrementalJobInThreadPool) {
   ThreadPoolBase tp(4);
   const int max_attempts = 10;
@@ -177,15 +176,13 @@ TYPED_TEST(NewThreadPoolJobTest, RunJobInSeries) {
   EXPECT_EQ(c, 3);
 }
 
-
-TYPED_TEST(NewThreadPoolJobTest, Abandon) {
+TYPED_TEST(NewThreadPoolJobTest, Discard) {
   EXPECT_NO_THROW({
     TypeParam job;
     job.AddTask([]() {});
-    job.Abandon();
+    job.Discard();
   });
 }
-
 
 TYPED_TEST(NewThreadPoolJobTest, ErrorIncrementalJobNotStarted) {
   try {
@@ -197,7 +194,6 @@ TYPED_TEST(NewThreadPoolJobTest, ErrorIncrementalJobNotStarted) {
   }
   GTEST_FAIL() << "Expected a logic error.";
 }
-
 
 TYPED_TEST(NewThreadPoolJobTest, RethrowMultipleErrors) {
   TypeParam job;

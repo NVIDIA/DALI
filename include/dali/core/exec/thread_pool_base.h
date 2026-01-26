@@ -1,4 +1,4 @@
-// Copyright (c) 2022-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -38,11 +38,7 @@ namespace dali {
 
 class ThreadPoolBase;
 
-/**
- * @brief A collection of tasks, ordered by priority
- *
- * Tasks are added to a job first and then the entire work is scheduled as a whole.
- */
+/** A base class for various job types. It defines common infrastructure. */
 class DLL_PUBLIC JobBase {
  protected:
   JobBase() = default;
@@ -68,7 +64,8 @@ class DLL_PUBLIC JobBase {
   std::atomic_int num_pending_tasks_{0};
   std::atomic_bool running_{false};
   int total_tasks_ = 0;
-  bool waited_for_ = false;
+  bool wait_started_ = false;
+  bool wait_completed_ = false;
   const void *executor_ = nullptr;
 
   struct Task {
@@ -77,6 +74,13 @@ class DLL_PUBLIC JobBase {
   };
 };
 
+/**
+ * @brief A collection of tasks, ordered by priority
+ *
+ * Tasks are added to a job first and then the entire work is scheduled as a whole.
+ * Once at least one task has been added, Run and Wait (or Discard) must be called
+ * before the task is destroyed.
+ */
 class DLL_PUBLIC Job final : public JobBase {
  public:
   ~Job() noexcept(false) = default;
@@ -86,6 +90,9 @@ class DLL_PUBLIC Job final : public JobBase {
   template <typename Runnable>
   std::enable_if_t<std::is_convertible_v<Runnable, std::function<void()>>>
   AddTask(Runnable &&runnable, priority_t priority = {}) {
+    if (wait_started_)
+      throw std::logic_error("This job has already been waited for - cannot add more tasks to it");
+
     if (executor_ != nullptr)
       throw std::logic_error("This job has already been started - cannot add more tasks to it");
 
@@ -97,7 +104,6 @@ class DLL_PUBLIC Job final : public JobBase {
         } catch (...) {
           task->error = std::current_exception();
         }
-
         if (--num_pending_tasks_ == 0)
           DoNotify();
       };
@@ -113,9 +119,10 @@ class DLL_PUBLIC Job final : public JobBase {
 
   void Run(ThreadPoolBase &tp, bool wait);
 
+  /** Waits for the job to complete. This function must be called only once. */
   void Wait();
 
-  void Abandon();
+  void Discard();
 
  private:
   // This needs to be a container which never invalidates references when inserting new items.
@@ -146,9 +153,13 @@ class DLL_PUBLIC IncrementalJob final : public JobBase {
 
   void Run(ThreadPoolBase &tp, bool wait);
 
+  /** Waits for the job to complete. This function must be called only once.
+   *
+   * After this call, adding more tasks is illegal.
+   */
   void Wait();
 
-  void Abandon();
+  void Discard();
 
  private:
   using task_list_t = std::list<Task, mm::detail::object_pool_allocator<Task>>;
@@ -319,7 +330,7 @@ void Job::Run(Executor &executor, bool wait) {
 template <typename Runnable>
 std::enable_if_t<std::is_convertible_v<Runnable, std::function<void()>>>
 IncrementalJob::AddTask(Runnable &&runnable) {
-  if (waited_for_)
+  if (wait_started_)
     throw std::logic_error("This job has already been waited for - cannot add more tasks to it");
 
   assert(executor_ == nullptr || executor_ != ThreadPoolBase::this_thread_pool());
