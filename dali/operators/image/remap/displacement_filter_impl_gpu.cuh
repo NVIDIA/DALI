@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -143,9 +143,11 @@ void DisplacementKernel_aligned32bit(
     auto nElements = (end - start) / nPixelsPerThread;
     auto loopCount = nElements / nThreads;
     T *const my_scratch = scratch + threadIdx.x * C * nPixelsPerThread;
-    uint32_t *const scratch_32 = reinterpret_cast<uint32_t *>(scratch);
 
     for (int lidx = 0; lidx < loopCount; ++lidx) {
+      if (lidx)
+        __syncthreads();
+
       const auto hw0 = start + (lidx * nThreads + threadIdx.x) * nPixelsPerThread;
       uint32_t *const current_image_out = image_out + start_pixelgroup * C + lidx * nThreads * C;
       if (per_channel_transform) {
@@ -170,8 +172,10 @@ void DisplacementKernel_aligned32bit(
               sample_idx, h, w, H, W, C, image_in, my_scratch + j * C, displace, fill_value);
         }
       }
+
       __syncthreads();
 
+      uint32_t *const scratch_32 = reinterpret_cast<uint32_t *>(scratch);
 #pragma unroll
       for (int i = 0; i < C; ++i) {
         current_image_out[threadIdx.x + i * nThreads] = scratch_32[threadIdx.x + i * nThreads];
