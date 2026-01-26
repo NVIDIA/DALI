@@ -91,10 +91,6 @@ class BatchAdapter(TensorAdapter, Protocol):
         """Returns the number of samples in the batch."""
         ...
 
-    def is_dense_tensor(self, obj) -> bool:
-        """Returns True if all samples have the same shape."""
-        ...
-
     def get_sample(self, obj, index: int):
         """Returns a single sample at the given index."""
         ...
@@ -163,9 +159,6 @@ class PipelineBatchAdapter(_BasePipelineAdapter):
     def get_length(self, obj) -> int:
         return len(obj)
 
-    def is_dense_tensor(self, obj) -> bool:
-        return obj.is_dense_tensor()
-
     def get_sample(self, obj, index: int):
         return obj[index]
 
@@ -226,13 +219,6 @@ class DynamicBatchAdapter(_BaseDynamicAdapter):
 
     def get_length(self, obj) -> int:
         return obj.batch_size
-
-    def is_dense_tensor(self, obj) -> bool:
-        shapes = obj.shape
-        if len(shapes) == 0:
-            return True
-        first_shape = shapes[0]
-        return all(s == first_shape for s in shapes)
 
     def get_sample(self, obj, index: int):
         return obj.tensors[index]
