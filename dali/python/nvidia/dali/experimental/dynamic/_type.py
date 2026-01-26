@@ -66,6 +66,7 @@ class DType:
         bytes: int = None,
         type_id: nvidia.dali.types.DALIDataType = None,
         name: str = None,
+        docs: str = None,
     ):
         self.kind = kind
         self.bits = bits
@@ -77,7 +78,12 @@ class DType:
         else:
             self.exponent_bits = None
             self.significand_bits = None
-        self.name = name or DType.make_name(kind, bits, self.exponent_bits, self.significand_bits)
+        if name and docs:
+            self.name, self.__doc__ = name, docs
+        else:
+            generated_name, generated_docs = DType.make_name_and_docs(kind, bits, self.exponent_bits, self.significand_bits)
+            self.name = name or generated_name
+            self.__doc__ = docs or generated_docs
         self.bytes = bytes or ((bits + 7) // 8)
 
         # Register the type with the id and name
@@ -87,26 +93,26 @@ class DType:
         _name2type[self.name] = self
 
     @staticmethod
-    def make_name(kind: Kind, bits: int, exponent_bits: int, significand_bits: int) -> str:
+    def make_name_and_docs(kind: Kind, bits: int, exponent_bits: int, significand_bits: int) -> str:
         if kind == DType.Kind.signed:
-            return f"i{bits}"
+            return f"i{bits}", f"{bits}-bit signed integer"
         elif kind == DType.Kind.unsigned:
-            return f"u{bits}"
+            return f"u{bits}", f"{bits}-bit unsigned integer"
         elif kind == DType.Kind.float:
             if exponent_bits == DType.default_exponent_bits(
                 bits
             ) and significand_bits == DType.default_significand_bits(bits):
-                return f"f{bits}"
+                return f"f{bits}", f"{bits}-bit floating point number"
             elif bits == 16 and exponent_bits == 8 and significand_bits == 7:
-                return "bfloat16"
+                return "bfloat16", "Brain Floating Point: a 16-bit floating point number with 8-bit exponent and 7-bit mantissa"
             elif bits == 19 and exponent_bits == 8 and significand_bits == 10:
-                return "tf32"
+                return "tf32", "TensorFloat-32: a 19-bit floating point number with 8-bit exponent and 10-bit mantissa"
             else:
-                return f"f{bits}e{exponent_bits}m{significand_bits}"
+                return f"f{bits}e{exponent_bits}m{significand_bits}", f"{bits}-bit floating point number with {exponent_bits}-bit exponent and {significand_bits}-bit mantissa"
         elif kind == DType.Kind.bool:
-            return "bool"
+            return "bool", "Boolean value"
         else:
-            raise ValueError("Cannot make name for type of kind: {kind}")
+            raise ValueError(f"Cannot make name for type of kind: {kind}")
 
     def __str__(self):
         return self.name
@@ -219,9 +225,9 @@ float32 = DType(DType.Kind.float, 32, type_id=nvidia.dali.types.FLOAT)
 float64 = DType(DType.Kind.float, 64, type_id=nvidia.dali.types.FLOAT64)
 bool = DType(DType.Kind.bool, 8, type_id=nvidia.dali.types.BOOL)
 bfloat16 = DType(DType.Kind.float, 16, 8, 7)  # TODO(michalz): Add type_id for bfloat16
-DataType = DType(DType.Kind.enum, 32, type_id=nvidia.dali.types.DATA_TYPE, name="DataType")
-ImageType = DType(DType.Kind.enum, 32, type_id=nvidia.dali.types.IMAGE_TYPE, name="ImageType")
-InterpType = DType(DType.Kind.enum, 32, type_id=nvidia.dali.types.INTERP_TYPE, name="InterpType")
+DataType = DType(DType.Kind.enum, 32, type_id=nvidia.dali.types.DATA_TYPE, name="DataType", docs="DALI data type. See :py:class:`nvidia.dali.types.DALIDataType`.")
+ImageType = DType(DType.Kind.enum, 32, type_id=nvidia.dali.types.IMAGE_TYPE, name="ImageType", docs="Image type. See :py:class:`nvidia.dali.types.DALIImageType`")
+InterpType = DType(DType.Kind.enum, 32, type_id=nvidia.dali.types.INTERP_TYPE, name="InterpType", docs="Interpolation type. See :py:class:`nvidia.dali.types.DALIInterpType`")
 
 
 def dtype(*args):
