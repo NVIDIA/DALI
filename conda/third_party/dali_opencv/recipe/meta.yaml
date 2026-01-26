@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-{% set build_version = "4.12.0" %}
+{% set build_version = "4.13.0" %}
 
   package:
     name: dali-opencv
@@ -21,7 +21,7 @@
   source:
     fn: opencv-{{ build_version }}.tar.gz
     url: https://github.com/opencv/opencv/archive/refs/tags/{{ build_version }}.tar.gz
-    sha256: 44c106d5bb47efec04e531fd93008b3fcd1d27138985c5baf4eafac0e1ec9e9d
+    sha256: 1d40ca017ea51c533cf9fd5cbde5b5fe7ae248291ddf2af99d4c17cf8e13017d
 
   build:
     number: 0
