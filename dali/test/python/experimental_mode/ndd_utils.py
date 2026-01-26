@@ -17,18 +17,11 @@ import itertools
 
 import nvidia.dali.experimental.dynamic as ndd
 
-ALL_EVAL_MODES = (
-    ndd.EvalMode.deferred,
-    ndd.EvalMode.eager,
-    ndd.EvalMode.sync_cpu,
-    ndd.EvalMode.sync_full,
-)
-
 
 def eval_modes(*modes: ndd.EvalMode):
     """Automatically run the test function with multiple eval modes."""
     if not modes:
-        modes = ALL_EVAL_MODES
+        modes = tuple(ndd.EvalMode)
 
     def decorator(func):
         @functools.wraps(func)

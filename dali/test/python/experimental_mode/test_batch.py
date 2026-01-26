@@ -17,7 +17,7 @@ import nvidia.dali as dali
 import nvidia.dali.backend as _b
 import nvidia.dali.experimental.dynamic as ndd
 import test_tensor
-from eval_mode_utils import eval_modes
+from ndd_utils import eval_modes
 from nose2.tools import params
 from nose_utils import SkipTest, assert_raises, attr
 

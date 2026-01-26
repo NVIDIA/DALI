@@ -16,7 +16,7 @@ import itertools
 
 import numpy as np
 import nvidia.dali.experimental.dynamic as ndd
-from eval_mode_utils import eval_modes
+from ndd_utils import eval_modes
 from nose2.tools import params
 from nose_utils import assert_raises, attr
 from test_tensor import asnumpy
