@@ -600,11 +600,16 @@ AccessOrder AccessOrderFromPythonStreamObj(const py::object &cuda_stream) {
       auto [version, stream_ptr] = cuda_stream_interface().cast<std::tuple<int, uintptr_t>>();
       cudaStream_t stream = reinterpret_cast<cudaStream_t>(stream_ptr);
       order = AccessOrder(stream);
-    } else if (py::hasattr(cuda_stream, "value")) {
-      cudaStream_t stream = static_cast<cudaStream_t>(ctypes_void_ptr(cuda_stream));
     } else if (py::isinstance<py::int_>(cuda_stream)) {
       cudaStream_t stream = reinterpret_cast<cudaStream_t>(py::cast<uintptr_t>(cuda_stream));
       order = AccessOrder(stream);
+    } else if (py::hasattr(cuda_stream, "value")) {
+      cudaStream_t stream = static_cast<cudaStream_t>(ctypes_void_ptr(cuda_stream));
+      order = AccessOrder(stream);
+    } else if (auto cuda_stream_prop = getattr(cuda_stream, "cuda_stream", py::none())) {
+      return AccessOrderFromPythonStreamObj(cuda_stream_prop);
+    } else if (auto handle_prop = getattr(cuda_stream, "handle", py::none())) {
+      return AccessOrderFromPythonStreamObj(handle_prop);
     }
   } else {
     order = AccessOrder::host();
@@ -1532,14 +1537,20 @@ void ExposeTesorListGPU(py::module &m) {
       py::class_<TensorList<GPUBackend>, std::shared_ptr<TensorList<GPUBackend>>>(
           m, "TensorListGPU", py::buffer_protocol())
     .def_property_readonly_static("__module__", tensor_module_impl)
-    .def(py::init([](py::capsule &capsule, std::optional<std::string> layout = {}) {
-            DomainTimeRange range("TensorListGPU::init from a DLPack capsule", kGPUTensorColor);
-            auto t = std::make_shared<TensorList<GPUBackend>>();
-            FillTensorFromDlPack(capsule, t.get(), layout);
-            return t;
-          }),
+    .def(py::init([](
+              py::capsule &capsule,
+              std::optional<std::string> layout = {},
+              py::object stream = py::none()) {
+          DomainTimeRange range("TensorListGPU::init from a DLPack capsule", kGPUTensorColor);
+          auto t = std::make_shared<TensorList<GPUBackend>>();
+          FillTensorFromDlPack(capsule, t.get(), layout);
+          if (!stream.is_none())  // use a separately provided stream - there's none in the capsule
+            t->set_order(AccessOrderFromPythonStreamObj(stream));
+          return t;
+        }),
         "object"_a,
         "layout"_a = py::none(),
+        "stream"_a = py::none(),
         R"code(
         List of tensors residing in the GPU memory.
 
@@ -1879,6 +1890,9 @@ void ExposeBufferPolicyFunctions(py::module &m) {
     int device_id = 0;
     CUDA_CALL(cudaGetDevice(&device_id));
     return device_id;
+  });
+  m.def("GetCUDAStreamDevice", [](py::object stream) {
+    return DeviceFromStream(AccessOrderFromPythonStreamObj(stream).stream());
   });
   m.def("PreallocateDeviceMemory", mm::PreallocateDeviceMemory,
 R"(Preallocate memory on given device
@@ -2340,6 +2354,12 @@ void ExposeStream(py::module &m) {
     })
     .def_property_readonly("handle", [](dali::CUDAStreamLease &self) {
       return reinterpret_cast<uintptr_t>(self.get());
+    })
+    .def("__repr__", [](dali::CUDAStreamLease &self) {
+      return make_string("Stream(", self.get(), ")");
+    })
+    .def("__str__", [](dali::CUDAStreamLease &self) {
+      return make_string("Stream(", self.get(), ")");
     });
 }
 
@@ -2396,8 +2416,7 @@ void ExposeWorkspace(py::module &m) {
       auto ws = std::make_unique<PyWorkspace>();
       ws->SetThreadPool(std::move(thread_pool));
       if (!stream.is_none()) {
-        cudaStream_t s = static_cast<cudaStream_t>(ctypes_void_ptr(stream));
-        ws->set_output_order(s);
+        ws->SetStream(stream);
       }
       return ws;
     }), "thread_pool"_a = nullptr, "stream"_a = py::none())

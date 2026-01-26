@@ -1,4 +1,4 @@
-# Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -81,7 +81,7 @@ class Invocation:
         self._num_outputs: int | None = None
         self._output_devices: list[Device] | None = None
         self._previous_invocation = previous_invocation
-        self._eval_context = _EvalContext.current()
+        self._eval_context = _EvalContext.current()._snapshot()
         self._future: Optional[_Future] = None
         self._run_lock = threading.Lock()
 

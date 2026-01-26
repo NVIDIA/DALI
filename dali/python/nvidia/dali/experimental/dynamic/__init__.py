@@ -1,4 +1,4 @@
-# Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,6 +16,7 @@
 Dynamic API - a new experimental API that allows to interleave DALI operations with Python code.
 """
 
+from ._stream import *  # noqa: F401, F403
 from ._eval_mode import *  # noqa: F401, F403
 from ._eval_context import *  # noqa: F401, F403
 from ._type import *  # noqa: F401, F403

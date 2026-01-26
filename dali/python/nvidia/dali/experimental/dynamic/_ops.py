@@ -1,4 +1,4 @@
-# Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -281,7 +281,7 @@ class Operator:
                     self._reset_backend()
 
             self._init_backend(ctx, inputs, args)
-            workspace = _b._Workspace(ctx._thread_pool, ctx._cuda_stream)
+            workspace = _b._Workspace(ctx._thread_pool, ctx.cuda_stream)
             for i, input in enumerate(inputs):
                 workspace.AddInput(self._to_batch(input).evaluate()._storage)
             for name, arg in args.items():
