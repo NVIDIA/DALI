@@ -370,7 +370,9 @@ def format_batch(
     shape = adapter.get_shape(obj)
     shape_len = len(shape)
     shape_prefix = "shape=["
-    shape_crop = shape_len > 16 or (shape_len > 2 * edgeitems + 1 and shape_len * len(shape[0]) > 100)
+    shape_crop = shape_len > 16 or (
+        shape_len > 2 * edgeitems + 1 and shape_len * len(shape[0]) > 100
+    )
     shape_strs = list(map(str, shape))
     shape_str = _join_string(shape_strs, edgeitems=edgeitems if shape_crop else None)
 
@@ -379,7 +381,7 @@ def format_batch(
         shape_str = _join_string(
             shape_strs,
             edgeitems=edgeitems if shape_crop else None,
-            sep=", \n" + spaces_indent + " " * len(shape_prefix)
+            sep=", \n" + spaces_indent + " " * len(shape_prefix),
         )
 
     params = (
