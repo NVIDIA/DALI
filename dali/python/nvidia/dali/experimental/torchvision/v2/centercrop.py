@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Union, Sequence
+from typing import Sequence
 from .operator import Operator, VerificationSize
 import nvidia.dali.fn as fn
 
@@ -51,7 +51,7 @@ class CenterCrop(Operator):
 
         return size
 
-    def __init__(self, size: Union[int, Sequence[int]], device: str = "cpu"):
+    def __init__(self, size: int | Sequence[int], device: str = "cpu"):
         """
         Initializes the ``CenterCrop`` operator with the desired output size.
 

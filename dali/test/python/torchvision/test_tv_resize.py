@@ -1,4 +1,4 @@
-# Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import os
-from typing import Sequence, Union
+from typing import Sequence
 
 import numpy as np
 from nose2.tools import params, cartesian_params
@@ -46,7 +46,7 @@ test_input_filenames = [read_filepath(fname) for fname in test_files]
 
 
 def build_resize_transform(
-    resize: Union[int, Sequence[int]],
+    resize: int | Sequence[int],
     max_size: int = None,
     interpolation: transforms.InterpolationMode = transforms.InterpolationMode.BILINEAR,
     antialias: bool = False,
@@ -71,7 +71,7 @@ def build_resize_transform(
 def loop_images_test_no_build(
     t: transforms.Resize,
     td: Resize,
-    resize: Union[int, Sequence[int]],
+    resize: int | Sequence[int],
     max_size: int = None,
     interpolation: transforms.InterpolationMode = transforms.InterpolationMode.BILINEAR,
     antialias: bool = False,
@@ -122,7 +122,7 @@ def loop_images_test_no_build(
 
 
 def loop_images_test(
-    resize: Union[int, Sequence[int]],
+    resize: int | Sequence[int],
     max_size: int = None,
     interpolation: transforms.InterpolationMode = transforms.InterpolationMode.BILINEAR,
     antialias: bool = False,

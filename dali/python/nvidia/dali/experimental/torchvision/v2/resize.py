@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Optional, Sequence, Union, Literal
+from typing import Optional, Sequence, Literal
 
 from .operator import Operator, ArgumentVerificationRule
 
@@ -26,7 +26,7 @@ import numpy as np
 
 class VerificationSize(ArgumentVerificationRule):
     @classmethod
-    def verify(self, *, size, max_size, interpolation, **_):
+    def verify(cls, *, size, max_size, interpolation, **_):
         if size is not None and not isinstance(size, int) and not isinstance(size, (tuple, list)):
             raise ValueError(
                 "Invalid combination: size must be int, None, or sequence of two ints. "
@@ -89,9 +89,9 @@ class Resize(Operator):
     @classmethod
     def infer_effective_size(
         cls,
-        size: Optional[Union[int, Sequence[int]]],
+        size: Optional[int | Sequence[int]],
         max_size: Optional[int] = None,
-    ) -> Union[int, Sequence[int]]:
+    ) -> int | Sequence[int]:
 
         mode = "default"
 
@@ -134,8 +134,8 @@ class Resize(Operator):
 
     def __init__(
         self,
-        size: Optional[Union[int, Sequence[int]]],
-        interpolation: Union[InterpolationMode, int] = InterpolationMode.BILINEAR,
+        size: Optional[int | Sequence[int]],
+        interpolation: InterpolationMode | int = InterpolationMode.BILINEAR,
         max_size: Optional[int] = None,
         antialias: Optional[bool] = True,
         device: Literal["cpu", "gpu"] = "cpu",

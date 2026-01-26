@@ -1,4 +1,4 @@
-# Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -97,7 +97,7 @@ class PadBase(Operator):
 
     def __init__(
         self,
-        padding: Union[int, Sequence[int]],
+        padding: int | Sequence[int],
         fill: Union[
             int,
             float,
@@ -105,7 +105,7 @@ class PadBase(Operator):
             Sequence[float],
             None,
             dict[
-                Union[type, str],
+                type | str,
                 Union[
                     int,
                     float,
@@ -232,7 +232,7 @@ class Pad:
 
     def __init__(
         self,
-        padding: Union[int, Sequence[int]],
+        padding: int | Sequence[int],
         fill: Union[
             int,
             float,
@@ -240,7 +240,7 @@ class Pad:
             Sequence[float],
             None,
             dict[
-                Union[type, str],
+                type | str,
                 Union[
                     int,
                     float,

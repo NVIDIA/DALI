@@ -1,4 +1,4 @@
-# Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Sequence, Union, Literal, Optional
+from typing import Sequence, Literal, Optional
 import nvidia.dali.fn as fn
 import nvidia.dali as dali
 from .operator import ArgumentVerificationRule, Operator, VerifyIfOrderedPair
@@ -33,7 +33,7 @@ class VerificationBCS(ArgumentVerificationRule):
     """
 
     @classmethod
-    def _validate_param(cls, param: Union[float, Sequence[float]], name: str):
+    def _validate_param(cls, param: float | Sequence[float], name: str):
         if isinstance(param, float):
             param = [max(0, 1 - param), 1 + param]
 
@@ -132,7 +132,7 @@ class ColorJitter(Operator):
 
     arg_rules = [VerificationBCS, VerificationHue]
 
-    def _create_param(self, param: Union[float, Sequence[float]]):
+    def _create_param(self, param: float | Sequence[float]):
         if isinstance(param, float):
             return [max(0, 1 - param), 1 + param]
         else:
@@ -140,10 +140,10 @@ class ColorJitter(Operator):
 
     def __init__(
         self,
-        brightness: Optional[Union[float, Sequence[float]]] = 1.0,
-        contrast: Optional[Union[float, Sequence[float]]] = 1.0,
-        saturation: Optional[Union[float, Sequence[float]]] = 1.0,
-        hue: Optional[Union[float, Sequence[float]]] = 0.0,
+        brightness: Optional[float | Sequence[float]] = 1.0,
+        contrast: Optional[float | Sequence[float]] = 1.0,
+        saturation: Optional[float | Sequence[float]] = 1.0,
+        hue: Optional[float | Sequence[float]] = 0.0,
         device: Literal["cpu", "gpu"] = "cpu",
     ):
         super().__init__(

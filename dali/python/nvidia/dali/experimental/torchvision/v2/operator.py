@@ -1,4 +1,4 @@
-# Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -31,7 +31,7 @@ class DataVerificationRule(ABC):
 
     @classmethod
     @abstractmethod
-    def verify(self, data) -> None:
+    def verify(cls, data) -> None:
         pass
 
 
@@ -228,6 +228,12 @@ def adjust_input(func):
     def transform_input(inpt) -> ndd.Tensor | ndd.Batch:
         """
         Transforms supported inputs to either DALI tensor or batch
+        The following conversion rules apply:
+        - PIL Image -> ndd.Tensor(layout="HWC"), depending on the number of channels it outputs:
+         L, RGB, or RGBA mode
+        - torch.Tensor:
+          ndim==3 -> ndd.Tensor(layout = "CHW"),
+          ndim>3 -> ndd.Batch(layout="NCHW")
         """
         mode = "RGB"
         if isinstance(inpt, Image.Image):
@@ -256,6 +262,11 @@ def adjust_input(func):
     ) -> Image.Image | torch.Tensor:
         """
         Adjusts output to match the original input type or operator's result
+        Depending on the inpt:
+        - PIL Image: output ndd.Tensor -> PIL Image with applicable mode ("L", "RGB", "RGBA")
+        - torch.Tensor:
+          ndd.Batch -> torch.Tensor with leading dimension as a number of samples in batch
+          ndd.Tensor -> torch.Tensor
         """
         if isinstance(inpt, Image.Image):
             if output.shape[-1] == 1:
@@ -263,11 +274,10 @@ def adjust_input(func):
                 mode = "L"
             return Image.fromarray(np.asarray(output), mode=mode)
         elif isinstance(inpt, torch.Tensor):
+            # For input being torch.Tensor only ndd.Batch or ndd.Tensor is allowed as output
             if isinstance(output, ndd.Batch):
                 output = ndd.as_tensor(output)
-            elif isinstance(output, ndd.Tensor):
-                output = output
-            else:
+            elif not isinstance(output, ndd.Tensor):
                 raise TypeError(f"Invalid output type: {type(output)}")
 
             # This is WAR for DLPpack not supporting pinned memory

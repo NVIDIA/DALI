@@ -1,4 +1,4 @@
-# Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import List, Sequence, Union, Callable
+from typing import List, Sequence, Callable
 
 import nvidia.dali.fn as fn
 from nvidia.dali.pipeline import pipeline_def
@@ -31,7 +31,7 @@ DEFAULT_BATCH_SIZE = 16
 DEFAULT_NUM_THREADS = multiprocessing.cpu_count() // 2
 
 
-def _to_torch_tensor(tensor_or_tl: Union[TensorListGPU, TensorListCPU]) -> torch.Tensor:
+def _to_torch_tensor(tensor_or_tl: TensorListGPU | TensorListCPU) -> torch.Tensor:
     if isinstance(tensor_or_tl, (TensorListGPU, TensorListCPU)):
         dali_tensor = tensor_or_tl.as_tensor()
     else:
@@ -40,7 +40,7 @@ def _to_torch_tensor(tensor_or_tl: Union[TensorListGPU, TensorListCPU]) -> torch
     return torch.from_dlpack(dali_tensor)
 
 
-def to_torch_tensor(tensor_or_tl: Union[tuple, TensorListGPU, TensorListCPU]) -> torch.Tensor:
+def to_torch_tensor(tensor_or_tl: tuple | TensorListGPU | TensorListCPU) -> torch.Tensor:
     """
     Converts a DALI tensor or tensor list to a PyTorch tensor.
 
@@ -103,7 +103,7 @@ class PipelineLayouted:
 
     def __init__(
         self,
-        op_list: List[Callable[..., Union[Sequence[_DataNode], _DataNode]]],
+        op_list: List[Callable[..., Sequence[_DataNode] | _DataNode]],
         layout: str,
         batch_size: int = DEFAULT_BATCH_SIZE,
         num_threads: int = DEFAULT_NUM_THREADS,
@@ -164,7 +164,7 @@ class PipelineHWC(PipelineLayouted):
 
     def __init__(
         self,
-        op_list: List[Callable[..., Union[Sequence[_DataNode], _DataNode]]],
+        op_list: List[Callable[..., Sequence[_DataNode] | _DataNode]],
         batch_size: int = DEFAULT_BATCH_SIZE,
         num_threads: int = DEFAULT_NUM_THREADS,
         **dali_pipeline_kwargs,
@@ -251,7 +251,7 @@ class PipelineCHW(PipelineLayouted):
 
     def __init__(
         self,
-        op_list: List[Callable[..., Union[Sequence[_DataNode], _DataNode]]],
+        op_list: List[Callable[..., Sequence[_DataNode] | _DataNode]],
         batch_size: int = DEFAULT_BATCH_SIZE,
         num_threads: int = DEFAULT_NUM_THREADS,
         **dali_pipeline_kwargs,
@@ -311,7 +311,7 @@ class Compose:
 
     def __init__(
         self,
-        op_list: List[Callable[..., Union[Sequence[_DataNode], _DataNode]]],
+        op_list: List[Callable[..., Sequence[_DataNode] | _DataNode]],
         batch_size: int = DEFAULT_BATCH_SIZE,
         num_threads: int = DEFAULT_NUM_THREADS,
         **dali_pipeline_kwargs,

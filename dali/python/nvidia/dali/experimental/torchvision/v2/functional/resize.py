@@ -1,4 +1,4 @@
-# Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -49,11 +49,20 @@ def resize(
 
     # Shorter edge limited by max size
     if mode == "resize_shorter":
-        return ndd.resize(img, device=device, resize_shorter=target_h, max_size=max_size)
+        return ndd.resize(
+            img,
+            device=device,
+            resize_shorter=target_h,
+            max_size=max_size,
+            interpolation=interpolation,
+            antialias=antialias,
+        )
 
     return ndd.resize(
         img,
         device=device,
         size=(target_h, target_w),
         mode=mode,
+        interpolation=interpolation,
+        antialias=antialias,
     )

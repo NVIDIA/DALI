@@ -1,4 +1,4 @@
-# Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -29,10 +29,6 @@ def make_test_tensor(shape=(1, 1, 10, 10)):
     ones = torch.ones(shape)
 
     return ones
-    # total = 1.0
-    # for s in shape:
-    #    total *= float(s)
-    # return torch.arange(total).reshape(shape).to(dtype=torch.float)
 
 
 def test_normalize_core(
