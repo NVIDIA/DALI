@@ -350,8 +350,10 @@ def format_batch(
                 np.array2string(tensor, prefix=spaces_indent, edgeitems=edgeitems)
                 for tensor in data_arrays
             ]
-            # Join samples with separator
-            data_str = f"[{_join_string(data_arrays, edgeitems=edgeitem_samples, sep=sep, force_ellipsis=crop)}]"
+            joined = _join_string(
+                data_arrays, edgeitems=edgeitem_samples, sep=sep, force_ellipsis=crop
+            )
+            data_str = f"[{joined}]"
 
     shape = adapter.get_shape(obj)
     shape_len = len(shape)

@@ -14,9 +14,7 @@
 
 import numpy as np
 from itertools import product
-from numpy.testing import assert_array_equal
 from nvidia.dali.backend_impl import TensorCPU, TensorListCPU
-from nose_utils import assert_raises
 from nose2.tools import params
 
 # Import Dynamic API
@@ -119,7 +117,6 @@ def _format_values(arr, count=2):
 @params(*product(TENSOR_TEST_CASES, DEVICES))
 def test_tensor_formatting_pipeline(test_case, device):
     """Test tensor formatting for Pipeline API."""
-    from nvidia.dali.backend_impl import TensorGPU
 
     arr = test_case["array"].copy()
     layout = test_case["layout"]
@@ -177,7 +174,6 @@ def test_tensor_formatting_dynamic(test_case, device):
 @params(*product(BATCH_TEST_CASES, DEVICES))
 def test_batch_formatting_pipeline(test_case, device):
     """Test batch formatting for Pipeline API."""
-    from nvidia.dali.backend_impl import TensorGPU, TensorListGPU
 
     layout = test_case["layout"]
     num_samples = test_case["num_samples"]
