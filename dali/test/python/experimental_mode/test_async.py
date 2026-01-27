@@ -20,7 +20,6 @@ import numpy as np
 import nvidia.dali.experimental.dynamic as ndd
 from nose2.tools import params
 from nose_utils import SkipTest, raises
-from nvidia.dali import backend
 
 
 @params(("cpu",), ("gpu",))

@@ -39,9 +39,19 @@ def _get_stream_device(s):
 
 
 class Stream:
+    """
+    Wrapper for a CUDA stream object.
+
+    This class wraps a CUDA stream object. It can be either a stream created by DALI or a
+    compatible object created by a thrird-party library.
+    """
+
     create_new = object()
 
     def __init__(self, *, stream=create_new, device_id=None):
+        """
+        Do not construct this class directly. Use :meth:`stream` instead.
+        """
         if stream is None:
             raise ValueError(
                 "The stream must not be None. To create a new stream, omit the stream parameter."
@@ -79,10 +89,16 @@ class Stream:
 
     @property
     def handle(self):
+        """
+        A raw CUDA stream handle, returned as an integer.
+        """
         return self._handle
 
     @property
     def device_id(self):
+        """
+        The CUDA device ordinal associated with this stream.
+        """
         return self._device_id
 
     def __cuda_stream__(self):
@@ -97,6 +113,10 @@ class Stream:
         return f"Stream(stream={repr(self._obj)}, device_id={self._device_id})"
 
     def __eq__(self, value):
+        """
+        The stream objects are considered equal if they have the same handle and device.
+        The wrapped object doesn't participate in the comparison.
+        """
         s = stream(stream=value)
         return self._handle == s._handle and self._device_id == s._device_id
 
@@ -107,6 +127,32 @@ class Stream:
 
 
 def stream(*, stream=Stream.create_new, device_id=None):
+    """
+    Wraps an existing object or creates a new stream.
+
+    This function wraps a compatible stream object with a DALI Stream class or creates a new stream.
+
+    Keyword Args
+    ------------
+    stream : a compatible stream object, None or `CreateNew` sentinel value, optional
+        When this parameter contains a compatible stream object, the function returns a
+        :class:`Stream` object wrapping it.
+        If the value is not set and contains the ``Stream.create_new`` flag, a new stream on
+        the specified device will be returned.
+        If ``None`` is passed, the function returns ``None``.
+        Compatible objects are:
+          - objects exposing ``__cuda_stream__`` interface
+          - PyTorch streams
+          - raw stream handles
+        If `stream` is not a raw handle but rather a stream object created by a third-party library,
+        it is referenced by the wrapper object returned by this function, thereby prolonging its
+        lifetime.
+    device_id : int or None, optional
+        If not ``None``, the function will create a new stream on the device specifed or, if
+        `stream` contanis a stream object, the function will verify that the ``stream`` is on
+        the device specified in `device_id`.
+        When `stream` is ``None``, this value is ignored.
+    """
     if stream is None:
         return None
     if isinstance(stream, Stream):
@@ -126,7 +172,12 @@ def set_default_stream(cuda_stream, /, device_id=None):
     the device associated with the stream will be used. If there's no device associated with the
     stream, current CUDA device is used.
 
+    Passing ``None`` clears the defaul stream.
 
+    .. warning::
+        This function is intended to be used once, at the beginning of the program, to set the
+        default stream for DALI operations. Calling it affects all default contexts in all threads
+        that haven't set their current streams with a call to :meth:`set_current_stream`.
     """
     global _global_streams
     if not _global_streams:
@@ -146,7 +197,7 @@ def get_default_stream(device_id=None):
     """Gets the default stream
 
     This stream is used when not overridden by thread's current stream (see
-    :meth:`set_current_stream`) or an active non-default :class:`EvalContext`
+    :meth:`set_current_stream`).
     """
     if _global_streams is None:
         return None
@@ -159,8 +210,17 @@ def set_current_stream(cuda_stream, /):
     """Sets the stream associated with the calling thread's default context for the current device.
 
     The stream must match the current CUDA device. See :class:`Device`.
-    Setting the current stream doesn't establish any synchronization between the work previously
-    scheduled and new work.
+
+    In addition to changing the stream of the current thread's default context, this method causes
+    newly created :class:`EvalContext` objects with the current device to use this stream.
+
+    Passing ``None`` resets the current thread's default context stream. After that, the value
+    returned by :meth:`get_current_stream` will either point to the value returned by
+    :meth:`get_default_stream` or a new stream.
+
+    .. warning::
+        Setting the current stream doesn't establish any synchronization between the work
+        previously scheduled and new work.
     """
     from ._eval_context import EvalContext
 
@@ -169,7 +229,10 @@ def set_current_stream(cuda_stream, /):
 
 
 def get_current_stream():
-    """Gets the stream associated with the calling thread's default context for the current device."""
+    """Gets the stream associated with the calling thread's default context.
+
+    The value returned by this function is equivalent to ``EvalContext.default().cuda_stream``.
+    """
     from ._eval_context import EvalContext
 
     return EvalContext.default().cuda_stream
