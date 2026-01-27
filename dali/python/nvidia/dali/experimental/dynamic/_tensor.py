@@ -854,7 +854,7 @@ class TensorSlice:
                 elif isinstance(r, slice):
                     if r.start is not None:
                         args[f"lo_{d}"] = r.start
-                    if r.stop is not None and r.stop >= 0:
+                    if r.stop is not None:
                         args[f"hi_{d}"] = r.stop
                     if r.step is not None:
                         args[f"step_{d}"] = r.step

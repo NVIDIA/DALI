@@ -1,4 +1,4 @@
-# Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,10 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import nvidia.dali.experimental.dynamic as ndd
-import numpy as np
-from nose2.tools import params
 from itertools import product
+
+import numpy as np
+import nvidia.dali.experimental.dynamic as ndd
+from ndd_utils import eval_modes
+from nose2.tools import params
 from nose_utils import assert_raises
 
 arbitrary = "arbitrary"
@@ -88,6 +90,7 @@ def get_operand2(domain):
         return np.array([[1.1, 2, 2.5], [5, 7, 10]], dtype=np.float32)
 
 
+@eval_modes()
 @params(*product(unary_functions, ["cpu", "gpu"]))
 def test_unary_functions(functions, device_type):
     ndd_func, np_func, domain = functions
@@ -98,6 +101,7 @@ def test_unary_functions(functions, device_type):
     assert np.allclose(a, ref, atol=1e-6)
 
 
+@eval_modes()
 @params(*product(binary_functions, ["cpu", "gpu"]))
 def test_binary_functions(functions, device_type):
     ndd_func, np_func, domain1, domain2 = functions
@@ -110,6 +114,7 @@ def test_binary_functions(functions, device_type):
     assert np.allclose(a, ref, atol=1e-6)
 
 
+@eval_modes()
 @params(*product(binary_functions, ["cpu", "gpu"]))
 def test_binary_functions_batch(functions, device_type):
     ndd_func, np_func, domain1, domain2 = functions
@@ -123,6 +128,7 @@ def test_binary_functions_batch(functions, device_type):
     assert np.allclose(a.tensors[1].cpu(), ref[1], atol=1e-6)
 
 
+@eval_modes()
 @params(("cpu",), ("gpu",))
 def test_clamp(device_type):
     data = np.array([[-1, 0, 1], [2, 3, 4]], dtype=np.float32)
@@ -132,6 +138,7 @@ def test_clamp(device_type):
     assert np.allclose(a, ref, atol=1e-6)
 
 
+@eval_modes()
 def test_mixed_operand_devices_error():
     data1 = np.array([1, 2, 3], dtype=np.float32)
     data2 = np.array([4, 5, 6], dtype=np.float32)

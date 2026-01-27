@@ -1,4 +1,4 @@
-# Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,14 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import nvidia.dali.experimental.dynamic as ndd
-import nvidia.dali.backend as _b
 import numpy as np
-from nose_utils import attr, SkipTest
-from nose2.tools import params
-from nose_utils import assert_raises
-import test_tensor
 import nvidia.dali as dali
+import nvidia.dali.backend as _b
+import nvidia.dali.experimental.dynamic as ndd
+import test_tensor
+from ndd_utils import eval_modes
+from nose2.tools import params
+from nose_utils import SkipTest, assert_raises, attr
 
 
 def asnumpy(batch_or_tensor):
@@ -29,6 +29,7 @@ def asnumpy(batch_or_tensor):
         return test_tensor.asnumpy(batch_or_tensor)
 
 
+@eval_modes()
 @params(("cpu",), ("gpu",))
 def test_batch_construction(device_type):
     t0 = np.array([[1, 2, 3], [4, 5, 6]], dtype=np.int32)
@@ -58,6 +59,7 @@ def test_batch_construction(device_type):
     assert b._storage.layout() == "AB"
 
 
+@eval_modes()
 @params(("cpu",), ("gpu",))
 def test_batch_from_empty_list(device_type):
     with assert_raises(ValueError, glob="Element type"):
@@ -69,6 +71,7 @@ def test_batch_from_empty_list(device_type):
     assert b.ndim == 0
 
 
+@eval_modes()
 @params(("cpu",), ("gpu",))
 def test_batch_as_batch(device_type):
     t0 = np.array([[1, 2, 3], [4, 5, 6]], dtype=np.int32)
@@ -101,6 +104,7 @@ def test_batch_as_batch(device_type):
     assert b3.layout == b0.layout
 
 
+@eval_modes()
 def test_broadcast():
     a = np.array([1, 2, 3])
     b = ndd.Batch.broadcast(a, 5).evaluate()
@@ -117,6 +121,7 @@ def batch_equal(a, b):
     return True
 
 
+@eval_modes()
 @attr("pytorch")
 @params(("cpu",), ("cuda",))
 def test_batch_construction_with_torch_tensor(device_type):
@@ -135,6 +140,7 @@ def test_batch_construction_with_torch_tensor(device_type):
     assert torch.equal(data[1], ref[1])
 
 
+@eval_modes()
 @params(("cpu",), ("gpu",))
 def test_batch_construction_with_tensor(device_type):
     t = ndd.tensor(np.array([1, 2, 3], dtype=np.uint8), device=device_type, layout="X")
@@ -147,6 +153,7 @@ def test_batch_construction_with_tensor(device_type):
     assert b.shape == [(3,)]
 
 
+@eval_modes()
 @params(("cpu",), ("gpu",))
 def test_batch_construction_with_conversion(device_type):
     data = [np.float64([1]), np.float64([1.25, 2.2, 0x1000001])]
@@ -173,6 +180,7 @@ def test_batch_construction_with_conversion(device_type):
     assert batch_equal(data_fp32, asnumpy(fp32))
 
 
+@eval_modes()
 @params(("cpu",), ("gpu",))
 def test_batch_properties_clone(device_type):
     t = ndd.tensor(np.array([1, 2, 3], dtype=np.uint8))
@@ -186,6 +194,7 @@ def test_batch_properties_clone(device_type):
     assert b.shape == [(3,)]
 
 
+@eval_modes()
 def test_batch_subscript_broadcast():
     b = ndd.as_batch(
         [
@@ -202,6 +211,7 @@ def test_batch_subscript_broadcast():
     assert asnumpy(b11.tensors[1]) == 11
 
 
+@eval_modes()
 def test_batch_partial_slice():
     b = ndd.as_batch(
         [
@@ -218,6 +228,7 @@ def test_batch_partial_slice():
     assert np.array_equal(asnumpy(b11.tensors[1]), np.array([8, 11], dtype=np.int32))
 
 
+@eval_modes()
 def test_batch_slice():
     b = ndd.as_batch(
         [
@@ -233,6 +244,7 @@ def test_batch_slice():
     assert np.array_equal(asnumpy(sliced.tensors[1]), np.array([[8, 9], [12, 13]], dtype=np.uint16))
 
 
+@eval_modes()
 def test_batch_subscript_per_sample():
     b = ndd.as_batch(
         [
@@ -249,6 +261,7 @@ def test_batch_subscript_per_sample():
     assert asnumpy(b11.tensors[1]) == 9
 
 
+@eval_modes()
 def test_batch_to_gpu():
     input = np.array([[1, 2, 3], [4, 5, 6]], dtype=np.int32)
     t_cpu = ndd.tensor(input)
@@ -264,6 +277,7 @@ def test_batch_to_gpu():
     assert np.array_equal(asnumpy(b_gpu.tensors[0]), input)
 
 
+@eval_modes()
 @attr("multi_gpu")
 def test_cross_device_copy():
     if _b.GetCUDADeviceCount() < 2:
@@ -283,6 +297,7 @@ def test_cross_device_copy():
     assert batch_equal(asnumpy(c0), asnumpy(c1))
 
 
+@eval_modes()
 @params(("cpu",), ("gpu",))
 def test_batch_from_enum_auto(device_type):
     for value, type in [
@@ -297,6 +312,7 @@ def test_batch_from_enum_auto(device_type):
         assert as_int.tensors[1].item() == int(value)
 
 
+@eval_modes()
 @params(("cpu",), ("gpu",))
 def test_batch_from_enum_with_dtype(device_type):
     for value, type in [
@@ -311,6 +327,7 @@ def test_batch_from_enum_with_dtype(device_type):
         assert as_int.tensors[1].item() == int(value)
 
 
+@eval_modes()
 @params(("cpu",), ("gpu",))
 def test_batch_from_enum_value_and_dtype(device_type):
     for value, type in [
