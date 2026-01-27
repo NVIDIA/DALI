@@ -43,7 +43,7 @@ class Stream:
     Wrapper for a CUDA stream object.
 
     This class wraps a CUDA stream object. It can be either a stream created by DALI or a
-    compatible object created by a thrird-party library.
+    compatible object created by a third-party library.
     """
 
     create_new = object()
@@ -149,7 +149,7 @@ def stream(*, stream=Stream.create_new, device_id=None):
         lifetime.
     device_id : int or None, optional
         If not ``None``, the function will create a new stream on the device specifed or, if
-        `stream` contanis a stream object, the function will verify that the ``stream`` is on
+        `stream` contains a stream object, the function will verify that the ``stream`` is on
         the device specified in `device_id`.
         When `stream` is ``None``, this value is ignored.
     """
@@ -172,7 +172,7 @@ def set_default_stream(cuda_stream, /, device_id=None):
     the device associated with the stream will be used. If there's no device associated with the
     stream, current CUDA device is used.
 
-    Passing ``None`` clears the defaul stream.
+    Passing ``None`` clears the default stream.
 
     .. warning::
         This function is intended to be used once, at the beginning of the program, to set the
