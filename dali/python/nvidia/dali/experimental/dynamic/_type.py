@@ -21,6 +21,10 @@ _name2type = {}
 
 
 class DType:
+    """
+    DALI Dynamic Mode data type.
+    """
+
     class Kind(Enum):
         signed = auto()
         unsigned = auto()
@@ -29,7 +33,7 @@ class DType:
         enum = auto()
 
     @staticmethod
-    def default_exponent_bits(bits: int, error_on_unknown: bool = False) -> int:
+    def _default_exponent_bits(bits: int, error_on_unknown: bool = False) -> int:
         """
         Returns the default number of exponent bits for a given number of bits.
         """
@@ -48,11 +52,11 @@ class DType:
                 return None
 
     @staticmethod
-    def default_significand_bits(bits: int, error_on_unknown: bool = False) -> int:
+    def _default_significand_bits(bits: int, error_on_unknown: bool = False) -> int:
         """
         Returns the default number of significand bits for a given number of bits.
         """
-        exp = DType.default_exponent_bits(bits, error_on_unknown)
+        exp = DType._default_exponent_bits(bits, error_on_unknown)
         if exp is None:
             return None
         return bits - exp - 1
@@ -73,15 +77,18 @@ class DType:
         self.type_id = type_id
 
         if kind == DType.Kind.float:
-            self.exponent_bits = exponent_bits or DType.default_exponent_bits(bits, True)
-            self.significand_bits = significand_bits or DType.default_significand_bits(bits, True)
+            self.exponent_bits = exponent_bits or DType._default_exponent_bits(bits, True)
+            self.significand_bits = significand_bits or DType._default_significand_bits(bits, True)
         else:
             self.exponent_bits = None
             self.significand_bits = None
         if name and docs:
+            self.name = name
             self.name, self.__doc__ = name, docs
         else:
-            generated_name, generated_docs = DType.make_name_and_docs(kind, bits, self.exponent_bits, self.significand_bits)
+            generated_name, generated_docs = DType._make_name_and_docs(
+                kind, bits, self.exponent_bits, self.significand_bits
+            )
             self.name = name or generated_name
             self.__doc__ = docs or generated_docs
         self.bytes = bytes or ((bits + 7) // 8)
@@ -93,22 +100,36 @@ class DType:
         _name2type[self.name] = self
 
     @staticmethod
-    def make_name_and_docs(kind: Kind, bits: int, exponent_bits: int, significand_bits: int) -> str:
+    def _make_name_and_docs(
+        kind: Kind, bits: int, exponent_bits: int, significand_bits: int
+    ) -> str:
         if kind == DType.Kind.signed:
             return f"i{bits}", f"{bits}-bit signed integer"
         elif kind == DType.Kind.unsigned:
             return f"u{bits}", f"{bits}-bit unsigned integer"
         elif kind == DType.Kind.float:
-            if exponent_bits == DType.default_exponent_bits(
+            if exponent_bits == DType._default_exponent_bits(
                 bits
-            ) and significand_bits == DType.default_significand_bits(bits):
+            ) and significand_bits == DType._default_significand_bits(bits):
                 return f"f{bits}", f"{bits}-bit floating point number"
             elif bits == 16 and exponent_bits == 8 and significand_bits == 7:
-                return "bfloat16", "Brain Floating Point: a 16-bit floating point number with 8-bit exponent and 7-bit mantissa"
+                return (
+                    "bfloat16",
+                    "Brain Floating Point. A 16-bit floating point number with 8-bit exponent "
+                    "and 7-bit mantissa",
+                )
             elif bits == 19 and exponent_bits == 8 and significand_bits == 10:
-                return "tf32", "TensorFloat-32: a 19-bit floating point number with 8-bit exponent and 10-bit mantissa"
+                return (
+                    "tf32",
+                    "TensorFloat-32. A 19-bit floating point number with 8-bit exponent and "
+                    "10-bit mantissa",
+                )
             else:
-                return f"f{bits}e{exponent_bits}m{significand_bits}", f"{bits}-bit floating point number with {exponent_bits}-bit exponent and {significand_bits}-bit mantissa"
+                return (
+                    f"f{bits}e{exponent_bits}m{significand_bits}",
+                    f"{bits}-bit floating point number with {exponent_bits}-bit exponent and "
+                    f"{significand_bits}-bit mantissa",
+                )
         elif kind == DType.Kind.bool:
             return "bool", "Boolean value"
         else:
@@ -118,11 +139,13 @@ class DType:
         return self.name
 
     def __repr__(self):
-        return (
-            f"Type(kind={self.kind}, bits={self.bits}, "
-            f"exponent_bits={self.exponent_bits}, "
-            f"significand_bits={self.significand_bits})"
-        )
+        repr = f"DType(kind={self.kind}, bits={self.bits}"
+        if self.exponent_bits is not None:
+            repr += f", exponent_bits={self.exponent_bits}"
+        if self.significand_bits is not None:
+            repr += f", significand_bits={self.significand_bits}"
+        repr += ")"
+        return repr
 
     def __eq__(self, other):
         if not (
@@ -147,14 +170,24 @@ class DType:
 
     @staticmethod
     def from_type_id(type_id: nvidia.dali.types.DALIDataType) -> "DType":
+        """
+        Returns a :py:class:`DType` associated with given
+        :py:class:`nvidia.dali.types.DALIDataType`.
+        """
         return _id2type[type_id]
 
     @staticmethod
     def from_fw_type(numpy_type) -> "DType":
+        """
+        Returns a :py:class:`DType` associated with given framework datatype.
+        """
         return nvidia.dali.types.to_dali_type(numpy_type)
 
     @staticmethod
     def parse(name: str) -> "DType":
+        """
+        Parses a type name into a :py:class:`DType`.
+        """
         if _name2type.get(name) is not None:
             return _name2type[name]
 
@@ -225,12 +258,34 @@ float32 = DType(DType.Kind.float, 32, type_id=nvidia.dali.types.FLOAT)
 float64 = DType(DType.Kind.float, 64, type_id=nvidia.dali.types.FLOAT64)
 bool = DType(DType.Kind.bool, 8, type_id=nvidia.dali.types.BOOL)
 bfloat16 = DType(DType.Kind.float, 16, 8, 7)  # TODO(michalz): Add type_id for bfloat16
-DataType = DType(DType.Kind.enum, 32, type_id=nvidia.dali.types.DATA_TYPE, name="DataType", docs="DALI data type. See :py:class:`nvidia.dali.types.DALIDataType`.")
-ImageType = DType(DType.Kind.enum, 32, type_id=nvidia.dali.types.IMAGE_TYPE, name="ImageType", docs="Image type. See :py:class:`nvidia.dali.types.DALIImageType`")
-InterpType = DType(DType.Kind.enum, 32, type_id=nvidia.dali.types.INTERP_TYPE, name="InterpType", docs="Interpolation type. See :py:class:`nvidia.dali.types.DALIInterpType`")
+DataType = DType(
+    DType.Kind.enum,
+    32,
+    type_id=nvidia.dali.types.DATA_TYPE,
+    name="DataType",
+    docs="DALI data type. See :py:class:`nvidia.dali.types.DALIDataType`.",
+)
+ImageType = DType(
+    DType.Kind.enum,
+    32,
+    type_id=nvidia.dali.types.IMAGE_TYPE,
+    name="ImageType",
+    docs="Image type. See :py:class:`nvidia.dali.types.DALIImageType`",
+)
+InterpType = DType(
+    DType.Kind.enum,
+    32,
+    type_id=nvidia.dali.types.INTERP_TYPE,
+    name="InterpType",
+    docs="Interpolation type. See :py:class:`nvidia.dali.types.DALIInterpType`",
+)
 
 
 def dtype(*args):
+    """
+    Returns a :py:class:`DType` associated with given :py:class:`nvidia.dali.types.DALIDataType`,
+    string or framework datatype.
+    """
     if len(args) == 1:
         if isinstance(args[0], DType):
             return args[0]
@@ -245,6 +300,9 @@ def dtype(*args):
 
 
 def type_id(dtype) -> nvidia.dali.types.DALIDataType:
+    """
+    Returns :py:class:`nvidia.dali.types.DALIDataType` for the given dtype.
+    """
     if isinstance(dtype, DType):
         return dtype.type_id
     elif isinstance(dtype, nvidia.dali.types.DALIDataType):

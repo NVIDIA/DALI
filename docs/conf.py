@@ -28,6 +28,7 @@ from packaging.version import Version
 import httplib2
 import inspect
 import warnings
+import types_table
 
 # -- Project information -----------------------------------------------------
 
@@ -111,6 +112,9 @@ with mock(["torch", "numba"]):
         relative_generated_dynamic_path,
         [],
     )
+
+# generate table of dynamic mode types
+types_table.ndd_types_table(generated_dynamic_path / "types_table")
 
 # Uncomment to keep warnings in the output. Useful for verbose build and output debugging.
 # keep_warnings = True
@@ -704,6 +708,18 @@ def replace_params_with_paramrefs(app, what, name, obj, options, lines):
     if s is None:
         return
     lines[:] = [map_line(line, s.parameters) for line in lines]
+
+
+def skip_member(app, what, name, obj, skip, options):
+    import nvidia.dali.experimental.dynamic as ndd
+
+    print("Skip member", name, obj, type(obj))
+    if type(obj) is ndd.DType:
+        if name == "__call__":
+            raise RuntimeError("Will skip __call__ for " + str(obj))
+            # Call is already documented on the class DType level.
+            return True
+    return skip
 
 
 def setup(app):

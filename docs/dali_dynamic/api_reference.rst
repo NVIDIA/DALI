@@ -35,6 +35,29 @@ as_batch
 ^^^^^^^^
 .. autofunction:: as_batch
 
+Data types
+----------
+
+DType class
+^^^^^^^^^^^
+
+.. currentmodule:: nvidia.dali.experimental.dynamic
+
+.. autoclass:: DType
+   :members:
+
+Type conversion functions
+^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. autofunction:: dtype
+
+.. autofunction:: type_id
+
+DALI Dynamic Mode data types
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. include:: operations/types_table
+
 Execution context
 -----------------
 
