@@ -521,8 +521,8 @@ class Tensor:
         device_type, _ = self.__dlpack_device__()
         data = np.asarray(self) if device_type == 3 else self
 
-        # Before PyTorch 2.8.0, the copy argument wasn't supported
-        if version.parse(torch.__version__) >= version.parse("2.8.0"):
+        # Before PyTorch 2.9.0, the copy argument wasn't supported
+        if version.parse(torch.__version__) >= version.parse("2.9.0"):
             return torch.from_dlpack(data, copy=copy)
 
         tensor = torch.from_dlpack(data)
