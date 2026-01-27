@@ -328,3 +328,15 @@ def test_cross_device_copy():
     g0 = g1.to_device("gpu:0")
     c0 = g0.cpu()
     assert np.array_equal(asnumpy(c0), asnumpy(c1))
+
+
+@eval_modes()
+@params(("cpu",), ("gpu",))
+def test_slice_device(device_type):
+    t = ndd.tensor([1, 2, 3], device=device_type)
+
+    device = ndd.Device(device_type)
+    assert t.device == device
+    assert t[1].device == device
+    assert t[0:2].device == device
+    assert t[:].device == device
