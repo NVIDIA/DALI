@@ -1,4 +1,4 @@
-# Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -87,7 +87,7 @@ def test_eager_parallelism():
         started = start_event.wait(1)
 
     start_event = threading.Event()
-    cuda_stream = backend.Stream(None)
+    cuda_stream = ndd.stream()
 
     callback_type = ctypes.CFUNCTYPE(None, ctypes.c_void_p)
     cudart.cudaLaunchHostFunc.argtypes = [ctypes.c_void_p, callback_type, ctypes.c_void_p]

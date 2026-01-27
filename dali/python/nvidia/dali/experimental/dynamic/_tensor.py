@@ -204,8 +204,8 @@ class Tensor:
                     if ctx.device_id == device_id:
                         stream = ctx.cuda_stream
                     else:
-                        stream = _backend.Stream(device_id)
-                    args = {"stream": _stream._raw_cuda_stream(stream)}
+                        stream = _stream.stream(device_id=device_id)
+                    args = {"stream": stream.handle}
                     self._storage = _backend.TensorGPU(
                         data.__dlpack__(**args),
                         layout=layout,

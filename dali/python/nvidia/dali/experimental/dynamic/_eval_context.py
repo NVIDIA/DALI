@@ -113,6 +113,8 @@ class EvalContext:
     EvalContext is a context manager.
     """
 
+    _default_context_stream_sentinel = object()
+
     def __init__(self, *, num_threads=None, device_id=None, cuda_stream=None):
         """
         Constructs an EvalContext object.
@@ -124,12 +126,28 @@ class EvalContext:
         device_id : int, optional
             The ordinal of the GPU associated with the context. If not specified, the current CUDA
             device will be used.
-        cuda_stream : dali.backend.Stream, __cuda_stream__ interface or raw stream handle, optional
-            The cuda_stream on which GPU operators will be executed. If not provided, a new stream
-            will be created.
+        cuda_stream : stream object, optional
+            The cuda_stream on which GPU operators will be executed. If not provided, the value is
+            assigned by trying several options, in this order:
+            - the thread's default stream, set by calling :meth:`set_current_stream`
+            - the default stream set by calling :meth:`set_default_stream`
+            - a new stream, if neither of the above was set.
+            Compatible streams include:
+            - DALI Stream class
+            - any object exposing __cuda_stream__ interface
+            - raw CUDA stream handle
+            - PyTorch stream
         """
         self._invocations = []
-        self._cuda_stream = cuda_stream
+        if cuda_stream is EvalContext._default_context_stream_sentinel:
+            self._cuda_stream = None
+        else:
+            self._cuda_stream = (
+                _stream.stream(stream=cuda_stream, device_id=device_id)
+                if cuda_stream is not None
+                else _stream.get_current_stream()
+            )
+
         self._default_stream = None
         if device_id is not None:
             self._device = _device.Device("gpu", device_id)
@@ -213,10 +231,10 @@ class EvalContext:
         CUDA stream for this EvalContext
         """
         if self._cuda_stream is None:
-            s = _stream.get_stream(self.device_id)
+            s = _stream.get_default_stream(self.device_id)
             if s is None and self._device.device_type == "gpu":
                 if self._default_stream is None:
-                    self._default_stream = _b.Stream(self._device.device_id)
+                    self._default_stream = _stream.stream(device_id=self._device.device_id)
                 s = self._default_stream
             else:
                 self._default_stream = None
@@ -228,7 +246,10 @@ class EvalContext:
     def default() -> "EvalContext":
         current_device_id = _device.Device.default_device_id("gpu")
         if current_device_id not in _tls.default:
-            _tls.default[current_device_id] = EvalContext(device_id=current_device_id)
+            _tls.default[current_device_id] = EvalContext(
+                device_id=current_device_id,
+                cuda_stream=EvalContext._default_context_stream_sentinel,
+            )
         return _tls.default[current_device_id]
 
     def cached_results(self, invocation):
