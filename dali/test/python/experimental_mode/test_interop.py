@@ -66,11 +66,40 @@ def test_torch_nocopy(device: str):
         raise SkipTest("Requires PyTorch >= 2.6.0")
 
     ndd_tensor = ndd.tensor([1, 2, 3], device=device)
-    torch_tensor1 = torch.as_tensor(ndd_tensor)  # no copy
-    torch_tensor2 = torch.tensor(ndd_tensor)  # copy
+    torch_nocopy = torch.as_tensor(ndd_tensor)
+    torch_copy = torch.tensor(ndd_tensor)
 
-    torch_tensor1[0] = 42
-    torch_tensor2[1] = 0
-    result = torch.tensor(ndd_tensor, device="cpu")
+    torch_nocopy[0] = 42
+    torch_copy[1] = 0
 
-    np.testing.assert_array_equal(result, [42, 2, 3])
+    np.testing.assert_array_equal(ndd_tensor.cpu(), [42, 2, 3])
+
+
+@attr("pytorch")
+@params(("cpu",), ("gpu",))
+def test_tensor_to_torch(device: str):
+    ndd_tensor = ndd.ones(shape=3).to_device(device)
+    torch_nocopy = ndd_tensor.torch()
+    torch_copy = ndd_tensor.torch(copy=True)
+
+    expected_device = "cuda" if device == "gpu" else "cpu"
+    assert torch_nocopy.device.type == torch_copy.device.type == expected_device
+    torch_nocopy[0] = 42
+    torch_copy[1] = 0
+
+    np.testing.assert_array_equal(ndd_tensor.cpu(), [42, 1, 1])
+
+
+@attr("pytorch")
+@params(("cpu",), ("gpu",))
+def test_batch_to_torch(device: str):
+    ndd_batch = ndd.batch(np.ones((2, 2)), device=device)
+    torch_nocopy = ndd_batch.torch()
+    torch_copy = ndd_batch.torch(copy=True)
+
+    expected_device = "cuda" if device == "gpu" else "cpu"
+    assert torch_nocopy.device.type == torch_copy.device.type == expected_device
+    torch_nocopy[0, 0] = 42
+    torch_copy[1, 1] = 0
+
+    np.testing.assert_array_equal(ndd.as_tensor(ndd_batch.cpu()), [[42, 1], [1, 1]])

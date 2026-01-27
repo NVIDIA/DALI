@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import importlib.util
 from typing import Any, Optional, Sequence, Union
 
 import nvidia.dali.backend as _backend
@@ -661,6 +662,25 @@ class Batch:
 
     def __str__(self) -> str:
         return "Batch(\n" + str(self.evaluate()._storage) + ")"
+
+    def torch(self, copy: bool = False):
+        """
+        Returns ``self`` as a PyTorch tensor.
+        Requires ``self`` to be dense and PyTorch to be installed.
+
+        Parameters
+        ----------
+        copy : bool, default: False
+            Boolean indicating whether to perform a copy.
+        """
+
+        if importlib.util.find_spec("torch") is None:
+            raise RuntimeError("Batch.torch() requires PyTorch to be installed.")
+
+        if not self.evaluate()._storage.is_dense_tensor():
+            raise RuntimeError("Batch.torch() requires a dense batch")
+
+        return _as_tensor(self).torch(copy)
 
     def evaluate(self):
         """

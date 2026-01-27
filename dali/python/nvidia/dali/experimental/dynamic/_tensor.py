@@ -18,6 +18,7 @@ from typing import Any, Optional, SupportsInt, Tuple, Union
 import numpy as np
 import nvidia.dali.backend as _backend
 import nvidia.dali.types
+from packaging import version
 
 from . import _eval_mode, _invocation, _stream
 from ._arithmetic import _arithm_op
@@ -500,6 +501,32 @@ class Tensor:
 
     def __dlpack_device__(self) -> tuple[_backend.DLDeviceType, int]:
         return self.evaluate()._storage.__dlpack_device__()
+
+    def torch(self, copy: bool = False):
+        """
+        Returns ``self`` as a PyTorch tensor. Requires PyTorch to be installed.
+
+        Parameters
+        ----------
+        copy : bool, default: False
+            Boolean indicating whether to perform a copy.
+        """
+
+        try:
+            import torch
+        except ModuleNotFoundError:
+            raise RuntimeError("Tensor.torch() requires PyTorch to be installed.") from None
+
+        # PyTorch doesn't handle the DLPack device kDLCUDAHost (pinned memory) but NumPy does...
+        device_type, _ = self.__dlpack_device__()
+        data = np.asarray(self) if device_type == 3 else self
+
+        # Before PyTorch 2.8.0, the copy argument wasn't supported
+        if version.parse(torch.__version__) >= version.parse("2.8.0"):
+            return torch.from_dlpack(data, copy=copy)
+
+        tensor = torch.from_dlpack(data)
+        return tensor if not copy else tensor.clone()
 
     def evaluate(self):
         """
