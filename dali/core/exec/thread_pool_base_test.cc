@@ -210,16 +210,6 @@ TYPED_TEST(NewThreadPoolJobTest, RethrowMultipleErrors) {
   EXPECT_THROW(job.Run(tp, true), MultipleErrors);
 }
 
-template <typename... Args>
-void SyncPrint(Args&& ...args) {
-  static std::mutex mtx;
-  std::lock_guard guard(mtx);
-  std::stringstream ss;
-  print(ss, std::forward<Args>(args)...);
-  auto &&str = ss.str();
-  printf("%s", str.c_str());
-}
-
 TYPED_TEST(NewThreadPoolJobTest, Reentrant) {
   TypeParam job;
   ThreadPoolBase tp(1);  // must not hang with just one thread
