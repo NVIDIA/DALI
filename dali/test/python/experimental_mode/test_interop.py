@@ -3,7 +3,8 @@ import warnings
 import numpy as np
 import nvidia.dali.experimental.dynamic as ndd
 from nose2.tools import params
-from nose_utils import attr
+from nose_utils import SkipTest, attr
+from packaging import version
 
 
 def test_numpy_dlpack():
@@ -60,6 +61,9 @@ def test_torch_dlpack():
 @params(("cpu",), ("gpu",))
 def test_torch_nocopy(device: str):
     import torch
+
+    if version.parse(torch.__version__) < version.parse("2.6.0"):
+        raise SkipTest("Requires PyTorch >= 2.6.0")
 
     ndd_tensor = ndd.tensor([1, 2, 3], device=device)
     torch_tensor1 = torch.as_tensor(ndd_tensor)  # no copy
