@@ -340,3 +340,11 @@ def test_slice_device(device_type):
     assert t[1].device == device
     assert t[0:2].device == device
     assert t[:].device == device
+
+
+def test_join():
+    data = np.array([1, 2, 3, 4], dtype=np.int8)
+    same = ndd.cat(data)
+    assert np.array_equal(data, same)
+    stacked = ndd.stack(data, data)
+    assert np.array_equal(stacked, np.stack([data, data]))
