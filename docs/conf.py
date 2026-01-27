@@ -710,18 +710,6 @@ def replace_params_with_paramrefs(app, what, name, obj, options, lines):
     lines[:] = [map_line(line, s.parameters) for line in lines]
 
 
-def skip_member(app, what, name, obj, skip, options):
-    import nvidia.dali.experimental.dynamic as ndd
-
-    print("Skip member", name, obj, type(obj))
-    if type(obj) is ndd.DType:
-        if name == "__call__":
-            raise RuntimeError("Will skip __call__ for " + str(obj))
-            # Call is already documented on the class DType level.
-            return True
-    return skip
-
-
 def setup(app):
     if count_unique_visitor_script:
         app.add_js_file(count_unique_visitor_script)
