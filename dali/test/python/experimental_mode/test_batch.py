@@ -73,6 +73,22 @@ def test_batch_from_empty_list(device_type):
 
 @eval_modes()
 @params(("cpu",), ("gpu",))
+def test_tensor_as_batch(device_type: str):
+    tensor = ndd.ones(shape=(2, 5, 5), dtype=ndd.float32).to_device(device_type)
+    ref_sample = tensor[0].cpu()
+    batch1 = ndd.as_batch(tensor)
+    batch2 = ndd.batch(tensor)
+
+    for batch in (batch1, batch2):
+        assert batch.batch_size == 2
+        assert batch.dtype == ref_sample.dtype
+        assert batch.shape == batch.batch_size * [ref_sample.shape]
+        for sample in batch:
+            assert np.array_equal(sample.cpu(), ref_sample)
+
+
+@eval_modes()
+@params(("cpu",), ("gpu",))
 def test_batch_as_batch(device_type):
     t0 = np.array([[1, 2, 3], [4, 5, 6]], dtype=np.int32)
     t1 = np.array([[7, 8, 9], [10, 11, 12]], dtype=np.int32)
