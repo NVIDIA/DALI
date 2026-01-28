@@ -18,7 +18,6 @@ from typing import Any, Optional, SupportsInt, Tuple, Union
 import numpy as np
 import nvidia.dali.backend as _backend
 import nvidia.dali.types
-from packaging import version
 
 from . import _eval_mode, _invocation, _stream
 from ._arithmetic import _arithm_op
@@ -521,10 +520,8 @@ class Tensor:
         device_type, _ = self.__dlpack_device__()
         data = np.asarray(self) if device_type == 3 else self
 
-        # Before PyTorch 2.9.0, the copy argument wasn't supported
-        if version.parse(torch.__version__) >= version.parse("2.9.0"):
-            return torch.from_dlpack(data, copy=copy)
-
+        # Since PyTorch 2.9.0, torch.from_dlpack() supports the 'copy' argument
+        # but Tensor.__dlpack__ doesn't
         tensor = torch.from_dlpack(data)
         return tensor if not copy else tensor.clone()
 
