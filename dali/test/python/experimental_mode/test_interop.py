@@ -3,7 +3,7 @@ import warnings
 import numpy as np
 import nvidia.dali.experimental.dynamic as ndd
 from nose2.tools import params
-from nose_utils import SkipTest, attr
+from nose_utils import SkipTest, assert_raises, attr
 from packaging import version
 
 
@@ -103,3 +103,11 @@ def test_batch_to_torch(device: str):
     torch_copy[1, 1] = 0
 
     np.testing.assert_array_equal(ndd.as_tensor(ndd_batch.cpu()), [[42, 1], [1, 1]])
+
+
+@attr("pytorch")
+@params(("cpu",), ("gpu",))
+def test_ragged_batch_to_torch(device: str):
+    batch = ndd.batch([[1, 2, 3], [4, 5], [6]])
+    with assert_raises(RuntimeError, glob="dense"):
+        batch.torch()
