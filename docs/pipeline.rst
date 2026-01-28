@@ -206,10 +206,3 @@ Executor configuration flags
 
 .. autoenum:: nvidia.dali.StreamPolicy
 .. autoenum:: nvidia.dali.OperatorConcurrency
-
-Experimental Pipeline Features
-------------------------------
-Some additional experimental features can be enabled via the special variant of the pipeline
-decorator.
-
-.. autodecorator:: nvidia.dali.pipeline.experimental.pipeline_def
