@@ -193,6 +193,7 @@ class Tensor:
                     copied = True
             elif isinstance(data, TensorSlice):
                 self._slice = data
+                self._device = data.device
             elif hasattr(data, "__dlpack_device__"):
                 dl_device_type, device_id = data.__dlpack_device__()
                 if int(dl_device_type) == 1 or int(dl_device_type) == 3:  # CPU
