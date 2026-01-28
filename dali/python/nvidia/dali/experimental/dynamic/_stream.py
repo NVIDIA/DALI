@@ -117,7 +117,14 @@ class Stream:
         The stream objects are considered equal if they have the same handle and device.
         The wrapped object doesn't participate in the comparison.
         """
-        s = stream(stream=value)
+        if value is None:
+            return False
+        if value is self:
+            return True
+        try:
+            s = stream(stream=value)
+        except TypeError:
+            return NotImplemented
         return self._handle == s._handle and self._device_id == s._device_id
 
     def __ne__(self, value):
