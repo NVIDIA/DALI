@@ -17,6 +17,7 @@ from typing import Any, Optional, SupportsInt, Tuple, Union
 
 import numpy as np
 import nvidia.dali.backend as _backend
+import nvidia.dali._tensor_formatting as _tensor_formatting
 import nvidia.dali.types
 
 from . import _eval_mode, _invocation, _stream
@@ -551,8 +552,10 @@ class Tensor:
             and self._slice is other._slice
         )
 
-    def __str__(self) -> str:
-        return "Tensor(\n" + str(self.evaluate()._storage) + ")"
+    def __repr__(self) -> str:
+        return _tensor_formatting.format_tensor(
+            self.evaluate(), show_data=True, adapter=_tensor_formatting.DynamicTensorAdapter()
+        )
 
     def __add__(self, other):
         return _arithm_op("add", self, other)

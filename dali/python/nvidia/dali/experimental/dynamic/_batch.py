@@ -16,6 +16,7 @@ from typing import Any, Optional, Sequence, Union
 
 import nvidia.dali.backend as _backend
 import nvidia.dali.types as _dali_types
+import nvidia.dali._tensor_formatting as _tensor_formatting
 import nvtx
 
 from . import _eval_mode, _invocation
@@ -659,8 +660,10 @@ class Batch:
             assert self._tensors is not None
             return [t.shape for t in self._tensors]
 
-    def __str__(self) -> str:
-        return "Batch(\n" + str(self.evaluate()._storage) + ")"
+    def __repr__(self) -> str:
+        return _tensor_formatting.format_batch(
+            self.evaluate(), show_data=True, adapter=_tensor_formatting.DynamicBatchAdapter()
+        )
 
     def evaluate(self):
         """

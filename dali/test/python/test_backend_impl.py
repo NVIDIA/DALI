@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -329,7 +329,7 @@ def test_tensorlist_dtype():
 
 def _expected_tensorlist_str(device, data, dtype, num_samples, shape, layout=None):
     return "\n    ".join(
-        [f"TensorList{device.upper()}(", f"{data},", f"dtype={dtype},"]
+        [f"TensorList{device.upper()}(", f"{data},", f"dtype={dtype},", f'device="{device}",']
         + ([f"layout={layout}"] if layout is not None else [])
         + [f"num_samples={num_samples},", f"shape={shape})"]
     )
@@ -337,9 +337,9 @@ def _expected_tensorlist_str(device, data, dtype, num_samples, shape, layout=Non
 
 def _expected_tensor_str(device, data, dtype, shape, layout=None):
     return "\n    ".join(
-        [f"Tensor{device.upper()}(", f"{data},", f"dtype={dtype},"]
+        [f"Tensor{device.upper()}(", f"{data},", f"dtype={dtype},", f'device="{device}",']
         + ([f"layout={layout}"] if layout is not None else [])
-        + [f"shape={shape})"]
+        + [f"shape={tuple(shape)})"]
     )
 
 
@@ -357,7 +357,7 @@ def test_tensorlist_str_empty():
 def test_tensorlist_str_scalars():
     arr = np.arange(10)
     tl = TensorListCPU(arr)
-    params = [arr, "DALIDataType.INT64", 10, "[(), (), (), (), (), (), (), (), (), ()]"]
+    params = [str(arr.tolist()), "DALIDataType.INT64", 10, f"[{', '.join(['()'] * 10)}]"]
     _test_str(tl, params, _expected_tensorlist_str)
 
 
