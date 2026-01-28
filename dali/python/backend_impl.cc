@@ -1880,7 +1880,10 @@ void ExposeBufferPolicyFunctions(py::module &m) {
   m.def("RestrictPinnedMemUsage", RestrictPinnedMemUsage);
   m.def("GetCUDADeviceCount", []() {
     int count = 0;
-    CUDA_CALL(cudaGetDeviceCount(&count));
+    auto err = cudaGetDeviceCount(&count);
+    if (err == cudaErrorNoDevice || err == cudaErrorInsufficientDriver)
+      return 0;
+    CUDA_CALL(err);
     return count;
   });
   m.def("SetCUDACurrentDevice", [](int device_id) {
@@ -2470,6 +2473,28 @@ void SetupAndRun(OperatorBase &self, Workspace &ws, std::optional<int> batch_siz
   const auto &spec = self.GetSpec();
   if (ws.NumOutput() != 0)
     throw std::runtime_error("Workspace already has outputs defined");
+
+  auto AdjustLayout = [&](int idx, const TensorLayout &layout, auto backend) {
+    using Backend = decltype(backend);
+    const auto &inp = ws.Input<Backend>(idx);
+    auto tl = std::make_shared<TensorList<Backend>>();
+    tl->ShareData(inp);
+    tl->SetLayout(layout);
+    ws.SetInput(idx, std::move(tl));
+  };
+
+  auto &schema = spec.GetSchemaOrDefault();
+  for (int i = 0; i < spec.NumRegularInput(); i++) {
+    auto layout = ws.GetInputLayout(i);
+    auto ndim = ws.GetInputDim(i);
+    auto adjusted_layout = schema.GetInputLayout(i, ndim, layout);
+    if (layout != adjusted_layout) {
+      if (ws.InputIsType<GPUBackend>(i))
+        AdjustLayout(i, adjusted_layout, GPUBackend());
+      else
+        AdjustLayout(i, adjusted_layout, CPUBackend());
+    }
+  }
 
   for (int i = 0; i < spec.NumOutput(); i++) {
     if (spec.OutputDevice(i) == StorageDevice::CPU) {
