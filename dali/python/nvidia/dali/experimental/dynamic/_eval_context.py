@@ -14,12 +14,11 @@
 
 import copy
 import weakref
-from threading import local
+from threading import current_thread, local
 
 import nvidia.dali.backend_impl as _b
 
-from . import _device
-from . import _stream
+from . import _device, _stream
 from ._async import _AsyncExecutor
 
 
@@ -35,8 +34,8 @@ _tls = _ThreadLocalStorage()
 
 def _default_num_threads():
     """Gets the default number of threads used in DALI dynamic mode."""
-    import sys
     import os
+    import sys
     from functools import wraps
 
     mod = sys.modules[__name__]
@@ -258,6 +257,9 @@ class EvalContext:
         if ctx._num_threads is None:
             ctx._num_threads = self.num_threads
         return ctx
+
+    def _is_in_background_thread(self):
+        return current_thread() is self._async_executor._thread
 
 
 __all__ = [
