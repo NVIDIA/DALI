@@ -251,10 +251,11 @@ class Batch:
                     if self._storage and layout:
                         self._storage.set_layout(layout)
             elif _is_tensor_type(tensors):
+                batch_layout = "N" + layout if layout else None
                 if copy:
-                    t = _tensor(tensors, dtype=dtype, device=device, layout=layout)
+                    t = _tensor(tensors, dtype=dtype, device=device, layout=batch_layout)
                 else:
-                    t = _as_tensor(tensors, dtype=dtype, device=device, layout=layout)
+                    t = _as_tensor(tensors, dtype=dtype, device=device, layout=batch_layout)
                 if t.ndim == 0:
                     raise ValueError("Cannot create a batch from a scalar")
                 if dtype is None:
@@ -817,6 +818,10 @@ def batch(
             from . import cast
 
             b = cast(b, dtype=dtype, device=device)
+        if layout is not None and layout != b.layout:
+            from . import reshape
+
+            b = reshape(b, layout=layout)  # TODO(michalz): optimize
         return b.evaluate()
     else:
         return Batch(tensors, dtype=dtype, device=device, layout=layout, copy=True)
@@ -867,7 +872,12 @@ def as_batch(
             from . import cast
 
             b = cast(b, dtype=dtype, device=device)
-        return b
+        if layout is not None and layout != b.layout:
+            from . import reshape
+
+            return reshape(b, layout=layout)  # TODO(michalz): optimize
+        else:
+            return b
     else:
         return Batch(tensors, dtype=dtype, device=device, layout=layout)
 
