@@ -75,6 +75,5 @@ doc(
         doc_entry("custom_operations/index.py"),
         doc_entry("advanced/serialization.ipynb"),
         doc_entry("legacy_getting_started.ipynb"),
-        doc_entry("general/debug_mode.ipynb"),
     ],
 )
