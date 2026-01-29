@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import os
-import copy
+
 import numpy as np
 import nvidia.dali.experimental.dynamic as ndd
 from test_utils import get_dali_extra_path
