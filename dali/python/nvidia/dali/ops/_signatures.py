@@ -1,4 +1,4 @@
-# Copyright (c) 2023-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2023-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -84,7 +84,8 @@ _enum_mapping = {
 _Tensor = _create_annotation_placeholder("Tensor")
 _Batch = _create_annotation_placeholder("Batch")
 _TensorLike = _create_annotation_placeholder("TensorLike")
-_DType = _create_annotation_placeholder("DType")
+_DTypeLike = _create_annotation_placeholder("DTypeLike")
+_DeviceLike = _create_annotation_placeholder("DeviceLike")
 
 
 def _api_to_module(api: Api):
@@ -107,7 +108,7 @@ def _scalar_element_annotation(scalar_dtype, api: Api):
         t = type(dummy_val)
 
         if api == "dynamic" and t is types.DALIDataType:
-            t = Union[_DALIDataType, _DType]
+            t = _DTypeLike
 
         if t in _enum_mapping:
             return _enum_mapping[t]
@@ -354,11 +355,7 @@ def _get_implicit_extra_params(schema, api: Api, include_init_header: bool):
     If include_init_header is True, arguments are positional or keyword, so the order matters.
     """
 
-    supported_backends = schema.GetSupportedBackends()
-    if api == "dynamic" and "mixed" in supported_backends:
-        supported_backends.append("gpu")
-
-    device_annotation = Literal[tuple(supported_backends)] if supported_backends else str
+    device_annotation = _DeviceLike if api == "dynamic" else str
 
     if include_init_header:
         params = [
@@ -378,7 +375,7 @@ def _get_implicit_extra_params(schema, api: Api, include_init_header: bool):
                 name="device",
                 kind=Parameter.POSITIONAL_OR_KEYWORD,
                 default="cpu",
-                annotation=Union["Device", device_annotation],  # noqa # type: ignore
+                annotation=device_annotation,
             ),
             Parameter(
                 name="num_inputs",
@@ -914,10 +911,10 @@ from collections.abc import Iterable
 
 from nvidia.dali._typing import TensorLike, TensorLikeArg
 from nvidia.dali.experimental.dynamic._batch import Batch as Batch
-from nvidia.dali.experimental.dynamic._device import Device as Device
+from nvidia.dali.experimental.dynamic._device import DeviceLike
 from nvidia.dali.experimental.dynamic._eval_context import EvalContext as EvalContext
 from nvidia.dali.experimental.dynamic._tensor import Tensor as Tensor
-from nvidia.dali.experimental.dynamic._type import DType as DType
+from nvidia.dali.experimental.dynamic._type import DTypeLike
 """
 
 
