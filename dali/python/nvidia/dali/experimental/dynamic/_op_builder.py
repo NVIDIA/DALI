@@ -1,4 +1,4 @@
-# Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -457,7 +457,7 @@ def _next_pow2(x):
     return 1 << (x - 1).bit_length()
 
 
-def build_fn_wrapper(op):
+def build_fn_wrapper(op, fn_name=None, add_to_module=True):
     """Generates main API entry point for a dynamic mode operator.
 
     The implementation extracts the batch size and device if possible, gets the Operator instance,
@@ -467,14 +467,16 @@ def build_fn_wrapper(op):
     ----------
     op : ndd.Operator
         The ndd "operator" class to wrap.
+    fn_name : str, optional
+        when provided, overrides the default function name
+    add_to_module : bool, default=True
+        If True (default), adds the function to the appropriate module;
+        if False, just returns the function.
     """
     schema = op._schema
-    module_path = schema.ModulePath()
-    from .. import dynamic as parent
 
-    module = _internal.get_submodule(parent, module_path)
-
-    fn_name = _to_snake_case(op._schema.OperatorName())
+    if fn_name is None:  # for tests
+        fn_name = _to_snake_case(op._schema.OperatorName())
     inputs = _get_inputs(schema)
 
     fixed_args = []
@@ -588,8 +590,14 @@ def build_fn_wrapper(op):
     function._schema = schema
     function._schema_name = schema.Name()
     function._generated = True
-    function.__module__ = _get_module_name(module, op._legacy_op)
-    setattr(module, fn_name, function)
+
+    if add_to_module:
+        module_path = schema.ModulePath()
+        from .. import dynamic as parent
+
+        module = _internal.get_submodule(parent, module_path)
+        function.__module__ = _get_module_name(module, op._legacy_op)
+        setattr(module, fn_name, function)
     return function
 
 
