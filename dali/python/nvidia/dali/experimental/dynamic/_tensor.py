@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import copy
-from typing import Any, Optional, SupportsInt, Tuple, Union
+from typing import Any, SupportsInt
 
 import numpy as np
 import nvidia.dali.backend as _backend
@@ -30,14 +30,14 @@ from ._type import dtype as _dtype
 from ._type import type_id as _type_id
 
 
-def _volume(shape: Tuple[int, ...]) -> int:
+def _volume(shape: tuple[int, ...]) -> int:
     ret = 1
     for s in shape:
         ret *= s
     return ret
 
 
-def _backend_device(backend: Union[_backend.TensorCPU, _backend.TensorGPU]) -> Device:
+def _backend_device(backend: _backend.TensorCPU | _backend.TensorGPU) -> Device:
     if isinstance(backend, _backend.TensorCPU):
         return Device("cpu")
     elif isinstance(backend, _backend.TensorGPU):
@@ -89,13 +89,13 @@ class Tensor:
 
     def __init__(
         self,
-        data: Optional[Any] = None,
-        dtype: Optional[Any] = None,
-        device: Optional[Device] = None,
-        layout: Optional[str] = None,
-        batch: Optional[Any] = None,
-        index_in_batch: Optional[int] = None,
-        invocation_result: Optional[_invocation.InvocationResult] = None,
+        data: Any | None = None,
+        dtype: Any | None = None,
+        device: Device | None = None,
+        layout: str | None = None,
+        batch: Any | None = None,
+        index_in_batch: int | None = None,
+        invocation_result: _invocation.InvocationResult | None = None,
         copy: bool = False,
     ):
         """Constructs a :class:`Tensor` object.
@@ -319,7 +319,7 @@ class Tensor:
         """
         return self.to_device(Device("cpu"))
 
-    def gpu(self, index: Optional[int] = None) -> "Tensor":
+    def gpu(self, index: int | None = None) -> "Tensor":
         """
         Returns the tensor on the GPU. If it's already there, this function returns `self`.
 
@@ -392,7 +392,7 @@ class Tensor:
             raise RuntimeError("Cannot determine the number of dimensions of the tensor.")
 
     @property
-    def shape(self) -> Tuple[int, ...]:
+    def shape(self) -> tuple[int, ...]:
         """
         The shape of the tensor, returned as a tuple of integers.
         """
@@ -710,7 +710,7 @@ def _scalar_value(value: Any) -> int:
 
 
 class TensorSlice:
-    def __init__(self, tensor: Tensor, ranges: Tuple[Any, ...], absolute=False):
+    def __init__(self, tensor: Tensor, ranges: tuple[Any, ...], absolute=False):
         self._tensor = copy.copy(tensor)
         self._ndim_dropped = 0
         self._shape = None
@@ -742,7 +742,7 @@ class TensorSlice:
         return self._tensor.ndim - self._ndim_dropped
 
     @property
-    def shape(self) -> Tuple[int, ...]:
+    def shape(self) -> tuple[int, ...]:
         if self._shape is None:
             shape = []
             if self._absolute_ranges is None:
@@ -789,7 +789,7 @@ class TensorSlice:
         return self._layout
 
     @staticmethod
-    def _canonicalize_ranges(ranges, in_shape) -> Tuple[int, ...]:
+    def _canonicalize_ranges(ranges, in_shape) -> tuple[int, ...]:
         """Converts the ranges to sane non-pythonic values without negative indices wrapping"""
         d = 0
         abs_ranges = []
@@ -841,7 +841,7 @@ class TensorSlice:
         return tuple(abs_ranges)
 
     @staticmethod
-    def _insane_pythonic_ranges(abs_ranges, shape) -> Tuple[int, ...]:
+    def _insane_pythonic_ranges(abs_ranges, shape) -> tuple[int, ...]:
         """Converts an absolute range into ranges as expected by Pythonic slicing API"""
         py_ranges = []
         for r, s in zip(abs_ranges, shape):
@@ -917,9 +917,9 @@ class TensorSlice:
 
 def tensor(
     data: Any,
-    dtype: Optional[Any] = None,
-    device: Optional[Device] = None,
-    layout: Optional[str] = None,
+    dtype: Any | None = None,
+    device: Device | None = None,
+    layout: str | None = None,
     pad: bool = False,
 ):
     """Copies an existing tensor-like object into a DALI tensor.
@@ -962,9 +962,9 @@ def tensor(
 
 def as_tensor(
     data: Any,
-    dtype: Optional[Any] = None,
-    device: Optional[Device] = None,
-    layout: Optional[str] = None,
+    dtype: Any | None = None,
+    device: Device | None = None,
+    layout: str | None = None,
     pad: bool = False,
 ):
     """Wraps an existing tensor-like object into a DALI tensor.

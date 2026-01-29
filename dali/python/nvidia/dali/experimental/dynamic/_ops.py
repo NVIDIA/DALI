@@ -12,8 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Optional
-
 import nvidia.dali as dali
 import nvidia.dali.backend_impl as _b
 
@@ -93,10 +91,10 @@ class Operator:
     def _get(
         cls,
         max_batch_size: int,
-        name: Optional[str] = None,
-        device: Optional[_device.Device] = None,
-        num_inputs: Optional[int] = None,
-        call_arg_names: Optional[list[str]] = None,
+        name: str | None = None,
+        device: _device.Device | None = None,
+        num_inputs: int | None = None,
+        call_arg_names: list[str] | None = None,
         **init_args,
     ):
         """Gets an operator instance for a specified set of parameters."""
@@ -133,7 +131,7 @@ class Operator:
         self._init_spec(inputs, args)
         return self._num_outputs
 
-    def _input_device(self, index: int, actual_device: Optional[_device.Device] = None):
+    def _input_device(self, index: int, actual_device: _device.Device | None = None):
         default_input_device = "gpu" if self._device.device_type == "gpu" else "cpu"
         actual_device_type = actual_device.device_type if actual_device is not None else None
         dev_type = self._schema.GetInputDevice(index, actual_device_type, default_input_device)
@@ -432,7 +430,7 @@ class Reader(Operator):
 
         return super()._run(ctx, *inputs, **args)
 
-    def next_epoch(self, batch_size=None, ctx: Optional[_eval_context.EvalContext] = None):
+    def next_epoch(self, batch_size=None, ctx: _eval_context.EvalContext | None = None):
         """
         Obtains an iterator that goes over the next epoch from the reader.
 
@@ -455,7 +453,7 @@ class Reader(Operator):
         else:
             return self._samples(ctx)
 
-    def _samples(self, ctx: Optional[_eval_context.EvalContext] = None):
+    def _samples(self, ctx: _eval_context.EvalContext | None = None):
         if self._api_type is None:
             self._api_type = "samples"
         elif self._api_type != "samples":
@@ -491,7 +489,7 @@ class Reader(Operator):
                         outs = tuple(Tensor(o) for o in x)
                         yield dict(zip(names, outs))
 
-    def _batches(self, batch_size=None, ctx: Optional[_eval_context.EvalContext] = None):
+    def _batches(self, batch_size=None, ctx: _eval_context.EvalContext | None = None):
         if self._api_type is None:
             self._api_type = "batches"
         elif self._api_type != "batches":

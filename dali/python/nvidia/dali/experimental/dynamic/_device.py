@@ -14,7 +14,6 @@
 
 import nvidia.dali.backend as _backend
 from threading import local
-from typing import Union, Optional
 
 
 class Device:
@@ -187,7 +186,7 @@ class Device:
 
 
 def device(
-    obj: Union[Device, str, "torch.device"], id: Optional[int] = None  # noqa: F821
+    obj: Device | str | "torch.device", id: int | None = None  # noqa: F821
 ) -> Device:
     """
     Returns a Device object from various input types.
