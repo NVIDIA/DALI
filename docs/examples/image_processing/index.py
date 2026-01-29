@@ -77,6 +77,22 @@ doc(
             op_reference("fn.resize", "Interpolation methods", 1),
         ),
         doc_entry(
+            "multiple_crops.ipynb",
+            [
+                op_reference(
+                    "fn.warp_affine", "Multiple crops from a single image", 10
+                ),
+                op_reference(
+                    "fn.transforms.crop",
+                    "Multiple crops from a single image",
+                    10,
+                ),
+                op_reference(
+                    "fn.per_frame", "Multiple crops from a single image", 10
+                ),
+            ],
+        ),
+        doc_entry(
             "resize.ipynb",
             op_reference("fn.resize", "Resize operator tutorial", 0),
         ),
