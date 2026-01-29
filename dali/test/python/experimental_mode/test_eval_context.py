@@ -282,7 +282,7 @@ def _ctx_test_op(check_func):
             check_func(ctx)
             return ndd._ops.Flip._run(self, ctx, *inputs, **args)
 
-    flip2_func = ndd._op_builder.build_fn_wrapper(Flip2)
+    flip2_func = ndd._op_builder.build_fn_wrapper(Flip2, "flip2", False)
     return flip2_func
 
 
