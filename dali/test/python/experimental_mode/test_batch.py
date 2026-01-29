@@ -340,3 +340,33 @@ def test_batch_from_enum_value_and_dtype(device_type):
         as_int = ndd.batch(t, dtype=ndd.int32, device="cpu")
         assert as_int.tensors[0].item() == int(value)
         assert as_int.tensors[1].item() == int(value)
+
+
+@eval_modes()
+@params(("cpu",), ("gpu",))
+def test_batch_from_tensor_and_layout(device_type):
+    x = np.zeros((4, 100, 100, 3), dtype=np.uint8)
+    b = ndd.batch(x, layout="HWC", device=device_type)
+    assert b.layout == "HWC"
+
+
+@eval_modes()
+@params(("cpu",), ("gpu",))
+def test_layout_change(device_type):
+    x = np.zeros((100, 100, 3), dtype=np.uint8)
+    a = ndd.batch([x] * 3, layout="HWC", device=device_type)
+    b = ndd.batch([x] * 3, device=device_type)
+    c = ndd.as_batch(a, layout="XYZ")
+    d = ndd.as_batch(b, layout="ABC")
+    e = ndd.batch(a, layout="XYZ")
+    f = ndd.batch(b, layout="ABC")
+    assert a.layout == "HWC"
+    assert b.layout is None
+    assert c.layout == "XYZ"
+    assert d.layout == "ABC"
+    assert c.device.device_type == device_type
+    assert d.device.device_type == device_type
+    assert e.layout == "XYZ"
+    assert f.layout == "ABC"
+    assert e.device.device_type == device_type
+    assert f.device.device_type == device_type
