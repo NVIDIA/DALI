@@ -277,9 +277,9 @@ class DLL_PUBLIC ThreadPoolBase {
 
 
 template <typename ThreadPool>
-class ThreadedExecutionengine {
+class ThreadedExecutionEngine {
  public:
-  ThreadedExecutionengine(ThreadPool &tp) : tp_(tp) {}  // NOLINT
+  ThreadedExecutionEngine(ThreadPool &tp) : tp_(tp) {}  // NOLINT
 
   template <typename FunctionLike>
   void AddWork(FunctionLike &&f, int64_t priority = 0) {
