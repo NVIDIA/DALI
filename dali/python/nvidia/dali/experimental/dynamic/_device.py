@@ -22,6 +22,9 @@ try:
 
     TorchDevice = torch.device
 except ImportError:
+    # Use a bottom type if PyTorch is not installed.
+    # This is better than typing.Any because we know that torch.device won't be used.
+    # TODO(rtabet): replace by typing.Never once Python 3.10 reaches EOL
     TorchDevice = NoReturn
 
 DeviceLike: TypeAlias = "Device" | str | TorchDevice

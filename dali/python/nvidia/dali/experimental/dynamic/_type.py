@@ -23,6 +23,7 @@ try:
 
     TorchDType = torch.dtype
 except ImportError:
+    # TODO(rtabet): replace by typing.Never once Python 3.10 reaches EOL
     TorchDType = NoReturn
 
 DTypeLike: TypeAlias = "DType" | nvidia.dali.types.DALIDataType | str | np.dtype | TorchDType
