@@ -165,9 +165,15 @@ class Invocation:
         if self._results is not None or self._future is not None:
             return
 
+        eval_context = self._eval_context if ctx is None else ctx
+        # If we're already in the background thread, submitting the task
+        # to the async executor creates a deadlock so we run it directly.
+        if eval_context._is_in_background_thread():
+            self._run_impl(eval_context)
+            return
+
         eval_mode = _EvalMode.current()
         device = Device.current()
-        eval_context = self._eval_context if ctx is None else ctx
 
         def _run():
             # Forward thread-local context to the new thread

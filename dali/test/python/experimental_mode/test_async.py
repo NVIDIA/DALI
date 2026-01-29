@@ -76,6 +76,17 @@ def test_mixed_mode_switching(device):
     np.testing.assert_array_equal(c.cpu(), [3])
 
 
+@params(("cpu",), ("gpu",))
+def test_no_deadlock(device):
+    with ndd.EvalMode.eager:
+        a = ndd.tensor([1, 2, 3, 4], device=device)
+        # Here _ArithmeticGenericOp (ndd.math.sqrt) will trigger _TensorSubscript (a[-1])
+        # Make sure that it doesn't deadlock
+        b = ndd.math.sqrt(a[-1])
+
+        assert b.item() == 2
+
+
 def test_eager_parallelism():
     try:
         cudart = ctypes.CDLL("libcudart.so")
