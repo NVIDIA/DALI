@@ -60,7 +60,7 @@ void JobBase::DoNotify() {
   num_pending_tasks_.notify_all();
   (void)std::lock_guard(mtx_);
   cv_.notify_all();
-  // We need this second flag to avoid a race condition where the desctructor is called between
+  // We need this second flag to avoid a race condition where the destructor is called between
   // decrementing num_pending_tasks_ and notification_ without excessive use of mutexes.
   // This must be the very last operation in the task function that touches `this`.
   running_ = false;
