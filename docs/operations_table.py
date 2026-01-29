@@ -109,7 +109,7 @@ def fn_to_op_table(out_filename):
         fn_full_name = ops._op_name(op, api="fn")
         schema = b.TryGetSchema(op)
         if schema:
-            if schema.IsDocHidden():
+            if schema.IsDocHidden() or schema.IsDeprecated():
                 continue
         for module_name, module in ops_modules.items():
             m = module
@@ -180,7 +180,7 @@ def operations_table_str(ops_to_process, module_name):
                 devices += ["GPU"]
             devices_str = ", ".join(devices)
             if schema:
-                if schema.IsDocHidden():
+                if schema.IsDocHidden() or schema.IsDeprecated():
                     continue
                 full_doc = schema.Dox()
             else:

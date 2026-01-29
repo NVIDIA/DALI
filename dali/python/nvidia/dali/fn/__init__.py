@@ -123,7 +123,7 @@ def _wrap_op(op_class, submodule, parent_module, wrapper_doc):
         wrapper_doc (str): Documentation of the wrapper function
     """
     schema = _b.TryGetSchema(op_class.schema_name)
-    make_hidden = schema.IsDocHidden() if schema else False
+    make_hidden = schema.IsDocHidden() or schema.IsDeprecated() if schema else False
     wrapper_name = _to_snake_case(op_class.__name__)
 
     if parent_module is None:
