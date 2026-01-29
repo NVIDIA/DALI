@@ -15,8 +15,9 @@
 import nvidia.dali as dali
 import nvidia.dali.backend_impl as _b
 
-from . import _device, _eval_context, _invocation
+from . import _eval_context, _invocation
 from ._batch import Batch
+from ._device import Device, DeviceLike
 from ._tensor import Tensor
 
 
@@ -92,15 +93,15 @@ class Operator:
         cls,
         max_batch_size: int,
         name: str | None = None,
-        device: _device.Device | None = None,
+        device: DeviceLike | None = None,
         num_inputs: int | None = None,
         call_arg_names: list[str] | None = None,
         **init_args,
     ):
         """Gets an operator instance for a specified set of parameters."""
         if device is None:
-            device = _device.Device.current()
-        if not isinstance(device, _device.Device):
+            device = Device.current()
+        if not isinstance(device, Device):
             raise TypeError("device must be a Device instance")
 
         def freeze_arg(arg):
@@ -131,7 +132,7 @@ class Operator:
         self._init_spec(inputs, args)
         return self._num_outputs
 
-    def _input_device(self, index: int, actual_device: _device.Device | None = None):
+    def _input_device(self, index: int, actual_device: DeviceLike | None = None):
         default_input_device = "gpu" if self._device.device_type == "gpu" else "cpu"
         actual_device_type = actual_device.device_type if actual_device is not None else None
         dev_type = self._schema.GetInputDevice(index, actual_device_type, default_input_device)
@@ -147,7 +148,7 @@ class Operator:
                 # use whatever was passed in.
                 dev_id = actual_device.device_id if actual_device is not None else 0
 
-        return _device.Device(dev_type, dev_id)  # inherit the device id
+        return Device(dev_type, dev_id)  # inherit the device id
 
     def _infer_output_devices(self, *inputs, **args):
         self._init_spec(inputs, args)
@@ -204,16 +205,14 @@ class Operator:
                     for o in out:
                         device_type = o.device
                         device_id = self._device.device_id
-                        self._output_devices.append(_device.Device(device_type, device_id))
+                        self._output_devices.append(Device(device_type, device_id))
                 elif isinstance(out, dict):
                     self._num_outputs = len(out)
                     device_id = self._device.device_id
-                    self._output_devices = [
-                        _device.Device(o.device, device_id) for o in out.values()
-                    ]
+                    self._output_devices = [Device(o.device, device_id) for o in out.values()]
                 else:
                     self._num_outputs = 1
-                    self._output_devices = [_device.Device(out.device, self._device.device_id)]
+                    self._output_devices = [Device(out.device, self._device.device_id)]
 
                 self._set_meta(inputs, args)
 
@@ -245,9 +244,7 @@ class Operator:
 
     def _run(self, ctx, *inputs, batch_size=None, **args):
         device_id = ctx.device_id if ctx is not None else None
-        device_ctx = (
-            _device.Device("gpu", device_id) if device_id is not None else _device.Device("cpu")
-        )
+        device_ctx = Device("gpu", device_id) if device_id is not None else Device("cpu")
         with device_ctx:
             if (
                 batch_size is not None

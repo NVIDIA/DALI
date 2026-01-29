@@ -16,13 +16,13 @@ import copy
 from typing import Any, SupportsInt
 
 import numpy as np
-import nvidia.dali.backend as _backend
 import nvidia.dali._tensor_formatting as _tensor_formatting
+import nvidia.dali.backend as _backend
 import nvidia.dali.types
 
 from . import _eval_mode, _invocation, _stream
 from ._arithmetic import _arithm_op
-from ._device import Device
+from ._device import Device, DeviceLike
 from ._device import device as _device
 from ._eval_context import EvalContext as _EvalContext
 from ._type import DType
@@ -91,7 +91,7 @@ class Tensor:
         self,
         data: Any | None = None,
         dtype: Any | None = None,
-        device: Device | None = None,
+        device: DeviceLike | None = None,
         layout: str | None = None,
         batch: Any | None = None,
         index_in_batch: int | None = None,
@@ -340,7 +340,7 @@ class Tensor:
         else:
             raise RuntimeError("Device not set")
 
-    def to_device(self, device: Device, force_copy: bool = False) -> "Tensor":
+    def to_device(self, device: DeviceLike, force_copy: bool = False) -> "Tensor":
         """
         Returns the tensor on the specified device.
 
@@ -918,7 +918,7 @@ class TensorSlice:
 def tensor(
     data: Any,
     dtype: Any | None = None,
-    device: Device | None = None,
+    device: DeviceLike | None = None,
     layout: str | None = None,
     pad: bool = False,
 ):
@@ -963,7 +963,7 @@ def tensor(
 def as_tensor(
     data: Any,
     dtype: Any | None = None,
-    device: Device | None = None,
+    device: DeviceLike | None = None,
     layout: str | None = None,
     pad: bool = False,
 ):

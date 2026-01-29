@@ -23,12 +23,12 @@ import nvtx
 
 from . import _eval_mode, _invocation
 from ._arithmetic import _arithm_op
-from ._device import Device
+from ._device import Device, DeviceLike
 from ._device import device as _device
 from ._tensor import Tensor, _is_full_slice, _try_convert_enums
 from ._tensor import as_tensor as _as_tensor
 from ._tensor import tensor as _tensor
-from ._type import DType
+from ._type import DType, DTypeLike
 from ._type import dtype as _dtype
 
 
@@ -168,8 +168,8 @@ class Batch:
     def __init__(
         self,
         tensors: Any | None = None,
-        dtype: DType | None = None,
-        device: Device | None = None,
+        dtype: DTypeLike | None = None,
+        device: DeviceLike | None = None,
         layout: str | None = None,
         invocation_result: _invocation.InvocationResult | None = None,
         copy: bool = False,
@@ -194,7 +194,7 @@ class Batch:
 
             - a list of tensor-like objects; the objects need to have matching number of dimensions,
             data types and layouts,
-            - a tensor-like object; the outermost dimenion is interpreted as the batch dimension
+            - a tensor-like object; the outermost dimension is interpreted as the batch dimension
             - a dali.backend.TensorListCPU or dali.backend.TensorListGPU
         dtype : DType, default: None
             The desired data type of the batch. If not specified, the data type is inferred
@@ -369,8 +369,8 @@ class Batch:
     def broadcast(
         sample,
         batch_size: int,
-        device: Device | None = None,
-        dtype: DType | None = None,
+        device: DeviceLike | None = None,
+        dtype: DTypeLike | None = None,
     ) -> "Batch":
         """
         Creates a batch by repeating a single `sample` `batch_size` times.
@@ -495,7 +495,7 @@ class Batch:
         """
         return _TensorList(self)
 
-    def to_device(self, device: Device, force_copy: bool = False) -> "Batch":
+    def to_device(self, device: DeviceLike, force_copy: bool = False) -> "Batch":
         """
         Returns the data batch on the specified device.
 
@@ -808,8 +808,8 @@ class Batch:
 
 def batch(
     tensors: Batch | Iterable[Any],
-    dtype: DType | None = None,
-    device: Device | None = None,
+    dtype: DTypeLike | None = None,
+    device: DeviceLike | None = None,
     layout: str | None = None,
 ):
     """Constructs a :class:`Batch` object.
@@ -858,8 +858,8 @@ def batch(
 
 def as_batch(
     tensors: Batch | Iterable[Any],
-    dtype: DType | None = None,
-    device: Device | None = None,
+    dtype: DTypeLike | None = None,
+    device: DeviceLike | None = None,
     layout: str | None = None,
 ):
     """Constructs a :class:`Batch` object, avoiding the copy.

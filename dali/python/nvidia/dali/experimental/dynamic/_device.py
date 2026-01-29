@@ -1,4 +1,4 @@
-# Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,8 +12,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import nvidia.dali.backend as _backend
 from threading import local
+from typing import NoReturn, TypeAlias
+
+import nvidia.dali.backend as _backend
+
+try:
+    import torch
+
+    TorchDevice = torch.device
+except ImportError:
+    TorchDevice = NoReturn
+
+DeviceLike: TypeAlias = "Device" | str | TorchDevice
 
 
 class Device:
@@ -185,9 +196,7 @@ class Device:
             _backend.SetCUDACurrentDevice(dev.device_id)
 
 
-def device(
-    obj: Device | str | "torch.device", id: int | None = None  # noqa: F821
-) -> Device:
+def device(obj: DeviceLike, id: int | None = None) -> Device:
     """
     Returns a Device object from various input types.
 

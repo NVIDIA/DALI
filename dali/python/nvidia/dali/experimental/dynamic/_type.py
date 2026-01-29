@@ -1,4 +1,4 @@
-# Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,7 +13,19 @@
 # limitations under the License.
 
 from enum import Enum, auto
+from typing import NoReturn, TypeAlias
+
+import numpy as np
 import nvidia.dali.types
+
+try:
+    import torch
+
+    TorchDType = torch.dtype
+except ImportError:
+    TorchDType = NoReturn
+
+DTypeLike: TypeAlias = "DType" | nvidia.dali.types.DALIDataType | str | np.dtype | TorchDType
 
 _id2type = {}
 _type2id = {}
