@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -39,8 +39,7 @@ layout will be empty.")code")
   .PassThrough({{0, 0}})
   .AllowSequences()
   .SupportVolumetric()
-  .AddArg("axes", R"code(Indices at which the new dimensions are inserted.)code",
-    DALI_INT_VEC, true)
+  .AddArg("axes", R"code(Indices at which the new dimensions are inserted.)code", DALI_INT_VEC)
   .AddOptionalArg("new_axis_names", R"code(Names of the new dimensions in the data layout.
 
 The length of `new_axis_names` must match the length of `axes`.
