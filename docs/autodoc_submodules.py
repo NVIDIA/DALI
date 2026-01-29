@@ -12,12 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import nvidia.dali.plugin.pytorch
-import nvidia.dali.plugin.numba
-import nvidia.dali.plugin.jax
-import nvidia.dali.experimental.dynamic
 import inspect
 import sys
+
+import nvidia.dali.experimental.dynamic
+import nvidia.dali.plugin.jax
+import nvidia.dali.plugin.numba
+import nvidia.dali.plugin.pytorch
 
 try:
     import nvidia.dali.plugin.video
@@ -154,7 +155,7 @@ def get_references(name, references):
     if name in references:
         result += ".. seealso::\n"
         for desc, url in references[name]:
-            result += f"   * `{desc} <../{url}>`_\n"
+            result += f"   * `{desc} </{url}>`_\n"
     return result
 
 

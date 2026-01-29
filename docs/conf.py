@@ -13,21 +13,22 @@
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 #
 # sys.path.insert(0, os.path.abspath('..'))
+import inspect
+import json
 import os
-import sys
-from sphinx.ext.autodoc.mock import mock
-from sphinx.ext.autodoc import between, ClassDocumenter, AttributeDocumenter
-from builtins import str
-from enum import Enum
 import re
 import subprocess
-from pathlib import Path
-from datetime import date
-import json
-from packaging.version import Version
-import httplib2
-import inspect
+import sys
 import warnings
+from builtins import str
+from datetime import date
+from enum import Enum
+from pathlib import Path
+
+import httplib2
+from packaging.version import Version
+from sphinx.ext.autodoc import AttributeDocumenter, ClassDocumenter, between
+from sphinx.ext.autodoc.mock import mock
 
 # -- Project information -----------------------------------------------------
 
@@ -73,6 +74,9 @@ generated_dynamic_path = Path("./dali_dynamic/operations")
 relative_generated_dynamic_path = Path("./operations")
 generated_dynamic_path.mkdir(exist_ok=True)
 
+# Add custom extensions directory to path
+sys.path.insert(0, os.path.abspath("./_extensions"))
+
 # generate table of supported operators and their devices
 # mock torch required by supported_op_devices
 with mock(["torch", "numba"]):
@@ -97,19 +101,21 @@ with mock(["torch", "numba"]):
 
     autodoc_submodules.op_autodoc(generated_path / "op_autodoc")
     autodoc_submodules.fn_autodoc(
-        generated_path / "fn_autodoc", generated_path, references
+        generated_path / "fn_autodoc",
+        generated_path,
+        references,
     )
     autodoc_submodules.dynamic_autodoc(
         generated_dynamic_path / "dynamic_autodoc",
         generated_dynamic_path,
         relative_generated_dynamic_path,
-        [],
+        references,
     )
     autodoc_submodules.dynamic_readers_autodoc(
         generated_dynamic_path / "dynamic_readers_autodoc",
         generated_dynamic_path,
         relative_generated_dynamic_path,
-        [],
+        references,
     )
 
 # Uncomment to keep warnings in the output. Useful for verbose build and output debugging.
@@ -152,7 +158,18 @@ extensions = [
     "sphinx.ext.intersphinx",
     "sphinx.ext.autosectionlabel",
     "sphinx_paramlinks",
+    "sphinx_design",
+    "dali_tabs",
 ]
+
+nbsphinx_prolog = """
+{% if 'dynamic_mode' in env.docname %}
+:bdg-primary:`Dynamic Mode`
+{% endif %}
+{% if 'pipeline_mode' in env.docname %}
+:bdg-primary:`Pipeline Mode`
+{% endif %}
+"""
 
 # https://stackoverflow.com/questions/67473396/shorten-display-format-of-python-type-annotations-in-sphinx
 autodoc_typehints_format = "short"
@@ -706,6 +723,13 @@ def replace_params_with_paramrefs(app, what, name, obj, options, lines):
     lines[:] = [map_line(line, s.parameters) for line in lines]
 
 
+def _override_breadcrumb_title(app, pagename, templatename, context, doctree):
+    if "dynamic_mode" in pagename:
+        context["title"] = "Dynamic Mode"
+    elif "pipeline_mode" in pagename:
+        context["title"] = "Pipeline Mode"
+
+
 def setup(app):
     if count_unique_visitor_script:
         app.add_js_file(count_unique_visitor_script)
@@ -719,6 +743,7 @@ def setup(app):
     app.connect(
         "autodoc-process-docstring", replace_params_with_paramrefs, priority=450
     )
+    app.connect("html-page-context", _override_breadcrumb_title)
     app.add_autodocumenter(EnumDocumenter)
     app.add_autodocumenter(EnumAttributeDocumenter)
     return app

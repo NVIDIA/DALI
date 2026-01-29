@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2022-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,26 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from doc_index import doc, doc_entry, op_reference
+from doc_index import doc
 
 doc(
     title="Audio Processing",
     underline_char="=",
     entries=[
-        doc_entry(
-            "audio_decoder.ipynb",
-            op_reference("fn.decoders.audio", "Audio decoder tutorial"),
-        ),
-        doc_entry(
-            "spectrogram.ipynb",
-            [
-                op_reference("fn.spectrogram", "Audio spectrogram tutorial"),
-                op_reference(
-                    "fn.mel_filter_bank", "Audio spectrogram tutorial"
-                ),
-                op_reference("fn.to_decibels", "Audio spectrogram tutorial"),
-                op_reference("fn.mfcc", "Audio spectrogram tutorial"),
-            ],
-        ),
+        "audio_decoder/index.py",
+        "spectrogram/index.py",
     ],
 )
