@@ -13,21 +13,20 @@
 # limitations under the License.
 
 from threading import local
-from typing import NoReturn, TypeAlias
+from typing import NoReturn, TypeAlias, Union
 
 import nvidia.dali.backend as _backend
 
 try:
-    import torch
+    import torch  # type: ignore
 
-    TorchDevice = torch.device
+    _TorchDevice: TypeAlias = torch.device  # type: ignore
 except ImportError:
-    # Use a bottom type if PyTorch is not installed.
-    # This is better than typing.Any because we know that torch.device won't be used.
-    # TODO(rtabet): replace by typing.Never once Python 3.10 reaches EOL
-    TorchDevice = NoReturn
+    # Unfortunately, most type checkers don't execute code so they will pick the first definition
+    # with torch.device being interpreted as 'Unknown' if torch is not installed.
+    _TorchDevice: TypeAlias = NoReturn  # type: ignore
 
-DeviceLike: TypeAlias = "Device" | str | TorchDevice
+DeviceLike: TypeAlias = Union["Device", str, _TorchDevice]
 
 
 class Device:

@@ -13,20 +13,21 @@
 # limitations under the License.
 
 from enum import Enum, auto
-from typing import NoReturn, TypeAlias
+from typing import NoReturn, TypeAlias, Union
 
 import numpy as np
 import nvidia.dali.types
 
 try:
-    import torch
+    import torch  # type: ignore
 
-    TorchDType = torch.dtype
+    _TorchDType: TypeAlias = torch.dtype  # type: ignore
 except ImportError:
-    # TODO(rtabet): replace by typing.Never once Python 3.10 reaches EOL
-    TorchDType = NoReturn
+    # Unfortunately, most type checkers don't execute code so they will pick the first definition
+    # with torch.dtype being interpreted as 'Unknown' if torch is not installed.
+    _TorchDType: TypeAlias = NoReturn  # type: ignore
 
-DTypeLike: TypeAlias = "DType" | nvidia.dali.types.DALIDataType | str | np.dtype | TorchDType
+DTypeLike: TypeAlias = Union["DType", nvidia.dali.types.DALIDataType, str, np.dtype, _TorchDType]
 
 _id2type = {}
 _type2id = {}
