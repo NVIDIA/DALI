@@ -1,4 +1,4 @@
-# Copyright (c) 2021-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2021-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,6 +14,7 @@
 
 
 from nvidia.dali import pipeline_def
+import nvidia.dali as dali
 import nvidia.dali.fn as fn
 import numpy as np
 from nose_utils import assert_raises
@@ -121,16 +122,23 @@ def test_expand_dims_throw_error():
             [(10, 20, 30)],
             r"Specifying ``new_axis_names`` requires an input with a proper layout.",
         ),
+        (
+            dali.types.Constant([2], device="cpu"),  # argument input
+            "C",
+            None,
+            [(10, 20, 30)],
+            r"should not be a 'DataNode'",
+        ),
     ]
     for axes, new_axis_names, layout, shapes, err_msg in args:
-        pipe = expand_dims_pipe(
-            batch_size=len(shapes),
-            num_threads=1,
-            device_id=0,
-            shapes=shapes,
-            axes=axes,
-            new_axis_names=new_axis_names,
-            layout=layout,
-        )
-        with assert_raises(RuntimeError, regex=err_msg):
+        with assert_raises((RuntimeError, TypeError), regex=err_msg):
+            pipe = expand_dims_pipe(
+                batch_size=len(shapes),
+                num_threads=1,
+                device_id=0,
+                shapes=shapes,
+                axes=axes,
+                new_axis_names=new_axis_names,
+                layout=layout,
+            )
             pipe.run()
