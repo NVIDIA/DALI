@@ -378,7 +378,7 @@ def ragged(device_type):
     (False, True),
     (contiguous_uniform, noncontiguous_uniform, ragged),
 )
-def test_batch_to_tensor(src_decvice, target_device, force_copy, data_factory):
+def test_batch_to_tensor(src_device, target_device, force_copy, data_factory):
     def ref(batch):
         return ndd.stack(*ndd.pad(batch).tensors).evaluate()
 
@@ -393,7 +393,7 @@ def test_batch_to_tensor(src_decvice, target_device, force_copy, data_factory):
         assert isinstance(t, ndd.Tensor)
         assert np.array_equal(t.cpu(), ref(batch).cpu())
 
-    data = data_factory(src_decvice)
+    data = data_factory(src_device)
     check(data)
 
 
