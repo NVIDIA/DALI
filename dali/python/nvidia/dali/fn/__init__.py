@@ -19,6 +19,10 @@ from nvidia.dali import internal as _internal
 from nvidia.dali.external_source import external_source
 from nvidia.dali._utils import dali_trace as _dali_trace
 
+from packaging.version import Version
+
+DynamicModeOpCutoff = Version("1.54")
+
 _special_case_mapping = {"b_box": "bbox", "mx_net": "mxnet", "tf_record": "tfrecord"}
 
 
@@ -123,7 +127,11 @@ def _wrap_op(op_class, submodule, parent_module, wrapper_doc):
         wrapper_doc (str): Documentation of the wrapper function
     """
     schema = _b.TryGetSchema(op_class.schema_name)
-    make_hidden = schema.IsDocHidden() or schema.IsDeprecated() if schema else False
+    make_hidden = (
+        schema.IsDocHidden() or Version(schema.DeprecatedInVersion()) < DynamicModeOpCutoff
+        if schema
+        else False
+    )
     wrapper_name = _to_snake_case(op_class.__name__)
 
     if parent_module is None:

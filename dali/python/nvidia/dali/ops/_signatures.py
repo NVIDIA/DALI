@@ -28,6 +28,10 @@ from nvidia.dali import fn, ops, types
 from nvidia.dali import types as _types
 from nvidia.dali.ops import _docs, _names, _registry
 
+from packaging.version import Version
+
+DynamicModeOpCutoff = Version("1.54")
+
 Api = Literal["fn", "ops", "dynamic"]
 
 
@@ -938,7 +942,11 @@ def _build_module_tree():
         schema = _b.TryGetSchema(schema_name)
         if schema is None:
             continue
-        if schema.IsDocHidden() or schema.IsInternal() or schema.IsDeprecated():
+        if (
+            schema.IsDocHidden()
+            or schema.IsInternal()
+            or Version(schema.DeprecatedInVersion()) < DynamicModeOpCutoff
+        ):
             continue
         dotted_name, module_nesting, op_name = _names._process_op_name(schema_name)
         if dotted_name not in processed:
@@ -1030,7 +1038,11 @@ def _group_signatures(api: Api):
             sig_groups["python_only"].append((schema_name, op))
             continue
 
-        if schema.IsDocHidden() or schema.IsInternal() or schema.IsDeprecated():
+        if (
+            schema.IsDocHidden()
+            or schema.IsInternal()
+            or Version(schema.DeprecatedInVersion()) < DynamicModeOpCutoff
+        ):
             sig_groups["hidden_or_internal"].append((schema_name, op))
             continue
 
