@@ -17,7 +17,7 @@ import nvidia.dali as dali
 import nvidia.dali.backend as _b
 import nvidia.dali.experimental.dynamic as ndd
 from ndd_utils import eval_modes
-from nose2.tools import params
+from nose2.tools import params, cartesian_params
 from nose_utils import SkipTest, assert_raises, attr
 
 
@@ -348,3 +348,56 @@ def test_join():
     assert np.array_equal(data, same)
     stacked = ndd.stack(data, data)
     assert np.array_equal(stacked, np.stack([data, data]))
+
+
+def int_range(*args):
+    return np.arange(*args, dtype=np.int32)
+
+
+def contiguous_uniform(device_type):
+    b = ndd.batch(int_range(120).reshape(8, 15), device=device_type)
+    assert b.batch_size == 8
+    return b
+
+
+def noncontiguous_uniform(device_type):
+    b = ndd.as_batch([int_range(42 * i, 42 * (i + 1)) for i in range(13)], device=device_type)
+    assert b.batch_size == 13
+    assert b.shape == [(42,)] * 13
+    return b
+
+
+def ragged(device_type):
+    return ndd.as_batch([[1, 2, 3], [4, 5, 6, 7, 8, 9], [], [10, 11, 12, 13]], device=device_type)
+
+
+@eval_modes()
+@cartesian_params(
+    ("cpu", "gpu"),
+    ("cpu", "gpu"),
+    (False, True),
+    (contiguous_uniform, noncontiguous_uniform, ragged),
+)
+def test_batch_to_tensor(src_decvice, target_device, force_copy, data_factory):
+    def ref(batch):
+        return ndd.stack(*ndd.pad(batch).tensors).evaluate()
+
+    pad = data_factory == ragged  # only apply padding when necessary
+
+    def check(batch):
+        if force_copy:
+            t = ndd.tensor(batch, device=target_device, pad=pad)
+        else:
+            t = ndd.as_tensor(batch, device=target_device, pad=pad)
+        assert t.device.device_type == target_device
+        assert isinstance(t, ndd.Tensor)
+        assert np.array_equal(t.cpu(), ref(batch).cpu())
+
+    data = data_factory(src_decvice)
+    check(data)
+
+
+def test_batch_to_tensor_no_pad_error():
+    data = ragged("cpu")
+    with assert_raises(ValueError, glob="non-uniform shape"):
+        ndd.as_tensor(data, pad=False).evaluate()

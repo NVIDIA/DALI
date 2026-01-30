@@ -904,6 +904,7 @@ def tensor(
     dtype: Optional[Any] = None,
     device: Optional[Device] = None,
     layout: Optional[str] = None,
+    pad: bool = False,
 ):
     """Copies an existing tensor-like object into a DALI tensor.
 
@@ -927,7 +928,17 @@ def tensor(
     layout : str, optional, default: None
         The layout string describing the dimensions of the tensor (e.g., "HWC").
         If not specified, the layout is inferred from the input data, if possible.
+    pad : bool, optional, default: False
+        If ``True`` and `data` is a batch, the batch will be zero-padded.
+        If ``False`` and `data` is a batch of non-uniformly shaped tensors, an error is raised.
     """
+    from . import _batch
+
+    if isinstance(data, _batch.Batch):
+        from . import _batch2tensor
+
+        return _batch2tensor.batch_to_tensor(data, pad, device=device, force_copy=True)
+
     return Tensor(data, dtype=dtype, device=device, layout=layout, copy=True)
 
 
@@ -936,6 +947,7 @@ def as_tensor(
     dtype: Optional[Any] = None,
     device: Optional[Device] = None,
     layout: Optional[str] = None,
+    pad: bool = False,
 ):
     """Wraps an existing tensor-like object into a DALI tensor.
 
@@ -959,11 +971,16 @@ def as_tensor(
     layout : str, optional, default: None
         The layout string describing the dimensions of the tensor (e.g., "HWC").
         If not specified, the layout is inferred from the input data, if possible.
+    pad : bool, optional, default: False
+        If ``True`` and `data` is a batch, the batch will be zero-padded.
+        If ``False`` and `data` is a batch of non-uniformly shaped tensors, an error is raised.
     """
     from . import _batch
 
     if isinstance(data, _batch.Batch):
-        data = data.evaluate()._storage.as_tensor()
+        from . import _batch2tensor
+
+        return _batch2tensor.batch_to_tensor(data, pad, device=device)
 
     return Tensor(data, dtype=dtype, device=device, layout=layout, copy=False)
 
