@@ -14,7 +14,10 @@
 
 
 import enum
-from typing import Any, Protocol, Sequence, TypeAlias, Union
+from collections.abc import Iterable, Sequence
+from typing import Any, Protocol, TypeAlias
+
+import numpy.typing as npt
 
 
 class ArrayInterface(Protocol):
@@ -57,7 +60,7 @@ class DLPack(Protocol):
     def __dlpack_device__(self) -> tuple[enum.Enum, int]: ...
 
 
-TensorLikeIn: TypeAlias = Union[ArrayInterface, Sequence[int], Sequence[float], int, float]
+TensorLikeIn: TypeAlias = ArrayInterface | Sequence[int] | Sequence[float] | int | float
 """
 Constant input to the operator, that is expressed by a single tensor. Such input represents
 one sample that is repeated (broadcast) to form a batch.
@@ -70,8 +73,8 @@ Constant argument to the operator, that is expressed by a single tensor. Such in
 one sample that is repeated (broadcast) to form a batch.
 """
 
-TensorLike: TypeAlias = ArrayInterface | CudaArrayInterface | DLPack
-"""
-Object compatible with ``dali.dynamic.Tensor`` used as input for per-sample
-dynamic mode functions.
-"""
+TensorLike: TypeAlias = ArrayInterface | CudaArrayInterface | DLPack | npt.ArrayLike
+"""Object compatible with dynamic mode tensors"""
+
+BatchLike: TypeAlias = Iterable[TensorLike] | TensorLike
+"""Object compatible with dynamic mode batches"""

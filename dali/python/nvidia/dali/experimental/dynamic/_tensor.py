@@ -13,12 +13,13 @@
 # limitations under the License.
 
 import copy
-from typing import Any, SupportsInt
+from typing import TYPE_CHECKING, Any, Self, SupportsInt, Union
 
 import numpy as np
 import nvidia.dali._tensor_formatting as _tensor_formatting
 import nvidia.dali.backend as _backend
 import nvidia.dali.types
+from nvidia.dali._typing import TensorLike
 
 from . import _eval_mode, _invocation, _stream
 from ._arithmetic import _arithm_op
@@ -28,6 +29,9 @@ from ._eval_context import EvalContext as _EvalContext
 from ._type import DType
 from ._type import dtype as _dtype
 from ._type import type_id as _type_id
+
+if TYPE_CHECKING:
+    from ._batch import Batch
 
 
 def _volume(shape: tuple[int, ...]) -> int:
@@ -89,7 +93,7 @@ class Tensor:
 
     def __init__(
         self,
-        data: Any | None = None,
+        data: TensorLike | None = None,
         dtype: Any | None = None,
         device: DeviceLike | None = None,
         layout: str | None = None,
@@ -543,7 +547,7 @@ class Tensor:
         tensor = torch.from_dlpack(data)
         return tensor if not copy else tensor.clone()
 
-    def evaluate(self):
+    def evaluate(self) -> Self:
         """
         Evaluates the underlying lazy expression, if any.
 
@@ -916,12 +920,12 @@ class TensorSlice:
 
 
 def tensor(
-    data: Any,
+    data: TensorLike,
     dtype: Any | None = None,
     device: DeviceLike | None = None,
     layout: str | None = None,
     pad: bool = False,
-):
+) -> Tensor:
     """Copies an existing tensor-like object into a DALI tensor.
 
     Parameters
@@ -961,12 +965,12 @@ def tensor(
 
 
 def as_tensor(
-    data: Any,
+    data: Union[TensorLike, "Batch"],
     dtype: Any | None = None,
     device: DeviceLike | None = None,
     layout: str | None = None,
     pad: bool = False,
-):
+) -> Tensor:
     """Wraps an existing tensor-like object into a DALI tensor.
 
     Parameters

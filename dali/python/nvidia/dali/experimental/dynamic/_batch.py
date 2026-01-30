@@ -13,13 +13,14 @@
 # limitations under the License.
 
 import importlib.util
-from collections.abc import Iterable
-from typing import Any
+from collections.abc import Iterator
+from typing import Any, Self, Union
 
 import nvidia.dali._tensor_formatting as _tensor_formatting
 import nvidia.dali.backend as _backend
 import nvidia.dali.types as _dali_types
 import nvtx
+from nvidia.dali._typing import BatchLike, TensorLike
 
 from . import _eval_mode, _invocation
 from ._arithmetic import _arithm_op
@@ -146,7 +147,7 @@ class _TensorList:
         """
         Converts the list of tensors to a :class:`Batch` object.
         """
-        return batch(self) if copy else as_batch(self)
+        return batch(self) if copy else as_batch(self)  # type: ignore
 
 
 class Batch:
@@ -167,7 +168,7 @@ class Batch:
 
     def __init__(
         self,
-        tensors: Any | None = None,
+        tensors: BatchLike | None = None,
         dtype: DTypeLike | None = None,
         device: DeviceLike | None = None,
         layout: str | None = None,
@@ -367,7 +368,7 @@ class Batch:
 
     @staticmethod
     def broadcast(
-        sample,
+        sample: TensorLike,
         batch_size: int,
         device: DeviceLike | None = None,
         dtype: DTypeLike | None = None,
@@ -447,7 +448,7 @@ class Batch:
         return self._device
 
     @property
-    def layout(self) -> str:
+    def layout(self) -> str | None:
         """
         The layout of tensors in the batch.
 
@@ -567,13 +568,13 @@ class Batch:
         """
         return BatchedSlice(self)
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[Tensor]:
         """
         Iterates over tensors in the batch.
         """
         return iter(self.tensors)
 
-    def select(self, sample_range):
+    def select(self, sample_range) -> Union["Batch", Tensor]:
         """
         Selects a range of samples.
 
@@ -590,7 +591,7 @@ class Batch:
         else:
             return self._get_tensor(r)
 
-    def _get_tensor(self, i):
+    def _get_tensor(self, i) -> Tensor:
         if self._tensors is None:
             self._tensors: list[Tensor | None] = [None] * self.batch_size
 
@@ -692,7 +693,7 @@ class Batch:
 
         return _as_tensor(self, pad=pad).torch(copy)
 
-    def evaluate(self):
+    def evaluate(self) -> Self:
         """
         Evaluates the underlying lazy expression, if any.
 
@@ -807,11 +808,11 @@ class Batch:
 
 
 def batch(
-    tensors: Batch | Iterable[Any],
+    tensors: BatchLike,
     dtype: DTypeLike | None = None,
     device: DeviceLike | None = None,
     layout: str | None = None,
-):
+) -> Batch:
     """Constructs a :class:`Batch` object.
 
     Constructs a batch by copying the input tensors and optionally converting them to the desired
@@ -857,11 +858,11 @@ def batch(
 
 
 def as_batch(
-    tensors: Batch | Iterable[Any],
+    tensors: BatchLike,
     dtype: DTypeLike | None = None,
     device: DeviceLike | None = None,
     layout: str | None = None,
-):
+) -> Batch:
     """Constructs a :class:`Batch` object, avoiding the copy.
 
     Constructs a batch by viewing the input tensors as a batch. If the input tensors do not

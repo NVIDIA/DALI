@@ -38,7 +38,7 @@ class Device:
 
     _thread_local = local()
 
-    def __init__(self, name: str, device_id: int = None):
+    def __init__(self, name: str, device_id: int | None = None):
         """
         Initializes the device object with a name and, optionally, device id.
 
