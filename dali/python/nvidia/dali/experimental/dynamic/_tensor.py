@@ -503,6 +503,30 @@ class Tensor:
     def __dlpack_device__(self) -> tuple[_backend.DLDeviceType, int]:
         return self.evaluate()._storage.__dlpack_device__()
 
+    def torch(self, copy: bool = False):
+        """
+        Returns ``self`` as a PyTorch tensor. Requires PyTorch to be installed.
+
+        Parameters
+        ----------
+        copy : bool, default: False
+            Boolean indicating whether to perform a copy.
+        """
+
+        try:
+            import torch
+        except ModuleNotFoundError:
+            raise RuntimeError("Tensor.torch() requires PyTorch to be installed.") from None
+
+        # PyTorch doesn't handle the DLPack device kDLCUDAHost (pinned memory) but NumPy does...
+        device_type, _ = self.__dlpack_device__()
+        data = np.asarray(self) if device_type == 3 else self
+
+        # Since PyTorch 2.9.0, torch.from_dlpack() supports the 'copy' argument
+        # but Tensor.__dlpack__ doesn't
+        tensor = torch.from_dlpack(data)
+        return tensor if not copy else tensor.clone()
+
     def evaluate(self):
         """
         Evaluates the underlying lazy expression, if any.
