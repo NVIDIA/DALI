@@ -43,7 +43,7 @@ DALI_SCHEMA(MXNetReader)
     .NumInput(0)
     .NumOutput(2)
     .AddParent("readers__MXNet")
-    .MakeDocPartiallyHidden()
+    .MakeDocHidden()
     .Deprecate(
         "1.0",
         "readers__MXNet",

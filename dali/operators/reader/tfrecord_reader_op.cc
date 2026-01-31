@@ -98,6 +98,7 @@ DALI_SCHEMA(_TFRecordReader)
     .NumInput(0)
     .AddParent("readers___TFRecord")
     .MakeInternal()
+    .MakeDocHidden()
     .Deprecate(
         "1.0",
         "readers__TFRecord",
@@ -110,7 +111,7 @@ functionality to allow for backward compatibility.)code");
 DALI_SCHEMA(TFRecordReader)
     .DocStr("Legacy alias for :meth:`readers.tfrecord`.")
     .AddParent("readers__TFRecord")
-    .MakeDocPartiallyHidden()
+    .MakeDocHidden()
     .Deprecate(
         "1.0",
         "readers__TFRecord",

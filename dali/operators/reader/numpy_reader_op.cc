@@ -227,7 +227,7 @@ DALI_SCHEMA(NumpyReader)
     .NumInput(0)
     .NumOutput(1)  // (Arrays)
     .AddParent("readers__Numpy")
-    .MakeDocPartiallyHidden()
+    .MakeDocHidden()
     .Deprecate(
         "1.0",
         "readers__Numpy",

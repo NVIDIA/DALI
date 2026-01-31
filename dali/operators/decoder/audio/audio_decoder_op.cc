@@ -57,7 +57,7 @@ DALI_SCHEMA(AudioDecoder)
     .NumInput(1)
     .NumOutput(2)
     .AddParent("decoders__Audio")
-    .MakeDocPartiallyHidden()
+    .MakeDocHidden()
     .Deprecate(
         "1.0",
         "decoders__Audio",

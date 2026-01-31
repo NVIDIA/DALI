@@ -74,6 +74,7 @@ represent streams.)code",
                     R"code(The color space of input and output image.)code", DALI_RGB, false)
     .AddParent("LoaderBase")
     .AllowSequences()
+    .MakeDocHidden()
     .Deprecate(
         "1.37",
         "",
@@ -95,7 +96,7 @@ DALI_SCHEMA(SequenceReader)
     .NumOutput(1)  // ([Frames])
     .AllowSequences()
     .AddParent("readers__Sequence")
-    .MakeDocPartiallyHidden()
+    .MakeDocHidden()
     .Deprecate(
         "1.0",
         "readers__Sequence",

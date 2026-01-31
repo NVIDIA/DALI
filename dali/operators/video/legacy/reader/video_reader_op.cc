@@ -203,7 +203,7 @@ DALI_SCHEMA(VideoReader)
     .NumInput(0)
     .OutputFn(detail::VideoReaderOutputFn)
     .AddParent("readers__Video")
-    .MakeDocPartiallyHidden()
+    .MakeDocHidden()
     .Deprecate(
         "1.0",
         "readers__Video",

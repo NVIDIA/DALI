@@ -7,9 +7,6 @@ import nvidia.dali.plugin.jax as dax
 import nvidia.dali.experimental.dynamic as ndd
 import sys
 
-from packaging.version import Version
-
-DynamicModeOpCutoff = Version("1.54")
 # Dictionary with modules that can have registered Ops
 ops_modules = {
     "nvidia.dali.ops": nvidia.dali.ops,
@@ -41,13 +38,6 @@ all_ops_in_module = {
 }
 all_ops = all_ops_in_module["nvidia.dali.fn"]
 link_formatter = ":meth:`{op} <{module}.{op}>`"
-
-
-def should_doc_be_hidden(schema):
-    return (
-        schema.IsDocHidden()
-        or Version(schema.DeprecatedInVersion()) < DynamicModeOpCutoff
-    )
 
 
 def to_fn_module(module_name):
@@ -119,7 +109,7 @@ def fn_to_op_table(out_filename):
         fn_full_name = ops._op_name(op, api="fn")
         schema = b.TryGetSchema(op)
         if schema:
-            if should_doc_be_hidden(schema):
+            if schema.IsDocHidden():
                 continue
         for module_name, module in ops_modules.items():
             m = module
@@ -190,7 +180,7 @@ def operations_table_str(ops_to_process, module_name):
                 devices += ["GPU"]
             devices_str = ", ".join(devices)
             if schema:
-                if should_doc_be_hidden(schema):
+                if schema.IsDocHidden():
                     continue
                 full_doc = schema.Dox()
             else:

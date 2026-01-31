@@ -130,7 +130,7 @@ DALI_SCHEMA(NemoAsrReader)
     .DocStr("Legacy alias for :meth:`readers.nemo_asr`.")
     .AdditionalOutputsFn(NemoAsrReaderOutputFn)
     .AddParent("readers__NemoAsr")
-    .MakeDocPartiallyHidden()
+    .MakeDocHidden()
     .Deprecate(
         "1.0",
         "readers__NemoAsr",

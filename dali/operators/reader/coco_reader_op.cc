@@ -177,7 +177,7 @@ DALI_SCHEMA(COCOReader)
     .DocStr("Legacy alias for :meth:`readers.coco`.")
     .AdditionalOutputsFn(COCOReaderOutputFn)
     .AddParent("readers__COCO")
-    .MakeDocPartiallyHidden()
+    .MakeDocHidden()
     .Deprecate(
         "1.0",
         "readers__COCO",

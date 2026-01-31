@@ -54,10 +54,6 @@ from nvidia.dali.ops._operator_utils import (
     _repack_output_sets,
 )
 
-from packaging.version import Version
-
-DynamicModeOpCutoff = Version("1.54")
-
 
 class _OpCounter(object):
     # pylint: disable=too-few-public-methods
@@ -737,11 +733,7 @@ def _load_ops():
         # and are rexported in the original module, making the actual module and
         # the __module__ attribute mismatch.
         # This prevents Sphinx from autodocing the operator.
-        make_hidden = (
-            schema.IsDocHidden() or Version(schema.DeprecatedInVersion()) < DynamicModeOpCutoff
-            if schema
-            else False
-        )
+        make_hidden = schema.IsDocHidden() if schema else False
         _, submodule, op_name = _process_op_name(op_reg_name, make_hidden)
         module = _internal.get_submodule(ops_module, submodule)
         if not hasattr(module, op_name):

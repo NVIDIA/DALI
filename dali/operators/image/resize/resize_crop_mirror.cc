@@ -52,6 +52,7 @@ DALI_SCHEMA(FastResizeCropMirror)
   .NumOutput(1)
   .SupportVolumetric()
   .AllowSequences()
+  .MakeDocHidden()
   .Deprecate("1.32", "ResizeCropMirror")
   .AddParent("ResizeCropMirror")
   .AddOptionalArg("antialias", R"(If enabled, it applies an antialiasing filter when scaling down.
