@@ -689,7 +689,7 @@ def _gen_dynamic_call_signature_no_input(schema: _b.OpSchema, **kwargs):
     )
 
 
-def _gen_dynamic_call_signature_with_input(schema: _b.OpSchema, **kwargs):
+def _gen_dynamic_call_signature_with_inputs(schema: _b.OpSchema, **kwargs):
     """Generate function signatures for dynamic mode ops with one or more inputs.
     The overloads are:
     - `(*tensor-like, /, batch_size: None = None, **kwargs) -> Tensor | Batch`:
@@ -703,6 +703,7 @@ def _gen_dynamic_call_signature_with_input(schema: _b.OpSchema, **kwargs):
             schema,
             api="dynamic",
             allow_data_node_kwargs=False,
+            allow_batch_kwargs=False,
             batch_size_annotation=NoneType,
             input_annotation_gen=lambda _: _TensorLike,
             return_annotation_gen=lambda _: Union[_Tensor, _Batch],
@@ -730,7 +731,7 @@ def _gen_dynamic_call_signature(schema: _b.OpSchema, **kwargs):
     if num_inputs == 0:
         generator = _gen_dynamic_call_signature_no_input
     else:
-        generator = _gen_dynamic_call_signature_with_input
+        generator = _gen_dynamic_call_signature_with_inputs
 
     yield from generator(schema, **kwargs)
 
