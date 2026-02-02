@@ -489,7 +489,7 @@ def _call_signature(
         param_list.extend(_get_implicit_extra_params(schema, api, include_init_header))
 
     if api == "dynamic" and batch_size_annotation is not None:  # include batch_size argument
-        if batch_size_annotation is NoneType or None in get_args(batch_size_annotation):
+        if batch_size_annotation is NoneType or NoneType in get_args(batch_size_annotation):
             default_batch_size = None
         else:
             default_batch_size = Parameter.empty
