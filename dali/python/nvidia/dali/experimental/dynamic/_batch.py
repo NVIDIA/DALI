@@ -273,11 +273,10 @@ class Batch:
                         self._storage = _backend.TensorListGPU(t._storage, layout=layout)
                     else:
                         raise ValueError(f"Unsupported device type: {t.device.device_type}")
-                    if t._wraps_external_data:
-                        self._wraps_external_data = True
                 else:
-                    sh = t.shape
-                    tensors = [t[i] for i in range(sh[0])]
+                    self._tensors = [t[i] for i in range(t.shape[0])]
+
+                self._wraps_external_data = t._wraps_external_data
                 self._dtype = dtype
 
             else:
