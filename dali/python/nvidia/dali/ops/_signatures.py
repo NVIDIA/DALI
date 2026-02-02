@@ -315,7 +315,7 @@ def _get_keyword_params(
                 annotation_types.insert(0, _DataNode)
             if batch_kwargs:
                 annotation_types.insert(0, _Batch)
-            annotation = Union[*annotation_types]
+            annotation = Union[tuple(annotation_types)]
         else:
             annotation = kw_annotation
 
