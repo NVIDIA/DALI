@@ -706,7 +706,7 @@ def _gen_dynamic_call_signature_with_inputs(schema: _b.OpSchema, **kwargs):
             allow_batch_kwargs=False,
             batch_size_annotation=NoneType,
             input_annotation_gen=lambda _: _TensorLike,
-            return_annotation_gen=lambda _: Union[_Tensor, _Batch],
+            return_annotation_gen=lambda _: _Tensor,
             **kwargs,
         ),
         _call_signature(
