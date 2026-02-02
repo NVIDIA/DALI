@@ -33,10 +33,11 @@ test_body() {
     export DALI_EXTRA_PATH=${NEW_DALI_EXTRA}
 
     # test code
-    echo ${test_files[@]} | xargs -i jupyter nbconvert \
-                   --to notebook --inplace --execute \
-                   --ExecutePreprocessor.kernel_name=python${PYVER:0:1} \
-                   --ExecutePreprocessor.timeout=600 {}
+    for f in ${test_files[@]}; do
+        jupyter nbconvert --to notebook --inplace --execute \
+                        --ExecutePreprocessor.kernel_name=python${PYVER:0:1} \
+                        --ExecutePreprocessor.timeout=600 $f
+    done
 
     # cleanup
     rm -rf ${tmpdir}
