@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import copy
-from typing import TYPE_CHECKING, Any, Self, SupportsInt, Union
+from typing import TYPE_CHECKING, Any, SupportsInt, Union
 
 import numpy as np
 import nvidia.dali._tensor_formatting as _tensor_formatting
@@ -547,7 +547,7 @@ class Tensor:
         tensor = torch.from_dlpack(data)
         return tensor if not copy else tensor.clone()
 
-    def evaluate(self) -> Self:
+    def evaluate(self):
         """
         Evaluates the underlying lazy expression, if any.
 

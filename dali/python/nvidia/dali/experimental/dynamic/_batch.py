@@ -14,7 +14,7 @@
 
 import importlib.util
 from collections.abc import Iterator
-from typing import Any, Self, Union
+from typing import Any, Union
 
 import nvidia.dali._tensor_formatting as _tensor_formatting
 import nvidia.dali.backend as _backend
@@ -693,7 +693,7 @@ class Batch:
 
         return _as_tensor(self, pad=pad).torch(copy)
 
-    def evaluate(self) -> Self:
+    def evaluate(self):
         """
         Evaluates the underlying lazy expression, if any.
 
