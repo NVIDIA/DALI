@@ -102,7 +102,7 @@ DALI_SCHEMA(experimental__AudioResample)
     .DocStr("Legacy alias for :meth:`audio_resample`.")
     .NumInput(1)
     .NumOutput(1)
-    .MakeDocPartiallyHidden()
+    .MakeDocHidden()
     .Deprecate(
         "1.18",
         "AudioResample",

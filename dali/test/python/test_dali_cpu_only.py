@@ -26,6 +26,7 @@ from collections.abc import Iterable
 from nose_utils import attr, nottest, assert_raises
 from nvidia.dali.pipeline import Pipeline, pipeline_def
 from nvidia.dali.pipeline.experimental import pipeline_def as experimental_pipeline_def
+
 from nvidia.dali.plugin.numba.fn.experimental import numba_function
 
 from segmentation_test_utils import make_batch_select_masks
@@ -1663,6 +1664,7 @@ excluded_methods = [
     "hidden.*",
     "experimental.hidden.*",
     "_conditional.hidden.*",
+    "readers.hidden.*",
     "jitter",  # not supported for CPU
     "video_reader",  # not supported for CPU
     "video_reader_resize",  # not supported for CPU

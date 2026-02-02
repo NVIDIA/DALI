@@ -25,6 +25,7 @@ DALI_SCHEMA(Shapes)
     .SupportVolumetric()
     .AddOptionalTypeArg("dtype", "Data type to which the sizes are converted.", DALI_INT64)
     .DeprecateArgInFavorOf("type", "dtype", "0.27")
+    .MakeDocHidden()
     .Deprecate("1.44", "", "Use :meth:`nvidia.dali.pipeline.DataNode.shape` instead.");
 
 DALI_SCHEMA(_Shape)

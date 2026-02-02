@@ -1239,6 +1239,7 @@ unsupported_readers = [
 unsupported_ops = [
     "hidden.*",
     "experimental.hidden.*",
+    "readers.hidden.*",
     "clahe",
     "decoders.video",
     "experimental.decoders.video",

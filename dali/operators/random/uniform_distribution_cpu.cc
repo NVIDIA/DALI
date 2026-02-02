@@ -86,6 +86,7 @@ This argument is mutually exclusive with `values`.
 This argument is mutually exclusive with `range`.)code",
       nullptr, true)
     .AddParent("RNGAttr")
+    .MakeDocHidden()
     .Deprecate("0.30", "random__Uniform");
 
 

@@ -28,6 +28,7 @@ from nvidia.dali import fn, ops, types
 from nvidia.dali import types as _types
 from nvidia.dali.ops import _docs, _names, _registry
 
+
 Api = Literal["fn", "ops", "dynamic"]
 
 

@@ -131,7 +131,7 @@ DALI_SCHEMA(FileReader)
     .NumInput(0)
     .NumOutput(2)  // (Images, Labels)
     .AddParent("readers__File")
-    .MakeDocPartiallyHidden()
+    .MakeDocHidden()
     .Deprecate(
         "1.0",
         "readers__File",

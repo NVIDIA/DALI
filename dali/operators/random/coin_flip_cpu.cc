@@ -55,6 +55,7 @@ sample is generated.
     .InputDevice(0, InputDevice::Metadata)
     .NumOutput(1)
     .AddParent("random__CoinFlip")
+    .MakeDocHidden()
     .Deprecate("0.30", "random__CoinFlip");
 
 

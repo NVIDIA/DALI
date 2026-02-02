@@ -319,7 +319,7 @@ DALI_SCHEMA(ImageDecoder)
     .NumInput(1)
     .NumOutput(1)
     .AddParent("decoders__Image")
-    .MakeDocPartiallyHidden()
+    .MakeDocHidden()
     .Deprecate(
         "1.0",
         "decoders__Image",
@@ -334,7 +334,7 @@ DALI_SCHEMA(ImageDecoderCrop)
     .NumInput(1)
     .NumOutput(1)
     .AddParent("decoders__ImageCrop")
-    .MakeDocPartiallyHidden()
+    .MakeDocHidden()
     .Deprecate(
         "1.0",
         "decoders__ImageCrop",
@@ -347,7 +347,7 @@ DALI_SCHEMA(ImageDecoderRandomCrop)
     .NumInput(1)
     .NumOutput(1)
     .AddParent("decoders__ImageRandomCrop")
-    .MakeDocPartiallyHidden()
+    .MakeDocHidden()
     .Deprecate(
         "1.0",
         "decoders__ImageRandomCrop",
@@ -361,7 +361,7 @@ DALI_SCHEMA(ImageDecoderSlice)
     .NumInput(1, 3)
     .NumOutput(1)
     .AddParent("decoders__ImageSlice")
-    .MakeDocPartiallyHidden()
+    .MakeDocHidden()
     .Deprecate(
         "1.0",
         "decoders__ImageSlice",

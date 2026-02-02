@@ -36,6 +36,7 @@ cropped and valid bounding boxes and valid labels are returned.)code")
   .AddOptionalArg("num_attempts", R"code(Number of attempts.)code", 1)
   .AddRandomSeedArg()
   .AddRandomStateArg()
+  .MakeDocHidden()
   .Deprecate("0.30", "RandomBBoxCrop");
 
 /*

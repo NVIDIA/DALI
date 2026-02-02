@@ -1967,6 +1967,7 @@ excluded_methods = [
     "hidden.*",
     "experimental.hidden.*",
     "_conditional.hidden.*",
+    "readers.hidden.*",
     "multi_paste",  # ToDo - crashes
     "coco_reader",  # readers do not support variable batch size yet
     "sequence_reader",  # readers do not support variable batch size yet

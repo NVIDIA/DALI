@@ -54,7 +54,7 @@ DALI_SCHEMA(VideoReaderResize)
     .NumInput(0)
     .OutputFn(detail::VideoReaderOutputFn)
     .AddParent("readers__VideoResize")
-    .MakeDocPartiallyHidden()
+    .MakeDocHidden()
     .Deprecate(
         "1.0",
         "readers__VideoResize",

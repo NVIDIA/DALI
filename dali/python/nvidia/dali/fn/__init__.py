@@ -19,6 +19,7 @@ from nvidia.dali import internal as _internal
 from nvidia.dali.external_source import external_source
 from nvidia.dali._utils import dali_trace as _dali_trace
 
+
 _special_case_mapping = {"b_box": "bbox", "mx_net": "mxnet", "tf_record": "tfrecord"}
 
 

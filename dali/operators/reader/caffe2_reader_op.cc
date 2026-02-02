@@ -73,7 +73,7 @@ DALI_SCHEMA(Caffe2Reader)
     .NumInput(0)
     .OutputFn(Caffe2ReaderOutputFn)
     .AddParent("readers__Caffe2")
-    .MakeDocPartiallyHidden()
+    .MakeDocHidden()
     .Deprecate(
         "1.0",
         "readers__Caffe2",
