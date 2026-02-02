@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,6 +16,7 @@
 #include <gtest/gtest.h>
 #include "dali/pipeline/operator/op_spec.h"
 #include "dali/pipeline/workspace/workspace.h"
+#include "dali/pipeline/data/views.h"
 
 namespace dali {
 
@@ -245,5 +246,91 @@ TEST(ArgValue, TensorInput_3D_ExpectedShape_AllowEmpty) {
   ArgValueTestAllowEmpty<3>(uniform_list_shape(kNumSamples, TensorShape<3>{10, 10, 3}));
 }
 
+TEST(ArgValue, TestInputBroadcastingTensorShape) {
+  OpSpec spec("ArgHelperTestOp");
+  ArgumentWorkspace ws;
+  auto arg_data = std::make_shared<TensorList<CPUBackend>>();
+  TensorListShape<0> input_shape;
+  input_shape.resize(10);
+  SetupData(*arg_data, input_shape);
+  ASSERT_EQ(arg_data->num_samples(), 10);
+  ws.AddArgumentInput("arg", arg_data);
+  spec.AddArgumentInput("arg", "arg");
+
+  ArgValue<float, 2> arg("arg", spec);
+  arg.Acquire(spec, ws, 10, TensorShape<2>{3, 4});
+  auto tlv = arg.get();
+  EXPECT_EQ(tlv.shape, uniform_list_shape<2>(10, {3, 4}));
+  auto input_view = view<const float, 0>(*arg_data);
+  for (int i = 0; i < 10; i++) {
+    auto sample = tlv[i];
+    EXPECT_EQ(sample.shape, (TensorShape<2>{3, 4}));
+    int64_t vol = volume(sample.shape);
+    for (int64_t j = 0; j < vol; j++) {
+      EXPECT_EQ(sample.data[j], *input_view.data[i]);
+    }
+  }
+}
+
+
+TEST(ArgValue, TestInputBroadcastingTensorShapeVol1) {
+  OpSpec spec("ArgHelperTestOp");
+  ArgumentWorkspace ws;
+  auto arg_data = std::make_shared<TensorList<CPUBackend>>();
+  TensorListShape<0> input_shape;
+  input_shape.resize(10);
+  SetupData(*arg_data, input_shape);
+  ASSERT_EQ(arg_data->num_samples(), 10);
+  ws.AddArgumentInput("arg", arg_data);
+  spec.AddArgumentInput("arg", "arg");
+
+  ArgValue<float, 3> arg("arg", spec);
+  arg.Acquire(spec, ws, 10, TensorShape<3>{1, 1, 1});
+  auto tlv = arg.get();
+  EXPECT_EQ(tlv.shape, uniform_list_shape<3>(10, {1, 1, 1}));
+  auto input_view = view<const float, 0>(*arg_data);
+  for (int i = 0; i < 10; i++) {
+    auto sample = tlv[i];
+    EXPECT_EQ(sample.data, input_view.data[i]) << " broadcasting wasn't needed.";
+  }
+}
+
+TEST(ArgValue, TestInputBroadcastingTensorListShape) {
+  OpSpec spec("ArgHelperTestOp");
+  ArgumentWorkspace ws;
+  auto arg_data = std::make_shared<TensorList<CPUBackend>>();
+  TensorListShape<0> input_shape;
+  input_shape.resize(3);
+  SetupData(*arg_data, input_shape);
+  ASSERT_EQ(arg_data->num_samples(), 3);
+  ws.AddArgumentInput("arg", arg_data);
+  spec.AddArgumentInput("arg", "arg");
+
+  ArgValue<float, 2> arg("arg", spec);
+  TensorListShape<2> expected_shape({
+    { 3, 4 },
+    { 0, 1 },
+    { 1, 1 },
+  });
+
+  arg.Acquire(spec, ws, 3, expected_shape);
+  auto tlv = arg.get();
+  EXPECT_EQ(tlv.shape, expected_shape);
+  auto input_view = view<const float, 0>(*arg_data);
+  for (int i = 0; i < 3; i++) {
+    auto sample = tlv[i];
+    EXPECT_EQ(sample.shape, expected_shape[i]);
+    int64_t vol = volume(sample.shape);
+    if (vol == 0) {  // 0 items - should be null
+      EXPECT_EQ(sample.data, nullptr);
+    } else if (vol == 1) {  // 1 item - no broadcasting, reuse source pointer
+      EXPECT_EQ(sample.data, input_view.data[i]);
+    } else {
+      for (int64_t j = 0; j < vol; j++) {  // >1 - broadcasting
+        EXPECT_EQ(sample.data[j], *input_view.data[i]);
+      }
+    }
+  }
+}
 
 }  // namespace dali

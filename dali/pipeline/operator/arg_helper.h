@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -148,9 +148,37 @@ class ArgValue {
                const TensorListShape<ndim> &expected_shape,
                ArgValueFlags flags = ArgValue_Default) {
     assert(!(flags & ArgValue_EnforceUniform) || is_uniform(expected_shape));
+    assert(expected_shape.num_samples() == nsamples);
     if (has_arg_input_) {
-      view_ = view<const T, ndim>(ws.ArgumentInput(arg_name_));
-      if (flags & ArgValue_AllowEmpty) {
+      auto &inp = ws.ArgumentInput(arg_name_);
+      if (inp.sample_dim() == 0 && ndim != 0) {
+        DALI_ENFORCE(inp.num_samples() == nsamples, make_string(
+          "Unexpected number of samples for argument \"", arg_name_, "\". Expected ", nsamples,
+          ", got ", inp.num_samples()));
+        auto tmp_view = view<const T, 0>(inp);
+
+        view_.resize(nsamples);
+        view_.shape = expected_shape;
+        broadcast_data_.resize(nsamples);
+        for (int i = 0; i < nsamples; i++) {
+          auto sample_shape = expected_shape.tensor_shape_span(i);
+          int64_t vol = volume(sample_shape);
+          switch (vol) {
+            case 0:
+              view_.data[i] = nullptr;
+              break;
+            case 1:
+              view_.data[i] = tmp_view.data[i];  // opportunistically just reuse the source
+              break;
+            default:
+              broadcast_data_[i].clear();
+              broadcast_data_[i].resize(vol, *tmp_view.data[i]);  // actually broadcast the value
+              view_.data[i] = broadcast_data_[i].data();
+              break;
+          }
+        }
+      } else if (flags & ArgValue_AllowEmpty) {
+        view_ = view<const T, ndim>(inp);
         for (int i = 0; i < nsamples; i++) {
           auto sh_span = view_.shape.tensor_shape_span(i);
           auto expected_sh_span = expected_shape.tensor_shape_span(i);
@@ -160,6 +188,7 @@ class ArgValue {
                           expected_shape, " or empty, but got ", view_.shape));
         }
       } else {
+        view_ = view<const T, ndim>(inp);
         DALI_ENFORCE(expected_shape == view_.shape,
           make_string("Unexpected shape for argument \"", arg_name_,
                       "\". Expected ", expected_shape, ", but got ", view_.shape));
@@ -206,21 +235,50 @@ class ArgValue {
                const TensorShape<ndim> &expected_shape,
                ArgValueFlags flags = ArgValue_Default) {
     if (has_arg_input_) {
-      view_ = view<const T, ndim>(ws.ArgumentInput(arg_name_));
-      span<const int64_t> expected_sh_span(&expected_shape[0], expected_shape.size());
-      if (flags & ArgValue_AllowEmpty) {
-        for (int i = 0; i < nsamples; i++) {
-          auto sh_span = view_.shape.tensor_shape_span(i);
-          DALI_ENFORCE(
-              volume(sh_span) == 0 || sh_span == expected_sh_span,
-              make_string("Unexpected shape for argument \"", arg_name_, "\". Expected ",
-                          expected_shape, " or empty, but got ", view_.shape));
+      auto &inp = ws.ArgumentInput(arg_name_);
+      if (inp.sample_dim() == 0 && ndim != 0) {
+        DALI_ENFORCE(inp.num_samples() == nsamples, make_string(
+          "Unexpected number of samples for argument \"", arg_name_, "\". Expected ", nsamples,
+          ", got ", inp.num_samples()));
+        auto tmp_view = view<const T, 0>(inp);
+        int64_t vol = volume(expected_shape);
+        broadcast_data_.resize(nsamples);
+        view_.resize(nsamples);
+        view_.shape = uniform_list_shape(nsamples, expected_shape);
+        switch (vol) {
+          case 0:
+            for (auto &ptr : view_.data)
+              ptr = nullptr;
+            break;
+          case 1:
+            view_.data = tmp_view.data;  // no need to broadcast, just reshape
+            break;
+          default:
+            for (int i = 0; i < nsamples; i++) {
+              broadcast_data_[i].clear();
+              broadcast_data_[i].resize(vol, *tmp_view.data[i]);
+              view_.data[i] = broadcast_data_[i].data();
+            }
+            break;
         }
+
       } else {
-        DALI_ENFORCE(
-            is_uniform(view_.shape) && expected_sh_span == view_.shape.tensor_shape_span(0),
-            make_string("Expected uniform shape for argument \"", arg_name_, "\" but got shape ",
-                        view_.shape));
+        view_ = view<const T, ndim>(inp);
+        span<const int64_t> expected_sh_span(&expected_shape[0], expected_shape.size());
+        if (flags & ArgValue_AllowEmpty) {
+          for (int i = 0; i < nsamples; i++) {
+            auto sh_span = view_.shape.tensor_shape_span(i);
+            DALI_ENFORCE(
+                volume(sh_span) == 0 || sh_span == expected_sh_span,
+                make_string("Unexpected shape for argument \"", arg_name_, "\". Expected ",
+                            expected_shape, " or empty, but got ", view_.shape));
+          }
+        } else {
+          DALI_ENFORCE(
+              is_uniform(view_.shape) && expected_sh_span == view_.shape.tensor_shape_span(0),
+              make_string("Expected uniform shape for argument \"", arg_name_, "\" but got shape ",
+                          view_.shape));
+        }
       }
     } else {
       if (!has_constant_value_)
@@ -349,7 +407,8 @@ class ArgValue {
 
   std::string arg_name_;
 
-  std::vector<T> data_;
+  std::vector<T> data_;  // stores scalar data
+  std::vector<std::vector<T>> broadcast_data_;  // storage for broadcasting data from inputs
   TLV view_;
 
   bool has_explicit_const_ = false;  // explicit constant
