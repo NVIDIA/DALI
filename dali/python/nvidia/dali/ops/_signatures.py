@@ -464,7 +464,7 @@ def _call_signature(
     allow_data_node_kwargs : bool, optional
         If tensor keyword arguments should accept DataNodes, by default True
     allow_batch_kwargs : bool, optional
-        Whethere keyword arguments should accept ndd.Batch, by default True
+        Whether keyword arguments should accept ndd.Batch, by default True
     all_args_optional : bool, optional
         Make all keyword arguments optional, even if they are not - needed by the ops API, where
         the argument can be specified in either __init__ or __call__, by default False
@@ -664,7 +664,7 @@ class {cls_name}:
 
 def _gen_dynamic_call_signature_no_input(schema: _b.OpSchema, **kwargs):
     """Generate function signatures for no-input dynamic mode ops. The overloads are:
-    - `(*, batch_size: None, **kwargs) -> tensor-like`:
+    - `(*, batch_size: None = None, **kwargs) -> tensor-like`:
       Calling a no-input parameter without specifying a batch size returns a single sample
     - `(*, batch_size: int, **kwargs) -> batch`
       Invocation with a batch size returns a batch.
@@ -692,7 +692,7 @@ def _gen_dynamic_call_signature_no_input(schema: _b.OpSchema, **kwargs):
 def _gen_dynamic_call_signature_with_inputs(schema: _b.OpSchema, **kwargs):
     """Generate function signatures for dynamic mode ops with one or more inputs.
     The overloads are:
-    - `(*tensor-like, /, batch_size: None = None, **kwargs) -> Tensor`:
+    - `(*tensor-like, /, *, batch_size: None = None, **kwargs) -> Tensor`:
         When the input is a tensor, it is possible that one or more arguments are batches,
         therefore producing a batch by broadcasting.
     - `(*tensor-like | batch, /, *, batch_size: int | None = None, **kwargs) -> Batch`:
