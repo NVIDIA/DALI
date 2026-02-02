@@ -271,7 +271,7 @@ def _get_positional_input_params(schema, input_annotation_gen=_get_annotation_in
                 Parameter(
                     _names._get_variadic_input_name(),
                     Parameter.VAR_POSITIONAL,
-                    annotation=Optional[input_annotation_gen(schema)],
+                    annotation=input_annotation_gen(schema),
                 )
             )
     return param_list
