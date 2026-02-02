@@ -28,7 +28,6 @@ from packaging.version import Version
 import httplib2
 import inspect
 import warnings
-import types_table
 
 # -- Project information -----------------------------------------------------
 
@@ -114,6 +113,8 @@ with mock(["torch", "numba"]):
     )
 
 # generate table of dynamic mode types
+sys.path.insert(0, os.path.abspath("./"))
+import types_table
 types_table.ndd_types_table(generated_dynamic_path / "types_table")
 
 # Uncomment to keep warnings in the output. Useful for verbose build and output debugging.

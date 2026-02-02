@@ -1,4 +1,5 @@
 import nvidia.dali.experimental.dynamic as ndd
+import re
 
 ndd_types = {
     name: getattr(ndd, name)
@@ -6,11 +7,23 @@ ndd_types = {
     if isinstance(getattr(ndd, name), ndd.DType)
 }
 
+def type_order(name):
+    """
+    Returns a tuple of (type group index, type size, type name) that determines the order
+    of the types in the table.
+    """
+    type_groups = ["int", "uint", "float", "bfloat", "bool"]
+    for i, group in enumerate(type_groups):
+        if m := re.match(f"^{group}(\d+)?$", name):
+            return (i, int(m.group(1)) if m.group(1) else 0, name)
+    return (len(type_groups), 0, name)
+
+ordered_ndd_types = sorted(ndd_types.keys(), key=type_order)
 
 def ndd_types_table(out_filename):
     table_contents = {
-        f"``nvidia.dali.experimental.dynamic.{name}``": t.__doc__.split("\n")
-        for name, t in ndd_types.items()
+        f"``nvidia.dali.experimental.dynamic.{name}``": (ndd_types[name].__doc__ or "").split("\n")
+        for name in ordered_ndd_types
     }
     name_max_len = max(len(name) for name in table_contents.keys())
     description_max_len = max(
@@ -20,8 +33,8 @@ def ndd_types_table(out_filename):
 
     def add_row(name, description, c=" "):
         nonlocal doc_table
-        formater = "{:{c}<{name_max_len}} {:{c}<{description_max_len}}\n"
-        doc_table += formater.format(
+        formatter = "{:{c}<{name_max_len}} {:{c}<{description_max_len}}\n"
+        doc_table += formatter.format(
             name,
             description,
             name_max_len=name_max_len,

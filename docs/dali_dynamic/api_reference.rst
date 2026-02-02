@@ -38,13 +38,13 @@ as_batch
 Data types
 ----------
 
-DType class
-^^^^^^^^^^^
+Those are the data type objects that DALI Dynamic uses to indicate the type of elements of Tensors and Batches. 
+They can typically be passed as `dtype` argument to request specific output type of the operator. 
+There are also several DALI-specific types, representing DALI enums.
 
-.. currentmodule:: nvidia.dali.experimental.dynamic
+All of the types below are instances of the :py:class:`DType` class.
 
-.. autoclass:: DType
-   :members:
+.. include:: operations/types_table
 
 Type conversion functions
 ^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -53,10 +53,13 @@ Type conversion functions
 
 .. autofunction:: type_id
 
-DALI Dynamic Mode data types
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+DType class
+^^^^^^^^^^^
 
-.. include:: operations/types_table
+.. currentmodule:: nvidia.dali.experimental.dynamic
+
+.. autoclass:: DType
+   :members:
 
 Execution context
 -----------------

@@ -23,6 +23,10 @@ _name2type = {}
 class DType:
     """
     DALI Dynamic Mode data type.
+
+    This class is used to represent the data type of a Tensor or Batch.
+    Data types such as ``uint32`` are instances of this class.
+    This class is not meant to be instantiated directly by the user.
     """
 
     class Kind(Enum):
@@ -83,7 +87,6 @@ class DType:
             self.exponent_bits = None
             self.significand_bits = None
         if name and docs:
-            self.name = name
             self.name, self.__doc__ = name, docs
         else:
             generated_name, generated_docs = DType._make_name_and_docs(
