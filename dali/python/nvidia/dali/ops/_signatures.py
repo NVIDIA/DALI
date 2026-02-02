@@ -21,7 +21,8 @@ import tokenize
 from contextlib import closing
 from inspect import Parameter, Signature, getdoc, getmodule, ismodule
 from pathlib import Path
-from typing import Any, List, Literal, Optional, Sequence, Union
+from types import NoneType
+from typing import Any, List, Literal, Optional, Sequence, Union, get_args
 
 from nvidia.dali import backend as _b
 from nvidia.dali import fn, ops, types
@@ -280,7 +281,8 @@ def _get_keyword_params(
     schema,
     api: Api,
     all_args_optional: bool,
-    data_node_tensors: bool,
+    data_node_kwargs: bool,
+    batch_kwargs: bool,
     include_kwarg_inputs: bool,
     include_only_inputs: bool,
 ):
@@ -308,11 +310,12 @@ def _get_keyword_params(
             continue
 
         if is_arg_input and include_kwarg_inputs:
-            annotation = (
-                Union[_DataNode, _TensorLikeArg, kw_annotation]
-                if data_node_tensors
-                else Union[_TensorLikeArg, _Batch, kw_annotation]
-            )
+            annotation_types = [_TensorLikeArg, kw_annotation]
+            if data_node_kwargs:
+                annotation_types.insert(0, _DataNode)
+            if batch_kwargs:
+                annotation_types.insert(0, _Batch)
+            annotation = Union[*annotation_types]
         else:
             annotation = kw_annotation
 
@@ -425,9 +428,10 @@ def _call_signature(
     include_only_inputs=False,
     include_kwargs=True,
     include_self=False,
-    include_batch_size=False,
+    batch_size_annotation=None,
     return_annotation=True,
-    data_node_kwargs=True,
+    allow_data_node_kwargs=True,
+    allow_batch_kwargs=True,
     all_args_optional=False,
     include_init_header=False,
     input_annotation_gen=_get_annotation_input_regular,
@@ -452,13 +456,15 @@ def _call_signature(
         If keyword arguments should be included in the signature, by default True
     include_self : bool, optional
         Prepend `self` as first positional argument in the signature, by default False
-    include_batch_size : bool, optional
-        Prepend `batch_size` as first keyword-only argument in the signature, by default False
+    batch_size_annotation : type, optional
+        Ignored if api != 'dynamic'. Annotation to use for the batch size, by default None
     return_annotation : bool, optional
         If the signature should have a return annotation or return None (for ops class __init__),
         by default True
-    data_node_kwargs : bool, optional
+    allow_data_node_kwargs : bool, optional
         If tensor keyword arguments should accept DataNodes, by default True
+    allow_batch_kwargs : bool, optional
+        Whethere keyword arguments should accept ndd.Batch, by default True
     all_args_optional : bool, optional
         Make all keyword arguments optional, even if they are not - needed by the ops API, where
         the argument can be specified in either __init__ or __call__, by default False
@@ -482,8 +488,19 @@ def _call_signature(
         include_init_header = include_init_header and api == "dynamic"
         param_list.extend(_get_implicit_extra_params(schema, api, include_init_header))
 
-    if include_batch_size:
-        param_list.append(Parameter(name="batch_size", kind=Parameter.KEYWORD_ONLY, annotation=int))
+    if api == "dynamic" and batch_size_annotation is not None:  # include batch_size argument
+        if batch_size_annotation is NoneType or None in get_args(batch_size_annotation):
+            default_batch_size = None
+        else:
+            default_batch_size = Parameter.empty
+        param_list.append(
+            Parameter(
+                name="batch_size",
+                kind=Parameter.KEYWORD_ONLY,
+                annotation=batch_size_annotation,
+                default=default_batch_size,
+            )
+        )
 
     if include_kwargs:
         param_list.extend(
@@ -491,7 +508,8 @@ def _call_signature(
                 schema,
                 api,
                 all_args_optional=all_args_optional,
-                data_node_tensors=data_node_kwargs,
+                data_node_kwargs=allow_data_node_kwargs,
+                batch_kwargs=allow_batch_kwargs,
                 include_kwarg_inputs=include_kwarg_inputs,
                 include_only_inputs=include_only_inputs,
             )
@@ -646,7 +664,7 @@ class {cls_name}:
 
 def _gen_dynamic_call_signature_no_input(schema: _b.OpSchema, **kwargs):
     """Generate function signatures for no-input dynamic mode ops. The overloads are:
-    - `(**kwargs) -> tensor-like`:
+    - `(*, batch_size: None, **kwargs) -> tensor-like`:
       Calling a no-input parameter without specifying a batch size returns a single sample
     - `(*, batch_size: int, **kwargs) -> batch`
       Invocation with a batch size returns a batch.
@@ -655,38 +673,37 @@ def _gen_dynamic_call_signature_no_input(schema: _b.OpSchema, **kwargs):
         _call_signature(
             schema,
             api="dynamic",
-            data_node_kwargs=False,
+            allow_data_node_kwargs=False,
+            batch_size_annotation=NoneType,
             return_annotation_gen=lambda _: _Tensor,
             **kwargs,
         ),
         _call_signature(
             schema,
             api="dynamic",
-            include_batch_size=True,
-            data_node_kwargs=False,
+            allow_data_node_kwargs=False,
+            batch_size_annotation=int,
             return_annotation_gen=lambda _: _Batch,
             **kwargs,
         ),
     )
 
 
-def _gen_dynamic_call_signature_single_input(schema: _b.OpSchema, **kwargs):
-    """Generate function signatures for single-input dynamic mode ops. The overloads are:
-    - `(tensor-like, /, **kwargs) -> Tensor | Batch`:
+def _gen_dynamic_call_signature_with_input(schema: _b.OpSchema, **kwargs):
+    """Generate function signatures for dynamic mode ops with one or more inputs.
+    The overloads are:
+    - `(*tensor-like, /, batch_size: None = None, **kwargs) -> Tensor | Batch`:
         When the input is a tensor, it is possible that one or more arguments are batches,
         therefore producing a batch by broadcasting.
-    - `(tensor-like, /, *, batch_size: int, **kwargs) -> Batch`:
-        If `batch_size` is specified, the output is always a batch.
-    - `(batch, /, **kwargs) -> Batch`:
-        If the input is a batch, if the `batch_size` argument is set to an integer,
-        it either matches and has no effect, or doesn't and causes a runtime error.
-        It is therefore ommitted from this overload.
+    - `(*tensor-like | batch, /, *, batch_size: int | None = None, **kwargs) -> Batch`:
+        If the input is a batch or `batch_size` is specified, the output is always a batch.
     """
     yield from (
         _call_signature(
             schema,
             api="dynamic",
-            data_node_kwargs=False,
+            allow_data_node_kwargs=False,
+            batch_size_annotation=NoneType,
             input_annotation_gen=lambda _: _TensorLike,
             return_annotation_gen=lambda _: Union[_Tensor, _Batch],
             **kwargs,
@@ -694,50 +711,8 @@ def _gen_dynamic_call_signature_single_input(schema: _b.OpSchema, **kwargs):
         _call_signature(
             schema,
             api="dynamic",
-            data_node_kwargs=False,
-            include_batch_size=True,
-            input_annotation_gen=lambda _: _TensorLike,
-            return_annotation_gen=lambda _: _Batch,
-            **kwargs,
-        ),
-        _call_signature(
-            schema,
-            api="dynamic",
-            data_node_kwargs=False,
-            input_annotation_gen=lambda _: _Batch,
-            return_annotation_gen=lambda _: _Batch,
-            **kwargs,
-        ),
-    )
-
-
-def _gen_dynamic_call_signature_multiple_inputs(schema: _b.OpSchema, **kwargs):
-    """Generate function signatures for single-input dynamic mode ops. The logic is similar to
-    ``_gen_dynamic_call_signature_single_input`` but functions accept ``TensorLike | Batch``
-    instead of ``TensorLike``. Since ``Batch`` <: ``TensorLike | Batch``, signatures are reordered.
-    """
-    yield from (
-        _call_signature(
-            schema,
-            api="dynamic",
-            data_node_kwargs=False,
-            input_annotation_gen=lambda _: _Batch,
-            return_annotation_gen=lambda _: _Batch,
-            **kwargs,
-        ),
-        _call_signature(
-            schema,
-            api="dynamic",
-            data_node_kwargs=False,
-            input_annotation_gen=lambda _: Union[_TensorLike, _Batch],
-            return_annotation_gen=lambda _: Union[_Tensor, _Batch],
-            **kwargs,
-        ),
-        _call_signature(
-            schema,
-            api="dynamic",
-            data_node_kwargs=False,
-            include_batch_size=True,
+            allow_data_node_kwargs=False,
+            batch_size_annotation=Optional[int],
             input_annotation_gen=lambda _: Union[_TensorLike, _Batch],
             return_annotation_gen=lambda _: _Batch,
             **kwargs,
@@ -754,10 +729,8 @@ def _gen_dynamic_call_signature(schema: _b.OpSchema, **kwargs):
     num_inputs = schema.MaxNumInput()
     if num_inputs == 0:
         generator = _gen_dynamic_call_signature_no_input
-    elif num_inputs == 1:
-        generator = _gen_dynamic_call_signature_single_input
     else:
-        generator = _gen_dynamic_call_signature_multiple_inputs
+        generator = _gen_dynamic_call_signature_with_input
 
     yield from generator(schema, **kwargs)
 
