@@ -35,9 +35,9 @@ NVIDIA DALI Documentation
 
 .. toctree::
    :hidden:
-   :caption: Python API Documentation
+   :caption: Pipeline API Documentation
 
-   dali_dynamic/index
+   pipeline_api_overview
    pipeline
    data_types
    math
@@ -46,6 +46,15 @@ NVIDIA DALI Documentation
    auto_aug/auto_aug
    supported_ops_legacy
    framework_plugins
+
+.. toctree::
+   :hidden:
+   :caption: DALI Dynamic API Documentation
+
+   dali_dynamic/overview
+   dali_dynamic/api_reference
+   dali_dynamic/readers_reference
+   dali_dynamic/ops_reference
 
 .. toctree::
    :hidden:

@@ -1,7 +1,7 @@
 .. _pipeline:
 
-Pipeline
-========
+Pipeline and processing graph
+============================
 
 .. currentmodule:: nvidia.dali
 

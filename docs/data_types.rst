@@ -1,5 +1,7 @@
-Types
-=====
+.. _pipeline_types:
+
+Types in DALI Pipeline API
+==========================
 
 .. _TensorList:
 
