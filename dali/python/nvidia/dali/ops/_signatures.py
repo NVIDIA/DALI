@@ -754,7 +754,7 @@ def _try_extend_reader_signature(schema: _b.OpSchema, op_name: str):
         if op_name == "TFRecord":
             return f"dict[str, {type_name}]"
 
-        return f"Iterable[tuple[{type_name}, ...]]"
+        return f"tuple[{type_name}, ...]"
 
     doc = getdoc(op)
     return f"""
