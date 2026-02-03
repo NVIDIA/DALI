@@ -392,12 +392,20 @@ def _raw_cuda_stream(stream_obj):
         return None
     elif isinstance(stream_obj, backend_impl.Stream):
         return stream_obj.handle
-    elif hasattr(stream_obj, "cuda_stream"):  # torch
-        return stream_obj.cuda_stream
-    elif hasattr(stream_obj, "ptr"):  # cupy
-        return stream_obj.ptr
-    else:
+    elif x := getattr(stream_obj, "__cuda_stream__", None):  # __cuda_stream__ protocol
+        return x()[1]
+    elif (x := getattr(stream_obj, "cuda_stream", None)) is not None:  # torch
+        return x
+    elif isinstance(stream_obj, int):
         return stream_obj
+    elif (x := getattr(stream_obj, "ptr", None)) is not None:  # cupy
+        return stream_obj.ptr
+    elif isinstance(stream_obj, ctypes.c_void_p):
+        return stream_obj.value
+    elif (x := getattr(stream_obj, "handle", None)) is not None:
+        return x
+    else:
+        raise TypeError(f"Cannot interpret the object {stream_obj} as a CUDA stream.")
 
 
 def _get_default_stream_for_array(array):

@@ -78,6 +78,10 @@ def set_num_threads(n):
     Setting None will cause the default value to be used.
 
     The value must be a positive integer and must not exceed 100 threads per CPU.
+
+    .. warning::
+        This function should be called once, at the beginning of the program.
+        Changing this value later is very costly and should be avoided.
     """
     global _global_num_threads
     if n is None:
@@ -109,12 +113,14 @@ class EvalContext:
     - thread pool
     - cuda stream.
 
-    EvalContext is a context manager.
+    ``EvalContext`` is a context manager.
     """
+
+    _default_context_stream_sentinel = object()
 
     def __init__(self, *, num_threads=None, device_id=None, cuda_stream=None):
         """
-        Constructs an EvalContext object.
+        Constructs an ``EvalContext`` object.
 
         Keyword Args
         ------------
@@ -123,12 +129,29 @@ class EvalContext:
         device_id : int, optional
             The ordinal of the GPU associated with the context. If not specified, the current CUDA
             device will be used.
-        cuda_stream : dali.backend.Stream, __cuda_stream__ interface or raw stream handle, optional
-            The cuda_stream on which GPU operators will be executed. If not provided, a new stream
-            will be created.
+        cuda_stream : stream object, optional
+            The cuda_stream on which GPU operators will be executed. If not provided, the value is
+            assigned by trying several options, in this order:
+            - the thread's default stream, set by calling :meth:`set_current_stream`
+            - the default stream set by calling :meth:`set_default_stream`
+            - a new stream, if neither of the above was set.
+            Compatible streams include:
+            - DALI :class:`Stream` class
+            - any object exposing ``__cuda_stream__`` interface
+            - raw CUDA stream handle
+            - PyTorch stream
+            see :class:`Stream` for details.
         """
         self._invocations = []
-        self._cuda_stream = cuda_stream
+        if cuda_stream is EvalContext._default_context_stream_sentinel:
+            self._cuda_stream = None
+        else:
+            self._cuda_stream = (
+                _stream.stream(stream=cuda_stream, device_id=device_id)
+                if cuda_stream is not None
+                else _stream.get_current_stream()
+            )
+
         self._default_stream = None
         if device_id is not None:
             self._device = _device.Device("gpu", device_id)
@@ -193,14 +216,14 @@ class EvalContext:
     @property
     def device_id(self):
         """
-        CUDA device ordinal of the device associated with this EvalContext.
+        CUDA device ordinal of the device associated with this ``EvalContext``.
         """
         return self._device.device_id
 
     @property
     def num_threads(self):
         """
-        The number of thread pool workers in this EvalContext.
+        The number of thread pool workers in this ``EvalContext``.
 
         If the value was not specified at construction, :meth:`get_num_threads` is used.
         """
@@ -209,13 +232,17 @@ class EvalContext:
     @property
     def cuda_stream(self):
         """
-        CUDA stream for this EvalContext
+        CUDA stream for this ``EvalContext``
+
+        .. note::
+            In case of the thread's default context, this value is affected by calls to methods
+            :meth:`set_default_stream` and :meth:`set_current_stream`.
         """
         if self._cuda_stream is None:
-            s = _stream.get_stream(self.device_id)
+            s = _stream.get_default_stream(self.device_id)
             if s is None and self._device.device_type == "gpu":
                 if self._default_stream is None:
-                    self._default_stream = _b.Stream(self._device.device_id)
+                    self._default_stream = _stream.stream(device_id=self._device.device_id)
                 s = self._default_stream
             else:
                 self._default_stream = None
@@ -225,9 +252,15 @@ class EvalContext:
 
     @staticmethod
     def default() -> "EvalContext":
+        """
+        The default ``EvalContext`` for the calling thread.
+        """
         current_device_id = _device.Device.default_device_id("gpu")
         if current_device_id not in _tls.default:
-            _tls.default[current_device_id] = EvalContext(device_id=current_device_id)
+            _tls.default[current_device_id] = EvalContext(
+                device_id=current_device_id,
+                cuda_stream=EvalContext._default_context_stream_sentinel,
+            )
         return _tls.default[current_device_id]
 
     def cached_results(self, invocation):

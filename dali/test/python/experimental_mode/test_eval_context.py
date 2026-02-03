@@ -54,7 +54,7 @@ def test_eval_context_context_manager():
 def test_eval_context_explicit_stream():
     with ndd.EvalContext.current() as ctx:
         s = ctx.cuda_stream
-        s2 = _backend.Stream(0)
+        s2 = ndd.stream()
         with ndd.EvalContext(cuda_stream=s2) as ctx2:
             assert ndd.EvalContext.current() is ctx2
             assert ndd.EvalContext.current().cuda_stream is s2
@@ -255,25 +255,25 @@ def test_get_set_num_threads():
 
 
 def test_default_stream():
-    ndd.set_stream(None)
+    ndd.set_default_stream(None)
     try:
         s1 = ndd.EvalContext.current().cuda_stream
         s2 = ndd.EvalContext.current().cuda_stream
         assert s1 is s2
-        s = ndd.Stream(0)
+        s = ndd.stream()
         assert s is not s1
-        ndd.set_stream(s)
-        assert ndd.get_stream() is s
+        ndd.set_default_stream(s)
+        assert ndd.get_default_stream() is s
         s3 = ndd.EvalContext.current().cuda_stream
         assert s3 is s
 
-        ndd.set_stream(None)
+        ndd.set_default_stream(None)
         s4 = ndd.EvalContext.current().cuda_stream
         assert s4 is not s3
         s5 = ndd.EvalContext.current().cuda_stream
         assert s5 is s4
     finally:
-        ndd.set_stream(None)
+        ndd.set_default_stream(None)
 
 
 def _ctx_test_op(check_func):
@@ -300,18 +300,18 @@ def test_global_param_change_delay():
     try:
         with ndd.EvalMode.deferred:
             expected_num_threads = 8
-            s0 = ndd.Stream(0)
-            s1 = ndd.Stream(0)
+            s0 = ndd.stream()
+            s1 = ndd.stream()
             expected_stream = s0
             ndd.set_num_threads(expected_num_threads)
-            ndd.set_stream(expected_stream)
+            ndd.set_default_stream(expected_stream)
 
             op = _ctx_test_op(check)
             data = ndd.tensor(np.zeros((480, 640, 3), dtype=np.int8))
 
             t = op(data)  # this should use s0 and 8...
             ndd.set_num_threads(42)
-            ndd.set_stream(s1)
+            ndd.set_default_stream(s1)
             assert calls == 0  # even though it wasn't evaluated before the global values changed
 
             t.evaluate()  # evaluate now and...
@@ -322,13 +322,13 @@ def test_global_param_change_delay():
 
             t = op(data)  # this should use s1 and 42...
             ndd.set_num_threads(None)
-            ndd.set_stream(None)
+            ndd.set_default_stream(None)
             assert calls == 1
             t.evaluate()
             assert calls == 2  # make sure the test function ran again
     finally:
         ndd.set_num_threads(None)
-        ndd.set_stream(None)
+        ndd.set_default_stream(None)
 
 
 @attr("pytorch")
@@ -339,7 +339,7 @@ def test_use_torch_stream():
         s = torch.cuda.Stream()
         with torch.cuda.stream(s):
             t = torch.arange(100000, dtype=torch.int32, device="cuda")
-            ndd.set_stream(s)
+            ndd.set_default_stream(s)
             tensor = ndd.as_tensor(t).evaluate()
             x = tensor + 1
             cmp = x.cpu().evaluate()
@@ -347,4 +347,33 @@ def test_use_torch_stream():
 
     finally:
         ndd.set_num_threads(None)
-        ndd.set_stream(None)
+        ndd.set_default_stream(None)
+
+
+def test_non_default_ctx_stream():
+    try:
+        ctx0 = ndd.EvalContext()
+        s1 = ndd.stream()
+        ndd.set_default_stream(s1)
+        assert ctx0.cuda_stream != s1
+        assert ndd.get_default_stream() == s1
+        assert ndd.get_current_stream() == s1
+        assert ndd.EvalContext.default().cuda_stream == s1
+        ctx1 = ndd.EvalContext()
+        assert ctx1.cuda_stream == s1
+        s2 = ndd.stream()
+        ndd.set_current_stream(s2)
+        ctx2 = ndd.EvalContext()
+        assert ndd.get_current_stream() == s2
+        assert ndd.EvalContext.default().cuda_stream == s2
+        assert ctx2.cuda_stream == s2
+        assert ctx1.cuda_stream == s1
+
+        ndd.set_current_stream(None)
+        assert ndd.get_current_stream() == s1
+        assert ndd.EvalContext.default().cuda_stream == s1
+        assert ctx2.cuda_stream == s2
+        assert ctx1.cuda_stream == s1
+    finally:
+        ndd.set_default_stream(None)
+        ndd.set_current_stream(None)
