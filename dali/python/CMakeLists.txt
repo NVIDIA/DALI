@@ -41,8 +41,10 @@ endif (PREBUILD_DALI_LIBS)
 
 if (DALI_BUILD_FLAVOR)
   set(DALI_FLAVOR "${DALI_BUILD_FLAVOR} ")
-  set(DALI_FLAVOR_MINUS "-${DALI_BUILD_FLAVOR}")
-  set(DALI_VERSION "${DALI_VERSION}.${TIMESTAMP}")
+  if(NOT "${DALI_VERSION}" MATCHES "dev")
+    message(FATAL_ERROR "Development build must have 'dev' in DALI_VERSION (current value: ${DALI_VERSION})")
+  endif()
+  set(DALI_VERSION "${DALI_VERSION}${TIMESTAMP}")
 endif()
 
 # Add the COPYRIGHT, LICENSE, and Acknowledgements

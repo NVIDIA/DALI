@@ -130,13 +130,45 @@ pip - Nightly and Weekly Releases
 
 .. note::
 
-  It is recommended to uninstall regular DALI and TensorFlow plugin before installing nightly or weekly
-  builds as they are installed in the same path
+  **New distribution method (starting from version 1.53):** Nightly and weekly builds now use the same
+  package names as stable releases (e.g., ``nvidia-dali-cuda120``, ``nvidia-dali-cuda130``) but are
+  differentiated by a ``.dev{TIMESTAMP}`` suffix in the version number. To install development builds,
+  you need to specify ``--pre`` flag to allow pre-release versions and use the appropriate index URL
+  for the nightly or weekly channel.
 
 Nightly Builds
 ^^^^^^^^^^^^^^
 
-To access most recent nightly builds please use flowing release channel:
+Nightly builds could be published every weekday (with timestamps from Monday to Friday),
+while weekly builds, which undergo more extensive testing, are released on weekends
+(with timestamps from Saturday and Sunday). To access the latest nightly or weekly builds, use
+the following release channel:
+
+* for CUDA 12.0:
+
+.. code-block:: bash
+
+  pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/nightly --upgrade --pre nvidia-dali-cuda120
+  pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/nightly --upgrade --pre nvidia-dali-tf-plugin-cuda120 --no-build-isolation
+
+* for CUDA 13.0:
+
+.. code-block:: bash
+
+  pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/nightly --upgrade --pre nvidia-dali-cuda130
+  pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/nightly --upgrade --pre nvidia-dali-tf-plugin-cuda130 --no-build-isolation
+
+Nightly and Weekly Builds - Legacy Distribution (pre-1.53)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. note::
+
+  **Legacy distribution method:** Prior to version 1.53, nightly and weekly builds used different package
+  names with flavor suffixes (e.g., ``nvidia-dali-nightly-cuda120``, ``nvidia-dali-weekly-cuda130``).
+  This method is deprecated but may still be available for older versions. If you have these legacy
+  packages installed, it is recommended to uninstall them before installing the new unified packages.
+
+Legacy Nightly Builds:
 
 * for CUDA 12.0:
 
@@ -152,12 +184,7 @@ To access most recent nightly builds please use flowing release channel:
   pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/nightly --upgrade nvidia-dali-nightly-cuda130
   pip install --extra-index-url https://developer.download.nvidia.com/compute/redist/nightly --upgrade nvidia-dali-tf-plugin-nightly-cuda130 --no-build-isolation
 
-
-Weekly Builds
-^^^^^^^^^^^^^
-
-Also, there is a weekly release channel with more thorough testing. To access most recent weekly
-builds please use the following release channel (available only for CUDA 13):
+Legacy Weekly Builds (available only for CUDA 13):
 
 .. code-block:: bash
 
