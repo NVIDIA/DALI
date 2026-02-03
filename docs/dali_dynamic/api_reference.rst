@@ -59,7 +59,7 @@ DType class
 .. currentmodule:: nvidia.dali.experimental.dynamic
 
 .. autoclass:: DType
-   :members:
+   :members: bits, bytes, exponent_bits, kind, name, significand_bits, type_id, from_fw_type, from_type_id, parse, Kind
 
 Execution context
 -----------------
