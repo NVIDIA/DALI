@@ -26,7 +26,7 @@ The :ref:`Pipeline class <pipeline_class>`, with the associated :ref:`data types
 operations in :ref:`nvidia.dali.fn <operation reference>` and :ref:`nvidia.dali.math <mathematical expressions>`
 modules are collectively called the **DALI Pipeline API** to distinguish it from the **DALI Dynamic API**.
 
-:ref:`DALI Dynamic API <dali_dynamic>` allows you to run its operators in an imperative manner without
+:ref:`DALI Dynamic API <dynamic_api_overview>` allows you to run its operators in an imperative manner without
 the necessity of defining the data processing graph upfront, at the cost of small performance overhead.
 
 

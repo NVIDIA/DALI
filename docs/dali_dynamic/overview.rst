@@ -1,6 +1,6 @@
-.. _dali_dynamic:
-DALI Dynamic
-============
+.. _dynamic_api_overview:
+Dynamic API Overview
+====================
 
 .. warning::
    DALI Dynamic is an experimental feature and is subject to change.
@@ -44,8 +44,8 @@ to improve performance.
    flip_horizontal = True
    flip_vertical = False
    dataset = ndd.readers.File(file_root=images_dir)
-   for batch in dataset.next_epoch(batch_size=16):
-       img = ndd.decoders.image(batch, device="mixed")
+   for jpegs, labels in dataset.next_epoch(batch_size=16):
+       img = ndd.decoders.image(jpegs, device="mixed")
        flipped = ndd.flip(img, horizontal=flip_horizontal, vertical=flip_vertical)
        model((flipped, img))
 

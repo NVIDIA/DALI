@@ -49,7 +49,7 @@ NVIDIA DALI Documentation
 
 .. toctree::
    :hidden:
-   :caption: DALI Dynamic API Documentation
+   :caption: Dynamic API Documentation
 
    dali_dynamic/overview
    dali_dynamic/api_reference
