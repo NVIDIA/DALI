@@ -172,13 +172,13 @@ class DType:
         return self.name
 
     def __repr__(self):
-        repr = f"DType(kind={self.kind}, bits={self.bits}"
+        repr_str = f"DType(kind={self.kind}, bits={self.bits}"
         if self.exponent_bits is not None:
-            repr += f", exponent_bits={self.exponent_bits}"
+            repr_str += f", exponent_bits={self.exponent_bits}"
         if self.significand_bits is not None:
-            repr += f", significand_bits={self.significand_bits}"
-        repr += ")"
-        return repr
+            repr_str += f", significand_bits={self.significand_bits}"
+        repr_str += ")"
+        return repr_str
 
     def __eq__(self, other):
         if not (
