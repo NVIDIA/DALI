@@ -17,6 +17,7 @@ import nvidia.dali.fn as fn
 import nvidia.dali.experimental.dynamic as ndd
 import os
 from nose2.tools import params
+import numpy as np
 from nvidia.dali.pipeline import pipeline_def
 import test_utils
 from ndd_vs_fn_test_utils import (
@@ -31,8 +32,8 @@ from ndd_vs_fn_test_utils import (
 )
 
 
-def test_audio_decoders():
-    device = "cpu"
+@params("cpu")
+def test_audio_decoders(device):
     audio_path = os.path.join(test_utils.get_dali_extra_path(), "db", "audio")
     data = generate_decoders_data(audio_path, ".wav")
 
@@ -82,3 +83,28 @@ def test_image_decoders(device, fn_operator, ndd_operator, operator_args):
         pipe_out = pipe.run()
         ndd_out = ndd_operator(ndd.as_batch(inp, device="cpu"), device=device, **operator_args)
         assert compare(pipe_out, ndd_out)
+
+
+@params("cpu")
+def test_video_decoder(device):
+    batch_size = 1
+    n_iterations = 3
+    video_path = os.path.join(test_utils.get_dali_extra_path(), "db", "video", "cfr", "test_1.mp4")
+    data = np.array([np.fromfile(video_path, dtype=np.uint8)] * batch_size)
+    data = np.array([data] * n_iterations)
+
+    run_operator_test(
+        input_epoch=data,
+        fn_operator=fn.decoders.video,
+        ndd_operator=ndd.decoders.video,
+        device=device,
+    )
+
+
+tested_operators = [
+    "decoders.image",
+    "decoders.image_crop",
+    "peek_image_shape",
+    "decoders.audio",
+    "devocers.video",
+]

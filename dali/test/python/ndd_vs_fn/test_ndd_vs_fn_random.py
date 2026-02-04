@@ -274,3 +274,21 @@ def test_random_object_bbox():
         device=device,
         random=True,
     )
+
+
+tested_operators = [
+    "random.choice",
+    "random.normal",
+    "random.beta",
+    "random.coin_flip",
+    "random.uniform",
+    "jitter",
+    "noise.gaussian",
+    "noise.shot",
+    "noise.salt_and_pepper",
+    "segmentation.random_mask_pixel",
+    "roi_random_crop",
+    "random_bbox_crop",
+    "random_crop_generator",
+    "segmentation.random_object_bbox",
+]

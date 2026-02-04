@@ -45,3 +45,13 @@ def test_operators_with_array_1d_input(device, fn_operator, ndd_operator, operat
         device=device,
         operator_args=operator_args,
     )
+
+
+tested_operators = [
+    "power_spectrum",
+    "preemphasis_filter",
+    "spectrogram",
+    "to_decibels",
+    "audio_resample",
+    "one_hot",
+]

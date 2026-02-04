@@ -65,3 +65,15 @@ def test_no_input_operators(device, fn_operator, ndd_operator, operator_args):
         pipe_out = pipe.run()
         ndd_out = ndd_operator(device=device, batch_size=inp.shape[0], **operator_args)
         assert compare_no_input(pipe_out, ndd_out)
+
+
+tested_operators = [
+    "constant",
+    "transforms.translation",
+    "transforms.scale",
+    "transforms.rotation",
+    "transforms.shear",
+    "transforms.crop",
+    "zeros",
+    "ones",
+]

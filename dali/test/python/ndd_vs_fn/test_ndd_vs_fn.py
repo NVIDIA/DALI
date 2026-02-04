@@ -54,6 +54,32 @@ To add a new operator test:
 3. The test will automatically be generated and run
 """
 
+tested_operators = [
+    "expand_dims",
+    "squeeze",
+    "box_encoder",
+    "experimental.remap",
+    "bb_flip",
+    "coord_flip",
+    "lookup_table",
+    "reductions.mean",
+    "reductions.std_dev",
+    "reductions.variance",
+    "sequence_rearrange",
+    "element_extract",
+    "nonsilent_region",
+    "spectrogram",
+    "mel_filter_bank",
+    "to_decibels",
+    "mfcc",
+    "segmentation.select_masks",
+    "optical_flow",
+    "debayer",
+    "filter",
+    "cast_like",
+    "full_like",
+]
+
 
 @params("cpu", "gpu")
 def test_squeeze_op(device):
@@ -342,26 +368,6 @@ def test_optical_flow(device):
     )
 
 
-# def test_tensor_subscript(): # No impl - ndd has different syntax
-# def test_subscript_dim_check():  # No impl - ndd has different syntax
-
-
-def test_video_decoder():
-    device = "cpu"
-    batch_size = 1
-    n_iterations = 3
-    video_path = os.path.join(test_utils.get_dali_extra_path(), "db", "video", "cfr", "test_1.mp4")
-    data = np.array([np.fromfile(video_path, dtype=np.uint8)] * batch_size)
-    data = np.array([data] * n_iterations)
-
-    run_operator_test(
-        input_epoch=data,
-        fn_operator=fn.decoders.video,
-        ndd_operator=ndd.decoders.video,
-        device=device,
-    )
-
-
 # @test_utils.has_operator("decoders.inflate")
 # @test_utils.restrict_platform(min_compute_cap=6.0)
 # def test_inflate():
@@ -598,148 +604,3 @@ def test_full_like(device):
 #         pipe_out = pipe.run()
 #         ndd_out = ndd.io.file.read(ndd.as_batch(inp, device=device))
 #         assert compare(pipe_out, ndd_out)
-
-
-# def test_random_resized_crop():
-#     device = "cpu"
-#     batch_size = 4
-#     data = np.random.randint(0, 256, size=(7, batch_size, 11, 5, 3), dtype=np.uint8)
-#     fn_rng, ndd_rng = create_rngs()
-
-#     @pipeline_def(
-#         batch_size=batch_size,
-#         device_id=0,
-#         num_threads=ndd.get_num_threads(),
-#         prefetch_queue_depth=1,
-#     )
-#     def pipeline():
-#         (rrc_state,) = fn.external_source(
-#             source=random_state_source_factory(fn_rng, batch_size, 1), num_outputs=1
-#         )
-#         images = fn.external_source(name="INPUT0", device=device, layout="HWC")
-#         # out = fn.resize(images, size=(3, 3))
-#         out = fn.random_resized_crop(images, size=(3, 3), _random_state=rrc_state)
-#         return out
-
-#     pipe = pipeline()
-#     pipe.build()
-#     for inp in data:
-#         pipe.feed_input("INPUT0", inp)
-#         pipe_out = pipe.run()
-#         # ndd_out = ndd.resize(ndd.as_batch(inp, device=device, layout="HWC"), size=(3, 3))
-#         ndd_out = ndd.random_resized_crop(
-#             ndd.as_batch(inp, device=device, layout="HWC"), size=(3, 3), rng=ndd_rng
-#         )
-#         print("Pipeline output:", pipe_out[0].as_array())
-#         print("ndd output:", to_numpy(ndd_out))
-#         assert compare(pipe_out, ndd_out)
-
-
-# tested_methods = [
-#     "audio_resample",
-#     "brightness",
-#     "brightness_contrast",
-#     "cast",
-#     "clahe",
-#     "color_space_conversion",
-#     "color_twist",
-#     "constant",
-#     "contrast",
-#     "coord_transform",
-#     "copy",
-#     "crop",
-#     "crop_mirror_normalize",
-#     "dump_image",
-#     "equalize",
-#     "erase",
-#     "experimental.dilate",
-#     "experimental.erode",
-#     "experimental.median_blur",
-#     "experimental.resize",
-#     "experimental.warp_perspective",
-#     "flip",
-#     "gaussian_blur",
-#     "get_property",
-#     "grid_mask",
-#     "hsv",
-#     "hue",
-#     "jpeg_compression_distortion",
-#     "laplacian",
-#     "multi_paste",
-#     "normalize",
-#     "one_hot",
-#     "ones",
-#     "ones_like",
-#     "pad",
-#     "paste",
-#     "per_frame",
-#     "power_spectrum",
-#     "preemphasis_filter",
-#     "reductions.max",
-#     "reductions.mean",
-#     "reductions.mean_square",
-#     "reductions.min",
-#     "reductions.rms",
-#     "reductions.sum",
-#     "reshape",
-#     "resize",
-#     "resize_crop_mirror",
-#     "rotate",
-#     "saturation",
-#     "spectrogram",
-#     "sphere",
-#     "tensor_resize",
-#     "to_decibels",
-#     "transforms.crop",
-#     "transforms.rotation",
-#     "transforms.scale",
-#     "transforms.shear",
-#     "transforms.translation",
-#     "transpose",
-#     "water",
-#     "zeros",
-#     "zeros_like",
-# ]
-# excluded_methods = [
-#     "hidden.*",
-#     "experimental.hidden.*",
-#     "_conditional.hidden.*",
-#     "multi_paste",  # ToDo - crashes
-#     "readers.coco",  # Readers are not part of ndd at the moment.
-#     "readers.sequence",  # Readers are not part of ndd at the moment.
-#     "readers.numpy",  # Readers are not part of ndd at the moment.
-#     "readers.file",  # Readers are not part of ndd at the moment.
-#     "readers.caffe",  # Readers are not part of ndd at the moment.
-#     "readers.caffe2",  # Readers are not part of ndd at the moment.
-#     "readers.mxnet",  # Readers are not part of ndd at the moment.
-#     "readers.tfrecord",  # Readers are not part of ndd at the moment.
-#     "readers.nemo_asr",  # Readers are not part of ndd at the moment.
-#     "readers.video",  # Readers are not part of ndd at the moment.
-#     "readers.video_resize",  # Readers are not part of ndd at the moment.
-#     "readers.webdataset",  # Readers are not part of ndd at the moment.
-#     "experimental.inputs.video",  # Input batch_size of inputs.video is always 1 and output
-#     # batch_size varies and is tested in this operator's test.
-#     "experimental.readers.video",  # Readers are not part of ndd at the moment.
-#     "experimental.audio_resample",  # Alias of audio_resample (already tested)
-#     "experimental.readers.fits",  # Readers are not part of ndd at the moment.
-#     "plugin.video.decoder",  # plugin not yet tested
-# ]
-
-
-# def test_coverage():
-#     methods = test_utils.module_functions(
-#         ndd, remove_prefix="nvidia.dali.experimental.ndd", allowed_private_modules=["_conditional"]
-#     )
-#     # methods += test_utils.module_functions(dmath, remove_prefix="nvidia.dali")
-#     exclude = "|".join(
-#         [
-#             "(^" + x.replace(".", "\\.").replace("*", ".*").replace("?", ".") + "$)"
-#             for x in excluded_methods
-#         ]
-#     )
-#     exclude = re.compile(exclude)
-#     methods = [x for x in methods if not exclude.match(x)]
-#     # we are fine with covering more we can easily list, like numba
-#     assert set(methods).difference(set(tested_methods)) == set(), "Test doesn't cover:\n {}".format(
-#         set(methods) - set(tested_methods)
-#     )

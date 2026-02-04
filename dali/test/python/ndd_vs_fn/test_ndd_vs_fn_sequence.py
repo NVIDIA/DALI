@@ -67,3 +67,18 @@ def test_sequence_operators(device, fn_operator, ndd_operator, operator_args):
         operator_args=operator_args,
         input_layout="FHWC",
     )
+
+
+tested_operators = [
+    "cast",
+    "copy",
+    "crop",
+    "crop_mirror_normalize",
+    "erase",
+    "flip",
+    "gaussian_blur",
+    "normalize",
+    "per_frame",
+    "resize",
+    "reinterpret",
+]
