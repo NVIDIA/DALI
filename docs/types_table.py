@@ -7,6 +7,7 @@ ndd_types = {
     if isinstance(getattr(ndd, name), ndd.DType)
 }
 
+
 def type_order(name):
     """
     Returns a tuple of (type group index, type size, type name) that determines the order
@@ -14,15 +15,19 @@ def type_order(name):
     """
     type_groups = ["int", "uint", "float", "bfloat", "bool"]
     for i, group in enumerate(type_groups):
-        if m := re.match(f"^{group}(\d+)?$", name):
+        if m := re.match(rf"^{group}(\d+)?$", name):
             return (i, int(m.group(1)) if m.group(1) else 0, name)
     return (len(type_groups), 0, name)
 
+
 ordered_ndd_types = sorted(ndd_types.keys(), key=type_order)
+
 
 def ndd_types_table(out_filename):
     table_contents = {
-        f"``nvidia.dali.experimental.dynamic.{name}``": (ndd_types[name].__doc__ or "").split("\n")
+        f"``nvidia.dali.experimental.dynamic.{name}``": (
+            ndd_types[name].__doc__ or ""
+        ).split("\n")
         for name in ordered_ndd_types
     }
     name_max_len = max(len(name) for name in table_contents.keys())

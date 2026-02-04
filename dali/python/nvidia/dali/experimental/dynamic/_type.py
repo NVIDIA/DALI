@@ -26,7 +26,7 @@ class DType:
 
     This class is used to represent the data type of a Tensor or Batch.
     Data types such as ``uint32`` are instances of this class.
-    
+
     .. note::
         This class is used to represent the types supported by DALI.
         Creation of custom user types is not supported.
@@ -52,6 +52,7 @@ class DType:
             bool:       Boolean
             enum:       Enumerator type
         """
+
         signed = auto()
         unsigned = auto()
         float = auto()
@@ -65,7 +66,7 @@ class DType:
     name: str
     significand_bits: int
     type_id: nvidia.dali.types.DALIDataType
-    
+
     @staticmethod
     def _default_exponent_bits(bits: int, error_on_unknown: bool = False) -> int:
         """
