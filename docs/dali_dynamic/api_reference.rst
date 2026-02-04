@@ -39,7 +39,7 @@ Data types
 ----------
 
 Those are the data type objects that DALI Dynamic uses to indicate the type of elements of Tensors and Batches. 
-They can typically be passed as `dtype` argument to request specific output type of the operator. 
+They are typically passed as `dtype` argument to request specific type of the tensor element. 
 There are also several DALI-specific types, representing DALI enums.
 
 All of the types below are instances of the :py:class:`DType` class.
