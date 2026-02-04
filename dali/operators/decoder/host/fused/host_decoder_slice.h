@@ -36,7 +36,7 @@ class HostDecoderSlice : public HostDecoder {
   }
 
  protected:
-  inline CropWindowGenerator GetCropWindowGenerator(int data_idx) const override {
+  inline CropWindowGenerator GetCropWindowGenerator(int data_idx) override {
     return slice_attr_.GetCropWindowGenerator(data_idx);
   }
 

@@ -36,7 +36,7 @@ class nvJPEGDecoderSlice : public nvJPEGDecoder {
     nvJPEGDecoder::RunImpl(ws);
   }
 
-  CropWindowGenerator GetCropWindowGenerator(int data_idx) const override {
+  CropWindowGenerator GetCropWindowGenerator(int data_idx) override {
     return slice_attr_.GetCropWindowGenerator(data_idx);
   }
 

@@ -35,7 +35,9 @@ class HostDecoderRandomCrop : public OperatorWithRandomCrop<HostDecoder> {
   inline ~HostDecoderRandomCrop() override = default;
   DISABLE_COPY_MOVE_ASSIGN(HostDecoderRandomCrop);
 
-  using RandomCropAttr::GetCropWindowGenerator;
+  inline CropWindowGenerator GetCropWindowGenerator(int idx) override {
+    return RandomCropAttr::GetCropWindowGenerator(idx);
+  }
 };
 
 }  // namespace dali

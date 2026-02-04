@@ -20,7 +20,7 @@
 namespace dali {
 
 RandomCropGenerator::RandomCropGenerator(
-    Philox32x4_10::State rng_state,
+    Philox4x32_10::State rng_state,
     AspectRatioRange aspect_ratio_range,
     AreaRange area_range,
     int num_attempts)

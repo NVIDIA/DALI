@@ -21,22 +21,26 @@ namespace dali {
 static constexpr int64_t kSeed = 1212334;
 
 template <typename ImgType>
-class ImageDecoderRandomCropTest_CPU
-: public DecodeTestBase<ImgType>, public OperatorWithRandomCrop<Operator<CPUBackend>> {
+class ImageDecoderRandomCropTest_CPU : public DecodeTestBase<ImgType> {
  public:
   ImageDecoderRandomCropTest_CPU()
-    : OperatorWithRandomCrop<Operator<CPUBackend>>(
-        OpSpec("RandomCropAttr")
+    : random_crop_attr(
+      OpSpec("RandomCropAttr")
         .AddArg("max_batch_size", this->batch_size_)
-        .AddArg("seed", kSeed)) {}
-
-  using DecodeTestBase<ImgType>::Run;
+        .AddArg("seed", kSeed)) {
+  }
 
  protected:
   OpSpec DecodingOp() const override {
     return this->GetOpSpec("ImageDecoderRandomCrop")
       .AddArg("seed", kSeed);
   }
+
+  CropWindowGenerator GetCropWindowGenerator(int data_idx) override {
+    return random_crop_attr.GetCropWindowGenerator(data_idx);
+  }
+
+  RandomCropAttr random_crop_attr;
 };
 
 typedef ::testing::Types<RGB, BGR, Gray> Types;

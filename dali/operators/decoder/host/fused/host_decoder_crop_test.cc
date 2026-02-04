@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -25,7 +25,7 @@ class ImageDecoderCropTest_CPU : public DecodeTestBase<ImgType> {
       .AddArg("crop", std::vector<float>{1.0f*crop_H, 1.0f*crop_W});
   }
 
-  CropWindowGenerator GetCropWindowGenerator(int data_idx) const override {
+  CropWindowGenerator GetCropWindowGenerator(int data_idx) override {
     return [this](const TensorShape<>& shape,
                   const TensorLayout& shape_layout) {
       DALI_ENFORCE(shape_layout == "HW",

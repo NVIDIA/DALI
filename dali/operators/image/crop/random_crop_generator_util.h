@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_UTIL_RANDOM_CROP_GENERATOR_H_
-#define DALI_UTIL_RANDOM_CROP_GENERATOR_H_
+#ifndef DALI_OPERATORS_IMAGE_CROP_RANDOM_CROP_GENERATOR_UTIL_H_
+#define DALI_OPERATORS_IMAGE_CROP_RANDOM_CROP_GENERATOR_UTIL_H_
 
 #include <vector>
 #include <random>
@@ -35,9 +35,7 @@ class DLL_PUBLIC RandomCropGenerator {
     AreaRange area_range = { 0.08, 1 },
     int num_attempts_ = 10);
 
-  DLL_PUBLIC inline const Philox4x32_10 &GetRNG() const { return rand_gen_; }
-  DLL_PUBLIC inline Philox4x32_10 &GetRNG() { return rand_gen_; }
-  DLL_PUBLIC inline void SetRNGState(const Philox4x32_10::State s) { rand_gen_.set_state(s); }
+  DLL_PUBLIC inline void SetRNGState(const Philox4x32_10::State &s) { rand_gen_.set_state(s); }
   DLL_PUBLIC CropWindow GenerateCropWindow(const TensorShape<>& shape);
 
  private:
@@ -54,4 +52,4 @@ class DLL_PUBLIC RandomCropGenerator {
 
 }  // namespace dali
 
-#endif  // DALI_UTIL_RANDOM_CROP_GENERATOR_H_
+#endif  // DALI_OPERATORS_IMAGE_CROP_RANDOM_CROP_GENERATOR_UTIL_H_

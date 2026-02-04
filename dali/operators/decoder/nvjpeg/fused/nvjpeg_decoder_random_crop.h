@@ -31,7 +31,9 @@ class nvJPEGDecoderRandomCrop : public OperatorWithRandomCrop<nvJPEGDecoder> {
 
   DISABLE_COPY_MOVE_ASSIGN(nvJPEGDecoderRandomCrop);
 
-  using RandomCropAttr::GetCropWindowGenerator;
+  inline CropWindowGenerator GetCropWindowGenerator(int idx) override {
+    return RandomCropAttr::GetCropWindowGenerator(idx);
+  }
 };
 
 }  // namespace dali

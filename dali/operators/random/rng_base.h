@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -91,9 +91,7 @@ class OperatorWithRng : public Base {
   }
 
   void Run(Workspace &ws) override {
-    if (has_random_state_arg_) {
-      LoadRandomState(ws);
-    }
+    LoadRandomState(ws);
     Base::Run(ws);
     assert(ws.NumOutput() > 0);
     Advance(ws.GetOutputBatchSize(0));
@@ -113,7 +111,9 @@ class OperatorWithRng : public Base {
     master_rng_.init(seed, 0, 0);
   }
 
-  void LoadRandomState(const Workspace &ws) {
+  virtual void LoadRandomState(const Workspace &ws) {
+    if (!has_random_state_arg_)
+      return;
     const TensorList<CPUBackend> &random_state = ws.ArgumentInput("_random_state");
     assert(random_state.num_samples() > 0);
     int element_size = random_state.type_info().size();

@@ -42,8 +42,6 @@ class RandomCropGeneratorOp : public OperatorWithRandomCrop<Operator<Backend>> {
 
   DISABLE_COPY_MOVE_ASSIGN(RandomCropGeneratorOp);
 
-  USE_OPERATOR_MEMBERS();
-
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     auto curr_batch_size = ws.GetInputBatchSize(0);
     auto &input = ws.Input<Backend>(0);

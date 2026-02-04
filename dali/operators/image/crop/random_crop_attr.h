@@ -53,6 +53,8 @@ class RandomCropAttr {
     if (!spec.TryGetArgument(seed, "seed"))
       seed = time(0);
 
+    seed ^= 0x12345678abcdefe_u64;
+
     random_crop_generators_.reserve(max_batch_size);
     for (int i = 0; i < max_batch_size; i++) {
       random_crop_generators_.emplace_back(
@@ -62,7 +64,7 @@ class RandomCropAttr {
     }
   }
 
-  CropWindowGenerator GetCropWindowGenerator(std::size_t idx) {
+  inline CropWindowGenerator GetCropWindowGenerator(int idx) {
     return [idx, this](const TensorShape<>& shape, const TensorLayout&) {
       return random_crop_generators_[idx].GenerateCropWindow(shape);
     };
@@ -79,16 +81,14 @@ class OperatorWithRandomCrop
   explicit OperatorWithRandomCrop(const OpSpec &spec) :
     rng::OperatorWithRng<Base>(spec), RandomCropAttr(spec) {}
 
-  void LoadRandomState(Workspace &ws) {
+  void LoadRandomState(const Workspace &ws) override {
     rng::OperatorWithRng<Base>::LoadRandomState(ws);
 
     for (size_t i = 0; i < random_crop_generators_.size(); i++) {
-      auto rng = this->GetSampleRNG(i);
-      random_crop_generators_[i].SetRNGState(rng.get_state());
+      auto state = this->GetSampleRNG(i).get_state();
+      state.key ^= 0x12345678abcdefe_u64;
+      random_crop_generators_[i].SetRNGState(state);
     }
-    // Skip some number of items - this will make subsequent calls to GetSampleRNG to return
-    // a different state than the one used for random crop generation, avoiding correlation.
-    this->master_rng_.skipahead(100000);
   }
 };
 
