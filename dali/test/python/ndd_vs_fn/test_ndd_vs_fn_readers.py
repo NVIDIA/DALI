@@ -15,14 +15,12 @@
 
 import glob
 import json
-import tempfile
 import types
 import nvidia.dali.fn as fn
 import nvidia.dali.experimental.dynamic as ndd
 import os
 import nvidia.dali.types as types
 from nose2.tools import params
-import numpy as np
 from nvidia.dali.pipeline import pipeline_def
 import nvidia.dali.tfrecord as tfrec
 import test_utils
@@ -39,12 +37,6 @@ from ndd_vs_fn_test_utils import (
     compare,
 )
 from webdataset_base import generate_temp_index_file as generate_temp_wds_index
-
-files = (
-    ["/data_disk/DALI_extra/db/single/jpeg/134/baukran-3703469_1280.jpg"]
-    * MAX_BATCH_SIZE
-    * N_ITERATIONS
-)
 
 
 def run_reader_test(fn_reader, ndd_reader, device, batch_size=MAX_BATCH_SIZE, reader_args={}):
@@ -75,21 +67,6 @@ def create_reader_pipeline(fn_reader, device, batch_size=MAX_BATCH_SIZE, reader_
 def create_reader_ndd(ndd_reader, device, reader_args={}):
     reader = ndd_reader(device=device, **reader_args)
     return reader
-
-
-def create_nemo_manifest_file(manifest_file, names, lengths, rates, texts):
-    assert len(names) == len(lengths) == len(rates) == len(texts)
-    data = []
-    for idx in range(len(names)):
-        entry_i = {}
-        entry_i["audio_filepath"] = names[idx]
-        entry_i["duration"] = lengths[idx] * (1.0 / rates[idx])
-        entry_i["text"] = texts[idx]
-        data.append(entry_i)
-    with open(manifest_file, "w") as f:
-        for entry in data:
-            json.dump(entry, f)
-            f.write("\n")
 
 
 data_root = test_utils.get_dali_extra_path()
@@ -140,9 +117,6 @@ READERS = [
             "index_path": os.path.join(recordio_dir, "train.idx"),
         },
     ),
-    # (fn.readers.numpy, ndd.readers.Numpy, "cpu", {}),
-    # (fn.readers.numpy, ndd.readers.Numpy, "gpu", {}),
-    # ),
     (
         fn.readers.video,
         ndd.readers.Video,

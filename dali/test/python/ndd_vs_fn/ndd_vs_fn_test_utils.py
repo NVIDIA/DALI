@@ -430,6 +430,7 @@ def run_operator_test(
     input_layout=None,
     compare_fn=compare,
     random=False,
+    batch_size=MAX_BATCH_SIZE,
 ):
     """Generic test runner for operator comparison tests."""
 
@@ -445,6 +446,7 @@ def run_operator_test(
         num_inputs=num_inputs,
         input_layout=input_layout,
         rng=fn_rng,
+        max_batch_size=batch_size,
         **operator_args,
     )
 

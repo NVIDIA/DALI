@@ -16,12 +16,15 @@
 import nvidia.dali.fn as fn
 import nvidia.dali.experimental.dynamic as ndd
 import os
-from nose2.tools import params
+from nose2.tools import params, cartesian_params
 import numpy as np
 from nvidia.dali.pipeline import pipeline_def
 import test_utils
 from ndd_vs_fn_test_utils import (
+    N_ITERATIONS,
     OperatorTestConfig,
+    get_fn_operator,
+    get_ndd_operator,
     run_operator_test,
     feed_input,
     use_fn_api,
@@ -59,9 +62,6 @@ IMAGE_DECODER_OPERATORS = [
     OperatorTestConfig(
         "experimental.decoders.image_crop", {"hw_decoder_load": 0.0}, devices=["cpu", "mixed"]
     ),
-    # OperatorTestConfig(
-    #     "experimental.decoders.image_slice", {"hw_decoder_load": 0.0}, devices=["cpu"]
-    # ),
     OperatorTestConfig("peek_image_shape", devices=["cpu"]),
 ]
 
@@ -111,6 +111,40 @@ def test_video_decoder(device):
     )
 
 
+# BUG
+# @cartesian_params(
+#     ["cpu", "mixed"],
+#     ["decoders.image_slice", "experimental.decoders.image_slice"],
+# )
+# def test_image_slice_decoder(device, operator):
+#     fn_operator = get_fn_operator(operator)
+#     ndd_operator = get_ndd_operator(operator)
+#     image_decoder_extensions = ".jpg"
+#     exclude_subdirs = ["jpeg_lossless"]
+#     data_path = os.path.join(test_utils.get_dali_extra_path(), "db", "single")
+#     data = generate_decoders_data(
+#         data_path, image_decoder_extensions, exclude_subdirs=exclude_subdirs
+#     )
+
+#     @pipeline_def(
+#         batch_size=47, device_id=0, num_threads=ndd.get_num_threads(), prefetch_queue_depth=1
+#     )
+#     def image_slice_decoder_pipe():
+#         encoded = fn.external_source(name="INPUT0", device="cpu")
+#         decoded = fn_operator(encoded, 0.1, 0.4, axes=0, hw_decoder_load=0.0, device=device)
+#         return decoded
+
+#     pipe = image_slice_decoder_pipe()
+#     pipe.build()
+#     for inp in data:
+#         feed_input(pipe, inp)
+#         pipe_out = pipe.run()
+#         ndd_out = ndd_operator(
+#             ndd.as_batch(inp, device="cpu"), 0.1, 0.4, axes=0, hw_decoder_load=0.0, device=device
+#         )
+#         assert compare(pipe_out, ndd_out)
+
+
 # @params("cpu")
 # def test_experimental_video_input(device):
 #     batch_size = 1
@@ -124,7 +158,7 @@ def test_video_decoder(device):
 #         prefetch_queue_depth=1,
 #     )
 #     def pipeline():
-#         video = fn.experimental.inputs.video(name="INPUT0", device=device)
+#         video = fn.experimental.inputs.video(name="INPUT0", device=device, sequence_length=3)
 #         return video
 
 #     pipe = pipeline()
@@ -132,9 +166,13 @@ def test_video_decoder(device):
 
 #     pipe.feed_input("INPUT0", data)
 
-#     for _ in range(10):
+#     ndd_video_input = ndd.experimental.inputs.video(
+#         ndd.as_batch(data, device="cpu"), device=device, sequence_length=3
+#     )
+
+#     for _ in range(N_ITERATIONS):
 #         pipe_out = pipe.run()
-#         ndd_out = ndd.experimental.inputs.video(data, device=device)
+#         ndd_out = ndd.experimental.inputs.video(data, device=device, sequence_length=3)
 #         assert compare(pipe_out, ndd_out)
 
 

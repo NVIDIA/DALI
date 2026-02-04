@@ -13,12 +13,17 @@
 # limitations under the License.
 
 
+import nvidia.dali.fn as fn
+import nvidia.dali.experimental.dynamic as ndd
+from nvidia.dali.pipeline import pipeline_def
 from nose2.tools import params
 from ndd_vs_fn_test_utils import (
+    MAX_BATCH_SIZE,
     OperatorTestConfig,
     feed_input,
     pipeline_es_feed_input_wrapper,
     compare_no_input,
+    compare,
     flatten_operator_configs,
     generate_image_like_data,
 )
@@ -67,8 +72,35 @@ def test_no_input_operators(device, fn_operator, ndd_operator, operator_args):
         assert compare_no_input(pipe_out, ndd_out)
 
 
+def test_transforms_combine():
+    @pipeline_def(
+        batch_size=MAX_BATCH_SIZE,
+        num_threads=ndd.get_num_threads(),
+        device_id=0,
+        prefetch_queue_depth=1,
+    )
+    def pipeline():
+        t = fn.transforms.translation(offset=(1, 2))
+        r = fn.transforms.rotation(angle=30.0)
+        s = fn.transforms.scale(scale=(2, 3))
+        out = fn.transforms.combine(t, r, s)
+        return out
+
+    pipe = pipeline()
+    pipe.build()
+    pipe_out = pipe.run()
+    ndd_out = ndd.transforms.combine(
+        ndd.transforms.translation(offset=(1, 2)),
+        ndd.transforms.rotation(angle=30.0),
+        ndd.transforms.scale(scale=(2, 3)),
+        batch_size=MAX_BATCH_SIZE,
+    )
+    assert compare(pipe_out, ndd_out)
+
+
 tested_operators = [
     "constant",
+    "transforms.combine",
     "transforms.translation",
     "transforms.scale",
     "transforms.rotation",

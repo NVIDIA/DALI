@@ -336,7 +336,7 @@ def test_mfcc(device):
 
 
 @params("cpu")
-def test_segmentation_select_masks():
+def test_segmentation_select_masks(device):
     def repacked_make_batch_select_masks(*args, **kwargs):
         """
         make_batch_select_masks returns data in (polygons, vertices, selected_masks) order,
