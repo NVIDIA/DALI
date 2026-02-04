@@ -15,7 +15,6 @@
 
 import random
 import os
-from time import sleep
 import test_utils
 import numpy as np
 from nose2.tools import params

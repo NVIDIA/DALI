@@ -16,15 +16,12 @@
 import nvidia.dali.fn as fn
 import nvidia.dali.experimental.dynamic as ndd
 import os
-from nose2.tools import params, cartesian_params
+from nose2.tools import params
 import numpy as np
 from nvidia.dali.pipeline import pipeline_def
 import test_utils
 from ndd_vs_fn_test_utils import (
-    N_ITERATIONS,
     OperatorTestConfig,
-    get_fn_operator,
-    get_ndd_operator,
     run_operator_test,
     feed_input,
     use_fn_api,
@@ -148,7 +145,8 @@ def test_video_decoder(device):
 # @params("cpu")
 # def test_experimental_video_input(device):
 #     batch_size = 1
-#     video_path = os.path.join(test_utils.get_dali_extra_path(), "db", "video", "cfr", "test_1.mp4")
+# video_path = os.path.join(test_utils.get_dali_extra_path(),
+#   "db", "video", "cfr", "test_1.mp4")
 #     data = np.array([np.fromfile(video_path, dtype=np.uint8)] * batch_size)
 
 #     @pipeline_def(

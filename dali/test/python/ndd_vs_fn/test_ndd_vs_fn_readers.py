@@ -14,12 +14,9 @@
 
 
 import glob
-import json
-import types
 import nvidia.dali.fn as fn
 import nvidia.dali.experimental.dynamic as ndd
 import os
-import nvidia.dali.types as types
 from nose2.tools import params
 from nvidia.dali.pipeline import pipeline_def
 import nvidia.dali.tfrecord as tfrec
@@ -27,13 +24,6 @@ import test_utils
 from ndd_vs_fn_test_utils import (
     MAX_BATCH_SIZE,
     N_ITERATIONS,
-    OperatorTestConfig,
-    run_operator_test,
-    feed_input,
-    use_fn_api,
-    use_ndd_api,
-    flatten_operator_configs,
-    generate_decoders_data,
     compare,
 )
 from webdataset_base import generate_temp_index_file as generate_temp_wds_index

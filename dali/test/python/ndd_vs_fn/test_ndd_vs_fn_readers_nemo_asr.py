@@ -14,14 +14,12 @@
 
 import json
 import tempfile
-import types
 import nvidia.dali.fn as fn
 import nvidia.dali.experimental.dynamic as ndd
 import os
 import nvidia.dali.types as types
 from nose2.tools import params
 import numpy as np
-from webdataset_base import generate_temp_index_file as generate_temp_wds_index
 from test_ndd_vs_fn_readers import run_reader_test
 
 

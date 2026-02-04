@@ -12,11 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from os import pipe
 import numpy as np
 import nvidia.dali.fn as fn
 import nvidia.dali.experimental.dynamic as ndd
-import nvidia.dali.types as DALIDataType
 import random
 from nose2.tools import params, cartesian_params
 from nvidia.dali.pipeline import pipeline_def
