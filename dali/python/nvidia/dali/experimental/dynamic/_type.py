@@ -213,7 +213,8 @@ class DType:
     @staticmethod
     def from_fw_type(numpy_type) -> "DType":
         """
-        Returns a :py:class:`DType` associated with given numpy datatype (instance of `numpy.dtype`).
+        Returns a :py:class:`DType` associated with given numpy datatype
+        (instance of `numpy.dtype`).
         """
         return DType.from_type_id(nvidia.dali.types.to_dali_type(numpy_type))
 
