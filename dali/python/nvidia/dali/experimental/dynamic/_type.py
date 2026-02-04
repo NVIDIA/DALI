@@ -213,7 +213,7 @@ class DType:
     @staticmethod
     def from_fw_type(numpy_type) -> "DType":
         """
-        Returns a :py:class:`DType` associated with given framework datatype.
+        Returns a :py:class:`DType` associated with given numpy datatype (instance of `numpy.dtype`).
         """
         return DType.from_type_id(nvidia.dali.types.to_dali_type(numpy_type))
 
@@ -318,7 +318,7 @@ InterpType = DType(
 def dtype(*args):
     """
     Returns a :py:class:`DType` associated with given :py:class:`nvidia.dali.types.DALIDataType`,
-    string or framework datatype.
+    string or numpy datatype (instance of `numpy.dtype`).
     """
     if len(args) == 1:
         if isinstance(args[0], DType):
