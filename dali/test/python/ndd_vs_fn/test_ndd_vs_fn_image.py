@@ -97,7 +97,6 @@ IMAGE_LIKE_OPERATORS = [
     OperatorTestConfig(
         "resize_crop_mirror", {"crop": [5, 5], "resize_shorter": 10}, devices=["cpu"]
     ),
-    # OperatorTestConfig("fast_resize_crop_mirror", {"crop": [5, 5], "resize_shorter": 10}),  # Doesn't exist in ndd
     # GPU-only operators:
     OperatorTestConfig("clahe", {"tiles_x": 4, "tiles_y": 4, "clip_limit": 2.0}, devices=["gpu"]),
     OperatorTestConfig("equalize", devices=["gpu"]),

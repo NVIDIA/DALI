@@ -206,7 +206,7 @@ def generate_data(
         return [np.random.choice(a=[lo, hi], size=(bs,) + size_fn()) for bs in batch_sizes]
     else:
         raise RuntimeError(f"Invalid type argument: {dtype}")
-    
+
 
 def generate_decoders_data(data_dir, data_extension, exclude_subdirs=[]):
     # File reader won't work, so I need to load audio files into external_source manually

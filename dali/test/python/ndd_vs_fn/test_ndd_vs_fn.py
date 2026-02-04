@@ -15,7 +15,6 @@
 import numpy as np
 import nvidia.dali.fn as fn
 import nvidia.dali.experimental.dynamic as ndd
-import os
 import random
 from nose2.tools import params, cartesian_params
 from nvidia.dali.pipeline import pipeline_def
@@ -435,13 +434,8 @@ def test_debayer(device):
         """
         gen = sample_gen()
         while True:
-            # Collect batch_size samples
             samples = [next(gen) for _ in range(batch_size)]
-            # Transpose: list of tuples -> tuple of lists
-            # samples = [(inp0_s0, inp1_s0, inp2_s0), (inp0_s1, inp1_s1, inp2_s1), ...]
-            # iteration = ([inp0_s0, inp0_s1, ...], [inp1_s0, inp1_s1, ...], [inp2_s0, inp2_s1, ...])
             iteration = tuple(zip(*samples))
-            # Convert each input from tuple to list
             iteration = tuple(list(input_data) for input_data in iteration)
             yield iteration
 
@@ -497,13 +491,8 @@ def test_filter(device):
         """
         gen = sample_gen()
         while True:
-            # Collect batch_size samples
             samples = [next(gen) for _ in range(batch_size)]
-            # Transpose: list of tuples -> tuple of lists
-            # samples = [(inp0_s0, inp1_s0, inp2_s0), (inp0_s1, inp1_s1, inp2_s1), ...]
-            # iteration = ([inp0_s0, inp0_s1, ...], [inp1_s0, inp1_s1, ...], [inp2_s0, inp2_s1, ...])
             iteration = tuple(zip(*samples))
-            # Convert each input from tuple to list
             iteration = tuple(list(input_data) for input_data in iteration)
             yield iteration
 
