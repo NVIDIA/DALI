@@ -46,7 +46,6 @@ IMAGE_LIKE_OPERATORS = [
     OperatorTestConfig("crop_mirror_normalize"),
     # OperatorTestConfig("stack"),  # BUG
     # OperatorTestConfig("cat"),  # BUG
-    # OperatorTestConfig("shapes"),  # Does not exist in ndd
     # Operators with custom arguments:
     OperatorTestConfig("cast", {"dtype": types.INT32}),
     OperatorTestConfig("coord_transform", {"M": 0.5, "T": 2}),
@@ -100,6 +99,7 @@ IMAGE_LIKE_OPERATORS = [
     # GPU-only operators:
     OperatorTestConfig("clahe", {"tiles_x": 4, "tiles_y": 4, "clip_limit": 2.0}, devices=["gpu"]),
     OperatorTestConfig("equalize", devices=["gpu"]),
+    # OperatorTestConfig("slice", {"rel_start": 0.1, "rel_end": 0.5}),  # BUG
     OperatorTestConfig("experimental.median_blur", devices=["gpu"]),
     OperatorTestConfig("experimental.dilate", devices=["gpu"]),
     OperatorTestConfig("experimental.erode", devices=["gpu"]),

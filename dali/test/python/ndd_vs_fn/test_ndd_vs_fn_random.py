@@ -15,6 +15,7 @@
 
 import random
 import os
+from time import sleep
 import test_utils
 import numpy as np
 from nose2.tools import params
@@ -79,6 +80,7 @@ RANDOM_OPERATORS_IMAGE_LIKE = [
         },
         devices=["cpu"],
     ),
+    # OperatorTestConfig("random_resized_crop", {"size": (64, 64)}),  # BUG
 ]
 
 random_ops_image_like_test_configuration = flatten_operator_configs(RANDOM_OPERATORS_IMAGE_LIKE)
@@ -100,12 +102,8 @@ def test_random_image_like(device, fn_operator, ndd_operator, operator_args):
     )
 
 
-# BUG
+# BUG (duplicating coin_flip test)
 # def test_coin_flip():
-#     device = "cpu"
-#     data = generate_data(
-#         image_like_shape_generator, lo=0, hi=255, dtype=np.uint8, batch_sizes=MAX_BATCH_SIZE
-#     )
 #     fn_rng, ndd_rng = create_rngs()
 
 #     @pipeline_def(
@@ -121,19 +119,13 @@ def test_random_image_like(device, fn_operator, ndd_operator, operator_args):
 #         )[
 #             0
 #         ]  # [0], since external_source returns a tuple
-#         inp = fn.external_source(name="INPUT0", device=device)
-#         h = fn.random.coin_flip(_random_state=rs1)
-#         processed = fn.flip(inp, horizontal=h)
-#         return processed
+#         return fn.random.coin_flip(_random_state=rs1)
 
 #     pipe = pipeline()
 #     pipe.build()
-#     for inp in data:
-#         feed_input(pipe, inp)
-#         pipe_out = pipe.run()
-#         _h = ndd.random.coin_flip(rng=ndd_rng)
-#         ndd_out = ndd.flip(ndd.as_batch(inp, device=device), horizontal=_h)
-#         assert compare(pipe_out, ndd_out)
+#     pipe_out = pipe.run()
+#     ndd_out = ndd.random.coin_flip(rng=ndd_rng, batch_size=MAX_BATCH_SIZE)
+#     assert compare(pipe_out, ndd_out)
 
 
 def test_random_bbox_crop():
@@ -165,44 +157,14 @@ def test_random_bbox_crop():
     )
 
 
-# Doesn't exist in ndd
-# def test_ssd_random_crop():
-#     device = "cpu"
-
-#     def get_data(batch_size):
-#         obj_num = random.randint(1, 20)
-#         test_data_shape = [50, 20, 3]
-#         test_box_shape = [obj_num, 4]
-#         test_lables_shape = [obj_num]
-#         data = [
-#             np.random.randint(0, 255, size=test_data_shape, dtype=np.uint8)
-#             for _ in range(batch_size)
-#         ]
-#         bboxes = [
-#             np.random.random(size=test_box_shape).astype(dtype=np.float32)
-#             for _ in range(batch_size)
-#         ]
-#         labels = [
-#             np.random.randint(0, 255, size=test_lables_shape, dtype=np.int32)
-#             for _ in range(batch_size)
-#         ]
-#         return (data, bboxes, labels)
-
-#     data = [get_data(MAX_BATCH_SIZE) for _ in range(N_ITERATIONS)]
-
-#     run_operator_test(
-#         input_epoch=data,
-#         fn_operator=fn.ssd_random_crop,
-#         ndd_operator=ndd.ssd_random_crop,
-#         device=device,
-#         random=True,
-#         num_inputs=3,
-#     )
-
-
 RANDOM_IMAGE_DECODER_OPERATORS = [
     # OperatorTestConfig(
     #     "decoders.image_random_crop", {"hw_decoder_load": 0.0}, devices=["cpu", "mixed"]
+    # ),  # BUG
+    # OperatorTestConfig(
+    #     "experimental.decoders.image_random_crop",
+    #     {"hw_decoder_load": 0.0},
+    #     devices=["cpu", "mixed"],
     # ),  # BUG
 ]
 
@@ -275,12 +237,50 @@ def test_random_object_bbox():
     )
 
 
+# BUG
+# @params("cpu", "gpu")
+# def test_batch_permutation(device):
+#     batch_size = MAX_BATCH_SIZE
+#     data = generate_data(
+#         image_like_shape_generator, lo=0, hi=255, dtype=np.uint8, batch_sizes=batch_size
+#     )
+#     fn_rng, ndd_rng = create_rngs()
+
+#     @pipeline_def(
+#         batch_size=MAX_BATCH_SIZE,
+#         device_id=0,
+#         num_threads=ndd.get_num_threads(),
+#         prefetch_queue_depth=1,
+#     )
+#     def pipeline():
+#         rs1 = fn.external_source(
+#             source=_random_state_source_factory(fn_rng, MAX_BATCH_SIZE, 1),
+#             num_outputs=1,
+#         )[
+#             0
+#         ]  # [0], since external_source returns a tuple
+#         inp = fn.external_source(name="INPUT0", device=device)
+#         perm = fn.batch_permutation(_random_state=rs1, device="cpu")
+#         processed = fn.permute_batch(inp, indices=perm)
+#         return processed
+
+#     pipe = pipeline()
+#     pipe.build()
+
+#     for inp in data:
+#         feed_input(pipe, inp)
+#         pipe_out = pipe.run()
+#         perm = ndd.batch_permutation(rng=ndd_rng)
+#         ndd_out = ndd.permute_batch(ndd.as_batch(inp, device=device), indices=perm, device=device)
+#         assert compare(pipe_out, ndd_out)
+
+
 tested_operators = [
     "random.choice",
     "random.normal",
     "random.beta",
-    "random.coin_flip",
     "random.uniform",
+    "random.coin_flip",
     "jitter",
     "noise.gaussian",
     "noise.shot",

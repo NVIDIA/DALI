@@ -12,9 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from os import pipe
 import numpy as np
 import nvidia.dali.fn as fn
 import nvidia.dali.experimental.dynamic as ndd
+import nvidia.dali.types as DALIDataType
 import random
 from nose2.tools import params, cartesian_params
 from nvidia.dali.pipeline import pipeline_def
@@ -56,6 +58,7 @@ To add a new operator test:
 tested_operators = [
     "expand_dims",
     "squeeze",
+    "bbox_paste",
     "box_encoder",
     "experimental.remap",
     "bb_flip",
@@ -77,6 +80,7 @@ tested_operators = [
     "filter",
     "cast_like",
     "full_like",
+    "full",
 ]
 
 
@@ -171,21 +175,41 @@ def test_bb_flip(device):
     )
 
 
-# Multi output and boxes=inp[:,:4] syntax
-# def test_bbox_rotate():
-#     device = "cpu"
+# BUG
+# @params("cpu")
+# def test_bbox_rotate(device):
 #     data = generate_data(custom_shape_generator(150, 250, 5, 5))
+#     import ipdb; ipdb.set_trace()  # fmt: skip
 
-#     def operation(api, inp, device=None, **operator_args):
+#     @pipeline_def(
+#         batch_size=MAX_BATCH_SIZE,
+#         device_id=0,
+#         num_threads=ndd.get_num_threads(),
+#         prefetch_queue_depth=1,
+#     )
+#     def pipeline():
+#         inp = fn.external_source(name="INPUT0", device=device)
 #         boxes = inp[:, :4]
-#         labels = api.cast(inp[:, 4], dtype=DALIDataType.INT32)
-#         return api.bbox_rotate(boxes, labels, angle=45.0, input_shape=[255, 255])
+#         labels = fn.cast(inp[:, 4], dtype=DALIDataType.INT32)
+#         boxes, labels = fn.bbox_rotate(boxes, labels, angle=45.0, input_shape=[255, 255])
+#         return boxes, labels
 
-#     pipe = pipeline_es_feed_input_wrapper(use_fn_api(operation), device=device)
+#     pipe = pipeline()
+#     pipe.build()
 #     for inp in data:
 #         feed_input(pipe, inp)
 #         pipe_out = pipe.run()
-#         ndd_out = use_ndd_api(operation)(ndd.as_batch(inp, device=device), device=device)
+#         ndd_inp = ndd.as_batch(inp, device=device)
+#         boxes = ndd_inp.slice[:, :4]
+#         labels = ndd.cast(ndd_inp.slice[:, 4], dtype=DALIDataType.INT32)
+#         ndd_out = ndd.bbox_rotate(
+#             boxes,
+#             labels,
+#             angle=45.0,
+#             input_shape=[255, 255],
+#         )
+#         for o in ndd_out:
+#             o.evaluate()
 #         assert compare(pipe_out, ndd_out)
 
 
@@ -311,9 +335,8 @@ def test_mfcc(device):
     )
 
 
+@params("cpu")
 def test_segmentation_select_masks():
-    device = "cpu"
-
     def repacked_make_batch_select_masks(*args, **kwargs):
         """
         make_batch_select_masks returns data in (polygons, vertices, selected_masks) order,
@@ -593,3 +616,59 @@ def test_full_like(device):
 #         pipe_out = pipe.run()
 #         ndd_out = ndd.io.file.read(ndd.as_batch(inp, device=device))
 #         assert compare(pipe_out, ndd_out)
+
+# BUG
+# @params("cpu", "gpu")
+# def test_slice(device):
+#     data = generate_image_like_data()
+
+#     @pipeline_def(
+#         batch_size=MAX_BATCH_SIZE,
+#         device_id=0,
+#         num_threads=ndd.get_num_threads(),
+#         prefetch_queue_depth=1,
+#     )
+#     def pipeline():
+#         inp = fn.external_source(name="INPUT0", device=device)
+#         sliced = fn.slice(inp, 0.1, 0.5, axes=0)
+#         return sliced
+
+#     pipe = pipeline()
+#     pipe.build()
+#     for inp in data:
+#         feed_input(pipe, inp)
+#         pipe_out = pipe.run()
+#         ndd_out = ndd.slice(ndd.as_batch(inp, device=device), 0.1, 0.5, axes=0)
+#         ndd_out.evaluate()
+#         assert compare(pipe_out, ndd_out)
+
+
+@params("cpu")
+def test_bbox_paste(device):
+    data = generate_data(custom_shape_generator(150, 250, 4, 4))
+    run_operator_test(
+        input_epoch=data,
+        fn_operator=fn.bbox_paste,
+        ndd_operator=ndd.bbox_paste,
+        device=device,
+        operator_args={"ratio": 1.1},
+    )
+
+
+@params("cpu")
+def test_full(device):
+    @pipeline_def(
+        batch_size=MAX_BATCH_SIZE,
+        device_id=0,
+        num_threads=ndd.get_num_threads(),
+        prefetch_queue_depth=1,
+    )
+    def pipeline():
+        full = fn.full(7, device=device)
+        return full
+
+    pipe = pipeline()
+    pipe.build()
+    pipe_out = pipe.run()
+    ndd_out = ndd.full(7, batch_size=MAX_BATCH_SIZE, device=device)
+    assert compare(pipe_out, ndd_out)

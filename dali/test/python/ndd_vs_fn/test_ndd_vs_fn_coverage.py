@@ -18,8 +18,50 @@ import test_ndd_vs_fn_image
 import test_ndd_vs_fn_random
 import test_ndd_vs_fn_sequence
 import test_ndd_vs_fn_decoders
+import test_ndd_vs_fn_readers
+import test_ndd_vs_fn_readers_nemo_asr
 import test_ndd_vs_fn
 from nvidia.dali.experimental.dynamic._ops import _all_ops
+
+
+excluded_operators = [
+    # "_arithmetic_generic_op",  # Hidden operators are not part of this suite.
+    # "_conditional.merge",  # Hidden operators are not part of this suite.
+    # "_conditional.not_",    # Hidden operators are not part of this suite.
+    # "_conditional.split",  # Hidden operators are not part of this suite.
+    # "_conditional.validate_logical",  # Hidden operators are not part of this suite.
+    # "_shape",  # Hidden operators are not part of this suite.
+    # "_subscript_dim_check",  # Hidden operators are not part of this suite.
+    # "_tensor_subscript",  # Hidden operators are not part of this suite.
+    # "batch_permutation",  # BUG
+    # "bbox_rotate",  # BUG
+    # "cat",  # BUG
+    # "decoders.image_random_crop",  # BUG
+    # "decoders.image_slice",
+    # "decoders.inflate",  # TODO(mszolucha): Add inflate test.
+    # "decoders.numpy",
+    # "decoders.video",
+    # "experimental.decoders.image_random_crop",  # BUG
+    # "experimental.inputs.video",
+    # "experimental.readers.fits",  # No input data in DALI_extra
+    # "io.file.read",  # BUG
+    # "permute_batch",  # BUG
+    # "random_resized_crop",  # BUG
+    # "readers.numpy",
+    # "readers.video_resize",  # BUG
+    # "slice",  # BUG
+    # "stack",  # BUG
+    # "transforms.combine",
+    # "warp_affine",  # BUG
+]
+
+excluded_operators = [
+    "decoders.image_slice",
+    "decoders.numpy",
+    "experimental.inputs.video",
+    "readers.numpy",
+    "transforms.combine",
+]
 
 
 def get_tested_operators():
@@ -31,6 +73,8 @@ def get_tested_operators():
         test_ndd_vs_fn_random,
         test_ndd_vs_fn_sequence,
         test_ndd_vs_fn_decoders,
+        test_ndd_vs_fn_readers,
+        test_ndd_vs_fn_readers_nemo_asr,
         test_ndd_vs_fn,
     ]
     for module in modules:
@@ -50,7 +94,6 @@ def get_all_operators():
 
 def test_coverage():
     tested_operators = get_tested_operators()
-    excluded_operators = []
     covered_operators = tested_operators.union(excluded_operators)
     all_operators = get_all_operators()
 

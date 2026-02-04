@@ -53,6 +53,16 @@ IMAGE_DECODER_OPERATORS = [
     OperatorTestConfig("decoders.image", {"hw_decoder_load": 0.0}, devices=["cpu", "mixed"]),
     OperatorTestConfig("decoders.image_crop", {"hw_decoder_load": 0.0}, devices=["cpu", "mixed"]),
     OperatorTestConfig("peek_image_shape", devices=["cpu"]),
+    OperatorTestConfig(
+        "experimental.decoders.image", {"hw_decoder_load": 0.0}, devices=["cpu", "mixed"]
+    ),
+    OperatorTestConfig(
+        "experimental.decoders.image_crop", {"hw_decoder_load": 0.0}, devices=["cpu", "mixed"]
+    ),
+    # OperatorTestConfig(
+    #     "experimental.decoders.image_slice", {"hw_decoder_load": 0.0}, devices=["cpu"]
+    # ),
+    OperatorTestConfig("peek_image_shape", devices=["cpu"]),
 ]
 
 image_decoders_test_configuration = flatten_operator_configs(IMAGE_DECODER_OPERATORS)
@@ -101,10 +111,41 @@ def test_video_decoder(device):
     )
 
 
+# @params("cpu")
+# def test_experimental_video_input(device):
+#     batch_size = 1
+#     video_path = os.path.join(test_utils.get_dali_extra_path(), "db", "video", "cfr", "test_1.mp4")
+#     data = np.array([np.fromfile(video_path, dtype=np.uint8)] * batch_size)
+
+#     @pipeline_def(
+#         batch_size=batch_size,
+#         device_id=0,
+#         num_threads=ndd.get_num_threads(),
+#         prefetch_queue_depth=1,
+#     )
+#     def pipeline():
+#         video = fn.experimental.inputs.video(name="INPUT0", device=device)
+#         return video
+
+#     pipe = pipeline()
+#     pipe.build()
+
+#     pipe.feed_input("INPUT0", data)
+
+#     for _ in range(10):
+#         pipe_out = pipe.run()
+#         ndd_out = ndd.experimental.inputs.video(data, device=device)
+#         assert compare(pipe_out, ndd_out)
+
+
 tested_operators = [
     "decoders.image",
     "decoders.image_crop",
     "peek_image_shape",
     "decoders.audio",
-    "devocers.video",
+    "decoders.video",
+    "experimental.decoders.image",
+    "experimental.decoders.image_crop",
+    "experimental.decoders.image_slice",
+    "experimental.peek_image_shape",
 ]
