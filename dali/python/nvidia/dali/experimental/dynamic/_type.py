@@ -215,7 +215,7 @@ class DType:
         """
         Returns a :py:class:`DType` associated with given framework datatype.
         """
-        return nvidia.dali.types.to_dali_type(numpy_type)
+        return DType.from_type_id(nvidia.dali.types.to_dali_type(numpy_type))
 
     @staticmethod
     def parse(name: str) -> "DType":
