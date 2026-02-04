@@ -156,7 +156,8 @@ class DType:
                 return (
                     "tf32",
                     "TensorFloat-32. A 19-bit floating point number with 8-bit exponent and "
-                    "10-bit mantissa",
+                    "10-bit mantissa. This type has the same storage as 32-bit floating point "
+                    "numbers, but only 19 bits are used in computations.",
                 )
             else:
                 return (
