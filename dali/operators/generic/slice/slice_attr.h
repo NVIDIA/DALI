@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -73,7 +73,6 @@ class NamedSliceAttr {
                             "\", and \"", rel_shape_name, "\" arguments are mutually exclusive"));
   }
 
-  template <typename Backend>
   bool ProcessArguments(const OpSpec& spec, const Workspace &ws,
                         int curr_batch_size = -1, int ndim = -1) {
     if (curr_batch_size < 0)
@@ -210,7 +209,6 @@ class PositionalSliceAttr {
     crop_shape_cpu_.set_pinned(true);
   }
 
-  template <typename Backend>
   bool ProcessArguments(const OpSpec &spec, const Workspace &ws) {
     auto curr_batch_size = ws.GetInputBatchSize(0);
     int ndim = ws.GetInputDim(0);
@@ -227,7 +225,7 @@ class PositionalSliceAttr {
                              crop_anchor_type, " and ", crop_shape_type));
     TYPE_SWITCH(crop_anchor_type, type2id, ArgsType, SLICE_ARGS_TYPES, (
       TensorListView<StorageCPU, const ArgsType> anchor, shape;
-      GetPositionalSliceArgsCPU<const ArgsType, Backend>(anchor, shape, ws);
+      GetPositionalSliceArgsCPU<const ArgsType>(anchor, shape, ws);
       for (int data_idx = 0; data_idx < curr_batch_size; data_idx++) {
         ProcessPositionalInputArgs(data_idx,
                                    sample_as_span(anchor, data_idx),
@@ -250,7 +248,7 @@ class PositionalSliceAttr {
     return span<T>(v.tensor_data(sample_idx), vol);
   }
 
-  template <typename T, typename Backend>
+  template <typename T>
   void GetPositionalSliceArgsCPU(TensorListView<StorageCPU, T> &anchor,
                                  TensorListView<StorageCPU, T> &shape,
                                  const Workspace &ws) {
@@ -360,9 +358,8 @@ class SliceAttr {
         pos_slice_attr_(spec) {
   }
 
-  template <typename Backend>
   void ProcessArguments(const OpSpec &spec, const Workspace &ws) {
-    use_named_args_ = named_slice_attr_.template ProcessArguments<Backend>(spec, ws);
+    use_named_args_ = named_slice_attr_.ProcessArguments(spec, ws);
     if (use_named_args_) {
       if (spec.HasArgument("normalized_anchor") || spec.HasArgument("normalized_shape")) {
         DALI_WARN(
@@ -373,7 +370,7 @@ class SliceAttr {
                   "Named arguments start/end/shape are not compatible with positional"
                   " anchor and shape inputs");
     } else if (ws.NumInput() == (spec.GetSchema().MinNumInput() + 2)) {
-      bool processed_pos_args = pos_slice_attr_.template ProcessArguments<Backend>(spec, ws);
+      bool processed_pos_args = pos_slice_attr_.ProcessArguments(spec, ws);
       DALI_ENFORCE(processed_pos_args, "Failed to process positional arguments (start, shape)");
     } else {
       DALI_FAIL(

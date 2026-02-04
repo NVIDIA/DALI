@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,31 +15,11 @@
 #include <vector>
 #include <memory>
 #include "dali/operators/decoder/nvjpeg/fused/nvjpeg_decoder_random_crop.h"
+#include "dali/operators/image/crop/random_crop_generator_util.h"
 #include "dali/pipeline/operator/checkpointing/snapshot_serializer.h"
-#include "dali/util/random_crop_generator.h"
 #include "dali/pipeline/operator/checkpointing/op_checkpoint.h"
 
 namespace dali {
-
-void nvJPEGDecoderRandomCrop::SaveState(OpCheckpoint &cpt, AccessOrder order) {
-  cpt.MutableCheckpointState() = RNGSnapshot();
-}
-
-void nvJPEGDecoderRandomCrop::RestoreState(const OpCheckpoint &cpt) {
-  auto &rngs = cpt.CheckpointState<std::vector<std::mt19937>>();
-  RestoreRNGState(rngs);
-}
-
-std::string nvJPEGDecoderRandomCrop::SerializeCheckpoint(const OpCheckpoint &cpt) const {
-  const auto &state = cpt.CheckpointState<std::vector<std::mt19937>>();
-  return SnapshotSerializer().Serialize(state);
-}
-
-void
-nvJPEGDecoderRandomCrop::DeserializeCheckpoint(OpCheckpoint &cpt, const std::string &data) const {
-  cpt.MutableCheckpointState() =
-    SnapshotSerializer().Deserialize<std::vector<std::mt19937>>(data);
-}
 
 DALI_REGISTER_OPERATOR(decoders__ImageRandomCrop, nvJPEGDecoderRandomCrop, Mixed);
 DALI_REGISTER_OPERATOR(ImageDecoderRandomCrop, nvJPEGDecoderRandomCrop, Mixed);

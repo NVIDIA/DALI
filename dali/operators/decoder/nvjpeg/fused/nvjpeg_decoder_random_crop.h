@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -23,27 +23,15 @@
 
 namespace dali {
 
-class nvJPEGDecoderRandomCrop : public nvJPEGDecoder, public RandomCropAttr {
+class nvJPEGDecoderRandomCrop : public OperatorWithRandomCrop<nvJPEGDecoder> {
  public:
   explicit nvJPEGDecoderRandomCrop(const OpSpec& spec)
-    : nvJPEGDecoder(spec)
-    , RandomCropAttr(spec)
+    : OperatorWithRandomCrop<nvJPEGDecoder>(spec)
   {}
 
   DISABLE_COPY_MOVE_ASSIGN(nvJPEGDecoderRandomCrop);
 
-  void SaveState(OpCheckpoint &cpt, AccessOrder order) override;
-
-  void RestoreState(const OpCheckpoint &cpt) override;
-
-  std::string SerializeCheckpoint(const OpCheckpoint &cpt) const override;
-
-  void DeserializeCheckpoint(OpCheckpoint &cpt, const std::string &data) const override;
-
- protected:
-  CropWindowGenerator GetCropWindowGenerator(int data_idx) const override {
-    return RandomCropAttr::GetCropWindowGenerator(data_idx);
-  }
+  using RandomCropAttr::GetCropWindowGenerator;
 };
 
 }  // namespace dali

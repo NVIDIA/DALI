@@ -1,4 +1,4 @@
-// Copyright (c) 2019 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -21,25 +21,22 @@ namespace dali {
 static constexpr int64_t kSeed = 1212334;
 
 template <typename ImgType>
-class ImageDecoderRandomCropTest_CPU : public DecodeTestBase<ImgType> {
+class ImageDecoderRandomCropTest_CPU
+: public DecodeTestBase<ImgType>, public OperatorWithRandomCrop<Operator<CPUBackend>> {
  public:
   ImageDecoderRandomCropTest_CPU()
-    : random_crop_attr(
-      OpSpec("RandomCropAttr")
+    : OperatorWithRandomCrop<Operator<CPUBackend>>(
+        OpSpec("RandomCropAttr")
         .AddArg("max_batch_size", this->batch_size_)
         .AddArg("seed", kSeed)) {}
+
+  using DecodeTestBase<ImgType>::Run;
 
  protected:
   OpSpec DecodingOp() const override {
     return this->GetOpSpec("ImageDecoderRandomCrop")
       .AddArg("seed", kSeed);
   }
-
-  CropWindowGenerator GetCropWindowGenerator(int data_idx) const override {
-    return random_crop_attr.GetCropWindowGenerator(data_idx);
-  }
-
-  RandomCropAttr random_crop_attr;
 };
 
 typedef ::testing::Types<RGB, BGR, Gray> Types;

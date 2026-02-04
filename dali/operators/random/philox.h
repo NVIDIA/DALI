@@ -1,4 +1,4 @@
-// Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2025-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,11 +20,39 @@
 #include <string>
 #include <string_view>
 #include "dali/core/api_helper.h"
+#include "dali/core/host_dev.h"
 
 namespace dali {
 
 class Philox4x32_10 {
  public:
+  struct State {
+    constexpr DALI_HOST_DEV State() = default;
+    constexpr DALI_HOST_DEV State(uint64_t key, uint64_t sequence, uint64_t offset) {
+      key = key;
+      ctr[0] = offset >> 2;
+      ctr[1] = sequence;
+      phase = offset & 3;
+    }
+
+    constexpr DALI_HOST_DEV State(uint64_t key, uint64_t ctr_hi, uint64_t ctr_lo, unsigned phase) {
+      assert(phase < 4);
+      key = key;
+      ctr[0] = ctr_lo;
+      ctr[1] = ctr_hi;
+      phase = phase & 3;
+    }
+
+    uint64_t key;
+    uint64_t ctr[2];
+    int phase;
+  };
+
+  Philox4x32_10() = default;
+  explicit Philox4x32_10(const State &state) : state_(state) {
+    recalc_output();
+  }
+
   void skipahead(uint64_t n) {
     if (advance(n))
       recalc_output();
@@ -36,19 +64,12 @@ class Philox4x32_10 {
   }
 
   void init(uint64_t key, uint64_t sequence, uint64_t offset) {
-    state_.key = key;
-    state_.ctr[0] = offset >> 2;
-    state_.ctr[1] = sequence;
-    state_.phase = offset & 3;
+    state_ = State(key, sequence, offset);
     recalc_output();
   }
 
   void init(uint64_t key, uint64_t ctr_hi, uint64_t ctr_lo, unsigned phase) {
-    assert(phase < 4);
-    state_.key = key;
-    state_.ctr[0] = ctr_lo;
-    state_.ctr[1] = ctr_hi;
-    state_.phase = phase & 3;
+    state_ = State(key, ctr_hi, ctr_lo, phase);
     recalc_output();
   }
 
@@ -68,12 +89,6 @@ class Philox4x32_10 {
 
   static constexpr uint32_t max() { return 0xffffffffu; }
   static constexpr uint32_t min() { return 0; }
-
-  struct State {
-    uint64_t key;
-    uint64_t ctr[2];
-    int phase;
-  };
 
   static DLL_PUBLIC std::string state_to_string(const State &state);
 

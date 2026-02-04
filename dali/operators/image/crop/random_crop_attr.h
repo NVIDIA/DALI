@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -24,7 +24,8 @@
 #include "dali/pipeline/operator/common.h"
 #include "dali/pipeline/operator/operator.h"
 #include "dali/util/crop_window.h"
-#include "dali/util/random_crop_generator.h"
+#include "dali/operators/image/crop/random_crop_generator_util.h"
+#include "dali/operators/random/rng_base.h"
 
 namespace dali {
 
@@ -46,44 +47,49 @@ class RandomCropAttr {
     GetSingleOrRepeatedArg(spec, area, "random_area", 2);
     DALI_ENFORCE(area[0] <= area[1], "Provided empty range");
 
-    int64_t seed = spec.GetArgument<int64_t>("seed");
-    std::seed_seq seq{seed};
     int max_batch_size = spec.GetArgument<int>("max_batch_size");
-    DALI_ENFORCE(max_batch_size > 0, "max_batch_size should be greater than 0");
-    std::vector<int> seeds(max_batch_size);
-    seq.generate(seeds.begin(), seeds.end());
+
+    int64_t seed;
+    if (!spec.TryGetArgument(seed, "seed"))
+      seed = time(0);
 
     random_crop_generators_.reserve(max_batch_size);
     for (int i = 0; i < max_batch_size; i++) {
-      random_crop_generators_.push_back(
-        std::make_shared<RandomCropGenerator>(
+      random_crop_generators_.emplace_back(
+          Philox4x32_10::State(seed, rng::kSkipaheadPerSample * i, 0),
           AspectRatioRange{aspect_ratio[0], aspect_ratio[1]},
-          AreaRange{area[0], area[1]}, seeds[i], num_attempts));
+          AreaRange{area[0], area[1]}, num_attempts);
     }
   }
 
-  CropWindowGenerator GetCropWindowGenerator(std::size_t idx) const {
+  CropWindowGenerator GetCropWindowGenerator(std::size_t idx) {
     return [idx, this](const TensorShape<>& shape, const TensorLayout&) {
-      return random_crop_generators_[idx]->GenerateCropWindow(shape);
+      return random_crop_generators_[idx].GenerateCropWindow(shape);
     };
   }
 
-  std::vector<std::mt19937> RNGSnapshot() {
-    std::vector<std::mt19937> rngs;
-    for (const auto &gen : random_crop_generators_)
-      rngs.push_back(gen->GetRNG());
-    return rngs;
-  }
+ protected:
+  std::vector<RandomCropGenerator> random_crop_generators_;
+};
 
-  void RestoreRNGState(const std::vector<std::mt19937> &rngs) {
-    DALI_ENFORCE(rngs.size() == random_crop_generators_.size(),
-                 "Snapshot size does not match the number of generators. ");
-    for (size_t i = 0; i < rngs.size(); i++)
-      random_crop_generators_[i]->SetRNG(rngs[i]);
-  }
+template <typename Base>
+class OperatorWithRandomCrop
+: public rng::OperatorWithRng<Base>, public RandomCropAttr {
+ protected:
+  explicit OperatorWithRandomCrop(const OpSpec &spec) :
+    rng::OperatorWithRng<Base>(spec), RandomCropAttr(spec) {}
 
- private:
-  std::vector<std::shared_ptr<RandomCropGenerator>> random_crop_generators_;
+  void LoadRandomState(Workspace &ws) {
+    rng::OperatorWithRng<Base>::LoadRandomState(ws);
+
+    for (size_t i = 0; i < random_crop_generators_.size(); i++) {
+      auto rng = this->GetSampleRNG(i);
+      random_crop_generators_[i].SetRNGState(rng.get_state());
+    }
+    // Skip some number of items - this will make subsequent calls to GetSampleRNG to return
+    // a different state than the one used for random crop generation, avoiding correlation.
+    this->master_rng_.skipahead(100000);
+  }
 };
 
 }  // namespace dali

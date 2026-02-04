@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -34,11 +34,11 @@
 namespace dali {
 
 template <typename Backend>
-class RandomResizedCrop : public Operator<Backend>
+class RandomResizedCrop : public OperatorWithRandomCrop<Operator<Backend>>
                         , protected ResizeBase<Backend> {
  public:
   explicit inline RandomResizedCrop(const OpSpec &spec)
-      : Operator<Backend>(spec), ResizeBase<Backend>(spec), crop_attr_(spec) {
+      : OperatorWithRandomCrop<Operator<Backend>>(spec), ResizeBase<Backend>(spec) {
     GetSingleOrRepeatedArg(spec, size_, "size", 2);
     BackendInit();
   }
@@ -78,7 +78,7 @@ class RandomResizedCrop : public Operator<Backend>
       auto sample_shape = in_shape.tensor_shape_span(sample_idx);
       int H = sample_shape[height_idx];
       int W = sample_shape[width_idx];
-      crops_[sample_idx] = crop_attr_.GetCropWindowGenerator(sample_idx)({H, W}, "HW");
+      crops_[sample_idx] = this->GetCropWindowGenerator(sample_idx)({H, W}, "HW");
       resample_params_[sample_idx] = CalcResamplingParams(sample_idx);
     }
     resampling_attr_.ApplyFilterParams(make_span(resample_params_));
@@ -91,25 +91,6 @@ class RandomResizedCrop : public Operator<Backend>
   }
 
   void RunImpl(Workspace &ws) override;
-
-  void SaveState(OpCheckpoint &cpt, AccessOrder order) override {
-    cpt.MutableCheckpointState() = crop_attr_.RNGSnapshot();
-  }
-
-  void RestoreState(const OpCheckpoint &cpt) override {
-    auto &rngs = cpt.CheckpointState<std::vector<std::mt19937>>();
-    crop_attr_.RestoreRNGState(rngs);
-  }
-
-  std::string SerializeCheckpoint(const OpCheckpoint &cpt) const override {
-    const auto &state = cpt.CheckpointState<std::vector<std::mt19937>>();
-    return SnapshotSerializer().Serialize(state);
-  }
-
-  void DeserializeCheckpoint(OpCheckpoint &cpt, const std::string &data) const override {
-    cpt.MutableCheckpointState() =
-      SnapshotSerializer().Deserialize<std::vector<std::mt19937>>(data);
-  }
 
  private:
   void BackendInit();
@@ -137,7 +118,6 @@ class RandomResizedCrop : public Operator<Backend>
   }
 
   ResamplingFilterAttr resampling_attr_;
-  RandomCropAttr crop_attr_;
 
   std::vector<int> size_;
   kernels::ResamplingParams2D shared_params_;

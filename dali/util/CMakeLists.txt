@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2017-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,7 +20,6 @@ set(DALI_INST_HDRS ${DALI_INST_HDRS}
   "${CMAKE_CURRENT_SOURCE_DIR}/std_file.h"
   "${CMAKE_CURRENT_SOURCE_DIR}/odirect_file.h"
   "${CMAKE_CURRENT_SOURCE_DIR}/ocv.h"
-  "${CMAKE_CURRENT_SOURCE_DIR}/random_crop_generator.h"
   "${CMAKE_CURRENT_SOURCE_DIR}/thread_safe_queue.h"
   "${CMAKE_CURRENT_SOURCE_DIR}/numpy.h"
   "${CMAKE_CURRENT_SOURCE_DIR}/user_stream.h"
@@ -36,7 +35,6 @@ set(DALI_SRCS ${DALI_SRCS}
   "${CMAKE_CURRENT_SOURCE_DIR}/std_file.cc"
   "${CMAKE_CURRENT_SOURCE_DIR}/odirect_file.cc"
   "${CMAKE_CURRENT_SOURCE_DIR}/ocv.cc"
-  "${CMAKE_CURRENT_SOURCE_DIR}/random_crop_generator.cc"
   "${CMAKE_CURRENT_SOURCE_DIR}/user_stream.cc"
   "${CMAKE_CURRENT_SOURCE_DIR}/numpy.cc"
   "${CMAKE_CURRENT_SOURCE_DIR}/uri.cc")
@@ -68,7 +66,6 @@ if (BUILD_AWSSDK)
 endif()
 
 set(DALI_TEST_SRCS ${DALI_TEST_SRCS}
-  "${CMAKE_CURRENT_SOURCE_DIR}/random_crop_generator_test.cc"
   "${CMAKE_CURRENT_SOURCE_DIR}/numpy_test.cc"
   "${CMAKE_CURRENT_SOURCE_DIR}/uri_test.cc")
 
