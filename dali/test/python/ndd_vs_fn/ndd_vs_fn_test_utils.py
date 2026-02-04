@@ -416,7 +416,7 @@ def pipeline_es_feed_input_wrapper(
     return p
 
 
-def generate_image_like_data(max_batch_size=MAX_BATCH_SIZE, n_iter=N_ITERATIONS):
+def generate_image_like_data():
     return generate_data(image_like_shape_generator, lo=0, hi=255, dtype=np.uint8)
 
 
