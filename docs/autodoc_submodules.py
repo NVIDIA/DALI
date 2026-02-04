@@ -254,7 +254,9 @@ def fn_autodoc(out_filename, generated_path, references):
 def dynamic_autodoc(
     out_filename, generated_path, relative_generated_path, references
 ):
-    all_modules = get_modules(dynamic_modules)
+    all_modules = [
+        m for m in get_modules(dynamic_modules) if "readers" not in m
+    ]
     write_toctree(all_modules, relative_generated_path, out_filename)
     for module in all_modules:
         dali_module = sys.modules[module]

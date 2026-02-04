@@ -33,7 +33,9 @@ mix_ops = ops.mixed_ops()
 all_ops_in_module = {
     "nvidia.dali.fn": cpu_ops.union(gpu_ops).union(mix_ops),
     "nvidia.dali.experimental.dynamic": [
-        f._schema_name for f in ndd._ops._all_functions
+        f._schema_name
+        for f in ndd._ops._all_functions
+        if "readers" not in f._schema.ModulePath()
     ],
 }
 all_ops = all_ops_in_module["nvidia.dali.fn"]
