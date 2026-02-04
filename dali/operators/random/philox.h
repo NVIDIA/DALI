@@ -29,18 +29,18 @@ class Philox4x32_10 {
   struct State {
     constexpr DALI_HOST_DEV State() = default;
     constexpr DALI_HOST_DEV State(uint64_t key, uint64_t sequence, uint64_t offset) {
-      key = key;
-      ctr[0] = offset >> 2;
-      ctr[1] = sequence;
-      phase = offset & 3;
+      this->key = key;
+      this->ctr[0] = offset >> 2;
+      this->ctr[1] = sequence;
+      this->phase = offset & 3;
     }
 
     constexpr DALI_HOST_DEV State(uint64_t key, uint64_t ctr_hi, uint64_t ctr_lo, unsigned phase) {
       assert(phase < 4);
-      key = key;
-      ctr[0] = ctr_lo;
-      ctr[1] = ctr_hi;
-      phase = phase & 3;
+      this->key = key;
+      this->ctr[0] = ctr_lo;
+      this->ctr[1] = ctr_hi;
+      this->phase = phase & 3;
     }
 
     uint64_t key;

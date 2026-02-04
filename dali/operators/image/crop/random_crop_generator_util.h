@@ -1,0 +1,57 @@
+// Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#ifndef DALI_UTIL_RANDOM_CROP_GENERATOR_H_
+#define DALI_UTIL_RANDOM_CROP_GENERATOR_H_
+
+#include <vector>
+#include <random>
+#include <utility>
+#include "dali/core/common.h"
+#include "dali/util/crop_window.h"
+#include "dali/operators/random/philox.h"
+
+namespace dali {
+
+using AspectRatioRange = std::pair<float, float>;
+using AreaRange = std::pair<float, float>;
+
+class DLL_PUBLIC RandomCropGenerator {
+ public:
+  explicit DLL_PUBLIC RandomCropGenerator(
+    Philox4x32_10::State rng_state,
+    AspectRatioRange aspect_ratio_range = { 3.0f/4, 4.0f/3 },
+    AreaRange area_range = { 0.08, 1 },
+    int num_attempts_ = 10);
+
+  DLL_PUBLIC inline const Philox4x32_10 &GetRNG() const { return rand_gen_; }
+  DLL_PUBLIC inline Philox4x32_10 &GetRNG() { return rand_gen_; }
+  DLL_PUBLIC inline void SetRNGState(const Philox4x32_10::State s) { rand_gen_.set_state(s); }
+  DLL_PUBLIC CropWindow GenerateCropWindow(const TensorShape<>& shape);
+
+ private:
+  CropWindow GenerateCropWindowImpl(const TensorShape<>& shape);
+
+  AspectRatioRange aspect_ratio_range_;
+  // Aspect ratios are uniformly distributed on logarithmic scale.
+  // This provides natural symmetry and smoothness of the distribution.
+  std::uniform_real_distribution<float> aspect_ratio_log_dis_;
+  std::uniform_real_distribution<float> area_dis_;
+  Philox4x32_10 rand_gen_;
+  int num_attempts_;
+};
+
+}  // namespace dali
+
+#endif  // DALI_UTIL_RANDOM_CROP_GENERATOR_H_
