@@ -476,7 +476,7 @@ def to_dali_type(framework_type):
     if hasattr(framework_type, "__module__"):
         if framework_type.__module__ == "torch":
             framework_type = str(framework_type.__name__)
-        if framework_type.__module__ == "numpy":
+        elif framework_type.__module__ == "numpy":
             framework_type = framework_type.__name__
     else:
         framework_type = str(framework_type)
