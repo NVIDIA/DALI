@@ -473,14 +473,10 @@ dali_type_converters = []
 
 
 def to_dali_type(framework_type):
-    if hasattr(framework_type, "__module__"):
-        if framework_type.__module__ == "torch":
-            framework_type = str(framework_type.__name__)
-        elif framework_type.__module__ == "numpy":
-            framework_type = framework_type.__name__
-    else:
-        framework_type = str(framework_type)
-    t = _type_name_to_dali_type.get(framework_type)
+    t = str(framework_type)
+    if t.startswith("torch."):
+        t = t[6:]
+    t = _type_name_to_dali_type.get(t)
     if t is None:
         raise TypeError(f"'{framework_type}' could not be converted into any known DALIDataType.")
     return t
