@@ -77,6 +77,7 @@ class OperatorWithRng : public Base {
 
   void RestoreState(const OpCheckpoint &cpt) override {
     master_rng_.set_state(cpt.CheckpointState<Philox4x32_10::State>());
+    OnLoadRandomState();
   }
 
   std::string SerializeCheckpoint(const OpCheckpoint &cpt) const override {
@@ -90,10 +91,15 @@ class OperatorWithRng : public Base {
     cpt.MutableCheckpointState() = s;
   }
 
-  void Run(Workspace &ws) override {
+  bool Setup(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     LoadRandomState(ws);
-    Base::Run(ws);
+    bool ret = Base::Setup(output_desc, ws);
     assert(ws.NumOutput() > 0);
+    return ret;
+  }
+
+  void Run(Workspace &ws) override {
+    Base::Run(ws);
     Advance(ws.GetOutputBatchSize(0));
   }
 
@@ -111,22 +117,25 @@ class OperatorWithRng : public Base {
     master_rng_.init(seed, 0, 0);
   }
 
-  virtual void LoadRandomState(const Workspace &ws) {
-    if (!has_random_state_arg_)
-      return;
-    const TensorList<CPUBackend> &random_state = ws.ArgumentInput("_random_state");
-    assert(random_state.num_samples() > 0);
-    int element_size = random_state.type_info().size();
-    if (random_state[0].shape().num_elements() * element_size < 25)
-      throw std::invalid_argument("Random state tensor is too small");
-    const char *state_data = static_cast<const char *>(random_state[0].raw_data());
-    Philox4x32_10::State state;
-    memcpy(&state.key, state_data, 8);
-    memcpy(&state.ctr, state_data + 8, 16);
-    memcpy(&state.phase, state_data + 24, 1);
-    state.phase &= 3;
-    master_rng_.set_state(state);
+  void LoadRandomState(const Workspace &ws) {
+    if (has_random_state_arg_) {
+      const TensorList<CPUBackend> &random_state = ws.ArgumentInput("_random_state");
+      assert(random_state.num_samples() > 0);
+      int element_size = random_state.type_info().size();
+      if (random_state[0].shape().num_elements() * element_size < 25)
+        throw std::invalid_argument("Random state tensor is too small");
+      const char *state_data = static_cast<const char *>(random_state[0].raw_data());
+      Philox4x32_10::State state;
+      memcpy(&state.key, state_data, 8);
+      memcpy(&state.ctr, state_data + 8, 16);
+      memcpy(&state.phase, state_data + 24, 1);
+      state.phase &= 3;
+      master_rng_.set_state(state);
+    }
+    OnLoadRandomState();
   }
+
+  virtual void OnLoadRandomState() {}
 
   inline void Advance(int batch_size) {
     master_rng_.skipahead_sequence(batch_size);

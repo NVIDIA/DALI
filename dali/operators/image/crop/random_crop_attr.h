@@ -84,9 +84,7 @@ class OperatorWithRandomCrop
   explicit OperatorWithRandomCrop(const OpSpec &spec) :
     rng::OperatorWithRng<Base>(spec), RandomCropAttr(spec) {}
 
-  void LoadRandomState(const Workspace &ws) override {
-    rng::OperatorWithRng<Base>::LoadRandomState(ws);
-
+  void OnLoadRandomState() override {
     for (size_t i = 0; i < random_crop_generators_.size(); i++) {
       auto state = this->GetSampleRNG(i).get_state();
       // Modify the key so the derived operator can safely use the RNGs for other purposes without
