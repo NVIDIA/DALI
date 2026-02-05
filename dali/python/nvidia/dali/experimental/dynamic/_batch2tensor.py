@@ -58,9 +58,6 @@ class BatchToTensor:
         invocation.apply_eval_policy(_op_builder.is_external(batch))
         return Tensor(invocation_result=invocation[0])
 
-    def _infer_num_outputs(self, *inputs, **args):
-        return 1
-
     def _infer_output_devices(self, input, device, **_):
         return (_device.device(device) or input.device,)
 
