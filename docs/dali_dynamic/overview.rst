@@ -50,7 +50,7 @@ to improve performance.
        model((flipped, img))
 
 In the above example, batches of images are read from a dataset, then decoded and processed using
-DALI operators to create a model input. All of this is integrated directly into an existing code
+DALI operators to create a model input. All of this can be integrated directly into an existing code
 flow.
 
 
