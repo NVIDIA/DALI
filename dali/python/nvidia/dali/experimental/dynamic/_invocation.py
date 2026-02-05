@@ -154,7 +154,7 @@ class Invocation:
         """Optionally schedules or runs the operator, depending on the evaluation mode and whether
         there are any external inputs.
 
-        If there are any external inputs, the operator is runn immediately, regardless of EvalMode.
+        If there are any external inputs, the operator is run immediately, regardless of EvalMode.
         """
         if has_external_inputs:
             self.run(ctx)

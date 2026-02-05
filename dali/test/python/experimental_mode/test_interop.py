@@ -109,5 +109,13 @@ def test_batch_to_torch(device: str):
 @params(("cpu",), ("gpu",))
 def test_ragged_batch_to_torch(device: str):
     batch = ndd.batch([[1, 2, 3], [4, 5], [6]])
-    with assert_raises(RuntimeError, glob="dense"):
+    with assert_raises(ValueError, glob="dense"):
         batch.torch()
+
+
+@attr("pytorch")
+@params(("cpu",), ("gpu",))
+def test_ragged_batch_to_torch(device: str):
+    batch = ndd.batch([[1, 2, 3], [4, 5], [6]])
+    t = batch.torch(pad=True)
+    np.testing.assert_array_equal(t, [[1, 2, 3], [4, 5, 0], [6, 0, 0]])
