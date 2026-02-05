@@ -31,4 +31,4 @@ the necessity of defining the data processing graph upfront, at the cost of smal
 
 
 You can find more details in the
-`Getting Started with Pipeline Mode tutorial <../examples/getting_started/pipeline_mode.ipynb>`_.
+`Getting Started with Pipeline Mode tutorial <examples/getting_started/pipeline_mode.ipynb>`_.
