@@ -36,7 +36,6 @@ excluded_operators = [
     "_tensor_subscript",  # Hidden operators are not part of this suite.
     "batch_permutation",  # BUG
     "bbox_rotate",  # BUG
-    "cat",  # BUG
     "decoders.image_random_crop",  # BUG
     "decoders.image_slice",  # BUG
     "decoders.inflate",  # TODO(mszolucha): Add inflate test.
@@ -48,8 +47,6 @@ excluded_operators = [
     "random_resized_crop",  # BUG
     "readers.numpy",  # How to use GDS here?
     "readers.video_resize",  # BUG
-    "slice",  # BUG
-    "stack",  # BUG
     "warp_affine",  # BUG
 ]
 

@@ -16,7 +16,7 @@
 import nvidia.dali.fn as fn
 import nvidia.dali.experimental.dynamic as ndd
 import os
-from nose2.tools import params
+from nose2.tools import params, cartesian_params
 import numpy as np
 from nvidia.dali.pipeline import pipeline_def
 import test_utils
@@ -25,6 +25,8 @@ from ndd_vs_fn_test_utils import (
     run_operator_test,
     feed_input,
     use_fn_api,
+    get_fn_operator,
+    get_ndd_operator,
     use_ndd_api,
     flatten_operator_configs,
     generate_decoders_data,

@@ -44,8 +44,8 @@ IMAGE_LIKE_OPERATORS = [
     OperatorTestConfig("dump_image"),
     OperatorTestConfig("jpeg_compression_distortion"),
     OperatorTestConfig("crop_mirror_normalize"),
-    # OperatorTestConfig("stack"),  # BUG
-    # OperatorTestConfig("cat"),  # BUG
+    OperatorTestConfig("stack"),
+    OperatorTestConfig("cat"),
     # Operators with custom arguments:
     OperatorTestConfig("cast", {"dtype": types.INT32}),
     OperatorTestConfig("coord_transform", {"M": 0.5, "T": 2}),
@@ -86,9 +86,9 @@ IMAGE_LIKE_OPERATORS = [
             "normalized_shape": True,
         },
     ),
-    # OperatorTestConfig("pad", {"fill_value": -1, "axes": (0,), "align": 16}),  # BUG
+    OperatorTestConfig("pad", {"fill_value": -1, "axes": (0,), "align": 16}),
     # OperatorTestConfig("warp_affine", {"matrix": (0.1, 0.9, 10, 0.8, -0.2, -20)}),  # BUG
-    # OperatorTestConfig("expand_dims", {"axes": 1, "new_axis_names": "Z"}),
+    OperatorTestConfig("expand_dims", {"axes": 1, "new_axis_names": "Z"}),
     # CPU-only operators:
     OperatorTestConfig("zeros_like", devices=["cpu"]),
     OperatorTestConfig("ones_like", devices=["cpu"]),
@@ -99,7 +99,7 @@ IMAGE_LIKE_OPERATORS = [
     # GPU-only operators:
     OperatorTestConfig("clahe", {"tiles_x": 4, "tiles_y": 4, "clip_limit": 2.0}, devices=["gpu"]),
     OperatorTestConfig("equalize", devices=["gpu"]),
-    # OperatorTestConfig("slice", {"rel_start": 0.1, "rel_end": 0.5}),  # BUG
+    OperatorTestConfig("slice", {"rel_start": 0.1, "rel_end": 0.5}),
     OperatorTestConfig("experimental.median_blur", devices=["gpu"]),
     OperatorTestConfig("experimental.dilate", devices=["gpu"]),
     OperatorTestConfig("experimental.erode", devices=["gpu"]),
@@ -127,6 +127,7 @@ tested_operators = [
     "brightness",
     "brightness_contrast",
     "cast",
+    "cat",
     "clahe",
     "color_space_conversion",
     "color_twist",
@@ -169,7 +170,9 @@ tested_operators = [
     "resize_crop_mirror",
     "rotate",
     "saturation",
+    "slice",
     "sphere",
+    "stack",
     "tensor_resize",
     "transpose",
     "water",

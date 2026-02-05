@@ -134,7 +134,7 @@ READERS = [
 
 
 @params(*READERS)
-def test_file_reader(fn_reader, ndd_reader, device, reader_args):
+def test_readers(fn_reader, ndd_reader, device, reader_args):
     run_reader_test(
         fn_reader=fn_reader, ndd_reader=ndd_reader, device=device, reader_args=reader_args
     )

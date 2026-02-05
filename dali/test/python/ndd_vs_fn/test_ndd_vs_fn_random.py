@@ -101,32 +101,6 @@ def test_random_image_like(device, fn_operator, ndd_operator, operator_args):
     )
 
 
-# BUG (duplicating coin_flip test)
-# def test_coin_flip():
-#     fn_rng, ndd_rng = create_rngs()
-
-#     @pipeline_def(
-#         batch_size=MAX_BATCH_SIZE,
-#         device_id=0,
-#         num_threads=ndd.get_num_threads(),
-#         prefetch_queue_depth=1,
-#     )
-#     def pipeline():
-#         rs1 = fn.external_source(
-#             source=_random_state_source_factory(fn_rng, MAX_BATCH_SIZE, 1),
-#             num_outputs=1,
-#         )[
-#             0
-#         ]  # [0], since external_source returns a tuple
-#         return fn.random.coin_flip(_random_state=rs1)
-
-#     pipe = pipeline()
-#     pipe.build()
-#     pipe_out = pipe.run()
-#     ndd_out = ndd.random.coin_flip(rng=ndd_rng, batch_size=MAX_BATCH_SIZE)
-#     assert compare(pipe_out, ndd_out)
-
-
 def test_random_bbox_crop():
     device = "cpu"
 

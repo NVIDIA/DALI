@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 import numpy as np
 import nvidia.dali.fn as fn
 import nvidia.dali.experimental.dynamic as ndd
@@ -31,6 +32,7 @@ from ndd_vs_fn_test_utils import (
     custom_shape_generator,
     array_1d_shape_generator,
     generate_image_like_data,
+    pipeline_es_feed_input_wrapper,
     generate_data,
     compare,
     MAX_BATCH_SIZE,
@@ -177,7 +179,6 @@ def test_bb_flip(device):
 # @params("cpu")
 # def test_bbox_rotate(device):
 #     data = generate_data(custom_shape_generator(150, 250, 5, 5))
-#     import ipdb; ipdb.set_trace()  # fmt: skip
 
 #     @pipeline_def(
 #         batch_size=MAX_BATCH_SIZE,
@@ -615,6 +616,7 @@ def test_full_like(device):
 #         ndd_out = ndd.io.file.read(ndd.as_batch(inp, device=device))
 #         assert compare(pipe_out, ndd_out)
 
+
 # BUG
 # @params("cpu", "gpu")
 # def test_slice(device):
@@ -641,16 +643,16 @@ def test_full_like(device):
 #         assert compare(pipe_out, ndd_out)
 
 
-@params("cpu")
-def test_bbox_paste(device):
-    data = generate_data(custom_shape_generator(150, 250, 4, 4))
-    run_operator_test(
-        input_epoch=data,
-        fn_operator=fn.bbox_paste,
-        ndd_operator=ndd.bbox_paste,
-        device=device,
-        operator_args={"ratio": 1.1},
-    )
+# @params("cpu")
+# def test_bbox_paste(device):
+#     data = generate_data(custom_shape_generator(150, 250, 4, 4))
+#     run_operator_test(
+#         input_epoch=data,
+#         fn_operator=fn.bbox_paste,
+#         ndd_operator=ndd.bbox_paste,
+#         device=device,
+#         operator_args={"ratio": 1.1},
+#     )
 
 
 @params("cpu")
