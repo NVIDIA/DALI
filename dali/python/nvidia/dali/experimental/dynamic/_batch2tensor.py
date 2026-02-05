@@ -71,7 +71,7 @@ class BatchToTensor:
         input_batch = as_batch(input_batch, device=device).evaluate()
         shape = input_batch.shape
         if input_batch._storage.is_dense_tensor():
-            return input_batch.evaluate()._storage.as_tensor()
+            return input_batch._storage.as_tensor()
         elif is_uniform(shape):
             return batch(input_batch).evaluate()._storage.as_tensor()
         else:
