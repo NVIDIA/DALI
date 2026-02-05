@@ -3,10 +3,10 @@
 Pipeline API Overview
 =====================
 
-DALI traditionally relies on explicitly defined pipelines, where data processing
-is specified as a computation graph. A typical usage pattern involves defining
-a decorated function with :ref:`@pipeline_def <pipeline_decorator>`,
-constructing the :ref:`Pipeline object<pipeline_class>`, and executing it with batched data:
+In DALI Pipeline API, the processing is organized in a fixed graph of operations,
+defined ahead of time. A typical usage pattern involves defining
+a function decorated with :ref:`@pipeline_def <pipeline_decorator>`,
+constructing the :ref:`Pipeline object <pipeline_class>`, and executing it with batched data:
 
 .. code-block:: python
 

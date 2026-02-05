@@ -33,7 +33,7 @@ Dynamic Mode
 
 DALI Dynamic offers an imperative programming model. This means that it does not
 require isolating data processing logic into a separate pipeline, and operators can
-be called directly from Python code. Moreover, DALI Dynamic evaluates operators lazily
+be called directly from Python code. Moreover, DALI Dynamic evaluates operators asynchronously
 to improve performance.
 
 .. code-block:: python
@@ -57,11 +57,13 @@ flow.
 Key features
 ^^^^^^^^^^^^
 
-- **Imperative programming with lazy execution**
-  In the original DALI execution model, operators were defined and executed within a static
+- **Imperative programming with asynchronous or lazy execution**
+  In the DALI Pipeline API, operators were defined and executed within a static
   pipeline graph. This often resulted in a steep learning curve, complex debugging, and
-  limited error visibility. DALI Dynamic introduces imperative programming with lazy operator
-  execution, aligning DALI more closely with standard Python workflows.
+  limited error visibility. DALI Dynamic introduces imperative programming aligning DALI more closely
+  with standard Python workflows. DALI Dynamic executes the operators asynchronously in the background
+  to transparently improve performance, but can be configured to run fully lazily or synchronously
+  with the main thread.
 
 - **Minimal performance overhead**
   DALI Dynamic is designed to deliver performance that is close to graph-based pipelines, incurring
@@ -79,5 +81,5 @@ Key features
 
    DALI Dynamic does not replace the graph-based execution model. Instead, it provides
    an alternative interface for a seamless Python experience. Prototyping and development
-   can be performed in DALI Dynamic using exactly the same operators as a pipeline mode
+   can be performed in DALI Dynamic using exactly the same operators as in the Pipeline API
    and transition between the two modes is straightforward.
