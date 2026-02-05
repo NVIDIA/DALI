@@ -136,7 +136,7 @@ class DType:
     @staticmethod
     def _make_name_and_docs(
         kind: Kind, bits: int, exponent_bits: int, significand_bits: int
-    ) -> str:
+    ) -> tuple[str, str]:
         if kind == DType.Kind.signed:
             return f"i{bits}", f"{bits}-bit signed integer"
         elif kind == DType.Kind.unsigned:
