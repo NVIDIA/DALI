@@ -12,7 +12,8 @@ RUN yum install -y wget doxygen graphviz gettext xz openssl autogen zip \
                    gcc-toolset-14-libasan-devel gcc-toolset-14-liblsan-devel \
                    gcc-toolset-14-libtsan-devel gcc-toolset-14-libubsan-devel \
                    perl perl-IPC-Cmd nasm clang clang-devel && \
-    find /usr/lib/clang -name __clang_cuda_runtime_wrapper.h -exec sed -i '/texture_fetch_functions\.h/d' {} \;
+    find /usr/lib/clang -name __clang_cuda_runtime_wrapper.h -exec sed -i '/texture_fetch_functions\.h/d' {} \; && \
+    find /usr/lib/clang -type f -name __clang_cuda_runtime_wrapper.h -exec sed -i -z 's/#if CUDA_VERSION >= 9000\n#include "crt\/math_functions.hpp"/#if CUDA_VERSION >= 9000\n#include <features.h>\n#if __GLIBC_PREREQ(2,42)\n#  define _NV_RSQRT_SPECIFIER noexcept(true)\n#else\n#  define _NV_RSQRT_SPECIFIER\n#endif\n#include "crt\/math_functions.hpp"/g' {} \;
 
 ENV ACLOCAL_PATH=/usr/share/aclocal/:/usr/local/share/aclocal
 
