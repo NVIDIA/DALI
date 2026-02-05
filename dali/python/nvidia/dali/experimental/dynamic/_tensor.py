@@ -173,6 +173,7 @@ class Tensor:
                 self._storage = data
                 self._wraps_external_data = True
                 self._device = _backend_device(data)
+                self._layout = self._storage.layout()
             elif isinstance(data, Tensor):
                 if dtype is None or _type_id(dtype) == data.dtype.type_id:
                     if device is None or device == data.device:
@@ -293,6 +294,21 @@ class Tensor:
 
         if copy and self._storage is not None and not copied:
             self._assign(self.to_device(device, True).evaluate())
+
+        if layout and self.layout is not None and self.layout != layout:
+            if self._storage is not None:
+                if copied:
+                    # we're the sole owner of the storage object - just set the layout
+                    self._storage.set_layout(layout)
+                else:
+                    # create a view and change layout
+                    self._storage = type(self._storage)(self._storage)
+                    self._storage.set_layout(layout)
+                self._layout = layout
+            else:
+                from . import reshape
+
+                self._assign(reshape(self, layout=layout))
 
     def _is_external(self) -> bool:
         return self._wraps_external_data
@@ -937,7 +953,9 @@ def tensor(
     if isinstance(data, _batch.Batch):
         from . import _batch2tensor
 
-        return _batch2tensor.batch_to_tensor(data, pad, device=device, force_copy=True)
+        return _batch2tensor.batch_to_tensor(
+            data, pad=pad, dtype=dtype, layout=layout, device=device, force_copy=True
+        )
 
     return Tensor(data, dtype=dtype, device=device, layout=layout, copy=True)
 
@@ -980,7 +998,9 @@ def as_tensor(
     if isinstance(data, _batch.Batch):
         from . import _batch2tensor
 
-        return _batch2tensor.batch_to_tensor(data, pad, device=device)
+        return _batch2tensor.batch_to_tensor(
+            data, pad=pad, dtype=dtype, layout=layout, device=device
+        )
 
     return Tensor(data, dtype=dtype, device=device, layout=layout, copy=False)
 
