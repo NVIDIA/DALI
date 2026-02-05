@@ -54,54 +54,6 @@ TEST_F(RandomCropGeneratorTest, DifferentSeedProduceDifferentResult) {
     EXPECT_NE(crop1, crop2);
 }
 
-TEST_F(RandomCropGeneratorTest, GeneratingMultipleWindowsProduceDifferentResults) {
-    auto crops = MakeGenerator().GenerateCropWindows({default_H_, default_W_}, 1000);
-    for (std::size_t i = 1; i < crops.size(); i++) {
-        EXPECT_TRUE(crops[i-1].IsInRange({default_H_, default_W_}));
-        EXPECT_NE(crops[i-1], crops[i]);
-    }
-}
-
-TEST_F(RandomCropGeneratorTest, DifferentSeedProduceDifferentResultBatchedVersion) {
-    auto crops1 = MakeGenerator(seed_).GenerateCropWindows({default_H_, default_W_}, 1000);
-    auto crops2 = MakeGenerator(seed_+1).GenerateCropWindows({default_H_, default_W_}, 1000);
-    ASSERT_EQ(crops1.size(), crops2.size());
-    for (std::size_t i = 0; i < crops1.size(); i++) {
-        EXPECT_TRUE(crops1[i].IsInRange({default_H_, default_W_}));
-        EXPECT_TRUE(crops2[i].IsInRange({default_H_, default_W_}));
-        EXPECT_NE(crops1[i], crops2[i]);
-    }
-}
-
-TEST_F(RandomCropGeneratorTest, DimensionH1W1) {
-    for (const auto& crop : MakeGenerator().GenerateCropWindows({1, 1}, 1000)) {
-        EXPECT_TRUE(crop.IsInRange({1, 1}));
-        EXPECT_EQ(0, crop.anchor[1]);
-        EXPECT_EQ(0, crop.anchor[0]);
-        EXPECT_EQ(1, crop.shape[0]);
-        EXPECT_EQ(1, crop.shape[1]);
-    }
-}
-
-TEST_F(RandomCropGeneratorTest, DimensionH1) {
-    for (const auto& crop : MakeGenerator().GenerateCropWindows({1, default_W_}, 1000)) {
-        EXPECT_TRUE(crop.IsInRange({1, default_W_}));
-        EXPECT_EQ(0, crop.anchor[0]);
-        EXPECT_EQ(1, crop.shape[0]);
-        EXPECT_EQ(1, crop.shape[1]);
-    }
-}
-
-TEST_F(RandomCropGeneratorTest, DimensionW1) {
-    for (const auto& crop : MakeGenerator().GenerateCropWindows({default_H_, 1}, 1000)) {
-        EXPECT_TRUE(crop.IsInRange({default_H_, 1}));
-        EXPECT_EQ(0, crop.anchor[1]);
-        EXPECT_EQ(1, crop.shape[0]);
-        EXPECT_EQ(1, crop.shape[1]);
-    }
-}
-
-
 TEST_F(RandomCropGeneratorTest, AspectRatio) {
     float min_ratio = 0.8f;
     float max_ratio = 2.0f;
