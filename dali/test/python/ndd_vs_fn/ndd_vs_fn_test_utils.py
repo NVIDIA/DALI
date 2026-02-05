@@ -219,14 +219,9 @@ def generate_decoders_data(data_dir, data_extension, exclude_subdirs=[]):
         fnames.append(fnames[-1])
     nfiles = len(fnames)
     _input_epoch = [
-        list(map(lambda fname: test_utils.read_file_bin(fname), fnames[: nfiles // 3])),
-        list(
-            map(
-                lambda fname: test_utils.read_file_bin(fname),
-                fnames[nfiles // 3 : nfiles // 2],
-            )
-        ),
-        list(map(lambda fname: test_utils.read_file_bin(fname), fnames[nfiles // 2 :])),
+        list(map(test_utils.read_file_bin, fnames[: nfiles // 3])),
+        list(map(test_utils.read_file_bin, fnames[nfiles // 3 : nfiles // 2])),
+        list(map(test_utils.read_file_bin, fnames[nfiles // 2 :])),
     ]
 
     # Since we pack buffers into ndarray, we need to pad samples with 0.
