@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <algorithm>
+#include <cassert>
 #include <cmath>
 #include <utility>
 #include "dali/operators/image/crop/random_crop_generator_util.h"

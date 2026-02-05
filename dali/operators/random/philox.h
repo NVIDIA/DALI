@@ -17,6 +17,7 @@
 
 #include <cassert>
 #include <cstdint>
+#include <iostream>
 #include <string>
 #include <string_view>
 #include "dali/core/api_helper.h"
