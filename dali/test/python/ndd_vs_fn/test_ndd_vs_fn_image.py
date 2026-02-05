@@ -87,7 +87,6 @@ IMAGE_LIKE_OPERATORS = [
         },
     ),
     OperatorTestConfig("pad", {"fill_value": -1, "axes": (0,), "align": 16}),
-    # OperatorTestConfig("warp_affine", {"matrix": (0.1, 0.9, 10, 0.8, -0.2, -20)}),  # BUG
     OperatorTestConfig("expand_dims", {"axes": 1, "new_axis_names": "Z"}),
     # CPU-only operators:
     OperatorTestConfig("zeros_like", devices=["cpu"]),
