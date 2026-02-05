@@ -26,10 +26,13 @@ class RandomCropGeneratorTest : public ::testing::Test {
     int default_W_ = 640;
     int64_t seed_ = 1234;
 
+    Philox4x32_10::State MakeRngState(int64_t seed) {
+        return Philox4x32_10::State(seed, 0, 0);
+    }
+
     RandomCropGenerator MakeGenerator(int64_t seed = 1234) {
         return RandomCropGenerator(
-            Philox4x32_10::State(seed, 0, 0),
-            default_aspect_ratio_range_, default_area_range_);
+            default_aspect_ratio_range_, default_area_range_, MakeRngState(seed));
     }
 };
 
@@ -57,7 +60,7 @@ TEST_F(RandomCropGeneratorTest, DifferentSeedProduceDifferentResult) {
 TEST_F(RandomCropGeneratorTest, AspectRatio) {
     float min_ratio = 0.8f;
     float max_ratio = 2.0f;
-    RandomCropGenerator gen({ min_ratio, max_ratio }, { 0.1f, 0.9f }, 12345);
+    RandomCropGenerator gen({ min_ratio, max_ratio }, { 0.1f, 0.9f }, MakeRngState(12345));
 
     std::mt19937_64 rng(4321);
     std::uniform_int_distribution<int> s_dist(1, 2048);
