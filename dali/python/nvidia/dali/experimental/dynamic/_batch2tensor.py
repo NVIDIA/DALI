@@ -27,7 +27,17 @@ def is_uniform(shape):
     return all(x == shape[0] for x in shape[1:])
 
 
-class BatchToTensor(_ops.Operator):
+class BatchToTensor:
+    """This is an internal pseudo-operator, not to be used directly.
+
+    This operator is used when calling ``tensor`` or ``as_tensor`` with a ``Batch`` argument.
+    Unlike any other operator, it takes a ``Batch`` and returns a single ``Tensor``.
+    This operator is special in that, unlike any other, it takes a Batch and returns a
+    single Tensor. It needs to be an usable as an operator so we can benefit from the
+    ``Invocation`` object and correctly apply ``EvalModes`` policies.
+    Only a minimal required subset of ``Operator`` interface is implemented.
+    """
+
     def __call__(self, batch, pad=False, force_copy=False, batch_size=None, device=None):
         if not isinstance(batch, Batch):
             batch = _op_builder._to_batch(batch, batch_size)
@@ -45,20 +55,11 @@ class BatchToTensor(_ops.Operator):
                 batch_size=None,
                 previous_invocation=None,
             )
-
-        if (
-            _eval_mode.EvalMode.current() is _eval_mode.EvalMode.sync_cpu
-            or _eval_mode.EvalMode.current() is _eval_mode.EvalMode.sync_full
-            or _op_builder.is_external(batch)
-        ):
-            # Evaluate immediately
-            invocation.run(_eval_context.EvalContext.current())
-        elif _eval_mode.EvalMode.current() is _eval_mode.EvalMode.eager:
-            with nvtx.annotate("__call__: eager scheduling", domain="op_builder"):
-                invocation.schedule(_eval_context.EvalContext.current())
-        else:
-            pass
+        invocation.apply_eval_policy(_op_builder.is_external(batch))
         return Tensor(invocation_result=invocation[0])
+
+    def _infer_num_outputs(self, *inputs, **args):
+        return 1
 
     def _infer_output_devices(self, input, device, **_):
         return (_device.device(device) or input.device,)
@@ -84,7 +85,7 @@ class BatchToTensor(_ops.Operator):
             return _pad(input_batch).evaluate()._storage.as_tensor()
 
 
-_batch_to_tensor_instance = BatchToTensor(max_batch_size=None)
+_batch_to_tensor_instance = BatchToTensor()
 
 
 def batch_to_tensor(batch, pad=False, force_copy=False, device=None):
