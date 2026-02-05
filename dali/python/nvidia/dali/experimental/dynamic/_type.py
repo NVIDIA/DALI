@@ -145,7 +145,7 @@ class DType:
             if exponent_bits == DType._default_exponent_bits(
                 bits
             ) and significand_bits == DType._default_significand_bits(bits):
-                return f"f{bits}", f"{bits}-bit floating point number"
+                return f"f{bits}", f"{bits}-bit floating point number (IEEE 754)"
             elif bits == 16 and exponent_bits == 8 and significand_bits == 7:
                 return (
                     "bfloat16",
