@@ -13,11 +13,8 @@
 # limitations under the License.
 
 
-from . import _ops
 from . import _op_builder
 from . import _invocation
-from . import _eval_context
-from . import _eval_mode
 from . import _device
 from ._batch import as_batch, batch, Batch, Tensor
 import nvtx

@@ -23,7 +23,7 @@ from nvidia.dali import internal as _internal
 from nvidia.dali.fn import _to_snake_case
 from nvidia.dali.ops import _docs, _names
 
-from . import _device, _eval_context, _eval_mode, _invocation, _op_filter, _ops, _type
+from . import _device, _invocation, _op_filter, _ops, _type
 from . import random as _random
 from ._batch import Batch, _get_batch_size
 from ._batch import as_batch as _as_batch
