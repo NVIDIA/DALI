@@ -15,6 +15,7 @@
 #ifndef DALI_OPERATORS_IMAGE_CROP_RANDOM_CROP_GENERATOR_UTIL_H_
 #define DALI_OPERATORS_IMAGE_CROP_RANDOM_CROP_GENERATOR_UTIL_H_
 
+#include <chrono>
 #include <vector>
 #include <random>
 #include <utility>
@@ -29,10 +30,15 @@ using AreaRange = std::pair<float, float>;
 
 class DLL_PUBLIC RandomCropGenerator {
  public:
+  static inline Philox4x32_10::State DefaultRngState() {
+    uint64_t key = std::chrono::high_resolution_clock::now().time_since_epoch().count();
+    return { key, 0, 0 };
+  }
+
   explicit DLL_PUBLIC RandomCropGenerator(
-    Philox4x32_10::State rng_state,
     AspectRatioRange aspect_ratio_range = { 3.0f/4, 4.0f/3 },
     AreaRange area_range = { 0.08, 1 },
+    Philox4x32_10::State rng_state = DefaultRngState(),
     int num_attempts_ = 10);
 
   DLL_PUBLIC inline void SetRNGState(const Philox4x32_10::State &s) { rand_gen_.set_state(s); }

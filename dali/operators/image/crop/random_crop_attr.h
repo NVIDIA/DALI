@@ -60,9 +60,10 @@ class RandomCropAttr {
     random_crop_generators_.reserve(max_batch_size);
     for (int i = 0; i < max_batch_size; i++) {
       random_crop_generators_.emplace_back(
-          Philox4x32_10::State(seed, rng::kSkipaheadPerSample * i, 0),
           AspectRatioRange{aspect_ratio[0], aspect_ratio[1]},
-          AreaRange{area[0], area[1]}, num_attempts);
+          AreaRange{area[0], area[1]},
+          Philox4x32_10::State(seed, rng::kSkipaheadPerSample * i, 0),
+          num_attempts);
     }
   }
 
