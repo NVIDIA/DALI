@@ -29,6 +29,8 @@
 
 namespace dali {
 
+inline constexpr uint64_t kRandomCropSeedModifier = 0x12345678abcdefe_u64;
+
 /**
  * @brief Crop parameter and input size handling.
  *
@@ -53,7 +55,7 @@ class RandomCropAttr {
     if (!spec.TryGetArgument(seed, "seed"))
       seed = time(0);
 
-    seed ^= 0x12345678abcdefe_u64;
+    seed ^= kRandomCropSeedModifier;
 
     random_crop_generators_.reserve(max_batch_size);
     for (int i = 0; i < max_batch_size; i++) {
@@ -86,7 +88,9 @@ class OperatorWithRandomCrop
 
     for (size_t i = 0; i < random_crop_generators_.size(); i++) {
       auto state = this->GetSampleRNG(i).get_state();
-      state.key ^= 0x12345678abcdefe_u64;
+      // Modify the key so the derived operator can safely use the RNGs for other purposes without
+      // the risk of generating correlated sequences.
+      state.key ^= kRandomCropSeedModifier;
       random_crop_generators_[i].SetRNGState(state);
     }
   }
