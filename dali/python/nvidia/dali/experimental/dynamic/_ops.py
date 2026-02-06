@@ -132,7 +132,7 @@ class Operator:
         self._init_spec(inputs, args)
         return self._num_outputs
 
-    def _input_device(self, index: int, actual_device: DeviceLike | None = None):
+    def _input_device(self, index: int, actual_device: Device | None = None):
         default_input_device = "gpu" if self._device.device_type == "gpu" else "cpu"
         actual_device_type = actual_device.device_type if actual_device is not None else None
         dev_type = self._schema.GetInputDevice(index, actual_device_type, default_input_device)
