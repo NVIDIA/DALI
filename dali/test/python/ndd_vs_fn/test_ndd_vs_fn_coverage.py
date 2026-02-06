@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from test_utils import create_sign_off_registry
 from nvidia.dali.experimental.dynamic._ops import _all_ops
 
 
@@ -104,12 +105,12 @@ excluded_operators = [
     "warp_affine",
 ]
 
-tested_operators = set()
+sign_off_registry = create_sign_off_registry()
 
 
 def register_operator_test(operator_name: str):
     """Register an operator as tested by adding it to the tested_operators set."""
-    tested_operators.add(operator_name)
+    sign_off_registry.register_test(operator_name)
 
 
 def get_all_operators():
@@ -122,7 +123,7 @@ def get_all_operators():
 
 
 def test_coverage():
-    covered_operators = tested_operators.union(excluded_operators)
+    covered_operators = sign_off_registry.tested_ops.union(excluded_operators)
     all_operators = get_all_operators()
 
     untested_operators = [op for op in all_operators if op not in covered_operators]
