@@ -23,7 +23,7 @@ import numpy as np
 from nvidia.dali.pipeline import pipeline_def
 from test_utils import (
     compare_pipelines,
-    create_sign_off_decorator,
+    create_sign_off_registry,
     get_dali_extra_path,
     module_functions,
 )
@@ -37,8 +37,8 @@ from nvidia.dali.auto_aug import trivial_augment as ta
 from reader.test_numpy import is_gds_supported
 
 
-reader_signed_off = create_sign_off_decorator()
-random_signed_off = create_sign_off_decorator()
+reader_signed_off = create_sign_off_registry()
+random_signed_off = create_sign_off_registry()
 
 data_root = get_dali_extra_path()
 images_dir = os.path.join(data_root, "db", "single", "jpeg")
