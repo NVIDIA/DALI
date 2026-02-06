@@ -1,4 +1,4 @@
-# Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -28,7 +28,7 @@ rng_copy = rng.clone()
 
 def ndd_rn50_pipeline(jpegs):
     batch_size = jpegs.batch_size
-    images = ndd.decoders.image(jpegs, device="mixed")
+    images = ndd.decoders.image(jpegs, device="gpu")
     xy = ndd.random.uniform(batch_size=batch_size, range=[0, 1], shape=2, rng=rng_copy)
     do_mirror = ndd.random.coin_flip(batch_size=batch_size, probability=0.5, rng=rng_copy)
     size = ndd.random.uniform(batch_size=batch_size, range=[256, 480], rng=rng_copy)

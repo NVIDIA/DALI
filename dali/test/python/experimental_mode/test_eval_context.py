@@ -154,7 +154,7 @@ def _validate_gpu_expr_result(result, expected_device_id):
     assert result_cpu.shape == (1,)
     assert result_cpu.dtype == ndd.float32
     assert result_cpu.device.device_type == "cpu"
-    assert result_cpu.device.device_id == 0
+    assert result_cpu.device.device_id is None
     np.testing.assert_array_equal(result_cpu, np.array([5.0], dtype=np.float32))
 
 
@@ -220,10 +220,10 @@ def test_device_match_mixed_operator(device_id):
         encoded_data = np.frombuffer(f.read(), dtype=np.uint8).copy()
 
     if device_id is None:
-        decoded_gpu = ndd.decoders.image(encoded_data, device="mixed")
+        decoded_gpu = ndd.decoders.image(encoded_data, device="gpu")
     else:
         with ndd.Device(f"gpu:{device_id}"):
-            decoded_gpu = ndd.decoders.image(encoded_data, device="mixed")
+            decoded_gpu = ndd.decoders.image(encoded_data, device="gpu")
 
     eval_device_id = device_id if device_id is not None else 0
     with ndd.EvalContext(device_id=eval_device_id):
