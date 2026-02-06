@@ -14,7 +14,7 @@
 
 import nvidia.dali.backend as _backend
 from threading import local
-from typing import NoReturn, TypeAlias
+from typing import NoReturn, TypeAlias, Union
 
 
 try:
@@ -26,7 +26,7 @@ except ImportError:
     # with torch.device being interpreted as 'Unknown' if torch is not installed.
     _TorchDevice: TypeAlias = NoReturn  # type: ignore
 
-DeviceLike: TypeAlias = "Device | str | _TorchDevice"
+DeviceLike: TypeAlias = Union["Device", str, _TorchDevice]
 
 
 class Device:
