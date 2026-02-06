@@ -12,4 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from . import nodes as nodes  # noqa: F401
+import importlib
+
+if importlib.util.find_spec("torchdata") is not None:
+    __all__ = ["nodes"]
+    from . import nodes as nodes  # noqa: F401
