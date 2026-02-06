@@ -35,6 +35,7 @@ class EvalMode(Enum):
                     the operation returns.
     """
 
+    # ordered in increasing order of synchronicity
     deferred = auto()
     eager = auto()
     sync_cpu = auto()

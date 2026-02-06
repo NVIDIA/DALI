@@ -23,7 +23,7 @@ from nvidia.dali import internal as _internal
 from nvidia.dali.fn import _to_snake_case
 from nvidia.dali.ops import _docs, _names
 
-from . import _device, _eval_context, _eval_mode, _invocation, _op_filter, _ops, _type
+from . import _device, _invocation, _op_filter, _ops, _type
 from . import random as _random
 from ._batch import Batch, _get_batch_size
 from ._batch import as_batch as _as_batch
@@ -415,25 +415,10 @@ def build_call_function(schema, op_class):
             if stateful:
                 self._last_invocation = invocation
 
-            if (
-                _eval_mode.EvalMode.current() is _eval_mode.EvalMode.sync_cpu
-                or _eval_mode.EvalMode.current() is _eval_mode.EvalMode.sync_full
-                or any(is_external(x) for x in inputs)
-                or any(is_external(x) for x in kwargs.values())
-            ):
-                # Evaluate immediately
-                invocation.run(_eval_context.EvalContext.current())
-            elif _eval_mode.EvalMode.current() is _eval_mode.EvalMode.eager:
-                with nvtx.annotate("__call__: eager scheduling", domain="op_builder"):
-                    invocation.schedule(_eval_context.EvalContext.current())
-            else:
-                pass
-                # Lazy evaluation
-                # If there's an active evaluation context, add this invocation to it.
-                # When leaving the context, the invocation will be evaluated if it's still alive.
-                # ctx = _eval_context.EvalContext.current()
-                # if ctx is not None:
-                # ctx._add_invocation(invocation, weak=not self._is_stateful)
+            has_external_inputs = any(is_external(x) for x in inputs) or any(
+                is_external(x) for x in kwargs.values()
+            )
+            invocation.apply_eval_policy(has_external_inputs)
 
             ResultType = Batch if is_batch else Tensor
 

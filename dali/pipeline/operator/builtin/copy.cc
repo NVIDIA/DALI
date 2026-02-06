@@ -42,6 +42,8 @@ void Copy<CPUBackend>::RunImpl(Workspace &ws) {
       output.set_order(AccessOrder::host());
     DeviceGuard g(input.device_id());
     output.Copy(input, ws.output_order());
+    // CPU operators assume that their CPU inputs are immediately accessible.
+    AccessOrder::host().wait(ws.output_order());
   }
 }
 

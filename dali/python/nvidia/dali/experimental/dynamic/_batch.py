@@ -666,24 +666,30 @@ class Batch:
             self.evaluate(), show_data=True, adapter=_tensor_formatting.DynamicBatchAdapter()
         )
 
-    def torch(self, copy: bool = False):
+    def torch(self, copy: Optional[bool] = None, pad: bool = False):
         """
         Returns ``self`` as a PyTorch tensor.
         Requires ``self`` to be dense and PyTorch to be installed.
 
         Parameters
         ----------
-        copy : bool, default: False
-            Boolean indicating whether to perform a copy.
-        """
+        copy : bool, optional, default: None
+            An optional boolean value indicating how to handle copying.
+            None - avoid copy if possible
+            True - always copy
+            False - raise error if copy cannot be avoided
 
+        pad : bool, default: False
+            If `True`, the tensors in the batch will be padded before being stacked into one tensor.
+            If `False`, an error is raised if the batch has a non-uniform shape.
+        """
         if importlib.util.find_spec("torch") is None:
             raise RuntimeError("Batch.torch() requires PyTorch to be installed.")
 
-        if not self.evaluate()._storage.is_dense_tensor():
-            raise RuntimeError("Batch.torch() requires a dense batch")
+        if copy is False and not self.evaluate()._storage.is_dense_tensor():
+            raise ValueError("This batch cannot be converted to a tensor without a copy.")
 
-        return _as_tensor(self).torch(copy)
+        return _as_tensor(self, pad=pad).torch(copy)
 
     def evaluate(self):
         """

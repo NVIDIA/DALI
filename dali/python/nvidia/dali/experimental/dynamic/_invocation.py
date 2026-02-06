@@ -145,7 +145,30 @@ class Invocation:
     def is_batch(self):
         return self._is_batch
 
+    def apply_eval_policy(
+        self,
+        has_external_inputs: bool,
+        mode: Optional[_EvalMode] = None,
+        ctx: Optional[_EvalContext] = None,
+    ):
+        """Optionally schedules or runs the operator, depending on the evaluation mode and whether
+        there are any external inputs.
+
+        If there are any external inputs, the operator is run immediately, regardless of EvalMode.
+        """
+        if has_external_inputs:
+            self.run(ctx)
+        else:
+            if mode is None:
+                mode = _EvalMode.current()
+            if mode.value >= _EvalMode.sync_cpu.value:
+                self.run(ctx)
+            elif mode.value >= _EvalMode.eager.value:
+                self.schedule(ctx)
+            # else - deferred evaluation
+
     def run(self, ctx: Optional[_EvalContext] = None):
+        """Executes the operator immediately."""
         if future := self._future:
             with nvtx.annotate("Invocation.wait", domain="invocation"):
                 future.wait()

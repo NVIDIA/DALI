@@ -151,7 +151,7 @@ def test_batch_construction_with_torch_tensor(device_type):
     assert b.ndim == 1
     assert b.shape == [(3,), (3,)]
     assert b.layout is None
-    ref = torch.from_dlpack(ndd.as_tensor(b)._storage)
+    ref = torch.from_dlpack(ndd.as_tensor(b).evaluate()._storage)
     assert torch.equal(data[0], ref[0])
     assert torch.equal(data[1], ref[1])
 

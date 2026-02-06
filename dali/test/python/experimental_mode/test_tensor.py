@@ -17,7 +17,7 @@ import nvidia.dali as dali
 import nvidia.dali.backend as _b
 import nvidia.dali.experimental.dynamic as ndd
 from ndd_utils import eval_modes
-from nose2.tools import params
+from nose2.tools import params, cartesian_params
 from nose_utils import SkipTest, assert_raises, attr
 
 
@@ -239,6 +239,18 @@ def test_layout():
 
 
 @eval_modes()
+def test_layout_change():
+    t = ndd.as_tensor(np.zeros((480, 640, 3), dtype=np.int32), layout="HWC")
+    t2 = ndd.as_tensor(t, layout="ABC")
+    t3 = ndd.as_tensor(t + 5, layout="XYZ")
+    t4 = ndd.as_tensor(t._storage, layout="JKL")
+    assert t.layout == "HWC"
+    assert t2.layout == "ABC"
+    assert t3.layout == "XYZ"
+    assert t4.layout == "JKL"
+
+
+@eval_modes()
 def test_shape_slice():
     t = ndd.tensor(np.zeros((5, 6, 7, 10), dtype=np.int32))
     s = t[1:3, 2:5, 3:7, 4:9]
@@ -348,3 +360,66 @@ def test_join():
     assert np.array_equal(data, same)
     stacked = ndd.stack(data, data)
     assert np.array_equal(stacked, np.stack([data, data]))
+
+
+def int_range(*args):
+    return np.arange(*args, dtype=np.int32)
+
+
+def contiguous_uniform(device_type):
+    b = ndd.batch(int_range(120).reshape(8, 15), layout="X", device=device_type)
+    assert b.batch_size == 8
+    return b
+
+
+def noncontiguous_uniform(device_type):
+    b = ndd.as_batch(
+        [int_range(42 * i, 42 * (i + 1)) for i in range(13)], layout="X", device=device_type
+    )
+    assert b.batch_size == 13
+    assert b.shape == [(42,)] * 13
+    return b
+
+
+def ragged(device_type):
+    return ndd.as_batch(
+        [[1, 2, 3], [4, 5, 6, 7, 8, 9], [], [10, 11, 12, 13]], layout="X", device=device_type
+    )
+
+
+@eval_modes()
+@cartesian_params(
+    ("cpu", "gpu"),
+    ("cpu", "gpu"),
+    (False, True),
+    (None, ndd.float32),
+    (None, "AB"),
+    (contiguous_uniform, noncontiguous_uniform, ragged),
+)
+def test_batch_to_tensor(src_device, target_device, force_copy, dtype, layout, data_factory):
+    def ref(batch):
+        return ndd.stack(*ndd.pad(batch).tensors, axis_name="N").evaluate()
+
+    pad = data_factory == ragged  # only apply padding when necessary
+
+    def check(batch):
+        if force_copy:
+            t = ndd.tensor(batch, device=target_device, dtype=dtype, layout=layout, pad=pad)
+        else:
+            t = ndd.as_tensor(batch, device=target_device, dtype=dtype, layout=layout, pad=pad)
+        assert t.device.device_type == target_device
+        assert t.layout == ("NX" if layout is None else layout)
+        assert t.dtype == (batch.dtype if dtype is None else dtype)
+        assert isinstance(t, ndd.Tensor)
+        t_cpu = t.cpu().evaluate()
+        t_ref = ref(batch).cpu().evaluate()
+        assert np.array_equal(t_cpu, t_ref), f"{t_cpu}\n != \n{t_ref}"
+
+    data = data_factory(src_device)
+    check(data)
+
+
+def test_batch_to_tensor_no_pad_error():
+    data = ragged("cpu")
+    with assert_raises(ValueError, glob="non-uniform shape"):
+        ndd.as_tensor(data, pad=False).evaluate()
