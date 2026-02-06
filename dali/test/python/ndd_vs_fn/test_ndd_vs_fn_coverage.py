@@ -12,8 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import test_ndd_vs_fn_noinput
-import test_ndd_vs_fn_image
 from nvidia.dali.experimental.dynamic._ops import _all_ops
 
 
@@ -31,6 +29,7 @@ excluded_operators = [
     "decoders.image_random_crop",  # BUG
     "decoders.image_slice",  # BUG
     "decoders.inflate",  # TODO(mszolucha): Add inflate test.
+    "constant",  # Excluded, since it's hidden.
     "experimental.decoders.image_random_crop",  # BUG
     "experimental.readers.fits",  # No input data in DALI_extra
     "io.file.read",  # BUG
@@ -105,17 +104,12 @@ excluded_operators = [
     "warp_affine",
 ]
 
+tested_operators = set()
 
-def get_tested_operators():
-    tested_operators = set()
-    modules = [
-        test_ndd_vs_fn_noinput,
-        test_ndd_vs_fn_image,
-    ]
-    for module in modules:
-        if hasattr(module, "tested_operators"):
-            tested_operators.update(module.tested_operators)
-    return tested_operators
+
+def register_operator_test(operator_name: str):
+    """Register an operator as tested by adding it to the tested_operators set."""
+    tested_operators.add(operator_name)
 
 
 def get_all_operators():
@@ -128,7 +122,6 @@ def get_all_operators():
 
 
 def test_coverage():
-    tested_operators = get_tested_operators()
     covered_operators = tested_operators.union(excluded_operators)
     all_operators = get_all_operators()
 

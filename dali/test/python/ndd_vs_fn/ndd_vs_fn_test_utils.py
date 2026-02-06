@@ -40,47 +40,22 @@ class OperatorTestConfig:
     def generate_test_tuples(self):
         """Generate (device, fn_operator, ndd_operator, args) tuples for this config."""
         return [
-            (device, get_fn_operator(self.name), get_ndd_operator(self.name), self.args)
+            (device, self.name, get_fn_operator(self.name), get_ndd_operator(self.name), self.args)
             for device in self.devices
         ]
 
 
 def use_fn_api(func):
-    """Decorator that injects 'fn' as the api parameter.
-
-    This decorator allows writing operator functions that are API-agnostic by automatically
-    injecting the nvidia.dali.fn module as the first parameter. This is useful for testing
-    operators with both the fn API and ndd API using the same function definition.
-
-    Args:
-        func: A function that expects an API module (fn or ndd) as its first parameter,
-              followed by input tensors and operator arguments.
-
-    Returns:
-        A function that can be decorated with @pipeline_def.
-
-    Usage:
-        Define an operation that uses the 'api' parameter instead of directly calling fn:
-
+    """
+    We expect the tested operation to be generalized over `fn` an `ndd` APIs
+    by taking the appropriate module as the first argument.
+    This and the accompanying function `use_ndd_api` bind the selected API
+    before invoking the operation with the same set of arguments during testing.
+        Example:
         >>> def operation(api, *inp, **kwargs):
-        ...     out = api.expand_dims(*inp, axes=[0, 2])
-        ...     out = api.squeeze(out, axis_names="Z")
-        ...     return out
-
-        Use the decorator to create an fn-based version:
-
-        >>> fn_operation = use_fn_api(operation)
-        >>> # Now fn_operation will automatically inject fn as the api parameter
-        >>> # Can be used in pipeline definitions:
-        >>> pipe = pipeline_es_feed_input_wrapper(fn_operation, device="gpu")
-
-        For ndd testing, use the companion decorator use_ndd_api:
-
-        >>> ndd_operation = use_ndd_api(operation)
-        >>> ndd_out = ndd_operation(ndd.as_batch(inp, device="gpu"))
-
-    See also:
-        use_ndd_api: Companion decorator that injects ndd instead of fn
+        ...     mean = api.reductions.mean(*inp)
+        ...     reduced = api.reductions.std_dev(*inp, mean)
+        ...     return reduced
     """
 
     @functools.wraps(func)
@@ -91,33 +66,7 @@ def use_fn_api(func):
 
 
 def use_ndd_api(func):
-    """Decorator that injects 'ndd' as the api parameter.
-
-    This decorator allows writing operator functions that are API-agnostic by automatically
-    injecting the nvidia.dali.experimental.dynamic (ndd) module as the first parameter.
-    This is the companion decorator to use_fn_api and is used for testing ndd operations.
-
-    Args:
-        func: A function that expects an API module (fn or ndd) as its first parameter,
-              followed by input tensors and operator arguments.
-
-    Returns:
-        A function that can be run as a standalone function with ndd API.
-
-    Usage:
-        >>> def operation(api, *inp, **kwargs):
-        ...     mean = api.reductions.mean(*inp)
-        ...     reduced = api.reductions.std_dev(*inp, mean)
-        ...     return reduced
-
-        Use the decorator to create an ndd-based version:
-
-        >>> ndd_operation = use_ndd_api(operation)
-        >>> ndd_out = ndd_operation(ndd.as_batch(inp, device="gpu"))
-
-    See also:
-        use_fn_api: Companion decorator that injects fn instead of ndd
-    """
+    """See :fun:use_fn_api"""
 
     @functools.wraps(func)
     def wrapper(*inp, **operator_args):
@@ -167,8 +116,8 @@ def generate_data(
                          calling sample_shape. In this case, every call to sample_shape has to
                          return a tuple of integers. If sample_shape is a tuple, this will be a
                          shape of every sample.
-    :param lo: Begin of the random range
-    :param hi: End of the random range
+    :param lo: Begin of the random range for the data values.
+    :param hi: End of the random range for the data values.
     :param dtype: Numpy data type
     :return: An epoch of data
     """
@@ -179,11 +128,10 @@ def generate_data(
 
     if isinstance(sample_shape, tuple):
 
-        def sample_shape_wrapper():
+        def size_fn():
             return sample_shape
 
-        size_fn = sample_shape_wrapper
-    elif inspect.isfunction(sample_shape):
+    elif callable(sample_shape):
         size_fn = sample_shape
     else:
         raise RuntimeError(
@@ -327,7 +275,7 @@ def _cmp(pipe_out: TensorListCPU | TensorListGPU, ndd_out: Batch) -> bool:
     assert (
         len(pipe_out.shape()) == ndd_out.batch_size
     ), f"Batch size mismatch: {len(pipe_out.shape())=} != {ndd_out.batch_size=}"
-    for pipe_sample, ndd_sample in zip(pipe_out, ndd_out):
+    for pipe_sample, ndd_sample in zip(pipe_out, ndd_out, strict=True):
         ndd_numpy = to_numpy(ndd_sample)
         pipe_numpy = np.array(pipe_sample)
         if not np.array_equal(pipe_numpy, ndd_numpy):
@@ -342,7 +290,7 @@ def compare(
         assert len(pipe_out) == len(
             ndd_out
         ), f"Number of outputs mismatch: {len(pipe_out)=} != {len(ndd_out)=}"
-        for pout, nout in zip(pipe_out, ndd_out):
+        for pout, nout in zip(pipe_out, ndd_out, strict=True):
             if not _cmp(pout.as_cpu(), nout):
                 return False
         return True
@@ -512,11 +460,6 @@ def get_ndd_operator(operator_name: str):
             Please check the string with operator name specification."""
         )
     return ndd_operator
-
-
-def generate_op_tuple(op_name: str, device: str, operator_args: dict):
-    """Generate test configuration tuple for an operator."""
-    return (device, get_fn_operator(op_name), get_ndd_operator(op_name), operator_args)
 
 
 def flatten_operator_configs(configs: list[OperatorTestConfig]) -> list[tuple]:
