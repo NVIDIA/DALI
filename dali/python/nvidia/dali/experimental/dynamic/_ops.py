@@ -418,8 +418,7 @@ class Reader(Operator):
         self._actual_batch_size = batch_size
         self._batch_size = batch_size
         device = _device.Device(device)
-        backend = kwargs.get("backend", device.device_type)
-        del kwargs["backend"]
+        backend = kwargs.pop("backend", device.device_type)
         super().__init__(self._actual_batch_size, name, backend, device, **kwargs)
 
     def _pre_call(self, *inputs, **args):
