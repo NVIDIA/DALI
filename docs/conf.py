@@ -118,6 +118,12 @@ with mock(["torch", "numba"]):
         references,
     )
 
+# generate table of dynamic mode types
+sys.path.insert(0, os.path.abspath("./"))
+import types_table  # noqa: E402
+
+types_table.ndd_types_table(generated_dynamic_path / "types_table")
+
 # Uncomment to keep warnings in the output. Useful for verbose build and output debugging.
 # keep_warnings = True
 
