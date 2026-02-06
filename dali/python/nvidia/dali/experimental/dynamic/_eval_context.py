@@ -173,7 +173,12 @@ class EvalContext:
             not hasattr(self._tls, "thread_pool")
             or self._tls.thread_pool.num_threads != self.num_threads
         ):
-            self._tls.thread_pool = _b._ThreadPool(self.num_threads)
+            dev = self.device_id
+            if dev is None:
+                import nvidia.dali.types as _types
+
+                dev = _types.CPU_ONLY_DEVICE_ID
+            self._tls.thread_pool = _b._ThreadPool(self.num_threads, device_id=dev)
 
         return self._tls.thread_pool
 
@@ -192,7 +197,7 @@ class EvalContext:
         if _tls.stack:
             return self is _tls.stack[-1]
 
-        current_device_id = _device.Device.default_device_id("gpu")
+        current_device_id = _device.Device.default_device_id(_device.Device._default_device_type())
         return self is _tls.default.get(current_device_id)
 
     def __enter__(self):
@@ -263,10 +268,11 @@ class EvalContext:
         """
         The default ``EvalContext`` for the calling thread.
         """
-        current_device_id = _device.Device.default_device_id("gpu")
+        dev_type = _device.Device._default_device_type()
+        current_device_id = _device.Device.default_device_id(dev_type)
         if current_device_id not in _tls.default:
             _tls.default[current_device_id] = EvalContext(
-                device_id=current_device_id,
+                device_id=current_device_id if dev_type == "gpu" else None,
                 cuda_stream=EvalContext._default_context_stream_sentinel,
             )
         return _tls.default[current_device_id]

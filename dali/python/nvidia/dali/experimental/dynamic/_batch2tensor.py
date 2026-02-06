@@ -70,6 +70,9 @@ class BatchToTensor:
     def _infer_output_devices(self, input, device, **_):
         return (_device.device(device) or input.device,)
 
+    def _init_spec(self, *_, **__):
+        pass
+
     def _run(self, ctx, input_batch, *, pad, force_copy, dtype, layout, device, **_):
         with ctx:
             if input_batch._storage and input_batch._storage.is_dense_tensor():

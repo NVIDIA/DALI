@@ -47,6 +47,7 @@ class Operator:
         self,
         max_batch_size,
         name=None,
+        backend="cpu",
         device="cpu",
         **kwargs,
     ):
@@ -65,9 +66,8 @@ class Operator:
         self._init_args = kwargs
         self._api_type = None
 
-        from ._device import device as _to_device
-
-        self._device = _to_device(device)
+        self._device = _device.device(device)
+        self._backend = backend
 
         # Information below is lazy-initialized
         # TODO(klecki): Use @property or @cached_property for self-init.
@@ -93,6 +93,7 @@ class Operator:
         cls,
         max_batch_size: int,
         name: str | None = None,
+        backend: str | None = None,
         device: DeviceLike | None = None,
         num_inputs: int | None = None,
         call_arg_names: list[str] | None = None,
@@ -114,7 +115,15 @@ class Operator:
             return tuple([(k, freeze_arg(args[k])) for k in sorted_keys])
 
         call_arg_names = freeze_arg(call_arg_names)
-        key = (cls, device, max_batch_size, num_inputs, call_arg_names, freeze_args(init_args))
+        key = (
+            cls,
+            backend,
+            device,
+            max_batch_size,
+            num_inputs,
+            call_arg_names,
+            freeze_args(init_args),
+        )
         ctx = _eval_context.EvalContext.current()
         inst = ctx._instance_cache.get(key, None)
         if inst is None:
@@ -122,6 +131,7 @@ class Operator:
                 inst = cls(
                     max_batch_size,
                     name=name,
+                    backend=backend,
                     device=device,
                     **init_args,
                 )
@@ -133,20 +143,20 @@ class Operator:
         return self._num_outputs
 
     def _input_device(self, index: int, actual_device: Device | None = None):
-        default_input_device = "gpu" if self._device.device_type == "gpu" else "cpu"
+        default_input_device = "gpu" if self._backend == "gpu" else "cpu"
         actual_device_type = actual_device.device_type if actual_device is not None else None
         dev_type = self._schema.GetInputDevice(index, actual_device_type, default_input_device)
         if dev_type is None:
             return self._device
         if dev_type == "cpu":
-            dev_id = 0
+            dev_id = None
         else:
-            if self._device.device_type != "cpu":
+            if self._backend != "cpu":
                 dev_id = self._device.device_id  # we need to match our current device
             else:
                 # This is a CPU operator so it doesn't have a device id - we should just
                 # use whatever was passed in.
-                dev_id = actual_device.device_id if actual_device is not None else 0
+                dev_id = actual_device.device_id if actual_device is not None else None
 
         return Device(dev_type, dev_id)  # inherit the device id
 
@@ -184,9 +194,7 @@ class Operator:
 
                 # legacy_op is a member of the old `ops` module - we use the ops API to obtain
                 # an OpSpec
-                op = self._legacy_op(
-                    name=self._name, device=self._device.device_type, **self._init_args
-                )
+                op = self._legacy_op(name=self._name, device=self._backend, **self._init_args)
                 self._op_inst = op
                 out = op(*input_nodes, **arg_nodes)
                 if isinstance(out, (list, tuple)):
@@ -204,15 +212,22 @@ class Operator:
                     self._num_outputs = len(out)
                     for o in out:
                         device_type = o.device
-                        device_id = self._device.device_id
+                        device_id = None if device_type == "cpu" else self._device.device_id
                         self._output_devices.append(Device(device_type, device_id))
                 elif isinstance(out, dict):
                     self._num_outputs = len(out)
                     device_id = self._device.device_id
-                    self._output_devices = [Device(o.device, device_id) for o in out.values()]
+                    self._output_devices = [
+                        Device(o.device, None if o.device == "cpu" else device_id)
+                        for o in out.values()
+                    ]
                 else:
                     self._num_outputs = 1
-                    self._output_devices = [Device(out.device, self._device.device_id)]
+                    self._output_devices = [
+                        Device(
+                            out.device, None if out.device == "cpu" else self._device.device_id
+                        )
+                    ]
 
                 self._set_meta(inputs, args)
 
@@ -233,7 +248,7 @@ class Operator:
                     "device_id",
                     (
                         self._device.device_id
-                        if self._device.device_type == "gpu" or self._device.device_type == "mixed"
+                        if self._backend == "gpu" or self._backend == "mixed"
                         else dali.types.CPU_ONLY_DEVICE_ID
                     ),
                 )
@@ -402,7 +417,10 @@ class Reader(Operator):
             name = f"Reader_{id(self)}"
         self._actual_batch_size = batch_size
         self._batch_size = batch_size
-        super().__init__(self._actual_batch_size, name, device, **kwargs)
+        device = _device.Device(device)
+        backend = kwargs.get("backend", device.device_type)
+        del kwargs["backend"]
+        super().__init__(self._actual_batch_size, name, backend, device, **kwargs)
 
     def _pre_call(self, *inputs, **args):
         if self._api_type is None:
