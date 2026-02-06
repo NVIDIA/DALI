@@ -187,6 +187,14 @@ class EvalContext:
         else:
             return EvalContext.default()
 
+    @property
+    def _is_current(self) -> bool:
+        if _tls.stack:
+            return self is _tls.stack[-1]
+
+        current_device_id = _device.Device.default_device_id("gpu")
+        return self is _tls.default.get(current_device_id)
+
     def __enter__(self):
         _tls.stack.append(self)
         if self._device:
@@ -198,7 +206,7 @@ class EvalContext:
         if self._device:
             self._device.__exit__(exc_type, exc_value, traceback)
         _tls.stack.pop()
-        if EvalContext.current() is not self:
+        if not self._is_current:
             self.evaluate_all()
 
     def evaluate_all(self):
