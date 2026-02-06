@@ -1,4 +1,4 @@
-# Copyright (c) 2025-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,12 +17,12 @@ imread - A convenience function for reading and decoding images from file paths.
 """
 
 import numpy as np
+from typing import List, Union
 from ._tensor import Tensor, tensor
 from ._batch import Batch, batch
-from ._device import DeviceLike
 
 
-def _imread_impl(filepaths: str | list[str] | Tensor | Batch, device: DeviceLike = "cpu", **kwargs):
+def _imread_impl(filepaths: Union[str, List[str], Tensor, Batch], device: str = "cpu", **kwargs):
     """
     Reads and decodes an image (or batch of images) from file path(s).
 
@@ -86,7 +86,7 @@ def _imread_impl(filepaths: str | list[str] | Tensor | Batch, device: DeviceLike
     If you already have encoded filepaths as Tensors (from :meth:`io.file.read`
     documentation format), you can pass them directly.
     """
-    from . import decoders, io
+    from . import io, decoders
 
     if device not in ["cpu", "mixed", "gpu"]:
         raise ValueError(f"Invalid device: {device}. Must be 'cpu', 'mixed', or 'gpu'.")
@@ -135,9 +135,9 @@ def _build_imread_with_expanded_signature():
     Build an imread function with expanded signature including all kwargs from decoders.image.
     This improves IDE autocomplete support and makes the API more discoverable.
     """
-    import makefun
     import nvidia.dali.backend as _b
     from nvidia.dali.ops import _docs
+    import makefun
 
     schema = _b.GetSchema("decoders__Image")
     skip = {"bytes_per_sample_hint", "preserve"}
