@@ -668,7 +668,7 @@ class Batch:
             self.evaluate(), show_data=True, adapter=_tensor_formatting.DynamicBatchAdapter()
         )
 
-    def torch(self, copy: Optional[bool] = None, pad: bool = False):
+    def torch(self, copy: bool | None = None, pad: bool = False):
         """
         Returns ``self`` as a PyTorch tensor.
         Requires ``self`` to be dense and PyTorch to be installed.
