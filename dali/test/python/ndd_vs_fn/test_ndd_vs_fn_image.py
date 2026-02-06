@@ -21,6 +21,7 @@ from ndd_vs_fn_test_utils import (
     flatten_operator_configs,
     generate_image_like_data,
 )
+from test_ndd_vs_fn_coverage import register_operator_test
 
 
 IMAGE_LIKE_OPERATORS = [
@@ -110,7 +111,10 @@ ops_image_like_test_configuration = flatten_operator_configs(IMAGE_LIKE_OPERATOR
 
 
 @params(*ops_image_like_test_configuration)
-def test_operators_with_image_like_input(device, fn_operator, ndd_operator, operator_args):
+def test_operators_with_image_like_input(
+    device, operator_name, fn_operator, ndd_operator, operator_args
+):
+    register_operator_test(operator_name)
     data = generate_image_like_data()
     run_operator_test(
         input_epoch=data,
@@ -120,60 +124,3 @@ def test_operators_with_image_like_input(device, fn_operator, ndd_operator, oper
         operator_args=operator_args,
         input_layout="HWC",
     )
-
-
-tested_operators = [
-    "brightness",
-    "brightness_contrast",
-    "cast",
-    "cat",
-    "clahe",
-    "color_space_conversion",
-    "color_twist",
-    "contrast",
-    "coord_transform",
-    "copy",
-    "crop",
-    "crop_mirror_normalize",
-    "dump_image",
-    "equalize",
-    "erase",
-    "experimental.dilate",
-    "experimental.erode",
-    "experimental.median_blur",
-    "experimental.resize",
-    "experimental.warp_perspective",
-    "flip",
-    "gaussian_blur",
-    "get_property",
-    "grid_mask",
-    "hsv",
-    "hue",
-    "jpeg_compression_distortion",
-    "laplacian",
-    "multi_paste",
-    "normalize",
-    "ones_like",
-    "pad",
-    "paste",
-    "per_frame",
-    "reductions.max",
-    "reductions.mean",
-    "reductions.mean_square",
-    "reductions.min",
-    "reductions.rms",
-    "reductions.sum",
-    "reinterpret",
-    "reshape",
-    "resize",
-    "resize_crop_mirror",
-    "rotate",
-    "saturation",
-    "slice",
-    "sphere",
-    "stack",
-    "tensor_resize",
-    "transpose",
-    "water",
-    "zeros_like",
-]

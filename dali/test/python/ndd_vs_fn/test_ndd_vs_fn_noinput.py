@@ -27,10 +27,10 @@ from ndd_vs_fn_test_utils import (
     flatten_operator_configs,
     generate_image_like_data,
 )
+from test_ndd_vs_fn_coverage import register_operator_test
 
 
 NO_INPUT_OPERATORS = [
-    OperatorTestConfig("constant", {"fdata": 3.1415, "shape": (10, 10)}),
     OperatorTestConfig("transforms.translation", {"offset": (2, 3)}, devices=["cpu"]),
     OperatorTestConfig("transforms.scale", {"scale": (2, 3)}, devices=["cpu"]),
     OperatorTestConfig("transforms.rotation", {"angle": 30.0}, devices=["cpu"]),
@@ -53,7 +53,8 @@ no_input_ops_test_configuration = flatten_operator_configs(NO_INPUT_OPERATORS)
 
 
 @params(*no_input_ops_test_configuration)
-def test_no_input_operators(device, fn_operator, ndd_operator, operator_args):
+def test_no_input_operators(device, operator_name, fn_operator, ndd_operator, operator_args):
+    register_operator_test(operator_name)
     data = generate_image_like_data()
     # Passing input to no-input operator is artificial,
     # and it's here to avoid prunning no-input operator from the graph.
@@ -73,6 +74,8 @@ def test_no_input_operators(device, fn_operator, ndd_operator, operator_args):
 
 
 def test_transforms_combine():
+    register_operator_test("transforms.combine")
+
     @pipeline_def(
         batch_size=MAX_BATCH_SIZE,
         num_threads=ndd.get_num_threads(),
@@ -96,16 +99,3 @@ def test_transforms_combine():
         batch_size=MAX_BATCH_SIZE,
     )
     assert compare(pipe_out, ndd_out)
-
-
-tested_operators = [
-    "constant",
-    "transforms.combine",
-    "transforms.translation",
-    "transforms.scale",
-    "transforms.rotation",
-    "transforms.shear",
-    "transforms.crop",
-    "zeros",
-    "ones",
-]
