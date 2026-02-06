@@ -20,7 +20,6 @@ from nvidia.dali.experimental.dynamic._batch import Batch
 from nvidia.dali.backend_impl import TensorListCPU, TensorListGPU
 import nvidia.dali.fn as fn
 import nvidia.dali.experimental.dynamic as ndd
-import inspect
 from nvidia.dali.pipeline import pipeline_def
 import test_utils
 
