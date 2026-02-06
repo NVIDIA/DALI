@@ -1,4 +1,4 @@
-# Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,7 +13,21 @@
 # limitations under the License.
 
 from enum import Enum, auto
+from typing import NoReturn, TypeAlias, Union
+
+import numpy as np
 import nvidia.dali.types
+
+try:
+    import torch  # type: ignore
+
+    _TorchDType: TypeAlias = torch.dtype  # type: ignore
+except ImportError:
+    # Unfortunately, most type checkers don't execute code so they will pick the first definition
+    # with torch.dtype being interpreted as 'Unknown' if torch is not installed.
+    _TorchDType: TypeAlias = NoReturn  # type: ignore
+
+DTypeLike: TypeAlias = Union["DType", nvidia.dali.types.DALIDataType, str, np.dtype, _TorchDType]
 
 _id2type = {}
 _type2id = {}
