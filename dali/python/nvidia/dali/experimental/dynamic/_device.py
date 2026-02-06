@@ -160,10 +160,16 @@ class Device:
         """
         Returns the device name, in a format that can be passed to `Device` constructor.
         """
-        return f"{self.device_type}:{self.device_id}"
+        if self.device_id is not None:
+            return f"{self.device_type}:{self.device_id}"
+        else:
+            return self.device_type
 
     def __repr__(self):
-        return f"Device(device_type={self.device_type}, device_id={self.device_id})"
+        if self.device_id is not None:
+            return f"Device(device_type={repr(self.device_type)}, device_id={self.device_id})"
+        else:
+            return f"Device(device_type={repr(self.device_type)})"
 
     def __eq__(self, other):
         return self.device_type == other.device_type and self.device_id == other.device_id
