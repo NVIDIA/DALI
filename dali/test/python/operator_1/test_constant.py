@@ -36,15 +36,6 @@ except ModuleNotFoundError:
     print("ConstantOp: PyTorch support disabled")
     pass
 
-try:
-    import mxnet
-
-    array_interfaces.append((mxnet.ndarray.array, None))
-    print("ConstantOp: MXNet support enabled")
-except ModuleNotFoundError:
-    print("ConstantOp: MXNet support disabled")
-    pass
-
 
 class ConstantPipeline(Pipeline):
     def __init__(self, device):

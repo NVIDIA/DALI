@@ -96,21 +96,6 @@ def test_pytorch_containers():
     yield from run_checks(samples_cpu, batches_cpu, disallowed_samples, [])
 
 
-@attr("mxnet")
-def test_mxnet_containers():
-    import mxnet as mx
-
-    samples_cpu = [
-        (mx.nd.array(test_array), test_array),
-    ]
-    batches_cpu = [
-        ([mx.nd.array(test_array)], [test_array]),
-        ([mx.nd.array(test_array)] * 4, [test_array] * 4),
-    ]
-    disallowed_samples = [mx.nd.array(test_array, ctx=mx.gpu(0))]
-    yield from run_checks(samples_cpu, batches_cpu, disallowed_samples, [])
-
-
 @attr("cupy")
 def test_cupy_containers():
     import cupy as cp
