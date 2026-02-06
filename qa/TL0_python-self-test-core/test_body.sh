@@ -99,6 +99,7 @@ test_checkpointing() {
 
 test_experimental_mode() {
     ${python_new_invoke_test}  -A '!slow,!pytorch,!mxnet,!cupy,!numba' -s experimental_mode
+    CUDA_VISIBLE_DEVICES= ${python_new_invoke_test}  -A 'cpu_only,!slow,!pytorch,!mxnet,!cupy,!numba' -s experimental_mode
 }
 
 

@@ -241,6 +241,7 @@ def build_constructor(schema, op_class):
         "self",
         "max_batch_size=None",
         "name=None",
+        'backend="cpu"',
         'device="cpu"',
         "num_inputs=None",
     ] + init_args
@@ -544,22 +545,24 @@ def build_fn_wrapper(op, fn_name=None, add_to_module=True):
             device_inferred = False
 
         supported_backends = op._supported_backends
+        backend = device.device_type
         if device.device_type not in supported_backends:
             if len(supported_backends) == 1 and device_inferred:
                 # Maybe we got it wrong? Try the only device that's there
-                device.device_type = supported_backends[0]
+                backend = supported_backends[0]
             else:
                 # Now we want to call "mixed" operators "gpu" - but we still have distinct backends.
                 # Hardly any op has both "mixed" and "gpu", so we can just replace "gpu" with
                 # "mixed".
-                if device.device_type == "gpu" and "mixed" in supported_backends:
-                    device.device_type = "mixed"
+                if backend == "gpu" and "mixed" in supported_backends:
+                    backend = "mixed"
 
         # Get or create the operator instance that matches the arguments
         with nvtx.annotate(f"get instance {op._op_name}", domain="op_builder"):
             op_inst = op._get(
                 max_batch_size=max_batch_size,
                 name=None,
+                backend=backend,
                 device=device,
                 num_inputs=len(inputs),
                 call_arg_names=tuple(call_args.keys()),

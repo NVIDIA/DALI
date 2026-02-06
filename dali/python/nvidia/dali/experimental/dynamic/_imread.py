@@ -1,4 +1,4 @@
-# Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -37,7 +37,7 @@ def _imread_impl(filepaths: Union[str, List[str], Tensor, Batch], device: str = 
         - A Batch containing encoded filepath bytes
 
     device : str, optional
-        Device to decode the image on. Can be "cpu", "gpu", or "mixed".
+        Device to decode the image on. Can be "cpu" or "gpu"
         Default is "cpu".
 
     <DECODERS_IMAGE_KWARGS_PLACEHOLDER>
@@ -71,9 +71,9 @@ def _imread_impl(filepaths: Union[str, List[str], Tensor, Batch], device: str = 
     >>> img = ndd.imread(Path("/path/to/image.jpg"))
     >>> imgs = ndd.imread([Path("/path/to/img1.jpg"), Path("/path/to/img2.jpg")])
 
-    Decode on GPU with mixed device:
+    Decode on GPU:
 
-    >>> img = ndd.imread("/path/to/image.jpg", device="mixed")
+    >>> img = ndd.imread("/path/to/image.jpg", device="gpu")
 
     Decode to grayscale:
 
@@ -88,11 +88,8 @@ def _imread_impl(filepaths: Union[str, List[str], Tensor, Batch], device: str = 
     """
     from . import io, decoders
 
-    if device not in ["cpu", "mixed", "gpu"]:
-        raise ValueError(f"Invalid device: {device}. Must be 'cpu', 'mixed', or 'gpu'.")
-
-    if device == "gpu":
-        device = "mixed"
+    if device not in ["cpu", "gpu"]:
+        raise ValueError(f"Invalid device: {device}. Must be 'cpu', or 'gpu'.")
 
     # Handle different input types
     if isinstance(filepaths, (Tensor, Batch)):
