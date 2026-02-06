@@ -1,0 +1,81 @@
+# Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+import numpy as np
+from typing import Sequence, Literal
+import nvidia.dali.fn as fn
+
+from .operator import Operator, VerificationIsTensor, ArgumentVerificationRule
+
+
+class VerifyStd(ArgumentVerificationRule):
+    """
+    Verify the standard deviation argument for the Normalize operator.
+
+    Parameters
+    ----------
+    std : sequence
+        Sequence of standard deviations for each channel.
+    """
+
+    @classmethod
+    def verify(cls, *, std, **_) -> None:
+        if np.any(np.array(std) == 0):
+            raise ValueError("Std must not be 0")
+
+
+class Normalize(Operator):
+    """
+    Normalize a tensor image or video with mean and standard deviation.
+
+    This transform does not support PIL Image.
+    Given mean: (mean[1],...,mean[n]) and std: (std[1],..,std[n]) for n channels,
+    this transform will normalize each channel of the input torch.*Tensor
+    i.e., output[channel] = (input[channel] - mean[channel]) / std[channel]
+
+    Parameters
+    ----------
+    mean : sequence
+        Sequence of means for each channel.
+    std : sequence
+        Sequence of standard deviations for each channel.
+    inplace : bool, optional
+        Bool to make this operation in-place. Not supported.
+    """
+
+    arg_rules = [VerifyStd]
+    input_rules = [VerificationIsTensor]
+
+    def __init__(
+        self,
+        mean: Sequence[float],
+        std: Sequence[float],
+        inplace: bool = False,
+        device: Literal["cpu", "gpu"] = "cpu",
+    ):
+        super().__init__(device=device, std=std)
+
+        self.mean = np.asarray(mean)[:, None, None]
+        self.std = np.asarray(std)[:, None, None]
+        if inplace:
+            raise ValueError("inplace is not supported")
+
+    def _kernel(self, data_input):
+
+        return fn.normalize(
+            data_input,
+            mean=self.mean,
+            stddev=self.std,
+            device=self.device,
+        )
