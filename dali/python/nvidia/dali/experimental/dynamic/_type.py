@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from enum import Enum, auto
-from typing import NoReturn, TypeAlias, Union
+from typing import NoReturn, TypeAlias
 
 import numpy as np
 import nvidia.dali.types
@@ -27,7 +27,7 @@ except ImportError:
     # with torch.dtype being interpreted as 'Unknown' if torch is not installed.
     _TorchDType: TypeAlias = NoReturn  # type: ignore
 
-DTypeLike: TypeAlias = Union["DType", nvidia.dali.types.DALIDataType, str, np.dtype, _TorchDType]
+DTypeLike: TypeAlias = "DType | nvidia.dali.types.DALIDataType | str | np.dtype | _TorchDType"
 
 _id2type = {}
 _type2id = {}

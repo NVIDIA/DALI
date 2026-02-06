@@ -12,10 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from threading import local
-from typing import NoReturn, TypeAlias, Union
-
 import nvidia.dali.backend as _backend
+from threading import local
+from typing import NoReturn, TypeAlias
+
 
 try:
     import torch  # type: ignore
@@ -26,7 +26,7 @@ except ImportError:
     # with torch.device being interpreted as 'Unknown' if torch is not installed.
     _TorchDevice: TypeAlias = NoReturn  # type: ignore
 
-DeviceLike: TypeAlias = Union["Device", str, _TorchDevice]
+DeviceLike: TypeAlias = "Device | str | _TorchDevice"
 
 
 class Device:

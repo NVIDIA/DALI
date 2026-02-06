@@ -13,12 +13,12 @@
 # limitations under the License.
 
 import importlib.util
+from typing import Any
 from collections.abc import Iterator
-from typing import Any, Union
 
-import nvidia.dali._tensor_formatting as _tensor_formatting
 import nvidia.dali.backend as _backend
 import nvidia.dali.types as _dali_types
+import nvidia.dali._tensor_formatting as _tensor_formatting
 import nvtx
 from nvidia.dali._typing import BatchLike, TensorLike
 
@@ -574,7 +574,7 @@ class Batch:
         """
         return iter(self.tensors)
 
-    def select(self, sample_range) -> Union["Batch", Tensor]:
+    def select(self, sample_range) -> "Batch | Tensor":
         """
         Selects a range of samples.
 

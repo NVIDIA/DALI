@@ -16,8 +16,8 @@ import copy
 from typing import TYPE_CHECKING, Any, SupportsInt, Union
 
 import numpy as np
-import nvidia.dali._tensor_formatting as _tensor_formatting
 import nvidia.dali.backend as _backend
+import nvidia.dali._tensor_formatting as _tensor_formatting
 import nvidia.dali.types
 from nvidia.dali._typing import TensorLike
 
