@@ -428,7 +428,7 @@ class Tensor:
         return self._dtype
 
     @property
-    def layout(self) -> str:
+    def layout(self) -> str | None:
         """
         The semantic layout of the tensor, e.g. HWC, CHW.
 
