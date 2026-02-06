@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -77,6 +77,7 @@ class OperatorWithRng : public Base {
 
   void RestoreState(const OpCheckpoint &cpt) override {
     master_rng_.set_state(cpt.CheckpointState<Philox4x32_10::State>());
+    OnLoadRandomState();
   }
 
   std::string SerializeCheckpoint(const OpCheckpoint &cpt) const override {
@@ -90,12 +91,15 @@ class OperatorWithRng : public Base {
     cpt.MutableCheckpointState() = s;
   }
 
-  void Run(Workspace &ws) override {
-    if (has_random_state_arg_) {
-      LoadRandomState(ws);
-    }
-    Base::Run(ws);
+  bool Setup(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
+    LoadRandomState(ws);
+    bool ret = Base::Setup(output_desc, ws);
     assert(ws.NumOutput() > 0);
+    return ret;
+  }
+
+  void Run(Workspace &ws) override {
+    Base::Run(ws);
     Advance(ws.GetOutputBatchSize(0));
   }
 
@@ -114,19 +118,24 @@ class OperatorWithRng : public Base {
   }
 
   void LoadRandomState(const Workspace &ws) {
-    const TensorList<CPUBackend> &random_state = ws.ArgumentInput("_random_state");
-    assert(random_state.num_samples() > 0);
-    int element_size = random_state.type_info().size();
-    if (random_state[0].shape().num_elements() * element_size < 25)
-      throw std::invalid_argument("Random state tensor is too small");
-    const char *state_data = static_cast<const char *>(random_state[0].raw_data());
-    Philox4x32_10::State state;
-    memcpy(&state.key, state_data, 8);
-    memcpy(&state.ctr, state_data + 8, 16);
-    memcpy(&state.phase, state_data + 24, 1);
-    state.phase &= 3;
-    master_rng_.set_state(state);
+    if (has_random_state_arg_) {
+      const TensorList<CPUBackend> &random_state = ws.ArgumentInput("_random_state");
+      assert(random_state.num_samples() > 0);
+      int element_size = random_state.type_info().size();
+      if (random_state[0].shape().num_elements() * element_size < 25)
+        throw std::invalid_argument("Random state tensor is too small");
+      const char *state_data = static_cast<const char *>(random_state[0].raw_data());
+      Philox4x32_10::State state;
+      memcpy(&state.key, state_data, 8);
+      memcpy(&state.ctr, state_data + 8, 16);
+      memcpy(&state.phase, state_data + 24, 1);
+      state.phase &= 3;
+      master_rng_.set_state(state);
+    }
+    OnLoadRandomState();
   }
+
+  virtual void OnLoadRandomState() {}
 
   inline void Advance(int batch_size) {
     master_rng_.skipahead_sequence(batch_size);

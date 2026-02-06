@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,7 +18,7 @@
 
 #include "dali/pipeline/data/views.h"
 #include "dali/operators/image/resize/random_resized_crop.h"
-#include "dali/util/random_crop_generator.h"
+#include "dali/operators/image/crop/random_crop_generator_util.h"
 
 namespace dali {
 

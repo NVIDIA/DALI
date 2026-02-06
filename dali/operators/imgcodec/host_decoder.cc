@@ -1,4 +1,4 @@
-// Copyright (c) 2023-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2023-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -28,9 +28,9 @@ class HostDecoder : public ImageDecoder<CPUBackend> {
   }
 };
 
-using HostDecoderCrop = WithCropAttr<HostDecoder, CPUBackend>;
-using HostDecoderSlice = WithSliceAttr<HostDecoder, CPUBackend>;
-using HostDecoderRandomCrop = WithRandomCropAttr<HostDecoder, CPUBackend>;
+using HostDecoderCrop = WithCropAttr<HostDecoder>;
+using HostDecoderSlice = WithSliceAttr<HostDecoder>;
+using HostDecoderRandomCrop = WithRandomCropAttr<HostDecoder>;
 
 DALI_REGISTER_OPERATOR(experimental__decoders__Image, HostDecoder, CPU);
 DALI_REGISTER_OPERATOR(experimental__decoders__ImageCrop, HostDecoderCrop, CPU);

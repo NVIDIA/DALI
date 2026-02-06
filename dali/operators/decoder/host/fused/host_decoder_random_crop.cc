@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -24,26 +24,6 @@
 #include "dali/pipeline/operator/checkpointing/op_checkpoint.h"
 
 namespace dali {
-
-void HostDecoderRandomCrop::SaveState(OpCheckpoint &cpt, AccessOrder order) {
-  cpt.MutableCheckpointState() = RNGSnapshot();
-}
-
-void HostDecoderRandomCrop::RestoreState(const OpCheckpoint &cpt) {
-  auto &rngs = cpt.CheckpointState<std::vector<std::mt19937>>();
-  RestoreRNGState(rngs);
-}
-
-std::string HostDecoderRandomCrop::SerializeCheckpoint(const OpCheckpoint &cpt) const {
-  const auto &state = cpt.CheckpointState<std::vector<std::mt19937>>();
-  return SnapshotSerializer().Serialize(state);
-}
-
-void
-HostDecoderRandomCrop::DeserializeCheckpoint(OpCheckpoint &cpt, const std::string &data) const {
-  cpt.MutableCheckpointState() =
-    SnapshotSerializer().Deserialize<std::vector<std::mt19937>>(data);
-}
 
 DALI_REGISTER_OPERATOR(decoders__ImageRandomCrop, HostDecoderRandomCrop, CPU);
 DALI_REGISTER_OPERATOR(ImageDecoderRandomCrop, HostDecoderRandomCrop, CPU);

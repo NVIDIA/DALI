@@ -1,4 +1,4 @@
-// Copyright (c) 2022-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -43,7 +43,7 @@ inline ROI RoiFromCropWindowGenerator(const CropWindowGenerator& generator, Tens
   return {crop_window.anchor, end};
 }
 
-template <typename Decoder, typename Backend>
+template <typename Decoder>
 class WithCropAttr : public Decoder, CropAttr {
  public:
   explicit WithCropAttr(const OpSpec &spec) : Decoder(spec), CropAttr(spec) {}
@@ -59,13 +59,13 @@ class WithCropAttr : public Decoder, CropAttr {
   }
 };
 
-template <typename Decoder, typename Backend>
+template <typename Decoder>
 class WithSliceAttr : public Decoder, SliceAttr {
  public:
   explicit WithSliceAttr(const OpSpec &spec) : Decoder(spec), SliceAttr(spec) {}
  protected:
   void SetupRoiGenerator(const OpSpec &spec, const Workspace &ws) override {
-    SliceAttr::ProcessArguments<Backend>(spec, ws);
+    ProcessArguments(spec, ws);
   }
 
   ROI GetRoi(const OpSpec &spec, const Workspace &ws, std::size_t data_idx,
@@ -74,39 +74,19 @@ class WithSliceAttr : public Decoder, SliceAttr {
   }
 };
 
-template <typename Decoder, typename Backend>
-class WithRandomCropAttr : public Decoder, RandomCropAttr {
+template <typename Decoder>
+class WithRandomCropAttr : public OperatorWithRandomCrop<Decoder> {
  public:
-  explicit WithRandomCropAttr(const OpSpec &spec) : Decoder(spec), RandomCropAttr(spec) {}
+  explicit WithRandomCropAttr(const OpSpec &spec) : OperatorWithRandomCrop<Decoder>(spec) {}
 
  protected:
   void SetupRoiGenerator(const OpSpec &spec, const Workspace &ws) override {}
 
   ROI GetRoi(const OpSpec &spec, const Workspace &ws, std::size_t data_idx,
              TensorShape<> shape) override {
-    return RoiFromCropWindowGenerator(RandomCropAttr::GetCropWindowGenerator(data_idx), shape);
-  }
-
-  void SaveState(OpCheckpoint &cpt, AccessOrder order) override {
-    cpt.MutableCheckpointState() = RNGSnapshot();
-  }
-
-  void RestoreState(const OpCheckpoint &cpt) override {
-    auto &rngs = cpt.CheckpointState<std::vector<std::mt19937>>();
-    RestoreRNGState(rngs);
-  }
-
-  std::string SerializeCheckpoint(const OpCheckpoint &cpt) const override {
-    const auto &state = cpt.CheckpointState<std::vector<std::mt19937>>();
-    return SnapshotSerializer().Serialize(state);
-  }
-
-  void DeserializeCheckpoint(OpCheckpoint &cpt, const std::string &data) const override {
-    cpt.MutableCheckpointState() =
-        SnapshotSerializer().Deserialize<std::vector<std::mt19937>>(data);
+    return RoiFromCropWindowGenerator(this->GetCropWindowGenerator(data_idx), shape);
   }
 };
-
 
 }  // namespace imgcodec
 }  // namespace dali

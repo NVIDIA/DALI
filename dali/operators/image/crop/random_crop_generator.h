@@ -1,4 +1,4 @@
-// Copyright (c) 2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2024-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -33,20 +33,15 @@
 namespace dali {
 
 template <typename Backend>
-class RandomCropGeneratorOp : public Operator<Backend> {
+class RandomCropGeneratorOp : public OperatorWithRandomCrop<Operator<Backend>> {
  public:
   explicit inline RandomCropGeneratorOp(const OpSpec &spec)
-      : Operator<Backend>(spec), crop_attr_(spec) {}
+      : OperatorWithRandomCrop<Operator<Backend>>(spec) {}
 
   inline ~RandomCropGeneratorOp() override = default;
 
   DISABLE_COPY_MOVE_ASSIGN(RandomCropGeneratorOp);
 
-  USE_OPERATOR_MEMBERS();
-  using Operator<Backend>::RunImpl;
-
-
- protected:
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     auto curr_batch_size = ws.GetInputBatchSize(0);
     auto &input = ws.Input<Backend>(0);
@@ -69,6 +64,7 @@ class RandomCropGeneratorOp : public Operator<Backend> {
     return true;
   }
 
+ protected:
   template <typename T>
   void RunImplTyped(Workspace& ws) {
     auto curr_batch_size = ws.GetInputBatchSize(0);
@@ -79,7 +75,7 @@ class RandomCropGeneratorOp : public Operator<Backend> {
       auto img_dims = view<const T, 1>(input[s]);
       int32_t H = img_dims.data[0];
       int32_t W = img_dims.data[1];
-      auto crop_win = crop_attr_.GetCropWindowGenerator(s)({H, W}, "HW");
+      auto crop_win = this->GetCropWindowGenerator(s)({H, W}, "HW");
 
       auto crop_anchor = view<int32_t, 1>(output_anchor[s]);
       crop_anchor.data[0] = crop_win.anchor[0];
@@ -98,28 +94,6 @@ class RandomCropGeneratorOp : public Operator<Backend> {
       (DALI_FAIL(
           make_string("Only integer types are supported. Got: ", dtype));));
   }
-
-  void SaveState(OpCheckpoint &cpt, AccessOrder order) override {
-    cpt.MutableCheckpointState() = crop_attr_.RNGSnapshot();
-  }
-
-  void RestoreState(const OpCheckpoint &cpt) override {
-    auto &rngs = cpt.CheckpointState<std::vector<std::mt19937>>();
-    crop_attr_.RestoreRNGState(rngs);
-  }
-
-  std::string SerializeCheckpoint(const OpCheckpoint &cpt) const override {
-    const auto &state = cpt.CheckpointState<std::vector<std::mt19937>>();
-    return SnapshotSerializer().Serialize(state);
-  }
-
-  void DeserializeCheckpoint(OpCheckpoint &cpt, const std::string &data) const override {
-    cpt.MutableCheckpointState() =
-      SnapshotSerializer().Deserialize<std::vector<std::mt19937>>(data);
-  }
-
- private:
-  RandomCropAttr crop_attr_;
 };
 
 }  // namespace dali

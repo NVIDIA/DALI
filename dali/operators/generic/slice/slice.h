@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -35,7 +35,7 @@ class Slice : public SliceBase<Backend> {
 
  protected:
   void ProcessCroppingAttrs(const OpSpec &spec, const Workspace &ws) override {
-    slice_attr_.ProcessArguments<Backend>(spec, ws);
+    slice_attr_.ProcessArguments(spec, ws);
   }
 
   const CropWindowGenerator& GetCropWindowGenerator(std::size_t data_idx) const override {

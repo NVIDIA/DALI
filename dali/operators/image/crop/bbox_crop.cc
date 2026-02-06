@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -656,7 +656,8 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
    * @remarks The dimensions are fixed on a random order
    * @return true if the shape was modified, false otherwise
    */
-  bool FixAspectRatios(vec<ndim>& shape) {
+  template <typename RNG>
+  bool FixAspectRatios(vec<ndim>& shape, RNG rng) {
     // If aspect ratio is fixed, fix the required dimensions
     std::array<float, ndim*ndim> fixed_aspect_ratios;
     int k = 0;
@@ -682,9 +683,7 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
 
     std::array<int, ndim> order;
     std::iota(order.begin(), order.end(), 0);
-    std::random_device rd;
-    std::mt19937 g(rd());
-    std::shuffle(order.begin(), order.end(), g);
+    std::shuffle(order.begin(), order.end(), rng);
 
     float max_extent = 0.0f;
     for (int d = 0; d < ndim; d++) {
@@ -778,7 +777,7 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
           // Otherwise, we use the relative shape for aspect ratio check
           vec<ndim> tmp_sh = has_input_shape_ ? shape * input_shape_[sample] : shape;
 
-          bool fixed_ar = FixAspectRatios(tmp_sh);
+          bool fixed_ar = FixAspectRatios(tmp_sh, rng);
 
           if (!ValidAspectRatio(tmp_sh))
             continue;

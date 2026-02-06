@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -31,7 +31,7 @@ class nvJPEGDecoderCrop : public nvJPEGDecoder, protected CropAttr {
   DISABLE_COPY_MOVE_ASSIGN(nvJPEGDecoderCrop);
 
  protected:
-  CropWindowGenerator GetCropWindowGenerator(int data_idx) const override {
+  CropWindowGenerator GetCropWindowGenerator(int data_idx) override {
     return CropAttr::GetCropWindowGenerator(data_idx);
   }
 

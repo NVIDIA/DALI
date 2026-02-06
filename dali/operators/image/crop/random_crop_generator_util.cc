@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,9 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <algorithm>
+#include <cassert>
 #include <cmath>
 #include <utility>
-#include "dali/util/random_crop_generator.h"
+#include "dali/operators/image/crop/random_crop_generator_util.h"
 #include "dali/core/error_handling.h"
 
 namespace dali {
@@ -22,13 +24,12 @@ namespace dali {
 RandomCropGenerator::RandomCropGenerator(
     AspectRatioRange aspect_ratio_range,
     AreaRange area_range,
-    int64_t seed,
+    Philox4x32_10::State rng_state,
     int num_attempts)
   : aspect_ratio_range_(aspect_ratio_range)
   , aspect_ratio_log_dis_(std::log(aspect_ratio_range.first), std::log(aspect_ratio_range.second))
   , area_dis_(area_range.first, area_range.second)
-  , rand_gen_(seed)
-  , seed_(seed)
+  , rand_gen_(rng_state)
   , num_attempts_(num_attempts) {
 }
 
@@ -101,21 +102,6 @@ CropWindow RandomCropGenerator::GenerateCropWindowImpl(const TensorShape<>& shap
 
 CropWindow RandomCropGenerator::GenerateCropWindow(const TensorShape<>& shape) {
     return GenerateCropWindowImpl(shape);
-}
-
-std::vector<CropWindow>
-RandomCropGenerator::GenerateCropWindows(const TensorShape<>& shape,
-                                         std::size_t N) {
-  std::seed_seq seq{seed_};
-  std::vector<int64_t> seeds(N);
-  seq.generate(seeds.begin(), seeds.end());
-
-  std::vector<CropWindow> crop_windows;
-  for (std::size_t i = 0; i < N; i++) {
-    rand_gen_.seed(seeds[i]);
-    crop_windows.push_back(GenerateCropWindowImpl(shape));
-  }
-  return crop_windows;
 }
 
 }  // namespace dali

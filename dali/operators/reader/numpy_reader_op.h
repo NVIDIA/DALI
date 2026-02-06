@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -63,7 +63,7 @@ class NumpyReader : public DataReader<Backend, Target, Target, true> {
     int ndim = file_0.get_shape().sample_dim();
     TensorListShape<> sh(batch_size, ndim);
 
-    bool has_roi_args = slice_attr_.template ProcessArguments<Backend>(spec_, ws, batch_size, ndim);
+    bool has_roi_args = slice_attr_.ProcessArguments(spec_, ws, batch_size, ndim);
     rois_.clear();
     if (has_roi_args)
       rois_.resize(batch_size);
