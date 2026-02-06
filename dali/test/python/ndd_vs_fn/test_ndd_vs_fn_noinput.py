@@ -23,7 +23,6 @@ from ndd_vs_fn_test_utils import (
     feed_input,
     pipeline_es_feed_input_wrapper,
     compare_no_input,
-    compare,
     flatten_operator_configs,
     generate_image_like_data,
 )
@@ -70,7 +69,7 @@ def test_no_input_operators(device, operator_name, fn_operator, ndd_operator, op
         feed_input(pipe, inp)
         pipe_out = pipe.run()
         ndd_out = ndd_operator(device=device, batch_size=inp.shape[0], **operator_args)
-        assert compare_no_input(pipe_out, ndd_out)
+        compare_no_input(pipe_out, ndd_out)
 
 
 def test_transforms_combine():
@@ -98,4 +97,4 @@ def test_transforms_combine():
         ndd.transforms.scale(scale=(2, 3)),
         batch_size=MAX_BATCH_SIZE,
     )
-    assert compare(pipe_out, ndd_out)
+    compare_no_input(pipe_out, ndd_out)

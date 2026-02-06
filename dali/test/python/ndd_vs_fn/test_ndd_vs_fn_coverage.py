@@ -51,7 +51,6 @@ excluded_operators = [
     "decoders.numpy",
     "decoders.video",
     "element_extract",
-    "expand_dims",
     "experimental.decoders.image",
     "experimental.decoders.image_crop",
     "experimental.decoders.image_slice",

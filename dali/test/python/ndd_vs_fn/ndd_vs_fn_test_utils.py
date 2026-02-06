@@ -270,42 +270,118 @@ def to_numpy(ndd_batch: Batch) -> np.ndarray:
     return np.array(ndd.as_tensor(ndd_batch.cpu()))
 
 
-def _cmp(pipe_out: TensorListCPU | TensorListGPU, ndd_out: Batch) -> bool:
+def _cmp_metadata(
+    pipe_out: TensorListCPU | TensorListGPU, ndd_out: Batch, output_idx: int = 0
+) -> None:
+    """
+    Compare metadata (shapes, dtypes, layouts, device) between DALI pipeline output and ndd Batch.
+
+    :param pipe_out: DALI pipeline output (TensorListCPU or TensorListGPU)
+    :param ndd_out: ndd Batch output
+    :param output_idx: Index of the output being compared (for error reporting)
+    :raises AssertionError: If metadata doesn't match
+    """
+    # Validate device
+    pipe_is_gpu = isinstance(pipe_out, TensorListGPU)
+    ndd_is_gpu = ndd_out.device.device_type == "gpu"
     assert (
-        len(pipe_out.shape()) == ndd_out.batch_size
-    ), f"Batch size mismatch: {len(pipe_out.shape())=} != {ndd_out.batch_size=}"
-    for pipe_sample, ndd_sample in zip(pipe_out, ndd_out, strict=True):
+        pipe_is_gpu == ndd_is_gpu
+    ), f"""[Output {output_idx}] Device mismatch:
+  Pipeline: {'gpu' if pipe_is_gpu else 'cpu'}
+  NDD:      {ndd_out.device.device_type}"""
+
+    # Validate batch size
+    pipe_batch_size = len(pipe_out.shape())
+    ndd_batch_size = ndd_out.batch_size
+    assert (
+        pipe_batch_size == ndd_batch_size
+    ), f"""[Output {output_idx}] Batch size mismatch:
+  Pipeline: {pipe_batch_size}
+  NDD:      {ndd_batch_size}"""
+
+    # Validate data type
+    pipe_dtype = pipe_out.dtype
+    ndd_dtype = ndd_out.dtype.type_id
+    assert (
+        pipe_dtype == ndd_dtype
+    ), f"""[Output {output_idx}] Data type mismatch:
+  Pipeline: {pipe_dtype}
+  NDD:      {ndd_dtype}"""
+
+    # Validate layout if available
+    pipe_layout = pipe_out.layout() if hasattr(pipe_out, "layout") and pipe_out.layout() else None
+    ndd_layout = ndd_out.layout if hasattr(ndd_out, "layout") else None
+    assert not (
+        pipe_layout and ndd_layout and pipe_layout != ndd_layout
+    ), f"""[Output {output_idx}] Layout mismatch:
+  Pipeline: {pipe_layout}
+  NDD:      {ndd_layout}"""
+
+    # Validate individual sample shapes
+    for i, (psh, nddsh) in enumerate(zip(pipe_out.shape(), ndd_out.shape, strict=True)):
+        assert (
+            psh == nddsh
+        ), f"""[Output {output_idx}, Sample {i}] Shape mismatch:
+  Pipeline: {psh}
+  NDD:      {nddsh}"""
+
+
+def _cmp_values(pipe_out: TensorListCPU | TensorListGPU, ndd_out: Batch) -> None:
+    for sample_idx, (pipe_sample, ndd_sample) in enumerate(zip(pipe_out, ndd_out, strict=True)):
         ndd_numpy = to_numpy(ndd_sample)
         pipe_numpy = np.array(pipe_sample)
-        if not np.array_equal(pipe_numpy, ndd_numpy):
-            return False
-    return True
+        assert np.array_equal(
+            pipe_numpy, ndd_numpy
+        ), f"""[Sample {sample_idx}] Values mismatch between pipeline and NDD outputs"""
+
+
+def _cmp(pipe_out: TensorListCPU | TensorListGPU, ndd_out: Batch) -> None:
+    _cmp_metadata(pipe_out, ndd_out, output_idx=0)
+    _cmp_values(pipe_out.as_cpu(), ndd_out)
 
 
 def compare(
     pipe_out: tuple[TensorListCPU] | tuple[TensorListGPU], ndd_out: tuple[Batch] | Batch
-) -> bool:
+) -> None:
+    """
+    Compare DALI pipeline outputs with ndd outputs.
+
+    Performs comprehensive comparison including:
+    - Metadata validation (batch size, shapes, dtypes, layouts, devices)
+    - Bit-exact value comparison
+    - Detailed error reporting on mismatch
+
+    Supports both single and multiple outputs.
+
+    :param pipe_out: Tuple of DALI pipeline outputs
+    :param ndd_out: Either a single ndd Batch or tuple of ndd Batches
+    :raises AssertionError: If outputs don't match
+    """
     if isinstance(ndd_out, tuple):
-        assert len(pipe_out) == len(
-            ndd_out
-        ), f"Number of outputs mismatch: {len(pipe_out)=} != {len(ndd_out)=}"
-        for pout, nout in zip(pipe_out, ndd_out, strict=True):
-            if not _cmp(pout.as_cpu(), nout):
-                return False
-        return True
+        pipe_out_len = len(pipe_out)
+        ndd_out_len = len(ndd_out)
+        assert (
+            pipe_out_len == ndd_out_len
+        ), f"""Number of outputs mismatch:
+  Pipeline: {pipe_out_len}
+  NDD:      {ndd_out_len}"""
+
+        for idx, (pout, nout) in enumerate(zip(pipe_out, ndd_out, strict=True)):
+            _cmp(pout, nout)
     else:
         assert (
             len(pipe_out) == 1
-        ), f"Expected single output from DALI pipeline, got {len(pipe_out)=}"
-        return _cmp(pipe_out[0].as_cpu(), ndd_out)
+        ), f"""Expected single output from DALI pipeline, got {len(pipe_out)}"""
+
+        _cmp(pipe_out[0], ndd_out)
 
 
 def compare_no_input(
     pipe_out: tuple[TensorListCPU] | tuple[TensorListGPU], ndd_out: tuple[Batch] | Batch
-) -> bool:
+) -> None:
     """Comparison function for no-input operators."""
     assert len(pipe_out) == 2, f"Expected two outputs from DALI pipeline, got {len(pipe_out)=}"
-    return _cmp(pipe_out[0].as_cpu(), ndd_out)
+    _cmp(pipe_out[0], ndd_out)
 
 
 def pipeline_es_feed_input_wrapper(
@@ -419,7 +495,7 @@ def run_operator_test(
                 )
 
         # Compare the outputs.
-        assert compare_fn(pipe_out, ndd_out)
+        compare_fn(pipe_out, ndd_out)
 
 
 def get_nested_attr(obj, attr_path):
