@@ -13,31 +13,35 @@
 # limitations under the License.
 
 import copy
-from typing import Any, Optional, SupportsInt, Tuple, Union
+from typing import TYPE_CHECKING, Any, SupportsInt, Union
 
 import numpy as np
 import nvidia.dali.backend as _backend
 import nvidia.dali._tensor_formatting as _tensor_formatting
 import nvidia.dali.types
+from nvidia.dali._typing import TensorLike
 
 from . import _eval_mode, _invocation, _stream
 from ._arithmetic import _arithm_op
-from ._device import Device
+from ._device import Device, DeviceLike
 from ._device import device as _device
 from ._eval_context import EvalContext as _EvalContext
 from ._type import DType
 from ._type import dtype as _dtype
 from ._type import type_id as _type_id
 
+if TYPE_CHECKING:
+    from ._batch import Batch
 
-def _volume(shape: Tuple[int, ...]) -> int:
+
+def _volume(shape: tuple[int, ...]) -> int:
     ret = 1
     for s in shape:
         ret *= s
     return ret
 
 
-def _backend_device(backend: Union[_backend.TensorCPU, _backend.TensorGPU]) -> Device:
+def _backend_device(backend: _backend.TensorCPU | _backend.TensorGPU) -> Device:
     if isinstance(backend, _backend.TensorCPU):
         return Device("cpu")
     elif isinstance(backend, _backend.TensorGPU):
@@ -89,13 +93,13 @@ class Tensor:
 
     def __init__(
         self,
-        data: Optional[Any] = None,
-        dtype: Optional[Any] = None,
-        device: Optional[Device] = None,
-        layout: Optional[str] = None,
-        batch: Optional[Any] = None,
-        index_in_batch: Optional[int] = None,
-        invocation_result: Optional[_invocation.InvocationResult] = None,
+        data: TensorLike | None = None,
+        dtype: Any | None = None,
+        device: DeviceLike | None = None,
+        layout: str | None = None,
+        batch: Any | None = None,
+        index_in_batch: int | None = None,
+        invocation_result: _invocation.InvocationResult | None = None,
         copy: bool = False,
     ):
         """Constructs a :class:`Tensor` object.
@@ -319,7 +323,7 @@ class Tensor:
         """
         return self.to_device(Device("cpu"))
 
-    def gpu(self, index: Optional[int] = None) -> "Tensor":
+    def gpu(self, index: int | None = None) -> "Tensor":
         """
         Returns the tensor on the GPU. If it's already there, this function returns `self`.
 
@@ -340,7 +344,7 @@ class Tensor:
         else:
             raise RuntimeError("Device not set")
 
-    def to_device(self, device: Device, force_copy: bool = False) -> "Tensor":
+    def to_device(self, device: DeviceLike, force_copy: bool = False) -> "Tensor":
         """
         Returns the tensor on the specified device.
 
@@ -392,7 +396,7 @@ class Tensor:
             raise RuntimeError("Cannot determine the number of dimensions of the tensor.")
 
     @property
-    def shape(self) -> Tuple[int, ...]:
+    def shape(self) -> tuple[int, ...]:
         """
         The shape of the tensor, returned as a tuple of integers.
         """
@@ -424,7 +428,7 @@ class Tensor:
         return self._dtype
 
     @property
-    def layout(self) -> str:
+    def layout(self) -> str | None:
         """
         The semantic layout of the tensor, e.g. HWC, CHW.
 
@@ -710,7 +714,7 @@ def _scalar_value(value: Any) -> int:
 
 
 class TensorSlice:
-    def __init__(self, tensor: Tensor, ranges: Tuple[Any, ...], absolute=False):
+    def __init__(self, tensor: Tensor, ranges: tuple[Any, ...], absolute=False):
         self._tensor = copy.copy(tensor)
         self._ndim_dropped = 0
         self._shape = None
@@ -742,7 +746,7 @@ class TensorSlice:
         return self._tensor.ndim - self._ndim_dropped
 
     @property
-    def shape(self) -> Tuple[int, ...]:
+    def shape(self) -> tuple[int, ...]:
         if self._shape is None:
             shape = []
             if self._absolute_ranges is None:
@@ -789,7 +793,7 @@ class TensorSlice:
         return self._layout
 
     @staticmethod
-    def _canonicalize_ranges(ranges, in_shape) -> Tuple[int, ...]:
+    def _canonicalize_ranges(ranges, in_shape) -> tuple[int, ...]:
         """Converts the ranges to sane non-pythonic values without negative indices wrapping"""
         d = 0
         abs_ranges = []
@@ -841,7 +845,7 @@ class TensorSlice:
         return tuple(abs_ranges)
 
     @staticmethod
-    def _insane_pythonic_ranges(abs_ranges, shape) -> Tuple[int, ...]:
+    def _insane_pythonic_ranges(abs_ranges, shape) -> tuple[int, ...]:
         """Converts an absolute range into ranges as expected by Pythonic slicing API"""
         py_ranges = []
         for r, s in zip(abs_ranges, shape):
@@ -916,12 +920,12 @@ class TensorSlice:
 
 
 def tensor(
-    data: Any,
-    dtype: Optional[Any] = None,
-    device: Optional[Device] = None,
-    layout: Optional[str] = None,
+    data: TensorLike,
+    dtype: Any | None = None,
+    device: DeviceLike | None = None,
+    layout: str | None = None,
     pad: bool = False,
-):
+) -> Tensor:
     """Copies an existing tensor-like object into a DALI tensor.
 
     Parameters
@@ -961,12 +965,12 @@ def tensor(
 
 
 def as_tensor(
-    data: Any,
-    dtype: Optional[Any] = None,
-    device: Optional[Device] = None,
-    layout: Optional[str] = None,
+    data: Union[TensorLike, "Batch"],
+    dtype: Any | None = None,
+    device: DeviceLike | None = None,
+    layout: str | None = None,
     pad: bool = False,
-):
+) -> Tensor:
     """Wraps an existing tensor-like object into a DALI tensor.
 
     Parameters

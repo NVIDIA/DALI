@@ -1,4 +1,4 @@
-# Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,7 +14,19 @@
 
 import nvidia.dali.backend as _backend
 from threading import local
-from typing import Union, Optional
+from typing import NoReturn, TypeAlias, Union
+
+
+try:
+    import torch  # type: ignore
+
+    _TorchDevice: TypeAlias = torch.device  # type: ignore
+except ImportError:
+    # Unfortunately, most type checkers don't execute code so they will pick the first definition
+    # with torch.device being interpreted as 'Unknown' if torch is not installed.
+    _TorchDevice: TypeAlias = NoReturn  # type: ignore
+
+DeviceLike: TypeAlias = Union["Device", str, _TorchDevice]
 
 
 class Device:
@@ -26,7 +38,7 @@ class Device:
 
     _thread_local = local()
 
-    def __init__(self, name: str, device_id: int = None):
+    def __init__(self, name: str, device_id: int | None = None):
         """
         Initializes the device object with a name and, optionally, device id.
 
@@ -186,9 +198,7 @@ class Device:
             _backend.SetCUDACurrentDevice(dev.device_id)
 
 
-def device(
-    obj: Union[Device, str, "torch.device"], id: Optional[int] = None  # noqa: F821
-) -> Device:
+def device(obj: DeviceLike, id: int | None = None) -> Device:
     """
     Returns a Device object from various input types.
 

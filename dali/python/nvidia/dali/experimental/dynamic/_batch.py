@@ -13,25 +13,27 @@
 # limitations under the License.
 
 import importlib.util
-from typing import Any, Optional, Sequence, Union
+from typing import Any
+from collections.abc import Iterator
 
 import nvidia.dali.backend as _backend
 import nvidia.dali.types as _dali_types
 import nvidia.dali._tensor_formatting as _tensor_formatting
 import nvtx
+from nvidia.dali._typing import BatchLike, TensorLike
 
 from . import _eval_mode, _invocation
 from ._arithmetic import _arithm_op
-from ._device import Device
+from ._device import Device, DeviceLike
 from ._device import device as _device
 from ._tensor import Tensor, _is_full_slice, _try_convert_enums
 from ._tensor import as_tensor as _as_tensor
 from ._tensor import tensor as _tensor
-from ._type import DType
+from ._type import DType, DTypeLike
 from ._type import dtype as _dtype
 
 
-def _backend_device(backend: Union[_backend.TensorListCPU, _backend.TensorListGPU]) -> Device:
+def _backend_device(backend: _backend.TensorListCPU | _backend.TensorListGPU) -> Device:
     if isinstance(backend, _backend.TensorListCPU):
         return Device("cpu")
     elif isinstance(backend, _backend.TensorListGPU):
@@ -112,11 +114,11 @@ class _TensorList:
     # populate it - and even worse, we'd have to copy it each time, because otherwise a user
     # could try something like `batch.tensors.append(T)` which would make the list inconsistent.
 
-    def __init__(self, batch: "Batch", indices: Optional[Union[list[int], range]] = None):
+    def __init__(self, batch: "Batch", indices: list[int] | range | None = None):
         self._batch = batch
         self._indices = indices or range(batch.batch_size)
 
-    def __getitem__(self, selection: Union[int, slice, list[int]]):
+    def __getitem__(self, selection: int | slice | list[int]):
         return self.select(selection)
 
     def __len__(self):
@@ -145,7 +147,7 @@ class _TensorList:
         """
         Converts the list of tensors to a :class:`Batch` object.
         """
-        return batch(self) if copy else as_batch(self)
+        return batch(self) if copy else as_batch(self)  # type: ignore
 
 
 class Batch:
@@ -166,11 +168,11 @@ class Batch:
 
     def __init__(
         self,
-        tensors: Optional[Any] = None,
-        dtype: Optional[DType] = None,
-        device: Optional[Device] = None,
-        layout: Optional[str] = None,
-        invocation_result: Optional[_invocation.InvocationResult] = None,
+        tensors: BatchLike | None = None,
+        dtype: DTypeLike | None = None,
+        device: DeviceLike | None = None,
+        layout: str | None = None,
+        invocation_result: _invocation.InvocationResult | None = None,
         copy: bool = False,
     ):
         """Constructs a :class:`Batch` object.
@@ -193,7 +195,7 @@ class Batch:
 
             - a list of tensor-like objects; the objects need to have matching number of dimensions,
             data types and layouts,
-            - a tensor-like object; the outermost dimenion is interpreted as the batch dimension
+            - a tensor-like object; the outermost dimension is interpreted as the batch dimension
             - a dali.backend.TensorListCPU or dali.backend.TensorListGPU
         dtype : DType, default: None
             The desired data type of the batch. If not specified, the data type is inferred
@@ -366,10 +368,10 @@ class Batch:
 
     @staticmethod
     def broadcast(
-        sample,
+        sample: TensorLike,
         batch_size: int,
-        device: Optional[Device] = None,
-        dtype: Optional[DType] = None,
+        device: DeviceLike | None = None,
+        dtype: DTypeLike | None = None,
     ) -> "Batch":
         """
         Creates a batch by repeating a single `sample` `batch_size` times.
@@ -446,7 +448,7 @@ class Batch:
         return self._device
 
     @property
-    def layout(self) -> str:
+    def layout(self) -> str | None:
         """
         The layout of tensors in the batch.
 
@@ -494,7 +496,7 @@ class Batch:
         """
         return _TensorList(self)
 
-    def to_device(self, device: Device, force_copy: bool = False) -> "Batch":
+    def to_device(self, device: DeviceLike, force_copy: bool = False) -> "Batch":
         """
         Returns the data batch on the specified device.
 
@@ -518,7 +520,7 @@ class Batch:
         """
         return self.to_device(Device("cpu"))
 
-    def gpu(self, index: Optional[int] = None) -> "Batch":
+    def gpu(self, index: int | None = None) -> "Batch":
         """
         Returns the batch on the GPU. If it's already there, this function returns `self`.
 
@@ -566,13 +568,13 @@ class Batch:
         """
         return BatchedSlice(self)
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[Tensor]:
         """
         Iterates over tensors in the batch.
         """
         return iter(self.tensors)
 
-    def select(self, sample_range):
+    def select(self, sample_range) -> "Batch | Tensor":
         """
         Selects a range of samples.
 
@@ -589,7 +591,7 @@ class Batch:
         else:
             return self._get_tensor(r)
 
-    def _get_tensor(self, i):
+    def _get_tensor(self, i) -> Tensor:
         if self._tensors is None:
             self._tensors: list[Tensor | None] = [None] * self.batch_size
 
@@ -666,7 +668,7 @@ class Batch:
             self.evaluate(), show_data=True, adapter=_tensor_formatting.DynamicBatchAdapter()
         )
 
-    def torch(self, copy: Optional[bool] = None, pad: bool = False):
+    def torch(self, copy: bool | None = None, pad: bool = False):
         """
         Returns ``self`` as a PyTorch tensor.
         Requires ``self`` to be dense and PyTorch to be installed.
@@ -806,11 +808,11 @@ class Batch:
 
 
 def batch(
-    tensors: Union[Batch, Sequence[Any]],
-    dtype: Optional[DType] = None,
-    device: Optional[Device] = None,
-    layout: Optional[str] = None,
-):
+    tensors: BatchLike,
+    dtype: DTypeLike | None = None,
+    device: DeviceLike | None = None,
+    layout: str | None = None,
+) -> Batch:
     """Constructs a :class:`Batch` object.
 
     Constructs a batch by copying the input tensors and optionally converting them to the desired
@@ -856,11 +858,11 @@ def batch(
 
 
 def as_batch(
-    tensors: Union[Batch, Sequence[Any]],
-    dtype: Optional[DType] = None,
-    device: Optional[Device] = None,
-    layout: Optional[str] = None,
-):
+    tensors: BatchLike,
+    dtype: DTypeLike | None = None,
+    device: DeviceLike | None = None,
+    layout: str | None = None,
+) -> Batch:
     """Constructs a :class:`Batch` object, avoiding the copy.
 
     Constructs a batch by viewing the input tensors as a batch. If the input tensors do not
