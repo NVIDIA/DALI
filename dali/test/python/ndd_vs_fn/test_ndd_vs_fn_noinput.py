@@ -56,7 +56,7 @@ def test_no_input_operators(device, operator_name, fn_operator, ndd_operator, op
     register_operator_test(operator_name)
     data = generate_image_like_data()
     # Passing input to no-input operator is artificial,
-    # and it's here to avoid prunning no-input operator from the graph.
+    # and it's here to avoid pruning no-input operator from the graph.
     pipe = pipeline_es_feed_input_wrapper(
         fn_operator,
         device,

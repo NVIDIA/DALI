@@ -26,6 +26,7 @@ import test_utils
 MAX_BATCH_SIZE = 31
 N_ITERATIONS = 13
 RNG_SEED = 5318008
+random.seed(RNG_SEED)
 
 
 @dataclass
@@ -65,7 +66,7 @@ def use_fn_api(func):
 
 
 def use_ndd_api(func):
-    """See :fun:use_fn_api"""
+    """See :func:use_fn_api"""
 
     @functools.wraps(func)
     def wrapper(*inp, **operator_args):
@@ -141,19 +142,18 @@ def generate_data(
             "Provide `(val,)` tuple for 1D shape"
         )
 
+    rng = np.random.default_rng(RNG_SEED)
     if np.issubdtype(dtype, np.integer):
-        return [
-            np.random.randint(lo, hi, size=(bs,) + size_fn(), dtype=dtype) for bs in batch_sizes
-        ]
+        return [rng.randint(lo, hi, size=(bs,) + size_fn(), dtype=dtype) for bs in batch_sizes]
     elif np.issubdtype(dtype, np.floating):
-        ret = (np.random.random_sample(size=(bs,) + size_fn()) for bs in batch_sizes)
+        ret = (rng.random_sample(size=(bs,) + size_fn()) for bs in batch_sizes)
         ret = map(lambda batch: (hi - lo) * batch + lo, ret)
         ret = map(lambda batch: batch.astype(dtype), ret)
         return list(ret)
     elif np.issubdtype(dtype, bool):
         assert isinstance(lo, bool)
         assert isinstance(hi, bool)
-        return [np.random.choice(a=[lo, hi], size=(bs,) + size_fn()) for bs in batch_sizes]
+        return [rng.choice(a=[lo, hi], size=(bs,) + size_fn()) for bs in batch_sizes]
     else:
         raise RuntimeError(f"Invalid type argument: {dtype}")
 
