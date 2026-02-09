@@ -15,6 +15,7 @@
 import os
 import subprocess
 import tempfile
+import math
 
 import nvidia.dali.experimental.dynamic as ndd
 from nose2.tools import cartesian_params, params
@@ -125,3 +126,52 @@ def test_tfrecord(device_type, batch_size):
                 assert img.shape[-1] == 3
             else:
                 assert all(shape[-1] == 3 for shape in img.shape)
+
+
+@cartesian_params(
+    (True, False),
+    (True, False),
+)
+def test_reader_shards(stick_to_shard, pad_last_batch):
+    SHARD_NUM = 8
+    reader = ndd.readers.File(
+        file_root=os.path.join(dali_extra_path, "db", "single", "jpeg"),
+        file_list=os.path.join(dali_extra_path, "db", "single", "jpeg", "image_list.txt"),
+    )
+    all_samples = tuple(reader.next_epoch())
+    for initial_shard_id in range(SHARD_NUM):
+        reader = ndd.readers.File(
+            file_root=os.path.join(dali_extra_path, "db", "single", "jpeg"),
+            file_list=os.path.join(dali_extra_path, "db", "single", "jpeg", "image_list.txt"),
+            stick_to_shard=stick_to_shard,
+            pad_last_batch=pad_last_batch,
+            shard_id=initial_shard_id,
+            num_shards=SHARD_NUM,
+        )
+        shard_id = initial_shard_id
+        for _ in range(SHARD_NUM):
+            samples = tuple(reader.next_epoch())
+            samples_in_shard = len(samples)
+            samples_num = reader._op_backend.GetReaderMeta()["epoch_size_padded"]
+            unpadded_samples_num = reader._op_backend.GetReaderMeta()["epoch_size"]
+            shards_beg = math.floor(shard_id * samples_num / SHARD_NUM)
+            shards_end = math.floor((shard_id + 1) * samples_num / SHARD_NUM)
+            unpadded_shards_beg = math.floor(shard_id * unpadded_samples_num / SHARD_NUM)
+            unpadded_shards_end = math.floor((shard_id + 1) * unpadded_samples_num / SHARD_NUM)
+            shard_size = shards_end - shards_beg
+            for idx in range(0, shard_size):
+                if pad_last_batch and shards_beg + idx >= unpadded_shards_end:
+                    # duplicate last sample in the shard in case of padding
+                    ref_sample = all_samples[unpadded_shards_end - 1]
+                else:
+                    ref_sample = all_samples[unpadded_shards_beg + idx]
+                assert ref_sample == samples[idx], (
+                    f"Sample {shards_beg + idx} mismatch, shard_id: {shard_id} (initial_shard_id: "
+                    + f"{initial_shard_id}, shard_beg: {shards_beg}, shard_end: {shards_end})"
+                )
+            assert samples_in_shard == shards_end - shards_beg, (
+                f"Samples in shard {shard_id} (initial_shard_id: {initial_shard_id}) should be "
+                + f"{shards_end - shards_beg}, but got {samples_in_shard}"
+            )
+            if not stick_to_shard:
+                shard_id = (shard_id + 1) % SHARD_NUM
