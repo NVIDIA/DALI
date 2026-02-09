@@ -200,7 +200,7 @@ def build_operator_class(schema):
             op_class._supported_backends = frozenset({"cpu"})
         else:
             raise RuntimeError(
-                f"Internal error: operator f{op_class._schema_name} has an "
+                f"Internal error: operator {op_class._schema_name} has an "
                 f"empty set of supported backends. Is it a Python-only operator?"
             )
     op_class._op_name = class_name
