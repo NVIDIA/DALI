@@ -14,8 +14,13 @@ test_py_with_framework() {
       test_pool.py test_external_source_parallel.py test_external_source_parallel_shared_batch.py \
       test_external_source_parallel_large_sample.py \
       | sed "/$FILTER_PATTERN/d"); do
-        ${python_invoke_test} --attr '!slow,!pytorch,!mxnet,!cupy,!numba' ${test_script}
+        ${python_new_invoke_test} -A '!slow,!pytorch,!cupy,!numba' ${test_script%.py}
     done
+    # run this test explicitly as it needs not GPU context in the process
+    if [ -z "$DALI_ENABLE_SANITIZERS" ]; then
+        ${python_new_invoke_test} -A '!slow,!pytorch,!cupy,!numba' test_external_source_parallel.TestParallelFork._test_parallel_fork_cpu_only
+        ${python_new_invoke_test} -A '!slow,!pytorch,!cupy,!numba' test_external_source_parallel_custom_serialization._test_no_pickling_in_forking_mode
+    fi
 
 
     if [ -n "$DALI_ENABLE_SANITIZERS" ]; then
