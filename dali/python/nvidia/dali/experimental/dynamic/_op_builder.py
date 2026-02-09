@@ -193,7 +193,16 @@ def build_operator_class(schema):
     op_class = type(class_name, (base,), {})  # create a subclass
     op_class._schema = schema
     op_class._schema_name = schema.Name()
-    op_class._supported_backends = set(schema.GetSupportedBackends())
+    op_class._supported_backends = frozenset(schema.GetSupportedBackends())
+    if len(op_class._supported_backends) == 0:
+        # TFRecord is not present in schema registry because it uses Python proxy
+        if op_class._schema_name == "readers__TFRecord":
+            op_class._supported_backends = frozenset({"cpu"})
+        else:
+            raise RuntimeError(
+                f"Internal error: operator f{op_class._schema_name} has an "
+                f"empty set of supported backends. Is it a Python-only operator?"
+            )
     op_class._op_name = class_name
     op_class._fn_name = _to_snake_case(class_name)
     op_class._legacy_op = legacy_op_class
@@ -237,14 +246,17 @@ def build_constructor(schema, op_class):
 
     if init_args:
         init_args = ["*"] + init_args
-    header_args = [
-        "self",
-        "max_batch_size=None",
-        "name=None",
-        'backend="cpu"',
-        'device="cpu"',
-        "num_inputs=None",
-    ] + init_args
+    header_args = (
+        [
+            "self",
+            "max_batch_size=None",
+            "name=None",
+            'device="cpu"',
+            "num_inputs=None",
+        ]
+        + init_args
+        + ["_backend=None"]
+    )
     header = f"__init__({', '.join(header_args)})"
 
     # Note: Base __init__ will keep the **kwargs
@@ -562,10 +574,10 @@ def build_fn_wrapper(op, fn_name=None, add_to_module=True):
             op_inst = op._get(
                 max_batch_size=max_batch_size,
                 name=None,
-                backend=backend,
                 device=device,
                 num_inputs=len(inputs),
                 call_arg_names=tuple(call_args.keys()),
+                _backend=backend,
                 **init_args,
             )
 

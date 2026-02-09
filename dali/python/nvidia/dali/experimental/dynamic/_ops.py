@@ -47,8 +47,9 @@ class Operator:
         self,
         max_batch_size,
         name=None,
-        backend="cpu",
         device="cpu",
+        *,
+        _backend=None,
         **kwargs,
     ):
         """Constructs an operator instance
@@ -67,7 +68,14 @@ class Operator:
         self._api_type = None
 
         self._device = _device.device(device)
-        self._backend = backend
+        if _backend is None:
+            if len(self._supported_backends) == 1:
+                _backend = next(iter(self._supported_backends))
+            elif self._device.device_type in self._supported_backends:
+                _backend = self._device.device_type
+            elif self._device.device_type == "gpu" and "mixed" in self._supported_backends:
+                _backend = "mixed"
+        self._backend = _backend
 
         # Information below is lazy-initialized
         # TODO(klecki): Use @property or @cached_property for self-init.
@@ -97,6 +105,7 @@ class Operator:
         device: DeviceLike | None = None,
         num_inputs: int | None = None,
         call_arg_names: list[str] | None = None,
+        _backend: str | None = None,
         **init_args,
     ):
         """Gets an operator instance for a specified set of parameters."""
@@ -117,7 +126,7 @@ class Operator:
         call_arg_names = freeze_arg(call_arg_names)
         key = (
             cls,
-            backend,
+            _backend,
             device,
             max_batch_size,
             num_inputs,
@@ -131,8 +140,8 @@ class Operator:
                 inst = cls(
                     max_batch_size,
                     name=name,
-                    backend=backend,
                     device=device,
+                    _backend=_backend,
                     **init_args,
                 )
                 ctx._instance_cache[key] = inst
@@ -224,9 +233,7 @@ class Operator:
                 else:
                     self._num_outputs = 1
                     self._output_devices = [
-                        Device(
-                            out.device, None if out.device == "cpu" else self._device.device_id
-                        )
+                        Device(out.device, None if out.device == "cpu" else self._device.device_id)
                     ]
 
                 self._set_meta(inputs, args)
@@ -411,6 +418,8 @@ class Reader(Operator):
         batch_size=None,
         name=None,
         device="cpu",
+        *,
+        _backend=None,
         **kwargs,
     ):
         if name is None:
@@ -418,8 +427,7 @@ class Reader(Operator):
         self._actual_batch_size = batch_size
         self._batch_size = batch_size
         device = _device.Device(device)
-        backend = kwargs.pop("backend", device.device_type)
-        super().__init__(self._actual_batch_size, name, backend, device, **kwargs)
+        super().__init__(self._actual_batch_size, name, device, **kwargs)
 
     def _pre_call(self, *inputs, **args):
         if self._api_type is None:
