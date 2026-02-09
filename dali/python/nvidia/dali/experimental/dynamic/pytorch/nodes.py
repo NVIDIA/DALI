@@ -26,7 +26,20 @@ T = TypeVar("T", bound=Tensor | Batch)
 
 
 class Reader(tn.BaseNode[dict[str, T]]):
-    """Wrap a dynamic mode reader, yields dictionaries"""
+    """Wraps a reader as a node, yielding dictionaries.
+
+    Parameters
+    ----------
+    reader_type : reader subclass
+        The type of the reader to construct.
+    batch_size : int, optional
+        The batch size to pass to next_epoch(). If None, the iterator returns tensors.
+    output_names : iterable of str, optional
+        Names of the outputs, used as keys in the output dict.
+        If the reader has two outputs, it can be omited and defaults to ``("data", "label")``.
+    **kwargs
+        Additional keyword arguments to pass to the reader constructor.
+    """
 
     def __init__(
         self,
@@ -36,21 +49,6 @@ class Reader(tn.BaseNode[dict[str, T]]):
         output_names: Iterable[str] | None = None,
         **kwargs: Any,
     ):
-        """
-        Construct a Reader node.
-
-        Parameters
-        ----------
-        reader_type : Dynamic mode reader type
-            The type of the reader to construct.
-        batch_size : int or None
-            The batch size to pass to next_epoch(). If None, the iterator returns tensors.
-        output_names : iterable of str or None, optional
-            Names of the outputs, used as keys in the output dict.
-            If None and the reader has two outputs, the names default to "data" and "label".
-        kwargs : dict
-            Additional keyword arguments to pass to the reader constructor.
-        """
         super().__init__()
         if batch_size is not None and "max_batch_size" not in kwargs:
             kwargs["max_batch_size"] = batch_size
@@ -87,7 +85,17 @@ class Reader(tn.BaseNode[dict[str, T]]):
 
 
 class DictMapper(tn.BaseNode[dict[str, T]]):
-    """Applies a transform to a single key in the dict yielded by a source node."""
+    """Applies a transform to a single key in the dict yielded by a source node.
+
+    Parameters
+    ----------
+    source : :class:`torchdata.nodes.BaseNode`
+        The source node to pull from. Yields dictionaries of tensors or batches.
+    map_fn : callable
+        The function to apply to the specified key. Must return a tensor or batch.
+    key : str, optional
+        The key to apply the function to. Defaults to ``"data"``.
+    """
 
     def __init__(
         self,
@@ -95,18 +103,6 @@ class DictMapper(tn.BaseNode[dict[str, T]]):
         map_fn: Callable[[T], Tensor | Batch],
         key: str = "data",
     ):
-        """
-        Construct a DictMapper node.
-
-        Parameters
-        ----------
-        source : torchdata.nodes.BaseNode[dict[str, T]]
-            The source node to pull from. Yields dictionaries containing tensors or batches.
-        map_fn : Callable[[T], ndd.Tensor | ndd.Batch]
-            The function to apply to the specified key.
-        key : str, optional, default: "data"
-            The key to apply the function to.
-        """
         super().__init__()
         self._source = source
         self._map_fn = map_fn
@@ -126,17 +122,15 @@ class DictMapper(tn.BaseNode[dict[str, T]]):
 
 
 class ToTorch(tn.BaseNode[tuple[torch.Tensor, ...]]):
-    """Converts DALI tensors to PyTorch tensors."""
+    """Converts dictionaries of tensors or batches to tuples of :class:`torch.Tensor`.
+
+    Parameters
+    ----------
+    source : :class:`torchdata.nodes.BaseNode`
+        The source node to pull data from. Yields dictionaries of tensors or batches.
+    """
 
     def __init__(self, source: tn.BaseNode[dict[str, Tensor | Batch]]):
-        """
-        Construct a ToTorch node.
-
-        Parameters
-        ----------
-        source : torchdata.nodes.BaseNode[dict[str, ndd.Tensor | ndd.Batch]]
-            The source node to pull data from.
-        """
         super().__init__()
         self._source = source
 
