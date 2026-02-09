@@ -137,16 +137,23 @@ class ToTorch(tn.BaseNode[tuple[torch.Tensor, ...]]):
     def next(self) -> tuple[torch.Tensor, ...]:
         data_dict = self._source.next().copy()
 
+        # Make sure that all elements are on the same device
+        # Automatically move from CPU to GPU, but error out if GPU device indices differ
         cpu_keys: set[str] = set()
-        has_gpu = False
+        device_index = None
         for key, data in data_dict.items():
-            if data.device.device_type == "gpu":
-                has_gpu = True
-            else:
+            if data.device.device_type == "cpu":
                 cpu_keys.add(key)
-        if has_gpu:
+                continue
+
+            if device_index is None:
+                device_index = data.device.device_id
+            elif device_index != data.device.device_id:
+                raise ValueError("All GPU tensors/batches must be on the same device")
+
+        if device_index is not None:
             for key in cpu_keys:
-                data_dict[key] = data_dict[key].gpu()
+                data_dict[key] = data_dict[key].gpu(device_index)
 
         return tuple(data.torch() for data in data_dict.values())
 
