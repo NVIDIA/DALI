@@ -561,7 +561,7 @@ def build_fn_wrapper(op, fn_name=None, add_to_module=True):
         if device.device_type not in supported_backends:
             if len(supported_backends) == 1 and device_inferred:
                 # Maybe we got it wrong? Try the only device that's there
-                backend = supported_backends[0]
+                backend = next(iter(supported_backends))
             else:
                 # Now we want to call "mixed" operators "gpu" - but we still have distinct backends.
                 # Hardly any op has both "mixed" and "gpu", so we can just replace "gpu" with
