@@ -118,6 +118,9 @@ def generate_data(
     :param lo: Begin of the random range for the data values.
     :param hi: End of the random range for the data values.
     :param dtype: Numpy data type
+    :param batch_sizes: List of batch sizes to generate data for. If None,
+                        the set of default batch sizes will be used. If int, it will be
+                        used for each test iteration.
     :return: An epoch of data
     """
     if batch_sizes is None:
@@ -142,7 +145,7 @@ def generate_data(
         return [
             np.random.randint(lo, hi, size=(bs,) + size_fn(), dtype=dtype) for bs in batch_sizes
         ]
-    elif np.issubdtype(dtype, np.float32):
+    elif np.issubdtype(dtype, np.floating):
         ret = (np.random.random_sample(size=(bs,) + size_fn()) for bs in batch_sizes)
         ret = map(lambda batch: (hi - lo) * batch + lo, ret)
         ret = map(lambda batch: batch.astype(dtype), ret)
@@ -165,19 +168,11 @@ def generate_decoders_data(data_dir, data_extension, exclude_subdirs=[]):
     for i in range(len(fnames), 10):  # At least 10 elements
         fnames.append(fnames[-1])
     nfiles = len(fnames)
-    _input_epoch = [
+    input_epoch = [
         list(map(test_utils.read_file_bin, fnames[: nfiles // 3])),
         list(map(test_utils.read_file_bin, fnames[nfiles // 3 : nfiles // 2])),
         list(map(test_utils.read_file_bin, fnames[nfiles // 2 :])),
     ]
-
-    # Since we pack buffers into ndarray, we need to pad samples with 0.
-    input_epoch = []
-    for inp in _input_epoch:
-        max_len = max(sample.shape[0] for sample in inp)
-        inp = map(lambda sample: np.pad(sample, (0, max_len - sample.shape[0])), inp)
-        input_epoch.append(np.stack(list(inp)))
-    input_epoch = list(map(lambda batch: np.reshape(batch, batch.shape), input_epoch))
 
     return input_epoch
 
@@ -311,8 +306,8 @@ def _cmp_metadata(
     # Validate layout if available
     pipe_layout = pipe_out.layout() if hasattr(pipe_out, "layout") and pipe_out.layout() else None
     ndd_layout = ndd_out.layout if hasattr(ndd_out, "layout") else None
-    assert not (
-        pipe_layout and ndd_layout and pipe_layout != ndd_layout
+    assert (
+        pipe_layout == ndd_layout
     ), f"""[Output {output_idx}] Layout mismatch:
   Pipeline: {pipe_layout}
   NDD:      {ndd_layout}"""
@@ -380,7 +375,6 @@ def compare_no_input(
     pipe_out: tuple[TensorListCPU] | tuple[TensorListGPU], ndd_out: tuple[Batch] | Batch
 ) -> None:
     """Comparison function for no-input operators."""
-    assert len(pipe_out) == 2, f"Expected two outputs from DALI pipeline, got {len(pipe_out)=}"
     _cmp(pipe_out[0], ndd_out)
 
 
@@ -450,7 +444,60 @@ def run_operator_test(
     random=False,
     batch_size=MAX_BATCH_SIZE,
 ):
-    """Generic test runner for operator comparison tests."""
+    """Run fn vs ndd operator comparison over an epoch of batches and assert outputs match.
+
+    For each batch in input_epoch: builds/uses a pipeline that runs the fn operator,
+    runs the ndd operator on the same data, then calls compare_fn(pipe_out, ndd_out).
+    Use this to test that an operator has equivalent behavior in fn and ndd APIs.
+
+    How to invoke
+    -------------
+    1. Get operators by name (e.g. from OperatorTestConfig):
+       fn_op = get_fn_operator("resize")   # or nested: "reductions.mean"
+       ndd_op = get_ndd_operator("resize")
+    2. Prepare input_epoch: list of batches (one per "iteration"). Each batch is
+       a numpy array (single input) or a tuple of arrays (num_inputs > 1).
+       Example: generate_image_like_data() or generate_data(shape_gen, ...).
+    3. Call:
+       run_operator_test(
+           input_epoch=data,
+           fn_operator=fn_op,
+           ndd_operator=ndd_op,
+           device="cpu" or "gpu",
+           operator_args={"resize_x": 50, "resize_y": 50},  # passed to both
+           num_inputs=1,
+           input_layout="HWC",   # optional, for image-like
+           compare_fn=compare,   # or compare_no_input for no-input ops
+           random=False,         # True if op uses rng (fn/ndd RNGs synced)
+           batch_size=MAX_BATCH_SIZE,
+       )
+
+    Parameters
+    ----------
+    input_epoch : list
+        List of batches. Each element is a numpy array (num_inputs=1) or tuple of
+        arrays (num_inputs>1). Batch shape: (batch_dim,) + sample_shape.
+    fn_operator : callable
+        Operator from fn API (e.g. fn.resize). Must accept (data, device=..., **operator_args).
+    ndd_operator : callable
+        Operator from ndd API (e.g. ndd.resize). Must accept (batch, **operator_args);
+        if random=True, also accepts rng=.
+    device : str
+        "cpu" or "gpu".
+    operator_args : dict, optional
+        Keyword arguments passed to both fn and ndd operator (e.g. resize_x=50).
+    num_inputs : int, optional
+        Number of inputs. If > 1, input_epoch batches must be tuples of arrays.
+    input_layout : str, optional
+        Layout for external source (e.g. "HWC" for image-like).
+    compare_fn : callable, optional
+        (pipe_out, ndd_out) -> None. Default compare; use compare_no_input for
+        no-input operators (e.g. random generators).
+    random : bool, optional
+        If True, create and pass matching RNGs to fn/ndd for reproducible comparison.
+    batch_size : int, optional
+        Max batch size used when building the pipeline.
+    """
 
     if random:
         fn_rng, ndd_rng = create_rngs()

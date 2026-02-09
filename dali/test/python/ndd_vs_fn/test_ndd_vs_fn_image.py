@@ -114,6 +114,11 @@ ops_image_like_test_configuration = flatten_operator_configs(IMAGE_LIKE_OPERATOR
 def test_operators_with_image_like_input(
     device, operator_name, fn_operator, ndd_operator, operator_args
 ):
+    """Example: run_operator_test with image-like data and HWC layout.
+
+    Test config comes from flatten_operator_configs(IMAGE_LIKE_OPERATORS), which
+    yields (device, operator_name, fn_operator, ndd_operator, operator_args).
+    """
     register_operator_test(operator_name)
     data = generate_image_like_data()
     run_operator_test(
