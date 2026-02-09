@@ -15,7 +15,7 @@
 import nvidia.dali as dali
 import nvidia.dali.backend_impl as _b
 
-from . import _eval_context, _invocation
+from . import _eval_context, _invocation, _device
 from ._batch import Batch
 from ._device import Device, DeviceLike
 from ._tensor import Tensor
@@ -426,7 +426,7 @@ class Reader(Operator):
             name = f"Reader_{id(self)}"
         self._actual_batch_size = batch_size
         self._batch_size = batch_size
-        device = _device.Device(device)
+        device = _device.device(device)
         super().__init__(self._actual_batch_size, name, device, **kwargs)
 
     def _pre_call(self, *inputs, **args):
