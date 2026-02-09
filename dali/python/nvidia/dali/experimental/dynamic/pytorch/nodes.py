@@ -14,9 +14,11 @@
 
 __all__ = ["Reader", "DictMapper", "ToTorch"]
 
+import functools
 from collections.abc import Iterable, Iterator
 from typing import Any, Callable, TypeVar
 
+import nvidia.dali.backend as _backend
 import torch
 import torchdata.nodes as tn
 
@@ -25,7 +27,41 @@ from .. import Batch, Tensor, _ops
 T = TypeVar("T", bound=Tensor | Batch)
 
 
-class Reader(tn.BaseNode[dict[str, T]]):
+class _CUDANodeMeta(type(tn.BaseNode)):
+    """
+    Ensure that the device seen in next is the same as when the node was constructed,
+    even if it's called from a different thread.
+    """
+
+    def __new__(cls, name, bases, classdict):
+        if next := classdict.get("next"):
+            classdict["next"] = cls._next_wrapper(next)
+        if reset := classdict.get("reset"):
+            classdict["reset"] = cls._reset_wrapper(reset)
+
+        return super().__new__(cls, name, bases, classdict)
+
+    @classmethod
+    def _next_wrapper(cls, orig):
+        @functools.wraps(orig)
+        def next(self):
+            if (device_id := getattr(self, "_cuda_device_id", None)) is not None:
+                _backend.SetCUDACurrentDevice(device_id)
+            return orig(self)
+
+        return next
+
+    @classmethod
+    def _reset_wrapper(cls, orig):
+        @functools.wraps(orig)
+        def reset(self, initial_state=None):
+            self._cuda_device_id = _backend.GetCUDACurrentDevice()
+            return orig(self, initial_state)
+
+        return reset
+
+
+class Reader(tn.BaseNode[dict[str, T]], metaclass=_CUDANodeMeta):
     """Wraps a reader as a node, yielding dictionaries.
 
     Parameters
@@ -84,7 +120,7 @@ class Reader(tn.BaseNode[dict[str, T]]):
         return {}
 
 
-class DictMapper(tn.BaseNode[dict[str, T]]):
+class DictMapper(tn.BaseNode[dict[str, T]], metaclass=_CUDANodeMeta):
     """Applies a transform to a single key in the dict yielded by a source node.
 
     Parameters
@@ -121,7 +157,7 @@ class DictMapper(tn.BaseNode[dict[str, T]]):
         return {}
 
 
-class ToTorch(tn.BaseNode[tuple[torch.Tensor, ...]]):
+class ToTorch(tn.BaseNode[tuple[torch.Tensor, ...]], metaclass=_CUDANodeMeta):
     """Converts dictionaries of tensors or batches to tuples of :class:`torch.Tensor`.
 
     Parameters
