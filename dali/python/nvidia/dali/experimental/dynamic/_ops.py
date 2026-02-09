@@ -418,8 +418,6 @@ class Reader(Operator):
         batch_size=None,
         name=None,
         device="cpu",
-        *,
-        _backend=None,
         **kwargs,
     ):
         if name is None:
@@ -427,6 +425,7 @@ class Reader(Operator):
         self._actual_batch_size = batch_size
         self._batch_size = batch_size
         device = _device.device(device)
+        # _backend is forwarded via **kwargs, we don't need to touch it here
         super().__init__(self._actual_batch_size, name, device, **kwargs)
 
     def _pre_call(self, *inputs, **args):
