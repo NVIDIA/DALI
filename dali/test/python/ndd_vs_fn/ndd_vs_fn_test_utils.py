@@ -321,18 +321,21 @@ def _cmp_metadata(
   NDD:      {nddsh}"""
 
 
-def _cmp_values(pipe_out: TensorListCPU | TensorListGPU, ndd_out: Batch) -> None:
-    for sample_idx, (pipe_sample, ndd_sample) in enumerate(zip(pipe_out, ndd_out, strict=True)):
+def _cmp_values(
+    pipe_out: TensorListCPU | TensorListGPU, ndd_out: Batch, output_idx: int = 0
+) -> None:
+    for sample_idx, (pipe_sample, ndd_sample) in enumerate(zip(pipe_out, ndd_out)):
         ndd_numpy = to_numpy(ndd_sample)
         pipe_numpy = np.array(pipe_sample)
         assert np.array_equal(
             pipe_numpy, ndd_numpy
-        ), f"""[Sample {sample_idx}] Values mismatch between pipeline and NDD outputs"""
+        ), f"""[Output {output_idx}, Sample {sample_idx}] Values mismatch between
+pipeline and NDD outputs"""
 
 
-def _cmp(pipe_out: TensorListCPU | TensorListGPU, ndd_out: Batch) -> None:
-    _cmp_metadata(pipe_out, ndd_out, output_idx=0)
-    _cmp_values(pipe_out.as_cpu(), ndd_out)
+def _cmp(pipe_out: TensorListCPU | TensorListGPU, ndd_out: Batch, output_idx: int = 0) -> None:
+    _cmp_metadata(pipe_out, ndd_out, output_idx=output_idx)
+    _cmp_values(pipe_out.as_cpu(), ndd_out, output_idx=output_idx)
 
 
 def compare(
@@ -362,21 +365,21 @@ def compare(
   NDD:      {ndd_out_len}"""
 
         for idx, (pout, nout) in enumerate(zip(pipe_out, ndd_out, strict=True)):
-            _cmp(pout, nout)
+            _cmp(pout, nout, output_idx=idx)
     else:
         assert (
             len(pipe_out) == 1
         ), f"""Expected single output from DALI pipeline, got {len(pipe_out)}"""
 
-        _cmp(pipe_out[0], ndd_out)
+        _cmp(pipe_out[0], ndd_out, output_idx=0)
 
 
 def compare_no_input(
     pipe_outs: tuple[TensorListCPU] | tuple[TensorListGPU], ndd_outs: tuple[Batch] | Batch
 ) -> None:
     """Comparison function for no-input operators."""
-    for pipe_out, ndd_out in zip(pipe_outs, ndd_outs):
-        _cmp(pipe_out, ndd_out)
+    for idx, (pipe_out, ndd_out) in enumerate(zip(pipe_outs, ndd_outs, strict=True)):
+        _cmp(pipe_out, ndd_out, output_idx=idx)
 
 
 def pipeline_es_feed_input_wrapper(
@@ -438,7 +441,7 @@ def run_operator_test(
     fn_operator,
     ndd_operator,
     device,
-    operator_args={},
+    operator_args=None,
     num_inputs=1,
     input_layout=None,
     compare_fn=compare,
@@ -499,6 +502,8 @@ def run_operator_test(
     batch_size : int, optional
         Max batch size used when building the pipeline.
     """
+    if operator_args is None:
+        operator_args = {}
 
     if random:
         fn_rng, ndd_rng = create_rngs()
