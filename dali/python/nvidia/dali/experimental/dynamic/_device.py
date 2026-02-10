@@ -113,7 +113,7 @@ class Device:
             raise ValueError(f"Invalid device type: {device_type}")
 
     @staticmethod
-    def _validate_device_id(device_id: int | None, device_type: str):
+    def _validate_device_id(device_id: int, device_type: str):
         if device_id < 0:
             raise ValueError(f"Invalid device id: {device_id}")
         if device_type == "gpu":
