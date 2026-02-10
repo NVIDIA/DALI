@@ -244,12 +244,12 @@ def test_set_device_via_context_mixed_op():
     )
     encoded_data = np.fromfile(image_path, dtype=np.uint8)
 
-    with ndd.EvalContext(device_id=0) as ctx:
+    with ndd.EvalContext(device_id=0):
         decoded = ndd.decoders.image(encoded_data, device="gpu")
         output0 = decoded.evaluate()
         assert output0.device == ndd.device("gpu:0")
 
-    with ndd.EvalContext(device_id=1) as ctx:
+    with ndd.EvalContext(device_id=1):
         decoded = ndd.decoders.image(encoded_data, device="gpu")
         output1 = decoded.evaluate()
         assert output1.device == ndd.device("gpu:1")
