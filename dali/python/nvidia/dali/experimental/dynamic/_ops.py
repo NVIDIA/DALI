@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any
 import nvidia.dali as dali
 import nvidia.dali.backend_impl as _b
 import math
@@ -89,7 +88,7 @@ class Operator:
         self._arg_meta = {}
         # Number of outputs
         self._num_outputs = None
-        # When an operator (e.g. TFRecord) returns a dictionnary, outputs are named
+        # When an operator (e.g. TFRecord) returns a dictionary, outputs are named
         self._output_names = None
         # Expected device placement of the outputs
         self._output_devices = None
@@ -446,35 +445,23 @@ class Reader(Operator):
             if stick_to_shard is not None
             else _READER_SHARD_DEFAULTS["stick_to_shard"]
         )
+        if self._num_shards < 1:
+            raise ValueError(
+                f"The number of shards must be a positive integer. Got {self._num_shards}."
+            )
+        if self._shard_id < 0 or self._shard_id >= self._num_shards:
+            raise ValueError(
+                f"The shard_id={self._shard_id} is invalid. Must be in range "
+                + f"[0..{self._num_shards-1}]."
+            )
         kwargs["shard_id"] = self._shard_id
         kwargs["num_shards"] = self._num_shards
         kwargs["stick_to_shard"] = self._stick_to_shard
         super().__init__(self._actual_batch_size, name, device, **kwargs)
 
     @classmethod
-    def _get(
-        cls,
-        max_batch_size: int,
-        name: str | None = None,
-        device: DeviceLike | None = None,
-        num_inputs: int | None = None,
-        call_arg_names: list[str] | None = None,
-        **init_args,
-    ):
-        """Same as Operator._get but normalizes shard_id/num_shards/stick_to_shard so cache key
-        is consistent when caller passes None vs default values."""
-        init_args = dict[str, Any](init_args)
-        for key, default in _READER_SHARD_DEFAULTS.items():
-            if key not in init_args or init_args[key] is None:
-                init_args[key] = default
-        return super()._get(
-            max_batch_size,
-            name=name,
-            device=device,
-            num_inputs=num_inputs,
-            call_arg_names=call_arg_names,
-            **init_args,
-        )
+    def _get(cls, *_, **__):
+        raise RuntimeError("Readers cannot be cached. Construct a new instance instead.")
 
     def _pre_call(self, *inputs, **args):
         if self._api_type is None:
