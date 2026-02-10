@@ -21,8 +21,6 @@ from ndd_vs_fn_test_utils import (
     flatten_operator_configs,
     generate_image_like_data,
 )
-from test_ndd_vs_fn_coverage import register_operator_test
-
 
 IMAGE_LIKE_OPERATORS = [
     # Operators with default arguments (tested on both CPU and GPU)
@@ -42,6 +40,7 @@ IMAGE_LIKE_OPERATORS = [
     OperatorTestConfig("saturation"),
     OperatorTestConfig("sphere"),
     OperatorTestConfig("water"),
+    OperatorTestConfig("jitter"),
     OperatorTestConfig("dump_image"),
     OperatorTestConfig("jpeg_compression_distortion"),
     OperatorTestConfig("crop_mirror_normalize"),
@@ -75,6 +74,7 @@ IMAGE_LIKE_OPERATORS = [
     OperatorTestConfig("experimental.warp_perspective", {"matrix": np.eye(3)}),
     OperatorTestConfig("flip", {"horizontal": True}),
     OperatorTestConfig("resize", {"resize_x": 50, "resize_y": 50}),
+    OperatorTestConfig("random_resized_crop", {"size": [50, 50]}),
     OperatorTestConfig("tensor_resize", {"sizes": [50, 50], "axes": [0, 1]}),
     OperatorTestConfig("reinterpret", {"rel_shape": [-1]}),
     OperatorTestConfig(
@@ -90,20 +90,18 @@ IMAGE_LIKE_OPERATORS = [
     OperatorTestConfig("pad", {"fill_value": -1, "axes": (0,), "align": 16}),
     OperatorTestConfig("expand_dims", {"axes": 1, "new_axis_names": "Z"}),
     # CPU-only operators:
-    OperatorTestConfig("zeros_like", devices=["cpu"]),
-    OperatorTestConfig("ones_like", devices=["cpu"]),
-    OperatorTestConfig("per_frame", {"replace": True}, devices=["cpu"]),
-    OperatorTestConfig(
-        "resize_crop_mirror", {"crop": [5, 5], "resize_shorter": 10}, devices=["cpu"]
-    ),
+    OperatorTestConfig("zeros_like"),
+    OperatorTestConfig("ones_like"),
+    OperatorTestConfig("per_frame", {"replace": True}),
+    OperatorTestConfig("resize_crop_mirror", {"crop": [5, 5], "resize_shorter": 10}),
     # GPU-only operators:
-    OperatorTestConfig("clahe", {"tiles_x": 4, "tiles_y": 4, "clip_limit": 2.0}, devices=["gpu"]),
-    OperatorTestConfig("equalize", devices=["gpu"]),
+    OperatorTestConfig("clahe", {"tiles_x": 4, "tiles_y": 4, "clip_limit": 2.0}),
+    OperatorTestConfig("equalize"),
     OperatorTestConfig("slice", {"rel_start": 0.1, "rel_end": 0.5}),
-    OperatorTestConfig("experimental.median_blur", devices=["gpu"]),
-    OperatorTestConfig("experimental.dilate", devices=["gpu"]),
-    OperatorTestConfig("experimental.erode", devices=["gpu"]),
-    OperatorTestConfig("experimental.resize", {"resize_x": 50, "resize_y": 50}, devices=["gpu"]),
+    OperatorTestConfig("experimental.median_blur"),
+    OperatorTestConfig("experimental.dilate"),
+    OperatorTestConfig("experimental.erode"),
+    OperatorTestConfig("experimental.resize", {"resize_x": 50, "resize_y": 50}),
 ]
 
 
@@ -119,7 +117,6 @@ def test_operators_with_image_like_input(
     Test config comes from flatten_operator_configs(IMAGE_LIKE_OPERATORS), which
     yields (device, operator_name, fn_operator, ndd_operator, operator_args).
     """
-    register_operator_test(operator_name)
     data = generate_image_like_data()
     run_operator_test(
         input_epoch=data,
@@ -127,5 +124,6 @@ def test_operators_with_image_like_input(
         ndd_operator=ndd_operator,
         device=device,
         operator_args=operator_args,
+        random=ndd_operator._op_class._has_random_state_arg,
         input_layout="HWC",
     )

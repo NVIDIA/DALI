@@ -1,4 +1,4 @@
-// Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2025-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -78,7 +78,7 @@ class BBoxRotate : public StatelessOperator<Backend> {
   }
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
-    DALI_ASSERT(ws.GetInputDataType(0) == DALI_FLOAT, "Input boxes must be float32");
+    DALI_ENFORCE(ws.GetInputDataType(0) == DALI_FLOAT, "Input boxes must be float32");
     const TensorListShape<-1> box_shape_list = ws.GetInputShape(0);
     TensorListShape<1> buffer_shape(box_shape_list.num_samples());
     for (int i = 0; i < ws.GetRequestedBatchSize(0); i++) {
@@ -92,7 +92,7 @@ class BBoxRotate : public StatelessOperator<Backend> {
 
     if (ws.NumInput() == 2) {
       const auto &label_shape_list = ws.GetInputShape(1);
-      DALI_ASSERT(ws.GetInputDataType(1) == DALI_INT32, "Input labels must be int32");
+      DALI_ENFORCE(ws.GetInputDataType(1) == DALI_INT32, "Input labels must be int32");
       for (int i = 0; i < label_shape_list.size(); i++) {
         if (label_shape_list[i].size() != 1 &&
             !(label_shape_list[i].size() == 2 && label_shape_list[i][1] == 1)) {

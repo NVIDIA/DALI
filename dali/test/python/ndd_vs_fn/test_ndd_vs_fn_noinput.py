@@ -20,20 +20,18 @@ from nose2.tools import params
 from ndd_vs_fn_test_utils import (
     MAX_BATCH_SIZE,
     OperatorTestConfig,
-    feed_input,
     pipeline_es_feed_input_wrapper,
     compare_no_input,
     flatten_operator_configs,
-    generate_image_like_data,
 )
-from test_ndd_vs_fn_coverage import register_operator_test
+from test_ndd_vs_fn_coverage import sign_off
 
 
 NO_INPUT_OPERATORS = [
-    OperatorTestConfig("transforms.translation", {"offset": (2, 3)}, devices=["cpu"]),
-    OperatorTestConfig("transforms.scale", {"scale": (2, 3)}, devices=["cpu"]),
-    OperatorTestConfig("transforms.rotation", {"angle": 30.0}, devices=["cpu"]),
-    OperatorTestConfig("transforms.shear", {"shear": (2.0, 1.0)}, devices=["cpu"]),
+    OperatorTestConfig("transforms.translation", {"offset": (2, 3)}),
+    OperatorTestConfig("transforms.scale", {"scale": (2, 3)}),
+    OperatorTestConfig("transforms.rotation", {"angle": 30.0}),
+    OperatorTestConfig("transforms.shear", {"shear": (2.0, 1.0)}),
     OperatorTestConfig(
         "transforms.crop",
         {
@@ -42,10 +40,9 @@ NO_INPUT_OPERATORS = [
             "to_start": (0.2, 0.3),
             "to_end": (0.8, 0.5),
         },
-        devices=["cpu"],
     ),
-    OperatorTestConfig("zeros", {"shape": (5, 5)}, devices=["cpu"]),
-    OperatorTestConfig("ones", {"shape": (5, 5)}, devices=["cpu"]),
+    OperatorTestConfig("zeros", {"shape": (5, 5)}),
+    OperatorTestConfig("ones", {"shape": (5, 5)}),
 ]
 
 no_input_ops_test_configuration = flatten_operator_configs(NO_INPUT_OPERATORS)
@@ -53,10 +50,6 @@ no_input_ops_test_configuration = flatten_operator_configs(NO_INPUT_OPERATORS)
 
 @params(*no_input_ops_test_configuration)
 def test_no_input_operators(device, operator_name, fn_operator, ndd_operator, operator_args):
-    register_operator_test(operator_name)
-    data = generate_image_like_data()
-    # Passing input to no-input operator is artificial,
-    # and it's here to avoid pruning no-input operator from the graph.
     pipe = pipeline_es_feed_input_wrapper(
         fn_operator,
         device,
@@ -65,16 +58,14 @@ def test_no_input_operators(device, operator_name, fn_operator, ndd_operator, op
         needs_input=False,
         **operator_args,
     )
-    for inp in data:
-        feed_input(pipe, inp)
+    for _ in range(10):
         pipe_out = pipe.run()
-        ndd_out = ndd_operator(device=device, batch_size=inp.shape[0], **operator_args)
+        ndd_out = ndd_operator(device=device, batch_size=len(pipe_out[0]), **operator_args)
         compare_no_input(pipe_out, ndd_out)
 
 
+@sign_off("transforms.combine")
 def test_transforms_combine():
-    register_operator_test("transforms.combine")
-
     @pipeline_def(
         batch_size=MAX_BATCH_SIZE,
         num_threads=ndd.get_num_threads(),

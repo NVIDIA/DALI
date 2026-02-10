@@ -28,6 +28,11 @@ N_ITERATIONS = 3
 RNG_SEED = 5318008
 random.seed(RNG_SEED)
 
+# This needs to be here because if it lands in `test_ndd_vs_fn_coverage`, which is both a test
+# entry point and an import, the sign_off registry was created twice.
+sign_off = test_utils.create_sign_off_registry()
+print("Creating registry ", id(sign_off))
+
 
 @dataclass
 class OperatorTestConfig:
@@ -35,13 +40,14 @@ class OperatorTestConfig:
 
     name: str
     args: dict = field(default_factory=dict)
-    devices: list[str] = field(default_factory=lambda: ["cpu", "gpu"])
 
     def generate_test_tuples(self):
         """Generate (device, fn_operator, ndd_operator, args) tuples for this config."""
+        fn_op = get_fn_operator(self.name)
+        ndd_op = get_ndd_operator(self.name)
         return [
-            (device, self.name, get_fn_operator(self.name), get_ndd_operator(self.name), self.args)
-            for device in self.devices
+            (device, self.name, fn_op, ndd_op, self.args)
+            for device in ndd_op._op_class._supported_backends
         ]
 
 
@@ -97,6 +103,10 @@ def custom_shape_generator(*args):
     return lambda: tuple([random.randint(lohi[0], lohi[1]) for lohi in gen_conf])
 
 
+def _default_batch_sizes(max_batch_size):
+    return [max_batch_size // 2, max_batch_size // 4, max_batch_size]
+
+
 def generate_data(
     sample_shape,
     max_batch_size=MAX_BATCH_SIZE,
@@ -125,7 +135,7 @@ def generate_data(
     :return: An epoch of data
     """
     if batch_sizes is None:
-        batch_sizes = np.array([max_batch_size // 2, max_batch_size // 4, max_batch_size])
+        batch_sizes = np.array(_default_batch_sizes(max_batch_size))
     elif isinstance(batch_sizes, int):
         batch_sizes = [batch_sizes] * n_iter
 
@@ -194,7 +204,9 @@ def get_batch_size(batch):
             return batch.shape[0]
 
 
-def external_source_of_random_states(rng, batch_size, n_states, **external_source_args):
+def external_source_of_random_states(
+    rng, max_batch_size, n_states, batch_sizes=None, **external_source_args
+):
     """
     Create an external source operator that generates random states.
 
@@ -208,20 +220,25 @@ def external_source_of_random_states(rng, batch_size, n_states, **external_sourc
         do_mirror = fn.random.coin_flip(probability=0.5, _random_state=state_2)
         size = fn.random.uniform(range=[256, 480], _random_state=state_3)
     """
-    source_fun = _random_state_source_factory(rng, batch_size, n_states)
-    return fn.external_source(source=source_fun, **external_source_args)
+    source_fun = _random_state_source_factory(rng, max_batch_size, batch_sizes, n_states)
+    return fn.external_source(source=source_fun, **external_source_args, cycle=True)
 
 
-def _random_state_source_factory(rng, batch_size, n_states):
+def _random_state_source_factory(rng, max_batch_size, batch_sizes, n_states):
     STATE_SIZE = 7
     STATE_TYPE = np.uint32
 
+    if batch_sizes is None:
+        batch_sizes = _default_batch_sizes(max_batch_size)
+
     def source_fun():
-        states = [
-            np.array([rng() for _ in range(STATE_SIZE)], dtype=STATE_TYPE) for _ in range(n_states)
-        ]
-        out = tuple([state] * batch_size for state in states)
-        return tuple(out)
+        for batch_size in batch_sizes:
+            states = [
+                np.array([rng() for _ in range(STATE_SIZE)], dtype=STATE_TYPE)
+                for _ in range(n_states)
+            ]
+            out = tuple([state] * batch_size for state in states)
+            yield tuple(out)
 
     return source_fun
 
@@ -378,6 +395,10 @@ def compare_no_input(
     pipe_outs: tuple[TensorListCPU] | tuple[TensorListGPU], ndd_outs: tuple[Batch] | Batch
 ) -> None:
     """Comparison function for no-input operators."""
+    if not isinstance(ndd_outs, tuple):
+        ndd_outs = (ndd_outs,)
+    if not isinstance(pipe_outs, tuple):
+        pipe_outs = (pipe_outs,)
     for idx, (pipe_out, ndd_out) in enumerate(zip(pipe_outs, ndd_outs, strict=True)):
         _cmp(pipe_out, ndd_out, output_idx=idx)
 
@@ -395,7 +416,7 @@ def pipeline_es_feed_input_wrapper(
     """Creates a DALI pipeline with external source as an input."""
     rs = (
         external_source_of_random_states(
-            rng=rng, batch_size=max_batch_size, n_states=1, num_outputs=1
+            rng=rng, max_batch_size=max_batch_size, n_states=1, num_outputs=1
         )[
             0
         ]  # [0], because it's tuple
@@ -410,11 +431,11 @@ def pipeline_es_feed_input_wrapper(
         prefetch_queue_depth=1,
     )
     def pipe():
-        inp = [
-            fn.external_source(name=f"INPUT{i}", device=device, layout=input_layout)
-            for i in range(num_inputs)
-        ]
         if needs_input:
+            inp = [
+                fn.external_source(name=f"INPUT{i}", device=device, layout=input_layout)
+                for i in range(num_inputs)
+            ]
             output = operator_under_test(*inp, device=device, _random_state=rs, **operator_args)
         else:
             output = operator_under_test(device=device, _random_state=rs, **operator_args)
@@ -424,8 +445,7 @@ def pipeline_es_feed_input_wrapper(
             else:
                 return output
         else:
-            # set input as an output to make sure it is not pruned from the graph
-            return output, *inp
+            return output
 
     p = pipe()
     p.build()
@@ -595,4 +615,5 @@ def flatten_operator_configs(configs: list[OperatorTestConfig]) -> list[tuple]:
     result = []
     for config in configs:
         result.extend(config.generate_test_tuples())
+        sign_off.register_test(config.name)
     return result

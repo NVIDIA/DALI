@@ -12,31 +12,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from test_utils import create_sign_off_registry
+from ndd_vs_fn_test_utils import sign_off
 from nvidia.dali.experimental.dynamic._ops import _all_ops
 
 
 excluded_operators = [
-    "_arithmetic_generic_op",  # Hidden operators are not part of this suite.
-    "_conditional.merge",  # Hidden operators are not part of this suite.
-    "_conditional.not_",  # Hidden operators are not part of this suite.
-    "_conditional.split",  # Hidden operators are not part of this suite.
-    "_conditional.validate_logical",  # Hidden operators are not part of this suite.
-    "_shape",  # Hidden operators are not part of this suite.
-    "_subscript_dim_check",  # Hidden operators are not part of this suite.
-    "_tensor_subscript",  # Hidden operators are not part of this suite.
-    "batch_permutation",  # BUG
-    "bbox_rotate",  # BUG
-    "decoders.image_random_crop",  # BUG
-    "decoders.image_slice",  # BUG
+    "batch_permutation",  # Random op - not handled yet
+    "bbox_rotate",  # requires floating point input (not image-like)
+    "decoders.image_random_crop",  # TODO(michalz): Add decoder tests
+    "decoders.image_slice",  # TODO(michalz): Add decoder tests
     "decoders.inflate",  # TODO(mszolucha): Add inflate test.
-    "constant",  # Excluded, since it's hidden.
-    "experimental.decoders.image_random_crop",  # BUG
+    "experimental.decoders.image_random_crop",  # TODO(michalz): Add decoder tests
     "experimental.readers.fits",  # No input data in DALI_extra
-    "io.file.read",  # BUG
-    "permute_batch",  # BUG
-    "random_resized_crop",  # BUG
-    "readers.video_resize",  # BUG
+    "io.file.read",  # Special operator, needs handwritten test
+    "permute_batch",  # Special operator, needs handwritten test
+    "random_resized_crop",  # TODO(michalz): Add tests for operators with random state
+    "readers.video_resize",  # TODO(michalz): Needs handwritten test
     # Will be tested in following PRs:
     "audio_resample",
     "bb_flip",
@@ -61,7 +52,6 @@ excluded_operators = [
     "filter",
     "full",
     "full_like",
-    "jitter",
     "lookup_table",
     "mel_filter_bank",
     "mfcc",
@@ -104,17 +94,12 @@ excluded_operators = [
     "warp_affine",
 ]
 
-sign_off_registry = create_sign_off_registry()
-
-
-def register_operator_test(operator_name: str):
-    """Register an operator as tested by adding it to the tested_operators set."""
-    sign_off_registry.register_test(operator_name)
-
 
 def get_all_operators():
     ret = []
     for o in _all_ops:
+        if o._schema.IsInternal() or o._schema.IsDocHidden() or o._schema_name.startswith("_"):
+            continue  # skip internal/hidden operators
         op_name = o._schema.ModulePath()
         op_name.append(o._fn_name)
         ret.append(".".join(op_name))
@@ -122,17 +107,23 @@ def get_all_operators():
 
 
 def test_coverage():
-    covered_operators = sign_off_registry.tested_ops.union(excluded_operators)
-    all_operators = get_all_operators()
+    covered_operators = sign_off.tested_ops
+    eligible_operators = set(get_all_operators()).difference(excluded_operators)
 
-    untested_operators = [op for op in all_operators if op not in covered_operators]
+    untested_operators = [op for op in eligible_operators if op not in covered_operators]
 
     if untested_operators:
         print("\nOperators that are not covered:")
         for op in sorted(untested_operators):
             print(f"  - {op}")
-        print(f"\nTotal not covered: {len(untested_operators)} out of {len(all_operators)}")
+        print(f"\nTotal not covered: {len(untested_operators)} out of {len(eligible_operators)}")
+        if len(excluded_operators):
+            print(f"{len(excluded_operators)} operators were excluded from the test.")
     else:
-        print("All operators are tested!")
+        if len(excluded_operators):
+            print("All eligible operators are tested.")
+            print(f"{len(excluded_operators)} operators were excluded from the test.")
+        else:
+            print("All operators are tested.")
 
     assert len(untested_operators) == 0, f"Found {len(untested_operators)} untested operators"
