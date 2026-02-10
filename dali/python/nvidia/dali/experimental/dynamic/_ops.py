@@ -74,7 +74,7 @@ class Operator:
             elif self._device.device_type == "gpu" and "mixed" in self._supported_backends:
                 _backend = "mixed"
             else:
-                raise ValueError(f"Invalid device '{device}` for operator `{self._schema_name}`")
+                raise ValueError(f'Invalid device "{device}" for operator `{self._schema_name}`')
         else:
             # _backend is an internal parameter - once it's passed explicitly, it must be correct
             assert _backend in self._supported_backends, "Internal error: incompatible backend."

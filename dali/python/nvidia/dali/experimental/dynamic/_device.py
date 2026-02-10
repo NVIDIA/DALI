@@ -62,6 +62,7 @@ class Device:
         device_id : int, optional
             The optional device ordinal, as used by CUDA runtime API. If not specified and the name
             is "gpu", then current CUDA device will be used.
+            If `name` is "cpu", `device_id` must be `None`.
             This parameter must not be used if the `name` already contains the id.
         """
         device_type, name_device_id = Device._split_device_type_and_id(name)
@@ -98,7 +99,7 @@ class Device:
         return device_type, device_id
 
     @staticmethod
-    def default_device_id(device_type: str) -> int:
+    def default_device_id(device_type: str) -> int | None:
         """
         Returns the default device id for the device type passed as an argument.
 
@@ -112,7 +113,7 @@ class Device:
             raise ValueError(f"Invalid device type: {device_type}")
 
     @staticmethod
-    def _validate_device_id(device_id: int, device_type: str):
+    def _validate_device_id(device_id: int | None, device_type: str):
         if device_id < 0:
             raise ValueError(f"Invalid device id: {device_id}")
         if device_type == "gpu":
