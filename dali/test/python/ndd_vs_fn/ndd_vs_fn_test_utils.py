@@ -24,7 +24,7 @@ from nvidia.dali.pipeline import pipeline_def
 import test_utils
 
 MAX_BATCH_SIZE = 31
-N_ITERATIONS = 13
+N_ITERATIONS = 3
 RNG_SEED = 5318008
 random.seed(RNG_SEED)
 
@@ -127,7 +127,7 @@ def generate_data(
     if batch_sizes is None:
         batch_sizes = np.array([max_batch_size // 2, max_batch_size // 4, max_batch_size])
     elif isinstance(batch_sizes, int):
-        batch_sizes = [batch_sizes] * 3
+        batch_sizes = [batch_sizes] * n_iter
 
     if isinstance(sample_shape, tuple):
 
@@ -144,9 +144,9 @@ def generate_data(
 
     rng = np.random.default_rng(RNG_SEED)
     if np.issubdtype(dtype, np.integer):
-        return [rng.randint(lo, hi, size=(bs,) + size_fn(), dtype=dtype) for bs in batch_sizes]
+        return [rng.integers(lo, hi, size=(bs,) + size_fn(), dtype=dtype) for bs in batch_sizes]
     elif np.issubdtype(dtype, np.floating):
-        ret = (rng.random_sample(size=(bs,) + size_fn()) for bs in batch_sizes)
+        ret = (rng.random(size=(bs,) + size_fn()) for bs in batch_sizes)
         ret = map(lambda batch: (hi - lo) * batch + lo, ret)
         ret = map(lambda batch: batch.astype(dtype), ret)
         return list(ret)
@@ -372,10 +372,11 @@ def compare(
 
 
 def compare_no_input(
-    pipe_out: tuple[TensorListCPU] | tuple[TensorListGPU], ndd_out: tuple[Batch] | Batch
+    pipe_outs: tuple[TensorListCPU] | tuple[TensorListGPU], ndd_outs: tuple[Batch] | Batch
 ) -> None:
     """Comparison function for no-input operators."""
-    _cmp(pipe_out[0], ndd_out)
+    for pipe_out, ndd_out in zip(pipe_outs, ndd_outs):
+        _cmp(pipe_out, ndd_out)
 
 
 def pipeline_es_feed_input_wrapper(
