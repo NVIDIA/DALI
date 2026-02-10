@@ -143,20 +143,22 @@ class EvalContext:
             see :class:`Stream` for details.
         """
         self._invocations = []
-        if cuda_stream is EvalContext._default_context_stream_sentinel:
-            self._cuda_stream = None
-        else:
-            self._cuda_stream = (
-                _stream.stream(stream=cuda_stream, device_id=device_id)
-                if cuda_stream is not None
-                else _stream.get_current_stream()
-            )
-
         self._default_stream = None
         if device_id is not None:
             self._device = _device.Device("gpu", device_id)
         else:
             self._device = _device.Device.current()
+
+        if cuda_stream is EvalContext._default_context_stream_sentinel:
+            self._cuda_stream = None
+        else:
+            if cuda_stream is not None:
+                self._cuda_stream = _stream.stream(stream=cuda_stream, device_id=device_id)
+            elif device_id is not None:
+                with self._device:
+                    self._cuda_stream = _stream.get_current_stream()
+            else:  # we're using current device anyway
+                self._cuda_stream = _stream.get_current_stream()
 
         self._num_threads = num_threads
         self._instance_cache = {}
@@ -208,11 +210,11 @@ class EvalContext:
 
     def __exit__(self, exc_type, exc_value, traceback):
         assert _tls.stack[-1] is self
+        if len(_tls.stack) < 2 or (_tls.stack[-2] is not self):
+            self.evaluate_all()
+        _tls.stack.pop()
         if self._device:
             self._device.__exit__(exc_type, exc_value, traceback)
-        _tls.stack.pop()
-        if not self._is_current:
-            self.evaluate_all()
 
     def evaluate_all(self):
         """Evaluates all pending invocations."""
