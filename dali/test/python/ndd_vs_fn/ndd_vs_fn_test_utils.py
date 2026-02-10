@@ -31,7 +31,6 @@ random.seed(RNG_SEED)
 # This needs to be here because if it lands in `test_ndd_vs_fn_coverage`, which is both a test
 # entry point and an import, the sign_off registry was created twice.
 sign_off = test_utils.create_sign_off_registry()
-print("Creating registry ", id(sign_off))
 
 
 @dataclass
