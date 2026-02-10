@@ -69,12 +69,15 @@ class Operator:
 
         self._device = _device.device(device)
         if _backend is None:
-            if len(self._supported_backends) == 1:
-                _backend = next(iter(self._supported_backends))
-            elif self._device.device_type in self._supported_backends:
+            if self._device.device_type in self._supported_backends:
                 _backend = self._device.device_type
             elif self._device.device_type == "gpu" and "mixed" in self._supported_backends:
                 _backend = "mixed"
+            else:
+                raise ValueError(f"Invalid device '{device}` for operator `{self._schema_name}`")
+        else:
+            # _backend is an internal parameter - once it's passed explicitly, it must be correct
+            assert _backend in self._supported_backends, "Internal error: incompatible backend."
         self._backend = _backend
 
         # Information below is lazy-initialized

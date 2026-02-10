@@ -86,3 +86,11 @@ def test_device_same_as_in_torch_multi_gpu():
         assert torch.cuda.current_device() == 1
 
     assert torch.cuda.current_device() == 0
+
+
+def test_invalid_device():
+    with assert_raises(ValueError, glob="Invalid device"):
+        ndd.readers.File(file_root=".", device="gpu")
+
+    with assert_raises(ValueError, glob="Invalid device"):
+        ndd.random_bbox_crop(0, device="gpu")

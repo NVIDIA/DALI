@@ -152,7 +152,7 @@ class Device:
         Creates a :class:`Device` object form a DLPack device descriptor.
         """
         dev_type, dev_id = dlpack_device.__dlpack_device__()
-        if dev_type == "cpu":
+        if int(dev_type) == 1:  # CPU
             dev_id = None
         return Device(Device.type_from_dlpack(dev_type), dev_id)
 
