@@ -75,7 +75,7 @@ Key features
 
 - **Framework interoperability**
   DALI Dynamic provides type conversion support for major deep learning frameworks, including
-  PyTorch, CuPy, JAX, and Numba.
+  PyTorch, CuPy, JAX, and Numba. See :doc:`../ndd_plugins/pytorch` for PyTorch integration guides.
 
 .. note::
 
