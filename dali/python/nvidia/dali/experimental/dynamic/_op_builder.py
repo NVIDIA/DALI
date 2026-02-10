@@ -570,6 +570,8 @@ def build_fn_wrapper(op, fn_name=None, add_to_module=True):
                     backend = "mixed"
                 elif not device_inferred:
                     raise ValueError(f'Invalid device "{device}" for operator `{fn_name}`')
+            if device.device_type == "cpu" and backend in ["gpu", "mixed"]:
+                device = _device.Device("gpu")
 
         # Get or create the operator instance that matches the arguments
         with nvtx.annotate(f"get instance {op._op_name}", domain="op_builder"):
