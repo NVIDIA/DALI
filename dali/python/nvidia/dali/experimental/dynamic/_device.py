@@ -103,7 +103,7 @@ class Device:
         """
         Returns the default device id for the device type passed as an argument.
 
-        For CPU it's always 0, for GPU it's the current CUDA device.
+        For CPU it's always None, for GPU it's the current CUDA device.
         """
         if device_type == "cpu":
             return None
