@@ -3,6 +3,7 @@ import os
 import shutil
 import time
 import math
+import warnings
 
 import torch
 import torch.nn as nn
@@ -29,8 +30,12 @@ except ImportError:
 import torchvision.transforms as transforms
 import torchvision.datasets as datasets
 import torchvision.models as models
-import torchdata.nodes as tn
 from contextlib import nullcontext
+
+try:
+    import torchdata.nodes as tn
+except ImportError:
+    warnings.warn("TorchData is not installed. The dynamic mode data loader option will not be available.")
 
 def fast_collate(batch, memory_format):
     """Based on fast_collate from the APEX example
