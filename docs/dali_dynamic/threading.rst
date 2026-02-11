@@ -6,13 +6,13 @@ Multithreading
 Thread Safety
 -------------
 
-Dynamic mode generally is thread-safe and support
+Dynamic mode generally is thread-safe and supports
 `free-threaded Python <https://docs.python.org/3/howto/free-threading-python.html>`__. Operators can
 be called from multiple threads concurrently, and :class:`Tensor` and :class:`Batch` objects can be
 safely passed between threads.
 
 The one limitation is that a single :class:`EvalContext` instance must not be active in multiple
-threads simultaneously. Because the default evalutation context is thread-local (each thread
+threads simultaneously. Because the default evaluation context is thread-local (each thread
 automatically gets its own), this is only an issue when it is manually created and shared across
 threads.
 
@@ -53,7 +53,7 @@ thread-local stacks, allowing each thread to independently choose its eval mode,
 and device without affecting other threads.
 
 CUDA stream configuration can also be thread-local. The function :func:`set_current_stream`
-sets the stream for the calling thread only [#]_, while :func:`set_default_stream` is global.
+sets the stream for the calling thread only, while :func:`set_default_stream` is global.
 Technically, :func:`set_current_stream` sets the stream of the current thread's default
 evaluation context but this is equivalent for most practical purposes.
 
