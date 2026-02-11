@@ -528,9 +528,9 @@ class Reader(Operator):
                 self._init_backend(ctx, (), {})
             meta = self._op_backend.GetReaderMeta()
             idx = 0
-            size_no_pad = meta["epoch_size_padded"]
-            shards_beg = math.floor(self._shard_id * size_no_pad / self._num_shards)
-            shards_end = math.floor((self._shard_id + 1) * size_no_pad / self._num_shards)
+            padded_size = meta["epoch_size_padded"]
+            shards_beg = math.floor(self._shard_id * padded_size / self._num_shards)
+            shards_end = math.floor((self._shard_id + 1) * padded_size / self._num_shards)
             while idx < shards_end - shards_beg:
                 outputs = super()._run(ctx, batch_size=self._actual_batch_size)
                 batch_size = len(
@@ -579,9 +579,9 @@ class Reader(Operator):
                     )
             meta = self._op_backend.GetReaderMeta()
             idx = 0
-            size_no_pad = meta["epoch_size_padded"]
-            shards_beg = math.floor(self._shard_id * size_no_pad / self._num_shards)
-            shards_end = math.floor((self._shard_id + 1) * size_no_pad / self._num_shards)
+            padded_size = meta["epoch_size_padded"]
+            shards_beg = math.floor(self._shard_id * padded_size / self._num_shards)
+            shards_end = math.floor((self._shard_id + 1) * padded_size / self._num_shards)
             while idx < shards_end - shards_beg:
                 outputs = super()._run(ctx, batch_size=batch_size)
                 batch_size_returned = batch_size = len(

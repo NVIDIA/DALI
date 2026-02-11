@@ -19,7 +19,7 @@ import math
 
 import nvidia.dali.experimental.dynamic as ndd
 from nose2.tools import cartesian_params, params
-from nose_utils import SkipTest
+from nose_utils import SkipTest, assert_raises
 from test_utils import get_dali_extra_path
 
 dali_extra_path = get_dali_extra_path()
@@ -175,3 +175,15 @@ def test_reader_shards(stick_to_shard, pad_last_batch):
             )
             if not stick_to_shard:
                 shard_id = (shard_id + 1) % SHARD_NUM
+
+
+def test_reader_shards_error():
+    reader = ndd.readers.File(
+        file_root=os.path.join(dali_extra_path, "db", "single", "jpeg"),
+        file_list=os.path.join(dali_extra_path, "db", "single", "jpeg", "image_list.txt"),
+        num_shards=99999,
+    )
+    with assert_raises(
+        RuntimeError, glob='Assert on "num_shards_ <= Size()" failed: The number of input samples:'
+    ):
+        tuple(reader.next_epoch())
