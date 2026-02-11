@@ -154,7 +154,7 @@ def _validate_gpu_expr_result(result, expected_device_id):
     assert result_cpu.shape == (1,)
     assert result_cpu.dtype == ndd.float32
     assert result_cpu.device.device_type == "cpu"
-    assert result_cpu.device.device_id == 0
+    assert result_cpu.device.device_id is None
     np.testing.assert_array_equal(result_cpu, np.array([5.0], dtype=np.float32))
 
 
@@ -215,15 +215,13 @@ def test_device_match_mixed_operator(device_id):
     image_path = os.path.join(
         get_dali_extra_path(), "db", "single", "jpeg", "100", "swan-3584559_640.jpg"
     )
-    with open(image_path, "rb") as f:
-        # Use .copy() to create a writable array so that it can be passed as a Tensor through dlpack
-        encoded_data = np.frombuffer(f.read(), dtype=np.uint8).copy()
+    encoded_data = np.fromfile(image_path, dtype=np.uint8)
 
     if device_id is None:
-        decoded_gpu = ndd.decoders.image(encoded_data, device="mixed")
+        decoded_gpu = ndd.decoders.image(encoded_data, device="gpu")
     else:
         with ndd.Device(f"gpu:{device_id}"):
-            decoded_gpu = ndd.decoders.image(encoded_data, device="mixed")
+            decoded_gpu = ndd.decoders.image(encoded_data, device="gpu")
 
     eval_device_id = device_id if device_id is not None else 0
     with ndd.EvalContext(device_id=eval_device_id):
@@ -234,6 +232,32 @@ def test_device_match_mixed_operator(device_id):
         assert output.ndim == 3
         assert output.shape == (408, 640, 3)
         assert output.dtype == ndd.uint8
+
+
+@attr("multi_gpu")
+def test_set_device_via_context_mixed_op():
+    if _backend.GetCUDADeviceCount() < 2:
+        raise SkipTest("At least 2 devices needed for the test")
+
+    image_path = os.path.join(
+        get_dali_extra_path(), "db", "single", "jpeg", "100", "swan-3584559_640.jpg"
+    )
+    encoded_data = np.fromfile(image_path, dtype=np.uint8)
+
+    with ndd.EvalContext(device_id=0):
+        decoded = ndd.decoders.image(encoded_data, device="gpu")
+        output0 = decoded.evaluate()
+        assert output0.device == ndd.device("gpu:0")
+
+    with ndd.EvalContext(device_id=1):
+        decoded = ndd.decoders.image(encoded_data, device="gpu")
+        output1 = decoded.evaluate()
+        assert output1.device == ndd.device("gpu:1")
+        output0_cpu = output0.cpu()  # copy from device 0 with current device being 1
+
+    output1_cpu = output0.cpu()  # copy from device 1 with current device being 0
+
+    assert np.array_equal(output0_cpu, output1_cpu)
 
 
 def test_get_set_num_threads():

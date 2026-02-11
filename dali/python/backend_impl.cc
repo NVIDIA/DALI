@@ -2496,11 +2496,13 @@ void SetupAndRun(OperatorBase &self, Workspace &ws, std::optional<int> batch_siz
     }
   }
 
+  bool pinned = ws.has_stream();
+
   for (int i = 0; i < spec.NumOutput(); i++) {
     if (spec.OutputDevice(i) == StorageDevice::CPU) {
       auto out = std::make_shared<TensorList<CPUBackend>>();
       out->set_order(ws.output_order(), false);
-      out->set_pinned(true);
+      out->set_pinned(pinned);
       ws.AddOutput(std::move(out));
     } else {
       auto out = std::make_shared<TensorList<GPUBackend>>();

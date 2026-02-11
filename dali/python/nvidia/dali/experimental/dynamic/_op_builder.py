@@ -193,7 +193,16 @@ def build_operator_class(schema):
     op_class = type(class_name, (base,), {})  # create a subclass
     op_class._schema = schema
     op_class._schema_name = schema.Name()
-    op_class._supported_backends = set(schema.GetSupportedBackends())
+    op_class._supported_backends = frozenset(schema.GetSupportedBackends())
+    if len(op_class._supported_backends) == 0:
+        # TFRecord is not present in schema registry because it uses Python proxy
+        if op_class._schema_name == "readers__TFRecord":
+            op_class._supported_backends = frozenset({"cpu"})
+        else:
+            raise RuntimeError(
+                f"Internal error: operator {op_class._schema_name} has an "
+                f"empty set of supported backends. Is it a Python-only operator?"
+            )
     op_class._op_name = class_name
     op_class._fn_name = _to_snake_case(class_name)
     op_class._legacy_op = legacy_op_class
@@ -237,13 +246,17 @@ def build_constructor(schema, op_class):
 
     if init_args:
         init_args = ["*"] + init_args
-    header_args = [
-        "self",
-        "max_batch_size=None",
-        "name=None",
-        'device="cpu"',
-        "num_inputs=None",
-    ] + init_args
+    header_args = (
+        [
+            "self",
+            "max_batch_size=None",
+            "name=None",
+            'device="cpu"',
+            "num_inputs=None",
+        ]
+        + init_args
+        + ["_backend=None"]
+    )
     header = f"__init__({', '.join(header_args)})"
 
     # Note: Base __init__ will keep the **kwargs
@@ -544,16 +557,21 @@ def build_fn_wrapper(op, fn_name=None, add_to_module=True):
             device_inferred = False
 
         supported_backends = op._supported_backends
+        backend = device.device_type
         if device.device_type not in supported_backends:
             if len(supported_backends) == 1 and device_inferred:
                 # Maybe we got it wrong? Try the only device that's there
-                device.device_type = supported_backends[0]
+                backend = next(iter(supported_backends))
             else:
                 # Now we want to call "mixed" operators "gpu" - but we still have distinct backends.
                 # Hardly any op has both "mixed" and "gpu", so we can just replace "gpu" with
                 # "mixed".
-                if device.device_type == "gpu" and "mixed" in supported_backends:
-                    device.device_type = "mixed"
+                if backend == "gpu" and "mixed" in supported_backends:
+                    backend = "mixed"
+                elif not device_inferred:
+                    raise ValueError(f'Invalid device "{device}" for operator `{fn_name}`')
+            if device.device_type == "cpu" and backend in ["gpu", "mixed"]:
+                device = _device.Device("gpu")
 
         # Get or create the operator instance that matches the arguments
         with nvtx.annotate(f"get instance {op._op_name}", domain="op_builder"):
@@ -563,6 +581,7 @@ def build_fn_wrapper(op, fn_name=None, add_to_module=True):
                 device=device,
                 num_inputs=len(inputs),
                 call_arg_names=tuple(call_args.keys()),
+                _backend=backend,
                 **init_args,
             )
 

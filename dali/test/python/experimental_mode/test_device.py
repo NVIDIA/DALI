@@ -1,4 +1,4 @@
-# Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -53,7 +53,7 @@ def test_device_parse():
     if _backend.GetCUDADeviceCount() == 0:
         raise SkipTest("At least 1 device needed for the test")
     assert ndd.Device("gpu:0") == ndd.Device("gpu")
-    assert ndd.Device("cpu") == ndd.Device("cpu:0")
+    assert ndd.Device("cpu") == ndd.Device("cpu", None)
     with assert_raises(ValueError, glob="Invalid device name"):
         ndd.Device("gpu:0", 0)  # double id specification
     with assert_raises(ValueError, glob="Invalid device id"):
@@ -86,3 +86,11 @@ def test_device_same_as_in_torch_multi_gpu():
         assert torch.cuda.current_device() == 1
 
     assert torch.cuda.current_device() == 0
+
+
+def test_invalid_device():
+    with assert_raises(ValueError, glob="Invalid device"):
+        ndd.readers.File(file_root=".", device="gpu")
+
+    with assert_raises(ValueError, glob="Invalid device"):
+        ndd.random_bbox_crop(0, device="gpu")

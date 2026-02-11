@@ -45,7 +45,7 @@ to improve performance.
    flip_vertical = False
    dataset = ndd.readers.File(file_root=images_dir)
    for jpegs, labels in dataset.next_epoch(batch_size=16):
-       img = ndd.decoders.image(jpegs, device="mixed")
+       img = ndd.decoders.image(jpegs, device="gpu")
        flipped = ndd.flip(img, horizontal=flip_horizontal, vertical=flip_vertical)
        model((flipped, img))
 
