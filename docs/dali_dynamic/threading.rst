@@ -6,7 +6,7 @@ Multithreading
 Thread Safety
 -------------
 
-Dynamic mode generally is thread-safe and support supports
+Dynamic mode generally is thread-safe and support
 `free-threaded Python <https://docs.python.org/3/howto/free-threading-python.html>`__. Operators can
 be called from multiple threads concurrently, and :class:`Tensor` and :class:`Batch` objects can be
 safely passed between threads.
@@ -54,9 +54,8 @@ and device without affecting other threads.
 
 CUDA stream configuration can also be thread-local. The function :func:`set_current_stream`
 sets the stream for the calling thread only [#]_, while :func:`set_default_stream` is global.
-
-.. [#] :func:`set_current_stream` technically sets the stream of the current thread's default
- :class:`EvalContext` but this is equivalent for most practical purposes.
+Technically, :func:`set_current_stream` sets the stream of the current thread's default
+evaluation context but this is equivalent for most practical purposes.
 
 .. code-block:: python
 
