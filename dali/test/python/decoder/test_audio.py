@@ -19,6 +19,7 @@ import nvidia.dali.types as types
 import scipy.io.wavfile
 import numpy as np
 import os
+import struct
 from test_audio_decoder_utils import generate_waveforms, rosa_resample
 from test_utils import compare_pipelines, get_files
 from nose_utils import attr
@@ -215,3 +216,60 @@ def test_audio_decoder_correctness():
     dtype = types.INT16
     for fmt in ["wav", "flac", "ogg"]:
         yield check_audio_decoder_correctness, fmt, dtype
+
+
+def _create_large_wav_bytes(min_audio_bytes):
+    """Create a valid PCM 16-bit mono WAV with at least min_audio_bytes of payload.
+
+    Writes in chunks. Returns bytes.
+    min_audio_bytes: minimum size of the audio (PCM data) in bytes; total file = 44 + this.
+    """
+    sample_rate = 16000
+    num_channels = 1
+    data_size = min_audio_bytes
+    total_file_bytes = 44 + min_audio_bytes
+    assert data_size > 0
+
+    # Build the WAV header as a byte array
+    header = bytearray()
+    header += b"RIFF"
+    header += struct.pack("<I", total_file_bytes - 8)
+    header += b"WAVE"
+    header += b"fmt "
+    header += struct.pack("<I", 16)
+    header += struct.pack(
+        "<HHIIHH",
+        1,  # PCM format
+        num_channels,
+        sample_rate,
+        sample_rate * num_channels * 2,
+        num_channels * 2,
+        16,  # bits per sample
+    )
+    header += b"data"
+    header += struct.pack("<I", data_size)
+    header_np = np.frombuffer(header, dtype=np.uint8)
+
+    # Create the full array (header + data), fill with zeros, put header bytes at the beginning
+    result_np = np.zeros(total_file_bytes, dtype=np.uint8)
+    result_np[:44] = header_np
+
+    # Return as bytes to mimic previous behavior for compatibility
+    return result_np
+
+
+@attr("sanitizer_skip")
+def test_audio_decoder_large_file_over_2gb():
+    # Audio payload >2GB so total file >2GB
+    min_audio_bytes = 2 * 1024**3 + 1
+    wave = _create_large_wav_bytes(min_audio_bytes)
+
+    @pipeline_def(batch_size=1, device_id=0, num_threads=1)
+    def pipe():
+        encoded = fn.external_source(source=[[wave]], cycle=True)
+        decoded, _ = fn.decoders.audio(encoded, dtype=types.INT16)
+        return decoded, _
+
+    p = pipe()
+    p.build()
+    p.run()
