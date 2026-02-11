@@ -58,6 +58,8 @@ def run_parallel(function: Callable[[int], T], num_threads: int | None = None) -
         except AttributeError:
             num_threads = os.cpu_count() or 4
 
+    num_threads = min(32, num_threads)
+
     barrier = threading.Barrier(num_threads)
     results = {}
     errors = {}
