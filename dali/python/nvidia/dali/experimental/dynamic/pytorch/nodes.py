@@ -45,9 +45,17 @@ class _CUDANodeMeta(type(tn.BaseNode)):
     def _next_wrapper(cls, orig):
         @functools.wraps(orig)
         def next(self):
-            if (device_id := getattr(self, "_cuda_device_id", None)) is not None:
-                _backend.SetCUDACurrentDevice(device_id)
-            return orig(self)
+            initial_device = _backend.GetCUDACurrentDevice()
+            expected_device = getattr(self, "_cuda_device_id", None)
+            if expected_device is None or initial_device == expected_device:
+                return orig(self)
+
+            # If devices mismatch and _cuda_device_id is set
+            _backend.SetCUDACurrentDevice(expected_device)
+            try:
+                return orig(self)
+            finally:
+                _backend.SetCUDACurrentDevice(initial_device)
 
         return next
 
