@@ -226,8 +226,7 @@ def build_ndd_loader(
     loader = tn.Loader(prefetch_node)
 
     # WAR to get the length of the loader
-    reader_node._reader._init_backend(ndd.EvalContext.current(), (), {})
-    epoch_size = reader_node._reader._op_backend.GetReaderMeta()["epoch_size_padded"]
+    epoch_size = reader_node.get_metadata()["epoch_size_padded"]
     loader._size = epoch_size // num_shards
 
     return loader

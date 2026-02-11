@@ -119,6 +119,10 @@ class Reader(tn.BaseNode[dict[str, T]], metaclass=_CUDANodeMeta):
     def get_state(self):
         return {}
 
+    def get_metadata(self) -> _ops.ReaderMeta:
+        """Returns the metadata of the underlying reader operator"""
+        return self._reader.get_metadata()
+
 
 class DictMapper(tn.BaseNode[dict[str, T]], metaclass=_CUDANodeMeta):
     """Applies a transform to a single key in the dict yielded by a source node.
