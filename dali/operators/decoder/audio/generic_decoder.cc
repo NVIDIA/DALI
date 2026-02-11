@@ -194,7 +194,7 @@ class GenericAudioDecoder : public AudioDecoderBase {
 
 AudioMetadata GenericAudioDecoder::OpenImpl(span<const char> encoded) {
   assert(!encoded.empty());
-  mem_stream_ = {encoded.data(), static_cast<int>(encoded.size())};
+  mem_stream_ = {encoded.data(), static_cast<int64_t>(encoded.size())};
   SF_VIRTUAL_IO sf_virtual_io = {
           &GetFileLen,
           &Seek,
