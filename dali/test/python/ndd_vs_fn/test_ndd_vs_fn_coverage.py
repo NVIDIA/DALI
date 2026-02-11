@@ -28,6 +28,7 @@ excluded_operators = [
     "permute_batch",  # Special operator, needs handwritten test
     "random_resized_crop",  # TODO(michalz): Add tests for operators with random state
     "readers.video_resize",  # TODO(michalz): Needs handwritten test
+    "plugin.video.decoder",  # Still kind of experimental, skipping
     # Will be tested in following PRs:
     "audio_resample",
     "bb_flip",
