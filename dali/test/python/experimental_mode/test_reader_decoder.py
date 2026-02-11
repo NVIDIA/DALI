@@ -160,7 +160,7 @@ def test_reader_shards(stick_to_shard, pad_last_batch):
             unpadded_shards_end = math.floor((shard_id + 1) * unpadded_samples_num / SHARD_NUM)
             shard_size = shards_end - shards_beg
             for idx in range(0, shard_size):
-                if pad_last_batch and shards_beg + idx >= unpadded_shards_end:
+                if pad_last_batch and unpadded_shards_beg + idx >= unpadded_shards_end:
                     # duplicate last sample in the shard in case of padding
                     ref_sample = all_samples[unpadded_shards_end - 1]
                 else:
