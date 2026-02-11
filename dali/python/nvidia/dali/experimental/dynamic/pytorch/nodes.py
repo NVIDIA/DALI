@@ -45,12 +45,15 @@ class _CUDANodeMeta(type(tn.BaseNode)):
     def _next_wrapper(cls, orig):
         @functools.wraps(orig)
         def next(self):
-            initial_device = _backend.GetCUDACurrentDevice()
             expected_device = getattr(self, "_cuda_device_id", None)
-            if expected_device is None or initial_device == expected_device:
+            if expected_device is None:
                 return orig(self)
 
-            # If devices mismatch and _cuda_device_id is set
+            # Now we can safely call cudaGetDevice
+            initial_device = _backend.GetCUDACurrentDevice()
+            if initial_device == expected_device:
+                return orig(self)
+
             _backend.SetCUDACurrentDevice(expected_device)
             try:
                 return orig(self)
@@ -63,7 +66,10 @@ class _CUDANodeMeta(type(tn.BaseNode)):
     def _reset_wrapper(cls, orig):
         @functools.wraps(orig)
         def reset(self, initial_state=None):
-            self._cuda_device_id = _backend.GetCUDACurrentDevice()
+            if _backend.GetCUDADeviceCount() > 0:
+                self._cuda_device_id = _backend.GetCUDACurrentDevice()
+            else:
+                self._cuda_device_id = None
             return orig(self, initial_state)
 
         return reset
