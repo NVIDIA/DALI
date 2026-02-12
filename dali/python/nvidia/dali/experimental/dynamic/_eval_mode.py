@@ -21,7 +21,7 @@ class EvalMode(Enum):
     """Enum defining different evaluation modes for Dynamic Mode operations.
 
     Attributes:
-        default:    Default evaluation mode. TBD.
+        default:    Default evaluation mode, alias of EvalMode.eager.
         deferred:   Deferred evaluation mode - operations are evaluated only when their results are
                     needed; error reporting (including input validation) may be delayed until the
                     results are requested.
