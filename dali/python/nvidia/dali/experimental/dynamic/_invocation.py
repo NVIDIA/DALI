@@ -167,6 +167,10 @@ class Invocation:
                 self.schedule(ctx)
             # else - deferred evaluation
 
+        if mode is _EvalMode.sync_full:
+            stream = ctx.cuda_stream if ctx is not None else _EvalContext.current().cuda_stream
+            stream.synchronize()
+
     def run(self, ctx: Optional[_EvalContext] = None):
         """Executes the operator immediately."""
         if future := self._future:
