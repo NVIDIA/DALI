@@ -85,6 +85,14 @@ class Invocation:
         self._future: Optional[_Future] = None
         self._run_lock = threading.Lock()
 
+    def __del__(self):
+        self._return_op_to_cache()
+
+    def _return_op_to_cache(self):
+        if (cache := getattr(self._operator, "_cache", None)) is not None:
+            cache[self._operator._key] = self._operator
+        self._return_op_to_cache = lambda: None
+
     def device(self, result_index: int):
         if self._output_devices is None:
             self._output_devices = self._operator._infer_output_devices(*self._inputs, **self._args)
@@ -252,6 +260,7 @@ class Invocation:
             else:
                 self._results = (r,)
             ctx.cache_results(self, self._results)
+            self._return_op_to_cache()  # the operator instance is ready for a new invocation
 
     def values(self, ctx: Optional[_EvalContext] = None):
         """

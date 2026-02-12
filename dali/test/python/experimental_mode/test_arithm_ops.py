@@ -117,7 +117,7 @@ def test_binary_scalars(device: str, op: str, batch_size: int | None):
         np.array([[1], [2], [3]]),
         np.array([[1, 2, 3], [4, 5, 6]]),
     ]
-    scalars = [3, [4, 5, 6]]
+    scalars = [3, 4, 5, 6]
 
     for tensor, scalar in itertools.product(tensors, scalars):
         if op == "/":

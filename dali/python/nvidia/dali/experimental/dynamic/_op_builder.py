@@ -24,9 +24,7 @@ from nvidia.dali.fn import _to_snake_case
 from nvidia.dali.ops import _docs, _names
 
 from . import _device, _invocation, _op_filter, _ops, _type
-from . import random as _random
-from ._batch import Batch, _get_batch_size
-from ._batch import as_batch as _as_batch
+from ._batch import Batch
 from ._tensor import Tensor
 
 
@@ -53,76 +51,6 @@ def _scalar_decay(x):
             f"Use one of the DALI types instead."
         )
     return x
-
-
-def _get_input_device(x):
-    with nvtx.annotate("get_input_device", domain="op_builder"):
-        if x is None:
-            return None
-        if isinstance(x, Batch):
-            return x.device
-        if isinstance(x, Tensor):
-            return x.device
-        if isinstance(x, _b.TensorListCPU):
-            return _device.Device("cpu")
-        if isinstance(x, _b.TensorListGPU):
-            return _device.Device("gpu")
-        if hasattr(x, "__cuda_array_interface__"):
-            return _device.Device("gpu")
-        if hasattr(x, "__dlpack_device__"):
-            dev = x.__dlpack_device__()
-            if int(dev[0]) == 1 or int(dev[0]) == 3:  # CPU or CPU_PINNED
-                return _device.Device("cpu")
-            elif int(dev[0]) == 2:
-                return _device.Device("gpu", dev[1])
-            else:
-                raise ValueError(f"Unknown DLPack device type: {dev.type}")
-        if hasattr(x, "__dlpack__"):
-            return _device.Device("cpu")
-        if isinstance(x, list) and x:
-            return _get_input_device(x[0])
-        return None
-
-
-def _to_tensor(x, device=None, dtype=None):
-    with nvtx.annotate("to_tensor", domain="op_builder"):
-        if x is None:
-            return None
-        if isinstance(x, Tensor):
-            if dtype is not None and x.dtype != dtype:
-                return Tensor(x, dtype=dtype, device=device)
-            if device is not None:
-                return x.to_device(device)
-            return x
-        if isinstance(x, _invocation.InvocationResult):
-            if x.is_batch:
-                raise ValueError("Batch invocation result cannot be used as a single tensor")
-            return Tensor(invocation_result=x, device=device)
-        return Tensor(x, device=device, dtype=dtype)
-
-
-def _to_batch(x, batch_size, device=None, dtype=None):
-    with nvtx.annotate("to_batch", domain="op_builder"):
-        if x is None:
-            return None
-        if isinstance(x, Batch):
-            if dtype is not None and x.dtype != dtype:
-                return _as_batch(x, dtype=dtype, device=device)
-            if device is not None:
-                return x.to_device(device)
-            return x
-        if isinstance(x, _invocation.InvocationResult):
-            if x.is_batch:
-                return Batch(invocation_result=x, device=device, dtype=dtype)
-            else:
-                x = _to_tensor(x, dtype=dtype)  # fall back to regular replication
-        actual_batch_size = _get_batch_size(x)
-        if actual_batch_size is not None:
-            if batch_size is not None and actual_batch_size != batch_size:
-                raise ValueError(f"Unexpected batch size: {actual_batch_size} != {batch_size}")
-            return Batch(x, device=device, dtype=dtype)
-
-        return Batch.broadcast(x, batch_size, device=device, dtype=dtype)
 
 
 _unsupported_args = {"bytes_per_sample_hint", "preserve"}
@@ -322,88 +250,34 @@ def build_call_function(schema, op_class):
         used_kwargs.add(arg)
 
     call_args = ["batch_size=None"] + call_args
+    internal_args = ["_process_params=True"]
 
     # Add rng argument for random operators
     if has_random_state_arg:
         call_args.append("rng=None")
         used_kwargs.add("rng")
+        internal_args.append("_random_state=None")
         # Remove 'seed' from used_kwargs and signature_args if present
         if "seed" in used_kwargs:
             used_kwargs.remove("seed")
 
     inputs = _get_inputs(schema)
 
-    header = f"__call__({', '.join(['self'] + inputs + call_args)})"
+    header = f"__call__({', '.join(['self'] + inputs + call_args + internal_args)})"
 
-    def call(self, *raw_args, batch_size=None, **raw_kwargs):
+    def call(self, *raw_args, batch_size=None, _process_params=True, **raw_kwargs):
         with nvtx.annotate(f"__call__: {self._op_name}", domain="op_builder"):
             self._pre_call(*raw_args, **raw_kwargs)
-            with nvtx.annotate("__call__: get batch size", domain="op_builder"):
-                is_batch = batch_size is not None
-                if batch_size is None:
-                    for i, x in enumerate(list(raw_args) + list(raw_kwargs.values())):
-                        x_batch_size = _get_batch_size(x)
-                        if x_batch_size is not None:
-                            is_batch = True
-                            if batch_size is not None:
-                                if x_batch_size != batch_size:
-                                    raise ValueError(
-                                        f"Inconsistent batch size: {x_batch_size} != {batch_size}"
-                                    )
-                            else:
-                                batch_size = x_batch_size
-                if not is_batch:
-                    batch_size = self._max_batch_size or 1
+            batch_size = _ops._infer_batch_size(batch_size, *raw_args, **raw_kwargs)
+            is_batch = batch_size is not None
 
-            inputs = []
-            kwargs = {}
-
-            if has_random_state_arg:
-                rng = raw_kwargs.pop("rng", None)
-                if rng is None:
-                    rng = _random.get_default_rng()
-                if not isinstance(rng, _random.RNG):
-                    raise ValueError(
-                        f"rng must be an instance of nvidia.dali.experimental.dynamic.random.RNG, "
-                        f"but got {type(rng)}"
-                    )
-
-                # Use the provided RNG to generate 7 random uint32 values.
-                # This creates a fixed-size random state tensor.
-                # 7 uint32 words = 224 bits; required is 194 bits (operator reads first 25 bytes).
-                # Only one random state tensor is created per call, not per sample.
-                raw_kwargs["_random_state"] = Tensor(
-                    [rng() for _ in range(7)],
-                    dtype=_type.dtype(nvidia.dali.types.UINT32),
-                    device="cpu",
+            if _process_params:
+                inputs, kwargs = op_class._process_params(
+                    self._backend, self._device, batch_size, *raw_args, **raw_kwargs
                 )
-
-            if is_batch:
-                with nvtx.annotate("__call__: convert to batches", domain="op_builder"):
-                    for i, inp in enumerate(raw_args):
-                        if inp is None:
-                            continue
-                        input_device = self._input_device(i, _get_input_device(inp))
-                        inp = _to_batch(inp, batch_size, device=input_device)
-                        inputs.append(inp)
-                    for k, v in raw_kwargs.items():
-                        if v is None:
-                            continue
-                        dtype = op_class._argument_conversion_map[k]
-                        kwargs[k] = _to_batch(
-                            v, batch_size, device=_device.Device("cpu"), dtype=dtype
-                        )
             else:
-                with nvtx.annotate("__call__: convert to tensors", domain="op_builder"):
-                    for inp in raw_args:
-                        if inp is None:
-                            continue
-                        inputs.append(_to_tensor(inp))
-                    for k, v in raw_kwargs.items():
-                        if v is None:
-                            continue
-                        dtype = op_class._argument_conversion_map[k]
-                        kwargs[k] = _to_tensor(v, dtype=dtype)
+                inputs = [inp for inp in raw_args if inp is not None]
+                kwargs = {name: value for name, value in raw_kwargs.items() if value is not None}
 
             with nvtx.annotate("__call__: shallowcopy", domain="op_builder"):
                 inputs = [copy.copy(x) for x in inputs]
@@ -421,7 +295,7 @@ def build_call_function(schema, op_class):
                     inputs,
                     kwargs,
                     is_batch=is_batch,
-                    batch_size=batch_size,
+                    batch_size=batch_size or 1,
                     previous_invocation=self._last_invocation,
                 )
 
@@ -508,18 +382,7 @@ def build_fn_wrapper(op, fn_name=None, add_to_module=True):
     header = f"{fn_name}({', '.join(inputs + signature_args)})"
 
     def fn_call(*inputs, batch_size=None, device=None, **raw_kwargs):
-        if batch_size is None:
-            for x in inputs:
-                x_batch_size = _get_batch_size(x)
-                if x_batch_size is not None:
-                    batch_size = x_batch_size
-                    break
-        if batch_size is None:
-            for arg in raw_kwargs.values():
-                x_batch_size = _get_batch_size(arg)
-                if x_batch_size is not None:
-                    batch_size = x_batch_size
-                    break
+        batch_size = _ops._infer_batch_size(batch_size, *inputs, **raw_kwargs)
         max_batch_size = _next_pow2(batch_size or 1)
         init_args = {
             arg: _scalar_decay(raw_kwargs[arg])
@@ -539,13 +402,13 @@ def build_fn_wrapper(op, fn_name=None, add_to_module=True):
                 for inp in inputs:
                     if inp is None:
                         continue
-                    dev = _get_input_device(inp)
+                    dev = _ops._get_input_device(inp)
                     if dev is not None and dev.device_type == "gpu":
                         return dev
                 for arg in raw_kwargs.values():
                     if arg is None:
                         continue
-                    dev = _get_input_device(arg)
+                    dev = _ops._get_input_device(arg)
                     if dev is not None and dev.device_type == "gpu":
                         return dev
                 return _device.Device("cpu")
@@ -573,6 +436,8 @@ def build_fn_wrapper(op, fn_name=None, add_to_module=True):
             if device.device_type == "cpu" and backend in ["gpu", "mixed"]:
                 device = _device.Device("gpu")
 
+        inputs, call_args = op._process_params(backend, device, batch_size, *inputs, **call_args)
+
         # Get or create the operator instance that matches the arguments
         with nvtx.annotate(f"get instance {op._op_name}", domain="op_builder"):
             op_inst = op._get(
@@ -582,11 +447,13 @@ def build_fn_wrapper(op, fn_name=None, add_to_module=True):
                 num_inputs=len(inputs),
                 call_arg_names=tuple(call_args.keys()),
                 _backend=backend,
-                **init_args,
+                inputs=inputs,
+                init_args=init_args,
+                call_args=call_args,
             )
 
         # Call the operator (the result is an Invocation object)
-        return op_inst(*inputs, batch_size=batch_size, **call_args)
+        return op_inst(*inputs, batch_size=batch_size, _process_params=False, **call_args)
 
     doc = _docs._docstring_generator_fn(schema.Name(), api="dynamic", args=used_kwargs)
     function = makefun.create_function(header, fn_call, doc=doc)
@@ -640,7 +507,9 @@ def build_operators():
         setattr(module, what, op_map[in_favor])
 
     # Protect from infinite recursion when calling to_device, which internally uses operator Copy.
-    op_map["Copy"]._input_device = lambda self, index, actual_device=None: None
+    op_map["Copy"]._input_device = (
+        lambda self, backend, index, op_device=None, actual_device=None: None
+    )
 
     all_fn_wrappers = build_fn_wrappers(all_op_classes)
 
