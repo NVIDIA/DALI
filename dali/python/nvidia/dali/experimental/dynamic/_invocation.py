@@ -169,7 +169,8 @@ class Invocation:
 
         if mode is _EvalMode.sync_full:
             stream = ctx.cuda_stream if ctx is not None else _EvalContext.current().cuda_stream
-            stream.synchronize()
+            if stream is not None:  # If the stream is None, there's no GPU
+                stream.synchronize()
 
     def run(self, ctx: Optional[_EvalContext] = None):
         """Executes the operator immediately."""
