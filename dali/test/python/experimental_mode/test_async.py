@@ -12,14 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
-import ctypes
 import threading
 
 import numpy as np
 import nvidia.dali.experimental.dynamic as ndd
+from ndd_utils import cuda_launch_host_func
 from nose2.tools import params
-from nose_utils import SkipTest, raises
+from nose_utils import raises
 
 
 @params(("cpu",), ("gpu",))
@@ -87,24 +86,13 @@ def test_no_deadlock(device):
 
 
 def test_eager_parallelism():
-    try:
-        cudart = ctypes.CDLL("libcudart.so")
-    except OSError:
-        raise SkipTest("Could not find libcudart.so") from None
-
     def wait_event(_):
         nonlocal started
         started = start_event.wait(1)
 
     start_event = threading.Event()
     cuda_stream = ndd.stream()
-
-    callback_type = ctypes.CFUNCTYPE(None, ctypes.c_void_p)
-    cudart.cudaLaunchHostFunc.argtypes = [ctypes.c_void_p, callback_type, ctypes.c_void_p]
-    cudart.cudaLaunchHostFunc.restype = ctypes.c_int
-    callback = callback_type(wait_event)
-    err = cudart.cudaLaunchHostFunc(cuda_stream.handle, callback, None)
-    assert err == 0
+    cuda_launch_host_func(cuda_stream, wait_event)
 
     started = False
     with ndd.EvalMode.eager, ndd.EvalContext(cuda_stream=cuda_stream):

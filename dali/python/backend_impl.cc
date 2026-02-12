@@ -1897,6 +1897,11 @@ void ExposeBufferPolicyFunctions(py::module &m) {
   m.def("GetCUDAStreamDevice", [](py::object stream) {
     return DeviceFromStream(AccessOrderFromPythonStreamObj(stream).stream());
   });
+  m.def("CUDAStreamSynchronize", [](py::object py_stream) {
+    cudaStream_t stream = AccessOrderFromPythonStreamObj(py_stream).stream();
+    py::gil_scoped_release release;
+    CUDA_CALL(cudaStreamSynchronize(stream));
+  });
   m.def("PreallocateDeviceMemory", mm::PreallocateDeviceMemory,
 R"(Preallocate memory on given device
 
