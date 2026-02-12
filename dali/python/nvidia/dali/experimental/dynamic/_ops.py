@@ -14,7 +14,7 @@
 
 import nvidia.dali as dali
 import nvidia.dali.backend_impl as _b
-
+import math
 from . import _eval_context, _invocation, _device
 from ._batch import Batch
 from ._device import Device, DeviceLike
@@ -88,7 +88,7 @@ class Operator:
         self._arg_meta = {}
         # Number of outputs
         self._num_outputs = None
-        # When an operator (e.g. TFRecord) returns a dictionnary, outputs are named
+        # When an operator (e.g. TFRecord) returns a dictionary, outputs are named
         self._output_names = None
         # Expected device placement of the outputs
         self._output_devices = None
@@ -410,6 +410,10 @@ class Operator:
             return type_name
 
 
+# Defaults used by Reader for sharding; must match Reader.__init__ normalization.
+_READER_SHARD_DEFAULTS = {"shard_id": 0, "num_shards": 1, "stick_to_shard": False}
+
+
 class Reader(Operator):
     """Base class for reader operators. Extends Operator with iteration support via next_epoch().
 
@@ -421,6 +425,9 @@ class Reader(Operator):
         batch_size=None,
         name=None,
         device="cpu",
+        shard_id=_READER_SHARD_DEFAULTS["shard_id"],
+        num_shards=_READER_SHARD_DEFAULTS["num_shards"],
+        stick_to_shard=_READER_SHARD_DEFAULTS["stick_to_shard"],
         **kwargs,
     ):
         if name is None:
@@ -429,7 +436,32 @@ class Reader(Operator):
         self._batch_size = batch_size
         device = _device.device(device)
         # _backend is forwarded via **kwargs, we don't need to touch it here
+        self._shard_id = shard_id if shard_id is not None else _READER_SHARD_DEFAULTS["shard_id"]
+        self._num_shards = (
+            num_shards if num_shards is not None else _READER_SHARD_DEFAULTS["num_shards"]
+        )
+        self._stick_to_shard = (
+            stick_to_shard
+            if stick_to_shard is not None
+            else _READER_SHARD_DEFAULTS["stick_to_shard"]
+        )
+        if self._num_shards < 1:
+            raise ValueError(
+                f"The number of shards must be a positive integer. Got {self._num_shards}."
+            )
+        if self._shard_id < 0 or self._shard_id >= self._num_shards:
+            raise ValueError(
+                f"The shard_id={self._shard_id} is invalid. Must be in range "
+                + f"[0..{self._num_shards-1}]."
+            )
+        kwargs["shard_id"] = self._shard_id
+        kwargs["num_shards"] = self._num_shards
+        kwargs["stick_to_shard"] = self._stick_to_shard
         super().__init__(self._actual_batch_size, name, device, **kwargs)
+
+    @classmethod
+    def _get(cls, *_, **__):
+        raise RuntimeError("Readers cannot be cached. Construct a new instance instead.")
 
     def _pre_call(self, *inputs, **args):
         if self._api_type is None:
@@ -496,7 +528,10 @@ class Reader(Operator):
                 self._init_backend(ctx, (), {})
             meta = self._op_backend.GetReaderMeta()
             idx = 0
-            while idx < meta["epoch_size_padded"]:
+            padded_size = meta["epoch_size_padded"]
+            shards_beg = math.floor(self._shard_id * padded_size / self._num_shards)
+            shards_end = math.floor((self._shard_id + 1) * padded_size / self._num_shards)
+            while idx < shards_end - shards_beg:
                 outputs = super()._run(ctx, batch_size=self._actual_batch_size)
                 batch_size = len(
                     outputs[0] if isinstance(outputs, tuple) else next(iter(outputs.values()))
@@ -512,6 +547,8 @@ class Reader(Operator):
                     for x in zip(*outputs.values()):
                         outs = tuple(Tensor(o) for o in x)
                         yield dict(zip(names, outs))
+            if not self._stick_to_shard:
+                self._shard_id = (self._shard_id + 1) % self._num_shards
 
     def _batches(self, batch_size=None, ctx: _eval_context.EvalContext | None = None):
         if self._api_type is None:
@@ -542,7 +579,10 @@ class Reader(Operator):
                     )
             meta = self._op_backend.GetReaderMeta()
             idx = 0
-            while idx < meta["epoch_size_padded"]:
+            padded_size = meta["epoch_size_padded"]
+            shards_beg = math.floor(self._shard_id * padded_size / self._num_shards)
+            shards_end = math.floor((self._shard_id + 1) * padded_size / self._num_shards)
+            while idx < shards_end - shards_beg:
                 outputs = super()._run(ctx, batch_size=batch_size)
                 batch_size_returned = batch_size = len(
                     outputs[0] if isinstance(outputs, tuple) else next(iter(outputs.values()))
@@ -553,6 +593,8 @@ class Reader(Operator):
                     yield tuple(Batch(o) for o in outputs)
                 else:
                     yield {name: Batch(o) for name, o in outputs.items()}
+            if not self._stick_to_shard:
+                self._shard_id = (self._shard_id + 1) % self._num_shards
 
 
 _all_ops = []
