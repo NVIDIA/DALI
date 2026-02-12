@@ -131,7 +131,7 @@ class Stream:
         return not (self == value)
 
     def synchronize(self):
-        """Wait until until all work scheduled on this stream is complete."""
+        """Wait until all work scheduled on this stream is complete."""
         _b.CUDAStreamSynchronize(self)
 
     # TODO(michalz): add synchronization functions
