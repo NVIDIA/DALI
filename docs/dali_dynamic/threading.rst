@@ -19,6 +19,7 @@ threads.
 :octicon:`alert-fill;1.2em;align-text-bottom text-warning` Multiple threads using the same :class:`EvalContext`:
 
 .. code-block:: python
+   :emphasize-lines: 4
 
    import threading
    import nvidia.dali.experimental.dynamic as ndd
@@ -38,7 +39,26 @@ threads.
        t.join()
 
 Here, the code should either create an instance of the evaluation context per thread, or use
-:func:`set_num_threads`.
+:func:`set_num_threads`. Here's a corrected version:
+
+.. code-block:: python
+   :emphasize-lines: 4
+
+   import threading
+   import nvidia.dali.experimental.dynamic as ndd
+
+   ndd.set_num_threads(4)
+
+   def worker():
+       img = ndd.random.uniform(shape=(100, 100, 3), range=(0, 255), dtype=ndd.uint8)
+       flipped = ndd.flip(img, horizontal=True)
+       ...
+
+   threads = [threading.Thread(target=worker) for _ in range(4)]
+   for t in threads:
+       t.start()
+   for t in threads:
+       t.join()
 
 .. warning::
 
