@@ -1,4 +1,4 @@
-# Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2023-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,9 +15,17 @@
 from mypy import api
 
 
-def test_mypy():
+def test_pipeline():
     normal_report, error_report, exit_status = api.run(
         ["--check-untyped-defs", "type_annotations/test_typing_pipelines.py"]
+    )
+
+    assert exit_status == 0, normal_report
+
+
+def test_dynamic():
+    normal_report, error_report, exit_status = api.run(
+        ["--check-untyped-defs", "type_annotations/test_typing_dynamic.py"]
     )
 
     assert exit_status == 0, normal_report
