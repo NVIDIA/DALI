@@ -156,16 +156,16 @@ class Invocation:
 
         If there are any external inputs, the operator is run immediately, regardless of EvalMode.
         """
+        if mode is None:
+            mode = _EvalMode.current()
+
         if has_external_inputs:
             self.run(ctx)
-        else:
-            if mode is None:
-                mode = _EvalMode.current()
-            if mode.value >= _EvalMode.sync_cpu.value:
-                self.run(ctx)
-            elif mode.value >= _EvalMode.eager.value:
-                self.schedule(ctx)
-            # else - deferred evaluation
+        elif mode.value >= _EvalMode.sync_cpu.value:
+            self.run(ctx)
+        elif mode.value >= _EvalMode.eager.value:
+            self.schedule(ctx)
+        # else - deferred evaluation
 
         if mode is _EvalMode.sync_full:
             stream = ctx.cuda_stream if ctx is not None else _EvalContext.current().cuda_stream
