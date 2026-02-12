@@ -92,7 +92,7 @@ enable_conda() {
 }
 
 disable_conda() {
-    OLD_PYTHON_GIL="${PYTHON_GIL-}""
+    OLD_PYTHON_GIL="${PYTHON_GIL-}"
     export PYTHON_GIL=1
     echo "Deactivate conda"
     conda deactivate
