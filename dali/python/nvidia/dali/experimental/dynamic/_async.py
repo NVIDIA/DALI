@@ -82,7 +82,7 @@ class _AsyncExecutor:
 
             with self._condition:
                 self._completed_seq += 1
-                self._condition.notify()
+                self._condition.notify_all()
 
     def submit(self, callable: Callable[[], None]):
         if self._thread is None or not self._thread.is_alive():
