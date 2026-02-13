@@ -275,7 +275,7 @@ class Operator:
     @classmethod
     def _process_params(cls, backend, op_device, batch_size, *raw_args, **raw_kwargs):
         """
-        Processes run-time parmaeters passed to the operator to ones that can be consumed DALI
+        Processes run-time parameters passed to the operator to ones that can be consumed DALI
         (Batch or Tensor).
 
         This is a class method, as it doesn't require an operator instance - and this method
