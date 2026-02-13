@@ -22,6 +22,7 @@ from ._device import Device
 from ._eval_context import EvalContext as _EvalContext
 from ._eval_mode import EvalMode as _EvalMode
 from ._type import DType
+from nvidia.dali import backend as _b
 
 if TYPE_CHECKING:
     from .ops import Operator
@@ -84,6 +85,15 @@ class Invocation:
         self._eval_context = _EvalContext.current()._snapshot()
         self._future: Optional[_Future] = None
         self._run_lock = threading.Lock()
+
+    def __del__(self):
+        self._return_op_to_cache()
+
+    def _return_op_to_cache(self):
+        if (cache := getattr(self._operator, "_cache", None)) is not None:
+            cache[self._operator._key] = self._operator
+        self._operator = None
+        self._return_op_to_cache = lambda: None
 
     def device(self, result_index: int):
         if self._output_devices is None:
@@ -251,7 +261,26 @@ class Invocation:
                 self._results = tuple(r.values())
             else:
                 self._results = (r,)
+
+            if self._num_outputs is None:
+                self._num_outputs = len(self._results)
+            else:
+                assert self._num_outputs == len(self._results)
+
+            def output_device(x):
+                if isinstance(x, (_b.TensorGPU, _b.TensorListGPU)):
+                    return Device("gpu", x.device_id())
+                else:
+                    return Device("cpu")
+
+            if self._output_devices is None:
+                self._output_devices = [output_device(r) for r in self._results]
+            else:
+                for i, d in enumerate(self._output_devices):
+                    assert output_device(self._results[i]) == d
+
             ctx.cache_results(self, self._results)
+            self._return_op_to_cache()  # the operator instance is ready for a new invocation
 
     def values(self, ctx: Optional[_EvalContext] = None):
         """

@@ -2497,15 +2497,25 @@ void SetupAndRun(OperatorBase &self, Workspace &ws, std::optional<int> batch_siz
   }
 
   bool pinned = ws.has_stream();
+  std::optional<int> dev_id;
+  if (ws.output_order().is_device())
+    dev_id = ws.output_order().device_id();
 
   for (int i = 0; i < spec.NumOutput(); i++) {
     if (spec.OutputDevice(i) == StorageDevice::CPU) {
       auto out = std::make_shared<TensorList<CPUBackend>>();
+      if (dev_id.has_value())
+        out->set_device_id(*dev_id);
       out->set_order(ws.output_order(), false);
       out->set_pinned(pinned);
       ws.AddOutput(std::move(out));
     } else {
       auto out = std::make_shared<TensorList<GPUBackend>>();
+      if (!dev_id.has_value()) {
+        throw std::logic_error(
+          "Internal error: Workspace for a GPU operator doesn't have a valid device_id.");
+      }
+      out->set_device_id(*dev_id);
       out->set_order(ws.output_order(), false);
       ws.AddOutput(std::move(out));
     }

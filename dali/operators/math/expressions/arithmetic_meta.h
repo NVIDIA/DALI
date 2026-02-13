@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -705,8 +705,6 @@ DALI_HOST_DEV constexpr binary_result_t<bool, bool>
   return l && r;
 }
 
-REGISTER_BINARY_IMPL(ArithmeticOp::div, /);
-
 #define REGISTER_BINARY_BITWISE_IMPL_BACKEND(OP, EXPRESSION, BACKEND)                \
   template <>                                                                        \
   struct arithm_meta<OP, BACKEND> {                                                  \
@@ -873,6 +871,33 @@ REGISTER_COMPARISON_IMPL(ArithmeticOp::leq, <=, leq);
 REGISTER_COMPARISON_IMPL(ArithmeticOp::gt,  >,  gt);
 REGISTER_COMPARISON_IMPL(ArithmeticOp::geq, >=, geq);
 
+template <typename Backend>
+struct arithm_meta<ArithmeticOp::div, Backend> {
+  template <typename L, typename R>
+  using result_t = binary_result_t<L, R>;
+
+  template <typename L, typename R>
+  DALI_HOST_DEV static result_t<L, R> impl(const L &l, const R &r) {
+    auto l_ = static_cast<result_t<L, R>>(l);
+    auto r_ = static_cast<result_t<L, R>>(r);
+    #ifndef __CUDA_ARCH__
+    if constexpr (std::is_same_v<Backend, CPUBackend> &&
+                  std::is_integral_v<decltype(l_)> &&
+                  std::is_integral_v<decltype(r_)>) {
+      if (r_ == 0)
+        throw std::domain_error("Integer division by zero.");
+    }
+    #endif
+    return l_ / r_;
+  }
+
+  static inline std::string to_string() {
+    return "//";
+  }
+
+  static constexpr int num_inputs = 2;
+  static constexpr int num_outputs = 1;
+};
 
 template <typename Backend>
 struct arithm_meta<ArithmeticOp::fdiv, Backend> {
@@ -888,7 +913,7 @@ struct arithm_meta<ArithmeticOp::fdiv, Backend> {
   }
 
   static inline std::string to_string() {
-    return "//";
+    return "/";
   }
 
   static constexpr int num_inputs = 2;

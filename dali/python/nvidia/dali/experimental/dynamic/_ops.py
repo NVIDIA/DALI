@@ -15,10 +15,98 @@
 import nvidia.dali as dali
 import nvidia.dali.backend_impl as _b
 import math
-from . import _eval_context, _invocation, _device
-from ._batch import Batch
+from . import _eval_context, _invocation, _device, _type
+from ._batch import Batch, as_batch as _as_batch, _get_batch_size
 from ._device import Device, DeviceLike
 from ._tensor import Tensor
+
+import nvtx
+
+
+def _to_tensor(x, device=None, dtype=None):
+    with nvtx.annotate("to_tensor", domain="op_builder"):
+        if x is None:
+            return None
+        if isinstance(x, Tensor):
+            if dtype is not None and x.dtype != dtype:
+                return Tensor(x, dtype=dtype, device=device)
+            if device is not None:
+                return x.to_device(device)
+            return x
+        if isinstance(x, _invocation.InvocationResult):
+            if x.is_batch:
+                raise ValueError("Batch invocation result cannot be used as a single tensor")
+            return Tensor(invocation_result=x, device=device)
+        return Tensor(x, device=device, dtype=dtype)
+
+
+def _to_batch(x, batch_size, device=None, dtype=None):
+    with nvtx.annotate("to_batch", domain="op_builder"):
+        if x is None:
+            return None
+        if isinstance(x, Batch):
+            if dtype is not None and x.dtype != dtype:
+                return _as_batch(x, dtype=dtype, device=device)
+            if device is not None:
+                return x.to_device(device)
+            return x
+        if isinstance(x, _invocation.InvocationResult):
+            if x.is_batch:
+                return Batch(invocation_result=x, device=device, dtype=dtype)
+            else:
+                x = _to_tensor(x, dtype=dtype)  # fall back to regular replication
+        actual_batch_size = _get_batch_size(x)
+        if actual_batch_size is not None:
+            if batch_size is not None and actual_batch_size != batch_size:
+                raise ValueError(f"Unexpected batch size: {actual_batch_size} != {batch_size}")
+            return Batch(x, device=device, dtype=dtype)
+
+        return Batch.broadcast(x, batch_size, device=device, dtype=dtype)
+
+
+def _get_input_device(x):
+    with nvtx.annotate("get_input_device", domain="op_builder"):
+        if x is None:
+            return None
+        if isinstance(x, Batch):
+            return x.device
+        if isinstance(x, Tensor):
+            return x.device
+        if isinstance(x, _b.TensorListCPU):
+            return _device.Device("cpu")
+        if isinstance(x, _b.TensorListGPU):
+            return _device.Device("gpu")
+        if hasattr(x, "__cuda_array_interface__"):
+            return _device.Device("gpu")
+        if hasattr(x, "__dlpack_device__"):
+            dev = x.__dlpack_device__()
+            if int(dev[0]) == 1 or int(dev[0]) == 3:  # CPU or CPU_PINNED
+                return _device.Device("cpu")
+            elif int(dev[0]) == 2:
+                return _device.Device("gpu", dev[1])
+            else:
+                raise ValueError(f"Unknown DLPack device type: {dev.type}")
+        if hasattr(x, "__dlpack__"):
+            return _device.Device("cpu")
+        if isinstance(x, list) and x:
+            return _get_input_device(x[0])
+        return None
+
+
+def _infer_batch_size(explicit_batch_size, *raw_args, **raw_kwargs):
+    if explicit_batch_size is not None:
+        return explicit_batch_size
+    batch_size = None
+    with nvtx.annotate("_infer_batch_size", domain="op_builder"):
+        for i, x in enumerate(list(raw_args) + list(raw_kwargs.values())):
+            x_batch_size = _get_batch_size(x)
+            if x_batch_size is not None:
+                if batch_size is not None:
+                    if x_batch_size != batch_size:
+                        raise ValueError(f"Inconsistent batch size: {x_batch_size} != {batch_size}")
+                else:
+                    batch_size = x_batch_size
+    return batch_size
 
 
 class Operator:
@@ -104,12 +192,14 @@ class Operator:
         cls,
         max_batch_size: int,
         name: str | None = None,
-        backend: str | None = None,
         device: DeviceLike | None = None,
         num_inputs: int | None = None,
         call_arg_names: list[str] | None = None,
         _backend: str | None = None,
-        **init_args,
+        *,
+        inputs,
+        init_args,
+        call_args,
     ):
         """Gets an operator instance for a specified set of parameters."""
         if device is None:
@@ -135,9 +225,11 @@ class Operator:
             num_inputs,
             call_arg_names,
             freeze_args(init_args),
+            tuple((cls._make_meta(input) for input in inputs)),
+            freeze_args({name: cls._make_meta(arg) for name, arg in call_args.items()}),
         )
         ctx = _eval_context.EvalContext.current()
-        inst = ctx._instance_cache.get(key, None)
+        inst = ctx._instance_cache.pop(key, None)
         if inst is None:
             with device:
                 inst = cls(
@@ -147,30 +239,93 @@ class Operator:
                     _backend=_backend,
                     **init_args,
                 )
-                ctx._instance_cache[key] = inst
+        inst._cache = ctx._instance_cache
+        inst._key = key
         return inst
 
     def _infer_num_outputs(self, *inputs, **args):
         self._init_spec(inputs, args)
         return self._num_outputs
 
-    def _input_device(self, index: int, actual_device: Device | None = None):
-        default_input_device = "gpu" if self._backend == "gpu" else "cpu"
+    @classmethod
+    def _input_device(
+        cls,
+        backend: str,
+        index: int,
+        actual_device: Device | None = None,
+        operator_device: Device | None = None,
+    ):
+        default_input_device = "gpu" if backend == "gpu" else "cpu"
         actual_device_type = actual_device.device_type if actual_device is not None else None
-        dev_type = self._schema.GetInputDevice(index, actual_device_type, default_input_device)
+        dev_type = cls._schema.GetInputDevice(index, actual_device_type, default_input_device)
         if dev_type is None:
-            return self._device
+            return operator_device
         if dev_type == "cpu":
             dev_id = None
         else:
-            if self._backend != "cpu":
-                dev_id = self._device.device_id  # we need to match our current device
+            if backend != "cpu":
+                dev_id = operator_device.device_id  # we need to match our current device
             else:
                 # This is a CPU operator so it doesn't have a device id - we should just
                 # use whatever was passed in.
                 dev_id = actual_device.device_id if actual_device is not None else None
 
         return Device(dev_type, dev_id)  # inherit the device id
+
+    @classmethod
+    def _process_params(cls, backend, op_device, batch_size, *raw_args, **raw_kwargs):
+        is_batch = batch_size is not None
+        if cls._has_random_state_arg:
+            from . import random
+
+            rng = raw_kwargs.pop("rng", None)
+            if rng is None:
+                rng = random.get_default_rng()
+            if not isinstance(rng, random.RNG):
+                raise ValueError(
+                    f"rng must be an instance of nvidia.dali.experimental.dynamic.random.RNG, "
+                    f"but got {type(rng)}"
+                )
+
+            # Use the provided RNG to generate 7 random uint32 values.
+            # This creates a fixed-size random state tensor.
+            # 7 uint32 words = 224 bits; required is 194 bits (operator reads first 25 bytes).
+            # Only one random state tensor is created per call, not per sample.
+            raw_kwargs["_random_state"] = Tensor(
+                [rng() for _ in range(7)],
+                dtype=_type.uint32,
+                device="cpu",
+            )
+
+        inputs = []
+        kwargs = {}
+
+        if is_batch:
+            with nvtx.annotate("__call__: convert to batches", domain="op_builder"):
+                for i, inp in enumerate(raw_args):
+                    if inp is None:
+                        continue
+                    input_device = cls._input_device(backend, i, _get_input_device(inp), op_device)
+                    inp = _to_batch(inp, batch_size, device=input_device)
+                    inputs.append(inp)
+                for k, v in raw_kwargs.items():
+                    if v is None:
+                        continue
+                    dtype = cls._argument_conversion_map[k]
+                    kwargs[k] = _to_batch(v, batch_size, device=_device.Device("cpu"), dtype=dtype)
+        else:
+            with nvtx.annotate("__call__: convert to tensors", domain="op_builder"):
+                for inp in raw_args:
+                    if inp is None:
+                        continue
+                    inputs.append(_to_tensor(inp))
+                for k, v in raw_kwargs.items():
+                    if v is None:
+                        continue
+                    dtype = cls._argument_conversion_map[k]
+                    kwargs[k] = _to_tensor(v, dtype=dtype)
+
+        return inputs, kwargs
 
     def _infer_output_devices(self, *inputs, **args):
         self._init_spec(inputs, args)
@@ -185,6 +340,8 @@ class Operator:
     def _reset_backend(self):
         self._op_backend = None
         self._op_spec = None
+        self._input_meta = []
+        self._arg_meta = {}
 
     def _init_spec(self, inputs, args):
         if self._op_spec is None:
@@ -293,12 +450,8 @@ class Operator:
 
             is_batch = batch_size is not None or _is_batch()
             if self._is_backend_initialized():
-                if self._is_stateful:
-                    # clearing the backend in a stateful op would destroy the state
-                    self._check_compatible(inputs, batch_size, args)
-                elif not self._is_compatible(inputs, batch_size, args):
-                    # we can reinitialize a stateless operator - not very efficient :(
-                    self._reset_backend()
+                # clearing the backend in a stateful op would destroy the state
+                self._check_compatible(inputs, batch_size, args)
 
             self._init_backend(ctx, inputs, args)
             workspace = _b._Workspace(ctx._thread_pool, ctx.cuda_stream)
@@ -321,17 +474,6 @@ class Operator:
     def _set_meta(self, inputs, args):
         self._input_meta = [self._make_meta(input) for input in inputs]
         self._arg_meta = {name: self._make_meta(arg) for name, arg in args.items()}
-
-    def _is_compatible(self, inputs, batch_size, args):
-        """Checks if the inputs and arguments are compatible with this operator instance."""
-        if batch_size is not None:
-            if batch_size > self._max_batch_size:
-                return False
-        if self._input_meta != [self._make_meta(input) for input in inputs]:
-            return False
-        if self._arg_meta != {name: self._make_meta(arg) for name, arg in args.items()}:
-            return False
-        return True
 
     def _check_compatible(self, inputs, batch_size, args):
         """Raises an error if the inputs and arguments are not compatible with this op instance."""
@@ -382,7 +524,10 @@ class Operator:
                 )
 
     # TODO(klecki): Consider making a dataclass
-    def _make_meta(self, x):
+    @staticmethod
+    def _make_meta(x):
+        if x is None:
+            return ()
         is_batch = False
         if isinstance(x, _invocation.Invocation):
             is_batch = x.is_batch
@@ -391,12 +536,12 @@ class Operator:
         else:
             is_batch = False
 
-        return {
-            "is_batch": is_batch,
-            "ndim": x.ndim,
-            "layout": x.layout,
-            "dtype": x.dtype,
-        }
+        return (
+            is_batch,
+            x.ndim,
+            x.layout,
+            x.dtype.type_id,
+        )
 
     @property
     def _display_name(self):

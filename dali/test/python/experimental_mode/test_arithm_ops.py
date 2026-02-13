@@ -111,35 +111,38 @@ def test_unary_ops(device, op):
 
 
 @params(*itertools.product(["gpu", "cpu"], binary_ops, (None, 4)))
-def test_binary_scalars(device: str, op: str, batch_size: int | None):
+def test_binary_non_tensor(device: str, op: str, batch_size: int | None):
     tensors = [
         np.array([[1, 2, 3], [4, 5, 6]]),
         np.array([[1], [2], [3]]),
         np.array([[1, 2, 3], [4, 5, 6]]),
     ]
-    scalars = [3, [4, 5, 6]]
+    # check that non-tensor arguments are automatically transferred to the suitable device
+    nontensors = [3, [4, 5, 6]]
 
-    for tensor, scalar in itertools.product(tensors, scalars):
+    for tensor, y in itertools.product(tensors, nontensors):
         if op == "/":
             tensor = tensor.astype(np.float32)
 
+        # explicitly transfer the tensor argument to the requested device
         if batch_size is None:
             x = ndd.as_tensor(tensor, device=device)
         else:
             x = ndd.Batch.broadcast(tensor, batch_size=batch_size, device=device)
 
-        result = ndd.as_tensor(apply_bin_op(op, x, scalar))
-        result_rev = ndd.as_tensor(apply_bin_op(op, scalar, x))
-        ref = apply_bin_op(op, tensor, scalar)
-        ref_rev = apply_bin_op(op, scalar, tensor)
+        # use the non-tensor directly
+        result = ndd.as_tensor(apply_bin_op(op, x, y))
+        result_rev = ndd.as_tensor(apply_bin_op(op, y, x))
+        ref = apply_bin_op(op, tensor, y)
+        ref_rev = apply_bin_op(op, y, tensor)
 
         # np.allclose supports broadcasting
         if not np.allclose(result.cpu(), ref):
-            msg = f"{tensor} {op} {scalar} = \n{result}\n!=\n{ref}"
+            msg = f"{tensor} {op} {y} = \n{result}\n!=\n{ref}"
             raise AssertionError(msg)
 
         if not np.allclose(result_rev.cpu(), ref_rev):
-            msg = f"{scalar} {op} {tensor} = \n{result_rev}\n!=\n{ref_rev}"
+            msg = f"{y} {op} {tensor} = \n{result_rev}\n!=\n{ref_rev}"
             raise AssertionError(msg)
 
 
