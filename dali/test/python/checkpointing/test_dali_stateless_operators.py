@@ -21,7 +21,7 @@ import numpy as np
 from nvidia.dali import fn, pipeline_def, types
 from test_utils import (
     compare_pipelines,
-    create_sign_off_decorator,
+    create_sign_off_registry,
     get_dali_extra_path,
     check_numba_compatibility_cpu,
     has_operator,
@@ -39,7 +39,7 @@ test_data_frames = 24
 test_sequence_shape = [test_data_frames, 426, 240, 3]  # 240p video
 
 
-stateless_signed_off = create_sign_off_decorator()
+stateless_signed_off = create_sign_off_registry()
 
 
 def tensor_list_to_array(tensor_list):

@@ -1131,7 +1131,7 @@ def generate_decoders_data(data_dir, data_extension, exclude_subdirs=[]):
     for i in range(len(fnames), 10):  # At least 10 elements
         fnames.append(fnames[-1])
     nfiles = len(fnames)
-    _input_epoch = [
+    input_epoch = [
         list(map(lambda fname: test_utils.read_file_bin(fname), fnames[: nfiles // 3])),
         list(
             map(
@@ -1141,14 +1141,6 @@ def generate_decoders_data(data_dir, data_extension, exclude_subdirs=[]):
         ),
         list(map(lambda fname: test_utils.read_file_bin(fname), fnames[nfiles // 2 :])),
     ]
-
-    # Since we pack buffers into ndarray, we need to pad samples with 0.
-    input_epoch = []
-    for inp in _input_epoch:
-        max_len = max(sample.shape[0] for sample in inp)
-        inp = map(lambda sample: np.pad(sample, (0, max_len - sample.shape[0])), inp)
-        input_epoch.append(np.stack(list(inp)))
-    input_epoch = list(map(lambda batch: np.reshape(batch, batch.shape), input_epoch))
 
     return input_epoch
 
