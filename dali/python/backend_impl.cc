@@ -2511,7 +2511,11 @@ void SetupAndRun(OperatorBase &self, Workspace &ws, std::optional<int> batch_siz
       ws.AddOutput(std::move(out));
     } else {
       auto out = std::make_shared<TensorList<GPUBackend>>();
-      out->set_device_id(dev_id.value());
+      if (!dev_id.has_value()) {
+        throw std::logic_error(
+          "Internal error: Workspace for a GPU operator doesn't have a valid device_id.");
+      }
+      out->set_device_id(*dev_id);
       out->set_order(ws.output_order(), false);
       ws.AddOutput(std::move(out));
     }
