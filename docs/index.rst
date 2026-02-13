@@ -53,6 +53,7 @@ NVIDIA DALI Documentation
 
    dali_dynamic/overview
    dali_dynamic/api_reference
+   dali_dynamic/threading
    dali_dynamic/readers_reference
    dali_dynamic/ops_reference
 
