@@ -143,8 +143,11 @@ void ParseLabels(const caffe2::TensorProtos& protos,
       T* label_tensor_data = label_tensor.mutable_data<T>();
       std::memset(label_tensor_data, 0, num_labels*sizeof(T));
       for (int i = 0; i < label_data_size; ++i) {
-        label_tensor_data[static_cast<int>(proto_get_data<T>(label_indices, i))]
-          = static_cast<T>(1);
+        auto idx = static_cast<int>(proto_get_data<T>(label_indices, i));
+        DALI_ENFORCE(idx >= 0 && idx < num_labels,
+                    make_string("Label index out of bounds: ", idx,
+                                " (num_labels: ", num_labels, ")"));
+        label_tensor_data[idx] = static_cast<T>(1);
       }
       break;
     }
@@ -167,6 +170,9 @@ void ParseLabels(const caffe2::TensorProtos& protos,
       std::memset(label_tensor_data, 0, num_labels*sizeof(float));
       for (int i = 0; i < label_size; ++i) {
         auto idx = static_cast<int>(proto_get_data<T>(label_indices, i));
+        DALI_ENFORCE(idx >= 0 && idx < num_labels,
+                    make_string("Label index out of bounds: ", idx,
+                                " (num_labels: ", num_labels, ")"));
         label_tensor_data[idx] = proto_get_data<float>(label_weights, i);
       }
       break;
@@ -212,6 +218,9 @@ class Caffe2Parser : public Parser<Tensor<CPUBackend>> {
         const int W = image_proto.dims(1);
 
         image.Resize({H, W, C}, DALI_UINT8);
+        DALI_ENFORCE(image_proto.byte_data().size() == static_cast<size_t>(H * W * C),
+                    make_string("Image data size mismatch: ", image_proto.byte_data().size(),
+                                " (expected: ", H * W * C, ")"));
         std::memcpy(image.mutable_data<uint8_t>(),
                     image_proto.byte_data().data(),
                     image_proto.byte_data().size());
