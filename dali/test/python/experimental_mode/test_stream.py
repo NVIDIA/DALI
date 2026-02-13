@@ -12,8 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import threading
+
 import nvidia.dali.experimental.dynamic as ndd
 import nvidia.dali.backend as _backend
+from ndd_utils import cuda_launch_host_func
 from nose_utils import SkipTest, attr
 
 
@@ -88,3 +91,36 @@ def test_stream_torch():
     assert ds == ts
     # assert ts == ds  # torch returns False instead of NotImplemented
     assert ds != ds2
+
+
+def test_stream_synchronize():
+    stream = ndd.stream()
+    callback_started = threading.Event()
+    allow_finish = threading.Event()
+    sync_returned = False
+    error = False
+
+    def callback(_):
+        nonlocal error
+        callback_started.set()
+        if not allow_finish.wait(1):
+            error = True
+
+    def worker():
+        nonlocal error
+        if not callback_started.wait(1):
+            error = True
+        if sync_returned:
+            error = True
+        allow_finish.set()
+
+    cuda_launch_host_func(stream, callback)
+    thread = threading.Thread(target=worker, daemon=True)
+    thread.start()
+
+    stream.synchronize()
+    sync_returned = True
+
+    thread.join()
+    assert allow_finish.is_set()
+    assert not error
