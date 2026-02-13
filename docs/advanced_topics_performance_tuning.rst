@@ -188,6 +188,30 @@ we recommend that you prefetch more data ahead of time.
 .. note::
   Increasing queue depth also increases memory consumption.
 
+Image Decoder Size Limit
+------------------------
+
+The image decoders (both CPU :meth:`nvidia.dali.fn.decoders.image` with ``mixed``/``cpu`` backend
+and the nvJPEG-based GPU/hybrid decoder) can reject decoding images whose decoded size exceeds a
+configurable maximum. This helps avoid excessive memory use or long decode times from very large or
+malformed images (e.g. corrupted headers reporting huge dimensions).
+
+Set the ``DALI_MAX_IMAGE_SIZE`` environment variable to the maximum allowed **decoded image volume**
+(height × width × channels × bytes per sample). For typical uint8 RGB images, this equals the total
+number of pixels × number of channels (e.g. 1920×1080×3 = 6,220,800).
+
+- If ``DALI_MAX_IMAGE_SIZE`` is unset or 0, no limit is applied (default).
+- The value is read once at decoder construction time (when the pipeline is built). Changing the
+  variable after the pipeline is created has no effect for that pipeline.
+- When the limit is exceeded, decoding fails with an error that reports the image volume and the
+  configured ``DALI_MAX_IMAGE_SIZE`` value.
+
+Example: cap decoded images at roughly 4K (3840×2160×3 = 24,883,200):
+
+.. code-block:: bash
+
+  export DALI_MAX_IMAGE_SIZE=24883200
+
 Readers fine-tuning
 -------------------
 

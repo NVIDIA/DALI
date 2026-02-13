@@ -37,6 +37,14 @@ void HostDecoder::RunImpl(SampleWorkspace &ws) {
     img = ImageFactory::CreateImage(input.data<uint8_t>(), input.size(), output_type_);
     img->SetCropWindowGenerator(GetCropWindowGenerator(ws.data_idx()));
     img->SetUseFastIdct(use_fast_idct_);
+    auto shape = img->PeekShape();
+    if (max_image_sz_ > 0 && static_cast<size_t>(volume(shape)) > max_image_sz_) {
+      DALI_FAIL(make_string("Total image volume (height x width x channels x "
+                            "bytes_per_sample) exceeds the maximum configured value: ",
+                            volume(shape), " > DALI_MAX_IMAGE_SIZE(", max_image_sz_,
+                            "). Use DALI_MAX_IMAGE_SIZE env variable to control this ",
+                            "maximum value."));
+    }
     img->Decode();
   } catch (std::exception &e) {
     DALI_FAIL(e.what(), ". File: ", file_name);

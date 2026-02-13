@@ -295,6 +295,10 @@ class nvJPEGDecoder : public StatelessOperator<MixedBackend>, CachedDecoderImpl 
     ReserveSampleContainers();
 
     RegisterTestCounters();
+
+    static const char* max_image_size_str = std::getenv("DALI_MAX_IMAGE_SIZE");
+    static const size_t max_image_sz = max_image_size_str ? atol(max_image_size_str) : 0;
+    max_image_sz_ = max_image_sz;
   }
 
   ~nvJPEGDecoder() override {
@@ -682,6 +686,12 @@ class nvJPEGDecoder : public StatelessOperator<MixedBackend>, CachedDecoderImpl 
           } else {
             data.selected_decoder = &data.decoders[NVJPEG_BACKEND_HYBRID];
           }
+        }
+        if (max_image_sz_ > 0 && static_cast<size_t>(volume(data.shape)) > max_image_sz_) {
+            DALI_FAIL(make_string("Total image volume (height x width x channels x "
+                      "bytes_per_sample) exceeds the maximum configured value: ",
+                      volume(data.shape), " > DALI_MAX_IMAGE_SIZE(", max_image_sz_,
+                      "). Use DALI_MAX_IMAGE_SIZE env variable to control this maximum value."));
         }
       }, in_size);
     }
@@ -1207,6 +1217,8 @@ class nvJPEGDecoder : public StatelessOperator<MixedBackend>, CachedDecoderImpl 
 #if NVML_ENABLED
   nvml::NvmlInstance nvml_handle_;
 #endif
+
+  size_t max_image_sz_ = 0;
 };
 
 }  // namespace dali
