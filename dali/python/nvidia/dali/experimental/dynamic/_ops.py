@@ -214,7 +214,7 @@ class Operator:
 
         def freeze_args(args):
             sorted_keys = sorted(args.keys())
-            return tuple([(k, args[k]) for k in sorted_keys])
+            return tuple([(k, freeze_arg(args[k])) for k in sorted_keys])
 
         call_arg_names = freeze_arg(call_arg_names)
         key = (
