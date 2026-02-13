@@ -20,6 +20,7 @@ import nvidia.dali.fn as fn
 import nvidia.dali.types as types
 import os
 import random
+import tempfile
 from nvidia.dali import pipeline_def
 
 from nose2.tools import params
@@ -512,3 +513,19 @@ def test_tiff_palette():
 
     delta = np.abs(imgs.at(0).astype("float") - imgs.at(1).astype("float")) / 256
     assert np.quantile(delta, 0.9) < 0.05, "Original and palette TIFF differ significantly"
+
+
+def test_image_decoder_crafted_tiny_files():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tiny_file_path = os.path.join(tmpdir, "tiny.img")
+        with open(tiny_file_path, "wb") as f:
+            f.write(b"\xff")
+
+        @pipeline_def(batch_size=2, device_id=0, num_threads=1)
+        def pipe():
+            encoded, _ = fn.readers.file(files=[tiny_file_path])
+            decoded = fn.decoders.image(encoded, device="cpu", output_type=types.RGB)
+            return decoded
+
+        p = pipe()
+        assert_raises(RuntimeError, p.run)
