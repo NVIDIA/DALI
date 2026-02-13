@@ -1,4 +1,4 @@
-# Copyright (c) 2025-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -70,15 +70,11 @@ class _AsyncExecutor:
         self._event = threading.Event()
 
     def _worker(self):
-        prev_id = -1
         while True:
             task = self._queue.get()
 
             if task is None:
                 break
-
-            assert task._seq_id == prev_id + 1
-            prev_id = task._seq_id
 
             self._event.set()
             task._run()
@@ -95,15 +91,13 @@ class _AsyncExecutor:
 
         # Since the executor is bound to a single eval context, there's no race condition
         self._submitted_seq += 1
-        seq = self._submitted_seq
-        task = _Future(seq, self, callable)
+        task = _Future(self._submitted_seq, self, callable)
         self._queue.put(task)
 
         # Let the worker acquire the GIL if it's ready to pick up a task
         if sys.version_info < (3, 13) or sys._is_gil_enabled():
             self._event.wait(1e-4)  # 100us
 
-        assert seq == self._submitted_seq
         return task
 
     def wait(self, task: _Future):
