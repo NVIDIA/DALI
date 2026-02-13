@@ -89,13 +89,13 @@ class Invocation:
 
         if hasattr(self._operator, "_cache"):
             self._return_op_to_cache = weakref.finalize(
-                self, Invocation._return_op_to_cache, self._operator
+                self, Invocation._return_op_to_cache_impl, self._operator
             )
         else:
             self._return_op_to_cache = None
 
     @staticmethod
-    def _return_op_to_cache(op):
+    def _return_op_to_cache_impl(op):
         op._cache[op._key] = op
 
     def device(self, result_index: int):
