@@ -88,13 +88,15 @@ class Invocation:
         self._run_lock = threading.Lock()
 
         if hasattr(self._operator, "_cache"):
-            self._return_op_to_cache = weakref.finalize(self, self._return_op_to_cache_impl)
-        else:  # simplify finalization for uncached operators
-            self._return_op_to_cache = lambda: None
+            self._return_op_to_cache = weakref.finalize(
+                self, Invocation._return_op_to_cache, self._operator
+            )
+        else:
+            self._return_op_to_cache = None
 
-    def _return_op_to_cache_impl(self):
-        self._operator._cache[self._operator._key] = self._operator
-        self._operator = None
+    @staticmethod
+    def _return_op_to_cache(op):
+        op._cache[op._key] = op
 
     def device(self, result_index: int):
         if self._output_devices is None:
@@ -281,7 +283,9 @@ class Invocation:
                     assert output_device(self._results[i]) == d
 
             ctx.cache_results(self, self._results)
-            self._return_op_to_cache()  # the operator instance is ready for a new invocation
+            if self._return_op_to_cache:
+                self._return_op_to_cache()  # the operator instance is ready for a new invocation
+            self._operator = None
 
     def values(self, ctx: Optional[_EvalContext] = None):
         """
