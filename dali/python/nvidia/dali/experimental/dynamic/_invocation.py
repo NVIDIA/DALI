@@ -87,14 +87,13 @@ class Invocation:
         self._future: Optional[_Future] = None
         self._run_lock = threading.Lock()
 
-        if (cache := getattr(self._operator, "_cache", None)) is not None:
+        if hasattr(self._operator, "_cache"):
             self._return_op_to_cache = weakref.finalize(self, self._return_op_to_cache_impl)
         else:  # simplify finalization for uncached operators
             self._return_op_to_cache = lambda: None
 
     def _return_op_to_cache_impl(self):
-        if (cache := getattr(self._operator, "_cache", None)) is not None:
-            cache[self._operator._key] = self._operator
+        self._operator._cache[self._operator._key] = self._operator
         self._operator = None
 
     def device(self, result_index: int):
