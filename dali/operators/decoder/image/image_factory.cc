@@ -63,21 +63,10 @@ bool CheckIsWebP(const uint8_t *webp, int size) {
           webp[8] == 'W' && webp[9] == 'E' && webp[10] == 'B' && webp[11] == 'P');
 }
 
-constexpr std::array<int, 4> header_intel = {77, 77, 0, 42};
-constexpr std::array<int, 4> header_motorola = {73, 73, 42, 0};
-
 bool CheckIsTiff(const uint8_t *tiff, int size) {
   DALI_ENFORCE(tiff);
-  auto check_header = [](const unsigned char *tiff_buf, const std::array<int, 4> &header) -> bool {
-      DALI_ENFORCE(tiff_buf);
-      for (unsigned int i = 0; i < header.size(); i++) {
-        if (tiff_buf[i] != header[i]) {
-          return false;
-        }
-      }
-      return true;
-  };
-  return size >= 4 && (check_header(tiff, header_intel) || check_header(tiff, header_motorola));
+  // MM for Motorola and II for Intel, followed by big- and little-endian 16-bit "42"
+  return size >= 4 && (!memcmp(tiff, "MM\0*", 4) || !memcmp(tiff, "II*\0", 4));
 }
 
 }  // namespace
