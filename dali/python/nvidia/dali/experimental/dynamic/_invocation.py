@@ -21,6 +21,7 @@ from ._async import _Future
 from ._device import Device
 from ._eval_context import EvalContext as _EvalContext
 from ._eval_mode import EvalMode as _EvalMode
+from ._exceptions import CallStack, rethrow_exception
 from ._type import DType
 from nvidia.dali import backend as _b
 
@@ -49,6 +50,7 @@ class Invocation:
         is_batch: bool = False,
         batch_size: Optional[int] = None,
         previous_invocation: Optional["Invocation"] = None,
+        call_stack: CallStack | None = None,
     ):
         """
         Parameters
@@ -71,6 +73,9 @@ class Invocation:
             the batch size.
         previous_invocation : Invocation
             The previous invocation of the same operator. Used by stateful operators.
+        call_stack : CallStack
+            Call stack where the invocation was created.
+            Used for error reporting in lazy and asynchronous execution.
         """
         self._operator = operator_instance
         self._call_id = call_id
@@ -82,7 +87,9 @@ class Invocation:
         self._num_outputs: int | None = None
         self._output_devices: list[Device] | None = None
         self._previous_invocation = previous_invocation
+        self._call_stack = call_stack
         self._eval_context = _EvalContext.current()._snapshot()
+        self._eval_mode: _EvalMode | None = None
         self._future: Optional[_Future] = None
         self._run_lock = threading.Lock()
 
@@ -177,6 +184,9 @@ class Invocation:
             self.schedule(ctx)
         # else - deferred evaluation
 
+        if not has_external_inputs:
+            self._eval_mode = mode
+
         if mode is _EvalMode.sync_full:
             stream = ctx.cuda_stream if ctx is not None else _EvalContext.current().cuda_stream
             if stream is not None:  # If the stream is None, there's no GPU
@@ -190,9 +200,14 @@ class Invocation:
             self._future = None
         else:
             ctx = self._eval_context if ctx is None else ctx
-            # We don't want to run from two threads
-            with self._run_lock:
-                self._run_impl(ctx)
+            try:
+                # We don't want to run from two threads
+                with self._run_lock:
+                    self._run_impl(ctx)
+            except Exception as exception:
+                if self._call_stack is not None and self._eval_mode is not None:
+                    rethrow_exception(exception, self._call_stack, self._eval_mode)
+                raise
 
     def schedule(self, ctx: Optional[_EvalContext] = None):
         """Schedule the asynchronous execution of the operator"""
@@ -221,7 +236,9 @@ class Invocation:
         # Call _init_spec early to prevent a race condition
         if init_spec := getattr(self._operator, "_init_spec", None):
             init_spec(self._inputs, self._args)
-        self._future = eval_context._async_executor.submit(_run)
+
+        assert self._call_stack is not None
+        self._future = eval_context._async_executor.submit(_run, self._call_stack)
 
     def _run_impl(self, ctx: _EvalContext):
         """Run the operator and store the result in self._results"""

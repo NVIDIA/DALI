@@ -25,6 +25,8 @@ from nvidia.dali.ops import _docs, _names
 
 from . import _device, _invocation, _op_filter, _ops, _type
 from ._batch import Batch
+from ._eval_mode import EvalMode
+from ._exceptions import capture_stack
 from ._tensor import Tensor
 
 
@@ -297,6 +299,11 @@ def build_call_function(schema, op_class):
                     is_batch=is_batch,
                     batch_size=batch_size or 1,
                     previous_invocation=self._last_invocation,
+                    call_stack=(
+                        capture_stack(4)
+                        if EvalMode.current().value <= EvalMode.eager.value
+                        else None
+                    ),
                 )
 
             if stateful:

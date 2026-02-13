@@ -1,4 +1,4 @@
-# Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -18,17 +18,27 @@ import threading
 from collections.abc import Callable
 from typing import Any, Optional
 
+from ._eval_mode import EvalMode
+from ._exceptions import CallStack, rethrow_exception
+
 
 class _Future:
     """Lightweight future created by _AsyncExecutor to track tasks"""
 
-    __slots__ = ("_seq_id", "_executor", "_callable", "_exception")
+    __slots__ = ("_seq_id", "_executor", "_callable", "_exception", "_call_stack")
 
-    def __init__(self, seq_id: int, executor: "_AsyncExecutor", callable: Callable[[], Any]):
+    def __init__(
+        self,
+        seq_id: int,
+        executor: "_AsyncExecutor",
+        callable: Callable[[], Any],
+        call_stack: CallStack,
+    ):
         self._seq_id = seq_id
         self._executor = executor
-        self._callable: Optional[Callable[[], Any]] = callable
-        self._exception: Optional[BaseException] = None
+        self._callable = callable
+        self._call_stack = call_stack
+        self._exception: BaseException | None = None
 
     def _run(self):
         """Call the callback and set the result. Must be called by the executor"""
@@ -49,7 +59,7 @@ class _Future:
         self._executor.wait(self)
 
         if self._exception is not None:
-            raise self._exception
+            rethrow_exception(self._exception, self._call_stack, EvalMode.eager)
 
 
 class _AsyncExecutor:
@@ -84,14 +94,14 @@ class _AsyncExecutor:
                 self._completed_seq += 1
                 self._condition.notify_all()
 
-    def submit(self, callable: Callable[[], None]):
+    def submit(self, callable: Callable[[], None], call_stack: CallStack):
         if self._thread is None or not self._thread.is_alive():
             self._thread = threading.Thread(target=self._worker, daemon=True)
             self._thread.start()
 
         # Since the executor is bound to a single eval context, there's no race condition
         self._submitted_seq += 1
-        task = _Future(self._submitted_seq, self, callable)
+        task = _Future(self._submitted_seq, self, callable, call_stack)
         self._queue.put(task)
 
         # Let the worker acquire the GIL if it's ready to pick up a task
