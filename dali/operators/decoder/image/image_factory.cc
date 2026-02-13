@@ -30,9 +30,9 @@ namespace dali {
 
 namespace {
 
-bool CheckIsJPEG(const uint8_t *jpeg, int) {
+bool CheckIsJPEG(const uint8_t *jpeg, int size) {
   DALI_ENFORCE(jpeg);
-  return (jpeg[0] == 255) && (jpeg[1] == 216);
+  return (size >= 2 && jpeg[0] == 255) && (jpeg[1] == 216);
 }
 
 bool CheckIsPNG(const uint8_t *png, int size) {
@@ -77,7 +77,7 @@ bool CheckIsTiff(const uint8_t *tiff, int size) {
       }
       return true;
   };
-  return check_header(tiff, header_intel) || check_header(tiff, header_motorola);
+  return size >= 4 && (check_header(tiff, header_intel) || check_header(tiff, header_motorola));
 }
 
 }  // namespace
