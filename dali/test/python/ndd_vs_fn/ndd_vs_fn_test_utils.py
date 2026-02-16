@@ -405,6 +405,7 @@ def compare_no_input(
 def pipeline_es_feed_input_wrapper(
     operator_under_test,
     device,
+    input_device,
     max_batch_size=MAX_BATCH_SIZE,
     input_layout=None,
     needs_input=True,
@@ -415,7 +416,7 @@ def pipeline_es_feed_input_wrapper(
     """Creates a DALI pipeline with external source as an input."""
     rs = (
         external_source_of_random_states(
-            rng=rng, max_batch_size=max_batch_size, n_states=1, num_outputs=1
+            rng=rng, max_batch_size=max_batch_size, n_states=1, num_outputs=1,
         )[
             0
         ]  # [0], because it's tuple
@@ -432,7 +433,7 @@ def pipeline_es_feed_input_wrapper(
     def pipe():
         if needs_input:
             inp = [
-                fn.external_source(name=f"INPUT{i}", device=device, layout=input_layout)
+                fn.external_source(name=f"INPUT{i}", device=input_device, layout=input_layout)
                 for i in range(num_inputs)
             ]
             output = operator_under_test(*inp, device=device, _random_state=rs, **operator_args)
@@ -454,6 +455,8 @@ def pipeline_es_feed_input_wrapper(
 def generate_image_like_data():
     return generate_data(image_like_shape_generator, lo=0, hi=255, dtype=np.uint8)
 
+def ndd_device(device):
+    return "gpu" if device == "mixed" else device
 
 def run_operator_test(
     input_epoch,
@@ -464,7 +467,6 @@ def run_operator_test(
     num_inputs=1,
     input_layout=None,
     compare_fn=compare,
-    random=False,
     batch_size=MAX_BATCH_SIZE,
 ):
     """Run fn vs ndd operator comparison over an epoch of batches and assert outputs match.
@@ -526,21 +528,26 @@ def run_operator_test(
     if operator_args is None:
         operator_args = {}
 
-    if random:
+    if ndd_operator._op_class._has_random_state_arg:
         fn_rng, ndd_rng = create_rngs()
     else:
         fn_rng = ndd_rng = None
+
+    input_device = "gpu" if device == "gpu" else "cpu"
 
     # Create a DALI pipeline
     pipe = pipeline_es_feed_input_wrapper(
         fn_operator,
         device,
+        input_device,
         num_inputs=num_inputs,
         input_layout=input_layout,
         rng=fn_rng,
         max_batch_size=batch_size,
         **operator_args,
     )
+
+    ndd_dev = ndd_device(device)
 
     # Iterate over input epoch
     for inp in input_epoch:
@@ -551,22 +558,22 @@ def run_operator_test(
         # Run the dynamic operator, collect the output.
         if random:
             if num_inputs > 1:
-                ndd_inp = tuple_to_batch_multi_input(inp, device=device, layout=input_layout)
-                ndd_out = ndd_operator(*ndd_inp, rng=ndd_rng, **operator_args)
+                ndd_inp = tuple_to_batch_multi_input(inp, device=input_device, layout=input_layout)
+                ndd_out = ndd_operator(*ndd_inp, rng=ndd_rng, device=ndd_dev, **operator_args)
             else:
                 ndd_out = ndd_operator(
-                    ndd.as_batch(inp, layout=input_layout, device=device),
+                    ndd.as_batch(inp, layout=input_layout, device=input_device),
+                    device=ndd_dev,
                     rng=ndd_rng,
                     **operator_args,
                 )
         else:
             if num_inputs > 1:
-                ndd_inp = tuple_to_batch_multi_input(inp, device=device, layout=input_layout)
-                ndd_out = ndd_operator(*ndd_inp, **operator_args)
+                ndd_inp = tuple_to_batch_multi_input(inp, device=input_device, layout=input_layout)
             else:
-                ndd_out = ndd_operator(
-                    ndd.as_batch(inp, layout=input_layout, device=device), **operator_args
-                )
+                ndd_inp = ndd.as_batch(inp, layout=input_layout, device=input_device)
+
+            ndd_out = ndd_operator(ndd_inp, device=ndd_dev, **operator_args)
 
         # Compare the outputs.
         compare_fn(pipe_out, ndd_out)

@@ -25,12 +25,12 @@ from ndd_vs_fn_test_utils import (
     run_operator_test,
     feed_input,
     use_fn_api,
-    get_fn_operator,
-    get_ndd_operator,
     use_ndd_api,
+    ndd_device,
     flatten_operator_configs,
     generate_decoders_data,
     compare,
+    sign_off
 )
 
 
@@ -47,28 +47,26 @@ def test_audio_decoders(device):
         input_epoch=data,
         fn_operator=use_fn_api(operation),
         ndd_operator=use_ndd_api(operation),
-        device=device,
+        device=device
     )
 
 
 IMAGE_DECODER_OPERATORS = [
-    OperatorTestConfig("decoders.image", {"hw_decoder_load": 0.0}, devices=["cpu", "mixed"]),
-    OperatorTestConfig("decoders.image_crop", {"hw_decoder_load": 0.0}, devices=["cpu", "mixed"]),
-    OperatorTestConfig("peek_image_shape", devices=["cpu"]),
-    OperatorTestConfig(
-        "experimental.decoders.image", {"hw_decoder_load": 0.0}, devices=["cpu", "mixed"]
-    ),
-    OperatorTestConfig(
-        "experimental.decoders.image_crop", {"hw_decoder_load": 0.0}, devices=["cpu", "mixed"]
-    ),
-    OperatorTestConfig("peek_image_shape", devices=["cpu"]),
+    OperatorTestConfig("decoders.image", {"hw_decoder_load": 0.0}),
+    OperatorTestConfig("decoders.image_crop", {"hw_decoder_load": 0.0}),
+    OperatorTestConfig("peek_image_shape"),
+    OperatorTestConfig("experimental.decoders.image", {"hw_decoder_load": 0.0}),
+    OperatorTestConfig("experimental.decoders.image_crop", {"hw_decoder_load": 0.0}),
+    OperatorTestConfig("decoders.image_random_crop", {"hw_decoder_load": 0.0}),
+    OperatorTestConfig("experimental.decoders.image_random_crop", {"hw_decoder_load": 0.0}),
+    OperatorTestConfig("peek_image_shape"),
 ]
 
 image_decoders_test_configuration = flatten_operator_configs(IMAGE_DECODER_OPERATORS)
 
 
 @params(*image_decoders_test_configuration)
-def test_image_decoders(device, fn_operator, ndd_operator, operator_args):
+def test_image_decoders(device, operator_name, fn_operator, ndd_operator, operator_args):
     image_decoder_extensions = ".jpg"
     exclude_subdirs = ["jpeg_lossless"]
     data_path = os.path.join(test_utils.get_dali_extra_path(), "db", "single")
@@ -76,24 +74,11 @@ def test_image_decoders(device, fn_operator, ndd_operator, operator_args):
         data_path, image_decoder_extensions, exclude_subdirs=exclude_subdirs
     )
 
-    @pipeline_def(
-        batch_size=47, device_id=0, num_threads=ndd.get_num_threads(), prefetch_queue_depth=1
-    )
-    def image_decoder_pipe():
-        encoded = fn.external_source(name="INPUT0", device="cpu")
-        decoded = fn_operator(encoded, device=device, **operator_args)
-        return decoded
-
-    pipe = image_decoder_pipe()
-    pipe.build()
-
-    for inp in data:
-        feed_input(pipe, inp)
-        pipe_out = pipe.run()
-        ndd_out = ndd_operator(ndd.as_batch(inp, device="cpu"), device=device, **operator_args)
-        assert compare(pipe_out, ndd_out)
+    print(device)
+    run_operator_test(data, fn_operator, ndd_operator, device, operator_args)
 
 
+@sign_off("decoders.video")
 @params("cpu")
 def test_video_decoder(device):
     batch_size = 1
@@ -110,38 +95,35 @@ def test_video_decoder(device):
     )
 
 
-# BUG
-# @cartesian_params(
-#     ["cpu", "mixed"],
-#     ["decoders.image_slice", "experimental.decoders.image_slice"],
-# )
-# def test_image_slice_decoder(device, operator):
-#     fn_operator = get_fn_operator(operator)
-#     ndd_operator = get_ndd_operator(operator)
-#     image_decoder_extensions = ".jpg"
-#     exclude_subdirs = ["jpeg_lossless"]
-#     data_path = os.path.join(test_utils.get_dali_extra_path(), "db", "single")
-#     data = generate_decoders_data(
-#         data_path, image_decoder_extensions, exclude_subdirs=exclude_subdirs
-#     )
+@params(*flatten_operator_configs([
+    OperatorTestConfig("decoders.image_slice"),
+    OperatorTestConfig("experimental.decoders.image_slice")
+]))
+def test_image_slice_decoder(device, operator_name, fn_operator, ndd_operator, operator_args):
+    image_decoder_extensions = ".jpg"
+    exclude_subdirs = ["jpeg_lossless"]
+    data_path = os.path.join(test_utils.get_dali_extra_path(), "db", "single")
+    data = generate_decoders_data(
+        data_path, image_decoder_extensions, exclude_subdirs=exclude_subdirs
+    )
 
-#     @pipeline_def(
-#         batch_size=47, device_id=0, num_threads=ndd.get_num_threads(), prefetch_queue_depth=1
-#     )
-#     def image_slice_decoder_pipe():
-#         encoded = fn.external_source(name="INPUT0", device="cpu")
-#         decoded = fn_operator(encoded, 0.1, 0.4, axes=0, hw_decoder_load=0.0, device=device)
-#         return decoded
+    @pipeline_def(
+        batch_size=47, device_id=0, num_threads=ndd.get_num_threads(), prefetch_queue_depth=1
+    )
+    def image_slice_decoder_pipe():
+        encoded = fn.external_source(name="INPUT0", device="cpu")
+        decoded = fn_operator(encoded, 0.1, 0.4, axes=[0], hw_decoder_load=0.0, device=device)
+        return decoded
 
-#     pipe = image_slice_decoder_pipe()
-#     pipe.build()
-#     for inp in data:
-#         feed_input(pipe, inp)
-#         pipe_out = pipe.run()
-#         ndd_out = ndd_operator(
-#             ndd.as_batch(inp, device="cpu"), 0.1, 0.4, axes=0, hw_decoder_load=0.0, device=device
-#         )
-#         assert compare(pipe_out, ndd_out)
+    pipe = image_slice_decoder_pipe()
+    pipe.build()
+    for inp in data:
+        feed_input(pipe, inp)
+        pipe_out = pipe.run()
+        ndd_out = ndd_operator(
+            ndd.as_batch(inp, device="cpu"), 0.1, 0.4, axes=[0], hw_decoder_load=0.0, device=ndd_device(device)
+        )
+        compare(pipe_out, ndd_out)
 
 
 # @params("cpu")
@@ -173,17 +155,4 @@ def test_video_decoder(device):
 #     for _ in range(N_ITERATIONS):
 #         pipe_out = pipe.run()
 #         ndd_out = ndd.experimental.inputs.video(data, device=device, sequence_length=3)
-#         assert compare(pipe_out, ndd_out)
-
-
-tested_operators = [
-    "decoders.image",
-    "decoders.image_crop",
-    "peek_image_shape",
-    "decoders.audio",
-    "decoders.video",
-    "experimental.decoders.image",
-    "experimental.decoders.image_crop",
-    "experimental.decoders.image_slice",
-    "experimental.peek_image_shape",
-]
+#         compare(pipe_out, ndd_out)
