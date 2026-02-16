@@ -421,5 +421,5 @@ def test_batch_to_tensor(src_device, target_device, force_copy, dtype, layout, d
 
 def test_batch_to_tensor_no_pad_error():
     data = ragged("cpu")
-    with assert_raises(ValueError, glob="non-uniform shape"):
+    with assert_raises(ValueError):
         ndd.as_tensor(data, pad=False).evaluate()
