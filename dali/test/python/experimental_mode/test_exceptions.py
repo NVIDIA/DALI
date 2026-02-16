@@ -67,6 +67,13 @@ def test_bad_crop_size():
     ndd.crop(img, crop=(200, 200)).evaluate()
 
 
+@exception_tester
+def test_ragged_batch_to_tensor():
+    batch = ndd.batch([[1, 2], [3]])
+    tensor = ndd.as_tensor(batch)
+    tensor.evaluate()
+
+
 @raises(ValueError)
 def test_with_external():
     img = np.zeros((100, 100))

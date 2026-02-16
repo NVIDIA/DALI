@@ -21,7 +21,7 @@ from ._async import _Future
 from ._device import Device
 from ._eval_context import EvalContext as _EvalContext
 from ._eval_mode import EvalMode as _EvalMode
-from ._exceptions import CallStack, rethrow_exception
+from ._exceptions import capture_stack, rethrow_exception
 from ._type import DType
 from nvidia.dali import backend as _b
 
@@ -50,7 +50,7 @@ class Invocation:
         is_batch: bool = False,
         batch_size: Optional[int] = None,
         previous_invocation: Optional["Invocation"] = None,
-        call_stack: CallStack | None = None,
+        caller_depth: int = 4,
     ):
         """
         Parameters
@@ -73,9 +73,8 @@ class Invocation:
             the batch size.
         previous_invocation : Invocation
             The previous invocation of the same operator. Used by stateful operators.
-        call_stack : CallStack
-            Call stack where the invocation was created.
-            Used for error reporting in lazy and asynchronous execution.
+        caller_depth : int
+            Depth of the initial caller. Used to capture the call stacks for error reporting.
         """
         self._operator = operator_instance
         self._call_id = call_id
@@ -87,11 +86,15 @@ class Invocation:
         self._num_outputs: int | None = None
         self._output_devices: list[Device] | None = None
         self._previous_invocation = previous_invocation
-        self._call_stack = call_stack
         self._eval_context = _EvalContext.current()._snapshot()
         self._eval_mode: _EvalMode | None = None
         self._future: Optional[_Future] = None
         self._run_lock = threading.Lock()
+        self._call_stack = (
+            capture_stack(caller_depth + 1)
+            if _EvalMode.current().value <= _EvalMode.eager.value
+            else None
+        )
 
     def __del__(self):
         self._return_op_to_cache()

@@ -109,7 +109,7 @@ def test_batch_to_torch(device: str):
 @params(("cpu",), ("gpu",))
 def test_ragged_batch_to_torch_error(device: str):
     batch = ndd.batch([[1, 2, 3], [4, 5], [6]])
-    with assert_raises(ValueError, glob="non-uniform"):
+    with assert_raises(ValueError, glob="non-uniform"), ndd.EvalMode.sync_cpu:
         batch.torch()
 
 
