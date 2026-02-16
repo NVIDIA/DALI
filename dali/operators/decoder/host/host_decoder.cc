@@ -41,7 +41,7 @@ void HostDecoder::RunImpl(SampleWorkspace &ws) {
     if (max_image_sz_ > 0 && static_cast<size_t>(volume(shape)) > max_image_sz_) {
       DALI_FAIL(make_string("Total image volume (height x width x channels x "
                             "bytes_per_sample) exceeds the maximum configured value: ",
-                            volume(shape), " > DALI_MAX_IMAGE_SIZE(", max_image_sz_,
+                            volume(shape), " > DALI_MAX_IMAGE_SIZE (", max_image_sz_,
                             "). Use DALI_MAX_IMAGE_SIZE env variable to control this ",
                             "maximum value."));
     }
