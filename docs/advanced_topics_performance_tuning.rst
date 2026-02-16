@@ -193,7 +193,7 @@ Image Decoder Size Limit
 
 The image decoders (both CPU :meth:`nvidia.dali.fn.decoders.image` with ``mixed``/``cpu`` backend
 and the nvJPEG-based GPU/hybrid decoder) can reject decoding images whose decoded size exceeds a
-configurable maximum. The limit applies to the the uncompressed pixel buffer
+configurable maximum. The limit applies to the uncompressed pixel buffer
 after decoding, without considering the ROI. This helps avoid excessive memory use or long
 decode times from very large or malformed images (e.g. corrupted headers reporting huge dimensions).
 

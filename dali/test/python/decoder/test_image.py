@@ -537,7 +537,7 @@ def test_image_decoder_dali_max_image_size_rejected(device="cpu"):
 
         ret, out, err = _run_decoder_with_max_image_size_limit(jpeg_path, max_image_size, device)
         assert ret != 0, f"Expected pipeline to fail. stdout: {out!r} stderr: {err!r}"
-        assert f"DALI_MAX_IMAGE_SIZE({max_image_size})" in (
+        assert f"DALI_MAX_IMAGE_SIZE ({max_image_size})" in (
             out + err
         ), f"Expected DALI_MAX_IMAGE_SIZE in output: {out!r} {err!r}"
 
