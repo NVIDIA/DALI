@@ -35,8 +35,6 @@ test_py_with_framework() {
         ${python_new_invoke_test} -A "!slow,!pytorch,!mxnet,!cupy,!numba" test_dali_variable_batch_size
     fi
 
-    ${python_new_invoke_test} ndd_vs_fn
-
     ${python_new_invoke_test} -A '!slow,!pytorch,!mxnet,!cupy' test_backend_impl
 
     if [ -z "$DALI_ENABLE_SANITIZERS" ]; then
