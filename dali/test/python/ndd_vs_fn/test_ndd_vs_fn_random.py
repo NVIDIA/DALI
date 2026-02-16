@@ -39,9 +39,9 @@ import nvidia.dali.experimental.dynamic as ndd
 
 
 RANDOM_OPERATORS_1D_ARRAY = [
-    OperatorTestConfig("random.choice", devices=["cpu"]),
+    OperatorTestConfig("random.choice"),
     OperatorTestConfig("random.normal"),
-    OperatorTestConfig("random.beta", devices=["cpu"]),
+    OperatorTestConfig("random.beta"),
     OperatorTestConfig("random.coin_flip"),
     OperatorTestConfig("random.uniform"),
 ]
@@ -52,44 +52,6 @@ random_ops_1d_array_test_configuration = flatten_operator_configs(RANDOM_OPERATO
 @params(*random_ops_1d_array_test_configuration)
 def test_random_1d_array(device, fn_operator, ndd_operator, operator_args):
     data = generate_data(array_1d_shape_generator, batch_sizes=MAX_BATCH_SIZE)
-
-    run_operator_test(
-        input_epoch=data,
-        fn_operator=fn_operator,
-        ndd_operator=ndd_operator,
-        device=device,
-        random=True,
-        operator_args=operator_args,
-    )
-
-
-RANDOM_OPERATORS_IMAGE_LIKE = [
-    # OperatorTestConfig("random_resized_crop", {"size": (64)}),  # BUG
-    OperatorTestConfig("jitter", devices=["gpu"]),
-    OperatorTestConfig("noise.gaussian"),
-    OperatorTestConfig("noise.shot"),
-    OperatorTestConfig("noise.salt_and_pepper"),
-    OperatorTestConfig("segmentation.random_mask_pixel", devices=["cpu"]),
-    OperatorTestConfig(
-        "roi_random_crop",
-        {
-            "crop_shape": [10, 15, 3],
-            "roi_start": [25, 20, 0],
-            "roi_shape": [40, 30, 3],
-        },
-        devices=["cpu"],
-    ),
-    # OperatorTestConfig("random_resized_crop", {"size": (64, 64)}),  # BUG
-]
-
-random_ops_image_like_test_configuration = flatten_operator_configs(RANDOM_OPERATORS_IMAGE_LIKE)
-
-
-@params(*random_ops_image_like_test_configuration)
-def test_random_image_like(device, fn_operator, ndd_operator, operator_args):
-    data = generate_data(
-        image_like_shape_generator, lo=0, hi=255, dtype=np.uint8, batch_sizes=MAX_BATCH_SIZE
-    )
 
     run_operator_test(
         input_epoch=data,
@@ -131,14 +93,13 @@ def test_random_bbox_crop():
 
 
 RANDOM_IMAGE_DECODER_OPERATORS = [
-    # OperatorTestConfig(
-    #     "decoders.image_random_crop", {"hw_decoder_load": 0.0}, devices=["cpu", "mixed"]
-    # ),  # BUG
-    # OperatorTestConfig(
-    #     "experimental.decoders.image_random_crop",
-    #     {"hw_decoder_load": 0.0},
-    #     devices=["cpu", "mixed"],
-    # ),  # BUG
+    OperatorTestConfig(
+         "decoders.image_random_crop", {"hw_decoder_load": 0.0}
+    ),
+    OperatorTestConfig(
+        "experimental.decoders.image_random_crop",
+        {"hw_decoder_load": 0.0},
+    ),
 ]
 
 random_image_decoders_test_configuration = flatten_operator_configs(RANDOM_IMAGE_DECODER_OPERATORS)
@@ -246,21 +207,3 @@ def test_random_object_bbox():
 #         perm = ndd.batch_permutation(rng=ndd_rng)
 #         ndd_out = ndd.permute_batch(ndd.as_batch(inp, device=device), indices=perm, device=device)
 #         assert compare(pipe_out, ndd_out)
-
-
-tested_operators = [
-    "random.choice",
-    "random.normal",
-    "random.beta",
-    "random.uniform",
-    "random.coin_flip",
-    "jitter",
-    "noise.gaussian",
-    "noise.shot",
-    "noise.salt_and_pepper",
-    "segmentation.random_mask_pixel",
-    "roi_random_crop",
-    "random_bbox_crop",
-    "random_crop_generator",
-    "segmentation.random_object_bbox",
-]

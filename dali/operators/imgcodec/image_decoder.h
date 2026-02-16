@@ -1,4 +1,4 @@
-// Copyright (c) 2022-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -649,6 +649,8 @@ class ImageDecoder : public StatelessOperator<Backend> {
     output.SetLayout("HWC");
     output.SetSize(nsamples);
 
+    AccessOrder order = std::is_same_v<Backend, CPUBackend> ? AccessOrder::host() : ws.stream();
+
     tp_ = GetThreadPool(ws);
     assert(tp_ != nullptr);
     auto auto_cleanup = AtScopeExit([&] {
@@ -741,7 +743,7 @@ class ImageDecoder : public StatelessOperator<Backend> {
         }
         out_shape.set_tensor_shape(i, st->out_shape);
         PrepareOutput(*state_[i], rois_[i], ws);
-        assert(!ws.has_stream() || ws.stream() == st->image_info.cuda_stream);
+        assert(!order.is_device() || order.stream() == st->image_info.cuda_stream);
       }
     };
 
@@ -811,14 +813,14 @@ class ImageDecoder : public StatelessOperator<Backend> {
 
     // Ensure allocated memory is usable by the decoder's internal streams,
     // as we are intentionally skipping pre-sync to avoid slowing down the general case.
-    if (ws.has_stream() && any_need_processing) {
+    if (order.is_device() && any_need_processing) {
       DomainTimeRange tr("alloc sync", DomainTimeRange::kOrange);
-      CUDA_CALL(cudaStreamSynchronize(ws.stream()));
+      CUDA_CALL(cudaStreamSynchronize(order.stream()));
     }
 
     if (use_cache && nsamples_cache > 0) {
       DomainTimeRange tr("LoadDeferred", DomainTimeRange::kOrange);
-      cache_->LoadDeferred(ws.stream());
+      cache_->LoadDeferred(order.stream());
     }
 
     if (nsamples_decode > 0) {
@@ -867,7 +869,7 @@ class ImageDecoder : public StatelessOperator<Backend> {
                   auto &st = *st_ptr;
                   if constexpr (std::is_same<MixedBackend, Backend>::value) {
                     ConvertGPU(out, st.req_layout, st.req_img_type, st.decode_out_gpu,
-                               st.req_layout, st.orig_img_type, ws.stream(), ROI{},
+                               st.req_layout, st.orig_img_type, order.stream(), ROI{},
                                nvimgcodecOrientation_t{}, st.dyn_range_multiplier);
                     st.device_buf.reset();
                   } else {
@@ -899,7 +901,7 @@ class ImageDecoder : public StatelessOperator<Backend> {
         auto src_info = input.GetMeta(orig_idx).GetSourceInfo();
         auto *out_data = output.template mutable_tensor<uint8_t>(orig_idx);
         const auto &out_shape = output.tensor_shape(orig_idx);
-        cache_->CacheStore(src_info, out_data, out_shape, ws.stream());
+        cache_->CacheStore(src_info, out_data, out_shape, order.stream());
       }
     }
   }

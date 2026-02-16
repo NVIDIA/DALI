@@ -24,11 +24,11 @@ from ndd_vs_fn_test_utils import (
 
 
 ARRAY_1D_OPERATORS = [
-    OperatorTestConfig("power_spectrum", devices=["cpu"]),
+    OperatorTestConfig("power_spectrum"),
     OperatorTestConfig("preemphasis_filter"),
     OperatorTestConfig("spectrogram", {"nfft": 60, "window_length": 50, "window_step": 25}),
     OperatorTestConfig("to_decibels"),
-    OperatorTestConfig("audio_resample", {"scale": 1.2}, devices=["cpu"]),
+    OperatorTestConfig("audio_resample", {"scale": 1.2}),
     OperatorTestConfig("one_hot", {"on_value": 0.5}),
 ]
 
@@ -36,7 +36,7 @@ ops_1d_float_array_test_configuration = flatten_operator_configs(ARRAY_1D_OPERAT
 
 
 @params(*ops_1d_float_array_test_configuration)
-def test_operators_with_array_1d_input(device, fn_operator, ndd_operator, operator_args):
+def test_operators_with_array_1d_input(device, operator_name, fn_operator, ndd_operator, operator_args):
     data = generate_data(array_1d_shape_generator)
     run_operator_test(
         input_epoch=data,
@@ -45,13 +45,3 @@ def test_operators_with_array_1d_input(device, fn_operator, ndd_operator, operat
         device=device,
         operator_args=operator_args,
     )
-
-
-tested_operators = [
-    "power_spectrum",
-    "preemphasis_filter",
-    "spectrogram",
-    "to_decibels",
-    "audio_resample",
-    "one_hot",
-]
