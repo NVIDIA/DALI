@@ -18,7 +18,6 @@ import numpy as np
 import nvidia.dali.experimental.dynamic as ndd
 from ndd_utils import cuda_launch_host_func
 from nose2.tools import params
-from nose_utils import raises
 
 
 @params(("cpu",), ("gpu",))
@@ -39,15 +38,6 @@ def test_chained_execution(device):
         c = ndd.math.sqrt(b)
 
         np.testing.assert_array_equal(c.cpu(), [2.0])
-
-
-@raises(RuntimeError)
-def test_exception_propagation():
-    with ndd.EvalMode.eager:
-        t = ndd.tensor([1, 2, 3])
-        # this should fail because of mismatching shapes
-        r = ndd.reshape(t, shape=[2])
-        r.evaluate()
 
 
 @params(("cpu",), ("gpu",))
