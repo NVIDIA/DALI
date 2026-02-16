@@ -30,8 +30,11 @@ class HostDecoder : public StatelessOperator<CPUBackend> {
   explicit inline HostDecoder(const OpSpec &spec) :
       StatelessOperator<CPUBackend>(spec),
       output_type_(spec.GetArgument<DALIImageType>("output_type")),
-      use_fast_idct_(spec.GetArgument<bool>("use_fast_idct"))
-  {}
+      use_fast_idct_(spec.GetArgument<bool>("use_fast_idct")) {
+    static const char* max_image_size_str = std::getenv("DALI_MAX_IMAGE_SIZE");
+    static const size_t max_image_sz = max_image_size_str ? atol(max_image_size_str) : 0;
+    max_image_sz_ = max_image_sz;
+  }
 
   inline ~HostDecoder() override = default;
   DISABLE_COPY_MOVE_ASSIGN(HostDecoder);
@@ -55,6 +58,7 @@ class HostDecoder : public StatelessOperator<CPUBackend> {
 
   DALIImageType output_type_;
   bool use_fast_idct_ = false;
+  size_t max_image_sz_ = 0;
 };
 
 }  // namespace dali

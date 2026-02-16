@@ -20,8 +20,11 @@ import nvidia.dali.fn as fn
 import nvidia.dali.types as types
 import os
 import random
+import subprocess
+import sys
 import tempfile
 from nvidia.dali import pipeline_def
+from PIL import Image
 
 from nose2.tools import params
 from nose_utils import assert_raises, SkipTest
@@ -492,6 +495,65 @@ def test_pinned_input_hw_decoder():
 
     p = pipe()
     p.run()
+
+
+def _run_decoder_with_max_image_size_limit(files, max_image_size, device):
+    code = r"""
+import os
+import sys
+# Set env before importing DALI so decoder ctor reads it
+os.environ["DALI_MAX_IMAGE_SIZE"] = sys.argv[2]
+import nvidia.dali.fn as fn
+import nvidia.dali.types as types
+from nvidia.dali import pipeline_def
+
+@pipeline_def(batch_size=1, device_id=0, num_threads=1)
+def pipe():
+    encoded, _ = fn.readers.file(files=[sys.argv[1]])
+    decoded = fn.decoders.image(encoded, device=sys.argv[3], output_type=types.RGB)
+    return decoded
+
+p = pipe()
+p.run()
+"""
+    result = subprocess.run(
+        [sys.executable, "-c", code, files, str(max_image_size), device],
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    return result.returncode, result.stdout, result.stderr
+
+
+@params("cpu", "mixed")
+def test_image_decoder_dali_max_image_size_rejected(device="cpu"):
+    height, width = 500, 500  # 250_000 pixels, volume (H*W*C) = 750_000
+    max_image_size = 100000  # smaller than 750_000 so decode is rejected
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        jpeg_path = os.path.join(tmpdir, "large.jpg")
+        img = Image.fromarray(np.random.randint(0, 255, (height, width, 3), dtype=np.uint8))
+        img.save(jpeg_path, format="JPEG")
+
+        ret, out, err = _run_decoder_with_max_image_size_limit(jpeg_path, max_image_size, device)
+        assert ret != 0, f"Expected pipeline to fail. stdout: {out!r} stderr: {err!r}"
+        assert f"DALI_MAX_IMAGE_SIZE ({max_image_size})" in (
+            out + err
+        ), f"Expected DALI_MAX_IMAGE_SIZE in output: {out!r} {err!r}"
+
+
+@params("cpu", "mixed")
+def test_image_decoder_dali_max_image_size_accept(device="cpu"):
+    height, width = 500, 500  # 250_000 pixels, volume (H*W*C) = 750_000
+    max_image_size = 7500010  # larger than 750_000 so decode is accepted
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        jpeg_path = os.path.join(tmpdir, "large.jpg")
+        img = Image.fromarray(np.random.randint(0, 255, (height, width, 3), dtype=np.uint8))
+        img.save(jpeg_path, format="JPEG")
+
+        ret, out, err = _run_decoder_with_max_image_size_limit(jpeg_path, max_image_size, device)
+        assert ret == 0, f"Expected pipeline to succeed. stdout: {out!r} stderr: {err!r}"
 
 
 def test_tiff_palette():
