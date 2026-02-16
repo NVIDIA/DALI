@@ -1,4 +1,4 @@
-// Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2025-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -353,9 +353,14 @@ void BBoxRotate<CPUBackend>::RunImpl(Workspace& ws) {
         if (dali::volume(shape_tensor.shape()) < shape_max_index_ + 1) {
           DALI_FAIL("`input_shape` ndim is smaller than the `shape_layout` ndim");
         }
-        const auto shape_tensor_data = shape_tensor.data<std::int64_t>();
-        image_wh.x = shape_tensor_data[shape_wh_index_.first];
-        image_wh.y = shape_tensor_data[shape_wh_index_.second];
+        TYPE_SWITCH(shape_tensor.type(), type2id, T, (DALI_INTEGRAL_TYPES), (
+          const auto shape_tensor_data = shape_tensor.data<T>();
+          image_wh.x = shape_tensor_data[shape_wh_index_.first];
+          image_wh.y = shape_tensor_data[shape_wh_index_.second];
+        ), (DALI_FAIL(make_string(  // NOLINT
+            "Unsupported type for `input_shape`:", shape_tensor.type(),
+            ". Expected an integral type.")))
+        );  // NOLINT
       } else {
         auto shape_tensor = this->spec_.GetRepeatedArgument<int>("input_shape");
         if (static_cast<int>(shape_tensor.size()) < shape_max_index_ + 1) {
