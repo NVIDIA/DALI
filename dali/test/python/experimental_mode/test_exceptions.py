@@ -39,10 +39,10 @@ def exception_tester(function: Callable[[], None]):
             with eval_mode:
                 try:
                     function()
-                except ndd._exceptions.DisplacedEvaluationError as exception:
+                except type(expected_exception) as exception:
                     cause = exception.__cause__
-                    assert type(cause) is type(expected_exception)
                     assert str(cause) == str(expected_exception)
+
                 else:
                     assert False
 

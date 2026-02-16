@@ -20,29 +20,6 @@ from typing import NoReturn, TypeAlias, TypeVar
 from ._eval_mode import EvalMode
 
 
-class DisplacedEvaluationError(Exception):
-    """Base class for exceptions related to EvalMode.deferred and EvalMode.eager"""
-
-    def __init__(self, base: Exception, message: str):
-        super().__init__(message)
-        self.__traceback__ = base.__traceback__
-
-    def __init_subclass__(cls, **kwargs):
-        super().__init_subclass__(**kwargs)
-        # strip internal names from the qualname
-        cls.__module__, *_ = cls.__module__.rsplit("._")
-
-
-class DeferredEvaluationError(DisplacedEvaluationError):
-    def __init__(self, base: Exception):
-        super().__init__(base, "An error happened during deferred evaluation")
-
-
-class AsynchronousExecutionError(DisplacedEvaluationError):
-    def __init__(self, base: Exception):
-        super().__init__(base, "An error happened during asynchronous execution")
-
-
 T = TypeVar("T", bound=BaseException)
 CallStack: TypeAlias = Sequence[tuple[types.CodeType, int]]
 
@@ -72,13 +49,15 @@ def _make_traceback(stack: CallStack) -> types.TracebackType | None:
 
 def rethrow_exception(old_exception: T, stack: CallStack, eval_mode: EvalMode) -> NoReturn:
     """
-    Create a new exception with a synthetic traceback and change the type of the initial one.
+    Create a new exception with a synthetic traceback and change the message of the initial one.
     Raise the old one with the changed type from the newly created one.
     """
     if eval_mode is EvalMode.eager:
-        exception = AsynchronousExecutionError(old_exception)
+        message = "An error happened during asynchronous execution"
     else:  # eval_mode is EvalMode.deferred
-        exception = DeferredEvaluationError(old_exception)
+        message = "An error happened during deferred evaluation"
+
+    exception = type(old_exception)(message).with_traceback(old_exception.__traceback__)
     traceback = _make_traceback(stack)
     source = old_exception.with_traceback(traceback)
 
