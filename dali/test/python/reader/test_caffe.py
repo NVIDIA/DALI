@@ -19,7 +19,6 @@ import nvidia.dali.types as types
 from numpy.testing import assert_array_equal
 import os
 import tempfile
-import shutil
 
 from test_utils import compare_pipelines
 from test_utils import get_dali_extra_path
@@ -206,82 +205,69 @@ def _create_c2_lmdb_with_bytes(serialized_tensor_protos):
         import lmdb
     except ImportError:
         raise SkipTest("lmdb package required for Caffe2 parser negative tests")
-    tmpdir = tempfile.mkdtemp(prefix="dali_c2lmdb_")
-    try:
-        env = lmdb.open(tmpdir, map_size=1024 * 1024, subdir=True)
-        with env.begin(write=True) as txn:
-            txn.put(b"00000000", serialized_tensor_protos)
-        env.close()
-        return tmpdir
-    except Exception:
-        shutil.rmtree(tmpdir, ignore_errors=True)
-        raise
+    tmp_dir = tempfile.TemporaryDirectory(prefix="dali_c2lmdb_")
+    env = lmdb.open(tmp_dir.name, map_size=1024 * 1024, subdir=True)
+    with env.begin(write=True) as txn:
+        txn.put(b"00000000", serialized_tensor_protos)
+    env.close()
+    return tmp_dir
 
 
 def test_caffe2_parser_label_index_out_of_bounds_sparse():
     data = _tensor_protos_bytes_label_indices_out_of_bounds()
-    path = _create_c2_lmdb_with_bytes(data)
-    try:
+    tmp_dir = _create_c2_lmdb_with_bytes(data)
 
-        @pipeline_def(batch_size=1, device_id=0, num_threads=1)
-        def pipe():
-            data, labels = fn.readers.caffe2(
-                path=path,
-                image_available=False,
-                label_type=1,  # MULTI_LABEL_SPARSE
-                num_labels=10,
-            )
-            return data, labels
+    @pipeline_def(batch_size=1, device_id=0, num_threads=1)
+    def pipe():
+        data, labels = fn.readers.caffe2(
+            path=tmp_dir.name,
+            image_available=False,
+            label_type=1,  # MULTI_LABEL_SPARSE
+            num_labels=10,
+        )
+        return data, labels
 
-        p = pipe()
-        p.build()
-        with assert_raises(RuntimeError, glob="Label index out of bounds*num_labels*"):
-            p.run()
-    finally:
-        shutil.rmtree(path, ignore_errors=True)
+    p = pipe()
+    p.build()
+    with assert_raises(RuntimeError, glob="Label index out of bounds*num_labels*"):
+        p.run()
 
 
 def test_caffe2_parser_label_index_out_of_bounds_weighted_sparse():
     data = _tensor_protos_bytes_label_weighted_indices_out_of_bounds()
-    path = _create_c2_lmdb_with_bytes(data)
-    try:
+    tmp_dir = _create_c2_lmdb_with_bytes(data)
 
-        @pipeline_def(batch_size=1, device_id=0, num_threads=1)
-        def pipe():
-            data, labels = fn.readers.caffe2(
-                path=path,
-                image_available=False,
-                label_type=3,  # MULTI_LABEL_WEIGHTED_SPARSE
-                num_labels=10,
-            )
-            return data, labels
+    @pipeline_def(batch_size=1, device_id=0, num_threads=1)
+    def pipe():
+        data, labels = fn.readers.caffe2(
+            path=tmp_dir.name,
+            image_available=False,
+            label_type=3,  # MULTI_LABEL_WEIGHTED_SPARSE
+            num_labels=10,
+        )
+        return data, labels
 
-        p = pipe()
-        p.build()
-        with assert_raises(RuntimeError, glob="Label index out of bounds*num_labels*"):
-            p.run()
-    finally:
-        shutil.rmtree(path, ignore_errors=True)
+    p = pipe()
+    p.build()
+    with assert_raises(RuntimeError, glob="Label index out of bounds*num_labels*"):
+        p.run()
 
 
 def test_caffe2_parser_image_byte_data_size_mismatch():
     data = _tensor_protos_bytes_image_byte_data_size_mismatch()
-    path = _create_c2_lmdb_with_bytes(data)
-    try:
+    tmp_dir = _create_c2_lmdb_with_bytes(data)
 
-        @pipeline_def(batch_size=1, device_id=0, num_threads=1)
-        def pipe():
-            data, labels = fn.readers.caffe2(
-                path=path,
-                image_available=True,
-                label_type=0,  # SINGLE_LABEL
-                num_labels=1,
-            )
-            return data, labels
+    @pipeline_def(batch_size=1, device_id=0, num_threads=1)
+    def pipe():
+        data, labels = fn.readers.caffe2(
+            path=tmp_dir.name,
+            image_available=True,
+            label_type=0,  # SINGLE_LABEL
+            num_labels=1,
+        )
+        return data, labels
 
-        p = pipe()
-        p.build()
-        with assert_raises(RuntimeError, glob="Image data size mismatch*"):
-            p.run()
-    finally:
-        shutil.rmtree(path, ignore_errors=True)
+    p = pipe()
+    p.build()
+    with assert_raises(RuntimeError, glob="Image data size mismatch*"):
+        p.run()
