@@ -21,11 +21,7 @@ from nose2.tools import params
 from nvidia.dali.pipeline import pipeline_def
 import nvidia.dali.tfrecord as tfrec
 import test_utils
-from ndd_vs_fn_test_utils import (
-    MAX_BATCH_SIZE,
-    N_ITERATIONS,
-    compare,
-)
+from ndd_vs_fn_test_utils import MAX_BATCH_SIZE, N_ITERATIONS, compare, sign_off
 from webdataset_base import generate_temp_index_file as generate_temp_wds_index
 
 
@@ -37,6 +33,9 @@ def run_reader_test(fn_reader, ndd_reader, device, batch_size=MAX_BATCH_SIZE, re
     for batch in ndd_reader.next_epoch(batch_size=batch_size):
         pipe_out = pipe_reader.run()
         compare(pipe_out, batch)
+
+    name = ndd_reader._op_path
+    assert name in sign_off.tested_ops, f"Operator {name} tested but not registered!"
 
 
 def create_reader_pipeline(fn_reader, device, batch_size=MAX_BATCH_SIZE, reader_args={}):
@@ -61,7 +60,7 @@ def create_reader_ndd(ndd_reader, device, reader_args={}):
 
 data_root = test_utils.get_dali_extra_path()
 files = (
-    ["/data_disk/DALI_extra/db/single/jpeg/134/baukran-3703469_1280.jpg"]
+    [os.path.join(data_root, "db", "single", "jpeg", "134", "baukran-3703469_1280.jpg")]
     * MAX_BATCH_SIZE
     * N_ITERATIONS
 )
@@ -82,64 +81,74 @@ vid_files = ["sintel_trailer-720p_2.mp4"]
 vid_filenames = [os.path.join(vid_dir, vid_file) for vid_file in vid_files]
 
 
-READERS = [
-    (
-        fn.experimental.readers.video,
-        ndd.experimental.readers.Video,
-        "cpu",
-        {"filenames": video_files, "sequence_length": 3},
-    ),
-    (fn.readers.caffe, ndd.readers.Caffe, "cpu", {"path": caffe_dir}),
-    (fn.readers.caffe2, ndd.readers.Caffe2, "cpu", {"path": caffe2_dir}),
-    (
-        fn.readers.coco,
-        ndd.readers.COCO,
-        "cpu",
-        {"file_root": coco_dir, "annotations_file": coco_annotation},
-    ),
-    (fn.readers.file, ndd.readers.File, "cpu", {"files": files}),
-    (
-        fn.readers.mxnet,
-        ndd.readers.MXNet,
-        "cpu",
-        {
-            "path": os.path.join(recordio_dir, "train.rec"),
-            "index_path": os.path.join(recordio_dir, "train.idx"),
-        },
-    ),
-    (
-        fn.readers.video,
-        ndd.readers.Video,
-        "gpu",
-        {
-            "filenames": [
-                os.path.join(test_utils.get_dali_extra_path(), "db", "video", "cfr", "test_1.mp4")
-            ],
-            "sequence_length": 3,
-        },
-    ),
-    # (
-    #     fn.readers.video_resize,
-    #     ndd.readers.VideoResize,
-    #     "gpu",
-    #     {
-    #         "filenames": vid_filenames,
-    #         "sequence_length": 31,
-    #         "roi_start": (90, 0),
-    #         "roi_end": (630, 1280),
-    #         "file_list_include_preceding_frame": True,
-    #     },
-    # ),  # BUG
-]
+def _expand_reader_test_cases(test_cases):
+    ret = []
+    for case in test_cases:
+        fn_op, ndd_op, params = case
+        sign_off.register_test(ndd_op._op_path)
+        for dev in ndd_op._supported_backends:
+            ret.append((ndd_op._op_name, fn_op, ndd_op, dev, params))
+    return ret
+
+
+READERS = _expand_reader_test_cases(
+    [
+        (
+            fn.experimental.readers.video,
+            ndd.experimental.readers.Video,
+            {"filenames": video_files, "sequence_length": 3},
+        ),
+        (fn.readers.caffe, ndd.readers.Caffe, {"path": caffe_dir}),
+        (fn.readers.caffe2, ndd.readers.Caffe2, {"path": caffe2_dir}),
+        (
+            fn.readers.coco,
+            ndd.readers.COCO,
+            {"file_root": coco_dir, "annotations_file": coco_annotation},
+        ),
+        (fn.readers.file, ndd.readers.File, {"files": files}),
+        (
+            fn.readers.mxnet,
+            ndd.readers.MXNet,
+            {
+                "path": os.path.join(recordio_dir, "train.rec"),
+                "index_path": os.path.join(recordio_dir, "train.idx"),
+            },
+        ),
+        (
+            fn.readers.video,
+            ndd.readers.Video,
+            {
+                "filenames": [
+                    os.path.join(
+                        test_utils.get_dali_extra_path(), "db", "video", "cfr", "test_1.mp4"
+                    )
+                ],
+                "sequence_length": 3,
+            },
+        ),
+        # (
+        #     fn.readers.video_resize,
+        #     ndd.readers.VideoResize,
+        #     {
+        #         "filenames": vid_filenames,
+        #         "sequence_length": 31,
+        #         "roi_start": (90, 0),
+        #         "roi_end": (630, 1280),
+        #         "file_list_include_preceding_frame": True,
+        #     },
+        # ),  # BUG
+    ]
+)
 
 
 @params(*READERS)
-def test_readers(fn_reader, ndd_reader, device, reader_args):
+def test_readers(op_name, fn_reader, ndd_reader, device, reader_args):
     run_reader_test(
         fn_reader=fn_reader, ndd_reader=ndd_reader, device=device, reader_args=reader_args
     )
 
 
+@sign_off("readers.Webdataset")
 def test_webdataset_reader():
     webdataset = os.path.join(webdataset_dir, "MNIST", "devel-0.tar")
     webdataset_idx = generate_temp_wds_index(webdataset)
@@ -190,16 +199,3 @@ def test_tfrecord_reader():
     for batch in ndd_reader.next_epoch(batch_size=MAX_BATCH_SIZE):
         pipe_out = pipe.run()
         compare(pipe_out, batch["image/encoded"])
-
-
-tested_operators = [
-    "experimental.readers.video",
-    "readers.caffe",
-    "readers.caffe2",
-    "readers.coco",
-    "readers.file",
-    "readers.mxnet",
-    "readers.video",
-    "readers.tfrecord",
-    "readers.webdataset",
-]

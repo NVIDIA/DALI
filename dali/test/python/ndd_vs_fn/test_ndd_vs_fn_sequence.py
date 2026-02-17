@@ -44,7 +44,7 @@ SEQUENCE_OPERATORS = [
     OperatorTestConfig("gaussian_blur", {"window_size": 5}),
     OperatorTestConfig("normalize", {"batch": True}),
     OperatorTestConfig("resize", {"resize_x": 50, "resize_y": 50}),
-    OperatorTestConfig("per_frame", devices=["cpu"]),
+    OperatorTestConfig("per_frame"),
     OperatorTestConfig("reinterpret", {"rel_shape": [1, -1]}),
 ]
 
@@ -52,7 +52,7 @@ sequence_ops_test_configuration = flatten_operator_configs(SEQUENCE_OPERATORS)
 
 
 @params(*sequence_ops_test_configuration)
-def test_sequence_operators(device, fn_operator, ndd_operator, operator_args):
+def test_sequence_operators(device, operator_name, fn_operator, ndd_operator, operator_args):
     data = generate_data(
         custom_shape_generator(3, 7, 160, 200, 80, 100, 3, 3),
         lo=0,
@@ -67,18 +67,3 @@ def test_sequence_operators(device, fn_operator, ndd_operator, operator_args):
         operator_args=operator_args,
         input_layout="FHWC",
     )
-
-
-tested_operators = [
-    "cast",
-    "copy",
-    "crop",
-    "crop_mirror_normalize",
-    "erase",
-    "flip",
-    "gaussian_blur",
-    "normalize",
-    "per_frame",
-    "resize",
-    "reinterpret",
-]

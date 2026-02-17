@@ -17,82 +17,11 @@ from nvidia.dali.experimental.dynamic._ops import _all_ops
 
 
 excluded_operators = [
-    # "batch_permutation",  # Random op - not handled yet
-    # "bbox_rotate",  # requires floating point input (not image-like)
-    # "decoders.image_random_crop",  # TODO(michalz): Add decoder tests
-    # "decoders.image_slice",  # TODO(michalz): Add decoder tests
-    # "decoders.inflate",  # TODO(mszolucha): Add inflate test.
-    # "experimental.decoders.image_random_crop",  # TODO(michalz): Add decoder tests
-    # "experimental.readers.fits",  # No input data in DALI_extra
-    # "io.file.read",  # Special operator, needs handwritten test
-    # "permute_batch",  # Special operator, needs handwritten test
-    # "random_resized_crop",  # TODO(michalz): Add tests for operators with random state
-    # "readers.video_resize",  # TODO(michalz): Needs handwritten test
-    # "plugin.video.decoder",  # Still kind of experimental, skipping
-    # # Will be tested in following PRs:
-    # "audio_resample",
-    # "bb_flip",
-    # "bbox_paste",
-    # "box_encoder",
-    # "cast_like",
-    # "coord_flip",
-    # "debayer",
-    # "decoders.audio",
-    # "decoders.image",
-    # "decoders.image_crop",
-    # "decoders.numpy",
-    # "decoders.video",
-    # "element_extract",
-    # "experimental.decoders.image",
-    # "experimental.decoders.image_crop",
-    # "experimental.decoders.image_slice",
-    # "experimental.inputs.video",
-    # "experimental.peek_image_shape",
-    # "experimental.readers.video",
-    # "experimental.remap",
-    # "filter",
-    # "full",
-    # "full_like",
-    # "lookup_table",
-    # "mel_filter_bank",
-    # "mfcc",
-    # "noise.gaussian",
-    # "noise.salt_and_pepper",
-    # "noise.shot",
-    # "nonsilent_region",
-    # "one_hot",
-    # "optical_flow",
-    # "peek_image_shape",
-    # "power_spectrum",
-    # "preemphasis_filter",
-    # "random.beta",
-    # "random.choice",
-    # "random.coin_flip",
-    # "random.normal",
-    # "random.uniform",
-    # "random_bbox_crop",
-    # "random_crop_generator",
-    # "readers.caffe",
-    # "readers.caffe2",
-    # "readers.coco",
-    # "readers.file",
-    # "readers.mxnet",
-    # "readers.nemo_asr",
-    # "readers.numpy",
-    # "readers.tfrecord",
-    # "readers.video",
-    # "readers.webdataset",
-    # "reductions.std_dev",
-    # "reductions.variance",
-    # "roi_random_crop",
-    # "segmentation.random_mask_pixel",
-    # "segmentation.random_object_bbox",
-    # "segmentation.select_masks",
-    # "sequence_rearrange",
-    # "spectrogram",
-    # "squeeze",
-    # "to_decibels",
-    # "warp_affine",
+    "readers.VideoResize",  # TODO(michalz): add manual tests
+    "permute_batch",  # TODO(michalz): add tests
+    "readers.TFRecord",  # TODO(michalz): add tests
+    "experimental.readers.Fits",  # TODO(michalz): add tests
+    "roi_random_crop",  # TODO(michalz): add tests
 ]
 
 
@@ -101,9 +30,7 @@ def get_all_operators():
     for o in _all_ops:
         if o._schema.IsInternal() or o._schema.IsDocHidden() or o._schema_name.startswith("_"):
             continue  # skip internal/hidden operators
-        op_name = o._schema.ModulePath()
-        op_name.append(o._fn_name)
-        ret.append(".".join(op_name))
+        ret.append(o._op_path if o._is_reader else o._fn_path)
     return ret
 
 
@@ -114,7 +41,7 @@ def test_coverage():
     untested_operators = [op for op in eligible_operators if op not in covered_operators]
 
     if untested_operators:
-        print("\nOperators that are not covered:")
+        print("\n\nTest coverage gap detected!\n\nOperators that are not covered:")
         for op in sorted(untested_operators):
             print(f"  - {op}")
         print(f"\nTotal not covered: {len(untested_operators)} out of {len(eligible_operators)}")

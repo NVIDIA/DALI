@@ -22,6 +22,7 @@ import nvidia.dali.fn as fn
 import nvidia.dali.experimental.dynamic as ndd
 from nvidia.dali.pipeline import pipeline_def
 import test_utils
+from nose2.tools import params
 
 MAX_BATCH_SIZE = 31
 N_ITERATIONS = 3
@@ -536,9 +537,12 @@ def run_operator_test(
         operator_args = {}
 
     if operator_name is None:
-        operator_name = ndd_operator._op_class._fn_path
+        o = ndd_operator._op_class
+        operator_name = o._op_path if o._is_reader else o._fn_path
 
-    if ndd_operator._op_class._has_random_state_arg:
+    op_class = getattr(ndd_operator, "_op_class", None)
+
+    if op_class and op_class._has_random_state_arg:
         fn_rng, ndd_rng = create_rngs()
     else:
         fn_rng = ndd_rng = None
@@ -572,25 +576,16 @@ def run_operator_test(
         feed_input(pipe, inp)
         pipe_out = pipe.run()
 
+        if num_inputs > 1:
+            ndd_inp = tuple_to_batch_multi_input(inp, device=input_device, layout=input_layout)
+        else:
+            ndd_inp = (ndd.as_batch(inp, layout=input_layout, device=input_device),)
+
         # Run the dynamic operator, collect the output.
         if ndd_rng:
-            if num_inputs > 1:
-                ndd_inp = tuple_to_batch_multi_input(inp, device=input_device, layout=input_layout)
-                ndd_out = ndd_operator(*ndd_inp, rng=ndd_rng, device=ndd_dev, **operator_args)
-            else:
-                ndd_out = ndd_operator(
-                    ndd.as_batch(inp, layout=input_layout, device=input_device),
-                    device=ndd_dev,
-                    rng=ndd_rng,
-                    **operator_args,
-                )
+            ndd_out = ndd_operator(*ndd_inp, rng=ndd_rng, device=ndd_dev, **operator_args)
         else:
-            if num_inputs > 1:
-                ndd_inp = tuple_to_batch_multi_input(inp, device=input_device, layout=input_layout)
-            else:
-                ndd_inp = ndd.as_batch(inp, layout=input_layout, device=input_device)
-
-            ndd_out = ndd_operator(ndd_inp, device=ndd_dev, **operator_args)
+            ndd_out = ndd_operator(*ndd_inp, device=ndd_dev, **operator_args)
 
         # Compare the outputs.
         compare_fn(pipe_out, ndd_out)
@@ -647,3 +642,18 @@ def flatten_operator_configs(configs: list[OperatorTestConfig]) -> list[tuple]:
         result.extend(config.generate_test_tuples())
         sign_off.register_test(config.name)
     return result
+
+
+def test_all_devices(op_name):
+    ndd_op = ndd
+    for p in op_name.split("."):
+        ndd_op = getattr(ndd_op, p)
+    assert hasattr(ndd_op, "_op_class"), f"Invalid operator name: {op_name}"
+
+    backends = ndd_op._op_class._supported_backends
+
+    def the_decorator(test_fn):
+        sign_off.register_test(op_name)
+        return params(*backends)(test_fn)
+
+    return the_decorator
