@@ -16,7 +16,7 @@
 import nvidia.dali.fn as fn
 import nvidia.dali.experimental.dynamic as ndd
 import os
-from nose2.tools import params, cartesian_params
+from nose2.tools import params
 import numpy as np
 from nvidia.dali.pipeline import pipeline_def
 import test_utils
