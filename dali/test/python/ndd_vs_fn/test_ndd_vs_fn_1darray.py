@@ -36,7 +36,9 @@ ops_1d_float_array_test_configuration = flatten_operator_configs(ARRAY_1D_OPERAT
 
 
 @params(*ops_1d_float_array_test_configuration)
-def test_operators_with_array_1d_input(device, operator_name, fn_operator, ndd_operator, operator_args):
+def test_operators_with_array_1d_input(
+    device, operator_name, fn_operator, ndd_operator, operator_args
+):
     data = generate_data(array_1d_shape_generator)
     run_operator_test(
         input_epoch=data,

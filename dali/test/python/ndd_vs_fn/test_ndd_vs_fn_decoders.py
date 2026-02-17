@@ -30,10 +30,11 @@ from ndd_vs_fn_test_utils import (
     flatten_operator_configs,
     generate_decoders_data,
     compare,
-    sign_off
+    sign_off,
 )
 
 
+@sign_off("decoders.audio")
 @params("cpu")
 def test_audio_decoders(device):
     audio_path = os.path.join(test_utils.get_dali_extra_path(), "db", "audio")
@@ -43,11 +44,11 @@ def test_audio_decoders(device):
         processed, _ = api.decoders.audio(*inp, downmix=True, sample_rate=12345)
         return processed
 
+    ndd_op = use_ndd_api(operation)
+    ndd_op._op_class = ndd.decoders.audio._op_class
+
     run_operator_test(
-        input_epoch=data,
-        fn_operator=use_fn_api(operation),
-        ndd_operator=use_ndd_api(operation),
-        device=device
+        input_epoch=data, fn_operator=use_fn_api(operation), ndd_operator=ndd_op, device=device
     )
 
 
@@ -74,7 +75,6 @@ def test_image_decoders(device, operator_name, fn_operator, ndd_operator, operat
         data_path, image_decoder_extensions, exclude_subdirs=exclude_subdirs
     )
 
-    print(device)
     run_operator_test(data, fn_operator, ndd_operator, device, operator_args)
 
 
@@ -95,10 +95,14 @@ def test_video_decoder(device):
     )
 
 
-@params(*flatten_operator_configs([
-    OperatorTestConfig("decoders.image_slice"),
-    OperatorTestConfig("experimental.decoders.image_slice")
-]))
+@params(
+    *flatten_operator_configs(
+        [
+            OperatorTestConfig("decoders.image_slice"),
+            OperatorTestConfig("experimental.decoders.image_slice"),
+        ]
+    )
+)
 def test_image_slice_decoder(device, operator_name, fn_operator, ndd_operator, operator_args):
     image_decoder_extensions = ".jpg"
     exclude_subdirs = ["jpeg_lossless"]
@@ -121,7 +125,12 @@ def test_image_slice_decoder(device, operator_name, fn_operator, ndd_operator, o
         feed_input(pipe, inp)
         pipe_out = pipe.run()
         ndd_out = ndd_operator(
-            ndd.as_batch(inp, device="cpu"), 0.1, 0.4, axes=[0], hw_decoder_load=0.0, device=ndd_device(device)
+            ndd.as_batch(inp, device="cpu"),
+            0.1,
+            0.4,
+            axes=[0],
+            hw_decoder_load=0.0,
+            device=ndd_device(device),
         )
         compare(pipe_out, ndd_out)
 

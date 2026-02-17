@@ -133,6 +133,7 @@ def build_operator_class(schema):
             )
     op_class._op_name = class_name
     op_class._fn_name = _to_snake_case(class_name)
+    op_class._fn_path = ".".join(module_path + [op_class._fn_name])
     op_class._legacy_op = legacy_op_class
     op_class._is_stateful = schema.IsStateful()
     op_class._has_random_state_arg = schema.HasRandomStateArg()
