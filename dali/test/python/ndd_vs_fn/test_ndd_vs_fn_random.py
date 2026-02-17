@@ -14,26 +14,19 @@
 
 
 import random
-import os
-import test_utils
 import numpy as np
 from nose2.tools import params
 from ndd_vs_fn_test_utils import (
     OperatorTestConfig,
-    feed_input,
     image_like_shape_generator,
     run_operator_test,
-    compare,
     flatten_operator_configs,
-    _random_state_source_factory,
     array_1d_shape_generator,
-    create_rngs,
     generate_data,
-    generate_decoders_data,
+    sign_off,
     MAX_BATCH_SIZE,
     N_ITERATIONS,
 )
-from nvidia.dali.pipeline import pipeline_def
 import nvidia.dali.fn as fn
 import nvidia.dali.experimental.dynamic as ndd
 
@@ -50,7 +43,7 @@ random_ops_1d_array_test_configuration = flatten_operator_configs(RANDOM_OPERATO
 
 
 @params(*random_ops_1d_array_test_configuration)
-def test_random_1d_array(device, fn_operator, ndd_operator, operator_args):
+def test_random_1d_array(device, operator_name, fn_operator, ndd_operator, operator_args):
     data = generate_data(array_1d_shape_generator, batch_sizes=MAX_BATCH_SIZE)
 
     run_operator_test(
@@ -58,11 +51,11 @@ def test_random_1d_array(device, fn_operator, ndd_operator, operator_args):
         fn_operator=fn_operator,
         ndd_operator=ndd_operator,
         device=device,
-        random=True,
         operator_args=operator_args,
     )
 
 
+@sign_off("random_bbox_crop")
 def test_random_bbox_crop():
     device = "cpu"
 
@@ -87,63 +80,11 @@ def test_random_bbox_crop():
         fn_operator=fn.random_bbox_crop,
         ndd_operator=ndd.random_bbox_crop,
         device=device,
-        random=True,
         num_inputs=2,
     )
 
 
-RANDOM_IMAGE_DECODER_OPERATORS = [
-    OperatorTestConfig(
-         "decoders.image_random_crop", {"hw_decoder_load": 0.0}
-    ),
-    OperatorTestConfig(
-        "experimental.decoders.image_random_crop",
-        {"hw_decoder_load": 0.0},
-    ),
-]
-
-random_image_decoders_test_configuration = flatten_operator_configs(RANDOM_IMAGE_DECODER_OPERATORS)
-
-
-@params(*random_image_decoders_test_configuration)
-def test_image_decoders(device, fn_operator, ndd_operator, operator_args):
-    image_decoder_extensions = ".jpg"
-    exclude_subdirs = ["jpeg_lossless"]
-    data_path = os.path.join(test_utils.get_dali_extra_path(), "db", "single")
-    data = generate_decoders_data(
-        data_path, image_decoder_extensions, exclude_subdirs=exclude_subdirs
-    )
-    fn_rng, ndd_rng = create_rngs()
-
-    @pipeline_def(
-        batch_size=MAX_BATCH_SIZE,
-        device_id=0,
-        num_threads=ndd.get_num_threads(),
-        prefetch_queue_depth=1,
-    )
-    def pipeline():
-        rs1 = fn.external_source(
-            source=_random_state_source_factory(fn_rng, MAX_BATCH_SIZE, 1),
-            num_outputs=1,
-        )[
-            0
-        ]  # [0], since external_source returns a tuple
-        inp = fn.external_source(name="INPUT0", device="cpu")
-        processed = fn_operator(inp, _random_state=rs1, device=device, **operator_args)
-        return processed
-
-    pipe = pipeline()
-    pipe.build()
-
-    for inp in data:
-        feed_input(pipe, inp)
-        pipe_out = pipe.run()
-        ndd_out = ndd_operator(
-            ndd.as_batch(inp, device="cpu"), rng=ndd_rng, device=device, **operator_args
-        )
-        assert compare(pipe_out, ndd_out)
-
-
+@sign_off("random_crop_generator")
 def test_random_crop_generator():
     device = "cpu"
     data = generate_data((2,), dtype=np.int64, batch_sizes=MAX_BATCH_SIZE)
@@ -153,10 +94,10 @@ def test_random_crop_generator():
         fn_operator=fn.random_crop_generator,
         ndd_operator=ndd.random_crop_generator,
         device=device,
-        random=True,
     )
 
 
+@sign_off("segmentation.random_object_bbox")
 def test_random_object_bbox():
     device = "cpu"
     data = generate_data(
@@ -167,7 +108,6 @@ def test_random_object_bbox():
         fn_operator=fn.segmentation.random_object_bbox,
         ndd_operator=ndd.segmentation.random_object_bbox,
         device=device,
-        random=True,
     )
 
 

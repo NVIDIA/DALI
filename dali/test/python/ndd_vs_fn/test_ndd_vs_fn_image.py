@@ -92,14 +92,14 @@ IMAGE_LIKE_OPERATORS = [
         },
     ),
     OperatorTestConfig("pad", {"fill_value": -1, "axes": (0,), "align": 16}),
-    OperatorTestConfig("warp_affine", {"matrix": np.array([[0.1, 0.9, 10], [0.8, -0.2, -20]])}),  # BUG
+    OperatorTestConfig(
+        "warp_affine", {"matrix": np.array([[0.1, 0.9, 10], [0.8, -0.2, -20]])}
+    ),  # BUG
     OperatorTestConfig("expand_dims", {"axes": 1, "new_axis_names": "Z"}),
     OperatorTestConfig("zeros_like"),
     OperatorTestConfig("ones_like"),
     OperatorTestConfig("per_frame", {"replace": True}),
-    OperatorTestConfig(
-        "resize_crop_mirror", {"crop": [5, 5], "resize_shorter": 10}
-    ),
+    OperatorTestConfig("resize_crop_mirror", {"crop": [5, 5], "resize_shorter": 10}),
     OperatorTestConfig("clahe", {"tiles_x": 4, "tiles_y": 4, "clip_limit": 2.0}),
     OperatorTestConfig("equalize"),
     OperatorTestConfig("slice", {"rel_start": 0.1, "rel_end": 0.5}),
@@ -129,6 +129,5 @@ def test_operators_with_image_like_input(
         ndd_operator=ndd_operator,
         device=device,
         operator_args=operator_args,
-        random=ndd_operator._op_class._has_random_state_arg,
         input_layout="HWC",
     )

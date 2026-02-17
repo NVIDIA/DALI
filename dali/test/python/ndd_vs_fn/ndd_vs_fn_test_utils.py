@@ -407,6 +407,7 @@ def pipeline_es_feed_input_wrapper(
     device,
     input_device,
     max_batch_size=MAX_BATCH_SIZE,
+    batch_sizes=None,
     input_layout=None,
     needs_input=True,
     num_inputs=1,
@@ -416,7 +417,11 @@ def pipeline_es_feed_input_wrapper(
     """Creates a DALI pipeline with external source as an input."""
     rs = (
         external_source_of_random_states(
-            rng=rng, max_batch_size=max_batch_size, n_states=1, num_outputs=1,
+            rng=rng,
+            max_batch_size=max_batch_size,
+            n_states=1,
+            batch_sizes=batch_sizes,
+            num_outputs=1,
         )[
             0
         ]  # [0], because it's tuple
@@ -455,8 +460,10 @@ def pipeline_es_feed_input_wrapper(
 def generate_image_like_data():
     return generate_data(image_like_shape_generator, lo=0, hi=255, dtype=np.uint8)
 
+
 def ndd_device(device):
     return "gpu" if device == "mixed" else device
+
 
 def run_operator_test(
     input_epoch,
@@ -464,10 +471,11 @@ def run_operator_test(
     ndd_operator,
     device,
     operator_args=None,
+    operator_name=None,
     num_inputs=1,
     input_layout=None,
     compare_fn=compare,
-    batch_size=MAX_BATCH_SIZE,
+    max_batch_size=MAX_BATCH_SIZE,
 ):
     """Run fn vs ndd operator comparison over an epoch of batches and assert outputs match.
 
@@ -488,13 +496,13 @@ def run_operator_test(
            input_epoch=data,
            fn_operator=fn_op,
            ndd_operator=ndd_op,
-           device="cpu" or "gpu",
+           device="cpu", "gpu" or "mixed",
            operator_args={"resize_x": 50, "resize_y": 50},  # passed to both
+           operator_name=None,  # if not set, taken from ndd_op
            num_inputs=1,
            input_layout="HWC",   # optional, for image-like
            compare_fn=compare,   # or compare_no_input for no-input ops
-           random=False,         # True if op uses rng (fn/ndd RNGs synced)
-           batch_size=MAX_BATCH_SIZE,
+           max_batch_size=MAX_BATCH_SIZE,
        )
 
     Parameters
@@ -506,11 +514,12 @@ def run_operator_test(
         Operator from fn API (e.g. fn.resize). Must accept (data, device=..., **operator_args).
     ndd_operator : callable
         Operator from ndd API (e.g. ndd.resize). Must accept (batch, **operator_args);
-        if random=True, also accepts rng=.
     device : str
         "cpu" or "gpu".
     operator_args : dict, optional
         Keyword arguments passed to both fn and ndd operator (e.g. resize_x=50).
+    operator_name : str, optional:
+        Operator name - if not set, taken from the ndd_operator
     num_inputs : int, optional
         Number of inputs. If > 1, input_epoch batches must be tuples of arrays.
     input_layout : str, optional
@@ -518,8 +527,6 @@ def run_operator_test(
     compare_fn : callable, optional
         (pipe_out, ndd_out) -> None. Default compare; use compare_no_input for
         no-input operators (e.g. random generators).
-    random : bool, optional
-        If True, create and pass matching RNGs to fn/ndd for reproducible comparison.
     batch_size : int, optional
         Max batch size used when building the pipeline.
     """
@@ -528,12 +535,21 @@ def run_operator_test(
     if operator_args is None:
         operator_args = {}
 
+    if operator_name is None:
+        operator_name = ndd_operator._op_class._fn_path
+
     if ndd_operator._op_class._has_random_state_arg:
         fn_rng, ndd_rng = create_rngs()
     else:
         fn_rng = ndd_rng = None
 
     input_device = "gpu" if device == "gpu" else "cpu"
+
+    if num_inputs > 1:
+        batch_sizes = [len(batch[0]) for batch in input_epoch]
+    else:
+        batch_sizes = [len(batch) for batch in input_epoch]
+    max_batch_size = max(max_batch_size, *batch_sizes)
 
     # Create a DALI pipeline
     pipe = pipeline_es_feed_input_wrapper(
@@ -543,7 +559,8 @@ def run_operator_test(
         num_inputs=num_inputs,
         input_layout=input_layout,
         rng=fn_rng,
-        max_batch_size=batch_size,
+        max_batch_size=max_batch_size,
+        batch_sizes=batch_sizes,
         **operator_args,
     )
 
@@ -556,7 +573,7 @@ def run_operator_test(
         pipe_out = pipe.run()
 
         # Run the dynamic operator, collect the output.
-        if random:
+        if ndd_rng:
             if num_inputs > 1:
                 ndd_inp = tuple_to_batch_multi_input(inp, device=input_device, layout=input_layout)
                 ndd_out = ndd_operator(*ndd_inp, rng=ndd_rng, device=ndd_dev, **operator_args)
@@ -577,6 +594,11 @@ def run_operator_test(
 
         # Compare the outputs.
         compare_fn(pipe_out, ndd_out)
+
+    # Leave this check for the very end - it's better to see more substantial failures first
+    assert (
+        operator_name in sign_off.tested_ops
+    ), f"Operator {operator_name} tested but not registered!"
 
 
 def get_nested_attr(obj, attr_path):
