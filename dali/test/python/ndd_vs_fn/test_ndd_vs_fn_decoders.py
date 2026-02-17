@@ -60,7 +60,7 @@ IMAGE_DECODER_OPERATORS = [
     OperatorTestConfig("experimental.decoders.image_crop", {"hw_decoder_load": 0.0}),
     OperatorTestConfig("decoders.image_random_crop", {"hw_decoder_load": 0.0}),
     OperatorTestConfig("experimental.decoders.image_random_crop", {"hw_decoder_load": 0.0}),
-    OperatorTestConfig("peek_image_shape"),
+    OperatorTestConfig("experimental.peek_image_shape"),
 ]
 
 image_decoders_test_configuration = flatten_operator_configs(IMAGE_DECODER_OPERATORS)
@@ -133,35 +133,3 @@ def test_image_slice_decoder(device, operator_name, fn_operator, ndd_operator, o
             device=ndd_device(device),
         )
         compare(pipe_out, ndd_out)
-
-
-# @params("cpu")
-# def test_experimental_video_input(device):
-#     batch_size = 1
-# video_path = os.path.join(test_utils.get_dali_extra_path(),
-#   "db", "video", "cfr", "test_1.mp4")
-#     data = np.array([np.fromfile(video_path, dtype=np.uint8)] * batch_size)
-
-#     @pipeline_def(
-#         batch_size=batch_size,
-#         device_id=0,
-#         num_threads=ndd.get_num_threads(),
-#         prefetch_queue_depth=1,
-#     )
-#     def pipeline():
-#         video = fn.experimental.inputs.video(name="INPUT0", device=device, sequence_length=3)
-#         return video
-
-#     pipe = pipeline()
-#     pipe.build()
-
-#     pipe.feed_input("INPUT0", data)
-
-#     ndd_video_input = ndd.experimental.inputs.video(
-#         ndd.as_batch(data, device="cpu"), device=device, sequence_length=3
-#     )
-
-#     for _ in range(N_ITERATIONS):
-#         pipe_out = pipe.run()
-#         ndd_out = ndd.experimental.inputs.video(data, device=device, sequence_length=3)
-#         compare(pipe_out, ndd_out)

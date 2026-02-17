@@ -14,6 +14,7 @@
 
 import os
 import numpy as np
+import nvidia.dali as dali
 import nvidia.dali.fn as fn
 import nvidia.dali.experimental.dynamic as ndd
 import random
@@ -32,9 +33,11 @@ from ndd_vs_fn_test_utils import (
     custom_shape_generator,
     array_1d_shape_generator,
     generate_image_like_data,
-    pipeline_es_feed_input_wrapper,
     generate_data,
     compare,
+    pipeline_es_feed_input_wrapper,
+    sign_off,
+    test_all_devices,
     MAX_BATCH_SIZE,
     N_ITERATIONS,
 )
@@ -55,55 +58,38 @@ To add a new operator test:
 3. The test will automatically be generated and run
 """
 
-tested_operators = [
-    "expand_dims",
-    "squeeze",
-    "bbox_paste",
-    "box_encoder",
-    "experimental.remap",
-    "bb_flip",
-    "coord_flip",
-    "lookup_table",
-    "reductions.mean",
-    "reductions.std_dev",
-    "reductions.variance",
-    "sequence_rearrange",
-    "element_extract",
-    "nonsilent_region",
-    "spectrogram",
-    "mel_filter_bank",
-    "to_decibels",
-    "mfcc",
-    "segmentation.select_masks",
-    "optical_flow",
-    "debayer",
-    "filter",
-    "cast_like",
-    "full_like",
-    "full",
-]
 
-
-@params("cpu", "gpu")
-def test_squeeze_op(device):
+@test_all_devices("squeeze")
+def test_squeeze(device):
     data = generate_image_like_data()
-
-    def operation(api, *inp, **operator_args):
-        out = api.expand_dims(*inp, axes=[0, 2], new_axis_names="YZ")
-        out = api.squeeze(out, axis_names="Z")
-        return out
+    data = [x[..., np.newaxis] for x in data]
 
     run_operator_test(
         input_epoch=data,
-        fn_operator=use_fn_api(operation),
-        ndd_operator=use_ndd_api(operation),
+        fn_operator=fn.squeeze,
+        ndd_operator=ndd.squeeze,
+        operator_args={"axis_names": "D"},
+        device=device,
+        input_layout="ABCD",
+    )
+
+
+@test_all_devices("expand_dims")
+def test_expand_dims(device):
+    data = generate_image_like_data()
+
+    run_operator_test(
+        input_epoch=data,
+        fn_operator=fn.expand_dims,
+        ndd_operator=ndd.expand_dims,
+        operator_args={"axes": [3], "new_axis_names": "D"},
         device=device,
         input_layout="HWC",
     )
 
 
-@params("cpu")
-def test_box_encoder_op(device):
+@test_all_devices("box_encoder")
+def test_box_encoder(device):
 
     def get_data(batch_size):
         obj_num = random.randint(1, 20)
@@ -127,6 +113,7 @@ def test_box_encoder_op(device):
 
     run_operator_test(
         input_epoch=data,
+        operator_name="box_encoder",
         fn_operator=use_fn_api(operation),
         ndd_operator=use_ndd_api(operation),
         device=device,
@@ -134,7 +121,7 @@ def test_box_encoder_op(device):
     )
 
 
-@params("gpu")
+@test_all_devices("experimental.remap")
 def test_remap(device):
 
     def get_data(batch_size):
@@ -164,7 +151,7 @@ def test_remap(device):
     )
 
 
-@params("cpu", "gpu")
+@test_all_devices("bb_flip")
 def test_bb_flip(device):
     data = generate_data(custom_shape_generator(150, 250, 4, 4))
     run_operator_test(
@@ -175,44 +162,43 @@ def test_bb_flip(device):
     )
 
 
-# BUG
-# @params("cpu")
-# def test_bbox_rotate(device):
-#     data = generate_data(custom_shape_generator(150, 250, 5, 5))
+@test_all_devices("bbox_rotate")
+def test_bbox_rotate(device):
+    data = generate_data(custom_shape_generator(150, 250, 5, 5))
 
-#     @pipeline_def(
-#         batch_size=MAX_BATCH_SIZE,
-#         device_id=0,
-#         num_threads=ndd.get_num_threads(),
-#         prefetch_queue_depth=1,
-#     )
-#     def pipeline():
-#         inp = fn.external_source(name="INPUT0", device=device)
-#         boxes = inp[:, :4]
-#         labels = fn.cast(inp[:, 4], dtype=DALIDataType.INT32)
-#         boxes, labels = fn.bbox_rotate(boxes, labels, angle=45.0, input_shape=[255, 255])
-#         return boxes, labels
+    @pipeline_def(
+        batch_size=MAX_BATCH_SIZE,
+        device_id=0,
+        num_threads=ndd.get_num_threads(),
+        prefetch_queue_depth=1,
+    )
+    def pipeline():
+        inp = fn.external_source(name="INPUT0", device=device)
+        boxes = inp[:, :4]
+        labels = fn.cast(inp[:, 4], dtype=dali.types.INT32)
+        boxes, labels = fn.bbox_rotate(boxes, labels, angle=45.0, input_shape=[255, 255])
+        return boxes, labels
 
-#     pipe = pipeline()
-#     pipe.build()
-#     for inp in data:
-#         feed_input(pipe, inp)
-#         pipe_out = pipe.run()
-#         ndd_inp = ndd.as_batch(inp, device=device)
-#         boxes = ndd_inp.slice[:, :4]
-#         labels = ndd.cast(ndd_inp.slice[:, 4], dtype=DALIDataType.INT32)
-#         ndd_out = ndd.bbox_rotate(
-#             boxes,
-#             labels,
-#             angle=45.0,
-#             input_shape=[255, 255],
-#         )
-#         for o in ndd_out:
-#             o.evaluate()
-#         assert compare(pipe_out, ndd_out)
+    pipe = pipeline()
+    pipe.build()
+    for inp in data:
+        feed_input(pipe, inp)
+        pipe_out = pipe.run()
+        ndd_inp = ndd.as_batch(inp, device=device)
+        boxes = ndd_inp.slice[:, :4]
+        labels = ndd.cast(ndd_inp.slice[:, 4], dtype=dali.types.INT32)
+        ndd_out = ndd.bbox_rotate(
+            boxes,
+            labels,
+            angle=45.0,
+            input_shape=[255, 255],
+        )
+        for o in ndd_out:
+            o.evaluate()
+        compare(pipe_out, ndd_out)
 
 
-@params("cpu", "gpu")
+@test_all_devices("coord_flip")
 def test_coord_flip(device):
     data = generate_data(custom_shape_generator(150, 250, 2, 2))
     run_operator_test(
@@ -223,7 +209,7 @@ def test_coord_flip(device):
     )
 
 
-@params("cpu", "gpu")
+@test_all_devices("lookup_table")
 def test_lookup_table(device):
     data = generate_data(array_1d_shape_generator, lo=0, hi=5, dtype=np.uint8)
     run_operator_test(
@@ -235,6 +221,7 @@ def test_lookup_table(device):
     )
 
 
+@sign_off("reductions.std_dev", "reductions.variance")
 @cartesian_params(
     ["cpu", "gpu"],
     ["reductions.std_dev", "reductions.variance"],
@@ -250,13 +237,14 @@ def test_reduce(device, reduce_fn_name):
 
     run_operator_test(
         input_epoch=data,
+        operator_name=reduce_fn_name,
         fn_operator=use_fn_api(operation),
         ndd_operator=use_ndd_api(operation),
         device=device,
     )
 
 
-@params("cpu", "gpu")
+@test_all_devices("sequence_rearrange")
 def test_sequence_rearrange(device):
     data = generate_data(sample_shape=(5, 10, 20, 3), lo=0, hi=255, dtype=np.uint8)
     run_operator_test(
@@ -269,7 +257,7 @@ def test_sequence_rearrange(device):
     )
 
 
-@params("cpu", "gpu")
+@test_all_devices("element_extract")
 def test_element_extract(device):
     data = generate_data(sample_shape=(5, 10, 20, 3), lo=0, hi=255, dtype=np.uint8)
     run_operator_test(
@@ -282,7 +270,7 @@ def test_element_extract(device):
     )
 
 
-@params("cpu")
+@test_all_devices("nonsilent_region")
 def test_nonsilent_region(device):
     data = generate_data(array_1d_shape_generator, lo=0, hi=255, dtype=np.uint8)
 
@@ -292,12 +280,14 @@ def test_nonsilent_region(device):
 
     run_operator_test(
         input_epoch=data,
+        operator_name="nonsilent_region",
         fn_operator=use_fn_api(operation),
         ndd_operator=use_ndd_api(operation),
         device=device,
     )
 
 
+@sign_off("spectrogram", "mel_filter_bank")
 @params("cpu", "gpu")
 def test_mel_filter_bank(device):
     data = generate_data(array_1d_shape_generator)
@@ -309,12 +299,14 @@ def test_mel_filter_bank(device):
 
     run_operator_test(
         input_epoch=data,
+        operator_name="mel_filter_bank",
         fn_operator=use_fn_api(operation),
         ndd_operator=use_ndd_api(operation),
         device=device,
     )
 
 
+@sign_off("mfcc", "to_decibels")
 @params("cpu", "gpu")
 def test_mfcc(device):
     data = generate_data(array_1d_shape_generator)
@@ -328,13 +320,14 @@ def test_mfcc(device):
 
     run_operator_test(
         input_epoch=data,
+        operator_name="mfcc",
         fn_operator=use_fn_api(operation),
         ndd_operator=use_ndd_api(operation),
         device=device,
     )
 
 
-@params("cpu")
+@test_all_devices("segmentation.select_masks")
 def test_segmentation_select_masks(device):
     def repacked_make_batch_select_masks(*args, **kwargs):
         """
@@ -364,7 +357,7 @@ def test_segmentation_select_masks(device):
     )
 
 
-@params("gpu")
+@test_all_devices("optical_flow")
 def test_optical_flow(device):
     if not test_utils.is_of_supported():
         raise SkipTest("Optical Flow is not supported on this platform")
@@ -390,6 +383,7 @@ def test_optical_flow(device):
 
 
 # @test_utils.has_operator("decoders.inflate")
+# @sign_off("decoders.inflate")
 # @test_utils.restrict_platform(min_compute_cap=6.0)
 # def test_inflate():
 #     import lz4.block
@@ -412,9 +406,9 @@ def test_optical_flow(device):
 
 #     @pipeline_def
 #     def piepline():
-#         defalted = fn.external_source(name="INPUT0")
+#         deflated = fn.external_source(name="INPUT0")
 #         shape = fn.external_source(name="INPUT1")
-#         return fn.decoders.inflate(defalted.gpu(), shape=shape)
+#         return fn.decoders.inflate(deflated.gpu(), shape=shape)
 
 #         return piepline(batch_size=max_batch_size, num_threads=4, device_id=0)
 
@@ -425,10 +419,10 @@ def test_optical_flow(device):
 #         [next(sample) for _ in range(2)],
 #     ]
 
-#     check_pipeline(batches, inflate_pipline, devices=["gpu"])
+#     check_pipeline(batches, inflate_pipline)
 
 
-@params("cpu", "gpu")
+@test_all_devices("debayer")
 def test_debayer(device):
 
     from debayer_test_utils import rgb2bayer, bayer_patterns, blue_position
@@ -486,10 +480,10 @@ def test_debayer(device):
             ndd.as_batch(inp[0], device=device),
             blue_position=ndd.as_batch(inp[1], device=device),
         )
-        assert compare(pipe_out, ndd_out)
+        compare(pipe_out, ndd_out)
 
 
-@params("cpu", "gpu")
+@test_all_devices("filter")
 def test_filter(device):
     def sample_gen():
         rng = np.random.default_rng(seed=101)
@@ -541,10 +535,10 @@ def test_filter(device):
             ndd.as_batch(inp[0], layout="HWC", device=device),
             ndd.as_batch(inp[1], device=device),
         )
-        assert compare(pipe_out, ndd_out)
+        compare(pipe_out, ndd_out)
 
 
-@params("cpu", "gpu")
+@test_all_devices("cast_like")
 def test_cast_like(device):
     def get_data(batch_size):
         test_data_shape = [random.randint(5, 21), random.randint(5, 21), 3]
@@ -568,7 +562,7 @@ def test_cast_like(device):
     )
 
 
-@params("cpu")
+@test_all_devices("full_like")
 def test_full_like(device):
     def get_data(batch_size):
         test_data_shape = [random.randint(5, 21), random.randint(5, 21), 3]
@@ -590,72 +584,71 @@ def test_full_like(device):
     )
 
 
-# BUG
-# @params("cpu")
-# def test_io_file_read(device):
-#     def get_data(batch_size):
-#         rel_fpaths = [
-#             "db/single/png/0/cat-1046544_640.png",
-#             "db/single/png/0/cat-111793_640.png",
-#             "db/single/multichannel/with_alpha/cat-111793_640-alpha.jp2",
-#             "db/single/jpeg2k/2/tiled-cat-300572_640.jp2",
-#         ]
-#         path_strs = [
-#             os.path.join(test_utils.get_dali_extra_path(), rel_fpath) for rel_fpath in rel_fpaths
-#         ]
-#         data = []
-#         for i in range(batch_size):
-#             data.append(np.frombuffer(path_strs[i % len(rel_fpaths)].encode(), dtype=np.int8))
-#         return data
+@test_all_devices("io.file.read")
+def test_io_file_read(device):
+    def get_data(batch_size):
+        rel_fpaths = [
+            "db/single/png/0/cat-1046544_640.png",
+            "db/single/png/0/cat-111793_640.png",
+            "db/single/multichannel/with_alpha/cat-111793_640-alpha.jp2",
+            "db/single/jpeg2k/2/tiled-cat-300572_640.jp2",
+        ]
+        path_strs = [
+            os.path.join(test_utils.get_dali_extra_path(), rel_fpath) for rel_fpath in rel_fpaths
+        ]
+        data = []
+        for i in range(batch_size):
+            path_arr = np.frombuffer(path_strs[i % len(rel_fpaths)].encode(), dtype=np.int8)
+            data.append(np.array(path_arr))  # make a copy - WAR for non-versioned dlpack
+        return data
 
-#     data = [get_data(random.randint(3, 9)) for _ in range(N_ITERATIONS)]
-#     pipe = pipeline_es_feed_input_wrapper(fn.io.file.read, device=device)
-#     for inp in data:
-#         feed_input(pipe, inp)
-#         pipe_out = pipe.run()
-#         ndd_out = ndd.io.file.read(ndd.as_batch(inp, device=device))
-#         assert compare(pipe_out, ndd_out)
-
-
-# BUG
-# @params("cpu", "gpu")
-# def test_slice(device):
-#     data = generate_image_like_data()
-
-#     @pipeline_def(
-#         batch_size=MAX_BATCH_SIZE,
-#         device_id=0,
-#         num_threads=ndd.get_num_threads(),
-#         prefetch_queue_depth=1,
-#     )
-#     def pipeline():
-#         inp = fn.external_source(name="INPUT0", device=device)
-#         sliced = fn.slice(inp, 0.1, 0.5, axes=0)
-#         return sliced
-
-#     pipe = pipeline()
-#     pipe.build()
-#     for inp in data:
-#         feed_input(pipe, inp)
-#         pipe_out = pipe.run()
-#         ndd_out = ndd.slice(ndd.as_batch(inp, device=device), 0.1, 0.5, axes=0)
-#         ndd_out.evaluate()
-#         assert compare(pipe_out, ndd_out)
+    data = [get_data(random.randint(3, 9)) for _ in range(N_ITERATIONS)]
+    pipe = pipeline_es_feed_input_wrapper(fn.io.file.read, device=device, input_device="cpu")
+    for inp in data:
+        feed_input(pipe, inp)
+        pipe_out = pipe.run()
+        ndd_out = ndd.io.file.read(ndd.as_batch(inp, device=device))
+        compare(pipe_out, ndd_out)
 
 
-# @params("cpu")
-# def test_bbox_paste(device):
-#     data = generate_data(custom_shape_generator(150, 250, 4, 4))
-#     run_operator_test(
-#         input_epoch=data,
-#         fn_operator=fn.bbox_paste,
-#         ndd_operator=ndd.bbox_paste,
-#         device=device,
-#         operator_args={"ratio": 1.1},
-#     )
+@test_all_devices("slice")
+def test_slice(device):
+    data = generate_image_like_data()
+
+    @pipeline_def(
+        batch_size=MAX_BATCH_SIZE,
+        device_id=0,
+        num_threads=ndd.get_num_threads(),
+        prefetch_queue_depth=1,
+    )
+    def pipeline():
+        inp = fn.external_source(name="INPUT0", device=device)
+        sliced = fn.slice(inp, 0.1, 0.5, axes=[0])
+        return sliced
+
+    pipe = pipeline()
+    pipe.build()
+    for inp in data:
+        feed_input(pipe, inp)
+        pipe_out = pipe.run()
+        ndd_out = ndd.slice(ndd.as_batch(inp, device=device), 0.1, 0.5, axes=[0])
+        ndd_out.evaluate()
+        compare(pipe_out, ndd_out)
 
 
-@params("cpu")
+@test_all_devices("bbox_paste")
+def test_bbox_paste(device):
+    data = generate_data(custom_shape_generator(150, 250, 4, 4))
+    run_operator_test(
+        input_epoch=data,
+        fn_operator=fn.bbox_paste,
+        ndd_operator=ndd.bbox_paste,
+        device=device,
+        operator_args={"ratio": 1.1},
+    )
+
+
+@test_all_devices("full")
 def test_full(device):
     @pipeline_def(
         batch_size=MAX_BATCH_SIZE,
@@ -671,4 +664,4 @@ def test_full(device):
     pipe.build()
     pipe_out = pipe.run()
     ndd_out = ndd.full(7, batch_size=MAX_BATCH_SIZE, device=device)
-    assert compare(pipe_out, ndd_out)
+    compare(pipe_out, ndd_out)

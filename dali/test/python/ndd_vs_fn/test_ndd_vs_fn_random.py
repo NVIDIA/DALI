@@ -24,6 +24,10 @@ from ndd_vs_fn_test_utils import (
     array_1d_shape_generator,
     generate_data,
     sign_off,
+    test_all_devices,
+    create_rngs,
+    compare,
+    pipeline_es_feed_input_wrapper,
     MAX_BATCH_SIZE,
     N_ITERATIONS,
 )
@@ -111,39 +115,22 @@ def test_random_object_bbox():
     )
 
 
-# BUG
-# @params("cpu", "gpu")
-# def test_batch_permutation(device):
-#     batch_size = MAX_BATCH_SIZE
-#     data = generate_data(
-#         image_like_shape_generator, lo=0, hi=255, dtype=np.uint8, batch_sizes=batch_size
-#     )
-#     fn_rng, ndd_rng = create_rngs()
+@test_all_devices("batch_permutation")
+def test_batch_permutation(device):
+    batch_size = MAX_BATCH_SIZE
+    fn_rng, ndd_rng = create_rngs()
 
-#     @pipeline_def(
-#         batch_size=MAX_BATCH_SIZE,
-#         device_id=0,
-#         num_threads=ndd.get_num_threads(),
-#         prefetch_queue_depth=1,
-#     )
-#     def pipeline():
-#         rs1 = fn.external_source(
-#             source=_random_state_source_factory(fn_rng, MAX_BATCH_SIZE, 1),
-#             num_outputs=1,
-#         )[
-#             0
-#         ]  # [0], since external_source returns a tuple
-#         inp = fn.external_source(name="INPUT0", device=device)
-#         perm = fn.batch_permutation(_random_state=rs1, device="cpu")
-#         processed = fn.permute_batch(inp, indices=perm)
-#         return processed
+    pipe = pipeline_es_feed_input_wrapper(
+        fn.batch_permutation,
+        device=device,
+        input_device=device,
+        max_batch_size=batch_size,
+        rng=fn_rng,
+        needs_input=False,
+        batch_sizes=[batch_size],
+    )
 
-#     pipe = pipeline()
-#     pipe.build()
-
-#     for inp in data:
-#         feed_input(pipe, inp)
-#         pipe_out = pipe.run()
-#         perm = ndd.batch_permutation(rng=ndd_rng)
-#         ndd_out = ndd.permute_batch(ndd.as_batch(inp, device=device), indices=perm, device=device)
-#         assert compare(pipe_out, ndd_out)
+    for _ in range(10):
+        pipe_out = pipe.run()
+        ndd_out = ndd.batch_permutation(rng=ndd_rng, batch_size=batch_size)
+        compare(pipe_out, ndd_out)

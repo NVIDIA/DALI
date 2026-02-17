@@ -20,7 +20,7 @@ import os
 import nvidia.dali.types as types
 from nose2.tools import params
 import numpy as np
-from test_ndd_vs_fn_readers import run_reader_test
+from test_ndd_vs_fn_readers import run_reader_test, sign_off
 
 
 def setup_test_nemo_asr_reader_cpu():
@@ -86,6 +86,7 @@ def setup_test_nemo_asr_reader_cpu():
     return tmp_dir, nemo_asr_manifest
 
 
+@sign_off("readers.NemoAsr")
 @params("cpu")
 def test_nemo_asr(device):
     tmp_dir, nemo_asr_manifest = setup_test_nemo_asr_reader_cpu()
@@ -101,8 +102,3 @@ def test_nemo_asr(device):
             "read_text": True,
         },
     )
-
-
-tested_operators = [
-    "readers.nemo_asr",
-]

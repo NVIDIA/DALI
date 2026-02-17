@@ -19,7 +19,7 @@ import nvidia.dali.fn as fn
 import nvidia.dali.experimental.dynamic as ndd
 from nose2.tools import params
 import numpy as np
-from ndd_vs_fn_test_utils import N_ITERATIONS, run_operator_test
+from ndd_vs_fn_test_utils import N_ITERATIONS, run_operator_test, sign_off
 from test_ndd_vs_fn_readers import run_reader_test
 
 
@@ -47,6 +47,7 @@ def setup_test_numpy_reader_cpu():
     return tmp_dir
 
 
+@sign_off("readers.Numpy")
 @params("cpu")
 def test_numpy_reader(device):
     with setup_test_numpy_reader_cpu() as test_data_root:
@@ -58,6 +59,7 @@ def test_numpy_reader(device):
         )
 
 
+@sign_off("decoders.numpy")
 @params("cpu")
 def test_numpy_decoder(device):
     with setup_test_numpy_reader_cpu() as test_data_root:
@@ -71,9 +73,3 @@ def test_numpy_decoder(device):
             ndd_operator=ndd.decoders.numpy,
             device=device,
         )
-
-
-tested_operators = [
-    "readers.numpy",
-    "decoders.numpy",
-]
