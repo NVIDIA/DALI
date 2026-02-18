@@ -2489,15 +2489,18 @@ void SetupAndRun(OperatorBase &self, Workspace &ws, std::optional<int> batch_siz
   };
 
   auto &schema = spec.GetSchemaOrDefault();
+  bool has_gpu_inputs = false;
   for (int i = 0; i < spec.NumRegularInput(); i++) {
     auto layout = ws.GetInputLayout(i);
     auto ndim = ws.GetInputDim(i);
     auto adjusted_layout = schema.GetInputLayout(i, ndim, layout);
     if (layout != adjusted_layout) {
-      if (ws.InputIsType<GPUBackend>(i))
+      if (ws.InputIsType<GPUBackend>(i)) {
+        has_gpu_inputs = true;
         AdjustLayout(i, adjusted_layout, GPUBackend());
-      else
+      } else {
         AdjustLayout(i, adjusted_layout, CPUBackend());
+      }
     }
   }
 
@@ -2506,12 +2509,16 @@ void SetupAndRun(OperatorBase &self, Workspace &ws, std::optional<int> batch_siz
   if (ws.output_order().is_device())
     dev_id = ws.output_order().device_id();
 
+  bool needs_stream = has_gpu_inputs || !dynamic_cast<Operator<CPUBackend> *>(&self);
+  if (!needs_stream)
+    ws.set_output_order(AccessOrder::host());
+
   for (int i = 0; i < spec.NumOutput(); i++) {
     if (spec.OutputDevice(i) == StorageDevice::CPU) {
       auto out = std::make_shared<TensorList<CPUBackend>>();
       if (dev_id.has_value())
         out->set_device_id(*dev_id);
-      out->set_order(ws.output_order(), false);
+      out->set_order(AccessOrder::host(), false);  // make sure outputs are allocated in host order
       out->set_pinned(pinned);
       ws.AddOutput(std::move(out));
     } else {
@@ -2555,6 +2562,16 @@ void SetupAndRun(OperatorBase &self, Workspace &ws, std::optional<int> batch_siz
   {
     DomainTimeRange run_tr("Run " + GetOpDisplayName(self.GetSpec(), true));
     self.Run(ws);
+  }
+
+  if (needs_stream) {
+    DomainTimeRange setup_tr("Adjust CPU output stream " + GetOpDisplayName(self.GetSpec(), true));
+    for (int i = 0; i < spec.NumOutput(); i++) {
+      if (ws.OutputIsType<CPUBackend>(i)) {
+        auto &out = ws.Output<CPUBackend>(i);
+        out.set_order(ws.output_order(), false);
+      }
+    }
   }
 }
 
