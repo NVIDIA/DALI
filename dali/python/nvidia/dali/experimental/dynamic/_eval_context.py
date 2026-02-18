@@ -169,6 +169,9 @@ class EvalContext:
         self._async_executor = _AsyncExecutor()
         weakref.finalize(self, self._async_executor.shutdown)
 
+    def _purge_operator_cache(self):
+        self._instance_cache = {}
+
     @property
     def _thread_pool(self):
         if (
