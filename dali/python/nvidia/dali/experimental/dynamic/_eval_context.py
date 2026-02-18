@@ -170,6 +170,7 @@ class EvalContext:
         weakref.finalize(self, self._async_executor.shutdown)
 
     def _purge_operator_cache(self):
+        """Empties the operator instance cache"""
         self._instance_cache = {}
 
     @property
