@@ -2489,16 +2489,12 @@ void SetupAndRun(OperatorBase &self, Workspace &ws, std::optional<int> batch_siz
   };
 
   auto &schema = spec.GetSchemaOrDefault();
-  bool has_gpu_inputs = false;
   for (int i = 0; i < spec.NumRegularInput(); i++) {
-    bool is_gpu_input = ws.InputIsType<GPUBackend>(i);
-    if (is_gpu_input)
-      has_gpu_inputs = true;
     auto layout = ws.GetInputLayout(i);
     auto ndim = ws.GetInputDim(i);
     auto adjusted_layout = schema.GetInputLayout(i, ndim, layout);
     if (layout != adjusted_layout) {
-      if (is_gpu_input) {
+      if (ws.InputIsType<GPUBackend>(i)) {
         AdjustLayout(i, adjusted_layout, GPUBackend());
       } else {
         AdjustLayout(i, adjusted_layout, CPUBackend());
@@ -2510,10 +2506,6 @@ void SetupAndRun(OperatorBase &self, Workspace &ws, std::optional<int> batch_siz
   std::optional<int> dev_id;
   if (ws.output_order().is_device())
     dev_id = ws.output_order().device_id();
-
-  bool needs_stream = has_gpu_inputs || !dynamic_cast<Operator<CPUBackend> *>(&self);
-  if (!needs_stream)
-    ws.set_output_order(AccessOrder::host());
 
   for (int i = 0; i < spec.NumOutput(); i++) {
     if (spec.OutputDevice(i) == StorageDevice::CPU) {
@@ -2566,13 +2558,12 @@ void SetupAndRun(OperatorBase &self, Workspace &ws, std::optional<int> batch_siz
     self.Run(ws);
   }
 
-  if (needs_stream) {
-    DomainTimeRange setup_tr("Adjust CPU output stream " + GetOpDisplayName(self.GetSpec(), true));
-    for (int i = 0; i < spec.NumOutput(); i++) {
-      if (ws.OutputIsType<CPUBackend>(i)) {
-        auto &out = ws.Output<CPUBackend>(i);
+  DomainTimeRange setup_tr("Adjust CPU output stream " + GetOpDisplayName(self.GetSpec(), true));
+  for (int i = 0; i < spec.NumOutput(); i++) {
+    if (ws.OutputIsType<CPUBackend>(i)) {
+      auto &out = ws.Output<CPUBackend>(i);
+      if (out.is_pinned())
         out.set_order(ws.output_order(), false);
-      }
     }
   }
 }
