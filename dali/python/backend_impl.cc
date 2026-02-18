@@ -2493,7 +2493,7 @@ void SetupAndRun(OperatorBase &self, Workspace &ws, std::optional<int> batch_siz
   for (int i = 0; i < spec.NumRegularInput(); i++) {
     bool is_gpu_input = ws.InputIsType<GPUBackend>(i);
     if (is_gpu_input)
-        has_gpu_inputs = true;
+      has_gpu_inputs = true;
     auto layout = ws.GetInputLayout(i);
     auto ndim = ws.GetInputDim(i);
     auto adjusted_layout = schema.GetInputLayout(i, ndim, layout);
