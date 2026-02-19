@@ -318,11 +318,40 @@ class ArgValue {
                ArgValueFlags flags = ArgValue_Default,
                ShapeFromSizeFn &&shape_from_size = {}) {
     if (has_arg_input_) {
-      view_ = view<const T, ndim>(ws.ArgumentInput(arg_name_));
-      if (flags & ArgValue_EnforceUniform) {
-        DALI_ENFORCE(is_uniform(view_.shape),
-          make_string("Expected uniform shape for argument \"", arg_name_,
-                      "\" but got shape ", view_.shape));
+      auto &inp = ws.ArgumentInput(arg_name_);
+      DALI_ENFORCE(inp.num_samples() == nsamples, make_string(
+        "Unexpected number of samples for argument \"", arg_name_, "\". Expected ", nsamples,
+        ", got ", inp.num_samples()));
+
+      if (inp.sample_dim() == 0 && ndim != 0) {
+        auto sample_shape = shape_from_size(1);
+        int64_t vol = volume(sample_shape);
+        auto tmp_view = view<const T, 0>(inp);
+        view_.resize(nsamples);
+        view_.shape = uniform_list_shape(nsamples, sample_shape);
+        switch (vol) {
+          case 0:
+            for (auto &ptr : view_.data) ptr = nullptr;
+            break;
+          case 1:
+            view_.data = tmp_view.data;
+            break;
+          default:
+            broadcast_data_.resize(nsamples);
+            for (int i = 0; i < nsamples; i++) {
+              broadcast_data_[i].clear();
+              broadcast_data_[i].resize(vol, *tmp_view.data[i]);  // actually broadcast the value
+              view_.data[i] = broadcast_data_[i].data();
+            }
+            break;
+        }
+      } else {
+        view_ = view<const T, ndim>(inp);
+        if (flags & ArgValue_EnforceUniform) {
+          DALI_ENFORCE(is_uniform(view_.shape),
+            make_string("Expected uniform shape for argument \"", arg_name_,
+                        "\" but got shape ", view_.shape));
+        }
       }
     } else {
       if (!has_constant_value_)
