@@ -329,15 +329,21 @@ class ArgValue {
         auto tmp_view = view<const T, 0>(inp);
         view_.resize(nsamples);
         view_.shape = uniform_list_shape(nsamples, sample_shape);
-        if (vol > 1) {
-          broadcast_data_.resize(nsamples);
-          for (int i = 0; i < nsamples; i++) {
-            broadcast_data_[i].clear();
-            broadcast_data_[i].resize(vol, *tmp_view.data[i]);  // actually broadcast the value
-            view_.data[i] = broadcast_data_[i].data();
-          }
-        } else {
-          view_.data = tmp_view.data;
+        switch (vol) {
+          case 0:
+            for (auto &ptr : view_.data) ptr = nullptr;
+            break;
+          case 1:
+            view_.data = tmp_view.data;
+            break;
+          default:
+            broadcast_data_.resize(nsamples);
+            for (int i = 0; i < nsamples; i++) {
+              broadcast_data_[i].clear();
+              broadcast_data_[i].resize(vol, *tmp_view.data[i]);  // actually broadcast the value
+              view_.data[i] = broadcast_data_[i].data();
+            }
+            break;
         }
       } else {
         view_ = view<const T, ndim>(inp);

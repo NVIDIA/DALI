@@ -378,6 +378,19 @@ TEST(ArgValue, TestInputBroadcastingShapeFromSize) {
     int64_t vol = volume(sample.shape);
     EXPECT_EQ(sample.data, input_view.data[i]) << "No broadcasting needed";
   }
+
+  expected_shape = { 0, 1 };
+
+  arg.Acquire(spec, ws, 10, ArgValueFlags::ArgValue_Default, shape_from_size);
+  tlv = arg.get();
+  EXPECT_EQ(tlv.shape, uniform_list_shape<2>(10, expected_shape));
+  input_view = view<const float, 0>(*arg_data);
+  for (int i = 0; i < 10; i++) {
+    auto sample = tlv[i];
+    EXPECT_EQ(sample.shape, expected_shape);
+    int64_t vol = volume(sample.shape);
+    EXPECT_EQ(sample.data, nullptr) << "Should be empty";
+  }
 }
 
 }  // namespace dali
