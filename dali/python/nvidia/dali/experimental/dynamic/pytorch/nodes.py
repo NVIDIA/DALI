@@ -23,6 +23,7 @@ import torch
 import torchdata.nodes as tn
 
 from .. import Batch, Tensor, _ops
+from .. import stream as _stream
 
 T = TypeVar("T", bound=Tensor | Batch)
 
@@ -182,11 +183,29 @@ class ToTorch(tn.BaseNode[tuple[torch.Tensor, ...]], metaclass=_CUDANodeMeta):
     ----------
     source : :class:`torchdata.nodes.BaseNode`
         The source node to pull data from. Yields dictionaries of tensors or batches.
+    output_stream : a compatible stream object, optional
+        The CUDA stream on which the output tensors will be used. If provided, ensure that work on
+        this stream will wait for any pending GPU operations before the tensors are consumed.
+        Defaults to the current CUDA stream at the time of construction.
     """
 
-    def __init__(self, source: tn.BaseNode[dict[str, Tensor | Batch]]):
+    def __init__(
+        self,
+        source: tn.BaseNode[dict[str, Tensor | Batch]],
+        output_stream: Any | None = None,  # TODO(rtabet): create StreamLike type alias
+    ):
         super().__init__()
         self._source = source
+
+        if output_stream is None and _backend.GetCUDADeviceCount() > 0:
+            self._stream_context = torch.cuda.stream(torch.cuda.current_stream())
+        elif isinstance(output_stream, torch.cuda.Stream | None):
+            self._stream_context = torch.cuda.stream(output_stream)  # no-op if None
+        else:
+            self._dali_stream = _stream(output_stream)  # keep it alive in case the caller doesn't
+            self._stream_context = torch.cuda.stream(
+                torch.cuda.ExternalStream(self._dali_stream.handle, self._dali_stream.device_id)
+            )
 
     def next(self) -> tuple[torch.Tensor, ...]:
         data_dict = self._source.next().copy()
@@ -209,7 +228,8 @@ class ToTorch(tn.BaseNode[tuple[torch.Tensor, ...]], metaclass=_CUDANodeMeta):
             for key in cpu_keys:
                 data_dict[key] = data_dict[key].gpu(device_index)
 
-        return tuple(data.torch() for data in data_dict.values())
+        with self._stream_context:
+            return tuple(data.torch() for data in data_dict.values())
 
     def reset(self, initial_state=None):
         super().reset(initial_state)
