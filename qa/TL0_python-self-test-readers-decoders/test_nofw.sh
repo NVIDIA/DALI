@@ -1,6 +1,6 @@
 #!/bin/bash -e
 # used pip packages
-pip_packages='${python_test_runner_package} numpy librosa scipy nvidia-ml-py==11.450.51 psutil dill cloudpickle pillow opencv-python-headless astropy av'
+pip_packages='${python_test_runner_package} numpy librosa scipy nvidia-ml-py==11.450.51 psutil dill cloudpickle pillow opencv-python-headless astropy av lmdb'
 
 target_dir=./dali/test/python
 

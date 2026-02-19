@@ -182,7 +182,7 @@ class LMDBLoader : public Loader<CPUBackend, Tensor<CPUBackend>, true> {
     MoveToNextShard(current_index_);
 
     std::string image_key = db_paths_[file_index] + " at key " +
-                            to_string(reinterpret_cast<char*>(key.mv_data));
+                            std::string(static_cast<const char*>(key.mv_data), key.mv_size);
     DALIMeta meta;
 
     meta.SetSourceInfo(image_key);
