@@ -25,7 +25,7 @@ def test_ndd_reader_api():
     for reader in dir(ndd.readers):
         reader_cls = getattr(ndd.readers, reader)
         if isinstance(reader_cls, type) and issubclass(reader_cls, ndd._ops.Reader):
-            allowed_members = ["next_epoch"]
+            allowed_members = {"next_epoch", "get_metadata"}
             for member in dir(reader_cls):
                 assert (
                     member.startswith("_") or member in allowed_members

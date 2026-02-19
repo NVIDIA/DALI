@@ -23,12 +23,18 @@ try:
     from nvidia.dali.pipeline import pipeline_def
     import nvidia.dali.types as types
     import nvidia.dali.fn as fn
+    import nvidia.dali.experimental.dynamic as ndd
 except ImportError:
     raise ImportError("Please install DALI from https://www.github.com/NVIDIA/DALI to run this example.")
 import torchvision.transforms as transforms
 import torchvision.datasets as datasets
 import torchvision.models as models
 from contextlib import nullcontext
+
+try:
+    import torchdata.nodes as tn
+except ImportError:
+    tn = None
 
 def fast_collate(batch, memory_format):
     """Based on fast_collate from the APEX example
@@ -88,9 +94,11 @@ def parse():
     parser.add_argument('--dali_cpu', action='store_true',
                         help='Runs CPU based version of DALI pipeline.')
     parser.add_argument("--data_loader", default="dali",
-                        choices=["pytorch", "dali", "dali_proxy"],
+                        choices=["pytorch", "dali", "dali_proxy", "ndd"],
                         help='Select data loader: "pytorch" for native PyTorch data loader, '
-                        '"dali" for DALI data loader, or "dali_proxy" for PyTorch dataloader with DALI proxy preprocessing.')
+                        '"dali" for DALI data loader, '
+                        '"dali_proxy" for PyTorch dataloader with DALI proxy preprocessing, or '
+                        '"ndd" for torchdata.nodes loader with dynamic mode.')
     parser.add_argument('--prof', default=-1, type=int,
                         help='Only run 10 iterations for profiling.')
     parser.add_argument('--deterministic', action='store_true',
@@ -115,13 +123,13 @@ def to_python_float(t):
 
 
 def image_processing_func(
-    images, crop, size, is_training=True, decoder_device="mixed"
+    api, images, crop, size, is_training=True, decoder_device="mixed"
 ):
     # ask HW NVJPEG to allocate memory ahead for the biggest image in the data set to avoid reallocations in runtime
-    preallocate_width_hint = 5980 if decoder_device == "mixed" else 0
-    preallocate_height_hint = 6430 if decoder_device == "mixed" else 0
+    preallocate_width_hint = 5980 if decoder_device in ("mixed", "gpu") else 0
+    preallocate_height_hint = 6430 if decoder_device in ("mixed", "gpu") else 0
     if is_training:
-        images = fn.decoders.image_random_crop(
+        images = api.decoders.image_random_crop(
             images,
             device=decoder_device,
             output_type=types.RGB,
@@ -131,18 +139,18 @@ def image_processing_func(
             random_area=[0.1, 1.0],
             num_attempts=100,
         )
-        images = fn.resize(
+        images = api.resize(
             images,
             resize_x=crop,
             resize_y=crop,
             interp_type=types.INTERP_TRIANGULAR,
         )
-        mirror = fn.random.coin_flip(probability=0.5)
+        mirror = api.random.coin_flip(probability=0.5)
     else:
-        images = fn.decoders.image(
+        images = api.decoders.image(
             images, device=decoder_device, output_type=types.RGB
         )
-        images = fn.resize(
+        images = api.resize(
             images,
             size=size,
             mode="not_smaller",
@@ -150,7 +158,7 @@ def image_processing_func(
         )
         mirror = False
 
-    images = fn.crop_mirror_normalize(
+    images = api.crop_mirror_normalize(
         images.gpu(),
         dtype=types.FLOAT,
         output_layout="CHW",
@@ -176,7 +184,7 @@ def create_dali_pipeline(
     )
     decoder_device = "cpu" if dali_cpu else "mixed"
     images = image_processing_func(
-        images, crop, size, is_training, decoder_device
+        fn, images, crop, size, is_training, decoder_device
     )
     return images, labels.gpu()
 
@@ -187,9 +195,40 @@ def create_dali_proxy_pipeline(crop, size, dali_cpu=False, is_training=True):
     images = fn.io.file.read(filepaths)
     decoder_device = "cpu" if dali_cpu else "mixed"
     images = image_processing_func(
-        images, crop, size, is_training, decoder_device
+        fn, images, crop, size, is_training, decoder_device
     )
     return images
+
+
+def build_ndd_loader(
+    batch_size, data_dir, crop, size, shard_id, num_shards, dali_cpu=False, is_training=True
+):
+    decoder_device = "cpu" if dali_cpu else "gpu"
+    reader_node = ndd.pytorch.nodes.Reader(
+        ndd.readers.File,
+        batch_size=batch_size,
+        file_root=data_dir,
+        shard_id=shard_id,
+        num_shards=num_shards,
+        random_shuffle=is_training,
+        pad_last_batch=True,
+        seed=12 + shard_id,
+    )
+    mapper_node = ndd.pytorch.nodes.DictMapper(
+        source=reader_node,
+        map_fn=lambda data: image_processing_func(
+            ndd, data, crop, size, is_training, decoder_device
+        ),
+    )
+    torch_node = ndd.pytorch.nodes.ToTorch(mapper_node)
+    prefetch_node = tn.Prefetcher(torch_node, prefetch_factor=2)
+    loader = tn.Loader(prefetch_node)
+
+    # WAR to get the length of the loader
+    epoch_size = reader_node.get_metadata()["epoch_size_padded"]
+    loader._size = epoch_size // num_shards
+
+    return loader
 
 
 def main():
@@ -422,6 +461,33 @@ def main():
         )
         train_loader_ctx = dali_server_train
         val_loader_ctx = dali_server_val
+    elif args.data_loader == "ndd":
+        if tn is None:
+            raise RuntimeError("Please install TorchData from https://github.com/meta-pytorch/data")
+            
+        ndd.set_num_threads(args.workers)
+
+        train_loader = build_ndd_loader(
+            batch_size=args.batch_size,
+            data_dir=traindir,
+            crop=crop_size,
+            size=val_size,
+            shard_id=args.local_rank,
+            num_shards=args.world_size,
+            dali_cpu=args.dali_cpu,
+            is_training=True,
+        )
+
+        val_loader = build_ndd_loader(
+            batch_size=args.batch_size,
+            data_dir=valdir,
+            crop=crop_size,
+            size=val_size,
+            shard_id=args.local_rank,
+            num_shards=args.world_size,
+            dali_cpu=args.dali_cpu,
+            is_training=False,
+        )
     elif args.data_loader == "pytorch":
         train_dataset = datasets.ImageFolder(
             traindir,
@@ -582,6 +648,10 @@ def train(train_loader, model, criterion, scaler, optimizer, epoch):
         if is_pytorch_loader:
             input, target = data
             train_loader_len = len(train_loader)
+        elif args.data_loader == "ndd":
+            input, target = data
+            target = target.squeeze(-1).long()
+            train_loader_len = int(math.ceil(data_iterator._size / args.batch_size))
         else:
             input = data[0]["data"]
             target = data[0]["label"].squeeze(-1).long()
@@ -689,6 +759,10 @@ def validate(val_loader, model, criterion):
         if is_pytorch_loader:
             input, target = data
             val_loader_len = len(val_loader)
+        elif args.data_loader == "ndd":
+            input, target = data
+            target = target.squeeze(-1).long()
+            val_loader_len = int(math.ceil(data_iterator._size / args.batch_size))
         else:
             input = data[0]["data"]
             target = data[0]["label"].squeeze(-1).long()

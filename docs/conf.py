@@ -159,6 +159,7 @@ extensions = [
     "sphinx.ext.napoleon",
     "sphinx.ext.ifconfig",
     "sphinx.ext.extlinks",
+    "sphinx.ext.graphviz",
     "IPython.sphinxext.ipython_console_highlighting",
     "nbsphinx",
     "sphinx.ext.intersphinx",
@@ -529,6 +530,11 @@ extlinks = {
         + "/%s",
         "%s",
     ),
+}
+
+intersphinx_mapping = {
+    "torch": ("https://docs.pytorch.org/docs/stable/", None),
+    "torchdata": ("https://meta-pytorch.org/data/main/", None),
 }
 
 _dali_enums = [
