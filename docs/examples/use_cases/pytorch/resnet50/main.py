@@ -3,7 +3,6 @@ import os
 import shutil
 import time
 import math
-import warnings
 
 import torch
 import torch.nn as nn
@@ -35,7 +34,7 @@ from contextlib import nullcontext
 try:
     import torchdata.nodes as tn
 except ImportError:
-    warnings.warn("TorchData is not installed. The dynamic mode data loader option will not be available.")
+    tn = None
 
 def fast_collate(batch, memory_format):
     """Based on fast_collate from the APEX example
@@ -463,6 +462,9 @@ def main():
         train_loader_ctx = dali_server_train
         val_loader_ctx = dali_server_val
     elif args.data_loader == "ndd":
+        if tn is None:
+            raise RuntimeError("Please install TorchData from https://github.com/meta-pytorch/data")
+            
         ndd.set_num_threads(args.workers)
 
         train_loader = build_ndd_loader(
