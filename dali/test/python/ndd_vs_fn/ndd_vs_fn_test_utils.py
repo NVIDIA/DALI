@@ -521,6 +521,8 @@ def run_operator_test(
     batch_size : int, optional
         Max batch size used when building the pipeline.
     """
+    ndd.EvalContext.current()._purge_operator_cache()
+
     if operator_args is None:
         operator_args = {}
 
