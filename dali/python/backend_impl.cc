@@ -2494,10 +2494,11 @@ void SetupAndRun(OperatorBase &self, Workspace &ws, std::optional<int> batch_siz
     auto ndim = ws.GetInputDim(i);
     auto adjusted_layout = schema.GetInputLayout(i, ndim, layout);
     if (layout != adjusted_layout) {
-      if (ws.InputIsType<GPUBackend>(i))
+      if (ws.InputIsType<GPUBackend>(i)) {
         AdjustLayout(i, adjusted_layout, GPUBackend());
-      else
+      } else {
         AdjustLayout(i, adjusted_layout, CPUBackend());
+      }
     }
   }
 
@@ -2511,7 +2512,7 @@ void SetupAndRun(OperatorBase &self, Workspace &ws, std::optional<int> batch_siz
       auto out = std::make_shared<TensorList<CPUBackend>>();
       if (dev_id.has_value())
         out->set_device_id(*dev_id);
-      out->set_order(ws.output_order(), false);
+      out->set_order(AccessOrder::host(), false);  // make sure outputs are allocated in host order
       out->set_pinned(pinned);
       ws.AddOutput(std::move(out));
     } else {
@@ -2555,6 +2556,15 @@ void SetupAndRun(OperatorBase &self, Workspace &ws, std::optional<int> batch_siz
   {
     DomainTimeRange run_tr("Run " + GetOpDisplayName(self.GetSpec(), true));
     self.Run(ws);
+  }
+
+  DomainTimeRange setup_tr("Adjust CPU output stream " + GetOpDisplayName(self.GetSpec(), true));
+  for (int i = 0; i < spec.NumOutput(); i++) {
+    if (ws.OutputIsType<CPUBackend>(i)) {
+      auto &out = ws.Output<CPUBackend>(i);
+      if (out.is_pinned())
+        out.set_order(ws.output_order(), false);
+    }
   }
 }
 
