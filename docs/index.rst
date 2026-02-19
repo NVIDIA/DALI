@@ -56,6 +56,7 @@ NVIDIA DALI Documentation
    dali_dynamic/threading
    dali_dynamic/readers_reference
    dali_dynamic/ops_reference
+   ndd_framework_plugins
 
 .. toctree::
    :hidden:

@@ -74,5 +74,15 @@ torchrun --nproc_per_node=${NUM_GPUS} main.py -a resnet50 --b 256 --loss-scale 1
 check_training_results dali_proxy.log
 RESULT_DALI_PROXY=$?
 
-# Return 0 if both are 0, otherwise return the first non-zero code
-exit ${RESULT_DALI:-$RESULT_DALI_PROXY}
+torchrun --nproc_per_node=${NUM_GPUS} main.py -a resnet50 --b 256 --loss-scale 128.0 --workers 8 --lr=0.4 --fp16-mode --epochs 5 --data_loader ndd ./ 2>&1 | tee ndd.log
+check_training_results ndd.log
+RESULT_NDD=$?
+
+# Return 0 if all are 0, otherwise return the first non-zero code
+if [[ ${RESULT_DALI} -ne 0 ]]; then
+    exit ${RESULT_DALI}
+elif [[ ${RESULT_DALI_PROXY} -ne 0 ]]; then
+    exit ${RESULT_DALI_PROXY}
+else
+    exit ${RESULT_NDD}
+fi

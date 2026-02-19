@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import TypedDict
+
 import nvidia.dali as dali
 import nvidia.dali.backend_impl as _b
 import math
@@ -107,6 +109,15 @@ def _infer_batch_size(explicit_batch_size, *raw_args, **raw_kwargs):
                 else:
                     batch_size = x_batch_size
     return batch_size
+
+
+class ReaderMeta(TypedDict):
+    epoch_size: int
+    epoch_size_padded: int
+    number_of_shards: int
+    shard_id: int
+    pad_last_batch: int
+    stick_to_shard: int
 
 
 class Operator:
@@ -653,6 +664,12 @@ class Reader(Operator):
             return self._batches(batch_size, ctx)
         else:
             return self._samples(ctx)
+
+    def get_metadata(self) -> ReaderMeta:
+        """Returns the metadata of the underlying reader operator"""
+
+        self._init_backend(None, (), {})
+        return self._op_backend.GetReaderMeta()
 
     def _samples(self, ctx: _eval_context.EvalContext | None = None):
         if self._api_type is None:
