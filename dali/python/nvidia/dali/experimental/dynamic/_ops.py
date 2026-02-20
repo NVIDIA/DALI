@@ -285,6 +285,14 @@ class Operator:
 
     @classmethod
     def _process_params(cls, backend, op_device, batch_size, *raw_args, **raw_kwargs):
+        """
+        Processes run-time parameters passed to the operator to ones that can be consumed DALI
+        (Batch or Tensor).
+
+        This is a class method, as it doesn't require an operator instance - and this method
+        is essential for proper operator instance caching, as input/argument metadata is a part
+        of the operator cache key.
+        """
         is_batch = batch_size is not None
         if cls._has_random_state_arg:
             from . import random
@@ -347,12 +355,6 @@ class Operator:
 
     def _is_backend_initialized(self):
         return self._op_backend is not None
-
-    def _reset_backend(self):
-        self._op_backend = None
-        self._op_spec = None
-        self._input_meta = []
-        self._arg_meta = {}
 
     def _init_spec(self, inputs, args):
         if self._op_spec is None:
