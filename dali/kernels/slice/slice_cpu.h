@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -376,7 +376,7 @@ void SliceKernel(ExecutionEngine &exec_engine,
       int64_t b_nbytes = (b_end - b_start) * sizeof(OutputType);
       exec_engine.AddWork([=](int tid) {
         std::memcpy(out_data + b_start, in_data + b_start, b_nbytes);
-      }, b_nbytes, false);  // do not start work immediately
+      }, b_nbytes);
     }
     return;
   }
@@ -390,7 +390,7 @@ void SliceKernel(ExecutionEngine &exec_engine,
       SliceKernel(out_data, in_data, out_strides, in_strides, out_shape, in_shape, args.anchor,
                   args.step, GetPtr<OutputType>(args.fill_values), args.channel_dim,
                   args.border_type);
-    }, kSliceCost * volume(out_shape), false);  // do not start work immediately
+    }, kSliceCost * volume(out_shape));
     return;
   }
 
@@ -413,7 +413,7 @@ void SliceKernel(ExecutionEngine &exec_engine,
         SliceKernel(output_ptr, in_data, out_strides, in_strides, blk_shape, in_shape,
                     blk_anchor, blk_step, GetPtr<OutputType>(args.fill_values), args.channel_dim,
                     args.border_type);
-      }, kSliceCost * volume(blk_shape), false);  // do not start work immediately
+      }, kSliceCost * volume(blk_shape));
     });
   // scheduled work does not start until user calls Run()
 }
