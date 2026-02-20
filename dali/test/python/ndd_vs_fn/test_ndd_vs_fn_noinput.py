@@ -16,11 +16,11 @@
 import nvidia.dali.fn as fn
 import nvidia.dali.experimental.dynamic as ndd
 from nvidia.dali.pipeline import pipeline_def
+
 from nose2.tools import params
 from ndd_vs_fn_test_utils import (
     MAX_BATCH_SIZE,
     OperatorTestConfig,
-    pipeline_es_feed_input_wrapper,
     compare_no_input,
     flatten_operator_configs,
 )
@@ -50,14 +50,16 @@ no_input_ops_test_configuration = flatten_operator_configs(NO_INPUT_OPERATORS)
 
 @params(*no_input_ops_test_configuration)
 def test_no_input_operators(device, operator_name, fn_operator, ndd_operator, operator_args):
-    pipe = pipeline_es_feed_input_wrapper(
-        fn_operator,
-        device,
-        input_layout=None,
-        num_inputs=1,
-        needs_input=False,
-        **operator_args,
+    @pipeline_def(
+        batch_size=MAX_BATCH_SIZE,
+        num_threads=ndd.get_num_threads(),
+        device_id=0,
+        prefetch_queue_depth=1,
     )
+    def pipeline():
+        return fn_operator(device=device, **operator_args)
+
+    pipe = pipeline()
     for _ in range(10):
         pipe_out = pipe.run()
         ndd_out = ndd_operator(device=device, batch_size=len(pipe_out[0]), **operator_args)
