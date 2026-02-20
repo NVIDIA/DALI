@@ -162,6 +162,7 @@ class EvalContext:
 
         self._num_threads = num_threads
         self._instance_cache = {}
+        self._num_active = 0
 
         # The thread pool needs to be thread-local because of eager execution
         self._tls = local()
@@ -210,11 +211,13 @@ class EvalContext:
         _tls.stack.append(self)
         if self._device:
             self._device.__enter__()
+        self._num_active += 1
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
+        self._num_active -= 1
         assert _tls.stack[-1] is self
-        if len(_tls.stack) < 2 or (_tls.stack[-2] is not self):
+        if self._num_active == 0:
             self.evaluate_all()
         _tls.stack.pop()
         if self._device:
