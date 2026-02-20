@@ -19,7 +19,7 @@ threads.
 :octicon:`alert-fill;1.2em;align-text-bottom text-warning` Multiple threads using the same :class:`EvalContext`:
 
 .. code-block:: python
-   :emphasize-lines: 4
+   :emphasize-lines: 7
 
    import threading
    import nvidia.dali.experimental.dynamic as ndd
@@ -27,7 +27,7 @@ threads.
    ctx = ndd.EvalContext(num_threads=4)
 
    def worker():
-       with ctx:  # Bad: using the same EvalContext in multiple threads simultaneously
+       with ctx:  # Raises an exception
            img = ndd.random.uniform(shape=(100, 100, 3), range=(0, 255), dtype=ndd.uint8)
            flipped = ndd.flip(img, horizontal=True)
            ...
@@ -39,10 +39,12 @@ threads.
        t.join()
 
 Here, the code should either create an instance of the evaluation context per thread, or use
-:func:`set_num_threads`. Here's a corrected version:
+:func:`set_num_threads`.
+
+:octicon:`check-circle-fill;1.2em;align-text-bottom text-success` Correct code using
+:func:`set_num_threads`:
 
 .. code-block:: python
-   :emphasize-lines: 4
 
    import threading
    import nvidia.dali.experimental.dynamic as ndd
