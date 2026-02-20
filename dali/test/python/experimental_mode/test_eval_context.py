@@ -138,6 +138,27 @@ def test_eval_context_evaluate_all_weakref():
     assert run_count_container.run_count == 0
 
 
+def test_eval_context_reentrancy():
+    with ndd.EvalContext() as ctx1:
+        inv = PseudoInvocation(42)
+        ctx1._add_invocation(inv, weak=False)
+
+        with ndd.EvalContext() as ctx2:
+            inv2 = PseudoInvocation(123)
+            ctx2._add_invocation(inv2, weak=False)
+            with ctx1:
+                inv3 = PseudoInvocation(2002)
+                ctx1._add_invocation(inv3, weak=False)
+
+        assert ndd.EvalContext.current() is ctx1
+        assert inv.run_count == 0, inv.run_count
+        assert inv3.run_count == 0
+
+    assert inv.run_count == 1
+    assert inv3.run_count == 1
+    assert ndd.EvalContext.current() is ndd.EvalContext.default()
+
+
 def _gpu_expr():
     a = ndd.tensor(np.array([1.0, 2.0, 3.0], dtype=np.float32), device="gpu")
     b = ndd.tensor(np.array([4.0, 5.0, 6.0], dtype=np.float32), device="gpu")
