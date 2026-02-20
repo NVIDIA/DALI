@@ -1,4 +1,4 @@
-// Copyright (c) 2018-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2018-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -58,24 +58,16 @@ ThreadPool::~ThreadPool() {
   }
 }
 
-void ThreadPool::AddWork(Work work, int64_t priority, bool start_immediately) {
-  bool started_before = started_;
+void ThreadPool::AddWork(Work work, int64_t priority) {
   outstanding_work_.fetch_add(1);
-  if (started_before) {
-    std::lock_guard lock(queue_lock_);
-    work_queue_.push({priority, std::move(work)});
+  if (started_) {
+    {
+      std::lock_guard lock(queue_lock_);
+      work_queue_.push({priority, std::move(work)});
+    }
+    queue_semaphore_.release();
   } else {
     work_queue_.push({priority, std::move(work)});
-    if (start_immediately) {
-      std::lock_guard lock(queue_lock_);
-      started_ = true;
-    }
-  }
-  if (started_) {
-    if (started_before)
-      queue_semaphore_.release();
-    else
-      queue_semaphore_.release(work_queue_.size());
   }
 }
 

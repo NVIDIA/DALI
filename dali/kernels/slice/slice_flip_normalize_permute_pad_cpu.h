@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -266,7 +266,7 @@ void SliceFlipNormalizePermutePadKernel(
                                          GetPtr<float>(args.mean),
                                          GetPtr<float>(args.inv_stddev),
                                          args.channel_dim);
-    }, kSliceFlipNormPermCost * volume(args.out_shape), false);
+    }, kSliceFlipNormPermCost * volume(args.out_shape));
     return;
   }
 
@@ -294,7 +294,7 @@ void SliceFlipNormalizePermutePadKernel(
                                            GetPtr<float>(args.mean),
                                            GetPtr<float>(args.inv_stddev),
                                            args.channel_dim);
-      }, kSliceFlipNormPermCost * volume(blk_shape), false);
+      }, kSliceFlipNormPermCost * volume(blk_shape));
     });
 }
 

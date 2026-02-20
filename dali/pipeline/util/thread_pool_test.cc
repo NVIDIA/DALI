@@ -1,4 +1,4 @@
-// Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -32,16 +32,6 @@ TEST(ThreadPool, AddWork) {
   ASSERT_EQ(count, 64);
 }
 
-TEST(ThreadPool, AddWorkImmediateStart) {
-  ThreadPool tp(16, 0, false, "ThreadPool test");
-  std::atomic<int> count{0};
-  auto increase = [&count](int thread_id) { count++; };
-  for (int i = 0; i < 64; i++) {
-    tp.AddWork(increase, 0, true);
-  }
-  tp.WaitForWork();
-  ASSERT_EQ(count, 64);
-}
 
 TEST(ThreadPool, AddWorkWithPriority) {
   // only one thread to ensure deterministic behavior
