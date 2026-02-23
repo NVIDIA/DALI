@@ -210,14 +210,16 @@ class EvalContext:
         return self is _tls.default.get(current_device_id)
 
     def __enter__(self):
-        if not self._lock.acquire(blocking=False):
+        skip_lock = self._is_in_background_thread()
+        if not skip_lock and not self._lock.acquire(blocking=False):
             raise RuntimeError("An EvalContext cannot be active in two threads simultaneously.")
         try:
             _tls.stack.append(self)
             if self._device:
                 self._device.__enter__()
         except Exception:
-            self._lock.release()
+            if not skip_lock:
+                self._lock.release()
             raise
         return self
 
@@ -235,7 +237,8 @@ class EvalContext:
             if self._device:
                 self._device.__exit__(exc_type, exc_value, traceback)
         finally:
-            self._lock.release()
+            if not self._is_in_background_thread():
+                self._lock.release()
 
     def evaluate_all(self):
         """Evaluates all pending invocations."""
