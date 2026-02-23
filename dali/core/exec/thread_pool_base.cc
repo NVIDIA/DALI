@@ -159,7 +159,7 @@ void IncrementalJob::Wait() {
 ///////////////////////////////////////////////////////////////////////////
 
 thread_local ThreadPoolBase *ThreadPoolBase::this_thread_pool_ = nullptr;
-thread_local int ThreadPoolBase::this_thread_idx_ = -1;
+thread_local int ThisThreadIdx::this_thread_idx_ = -1;
 
 void ThreadPoolBase::Init(int num_threads, const std::function<OnThreadStartFn> &on_thread_start) {
   if (shutdown_pending_)

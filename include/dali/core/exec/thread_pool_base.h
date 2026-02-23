@@ -32,6 +32,7 @@
 #include "dali/core/format.h"
 #include "dali/core/multi_error.h"
 #include "dali/core/semaphore.h"
+#include "dali/core/exec/thread_idx.h"
 #include "dali/core/mm/detail/aux_alloc.h"
 
 namespace dali {
@@ -168,7 +169,7 @@ class DLL_PUBLIC IncrementalJob final : public JobBase {
 };
 
 
-class DLL_PUBLIC ThreadPoolBase {
+class DLL_PUBLIC ThreadPoolBase : public ThisThreadIdx {
  public:
   using TaskFunc = std::function<void()>;
 
@@ -236,20 +237,19 @@ class DLL_PUBLIC ThreadPoolBase {
     return threads_.size();
   }
 
+  auto GetThreadIds() const {
+    int n = threads_.size();
+    std::vector<std::thread::id> ids(n);
+    for (int i = 0; i < n; i++)
+      ids[i] = threads_[i].get_id();
+    return ids;
+  }
+
   /**
    * @brief Returns the thread pool that owns the calling thread (or nullptr)
    */
   static ThreadPoolBase *this_thread_pool() {
     return this_thread_pool_;
-  }
-
-  /**
-   * @brief Returns the index of the current thread within the current thread pool
-   *
-   * @return the thread index or -1 if the calling thread does not belong to a thread pool
-   */
-  static int this_thread_idx() {
-    return this_thread_idx_;
   }
 
  protected:
@@ -264,7 +264,6 @@ class DLL_PUBLIC ThreadPoolBase {
   void PopAndRunTask(std::unique_lock<std::mutex> &mtx);
 
   static thread_local ThreadPoolBase *this_thread_pool_;
-  static thread_local int this_thread_idx_;
 
   void Run(int index, const std::function<OnThreadStartFn> &on_thread_start) noexcept;
 
