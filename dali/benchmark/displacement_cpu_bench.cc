@@ -94,7 +94,7 @@ void DisplacementBench(benchmark::State& st) {//NOLINT
   }
 
   // We need a thread pool
-  ThreadPool tp(4, 0, false, "DisplacementBench");
+  OldThreadPool tp(4, 0, false, "DisplacementBench");
 
   // Create workspace and set input and output
   Workspace ws;

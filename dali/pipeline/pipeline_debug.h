@@ -95,7 +95,7 @@ class DLL_PUBLIC PipelineDebug {
   int device_id_;
   int num_threads_;
   CUDAStreamLease cuda_stream_;
-  ThreadPool thread_pool_;
+  OldThreadPool thread_pool_;
   std::unordered_map<int, EagerOperator<CPUBackend>> cpu_operators_;
   std::unordered_map<int, EagerOperator<GPUBackend>> gpu_operators_;
   std::unordered_map<int, EagerOperator<MixedBackend>> mixed_operators_;

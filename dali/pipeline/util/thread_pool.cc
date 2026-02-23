@@ -27,7 +27,7 @@
 
 namespace dali {
 
-ThreadPool::ThreadPool(int num_thread, int device_id, bool set_affinity, const char* name)
+OldThreadPool::OldThreadPool(int num_thread, int device_id, bool set_affinity, const char* name)
     : threads_(num_thread) {
   DALI_ENFORCE(num_thread > 0, "Thread pool must have non-zero size");
 #if NVML_ENABLED
@@ -38,13 +38,14 @@ ThreadPool::ThreadPool(int num_thread, int device_id, bool set_affinity, const c
 #endif
   // Start the threads in the main loop
   for (int i = 0; i < num_thread; ++i) {
-    threads_[i] = std::thread(std::bind(&ThreadPool::ThreadMain, this, i, device_id, set_affinity,
+    threads_[i] = std::thread(std::bind(&OldThreadPool::ThreadMain, this,
+                                        i, device_id, set_affinity,
                                         make_string("[DALI][TP", i, "]", name)));
   }
   tl_errors_.resize(num_thread);
 }
 
-ThreadPool::~ThreadPool() {
+OldThreadPool::~OldThreadPool() {
   WaitForWork(false);
 
   std::unique_lock lock(queue_lock_);
@@ -58,7 +59,11 @@ ThreadPool::~ThreadPool() {
   }
 }
 
-void ThreadPool::AddWork(Work work, int64_t priority) {
+void OldThreadPool::AddWork(Work work, int64_t priority) {
+  AddWork([w = std::move(work)](int) { w(); }, priority);
+}
+
+void OldThreadPool::AddWork(WorkWithThreadIdx work, int64_t priority) {
   outstanding_work_.fetch_add(1);
   if (started_) {
     {
@@ -71,8 +76,12 @@ void ThreadPool::AddWork(Work work, int64_t priority) {
   }
 }
 
+void OldThreadPool::WaitForWork() {
+  WaitForWork(true);
+}
+
 // Blocks until all work issued to the thread pool is complete
-void ThreadPool::WaitForWork(bool checkForErrors) {
+void OldThreadPool::WaitForWork(bool checkForErrors) {
   if (outstanding_work_.load()) {
     std::unique_lock lock(completed_mutex_);
     completed_.wait(lock, [&, this] {
@@ -95,7 +104,7 @@ void ThreadPool::WaitForWork(bool checkForErrors) {
   }
 }
 
-void ThreadPool::RunAll(bool wait) {
+void OldThreadPool::RunAll(bool wait) {
   if (!started_) {
     {
       std::lock_guard lock(queue_lock_);
@@ -108,11 +117,11 @@ void ThreadPool::RunAll(bool wait) {
   }
 }
 
-int ThreadPool::NumThreads() const {
+int OldThreadPool::NumThreads() const {
   return threads_.size();
 }
 
-std::vector<std::thread::id> ThreadPool::GetThreadIds() const {
+std::vector<std::thread::id> OldThreadPool::GetThreadIds() const {
   std::vector<std::thread::id> tids;
   tids.reserve(threads_.size());
   for (const auto &thread : threads_)
@@ -121,7 +130,7 @@ std::vector<std::thread::id> ThreadPool::GetThreadIds() const {
 }
 
 
-void ThreadPool::ThreadMain(int thread_id, int device_id, bool set_affinity,
+void OldThreadPool::ThreadMain(int thread_id, int device_id, bool set_affinity,
                             const std::string &name) {
   this_thread_idx_ = thread_id;
   SetThreadName(name.c_str());
@@ -159,7 +168,7 @@ void ThreadPool::ThreadMain(int thread_id, int device_id, bool set_affinity,
       break;
 
     // Get work from the queue.
-    Work work = std::move(work_queue_.top().second);
+    WorkWithThreadIdx work = std::move(work_queue_.top().second);
     work_queue_.pop();
     // Unlock the lock
     lock.unlock();
