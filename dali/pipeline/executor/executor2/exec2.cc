@@ -346,7 +346,7 @@ class Executor2::Impl {
 
   void SetupThreadPool() {
     if (graph_info_.num_cpu > 0) {
-      tp_ = std::make_unique<ThreadPool>(
+      tp_ = std::make_unique<OldThreadPool>(
         config_.thread_pool_threads,
         config_.device.value_or(CPU_ONLY_DEVICE_ID),
         config_.set_affinity,

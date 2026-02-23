@@ -43,7 +43,7 @@ This operator can be used in the following modes:
 2. Read file names from a text file indicated in `file_list` argument.
 3. Read files listed in `files` argument.
 4. Number of outputs per sample corresponds to the length of `hdu_indices` argument. By default,
-first HDU with data is read from each file, so the number of outputs defaults to 1. 
+first HDU with data is read from each file, so the number of outputs defaults to 1.
 )")
     .NumInput(0)
     .OutputFn(detail::FitsReaderOutputFn)
@@ -78,7 +78,7 @@ If `file_root` is provided, the paths are treated as being relative to it.
 This argument is mutually exclusive with `file_list`.)",
                                     nullptr)
     .AddOptionalArg("hdu_indices",
-                    R"(HDU indices to read. If not provided, the first HDU after the primary 
+                    R"(HDU indices to read. If not provided, the first HDU after the primary
 will be yielded. Since HDUs are indexed starting from 1, the default value is as follows: hdu_indices = [2].
 Size of the provided list hdu_indices defines number of outputs per sample.)",
                     std::vector<int>{2})
@@ -98,7 +98,7 @@ void FitsReaderCPU::RunImpl(Workspace &ws) {
     auto &output = ws.Output<CPUBackend>(output_idx);
     for (int file_idx = 0; file_idx < num_samples; file_idx++) {
       auto &sample = GetSample(file_idx);
-      ThreadPool::Work copy_task = [output_idx = output_idx, data_idx = file_idx, &output,
+      auto copy_task = [output_idx = output_idx, data_idx = file_idx, &output,
                                     &sample](int) {
         std::memcpy(output.raw_mutable_tensor(data_idx), sample.data[output_idx].raw_data(),
                     sample.data[output_idx].nbytes());

@@ -196,8 +196,8 @@ class NumpyReaderCPU : public NumpyReader<CPUBackend, NumpyFileWrapper> {
    */
   size_t o_direct_alignm_ = 0;
   size_t o_direct_read_len_alignm_ = 0;
-  // ThreadPool for prefetch which is a separate thread
-  ThreadPool thread_pool_;
+  // OldThreadPool for prefetch which is a separate thread
+  OldThreadPool thread_pool_;
 };
 
 }  // namespace dali

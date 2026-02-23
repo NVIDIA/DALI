@@ -2408,7 +2408,7 @@ void ExposeThreadPool(py::module &m) {
         CUDA_CALL(cudaGetDevice(&dev));
         device_id = dev;
       }
-      return std::make_shared<ThreadPool>(num_threads, *device_id, set_affinity, name.data());
+      return std::make_shared<OldThreadPool>(num_threads, *device_id, set_affinity, name.data());
     }),
     "num_threads"_a,
     "device_id"_a = py::none(),

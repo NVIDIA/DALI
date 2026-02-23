@@ -55,7 +55,7 @@ class NumpyReaderGPU : gds::GDSLazyInit, public NumpyReader<GPUBackend, NumpyFil
  protected:
   // we need to do the threading manually because gpu workspaces
   // do not have a thread pool
-  ThreadPool thread_pool_;
+  OldThreadPool thread_pool_;
 
   vector<TensorList<GPUBackend>> prefetched_batch_tensors_;
 

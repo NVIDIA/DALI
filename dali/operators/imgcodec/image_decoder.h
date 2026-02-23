@@ -229,7 +229,7 @@ class ImageDecoder : public StatelessOperator<Backend> {
     GetDecoderSpecificArguments(spec);
 
     if (std::is_same<MixedBackend, Backend>::value) {
-      thread_pool_ = std::make_unique<ThreadPool>(num_threads_, device_id_,
+      thread_pool_ = std::make_unique<OldThreadPool>(num_threads_, device_id_,
                                                   spec.GetArgument<bool>("affine"), "MixedDecoder");
       if (spec_.HasArgument("cache_size"))
         cache_ = std::make_unique<CachedDecoderImpl>(spec_);

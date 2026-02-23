@@ -116,7 +116,7 @@ class FalseGPUOperator : public Operator<GPUBackend> {
 
  private:
   CPUOperator cpu_impl_;
-  ThreadPool thread_pool_;
+  OldThreadPool thread_pool_;
   Workspace cpu_ws_;
 
   // Keep it here so that we can modify (ws gives only const ref to inputs)

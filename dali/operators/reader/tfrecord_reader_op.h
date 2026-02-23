@@ -79,8 +79,8 @@ class TFRecordReader
   bool dont_use_mmap_ = false;
   bool use_o_direct_ = false;
   size_t o_direct_chunk_size_ = 0;
-  // ThreadPool for prefetch which is a separate thread
-  ThreadPool thread_pool_;
+  // OldThreadPool for prefetch which is a separate thread
+  OldThreadPool thread_pool_;
 };
 
 }  // namespace dali
