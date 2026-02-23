@@ -333,4 +333,64 @@ TEST(ArgValue, TestInputBroadcastingTensorListShape) {
   }
 }
 
+
+TEST(ArgValue, TestInputBroadcastingShapeFromSize) {
+  OpSpec spec("ArgHelperTestOp");
+  ArgumentWorkspace ws;
+  auto arg_data = std::make_shared<TensorList<CPUBackend>>();
+  TensorListShape<0> input_shape;
+  input_shape.resize(10);
+  SetupData(*arg_data, input_shape);
+  ASSERT_EQ(arg_data->num_samples(), 10);
+  ws.AddArgumentInput("arg", arg_data);
+  spec.AddArgumentInput("arg", "arg");
+
+  TensorShape<2> expected_shape;
+  expected_shape = {3, 4 };
+
+  auto shape_from_size = [&](int64_t size) {
+    return expected_shape;
+  };
+
+  ArgValue<float, 2> arg("arg", spec);
+  arg.Acquire(spec, ws, 10, ArgValueFlags::ArgValue_Default, shape_from_size);
+  auto tlv = arg.get();
+  EXPECT_EQ(tlv.shape, uniform_list_shape<2>(10, expected_shape));
+  auto input_view = view<const float, 0>(*arg_data);
+  for (int i = 0; i < 10; i++) {
+    auto sample = tlv[i];
+    EXPECT_EQ(sample.shape, expected_shape);
+    int64_t vol = volume(sample.shape);
+    for (int64_t j = 0; j < vol; j++) {
+      EXPECT_EQ(sample.data[j], *input_view.data[i]) << "Invalid buffer contents";
+    }
+  }
+
+  expected_shape = { 1, 1 };
+
+  arg.Acquire(spec, ws, 10, ArgValueFlags::ArgValue_Default, shape_from_size);
+  tlv = arg.get();
+  EXPECT_EQ(tlv.shape, uniform_list_shape<2>(10, expected_shape));
+  input_view = view<const float, 0>(*arg_data);
+  for (int i = 0; i < 10; i++) {
+    auto sample = tlv[i];
+    EXPECT_EQ(sample.shape, expected_shape);
+    int64_t vol = volume(sample.shape);
+    EXPECT_EQ(sample.data, input_view.data[i]) << "No broadcasting needed";
+  }
+
+  expected_shape = { 0, 1 };
+
+  arg.Acquire(spec, ws, 10, ArgValueFlags::ArgValue_Default, shape_from_size);
+  tlv = arg.get();
+  EXPECT_EQ(tlv.shape, uniform_list_shape<2>(10, expected_shape));
+  input_view = view<const float, 0>(*arg_data);
+  for (int i = 0; i < 10; i++) {
+    auto sample = tlv[i];
+    EXPECT_EQ(sample.shape, expected_shape);
+    int64_t vol = volume(sample.shape);
+    EXPECT_EQ(sample.data, nullptr) << "Should be empty";
+  }
+}
+
 }  // namespace dali
