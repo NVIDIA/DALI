@@ -123,6 +123,7 @@ std::vector<std::thread::id> ThreadPool::GetThreadIds() const {
 
 void ThreadPool::ThreadMain(int thread_id, int device_id, bool set_affinity,
                             const std::string &name) {
+  this_thread_idx_ = thread_id;
   SetThreadName(name.c_str());
   DeviceGuard g(device_id);
   try {
