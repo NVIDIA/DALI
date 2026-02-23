@@ -32,11 +32,25 @@
 #endif
 #include "dali/core/semaphore.h"
 #include "dali/core/spinlock.h"
-
+#include "dali/core/exec/thread_idx.h"
 
 namespace dali {
 
-class DLL_PUBLIC ThreadPool {
+class SingleJobThreadPool : public ThisThreadIdx {
+  virtual ~SingleJobThreadPool() = default;
+
+  virtual void AddWork(std::function<void(int)> work, int64_t priority = 0) = 0;
+
+  virtual void AddWork(std::function<void()> work, int64_t priority = 0) = 0;
+
+  virtual void Run(bool wait) = 0;
+
+  virtual void WaitForWork() = 0;
+
+  virtual std::vector<std::thread::id> GetThreadIds() const = 0;
+};
+
+class DLL_PUBLIC ThreadPool : public SingleJobThreadPool {
  public:
   // Basic unit of work that our threads do
   typedef std::function<void(int)> Work;
