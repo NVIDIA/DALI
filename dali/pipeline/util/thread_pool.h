@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -52,11 +52,11 @@ class DLL_PUBLIC ThreadPool {
    * @brief Adds work to the queue with optional priority, and optionally starts processing
    *
    * The jobs are queued but the workers don't pick up the work unless they have
-   * already been started by a previous call to AddWork with start_immediately = true or RunAll.
+   * already been started by a call to RunAll.
    * Once work is started, the threads will continue to pick up whatever work is scheduled
    * until WaitForWork is called.
    */
-  DLL_PUBLIC void AddWork(Work work, int64_t priority = 0, bool start_immediately = false);
+  DLL_PUBLIC void AddWork(Work work, int64_t priority = 0);
 
   /**
    * @brief Wakes up all the threads to complete all the queued work,

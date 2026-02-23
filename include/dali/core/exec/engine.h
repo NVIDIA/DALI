@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,6 +15,7 @@
 #ifndef DALI_CORE_EXEC_ENGINE_H_
 #define DALI_CORE_EXEC_ENGINE_H_
 
+#include <cstdint>
 #include <utility>
 
 namespace dali {
@@ -24,9 +25,7 @@ concept ExecutionEngine {
   /// @brief Adds work to the engine
   /// @param f           work item, callable with `int thread_idx`
   /// @param priority    priority hint for the job, the higher, the earlier it should start
-  /// @param start_immediately        if true, all jobs can start - it's just a hint
-  ///                                 and implementations may start running the jobs earlier
-  void AddWork(CallableWithInt f, int64_t priority, bool start_immediately = false);
+  void AddWork(CallableWithInt f, int64_t priority = 0);
 
   /// @brief Starts the work and waits for it to complete.
   /// If there was an exception in one of the jobs, rethrows one of them.
