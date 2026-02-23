@@ -52,7 +52,7 @@ class DLL_PUBLIC ThreadPool {
    * @brief Adds work to the queue with optional priority, and optionally starts processing
    *
    * The jobs are queued but the workers don't pick up the work unless they have
-   * already been started by a previous call to AddWork with start_immediately = true or RunAll.
+   * already been started by a call to RunAll.
    * Once work is started, the threads will continue to pick up whatever work is scheduled
    * until WaitForWork is called.
    */
