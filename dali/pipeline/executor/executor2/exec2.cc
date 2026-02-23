@@ -52,10 +52,9 @@ void LimitBackendConcurrency(ExecGraph &graph, OpType backend, int max_concurren
 void ApplyConcurrencyLimit(ExecGraph &graph, OperatorConcurrency concurrency) {
   switch (concurrency) {
     case OperatorConcurrency::Full:
-      // TODO(michalz): Fix ThreadPool.
-      if (!UseNewThreadPool())
+      if (!UseNewThreadPool())  // old thread pool is not thread safe
         LimitBackendConcurrency(graph, OpType::CPU);
-      break;  // other operators have no restrictions
+      break;
     case OperatorConcurrency::Backend:
       LimitBackendConcurrency(graph, OpType::CPU);
       LimitBackendConcurrency(graph, OpType::GPU);
