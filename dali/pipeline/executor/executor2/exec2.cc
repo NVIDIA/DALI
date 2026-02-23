@@ -1,4 +1,4 @@
-// Copyright (c) 2024-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2024-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -24,11 +24,21 @@
 #include "dali/pipeline/executor/executor2/exec_graph.h"
 #include "dali/pipeline/executor/executor2/stream_assignment.h"
 #include "dali/pipeline/operator/builtin/input_operator.h"
+#include "dali/pipeline/util/new_thread_pool.h"
 
 namespace dali {
 namespace exec2 {
 
 namespace {
+
+
+bool UseNewThreadPool() {
+  static bool use_new_thread_pool = []() {
+    const char *new_tp = getenv("DALI_USE_NEW_THREAD_POOL");
+    return new_tp && atoi(new_tp);
+  }();
+  return use_new_thread_pool;
+}
 
 void LimitBackendConcurrency(ExecGraph &graph, OpType backend, int max_concurrency = 1) {
   auto sem = std::make_shared<tasking::Semaphore>(max_concurrency);
@@ -43,7 +53,8 @@ void ApplyConcurrencyLimit(ExecGraph &graph, OperatorConcurrency concurrency) {
   switch (concurrency) {
     case OperatorConcurrency::Full:
       // TODO(michalz): Fix ThreadPool.
-      LimitBackendConcurrency(graph, OpType::CPU);
+      if (!UseNewThreadPool())
+        LimitBackendConcurrency(graph, OpType::CPU);
       break;  // other operators have no restrictions
     case OperatorConcurrency::Backend:
       LimitBackendConcurrency(graph, OpType::CPU);
@@ -345,18 +356,37 @@ class Executor2::Impl {
   }
 
   void SetupThreadPool() {
-    if (graph_info_.num_cpu > 0) {
-      tp_ = std::make_unique<OldThreadPool>(
-        config_.thread_pool_threads,
-        config_.device.value_or(CPU_ONLY_DEVICE_ID),
-        config_.set_affinity,
-        "Executorv_v2");
+    new_tp_.reset();
+    old_tp_.reset();
+    thread_pool_wrappers_.clear();
+
+    if (UseNewThreadPool()) {
+      std::cerr << "DEBUG: Using new thread pool" << std::endl;
+      if (graph_info_.num_cpu > 0) {
+        new_tp_ = std::make_unique<NewThreadPool>(
+          config_.thread_pool_threads,
+          config_.device.value_or(CPU_ONLY_DEVICE_ID),
+          config_.set_affinity,
+          "Executorv_v2");
+      }
+      for (auto &n : graph_.Nodes()) {
+        if (n.backend == OpType::CPU) {
+          thread_pool_wrappers_.push_back(std::make_unique<ThreadPoolFacade>(new_tp_.get()));
+          n.env.thread_pool = thread_pool_wrappers_.back().get();
+        }
+      }
     } else {
-      tp_.reset();
-    }
-    for (auto &n : graph_.Nodes()) {
-      if (n.backend == OpType::CPU)
-        n.env.thread_pool = tp_.get();
+      if (graph_info_.num_cpu > 0) {
+        old_tp_ = std::make_unique<OldThreadPool>(
+          config_.thread_pool_threads,
+          config_.device.value_or(CPU_ONLY_DEVICE_ID),
+          config_.set_affinity,
+          "Executorv_v2");
+      }
+      for (auto &n : graph_.Nodes()) {
+        if (n.backend == OpType::CPU)
+          n.env.thread_pool = old_tp_.get();
+      }
     }
   }
 
@@ -421,7 +451,9 @@ class Executor2::Impl {
 
   // Runtime environment
 
-  std::unique_ptr<ThreadPool> tp_;
+  std::unique_ptr<OldThreadPool> old_tp_;
+  std::unique_ptr<NewThreadPool> new_tp_;
+  std::vector<std::unique_ptr<ThreadPool>> thread_pool_wrappers_;
   std::queue<tasking::TaskFuture> pending_outputs_;
   std::vector<CUDAStreamLease> streams_;
   std::map<std::string, ExecNode *, std::less<>> node_map_;
