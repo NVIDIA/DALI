@@ -1150,8 +1150,8 @@ class nvJPEGDecoder : public StatelessOperator<MixedBackend>, CachedDecoderImpl 
   nvjpegDevAllocator_t device_allocator_;
   nvjpegPinnedAllocator_t pinned_allocator_;
 
-  ThreadPool thread_pool_;
-  ThreadPool nvjpeg2k_thread_;
+  OldThreadPool thread_pool_;
+  OldThreadPool nvjpeg2k_thread_;
   static constexpr int kOutputDim = 3;
 
   TensorList<CPUBackend> hw_decoder_images_staging_;

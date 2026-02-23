@@ -46,7 +46,7 @@ class NemoAsrReader : public DataReader<CPUBackend, AsrSample, AsrSample, true> 
   DALIDataType dtype_;
 
   int num_threads_;
-  ThreadPool thread_pool_;
+  OldThreadPool thread_pool_;
 
   // prefetch_depth * batch_size set of buffers that we reuse to decode audio
   using TensorListPtr = std::unique_ptr<TensorList<CPUBackend>>;
