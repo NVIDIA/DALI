@@ -158,6 +158,7 @@ py::dict ArrayInterfaceRepr(Tensor<Backend> &t) {
 }
 
 namespace {
+  const uint32_t kDynamicDefaultColor = DomainTimeRange::kCyan;
   const uint32_t kCPUTensorColor = DomainTimeRange::kBlue1;
   const uint32_t kGPUTensorColor = DomainTimeRange::knvGreen;
 }  // namespace
@@ -1137,7 +1138,9 @@ std::shared_ptr<TensorList<Backend>> TensorListFromListOfTensors(
       py::list &list_of_tensors,
       const std::optional<std::string> &layout = {},
       bool contiguous = true) {
-  DomainTimeRange range("TensorListFromListOfTensors");
+  constexpr uint32_t rangeColor =
+      std::is_same_v<Backend, CPUBackend> ? kCPUTensorColor : kGPUTensorColor;
+  DomainTimeRange range("TensorListFromListOfTensors", rangeColor);
   if (list_of_tensors.empty()) {
     auto ptr = std::make_shared<TensorList<Backend>>();
     if (layout.has_value()) {
@@ -1165,7 +1168,7 @@ std::shared_ptr<TensorList<Backend>> TensorListFromListOfTensors(
   AccessOrder copy_order = AccessOrder::host();
 
   {
-    DomainTimeRange range("Build initial list");
+    DomainTimeRange range("Build initial list", rangeColor);
 
     for (size_t i = 0; i < list_of_tensors.size(); ++i) {
       try {
@@ -1202,7 +1205,7 @@ std::shared_ptr<TensorList<Backend>> TensorListFromListOfTensors(
   }
 
   {
-    DomainTimeRange range("Copy to contiguous");
+    DomainTimeRange range("Copy to contiguous", rangeColor);
     auto contiguous_out = std::make_shared<TensorList<Backend>>();
     contiguous_out->SetContiguity(BatchContiguity::Contiguous);
     contiguous_out->set_pinned(non_contiguous.is_pinned());
@@ -2473,7 +2476,8 @@ void ExposeWorkspace(py::module &m) {
 }
 
 void SetupAndRun(OperatorBase &self, Workspace &ws, std::optional<int> batch_size) {
-  DomainTimeRange setup_and_run_tr("SetupAndRun " + GetOpDisplayName(self.GetSpec(), true));
+  DomainTimeRange setup_and_run_tr("SetupAndRun " + GetOpDisplayName(self.GetSpec(), true),
+                                   kDynamicDefaultColor);
   std::vector<dali::OutputDesc> out_descs;
   const auto &spec = self.GetSpec();
   if (ws.NumOutput() != 0)
@@ -2543,7 +2547,8 @@ void SetupAndRun(OperatorBase &self, Workspace &ws, std::optional<int> batch_siz
   }
 
   {
-    DomainTimeRange setup_tr("Setup " + GetOpDisplayName(self.GetSpec(), true));
+    DomainTimeRange setup_tr("Setup " + GetOpDisplayName(self.GetSpec(), true),
+                             kDynamicDefaultColor);
     if (self.Setup(out_descs, ws)) {
       for (int i = 0; i < ws.NumOutput(); i++) {
         if (ws.OutputIsType<CPUBackend>(i))
@@ -2554,11 +2559,12 @@ void SetupAndRun(OperatorBase &self, Workspace &ws, std::optional<int> batch_siz
     }
   }
   {
-    DomainTimeRange run_tr("Run " + GetOpDisplayName(self.GetSpec(), true));
+    DomainTimeRange run_tr("Run " + GetOpDisplayName(self.GetSpec(), true), kDynamicDefaultColor);
     self.Run(ws);
   }
 
-  DomainTimeRange setup_tr("Adjust CPU output stream " + GetOpDisplayName(self.GetSpec(), true));
+  DomainTimeRange setup_tr("Adjust CPU output stream " + GetOpDisplayName(self.GetSpec(), true),
+                           kDynamicDefaultColor);
   for (int i = 0; i < spec.NumOutput(); i++) {
     if (ws.OutputIsType<CPUBackend>(i)) {
       auto &out = ws.Output<CPUBackend>(i);
@@ -2571,17 +2577,17 @@ void SetupAndRun(OperatorBase &self, Workspace &ws, std::optional<int> batch_siz
 void ExposeOperator(py::module &m) {
   py::class_<OperatorBase, std::unique_ptr<OperatorBase>>(m, "_Operator")
     .def(py::init([](const OpSpec &spec) {
-      DomainTimeRange tr("Instantiate " + GetOpDisplayName(spec, true));
+      DomainTimeRange tr("Instantiate " + GetOpDisplayName(spec, true), kDynamicDefaultColor);
       return dali::InstantiateOperator(spec);
     }))
     .def("Setup", [](OperatorBase &self, std::vector<dali::OutputDesc> &out_descs, Workspace &ws) {
       py::gil_scoped_release interpreter_unlock{};
-      DomainTimeRange tr("Setup " + GetOpDisplayName(self.GetSpec(), true));
+      DomainTimeRange tr("Setup " + GetOpDisplayName(self.GetSpec(), true), kDynamicDefaultColor);
       return self.Setup(out_descs, ws);
     })
     .def("Run", [](OperatorBase &self, Workspace &ws) {
       py::gil_scoped_release interpreter_unlock{};
-      DomainTimeRange tr("Run " + GetOpDisplayName(self.GetSpec(), true));
+      DomainTimeRange tr("Run " + GetOpDisplayName(self.GetSpec(), true), kDynamicDefaultColor);
       self.Run(ws);
     } )
     .def("SetupAndRun", [](OperatorBase &self, PyWorkspace &ws, std::optional<int> batch_size) {

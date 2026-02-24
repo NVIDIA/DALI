@@ -42,7 +42,7 @@ class NVTXRange(contextlib.ContextDecorator):
     Use categories to organize annotations.
     """
 
-    def __init__(self, message: str, color: Color = Color.BLUE, category: str | None = None):
+    def __init__(self, message: str, color: Color = Color.CYAN, category: str | None = None):
         category_id = _DOMAIN.get_category_id(category)
         self._attributes = _DOMAIN.get_event_attributes(
             message=message,
