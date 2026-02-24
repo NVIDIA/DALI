@@ -173,6 +173,13 @@ void IncrementalJobImpl<cooperative>::Wait() {
 
 ///////////////////////////////////////////////////////////////////////////
 
+template class JobBase<true>;
+template class JobImpl<true>;
+template class JobBase<false>;
+template class JobImpl<false>;
+template class IncrementalJobImpl<true>;
+template class IncrementalJobImpl<false>;
+
 thread_local ThreadPoolBase *ThreadPoolBase::this_thread_pool_ = nullptr;
 thread_local int ThisThreadIdx::this_thread_idx_ = -1;
 
@@ -264,12 +271,5 @@ bool ThreadPoolBase::WaitOrRunTasks(std::condition_variable &cv, Condition &&con
   }
   return condition();
 }
-
-template class DLL_PUBLIC JobBase<true>;
-template class DLL_PUBLIC JobBase<false>;
-template class DLL_PUBLIC JobImpl<true>;
-template class DLL_PUBLIC JobImpl<false>;
-template class DLL_PUBLIC IncrementalJobImpl<true>;
-template class DLL_PUBLIC IncrementalJobImpl<false>;
 
 }  // namespace dali
