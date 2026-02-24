@@ -42,7 +42,7 @@ class DLL_PUBLIC NewThreadPool : public ThreadPoolBase {
 class DLL_PUBLIC ThreadPoolFacade : public ThreadPool {
  public:
   explicit ThreadPoolFacade(ThreadPoolBase *thread_pool) : tp_(thread_pool) {}
-  ~ThreadPoolFacade() override;
+  ~ThreadPoolFacade() noexcept override;
 
   void AddWork(std::function<void()> work, int64_t priority = 0) override;
   void AddWork(std::function<void(int)> work, int64_t priority = 0) override;
