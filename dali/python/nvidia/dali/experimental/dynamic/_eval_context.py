@@ -13,8 +13,9 @@
 # limitations under the License.
 
 import copy
+import sys
+import threading
 import weakref
-from threading import current_thread, local
 
 import nvidia.dali.backend_impl as _b
 
@@ -22,7 +23,7 @@ from . import _device, _stream
 from ._async import _AsyncExecutor
 
 
-class _ThreadLocalStorage(local):
+class _ThreadLocalStorage(threading.local):
     def __init__(self):
         super().__init__()
         self.default = {}  # per-device default context
@@ -35,7 +36,6 @@ _tls = _ThreadLocalStorage()
 def _default_num_threads():
     """Gets the default number of threads used in DALI dynamic mode."""
     import os
-    import sys
     from functools import wraps
 
     mod = sys.modules[__name__]
@@ -164,10 +164,13 @@ class EvalContext:
         self._instance_cache = {}
 
         # The thread pool needs to be thread-local because of eager execution
-        self._tls = local()
+        self._tls = threading.local()
 
         self._async_executor = _AsyncExecutor()
         weakref.finalize(self, self._async_executor.shutdown)
+
+        # Used to disallow the EvalContext to be active in two threads simultaneously
+        self._lock = threading.RLock()
 
     def _purge_operator_cache(self):
         """Empties the operator instance cache"""
@@ -207,18 +210,35 @@ class EvalContext:
         return self is _tls.default.get(current_device_id)
 
     def __enter__(self):
-        _tls.stack.append(self)
-        if self._device:
-            self._device.__enter__()
+        skip_lock = self._is_in_background_thread()
+        if not skip_lock and not self._lock.acquire(blocking=False):
+            raise RuntimeError("An EvalContext cannot be active in two threads simultaneously.")
+        try:
+            _tls.stack.append(self)
+            if self._device:
+                self._device.__enter__()
+        except Exception:
+            if not skip_lock:
+                self._lock.release()
+            raise
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
-        assert _tls.stack[-1] is self
-        if len(_tls.stack) < 2 or (_tls.stack[-2] is not self):
-            self.evaluate_all()
-        _tls.stack.pop()
-        if self._device:
-            self._device.__exit__(exc_type, exc_value, traceback)
+        try:
+            # During interpreter shutdown, finalizers of objects created in background threads
+            # can be called from the main thread.
+            if _tls.stack:
+                assert _tls.stack[-1] is self
+                if len(_tls.stack) < 2 or (_tls.stack[-2] is not self):
+                    self.evaluate_all()
+                _tls.stack.pop()
+            else:
+                assert sys.is_finalizing()
+            if self._device:
+                self._device.__exit__(exc_type, exc_value, traceback)
+        finally:
+            if not self._is_in_background_thread():
+                self._lock.release()
 
     def evaluate_all(self):
         """Evaluates all pending invocations."""
@@ -312,7 +332,7 @@ class EvalContext:
         return ctx
 
     def _is_in_background_thread(self):
-        return current_thread() is self._async_executor._thread
+        return threading.current_thread() is self._async_executor._thread
 
 
 __all__ = [

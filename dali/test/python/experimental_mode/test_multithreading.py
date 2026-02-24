@@ -13,9 +13,7 @@
 # limitations under the License.
 
 
-import functools
 import os
-import sys
 import threading
 from collections.abc import Callable
 from typing import TypeVar
@@ -23,42 +21,23 @@ from typing import TypeVar
 import numpy as np
 import nvidia.dali.experimental.dynamic as ndd
 from nose2.tools import cartesian_params, params
-from nose_utils import SkipTest
-
-
-def allow_nogil_failure(exc_type: type[Exception]):
-    """
-    Skip the test on free-threaded Python if a specific exception is raised.
-    This is useful until https://github.com/python/cpython/pull/133305 is backported.
-    """
-
-    def decorator(test_func):
-        if getattr(sys, "_is_gil_enabled", lambda: True)():
-            return test_func
-
-        @functools.wraps(test_func)
-        def wrapper(*args, **kwargs):
-            try:
-                return test_func(*args, **kwargs)
-            except exc_type:
-                raise SkipTest(f"{exc_type.__name__} allowed for this test with the GIL disabled")
-
-        return wrapper
-
-    return decorator
-
+from nose_utils import assert_raises
 
 T = TypeVar("T")
 
 
-def run_parallel(function: Callable[[int], T], num_threads: int | None = None) -> dict[int, T]:
+def get_num_threads(num_threads: int | None = None):
     if num_threads is None:
         try:
             num_threads = len(os.sched_getaffinity(0))
         except AttributeError:
             num_threads = os.cpu_count() or 4
 
-    num_threads = min(32, num_threads)
+    return min(32, num_threads)
+
+
+def run_parallel(function: Callable[[int], T], num_threads: int | None = None) -> dict[int, T]:
+    num_threads = get_num_threads(num_threads)
 
     barrier = threading.Barrier(num_threads)
     results = {}
@@ -89,7 +68,6 @@ def run_parallel(function: Callable[[int], T], num_threads: int | None = None) -
     return results
 
 
-@allow_nogil_failure(KeyError)
 @params("cpu", "gpu")
 def test_parallel_eval_contexts(device):
     def worker(thread_id: int):
@@ -109,7 +87,6 @@ def test_parallel_eval_contexts(device):
         np.testing.assert_equal(actual.cpu(), expected)
 
 
-@allow_nogil_failure(KeyError)
 @params("cpu", "gpu")
 def test_parallel_creation(device):
     def worker(thread_id: int):
@@ -135,7 +112,6 @@ def test_parallel_creation(device):
             np.testing.assert_array_equal(actual.cpu(), expected)
 
 
-@allow_nogil_failure(KeyError)
 def test_parallel_different_devices():
     def worker(thread_id: int):
         device = "cpu" if thread_id % 2 == 0 else "gpu"
@@ -154,7 +130,6 @@ def test_parallel_different_devices():
         np.testing.assert_equal(result.cpu(), expected)
 
 
-@allow_nogil_failure(KeyError)
 @cartesian_params(("cpu", "gpu"), ndd.EvalMode)
 def test_parallel_eval_modes(device, eval_mode):
     def worker(thread_id: int):
@@ -173,7 +148,6 @@ def test_parallel_eval_modes(device, eval_mode):
         np.testing.assert_array_almost_equal(actual.cpu(), expected)
 
 
-@allow_nogil_failure(KeyError)
 @params("cpu", "gpu")
 def test_parallel_mixed_eval_modes(device):
     eval_modes = tuple(ndd.EvalMode)
@@ -200,7 +174,6 @@ def test_parallel_mixed_eval_modes(device):
         np.testing.assert_array_almost_equal(data["result"].cpu(), data["expected"])
 
 
-@allow_nogil_failure(KeyError)
 @params("cpu", "gpu")
 def test_parallel_indexing(device):
     tensor = ndd.tensor([[1, 2, 3], [4, 5, 6]], device=device)
@@ -220,7 +193,6 @@ def test_parallel_indexing(device):
         assert result == tensor.cpu()[slice].item()
 
 
-@allow_nogil_failure(KeyError)
 @params("cpu", "gpu")
 def test_thread_local_rng_determinism(device):
     def worker(_):
@@ -242,7 +214,6 @@ def test_thread_local_rng_determinism(device):
         np.testing.assert_array_equal(data["normal"].cpu(), reference["normal"].cpu())
 
 
-@allow_nogil_failure(KeyError)
 @params("cpu", "gpu")
 def test_chained_threads(device):
     source = ndd.tensor([1, 2, 3, 4], dtype=ndd.float32, device=device).evaluate()
@@ -266,3 +237,18 @@ def test_chained_threads(device):
 
     assert result is not None
     np.testing.assert_array_almost_equal(result.cpu(), source.cpu())
+
+
+def test_error_parallel_eval_contexts():
+    def worker(_):
+        with ctx:
+            try:
+                barrier.wait(0.1)
+            except threading.BrokenBarrierError:
+                pass
+
+    barrier = threading.Barrier(get_num_threads())
+    ctx = ndd.EvalContext()
+
+    with assert_raises(RuntimeError, glob="EvalContext"):
+        run_parallel(worker)
