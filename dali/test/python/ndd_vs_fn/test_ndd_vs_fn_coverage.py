@@ -38,6 +38,15 @@ def get_all_operators():
 
 def test_coverage():
     covered_operators = sign_off.tested_ops
+
+    failure = ""
+    excluded_but_tested = covered_operators.intersection(excluded_operators)
+    if excluded_but_tested:
+        print("\n\nThe following operators are marked as excluded but were covered in the tests:")
+        for op in excluded_but_tested:
+            print(f"    {op}")
+        failure += f"The test covers {len(excluded_but_tested)} excluded operator(s).\n"
+
     eligible_operators = set(get_all_operators()).difference(excluded_operators)
 
     untested_operators = [op for op in eligible_operators if op not in covered_operators]
@@ -47,13 +56,16 @@ def test_coverage():
         for op in sorted(untested_operators):
             print(f"  - {op}")
         print(f"\nTotal not covered: {len(untested_operators)} out of {len(eligible_operators)}")
+        failure += (
+            f"Found {len(untested_operators)} operator(s) that were neither tested nor excluded.\n"
+        )
         if len(excluded_operators):
-            print(f"{len(excluded_operators)} operators were excluded from the test.")
+            print(f"{len(excluded_operators)} operator(s) were excluded from the test.")
     else:
         if len(excluded_operators):
             print("All eligible operators are tested.")
-            print(f"{len(excluded_operators)} operators were excluded from the test.")
+            print(f"{len(excluded_operators)} operator(s) were excluded from the test.")
         else:
             print("All operators are tested.")
 
-    assert len(untested_operators) == 0, f"Found {len(untested_operators)} untested operators"
+    assert not failure, failure

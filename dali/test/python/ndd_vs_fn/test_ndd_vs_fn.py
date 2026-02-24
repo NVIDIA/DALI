@@ -382,7 +382,6 @@ def test_optical_flow(device):
     )
 
 
-# @test_utils.has_operator("decoders.inflate")
 # @sign_off("decoders.inflate")
 # @test_utils.restrict_platform(min_compute_cap=6.0)
 # def test_inflate():
