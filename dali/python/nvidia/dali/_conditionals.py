@@ -43,7 +43,7 @@ from contextlib import contextmanager
 
 from enum import Enum
 
-import tree
+import optree
 
 
 def _data_node_repr(data_node):
@@ -51,11 +51,11 @@ def _data_node_repr(data_node):
 
 
 def _map_structure(func, *structures, **kwargs):
-    """Custom wrapper over tree.map_structure that filters it out from the user-visible stack trace
+    """Custom wrapper over optree.tree_map that filters it out from the user-visible stack trace
     for error reporting purposes.
     """
-    with _autograph.CustomModuleFilter(tree):
-        return tree.map_structure(func, *structures, **kwargs)
+    with _autograph.CustomModuleFilter(optree):
+        return optree.tree_map(func, *structures, **kwargs)
 
 
 class _Branch(Enum):
@@ -610,14 +610,14 @@ class DaliOperatorOverload(_autograph.OperatorBase):
                     " same set of keys, the values may be different.\n"
                 )
 
-                try:
-                    tree.assert_same_structure(body_outputs, orelse_outputs, check_types=True)
-                except ValueError as e:
-                    # Suppress the original exception, add DALI explanation at the beginning,
-                    # raise the full error message.
-                    raise ValueError(err_msg + str(e)) from None
-                except TypeError as e:
-                    raise TypeError(err_msg + str(e)) from None
+                body_structure = optree.tree_structure(body_outputs)
+                orelse_structure = optree.tree_structure(orelse_outputs)
+                if body_structure != orelse_structure:
+                    raise ValueError(
+                        f"{err_msg}\n"
+                        f"'If' output structure: {optree.tree_map(lambda _: '*', body_outputs)}\n"
+                        f"'Else' output structure: {optree.tree_map(lambda _: '*', orelse_outputs)}"
+                    )
 
                 def merge_branches(new_body_val, new_orelse_val):
                     logging.log(

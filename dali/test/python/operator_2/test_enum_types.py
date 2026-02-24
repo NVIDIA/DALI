@@ -15,7 +15,7 @@
 from nvidia.dali import fn, pipeline_def, types
 
 import numpy as np
-import tree
+import optree
 
 from nose_utils import assert_raises
 from nose2.tools import params
@@ -31,7 +31,7 @@ from nose2.tools import params
         lambda value, dtype: types.Constant(value=value),
         # Explicit type when passed the underlying numeric value of the enum
         lambda value, dtype: types.Constant(
-            value=tree.map_structure(lambda v: v.value, value), dtype=dtype
+            value=optree.tree_map(lambda v: v.value, value), dtype=dtype
         ),
     ]
 )
