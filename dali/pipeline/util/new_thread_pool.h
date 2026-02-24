@@ -48,8 +48,8 @@ class DLL_PUBLIC ThreadPoolFacade : public ThreadPool {
   void AddWork(std::function<void(int)> work, int64_t priority = 0) override;
   void RunAll(bool wait = true) override;
   void WaitForWork() override;
-  int NumThreads() const;
-  std::vector<std::thread::id> GetThreadIds() const;
+  int NumThreads() const override;
+  std::vector<std::thread::id> GetThreadIds() const override;
 
  private:
   ThreadPoolBase *tp_ = nullptr;
