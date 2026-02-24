@@ -35,6 +35,8 @@ vid_dir = os.path.join(data_root, "db", "video", "sintel", "video_files")
 vid_files = ["sintel_trailer-720p_2.mp4"]
 vid_filenames = [os.path.join(vid_dir, vid_file) for vid_file in vid_files]
 
+concurrency = OperatorConcurrency.FULL
+
 
 def mag_to_param_with_op_id(op_id):
     def mag_to_param(magnitude):
@@ -103,7 +105,7 @@ def test_run_auto_aug(i, args):
         num_threads=4,
         device_id=0,
         seed=43,
-        concurrency=OperatorConcurrency.FULL,
+        concurrency=concurrency,
     )
     def pipeline():
         encoded_image, _ = fn.readers.file(name="Reader", file_root=images_dir)
@@ -139,9 +141,7 @@ class VideoTest(unittest.TestCase):
         size_1 = (215, 128)
         size_2 = (215, 220)
 
-        @pipeline_def(
-            batch_size=6, device_id=0, num_threads=4, seed=42, concurrency=OperatorConcurrency.FULL
-        )
+        @pipeline_def(batch_size=6, device_id=0, num_threads=4, seed=42, concurrency=concurrency)
         def pipeline(size):
             video = fn.readers.video_resize(
                 filenames=vid_filenames,
@@ -189,7 +189,7 @@ class VideoTest(unittest.TestCase):
             num_threads=4,
             seed=205,
             enable_conditionals=True,
-            concurrency=OperatorConcurrency.FULL,
+            concurrency=concurrency,
         )
         def pipeline():
             rng = random.Random(42 + i)
@@ -482,7 +482,7 @@ def test_unused_arg_fail():
         num_threads=4,
         device_id=0,
         seed=43,
-        concurrency=OperatorConcurrency.FULL,
+        concurrency=concurrency,
     )
     def pipeline():
         encoded_image, _ = fn.readers.file(name="Reader", file_root=images_dir)
@@ -502,7 +502,7 @@ def test_empty_policy_fail():
         num_threads=4,
         device_id=0,
         seed=43,
-        concurrency=OperatorConcurrency.FULL,
+        concurrency=concurrency,
     )
     def pipeline():
         encoded_image, _ = fn.readers.file(name="Reader", file_root=images_dir)
@@ -524,7 +524,7 @@ def test_missing_shape_fail():
         num_threads=4,
         device_id=0,
         seed=43,
-        concurrency=OperatorConcurrency.FULL,
+        concurrency=concurrency,
     )
     def pipeline():
         encoded_image, _ = fn.readers.file(name="Reader", file_root=images_dir)
