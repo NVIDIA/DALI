@@ -75,7 +75,7 @@ std::any NewThreadPool::OnThreadStart(int thread_idx, bool set_affinity) {
   return dg;
 }
 
-ThreadPoolFacade::~ThreadPoolFacade() {
+ThreadPoolFacade::~ThreadPoolFacade() noexcept {
   RunAll();
 }
 
