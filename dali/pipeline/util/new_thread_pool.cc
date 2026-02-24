@@ -15,6 +15,7 @@
 #include <typeinfo>
 #include <utility>
 #include <vector>
+#include "dali/core/call_at_exit.h"
 #include "dali/pipeline/util/new_thread_pool.h"
 #include "dali/core/device_guard.h"
 #include "dali/util/nvml.h"
@@ -95,16 +96,20 @@ void ThreadPoolFacade::AddWork(std::function<void(int)> work, int64_t priority) 
 
 void ThreadPoolFacade::RunAll(bool wait) {
   if (job_) {
+    auto atexit = AtScopeExit([&]() {
+      if (wait)
+        job_.reset();
+    });
     job_->Run(*tp_, wait);
-    if (wait)
-      job_.reset();
   }
 }
 
 void ThreadPoolFacade::WaitForWork() {
   if (job_) {
+    auto atexit = AtScopeExit([&]() {
+      job_.reset();
+    });
     job_->Wait();
-    job_.reset();
   }
 }
 

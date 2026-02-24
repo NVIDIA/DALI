@@ -18,7 +18,8 @@
 
 namespace dali {
 
-JobBase::~JobBase() noexcept(false) {
+template <bool cooperative>
+JobBase<cooperative>::~JobBase() noexcept(false) {
   if (total_tasks_ > 0 && !wait_completed_) {
     throw std::logic_error("The job is not empty, but hasn't been discarded or waited for.");
   }
@@ -26,7 +27,8 @@ JobBase::~JobBase() noexcept(false) {
     std::this_thread::yield();
 }
 
-void JobBase::DoWait() {
+template <bool cooperative>
+void JobBase<cooperative>::DoWait() {
   if (wait_started_)
     throw std::logic_error("This job has already been waited for.");
   wait_started_ = true;
@@ -36,15 +38,19 @@ void JobBase::DoWait() {
     return;
   }
 
-  if (executor_ == nullptr)
+  if (this->executor_ == nullptr)
     throw std::logic_error("This job hasn't been run - cannot wait for it.");
 
-  auto ready = [&]() { return num_pending_tasks_ == 0; };
   if (ThreadPoolBase::this_thread_pool() != nullptr) {
-    bool result = ThreadPoolBase::this_thread_pool()->WaitOrRunTasks(cv_, ready);
-    wait_completed_ = true;
-    if (!result)
-      throw std::logic_error("The thread pool was stopped");
+    if constexpr (cooperative) {
+      auto ready = [&]() { return num_pending_tasks_ == 0; };
+      bool result = ThreadPoolBase::this_thread_pool()->WaitOrRunTasks(this->cv_, ready);
+      wait_completed_ = true;
+      if (!result)
+        throw std::logic_error("The thread pool was stopped");
+    } else {
+      throw std::logic_error("Cannot wait for this job from inside the thread pool.");
+    }
   } else {
     int old = num_pending_tasks_.load();
     while (old != 0) {
@@ -56,10 +62,13 @@ void JobBase::DoWait() {
   }
 }
 
-void JobBase::DoNotify() {
+template <bool cooperative>
+void JobBase<cooperative>::DoNotify() {
   num_pending_tasks_.notify_all();
-  (void)std::lock_guard(mtx_);
-  cv_.notify_all();
+  if constexpr (cooperative) {
+    (void)std::lock_guard(this->mtx_);
+    this->cv_.notify_all();
+  }
   // We need this second flag to avoid a race condition where the destructor is called between
   // decrementing num_pending_tasks_ and notification_ without excessive use of mutexes.
   // This must be the very last operation in the task function that touches `this`.
@@ -68,11 +77,12 @@ void JobBase::DoNotify() {
 
 // Job ////////////////////////////////////////////////////////////////////
 
-void Job::Run(ThreadPoolBase &tp, bool wait) {
-  if (executor_ != nullptr)
+template <bool cooperative>
+void JobImpl<cooperative>::Run(ThreadPoolBase &tp, bool wait) {
+  if (this->executor_ != nullptr)
     throw std::logic_error("This job has already been started.");
-  executor_ = &tp;
-  running_ = !tasks_.empty();
+  this->executor_ = &tp;
+  this->running_ = !tasks_.empty();
   {
     auto batch = tp.BeginBulkAdd();
     for (auto &x : tasks_) {
@@ -80,8 +90,8 @@ void Job::Run(ThreadPoolBase &tp, bool wait) {
     }
     int added = batch.Size();
     if (added) {
-      num_pending_tasks_ += added;
-      running_ = true;
+      this->num_pending_tasks_ += added;
+      this->running_ = true;
     }
     batch.Submit();
   }
@@ -89,8 +99,9 @@ void Job::Run(ThreadPoolBase &tp, bool wait) {
     Wait();
 }
 
-void Job::Wait() {
-  DoWait();
+template <bool cooperative>
+void JobImpl<cooperative>::Wait() {
+  this->DoWait();
 
   // note - this vector is not allocated unless there were exceptions thrown
   std::vector<std::exception_ptr> errors;
@@ -104,19 +115,21 @@ void Job::Wait() {
     throw MultipleErrors(std::move(errors));
 }
 
-void Job::Discard() {
-  if (executor_ != nullptr)
+template <bool cooperative>
+void JobImpl<cooperative>::Discard() {
+  if (this->executor_ != nullptr)
     throw std::logic_error("Cannot discard a job that has already been started");
   tasks_.clear();
-  total_tasks_ = 0;
+  this->total_tasks_ = 0;
 }
 
 // IncrementalJob /////////////////////////////////////////////////////////
 
-void IncrementalJob::Run(ThreadPoolBase &tp, bool wait) {
-  if (executor_ && executor_ != &tp)
+template <bool cooperative>
+void IncrementalJobImpl<cooperative>::Run(ThreadPoolBase &tp, bool wait) {
+  if (this->executor_ && this->executor_ != &tp)
     throw std::logic_error("This job is already running in a different executor.");
-  executor_ = &tp;
+  this->executor_ = &tp;
   {
     auto it = last_task_run_.has_value() ? std::next(*last_task_run_) : tasks_.begin();
     auto batch = tp.BeginBulkAdd();
@@ -126,8 +139,8 @@ void IncrementalJob::Run(ThreadPoolBase &tp, bool wait) {
     }
     int added = batch.Size();
     if (added) {
-      num_pending_tasks_ += added;
-      running_ = true;
+      this->num_pending_tasks_ += added;
+      this->running_ = true;
     }
     batch.Submit();
   }
@@ -135,15 +148,17 @@ void IncrementalJob::Run(ThreadPoolBase &tp, bool wait) {
     Wait();
 }
 
-void IncrementalJob::Discard() {
-  if (executor_)
+template <bool cooperative>
+void IncrementalJobImpl<cooperative>::Discard() {
+  if (this->executor_)
     throw std::logic_error("Cannot discard a job that has already been started");
   tasks_.clear();
-  total_tasks_ = 0;
+  this->total_tasks_ = 0;
 }
 
-void IncrementalJob::Wait() {
-  DoWait();
+template <bool cooperative>
+void IncrementalJobImpl<cooperative>::Wait() {
+  this->DoWait();
   // note - this vector is not allocated unless there were exceptions thrown
   std::vector<std::exception_ptr> errors;
   for (auto &x : tasks_) {
@@ -249,5 +264,12 @@ bool ThreadPoolBase::WaitOrRunTasks(std::condition_variable &cv, Condition &&con
   }
   return condition();
 }
+
+template class DLL_PUBLIC JobBase<true>;
+template class DLL_PUBLIC JobBase<false>;
+template class DLL_PUBLIC JobImpl<true>;
+template class DLL_PUBLIC JobImpl<false>;
+template class DLL_PUBLIC IncrementalJobImpl<true>;
+template class DLL_PUBLIC IncrementalJobImpl<false>;
 
 }  // namespace dali
