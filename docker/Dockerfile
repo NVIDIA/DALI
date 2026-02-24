@@ -50,7 +50,7 @@ ${LIBRARY_PATH}
 RUN ln -s /opt/python/cp${PYV}* /opt/python/v
 
 # install Python bindings and patch it to use the clang we have here
-RUN pip install future setuptools wheel clang==14.0 flake8 bandit astunparse gast optree "black[jupyter]"==25.12.0 nvtx makefun && \
+RUN pip install future setuptools wheel clang==14.0 flake8 bandit astunparse gast optree numpy "black[jupyter]"==25.12.0 nvtx makefun && \
     PY_CLANG_PATH=$(echo $(pip show clang) | sed 's/.*Location: \(.*\) Requires.*/\1/')/clang/cindex.py && \
     LIBCLANG_PATH=/usr/lib64/libclang.so && \
     sed -i "s|library_file = None|library_file = \"${LIBCLANG_PATH}\"|" ${PY_CLANG_PATH} && \
