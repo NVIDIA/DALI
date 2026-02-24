@@ -16,13 +16,12 @@ import threading
 import weakref
 from typing import TYPE_CHECKING, Any, Optional
 
-import nvtx
-
 from ._async import _Future
 from ._device import Device
 from ._eval_context import EvalContext as _EvalContext
 from ._eval_mode import EvalMode as _EvalMode
 from ._exceptions import capture_stack, rethrow_exception
+from ._nvtx import NVTXRange
 from ._type import DType
 from nvidia.dali import backend as _b
 
@@ -132,16 +131,16 @@ class Invocation:
             self.run(self._eval_context)
         return self._results[result_index].dtype
 
+    @NVTXRange("Invocation.batch_size", category="invocation")
     def batch_size(self, result_index: int):
-        with nvtx.annotate("Invocation.batch_size", domain="invocation"):
-            if not self._is_batch:
-                return None
-            if self._batch_size is not None:
-                return self._batch_size
-            if self._results is None:
-                # TODO(michalz): Try to get batch_size without full evaluation.
-                self.run(self._eval_context)
-            return self._results[result_index].batch_size if self._is_batch else None
+        if not self._is_batch:
+            return None
+        if self._batch_size is not None:
+            return self._batch_size
+        if self._results is None:
+            # TODO(michalz): Try to get batch_size without full evaluation.
+            self.run(self._eval_context)
+        return self._results[result_index].batch_size if self._is_batch else None
 
     def layout(self, result_index: int):
         if self._results is None:
@@ -201,7 +200,7 @@ class Invocation:
     def run(self, ctx: Optional[_EvalContext] = None):
         """Executes the operator immediately."""
         if future := self._future:
-            with nvtx.annotate("Invocation.wait", domain="invocation"):
+            with NVTXRange("Invocation.wait", category="invocation"):
                 future.wait()
             self._future = None
         else:
@@ -215,6 +214,7 @@ class Invocation:
                     rethrow_exception(exception, self._call_stack, self._eval_mode)
                 raise
 
+    @NVTXRange("Invocation.schedule", category="invocation")
     def schedule(self, ctx: Optional[_EvalContext] = None):
         """Schedule the asynchronous execution of the operator"""
 
@@ -252,7 +252,7 @@ class Invocation:
         if self._results is not None:
             return
 
-        with nvtx.annotate("Invocation.run", domain="invocation"):
+        with NVTXRange("Invocation.run", category="invocation"):
             # If the invocation was created with a GPU device, validate that
             # the evaluation context matches.
             if (

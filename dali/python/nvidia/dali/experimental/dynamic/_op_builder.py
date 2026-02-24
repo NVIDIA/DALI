@@ -18,7 +18,7 @@ import makefun
 import nvidia.dali.backend as _b
 import nvidia.dali.ops as _legacy_ops
 import nvidia.dali.types
-import nvtx
+from ._nvtx import NVTXRange
 from nvidia.dali import internal as _internal
 from nvidia.dali.fn import _to_snake_case
 from nvidia.dali.ops import _docs, _names
@@ -265,59 +265,59 @@ def build_call_function(schema, op_class):
 
     header = f"__call__({', '.join(['self'] + inputs + call_args + internal_args)})"
 
+    @NVTXRange(f"__call__: {op_class._op_name}", category="op_builder")
     def call(self, *raw_args, batch_size=None, _process_params=True, **raw_kwargs):
-        with nvtx.annotate(f"__call__: {self._op_name}", domain="op_builder"):
-            self._pre_call(*raw_args, **raw_kwargs)
-            batch_size = _ops._infer_batch_size(batch_size, *raw_args, **raw_kwargs)
-            is_batch = batch_size is not None
+        self._pre_call(*raw_args, **raw_kwargs)
+        batch_size = _ops._infer_batch_size(batch_size, *raw_args, **raw_kwargs)
+        is_batch = batch_size is not None
 
-            if _process_params:
-                inputs, kwargs = op_class._process_params(
-                    self._backend, self._device, batch_size, *raw_args, **raw_kwargs
-                )
-            else:
-                inputs = [inp for inp in raw_args if inp is not None]
-                kwargs = {name: value for name, value in raw_kwargs.items() if value is not None}
-
-            with nvtx.annotate("__call__: shallowcopy", domain="op_builder"):
-                inputs = [copy.copy(x) for x in inputs]
-                kwargs = {k: copy.copy(v) for k, v in kwargs.items()}
-
-            if stateful:
-                call_id = self._call_id
-                self._call_id += 1
-            else:
-                call_id = None
-            with nvtx.annotate("__call__: construct Invocation", domain="op_builder"):
-                invocation = _invocation.Invocation(
-                    self,
-                    call_id,
-                    inputs,
-                    kwargs,
-                    is_batch=is_batch,
-                    batch_size=batch_size or 1,
-                    previous_invocation=self._last_invocation,
-                )
-
-            if stateful:
-                self._last_invocation = invocation
-
-            has_external_inputs = any(is_external(x) for x in inputs) or any(
-                is_external(x) for x in kwargs.values()
+        if _process_params:
+            inputs, kwargs = op_class._process_params(
+                self._backend, self._device, batch_size, *raw_args, **raw_kwargs
             )
-            invocation.apply_eval_policy(has_external_inputs)
+        else:
+            inputs = [inp for inp in raw_args if inp is not None]
+            kwargs = {name: value for name, value in raw_kwargs.items() if value is not None}
 
-            ResultType = Batch if is_batch else Tensor
+        with NVTXRange("__call__: shallowcopy", category="op_builder"):
+            inputs = [copy.copy(x) for x in inputs]
+            kwargs = {k: copy.copy(v) for k, v in kwargs.items()}
 
-            if len(invocation) == 1:
-                return ResultType(invocation_result=invocation[0])
-            elif self._output_names is None:
-                return tuple(ResultType(invocation_result=res) for res in invocation)
-            else:
-                return {
-                    name: ResultType(invocation_result=res)
-                    for name, res in zip(self._output_names, invocation)
-                }
+        if stateful:
+            call_id = self._call_id
+            self._call_id += 1
+        else:
+            call_id = None
+        with NVTXRange("__call__: construct Invocation", category="op_builder"):
+            invocation = _invocation.Invocation(
+                self,
+                call_id,
+                inputs,
+                kwargs,
+                is_batch=is_batch,
+                batch_size=batch_size or 1,
+                previous_invocation=self._last_invocation,
+            )
+
+        if stateful:
+            self._last_invocation = invocation
+
+        has_external_inputs = any(is_external(x) for x in inputs) or any(
+            is_external(x) for x in kwargs.values()
+        )
+        invocation.apply_eval_policy(has_external_inputs)
+
+        ResultType = Batch if is_batch else Tensor
+
+        if len(invocation) == 1:
+            return ResultType(invocation_result=invocation[0])
+        elif self._output_names is None:
+            return tuple(ResultType(invocation_result=res) for res in invocation)
+        else:
+            return {
+                name: ResultType(invocation_result=res)
+                for name, res in zip(self._output_names, invocation)
+            }
 
     doc = _docs._docstring_generator_call(schema.Name(), api="dynamic", args=used_kwargs)
     function = makefun.create_function(header, call, doc=doc)
@@ -381,6 +381,7 @@ def build_fn_wrapper(op, fn_name=None, add_to_module=True):
 
     header = f"{fn_name}({', '.join(inputs + signature_args)})"
 
+    @NVTXRange(f"{fn_name}()", category="op_builder")
     def fn_call(*inputs, batch_size=None, device=None, **raw_kwargs):
         batch_size = _ops._infer_batch_size(batch_size, *inputs, **raw_kwargs)
         max_batch_size = _next_pow2(batch_size or 1)
@@ -439,7 +440,7 @@ def build_fn_wrapper(op, fn_name=None, add_to_module=True):
         inputs, call_args = op._process_params(backend, device, batch_size, *inputs, **call_args)
 
         # Get or create the operator instance that matches the arguments
-        with nvtx.annotate(f"get instance {op._op_name}", domain="op_builder"):
+        with NVTXRange(f"get instance {op._op_name}", category="op_builder"):
             op_inst = op._get(
                 max_batch_size=max_batch_size,
                 name=None,
