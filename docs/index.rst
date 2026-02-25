@@ -72,7 +72,6 @@ NVIDIA DALI Documentation
    advanced_topics_sharding
    advanced_topics_pipe_run
    advanced_topics_checkpointing
-   advanced_topics_experimental
    compilation
    env_vars
 
