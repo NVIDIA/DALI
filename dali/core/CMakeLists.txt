@@ -105,6 +105,7 @@ if (BUILD_NVCOMP)
       COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/../../internal_tools/stub_generator/stub_codegen.py --unique_prefix=nvComp --
                   "${CMAKE_CURRENT_SOURCE_DIR}/../../internal_tools/stub_generator/nvcomp.json" ${NVCOMP_GENERATED_STUB}
                   "${nvcomp_INCLUDE_DIR}/nvcomp/lz4.h"
+                  "-I${nvcomp_INCLUDE_DIR}"
                   ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES_DIRECTIVE}
                   # for some reason QNX fails with 'too many errors emitted' is this is not set
                   "-ferror-limit=0"
