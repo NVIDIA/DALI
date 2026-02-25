@@ -158,7 +158,7 @@ py::dict ArrayInterfaceRepr(Tensor<Backend> &t) {
 }
 
 namespace {
-  const uint32_t kDynamicDefaultColor = DomainTimeRange::kCyan;
+  const uint32_t kDynamicDefaultColor = 0x957DAD;
   const uint32_t kCPUTensorColor = DomainTimeRange::kBlue1;
   const uint32_t kGPUTensorColor = DomainTimeRange::knvGreen;
 }  // namespace

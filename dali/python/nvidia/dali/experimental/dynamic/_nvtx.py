@@ -13,27 +13,10 @@
 # limitations under the License.
 
 import contextlib
-import enum
 
 import nvtx
 
 _DOMAIN = nvtx.get_domain("DALI")
-
-
-# Note: sync with dali/core/nvtx.h
-class Color(enum.IntEnum):
-    RED = 0xFF0000
-    GREEN = 0x00FF00
-    BLUE = 0x0000FF
-    YELLOW = 0xB58900
-    ORANGE = 0xCB4B16
-    RED1 = 0xDC322F
-    MAGENTA = 0xD33682
-    VIOLET = 0x6C71C4
-    BLUE1 = 0x268BD2
-    CYAN = 0x2AA198
-    GREEN1 = 0x859900
-    NVGREEN = 0x76B900
 
 
 class NVTXRange(contextlib.ContextDecorator):
@@ -42,7 +25,7 @@ class NVTXRange(contextlib.ContextDecorator):
     Use categories to organize annotations.
     """
 
-    def __init__(self, message: str, color: Color = Color.CYAN, category: str | None = None):
+    def __init__(self, message: str, color: int | str = 0x957DAD, category: str | None = None):
         category_id = _DOMAIN.get_category_id(category)
         self._attributes = _DOMAIN.get_event_attributes(
             message=message,
