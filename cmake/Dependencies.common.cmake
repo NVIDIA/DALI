@@ -137,6 +137,15 @@ endif()
 ##################################################################
 set(DALI_INSTALL_REQUIRES_NVCOMP "")
 if(BUILD_NVCOMP)
+  find_path(
+    nvcomp_INCLUDE_DIR
+    NAMES nvcomp.h
+    PATHS ${NVCOMP_ROOT_DIR} "/usr/local/cuda" "/usr/local" ${CMAKE_SYSTEM_PREFIX_PATH}
+    PATH_SUFFIXES include include/nvcomp)
+  if (${nvcomp_INCLUDE_DIR} STREQUAL nvcomp_INCLUDE_DIR-NOTFOUND)
+    message(FATAL_ERROR "nvCOMP headers could not be found. Try to specify nvcomp location with `-DNVCOMP_ROOT_DIR`.")
+  endif()
+  include_directories(SYSTEM ${nvcomp_INCLUDE_DIR})
   if (NOT WITH_DYNAMIC_NVCOMP)
     find_library(
       nvcomp_LIBS
@@ -149,16 +158,6 @@ if(BUILD_NVCOMP)
     message(STATUS "Found nvCOMP: ${nvcomp_LIBS} ${nvcomp_INCLUDE_DIR}.")
     list(APPEND DALI_LIBS ${nvcomp_LIBS})
   else()
-    find_path(
-      nvcomp_INCLUDE_DIR
-      NAMES nvcomp
-      PATHS ${NVCOMP_ROOT_DIR} "/usr/local/cuda" "/usr/local" ${CMAKE_SYSTEM_PREFIX_PATH}
-      PATH_SUFFIXES include)
-    if (${nvcomp_INCLUDE_DIR} STREQUAL nvcomp_INCLUDE_DIR-NOTFOUND)
-      message(FATAL_ERROR "nvCOMP headers could not be found. Try to specify nvcomp location with `-DNVCOMP_ROOT_DIR`.")
-    endif()
-    include_directories(SYSTEM ${nvcomp_INCLUDE_DIR})
-
     message(STATUS "Found nvCOMP: ${nvcomp_INCLUDE_DIR}.")
     set(DALI_INSTALL_REQUIRES_NVCOMP "\'nvidia-libnvcomp-cu${CUDA_VERSION_MAJOR} == 5.1.0.21\',")
     message(STATUS "Adding nvComp requirement as: ${DALI_INSTALL_REQUIRES_NVCOMP}")
