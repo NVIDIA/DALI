@@ -17,7 +17,7 @@ from . import _op_builder
 from . import _invocation
 from . import _device
 from ._batch import as_batch, batch, Batch, Tensor
-import nvtx
+from ._nvtx import NVTXRange
 
 
 def is_uniform(shape):
@@ -35,6 +35,7 @@ class BatchToTensor:
     Only a minimal required subset of ``Operator`` interface is implemented.
     """
 
+    @NVTXRange("__call__: Batch2Tensor", category="op_builder")
     def __call__(
         self,
         batch,
@@ -48,7 +49,7 @@ class BatchToTensor:
     ):
         if not isinstance(batch, Batch):
             batch = _op_builder._to_batch(batch, batch_size)
-        with nvtx.annotate("__call__: construct Invocation", domain="op_builder"):
+        with NVTXRange("__call__: construct Invocation", category="op_builder"):
             invocation = _invocation.Invocation(
                 self,
                 None,

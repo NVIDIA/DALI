@@ -19,7 +19,7 @@ from collections.abc import Iterator
 import nvidia.dali.backend as _backend
 import nvidia.dali.types as _dali_types
 import nvidia.dali._tensor_formatting as _tensor_formatting
-import nvtx
+from ._nvtx import NVTXRange
 from nvidia.dali._typing import BatchLike, TensorLike
 
 from . import _eval_mode, _invocation
@@ -367,6 +367,7 @@ class Batch:
         return self._wraps_external_data
 
     @staticmethod
+    @NVTXRange("broadcast", category="batch")
     def broadcast(
         sample: TensorLike,
         batch_size: int,
@@ -395,7 +396,7 @@ class Batch:
             return Batch(tl_type.broadcast(t._storage, batch_size))
         import numpy as np
 
-        with nvtx.annotate("to numpy and stack", domain="batch"):
+        with NVTXRange("to numpy and stack", category="batch"):
             arr = np.array(sample)
             converted_dtype_id = None
             if arr.dtype == np.float64:
@@ -410,11 +411,11 @@ class Batch:
                 arr = arr.astype(_dali_types.to_numpy_type(dtype.type_id))
             arr = np.repeat(arr[np.newaxis], batch_size, axis=0)
 
-        with nvtx.annotate("to backend", domain="batch"):
+        with NVTXRange("to backend", category="batch"):
             tl = _backend.TensorListCPU(arr)
             if converted_dtype_id is not None:
                 tl.reinterpret(converted_dtype_id)
-        with nvtx.annotate("create batch", domain="batch"):
+        with NVTXRange("create batch", category="batch"):
             return Batch(tl, device=device, dtype=dtype)
 
     @property
