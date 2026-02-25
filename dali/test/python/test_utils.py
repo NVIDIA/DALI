@@ -257,6 +257,7 @@ def check_batch(
     max_allowed_error=None,
     expected_layout=None,
     compare_layouts=True,
+    dump_artifacts=True,
 ):
     """Compare two batches of data, be it dali TensorList or list of numpy arrays.
 
@@ -357,7 +358,8 @@ def check_batch(
                 filename = (
                     batch1[i].source_info() if hasattr(batch1[i], "source_info") else f"unknown{i}"
                 )
-                dump_as_core_artifacts(filename, left, right, sample_idx=i)
+                if dump_artifacts:
+                    dump_as_core_artifacts(filename, left, right, sample_idx=i)
                 assert False, error_msg
 
 
@@ -370,6 +372,7 @@ def compare_pipelines(
     max_allowed_error=None,
     expected_layout=None,
     compare_layouts=True,
+    dump_artifacts=True,
 ):
     """Compare the outputs of two pipelines across several iterations.
 
@@ -403,6 +406,7 @@ def compare_pipelines(
                 max_allowed_error,
                 expected_layout=current_expected_layout,
                 compare_layouts=compare_layouts,
+                dump_artifacts=dump_artifacts,
             )
 
 

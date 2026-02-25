@@ -47,7 +47,7 @@ def tensor_list_to_array(tensor_list):
 
 
 # Check whether a given pipeline is stateless
-def check_is_pipeline_stateless(pipeline_factory, iterations=10):
+def check_is_pipeline_stateless(pipeline_factory, iterations=10, dump_artifacts=True):
     args = {
         "batch_size": batch_size,
         "num_threads": 4,
@@ -61,7 +61,9 @@ def check_is_pipeline_stateless(pipeline_factory, iterations=10):
         pipe.run()
 
     # Compare a pipeline that was already used with a fresh one
-    compare_pipelines(pipe, pipeline_factory(**args), batch_size, iterations)
+    compare_pipelines(
+        pipe, pipeline_factory(**args), batch_size, iterations, dump_artifacts=dump_artifacts
+    )
 
 
 # Provides the same random batch each time
@@ -99,13 +101,13 @@ def move_to(tensor, device):
     return tensor.gpu() if device == "gpu" else tensor
 
 
-def check_single_input(op, device, **kwargs):
+def check_single_input(op, device, dump_artifacts=True, **kwargs):
     @pipeline_def(enable_checkpointing=True)
     def pipeline_factory():
         data = fn.external_source(source=RandomBatch(), layout=test_data_layout, batch=True)
         return op(move_to(data, device), device=device, **kwargs)
 
-    check_is_pipeline_stateless(pipeline_factory)
+    check_is_pipeline_stateless(pipeline_factory, dump_artifacts=dump_artifacts)
 
 
 def check_single_sequence_input(op, device, **kwargs):
@@ -195,6 +197,7 @@ def test_stateful(device):
         check_single_input,
         fn.random.coin_flip,
         device,
+        dump_artifacts=False,
         glob="Mean error: *, Min error: *, Max error: *"
         "Total error count: *, Tensor size: *"
         "Index in batch: 0",
