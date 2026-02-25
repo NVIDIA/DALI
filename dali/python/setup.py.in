@@ -89,7 +89,7 @@ For more details please check the
           # the latest astunparse (1.6.3) doesn't work with any other six than
           # 1.16 or later on python 3.12 due to import six.moves
           'six >= 1.16, <= 1.17',
-          'dm-tree <= 0.1.9; python_version>="3.10"',
+          'optree',
           'packaging <= 25.0',
           'numpy',
           'nvtx',

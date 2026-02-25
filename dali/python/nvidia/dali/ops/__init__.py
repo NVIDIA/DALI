@@ -15,7 +15,7 @@
 # pylint: disable=no-member
 import sys
 import threading
-import tree
+import optree
 import warnings
 import weakref
 from itertools import count
@@ -853,7 +853,7 @@ def _preprocess_inputs(inputs, op_name, device, schema=None):
             dev = get_input_device(schema, idx)
             # Process the single ScalarConstant or list possibly containing ScalarConstants
             # and promote each of them into a DataNode
-            inp = tree.map_structure(lambda val: _promote_scalar_constant(val, dev), inp)
+            inp = optree.tree_map(lambda val: _promote_scalar_constant(val, dev), inp)
 
         inputs[idx] = inp
     return inputs

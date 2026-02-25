@@ -146,12 +146,9 @@ def test_nesting_error():
             "*Divergent data found in different branches of `if/else` control"
             " flow statement. Variables in all code paths are merged into common"
             " output batches. The values assigned to a given variable need to"
-            " have the same nesting structure in every code path"
-            " (both `if` branches).*"
-            "*The two structures don't have the same nested structure*"
-            "*The two dictionaries don't have the same set of keys."
-            " First structure has keys type=list str=*'out', 'mismatched'*,"
-            " while second structure has keys type=list str=*'out'*"
+            " have the same nesting structure in every code path (both `if` branches).*"
+            "'If' output structure:*"
+            "'Else' output structure:*"
         ),
     ):
         _ = pipeline()
