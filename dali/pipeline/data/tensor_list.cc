@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@
 #include "dali/pipeline/data/types.h"
 #include "dali/core/cuda_stream_pool.h"
 #include "dali/pipeline/data/copy_util.h"
+#include "dali/core/mm/memory.h"
 
 namespace dali {
 namespace copy_impl {
@@ -483,6 +484,21 @@ std::vector<size_t> TensorList<Backend>::_chunks_capacity() const {
   return result;
 }
 
+inline bool set_deletion_order(
+    const std::shared_ptr<void> &ptr,
+    AccessOrder order,
+    int max_use_count) {
+  if (ptr.use_count() <= max_use_count && order.has_value()) {
+    if (auto *del = std::get_deleter<mm::AsyncDeleter>(ptr)) {
+      del->release_on_stream = order.get();
+      if (ptr.use_count() > max_use_count)
+        throw std::logic_error("Race condition detected - the pointer use count increased.");
+      return true;
+    }
+  }
+  return false;
+}
+
 template <typename Backend>
 void TensorList<Backend>::set_order(AccessOrder order, bool synchronize) {
   DALI_ENFORCE(order, "Resetting order to an empty one is not supported");
@@ -508,6 +524,13 @@ void TensorList<Backend>::set_order(AccessOrder order, bool synchronize) {
   for (auto &t : tensors_)
     t.set_order(order, false);
   order_ = order;
+
+  if (IsContiguous() && contiguous_buffer_.data_) {
+    // If the contiguous buffer is shared only by the sample views, we can safely switch the
+    // deletion order.
+    int max_uses = 1 + num_samples();
+    set_deletion_order(contiguous_buffer_.data_, order, max_uses);
+  }
 }
 
 
