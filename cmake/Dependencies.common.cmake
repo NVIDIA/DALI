@@ -139,9 +139,9 @@ set(DALI_INSTALL_REQUIRES_NVCOMP "")
 if(BUILD_NVCOMP)
   find_path(
     nvcomp_INCLUDE_DIR
-    NAMES nvcomp
+    NAMES nvcomp.h
     PATHS ${NVCOMP_ROOT_DIR} "/usr/local/cuda" "/usr/local" ${CMAKE_SYSTEM_PREFIX_PATH}
-    PATH_SUFFIXES include)
+    PATH_SUFFIXES include include/nvcomp)
   if (${nvcomp_INCLUDE_DIR} STREQUAL nvcomp_INCLUDE_DIR-NOTFOUND)
     message(FATAL_ERROR "nvCOMP headers could not be found. Try to specify nvcomp location with `-DNVCOMP_ROOT_DIR`.")
   endif()
