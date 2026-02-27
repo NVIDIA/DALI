@@ -6,6 +6,10 @@ target_dir=./dali/test/python
 
 test_body() {
     NUM_GPUS=$(nvidia-smi -L | wc -l)
+    if [ $(stat /data/imagenet/train-jpeg --format="%T" -f) != "ext2/ext3" ]; then
+        echo "Not available locally, skipping the test"
+        return 0
+    fi
     export DATA_DIR=/data/coco/coco-2017/coco2017
     export IS_TMP_DIR=0
     if [ -f "/data/coco/coco-2017/coco2017/train2017.zip" ]; then
