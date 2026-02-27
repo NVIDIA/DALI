@@ -23,7 +23,6 @@ excluded_operators = [
     "experimental.readers.Fits",  # TODO(michalz): add tests
     "roi_random_crop",  # TODO(michalz): add tests
     "plugin.video.decoder",
-    "decoders.inflate",
 ]
 
 

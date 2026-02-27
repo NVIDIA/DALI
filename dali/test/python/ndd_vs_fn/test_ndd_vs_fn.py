@@ -382,43 +382,45 @@ def test_optical_flow(device):
     )
 
 
-# @sign_off("decoders.inflate")
-# @test_utils.restrict_platform(min_compute_cap=6.0)
-# def test_inflate():
-#     import lz4.block
+@sign_off("decoders.inflate")
+def test_inflate():
+    try:
+        import lz4.block
+    except ImportError:
+        raise SkipTest("Cannot import lz4 package!")
 
-#     def sample_to_lz4(sample):
-#         deflated_buf = lz4.block.compress(sample, store_size=False)
-#         return np.frombuffer(deflated_buf, dtype=np.uint8)
+    def sample_to_lz4(sample):
+        deflated_buf = lz4.block.compress(sample, store_size=False)
+        return np.frombuffer(deflated_buf, dtype=np.uint8)
 
-#     def sample_gen():
-#         j = 42
-#         while True:
-#             yield np.full((13, 7), j)
-#             j += 1
+    def sample_gen():
+        j = 42
+        while True:
+            yield np.full((13, 7), j)
+            j += 1
 
-#     def inflate_pipeline(max_batch_size, inputs, device):
-#         input_data = [[sample_to_lz4(sample) for sample in batch] for batch in inputs]
-#         input_shape = [
-#             [np.array(sample.shape, dtype=np.int32) for sample in batch] for batch in inputs
-#         ]
+    def inflate_pipeline(max_batch_size, inputs, device):
+        input_data = [[sample_to_lz4(sample) for sample in batch] for batch in inputs]
+        input_shape = [
+            [np.array(sample.shape, dtype=np.int32) for sample in batch] for batch in inputs
+        ]
 
-#     @pipeline_def
-#     def piepline():
-#         deflated = fn.external_source(name="INPUT0")
-#         shape = fn.external_source(name="INPUT1")
-#         return fn.decoders.inflate(deflated.gpu(), shape=shape)
+    @pipeline_def
+    def piepline():
+        deflated = fn.external_source(name="INPUT0")
+        shape = fn.external_source(name="INPUT1")
+        return fn.decoders.inflate(deflated.gpu(), shape=shape)
 
-#         return piepline(batch_size=max_batch_size, num_threads=4, device_id=0)
+        return piepline(batch_size=max_batch_size, num_threads=4, device_id=0)
 
-#     sample = sample_gen()
-#     batches = [
-#         [next(sample) for _ in range(5)],
-#         [next(sample) for _ in range(13)],
-#         [next(sample) for _ in range(2)],
-#     ]
+    sample = sample_gen()
+    batches = [
+        [next(sample) for _ in range(5)],
+        [next(sample) for _ in range(13)],
+        [next(sample) for _ in range(2)],
+    ]
 
-#     check_pipeline(batches, inflate_pipline)
+    check_pipeline(batches, inflate_pipline)
 
 
 @test_all_devices("debayer")
