@@ -318,7 +318,7 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
 
   OpGraph *graph_ = nullptr;
   EventPool event_pool_;
-  ThreadPool thread_pool_;
+  OldThreadPool thread_pool_;
   std::vector<ErrorInfo> errors_;
   mutable std::mutex errors_mutex_;
   bool exec_error_;

@@ -99,8 +99,11 @@ class VideoInput : public InputOperator<Backend> {
         last_sequence_policy_ == "partial" || last_sequence_policy_ == "pad",
         make_string("Provided `last_sequence_policy` is not supported: ", last_sequence_policy_));
     if constexpr (!is_cpu) {
-      thread_pool_.emplace(this->num_threads_, spec.GetArgument<int>("device_id"),
-                           spec.GetArgument<bool>("affine"), "VideoInput<MixedBackend>");
+      thread_pool_ = std::make_unique<OldThreadPool>(
+          this->num_threads_,
+          spec.GetArgument<int>("device_id"),
+          spec.GetArgument<bool>("affine"),
+          "VideoInput<MixedBackend>");
     }
   }
 
@@ -208,7 +211,7 @@ class VideoInput : public InputOperator<Backend> {
     if constexpr (is_cpu) {
       return ws.GetThreadPool();
     } else {
-      assert(thread_pool_.has_value());
+      assert(thread_pool_);
       return *thread_pool_;
     }
   }
@@ -243,7 +246,7 @@ class VideoInput : public InputOperator<Backend> {
   uint8_t pad_frame_value_ = 0;
 
   /// CPU operators have default Thread Pool inside Workspace. Mixed and GPU ops don't.
-  std::optional<ThreadPool> thread_pool_ = std::nullopt;
+  std::unique_ptr<ThreadPool> thread_pool_;
 
   std::vector<std::unique_ptr<FramesDecoderImpl>> frames_decoders_;
 

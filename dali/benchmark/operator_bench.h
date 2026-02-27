@@ -68,7 +68,7 @@ class OperatorBench : public DALIBenchmark {
     // Create workspace and set input and output
     Workspace ws;
     ws.AddInput(data_in);
-    ThreadPool tp(num_threads, 0, false, "OperatorBench");
+    OldThreadPool tp(num_threads, 0, false, "OperatorBench");
     ws.SetThreadPool(&tp);
 
     Setup<TensorList<CPUBackend>>(op_ptr, op_spec, ws, batch_size);

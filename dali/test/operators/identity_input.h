@@ -36,7 +36,7 @@ class IdentityInput : public InputOperator<Backend> {
           InputOperator<Backend>(spec),
           cpu_input_(spec.GetArgument<bool>("cpu_input")) {
     if constexpr (std::is_same_v<Backend, MixedBackend>) {
-      tp_ = std::make_unique<ThreadPool>(this->num_threads_, this->device_id_, false,
+      tp_ = std::make_unique<OldThreadPool>(this->num_threads_, this->device_id_, false,
                                          "PassthroughInput thread pool");
     }
   }

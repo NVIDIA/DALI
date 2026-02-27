@@ -21,7 +21,7 @@ namespace dali {
 namespace test {
 
 TEST(ThreadPool, AddWork) {
-  ThreadPool tp(16, 0, false, "ThreadPool test");
+  OldThreadPool tp(16, 0, false, "OldThreadPool test");
   std::atomic<int> count{0};
   auto increase = [&count](int thread_id) { count++; };
   for (int i = 0; i < 64; i++) {
@@ -35,7 +35,7 @@ TEST(ThreadPool, AddWork) {
 
 TEST(ThreadPool, AddWorkWithPriority) {
   // only one thread to ensure deterministic behavior
-  ThreadPool tp(1, 0, false, "ThreadPool test");
+  OldThreadPool tp(1, 0, false, "OldThreadPool test");
   std::atomic<int> count{0};
   auto set_to_1 = [&count](int thread_id) {
     count = 1;
@@ -60,12 +60,12 @@ TEST(ThreadPool, AddWorkWithPriority) {
 
 
 TEST(ThreadPool, CheckName) {
-  const char given_thread_pool_name[] = "ThreadPool test";
-  const char full_thread_pool_name[] = "[DALI][TP0]ThreadPool test";
+  const char given_thread_pool_name[] = "OldThreadPool test";
+  const char full_thread_pool_name[] = "[DALI][TP0]OldThreadPool test";
   // max len supported by pthread_getname_np is 16
   char read_thread_pool_name[16] = {0, };
   // only one thread to ensure deterministic behavior
-  ThreadPool tp(1, 0, false, given_thread_pool_name);
+  OldThreadPool tp(1, 0, false, given_thread_pool_name);
   auto set_name = [&read_thread_pool_name](int thread_id) {
     pthread_getname_np(pthread_self(), read_thread_pool_name, sizeof(read_thread_pool_name));
   };

@@ -140,8 +140,8 @@ class DLL_PUBLIC EagerOperator {
   DLL_PUBLIC inline static void UpdateThreadPool(int num_threads) {
     std::lock_guard lock(shared_thread_pool_mutex_);
 
-    SharedThreadPoolInstance().reset(
-        new ThreadPool(num_threads, CPU_ONLY_DEVICE_ID, false, "EagerOperator"));
+    SharedThreadPoolInstance() = std::make_unique<OldThreadPool>(
+        num_threads, CPU_ONLY_DEVICE_ID, false, "EagerOperator");
   }
 
   // Update shared CUDA stream used for all direct operators.
@@ -170,7 +170,7 @@ class DLL_PUBLIC EagerOperator {
   }
 
   static inline std::shared_ptr<ThreadPool> &SharedThreadPoolInstance() {
-    static std::shared_ptr<ThreadPool> thread_pool = std::make_shared<ThreadPool>(
+    static std::shared_ptr<ThreadPool> thread_pool = std::make_shared<OldThreadPool>(
         GetDefaultNumThreads(), CPU_ONLY_DEVICE_ID, false, "EagerOperator");
 
     return thread_pool;

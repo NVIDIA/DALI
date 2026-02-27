@@ -33,7 +33,7 @@ BENCHMARK_DEFINE_F(ThreadPoolBench, AddWorkDeferred)(benchmark::State& st) {
   int work_size_max = st.range(2);
   int nthreads = st.range(3);
 
-  ThreadPool thread_pool(nthreads, 0, false, "ThreadPoolBench");
+  OldThreadPool thread_pool(nthreads, 0, false, "ThreadPoolBench");
   std::vector<uint8_t> data(2000, 0xFF);
 
   std::atomic<int64_t> total_count(0);

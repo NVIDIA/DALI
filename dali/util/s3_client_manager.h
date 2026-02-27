@@ -49,7 +49,7 @@ struct S3ClientManager {
   // thread if necessary). This avoids problems in initializing the dependent Common RunTime C
   // libraries.
   static void RunInitOrShutdown(std::function<void(int)> work) {
-    static ThreadPool s_thread_pool_(1, CPU_ONLY_DEVICE_ID, false, "S3ClientManager");
+    static OldThreadPool s_thread_pool_(1, CPU_ONLY_DEVICE_ID, false, "S3ClientManager");
     s_thread_pool_.AddWork(std::move(work));
     s_thread_pool_.RunAll();
   }

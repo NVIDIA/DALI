@@ -1,4 +1,4 @@
-# Copyright (c) 2023-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2023-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -22,7 +22,7 @@ from scipy.stats import chisquare
 from nose2.tools import params
 
 from nvidia.dali import fn, types
-from nvidia.dali import pipeline_def
+from nvidia.dali import pipeline_def, OperatorConcurrency
 from nvidia.dali.auto_aug import auto_augment, augmentations as a
 from nvidia.dali.auto_aug.core import augmentation, Policy
 
@@ -34,6 +34,8 @@ images_dir = os.path.join(data_root, "db", "single", "jpeg")
 vid_dir = os.path.join(data_root, "db", "video", "sintel", "video_files")
 vid_files = ["sintel_trailer-720p_2.mp4"]
 vid_filenames = [os.path.join(vid_dir, vid_file) for vid_file in vid_files]
+
+concurrency = OperatorConcurrency.FULL
 
 
 def mag_to_param_with_op_id(op_id):
@@ -98,7 +100,12 @@ def test_run_auto_aug(i, args):
     batch_size = batch_sizes[i % len(batch_sizes)]
 
     @pipeline_def(
-        enable_conditionals=True, batch_size=batch_size, num_threads=4, device_id=0, seed=43
+        enable_conditionals=True,
+        batch_size=batch_size,
+        num_threads=4,
+        device_id=0,
+        seed=43,
+        concurrency=concurrency,
     )
     def pipeline():
         encoded_image, _ = fn.readers.file(name="Reader", file_root=images_dir)
@@ -134,7 +141,7 @@ class VideoTest(unittest.TestCase):
         size_1 = (215, 128)
         size_2 = (215, 220)
 
-        @pipeline_def(batch_size=6, device_id=0, num_threads=4, seed=42)
+        @pipeline_def(batch_size=6, device_id=0, num_threads=4, seed=42, concurrency=concurrency)
         def pipeline(size):
             video = fn.readers.video_resize(
                 filenames=vid_filenames,
@@ -177,7 +184,12 @@ class VideoTest(unittest.TestCase):
         assert device in ("gpu", "cpu")
 
         @pipeline_def(
-            batch_size=batch_size, device_id=0, num_threads=4, seed=205, enable_conditionals=True
+            batch_size=batch_size,
+            device_id=0,
+            num_threads=4,
+            seed=205,
+            enable_conditionals=True,
+            concurrency=concurrency,
         )
         def pipeline():
             rng = random.Random(42 + i)
@@ -464,7 +476,14 @@ def test_policy_presentation():
 
 
 def test_unused_arg_fail():
-    @pipeline_def(enable_conditionals=True, batch_size=5, num_threads=4, device_id=0, seed=43)
+    @pipeline_def(
+        enable_conditionals=True,
+        batch_size=5,
+        num_threads=4,
+        device_id=0,
+        seed=43,
+        concurrency=concurrency,
+    )
     def pipeline():
         encoded_image, _ = fn.readers.file(name="Reader", file_root=images_dir)
         image = fn.decoders.image(encoded_image, device="mixed")
@@ -477,7 +496,14 @@ def test_unused_arg_fail():
 
 
 def test_empty_policy_fail():
-    @pipeline_def(enable_conditionals=True, batch_size=5, num_threads=4, device_id=0, seed=43)
+    @pipeline_def(
+        enable_conditionals=True,
+        batch_size=5,
+        num_threads=4,
+        device_id=0,
+        seed=43,
+        concurrency=concurrency,
+    )
     def pipeline():
         encoded_image, _ = fn.readers.file(name="Reader", file_root=images_dir)
         image = fn.decoders.image(encoded_image, device="mixed")
@@ -492,7 +518,14 @@ def test_empty_policy_fail():
 
 
 def test_missing_shape_fail():
-    @pipeline_def(enable_conditionals=True, batch_size=5, num_threads=4, device_id=0, seed=43)
+    @pipeline_def(
+        enable_conditionals=True,
+        batch_size=5,
+        num_threads=4,
+        device_id=0,
+        seed=43,
+        concurrency=concurrency,
+    )
     def pipeline():
         encoded_image, _ = fn.readers.file(name="Reader", file_root=images_dir)
         image = fn.decoders.image(encoded_image, device="mixed")
