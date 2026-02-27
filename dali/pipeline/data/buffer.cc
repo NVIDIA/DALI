@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <cassert>
+#include <memory>
 #include "dali/pipeline/data/buffer.h"
 #include "dali/pipeline/data/backend.h"
 #include "dali/core/mm/memory.h"
@@ -26,8 +28,9 @@ DLL_PUBLIC AccessOrder get_deletion_order(const std::shared_ptr<void> &ptr) {
 }
 
 DLL_PUBLIC bool set_deletion_order(const std::shared_ptr<void> &ptr, AccessOrder order) {
+  auto *del = std::get_deleter<mm::AsyncDeleter>(ptr);
   if (ptr.use_count() == 1 && order.has_value()) {
-    if (auto *del = std::get_deleter<mm::AsyncDeleter>(ptr)) {
+    if (del) {
       del->release_on_stream = order.get();
       if (ptr.use_count() != 1)
         throw std::logic_error("Race condition detected - the pointer is no longer unique.");
@@ -69,6 +72,31 @@ DLL_PUBLIC bool RestrictPinnedMemUsage() {
   }();
   return val;
 }
+
+template <typename Backend>
+void Buffer<Backend>::free_storage_impl(AccessOrder order) {
+  assert(data_);
+  if (!order)
+    order = order_;
+  if (!set_deletion_order(data_, order)) {
+    auto del_order = get_deletion_order(data_);
+    if (del_order && del_order != order)
+      del_order.wait(order);
+  }
+  data_.reset();
+}
+
+template <typename Backend>
+void Buffer<Backend>::set_order_impl(AccessOrder order, bool synchronize) {
+  assert(order_ != order);
+  if (has_data()) {  // if there's no data, we don't need to synchronize {
+    if (synchronize)
+      order.wait(order_);
+    set_deletion_order(data_, order);
+  }
+  order_ = order;
+}
+
 
 // this is to make debug builds happy about kMaxGrowthFactor
 template class Buffer<CPUBackend>;
