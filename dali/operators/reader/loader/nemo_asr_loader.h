@@ -113,6 +113,11 @@ class DLL_PUBLIC NemoAsrLoader : public Loader<CPUBackend, AsrSample, true> {
       : Loader<CPUBackend, AsrSample, true>(spec),
         manifest_filepaths_(spec.GetRepeatedArgument<std::string>("manifest_filepaths")),
         shuffle_after_epoch_(spec.GetArgument<bool>("shuffle_after_epoch")),
+        shuffle_after_epoch_seed_([&spec]() {
+          int32_t seed = kDaliDataloaderSeed;
+          spec.TryGetArgument(seed, "shuffle_after_epoch_seed");
+          return seed;
+        }()),
         sample_rate_(spec.GetArgument<float>("sample_rate")),
         quality_(spec.GetArgument<float>("quality")),
         downmix_(spec.GetArgument<bool>("downmix")),
@@ -172,6 +177,7 @@ class DLL_PUBLIC NemoAsrLoader : public Loader<CPUBackend, AsrSample, true> {
   std::vector<size_t> shuffled_indices_;
 
   bool shuffle_after_epoch_;
+  int32_t shuffle_after_epoch_seed_;
   Index current_index_ = 0;
   int current_epoch_ = 0;
 

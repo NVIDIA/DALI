@@ -93,6 +93,22 @@ This readers produces the following outputs::
   .AddOptionalArg("shuffle_after_epoch",
       R"code(If set to True, the reader shuffles the entire  dataset after each epoch.)code",
       false)
+  .AddOptionalArg<int32_t>("shuffle_after_epoch_seed",
+      R"code(Random seed for the dataset shuffling performed after each epoch.
+
+If not provided, a fixed default seed is used, which results in the same shuffling
+pattern across different training runs. Providing a custom seed allows for different
+shuffle patterns across training runs, which may be desirable for better statistical
+properties.
+
+.. note::
+    When using multiple DALI pipelines (e.g., for multi-GPU training), all pipeline
+    instances should use the same ``shuffle_after_epoch_seed`` to ensure a consistent
+    global shuffle across all shards.
+
+.. note::
+    This argument has no effect unless ``shuffle_after_epoch`` is set to ``True``.)code",
+      nullptr, false)
   .AddOptionalArg<string>("file_root",
       R"code(Path to a directory that contains the data files.
 
