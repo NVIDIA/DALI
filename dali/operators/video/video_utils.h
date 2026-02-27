@@ -66,9 +66,9 @@ enum class FrameNumPolicy {
 };
 
 inline FrameNumPolicy ParseFrameNumPolicy(const std::string &s) {
-  if (s == "none" or s == "False")     return FrameNumPolicy::kNone;
-  if (s == "scalar" or s == "True")   return FrameNumPolicy::kScalar;
-  if (s == "sequence") return FrameNumPolicy::kSequence;
+  if (s == "none" || s == "False")   return FrameNumPolicy::kNone;
+  if (s == "scalar" || s == "True")  return FrameNumPolicy::kScalar;
+  if (s == "sequence")               return FrameNumPolicy::kSequence;
   DALI_FAIL(make_string("Invalid enable_frame_num value: '", s,
                         "'. Valid values are: 'none', 'scalar', 'sequence'."));
 }
