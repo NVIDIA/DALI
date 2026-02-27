@@ -88,7 +88,7 @@ void Buffer<Backend>::free_storage_impl(AccessOrder order) {
 
 template <typename Backend>
 void Buffer<Backend>::set_order_impl(AccessOrder order, bool synchronize) {
-  assert(order != order);
+  assert(order_ != order);
   if (has_data()) {  // if there's no data, we don't need to synchronize {
     if (synchronize)
       order.wait(order_);
