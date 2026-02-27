@@ -685,7 +685,7 @@ The outputs of the operator are: video, [labels], [frame_num], [timestamps].
   using ``file_list`` or ``file_root``.
 * ``frame_num``: Frame number information. Shape and content depend on ``enable_frame_num``:
 
-  * ``"scalar"``: Index of the first frame in the decoded sequence, shape ``(1,)``.
+  * ``"scalar"`` or ``True``: Index of the first frame in the decoded sequence, shape ``(1,)``.
   * ``"sequence"``: Frame index of each decoded frame, shape ``(F,)``. Padded frames (e.g. when
     using ``pad_mode='constant'``) have index ``-1``.
 * ``timestamps``: Time in seconds of each frame in the sequence. Only available when ``enable_timestamps=True``.
@@ -727,7 +727,7 @@ Default: ``timestamps``.)code",
         R"code(How to handle non-exact frame matches:
 
 * ``start_down_end_up`` (default): Round start down and end up
-* ``start_up_end_down``: Round start up and end down 
+* ``start_up_end_down``: Round start up and end down
 * ``all_up``: Round both up
 * ``all_down``: Round both down)code",
         "start_down_end_up")
@@ -741,8 +741,8 @@ Default: ``timestamps``.)code",
     .AddOptionalArg("enable_frame_num",
                     R"code(Determines what frame number information is returned as an additional output.
 
-* ``"none"`` (default): No frame number output.
-* ``"scalar"``: Returns the index of the first frame in the decoded sequence, shape ``(1,)``.
+* ``"none"`` or ``False`` (default): No frame number output.
+* ``"scalar"`` or ``True``: Returns the index of the first frame in the decoded sequence, shape ``(1,)``.
 * ``"sequence"``: Returns the frame index of each decoded frame, shape ``(F,)``. For padded
   frames (e.g. when using ``pad_mode='constant'``), the index is ``-1``.)code",
                     std::string("none"))
@@ -762,7 +762,7 @@ When the value is less than 0, `step` is set to `sequence_length`.)code",
         R"code(How to handle videos with insufficient frames when using start_frame/sequence_length/stride:
 
 * ``'none'``: Return shorter sequences if not enough frames: ABC -> ABC
-* ``'constant'``: Pad with a fixed value (specified by ``pad_value``): ABC -> ABCPPP  
+* ``'constant'``: Pad with a fixed value (specified by ``pad_value``): ABC -> ABCPPP
 * ``'edge'`` or ``'repeat'``: Repeat the last valid frame: ABC -> ABCCCC
 * ``'reflect_1001'`` or ``'symmetric'``: Reflect padding, including the last element: ABC -> ABCCBA
 * ``'reflect_101'`` or ``'reflect'``: Reflect padding, not including the last element: ABC -> ABCBA
@@ -773,7 +773,7 @@ Not relevant when using ``frames`` argument.)code",
                     R"code(Value(s) used to pad missing frames when ``pad_mode='constant'``'.
 
 Each value must be in range [0, 255].
-If a single value is provided, it will be used for all channels. 
+If a single value is provided, it will be used for all channels.
 Otherwise, the number of values must match the number of channels in the video.)code",
                     std::vector<int>{
                         0,
