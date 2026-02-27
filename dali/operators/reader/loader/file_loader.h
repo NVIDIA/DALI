@@ -51,8 +51,11 @@ class FileLoader : public Loader<Backend, Target, true> {
         current_index_(0),
         current_epoch_(0) {
     int32_t seed_arg = kDaliDataloaderSeed;
-    spec.TryGetArgument(seed_arg, "shuffle_after_epoch_seed");
+    bool has_seed_arg = spec.TryGetArgument(seed_arg, "shuffle_after_epoch_seed");
     shuffle_after_epoch_seed_ = seed_arg;
+    if (has_seed_arg && !shuffle_after_epoch_) {
+      DALI_WARN("`shuffle_after_epoch_seed` has no effect when `shuffle_after_epoch` is False.");
+    }
     vector<string> files;
 
     file_discovery_opts_.label_from_subdir = false;

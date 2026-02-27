@@ -96,11 +96,11 @@ properties.
 
 .. note::
     When using multiple DALI pipelines (e.g., for multi-GPU training), all pipeline
-    instances should use the same ``shuffle_after_epoch_seed`` to ensure a consistent
+    instances should use the same `shuffle_after_epoch_seed` to ensure a consistent
     global shuffle across all shards.
 
 .. note::
-    This argument has no effect unless ``shuffle_after_epoch`` is set to ``True``.)code",
+    This argument has no effect unless `shuffle_after_epoch` is set to ``True``.)code",
     nullptr, false)
   .AddOptionalArg("sample_rate",
     "If specified, the target sample rate, in Hz, to which the audio is resampled.",

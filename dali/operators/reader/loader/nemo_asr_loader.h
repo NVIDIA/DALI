@@ -129,6 +129,9 @@ class DLL_PUBLIC NemoAsrLoader : public Loader<CPUBackend, AsrSample, true> {
         decode_scratch_(num_threads_),
         resample_scratch_(num_threads_) {
     DALI_ENFORCE(!manifest_filepaths_.empty(), "``manifest_filepaths`` can not be empty");
+    if (spec.HasArgument("shuffle_after_epoch_seed") && !shuffle_after_epoch_) {
+      DALI_WARN("`shuffle_after_epoch_seed` has no effect when `shuffle_after_epoch` is False.");
+    }
     /*
      * Those options are mutually exclusive as `shuffle_after_epoch` will make every shard looks
      * differently after each epoch so coexistence with `stick_to_shard` doesn't make any sense

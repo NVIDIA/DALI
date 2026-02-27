@@ -81,11 +81,11 @@ properties.
 
 .. note::
     When using multiple DALI pipelines (e.g., for multi-GPU training), all pipeline
-    instances should use the same ``shuffle_after_epoch_seed`` to ensure a consistent
+    instances should use the same `shuffle_after_epoch_seed` to ensure a consistent
     global shuffle across all shards.
 
 .. note::
-    This argument has no effect unless ``shuffle_after_epoch`` is set to ``True``.)",
+    This argument has no effect unless `shuffle_after_epoch` is set to ``True``.)",
                     nullptr, false)
     .AddOptionalArg<vector<string>>("files", R"(A list of file paths to read the data from.
 
