@@ -367,15 +367,8 @@ class DLL_PUBLIC Buffer {
    */
   void set_order(AccessOrder order, bool synchronize = true) {
     DALI_ENFORCE(order, "Resetting order to an empty one is not supported");
-    if (!synchronize) {
-      order_ = order;
-      return;
-    }
-    if (order == order_)
-      return;
-    if (has_data())  // if there's no data, we don't need to synchronize
-      order.wait(order_);
-    order_ = order;
+    if (order != order_)
+      set_order_impl(order, synchronize);
   }
 
   /**
@@ -649,15 +642,14 @@ class DLL_PUBLIC Buffer {
   }
 
   void free_storage(AccessOrder order = {}) {
-    if (data_) {
-      if (!order)
-        order = order_;
-      if (!set_deletion_order(data_, order))
-        get_deletion_order(data_).wait(order);
-      data_.reset();
-    }
+    if (has_data())
+      free_storage_impl(order);
     num_bytes_ = 0;
   }
+
+  void free_storage_impl(AccessOrder order);
+
+  void set_order_impl(AccessOrder order, bool synchronize);
 
   /**
    * @brief Clear the ShareData flag of the buffer. It will still hold (and co-own) the data due
