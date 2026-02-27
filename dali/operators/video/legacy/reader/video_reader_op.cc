@@ -108,9 +108,14 @@ sequence and a warning. This option is mutually exclusive with `filenames`
 and `file_root`.)code",
       std::string())
   .AddOptionalArg("enable_frame_num",
-      R"code(If the `file_list` or `filenames` argument is passed, returns the frame number
-output.)code",
-      false)
+      R"code(Determines what frame number information is returned as an additional output.
+Only available when `file_list` or `filenames` with `labels` is passed.
+
+* ``"none"`` (default): No frame number output.
+* ``"scalar"``: Returns the index of the first frame in the decoded sequence, shape ``(1,)``.
+* ``"sequence"``: Returns the frame index of each decoded frame, shape ``(F,)``. For padded
+  frames, the index is ``-1``.)code",
+      std::string("none"))
   .AddOptionalArg("enable_timestamps",
       R"code(If the `file_list` or `filenames` argument is passed, returns the timestamps
 output. )code",

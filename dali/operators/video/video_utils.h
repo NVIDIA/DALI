@@ -59,6 +59,20 @@ std::vector<VideoFileMeta> GetVideoFiles(const std::string& file_root,
                                          const std::vector<int>& labels,
                                          const std::string& file_list);
 
+enum class FrameNumPolicy {
+  kNone,      // no frame number output
+  kScalar,    // first frame index as a scalar with shape (1,)
+  kSequence   // per-frame indices with shape (F,); padded frames get -1
+};
+
+inline FrameNumPolicy ParseFrameNumPolicy(const std::string &s) {
+  if (s == "none")     return FrameNumPolicy::kNone;
+  if (s == "scalar")   return FrameNumPolicy::kScalar;
+  if (s == "sequence") return FrameNumPolicy::kSequence;
+  DALI_FAIL(make_string("Invalid enable_frame_num value: '", s,
+                        "'. Valid values are: 'none', 'scalar', 'sequence'."));
+}
+
 inline boundary::BoundaryType GetBoundaryType(const OpSpec &spec) {
   auto pad_mode_str = spec.template GetArgument<std::string>("pad_mode");
   boundary::BoundaryType boundary_type = boundary::BoundaryType::ISOLATED;

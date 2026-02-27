@@ -30,14 +30,15 @@ inline int VideoReaderOutputFn(const OpSpec &spec) {
   std::vector<std::string> file_names = spec.GetRepeatedArgument<std::string>("filenames");
   std::vector<int> labels;
   bool has_labels_arg = spec.TryGetRepeatedArgument(labels, "labels");
-  bool enable_frame_num = spec.GetArgument<bool>("enable_frame_num");
+  FrameNumPolicy frame_num_policy =
+      ParseFrameNumPolicy(spec.GetArgument<std::string>("enable_frame_num"));
   bool enable_timestamps = spec.GetArgument<bool>("enable_timestamps");
   int num_outputs = 1;
   if ((!file_names.empty() && has_labels_arg) || !file_root.empty() || !file_list.empty()) {
     ++num_outputs;
   }
   if (!file_list.empty() || !file_names.empty()) {
-    if (enable_frame_num) num_outputs++;
+    if (frame_num_policy != FrameNumPolicy::kNone) num_outputs++;
     if (enable_timestamps) num_outputs++;
   }
   return num_outputs;
@@ -51,9 +52,10 @@ class VideoReader : public DataReader<GPUBackend, SequenceWrapper, SequenceWrapp
         filenames_(spec.GetRepeatedArgument<std::string>("filenames")),
         file_root_(spec.GetArgument<std::string>("file_root")),
         file_list_(spec.GetArgument<std::string>("file_list")),
-        enable_frame_num_(spec.GetArgument<bool>("enable_frame_num")),
+        frame_num_policy_(ParseFrameNumPolicy(spec.GetArgument<std::string>("enable_frame_num"))),
         enable_timestamps_(spec.GetArgument<bool>("enable_timestamps")),
         count_(spec.GetArgument<int>("sequence_length")),
+        stride_(spec.GetArgument<int>("stride")),
         channels_(spec.GetArgument<int>("channels")),
         dtype_(spec.GetArgument<DALIDataType>("dtype")) {
     DALIImageType image_type(spec.GetArgument<DALIImageType>("image_type"));
@@ -75,7 +77,7 @@ class VideoReader : public DataReader<GPUBackend, SequenceWrapper, SequenceWrapp
 
     can_use_frames_timestamps_ = !file_list_.empty() || (!filenames_.empty() && has_labels_arg);
 
-    DALI_ENFORCE(can_use_frames_timestamps_ || !enable_frame_num_,
+    DALI_ENFORCE(can_use_frames_timestamps_ || frame_num_policy_ == FrameNumPolicy::kNone,
                  "frame numbers can be enabled only when "
                  "`file_list`, or `filenames` with `labels` argument are passed");
     DALI_ENFORCE(can_use_frames_timestamps_ || !enable_timestamps_,
@@ -99,7 +101,10 @@ class VideoReader : public DataReader<GPUBackend, SequenceWrapper, SequenceWrapp
     label_shape_ = uniform_list_shape(max_batch_size_, {1});
 
     if (can_use_frames_timestamps_) {
-      if (enable_frame_num_) frame_num_shape_ = label_shape_;
+      if (frame_num_policy_ == FrameNumPolicy::kScalar)
+        frame_num_shape_ = label_shape_;
+      else if (frame_num_policy_ == FrameNumPolicy::kSequence)
+        frame_num_shape_ = uniform_list_shape(max_batch_size_, {count_});
       if (enable_timestamps_) timestamp_shape_ = uniform_list_shape(max_batch_size_, {count_});
     }
 
@@ -134,7 +139,7 @@ class VideoReader : public DataReader<GPUBackend, SequenceWrapper, SequenceWrapp
       label_output_ = &ws.Output<GPUBackend>(output_index++);
       label_output_->Resize(label_shape_, DALI_INT32);
       if (can_use_frames_timestamps_) {
-        if (enable_frame_num_) {
+        if (frame_num_policy_ != FrameNumPolicy::kNone) {
           frame_num_output_ = &ws.Output<GPUBackend>(output_index++);
           frame_num_output_->Resize(frame_num_shape_, DALI_INT32);
         }
@@ -163,10 +168,28 @@ class VideoReader : public DataReader<GPUBackend, SequenceWrapper, SequenceWrapp
       CUDA_CALL(
           cudaMemcpyAsync(label, &prefetched_video.label, sizeof(int), cudaMemcpyDefault, stream));
       if (can_use_frames_timestamps_) {
-        if (enable_frame_num_) {
+        if (frame_num_policy_ == FrameNumPolicy::kScalar) {
           auto *frame_num = frame_num_output_->mutable_tensor<int>(data_idx);
           CUDA_CALL(cudaMemcpyAsync(frame_num, &prefetched_video.first_frame_idx, sizeof(int),
                                     cudaMemcpyDefault, stream));
+        } else if (frame_num_policy_ == FrameNumPolicy::kSequence) {
+          // Compute per-frame frame indices from first_frame_idx and stride.
+          // Frames beyond the actual decoded count (padded frames) get index -1.
+          auto &idxs = prefetched_video.frame_idxs;
+          idxs.resize(count_);
+          for (int i = 0; i < count_; ++i) {
+            idxs[i] = (i < prefetched_video.count)
+                          ? (prefetched_video.first_frame_idx + i * stride_)
+                          : -1;
+          }
+          auto *frame_num_data = frame_num_output_->mutable_tensor<int>(data_idx);
+          frame_num_output_->type_info().Copy<GPUBackend, CPUBackend>(
+              frame_num_data,
+              std::nullopt,
+              idxs.data(),
+              std::nullopt,
+              idxs.size(),
+              stream);
         }
         if (enable_timestamps_) {
           auto *timestamp = timestamp_output_->mutable_tensor<double>(data_idx);
@@ -212,9 +235,10 @@ class VideoReader : public DataReader<GPUBackend, SequenceWrapper, SequenceWrapp
   std::vector<int> labels_;
   std::string file_root_;
   std::string file_list_;
-  bool enable_frame_num_;
+  FrameNumPolicy frame_num_policy_;
   bool enable_timestamps_;
   int count_;
+  int stride_;
   int channels_;
 
   TensorListShape<> label_shape_;
