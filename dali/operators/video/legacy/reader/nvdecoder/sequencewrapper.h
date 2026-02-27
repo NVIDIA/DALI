@@ -48,6 +48,7 @@ struct SequenceWrapper {
 
     timestamps.clear();
     timestamps.reserve(max_count);
+    frame_idxs.clear();
 
     if (!event_) {
       event_ = CUDAEvent::CreateWithFlags(cudaEventBlockingSync | cudaEventDisableTiming);
@@ -83,6 +84,7 @@ struct SequenceWrapper {
   int channels = -1;
   int label = -1;
   vector<double> timestamps;
+  vector<int> frame_idxs;
   int first_frame_idx = -1;
   DALIDataType dtype = DALI_NO_TYPE;
   std::function<void(void)> read_sample_f;
