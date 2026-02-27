@@ -694,7 +694,9 @@ The outputs of the operator are: video, [labels], [frame_num], [timestamps].
     .OutputFn([](const OpSpec &spec) {
       bool has_labels = spec.HasArgument("labels") || spec.HasArgument("file_list") ||
                         spec.HasArgument("file_root");
-      bool has_frame_num = spec.GetArgument<std::string>("enable_frame_num") != "none";
+      bool has_frame_num =
+          ParseFrameNumPolicy(spec.GetArgument<std::string>("enable_frame_num")) !=
+          FrameNumPolicy::kNone;
       return 1 + has_labels + has_frame_num + spec.GetArgument<bool>("enable_timestamps");
     })
     .AddOptionalArg("filenames",

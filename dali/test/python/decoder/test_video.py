@@ -1031,6 +1031,105 @@ def test_enable_frame_num_sequence_with_padding(device):
     ), f"Expected -1 for all padded frames, got {padded_idxs}"
 
 
+def _ref_clamp(idx, size):
+    return max(0, min(idx, size - 1))
+
+
+def _ref_reflect_1001(idx, size):
+    """idx_reflect_1001(idx, 0, size): symmetric reflection including endpoints."""
+    if size <= 0:
+        return 0
+    period = 2 * size
+    idx = idx % period
+    if idx < 0:
+        idx += period
+    return idx if idx < size else 2 * size - 1 - idx
+
+
+def _ref_reflect_101(idx, size):
+    """idx_reflect_101(idx, 0, size): reflection without repeating endpoints."""
+    if size <= 1:
+        return 0
+    period = 2 * (size - 1)
+    idx = idx % period
+    if idx < 0:
+        idx += period
+    return idx if idx < size else 2 * (size - 1) - idx
+
+
+_BOUNDARY_REF = {
+    "edge": _ref_clamp,
+    "reflect_1001": _ref_reflect_1001,
+    "reflect_101": _ref_reflect_101,
+}
+
+
+@cartesian_params(["cpu", "gpu"], ["edge", "reflect_1001", "reflect_101"])
+def test_enable_frame_num_sequence_non_constant_padding(device, pad_mode):
+    """Test enable_frame_num='sequence' with non-constant pad modes (edge, reflect).
+
+    The experimental reader uses HandleBoundary() which returns reflected/clamped
+    indices for these modes instead of -1 (which is only returned for pad_mode='constant').
+    """
+    skip_if_m60()
+    sequence_length = 8
+    stride = 2
+    batch_size = 1
+    video_file = cfr_files[0]
+
+    container = av.open(video_file)
+    video_stream = next(s for s in container.streams if s.type == "video")
+    total_frames = video_stream.frames
+    container.close()
+
+    full_seq_stride = stride * sequence_length
+    if total_frames % full_seq_stride == 0:
+        raise SkipTest(
+            f"Video has {total_frames} frames, exactly divisible by {full_seq_stride}; "
+            f"no padding needed"
+        )
+
+    tail_start = (total_frames // full_seq_stride) * full_seq_stride
+    ref_fn = _BOUNDARY_REF[pad_mode]
+    expected = [ref_fn(tail_start + i * stride, total_frames) for i in range(sequence_length)]
+
+    @pipeline_def
+    def video_pipe():
+        videos, frame_idxs = fn.experimental.readers.video(
+            filenames=[video_file],
+            device=device,
+            sequence_length=sequence_length,
+            stride=stride,
+            pad_mode=pad_mode,
+            enable_frame_num="sequence",
+        )
+        return videos, frame_idxs
+
+    pipe = video_pipe(batch_size=batch_size, num_threads=2, device_id=0)
+
+    num_full_seqs = total_frames // full_seq_stride
+    padded_idxs = None
+    for _ in range(num_full_seqs + 2):
+        (_, out_idxs) = pipe.run()
+        idxs = out_idxs.as_cpu().at(0).flatten()
+        if idxs[0] == tail_start:
+            padded_idxs = idxs
+            break
+
+    assert padded_idxs is not None, (
+        f"No tail sequence starting at frame {tail_start} was found in "
+        f"{num_full_seqs + 2} iterations"
+    )
+    assert all(
+        idx >= 0 for idx in padded_idxs
+    ), f"pad_mode='{pad_mode}' should not produce -1 frame indices, got {padded_idxs}"
+    for j, (got, exp) in enumerate(zip(padded_idxs.tolist(), expected)):
+        assert got == exp, (
+            f"Frame {j} (source idx {tail_start + j * stride}): "
+            f"got {got}, expected {exp} for pad_mode='{pad_mode}'"
+        )
+
+
 @params(*[(device,) for device in ["cpu", "gpu"]])
 def test_enable_frame_num_sequence_matches_scalar(device):
     """Test that the first element of 'sequence' output matches 'scalar' output."""
