@@ -11,17 +11,18 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import numpy as np
 import jax
 import jax.dlpack
 import jax.numpy as jnp
-from jax.sharding import NamedSharding, PositionalSharding, Sharding
+from jax.sharding import NamedSharding, Sharding
 
 from nvidia.dali.plugin.base_iterator import _DaliBaseIterator
 from nvidia.dali.plugin.base_iterator import LastBatchPolicy
 from nvidia.dali.pipeline import pipeline_def
 from nvidia.dali.pipeline import Pipeline, DataNode
 
-from nvidia.dali.plugin.jax.integration import _to_jax_array
+from nvidia.dali.plugin.jax.integration import _to_jax_array, _jax_device
 
 from typing import Union, Optional, Callable, Type, Dict, List, Tuple
 
@@ -126,8 +127,8 @@ class DALIGenericIterator(_DaliBaseIterator):
 
         if sharding is not None:
             assert isinstance(
-                sharding, (NamedSharding, PositionalSharding)
-            ), "`sharding` should be an instance of `NamedSharding` or `PositionalSharding`"
+                sharding, Sharding
+            ), "`sharding` should be an instance of `jax.sharding.Sharding`"
         self._sharding = sharding
 
         assert (
@@ -202,27 +203,33 @@ class DALIGenericIterator(_DaliBaseIterator):
         return category_outputs
 
     def _build_output_with_device_put(self, next_output, category_name, category_outputs):
-        """Builds sharded jax.Array with `jax.device_put_sharded`. This output is compatible
-        with pmapped JAX functions.
-        """
-        category_outputs_devices = tuple(
-            map(lambda jax_shard: jax_shard.device(), category_outputs)
-        )
+        """Builds sharded jax.Array from per-device shards using make_array_from_
+        single_device_arrays."""
+        category_outputs_devices = tuple(_jax_device(jax_shard) for jax_shard in category_outputs)
 
         distinct_category_outputs_devices = set(category_outputs_devices)
 
         if len(category_outputs_devices) != len(distinct_category_outputs_devices):
             if len(distinct_category_outputs_devices) != 1:
                 raise AssertionError(
-                    "JAX iterator requires shards to be placed on \
-                                                different devices or all on the same device."
+                    "JAX iterator requires shards to be placed on "
+                    "different devices or all on the same device."
                 )
             else:
                 # All shards are on one device (CPU or one GPU)
                 return jnp.stack(category_outputs)
         else:
-            # Build sharded JAX array as output for current category (compatible with pmap)
-            return jax.device_put_sharded(category_outputs, category_outputs_devices)
+            # Build sharded JAX array as output for current category
+            devices_arr = np.array(list(category_outputs_devices))
+            mesh = jax.sharding.Mesh(devices_arr, axis_names=("device",))
+            sharding = jax.sharding.NamedSharding(mesh, jax.sharding.PartitionSpec("device"))
+            global_shape = (
+                len(category_outputs) * category_outputs[0].shape[0],
+                *category_outputs[0].shape[1:],
+            )
+            return jax.make_array_from_single_device_arrays(
+                global_shape, sharding, category_outputs
+            )
 
     def _build_output_with_sharding(self, category_outputs):
         """Builds sharded jax.Array with `jax.make_array_from_single_device_arrays`.
@@ -231,9 +238,10 @@ class DALIGenericIterator(_DaliBaseIterator):
         shard_shape = category_outputs[0].shape
 
         if isinstance(self._sharding, NamedSharding):
-            global_shape = (self._sharding.mesh.size * shard_shape[0], *shard_shape[1:])
+            num_devices = self._sharding.mesh.size
         else:
-            global_shape = (self._sharding.shape[0] * shard_shape[0], *shard_shape[1:])
+            num_devices = len(self._sharding.device_set)
+        global_shape = (num_devices * shard_shape[0], *shard_shape[1:])
 
         return jax.make_array_from_single_device_arrays(
             global_shape, self._sharding, category_outputs

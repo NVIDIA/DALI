@@ -83,18 +83,19 @@ def with_sharding(callback, sharding):
             f"got {jax.local_device_count()}"
         )
 
-    if not isinstance(sharding, (jax.sharding.NamedSharding, jax.sharding.PositionalSharding)):
+    if not isinstance(sharding, jax.sharding.Sharding):
         raise ValueError(
-            f"The value passed as `sharding` must be an instance of `NamedSharding` or "
-            f"`PositionalSharding`, got value of a type {type(sharding)}"
+            f"The value passed as `sharding` must be an instance of `jax.sharding.Sharding`, "
+            f"got value of a type {type(sharding)}"
         )
 
     def as_sharded_array(array: jax.Array) -> jax.Array:
         array_shape = array.shape
         if isinstance(sharding, jax.sharding.NamedSharding):
-            global_shape = (sharding.mesh.size * array_shape[0], *array_shape[1:])
+            num_devices = sharding.mesh.size
         else:
-            global_shape = (sharding.shape[0] * array_shape[0], *array_shape[1:])
+            num_devices = len(sharding.device_set)
+        global_shape = (num_devices * array_shape[0], *array_shape[1:])
         return jax.make_array_from_single_device_arrays(global_shape, sharding, [array])
 
     def as_single_device_array(sharded_array: jax.Array) -> jax.Array:

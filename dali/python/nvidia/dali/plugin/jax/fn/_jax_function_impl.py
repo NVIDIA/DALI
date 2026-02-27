@@ -145,7 +145,7 @@ def jax_function(
         dimensionality as the i-th input, the layout will be propagated from the input to
         the corresponding output.
     sharding: jax.sharding.Sharding, optional
-        The JAX sharding object (either ``PositionalSharding`` or ``NamedSharding``).
+        The JAX sharding object (e.g. ``NamedSharding``).
         If specified, the ``jax.Arrays`` passed to the `function` will be a global
         ``jax.Array`` aware of the sharding.
 

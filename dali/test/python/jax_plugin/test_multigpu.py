@@ -16,6 +16,7 @@ import jax
 import numpy as np
 
 import nvidia.dali.plugin.jax as dax
+from nvidia.dali.plugin.jax.integration import _jax_device
 
 from nvidia.dali import pipeline_def
 import nvidia.dali.fn as fn
@@ -23,8 +24,7 @@ import nvidia.dali.types as types
 from nvidia.dali.plugin.jax import DALIGenericIterator, data_iterator
 from nvidia.dali.plugin.base_iterator import LastBatchPolicy
 
-from jax.sharding import PositionalSharding, NamedSharding, PartitionSpec, Mesh
-from jax.experimental import mesh_utils
+from jax.sharding import NamedSharding, PartitionSpec, Mesh
 from utils import get_dali_tensor_gpu, iterator_function_def
 import jax.numpy as jnp
 
@@ -100,12 +100,20 @@ def test_dali_sequential_sharded_tensors_to_jax_sharded_array_manuall():
         jax_shard_0 = dax.integration._to_jax_array(dali_tensor_gpu_0, False)
         jax_shard_1 = dax.integration._to_jax_array(dali_tensor_gpu_1, False)
 
-        assert jax_shard_0.device() == jax.devices()[0]
-        assert jax_shard_1.device() == jax.devices()[1]
+        assert _jax_device(jax_shard_0) == jax.devices()[0]
+        assert _jax_device(jax_shard_1) == jax.devices()[1]
 
         # when
-        jax_array = jax.device_put_sharded(
-            [jax_shard_0, jax_shard_1], [jax_shard_0.device(), jax_shard_1.device()]
+        # Build sharded array using the same approach as in iterator.py
+        devices_arr = np.array([_jax_device(jax_shard_0), _jax_device(jax_shard_1)])
+        mesh = jax.sharding.Mesh(devices_arr, axis_names=("device",))
+        sharding = jax.sharding.NamedSharding(mesh, jax.sharding.PartitionSpec("device"))
+        global_shape = (
+            len([jax_shard_0, jax_shard_1]) * jax_shard_0.shape[0],
+            *jax_shard_0.shape[1:],
+        )
+        jax_array = jax.make_array_from_single_device_arrays(
+            global_shape, sharding, [jax_shard_0, jax_shard_1]
         )
 
         # then
@@ -131,7 +139,7 @@ def test_dali_sequential_sharded_tensors_to_jax_sharded_array_manuall():
         #  [10 10 10 10 10]
         #  [11 11 11 11 11]]
         assert jax.numpy.array_equal(
-            jax_array.device_buffers[0],
+            jax_array.addressable_shards[0].data,
             jax.numpy.stack(
                 [
                     jax.numpy.full(shape[1:], value, np.int32)
@@ -140,7 +148,7 @@ def test_dali_sequential_sharded_tensors_to_jax_sharded_array_manuall():
             ),
         )
         assert jax.numpy.array_equal(
-            jax_array.device_buffers[1],
+            jax_array.addressable_shards[1].data,
             jax.numpy.stack(
                 [
                     jax.numpy.full(shape[1:], value, np.int32)
@@ -150,8 +158,8 @@ def test_dali_sequential_sharded_tensors_to_jax_sharded_array_manuall():
         )
 
         # Assert correct backing devices for shards
-        assert jax_array.device_buffers[0].device() == jax_shard_0.device()
-        assert jax_array.device_buffers[1].device() == jax_shard_1.device()
+        assert _jax_device(jax_array.addressable_shards[0].data) == _jax_device(jax_shard_0)
+        assert _jax_device(jax_array.addressable_shards[1].data) == _jax_device(jax_shard_1)
 
 
 def test_dali_sequential_sharded_tensors_to_jax_sharded_array_iterator_multiple_outputs():
@@ -190,7 +198,7 @@ def test_dali_sequential_sharded_tensors_to_jax_sharded_array_iterator_multiple_
             jax_array = batch[output_name]
 
             assert jax.numpy.array_equal(
-                jax_array.device_buffers[0],
+                jax_array.addressable_shards[0].data,
                 jax.numpy.stack(
                     [
                         jax.numpy.full(shape[1:], value + output_id * 0.25, np.float32)
@@ -199,7 +207,7 @@ def test_dali_sequential_sharded_tensors_to_jax_sharded_array_iterator_multiple_
                 ),
             )
             assert jax.numpy.array_equal(
-                jax_array.device_buffers[1],
+                jax_array.addressable_shards[1].data,
                 jax.numpy.stack(
                     [
                         jax.numpy.full(shape[1:], value + output_id * 0.25, np.float32)
@@ -209,8 +217,8 @@ def test_dali_sequential_sharded_tensors_to_jax_sharded_array_iterator_multiple_
             )
 
             # Assert correct backing devices for shards
-            assert jax_array.device_buffers[0].device() == jax.devices()[0]
-            assert jax_array.device_buffers[1].device() == jax.devices()[1]
+            assert _jax_device(jax_array.addressable_shards[0].data) == jax.devices()[0]
+            assert _jax_device(jax_array.addressable_shards[1].data) == jax.devices()[1]
 
     # Assert correct number of batches returned from the iterator
     assert batch_id == 4
@@ -226,8 +234,8 @@ def run_sharding_test(sharding):
         dax.integration._to_jax_array(dali_shard_1, False),
     ]
 
-    assert shards[0].device() == jax.devices()[0]
-    assert shards[1].device() == jax.devices()[1]
+    assert _jax_device(shards[0]) == jax.devices()[0]
+    assert _jax_device(shards[1]) == jax.devices()[1]
 
     # when
     dali_sharded_array = jax.make_array_from_single_device_arrays(
@@ -238,10 +246,10 @@ def run_sharding_test(sharding):
     jax_sharded_array = jax.device_put(jnp.arange(2), sharding)
 
     assert (dali_sharded_array == jax_sharded_array).all()
-    assert len(dali_sharded_array.device_buffers) == jax.device_count()
+    assert len(dali_sharded_array.addressable_shards) == jax.device_count()
 
-    assert dali_sharded_array.device_buffers[0].device() == jax.devices()[0]
-    assert dali_sharded_array.device_buffers[1].device() == jax.devices()[1]
+    assert _jax_device(dali_sharded_array.addressable_shards[0].data) == jax.devices()[0]
+    assert _jax_device(dali_sharded_array.addressable_shards[1].data) == jax.devices()[1]
 
 
 def run_sharding_iterator_test(sharding):
@@ -292,15 +300,16 @@ def run_sharding_iterator_test(sharding):
             )
 
             # Assert correct backing devices for shards
-            assert jax_array.device_buffers[0].device() == jax.devices()[0]
-            assert jax_array.device_buffers[1].device() == jax.devices()[1]
+            assert _jax_device(jax_array.addressable_shards[0].data) == jax.devices()[0]
+            assert _jax_device(jax_array.addressable_shards[1].data) == jax.devices()[1]
 
     # Assert correct number of batches returned from the iterator
     assert batch_id == 4
 
 
 def test_positional_sharding_workflow():
-    sharding = PositionalSharding(jax.devices())
+    mesh = Mesh(jax.devices(), axis_names=("device",))
+    sharding = NamedSharding(mesh, PartitionSpec("device"))
 
     run_sharding_test(sharding)
 
@@ -313,8 +322,8 @@ def test_named_sharding_workflow():
 
 
 def test_positional_sharding_workflow_with_iterator():
-    mesh = mesh_utils.create_device_mesh((jax.device_count(), 1))
-    sharding = PositionalSharding(mesh)
+    mesh = Mesh(jax.devices(), axis_names=("device",))
+    sharding = NamedSharding(mesh, PartitionSpec("device"))
 
     run_sharding_iterator_test(sharding)
 
@@ -370,8 +379,8 @@ def run_sharded_iterator_test(iterator, num_iters=11):
                 sample_id += 1
 
         # Assert correct backing devices for shards
-        assert jax_array.device_buffers[0].device() == jax.devices()[0]
-        assert jax_array.device_buffers[1].device() == jax.devices()[1]
+        assert _jax_device(jax_array.addressable_shards[0].data) == jax.devices()[0]
+        assert _jax_device(jax_array.addressable_shards[1].data) == jax.devices()[1]
 
     # Assert correct number of batches returned from the iterator
     assert batch_id == num_iters - 1
@@ -405,8 +414,8 @@ def test_named_sharding_with_iterator_decorator():
 
 def test_positional_sharding_with_iterator_decorator():
     # given
-    mesh = mesh_utils.create_device_mesh((jax.device_count(), 1))
-    sharding = PositionalSharding(mesh)
+    mesh = Mesh(jax.devices(), axis_names=("device",))
+    sharding = NamedSharding(mesh, PartitionSpec("device"))
 
     output_map = ["tensor"]
 
@@ -438,7 +447,7 @@ def test_dali_sequential_iterator_decorator_non_default_device():
     batch = next(iter)
 
     # then
-    assert batch["data"].device_buffers[0].device() == jax.devices()[1]
+    assert _jax_device(batch["data"].addressable_shards[0].data) == jax.devices()[1]
 
 
 def run_pmapped_iterator_test(iterator, num_iters=11):
@@ -486,8 +495,8 @@ def run_pmapped_iterator_test(iterator, num_iters=11):
                 sample_id += 1
 
         # Assert correct backing devices for shards
-        assert jax_array.device_buffers[0].device() == jax.devices()[0]
-        assert jax_array.device_buffers[1].device() == jax.devices()[1]
+        assert _jax_device(jax_array.addressable_shards[0].data) == jax.devices()[0]
+        assert _jax_device(jax_array.addressable_shards[1].data) == jax.devices()[1]
 
     # Assert correct number of batches returned from the iterator
     assert batch_id == num_iters - 1
@@ -516,8 +525,8 @@ def test_iterator_decorator_with_devices():
 @raises(ValueError, glob="Only one of `sharding` and `devices` arguments can be provided.")
 def test_sharding_and_devices_mutual_exclusivity():
     # given
-    mesh = mesh_utils.create_device_mesh((jax.device_count(), 1))
-    sharding = PositionalSharding(mesh)
+    mesh = Mesh(jax.devices(), axis_names=("device",))
+    sharding = NamedSharding(mesh, PartitionSpec("device"))
 
     output_map = ["tensor"]
 

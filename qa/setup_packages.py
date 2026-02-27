@@ -629,19 +629,22 @@ all_packages = [
     CudaPackageExtraIndex(
         "jax",  # name used in our test script
         {
-            # ToDo update to newer JAX version some day
             "120": [
-                # dax.fn.jax_function requires at least 0.4.16 which is the first one supporting
-                # `__dlpack__` method, while 0.4.13 is the last one supported with Python3.8
                 PckgVer(
-                    "0.4.16",
-                    python_min_ver="3.9",
-                    python_max_ver="3.11",
-                    dependencies=["jaxlib", "numpy<2"],
-                    # Free-threaded Python build is incompatible with numpy<2.
-                    python_free_threaded=False,
+                    "0.9.0.1",
+                    python_min_ver="3.11",
+                    python_max_ver="3.14",
+                    dependencies=["jaxlib"],
                 ),
-            ]
+            ],
+            "130": [
+                PckgVer(
+                    "0.9.0.1",
+                    python_min_ver="3.11",
+                    python_max_ver="3.14",
+                    dependencies=["jaxlib"],
+                ),
+            ],
         },
         # name used during installation
         name="jax[cuda{cuda_v[0]}{cuda_v[1]}_local]",
@@ -654,7 +657,6 @@ all_packages = [
                 "0.7.4",
                 # Free-threaded Python build is incompatible with numpy<2.
                 python_free_threaded=False,
-                constraints=["jax==0.4.16"],
             ),
         ],
     ),
@@ -665,7 +667,6 @@ all_packages = [
                 "0.0.12",
                 # Free-threaded Python build is incompatible with numpy<2.
                 python_free_threaded=False,
-                constraints=["jax==0.4.16"],
             ),
         ],
     ),
