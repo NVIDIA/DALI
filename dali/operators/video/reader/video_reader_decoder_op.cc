@@ -98,7 +98,7 @@ struct VideoSample : public VideoSampleDesc {
   // to be filled by Prefetch
   Tensor<Backend> data_;
   std::vector<double> timestamps_;
-  std::vector<int64_t> frame_idx_;
+  std::vector<int32_t> frame_idx_;
 };
 
 enum class FileListFormat {
@@ -394,7 +394,7 @@ class VideoReaderDecoder
 
   explicit VideoReaderDecoder(const OpSpec &spec)
       : Base(spec),
-        has_frame_idx_(spec.GetArgument<bool>("enable_frame_num")),
+        frame_num_policy_(ParseFrameNumPolicy(spec.GetArgument<std::string>("enable_frame_num"))),
         has_timestamps_(spec.GetArgument<bool>("enable_timestamps")),
         boundary_type_(GetBoundaryType(spec)),
         image_type_(spec.GetArgument<DALIImageType>("image_type")) {
@@ -465,9 +465,12 @@ class VideoReaderDecoder
       output_desc.push_back({label_shape, DALI_INT32});
     }
 
-    if (has_frame_idx_) {
+    if (frame_num_policy_ == FrameNumPolicy::kScalar) {
       TensorListShape<1> frame_idx_shape = uniform_list_shape<1>(batch_size, {1});
       output_desc.push_back({frame_idx_shape, DALI_INT32});
+    } else if (frame_num_policy_ == FrameNumPolicy::kSequence) {
+      auto num_frames = GetSample(0).data_.shape()[0];
+      output_desc.push_back({uniform_list_shape<1>(batch_size, {num_frames}), DALI_INT32});
     }
 
     if (has_timestamps_) {
@@ -526,9 +529,13 @@ class VideoReaderDecoder
         return make_cspan(&s.video_file_meta_->label, 1);
       });
     }
-    if (has_frame_idx_) {
+    if (frame_num_policy_ == FrameNumPolicy::kScalar) {
       OutputMetadata<int32_t>(ws, out_index++, [](auto &s) {
         return make_cspan(&s.start_, 1);
+      });
+    } else if (frame_num_policy_ == FrameNumPolicy::kSequence) {
+      OutputMetadata<int32_t>(ws, out_index++, [](auto &s) {
+        return make_cspan(s.frame_idx_);
       });
     }
     if (has_timestamps_) {
@@ -601,6 +608,17 @@ class VideoReaderDecoder
                << ", boundary_type=" << to_string(boundary_type_) << std::endl;
       int roi_start = sample->video_file_meta_->start_frame;
       int roi_end = sample->video_file_meta_->end_frame;
+      if (frame_num_policy_ == FrameNumPolicy::kSequence) {
+        sample->frame_idx_.resize(num_frames);
+        for (int64_t i = 0; i < num_frames; ++i) {
+          sample->frame_idx_[i] = static_cast<int32_t>(decoder_->HandleBoundary(
+              boundary_type_,
+              static_cast<int>(sample->start_ + i * sample->stride_),
+              roi_start, roi_end));
+        }
+      } else {
+        sample->frame_idx_.clear();
+      }
       if (roi_start != 0 || roi_end != decoder_->NumFrames()) {
         frame_idxs_.clear();
         for (int frame_idx = sample->start_; frame_idx < sample->end_;
@@ -626,7 +644,7 @@ class VideoReaderDecoder
   }
 
  private:
-  bool has_frame_idx_;
+  FrameNumPolicy frame_num_policy_;
   bool has_timestamps_;
   boundary::BoundaryType boundary_type_;
   DALIImageType image_type_;
@@ -658,22 +676,26 @@ The following codecs are supported by the GPU backend only:
 * AV1
 * MPEG-4
 
-The outputs of the operator are: video, [labels], [frame_idx], [timestamp].
+The outputs of the operator are: video, [labels], [frame_num], [timestamps].
 
 * ``video``: A sequence of frames with shape ``(F, H, W, C)`` where ``F`` is the number of frames in the sequence
   (can vary between samples), ``H`` is the frame height in pixels, ``W`` is the frame width in pixels, and ``C`` is
   the number of color channels.
 * ``labels``: Label associated with the sample. Only available when using ``labels`` with ``filenames``, or when
   using ``file_list`` or ``file_root``.
-* ``frame_idx``: Index of first frame in sequence. Only available when ``enable_frame_num=True``.
+* ``frame_num``: Frame number information. Shape and content depend on ``enable_frame_num``:
+
+  * ``"scalar"``: Index of the first frame in the decoded sequence, shape ``(1,)``.
+  * ``"sequence"``: Frame index of each decoded frame, shape ``(F,)``. Padded frames (e.g. when
+    using ``pad_mode='constant'``) have index ``-1``.
 * ``timestamps``: Time in seconds of each frame in the sequence. Only available when ``enable_timestamps=True``.
 )code")
     .NumInput(0)
     .OutputFn([](const OpSpec &spec) {
       bool has_labels = spec.HasArgument("labels") || spec.HasArgument("file_list") ||
                         spec.HasArgument("file_root");
-      return 1 + has_labels + spec.GetArgument<bool>("enable_frame_num") +
-             spec.GetArgument<bool>("enable_timestamps");
+      bool has_frame_num = spec.GetArgument<std::string>("enable_frame_num") != "none";
+      return 1 + has_labels + has_frame_num + spec.GetArgument<bool>("enable_timestamps");
     })
     .AddOptionalArg("filenames",
                     R"code(Absolute paths to the video files to load.
@@ -717,9 +739,13 @@ Default: ``timestamps``.)code",
                                  nullptr)
     .AddArg("sequence_length", R"code(Frames to load per sequence.)code", DALI_INT32)
     .AddOptionalArg("enable_frame_num",
-                    R"code(If set, returns the index of the first frame in the decoded sequence
-as an additional output.)code",
-                    false)
+                    R"code(Determines what frame number information is returned as an additional output.
+
+* ``"none"`` (default): No frame number output.
+* ``"scalar"``: Returns the index of the first frame in the decoded sequence, shape ``(1,)``.
+* ``"sequence"``: Returns the frame index of each decoded frame, shape ``(F,)``. For padded
+  frames (e.g. when using ``pad_mode='constant'``), the index is ``-1``.)code",
+                    std::string("none"))
     .AddOptionalArg("enable_timestamps",
                     R"code(If set, returns the timestamp of the frames in the decoded sequence
 as an additional output.)code",
