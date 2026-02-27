@@ -1,4 +1,4 @@
-# Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -18,6 +18,13 @@ from packaging.version import Version
 # Python-based operators are not supported in dynamic mode
 PythonBasedOps = ["ExternalSource", "PythonFunction", "NumbaFunction", "JaxFunction"]
 
+# Input operators are not supported
+InputOps = ["experimental__inputs__Video"]
+
+PipelineSpecificOps = ["Constant"]
+
+ExcludedOps = PythonBasedOps + InputOps + PipelineSpecificOps
+
 # Operators that were deprecated before this version will not be exposed in dynamic mode
 DynamicModeOpCutoff = Version("2.0")
 
@@ -26,7 +33,7 @@ def should_create_dynamic_op(schema_name: str) -> bool:
     """
     Determines if an operator with the given schema name should be exposed in dynamic mode.
     """
-    if any(schema_name.endswith(op) for op in PythonBasedOps):
+    if any(schema_name.endswith(op) for op in ExcludedOps):
         return False
     schema = _b.GetSchema(schema_name)
     if schema.IsInternal():
