@@ -136,7 +136,7 @@ READERS = _expand_reader_test_cases(
         #         "roi_end": (630, 1280),
         #         "file_list_include_preceding_frame": True,
         #     },
-        # ),  # BUG
+        # ),  # TODO(michalz): Passing arguments at construction not supported yet
     ]
 )
 

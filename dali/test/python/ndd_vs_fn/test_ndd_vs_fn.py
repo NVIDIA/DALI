@@ -393,34 +393,41 @@ def test_inflate():
         deflated_buf = lz4.block.compress(sample, store_size=False)
         return np.frombuffer(deflated_buf, dtype=np.uint8)
 
+    rng = np.random.default_rng(1234)
+
     def sample_gen():
         j = 42
         while True:
-            yield np.full((13, 7), j)
+            n = rng.integers(100, 400)
+            data = np.full(n, j, dtype=np.int32)
+            compressed = sample_to_lz4(data)
+            yield data, np.array(data.shape, dtype=np.int32), compressed
             j += 1
 
-    def inflate_pipeline(max_batch_size, inputs, device):
-        input_data = [[sample_to_lz4(sample) for sample in batch] for batch in inputs]
-        input_shape = [
-            [np.array(sample.shape, dtype=np.int32) for sample in batch] for batch in inputs
-        ]
-
-    @pipeline_def
-    def piepline():
-        deflated = fn.external_source(name="INPUT0")
-        shape = fn.external_source(name="INPUT1")
-        return fn.decoders.inflate(deflated.gpu(), shape=shape)
-
-        return piepline(batch_size=max_batch_size, num_threads=4, device_id=0)
-
     sample = sample_gen()
-    batches = [
-        [next(sample) for _ in range(5)],
-        [next(sample) for _ in range(13)],
-        [next(sample) for _ in range(2)],
-    ]
+    batches = [list(zip(*(next(sample) for _ in range(bs)))) for bs in [5, 13, 2]]
 
-    check_pipeline(batches, inflate_pipline)
+    @pipeline_def(num_threads=4, batch_size=15, device_id=0)
+    def pipeline():
+        ref, shape, deflated = fn.external_source(source=batches, cycle=True, num_outputs=3)
+        return (
+            ref,
+            shape,
+            deflated,
+            fn.decoders.inflate(deflated.gpu(), shape=shape, dtype=dali.types.INT32),
+        )
+
+    pipe = pipeline()
+
+    for iter in range(10):
+        ref, shape, deflated, pipe_out = pipe.run()
+        ndd_out = ndd.decoders.inflate(
+            ndd.batch(deflated, device="gpu"), shape=shape, dtype=ndd.int32
+        )
+        # verify that the pipeline did the right thing
+        compare((pipe_out,), (ndd.Batch(ref, device="gpu"),))
+        # check that the pipeline and NDD did the same thing
+        compare((pipe_out,), (ndd_out,))
 
 
 @test_all_devices("debayer")
@@ -666,3 +673,36 @@ def test_full(device):
     pipe_out = pipe.run()
     ndd_out = ndd.full(7, batch_size=MAX_BATCH_SIZE, device=device)
     compare(pipe_out, ndd_out)
+
+
+@test_all_devices("permute_batch")
+def test_permute_batch(device):
+    data = [
+        [[1, 2], [3, 4], [5, 6], [7, 8]],
+        [[10], [20], [30], [40], [50], [60]],
+        [[100], [201, 202, 203], [301, 302, 303]],
+    ]
+    perm = [
+        [3, 2, 1, 0],
+        [1, 2, 0, 3, 5, 4],
+        [2, 2, 1],
+    ]
+    data = [[np.int32(x) for x in b] for b in data]
+    perm = [[np.int32(x) for x in b] for b in perm]
+
+    @pipeline_def(batch_size=MAX_BATCH_SIZE, device_id=0, num_threads=ndd.get_num_threads())
+    def pipeline():
+        in_data = fn.external_source(source=data, cycle=True, device=device)
+        in_perm = fn.external_source(source=perm, cycle=True)
+        return fn.permute_batch(in_data, indices=in_perm)
+
+    pipe = pipeline()
+
+    for iter in range(10):
+        in_data = data[iter % len(data)]
+        in_perm = perm[iter % len(perm)]
+        pipe_out = pipe.run()
+        ndd_out = ndd.permute_batch(
+            ndd.as_batch(in_data, device=device), indices=ndd.as_batch(in_perm)
+        )
+        compare(pipe_out, ndd_out)
