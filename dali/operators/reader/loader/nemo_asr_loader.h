@@ -113,6 +113,11 @@ class DLL_PUBLIC NemoAsrLoader : public Loader<CPUBackend, AsrSample, true> {
       : Loader<CPUBackend, AsrSample, true>(spec),
         manifest_filepaths_(spec.GetRepeatedArgument<std::string>("manifest_filepaths")),
         shuffle_after_epoch_(spec.GetArgument<bool>("shuffle_after_epoch")),
+        shuffle_after_epoch_seed_([&spec]() {
+          int32_t seed = kDaliDataloaderSeed;
+          spec.TryGetArgument(seed, "shuffle_after_epoch_seed");
+          return seed;
+        }()),
         sample_rate_(spec.GetArgument<float>("sample_rate")),
         quality_(spec.GetArgument<float>("quality")),
         downmix_(spec.GetArgument<bool>("downmix")),
@@ -124,6 +129,9 @@ class DLL_PUBLIC NemoAsrLoader : public Loader<CPUBackend, AsrSample, true> {
         decode_scratch_(num_threads_),
         resample_scratch_(num_threads_) {
     DALI_ENFORCE(!manifest_filepaths_.empty(), "``manifest_filepaths`` can not be empty");
+    if (spec.HasArgument("shuffle_after_epoch_seed") && !shuffle_after_epoch_) {
+      DALI_WARN("`shuffle_after_epoch_seed` has no effect when `shuffle_after_epoch` is False.");
+    }
     /*
      * Those options are mutually exclusive as `shuffle_after_epoch` will make every shard looks
      * differently after each epoch so coexistence with `stick_to_shard` doesn't make any sense
@@ -172,6 +180,7 @@ class DLL_PUBLIC NemoAsrLoader : public Loader<CPUBackend, AsrSample, true> {
   std::vector<size_t> shuffled_indices_;
 
   bool shuffle_after_epoch_;
+  int32_t shuffle_after_epoch_seed_;
   Index current_index_ = 0;
   int current_epoch_ = 0;
 

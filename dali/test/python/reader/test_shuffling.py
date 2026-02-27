@@ -34,6 +34,7 @@ class COCOReaderPipeline(Pipeline):
         shuffle_after_epoch,
         pad_last_batch,
         initial_fill=1024,
+        shuffle_after_epoch_seed=None,
     ):
         # use only 1 GPU, as we care only about shard_id
         super().__init__(batch_size, num_threads, 0, prefetch_queue_depth=1)
@@ -48,6 +49,7 @@ class COCOReaderPipeline(Pipeline):
             shuffle_after_epoch=shuffle_after_epoch,
             pad_last_batch=pad_last_batch,
             initial_fill=initial_fill,
+            shuffle_after_epoch_seed=shuffle_after_epoch_seed,
         )
 
     def define_graph(self):
@@ -402,3 +404,110 @@ def test_pad_last_batch():
     print(set(mirrored_data))
     assert len(set(mirrored_data)) == 1
     assert len(next_img_ids_list) != len(next_img_ids_list_set)
+
+
+def _make_shuffle_seed_pipes(seed, num_gpus=2):
+    """Helper to create COCO pipelines with a given shuffle_after_epoch_seed."""
+    pipes = [
+        COCOReaderPipeline(
+            batch_size=1,
+            num_threads=4,
+            shard_id=gpu,
+            num_gpus=num_gpus,
+            data_paths=datasets[0],
+            random_shuffle=False,
+            stick_to_shard=False,
+            shuffle_after_epoch=True,
+            pad_last_batch=False,
+            shuffle_after_epoch_seed=seed,
+        )
+        for gpu in range(num_gpus)
+    ]
+    [pipe.build() for pipe in pipes]
+    return pipes
+
+
+def test_shuffle_after_epoch_seed_reproducible():
+    """Same seed should produce the same shuffling order across runs."""
+    seed = 12345
+    pipes1 = _make_shuffle_seed_pipes(seed)
+    pipes2 = _make_shuffle_seed_pipes(seed)
+
+    # Epoch 1 - both sets of pipes should yield the same order
+    ids1_e1, ids1_e1_set, _ = gather_ids(pipes1)
+    ids2_e1, ids2_e1_set, _ = gather_ids(pipes2)
+
+    assert (
+        ids1_e1_set[0] == ids2_e1_set[0]
+    ), "Same seed should produce the same shard 0 ordering in epoch 1"
+    assert (
+        ids1_e1_set[1] == ids2_e1_set[1]
+    ), "Same seed should produce the same shard 1 ordering in epoch 1"
+
+    # Epoch 2 - still the same order between runs
+    ids1_e2, ids1_e2_set, _ = gather_ids(pipes1)
+    ids2_e2, ids2_e2_set, _ = gather_ids(pipes2)
+
+    assert (
+        ids1_e2_set[0] == ids2_e2_set[0]
+    ), "Same seed should produce the same shard 0 ordering in epoch 2"
+    assert (
+        ids1_e2_set[1] == ids2_e2_set[1]
+    ), "Same seed should produce the same shard 1 ordering in epoch 2"
+
+    # Epochs 1 and 2 should still differ (different per-epoch shuffles)
+    assert ids1_e1_set[0] != ids1_e2_set[0], "Different epochs should produce different orderings"
+
+
+def test_shuffle_after_epoch_seed_different_seeds():
+    """Different seeds should produce different shuffling orders."""
+    pipes_seed1 = _make_shuffle_seed_pipes(seed=11111)
+    pipes_seed2 = _make_shuffle_seed_pipes(seed=99999)
+
+    _, ids_set1, _ = gather_ids(pipes_seed1)
+    _, ids_set2, _ = gather_ids(pipes_seed2)
+
+    # Different seeds should produce different shard orderings
+    # (with a small dataset this could theoretically collide, but is extremely unlikely)
+    assert (
+        ids_set1[0] != ids_set2[0] or ids_set1[1] != ids_set2[1]
+    ), "Different seeds should produce different shuffling patterns"
+
+    # But the union of both shards should still be the full dataset
+    assert ids_set1[0].union(ids_set1[1]) == ids_set2[0].union(
+        ids_set2[1]
+    ), "Both seeds should cover the full dataset"
+
+
+def test_shuffle_after_epoch_seed_backward_compat():
+    """Without shuffle_after_epoch_seed, two separate pipelines should get the same order
+    (old behavior: fixed default seed ensures reproducibility across training runs)."""
+
+    # Two pipelines with no explicit seed and same shard_id/num_shards
+    def make_no_seed_pipe(shard_id):
+        return COCOReaderPipeline(
+            batch_size=1,
+            num_threads=4,
+            shard_id=shard_id,
+            num_gpus=2,
+            data_paths=datasets[0],
+            random_shuffle=False,
+            stick_to_shard=False,
+            shuffle_after_epoch=True,
+            pad_last_batch=False,
+        )
+
+    pipes1 = [make_no_seed_pipe(g) for g in range(2)]
+    [p.build() for p in pipes1]
+    pipes2 = [make_no_seed_pipe(g) for g in range(2)]
+    [p.build() for p in pipes2]
+
+    _, ids_set1, _ = gather_ids(pipes1)
+    _, ids_set2, _ = gather_ids(pipes2)
+
+    assert (
+        ids_set1[0] == ids_set2[0]
+    ), "Without explicit seed, same shard should produce the same order (backward compat)"
+    assert (
+        ids_set1[1] == ids_set2[1]
+    ), "Without explicit seed, same shard should produce the same order (backward compat)"
