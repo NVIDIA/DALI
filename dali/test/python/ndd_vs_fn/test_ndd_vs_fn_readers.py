@@ -164,6 +164,7 @@ def test_webdataset_reader():
     )
 
 
+@sign_off("readers.TFRecord")
 def test_tfrecord_reader():
     tfrecord = sorted(glob.glob(os.path.join(tfrecord_dir, "*[!i][!d][!x]")))
     tfrecord_idx = sorted(glob.glob(os.path.join(tfrecord_dir, "*idx")))

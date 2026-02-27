@@ -90,15 +90,16 @@ def setup_test_nemo_asr_reader_cpu():
 @params("cpu")
 def test_nemo_asr(device):
     tmp_dir, nemo_asr_manifest = setup_test_nemo_asr_reader_cpu()
-    run_reader_test(
-        fn_reader=fn.readers.nemo_asr,
-        ndd_reader=ndd.readers.NemoAsr,
-        device=device,
-        reader_args={
-            "manifest_filepaths": [nemo_asr_manifest],
-            "dtype": types.INT16,
-            "downmix": True,
-            "read_sample_rate": True,
-            "read_text": True,
-        },
-    )
+    with tmp_dir:
+        run_reader_test(
+            fn_reader=fn.readers.nemo_asr,
+            ndd_reader=ndd.readers.NemoAsr,
+            device=device,
+            reader_args={
+                "manifest_filepaths": [nemo_asr_manifest],
+                "dtype": types.INT16,
+                "downmix": True,
+                "read_sample_rate": True,
+                "read_text": True,
+            },
+        )
