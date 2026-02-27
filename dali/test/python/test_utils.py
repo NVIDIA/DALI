@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -1013,14 +1013,12 @@ def create_sign_off_registry():
         with its own operator tracking. Multiple references to the same instance
         share the same registry.
     """
-    _tested_ops = []
+    _tested_ops = set()
 
     class SignOff:
         def __call__(self, *op_names):
             """Use as decorator: @sign_off("operator_name")"""
-            assert all(isinstance(op_name, str) for op_name in op_names)
-            assert len(op_names)
-            _tested_ops.extend(op_names)
+            self.register_test(*op_names)
 
             def dummy(fn):
                 return fn
@@ -1031,11 +1029,11 @@ def create_sign_off_registry():
             """Use directly in test: sign_off.register_test("operator_name")"""
             assert all(isinstance(op_name, str) for op_name in op_names)
             assert len(op_names)
-            _tested_ops.extend(op_names)
+            _tested_ops.update(op_names)
 
         @property
         def tested_ops(self):
-            return set(_tested_ops)
+            return _tested_ops
 
     return SignOff()
 
