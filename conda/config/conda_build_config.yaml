@@ -7,3 +7,9 @@ c_stdlib:
   - sysroot            # [linux]
 c_stdlib_version:      # [linux]
   - 2.17               # [linux]
+
+# DALI uses only numpy Python API (no C ABI) - no runtime pinning needed
+numpy:
+  - "2"
+ignore_version:
+  - numpy

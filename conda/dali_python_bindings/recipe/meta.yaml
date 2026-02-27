@@ -88,6 +88,7 @@ requirements:
     - packaging
     - nvtx
     - makefun
+    - numpy
     - nvidia-dali-core{% if environ.get('NVIDIA_DALI_BUILD_FLAVOR', '')|length %}{{"-" + environ.get('NVIDIA_DALI_BUILD_FLAVOR', '')}}{% endif %}-cuda{{ environ.get('CUDA_VERSION', '') | replace(".","") }} ={{ environ.get('DALI_CONDA_BUILD_VERSION', '') }}
     - nvidia-nvimagecodec-cuda{{ environ.get('CUDA_VERSION', '') | replace(".","") }}
   run:
@@ -104,6 +105,7 @@ requirements:
     - packaging
     - nvtx
     - makefun
+    - numpy
     - nvidia-dali-core{% if environ.get('NVIDIA_DALI_BUILD_FLAVOR', '')|length %}{{"-" + environ.get('NVIDIA_DALI_BUILD_FLAVOR', '')}}{% endif %}-cuda{{ environ.get('CUDA_VERSION', '') | replace(".","") }} ={{ environ.get('DALI_CONDA_BUILD_VERSION', '') }}
     - nvidia-nvimagecodec-cuda{{ environ.get('CUDA_VERSION', '') | replace(".","") }}
 about:
