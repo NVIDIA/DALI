@@ -631,9 +631,9 @@ all_packages = [
         {
             "120": [
                 PckgVer(
-                    "0.9.0.1",
-                    python_min_ver="3.11",
-                    python_max_ver="3.14",
+                    "0.6.0",
+                    python_min_ver="3.10",
+                    python_max_ver="3.13",
                     dependencies=["jaxlib"],
                 ),
             ],
