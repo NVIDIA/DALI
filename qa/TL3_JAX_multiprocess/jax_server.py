@@ -24,10 +24,7 @@ from nvidia.dali.backend import TensorGPU
 import nvidia.dali.types as types
 import nvidia.dali.plugin.jax as dax
 
-from jax.sharding import Mesh
-from jax.sharding import PartitionSpec
-from jax.sharding import PositionalSharding
-from jax.sharding import NamedSharding
+from jax.sharding import NamedSharding, PartitionSpec, Mesh
 
 
 def get_dali_tensor_gpu(value, shape, dtype, device_id=0) -> TensorGPU:
@@ -101,7 +98,8 @@ def run_distributed_sharing_test(sharding, process_id):
 
 
 def test_positional_sharding_workflow(process_id):
-    sharding = PositionalSharding(jax.devices())
+    mesh = Mesh(jax.devices(), axis_names=("device",))
+    sharding = NamedSharding(mesh, PartitionSpec("device"))
 
     run_distributed_sharing_test(sharding=sharding, process_id=process_id)
 

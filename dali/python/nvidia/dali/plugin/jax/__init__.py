@@ -24,9 +24,7 @@ assert (
 ), "DALI JAX support requires Python 3.8 or above"
 
 
-assert Version(jax.__version__) >= Version(
-    "0.4.11"
-), "DALI JAX support requires JAX 0.4.11 or above"
+assert Version(jax.__version__) >= Version("0.6.0"), "DALI JAX support requires JAX 0.6.0 or above"
 
 
 __all__ = ["DALIGenericIterator", "data_iterator", "fn"]
