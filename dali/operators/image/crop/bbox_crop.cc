@@ -372,7 +372,16 @@ could not be found within the allowed number of attempts and the best candidate 
 
 This is useful when the failure to find a valid crop is an expected and acceptable outcome
 (for example, in mosaic augmentation pipelines).)code",
-        false);
+        false)
+    .OutputDType(0, [](const OpSpec &, span<const DALIDataType>) { return DALI_FLOAT; })
+    .OutputDType(1, [](const OpSpec &, span<const DALIDataType>) { return DALI_FLOAT; })
+    .OutputDType(2, [](const OpSpec &, span<const DALIDataType>) { return DALI_FLOAT; })
+    .OutputNdim(0, [](const OpSpec &, span<const int>) { return 1; })
+    .OutputNdim(1, [](const OpSpec &, span<const int>) { return 1; })
+    .OutputNdim(2, [](const OpSpec &, span<const int>) { return 2; })
+    .OutputLayout(0, [](const OpSpec &, span<const TensorLayout>) { return TensorLayout{}; })
+    .OutputLayout(1, [](const OpSpec &, span<const TensorLayout>) { return TensorLayout{}; })
+    .OutputLayout(2, [](const OpSpec &, span<const TensorLayout>) { return TensorLayout{}; });
 
 template <int ndim>
 class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
