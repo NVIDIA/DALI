@@ -306,6 +306,34 @@ def test_empty_slice():
         assert np.array_equal(x[0:0, 0:1], gpu.at(i))
 
 
+def test_range_truncation():
+    data = [np.arange(10), np.arange(100)]
+    src = fn.external_source(lambda: data)
+    pipe = index_pipe(src, lambda x: x[50:150])
+    inp, cpu, gpu = tuple(out.as_cpu() for out in pipe.run())
+    for i in range(len(inp)):
+        x = inp.at(i)
+        cpu_sample = cpu.at(i)
+        gpu_sample = gpu.at(i)
+        ref_sample = x[50:150]
+        assert np.array_equal(cpu_sample, ref_sample), f"{cpu_sample} != {ref_sample}"
+        assert np.array_equal(gpu_sample, ref_sample), f"{cpu_sample} != {ref_sample}"
+
+
+def test_reverse_range_truncation():
+    data = [np.arange(10), np.arange(100)]
+    src = fn.external_source(lambda: data)
+    pipe = index_pipe(src, lambda x: x[-50:-150:-1])
+    inp, cpu, gpu = tuple(out.as_cpu() for out in pipe.run())
+    for i in range(len(inp)):
+        x = inp.at(i)
+        cpu_sample = cpu.at(i)
+        gpu_sample = gpu.at(i)
+        ref_sample = x[-50:-150:-1]
+        assert np.array_equal(cpu_sample, ref_sample), f"{cpu_sample} != {ref_sample}"
+        assert np.array_equal(gpu_sample, ref_sample), f"{cpu_sample} != {ref_sample}"
+
+
 @params(
     (10, slice(-1, -11, -1)),
     (12, slice(-2, -11, -2)),
