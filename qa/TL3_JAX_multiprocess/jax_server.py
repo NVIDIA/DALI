@@ -90,11 +90,11 @@ def run_distributed_sharing_test(sharding, process_id):
         shape=(jax.device_count(),), sharding=sharding, arrays=dali_local_shards
     )
 
-    assert len(dali_sharded_array.device_buffers) == jax.local_device_count()
+    assert len(dali_sharded_array.addressable_shards) == jax.local_device_count()
 
-    for id, buffer in enumerate(dali_sharded_array.device_buffers):
-        assert buffer == jnp.array([process_id])
-        assert dax.integration._jax_device(buffer) == jax.local_devices()[id]
+    for id, shard in enumerate(dali_sharded_array.addressable_shards):
+        assert shard.data == jnp.array([process_id])
+        assert dax.integration._jax_device(shard.data) == jax.local_devices()[id]
 
 
 def test_positional_sharding_workflow(process_id):
