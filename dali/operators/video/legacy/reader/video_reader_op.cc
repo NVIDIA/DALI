@@ -111,7 +111,7 @@ and `file_root`.)code",
       R"code(Determines what frame number information is returned as an additional output.
 Only available when `file_list` or `filenames` with `labels` is passed.
 
-* ``"none"`` or ``False`` (default): No frame number output.
+* ``None`` or ``False`` (default): No frame number output.
 * ``"scalar"`` or ``True``: Returns the index of the first frame in the decoded sequence, shape ``(1,)``.
 * ``"sequence"``: Returns the frame index of each decoded frame, shape ``(F,)``. For padded
   frames, the index is ``-1``.)code",

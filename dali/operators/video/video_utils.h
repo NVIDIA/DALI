@@ -66,6 +66,8 @@ enum class FrameNumPolicy {
 };
 
 inline FrameNumPolicy ParseFrameNumPolicy(const std::string &s) {
+  // "True"/"False" are the Python str(bool) representations, kept for backward compatibility
+  // with code that passes enable_frame_num=True/False (Python bools).
   if (s == "none" || s == "False")   return FrameNumPolicy::kNone;
   if (s == "scalar" || s == "True")  return FrameNumPolicy::kScalar;
   if (s == "sequence")               return FrameNumPolicy::kSequence;

@@ -1167,7 +1167,7 @@ def test_enable_frame_num_sequence_matches_scalar(device):
     (_, out_sequence) = pipe_q.run()
 
     for i in range(batch_size):
-        scalar_idx = int(out_scalar.as_cpu().at(i))
+        scalar_idx = int(out_scalar.as_cpu().at(i)[0])
         seq_idxs = out_sequence.as_cpu().at(i).flatten()
         assert seq_idxs[0] == scalar_idx, (
             f"First element of 'sequence' output ({seq_idxs[0]}) should match "
@@ -1186,25 +1186,25 @@ def test_enable_frame_num_true_compat(device):
 
     @pipeline_def
     def bool_pipe():
-        videos, frame_idx = fn.experimental.readers.video(
+        _, frame_idx = fn.experimental.readers.video(
             filenames=filenames,
             device=device,
             sequence_length=sequence_length,
             stride=stride,
             enable_frame_num=True,
         )
-        return videos, frame_idx
+        return frame_idx
 
     @pipeline_def
     def scalar_pipe():
-        videos, frame_idx = fn.experimental.readers.video(
+        _, frame_idx = fn.experimental.readers.video(
             filenames=filenames,
             device=device,
             sequence_length=sequence_length,
             stride=stride,
             enable_frame_num="scalar",
         )
-        return videos, frame_idx
+        return frame_idx
 
     pipe_bool = bool_pipe(batch_size=batch_size, num_threads=2, device_id=0, seed=42)
     pipe_str = scalar_pipe(batch_size=batch_size, num_threads=2, device_id=0, seed=42)

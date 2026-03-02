@@ -469,8 +469,12 @@ class VideoReaderDecoder
       TensorListShape<1> frame_idx_shape = uniform_list_shape<1>(batch_size, {1});
       output_desc.push_back({frame_idx_shape, DALI_INT32});
     } else if (frame_num_policy_ == FrameNumPolicy::kSequence) {
-      auto num_frames = GetSample(0).data_.shape()[0];
-      output_desc.push_back({uniform_list_shape<1>(batch_size, {num_frames}), DALI_INT32});
+      TensorListShape<1> frame_idx_shape(batch_size);
+      for (int sample_id = 0; sample_id < batch_size; ++sample_id) {
+        auto num_frames = GetSample(sample_id).data_.shape()[0];
+        frame_idx_shape.set_tensor_shape(sample_id, {num_frames});
+      }
+      output_desc.push_back({frame_idx_shape, DALI_INT32});
     }
 
     if (has_timestamps_) {
