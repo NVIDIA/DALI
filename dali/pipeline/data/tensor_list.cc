@@ -24,6 +24,7 @@
 #include "dali/core/cuda_stream_pool.h"
 #include "dali/pipeline/data/copy_util.h"
 #include "dali/core/mm/memory.h"
+#include "dali/core/nvtx.h"
 
 namespace dali {
 namespace copy_impl {
@@ -210,6 +211,7 @@ TensorList<Backend>::TensorList(TensorList<Backend> &&other) noexcept {
 
 template <typename Backend>
 TensorList<Backend>::~TensorList() {
+  DomainTimeRange r(std::is_same_v<Backend, GPUBackend> ? "~TensorList<GPU>" : "~TensorList<CPU>");
   Reset();
 }
 

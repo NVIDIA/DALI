@@ -28,9 +28,8 @@ DLL_PUBLIC AccessOrder get_deletion_order(const std::shared_ptr<void> &ptr) {
 }
 
 DLL_PUBLIC bool set_deletion_order(const std::shared_ptr<void> &ptr, AccessOrder order) {
-  auto *del = std::get_deleter<mm::AsyncDeleter>(ptr);
-  if (ptr.use_count() == 1 && order.has_value()) {
-    if (del) {
+  if (order.has_value() && ptr.use_count() == 1) {
+    if (auto *del = std::get_deleter<mm::AsyncDeleter>(ptr)) {
       del->release_on_stream = order.get();
       if (ptr.use_count() != 1)
         throw std::logic_error("Race condition detected - the pointer is no longer unique.");
@@ -89,7 +88,7 @@ void Buffer<Backend>::free_storage_impl(AccessOrder order) {
 template <typename Backend>
 void Buffer<Backend>::set_order_impl(AccessOrder order, bool synchronize) {
   assert(order_ != order);
-  if (has_data()) {  // if there's no data, we don't need to synchronize {
+  if (has_data()) {  // if there's no data, we don't need to synchronize
     if (synchronize)
       order.wait(order_);
     set_deletion_order(data_, order);
