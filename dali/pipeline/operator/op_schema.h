@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -32,6 +32,7 @@
 #include "dali/core/copy_vector_helper.h"
 #include "dali/core/error_handling.h"
 #include "dali/core/format.h"
+#include "dali/core/span.h"
 #include "dali/core/traits.h"
 #include "dali/pipeline/data/types.h"
 #include "dali/pipeline/operator/argument.h"
@@ -154,6 +155,12 @@ struct LazyValue {
 class DLL_PUBLIC OpSchema {
  public:
   typedef std::function<int(const OpSpec &spec)> SpecFunc;
+  using OutputDTypeFunc = std::function<std::optional<DALIDataType>(
+      const OpSpec &spec, span<const DALIDataType> input_dtypes)>;
+  using OutputNdimFunc = std::function<std::optional<int>(
+      const OpSpec &spec, span<const int> input_ndims)>;
+  using OutputLayoutFunc = std::function<std::optional<TensorLayout>(
+      const OpSpec &spec, span<const TensorLayout> input_layouts)>;
 
   OpSchema(OpSchema &&) = delete;
   OpSchema(const OpSchema &) = delete;
@@ -236,6 +243,27 @@ class DLL_PUBLIC OpSchema {
    * numbers used within operators) to the user
    */
   OpSchema &AdditionalOutputsFn(SpecFunc f);
+
+  /** Sets a function that determines the data type of a given output.
+   *
+   * @param index Index of the output to set the function for.
+   * @param fn Function that returns the data type for the given output.
+   */
+  OpSchema &OutputDType(int index, OutputDTypeFunc fn);
+
+  /** Sets a function that determines the number of dimensions of a given output.
+   *
+   * @param index Index of the output to set the function for.
+   * @param fn Function that returns the ndim for the given output.
+   */
+  OpSchema &OutputNdim(int index, OutputNdimFunc fn);
+
+  /** Sets a function that determines the layout of a given output.
+   *
+   * @param index Index of the output to set the function for.
+   * @param fn Function that returns the layout for the given output.
+   */
+  OpSchema &OutputLayout(int index, OutputLayoutFunc fn);
 
   /** Sets the number of inputs that the op can receive. */
   OpSchema &NumInput(int n);
@@ -666,6 +694,18 @@ used with DALIDataType, to avoid confusion with `AddOptionalArg<type>(name, doc,
   /** Calculate the number of additional outputs obtained from additional_outputs_fn */
   int CalculateAdditionalOutputs(const OpSpec &spec) const;
 
+  /** Try calculating the data type of a given output */
+  std::optional<DALIDataType> CalculateOutputDType(int index, const OpSpec &spec,
+                                                   span<const DALIDataType> input_dtypes) const;
+
+  /** Try calculating the ndim of a given output */
+  std::optional<int> CalculateOutputNdim(int index, const OpSpec &spec,
+                                         span<const int> input_ndims) const;
+
+  /** Try calculating the layout of a given output */
+  std::optional<TensorLayout> CalculateOutputLayout(int index, const OpSpec &spec,
+                                                    span<const TensorLayout> input_layouts) const;
+
   bool SupportsInPlace(const OpSpec &spec) const;
 
   void CheckArgs(const OpSpec &spec) const;
@@ -808,6 +848,9 @@ used with DALIDataType, to avoid confusion with `AddOptionalArg<type>(name, doc,
   bool input_dox_set_ = false;
 
   SpecFunc output_fn_, in_place_fn_, additional_outputs_fn_;
+  std::vector<OutputDTypeFunc> output_dtype_fn_;
+  std::vector<OutputNdimFunc> output_ndim_fn_;
+  std::vector<OutputLayoutFunc> output_layout_fn_;
 
   int min_num_input_ = 0, max_num_input_ = 0;
   int num_output_ = 0;
