@@ -17,8 +17,7 @@
 
 #include <tuple>
 #include <utility>
-#include "dali/pipeline/data/tensor.h"
-#include "dali/pipeline/data/views.h"
+#include "dali/core/tensor_view.h"
 
 namespace dali {
 namespace sequence_utils {
