@@ -113,7 +113,15 @@ class Invocation:
 
     def ndim(self, result_index: int) -> int:
         if self._results is None:
-            # TODO(michalz): Try to get ndim without full evaluation.
+            self._operator._init_spec(self._inputs, self._args)
+            result = self._operator._schema.CalculateOutputNdim(
+                result_index,
+                self._operator._op_spec,
+                [inp.ndim for inp in self._inputs],
+            )
+            if result is not None:
+                return result
+
             self.run(self._eval_context)
         return self._results[result_index].ndim()
 
@@ -126,7 +134,15 @@ class Invocation:
 
     def dtype(self, result_index: int) -> DType:
         if self._results is None:
-            # TODO(michalz): Try to get dtype without full evaluation.
+            self._operator._init_spec(self._inputs, self._args)
+            result = self._operator._schema.CalculateOutputDType(
+                result_index,
+                self._operator._op_spec,
+                [inp.dtype.type_id for inp in self._inputs],
+            )
+            if result is not None:
+                return result
+
             self.run(self._eval_context)
         return self._results[result_index].dtype
 
@@ -141,9 +157,17 @@ class Invocation:
             self.run(self._eval_context)
         return self._results[result_index].batch_size if self._is_batch else None
 
-    def layout(self, result_index: int):
+    def layout(self, result_index: int) -> str:
         if self._results is None:
-            # TODO(michalz): Try to get layout without full evaluation.
+            self._operator._init_spec(self._inputs, self._args)
+            result = self._operator._schema.CalculateOutputLayout(
+                result_index,
+                self._operator._op_spec,
+                [inp.layout or "" for inp in self._inputs],
+            )
+            if result is not None:
+                return result
+
             self.run(self._eval_context)
         return self._results[result_index].layout()
 
