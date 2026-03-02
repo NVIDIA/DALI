@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -37,7 +37,10 @@ system, that is 0.0-1.0)code")
                     1, true)
     .AddOptionalArg("vertical",
                     R"code(Flip vertical dimension.)code",
-                    0, true);
+                    0, true)
+    .OutputDType(0, [](const OpSpec &, span<const DALIDataType> in) { return in[0]; })
+    .OutputNdim(0, [](const OpSpec &, span<const int> in) { return in[0]; })
+    .OutputLayout(0, [](const OpSpec &, span<const TensorLayout> in) { return in[0]; });
 
 void BbFlipCPU::RunImpl(Workspace &ws) {
   const auto &input = ws.Input<CPUBackend>(0);

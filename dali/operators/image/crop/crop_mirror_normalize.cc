@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -71,7 +71,14 @@ This argument is useful when using integer outputs to improve dynamic range util
 This argument is useful when using unsigned integer outputs to improve dynamic range utilization.)",
     0.0f)
   .AddParent("CropAttr")
-  .AddParent("OutOfBoundsAttr");
+  .AddParent("OutOfBoundsAttr")
+  .OutputDType(0, [](const OpSpec &spec, span<const DALIDataType>) {
+    return spec.GetArgument<DALIDataType>("dtype");
+  })
+  .OutputNdim(0, [](const OpSpec &, span<const int> in) { return in[0]; })
+  .OutputLayout(0, [](const OpSpec &spec, span<const TensorLayout>) {
+    return spec.GetArgument<TensorLayout>("output_layout");
+  });
 
 DALI_REGISTER_OPERATOR(CropMirrorNormalize, CropMirrorNormalize<CPUBackend>, CPU);
 

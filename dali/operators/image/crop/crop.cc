@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -36,7 +36,15 @@ DALI_SCHEMA(Crop)
     .DeprecateArg("image_type", "0.24")
     .AddParent("CropAttr")
     .AddParent("OutOfBoundsAttr")
-    .AddParent("SliceBase");
+    .AddParent("SliceBase")
+    .OutputDType(0, [](const OpSpec &spec, span<const DALIDataType> in) {
+      DALIDataType dtype;
+      if (spec.TryGetArgument(dtype, "dtype"))
+        return dtype;
+      return in[0];
+    })
+    .OutputNdim(0, [](const OpSpec &, span<const int> in) { return in[0]; })
+    .OutputLayout(0, [](const OpSpec &, span<const TensorLayout> in) { return in[0]; });
 
 // Register operator
 DALI_REGISTER_OPERATOR(Crop, Crop<CPUBackend>, CPU);
