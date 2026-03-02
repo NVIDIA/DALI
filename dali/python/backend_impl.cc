@@ -14,10 +14,12 @@
 
 #include <cuda_runtime_api.h>
 #include <dlfcn.h>
+#include <algorithm>
 #include <sstream>
 #include <cstring>
 #include "dali/core/common.h"
 #include "dali/core/cuda_utils.h"
+#include "dali/core/span.h"
 #include "dali/core/device_guard.h"
 #include "pybind11/pybind11.h"
 #include "pybind11/pytypes.h"
@@ -3056,7 +3058,26 @@ PYBIND11_MODULE(backend_impl, m, py::mod_gil_not_used()) {
         })
     .def("GetSupportedBackends", &GetSupportedBackends)
     .def("HasRandomSeedArg", &OpSchema::HasRandomSeedArg)
-    .def("HasRandomStateArg", &OpSchema::HasRandomStateArg);
+    .def("HasRandomStateArg", &OpSchema::HasRandomStateArg)
+    .def("CalculateOutputDType", [](const OpSchema &s, int idx, const OpSpec &spec, py::list in) {
+        std::vector<DALIDataType> v(py::len(in));
+        std::transform(in.begin(), in.end(), v.begin(),
+                       [](const py::handle &x) { return x.cast<DALIDataType>(); });
+        return s.CalculateOutputDType(idx, spec, make_span(v));
+    })
+    .def("CalculateOutputNdim", [](const OpSchema &s, int idx, const OpSpec &spec, py::list in) {
+        std::vector<int> v(py::len(in));
+        std::transform(in.begin(), in.end(), v.begin(),
+                       [](const py::handle &x) { return x.cast<int>(); });
+        return s.CalculateOutputNdim(idx, spec, make_span(v));
+    })
+    .def("CalculateOutputLayout", [](const OpSchema &s, int idx, const OpSpec &spec, py::list in) {
+        std::vector<TensorLayout> v(py::len(in));
+        std::transform(in.begin(), in.end(), v.begin(),
+                       [](const py::handle &x) { return x.cast<std::string>(); });
+        auto result = s.CalculateOutputLayout(idx, spec, make_span(v));
+        return result.has_value() ? py::cast(result->str()) : py::none();
+    });
 
   ExposeTensorLayout(types_m);
   ExposeTensor(m);
