@@ -22,7 +22,7 @@ import glob
 import os
 import random
 from itertools import cycle
-from test_utils import get_dali_extra_path, is_mulit_gpu, skip_if_m60
+from test_utils import get_dali_extra_path, is_mulit_gpu, skip_if_m60, compare_pipelines
 from nose2.tools import cartesian_params, params
 from nose_utils import SkipTest, attr, assert_raises
 
@@ -1173,6 +1173,70 @@ def test_enable_frame_num_sequence_matches_scalar(device):
             f"First element of 'sequence' output ({seq_idxs[0]}) should match "
             f"'scalar' output ({scalar_idx})"
         )
+
+
+@params("cpu", "gpu")
+def test_enable_frame_num_true_compat(device):
+    """Test backward compat: enable_frame_num=True behaves like 'scalar'."""
+    skip_if_m60()
+    sequence_length = 5
+    stride = 1
+    batch_size = 2
+    filenames = cfr_files
+
+    @pipeline_def
+    def bool_pipe():
+        videos, frame_idx = fn.experimental.readers.video(
+            filenames=filenames,
+            device=device,
+            sequence_length=sequence_length,
+            stride=stride,
+            enable_frame_num=True,
+        )
+        return videos, frame_idx
+
+    @pipeline_def
+    def scalar_pipe():
+        videos, frame_idx = fn.experimental.readers.video(
+            filenames=filenames,
+            device=device,
+            sequence_length=sequence_length,
+            stride=stride,
+            enable_frame_num="scalar",
+        )
+        return videos, frame_idx
+
+    pipe_bool = bool_pipe(batch_size=batch_size, num_threads=2, device_id=0, seed=42)
+    pipe_str = scalar_pipe(batch_size=batch_size, num_threads=2, device_id=0, seed=42)
+    compare_pipelines(pipe_bool, pipe_str, batch_size=batch_size, N_iterations=2)
+
+
+@cartesian_params(["cpu", "gpu"], [False, None])
+def test_enable_frame_num_false_none_compat(device, value):
+    """Test backward compat: enable_frame_num=False/None behaves like 'none' (no output)."""
+    skip_if_m60()
+    sequence_length = 5
+    stride = 1
+    batch_size = 2
+    filenames = cfr_files
+
+    @pipeline_def
+    def no_frame_num_pipe():
+        videos = fn.experimental.readers.video(
+            filenames=filenames,
+            device=device,
+            sequence_length=sequence_length,
+            stride=stride,
+            enable_frame_num=value,
+        )
+        return videos
+
+    pipe = no_frame_num_pipe(batch_size=batch_size, num_threads=2, device_id=0, seed=42)
+    (videos,) = pipe.run()
+    assert videos.as_cpu().at(0).shape[0] == sequence_length, (
+        f"enable_frame_num={value!r}: expected {sequence_length} frames, "
+        f"got {videos.as_cpu().at(0).shape[0]}"
+    )
 
 
 def test_video_index_reuse():
