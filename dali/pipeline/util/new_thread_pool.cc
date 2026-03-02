@@ -121,4 +121,13 @@ std::vector<std::thread::id> ThreadPoolFacade::GetThreadIds() const {
   return tp_->GetThreadIds();
 }
 
+bool UseNewThreadPool() {
+  static bool use_new_thread_pool = []() {
+    const char *new_tp = getenv("DALI_USE_NEW_THREAD_POOL");
+    return new_tp && atoi(new_tp);
+  }();
+  return use_new_thread_pool;
+}
+
+
 }  // namespace dali

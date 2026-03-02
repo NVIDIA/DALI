@@ -31,15 +31,6 @@ namespace exec2 {
 
 namespace {
 
-
-bool UseNewThreadPool() {
-  static bool use_new_thread_pool = []() {
-    const char *new_tp = getenv("DALI_USE_NEW_THREAD_POOL");
-    return new_tp && atoi(new_tp);
-  }();
-  return use_new_thread_pool;
-}
-
 void LimitBackendConcurrency(ExecGraph &graph, OpType backend, int max_concurrency = 1) {
   auto sem = std::make_shared<tasking::Semaphore>(max_concurrency);
   for (auto &n : graph.Nodes()) {

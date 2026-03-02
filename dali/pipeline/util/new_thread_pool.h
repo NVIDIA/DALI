@@ -56,6 +56,8 @@ class DLL_PUBLIC ThreadPoolFacade : public ThreadPool {
   std::optional<Job> job_;
 };
 
+DLL_PUBLIC bool UseNewThreadPool();
+
 }  // namespace dali
 
 #endif  // DALI_PIPELINE_UTIL_NEW_THREAD_POOL_H_
