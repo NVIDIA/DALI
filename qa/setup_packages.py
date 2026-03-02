@@ -647,7 +647,7 @@ all_packages = [
             ],
         },
         # name used during installation
-        name="jax[cuda{cuda_v[0]}{cuda_v[1]}_local]",
+        name="jax[cuda{cuda_v[0]}{cuda_v[1]}]",
         links_index=("https://storage.googleapis.com/" "jax-releases/jax_cuda_releases.html"),
     ),
     PlainPackage(
