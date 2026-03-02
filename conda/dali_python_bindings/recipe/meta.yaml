@@ -1,5 +1,5 @@
 # (C) Copyright IBM Corp. 2019. All Rights Reserved.
-# Copyright (c) 2019-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -72,11 +72,11 @@ requirements:
     - patchelf
     - python-clang
     - git-lfs
-    - black =25.12.0
-    - black-jupyter =25.12.0
+    - black =26.1.0
+    - black-jupyter =26.1.0
     - bandit
   host:
-    - libprotobuf-static =6.31.1
+    - libprotobuf-static =6.33.5
     - dali-opencv
     - dali-ffmpeg
     - python
@@ -97,7 +97,7 @@ requirements:
     # dependency to install the right version on the libabseil (as protobuf depends on
     # libprotobuf-static and a newer version of libprotobuf-static may be available than
     # the protobuf was build with)
-    - libprotobuf =6.31.1
+    - libprotobuf =6.33.5
     - future
     - astunparse >=1.6.0
     - gast >=0.3.3
