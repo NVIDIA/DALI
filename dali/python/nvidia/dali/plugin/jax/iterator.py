@@ -219,17 +219,16 @@ class DALIGenericIterator(_DaliBaseIterator):
                 # All shards are on one device (CPU or one GPU)
                 return jnp.stack(category_outputs)
         else:
-            # Build sharded JAX array as output for current category
+            # Build sharded JAX array as output for current category (compatible with pmap).
+            # Use stacked shape (num_devices, batch_per_device, ...) so that
+            # arr[device_id] returns the shard for that device, matching
+            # the behaviour of the deprecated jax.device_put_sharded.
             devices_arr = np.array(list(category_outputs_devices))
             mesh = jax.sharding.Mesh(devices_arr, axis_names=("device",))
             sharding = jax.sharding.NamedSharding(mesh, jax.sharding.PartitionSpec("device"))
-            global_shape = (
-                len(category_outputs) * category_outputs[0].shape[0],
-                *category_outputs[0].shape[1:],
-            )
-            return jax.make_array_from_single_device_arrays(
-                global_shape, sharding, category_outputs
-            )
+            global_shape = (len(category_outputs), *category_outputs[0].shape)
+            expanded_shards = [jnp.expand_dims(s, 0) for s in category_outputs]
+            return jax.make_array_from_single_device_arrays(global_shape, sharding, expanded_shards)
 
     def _build_output_with_sharding(self, category_outputs):
         """Builds sharded jax.Array with `jax.make_array_from_single_device_arrays`.

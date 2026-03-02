@@ -198,7 +198,7 @@ def test_dali_sequential_sharded_tensors_to_jax_sharded_array_iterator_multiple_
             jax_array = batch[output_name]
 
             assert jax.numpy.array_equal(
-                jax_array.addressable_shards[0].data,
+                jax_array.addressable_shards[0].data[0],
                 jax.numpy.stack(
                     [
                         jax.numpy.full(shape[1:], value + output_id * 0.25, np.float32)
@@ -207,7 +207,7 @@ def test_dali_sequential_sharded_tensors_to_jax_sharded_array_iterator_multiple_
                 ),
             )
             assert jax.numpy.array_equal(
-                jax_array.addressable_shards[1].data,
+                jax_array.addressable_shards[1].data[0],
                 jax.numpy.stack(
                     [
                         jax.numpy.full(shape[1:], value + output_id * 0.25, np.float32)
