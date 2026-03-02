@@ -364,7 +364,16 @@ if the fraction of their area within the ROI is greater than or equal to the thr
 For example, when `bbox_prune_threshold=0.2` bboxes that have at least 20% of their original area within
 the ROI are kept, bboxes less than or equal to are pruned. If `bbox_prune_threshold=0.0`, all boxes that
 have some presence in the ROI are kept.)code",
-        nullptr);
+        nullptr)
+    .OutputDType(0, [](const OpSpec &, span<const DALIDataType>) { return DALI_FLOAT; })
+    .OutputDType(1, [](const OpSpec &, span<const DALIDataType>) { return DALI_FLOAT; })
+    .OutputDType(2, [](const OpSpec &, span<const DALIDataType>) { return DALI_FLOAT; })
+    .OutputNdim(0, [](const OpSpec &, span<const int>) { return 1; })
+    .OutputNdim(1, [](const OpSpec &, span<const int>) { return 1; })
+    .OutputNdim(2, [](const OpSpec &, span<const int>) { return 2; })
+    .OutputLayout(0, [](const OpSpec &, span<const TensorLayout>) { return TensorLayout{}; })
+    .OutputLayout(1, [](const OpSpec &, span<const TensorLayout>) { return TensorLayout{}; })
+    .OutputLayout(2, [](const OpSpec &, span<const TensorLayout>) { return TensorLayout{}; });
 
 template <int ndim>
 class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
