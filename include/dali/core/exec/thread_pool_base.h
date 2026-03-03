@@ -208,7 +208,7 @@ using Job = JobImpl<false>;
  *
  * A cooperative job can be waited for from inside the thread pool the job is running in. While
  * the calling thread executes `Wait` on the job, some scheduled task might be picked up from the
- * thread pool and executed in the contex of the calling thread.
+ * thread pool and executed in the context of the calling thread.
  */
 using CooperativeJob = JobImpl<true>;
 
@@ -226,7 +226,7 @@ using IncrementalJob = IncrementalJobImpl<false>;
  *
  * A cooperative job can be waited for from inside the thread pool the job is running in. While
  * the calling thread executes `Wait` on the job, some scheduled task might be picked up from the
- * thread pool and executed in the contex of the calling thread.
+ * thread pool and executed in the context of the calling thread.
  */
 using CooperativeIncrementalJob = IncrementalJobImpl<true>;
 
