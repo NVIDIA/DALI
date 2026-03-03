@@ -51,7 +51,11 @@ class DLL_PUBLIC JobBaseFields<true> {
 };
 
 
-/** A base class for various job types. It defines common infrastructure. */
+/** A base class for various job types. It defines common infrastructure.
+ *
+ * @tparam cooperative  If true, the Job can be waited for cooperatively from inside the thread pool
+ *                      in which the job is running. If false, such reentrant behavior is an error.
+ */
 template <bool cooperative>
 class DLL_PUBLIC JobBase : public JobBaseFields<cooperative> {
  protected:
@@ -185,10 +189,36 @@ class DLL_PUBLIC IncrementalJobImpl final : public JobBase<cooperative> {
   std::optional<typename task_list_t::iterator> last_task_run_;
 };
 
+/** Non-cooperative job.
+ *
+ * A non-cooperative job cannot be waited for from inside the thread pool the job is running in.
+ */
 using Job = JobImpl<false>;
+
+/** Cooperative job.
+ *
+ * A cooperative job can be waited for from inside the thread pool the job is running in. While
+ * the calling thread executes `Wait` on the job, some scheduled task might be picked up from the
+ * thread pool and executed int the contex of the calling thread.
+ */
 using CooperativeJob = JobImpl<true>;
 
+/** Cooperative incremental job.
+ *
+ * Incremental job can be started (Run) and new tasks can be added to it while it's already running.
+ *
+ * A non-cooperative job cannot be waited for from inside the thread pool the job is running in.
+ */
 using IncrementalJob = IncrementalJobImpl<false>;
+
+/** Cooperative incremental job.
+ *
+ * Incremental job can be started (Run) and new tasks can be added to it while it's already running.
+ *
+ * A cooperative job can be waited for from inside the thread pool the job is running in. While
+ * the calling thread executes `Wait` on the job, some scheduled task might be picked up from the
+ * thread pool and executed int the contex of the calling thread.
+ */
 using CooperativeIncrementalJob = IncrementalJobImpl<true>;
 
 class DLL_PUBLIC ThreadPoolBase : public ThisThreadIdx {
