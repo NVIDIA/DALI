@@ -32,14 +32,28 @@
 #include "dali/core/format.h"
 #include "dali/core/multi_error.h"
 #include "dali/core/semaphore.h"
+#include "dali/core/exec/thread_idx.h"
 #include "dali/core/mm/detail/aux_alloc.h"
 
 namespace dali {
 
 class ThreadPoolBase;
 
+template <bool cooperative>
+class JobBaseFields {};
+
+template <>
+class DLL_PUBLIC JobBaseFields<true> {
+ protected:
+  // atomic wait has no timeout, so we're stuck with condvar for reentrance
+  std::mutex mtx_;
+  std::condition_variable cv_;
+};
+
+
 /** A base class for various job types. It defines common infrastructure. */
-class DLL_PUBLIC JobBase {
+template <bool cooperative>
+class DLL_PUBLIC JobBase : public JobBaseFields<cooperative> {
  protected:
   JobBase() = default;
   ~JobBase() noexcept(false);
@@ -58,9 +72,8 @@ class DLL_PUBLIC JobBase {
    */
   void DoNotify();
 
-  // atomic wait has no timeout, so we're stuck with condvar for reentrance
-  std::mutex mtx_;
-  std::condition_variable cv_;
+  static constexpr bool IsCooperative() { return cooperative; }
+
   std::atomic_int num_pending_tasks_{0};
   std::atomic_bool running_{false};
   int total_tasks_ = 0;
@@ -81,19 +94,21 @@ class DLL_PUBLIC JobBase {
  * Once at least one task has been added, Run and Wait (or Discard) must be called
  * before the task is destroyed.
  */
-class DLL_PUBLIC Job final : public JobBase {
+template <bool cooperative = true>
+class DLL_PUBLIC JobImpl final : public JobBase<cooperative> {
  public:
-  ~Job() noexcept(false) = default;
+  ~JobImpl() noexcept(false) = default;
 
   using priority_t = int64_t;
+  using Task = JobBase<cooperative>::Task;
 
   template <typename Runnable>
   std::enable_if_t<std::is_convertible_v<Runnable, std::function<void()>>>
   AddTask(Runnable &&runnable, priority_t priority = {}) {
-    if (wait_started_)
+    if (this->wait_started_)
       throw std::logic_error("This job has already been waited for - cannot add more tasks to it");
 
-    if (executor_ != nullptr)
+    if (this->executor_ != nullptr)
       throw std::logic_error("This job has already been started - cannot add more tasks to it");
 
     auto it = tasks_.emplace(priority, Task());
@@ -104,10 +119,10 @@ class DLL_PUBLIC Job final : public JobBase {
         } catch (...) {
           task->error = std::current_exception();
         }
-        if (--num_pending_tasks_ == 0)
-          DoNotify();
+        if (--this->num_pending_tasks_ == 0)
+          this->DoNotify();
       };
-      total_tasks_++;
+      this->total_tasks_++;
     } catch (...) {  // if, for whatever reason, we cannot initialize the task, we should erase it
       tasks_.erase(it);
       throw;
@@ -140,9 +155,12 @@ class DLL_PUBLIC Job final : public JobBase {
  * Calls to AddTask, Run and Wait are not thread safe and require external synchronization if
  * called from different threads.
  */
-class DLL_PUBLIC IncrementalJob final : public JobBase {
+template <bool cooperative = true>
+class DLL_PUBLIC IncrementalJobImpl final : public JobBase<cooperative> {
  public:
-  ~IncrementalJob() noexcept(false) = default;
+  ~IncrementalJobImpl() noexcept(false) = default;
+
+  using Task = JobBase<cooperative>::Task;
 
   template <typename Runnable>
   std::enable_if_t<std::is_convertible_v<Runnable, std::function<void()>>>
@@ -164,11 +182,16 @@ class DLL_PUBLIC IncrementalJob final : public JobBase {
  private:
   using task_list_t = std::list<Task, mm::detail::object_pool_allocator<Task>>;
   task_list_t tasks_;
-  std::optional<task_list_t::iterator> last_task_run_;
+  std::optional<typename task_list_t::iterator> last_task_run_;
 };
 
+using Job = JobImpl<false>;
+using CooperativeJob = JobImpl<true>;
 
-class DLL_PUBLIC ThreadPoolBase {
+using IncrementalJob = IncrementalJobImpl<false>;
+using CooperativeIncrementalJob = IncrementalJobImpl<true>;
+
+class DLL_PUBLIC ThreadPoolBase : public ThisThreadIdx {
  public:
   using TaskFunc = std::function<void()>;
 
@@ -236,6 +259,14 @@ class DLL_PUBLIC ThreadPoolBase {
     return threads_.size();
   }
 
+  auto GetThreadIds() const {
+    int n = threads_.size();
+    std::vector<std::thread::id> ids(n);
+    for (int i = 0; i < n; i++)
+      ids[i] = threads_[i].get_id();
+    return ids;
+  }
+
   /**
    * @brief Returns the thread pool that owns the calling thread (or nullptr)
    */
@@ -243,19 +274,11 @@ class DLL_PUBLIC ThreadPoolBase {
     return this_thread_pool_;
   }
 
-  /**
-   * @brief Returns the index of the current thread within the current thread pool
-   *
-   * @return the thread index or -1 if the calling thread does not belong to a thread pool
-   */
-  static int this_thread_idx() {
-    return this_thread_idx_;
-  }
-
  protected:
   void Shutdown(bool join);
 
  private:
+  template <bool cooperative>
   friend class JobBase;
 
   template <typename Condition>
@@ -264,7 +287,6 @@ class DLL_PUBLIC ThreadPoolBase {
   void PopAndRunTask(std::unique_lock<std::mutex> &mtx);
 
   static thread_local ThreadPoolBase *this_thread_pool_;
-  static thread_local int this_thread_idx_;
 
   void Run(int index, const std::function<OnThreadStartFn> &on_thread_start) noexcept;
 
@@ -303,22 +325,23 @@ class ThreadedExecutionEngine {
   Job job_;
 };
 
+template <bool cooperative>
 template <typename Executor>
-void Job::Run(Executor &executor, bool wait) {
+void JobImpl<cooperative>::Run(Executor &executor, bool wait) {
   if constexpr (std::is_base_of_v<ThreadPoolBase, Executor>) {
     Run(static_cast<ThreadPoolBase &>(executor), wait);
   } else {
-    if (executor_ != nullptr)
+    if (this->executor_ != nullptr)
       throw std::logic_error("This job has already been started.");
-    executor_ = &executor;
-    running_ = !tasks_.empty();
+    this->executor_ = &executor;
+    this->running_ = !tasks_.empty();
     for (auto &x : tasks_) {
-      num_pending_tasks_++;
+      this->num_pending_tasks_++;
       try {
         executor.AddTask(std::move(x.second.func));
       } catch (...) {
-        if (--num_pending_tasks_ == 0)
-          DoNotify();
+        if (--this->num_pending_tasks_ == 0)
+          this->DoNotify();
         throw;
       }
     }
@@ -327,13 +350,14 @@ void Job::Run(Executor &executor, bool wait) {
   }
 }
 
+template <bool cooperative>
 template <typename Runnable>
 std::enable_if_t<std::is_convertible_v<Runnable, std::function<void()>>>
-IncrementalJob::AddTask(Runnable &&runnable) {
-  if (wait_started_)
+IncrementalJobImpl<cooperative>::AddTask(Runnable &&runnable) {
+  if (this->wait_started_)
     throw std::logic_error("This job has already been waited for - cannot add more tasks to it");
 
-  assert(executor_ == nullptr || executor_ != ThreadPoolBase::this_thread_pool());
+  assert(this->executor_ == nullptr || this->executor_ != ThreadPoolBase::this_thread_pool());
 
   auto it = tasks_.emplace(tasks_.end(), Task());
   try {
@@ -344,28 +368,29 @@ IncrementalJob::AddTask(Runnable &&runnable) {
         task->error = std::current_exception();
       }
 
-      if (--num_pending_tasks_ == 0)
-        DoNotify();
+      if (--this->num_pending_tasks_ == 0)
+        this->DoNotify();
     };
-    total_tasks_++;
+    this->total_tasks_++;
   } catch (...) {  // if, for whatever reason, we cannot initialize the task, we should erase it
     tasks_.erase(it);
     throw;
   }
 }
 
+template <bool cooperative>
 template <typename Executor>
-void IncrementalJob::Run(Executor &executor, bool wait) {
+void IncrementalJobImpl<cooperative>::Run(Executor &executor, bool wait) {
   if constexpr (std::is_base_of_v<ThreadPoolBase, Executor>) {
     Run(static_cast<ThreadPoolBase &>(executor), wait);
   } else {
-    if (executor_ && executor_ != &executor)
+    if (this->executor_ && this->executor_ != &executor)
       throw std::logic_error("This job is already running in a different executor.");
-    executor_ = &executor;
+    this->executor_ = &executor;
     auto it = last_task_run_.has_value() ? std::next(*last_task_run_) : tasks_.begin();
     for (; it != tasks_.end(); ++it) {
-      running_ = true;
-      num_pending_tasks_++;
+      this->running_ = true;
+      this->num_pending_tasks_++;
       executor.AddTask(std::move(it->func));
       last_task_run_ = it;
     }
