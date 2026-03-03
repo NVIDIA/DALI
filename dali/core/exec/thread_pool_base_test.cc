@@ -196,12 +196,25 @@ TYPED_TEST(NewThreadPoolJobTest, Discard) {
   });
 }
 
-TYPED_TEST(NewThreadPoolJobTest, ErrorIncrementalJobNotStarted) {
+TYPED_TEST(NewThreadPoolJobTest, ErrorJobNotStarted) {
   try {
     TypeParam job;
     job.AddTask([]() {});
   } catch (std::logic_error &e) {
     EXPECT_NE(nullptr, strstr(e.what(), "The job is not empty"));
+    return;
+  }
+  GTEST_FAIL() << "Expected a logic error.";
+}
+
+TYPED_TEST(NewThreadPoolJobTest, ErrorWaitBeforeRun) {
+  TypeParam job;
+  try {
+    job.AddTask([]() {});
+    job.Wait();
+  } catch (std::logic_error &e) {
+    EXPECT_NE(nullptr, strstr(e.what(), "hasn't been run"));
+    job.Discard();
     return;
   }
   GTEST_FAIL() << "Expected a logic error.";

@@ -31,15 +31,18 @@ template <bool cooperative>
 void JobBase<cooperative>::DoWait() {
   if (wait_started_)
     throw std::logic_error("This job has already been waited for.");
-  wait_started_ = true;
 
   if (total_tasks_ == 0) {
+    // If there are no tasks, it's legal to skip a call to Run, therefore executor_ can be null.
+    wait_started_ = true;
     wait_completed_ = true;
     return;
   }
 
   if (this->executor_ == nullptr)
     throw std::logic_error("This job hasn't been run - cannot wait for it.");
+
+  wait_started_ = true;
 
   if (ThreadPoolBase::this_thread_pool() == this->executor_) {
     if constexpr (cooperative) {
