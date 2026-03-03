@@ -92,7 +92,7 @@ def _prep_data_for_feed_input(data, batch_size, layout, device_id=None):
         inputs = []
         checked = False
         for datum in data:
-            (is_dlpack, is_gpu_data) = _b.CheckDLPackCapsule(datum)
+            is_dlpack, is_gpu_data = _b.CheckDLPackCapsule(datum)
             if not is_dlpack and not checked:
                 _check_data_batch(data, batch_size, layout)
                 checked = True
@@ -117,7 +117,7 @@ def _prep_data_for_feed_input(data, batch_size, layout, device_id=None):
         ), "Mixed input types are not support, all need to reside on the CPU or GPU"
         data = inputs
     else:
-        (is_dlpack, is_gpu_data) = _b.CheckDLPackCapsule(data)
+        is_dlpack, is_gpu_data = _b.CheckDLPackCapsule(data)
         if not is_dlpack:
             _check_data_batch(data, batch_size, layout)
         if hasattr(data, "__cuda_array_interface__"):

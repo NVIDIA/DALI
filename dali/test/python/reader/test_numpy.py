@@ -27,7 +27,6 @@ from nose_utils import assert_raises, SkipTest
 from nose2.tools import params, cartesian_params
 from test_utils import compare_pipelines, to_array
 
-
 gds_data_root = "/scratch/"
 if not os.path.isdir(gds_data_root):
     gds_data_root = os.getcwd() + "/scratch/"
@@ -1082,7 +1081,7 @@ def test_shuffling(shuffling, pad_last_batch):
             pipe.set_outputs(data_cpu, data_gpu)
 
         for _ in range(num_samples // batch_size * 2):
-            (cpu_arr, gpu_arr) = pipe.run()
+            cpu_arr, gpu_arr = pipe.run()
             assert_array_equal(to_array(cpu_arr), to_array(gpu_arr))
 
 

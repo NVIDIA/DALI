@@ -296,44 +296,34 @@ def _cmp_metadata(
     # Validate device
     pipe_is_gpu = isinstance(pipe_out, TensorListGPU)
     ndd_is_gpu = ndd_out.device.device_type == "gpu"
-    assert (
-        pipe_is_gpu == ndd_is_gpu
-    ), f"""[Output {output_idx}] Device mismatch:
+    assert pipe_is_gpu == ndd_is_gpu, f"""[Output {output_idx}] Device mismatch:
   Pipeline: {'gpu' if pipe_is_gpu else 'cpu'}
   NDD:      {ndd_out.device.device_type}"""
 
     # Validate batch size
     pipe_batch_size = len(pipe_out.shape())
     ndd_batch_size = ndd_out.batch_size
-    assert (
-        pipe_batch_size == ndd_batch_size
-    ), f"""[Output {output_idx}] Batch size mismatch:
+    assert pipe_batch_size == ndd_batch_size, f"""[Output {output_idx}] Batch size mismatch:
   Pipeline: {pipe_batch_size}
   NDD:      {ndd_batch_size}"""
 
     # Validate data type
     pipe_dtype = pipe_out.dtype
     ndd_dtype = ndd_out.dtype.type_id
-    assert (
-        pipe_dtype == ndd_dtype
-    ), f"""[Output {output_idx}] Data type mismatch:
+    assert pipe_dtype == ndd_dtype, f"""[Output {output_idx}] Data type mismatch:
   Pipeline: {pipe_dtype}
   NDD:      {ndd_dtype}"""
 
     # Validate layout if available
     pipe_layout = pipe_out.layout() if hasattr(pipe_out, "layout") and pipe_out.layout() else None
     ndd_layout = ndd_out.layout if hasattr(ndd_out, "layout") else None
-    assert (
-        pipe_layout == ndd_layout
-    ), f"""[Output {output_idx}] Layout mismatch:
+    assert pipe_layout == ndd_layout, f"""[Output {output_idx}] Layout mismatch:
   Pipeline: {pipe_layout}
   NDD:      {ndd_layout}"""
 
     # Validate individual sample shapes
     for i, (psh, nddsh) in enumerate(zip(pipe_out.shape(), ndd_out.shape, strict=True)):
-        assert (
-            psh == nddsh
-        ), f"""[Output {output_idx}, Sample {i}] Shape mismatch:
+        assert psh == nddsh, f"""[Output {output_idx}, Sample {i}] Shape mismatch:
   Pipeline: {psh}
   NDD:      {nddsh}"""
 
@@ -375,9 +365,7 @@ def compare(
     if isinstance(ndd_out, tuple):
         pipe_out_len = len(pipe_out)
         ndd_out_len = len(ndd_out)
-        assert (
-            pipe_out_len == ndd_out_len
-        ), f"""Number of outputs mismatch:
+        assert pipe_out_len == ndd_out_len, f"""Number of outputs mismatch:
   Pipeline: {pipe_out_len}
   NDD:      {ndd_out_len}"""
 
@@ -616,10 +604,8 @@ def get_fn_operator(operator_name: str):
     try:
         fn_operator = get_nested_attr(fn, operator_name)
     except AttributeError:
-        raise AttributeError(
-            f"""Couldn't find operator {operator_name} in fn module.
-            Please check the string with operator name specification."""
-        )
+        raise AttributeError(f"""Couldn't find operator {operator_name} in fn module.
+            Please check the string with operator name specification.""")
     return fn_operator
 
 
@@ -628,10 +614,8 @@ def get_ndd_operator(operator_name: str):
     try:
         ndd_operator = get_nested_attr(ndd, operator_name)
     except AttributeError:
-        raise AttributeError(
-            f"""Couldn't find operator {operator_name} in ndd module.
-            Please check the string with operator name specification."""
-        )
+        raise AttributeError(f"""Couldn't find operator {operator_name} in ndd module.
+            Please check the string with operator name specification.""")
     return ndd_operator
 
 

@@ -15,7 +15,6 @@
 from ndd_vs_fn_test_utils import sign_off
 from nvidia.dali.experimental.dynamic._ops import _all_ops
 
-
 excluded_operators = [
     "readers.VideoResize",  # TODO(michalz): add manual tests
     "experimental.readers.Fits",  # TODO(michalz): add tests

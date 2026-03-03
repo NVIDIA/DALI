@@ -18,7 +18,6 @@ from nvidia.dali._autograph.core import ag_ctx
 from nvidia.dali._autograph.core import converter
 from nvidia.dali._autograph.operators import variables
 
-
 # TODO(mdan): Move this into operators - it represents a function definition.
 
 

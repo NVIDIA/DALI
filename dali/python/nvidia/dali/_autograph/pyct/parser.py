@@ -32,11 +32,8 @@ import six
 from nvidia.dali._autograph.pyct import errors
 from nvidia.dali._autograph.pyct import inspect_utils
 
-
-PY2_PREAMBLE = textwrap.dedent(
-    """
-"""
-)
+PY2_PREAMBLE = textwrap.dedent("""
+""")
 PY3_PREAMBLE = ""
 MAX_SIZE = 0
 

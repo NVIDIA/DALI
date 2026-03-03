@@ -29,7 +29,6 @@ from nvidia.dali._autograph.pyct import qual_names
 from nvidia.dali._autograph.pyct import templates
 from nvidia.dali._autograph.utils import ag_logging
 
-
 # TODO(mdan): Rename to FunctionCallsTransformer.
 
 

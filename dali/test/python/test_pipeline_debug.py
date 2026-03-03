@@ -31,7 +31,6 @@ from conditionals.test_pipeline_conditionals import (
     _impl_uninitialized,
 )
 
-
 file_root = os.path.join(get_dali_extra_path(), "db/single/jpeg")
 
 

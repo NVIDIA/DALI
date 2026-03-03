@@ -25,7 +25,6 @@ import numpy as np
 import numba as nb
 import importlib
 
-
 _to_numpy = {
     dali_types.BOOL: "bool_",
     dali_types.UINT8: "uint8",

@@ -19,7 +19,6 @@ from nvidia.dali.types import _default_converter, _type_name_convert_to_string
 
 from nvidia.dali.ops import _registry, _names
 
-
 _MAX_INPUT_SPELLED_OUT = 5
 
 

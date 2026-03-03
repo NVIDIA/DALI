@@ -253,7 +253,7 @@ class Tensor:
                     elif arr.dtype == np.float64:
                         arr = arr.astype(np.float32)
                     elif arr.dtype == object:
-                        (arr, converted_dtype_id) = _try_convert_enums(arr)
+                        arr, converted_dtype_id = _try_convert_enums(arr)
                     self._storage = _backend.TensorCPU(arr, layout, False)
                     if converted_dtype_id is not None:
                         self._storage.reinterpret(converted_dtype_id)

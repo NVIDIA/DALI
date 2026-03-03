@@ -26,7 +26,6 @@ import types
 
 import six
 
-
 # This lock seems to help avoid linecache concurrency errors.
 _linecache_lock = threading.Lock()
 

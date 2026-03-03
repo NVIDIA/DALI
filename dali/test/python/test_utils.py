@@ -29,7 +29,6 @@ import tempfile
 from packaging.version import Version
 from nose_utils import SkipTest
 
-
 is_of_supported_var = None
 
 

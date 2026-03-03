@@ -16,7 +16,6 @@ import nvidia.dali.backend as _backend
 from threading import local
 from typing import NoReturn, TypeAlias, Union
 
-
 try:
     import torch  # type: ignore
 

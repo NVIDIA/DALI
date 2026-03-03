@@ -1554,8 +1554,7 @@ class Pipeline(object):
             A tuple of `TensorList` objects for respective pipeline outputs
         """
         if len(pipeline_inputs) > 0 and not self._are_pipeline_inputs_possible():
-            raise RuntimeError(
-                f"""
+            raise RuntimeError(f"""
                 When using pipeline_inputs named arguments, either
                 `prefetch_queue_depth` in Pipeline constructor shall be set to 1 (for both devices)
                 or `exec_pipelined` shall be set to False.
@@ -1564,8 +1563,7 @@ class Pipeline(object):
                 Please set the `prefetch_queue_depth` or `exec_pipelined` argument in the Pipeline
                 constructor properly or provide inputs to DALI Pipeline via another mean
                 (e.g. `feed_input` function or `source` argument in the `fn.external_source`
-                operator.)"""
-            )
+                operator.)""")
         self.build()
         for inp_name, inp_value in pipeline_inputs.items():
             self.feed_input(inp_name, inp_value)

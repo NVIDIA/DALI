@@ -21,7 +21,6 @@ import inspect
 
 from nvidia.dali._autograph.utils import hooks
 
-
 UNSPECIFIED = object()
 
 

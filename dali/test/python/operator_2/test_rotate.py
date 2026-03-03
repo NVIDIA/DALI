@@ -32,7 +32,6 @@ from sequences_test_utils import (
     sequence_suite_helper,
 )
 
-
 test_data_root = os.environ["DALI_EXTRA_PATH"]
 caffe_db_folder = os.path.join(test_data_root, "db", "lmdb")
 
@@ -40,7 +39,7 @@ caffe_db_folder = os.path.join(test_data_root, "db", "lmdb")
 def get_output_size(angle, input_size, parity_correction=True):
     cosa = abs(math.cos(angle))
     sina = abs(math.sin(angle))
-    (h, w) = input_size[0:2]
+    h, w = input_size[0:2]
     eps = 1e-2
     out_w = int(math.ceil(w * cosa + h * sina - eps))
     out_h = int(math.ceil(h * cosa + w * sina - eps))
@@ -107,8 +106,8 @@ def get_3d_output_size(angle, axis, input_size, parity_correction=False):
 def get_transform(angle, input_size, output_size):
     cosa = math.cos(angle)
     sina = math.sin(angle)
-    (out_h, out_w) = output_size[0:2]
-    (in_h, in_w) = input_size[0:2]
+    out_h, out_w = output_size[0:2]
+    in_h, in_w = input_size[0:2]
     t1 = np.array([[1, 0, -out_w * 0.5], [0, 1, -out_h * 0.5], [0, 0, 1]])
     r = np.array([[cosa, -sina, 0], [sina, cosa, 0], [0, 0, 1]])
     t2 = np.array([[1, 0, in_w * 0.5], [0, 1, in_h * 0.5], [0, 0, 1]])

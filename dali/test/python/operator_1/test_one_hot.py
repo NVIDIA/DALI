@@ -20,7 +20,6 @@ from test_utils import check_batch
 from nose_utils import raises
 import numpy as np
 
-
 num_classes = 20
 batch_size = 10
 
@@ -122,7 +121,7 @@ def check_one_hot_operator(
         axis_name=axis_name,
         device=device,
     )
-    (outputs, input_batch) = pipeline.run()
+    outputs, input_batch = pipeline.run()
     if device == "gpu":
         input_batch = input_batch.as_cpu()
     input_batch = list(map(np.array, input_batch))

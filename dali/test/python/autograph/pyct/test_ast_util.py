@@ -100,28 +100,20 @@ class AstUtilTest(unittest.TestCase):
         self.assertEqual(source.strip(), "def f1():\n    pass")
 
     def test_copy_clean(self):
-        node = parser.parse(
-            textwrap.dedent(
-                """
+        node = parser.parse(textwrap.dedent("""
       def f(a):
         return a + 1
-    """
-            )
-        )
+    """))
         setattr(node, "__foo", "bar")
         new_node = ast_util.copy_clean(node)
         self.assertIsNot(new_node, node)
         self.assertFalse(hasattr(new_node, "__foo"))
 
     def test_copy_clean_preserves_annotations(self):
-        node = parser.parse(
-            textwrap.dedent(
-                """
+        node = parser.parse(textwrap.dedent("""
       def f(a):
         return a + 1
-    """
-            )
-        )
+    """))
         anno.setanno(node, "foo", "bar")
         anno.setanno(node, "baz", 1)
         new_node = ast_util.copy_clean(node, preserve_annos={"foo"})
@@ -210,30 +202,18 @@ class AstUtilTest(unittest.TestCase):
             self.assertEqual(child_a, child_b)
 
     def test_parallel_walk_inconsistent_trees(self):
-        node_1 = parser.parse(
-            textwrap.dedent(
-                """
+        node_1 = parser.parse(textwrap.dedent("""
       def f(a):
         return a + 1
-    """
-            )
-        )
-        node_2 = parser.parse(
-            textwrap.dedent(
-                """
+    """))
+        node_2 = parser.parse(textwrap.dedent("""
       def f(a):
         return a + (a * 2)
-    """
-            )
-        )
-        node_3 = parser.parse(
-            textwrap.dedent(
-                """
+    """))
+        node_3 = parser.parse(textwrap.dedent("""
       def f(a):
         return a + 2
-    """
-            )
-        )
+    """))
         with self.assertRaises(ValueError):
             for _ in ast_util.parallel_walk(node_1, node_2):
                 pass

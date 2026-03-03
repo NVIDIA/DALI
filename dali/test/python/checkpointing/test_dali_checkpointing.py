@@ -36,7 +36,6 @@ from nvidia.dali.auto_aug import rand_augment as ra
 from nvidia.dali.auto_aug import trivial_augment as ta
 from reader.test_numpy import is_gds_supported
 
-
 reader_signed_off = create_sign_off_registry()
 random_signed_off = create_sign_off_registry()
 
@@ -529,12 +528,10 @@ def test_nemo_asr_reader(
 
     manifest = tempfile.NamedTemporaryFile("w")
     for i, f in enumerate(wav_files):
-        manifest.write(
-            f'{{"audio_filepath": "{f}", \
+        manifest.write(f'{{"audio_filepath": "{f}", \
                        "offset": {i / 1000}, \
                        "duration": {0.3 + i / 100}, \
-                       "text": "o{"o" * i}"}}\n'
-        )
+                       "text": "o{"o" * i}"}}\n')
     manifest.flush()
 
     check_reader_checkpointing(

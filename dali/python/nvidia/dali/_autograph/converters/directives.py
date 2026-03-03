@@ -35,7 +35,6 @@ from nvidia.dali._autograph.core import converter
 from nvidia.dali._autograph.lang import directives
 from nvidia.dali._autograph.pyct import anno
 
-
 STATIC_VALUE = "static_value"
 """Used for AST annotations, see visit_Name."""
 
