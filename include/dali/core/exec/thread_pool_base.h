@@ -97,7 +97,7 @@ class DLL_PUBLIC JobBase : public JobBaseFields<cooperative> {
  * Once at least one task has been added, Run and Wait (or Discard) must be called
  * before the task is destroyed.
  */
-template <bool cooperative = true>
+template <bool cooperative>
 class DLL_PUBLIC JobImpl final : public JobBase<cooperative> {
  public:
   ~JobImpl() noexcept(false) = default;
@@ -163,7 +163,7 @@ class DLL_PUBLIC JobImpl final : public JobBase<cooperative> {
  * Calls to AddTask, Run and Wait are not thread safe and require external synchronization if
  * called from different threads.
  */
-template <bool cooperative = true>
+template <bool cooperative>
 class DLL_PUBLIC IncrementalJobImpl final : public JobBase<cooperative> {
  public:
   ~IncrementalJobImpl() noexcept(false) = default;
@@ -179,7 +179,7 @@ class DLL_PUBLIC IncrementalJobImpl final : public JobBase<cooperative> {
 
   /** Runs the job in the thread pool.
    *
-   * More tasks can be added after this call and they will be picked up automatically.
+   * More tasks can be added after this call, but they won't start until another call to Run.
    */
   void Run(ThreadPoolBase &tp, bool wait);
 
@@ -394,8 +394,6 @@ std::enable_if_t<std::is_convertible_v<Runnable, std::function<void()>>>
 IncrementalJobImpl<cooperative>::AddTask(Runnable &&runnable) {
   if (this->wait_started_)
     throw std::logic_error("This job has already been waited for - cannot add more tasks to it");
-
-  assert(this->executor_ == nullptr || this->executor_ != ThreadPoolBase::this_thread_pool());
 
   auto it = tasks_.emplace(tasks_.end(), Task());
   try {
