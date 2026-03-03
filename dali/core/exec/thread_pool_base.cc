@@ -42,11 +42,10 @@ void JobBase<cooperative>::DoWait() {
   if (this->executor_ == nullptr)
     throw std::logic_error("This job hasn't been run - cannot wait for it.");
 
-  wait_started_ = true;
-
   if (ThreadPoolBase::this_thread_pool() == this->executor_) {
     if constexpr (cooperative) {
       auto ready = [&]() { return num_pending_tasks_ == 0; };
+      wait_started_ = true;
       bool result = ThreadPoolBase::this_thread_pool()->WaitOrRunTasks(this->cv_, ready);
       wait_completed_ = true;
       if (!result)
@@ -55,6 +54,7 @@ void JobBase<cooperative>::DoWait() {
       throw std::logic_error("Cannot wait for this job from inside the thread pool.");
     }
   } else {
+    wait_started_ = true;
     int old = num_pending_tasks_.load();
     while (old != 0) {
       num_pending_tasks_.wait(old);
