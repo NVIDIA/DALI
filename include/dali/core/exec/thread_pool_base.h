@@ -91,8 +91,7 @@ class DLL_PUBLIC JobBase : public JobBaseFields<cooperative> {
   };
 };
 
-/**
- * @brief A collection of tasks, ordered by priority
+/** A collection of tasks, ordered by priority
  *
  * Tasks are added to a job first and then the entire work is scheduled as a whole.
  * Once at least one task has been added, Run and Wait (or Discard) must be called
@@ -136,11 +135,16 @@ class DLL_PUBLIC JobImpl final : public JobBase<cooperative> {
   template <typename Executor>
   void Run(Executor &executor, bool wait);
 
+  /** Runs the job in the thread pool.
+   *
+   * After this call, no more tasks can be added.
+   */
   void Run(ThreadPoolBase &tp, bool wait);
 
   /** Waits for the job to complete. This function must be called only once. */
   void Wait();
 
+  /** Discards the job, allowing it to be safely destroyed without being run. */
   void Discard();
 
  private:
@@ -173,6 +177,10 @@ class DLL_PUBLIC IncrementalJobImpl final : public JobBase<cooperative> {
   template <typename Executor>
   void Run(Executor &executor, bool wait);
 
+  /** Runs the job in the thread pool.
+   *
+   * More tasks can be added after this call and they will be picked up automatically.
+   */
   void Run(ThreadPoolBase &tp, bool wait);
 
   /** Waits for the job to complete. This function must be called only once.
@@ -181,6 +189,7 @@ class DLL_PUBLIC IncrementalJobImpl final : public JobBase<cooperative> {
    */
   void Wait();
 
+  /** Discards the job, allowing it to be safely destroyed without being run. */
   void Discard();
 
  private:
@@ -199,11 +208,11 @@ using Job = JobImpl<false>;
  *
  * A cooperative job can be waited for from inside the thread pool the job is running in. While
  * the calling thread executes `Wait` on the job, some scheduled task might be picked up from the
- * thread pool and executed int the contex of the calling thread.
+ * thread pool and executed in the contex of the calling thread.
  */
 using CooperativeJob = JobImpl<true>;
 
-/** Cooperative incremental job.
+/** Non-cooperative incremental job.
  *
  * Incremental job can be started (Run) and new tasks can be added to it while it's already running.
  *
@@ -217,7 +226,7 @@ using IncrementalJob = IncrementalJobImpl<false>;
  *
  * A cooperative job can be waited for from inside the thread pool the job is running in. While
  * the calling thread executes `Wait` on the job, some scheduled task might be picked up from the
- * thread pool and executed int the contex of the calling thread.
+ * thread pool and executed in the contex of the calling thread.
  */
 using CooperativeIncrementalJob = IncrementalJobImpl<true>;
 
@@ -289,6 +298,7 @@ class DLL_PUBLIC ThreadPoolBase : public ThisThreadIdx {
     return threads_.size();
   }
 
+  /** Returns the ids of the threads in the thread pool */
   auto GetThreadIds() const {
     int n = threads_.size();
     std::vector<std::thread::id> ids(n);
@@ -297,9 +307,7 @@ class DLL_PUBLIC ThreadPoolBase : public ThisThreadIdx {
     return ids;
   }
 
-  /**
-   * @brief Returns the thread pool that owns the calling thread (or nullptr)
-   */
+  /** Returns the thread pool that owns the calling thread (or nullptr) */
   static ThreadPoolBase *this_thread_pool() {
     return this_thread_pool_;
   }

@@ -156,11 +156,17 @@ class NewThreadPoolJobTest : public ::testing::Test {};
 template <typename JobType>
 class NewThreadPoolCooperativeJobTest : public ::testing::Test {};
 
+template <typename JobType>
+class NewThreadPoolNonCooperativeJobTest : public ::testing::Test {};
+
 using JobTypes = ::testing::Types<Job, IncrementalJob, CooperativeJob, CooperativeIncrementalJob>;
 TYPED_TEST_SUITE(NewThreadPoolJobTest, JobTypes);
 
 using CooperativeJobTypes = ::testing::Types<CooperativeJob, CooperativeIncrementalJob>;
 TYPED_TEST_SUITE(NewThreadPoolCooperativeJobTest, CooperativeJobTypes);
+
+using NonCooperativeJobTypes = ::testing::Types<Job, IncrementalJob>;
+TYPED_TEST_SUITE(NewThreadPoolNonCooperativeJobTest, NonCooperativeJobTypes);
 
 
 TYPED_TEST(NewThreadPoolJobTest, RunJobInSeries) {
@@ -245,6 +251,25 @@ TYPED_TEST(NewThreadPoolCooperativeJobTest, Reentrant) {
     });
   }
   job.Run(tp, true);
+}
+
+TYPED_TEST(NewThreadPoolNonCooperativeJobTest, Reentrant) {
+  TypeParam job;
+  ThreadPoolBase tp(1);  // must not hang with just one thread
+  job.AddTask([&]() {
+    TypeParam innerJob;
+    innerJob.AddTask([]() {});
+
+    try {
+      innerJob.Run(tp, true);
+    } catch (...) {
+      innerJob.Discard();
+      throw;
+    }
+  });
+
+  job.Run(tp, false);
+  EXPECT_THROW(job.Wait(), std::logic_error);
 }
 
 TYPED_TEST(NewThreadPoolJobTest, JobPerf) {

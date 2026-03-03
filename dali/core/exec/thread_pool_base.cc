@@ -41,7 +41,7 @@ void JobBase<cooperative>::DoWait() {
   if (this->executor_ == nullptr)
     throw std::logic_error("This job hasn't been run - cannot wait for it.");
 
-  if (ThreadPoolBase::this_thread_pool() != nullptr) {
+  if (ThreadPoolBase::this_thread_pool() == this->executor_) {
     if constexpr (cooperative) {
       auto ready = [&]() { return num_pending_tasks_ == 0; };
       bool result = ThreadPoolBase::this_thread_pool()->WaitOrRunTasks(this->cv_, ready);
@@ -81,6 +81,10 @@ template <bool cooperative>
 void JobImpl<cooperative>::Run(ThreadPoolBase &tp, bool wait) {
   if (this->executor_ != nullptr)
     throw std::logic_error("This job has already been started.");
+
+  if (!cooperative && &tp == ThreadPoolBase::this_thread_pool())
+      throw std::logic_error("Cannot run for this job from inside the thread pool.");
+
   this->executor_ = &tp;
   this->running_ = !tasks_.empty();
   {
@@ -129,6 +133,10 @@ template <bool cooperative>
 void IncrementalJobImpl<cooperative>::Run(ThreadPoolBase &tp, bool wait) {
   if (this->executor_ && this->executor_ != &tp)
     throw std::logic_error("This job is already running in a different executor.");
+
+  if (!cooperative && &tp == ThreadPoolBase::this_thread_pool())
+      throw std::logic_error("Cannot run for this job from inside the thread pool.");
+
   this->executor_ = &tp;
   {
     auto it = last_task_run_.has_value() ? std::next(*last_task_run_) : tasks_.begin();
