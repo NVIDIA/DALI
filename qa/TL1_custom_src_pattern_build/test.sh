@@ -1,6 +1,6 @@
 #!/bin/bash -e
 
-pip_packages='astunparse gast optree black nvtx makefun'
+pip_packages='astunparse gast optree black nvtx makefun numpy'
 
 build_and_check() {
   make -j
