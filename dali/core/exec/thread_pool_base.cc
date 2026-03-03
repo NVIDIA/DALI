@@ -83,7 +83,7 @@ void JobImpl<cooperative>::Run(ThreadPoolBase &tp, bool wait) {
     throw std::logic_error("This job has already been started.");
 
   if (!cooperative && &tp == ThreadPoolBase::this_thread_pool())
-      throw std::logic_error("Cannot run for this job from inside the thread pool.");
+    throw std::logic_error("Cannot run this job from inside the thread pool.");
 
   this->executor_ = &tp;
   this->running_ = !tasks_.empty();
@@ -135,7 +135,7 @@ void IncrementalJobImpl<cooperative>::Run(ThreadPoolBase &tp, bool wait) {
     throw std::logic_error("This job is already running in a different executor.");
 
   if (!cooperative && &tp == ThreadPoolBase::this_thread_pool())
-      throw std::logic_error("Cannot run for this job from inside the thread pool.");
+    throw std::logic_error("Cannot run this job from inside the thread pool.");
 
   this->executor_ = &tp;
   {
