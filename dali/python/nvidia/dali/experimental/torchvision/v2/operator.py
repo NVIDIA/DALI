@@ -82,7 +82,7 @@ class VerificationTensorOrImage(DataVerificationRule):
 
 class VerificationChannelCount(DataVerificationRule):
     """
-    Verify the number of channels for the input data.
+    Verify if input data has <= 4 channels. More channels are not supported in Torchvision
 
     Parameters
     ----------
@@ -100,7 +100,8 @@ class VerificationChannelCount(DataVerificationRule):
         ):
             raise ValueError(
                 f"Input should be in CHW if Tensor. \
-                  Supported channels: {VerificationChannelCount.CHANNELS} is {data.shape[-3]}"
+                Supports up to {VerificationChannelCount.CHANNELS[-1]} channels, \
+                got: {data.shape[-3]} channels"
             )
 
 
@@ -111,7 +112,7 @@ class VerifyIfPositive(ArgumentVerificationRule):
     Parameters
     ----------
     values : any
-        Value to verify. Should be a positive number.
+        Value to verify. Should be a positive numbers.
     """
 
     @classmethod
@@ -119,28 +120,31 @@ class VerifyIfPositive(ArgumentVerificationRule):
         if isinstance(values, (int, float)) and values <= 0:
             raise ValueError(f"Value {name} must be positive, got {values}")
         elif isinstance(values, (list, tuple)) and any(k <= 0 for k in values):
-            raise ValueError(f"Values {name} should be positive number, got {values}")
+            raise ValueError(f"Values {name} should be positive numbers, got {values}")
 
 
-class VerifyIfOrderedPair(ArgumentVerificationRule):
+class VerifyIfRange(ArgumentVerificationRule):
     """
-    Verify if the value is an ordered pair.
+    Verify if the value is a correct range: (min, max)
 
     Parameters
     ----------
     values : any
-        Value to verify. Should be an ordered pair.
+        Value to verify. Should be a range: (min, max)
     """
 
     @classmethod
     def verify(cls, *, values, name, **_) -> None:
         if isinstance(values, (list, tuple)) and len(values) == 2 and values[0] > values[1]:
-            raise ValueError(f"Values {name} should be ordered, got {values}")
+            raise ValueError(f"Values {name} should be (min, max), got {values}")
 
 
-class VerificationSize(ArgumentVerificationRule):
+class VerifSizeDescriptor(ArgumentVerificationRule):
     """
-    Verify if the value is an integer or a sequence of length 1 or 2.
+    Verify if the value can describe a size argument, which is:
+    - an integer
+    - or a sequence of length of 1,
+    - or a sequence of length of 2
 
     Parameters
     ----------
@@ -151,7 +155,7 @@ class VerificationSize(ArgumentVerificationRule):
     @classmethod
     def verify(cls, *, size, **_) -> None:
         if not isinstance(size, (int, list, tuple)):
-            raise TypeError(f"Size must be int or sequence, got {type(size)}")
+            raise TypeError(f"Size must be int, list, or tuple, got {type(size)}")
         elif isinstance(size, (list, tuple)) and len(size) > 2:
             raise ValueError(f"Size sequence must have length 1 or 2, got {len(size)}")
         VerifyIfPositive.verify(values=size, name="size")
@@ -202,6 +206,8 @@ class Operator(ABC):
 
     def __call__(self, data_input):
 
+        Operator.verify_data(data_input)
+
         if self.device == "gpu":
             data_input = data_input.gpu()
 
@@ -251,7 +257,7 @@ def adjust_input(func):
                 # WAR:
                 _input = ndd.as_batch(ndd.as_tensor(inpt), layout="CHW")
             else:
-                raise TypeError(f"Tensor has < 3 dimensions: {inpt.ndim} / {inpt.shape}")
+                raise TypeError(f"Tensor has < 3 dimensions: {inpt.ndim}, shape: {inpt.shape}")
         else:
             raise TypeError(f"Data type: {type(inpt)} is not supported")
 
@@ -280,7 +286,8 @@ def adjust_input(func):
             elif not isinstance(output, ndd.Tensor):
                 raise TypeError(f"Invalid output type: {type(output)}")
 
-            # This is WAR for DLPpack not supporting pinned memory
+            # This is WAR for DLPpack not supporting pinned memory, see:
+            # https://github.com/pytorch/pytorch/issues/136250H
             if output.device.device_type == "cpu":
                 output = np.asarray(output)
 

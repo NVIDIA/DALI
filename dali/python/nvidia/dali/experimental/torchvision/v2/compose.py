@@ -12,14 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import List, Sequence, Callable
+from typing import List, Sequence, Callable, Union
 
 import nvidia.dali.fn as fn
 from nvidia.dali.pipeline import pipeline_def
 from nvidia.dali.data_node import DataNode as _DataNode
 from nvidia.dali.backend import TensorListCPU, TensorListGPU
 
-from .tensor import ToTensor
 from .operator import VerificationTensorOrImage
 
 import numpy as np
@@ -28,7 +27,7 @@ from PIL import Image
 import torch
 
 DEFAULT_BATCH_SIZE = 16
-DEFAULT_NUM_THREADS = multiprocessing.cpu_count() // 2
+DEFAULT_NUM_THREADS = 1 if multiprocessing.cpu_count() == 1 else multiprocessing.cpu_count() // 2
 
 
 def _to_torch_tensor(tensor_or_tl: TensorListGPU | TensorListCPU) -> torch.Tensor:
@@ -40,7 +39,9 @@ def _to_torch_tensor(tensor_or_tl: TensorListGPU | TensorListCPU) -> torch.Tenso
     return torch.from_dlpack(dali_tensor)
 
 
-def to_torch_tensor(tensor_or_tl: tuple | TensorListGPU | TensorListCPU) -> torch.Tensor:
+def to_torch_tensor(
+    x: Union[tuple, "TensorListGPU", "TensorListCPU"],
+) -> Union[torch.Tensor, tuple]:
     """
     Converts a DALI tensor or tensor list to a PyTorch tensor.
 
@@ -49,15 +50,14 @@ def to_torch_tensor(tensor_or_tl: tuple | TensorListGPU | TensorListCPU) -> torc
         tensor_or_tl : tuple, TensorListGPU, TensorListCPU
             DALI tensor or tensor list.
     """
-    if isinstance(tensor_or_tl, tuple) and len(tensor_or_tl) > 1:
-        tl = []
-        for elem in tensor_or_tl:
-            tl.append(_to_torch_tensor(elem))
-        return tuple(tl)
+    if isinstance(x, (TensorListGPU, TensorListCPU)):
+        return to_torch_tensor(x.as_tensor())
+    elif isinstance(x, tuple):
+        if len(x) == 1:
+            return _to_torch_tensor(x[0])
+        return tuple(to_torch_tensor(elem) for elem in x)
     else:
-        if len(tensor_or_tl) == 1:
-            tensor_or_tl = tensor_or_tl[0]
-        return _to_torch_tensor(tensor_or_tl)
+        return torch.from_dlpack(x)
 
 
 @pipeline_def(enable_conditionals=True, exec_dynamic=True, prefetch_queue_depth=1)
@@ -74,13 +74,11 @@ def _pipeline_function(op_list, layout="HWC"):
     """
     input_node = fn.external_source(name="input_data", no_copy=True, layout=layout)
     for op in op_list:
-        if isinstance(op, ToTensor) and op != op_list[-1]:
-            raise NotImplementedError("ToTensor can only be the last operation in the pipeline")
         input_node = op(input_node)
     return input_node
 
 
-class PipelineLayouted:
+class PipelineWithLayout:
     """Base class for pipeline layouts.
 
     This class is a base class for DALI pipelines with a specific layout. It is used to handle
@@ -109,21 +107,33 @@ class PipelineLayouted:
         num_threads: int = DEFAULT_NUM_THREADS,
         **dali_pipeline_kwargs,
     ):
-        self.convert_to_tensor = True if isinstance(op_list[-1], ToTensor) else False
+        # TODO:
+        # convert_to_tensor is currently not supported and requires an user's effort
+        # to convert to tensor
+        # ToTensor is deprecated and according to:
+        # https://docs.pytorch.org/vision/stable/_modules/torchvision/transforms/v2/_deprecated.html#ToTensor
+        # should be replaced with:
+        # v2.Compose([v2.ToImage(), v2.ToDtype(torch.float32, scale=True)])
+        #
+        # self.convert_to_tensor = True if isinstance(op_list[-1], ToTensor) else False
+        self.convert_to_tensor = False
         self.pipe = _pipeline_function(
             op_list,
             layout=layout,
             batch_size=batch_size,
             num_threads=num_threads,
-            *dali_pipeline_kwargs,
+            **dali_pipeline_kwargs,
         )
 
     def run(self, data_input):
         output = None
 
-        stream = torch.cuda.Stream(0)
-        with torch.cuda.stream(stream):
-            output = self.pipe.run(stream, input_data=data_input)
+        if torch.cuda.is_available():
+            stream = torch.cuda.Stream(0)
+            with torch.cuda.stream(stream):
+                output = self.pipe.run(stream, input_data=data_input)
+        else:
+            output = self.pipe.run(input_data=data_input)
 
         if output is None:
             return output
@@ -144,7 +154,7 @@ class PipelineLayouted:
         return self.convert_to_tensor
 
 
-class PipelineHWC(PipelineLayouted):
+class PipelineHWC(PipelineWithLayout):
     """Handles ``PIL.Image`` in HWC format.
 
     This class prepares data to be passed to a DALI pipeline, runs the pipeline and converts
@@ -174,7 +184,7 @@ class PipelineHWC(PipelineLayouted):
             layout="HWC",
             batch_size=batch_size,
             num_threads=num_threads,
-            *dali_pipeline_kwargs,
+            **dali_pipeline_kwargs,
         )
 
     def _convert_tensor_to_image(self, in_tensor: torch.Tensor):
@@ -191,7 +201,7 @@ class PipelineHWC(PipelineLayouted):
             mode = "RGBA"
         else:
             raise ValueError(
-                f"Unsupported number of channels: {in_tensor.shape[channels]}. Should be 1 or 3."
+                f"Unsupported number of channels: {in_tensor.shape[channels]}. Should be 1, 3 or 4."
             )
         # We need to convert tensor to CPU, PIL does not support CUDA tensors
         return Image.fromarray(in_tensor.cpu().numpy(), mode=mode)
@@ -233,7 +243,7 @@ class PipelineHWC(PipelineLayouted):
         return -1
 
 
-class PipelineCHW(PipelineLayouted):
+class PipelineCHW(PipelineWithLayout):
     """Handles ``torch.Tensors`` in CHW format.
 
     This class prepares data to be passed to a DALI pipeline and runs the pipeline, converting
@@ -263,7 +273,7 @@ class PipelineCHW(PipelineLayouted):
             layout="CHW",
             batch_size=batch_size,
             num_threads=num_threads,
-            *dali_pipeline_kwargs,
+            **dali_pipeline_kwargs,
         )
 
     def run(self, data_input):
@@ -327,11 +337,11 @@ class Compose:
     def _build_pipeline(self, data_input):
         if isinstance(data_input, Image.Image):
             self.active_pipeline = PipelineHWC(
-                self.op_list, self.batch_size, self.num_threads, *self.dali_pipeline_kwargs
+                self.op_list, self.batch_size, self.num_threads, **self.dali_pipeline_kwargs
             )
         elif isinstance(data_input, torch.Tensor):
             self.active_pipeline = PipelineCHW(
-                self.op_list, self.batch_size, self.num_threads, *self.dali_pipeline_kwargs
+                self.op_list, self.batch_size, self.num_threads, **self.dali_pipeline_kwargs
             )
         else:
             raise ValueError("Currently only PILImages and torch.Tensors are supported")

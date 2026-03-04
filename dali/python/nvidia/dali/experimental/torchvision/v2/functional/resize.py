@@ -17,9 +17,6 @@ from torch import Tensor
 import nvidia.dali.experimental.dynamic as ndd
 from torchvision.transforms import InterpolationMode
 
-import sys
-
-sys.path.append("..")
 from ..operator import adjust_input  # noqa: E402
 from ..resize import Resize  # noqa: E402
 

@@ -23,7 +23,7 @@ import torch
 import torchvision.transforms.v2 as transforms
 import torchvision.transforms.v2.functional as fn_tv
 
-from nvidia.dali.experimental.torchvision import Resize, Compose, ToTensor
+from nvidia.dali.experimental.torchvision import Resize, Compose
 import nvidia.dali.experimental.torchvision.v2.functional as fn_dali
 
 
@@ -99,25 +99,14 @@ def loop_images_test_no_build(
 
         out_tv = transforms.functional.pil_to_tensor(t(img)).unsqueeze(0).permute(0, 2, 3, 1)
         out_dali_tv = transforms.functional.pil_to_tensor(td(img)).unsqueeze(0).permute(0, 2, 3, 1)
-        tv_shape_lower = torch.Size([out_tv.shape[1] - 1, out_tv.shape[2] - 1])
-        tv_shape_upper = torch.Size([out_tv.shape[1] + 1, out_tv.shape[2] + 1])
 
-        tv_fn_shape_lower = torch.Size([out_fn.shape[1] - 1, out_fn.shape[2] - 1])
-        tv_fn_shape_upper = torch.Size([out_fn.shape[1] + 1, out_fn.shape[2] + 1])
-
-        assert (
-            tv_shape_lower[0] <= out_dali_tv.shape[1] <= tv_shape_upper[0]
+        assert torch.allclose(
+            torch.tensor(out_tv.shape[1:3]), torch.tensor(out_dali_tv.shape[1:3]), rtol=0, atol=1
         ), f"Should be:{out_tv.shape} is:{out_dali_tv.shape}"
-        assert (
-            tv_shape_lower[1] <= out_dali_tv.shape[2] <= tv_shape_upper[1]
-        ), f"Should be:{out_tv.shape} is:{out_dali_tv.shape}"
+        assert torch.allclose(
+            torch.tensor(out_fn.shape[1:3]), torch.tensor(out_dali_fn.shape[1:3]), rtol=0, atol=1
+        ), f"Should be:{out_fn.shape} is:{out_dali_fn.shape}"
 
-        assert (
-            tv_fn_shape_lower[0] <= out_dali_fn.shape[1] <= tv_fn_shape_upper[0]
-        ), f"Should be:{out_tv.shape} is:{out_dali_fn.shape}"
-        assert (
-            tv_fn_shape_lower[1] <= out_dali_fn.shape[2] <= tv_fn_shape_upper[1]
-        ), f"Should be:{out_tv.shape} is:{out_dali_fn.shape}"
         # assert torch.equal(out_tv, out_dali_tv)
 
 
@@ -129,26 +118,6 @@ def loop_images_test(
 ):
     t, td = build_resize_transform(resize, max_size, interpolation, antialias)
     loop_images_test_no_build(t, td, resize, max_size, interpolation, antialias)
-
-
-@cartesian_params(
-    (512, 2048, ([512, 512]), ([2048, 2048])),
-    ("cpu", "gpu"),
-)
-def test_resize_and_tensor(resize, device):
-    # Resize with single int (preserve aspect ratio)
-    td = Compose(
-        [
-            Resize(size=resize, device=device),
-            ToTensor(),
-        ]
-    )
-
-    img = Image.open(test_files[0])
-    out = td(img)
-
-    assert isinstance(out, torch.Tensor), f"Should be torch.Tensor type is {type(out)}"
-    assert torch.all(out <= 1).item(), "Tensor elements should be <0;1>"
 
 
 @params(512, 2048, ([512, 512]), ([2048, 2048]))

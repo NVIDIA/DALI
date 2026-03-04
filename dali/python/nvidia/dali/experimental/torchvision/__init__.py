@@ -15,12 +15,10 @@
 from .v2.compose import Compose
 from .v2.flips import RandomHorizontalFlip, RandomVerticalFlip
 from .v2.resize import Resize
-from .v2.tensor import ToTensor
 
 __all__ = [
     "Compose",
     "RandomHorizontalFlip",
     "RandomVerticalFlip",
     "Resize",
-    "ToTensor",
 ]

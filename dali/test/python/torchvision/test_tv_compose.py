@@ -14,7 +14,12 @@
 
 import os
 
-from nvidia.dali.experimental.torchvision import Compose, RandomHorizontalFlip
+from nvidia.dali.experimental.torchvision import (
+    Compose,
+    RandomHorizontalFlip,
+    RandomVerticalFlip,
+    Resize,
+)
 
 from nose_utils import assert_raises
 import numpy as np
@@ -55,6 +60,22 @@ def test_compose_tensor():
     assert torch.equal(dali_out, tv_out)
 
 
+def test_compose_multi_tensor():
+    test_tensor = make_test_tensor(shape=(5, 5, 5, 3))
+    dali_pipeline = Compose(
+        [Resize(size=(15, 15)), RandomHorizontalFlip(p=1.0), RandomVerticalFlip(p=1.0)],
+        batch_size=test_tensor.shape[0],
+    )
+    dali_out = dali_pipeline(test_tensor)
+    tv_pipeline = tv.Compose(
+        [tv.Resize(size=(15, 15)), tv.RandomHorizontalFlip(p=1.0), tv.RandomVerticalFlip(p=1.0)]
+    )
+    tv_out = tv_pipeline(test_tensor)
+
+    assert isinstance(dali_out, torch.Tensor)
+    assert torch.equal(dali_out, tv_out)
+
+
 def test_compose_invalid_batch_tensor():
     test_tensor = make_test_tensor(shape=(5, 5, 5, 1))
     with assert_raises(RuntimeError):
@@ -64,7 +85,24 @@ def test_compose_invalid_batch_tensor():
 
 def test_compose_images():
     dali_transform = Compose([RandomHorizontalFlip(p=1.0)])
-    tv_transform = tv.RandomHorizontalFlip(p=1.0)
+    tv_transform = tv.Compose([tv.RandomHorizontalFlip(p=1.0)])
+
+    for fn in test_files:
+        img = Image.open(fn)
+        out_dali_img = dali_transform(img)
+
+        assert isinstance(out_dali_img, Image.Image)
+
+        tensor_dali_tv = transforms.functional.pil_to_tensor(out_dali_img)
+        tensor_tv = transforms.functional.pil_to_tensor(tv_transform(img))
+
+        assert tensor_dali_tv.shape == tensor_tv.shape
+        assert torch.equal(tensor_dali_tv, tensor_tv)
+
+
+def test_compose_images_multi():
+    dali_transform = Compose([RandomVerticalFlip(p=1.0), RandomHorizontalFlip(p=1.0)])
+    tv_transform = tv.Compose([tv.RandomVerticalFlip(p=1.0), tv.RandomHorizontalFlip(p=1.0)])
 
     for fn in test_files:
         img = Image.open(fn)

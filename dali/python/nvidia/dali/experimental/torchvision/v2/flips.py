@@ -26,7 +26,7 @@ class RandomFlip(Operator):
         p : float
             Probability of the image being flipped. Default value is 0.5
         horizontal : int
-            Flip the horizontal dimension.
+            Flip the horizontal dimension if 1, vertical if 0
         device : Literal["cpu", "gpu"], optional, default = "cpu"
             Device to use for the flip. Can be ``"cpu"`` or ``"gpu"``.
     """

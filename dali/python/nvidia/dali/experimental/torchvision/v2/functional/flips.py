@@ -15,9 +15,6 @@
 
 import nvidia.dali.experimental.dynamic as ndd
 
-import sys
-
-sys.path.append("..")
 from ..operator import adjust_input  # noqa: E402
 
 
@@ -25,7 +22,7 @@ from ..operator import adjust_input  # noqa: E402
 def horizontal_flip(inpt: ndd.Tensor) -> ndd.Tensor:
     """
     Horizontally flips the given tensor.
-    Refer to ``HorizontalFlip`` for more details.
+    Refer to `HorizontalFlip` for more details.
     """
     return ndd.flip(inpt, horizontal=1, vertical=0)
 
@@ -34,6 +31,6 @@ def horizontal_flip(inpt: ndd.Tensor) -> ndd.Tensor:
 def vertical_flip(inpt: ndd.Tensor) -> ndd.Tensor:
     """
     Vertically flips the given tensor.
-    Refer to ``VerticalFlip`` for more details.
+    Refer to `VerticalFlip` for more details.
     """
     return ndd.flip(inpt, horizontal=0, vertical=1)
