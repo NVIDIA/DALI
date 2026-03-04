@@ -243,11 +243,13 @@ class TensorSubscript : public StatelessOperator<Backend> {
             lo += in_extent;
           if (hi < 0)
             hi += in_extent;
-          lo = clamp(lo, 0_i64, in_extent - 1);
-          if (step < 0)  // the "upper" bound is exclusive, so we have to allow it to be -1
+          if (step < 0) {  // the "upper" bound is exclusive, so we have to allow it to be -1
+            lo = clamp(lo, -1_i64, in_extent - 1);
             hi = clamp(hi, -1_i64, in_extent - 1);
-          else
+          } else {
+            lo = clamp(lo, 0_i64, in_extent);
             hi = clamp(hi, 0_i64, in_extent);
+          }
         } else {
           lo = hi = 0;
         }
