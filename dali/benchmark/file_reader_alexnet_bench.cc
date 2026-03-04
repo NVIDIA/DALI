@@ -131,7 +131,7 @@ BENCHMARK_DEFINE_F(FileReaderAlexnet, CaffePipe)(benchmark::State& st) { // NOLI
       benchmark::Counter::kIsRate);
 }
 
-static void PipeArgs(benchmark::internal::Benchmark *b) {
+static void PipeArgs(benchmark::Benchmark *b) {
   for (int executor = 2; executor < 3; ++executor) {
     for (int fast_resize = 0; fast_resize < 2; ++fast_resize) {
       for (int batch_size = 128; batch_size <= 128; batch_size += 32) {

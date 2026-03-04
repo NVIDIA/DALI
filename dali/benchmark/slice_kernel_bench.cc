@@ -76,7 +76,7 @@ class SliceBenchCPU : public DALIBenchmark {
   }
 };
 
-static void SliceKernelArgs_OnlySlice_CPU(benchmark::internal::Benchmark *b) {
+static void SliceKernelArgs_OnlySlice_CPU(benchmark::Benchmark *b) {
   for (int H = 1000; H >= 500; H /= 2) {
     int W = H, C = 3;
     int crop_h = 9 * H / 10;
@@ -94,7 +94,7 @@ BENCHMARK_REGISTER_F(SliceBenchCPU, Slice_CPU_OnlySlice)->Iterations(1000)
 ->UseRealTime()
 ->Apply(SliceKernelArgs_OnlySlice_CPU);
 
-static void SliceKernelArgs_OnlyPad_CPU(benchmark::internal::Benchmark *b) {
+static void SliceKernelArgs_OnlyPad_CPU(benchmark::Benchmark *b) {
   for (int H = 1000; H >= 500; H /= 2) {
     int W = H, C = 3;
     int crop_h = 9 * H / 10;
@@ -114,7 +114,7 @@ BENCHMARK_REGISTER_F(SliceBenchCPU, Slice_OnlyPad_CPU)->Iterations(1000)
 ->UseRealTime()
 ->Apply(SliceKernelArgs_OnlyPad_CPU);
 
-static void SliceKernelArgs_SliceAndPad_CPU(benchmark::internal::Benchmark *b) {
+static void SliceKernelArgs_SliceAndPad_CPU(benchmark::Benchmark *b) {
   for (int H = 1000; H >= 500; H /= 2) {
     int W = H, C = 3;
     int crop_h = 9 * H / 10;
