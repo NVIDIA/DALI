@@ -196,7 +196,7 @@ class NumpyReaderCPU : public NumpyReader<CPUBackend, NumpyFileWrapper> {
    */
   size_t o_direct_alignm_ = 0;
   size_t o_direct_read_len_alignm_ = 0;
-  // OldThreadPool for prefetch which is a separate thread
+  // Thread Pool for prefetch which is a separate thread
   OldThreadPool thread_pool_;
 };
 
