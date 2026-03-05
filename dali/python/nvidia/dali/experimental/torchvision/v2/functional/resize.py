@@ -53,6 +53,10 @@ def resize(
     elif img.layout in ["CHW", "NCHW"]:
         original_h = img_shape[-2]
         original_w = img_shape[-1]
+    else:
+        raise ValueError(
+            f"Unsupported layout: {img.layout!r}. Expected one of HWC, NHWC, CHW, NCHW."
+        )
 
     target_h, target_w = Resize.calculate_target_size(
         (original_h, original_w), effective_size, max_size, size is None
