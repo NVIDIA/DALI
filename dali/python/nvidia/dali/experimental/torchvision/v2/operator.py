@@ -206,7 +206,7 @@ class Operator(ABC):
 
     def __call__(self, data_input):
 
-        Operator.verify_data(data_input)
+        type(self).verify_data(data_input)
 
         if self.device == "gpu":
             data_input = data_input.gpu()

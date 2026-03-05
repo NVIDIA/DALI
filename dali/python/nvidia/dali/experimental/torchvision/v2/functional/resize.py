@@ -40,8 +40,22 @@ def resize(
     effective_size, mode = Resize.infer_effective_size(size, max_size)
     interpolation = Resize.interpolation_modes[interpolation]
 
+    if isinstance(img, ndd.Tensor):
+        img_shape = img.shape
+    elif isinstance(img, ndd.Batch):
+        img_shape = img.shape[0]  # Batches have uniform layout
+    else:
+        raise TypeError(f"Input must be ndd.Tensor or ndd.Batch got {type(img)}")
+
+    if img.layout in ["HWC", "NHWC"]:
+        original_h = img_shape[-3]
+        original_w = img_shape[-2]
+    elif img.layout in ["CHW", "NCHW"]:
+        original_h = img_shape[-2]
+        original_w = img_shape[-1]
+
     target_h, target_w = Resize.calculate_target_size(
-        img.shape, effective_size, max_size, size is None
+        (original_h, original_w), effective_size, max_size, size is None
     )
 
     # Shorter edge limited by max size

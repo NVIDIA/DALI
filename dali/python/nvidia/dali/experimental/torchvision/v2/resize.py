@@ -24,6 +24,36 @@ from torchvision.transforms import InterpolationMode
 import numpy as np
 
 
+def get_inputHW(data_input):
+    """
+    Gets the height and width of the input data.
+
+    Parameters
+    ----------
+    data_input : Tensor
+       Input data to get the height and width of.
+
+    Returns
+    -------
+    input_height : int
+        Height of the input data.
+    input_width : int
+        Width of the input data.
+    """
+    layout = data_input.property("layout")[0]
+
+    # CWH
+    if layout == np.frombuffer(bytes("C", "utf-8"), dtype=np.uint8)[0]:
+        input_height = data_input.shape()[-1]
+        input_width = data_input.shape()[-2]
+    # HWC
+    else:
+        input_height = data_input.shape()[-3]
+        input_width = data_input.shape()[-2]
+
+    return input_height, input_width, data_input
+
+
 class VerificationSize(ArgumentVerificationRule):
     @classmethod
     def verify(cls, *, size, max_size, interpolation, **_):
@@ -84,7 +114,9 @@ class Resize(Operator):
         InterpolationMode.HAMMING: DALIInterpType.INTERP_GAUSSIAN,  # TODO:
         InterpolationMode.LANCZOS: DALIInterpType.INTERP_LANCZOS3,
     }
+
     arg_rules = [VerificationSize]
+    preprocess_data = get_inputHW
 
     @classmethod
     def infer_effective_size(
@@ -120,6 +152,7 @@ class Resize(Operator):
     ):
         orig_h = orig_size[0]
         orig_w = orig_size[1]
+
         target_h = effective_size[0]
         target_w = effective_size[1]
 
@@ -160,15 +193,24 @@ class Resize(Operator):
         with ``torchvision.transforms.Resize`` documentation and applies DALI operator on the
         ``data_input``.
         """
+        input_height, input_width, data_input = data_input
 
         target_h, target_w = Resize.calculate_target_size(
-            data_input.shape(), self.effective_size, self.max_size, self.size is None
+            orig_size=(input_height, input_width),
+            effective_size=self.effective_size,
+            max_size=self.max_size,
+            no_size=self.size is None,
         )
 
         # Shorter edge limited by max size
         if self.mode == "resize_shorter":
             return fn.resize(
-                data_input, device=self.device, resize_shorter=target_h, max_size=self.max_size
+                data_input,
+                device=self.device,
+                resize_shorter=target_h,
+                max_size=self.max_size,
+                antialias=self.antialias,
+                interp_type=self.interpolation,
             )
 
         return fn.resize(
@@ -179,4 +221,6 @@ class Resize(Operator):
                 fn.cast(target_w, dtype=dali.types.FLOAT),
             ),
             mode=self.mode,
+            antialias=self.antialias,
+            interp_type=self.interpolation,
         )

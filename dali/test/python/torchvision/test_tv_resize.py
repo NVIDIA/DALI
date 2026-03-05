@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import os
-from typing import Sequence
+from typing import Sequence, Literal, Union
 
 import numpy as np
 from nose2.tools import params, cartesian_params
@@ -50,6 +50,7 @@ def build_resize_transform(
     max_size: int = None,
     interpolation: transforms.InterpolationMode = transforms.InterpolationMode.BILINEAR,
     antialias: bool = False,
+    device: Literal["cpu", "gpu"] = "cpu",
 ):
     t = transforms.Compose(
         [
@@ -61,11 +62,57 @@ def build_resize_transform(
     td = Compose(
         [
             Resize(
-                size=resize, max_size=max_size, interpolation=interpolation, antialias=antialias
+                size=resize,
+                max_size=max_size,
+                interpolation=interpolation,
+                antialias=antialias,
+                device=device,
             ),
         ]
     )
     return t, td
+
+
+def _internal_loop(
+    input_data: Union[Image.Image, torch.Tensor],
+    t: transforms.Resize,
+    td: Resize,
+    resize: int | Sequence[int],
+    max_size: int = None,
+    interpolation: transforms.InterpolationMode = transforms.InterpolationMode.BILINEAR,
+    antialias: bool = False,
+):
+    out_fn = fn_tv.resize(
+        input_data,
+        size=resize,
+        max_size=max_size,
+        interpolation=interpolation,
+        antialias=antialias,
+    )
+    out_dali_fn = fn_dali.resize(
+        input_data,
+        size=resize,
+        max_size=max_size,
+        interpolation=interpolation,
+        antialias=antialias,
+    )
+    out_tv = t(input_data)
+    out_dali_tv = td(input_data)
+
+    if isinstance(input_data, Image.Image):
+        out_tv = transforms.functional.pil_to_tensor(out_tv).unsqueeze(0).permute(0, 2, 3, 1)
+        out_dali_tv = (
+            transforms.functional.pil_to_tensor(out_dali_tv).unsqueeze(0).permute(0, 2, 3, 1)
+        )
+        out_fn = transforms.functional.pil_to_tensor(out_fn)
+        out_dali_fn = transforms.functional.pil_to_tensor(out_dali_fn)
+
+    assert torch.allclose(
+        torch.tensor(out_tv.shape[1:3]), torch.tensor(out_dali_tv.shape[1:3]), rtol=0, atol=1
+    ), f"Should be:{out_tv.shape} is:{out_dali_tv.shape}"
+    assert torch.allclose(
+        torch.tensor(out_fn.shape[1:3]), torch.tensor(out_dali_fn.shape[1:3]), rtol=0, atol=1
+    ), f"Should be:{out_fn.shape} is:{out_dali_fn.shape}"
 
 
 def loop_images_test_no_build(
@@ -78,36 +125,43 @@ def loop_images_test_no_build(
 ):
     for fn in test_files:
         img = Image.open(fn)
-        out_fn = transforms.functional.pil_to_tensor(
-            fn_tv.resize(
-                img,
-                size=resize,
-                max_size=max_size,
-                interpolation=interpolation,
-                antialias=antialias,
-            )
-        )
-        out_dali_fn = transforms.functional.pil_to_tensor(
-            fn_dali.resize(
-                img,
-                size=resize,
-                max_size=max_size,
-                interpolation=interpolation,
-                antialias=antialias,
-            )
-        )
-
-        out_tv = transforms.functional.pil_to_tensor(t(img)).unsqueeze(0).permute(0, 2, 3, 1)
-        out_dali_tv = transforms.functional.pil_to_tensor(td(img)).unsqueeze(0).permute(0, 2, 3, 1)
-
-        assert torch.allclose(
-            torch.tensor(out_tv.shape[1:3]), torch.tensor(out_dali_tv.shape[1:3]), rtol=0, atol=1
-        ), f"Should be:{out_tv.shape} is:{out_dali_tv.shape}"
-        assert torch.allclose(
-            torch.tensor(out_fn.shape[1:3]), torch.tensor(out_dali_fn.shape[1:3]), rtol=0, atol=1
-        ), f"Should be:{out_fn.shape} is:{out_dali_fn.shape}"
-
+        _internal_loop(img, t, td, resize, max_size, interpolation, antialias)
         # assert torch.equal(out_tv, out_dali_tv)
+
+
+def build_tensors(max_size: int = 512, channels: int = 3):
+    h = torch.randint(10, max_size, (1,)).item()
+    w = torch.randint(10, max_size, (1,)).item()
+    tensors = [
+        torch.ones((channels, max_size, max_size)),
+        torch.ones((1, channels, max_size, max_size)),
+        torch.ones((10, channels, max_size, max_size)),
+        torch.ones((channels, max_size // 2, max_size)),
+        torch.ones((1, channels, max_size // 2, max_size)),
+        torch.ones((10, channels, max_size // 2, max_size)),
+        torch.ones((channels, max_size, max_size // 2)),
+        torch.ones((1, channels, max_size, max_size // 2)),
+        torch.ones((10, channels, max_size, max_size // 2)),
+        torch.ones((channels, h, w)),
+        torch.ones((1, channels, h, w)),
+        torch.ones((10, channels, h, w)),
+    ]
+
+    return tensors
+
+
+def loop_tensors_test(
+    resize: int | Sequence[int],
+    max_size: int = None,
+    interpolation: transforms.InterpolationMode = transforms.InterpolationMode.BILINEAR,
+    antialias: bool = False,
+    device: Literal["cpu", "gpu"] = "cpu",
+):
+    t, td = build_resize_transform(resize, max_size, interpolation, antialias, device)
+    tensors = build_tensors()
+
+    for tn in tensors:
+        _internal_loop(tn, t, td, resize, max_size, interpolation, antialias)
 
 
 def loop_images_test(
@@ -115,15 +169,22 @@ def loop_images_test(
     max_size: int = None,
     interpolation: transforms.InterpolationMode = transforms.InterpolationMode.BILINEAR,
     antialias: bool = False,
+    device: Literal["cpu", "gpu"] = "cpu",
 ):
-    t, td = build_resize_transform(resize, max_size, interpolation, antialias)
+    t, td = build_resize_transform(resize, max_size, interpolation, antialias, device)
     loop_images_test_no_build(t, td, resize, max_size, interpolation, antialias)
 
 
-@params(512, 2048, ([512, 512]), ([2048, 2048]))
-def test_resize_sizes(resize):
+@cartesian_params((512, 2048, ([512, 512]), ([2048, 2048])), ("cpu", "gpu"))
+def test_resize_sizes_images(resize, device):
     # Resize with single int (preserve aspect ratio)
-    loop_images_test(resize=resize)
+    loop_images_test(resize=resize, device=device)
+
+
+@cartesian_params((512, 2048, ([512, 512]), ([2048, 2048])), ("cpu", "gpu"))
+def test_resize_sizes_tensors(resize, device):
+    # Resize with single int (preserve aspect ratio)
+    loop_tensors_test(resize=resize, device=device)
 
 
 @params((480, 512), (100, 124), (None, 512), (1024, 512), ([256, 256], 512), (None, None))
@@ -180,7 +241,7 @@ def test_resize_max_sizes(resize, max_size):
     ([256, 256], transforms.InterpolationMode.BILINEAR),
     (640, transforms.InterpolationMode.BICUBIC),
 )
-def test_resize_interploation(resize, interpolation):
+def test_resize_interpoation(resize, interpolation):
     loop_images_test(resize=resize, interpolation=interpolation)
 
 
