@@ -286,7 +286,17 @@ switcher_path = os.path.join(html_static_path[0], "switcher.json")
 versions = []
 # the latest is in the archive
 correction = -1 if "dev" in version_long else 0
-for i in range(10, int(version_short.split(".")[1]) + correction):
+
+# releases for current major version
+v_major = int(version_short.split(".")[0])
+v_minor = int(version_short.split(".")[1])
+for i in range(0, v_minor + correction):
+    versions.append((f"{v_major}.{i}", f"dali_{v_major}_{i}_0"))
+
+# ToDo add logic to handle other major releases after 1 and before the current
+
+# releases pre 2.0
+for i in range(10, 54):
     if i >= 34:
         versions.append((f"1.{i}", f"dali_1_{i}_0", "short_user"))
     else:
