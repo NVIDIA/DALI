@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -71,7 +71,12 @@ DALI_SCHEMA(Cast)
     .NumOutput(1)
     .AllowSequences()
     .SupportVolumetric()
-    .AddTypeArg("dtype", R"code(Output data type.)code");
+    .AddTypeArg("dtype", R"code(Output data type.)code")
+    .OutputDType(0, [](const OpSpec &spec, span<const DALIDataType>) {
+      return spec.GetArgument<DALIDataType>("dtype");
+    })
+    .OutputNdim(0, [](const OpSpec &, span<const int> in) { return in[0]; })
+    .OutputLayout(0, [](const OpSpec &, span<const TensorLayout> in) { return in[0]; });
 
 DALI_SCHEMA(CastLike)
     .DocStr("Cast the first tensor to the type of the second tensor.")

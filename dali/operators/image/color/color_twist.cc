@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -50,7 +50,15 @@ they would in case of rotation.)code",
 If a value is not set, the input type is used.)code",
                     DALI_UINT8)
     .InputLayout(0, {"HWC", "FHWC", "DHWC"})
-    .AllowSequences();
+    .AllowSequences()
+    .OutputDType(0, [](const OpSpec &spec, span<const DALIDataType> in) {
+      DALIDataType dtype;
+      if (spec.TryGetArgument(dtype, "dtype"))
+        return dtype;
+      return in[0];
+    })
+    .OutputNdim(0, [](const OpSpec &, span<const int> in) { return in[0]; })
+    .OutputLayout(0, [](const OpSpec &, span<const TensorLayout> in) { return in[0]; });
 
 DALI_SCHEMA(ColorTransformBase)
     .DocStr(R"code(Base Schema for color transformations operators.)code")
