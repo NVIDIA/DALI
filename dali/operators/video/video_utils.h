@@ -60,17 +60,17 @@ std::vector<VideoFileMeta> GetVideoFiles(const std::string& file_root,
                                          const std::string& file_list);
 
 enum class FrameNumPolicy {
-  kNone,      // no frame number output
-  kScalar,    // first frame index as a scalar with shape (1,)
-  kSequence   // per-frame indices with shape (F,); padded frames get -1
+  None,      // no frame number output
+  Scalar,    // first frame index as a scalar with shape (1,)
+  Sequence   // per-frame indices with shape (F,); padded frames get -1
 };
 
 inline FrameNumPolicy ParseFrameNumPolicy(const std::string &s) {
   // "True"/"False" are the Python str(bool) representations, kept for backward compatibility
   // with code that passes enable_frame_num=True/False (Python bools).
-  if (s == "none" || s == "False")   return FrameNumPolicy::kNone;
-  if (s == "scalar" || s == "True")  return FrameNumPolicy::kScalar;
-  if (s == "sequence")               return FrameNumPolicy::kSequence;
+  if (s == "none" || s == "False")   return FrameNumPolicy::None;
+  if (s == "scalar" || s == "True")  return FrameNumPolicy::Scalar;
+  if (s == "sequence")               return FrameNumPolicy::Sequence;
   DALI_FAIL(make_string("Invalid enable_frame_num value: '", s,
                         "'. Valid values are: 'none', 'scalar', 'sequence'."));
 }

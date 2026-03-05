@@ -465,7 +465,7 @@ class VideoReaderDecoder
       output_desc.push_back({label_shape, DALI_INT32});
     }
 
-    if (frame_num_policy_ == FrameNumPolicy::kScalar) {
+    if (frame_num_policy_ == FrameNumPolicy::Scalar) {
       TensorListShape<1> frame_idx_shape = uniform_list_shape<1>(batch_size, {1});
       output_desc.push_back({frame_idx_shape, DALI_INT32});
     } else if (frame_num_policy_ == FrameNumPolicy::kSequence) {
@@ -533,7 +533,7 @@ class VideoReaderDecoder
         return make_cspan(&s.video_file_meta_->label, 1);
       });
     }
-    if (frame_num_policy_ == FrameNumPolicy::kScalar) {
+    if (frame_num_policy_ == FrameNumPolicy::Scalar) {
       OutputMetadata<int32_t>(ws, out_index++, [](auto &s) {
         return make_cspan(&s.start_, 1);
       });
@@ -700,7 +700,7 @@ The outputs of the operator are: video, [labels], [frame_num], [timestamps].
                         spec.HasArgument("file_root");
       bool has_frame_num =
           ParseFrameNumPolicy(spec.GetArgument<std::string>("enable_frame_num")) !=
-          FrameNumPolicy::kNone;
+          FrameNumPolicy::None;
       return 1 + has_labels + has_frame_num + spec.GetArgument<bool>("enable_timestamps");
     })
     .AddOptionalArg("filenames",
