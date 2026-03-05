@@ -71,6 +71,22 @@ This argument is mutually exclusive with `files`.)",
 
 `stick_to_shard` and `random_shuffle` cannot be used when this argument is set to True.)",
                     false)
+    .AddOptionalArg<int32_t>("shuffle_after_epoch_seed",
+                    R"(Random seed for the dataset shuffling performed after each epoch.
+
+If not provided, a fixed default seed is used, which results in the same shuffling
+pattern across different training runs. Providing a custom seed allows for different
+shuffle patterns across training runs, which may be desirable for better statistical
+properties.
+
+.. note::
+    When using multiple DALI pipelines (e.g., for multi-GPU training), all pipeline
+    instances should use the same `shuffle_after_epoch_seed` to ensure a consistent
+    global shuffle across all shards.
+
+.. note::
+    This argument has no effect unless `shuffle_after_epoch` is set to ``True``.)",
+                    nullptr, false)
     .AddOptionalArg<vector<string>>("files", R"(A list of file paths to read the data from.
 
 If `file_root` is provided, the paths are treated as being relative to it.

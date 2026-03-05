@@ -58,6 +58,12 @@ class DLL_PUBLIC FileLabelLoaderBase : public Loader<CPUBackend, ImageLabelWrapp
       shuffle_after_epoch_(shuffle_after_epoch),
       current_index_(0),
       current_epoch_(0) {
+    int32_t seed_arg = kDaliDataloaderSeed;
+    bool has_seed_arg = spec.TryGetArgument(seed_arg, "shuffle_after_epoch_seed");
+    shuffle_after_epoch_seed_ = seed_arg;
+    if (has_seed_arg && !shuffle_after_epoch_) {
+      DALI_WARN("`shuffle_after_epoch_seed` has no effect when `shuffle_after_epoch` is False.");
+    }
 
     vector<string> files;
     vector<int> labels;
@@ -227,7 +233,7 @@ class DLL_PUBLIC FileLabelLoaderBase : public Loader<CPUBackend, ImageLabelWrapp
         // the random distribution.
         file_label_entries_ = backup_file_label_entries_;
       }
-      std::mt19937 g(kDaliDataloaderSeed + current_epoch_);
+      std::mt19937 g(static_cast<uint32_t>(shuffle_after_epoch_seed_ + current_epoch_));
       std::shuffle(file_label_entries_.begin(), file_label_entries_.end(), g);
     }
   }
@@ -261,6 +267,7 @@ class DLL_PUBLIC FileLabelLoaderBase : public Loader<CPUBackend, ImageLabelWrapp
   bool has_file_root_arg_ = false;
 
   bool shuffle_after_epoch_;
+  int32_t shuffle_after_epoch_seed_;
   Index current_index_;
   int current_epoch_;
   FileStream::MappingReserver mmap_reserver_;
