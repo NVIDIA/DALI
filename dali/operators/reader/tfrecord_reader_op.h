@@ -79,7 +79,7 @@ class TFRecordReader
   bool dont_use_mmap_ = false;
   bool use_o_direct_ = false;
   size_t o_direct_chunk_size_ = 0;
-  // OldThreadPool for prefetch which is a separate thread
+  // Thread Pool for prefetch which is a separate thread
   OldThreadPool thread_pool_;
 };
 

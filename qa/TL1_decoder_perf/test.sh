@@ -5,6 +5,8 @@ target_dir=./internal_tools
 
 LOG1="dali_legacy.log"
 LOG2="dali_nvimgcodec.log"
+LOG1_TP="dali_legacy_new_tp.log"
+LOG2_TP="dali_nvimgcodec_new_tp.log"
 LOG1_NDD="dali_ndd_legacy.log"
 LOG2_NDD="dali_ndd_nvimgcodec.log"
 function CLEAN_AND_EXIT {
@@ -26,6 +28,8 @@ test_body() {
     # use taskset to avoid inefficient data migration between cores we don't want to use
     taskset --cpu-list 0-127 python hw_decoder_bench.py --width_hint 6000 --height_hint 6000 -b 408 -d 0 -g gpu -w 100 -t 100000 -i ${DALI_EXTRA_PATH}/db/single/jpeg -p rn50 -j 70 --hw_load 0.12 | tee ${LOG1}
     taskset --cpu-list 0-127 python hw_decoder_bench.py --width_hint 6000 --height_hint 6000 -b 408 -d 0 -g gpu -w 100 -t 100000 -i ${DALI_EXTRA_PATH}/db/single/jpeg -p rn50 -j 70 --hw_load 0.12 --experimental_decoder | tee ${LOG2}
+    DALI_USE_NEW_THREAD_POOL=1 taskset --cpu-list 0-127 python hw_decoder_bench.py --width_hint 6000 --height_hint 6000 -b 408 -d 0 -g gpu -w 100 -t 100000 -i ${DALI_EXTRA_PATH}/db/single/jpeg -p rn50 -j 70 --hw_load 0.12 | tee ${LOG1_TP}
+    DALI_USE_NEW_THREAD_POOL=1 taskset --cpu-list 0-127 python hw_decoder_bench.py --width_hint 6000 --height_hint 6000 -b 408 -d 0 -g gpu -w 100 -t 100000 -i ${DALI_EXTRA_PATH}/db/single/jpeg -p rn50 -j 70 --hw_load 0.12 --experimental_decoder | tee ${LOG2_TP}
     taskset --cpu-list 0-127 python hw_decoder_bench.py --width_hint 6000 --height_hint 6000 -b 408 -d 0 -g gpu -w 100 -t 100000 -i ${DALI_EXTRA_PATH}/db/single/jpeg -p ndd_rn50 -j 70 --hw_load 0.12 | tee ${LOG1_NDD}
     taskset --cpu-list 0-127 python hw_decoder_bench.py --width_hint 6000 --height_hint 6000 -b 408 -d 0 -g gpu -w 100 -t 100000 -i ${DALI_EXTRA_PATH}/db/single/jpeg -p ndd_rn50 -j 70 --hw_load 0.12 --experimental_decoder | tee ${LOG2_NDD}
 
@@ -37,7 +41,9 @@ test_body() {
     MIN_PERF2_NDD=20000;  # TODO(janton): remove this second value.
     # use taskset to avoid inefficient data migration between cores we don't want to use
     taskset --cpu-list 0-71 python hw_decoder_bench.py --width_hint 6000 --height_hint 6000 -b 408 -d 0 -g gpu -w 100 -t 100000 -i ${DALI_EXTRA_PATH}/db/single/jpeg -p rn50 -j 72 --hw_load 0.11 | tee ${LOG1}
-    taskset --cpu-list 0-71 python hw_decoder_bench.py --width_hint 6000 --height_hint 6000 -b 408 -d 0 -g gpu -w 100 -t 100000 -i ${DALI_EXTRA_PATH}/db/single/jpeg -p rn50 -j 72 --hw_load 0.11 --experimental_decoder | tee ${LOG2}
+    taskset --cpu-list 0-71 python hw_decoder_bench.py --width_hint 6000 --height_hint 6000 -b 408 -d 0 -g gpu -w 100 -t 100000 -i ${DALI_EXTRA_PATH}/db/single/jpeg -p rn50 -j 72 --hw_load 0.11 --experimental_decoder | tee ${LOG2_TP}
+    DALI_USE_NEW_THREAD_POOL=1 taskset --cpu-list 0-71 python hw_decoder_bench.py --width_hint 6000 --height_hint 6000 -b 408 -d 0 -g gpu -w 100 -t 100000 -i ${DALI_EXTRA_PATH}/db/single/jpeg -p rn50 -j 72 --hw_load 0.11 | tee ${LOG1}
+    DALI_USE_NEW_THREAD_POOL=1 taskset --cpu-list 0-71 python hw_decoder_bench.py --width_hint 6000 --height_hint 6000 -b 408 -d 0 -g gpu -w 100 -t 100000 -i ${DALI_EXTRA_PATH}/db/single/jpeg -p rn50 -j 72 --hw_load 0.11 --experimental_decoder | tee ${LOG2_TP}
     taskset --cpu-list 0-71 python hw_decoder_bench.py --width_hint 6000 --height_hint 6000 -b 408 -d 0 -g gpu -w 100 -t 100000 -i ${DALI_EXTRA_PATH}/db/single/jpeg -p ndd_rn50 -j 72 --hw_load 0.11 | tee ${LOG1_NDD}
     taskset --cpu-list 0-71 python hw_decoder_bench.py --width_hint 6000 --height_hint 6000 -b 408 -d 0 -g gpu -w 100 -t 100000 -i ${DALI_EXTRA_PATH}/db/single/jpeg -p ndd_rn50 -j 72 --hw_load 0.11 --experimental_decoder | tee ${LOG2_NDD}
   fi
@@ -78,21 +84,27 @@ test_body() {
   }
   PERF_RESULT1=$(perf_check "${LOG1}" "$MIN_PERF")
   PERF_RESULT2=$(perf_check "${LOG2}" "$MIN_PERF2")
+  PERF_RESULT1_TP=$(perf_check "${LOG1_TP}" "$MIN_PERF")
+  PERF_RESULT2_TP=$(perf_check "${LOG2_TP}" "$MIN_PERF2")
   PERF_RESULT1_NDD=$(perf_check "${LOG1_NDD}" "$MIN_PERF_NDD")
   PERF_RESULT2_NDD=$(perf_check "${LOG2_NDD}" "$MIN_PERF2_NDD")
   PERF_RESULT3=$(perf_check "${LOG2}" "$(extract_perf "${LOG1}")" 5)
   PERF_RESULT3_NDD=$(perf_check "${LOG2_NDD}" "$(extract_perf "${LOG1_NDD}")" 5)
+  PERF_RESULT1_TP=$(perf_check "${LOG1_TP}" "$(extract_perf "${LOG1}")" 2)
+  PERF_RESULT2_TP=$(perf_check "${LOG2_TP}" "$(extract_perf "${LOG2}")" 2)
 
   echo "PERF_RESULT1=${PERF_RESULT1}"
   echo "PERF_RESULT2=${PERF_RESULT2}"
   echo "PERF_RESULT3=${PERF_RESULT3}"
+  echo "PERF_RESULT1=${PERF_RESULT1_TP}"
+  echo "PERF_RESULT2=${PERF_RESULT2_TP}"
   echo "PERF_RESULT1_NDD=${PERF_RESULT1_NDD}"
   echo "PERF_RESULT2_NDD=${PERF_RESULT2_NDD}"
   echo "PERF_RESULT3_NDD=${PERF_RESULT3_NDD}"
 
   # if [[ "$PERF_RESULT1" == "OK" && "$PERF_RESULT2" == "OK" && "$PERF_RESULT3" == "OK" && "$PERF_RESULT1_NDD" == "OK"  && "$PERF_RESULT2_NDD" == "OK" && "$PERF_RESULT3_NDD" == "OK" ]]; then
   # don't check experimental decoder performance with dynamic mode
-  if [[ "$PERF_RESULT1" == "OK" && "$PERF_RESULT2" == "OK" && "$PERF_RESULT3" == "OK" && "$PERF_RESULT1_NDD" == "OK" ]]; then
+  if [[ "$PERF_RESULT1" == "OK" && "$PERF_RESULT2" == "OK" && "$PERF_RESULT1_TP" == "OK" && "$PERF_RESULT2_TP" == "OK" && "$PERF_RESULT3" == "OK" && "$PERF_RESULT1_NDD" == "OK" ]]; then
     CLEAN_AND_EXIT 0
   else
     CLEAN_AND_EXIT 1

@@ -351,7 +351,7 @@ class Executor2::Impl {
     thread_pool_wrappers_.clear();
 
     if (UseNewThreadPool()) {
-      std::cerr << "DEBUG: Using new thread pool" << std::endl;
+      std::cerr << "\n!!! Forced use of NewThreadPool !!!" << std::endl;
       if (graph_info_.num_cpu > 0) {
         new_tp_ = std::make_unique<NewThreadPool>(
           config_.thread_pool_threads,
