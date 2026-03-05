@@ -468,7 +468,7 @@ class VideoReaderDecoder
     if (frame_num_policy_ == FrameNumPolicy::Scalar) {
       TensorListShape<1> frame_idx_shape = uniform_list_shape<1>(batch_size, {1});
       output_desc.push_back({frame_idx_shape, DALI_INT32});
-    } else if (frame_num_policy_ == FrameNumPolicy::kSequence) {
+    } else if (frame_num_policy_ == FrameNumPolicy::Sequence) {
       TensorListShape<1> frame_idx_shape(batch_size);
       for (int sample_id = 0; sample_id < batch_size; ++sample_id) {
         auto num_frames = GetSample(sample_id).data_.shape()[0];
@@ -537,7 +537,7 @@ class VideoReaderDecoder
       OutputMetadata<int32_t>(ws, out_index++, [](auto &s) {
         return make_cspan(&s.start_, 1);
       });
-    } else if (frame_num_policy_ == FrameNumPolicy::kSequence) {
+    } else if (frame_num_policy_ == FrameNumPolicy::Sequence) {
       OutputMetadata<int32_t>(ws, out_index++, [](auto &s) {
         return make_cspan(s.frame_idx_);
       });
@@ -612,7 +612,7 @@ class VideoReaderDecoder
                << ", boundary_type=" << to_string(boundary_type_) << std::endl;
       int roi_start = sample->video_file_meta_->start_frame;
       int roi_end = sample->video_file_meta_->end_frame;
-      if (frame_num_policy_ == FrameNumPolicy::kSequence) {
+      if (frame_num_policy_ == FrameNumPolicy::Sequence) {
         sample->frame_idx_.resize(num_frames);
         for (int64_t i = 0; i < num_frames; ++i) {
           sample->frame_idx_[i] = static_cast<int32_t>(decoder_->HandleBoundary(
