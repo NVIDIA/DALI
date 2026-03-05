@@ -153,8 +153,20 @@ TEST(NewThreadPool, RunLargeIncrementalJobInThreadPool) {
 template <typename JobType>
 class NewThreadPoolJobTest : public ::testing::Test {};
 
-using JobTypes = ::testing::Types<Job, IncrementalJob>;
+template <typename JobType>
+class NewThreadPoolCooperativeJobTest : public ::testing::Test {};
+
+template <typename JobType>
+class NewThreadPoolNonCooperativeJobTest : public ::testing::Test {};
+
+using JobTypes = ::testing::Types<Job, IncrementalJob, CooperativeJob, CooperativeIncrementalJob>;
 TYPED_TEST_SUITE(NewThreadPoolJobTest, JobTypes);
+
+using CooperativeJobTypes = ::testing::Types<CooperativeJob, CooperativeIncrementalJob>;
+TYPED_TEST_SUITE(NewThreadPoolCooperativeJobTest, CooperativeJobTypes);
+
+using NonCooperativeJobTypes = ::testing::Types<Job, IncrementalJob>;
+TYPED_TEST_SUITE(NewThreadPoolNonCooperativeJobTest, NonCooperativeJobTypes);
 
 
 TYPED_TEST(NewThreadPoolJobTest, RunJobInSeries) {
@@ -184,12 +196,25 @@ TYPED_TEST(NewThreadPoolJobTest, Discard) {
   });
 }
 
-TYPED_TEST(NewThreadPoolJobTest, ErrorIncrementalJobNotStarted) {
+TYPED_TEST(NewThreadPoolJobTest, ErrorJobNotStarted) {
   try {
     TypeParam job;
     job.AddTask([]() {});
   } catch (std::logic_error &e) {
     EXPECT_NE(nullptr, strstr(e.what(), "The job is not empty"));
+    return;
+  }
+  GTEST_FAIL() << "Expected a logic error.";
+}
+
+TYPED_TEST(NewThreadPoolJobTest, ErrorWaitBeforeRun) {
+  TypeParam job;
+  try {
+    job.AddTask([]() {});
+    job.Wait();
+  } catch (std::logic_error &e) {
+    EXPECT_NE(nullptr, strstr(e.what(), "hasn't been run"));
+    job.Discard();
     return;
   }
   GTEST_FAIL() << "Expected a logic error.";
@@ -210,7 +235,7 @@ TYPED_TEST(NewThreadPoolJobTest, RethrowMultipleErrors) {
   EXPECT_THROW(job.Run(tp, true), MultipleErrors);
 }
 
-TYPED_TEST(NewThreadPoolJobTest, Reentrant) {
+TYPED_TEST(NewThreadPoolCooperativeJobTest, Reentrant) {
   TypeParam job;
   ThreadPoolBase tp(1);  // must not hang with just one thread
   std::atomic_int outer{0}, inner{0};
@@ -221,7 +246,7 @@ TYPED_TEST(NewThreadPoolJobTest, Reentrant) {
   }
 
   job.AddTask([&]() {
-    Job innerJob;
+    TypeParam innerJob;
 
     for (int i = 0; i < 10; i++)
       innerJob.AddTask([&, i]() {
@@ -239,6 +264,25 @@ TYPED_TEST(NewThreadPoolJobTest, Reentrant) {
     });
   }
   job.Run(tp, true);
+}
+
+TYPED_TEST(NewThreadPoolNonCooperativeJobTest, Reentrant) {
+  TypeParam job;
+  ThreadPoolBase tp(1);  // must not hang with just one thread
+  job.AddTask([&]() {
+    TypeParam innerJob;
+    innerJob.AddTask([]() {});
+
+    try {
+      innerJob.Run(tp, true);
+    } catch (...) {
+      innerJob.Discard();
+      throw;
+    }
+  });
+
+  job.Run(tp, false);
+  EXPECT_THROW(job.Wait(), std::logic_error);
 }
 
 TYPED_TEST(NewThreadPoolJobTest, JobPerf) {
