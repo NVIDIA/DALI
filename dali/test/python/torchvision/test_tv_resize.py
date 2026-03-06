@@ -27,10 +27,6 @@ from nvidia.dali.experimental.torchvision import Resize, Compose
 import nvidia.dali.experimental.torchvision.v2.functional as fn_dali
 
 
-def read_file(path):
-    return np.fromfile(path, dtype=np.uint8)
-
-
 def read_filepath(path):
     return np.frombuffer(path.encode(), dtype=np.int8)
 
@@ -107,12 +103,16 @@ def _internal_loop(
         out_fn = transforms.functional.pil_to_tensor(out_fn)
         out_dali_fn = transforms.functional.pil_to_tensor(out_dali_fn)
 
-    assert torch.allclose(
-        torch.tensor(out_tv.shape[1:3]), torch.tensor(out_dali_tv.shape[1:3]), rtol=0, atol=1
+    assert (
+        out_tv.shape[1:3] == out_dali_tv.shape[1:3]
     ), f"Should be:{out_tv.shape} is:{out_dali_tv.shape}"
-    assert torch.allclose(
-        torch.tensor(out_fn.shape[1:3]), torch.tensor(out_dali_fn.shape[1:3]), rtol=0, atol=1
+    assert (
+        out_fn.shape[1:3] == out_dali_fn.shape[1:3]
     ), f"Should be:{out_fn.shape} is:{out_dali_fn.shape}"
+
+    #  TODO:
+    # assert torch.allclose(out_tv, out_dali_tv, rtol=1, atol=1)
+    # assert torch.allclose(out_fn, out_dali_fn, rtol=1, atol=1)
 
 
 def loop_images_test_no_build(
@@ -126,10 +126,12 @@ def loop_images_test_no_build(
     for fn in test_files:
         img = Image.open(fn)
         _internal_loop(img, t, td, resize, max_size, interpolation, antialias)
-        # assert torch.equal(out_tv, out_dali_tv)
 
 
-def build_tensors(max_size: int = 512, channels: int = 3):
+def build_tensors(max_size: int = 512, channels: int = 3, seed=12345):
+
+    torch.manual_seed(seed)
+
     h = torch.randint(10, max_size, (1,)).item()
     w = torch.randint(10, max_size, (1,)).item()
     tensors = [
@@ -175,13 +177,13 @@ def loop_images_test(
     loop_images_test_no_build(t, td, resize, max_size, interpolation, antialias)
 
 
-@cartesian_params((512, 2048, ([512, 512]), ([2048, 2048])), ("cpu", "gpu"))
+@cartesian_params((512, 1125, 2048, ([512, 512]), ([2048, 2048])), ("cpu", "gpu"))
 def test_resize_sizes_images(resize, device):
     # Resize with single int (preserve aspect ratio)
     loop_images_test(resize=resize, device=device)
 
 
-@cartesian_params((512, 2048, ([512, 512]), ([2048, 2048])), ("cpu", "gpu"))
+@cartesian_params((512, 1125, 2048, ([512, 512]), ([2048, 2048])), ("cpu", "gpu"))
 def test_resize_sizes_tensors(resize, device):
     # Resize with single int (preserve aspect ratio)
     loop_tensors_test(resize=resize, device=device)
@@ -235,16 +237,45 @@ def test_resize_max_sizes(resize, max_size):
     loop_images_test(resize=resize, max_size=max_size)
 
 
-@params(
-    ([512, 512], transforms.InterpolationMode.NEAREST),
-    (1024, transforms.InterpolationMode.NEAREST_EXACT),
-    ([256, 256], transforms.InterpolationMode.BILINEAR),
-    (640, transforms.InterpolationMode.BICUBIC),
+@cartesian_params(
+    (
+        640,
+        768,
+        1024,
+        ([512, 512]),
+        ([256, 256]),
+    ),
+    (
+        transforms.InterpolationMode.NEAREST,
+        transforms.InterpolationMode.NEAREST_EXACT,
+        transforms.InterpolationMode.BILINEAR,
+        transforms.InterpolationMode.BICUBIC,
+    ),
+    ("cpu", "gpu"),
 )
-def test_resize_interpoation(resize, interpolation):
-    loop_images_test(resize=resize, interpolation=interpolation)
+def test_resize_interpolation(resize, interpolation, device):
+    if interpolation == transforms.InterpolationMode.NEAREST_EXACT:
+        with assert_raises(NotImplementedError):
+            loop_images_test(resize=resize, interpolation=interpolation, device=device)
+    else:
+        loop_images_test(resize=resize, interpolation=interpolation, device=device)
 
 
-@params((512, True), (2048, True), ([512, 512], True), ([2048, 2048], True))
-def test_resize_antialiasing(resize, antialiasing):
-    loop_images_test(resize=resize, antialias=antialiasing)
+@cartesian_params((512, 768, 2048, ([512, 512]), ([2048, 2048])), (True, False), ("cpu", "gpu"))
+def test_resize_antialiasing(resize, antialiasing, device):
+    loop_images_test(resize=resize, antialias=antialiasing, device=device)
+
+
+@cartesian_params((8192, 8193, 10243), ("cpu", "gpu"))
+def test_large_sizes_images(resize, device):
+    loop_images_test(resize=resize, device=device)
+
+
+"""
+These tests are too heavy they would cause timeouts
+
+@cartesian_params((8192, 8193, 10243), ("cpu", "gpu"))
+def test_large_sizes_tensors(resize, device):
+    # Resize with single int (preserve aspect ratio)
+    loop_tensors_test(resize=resize, device=device)
+"""

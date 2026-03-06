@@ -19,7 +19,7 @@ from ..operator import adjust_input  # noqa: E402
 
 
 @adjust_input
-def horizontal_flip(inpt: ndd.Tensor) -> ndd.Tensor:
+def horizontal_flip(inpt: ndd.Tensor | ndd.Batch) -> ndd.Tensor | ndd.Batch:
     """
     Horizontally flips the given tensor.
     Refer to `HorizontalFlip` for more details.
@@ -28,7 +28,7 @@ def horizontal_flip(inpt: ndd.Tensor) -> ndd.Tensor:
 
 
 @adjust_input
-def vertical_flip(inpt: ndd.Tensor) -> ndd.Tensor:
+def vertical_flip(inpt: ndd.Tensor | ndd.Batch) -> ndd.Tensor | ndd.Batch:
     """
     Vertically flips the given tensor.
     Refer to `VerticalFlip` for more details.

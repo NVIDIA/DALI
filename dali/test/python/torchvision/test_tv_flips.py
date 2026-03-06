@@ -20,7 +20,7 @@ from nvidia.dali.experimental.torchvision import Compose, RandomHorizontalFlip, 
 from nvidia.dali.experimental.torchvision.v2.functional import horizontal_flip, vertical_flip
 
 
-def make_test_tensor(shape=(1, 10, 10, 3)):
+def make_test_tensor(shape=(1, 3, 10, 10)):
     total = 1
     for s in shape:
         total *= s
@@ -58,7 +58,7 @@ def test_vertical_random_flip_probability(device):
 
 
 def test_flip_preserves_shape():
-    img = make_test_tensor((1, 15, 20, 3))
+    img = make_test_tensor((1, 3, 15, 20))
     hflip_pipeline = Compose([RandomHorizontalFlip(p=1.0)])
     hflip_fn = horizontal_flip(img).cpu()
     hflip = hflip_pipeline(img)

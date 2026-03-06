@@ -42,6 +42,10 @@ def get_inputHW(data_input):
     """
     layout = data_input.property("layout")[0]
 
+    # If data layout is NHWC or NCHW, check the next character
+    if layout == np.frombuffer(bytes("N", "utf-8"), dtype=np.uint8)[0]:
+        layout = data_input.property("layout")[1]
+
     # CHW
     if layout == np.frombuffer(bytes("C", "utf-8"), dtype=np.uint8)[0]:
         input_height = data_input.shape()[-2]
@@ -107,13 +111,20 @@ class Resize(Operator):
     # 'NEAREST', 'NEAREST_EXACT', 'BILINEAR', 'BICUBIC', 'BOX', 'HAMMING', 'LANCZOS'
     interpolation_modes = {
         InterpolationMode.NEAREST: DALIInterpType.INTERP_NN,
-        InterpolationMode.NEAREST_EXACT: DALIInterpType.INTERP_NN,  # TODO
         InterpolationMode.BILINEAR: DALIInterpType.INTERP_LINEAR,
         InterpolationMode.BICUBIC: DALIInterpType.INTERP_CUBIC,
-        InterpolationMode.BOX: DALIInterpType.INTERP_LINEAR,  # TODO:
-        InterpolationMode.HAMMING: DALIInterpType.INTERP_GAUSSIAN,  # TODO:
         InterpolationMode.LANCZOS: DALIInterpType.INTERP_LANCZOS3,
+        # Not supported, but need to be here to not generate ValueError during VerificationSize
+        InterpolationMode.NEAREST_EXACT: DALIInterpType.INTERP_NN,
+        InterpolationMode.BOX: DALIInterpType.INTERP_NN,
+        InterpolationMode.HAMMING: DALIInterpType.INTERP_NN,
     }
+
+    not_supported_interpolation_modes = [
+        InterpolationMode.NEAREST_EXACT,
+        InterpolationMode.BOX,
+        InterpolationMode.HAMMING,
+    ]
 
     arg_rules = [VerificationSize]
     preprocess_data = get_inputHW
@@ -123,47 +134,117 @@ class Resize(Operator):
         cls,
         size: Optional[int | Sequence[int]],
         max_size: Optional[int] = None,
-    ) -> int | Sequence[int]:
+    ) -> Optional[int | Sequence[int]]:
+        """Normalizes the size parameter. Called once at initialization.
 
-        mode = "default"
+        Returns the size in a canonical form:
 
+        - ``int`` — resize the shorter edge to this value (aspect-ratio preserving)
+        - ``None`` — use ``max_size`` only (resize so longer edge equals ``max_size``)
+        - ``(h, w)`` tuple/list — resize to the exact target dimensions
+        """
         if isinstance(size, (tuple, list)) and len(size) == 1:
             size = size[0]
-
-        if isinstance(size, int):
-            # If size is an int, smaller edge of the image will be matched to this number.
-            # If size is an int: if the longer edge of the image is greater than max_size
-            # after being resized according to size, size will be overruled so that the
-            # longer edge is equal to max_size. As a result, the smaller edge may be shorter
-            # than size.
-            mode = "resize_shorter"
-
-            return ((size, size), mode)
-
-        if size is None:
-            mode = "not_larger"
-            return ((max_size, max_size), mode)
-
-        return size, mode
+        return size
 
     @classmethod
-    def calculate_target_size(
-        cls, orig_size: Sequence[int], effective_size: Sequence[int], max_size: int, no_size: bool
+    def calculate_target_size_dynamic_mode(
+        cls,
+        orig_size: Sequence[int],
+        size: Optional[int | Sequence[int]],
+        max_size: Optional[int],
     ):
+        """Computes the output ``(out_h, out_w)`` compatible with ``torchvision.v2.Resize``.
+
+        Called per resize invocation with the actual input shape.
+
+        Note: This method needs to be called only when in Dynamic Mode
+        Unfortunately, both method are needed because of graph creation struggles with proper
+        translation of class methods calls
+        """
         orig_h = orig_size[0]
         orig_w = orig_size[1]
 
-        target_h = effective_size[0]
-        target_w = effective_size[1]
+        if isinstance(size, (tuple, list)):
+            # Exact target dimensions — return directly
+            return size[0], size[1]
 
-        # If size is None, then effective_size is max_size
-        if no_size:
-            if orig_h > orig_w:
-                target_w = (max_size * orig_w) / orig_h
+        if size is None:
+            # Only max_size given: resize so the longer edge equals max_size
+            if orig_h >= orig_w:
+                return max_size, int(max_size * orig_w / orig_h)
             else:
-                target_h = (max_size * orig_h) / orig_w
+                return int(max_size * orig_h / orig_w), max_size
 
-        return target_h, target_w
+        # size is int: resize the shorter edge to size, maintaining aspect ratio
+        s = size
+        if orig_h <= orig_w:
+            # height is the shorter (or equal) edge
+            out_h = s
+            out_w = int(s * orig_w / orig_h)
+            if max_size is not None and out_w > max_size:
+                out_h = int(max_size * out_h / out_w)
+                out_w = max_size
+        else:
+            # width is the shorter edge
+            out_h = int(s * orig_h / orig_w)
+            out_w = s
+            if max_size is not None and out_h > max_size:
+                out_w = int(max_size * out_w / out_h)
+                out_h = max_size
+
+        return out_h, out_w
+
+    @classmethod
+    def calculate_target_size_pipeline_mode(
+        cls,
+        orig_size: Sequence[int],
+        size: Optional[int | Sequence[int]],
+        max_size: Optional[int],
+    ):
+        """Computes the output ``(out_h, out_w)`` compatible with ``torchvision.v2.Resize``.
+
+        Called per resize invocation with the actual input shape.
+
+        Note: This method needs to be called only when in Pipeline Mode
+        """
+        orig_h = orig_size[0]
+        orig_w = orig_size[1]
+
+        if isinstance(size, (tuple, list)):
+            # Exact target dimensions — return directly
+            return size[0], size[1]
+
+        if size is None:
+            # Only max_size given: resize so the longer edge equals max_size
+            if orig_h >= orig_w:
+                return max_size, fn.cast(
+                    dali.math.floor(max_size * orig_w / orig_h), dtype=dali.types.INT32
+                )
+            else:
+                return (
+                    fn.cast(dali.math.floor(max_size * orig_h / orig_w), dtype=dali.types.INT32),
+                    max_size,
+                )
+
+        # size is int: resize the shorter edge to size, maintaining aspect ratio
+        s = size
+        if orig_h <= orig_w:
+            # height is the shorter (or equal) edge
+            out_h = s
+            out_w = fn.cast(dali.math.floor(s * orig_w / orig_h), dtype=dali.types.INT32)
+            if max_size is not None and out_w > max_size:
+                out_h = fn.cast(dali.math.floor(max_size * out_h / out_w), dtype=dali.types.INT32)
+                out_w = max_size
+        else:
+            # width is the shorter edge
+            out_h = fn.cast(dali.math.floor(s * orig_h / orig_w), dtype=dali.types.INT32)
+            out_w = s
+            if max_size is not None and out_h > max_size:
+                out_w = fn.cast(dali.math.floor(max_size * out_w / out_h), dtype=dali.types.INT32)
+                out_h = max_size
+
+        return out_h, out_w
 
     def __init__(
         self,
@@ -183,8 +264,12 @@ class Resize(Operator):
 
         self.size = size
         self.max_size = max_size
+
+        if interpolation in Resize.not_supported_interpolation_modes:
+            raise NotImplementedError(f"Interpolation mode: {interpolation} is not supported")
+
         self.interpolation = Resize.interpolation_modes[interpolation]
-        self.effective_size, self.mode = Resize.infer_effective_size(size, max_size)
+        self.size_normalized = Resize.infer_effective_size(size, max_size)
         self.antialias = antialias
 
     def _kernel(self, data_input):
@@ -193,25 +278,14 @@ class Resize(Operator):
         with ``torchvision.transforms.Resize`` documentation and applies DALI operator on the
         ``data_input``.
         """
-        input_height, input_width, data_input = data_input
 
-        target_h, target_w = Resize.calculate_target_size(
-            orig_size=(input_height, input_width),
-            effective_size=self.effective_size,
-            max_size=self.max_size,
-            no_size=self.size is None,
+        in_h, in_w, data_input = data_input
+
+        target_h, target_w = Resize.calculate_target_size_pipeline_mode(
+            (in_h, in_w),
+            self.size_normalized,
+            self.max_size,
         )
-
-        # Shorter edge limited by max size
-        if self.mode == "resize_shorter":
-            return fn.resize(
-                data_input,
-                device=self.device,
-                resize_shorter=target_h,
-                max_size=self.max_size,
-                antialias=self.antialias,
-                interp_type=self.interpolation,
-            )
 
         return fn.resize(
             data_input,
@@ -220,7 +294,6 @@ class Resize(Operator):
                 fn.cast(target_h, dtype=dali.types.FLOAT),
                 fn.cast(target_w, dtype=dali.types.FLOAT),
             ),
-            mode=self.mode,
-            antialias=self.antialias,
             interp_type=self.interpolation,
+            antialias=self.antialias,
         )

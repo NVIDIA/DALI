@@ -13,9 +13,11 @@
 # limitations under the License.
 
 from typing import Optional, List, Literal
-from torch import Tensor
 import nvidia.dali.experimental.dynamic as ndd
 from torchvision.transforms import InterpolationMode
+
+import torch
+from PIL import Image
 
 from ..operator import adjust_input  # noqa: E402
 from ..resize import Resize  # noqa: E402
@@ -23,13 +25,13 @@ from ..resize import Resize  # noqa: E402
 
 @adjust_input
 def resize(
-    img: Tensor,
+    inpt: Image.Image | torch.Tensor,
     size: List[int],
     interpolation: InterpolationMode = InterpolationMode.BILINEAR,
     max_size: Optional[int] = None,
     antialias: Optional[bool] = True,
     device: Literal["cpu", "gpu"] = "cpu",
-) -> Tensor:
+) -> Image.Image | torch.Tensor:
     """
     Please refer to the ``Resize`` operator for more details.
     """
@@ -37,47 +39,35 @@ def resize(
         size=size, max_size=max_size, interpolation=interpolation, antialias=antialias
     )
 
-    effective_size, mode = Resize.infer_effective_size(size, max_size)
+    size_normalized = Resize.infer_effective_size(size, max_size)
     interpolation = Resize.interpolation_modes[interpolation]
 
-    if isinstance(img, ndd.Tensor):
-        img_shape = img.shape
-    elif isinstance(img, ndd.Batch):
-        img_shape = img.shape[0]  # Batches have uniform layout
+    if isinstance(inpt, ndd.Tensor):
+        inpt_shape = inpt.shape
+    elif isinstance(inpt, ndd.Batch):
+        inpt_shape = inpt.shape[0]  # Batches have uniform layout
     else:
-        raise TypeError(f"Input must be ndd.Tensor or ndd.Batch got {type(img)}")
+        raise TypeError(f"Input must be ndd.Tensor or ndd.Batch got {type(inpt)}")
 
-    if img.layout in ["HWC", "NHWC"]:
-        original_h = img_shape[-3]
-        original_w = img_shape[-2]
-    elif img.layout in ["CHW", "NCHW"]:
-        original_h = img_shape[-2]
-        original_w = img_shape[-1]
+    if inpt.layout in ["HWC", "NHWC"]:
+        original_h = inpt_shape[-3]
+        original_w = inpt_shape[-2]
+    elif inpt.layout in ["HW", "CHW", "NCHW"]:
+        original_h = inpt_shape[-2]
+        original_w = inpt_shape[-1]
     else:
         raise ValueError(
-            f"Unsupported layout: {img.layout!r}. Expected one of HWC, NHWC, CHW, NCHW."
+            f"Unsupported layout: {inpt.layout!r}. Expected one of HWC, NHWC, CHW, NCHW."
         )
 
-    target_h, target_w = Resize.calculate_target_size(
-        (original_h, original_w), effective_size, max_size, size is None
+    target_h, target_w = Resize.calculate_target_size_dynamic_mode(
+        (original_h, original_w), size_normalized, max_size
     )
 
-    # Shorter edge limited by max size
-    if mode == "resize_shorter":
-        return ndd.resize(
-            img,
-            device=device,
-            resize_shorter=target_h,
-            max_size=max_size,
-            interp_type=interpolation,
-            antialias=antialias,
-        )
-
     return ndd.resize(
-        img,
+        inpt,
         device=device,
         size=(target_h, target_w),
-        mode=mode,
         interp_type=interpolation,
         antialias=antialias,
     )

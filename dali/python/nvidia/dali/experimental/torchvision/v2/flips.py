@@ -25,16 +25,17 @@ class RandomFlip(Operator):
     ----------
         p : float
             Probability of the image being flipped. Default value is 0.5
-        horizontal : int
-            Flip the horizontal dimension if 1, vertical if 0
+        horizontal : bool
+            Flip the horizontal dimension if True, vertical otherwise
         device : Literal["cpu", "gpu"], optional, default = "cpu"
             Device to use for the flip. Can be ``"cpu"`` or ``"gpu"``.
     """
 
-    def __init__(self, p: float = 0.5, horizontal: int = 1, device: Literal["cpu", "gpu"] = "cpu"):
+    def __init__(
+        self, p: float = 0.5, horizontal: bool = True, device: Literal["cpu", "gpu"] = "cpu"
+    ):
         super().__init__(device=device)
         self.prob = p
-        self.device = device
         self.horizontal = horizontal
 
     def _kernel(self, data_input):

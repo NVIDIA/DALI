@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from abc import ABC, abstractmethod
 from typing import List, Sequence, Callable, Union
 
 import nvidia.dali.fn as fn
@@ -78,7 +79,7 @@ def _pipeline_function(op_list, layout="HWC"):
     return input_node
 
 
-class PipelineWithLayout:
+class PipelineWithLayout(ABC):
     """Base class for pipeline layouts.
 
     This class is a base class for DALI pipelines with a specific layout. It is used to handle
@@ -98,6 +99,17 @@ class PipelineWithLayout:
     **dali_pipeline_kwargs
         Additional keyword arguments for the DALI pipeline.
     """
+
+    def _cuda_run(self, data_input):
+        device_id = data_input.device.index if isinstance(data_input, torch.Tensor) else 0
+        stream = torch.cuda.Stream(device=device_id)
+        with torch.cuda.stream(stream):
+            output = self.pipe.run(stream, input_data=data_input)
+
+        return output
+
+    def _cpu_run(self, data_input):
+        return self.pipe.run(input_data=data_input)
 
     def __init__(
         self,
@@ -124,16 +136,11 @@ class PipelineWithLayout:
             num_threads=num_threads,
             **dali_pipeline_kwargs,
         )
+        self._internal_run = self._cuda_run if torch.cuda.is_available() else self._cpu_run
 
     def run(self, data_input):
-        output = None
 
-        if torch.cuda.is_available():
-            stream = torch.cuda.Stream(0)
-            with torch.cuda.stream(stream):
-                output = self.pipe.run(stream, input_data=data_input)
-        else:
-            output = self.pipe.run(input_data=data_input)
+        output = self._internal_run(data_input)
 
         if output is None:
             return output
@@ -146,9 +153,14 @@ class PipelineWithLayout:
 
         return output
 
+    @abstractmethod
     def get_layout(self) -> str: ...
 
+    @abstractmethod
     def get_channel_reverse_idx(self) -> int: ...
+
+    @abstractmethod
+    def verify_layout(self, data) -> None: ...
 
     def is_conversion_to_tensor(self) -> bool:
         return self.convert_to_tensor
@@ -192,9 +204,14 @@ class PipelineHWC(PipelineWithLayout):
         channels = self.get_channel_reverse_idx()
 
         # TODO: consider when to convert to PIL.Image - e.g. if it make sense for channels < 3
-        if in_tensor.shape[channels] == 1:
+        # There is noi certain method to determine if the tensor is HW, HWC, or NHWC.
+        # The method below checks if tensor's shape is HW or ...HWC with a single channel
+        if len(in_tensor.shape) == 2 or (
+            len(in_tensor.shape) >= 3 and in_tensor.shape[channels] == 1
+        ):
             mode = "L"
-            in_tensor = in_tensor.squeeze(-1)
+            if len(in_tensor.shape) != 2:
+                in_tensor = in_tensor.squeeze(-1)
         elif in_tensor.shape[channels] == 3:
             mode = "RGB"
         elif in_tensor.shape[channels] == 4:
@@ -241,6 +258,10 @@ class PipelineHWC(PipelineWithLayout):
 
     def get_channel_reverse_idx(self) -> int:
         return -1
+
+    def verify_layout(self, data_input) -> None:
+        if not isinstance(data_input, Image.Image):
+            raise TypeError(f"The pipeline expects PIL.Images as input got {type(data_input)}")
 
 
 class PipelineCHW(PipelineWithLayout):
@@ -299,6 +320,10 @@ class PipelineCHW(PipelineWithLayout):
 
     def get_channel_reverse_idx(self) -> int:
         return -3
+
+    def verify_layout(self, data_input) -> None:
+        if not isinstance(data_input, torch.Tensor):
+            raise TypeError(f"The pipeline expects torch.Tensor as input got {type(data_input)}")
 
 
 class Compose:
@@ -364,5 +389,7 @@ class Compose:
 
         if self.active_pipeline is None:
             self._build_pipeline(data_input)
+
+        self.active_pipeline.verify_layout(data_input)
 
         return self.active_pipeline.run(data_input=data_input)

@@ -208,6 +208,8 @@ class Operator(ABC):
 
         type(self).verify_data(data_input)
 
+        # Original input is transfered to GPU, before being preprocess_data.
+        # The preprocess_data creates an arbitrary tuple
         if self.device == "gpu":
             data_input = data_input.gpu()
 
@@ -239,22 +241,26 @@ def adjust_input(func):
          L, RGB, or RGBA mode
         - torch.Tensor:
           ndim==3 -> ndd.Tensor(layout = "CHW"),
-          ndim>3 -> ndd.Batch(layout="NCHW")
+          ndim>3  -> ndd.Batch(layout="CHW")  (workaround for DALI-4566; intended: layout="NCHW")
         """
         mode = "RGB"
         if isinstance(inpt, Image.Image):
-            _input = ndd.Tensor(np.array(inpt, copy=True), layout="HWC")
-            if _input.shape[-1] == 1:
-                mode = "L"
-            elif _input.shape[-1] == 4:
-                mode = "RGBA"
+            mode = inpt.mode
+            if mode == "L":
+                _input = ndd.Tensor(np.array(inpt, copy=True), layout="HW")
+            elif mode in ["RGB", "RGBA"]:  # Modes RGB, RGBA
+                _input = ndd.Tensor(np.array(inpt, copy=True), layout="HWC")
+            else:
+                raise ValueError(f"Mode {mode} is not supported, expected, L, RGB, RGBA")
         elif isinstance(inpt, torch.Tensor):
             if inpt.ndim == 3:
                 _input = ndd.Tensor(inpt, layout="CHW")
             elif inpt.ndim > 3:
-                # The following should work, bug: https://jirasw.nvidia.com/browse/DALI-4566
+                # Creating baches of NHWC does not work, because of:
+                # https://jirasw.nvidia.com/browse/DALI-4566
+                # It should be implemented as:
                 # _input = ndd.as_batch(inpt, layout="NCHW")
-                # WAR:
+                # currently workarounded as:
                 _input = ndd.as_batch(ndd.as_tensor(inpt), layout="CHW")
             else:
                 raise TypeError(f"Tensor has < 3 dimensions: {inpt.ndim}, shape: {inpt.shape}")
@@ -276,7 +282,7 @@ def adjust_input(func):
         """
         if isinstance(inpt, Image.Image):
             if output.shape[-1] == 1:
-                output = np.asarray(output).squeeze(2)
+                output = np.asarray(output).squeeze(-1)
                 mode = "L"
             return Image.fromarray(np.asarray(output), mode=mode)
         elif isinstance(inpt, torch.Tensor):
