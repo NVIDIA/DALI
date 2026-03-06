@@ -48,7 +48,7 @@ class DLL_PUBLIC VideoDecoderBase : public Operator<Backend> {
     if (spec_.HasArgument("device")) {
       auto device_str = spec_.template GetArgument<std::string>("device");
       if (device_str == "mixed") {
-        thread_pool_ = std::make_unique<ThreadPool>(
+        thread_pool_ = std::make_unique<OldThreadPool>(
             spec.GetArgument<int>("num_threads"), spec.GetArgument<int>("device_id"),
             spec.GetArgument<bool>("affine"), "VideoDecoder");
       }

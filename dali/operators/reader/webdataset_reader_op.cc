@@ -50,7 +50,7 @@ void WebdatasetReader::RunImpl(Workspace &ws) {
     auto& output = ws.Output<CPUBackend>(output_idx);
     for (int data_idx = 0; data_idx < num_samples; data_idx++) {
       auto& sample = GetSample(data_idx);
-      ThreadPool::Work copy_task = [output_idx = output_idx, data_idx = data_idx, &output,
+      auto copy_task = [output_idx = output_idx, data_idx = data_idx, &output,
                                     &sample](int) {
         output.SetMeta(data_idx, sample[output_idx].GetMeta());
         std::memcpy(output.raw_mutable_tensor(data_idx), sample[output_idx].raw_data(),

@@ -84,7 +84,7 @@ TEST(ExecGraphTest, SimpleGraph) {
   LimitBackendConcurrency(g, OpType::CPU);
 
   WorkspaceParams params = {};
-  auto tp = std::make_unique<ThreadPool>(std::thread::hardware_concurrency(), 0, false, "test");
+  auto tp = std::make_unique<OldThreadPool>(std::thread::hardware_concurrency(), 0, false, "test");
   ExecEnv env;
   env.thread_pool = tp.get();
   params.env = &env;
@@ -144,7 +144,7 @@ TEST(ExecGraphTest, SimpleGraphRepeat) {
   g.Link(n1, 0, n2, 1);
   g.Link(n2, 0, no, 0);
   LimitBackendConcurrency(g, OpType::CPU);
-  ThreadPool tp(4, 0, false, "test");
+  OldThreadPool tp(4, 0, false, "test");
   WorkspaceParams params = {};
   ExecEnv env;
   env.thread_pool = &tp;
@@ -212,7 +212,7 @@ TEST(ExecGraphTest, SimpleGraphScheduleAheadCPU) {
   g.Link(n2, 0, no, 0);
   LimitBackendConcurrency(g, OpType::CPU);
 
-  ThreadPool tp(4, 0, false, "test");
+  OldThreadPool tp(4, 0, false, "test");
   WorkspaceParams params = {};
   ExecEnv env;
   env.thread_pool = &tp;
@@ -306,7 +306,7 @@ TEST(ExecGraphTest, GraphScheduleAheadGPU) {
   n2->env.order = s2;
   no->env.order = s3;
 
-  ThreadPool tp(4, 0, false, "test");
+  OldThreadPool tp(4, 0, false, "test");
 
   n1->env.thread_pool = &tp;
 
@@ -379,7 +379,7 @@ TEST(ExecGraphTest, Exception) {
   g.Link(n1, 0, n2, 1);
   g.Link(n2, 0, no, 0);
   LimitBackendConcurrency(g, OpType::CPU);
-  ThreadPool tp(std::thread::hardware_concurrency(), 0, false, "test");
+  OldThreadPool tp(std::thread::hardware_concurrency(), 0, false, "test");
   WorkspaceParams params = {};
   ExecEnv env;
   env.thread_pool = &tp;
@@ -460,7 +460,7 @@ TEST(ExecGraphTest, LoweredExec) {
   g.Lower(def);
   LimitBackendConcurrency(g, OpType::CPU);
 
-  ThreadPool tp(std::thread::hardware_concurrency(), 0, false, "test");
+  OldThreadPool tp(std::thread::hardware_concurrency(), 0, false, "test");
   WorkspaceParams params = {};
   ExecEnv env;
   env.thread_pool = &tp;
