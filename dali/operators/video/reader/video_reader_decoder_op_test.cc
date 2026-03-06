@@ -137,7 +137,7 @@ class VideoReaderDecoderBaseTest : public VideoTestBase {
       .AddArg("device", backend)
       .AddArg("sequence_length", sequence_length)
       .AddArg("random_shuffle", true)
-      .AddArg("enable_frame_num", true)
+      .AddArg("enable_frame_num", "scalar")
       .AddArg("initial_fill", cfr_videos_[0].NumFrames())
       .AddArg(
         "filenames",
