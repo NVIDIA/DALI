@@ -156,8 +156,8 @@ def test_standalone_op_reader():
         ws.SetStream(stream)
         op.SetupAndRun(ws)
         # get the output
-        (out_img, out_label) = ws.GetOutputs()
-        (ref_img, ref_label) = pipe.run()
+        out_img, out_label = ws.GetOutputs()
+        ref_img, ref_label = pipe.run()
         for i in range(batch_size):
             assert np.array_equal(out_img[i], ref_img[i])
             assert np.array_equal(out_label[i], ref_label[i])

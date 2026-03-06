@@ -36,7 +36,7 @@ def run_decode(data_path, out_type):
     length = pipe.reader_meta(name="reader")["epoch_size"]
     while samples < length:
         samples += batch_size
-        (images, decoded_shape, raw_shape) = pipe.run()
+        images, decoded_shape, raw_shape = pipe.run()
         for i in range(batch_size):
             # as we are asking for a particular color space it may
             # differ from the source image, so don't compare it

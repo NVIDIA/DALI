@@ -26,7 +26,7 @@ static std::vector<int> permutations3[] = {
   {2, 1, 0},
 };
 
-static void TransposeGPUArgs(benchmark::internal::Benchmark *b) {
+static void TransposeGPUArgs(benchmark::Benchmark *b) {
   for (int batch_size = 256; batch_size >= 1; batch_size /= 2) {
     for (int H : dimensions) {
       for (int W : dimensions) {

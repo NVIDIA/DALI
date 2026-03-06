@@ -36,7 +36,6 @@ from nvidia.dali._multiproc.shared_batch import (
 )
 from nvidia.dali._multiproc.shared_queue import ShmQueue
 
-
 """
 A pipeline with parallel external sources creates `WorkerPool` to parallelize sources computation.
 Each external source in the pipeline has its own `ShmChunkManager` with a view on shm chunks

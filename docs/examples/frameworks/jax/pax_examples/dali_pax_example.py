@@ -40,7 +40,6 @@ from praxis.layers import poolings
 
 from pax_examples.dali_pax_input import MnistDaliInput
 
-
 NestedMap = py_utils.NestedMap
 template_field = base_layer.template_field
 JTensor = pytypes.JTensor

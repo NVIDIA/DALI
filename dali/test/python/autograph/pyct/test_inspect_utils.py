@@ -179,13 +179,11 @@ class InspectUtilsTest(unittest.TestCase):
 
             return wrapper
 
-        expected = textwrap.dedent(
-            """
+        expected = textwrap.dedent("""
     @functools.wraps(f)
     def wrapper(*args, **kwargs):
         return f(*args, **kwargs)
-    """
-        )
+    """)
 
         @wrapper_decorator
         def test_fn(a):
@@ -195,13 +193,11 @@ class InspectUtilsTest(unittest.TestCase):
         self.assertSourceIdentical(inspect_utils.getimmediatesource(test_fn), expected)
 
     def test_getimmediatesource_functools_wrapper_different_module(self):
-        expected = textwrap.dedent(
-            """
+        expected = textwrap.dedent("""
     @functools.wraps(f)
     def wrapper(*args, **kwargs):
         return f(*args, **kwargs)
-    """
-        )
+    """)
 
         @decorators.wrapping_decorator
         def test_fn(a):
@@ -211,12 +207,10 @@ class InspectUtilsTest(unittest.TestCase):
         self.assertSourceIdentical(inspect_utils.getimmediatesource(test_fn), expected)
 
     def test_getimmediatesource_normal_decorator_different_module(self):
-        expected = textwrap.dedent(
-            """
+        expected = textwrap.dedent("""
     def standalone_wrapper(*args, **kwargs):
         return f(*args, **kwargs)
-    """
-        )
+    """)
 
         @decorators.standalone_decorator
         def test_fn(a):
@@ -226,12 +220,10 @@ class InspectUtilsTest(unittest.TestCase):
         self.assertSourceIdentical(inspect_utils.getimmediatesource(test_fn), expected)
 
     def test_getimmediatesource_normal_functional_decorator_different_module(self):
-        expected = textwrap.dedent(
-            """
+        expected = textwrap.dedent("""
     def functional_wrapper(*args, **kwargs):
         return f(*args, **kwargs)
-    """
-        )
+    """)
 
         @decorators.functional_decorator()
         def test_fn(a):

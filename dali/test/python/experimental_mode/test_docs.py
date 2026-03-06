@@ -15,7 +15,6 @@
 import nvidia.dali.experimental.dynamic as ndd
 import re
 
-
 _graph_regex = re.compile(r".*(^|[^A-Za-z0-9_])[Gg]raph([ .,)]|$).*")
 
 

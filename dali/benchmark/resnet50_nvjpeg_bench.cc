@@ -115,7 +115,7 @@ BENCHMARK_DEFINE_F(RealRN50, nvjpegPipe)(benchmark::State& st) { // NOLINT
       benchmark::Counter::kIsRate);
 }
 
-static void PipeArgs(benchmark::internal::Benchmark *b) {
+static void PipeArgs(benchmark::Benchmark *b) {
   for (int executor = 2; executor < 3; ++executor) {
     for (int batch_size = 128; batch_size <= 128; batch_size += 32) {
       for (int num_thread = 1; num_thread <= 4; ++num_thread) {

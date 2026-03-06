@@ -85,7 +85,7 @@ class DecoderBench : public DALIBenchmark {
   }
 };
 
-static void PipeArgs(benchmark::internal::Benchmark *b) {
+static void PipeArgs(benchmark::Benchmark *b) {
   for (int batch_size = 1; batch_size <= 128; batch_size <<= 1) {
     for (int num_thread = 1; num_thread <= 4; ++num_thread) {
       b->Args({batch_size, num_thread});

@@ -18,7 +18,6 @@ import jax.dlpack
 from nvidia.dali.backend import TensorGPU
 from packaging.version import Version
 
-
 _jax_has_old_dlpack = Version(jax.__version__) < Version("0.4.16")
 
 

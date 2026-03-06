@@ -23,7 +23,6 @@ from nose_utils import with_setup
 from test_utils_tensorflow import skip_inputs_for_incompatible_tf
 from test_utils import get_dali_extra_path
 
-
 test_data_root = get_dali_extra_path()
 lmdb_folder = os.path.join(test_data_root, "db", "lmdb")
 

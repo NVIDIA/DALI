@@ -884,7 +884,7 @@ def test_reader_operator_codec_support(device, codec, sequence_length=3, stride=
         return videos, frame_no
 
     pipe = decoder_pipeline(batch_size=batch_size, num_threads=2, device_id=0)
-    (out, frame_no) = pipe.run()
+    out, frame_no = pipe.run()
     assert len(out) > 0, f"No output from decoder pipeline for {codec}"
 
     for i in range(batch_size):

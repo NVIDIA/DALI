@@ -26,7 +26,6 @@ from nvidia.dali._autograph.pyct import transformer
 from nvidia.dali._autograph.pyct.static_analysis import activity
 from nvidia.dali._autograph.pyct.static_analysis import annos
 
-
 QN = qual_names.QN
 NodeAnno = annos.NodeAnno
 

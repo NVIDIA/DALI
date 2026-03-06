@@ -35,15 +35,12 @@ from collections.abc import Mapping, Iterable
 
 _dali_tf_module = dali_tf_plugin.load_dali_tf_plugin()
 _dali_tf = _dali_tf_module.dali
-_dali_tf.__doc__ = (
-    _dali_tf.__doc__
-    + """
+_dali_tf.__doc__ = _dali_tf.__doc__ + """
 
     Please keep in mind that TensorFlow allocates almost all available device memory by default.
     This might cause errors in DALI due to insufficient memory. On how to change this behavior
     please look into the TensorFlow documentation, as it may differ based on your use case.
 """
-)
 
 _experimental_dataset_docstring = """Experimental variant of
 :class:`~nvidia.dali.plugin.tf.DALIDataset`. This dataset adds support for input tf.data.Datasets.
@@ -229,10 +226,8 @@ def DALIIteratorWrapper(
         cpu_prefetch_queue_depth = prefetch_queue_depth["cpu_size"]
         gpu_prefetch_queue_depth = prefetch_queue_depth["gpu_size"]
         if exec_dynamic:
-            raise ValueError(
-                """Separated queues are incompatible with the default execution model.
-                Please set ``exec_dynamic=False`` in the pipeline constructor or @pipeline_def."""
-            )
+            raise ValueError("""Separated queues are incompatible with the default execution model.
+                Please set ``exec_dynamic=False`` in the pipeline constructor or @pipeline_def.""")
     elif type(prefetch_queue_depth) is int:
         exec_separated = False
         cpu_prefetch_queue_depth = -1  # dummy: wont' be used

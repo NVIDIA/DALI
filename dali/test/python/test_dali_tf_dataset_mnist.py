@@ -24,7 +24,6 @@ import tensorflow.compat.v1 as tf_v1
 from packaging.version import Version
 from nose_utils import SkipTest
 
-
 TARGET = 0.8
 BATCH_SIZE = 64
 DROPOUT = 0.2

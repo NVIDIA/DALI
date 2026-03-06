@@ -28,7 +28,6 @@ from test_audio_utils_librosa_ref import stft
 from nose2.tools import params
 from nose_utils import assert_raises
 
-
 audio_files = get_files("db/audio/wav", "wav")
 
 

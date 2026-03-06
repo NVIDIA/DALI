@@ -27,7 +27,6 @@ import nvidia.dali.fn as fn
 import nvidia.dali.types as types
 import nvidia.dali.plugin.pytorch as dali_pytorch
 
-
 batch_size = 4
 
 

@@ -24,7 +24,6 @@ from nose2.tools import params
 from nose_utils import assert_raises
 from test_utils import get_dali_extra_path, check_batch, restrict_python_version
 
-
 test_data_root = get_dali_extra_path()
 images_dir = os.path.join(test_data_root, "db", "single", "jpeg")
 

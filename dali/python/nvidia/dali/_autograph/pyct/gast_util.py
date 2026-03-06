@@ -13,6 +13,7 @@
 # limitations under the License.
 # ==============================================================================
 """Gast compatibility library. Supports 0.2.2 and 0.3.2."""
+
 # TODO(mdan): Remove this file once it's safe to break compatibility.
 
 import functools

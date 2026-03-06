@@ -25,7 +25,6 @@ from nvidia.dali._autograph.pyct import transformer
 from nvidia.dali._autograph.pyct.static_analysis import activity
 from nvidia.dali._autograph.pyct.static_analysis import reaching_definitions
 
-
 global_a = 7
 global_b = 17
 

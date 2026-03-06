@@ -25,7 +25,6 @@ from nose2.tools import params
 from test_utils import load_test_operator_plugin
 from nvidia.dali.pipeline.experimental import pipeline_def as pipeline_def_experimental
 
-
 load_test_operator_plugin()
 
 

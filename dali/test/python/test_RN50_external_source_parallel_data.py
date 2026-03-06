@@ -24,7 +24,6 @@ from test_RN50_external_source_parallel_utils import (
     get_pipe_factories,
 )
 
-
 # This test requires significant amount of shared memory to be able to pass
 # the batches between worker processes and the main process. If running in docker
 # make sure that -shm-size is big enough.

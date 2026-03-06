@@ -26,7 +26,6 @@ from nvidia.dali._autograph.pyct.static_analysis import activity
 from nvidia.dali._autograph.pyct.static_analysis import liveness
 from nvidia.dali._autograph.pyct.static_analysis import reaching_fndefs
 
-
 global_a = 7
 global_b = 17
 

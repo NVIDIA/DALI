@@ -20,7 +20,6 @@ from nvidia.dali.data_node import DataNode as _DataNode
 from nvidia.dali.pipeline import Pipeline as _Pipeline
 from nvidia.dali.types import CUDAStream as _CUDAStream
 
-
 cupy = None
 
 

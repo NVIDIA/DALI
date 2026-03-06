@@ -34,7 +34,6 @@ import threading
 from types import ModuleType
 from typing import List, Union
 
-
 # Generally such lookups should be done using `threading.local()`. See
 # https://blogs.gnome.org/jamesh/2008/06/11/tls-python/ for a detailed
 # explanation of why. However the transform stacks are expected to be empty

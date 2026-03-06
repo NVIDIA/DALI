@@ -20,7 +20,6 @@ from nvidia.dali import pipeline_def
 import nvidia.dali.fn as fn
 import nvidia.dali.types as types
 
-
 training_data_path = os.path.join(
     os.environ["DALI_EXTRA_PATH"], "db/MNIST/training/"
 )

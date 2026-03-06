@@ -87,7 +87,7 @@ class SliceBenchGPU : public DALIBenchmark {
   }
 };
 
-static void SliceKernelArgs_GPU_OnlySlice(benchmark::internal::Benchmark *b) {
+static void SliceKernelArgs_GPU_OnlySlice(benchmark::Benchmark *b) {
   for (int H = 1000; H >= 500; H /= 2) {
     int W = H, C = 3;
     int crop_h = 9 * H / 10;
@@ -106,7 +106,7 @@ BENCHMARK_REGISTER_F(SliceBenchGPU, Slice_GPU_OnlySlice)->Iterations(1000)
 ->UseRealTime()
 ->Apply(SliceKernelArgs_GPU_OnlySlice);
 
-static void SliceKernelArgs_GPU_OnlyPad(benchmark::internal::Benchmark *b) {
+static void SliceKernelArgs_GPU_OnlyPad(benchmark::Benchmark *b) {
   for (int H = 1000; H >= 500; H /= 2) {
     int W = H, C = 3;
     int crop_h = 9 * H / 10;
@@ -127,7 +127,7 @@ BENCHMARK_REGISTER_F(SliceBenchGPU, Slice_GPU_OnlyPad)->Iterations(1000)
 ->UseRealTime()
 ->Apply(SliceKernelArgs_GPU_OnlyPad);
 
-static void SliceKernelArgs_GPU_SliceAndPad(benchmark::internal::Benchmark *b) {
+static void SliceKernelArgs_GPU_SliceAndPad(benchmark::Benchmark *b) {
   for (int H = 1000; H >= 500; H /= 2) {
     int W = H, C = 3;
     int crop_h = 9 * H / 10;

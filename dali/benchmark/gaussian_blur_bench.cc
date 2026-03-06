@@ -18,7 +18,7 @@
 
 namespace dali {
 
-static void GaussianBlurGPUArgs(benchmark::internal::Benchmark *b) {
+static void GaussianBlurGPUArgs(benchmark::Benchmark *b) {
   for (int batch_size = 256; batch_size >= 1; batch_size /= 2) {
     for (int H = 1000; H >= 500; H /= 2) {
       int W = H, C = 3;

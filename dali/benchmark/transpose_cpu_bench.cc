@@ -52,7 +52,7 @@ std::tuple<TensorShape<>, std::vector<int>> GetCase(int id) {
   return cases[id];
 }
 
-static void CustomArguments(benchmark::internal::Benchmark* b) {
+static void CustomArguments(benchmark::Benchmark* b) {
   for (unsigned int i = 0; i < sizeof(cases) / sizeof(*cases); i++) {
     for (int scale = 1; scale <= 8; scale *= 2) {
       b->Args({i, scale});

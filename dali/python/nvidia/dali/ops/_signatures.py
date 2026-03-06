@@ -29,7 +29,6 @@ from nvidia.dali import fn, ops, types
 from nvidia.dali import types as _types
 from nvidia.dali.ops import _docs, _names, _registry
 
-
 Api = Literal["fn", "ops", "dynamic"]
 
 
@@ -647,8 +646,7 @@ def _gen_ops_signature(schema, schema_name, cls_name):
         if schema.MaxNumInput() == 0
         else _gen_ops_call_signature_with_inputs(schema, schema_name)
     )
-    return inspect_repr_fixups(
-        f"""
+    return inspect_repr_fixups(f"""
 class {cls_name}:
     \"""{_docs._docstring_generator_class(schema_name)}
     \"""
@@ -658,8 +656,7 @@ class {cls_name}:
         ...
 
 {signature}
-"""
-    )
+""")
 
 
 def _gen_dynamic_call_signature_no_input(schema: _b.OpSchema, **kwargs):
@@ -777,13 +774,11 @@ def _try_extend_reader_signature(schema: _b.OpSchema, op_name: str):
 
 
 def _gen_dynamic_cls_signature(schema: _b.OpSchema, schema_name: str, op_name: str):
-    call_template = string.Template(
-        """
+    call_template = string.Template("""
     @overload
     def __call__$signature:
         ...
-    """
-    )
+    """)
     call_overloads = (
         call_template.substitute(signature=signature)
         for signature in _gen_dynamic_call_signature(
@@ -816,14 +811,12 @@ class {op_name}:
 
 
 def _gen_dynamic_fun_signature(schema: _b.OpSchema, schema_name: str, op_name: str):
-    template = string.Template(
-        """
+    template = string.Template("""
 @overload
 def $fn_name$signature:
     \"""$doc
     \"""
-"""
-    )
+""")
 
     doc = _docs._docstring_generator_fn(schema_name, api="dynamic")
     overloads = (

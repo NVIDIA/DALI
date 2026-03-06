@@ -885,7 +885,7 @@ def test_decorated_external_source():
         return src_0, src_1, src_2
 
     pipe = test_pipe()
-    (out0, out1, out2) = pipe.run()
+    out0, out1, out2 = pipe.run()
     np.array_equal(np.array(out0.as_tensor()), np.array([0, 1, 2, 3]))
     np.array_equal(np.array(out1.as_tensor()), np.array([2, 3, 4, 5]))
     np.array_equal(np.array(out2.as_tensor()), np.array([42, 42, 42, 42]))

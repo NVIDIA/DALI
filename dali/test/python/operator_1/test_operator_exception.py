@@ -33,8 +33,7 @@ def test_python_error_constructor():
 
     with assert_raises(
         RuntimeError,
-        glob=(
-            """Critical error when building pipeline:
+        glob=("""Critical error when building pipeline:
 Error in CPU operator `nvidia.dali.fn.throw_exception`,
 which was used in the pipeline definition with the following traceback:
 
@@ -44,8 +43,7 @@ which was used in the pipeline definition with the following traceback:
 encountered:
 
 Error in constructor
-Current pipeline object is no longer valid."""
-        ),
+Current pipeline object is no longer valid."""),
     ):
         p = pipe()
         p.run()
@@ -59,8 +57,7 @@ def test_python_error_propagation(error):
 
     with assert_raises(
         error,
-        glob=(
-            """Critical error in pipeline:
+        glob=("""Critical error in pipeline:
 Error in CPU operator `nvidia.dali.fn.throw_exception`,
 which was used in the pipeline definition with the following traceback:
 
@@ -70,8 +67,7 @@ which was used in the pipeline definition with the following traceback:
 encountered:
 
 Test message
-Current pipeline object is no longer valid."""
-        ),
+Current pipeline object is no longer valid."""),
     ):
         p = pipe()
         p.run()
@@ -95,8 +91,7 @@ def test_cpp_error_propagation(error_name, error_type):
 
     with assert_raises(
         error_type,
-        glob=(
-            """Critical error in pipeline:
+        glob=("""Critical error in pipeline:
 Error in CPU operator `nvidia.dali.fn.throw_exception`,
 which was used in the pipeline definition with the following traceback:
 
@@ -106,8 +101,7 @@ which was used in the pipeline definition with the following traceback:
 encountered:
 
 Test message
-Current pipeline object is no longer valid."""
-        ),
+Current pipeline object is no longer valid."""),
     ):
         p = pipe()
         p.run()
@@ -120,8 +114,7 @@ def test_error_propagation_ellipsis():
 
     with assert_raises(
         RuntimeError,
-        glob=(
-            """Critical error in pipeline:
+        glob=("""Critical error in pipeline:
 Error in CPU operator `nvidia.dali.fn.throw_exception`,
 which was used in the pipeline definition with the following traceback:
 
@@ -131,8 +124,7 @@ which was used in the pipeline definition with the following traceback:
 encountered:
 
 Unknown critical error.
-Current pipeline object is no longer valid."""
-        ),
+Current pipeline object is no longer valid."""),
     ):
         p = pipe()
         p.run()
@@ -147,8 +139,7 @@ def test_arithm_ops():
 
     with assert_raises(
         RuntimeError,
-        glob=(
-            """Critical error in pipeline:
+        glob=("""Critical error in pipeline:
 Error in CPU operator `nvidia.dali.math.add`,
 which was used in the pipeline definition with the following traceback:
 
@@ -162,8 +153,7 @@ Can't broadcast shapes*
 3 x 2 (d=1, belonging to sample_idx=0)
 
 *C++ context: *broadcasting*
-Current pipeline object is no longer valid."""
-        ),
+Current pipeline object is no longer valid."""),
     ):
         p = pipe()
         p.run()
@@ -178,8 +168,7 @@ def test_math_ops():
 
     with assert_raises(
         RuntimeError,
-        glob=(
-            """Critical error in pipeline:
+        glob=("""Critical error in pipeline:
 Error in CPU operator `nvidia.dali.math.atan2`,
 which was used in the pipeline definition with the following traceback:
 
@@ -193,8 +182,7 @@ Can't broadcast shapes*
 3 x 2 (d=1, belonging to sample_idx=0)
 
 *C++ context: *broadcasting*
-Current pipeline object is no longer valid."""
-        ),
+Current pipeline object is no longer valid."""),
     ):
         p = pipe()
         p.run()
@@ -213,8 +201,7 @@ def test_conditional_split():
 
     with assert_raises(
         RuntimeError,
-        glob=(
-            """Critical error in pipeline:
+        glob=("""Critical error in pipeline:
 Error in CPU operator `nvidia.dali.fn._conditional.split`,
 which was used in the pipeline definition with the following traceback:
 
@@ -223,8 +210,7 @@ which was used in the pipeline definition with the following traceback:
 
 encountered:
 
-*Assert on "dim == 0" failed: Conditions inside `if` statements are restricted to scalar*"""
-        ),
+*Assert on "dim == 0" failed: Conditions inside `if` statements are restricted to scalar*"""),
     ):
         pipe = non_scalar_condition()
         pipe.run()
@@ -242,8 +228,7 @@ def test_conditional_merge():
 
     with assert_raises(
         RuntimeError,
-        glob=(
-            """Critical error in pipeline:
+        glob=("""Critical error in pipeline:
 Error in CPU operator `nvidia.dali.fn._conditional.merge`,
 which was used in the pipeline definition with the following traceback:
 
@@ -252,8 +237,7 @@ which was used in the pipeline definition with the following traceback:
 
 encountered:
 
-*Assert on "base_input.type() == input.type()" failed: Divergent data found*"""
-        ),
+*Assert on "base_input.type() == input.type()" failed: Divergent data found*"""),
     ):
         pipe = non_scalar_condition()
         pipe.run()

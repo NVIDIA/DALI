@@ -28,13 +28,11 @@ import nvidia.dali.fn as fn
 from nvidia.dali.tensors import TensorGPU
 import numpy as np
 
-
 use_cupy()
 
 
 # extra tests, GPU-specific
 import cupy as cp  # noqa:E402  - we need to call this after use_cupy()
-
 
 assert nvidia.dali.types._is_cupy_array(cp.array([1, 2, 3])), "CuPy array not recognized"
 

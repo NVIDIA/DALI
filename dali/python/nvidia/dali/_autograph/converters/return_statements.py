@@ -24,7 +24,6 @@ from nvidia.dali._autograph.pyct import templates
 from nvidia.dali._autograph.pyct.static_analysis import activity
 from nvidia.dali._autograph.pyct.static_analysis.annos import NodeAnno
 
-
 BODY_DEFINITELY_RETURNS = "BODY_DEFINITELY_RETURNS"
 ORELSE_DEFINITELY_RETURNS = "ORELSE_DEFINITELY_RETURNS"
 STMT_DEFINITELY_RETURNS = "STMT_DEFINITELY_RETURNS"

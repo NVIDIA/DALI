@@ -28,7 +28,6 @@ import nvidia.dali.fn as fn
 from nvidia.dali.plugin.jax import data_iterator
 from nvidia.dali.plugin.jax.fn import jax_function
 
-
 os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 
 jax.distributed.initialize(

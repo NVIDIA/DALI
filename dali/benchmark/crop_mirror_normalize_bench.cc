@@ -18,7 +18,7 @@
 
 namespace dali {
 
-static void CropMirrorNormalizeCPUArgs(benchmark::internal::Benchmark *b) {
+static void CropMirrorNormalizeCPUArgs(benchmark::Benchmark *b) {
   int batch_size = 8;
   int mean = 128, std = 1;
   for (auto &dtype : {DALI_FLOAT}) {
@@ -76,7 +76,7 @@ BENCHMARK_REGISTER_F(OperatorBench, CropMirrorNormalizeCPU)->Iterations(500)
 ->UseRealTime()
 ->Apply(CropMirrorNormalizeCPUArgs);
 
-static void CropMirrorNormalizeGPUArgs(benchmark::internal::Benchmark *b) {
+static void CropMirrorNormalizeGPUArgs(benchmark::Benchmark *b) {
   int mean = 128, std = 1;
   for (int batch_size : {1, 8, 128, 256}) {
     for (int H = 1000; H >= 250; H /= 2) {

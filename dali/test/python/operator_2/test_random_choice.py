@@ -289,7 +289,7 @@ def test_enum_choice():
         return interp, interp_as_int, imgs
 
     pipe = choice_pipeline()
-    (interp, interp_as_int, imgs) = pipe.run()
+    interp, interp_as_int, imgs = pipe.run()
     assert interp.dtype == types.DALIDataType.INTERP_TYPE
     for i in range(batch_size):
         check_sample(

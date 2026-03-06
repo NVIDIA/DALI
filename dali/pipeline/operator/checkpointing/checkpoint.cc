@@ -93,7 +93,8 @@ std::string Checkpoint::SerializeToProtobuf(ExecutorBase &exec) const {
 void Checkpoint::DeserializeFromProtobuf(ExecutorBase &exec, std::string_view serialized_data) {
   Clear();
   dali_proto::Checkpoint checkpoint;
-  checkpoint.ParseFromArray(serialized_data.data(), serialized_data.size());
+  DALI_ENFORCE(checkpoint.ParseFromArray(serialized_data.data(), serialized_data.size()),
+               "Failed to deserialize checkpoint from protobuf.");
 
   for (int i = 0; i < checkpoint.cpts_size(); i++) {
     const auto &name = checkpoint.cpts(i).operator_name();

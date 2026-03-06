@@ -24,7 +24,6 @@ import scipy.ndimage.measurements
 import random
 from test_utils import check_batch, np_type_to_dali
 
-
 np.random.seed(1234)
 random.seed(1234)
 

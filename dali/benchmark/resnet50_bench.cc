@@ -134,7 +134,7 @@ BENCHMARK_DEFINE_F(RN50, C2Pipe)(benchmark::State& st) { // NOLINT
       benchmark::Counter::kIsRate);
 }
 
-static void PipeArgs(benchmark::internal::Benchmark *b) {
+static void PipeArgs(benchmark::Benchmark *b) {
   for (int executor = 2; executor < 3; ++executor) {
     for (int fast_resize = 0; fast_resize < 2; ++fast_resize) {
       for (int batch_size = 128; batch_size <= 128; batch_size += 32) {
@@ -266,7 +266,7 @@ BENCHMARK_DEFINE_F(RN50, HybridPipe)(benchmark::State& st) { // NOLINT
       benchmark::Counter::kIsRate);
 }
 
-static void HybridPipeArgs(benchmark::internal::Benchmark *b) {
+static void HybridPipeArgs(benchmark::Benchmark *b) {
   for (int executor = 0; executor < 3; ++executor) {
     for (int batch_size = 128; batch_size <= 128; batch_size += 32) {
       for (int num_thread = 1; num_thread <= 4; ++num_thread) {
@@ -375,7 +375,7 @@ BENCHMARK_DEFINE_F(RN50, nvJPEGPipe)(benchmark::State& st) { // NOLINT
       benchmark::Counter::kIsRate);
 }
 
-static void nvjpegPipeArgs(benchmark::internal::Benchmark *b) {
+static void nvjpegPipeArgs(benchmark::Benchmark *b) {
   for (int executor = 0; executor < 3; ++executor) {
     for (int batch_size = 128; batch_size <= 128; batch_size += 32) {
       for (int num_thread = 1; num_thread <= 4; ++num_thread) {

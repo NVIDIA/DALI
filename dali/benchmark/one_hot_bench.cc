@@ -18,7 +18,7 @@
 
 namespace dali {
 
-static void OneHotGPUAlternateAxis(benchmark::internal::Benchmark *b, int batch_size, int h, int w,
+static void OneHotGPUAlternateAxis(benchmark::Benchmark *b, int batch_size, int h, int w,
                                    int num_classes) {
   int axis = -1;
   b->Args({batch_size, h, w, axis, num_classes});
@@ -26,7 +26,7 @@ static void OneHotGPUAlternateAxis(benchmark::internal::Benchmark *b, int batch_
   b->Args({batch_size, h, w, axis, num_classes});
 }
 
-static void OneHotGPUArgs(benchmark::internal::Benchmark *b) {
+static void OneHotGPUArgs(benchmark::Benchmark *b) {
   for (int batch_size = 256; batch_size >= 1; batch_size /= 2) {
     int h = 64, w = h;
     int num_classes = 500;

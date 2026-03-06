@@ -24,7 +24,6 @@ from nvidia.dali._autograph.pyct import cache
 from nvidia.dali._autograph.pyct import inspect_utils
 from nvidia.dali._autograph.utils import ag_logging as logging
 
-
 _ALLOWLIST_CACHE = cache.UnboundInstanceCache()
 
 

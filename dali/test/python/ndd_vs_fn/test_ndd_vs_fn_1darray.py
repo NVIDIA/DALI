@@ -22,7 +22,6 @@ from ndd_vs_fn_test_utils import (
     generate_data,
 )
 
-
 ARRAY_1D_OPERATORS = [
     OperatorTestConfig("power_spectrum"),
     OperatorTestConfig("preemphasis_filter"),

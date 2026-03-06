@@ -18,7 +18,6 @@ import jax.numpy as jnp
 from jax.scipy.special import logsumexp
 import numpy.random as npr
 
-
 layers = [784, 1024, 1024, 10]
 
 

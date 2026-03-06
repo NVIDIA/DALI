@@ -19,7 +19,6 @@ from test_utils import get_dali_extra_path
 from nose_utils import assert_raises
 from nose2.tools import params, cartesian_params
 
-
 DEBUG_LVL = 0
 SHOW_IMAGES = False
 

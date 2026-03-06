@@ -573,10 +573,8 @@ class _DaliBaseIterator(object):
                     with p._check_api_type_scope(types.PipelineAPIType.ITERATOR):
                         p.schedule_run()
         else:
-            logging.warning(
-                "DALI iterator does not support resetting while epoch is not finished. \
-                             Ignoring..."
-            )
+            logging.warning("DALI iterator does not support resetting while epoch is not finished. \
+                             Ignoring...")
 
     def next(self):
         """

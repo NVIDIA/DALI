@@ -583,7 +583,7 @@ def test_10bit_vid_reconfigure():
 
     pipe = video_decoder_pipeline(batch_size=batch_size, num_threads=1, device_id=0)
     for _ in range(iter):
-        (a, b) = pipe.run()
+        a, b = pipe.run()
         a = a.as_cpu().as_array()
         b = b.as_cpu().as_array()
         absdiff = np.abs(a.astype(int) - b.astype(int))

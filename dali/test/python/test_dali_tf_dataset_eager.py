@@ -49,7 +49,6 @@ from test_utils_tensorflow import (
 import random as random
 import itertools
 
-
 tf.compat.v1.enable_eager_execution()
 
 

@@ -19,7 +19,6 @@ from typing import NoReturn, TypeAlias, TypeVar
 
 from ._eval_mode import EvalMode
 
-
 T = TypeVar("T", bound=BaseException)
 CallStack: TypeAlias = Sequence[tuple[types.CodeType, int]]
 

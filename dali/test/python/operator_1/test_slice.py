@@ -124,7 +124,7 @@ class SliceSynthDataPipeline(Pipeline):
         data = self.iterator.next()
         self.feed_input(self.data, data, layout=self.layout)
 
-        (crop_pos, crop_size) = self.pos_size_iter.next()
+        crop_pos, crop_size = self.pos_size_iter.next()
         self.feed_input(self.crop_pos, crop_pos)
         self.feed_input(self.crop_size, crop_size)
 
@@ -185,7 +185,7 @@ class SlicePipeline(Pipeline):
         return images
 
     def iter_setup(self):
-        (crop_pos, crop_size) = self.pos_size_iter.next()
+        crop_pos, crop_size = self.pos_size_iter.next()
         self.feed_input(self.crop_pos, crop_pos)
         self.feed_input(self.crop_size, crop_size)
 
@@ -360,7 +360,7 @@ class SliceSynthDataPipelinePythonOp(Pipeline):
         data = self.iterator.next()
         self.feed_input(self.data, data, layout=self.layout)
 
-        (crop_pos, crop_size) = self.pos_size_iter.next()
+        crop_pos, crop_size = self.pos_size_iter.next()
         self.feed_input(self.crop_pos, crop_pos)
         self.feed_input(self.crop_size, crop_size)
 
@@ -405,7 +405,7 @@ class SlicePythonOp(Pipeline):
         return out
 
     def iter_setup(self):
-        (crop_pos, crop_size) = self.pos_size_iter.next()
+        crop_pos, crop_size = self.pos_size_iter.next()
         self.feed_input(self.crop_pos, crop_pos)
         self.feed_input(self.crop_size, crop_size)
 

@@ -223,11 +223,9 @@ class ParserTest(unittest.TestCase):
 
     def test_parse_multiline_strings(self):
         def f():
-            print(
-                """
+            print("""
 multiline
-string"""
-            )
+string""")
 
         node, _ = parser.parse_entity(f, future_features=())
         self.assertEqual("f", node.name)
@@ -342,15 +340,13 @@ string"""
 
         source = parser.unparse(node, indentation="  ")
         self.assertEqual(
-            textwrap.dedent(
-                """
+            textwrap.dedent("""
             # coding=utf-8
             if 1:
                 a = b
             else:
                 a = 'c'
-        """
-            ).strip(),
+        """).strip(),
             source.strip(),
         )
 

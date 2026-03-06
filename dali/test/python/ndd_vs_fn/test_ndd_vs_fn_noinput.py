@@ -26,7 +26,6 @@ from ndd_vs_fn_test_utils import (
 )
 from test_ndd_vs_fn_coverage import sign_off
 
-
 NO_INPUT_OPERATORS = [
     OperatorTestConfig("transforms.translation", {"offset": (2, 3)}),
     OperatorTestConfig("transforms.scale", {"scale": (2, 3)}),

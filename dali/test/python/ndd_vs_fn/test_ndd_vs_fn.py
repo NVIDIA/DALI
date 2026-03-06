@@ -42,7 +42,6 @@ from ndd_vs_fn_test_utils import (
     N_ITERATIONS,
 )
 
-
 """
 This module tests DALI operators by comparing fn API with ndd (dynamic) API outputs.
 

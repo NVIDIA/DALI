@@ -18,7 +18,7 @@
 
 namespace dali {
 
-static void WarpAffineCPUArgs(benchmark::internal::Benchmark *b) {
+static void WarpAffineCPUArgs(benchmark::Benchmark *b) {
   for (int batch_size = 16; batch_size >= 1; batch_size /= 2) {
     for (int H = 2048; H >= 256; H /= 2) {
       int W = H, C = 3;
@@ -55,7 +55,7 @@ BENCHMARK_REGISTER_F(OperatorBench, WarpAffineCPU)->Iterations(50)
 ->Apply(WarpAffineCPUArgs);
 
 
-static void WarpAffineGPUArgs(benchmark::internal::Benchmark *b) {
+static void WarpAffineGPUArgs(benchmark::Benchmark *b) {
   for (int batch_size = 256; batch_size >= 1; batch_size /= 2) {
     for (int H = 2048; H >= 256; H /= 2) {
       int W = H, C = 3;

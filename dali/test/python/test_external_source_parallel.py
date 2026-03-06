@@ -640,7 +640,7 @@ def _test_all_kinds_parallel(
         i = 0
         while True:
             try:
-                (sample_outs, batch_outs, iter_outs) = pipe.run()
+                sample_outs, batch_outs, iter_outs = pipe.run()
                 assert len(sample_outs) == len(
                     batch_outs
                 ), f"Batch length mismatch: sample: {len(sample_outs)}, batch: {len(batch_outs)}"
