@@ -15,6 +15,7 @@
 #ifndef DALI_PIPELINE_UTIL_NEW_THREAD_POOL_H_
 #define DALI_PIPELINE_UTIL_NEW_THREAD_POOL_H_
 
+#include <list>
 #include <optional>
 #include <string>
 #include <vector>
@@ -53,7 +54,7 @@ class DLL_PUBLIC ThreadPoolFacade : public ThreadPool {
 
  private:
   ThreadPoolBase *tp_ = nullptr;
-  std::optional<Job> job_;
+  std::list<Job> jobs_;
 };
 
 DLL_PUBLIC bool UseNewThreadPool();

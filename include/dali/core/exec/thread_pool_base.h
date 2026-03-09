@@ -58,6 +58,13 @@ class DLL_PUBLIC JobBaseFields<true> {
  */
 template <bool cooperative>
 class DLL_PUBLIC JobBase : public JobBaseFields<cooperative> {
+ public:
+  bool Started() const noexcept { return executor_ != nullptr; }
+  bool WaitStarted() const noexcept { return wait_started_; }
+  bool WaitCompleted() const noexcept { return wait_started_; }
+
+  static constexpr bool IsCooperative() { return cooperative; }
+
  protected:
   JobBase() = default;
   ~JobBase() noexcept(false);
@@ -75,8 +82,6 @@ class DLL_PUBLIC JobBase : public JobBaseFields<cooperative> {
    *       as the DoWait function.
    */
   void DoNotify();
-
-  static constexpr bool IsCooperative() { return cooperative; }
 
   std::atomic_int num_pending_tasks_{0};
   std::atomic_bool running_{false};

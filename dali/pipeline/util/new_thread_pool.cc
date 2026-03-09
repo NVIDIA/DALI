@@ -12,10 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <stdexcept>
 #include <typeinfo>
 #include <utility>
 #include <vector>
 #include "dali/core/call_at_exit.h"
+#include "dali/core/small_vector.h"
 #include "dali/pipeline/util/new_thread_pool.h"
 #include "dali/core/device_guard.h"
 #include "dali/util/nvml.h"
@@ -82,35 +84,69 @@ ThreadPoolFacade::~ThreadPoolFacade() noexcept {
 }
 
 void ThreadPoolFacade::AddWork(std::function<void()> work, int64_t priority) {
-  if (!job_)
-    job_.emplace();
-  job_->AddTask(work, priority);
+  if (jobs_.empty() || jobs_.front().Started())
+    jobs_.emplace_front();
+  jobs_.front().AddTask(work, priority);
 }
 
 void ThreadPoolFacade::AddWork(std::function<void(int)> work, int64_t priority) {
-  if (!job_)
-    job_.emplace();
-  job_->AddTask([w = std::move(work)]() {
+  if (jobs_.empty() || jobs_.front().Started())
+    jobs_.emplace_front();
+  jobs_.front().AddTask([w = std::move(work)]() {
     w(ThreadPoolBase::this_thread_idx());
   }, priority);
 }
 
 void ThreadPoolFacade::RunAll(bool wait) {
-  if (job_) {
-    auto atexit = AtScopeExit([&]() {
-      if (wait)
-        job_.reset();
-    });
-    job_->Run(*tp_, wait);
+  if (!jobs_.empty()) {
+    if (!wait) {
+      if (!jobs_.front().Started())  // all subsequent jobs_ must be started
+        jobs_.front().Run(*tp_, false);
+    } else {
+      if (jobs_.size() == 1) {  // fast path for the common case
+        auto atexit = AtScopeExit([&]() {
+          jobs_.clear();
+        });
+        if (jobs_.front().Started())
+          jobs_.front().Wait();
+        else
+          jobs_.front().Run(*tp_, true);
+      } else {
+        if (jobs_.front().Started())
+          jobs_.front().Wait();
+        WaitForWork();
+      }
+    }
   }
 }
 
 void ThreadPoolFacade::WaitForWork() {
-  if (job_) {
+  if (!jobs_.empty()) {
+    if (!jobs_.front().Started())
+      throw std::logic_error("WaitForWork called without Run");
     auto atexit = AtScopeExit([&]() {
-      job_.reset();
+      jobs_.clear();
     });
-    job_->Wait();
+    // This won't be allocated unless an exception was thrown
+    std::vector<std::exception_ptr> errs;
+    // The jobs in jobs_ are ordered from latest to oldest, so theres little chance that more than
+    // one Wait would block.
+    for (auto &job : jobs_) {
+      try {
+        job.Wait();
+      } catch (MultipleErrors &e) {
+        // unwrap MultipleErrors to avoid nesting
+        errs.insert(errs.end(), e.errors().begin(), e.errors().end());
+      } catch (...) {
+        errs.push_back(std::current_exception());
+      }
+    }
+    if (errs.size() == 1) {
+      std::rethrow_exception(std::move(errs[0]));
+    } else if (errs.size() > 1) {
+      std::reverse(errs.begin(), errs.end());
+      MultipleErrors(std::move(errs));
+    }  // else no error
   }
 }
 
