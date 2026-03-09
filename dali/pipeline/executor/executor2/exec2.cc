@@ -346,9 +346,9 @@ class Executor2::Impl {
   }
 
   void SetupThreadPool() {
+    thread_pool_wrappers_.clear();
     new_tp_.reset();
     old_tp_.reset();
-    thread_pool_wrappers_.clear();
 
     if (UseNewThreadPool()) {
       std::cerr << "\n!!! Forced use of NewThreadPool !!!" << std::endl;

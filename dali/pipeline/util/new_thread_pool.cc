@@ -86,7 +86,7 @@ ThreadPoolFacade::~ThreadPoolFacade() noexcept {
 void ThreadPoolFacade::AddWork(std::function<void()> work, int64_t priority) {
   if (jobs_.empty() || jobs_.front().Started())
     jobs_.emplace_front();
-  jobs_.front().AddTask(work, priority);
+  jobs_.front().AddTask(std::move(work), priority);
 }
 
 void ThreadPoolFacade::AddWork(std::function<void(int)> work, int64_t priority) {

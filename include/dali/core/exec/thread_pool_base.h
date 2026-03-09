@@ -61,7 +61,7 @@ class DLL_PUBLIC JobBase : public JobBaseFields<cooperative> {
  public:
   bool Started() const noexcept { return executor_ != nullptr; }
   bool WaitStarted() const noexcept { return wait_started_; }
-  bool WaitCompleted() const noexcept { return wait_started_; }
+  bool WaitCompleted() const noexcept { return wait_completed_; }
 
   static constexpr bool IsCooperative() { return cooperative; }
 
