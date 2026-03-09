@@ -161,20 +161,25 @@ def build_constructor(schema, op_class):
     Operator._get() can be used instead of the constructor to utilize the instance caching.
     """
     stateful = op_class._is_stateful
+    is_reader = op_class._is_reader
     function_name = "__init__"
 
     init_args = []
     used_kwargs = set()
+    tensor_arg_names = set()
     for arg in schema.GetArgumentNames():
         if arg in _unsupported_args:
             continue
-        if schema.IsTensorArgument(arg):
+        is_tensor = schema.IsTensorArgument(arg)
+        if is_tensor and not is_reader:
             continue
         if schema.IsArgumentOptional(arg):
             init_args.append(f"{arg}=None")
         else:
             init_args.append(arg)
         used_kwargs.add(arg)
+        if is_tensor:
+            tensor_arg_names.add(arg)
 
     if init_args:
         init_args = ["*"] + init_args
@@ -193,8 +198,11 @@ def build_constructor(schema, op_class):
 
     # Note: Base __init__ will keep the **kwargs
     def init(self, max_batch_size, name, **kwargs):
+        tensor_kwargs = {k: kwargs.pop(k) for k in tensor_arg_names if k in kwargs}
         kwargs = {k: _scalar_decay(v) for k, v in kwargs.items()}
         op_class.__base__.__init__(self, max_batch_size, name, **kwargs)
+        if is_reader:
+            self._tensor_args = {k: v for k, v in tensor_kwargs.items() if v is not None}
         if stateful:
             self._call_id = 0
 
@@ -272,6 +280,16 @@ def build_call_function(schema, op_class):
     @NVTXRange(f"__call__: {op_class._op_name}", category="op_builder")
     def call(self, *raw_args, batch_size=None, _process_params=True, **raw_kwargs):
         self._pre_call(*raw_args, **raw_kwargs)
+
+        if op_class._is_reader and self._tensor_args:
+            overlap = set(raw_kwargs) & set(self._tensor_args)
+            if overlap:
+                raise ValueError(
+                    f"Tensor argument(s) {sorted(overlap)} were already provided "
+                    f"in the reader constructor and cannot be passed again in __call__."
+                )
+            raw_kwargs = {**self._tensor_args, **raw_kwargs}
+
         batch_size = _ops._infer_batch_size(batch_size, *raw_args, **raw_kwargs)
         is_batch = batch_size is not None
 
