@@ -25,6 +25,7 @@ namespace detail {
  */
 template <typename Callable>
 struct CallAtExit {
+  [[nodiscard("The callback would be called immediately.")]]
   explicit CallAtExit(Callable &&c) : callable(std::move(c)) {}
   ~CallAtExit() noexcept(false) {
     callable();
