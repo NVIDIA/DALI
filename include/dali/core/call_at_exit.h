@@ -1,4 +1,4 @@
-// Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -35,6 +35,7 @@ struct CallAtExit {
 }  // namespace detail
 
 template <typename Callable>
+[[nodiscard("The callback would be called immediately.")]]
 detail::CallAtExit<Callable> AtScopeExit(Callable &&c) {
   return detail::CallAtExit<Callable>(std::forward<Callable>(c));
 }
