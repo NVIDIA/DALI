@@ -66,8 +66,11 @@ class VerificationSize(ArgumentVerificationRule):
                 "Invalid combination: size must be int, None, or sequence of two ints. "
                 "max_size only applies when size is int or None."
             )
-        if size is None and max_size is None:
-            raise ValueError("Must provide max_size if size is None.")
+        if size is None and max_size is None and max_size > 0:
+            raise ValueError(
+                f"Must provide max_size if size is None and max_size must be > 0 \
+                             got {max_size}"
+            )
         if size is not None and max_size is not None and np.min(size) > max_size:
             raise ValueError("max_size should not be smaller than the actual size")
         if isinstance(size, (tuple, list)) and len(size) == 2 and max_size is not None:
@@ -75,6 +78,10 @@ class VerificationSize(ArgumentVerificationRule):
                 "max_size should only be passed if size specifies the length of the smaller \
                  edge, i.e. size should be an int"
             )
+
+        if interpolation in Resize.not_supported_interpolation_modes:
+            raise NotImplementedError(f"Interpolation mode: {interpolation} is not supported")
+
         if interpolation not in Resize.interpolation_modes.keys():
             raise ValueError(f"Interpolation {type(interpolation)} is not supported")
 
@@ -264,10 +271,6 @@ class Resize(Operator):
 
         self.size = size
         self.max_size = max_size
-
-        if interpolation in Resize.not_supported_interpolation_modes:
-            raise NotImplementedError(f"Interpolation mode: {interpolation} is not supported")
-
         self.interpolation = Resize.interpolation_modes[interpolation]
         self.size_normalized = Resize.infer_effective_size(size, max_size)
         self.antialias = antialias

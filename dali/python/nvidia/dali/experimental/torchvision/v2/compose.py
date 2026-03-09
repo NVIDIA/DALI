@@ -101,8 +101,12 @@ class PipelineWithLayout(ABC):
     """
 
     def _cuda_run(self, data_input):
-        device_id = data_input.device.index if isinstance(data_input, torch.Tensor) else 0
+        if isinstance(data_input, torch.Tensor) and data_input.is_cuda:
+            device_id = data_input.device_index
+        else:
+            device_id = torch.cuda.current_device()
         stream = torch.cuda.Stream(device=device_id)
+
         with torch.cuda.stream(stream):
             output = self.pipe.run(stream, input_data=data_input)
 
@@ -204,7 +208,7 @@ class PipelineHWC(PipelineWithLayout):
         channels = self.get_channel_reverse_idx()
 
         # TODO: consider when to convert to PIL.Image - e.g. if it make sense for channels < 3
-        # There is noi certain method to determine if the tensor is HW, HWC, or NHWC.
+        # There is no certain method to determine if the tensor is HW, HWC, or NHWC.
         # The method below checks if tensor's shape is HW or ...HWC with a single channel
         if len(in_tensor.shape) == 2 or (
             len(in_tensor.shape) >= 3 and in_tensor.shape[channels] == 1

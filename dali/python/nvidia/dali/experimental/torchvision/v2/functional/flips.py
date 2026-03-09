@@ -15,11 +15,14 @@
 
 import nvidia.dali.experimental.dynamic as ndd
 
+import torch
+from PIL import Image
+
 from ..operator import adjust_input  # noqa: E402
 
 
 @adjust_input
-def horizontal_flip(inpt: ndd.Tensor | ndd.Batch) -> ndd.Tensor | ndd.Batch:
+def horizontal_flip(inpt: Image.Image | torch.Tensor) -> Image.Image | torch.Tensor:
     """
     Horizontally flips the given tensor.
     Refer to `HorizontalFlip` for more details.
@@ -28,7 +31,7 @@ def horizontal_flip(inpt: ndd.Tensor | ndd.Batch) -> ndd.Tensor | ndd.Batch:
 
 
 @adjust_input
-def vertical_flip(inpt: ndd.Tensor | ndd.Batch) -> ndd.Tensor | ndd.Batch:
+def vertical_flip(inpt: Image.Image | torch.Tensor) -> Image.Image | torch.Tensor:
     """
     Vertically flips the given tensor.
     Refer to `VerticalFlip` for more details.
