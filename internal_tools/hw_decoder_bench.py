@@ -24,7 +24,6 @@ from nvidia.dali.auto_aug import auto_augment, trivial_augment
 from nvidia.dali.pipeline import pipeline_def
 import nvidia.dali.experimental.dynamic as ndd
 
-
 parser = argparse.ArgumentParser(description="DALI HW decoder benchmark")
 parser.add_argument("-b", dest="batch_size", help="batch size", default=1, type=int)
 parser.add_argument("-m", dest="minibatch_size", help="minibatch size", default=32, type=int)

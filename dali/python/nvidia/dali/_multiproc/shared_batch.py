@@ -21,7 +21,6 @@ from nvidia.dali._utils.external_source_impl import (
 )
 import pickle  # nosec B403
 
-
 np = None
 
 

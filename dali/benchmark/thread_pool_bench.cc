@@ -19,7 +19,7 @@ namespace dali {
 
 class ThreadPoolBench : public DALIBenchmark {};
 
-static void ThreadPoolArgs(benchmark::internal::Benchmark *b) {
+static void ThreadPoolArgs(benchmark::Benchmark *b) {
   int batch_size = 64;
   int work_size_min = 400;
   int work_size_max = 10000;

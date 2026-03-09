@@ -90,7 +90,7 @@ BENCHMARK_DEFINE_F(FileReaderFastForward, FastForward)(benchmark::State& st) { /
   }
 }
 
-static void Args(benchmark::internal::Benchmark *b) {
+static void Args(benchmark::Benchmark *b) {
   for (int dataset_size = 100; dataset_size <= 1000000; dataset_size *= 100) {
     for (int frac = 0; frac <= 10; frac++) {
       // Without random shuffle

@@ -34,7 +34,6 @@ from ndd_vs_fn_test_utils import (
 import nvidia.dali.fn as fn
 import nvidia.dali.experimental.dynamic as ndd
 
-
 RANDOM_OPERATORS_1D_ARRAY = [
     OperatorTestConfig("random.choice"),
     OperatorTestConfig("random.normal"),

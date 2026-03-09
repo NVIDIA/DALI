@@ -29,7 +29,6 @@ import nvidia.dali.types as types
 import nvidia.dali.plugin.pytorch as dali_pytorch
 from nvidia.dali.plugin.base_iterator import LastBatchPolicy as LastBatchPolicy
 
-
 batch_size = 4
 
 

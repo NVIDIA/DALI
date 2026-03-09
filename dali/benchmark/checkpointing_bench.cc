@@ -79,7 +79,7 @@ class CheckpointingOverhead : public DALIBenchmark {
   }
 };
 
-static void Args(benchmark::internal::Benchmark *b) {
+static void Args(benchmark::Benchmark *b) {
   const std::vector<CheckpointingPolicy> policies = {
     CheckpointingPolicy::Disabled,
     CheckpointingPolicy::Enabled,

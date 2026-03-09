@@ -20,7 +20,6 @@ from nose2.tools import params
 # Import Dynamic API
 import nvidia.dali.experimental.dynamic as ndd
 
-
 # Test case definitions for parameterized tests
 TENSOR_TEST_CASES = [
     {

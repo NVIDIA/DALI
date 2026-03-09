@@ -884,7 +884,7 @@ def test_reader_operator_codec_support(device, codec, sequence_length=3, stride=
         return videos, frame_no
 
     pipe = decoder_pipeline(batch_size=batch_size, num_threads=2, device_id=0)
-    (out, frame_no) = pipe.run()
+    out, frame_no = pipe.run()
     assert len(out) > 0, f"No output from decoder pipeline for {codec}"
 
     for i in range(batch_size):
@@ -955,7 +955,7 @@ def test_enable_frame_num_sequence_basic(device, stride):
         return videos, frame_idxs
 
     pipe = video_pipe(batch_size=batch_size, num_threads=2, device_id=0)
-    (out_videos, out_frame_idxs) = pipe.run()
+    out_videos, out_frame_idxs = pipe.run()
 
     for i in range(batch_size):
         idxs = out_frame_idxs.as_cpu().at(i)
@@ -1013,7 +1013,7 @@ def test_enable_frame_num_sequence_with_padding(device):
     full_sequences = total_frames // (stride * sequence_length)
     padded_idxs = None
     for _ in range(full_sequences + 2):
-        (_, out_idxs) = pipe.run()
+        _, out_idxs = pipe.run()
         idxs = out_idxs.as_cpu().at(0).flatten()
         if -1 in idxs:
             padded_idxs = idxs
@@ -1110,7 +1110,7 @@ def test_enable_frame_num_sequence_non_constant_padding(device, pad_mode):
     num_full_seqs = total_frames // full_seq_stride
     padded_idxs = None
     for _ in range(num_full_seqs + 2):
-        (_, out_idxs) = pipe.run()
+        _, out_idxs = pipe.run()
         idxs = out_idxs.as_cpu().at(0).flatten()
         if idxs[0] == tail_start:
             padded_idxs = idxs
@@ -1163,8 +1163,8 @@ def test_enable_frame_num_sequence_matches_scalar(device):
 
     pipe_s = scalar_pipe(batch_size=batch_size, num_threads=2, device_id=0, seed=42)
     pipe_q = sequence_pipe(batch_size=batch_size, num_threads=2, device_id=0, seed=42)
-    (_, out_scalar) = pipe_s.run()
-    (_, out_sequence) = pipe_q.run()
+    _, out_scalar = pipe_s.run()
+    _, out_sequence = pipe_q.run()
 
     for i in range(batch_size):
         scalar_idx = int(out_scalar.as_cpu().at(i)[0])

@@ -17,7 +17,6 @@ import subprocess
 import re
 from dataclasses import dataclass
 
-
 CWD = os.getcwd()
 CSPELL_DOCKER = "ghcr.io/streetsidesoftware/cspell:latest"
 CSPELL_COMMAND = f"docker run -it -v {CWD}:/workdir {CSPELL_DOCKER} \

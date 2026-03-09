@@ -542,7 +542,7 @@ def check_mxnet_iterator_pass_reader_name(
             epoch_counter,
             rounded_shard_size,
         )
-        (ids, sample_counter, per_gpu_counter, epoch_counter, rounded_shard_size) = ret
+        ids, sample_counter, per_gpu_counter, epoch_counter, rounded_shard_size = ret
 
 
 @attr("mxnet")
@@ -854,7 +854,7 @@ def check_gluon_iterator_pass_reader_name(
             epoch_counter,
             rounded_shard_size,
         )
-        (ids, sample_counter, per_gpu_counter, epoch_counter, rounded_shard_size) = ret
+        ids, sample_counter, per_gpu_counter, epoch_counter, rounded_shard_size = ret
 
 
 @attr("gluon")
@@ -1560,7 +1560,7 @@ def check_pytorch_iterator_pass_reader_name(
             epoch_counter,
             rounded_shard_size,
         )
-        (ids, sample_counter, per_gpu_counter, epoch_counter, rounded_shard_size) = ret
+        ids, sample_counter, per_gpu_counter, epoch_counter, rounded_shard_size = ret
 
 
 @attr("pytorch")
@@ -1842,7 +1842,7 @@ def check_paddle_iterator_pass_reader_name(
             epoch_counter,
             rounded_shard_size,
         )
-        (ids, sample_counter, per_gpu_counter, epoch_counter, rounded_shard_size) = ret
+        ids, sample_counter, per_gpu_counter, epoch_counter, rounded_shard_size = ret
 
 
 @attr("paddle")

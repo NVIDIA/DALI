@@ -38,7 +38,6 @@ import sys
 import atexit
 import gc
 
-
 _ExecutorType.__bool__ = lambda self: self.value != 0
 _ExecutorType.__and__ = lambda x, y: _ExecutorType(x.value & y.value)
 _ExecutorType.__or__ = lambda x, y: _ExecutorType(x.value | y.value)

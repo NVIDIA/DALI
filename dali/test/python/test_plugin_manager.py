@@ -65,7 +65,7 @@ class CustomPipeline(Pipeline):
         return (self.images, custom_dummy_out)
 
     def iter_setup(self):
-        (images, labels) = iterator.next()
+        images, labels = iterator.next()
         self.feed_input(self.images, images)
 
 

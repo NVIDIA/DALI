@@ -21,7 +21,6 @@ import threading
 from nvidia.dali._autograph.utils import ag_logging
 from nvidia.dali._autograph.utils.all_utils import export_symbol
 
-
 stacks = threading.local()
 
 

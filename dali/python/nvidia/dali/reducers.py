@@ -19,7 +19,6 @@ import types
 import marshal
 import importlib
 
-
 # Don't allow any reformatters turning it into regular `def` function.
 # The whole point of this object is to have
 # properties (name) specific to lambda.

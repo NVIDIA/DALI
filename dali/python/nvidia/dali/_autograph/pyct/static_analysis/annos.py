@@ -16,7 +16,6 @@
 
 from enum import Enum
 
-
 # TODO(mdan): Remove.
 
 

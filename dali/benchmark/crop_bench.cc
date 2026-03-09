@@ -18,7 +18,7 @@
 
 namespace dali {
 
-static void CropCPUArgs(benchmark::internal::Benchmark *b) {
+static void CropCPUArgs(benchmark::Benchmark *b) {
   int batch_size = 1;
   for (int H = 1000; H >= 500; H /= 2) {
     int W = H, C = 3;
@@ -54,7 +54,7 @@ BENCHMARK_REGISTER_F(OperatorBench, CropCPU)->Iterations(1000)
 ->UseRealTime()
 ->Apply(CropCPUArgs);
 
-static void CropGPUArgs(benchmark::internal::Benchmark *b) {
+static void CropGPUArgs(benchmark::Benchmark *b) {
   for (int batch_size = 128; batch_size >= 1; batch_size /= 4) {
     for (int H = 2000; H >= 500; H /= 2) {
       int W = H, C = 3;

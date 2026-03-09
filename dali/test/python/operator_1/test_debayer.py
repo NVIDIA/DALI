@@ -134,7 +134,7 @@ class DebayerTest(unittest.TestCase):
         )
     )
     def test_debayer_fixed_pattern(self, i, args):
-        (batch_size, pattern, device, debayer_op) = args
+        batch_size, pattern, device, debayer_op = args
         num_iterations = 3
         test_hwc_single_channel_input = i % 2 == 1
         bayered_imgs, npp_baseline = self.get_test_data(np.uint8)

@@ -24,7 +24,6 @@ from ndd_vs_fn_test_utils import (
     generate_data,
 )
 
-
 SEQUENCE_OPERATORS = [
     OperatorTestConfig("cast", {"dtype": types.INT32}),
     OperatorTestConfig("copy"),

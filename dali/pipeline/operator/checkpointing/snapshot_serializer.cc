@@ -59,7 +59,8 @@ std::string SerializeRNG(const std::vector<T> &snapshot) {
 template<class T>
 std::vector<T> DeserializeRNG(const std::string &data) {
   dali_proto::RNGSnapshotCPU proto_snapshot;
-  proto_snapshot.ParseFromString(data);
+  DALI_ENFORCE(proto_snapshot.ParseFromString(data),
+               "Failed to deserialize RNG snapshot from protobuf.");
   std::vector<T> snapshot;
   for (int i = 0; i < proto_snapshot.rng_size(); i++)
     snapshot.push_back(DeserializeFromString<T>(proto_snapshot.rng(i)));
@@ -96,7 +97,8 @@ std::string SnapshotSerializer::Serialize(const std::vector<curandState> &snapsh
 template<> DLL_PUBLIC
 std::vector<curandState> SnapshotSerializer::Deserialize(const std::string &data) {
   dali_proto::RNGSnapshotGPU proto_snapshot;
-  proto_snapshot.ParseFromString(data);
+  DALI_ENFORCE(proto_snapshot.ParseFromString(data),
+               "Failed to deserialize GPU RNG snapshot from protobuf.");
   auto str = proto_snapshot.rng();
   std::vector<curandState> snapshot(str.size() / sizeof(curandState));
   memcpy(snapshot.data(), str.data(), str.size());
@@ -115,7 +117,8 @@ std::string SnapshotSerializer::Serialize(const LoaderStateSnapshot &snapshot) {
 template<> DLL_PUBLIC
 LoaderStateSnapshot SnapshotSerializer::Deserialize(const std::string &data) {
   dali_proto::ReaderStateSnapshot proto_snapshot;
-  proto_snapshot.ParseFromString(data);
+  DALI_ENFORCE(proto_snapshot.ParseFromString(data),
+               "Failed to deserialize loader state snapshot from protobuf.");
   return LoaderStateSnapshot {
     DeserializeFromString<std::default_random_engine>(proto_snapshot.loader_state().rng()),
     proto_snapshot.loader_state().current_epoch(),

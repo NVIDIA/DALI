@@ -13,6 +13,7 @@
 # limitations under the License.
 # ==============================================================================
 """Random code generation for testing/fuzzing."""
+
 # pylint: disable=invalid-name
 import random
 import string

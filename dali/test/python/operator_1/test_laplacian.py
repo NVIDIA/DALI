@@ -25,7 +25,6 @@ from nose_utils import assert_raises, attr
 from sequences_test_utils import video_suite_helper, ArgCb
 from test_utils import get_dali_extra_path, check_batch, RandomlyShapedDataIterator
 
-
 data_root = get_dali_extra_path()
 images_dir = os.path.join(data_root, "db", "single", "jpeg")
 
@@ -107,7 +106,7 @@ def _test_kernels(device, num_dims, smoothing, normalize):
         return sum(outer(*ws) for ws in windows)
 
     pipe = pipeline(num_threads=4, batch_size=batch_size, device_id=0)
-    (kernels, scales) = pipe.run()
+    kernels, scales = pipe.run()
     if device == "gpu":
         kernels = kernels.as_cpu()
     kernels = [np.array(ker)[(slice(1, -1),) * num_dims] for ker in kernels]

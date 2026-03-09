@@ -16,7 +16,6 @@
 
 import enum
 
-
 # TODO(mdan): For better performance, allow each rule to take a set names.
 
 

@@ -13,6 +13,7 @@
 # limitations under the License.
 # ==============================================================================
 """Container for origin source code information before AutoGraph compilation."""
+
 import collections
 import difflib
 import inspect

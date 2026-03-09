@@ -227,14 +227,10 @@ def _cycle_enabled(cycle):
         return False
     if cycle is True or cycle == "quiet" or cycle == "raise":
         return True
-    raise ValueError(
-        """Invalid value {} for the argument `cycle`. Valid values are
+    raise ValueError("""Invalid value {} for the argument `cycle`. Valid values are
   - "no", False or None - cycling disabled
   - "quiet", True - quietly rewind the data
-  - "raise" - raise StopIteration on each rewind.""".format(
-            repr(cycle)
-        )
-    )
+  - "raise" - raise StopIteration on each rewind.""".format(repr(cycle)))
 
 
 def accepted_arg_count(callable):

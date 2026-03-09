@@ -39,7 +39,6 @@ from test_detection_pipeline import coco_anchors
 from test_utils import get_dali_extra_path, get_files, module_functions
 from webdataset_base import generate_temp_index_file as generate_temp_wds_index
 
-
 data_root = get_dali_extra_path()
 images_dir = os.path.join(data_root, "db", "single", "jpeg")
 audio_files = get_files(os.path.join("db", "audio", "wav"), "wav")

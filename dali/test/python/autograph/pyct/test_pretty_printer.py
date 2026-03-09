@@ -23,12 +23,10 @@ from nvidia.dali._autograph.pyct import pretty_printer
 
 class PrettyPrinterTest(unittest.TestCase):
     def test_unicode_bytes(self):
-        source = textwrap.dedent(
-            """
+        source = textwrap.dedent("""
     def f():
       return b'b', u'u', 'depends_py2_py3'
-    """
-        )
+    """)
         node = ast.parse(source)
         self.assertIsNotNone(pretty_printer.fmt(node))
 
