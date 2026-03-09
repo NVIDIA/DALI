@@ -357,7 +357,7 @@ class Executor2::Impl {
           config_.thread_pool_threads,
           config_.device.value_or(CPU_ONLY_DEVICE_ID),
           config_.set_affinity,
-          "Executorv_v2");
+          "Executor_v2");
       }
       for (auto &n : graph_.Nodes()) {
         if (n.backend == OpType::CPU) {
@@ -371,7 +371,7 @@ class Executor2::Impl {
           config_.thread_pool_threads,
           config_.device.value_or(CPU_ONLY_DEVICE_ID),
           config_.set_affinity,
-          "Executorv_v2");
+          "Executor_v2");
       }
       for (auto &n : graph_.Nodes()) {
         if (n.backend == OpType::CPU)
