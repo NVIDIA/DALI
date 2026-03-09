@@ -40,16 +40,57 @@ class DLL_PUBLIC NewThreadPool : public ThreadPoolBase {
 #endif
 };
 
+/** Combines an existing ThreadPoolBase and Jobs to provide a backward-compatible interface.
+ *
+ * This class wraps a (non-owning) pointer to a ThreadPoolBase object and an owning list of Jobs.
+ * The jobs are created as needed when AddWork is called and destroyed when Wait is called.
+ *
+ * There's a subtle difference in priority handling between old thread pool and this wrapper
+ * when adding more work while the previous work is already started.
+ */
 class DLL_PUBLIC ThreadPoolFacade : public ThreadPool {
  public:
+  /** Constructs a ThreadPool facade for a ThreadPoolBase object
+   *
+   * @param thread_pool   A pointer to an existing thread pool. The caller must keep it alive
+   *                      until all work items submitted to the facade have been waited for.
+   */
   explicit ThreadPoolFacade(ThreadPoolBase *thread_pool) : tp_(thread_pool) {}
   ~ThreadPoolFacade() noexcept override;
 
+  /** Adds a new wokr item, with a priority. Higher priority items are picked up first.
+   *
+   *  After work has been added, it must be run and waited for.
+   *
+   *  @param work A parameterless function representing the work item.
+   */
   void AddWork(std::function<void()> work, int64_t priority = 0) override;
+  /** Adds a new wokr item, with a priority. Higher priority items are picked up first.
+   *
+   *  After work has been added, it must be run and waited for.
+   *
+   *  @param work A function representing the work item, parameterized with a thread index.
+   */
   void AddWork(std::function<void(int)> work, int64_t priority = 0) override;
+
+  /** Sumbits all work added for execution.
+   *
+   * Adding more work after this call requires calling RunAll again.
+   */
   void RunAll(bool wait = true) override;
+
+  /** Waits for the work to complete.
+   *
+   * This function waits until all work items are complete.
+   * If any of them throws an exception, the function will rethrow it.
+   * If multiple items throw, the exceptions are wrapped into MultiplErrors exception.
+   */
   void WaitForWork() override;
+
+  /** Returns the number of threads in the underlying thread pool */
   int NumThreads() const override;
+
+  /** Returns the systsm-specific thread ids (not indices) of the threads in the thread pool */
   std::vector<std::thread::id> GetThreadIds() const override;
 
  private:
