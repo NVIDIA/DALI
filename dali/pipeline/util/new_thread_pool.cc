@@ -31,6 +31,7 @@ NewThreadPool::NewThreadPool(
       : name_(name) {
   if (device_id.has_value() && *device_id == CPU_ONLY_DEVICE_ID)
     device_id = std::nullopt;
+  device_id_ = device_id;
 #if NVML_ENABLED
   // We use NVML only for setting thread affinity
   if (device_id.has_value() && set_affinity) {
