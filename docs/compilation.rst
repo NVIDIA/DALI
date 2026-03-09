@@ -38,7 +38,7 @@ Change directory (``cd``) into ``docker`` directory and run ``./build.sh``. If n
 set the following environment variables:
 
 * | CUDA_VERSION - CUDA toolkit version (12.9 and 13.2 are officially supported,
-    12.0, 12.1, 12.2, 12.3, 12.4, 12.5, 12.6, 12.8, 13.0 are 13.1 are deprecated
+    12.0, 12.1, 12.2, 12.3, 12.4, 12.5, 12.6, 12.8, 13.0 and 13.1 are deprecated
     and may not work).
   | The default is ``13.2``. Thanks to CUDA extended compatibility mode, CUDA 12.x wheels are named as
     CUDA 12.0 because it can work with the CUDA 12.0 R525.x driver
