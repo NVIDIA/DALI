@@ -112,8 +112,8 @@ void ThreadPoolFacade::RunAll(bool wait) {
         else
           jobs_.front().Run(*tp_, true);
       } else {
-        if (jobs_.front().Started())
-          jobs_.front().Wait();
+        if (!jobs_.front().Started())
+          jobs_.front().Run(*tp_, false);
         WaitForWork();
       }
     }
@@ -145,7 +145,7 @@ void ThreadPoolFacade::WaitForWork() {
       std::rethrow_exception(std::move(errs[0]));
     } else if (errs.size() > 1) {
       std::reverse(errs.begin(), errs.end());
-      MultipleErrors(std::move(errs));
+      throw MultipleErrors(std::move(errs));
     }  // else no error
   }
 }
