@@ -12,6 +12,8 @@ LOG2_NDD="dali_ndd_nvimgcodec.log"
 function CLEAN_AND_EXIT {
     rm -rf ${LOG1}
     rm -rf ${LOG2}
+    rm -rf ${LOG1_TP}
+    rm -rf ${LOG2_TP}
     rm -rf ${LOG1_NDD}
     rm -rf ${LOG2_NDD}
     exit $1
