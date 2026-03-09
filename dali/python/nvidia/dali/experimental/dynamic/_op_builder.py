@@ -282,13 +282,14 @@ def build_call_function(schema, op_class):
         self._pre_call(*raw_args, **raw_kwargs)
 
         if op_class._is_reader and self._tensor_args:
-            overlap = set(raw_kwargs) & set(self._tensor_args)
+            actual_kwargs = {name for name, value in raw_kwargs.items() if value is not None}
+            overlap = actual_kwargs & set(self._tensor_args)
             if overlap:
                 raise ValueError(
-                    f"Tensor argument(s) {sorted(overlap)} were already provided "
-                    f"in the reader constructor and cannot be passed again in __call__."
+                    f"Keyword argument{'s'[:len(overlap)^1]} {sorted(overlap)}"
+                    f" cannot be passed both in the constructor and __call__."
                 )
-            raw_kwargs = {**self._tensor_args, **raw_kwargs}
+            raw_kwargs = {**raw_kwargs, **self._tensor_args}
 
         batch_size = _ops._infer_batch_size(batch_size, *raw_args, **raw_kwargs)
         is_batch = batch_size is not None
