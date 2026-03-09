@@ -102,7 +102,7 @@ class PipelineWithLayout(ABC):
 
     def _cuda_run(self, data_input):
         if isinstance(data_input, torch.Tensor) and data_input.is_cuda:
-            device_id = data_input.device_index
+            device_id = data_input.device.index
         else:
             device_id = torch.cuda.current_device()
         stream = torch.cuda.Stream(device=device_id)

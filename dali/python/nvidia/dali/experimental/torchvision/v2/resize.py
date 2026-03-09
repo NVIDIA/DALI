@@ -66,13 +66,12 @@ class VerificationSize(ArgumentVerificationRule):
                 "Invalid combination: size must be int, None, or sequence of two ints. "
                 "max_size only applies when size is int or None."
             )
-        if size is None and max_size is None and max_size > 0:
-            raise ValueError(
-                f"Must provide max_size if size is None and max_size must be > 0 \
-                             got {max_size}"
-            )
+        if size is None and max_size is None:
+            raise ValueError("Must provide max_size if size is None.")
         if size is not None and max_size is not None and np.min(size) > max_size:
             raise ValueError("max_size should not be smaller than the actual size")
+        if max_size is not None and np.min(max_size) < 0:
+            raise ValueError(f"max_size must not be smaller than 0, got{max_size}")
         if isinstance(size, (tuple, list)) and len(size) == 2 and max_size is not None:
             raise ValueError(
                 "max_size should only be passed if size specifies the length of the smaller \
