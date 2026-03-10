@@ -654,7 +654,7 @@ all_packages = [
         "flax",
         [
             PckgVer(
-                "0.7.4",
+                "0.10.0",
                 # Free-threaded Python build is incompatible with numpy<2.
                 python_free_threaded=False,
             ),
