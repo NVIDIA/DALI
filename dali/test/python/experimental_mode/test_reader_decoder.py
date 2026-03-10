@@ -17,7 +17,6 @@ import subprocess
 import tempfile
 import math
 
-import numpy as np
 import nvidia.dali.experimental.dynamic as ndd
 from nose2.tools import cartesian_params, params
 from nose_utils import SkipTest, assert_raises

@@ -785,6 +785,7 @@ def _gen_dynamic_cls_signature(schema: _b.OpSchema, schema_name: str, op_name: s
             schema,
             include_self=True,
             include_only_inputs=True,
+            input_annotation_gen=lambda _: _TensorLike,
         )
     )
 
@@ -796,8 +797,6 @@ class {op_name}:
     def __init__{_call_signature(
         schema,
         "dynamic",
-        include_inputs=False,
-        include_kwarg_inputs=False,
         include_self=True,
         return_annotation=False,
         include_kwargs=True,
