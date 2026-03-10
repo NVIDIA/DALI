@@ -58,14 +58,14 @@ class DLL_PUBLIC ThreadPoolFacade : public ThreadPool {
   explicit ThreadPoolFacade(ThreadPoolBase *thread_pool) : tp_(thread_pool) {}
   ~ThreadPoolFacade() noexcept override;
 
-  /** Adds a new wokr item, with a priority. Higher priority items are picked up first.
+  /** Adds a new work item, with a priority. Higher priority items are picked up first.
    *
    *  After work has been added, it must be run and waited for.
    *
    *  @param work A parameterless function representing the work item.
    */
   void AddWork(std::function<void()> work, int64_t priority = 0) override;
-  /** Adds a new wokr item, with a priority. Higher priority items are picked up first.
+  /** Adds a new work item, with a priority. Higher priority items are picked up first.
    *
    *  After work has been added, it must be run and waited for.
    *
@@ -73,7 +73,7 @@ class DLL_PUBLIC ThreadPoolFacade : public ThreadPool {
    */
   void AddWork(std::function<void(int)> work, int64_t priority = 0) override;
 
-  /** Sumbits all work added for execution.
+  /** Submits all work added for execution.
    *
    * Adding more work after this call requires calling RunAll again.
    */
@@ -83,7 +83,7 @@ class DLL_PUBLIC ThreadPoolFacade : public ThreadPool {
    *
    * This function waits until all work items are complete.
    * If any of them throws an exception, the function will rethrow it.
-   * If multiple items throw, the exceptions are wrapped into MultiplErrors exception.
+   * If multiple items throw, the exceptions are wrapped into MultipleErrors exception.
    */
   void WaitForWork() override;
 
