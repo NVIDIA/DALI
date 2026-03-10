@@ -1,7 +1,7 @@
 #!/bin/bash
 
 set -o pipefail
-if [ -n "$gather_pip_packages" ]
+if [ -n "$gather_pip_packages" ] || [ -z "$enable_test_timestamps" ] # set enable_test_timestamps=1 to add per-line timestamps
 then
     # perl breaks the population of the outside variables from the inside of the sourced
     # script. Turn this off to the gather_pip_packages process
