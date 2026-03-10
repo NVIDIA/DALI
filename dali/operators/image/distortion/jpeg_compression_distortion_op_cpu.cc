@@ -96,9 +96,9 @@ void JpegCompressionDistortionCPU::RunImpl(Workspace &ws) {
     int f_dim = layout.find('F');
 
     int64_t nframes =
-        volume(&shape[0], &shape[f_dim + 1]);  // note that if f_dim is -1, this evaluates to an
-                                               // empty range, which has a volume of 1
-    int64_t frame_size = volume(&shape[f_dim + 1], &shape[ndim]);
+        volume(shape.data(), shape.data() + f_dim + 1);  // note that if f_dim is -1, this
+                                                         // evaluates to an empty range, volume of 1
+    int64_t frame_size = volume(shape.data() + f_dim + 1, shape.data() + ndim);
     int64_t width = shape[w_dim];
     int64_t height = shape[h_dim];
     for (int elem_idx = 0; elem_idx < nframes; elem_idx++) {
