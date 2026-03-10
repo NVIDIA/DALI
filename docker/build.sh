@@ -49,7 +49,7 @@ then
      [ $CUDA_VER != "125" ] && [ $CUDA_VER != "126" ] && [ $CUDA_VER != "128" ] && [ $CUDA_VER != "129" ] && [ $CUDA_VER != "130" ] && \
      [ $CUDA_VER != "131" ] && [ $CUDA_VER != "132" ]
   then
-      echo "Wrong CUDA_VERSION=$CUDA_VERSION provided. Only 12.0, 12.1, 12.2, 12.3, 12.4, 12.5, 12.6, 12.7, 12.8, 12.9, 13.0, 13.1 and 13.2 are supported"
+      echo "Wrong CUDA_VERSION=$CUDA_VERSION provided. Only 12.0, 12.1, 12.2, 12.3, 12.4, 12.5, 12.6, 12.8, 12.9, 13.0, 13.1 and 13.2 are supported"
       exit 1
   fi
 else
