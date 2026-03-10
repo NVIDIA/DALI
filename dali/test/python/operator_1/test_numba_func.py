@@ -322,6 +322,7 @@ class TestNumbaFuncCPU:
             expected_out,
         )
 
+    @attr("sanitizer_skip")
     def test_numba_func_with_cond(self):
         # When the function is not converted, the numba still works with no issues.
         # AG conversion or using a complex enough decorator would break this.
@@ -341,6 +342,7 @@ class TestNumbaFuncCPU:
             enable_conditionals=True,
         )
 
+    @attr("sanitizer_skip")
     def test_numba_func_with_cond_do_not_convert(self):
         # Test if do_not_convert decorated functions still work.
         _testimpl_numba_func(
