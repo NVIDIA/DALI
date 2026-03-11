@@ -4,11 +4,11 @@ FROM ${TOOLKIT_BASE_IMAGE} AS cuda
 ENV DEBIAN_FRONTEND=noninteractive
 
 # Change cuda version to pick the latest update
-RUN CUDA_SUBVERSION=13.1.1-1 && \
+RUN CUDA_SUBVERSION=13.2.0-1 && \
     NVJPEG2K_VERSION=0.9.0.43-1 && \
-    CUFILE_VERSION=1.16.1.26-1 && \
+    CUFILE_VERSION=1.17.0.44-1 && \
     CUDA_VERSION_MAJOR=13 && \
-    CUDA_VERSION_MINOR=1 && \
+    CUDA_VERSION_MINOR=2 && \
     apt-get update && \
     apt-get install wget software-properties-common -y && \
     apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/3bf863cc.pub && \

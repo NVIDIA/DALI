@@ -57,7 +57,6 @@ while [ \$# -gt 0 ]; do\\n\
     case \"\$1\" in\\n\
         --image=*)\\n\
             specs=\$1\\n\
-            shift\\n\
             new_spec=\$(echo \"\$specs\" | sed 's/image=/image3=/g' | sed 's/profile=sm_/kind=elf,sm=/g')\\n\
             args+=(\"\${new_spec[@]}\")\\n\
             ;;\\n\
