@@ -203,6 +203,8 @@ def build_constructor(schema, op_class):
         op_class.__base__.__init__(self, max_batch_size, name, **kwargs)
         if is_reader:
             self._tensor_args = {k: v for k, v in tensor_kwargs.items() if v is not None}
+            if any(isinstance(v, Batch) for v in self._tensor_args.values()):
+                raise ValueError("Readers cannot be constructed with batch keyword arguments")
         if stateful:
             self._call_id = 0
 
@@ -287,11 +289,8 @@ def build_call_function(schema, op_class):
             if overlap:
                 raise ValueError(
                     f"Keyword argument{'s'[:len(overlap)^1]} {sorted(overlap)}"
-                    f" cannot be passed both in the constructor and __call__."
+                    f" cannot be passed in both in the constructor and __call__."
                 )
-            for arg in self._tensor_args.values():
-                if isinstance(arg, Batch):
-                    raise ValueError("Readers cannot be constructed with batch keyword arguments")
             raw_kwargs = {**raw_kwargs, **self._tensor_args}
 
         batch_size = _ops._infer_batch_size(batch_size, *raw_args, **raw_kwargs)

@@ -91,7 +91,7 @@ class Invocation:
         self._future: Optional[_Future] = None
         self._run_lock = threading.Lock()
         if caller_depth is None:
-            caller_depth = 2 if getattr(self._operator, "_is_reader", False) else 4
+            caller_depth = 3 if getattr(self._operator, "_is_reader", False) else 4
         self._call_stack = (
             capture_stack(caller_depth + 1)
             if _EvalMode.current().value <= _EvalMode.eager.value
