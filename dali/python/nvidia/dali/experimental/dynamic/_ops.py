@@ -668,7 +668,7 @@ class Reader(Operator):
         else:
             return self._samples(ctx)
 
-    def _process_tensor_args(self, batch_size):
+    def _process_tensor_args(self, batch_size: int | None):
         """Converts stored tensor args to Batch/Tensor form for the given batch_size."""
         if not self._tensor_args:
             return {}
@@ -699,8 +699,10 @@ class Reader(Operator):
                     self._actual_batch_size = 1
                 if self._max_batch_size is None:
                     self._max_batch_size = self._actual_batch_size
-                self._init_backend(ctx, (), self._process_tensor_args(self._actual_batch_size))
-            tensor_args = self._process_tensor_args(self._actual_batch_size)
+                tensor_args = self._process_tensor_args(self._actual_batch_size)
+                self._init_backend(ctx, (), tensor_args)
+            else:
+                tensor_args = self._process_tensor_args(self._actual_batch_size)
             meta = self._op_backend.GetReaderMeta()
             idx = 0
             padded_size = meta["epoch_size_padded"]
