@@ -215,7 +215,7 @@ def test_video_resize_tensor_args(batch_size):
 
 def test_video_resize_tensor_args_partial():
     sequence_length = 60
-    width, height = 108, 192
+    width, height = 144, 192
     video_root = os.path.join(dali_extra_path, "db", "video", "sintel", "video_files")
     reader = ndd.readers.VideoResize(
         filenames=[os.path.join(video_root, "sintel_trailer-720p_3.mp4")],
@@ -223,7 +223,7 @@ def test_video_resize_tensor_args_partial():
         device="gpu",
         resize_x=width,
     )
-    tensor = reader()
+    tensor = reader(resize_y=height)
     assert isinstance(tensor, ndd.Tensor)
     assert tensor.layout == "FHWC"
     assert tensor.dtype == ndd.uint8
