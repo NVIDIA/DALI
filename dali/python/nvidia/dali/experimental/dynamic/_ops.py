@@ -747,20 +747,25 @@ class Reader(Operator):
                         f"{self._max_batch_size} specified when the operator was created"
                     )
                 self._max_batch_size = batch_size
-                self._init_backend(ctx, (), self._process_tensor_args(batch_size))
+                previous_batch_size = batch_size
+                tensor_args = self._process_tensor_args(batch_size)
+                self._init_backend(ctx, (), tensor_args)
             else:
                 if self._max_batch_size and self._max_batch_size != batch_size:
                     raise ValueError(
                         f"`batch_size` {batch_size} is different than the `max_batch_size` "
                         f"{self._max_batch_size} used in the previous call"
                     )
+                tensor_args = None
             meta = self._op_backend.GetReaderMeta()
             idx = 0
             padded_size = meta["epoch_size_padded"]
             shards_beg = math.floor(self._shard_id * padded_size / self._num_shards)
             shards_end = math.floor((self._shard_id + 1) * padded_size / self._num_shards)
             while idx < shards_end - shards_beg:
-                tensor_args = self._process_tensor_args(batch_size)
+                if tensor_args is None or previous_batch_size != batch_size:
+                    tensor_args = self._process_tensor_args(batch_size)
+                    previous_batch_size = batch_size
                 outputs = super()._run(ctx, batch_size=batch_size, **tensor_args)
                 batch_size_returned = batch_size = len(
                     outputs[0] if isinstance(outputs, tuple) else next(iter(outputs.values()))
