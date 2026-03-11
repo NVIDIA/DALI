@@ -97,7 +97,8 @@ void JpegCompressionDistortionCPU::RunImpl(Workspace &ws) {
 
     int64_t nframes =
         volume(shape.begin(), shape.begin() + f_dim + 1);  // note that if f_dim is -1, this
-                                                           // evaluates to an empty range, volume of 1
+                                                           // evaluates to an empty range,
+                                                           // volume of 1
     int64_t frame_size = volume(shape.begin() + f_dim + 1, shape.begin() + ndim);
     int64_t width = shape[w_dim];
     int64_t height = shape[h_dim];
