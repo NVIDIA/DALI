@@ -1,4 +1,4 @@
-// Copyright (c) 2024-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2024-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -352,6 +352,77 @@ typedef struct _DALIPipelineIODesc {
   const char *layout;
 } daliPipelineIODesc_t;
 
+/** Specifies the processing backend of an operator */
+typedef enum _DALIBackend {
+  DALI_BACKEND_CPU    = 0,
+  DALI_BACKEND_GPU    = 1,
+  DALI_BACKEND_MIXED  = 2,
+  DALI_BACKEND_FORCE_INT32 = 0x7fffffff
+} daliBackend_t;
+
+/** Describes a single input or output of an operator */
+typedef struct _DALIIODesc {
+  const char          *name;
+  daliStorageDevice_t  device_type;
+} daliIODesc_t;
+
+/** Describes a tensor argument input (argument fed as a TensorList at runtime) */
+typedef struct _DALIArgInputDesc {
+  const char *arg_name;
+  const char *input_name;
+} daliArgInputDesc_t;
+
+/** Describes an operator argument value.
+ *
+ * The `dtype` field determines which union member to use:
+ *
+ * Scalar types:
+ *   - DALI_INT8..DALI_INT64   -> ivalue
+ *   - DALI_UINT8..DALI_UINT64 -> uvalue
+ *   - DALI_FLOAT              -> fvalue
+ *   - DALI_FLOAT64            -> dvalue
+ *   - DALI_BOOL               -> ivalue (0 = false, non-zero = true)
+ *   - DALI_STRING             -> str (NULL-terminated)
+ *
+ * Vector (list) types — use the {size, arr} struct:
+ *   - DALI_INT_VEC            -> arr points to int[], size = element count
+ *   - DALI_FLOAT_VEC          -> arr points to float[], size = element count
+ *   - DALI_BOOL_VEC           -> arr points to bool[], size = element count
+ *   - DALI_STRING_VEC         -> arr points to const char*[], size = element count
+ *
+ * For vector types, `arr` must be non-NULL and `size` must be >= 0.
+ */
+typedef struct _DALIArgDesc {
+  const char     *arg_name;
+  daliDataType_t  dtype;
+  union {
+    int64_t      ivalue;   /**< signed integer scalar types and bool */
+    uint64_t     uvalue;   /**< unsigned integer scalar types */
+    float        fvalue;   /**< DALI_FLOAT */
+    double       dvalue;   /**< DALI_FLOAT64 */
+    const char  *str;      /**< DALI_STRING — NULL-terminated C string */
+    struct {
+      int64_t     size;    /**< number of elements */
+      const void *arr;     /**< pointer to the element data for vector types */
+    };
+  };
+} daliArgDesc_t;
+
+/** Describes an operator to be added to the pipeline */
+typedef struct _DALIOperatorDesc {
+  const char               *schema_name;
+  const char               *instance_name;    /**< may be NULL or empty */
+  daliBackend_t             backend;
+  int                       num_inputs;
+  int                       num_outputs;
+  int                       num_args;
+  int                       num_arg_inputs;
+  const daliIODesc_t       *inputs;
+  const daliIODesc_t       *outputs;
+  const daliArgDesc_t      *args;
+  const daliArgInputDesc_t *arg_inputs;
+} daliOperatorDesc_t;
+
 /** Creates an empty pipeline. */
 DALI_API daliResult_t daliPipelineCreate(
   daliPipeline_h *out_pipe_handle,
@@ -379,6 +450,41 @@ DALI_API daliResult_t daliPipelineDeserialize(
   size_t serialized_pipeline_size,
   const daliPipelineParams_t *param_overrides);
 
+
+/** Adds an external input to the pipeline.
+ *
+ * Equivalent to Pipeline::AddExternalInput.
+ * The input is described by a daliPipelineIODesc_t:
+ *   - name: the name of the input (also the name of the output produced by ExternalSource)
+ *   - device: DALI_STORAGE_CPU or DALI_STORAGE_GPU
+ *   - dtype, ndim, layout: optional metadata (use the _present flags)
+ */
+DALI_API daliResult_t daliPipelineAddExternalInput(
+  daliPipeline_h pipeline,
+  const daliPipelineIODesc_t *input_desc);
+
+/** Adds an operator to the pipeline.
+ *
+ * Constructs an OpSpec from op_desc and calls Pipeline::AddOperator.
+ * The `instance_name` field of op_desc may be NULL or empty to use an auto-generated name.
+ */
+DALI_API daliResult_t daliPipelineAddOperator(
+  daliPipeline_h pipeline,
+  const daliOperatorDesc_t *op_desc);
+
+/** Sets the output descriptors of the pipeline.
+ *
+ * Must be called before daliPipelineBuild. Equivalent to Pipeline::SetOutputDescs.
+ *
+ * @param pipeline    the pipeline
+ * @param num_outputs number of elements in `outputs`
+ * @param outputs     array of output descriptors; the `name` and `device` fields are required;
+ *                    `dtype`, `ndim`, and `layout` are optional (use the _present flags)
+ */
+DALI_API daliResult_t daliPipelineSetOutputs(
+  daliPipeline_h pipeline,
+  int num_outputs,
+  const daliPipelineIODesc_t *outputs);
 
 /** Prepares the pipeline for execution */
 DALI_API daliResult_t daliPipelineBuild(daliPipeline_h pipeline);

@@ -1,4 +1,4 @@
-// Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2025-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,6 +17,8 @@
 #include "dali/c_api_2/checkpoint.h"
 #include "dali/c_api_2/error_handling.h"
 #include "dali/pipeline/pipeline.h"
+#include "dali/pipeline/operator/op_spec.h"
+#include "dali/pipeline/pipeline_output_desc.h"
 #include "dali/c_api_2/utils.h"
 #include "dali/c_api_2/validation.h"
 
@@ -511,5 +513,176 @@ daliResult_t daliPipelineSerializeCheckpoint(
 daliResult_t daliCheckpointDestroy(daliCheckpoint_h checkpoint) {
   DALI_PROLOG();
   delete ToPointer(checkpoint);
+  DALI_EPILOG();
+}
+
+namespace {
+
+std::string_view BackendToString(daliBackend_t backend) {
+  switch (backend) {
+    case DALI_BACKEND_CPU:   return "cpu";
+    case DALI_BACKEND_GPU:   return "gpu";
+    case DALI_BACKEND_MIXED: return "mixed";
+    default:
+      throw std::invalid_argument(dali::make_string(
+        "Invalid backend value: ", static_cast<int>(backend)));
+  }
+}
+
+void AddArgToSpec(dali::OpSpec &spec, const daliArgDesc_t &arg) {
+  dali::c_api::CheckNotNull(arg.arg_name, "arg.arg_name");
+  std::string_view name = arg.arg_name;
+  switch (arg.dtype) {
+    // --- scalar types ---
+    case DALI_INT8:
+      spec.AddArg(name, static_cast<int8_t>(arg.ivalue));
+      break;
+    case DALI_INT16:
+      spec.AddArg(name, static_cast<int16_t>(arg.ivalue));
+      break;
+    case DALI_INT32:
+      spec.AddArg(name, static_cast<int32_t>(arg.ivalue));
+      break;
+    case DALI_INT64:
+      spec.AddArg(name, arg.ivalue);
+      break;
+    case DALI_UINT8:
+      spec.AddArg(name, static_cast<uint8_t>(arg.uvalue));
+      break;
+    case DALI_UINT16:
+      spec.AddArg(name, static_cast<uint16_t>(arg.uvalue));
+      break;
+    case DALI_UINT32:
+      spec.AddArg(name, static_cast<uint32_t>(arg.uvalue));
+      break;
+    case DALI_UINT64:
+      spec.AddArg(name, arg.uvalue);
+      break;
+    case DALI_FLOAT:
+      spec.AddArg(name, arg.fvalue);
+      break;
+    // NOT SUPPORTED / NOT IMPLEMENTED!
+    /*case DALI_FLOAT64:
+      spec.AddArg(name, arg.dvalue);
+      break;*/
+    case DALI_BOOL:
+      spec.AddArg(name, static_cast<bool>(arg.ivalue));
+      break;
+    case DALI_STRING:
+      dali::c_api::CheckNotNull(arg.str, "arg.str");
+      spec.AddArg(name, std::string(arg.str));
+      break;
+    // --- vector (list) types ---
+    case DALI_INT_VEC: {
+      if (arg.size > 0)
+        dali::c_api::CheckNotNull(arg.arr, "arg.arr");
+      auto *d = static_cast<const int *>(arg.arr);
+      spec.AddArg(name, std::vector<int>(d, d + arg.size));
+      break;
+    }
+    case DALI_FLOAT_VEC: {
+      if (arg.size > 0)
+        dali::c_api::CheckNotNull(arg.arr, "arg.arr");
+      auto *d = static_cast<const float *>(arg.arr);
+      spec.AddArg(name, std::vector<float>(d, d + arg.size));
+      break;
+    }
+    case DALI_BOOL_VEC: {
+      if (arg.size > 0)
+        dali::c_api::CheckNotNull(arg.arr, "arg.arr");
+      auto *d = static_cast<const bool *>(arg.arr);
+      spec.AddArg(name, std::vector<bool>(d, d + arg.size));
+      break;
+    }
+    case DALI_STRING_VEC: {
+      if (arg.size > 0)
+        dali::c_api::CheckNotNull(arg.arr, "arg.arr");
+      auto *d = static_cast<const char * const *>(arg.arr);
+      std::vector<std::string> sv;
+      sv.reserve(arg.size);
+      for (int64_t i = 0; i < arg.size; i++) {
+        dali::c_api::CheckNotNull(d[i], "arg.arr[i]");
+        sv.emplace_back(d[i]);
+      }
+      spec.AddArg(name, std::move(sv));
+      break;
+    }
+    default:
+      throw std::invalid_argument(dali::make_string(
+        "Unsupported argument dtype: ", static_cast<int>(arg.dtype)));
+  }
+}
+
+}  // namespace
+
+daliResult_t daliPipelineAddExternalInput(
+      daliPipeline_h pipeline,
+      const daliPipelineIODesc_t *input_desc) {
+  DALI_PROLOG();
+  auto pipe = ToPointer(pipeline);
+  NOT_NULL(input_desc);
+  NOT_NULL(input_desc->name);
+  std::string device_str = input_desc->device == DALI_STORAGE_GPU ? "gpu" : "cpu";
+  daliDataType_t dtype = input_desc->dtype_present ? input_desc->dtype : DALI_NO_TYPE;
+  int ndim = input_desc->ndim_present ? input_desc->ndim : -1;
+  const char *layout = input_desc->layout ? input_desc->layout : "";
+  pipe->Unwrap()->AddExternalInput(input_desc->name, device_str, dtype, ndim, layout);
+  DALI_EPILOG();
+}
+
+daliResult_t daliPipelineAddOperator(
+      daliPipeline_h pipeline,
+      const daliOperatorDesc_t *op_desc) {
+  DALI_PROLOG();
+  auto pipe = ToPointer(pipeline);
+  NOT_NULL(op_desc);
+  NOT_NULL(op_desc->schema_name);
+  dali::OpSpec spec(op_desc->schema_name);
+  spec.AddArg("device", std::string(BackendToString(op_desc->backend)));
+  for (int i = 0; i < op_desc->num_inputs; i++) {
+    NOT_NULL(op_desc->inputs[i].name);
+    spec.AddInput(op_desc->inputs[i].name,
+                  static_cast<dali::StorageDevice>(op_desc->inputs[i].device_type));
+  }
+  for (int i = 0; i < op_desc->num_outputs; i++) {
+    NOT_NULL(op_desc->outputs[i].name);
+    spec.AddOutput(op_desc->outputs[i].name,
+                   static_cast<dali::StorageDevice>(op_desc->outputs[i].device_type));
+  }
+  for (int i = 0; i < op_desc->num_arg_inputs; i++) {
+    NOT_NULL(op_desc->arg_inputs[i].arg_name);
+    NOT_NULL(op_desc->arg_inputs[i].input_name);
+    spec.AddArgumentInput(op_desc->arg_inputs[i].arg_name,
+                          op_desc->arg_inputs[i].input_name);
+  }
+  for (int i = 0; i < op_desc->num_args; i++)
+    AddArgToSpec(spec, op_desc->args[i]);
+  if (op_desc->instance_name && op_desc->instance_name[0] != '\0')
+    pipe->Unwrap()->AddOperator(spec, op_desc->instance_name);
+  else
+    pipe->Unwrap()->AddOperator(spec);
+  DALI_EPILOG();
+}
+
+daliResult_t daliPipelineSetOutputs(
+      daliPipeline_h pipeline,
+      int num_outputs,
+      const daliPipelineIODesc_t *outputs) {
+  DALI_PROLOG();
+  auto pipe = ToPointer(pipeline);
+  NOT_NULL(outputs);
+  std::vector<dali::PipelineOutputDesc> descs;
+  descs.reserve(num_outputs);
+  for (int i = 0; i < num_outputs; i++) {
+    NOT_NULL(outputs[i].name);
+    dali::PipelineOutputDesc desc;
+    desc.name   = outputs[i].name;
+    desc.device = static_cast<dali::StorageDevice>(outputs[i].device);
+    if (outputs[i].dtype_present) desc.dtype = outputs[i].dtype;
+    if (outputs[i].ndim_present)  desc.ndim  = outputs[i].ndim;
+    if (outputs[i].layout)        desc.layout = outputs[i].layout;
+    descs.push_back(std::move(desc));
+  }
+  pipe->Unwrap()->SetOutputDescs(std::move(descs));
   DALI_EPILOG();
 }
