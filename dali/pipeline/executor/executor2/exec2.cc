@@ -351,6 +351,7 @@ class Executor2::Impl {
     old_tp_.reset();
 
     if (UseNewThreadPool()) {
+      // TODO(michalz): Remove when the DALI_USE_NEW_THREAD_POOL option is public
       std::cerr << "\n!!! Forced use of NewThreadPool !!!" << std::endl;
       if (graph_info_.num_cpu > 0) {
         new_tp_ = std::make_unique<NewThreadPool>(
