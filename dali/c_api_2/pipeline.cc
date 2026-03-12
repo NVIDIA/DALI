@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <utility>
 #include "dali/c_api_2/pipeline.h"
 #include "dali/c_api_2/pipeline_outputs.h"
 #include "dali/c_api_2/checkpoint.h"
@@ -530,8 +531,8 @@ std::string_view BackendToString(daliBackend_t backend) {
 }
 
 void AddArgToSpec(dali::OpSpec &spec, const daliArgDesc_t &arg) {
-  dali::c_api::CheckNotNull(arg.arg_name, "arg.arg_name");
-  std::string_view name = arg.arg_name;
+  dali::c_api::CheckNotNull(arg.name, "arg.name");
+  std::string_view name = arg.name;
   switch (arg.dtype) {
     // --- scalar types ---
     case DALI_INT8:
@@ -649,6 +650,7 @@ daliResult_t daliPipelineAddOperator(
     spec.AddOutput(op_desc->outputs[i].name,
                    static_cast<dali::StorageDevice>(op_desc->outputs[i].device_type));
   }
+  // Argument inputs need to be added after regular inputs
   for (int i = 0; i < op_desc->num_arg_inputs; i++) {
     NOT_NULL(op_desc->arg_inputs[i].arg_name);
     NOT_NULL(op_desc->arg_inputs[i].input_name);

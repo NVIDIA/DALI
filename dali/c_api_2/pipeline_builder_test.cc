@@ -97,9 +97,9 @@ PipelineHandle BuildCApiCPUPipeline(std::optional<int> device_id) {
 
   // CounterOp "ctr": schema arg "ctr"="ctr", output "ctr" (CPU)
   daliArgDesc_t ctr_args[1];
-  ctr_args[0].arg_name = "ctr";
-  ctr_args[0].dtype    = DALI_STRING;
-  ctr_args[0].str      = "ctr";
+  ctr_args[0].name  = "ctr";
+  ctr_args[0].dtype = DALI_STRING;
+  ctr_args[0].str   = "ctr";
 
   daliIODesc_t ctr_out[1];
   ctr_out[0].name        = "ctr";
@@ -117,12 +117,12 @@ PipelineHandle BuildCApiCPUPipeline(std::optional<int> device_id) {
 
   // TestOp "op1": input "ctr" (CPU), output "op1" (CPU), addend=1000
   daliArgDesc_t op1_args[2];
-  op1_args[0].arg_name = "name";
-  op1_args[0].dtype    = DALI_STRING;
-  op1_args[0].str      = "op1";
-  op1_args[1].arg_name = "addend";
-  op1_args[1].dtype    = DALI_INT32;
-  op1_args[1].ivalue   = 1000;
+  op1_args[0].name    = "name";
+  op1_args[0].dtype   = DALI_STRING;
+  op1_args[0].str     = "op1";
+  op1_args[1].name    = "addend";
+  op1_args[1].dtype   = DALI_INT32;
+  op1_args[1].ivalue  = 1000;
 
   daliIODesc_t op1_in[1];
   op1_in[0].name        = "ctr";
@@ -146,12 +146,12 @@ PipelineHandle BuildCApiCPUPipeline(std::optional<int> device_id) {
 
   // TestOp "op2": input "ctr" (CPU), output "op2" (CPU), addend=2000
   daliArgDesc_t op2_args[2];
-  op2_args[0].arg_name = "name";
-  op2_args[0].dtype    = DALI_STRING;
-  op2_args[0].str      = "op2";
-  op2_args[1].arg_name = "addend";
-  op2_args[1].dtype    = DALI_INT32;
-  op2_args[1].ivalue   = 2000;
+  op2_args[0].name    = "name";
+  op2_args[0].dtype   = DALI_STRING;
+  op2_args[0].str     = "op2";
+  op2_args[1].name    = "addend";
+  op2_args[1].dtype   = DALI_INT32;
+  op2_args[1].ivalue  = 2000;
 
   daliIODesc_t op2_in[1];
   op2_in[0].name        = "ctr";

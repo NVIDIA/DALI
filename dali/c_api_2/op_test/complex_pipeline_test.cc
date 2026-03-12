@@ -31,6 +31,10 @@ ReaderDecoderPipe(
       PipelineParams params = {}) {
   std::string file_root = testing::dali_extra_path() + "/db/single/jpeg/";
   std::string file_list = file_root + "image_list.txt";
+  auto resize_device = decoder_device == "mixed" ? "gpu" : "cpu";
+  auto out_dev_str = to_string(output_device);
+  auto decoder_out_dev = decoder_device == "mixed"
+    ? StorageDevice::GPU : StorageDevice::CPU;
   if (!params.max_batch_size) params.max_batch_size = 4;
   if (!params.num_threads) params.num_threads = 1;
   if (!params.seed) params.seed = 12345;
@@ -47,10 +51,16 @@ ReaderDecoderPipe(
     .AddArg("device", decoder_device)
     .AddArg("output_type", DALI_RGB)
     .AddInput("compressed_images", StorageDevice::CPU)
-    .AddOutput("decoded", decoder_device == "cpu" ? StorageDevice::CPU : StorageDevice::GPU));
+    .AddOutput("decoded", decoder_out_dev));
 
-  auto out_dev_str = to_string(output_device);
-  pipe->SetOutputDescs({{ "decoded", out_dev_str }, { "labels", out_dev_str }});
+  pipe->AddOperator(OpSpec("Resize")
+    .AddArg("device", resize_device)
+    .AddArg("output_type", DALI_RGB)
+    .AddArg("size", std::vector<float>{ 224, 224 })
+    .AddInput("decoded", decoder_out_dev)
+    .AddOutput("resized", decoder_out_dev));
+
+  pipe->SetOutputDescs({{ "resized", out_dev_str }, { "labels", out_dev_str }});
   return pipe;
 }
 
@@ -84,16 +94,13 @@ ReaderDecoderCApiPipe(
   PipelineHandle pipe(h);
 
   // FileReader: no inputs, outputs "compressed_images" and "labels" on CPU
-  daliArgDesc_t reader_args[3];
-  reader_args[0].arg_name = "device";
-  reader_args[0].dtype    = DALI_STRING;
-  reader_args[0].str      = "cpu";
-  reader_args[1].arg_name = "file_root";
-  reader_args[1].dtype    = DALI_STRING;
-  reader_args[1].str      = file_root.c_str();
-  reader_args[2].arg_name = "file_list";
-  reader_args[2].dtype    = DALI_STRING;
-  reader_args[2].str      = file_list.c_str();
+  daliArgDesc_t reader_args[2];
+  reader_args[0].name  = "file_root";
+  reader_args[0].dtype = DALI_STRING;
+  reader_args[0].str   = file_root.c_str();
+  reader_args[1].name  = "file_list";
+  reader_args[1].dtype = DALI_STRING;
+  reader_args[1].str   = file_list.c_str();
 
   daliIODesc_t reader_out[2];
   reader_out[0].name        = "compressed_images";
@@ -105,8 +112,8 @@ ReaderDecoderCApiPipe(
   reader_op.schema_name = "FileReader";
   reader_op.backend     = DALI_BACKEND_CPU;
   reader_op.num_inputs  = 0;
-  reader_op.num_outputs = 2;
-  reader_op.num_args    = 3;
+  reader_op.num_outputs = std::size(reader_out);
+  reader_op.num_args    = std::size(reader_args);
   reader_op.outputs     = reader_out;
   reader_op.args        = reader_args;
   CHECK_DALI(daliPipelineAddOperator(h, &reader_op));
@@ -115,19 +122,14 @@ ReaderDecoderCApiPipe(
   bool is_mixed = (decoder_device == "mixed");
   daliBackend_t decoder_backend   = is_mixed ? DALI_BACKEND_MIXED : DALI_BACKEND_CPU;
   daliStorageDevice_t decoded_dev = is_mixed ? DALI_STORAGE_GPU   : DALI_STORAGE_CPU;
-  std::string decoder_device_str(decoder_device);
 
-  daliArgDesc_t decoder_args[2];
-  decoder_args[0].arg_name = "device";
-  decoder_args[0].dtype    = DALI_STRING;
-  decoder_args[0].str      = decoder_device_str.c_str();
-  decoder_args[1].arg_name = "output_type";
-  decoder_args[1].dtype    = DALI_INT32;
-  decoder_args[1].ivalue   = DALI_RGB;
+  daliArgDesc_t decoder_args[1];
+  decoder_args[0].name    = "output_type";
+  decoder_args[0].dtype   = DALI_INT32;
+  decoder_args[0].ivalue  = DALI_RGB;
 
   daliIODesc_t decoder_in[1];
-  decoder_in[0].name        = "compressed_images";
-  decoder_in[0].device_type = DALI_STORAGE_CPU;
+  decoder_in[0] = reader_out[0];
 
   daliIODesc_t decoder_out[1];
   decoder_out[0].name        = "decoded";
@@ -136,19 +138,52 @@ ReaderDecoderCApiPipe(
   daliOperatorDesc_t decoder_op{};
   decoder_op.schema_name = "ImageDecoder";
   decoder_op.backend     = decoder_backend;
-  decoder_op.num_inputs  = 1;
-  decoder_op.num_outputs = 1;
-  decoder_op.num_args    = 2;
+  decoder_op.num_inputs  = std::size(decoder_in);
+  decoder_op.num_outputs = std::size(decoder_out);
+  decoder_op.num_args    = std::size(decoder_args);
   decoder_op.inputs      = decoder_in;
   decoder_op.outputs     = decoder_out;
   decoder_op.args        = decoder_args;
   CHECK_DALI(daliPipelineAddOperator(h, &decoder_op));
 
+
+  // Resize: input "decoded" (CPU or GPU), output "resized" (same as input)
+  // If decoder is mixed, then resize is gpu
+  daliBackend_t resize_backend = is_mixed ? DALI_BACKEND_GPU : DALI_BACKEND_CPU;
+
+  daliArgDesc_t resize_args[2];
+  resize_args[0].name   = "output_type";
+  resize_args[0].dtype  = DALI_INT32;
+  resize_args[0].ivalue = DALI_RGB;
+  resize_args[1].name   = "size";
+  resize_args[1].dtype  = DALI_FLOAT_VEC;
+  float size[] = { 224, 224 };
+  resize_args[1].arr    = size;
+  resize_args[1].size   = 2;
+
+  daliIODesc_t resize_in[1];
+  resize_in[0] = decoder_out[0];
+
+  daliIODesc_t resize_out[1];
+  resize_out[0].name        = "resized";
+  resize_out[0].device_type = decoded_dev;
+
+  daliOperatorDesc_t resize_op{};
+  resize_op.schema_name = "Resize";
+  resize_op.backend     = resize_backend;
+  resize_op.num_inputs  = std::size(resize_in);
+  resize_op.num_outputs = std::size(resize_out);
+  resize_op.num_args    = std::size(resize_args);
+  resize_op.inputs      = resize_in;
+  resize_op.outputs     = resize_out;
+  resize_op.args        = resize_args;
+  CHECK_DALI(daliPipelineAddOperator(h, &resize_op));
+
   daliStorageDevice_t out_dev =
       output_device == StorageDevice::GPU ? DALI_STORAGE_GPU : DALI_STORAGE_CPU;
   daliPipelineIODesc_t out_descs[2];
   out_descs[0] = {};
-  out_descs[0].name   = "decoded";
+  out_descs[0].name   = "resized";
   out_descs[0].device = out_dev;
   out_descs[1] = {};
   out_descs[1].name   = "labels";
