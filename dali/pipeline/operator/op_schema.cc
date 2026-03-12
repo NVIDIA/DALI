@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -239,6 +239,30 @@ OpSchema &OpSchema::OutputFn(SpecFunc f) {
 
 OpSchema &OpSchema::AdditionalOutputsFn(SpecFunc f) {
   additional_outputs_fn_ = std::move(f);
+  return *this;
+}
+
+
+OpSchema &OpSchema::OutputDType(int index, OutputDTypeFunc fn) {
+  if (static_cast<int>(output_dtype_fn_.size()) <= index)
+    output_dtype_fn_.resize(index + 1);
+  output_dtype_fn_[index] = std::move(fn);
+  return *this;
+}
+
+
+OpSchema &OpSchema::OutputNdim(int index, OutputNdimFunc fn) {
+  if (static_cast<int>(output_ndim_fn_.size()) <= index)
+    output_ndim_fn_.resize(index + 1);
+  output_ndim_fn_[index] = std::move(fn);
+  return *this;
+}
+
+
+OpSchema &OpSchema::OutputLayout(int index, OutputLayoutFunc fn) {
+  if (static_cast<int>(output_layout_fn_.size()) <= index)
+    output_layout_fn_.resize(index + 1);
+  output_layout_fn_[index] = std::move(fn);
   return *this;
 }
 
@@ -905,6 +929,30 @@ DLL_PUBLIC int OpSchema::CalculateAdditionalOutputs(const OpSpec &spec) const {
   if (!additional_outputs_fn_)
     return 0;
   return additional_outputs_fn_(spec);
+}
+
+
+std::optional<DALIDataType> OpSchema::CalculateOutputDType(
+  int index, const OpSpec &spec, span<const DALIDataType> input_dtypes) const {
+  if (index >= static_cast<int>(output_dtype_fn_.size()) || !output_dtype_fn_[index])
+    return std::nullopt;
+  return output_dtype_fn_[index](spec, input_dtypes);
+}
+
+
+std::optional<int> OpSchema::CalculateOutputNdim(
+  int index, const OpSpec &spec, span<const int> input_ndims) const {
+  if (index >= static_cast<int>(output_ndim_fn_.size()) || !output_ndim_fn_[index])
+    return std::nullopt;
+  return output_ndim_fn_[index](spec, input_ndims);
+}
+
+
+std::optional<TensorLayout> OpSchema::CalculateOutputLayout(
+    int output_idx, const OpSpec &spec, span<const TensorLayout> input_layouts) const {
+  if (output_idx >= static_cast<int>(output_layout_fn_.size()) || !output_layout_fn_[output_idx])
+    return std::nullopt;
+  return output_layout_fn_[output_idx](spec, input_layouts);
 }
 
 
