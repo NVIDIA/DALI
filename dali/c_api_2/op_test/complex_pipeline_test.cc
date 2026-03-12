@@ -1,4 +1,4 @@
-// Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2025-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <gtest/gtest.h>
+#include "dali/dali.h"
 #include "dali/c_api_2/pipeline_test_utils.h"
 #include "dali/core/common.h"
 #include "dali/test/dali_test_config.h"
@@ -53,6 +54,110 @@ ReaderDecoderPipe(
   return pipe;
 }
 
+PipelineHandle
+ReaderDecoderCApiPipe(
+      std::string_view decoder_device,
+      StorageDevice output_device,
+      daliPipelineParams_t params = {}) {
+  std::string file_root = testing::dali_extra_path() + "/db/single/jpeg/";
+  std::string file_list = file_root + "image_list.txt";
+
+  if (!params.max_batch_size_present) {
+    params.max_batch_size_present = true;
+    params.max_batch_size = 4;
+  }
+  if (!params.num_threads_present) {
+    params.num_threads_present = true;
+    params.num_threads = 1;
+  }
+  if (!params.seed_present) {
+    params.seed_present = true;
+    params.seed = 12345;
+  }
+  if (!params.exec_type_present) {
+    params.exec_type_present = true;
+    params.exec_type = DALI_EXEC_DYNAMIC;
+  }
+
+  daliPipeline_h h = nullptr;
+  CHECK_DALI(daliPipelineCreate(&h, &params));
+  PipelineHandle pipe(h);
+
+  // FileReader: no inputs, outputs "compressed_images" and "labels" on CPU
+  daliArgDesc_t reader_args[3];
+  reader_args[0].arg_name = "device";
+  reader_args[0].dtype    = DALI_STRING;
+  reader_args[0].str      = "cpu";
+  reader_args[1].arg_name = "file_root";
+  reader_args[1].dtype    = DALI_STRING;
+  reader_args[1].str      = file_root.c_str();
+  reader_args[2].arg_name = "file_list";
+  reader_args[2].dtype    = DALI_STRING;
+  reader_args[2].str      = file_list.c_str();
+
+  daliIODesc_t reader_out[2];
+  reader_out[0].name        = "compressed_images";
+  reader_out[0].device_type = DALI_STORAGE_CPU;
+  reader_out[1].name        = "labels";
+  reader_out[1].device_type = DALI_STORAGE_CPU;
+
+  daliOperatorDesc_t reader_op{};
+  reader_op.schema_name = "FileReader";
+  reader_op.backend     = DALI_BACKEND_CPU;
+  reader_op.num_inputs  = 0;
+  reader_op.num_outputs = 2;
+  reader_op.num_args    = 3;
+  reader_op.outputs     = reader_out;
+  reader_op.args        = reader_args;
+  CHECK_DALI(daliPipelineAddOperator(h, &reader_op));
+
+  // ImageDecoder: input "compressed_images" (CPU), output "decoded" (CPU or GPU)
+  bool is_mixed = (decoder_device == "mixed");
+  daliBackend_t decoder_backend   = is_mixed ? DALI_BACKEND_MIXED : DALI_BACKEND_CPU;
+  daliStorageDevice_t decoded_dev = is_mixed ? DALI_STORAGE_GPU   : DALI_STORAGE_CPU;
+  std::string decoder_device_str(decoder_device);
+
+  daliArgDesc_t decoder_args[2];
+  decoder_args[0].arg_name = "device";
+  decoder_args[0].dtype    = DALI_STRING;
+  decoder_args[0].str      = decoder_device_str.c_str();
+  decoder_args[1].arg_name = "output_type";
+  decoder_args[1].dtype    = DALI_INT32;
+  decoder_args[1].ivalue   = DALI_RGB;
+
+  daliIODesc_t decoder_in[1];
+  decoder_in[0].name        = "compressed_images";
+  decoder_in[0].device_type = DALI_STORAGE_CPU;
+
+  daliIODesc_t decoder_out[1];
+  decoder_out[0].name        = "decoded";
+  decoder_out[0].device_type = decoded_dev;
+
+  daliOperatorDesc_t decoder_op{};
+  decoder_op.schema_name = "ImageDecoder";
+  decoder_op.backend     = decoder_backend;
+  decoder_op.num_inputs  = 1;
+  decoder_op.num_outputs = 1;
+  decoder_op.num_args    = 2;
+  decoder_op.inputs      = decoder_in;
+  decoder_op.outputs     = decoder_out;
+  decoder_op.args        = decoder_args;
+  CHECK_DALI(daliPipelineAddOperator(h, &decoder_op));
+
+  daliStorageDevice_t out_dev =
+      output_device == StorageDevice::GPU ? DALI_STORAGE_GPU : DALI_STORAGE_CPU;
+  daliPipelineIODesc_t out_descs[2];
+  out_descs[0] = {};
+  out_descs[0].name   = "decoded";
+  out_descs[0].device = out_dev;
+  out_descs[1] = {};
+  out_descs[1].name   = "labels";
+  out_descs[1].device = out_dev;
+  CHECK_DALI(daliPipelineSetOutputs(h, 2, out_descs));
+
+  return pipe;
+}
+
 void TestReaderDecoder(std::string_view decoder_device, StorageDevice output_device) {
   auto ref_pipe = ReaderDecoderPipe(decoder_device, output_device);
   auto proto = ref_pipe->SerializeToProtobuf();
@@ -66,48 +171,60 @@ void TestReaderDecoder(std::string_view decoder_device, StorageDevice output_dev
   ComparePipelineOutputs(*ref_pipe, pipe);
 }
 
-TEST(CAPI2_PipelineTest, ReaderDecoderCPU) {
+TEST(CAPI2_SerializedPipelineTest, ReaderDecoderCPU) {
   TestReaderDecoder("cpu", StorageDevice::CPU);
 }
 
-TEST(CAPI2_PipelineTest, ReaderDecoderCPU2GPU) {
+TEST(CAPI2_SerializedPipelineTest, ReaderDecoderCPU2GPU) {
   TestReaderDecoder("cpu", StorageDevice::GPU);
 }
 
-TEST(CAPI2_PipelineTest, ReaderDecoderMixed) {
+TEST(CAPI2_SerializedPipelineTest, ReaderDecoderMixed) {
   if (!MixedOperatorRegistry::Registry().IsRegistered("ImageDecoder")) {
     GTEST_SKIP() << "ImageDecoder for mixed backend is not available";
   }
   TestReaderDecoder("mixed", StorageDevice::GPU);
 }
 
-TEST(CAPI2_PipelineTest, ReaderDecoderMixed2CPU) {
+TEST(CAPI2_SerializedPipelineTest, ReaderDecoderMixed2CPU) {
   if (!MixedOperatorRegistry::Registry().IsRegistered("ImageDecoder")) {
     GTEST_SKIP() << "ImageDecoder for mixed backend is not available";
   }
   TestReaderDecoder("mixed", StorageDevice::CPU);
 }
 
-TEST(CAPI2_PipelineTest, Checkpointing) {
-  // This test creates three pipelines - a C++ pipeline (ref) and two C pipelines (pipe1, pipe2),
-  // created by deserializing the serialized representation of the C++ pipeline.
-  //
-  // (pipe1) advances 3 iterations and then a checkpoint is taken and restored in (ref),
-  // after which 5 iterations of outputs are compared.
-  // Then a checkpoint is taken in (ref) and restored in (pipe2), after which another 5 iterations
-  // are compared.
-  PipelineParams params{};
-  params.enable_checkpointing = true;
-  params.seed = 1234;
-  auto ref = ReaderDecoderPipe("cpu", StorageDevice::GPU, params);
-  ref->Build();
-  auto pipe_str = ref->SerializeToProtobuf();  // serialize the ref...
-  auto pipe1 = Deserialize(pipe_str, {});  // ...and create pipe1
-  auto pipe2 = Deserialize(pipe_str, {});  // ...and pipe2 from serialized ref
-  CHECK_DALI(daliPipelineBuild(pipe1));
-  CHECK_DALI(daliPipelineBuild(pipe2));
+void TestReaderDecoderBuilder(std::string_view decoder_device, StorageDevice output_device) {
+  auto ref_pipe = ReaderDecoderPipe(decoder_device, output_device);
+  ref_pipe->Build();
+  auto test_pipe = ReaderDecoderCApiPipe(decoder_device, output_device);
+  CHECK_DALI(daliPipelineBuild(test_pipe));
+  ComparePipelineOutputs(*ref_pipe, test_pipe);
+}
 
-  // Advance a few iterations...
+TEST(CAPI2_PipelineBuilderTest, ReaderDecoderCPU) {
+  TestReaderDecoderBuilder("cpu", StorageDevice::CPU);
+}
+
+TEST(CAPI2_PipelineBuilderTest, ReaderDecoderCPU2GPU) {
+  TestReaderDecoderBuilder("cpu", StorageDevice::GPU);
+}
+
+TEST(CAPI2_PipelineBuilderTest, ReaderDecoderMixed) {
+  if (!MixedOperatorRegistry::Registry().IsRegistered("ImageDecoder")) {
+    GTEST_SKIP() << "ImageDecoder for mixed backend is not available";
+  }
+  TestReaderDecoderBuilder("mixed", StorageDevice::GPU);
+}
+
+TEST(CAPI2_PipelineBuilderTest, ReaderDecoderMixed2CPU) {
+  if (!MixedOperatorRegistry::Registry().IsRegistered("ImageDecoder")) {
+    GTEST_SKIP() << "ImageDecoder for mixed backend is not available";
+  }
+  TestReaderDecoderBuilder("mixed", StorageDevice::CPU);
+}
+
+void RunCheckpointingTest(Pipeline &ref, daliPipeline_h pipe1, daliPipeline_h pipe2) {
+  // Advance a few iterations in pipe1...
   CHECK_DALI(daliPipelinePrefetch(pipe1));
   daliPipelineOutputs_h out1_h{};
   CHECK_DALI(daliPipelinePopOutputs(pipe1, &out1_h));
@@ -129,7 +246,7 @@ TEST(CAPI2_PipelineTest, Checkpointing) {
   ext.pipeline_data.size = strlen(ext.pipeline_data.data);
 
   daliCheckpoint_h checkpoint_h{};
-  // Take a checkpoint...
+  // Take a checkpoint from pipe1...
   CHECK_DALI(daliPipelineGetCheckpoint(pipe1, &checkpoint_h, &ext));
   CheckpointHandle checkpoint(checkpoint_h);
 
@@ -138,15 +255,15 @@ TEST(CAPI2_PipelineTest, Checkpointing) {
   CHECK_DALI(daliPipelineSerializeCheckpoint(pipe1, checkpoint, &data, &size));
   ASSERT_NE(data, nullptr);
 
-  // ...restore...
-  ref->RestoreFromSerializedCheckpoint(std::string(data, size));
+  // ...restore into ref...
+  ref.RestoreFromSerializedCheckpoint(std::string(data, size));
   // ...run and compare.
-  ComparePipelineOutputs(*ref, pipe1, 5, false);
+  ComparePipelineOutputs(ref, pipe1, 5, false);
 
-  // Now take another checkpoint...
-  auto chk_str = ref->GetSerializedCheckpoint({ ext.pipeline_data.data, ext.iterator_data.data });
+  // Now take another checkpoint from ref...
+  auto chk_str = ref.GetSerializedCheckpoint({ ext.pipeline_data.data, ext.iterator_data.data });
 
-  // ...deserialize...
+  // ...deserialize into pipe2...
   CHECK_DALI(daliPipelineDeserializeCheckpoint(
         pipe2, &checkpoint_h, chk_str.data(), chk_str.length()));
   CheckpointHandle checkpoint2(checkpoint_h);
@@ -157,10 +274,46 @@ TEST(CAPI2_PipelineTest, Checkpointing) {
   EXPECT_STREQ(ext2.iterator_data.data, "ITER");
   EXPECT_EQ(ext2.pipeline_data.size, pipeline_data_size);
   EXPECT_STREQ(ext2.pipeline_data.data, pipeline_data);
-  // ...restore...
+  // ...restore and compare.
   CHECK_DALI(daliPipelineRestoreCheckpoint(pipe2, checkpoint2));
-  // ...run and compare.
-  ComparePipelineOutputs(*ref, pipe2, 5, false);
+  ComparePipelineOutputs(ref, pipe2, 5, false);
+}
+
+TEST(CAPI2_SerializedPipelineTest, Checkpointing) {
+  // This test creates three pipelines - a C++ pipeline (ref) and two C pipelines (pipe1, pipe2),
+  // created by deserializing the serialized representation of the C++ pipeline.
+  PipelineParams params{};
+  params.enable_checkpointing = true;
+  params.seed = 1234;
+  auto ref = ReaderDecoderPipe("cpu", StorageDevice::GPU, params);
+  ref->Build();
+  auto pipe_str = ref->SerializeToProtobuf();  // serialize the ref...
+  auto pipe1 = Deserialize(pipe_str, {});  // ...and create pipe1
+  auto pipe2 = Deserialize(pipe_str, {});  // ...and pipe2 from serialized ref
+  CHECK_DALI(daliPipelineBuild(pipe1));
+  CHECK_DALI(daliPipelineBuild(pipe2));
+  RunCheckpointingTest(*ref, pipe1, pipe2);
+}
+
+TEST(CAPI2_PipelineBuilderTest, Checkpointing) {
+  // This test creates three pipelines - a C++ pipeline (ref) and two C API builder pipelines
+  // (pipe1, pipe2) with identical parameters, then verifies checkpoint save/restore.
+  PipelineParams cpp_params{};
+  cpp_params.enable_checkpointing = true;
+  cpp_params.seed = 1234;
+  auto ref = ReaderDecoderPipe("cpu", StorageDevice::GPU, cpp_params);
+  ref->Build();
+
+  daliPipelineParams_t c_params{};
+  c_params.enable_checkpointing_present = true;
+  c_params.enable_checkpointing = true;
+  c_params.seed_present = true;
+  c_params.seed = 1234;
+  auto pipe1 = ReaderDecoderCApiPipe("cpu", StorageDevice::GPU, c_params);
+  auto pipe2 = ReaderDecoderCApiPipe("cpu", StorageDevice::GPU, c_params);
+  CHECK_DALI(daliPipelineBuild(pipe1));
+  CHECK_DALI(daliPipelineBuild(pipe2));
+  RunCheckpointingTest(*ref, pipe1, pipe2);
 }
 
 }  // namespace dali::c_api::test
