@@ -34,8 +34,10 @@ constexpr int kNumThreads = 4;
 // ----- Helpers for building reference (C++) pipelines -----
 
 // Counter + two CPU TestOps: ctr -> op1(+1000), ctr -> op2(+2000); outputs: op1, op2
-std::unique_ptr<Pipeline> BuildRefCPUPipeline(int device_id) {
-  auto p = std::make_unique<Pipeline>(MakePipelineParams(kBatchSize, kNumThreads, device_id));
+std::unique_ptr<Pipeline> BuildRefCPUPipeline(std::optional<int> device_id) {
+  auto p = std::make_unique<Pipeline>(MakePipelineParams(
+      kBatchSize, kNumThreads, device_id.value_or(CPU_ONLY_DEVICE_ID)));
+
   p->AddOperator(
     OpSpec(exec2::test::kCounterOpName)
       .AddArg("ctr", std::string("ctr"))
@@ -63,8 +65,10 @@ std::unique_ptr<Pipeline> BuildRefCPUPipeline(int device_id) {
 }
 
 // ExternalSource (cpu) -> output "ext" directly; used for feed-input comparison
-std::unique_ptr<Pipeline> BuildRefExtSrcPipeline(int device_id) {
-  auto p = std::make_unique<Pipeline>(MakePipelineParams(kBatchSize, kNumThreads, device_id));
+std::unique_ptr<Pipeline> BuildRefExtSrcPipeline(std::optional<int> device_id) {
+  auto p = std::make_unique<Pipeline>(MakePipelineParams(
+      kBatchSize, kNumThreads, device_id.value_or(CPU_ONLY_DEVICE_ID)));
+
   p->AddExternalInput("ext", "cpu");
   p->SetOutputDescs({ {"ext", "cpu"} });
   p->Build();
@@ -73,19 +77,19 @@ std::unique_ptr<Pipeline> BuildRefExtSrcPipeline(int device_id) {
 
 // ----- Helpers for building C API pipelines -----
 
-daliPipelineParams_t MakeCApiParams(int device_id) {
+daliPipelineParams_t MakeCApiParams(std::optional<int> device_id) {
   daliPipelineParams_t params{};
   params.max_batch_size_present = true;
   params.max_batch_size = kBatchSize;
   params.num_threads_present = true;
   params.num_threads = kNumThreads;
-  params.device_id_present = true;
-  params.device_id = device_id;
+  params.device_id_present = device_id.has_value();
+  params.device_id = device_id.value_or(-1);
   return params;
 }
 
 // Counter + two CPU TestOps built via C API, matching BuildRefCPUPipeline
-PipelineHandle BuildCApiCPUPipeline(int device_id) {
+PipelineHandle BuildCApiCPUPipeline(std::optional<int> device_id) {
   auto params = MakeCApiParams(device_id);
   daliPipeline_h h = nullptr;
   CHECK_DALI(daliPipelineCreate(&h, &params));
@@ -184,7 +188,7 @@ PipelineHandle BuildCApiCPUPipeline(int device_id) {
 }
 
 // ExternalSource "ext" (CPU) built via C API, matching BuildRefExtSrcPipeline
-PipelineHandle BuildCApiExtSrcPipeline(int device_id) {
+PipelineHandle BuildCApiExtSrcPipeline(std::optional<int> device_id) {
   auto params = MakeCApiParams(device_id);
   daliPipeline_h h = nullptr;
   CHECK_DALI(daliPipelineCreate(&h, &params));
@@ -210,8 +214,8 @@ PipelineHandle BuildCApiExtSrcPipeline(int device_id) {
 // Build both C++ and C API pipelines, run 5 iterations, compare outputs.
 
 TEST(CAPI2_PipelineBuilderTest, AddOperator_CPUOnly) {
-  auto ref  = BuildRefCPUPipeline(CPU_ONLY_DEVICE_ID);
-  auto test = BuildCApiCPUPipeline(CPU_ONLY_DEVICE_ID);
+  auto ref  = BuildRefCPUPipeline(std::nullopt);
+  auto test = BuildCApiCPUPipeline(std::nullopt);
   ComparePipelineOutputs(*ref, test, /*iters=*/5, /*prefetch_on_first_iter=*/true);
 }
 
@@ -220,8 +224,8 @@ TEST(CAPI2_PipelineBuilderTest, AddOperator_CPUOnly) {
 // Feed identical data to both, run, compare outputs.
 
 TEST(CAPI2_PipelineBuilderTest, AddExternalInput) {
-  auto ref  = BuildRefExtSrcPipeline(CPU_ONLY_DEVICE_ID);
-  auto test = BuildCApiExtSrcPipeline(CPU_ONLY_DEVICE_ID);
+  auto ref  = BuildRefExtSrcPipeline(0);
+  auto test = BuildCApiExtSrcPipeline(0);
 
   // Determine how many times we need to feed before prefetching
   int feed_count = ref->InputFeedCount("ext");
@@ -238,7 +242,7 @@ TEST(CAPI2_PipelineBuilderTest, AddExternalInput) {
 
     // Feed to test C API pipeline
     auto tl_handle = Wrap(cpp_tl);
-    CHECK_DALI(daliPipelineFeedInput(test, "ext", tl_handle.get(), nullptr, 0, nullptr));
+    CHECK_DALI(daliPipelineFeedInput(test, "ext", tl_handle.get(), nullptr, {}, nullptr));
   }
 
   // Prefetch both, then compare outputs for each prefetched batch
