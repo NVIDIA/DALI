@@ -351,4 +351,111 @@ TEST(CAPI2_PipelineBuilderTest, Checkpointing) {
   RunCheckpointingTest(*ref, pipe1, pipe2);
 }
 
+TEST(CAPI2_PipelineBuilderTest, ResizeWithArgumentInput) {
+  constexpr int kBatchSize = 4;
+
+  daliPipelineParams_t params{};
+  params.max_batch_size_present = true;
+  params.max_batch_size = kBatchSize;
+  params.num_threads_present = true;
+  params.num_threads = 2;
+
+  daliPipeline_h h = nullptr;
+  CHECK_DALI(daliPipelineCreate(&h, &params));
+  PipelineHandle pipe(h);
+
+  // Add ExternalInput "images" (CPU)
+  daliPipelineIODesc_t images_input_desc{};
+  images_input_desc.name   = "images";
+  images_input_desc.device = DALI_STORAGE_CPU;
+  CHECK_DALI(daliPipelineAddExternalInput(h, &images_input_desc));
+
+  // Add ExternalInput "sizes" (CPU) — fed as argument input for Resize's "size" argument
+  daliPipelineIODesc_t sizes_input_desc{};
+  sizes_input_desc.name   = "sizes";
+  sizes_input_desc.device = DALI_STORAGE_CPU;
+  CHECK_DALI(daliPipelineAddExternalInput(h, &sizes_input_desc));
+
+  // Resize: regular input "images", argument input "sizes" -> "size"
+  daliIODesc_t resize_in[1];
+  resize_in[0].name        = "images";
+  resize_in[0].device_type = DALI_STORAGE_CPU;
+
+  daliIODesc_t resize_out[1];
+  resize_out[0].name        = "resized";
+  resize_out[0].device_type = DALI_STORAGE_CPU;
+
+  daliArgInputDesc_t arg_inputs[1];
+  arg_inputs[0].arg_name   = "size";
+  arg_inputs[0].input_name = "sizes";
+
+  daliOperatorDesc_t resize_op{};
+  resize_op.schema_name    = "Resize";
+  resize_op.backend        = DALI_BACKEND_CPU;
+  resize_op.num_inputs     = std::size(resize_in);
+  resize_op.num_outputs    = std::size(resize_out);
+  resize_op.num_arg_inputs = std::size(arg_inputs);
+  resize_op.inputs         = resize_in;
+  resize_op.outputs        = resize_out;
+  resize_op.arg_inputs     = arg_inputs;
+  CHECK_DALI(daliPipelineAddOperator(h, &resize_op));
+
+  daliPipelineIODesc_t out_desc{};
+  out_desc.name   = "resized";
+  out_desc.device = DALI_STORAGE_CPU;
+  CHECK_DALI(daliPipelineSetOutputs(h, 1, &out_desc));
+
+  CHECK_DALI(daliPipelineBuild(h));
+
+  // Per-sample target sizes [H, W] — at least two distinct shapes
+  const float sample_sizes[kBatchSize][2] = {
+    {100.f, 200.f},
+    { 50.f,  80.f},
+    {120.f,  90.f},
+    { 30.f,  40.f},
+  };
+
+  int feed_count = 0;
+  CHECK_DALI(daliPipelineGetFeedCount(h, &feed_count, "images"));
+
+  for (int feed = 0; feed < feed_count; feed++) {
+    // Input images: HWC tensors of shape [64, 64, 3] (content unused, only shape matters)
+    auto images_tl = std::make_shared<TensorList<CPUBackend>>();
+    images_tl->Resize(uniform_list_shape(kBatchSize, TensorShape<3>{64, 64, 3}), DALI_UINT8);
+
+    // Per-sample sizes: 1D float tensors of shape [2], each holding [H, W]
+    auto sizes_tl = std::make_shared<TensorList<CPUBackend>>();
+    sizes_tl->Resize(uniform_list_shape(kBatchSize, TensorShape<1>{2}), DALI_FLOAT);
+    for (int i = 0; i < kBatchSize; i++) {
+      float *ptr = (*sizes_tl)[i].mutable_data<float>();
+      ptr[0] = sample_sizes[i][0];
+      ptr[1] = sample_sizes[i][1];
+    }
+
+    auto images_handle = Wrap(images_tl);
+    auto sizes_handle  = Wrap(sizes_tl);
+    CHECK_DALI(daliPipelineFeedInput(h, "images", images_handle.get(), nullptr, {}, nullptr));
+    CHECK_DALI(daliPipelineFeedInput(h, "sizes",  sizes_handle.get(),  nullptr, {}, nullptr));
+  }
+
+  CHECK_DALI(daliPipelinePrefetch(h));
+
+  auto outs   = PopOutputs(h);
+  auto out_tl = GetOutput(outs, 0);
+
+  int num_samples = 0, ndim = 0;
+  const int64_t *shape = nullptr;
+  CHECK_DALI(daliTensorListGetShape(out_tl, &num_samples, &ndim, &shape));
+
+  ASSERT_EQ(num_samples, kBatchSize);
+  ASSERT_EQ(ndim, 3);  // H, W, C
+
+  for (int i = 0; i < kBatchSize; i++) {
+    const int64_t *s = shape + i * ndim;
+    EXPECT_EQ(s[0], static_cast<int64_t>(sample_sizes[i][0])) << "Sample " << i << " H mismatch";
+    EXPECT_EQ(s[1], static_cast<int64_t>(sample_sizes[i][1])) << "Sample " << i << " W mismatch";
+    EXPECT_EQ(s[2], 3) << "Sample " << i << " C mismatch";
+  }
+}
+
 }  // namespace dali::c_api::test
