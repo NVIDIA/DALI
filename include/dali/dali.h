@@ -393,7 +393,7 @@ typedef struct _DALIArgInputDesc {
  * For vector types, `arr` must be non-NULL and `size` must be >= 0.
  */
 typedef struct _DALIArgDesc {
-  const char     *arg_name;
+  const char     *name;
   daliDataType_t  dtype;
   union {
     int64_t      ivalue;   /**< signed integer scalar types and bool */
