@@ -531,8 +531,15 @@ std::string_view BackendToString(daliBackend_t backend) {
 }
 
 void AddArgToSpec(dali::OpSpec &spec, const daliArgDesc_t &arg) {
-  dali::c_api::CheckNotNull(arg.name, "arg.name");
+  assert(arg.name != nullptr);  // checked in daliPipelineAddOperator
   std::string_view name = arg.name;
+
+  auto check_not_null = [&](auto *x, auto &&field) {
+    dali::c_api::CheckNotNull(x, [&]() {
+      return dali::make_string("`", field, "` of argument \"", name, "\"");
+    });
+  };
+
   switch (arg.dtype) {
     // --- scalar types ---
     case DALI_INT8:
@@ -570,39 +577,40 @@ void AddArgToSpec(dali::OpSpec &spec, const daliArgDesc_t &arg) {
       spec.AddArg(name, static_cast<bool>(arg.ivalue));
       break;
     case DALI_STRING:
-      dali::c_api::CheckNotNull(arg.str, "arg.str");
+      check_not_null(arg.str, "arg.str");
       spec.AddArg(name, std::string(arg.str));
       break;
     // --- vector (list) types ---
     case DALI_INT_VEC: {
       if (arg.size > 0)
-        dali::c_api::CheckNotNull(arg.arr, "arg.arr");
+        check_not_null(arg.arr, "arg.arr");
       auto *d = static_cast<const int *>(arg.arr);
       spec.AddArg(name, std::vector<int>(d, d + arg.size));
       break;
     }
     case DALI_FLOAT_VEC: {
       if (arg.size > 0)
-        dali::c_api::CheckNotNull(arg.arr, "arg.arr");
+        check_not_null(arg.arr, "arg.arr");
       auto *d = static_cast<const float *>(arg.arr);
       spec.AddArg(name, std::vector<float>(d, d + arg.size));
       break;
     }
     case DALI_BOOL_VEC: {
       if (arg.size > 0)
-        dali::c_api::CheckNotNull(arg.arr, "arg.arr");
+        check_not_null(arg.arr, "arg.arr");
       auto *d = static_cast<const bool *>(arg.arr);
       spec.AddArg(name, std::vector<bool>(d, d + arg.size));
       break;
     }
     case DALI_STRING_VEC: {
       if (arg.size > 0)
-        dali::c_api::CheckNotNull(arg.arr, "arg.arr");
+        check_not_null(arg.arr, "arg.arr");
       auto *d = static_cast<const char * const *>(arg.arr);
       std::vector<std::string> sv;
       sv.reserve(arg.size);
       for (int64_t i = 0; i < arg.size; i++) {
-        dali::c_api::CheckNotNull(d[i], "arg.arr[i]");
+        if (!d[i])
+          check_not_null(d[i], dali::make_string("arg.arr[", i, "]"));
         sv.emplace_back(d[i]);
       }
       spec.AddArg(name, std::move(sv));
@@ -610,7 +618,8 @@ void AddArgToSpec(dali::OpSpec &spec, const daliArgDesc_t &arg) {
     }
     default:
       throw std::invalid_argument(dali::make_string(
-        "Unsupported argument dtype: ", static_cast<int>(arg.dtype)));
+        "Unsupported argument `dtype`: ", static_cast<int>(arg.dtype),
+        " in argument \"", arg.name, "\"."));
   }
 }
 
@@ -638,27 +647,49 @@ daliResult_t daliPipelineAddOperator(
   auto pipe = ToPointer(pipeline);
   NOT_NULL(op_desc);
   NOT_NULL(op_desc->schema_name);
+  if (op_desc->num_inputs > 0)
+    NOT_NULL(op_desc->inputs);
+  if (op_desc->num_outputs > 0)
+    NOT_NULL(op_desc->outputs);
+  if (op_desc->num_arg_inputs > 0)
+    NOT_NULL(op_desc->arg_inputs);
+  if (op_desc->num_args > 0)
+    NOT_NULL(op_desc->args);
   dali::OpSpec spec(op_desc->schema_name);
   spec.AddArg("device", std::string(BackendToString(op_desc->backend)));
   for (int i = 0; i < op_desc->num_inputs; i++) {
-    NOT_NULL(op_desc->inputs[i].name);
+    dali::c_api::CheckNotNull(op_desc->inputs[i].name, [i]() {
+      return dali::make_string("`op_desc->inputs[", i, "].name`");
+    });
     spec.AddInput(op_desc->inputs[i].name,
                   static_cast<dali::StorageDevice>(op_desc->inputs[i].device_type));
   }
   for (int i = 0; i < op_desc->num_outputs; i++) {
-    NOT_NULL(op_desc->outputs[i].name);
+    dali::c_api::CheckNotNull(op_desc->outputs[i].name, [i]() {
+      return dali::make_string("`op_desc->outputs[", i, "].name`");
+    });
     spec.AddOutput(op_desc->outputs[i].name,
                    static_cast<dali::StorageDevice>(op_desc->outputs[i].device_type));
   }
   // Argument inputs need to be added after regular inputs
   for (int i = 0; i < op_desc->num_arg_inputs; i++) {
-    NOT_NULL(op_desc->arg_inputs[i].arg_name);
-    NOT_NULL(op_desc->arg_inputs[i].input_name);
+    dali::c_api::CheckNotNull(op_desc->arg_inputs[i].arg_name, [i]() {
+      return dali::make_string(
+        "`arg_input[", i, "].arg_name`");
+      });
+    dali::c_api::CheckNotNull(op_desc->arg_inputs[i].input_name, [i]() {
+      return dali::make_string(
+        "`arg_input[", i, "].input_name`");
+      });
     spec.AddArgumentInput(op_desc->arg_inputs[i].arg_name,
                           op_desc->arg_inputs[i].input_name);
   }
-  for (int i = 0; i < op_desc->num_args; i++)
+  for (int i = 0; i < op_desc->num_args; i++) {
+    dali::c_api::CheckNotNull(op_desc->args[i].name, [i]() {
+      return dali::make_string("`op_desc->args[", i, "].name`");
+    });
     AddArgToSpec(spec, op_desc->args[i]);
+  }
   if (op_desc->instance_name && op_desc->instance_name[0] != '\0')
     pipe->Unwrap()->AddOperator(spec, op_desc->instance_name);
   else
