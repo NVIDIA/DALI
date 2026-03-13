@@ -46,12 +46,18 @@ class AttributeGeneratorFilter(Plugin):
     def _build_attribs_list(self, attrib_plugin):
         """Build the attribs list from the attrib plugin's -A configuration.
 
-        This replicates the logic from AttributeSelector.moduleLoadedSuite
-        for -A filters only (not -E eval filters).
+        NOTE: This intentionally replicates the -A parsing logic from
+        nose2's AttributeSelector.moduleLoadedSuite (nose2/plugins/attrib.py).
+        nose2 does not cache a pre-parsed form of attrib_plugin.attribs; the
+        raw -A strings are parsed on every moduleLoadedSuite call. Because we
+        need the parsed representation here (to call validateAttrib), we must
+        duplicate this parsing. If nose2 changes how it parses -A expressions
+        (e.g. adding quoting, ranges, or OR-groups), this copy must be updated
+        to match.
         """
         attribs = []
 
-        # Handle -A (attribute) filters
+        # Handle -A (attribute) filters — mirrors AttributeSelector.moduleLoadedSuite
         for attr in attrib_plugin.attribs:
             attr_group = []
             for attrib in attr.strip().split(","):

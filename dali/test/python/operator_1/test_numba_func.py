@@ -697,7 +697,7 @@ class TestNumbaFuncCPU:
             [3],
             rot_image_setup,
             True,
-            lambda x: np.rot90(x),
+            np.rot90,
         ),
         (
             rot_image_sample,
@@ -707,7 +707,7 @@ class TestNumbaFuncCPU:
             [3],
             rot_image_setup,
             None,
-            lambda x: np.rot90(x),
+            np.rot90,
         ),
     )
     def test_numba_func_image(
