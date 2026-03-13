@@ -77,6 +77,7 @@ def _internal_loop(
     max_size: int = None,
     interpolation: transforms.InterpolationMode = transforms.InterpolationMode.BILINEAR,
     antialias: bool = False,
+    device: Literal["cpu", "gpu"] = "cpu",
 ):
     out_fn = fn_tv.resize(
         input_data,
@@ -91,6 +92,7 @@ def _internal_loop(
         max_size=max_size,
         interpolation=interpolation,
         antialias=antialias,
+        device=device,
     )
     out_tv = t(input_data)
     out_dali_tv = td(input_data)
@@ -110,9 +112,14 @@ def _internal_loop(
         out_fn.shape[1:3] == out_dali_fn.shape[1:3]
     ), f"Should be:{out_fn.shape} is:{out_dali_fn.shape}"
 
-    #  TODO:
-    # assert torch.allclose(out_tv, out_dali_tv, rtol=1, atol=1)
-    # assert torch.allclose(out_fn, out_dali_fn, rtol=1, atol=1)
+    if not isinstance(input_data, Image.Image):
+        if out_tv.device != out_dali_tv.device:
+            out_dali_tv = out_dali_tv.to(out_tv.device)
+        if out_fn.device != out_dali_fn.device:
+            out_dali_fn = out_dali_fn.to(out_fn.device)
+
+        assert torch.allclose(out_tv, out_dali_tv, rtol=0, atol=1)
+        assert torch.allclose(out_fn, out_dali_fn, rtol=0, atol=1)
 
 
 def loop_images_test_no_build(
@@ -122,10 +129,11 @@ def loop_images_test_no_build(
     max_size: int = None,
     interpolation: transforms.InterpolationMode = transforms.InterpolationMode.BILINEAR,
     antialias: bool = False,
+    device: Literal["cpu", "gpu"] = "cpu",
 ):
     for fn in test_files:
         img = Image.open(fn)
-        _internal_loop(img, t, td, resize, max_size, interpolation, antialias)
+        _internal_loop(img, t, td, resize, max_size, interpolation, antialias, device=device)
 
 
 def build_tensors(max_size: int = 512, channels: int = 3, seed=12345):
@@ -163,7 +171,7 @@ def loop_tensors_test(
     tensors = build_tensors()
 
     for tn in tensors:
-        _internal_loop(tn, t, td, resize, max_size, interpolation, antialias)
+        _internal_loop(tn, t, td, resize, max_size, interpolation, antialias, device=device)
 
 
 def loop_images_test(
@@ -174,7 +182,12 @@ def loop_images_test(
     device: Literal["cpu", "gpu"] = "cpu",
 ):
     t, td = build_resize_transform(resize, max_size, interpolation, antialias, device)
-    loop_images_test_no_build(t, td, resize, max_size, interpolation, antialias)
+    loop_images_test_no_build(t, td, resize, max_size, interpolation, antialias, device)
+
+
+@cartesian_params((4, 5, 8), ("cpu", "gpu"))
+def test_resize_sizes_tensors_mini(resize, device):
+    loop_tensors_test(resize=resize, max_size=10, device=device)
 
 
 @cartesian_params((512, 1125, 2048, ([512, 512]), ([2048, 2048])), ("cpu", "gpu"))

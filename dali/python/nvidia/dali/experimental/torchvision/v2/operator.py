@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from abc import ABC, abstractmethod
+import logging
 from typing import Sequence, Literal
 
 from PIL import Image
@@ -231,7 +232,7 @@ def adjust_input(func):
     Note: When new input types are supported this function will be extended.
     """
 
-    def transform_input(inpt) -> ndd.Tensor | ndd.Batch:
+    def transform_input(inpt, device=None) -> ndd.Tensor | ndd.Batch:
         """
         Transforms supported inputs to either DALI tensor or batch
         The following conversion rules apply:
@@ -265,6 +266,19 @@ def adjust_input(func):
         else:
             raise TypeError(f"Data type: {type(inpt)} is not supported")
 
+        if device == "cpu" and _input.device.device_type != "cpu":
+            logging.warning(
+                f"Warning: input and operator devices do not match - copyig!"
+                f" Input is {_input.device.device_type} operator is {device}"
+            )
+            _input = _input.cpu()
+        elif device == "gpu" and _input.device.device_type != "":
+            logging.warning(
+                f"Warning: input and operator devices do not match - copyig!"
+                f" Input is {_input.device.device_type} operator is {device}"
+            )
+            _input = _input.gpu()
+
         return _input, mode
 
     def adjust_output(
@@ -279,6 +293,13 @@ def adjust_input(func):
           ndd.Tensor -> torch.Tensor
         """
         if isinstance(inpt, Image.Image):
+            if output.device.device_type == "gpu":
+                logging.warning(
+                    "Warning: PIL.Image expected on the output - copying output to CPU!"
+                    " torch.Tensors are recomended to be used with GPU operators."
+                )
+                output = output.cpu()
+
             if output.shape[-1] == 1:
                 output = np.asarray(output).squeeze(-1)
                 mode = "L"
@@ -301,7 +322,9 @@ def adjust_input(func):
 
     def inner_function(inpt, *args, **kwargs):
 
-        _input, mode = transform_input(inpt)
+        device = kwargs["device"] if "device" in kwargs else None
+
+        _input, mode = transform_input(inpt, device)
         output = func(_input, *args, **kwargs)
 
         output = output.evaluate()

@@ -13,6 +13,7 @@
 # limitations under the License.
 
 
+from typing import Literal
 import nvidia.dali.experimental.dynamic as ndd
 
 import torch
@@ -22,18 +23,22 @@ from ..operator import adjust_input  # noqa: E402
 
 
 @adjust_input
-def horizontal_flip(inpt: Image.Image | torch.Tensor) -> Image.Image | torch.Tensor:
+def horizontal_flip(
+    inpt: Image.Image | torch.Tensor, device: Literal["cpu", "gpu"] = "cpu"
+) -> Image.Image | torch.Tensor:
     """
     Horizontally flips the given tensor.
     Refer to `HorizontalFlip` for more details.
     """
-    return ndd.flip(inpt, horizontal=1, vertical=0)
+    return ndd.flip(inpt, horizontal=1, vertical=0, device=device)
 
 
 @adjust_input
-def vertical_flip(inpt: Image.Image | torch.Tensor) -> Image.Image | torch.Tensor:
+def vertical_flip(
+    inpt: Image.Image | torch.Tensor, device: Literal["cpu", "gpu"] = "cpu"
+) -> Image.Image | torch.Tensor:
     """
     Vertically flips the given tensor.
     Refer to `VerticalFlip` for more details.
     """
-    return ndd.flip(inpt, horizontal=0, vertical=1)
+    return ndd.flip(inpt, horizontal=0, vertical=1, device=device)

@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from abc import ABC, abstractmethod
+import logging
 from typing import List, Sequence, Callable, Union
 
 import nvidia.dali.fn as fn
@@ -148,9 +149,24 @@ class PipelineWithLayout(ABC):
         )
         self._internal_run = self._cuda_run if torch.cuda.is_available() else self._cpu_run
 
+    def _align_data_with_device(self, data_input):
+        if self.device == "cpu" and data_input.device.type != "cpu":
+            logging.warning(
+                f"Pipeline device is cpu, but data is on {data_input.device.type}." " Copying!"
+            )
+            return data_input.cpu()
+
+        if self.device == "gpu" and data_input.device.type != "cuda":
+            logging.warning(
+                f"Pipeline device is gpu, but data is on {data_input.device.type}." " Copying!"
+            )
+            return data_input.cuda()
+
+        return data_input
+
     def run(self, data_input):
 
-        output = self._internal_run(data_input)
+        output = self._internal_run(self._align_data_with_device(data_input))
 
         if output is None:
             return output
