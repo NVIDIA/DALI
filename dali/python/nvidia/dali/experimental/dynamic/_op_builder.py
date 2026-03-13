@@ -202,8 +202,8 @@ def build_constructor(schema, op_class):
         kwargs = {k: _scalar_decay(v) for k, v in kwargs.items()}
         op_class.__base__.__init__(self, max_batch_size, name, **kwargs)
         if is_reader:
-            self._tensor_args = {k: v for k, v in tensor_kwargs.items() if v is not None}
-            if any(isinstance(v, Batch) for v in self._tensor_args.values()):
+            self._raw_tensor_args = {k: v for k, v in tensor_kwargs.items() if v is not None}
+            if any(isinstance(v, Batch) for v in self._raw_tensor_args.values()):
                 raise ValueError("Readers cannot be constructed with batch keyword arguments")
         if stateful:
             self._call_id = 0
@@ -283,15 +283,15 @@ def build_call_function(schema, op_class):
     def call(self, *raw_args, batch_size=None, _process_params=True, **raw_kwargs):
         self._pre_call(*raw_args, **raw_kwargs)
 
-        if op_class._is_reader and self._tensor_args:
+        if op_class._is_reader and self._raw_tensor_args:
             actual_kwargs = {name for name, value in raw_kwargs.items() if value is not None}
-            overlap = actual_kwargs & set(self._tensor_args)
+            overlap = actual_kwargs & set(self._raw_tensor_args)
             if overlap:
                 raise ValueError(
                     f"Keyword argument{'s'[:len(overlap)^1]} {sorted(overlap)}"
                     f" cannot be passed in both in the constructor and __call__."
                 )
-            raw_kwargs = {**raw_kwargs, **self._tensor_args}
+            raw_kwargs = {**raw_kwargs, **self._raw_tensor_args}
 
         batch_size = _ops._infer_batch_size(batch_size, *raw_args, **raw_kwargs)
         is_batch = batch_size is not None

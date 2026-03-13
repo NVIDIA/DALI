@@ -588,7 +588,6 @@ class Reader(Operator):
         stick_to_shard=_READER_SHARD_DEFAULTS["stick_to_shard"],
         **kwargs,
     ):
-        self._tensor_args = {}
         if name is None:
             name = f"Reader_{id(self)}"
         self._actual_batch_size = batch_size
@@ -604,6 +603,12 @@ class Reader(Operator):
             if stick_to_shard is not None
             else _READER_SHARD_DEFAULTS["stick_to_shard"]
         )
+
+        self._raw_tensor_args = {}
+        self._tensor_args = {}
+        # Used to know when to recompute _tensor_args for _raw_tensor_args
+        self._previous_batch_size: int | None = None
+
         if self._num_shards < 1:
             raise ValueError(
                 f"The number of shards must be a positive integer. Got {self._num_shards}."
@@ -670,12 +675,18 @@ class Reader(Operator):
 
     def _process_tensor_args(self, batch_size: int | None):
         """Converts stored tensor args to Batch/Tensor form for the given batch_size."""
-        if not self._tensor_args:
+        if not self._raw_tensor_args:
             return {}
-        _, kwargs = self._process_params(
-            self._backend, self._device, batch_size, **self._tensor_args
+        if self._previous_batch_size == batch_size:
+            return self._tensor_args
+        _, self._tensor_args = self._process_params(
+            self._backend,
+            self._device,
+            batch_size,
+            **self._raw_tensor_args,
         )
-        return kwargs
+        self._previous_batch_size = batch_size
+        return self._tensor_args
 
     def get_metadata(self, batch_size: int) -> ReaderMeta:
         """Returns the metadata of the underlying reader operator"""
@@ -699,10 +710,9 @@ class Reader(Operator):
                     self._actual_batch_size = 1
                 if self._max_batch_size is None:
                     self._max_batch_size = self._actual_batch_size
-                tensor_args = self._process_tensor_args(self._actual_batch_size)
-                self._init_backend(ctx, (), tensor_args)
-            else:
-                tensor_args = self._process_tensor_args(self._actual_batch_size)
+                self._init_backend(ctx, (), self._process_tensor_args(self._actual_batch_size))
+
+            tensor_args = self._process_tensor_args(self._actual_batch_size)
             meta = self._op_backend.GetReaderMeta()
             idx = 0
             padded_size = meta["epoch_size_padded"]
@@ -747,7 +757,6 @@ class Reader(Operator):
                         f"{self._max_batch_size} specified when the operator was created"
                     )
                 self._max_batch_size = batch_size
-                previous_batch_size = batch_size
                 tensor_args = self._process_tensor_args(batch_size)
                 self._init_backend(ctx, (), tensor_args)
             else:
@@ -763,9 +772,7 @@ class Reader(Operator):
             shards_beg = math.floor(self._shard_id * padded_size / self._num_shards)
             shards_end = math.floor((self._shard_id + 1) * padded_size / self._num_shards)
             while idx < shards_end - shards_beg:
-                if tensor_args is None or previous_batch_size != batch_size:
-                    tensor_args = self._process_tensor_args(batch_size)
-                    previous_batch_size = batch_size
+                tensor_args = self._process_tensor_args(batch_size)
                 outputs = super()._run(ctx, batch_size=batch_size, **tensor_args)
                 batch_size_returned = batch_size = len(
                     outputs[0] if isinstance(outputs, tuple) else next(iter(outputs.values()))
