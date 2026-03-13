@@ -134,9 +134,9 @@ class Reader(tn.BaseNode[dict[str, T]], metaclass=_CUDANodeMeta):
     def get_state(self):
         return {}
 
-    def get_metadata(self) -> _ops.ReaderMeta:
+    def get_metadata(self, batch_size: int) -> _ops.ReaderMeta:
         """Returns the metadata of the underlying reader operator"""
-        return self._reader.get_metadata()
+        return self._reader.get_metadata(batch_size)
 
 
 class DictMapper(tn.BaseNode[dict[str, T]], metaclass=_CUDANodeMeta):
