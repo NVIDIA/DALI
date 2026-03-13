@@ -608,6 +608,8 @@ class Reader(Operator):
         self._tensor_args = {}
         # Used to know when to recompute _tensor_args for _raw_tensor_args
         self._previous_batch_size: int | None = None
+        # Used to make sure that args passed to the constructor are not repeated in __call__
+        self._tensor_arg_names: set[str] = set()
 
         if self._num_shards < 1:
             raise ValueError(

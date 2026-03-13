@@ -25,7 +25,7 @@ from nvidia.dali.ops import _docs, _names
 
 from . import _device, _invocation, _op_filter, _ops, _type
 from ._batch import Batch
-from ._tensor import Tensor
+from ._tensor import Tensor, tensor as to_tensor
 
 
 def is_external(x):
@@ -198,13 +198,23 @@ def build_constructor(schema, op_class):
 
     # Note: Base __init__ will keep the **kwargs
     def init(self, max_batch_size, name, **kwargs):
-        tensor_kwargs = {k: kwargs.pop(k) for k in tensor_arg_names if k in kwargs}
+        if is_reader:
+            tensor_args = {}
+            for k in tensor_arg_names:
+                arg = kwargs.get(k)
+                if arg is None or isinstance(arg, (int, float, bool, str, tuple, list)):
+                    continue
+                del kwargs[k]
+                if isinstance(arg, Batch):
+                    raise ValueError("Readers cannot be constructed with batch keyword arguments")
+                if not isinstance(arg, Tensor):  # perform a copy if not an ndd tensor
+                    arg = to_tensor(arg)
+                tensor_args[k] = arg
         kwargs = {k: _scalar_decay(v) for k, v in kwargs.items()}
         op_class.__base__.__init__(self, max_batch_size, name, **kwargs)
-        if is_reader:
-            self._raw_tensor_args = {k: v for k, v in tensor_kwargs.items() if v is not None}
-            if any(isinstance(v, Batch) for v in self._raw_tensor_args.values()):
-                raise ValueError("Readers cannot be constructed with batch keyword arguments")
+        if is_reader:  # Need to be done here not to be overridden by the constructor
+            self._tensor_arg_names = {name for name in tensor_arg_names if kwargs.get(name)}
+            self._tensor_args = tensor_args
         if stateful:
             self._call_id = 0
 
@@ -283,9 +293,9 @@ def build_call_function(schema, op_class):
     def call(self, *raw_args, batch_size=None, _process_params=True, **raw_kwargs):
         self._pre_call(*raw_args, **raw_kwargs)
 
-        if op_class._is_reader and self._raw_tensor_args:
+        if op_class._is_reader and self._tensor_arg_names:
             actual_kwargs = {name for name, value in raw_kwargs.items() if value is not None}
-            overlap = actual_kwargs & set(self._raw_tensor_args)
+            overlap = actual_kwargs & self._tensor_arg_names
             if overlap:
                 raise ValueError(
                     f"Keyword argument{'s'[:len(overlap)^1]} {sorted(overlap)}"
