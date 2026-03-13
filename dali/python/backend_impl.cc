@@ -45,6 +45,7 @@
 #include "dali/python/python3_compat.h"
 #include "dali/util/pybind.h"
 #include "dali/util/user_stream.h"
+#include "dali/pipeline/util/new_thread_pool.h"
 
 namespace dali {
 namespace python {
@@ -2399,6 +2400,14 @@ class PyWorkspace : public Workspace {
   py::object py_stream_;
 };
 
+class PyThreadPoolFacade : public ThreadPoolFacade {
+ public:
+  explicit PyThreadPoolFacade(std::shared_ptr<ThreadPoolBase> tp)
+  : ThreadPoolFacade(tp.get()), tp_(std::move(tp)) {}
+ private:
+  std::shared_ptr<ThreadPoolBase> tp_;
+};
+
 void ExposeThreadPool(py::module &m) {
   py::class_<ThreadPool, std::shared_ptr<ThreadPool>>(m, "_ThreadPool")
     .def(py::init([](
@@ -2418,6 +2427,30 @@ void ExposeThreadPool(py::module &m) {
     "set_affinity"_a = false,
     "name"_a = "")
     .def_property_readonly("num_threads", &ThreadPool::NumThreads);
+}
+
+void ExposeNewThreadPool(py::module &m) {
+  py::class_<ThreadPoolBase, std::shared_ptr<ThreadPoolBase>>(m, "_NewThreadPool")
+    .def(py::init([](
+          int num_threads,
+          std::optional<int> device_id,
+          bool set_affinity,
+          std::string_view name) {
+      if (!device_id.has_value()) {
+        int dev = 0;
+        CUDA_CALL(cudaGetDevice(&dev));
+        device_id = dev;
+      }
+      return std::make_shared<NewThreadPool>(num_threads, *device_id, set_affinity, name.data());
+    }),
+    "num_threads"_a,
+    "device_id"_a = py::none(),
+    "set_affinity"_a = false,
+    "name"_a = "")
+    .def_property_readonly("num_threads", &ThreadPoolBase::NumThreads)
+    .def("create_facade", [](std::shared_ptr<ThreadPoolBase> tp)->std::shared_ptr<ThreadPool> {
+      return std::make_shared<PyThreadPoolFacade>(std::move(tp));
+    });
 }
 
 void ExposeWorkspace(py::module &m) {
@@ -2847,6 +2880,7 @@ PYBIND11_MODULE(backend_impl, m, py::mod_gil_not_used()) {
   ExposePipelineParams(m);
   ExposePipeline(m);
   ExposeThreadPool(m);
+  ExposeNewThreadPool(m);
   ExposeWorkspace(m);
   ExposeOperator(m);
 
