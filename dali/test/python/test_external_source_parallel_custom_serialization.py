@@ -317,8 +317,9 @@ def _create_and_compare_simple_pipelines(
         _run_and_compare_outputs(batch_size, parallel_pipeline, serial_pipeline)
 
 
-# It uses fork method to start so need to be run as the first test
-def test_no_pickling_in_forking_mode():
+# Make it private and run it explicitly as it uses fork method to start
+# so need to be run as the first test
+def _test_no_pickling_in_forking_mode():
     # modify callback name so that an attempt to pickle it in spawn mode would fail
     _simple_callback.__name__ = _simple_callback.__qualname__ = "simple_callback"
     _create_and_compare_simple_pipelines(
