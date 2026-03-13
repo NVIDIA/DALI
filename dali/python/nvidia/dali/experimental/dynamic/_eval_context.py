@@ -59,8 +59,6 @@ _global_default_thread_pool = {}
 
 def _get_or_create_global_thread_pool(dev):
     """Returns the global default thread pool, creating or recreating it if needed."""
-    global _global_default_thread_pool
-
     n = get_num_threads()
     if (
         dev not in _global_default_thread_pool
@@ -98,7 +96,7 @@ def set_num_threads(n):
         This function should be called once, at the beginning of the program.
         Changing this value later is very costly and should be avoided.
     """
-    global _global_num_threads, _global_default_thread_pool
+    global _global_num_threads
     if n is None:
         _global_num_threads = None
         n = get_num_threads()
