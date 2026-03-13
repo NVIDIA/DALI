@@ -105,7 +105,8 @@ inline void Validate(const daliPipelineIODesc_t &desc) {
   if (desc.name == nullptr)
     throw std::invalid_argument("input/output name must not be NULL");
   Validate(desc.device);
-  Validate(desc.dtype);
+  if (desc.dtype_present)
+    Validate(desc.dtype);
   if (desc.ndim_present) {
     ValidateNDim(desc.ndim);
     if (desc.layout)
