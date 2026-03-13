@@ -32,21 +32,22 @@
 #endif
 #include "dali/core/semaphore.h"
 #include "dali/core/spinlock.h"
-
+#include "dali/core/exec/thread_idx.h"
+#include "dali/pipeline/util/thread_pool_interface.h"
 
 namespace dali {
 
-class DLL_PUBLIC ThreadPool {
+class DLL_PUBLIC OldThreadPool : public ThreadPool {
  public:
-  // Basic unit of work that our threads do
-  typedef std::function<void(int)> Work;
+  using Work = std::function<void()>;
+  using WorkWithThreadIdx = std::function<void(int)>;
 
-  DLL_PUBLIC ThreadPool(int num_thread, int device_id, bool set_affinity, const char* name);
+  OldThreadPool(int num_thread, int device_id, bool set_affinity, const char* name);
 
-  DLL_PUBLIC ThreadPool(int num_thread, int device_id, bool set_affinity, const std::string& name)
-      : ThreadPool(num_thread, device_id, set_affinity, name.c_str()) {}
+  OldThreadPool(int num_thread, int device_id, bool set_affinity, const std::string& name)
+      : OldThreadPool(num_thread, device_id, set_affinity, name.c_str()) {}
 
-  DLL_PUBLIC ~ThreadPool();
+  ~OldThreadPool();
 
   /**
    * @brief Adds work to the queue with optional priority, and optionally starts processing
@@ -56,33 +57,36 @@ class DLL_PUBLIC ThreadPool {
    * Once work is started, the threads will continue to pick up whatever work is scheduled
    * until WaitForWork is called.
    */
-  DLL_PUBLIC void AddWork(Work work, int64_t priority = 0);
+  void AddWork(WorkWithThreadIdx work, int64_t priority = 0) override;
+
+  void AddWork(Work work, int64_t priority = 0) override;
 
   /**
    * @brief Wakes up all the threads to complete all the queued work,
    *        optionally not waiting for the work to be finished before return
    *        (the default wait=true is equivalent to invoking WaitForWork after RunAll).
    */
-  DLL_PUBLIC void RunAll(bool wait = true);
+  void RunAll(bool wait = true) override;
 
   /**
    * @brief Waits until all work issued to the thread pool is complete
    */
-  DLL_PUBLIC void WaitForWork(bool checkForErrors = true);
+  void WaitForWork() override;
 
-  DLL_PUBLIC int NumThreads() const;
+  int NumThreads() const override;
 
-  DLL_PUBLIC std::vector<std::thread::id> GetThreadIds() const;
+  std::vector<std::thread::id> GetThreadIds() const override;
 
-  DISABLE_COPY_MOVE_ASSIGN(ThreadPool);
+  DISABLE_COPY_MOVE_ASSIGN(OldThreadPool);
 
  private:
-  DLL_PUBLIC void ThreadMain(int thread_id, int device_id, bool set_affinity,
-                             const std::string &name);
+  void WaitForWork(bool checkForErrors);
+
+  void ThreadMain(int thread_id, int device_id, bool set_affinity, const std::string &name);
 
   vector<std::thread> threads_;
 
-  using PrioritizedWork = std::pair<int64_t, Work>;
+  using PrioritizedWork = std::pair<int64_t, std::function<void(int)>>;
   struct SortByPriority {
     bool operator() (const PrioritizedWork &a, const PrioritizedWork &b) {
       return a.first < b.first;
