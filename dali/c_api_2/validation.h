@@ -101,6 +101,18 @@ inline void Validate(daliStorageDevice_t device_type) {
     throw std::invalid_argument(make_string("Invalid storage device type: ", device_type));
 }
 
+inline void Validate(const daliPipelineIODesc_t &desc) {
+  if (desc.name == nullptr)
+    throw std::invalid_argument("input/output name must not be NULL");
+  Validate(desc.device);
+  Validate(desc.dtype);
+  if (desc.ndim_present) {
+    ValidateNDim(desc.ndim);
+    if (desc.layout)
+      Validate(desc.layout, desc.ndim);
+  }
+}
+
 DLL_PUBLIC void ValidateDeviceId(int device_id, bool allow_cpu_only);
 
 inline void Validate(const daliBufferPlacement_t &placement) {
