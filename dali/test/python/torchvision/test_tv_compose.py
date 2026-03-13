@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import os
+import unittest
 
 from nvidia.dali.experimental.torchvision import (
     Compose,
@@ -20,6 +21,7 @@ from nvidia.dali.experimental.torchvision import (
     RandomVerticalFlip,
     Resize,
 )
+import nvidia.dali.experimental.torchvision.v2.functional as fn_dali
 
 from nose2.tools import params
 from nose_utils import assert_raises
@@ -201,3 +203,222 @@ def test_compose_pil_invalid_input_type_raises(mode):
     dali_transform = Compose([RandomHorizontalFlip(p=1.0)])
     with assert_raises(TypeError):
         _ = dali_transform([img, img])
+
+
+@unittest.skipUnless(torch.cuda.is_available(), "CUDA not available")
+def test_compose_cuda_output_values_on_gpu():
+    """Pipeline output must match a reference computed entirely on GPU (no CPU transfers)."""
+    test_tensor = make_test_tensor(shape=(5, 3, 8, 8)).cuda()
+    tv_ref = tv.RandomHorizontalFlip(p=1.0)(test_tensor)  # result stays on GPU
+
+    dali_pipeline = Compose([RandomHorizontalFlip(p=1.0, device="gpu")], batch_size=5)
+    dali_out = dali_pipeline(test_tensor)
+
+    assert dali_out.is_cuda, f"Expected CUDA output, got device={dali_out.device}"
+    assert torch.equal(dali_out, tv_ref)  # GPU-side comparison, no .cpu()
+
+
+@unittest.skipUnless(torch.cuda.is_available(), "CUDA not available")
+def test_compose_cuda_synchronization_no_cpu_transfer():
+    """20 rapid calls must each produce correct GPU values without any explicit CPU sync.
+
+    _cuda_run creates a fresh stream per call. Without proper stream ordering (via DLPack
+    stream info or record_stream), the default-stream comparison below can read unfinished
+    pipeline output before DALI's private stream has written it.
+    """
+    test_tensor = make_test_tensor(shape=(5, 3, 8, 8)).cuda()
+    tv_ref = tv.RandomHorizontalFlip(p=1.0)(test_tensor)  # reference stays on GPU
+
+    dali_pipeline = Compose([RandomHorizontalFlip(p=1.0, device="gpu")], batch_size=5)
+
+    for i in range(20):
+        out = dali_pipeline(test_tensor)
+        # GPU comparison on the default stream — exposes any stream-ordering bug
+        assert torch.equal(out, tv_ref), f"Call {i}: GPU values differ — possible sync issue"
+
+    torch.cuda.synchronize()  # flush deferred GPU errors
+
+
+@unittest.skipUnless(torch.cuda.is_available(), "CUDA not available")
+def test_compose_cuda_synchronization_interleaved_default_stream_work():
+    """Interleaving default-stream compute with pipeline calls must not cause data races.
+
+    Keeping the default stream busy widens the window in which unsynchronized
+    DALI output could be consumed before its private stream completes.
+    """
+    test_tensor = make_test_tensor(shape=(5, 3, 8, 8)).cuda()
+    tv_ref = tv.RandomHorizontalFlip(p=1.0)(test_tensor)
+    scratch = torch.zeros(512, 512, device="cuda")
+
+    dali_pipeline = Compose([RandomHorizontalFlip(p=1.0, device="gpu")], batch_size=5)
+
+    for i in range(10):
+        # Keep the default stream occupied to maximise the sync-gap window
+        scratch = scratch.add(1.0)
+        out = dali_pipeline(test_tensor)
+        # Consume output immediately on the default stream — races show up here
+        assert torch.equal(out, tv_ref), f"Call {i}: interleaved sync failure"
+
+    torch.cuda.synchronize()
+
+
+@unittest.skipUnless(torch.cuda.is_available(), "CUDA not available")
+def test_compose_cuda_sequential_different_content():
+    """Pipeline called sequentially on inputs with different pixel values must produce
+    correct per-input results — catches output buffers being incorrectly reused."""
+    data = [
+        make_test_tensor(shape=(3, 3, 8, 8)).add_(i * 10).clamp_(0, 255).to(torch.uint8).cuda()
+        for i in range(5)
+    ]
+    tv_pipe = tv.RandomHorizontalFlip(p=1.0)
+    dali_pipeline = Compose([RandomHorizontalFlip(p=1.0, device="gpu")], batch_size=3)
+
+    out_list = []
+    for d in data:
+        out_list.append(dali_pipeline(d))
+
+    torch.cuda.synchronize()
+    for i, (d, out) in enumerate(zip(data, out_list)):
+        tv_ref = tv_pipe(d)
+        assert out.is_cuda, f"Input {i}: expected CUDA output"
+        assert out.shape == d.shape, f"Input {i}: shape mismatch"
+        assert torch.equal(out, tv_ref), f"Input {i}: value mismatch vs torchvision"
+
+
+@unittest.skipUnless(torch.cuda.is_available(), "CUDA not available")
+def test_compose_cuda_sequential_different_shapes():
+    """Pipeline called sequentially on inputs with varying spatial sizes must return
+    the correct shape and values for each input."""
+    shapes = [(2, 3, 4, 4), (2, 3, 8, 16), (2, 3, 12, 6), (2, 3, 5, 20)]
+    data = [make_test_tensor(shape=s).cuda() for s in shapes]
+    tv_pipe = tv.RandomHorizontalFlip(p=1.0)
+    dali_pipeline = Compose([RandomHorizontalFlip(p=1.0, device="gpu")], batch_size=2)
+
+    out_list = []
+    for d in data:
+        out_list.append(dali_pipeline(d))
+
+    torch.cuda.synchronize()
+    for i, (d, out) in enumerate(zip(data, out_list)):
+        tv_ref = tv_pipe(d)
+        assert out.shape == d.shape, f"Input {i}: shape mismatch ({out.shape} != {d.shape})"
+        assert torch.equal(out, tv_ref), f"Input {i}: value mismatch vs torchvision"
+
+
+@unittest.skipUnless(torch.cuda.is_available(), "CUDA not available")
+def test_compose_cuda_sequential_multi_op_different_inputs():
+    """Multi-op pipeline (resize + flip) called sequentially on distinct inputs must match
+    torchvision for shape and be close in values (resize may introduce ±1 differences)."""
+    data = [make_test_tensor(shape=(2, 3, 10 + i * 4, 10 + i * 4)).cuda() for i in range(4)]
+    dali_pipeline = Compose(
+        [RandomVerticalFlip(p=1, device="gpu"), RandomHorizontalFlip(p=1.0, device="gpu")],
+        batch_size=2,
+    )
+    tv_pipe = tv.Compose([tv.RandomVerticalFlip(p=1), tv.RandomHorizontalFlip(p=1.0)])
+
+    out_list = []
+    for d in data:
+        out_list.append(dali_pipeline(d))
+
+    torch.cuda.synchronize()
+    for i, (d, out) in enumerate(zip(data, out_list)):
+        tv_ref = tv_pipe(d)
+        assert out.is_cuda, f"Input {i}: expected CUDA output"
+        assert out.shape == tv_ref.shape, f"Input {i}: shape mismatch vs torchvision"
+        assert torch.allclose(out.float(), tv_ref.float(), rtol=0, atol=1), (
+            f"Input {i}: values differ by more than 1 vs torchvision "
+            f"Is: {out}, should be: {tv_ref}"
+        )
+
+
+def test_compose_repeated_same_input():
+    """Calling the same Compose object N times with identical input
+    must always give the same result."""
+    test_tensor = make_test_tensor(shape=(5, 3, 5, 5))
+    dali_pipeline = Compose([RandomHorizontalFlip(p=1.0)], batch_size=5)
+    tv_out = tv.RandomHorizontalFlip(p=1.0)(test_tensor)
+    for i in range(5):
+        dali_out = dali_pipeline(test_tensor)
+        assert torch.equal(dali_out, tv_out), f"Result mismatch on call {i}"
+
+
+def test_compose_repeated_different_spatial_sizes():
+    """Reusing Compose across tensors with varying H×W must produce correct shapes each time."""
+    dali_pipeline = Compose([RandomHorizontalFlip(p=1.0)], batch_size=1)
+    for h, w in [(5, 5), (10, 20), (3, 7)]:
+        tensor = make_test_tensor(shape=(1, 3, h, w))
+        dali_out = dali_pipeline(tensor)
+        tv_out = tv.RandomHorizontalFlip(p=1.0)(tensor)
+        assert dali_out.shape == tensor.shape, f"Shape mismatch for H={h} W={w}"
+        assert torch.equal(dali_out, tv_out), f"Value mismatch for H={h} W={w}"
+
+
+def test_compose_rejects_input_type_change():
+    """Compose built for PIL Image must raise TypeError when later called with a torch.Tensor."""
+    img = _make_pil_image("RGB")
+    dali_pipeline = Compose([RandomHorizontalFlip(p=1.0)])
+    _ = dali_pipeline(img)  # first call locks the pipeline to HWC/PIL
+    test_tensor = make_test_tensor(shape=(1, 3, 5, 5))
+    with assert_raises(TypeError):
+        _ = dali_pipeline(test_tensor)
+
+
+@params("L", "RGB", "RGBA")
+def test_compose_functional_vs_operator_flip_consistency(mode):
+    """horizontal_flip via functional API and via Compose must produce identical results,
+    and both must match torchvision's reference output."""
+    img = _make_pil_image(mode)
+    fn_out = fn_dali.horizontal_flip(img)
+    compose_out = Compose([RandomHorizontalFlip(p=1.0)])(img)
+    tv_out = tv.functional.hflip(img)
+
+    assert isinstance(fn_out, Image.Image)
+    assert isinstance(compose_out, Image.Image)
+    assert fn_out.mode == mode, f"Functional API changed mode to {fn_out.mode}"
+    assert compose_out.mode == mode, f"Compose changed mode to {compose_out.mode}"
+
+    fn_tensor = tv.functional.pil_to_tensor(fn_out)
+    compose_tensor = tv.functional.pil_to_tensor(compose_out)
+    tv_tensor = tv.functional.pil_to_tensor(tv_out)
+
+    assert torch.equal(
+        fn_tensor, compose_tensor
+    ), f"Functional and Compose disagree for mode={mode}"
+    assert torch.equal(
+        fn_tensor, tv_tensor
+    ), f"Functional API disagrees with torchvision for mode={mode}"
+    assert torch.equal(
+        compose_tensor, tv_tensor
+    ), f"Compose disagrees with torchvision for mode={mode}"
+
+
+@params(torch.float32, torch.float64, torch.int16, torch.int32)
+def test_compose_non_uint8_dtype_flip(dtype):
+    """RandomHorizontalFlip must preserve dtype and produce correct values for non-uint8 inputs."""
+    test_tensor = torch.ones(5, 3, 8, 8, dtype=dtype)
+    dali_pipeline = Compose([RandomHorizontalFlip(p=1.0)], batch_size=5)
+    dali_out = dali_pipeline(test_tensor)
+    tv_out = tv.RandomHorizontalFlip(p=1.0)(test_tensor)
+    assert dali_out.dtype == dtype, f"Dtype changed: expected {dtype}, got {dali_out.dtype}"
+    assert torch.equal(dali_out, tv_out), f"Value mismatch for dtype={dtype}"
+
+
+@params(torch.float32, torch.float64, torch.int16, torch.int32)
+def test_compose_non_uint8_dtype_resize(dtype):
+    """Resize must preserve dtype, produce the correct output shape, and match torchvision's
+    output shape. A uniform tensor of ones is used so that bilinear interpolation leaves all
+    values at 1, making an exact value comparison valid across all tested dtypes."""
+    dali_supported_types = [torch.float32, torch.int16]
+    test_tensor = torch.ones(5, 3, 10, 10, dtype=dtype)
+    tv_out = tv.Resize(size=(7, 7))(test_tensor)
+    dali_pipeline = Compose([Resize(size=(7, 7))], batch_size=5)
+    if dtype in dali_supported_types:
+        dali_out = dali_pipeline(test_tensor)
+        assert dali_out.dtype == dtype, f"Dtype changed: expected {dtype}, got {dali_out.dtype}"
+        assert (
+            dali_out.shape == tv_out.shape
+        ), f"Shape mismatch vs torchvision: {dali_out.shape} != {tv_out.shape}"
+        assert dali_out.shape[2:] == torch.Size([7, 7]), f"Wrong spatial shape: {dali_out.shape}"
+    else:
+        with assert_raises(RuntimeError):
+            _ = dali_pipeline(test_tensor)

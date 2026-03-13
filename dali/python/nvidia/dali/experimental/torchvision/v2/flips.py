@@ -37,15 +37,22 @@ class RandomFlip(Operator):
         super().__init__(device=device)
         self.prob = p
         self.horizontal = horizontal
+        self.device = device
 
     def _kernel(self, data_input):
         if self.horizontal:
             data_input = fn.flip(
-                data_input, horizontal=fn.random.coin_flip(probability=self.prob), vertical=0
+                data_input,
+                horizontal=fn.random.coin_flip(probability=self.prob),
+                vertical=0,
+                device=self.device,
             )
         else:
             data_input = fn.flip(
-                data_input, horizontal=0, vertical=fn.random.coin_flip(probability=self.prob)
+                data_input,
+                horizontal=0,
+                vertical=fn.random.coin_flip(probability=self.prob),
+                device=self.device,
             )
 
         return data_input

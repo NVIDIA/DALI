@@ -62,7 +62,7 @@ def to_torch_tensor(
 
 
 @pipeline_def(enable_conditionals=True, exec_dynamic=True, prefetch_queue_depth=1)
-def _pipeline_function(op_list, layout="HWC"):
+def _pipeline_function(op_list: Sequence, layout: str = "HWC", input_device: str = "gpu"):
     """
     Builds a DALI pipeline from a list of operators.
 
@@ -73,7 +73,9 @@ def _pipeline_function(op_list, layout="HWC"):
         layout : str
             Layout of the data.
     """
-    input_node = fn.external_source(name="input_data", no_copy=True, layout=layout)
+    input_node = fn.external_source(
+        name="input_data", no_copy=True, layout=layout, device=input_device
+    )
     for op in op_list:
         input_node = op(input_node)
     return input_node
@@ -105,7 +107,8 @@ class PipelineWithLayout(ABC):
             device_id = data_input.device.index
         else:
             device_id = torch.cuda.current_device()
-        stream = torch.cuda.Stream(device=device_id)
+
+        stream = torch.cuda.current_stream(device=device_id)
 
         with torch.cuda.stream(stream):
             output = self.pipe.run(stream, input_data=data_input)
@@ -133,9 +136,12 @@ class PipelineWithLayout(ABC):
         #
         # self.convert_to_tensor = True if isinstance(op_list[-1], ToTensor) else False
         self.convert_to_tensor = False
+        self.device = op_list[0].device if len(op_list) > 0 else "cpu"
+
         self.pipe = _pipeline_function(
             op_list,
             layout=layout,
+            input_device=self.device,
             batch_size=batch_size,
             num_threads=num_threads,
             **dali_pipeline_kwargs,
@@ -233,10 +239,8 @@ class PipelineHWC(PipelineWithLayout):
             if data_input.mode == "L":
                 _input = _input.unsqueeze(-1)
         else:
-            raise ValueError(
-                "HWC layout is currently supported for PIL Images only.\
-                Please check if samples have the same format."
-            )
+            raise ValueError("HWC layout is currently supported for PIL Images only.\
+                Please check if samples have the same format.")
 
         output = super().run(_input)
 
@@ -308,14 +312,12 @@ class PipelineCHW(PipelineWithLayout):
                 # DALI requires batch size to be present
                 _input = data_input.unsqueeze(0)
         else:
-            raise ValueError(
-                "CHW layout is currently supported for torch.Tensor only.\
-                Please check if samples have the same format."
-            )
+            raise ValueError("CHW layout is currently supported for torch.Tensor only.\
+                Please check if samples have the same format.")
         output = super().run(_input)
 
         if data_input.ndim == 3:
-            # DALI requires batch size to be present
+            # Remove the batch dimension we added above
             output = output.squeeze(0)
         return output
 

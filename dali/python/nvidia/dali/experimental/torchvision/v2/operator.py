@@ -98,11 +98,9 @@ class VerificationChannelCount(DataVerificationRule):
             isinstance(data, torch.Tensor)
             and data.shape[-3] not in VerificationChannelCount.CHANNELS
         ):
-            raise ValueError(
-                f"Input should be in CHW if Tensor. \
+            raise ValueError(f"Input should be in CHW if Tensor. \
                 Supports up to {VerificationChannelCount.CHANNELS[-1]} channels, \
-                got: {data.shape[-3]} channels"
-            )
+                got: {data.shape[-3]} channels")
 
 
 class VerifyIfPositive(ArgumentVerificationRule):
@@ -247,7 +245,7 @@ def adjust_input(func):
         if isinstance(inpt, Image.Image):
             mode = inpt.mode
             if mode == "L":
-                _input = ndd.Tensor(np.array(inpt, copy=True), layout="HW")
+                _input = ndd.Tensor(np.expand_dims(np.array(inpt, copy=True), -1), layout="HWC")
             elif mode in ["RGB", "RGBA"]:  # Modes RGB, RGBA
                 _input = ndd.Tensor(np.array(inpt, copy=True), layout="HWC")
             else:
