@@ -198,7 +198,7 @@ def test_video_resize_tensor_args(batch_size):
         filenames=[os.path.join(video_root, "sintel_trailer-720p_3.mp4")],
         sequence_length=sequence_length,
         device="gpu",
-        resize_x=width,
+        resize_x=ndd.tensor(width),
         resize_y=height,
     )
     for (tensor,) in reader.next_epoch(batch_size=batch_size):
