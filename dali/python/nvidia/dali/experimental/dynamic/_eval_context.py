@@ -54,6 +54,21 @@ def _default_num_threads():
 
 
 _global_num_threads = None
+_global_default_thread_pool = {}
+
+
+def _get_or_create_global_thread_pool(dev):
+    """Returns the global default thread pool, creating or recreating it if needed."""
+    global _global_default_thread_pool
+
+    n = get_num_threads()
+    if (
+        dev not in _global_default_thread_pool
+        or _global_default_thread_pool[dev] is None
+        or _global_default_thread_pool[dev].num_threads != n
+    ):
+        _global_default_thread_pool[dev] = _b._NewThreadPool(n, device_id=dev)
+    return _global_default_thread_pool[dev]
 
 
 def get_num_threads():
@@ -83,14 +98,17 @@ def set_num_threads(n):
         This function should be called once, at the beginning of the program.
         Changing this value later is very costly and should be avoided.
     """
-    global _global_num_threads
+    global _global_num_threads, _global_default_thread_pool
     if n is None:
         _global_num_threads = None
-        return
-    if not isinstance(n, int):
+        n = get_num_threads()
+    elif not isinstance(n, int):
         raise TypeError("The number of threads must be an integer")
-    if n <= 0:
+    elif n <= 0:
         raise ValueError(f"The number of threads must be positive; got {n}.")
+    else:
+        _global_num_threads = n
+
     import multiprocessing
 
     if n > multiprocessing.cpu_count() * 100:
@@ -99,7 +117,9 @@ def set_num_threads(n):
             f"Got {n} threads for {multiprocessing.cpu_count()} cores."
         )
 
-    _global_num_threads = n
+    for dev, tp in _global_default_thread_pool.items():
+        if tp.num_threads != n:
+            _global_default_thread_pool[dev] = _b._NewThreadPool(n, device_id=dev)
 
 
 class EvalContext:
@@ -163,9 +183,7 @@ class EvalContext:
         self._num_threads = num_threads
         self._instance_cache = {}
         self._num_active = 0
-
-        # The thread pool needs to be thread-local because of eager execution
-        self._tls = threading.local()
+        self._instance_thread_pool = None
 
         self._async_executor = _AsyncExecutor()
         weakref.finalize(self, self._async_executor.shutdown)
@@ -179,18 +197,16 @@ class EvalContext:
 
     @property
     def _thread_pool(self):
-        if (
-            not hasattr(self._tls, "thread_pool")
-            or self._tls.thread_pool.num_threads != self.num_threads
-        ):
-            dev = self.device_id
-            if dev is None:
-                import nvidia.dali.types as _types
-
-                dev = _types.CPU_ONLY_DEVICE_ID
-            self._tls.thread_pool = _b._ThreadPool(self.num_threads, device_id=dev)
-
-        return self._tls.thread_pool
+        if self._num_threads is not None:
+            if (
+                self._instance_thread_pool is None
+                or self._instance_thread_pool.num_threads != self._num_threads
+            ):
+                dev = self.device_id
+                self._instance_thread_pool = _b._NewThreadPool(self._num_threads, device_id=dev)
+            return self._instance_thread_pool
+        else:
+            return _get_or_create_global_thread_pool(self.device_id)
 
     @staticmethod
     def current() -> "EvalContext":
