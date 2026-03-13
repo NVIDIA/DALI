@@ -720,23 +720,23 @@ daliResult_t daliPipelineSetOutputs(
   DALI_PROLOG();
   auto pipe = ToPointer(pipeline);
   dali::c_api::CheckArg(num_outputs >= 0, "`num_outputs` must not be negative");
-  if (num_outputs == 0)
-    return DALI_SUCCESS;  // nothing to do
 
-  NOT_NULL(outputs);
   std::vector<dali::PipelineOutputDesc> descs;
-  descs.reserve(num_outputs);
-  for (int i = 0; i < num_outputs; i++) {
-    Validate(outputs[i]);
-    dali::PipelineOutputDesc desc;
-    desc.name   = outputs[i].name;
-    desc.device = static_cast<dali::StorageDevice>(outputs[i].device);
+  if (num_outputs > 0) {
+    NOT_NULL(outputs);
+    descs.reserve(num_outputs);
+    for (int i = 0; i < num_outputs; i++) {
+      Validate(outputs[i]);
+      dali::PipelineOutputDesc desc;
+      desc.name   = outputs[i].name;
+      desc.device = static_cast<dali::StorageDevice>(outputs[i].device);
 
-    if (outputs[i].dtype_present) desc.dtype = outputs[i].dtype;
-    if (outputs[i].layout)        desc.layout = outputs[i].layout;
-    if (outputs[i].ndim_present) desc.ndim  = outputs[i].ndim;
+      if (outputs[i].dtype_present) desc.dtype  = outputs[i].dtype;
+      if (outputs[i].layout)        desc.layout = outputs[i].layout;
+      if (outputs[i].ndim_present)  desc.ndim   = outputs[i].ndim;
 
-    descs.push_back(std::move(desc));
+      descs.push_back(std::move(desc));
+    }
   }
   pipe->Unwrap()->SetOutputDescs(std::move(descs));
   DALI_EPILOG();
