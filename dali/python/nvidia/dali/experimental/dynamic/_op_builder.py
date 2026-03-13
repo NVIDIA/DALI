@@ -199,6 +199,7 @@ def build_constructor(schema, op_class):
     # Note: Base __init__ will keep the **kwargs
     def init(self, max_batch_size, name, **kwargs):
         if is_reader:
+            actual_tensor_arg_names = {name for name in tensor_arg_names if kwargs.get(name)}
             tensor_args = {}
             for k in tensor_arg_names:
                 arg = kwargs.get(k)
@@ -213,7 +214,7 @@ def build_constructor(schema, op_class):
         kwargs = {k: _scalar_decay(v) for k, v in kwargs.items()}
         op_class.__base__.__init__(self, max_batch_size, name, **kwargs)
         if is_reader:  # Need to be done here not to be overridden by the constructor
-            self._tensor_arg_names = {name for name in tensor_arg_names if kwargs.get(name)}
+            self._tensor_arg_names = actual_tensor_arg_names
             self._raw_tensor_args = tensor_args
         if stateful:
             self._call_id = 0
