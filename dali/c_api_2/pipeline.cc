@@ -526,7 +526,7 @@ std::string_view BackendToString(daliBackend_t backend) {
     case DALI_BACKEND_MIXED: return "mixed";
     default:
       throw std::invalid_argument(dali::make_string(
-        "Invalid backend value: ", static_cast<int>(backend)));
+        "Invalid backend type: ", static_cast<int>(backend)));
   }
 }
 
@@ -628,23 +628,6 @@ void AddArgToSpec(dali::OpSpec &spec, const daliArgDesc_t &arg) {
   }
 }
 
-}  // namespace
-
-daliResult_t daliPipelineAddExternalInput(
-      daliPipeline_h pipeline,
-      const daliPipelineIODesc_t *input_desc) {
-  DALI_PROLOG();
-  auto pipe = ToPointer(pipeline);
-  NOT_NULL(input_desc);
-  NOT_NULL(input_desc->name);
-  std::string device_str = input_desc->device == DALI_STORAGE_GPU ? "gpu" : "cpu";
-  daliDataType_t dtype = input_desc->dtype_present ? input_desc->dtype : DALI_NO_TYPE;
-  int ndim = input_desc->ndim_present ? input_desc->ndim : -1;
-  const char *layout = input_desc->layout ? input_desc->layout : "";
-  pipe->Unwrap()->AddExternalInput(input_desc->name, device_str, dtype, ndim, layout);
-  DALI_EPILOG();
-}
-
 inline dali::OpSpec MakeOpSpec(const daliOperatorDesc_t *op_desc) {
   NOT_NULL(op_desc);
   dali::c_api::CheckArg(op_desc->num_inputs >= 0, "`num_inputs` must not be negative.");
@@ -666,6 +649,7 @@ inline dali::OpSpec MakeOpSpec(const daliOperatorDesc_t *op_desc) {
     dali::c_api::CheckNotNull(op_desc->inputs[i].name, [i]() {
       return dali::make_string("`op_desc->inputs[", i, "].name`");
     });
+    Validate(op_desc->inputs[i].device_type);
     spec.AddInput(op_desc->inputs[i].name,
                   static_cast<dali::StorageDevice>(op_desc->inputs[i].device_type));
   }
@@ -673,6 +657,7 @@ inline dali::OpSpec MakeOpSpec(const daliOperatorDesc_t *op_desc) {
     dali::c_api::CheckNotNull(op_desc->outputs[i].name, [i]() {
       return dali::make_string("`op_desc->outputs[", i, "].name`");
     });
+    Validate(op_desc->outputs[i].device_type);
     spec.AddOutput(op_desc->outputs[i].name,
                    static_cast<dali::StorageDevice>(op_desc->outputs[i].device_type));
   }
@@ -696,6 +681,23 @@ inline dali::OpSpec MakeOpSpec(const daliOperatorDesc_t *op_desc) {
     AddArgToSpec(spec, op_desc->args[i]);
   }
   return spec;
+}
+
+}  // namespace
+
+daliResult_t daliPipelineAddExternalInput(
+      daliPipeline_h pipeline,
+      const daliPipelineIODesc_t *input_desc) {
+  DALI_PROLOG();
+  auto pipe = ToPointer(pipeline);
+  NOT_NULL(input_desc);
+  Validate(*input_desc);
+  std::string device_str = input_desc->device == DALI_STORAGE_GPU ? "gpu" : "cpu";
+  daliDataType_t dtype = input_desc->dtype_present ? input_desc->dtype : DALI_NO_TYPE;
+  dali::TensorLayout layout(input_desc->layout ? input_desc->layout : "");
+  int ndim = input_desc->ndim_present ? input_desc->ndim : -1;
+  pipe->Unwrap()->AddExternalInput(input_desc->name, device_str, dtype, ndim, layout);
+  DALI_EPILOG();
 }
 
 daliResult_t daliPipelineAddOperator(
@@ -725,19 +727,14 @@ daliResult_t daliPipelineSetOutputs(
   std::vector<dali::PipelineOutputDesc> descs;
   descs.reserve(num_outputs);
   for (int i = 0; i < num_outputs; i++) {
-    NOT_NULL(outputs[i].name);
-
+    Validate(outputs[i]);
     dali::PipelineOutputDesc desc;
     desc.name   = outputs[i].name;
     desc.device = static_cast<dali::StorageDevice>(outputs[i].device);
 
     if (outputs[i].dtype_present) desc.dtype = outputs[i].dtype;
     if (outputs[i].layout)        desc.layout = outputs[i].layout;
-
-    if (outputs[i].ndim_present) {
-      ValidateNDim(outputs[i].ndim);
-      desc.ndim  = outputs[i].ndim;
-    }
+    if (outputs[i].ndim_present) desc.ndim  = outputs[i].ndim;
 
     descs.push_back(std::move(desc));
   }
