@@ -97,7 +97,7 @@ def set_num_threads(n):
         Changing this value later is very costly and should be avoided.
     """
     global _global_num_threads
-    new_count = n
+
     if n is None:
         _global_num_threads = None
         new_count = get_num_threads()
@@ -121,7 +121,7 @@ def set_num_threads(n):
             import nvidia.dali.types as _types
 
             _global_default_thread_pool[dev] = _b._NewThreadPool(
-                new_count, device_id=dev if dev is not None else _types.DALI_CPU_ONLY_DEVICE_ID
+                new_count, device_id=dev if dev is not None else _types.CPU_ONLY_DEVICE_ID
             )
 
     if n is not None:  # otherwise keep cleared
