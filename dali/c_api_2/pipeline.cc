@@ -540,6 +540,15 @@ void AddArgToSpec(dali::OpSpec &spec, const daliArgDesc_t &arg) {
     });
   };
 
+
+  auto check_arr = [&]() {
+    if (arg.size < 0)
+      throw std::invalid_argument(
+        dali::make_string("`arg.size` of argument \"", name, "\" has a negative size"));
+    if (arg.size > 0)
+      check_not_null(arg.arr, "arg.arr");
+  };
+
   switch (arg.dtype) {
     // --- scalar types ---
     case DALI_INT8:
@@ -582,29 +591,25 @@ void AddArgToSpec(dali::OpSpec &spec, const daliArgDesc_t &arg) {
       break;
     // --- vector (list) types ---
     case DALI_INT_VEC: {
-      if (arg.size > 0)
-        check_not_null(arg.arr, "arg.arr");
+      check_arr();
       auto *d = static_cast<const int *>(arg.arr);
       spec.AddArg(name, std::vector<int>(d, d + arg.size));
       break;
     }
     case DALI_FLOAT_VEC: {
-      if (arg.size > 0)
-        check_not_null(arg.arr, "arg.arr");
+      check_arr();
       auto *d = static_cast<const float *>(arg.arr);
       spec.AddArg(name, std::vector<float>(d, d + arg.size));
       break;
     }
     case DALI_BOOL_VEC: {
-      if (arg.size > 0)
-        check_not_null(arg.arr, "arg.arr");
+      check_arr();
       auto *d = static_cast<const bool *>(arg.arr);
       spec.AddArg(name, std::vector<bool>(d, d + arg.size));
       break;
     }
     case DALI_STRING_VEC: {
-      if (arg.size > 0)
-        check_not_null(arg.arr, "arg.arr");
+      check_arr();
       auto *d = static_cast<const char * const *>(arg.arr);
       std::vector<std::string> sv;
       sv.reserve(arg.size);
@@ -640,12 +645,12 @@ daliResult_t daliPipelineAddExternalInput(
   DALI_EPILOG();
 }
 
-daliResult_t daliPipelineAddOperator(
-      daliPipeline_h pipeline,
-      const daliOperatorDesc_t *op_desc) {
-  DALI_PROLOG();
-  auto pipe = ToPointer(pipeline);
+inline dali::OpSpec MakeOpSpec(const daliOperatorDesc_t *op_desc) {
   NOT_NULL(op_desc);
+  dali::c_api::CheckArg(op_desc->num_inputs >= 0, "`num_inputs` must not be negative.");
+  dali::c_api::CheckArg(op_desc->num_outputs >= 0, "`num_outputs` must not be negative.");
+  dali::c_api::CheckArg(op_desc->num_args >= 0, "`num_args` must not be negative.");
+  dali::c_api::CheckArg(op_desc->num_arg_inputs>= 0, "`num_arg_inputs` must not be negative.");
   NOT_NULL(op_desc->schema_name);
   if (op_desc->num_inputs > 0)
     NOT_NULL(op_desc->inputs);
@@ -690,6 +695,15 @@ daliResult_t daliPipelineAddOperator(
     });
     AddArgToSpec(spec, op_desc->args[i]);
   }
+  return spec;
+}
+
+daliResult_t daliPipelineAddOperator(
+      daliPipeline_h pipeline,
+      const daliOperatorDesc_t *op_desc) {
+  DALI_PROLOG();
+  auto pipe = ToPointer(pipeline);
+  auto spec = MakeOpSpec(op_desc);
   if (op_desc->instance_name && op_desc->instance_name[0] != '\0')
     pipe->Unwrap()->AddOperator(spec, op_desc->instance_name);
   else
@@ -712,12 +726,19 @@ daliResult_t daliPipelineSetOutputs(
   descs.reserve(num_outputs);
   for (int i = 0; i < num_outputs; i++) {
     NOT_NULL(outputs[i].name);
+
     dali::PipelineOutputDesc desc;
     desc.name   = outputs[i].name;
     desc.device = static_cast<dali::StorageDevice>(outputs[i].device);
+
     if (outputs[i].dtype_present) desc.dtype = outputs[i].dtype;
-    if (outputs[i].ndim_present)  desc.ndim  = outputs[i].ndim;
     if (outputs[i].layout)        desc.layout = outputs[i].layout;
+
+    if (outputs[i].ndim_present) {
+      ValidateNDim(outputs[i].ndim);
+      desc.ndim  = outputs[i].ndim;
+    }
+
     descs.push_back(std::move(desc));
   }
   pipe->Unwrap()->SetOutputDescs(std::move(descs));
