@@ -380,7 +380,6 @@ typedef struct _DALIArgInputDesc {
  *   - DALI_INT8..DALI_INT64   -> ivalue
  *   - DALI_UINT8..DALI_UINT64 -> uvalue
  *   - DALI_FLOAT              -> fvalue
- *   - DALI_FLOAT64            -> dvalue
  *   - DALI_BOOL               -> ivalue (0 = false, non-zero = true)
  *   - DALI_STRING             -> str (NULL-terminated)
  *
@@ -390,7 +389,9 @@ typedef struct _DALIArgInputDesc {
  *   - DALI_BOOL_VEC           -> arr points to bool[], size = element count
  *   - DALI_STRING_VEC         -> arr points to const char*[], size = element count
  *
- * For vector types, `arr` must be non-NULL and `size` must be >= 0.
+ * Other types (including DALI_FLOAT64) are not supported.
+ *
+ * For vector types, `size` must be >= 0 and `arr` must be non-NULL when `size` > 0.
  */
 typedef struct _DALIArgDesc {
   const char     *name;
