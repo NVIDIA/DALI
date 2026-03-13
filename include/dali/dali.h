@@ -400,7 +400,7 @@ typedef struct _DALIArgDesc {
     int64_t      ivalue;   /**< signed integer scalar types and bool */
     uint64_t     uvalue;   /**< unsigned integer scalar types */
     float        fvalue;   /**< DALI_FLOAT */
-    double       dvalue;   /**< DALI_FLOAT64 */
+    double       dvalue;   /**< DALI_FLOAT64, reserved for future use */
     const char  *str;      /**< DALI_STRING — NULL-terminated C string */
     struct {
       int64_t     size;    /**< number of elements */
