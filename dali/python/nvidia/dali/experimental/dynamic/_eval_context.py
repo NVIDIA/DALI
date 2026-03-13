@@ -97,27 +97,35 @@ def set_num_threads(n):
         Changing this value later is very costly and should be avoided.
     """
     global _global_num_threads
+    new_count = n
     if n is None:
         _global_num_threads = None
-        n = get_num_threads()
+        new_count = get_num_threads()
     elif not isinstance(n, int):
         raise TypeError("The number of threads must be an integer")
     elif n <= 0:
         raise ValueError(f"The number of threads must be positive; got {n}.")
     else:
-        _global_num_threads = n
+        new_count = n
 
     import multiprocessing
 
-    if n > multiprocessing.cpu_count() * 100:
+    if new_count > multiprocessing.cpu_count() * 100:
         raise ValueError(
             f"The number of threads per CPU core must not exceed 100.\n"
-            f"Got {n} threads for {multiprocessing.cpu_count()} cores."
+            f"Got {new_count} threads for {multiprocessing.cpu_count()} cores."
         )
 
     for dev, tp in _global_default_thread_pool.items():
-        if tp.num_threads != n:
-            _global_default_thread_pool[dev] = _b._NewThreadPool(n, device_id=dev)
+        if tp.num_threads != new_count:
+            import nvidia.dali.types as _types
+
+            _global_default_thread_pool[dev] = _b._NewThreadPool(
+                new_count, device_id=dev if dev is not None else _types.DALI_CPU_ONLY_DEVICE_ID
+            )
+
+    if n is not None:  # otherwise keep cleared
+        _global_num_threads = new_count
 
 
 class EvalContext:
@@ -200,7 +208,9 @@ class EvalContext:
                 self._instance_thread_pool is None
                 or self._instance_thread_pool.num_threads != self._num_threads
             ):
-                dev = self.device_id
+                import nvidia.dali.types as _types
+
+                dev = self.device_id if self.device_id is not None else _types.CPU_ONLY_DEVICE_ID
                 self._instance_thread_pool = _b._NewThreadPool(self._num_threads, device_id=dev)
             return self._instance_thread_pool
         else:
