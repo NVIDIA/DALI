@@ -609,7 +609,7 @@ void AddArgToSpec(dali::OpSpec &spec, const daliArgDesc_t &arg) {
       std::vector<std::string> sv;
       sv.reserve(arg.size);
       for (int64_t i = 0; i < arg.size; i++) {
-        if (!d[i])
+        if (!d[i])  // the outer `if` prevents make_string in case of no error
           check_not_null(d[i], dali::make_string("arg.arr[", i, "]"));
         sv.emplace_back(d[i]);
       }
@@ -703,6 +703,10 @@ daliResult_t daliPipelineSetOutputs(
       const daliPipelineIODesc_t *outputs) {
   DALI_PROLOG();
   auto pipe = ToPointer(pipeline);
+  dali::c_api::CheckArg(num_outputs >= 0, "`num_outputs` must not be negative");
+  if (num_outputs == 0)
+    return DALI_SUCCESS;  // nothing to do
+
   NOT_NULL(outputs);
   std::vector<dali::PipelineOutputDesc> descs;
   descs.reserve(num_outputs);
