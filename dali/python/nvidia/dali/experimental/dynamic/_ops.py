@@ -467,7 +467,7 @@ class Operator:
                 self._check_compatible(inputs, batch_size, args)
 
             self._init_backend(ctx, inputs, args)
-            workspace = _b._Workspace(ctx._thread_pool, ctx.cuda_stream)
+            workspace = _b._Workspace(ctx._thread_pool.create_facade(), ctx.cuda_stream)
             for i, input in enumerate(inputs):
                 workspace.AddInput(self._to_batch(input).evaluate()._storage)
             for name, arg in args.items():
