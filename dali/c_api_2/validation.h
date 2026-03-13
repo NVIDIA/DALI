@@ -1,4 +1,4 @@
-// Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2025-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,9 +15,11 @@
 #ifndef DALI_C_API_2_VALIDATION_H_
 #define DALI_C_API_2_VALIDATION_H_
 
+#include <concepts>
 #include <optional>
 #include <stdexcept>
 #include <string>
+#include <utility>
 #include "dali/dali.h"
 #include "dali/core/format.h"
 #include "dali/core/span.h"
@@ -99,6 +101,19 @@ inline void Validate(daliStorageDevice_t device_type) {
     throw std::invalid_argument(make_string("Invalid storage device type: ", device_type));
 }
 
+inline void Validate(const daliPipelineIODesc_t &desc) {
+  if (desc.name == nullptr)
+    throw std::invalid_argument("input/output name must not be NULL");
+  Validate(desc.device);
+  if (desc.dtype_present)
+    Validate(desc.dtype);
+  if (desc.ndim_present) {
+    ValidateNDim(desc.ndim);
+    if (desc.layout)
+      Validate(desc.layout, desc.ndim);
+  }
+}
+
 DLL_PUBLIC void ValidateDeviceId(int device_id, bool allow_cpu_only);
 
 inline void Validate(const daliBufferPlacement_t &placement) {
@@ -112,9 +127,23 @@ inline void CheckArg(bool assertion, const std::string &what) {
     throw std::invalid_argument(what);
 }
 
+template <std::invocable<> CB>
+inline void CheckArg(bool assertion, CB &&message_callback) {
+  if (!assertion)
+    throw std::invalid_argument(std::forward<CB>(message_callback)());
+}
+
 template <typename T>
 void CheckNotNull(T *x, std::string_view what) {
   CheckArg(x != nullptr, make_string(what, " must not be NULL."));
+}
+
+template <typename T, std::invocable<> CB>
+void CheckNotNull(T *x, CB &&message_callback) {
+  if (x == nullptr) {
+    throw std::invalid_argument(make_string(
+      std::forward<CB>(message_callback)(), " must not be NULL."));
+  }
 }
 
 #define CHECK_OUTPUT(output_param) \
