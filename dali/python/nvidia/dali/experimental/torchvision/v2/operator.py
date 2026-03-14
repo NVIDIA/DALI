@@ -1,0 +1,328 @@
+# Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+from abc import ABC, abstractmethod
+import logging
+from typing import Literal
+
+from PIL import Image
+import torch
+import numpy as np
+
+import nvidia.dali.experimental.dynamic as ndd
+
+
+class DataVerificationRule(ABC):
+    """
+    Abstract base class for data verification rules
+
+    Implement ``verify`` method in a child class raising an exception in case of failed verification
+    """
+
+    @classmethod
+    @abstractmethod
+    def verify(cls, data) -> None:
+        pass
+
+
+class ArgumentVerificationRule(ABC):
+    """
+    Abstract base class for input verification rules
+
+    Implement ``verify`` method in a child class raising an exception in case of failed verification
+    """
+
+    @classmethod
+    @abstractmethod
+    def verify(cls, **kwargs) -> None:
+        pass
+
+
+class VerificationIsTensor(DataVerificationRule):
+    """
+    Verify if the data is a ``torch.Tensor``.
+
+    Parameters
+    ----------
+    data : any
+        Data to verify. Should be a ``torch.Tensor``.
+    """
+
+    @classmethod
+    def verify(cls, data):
+        if not isinstance(data, (torch.Tensor)):
+            raise TypeError(f"Data should be Tensor. Got {type(data)}")
+
+
+class VerificationTensorOrImage(DataVerificationRule):
+    """
+    Verify if the data is a ``torch.Tensor`` or ``PIL.Image``.
+
+    Parameters
+    ----------
+    data : any
+        Data to verify. Should be a ``torch.Tensor`` or ``PIL.Image``.
+    """
+
+    @classmethod
+    def verify(cls, data):
+        if not isinstance(data, (Image.Image, torch.Tensor)):
+            raise TypeError(f"inpt should be Tensor or PIL Image. Got {type(data)}")
+
+
+class VerificationChannelCount(DataVerificationRule):
+    """
+    Verify if input data has <= 4 channels. More channels are not supported in Torchvision
+
+    Parameters
+    ----------
+    data : any
+        Data to verify in CHW format.
+    """
+
+    CHANNELS = [1, 2, 3, 4]
+
+    @classmethod
+    def verify(cls, data):
+        if (
+            isinstance(data, torch.Tensor)
+            and data.shape[-3] not in VerificationChannelCount.CHANNELS
+        ):
+            raise ValueError(f"Input should be in CHW if Tensor. \
+                Supports up to {VerificationChannelCount.CHANNELS[-1]} channels, \
+                got: {data.shape[-3]} channels")
+
+
+class VerifyIfPositive(ArgumentVerificationRule):
+    """
+    Verify if the value is positive.
+
+    Parameters
+    ----------
+    values : any
+        Value to verify. Should be a positive numbers.
+    """
+
+    @classmethod
+    def verify(cls, *, values, name, **_) -> None:
+        if isinstance(values, (int, float)) and values <= 0:
+            raise ValueError(f"Value {name} must be positive, got {values}")
+        elif isinstance(values, (list, tuple)) and any(k <= 0 for k in values):
+            raise ValueError(f"Values {name} should be positive numbers, got {values}")
+
+
+class VerifyIfRange(ArgumentVerificationRule):
+    """
+    Verify if the value is a correct range: (min, max)
+
+    Parameters
+    ----------
+    values : any
+        Value to verify. Should be a range: (min, max)
+    """
+
+    @classmethod
+    def verify(cls, *, values, name, **_) -> None:
+        if isinstance(values, (list, tuple)) and len(values) == 2 and values[0] > values[1]:
+            raise ValueError(f"Values {name} should be (min, max), got {values}")
+
+
+class VerifSizeDescriptor(ArgumentVerificationRule):
+    """
+    Verify if the value can describe a size argument, which is:
+    - an integer
+    - or a sequence of length of 1,
+    - or a sequence of length of 2
+
+    Parameters
+    ----------
+    size : any
+        Value to verify. Should be an integer or a sequence of length 1 or 2.
+    """
+
+    @classmethod
+    def verify(cls, *, size, **_) -> None:
+        if not isinstance(size, (int, list, tuple)):
+            raise TypeError(f"Size must be int, list, or tuple, got {type(size)}")
+        elif isinstance(size, (list, tuple)) and len(size) > 2:
+            raise ValueError(f"Size sequence must have length 1 or 2, got {len(size)}")
+        VerifyIfPositive.verify(values=size, name="size")
+
+
+class Operator(ABC):
+    """
+    Abstract base class for operator specification
+
+    Implement _kernel for algorithm specific processing
+
+    ``arg_rules`` - a sequence of verification rules for algorithm's arguments.
+    ``input_rules`` - a sequence of verification rules for algorithm's input data.
+    ``preprocess_data`` - a function to preprocess the input data.
+
+    Parameters
+    ----------
+    device : Literal["cpu", "gpu"], optional, default = "cpu"
+        Device to use for the operator. Can be ``"cpu"`` or ``"gpu"``.
+    **kwargs
+        Additional keyword arguments for the operator.
+    """
+
+    arg_rules: tuple[ArgumentVerificationRule, ...] = []
+    input_rules: tuple[DataVerificationRule, ...] = []
+    preprocess_data = None
+
+    @classmethod
+    def verify_args(cls, **kwargs):
+        for rule in cls.arg_rules:
+            rule.verify(**kwargs)
+
+    @classmethod
+    def verify_data(cls, data_input):
+        for rule in cls.input_rules:
+            rule.verify(data_input)
+
+    def __init__(self, device: Literal["cpu", "gpu"] = "cpu", **kwargs):
+        self.device = device
+        type(self).verify_args(**kwargs)
+
+    @abstractmethod
+    def _kernel(self, data_input):
+        """
+        Algorithm's processing
+        """
+        pass
+
+    def __call__(self, data_input):
+
+        type(self).verify_data(data_input)
+
+        # Original input is transfered to GPU, before being preprocess_data.
+        # The preprocess_data creates an arbitrary tuple
+        if self.device == "gpu":
+            data_input = data_input.gpu()
+
+        if type(self).preprocess_data:
+            data_input = type(self).preprocess_data(data_input)
+
+        output = self._kernel(data_input)
+
+        return output
+
+
+def adjust_input(func):
+    """
+    This decorator transforms the 1st argument of a function to internal DALI representation
+    according to the following rules:
+    - ``PIL.Image`` -> ``ndd.Tensor(layout = "HWC")``
+    - ``torch.Tensor``:
+        - ``ndim == 3`` -> ``ndd.Tensor(layout = "CHW")``
+        - ``ndim > 3`` -> ``ndd.Batch(layout = "CHW")``
+
+    Note: When new input types are supported this function will be extended.
+    """
+
+    def transform_input(inpt, device: Literal["cpu", "gpu"] = "cpu") -> ndd.Tensor | ndd.Batch:
+        """
+        Transforms supported inputs to either DALI tensor or batch
+        The following conversion rules apply:
+        - PIL Image -> ndd.Tensor(layout="HWC"), depending on the number of channels it outputs:
+         L, RGB, or RGBA mode
+        - torch.Tensor:
+          ndim==3 -> ndd.Tensor(layout = "CHW"),
+          ndim>3  -> ndd.Batch(layout="CHW")  (workaround for DALI-4566; intended: layout="NCHW")
+        """
+        mode = "RGB"
+        if isinstance(inpt, Image.Image):
+            mode = inpt.mode
+            if mode == "L":
+                _input = ndd.Tensor(np.expand_dims(np.array(inpt, copy=True), -1), layout="HWC")
+            elif mode in ["RGB", "RGBA"]:  # Modes RGB, RGBA
+                _input = ndd.Tensor(np.array(inpt, copy=True), layout="HWC")
+            else:
+                raise ValueError(f"Mode {mode} is not supported, expected, L, RGB, RGBA")
+        elif isinstance(inpt, torch.Tensor):
+            if inpt.ndim == 3:
+                _input = ndd.Tensor(inpt, layout="CHW")
+            elif inpt.ndim > 3:
+                # Creating baches of NHWC does not work, because of:
+                # https://jirasw.nvidia.com/browse/DALI-4566
+                # It should be implemented as:
+                # _input = ndd.as_batch(inpt, layout="NCHW")
+                # currently workarounded as:
+                _input = ndd.as_batch(ndd.as_tensor(inpt), layout="CHW")
+            else:
+                raise TypeError(f"Tensor has < 3 dimensions: {inpt.ndim}, shape: {inpt.shape}")
+        else:
+            raise TypeError(f"Data type: {type(inpt)} is not supported")
+
+        if device != _input.device.device_type:
+            logging.warning(
+                f"Warning: input and operator devices do not match - copyig!"
+                f" Input is {_input.device} operator is {device}"
+            )
+            _input = _input.cpu() if "cpu" in device else _input.gpu()
+
+        return _input, mode
+
+    def adjust_output(
+        output: ndd.Tensor | ndd.Batch, inpt, mode: str = "RGB"
+    ) -> Image.Image | torch.Tensor:
+        """
+        Adjusts output to match the original input type or operator's result
+        Depending on the inpt:
+        - PIL Image: output ndd.Tensor -> PIL Image with applicable mode ("L", "RGB", "RGBA")
+        - torch.Tensor:
+          ndd.Batch -> torch.Tensor with leading dimension as a number of samples in batch
+          ndd.Tensor -> torch.Tensor
+        """
+        if isinstance(inpt, Image.Image):
+            if output.device.device_type == "gpu":
+                logging.warning(
+                    "Warning: PIL.Image expected on the output - copying output to CPU!"
+                    " torch.Tensors are recomended to be used with GPU operators."
+                )
+                output = output.cpu()
+
+            if output.shape[-1] == 1:
+                output = np.asarray(output).squeeze(-1)
+                mode = "L"
+            return Image.fromarray(np.asarray(output), mode=mode)
+        elif isinstance(inpt, torch.Tensor):
+            # For input being torch.Tensor only ndd.Batch or ndd.Tensor is allowed as output
+            if isinstance(output, ndd.Batch):
+                output = ndd.as_tensor(output)
+            elif not isinstance(output, ndd.Tensor):
+                raise TypeError(f"Invalid output type: {type(output)}")
+
+            # This is WAR for DLPpack not supporting pinned memory, see:
+            # https://github.com/pytorch/pytorch/issues/136250H
+            if output.device.device_type == "cpu":
+                output = np.asarray(output)
+
+            return torch.as_tensor(output)
+        else:
+            return output
+
+    def inner_function(inpt, *args, **kwargs):
+
+        device = kwargs["device"] if "device" in kwargs else "cpu"
+
+        _input, mode = transform_input(inpt, device)
+        output = func(_input, *args, **kwargs)
+
+        output = output.evaluate()
+
+        return adjust_output(output, inpt, mode)
+
+    return inner_function

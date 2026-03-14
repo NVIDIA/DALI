@@ -711,6 +711,6 @@ _OVERLOADS = DaliOperatorOverload()
 
 _autograph.initialize_autograph(
     _OVERLOADS,
-    convert_modules=["nvidia.dali.auto_aug"],
+    convert_modules=["nvidia.dali.auto_aug", "nvidia.dali.experimental.torchvision"],
     do_not_convert_modules=["nvidia.dali._autograph", "nvidia.dali"],
 )
