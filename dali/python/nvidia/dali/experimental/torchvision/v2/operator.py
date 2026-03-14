@@ -14,7 +14,7 @@
 
 from abc import ABC, abstractmethod
 import logging
-from typing import Sequence, Literal
+from typing import Literal
 
 from PIL import Image
 import torch
@@ -178,8 +178,8 @@ class Operator(ABC):
         Additional keyword arguments for the operator.
     """
 
-    arg_rules: Sequence[ArgumentVerificationRule] = []
-    input_rules: Sequence[DataVerificationRule] = []
+    arg_rules: tuple[ArgumentVerificationRule, ...] = []
+    input_rules: tuple[DataVerificationRule, ...] = []
     preprocess_data = None
 
     @classmethod
@@ -232,7 +232,7 @@ def adjust_input(func):
     Note: When new input types are supported this function will be extended.
     """
 
-    def transform_input(inpt, device=None) -> ndd.Tensor | ndd.Batch:
+    def transform_input(inpt, device: Literal["cpu", "gpu"] = "cpu") -> ndd.Tensor | ndd.Batch:
         """
         Transforms supported inputs to either DALI tensor or batch
         The following conversion rules apply:
@@ -266,18 +266,12 @@ def adjust_input(func):
         else:
             raise TypeError(f"Data type: {type(inpt)} is not supported")
 
-        if device == "cpu" and _input.device.device_type != "cpu":
+        if device != _input.device.device_type:
             logging.warning(
                 f"Warning: input and operator devices do not match - copyig!"
-                f" Input is {_input.device.device_type} operator is {device}"
+                f" Input is {_input.device} operator is {device}"
             )
-            _input = _input.cpu()
-        elif device == "gpu" and _input.device.device_type != "":
-            logging.warning(
-                f"Warning: input and operator devices do not match - copyig!"
-                f" Input is {_input.device.device_type} operator is {device}"
-            )
-            _input = _input.gpu()
+            _input = _input.cpu() if "cpu" in device else _input.gpu()
 
         return _input, mode
 
@@ -322,7 +316,7 @@ def adjust_input(func):
 
     def inner_function(inpt, *args, **kwargs):
 
-        device = kwargs["device"] if "device" in kwargs else None
+        device = kwargs["device"] if "device" in kwargs else "cpu"
 
         _input, mode = transform_input(inpt, device)
         output = func(_input, *args, **kwargs)

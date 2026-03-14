@@ -138,6 +138,7 @@ class PipelineWithLayout(ABC):
         # self.convert_to_tensor = True if isinstance(op_list[-1], ToTensor) else False
         self.convert_to_tensor = False
         self.device = op_list[0].device if len(op_list) > 0 else "cpu"
+        self.torch_device_type = "cuda" if self.device == "gpu" else "cpu"
 
         self.pipe = _pipeline_function(
             op_list,
@@ -150,17 +151,12 @@ class PipelineWithLayout(ABC):
         self._internal_run = self._cuda_run if torch.cuda.is_available() else self._cpu_run
 
     def _align_data_with_device(self, data_input):
-        if self.device == "cpu" and data_input.device.type != "cpu":
+        if self.torch_device_type != data_input.device.type:
             logging.warning(
-                f"Pipeline device is cpu, but data is on {data_input.device.type}." " Copying!"
+                f"Pipeline device is {self.device}, but data is on {data_input.device.type}."
+                " Copying!"
             )
-            return data_input.cpu()
-
-        if self.device == "gpu" and data_input.device.type != "cuda":
-            logging.warning(
-                f"Pipeline device is gpu, but data is on {data_input.device.type}." " Copying!"
-            )
-            return data_input.cuda()
+            return data_input.cpu() if self.torch_device_type == "cpu" else data_input.cuda()
 
         return data_input
 
