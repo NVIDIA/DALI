@@ -92,7 +92,6 @@ class _DefaultThreadPool:
 
     def _set_num_threads(self, num_threads):
         tp = self._thread_pool
-        print(tp, type(tp))
         if tp is not None and tp.num_threads != num_threads:
             self._thread_pool = None
 
