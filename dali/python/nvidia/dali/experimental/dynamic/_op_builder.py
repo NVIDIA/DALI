@@ -302,7 +302,7 @@ def build_call_function(schema, op_class):
             if overlap:
                 raise ValueError(
                     f"Keyword argument{'s'[:len(overlap)^1]} {sorted(overlap)}"
-                    f" cannot be passed in both in the constructor and __call__."
+                    f" cannot be passed both in the constructor and __call__."
                 )
             raw_kwargs = {**raw_kwargs, **self._raw_tensor_args}
 
