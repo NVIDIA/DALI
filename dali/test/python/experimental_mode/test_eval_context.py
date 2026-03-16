@@ -286,15 +286,15 @@ def test_get_set_num_threads():
     try:
         assert ndd.get_num_threads() == len(os.sched_getaffinity(0))
         ctx = ndd.EvalContext()
-        assert ctx._thread_pool.num_threads == len(os.sched_getaffinity(0))
+        assert ctx.thread_pool.num_threads == len(os.sched_getaffinity(0))
         ndd.set_num_threads(42)
         assert ndd.get_num_threads() == 42
         assert ctx.num_threads == 42
-        assert ctx._thread_pool.num_threads == 42
+        assert ctx.thread_pool.num_threads == 42
         ndd.set_num_threads(None)
         assert ndd.get_num_threads() == len(os.sched_getaffinity(0))
         assert ctx.num_threads == len(os.sched_getaffinity(0))
-        assert ctx._thread_pool.num_threads == len(os.sched_getaffinity(0))
+        assert ctx.thread_pool.num_threads == len(os.sched_getaffinity(0))
     finally:
         ndd.set_num_threads(None)
 
@@ -339,7 +339,7 @@ def test_global_param_change_delay():
     def check(ctx):
         nonlocal calls
         assert ctx.cuda_stream is expected_stream
-        assert ctx._thread_pool.num_threads == expected_num_threads
+        assert ctx.thread_pool.num_threads == expected_num_threads
         calls += 1
 
     try:

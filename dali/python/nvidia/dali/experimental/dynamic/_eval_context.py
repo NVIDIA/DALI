@@ -17,10 +17,9 @@ import sys
 import threading
 import weakref
 
-import nvidia.dali.backend_impl as _b
-
 from . import _device, _stream
 from ._async import _AsyncExecutor
+from ._thread_pool import ThreadPool, _get_default_thread_pool
 
 
 class _ThreadLocalStorage(threading.local):
@@ -31,101 +30,6 @@ class _ThreadLocalStorage(threading.local):
 
 
 _tls = _ThreadLocalStorage()
-
-
-def _default_num_threads():
-    """Gets the default number of threads used in DALI dynamic mode."""
-    import os
-    from functools import wraps
-
-    mod = sys.modules[__name__]
-
-    if nenv := os.environ.get("DALI_NUM_THREADS", None):
-        n = int(nenv)
-    else:
-        n = len(os.sched_getaffinity(0))
-
-    @wraps(_default_num_threads)
-    def __default_num_threads():
-        return n
-
-    mod._default_num_threads = __default_num_threads
-    return n
-
-
-_global_num_threads = None
-_global_default_thread_pool = {}
-
-
-def _get_or_create_global_thread_pool(dev):
-    """Returns the global default thread pool, creating or recreating it if needed."""
-    n = get_num_threads()
-    if (
-        dev not in _global_default_thread_pool
-        or _global_default_thread_pool[dev] is None
-        or _global_default_thread_pool[dev].num_threads != n
-    ):
-        _global_default_thread_pool[dev] = _b._NewThreadPool(n, device_id=dev)
-    return _global_default_thread_pool[dev]
-
-
-def get_num_threads():
-    """
-    Gets the number of threads in the default thread pool.
-
-    The value is determined by (in decreasing priority):
-    1. The value (not None) passed to :meth:`set_num_threads`
-    2. The value from DALI_NUM_THREADS environment variable.
-    3. The number of CPUs in the calling process affinity list: ``len(os.sched_getaffinity(0))``
-    """
-    return _global_num_threads or _default_num_threads()
-
-
-def set_num_threads(n):
-    """
-    Sets (or clears) the number of threads in the default thread pool.
-
-    Changing this value will cause all EvalContexts which were constructed without an explicitly
-    given number of threads to recreate their associated thread pools.
-
-    Setting None will cause the default value to be used.
-
-    The value must be a positive integer and must not exceed 100 threads per CPU.
-
-    .. warning::
-        This function should be called once, at the beginning of the program.
-        Changing this value later is very costly and should be avoided.
-    """
-    global _global_num_threads
-
-    if n is None:
-        _global_num_threads = None
-        new_count = get_num_threads()
-    elif not isinstance(n, int):
-        raise TypeError("The number of threads must be an integer")
-    elif n <= 0:
-        raise ValueError(f"The number of threads must be positive; got {n}.")
-    else:
-        new_count = n
-
-    import multiprocessing
-
-    if new_count > multiprocessing.cpu_count() * 100:
-        raise ValueError(
-            f"The number of threads per CPU core must not exceed 100.\n"
-            f"Got {new_count} threads for {multiprocessing.cpu_count()} cores."
-        )
-
-    for dev, tp in _global_default_thread_pool.items():
-        if tp.num_threads != new_count:
-            import nvidia.dali.types as _types
-
-            _global_default_thread_pool[dev] = _b._NewThreadPool(
-                new_count, device_id=dev if dev is not None else _types.CPU_ONLY_DEVICE_ID
-            )
-
-    if n is not None:  # otherwise keep cleared
-        _global_num_threads = new_count
 
 
 class EvalContext:
@@ -144,14 +48,20 @@ class EvalContext:
 
     _default_context_stream_sentinel = object()
 
-    def __init__(self, *, num_threads=None, device_id=None, cuda_stream=None):
+    def __init__(self, *, num_threads=None, device_id=None, cuda_stream=None, thread_pool=None):
         """
         Constructs an ``EvalContext`` object.
 
         Keyword Args
         ------------
+        thread_pool : ThreadPool, optional
+            The thread pool which will be used by multi-threaded operators.
+            It must be associated with the same `device_id` as the one passed to this function
+            This parameter is mutually exclusive with `num_threads`.
         num_threads : int, optional
-            The number of threads in the new thread pool that will be associated with the context.
+            If specified, a new thread pool with this number of threads is created and associated
+            with the context. Note that creating a thread pool constitutes considerable overhead.
+            This argument is mutually exclusive with `thread_pool`.
         device_id : int, optional
             The ordinal of the GPU associated with the context. If not specified, the current CUDA
             device will be used.
@@ -170,10 +80,26 @@ class EvalContext:
         """
         self._invocations = []
         self._default_stream = None
+
         if device_id is not None:
             self._device = _device.Device("gpu", device_id)
         else:
             self._device = _device.Device.current()
+
+        if thread_pool is not None:
+            if num_threads is None:
+                raise ValueError("`thread_pool` and  `num_threads` cannot be specified together.")
+            if thread_pool.device_id != self._device.device_id:
+                if device_id is None:
+                    device_id_message = f"<Current> ({self._device.device_id})"
+                else:
+                    device_id_message = device_id
+                raise ValueError(
+                    f"Device ID clash: device_id == {device_id_message} "
+                    f"but thread_pool.device_id == {thread_pool.device_id}"
+                )
+        elif num_threads is not None:
+            thread_pool = ThreadPool(num_threads, device_id=self._device.device_id)
 
         if cuda_stream is EvalContext._default_context_stream_sentinel:
             self._cuda_stream = None
@@ -186,10 +112,9 @@ class EvalContext:
             else:  # we're using current device anyway
                 self._cuda_stream = _stream.get_current_stream()
 
-        self._num_threads = num_threads
         self._instance_cache = {}
         self._num_active = 0
-        self._instance_thread_pool = None
+        self._thread_pool = thread_pool
 
         self._async_executor = _AsyncExecutor()
         weakref.finalize(self, self._async_executor.shutdown)
@@ -202,19 +127,8 @@ class EvalContext:
         self._instance_cache = {}
 
     @property
-    def _thread_pool(self):
-        if self._num_threads is not None:
-            if (
-                self._instance_thread_pool is None
-                or self._instance_thread_pool.num_threads != self._num_threads
-            ):
-                import nvidia.dali.types as _types
-
-                dev = self.device_id if self.device_id is not None else _types.CPU_ONLY_DEVICE_ID
-                self._instance_thread_pool = _b._NewThreadPool(self._num_threads, device_id=dev)
-            return self._instance_thread_pool
-        else:
-            return _get_or_create_global_thread_pool(self.device_id)
+    def thread_pool(self):
+        return self._thread_pool or _get_default_thread_pool(self.device_id)
 
     @staticmethod
     def current() -> "EvalContext":
@@ -290,10 +204,8 @@ class EvalContext:
     def num_threads(self):
         """
         The number of thread pool workers in this ``EvalContext``.
-
-        If the value was not specified at construction, :meth:`get_num_threads` is used.
         """
-        return self._num_threads or get_num_threads()
+        return self.thread_pool.num_threads
 
     @property
     def cuda_stream(self):
@@ -354,8 +266,8 @@ class EvalContext:
         ctx = copy.copy(self)
         if ctx._cuda_stream is None:
             ctx._cuda_stream = self.cuda_stream
-        if ctx._num_threads is None:
-            ctx._num_threads = self.num_threads
+        if ctx._thread_pool is None:
+            ctx._thread_pool = self.thread_pool
         return ctx
 
     def _is_in_background_thread(self):
@@ -364,6 +276,4 @@ class EvalContext:
 
 __all__ = [
     "EvalContext",
-    "get_num_threads",
-    "set_num_threads",
 ]

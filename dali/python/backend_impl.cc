@@ -2436,11 +2436,6 @@ void ExposeNewThreadPool(py::module &m) {
           std::optional<int> device_id,
           bool set_affinity,
           std::string_view name) {
-      if (!device_id.has_value()) {
-        int dev = 0;
-        CUDA_CALL(cudaGetDevice(&dev));
-        device_id = dev;
-      }
       return std::make_shared<NewThreadPool>(num_threads, *device_id, set_affinity, name.data());
     }),
     "num_threads"_a,
@@ -2448,7 +2443,7 @@ void ExposeNewThreadPool(py::module &m) {
     "set_affinity"_a = false,
     "name"_a = "")
     .def_property_readonly("num_threads", &ThreadPoolBase::NumThreads)
-    .def("create_facade", [](std::shared_ptr<ThreadPoolBase> tp)->std::shared_ptr<ThreadPool> {
+    .def("_create_facade", [](std::shared_ptr<ThreadPoolBase> tp)->std::shared_ptr<ThreadPool> {
       return std::make_shared<PyThreadPoolFacade>(std::move(tp));
     });
 }
