@@ -256,7 +256,7 @@ class DLL_PUBLIC ThreadPoolBase : public ThisThreadIdx {
 
   virtual void Init(int num_threads, const std::function<OnThreadStartFn> &on_thread_start = {});
 
-  virtual ~ThreadPoolBase() {
+  virtual ~ThreadPoolBase() noexcept {
     Shutdown(true);
   }
 
@@ -273,7 +273,7 @@ class DLL_PUBLIC ThreadPoolBase : public ThisThreadIdx {
       tasks_added++;
     }
 
-    ~TaskBulkAdd() {
+    ~TaskBulkAdd() noexcept {
       Submit();
     }
 
