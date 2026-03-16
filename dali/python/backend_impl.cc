@@ -2400,12 +2400,14 @@ class PyWorkspace : public Workspace {
   py::object py_stream_;
 };
 
-class PyThreadPoolFacade : public ThreadPoolFacade {
+struct ThreadPoolOwner {  // a base class for proper destruction order in PyThreadPoolFacade
+  std::shared_ptr<ThreadPoolBase> shared_tp_;
+};
+
+class PyThreadPoolFacade : private ThreadPoolOwner, public ThreadPoolFacade {
  public:
   explicit PyThreadPoolFacade(std::shared_ptr<ThreadPoolBase> tp)
-  : ThreadPoolFacade(tp.get()), tp_(std::move(tp)) {}
- private:
-  std::shared_ptr<ThreadPoolBase> tp_;
+  : ThreadPoolOwner{std::move(tp)}, ThreadPoolFacade(shared_tp_.get()) {}
 };
 
 void ExposeThreadPool(py::module &m) {
@@ -2415,7 +2417,9 @@ void ExposeThreadPool(py::module &m) {
           std::optional<int> device_id,
           bool set_affinity,
           std::string_view name) {
-      if (!device_id.has_value()) {
+      if (!device_id.has_value())
+        device_id = CPU_ONLY_DEVICE_ID;
+      else if (*device_id == -1) {
         int dev = 0;
         CUDA_CALL(cudaGetDevice(&dev));
         device_id = dev;
@@ -2423,7 +2427,7 @@ void ExposeThreadPool(py::module &m) {
       return std::make_shared<OldThreadPool>(num_threads, *device_id, set_affinity, name.data());
     }),
     "num_threads"_a,
-    "device_id"_a = py::none(),
+    "device_id"_a = -1,
     "set_affinity"_a = false,
     "name"_a = "")
     .def_property_readonly("num_threads", &ThreadPool::NumThreads);
@@ -2436,7 +2440,7 @@ void ExposeNewThreadPool(py::module &m) {
           std::optional<int> device_id,
           bool set_affinity,
           std::string_view name) {
-      return std::make_shared<NewThreadPool>(num_threads, *device_id, set_affinity, name.data());
+      return std::make_shared<NewThreadPool>(num_threads, device_id, set_affinity, name.data());
     }),
     "num_threads"_a,
     "device_id"_a = py::none(),
