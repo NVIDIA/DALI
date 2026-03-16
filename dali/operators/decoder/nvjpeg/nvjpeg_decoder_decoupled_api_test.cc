@@ -16,7 +16,9 @@
 #include <limits>
 
 #include "dali/test/dali_test_decoder.h"
+#if NVML_ENABLED
 #include "dali/util/nvml.h"
+#endif
 
 namespace dali {
 

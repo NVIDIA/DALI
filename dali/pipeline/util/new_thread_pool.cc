@@ -17,10 +17,13 @@
 #include <utility>
 #include <vector>
 #include "dali/core/call_at_exit.h"
+#include "dali/core/common.h"
 #include "dali/core/small_vector.h"
 #include "dali/pipeline/util/new_thread_pool.h"
 #include "dali/core/device_guard.h"
+#if NVML_ENABLED
 #include "dali/util/nvml.h"
+#endif
 #include "dali/core/nvtx.h"
 
 namespace dali {

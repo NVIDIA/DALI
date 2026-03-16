@@ -39,7 +39,9 @@
 #include "dali/pipeline/operator/operator.h"
 #include "dali/pipeline/util/thread_pool.h"
 #include "dali/util/image.h"
+#if NVML_ENABLED
 #include "dali/util/nvml.h"
+#endif
 #include "dali/util/ocv.h"
 
 #define NVJPEG_FLAT_VERSION(major, minor, patch) ((major)*1000000+(minor)*1000+(patch))
