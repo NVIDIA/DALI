@@ -2417,9 +2417,9 @@ void ExposeThreadPool(py::module &m) {
           std::optional<int> device_id,
           bool set_affinity,
           std::string_view name) {
-      if (!device_id.has_value())
+      if (!device_id.has_value()) {
         device_id = CPU_ONLY_DEVICE_ID;
-      else if (*device_id == -1) {
+      } else if (*device_id == -1) {
         int dev = 0;
         CUDA_CALL(cudaGetDevice(&dev));
         device_id = dev;

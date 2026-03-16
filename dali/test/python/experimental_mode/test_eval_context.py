@@ -422,3 +422,16 @@ def test_non_default_ctx_stream():
     finally:
         ndd.set_default_stream(None)
         ndd.set_current_stream(None)
+
+
+def test_ctx_with_thread_pool():
+    thread_pool = ndd.ThreadPool(7)
+    ctx = ndd.EvalContext(thread_pool=thread_pool)
+    assert ctx.thread_pool == thread_pool
+    assert ctx.num_threads == 7
+
+
+def test_ctx_with_num_threads():
+    ctx = ndd.EvalContext(num_threads=7)
+    assert ctx._thread_pool is not None
+    assert ctx.num_threads == 7
