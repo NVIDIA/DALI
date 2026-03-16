@@ -101,6 +101,14 @@ class DALIGenericPeekableIterator(DALIGenericIterator):
                 `jax.sharding.Sharding` compatible object that, if present, will be used to
                 build an output jax.Array for each category. If ``None``, the iterator returns
                 values compatible with pmapped JAX functions, if multiple pipelines are provided.
+    pmap_compatible : bool, optional, default = None
+                Controls whether the iterator produces outputs with a leading device axis
+                compatible with ``jax.pmap``. When ``None`` (default), it is inferred
+                automatically: ``True`` when ``devices`` is provided, ``False`` otherwise.
+                Set to ``True`` explicitly to force pmap-compatible output (shape
+                ``[num_devices, batch_per_device, ...]``) without using the ``devices``
+                argument. Set to ``False`` to suppress the device axis even when ``devices``
+                is provided.
 
     Example
     -------
@@ -133,6 +141,7 @@ class DALIGenericPeekableIterator(DALIGenericIterator):
         last_batch_policy: LastBatchPolicy = LastBatchPolicy.FILL,
         prepare_first_batch: bool = True,
         sharding: Optional[Sharding] = None,
+        pmap_compatible: Optional[bool] = None,
     ):
         super().__init__(
             pipelines,
@@ -144,6 +153,7 @@ class DALIGenericPeekableIterator(DALIGenericIterator):
             last_batch_policy,
             prepare_first_batch,
             sharding,
+            pmap_compatible,
         )
         self._mutex = threading.Lock()
         self._pool = None
@@ -294,6 +304,7 @@ def peekable_data_iterator(
     prepare_first_batch: bool = True,
     sharding: Optional[Sharding] = None,
     devices: Optional[List[jax.Device]] = None,
+    pmap_compatible: Optional[bool] = None,
 ):
     """Decorator for DALI pipelines that returns a peekable iterator. Compatible with Google CLU
     PeekableIterator. It supports peeking the next element in the iterator without advancing the
@@ -362,6 +373,14 @@ def peekable_data_iterator(
                 return outputs compatible with pmapped JAX functions.
                 This argument is  mutually exclusive with `sharding` argument. If `sharding`
                 is provided, `devices` should be set to None.
+    pmap_compatible : bool, optional, default = None
+                Controls whether the iterator produces outputs with a leading device axis
+                compatible with ``jax.pmap``. When ``None`` (default), it is inferred
+                automatically: ``True`` when ``devices`` is provided, ``False`` otherwise.
+                Set to ``True`` explicitly to force pmap-compatible output (shape
+                ``[num_devices, batch_per_device, ...]``) without using the ``devices``
+                argument. Set to ``False`` to suppress the device axis even when ``devices``
+                is provided.
     checkpoints : list of str, optional, default = None
                 Checkpoints obtained with `.checkpoints()` method of the iterator.
                 If provided, they will be used to restore the state of the pipelines.
@@ -397,4 +416,5 @@ def peekable_data_iterator(
         prepare_first_batch,
         sharding,
         devices,
+        pmap_compatible,
     )

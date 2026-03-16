@@ -86,6 +86,14 @@ class DALIGenericIterator(_DaliBaseIterator):
                 `jax.sharding.Sharding` compatible object that, if present, will be used to
                 build an output jax.Array for each category. If ``None``, the iterator returns
                 values compatible with pmapped JAX functions, if multiple pipelines are provided.
+    pmap_compatible : bool, optional, default = None
+                Controls whether the iterator produces outputs with a leading device axis
+                compatible with ``jax.pmap``. When ``None`` (default), it is inferred
+                automatically: ``True`` when ``devices`` is provided, ``False`` otherwise.
+                Set to ``True`` explicitly to force pmap-compatible output (shape
+                ``[num_devices, batch_per_device, ...]``) without using the ``devices``
+                argument. Set to ``False`` to suppress the device axis even when ``devices``
+                is provided.
 
     Example
     -------
