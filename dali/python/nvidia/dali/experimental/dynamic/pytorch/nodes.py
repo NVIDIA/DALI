@@ -134,9 +134,9 @@ class Reader(tn.BaseNode[dict[str, T]], metaclass=_CUDANodeMeta):
     def get_state(self):
         return {}
 
-    def get_metadata(self, batch_size: int) -> _ops.ReaderMeta:
+    def get_metadata(self) -> _ops.ReaderMeta:
         """Returns the metadata of the underlying reader operator"""
-        return self._reader.get_metadata(batch_size)
+        return self._reader.get_metadata(self._batch_size)
 
 
 class DictMapper(tn.BaseNode[dict[str, T]], metaclass=_CUDANodeMeta):
@@ -202,7 +202,8 @@ class ToTorch(tn.BaseNode[tuple[torch.Tensor, ...]], metaclass=_CUDANodeMeta):
         elif isinstance(output_stream, torch.cuda.Stream | None):
             self._stream_context = torch.cuda.stream(output_stream)  # no-op if None
         else:
-            self._dali_stream = _stream(output_stream)  # keep it alive in case the caller doesn't
+            # Keep it alive in case the caller doesn't
+            self._dali_stream = _stream(stream=output_stream)
             self._stream_context = torch.cuda.stream(
                 torch.cuda.ExternalStream(self._dali_stream.handle, self._dali_stream.device_id)
             )
