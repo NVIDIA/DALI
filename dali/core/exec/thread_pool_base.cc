@@ -253,18 +253,15 @@ void ThreadPoolBase::Run(
     if (shutdown_pending_)
       break;
     assert(!tasks_.empty() && "Semaphore acquired but no tasks present.");
-    // we can leave the lock unlocked, as we'd be unlocking immediately anyway
-    PopAndRunTask(lock, false);
+    PopUnlockAndRunTask(lock);
   }
 }
 
-void ThreadPoolBase::PopAndRunTask(std::unique_lock<std::mutex> &lock, bool restore_lock) noexcept {
+void ThreadPoolBase::PopUnlockAndRunTask(std::unique_lock<std::mutex> &lock) noexcept {
   TaskFunc t = std::move(tasks_.front());
   tasks_.pop();
   lock.unlock();
   t();
-  if (restore_lock)
-    lock.lock();
 }
 
 template <typename Condition>
@@ -275,8 +272,8 @@ bool ThreadPoolBase::WaitOrRunTasks(std::condition_variable &cv, Condition &&con
   // This function should be used only from within this thread pool's threads.
   assert(this_thread_pool() == this);
 
-  std::unique_lock lock(mtx_);
   while (!shutdown_pending_) {
+    std::unique_lock lock(mtx_);
     bool ret;
     while (!(ret = condition()) && tasks_.empty())
       cv.wait_for(lock, std::chrono::microseconds(100));
@@ -294,7 +291,7 @@ bool ThreadPoolBase::WaitOrRunTasks(std::condition_variable &cv, Condition &&con
       continue;  // no tasks? spin
 
     assert(!tasks_.empty() && "Semaphore acquired but no tasks present.");
-    PopAndRunTask(lock, true);  // we need to reacquire the lock before next iteration
+    PopUnlockAndRunTask(lock);
   }
   return condition();
 }

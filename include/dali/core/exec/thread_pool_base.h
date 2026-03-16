@@ -327,7 +327,8 @@ class DLL_PUBLIC ThreadPoolBase : public ThisThreadIdx {
   template <typename Condition>
   bool WaitOrRunTasks(std::condition_variable &cv, Condition &&condition);
 
-  void PopAndRunTask(std::unique_lock<std::mutex> &mtx, bool restore_lock) noexcept;
+  /** Pops a task while holding the lock, then unlocks and runs the task */
+  void PopUnlockAndRunTask(std::unique_lock<std::mutex> &mtx) noexcept;
 
   static thread_local ThreadPoolBase *this_thread_pool_;
 
