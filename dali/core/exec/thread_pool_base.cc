@@ -243,9 +243,11 @@ void ThreadPoolBase::Run(
   std::any scope;
   if (on_thread_start)
     scope = on_thread_start(index);
+  std::unique_lock lock(mtx_);
   while (!shutdown_pending_ || !tasks_.empty()) {
+    lock.unlock();
     sem_.acquire();
-    std::unique_lock lock(mtx_);
+    lock.lock();
     if (shutdown_pending_)
       break;
     assert(!tasks_.empty() && "Semaphore acquired but no tasks present.");
@@ -274,8 +276,15 @@ bool ThreadPoolBase::WaitOrRunTasks(std::condition_variable &cv, Condition &&con
       return true;
     if (shutdown_pending_)
       return condition();
-    if (!sem_.try_acquire())
-      continue;
+    // Release mtx_ before acquiring sem_ to maintain consistent lock order
+    // (sem_ must always be acquired before mtx_, as in Run()).
+    {
+      lock.unlock();
+      bool acquired = sem_.try_acquire();
+      lock.lock();
+      if (!acquired)
+        continue;
+    }
 
     assert(!tasks_.empty() && "Semaphore acquired but no tasks present.");
     PopAndRunTask(lock);
