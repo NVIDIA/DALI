@@ -801,6 +801,8 @@ class {op_name}:
         return_annotation=False,
         include_kwargs=True,
         include_init_header=True,
+        allow_data_node_kwargs=False,
+        allow_batch_kwargs=False,
     )}:
         ...
 
