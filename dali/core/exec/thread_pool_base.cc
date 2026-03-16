@@ -243,51 +243,58 @@ void ThreadPoolBase::Run(
   std::any scope;
   if (on_thread_start)
     scope = on_thread_start(index);
-  std::unique_lock lock(mtx_);
-  while (!shutdown_pending_ || !tasks_.empty()) {
-    lock.unlock();
+  // We can read this flag without a lock - we'll re-check it under the lock anyway
+  // and it only ever changes once, so ther's no race condition.
+  while (!shutdown_pending_) {
+    // This must happen outside of the lock, so the client can actually push the task into the queue
     sem_.acquire();
-    lock.lock();
+    // OK, we've acquired a task - we need to lock in order to remove the task from the queue.
+    std::unique_lock lock(mtx_);
     if (shutdown_pending_)
       break;
     assert(!tasks_.empty() && "Semaphore acquired but no tasks present.");
-    PopAndRunTask(lock);
+    // we can leave the lock unlocked, as we'd be unlocking immediately anyway
+    PopAndRunTask(lock, false);
   }
 }
 
-void ThreadPoolBase::PopAndRunTask(std::unique_lock<std::mutex> &lock) {
+void ThreadPoolBase::PopAndRunTask(std::unique_lock<std::mutex> &lock, bool restore_lock) noexcept {
   TaskFunc t = std::move(tasks_.front());
   tasks_.pop();
   lock.unlock();
   t();
-  lock.lock();
+  if (restore_lock)
+    lock.lock();
 }
 
 template <typename Condition>
 bool ThreadPoolBase::WaitOrRunTasks(std::condition_variable &cv, Condition &&condition) {
+  // This function waits cooperatively for a condition (e.g. job completion) to be met - while
+  // it's not met, the calling thread participates in executing the tasks from this thread pool.
+
+  // This function should be used only from within this thread pool's threads.
   assert(this_thread_pool() == this);
+
   std::unique_lock lock(mtx_);
-  while (!shutdown_pending_ || !tasks_.empty()) {
+  while (!shutdown_pending_) {
     bool ret;
     while (!(ret = condition()) && tasks_.empty())
       cv.wait_for(lock, std::chrono::microseconds(100));
 
-    if (ret || condition())  // re-evaluate the condition, just in case
+    if (ret || condition())  // re-evaluate the condition after the timeout, just in case
       return true;
+
     if (shutdown_pending_)
       return condition();
-    // Release mtx_ before acquiring sem_ to maintain consistent lock order
-    // (sem_ must always be acquired before mtx_, as in Run()).
-    {
-      lock.unlock();
-      bool acquired = sem_.try_acquire();
-      lock.lock();
-      if (!acquired)
-        continue;
-    }
+
+    // The condition was not met in 100µs, let's try to pick up some tasks
+
+    bool acquired = sem_.try_acquire();
+    if (!acquired)
+      continue;  // no tasks? spin
 
     assert(!tasks_.empty() && "Semaphore acquired but no tasks present.");
-    PopAndRunTask(lock);
+    PopAndRunTask(lock, true);  // we need to reacquire the lock before next iteration
   }
   return condition();
 }
