@@ -87,7 +87,8 @@ class _DefaultThreadPool:
         if tp is None or tp.num_threads != num_threads:
             with self._mutex:
                 if self._thread_pool is None or self._thread_pool.num_threads != num_threads:
-                    tp = self._thread_pool = ThreadPool(num_threads, device_id=self._device_id)
+                    self._thread_pool = ThreadPool(num_threads, device_id=self._device_id)
+                tp = self._thread_pool
         return tp
 
     def _set_num_threads(self, num_threads):
