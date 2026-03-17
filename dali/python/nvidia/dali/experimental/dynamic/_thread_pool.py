@@ -87,13 +87,16 @@ class _DefaultThreadPool:
         if tp is None or tp.num_threads != num_threads:
             with self._mutex:
                 if self._thread_pool is None or self._thread_pool.num_threads != num_threads:
-                    self._thread_pool = ThreadPool(num_threads, device_id=self._device_id)
-        return self._thread_pool
+                    tp = self._thread_pool = ThreadPool(num_threads, device_id=self._device_id)
+        return tp
 
     def _set_num_threads(self, num_threads):
         tp = self._thread_pool
+        # This check can be made outside of the lock - calling _set_num_threads from multiple
+        # threads is UB anyway
         if tp is not None and tp.num_threads != num_threads:
-            self._thread_pool = None
+            with self._mutex:  # this prevents `get` from returning None
+                self._thread_pool = None
 
 
 def _init_thread_pool_dict():
@@ -136,6 +139,10 @@ def set_num_threads(n):
     .. warning::
         This function should be called once, at the beginning of the program.
         Changing this value later is very costly and should be avoided.
+
+    .. warning::
+        This function is not thread safe - calling `set_num_threads` concurrently
+        constitutes a race condition and results in an undefined behavior.
     """
     global _global_num_threads
 

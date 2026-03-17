@@ -420,10 +420,7 @@ class Operator:
         with self._device:
             with ctx:
                 self._init_spec(inputs, args)
-                if ctx.thread_pool is not None:
-                    self._op_spec.AddArg("num_threads", ctx.thread_pool.num_threads)
-                else:
-                    self._op_spec.AddArg("num_threads", 1)
+                self._op_spec.AddArg("num_threads", ctx.num_threads)
                 self._op_spec.AddArg(
                     "device_id",
                     (
