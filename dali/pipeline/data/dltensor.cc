@@ -111,7 +111,7 @@ class DLTensorGraveyard {
         lock.lock();
         pending_.splice(pending_.begin(), tmp);
         cv_.wait_for(lock, std::chrono::milliseconds(1), [&]() {
-          return exit_requested_;
+          return exit_requested_ || !pending_.empty();
         });
         continue;
       }
