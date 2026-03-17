@@ -14,6 +14,7 @@
 
 from nvidia.dali import pipeline_def, fn, types
 from nvidia.dali.data_node import DataNode
+import nvidia.dali.experimental.dynamic as ndd
 import numpy as np
 import os
 import cv2
@@ -241,3 +242,67 @@ def test_compare_experimental_to_legacy_reader_file_root(
         pad_mode=pad_mode,
         image_type=image_type,
     )
+
+
+@cartesian_params(
+    devices,
+    [5, 1],  # sequence lengths including edge case N=1
+)
+def test_uniform_sample(device, sequence_length):
+    video_files_sorted = sorted(VIDEO_FILES)
+    num_video_files = len(video_files_sorted)
+
+    # Get per-video frame counts and (GPU only) decode all frames for pixel comparison.
+    # Iterating seq_len=1 gives both in one pass; CPU only needs the count via get_metadata().
+    # GPU only: NVDEC produces identical pixels whether seeking or decoding sequentially.
+    # CPU (libavcodec) can produce minor seek-induced differences for H.264 B-frames.
+    frame_counts = []
+    all_frames = []  # populated on GPU only
+    for video_file in video_files_sorted:
+        reader = ndd.experimental.readers.Video(
+            device=device, filenames=[video_file], sequence_length=1, stride=1, step=1
+        )
+        if device == "gpu":
+            decoded = [np.array(f.evaluate().cpu())[0] for (f,) in reader.next_epoch()]
+            all_frames.append(np.stack(decoded))  # shape (N, H, W, C)
+            frame_counts.append(len(decoded))
+        else:
+            frame_counts.append(reader.get_metadata()["epoch_size"])
+
+    # Step 3: run uniform reader, verify one sample per video, check frame indices and pixels.
+    uniform_reader = ndd.experimental.readers.Video(
+        device=device,
+        filenames=video_files_sorted,
+        sequence_length=sequence_length,
+        uniform_sample=True,
+        enable_frame_num="sequence",
+    )
+    samples = list(uniform_reader.next_epoch())
+    assert (
+        len(samples) == num_video_files
+    ), f"Expected {num_video_files} samples (one per video), got {len(samples)}"
+
+    for i, (video, frame_num) in enumerate(samples):
+        n = frame_counts[i]
+        fn_arr = np.array(frame_num.evaluate().cpu()).flatten()
+        assert (
+            len(fn_arr) == sequence_length
+        ), f"Video {i}: expected {sequence_length} frame indices, got {len(fn_arr)}"
+        assert fn_arr[0] == 0, f"Video {i}: first frame index should be 0, got {fn_arr[0]}"
+        if sequence_length > 1:
+            assert (
+                fn_arr[-1] == n - 1
+            ), f"Video {i}: last frame index should be {n - 1}, got {fn_arr[-1]}"
+        # Use floor(x + 0.5) to match C++ std::round (rounds half away from zero).
+        expected_idxs = np.floor(np.linspace(0, n - 1, sequence_length) + 0.5).astype(np.int32)
+        np.testing.assert_array_equal(
+            fn_arr, expected_idxs, err_msg=f"Video {i}: frame index mismatch (num_frames={n})"
+        )
+        if device == "gpu":
+            uniform_frames = np.array(video.evaluate().cpu())  # shape (k, H, W, C)
+            expected_frames = all_frames[i][expected_idxs]  # shape (k, H, W, C)
+            np.testing.assert_array_equal(
+                uniform_frames,
+                expected_frames,
+                err_msg=f"Video {i}: pixel mismatch at linspace positions",
+            )
