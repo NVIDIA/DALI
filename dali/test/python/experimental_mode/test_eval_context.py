@@ -12,6 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import threading
+import time
+
 import nvidia.dali.experimental.dynamic as ndd
 import nvidia.dali.backend as _backend
 from nose_utils import SkipTest, attr
@@ -435,3 +438,75 @@ def test_ctx_with_num_threads():
     ctx = ndd.EvalContext(num_threads=7)
     assert ctx._thread_pool is not None
     assert ctx.num_threads == 7
+
+
+def test_global_thread_pool_thread_safety():
+    num_workers = 8
+    results = [set() for _ in range(num_workers)]
+    prev_pool = [None] * num_workers
+    stop_event = threading.Event()
+    run_event = threading.Event()
+    worker_errors = []
+    paused = threading.Semaphore(0)
+
+    def worker(idx):
+        try:
+            while not stop_event.is_set():
+                if not run_event.is_set():
+                    # print(f"Runner {idx} paused")
+                    paused.release(1)
+                    run_event.wait()
+                    # print(f"Runner {idx} resumed")
+                pool = ndd._thread_pool._get_default_thread_pool(None)
+                if pool is not prev_pool[idx]:
+                    if prev_pool[idx] is not None:
+                        assert pool.num_threads != prev_pool[idx].num_threads, (
+                            f"Pool object changed but num_threads stayed at "
+                            f"{prev_pool[idx].num_threads}"
+                        )
+
+                    prev_pool[idx] = pool
+                results[idx].add(pool.num_threads)
+                time.sleep(0)
+        except Exception as e:
+            print(f"Error in worker {idx}:\n{e}")
+            paused.release(1)
+            worker_errors.append(e)
+
+    threads = [threading.Thread(target=worker, kwargs={"idx":idx}, daemon=True) for idx in range(num_workers)]
+    for t in threads:
+        t.start()
+
+    run_event.set()
+
+    try:
+        for _ in range(3):
+            for n in range(1, 33):
+                ndd.set_num_threads(n)
+                time.sleep(0.01)
+            run_event.clear()
+            # print("Waiting for pause")
+            for _ in range(num_workers):
+                paused.acquire()
+            # print("Runners paused")
+            if worker_errors:
+                raise worker_errors[0]
+            combined_results = set.union(*results)
+            assert len(combined_results) == 32, (
+                f"Expected 32 distinct thread counts after sweep, "
+                f"got {len(combined_results)}: {sorted(combined_results)}"
+            )
+            ndd.set_num_threads(1)
+            for r in results:
+                r.clear()
+            prev_pool = [None] * num_workers
+            run_event.set()
+    finally:
+        run_event.set()
+        stop_event.set()
+        for t in threads:
+            t.join()
+        ndd.set_num_threads(None)
+
+    if worker_errors:
+        raise worker_errors[0]

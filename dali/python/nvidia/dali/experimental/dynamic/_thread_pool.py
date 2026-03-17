@@ -20,15 +20,15 @@ from . import _device
 
 
 class ThreadPool(_b._NewThreadPool):
-    CurrentDeviceId = -1
+    _CURRENT_DEVICE_ID = -1
 
-    def __init__(self, num_threads=None, *, device_id=CurrentDeviceId):
+    def __init__(self, num_threads=None, *, device_id=_CURRENT_DEVICE_ID):
         """
         Args
         ----
         num_threads : int, optional
             The number of threads. If not provided, the value returned by
-            :meth:`get_num_threads` is used.
+            :func:`get_num_threads` is used.
 
         Keyword Args
         ------------
@@ -36,7 +36,7 @@ class ThreadPool(_b._NewThreadPool):
             The GPU device ordinal to associate with the thread pool. If not provided,
             the current device is used; if None, then no GPU is associated with the thread pool.
         """
-        if device_id == ThreadPool.CurrentDeviceId:
+        if device_id == ThreadPool._CURRENT_DEVICE_ID:
             device_id = _device.Device.current().device_id
 
         if num_threads is None:
@@ -82,10 +82,11 @@ class _DefaultThreadPool:
         self._device_id = device_id
         self._thread_pool = None
 
-    def get(self, num_threads):
+    def get(self):
         tp = self._thread_pool
-        if tp is None or tp.num_threads != num_threads:
+        if tp is None:
             with self._mutex:
+                num_threads = get_num_threads()
                 if self._thread_pool is None or self._thread_pool.num_threads != num_threads:
                     self._thread_pool = ThreadPool(num_threads, device_id=self._device_id)
                 tp = self._thread_pool
@@ -96,8 +97,10 @@ class _DefaultThreadPool:
         # This check can be made outside of the lock - calling _set_num_threads from multiple
         # threads is UB anyway
         if tp is not None and tp.num_threads != num_threads:
-            with self._mutex:  # this prevents `get` from returning None
-                self._thread_pool = None
+            with self._mutex:
+                tp = self._thread_pool
+                if tp is not None and tp.num_threads != num_threads:
+                    self._thread_pool = None
 
 
 def _init_thread_pool_dict():
@@ -111,7 +114,7 @@ _init_thread_pool_dict()
 
 def _get_default_thread_pool(device_id):
     """Returns the global default thread pool, creating or recreating it if needed."""
-    return _global_default_thread_pool[device_id].get(get_num_threads())
+    return _global_default_thread_pool[device_id].get()
 
 
 def get_num_threads():
@@ -119,7 +122,7 @@ def get_num_threads():
     Gets the number of threads in the default thread pool.
 
     The value is determined by (in decreasing priority):
-    1. The value (not None) passed to :meth:`set_num_threads`
+    1. The value (not None) passed to :func:`set_num_threads`
     2. The value from DALI_NUM_THREADS environment variable.
     3. The number of CPUs in the calling process affinity list: ``len(os.sched_getaffinity(0))``
     """
@@ -157,19 +160,19 @@ def set_num_threads(n):
     else:
         new_count = n
 
-    import multiprocessing
-
-    if new_count > multiprocessing.cpu_count() * 100:
-        raise ValueError(
-            f"The number of threads per CPU core must not exceed 100.\n"
-            f"Got {new_count} threads for {multiprocessing.cpu_count()} cores."
-        )
-
-    for tp in _global_default_thread_pool.values():
-        tp._set_num_threads(new_count)
+        import os
+        core_count = os.cpu_count() or 1
+        if new_count > core_count * 100:
+            raise ValueError(
+                f"The number of threads per CPU core must not exceed 100.\n"
+                f"Got {new_count} threads for {core_count} cores."
+            )
 
     if n is not None:  # otherwise keep cleared
         _global_num_threads = new_count
+
+    for tp in _global_default_thread_pool.values():
+        tp._set_num_threads(new_count)
 
 
 __all__ = [

@@ -88,7 +88,7 @@ class EvalContext:
 
         if thread_pool is not None:
             if num_threads is not None:
-                raise ValueError("`thread_pool` and  `num_threads` cannot be specified together.")
+                raise ValueError("`thread_pool` and `num_threads` cannot be specified together.")
             if thread_pool.device_id != self._device.device_id:
                 if device_id is None:
                     device_id_message = f"<Current> ({self._device.device_id})"
