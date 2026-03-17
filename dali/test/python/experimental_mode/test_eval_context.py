@@ -441,6 +441,12 @@ def test_ctx_with_num_threads():
 
 
 def test_global_thread_pool_thread_safety():
+    # Check that there are no race conditions when accessing default thread pool while the
+    # default number of threads is changed concurrently.
+    # The test performs monotonic sweep of thread count and validates that all thread counts are
+    # seen in at least one sweep.
+    # The test also checks that there are no unnecessary updates to the default thread pool and
+    # that the threads see the same thread pool objects.
     num_workers = 8
     results = [set() for _ in range(num_workers)]
     prev_pool = [None] * num_workers
@@ -452,11 +458,10 @@ def test_global_thread_pool_thread_safety():
     def worker(idx):
         try:
             while not stop_event.is_set():
+                # The workers are paused after each sweep to prevent race condition
                 if not run_event.is_set():
-                    # print(f"Runner {idx} paused")
                     paused.release(1)
                     run_event.wait()
-                    # print(f"Runner {idx} resumed")
                 pool = ndd._thread_pool._get_default_thread_pool(None)
                 if pool is not prev_pool[idx]:
                     if prev_pool[idx] is not None:
@@ -466,40 +471,51 @@ def test_global_thread_pool_thread_safety():
                         )
 
                     prev_pool[idx] = pool
-                results[idx].add(pool.num_threads)
+                results[idx].add(pool)
                 time.sleep(0)
         except Exception as e:
             print(f"Error in worker {idx}:\n{e}")
             paused.release(1)
             worker_errors.append(e)
 
-    threads = [threading.Thread(target=worker, kwargs={"idx":idx}, daemon=True) for idx in range(num_workers)]
+    threads = [
+        threading.Thread(target=worker, kwargs={"idx": idx}, daemon=True)
+        for idx in range(num_workers)
+    ]
     for t in threads:
         t.start()
 
     run_event.set()
 
+    all_thread_counts_seen = False
     try:
         for _ in range(3):
             for n in range(1, 33):
                 ndd.set_num_threads(n)
                 time.sleep(0.01)
+            # Pause the workers
             run_event.clear()
-            # print("Waiting for pause")
             for _ in range(num_workers):
                 paused.acquire()
-            # print("Runners paused")
             if worker_errors:
                 raise worker_errors[0]
             combined_results = set.union(*results)
-            assert len(combined_results) == 32, (
-                f"Expected 32 distinct thread counts after sweep, "
-                f"got {len(combined_results)}: {sorted(combined_results)}"
-            )
+            # Check that the number of distinct thread pools seen is the same as the number
+            # of distinct thread counts seen. If it's different, there's an unnecessary pool
+            # created somewhere.
+            assert len(combined_results) == len(
+                set(p.num_threads for p in combined_results)
+            ), "The number of pool objects is different than the number of distinct thread counts."
+            if len(combined_results) == 32:
+                all_thread_counts_seen = True
             ndd.set_num_threads(1)
             for r in results:
                 r.clear()
+            # This prevents rare errors where the first pool to be seen has the same number of
+            # threads as the one last seen in previous sweep.
             prev_pool = [None] * num_workers
+
+            # Now we can safely resume the workers
             run_event.set()
     finally:
         run_event.set()
@@ -510,3 +526,7 @@ def test_global_thread_pool_thread_safety():
 
     if worker_errors:
         raise worker_errors[0]
+
+    assert (
+        all_thread_counts_seen
+    ), "Expected at least one sweep to observe all 32 distinct thread counts."

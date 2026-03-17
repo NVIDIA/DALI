@@ -161,6 +161,7 @@ def set_num_threads(n):
         new_count = n
 
         import os
+
         core_count = os.cpu_count() or 1
         if new_count > core_count * 100:
             raise ValueError(
