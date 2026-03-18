@@ -94,14 +94,14 @@ def _get_module_name(module, legacy_op_class):
 
 def _get_caller_depth(has_fn_wrapper: bool):
     # By default, the call stack is as follows:
-    # - call wrapper
+    # - __call__ function
     # - nvtx decorator
     # - makefun-generated function
     # - fn wrapper
     # - nvtx decorator
     # - makefun-generation function
     # As a result we have to skip 6 frames.
-    # There are however exceptions such as reader calle explicitly or manually created operators
+    # There are however exceptions such as reader called explicitly or manually created operators
     # that don't rely on the fn wrapper. For such cases, we skip only 3 frames.
     return 6 if has_fn_wrapper else 3
 

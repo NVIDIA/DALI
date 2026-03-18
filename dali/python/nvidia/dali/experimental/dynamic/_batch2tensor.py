@@ -64,7 +64,8 @@ class BatchToTensor:
                 is_batch=False,
                 batch_size=None,
                 previous_invocation=None,
-                # Add 1 to the caller depth because this is used typically only internally
+                # Increase the caller depth because this operator is used only internally
+                # This allows us to skip the internal frame to point to the user code
                 caller_depth=_op_builder._get_caller_depth(False) + 1,
             )
         invocation.apply_eval_policy(_op_builder.is_external(batch))
