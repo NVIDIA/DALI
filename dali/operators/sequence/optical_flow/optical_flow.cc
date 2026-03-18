@@ -12,7 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#if NVML_ENABLED
 #include "dali/util/nvml.h"
+#endif
 #include "dali/pipeline/data/views.h"
 #include "dali/operators/sequence/optical_flow/optical_flow.h"
 

@@ -25,7 +25,9 @@
 #include "dali/pipeline/data/views.h"
 #include "dali/pipeline/operator/checkpointing/stateless_operator.h"
 #include "dali/pipeline/operator/operator.h"
+#if NVML_ENABLED
 #include "dali/util/nvml.h"
+#endif
 
 namespace dali {
 
