@@ -7,7 +7,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
 
 RUN apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64/3bf863cc.pub && \
     apt-get update && apt-get install software-properties-common -y --no-install-recommends && \
-    add-apt-repository ppa:deadsnakes/ppa -y && \
+    echo "deb [trusted=yes] https://ppa.launchpadcontent.net/deadsnakes/ppa/ubuntu $(cat /etc/os-release | grep UBUNTU_CODENAME | cut -d= -f2) main" > /etc/apt/sources.list.d/deadsnakes.list && \
     apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     libssl-dev \
