@@ -14,7 +14,6 @@
 
 
 import functools
-import linecache
 import traceback
 from collections.abc import Callable
 
@@ -23,62 +22,64 @@ import nvidia.dali.experimental.dynamic as ndd
 from nose_utils import raises
 
 
-def exception_tester(message: str):
-    def decorator(function: Callable[[], None]):
-        @functools.wraps(function)
-        def wrapper(*args, **kwargs):
-            initial_message = None
-            expected_exception = None
-            try:
-                with ndd.EvalMode.sync_cpu:
+def exception_tester(function: Callable[[], None]):
+    @functools.wraps(function)
+    def wrapper(*args, **kwargs):
+        expected_exception = None
+        try:
+            with ndd.EvalMode.sync_cpu:
+                function()
+        except Exception as exception:
+            expected_exception = exception
+
+        assert expected_exception is not None
+        # Extract the line that triggered the exception
+        stack = traceback.extract_tb(expected_exception.__traceback__)
+        for frame in reversed(stack):
+            if frame.filename == __file__:
+                expected_line = frame.line
+                break
+        else:
+            assert False
+
+        for eval_mode in (ndd.EvalMode.deferred, ndd.EvalMode.eager):
+            with eval_mode:
+                try:
                     function()
-            except Exception as exception:
-                initial_message = str(exception)
-                expected_exception = exception
+                except type(expected_exception) as exception:
+                    cause = exception.__cause__
+                    assert cause is not None
+                    assert str(cause) == str(expected_exception)
 
-            assert initial_message is not None and expected_exception is not None
+                    # Make sure that stack traces are identical
+                    stack = traceback.extract_tb(cause.__traceback__)
+                    line = stack[-1].line
+                    assert line == expected_line
+                else:
+                    assert False
 
-            for eval_mode in (ndd.EvalMode.deferred, ndd.EvalMode.eager):
-                with eval_mode:
-                    try:
-                        function()
-                    except type(expected_exception) as exception:
-                        cause = exception.__cause__
-                        assert cause is not None
-                        assert str(cause) == str(expected_exception)
-
-                        stack = traceback.extract_tb(cause.__traceback__)
-                        frame = stack[-1]
-                        assert frame.lineno is not None
-                        line = linecache.getline(frame.filename, frame.lineno)
-                        assert message in line
-                    else:
-                        assert False
-
-        return wrapper
-
-    return decorator
+    return wrapper
 
 
-@exception_tester("ndd.resize")
+@exception_tester
 def test_bad_rank():
     img = ndd.zeros(shape=(100, 100))
     ndd.resize(img).evaluate()
 
 
-@exception_tester("ndd.resize")
+@exception_tester
 def test_bad_dtype():
     img = ndd.zeros(shape=(100, 100, 3), dtype=ndd.bool).gpu()
     ndd.resize(img, size=(50, 50)).evaluate()
 
 
-@exception_tester("ndd.crop")
+@exception_tester
 def test_bad_crop_size():
     img = ndd.zeros(shape=(100, 100, 3))
     ndd.crop(img, crop=(200, 200)).evaluate()
 
 
-@exception_tester("ndd.resize")
+@exception_tester
 def test_nested_function():
     def resize(img):
         resized = ndd.resize(img, size=(50, 50))
@@ -89,7 +90,7 @@ def test_nested_function():
     resized.evaluate()
 
 
-@exception_tester("ndd.as_tensor")
+@exception_tester
 def test_ragged_batch_to_tensor():
     batch = ndd.batch([[1, 2], [3]])
     tensor = ndd.as_tensor(batch)
