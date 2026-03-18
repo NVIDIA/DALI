@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import math
 import torch
 import torchvision.transforms.v2 as tv
 
@@ -21,9 +22,7 @@ from nvidia.dali.experimental.torchvision.v2.functional import horizontal_flip, 
 
 
 def make_test_tensor(shape=(1, 3, 10, 10)):
-    total = 1
-    for s in shape:
-        total *= s
+    total = math.prod(shape)
     return torch.arange(total).reshape(shape)
 
 

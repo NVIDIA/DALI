@@ -139,14 +139,12 @@ class Resize(Operator):
     def infer_effective_size(
         cls,
         size: Optional[int | Sequence[int]],
-        max_size: Optional[int] = None,
     ) -> Optional[int | Sequence[int]]:
         """Normalizes the size parameter. Called once at initialization.
 
         Returns the size in a canonical form:
 
         - ``int`` — resize the shorter edge to this value (aspect-ratio preserving)
-        - ``None`` — use ``max_size`` only (resize so longer edge equals ``max_size``)
         - ``(h, w)`` tuple/list — resize to the exact target dimensions
         """
         if isinstance(size, (tuple, list)) and len(size) == 1:
@@ -172,6 +170,8 @@ class Resize(Operator):
         orig_w = orig_size[1]
 
         if isinstance(size, (tuple, list)):
+            if len(size) > 2:
+                raise ValueError(f"Expected size to be HW is {size}")
             # Exact target dimensions — return directly
             return size[0], size[1]
 
@@ -218,6 +218,8 @@ class Resize(Operator):
         orig_w = orig_size[1]
 
         if isinstance(size, (tuple, list)):
+            if len(size) > 2:
+                raise ValueError(f"Expected size to be HW is {size}")
             # Exact target dimensions — return directly
             return size[0], size[1]
 
@@ -271,7 +273,7 @@ class Resize(Operator):
         self.size = size
         self.max_size = max_size
         self.interpolation = Resize.interpolation_modes[interpolation]
-        self.size_normalized = Resize.infer_effective_size(size, max_size)
+        self.size_normalized = Resize.infer_effective_size(size)
         self.antialias = antialias
 
     def _kernel(self, data_input):

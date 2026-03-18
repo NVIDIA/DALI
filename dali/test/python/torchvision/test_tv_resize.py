@@ -190,13 +190,13 @@ def test_resize_sizes_tensors_mini(resize, device):
     loop_tensors_test(resize=resize, max_size=10, device=device)
 
 
-@cartesian_params((512, 1125, 2048, ([512, 512]), ([2048, 2048])), ("cpu", "gpu"))
+@cartesian_params((512, 1125, 2048, [512, 512], [2048, 2048]), ("cpu", "gpu"))
 def test_resize_sizes_images(resize, device):
     # Resize with single int (preserve aspect ratio)
     loop_images_test(resize=resize, device=device)
 
 
-@cartesian_params((512, 1125, 2048, ([512, 512]), ([2048, 2048])), ("cpu", "gpu"))
+@cartesian_params((512, 1125, 2048, [512, 512], [2048, 2048]), ("cpu", "gpu"))
 def test_resize_sizes_tensors(resize, device):
     # Resize with single int (preserve aspect ratio)
     loop_tensors_test(resize=resize, device=device)
@@ -255,8 +255,8 @@ def test_resize_max_sizes(resize, max_size):
         640,
         768,
         1024,
-        ([512, 512]),
-        ([256, 256]),
+        [512, 512],
+        [256, 256],
     ),
     (
         transforms.InterpolationMode.NEAREST,
@@ -274,7 +274,7 @@ def test_resize_interpolation(resize, interpolation, device):
         loop_images_test(resize=resize, interpolation=interpolation, device=device)
 
 
-@cartesian_params((512, 768, 2048, ([512, 512]), ([2048, 2048])), (True, False), ("cpu", "gpu"))
+@cartesian_params((512, 768, 2048, [512, 512], [2048, 2048]), (True, False), ("cpu", "gpu"))
 def test_resize_antialiasing(resize, antialiasing, device):
     loop_images_test(resize=resize, antialias=antialiasing, device=device)
 

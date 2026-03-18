@@ -39,7 +39,7 @@ def resize(
         size=size, max_size=max_size, interpolation=interpolation, antialias=antialias
     )
 
-    size_normalized = Resize.infer_effective_size(size, max_size)
+    size_normalized = Resize.infer_effective_size(size)
     interpolation = Resize.interpolation_modes[interpolation]
 
     if isinstance(inpt, ndd.Tensor):
