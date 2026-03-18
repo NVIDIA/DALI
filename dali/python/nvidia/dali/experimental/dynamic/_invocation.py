@@ -45,12 +45,12 @@ class Invocation:
         self,
         operator_instance: "Operator",
         call_id: Optional[int],
-        caller_depth: int,
         inputs: list[Any] | None = None,
         args: dict[str, Any] | None = None,
         is_batch: bool = False,
         batch_size: Optional[int] = None,
         previous_invocation: Optional["Invocation"] = None,
+        caller_depth: int | None = None,
     ):
         """
         Parameters
@@ -60,8 +60,6 @@ class Invocation:
         call_id : int
             The call ID of the invocation - necessary to avoid folding of multiple invocations
             of the same stateful operator.
-        caller_depth : int
-            Depth of the initial caller. Used to capture the call stacks for error reporting.
         inputs : list
             The inputs to the operator.
         args : dict name->argument
@@ -75,6 +73,8 @@ class Invocation:
             the batch size.
         previous_invocation : Invocation
             The previous invocation of the same operator. Used by stateful operators.
+        caller_depth : int
+            Depth of the initial caller. Used to capture the call stacks for error reporting.
         """
         self._operator = operator_instance
         self._call_id = call_id
@@ -90,11 +90,10 @@ class Invocation:
         self._eval_mode: _EvalMode | None = None
         self._future: Optional[_Future] = None
         self._run_lock = threading.Lock()
-        self._call_stack = (
-            capture_stack(caller_depth + 1)
-            if _EvalMode.current().value <= _EvalMode.eager.value
-            else None
-        )
+        if caller_depth is not None and _EvalMode.current().value <= _EvalMode.eager.value:
+            self._call_stack = capture_stack(caller_depth + 1)
+        else:
+            self._call_stack = None
 
         if hasattr(self._operator, "_cache"):
             self._return_op_to_cache = weakref.finalize(
