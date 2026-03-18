@@ -50,7 +50,7 @@ class Invocation:
         is_batch: bool = False,
         batch_size: Optional[int] = None,
         previous_invocation: Optional["Invocation"] = None,
-        caller_depth: int = 3,
+        caller_depth: int = 4,
     ):
         """
         Parameters
