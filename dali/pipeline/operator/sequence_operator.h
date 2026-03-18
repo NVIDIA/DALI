@@ -1,4 +1,4 @@
-// Copyright (c) 2022, 2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022, 2024, 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -100,6 +100,8 @@ class SequenceOperator : public BaseOp<Backend>, protected SampleBroadcasting<Ba
       DALI_ENFORCE(IsExpandable(),
                    "Operator requested to expand the sequence-like inputs, but no expandable input "
                    "was found");
+      expanded_.SetThreadPool(ws.HasThreadPool() ? &ws.GetThreadPool() : nullptr);
+      expanded_.set_output_order(ws.output_order());
       if (!is_expanded_ws_initialized_) {
         InitializeExpandedWorkspace(ws);
         is_expanded_ws_initialized_ = true;
@@ -507,10 +509,6 @@ class SequenceOperator : public BaseOp<Backend>, protected SampleBroadcasting<Ba
   }
 
   void InitializeExpandedWorkspace(const Workspace &ws) {
-    if (ws.HasThreadPool())
-      expanded_.SetThreadPool(&ws.GetThreadPool());
-    expanded_.set_output_order(ws.output_order());
-
     InitializeExpandedInputs(ws);
     InitializeExpandedArguments(ws);
     InitializeExpandedOutputs(ws);
