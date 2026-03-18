@@ -210,9 +210,7 @@ def build_constructor(schema, op_class):
                 del kwargs[arg_name]
                 if isinstance(arg, Batch):
                     raise ValueError("Readers cannot be constructed with batch keyword arguments")
-                if not isinstance(arg, Tensor):  # perform a copy if not an ndd tensor
-                    arg = to_tensor(arg)
-                tensor_args[arg_name] = arg
+                tensor_args[arg_name] = to_tensor(arg)
         kwargs = {k: _scalar_decay(v) for k, v in kwargs.items()}
         op_class.__base__.__init__(self, max_batch_size, name, **kwargs)
         if is_reader:  # Need to be done here not to be overridden by the constructor

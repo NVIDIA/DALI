@@ -679,14 +679,15 @@ class Reader(Operator):
         """Converts stored tensor args to Batch/Tensor form for the given batch_size."""
         if not self._raw_tensor_args:
             return {}
-        if self._previous_batch_size == batch_size:
-            return self._tensor_args
-        _, self._tensor_args = self._process_params(
-            self._backend,
-            self._device,
-            batch_size,
-            **self._raw_tensor_args,
-        )
+
+        if batch_size is None:
+            self._tensor_args = self._raw_tensor_args
+        elif self._previous_batch_size != batch_size:
+            self._tensor_args = {
+                name: Batch.broadcast(sample, batch_size)
+                for name, sample in self._raw_tensor_args.items()
+            }
+
         self._previous_batch_size = batch_size
         return self._tensor_args
 
