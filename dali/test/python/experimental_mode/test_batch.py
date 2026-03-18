@@ -158,6 +158,91 @@ def test_batch_construction_with_torch_tensor(device_type):
 
 @eval_modes()
 @params(("cpu",), ("gpu",))
+def test_batch_construction_from_list_of_dali_tensors(device_type):
+    """Native fast path: list of evaluated ndd.Tensor builds TensorList directly from storage."""
+    data = [
+        ndd.tensor(np.array([i, i + 1, i + 2], dtype=np.int32), device=device_type, layout="X")
+        for i in range(4)
+    ]
+    b = ndd.as_batch(data)
+    b.evaluate()
+    assert b.device == ndd.Device(device_type)
+    assert b.dtype == ndd.int32
+    assert b.layout == "X"
+    assert b.batch_size == 4
+    assert b.ndim == 1
+    assert b.shape == [(3,)] * 4
+    for i, t in enumerate(b.tensors):
+        expected = np.array([i, i + 1, i + 2], dtype=np.int32)
+        assert np.array_equal(asnumpy(t), expected)
+
+
+@eval_modes()
+@attr("pytorch")
+def test_batch_construction_from_list_of_torch_gpu_tensors():
+    """Fast path: list of PyTorch GPU tensors goes through C++ TensorListGPU bulk constructor."""
+    import torch
+
+    data = [torch.tensor([i, i + 1, i + 2], device="cuda", dtype=torch.int32) for i in range(4)]
+    b = ndd.as_batch(data)
+    b.evaluate()
+    assert b.device == ndd.Device("gpu")
+    assert b.dtype == ndd.int32
+    assert b.batch_size == 4
+    assert b.ndim == 1
+    assert b.shape == [(3,)] * 4
+    for i, t in enumerate(b.tensors):
+        expected = torch.tensor([i, i + 1, i + 2], dtype=torch.int32)
+        assert torch.equal(torch.from_dlpack(t.evaluate()._storage).cpu(), expected)
+
+
+@eval_modes()
+@attr("pytorch")
+def test_batch_construction_from_list_of_torch_gpu_tensors_with_layout():
+    """Fast path: layout parameter is forwarded correctly to the bulk constructor."""
+    import torch
+
+    data = [torch.ones(3, 4, dtype=torch.float32, device="cuda") * i for i in range(3)]
+    b = ndd.as_batch(data, layout="HW")
+    b.evaluate()
+    assert b.layout == "HW"
+    assert b.batch_size == 3
+    assert b.shape == [(3, 4)] * 3
+
+
+@eval_modes()
+@attr("pytorch")
+def test_batch_construction_from_list_of_torch_gpu_tensors_dtype_fallback():
+    """When dtype is specified the fast path is skipped; slow path handles type conversion."""
+    import torch
+
+    data = [torch.tensor([1, 2, 3], device="cuda", dtype=torch.int32)]
+    b = ndd.as_batch(data, dtype=ndd.float32)
+    b.evaluate()
+    assert b.dtype == ndd.float32
+    assert b.batch_size == 1
+
+
+@eval_modes()
+@attr("pytorch")
+def test_batch_construction_from_list_of_torch_cpu_tensors_slow_path():
+    """CPU torch tensors do not trigger the GPU fast path; slow path handles them correctly."""
+    import torch
+
+    data = [torch.tensor([i, i + 1, i + 2], dtype=torch.int32) for i in range(3)]
+    b = ndd.as_batch(data)
+    b.evaluate()
+    assert b.device == ndd.Device("cpu")
+    assert b.dtype == ndd.int32
+    assert b.batch_size == 3
+    assert b.shape == [(3,)] * 3
+    for i, t in enumerate(b.tensors):
+        expected = np.array([i, i + 1, i + 2], dtype=np.int32)
+        assert np.array_equal(asnumpy(t), expected)
+
+
+@eval_modes()
+@params(("cpu",), ("gpu",))
 def test_batch_construction_with_tensor(device_type):
     t = ndd.tensor(np.array([1, 2, 3], dtype=np.uint8), device=device_type, layout="X")
     b = ndd.Batch([t])
