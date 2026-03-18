@@ -14,6 +14,8 @@
 
 
 import functools
+import linecache
+import traceback
 from collections.abc import Callable
 
 import numpy as np
@@ -21,53 +23,73 @@ import nvidia.dali.experimental.dynamic as ndd
 from nose_utils import raises
 
 
-def exception_tester(function: Callable[[], None]):
-    @functools.wraps(function)
-    def wrapper(*args, **kwargs):
-        initial_message = None
-        expected_exception = None
-        try:
-            with ndd.EvalMode.sync_cpu:
-                function()
-        except Exception as exception:
-            initial_message = str(exception)
-            expected_exception = exception
-
-        assert initial_message is not None and expected_exception is not None
-
-        for eval_mode in (ndd.EvalMode.deferred, ndd.EvalMode.eager):
-            with eval_mode:
-                try:
+def exception_tester(message: str):
+    def decorator(function: Callable[[], None]):
+        @functools.wraps(function)
+        def wrapper(*args, **kwargs):
+            initial_message = None
+            expected_exception = None
+            try:
+                with ndd.EvalMode.sync_cpu:
                     function()
-                except type(expected_exception) as exception:
-                    cause = exception.__cause__
-                    assert str(cause) == str(expected_exception)
+            except Exception as exception:
+                initial_message = str(exception)
+                expected_exception = exception
 
-                else:
-                    assert False
+            assert initial_message is not None and expected_exception is not None
 
-    return wrapper
+            for eval_mode in (ndd.EvalMode.deferred, ndd.EvalMode.eager):
+                with eval_mode:
+                    try:
+                        function()
+                    except type(expected_exception) as exception:
+                        cause = exception.__cause__
+                        assert cause is not None
+                        assert str(cause) == str(expected_exception)
+
+                        stack = traceback.extract_tb(cause.__traceback__)
+                        frame = stack[-1]
+                        assert frame.lineno is not None
+                        line = linecache.getline(frame.filename, frame.lineno)
+                        assert message in line
+                    else:
+                        assert False
+
+        return wrapper
+
+    return decorator
 
 
-@exception_tester
+@exception_tester("ndd.resize")
 def test_bad_rank():
     img = ndd.zeros(shape=(100, 100))
     ndd.resize(img).evaluate()
 
 
-@exception_tester
+@exception_tester("ndd.resize")
 def test_bad_dtype():
     img = ndd.zeros(shape=(100, 100, 3), dtype=ndd.bool).gpu()
     ndd.resize(img, size=(50, 50)).evaluate()
 
 
-@exception_tester
+@exception_tester("ndd.crop")
 def test_bad_crop_size():
     img = ndd.zeros(shape=(100, 100, 3))
     ndd.crop(img, crop=(200, 200)).evaluate()
 
 
-@exception_tester
+@exception_tester("ndd.resize")
+def test_nested_function():
+    def resize(img):
+        resized = ndd.resize(img, size=(50, 50))
+        return resized
+
+    img = ndd.zeros(shape=(100, 100, 3), dtype=ndd.bool).gpu()
+    resized = resize(img)
+    resized.evaluate()
+
+
+@exception_tester("ndd.as_tensor")
 def test_ragged_batch_to_tensor():
     batch = ndd.batch([[1, 2], [3]])
     tensor = ndd.as_tensor(batch)

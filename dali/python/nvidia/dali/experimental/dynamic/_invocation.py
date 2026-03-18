@@ -45,12 +45,12 @@ class Invocation:
         self,
         operator_instance: "Operator",
         call_id: Optional[int],
+        caller_depth: int,
         inputs: list[Any] | None = None,
         args: dict[str, Any] | None = None,
         is_batch: bool = False,
         batch_size: Optional[int] = None,
         previous_invocation: Optional["Invocation"] = None,
-        caller_depth: int = 4,
     ):
         """
         Parameters
@@ -60,6 +60,8 @@ class Invocation:
         call_id : int
             The call ID of the invocation - necessary to avoid folding of multiple invocations
             of the same stateful operator.
+        caller_depth : int
+            Depth of the initial caller. Used to capture the call stacks for error reporting.
         inputs : list
             The inputs to the operator.
         args : dict name->argument
@@ -73,8 +75,6 @@ class Invocation:
             the batch size.
         previous_invocation : Invocation
             The previous invocation of the same operator. Used by stateful operators.
-        caller_depth : int
-            Depth of the initial caller. Used to capture the call stacks for error reporting.
         """
         self._operator = operator_instance
         self._call_id = call_id
