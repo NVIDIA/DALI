@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Literal
 import nvidia.dali.experimental.dynamic as ndd
 import nvidia.dali as dali
 
@@ -21,11 +20,6 @@ from nvidia.dali.experimental.dynamic._device import DeviceLike
 
 from ..operator import adjust_input, get_HWC_from_layout_dynamic
 from ..color import Grayscale
-from torch import Tensor
-import nvidia.dali.experimental.dynamic as ndd
-import nvidia.dali as dali
-
-from ..operator import adjust_input  # noqa: E402
 
 
 def _grayscale(
@@ -51,7 +45,7 @@ def _grayscale(
     else:
         return ndd.hsv(inpt, saturation=0, device=device)
     else:
-        return ndd.hsv(img, saturation=0, device=device)
+        return ndd.hsv(inpt, saturation=0, device=device)
 
 
 @adjust_input
