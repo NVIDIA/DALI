@@ -12,10 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from .centercrop import center_crop
 from .flips import horizontal_flip, vertical_flip
 from .resize import resize
 
 __all__ = [
+    "center_crop",
     "horizontal_flip",
     "resize",
     "vertical_flip",
