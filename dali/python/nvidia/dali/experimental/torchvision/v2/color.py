@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import numpy as np
 from typing import Sequence, Literal, Optional
-<<<<<<< HEAD
 
 from .operator import (
     _ArgumentValidateRule,
@@ -27,11 +27,6 @@ from .operator import (
 import numpy as np
 import nvidia.dali as dali
 import nvidia.dali.fn as fn
-=======
-import nvidia.dali.fn as fn
-import nvidia.dali as dali
-from .operator import ArgumentVerificationRule, Operator, VerifyIfRange
->>>>>>> 2bc5cc11 (Torchvision ColorJitter and Grayscale implementations)
 
 
 class _ValidateBrightnessContrastSaturation(_ArgumentValidateRule):
