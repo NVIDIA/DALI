@@ -13,51 +13,58 @@
 # limitations under the License.
 
 from typing import Literal
-from torch import Tensor
+import torch
+from PIL import Image
 import nvidia.dali.experimental.dynamic as ndd
 import nvidia.dali as dali
 
-from ..operator import adjust_input  # noqa: E402
+from ..operator import adjust_input, get_HWC_from_layout_dynamic  # noqa: E402
 from ..color import Grayscale  # noqa: E402
 
 
 def _grayscale(
-    img: Tensor,
+    inpt: Image.Image | torch.Tensor,
     num_output_channels: int = 1,
     device: Literal["cpu", "gpu"] = "cpu",
-) -> Tensor:
+) -> Image.Image | torch.Tensor:
 
     Grayscale.verify_args(num_output_channels=num_output_channels)
 
-    c = img.shape[-1]
+    _, _, c = get_HWC_from_layout_dynamic(inpt)
     if num_output_channels == 1 and c == 3:  # RGB (TODO: what if it is HSV?)
         return ndd.color_space_conversion(
-            img,
+            inpt,
             image_type=dali.types.RGB,
             output_type=dali.types.GRAY,
             device=device,
         )
+    elif num_output_channels == 1 and c == 1:
+        return inpt
+    elif num_output_channels == 3 and c == 1:
+        return ndd.cat(inpt, inpt, inpt, axis_name="C")
     else:
-        return ndd.hsv(img, saturation=0, device=device)
+        return ndd.hsv(inpt, saturation=0, device=device)
 
 
 @adjust_input
 def to_grayscale(
-    img: Tensor,
+    inpt: Image.Image | torch.Tensor,
     num_output_channels: int = 1,
     device: Literal["cpu", "gpu"] = "cpu",
-) -> Tensor:
+) -> Image.Image | torch.Tensor:
     """
     Please refer to the ``Grayscale`` operator for more details.
     """
-    return _grayscale(img, num_output_channels, device)
+    return _grayscale(inpt, num_output_channels, device)
 
 
 @adjust_input
 def rgb_to_grayscale(
-    img: Tensor, num_output_channels: int = 1, device: Literal["cpu", "gpu"] = "cpu"
-) -> Tensor:
+    inpt: Image.Image | torch.Tensor,
+    num_output_channels: int = 1,
+    device: Literal["cpu", "gpu"] = "cpu",
+) -> Image.Image | torch.Tensor:
     """
     Please refer to the ``Grayscale`` operator for more details.
     """
-    return _grayscale(img, num_output_channels, device)
+    return _grayscale(inpt, num_output_channels, device)

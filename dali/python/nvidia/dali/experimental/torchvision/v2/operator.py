@@ -119,7 +119,25 @@ class VerifyIfPositive(ArgumentVerificationRule):
         if isinstance(values, (int, float)) and values <= 0:
             raise ValueError(f"Value {name} must be positive, got {values}")
         elif isinstance(values, (list, tuple)) and any(k <= 0 for k in values):
-            raise ValueError(f"Values {name} should be positive numbers, got {values}")
+            raise ValueError(f"Values {name} must be positive numbers, got {values}")
+
+
+class VerifyIfNonNegative(ArgumentVerificationRule):
+    """
+    Verify if the value is non-negative.
+
+    Parameters
+    ----------
+    values : any
+        Value to verify. Should be non-negative numbers.
+    """
+
+    @classmethod
+    def verify(cls, *, values, name, **_) -> None:
+        if isinstance(values, (int, float)) and values < 0:
+            raise ValueError(f"Value {name} must be non-negative, got {values}")
+        elif isinstance(values, (list, tuple)) and any(k < 0 for k in values):
+            raise ValueError(f"Values {name} must be non-negative numbers, got {values}")
 
 
 class VerifyIfRange(ArgumentVerificationRule):
@@ -326,3 +344,70 @@ def adjust_input(func):
         return adjust_output(output, inpt, mode)
 
     return inner_function
+
+
+def get_input_shape_dynamic(inpt: ndd.Tensor | ndd.Batch) -> tuple:
+    """
+    Returns a sample shape of ndd.Tensor or ndd.Batch.
+
+    In case of ndd.Batches, it assumes that they are uniform
+    """
+
+    if isinstance(inpt, ndd.Tensor):
+        return inpt.shape
+    elif isinstance(inpt, ndd.Batch):
+        return inpt.shape[0]  # Batches have uniform layout
+    else:
+        raise TypeError(f"Input must be ndd.Tensor or ndd.Batch got {type(inpt)}")
+
+
+def get_HWC_from_layout_dynamic(inpt: ndd.Tensor | ndd.Batch) -> tuple:
+    """
+    Returns a shape as a HWC tuple based on the input layout
+    """
+
+    inpt_shape = get_input_shape_dynamic(inpt)
+
+    if inpt.layout in ["HWC", "NHWC"]:
+        return inpt_shape[-3], inpt_shape[-2], inpt_shape[-1]
+    elif inpt.layout in ["HW", "CHW", "NCHW"]:
+        return inpt_shape[-2], inpt_shape[-1], inpt_shape[-3]
+    else:
+        raise ValueError(
+            f"Unsupported layout: {inpt.layout!r}. Expected one of HWC, NHWC, CHW, NCHW."
+        )
+
+
+def get_HWC_from_layout_pipeline(data_input):
+    """
+    Gets height, width and number of channels of the input data based on its layout.
+
+    Parameters
+    ----------
+    data_input : Tensor
+       Input data.
+
+    Returns
+    -------
+    input_height : int
+        Height of the input data.
+    input_width : int
+        Width of the input data.
+    input_channels : int
+        Number of channels of the input data.
+    input_data : Tensor
+    """
+    layout = data_input.property("layout")[0]
+
+    # If data layout is NHWC or NCHW, check the next character
+    if layout.cpu() == np.frombuffer(bytes("N", "utf-8"), dtype=np.uint8)[0]:
+        layout = data_input.property("layout")[1]
+
+    # CHW
+    if layout.cpu() == np.frombuffer(bytes("C", "utf-8"), dtype=np.uint8)[0]:
+        h, w, c = data_input.shape()[-2], data_input.shape()[-1], data_input.shape()[-3]
+    # HWC
+    else:
+        h, w, c = data_input.shape()[-3], data_input.shape()[-2], data_input.shape()[-1]
+
+    return h, w, c, data_input

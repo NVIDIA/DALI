@@ -12,15 +12,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import numpy as np
 from typing import Sequence, Literal, Optional
 import nvidia.dali.fn as fn
 import nvidia.dali as dali
-from .operator import ArgumentVerificationRule, Operator, VerifyIfRange
+from .operator import (
+    ArgumentVerificationRule,
+    DataVerificationRule,
+    Operator,
+    VerifyIfRange,
+    VerifyIfNonNegative,
+    get_HWC_from_layout_pipeline,
+)
 
 
 class VerificationBCS(ArgumentVerificationRule):
     """
-    Verify Brighness, Contrast and Saturation values
+    Verify Brightness, Contrast and Saturation values
 
     Parameters
     ----------
@@ -34,10 +42,12 @@ class VerificationBCS(ArgumentVerificationRule):
 
     @classmethod
     def _validate_param(cls, param: float | Sequence[float], name: str):
-        if isinstance(param, float):
-            param = [max(0, 1 - param), 1 + param]
+        if param is None:
+            raise ValueError(f"{name} must not be None")
 
-        if param is not None:
+        VerifyIfNonNegative.verify(values=param, name=name)
+
+        if not isinstance(param, float):
             VerifyIfRange.verify(values=param, name=name)
 
     @classmethod
@@ -59,6 +69,9 @@ class VerificationHue(ArgumentVerificationRule):
 
     @classmethod
     def verify(cls, *, hue, **_) -> None:
+        if hue is None:
+            raise ValueError("hue must not be None")
+
         if isinstance(hue, float):
             hue = (-hue, hue)
 
@@ -66,7 +79,27 @@ class VerificationHue(ArgumentVerificationRule):
             raise ValueError(f"hue values should be between [-0.5, 0.5], but got {hue}")
 
 
-def get_BCSH(brightness, contrast, saturation, hue, random_function):
+class VerifyGrayscaleInputLayout(DataVerificationRule):
+    """
+    Verify if grayscale conversion is supported for the current input layout
+    """
+
+    @classmethod
+    def verify(cls, data_input) -> None:
+
+        layout = data_input.property("layout")[0]
+        # If data layout is NHWC or NCHW, check the next character
+        if layout == np.frombuffer(bytes("N", "utf-8"), dtype=np.uint8)[0]:
+            layout = data_input.property("layout")[1]
+
+        # CHW
+        if layout == np.frombuffer(bytes("C", "utf-8"), dtype=np.uint8)[0]:
+            raise NotImplementedError(
+                "NCHW and CHW layout are not supported for Grayscale, expecting HWC or NHWC"
+            )
+
+
+def _get_BCSH(brightness, contrast, saturation, hue, random_function):
     """
     Gets random: brightness, contrast, saturation and hue.
 
@@ -140,9 +173,9 @@ class ColorJitter(Operator):
 
     def __init__(
         self,
-        brightness: Optional[float | Sequence[float]] = 1.0,
-        contrast: Optional[float | Sequence[float]] = 1.0,
-        saturation: Optional[float | Sequence[float]] = 1.0,
+        brightness: Optional[float | Sequence[float]] = 0.0,
+        contrast: Optional[float | Sequence[float]] = 0.0,
+        saturation: Optional[float | Sequence[float]] = 0.0,
         hue: Optional[float | Sequence[float]] = 0.0,
         device: Literal["cpu", "gpu"] = "cpu",
     ):
@@ -166,7 +199,7 @@ class ColorJitter(Operator):
         """
         Performs the color jitter using the ``fn.color_twist`` operator.
         """
-        brightness, contrast, saturation, hue = get_BCSH(
+        brightness, contrast, saturation, hue = _get_BCSH(
             self.brightness, self.contrast, self.saturation, self.hue, fn.random.uniform
         )
 
@@ -209,6 +242,9 @@ class Grayscale(Operator):
     """
 
     arg_rules = [VerificationGSOutputChannels]
+    # TODO: it is currently useless since pipeline does not support raising exceptions
+    # input_rules = [VerifyGrayscaleInputLayout]
+    preprocess_data = get_HWC_from_layout_pipeline
 
     def __init__(self, num_output_channels: int = 1, device: Literal["cpu", "gpu"] = "cpu"):
         super().__init__(device=device, num_output_channels=num_output_channels)
@@ -220,13 +256,20 @@ class Grayscale(Operator):
         Converts an image to a grayscale using the ``fn.color_space_conversion`` or ``fn.hsv``
         operators.
         """
-        c = data_input.shape()[-1]
+        _, _, c, output = data_input
+
         if self.num_output_channels == 1 and c == 3:  # RGB (TODO: what if it is HSV?)
-            return fn.color_space_conversion(
-                data_input,
+            output = fn.color_space_conversion(
+                output,
                 image_type=dali.types.RGB,
                 output_type=dali.types.GRAY,
                 device=self.device,
             )
+        elif self.num_output_channels == 1 and c == 1:  # Already handled
+            pass
+        elif self.num_output_channels == 3 and c == 1:
+            output = fn.cat(output, output, output, axis_name="C")
         else:
-            return fn.hsv(data_input, saturation=0, device=self.device)
+            output = fn.hsv(output, saturation=0, device=self.device)
+
+        return output

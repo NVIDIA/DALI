@@ -18,7 +18,7 @@ import nvidia.dali.experimental.dynamic as ndd
 import torch
 from PIL import Image
 
-from ..operator import adjust_input
+from ..operator import adjust_input, get_HWC_from_layout_dynamic
 from ..centercrop import CenterCrop
 
 
@@ -35,26 +35,10 @@ def center_crop(
 
     crop_h, crop_w = CenterCrop.adjust_size(output_size)
 
-    # Derive H and W — mirrors the logic in functional/resize.py.
-    if isinstance(inpt, ndd.Tensor):
-        inpt_shape = inpt.shape
-    elif isinstance(inpt, ndd.Batch):
-        inpt_shape = inpt.shape[0]
-    else:
-        raise TypeError(f"Input must be ndd.Tensor or ndd.Batch, got {type(inpt)}")
-
-    if inpt.layout[-3:] == "HWC":
-        in_h, in_w = inpt_shape[-3], inpt_shape[-2]
-    elif inpt.layout[-2:] in "HW":
-        in_h, in_w = inpt_shape[-2], inpt_shape[-1]
-    else:
-        raise ValueError(
-            f"Unsupported layout: {inpt.layout!r}. Expected one of HWC, NHWC, CHW, NCHW."
-        )
+    in_h, in_w, _ = get_HWC_from_layout_dynamic(inpt)
 
     # torchvision: crop_top = int(round((H - crop_H) / 2.0))  — banker's rounding
     N_h, N_w = in_h - crop_h, in_w - crop_w
-    # use 0.5 so out_of_bounds_policy pads symmetrically
     crop_pos_y = int(round(N_h / 2.0)) / N_h if N_h > 0 else 0.5
     crop_pos_x = int(round(N_w / 2.0)) / N_w if N_w > 0 else 0.5
 
