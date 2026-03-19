@@ -14,7 +14,9 @@
 
 from typing import Sequence, Literal
 from .operator import Operator, VerifSizeDescriptor
+import nvidia.dali as dali
 import nvidia.dali.fn as fn
+from .resize import get_inputHW
 
 
 class CenterCrop(Operator):
@@ -38,18 +40,19 @@ class CenterCrop(Operator):
     """
 
     arg_rules = [VerifSizeDescriptor]
+    preprocess_data = get_inputHW
 
     @staticmethod
     def adjust_size(size: int | Sequence[int]) -> Sequence[int]:
         if isinstance(size, int):
             return (size, size)
         elif isinstance(size, (list, tuple)):
-            if len(size) == 1:
-                return (size[0], size[0])
-            elif len(size) == 2:
-                return tuple(size)
-            else:
+            if len(size) == 0 or len(size) > 2:
                 raise ValueError(f"Invalid size length, expected 1 or 2, got {len(size)}")
+            elif len(size) == 1:
+                return (size[0], size[0])
+            else:
+                return tuple(size)
 
         else:
             raise TypeError(f"Invalid size type expected int, list or tuple, got {type(size)}")
@@ -59,19 +62,86 @@ class CenterCrop(Operator):
 
         self.size = CenterCrop.adjust_size(size)
 
-    def _kernel(self, data):
+    def _kernel(self, data_input):
         """
         Applies the center crop to the input data.
 
         If image size is smaller than output size along any edge, image is padded with 0 and then
         center cropped.
         """
+        in_h, in_w, tensor = data_input
+        crop_h, crop_w = self.size
+
+        # Slack between image and crop along each axis (may be zero or negative).
+        N_h = fn.cast(in_h, dtype=dali.types.INT32) - crop_h
+        N_w = fn.cast(in_w, dtype=dali.types.INT32) - crop_w
+
+        # Banker's-rounded (round-half-to-even) half of N, matching Python's round() and
+        # torchvision's int(round((dim - crop_dim) / 2.0)).
+        #
+        # Formula (integer arithmetic, no modulo needed):
+        #   floor_half  = floor(N / 2)
+        #   floor_quarter = floor(N / 4)
+        #   half = floor_half + (floor_half - 2*floor_quarter) * (N - 2*floor_half)
+        #        = floor(N/2) + (floor(N/2) % 2) * (N % 2)
+        # Adds 1 only when floor(N/2) is odd AND N is odd (i.e. N % 4 == 3).
+        floor_half_h = fn.cast(
+            dali.math.floor(fn.cast(N_h, dtype=dali.types.FLOAT) * 0.5),
+            dtype=dali.types.INT32,
+        )
+        floor_quarter_h = fn.cast(
+            dali.math.floor(fn.cast(N_h, dtype=dali.types.FLOAT) * 0.25),
+            dtype=dali.types.INT32,
+        )
+        half_h = floor_half_h + (floor_half_h - 2 * floor_quarter_h) * (N_h - 2 * floor_half_h)
+
+        floor_half_w = fn.cast(
+            dali.math.floor(fn.cast(N_w, dtype=dali.types.FLOAT) * 0.5),
+            dtype=dali.types.INT32,
+        )
+        floor_quarter_w = fn.cast(
+            dali.math.floor(fn.cast(N_w, dtype=dali.types.FLOAT) * 0.25),
+            dtype=dali.types.INT32,
+        )
+        half_w = floor_half_w + (floor_half_w - 2 * floor_quarter_w) * (N_w - 2 * floor_half_w)
+
+        # Compute normalised position for fn.crop:
+        #   N > 0  (no padding): crop_pos = half / N  (exact round-trip through fn.crop)
+        #   N = 0  (crop = image): position is irrelevant; fn.crop gives 0 regardless
+        #   N < 0  (crop > image): use 0.5 so out_of_bounds_policy pads symmetrically
+        #
+        # Implementation avoids Python conditionals on DALI nodes:
+        #   is_pos   = 1.0 if N > 0, else 0.0
+        #   N_safe   = max(N, 1)            <- avoids division by zero
+        #   crop_pos = is_pos * (half / N_safe) + (1 - is_pos) * 0.5
+        is_pos_h = fn.cast(N_h > 0, dtype=dali.types.FLOAT)
+        is_pos_w = fn.cast(N_w > 0, dtype=dali.types.FLOAT)
+        N_h_safe = fn.cast(
+            dali.math.max(fn.cast(N_h, dtype=dali.types.FLOAT), 1.0), dtype=dali.types.INT32
+        )
+        N_w_safe = fn.cast(
+            dali.math.max(fn.cast(N_w, dtype=dali.types.FLOAT), 1.0), dtype=dali.types.INT32
+        )
+
+        crop_pos_y = (
+            is_pos_h
+            * fn.cast(half_h, dtype=dali.types.FLOAT)
+            / fn.cast(N_h_safe, dtype=dali.types.FLOAT)
+            + (1.0 - is_pos_h) * 0.5
+        )
+        crop_pos_x = (
+            is_pos_w
+            * fn.cast(half_w, dtype=dali.types.FLOAT)
+            / fn.cast(N_w_safe, dtype=dali.types.FLOAT)
+            + (1.0 - is_pos_w) * 0.5
+        )
+
         return fn.crop(
-            data,
+            tensor,
             device=self.device,
             crop=self.size,
-            crop_pos_x=0.5,
-            crop_pos_y=0.5,
+            crop_pos_x=crop_pos_x,
+            crop_pos_y=crop_pos_y,
             out_of_bounds_policy="pad",
             fill_values=0,
         )

@@ -23,7 +23,7 @@ from ..centercrop import CenterCrop
 @adjust_input
 def center_crop(
     inpt: Image.Image | torch.Tensor,
-    output_size: List[int],
+    output_size: int | List[int],
     device: Literal["cpu", "gpu"] = "cpu",
 ) -> Image.Image | torch.Tensor:
     """
@@ -31,12 +31,36 @@ def center_crop(
     """
     CenterCrop.verify_args(size=output_size)
 
+    crop_h, crop_w = CenterCrop.adjust_size(output_size)
+
+    # Derive H and W — mirrors the logic in functional/resize.py.
+    if isinstance(inpt, ndd.Tensor):
+        inpt_shape = inpt.shape
+    elif isinstance(inpt, ndd.Batch):
+        inpt_shape = inpt.shape[0]
+    else:
+        raise TypeError(f"Input must be ndd.Tensor or ndd.Batch, got {type(inpt)}")
+
+    if inpt.layout in ["HWC", "NHWC"]:
+        in_h, in_w = inpt_shape[-3], inpt_shape[-2]
+    elif inpt.layout in ["HW", "CHW", "NCHW"]:
+        in_h, in_w = inpt_shape[-2], inpt_shape[-1]
+    else:
+        raise ValueError(
+            f"Unsupported layout: {inpt.layout!r}. Expected one of HWC, NHWC, CHW, NCHW."
+        )
+
+    # torchvision: crop_top = int(round((H - crop_H) / 2.0))  — banker's rounding
+    N_h, N_w = in_h - crop_h, in_w - crop_w
+    crop_pos_y = int(round(N_h / 2.0)) / N_h if N_h > 0 else 0.5
+    crop_pos_x = int(round(N_w / 2.0)) / N_w if N_w > 0 else 0.5
+
     return ndd.crop(
         inpt,
         device=device,
-        crop=CenterCrop.adjust_size(output_size),
-        crop_pos_x=0.5,
-        crop_pos_y=0.5,
+        crop=(crop_h, crop_w),
+        crop_pos_x=crop_pos_x,
+        crop_pos_y=crop_pos_y,
         out_of_bounds_policy="pad",
         fill_values=0,
     )

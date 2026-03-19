@@ -63,18 +63,22 @@ def _test_core(t, td, inpt, size):
         out_tf = tv_fn.pil_to_tensor(out_tf)
         out_dali_tf = tv_fn.pil_to_tensor(out_dali_tf)
 
-    # TODO: Need to disable this check until compatibility mode in crop is introduced
-    # DALI crop calculates differeten starting point for the image
-    # assert torch.equal(out_dali_tv.cpu(), out_tv.cpu()), f"Value mismatch for size={size}"
-    # assert torch.equal(
-    #     out_dali_tf.cpu(), out_tf.cpu()
-    # ), f"Functional value mismatch for size={size}"
+    assert (
+        out_tv.shape == out_dali_tv.shape
+    ), f"Size mismatch expected: {out_tv.shape}, got {out_dali_tv.shape}"
+    assert (
+        out_tf.shape == out_dali_tf.shape
+    ), f"Size mismatch expected: {out_tf.shape}, got {out_dali_tf.shape}"
+    assert torch.equal(out_dali_tv.cpu(), out_tv.cpu()), f"Value mismatch for size={size}"
+    assert torch.equal(
+        out_dali_tf.cpu(), out_tf.cpu()
+    ), f"Functional value mismatch for size={size}"
 
 
 def _test_images(size, device):
     t, td = build_centercrop_transform(size, device=device)
-    for fn in test_files:
-        img = Image.open(fn)
+    for filename in test_files:
+        img = Image.open(filename)
         _test_core(t, td, img, size)
 
 
