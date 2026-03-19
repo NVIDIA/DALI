@@ -44,6 +44,8 @@ def _grayscale(
         return ndd.cat(inpt, inpt, inpt, axis_name="C")
     else:
         return ndd.hsv(inpt, saturation=0, device=device)
+    else:
+        return ndd.hsv(img, saturation=0, device=device)
 
 
 @adjust_input
