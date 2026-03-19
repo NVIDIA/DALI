@@ -20,8 +20,6 @@ from nvidia.dali.experimental.dynamic._device import DeviceLike
 
 from ..operator import adjust_input, get_HWC_from_layout_dynamic
 from ..color import Grayscale
-import nvidia.dali.experimental.dynamic as ndd
-import nvidia.dali as dali
 
 
 def _grayscale(
