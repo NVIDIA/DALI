@@ -14,6 +14,7 @@
 
 import os
 
+import numpy as np
 from nose2.tools import params, cartesian_params
 from nose_utils import assert_raises
 from PIL import Image
