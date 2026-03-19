@@ -45,7 +45,7 @@ def _grayscale(
     else:
         return ndd.hsv(inpt, saturation=0, device=device)
     else:
-        return ndd.hsv(img, saturation=0, device=device)
+        return ndd.hsv(inpt, saturation=0, device=device)
 
 
 @adjust_input
