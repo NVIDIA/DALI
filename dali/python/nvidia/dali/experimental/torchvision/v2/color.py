@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from typing import Sequence, Literal, Optional
+<<<<<<< HEAD
 
 from .operator import (
     ArgumentVerificationRule,
@@ -26,6 +27,11 @@ from .operator import (
 import numpy as np
 import nvidia.dali as dali
 import nvidia.dali.fn as fn
+=======
+import nvidia.dali.fn as fn
+import nvidia.dali as dali
+from .operator import ArgumentVerificationRule, Operator, VerifyIfRange
+>>>>>>> 2bc5cc11 (Torchvision ColorJitter and Grayscale implementations)
 
 
 class VerificationBCS(ArgumentVerificationRule):
