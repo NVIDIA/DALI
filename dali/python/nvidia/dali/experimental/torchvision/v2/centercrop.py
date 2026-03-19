@@ -42,8 +42,8 @@ class CenterCrop(Operator):
     arg_rules = [VerifSizeDescriptor]
     preprocess_data = get_inputHW
 
-    @staticmethod
-    def adjust_size(size: int | Sequence[int]) -> Sequence[int]:
+    @classmethod
+    def adjust_size(cls, size: int | Sequence[int]) -> Sequence[int]:
         if isinstance(size, int):
             return (size, size)
         elif isinstance(size, (list, tuple)):

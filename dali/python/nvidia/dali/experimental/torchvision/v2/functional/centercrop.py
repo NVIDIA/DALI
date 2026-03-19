@@ -12,10 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Literal, List
+from typing import List, Literal
 import nvidia.dali.experimental.dynamic as ndd
+
 import torch
 from PIL import Image
+
 from ..operator import adjust_input
 from ..centercrop import CenterCrop
 
