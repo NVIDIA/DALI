@@ -420,10 +420,7 @@ class Operator:
         with self._device:
             with ctx:
                 self._init_spec(inputs, args)
-                if ctx._thread_pool is not None:
-                    self._op_spec.AddArg("num_threads", ctx._thread_pool.num_threads)
-                else:
-                    self._op_spec.AddArg("num_threads", 1)
+                self._op_spec.AddArg("num_threads", ctx.num_threads)
                 self._op_spec.AddArg(
                     "device_id",
                     (
@@ -467,7 +464,7 @@ class Operator:
                 self._check_compatible(inputs, batch_size, args)
 
             self._init_backend(ctx, inputs, args)
-            workspace = _b._Workspace(ctx._thread_pool, ctx.cuda_stream)
+            workspace = _b._Workspace(ctx.thread_pool._create_facade(), ctx.cuda_stream)
             for i, input in enumerate(inputs):
                 workspace.AddInput(self._to_batch(input).evaluate()._storage)
             for name, arg in args.items():

@@ -12,6 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import threading
+import time
+
 import nvidia.dali.experimental.dynamic as ndd
 import nvidia.dali.backend as _backend
 from nose_utils import SkipTest, attr
@@ -286,15 +289,15 @@ def test_get_set_num_threads():
     try:
         assert ndd.get_num_threads() == len(os.sched_getaffinity(0))
         ctx = ndd.EvalContext()
-        assert ctx._thread_pool.num_threads == len(os.sched_getaffinity(0))
+        assert ctx.thread_pool.num_threads == len(os.sched_getaffinity(0))
         ndd.set_num_threads(42)
         assert ndd.get_num_threads() == 42
         assert ctx.num_threads == 42
-        assert ctx._thread_pool.num_threads == 42
+        assert ctx.thread_pool.num_threads == 42
         ndd.set_num_threads(None)
         assert ndd.get_num_threads() == len(os.sched_getaffinity(0))
         assert ctx.num_threads == len(os.sched_getaffinity(0))
-        assert ctx._thread_pool.num_threads == len(os.sched_getaffinity(0))
+        assert ctx.thread_pool.num_threads == len(os.sched_getaffinity(0))
     finally:
         ndd.set_num_threads(None)
 
@@ -339,7 +342,7 @@ def test_global_param_change_delay():
     def check(ctx):
         nonlocal calls
         assert ctx.cuda_stream is expected_stream
-        assert ctx._thread_pool.num_threads == expected_num_threads
+        assert ctx.thread_pool.num_threads == expected_num_threads
         calls += 1
 
     try:
@@ -422,3 +425,108 @@ def test_non_default_ctx_stream():
     finally:
         ndd.set_default_stream(None)
         ndd.set_current_stream(None)
+
+
+def test_ctx_with_thread_pool():
+    thread_pool = ndd.ThreadPool(7)
+    ctx = ndd.EvalContext(thread_pool=thread_pool)
+    assert ctx.thread_pool == thread_pool
+    assert ctx.num_threads == 7
+
+
+def test_ctx_with_num_threads():
+    ctx = ndd.EvalContext(num_threads=7)
+    assert ctx._thread_pool is not None
+    assert ctx.num_threads == 7
+
+
+def test_global_thread_pool_thread_safety():
+    # Check that there are no race conditions when accessing default thread pool while the
+    # default number of threads is changed concurrently.
+    # The test performs monotonic sweep of thread count and validates that all thread counts are
+    # seen in at least one sweep.
+    # The test also checks that there are no unnecessary updates to the default thread pool and
+    # that the threads see the same thread pool objects.
+    num_workers = 8
+    results = [set() for _ in range(num_workers)]
+    prev_pool = [None] * num_workers
+    stop_event = threading.Event()
+    run_event = threading.Event()
+    worker_errors = []
+    paused = threading.Semaphore(0)
+
+    def worker(idx):
+        try:
+            while not stop_event.is_set():
+                # The workers are paused after each sweep to prevent race condition
+                if not run_event.is_set():
+                    paused.release(1)
+                    run_event.wait()
+                pool = ndd._thread_pool._get_default_thread_pool(None)
+                if pool is not prev_pool[idx]:
+                    if prev_pool[idx] is not None:
+                        assert pool.num_threads != prev_pool[idx].num_threads, (
+                            f"Pool object changed but num_threads stayed at "
+                            f"{prev_pool[idx].num_threads}"
+                        )
+
+                    prev_pool[idx] = pool
+                results[idx].add(pool)
+                time.sleep(0)
+        except Exception as e:
+            print(f"Error in worker {idx}:\n{e}")
+            paused.release(1)
+            worker_errors.append(e)
+
+    threads = [
+        threading.Thread(target=worker, kwargs={"idx": idx}, daemon=True)
+        for idx in range(num_workers)
+    ]
+    for t in threads:
+        t.start()
+
+    run_event.set()
+
+    all_thread_counts_seen = False
+    try:
+        for _ in range(3):
+            for n in range(1, 33):
+                ndd.set_num_threads(n)
+                time.sleep(0.01)
+            # Pause the workers
+            run_event.clear()
+            for _ in range(num_workers):
+                paused.acquire()
+            if worker_errors:
+                raise worker_errors[0]
+            combined_results = set.union(*results)
+            # Check that the number of distinct thread pools seen is the same as the number
+            # of distinct thread counts seen. If it's different, there's an unnecessary pool
+            # created somewhere.
+            assert len(combined_results) == len(
+                set(p.num_threads for p in combined_results)
+            ), "The number of pool objects is different than the number of distinct thread counts."
+            if len(combined_results) == 32:
+                all_thread_counts_seen = True
+            ndd.set_num_threads(1)
+            for r in results:
+                r.clear()
+            # This prevents rare errors where the first pool to be seen has the same number of
+            # threads as the one last seen in previous sweep.
+            prev_pool = [None] * num_workers
+
+            # Now we can safely resume the workers
+            run_event.set()
+    finally:
+        run_event.set()
+        stop_event.set()
+        for t in threads:
+            t.join()
+        ndd.set_num_threads(None)
+
+    if worker_errors:
+        raise worker_errors[0]
+
+    assert (
+        all_thread_counts_seen
+    ), "Expected at least one sweep to observe all 32 distinct thread counts."
