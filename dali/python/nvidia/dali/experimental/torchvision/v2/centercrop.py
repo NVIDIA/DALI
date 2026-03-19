@@ -17,6 +17,7 @@ from .operator import Operator, VerifSizeDescriptor, get_HWC_from_layout_pipelin
 
 import nvidia.dali as dali
 import nvidia.dali.fn as fn
+from .operator import get_HWC_from_layout_pipeline
 
 
 class CenterCrop(Operator):
@@ -111,11 +112,7 @@ class CenterCrop(Operator):
         crop_pos_x = is_pos_w * half_w / N_w_safe + (1.0 - is_pos_w) * 0.5
 
         return fn.crop(
-<<<<<<< HEAD
             tensor,
-=======
-            data_input,
->>>>>>> 2bc5cc11 (Torchvision ColorJitter and Grayscale implementations)
             device=self.device,
             crop=self.size,
             crop_pos_x=crop_pos_x,

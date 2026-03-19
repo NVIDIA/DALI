@@ -13,7 +13,6 @@
 # limitations under the License.
 
 from typing import Literal
-<<<<<<< HEAD
 import nvidia.dali.experimental.dynamic as ndd
 import nvidia.dali as dali
 
@@ -21,13 +20,6 @@ import torch
 from PIL import Image
 
 from ..operator import adjust_input, get_HWC_from_layout_dynamic  # noqa: E402
-=======
-from torch import Tensor
-import nvidia.dali.experimental.dynamic as ndd
-import nvidia.dali as dali
-
-from ..operator import adjust_input  # noqa: E402
->>>>>>> 2bc5cc11 (Torchvision ColorJitter and Grayscale implementations)
 from ..color import Grayscale  # noqa: E402
 
 
@@ -54,7 +46,7 @@ def _grayscale(
     else:
         return ndd.hsv(inpt, saturation=0, device=device)
     else:
-        return ndd.hsv(img, saturation=0, device=device)
+        return ndd.hsv(inpt, saturation=0, device=device)
 
 
 @adjust_input
