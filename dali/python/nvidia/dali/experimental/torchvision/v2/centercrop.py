@@ -17,6 +17,7 @@ from .operator import Operator, VerifSizeDescriptor, get_HWC_from_layout_pipelin
 
 import nvidia.dali as dali
 import nvidia.dali.fn as fn
+from .operator import get_HWC_from_layout_pipeline
 
 
 class CenterCrop(Operator):
