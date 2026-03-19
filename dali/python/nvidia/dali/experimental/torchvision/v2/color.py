@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import numpy as np
 from typing import Sequence, Literal, Optional
 
 from .operator import (
@@ -75,6 +76,9 @@ class VerificationHue(ArgumentVerificationRule):
     def verify(cls, *, hue, **_) -> None:
         if hue is None:
             raise ValueError("hue must not be None")
+
+        if isinstance(hue, float):
+            hue = (-hue, hue)
 
         if isinstance(hue, (int, float)):
             hue = [hue, hue]
