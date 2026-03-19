@@ -71,3 +71,11 @@ def test_add_batches():
     b3 = b1 + b2
     assert np.array_equal(b3.tensors[0], np.array([6, 7, 8]))
     assert np.array_equal(b3.tensors[1], np.array([46, 47]))
+
+
+@attr("cpu_only")
+def test_thread_pool():
+    if _b.GetCUDADeviceCount() > 0:
+        raise SkipTest("This test doesn't work with GPU present")
+    tp = ndd.ThreadPool(4)
+    assert tp.device_id is None
