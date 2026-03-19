@@ -57,7 +57,6 @@ def to_grayscale(
     """
     return _grayscale(inpt, num_output_channels, device)
 
-
 @adjust_input
 def rgb_to_grayscale(
     inpt: Image.Image | torch.Tensor,
