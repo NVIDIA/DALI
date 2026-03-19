@@ -15,9 +15,12 @@
 import os
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
 import numpy as np
 >>>>>>> 2bc5cc11 (Torchvision ColorJitter and Grayscale implementations)
+=======
+>>>>>>> d236be48 (Review fixes)
 from nose2.tools import params, cartesian_params
 from nose_utils import assert_raises
 from PIL import Image
@@ -41,6 +44,7 @@ def verify_non_one_off(t1: torch.Tensor, t2: torch.Tensor):
 
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
 def read_file(path):
     return np.fromfile(path, dtype=np.uint8)
@@ -51,6 +55,8 @@ def read_filepath(path):
 
 
 >>>>>>> 2bc5cc11 (Torchvision ColorJitter and Grayscale implementations)
+=======
+>>>>>>> d236be48 (Review fixes)
 dali_extra = os.environ["DALI_EXTRA_PATH"]
 jpeg = os.path.join(dali_extra, "db", "single", "jpeg")
 jpeg_113 = os.path.join(jpeg, "113")
@@ -58,6 +64,7 @@ test_files = [
     os.path.join(jpeg_113, f)
     for f in ["snail-4291306_1280.jpg", "snail-4345504_1280.jpg", "snail-4368154_1280.jpg"]
 ]
+<<<<<<< HEAD
 <<<<<<< HEAD
 
 
@@ -68,22 +75,33 @@ test_input_filenames = [read_filepath(fname) for fname in test_files]
 
 def loop_images_test(t, td):
 >>>>>>> 2bc5cc11 (Torchvision ColorJitter and Grayscale implementations)
+=======
+
+
+def loop_images_test(t, td, num_output_channels=1):
+>>>>>>> d236be48 (Review fixes)
     for fn in test_files:
         img = Image.open(fn)
 
         out_tv = transforms.functional.pil_to_tensor(t(img))
         out_dali_tv = transforms.functional.pil_to_tensor(td(img))
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> d236be48 (Review fixes)
         out_dali_fn = transforms.functional.pil_to_tensor(
             to_grayscale(img, num_output_channels=num_output_channels)
         )
         out_dali_fn1 = transforms.functional.pil_to_tensor(
             rgb_to_grayscale(img, num_output_channels=num_output_channels)
         )
+<<<<<<< HEAD
 =======
         out_dali_fn = transforms.functional.pil_to_tensor(to_grayscale(img))
         out_dali_fn1 = transforms.functional.pil_to_tensor(rgb_to_grayscale(img))
 >>>>>>> 2bc5cc11 (Torchvision ColorJitter and Grayscale implementations)
+=======
+>>>>>>> d236be48 (Review fixes)
 
         assert verify_non_one_off(out_tv, out_dali_tv), f"Images differ {fn}"
         assert verify_non_one_off(out_tv, out_dali_fn), f"Images differ {fn}"
@@ -96,10 +114,14 @@ def test_grayscale(output_channels, device):
     t = transforms.Compose([transforms.Grayscale(num_output_channels=output_channels)])
 
 <<<<<<< HEAD
+<<<<<<< HEAD
     loop_images_test(t, td, num_output_channels=output_channels)
 =======
     loop_images_test(t, td)
 >>>>>>> 2bc5cc11 (Torchvision ColorJitter and Grayscale implementations)
+=======
+    loop_images_test(t, td, num_output_channels=output_channels)
+>>>>>>> d236be48 (Review fixes)
 
 
 @params(2, 4)
@@ -155,11 +177,16 @@ def test_colorjitter_images(cj_params, device):
 
 """
 <<<<<<< HEAD
+<<<<<<< HEAD
 TODO (https://github.com/NVIDIA/DALI/issues/DALI-4656):
 DALI ColorJitter does not currently work on CHW layout
 =======
 TODO: DALI ColorJitter does not currently work on CHW layout
 >>>>>>> 2bc5cc11 (Torchvision ColorJitter and Grayscale implementations)
+=======
+TODO (https://github.com/NVIDIA/DALI/issues/XXXX):
+DALI ColorJitter does not currently work on CHW layout
+>>>>>>> d236be48 (Review fixes)
 @params(
     # brightness, contrast, saturation, hue
     (0.0, 0.0, 0.0, 0.0),
@@ -219,6 +246,9 @@ def test_colorjitter_invalid_params_match_errors(brightness, contrast, saturatio
         )
         _ = cj_my(img)
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> d236be48 (Review fixes)
 
 
 @params("cpu", "gpu")
@@ -301,5 +331,8 @@ def test_grayscale_functional_3channels(device):
         assert verify_non_one_off(
             out_tensor, out_tensor2
         ), f"to_grayscale and rgb_to_grayscale differ: {fn}"
+<<<<<<< HEAD
 =======
 >>>>>>> 2bc5cc11 (Torchvision ColorJitter and Grayscale implementations)
+=======
+>>>>>>> d236be48 (Review fixes)

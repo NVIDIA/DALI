@@ -16,6 +16,7 @@ from typing import Sequence, Literal
 from .operator import Operator, _ValidateSizeDescriptor, get_HWC_from_layout_pipeline
 import nvidia.dali as dali
 import nvidia.dali.fn as fn
+from .operator import get_HWC_from_layout_pipeline
 
 
 class CenterCrop(Operator):
