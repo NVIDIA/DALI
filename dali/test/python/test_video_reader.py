@@ -355,10 +355,9 @@ def test_uniform_sample_file_list_roi(device, sequence_length):
             fn_arr[-1] == end_frame - 1
         ), f"Last index should be {end_frame - 1}, got {fn_arr[-1]}"
 
-    expected_idxs = (
-        start_frame
-        + np.floor(np.linspace(0, roi_frames - 1, sequence_length) + 0.5).astype(np.int32)
-    )
+    expected_idxs = start_frame + np.floor(
+        np.linspace(0, roi_frames - 1, sequence_length) + 0.5
+    ).astype(np.int32)
     np.testing.assert_array_equal(
         fn_arr,
         expected_idxs,
