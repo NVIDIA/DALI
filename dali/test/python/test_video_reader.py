@@ -329,37 +329,55 @@ def test_uniform_sample_file_list_roi(device, sequence_length):
     assert roi_frames >= sequence_length, "ROI too small for this test"
 
     # Write a file_list with the ROI.
-    list_file = tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False)
-    list_file.write(f"{video_file} 0 {start_frame} {end_frame}\n")
-    list_file.close()
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".txt") as list_file:
+        list_file.write(f"{video_file} 0 {start_frame} {end_frame}\n")
+        list_file.flush()
 
-    uniform_reader = ndd.experimental.readers.Video(
-        device=device,
-        file_list=list_file.name,
-        file_list_format="frames",
-        sequence_length=sequence_length,
-        uniform_sample=True,
-        enable_frame_num="sequence",
-    )
-    samples = list(uniform_reader.next_epoch())
-    assert len(samples) == 1, f"Expected 1 sample (one per video), got {len(samples)}"
+        uniform_reader = ndd.experimental.readers.Video(
+            device=device,
+            file_list=list_file.name,
+            file_list_format="frames",
+            sequence_length=sequence_length,
+            uniform_sample=True,
+            enable_frame_num="sequence",
+        )
+        samples = list(uniform_reader.next_epoch())
+        assert len(samples) == 1, f"Expected 1 sample (one per video), got {len(samples)}"
 
-    video, frame_num = samples[0]
-    fn_arr = np.array(frame_num.evaluate().cpu()).flatten()
-    assert len(fn_arr) == sequence_length
+        _, frame_num = samples[0]
+        fn_arr = np.array(frame_num.evaluate().cpu()).flatten()
+        assert len(fn_arr) == sequence_length
 
-    # Frame indices must be absolute (offset from start_frame, not zero).
-    assert fn_arr[0] == start_frame, f"First index should be {start_frame}, got {fn_arr[0]}"
-    if sequence_length > 1:
+        # Frame indices must be absolute (offset from start_frame, not zero).
+        assert fn_arr[0] == start_frame, f"First index should be {start_frame}, got {fn_arr[0]}"
+        if sequence_length > 1:
+            assert (
+                fn_arr[-1] == end_frame - 1
+            ), f"Last index should be {end_frame - 1}, got {fn_arr[-1]}"
+
+        expected_idxs = start_frame + np.floor(
+            np.linspace(0, roi_frames - 1, sequence_length) + 0.5
+        ).astype(np.int32)
+        np.testing.assert_array_equal(
+            fn_arr,
+            expected_idxs,
+            err_msg=f"Frame index mismatch (start={start_frame}, end={end_frame})",
+        )
+
+        # Scalar mode: enable_frame_num="scalar" should return the first sampled frame index
+        # (= start_frame), even with a non-zero ROI offset.
+        scalar_reader = ndd.experimental.readers.Video(
+            device=device,
+            file_list=list_file.name,
+            file_list_format="frames",
+            sequence_length=sequence_length,
+            uniform_sample=True,
+            enable_frame_num="scalar",
+        )
+        scalar_samples = list(scalar_reader.next_epoch())
+        assert len(scalar_samples) == 1
+        _, scalar_fn = scalar_samples[0]
+        scalar_val = int(np.array(scalar_fn.evaluate().cpu()).flatten()[0])
         assert (
-            fn_arr[-1] == end_frame - 1
-        ), f"Last index should be {end_frame - 1}, got {fn_arr[-1]}"
-
-    expected_idxs = start_frame + np.floor(
-        np.linspace(0, roi_frames - 1, sequence_length) + 0.5
-    ).astype(np.int32)
-    np.testing.assert_array_equal(
-        fn_arr,
-        expected_idxs,
-        err_msg=f"Frame index mismatch (start={start_frame}, end={end_frame})",
-    )
+            scalar_val == start_frame
+        ), f"Scalar frame_num should be {start_frame} (first sampled index), got {scalar_val}"

@@ -76,7 +76,7 @@ class FrameIndexCache {
 
 struct VideoSampleDesc {
   VideoSampleDesc(const VideoFileMeta *video_file_meta = nullptr, int start = -1, int end = -1, int stride = -1)
-      : video_file_meta_(video_file_meta), start_(start), end_(end), stride_(stride) {}
+      : video_file_meta_(video_file_meta), start_(start), end_(end), stride_(stride), frame_idxs_{} {}
   const VideoFileMeta *video_file_meta_;
   int start_;
   int end_;
@@ -258,6 +258,8 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
 
   void PrepareMetadataImpl() override {
     LOG_LINE << "Starting PrepareMetadataImpl" << std::endl;
+    if (uniform_sample_)
+      all_frame_idxs_.reserve(video_files_info_.size());
     for (size_t i = 0; i < video_files_info_.size(); ++i) {
       auto& entry = video_files_info_[i];
       LOG_LINE << "Processing video file " << i << ": " << entry.filename << std::endl;
@@ -659,6 +661,8 @@ class VideoReaderDecoder
       if (frame_num_policy_ == FrameNumPolicy::Sequence) {
         sample->frame_idx_.resize(num_frames);
         if (!sample->frame_idxs_.empty()) {
+          // Uniform indices are always within [roi_start, roi_end-1], so HandleBoundary
+          // is a no-op here — but we call it for consistency with the stride path below.
           for (int64_t i = 0; i < num_frames; ++i) {
             sample->frame_idx_[i] = static_cast<int32_t>(decoder_->HandleBoundary(
                 boundary_type_, sample->frame_idxs_[i], roi_start, roi_end));
