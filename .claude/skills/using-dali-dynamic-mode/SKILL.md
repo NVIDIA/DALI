@@ -20,7 +20,7 @@ t = ndd.tensor(data)           # copy
 t = ndd.as_tensor(data)        # wrap, no copy if possible
 t.cpu()                        # move to CPU
 t.gpu()                        # move to GPU
-t.torch(copy=False)            # zero-copy PyTorch tensor (default)
+t.torch(copy=False)            # conversion to PyTorch tensor with no copy (default)
 t[1:3]                         # slicing supported
 np.asarray(t)                  # NumPy via __array__ (CPU only)
 ```
