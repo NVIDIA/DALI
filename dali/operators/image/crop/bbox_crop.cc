@@ -364,7 +364,15 @@ if the fraction of their area within the ROI is greater than or equal to the thr
 For example, when `bbox_prune_threshold=0.2` bboxes that have at least 20% of their original area within
 the ROI are kept, bboxes less than or equal to are pruned. If `bbox_prune_threshold=0.0`, all boxes that
 have some presence in the ROI are kept.)code",
-        nullptr);
+        nullptr)
+    .AddOptionalArg(
+        "quiet",
+        R"code(If set to True, suppresses the warning that is emitted when a valid cropping window
+could not be found within the allowed number of attempts and the best candidate is used instead.
+
+This is useful when the failure to find a valid crop is an expected and acceptable outcome
+(for example, in mosaic augmentation pipelines).)code",
+        false);
 
 template <int ndim>
 class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
@@ -397,7 +405,8 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
         has_crop_shape_(spec_.ArgumentDefined("crop_shape")),
         has_input_shape_(spec_.ArgumentDefined("input_shape")),
         all_boxes_above_threshold_(spec_.GetArgument<bool>("all_boxes_above_threshold")),
-        output_bbox_indices_(spec_.GetArgument<bool>("output_bbox_indices")) {
+        output_bbox_indices_(spec_.GetArgument<bool>("output_bbox_indices")),
+        quiet_(spec_.GetArgument<bool>("quiet")) {
     has_bbox_layout_ = spec_.TryGetArgument(bbox_layout_, "bbox_layout");
     has_shape_layout_ = spec_.TryGetArgument(shape_layout_, "shape_layout");
 
@@ -837,9 +846,11 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
     }
 
     if (!crop.success) {
-      DALI_WARN(make_string(
-        "Could not find a valid cropping window to satisfy the specified requirements (attempted ",
-        count, " times). Using the best cropping window so far (best_metric=", best_metric, ")"));
+      if (!quiet_)
+        DALI_WARN(make_string(
+          "Could not find a valid cropping window to satisfy the specified requirements "
+          "(attempted ", count, " times). Using the best cropping window so far "
+          "(best_metric=", best_metric, ")"));
       crop.success = true;
     }
   }
@@ -927,6 +938,7 @@ class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
   BoxPruneMethod box_prune_method_ = BoxPruneMethod::Centroid;
   bool all_boxes_above_threshold_ = true;
   bool output_bbox_indices_ = false;
+  bool quiet_ = false;
   float bbox_prune_threshold_ = 0.0f;
 
   std::vector<SampleOption> sample_options_;
