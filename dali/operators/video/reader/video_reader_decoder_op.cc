@@ -81,7 +81,7 @@ struct VideoSampleDesc {
   int start_;
   int end_;
   int stride_;
-  std::vector<int> frame_idxs_;  // non-empty → uniform sampling; use these instead of start_/end_/stride_
+  span<const int> frame_idxs_;  // non-empty → uniform sampling; use these instead of start_/end_/stride_
 };
 
 template <typename Backend>
@@ -323,11 +323,15 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
       if (uniform_sample_) {
         int total_frames = entry.end_frame - entry.start_frame;
         VideoSampleDesc s(&entry, entry.start_frame, entry.end_frame, 1);
-        s.frame_idxs_.resize(sequence_len_);
+        all_frame_idxs_.emplace_back(sequence_len_);
+        auto& idxs = all_frame_idxs_.back();
         for (int i = 0; i < sequence_len_; ++i) {
           double t = (sequence_len_ > 1) ? (double)i / (sequence_len_ - 1) : 0.0;
-          s.frame_idxs_[i] = entry.start_frame + static_cast<int>(std::round(t * (total_frames - 1)));
+          idxs[i] = entry.start_frame + static_cast<int>(std::round(t * (total_frames - 1)));
         }
+        // Moving a std::vector preserves data(), so this span remains valid even if
+        // all_frame_idxs_ is reallocated later (inner vectors are moved, not copied).
+        s.frame_idxs_ = make_cspan(idxs);
         LOG_LINE << "Adding uniform sample for " << entry.filename
                  << " with " << sequence_len_ << " frames" << std::endl;
         samples_.emplace_back(std::move(s));
@@ -402,6 +406,7 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
 
   std::vector<VideoFileMeta> video_files_info_;
   std::vector<VideoSampleDesc> samples_;
+  std::vector<std::vector<int>> all_frame_idxs_;  // owns frame index data; samples_ hold spans into these
   CUDAStreamLease cuda_stream_;
 };
 
