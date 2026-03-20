@@ -6,8 +6,14 @@ ENV DEBIAN_FRONTEND=noninteractive \
     CUDA_CROSS_VERSION_DOT=12.6
 
 RUN apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64/3bf863cc.pub && \
-    apt-get update && apt-get install software-properties-common -y --no-install-recommends && \
-    echo "deb [trusted=yes] https://ppa.launchpadcontent.net/deadsnakes/ppa/ubuntu $(cat /etc/os-release | grep UBUNTU_CODENAME | cut -d= -f2) main" > /etc/apt/sources.list.d/deadsnakes.list && \
+    apt-get update && apt-get install software-properties-common curl gnupg -y --no-install-recommends && \
+    # add key for deadsnakes (stored in dedicated keyring to avoid legacy trusted.gpg)
+    curl -fsSL "https://keyserver.ubuntu.com/pks/lookup?op=get&options=mr&search=0xF23C5A6CF475977595C89F51BA6932366A755776" -o /tmp/deadsnakes.asc && \
+        gpg --batch --dearmor < /tmp/deadsnakes.asc > /tmp/deadsnakes.gpg && \
+        gpg --no-default-keyring --keyring /tmp/deadsnakes.gpg --list-keys 0xF23C5A6CF475977595C89F51BA6932366A755776 > /dev/null && \
+        mv /tmp/deadsnakes.gpg /usr/share/keyrings/deadsnakes.gpg && \
+        rm /tmp/deadsnakes.asc && \
+    echo "deb [signed-by=/usr/share/keyrings/deadsnakes.gpg] https://ppa.launchpadcontent.net/deadsnakes/ppa/ubuntu $(. /etc/os-release && echo $UBUNTU_CODENAME) main" > /etc/apt/sources.list.d/deadsnakes.list && \
     apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     libssl-dev \
