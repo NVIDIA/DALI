@@ -79,7 +79,7 @@ Key points:
 - `batch_size` goes to `next_epoch()`, not to the reader constructor
 - `next_epoch(batch_size=N)` yields tuples of `Batch`; `next_epoch()` without batch_size yields tuples of `Tensor`
 - The iterator from `next_epoch()` must be fully consumed before calling `next_epoch()` again
-- Batch size can vary between epochs but is bounded by the `max_batch_size` constructor parameter. If not specified, defaults to the first batch size used.
+- Once a reader is used with a given batch_size, it cannot be changed. Similarly, a reader used in batch mode cannot switch to sample mode or vice versa.
 
 Sharded reading for distributed training:
 ```python
