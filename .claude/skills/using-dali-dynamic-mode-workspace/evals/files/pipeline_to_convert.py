@@ -1,3 +1,7 @@
+from nvidia.dali import pipeline_def
+from nvidia.dali import fn
+
+
 @pipeline_def
 def training_pipeline(image_dir):
     jpegs, labels = fn.readers.file(file_root=image_dir, random_shuffle=True)
