@@ -232,6 +232,10 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
       if (spec.HasArgument("step")) {
         DALI_WARN("uniform_sample=True: the `step` argument is ignored.");
       }
+      if (spec.HasArgument("pad_mode")) {
+        DALI_WARN("uniform_sample=True: the `pad_mode` argument is ignored. "
+                  "Frames are repeated when sequence_length exceeds the number of available frames.");
+      }
     }
   }
 
@@ -814,15 +818,16 @@ When the value is less than 0, `step` is set to `sequence_length`.)code",
         R"code(If set to True, uniformly samples ``sequence_length`` frames from the full video
 (or from the video range defined by ``file_list``), regardless of the video length.
 
-The sampled frame indices correspond to ``numpy.linspace(start, end-1, sequence_length)``,
-rounded to the nearest integer.
+The sampled frame indices correspond to ``numpy.linspace(start, end-1, sequence_length)``
+rounded to the nearest integer using ``floor(x + 0.5)`` (rounds half away from zero,
+matching C++ ``std::round`` — not NumPy's default banker's rounding).
 
 If ``sequence_length`` exceeds the number of frames in the video, frames are repeated
 rather than padded. For example, sampling 5 frames from a 3-frame video yields indices
 ``[0, 1, 1, 2, 2]``. A single-frame video always produces a sequence of identical frames.
 
 When enabled, each video file produces exactly one sample per epoch.
-The ``stride`` and ``step`` arguments are ignored.)code",
+The ``stride``, ``step``, and ``pad_mode`` arguments are ignored.)code",
         false)
     .AddOptionalArg<std::string>(
         "pad_mode",

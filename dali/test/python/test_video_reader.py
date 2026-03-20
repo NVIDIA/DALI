@@ -269,7 +269,7 @@ def test_uniform_sample(device, sequence_length):
         else:
             frame_counts.append(reader.get_metadata()["epoch_size"])
 
-    # Step 3: run uniform reader, verify one sample per video, check frame indices and pixels.
+    # Run uniform reader, verify one sample per video, check frame indices and pixels.
     uniform_reader = ndd.experimental.readers.Video(
         device=device,
         filenames=video_files_sorted,
@@ -306,3 +306,61 @@ def test_uniform_sample(device, sequence_length):
                 expected_frames,
                 err_msg=f"Video {i}: pixel mismatch at linspace positions",
             )
+
+
+@cartesian_params(
+    devices,
+    [5, 1],  # sequence lengths including edge case N=1
+)
+def test_uniform_sample_file_list_roi(device, sequence_length):
+    """Verify uniform_sample with file_list ROI (non-zero start_frame)."""
+    video_file = sorted(VIDEO_FILES)[0]
+
+    # Get total frame count.
+    reader = ndd.experimental.readers.Video(
+        device=device, filenames=[video_file], sequence_length=1, stride=1, step=1
+    )
+    total_frames = reader.get_metadata()["epoch_size"]
+
+    # Define a ROI that excludes the first and last few frames.
+    start_frame = max(1, total_frames // 5)
+    end_frame = min(total_frames - 1, total_frames * 4 // 5)
+    roi_frames = end_frame - start_frame
+    assert roi_frames >= sequence_length, "ROI too small for this test"
+
+    # Write a file_list with the ROI.
+    list_file = tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False)
+    list_file.write(f"{video_file} 0 {start_frame} {end_frame}\n")
+    list_file.close()
+
+    uniform_reader = ndd.experimental.readers.Video(
+        device=device,
+        file_list=list_file.name,
+        file_list_format="frames",
+        sequence_length=sequence_length,
+        uniform_sample=True,
+        enable_frame_num="sequence",
+    )
+    samples = list(uniform_reader.next_epoch())
+    assert len(samples) == 1, f"Expected 1 sample (one per video), got {len(samples)}"
+
+    video, frame_num = samples[0]
+    fn_arr = np.array(frame_num.evaluate().cpu()).flatten()
+    assert len(fn_arr) == sequence_length
+
+    # Frame indices must be absolute (offset from start_frame, not zero).
+    assert fn_arr[0] == start_frame, f"First index should be {start_frame}, got {fn_arr[0]}"
+    if sequence_length > 1:
+        assert (
+            fn_arr[-1] == end_frame - 1
+        ), f"Last index should be {end_frame - 1}, got {fn_arr[-1]}"
+
+    expected_idxs = (
+        start_frame
+        + np.floor(np.linspace(0, roi_frames - 1, sequence_length) + 0.5).astype(np.int32)
+    )
+    np.testing.assert_array_equal(
+        fn_arr,
+        expected_idxs,
+        err_msg=f"Frame index mismatch (start={start_frame}, end={end_frame})",
+    )
