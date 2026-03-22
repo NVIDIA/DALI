@@ -39,4 +39,5 @@ def gaussian_blur(
     else:
         # Passing the same sigma value for each axis reduces to a single value
         sigma = sigma[0]
+
     return ndd.gaussian_blur(inpt, window_size=kernel_size, sigma=sigma, device=device)
