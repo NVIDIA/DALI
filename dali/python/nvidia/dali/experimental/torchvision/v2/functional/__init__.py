@@ -13,15 +13,14 @@
 # limitations under the License.
 
 from .centercrop import center_crop
-<<<<<<< HEAD
 from .color import to_grayscale, rgb_to_grayscale
-=======
->>>>>>> e3d04072 (Torchvision API - center crop operator (#6266))
 from .flips import horizontal_flip, vertical_flip
+from .gaussian_blur import gaussian_blur
 from .resize import resize
 
 __all__ = [
     "center_crop",
+    "gaussian_blur",
     "horizontal_flip",
     "resize",
     "rgb_to_grayscale",

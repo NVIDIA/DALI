@@ -13,20 +13,21 @@
 # limitations under the License.
 
 from typing import Literal
-import torch
-from PIL import Image
 import nvidia.dali.experimental.dynamic as ndd
 import nvidia.dali as dali
+
+import torch
+from PIL import Image
 
 from ..operator import adjust_input, get_HWC_from_layout_dynamic  # noqa: E402
 from ..color import Grayscale  # noqa: E402
 
 
 def _grayscale(
-    inpt: Image.Image | torch.Tensor,
+    inpt: ndd.Tensor | ndd.Batch,
     num_output_channels: int = 1,
     device: Literal["cpu", "gpu"] = "cpu",
-) -> Image.Image | torch.Tensor:
+) -> ndd.Tensor | ndd.Batch:
 
     Grayscale.verify_args(num_output_channels=num_output_channels)
 
@@ -56,6 +57,7 @@ def to_grayscale(
     Please refer to the ``Grayscale`` operator for more details.
     """
     return _grayscale(inpt, num_output_channels, device)
+
 
 @adjust_input
 def rgb_to_grayscale(
