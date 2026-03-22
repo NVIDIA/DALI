@@ -20,6 +20,7 @@ from .v2.gaussian_blur import GaussianBlur
 from .v2.normalize import Normalize
 from .v2.pad import Pad
 from .v2.resize import Resize
+from .v2.gaussian_blur import GaussianBlur
 
 __all__ = [
     "CenterCrop",
