@@ -283,16 +283,16 @@ template <>
 struct AOT_WS_Policy<SeparateQueuePolicy> {
   AOT_WS_Policy() : depths_(0) {}
 
-  ~AOT_WS_Policy() {
+  ~AOT_WS_Policy() noexcept {
     for (auto &q : cpu_workspaces_)
       for (auto &ws : q)
         SetOrder(ws, AccessOrder::host());
     for (auto &q : mixed_workspaces_)
       for (auto &ws : q)
-      SetOrder(ws, AccessOrder::host());
+        SetOrder(ws, AccessOrder::host());
     for (auto &q : gpu_workspaces_)
       for (auto &ws : q)
-      SetOrder(ws, AccessOrder::host());
+        SetOrder(ws, AccessOrder::host());
   }
 
   template <OpType op_type>

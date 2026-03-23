@@ -33,7 +33,7 @@ NewThreadPool::NewThreadPool(
       std::optional<int> device_id,
       bool set_affinity,
       std::string name)
-      : name_(name) {
+      : name_(std::move(name)) {
   if (device_id.has_value() && *device_id == CPU_ONLY_DEVICE_ID)
     device_id = std::nullopt;
   device_id_ = device_id;
