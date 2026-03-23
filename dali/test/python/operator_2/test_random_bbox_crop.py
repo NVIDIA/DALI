@@ -18,6 +18,7 @@ import random
 from tempfile import TemporaryFile
 
 import numpy as np
+from nose2.tools import params
 from nvidia.dali import fn, ops, pipeline_def, types
 from nvidia.dali.pipeline import Pipeline
 
@@ -526,38 +527,43 @@ def test_random_bbox_crop_no_labels():
         pipe.run()
 
 
-def test_crop_window_warning():
+@params(False, True)
+def test_crop_window_warning(quiet):
     n_boxes = [10, 12, 0]
+    n_attempt = 10
     pipe = Pipeline(batch_size=len(n_boxes), num_threads=1, device_id=0, prefetch_queue_depth=1)
 
     def get_boxes():
         return [np.random.uniform(0, 1, size=(n, 4)).astype(np.float32) for n in n_boxes]
 
     boxes = fn.external_source(source=get_boxes)
-    n_attempt = 10
     processed = fn.random_bbox_crop(
         boxes,
-        thresholds=[1.0],  # Impossible threshold to force the warning
+        thresholds=[1.0],  # Impossible threshold to force the failure condition
         bbox_layout="xyXY",
         allow_no_crop=False,
         total_num_attempts=n_attempt,
+        quiet=quiet,
     )
     pipe.set_outputs(*processed)
     with RedirectStdErr() as stderr:
         pipe.run()
         logs = stderr.readlines()
-    n_lines_expected = sum(n > 0 for n in n_boxes)
-    assert (
-        len(logs) == n_lines_expected
-    ), f"Expected {n_lines_expected} lines of output (one for each non-empty sample)"
 
-    expect_str = (
-        "Could not find a valid cropping window to satisfy the specified requirements (attempted"
-        f" {n_attempt} times). Using the best cropping window so far (best_metric=0)"
-    )
-    assert all(
-        line.endswith(expect_str) for line in logs
-    ), f"Not all lines match expected: {expect_str}"
+    if quiet:
+        assert len(logs) == 0, f"Expected no warning with quiet=True, but got: {logs}"
+    else:
+        n_lines_expected = sum(n > 0 for n in n_boxes)
+        assert (
+            len(logs) == n_lines_expected
+        ), f"Expected {n_lines_expected} lines of output (one for each non-empty sample)"
+        expect_str = (
+            "Could not find a valid cropping window to satisfy the specified requirements"
+            f" (attempted {n_attempt} times). Using the best cropping window so far (best_metric=0)"
+        )
+        assert all(
+            line.endswith(expect_str) for line in logs
+        ), f"Not all lines match expected: {expect_str}"
 
 
 def test_empty_sample_shape():
