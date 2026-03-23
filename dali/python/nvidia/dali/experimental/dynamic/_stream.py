@@ -44,14 +44,26 @@ class Stream:
 
     This class wraps a CUDA stream object. It can be either a stream created by DALI or a
     compatible object created by a third-party library.
+
+    .. note::
+        Do not construct this class directly. Use :func:`stream` instead.
+
+    Parameters
+    ----------
+    stream : stream object or Stream.create_new sentinel, optional
+        A compatible stream object to wrap, or ``Stream.create_new`` (default) to create a new
+        stream. Compatible objects include objects exposing ``__cuda_stream__`` interface,
+        PyTorch streams, and raw CUDA stream handles.
+    device_id : int, optional
+        The GPU device ordinal to associate with the stream. If ``stream`` is ``Stream.create_new``,
+        a new stream is created on this device; if not specified, the current CUDA device is used.
+        If ``stream`` is an existing stream object, the device id is inferred from it and this
+        parameter is used only for validation.
     """
 
     create_new = object()
 
     def __init__(self, *, stream=create_new, device_id=None):
-        """
-        Do not construct this class directly. Use :meth:`stream` instead.
-        """
         if stream is None:
             raise ValueError(
                 "The stream must not be None. To create a new stream, omit the stream parameter."
@@ -188,7 +200,7 @@ def set_default_stream(cuda_stream, /, device_id=None):
     .. warning::
         This function is intended to be used once, at the beginning of the program, to set the
         default stream for DALI operations. Calling it affects all default contexts in all threads
-        that haven't set their current streams with a call to :meth:`set_current_stream`.
+        that haven't set their current streams with a call to :func:`set_current_stream`.
     """
     global _global_streams
     if not _global_streams:
@@ -208,7 +220,7 @@ def get_default_stream(device_id=None):
     """Gets the default stream
 
     This stream is used when not overridden by thread's current stream (see
-    :meth:`set_current_stream`).
+    :func:`set_current_stream`).
     """
     if _global_streams is None:
         return None
@@ -226,8 +238,8 @@ def set_current_stream(cuda_stream, /):
     newly created :class:`EvalContext` objects with the current device to use this stream.
 
     Passing ``None`` resets the current thread's default context stream. After that, the value
-    returned by :meth:`get_current_stream` will either point to the value returned by
-    :meth:`get_default_stream` or a new stream.
+    returned by :func:`get_current_stream` will either point to the value returned by
+    :func:`get_default_stream` or a new stream.
 
     .. warning::
         Setting the current stream doesn't establish any synchronization between the work

@@ -41,43 +41,39 @@ class EvalContext:
 
     - CUDA device
     - thread pool
-    - cuda stream.
+    - CUDA stream.
 
     ``EvalContext`` is a context manager.
+
+    Parameters
+    ----------
+    thread_pool : ThreadPool, optional
+        The thread pool which will be used by multi-threaded operators.
+        It must be associated with the same `device_id` as the one passed to this constructor.
+        This parameter is mutually exclusive with `num_threads`.
+    num_threads : int, optional
+        If specified, a new thread pool with this number of threads is created and associated
+        with the context. Note that creating a thread pool constitutes considerable overhead.
+        This argument is mutually exclusive with `thread_pool`.
+    device_id : int, optional
+        The ordinal of the GPU associated with the context. If not specified, the current CUDA
+        device will be used.
+    cuda_stream : stream object, optional
+        The CUDA stream on which GPU operators will be executed. If not provided, the value is
+        assigned by trying several options, in this order:
+
+        1. the thread's default stream, set by calling :func:`set_current_stream`
+        2. the default stream set by calling :func:`set_default_stream`
+        3. a new stream, if neither of the above was set.
+
+        Compatible streams include DALI :class:`Stream`, any object exposing
+        ``__cuda_stream__`` interface, raw CUDA stream handles, and PyTorch streams.
+        See :class:`Stream` for details.
     """
 
     _default_context_stream_sentinel = object()
 
     def __init__(self, *, num_threads=None, device_id=None, cuda_stream=None, thread_pool=None):
-        """
-        Constructs an ``EvalContext`` object.
-
-        Keyword Args
-        ------------
-        thread_pool : ThreadPool, optional
-            The thread pool which will be used by multi-threaded operators.
-            It must be associated with the same `device_id` as the one passed to this function
-            This parameter is mutually exclusive with `num_threads`.
-        num_threads : int, optional
-            If specified, a new thread pool with this number of threads is created and associated
-            with the context. Note that creating a thread pool constitutes considerable overhead.
-            This argument is mutually exclusive with `thread_pool`.
-        device_id : int, optional
-            The ordinal of the GPU associated with the context. If not specified, the current CUDA
-            device will be used.
-        cuda_stream : stream object, optional
-            The cuda_stream on which GPU operators will be executed. If not provided, the value is
-            assigned by trying several options, in this order:
-            - the thread's default stream, set by calling :meth:`set_current_stream`
-            - the default stream set by calling :meth:`set_default_stream`
-            - a new stream, if neither of the above was set.
-            Compatible streams include:
-            - DALI :class:`Stream` class
-            - any object exposing ``__cuda_stream__`` interface
-            - raw CUDA stream handle
-            - PyTorch stream
-            see :class:`Stream` for details.
-        """
         self._invocations = []
         self._default_stream = None
 
@@ -213,8 +209,8 @@ class EvalContext:
         CUDA stream for this ``EvalContext``
 
         .. note::
-            In case of the thread's default context, this value is affected by calls to methods
-            :meth:`set_default_stream` and :meth:`set_current_stream`.
+            In case of the thread's default context, this value is affected by calls to
+            :func:`set_default_stream` and :func:`set_current_stream`.
         """
         if self._cuda_stream is None:
             s = _stream.get_default_stream(self.device_id)

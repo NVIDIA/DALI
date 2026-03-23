@@ -20,22 +20,21 @@ from . import _device
 
 
 class ThreadPool(_b._NewThreadPool):
+    """A pool of worker threads for DALI dynamic mode.
+
+    Parameters
+    ----------
+    num_threads : int, optional
+        The number of threads. If not provided, the value returned by
+        :func:`get_num_threads` is used.
+    device_id : int, optional
+        The GPU device ordinal to associate with the thread pool. If not provided,
+        the current device is used; if None, then no GPU is associated with the thread pool.
+    """
+
     _CURRENT_DEVICE_ID = -1
 
     def __init__(self, num_threads=None, *, device_id=_CURRENT_DEVICE_ID):
-        """
-        Args
-        ----
-        num_threads : int, optional
-            The number of threads. If not provided, the value returned by
-            :func:`get_num_threads` is used.
-
-        Keyword Args
-        ------------
-        device_id : int, optional
-            The GPU device ordinal to associate with the thread pool. If not provided,
-            the current device is used; if None, then no GPU is associated with the thread pool.
-        """
         if device_id == ThreadPool._CURRENT_DEVICE_ID:
             device_id = _device.Device.current().device_id
 

@@ -47,7 +47,6 @@ class RNG:
     """
 
     def __init__(self, seed=None):
-        """Initialize the RNG with an optional seed."""
         if seed is None:
             # Use Python's random to generate a random seed
             seed = _random.randint(0, 2**31 - 1)
