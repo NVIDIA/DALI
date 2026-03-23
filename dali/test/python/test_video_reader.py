@@ -344,7 +344,7 @@ def test_uniform_sample_file_list_roi(device, sequence_length):
         samples = list(uniform_reader.next_epoch())
         assert len(samples) == 1, f"Expected 1 sample (one per video), got {len(samples)}"
 
-        _, frame_num = samples[0]
+        _, _, frame_num = samples[0]
         fn_arr = np.array(frame_num.evaluate().cpu()).flatten()
         assert len(fn_arr) == sequence_length
 
@@ -376,7 +376,7 @@ def test_uniform_sample_file_list_roi(device, sequence_length):
         )
         scalar_samples = list(scalar_reader.next_epoch())
         assert len(scalar_samples) == 1
-        _, scalar_fn = scalar_samples[0]
+        _, _, scalar_fn = scalar_samples[0]
         scalar_val = int(np.array(scalar_fn.evaluate().cpu()).flatten()[0])
         assert (
             scalar_val == start_frame
