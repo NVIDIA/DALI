@@ -370,8 +370,10 @@ def get_HWC_from_layout_dynamic(inpt: ndd.Tensor | ndd.Batch) -> tuple:
 
     if inpt.layout in ["HWC", "NHWC"]:
         return inpt_shape[-3], inpt_shape[-2], inpt_shape[-1]
-    elif inpt.layout in ["HW", "CHW", "NCHW"]:
+    elif inpt.layout in ["CHW", "NCHW"]:
         return inpt_shape[-2], inpt_shape[-1], inpt_shape[-3]
+    elif inpt.layout == "HW":
+        return inpt_shape[-2], inpt_shape[-1], 1
     else:
         raise ValueError(
             f"Unsupported layout: {inpt.layout!r}. Expected one of HWC, NHWC, CHW, NCHW."

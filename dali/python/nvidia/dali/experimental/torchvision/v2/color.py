@@ -12,10 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import numpy as np
 from typing import Sequence, Literal, Optional
-import nvidia.dali.fn as fn
-import nvidia.dali as dali
+
 from .operator import (
     ArgumentVerificationRule,
     DataVerificationRule,
@@ -24,6 +22,10 @@ from .operator import (
     VerifyIfNonNegative,
     get_HWC_from_layout_pipeline,
 )
+
+import numpy as np
+import nvidia.dali as dali
+import nvidia.dali.fn as fn
 
 
 class VerificationBCS(ArgumentVerificationRule):
@@ -47,7 +49,9 @@ class VerificationBCS(ArgumentVerificationRule):
 
         VerifyIfNonNegative.verify(values=param, name=name)
 
-        if not isinstance(param, float):
+        if isinstance(param, float):
+            param = [max(0, 1 - param), 1 + param]
+        else:
             VerifyIfRange.verify(values=param, name=name)
 
     @classmethod
@@ -72,8 +76,10 @@ class VerificationHue(ArgumentVerificationRule):
         if hue is None:
             raise ValueError("hue must not be None")
 
-        if isinstance(hue, float):
-            hue = (-hue, hue)
+        if isinstance(hue, (int, float, Sequence[int], Sequence[float])):
+            raise TypeError(
+                f"Hue must be int, float or a sequence of ints or floats, got {type(hue)}"
+            )
 
         if hue is not None and (len(hue) != 2 or hue[0] < -0.5 or hue[1] > 0.5):
             raise ValueError(f"hue values should be between [-0.5, 0.5], but got {hue}")
@@ -165,18 +171,20 @@ class ColorJitter(Operator):
 
     arg_rules = [VerificationBCS, VerificationHue]
 
-    def _create_param(self, param: float | Sequence[float]):
-        if isinstance(param, float):
-            return [max(0, 1 - param), 1 + param]
+    def _create_param(self, param: int | float | Sequence[int] | Sequence[float]):
+        if isinstance(param, (int, float)):
+            return [max(0.0, 1.0 - param), 1.0 + param]
+        elif isinstance(param, Sequence[int]):
+            return [float(x) for x in param]
         else:
-            return param
+            return float(param)
 
     def __init__(
         self,
-        brightness: Optional[float | Sequence[float]] = 0.0,
-        contrast: Optional[float | Sequence[float]] = 0.0,
-        saturation: Optional[float | Sequence[float]] = 0.0,
-        hue: Optional[float | Sequence[float]] = 0.0,
+        brightness: Optional[int | float | Sequence[float]] = 0.0,
+        contrast: Optional[int | float | Sequence[int] | Sequence[float]] = 0.0,
+        saturation: Optional[int | float | Sequence[int] | Sequence[float]] = 0.0,
+        hue: Optional[int | float | Sequence[int] | Sequence[float]] = 0.0,
         device: Literal["cpu", "gpu"] = "cpu",
     ):
         super().__init__(
@@ -192,8 +200,8 @@ class ColorJitter(Operator):
         self.saturation = self._create_param(saturation)
 
         self.hue = hue
-        if isinstance(hue, float):
-            self.hue = (-hue, hue)
+        if isinstance(hue, (int, float)):
+            self.hue = (-float(hue), float(hue))
 
     def _kernel(self, data_input):
         """
