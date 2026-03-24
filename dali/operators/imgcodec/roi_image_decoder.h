@@ -14,6 +14,7 @@
 #include <map>
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 #include "dali/core/tensor_shape.h"
 #include "dali/operators/generic/slice/slice_attr.h"
@@ -55,7 +56,7 @@ class WithCropAttr : public Decoder, CropAttr {
 
   ROI GetRoi(const OpSpec &spec, const Workspace &ws, std::size_t data_idx,
              TensorShape<> shape) override {
-    return RoiFromCropWindowGenerator(GetCropWindowGenerator(data_idx), shape);
+    return RoiFromCropWindowGenerator(GetCropWindowGenerator(data_idx), std::move(shape));
   }
 };
 
@@ -70,7 +71,8 @@ class WithSliceAttr : public Decoder, SliceAttr {
 
   ROI GetRoi(const OpSpec &spec, const Workspace &ws, std::size_t data_idx,
              TensorShape<> shape) override {
-    return RoiFromCropWindowGenerator(SliceAttr::GetCropWindowGenerator(data_idx), shape);
+    return RoiFromCropWindowGenerator(SliceAttr::GetCropWindowGenerator(data_idx),
+                                       std::move(shape));
   }
 };
 
@@ -84,7 +86,7 @@ class WithRandomCropAttr : public OperatorWithRandomCrop<Decoder> {
 
   ROI GetRoi(const OpSpec &spec, const Workspace &ws, std::size_t data_idx,
              TensorShape<> shape) override {
-    return RoiFromCropWindowGenerator(this->GetCropWindowGenerator(data_idx), shape);
+    return RoiFromCropWindowGenerator(this->GetCropWindowGenerator(data_idx), std::move(shape));
   }
 };
 

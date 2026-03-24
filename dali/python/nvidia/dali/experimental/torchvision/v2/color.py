@@ -51,8 +51,8 @@ class VerificationBCS(ArgumentVerificationRule):
 
         if isinstance(param, (int, float)):
             param = [max(0, 1 - param), 1 + param]
-        else:
-            VerifyIfRange.verify(values=param, name=name)
+
+        VerifyIfRange.verify(values=param, name=name)
 
     @classmethod
     def verify(cls, *, saturation, brightness, contrast, **_) -> None:
