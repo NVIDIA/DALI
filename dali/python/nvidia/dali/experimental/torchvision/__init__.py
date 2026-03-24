@@ -12,11 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from .v2.centercrop import CenterCrop
 from .v2.compose import Compose
 from .v2.flips import RandomHorizontalFlip, RandomVerticalFlip
 from .v2.resize import Resize
 
 __all__ = [
+    "CenterCrop",
     "Compose",
     "RandomHorizontalFlip",
     "RandomVerticalFlip",
