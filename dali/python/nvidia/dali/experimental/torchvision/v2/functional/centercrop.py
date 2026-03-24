@@ -41,9 +41,9 @@ def center_crop(
     else:
         raise TypeError(f"Input must be ndd.Tensor or ndd.Batch, got {type(inpt)}")
 
-    if inpt.layout in ["HWC", "NHWC"]:
+    if inpt.layout[-3:] == "HWC":
         in_h, in_w = inpt_shape[-3], inpt_shape[-2]
-    elif inpt.layout in ["HW", "CHW", "NCHW"]:
+    elif inpt.layout[-2:] in "HW":
         in_h, in_w = inpt_shape[-2], inpt_shape[-1]
     else:
         raise ValueError(
