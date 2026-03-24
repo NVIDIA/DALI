@@ -14,7 +14,7 @@
 
 from typing import Optional, Sequence, Literal
 
-from .operator import Operator, ArgumentVerificationRule
+from .operator import Operator, ArgumentVerificationRule, get_HWC_from_layout_pipeline
 
 import nvidia.dali as dali
 import nvidia.dali.fn as fn
@@ -22,40 +22,6 @@ from nvidia.dali.types import DALIInterpType
 
 from torchvision.transforms import InterpolationMode
 import numpy as np
-
-
-def get_inputHW(data_input):
-    """
-    Gets the height and width of the input data.
-
-    Parameters
-    ----------
-    data_input : Tensor
-       Input data to get the height and width of.
-
-    Returns
-    -------
-    input_height : int
-        Height of the input data.
-    input_width : int
-        Width of the input data.
-    """
-    layout = data_input.property("layout")[0]
-
-    # If data layout is NHWC or NCHW, check the next character
-    if layout == np.frombuffer(bytes("N", "utf-8"), dtype=np.uint8)[0]:
-        layout = data_input.property("layout")[1]
-
-    # CHW
-    if layout == np.frombuffer(bytes("C", "utf-8"), dtype=np.uint8)[0]:
-        input_height = data_input.shape()[-2]
-        input_width = data_input.shape()[-1]
-    # HWC
-    else:
-        input_height = data_input.shape()[-3]
-        input_width = data_input.shape()[-2]
-
-    return input_height, input_width, data_input
 
 
 class VerificationSize(ArgumentVerificationRule):
@@ -133,7 +99,7 @@ class Resize(Operator):
     ]
 
     arg_rules = [VerificationSize]
-    preprocess_data = get_inputHW
+    preprocess_data = get_HWC_from_layout_pipeline
 
     @classmethod
     def infer_effective_size(
@@ -283,7 +249,7 @@ class Resize(Operator):
         ``data_input``.
         """
 
-        in_h, in_w, data_input = data_input
+        in_h, in_w, _, data_input = data_input
 
         target_h, target_w = Resize.calculate_target_size_pipeline_mode(
             (in_h, in_w),

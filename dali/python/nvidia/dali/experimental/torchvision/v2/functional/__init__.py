@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from .centercrop import center_crop
+from .color import to_grayscale, rgb_to_grayscale
 from .flips import horizontal_flip, vertical_flip
 from .resize import resize
 
@@ -20,5 +21,7 @@ __all__ = [
     "center_crop",
     "horizontal_flip",
     "resize",
+    "rgb_to_grayscale",
+    "to_grayscale",
     "vertical_flip",
 ]
