@@ -16,11 +16,7 @@ from typing import Sequence, Literal
 from .operator import Operator, VerifSizeDescriptor
 import nvidia.dali as dali
 import nvidia.dali.fn as fn
-<<<<<<< HEAD
-from .resize import get_inputHW
-=======
 from .operator import get_HWC_from_layout_pipeline
->>>>>>> 1a746657 (Review fixes)
 
 
 class CenterCrop(Operator):
@@ -44,11 +40,7 @@ class CenterCrop(Operator):
     """
 
     arg_rules = [VerifSizeDescriptor]
-<<<<<<< HEAD
-    preprocess_data = get_inputHW
-=======
     preprocess_data = get_HWC_from_layout_pipeline
->>>>>>> 1a746657 (Review fixes)
 
     @classmethod
     def adjust_size(cls, size: int | Sequence[int]) -> Sequence[int]:
@@ -77,11 +69,7 @@ class CenterCrop(Operator):
         If image size is smaller than output size along any edge, image is padded with 0 and then
         center cropped.
         """
-<<<<<<< HEAD
-        in_h, in_w, tensor = data_input
-=======
         in_h, in_w, _, tensor = data_input
->>>>>>> 1a746657 (Review fixes)
         crop_h, crop_w = self.size
 
         # Slack between image and crop along each axis (may be zero or negative).
@@ -97,33 +85,12 @@ class CenterCrop(Operator):
         #   half = floor_half + (floor_half - 2*floor_quarter) * (N - 2*floor_half)
         #        = floor(N/2) + (floor(N/2) % 2) * (N % 2)
         # Adds 1 only when floor(N/2) is odd AND N is odd (i.e. N % 4 == 3).
-<<<<<<< HEAD
         floor_half_h = fn.cast(dali.math.floor(N_h * 0.5), dtype=dali.types.INT32)
         floor_quarter_h = fn.cast(dali.math.floor(N_h * 0.25), dtype=dali.types.INT32)
         half_h = floor_half_h + (floor_half_h - 2 * floor_quarter_h) * (N_h - 2 * floor_half_h)
 
         floor_half_w = fn.cast(dali.math.floor(N_w * 0.5), dtype=dali.types.INT32)
         floor_quarter_w = fn.cast(dali.math.floor(N_w * 0.25), dtype=dali.types.INT32)
-=======
-        floor_half_h = fn.cast(
-            dali.math.floor(fn.cast(N_h, dtype=dali.types.FLOAT) * 0.5),
-            dtype=dali.types.INT32,
-        )
-        floor_quarter_h = fn.cast(
-            dali.math.floor(fn.cast(N_h, dtype=dali.types.FLOAT) * 0.25),
-            dtype=dali.types.INT32,
-        )
-        half_h = floor_half_h + (floor_half_h - 2 * floor_quarter_h) * (N_h - 2 * floor_half_h)
-
-        floor_half_w = fn.cast(
-            dali.math.floor(fn.cast(N_w, dtype=dali.types.FLOAT) * 0.5),
-            dtype=dali.types.INT32,
-        )
-        floor_quarter_w = fn.cast(
-            dali.math.floor(fn.cast(N_w, dtype=dali.types.FLOAT) * 0.25),
-            dtype=dali.types.INT32,
-        )
->>>>>>> 1a746657 (Review fixes)
         half_w = floor_half_w + (floor_half_w - 2 * floor_quarter_w) * (N_w - 2 * floor_half_w)
 
         # Compute normalised position for fn.crop:
@@ -135,7 +102,6 @@ class CenterCrop(Operator):
         #   is_pos   = 1.0 if N > 0, else 0.0
         #   N_safe   = max(N, 1)            <- avoids division by zero
         #   crop_pos = is_pos * (half / N_safe) + (1 - is_pos) * 0.5
-<<<<<<< HEAD
         is_pos_h = N_h > 0
         is_pos_w = N_w > 0
         N_h_safe = dali.math.max(N_h, 1)
@@ -143,29 +109,6 @@ class CenterCrop(Operator):
 
         crop_pos_y = is_pos_h * half_h / N_h_safe + (1.0 - is_pos_h) * 0.5
         crop_pos_x = is_pos_w * half_w / N_w_safe + (1.0 - is_pos_w) * 0.5
-=======
-        is_pos_h = fn.cast(N_h > 0, dtype=dali.types.FLOAT)
-        is_pos_w = fn.cast(N_w > 0, dtype=dali.types.FLOAT)
-        N_h_safe = fn.cast(
-            dali.math.max(fn.cast(N_h, dtype=dali.types.FLOAT), 1.0), dtype=dali.types.INT32
-        )
-        N_w_safe = fn.cast(
-            dali.math.max(fn.cast(N_w, dtype=dali.types.FLOAT), 1.0), dtype=dali.types.INT32
-        )
-
-        crop_pos_y = (
-            is_pos_h
-            * fn.cast(half_h, dtype=dali.types.FLOAT)
-            / fn.cast(N_h_safe, dtype=dali.types.FLOAT)
-            + (1.0 - is_pos_h) * 0.5
-        )
-        crop_pos_x = (
-            is_pos_w
-            * fn.cast(half_w, dtype=dali.types.FLOAT)
-            / fn.cast(N_w_safe, dtype=dali.types.FLOAT)
-            + (1.0 - is_pos_w) * 0.5
-        )
->>>>>>> 1a746657 (Review fixes)
 
         return fn.crop(
             tensor,

@@ -368,11 +368,11 @@ def get_HWC_from_layout_dynamic(inpt: ndd.Tensor | ndd.Batch) -> tuple:
 
     inpt_shape = get_input_shape_dynamic(inpt)
 
-    if inpt.layout in ["HWC", "NHWC"]:
+    if inpt.layout[-3:] == "HWC":
         return inpt_shape[-3], inpt_shape[-2], inpt_shape[-1]
-    elif inpt.layout in ["CHW", "NCHW"]:
+    elif inpt.layout[-3:] == "CHW":
         return inpt_shape[-2], inpt_shape[-1], inpt_shape[-3]
-    elif inpt.layout == "HW":
+    elif inpt.layout[-2:] == "HW":
         return inpt_shape[-2], inpt_shape[-1], 1
     else:
         raise ValueError(

@@ -39,6 +39,7 @@ def center_crop(
 
     # torchvision: crop_top = int(round((H - crop_H) / 2.0))  — banker's rounding
     N_h, N_w = in_h - crop_h, in_w - crop_w
+    # use 0.5 so out_of_bounds_policy pads symmetrically
     crop_pos_y = int(round(N_h / 2.0)) / N_h if N_h > 0 else 0.5
     crop_pos_x = int(round(N_w / 2.0)) / N_w if N_w > 0 else 0.5
 
