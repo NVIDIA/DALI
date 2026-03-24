@@ -85,12 +85,12 @@ class CenterCrop(Operator):
         #   half = floor_half + (floor_half - 2*floor_quarter) * (N - 2*floor_half)
         #        = floor(N/2) + (floor(N/2) % 2) * (N % 2)
         # Adds 1 only when floor(N/2) is odd AND N is odd (i.e. N % 4 == 3).
-        floor_half_h = fn.cast(dali.math.floor(N_h * 0.5), dtype=dali.types.INT32)
-        floor_quarter_h = fn.cast(dali.math.floor(N_h * 0.25), dtype=dali.types.INT32)
+        floor_half_h = N_h // 2
+        floor_quarter_h = N_h // 4
         half_h = floor_half_h + (floor_half_h - 2 * floor_quarter_h) * (N_h - 2 * floor_half_h)
 
-        floor_half_w = fn.cast(dali.math.floor(N_w * 0.5), dtype=dali.types.INT32)
-        floor_quarter_w = fn.cast(dali.math.floor(N_w * 0.25), dtype=dali.types.INT32)
+        floor_half_w = N_w // 2
+        floor_quarter_w = N_w // 4
         half_w = floor_half_w + (floor_half_w - 2 * floor_quarter_w) * (N_w - 2 * floor_half_w)
 
         # Compute normalised position for fn.crop:

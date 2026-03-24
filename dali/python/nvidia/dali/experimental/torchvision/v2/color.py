@@ -43,13 +43,13 @@ class VerificationBCS(ArgumentVerificationRule):
     """
 
     @classmethod
-    def _validate_param(cls, param: float | Sequence[float], name: str):
+    def _validate_param(cls, param: int | float | Sequence[int] | Sequence[float], name: str):
         if param is None:
             raise ValueError(f"{name} must not be None")
 
         VerifyIfNonNegative.verify(values=param, name=name)
 
-        if isinstance(param, float):
+        if isinstance(param, (int, float)):
             param = [max(0, 1 - param), 1 + param]
         else:
             VerifyIfRange.verify(values=param, name=name)
@@ -76,12 +76,12 @@ class VerificationHue(ArgumentVerificationRule):
         if hue is None:
             raise ValueError("hue must not be None")
 
-        if isinstance(hue, (int, float, Sequence[int], Sequence[float])):
-            raise TypeError(
-                f"Hue must be int, float or a sequence of ints or floats, got {type(hue)}"
-            )
+        if isinstance(hue, (int, float)):
+            hue = [hue, hue]
+        else:
+            VerifyIfRange.verify(values=hue, name="hue")
 
-        if hue is not None and (len(hue) != 2 or hue[0] < -0.5 or hue[1] > 0.5):
+        if hue[0] < -0.5 or hue[1] > 0.5:
             raise ValueError(f"hue values should be between [-0.5, 0.5], but got {hue}")
 
 
@@ -174,7 +174,7 @@ class ColorJitter(Operator):
     def _create_param(self, param: int | float | Sequence[int] | Sequence[float]):
         if isinstance(param, (int, float)):
             return [max(0.0, 1.0 - param), 1.0 + param]
-        elif isinstance(param, Sequence[int]):
+        elif isinstance(param, Sequence):
             return [float(x) for x in param]
         else:
             return float(param)
