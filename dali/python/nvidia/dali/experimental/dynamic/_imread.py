@@ -50,8 +50,8 @@ def _imread_impl(filepaths: Union[str, List[str], Tensor, Batch], device: str = 
 
     Note
     ----
-    This function is currently implemented by combining :meth:`io.file.read` and
-    :meth:`decoders.image`, providing a simple interface for loading images
+    This function is currently implemented by combining :func:`io.file.read` and
+    :func:`decoders.image`, providing a simple interface for loading images
     from disk. This may change in the future to provide a more efficient implementation.
 
     Examples
@@ -83,7 +83,7 @@ def _imread_impl(filepaths: Union[str, List[str], Tensor, Batch], device: str = 
     Note
     ----
     The filepath encoding is handled automatically when passing strings.
-    If you already have encoded filepaths as Tensors (from :meth:`io.file.read`
+    If you already have encoded filepaths as Tensors (from :func:`io.file.read`
     documentation format), you can pass them directly.
     """
     from . import io, decoders
