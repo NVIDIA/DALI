@@ -388,12 +388,13 @@ def test_uniform_sample_sequence_length_zero_raises(device):
     """uniform_sample=True with sequence_length=0 should raise an error."""
     video_file = sorted(VIDEO_FILES)[0]
     try:
-        ndd.experimental.readers.Video(
+        reader = ndd.experimental.readers.Video(
             device=device,
             filenames=[video_file],
             sequence_length=0,
             uniform_sample=True,
         )
+        reader.get_metadata()  # force backend initialization to trigger validation
         assert False, "Expected an exception for sequence_length=0 with uniform_sample=True"
     except RuntimeError:
         pass  # expected
