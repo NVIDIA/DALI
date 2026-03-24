@@ -260,6 +260,8 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
 
   void PrepareMetadataImpl() override {
     LOG_LINE << "Starting PrepareMetadataImpl" << std::endl;
+    samples_.clear();
+    all_frame_idxs_.clear();
     if (uniform_sample_)
       all_frame_idxs_.reserve(video_files_info_.size());
     for (size_t i = 0; i < video_files_info_.size(); ++i) {
@@ -409,8 +411,8 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
   FileListOptions file_list_opts_;
 
   std::vector<VideoFileMeta> video_files_info_;
-  std::vector<VideoSampleDesc> samples_;
   std::vector<std::vector<int>> all_frame_idxs_;  // owns frame index data; samples_ hold spans into these
+  std::vector<VideoSampleDesc> samples_;
   CUDAStreamLease cuda_stream_;
 };
 
