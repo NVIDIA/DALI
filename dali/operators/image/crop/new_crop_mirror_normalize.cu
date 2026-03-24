@@ -247,7 +247,6 @@ class NewCropMirrorNormalizeGPU : public StatelessOperator<GPUBackend> {
 
 
     if (impl_kind_ == CmnImplKind::FallbackGeneric) {
-      DALI_WARN_ONCE("using CropMirrorNormalize legacy implementation");
       return fallback_.Setup(output_desc, ws);
     }
     crop_attr_.ProcessArguments(spec_, ws);
