@@ -92,6 +92,20 @@ def _get_module_name(module, legacy_op_class):
     return module_name
 
 
+def _get_caller_depth(has_fn_wrapper: bool):
+    # By default, the call stack is as follows:
+    # - __call__ function
+    # - nvtx decorator
+    # - makefun-generated function
+    # - fn wrapper
+    # - nvtx decorator
+    # - makefun-generation function
+    # As a result we have to skip 6 frames.
+    # There are however exceptions such as reader called explicitly or manually created operators
+    # that don't rely on the fn wrapper. For such cases, we skip only 3 frames.
+    return 6 if has_fn_wrapper else 3
+
+
 def build_operator_class(schema):
     """
     Generates an Operator subclass based on a schema, fills the members and implements the __init__
@@ -296,11 +310,12 @@ def build_call_function(schema, op_class):
             invocation = _invocation.Invocation(
                 self,
                 call_id,
-                inputs,
-                kwargs,
+                inputs=inputs,
+                args=kwargs,
                 is_batch=is_batch,
                 batch_size=batch_size or 1,
                 previous_invocation=self._last_invocation,
+                caller_depth=_get_caller_depth(not _process_params),
             )
 
         if stateful:
