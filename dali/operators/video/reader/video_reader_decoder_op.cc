@@ -76,7 +76,7 @@ class FrameIndexCache {
 
 struct VideoSampleDesc {
   VideoSampleDesc(const VideoFileMeta *video_file_meta = nullptr, int start = -1, int end = -1, int stride = -1)
-      : video_file_meta_(video_file_meta), start_(start), end_(end), stride_(stride), frame_idxs_{} {}
+      : video_file_meta_(video_file_meta), start_(start), end_(end), stride_(stride), frame_idxs_() {}
   const VideoFileMeta *video_file_meta_;
   int start_;
   int end_;
@@ -226,6 +226,8 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
       step_ = stride_ * sequence_len_;
     }
     if (uniform_sample_) {
+      DALI_ENFORCE(sequence_len_ >= 1,
+                   "sequence_length must be at least 1 when uniform_sample=True.");
       if (spec.HasArgument("stride")) {
         DALI_WARN("uniform_sample=True: the `stride` argument is ignored.");
       }

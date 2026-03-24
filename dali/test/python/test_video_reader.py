@@ -381,3 +381,58 @@ def test_uniform_sample_file_list_roi(device, sequence_length):
         assert (
             scalar_val == start_frame
         ), f"Scalar frame_num should be {start_frame} (first sampled index), got {scalar_val}"
+
+
+@cartesian_params(devices)
+def test_uniform_sample_sequence_length_zero_raises(device):
+    """uniform_sample=True with sequence_length=0 should raise an error."""
+    video_file = sorted(VIDEO_FILES)[0]
+    try:
+        ndd.experimental.readers.Video(
+            device=device,
+            filenames=[video_file],
+            sequence_length=0,
+            uniform_sample=True,
+        )
+        assert False, "Expected an exception for sequence_length=0 with uniform_sample=True"
+    except RuntimeError:
+        pass  # expected
+
+
+@cartesian_params(devices)
+def test_uniform_sample_stride_step_ignored(device):
+    """Passing stride/step with uniform_sample=True should not affect the output."""
+    video_file = sorted(VIDEO_FILES)[0]
+    sequence_length = 5
+
+    reader_default = ndd.experimental.readers.Video(
+        device=device,
+        filenames=[video_file],
+        sequence_length=sequence_length,
+        uniform_sample=True,
+        enable_frame_num="sequence",
+    )
+    # stride and step are explicitly provided but should be ignored.
+    reader_with_stride_step = ndd.experimental.readers.Video(
+        device=device,
+        filenames=[video_file],
+        sequence_length=sequence_length,
+        uniform_sample=True,
+        stride=7,
+        step=13,
+        enable_frame_num="sequence",
+    )
+
+    samples_default = list(reader_default.next_epoch())
+    samples_with_stride_step = list(reader_with_stride_step.next_epoch())
+
+    assert len(samples_default) == len(samples_with_stride_step) == 1
+    _, fn_default = samples_default[0]
+    _, fn_stride_step = samples_with_stride_step[0]
+    idxs_default = np.array(fn_default.evaluate().cpu()).flatten()
+    idxs_stride_step = np.array(fn_stride_step.evaluate().cpu()).flatten()
+    np.testing.assert_array_equal(
+        idxs_default,
+        idxs_stride_step,
+        err_msg="stride/step should be ignored when uniform_sample=True",
+    )
