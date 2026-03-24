@@ -53,8 +53,8 @@ class BatchToTensor:
             invocation = _invocation.Invocation(
                 self,
                 None,
-                [batch],
-                {
+                inputs=[batch],
+                args={
                     "pad": pad,
                     "force_copy": force_copy,
                     "device": device,
@@ -64,7 +64,9 @@ class BatchToTensor:
                 is_batch=False,
                 batch_size=None,
                 previous_invocation=None,
-                caller_depth=3,
+                # Increase the caller depth because this operator is used only internally
+                # This allows us to skip the internal frame to point to the user code
+                caller_depth=_op_builder._get_caller_depth(False) + 1,
             )
         invocation.apply_eval_policy(_op_builder.is_external(batch))
         return Tensor(invocation_result=invocation[0])

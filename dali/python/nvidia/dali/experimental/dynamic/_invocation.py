@@ -50,7 +50,7 @@ class Invocation:
         is_batch: bool = False,
         batch_size: Optional[int] = None,
         previous_invocation: Optional["Invocation"] = None,
-        caller_depth: int = 4,
+        caller_depth: int | None = None,
     ):
         """
         Parameters
@@ -90,11 +90,10 @@ class Invocation:
         self._eval_mode: _EvalMode | None = None
         self._future: Optional[_Future] = None
         self._run_lock = threading.Lock()
-        self._call_stack = (
-            capture_stack(caller_depth + 1)
-            if _EvalMode.current().value <= _EvalMode.eager.value
-            else None
-        )
+        if caller_depth is not None and _EvalMode.current().value <= _EvalMode.eager.value:
+            self._call_stack = capture_stack(caller_depth + 1)
+        else:
+            self._call_stack = None
 
         if hasattr(self._operator, "_cache"):
             self._return_op_to_cache = weakref.finalize(
