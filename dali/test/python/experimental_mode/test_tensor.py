@@ -423,3 +423,25 @@ def test_batch_to_tensor_no_pad_error():
     data = ragged("cpu")
     with assert_raises(ValueError):
         ndd.as_tensor(data, pad=False).evaluate()
+
+
+@eval_modes()
+@params(
+    (np.int32,),
+    (np.float32,),
+    (np.uint8,),
+)
+def test_from_readonly_numpy(dtype):
+    data = np.array([[1, 2, 3], [4, 5, 6]], dtype=dtype)
+    data.flags.writeable = False
+    t = ndd.as_tensor(data).evaluate()
+    assert np.array_equal(np.array(t._storage), data)
+    assert t.shape == (2, 3)
+
+
+@eval_modes()
+def test_from_readonly_numpy_scalar():
+    data = np.array(42, dtype=np.int32)
+    data.flags.writeable = False
+    t = ndd.as_tensor(data).evaluate()
+    assert int(np.array(t._storage)) == 42
