@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2022-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -47,7 +47,7 @@ import optree
 
 
 def _data_node_repr(data_node):
-    return f"DataNode(name={data_node.name}, device={data_node.device}, source={data_node.source})"
+    return repr(data_node)
 
 
 def _map_structure(func, *structures, **kwargs):

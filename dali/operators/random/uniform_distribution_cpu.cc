@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -49,7 +49,18 @@ This argument is mutually exclusive with `values`.
 
 This argument is mutually exclusive with `range`.)code",
       nullptr, true)
-    .AddParent("RNGAttr");
+    .AddParent("RNGAttr")
+    .OutputNDim(0, [](const OpSpec &spec) -> std::optional<int> {
+      if (spec.NumInput() > 1)
+        return spec.InputDesc(0).ndim;
+      std::vector<int> shape;
+      if (spec.TryGetArgument(shape, "shape"))
+        return static_cast<int>(shape.size());
+      if (spec.ArgumentDefined("shape"))  // shape specified but no workspace
+        return std::nullopt;
+      return 0;
+    })
+    .OutputLayout(0, "");
 
 DALI_REGISTER_OPERATOR(random__Uniform, UniformDistribution<CPUBackend>, CPU);
 

@@ -1,4 +1,4 @@
-// Copyright (c) 2023-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2023-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -161,7 +161,8 @@ The implementation uses NVIDIA nvImageCodec to decode images.
   .NumInput(1)
   .NumOutput(1)
   .AddParent("ImgcodecDecoderAttr")
-  .AddParent("CachedDecoderAttr");
+  .AddParent("CachedDecoderAttr")
+  .OutputLayout(0, "HWC");
 
 DALI_SCHEMA(experimental__decoders__ImageCrop)
   .DocStr(R"code(Decodes images and extracts regions-of-interest (ROI) that are specified
@@ -189,7 +190,8 @@ When possible, the operator uses the ROI decoding, reducing the decoding time an
   .NumInput(1)
   .NumOutput(1)
   .AddParent("ImgcodecDecoderAttr")
-  .AddParent("CropAttr");
+  .AddParent("CropAttr")
+  .OutputLayout(0, "HWC");
 
 
 DALI_SCHEMA(experimental__decoders__ImageSlice)
@@ -259,7 +261,8 @@ of the slice (s0, s1, s2, …).
 
 Integer coordinates are interpreted as absolute coordinates, while float coordinates can be
 interpreted as absolute or relative coordinates, depending on the value of
-`normalized_shape`.)code");
+`normalized_shape`.)code")
+  .OutputLayout(0, "HWC");
 
 
 DALI_SCHEMA(experimental__decoders__ImageRandomCrop)
@@ -289,7 +292,8 @@ When possible, the operator uses the ROI decoding, reducing the decoding time an
   .NumInput(1)
   .NumOutput(1)
   .AddParent("ImgcodecDecoderAttr")
-  .AddParent("RandomCropAttr");
+  .AddParent("RandomCropAttr")
+  .OutputLayout(0, "HWC");
 
 }  // namespace imgcodec
 }  // namespace dali

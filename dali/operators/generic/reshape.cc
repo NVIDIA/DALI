@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -24,6 +24,16 @@
 #include "dali/pipeline/operator/name_utils.h"
 
 namespace dali {
+
+inline std::optional<int> ReshapeNDimFunc(const OpSpec &spec) {
+  std::vector<int> shape;
+  if (spec.TryGetRepeatedArgument(shape, "shape"))
+    return shape.size();
+  std::vector<float> rel_shape;
+  if (spec.TryGetRepeatedArgument(rel_shape, "rel_shape"))
+    return rel_shape.size();
+  return std::nullopt;
+}
 
 DALI_SCHEMA(Reshape)
   .DocStr(R"code(Treats content of the input as if it had a different shape and/or layout.
@@ -94,7 +104,8 @@ extents in `rel_shape` describe to the target dimensions. In the example above, 
 ``rel_shape = [-1, 0.5, 2]`` would result in the output shape ``[1, 100, 600]``.
 
 All indices must be in the range of valid dimensions of the input, or -1.)code",
-                  nullptr, true);
+                  nullptr, true)
+  .OutputNDim(0, ReshapeNDimFunc);
 
 DALI_SCHEMA(Reinterpret)
   .DocStr(R"(Treats content of the input as if it had a different type, shape, and/or layout.

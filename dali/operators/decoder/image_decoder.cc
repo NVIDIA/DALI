@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -191,7 +191,10 @@ Please note that GPU acceleration for JPEG 2000 decoding is only available for C
   .NumInput(1)
   .NumOutput(1)
   .AddParent("ImageDecoderAttr")
-  .AddParent("CachedDecoderAttr");
+  .AddParent("CachedDecoderAttr")
+  .OutputDType(0, DALI_UINT8)
+  .OutputNDim(0, 3)
+  .OutputLayout(0, "HWC");
 
 // Fused
 
@@ -309,7 +312,10 @@ of the slice (s0, s1, s2, …).
 
 Integer coordinates are interpreted as absolute coordinates, while float coordinates can be
 interpreted as absolute or relative coordinates, depending on the value of
-`normalized_shape`.)code");
+`normalized_shape`.)code")
+  .OutputDType(0, DALI_UINT8)
+  .OutputNDim(0, 3)
+  .OutputLayout(0, "HWC");
 
 
 // Deprecated aliases

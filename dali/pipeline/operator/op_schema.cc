@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -239,6 +239,30 @@ OpSchema &OpSchema::OutputFn(SpecFunc f) {
 
 OpSchema &OpSchema::AdditionalOutputsFn(SpecFunc f) {
   additional_outputs_fn_ = std::move(f);
+  return *this;
+}
+
+
+OpSchema &OpSchema::OutputDType(int index, OutputDTypeFunc fn) {
+  if (static_cast<int>(output_dtype_fn_.size()) <= index)
+    output_dtype_fn_.resize(index + 1);
+  output_dtype_fn_[index] = std::move(fn);
+  return *this;
+}
+
+
+OpSchema &OpSchema::OutputNDim(int index, OutputNDimFunc fn) {
+  if (static_cast<int>(output_ndim_fn_.size()) <= index)
+    output_ndim_fn_.resize(index + 1);
+  output_ndim_fn_[index] = std::move(fn);
+  return *this;
+}
+
+
+OpSchema &OpSchema::OutputLayout(int index, OutputLayoutFunc fn) {
+  if (static_cast<int>(output_layout_fn_.size()) <= index)
+    output_layout_fn_.resize(index + 1);
+  output_layout_fn_[index] = std::move(fn);
   return *this;
 }
 
@@ -905,6 +929,93 @@ DLL_PUBLIC int OpSchema::CalculateAdditionalOutputs(const OpSpec &spec) const {
   if (!additional_outputs_fn_)
     return 0;
   return additional_outputs_fn_(spec);
+}
+
+
+std::optional<DALIDataType>
+OpSchema::CalculateOutputDType(int output_idx, const OpSpec &spec) const {
+  const decltype(output_dtype_fn_) &output_dtype_fn = [&]() {
+    if (!output_dtype_fn_.empty())
+      return output_dtype_fn_;
+    for (auto *parent : GetParents())
+      if (!parent->output_dtype_fn_.empty())
+        return parent->output_dtype_fn_;
+    return output_dtype_fn_;
+  }();
+
+  // Default policy for output 0:
+  // use "dtype" argument (if present) or copy the dtype of the 1st input
+  if (output_idx == 0 && (output_dtype_fn.empty() || !output_dtype_fn[0])) {
+    DALIDataType dtype;
+    if (spec.TryGetArgument(dtype, "dtype") && dtype != DALI_NO_TYPE)
+      return dtype;
+    if (spec.NumInput() >= 1)
+      return spec.InputDesc(0).dtype;
+  }
+
+  if (output_idx >= static_cast<int>(output_dtype_fn.size()) || !output_dtype_fn[output_idx])
+    return std::nullopt;
+  return output_dtype_fn[output_idx](spec);
+}
+
+
+std::optional<int> OpSchema::CalculateOutputNDim(int output_idx, const OpSpec &spec) const {
+  const decltype(output_ndim_fn_) &output_ndim_fn = [&]() {
+    if (!output_ndim_fn_.empty())
+      return output_ndim_fn_;
+    for (auto *parent : GetParents())
+      if (!parent->output_ndim_fn_.empty())
+        return parent->output_ndim_fn_;
+    return output_ndim_fn_;
+  }();
+
+  // Default policy for output 0:
+  // use output layout's length (if present) or copy the ndim of the 1st input
+  if (output_idx == 0 && (output_ndim_fn_.empty() || !output_ndim_fn_[0])) {
+    auto out_layout = CalculateOutputLayout(output_idx, spec);
+    if (out_layout.has_value() && out_layout->ndim())
+      return out_layout->ndim();
+
+    if (spec.NumInput() >= 1)
+      return spec.InputDesc(0).ndim;
+  }
+
+  if (output_idx >= static_cast<int>(output_ndim_fn_.size()) || !output_ndim_fn_[output_idx])
+    return std::nullopt;
+  return output_ndim_fn_[output_idx](spec);
+}
+
+
+std::optional<TensorLayout>
+OpSchema::CalculateOutputLayout(int output_idx, const OpSpec &spec) const {
+  const decltype(output_layout_fn_) &output_layout_fn = [&]() {
+    if (!output_layout_fn_.empty())
+      return output_layout_fn_;
+    for (auto *parent : GetParents())
+      if (!parent->output_layout_fn_.empty())
+        return parent->output_layout_fn_;
+    return output_layout_fn_;
+  }();
+
+  // Default policy for output 0:
+  // 1. Try "layout" or "output_layout" arguments - if present, return
+  // 2. If there's at least one input and the output 0 ndim matches the input, use input's layout
+  if (output_idx == 0 && (output_layout_fn_.empty() || !output_layout_fn_[0])) {
+    TensorLayout tl;
+    if (spec.TryGetArgument(tl, "layout") || spec.TryGetArgument(tl, "output_layout"))
+      return tl;
+    if (spec.NumInput() >= 1) {
+      if (!output_ndim_fn_.empty() && output_ndim_fn_[0])  {
+        if (output_ndim_fn_[0](spec) != spec.InputDesc(0).ndim)
+          return std::nullopt;
+      }
+      return spec.InputDesc(0).layout;
+    }
+  }
+
+  if (output_idx >= static_cast<int>(output_layout_fn_.size()) || !output_layout_fn_[output_idx])
+    return std::nullopt;
+  return output_layout_fn_[output_idx](spec);
 }
 
 

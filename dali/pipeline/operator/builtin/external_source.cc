@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -72,7 +72,14 @@ Specifying the input dimensionality will be required starting from DALI 2.0)code
                                               "If provided, sets the layout of the data.", nullptr)
                 .AddOptionalArg("repeat_last", R"(If set, the last batch is re-fed when running
 the operator and no new data was provided since the previous run.)", false)
-                .AddParent("InputOperatorBase");
+                .AddParent("InputOperatorBase")
+                .OutputNDim(0, [](const OpSpec &spec)->std::optional<int> {
+                  int ndim;
+                  if (spec.TryGetArgument(ndim, "ndim"))
+                    return ndim;
+                  else
+                    return {};
+                });
 
 
 DALI_REGISTER_OPERATOR(ExternalSource, ExternalSource<CPUBackend>, CPU);

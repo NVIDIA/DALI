@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@
 #include <functional>
 #include <map>
 #include <memory>
+#include <optional>
 #include <set>
 #include <string>
 #include <string_view>
@@ -47,12 +48,23 @@ namespace dali {
  */
 class DLL_PUBLIC OpSpec {
  public:
-  struct InOutDeviceDesc {
+  struct InOutDesc {
     std::string name;
     StorageDevice device;
+    std::optional<int> ndim;
+    std::optional<DALIDataType> dtype;
+    std::optional<TensorLayout> layout;
 
-    bool operator<(const InOutDeviceDesc &other) const {
-      return std::tie(name, device) < std::tie(other.name, other.device);
+    bool has_metadata() const {
+      return ndim || dtype || layout;
+    }
+
+    auto as_tuple() & { return std::tie(name, device, ndim, dtype, layout); }
+    auto as_tuple() const & { return std::tie(name, device, ndim, dtype, layout); }
+    auto as_tuple() && { return std::make_tuple(name, device, ndim, dtype, layout); }
+
+    bool operator<(const InOutDesc &other) const {
+      return as_tuple() < other.as_tuple();
     }
 
     template <typename NameT, typename DeviceT>
@@ -61,7 +73,7 @@ class DLL_PUBLIC OpSpec {
     }
 
     template <typename NameT, typename DeviceT>
-    friend bool operator<(const std::tuple<NameT, DeviceT> &l, const InOutDeviceDesc &r) {
+    friend bool operator<(const std::tuple<NameT, DeviceT> &l, const InOutDesc &r) {
       return l < std::tie(r.name, r.device);
     }
   };
@@ -186,7 +198,12 @@ class DLL_PUBLIC OpSpec {
    * which inputs are added to the OpSpec is the order in
    * which the Operator will receive them.
    */
-  OpSpec &AddInput(std::string name, StorageDevice device, bool regular_input = true);
+  OpSpec &AddInput(
+      std::string name,
+      StorageDevice device,
+      std::optional<int> ndim = std::nullopt,
+      std::optional<DALIDataType> dtype = std::nullopt,
+      const std::optional<TensorLayout> &layout = std::nullopt);
 
   /**
    * @brief Specifies the argument input to the op.
@@ -194,7 +211,12 @@ class DLL_PUBLIC OpSpec {
    * per-iteration arguments. The input may be added only if
    * corresponding argument exists in the schema.
    */
-  OpSpec &AddArgumentInput(std::string arg_name, std::string inp_name);
+  OpSpec &AddArgumentInput(
+      std::string arg_name,
+      std::string inp_name,
+      std::optional<int> ndim = std::nullopt,
+      std::optional<DALIDataType> dtype = std::nullopt,
+      const std::optional<TensorLayout> &layout = std::nullopt);
 
   /**
    * @brief Specifies the name and device (cpu or gpu) of an
@@ -224,7 +246,7 @@ class DLL_PUBLIC OpSpec {
     return TensorName(inputs_[idx].name, inputs_[idx].device);
   }
 
-  string InputName(int idx) const {
+  const std::string &InputName(int idx) const & {
     DALI_ENFORCE_VALID_INDEX(idx, NumInput());
     return inputs_[idx].name;
   }
@@ -239,7 +261,7 @@ class DLL_PUBLIC OpSpec {
     return idx >= NumRegularInput();
   }
 
-  std::string ArgumentInputName(int idx) const {
+  const std::string &ArgumentInputName(int idx) const & {
     DALI_ENFORCE(IsArgumentInput(idx),
         make_string("Index ", idx, " does not correspond to valid argument input."));
     return argument_inputs_[idx - NumRegularInput()].first;
@@ -257,7 +279,7 @@ class DLL_PUBLIC OpSpec {
     return TensorName(outputs_[idx].name, outputs_[idx].device);
   }
 
-  string OutputName(int idx) const {
+  const string &OutputName(int idx) const & {
     DALI_ENFORCE_VALID_INDEX(idx, NumOutput());
     return outputs_[idx].name;
   }
@@ -374,12 +396,17 @@ class DLL_PUBLIC OpSpec {
     return TryGetRepeatedArgumentImpl<S>(result, name);
   }
 
-  InOutDeviceDesc& MutableInput(int idx) {
+  const InOutDesc &InputDesc(int idx) const {
     DALI_ENFORCE_VALID_INDEX(idx, NumInput());
     return inputs_[idx];
   }
 
-  InOutDeviceDesc& MutableOutput(int idx) {
+  InOutDesc &MutableInputDesc(int idx) {
+    DALI_ENFORCE_VALID_INDEX(idx, NumInput());
+    return inputs_[idx];
+  }
+
+  const InOutDesc &OutputDesc(int idx) const {
     DALI_ENFORCE_VALID_INDEX(idx, NumOutput());
     return outputs_[idx];
   }
@@ -400,6 +427,9 @@ class DLL_PUBLIC OpSpec {
     }
     return ss.str();
   }
+
+  // Computes the metadata (dtype, ndim, layout) of the outputs
+  void InferOutputMetadata();
 
  private:
   template <typename T, typename S>
@@ -449,6 +479,8 @@ class DLL_PUBLIC OpSpec {
   string schema_name_;
   const OpSchema *schema_ = nullptr;
 
+  bool output_metadata_inferred_ = false;
+
   // the list of arguments, in addition order
   std::vector<std::shared_ptr<Argument>> arguments_;
   // maps names to argument indices
@@ -463,8 +495,8 @@ class DLL_PUBLIC OpSpec {
   // Maps regular_argument -> deprecated_argument
   std::map<std::string, std::string, std::less<>> set_through_deprecated_arguments_;
 
-  vector<InOutDeviceDesc> inputs_, outputs_;
-  std::map<InOutDeviceDesc, int, std::less<>> output_name_idx_;
+  vector<InOutDesc> inputs_, outputs_;
+  std::map<InOutDesc, int, std::less<>> output_name_idx_;
 };
 
 
