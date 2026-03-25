@@ -13,12 +13,21 @@
 # limitations under the License.
 
 from .centercrop import center_crop
+from .color import to_grayscale, rgb_to_grayscale
 from .flips import horizontal_flip, vertical_flip
+from .gaussian_blur import gaussian_blur
+from .normalize import normalize
+from .pad import pad
 from .resize import resize
 
 __all__ = [
     "center_crop",
+    "gaussian_blur",
     "horizontal_flip",
+    "normalize",
+    "pad",
     "resize",
+    "rgb_to_grayscale",
+    "to_grayscale",
     "vertical_flip",
 ]
