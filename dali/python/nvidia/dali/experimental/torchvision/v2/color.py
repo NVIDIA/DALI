@@ -76,11 +76,8 @@ class VerificationHue(ArgumentVerificationRule):
         if hue is None:
             raise ValueError("hue must not be None")
 
-        if isinstance(hue, float):
-            hue = (-hue, hue)
-
         if isinstance(hue, (int, float)):
-            hue = [hue, hue]
+            hue = (-float(hue), float(hue))
         else:
             VerifyIfRange.verify(values=hue, name="hue")
 
