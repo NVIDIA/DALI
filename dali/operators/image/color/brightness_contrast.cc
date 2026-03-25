@@ -89,15 +89,7 @@ This operator can also change the type of data.)code")
     .NumOutput(1)
     .AllowSequences()
     .SupportVolumetric()
-    .InputLayout({"FHWC", "DHWC", "HWC"})
-    .OutputDType(0, [](const OpSpec &spec, span<const DALIDataType> in) {
-      DALIDataType dtype;
-      if (spec.TryGetArgument(dtype, "dtype"))
-        return dtype;
-      return in[0];
-    })
-    .OutputNdim(0, [](const OpSpec &, span<const int> in) { return in[0]; })
-    .OutputLayout(0, [](const OpSpec &, span<const TensorLayout> in) { return in[0]; });
+    .InputLayout({"FHWC", "DHWC", "HWC"});
 
 DALI_REGISTER_OPERATOR(BrightnessContrast, BrightnessContrastCpu, CPU)
 DALI_REGISTER_OPERATOR(Brightness, BrightnessContrastCpu, CPU);

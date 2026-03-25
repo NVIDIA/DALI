@@ -34,10 +34,7 @@ and depthwise).)code")
     .AddOptionalArg("depthwise", R"code(Flip the depthwise dimension.)code", 0, true)
     .InputLayout({"FDHWC", "FHWC", "DHWC", "HWC", "FCDHW", "FCHW", "CDHW", "CHW"})
     .AllowSequences()
-    .SupportVolumetric()
-    .OutputDType(0, [](const OpSpec &, span<const DALIDataType> in) { return in[0]; })
-    .OutputNdim(0, [](const OpSpec &, span<const int> in) { return in[0]; })
-    .OutputLayout(0, [](const OpSpec &, span<const TensorLayout> in) { return in[0]; });
+    .SupportVolumetric();
 
 
 template <>

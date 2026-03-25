@@ -43,7 +43,47 @@ layout will be empty.")code")
   .AddOptionalArg("new_axis_names", R"code(Names of the new dimensions in the data layout.
 
 The length of `new_axis_names` must match the length of `axes`.
-If argument isn't be provided, the layout will be cleared.)code", TensorLayout(""));
+If argument isn't be provided, the layout will be cleared.)code", TensorLayout(""))
+  .OutputNDim(0, [](const OpSpec &spec)->std::optional<int> {
+    auto &desc = spec.InputDesc(0);
+    if (!desc.ndim)
+      return std::nullopt;
+    return *desc.ndim + spec.GetRepeatedArgument<int>("axes").size();
+  })
+  .OutputLayout(0, [](const OpSpec &spec)->std::optional<TensorLayout> {
+    auto &desc = spec.InputDesc(0);
+    if (!desc.layout)
+      return std::nullopt;
+
+    auto axes = spec.GetRepeatedArgument<int>("axes");
+    if (axes.empty())
+      return desc.layout;
+
+    auto names = spec.GetArgument<TensorLayout>("axis_names");
+    int num_new_axes = ssize(axes);
+    if (num_new_axes != names.ndim())
+      return "";
+
+    SmallVector<std::pair<int, char>, 6> ind_with_layout;
+    for (size_t i = 0; i < axes.size(); i++) {
+      ind_with_layout.push_back({ i, names[i] });
+    }
+    std::sort(ind_with_layout.begin(), ind_with_layout.end());
+
+    TensorLayout out_layout = "";
+    int out_ndim = desc.layout->ndim() + names.ndim();
+    int src_axis = 0;
+    int new_axis = 0;
+    for (int j = 0; j < out_ndim; j++) {
+      if (new_axis < num_new_axes && axes[new_axis] == j) {  // inserting new axis
+        out_layout += names[new_axis++];
+      } else {
+        assert(src_axis < desc.layout->ndim());
+        out_layout += (*desc.layout)[src_axis++];
+      }
+    }
+    return out_layout;
+  });
 
 template <typename Backend>
 ExpandDims<Backend>::ExpandDims(const OpSpec &spec)

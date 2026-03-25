@@ -36,15 +36,7 @@ DALI_SCHEMA(Crop)
     .DeprecateArg("image_type", "0.24")
     .AddParent("CropAttr")
     .AddParent("OutOfBoundsAttr")
-    .AddParent("SliceBase")
-    .OutputDType(0, [](const OpSpec &spec, span<const DALIDataType> in) {
-      DALIDataType dtype;
-      if (spec.TryGetArgument(dtype, "dtype"))
-        return dtype;
-      return in[0];
-    })
-    .OutputNdim(0, [](const OpSpec &, span<const int> in) { return in[0]; })
-    .OutputLayout(0, [](const OpSpec &, span<const TensorLayout> in) { return in[0]; });
+    .AddParent("SliceBase");
 
 // Register operator
 DALI_REGISTER_OPERATOR(Crop, Crop<CPUBackend>, CPU);

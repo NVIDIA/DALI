@@ -264,85 +264,44 @@ TEST(OpSchemaTest, OptionalHiddenArg) {
 
 DALI_SCHEMA(DummyPassthrough)
   .NumInput(1)
-  .NumOutput(1)
-  .OutputDType(0, [](const OpSpec &, span<const DALIDataType> in) { return in[0]; })
-  .OutputNdim(0, [](const OpSpec &, span<const int> in) { return in[0]; })
-  .OutputLayout(0, [](const OpSpec &, span<const TensorLayout> in) { return in[0]; });
+  .NumOutput(1);
 
 TEST(OpSchemaTest, OutputMetadataPassthrough) {
   auto &schema = SchemaRegistry::GetSchema("DummyPassthrough");
-  auto spec = OpSpec("DummyPassthrough").AddInput("in", StorageDevice::CPU);
+  auto spec = OpSpec("DummyPassthrough").AddInput("in", StorageDevice::CPU, 3, DALI_FLOAT, "HWC");
 
-  DALIDataType dtypes[] = {DALI_FLOAT};
-  ASSERT_EQ(schema.CalculateOutputDType(0, spec, {dtypes, 1}), DALI_FLOAT);
-
-  int ndims[] = {3};
-  ASSERT_EQ(schema.CalculateOutputNdim(0, spec, {ndims, 1}), 3);
-
-  TensorLayout layouts[] = {TensorLayout("HWC")};
-  ASSERT_EQ(schema.CalculateOutputLayout(0, spec, {layouts, 1}), TensorLayout("HWC"));
-}
-
-DALI_SCHEMA(DummyNoCallbacks)
-  .NumInput(1)
-  .NumOutput(1);
-
-TEST(OpSchemaTest, OutputMetadataNoCallbacks) {
-  auto &schema = SchemaRegistry::GetSchema("DummyNoCallbacks");
-  auto spec = OpSpec("DummyNoCallbacks").AddInput("in", StorageDevice::CPU);
-
-  ASSERT_FALSE(schema.CalculateOutputDType(0, spec, {}).has_value());
-  ASSERT_FALSE(schema.CalculateOutputNdim(0, spec, {}).has_value());
-  ASSERT_FALSE(schema.CalculateOutputLayout(0, spec, {}).has_value());
+  ASSERT_EQ(schema.CalculateOutputDType(0, spec), DALI_FLOAT);
+  ASSERT_EQ(schema.CalculateOutputNDim(0, spec), 3);
+  ASSERT_EQ(schema.CalculateOutputLayout(0, spec), TensorLayout("HWC"));
 }
 
 DALI_SCHEMA(DummyPartialCallbacks)
   .NumInput(0)
   .NumOutput(1)
-  .OutputDType(0, [](const OpSpec &, span<const DALIDataType>) { return DALI_BOOL; });
+  .OutputLayout(0, [](const OpSpec &) { return "abcd"; });
 
 TEST(OpSchemaTest, OutputMetadataPartial) {
   auto &schema = SchemaRegistry::GetSchema("DummyPartialCallbacks");
-  auto spec = OpSpec("DummyPartialCallbacks");
+  auto spec = OpSpec("DummyPassthrough").AddInput("in", StorageDevice::CPU, 3, DALI_FLOAT, "HWC");
 
-  ASSERT_EQ(schema.CalculateOutputDType(0, spec, {}), DALI_BOOL);
-  ASSERT_FALSE(schema.CalculateOutputNdim(0, spec, {}).has_value());
-  ASSERT_FALSE(schema.CalculateOutputLayout(0, spec, {}).has_value());
+  ASSERT_EQ(schema.CalculateOutputDType(0, spec), DALI_FLOAT);  // from input
+  ASSERT_EQ(schema.CalculateOutputNDim(0, spec), 4);  // from layout
+  ASSERT_EQ(schema.CalculateOutputLayout(0, spec), TensorLayout("abcd"));  // from callback
 }
 
 DALI_SCHEMA(DummyMultiOutput)
   .NumInput(1)
   .NumOutput(3)
-  .OutputDType(0, [](const OpSpec &, span<const DALIDataType> in) { return in[0]; })
-  .OutputDType(1, [](const OpSpec &, span<const DALIDataType>) { return DALI_INT32; });
+  .OutputDType(1, DALI_INT32);
 
 TEST(OpSchemaTest, OutputMetadataMultiOutput) {
   auto &schema = SchemaRegistry::GetSchema("DummyMultiOutput");
-  auto spec = OpSpec("DummyMultiOutput").AddInput("in", StorageDevice::CPU);
+  auto spec = OpSpec("DummyMultiOutput").AddInput("in", StorageDevice::CPU, {}, DALI_FLOAT);
 
-  DALIDataType dtypes[] = {DALI_FLOAT};
-  ASSERT_EQ(schema.CalculateOutputDType(0, spec, {dtypes, 1}), DALI_FLOAT);
-  ASSERT_EQ(schema.CalculateOutputDType(1, spec, {dtypes, 1}), DALI_INT32);
-  ASSERT_FALSE(schema.CalculateOutputDType(2, spec, {dtypes, 1}).has_value());
-  ASSERT_FALSE(schema.CalculateOutputNdim(0, spec, {}).has_value());
-}
-
-DALI_SCHEMA(DummyConditionalNdim)
-  .NumInput(0, 1)
-  .NumOutput(1)
-  .OutputNdim(0, [](const OpSpec &, span<const int> in) -> std::optional<int> {
-    if (!in.empty())
-      return in[0];
-    return std::nullopt;
-  });
-
-TEST(OpSchemaTest, OutputMetadataConditionalCallback) {
-  auto &schema = SchemaRegistry::GetSchema("DummyConditionalNdim");
-  auto spec = OpSpec("DummyConditionalNdim");
-
-  int ndims[] = {4};
-  ASSERT_EQ(schema.CalculateOutputNdim(0, spec, {ndims, 1}), 4);
-  ASSERT_FALSE(schema.CalculateOutputNdim(0, spec, {}).has_value());
+  ASSERT_EQ(schema.CalculateOutputDType(0, spec), DALI_FLOAT);
+  ASSERT_EQ(schema.CalculateOutputDType(1, spec), DALI_INT32);
+  ASSERT_FALSE(schema.CalculateOutputDType(2, spec).has_value());
+  ASSERT_FALSE(schema.CalculateOutputNDim(0, spec).has_value());
 }
 
 }  // namespace dali

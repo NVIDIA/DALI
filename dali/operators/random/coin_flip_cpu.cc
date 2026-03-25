@@ -36,23 +36,23 @@ a single value per sample is generated.
       R"code(Probability of value 1.)code",
       0.5f, true)
     .AddParent("RNGAttr")
-    .OutputDType(0, [](const OpSpec &spec, span<const DALIDataType>) {
+    .OutputDType(0, [](const OpSpec &spec) {
       DALIDataType dtype;
       if (spec.TryGetArgument(dtype, "dtype"))
         return dtype;
       return DALI_INT32;
     })
-    .OutputNdim(0, [](const OpSpec &spec, span<const int> in) -> std::optional<int> {
-      if (!in.empty())
-        return in[0];
+    .OutputNDim(0, [](const OpSpec &spec) -> std::optional<int> {
+      if (spec.NumInput() >= 1)
+        return spec.InputDesc(0).ndim;
       std::vector<int> shape;
       if (spec.TryGetArgument(shape, "shape"))
         return static_cast<int>(shape.size());
-      if (spec.ArgumentDefined("shape"))  // shape specified but no workspace
+      if (spec.ArgumentDefined("shape"))  // no workspace - cannot determine statically, bail out
         return std::nullopt;
       return 0;
     })
-    .OutputLayout(0, [](const OpSpec &, span<const TensorLayout>) { return TensorLayout{}; });
+    .OutputLayout(0, "");
 
 DALI_REGISTER_OPERATOR(random__CoinFlip, CoinFlip<CPUBackend>, CPU);
 

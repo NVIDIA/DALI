@@ -72,12 +72,12 @@ This argument is useful when using unsigned integer outputs to improve dynamic r
     0.0f)
   .AddParent("CropAttr")
   .AddParent("OutOfBoundsAttr")
-  .OutputDType(0, [](const OpSpec &spec, span<const DALIDataType>) {
-    return spec.GetArgument<DALIDataType>("dtype");
-  })
-  .OutputNdim(0, [](const OpSpec &, span<const int> in) { return in[0]; })
-  .OutputLayout(0, [](const OpSpec &spec, span<const TensorLayout>) {
-    return spec.GetArgument<TensorLayout>("output_layout");
+  .OutputLayout(0, [](const OpSpec &spec)->std::optional<TensorLayout> {
+    auto layout = spec.GetArgument<TensorLayout>("output_layout");
+    if (layout == "")
+      return spec.InputDesc(0).layout;
+    else
+      return layout;
   });
 
 DALI_REGISTER_OPERATOR(CropMirrorNormalize, CropMirrorNormalize<CPUBackend>, CPU);

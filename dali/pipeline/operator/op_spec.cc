@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -57,41 +57,43 @@ inline std::string ValidDevices(InputDevice required, OpType op_device) {
   }
 }
 
-OpSpec &OpSpec::AddInput(std::string name, StorageDevice device, bool regular_input) {
-  if (regular_input) {
-    // We rely on the fact that regular inputs are first in inputs_ vector
-    DALI_ENFORCE(NumArgumentInput() == 0,
-        "All regular inputs (particularly, \"" + name + "\") need to be added to the op `" +
-        GetOpDisplayName(*this, true) + "` before argument inputs.");
+OpSpec &OpSpec::AddInput(
+      std::string name,
+      StorageDevice device,
+      std::optional<int> ndim,
+      std::optional<DALIDataType> dtype,
+      const std::optional<TensorLayout> &layout) {
+  output_metadata_inferred_ = false;
+  // We rely on the fact that regular inputs are first in inputs_ vector
+  DALI_ENFORCE(NumArgumentInput() == 0,
+      "All regular inputs (particularly, \"" + name + "\") need to be added to the op `" +
+      GetOpDisplayName(*this, true) + "` before argument inputs.");
 
-    if (schema_) {
-      int idx = inputs_.size();
-      DALI_ENFORCE(idx < schema_->MaxNumInput(), make_string(
-        "The operator `", GetOpDisplayName(*this, true), "` takes up to ", schema_->MaxNumInput(),
-        " inputs. The input \"", name , "\" is out of range."));
+  if (schema_) {
+    int idx = inputs_.size();
+    DALI_ENFORCE(idx < schema_->MaxNumInput(), make_string(
+      "The operator `", GetOpDisplayName(*this, true), "` takes up to ", schema_->MaxNumInput(),
+      " inputs. The input \"", name , "\" is out of range."));
 
-      if (HasArgument("device")) {
-        auto op_type_str = GetArgument<std::string>("device");
-        OpType op_type = ParseOpType(op_type_str);
-        auto inp_dev = schema_->GetInputDevice(idx);
-        DALI_ENFORCE(IsCompatibleDevice(device, inp_dev, op_type),
-          make_string("The input ", idx, " for ", op_type_str, " operator `",
-          GetOpDisplayName(*this, true), "` is stored on incompatible device \"", device,
-          "\". Valid device is ", ValidDevices(inp_dev, op_type), "."));
-      }
+    if (HasArgument("device")) {
+      auto op_type_str = GetArgument<std::string>("device");
+      OpType op_type = ParseOpType(op_type_str);
+      auto inp_dev = schema_->GetInputDevice(idx);
+      DALI_ENFORCE(IsCompatibleDevice(device, inp_dev, op_type),
+        make_string("The input ", idx, " for ", op_type_str, " operator `",
+        GetOpDisplayName(*this, true), "` is stored on incompatible device \"", device,
+        "\". Valid device is ", ValidDevices(inp_dev, op_type), "."));
     }
-  } else {
-    DALI_ENFORCE(device == StorageDevice::CPU, make_string("Invalid storage device \"", device,
-      "\" for a named input \"", name, "\". All named inputs must be on CPU."));
   }
 
-  inputs_.push_back({std::move(name), device});
+  inputs_.push_back({std::move(name), device, ndim, dtype, layout});
   return *this;
 }
 
 OpSpec &OpSpec::AddOutput(std::string name, StorageDevice device) {
+  output_metadata_inferred_ = false;
   auto [it, inserted] = output_name_idx_.emplace(
-    InOutDeviceDesc{std::string(name), device},
+    InOutDesc{std::string(name), device},
     outputs_.size());
   if (!inserted)
     throw std::invalid_argument(make_string("Duplicate output name and device: \"",
@@ -101,7 +103,13 @@ OpSpec &OpSpec::AddOutput(std::string name, StorageDevice device) {
   return *this;
 }
 
-OpSpec &OpSpec::AddArgumentInput(std::string arg_name, std::string inp_name) {
+OpSpec &OpSpec::AddArgumentInput(
+      std::string arg_name,
+      std::string inp_name,
+      std::optional<int> ndim,
+      std::optional<DALIDataType> dtype,
+      const std::optional<TensorLayout> &layout) {
+  output_metadata_inferred_ = false;
   DALI_ENFORCE(!this->HasArgument(arg_name), make_string(
       "Argument '", arg_name, "' is already specified."));
   const OpSchema &schema = GetSchemaOrDefault();
@@ -114,7 +122,7 @@ OpSpec &OpSpec::AddArgumentInput(std::string arg_name, std::string inp_name) {
   int idx = inputs_.size();
   argument_input_idxs_[arg_name] = idx;
   argument_inputs_.push_back({ std::move(arg_name), idx });
-  AddInput(std::move(inp_name), StorageDevice::CPU, false);
+  inputs_.push_back({std::move(inp_name), StorageDevice::CPU, ndim, dtype, layout});
   return *this;
 }
 
@@ -162,5 +170,19 @@ void OpSpec::EnforceNoAliasWithDeprecated(std::string_view arg_name) {
                            "' was already provided."));
 }
 
+void OpSpec::InferOutputMetadata() {
+  if (output_metadata_inferred_)
+    return;
+
+  auto &schema = GetSchemaOrDefault();
+
+  for (int i = 0; i < NumOutput(); i++) {
+    outputs_[i].ndim = schema.CalculateOutputNDim(i, *this);
+    outputs_[i].dtype = schema.CalculateOutputDType(i, *this);
+    outputs_[i].layout = schema.CalculateOutputLayout(i, *this);
+  }
+
+  output_metadata_inferred_ = true;
+}
 
 }  // namespace dali

@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -24,12 +24,12 @@ DALI_SCHEMA(RNGAttr)
 It should be added as parent to all RNG operators.)code")
     .AddOptionalArg<std::vector<int>>("shape",
       R"code(Shape of the output data.)code", nullptr, true)
-    .AddOptionalArg<DALIDataType>("dtype",
+    .AddOptionalTypeArg("dtype",
       R"code(Output data type.
 
 .. note::
   The generated numbers are converted to the output data type, rounding and clamping if necessary.
-)code", nullptr)
+)code")
   .AddRandomSeedArg()
   .AddRandomStateArg();
 

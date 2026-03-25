@@ -49,6 +49,33 @@
 #include "dali/util/user_stream.h"
 #include "dali/pipeline/util/new_thread_pool.h"
 
+namespace pybind11 {
+namespace detail {
+
+template <>
+struct type_caster<dali::StorageDevice> {
+ public:
+  PYBIND11_TYPE_CASTER(dali::StorageDevice, const_name("str"));
+
+  bool load(handle src, bool) {
+    if (!isinstance<str>(src))
+      return false;
+    try {
+      value = dali::ParseStorageDevice(src.cast<std::string>());
+      return true;
+    } catch (const std::invalid_argument &) {
+      return false;
+    }
+  }
+
+  static handle cast(dali::StorageDevice src, return_value_policy, handle) {
+    return str(dali::to_string(src)).release();
+  }
+};
+
+}  // namespace detail
+}  // namespace pybind11
+
 namespace dali {
 namespace python {
 
@@ -2897,14 +2924,42 @@ PYBIND11_MODULE(backend_impl, m, py::mod_gil_not_used()) {
 
   py::class_<OpSpec>(m, "OpSpec")
     .def(py::init<std::string>(), "name"_a)
-    .def("AddInput", [](OpSpec *spec, const string &name, const string &device, bool regular) {
-          return spec->AddInput(name, ParseStorageDevice(device), regular);
+    .def("AddInput", [](
+              OpSpec &spec,
+              std::string_view name,
+              std::string_view device,
+              std::optional<int> ndim,
+              std::optional<DALIDataType> dtype,
+              std::optional<std::string> layout) {
+          std::optional<TensorLayout> tl;
+          if (layout.has_value())
+            tl = *layout;
+          return spec.AddInput(std::string(name), ParseStorageDevice(device), ndim, dtype, tl);
         },
         "name"_a,
         "device"_a,
-        "regular_input"_a = true,
+        "ndim"_a = py::none(),
+        "dtype"_a = py::none(),
+        "layout"_a = py::none(),
         py::return_value_policy::reference_internal)
-    .def("AddArgumentInput", &OpSpec::AddArgumentInput,
+    .def("AddArgumentInput", [](
+              OpSpec &spec,
+              std::string_view arg_name,
+              std::string_view inp_name,
+              std::optional<int> ndim,
+              std::optional<DALIDataType> dtype,
+              std::optional<std::string> layout) {
+          std::optional<TensorLayout> tl;
+          if (layout.has_value())
+            tl = *layout;
+          return spec.AddArgumentInput(
+            std::string(arg_name), std::string(inp_name), ndim, dtype, tl);
+        },
+        "arg_name"_a,
+        "inp_name"_a,
+        "ndim"_a = py::none(),
+        "dtype"_a = py::none(),
+        "layout"_a = py::none(),
         py::return_value_policy::reference_internal)
     .def("AddOutput", [](OpSpec *spec, const string &name, const string &device) {
           return spec->AddOutput(name, ParseStorageDevice(device));
@@ -2923,6 +2978,13 @@ PYBIND11_MODULE(backend_impl, m, py::mod_gil_not_used()) {
     .def("NumInput", &OpSpec::NumInput)
     .def("NumRegularInput", &OpSpec::NumRegularInput)
     .def("NumOutput", &OpSpec::NumOutput)
+    .def("InputDesc", [](const OpSpec &self, int idx) {
+      return self.InputDesc(idx).as_tuple();
+    }, "idx"_a)
+    .def("OutputDesc", [](const OpSpec &self, int idx) {
+      return self.OutputDesc(idx).as_tuple();
+    }, "idx"_a)
+    .def("InferOutputMetadata", &OpSpec::InferOutputMetadata)
     DALI_OPSPEC_ADDARG(std::string)
     DALI_OPSPEC_ADDARG(bool)
     DALI_OPSPEC_ADDARG(int64_t)
@@ -3057,25 +3119,9 @@ PYBIND11_MODULE(backend_impl, m, py::mod_gil_not_used()) {
     .def("GetSupportedBackends", &GetSupportedBackends)
     .def("HasRandomSeedArg", &OpSchema::HasRandomSeedArg)
     .def("HasRandomStateArg", &OpSchema::HasRandomStateArg)
-    .def("CalculateOutputDType", [](const OpSchema &s, int idx, const OpSpec &spec, py::list in) {
-        std::vector<DALIDataType> v(py::len(in));
-        std::transform(in.begin(), in.end(), v.begin(),
-                       [](const py::handle &x) { return x.cast<DALIDataType>(); });
-        return s.CalculateOutputDType(idx, spec, make_span(v));
-    })
-    .def("CalculateOutputNdim", [](const OpSchema &s, int idx, const OpSpec &spec, py::list in) {
-        std::vector<int> v(py::len(in));
-        std::transform(in.begin(), in.end(), v.begin(),
-                       [](const py::handle &x) { return x.cast<int>(); });
-        return s.CalculateOutputNdim(idx, spec, make_span(v));
-    })
-    .def("CalculateOutputLayout", [](const OpSchema &s, int idx, const OpSpec &spec, py::list in) {
-        std::vector<TensorLayout> v(py::len(in));
-        std::transform(in.begin(), in.end(), v.begin(),
-                       [](const py::handle &x) { return x.cast<std::string>(); });
-        auto result = s.CalculateOutputLayout(idx, spec, make_span(v));
-        return result.has_value() ? py::cast(result->str()) : py::none();
-    });
+    .def("CalculateOutputDType", &OpSchema::CalculateOutputDType)
+    .def("CalculateOutputNDim", &OpSchema::CalculateOutputNDim)
+    .def("CalculateOutputLayout", &OpSchema::CalculateOutputLayout);
 
   ExposeTensorLayout(types_m);
   ExposeTensor(m);

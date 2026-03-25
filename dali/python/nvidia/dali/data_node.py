@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2017-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -67,13 +67,40 @@ class DataNode(object):
     operators that perform the expressions.
     """
 
-    def __init__(self, name, device="cpu", source=None):
+    def __init__(
+        self, name, device="cpu", source=None, index=0, ndim=None, dtype=None, layout=None
+    ):
         self.name = name
         self.device = device
         self.source = source
+        self.index = index
+        if source is not None:
+            spec = source.spec
+            _, _, self.ndim, self.dtype, self.layout = spec.OutputDesc(self.index)
+            if ndim is not None and self.ndim is not None and ndim != self.ndim:
+                raise ValueError(f"Msmatch between OpSpec and explicit `ndim` argument.")
+            if dtype is not None and self.dtype is not None and dtype != self.dtype:
+                raise ValueError("Msmatch between OpSpec and explicit `dtype` argument.")
+            if layout is not None and self.layout is not None and layout != self.layout:
+                raise ValueError("Msmatch between OpSpec and explicit `layout` argument.")
+        else:
+            self.ndim = ndim
+            self.dtype = dtype
+            self.layout = layout
 
     def __str__(self):
-        return f'DataNode(name="{self.name}", device="{self.device}, source="{self.source}")'
+        s = (
+            f'DataNode(name="{self.name}", device="{self.device}, '
+            f'source="{self.source}", index="{self.index}"'
+        )
+        if self.ndim is not None:
+            s += f", ndim={self.ndim}"
+        if self.dtype is not None:
+            s += f", ndim={self.dtype}"
+        if self.layout is not None:
+            s += f", ndim={repr(self.layout)}"
+        s += ")"
+        return s
 
     __repr__ = __str__
 
@@ -96,10 +123,12 @@ class DataNode(object):
         if _conditionals.conditionals_enabled():
             # Treat it the same way as regular operator would behave
             [self_split], _ = _conditionals.apply_conditional_split_to_args([self], {})
-            transferred_node = DataNode(self_split.name, backend, self_split.source)
+            transferred_node = DataNode(
+                self_split.name, backend, self_split.source, self_split.index
+            )
             _conditionals.register_data_nodes(transferred_node, [self])
             return transferred_node
-        return DataNode(self.name, backend, self.source)
+        return DataNode(self.name, backend, self.source, self.index)
 
     def __add__(self, other) -> DataNode:
         return _arithm_op("add", self, other)

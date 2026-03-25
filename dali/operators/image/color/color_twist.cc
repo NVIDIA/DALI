@@ -50,15 +50,7 @@ they would in case of rotation.)code",
 If a value is not set, the input type is used.)code",
                     DALI_UINT8)
     .InputLayout(0, {"HWC", "FHWC", "DHWC"})
-    .AllowSequences()
-    .OutputDType(0, [](const OpSpec &spec, span<const DALIDataType> in) {
-      DALIDataType dtype;
-      if (spec.TryGetArgument(dtype, "dtype"))
-        return dtype;
-      return in[0];
-    })
-    .OutputNdim(0, [](const OpSpec &, span<const int> in) { return in[0]; })
-    .OutputLayout(0, [](const OpSpec &, span<const TensorLayout> in) { return in[0]; });
+    .AllowSequences();
 
 DALI_SCHEMA(ColorTransformBase)
     .DocStr(R"code(Base Schema for color transformations operators.)code")
