@@ -1,0 +1,40 @@
+# Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+from typing import Literal, Sequence
+
+import nvidia.dali.experimental.dynamic as ndd
+
+from PIL import Image
+import torch
+
+from ..operator import adjust_input  # noqa: E402
+from ..gaussian_blur import GaussianBlur  # noqa: E402
+
+
+@adjust_input
+def gaussian_blur(
+    inpt: Image.Image | torch.Tensor,
+    kernel_size: int | Sequence[int],
+    sigma: int | float | Sequence[float] = (0.1, 2.0),
+    device: Literal["cpu", "gpu"] = "cpu",
+) -> Image.Image | torch.Tensor:
+    """
+    Please refer to the ``GaussianBlur`` operator for more details.
+    """
+    GaussianBlur.verify_args(kernel_size=kernel_size, sigma=sigma)
+    sigma = (sigma, sigma) if isinstance(sigma, (int, float)) else sigma
+    if sigma[0] != sigma[1]:
+        sigma = ndd.random.uniform(range=sigma)
+    return ndd.gaussian_blur(inpt, window_size=kernel_size, sigma=sigma, device=device)
