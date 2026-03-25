@@ -17,10 +17,10 @@ import torch
 from typing import Sequence, Literal
 import nvidia.dali.fn as fn
 
-from .operator import Operator, ArgumentVerificationRule
+from .operator import Operator, _ArgumentValidateRule
 
 
-class VerifyStd(ArgumentVerificationRule):
+class _ValidateStd(_ArgumentValidateRule):
     """
     Verify the standard deviation argument for the Normalize operator.
 
@@ -32,17 +32,15 @@ class VerifyStd(ArgumentVerificationRule):
 
     @classmethod
     def verify(cls, *, std, **_) -> None:
-        if (
-            not isinstance(std, (int, float, Sequence, torch.Tensor, np.ndarray))
-            or isinstance(std, Sequence)
-            and isinstance(std, str)
+        if not isinstance(std, (int, float, Sequence, torch.Tensor, np.ndarray)) or (
+            isinstance(std, Sequence) and isinstance(std, str)
         ):
             raise TypeError(f"Std must be an int, a float or a Sequence, got {type(std)}")
         if np.any(np.array(std) == 0):
             raise ValueError("Std must not be 0")
 
 
-class VerifyMean(ArgumentVerificationRule):
+class _ValidateMean(_ArgumentValidateRule):
     """
     Verify the mean argument for the Normalize operator.
 
@@ -77,7 +75,7 @@ class Normalize(Operator):
         Bool to make this operation in-place. Not supported.
     """
 
-    arg_rules = [VerifyStd, VerifyMean]
+    arg_rules = [_ValidateStd, _ValidateMean]
     # TODO: currently not supported
     # input_rules = [VerificationIsTensor]
 

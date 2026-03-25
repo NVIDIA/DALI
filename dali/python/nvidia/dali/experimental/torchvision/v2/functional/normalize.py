@@ -18,7 +18,7 @@ from PIL import Image
 import torch
 import nvidia.dali.experimental.dynamic as ndd
 
-from ..operator import adjust_input, VerificationIsTensor  # noqa: E402
+from ..operator import adjust_input, _ValidateIsTensor  # noqa: E402
 from ..normalize import Normalize  # noqa: E402
 
 
@@ -54,7 +54,7 @@ def normalize(
     std = np.asarray(std)[:, None, None]
 
     Normalize.verify_args(std=std, mean=mean)
-    VerificationIsTensor.verify(input_data)
+    _ValidateIsTensor.verify(input_data)
 
     if inplace:
         raise NotImplementedError("inplace is not implemented, yet")
