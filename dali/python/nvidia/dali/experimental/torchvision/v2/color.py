@@ -76,9 +76,6 @@ class _ValidateHue(_ArgumentValidateRule):
         if hue is None:
             raise ValueError("hue must not be None")
 
-        if isinstance(hue, float):
-            hue = (-hue, hue)
-
         if isinstance(hue, (int, float)):
             hue = (-float(hue), float(hue))
         else:

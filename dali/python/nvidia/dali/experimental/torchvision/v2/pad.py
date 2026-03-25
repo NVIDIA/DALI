@@ -19,7 +19,12 @@ from typing import Sequence, Union, Literal
 import nvidia.dali as dali
 import nvidia.dali.fn as fn
 
-from .operator import Operator, get_HWC_from_layout_pipeline, ArgumentVerificationRule
+from .operator import (
+    Operator,
+    get_HWC_from_layout_pipeline,
+    _ArgumentValidateRule,
+    _ValidateIfNonNegative,
+)
 
 
 class _PadBase(Operator):
@@ -117,6 +122,7 @@ class _PadBase(Operator):
             out_of_bounds_policy=self.border_type,
             fill_values=self.fill,
             device=self.device,
+            axis_names="WH",
         )
 
         return data_input
@@ -170,7 +176,7 @@ PADDING_CLASS = {
 }
 
 
-class VerifyPaddingMode(ArgumentVerificationRule):
+class _ValidatePaddingMode(_ArgumentValidateRule):
     """
     Verifies the PaddingMode
 
@@ -238,7 +244,8 @@ class Pad:
         device: Literal["cpu", "gpu"] = "cpu",
     ):
         # This is not done in PaddingBase, because it is too late for that check there
-        VerifyPaddingMode.verify(padding_mode=padding_mode)
+        _ValidatePaddingMode.verify(padding_mode=padding_mode)
+        _ValidateIfNonNegative.verify(values=padding, name="padding")
 
         self.device = device
         self.pad = PADDING_CLASS[padding_mode](padding, fill, device)

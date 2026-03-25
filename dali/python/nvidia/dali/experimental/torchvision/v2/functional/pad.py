@@ -19,7 +19,7 @@ import torch
 from PIL import Image
 
 from ..operator import adjust_input, get_HWC_from_layout_dynamic  # noqa: E402
-from ..pad import _PadBase, PADDING_CLASS, VerifyPaddingMode  # noqa: E402
+from ..pad import _PadBase, PADDING_CLASS, _ValidatePaddingMode  # noqa: E402
 
 
 @adjust_input
@@ -65,7 +65,7 @@ def pad(
     else:
         raise TypeError(f"Type not supported {type(inpt)}")
 
-    VerifyPaddingMode.verify(padding_mode=padding_mode)
+    _ValidatePaddingMode.verify(padding_mode=padding_mode)
 
     return _pad(
         inpt,
