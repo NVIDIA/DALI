@@ -69,8 +69,10 @@ set the following environment variables:
   | The default is ``NO``.
 * | PYVER - Python version used to create the runner image with DALI installed inside mentioned above.
   | The default is ``3.10``.
-* DALI_BUILD_FLAVOR - adds a suffix to DALI package name and put a note about it in the whl package
-  description, i.e. `nightly` will result in the `nvidia-dali-nightly`
+* DALI_BUILD_FLAVOR - adds a ``.dev{TIMESTAMP}`` suffix to the DALI package version and puts a note
+  about the build flavor in the whl package description. The package name remains the same as stable
+  releases (e.g., ``nvidia-dali-cuda120``), with only the version number differentiated
+  (e.g., ``1.53.0.dev20251204``)
 * | CMAKE_BUILD_TYPE - build type, available options: Debug, DevDebug, Release, RelWithDebInfo.
   | The default is ``Release``.
 * | STRIP_BINARY - when used with CMAKE_BUILD_TYPE equal to Debug, DevDebug, or RelWithDebInfo it
@@ -367,7 +369,9 @@ To run with sanitizers enabled issue:
 
   STDC_VERSION used by the system. Usually 6.
 
--  ``DALI_BUILD_FLAVOR`` - Allow to specify custom name suffix (i.e. 'nightly') for nvidia-dali whl package
+-  ``DALI_BUILD_FLAVOR`` - Specifies the build flavor (e.g., 'nightly', 'weekly') which adds a
+   ``.dev{TIMESTAMP}`` suffix to the package version and includes the flavor name in the package
+   description. Unlike legacy builds, the package name is not modified (always ``nvidia-dali-cuda*``)
 -  *(Unofficial)* ``BUILD_JPEG_TURBO`` - build with ``libjpeg-turbo`` (default: ON)
 -  *(Unofficial)* ``BUILD_LIBTIFF`` - build with ``libtiff`` (default: ON)
 
