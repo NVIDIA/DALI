@@ -32,10 +32,8 @@ class VerifyStd(ArgumentVerificationRule):
 
     @classmethod
     def verify(cls, *, std, **_) -> None:
-        if (
-            not isinstance(std, (int, float, Sequence, torch.Tensor, np.ndarray))
-            or isinstance(std, Sequence)
-            and isinstance(std, str)
+        if not isinstance(std, (int, float, Sequence, torch.Tensor, np.ndarray)) or (
+            isinstance(std, Sequence) and isinstance(std, str)
         ):
             raise TypeError(f"Std must be an int, a float or a Sequence, got {type(std)}")
         if np.any(np.array(std) == 0):
