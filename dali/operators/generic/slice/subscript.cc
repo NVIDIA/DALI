@@ -77,6 +77,18 @@ DALI_SCHEMA(_TensorSubscript)
       if (ndim < 0)
         return std::nullopt;
       return ndim;
+    })
+    .OutputLayout(0, [](const OpSpec &spec)->std::optional<TensorLayout> {
+      auto &desc = spec.InputDesc(0);
+      if (!desc.layout)
+        return std::nullopt;
+      if (desc.layout->empty())
+        return "";
+      TensorLayout out_layout;
+      for (int i = 0; i < desc.layout->ndim(); i++)
+        if (!spec.ArgumentDefined(make_string("at_", i)))
+          out_layout += desc.layout.value()[i];
+      return out_layout;
     });
 
 template <>

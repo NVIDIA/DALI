@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -34,7 +34,10 @@ This argument can be a list that contains a distinct layout for each output. If 
 fewer than num_outputs elements, only the first outputs have the layout set and the rest of the
 outputs have no layout assigned.)code", nullptr)
     .MakeStateful()  // The python function may have some state
-    .MakeInternal();
+    .MakeInternal()
+    .OutputLayout(0, std::nullopt)
+    .OutputDType(0, std::nullopt)
+    .OutputNDim(0, std::nullopt);
 
 DALI_SCHEMA(PythonFunction)
         .DocStr(R"code(Executes a Python function.
@@ -71,7 +74,10 @@ The function should not modify input tensors.
 once per batch or separately for every sample in the batch.
 
 If set to True, the function will receive its arguments as lists of NumPy or CuPy arrays,
-for CPU and GPU backend, respectively.)code", false);
+for CPU and GPU backend, respectively.)code", false)
+        .OutputLayout(0, std::nullopt)
+        .OutputDType(0, std::nullopt)
+        .OutputNDim(0, std::nullopt);
 
 DALI_SCHEMA(TorchPythonFunction)
         .DocStr(R"code(Executes a function that is operating on Torch tensors.
@@ -84,6 +90,9 @@ as PyTorch tensors.)code")
         .NoPrune()
         .AddParent("PythonFunctionBase")
         .AddOptionalArg("batch_processing", R"code(Determines whether the function gets
-an entire batch as an input.)code", true);
+an entire batch as an input.)code", true)
+        .OutputLayout(0, std::nullopt)
+        .OutputDType(0, std::nullopt)
+        .OutputNDim(0, std::nullopt);
 
 }  // namespace dali

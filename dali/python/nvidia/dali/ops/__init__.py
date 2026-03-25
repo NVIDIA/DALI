@@ -469,7 +469,7 @@ class _OperatorInstance(object):
 
         if num_output == 0 and self._op.preserve:
             t_name = type(self._op).__name__ + "_id_" + str(self.id) + "_sink"
-            pipeline.add_sink(_DataNode(t_name, output_device, self, 0))
+            pipeline.add_sink(_DataNode(t_name, output_device, self, None))
             return
 
         for i in range(num_output):
