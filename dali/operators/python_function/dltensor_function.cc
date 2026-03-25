@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -38,7 +38,11 @@ fewer than num_outputs elements, only the first outputs have the layout set and 
 outputs have no layout assigned.)code", nullptr)
     .NoPrune()
     .Unserializable()
-    .MakeInternal();
+    .MakeInternal()
+    .OutputLayout(0, std::nullopt)
+    .OutputDType(0, std::nullopt)
+    .OutputNDim(0, std::nullopt);
+
 
 DALI_SCHEMA(DLTensorPythonFunction)
     .DocStr(R"code(Executes a Python function that operates on DLPack tensors.
@@ -70,7 +74,10 @@ If set to True, the function will receive its arguments as lists of DLPack tenso
     .AllowSequences()
     .SupportVolumetric()
     .NoPrune()
-    .AddParent("PythonFunctionBase");
+    .AddParent("PythonFunctionBase")
+    .OutputLayout(0, std::nullopt)
+    .OutputDType(0, std::nullopt)
+    .OutputNDim(0, std::nullopt);
 
 namespace detail {
 

@@ -59,7 +59,7 @@ If argument isn't be provided, the layout will be cleared.)code", TensorLayout("
     if (axes.empty())
       return desc.layout;
 
-    auto names = spec.GetArgument<TensorLayout>("axis_names");
+    auto names = spec.GetArgument<TensorLayout>("new_axis_names");
     int num_new_axes = ssize(axes);
     if (num_new_axes != names.ndim())
       return "";

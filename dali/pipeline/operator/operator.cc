@@ -36,7 +36,7 @@ inline void ValidateMetadata(
       std::string_view category,
       NameType &&index_or_name) {
   auto display_name = [&]() {
-    if constexpr (std::is_arithmetic_v<NameType>)
+    if constexpr (std::is_arithmetic_v<std::remove_cvref_t<NameType>>)
       return index_or_name;
     else
       return make_string('"', index_or_name, '"');
