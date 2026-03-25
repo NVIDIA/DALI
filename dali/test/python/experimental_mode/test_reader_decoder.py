@@ -1,4 +1,4 @@
-# Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -184,6 +184,61 @@ def test_reader_shards_error():
         num_shards=99999,
     )
     with assert_raises(
-        RuntimeError, glob='Assert on "num_shards_ <= Size()" failed: The number of input samples:'
+        RuntimeError, glob='Assert on "num_shards_ <= Size()" failed: The number of input samples:*'
     ):
         tuple(reader.next_epoch())
+
+
+@params(None, 4)
+def test_video_resize_tensor_args(batch_size):
+    sequence_length = 60
+    width, height = 108, 192
+    video_root = os.path.join(dali_extra_path, "db", "video", "sintel", "video_files")
+    reader = ndd.readers.VideoResize(
+        filenames=[os.path.join(video_root, "sintel_trailer-720p_3.mp4")],
+        sequence_length=sequence_length,
+        device="gpu",
+        resize_x=ndd.tensor(width),
+        resize_y=height,
+    )
+    for (tensor,) in reader.next_epoch(batch_size=batch_size):
+        assert isinstance(tensor, ndd.Tensor if batch_size is None else ndd.Batch)
+        assert tensor.layout == "FHWC"
+        assert tensor.dtype == ndd.uint8
+        assert tensor.device == ndd.Device("gpu")
+        expected_shape = (sequence_length, height, width, 3)
+        if batch_size is None:
+            assert tensor.shape == expected_shape
+        else:
+            assert tensor.shape == [expected_shape] * batch_size
+
+
+def test_video_resize_tensor_args_partial():
+    sequence_length = 60
+    width, height = 144, 192
+    video_root = os.path.join(dali_extra_path, "db", "video", "sintel", "video_files")
+    reader = ndd.readers.VideoResize(
+        filenames=[os.path.join(video_root, "sintel_trailer-720p_3.mp4")],
+        sequence_length=sequence_length,
+        device="gpu",
+        resize_x=width,
+    )
+    tensor = reader(resize_y=height)
+    assert isinstance(tensor, ndd.Tensor)
+    assert tensor.layout == "FHWC"
+    assert tensor.dtype == ndd.uint8
+    assert tensor.device == ndd.Device("gpu")
+    assert tensor.shape == (sequence_length, height, width, 3)
+
+
+def test_video_resize_tensor_repeated_args():
+    video_root = os.path.join(dali_extra_path, "db", "video", "sintel", "video_files")
+    reader = ndd.readers.VideoResize(
+        filenames=[os.path.join(video_root, "sintel_trailer-720p_3.mp4")],
+        sequence_length=60,
+        device="gpu",
+        resize_x=108,
+        resize_y=192,
+    )
+    with assert_raises(ValueError, glob="*resize_x*"):
+        reader(resize_x=144)
