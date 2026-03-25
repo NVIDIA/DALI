@@ -71,12 +71,7 @@ DALI_SCHEMA(Cast)
     .NumOutput(1)
     .AllowSequences()
     .SupportVolumetric()
-    .AddTypeArg("dtype", R"code(Output data type.)code")
-    .OutputDType(0, [](const OpSpec &spec, span<const DALIDataType>) {
-      return spec.GetArgument<DALIDataType>("dtype");
-    })
-    .OutputNdim(0, [](const OpSpec &, span<const int> in) { return in[0]; })
-    .OutputLayout(0, [](const OpSpec &, span<const TensorLayout> in) { return in[0]; });
+    .AddTypeArg("dtype", R"code(Output data type.)code");
 
 DALI_SCHEMA(CastLike)
     .DocStr("Cast the first tensor to the type of the second tensor.")

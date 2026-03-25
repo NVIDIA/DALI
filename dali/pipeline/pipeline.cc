@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -32,6 +32,7 @@
 #include "dali/pipeline/operator/name_utils.h"
 #include "dali/pipeline/graph/graph2dot.h"
 #include "dali/pipeline/graph/cse.h"
+#include "dali/pipeline/graph/node_meta.h"
 #include "dali/pipeline/operator/builtin/input_operator.h"
 
 #ifdef DALI_DEBUG_SERIALIZE
@@ -658,6 +659,8 @@ void Pipeline::Build(std::vector<PipelineOutputDesc> output_descs) {
   // Graph optimization goes here
   if (IsCSEEnabled())
     graph::EliminateCommonSubgraphs(graph_);
+
+  graph::ComputeDataNodeMetadata(graph_);
 
   // Load the final graph into the executor
   executor_->Build(graph_);

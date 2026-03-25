@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <string_view>
+#include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/operator/builtin/conditional/split_merge.h"
 #include "dali/pipeline/operator/operator.h"
 
@@ -23,6 +25,82 @@ inline bool IsVideoInput(const OpSchema& schema) {
 #else
   return false;
 #endif
+}
+
+namespace {
+
+template <typename Backend, typename NameType>
+inline void ValidateMetadata(
+      const TensorList<Backend> &what,
+      const OpSpec::InOutDesc &against,
+      std::string_view category,
+      NameType &&index_or_name) {
+  auto display_name = [&]() {
+    if constexpr (std::is_arithmetic_v<NameType>)
+      return index_or_name;
+    else
+      return make_string('"', index_or_name, '"');
+  };
+
+  if (against.ndim) {
+    if (what.sample_dim() != *against.ndim)
+      throw std::invalid_argument(make_string(
+        "Unexpected dimensionality of ", category, " ", display_name(), ". Got ",
+        what.sample_dim(), ", expected ", *against.ndim));
+  }
+  if (against.dtype) {
+    if (what.type() != *against.dtype)
+      throw std::invalid_argument(make_string(
+        "Unexpected data type of ", category, " ", display_name(), ". Got ",
+        what.type(), ", expected ", *against.dtype));
+  }
+  if (against.layout) {
+    if (what.GetLayout() != *against.layout)
+      throw std::invalid_argument(make_string(
+        "Unexpected layout of ", category, " ", display_name(), ". Got \"",
+        what.GetLayout(), "\", expected \"", *against.layout, "\""));
+  }
+}
+
+}  // namespace
+
+DLL_PUBLIC void ValidateInputMetadata(const Workspace &ws /* to validate */, const OpSpec &spec) {
+  if (ws.NumInput() != spec.NumRegularInput())
+    throw std::invalid_argument("The number of inputs in the workspace does not match op_spec");
+
+  for (int i = 0; i < spec.NumRegularInput(); i++) {
+    auto &desc = spec.InputDesc(i);
+    if (desc.has_metadata()) {
+      if (ws.InputIsType<GPUBackend>(i))
+        ValidateMetadata(ws.Input<GPUBackend>(i), desc, "input", i);
+      else
+        ValidateMetadata(ws.Input<CPUBackend>(i), desc, "input", i);
+    }
+  }
+
+  for (int i = spec.NumRegularInput(); i < spec.NumInput(); i++) {
+    auto &desc = spec.InputDesc(i);
+    if (desc.has_metadata()) {
+      const auto &name = spec.ArgumentInputName(i);
+      auto &tl = ws.ArgumentInput(name);
+      ValidateMetadata(tl, desc, "argument ", name);
+    }
+  }
+}
+
+DLL_PUBLIC void ValidateOutputMetadata(const Workspace &ws /* to_validate */, const OpSpec &spec) {
+  if (ws.NumOutput() != spec.NumOutput())
+    throw std::invalid_argument("The number of outputs in the workspace does not match op_spec");
+
+  for (int i = 0; i < spec.NumOutput(); i++) {
+    auto &desc = spec.OutputDesc(i);
+    if (desc.has_metadata()) {
+      if (ws.OutputIsType<GPUBackend>(i))
+        ValidateMetadata(ws.Output<GPUBackend>(i), desc, "output", i);
+      else
+        ValidateMetadata(ws.Output<CPUBackend>(i), desc, "output", i);
+    }
+  }
 }
 
 void OperatorBase::EnforceUniformInputBatchSize(const Workspace &ws) const {

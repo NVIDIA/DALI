@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2017-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -469,15 +469,15 @@ class _OperatorInstance(object):
 
         if num_output == 0 and self._op.preserve:
             t_name = type(self._op).__name__ + "_id_" + str(self.id) + "_sink"
-            pipeline.add_sink(_DataNode(t_name, output_device, self))
+            pipeline.add_sink(_DataNode(t_name, output_device, self, 0))
             return
 
         for i in range(num_output):
             t_name = self._name
             if num_output > 1:
                 t_name += "[{}]".format(i)
-            t = _DataNode(t_name, output_device, self)
-            self._spec.AddOutput(t.name, t.device)
+            self._spec.AddOutput(t_name, output_device)
+            t = _DataNode(t_name, output_device, self, i)
             if self._op.preserve:
                 pipeline.add_sink(t)
             self.append_output(t)

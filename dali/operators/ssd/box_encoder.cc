@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -230,6 +230,9 @@ in EncodedBBoxes that use ``std`` and the ``mean`` and `scale` arguments.)code",
             std::vector<float>{0.f, 0.f, 0.f, 0.f})
     .AddOptionalArg("stds",
             R"code([x y w h] standard deviations for offset normalization.)code",
-            std::vector<float>{1.f, 1.f, 1.f, 1.f});
+            std::vector<float>{1.f, 1.f, 1.f, 1.f})
+    .OutputDType(0, std::nullopt)
+    .OutputNDim(0, std::nullopt)
+    .OutputLayout(0, std::nullopt);
 
 }  // namespace dali

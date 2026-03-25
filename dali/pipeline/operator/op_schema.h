@@ -151,16 +151,15 @@ struct LazyValue {
 };
 }  // namespace detail
 
-
 class DLL_PUBLIC OpSchema {
  public:
   typedef std::function<int(const OpSpec &spec)> SpecFunc;
-  using OutputDTypeFunc = std::function<std::optional<DALIDataType>(
-      const OpSpec &spec, span<const DALIDataType> input_dtypes)>;
-  using OutputNdimFunc = std::function<std::optional<int>(
-      const OpSpec &spec, span<const int> input_ndims)>;
-  using OutputLayoutFunc = std::function<std::optional<TensorLayout>(
-      const OpSpec &spec, span<const TensorLayout> input_layouts)>;
+  template <typename meta_t>
+  using OutputMetaFunc   = std::function<std::optional<meta_t>(const OpSpec &spec)>;
+
+  using OutputDTypeFunc  = OutputMetaFunc<DALIDataType>;
+  using OutputNDimFunc   = OutputMetaFunc<int>;
+  using OutputLayoutFunc = OutputMetaFunc<TensorLayout>;
 
   OpSchema(OpSchema &&) = delete;
   OpSchema(const OpSchema &) = delete;
@@ -251,12 +250,34 @@ class DLL_PUBLIC OpSchema {
    */
   OpSchema &OutputDType(int index, OutputDTypeFunc fn);
 
+  /** Assigns a fixed data type to a given output.
+   *
+   * @param index Index of the output to set the function for.
+   * @param dtype The data type (or nullopt, if it cannot be determined statically)
+   */
+  OpSchema &OutputDType(int index, std::optional<DALIDataType> dtype) {
+    if (dtype && !IsValidType(*dtype))
+      throw std::invalid_argument("Invalid data type.");
+    return OutputDType(index, [dtype](const OpSpec &) { return dtype; });
+  }
+
   /** Sets a function that determines the number of dimensions of a given output.
    *
    * @param index Index of the output to set the function for.
    * @param fn Function that returns the ndim for the given output.
    */
-  OpSchema &OutputNdim(int index, OutputNdimFunc fn);
+  OpSchema &OutputNDim(int index, OutputNDimFunc fn);
+
+  /** Assigns a fixed number of dimensions to a given output.
+   *
+   * @param index Index of the output to set the function for.
+   * @param ndim The number of dimensions (or nullopt, if it cannot be determined statically)
+   */
+  OpSchema &OutputNDim(int index, std::optional<int> ndim) {
+    if (ndim && *ndim < 0)
+      throw std::invalid_argument("Invalid ndim.");
+    return OutputNDim(index, [ndim](const OpSpec &) { return ndim; });
+  }
 
   /** Sets a function that determines the layout of a given output.
    *
@@ -264,6 +285,15 @@ class DLL_PUBLIC OpSchema {
    * @param fn Function that returns the layout for the given output.
    */
   OpSchema &OutputLayout(int index, OutputLayoutFunc fn);
+
+  /** Assigns a fixed layout to a given output.
+   *
+   * @param index Index of the output to set the function for.
+   * @param dtype The layout (or nullopt, if it cannot be determined statically)
+   */
+  OpSchema &OutputLayout(int index, std::optional<TensorLayout> layout) {
+    return OutputLayout(index, [layout](const OpSpec &) { return layout; });
+  }
 
   /** Sets the number of inputs that the op can receive. */
   OpSchema &NumInput(int n);
@@ -695,16 +725,13 @@ used with DALIDataType, to avoid confusion with `AddOptionalArg<type>(name, doc,
   int CalculateAdditionalOutputs(const OpSpec &spec) const;
 
   /** Try calculating the data type of a given output */
-  std::optional<DALIDataType> CalculateOutputDType(int index, const OpSpec &spec,
-                                                   span<const DALIDataType> input_dtypes) const;
+  std::optional<DALIDataType> CalculateOutputDType(int index, const OpSpec &spec) const;
 
   /** Try calculating the ndim of a given output */
-  std::optional<int> CalculateOutputNdim(int index, const OpSpec &spec,
-                                         span<const int> input_ndims) const;
+  std::optional<int> CalculateOutputNDim(int index, const OpSpec &spec) const;
 
   /** Try calculating the layout of a given output */
-  std::optional<TensorLayout> CalculateOutputLayout(int index, const OpSpec &spec,
-                                                    span<const TensorLayout> input_layouts) const;
+  std::optional<TensorLayout> CalculateOutputLayout(int index, const OpSpec &spec) const;
 
   bool SupportsInPlace(const OpSpec &spec) const;
 
@@ -849,7 +876,7 @@ used with DALIDataType, to avoid confusion with `AddOptionalArg<type>(name, doc,
 
   SpecFunc output_fn_, in_place_fn_, additional_outputs_fn_;
   std::vector<OutputDTypeFunc> output_dtype_fn_;
-  std::vector<OutputNdimFunc> output_ndim_fn_;
+  std::vector<OutputNDimFunc> output_ndim_fn_;
   std::vector<OutputLayoutFunc> output_layout_fn_;
 
   int min_num_input_ = 0, max_num_input_ = 0;
@@ -899,6 +926,7 @@ used with DALIDataType, to avoid confusion with `AddOptionalArg<type>(name, doc,
   std::string deprecation_message_;
   std::string deprecation_version_;
 };
+
 
 class SchemaRegistry {
  public:

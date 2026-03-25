@@ -365,12 +365,21 @@ class Operator:
                 # so we can use the ops API to obtain an OpSpec.
                 input_nodes = [
                     dali.data_node.DataNode(
-                        name=f"input_{i}", device=inputs[i].device.device_type, source=None
+                        name=f"input_{i}",
+                        device=inputs[i].device.device_type,
+                        source=None,
+                        ndim=inputs[i].ndim,
+                        dtype=inputs[i].dtype,
+                        layout=inputs[i].layout,
                     )
                     for i in range(len(inputs))
                 ]
                 arg_nodes = {
-                    name: dali.data_node.DataNode(name=f"arg_{name}", device="cpu", source=None)
+                    name: dali.data_node.DataNode(
+                        name=f"arg_{name}",
+                        device="cpu",
+                        source=None,
+                    )
                     for name in args
                 }
 
@@ -387,6 +396,7 @@ class Operator:
                 else:
                     spec = out.source.spec
 
+                spec.InferOutputMetadata()
                 self._op_spec = spec
 
                 if isinstance(out, (tuple, list)):

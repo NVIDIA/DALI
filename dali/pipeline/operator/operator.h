@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -57,6 +57,9 @@ struct ReaderMeta {
   }
 };
 
+DLL_PUBLIC void ValidateInputMetadata(const Workspace &ws_to_validate, const OpSpec &spec);
+DLL_PUBLIC void ValidateOutputMetadata(const Workspace &ws_to_validate, const OpSpec &spec);
+
 /**
  * Names for most commonly used arguments, to keep consistency between arg naming amongst operators.
  */
@@ -83,6 +86,7 @@ class DLL_PUBLIC OperatorBase {
   virtual ~OperatorBase() = default;
 
   virtual bool Setup(std::vector<OutputDesc> &output_desc, const Workspace &ws) {
+    ValidateInputMetadata(ws, spec_);
     EnforceUniformInputBatchSize(ws);
     CheckInputLayouts(ws, spec_);
     return SetupImpl(output_desc, ws);
@@ -93,6 +97,7 @@ class DLL_PUBLIC OperatorBase {
     if (ws.HasThreadPool())
       ws.GetThreadPool().WaitForWork();
     EnforceUniformOutputBatchSize(ws);
+    ValidateOutputMetadata(ws, spec_);
   }
 
   /**

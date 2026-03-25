@@ -136,15 +136,7 @@ class Invocation:
     def dtype(self, result_index: int) -> DType:
         if self._results is None:
             self._operator._init_spec(self._inputs, self._args)
-            result = self._operator._schema.CalculateOutputDType(
-                result_index,
-                self._operator._op_spec,
-                [inp.dtype.type_id for inp in self._inputs],
-            )
-            if result is not None:
-                return result
-
-            self.run(self._eval_context)
+            return self._operator._op_spec.OutputDesc(result_index).dtype
         return self._results[result_index].dtype
 
     @NVTXRange("Invocation.batch_size", category="invocation")
