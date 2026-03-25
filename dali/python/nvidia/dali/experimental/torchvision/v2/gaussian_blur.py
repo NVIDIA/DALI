@@ -31,7 +31,25 @@ class VerifyKernel(ArgumentVerificationRule):
 
     @classmethod
     def verify(cls, *, kernel_size, **_) -> None:
+
         VerifyIfPositive.verify(values=kernel_size, name="kernel_size")
+
+        if not isinstance(kernel_size, (int, Sequence)):
+            raise ValueError(
+                f" Kernel size should be an int or a sequenece of ints, got {kernel_size}"
+            )
+
+        if isinstance(kernel_size, Sequence) and any(not isinstance(v, int) for v in kernel_size):
+            raise ValueError(
+                f" Kernel size should be an int or a sequenece of ints, got {kernel_size}"
+            )
+
+        values = [kernel_size] if isinstance(kernel_size, int) else kernel_size
+
+        if any(k % 2 == 0 for k in values):
+            raise ValueError(
+                f"Kernel size values should be odd positive numbers, got {kernel_size}"
+            )
 
 
 class VerifySigma(ArgumentVerificationRule):
@@ -49,8 +67,15 @@ class VerifySigma(ArgumentVerificationRule):
 
     @classmethod
     def verify(cls, *, sigma, **_) -> None:
+        if not isinstance(sigma, (int, float, Sequence)) or isinstance(sigma, str):
+            raise ValueError(f"sigma must be a float or a (min, max) sequence, got {type(sigma)}")
+        if isinstance(sigma, Sequence) and len(sigma) != 2:
+            raise ValueError(
+                f"sigma sequence must have exactly 2 elements (min, max), got {len(sigma)}"
+            )
         VerifyIfPositive.verify(values=sigma, name="sigma")
-        VerifyIfRange.verify(values=sigma, name="sigma")
+        if isinstance(sigma, Sequence):
+            VerifyIfRange.verify(values=sigma, name="sigma")
 
 
 class GaussianBlur(Operator):
@@ -88,13 +113,17 @@ class GaussianBlur(Operator):
         super().__init__(device=device, kernel_size=kernel_size, sigma=sigma)
 
         self.kernel_size = kernel_size
-        self.sigma = sigma
+        self.sigma = (sigma, sigma) if isinstance(sigma, (int, float)) else sigma
 
     def _kernel(self, data_input):
+        if self.sigma[0] != self.sigma[1]:
+            sigma = fn.random.uniform(range=self.sigma)
+        else:
+            sigma = self.sigma[0]
 
         return fn.gaussian_blur(
             data_input,
             window_size=self.kernel_size,
-            sigma=self.sigma,
+            sigma=sigma,
             device=self.device,
         )

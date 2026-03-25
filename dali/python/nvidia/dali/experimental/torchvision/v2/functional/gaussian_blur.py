@@ -34,5 +34,7 @@ def gaussian_blur(
     Please refer to the ``GaussianBlur`` operator for more details.
     """
     GaussianBlur.verify_args(kernel_size=kernel_size, sigma=sigma)
-
+    sigma = (sigma, sigma) if isinstance(sigma, (int, float)) else sigma
+    if sigma[0] != sigma[1]:
+        sigma = ndd.random.uniform(range=sigma)
     return ndd.gaussian_blur(inpt, window_size=kernel_size, sigma=sigma, device=device)
