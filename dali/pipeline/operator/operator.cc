@@ -54,7 +54,7 @@ inline void ValidateMetadata(
         "Unexpected data type of ", category, " ", display_name(), ". Got ",
         what.type(), ", expected ", *against.dtype));
   }
-  if (against.layout) {
+  if (against.layout && !against.layout->empty()) {
     if (what.GetLayout() != *against.layout)
       throw std::invalid_argument(make_string(
         "Unexpected layout of ", category, " ", display_name(), ". Got \"",

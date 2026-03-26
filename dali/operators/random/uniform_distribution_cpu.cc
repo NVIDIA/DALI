@@ -49,18 +49,7 @@ This argument is mutually exclusive with `values`.
 
 This argument is mutually exclusive with `range`.)code",
       nullptr, true)
-    .AddParent("RNGAttr")
-    .OutputNDim(0, [](const OpSpec &spec) -> std::optional<int> {
-      if (spec.NumInput() > 1)
-        return spec.InputDesc(0).ndim;
-      std::vector<int> shape;
-      if (spec.TryGetArgument(shape, "shape"))
-        return static_cast<int>(shape.size());
-      if (spec.ArgumentDefined("shape"))  // shape specified but no workspace
-        return std::nullopt;
-      return 0;
-    })
-    .OutputLayout(0, "");
+    .AddParent("RNGAttr");
 
 DALI_REGISTER_OPERATOR(random__Uniform, UniformDistribution<CPUBackend>, CPU);
 

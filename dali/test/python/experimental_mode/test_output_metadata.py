@@ -25,6 +25,7 @@ def assert_correct_metadata(
     # First collect all metadata to avoid triggering transitive evaluations
     actual_metadata = []
     for tensor in tensors:
+        assert tensor._invocation_result._invocation._results is None
         actual = {attr: getattr(tensor, attr) for attr in attributes}
         assert tensor._invocation_result._invocation._results is None
         actual_metadata.append(actual)

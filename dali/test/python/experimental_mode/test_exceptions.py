@@ -40,7 +40,10 @@ def exception_tester(function: Callable[[], None]):
                 try:
                     function()
                 except type(expected_exception) as exception:
-                    cause = exception.__cause__
+                    if exception.__cause__ is not None:
+                        cause = exception.__cause__
+                    else:
+                        cause = exception  # thrown directly
                     assert str(cause) == str(expected_exception)
 
                 else:

@@ -112,19 +112,6 @@ class Invocation:
             self._output_devices = self._operator._infer_output_devices(*self._inputs, **self._args)
         return self._output_devices[result_index]
 
-    def ndim(self, result_index: int) -> int:
-        if self._results is None:
-            self._operator._init_spec(self._inputs, self._args)
-            result = self._operator._schema.CalculateOutputNdim(
-                result_index,
-                self._operator._op_spec,
-                [inp.ndim for inp in self._inputs],
-            )
-            if result is not None:
-                return result
-
-            self.run(self._eval_context)
-        return self._results[result_index].ndim()
 
     def shape(self, result_index: int):
         if self._results is None:
@@ -132,12 +119,6 @@ class Invocation:
             self.run(self._eval_context)
         s = self._results[result_index].shape()
         return s if self.is_batch else tuple(s)
-
-    def dtype(self, result_index: int) -> DType:
-        if self._results is None:
-            self._operator._init_spec(self._inputs, self._args)
-            return self._operator._op_spec.OutputDesc(result_index).dtype
-        return self._results[result_index].dtype
 
     @NVTXRange("Invocation.batch_size", category="invocation")
     def batch_size(self, result_index: int):
@@ -150,17 +131,34 @@ class Invocation:
             self.run(self._eval_context)
         return self._results[result_index].batch_size if self._is_batch else None
 
+    def ndim(self, result_index: int) -> int:
+        if self._results is None:
+            if init_spec := getattr(self._operator, "_init_spec", None):
+                init_spec(self._inputs, self._args)
+                ndim = self._operator._op_spec.OutputDesc(result_index)[2]
+                if ndim is not None:
+                    return ndim
+            self.run(self._eval_context)
+        return self._results[result_index].ndim()
+
+    def dtype(self, result_index: int) -> DType:
+        if self._results is None:
+            if init_spec := getattr(self._operator, "_init_spec", None):
+                init_spec(self._inputs, self._args)
+                dtype = self._operator._op_spec.OutputDesc(result_index)[3]
+                if dtype is not None:
+                    return dtype
+            self.run(self._eval_context)
+        return self._results[result_index].dtype
+
     def layout(self, result_index: int) -> str:
         if self._results is None:
-            self._operator._init_spec(self._inputs, self._args)
-            result = self._operator._schema.CalculateOutputLayout(
-                result_index,
-                self._operator._op_spec,
-                [inp.layout or "" for inp in self._inputs],
-            )
-            if result is not None:
-                return result
-
+            if init_spec := getattr(self._operator, "_init_spec", None):
+                init_spec(self._inputs, self._args)
+                layout = self._operator._op_spec.OutputDesc(result_index)[4]
+                if layout is not None:
+                    layout = str(layout)
+                    return None if layout == "" else layout
             self.run(self._eval_context)
         return self._results[result_index].layout()
 

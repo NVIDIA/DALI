@@ -369,8 +369,8 @@ class Operator:
                         device=inputs[i].device.device_type,
                         source=None,
                         ndim=inputs[i].ndim,
-                        dtype=inputs[i].dtype,
-                        layout=inputs[i].layout,
+                        dtype=inputs[i].dtype.type_id,
+                        layout="" if inputs[i].layout is None else inputs[i].layout,
                     )
                     for i in range(len(inputs))
                 ]
@@ -379,8 +379,11 @@ class Operator:
                         name=f"arg_{name}",
                         device="cpu",
                         source=None,
+                        ndim=arg.ndim,
+                        dtype=arg.dtype.type_id,
+                        layout="" if arg.layout is None else arg.layout
                     )
-                    for name in args
+                    for name, arg in args.items()
                 }
 
                 # legacy_op is a member of the old `ops` module - we use the ops API to obtain

@@ -299,7 +299,7 @@ def _process_argument_inputs(schema, spec, kwargs, operator_name):
 
         _check_arg_input(schema, operator_name, k)
 
-        spec.AddArgumentInput(k, arg_inp.name)
+        spec.AddArgumentInput(k, arg_inp.name, arg_inp.ndim, arg_inp.dtype, arg_inp.layout)
         result.append(arg_inp)
     return result
 
@@ -324,7 +324,7 @@ def _process_inputs(schema, spec, inputs, operator_name):
     for inp in inputs:
         if not isinstance(inp, _DataNode):
             raise TypeError(f"Expected inputs of type 'DataNode'. Received input of type '{inp}'.")
-        spec.AddInput(inp.name, inp.device)
+        spec.AddInput(inp.name, inp.device, inp.ndim, inp.dtype, inp.layout)
     return list(inputs)
 
 
