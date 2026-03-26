@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -50,7 +50,18 @@ that is: :meth:`nvidia.dali.types.DALIDataType`, :meth:`nvidia.dali.types.DALIIm
                                         nullptr, true)
     .AddOptionalArg<std::vector<int>>("shape", "Shape of the output data.", nullptr, true)
     .AddRandomSeedArg()
-    .AddRandomStateArg();
+    .AddRandomStateArg()
+    .OutputNDim(0, [](const OpSpec &spec)->std::optional<int> {
+        if (spec.NumRegularInput() >= 1)
+            return spec.InputDesc(1).ndim;
+        std::vector<int> shape;
+        if (spec.TryGetRepeatedArgument(shape, "shape"))
+            return shape.size();
+        if (spec.HasTensorArgument("shape"))
+            return std::nullopt;
+        return 0;
+    })
+    .OutputLayout(0, "");
 
 DALI_REGISTER_OPERATOR(random__Choice, Choice<CPUBackend>, CPU);
 

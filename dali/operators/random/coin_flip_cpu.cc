@@ -41,18 +41,7 @@ a single value per sample is generated.
       if (spec.TryGetArgument(dtype, "dtype"))
         return dtype;
       return DALI_INT32;
-    })
-    .OutputNDim(0, [](const OpSpec &spec) -> std::optional<int> {
-      if (spec.NumInput() >= 1)
-        return spec.InputDesc(0).ndim;
-      std::vector<int> shape;
-      if (spec.TryGetArgument(shape, "shape"))
-        return static_cast<int>(shape.size());
-      if (spec.ArgumentDefined("shape"))  // no workspace - cannot determine statically, bail out
-        return std::nullopt;
-      return 0;
-    })
-    .OutputLayout(0, "");
+    });
 
 DALI_REGISTER_OPERATOR(random__CoinFlip, CoinFlip<CPUBackend>, CPU);
 

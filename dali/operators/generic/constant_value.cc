@@ -152,6 +152,13 @@ void ConstantValue<CPUBackend>::RunImpl(Workspace &ws) {
   }
 }
 
+inline std::optional<int> ConstantValueNDim(const OpSpec &spec) {
+  std::vector<int> shape;
+  if (spec.TryGetRepeatedArgument(shape, "shape"))
+    return shape.size();
+  return std::nullopt;
+}
+
 DALI_SCHEMA(Full)
     .DocStr(R"code(Returns new data of given shape and type, filled with a fill value.
 
@@ -166,7 +173,8 @@ In case of different dimensionality, the input shape is padded with 1s for the m
                                       true)
     .AddOptionalArg<TensorLayout>("layout", R"code(Output layout.
 
-If set and not empty, the layout must match the dimensionality of the output.)code", nullptr);
+If set and not empty, the layout must match the dimensionality of the output.)code", nullptr)
+    .OutputNDim(0, ConstantValueNDim);
 
 DALI_REGISTER_OPERATOR(Full, Full<CPUBackend>, CPU);
 
@@ -192,7 +200,8 @@ DALI_SCHEMA(Zeros)
     .AddOptionalArg<TensorLayout>("layout", R"code(Output layout.
 
 If set and not empty, the layout must match the dimensionality of the output.)code", nullptr)
-    .AddOptionalTypeArg("dtype", R"code(Output data type.)code", DALI_INT32);
+    .AddOptionalTypeArg("dtype", R"code(Output data type.)code", DALI_INT32)
+    .OutputNDim(0, ConstantValueNDim);
 DALI_REGISTER_OPERATOR(Zeros, Zeros<CPUBackend>, CPU);
 
 DALI_SCHEMA(ZerosLike)
@@ -213,7 +222,8 @@ DALI_SCHEMA(Ones)
     .AddOptionalArg<TensorLayout>("layout", R"code(Output layout.
 
 If set and not empty, the layout must match the dimensionality of the output.)code", nullptr)
-    .AddOptionalTypeArg("dtype", R"code(Output data type.)code", DALI_INT32);
+    .AddOptionalTypeArg("dtype", R"code(Output data type.)code", DALI_INT32)
+    .OutputNDim(0, ConstantValueNDim);
 DALI_REGISTER_OPERATOR(Ones, Ones<CPUBackend>, CPU);
 
 DALI_SCHEMA(OnesLike)

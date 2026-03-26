@@ -949,7 +949,7 @@ OpSchema::CalculateOutputDType(int output_idx, const OpSpec &spec) const {
     DALIDataType dtype;
     if (spec.TryGetArgument(dtype, "dtype") && dtype != DALI_NO_TYPE)
       return dtype;
-    if (spec.NumInput() >= 1)
+    if (spec.NumRegularInput() >= 1)
       return spec.InputDesc(0).dtype;
   }
 
@@ -971,18 +971,18 @@ std::optional<int> OpSchema::CalculateOutputNDim(int output_idx, const OpSpec &s
 
   // Default policy for output 0:
   // use output layout's length (if present) or copy the ndim of the 1st input
-  if (output_idx == 0 && (output_ndim_fn_.empty() || !output_ndim_fn_[0])) {
+  if (output_idx == 0 && (output_ndim_fn.empty() || !output_ndim_fn[0])) {
     auto out_layout = CalculateOutputLayout(output_idx, spec);
     if (out_layout.has_value() && out_layout->ndim())
       return out_layout->ndim();
 
-    if (spec.NumInput() >= 1)
+    if (spec.NumRegularInput() >= 1)
       return spec.InputDesc(0).ndim;
   }
 
-  if (output_idx >= static_cast<int>(output_ndim_fn_.size()) || !output_ndim_fn_[output_idx])
+  if (output_idx >= static_cast<int>(output_ndim_fn.size()) || !output_ndim_fn[output_idx])
     return std::nullopt;
-  return output_ndim_fn_[output_idx](spec);
+  return output_ndim_fn[output_idx](spec);
 }
 
 
@@ -1000,22 +1000,30 @@ OpSchema::CalculateOutputLayout(int output_idx, const OpSpec &spec) const {
   // Default policy for output 0:
   // 1. Try "layout" or "output_layout" arguments - if present, return
   // 2. If there's at least one input and the output 0 ndim matches the input, use input's layout
-  if (output_idx == 0 && (output_layout_fn_.empty() || !output_layout_fn_[0])) {
+  if (output_idx == 0 && (output_layout_fn.empty() || !output_layout_fn[0])) {
     TensorLayout tl;
     if (spec.TryGetArgument(tl, "layout") || spec.TryGetArgument(tl, "output_layout"))
       return tl;
-    if (spec.NumInput() >= 1) {
+    if (spec.NumRegularInput() >= 1) {
+      auto &input_desc = spec.InputDesc(0);
       if (!output_ndim_fn_.empty() && output_ndim_fn_[0])  {
-        if (output_ndim_fn_[0](spec) != spec.InputDesc(0).ndim)
+        if (output_ndim_fn_[0](spec) != input_desc.ndim)
           return std::nullopt;
       }
-      return spec.InputDesc(0).layout;
+      if (input_desc.layout.has_value()) {
+        if (!input_desc.layout->empty())
+          return input_desc.layout;
+        else if (input_desc.ndim.has_value())
+          return GetInputLayout(0, *input_desc.ndim);
+        else
+          return std::nullopt;
+      }
     }
   }
 
-  if (output_idx >= static_cast<int>(output_layout_fn_.size()) || !output_layout_fn_[output_idx])
+  if (output_idx >= static_cast<int>(output_layout_fn.size()) || !output_layout_fn[output_idx])
     return std::nullopt;
-  return output_layout_fn_[output_idx](spec);
+  return output_layout_fn[output_idx](spec);
 }
 
 
