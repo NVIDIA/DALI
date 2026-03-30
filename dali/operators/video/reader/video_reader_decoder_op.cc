@@ -76,11 +76,12 @@ class FrameIndexCache {
 
 struct VideoSampleDesc {
   VideoSampleDesc(const VideoFileMeta *video_file_meta = nullptr, int start = -1, int end = -1, int stride = -1)
-      : video_file_meta_(video_file_meta), start_(start), end_(end), stride_(stride) {}
+      : video_file_meta_(video_file_meta), start_(start), end_(end), stride_(stride), frame_idxs_() {}
   const VideoFileMeta *video_file_meta_;
   int start_;
   int end_;
   int stride_;
+  span<const int> frame_idxs_;  // non-empty → uniform sampling; use these instead of start_/end_/stride_
 };
 
 template <typename Backend>
@@ -90,7 +91,7 @@ struct VideoSample : public VideoSampleDesc {
     data_.set_pinned(std::is_same_v<Backend, GPUBackend>);
   }
 
-  VideoSample(const VideoSampleDesc &other) noexcept
+  VideoSample(const VideoSampleDesc &other)
       : VideoSampleDesc(other) {
     data_.set_pinned(std::is_same_v<Backend, GPUBackend>);
   }
@@ -178,7 +179,8 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
         stride_(spec.GetArgument<int>("stride")),
         step_(spec.GetArgument<int>("step")),
         image_type_(spec.GetArgument<DALIImageType>("image_type")),
-        boundary_type_(GetBoundaryType(spec)) {
+        boundary_type_(GetBoundaryType(spec)),
+        uniform_sample_(spec.GetArgument<bool>("uniform_sample")) {
     if ((spec.HasArgument("file_list") + spec.HasArgument("file_root") + spec.HasArgument("filenames")) != 1) {
       DALI_FAIL("Only one of the following arguments can be provided: ``file_list``, ``file_root``, ``filenames``");
     }
@@ -223,6 +225,20 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
     if (step_ <= 0) {
       step_ = stride_ * sequence_len_;
     }
+    if (uniform_sample_) {
+      DALI_ENFORCE(sequence_len_ >= 1,
+                   "sequence_length must be at least 1 when uniform_sample=True.");
+      if (spec.HasArgument("stride")) {
+        DALI_WARN("uniform_sample=True: the `stride` argument is ignored.");
+      }
+      if (spec.HasArgument("step")) {
+        DALI_WARN("uniform_sample=True: the `step` argument is ignored.");
+      }
+      if (spec.HasArgument("pad_mode")) {
+        DALI_WARN("uniform_sample=True: the `pad_mode` argument is ignored. "
+                  "Frames are repeated when sequence_length exceeds the number of available frames.");
+      }
+    }
   }
 
   void PrepareEmpty(Sample &sample) {
@@ -244,6 +260,10 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
 
   void PrepareMetadataImpl() override {
     LOG_LINE << "Starting PrepareMetadataImpl" << std::endl;
+    samples_.clear();
+    all_frame_idxs_.clear();
+    if (uniform_sample_)
+      all_frame_idxs_.reserve(video_files_info_.size());
     for (size_t i = 0; i < video_files_info_.size(); ++i) {
       auto& entry = video_files_info_[i];
       LOG_LINE << "Processing video file " << i << ": " << entry.filename << std::endl;
@@ -306,20 +326,37 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
         continue;
       }
 
-      int start = entry.start_frame;
-      int full_seq_stride = stride_ * sequence_len_;
-      for (; start + full_seq_stride <= entry.end_frame; start += step_) {
-        LOG_LINE << "Adding sample with start=" << start << ", end=" << start + full_seq_stride
-                 << ", stride=" << stride_ << std::endl;
-        samples_.emplace_back(&entry, start, start + full_seq_stride, stride_);
-      }
+      if (uniform_sample_) {
+        int total_frames = entry.end_frame - entry.start_frame;
+        VideoSampleDesc s(&entry, entry.start_frame, entry.end_frame, 1);
+        all_frame_idxs_.emplace_back(sequence_len_);
+        auto& idxs = all_frame_idxs_.back();
+        for (int i = 0; i < sequence_len_; ++i) {
+          double t = (sequence_len_ > 1) ? (double)i / (sequence_len_ - 1) : 0.0;
+          idxs[i] = entry.start_frame + static_cast<int>(std::round(t * (total_frames - 1)));
+        }
+        // Moving a std::vector preserves data(), so this span remains valid even if
+        // all_frame_idxs_ is reallocated later (inner vectors are moved, not copied).
+        s.frame_idxs_ = make_cspan(idxs);
+        LOG_LINE << "Adding uniform sample for " << entry.filename
+                 << " with " << sequence_len_ << " frames" << std::endl;
+        samples_.emplace_back(std::move(s));
+      } else {
+        int start = entry.start_frame;
+        int full_seq_stride = stride_ * sequence_len_;
+        for (; start + full_seq_stride <= entry.end_frame; start += step_) {
+          LOG_LINE << "Adding sample with start=" << start << ", end=" << start + full_seq_stride
+                   << ", stride=" << stride_ << std::endl;
+          samples_.emplace_back(&entry, start, start + full_seq_stride, stride_);
+        }
 
-      // if we have a tail that doesn't fit a full sequence and we allow padding, extend the last
-      // sequence
-      if (boundary_type_ != boundary::BoundaryType::ISOLATED && start < entry.end_frame) {
-        LOG_LINE << "Adding padded tail sample starting at frame " << start
-                 << ", end=" << entry.end_frame << ", stride=" << stride_ << std::endl;
-        samples_.emplace_back(&entry, start, start + full_seq_stride, stride_);
+        // if we have a tail that doesn't fit a full sequence and we allow padding, extend the last
+        // sequence
+        if (boundary_type_ != boundary::BoundaryType::ISOLATED && start < entry.end_frame) {
+          LOG_LINE << "Adding padded tail sample starting at frame " << start
+                   << ", end=" << entry.end_frame << ", stride=" << stride_ << std::endl;
+          samples_.emplace_back(&entry, start, start + full_seq_stride, stride_);
+        }
       }
     }
 
@@ -370,9 +407,11 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
   int step_;
   DALIImageType image_type_;
   boundary::BoundaryType boundary_type_;
+  bool uniform_sample_;
   FileListOptions file_list_opts_;
 
   std::vector<VideoFileMeta> video_files_info_;
+  std::vector<std::vector<int>> all_frame_idxs_;  // owns frame index data; samples_ hold spans into these
   std::vector<VideoSampleDesc> samples_;
   CUDAStreamLease cuda_stream_;
 };
@@ -587,7 +626,9 @@ class VideoReaderDecoder
       DALI_ENFORCE(decoder_->IsValid(),
                    make_string("Invalid decoder for filename ", filename));
 
-      int64_t num_frames = (sample->end_ - sample->start_ + sample->stride_ - 1) / sample->stride_;
+      int64_t num_frames = sample->frame_idxs_.empty()
+          ? (sample->end_ - sample->start_ + sample->stride_ - 1) / sample->stride_
+          : static_cast<int64_t>(sample->frame_idxs_.size());
       sample->data_.Resize(
           {num_frames, decoder_->Height(), decoder_->Width(), decoder_->Channels()}, DALI_UINT8);
       sample->data_.SetSourceInfo(decoder_->Filename());
@@ -603,27 +644,50 @@ class VideoReaderDecoder
       } else {
         sample->timestamps_.clear();
       }
-      LOG_LINE << "Decoding frames start=" << sample->start_ << ", end=" << sample->end_
-               << ", stride=" << sample->stride_ << ", num_frames=" << num_frames
-               << ", filename=" << sample->video_file_meta_->filename
-               << ", label=" << sample->video_file_meta_->label
-               << ", start=" << sample->video_file_meta_->start_frame
-               << ", end=" << sample->video_file_meta_->end_frame
-               << ", boundary_type=" << to_string(boundary_type_) << std::endl;
+      if (!sample->frame_idxs_.empty()) {
+        LOG_LINE << "Decoding frames (uniform) num_frames=" << num_frames
+                 << ", frame_idxs=[" << sample->frame_idxs_.front() << ".."
+                 << sample->frame_idxs_.back() << "]"
+                 << ", filename=" << sample->video_file_meta_->filename
+                 << ", label=" << sample->video_file_meta_->label
+                 << ", boundary_type=" << to_string(boundary_type_) << std::endl;
+      } else {
+        LOG_LINE << "Decoding frames start=" << sample->start_ << ", end=" << sample->end_
+                 << ", stride=" << sample->stride_ << ", num_frames=" << num_frames
+                 << ", filename=" << sample->video_file_meta_->filename
+                 << ", label=" << sample->video_file_meta_->label
+                 << ", start=" << sample->video_file_meta_->start_frame
+                 << ", end=" << sample->video_file_meta_->end_frame
+                 << ", boundary_type=" << to_string(boundary_type_) << std::endl;
+      }
       int roi_start = sample->video_file_meta_->start_frame;
       int roi_end = sample->video_file_meta_->end_frame;
       if (frame_num_policy_ == FrameNumPolicy::Sequence) {
         sample->frame_idx_.resize(num_frames);
-        for (int64_t i = 0; i < num_frames; ++i) {
-          sample->frame_idx_[i] = static_cast<int32_t>(decoder_->HandleBoundary(
-              boundary_type_,
-              static_cast<int>(sample->start_ + i * sample->stride_),
-              roi_start, roi_end));
+        if (!sample->frame_idxs_.empty()) {
+          // Uniform indices are always within [roi_start, roi_end-1], so HandleBoundary
+          // is a no-op here — but we call it for consistency with the stride path below.
+          for (int64_t i = 0; i < num_frames; ++i) {
+            sample->frame_idx_[i] = static_cast<int32_t>(decoder_->HandleBoundary(
+                boundary_type_, sample->frame_idxs_[i], roi_start, roi_end));
+          }
+        } else {
+          for (int64_t i = 0; i < num_frames; ++i) {
+            sample->frame_idx_[i] = static_cast<int32_t>(decoder_->HandleBoundary(
+                boundary_type_,
+                static_cast<int>(sample->start_ + i * sample->stride_),
+                roi_start, roi_end));
+          }
         }
       } else {
         sample->frame_idx_.clear();
       }
-      if (roi_start != 0 || roi_end != decoder_->NumFrames()) {
+      if (!sample->frame_idxs_.empty()) {
+        // Uniform sampling: explicit frame indices already include ROI offset (start_frame)
+        decoder_->DecodeFrames(sample->data_.template mutable_data<uint8_t>(),
+                               make_cspan(sample->frame_idxs_), boundary_type_, constant_frame,
+                               make_span(sample->timestamps_));
+      } else if (roi_start != 0 || roi_end != decoder_->NumFrames()) {
         frame_idxs_.clear();
         for (int frame_idx = sample->start_; frame_idx < sample->end_;
              frame_idx += sample->stride_) {
@@ -763,6 +827,21 @@ When the value is less than 0, `step` is set to `sequence_length`.)code",
                     -1)
     .AddOptionalArg("stride", R"code(Distance between consecutive frames in the sequence.)code", 1u,
                     false)
+    .AddOptionalArg("uniform_sample",
+        R"code(If set to True, uniformly samples ``sequence_length`` frames from the full video
+(or from the video range defined by ``file_list``), regardless of the video length.
+
+The sampled frame indices correspond to ``numpy.linspace(start, end-1, sequence_length)``
+rounded to the nearest integer using ``floor(x + 0.5)`` (rounds half away from zero,
+matching C++ ``std::round`` — not NumPy's default banker's rounding).
+
+If ``sequence_length`` exceeds the number of frames in the video, frames are repeated
+rather than padded. For example, sampling 5 frames from a 3-frame video yields indices
+``[0, 1, 1, 2, 2]``. A single-frame video always produces a sequence of identical frames.
+
+When enabled, each video file produces exactly one sample per epoch.
+The ``stride``, ``step``, and ``pad_mode`` arguments are ignored.)code",
+        false)
     .AddOptionalArg<std::string>(
         "pad_mode",
         R"code(How to handle videos with insufficient frames when using start_frame/sequence_length/stride:
