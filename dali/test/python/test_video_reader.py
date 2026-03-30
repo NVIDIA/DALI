@@ -14,6 +14,7 @@
 
 from nvidia.dali import pipeline_def, fn, types
 from nvidia.dali.data_node import DataNode
+import nvidia.dali.experimental.dynamic as ndd
 import numpy as np
 import os
 import cv2
@@ -240,4 +241,199 @@ def test_compare_experimental_to_legacy_reader_file_root(
         sequence_length=sequence_length,
         pad_mode=pad_mode,
         image_type=image_type,
+    )
+
+
+@cartesian_params(
+    devices,
+    [5, 1],  # sequence lengths including edge case N=1
+)
+def test_uniform_sample(device, sequence_length):
+    video_files_sorted = sorted(VIDEO_FILES)
+    num_video_files = len(video_files_sorted)
+
+    # Get per-video frame counts and (GPU only) decode all frames for pixel comparison.
+    # Iterating seq_len=1 gives both in one pass; CPU only needs the count via get_metadata().
+    # GPU only: NVDEC produces identical pixels whether seeking or decoding sequentially.
+    # CPU (libavcodec) can produce minor seek-induced differences for H.264 B-frames.
+    frame_counts = []
+    all_frames = []  # populated on GPU only
+    for video_file in video_files_sorted:
+        reader = ndd.experimental.readers.Video(
+            device=device, filenames=[video_file], sequence_length=1, stride=1, step=1
+        )
+        if device == "gpu":
+            decoded = [np.array(f.evaluate().cpu())[0] for (f,) in reader.next_epoch()]
+            all_frames.append(np.stack(decoded))  # shape (N, H, W, C)
+            frame_counts.append(len(decoded))
+        else:
+            frame_counts.append(reader.get_metadata()["epoch_size"])
+
+    # Run uniform reader, verify one sample per video, check frame indices and pixels.
+    uniform_reader = ndd.experimental.readers.Video(
+        device=device,
+        filenames=video_files_sorted,
+        sequence_length=sequence_length,
+        uniform_sample=True,
+        enable_frame_num="sequence",
+    )
+    samples = list(uniform_reader.next_epoch())
+    assert (
+        len(samples) == num_video_files
+    ), f"Expected {num_video_files} samples (one per video), got {len(samples)}"
+
+    for i, (video, frame_num) in enumerate(samples):
+        n = frame_counts[i]
+        fn_arr = np.array(frame_num.evaluate().cpu()).flatten()
+        assert (
+            len(fn_arr) == sequence_length
+        ), f"Video {i}: expected {sequence_length} frame indices, got {len(fn_arr)}"
+        assert fn_arr[0] == 0, f"Video {i}: first frame index should be 0, got {fn_arr[0]}"
+        if sequence_length > 1:
+            assert (
+                fn_arr[-1] == n - 1
+            ), f"Video {i}: last frame index should be {n - 1}, got {fn_arr[-1]}"
+        # Use floor(x + 0.5) to match C++ std::round (rounds half away from zero).
+        expected_idxs = np.floor(np.linspace(0, n - 1, sequence_length) + 0.5).astype(np.int32)
+        np.testing.assert_array_equal(
+            fn_arr, expected_idxs, err_msg=f"Video {i}: frame index mismatch (num_frames={n})"
+        )
+        if device == "gpu":
+            uniform_frames = np.array(video.evaluate().cpu())  # shape (k, H, W, C)
+            expected_frames = all_frames[i][expected_idxs]  # shape (k, H, W, C)
+            np.testing.assert_array_equal(
+                uniform_frames,
+                expected_frames,
+                err_msg=f"Video {i}: pixel mismatch at linspace positions",
+            )
+
+
+@cartesian_params(
+    devices,
+    [5, 1],  # sequence lengths including edge case N=1
+)
+def test_uniform_sample_file_list_roi(device, sequence_length):
+    """Verify uniform_sample with file_list ROI (non-zero start_frame)."""
+    video_file = sorted(VIDEO_FILES)[0]
+
+    # Get total frame count.
+    reader = ndd.experimental.readers.Video(
+        device=device, filenames=[video_file], sequence_length=1, stride=1, step=1
+    )
+    total_frames = reader.get_metadata()["epoch_size"]
+
+    # Define a ROI that excludes the first and last few frames.
+    start_frame = max(1, total_frames // 5)
+    end_frame = min(total_frames - 1, total_frames * 4 // 5)
+    roi_frames = end_frame - start_frame
+    assert roi_frames >= sequence_length, "ROI too small for this test"
+
+    # Write a file_list with the ROI.
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".txt") as list_file:
+        list_file.write(f"{video_file} 0 {start_frame} {end_frame}\n")
+        list_file.flush()
+
+        uniform_reader = ndd.experimental.readers.Video(
+            device=device,
+            file_list=list_file.name,
+            file_list_format="frames",
+            sequence_length=sequence_length,
+            uniform_sample=True,
+            enable_frame_num="sequence",
+        )
+        samples = list(uniform_reader.next_epoch())
+        assert len(samples) == 1, f"Expected 1 sample (one per video), got {len(samples)}"
+
+        _, _, frame_num = samples[0]
+        fn_arr = np.array(frame_num.evaluate().cpu()).flatten()
+        assert len(fn_arr) == sequence_length
+
+        # Frame indices must be absolute (offset from start_frame, not zero).
+        assert fn_arr[0] == start_frame, f"First index should be {start_frame}, got {fn_arr[0]}"
+        if sequence_length > 1:
+            assert (
+                fn_arr[-1] == end_frame - 1
+            ), f"Last index should be {end_frame - 1}, got {fn_arr[-1]}"
+
+        expected_idxs = start_frame + np.floor(
+            np.linspace(0, roi_frames - 1, sequence_length) + 0.5
+        ).astype(np.int32)
+        np.testing.assert_array_equal(
+            fn_arr,
+            expected_idxs,
+            err_msg=f"Frame index mismatch (start={start_frame}, end={end_frame})",
+        )
+
+        # Scalar mode: enable_frame_num="scalar" should return the first sampled frame index
+        # (= start_frame), even with a non-zero ROI offset.
+        scalar_reader = ndd.experimental.readers.Video(
+            device=device,
+            file_list=list_file.name,
+            file_list_format="frames",
+            sequence_length=sequence_length,
+            uniform_sample=True,
+            enable_frame_num="scalar",
+        )
+        scalar_samples = list(scalar_reader.next_epoch())
+        assert len(scalar_samples) == 1
+        _, _, scalar_fn = scalar_samples[0]
+        scalar_val = int(np.array(scalar_fn.evaluate().cpu()).flatten()[0])
+        assert (
+            scalar_val == start_frame
+        ), f"Scalar frame_num should be {start_frame} (first sampled index), got {scalar_val}"
+
+
+@cartesian_params(devices)
+def test_uniform_sample_sequence_length_zero_raises(device):
+    """uniform_sample=True with sequence_length=0 should raise an error."""
+    video_file = sorted(VIDEO_FILES)[0]
+    try:
+        reader = ndd.experimental.readers.Video(
+            device=device,
+            filenames=[video_file],
+            sequence_length=0,
+            uniform_sample=True,
+        )
+        reader.get_metadata()  # force backend initialization to trigger validation
+        assert False, "Expected an exception for sequence_length=0 with uniform_sample=True"
+    except RuntimeError:
+        pass  # expected
+
+
+@cartesian_params(devices)
+def test_uniform_sample_stride_step_ignored(device):
+    """Passing stride/step with uniform_sample=True should not affect the output."""
+    video_file = sorted(VIDEO_FILES)[0]
+    sequence_length = 5
+
+    reader_default = ndd.experimental.readers.Video(
+        device=device,
+        filenames=[video_file],
+        sequence_length=sequence_length,
+        uniform_sample=True,
+        enable_frame_num="sequence",
+    )
+    # stride and step are explicitly provided but should be ignored.
+    reader_with_stride_step = ndd.experimental.readers.Video(
+        device=device,
+        filenames=[video_file],
+        sequence_length=sequence_length,
+        uniform_sample=True,
+        stride=7,
+        step=13,
+        enable_frame_num="sequence",
+    )
+
+    samples_default = list(reader_default.next_epoch())
+    samples_with_stride_step = list(reader_with_stride_step.next_epoch())
+
+    assert len(samples_default) == len(samples_with_stride_step) == 1
+    _, fn_default = samples_default[0]
+    _, fn_stride_step = samples_with_stride_step[0]
+    idxs_default = np.array(fn_default.evaluate().cpu()).flatten()
+    idxs_stride_step = np.array(fn_stride_step.evaluate().cpu()).flatten()
+    np.testing.assert_array_equal(
+        idxs_default,
+        idxs_stride_step,
+        err_msg="stride/step should be ignored when uniform_sample=True",
     )
