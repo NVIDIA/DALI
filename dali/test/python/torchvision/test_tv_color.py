@@ -124,7 +124,7 @@ def test_colorjitter_images(cj_params, device):
 
 
 """
-TODO (https://github.com/NVIDIA/DALI/issues/XXXX):
+TODO (https://github.com/NVIDIA/DALI/issues/DALI-4656):
 DALI ColorJitter does not currently work on CHW layout
 @params(
     # brightness, contrast, saturation, hue
