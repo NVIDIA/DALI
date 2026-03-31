@@ -14,7 +14,7 @@
 
 from typing import Optional, Sequence, Literal
 
-from .operator import Operator, ArgumentVerificationRule, get_HWC_from_layout_pipeline
+from .operator import Operator, _ArgumentValidateRule, get_HWC_from_layout_pipeline
 
 import nvidia.dali as dali
 import nvidia.dali.fn as fn
@@ -24,7 +24,7 @@ from torchvision.transforms import InterpolationMode
 import numpy as np
 
 
-class VerificationSize(ArgumentVerificationRule):
+class _ValidateSize(_ArgumentValidateRule):
     @classmethod
     def verify(cls, *, size, max_size, interpolation, **_):
         if size is not None and not isinstance(size, int) and not isinstance(size, (tuple, list)):
@@ -86,7 +86,7 @@ class Resize(Operator):
         InterpolationMode.BILINEAR: DALIInterpType.INTERP_LINEAR,
         InterpolationMode.BICUBIC: DALIInterpType.INTERP_CUBIC,
         InterpolationMode.LANCZOS: DALIInterpType.INTERP_LANCZOS3,
-        # Not supported, but need to be here to not generate ValueError during VerificationSize
+        # Not supported, but need to be here to not generate ValueError during _ValidateSize
         InterpolationMode.NEAREST_EXACT: DALIInterpType.INTERP_NN,
         InterpolationMode.BOX: DALIInterpType.INTERP_NN,
         InterpolationMode.HAMMING: DALIInterpType.INTERP_NN,
@@ -98,7 +98,7 @@ class Resize(Operator):
         InterpolationMode.HAMMING,
     ]
 
-    arg_rules = [VerificationSize]
+    arg_rules = [_ValidateSize]
     preprocess_data = get_HWC_from_layout_pipeline
 
     @classmethod

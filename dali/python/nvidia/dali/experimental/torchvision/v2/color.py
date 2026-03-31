@@ -15,11 +15,11 @@
 from typing import Sequence, Literal, Optional
 
 from .operator import (
-    ArgumentVerificationRule,
-    DataVerificationRule,
+    _ArgumentValidateRule,
+    _DataValidateRule,
     Operator,
-    VerifyIfRange,
-    VerifyIfNonNegative,
+    _ValidateIfRange,
+    _ValidateIfNonNegative,
     get_HWC_from_layout_pipeline,
 )
 
@@ -28,7 +28,7 @@ import nvidia.dali as dali
 import nvidia.dali.fn as fn
 
 
-class VerificationBCS(ArgumentVerificationRule):
+class _ValidateBrightnessContrastSaturation(_ArgumentValidateRule):
     """
     Verify Brightness, Contrast and Saturation values
 
@@ -47,21 +47,21 @@ class VerificationBCS(ArgumentVerificationRule):
         if param is None:
             raise ValueError(f"{name} must not be None")
 
-        VerifyIfNonNegative.verify(values=param, name=name)
+        _ValidateIfNonNegative.verify(values=param, name=name)
 
         if isinstance(param, (int, float)):
-            param = [max(0, 1 - param), 1 + param]
+            param = (max(0, 1 - param), 1 + param)
 
-        VerifyIfRange.verify(values=param, name=name)
+        _ValidateIfRange.verify(values=param, name=name)
 
     @classmethod
     def verify(cls, *, saturation, brightness, contrast, **_) -> None:
-        VerificationBCS._validate_param(brightness, "brightness")
-        VerificationBCS._validate_param(saturation, "saturation")
-        VerificationBCS._validate_param(contrast, "contrast")
+        _ValidateBrightnessContrastSaturation._validate_param(brightness, "brightness")
+        _ValidateBrightnessContrastSaturation._validate_param(saturation, "saturation")
+        _ValidateBrightnessContrastSaturation._validate_param(contrast, "contrast")
 
 
-class VerificationHue(ArgumentVerificationRule):
+class _ValidateHue(_ArgumentValidateRule):
     """
     Verify Hue
 
@@ -77,15 +77,15 @@ class VerificationHue(ArgumentVerificationRule):
             raise ValueError("hue must not be None")
 
         if isinstance(hue, (int, float)):
-            hue = [hue, hue]
+            hue = (-float(hue), float(hue))
         else:
-            VerifyIfRange.verify(values=hue, name="hue")
+            _ValidateIfRange.verify(values=hue, name="hue")
 
         if hue[0] < -0.5 or hue[1] > 0.5:
             raise ValueError(f"hue values should be between [-0.5, 0.5], but got {hue}")
 
 
-class VerifyGrayscaleInputLayout(DataVerificationRule):
+class VerifyGrayscaleInputLayout(_DataValidateRule):
     """
     Verify if grayscale conversion is supported for the current input layout
     """
@@ -105,7 +105,7 @@ class VerifyGrayscaleInputLayout(DataVerificationRule):
             )
 
 
-def _get_BCSH(brightness, contrast, saturation, hue, random_function):
+def _get_BrightnessContrastSaturationHue(brightness, contrast, saturation, hue, random_function):
     """
     Gets random: brightness, contrast, saturation and hue.
 
@@ -169,13 +169,13 @@ class ColorJitter(Operator):
         Device to use for the color jitter. Can be ``"cpu"`` or ``"gpu"``.
     """
 
-    arg_rules = [VerificationBCS, VerificationHue]
+    arg_rules = [_ValidateBrightnessContrastSaturation, _ValidateHue]
 
     def _create_param(self, param: int | float | Sequence[int] | Sequence[float]):
         if isinstance(param, (int, float)):
-            return [max(0.0, 1.0 - param), 1.0 + param]
+            return (max(0.0, 1.0 - param), 1.0 + param)
         elif isinstance(param, Sequence):
-            return [float(x) for x in param]
+            return tuple(float(x) for x in param)
         else:
             return float(param)
 
@@ -207,7 +207,7 @@ class ColorJitter(Operator):
         """
         Performs the color jitter using the ``fn.color_twist`` operator.
         """
-        brightness, contrast, saturation, hue = _get_BCSH(
+        brightness, contrast, saturation, hue = _get_BrightnessContrastSaturationHue(
             self.brightness, self.contrast, self.saturation, self.hue, fn.random.uniform
         )
 
@@ -223,7 +223,7 @@ class ColorJitter(Operator):
         return data_input
 
 
-class VerificationGSOutputChannels(ArgumentVerificationRule):
+class VerificationGSOutputChannels(_ArgumentValidateRule):
     """
     Verify the number of output channels for the Grayscale operator.
 

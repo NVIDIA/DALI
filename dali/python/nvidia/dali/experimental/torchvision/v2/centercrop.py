@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from typing import Sequence, Literal
-from .operator import Operator, VerifSizeDescriptor
+from .operator import Operator, _ValidateSizeDescriptor
 import nvidia.dali as dali
 import nvidia.dali.fn as fn
 from .operator import get_HWC_from_layout_pipeline
@@ -39,7 +39,7 @@ class CenterCrop(Operator):
         Device to use for the crop. Can be ``"cpu"`` or ``"gpu"``.
     """
 
-    arg_rules = [VerifSizeDescriptor]
+    arg_rules = [_ValidateSizeDescriptor]
     preprocess_data = get_HWC_from_layout_pipeline
 
     @classmethod
