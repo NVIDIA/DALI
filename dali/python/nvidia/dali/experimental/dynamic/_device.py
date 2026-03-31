@@ -34,7 +34,7 @@ class Device:
 
     The device can be either CPU or (specific) GPU.
 
-    .. note::
+    .. warning::
         It's recommended to use the :func:`device` function rather than to construct
         :class:`Device` directly.
 

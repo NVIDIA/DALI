@@ -45,7 +45,7 @@ class Stream:
     This class wraps a CUDA stream object. It can be either a stream created by DALI or a
     compatible object created by a third-party library.
 
-    .. note::
+    .. warning::
         Do not construct this class directly. Use :func:`stream` instead.
 
     Parameters
