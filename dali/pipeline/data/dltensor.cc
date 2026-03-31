@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <cuda_runtime_api.h>
+#include <chrono>
 #include <condition_variable>
 #include <list>
 #include <mutex>
@@ -104,6 +105,16 @@ class DLTensorGraveyard {
       auto ret = cudaDeviceSynchronize();
       if (ret == cudaErrorCudartUnloading)  // the process is shutting down - exit
         break;
+      if (ret == cudaErrorStreamCaptureUnsupported) {
+        // A stream on this device is being captured; cudaDeviceSynchronize is not allowed.
+        // Put the items back and retry after a short wait.
+        lock.lock();
+        pending_.splice(pending_.begin(), tmp);
+        cv_.wait_for(lock, std::chrono::milliseconds(1), [&]() {
+          return exit_requested_ || !pending_.empty();
+        });
+        continue;
+      }
       CUDA_CALL(ret);
       tmp.clear();  // this actually clears the references, still outside the lock
       lock.lock();  // OK, regain the lock and start over
