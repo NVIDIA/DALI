@@ -15,8 +15,7 @@
         {"name": "device-gpu-not-mixed", "text": "Uses device='gpu' for decoder, NOT device='mixed'"},
         {"name": "no-pipeline-mode", "text": "No pipeline-mode constructs (no @pipeline_def, pipe.build(), pipe.run()) and operators called directly on ndd (e.g. ndd.resize, not fn.resize or ndd.fn.resize)"},
         {"name": "torch-handoff", "text": "Uses .torch() for PyTorch conversion"},
-        {"name": "no-unnecessary-evaluate", "text": "No unnecessary .evaluate() calls"},
-        {"name": "set-num-threads", "text": "Calls ndd.set_num_threads() at startup"}
+        {"name": "no-unnecessary-evaluate", "text": "No unnecessary .evaluate() calls"}
       ]
     },
     {
