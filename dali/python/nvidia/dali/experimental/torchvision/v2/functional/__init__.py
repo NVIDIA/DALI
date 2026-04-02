@@ -19,6 +19,7 @@ from .gaussian_blur import gaussian_blur
 from .normalize import normalize
 from .pad import pad
 from .resize import resize
+from .totensor import pil_to_tensor, to_tensor, to_pil_image
 
 __all__ = [
     "center_crop",
@@ -26,8 +27,11 @@ __all__ = [
     "horizontal_flip",
     "normalize",
     "pad",
+    "pil_to_tensor",
     "resize",
     "rgb_to_grayscale",
     "to_grayscale",
+    "to_pil_image",
+    "to_tensor",
     "vertical_flip",
 ]
