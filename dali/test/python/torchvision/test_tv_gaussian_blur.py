@@ -25,6 +25,8 @@ from PIL import Image
 from nvidia.dali.experimental.torchvision import GaussianBlur, Compose
 from nvidia.dali.experimental.torchvision.v2.functional import gaussian_blur
 
+import nvidia.dali.experimental.dynamic as ndd
+
 dali_extra = os.environ["DALI_EXTRA_PATH"]
 jpeg = os.path.join(dali_extra, "db", "single", "jpeg")
 jpeg_113 = os.path.join(jpeg, "113")
@@ -52,22 +54,22 @@ def make_input_tensors():
 def test_gaussian_blur_tensor_equivalence(kernel_size, sigma):
     tens, batch = make_input_tensors()
 
+    seed = 1234
     # ensure same global RNG state before both calls for random sigma cases
-    torch.manual_seed(1234)
+    torch.manual_seed(seed)
     tv_blur = T.GaussianBlur(kernel_size=kernel_size, sigma=sigma)
     tv_out_tens = tv_blur(tens)
     tv_out_batch = tv_blur(batch)
 
-    torch.manual_seed(1234)
-    dali_blur = Compose([GaussianBlur(kernel_size=kernel_size, sigma=sigma)])
+    dali_blur = Compose([GaussianBlur(kernel_size=kernel_size, sigma=sigma, seed=seed)])
     dali_out_tens = dali_blur(tens)
     dali_out_batch = dali_blur(batch)
 
-    torch.manual_seed(1234)
+    ndd.random.set_seed(seed)
     dali_out_fn_tens = gaussian_blur(tens, kernel_size=kernel_size, sigma=sigma)
     dali_out_fn_batch = gaussian_blur(batch, kernel_size=kernel_size, sigma=sigma)
 
-    torch.manual_seed(1234)
+    torch.manual_seed(seed)
     tv_out_fn_tens = T.functional.gaussian_blur(tens, kernel_size=kernel_size, sigma=sigma)
     tv_out_fn_batch = T.functional.gaussian_blur(batch, kernel_size=kernel_size, sigma=sigma)
 

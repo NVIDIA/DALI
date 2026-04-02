@@ -36,12 +36,12 @@ class _ValidateKernel(_ArgumentValidateRule):
 
         if not isinstance(kernel_size, (int, Sequence)):
             raise ValueError(
-                f" Kernel size should be an int or a sequenece of ints, got {kernel_size}"
+                f" Kernel size should be an int or a sequence of ints, got {kernel_size}"
             )
 
         if isinstance(kernel_size, Sequence) and any(not isinstance(v, int) for v in kernel_size):
             raise ValueError(
-                f" Kernel size should be an int or a sequenece of ints, got {kernel_size}"
+                f" Kernel size should be an int or a sequence of ints, got {kernel_size}"
             )
 
         values = [kernel_size] if isinstance(kernel_size, int) else kernel_size
@@ -109,15 +109,17 @@ class GaussianBlur(Operator):
         kernel_size: int | Sequence[int],
         sigma: int | float | Sequence[float] = (0.1, 2.0),
         device: Literal["cpu", "gpu"] = "cpu",
+        seed: int = -1,
     ):
         super().__init__(device=device, kernel_size=kernel_size, sigma=sigma)
 
         self.kernel_size = kernel_size
         self.sigma = (sigma, sigma) if isinstance(sigma, (int, float)) else sigma
+        self.seed = seed
 
     def _kernel(self, data_input):
         if self.sigma[0] != self.sigma[1]:
-            sigma = fn.random.uniform(range=self.sigma)
+            sigma = fn.random.uniform(range=self.sigma, seed=self.seed)
         else:
             sigma = self.sigma[0]
 
