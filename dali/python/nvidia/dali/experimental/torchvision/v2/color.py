@@ -99,7 +99,7 @@ class VerifyGrayscaleInputLayout(_DataValidateRule):
             layout = data_input.property("layout")[1]
 
         # CHW
-        if layout.cpu() == np.frombuffer(bytes("C", "utf-8"), dtype=np.uint8)[0]:
+        if layout == np.frombuffer(bytes("C", "utf-8"), dtype=np.uint8)[0]:
             raise NotImplementedError(
                 "NCHW and CHW layout are not supported for Grayscale, expecting HWC or NHWC"
             )

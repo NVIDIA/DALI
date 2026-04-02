@@ -24,10 +24,10 @@ from ..color import Grayscale  # noqa: E402
 
 
 def _grayscale(
-    inpt: ndd.Tensor | ndd.Batch,
+    inpt: Image.Image | torch.Tensor,
     num_output_channels: int = 1,
     device: Literal["cpu", "gpu"] = "cpu",
-) -> ndd.Tensor | ndd.Batch:
+) -> Image.Image | torch.Tensor:
 
     Grayscale.verify_args(num_output_channels=num_output_channels)
 

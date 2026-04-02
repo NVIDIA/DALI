@@ -18,8 +18,8 @@ import nvidia.dali.experimental.dynamic as ndd
 import torch
 from PIL import Image
 
-from ..operator import adjust_input, get_HWC_from_layout_dynamic  # noqa: E402
-from ..centercrop import CenterCrop  # noqa: E402
+from ..operator import adjust_input, get_HWC_from_layout_dynamic
+from ..centercrop import CenterCrop
 
 
 @adjust_input
