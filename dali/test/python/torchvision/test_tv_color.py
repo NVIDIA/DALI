@@ -119,7 +119,7 @@ def test_colorjitter_images(cj_params, device):
 
     for fn in test_files:
         img = Image.open(fn)
-        out_dali = cj(img)
+        _ = cj(img)
 
 
 """
