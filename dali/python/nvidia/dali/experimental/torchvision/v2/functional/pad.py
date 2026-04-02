@@ -15,8 +15,12 @@
 from typing import List, Literal
 import nvidia.dali.experimental.dynamic as ndd
 
-import torch
+
 from PIL import Image
+import torch
+
+from nvidia.dali._typing import TensorLike
+from nvidia.dali.experimental.dynamic._device import DeviceLike
 
 from ..operator import adjust_input, get_HWC_from_layout_dynamic  # noqa: E402
 from ..pad import _PadBase, PADDING_CLASS, _ValidatePaddingMode  # noqa: E402
@@ -24,12 +28,12 @@ from ..pad import _PadBase, PADDING_CLASS, _ValidatePaddingMode  # noqa: E402
 
 @adjust_input
 def _pad(
-    inpt: ndd.Tensor | ndd.Batch,
+    inpt: TensorLike | ndd.Batch,
     padding: List[int],
     fill: int | float = 0,
     axes: List[int] = [-3, -2],
     padding_mode: Literal["constant", "edge", "reflect", "symmetric"] = "constant",
-    device: Literal["cpu", "gpu"] = "cpu",
+    device: DeviceLike = "cpu",
 ) -> ndd.Tensor | ndd.Batch:
 
     left, top, right, bottom = _PadBase.get_padding(padding)
@@ -49,12 +53,12 @@ def _pad(
 
 
 def pad(
-    inpt: Image.Image | torch.Tensor,
+    inpt: Image.Image | TensorLike | ndd.Batch,
     padding: List[int],
     fill: int | float = 0,
     padding_mode: Literal["constant", "edge", "reflect", "symmetric"] = "constant",
-    device: Literal["cpu", "gpu"] = "cpu",
-) -> Image.Image | torch.Tensor:
+    device: DeviceLike = "cpu",
+) -> ndd.Tensor | ndd.Batch:
     """
     Please refer to the ``Pad`` operator for more details.
     """
