@@ -85,7 +85,7 @@ class _ValidateHue(_ArgumentValidateRule):
             raise ValueError(f"hue values should be between [-0.5, 0.5], but got {hue}")
 
 
-class VerifyGrayscaleInputLayout(_DataValidateRule):
+class _ValidateGrayscaleInputLayout(_DataValidateRule):
     """
     Verify if grayscale conversion is supported for the current input layout
     """
@@ -223,7 +223,7 @@ class ColorJitter(Operator):
         return data_input
 
 
-class VerificationGSOutputChannels(_ArgumentValidateRule):
+class _ValidateGrayscaleOutputChannels(_ArgumentValidateRule):
     """
     Verify the number of output channels for the Grayscale operator.
 
@@ -249,9 +249,9 @@ class Grayscale(Operator):
         Number of channels desired for output image. Should be 1 or 3.
     """
 
-    arg_rules = [VerificationGSOutputChannels]
+    arg_rules = [_ValidateGrayscaleOutputChannels]
     # TODO: it is currently useless since pipeline does not support raising exceptions
-    # input_rules = [VerifyGrayscaleInputLayout]
+    # input_rules = [_ValidateGrayscaleInputLayout]
     preprocess_data = get_HWC_from_layout_pipeline
 
     def __init__(self, num_output_channels: int = 1, device: Literal["cpu", "gpu"] = "cpu"):

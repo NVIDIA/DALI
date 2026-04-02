@@ -104,7 +104,6 @@ def make_tensor_inputs():
 )
 def test_colorjitter_images(cj_params, device):
     brightness, contrast, saturation, hue = cj_params
-    img, batch = make_tensor_inputs()
 
     cj = Compose(
         [
@@ -120,7 +119,7 @@ def test_colorjitter_images(cj_params, device):
 
     for fn in test_files:
         img = Image.open(fn)
-        _ = cj(img)
+        out_dali = cj(img)
 
 
 """

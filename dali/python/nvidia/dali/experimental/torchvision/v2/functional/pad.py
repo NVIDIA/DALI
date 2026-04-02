@@ -22,8 +22,8 @@ import torch
 from nvidia.dali._typing import TensorLike
 from nvidia.dali.experimental.dynamic._device import DeviceLike
 
-from ..operator import adjust_input, get_HWC_from_layout_dynamic  # noqa: E402
-from ..pad import _PadBase, PADDING_CLASS, _ValidatePaddingMode  # noqa: E402
+from ..operator import adjust_input, get_HWC_from_layout_dynamic
+from ..pad import _PadBase, PADDING_CLASS, _ValidatePaddingMode, _ValidateIfNonNegative
 
 
 @adjust_input
@@ -70,6 +70,7 @@ def pad(
         raise TypeError(f"Type not supported {type(inpt)}")
 
     _ValidatePaddingMode.verify(padding_mode=padding_mode)
+    _ValidateIfNonNegative.verify(values=padding, name="padding")
 
     return _pad(
         inpt,
