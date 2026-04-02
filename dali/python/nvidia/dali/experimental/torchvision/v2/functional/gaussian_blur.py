@@ -12,24 +12,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Literal, Sequence
+from typing import Sequence
 
 import nvidia.dali.experimental.dynamic as ndd
+from nvidia.dali._typing import TensorLike
+from nvidia.dali.experimental.dynamic._device import DeviceLike
 
-from PIL import Image
-import torch
-
-from ..operator import adjust_input  # noqa: E402
-from ..gaussian_blur import GaussianBlur  # noqa: E402
+from ..operator import adjust_input
+from ..gaussian_blur import GaussianBlur
 
 
 @adjust_input
 def gaussian_blur(
-    inpt: Image.Image | torch.Tensor,
+    inpt: TensorLike | ndd.Batch,
     kernel_size: int | Sequence[int],
     sigma: int | float | Sequence[float] = (0.1, 2.0),
-    device: Literal["cpu", "gpu"] = "cpu",
-) -> Image.Image | torch.Tensor:
+    device: DeviceLike = "cpu",
+) -> ndd.Tensor | ndd.Batch:
     """
     Please refer to the ``GaussianBlur`` operator for more details.
     """

@@ -13,19 +13,18 @@
 # limitations under the License.
 
 
-from typing import Literal
 import nvidia.dali.experimental.dynamic as ndd
+from nvidia.dali._typing import TensorLike
+from nvidia.dali.experimental.dynamic._device import DeviceLike
 
-import torch
-from PIL import Image
-
-from ..operator import adjust_input  # noqa: E402
+from ..operator import adjust_input
 
 
 @adjust_input
 def horizontal_flip(
-    inpt: Image.Image | torch.Tensor, device: Literal["cpu", "gpu"] = "cpu"
-) -> Image.Image | torch.Tensor:
+    inpt: TensorLike | ndd.Batch,
+    device: DeviceLike = "cpu",
+) -> ndd.Tensor | ndd.Batch:
     """
     Horizontally flips the given tensor.
     Refer to `HorizontalFlip` for more details.
@@ -35,8 +34,9 @@ def horizontal_flip(
 
 @adjust_input
 def vertical_flip(
-    inpt: Image.Image | torch.Tensor, device: Literal["cpu", "gpu"] = "cpu"
-) -> Image.Image | torch.Tensor:
+    inpt: TensorLike | ndd.Batch,
+    device: DeviceLike = "cpu",
+) -> ndd.Tensor | ndd.Batch:
     """
     Vertically flips the given tensor.
     Refer to `VerticalFlip` for more details.

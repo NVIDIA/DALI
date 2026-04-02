@@ -12,22 +12,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Literal
 import nvidia.dali.experimental.dynamic as ndd
 import nvidia.dali as dali
 
-import torch
-from PIL import Image
+from nvidia.dali._typing import TensorLike
+from nvidia.dali.experimental.dynamic._device import DeviceLike
 
-from ..operator import adjust_input, get_HWC_from_layout_dynamic  # noqa: E402
-from ..color import Grayscale  # noqa: E402
+from ..operator import adjust_input, get_HWC_from_layout_dynamic
+from ..color import Grayscale
 
 
 def _grayscale(
-    inpt: Image.Image | torch.Tensor,
+    inpt: TensorLike | ndd.Batch,
     num_output_channels: int = 1,
-    device: Literal["cpu", "gpu"] = "cpu",
-) -> Image.Image | torch.Tensor:
+    device: DeviceLike = "cpu",
+) -> ndd.Tensor | ndd.Batch:
 
     Grayscale.verify_args(num_output_channels=num_output_channels)
 
@@ -49,10 +48,10 @@ def _grayscale(
 
 @adjust_input
 def to_grayscale(
-    inpt: Image.Image | torch.Tensor,
+    inpt: TensorLike | ndd.Batch,
     num_output_channels: int = 1,
-    device: Literal["cpu", "gpu"] = "cpu",
-) -> Image.Image | torch.Tensor:
+    device: DeviceLike = "cpu",
+) -> ndd.Tensor | ndd.Batch:
     """
     Please refer to the ``Grayscale`` operator for more details.
     """
@@ -61,10 +60,10 @@ def to_grayscale(
 
 @adjust_input
 def rgb_to_grayscale(
-    inpt: Image.Image | torch.Tensor,
+    inpt: TensorLike | ndd.Batch,
     num_output_channels: int = 1,
-    device: Literal["cpu", "gpu"] = "cpu",
-) -> Image.Image | torch.Tensor:
+    device: DeviceLike = "cpu",
+) -> ndd.Tensor | ndd.Batch:
     """
     Please refer to the ``Grayscale`` operator for more details.
     """

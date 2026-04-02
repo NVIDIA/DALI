@@ -12,12 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Optional, List, Literal
+from typing import Optional, List
 import nvidia.dali.experimental.dynamic as ndd
 from torchvision.transforms import InterpolationMode
 
-import torch
-from PIL import Image
+from nvidia.dali._typing import TensorLike
+from nvidia.dali.experimental.dynamic._device import DeviceLike
 
 from ..operator import adjust_input, get_HWC_from_layout_dynamic  # noqa: E402
 from ..resize import Resize  # noqa: E402
@@ -25,13 +25,13 @@ from ..resize import Resize  # noqa: E402
 
 @adjust_input
 def resize(
-    inpt: Image.Image | torch.Tensor,
+    inpt: TensorLike | ndd.Batch,
     size: List[int],
     interpolation: InterpolationMode = InterpolationMode.BILINEAR,
     max_size: Optional[int] = None,
     antialias: Optional[bool] = True,
-    device: Literal["cpu", "gpu"] = "cpu",
-) -> Image.Image | torch.Tensor:
+    device: DeviceLike = "cpu",
+) -> ndd.Tensor | ndd.Batch:
     """
     Please refer to the ``Resize`` operator for more details.
     """

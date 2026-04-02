@@ -12,11 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import List, Literal
+from typing import List
 import nvidia.dali.experimental.dynamic as ndd
 
-import torch
-from PIL import Image
+from nvidia.dali._typing import TensorLike
+from nvidia.dali.experimental.dynamic._device import DeviceLike
 
 from ..operator import adjust_input, get_HWC_from_layout_dynamic
 from ..centercrop import CenterCrop
@@ -24,10 +24,10 @@ from ..centercrop import CenterCrop
 
 @adjust_input
 def center_crop(
-    inpt: Image.Image | torch.Tensor,
+    inpt: TensorLike | ndd.Batch,
     output_size: int | List[int],
-    device: Literal["cpu", "gpu"] = "cpu",
-) -> Image.Image | torch.Tensor:
+    device: DeviceLike = "cpu",
+) -> ndd.Tensor | ndd.Batch:
     """
     Please refer to the ``CenterCrop`` operator for more details.
     """
