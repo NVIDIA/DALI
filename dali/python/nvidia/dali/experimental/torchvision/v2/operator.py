@@ -23,7 +23,7 @@ import numpy as np
 import nvidia.dali.experimental.dynamic as ndd
 
 
-class DataVerificationRule(ABC):
+class _DataValidateRule(ABC):
     """
     Abstract base class for data verification rules
 
@@ -36,7 +36,7 @@ class DataVerificationRule(ABC):
         pass
 
 
-class ArgumentVerificationRule(ABC):
+class _ArgumentValidateRule(ABC):
     """
     Abstract base class for input verification rules
 
@@ -49,7 +49,7 @@ class ArgumentVerificationRule(ABC):
         pass
 
 
-class VerificationIsTensor(DataVerificationRule):
+class _ValidateIsTensor(_DataValidateRule):
     """
     Verify if the data is a ``torch.Tensor``.
 
@@ -65,7 +65,7 @@ class VerificationIsTensor(DataVerificationRule):
             raise TypeError(f"Data should be Tensor. Got {type(data)}")
 
 
-class VerificationTensorOrImage(DataVerificationRule):
+class _ValidateTensorOrImage(_DataValidateRule):
     """
     Verify if the data is a ``torch.Tensor`` or ``PIL.Image``.
 
@@ -81,7 +81,7 @@ class VerificationTensorOrImage(DataVerificationRule):
             raise TypeError(f"inpt should be Tensor or PIL Image. Got {type(data)}")
 
 
-class VerificationChannelCount(DataVerificationRule):
+class _ValidateChannelCount(_DataValidateRule):
     """
     Verify if input data has <= 4 channels. More channels are not supported in Torchvision
 
@@ -95,16 +95,13 @@ class VerificationChannelCount(DataVerificationRule):
 
     @classmethod
     def verify(cls, data):
-        if (
-            isinstance(data, torch.Tensor)
-            and data.shape[-3] not in VerificationChannelCount.CHANNELS
-        ):
+        if isinstance(data, torch.Tensor) and data.shape[-3] not in _ValidateChannelCount.CHANNELS:
             raise ValueError(f"Input should be in CHW if Tensor. \
-                Supports up to {VerificationChannelCount.CHANNELS[-1]} channels, \
+                Supports up to {_ValidateChannelCount.CHANNELS[-1]} channels, \
                 got: {data.shape[-3]} channels")
 
 
-class VerifyIfPositive(ArgumentVerificationRule):
+class _ValidateIfPositive(_ArgumentValidateRule):
     """
     Verify if the value is positive.
 
@@ -119,10 +116,28 @@ class VerifyIfPositive(ArgumentVerificationRule):
         if isinstance(values, (int, float)) and values <= 0:
             raise ValueError(f"Value {name} must be positive, got {values}")
         elif isinstance(values, (list, tuple)) and any(k <= 0 for k in values):
-            raise ValueError(f"Values {name} should be positive numbers, got {values}")
+            raise ValueError(f"Values {name} must be positive numbers, got {values}")
 
 
-class VerifyIfRange(ArgumentVerificationRule):
+class _ValidateIfNonNegative(_ArgumentValidateRule):
+    """
+    Verify if the value is non-negative.
+
+    Parameters
+    ----------
+    values : any
+        Value to verify. Should be non-negative numbers.
+    """
+
+    @classmethod
+    def verify(cls, *, values, name, **_) -> None:
+        if isinstance(values, (int, float)) and values < 0:
+            raise ValueError(f"Value {name} must be non-negative, got {values}")
+        elif isinstance(values, (list, tuple)) and any(k < 0 for k in values):
+            raise ValueError(f"Values {name} must be non-negative numbers, got {values}")
+
+
+class _ValidateIfRange(_ArgumentValidateRule):
     """
     Verify if the value is a correct range: (min, max)
 
@@ -138,7 +153,7 @@ class VerifyIfRange(ArgumentVerificationRule):
             raise ValueError(f"Values {name} should be (min, max), got {values}")
 
 
-class VerifSizeDescriptor(ArgumentVerificationRule):
+class _ValidateSizeDescriptor(_ArgumentValidateRule):
     """
     Verify if the value can describe a size argument, which is:
     - an integer
@@ -157,7 +172,7 @@ class VerifSizeDescriptor(ArgumentVerificationRule):
             raise TypeError(f"Size must be int, list, or tuple, got {type(size)}")
         elif isinstance(size, (list, tuple)) and len(size) > 2:
             raise ValueError(f"Size sequence must have length 1 or 2, got {len(size)}")
-        VerifyIfPositive.verify(values=size, name="size")
+        _ValidateIfPositive.verify(values=size, name="size")
 
 
 class Operator(ABC):
@@ -178,8 +193,8 @@ class Operator(ABC):
         Additional keyword arguments for the operator.
     """
 
-    arg_rules: tuple[ArgumentVerificationRule, ...] = []
-    input_rules: tuple[DataVerificationRule, ...] = []
+    arg_rules: tuple[_ArgumentValidateRule, ...] = []
+    input_rules: tuple[_DataValidateRule, ...] = []
     preprocess_data = None
 
     @classmethod
@@ -326,3 +341,73 @@ def adjust_input(func):
         return adjust_output(output, inpt, mode)
 
     return inner_function
+
+
+def get_input_shape_dynamic(inpt: ndd.Tensor | ndd.Batch) -> tuple:
+    """
+    Returns a sample shape of ndd.Tensor or ndd.Batch.
+
+    In case of ndd.Batches, it assumes that they are uniform
+    """
+
+    if isinstance(inpt, ndd.Tensor):
+        return inpt.shape
+    elif isinstance(inpt, ndd.Batch):
+        return inpt.shape[0]  # Batches have uniform layout
+    else:
+        raise TypeError(f"Input must be ndd.Tensor or ndd.Batch got {type(inpt)}")
+
+
+def get_HWC_from_layout_dynamic(inpt: ndd.Tensor | ndd.Batch) -> tuple:
+    """
+    Returns a shape as a HWC tuple based on the input layout
+    """
+
+    inpt_shape = get_input_shape_dynamic(inpt)
+
+    if inpt.layout[-3:] == "HWC":
+        return inpt_shape[-3], inpt_shape[-2], inpt_shape[-1]
+    elif inpt.layout[-3:] == "CHW":
+        return inpt_shape[-2], inpt_shape[-1], inpt_shape[-3]
+    elif inpt.layout[-2:] == "HW":
+        return inpt_shape[-2], inpt_shape[-1], 1
+    else:
+        raise ValueError(
+            f"Unsupported layout: {inpt.layout!r}. Expected one of HWC, FHWC, CHW, FCHW."
+        )
+
+
+def get_HWC_from_layout_pipeline(data_input):
+    """
+    Gets height, width and number of channels of the input data based on its layout.
+
+    Parameters
+    ----------
+    data_input : Tensor
+       Input data.
+
+    Returns
+    -------
+    input_height : int
+        Height of the input data.
+    input_width : int
+        Width of the input data.
+    input_channels : int
+        Number of channels of the input data.
+    input_data : Tensor
+    """
+    layout = data_input.property("layout")[0]
+
+    # If data layout is FHWC or FCHW, check the next character
+    if layout == np.frombuffer(bytes("F", "utf-8"), dtype=np.uint8)[0]:
+        layout = data_input.property("layout")[1]
+
+    shape = data_input.shape()
+    # CHW
+    if layout == np.frombuffer(bytes("C", "utf-8"), dtype=np.uint8)[0]:
+        h, w, c = shape[-2], shape[-1], shape[-3]
+    # HWC
+    else:
+        h, w, c = shape[-3], shape[-2], shape[-1]
+
+    return h, w, c, data_input

@@ -19,7 +19,7 @@ from torchvision.transforms import InterpolationMode
 import torch
 from PIL import Image
 
-from ..operator import adjust_input  # noqa: E402
+from ..operator import adjust_input, get_HWC_from_layout_dynamic  # noqa: E402
 from ..resize import Resize  # noqa: E402
 
 
@@ -42,23 +42,7 @@ def resize(
     size_normalized = Resize.infer_effective_size(size)
     interpolation = Resize.interpolation_modes[interpolation]
 
-    if isinstance(inpt, ndd.Tensor):
-        inpt_shape = inpt.shape
-    elif isinstance(inpt, ndd.Batch):
-        inpt_shape = inpt.shape[0]  # Batches have uniform layout
-    else:
-        raise TypeError(f"Input must be ndd.Tensor or ndd.Batch got {type(inpt)}")
-
-    if inpt.layout in ["HWC", "NHWC"]:
-        original_h = inpt_shape[-3]
-        original_w = inpt_shape[-2]
-    elif inpt.layout in ["HW", "CHW", "NCHW"]:
-        original_h = inpt_shape[-2]
-        original_w = inpt_shape[-1]
-    else:
-        raise ValueError(
-            f"Unsupported layout: {inpt.layout!r}. Expected one of HWC, NHWC, CHW, NCHW."
-        )
+    original_h, original_w, _ = get_HWC_from_layout_dynamic(inpt)
 
     target_h, target_w = Resize.calculate_target_size_dynamic_mode(
         (original_h, original_w), size_normalized, max_size

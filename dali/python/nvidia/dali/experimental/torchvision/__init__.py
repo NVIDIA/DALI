@@ -13,13 +13,16 @@
 # limitations under the License.
 
 from .v2.centercrop import CenterCrop
+from .v2.color import ColorJitter, Grayscale
 from .v2.compose import Compose
 from .v2.flips import RandomHorizontalFlip, RandomVerticalFlip
 from .v2.resize import Resize
 
 __all__ = [
     "CenterCrop",
+    "ColorJitter",
     "Compose",
+    "Grayscale",
     "RandomHorizontalFlip",
     "RandomVerticalFlip",
     "Resize",

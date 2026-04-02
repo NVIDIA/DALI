@@ -13,10 +13,10 @@
 # limitations under the License.
 
 from typing import Sequence, Literal
-from .operator import Operator, VerifSizeDescriptor
+from .operator import Operator, _ValidateSizeDescriptor
 import nvidia.dali as dali
 import nvidia.dali.fn as fn
-from .resize import get_inputHW
+from .operator import get_HWC_from_layout_pipeline
 
 
 class CenterCrop(Operator):
@@ -39,11 +39,11 @@ class CenterCrop(Operator):
         Device to use for the crop. Can be ``"cpu"`` or ``"gpu"``.
     """
 
-    arg_rules = [VerifSizeDescriptor]
-    preprocess_data = get_inputHW
+    arg_rules = [_ValidateSizeDescriptor]
+    preprocess_data = get_HWC_from_layout_pipeline
 
-    @staticmethod
-    def adjust_size(size: int | Sequence[int]) -> Sequence[int]:
+    @classmethod
+    def adjust_size(cls, size: int | Sequence[int]) -> Sequence[int]:
         if isinstance(size, int):
             return (size, size)
         elif isinstance(size, (list, tuple)):
@@ -69,7 +69,7 @@ class CenterCrop(Operator):
         If image size is smaller than output size along any edge, image is padded with 0 and then
         center cropped.
         """
-        in_h, in_w, tensor = data_input
+        in_h, in_w, _, tensor = data_input
         crop_h, crop_w = self.size
 
         # Slack between image and crop along each axis (may be zero or negative).

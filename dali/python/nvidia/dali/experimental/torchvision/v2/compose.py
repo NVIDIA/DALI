@@ -21,7 +21,7 @@ from nvidia.dali.pipeline import pipeline_def
 from nvidia.dali.data_node import DataNode as _DataNode
 from nvidia.dali.backend import TensorListCPU, TensorListGPU
 
-from .operator import VerificationTensorOrImage
+from .operator import _ValidateTensorOrImage
 
 import numpy as np
 import multiprocessing
@@ -403,7 +403,7 @@ class Compose:
                 In case of PIL image it will be converted to tensor before sending to pipeline
         """
 
-        VerificationTensorOrImage.verify(data_input)
+        _ValidateTensorOrImage.verify(data_input)
 
         if self.active_pipeline is None:
             self._build_pipeline(data_input)
