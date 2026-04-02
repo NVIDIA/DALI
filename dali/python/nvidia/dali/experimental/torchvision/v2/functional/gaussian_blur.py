@@ -12,33 +12,31 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import Sequence
 
 import nvidia.dali.experimental.dynamic as ndd
 from nvidia.dali._typing import TensorLike
 from nvidia.dali.experimental.dynamic._device import DeviceLike
 
 from ..operator import adjust_input
+from ..gaussian_blur import GaussianBlur
 
 
 @adjust_input
-def horizontal_flip(
+def gaussian_blur(
     inpt: TensorLike | ndd.Batch,
+    kernel_size: int | Sequence[int],
+    sigma: int | float | Sequence[float] = (0.1, 2.0),
     device: DeviceLike = "cpu",
 ) -> ndd.Tensor | ndd.Batch:
     """
-    Horizontally flips the given tensor.
-    Refer to `HorizontalFlip` for more details.
+    Please refer to the ``GaussianBlur`` operator for more details.
     """
-    return ndd.flip(inpt, horizontal=1, vertical=0, device=device)
-
-
-@adjust_input
-def vertical_flip(
-    inpt: TensorLike | ndd.Batch,
-    device: DeviceLike = "cpu",
-) -> ndd.Tensor | ndd.Batch:
-    """
-    Vertically flips the given tensor.
-    Refer to `VerticalFlip` for more details.
-    """
-    return ndd.flip(inpt, horizontal=0, vertical=1, device=device)
+    GaussianBlur.verify_args(kernel_size=kernel_size, sigma=sigma)
+    sigma = (sigma, sigma) if isinstance(sigma, (int, float)) else sigma
+    if sigma[0] != sigma[1]:
+        sigma = ndd.random.uniform(range=sigma)
+    else:
+        # Passing the same sigma value for each axis reduces to a single value
+        sigma = sigma[0]
+    return ndd.gaussian_blur(inpt, window_size=kernel_size, sigma=sigma, device=device)
