@@ -32,10 +32,10 @@ class _ValidateStd(_ArgumentValidateRule):
 
     @classmethod
     def verify(cls, *, std, **_) -> None:
-        if not isinstance(std, (int, float, Sequence, torch.Tensor, np.ndarray)) or (
+        if not isinstance(std, (Sequence, torch.Tensor, np.ndarray)) or (
             isinstance(std, Sequence) and isinstance(std, str)
         ):
-            raise TypeError(f"Std must be an int, a float or a Sequence, got {type(std)}")
+            raise TypeError(f"Std must be a Sequence, got {type(std)}")
         if np.any(np.array(std) == 0):
             raise ValueError("Std must not be 0")
 
@@ -52,6 +52,10 @@ class _ValidateMean(_ArgumentValidateRule):
 
     @classmethod
     def verify(cls, *, mean, **_) -> None:
+        if not isinstance(mean, (Sequence, torch.Tensor, np.ndarray)) or (
+            isinstance(mean, Sequence) and isinstance(mean, str)
+        ):
+            raise TypeError(f"Mean must be a Sequence, got {type(mean)}")
         # This is on-pair validation with Torchvision - no other validation is performed
         _ = torch.as_tensor(mean)
 
@@ -88,8 +92,6 @@ class Normalize(Operator):
     ):
         super().__init__(device=device, mean=mean, std=std)
 
-        # self.mean = np.asarray(mean)[:, None, None]
-        # self.std = np.asarray(std)[:, None, None]
         self.mean = mean
         self.std = std
         if inplace:
@@ -100,7 +102,7 @@ class Normalize(Operator):
 
         layout = data_input.property("layout")[-1]
 
-        if layout.cpu() == np.frombuffer(bytes("C", "utf-8"), dtype=np.uint8)[0]:
+        if layout == np.frombuffer(bytes("C", "utf-8"), dtype=np.uint8)[0]:
             mean = np.asarray(self.mean)[None, None, :]
             std = np.asarray(self.std)[None, None, :]
         else:

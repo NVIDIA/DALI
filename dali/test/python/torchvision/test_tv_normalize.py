@@ -191,9 +191,11 @@ def test_non_tensor_input_not_supported():
     norm = transforms.Normalize(mean=[0.5], std=[0.5])
     imarray = np.random.rand(100, 100, 3) * 255
     im = Image.fromarray(imarray.astype("uint8")).convert("RGBA")
+    # not a valid tensor but it works in torchvision
+    # with assert_raises(TypeError):
+    #    _ = norm([[1.0, 2.0], [3.0, 4.0]])
     with assert_raises(TypeError):
-        _ = norm([[1.0, 2.0], [3.0, 4.0]])  # not a tensor
-        _ = norm(im)  # not a tensor
+        _ = norm(im)
     """
     Because of how it is implemented the Normalize allows PIL Image input
     dnorm = Compose([Normalize(mean=[0.5], std=[0.5])])

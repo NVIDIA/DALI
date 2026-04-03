@@ -49,12 +49,11 @@ def normalize(
     """
     Please refer to the ``Normalize`` operator for more details.
     """
+    Normalize.verify_args(std=std, mean=mean)
+    _ValidateIsTensor.verify(input_data)
 
     mean = np.asarray(mean)[:, None, None]
     std = np.asarray(std)[:, None, None]
-
-    Normalize.verify_args(std=std, mean=mean)
-    _ValidateIsTensor.verify(input_data)
 
     if inplace:
         raise NotImplementedError("inplace is not implemented, yet")

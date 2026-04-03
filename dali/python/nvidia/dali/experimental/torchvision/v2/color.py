@@ -77,6 +77,10 @@ class _ValidateHue(_ArgumentValidateRule):
             raise ValueError("hue must not be None")
 
         if isinstance(hue, (int, float)):
+            if hue < 0 or hue > 0.5:
+                raise ValueError(
+                    "If hue is a single number, it must be non-negative and < 0.5, " f"got {hue}"
+                )
             hue = (-float(hue), float(hue))
         else:
             _ValidateIfRange.verify(values=hue, name="hue")
