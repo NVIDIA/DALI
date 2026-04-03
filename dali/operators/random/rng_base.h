@@ -91,15 +91,17 @@ class OperatorWithRng : public Base {
     cpt.MutableCheckpointState() = s;
   }
 
-  bool Setup(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
+  bool Setup(std::vector<OutputDesc> &output_desc,
+             const Workspace &ws,
+             bool validate_metadata) override {
     LoadRandomState(ws);
-    bool ret = Base::Setup(output_desc, ws);
+    bool ret = Base::Setup(output_desc, ws, validate_metadata);
     assert(ws.NumOutput() > 0);
     return ret;
   }
 
-  void Run(Workspace &ws) override {
-    Base::Run(ws);
+  void Run(Workspace &ws, bool validate_metadata) override {
+    Base::Run(ws, validate_metadata);
     Advance(ws.GetOutputBatchSize(0));
   }
 

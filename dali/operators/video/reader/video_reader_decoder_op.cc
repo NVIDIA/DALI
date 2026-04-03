@@ -1,4 +1,4 @@
-// Copyright (c) 2022-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -865,7 +865,11 @@ Otherwise, the number of values must match the number of channels in the video.)
                     })
     .AddOptionalArg("image_type", R"(The color space of the output frames (RGB or YCbCr).)",
                     DALI_RGB)
-    .AddParent("LoaderBase");
+    .AddParent("LoaderBase")
+    .OutputNDim(0, 4)
+    .OutputDType(0, DALI_UINT8)
+    .OutputLayout(0, "FHWC");
+
 
 DALI_REGISTER_OPERATOR(experimental__readers__Video, VideoReaderDecoder<CPUBackend>, CPU);
 DALI_REGISTER_OPERATOR(experimental__readers__Video, VideoReaderDecoder<GPUBackend>, GPU);

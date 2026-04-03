@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -33,15 +33,29 @@ dimension than the input, that is for ``FHWC`` inputs, the outputs will be ``HWC
     .NumOutput(1)
     .SequenceOperator()
     .AddArg("element_map",
-        R"code(Indices of the elements to extract.)code",
-        DALI_INT_VEC)
+      R"code(Indices of the elements to extract.)code",
+      DALI_INT_VEC)
     .AdditionalOutputsFn(
-        [](const OpSpec& spec) {
-            auto element_map = spec.GetRepeatedArgument<int>("element_map");
-            DALI_ENFORCE(element_map.size() >= 1);
-            auto additional_outputs = element_map.size() - 1;
-            return additional_outputs;
-        });
+      [](const OpSpec& spec) {
+        auto element_map = spec.GetRepeatedArgument<int>("element_map");
+        DALI_ENFORCE(element_map.size() >= 1);
+        auto additional_outputs = element_map.size() - 1;
+        return additional_outputs;
+      })
+    .OutputNDim(0, [](const OpSpec &spec)->std::optional<int> {
+      auto &desc = spec.InputDesc(0);
+      if (desc.ndim && desc.ndim > 0)
+        return *desc.ndim - 1;
+      else
+        return std::nullopt;
+    })
+    .OutputLayout(0, [](const OpSpec &spec)->std::optional<TensorLayout> {
+      auto &desc = spec.InputDesc(0);
+      if (desc.layout && !desc.layout->empty())
+        return desc.layout->sub(1);
+      else
+        return std::nullopt;
+    });
 
 
 template <>

@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2022-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -304,7 +304,10 @@ def _test_seq_input(num_iters, operator_fn, fixed_params, input_params, input_da
     for _ in range(num_iters):
         (seq_batch,) = seq_pipe.run()
         (baseline_batch,) = baseline_pipe.run()
-        assert params_provider.unfold_output_layout(seq_batch.layout()) == baseline_batch.layout()
+        unfolded_layout = params_provider.unfold_output_layout(seq_batch.layout())
+        assert (
+            unfolded_layout == baseline_batch.layout()
+        ), f"'{unfolded_layout}' == '{baseline_batch.layout()}'"
         batch = params_provider.unfold_output(as_batch(seq_batch))
         baseline_batch = as_batch(baseline_batch)
         assert len(batch) == len(baseline_batch)

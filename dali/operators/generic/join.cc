@@ -80,6 +80,10 @@ the output layout "CHW")", nullptr, false)
       auto &desc = spec.InputDesc(i);
       if (!desc.layout || desc.layout->empty())
         continue;
+      if (axis < 0)
+        axis = desc.layout->ndim() - axis;
+      if (axis < 0 || axis >= desc.layout->ndim())
+        return std::nullopt;
       return desc.layout->sub(0, axis) + new_axis_name + desc.layout->sub(axis);
     }
     return std::nullopt;

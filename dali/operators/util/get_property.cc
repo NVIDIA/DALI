@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -37,7 +37,10 @@ The following properties are supported:
 * ``"layout"``: Returned type: byte-array
                 :ref:`Data layout<layout_str_doc>` in the given Tensor.
 )code",
-            DALI_STRING);
+            DALI_STRING)
+    .OutputNDim(0, 1)
+    .OutputDType(0, DALI_UINT8)
+    .OutputLayout(0, "");
 
 template <typename Backend, typename SampleShapeFunc, typename CopySampleFunc>
 void GetPerSample(TensorList<CPUBackend> &out, const TensorList<Backend> &in,

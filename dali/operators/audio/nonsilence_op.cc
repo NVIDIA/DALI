@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -64,7 +64,13 @@ to avoid loss of precision.
 
 If ``reset_interval == -1``, or the input type allows exact calculation, the average will not be
 reset. The default value can be used for most of the use cases.)code",
-                  8192);
+                  8192)
+  .OutputNDim(0, 0)
+  .OutputNDim(1, 0)
+  .OutputDType(1, DALI_INT32)
+  .OutputDType(0, DALI_INT32)
+  .OutputLayout(0, "")
+  .OutputLayout(1, "");
 
 class NonsilenceOperatorCpu : public NonsilenceOperator<CPUBackend> {
  public:

@@ -1,4 +1,4 @@
-# Copyright (c) 2021-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2021-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -796,17 +796,18 @@ class _PipelineDebug(_pipeline.Pipeline):
         self._cur_operator_id = -1
         self._cur_iter_batch_info.reset()
         _pipeline.Pipeline.push_current(self)
+        try:
+            res = self._exec_func()
+            if res is None:
+                res = ()
+            elif not isinstance(res, tuple):
+                res = (res,)
 
-        res = self._exec_func()
-        if res is None:
-            res = ()
-        elif not isinstance(res, tuple):
-            res = (res,)
-
-        self._debug_on = False
-        if not self._operators_built:
-            self._operators_built = True
-        _pipeline.Pipeline.pop_current()
+            if not self._operators_built:
+                self._operators_built = True
+        finally:
+            self._debug_on = False
+            _pipeline.Pipeline.pop_current()
 
         # Transforming all variables to TensorLists.
         outputs = []

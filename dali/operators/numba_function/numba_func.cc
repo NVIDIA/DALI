@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -135,7 +135,10 @@ separately for each sample in the batch.
 When `batch_processing` is set to ``True``, the function processes the whole batch. It is necessary if the
 function has to perform cross-sample operations and may be beneficial if significant part of the work can
 be reused. For other use cases, specifying False and using per-sample processing function allows the operator
-to process samples in parallel.)code", false);
+to process samples in parallel.)code", false)
+  .OutputDType(0, std::nullopt)
+  .OutputNDim(0, std::nullopt)
+  .OutputLayout(0, std::nullopt);
 
 DALI_SCHEMA(NumbaFuncImpl)
   .DocStr("")
@@ -158,7 +161,10 @@ block used to execute a CUDA kernel)code", DALI_INT_VEC, {})
   .AddOptionalArg<int>("setup_fn", R"code(Address of setup function setting shapes for outputs.
 This function is invoked once per batch.)code", 0)
   .AddOptionalArg("batch_processing", R"code(Determines whether the function is invoked once per batch or
-separately for each sample in the batch.)code", false);
+separately for each sample in the batch.)code", false)
+  .OutputDType(0, std::nullopt)
+  .OutputNDim(0, std::nullopt)
+  .OutputLayout(0, std::nullopt);
 
 template <>
 NumbaFuncImpl<CPUBackend>::NumbaFuncImpl(const OpSpec &spec) : Base(spec) {

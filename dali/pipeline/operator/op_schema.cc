@@ -16,7 +16,10 @@
 #include <string>
 #include <string_view>
 #include <sstream>
+#include <unordered_set>
 
+#include "dali/core/bitmask.h"
+#include "dali/core/call_at_exit.h"
 #include "dali/core/error_handling.h"
 #include "dali/core/python_util.h"
 #include "dali/pipeline/operator/op_schema.h"
@@ -873,6 +876,33 @@ bool OpSchema::IsStateful() const {
   return *is_stateful_;
 }
 
+OpSchema &OpSchema::AutoExpandDims(TensorLayout dims) {
+  local_expanded_dims_ = dims;
+  return *this;
+}
+
+const TensorLayout &OpSchema::ExpandedDims() const {
+  return flattened_expanded_dims_.Get([&]() {
+    bitmask mask;
+    TensorLayout tl;
+    mask.resize(256);
+    for (uint8_t c : local_expanded_dims_)
+      if (!mask[c]) {
+        tl += static_cast<char>(c);
+        mask[c] = 1;
+      }
+    for (const OpSchema *s : GetAncestors()) {
+      for (uint8_t c : s->ExpandedDims()) {
+        if (!mask[c]) {
+          tl += static_cast<char>(c);
+          mask[c] = 1;
+        }
+      }
+    }
+    return tl;
+  });
+}
+
 
 std::vector<int> OpSchema::GetPassThroughOutputIdx(int input_idx, const OpSpec &spec,
                                                    bool strict) const {
@@ -931,6 +961,107 @@ DLL_PUBLIC int OpSchema::CalculateAdditionalOutputs(const OpSpec &spec) const {
   return additional_outputs_fn_(spec);
 }
 
+const std::vector<const OpSchema *> OpSchema::GetAncestors() const {
+  return ancestors_.Get([&]() {
+    if (circular_inheritance_detector_)
+      throw std::logic_error(make_string(
+        "Circular schema inheritance detected in \"", name(), "\""));
+
+    circular_inheritance_detector_++;
+    auto atexit = AtScopeExit([&]() { circular_inheritance_detector_--; });
+
+    std::unordered_set<const OpSchema *> added;
+    // Place immediate parents first...
+    std::vector<const OpSchema *> ancestors;
+    for (auto *parent : GetParents()) {
+      if (added.insert(parent).second)
+        ancestors.push_back(parent);
+    }
+    // ...then grandparents
+    for (auto *parent : GetParents()) {
+      for (auto *ancestor : parent->GetAncestors()) {
+        if (added.insert(ancestor).second)
+          ancestors.push_back(ancestor);
+      }
+    }
+    return ancestors;
+  });
+}
+
+OpSchema::OutputDTypeFunc OpSchema::OutputDTypeFn(int index) const {
+  auto &vec = OutputDTypeFuncs();
+  if (index < 0)
+    throw std::invalid_argument("Output index cannot be negative");
+  if (size_t(index) >= vec.size())
+    return {};
+  return vec[index];
+}
+
+const std::vector<OpSchema::OutputDTypeFunc> &OpSchema::OutputDTypeFuncs() const {
+  return flattened_output_dtype_fn_.Get([&]() {
+    auto ret = output_dtype_fn_;
+    for (auto *schema : GetAncestors()) {
+      auto &f = schema->OutputDTypeFuncs();
+      if (f.size() > ret.size())
+        ret.resize(f.size());
+      for (size_t i = 0; i < f.size(); i++) {
+        if (!ret[i])
+          ret[i] = f[i];
+      }
+    }
+    return ret;
+  });
+}
+
+OpSchema::OutputNDimFunc OpSchema::OutputNDimFn(int index) const {
+  auto &vec = OutputNDimFuncs();
+  if (index < 0)
+    throw std::invalid_argument("Output index cannot be negative");
+  if (size_t(index) >= vec.size())
+    return {};
+  return vec[index];
+}
+
+const std::vector<OpSchema::OutputNDimFunc> &OpSchema::OutputNDimFuncs() const {
+  return flattened_output_ndim_fn_.Get([&]() {
+    auto ret = output_ndim_fn_;
+    for (auto *schema : GetAncestors()) {
+      auto &f = schema->OutputNDimFuncs();
+      if (f.size() > ret.size())
+        ret.resize(f.size());
+      for (size_t i = 0; i < f.size(); i++) {
+        if (!ret[i])
+          ret[i] = f[i];
+      }
+    }
+    return ret;
+  });
+}
+
+OpSchema::OutputLayoutFunc OpSchema::OutputLayoutFn(int index) const {
+  auto &vec = OutputLayoutFuncs();
+  if (index < 0)
+    throw std::invalid_argument("Output index cannot be negative");
+  if (size_t(index) >= vec.size())
+    return {};
+  return vec[index];
+}
+
+const std::vector<OpSchema::OutputLayoutFunc> &OpSchema::OutputLayoutFuncs() const {
+  return flattened_output_layout_fn_.Get([&]() {
+    auto ret = output_layout_fn_;
+    for (auto *schema : GetAncestors()) {
+      auto &f = schema->OutputLayoutFuncs();
+      if (f.size() > ret.size())
+        ret.resize(f.size());
+      for (size_t i = 0; i < f.size(); i++) {
+        if (!ret[i])
+          ret[i] = f[i];
+      }
+    }
+    return ret;
+  });
+}
 
 std::optional<DALIDataType>
 OpSchema::CalculateOutputDType(int output_idx, const OpSpec &spec) const {
@@ -945,7 +1076,7 @@ OpSchema::CalculateOutputDType(int output_idx, const OpSpec &spec) const {
 
   // Default policy for output 0:
   // use "dtype" argument (if present) or copy the dtype of the 1st input
-  if (output_idx == 0 && (output_dtype_fn.empty() || !output_dtype_fn[0])) {
+  if (output_idx == 0 && !OutputDTypeFn(0)) {
     DALIDataType dtype;
     if (spec.TryGetArgument(dtype, "dtype") && dtype != DALI_NO_TYPE)
       return dtype;
@@ -953,63 +1084,130 @@ OpSchema::CalculateOutputDType(int output_idx, const OpSpec &spec) const {
       return spec.InputDesc(0).dtype;
   }
 
-  if (output_idx >= static_cast<int>(output_dtype_fn.size()) || !output_dtype_fn[output_idx])
-    return std::nullopt;
-  return output_dtype_fn[output_idx](spec);
+  if (auto fn = OutputDTypeFn(output_idx))
+    return fn(spec);
+  return std::nullopt;
 }
 
 
 std::optional<int> OpSchema::CalculateOutputNDim(int output_idx, const OpSpec &spec) const {
-  const decltype(output_ndim_fn_) &output_ndim_fn = [&]() {
-    if (!output_ndim_fn_.empty())
-      return output_ndim_fn_;
-    for (auto *parent : GetParents())
-      if (!parent->output_ndim_fn_.empty())
-        return parent->output_ndim_fn_;
-    return output_ndim_fn_;
-  }();
-
   // Default policy for output 0:
   // use output layout's length (if present) or copy the ndim of the 1st input
-  if (output_idx == 0 && (output_ndim_fn.empty() || !output_ndim_fn[0])) {
+  if (output_idx == 0 && !OutputNDimFn(0)) {
     auto out_layout = CalculateOutputLayout(output_idx, spec);
     if (out_layout.has_value() && out_layout->ndim())
       return out_layout->ndim();
+
+    TensorLayout expanded = ExpandedDims();
+    if (!expanded.empty())
+      return std::nullopt;  // if there's automatic dim expansion, we must be layout-aware
 
     if (spec.NumRegularInput() >= 1)
       return spec.InputDesc(0).ndim;
   }
 
-  if (output_idx >= static_cast<int>(output_ndim_fn.size()) || !output_ndim_fn[output_idx])
-    return std::nullopt;
-  return output_ndim_fn[output_idx](spec);
+  if (auto fn = OutputNDimFn(output_idx))
+    return fn(spec);
+  return std::nullopt;
+}
+
+template <typename C, typename T>
+constexpr int find_idx(C &&c, T &&value) {
+  auto it = std::find(c.begin(), c.end(), value);
+  if (it == c.end())
+    return -1;
+  return it - c.begin();
 }
 
 
+static inline std::optional<TensorLayout>
+GetCorrespondingExpandedOutputLayout(int idx, const OpSpec &spec, TensorLayout expanded_dims) {
+  auto &input_desc = spec.InputDesc(idx);
+  if (input_desc.ndim != 0 && !input_desc.layout)
+    return std::nullopt;  // we don't know how to expand this
+
+  // We get so far only if we have a layout, or the input is 0D (in which case the layout is "")
+  auto input_layout = input_desc.layout.value_or("");
+  bool maybe_expand = false;
+  bitmask mask;
+  // We typically have only 1 or 2 expanded dims, so 4 is already pessimistic
+  SmallVector<char, 4> dim_order;
+  dim_order.reserve(expanded_dims.size());
+  for (auto c : expanded_dims) {
+    if (!input_layout.contains(c)) {
+      maybe_expand = true;
+    } else {
+      dim_order.push_back(c);
+    }
+  }
+
+  if (!maybe_expand)  // all expanded dims were present in the input layout - no expansion needed
+    return input_layout;
+
+  bool unsure = false;
+  for (int i = 0; i < spec.NumInput(); i++) {
+    if (i == idx)
+      continue;
+    auto &desc = spec.InputDesc(i);
+    if (desc.ndim != 0 && !desc.layout)
+      unsure = true;  // we have an input without a statically known layout
+    auto layout = desc.layout.value_or("");
+    int prev_c_idx = -1;
+    for (char c : layout) {
+      // In practice we have only 1 or 2 expanded dimensions, so find is totally acceptable
+      int c_idx = find_idx(dim_order, c);
+      if (c_idx >= 0) {
+        if (c_idx < prev_c_idx) {
+          return std::nullopt;  // inconsistent order of extra dimensions, e.g. FC** vs CF**
+        }
+      } else {
+        // this is a bit ugly, but vector invalidates iterators, so we have to use indices
+        dim_order.insert(dim_order.begin() + prev_c_idx + 1, c);
+      }
+    }
+  }
+  bool expand_all = dim_order.size() == expanded_dims.size();
+
+  if (unsure && !expand_all)
+    return std::nullopt;
+
+  TensorLayout tl;
+  int input_idx = 0;
+  int i = 0;
+  for (int j = 0; j < static_cast<int>(dim_order.size()); j++) {
+    char c = dim_order[j];
+    int k = find_idx(input_layout, c);
+    if (k >= 0) {
+      for (; i < k; i++)
+        tl += input_layout[i];
+    } else {
+      tl += c;
+    }
+  }
+  tl += input_layout.sub(i);
+  return tl;
+}
+
 std::optional<TensorLayout>
 OpSchema::CalculateOutputLayout(int output_idx, const OpSpec &spec) const {
-  const decltype(output_layout_fn_) &output_layout_fn = [&]() {
-    if (!output_layout_fn_.empty())
-      return output_layout_fn_;
-    for (auto *parent : GetParents())
-      if (!parent->output_layout_fn_.empty())
-        return parent->output_layout_fn_;
-    return output_layout_fn_;
-  }();
-
   // Default policy for output 0:
   // 1. Try "layout" or "output_layout" arguments - if present, return
   // 2. If there's at least one input and the output 0 ndim matches the input, use input's layout
-  if (output_idx == 0 && (output_layout_fn.empty() || !output_layout_fn[0])) {
+  if (output_idx == 0 && !OutputLayoutFn(0)) {
     TensorLayout tl;
     if (spec.TryGetArgument(tl, "layout") || spec.TryGetArgument(tl, "output_layout"))
       return tl;
     if (spec.NumRegularInput() >= 1) {
       auto &input_desc = spec.InputDesc(0);
-      if (!output_ndim_fn_.empty() && output_ndim_fn_[0])  {
-        if (output_ndim_fn_[0](spec) != input_desc.ndim)
+      if (auto ndim_fn = OutputNDimFn(0)) {
+        if (ndim_fn(spec) != input_desc.ndim)
           return std::nullopt;
       }
+
+      TensorLayout expanded = spec.GetSchemaOrDefault().ExpandedDims();
+      if (!expanded.empty())
+        return GetCorrespondingExpandedOutputLayout(0, spec, expanded);
+
       if (input_desc.layout.has_value()) {
         if (!input_desc.layout->empty())
           return input_desc.layout;
@@ -1021,9 +1219,9 @@ OpSchema::CalculateOutputLayout(int output_idx, const OpSpec &spec) const {
     }
   }
 
-  if (output_idx >= static_cast<int>(output_layout_fn.size()) || !output_layout_fn[output_idx])
-    return std::nullopt;
-  return output_layout_fn[output_idx](spec);
+  if (auto fn = OutputLayoutFn(output_idx))
+    return fn(spec);
+  return std::nullopt;
 }
 
 

@@ -85,19 +85,23 @@ class DLL_PUBLIC OperatorBase {
 
   virtual ~OperatorBase() = default;
 
-  virtual bool Setup(std::vector<OutputDesc> &output_desc, const Workspace &ws) {
-    ValidateInputMetadata(ws, spec_);
+  virtual bool Setup(std::vector<OutputDesc> &output_desc,
+                     const Workspace &ws,
+                     bool validate_metadata = true) {
+    if (validate_metadata)
+      ValidateInputMetadata(ws, spec_);
     EnforceUniformInputBatchSize(ws);
     CheckInputLayouts(ws, spec_);
     return SetupImpl(output_desc, ws);
   }
 
-  virtual void Run(Workspace &ws) {
+  virtual void Run(Workspace &ws, bool validate_metadata = true) {
     RunImpl(ws);
     if (ws.HasThreadPool())
       ws.GetThreadPool().WaitForWork();
     EnforceUniformOutputBatchSize(ws);
-    ValidateOutputMetadata(ws, spec_);
+    if (validate_metadata)
+      ValidateOutputMetadata(ws, spec_);
   }
 
   /**

@@ -381,7 +381,7 @@ class Operator:
                         source=None,
                         ndim=arg.ndim,
                         dtype=arg.dtype.type_id,
-                        layout="" if arg.layout is None else arg.layout
+                        layout="" if arg.layout is None else arg.layout,
                     )
                     for name, arg in args.items()
                 }

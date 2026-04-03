@@ -1,4 +1,4 @@
-// Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2025-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -54,6 +54,7 @@ class ClaheCPU : public Operator<CPUBackend> {
   void RunImpl(Workspace &ws) override {
     const auto &input = ws.Input<CPUBackend>(0);
     auto &output = ws.Output<CPUBackend>(0);
+    output.SetLayout(input.GetLayout());
     auto in_view = view<const uint8_t>(input);
     auto out_view = view<uint8_t>(output);
 

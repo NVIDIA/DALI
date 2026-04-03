@@ -279,6 +279,16 @@ class DLL_PUBLIC OpSchema {
     return OutputNDim(index, [ndim](const OpSpec &) { return ndim; });
   }
 
+  /** Assigns a fixed number of dimensions to a given output.
+   *
+   * @param index Index of the output to set the function for.
+   * @param ndim The number of dimensions (or nullopt, if it cannot be determined statically)
+   */
+  OpSchema &OutputNDim(int index, int ndim) {
+    // avoid ambiguity - apparently 0 is a legal initializer for std::function...
+    return OutputNDim(index, std::optional<int>(ndim));
+  }
+
   /** Sets a function that determines the layout of a given output.
    *
    * @param index Index of the output to set the function for.
@@ -294,6 +304,25 @@ class DLL_PUBLIC OpSchema {
   OpSchema &OutputLayout(int index, std::optional<TensorLayout> layout) {
     return OutputLayout(index, [layout](const OpSpec &) { return layout; });
   }
+
+  /** Gets the function that computes the output dtype for the given output.
+   *
+   * The returned function may be inherited from a parent schema.
+   */
+  OutputDTypeFunc OutputDTypeFn(int index) const;
+
+  /** Gets the function that computes the output dtype for the given output.
+   *
+   * The returned function may be inherited from a parent schema.
+   */
+  OutputNDimFunc OutputNDimFn(int index) const;
+
+  /** Gets the function that computes the output dtype for the given output.
+   *
+   * The returned function may be inherited from a parent schema.
+   */
+  OutputLayoutFunc OutputLayoutFn(int index) const;
+
 
   /** Sets the number of inputs that the op can receive. */
   OpSchema &NumInput(int n);
@@ -333,6 +362,13 @@ class DLL_PUBLIC OpSchema {
 
   /** Notes that this operator doc should not be visible (but the Op is exposed in Python API) */
   OpSchema &MakeDocHidden();
+
+  /** Notes that some dimensions may be expanded to match other inputs/arguments.
+   *
+   * This happens in operators inheriting from SequenceOperator, which may return videos
+   * with single-frame input of other inputs (including arguments) are defined as per-frame.
+   */
+  OpSchema &AutoExpandDims(TensorLayout expanded_dims = "F");
 
   /** Notes that this operator doesn't have a state.
    *
@@ -733,6 +769,8 @@ used with DALIDataType, to avoid confusion with `AddOptionalArg<type>(name, doc,
   /** Try calculating the layout of a given output */
   std::optional<TensorLayout> CalculateOutputLayout(int index, const OpSpec &spec) const;
 
+  const TensorLayout &ExpandedDims() const;
+
   bool SupportsInPlace(const OpSpec &spec) const;
 
   void CheckArgs(const OpSpec &spec) const;
@@ -875,9 +913,31 @@ used with DALIDataType, to avoid confusion with `AddOptionalArg<type>(name, doc,
   bool input_dox_set_ = false;
 
   SpecFunc output_fn_, in_place_fn_, additional_outputs_fn_;
+
+  ////////////////////////////////////////////////////////////////////////////
+  // Metadata inference
+
+  // Local Output metadata callbacks
   std::vector<OutputDTypeFunc> output_dtype_fn_;
   std::vector<OutputNDimFunc> output_ndim_fn_;
   std::vector<OutputLayoutFunc> output_layout_fn_;
+
+  // Metadata callbacks combined with inherited ones
+  mutable detail::LazyValue<std::vector<OutputDTypeFunc>> flattened_output_dtype_fn_;
+  mutable detail::LazyValue<std::vector<OutputNDimFunc>> flattened_output_ndim_fn_;
+  mutable detail::LazyValue<std::vector<OutputLayoutFunc>> flattened_output_layout_fn_;
+
+  /** Gets flattened output dtype funcs (including inherited ones) */
+  const std::vector<OutputDTypeFunc> &OutputDTypeFuncs() const;
+  /** Gets flattened output ndim funcs (including inherited ones) */
+  const std::vector<OutputNDimFunc> &OutputNDimFuncs() const;
+  /** Gets flattened output layout funcs (including inherited ones) */
+  const std::vector<OutputLayoutFunc> &OutputLayoutFuncs() const;
+
+  // Sequence operators
+  TensorLayout local_expanded_dims_;
+  mutable detail::LazyValue<TensorLayout> flattened_expanded_dims_;
+
 
   int min_num_input_ = 0, max_num_input_ = 0;
   int num_output_ = 0;
@@ -889,6 +949,10 @@ used with DALIDataType, to avoid confusion with `AddOptionalArg<type>(name, doc,
   vector<string> parent_names_;
   /// Cached pointers to parent schemas, to avoid repeated lookups
   mutable detail::LazyValue<std::vector<const OpSchema *>> parents_;
+  /// Cached pointers to all ancestors, in DFS order
+  mutable detail::LazyValue<std::vector<const OpSchema *>> ancestors_;
+
+  const std::vector<const OpSchema *> GetAncestors() const;
 
   ////////////////////////////////////////////////////////////////////////////
   // Documentation-related

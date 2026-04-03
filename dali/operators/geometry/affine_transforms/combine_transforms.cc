@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -101,7 +101,7 @@ class CombineTransformsCPU : public SequenceOperator<CPUBackend, StatelessOperat
 
     constexpr int mat_dim = ndim + 1;
     auto &out = ws.Output<CPUBackend>(0);
-    out.SetLayout({});  // no layout
+    out.SetLayout("**");  // for consistency with sequences
 
     SmallVector<TensorListView<StorageCPU, const T, 2>, 64> in_views;
     assert(ws.NumInput() > 1);
@@ -152,18 +152,6 @@ class CombineTransformsCPU : public SequenceOperator<CPUBackend, StatelessOperat
     TYPE_SWITCH(dtype_, type2id, T, TRANSFORM_INPUT_TYPES, (
       RunImplTyped<T>(ws, SupportedDims());
     ), DALI_FAIL(make_string("Unsupported data type: ", dtype_)));  // NOLINT
-  }
-
-  void PostprocessOutputs(Workspace &ws) override {
-    if (this->IsExpanding()) {
-      auto &out = ws.Output<CPUBackend>(0);
-      int sample_dim = out.sample_dim();
-      assert(sample_dim > 0);
-      TensorLayout layout;
-      layout.resize(sample_dim, '*');
-      layout[0] = 'F';
-      out.SetLayout(layout);
-    }
   }
 
  private:

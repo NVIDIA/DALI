@@ -66,7 +66,7 @@ If argument isn't be provided, the layout will be cleared.)code", TensorLayout("
 
     SmallVector<std::pair<int, char>, 6> ind_with_layout;
     for (size_t i = 0; i < axes.size(); i++) {
-      ind_with_layout.push_back({ i, names[i] });
+      ind_with_layout.push_back({ axes[i], names[i] });
     }
     std::sort(ind_with_layout.begin(), ind_with_layout.end());
 
@@ -75,8 +75,8 @@ If argument isn't be provided, the layout will be cleared.)code", TensorLayout("
     int src_axis = 0;
     int new_axis = 0;
     for (int j = 0; j < out_ndim; j++) {
-      if (new_axis < num_new_axes && axes[new_axis] == j) {  // inserting new axis
-        out_layout += names[new_axis++];
+      if (new_axis < num_new_axes && ind_with_layout[new_axis].first == j) {  // inserting new axis
+        out_layout += ind_with_layout[new_axis++].second;
       } else {
         assert(src_axis < desc.layout->ndim());
         out_layout += (*desc.layout)[src_axis++];

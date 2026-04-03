@@ -1,4 +1,4 @@
-// Copyright (c) 2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2024-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -309,9 +309,9 @@ class NVCVOperator: public BaseOp {
     return output;
   }
 
-  void Run(Workspace &ws) override {
+  void Run(Workspace &ws, bool validate_metadata) override {
     auto atexit = AtScopeExit([this]() { ClearBatches(); });
-    BaseOp::Run(ws);
+    BaseOp::Run(ws, validate_metadata);
   }
 
 

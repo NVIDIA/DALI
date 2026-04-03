@@ -1,4 +1,4 @@
-// Copyright (c) 2022-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -85,7 +85,9 @@ the output tensor. By default, it is assumed to be video frames, hence the defau
 The value is ignored if the `layout` is not specified or the input is not a sequence
 ( neither `chunk_offsets` nor `chunk_sizes` is specified).
 )code",
-                    TensorLayout("F"));
+                    TensorLayout("F"))
+    .OutputLayout(0, std::nullopt)
+    .OutputNDim(0, std::nullopt);
 
 DALI_SCHEMA(experimental__Inflate)
     .AddParent("decoders__Inflate")

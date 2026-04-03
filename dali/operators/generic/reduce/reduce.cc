@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -39,7 +39,11 @@ layout `"FHWC"` is equivalent to specifying ``axes=[1,2]``. This argument cannot
   .AddOptionalArg(
     "keep_dims",
     "If True, maintains original input dimensions.",
-    false);
+    false)
+  .OutputNDim(0, std::nullopt)  // TODO(michalz): implement
+  .OutputLayout(0, std::nullopt)  // TODO(michalz): implement
+  .OutputDType(0, std::nullopt);  // TODO(michalz): implement
+
 
 DALI_SCHEMA(ReduceWithOutputType)
   .AddOptionalTypeArg("dtype",

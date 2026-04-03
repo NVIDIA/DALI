@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -97,6 +97,7 @@ void MelFilterBank<CPUBackend>::RunImpl(Workspace &ws) {
   auto &output = ws.Output<CPUBackend>(0);
   auto in_shape = input.shape();
   auto& thread_pool = ws.GetThreadPool();
+  output.SetLayout(input.GetLayout());
 
   TYPE_SWITCH(input.type(), type2id, T, MEL_FBANK_SUPPORTED_TYPES, (
     using MelFilterBankKernel = kernels::audio::MelFilterBankCpu<T>;

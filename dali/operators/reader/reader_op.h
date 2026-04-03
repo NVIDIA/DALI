@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -188,13 +188,13 @@ class DataReader : public Operator<Backend> {
   using Operator<Backend>::Run;
 
   // CPUBackend operators
-  void RunBackend(Workspace &ws, CPUBackend) {
+  void RunBackend(Workspace &ws, bool validate_metadata, CPUBackend) {
     // consume batch
     DomainTimeRange tr("[DALI][DataReader] Run #" + to_string(curr_batch_consumer_),
                        DomainTimeRange::kViolet);
 
     // This is synchronous call for CPU Backend
-    Operator<Backend>::Run(ws);
+    Operator<Backend>::Run(ws, validate_metadata);
 
     EnforceUniformOutput(ws);
 
@@ -227,9 +227,9 @@ class DataReader : public Operator<Backend> {
 
 
   // GPUBackend operators
-  void RunBackend(Workspace &ws, GPUBackend) {
+  void RunBackend(Workspace &ws, bool validate_metadata, GPUBackend) {
     // Consume batch
-    Operator<Backend>::Run(ws);
+    Operator<Backend>::Run(ws, validate_metadata);
     CUDA_CALL(cudaStreamSynchronize(ws.stream()));
     // clear samples from the current batch so they can be recycled
     ClearCurentBatch();
@@ -238,8 +238,8 @@ class DataReader : public Operator<Backend> {
     ConsumerAdvanceQueue();
   }
 
-  void Run(Workspace &ws) override {
-    RunBackend(ws, Backend{});
+  void Run(Workspace &ws, bool validate_metadata) override {
+    RunBackend(ws, validate_metadata, Backend{});
   }
 
   ReaderMeta GetReaderMeta() const override {

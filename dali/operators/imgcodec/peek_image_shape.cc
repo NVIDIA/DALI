@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -27,7 +27,7 @@ This operator returns the shape that an image would have after decoding.
 .. note::
     In most cases the optimal solution is to call :meth:`nvidia.dali.pipeline.DataNode.shape()`
     on the decoded images. Use this operator if you either do not intend to decode the image
-    in your pipeline, or do not use the default execution model (i.e., explicitly set 
+    in your pipeline, or do not use the default execution model (i.e., explicitly set
     ``exec_dynamic=False``).
 )")
   .NumInput(1)
@@ -37,7 +37,9 @@ This operator returns the shape that an image would have after decoding.
   .AddOptionalArg("adjust_orientation",
     R"code(Use the EXIF orientation metadata when calculating the shape.)code", true)
   .AddOptionalArg("image_type",
-    R"code(Color format of the image.)code", DALI_RGB);
+    R"code(Color format of the image.)code", DALI_RGB)
+  .OutputNDim(0, 1)
+  .OutputLayout(0, "");
 
 ImgcodecPeekImageShape::ImgcodecPeekImageShape(const OpSpec &spec)
     : StatelessOperator<CPUBackend>(spec) {

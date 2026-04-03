@@ -74,8 +74,7 @@ class DataNode(object):
         self.device = device
         self.source = source
         self.index = index
-        if source is not None and index is not None:
-            spec = source.spec
+        if source is not None and index is not None and (spec := getattr(source, "spec", None)):
             _, _, self.ndim, self.dtype, self.layout = spec.OutputDesc(self.index)
             if ndim is not None and self.ndim is not None and ndim != self.ndim:
                 raise ValueError("Msmatch between OpSpec and explicit `ndim` argument.")

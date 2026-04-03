@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2023, 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,6 +14,7 @@
 
 from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.ops as ops
+import nvidia.dali.fn as fn
 import numpy as np
 from functools import partial
 from test_utils import compare_pipelines
@@ -139,6 +140,7 @@ class MelFilterBankPythonPipeline(Pipeline):
         self.data = self.inputs()
         mel_fbank = self._transposed(self.mel_fbank) if self.need_transpose else self.mel_fbank
         out = mel_fbank(self.data)
+        return fn.reshape(out, layout=self.layout)
         return out
 
     def iter_setup(self):

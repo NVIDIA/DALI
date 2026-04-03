@@ -210,7 +210,7 @@ DALI_SCHEMA(ZerosLike)
     .InputDox(0, "data_like", "TensorList", R"code(The input data value to copy the shape, type and layout from.)code")
     .InputDevice(0, InputDevice::Metadata)
     .NumOutput(1)
-    .AddOptionalTypeArg("dtype", R"code(Overrides the output data type.)code", DALI_INT32);
+    .AddOptionalTypeArg("dtype", R"code(Overrides the output data type.)code");
 DALI_REGISTER_OPERATOR(ZerosLike, ZerosLike<CPUBackend>, CPU);
 
 DALI_SCHEMA(Ones)
@@ -232,7 +232,7 @@ DALI_SCHEMA(OnesLike)
     .InputDox(0, "data_like", "TensorList", R"code(The input data value to copy the shape, type and layout from.)code")
     .InputDevice(0, InputDevice::Metadata)
     .NumOutput(1)
-    .AddOptionalTypeArg("dtype", R"code(Overrides the output data type.)code", DALI_INT32);
+    .AddOptionalTypeArg("dtype", R"code(Overrides the output data type.)code");
 DALI_REGISTER_OPERATOR(OnesLike, OnesLike<CPUBackend>, CPU);
 
 }  // namespace dali

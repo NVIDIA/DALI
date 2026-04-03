@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -32,7 +32,9 @@ This operator returns the shape that an image would have after decoding.
   .NumOutput(1)
   .AddOptionalTypeArg("dtype",
     R"code(Data type, to which the sizes are converted.)code", DALI_INT64)
-  .DeprecateArgInFavorOf("type", "dtype", "1.16");
+  .DeprecateArgInFavorOf("type", "dtype", "1.16")
+  .OutputNDim(0, 1)
+  .OutputLayout(0, "");
 
 DALI_REGISTER_OPERATOR(PeekImageShape, PeekImageShape, CPU);
 

@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -113,7 +113,7 @@ class TransformBaseOp : public SequenceOperator<Backend, StatelessOperator, true
 
     constexpr int mat_dim = ndim + 1;
     auto &out = ws.Output<Backend>(0);
-    out.SetLayout({});  // no layout
+    out.SetLayout("**");  // for consistency with sequences
 
     int64_t num_mats = This().IsConstantTransform() ? 1 : nsamples_;
     matrix_data_.Resize({num_mats * static_cast<int64_t>(sizeof(affine_mat_t<T, mat_dim>))});
@@ -142,18 +142,6 @@ class TransformBaseOp : public SequenceOperator<Backend, StatelessOperator, true
       using SupportedDims = typename TransformImpl::SupportedDims;
       RunImplTyped<T>(ws, SupportedDims());
     ), DALI_FAIL(make_string("Unsupported data type: ", dtype_)));  // NOLINT
-  }
-
-  void PostprocessOutputs(Workspace &ws) override {
-    if (this->IsExpanding()) {
-      auto &out = ws.Output<Backend>(0);
-      int sample_dim = out.sample_dim();
-      assert(sample_dim > 0);
-      TensorLayout layout;
-      layout.resize(sample_dim, '*');
-      layout[0] = 'F';
-      out.SetLayout(layout);
-    }
   }
 
   int input_transform_ndim(const Workspace &ws) const {

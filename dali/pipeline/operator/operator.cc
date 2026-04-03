@@ -35,6 +35,8 @@ inline void ValidateMetadata(
       const OpSpec::InOutDesc &against,
       std::string_view category,
       NameType &&index_or_name) {
+  if (what.num_samples() == 0)  // empty batch may have improper ndim/layuot, but we don't care
+    return;
   auto display_name = [&]() {
     if constexpr (std::is_arithmetic_v<std::remove_cvref_t<NameType>>)
       return index_or_name;
@@ -65,6 +67,10 @@ inline void ValidateMetadata(
 }  // namespace
 
 DLL_PUBLIC void ValidateInputMetadata(const Workspace &ws /* to validate */, const OpSpec &spec) {
+  bool debug;
+  if (spec.TryGetArgument(debug, "__debug") && debug)
+    return;  // legacy debug mode has incomplete OpSpec
+
   if (ws.NumInput() != spec.NumRegularInput())
     throw std::invalid_argument("The number of inputs in the workspace does not match op_spec");
 
@@ -89,6 +95,10 @@ DLL_PUBLIC void ValidateInputMetadata(const Workspace &ws /* to validate */, con
 }
 
 DLL_PUBLIC void ValidateOutputMetadata(const Workspace &ws /* to_validate */, const OpSpec &spec) {
+  bool debug;
+  if (spec.TryGetArgument(debug, "__debug") && debug)
+    return;  // legacy debug mode has incomplete OpSpec
+
   if (ws.NumOutput() != spec.NumOutput())
     throw std::invalid_argument("The number of outputs in the workspace does not match op_spec");
 

@@ -161,7 +161,10 @@ allocation might be useful to determine suitable values for `device_memory_paddi
   The statistics are global for the entire process, not per operator instance, and include
   the allocations made during construction if the padding hints are non-zero.
 )code",
-      false);
+      false)
+  .OutputDType(0, DALI_UINT8)
+  .OutputNDim(0, 3)
+  .OutputLayout(0, "HWC");
 
 DALI_SCHEMA(decoders__Image)
   .DocStr(R"code(Decodes images.
@@ -191,10 +194,7 @@ Please note that GPU acceleration for JPEG 2000 decoding is only available for C
   .NumInput(1)
   .NumOutput(1)
   .AddParent("ImageDecoderAttr")
-  .AddParent("CachedDecoderAttr")
-  .OutputDType(0, DALI_UINT8)
-  .OutputNDim(0, 3)
-  .OutputLayout(0, "HWC");
+  .AddParent("CachedDecoderAttr");
 
 // Fused
 
@@ -312,10 +312,7 @@ of the slice (s0, s1, s2, …).
 
 Integer coordinates are interpreted as absolute coordinates, while float coordinates can be
 interpreted as absolute or relative coordinates, depending on the value of
-`normalized_shape`.)code")
-  .OutputDType(0, DALI_UINT8)
-  .OutputNDim(0, 3)
-  .OutputLayout(0, "HWC");
+`normalized_shape`.)code");
 
 
 // Deprecated aliases

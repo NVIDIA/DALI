@@ -138,7 +138,9 @@ Values will be converted to the dynamic range of the requested type.)code",
   .AddOptionalArg("use_chunk_allocator", "", false)
   .DeprecateArg("use_chunk_allocator", "1.0", false)
   .AddOptionalArg("memory_stats", "", false)
-  .DeprecateArg("memory_stats", "1.36", false);
+  .DeprecateArg("memory_stats", "1.36", false)
+  .OutputNDim(0, 3)
+  .OutputLayout(0, "HWC");
 
 DALI_SCHEMA(experimental__decoders__Image)
   .DocStr(R"code(Decodes images.
@@ -261,8 +263,7 @@ of the slice (s0, s1, s2, …).
 
 Integer coordinates are interpreted as absolute coordinates, while float coordinates can be
 interpreted as absolute or relative coordinates, depending on the value of
-`normalized_shape`.)code")
-  .OutputLayout(0, "HWC");
+`normalized_shape`.)code");
 
 
 DALI_SCHEMA(experimental__decoders__ImageRandomCrop)
@@ -292,8 +293,7 @@ When possible, the operator uses the ROI decoding, reducing the decoding time an
   .NumInput(1)
   .NumOutput(1)
   .AddParent("ImgcodecDecoderAttr")
-  .AddParent("RandomCropAttr")
-  .OutputLayout(0, "HWC");
+  .AddParent("RandomCropAttr");
 
 }  // namespace imgcodec
 }  // namespace dali

@@ -110,10 +110,15 @@ Examples::
       // If any layout is not known, bail out.
       // Empty layout is considered a suffix and skipped.
       std::optional<TensorLayout> layout;
+      int ndim = 0;
       for (int i = 0; i < spec.NumRegularInput(); i++) {
         auto &desc = spec.InputDesc(i);
         if (!desc.layout)
           return std::nullopt;
+        if (!desc.ndim)
+          return std::nullopt;
+        if (*desc.ndim > ndim)
+          ndim = *desc.ndim;
         if (layout.has_value()) {
           if (layout->ndim() > desc.layout->ndim()) {
             if (layout->sub(layout->ndim() - desc.layout->ndim()) != *desc.layout)
@@ -127,7 +132,10 @@ Examples::
           layout = desc.layout;
         }
       }
-      return layout;
+      if (layout && layout->ndim() == ndim)
+        return layout;
+      else
+        return std::nullopt;
     });
 
 DALI_REGISTER_OPERATOR(_ArithmeticGenericOp, expr::ArithmeticGenericOp<CPUBackend>, CPU);

@@ -111,7 +111,6 @@ class Invocation:
             self._output_devices = self._operator._infer_output_devices(*self._inputs, **self._args)
         return self._output_devices[result_index]
 
-
     def shape(self, result_index: int):
         if self._results is None:
             # TODO(michalz): Try to get shape without full evaluation.
