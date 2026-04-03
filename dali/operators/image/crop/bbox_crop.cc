@@ -389,8 +389,6 @@ This is useful when the failure to find a valid crop is an expected and acceptab
     .OutputLayout(3, "")
     .OutputLayout(4, "");
 
->>>>>>> 49d76316a (More fixes.)
-
 template <int ndim>
 class RandomBBoxCropImpl : public OpImplBase<CPUBackend> {
  public:
