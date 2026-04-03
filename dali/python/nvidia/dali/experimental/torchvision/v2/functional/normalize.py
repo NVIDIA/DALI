@@ -13,23 +13,24 @@
 # limitations under the License.
 
 import numpy as np
-from typing import List, Literal
-from PIL import Image
-import torch
+from typing import List
 import nvidia.dali.experimental.dynamic as ndd
 
-from ..operator import adjust_input, _ValidateIsTensor  # noqa: E402
-from ..normalize import Normalize  # noqa: E402
+from nvidia.dali._typing import TensorLike
+from nvidia.dali.experimental.dynamic._device import DeviceLike
+
+from ..operator import adjust_input, _ValidateIsTensor
+from ..normalize import Normalize
 
 
 @adjust_input
 def _normalize(
-    input_data: Image.Image | torch.Tensor,
+    input_data: TensorLike | ndd.Batch,
     mean: List[float],
     std: List[float],
     inplace: bool = False,
-    device: Literal["cpu", "gpu"] = "cpu",
-) -> Image.Image | torch.Tensor:
+    device: DeviceLike = "cpu",
+) -> TensorLike | ndd.Batch:
 
     return ndd.normalize(
         input_data,
@@ -40,12 +41,12 @@ def _normalize(
 
 
 def normalize(
-    input_data: Image.Image | torch.Tensor,
+    input_data: TensorLike | ndd.Batch,
     mean: List[float],
     std: List[float],
     inplace: bool = False,
-    device: Literal["cpu", "gpu"] = "cpu",
-) -> Image.Image | torch.Tensor:
+    device: DeviceLike = "cpu",
+) -> TensorLike | ndd.Batch:
     """
     Please refer to the ``Normalize`` operator for more details.
     """
