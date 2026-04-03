@@ -62,7 +62,7 @@ class _PadBase(Operator):
             if len(padding) == 2:
                 return (padding[0], padding[1], padding[0], padding[1])
             elif len(padding) == 4:
-                return padding
+                return tuple(padding)
 
         raise TypeError(
             f"Padding must be an int or a sequence of length 2 or 4, got {type(padding)}"
