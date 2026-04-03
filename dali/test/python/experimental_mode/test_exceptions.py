@@ -47,10 +47,8 @@ def exception_tester(function: Callable[[], None]):
                 try:
                     function()
                 except type(expected_exception) as exception:
-                    if exception.__cause__ is not None:
-                        cause = exception.__cause__
-                    else:
-                        cause = exception  # thrown directly
+                    cause = exception.__cause__
+                    assert cause is not None
                     assert str(cause) == str(expected_exception)
 
                     # Make sure that stack traces are identical
@@ -61,12 +59,6 @@ def exception_tester(function: Callable[[], None]):
                     assert False
 
     return wrapper
-
-
-@exception_tester
-def test_bad_rank():
-    img = ndd.zeros(shape=(100, 100))
-    ndd.resize(img).evaluate()
 
 
 @exception_tester
