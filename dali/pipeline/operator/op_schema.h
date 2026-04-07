@@ -305,6 +305,27 @@ class DLL_PUBLIC OpSchema {
     return OutputLayout(index, [layout](const OpSpec &) { return layout; });
   }
 
+  /** Enables (or disables) the default metadata policy.
+   *
+   * When enabled, output 0 uses a default metadata policy (unless overridden by specifying
+   * output metadata callbacks). The default policy does the following:
+   * - the output data type is either what is specified in "dtype" argument or, if there's no such
+   *   argument, is the same as that of input 0
+   * - the output layout is taken from "layout" or "output_layout" argument, if present, or copied
+   *   from input 0
+   * - the number of dimensions is taken from the calculated layout (if not null) or copied from
+   *   input 0.
+   * Additionally, operators that expand dimensions automatically (SequenceOperator), apply
+   * additional logic by expanding the dimensions based on other inputs/arguments.
+   *
+   * When building DALI this is enabled by default. User code can make this a default behavior
+   * by defining DALI_SCHEMA_DEFAULT_METADATA_POLICY preprocessor symbol as nonzero.
+   */
+  OpSchema &UseDefaultMetadataPolicy(bool enable = true) {
+    use_default_metadata_policy_ = enable;
+    return *this;
+  }
+
   /** Gets the function that computes the data type for the given output.
    *
    * The returned function may be inherited from a parent schema.
@@ -921,6 +942,7 @@ used with DALIDataType, to avoid confusion with `AddOptionalArg<type>(name, doc,
   std::vector<OutputDTypeFunc> output_dtype_fn_;
   std::vector<OutputNDimFunc> output_ndim_fn_;
   std::vector<OutputLayoutFunc> output_layout_fn_;
+  bool use_default_metadata_policy_ = false;
 
   // Metadata callbacks combined with inherited ones
   mutable detail::LazyValue<std::vector<OutputDTypeFunc>> flattened_output_dtype_fn_;
@@ -1033,7 +1055,11 @@ inline T OpSchema::GetDefaultValueForArgument(std::string_view name) const {
   static ::dali::OpSchema *ANONYMIZE_VARIABLE(OpName) = \
       &::dali::SchemaRegistry::RegisterSchema(#OpName)
 
+#if DALI_SCHEMA_DEFAULT_METADATA_POLICY
+#define DALI_SCHEMA(OpName) DALI_SCHEMA_REG(OpName).UseDefaultMetadataPolicy()
+#else
 #define DALI_SCHEMA(OpName) DALI_SCHEMA_REG(OpName)
+#endif
 
 }  // namespace dali
 

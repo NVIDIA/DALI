@@ -1067,7 +1067,7 @@ std::optional<DALIDataType>
 OpSchema::CalculateOutputDType(int output_idx, const OpSpec &spec) const {
   // Default policy for output 0:
   // use "dtype" argument (if present) or copy the dtype of the 1st input
-  if (output_idx == 0 && !OutputDTypeFn(0)) {
+  if (use_default_metadata_policy_ && output_idx == 0 && !OutputDTypeFn(0)) {
     DALIDataType dtype;
     if (spec.TryGetArgument(dtype, "dtype") && dtype != DALI_NO_TYPE)
       return dtype;
@@ -1084,7 +1084,7 @@ OpSchema::CalculateOutputDType(int output_idx, const OpSpec &spec) const {
 std::optional<int> OpSchema::CalculateOutputNDim(int output_idx, const OpSpec &spec) const {
   // Default policy for output 0:
   // use output layout's length (if present) or copy the ndim of the 1st input
-  if (output_idx == 0 && !OutputNDimFn(0)) {
+  if (use_default_metadata_policy_ && output_idx == 0 && !OutputNDimFn(0)) {
     auto out_layout = CalculateOutputLayout(output_idx, spec);
     if (out_layout.has_value() && out_layout->ndim())
       return out_layout->ndim();
@@ -1151,6 +1151,7 @@ GetCorrespondingExpandedOutputLayout(int idx, const OpSpec &spec, TensorLayout e
         if (c_idx < prev_c_idx) {
           return std::nullopt;  // inconsistent order of extra dimensions, e.g. FC** vs CF**
         }
+        prev_c_idx = c_idx;
       } else {
         // this is a bit ugly, but vector invalidates iterators, so we have to use indices
         dim_order.insert(dim_order.begin() + prev_c_idx + 1, c);
@@ -1184,7 +1185,7 @@ OpSchema::CalculateOutputLayout(int output_idx, const OpSpec &spec) const {
   // Default policy for output 0:
   // 1. Try "layout" or "output_layout" arguments - if present, return
   // 2. If there's at least one input and the output 0 ndim matches the input, use input's layout
-  if (output_idx == 0 && !OutputLayoutFn(0)) {
+  if (use_default_metadata_policy_ && output_idx == 0 && !OutputLayoutFn(0)) {
     TensorLayout tl;
     if (spec.TryGetArgument(tl, "layout") || spec.TryGetArgument(tl, "output_layout"))
       return tl;

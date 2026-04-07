@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2017-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -410,6 +410,8 @@ endif()
 if (BUILD_STD_SEMAPHORE)
   add_definitions("-DDALI_USE_STD_SEMAPHORE")
 endif()
+
+add_definitions("-DDALI_SCHEMA_DEFAULT_METADATA_POLICY")
 
 if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-deprecated-register -Wsign-compare -Wno-deprecated-declarations")
