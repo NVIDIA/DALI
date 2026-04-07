@@ -92,7 +92,7 @@ def test_gaussian_blur_tensor_equivalence(kernel_size, sigma):
     (5, (0.1, 2.0)),
 )
 def test_gaussian_blur_scalar_kernel_size_expansion(kernel_size, sigma):
-    # torchvision allows int kernel_size and expands to (k, k)[web:69][web:73]
+    # torchvision allows int kernel_size and expands to (k, k)
     tens, _ = make_input_tensors()
 
     torch.manual_seed(7)
