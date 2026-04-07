@@ -1,4 +1,4 @@
-// Copyright (c) 2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2024-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -43,6 +43,8 @@ Performs a perspective transform on the images.
     .InputDox(1, "matrix", "2D TensorList of float",
               "3x3 Perspective transform matrix for per sample homography, same device as input.")
     .NumOutput(1)
+    .AllowSequences()
+    .AutoExpandDims("FC")
     .InputLayout(0, {"HW", "HWC", "FHWC", "CHW", "FCHW"})
     .AddOptionalArg<float>("size",
                            R"code(Output size, in pixels/points.

@@ -1,4 +1,4 @@
-// Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -49,7 +49,8 @@ Defines which part of the pixel (upper-left corner or center) is interpreted as 
 This value impacts the interpolation result. To match OpenCV, please pick ``"center"``.)doc",
                                      "corner")
         .AddOptionalArg("interp", "Interpolation type.", DALI_INTERP_LINEAR)
-        .AllowSequences();
+        .AllowSequences()
+        .AutoExpandDims();
 
 
 }  // namespace dali::remap

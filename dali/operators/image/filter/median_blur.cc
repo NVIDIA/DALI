@@ -1,4 +1,4 @@
-// Copyright (c) 2023-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2023-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -40,6 +40,8 @@ with the median color of a surrounding rectangular region.
             "Input data. Must be images in HWC or CHW layout, or a sequence of those.")
   .NumOutput(1)
   .InputLayout({"HW", "HWC", "FHWC", "CHW", "FCHW"})
+  .AllowSequences()
+  .AutoExpandDims("FC")
   .AddOptionalArg("window_size",
     "The size of the window over which the smoothing is performed",
     std::vector<int>({3, 3}),

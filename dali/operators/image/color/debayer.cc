@@ -137,6 +137,7 @@ DALI_SCHEMA(experimental__Debayer)
     .MakeDocHidden()
     .InputLayout(0, {"HW", "HWC", "FHW", "FHWC"})
     .AllowSequences()
+    .AutoExpandDims()
     .Deprecate(
         "2.0",
         "Debayer",

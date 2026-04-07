@@ -876,30 +876,37 @@ bool OpSchema::IsStateful() const {
   return *is_stateful_;
 }
 
-OpSchema &OpSchema::AutoExpandDims(TensorLayout dims) {
-  local_expanded_dims_ = dims;
+OpSchema &OpSchema::AutoExpandDims(TensorLayout dims, bool expand_from_kwargs) {
+  local_expanded_dims_ = { dims, expand_from_kwargs };
   return *this;
 }
 
-const TensorLayout &OpSchema::ExpandedDims() const {
+const std::pair<TensorLayout, bool> &OpSchema::ExpandedDims() const {
   return flattened_expanded_dims_.Get([&]() {
     bitmask mask;
     TensorLayout tl;
+    bool expand_from_kwargs = local_expanded_dims_.second;
     mask.resize(256);
-    for (uint8_t c : local_expanded_dims_)
+    for (uint8_t c : local_expanded_dims_.first)
       if (!mask[c]) {
         tl += static_cast<char>(c);
         mask[c] = 1;
       }
     for (const OpSchema *s : GetAncestors()) {
-      for (uint8_t c : s->ExpandedDims()) {
+      auto ed = s->ExpandedDims();
+      for (uint8_t c : ed.first) {
         if (!mask[c]) {
           tl += static_cast<char>(c);
           mask[c] = 1;
         }
       }
+      if (ed.second && !local_expanded_dims_.second && !local_expanded_dims_.first.empty())
+        throw std::logic_error(
+          "Invalid dimensionality expansion specifier: "
+          "base schema allows argument expansion from keyword arguments but the derived does not.");
+      expand_from_kwargs |= ed.second;
     }
-    return tl;
+    return std::make_pair(tl, expand_from_kwargs);
   });
 }
 
@@ -1089,7 +1096,7 @@ std::optional<int> OpSchema::CalculateOutputNDim(int output_idx, const OpSpec &s
     if (out_layout.has_value() && out_layout->ndim())
       return out_layout->ndim();
 
-    TensorLayout expanded = ExpandedDims();
+    TensorLayout expanded = ExpandedDims().first;
     if (!expanded.empty())
       return std::nullopt;  // if there's automatic dim expansion, we must be layout-aware
 
@@ -1111,32 +1118,39 @@ constexpr int find_idx(C &&c, T &&value) {
 }
 
 
-static inline std::optional<TensorLayout>
-GetCorrespondingExpandedOutputLayout(int idx, const OpSpec &spec, TensorLayout expanded_dims) {
+static inline std::optional<TensorLayout> GetCorrespondingExpandedOutputLayout(
+      int idx,
+      const OpSpec &spec,
+      const std::pair<TensorLayout, bool> &expansion_spec) {
+  const auto &expanded_dims = expansion_spec.first;
   auto &input_desc = spec.InputDesc(idx);
   if (input_desc.ndim != 0 && !input_desc.layout)
     return std::nullopt;  // we don't know how to expand this
 
   // We get so far only if we have a layout, or the input is 0D (in which case the layout is "")
   auto input_layout = input_desc.layout.value_or("");
-  bool maybe_expand = false;
-  bitmask mask;
-  // We typically have only 1 or 2 expanded dims, so 4 is already pessimistic
-  SmallVector<char, 4> dim_order;
+
+  // Find *leading* expandable dims, e.g. FC in FCHW or F in FHWC (assuming we can expand FC)
+  SmallVector<char, TensorLayout::max_ndim> dim_order;
   dim_order.reserve(expanded_dims.size());
-  for (auto c : expanded_dims) {
-    if (!input_layout.contains(c)) {
-      maybe_expand = true;
-    } else {
-      dim_order.push_back(c);
-    }
+  int already_expanded = 0;
+  for (int i = 0; i < input_layout.ndim(); i++) {
+    char c = input_layout[i];
+    if (input_layout.find(c, i + 1) >= 0)
+      return std::nullopt;  // repeated dimension - bail out
+    if (!expanded_dims.contains(c))  // HWC - don't expand, even if "expand_channels" is specified
+      break;
+    dim_order.push_back(c);
   }
 
-  if (!maybe_expand)  // all expanded dims were present in the input layout - no expansion needed
+  // all expanded dims were present in the input layout - no expansion needed
+  if (static_cast<int>(dim_order.size()) == expanded_dims.size())
     return input_layout;
 
+  int ninp = expansion_spec.second ? spec.NumInput() : spec.NumRegularInput();
+
   bool unsure = false;
-  for (int i = 0; i < spec.NumInput(); i++) {
+  for (int i = 0; i < ninp; i++) {
     if (i == idx)
       continue;
     auto &desc = spec.InputDesc(i);
@@ -1145,6 +1159,8 @@ GetCorrespondingExpandedOutputLayout(int idx, const OpSpec &spec, TensorLayout e
     auto layout = desc.layout.value_or("");
     int prev_c_idx = -1;
     for (char c : layout) {
+      if (!expanded_dims.contains(c))
+        break;  // FxC - don't expand C when something went in the way
       // In practice we have only 1 or 2 expanded dimensions, so find is totally acceptable
       int c_idx = find_idx(dim_order, c);
       if (c_idx >= 0) {
@@ -1196,8 +1212,8 @@ OpSchema::CalculateOutputLayout(int output_idx, const OpSpec &spec) const {
           return std::nullopt;
       }
 
-      TensorLayout expanded = spec.GetSchemaOrDefault().ExpandedDims();
-      if (!expanded.empty())
+      auto &expanded = spec.GetSchemaOrDefault().ExpandedDims();
+      if (!expanded.first.empty())
         return GetCorrespondingExpandedOutputLayout(0, spec, expanded);
 
       if (input_desc.layout.has_value()) {

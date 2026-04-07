@@ -1,4 +1,4 @@
-// Copyright (c) 2023-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2023-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -37,6 +37,7 @@ DALI_SCHEMA(Filter)
     .NumInput(2, 3)
     .NumOutput(1)
     .AllowSequences()
+    .AutoExpandDims()
     .InputDox(0, "data", "TensorList", R"code(Batch of input samples.
 
 Sample can be an image, a video or volumetric (3D) data.

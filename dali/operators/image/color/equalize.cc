@@ -1,4 +1,4 @@
-// Copyright (c) 2023-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2023-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -29,7 +29,8 @@ The supported inputs are images and videos of uint8_t type.)code")
     .NumInput(1)
     .NumOutput(1)
     .InputLayout(0, {"HW", "HWC", "CHW", "FHW", "FHWC", "FCHW"})
-    .AllowSequences();
+    .AllowSequences()
+    .AutoExpandDims("FC");
 
 // Deprecated alias
 DALI_SCHEMA(experimental__Equalize)

@@ -28,8 +28,7 @@ If set to True, the input transform will be applied to the operator's transform.
 If there's no input, this argument is ignored.
 )code",
     false)
-  .OutputNDim(0, std::nullopt)  // per-frame expansion
   .OutputDType(0, DALI_FLOAT)
-  .OutputLayout(0, std::nullopt);
+  .AutoExpandDims("F", true);
 
 }  // namespace dali

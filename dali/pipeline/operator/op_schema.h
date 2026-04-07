@@ -389,7 +389,7 @@ class DLL_PUBLIC OpSchema {
    * This happens in operators inheriting from SequenceOperator, which may return videos
    * with single-frame input of other inputs (including arguments) are defined as per-frame.
    */
-  OpSchema &AutoExpandDims(TensorLayout expanded_dims = "F");
+  OpSchema &AutoExpandDims(TensorLayout expanded_dims = "F", bool expand_from_kwargs = false);
 
   /** Notes that this operator doesn't have a state.
    *
@@ -790,7 +790,7 @@ used with DALIDataType, to avoid confusion with `AddOptionalArg<type>(name, doc,
   /** Try calculating the layout of a given output */
   std::optional<TensorLayout> CalculateOutputLayout(int index, const OpSpec &spec) const;
 
-  const TensorLayout &ExpandedDims() const;
+  const std::pair<TensorLayout, bool> &ExpandedDims() const;
 
   bool SupportsInPlace(const OpSpec &spec) const;
 
@@ -957,8 +957,8 @@ used with DALIDataType, to avoid confusion with `AddOptionalArg<type>(name, doc,
   const std::vector<OutputLayoutFunc> &OutputLayoutFuncs() const;
 
   // Sequence operators
-  TensorLayout local_expanded_dims_;
-  mutable detail::LazyValue<TensorLayout> flattened_expanded_dims_;
+  std::pair<TensorLayout, bool> local_expanded_dims_;
+  mutable detail::LazyValue<std::pair<TensorLayout, bool>> flattened_expanded_dims_;
 
 
   int min_num_input_ = 0, max_num_input_ = 0;
