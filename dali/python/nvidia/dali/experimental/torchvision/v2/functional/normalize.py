@@ -32,6 +32,16 @@ def _normalize(
     device: DeviceLike = "cpu",
 ) -> TensorLike | ndd.Batch:
 
+    if input_data.layout[-3:] == "CHW":
+        mean = np.asarray(mean)[:, None, None]
+        std = np.asarray(std)[:, None, None]
+    else:
+        # Torchviso does not support nomrlization on HWC, but DALI does
+        mean = np.asarray(mean)[None, None, :]
+        std = np.asarray(std)[None, None, :]
+
+
+
     return ndd.normalize(
         input_data,
         mean=mean,
@@ -52,9 +62,6 @@ def normalize(
     """
     Normalize.verify_args(std=std, mean=mean)
     _ValidateIsTensor.verify(input_data)
-
-    mean = np.asarray(mean)[:, None, None]
-    std = np.asarray(std)[:, None, None]
 
     if inplace:
         raise NotImplementedError("inplace is not implemented, yet")
