@@ -40,8 +40,6 @@ def _normalize(
         mean = np.asarray(mean)[None, None, :]
         std = np.asarray(std)[None, None, :]
 
-
-
     return ndd.normalize(
         input_data,
         mean=mean,
