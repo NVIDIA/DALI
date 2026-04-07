@@ -77,11 +77,11 @@ class DataNode(object):
         if source is not None and index is not None and (spec := getattr(source, "spec", None)):
             _, _, self.ndim, self.dtype, self.layout = spec.OutputDesc(self.index)
             if ndim is not None and self.ndim is not None and ndim != self.ndim:
-                raise ValueError("Msmatch between OpSpec and explicit `ndim` argument.")
+                raise ValueError("Mismatch between OpSpec and explicit `ndim` argument.")
             if dtype is not None and self.dtype is not None and dtype != self.dtype:
-                raise ValueError("Msmatch between OpSpec and explicit `dtype` argument.")
+                raise ValueError("Mismatch between OpSpec and explicit `dtype` argument.")
             if layout is not None and self.layout is not None and layout != self.layout:
-                raise ValueError("Msmatch between OpSpec and explicit `layout` argument.")
+                raise ValueError("Mismatch between OpSpec and explicit `layout` argument.")
         else:
             self.ndim = ndim
             self.dtype = dtype
@@ -89,15 +89,15 @@ class DataNode(object):
 
     def __str__(self):
         s = (
-            f'DataNode(name="{self.name}", device="{self.device}, '
+            f'DataNode(name="{self.name}", device="{self.device}", '
             f'source="{self.source}", index="{self.index}"'
         )
         if self.ndim is not None:
             s += f", ndim={self.ndim}"
         if self.dtype is not None:
-            s += f", ndim={self.dtype}"
+            s += f", dtype={self.dtype}"
         if self.layout is not None:
-            s += f", ndim={repr(self.layout)}"
+            s += f", layout={repr(self.layout)}"
         s += ")"
         return s
 

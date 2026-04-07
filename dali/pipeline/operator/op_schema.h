@@ -299,25 +299,25 @@ class DLL_PUBLIC OpSchema {
   /** Assigns a fixed layout to a given output.
    *
    * @param index Index of the output to set the function for.
-   * @param dtype The layout (or nullopt, if it cannot be determined statically)
+   * @param layout The layout (or nullopt, if it cannot be determined statically)
    */
   OpSchema &OutputLayout(int index, std::optional<TensorLayout> layout) {
     return OutputLayout(index, [layout](const OpSpec &) { return layout; });
   }
 
-  /** Gets the function that computes the output dtype for the given output.
+  /** Gets the function that computes the data type for the given output.
    *
    * The returned function may be inherited from a parent schema.
    */
   OutputDTypeFunc OutputDTypeFn(int index) const;
 
-  /** Gets the function that computes the output dtype for the given output.
+  /** Gets the function that computes the number of dimensions of the given output.
    *
    * The returned function may be inherited from a parent schema.
    */
   OutputNDimFunc OutputNDimFn(int index) const;
 
-  /** Gets the function that computes the output dtype for the given output.
+  /** Gets the function that computes the layout for the given output.
    *
    * The returned function may be inherited from a parent schema.
    */

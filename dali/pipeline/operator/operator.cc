@@ -35,7 +35,7 @@ inline void ValidateMetadata(
       const OpSpec::InOutDesc &against,
       std::string_view category,
       NameType &&index_or_name) {
-  if (what.num_samples() == 0)  // empty batch may have improper ndim/layuot, but we don't care
+  if (what.num_samples() == 0)  // empty batch may have improper ndim/layout, but we don't care
     return;
   auto display_name = [&]() {
     if constexpr (std::is_arithmetic_v<std::remove_cvref_t<NameType>>)

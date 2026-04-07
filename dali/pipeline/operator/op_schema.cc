@@ -1065,15 +1065,6 @@ const std::vector<OpSchema::OutputLayoutFunc> &OpSchema::OutputLayoutFuncs() con
 
 std::optional<DALIDataType>
 OpSchema::CalculateOutputDType(int output_idx, const OpSpec &spec) const {
-  const decltype(output_dtype_fn_) &output_dtype_fn = [&]() {
-    if (!output_dtype_fn_.empty())
-      return output_dtype_fn_;
-    for (auto *parent : GetParents())
-      if (!parent->output_dtype_fn_.empty())
-        return parent->output_dtype_fn_;
-    return output_dtype_fn_;
-  }();
-
   // Default policy for output 0:
   // use "dtype" argument (if present) or copy the dtype of the 1st input
   if (output_idx == 0 && !OutputDTypeFn(0)) {
