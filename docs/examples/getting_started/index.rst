@@ -35,6 +35,25 @@ Both modes provide the same high-performance operators and GPU acceleration. Cho
 * Use **dynamic mode** when you need flexibility, are experimenting, or want to integrate DALI into existing code
 
 
+Torchvision API
+---------------
+
+Available since DALI 2.1, the experimental Torchvision API provides GPU-accelerated drop-in replacements for `torchvision.transforms.v2`_, letting you switch from Torchvision to DALI with minimal code changes.  Both object-oriented and functional styles are supported.
+
+.. _torchvision.transforms.v2: https://docs.pytorch.org/vision/stable/transforms.html
+
+DALI extends the standard Torchvision signatures with two optional parameters:
+
+* ``device`` — run the operator on ``"cpu"`` (default) or ``"gpu"``
+* ``batch_size`` — passed to ``Compose`` to process multiple samples per pipeline call
+
+**Limitations**
+
+* Accepted input types: ``PIL.Image`` and ``torch.Tensor`` (CHW layout).
+* Class-based operators must be wrapped in ``Compose``; they cannot be called standalone.
+* Results may differ from Torchvision by ±1 (integer pixel value) due to different underlying implementations.
+
+
 Tutorials
 ---------
 
@@ -43,3 +62,4 @@ Tutorials
 
    Pipeline Mode <pipeline_mode>
    Dynamic Mode <dynamic_mode>
+   Torchvision API <torchvision_api>
