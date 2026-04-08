@@ -17,7 +17,7 @@ from PIL import Image
 import torch
 
 
-def pil_to_tensor(inpt: Image.Image) -> torch.Tensor:
+def pil_to_tensor(inpt: Image.Image | np.ndarray) -> torch.Tensor:
     """
     Convert a ``PIL.Image`` to a uint8 CHW ``torch.Tensor``.
 
@@ -35,7 +35,7 @@ def pil_to_tensor(inpt: Image.Image) -> torch.Tensor:
         CHW tensor of dtype ``torch.uint8``.
     """
     if not isinstance(inpt, (Image.Image, np.ndarray)):
-        raise TypeError(f"Expected PIL.Image, got {type(inpt)}")
+        raise TypeError(f"Expected PIL.Image or numpy array, got {type(inpt)}")
 
     if isinstance(inpt, Image.Image):
         arr = np.array(inpt, copy=True)  # (H, W) for L, (H, W, C) for RGB/RGBA
@@ -48,7 +48,7 @@ def pil_to_tensor(inpt: Image.Image) -> torch.Tensor:
     return torch.from_numpy(arr).permute(2, 0, 1)  # (H, W, C) → (C, H, W)
 
 
-def to_tensor(inpt: Image.Image) -> torch.Tensor:
+def to_tensor(inpt: Image.Image | np.ndarray) -> torch.Tensor:
     """
     Convert a ``PIL.Image`` to a float32 CHW ``torch.Tensor`` with values in [0, 1].
 
