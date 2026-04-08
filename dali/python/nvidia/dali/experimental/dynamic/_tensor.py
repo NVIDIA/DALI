@@ -678,6 +678,32 @@ class Tensor:
     def __rxor__(self, other):
         return _arithm_op("bitxor", other, self)
 
+    def __mod__(self, other):
+        return _arithm_op("mod", self, other)
+
+    def __rmod__(self, other):
+        return _arithm_op("mod", other, self)
+
+    def __abs__(self):
+        from . import math
+
+        return math.abs(self)
+
+    def __invert__(self):
+        return _arithm_op("bitnot", self)
+
+    def __lshift__(self, other):
+        return _arithm_op("lshift", self, other)
+
+    def __rlshift__(self, other):
+        return _arithm_op("lshift", other, self)
+
+    def __rshift__(self, other):
+        return _arithm_op("rshift", self, other)
+
+    def __rrshift__(self, other):
+        return _arithm_op("rshift", other, self)
+
 
 def _is_int_value(tested: Any, reference: int) -> bool:
     return isinstance(tested, int) and tested == reference

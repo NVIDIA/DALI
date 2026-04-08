@@ -210,6 +210,21 @@ bitwise_operations = [
     ((lambda x, y: x ^ y), "^"),
 ]
 
+bitnot_operations = [
+    ((lambda x: ~x), "~"),
+]
+
+shift_operations = [
+    ((lambda x, y: x << y), "<<"),
+    ((lambda x, y: x >> y), ">>"),
+]
+
+
+def shift_range(*types):
+    # Limit shift count to [0, 7) so it's valid for all integer types (>= 8 bits wide)
+    return [None, (0, 7)]
+
+
 comparisons_operations = [
     ((lambda x, y: x == y), "=="),
     ((lambda x, y: x != y), "!="),
@@ -499,6 +514,14 @@ def test_unary_arithmetic_ops_big():
             yield check_unary_op, kinds, np.int8, op, shape_big, op_desc
 
 
+def test_abs_selected():
+    # abs() calls DataNode.__abs__ which delegates to dali.math.abs (type-preserving)
+    for kinds in unary_input_kinds:
+        for types_in in input_types:
+            if types_in != np.bool_:
+                yield check_unary_op, kinds, types_in, abs, shape_small, "abs"
+
+
 def check_math_function_op(kind, type, op, np_op, shape, get_range, op_desc, eps):
     is_integer = type not in [np.float16, np.float32, np.float64]
     limted_range = get_range(type)
@@ -692,6 +715,43 @@ def slow_test_bitwise_ops():
                     yield check_arithm_op, kinds, types_in, op, shape_small, default_range, op_desc
 
 
+def test_bitnot_selected():
+    # ~x (bitwise NOT) is type-preserving; bool is excluded because C's ~bool != numpy's ~bool
+    for kinds in unary_input_kinds:
+        for op, op_desc in bitnot_operations:
+            for types_in in integer_types:
+                if types_in != np.bool_:
+                    yield check_unary_op, kinds, types_in, op, shape_small, op_desc
+
+
+@attr("slow")
+def slow_test_bitnot():
+    for kinds in unary_input_kinds:
+        for op, op_desc in bitnot_operations:
+            for types_in in integer_types:
+                if types_in != np.bool_:
+                    yield check_unary_op, kinds, types_in, op, shape_big, op_desc
+
+
+def test_shift_ops_selected():
+    # bool is excluded: C's bool << bool produces int, but DALI casts the result back to bool
+    for kinds in selected_bin_input_kinds:
+        for op, op_desc in shift_operations:
+            for types_in in itertools.product(selected_input_types, selected_input_types):
+                if types_in[0] in integer_types and types_in[1] in integer_types:
+                    if np.bool_ not in types_in:
+                        yield check_arithm_op, kinds, types_in, op, shape_small, shift_range, op_desc
+
+
+@attr("slow")
+def slow_test_shift_ops():
+    for kinds in bin_input_kinds:
+        for op, op_desc in shift_operations:
+            for types_in in itertools.product(integer_types, integer_types):
+                if np.bool_ not in types_in:
+                    yield check_arithm_op, kinds, types_in, op, shape_small, shift_range, op_desc
+
+
 def check_comparsion_op(kinds, types, op, shape, _):
     # Comparisons - should always return bool
     iterator = iter(ExternalInputIterator(batch_size, shape, types, kinds))
@@ -847,6 +907,59 @@ def slow_test_arithmetic_division():
                 yield check_arithm_div, kinds, types_in, shape_small
 
 
+def check_arithm_mod(kinds, types, shape):
+    # DALI uses C-style truncated remainder (same sign as the dividend), matching np.fmod.
+    # bool is excluded: bool % bool = 0 but disallow_zeros makes it tricky with bool generators.
+    left_type, right_type = types
+    target_type = bin_promote(left_type, right_type)
+    # Use a limited range so float64 can represent all values exactly for the reference computation,
+    # and avoid zeros in the right operand.
+    iterator = iter(
+        ExternalInputIterator(
+            batch_size,
+            shape,
+            types,
+            kinds,
+            disallow_zeros=(False, True),
+            limited_range=[(-1000, 1000), (-100, 100)],
+        )
+    )
+    pipe = ExprOpPipeline(
+        kinds,
+        types,
+        iterator,
+        (lambda x, y: x % y),
+        batch_size=batch_size,
+        num_threads=2,
+        device_id=0,
+    )
+    pipe_out = pipe.run()
+    for sample in range(batch_size):
+        l_np, r_np, out = extract_data(pipe_out, sample, kinds, target_type)
+        assert_equals(out.dtype, target_type)
+        # np.fmod gives C-style truncated remainder (same sign as dividend), matching DALI
+        np.testing.assert_array_equal(
+            out, np.fmod(l_np.astype(np.float64), r_np.astype(np.float64)).astype(target_type)
+        )
+
+
+def test_mod_selected():
+    # bool excluded: bool generators ignore limited_range, making zero avoidance unreliable
+    for kinds in selected_bin_input_kinds:
+        for types_in in itertools.product(selected_input_types, selected_input_types):
+            if types_in[0] in integer_types and types_in[1] in integer_types:
+                if np.bool_ not in types_in:
+                    yield check_arithm_mod, kinds, types_in, shape_small
+
+
+@attr("slow")
+def slow_test_mod():
+    for kinds in bin_input_kinds:
+        for types_in in itertools.product(integer_types, integer_types):
+            if np.bool_ not in types_in:
+                yield check_arithm_mod, kinds, types_in, shape_small
+
+
 def check_raises(kinds, types, op, shape):
     if isinstance(op, tuple):
         dali_op = op[0]
@@ -918,6 +1031,22 @@ def test_bitwise_disallowed():
     error_msg = "Inputs to bitwise operator `[\\S]*` must be of integral type."
     for kinds in bin_input_kinds:
         for op, op_desc in bitwise_operations:
+            for types_in in itertools.product(selected_input_types, selected_input_types):
+                if types_in[0] in float_types or types_in[1] in float_types:
+                    yield check_raises_re, kinds, types_in, op, shape_small, op_desc, error_msg
+
+
+def test_bitnot_disallowed():
+    error_msg = "Inputs to bitwise operator `[\\S]*` must be of integral type."
+    for kinds in unary_input_kinds:
+        for types_in in float_types:
+            yield check_raises_re, kinds, types_in, (lambda x: ~x), shape_small, "~", error_msg
+
+
+def test_shift_disallowed():
+    error_msg = "Inputs to bitwise operator `[\\S]*` must be of integral type."
+    for kinds in bin_input_kinds:
+        for op, op_desc in shift_operations:
             for types_in in itertools.product(selected_input_types, selected_input_types):
                 if types_in[0] in float_types or types_in[1] in float_types:
                     yield check_raises_re, kinds, types_in, op, shape_small, op_desc, error_msg

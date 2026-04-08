@@ -84,9 +84,9 @@ Supported Arithmetic Operations
 
 Currently, DALI supports the following operations:
 
-.. function:: Unary arithmetic operators: +, -
+.. function:: Unary arithmetic operators: +, -, ~
 
-    Unary operators that implement ``__pos__(self)`` and ``__neg__(self)``.
+    Unary operators that implement ``__pos__(self)``, ``__neg__(self)`` and ``__invert__(self)``.
     The result of a unary arithmetic operation always preserves the input type.
     Unary operators accept only TensorList inputs from other operators.
 
@@ -121,6 +121,13 @@ Currently, DALI supports the following operations:
     .. note::
         A bitwise operation can be applied to two boolean inputs. Those operations can be used
         to emulate element-wise logical operations on Tensors.
+
+    :rtype: TensorList of the type that is calculated based on the type promotion rules.
+
+.. function:: Bit shift operations: <<, >>
+
+    The bit shift binary operations follow the same type promotion rules as arithmetic binary
+    operations, but their inputs are restricted to integral types (except two boolean values).
 
     :rtype: TensorList of the type that is calculated based on the type promotion rules.
 

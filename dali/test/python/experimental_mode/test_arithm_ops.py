@@ -41,6 +41,12 @@ def apply_bin_op(op, a, b):
         return a | b
     elif op == "^":
         return a ^ b
+    elif op == "%":
+        return a % b
+    elif op == "<<":
+        return a << b
+    elif op == ">>":
+        return a >> b
     elif op == "==":
         return a == b
     elif op == "!=":
@@ -62,10 +68,14 @@ def apply_un_op(op, a):
         return -a
     elif op == "~":
         return ~a
+    elif op == "abs":
+        return abs(a)
 
 
 binary_ops = ["+", "-", "*", "/", "//", "**", "&", "|", "^", "==", "!=", "<", "<=", ">", ">="]
-unary_ops = ["+", "-"]  # TODO(michalz): ~ missing in DALI - fix!
+# Integer-only ops: mod and bit shifts. All test values are positive, so numpy % matches C %.
+integer_binary_ops = ["%", "<<", ">>"]
+unary_ops = ["+", "-", "~", "abs"]
 
 
 @eval_modes()
@@ -96,9 +106,9 @@ def test_binary_ops(device, op):
 @params(*itertools.product(["cpu", "gpu"], unary_ops))
 def test_unary_ops(device, op):
     values = [
-        np.array([[1, 2, 3], [4, 5, 6]]),
-        np.array([[1], [2], [3]]),
-        np.array([[1, 2, 3], [4, 5, 6]]),
+        np.array([[-1, 2, -3], [4, -5, 6]]),
+        np.array([[-1], [2], [-3]]),
+        np.array([[-1, 2, -3], [4, -5, 6]]),
     ]
 
     for ref_x in values:
@@ -108,6 +118,29 @@ def test_unary_ops(device, op):
         if not np.array_equal(asnumpy(y), ref_y):
             msg = f"{ref_x} {op} = \n{asnumpy(y)}\n!=\n{ref_y}"
             raise AssertionError(msg)
+
+
+@eval_modes()
+@params(*itertools.product(["cpu", "gpu"], integer_binary_ops))
+def test_integer_binary_ops(device, op):
+    # All values are positive so numpy % matches C-style %, and shifts are well-defined.
+    # Right-hand side values (2, 3, 5) double as safe shift amounts (< 64).
+    values = [
+        (np.array([[1, 2, 3], [4, 5, 6]]), np.array([[2], [3]])),
+        (np.array([[1], [2], [3]]), np.int64(5)),
+        (np.array([[1, 2, 3], [4, 5, 6]]), np.array([1, 2, 3])),
+    ]
+
+    for va, vb in values:
+        for ref_a, ref_b in [(va, vb), (vb, va)]:
+            a = ndd.tensor(ref_a, device=device)
+            b = ndd.tensor(ref_b, device=device)
+            ab = apply_bin_op(op, a, b)
+            result_numpy = asnumpy(ab)
+            ref_ab = apply_bin_op(op, ref_a, ref_b)
+            if not np.array_equal(result_numpy, ref_ab):
+                msg = f"{ref_a} {op} {ref_b} = \n{result_numpy}\n!=\n{ref_ab}"
+                raise AssertionError(msg)
 
 
 @params(*itertools.product(["gpu", "cpu"], binary_ops, (None, 4)))
@@ -144,6 +177,52 @@ def test_binary_non_tensor(device: str, op: str, batch_size: int | None):
         if not np.allclose(result_rev.cpu(), ref_rev):
             msg = f"{y} {op} {tensor} = \n{result_rev}\n!=\n{ref_rev}"
             raise AssertionError(msg)
+
+
+@params(*itertools.product(["gpu", "cpu"], integer_binary_ops, (None, 4)))
+def test_integer_binary_non_tensor(device: str, op: str, batch_size: int | None):
+    tensors = [
+        np.array([[1, 2, 3], [4, 5, 6]], dtype=np.int32),
+        np.array([[1], [2], [3]], dtype=np.int32),
+    ]
+    if op == '%':
+        nontensors = [3, [1, 2, 3]]
+    else:
+        nontensors = [3, [0, 1, 5]]
+
+    for tensor, y in itertools.product(tensors, nontensors):
+        if batch_size is None:
+            x = ndd.as_tensor(tensor, device=device)
+        else:
+            x = ndd.Batch.broadcast(tensor, batch_size=batch_size, device=device)
+
+        result = ndd.as_tensor(apply_bin_op(op, x, y))
+        result_rev = ndd.as_tensor(apply_bin_op(op, y, x))
+        ref = apply_bin_op(op, tensor, y)
+        ref_rev = apply_bin_op(op, y, tensor)
+
+        if batch_size is not None:
+            ref = np.stack([ref] * batch_size)
+            ref_rev = np.stack([ref_rev] * batch_size)
+
+        if not np.array_equal(result.cpu(), ref):
+            msg = f"{tensor} {op} {y} = \n{result}\n!=\n{ref}"
+            raise AssertionError(msg)
+
+        if not np.array_equal(result_rev.cpu(), ref_rev):
+            msg = f"{y} {op} {tensor} = \n{result_rev}\n!=\n{ref_rev}"
+            raise AssertionError(msg)
+
+
+@params(*integer_binary_ops)
+def test_integer_incompatible_devices(op: str):
+    a = ndd.tensor([1, 2, 3], device="cpu")
+    b = ndd.tensor([4, 5, 6], device="gpu")
+
+    with assert_raises(ValueError, regex="[CG]PU and [CG]PU"):
+        apply_bin_op(op, a, b)
+    with assert_raises(ValueError, regex="[CG]PU and [CG]PU"):
+        apply_bin_op(op, b, a)
 
 
 @attr("pytorch")

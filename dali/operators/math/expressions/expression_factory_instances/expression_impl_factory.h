@@ -557,6 +557,30 @@ std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::bit_or, CPUBac
 std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::bit_xor, CPUBackend>,
                                         const ExprFunc &expr);
 
+/**
+ * @brief Factory function returning proper variant of implementation for `bit_not`
+ *        on CPUBackend for supplied input types and input kinds (Scalar/Tensor inputs),
+ *        specified in `expr`.
+ */
+std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::bit_not, CPUBackend>,
+                                        const ExprFunc &expr);
+
+/**
+ * @brief Factory function returning proper variant of implementation for `bit_lshift`
+ *        on CPUBackend for supplied input types and input kinds (Scalar/Tensor inputs),
+ *        specified in `expr`.
+ */
+std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::bit_lshift, CPUBackend>,
+                                        const ExprFunc &expr);
+
+/**
+ * @brief Factory function returning proper variant of implementation for `bit_rshift`
+ *        on CPUBackend for supplied input types and input kinds (Scalar/Tensor inputs),
+ *        specified in `expr`.
+ */
+std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::bit_rshift, CPUBackend>,
+                                        const ExprFunc &expr);
+
 
 /**
  * @brief Factory function returning proper variant of implementation for `clamp`
@@ -929,6 +953,31 @@ std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::bit_or, GPUBac
  */
 std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::bit_xor, GPUBackend>,
                                         const ExprFunc &expr);
+
+/**
+ * @brief Factory function returning proper variant of implementation for `bit_not`
+ *        on GPUBackend for supplied input types and input kinds (Scalar/Tensor inputs),
+ *        specified in `expr`.
+ */
+std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::bit_not, GPUBackend>,
+                                        const ExprFunc &expr);
+
+/**
+ * @brief Factory function returning proper variant of implementation for `bit_lshift`
+ *        on GPUBackend for supplied input types and input kinds (Scalar/Tensor inputs),
+ *        specified in `expr`.
+ */
+std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::bit_lshift, GPUBackend>,
+                                        const ExprFunc &expr);
+
+/**
+ * @brief Factory function returning proper variant of implementation for `bit_rshift`
+ *        on GPUBackend for supplied input types and input kinds (Scalar/Tensor inputs),
+ *        specified in `expr`.
+ */
+std::unique_ptr<ExprImplBase> OpFactory(arithm_meta<ArithmeticOp::bit_rshift, GPUBackend>,
+                                        const ExprFunc &expr);
+
 /**
  * @brief Factory function returning proper variant of implementation for `clamp`
  *        on GPUBackend for supplied input types and input kinds (Scalar/Tensor inputs),
