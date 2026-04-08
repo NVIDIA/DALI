@@ -270,12 +270,8 @@ def adjust_input(func):
             if inpt.ndim == 3:
                 _input = ndd.Tensor(inpt, layout="CHW")
             elif inpt.ndim > 3:
-                # Creating baches of NHWC does not work, because of:
-                # https://jirasw.nvidia.com/browse/DALI-4566
-                # It should be implemented as:
-                # _input = ndd.as_batch(inpt, layout="NCHW")
-                # currently workarounded as:
-                _input = ndd.as_batch(ndd.as_tensor(inpt), layout="CHW")
+                # Creating baches of NCHW
+                _input = ndd.as_batch(inpt, layout="CHW")
             else:
                 raise TypeError(f"Tensor has < 3 dimensions: {inpt.ndim}, shape: {inpt.shape}")
         else:
