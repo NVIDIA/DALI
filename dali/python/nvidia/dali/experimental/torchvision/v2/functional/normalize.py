@@ -36,7 +36,7 @@ def _normalize(
         mean = np.asarray(mean)[:, None, None]
         std = np.asarray(std)[:, None, None]
     else:
-        # Torchviso does not support nomrlization on HWC, but DALI does
+        # Torchvison does not support nomrlization on HWC, but DALI does
         mean = np.asarray(mean)[None, None, :]
         std = np.asarray(std)[None, None, :]
 
