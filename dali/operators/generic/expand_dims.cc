@@ -64,14 +64,17 @@ If argument isn't be provided, the layout will be cleared.)code", TensorLayout("
     if (num_new_axes != names.ndim())
       return "";
 
+    int out_ndim = desc.layout->ndim() + names.ndim();
+
     SmallVector<std::pair<int, char>, 6> ind_with_layout;
     for (size_t i = 0; i < axes.size(); i++) {
+      if (axes[i] < 0 || axes[i] >= out_ndim)
+        return std::nullopt;  // invalid axis
       ind_with_layout.push_back({ axes[i], names[i] });
     }
     std::sort(ind_with_layout.begin(), ind_with_layout.end());
 
     TensorLayout out_layout = "";
-    int out_ndim = desc.layout->ndim() + names.ndim();
     int src_axis = 0;
     int new_axis = 0;
     for (int j = 0; j < out_ndim; j++) {
