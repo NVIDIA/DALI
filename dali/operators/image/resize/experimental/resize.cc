@@ -1,4 +1,4 @@
-// Copyright (c) 2024-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2024-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -67,10 +67,16 @@ void CvCudaResize::RunImpl(Workspace &ws) {
 
     if (!attr_staging_.has_data())
       attr_staging_.set_pinned(true);
+    if (const auto &ev = attr_staging_.ready_event()) {
+      CUDA_CALL(cudaEventSynchronize(ev));
+    } else {
+      attr_staging_.set_ready_event(dali::CUDASharedEvent::Create());
+    }
     attr_staging_.Resize(attr_out.shape(), DALI_INT32);
     auto attr_view = view<int, 1>(attr_staging_);
     SaveAttrs(attr_view, input.shape());
     attr_out.Copy(attr_staging_, ws.stream());
+    CUDA_CALL(cudaEventRecord(attr_staging_.ready_event().get(), ws.stream()));
   }
 }
 
