@@ -79,7 +79,7 @@ class _ValidateHue(_ArgumentValidateRule):
         if isinstance(hue, (int, float)):
             if hue < 0 or hue > 0.5:
                 raise ValueError(
-                    "If hue is a single number, it must be non-negative and < 0.5, " f"got {hue}"
+                    f"If hue is a single number, it must be non-negative and < 0.5, got {hue}"
                 )
             hue = (-float(hue), float(hue))
         else:
