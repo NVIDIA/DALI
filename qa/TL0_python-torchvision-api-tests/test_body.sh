@@ -13,5 +13,5 @@ test_fw() {
 }
 
 run_all() {
-  test_fw
+    test_fw
 }

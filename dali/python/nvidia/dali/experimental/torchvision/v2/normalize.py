@@ -56,13 +56,13 @@ class _ValidateMean(_ArgumentValidateRule):
             isinstance(mean, Sequence) and isinstance(mean, str)
         ):
             raise TypeError(f"Mean must be a Sequence, got {type(mean)}")
-        # This is on-pair validation with Torchvision - no other validation is performed
+        # This is on-par validation with Torchvision - no other validation is performed
         _ = torch.as_tensor(mean)
 
 
 class Normalize(Operator):
     """
-    Normalize a tensor image or video with mean and standard deviation.
+    Normalize a tensor image with mean and standard deviation.
 
     This transform does not support PIL Image.
     Given mean: (mean[1],...,mean[n]) and std: (std[1],..,std[n]) for n channels,
@@ -81,7 +81,7 @@ class Normalize(Operator):
 
     arg_rules = [_ValidateStd, _ValidateMean]
     # TODO: currently not supported
-    # input_rules = [VerificationIsTensor]
+    # input_rules = [_ValidateIsTensor]
 
     def __init__(
         self,
