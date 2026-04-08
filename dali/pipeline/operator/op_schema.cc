@@ -1096,7 +1096,7 @@ std::optional<int> OpSchema::CalculateOutputNDim(int output_idx, const OpSpec &s
     if (out_layout.has_value() && out_layout->ndim())
       return out_layout->ndim();
 
-    TensorLayout expanded = ExpandedDims().first;
+    const auto &expanded = ExpandedDims().first;
     if (!expanded.empty())
       return std::nullopt;  // if there's automatic dim expansion, we must be layout-aware
 
@@ -1124,11 +1124,19 @@ static inline std::optional<TensorLayout> GetCorrespondingExpandedOutputLayout(
       const std::pair<TensorLayout, bool> &expansion_spec) {
   const auto &expanded_dims = expansion_spec.first;
   auto &input_desc = spec.InputDesc(idx);
-  if (input_desc.ndim != 0 && !input_desc.layout)
+  if ((!input_desc.ndim.has_value() || *input_desc.ndim != 0) && !input_desc.layout)
     return std::nullopt;  // we don't know how to expand this
 
   // We get so far only if we have a layout, or the input is 0D (in which case the layout is "")
   auto input_layout = input_desc.layout.value_or("");
+
+  if (input_layout.empty()) {  // we _know_ that the input layout was empty
+    assert(input_desc.ndim.has_value());
+    // we may still need to pad the input layout with * if we also know the number of dimensions
+    for (int i = 0; i < *input_desc.ndim; i++) {
+      input_layout += '*';  // pad the layout
+    }
+  }
 
   // Find *leading* expandable dims, e.g. FC in FCHW or F in FHWC (assuming we can expand FC)
   SmallVector<char, TensorLayout::max_ndim> dim_order;
