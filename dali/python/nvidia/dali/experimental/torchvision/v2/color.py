@@ -79,7 +79,7 @@ class _ValidateHue(_ArgumentValidateRule):
         if isinstance(hue, (int, float)):
             if hue < 0 or hue > 0.5:
                 raise ValueError(
-                    "If hue is a single number, it must be non-negative and < 0.5, " f"got {hue}"
+                    "If hue is a single number, it must be non-negative and <= 0.5, " f"got {hue}"
                 )
             hue = (-float(hue), float(hue))
         else:
@@ -103,7 +103,7 @@ class _ValidateGrayscaleInputLayout(_DataValidateRule):
             layout = data_input.property("layout")[1]
 
         # CHW
-        if layout.cpu() == np.frombuffer(bytes("C", "utf-8"), dtype=np.uint8)[0]:
+        if layout == np.frombuffer(bytes("C", "utf-8"), dtype=np.uint8)[0]:
             raise NotImplementedError(
                 "NCHW and CHW layout are not supported for Grayscale, expecting HWC or NHWC"
             )

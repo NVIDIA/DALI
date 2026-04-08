@@ -1,6 +1,6 @@
 #!/bin/bash -e
 # used pip packages
-pipe_packagtes='${python_test_runner_package} numpy torch torchvision'
+pip_packages='${python_test_runner_package} numpy torch torchvision'
 
 target_dir=./dali/test/python
 
