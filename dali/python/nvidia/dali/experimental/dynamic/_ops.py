@@ -23,6 +23,7 @@ from ._device import Device, DeviceLike
 from ._tensor import Tensor
 
 from ._nvtx import NVTXRange
+from threading import Lock
 
 
 def _to_tensor(x, device=None, dtype=None):
@@ -161,6 +162,7 @@ class Operator:
         device : Device or str, optional
             The device where the operation is executed.
         """
+        self._lock = Lock()
         self._name = name
         self._max_batch_size = max_batch_size
         self._init_args = kwargs
@@ -357,6 +359,12 @@ class Operator:
         return self._op_backend is not None
 
     def _init_spec(self, inputs, args):
+        if self._op_spec is not None:
+            return
+        with self._lock:
+            self._init_spec_no_lock(inputs, args)
+
+    def _init_spec_no_lock(self, inputs, args):
         if self._op_spec is None:
             import nvidia.dali as dali
 
@@ -400,7 +408,6 @@ class Operator:
                     spec = out.source.spec
 
                 spec.InferOutputMetadata()
-                self._op_spec = spec
 
                 if isinstance(out, (tuple, list)):
                     self._output_devices = []
@@ -422,6 +429,7 @@ class Operator:
                         Device(out.device, None if out.device == "cpu" else self._device.device_id)
                     ]
 
+                self._op_spec = spec
                 self._set_meta(inputs, args)
 
     def _init_backend(self, ctx, inputs, args):
@@ -430,9 +438,11 @@ class Operator:
 
         if ctx is None:
             ctx = _eval_context.EvalContext.current()
-        with self._device:
-            with ctx:
-                self._init_spec(inputs, args)
+        with self._lock:
+            if self._op_backend is not None:
+                return
+            with self._device, ctx:
+                self._init_spec_no_lock(inputs, args)
                 self._op_spec.AddArg("num_threads", ctx.num_threads)
                 self._op_spec.AddArg(
                     "device_id",
