@@ -106,10 +106,13 @@ def test_random_bbox_crop():
 
 @eval_modes(ndd.EvalMode.deferred)
 def test_slice():
-    input = ndd.as_batch([
-        ndd.zeros(shape=(2, 3, 4), dtype=ndd.int8),
-        ndd.zeros(shape=(3, 2, 5), dtype=ndd.int8),
-    ], layout="XYZ").evaluate()
+    input = ndd.as_batch(
+        [
+            ndd.zeros(shape=(2, 3, 4), dtype=ndd.int8),
+            ndd.zeros(shape=(3, 2, 5), dtype=ndd.int8),
+        ],
+        layout="XYZ",
+    ).evaluate()
     assert_correct_metadata(input.slice[1])
     assert_correct_metadata(input.slice[:, 1, :])
     assert_correct_metadata(input.slice[0, 1, 2])
@@ -121,24 +124,34 @@ def test_slice():
 
 @eval_modes(ndd.EvalMode.deferred)
 def test_per_frame_warp():
-    input = ndd.as_batch([
-        ndd.zeros(shape=(300, 400, 3), dtype=ndd.uint8),
-        ndd.zeros(shape=(200, 500, 3), dtype=ndd.uint8),
-    ], layout="HWC").evaluate()
+    input = ndd.as_batch(
+        [
+            ndd.zeros(shape=(300, 400, 3), dtype=ndd.uint8),
+            ndd.zeros(shape=(200, 500, 3), dtype=ndd.uint8),
+        ],
+        layout="HWC",
+    ).evaluate()
 
-    matrices = ndd.per_frame(ndd.tensor([
-        [[1, 0, 0], [0, 1, 0]],
-        [[0.9, 0.1, 0], [-0.1, 0.9, 0]],
-    ]))
+    matrices = ndd.per_frame(
+        ndd.tensor(
+            [
+                [[1, 0, 0], [0, 1, 0]],
+                [[0.9, 0.1, 0], [-0.1, 0.9, 0]],
+            ]
+        )
+    )
     assert_correct_metadata(ndd.warp_affine(input, matrices))
 
 
 @eval_modes(ndd.EvalMode.deferred)
 def test_gaussian_blur_fchw():
-    input = ndd.as_batch([
-        ndd.zeros(shape=(4, 3, 300, 400), dtype=ndd.uint8),
-        ndd.zeros(shape=(4, 3, 200, 500), dtype=ndd.uint8),
-    ], layout="FCHW").evaluate()
+    input = ndd.as_batch(
+        [
+            ndd.zeros(shape=(4, 3, 300, 400), dtype=ndd.uint8),
+            ndd.zeros(shape=(4, 3, 200, 500), dtype=ndd.uint8),
+        ],
+        layout="FCHW",
+    ).evaluate()
 
     sigma = ndd.tensor([[1, 1], [2, 2], [3, 3], [4, 4]], dtype=ndd.float32, layout="F*")
     sigmas = ndd.as_batch([sigma] * 2).evaluate()
