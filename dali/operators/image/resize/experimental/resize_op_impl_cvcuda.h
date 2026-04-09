@@ -174,7 +174,7 @@ class ResizeOpImplCvCuda : public ResizeBase<GPUBackend>::Impl {
 
   void RunResize(Workspace &ws, TensorList<GPUBackend> &output,
                  const TensorList<GPUBackend> &input) override {
-    kernels::DynamicScratchpad scratchpad({}, AccessOrder(ws.stream()));
+    kernels::DynamicScratchpad scratchpad(AccessOrder(ws.stream()));
 
     auto workspace_mem = AllocateWorkspaces(scratchpad);
 
