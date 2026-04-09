@@ -188,7 +188,7 @@ void CheckContiguousTensor(const TStrides &strides, int num_strides,
   int64_t stride_from_shape = element_size;
   int64_t last_non_one_dim = 1;
   for (int i = num_strides - 1; i >= 0; i--) {
-    DALI_ENFORCE(shape[i] == 1 || // ignore unit extents - the stride won't be used anyway
+    DALI_ENFORCE(shape[i] == 1 ||  // ignore unit extents - the stride won't be used anyway
                  strides[i] == stride_from_shape,
         make_string("Strided data not supported. Dimension ", i, " has stride ", strides[i],
         " whereas densely packed data of this shape would have a stride ", stride_from_shape));
