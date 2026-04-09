@@ -36,7 +36,9 @@ class _ValidateStd(_ArgumentValidateRule):
             isinstance(std, Sequence) and isinstance(std, str)
         ):
             raise TypeError(f"Std must be a Sequence, got {type(std)}")
-        if np.any(np.array(std) == 0):
+
+        tensor_std = torch.as_tensor(std)
+        if torch.any(tensor_std == 0):
             raise ValueError("Std must not be 0")
 
 
