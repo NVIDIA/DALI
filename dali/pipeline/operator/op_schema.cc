@@ -1130,8 +1130,10 @@ static inline std::optional<TensorLayout> GetCorrespondingExpandedOutputLayout(
   // We get so far only if we have a layout, or the input is 0D (in which case the layout is "")
   auto input_layout = input_desc.layout.value_or("");
 
-  if (input_layout.empty()) {  // we _know_ that the input layout was empty
-    assert(input_desc.ndim.has_value());
+  if (input_layout.empty()) {
+    // If the layout was empty, we need the number of dimesnions, as "" is legal for any ndim.
+    if (!input_desc.ndim.has_value())
+      return std::nullopt;
     // we may still need to pad the input layout with * if we also know the number of dimensions
     for (int i = 0; i < *input_desc.ndim; i++) {
       input_layout += '*';  // pad the layout
