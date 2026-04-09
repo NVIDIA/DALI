@@ -1177,11 +1177,12 @@ static inline std::optional<TensorLayout> GetCorrespondingExpandedOutputLayout(
         if (c_idx < prev_c_idx) {
           return std::nullopt;  // inconsistent order of extra dimensions, e.g. FC** vs CF**
         }
-        prev_c_idx = c_idx;
       } else {
         // this is a bit ugly, but vector invalidates iterators, so we have to use indices
-        dim_order.insert(dim_order.begin() + prev_c_idx + 1, c);
+        c_idx = prev_c_idx + 1;
+        dim_order.insert(dim_order.begin() + c_idx, c);
       }
+      prev_c_idx = c_idx;
     }
   }
   bool expand_all = dim_order.size() == expanded_dims.size();

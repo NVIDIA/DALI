@@ -119,6 +119,54 @@ def test_slice():
     assert_correct_metadata(input.slice[1:, 1:, 1:])
 
 
+# --- New dimensions ---
+
+
+@eval_modes(ndd.EvalMode.deferred)
+def test_stack():
+    input1 = ndd.as_batch([[[1], [2]], [[10], [20]]], layout="AB")
+    input2 = ndd.as_batch([[[3], [4]], [[30], [40]]], layout="AB")
+
+    out0 = ndd.stack(input1, input2, axis=0, axis_name="C")
+    assert out0.layout == "CAB"
+    assert_correct_metadata(out0)
+
+    out1 = ndd.stack(input1, input2, axis=1, axis_name="C")
+    assert out1.layout == "ACB"
+    assert_correct_metadata(out1)
+
+    out2 = ndd.stack(input1, input2, axis=2, axis_name="C")
+    assert out2.layout == "ABC"
+    assert_correct_metadata(out2)
+
+
+@eval_modes(ndd.EvalMode.deferred)
+def test_expand_dims():
+    inp = ndd.as_batch([[1, 2], [10, 20]], layout="A")
+
+    out0 = ndd.expand_dims(inp, axes=[0, 1], new_axis_names="BC")
+    assert out0.layout == "BCA"
+    assert_correct_metadata(out0)
+
+    out1 = ndd.expand_dims(inp, axes=[0, 2], new_axis_names="BC")
+    assert out1.layout == "BAC"
+    assert_correct_metadata(out1)
+
+    out2 = ndd.expand_dims(inp, axes=[1, 2], new_axis_names="BC")
+    assert out2.layout == "ABC"
+    assert_correct_metadata(out2)
+
+    inp = ndd.as_batch([1, 2])
+    out3 = ndd.expand_dims(inp, axes=[0, 1], new_axis_names="AB")
+    assert out3.layout == "AB"
+    assert_correct_metadata(out3)
+
+    inp = ndd.as_batch([1, 2])
+    out4 = ndd.expand_dims(inp, axes=[0, 1])
+    assert out4.layout is None
+    assert_correct_metadata(out4)
+
+
 # --- Sequence ---
 
 

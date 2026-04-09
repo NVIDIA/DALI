@@ -82,7 +82,7 @@ the output layout "CHW")", nullptr, false)
         continue;
       if (axis < 0)
         axis += desc.layout->ndim() + 1;  // + 1 because we are adding a dimension
-      if (axis < 0 || axis >= desc.layout->ndim())
+      if (axis < 0 || axis > desc.layout->ndim())
         return std::nullopt;
       return desc.layout->sub(0, axis) + new_axis_name + desc.layout->sub(axis);
     }
