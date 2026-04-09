@@ -98,6 +98,8 @@ def test_from_torch(device: str):
         raise SkipTest("Requires PyTorch >= 2.6.0")
 
     inpt = torch.arange(1, 5).reshape((1, 2, 2))
+    if device == "gpu":
+        inpt = inpt.cuda()
     ndd_tensor = ndd.as_tensor(inpt)
 
     np.testing.assert_array_equal(ndd_tensor.cpu(), [[[1, 2], [3, 4]]])
