@@ -20,10 +20,7 @@ from .v2.gaussian_blur import GaussianBlur
 from .v2.normalize import Normalize
 from .v2.pad import Pad
 from .v2.rand_apply import RandomApply
-<<<<<<< HEAD
-from .v2.randomcrop import RandomCrop
-=======
->>>>>>> d3f473bf (Torchvision API RandomApply implementation)
+from .v2.randomcrop import RandomCrop, RandomResizedCrop
 from .v2.resize import Resize
 from .v2.totensor import ToPureTensor, PILToTensor, ToPILImage
 
@@ -37,12 +34,10 @@ __all__ = [
     "Pad",
     "PILToTensor",
     "RandomApply",
-<<<<<<< HEAD
     "RandomCrop",
-=======
->>>>>>> d3f473bf (Torchvision API RandomApply implementation)
     "RandomGrayscale",
     "RandomHorizontalFlip",
+    "RandomResizedCrop",
     "RandomVerticalFlip",
     "Resize",
     "ToPILImage",

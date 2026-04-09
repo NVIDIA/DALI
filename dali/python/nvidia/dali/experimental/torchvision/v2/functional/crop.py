@@ -12,14 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import operator
+from typing import List
 
 import nvidia.dali.experimental.dynamic as ndd
+from torchvision.transforms import InterpolationMode
+
 from nvidia.dali._typing import TensorLike
 from nvidia.dali.experimental.dynamic._device import DeviceLike
 
 from ..operator import adjust_input
 from ..randomcrop import RandomCrop
+from ..resize import Resize
 
 
 def _validate_integer_param(value, name: str) -> int:
@@ -126,13 +129,41 @@ def crop(
         fill=0,
     )
 
-    return ndd.slice(
-        inpt,
-        [float(left), float(top)],
-        [float(width), float(height)],
-        normalized_anchor=False,
-        normalized_shape=False,
-        out_of_bounds_policy="pad",
-        fill_values=0,
+    return _crop(inpt, top, left, height, width, device=device)
+
+
+@adjust_input
+def resized_crop(
+    inpt: TensorLike | ndd.Batch,
+    top: int,
+    left: int,
+    height: int,
+    width: int,
+    size: int | List[int],
+    interpolation: InterpolationMode | int = InterpolationMode.BILINEAR,
+    antialias: bool = True,
+    device: DeviceLike = "cpu",
+) -> ndd.Tensor | ndd.Batch:
+    """
+    Crop the input at location (top, left) with dimensions (height, width),
+    then resize the crop to the given size.
+    """
+    top, left, height, width = _validate_crop_params(inpt, top, left, height, width)
+    interpolation = Resize.normalize_interpolation(interpolation)
+    Resize.verify_args(size=size, max_size=None, interpolation=interpolation, antialias=antialias)
+
+    size_normalized = Resize.infer_effective_size(size)
+    interpolation = Resize.interpolation_modes[interpolation]
+
+    cropped = _crop(inpt, top, left, height, width, device=device)
+    target_h, target_w = Resize.calculate_target_size_dynamic_mode(
+        (height, width), size_normalized, None
+    )
+
+    return ndd.resize(
+        cropped,
         device=device,
+        size=(target_h, target_w),
+        interp_type=interpolation,
+        antialias=antialias,
     )

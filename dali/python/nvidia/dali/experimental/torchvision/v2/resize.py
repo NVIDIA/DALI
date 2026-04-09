@@ -98,8 +98,31 @@ class Resize(Operator):
         InterpolationMode.HAMMING,
     ]
 
+    # Legacy PIL integer codes accepted by torchvision for back-compat
+    # (mirrors torchvision.transforms.functional._interpolation_modes_from_int).
+    int_to_interpolation_mode = {
+        0: InterpolationMode.NEAREST,
+        1: InterpolationMode.LANCZOS,
+        2: InterpolationMode.BILINEAR,
+        3: InterpolationMode.BICUBIC,
+        4: InterpolationMode.BOX,
+        5: InterpolationMode.HAMMING,
+    }
+
     arg_rules = [_ValidateSize]
     preprocess_data = get_HWC_from_layout_pipeline
+
+    @classmethod
+    def normalize_interpolation(cls, interpolation):
+        if isinstance(interpolation, int) and not isinstance(interpolation, InterpolationMode):
+            try:
+                return cls.int_to_interpolation_mode[interpolation]
+            except KeyError:
+                raise ValueError(
+                    f"Interpolation int {interpolation} is not a valid PIL code; "
+                    f"expected one of {sorted(cls.int_to_interpolation_mode)}"
+                )
+        return interpolation
 
     @classmethod
     def infer_effective_size(
@@ -228,6 +251,7 @@ class Resize(Operator):
         antialias: Optional[bool] = True,
         device: Literal["cpu", "gpu"] = "cpu",
     ):
+        interpolation = Resize.normalize_interpolation(interpolation)
 
         super().__init__(
             device=device,
