@@ -1,4 +1,4 @@
-// Copyright (c) 2022-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -58,9 +58,12 @@ class InflateOpGpuLZ4Impl : public InflateOpImplBase<GPUBackend> {
         stream, params_.GetInChunkSizes(), input_ptrs_, inflated_sizes_, inflated_ptrs_);
 
     size_t tempSize;
-    CUDA_CALL(nvcompBatchedLZ4DecompressGetTempSizeAsync(total_chunks_num,
-                                                         params_.GetMaxOutChunkVol(),
-                                                         {}, &tempSize, params_.GetMaxOutVol()));
+    CUDA_CALL(nvcompBatchedLZ4DecompressGetTempSizeAsync(
+        total_chunks_num,
+        params_.GetMaxOutChunkVol() * element_type_.size(),
+        {},
+        &tempSize,
+        params_.GetMaxOutVol() * element_type_.size()));
 
     void *temp = scratchpad.AllocateGPU<uint8_t>(tempSize);
     nvcompStatus_t *device_statuses = scratchpad.AllocateGPU<nvcompStatus_t>(total_chunks_num);
