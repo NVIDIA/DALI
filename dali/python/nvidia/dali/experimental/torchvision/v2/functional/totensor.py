@@ -32,7 +32,7 @@ def pil_to_tensor(inpt: Image.Image | np.ndarray) -> torch.Tensor:
     Returns
     -------
     torch.Tensor
-        CHW tensor of dtype ``torch.uint8``.
+        CHW tensor of dtype matching PIL mode (uint8 for L/RGB/RGBA, int32 for I, float32 for F).
     """
     if not isinstance(inpt, (Image.Image, np.ndarray)):
         raise TypeError(f"Expected PIL.Image or numpy array, got {type(inpt)}")
@@ -40,6 +40,7 @@ def pil_to_tensor(inpt: Image.Image | np.ndarray) -> torch.Tensor:
     if isinstance(inpt, Image.Image):
         arr = np.array(inpt, copy=True)  # (H, W) for L, (H, W, C) for RGB/RGBA
     else:
+        # Note: numpy array is used directly without copying, this matches Torchvision
         arr = inpt
 
     if arr.ndim == 2:

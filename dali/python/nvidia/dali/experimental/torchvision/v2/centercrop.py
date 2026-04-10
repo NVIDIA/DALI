@@ -110,7 +110,7 @@ class CenterCrop(Operator):
         crop_pos_x = is_pos_w * half_w / N_w_safe + (1.0 - is_pos_w) * 0.5
 
         return fn.crop(
-            data_input,
+            tensor,
             device=self.device,
             crop=self.size,
             crop_pos_x=crop_pos_x,
