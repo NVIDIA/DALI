@@ -15,10 +15,13 @@
 #ifndef DALI_OPERATORS_READER_LOADER_INDEXED_FILE_LOADER_H_
 #define DALI_OPERATORS_READER_LOADER_INDEXED_FILE_LOADER_H_
 
+#include <algorithm>
 #include <fstream>
 #include <memory>
 #include <mutex>
+#include <numeric>
 #include <queue>
+#include <random>
 #include <string>
 #include <tuple>
 #include <utility>
@@ -49,13 +52,27 @@ class IndexedFileLoader : public Loader<CPUBackend, IndexedFileLoaderSample, tru
         current_index_(0),
         current_file_index_(0),
         current_file_(nullptr),
-        use_o_direct_(spec.HasArgument("use_o_direct") && spec.GetArgument<bool>("use_o_direct")) {
+        use_o_direct_(spec.HasArgument("use_o_direct") && spec.GetArgument<bool>("use_o_direct")),
+        shuffle_after_epoch_(spec.GetArgument<bool>("shuffle_after_epoch")),
+        shuffle_after_epoch_seed_(kDaliDataloaderSeed),
+        current_epoch_(0) {
     DALI_ENFORCE(dont_use_mmap_ || !use_o_direct_,
                  make_string("Cannot use use_o_direct with ", "``dont_use_mmap=False``."));
     if (use_o_direct_) {
       o_direct_chunk_size_ = ODirectFileStream::GetChunkSize();
       o_direct_alignm_ = ODirectFileStream::GetAlignment();
       o_direct_read_len_alignm_ = ODirectFileStream::GetLenAlignment();
+    }
+    int32_t seed_arg = kDaliDataloaderSeed;
+    bool has_seed_arg = spec.TryGetArgument(seed_arg, "shuffle_after_epoch_seed");
+    shuffle_after_epoch_seed_ = seed_arg;
+    if (has_seed_arg && !shuffle_after_epoch_) {
+      DALI_WARN("`shuffle_after_epoch_seed` has no effect when `shuffle_after_epoch` is False.");
+    }
+    DALI_ENFORCE(!(shuffle_after_epoch_ && stick_to_shard_),
+                 "shuffle_after_epoch and stick_to_shard cannot be both true");
+    if (shuffle_after_epoch_) {
+      stick_to_shard_ = true;
     }
   }
 
@@ -94,6 +111,9 @@ class IndexedFileLoader : public Loader<CPUBackend, IndexedFileLoaderSample, tru
       // invalidate the buffer
       if (use_o_direct_)
         read_buffer_.reset();
+      // A freshly opened file is positioned at 0; always seek to the
+      // correct position regardless of next_seek_pos_.
+      should_seek_ = true;
     }
 
     // if image is cached, skip loading
@@ -253,11 +273,34 @@ class IndexedFileLoader : public Loader<CPUBackend, IndexedFileLoaderSample, tru
     DALI_ENFORCE(!paths_.empty(), "No files specified.");
     ReadIndexFile(index_paths_);
     DALI_ENFORCE(!indices_.empty(), "Content of index files should not be empty");
+    if (shuffle_after_epoch_) {
+      // Group index entries by their source file so that per-file sequential
+      // access is preserved; only the order of files is shuffled each epoch.
+      per_file_indices_.resize(paths_.size());
+      for (auto& entry : indices_) {
+        per_file_indices_[std::get<2>(entry)].push_back(entry);
+      }
+    }
     current_file_index_ = INVALID_INDEX;
     Reset(true);
   }
 
   void Reset(bool wrap_to_shard) override {
+    current_epoch_++;
+    if (shuffle_after_epoch_) {
+      // Shuffle the order of files, keeping sequential access within each file.
+      std::vector<size_t> file_order(per_file_indices_.size());
+      std::iota(file_order.begin(), file_order.end(), 0);
+      std::mt19937 g(static_cast<uint32_t>(shuffle_after_epoch_seed_ + current_epoch_));
+      std::shuffle(file_order.begin(), file_order.end(), g);
+      indices_.clear();
+      for (size_t fi : file_order) {
+        for (auto& entry : per_file_indices_[fi]) {
+          indices_.push_back(entry);
+        }
+      }
+    }
+
     int64_t seek_pos, size;
     size_t file_index;
     if (wrap_to_shard) {
@@ -283,9 +326,17 @@ class IndexedFileLoader : public Loader<CPUBackend, IndexedFileLoaderSample, tru
     current_file_->SeekRead(seek_pos);
   }
 
+  void RestoreStateImpl(const LoaderStateSnapshot &state) override {
+    current_epoch_ = state.current_epoch;
+  }
+
   std::vector<std::string> paths_;
   std::vector<std::string> index_paths_;
   std::vector<std::tuple<int64_t, int64_t, size_t>> indices_;
+  // Per-file index groups used for file-level shuffling (populated only when
+  // shuffle_after_epoch_ is true).  Each entry contains all index tuples that
+  // belong to the corresponding file in paths_.
+  std::vector<std::vector<std::tuple<int64_t, int64_t, size_t>>> per_file_indices_;
   size_t current_index_;
   size_t current_file_index_;
   std::shared_ptr<FileStream> current_file_;
@@ -294,6 +345,9 @@ class IndexedFileLoader : public Loader<CPUBackend, IndexedFileLoaderSample, tru
   bool should_seek_ = false;
   int64_t next_seek_pos_ = 0;
   bool use_o_direct_ = false;
+  bool shuffle_after_epoch_ = false;
+  int32_t shuffle_after_epoch_seed_ = kDaliDataloaderSeed;
+  int current_epoch_ = 0;
   size_t o_direct_chunk_size_ = 0;
   size_t o_direct_alignm_ = 0;
   size_t o_direct_read_len_alignm_ = 0;

@@ -53,7 +53,33 @@ that is distributed with DALI.)code",
 cache.
 
 Mutually exclusive with ``dont_use_mmap=False``.)code",
-      false);
+      false)
+  .AddOptionalArg("shuffle_after_epoch",
+      R"code(If set to True, the reader reshuffles the order of the source files after each epoch,
+while preserving sequential reads within each file.
+
+This keeps I/O access patterns sequential — only the order in which whole files are visited
+changes between epochs. ``random_shuffle`` can be combined with this option to additionally
+shuffle samples within the pipeline's prefetch buffer.
+
+``stick_to_shard`` cannot be used when this argument is set to True.)code",
+      false)
+  .AddOptionalArg<int32_t>("shuffle_after_epoch_seed",
+      R"code(Random seed for the file-order shuffling performed after each epoch.
+
+If not provided, a fixed default seed is used, which results in the same shuffling
+pattern across different training runs. Providing a custom seed allows for different
+shuffle patterns across training runs, which may be desirable for better statistical
+properties.
+
+.. note::
+    When using multiple DALI pipelines (e.g., for multi-GPU training), all pipeline
+    instances should use the same ``shuffle_after_epoch_seed`` to ensure a consistent
+    global file-order shuffle across all shards.
+
+.. note::
+    This argument has no effect unless ``shuffle_after_epoch`` is set to ``True``.)code",
+      nullptr, false);
 
 // Internal readers._tfrecord schema.
 DALI_SCHEMA(readers___TFRecord)
