@@ -33,6 +33,22 @@ class Device:
     Device on which data is stored and operators are executed.
 
     The device can be either CPU or (specific) GPU.
+
+    .. warning::
+        It's recommended to use the :func:`device` function rather than to construct
+        :class:`Device` directly.
+
+    Parameters
+    ----------
+    name : str
+        The name of the device. It can be either ``"cpu"``, ``"gpu"`` or ``"gpu:<id>"`` where
+        ``<id>`` is a CUDA device ordinal, as used by CUDA runtime API (not the absolute index
+        used by NVML).
+    device_id : int, optional
+        The optional device ordinal, as used by CUDA runtime API. If not specified and the name
+        is ``"gpu"``, the current CUDA device will be used.
+        If `name` is ``"cpu"``, `device_id` must be ``None``.
+        This parameter must not be used if `name` already contains the id.
     """
 
     _thread_local = local()
@@ -46,24 +62,6 @@ class Device:
         return Device._default_device_type()
 
     def __init__(self, name: str, device_id: int | None = None):
-        """
-        Initializes the device object with a name and, optionally, device id.
-
-        .. warning::
-            It's recommended to use :meth:`device` function rather than to construct :class:`Device`
-            directly.
-
-        Args
-        ----
-        name : str
-            The name of the device. It can be either "cpu", "gpu" or "gpu:<id>" where <id> is a
-            CUDA device ordinal, as used by CUDA runtime API (not the absolute index used by NVML).
-        device_id : int, optional
-            The optional device ordinal, as used by CUDA runtime API. If not specified and the name
-            is "gpu", then current CUDA device will be used.
-            If `name` is "cpu", `device_id` must be `None`.
-            This parameter must not be used if the `name` already contains the id.
-        """
         device_type, name_device_id = Device._split_device_type_and_id(name)
         if name_device_id is not None and device_id is not None:
             raise ValueError(
