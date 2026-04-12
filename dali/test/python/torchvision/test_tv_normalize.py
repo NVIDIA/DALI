@@ -158,8 +158,7 @@ def test_std_must_be_non_zero(mean, std):
         _ = norm(x)
 
     with assert_raises(ValueError):
-        dnorm = Compose([Normalize(mean=mean, std=std)])
-        _ = dnorm(x)
+        _ = Compose([Normalize(mean=mean, std=std)])
 
     with assert_raises(ValueError):
         _ = normalize(x, mean, std)
