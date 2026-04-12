@@ -23,6 +23,7 @@ from nvidia.dali.backend import TensorListCPU, TensorListGPU
 
 from .operator import _ValidateTensorOrImage
 from .totensor import ToPureTensor, PILToTensor, ToPILImage
+from .functional.totensor import to_pil_image
 
 import numpy as np
 import multiprocessing
@@ -191,17 +192,7 @@ class PipelineWithLayout(ABC):
 
         For CHW pipelines the tensor is permuted to HWC before conversion.
         """
-        if self.get_layout() == "CHW":
-            output = output.permute(1, 2, 0)  # (C, H, W) → (H, W, C)
-        # output is now (H, W, C)
-        channels = output.shape[-1]
-        if channels == 1:
-            return Image.fromarray(output.squeeze(-1).cpu().numpy(), mode="L")
-        elif channels == 3:
-            return Image.fromarray(output.cpu().numpy(), mode="RGB")
-        elif channels == 4:
-            return Image.fromarray(output.cpu().numpy(), mode="RGBA")
-        raise ValueError(f"Unsupported number of channels: {channels}. Should be 1, 3, or 4.")
+        return to_pil_image(output)
 
     @abstractmethod
     def get_layout(self) -> str: ...
@@ -267,6 +258,11 @@ class PipelineHWC(PipelineWithLayout):
         if output.shape[0] > 1:
             return [self.output_to_pil(output[i]) for i in range(output.shape[0])]
         return self.output_to_pil(output[0])
+
+    def output_to_pil(self, output: torch.Tensor) -> Image.Image:
+        """Convert a single-sample HWC (H, W, C) tensor to a ``PIL.Image``."""
+        # Pipeline stores data as HWC; to_pil_image expects CHW, so permute first.
+        return to_pil_image(output.permute(2, 0, 1))
 
     def get_layout(self) -> str:
         return "HWC"
