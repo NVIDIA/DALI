@@ -1,4 +1,4 @@
-// Copyright (c) 2022-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -38,6 +38,7 @@ class InflateOpImplBase : public OpImplBase<Backend> {
         IsFloatingPoint(dtype_) || IsIntegral(dtype_),
         make_string("The inflate output type must have floating point or integral type, got `",
                     dtype_, "` instead."));
+    element_type_ = TypeTable::GetTypeInfo(dtype_);
   }
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
@@ -62,6 +63,7 @@ class InflateOpImplBase : public OpImplBase<Backend> {
 
  protected:
   DALIDataType dtype_;
+  TypeInfo element_type_;
   inflate::ShapeParams<Backend> params_;
 };
 

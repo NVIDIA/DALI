@@ -89,6 +89,39 @@ class Tensor:
 
     In case of lazy evaluation, the operations are executed only after an attempt is made to access
     the tensor data or properties which cannot be obtained without running the underlying operation.
+
+    .. warning::
+        :class:`Tensor` objects should not be constructed directly, use :func:`tensor` or
+        :func:`as_tensor` instead.
+
+    The :class:`Tensor` object can be created either from an existing object, passed as `data`
+    or from an invocation result.
+    Unless explicitly requested with the `copy` parameter, this constructor will make best
+    effort to avoid the copy.
+
+    Parameters
+    ----------
+    data : TensorLike, default: None
+        The data to construct the tensor from. It can be a tensor-like object, a (nested) list,
+        TensorCPU/TensorGPU or other supported type.
+    dtype : DType, default: None
+        The desired data type of the tensor. If not specified, the data type is inferred
+        from the input data. If specified, the input data is cast to the desired data type.
+    device : Device or str, optional, default: None
+        The device on which the tensor should reside (e.g., "cpu" or "gpu").
+        If not specified, the device is inferred from the input data.
+    layout : str, optional, default: None
+        The layout string describing the dimensions of the tensor (e.g., "HWC").
+        If not specified, the layout is inferred from the input data, if possible.
+    batch : Batch, optional, default: None
+        Use if the tensor is a view of a sample in a batch. Used together with `index_in_batch`.
+    index_in_batch : int, optional, default: None
+        The index of the tensor in the batch. Used together with `batch`.
+    invocation_result : _invocation.InvocationResult, default: None
+        The result of a DALI operator invocation, used for lazy evaluation.
+    copy : bool, optional, default: False
+        If True, the input data is copied. If False, the constructor will avoid
+        copying data when possible.
     """
 
     def __init__(
@@ -102,41 +135,6 @@ class Tensor:
         invocation_result: _invocation.InvocationResult | None = None,
         copy: bool = False,
     ):
-        """Constructs a :class:`Tensor` object.
-
-        .. warning::
-            :class:`Tensor` objects should not be constructed directly, use :meth:`tensor` or
-            :meth:`as_tensor` instead.
-
-        The :class:`Tensor` object can be created either from an existing object, passed as `data`
-        or from an invocation result.
-        Unless explicitly requested with the `copy` parameter, this constructor will make best
-        effort to avoid the copy.
-
-        Parameters
-        ----------
-        data : TensorLike, default: None
-            The data to construct the tensor from. It can be a tensor-like object, a (nested) list,
-            TensorCPU/TensorGPU or other supported type.
-        dtype : DType, default: None
-            The desired data type of the tensor. If not specified, the data type is inferred
-            from the input data. If specified, the input data is cast to the desired data type.
-        device : Device or str, optional, default: None
-            The device on which the tensor should reside (e.g., "cpu" or "gpu").
-            If not specified, the device is inferred from the input data.
-        layout : str, optional, default: None
-            The layout string describing the dimensions of the tensor (e.g., "HWC").
-            If not specified, the layout is inferred from the input data, if possible.
-        batch : Batch, optional, default: None
-            Use if the tensor is a view of a sample in a batch. Used together with `index_in_batch`.
-        index_in_batch : int, optional, default: None
-            The index of the tensor in the batch. Used together with `batch`.
-        invocation_result : _invocation.InvocationResult, default: None
-            The result of a DALI operator invocation, used for lazy evaluation
-        copy : bool, optional, default: False
-            If True, the input data is copied. If False, the constructor will avoid
-            copying data when possible.
-        """
         if layout is None:
             layout = ""
         elif not isinstance(layout, str):

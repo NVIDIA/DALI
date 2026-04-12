@@ -1,4 +1,4 @@
-// Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022, 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -354,6 +354,7 @@ class ShapeParams {
     int sample_dim = provided_shape[0].num_elements();
     TensorListShape<> shape(num_samples, sample_dim);
     max_output_vol_ = 0;
+    max_output_sample_vol_ = 0;
     for (int sample_idx = 0; sample_idx < provided_shape.num_samples(); sample_idx++) {
       const int *data = provided_shape.tensor_data(sample_idx);
       for (int d = 0; d < sample_dim; d++) {

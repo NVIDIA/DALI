@@ -164,6 +164,42 @@ class Batch:
 
     In case of lazy evaluation, the operations are executed only after an attempt is made to access
     the tensor data or properties which cannot be obtained without running the underlying operation.
+
+    .. warning::
+        :class:`Batch` objects should not be constructed directly, use :func:`batch` or
+        :func:`as_batch` instead.
+
+    The batch object can be created either from an existing object, passed as `tensors` or
+    from an invocation result.
+    Unless explicitly requested with the `copy` parameter, this constructor will make best
+    effort to avoid the copy.
+
+    Parameters
+    ----------
+    tensors : TensorLike, default: None
+        The data to construct the batch from. It can be a list of tensors, a TensorList,
+        or other supported types. If None, the batch is constructed from an invocation result.
+        Supported types are:
+
+        - a list of tensor-like objects; the objects need to have matching number of dimensions,
+          data types and layouts,
+        - a tensor-like object; the outermost dimension is interpreted as the batch dimension
+        - a dali.backend.TensorListCPU or dali.backend.TensorListGPU
+    dtype : DType, default: None
+        The desired data type of the batch. If not specified, the data type is inferred
+        from the input tensors. If specified, the input tensors are cast to the desired
+        data type. The `dtype` is required if `tensors` are an empty list.
+    device : Device or str, optional, default: None
+        The device on which the batch should reside (e.g., "cpu" or "gpu").
+        If not specified, the device is inferred from the input tensors.
+    layout : str, optional, default: None
+        The layout string describing the dimensions of the batch (e.g., "HWC").
+        If not specified, the layout is inferred from the input tensors.
+    invocation_result : _invocation.InvocationResult, default: None
+        The result of a DALI operator invocation, used for lazy evaluation.
+    copy : bool, optional, default: False
+        If True, the input tensors are copied. If False, the constructor will avoid
+        copying data when possible.
     """
 
     def __init__(
@@ -175,44 +211,6 @@ class Batch:
         invocation_result: _invocation.InvocationResult | None = None,
         copy: bool = False,
     ):
-        """Constructs a :class:`Batch` object.
-
-        .. warning::
-            :class:`Batch` objects should not be constructed directly, use :meth:`batch` or
-            :meth:`as_batch` instead.
-
-        The batch object can be created either from an existing object, passed as `tensors` or
-        from an invocation result.
-        Unless explicitly requested with the `copy` parameter, this constructor will make best
-        effort to avoid the copy.
-
-        Parameters
-        ----------
-        tensors : TensorLike, default: None
-            The data to construct the batch from. It can be a list of tensors, a TensorList,
-            or other supported types. If None, the batch is constructed from an invocation result.
-            Supported types are:
-
-            - a list of tensor-like objects; the objects need to have matching number of dimensions,
-            data types and layouts,
-            - a tensor-like object; the outermost dimension is interpreted as the batch dimension
-            - a dali.backend.TensorListCPU or dali.backend.TensorListGPU
-        dtype : DType, default: None
-            The desired data type of the batch. If not specified, the data type is inferred
-            from the input tensors. If specified, the input tensors are cast to the desired
-            data type. The `dtype` is required if `tensors` are an empty list.
-        device : Device or str, optional, default: None
-            The device on which the batch should reside (e.g., "cpu" or "gpu").
-            If not specified, the device is inferred from the input tensors.
-        layout : str, optional, default: None
-            The layout string describing the dimensions of the batch (e.g., "HWC").
-            If not specified, the layout is inferred from the input tensors.
-        invocation_result : _invocation.InvocationResult, default: None
-            The result of a DALI operator invocation, used for lazy evaluation
-        copy : bool, optional, default: False
-            If True, the input tensors are copied. If False, the constructor will avoid
-            copying data when possible.
-        """
         assert isinstance(layout, str) or layout is None
         if device is not None and not isinstance(device, Device):
             device = _device(device)
