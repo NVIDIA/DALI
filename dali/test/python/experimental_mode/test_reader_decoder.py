@@ -184,7 +184,7 @@ def test_reader_shards_error():
         num_shards=99999,
     )
     with assert_raises(
-        RuntimeError, glob='Assert on "num_shards_ <= Size()" failed: The number of input samples:*'
+        RuntimeError, glob='Assert on "num_shards_ <= Size()" failed: The number of input samples:'
     ):
         tuple(reader.next_epoch())
 
@@ -240,5 +240,5 @@ def test_video_resize_tensor_repeated_args():
         resize_x=108,
         resize_y=192,
     )
-    with assert_raises(ValueError, glob="*resize_x*"):
+    with assert_raises(ValueError, glob="resize_x"):
         reader(resize_x=144)
