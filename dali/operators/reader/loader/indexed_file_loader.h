@@ -49,13 +49,8 @@ class IndexedFileLoader : public Loader<CPUBackend, IndexedFileLoaderSample, tru
       : Loader(spec),
         paths_(spec.GetRepeatedArgument<std::string>("path")),
         index_paths_(spec.GetRepeatedArgument<std::string>("index_path")),
-        current_index_(0),
-        current_file_index_(0),
-        current_file_(nullptr),
         use_o_direct_(spec.HasArgument("use_o_direct") && spec.GetArgument<bool>("use_o_direct")),
-        shuffle_after_epoch_(spec.GetArgument<bool>("shuffle_after_epoch")),
-        shuffle_after_epoch_seed_(kDaliDataloaderSeed),
-        current_epoch_(0) {
+        shuffle_after_epoch_(spec.GetArgument<bool>("shuffle_after_epoch")) {
     DALI_ENFORCE(dont_use_mmap_ || !use_o_direct_,
                  make_string("Cannot use use_o_direct with ", "``dont_use_mmap=False``."));
     if (use_o_direct_) {
@@ -291,7 +286,9 @@ class IndexedFileLoader : public Loader<CPUBackend, IndexedFileLoaderSample, tru
       // Shuffle the order of files, keeping sequential access within each file.
       std::vector<size_t> file_order(per_file_indices_.size());
       std::iota(file_order.begin(), file_order.end(), 0);
-      std::mt19937 g(static_cast<uint32_t>(shuffle_after_epoch_seed_ + current_epoch_));
+      uint32_t seed = static_cast<uint32_t>(shuffle_after_epoch_seed_)
+                    + static_cast<uint32_t>(current_epoch_);
+      std::mt19937 g(seed);
       std::shuffle(file_order.begin(), file_order.end(), g);
       indices_.clear();
       for (size_t fi : file_order) {
@@ -337,9 +334,9 @@ class IndexedFileLoader : public Loader<CPUBackend, IndexedFileLoaderSample, tru
   // shuffle_after_epoch_ is true).  Each entry contains all index tuples that
   // belong to the corresponding file in paths_.
   std::vector<std::vector<std::tuple<int64_t, int64_t, size_t>>> per_file_indices_;
-  size_t current_index_;
-  size_t current_file_index_;
-  std::shared_ptr<FileStream> current_file_;
+  size_t current_index_ = 0;
+  size_t current_file_index_ = 0;
+  std::shared_ptr<FileStream> current_file_ = nullptr;
   FileStream::MappingReserver mmap_reserver_;
   static constexpr int INVALID_INDEX = -1;
   bool should_seek_ = false;

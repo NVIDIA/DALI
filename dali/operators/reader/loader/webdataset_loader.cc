@@ -522,7 +522,9 @@ void WebdatasetLoader::Reset(bool wrap_to_shard) {
     // within each archive.
     std::vector<size_t> shard_order(per_shard_samples_.size());
     std::iota(shard_order.begin(), shard_order.end(), 0);
-    std::mt19937 g(static_cast<uint32_t>(shuffle_after_epoch_seed_ + current_epoch_));
+    uint32_t seed = static_cast<uint32_t>(shuffle_after_epoch_seed_)
+                  + static_cast<uint32_t>(current_epoch_);
+    std::mt19937 g(seed);
     std::shuffle(shard_order.begin(), shard_order.end(), g);
     samples_.clear();
     for (size_t si : shard_order) {

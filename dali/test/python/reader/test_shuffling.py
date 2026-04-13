@@ -703,7 +703,7 @@ def _make_tfrecord_pipe(
             try:
                 os.unlink(path)
             except OSError:
-                pass
+                pass  # file may not exist if creation failed
 
 
 def _collect_tfrecord_epoch(pipe):
@@ -843,7 +843,7 @@ def _make_mxnet_pipe(
             try:
                 os.unlink(path)
             except OSError:
-                pass
+                pass  # file may not exist if creation failed
 
 
 def _collect_mxnet_epoch(pipe):
