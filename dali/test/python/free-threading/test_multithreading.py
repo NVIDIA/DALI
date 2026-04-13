@@ -1,11 +1,15 @@
 import os
-import numpy as np
+import sys
+import sysconfig
 import threading
 from concurrent.futures import ThreadPoolExecutor
-from nvidia.dali.pipeline import pipeline_def
-import nvidia.dali.types as types
-import nvidia.dali.fn as fn
 from typing import Any, Dict, List
+
+import numpy as np
+import nvidia.dali.fn as fn
+import nvidia.dali.types as types
+from nose_utils import SkipTest
+from nvidia.dali.pipeline import pipeline_def
 
 test_data_root = os.environ["DALI_EXTRA_PATH"]
 image_file = os.path.join(test_data_root, "db", "single", "jpeg", "100", "swan-3584559_640.jpg")
@@ -77,9 +81,14 @@ def run_thread(dali_pipeline, barrier, thread_id, results):
         results.set(thread_id, outputs[0].as_cpu().as_array())
 
 
+def test_gil_disabled():
+    if not sysconfig.get_config_var("Py_GIL_DISABLED"):
+        raise SkipTest("This test requires Python to be built with --disable-gil")
+    assert not sys._is_gil_enabled()
+
+
 def test_parallel_pipelines():
     """Test running multiple separate DALI pipelines in different threads."""
-    print(f"Sanity check: PYTHON_GIL={os.environ.get('PYTHON_GIL')}")
     results = Result()
     barrier = threading.Barrier(num_workers)
 
