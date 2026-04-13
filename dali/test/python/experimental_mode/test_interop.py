@@ -91,6 +91,22 @@ def test_torch_nocopy(device: str):
 
 @attr("pytorch")
 @params(("cpu",), ("gpu",))
+def test_from_torch(device: str):
+    import torch
+
+    if version.parse(torch.__version__) < version.parse("2.6.0"):
+        raise SkipTest("Requires PyTorch >= 2.6.0")
+
+    inpt = torch.arange(1, 5).reshape((1, 2, 2))
+    if device == "gpu":
+        inpt = inpt.cuda()
+    ndd_tensor = ndd.as_tensor(inpt)
+
+    np.testing.assert_array_equal(ndd_tensor.cpu(), [[[1, 2], [3, 4]]])
+
+
+@attr("pytorch")
+@params(("cpu",), ("gpu",))
 def test_tensor_to_torch(device: str):
     ndd_tensor = ndd.ones(shape=3).to_device(device)
     torch_nocopy = ndd_tensor.torch()
