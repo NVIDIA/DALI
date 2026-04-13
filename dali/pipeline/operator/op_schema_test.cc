@@ -276,7 +276,7 @@ TEST(OpSchemaTest, OutputMetadataPassthrough) {
 }
 
 DALI_SCHEMA(DummyPartialCallbacks)
-  .NumInput(0)
+  .NumInput(1)
   .NumOutput(1)
   .OutputLayout(0, [](const OpSpec &) { return "abcd"; });
 
