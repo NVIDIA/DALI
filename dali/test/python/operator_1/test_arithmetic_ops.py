@@ -912,8 +912,7 @@ def check_arithm_mod(kinds, types, shape):
     # bool is excluded: bool % bool = 0 but disallow_zeros makes it tricky with bool generators.
     left_type, right_type = types
     target_type = bin_promote(left_type, right_type)
-    # Use a limited range so float64 can represent all values exactly for the reference computation,
-    # and avoid zeros in the right operand.
+    # Avoid zeros in the right operand.
     iterator = iter(
         ExternalInputIterator(
             batch_size,
@@ -937,9 +936,20 @@ def check_arithm_mod(kinds, types, shape):
     for sample in range(batch_size):
         l_np, r_np, out = extract_data(pipe_out, sample, kinds, target_type)
         assert_equals(out.dtype, target_type)
-        # np.fmod gives C-style truncated remainder (same sign as dividend), matching DALI
+
+        mod = np.fmod
+        both_integer = (
+            np.issubdtype(left_type, np.integer) and
+            np.issubdtype(right_type, np.integer)
+        )
+        if both_integer:
+            def c_mod(a, b):
+                sa = np.sign(a)
+                return sa * (np.abs(a) % np.abs(b))
+            mod = c_mod
+        compute_type = target_type if both_integer else np.float64
         np.testing.assert_array_equal(
-            out, np.fmod(l_np.astype(np.float64), r_np.astype(np.float64)).astype(target_type)
+            out, mod(l_np.astype(compute_type), r_np.astype(compute_type)).astype(target_type)
         )
 
 
