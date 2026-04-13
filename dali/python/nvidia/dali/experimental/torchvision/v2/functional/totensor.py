@@ -17,7 +17,36 @@ from PIL import Image
 import torch
 
 
-def pil_to_tensor(inpt: Image.Image | np.ndarray) -> torch.Tensor:
+def _any_to_tensor(inpt: Image.Image | np.ndarray) -> torch.Tensor:
+    """
+    Convert a ``PIL.Image`` or ``np.array`` to torch.Tensor
+
+    Values are in [0, 255] and the dtype is ``torch.uint8``.  No scaling is applied.
+    Mirrors ``torchvision.transforms.v2.functional.pil_to_tensor``.
+
+    Parameters
+    ----------
+    inpt : PIL.Image
+        Input image.  Modes ``L``, ``RGB``, and ``RGBA`` are supported.
+
+    Returns
+    -------
+    torch.Tensor
+        CHW tensor of dtype ``torch.uint8``.
+    """
+
+    if isinstance(inpt, Image.Image):
+        arr = np.array(inpt, copy=True)  # (H, W) for L, (H, W, C) for RGB/RGBA
+    else:
+        arr = inpt
+
+    if arr.ndim == 2:
+        arr = np.expand_dims(arr, axis=-1)  # (H, W) → (H, W, 1)
+
+    return torch.from_numpy(arr).permute(2, 0, 1)  # (H, W, C) → (C, H, W)
+
+
+def pil_to_tensor(inpt: Image.Image) -> torch.Tensor:
     """
     Convert a ``PIL.Image`` to a uint8 CHW ``torch.Tensor``.
 
@@ -32,24 +61,15 @@ def pil_to_tensor(inpt: Image.Image | np.ndarray) -> torch.Tensor:
     Returns
     -------
     torch.Tensor
-        CHW tensor of dtype matching PIL mode (uint8 for L/RGB/RGBA, int32 for I, float32 for F).
+        CHW tensor of dtype ``torch.uint8``.
     """
-    if not isinstance(inpt, (Image.Image, np.ndarray)):
-        raise TypeError(f"Expected PIL.Image or numpy array, got {type(inpt)}")
+    if not isinstance(inpt, Image.Image):
+        raise TypeError(f"Expected PIL.Image, got {type(inpt)}")
 
-    if isinstance(inpt, Image.Image):
-        arr = np.array(inpt, copy=True)  # (H, W) for L, (H, W, C) for RGB/RGBA
-    else:
-        # Note: numpy array is used directly without copying, this matches Torchvision
-        arr = inpt
-
-    if arr.ndim == 2:
-        arr = np.expand_dims(arr, axis=-1)  # (H, W) → (H, W, 1)
-
-    return torch.from_numpy(arr).permute(2, 0, 1)  # (H, W, C) → (C, H, W)
+    return _any_to_tensor(inpt)
 
 
-def to_tensor(inpt: Image.Image | np.ndarray) -> torch.Tensor:
+def to_tensor(inpt: Image.Image) -> torch.Tensor:
     """
     Convert a ``PIL.Image`` to a float32 CHW ``torch.Tensor`` with values in [0, 1].
 
@@ -66,7 +86,7 @@ def to_tensor(inpt: Image.Image | np.ndarray) -> torch.Tensor:
     torch.Tensor
         CHW tensor of dtype ``torch.float32`` with values in [0.0, 1.0].
     """
-    return pil_to_tensor(inpt).float() / 255.0
+    return _any_to_tensor(inpt).float() / 255.0
 
 
 def to_pil_image(inpt: torch.Tensor, mode: str | None = None) -> Image.Image:
