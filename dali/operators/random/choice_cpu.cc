@@ -52,14 +52,25 @@ that is: :meth:`nvidia.dali.types.DALIDataType`, :meth:`nvidia.dali.types.DALIIm
     .AddRandomSeedArg()
     .AddRandomStateArg()
     .OutputNDim(0, [](const OpSpec &spec)->std::optional<int> {
-        if (spec.NumRegularInput() >= 1)
-            return spec.InputDesc(1).ndim;
+        if (!spec.InputDesc(0).ndim)
+          return std::nullopt;
+        if (spec.HasTensorArgument("shape"))  // bail out - "shape" is a run-time argument
+            return std::nullopt;
+        // The input is treated as an array of tensor values.
+        // The outermost dimension is stripped and what remains is the "element" that's randomly
+        // selected. The element shape is concatenated to the output shape.
+        int input_ndim = *spec.InputDesc(0).ndim;
+        int element_ndim = input_ndim > 0 ? input_ndim - 1 : 0;
+        if (spec.NumRegularInput() > 1) {  // shape-like
+          if (!spec.InputDesc(1).ndim)
+            return std::nullopt;
+          return *spec.InputDesc(1).ndim + element_ndim;
+        }
         std::vector<int> shape;
         if (spec.TryGetRepeatedArgument(shape, "shape"))
-            return shape.size();
-        if (spec.HasTensorArgument("shape"))
-            return std::nullopt;
-        return 0;
+            return shape.size() + element_ndim;
+        else
+            return element_ndim;  // we return only one element, no dims added
     })
     .OutputLayout(0, "");
 
