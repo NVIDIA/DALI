@@ -7,6 +7,10 @@
    "not_found_error":"nvcompErrorNotSupported",
    "functions": {
       "nvcompBatchedLZ4DecompressGetTempSizeAsync": {},
-      "nvcompBatchedLZ4DecompressAsync": {}
+      "nvcompBatchedLZ4DecompressAsync": {},
+      "nvcompGetStatusString": {
+         "return_type":"const char*",
+         "not_found_error":"\"\""
+      }
    }
 }
