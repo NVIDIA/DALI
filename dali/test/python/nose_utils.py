@@ -156,7 +156,7 @@ def glob_to_regex(glob):
     # fnmatch adds special character to match the end of the string, so that when used
     # with re.match it, by default, matches the whole string. Here, it's going to be used
     # with re.search so it would be weird to enforce matching the suffix, but not the prefix.
-    if pattern[-2:] == r"\Z":
+    if pattern[-2:].upper() == r"\Z":
         pattern = pattern[:-2]
     return pattern
 
