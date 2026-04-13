@@ -250,5 +250,5 @@ def test_error_parallel_eval_contexts():
     barrier = threading.Barrier(get_num_threads())
     ctx = ndd.EvalContext()
 
-    with assert_raises(RuntimeError, glob="EvalContext"):
+    with assert_raises(RuntimeError, glob="*EvalContext*"):
         run_parallel(worker)
