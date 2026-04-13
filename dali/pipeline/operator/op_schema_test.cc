@@ -282,7 +282,8 @@ DALI_SCHEMA(DummyPartialCallbacks)
 
 TEST(OpSchemaTest, OutputMetadataPartial) {
   auto &schema = SchemaRegistry::GetSchema("DummyPartialCallbacks");
-  auto spec = OpSpec("DummyPassthrough").AddInput("in", StorageDevice::CPU, 3, DALI_FLOAT, "HWC");
+  auto spec = OpSpec("DummyPartialCallbacks");
+  spec.AddInput("in", StorageDevice::CPU, 3, DALI_FLOAT, "HWC");
 
   ASSERT_EQ(schema.CalculateOutputDType(0, spec), DALI_FLOAT);  // from input
   ASSERT_EQ(schema.CalculateOutputNDim(0, spec), 4);  // from layout

@@ -968,7 +968,7 @@ DLL_PUBLIC int OpSchema::CalculateAdditionalOutputs(const OpSpec &spec) const {
   return additional_outputs_fn_(spec);
 }
 
-const std::vector<const OpSchema *> OpSchema::GetAncestors() const {
+const std::vector<const OpSchema *> &OpSchema::GetAncestors() const {
   return ancestors_.Get([&]() {
     if (circular_inheritance_detector_)
       throw std::logic_error(make_string(

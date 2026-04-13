@@ -41,8 +41,9 @@ void PropagateDataNodeMetadata(OpNode &node) {
     const auto &name = node.spec.InputName(i);
     auto it = input_descs.find(name);
     if (it == input_descs.end()) {
-      assert(!"Internal error when computing node metadata.");
-      continue;
+      throw std::logic_error(make_string(
+        "Graph inconsistency detected - the OpSpec's input ", i, " \"", name, "\" "
+        "not found in the graph node's inputs."));
     }
     auto &desc = node.spec.MutableInputDesc(i);
     desc.ndim = it->second.ndim;

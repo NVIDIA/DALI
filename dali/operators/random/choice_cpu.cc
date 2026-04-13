@@ -53,7 +53,7 @@ that is: :meth:`nvidia.dali.types.DALIDataType`, :meth:`nvidia.dali.types.DALIIm
     .AddRandomStateArg()
     .OutputNDim(0, [](const OpSpec &spec)->std::optional<int> {
         if (spec.NumRegularInput() >= 1)
-            return spec.InputDesc(0).ndim;
+            return spec.InputDesc(1).ndim;
         std::vector<int> shape;
         if (spec.TryGetRepeatedArgument(shape, "shape"))
             return shape.size();

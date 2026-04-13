@@ -123,6 +123,8 @@ Different algorithms are supported on the GPU and CPU.
       auto &desc = spec.InputDesc(0);
       if (!desc.layout)
         return std::nullopt;
+      if (desc.layout->empty())
+        return "";
       return desc.layout->contains('C')
         ? *desc.layout
         : *desc.layout + "C";

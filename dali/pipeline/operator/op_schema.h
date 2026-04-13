@@ -974,7 +974,7 @@ used with DALIDataType, to avoid confusion with `AddOptionalArg<type>(name, doc,
   /// Cached pointers to all ancestors, in DFS order
   mutable detail::LazyValue<std::vector<const OpSchema *>> ancestors_;
 
-  const std::vector<const OpSchema *> GetAncestors() const;
+  const std::vector<const OpSchema *> &GetAncestors() const;
 
   ////////////////////////////////////////////////////////////////////////////
   // Documentation-related
