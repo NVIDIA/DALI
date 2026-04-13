@@ -222,7 +222,7 @@ auto GetDLTensorResource(const py::array &array) {
 }
 
 
-PYBIND11_MODULE(python_function_plugin, m) {
+PYBIND11_MODULE(python_function_plugin, m, py::mod_gil_not_used()) {
   m.def("current_dali_stream", []() { return reinterpret_cast<uint64_t>(GetCurrentStream()); });
 
   m.def("DLTensorToArray", [](py::capsule dl_capsule) {
