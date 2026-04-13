@@ -121,13 +121,17 @@ Different algorithms are supported on the GPU and CPU.
     })
     .OutputLayout(0, [](const OpSpec &spec)->std::optional<TensorLayout> {
       auto &desc = spec.InputDesc(0);
-      if (!desc.layout)
-        return std::nullopt;
-      if (desc.layout->empty())
-        return "";
-      return desc.layout->contains('C')
-        ? *desc.layout
-        : *desc.layout + "C";
+      auto layout = desc.layout.value_or("");
+      if (layout.empty()) {  // empty or unspecified
+        if (!desc.ndim)
+          return std::nullopt;
+        if (*desc.ndim == 3 && !desc.layout)  // ambiguous
+          return std::nullopt;                // it could be HWC or FHW - bail out
+        layout = spec.GetSchema().GetInputLayout(0, *desc.ndim);
+      }
+      return layout.contains('C')
+        ? layout
+        : layout + "C";
     });
 
 // Deprecated alias

@@ -89,7 +89,7 @@ in ``mask_ids`` input.)code",
       return spec.InputDesc(1).dtype;
     })
     .OutputNDim(0, [](const OpSpec &spec) {
-      return spec.InputDesc(1).dtype;
+      return spec.InputDesc(1).ndim;
     })
     .OutputLayout(0, [](const OpSpec &spec) {
       return "";
@@ -98,7 +98,7 @@ in ``mask_ids`` input.)code",
       return spec.InputDesc(2).dtype;
     })
     .OutputNDim(1, [](const OpSpec &spec) {
-      return spec.InputDesc(2).dtype;
+      return spec.InputDesc(2).ndim;
     })
     .OutputLayout(1, [](const OpSpec &spec) {
       return "";
