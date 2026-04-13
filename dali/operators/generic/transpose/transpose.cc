@@ -130,7 +130,7 @@ If this argument is specified, `transpose_layout` is ignored.)code",
         if (in_desc.ndim && in_desc.layout) {
           if (!spec.TryGetRepeatedArgument(perm, "perm") ||
               *in_desc.ndim == static_cast<int>(perm.size()))
-              return in_desc.layout;
+            return in_desc.layout;
         }
       }
       return std::nullopt;
