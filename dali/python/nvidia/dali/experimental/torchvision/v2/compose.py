@@ -173,26 +173,15 @@ class PipelineWithLayout(ABC):
 
         return to_torch_tensor(output)
 
+    @abstractmethod
     def output_to_tensor(self, output: torch.Tensor) -> torch.Tensor:
-        """Return the pipeline output as a CHW or NCHW ``torch.Tensor``.
+        """Return the pipeline output as a CHW ``torch.Tensor``."""
+        ...
 
-        For HWC pipelines the axes are permuted; for CHW pipelines the tensor is returned
-        as-is (batch dimension handling is left to the caller).
-        """
-        if self.get_layout() == "HWC":
-            # output shape: (N, H, W, C)
-            if output.shape[0] == 1:
-                return output.squeeze(0).permute(2, 0, 1)  # → (C, H, W)
-            return output.permute(0, 3, 1, 2)  # → (N, C, H, W)
-        # CHW — already the right layout; batch handling belongs to the subclass
-        return output
-
+    @abstractmethod
     def output_to_pil(self, output: torch.Tensor) -> Image.Image:
-        """Convert a single-sample pipeline output tensor to a ``PIL.Image``.
-
-        For CHW pipelines the tensor is permuted to HWC before conversion.
-        """
-        return to_pil_image(output)
+        """Return the pipeline output tensor as a ``PIL.Image``."""
+        ...
 
     @abstractmethod
     def get_layout(self) -> str: ...
@@ -249,7 +238,7 @@ class PipelineHWC(PipelineWithLayout):
             raise ValueError("HWC layout is currently supported for PIL Images only.\
                 Please check if samples have the same format.")
 
-        output = super().run(_input)  # (N, H, W, C)
+        output = super().run(_input)  # (H, W, C)
 
         if self.output_type == "tensor":
             return self.output_to_tensor(output)
@@ -259,10 +248,16 @@ class PipelineHWC(PipelineWithLayout):
             return [self.output_to_pil(output[i]) for i in range(output.shape[0])]
         return self.output_to_pil(output[0])
 
+    def output_to_tensor(self, output: torch.Tensor) -> torch.Tensor:
+        """Convert a single-sample HWC tensor to a CHW tensor"""
+        if output.shape[0] == 1:
+            return output.squeeze(0).permute(2, 0, 1).contiguous()  # → (C, H, W)
+        return output.permute(0, 3, 1, 2).contiguous()  # → (N, C, H, W)
+
     def output_to_pil(self, output: torch.Tensor) -> Image.Image:
-        """Convert a single-sample HWC (H, W, C) tensor to a ``PIL.Image``."""
+        """Convert a single-sample HWC tensor to a ``PIL.Image``."""
         # Pipeline stores data as HWC; to_pil_image expects CHW, so permute first.
-        return to_pil_image(output.permute(2, 0, 1))
+        return to_pil_image(output, input_layout="HWC")
 
     def get_layout(self) -> str:
         return "HWC"
@@ -331,6 +326,13 @@ class PipelineCHW(PipelineWithLayout):
             return self.output_to_pil(output)
 
         return output
+
+    def output_to_tensor(self, output: torch.Tensor) -> torch.Tensor:
+        """Return the pipeline output as a CHW ``torch.Tensor``."""
+        return output
+
+    def output_to_pil(self, output: torch.Tensor) -> Image.Image:
+        return to_pil_image(output)
 
     def get_layout(self) -> str:
         return "CHW"

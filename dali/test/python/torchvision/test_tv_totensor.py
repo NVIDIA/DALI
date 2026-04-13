@@ -259,7 +259,8 @@ def test_fn_pil_to_tensor_dtype(mode):
     """pil_to_tensor must produce a uint8 tensor without scaling."""
     img = _make_pil_image(mode)
     out = pil_to_tensor(img)
-    assert out.dtype == torch.uint8, f"Expected uint8, got {out.dtype}"
+    tv_out = tv_fn.pil_to_tensor(img)
+    assert out.dtype == tv_out.dtype, f"Expected {tv_out.dtype}, got {out.dtype}"
 
 
 @params("L", "RGB", "RGBA")
@@ -290,7 +291,8 @@ def test_fn_to_tensor_dtype_and_range(mode):
     """to_tensor must return float32 with values in [0, 1]."""
     img = _make_pil_image(mode)
     out = to_tensor(img)
-    assert out.dtype == torch.float32, f"Expected float32, got {out.dtype}"
+    tv_out = tv_fn.to_tensor(img)
+    assert out.dtype == tv_out.dtype, f"Expected {tv_out.dtype}, got {out.dtype}"
     assert (
         out.min() >= 0.0 and out.max() <= 1.0
     ), f"Values out of [0,1]: min={out.min()}, max={out.max()}"
@@ -439,7 +441,8 @@ def test_fn_to_tensor_numpy_dtype_and_range(mode):
     img = _make_pil_image(mode)
     arr = np.array(img)
     out = to_tensor(arr)
-    assert out.dtype == torch.float32, f"Expected float32, got {out.dtype}"
+    tv_out = tv_fn.to_tensor(arr)
+    assert out.dtype == tv_out.dtype, f"Expected {tv_out.dtype}, got {out.dtype}"
     assert (
         out.min() >= 0.0 and out.max() <= 1.0
     ), f"Values out of [0,1]: min={out.min()}, max={out.max()}"
@@ -486,8 +489,6 @@ def test_fn_to_pil_image_float_input_matches_torchvision(channels, expected_mode
     ), f"Pixel mismatch for {channels}-channel float32 tensor"
 
 
-"""
-TODO: DALI does not fail here, I am not sure if it should if this dtype is supported but truncated
 def test_fn_to_pil_image_unsupported_dtype_raises():
     # to_pil_image must raise ValueError for an unsupported dtype such as torch.int64.
     tensor = make_test_tensor(shape=(3, 8, 8)).long()
@@ -495,7 +496,7 @@ def test_fn_to_pil_image_unsupported_dtype_raises():
         tv_fn.to_pil_image(tensor)
     with assert_raises(TypeError):
         to_pil_image(tensor)
-"""
+
 
 # ---------------------------------------------------------------------------
 # Functional API — pil_to_tensor with PIL modes "I" (int32) and "F" (float32)
@@ -620,21 +621,3 @@ def test_pil_to_tensor_then_to_pure_tensor_returns_tensor():
     out = Compose([PILToTensor(), ToPureTensor()])(img)
     assert isinstance(out, torch.Tensor), f"Expected Tensor, got {type(out)}"
     assert out.dtype == torch.uint8, f"Expected uint8, got {out.dtype}"
-
-
-# ---------------------------------------------------------------------------
-# ToTensor class — intentionally not exposed
-# ---------------------------------------------------------------------------
-
-
-def test_totensor_class_not_exported():
-    """DALI does not expose a class-based ToTensor (tv.ToTensor is deprecated in v2).
-
-    The functional to_tensor is the intended equivalent. This test documents the deliberate
-    absence so that accidental additions are caught.
-    """
-    import nvidia.dali.experimental.torchvision as dali_tv
-
-    assert not hasattr(
-        dali_tv, "ToTensor"
-    ), "ToTensor class must not be exported; use functional.to_tensor instead"
