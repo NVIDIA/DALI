@@ -511,8 +511,11 @@ void WebdatasetLoader::PrepareMetadataImpl() {
     for (auto& s : samples_) {
       per_shard_samples_[s.wds_shard_index].push_back(s);
     }
+    Reset(true);
+  } else {
+    // Preserve the original shard_id_-based start position when not shuffling.
+    sample_index_ = start_index(shard_id_, num_shards_, samples_.size());
   }
-  Reset(true);
 }
 
 void WebdatasetLoader::Reset(bool wrap_to_shard) {
