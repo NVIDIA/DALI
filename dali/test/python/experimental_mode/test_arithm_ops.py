@@ -185,7 +185,7 @@ def test_integer_binary_non_tensor(device: str, op: str, batch_size: int | None)
         np.array([[1, 2, 3], [4, 5, 6]], dtype=np.int32),
         np.array([[1], [2], [3]], dtype=np.int32),
     ]
-    if op == '%':
+    if op == "%":
         nontensors = [3, [1, 2, 3]]
     else:
         nontensors = [3, [0, 1, 5]]
