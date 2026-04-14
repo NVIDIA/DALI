@@ -15,6 +15,7 @@
 #ifndef DALI_CORE_DYNLINK_NVCOMP_H_
 #define DALI_CORE_DYNLINK_NVCOMP_H_
 
+#include <nvcomp.h>
 #include <nvcomp/lz4.h>
 #include <string>
 #include "dali/core/cuda_error.h"

@@ -10,7 +10,7 @@
       "nvcompBatchedLZ4DecompressAsync": {},
       "nvcompGetStatusString": {
          "return_type":"const char*",
-         "not_found_error":"\"\""
+         "not_found_error":"\"(nvcompGetStatusString not available)\""
       }
    }
 }
