@@ -148,8 +148,8 @@ void GetNVMLAffinityMask(cpu_set_t *mask, size_t num_cpus) {
   } catch (const NvmlError &e) {
     if (e.result() == NVML_ERROR_NOT_SUPPORTED) {
       if (supported.exchange(false)) {
-        DALI_WARN("nvmlDeviceGetCpuAffinity is not supported on this platform,"
-                  " skipping CPU affinity setting.");
+        DALI_WARN("nvmlDeviceGetCpuAffinityWithinScope/nvmlDeviceGetCpuAffinity is not supported"
+                  " on this platform, skipping CPU affinity setting.");
       }
       return;
     }
