@@ -765,45 +765,33 @@ REGISTER_BINARY_BITWISE_IMPL(ArithmeticOp::bit_lshift, <<);
 REGISTER_BINARY_BITWISE_IMPL(ArithmeticOp::bit_rshift, >>);
 #pragma GCC diagnostic pop
 
-#define REGISTER_UNARY_BITWISE_IMPL_BACKEND(OP, EXPRESSION, BACKEND)                 \
-  template <>                                                                        \
-  struct arithm_meta<OP, BACKEND> {                                                  \
-    template <typename T>                                                            \
-    using result_t = T;                                                              \
-                                                                                     \
-    template <typename T>                                                            \
-    using bitwise_allowed = std::enable_if_t<std::is_integral<T>::value, T>;         \
-    template <typename T>                                                            \
-    using bitwise_disallowed = std::enable_if_t<!std::is_integral<T>::value, T>;     \
-                                                                                     \
-    template <typename T>                                                            \
-    DALI_HOST_DEV static constexpr bitwise_allowed<T> impl(T v) {                    \
-      static_assert(GetOpArity(OP) == 1,                                             \
-                    "Registered operation arity does not match the requirements.");  \
-      auto v_ = static_cast<T>(v);                                                   \
-      return EXPRESSION v_;                                                          \
-    }                                                                                \
-    template <typename T>                                                            \
-    DALI_HOST_DEV static constexpr bitwise_disallowed<T> impl(T) {                   \
-      return {};                                                                     \
-    }                                                                                \
-                                                                                     \
-    static inline std::string to_string() {                                          \
-      return #EXPRESSION;                                                            \
-    }                                                                                \
-                                                                                     \
-    static constexpr int num_inputs = 1;                                             \
-    static constexpr int num_outputs = 1;                                            \
+template <typename Backend>
+struct arithm_meta<ArithmeticOp::bit_not, Backend> {
+  template <typename T>
+  using result_t = T;
+
+  template <typename T>
+  DALI_HOST_DEV static constexpr std::enable_if_t<std::is_integral<T>::value, T>
+  impl(T v) {
+    if constexpr (std::is_same_v<T, bool>)
+      return !v;  // logical NOT for bool, matching numpy/torch semantics
+    else
+      return ~v;
   }
 
-#define REGISTER_UNARY_BITWISE_IMPL(OP, EXPRESSION)                \
-  REGISTER_UNARY_BITWISE_IMPL_BACKEND(OP, EXPRESSION, CPUBackend); \
-  REGISTER_UNARY_BITWISE_IMPL_BACKEND(OP, EXPRESSION, GPUBackend)
+  template <typename T>
+  DALI_HOST_DEV static constexpr std::enable_if_t<!std::is_integral<T>::value, T>
+  impl(T) {
+    return {};
+  }
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wbool-operation"
-REGISTER_UNARY_BITWISE_IMPL(ArithmeticOp::bit_not, ~);
-#pragma GCC diagnostic pop
+  static inline std::string to_string() {
+    return "~";
+  }
+
+  static constexpr int num_inputs = 1;
+  static constexpr int num_outputs = 1;
+};
 
 // @TODO(klecki): move it somewhere appropriate
 

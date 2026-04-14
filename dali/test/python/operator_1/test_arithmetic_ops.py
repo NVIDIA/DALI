@@ -716,12 +716,11 @@ def slow_test_bitwise_ops():
 
 
 def test_bitnot_selected():
-    # ~x (bitwise NOT) is type-preserving; bool is excluded because C's ~bool != numpy's ~bool
+    # ~x uses logical NOT for bool (matching numpy/torch) and bitwise NOT for other integral types
     for kinds in unary_input_kinds:
         for op, op_desc in bitnot_operations:
             for types_in in integer_types:
-                if types_in != np.bool_:
-                    yield check_unary_op, kinds, types_in, op, shape_small, op_desc
+                yield check_unary_op, kinds, types_in, op, shape_small, op_desc
 
 
 @attr("slow")
@@ -729,8 +728,7 @@ def slow_test_bitnot():
     for kinds in unary_input_kinds:
         for op, op_desc in bitnot_operations:
             for types_in in integer_types:
-                if types_in != np.bool_:
-                    yield check_unary_op, kinds, types_in, op, shape_big, op_desc
+                yield check_unary_op, kinds, types_in, op, shape_big, op_desc
 
 
 def test_shift_ops_selected():

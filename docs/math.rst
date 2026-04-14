@@ -102,8 +102,25 @@ Currently, DALI supports the following operations:
     which always returns ``float32`` or ``float64`` type.
 
     .. note::
+        At present, ``//`` rounds towards zero instead of rounding down. This behavior is subject
+        to change in future versions.
+
+    .. note::
         The only allowed arithmetic operation between two ``bool`` values is multiplication
         ``(*)``.
+
+    :rtype: TensorList of the type that is calculated based on the type promotion rules.
+
+.. function:: Modulo: %
+
+    Binary operator that implements ``__mod__(self, other)``, computing the remainder of division.
+
+    .. note::
+        At present, division and modulo follow the C semantics (truncation / fmod) rather than
+        Python semantics (floor). This behavior is subject to change in future versions.
+
+    .. note::
+        ``bool`` operands are not supported.
 
     :rtype: TensorList of the type that is calculated based on the type promotion rules.
 
@@ -127,7 +144,8 @@ Currently, DALI supports the following operations:
 .. function:: Bit shift operations: <<, >>
 
     The bit shift binary operations follow the same type promotion rules as arithmetic binary
-    operations, but their inputs are restricted to integral types (except two boolean values).
+    operations, but their inputs are restricted to integral types (operations between two ``bool``
+    values are not supported).
 
     :rtype: TensorList of the type that is calculated based on the type promotion rules.
 
