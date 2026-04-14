@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -740,7 +740,15 @@ def test_shift_ops_selected():
             for types_in in itertools.product(selected_input_types, selected_input_types):
                 if types_in[0] in integer_types and types_in[1] in integer_types:
                     if np.bool_ not in types_in:
-                        yield check_arithm_op, kinds, types_in, op, shape_small, shift_range, op_desc
+                        yield (
+                            check_arithm_op,
+                            kinds,
+                            types_in,
+                            op,
+                            shape_small,
+                            shift_range,
+                            op_desc,
+                        )
 
 
 @attr("slow")
@@ -937,19 +945,8 @@ def check_arithm_mod(kinds, types, shape):
         l_np, r_np, out = extract_data(pipe_out, sample, kinds, target_type)
         assert_equals(out.dtype, target_type)
 
-        mod = np.fmod
-        both_integer = (
-            np.issubdtype(left_type, np.integer) and
-            np.issubdtype(right_type, np.integer)
-        )
-        if both_integer:
-            def c_mod(a, b):
-                sa = np.sign(a)
-                return sa * (np.abs(a) % np.abs(b))
-            mod = c_mod
-        compute_type = target_type if both_integer else np.float64
         np.testing.assert_array_equal(
-            out, mod(l_np.astype(compute_type), r_np.astype(compute_type)).astype(target_type)
+            out, np.fmod(l_np.astype(np.float64), r_np.astype(np.float64)).astype(target_type)
         )
 
 
@@ -960,6 +957,21 @@ def test_mod_selected():
             if types_in[0] in integer_types and types_in[1] in integer_types:
                 if np.bool_ not in types_in:
                     yield check_arithm_mod, kinds, types_in, shape_small
+
+
+def test_mod_mixed_signedness():
+    # Explicitly test signed×unsigned and unsigned×signed combinations with negative values.
+    # These require correct sign-extension to result_t before performing %, which was previously
+    # missing: negative signed operands were reinterpreted as large unsigned values.
+    mixed_types = [
+        (np.int32, np.uint32),
+        (np.uint32, np.int32),
+        (np.int64, np.uint64),
+        (np.uint64, np.int64),
+    ]
+    for kinds in selected_bin_input_kinds:
+        for types_in in mixed_types:
+            yield check_arithm_mod, kinds, types_in, shape_small
 
 
 @attr("slow")
