@@ -61,21 +61,3 @@ def rethrow_exception(old_exception: T, stack: CallStack, eval_mode: EvalMode) -
     source = old_exception.with_traceback(traceback)
 
     raise exception from source
-
-
-def capture_stack(depth: int, limit: int | None = None) -> CallStack:
-    """
-    Capture a call stack.
-    Returns a sequence of code objects and line numbers instead of e.g. traceback.StackSummary
-    because of efficiency concerns.
-    """
-    frame = sys._getframe(depth + 1)
-    stack = []
-    n = 0
-    while frame is not None:
-        if limit is not None and n >= limit:
-            break
-        stack.append((frame.f_code, frame.f_lineno))
-        frame = frame.f_back
-        n += 1
-    return stack
