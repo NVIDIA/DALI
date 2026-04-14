@@ -17,6 +17,7 @@
 
 #include <nvml.h>
 #include <cuda_runtime_api.h>
+#include <atomic>
 #include <mutex>
 #include <string>
 #include "dali/util/nvml_wrap.h"
@@ -259,13 +260,25 @@ inline DeviceProperties GetDeviceInfo(int device_idx) {
  * @throws std::runtime_error
  */
 inline bool HasHwDecoder(int device_idx) {
-  if (!nvmlIsInitialized()) {
+  static std::atomic<bool> supported{true};
+  if (!supported || !nvmlIsInitialized()) {
     return false;
   }
-  auto info = GetDeviceInfo(device_idx);
-  return info.type == NVML_BRAND_TESLA &&
-         (info.cap_major == 8 || info.cap_major == 9) &&
-         info.cap_minor == 0;
+  try {
+    auto info = GetDeviceInfo(device_idx);
+    return info.type == NVML_BRAND_TESLA &&
+           (info.cap_major == 8 || info.cap_major == 9) &&
+           info.cap_minor == 0;
+  } catch (const NvmlError &e) {
+    if (e.result() == NVML_ERROR_NOT_SUPPORTED) {
+      if (supported.exchange(false)) {
+        DALI_WARN("nvmlDeviceGetBrand/nvmlDeviceGetCudaComputeCapability is not supported"
+                  " on this platform, skipping HW decoder detection.");
+      }
+      return false;
+    }
+    throw;
+  }
 }
 
 /**
@@ -274,11 +287,23 @@ inline bool HasHwDecoder(int device_idx) {
  * @throws std::runtime_error
  */
 inline bool HasHwDecoder() {
-  if (!nvmlIsInitialized()) {
+  static std::atomic<bool> supported{true};
+  if (!supported || !nvmlIsInitialized()) {
     return false;
   }
   unsigned int device_count;
-  CUDA_CALL(nvmlDeviceGetCount_v2(&device_count));
+  try {
+    CUDA_CALL(nvmlDeviceGetCount_v2(&device_count));
+  } catch (const NvmlError &e) {
+    if (e.result() == NVML_ERROR_NOT_SUPPORTED) {
+      if (supported.exchange(false)) {
+        DALI_WARN("nvmlDeviceGetCount_v2 is not supported on this platform,"
+                  " skipping HW decoder detection.");
+      }
+      return false;
+    }
+    throw;
+  }
   for (unsigned int device_idx = 0; device_idx < device_count; device_idx++) {
     if (HasHwDecoder(device_idx)) return true;
   }
