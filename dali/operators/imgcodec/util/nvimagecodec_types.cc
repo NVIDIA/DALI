@@ -44,7 +44,7 @@ NvImageCodecCodeStream NvImageCodecCodeStream::FromHostMem(nvimgcodecInstance_t 
                                                            const void *data, size_t length) {
   NvImageCodecCodeStream ret;
   CHECK_NVIMGCODEC(nvimgcodecCodeStreamCreateFromHostMem(
-      instance, &ret.handle_, static_cast<const unsigned char*>(data), length));
+      instance, &ret.handle_, static_cast<const unsigned char*>(data), length, nullptr));
   return ret;
 }
 
