@@ -619,6 +619,17 @@ def test_wds_shuffle_after_epoch_different_seeds():
         assert sorted(epoch1) == sorted(epoch2), "Both seeds must cover all samples"
 
 
+def test_wds_shuffle_after_epoch_different_seeds_first_epoch():
+    """Different seeds must produce different orderings already in the first epoch."""
+    with _make_wds_pipe(
+        shuffle_after_epoch=True, shuffle_after_epoch_seed=111
+    ) as pipe1, _make_wds_pipe(shuffle_after_epoch=True, shuffle_after_epoch_seed=999) as pipe2:
+        epoch1_a = _collect_wds_epoch(pipe1)
+        epoch1_b = _collect_wds_epoch(pipe2)
+        assert epoch1_a != epoch1_b, "Different seeds must differ in the first epoch"
+        assert sorted(epoch1_a) == sorted(epoch1_b), "Both seeds must cover all samples"
+
+
 def test_wds_shuffle_after_epoch_multi_shard_coverage():
     """With 2 shards, the union of samples per epoch should cover the full dataset."""
     with _make_wds_pipe(
@@ -750,6 +761,19 @@ def test_tfrecord_shuffle_after_epoch_seed_reproducible():
         epoch2_b = _collect_tfrecord_epoch(pipe2)
         assert epoch2_a == epoch2_b, "Same seed must produce the same order in epoch 2"
         assert epoch1_a != epoch2_a, "Different epochs should have different orderings"
+
+
+def test_tfrecord_shuffle_after_epoch_different_seeds_first_epoch():
+    """Different seeds must produce different orderings already in the first epoch."""
+    with _make_tfrecord_pipe(
+        shuffle_after_epoch=True, shuffle_after_epoch_seed=111
+    ) as pipe1, _make_tfrecord_pipe(
+        shuffle_after_epoch=True, shuffle_after_epoch_seed=999
+    ) as pipe2:
+        epoch1_a = _collect_tfrecord_epoch(pipe1)
+        epoch1_b = _collect_tfrecord_epoch(pipe2)
+        assert epoch1_a != epoch1_b, "Different seeds must differ in the first epoch"
+        assert sorted(epoch1_a) == sorted(epoch1_b), "Both seeds must cover all samples"
 
 
 # ────────────────────────────────────────────────────────────────────────────
@@ -893,3 +917,14 @@ def test_mxnet_shuffle_after_epoch_seed_reproducible():
         epoch2_b = _collect_mxnet_epoch(pipe2)
         assert epoch2_a == epoch2_b, "Same seed must produce the same order in epoch 2"
         assert epoch1_a != epoch2_a, "Different epochs should have different orderings"
+
+
+def test_mxnet_shuffle_after_epoch_different_seeds_first_epoch():
+    """Different seeds must produce different orderings already in the first epoch."""
+    with _make_mxnet_pipe(
+        shuffle_after_epoch=True, shuffle_after_epoch_seed=111
+    ) as pipe1, _make_mxnet_pipe(shuffle_after_epoch=True, shuffle_after_epoch_seed=999) as pipe2:
+        epoch1_a = _collect_mxnet_epoch(pipe1)
+        epoch1_b = _collect_mxnet_epoch(pipe2)
+        assert epoch1_a != epoch1_b, "Different seeds must differ in the first epoch"
+        assert sorted(epoch1_a) == sorted(epoch1_b), "Both seeds must cover all samples"
