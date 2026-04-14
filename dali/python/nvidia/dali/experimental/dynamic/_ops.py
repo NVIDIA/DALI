@@ -668,8 +668,7 @@ class Reader(Operator):
             Therefore, it is impossible to traverse one reader using two iterators.
             If another iterator is necessary, create a separate reader instance.
         """
-        if batch_size is None:
-            batch_size = self._batch_size
+        batch_size = self._get_batch_size(batch_size)
         if batch_size is not None:
             return self._batches(batch_size, ctx)
         else:
@@ -691,9 +690,10 @@ class Reader(Operator):
         self._previous_batch_size = batch_size
         return self._tensor_args
 
-    def get_metadata(self, batch_size: int) -> ReaderMeta:
+    def get_metadata(self, batch_size: int | None = None) -> ReaderMeta:
         """Returns the metadata of the underlying reader operator"""
 
+        batch_size = self._get_batch_size(batch_size)
         self._init_backend(None, (), self._process_tensor_args(batch_size))
         return self._op_backend.GetReaderMeta()
 
@@ -788,6 +788,9 @@ class Reader(Operator):
                     yield {name: Batch(o) for name, o in outputs.items()}
             if not self._stick_to_shard:
                 self._shard_id = (self._shard_id + 1) % self._num_shards
+
+    def _get_batch_size(self, batch_size: int | None) -> int | None:
+        return batch_size if batch_size is not None else self._batch_size
 
 
 _all_ops = []
