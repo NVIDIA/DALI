@@ -13,14 +13,16 @@
 # limitations under the License.
 
 import threading
+import types
 import weakref
 from typing import TYPE_CHECKING, Any, Optional
 
 from ._async import _Future
+from ._callsite import capture_stack_from_frame
 from ._device import Device
 from ._eval_context import EvalContext as _EvalContext
 from ._eval_mode import EvalMode as _EvalMode
-from ._exceptions import capture_stack, rethrow_exception
+from ._exceptions import rethrow_exception
 from ._nvtx import NVTXRange
 from ._type import DType
 from nvidia.dali import backend as _b
@@ -50,7 +52,7 @@ class Invocation:
         is_batch: bool = False,
         batch_size: Optional[int] = None,
         previous_invocation: Optional["Invocation"] = None,
-        caller_depth: int | None = None,
+        caller_frame: types.FrameType | None = None,
     ):
         """
         Parameters
@@ -73,8 +75,8 @@ class Invocation:
             the batch size.
         previous_invocation : Invocation
             The previous invocation of the same operator. Used by stateful operators.
-        caller_depth : int
-            Depth of the initial caller. Used to capture the call stacks for error reporting.
+        caller_frame : FrameType
+            The resolved user call-site frame. Used to capture call stacks for error reporting.
         """
         self._operator = operator_instance
         self._call_id = call_id
@@ -90,8 +92,8 @@ class Invocation:
         self._eval_mode: _EvalMode | None = None
         self._future: Optional[_Future] = None
         self._run_lock = threading.Lock()
-        if caller_depth is not None and _EvalMode.current().value <= _EvalMode.eager.value:
-            self._call_stack = capture_stack(caller_depth + 1)
+        if caller_frame is not None and _EvalMode.current().value <= _EvalMode.eager.value:
+            self._call_stack = capture_stack_from_frame(caller_frame)
         else:
             self._call_stack = None
 

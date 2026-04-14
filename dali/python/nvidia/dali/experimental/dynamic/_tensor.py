@@ -21,7 +21,7 @@ import nvidia.dali._tensor_formatting as _tensor_formatting
 import nvidia.dali.types
 from nvidia.dali._typing import TensorLike
 
-from . import _eval_mode, _invocation, _stream
+from . import _callsite, _eval_mode, _invocation, _stream
 from ._arithmetic import _arithm_op
 from ._device import Device, DeviceLike
 from ._device import device as _device
@@ -917,6 +917,7 @@ class TensorSlice:
         return self._run().evaluate()
 
 
+@_callsite.mark_transparent
 def tensor(
     data: TensorLike,
     dtype: Any | None = None,
@@ -962,6 +963,7 @@ def tensor(
     return Tensor(data, dtype=dtype, device=device, layout=layout, copy=True)
 
 
+@_callsite.mark_transparent
 def as_tensor(
     data: Union[TensorLike, "Batch"],
     dtype: Any | None = None,
