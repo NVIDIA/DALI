@@ -228,6 +228,49 @@ inline int GetCudaDriverVersion() {
 }
 
 
+namespace detail {
+
+/**
+ * Calls fn(), gracefully handling NVML_ERROR_NOT_SUPPORTED.
+ * On the first NOT_SUPPORTED result the supported flag is cleared and a one-time warning
+ * is emitted; subsequent calls return default_val immediately without touching NVML.
+ */
+template <typename T, typename F>
+T NvmlCall(std::atomic<bool> &supported, const char *what, T default_val, F &&fn) {
+  if (!supported || !nvmlIsInitialized())
+    return default_val;
+  try {
+    return fn();
+  } catch (const NvmlError &e) {
+    if (e.result() == NVML_ERROR_NOT_SUPPORTED) {
+      if (supported.exchange(false))
+        DALI_WARN(what);
+      return default_val;
+    }
+    throw;
+  }
+}
+
+/** Void overload — same semantics, no return value. */
+template <typename F>
+void NvmlCall(std::atomic<bool> &supported, const char *what, F &&fn) {
+  if (!supported || !nvmlIsInitialized())
+    return;
+  try {
+    fn();
+  } catch (const NvmlError &e) {
+    if (e.result() == NVML_ERROR_NOT_SUPPORTED) {
+      if (supported.exchange(false))
+        DALI_WARN(what);
+      return;
+    }
+    throw;
+  }
+}
+
+}  // namespace detail
+
+
 #if (CUDART_VERSION >= 11000)
 
 /**
@@ -261,24 +304,15 @@ inline DeviceProperties GetDeviceInfo(int device_idx) {
  */
 inline bool HasHwDecoder(int device_idx) {
   static std::atomic<bool> supported{true};
-  if (!supported || !nvmlIsInitialized()) {
-    return false;
-  }
-  try {
-    auto info = GetDeviceInfo(device_idx);
-    return info.type == NVML_BRAND_TESLA &&
-           (info.cap_major == 8 || info.cap_major == 9) &&
-           info.cap_minor == 0;
-  } catch (const NvmlError &e) {
-    if (e.result() == NVML_ERROR_NOT_SUPPORTED) {
-      if (supported.exchange(false)) {
-        DALI_WARN("nvmlDeviceGetBrand/nvmlDeviceGetCudaComputeCapability is not supported"
-                  " on this platform, skipping HW decoder detection.");
-      }
-      return false;
-    }
-    throw;
-  }
+  return detail::NvmlCall(supported,
+      "nvmlDeviceGetBrand/nvmlDeviceGetCudaComputeCapability is not supported"
+      " on this platform, skipping HW decoder detection.",
+      false, [&]() -> bool {
+        auto info = GetDeviceInfo(device_idx);
+        return info.type == NVML_BRAND_TESLA &&
+               (info.cap_major == 8 || info.cap_major == 9) &&
+               info.cap_minor == 0;
+      });
 }
 
 /**
@@ -288,26 +322,17 @@ inline bool HasHwDecoder(int device_idx) {
  */
 inline bool HasHwDecoder() {
   static std::atomic<bool> supported{true};
-  if (!supported || !nvmlIsInitialized()) {
-    return false;
-  }
-  unsigned int device_count;
-  try {
-    CUDA_CALL(nvmlDeviceGetCount_v2(&device_count));
-  } catch (const NvmlError &e) {
-    if (e.result() == NVML_ERROR_NOT_SUPPORTED) {
-      if (supported.exchange(false)) {
-        DALI_WARN("nvmlDeviceGetCount_v2 is not supported on this platform,"
-                  " skipping HW decoder detection.");
-      }
-      return false;
-    }
-    throw;
-  }
-  for (unsigned int device_idx = 0; device_idx < device_count; device_idx++) {
-    if (HasHwDecoder(device_idx)) return true;
-  }
-  return false;
+  return detail::NvmlCall(supported,
+      "nvmlDeviceGetCount_v2 is not supported on this platform,"
+      " skipping HW decoder detection.",
+      false, [&]() -> bool {
+        unsigned int device_count;
+        CUDA_CALL(nvmlDeviceGetCount_v2(&device_count));
+        for (unsigned int device_idx = 0; device_idx < device_count; device_idx++) {
+          if (HasHwDecoder(device_idx)) return true;
+        }
+        return false;
+      });
 }
 
 inline bool isHWDecoderSupported() {
