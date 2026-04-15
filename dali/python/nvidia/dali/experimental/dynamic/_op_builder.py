@@ -26,6 +26,7 @@ from nvidia.dali.ops import _docs, _names
 from . import _device, _invocation, _op_filter, _ops, _type
 from ._batch import Batch
 from ._callsite import mark_transparent, resolve_callsite_frame
+from ._eval_mode import EvalMode
 from ._tensor import Tensor, tensor as to_tensor
 
 
@@ -328,6 +329,9 @@ def build_call_function(schema, op_class):
         else:
             call_id = None
         with NVTXRange("__call__: construct Invocation", category="op_builder"):
+            caller_frame = None
+            if EvalMode.current().value <= EvalMode.eager.value:
+                caller_frame = resolve_callsite_frame()
             invocation = _invocation.Invocation(
                 self,
                 call_id,
@@ -336,7 +340,7 @@ def build_call_function(schema, op_class):
                 is_batch=is_batch,
                 batch_size=batch_size or 1,
                 previous_invocation=self._last_invocation,
-                caller_frame=resolve_callsite_frame(),
+                caller_frame=caller_frame,
             )
 
         if stateful:
