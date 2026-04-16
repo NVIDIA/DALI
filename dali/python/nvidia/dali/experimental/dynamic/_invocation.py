@@ -26,7 +26,7 @@ from ._type import DType
 from nvidia.dali import backend as _b
 
 if TYPE_CHECKING:
-    from .ops import Operator
+    from ._ops import Operator
 
 
 class Invocation:
