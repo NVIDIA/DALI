@@ -97,9 +97,9 @@ def test_binary_ops(device, op):
             ab = apply_bin_op(op, a, b)
             result_numpy = asnumpy(ab)
             ref_ab = apply_bin_op(op, ref_a, ref_b)
-            if not np.array_equal(result_numpy, ref_ab):
-                msg = f"{ref_a} {op} {ref_b} = \n{result_numpy}\n!=\n{ref_ab}"
-                raise AssertionError(msg)
+            assert np.array_equal(
+                result_numpy, ref_ab
+            ), f"{ref_a} {op} {ref_b} = \n{result_numpy}\n!=\n{ref_ab}"
 
 
 @eval_modes()
@@ -115,9 +115,8 @@ def test_unary_ops(device, op):
         x = ndd.tensor(ref_x, device=device)
         y = apply_un_op(op, x)
         ref_y = apply_un_op(op, ref_x)
-        if not np.array_equal(asnumpy(y), ref_y):
-            msg = f"{ref_x} {op} = \n{asnumpy(y)}\n!=\n{ref_y}"
-            raise AssertionError(msg)
+        result_numpy = asnumpy(y)
+        assert np.array_equal(result_numpy, ref_y), f"{ref_x} {op} = \n{result_numpy}\n!=\n{ref_y}"
 
 
 @eval_modes()
@@ -138,9 +137,9 @@ def test_integer_binary_ops(device, op):
             ab = apply_bin_op(op, a, b)
             result_numpy = asnumpy(ab)
             ref_ab = apply_bin_op(op, ref_a, ref_b)
-            if not np.array_equal(result_numpy, ref_ab):
-                msg = f"{ref_a} {op} {ref_b} = \n{result_numpy}\n!=\n{ref_ab}"
-                raise AssertionError(msg)
+            assert np.array_equal(
+                result_numpy, ref_ab
+            ), f"{ref_a} {op} {ref_b} = \n{result_numpy}\n!=\n{ref_ab}"
 
 
 @cartesian_params(["gpu", "cpu"], binary_ops, (None, 4))
@@ -170,13 +169,10 @@ def test_binary_non_tensor(device: str, op: str, batch_size: int | None):
         ref_rev = apply_bin_op(op, y, tensor)
 
         # np.allclose supports broadcasting
-        if not np.allclose(result.cpu(), ref):
-            msg = f"{tensor} {op} {y} = \n{result}\n!=\n{ref}"
-            raise AssertionError(msg)
-
-        if not np.allclose(result_rev.cpu(), ref_rev):
-            msg = f"{y} {op} {tensor} = \n{result_rev}\n!=\n{ref_rev}"
-            raise AssertionError(msg)
+        assert np.allclose(result.cpu(), ref), f"{tensor} {op} {y} = \n{result}\n!=\n{ref}"
+        assert np.allclose(
+            result_rev.cpu(), ref_rev
+        ), f"{y} {op} {tensor} = \n{result_rev}\n!=\n{ref_rev}"
 
 
 @cartesian_params(["gpu", "cpu"], integer_binary_ops, (None, 4))
@@ -205,13 +201,10 @@ def test_integer_binary_non_tensor(device: str, op: str, batch_size: int | None)
             ref = np.stack([ref] * batch_size)
             ref_rev = np.stack([ref_rev] * batch_size)
 
-        if not np.array_equal(result.cpu(), ref):
-            msg = f"{tensor} {op} {y} = \n{result}\n!=\n{ref}"
-            raise AssertionError(msg)
-
-        if not np.array_equal(result_rev.cpu(), ref_rev):
-            msg = f"{y} {op} {tensor} = \n{result_rev}\n!=\n{ref_rev}"
-            raise AssertionError(msg)
+        assert np.array_equal(result.cpu(), ref), f"{tensor} {op} {y} = \n{result}\n!=\n{ref}"
+        assert np.array_equal(
+            result_rev.cpu(), ref_rev
+        ), f"{y} {op} {tensor} = \n{result_rev}\n!=\n{ref_rev}"
 
 
 @params(*integer_binary_ops)
