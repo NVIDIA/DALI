@@ -294,3 +294,36 @@ def test_compile_stale_batch():
         resized = ndd.resize(target, size=[64, 64])
         assert _is_compiled(resized) == (prev is None)
         prev = images
+
+
+def test_compile_tensor_args():
+    def make_reader():
+        video_root = os.path.join(dali_extra_path, "db", "video", "sintel", "video_files")
+        sequence_length = 60
+        width, height = 108, 192
+        return ndd.readers.VideoResize(
+            filenames=[os.path.join(video_root, "sintel_trailer-720p_3.mp4")],
+            sequence_length=sequence_length,
+            device="gpu",
+            resize_x=ndd.tensor(width),
+            resize_y=height,
+            file_list_include_preceding_frame=True,
+        )
+
+    reader_dyn = make_reader()
+    reader_comp = make_reader()
+
+    dynamic_results = []
+    for (videos,) in reader_dyn.next_epoch(batch_size=4):
+        rotated = ndd.rotate(videos, angle=60)
+        dynamic_results.append(ndd.as_tensor(rotated).cpu())
+
+    compiled_results = []
+    for (videos,) in reader_comp.next_epoch(batch_size=4, compile=True):
+        rotated = ndd.rotate(videos, angle=60)
+        assert _is_compiled(rotated)
+        compiled_results.append(ndd.as_tensor(rotated).cpu())
+
+    assert len(dynamic_results) == len(compiled_results)
+    for dyn, comp in zip(dynamic_results, compiled_results):
+        np.testing.assert_array_equal(dyn, comp)
