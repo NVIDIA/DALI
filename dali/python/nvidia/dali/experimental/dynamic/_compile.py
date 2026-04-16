@@ -17,7 +17,7 @@ import enum
 import threading
 import types
 import warnings
-from collections.abc import Callable, Mapping, Sequence, Iterable
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from contextlib import contextmanager
 from typing import TYPE_CHECKING, Any, NamedTuple
 
@@ -34,10 +34,15 @@ from ._callsite import (
     resolve_callsite_frame,
 )
 from ._device import Device
+from ._nvtx import NVTXRange
 
 if TYPE_CHECKING:
     from ._eval_context import EvalContext
     from ._ops import Operator, Reader
+
+
+def _nvtx_range(message: str):
+    return NVTXRange(message, color=0xB58900, category="compile")
 
 
 class State(enum.Enum):
@@ -196,6 +201,7 @@ class CompileContext:
             for i, tl in enumerate(tensor_lists)
         )
 
+    @_nvtx_range("Recording operator")
     def record(
         self,
         call_chain: CallChain,
@@ -222,6 +228,7 @@ class CompileContext:
         self._call_trie.insert(call_chain, node)
         return node
 
+    @_nvtx_range("Building pipeline")
     def build_pipeline(self, ctx: "EvalContext") -> None:
         if not self.nodes:
             warnings.warn(
@@ -268,6 +275,7 @@ class CompileContext:
         self.pipeline = pipe
         self.state = State.COMPILED
 
+    @_nvtx_range("Running compiled pipeline")
     def run_pipeline(self) -> tuple | dict:
         """Run the compiled pipeline and cache all node results for this iteration."""
         assert self.pipeline is not None and self.source is not None
@@ -302,6 +310,7 @@ class CompileContext:
             return actual is None
         return not isinstance(actual, Batch) and actual == expected
 
+    @_nvtx_range("Getting compiled result")
     def get_compiled_result(
         self,
         frame: types.FrameType,
@@ -424,6 +433,7 @@ class CompiledEpochIterator:
                 yield batches
 
 
+@_nvtx_range("Graph Wiring")
 def _wire_compile_graph(
     source: CompileSource,
     nodes: Sequence[CompileNode],
@@ -502,9 +512,8 @@ def _compile_intercept(
                     f"called with batch_size={batch_size}. Cannot change batch_size in "
                     f"compiled mode."
                 )
-            cached = compile_ctx.get_compiled_result(frame, inputs, raw_kwargs, device=device)
-            if cached is not None:
-                return cached
+            if result := compile_ctx.get_compiled_result(frame, inputs, raw_kwargs, device=device):
+                return result
             return _call()
 
         # Run first, classify after, we need the result before we can inspect it
