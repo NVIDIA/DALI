@@ -99,7 +99,7 @@ class CallSiteAnalyzer:
             else:
                 return None
 
-        kw_nodes = {kw.arg: kw.value for kw in call.keywords}
+        kw_nodes = {kw.arg: kw.value for kw in call.keywords if kw.arg is not None}
         classified_kwargs: dict[str, CompileRef | Any] = {}
         for name, value in raw_kwargs.items():
             if value is None:
