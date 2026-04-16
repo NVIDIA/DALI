@@ -94,6 +94,9 @@ enum class ArithmeticOp : int {
   bit_and,
   bit_or,
   bit_xor,
+  bit_not,
+  bit_lshift,
+  bit_rshift,
   // Ternary Ops
   clamp
 };
@@ -125,6 +128,7 @@ DALI_HOST_DEV constexpr int GetOpArity(ArithmeticOp op) {
     case ArithmeticOp::asinh:
     case ArithmeticOp::acosh:
     case ArithmeticOp::atanh:
+    case ArithmeticOp::bit_not:
       return 1;
     case ArithmeticOp::add:
     case ArithmeticOp::sub:
@@ -146,6 +150,8 @@ DALI_HOST_DEV constexpr int GetOpArity(ArithmeticOp op) {
     case ArithmeticOp::bit_and:
     case ArithmeticOp::bit_or:
     case ArithmeticOp::bit_xor:
+    case ArithmeticOp::bit_lshift:
+    case ArithmeticOp::bit_rshift:
       return 2;
     case ArithmeticOp::clamp:
       return 3;
@@ -241,6 +247,9 @@ DALI_HOST_DEV constexpr bool IsBitwise(ArithmeticOp op) {
     case ArithmeticOp::bit_and:
     case ArithmeticOp::bit_or:
     case ArithmeticOp::bit_xor:
+    case ArithmeticOp::bit_not:
+    case ArithmeticOp::bit_lshift:
+    case ArithmeticOp::bit_rshift:
       return true;
     default:
       return false;
@@ -750,6 +759,39 @@ DALI_HOST_DEV constexpr binary_result_t<bool, bool>
 REGISTER_BINARY_BITWISE_IMPL(ArithmeticOp::bit_and, &);
 REGISTER_BINARY_BITWISE_IMPL(ArithmeticOp::bit_or,  |);
 REGISTER_BINARY_BITWISE_IMPL(ArithmeticOp::bit_xor, ^);
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wint-in-bool-context"
+REGISTER_BINARY_BITWISE_IMPL(ArithmeticOp::bit_lshift, <<);
+REGISTER_BINARY_BITWISE_IMPL(ArithmeticOp::bit_rshift, >>);
+#pragma GCC diagnostic pop
+
+template <typename Backend>
+struct arithm_meta<ArithmeticOp::bit_not, Backend> {
+  template <typename T>
+  using result_t = T;
+
+  template <typename T>
+  DALI_HOST_DEV static constexpr std::enable_if_t<std::is_integral<T>::value, T>
+  impl(T v) {
+    if constexpr (std::is_same_v<T, bool>)
+      return !v;  // logical NOT for bool, matching numpy/torch semantics
+    else
+      return ~v;
+  }
+
+  template <typename T>
+  DALI_HOST_DEV static constexpr std::enable_if_t<!std::is_integral<T>::value, T>
+  impl(T) {
+    return {};
+  }
+
+  static inline std::string to_string() {
+    return "~";
+  }
+
+  static constexpr int num_inputs = 1;
+  static constexpr int num_outputs = 1;
+};
 
 // @TODO(klecki): move it somewhere appropriate
 
@@ -920,63 +962,36 @@ struct arithm_meta<ArithmeticOp::fdiv, Backend> {
   static constexpr int num_outputs = 1;
 };
 
-template <>
-struct arithm_meta<ArithmeticOp::mod, CPUBackend> {
+template <typename Backend>
+struct arithm_meta<ArithmeticOp::mod, Backend> {
   template <typename L, typename R>
   using result_t = binary_result_t<L, R>;
 
   template <typename L, typename R>
-  static constexpr std::enable_if_t<
+  DALI_HOST_DEV static std::enable_if_t<
       std::is_integral<L>::value && std::is_integral<R>::value, result_t<L, R>>
   impl(L l, R r) {
-    return l % r;
+    auto l_ = static_cast<result_t<L, R>>(l);
+    auto r_ = static_cast<result_t<L, R>>(r);
+    #ifndef __CUDA_ARCH__
+    if (r_ == 0)
+      throw std::domain_error("Integer division by zero.");
+    #endif
+    return l_ % r_;
   }
 
+  DALI_NO_EXEC_CHECK
   template <typename L, typename R>
-  static constexpr std::enable_if_t<
+  DALI_HOST_DEV static std::enable_if_t<
       !std::is_integral<L>::value || !std::is_integral<R>::value, result_t<L, R>>
   impl(L l, R r) {
     using L_promotion = std::conditional_t<std::is_same<float16, L>::value, float, L>;
     using R_promotion = std::conditional_t<std::is_same<float16, R>::value, float, R>;
-    return std::remainder(static_cast<L_promotion>(l), static_cast<R_promotion>(r));
-  }
-
-  static std::string to_string() {
-    return "%";
-  }
-
-  static constexpr int num_inputs = 2;
-  static constexpr int num_outputs = 1;
-};
-
-template <>
-struct arithm_meta<ArithmeticOp::mod, GPUBackend> {
-  template <typename L, typename R>
-  using result_t = binary_result_t<L, R>;
-
-  template <typename L, typename R>
-  __device__ static constexpr std::enable_if_t<
-      std::is_integral<L>::value && std::is_integral<R>::value, result_t<L, R>>
-  impl(L l, R r) {
-    return l % r;
-  }
-
-  template <typename L, typename R>
-  __device__ static constexpr std::enable_if_t<
-      (!std::is_integral<L>::value || !std::is_integral<R>::value) &&
-          (sizeof(L) < sizeof(double) && sizeof(R) < sizeof(double)),
-      result_t<L, R>>
-  impl(L l, R r) {
-    return remainderf(static_cast<float>(l), static_cast<float>(r));
-  }
-
-  template <typename L, typename R>
-  __device__ static constexpr std::enable_if_t<
-      (!std::is_integral<L>::value || !std::is_integral<R>::value) &&
-          (sizeof(L) >= sizeof(double) || sizeof(R) >= sizeof(double)),
-      binary_result_t<L, R>>
-  impl(L l, R r) {
-    return remainder(static_cast<double>(l), static_cast<double>(r));
+    #ifndef __CUDA_ARCH__
+    return std::fmod(static_cast<L_promotion>(l), static_cast<R_promotion>(r));
+    #else
+    return ::fmod(static_cast<L_promotion>(l), static_cast<R_promotion>(r));
+    #endif
   }
 
   static std::string to_string() {
@@ -1004,6 +1019,7 @@ inline std::string to_string(ArithmeticOp op) {
                 ArithmeticOp::eq, ArithmeticOp::neq, ArithmeticOp::lt, ArithmeticOp::leq,
                 ArithmeticOp::gt, ArithmeticOp::geq,
                 ArithmeticOp::bit_and, ArithmeticOp::bit_or, ArithmeticOp::bit_xor,
+                ArithmeticOp::bit_not, ArithmeticOp::bit_lshift, ArithmeticOp::bit_rshift,
                 ArithmeticOp::clamp),
                (result = arithm_meta<op_static, CPUBackend>::to_string();),
                (result = "InvalidOp";));  // NOLINT(whitespace/parens)
@@ -1064,10 +1080,13 @@ inline ArithmeticOp NameToOp(const std::string &op_name) {
       {"leq",    ArithmeticOp::leq},
       {"gt",     ArithmeticOp::gt},
       {"geq",    ArithmeticOp::geq},
-      {"bitand", ArithmeticOp::bit_and},
-      {"bitor",  ArithmeticOp::bit_or},
-      {"bitxor", ArithmeticOp::bit_xor},
-      {"clamp",  ArithmeticOp::clamp},
+      {"bitand",  ArithmeticOp::bit_and},
+      {"bitor",   ArithmeticOp::bit_or},
+      {"bitxor",  ArithmeticOp::bit_xor},
+      {"bitnot",  ArithmeticOp::bit_not},
+      {"lshift",  ArithmeticOp::bit_lshift},
+      {"rshift",  ArithmeticOp::bit_rshift},
+      {"clamp",   ArithmeticOp::clamp},
   };
   auto it = token_to_op.find(op_name);
   DALI_ENFORCE(it != token_to_op.end(), "No implementation for op \"" + op_name + "\".");

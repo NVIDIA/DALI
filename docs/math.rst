@@ -84,9 +84,9 @@ Supported Arithmetic Operations
 
 Currently, DALI supports the following operations:
 
-.. function:: Unary arithmetic operators: +, -
+.. function:: Unary arithmetic operators: +, -, ~
 
-    Unary operators that implement ``__pos__(self)`` and ``__neg__(self)``.
+    Unary operators that implement ``__pos__(self)``, ``__neg__(self)`` and ``__invert__(self)``.
     The result of a unary arithmetic operation always preserves the input type.
     Unary operators accept only TensorList inputs from other operators.
 
@@ -102,8 +102,25 @@ Currently, DALI supports the following operations:
     which always returns ``float32`` or ``float64`` type.
 
     .. note::
+        At present, ``//`` rounds towards zero instead of rounding down. This behavior is subject
+        to change in future versions.
+
+    .. note::
         The only allowed arithmetic operation between two ``bool`` values is multiplication
         ``(*)``.
+
+    :rtype: TensorList of the type that is calculated based on the type promotion rules.
+
+.. function:: Modulo: %
+
+    Binary operator that implements ``__mod__(self, other)``, computing the remainder of division.
+
+    .. note::
+        At present, division and modulo follow the C semantics (truncation / fmod) rather than
+        Python semantics (floor). This behavior is subject to change in future versions.
+
+    .. note::
+        ``bool`` operands are not supported.
 
     :rtype: TensorList of the type that is calculated based on the type promotion rules.
 
@@ -121,6 +138,14 @@ Currently, DALI supports the following operations:
     .. note::
         A bitwise operation can be applied to two boolean inputs. Those operations can be used
         to emulate element-wise logical operations on Tensors.
+
+    :rtype: TensorList of the type that is calculated based on the type promotion rules.
+
+.. function:: Bit shift operations: <<, >>
+
+    The bit shift binary operations follow the same type promotion rules as arithmetic binary
+    operations, but their inputs are restricted to integral types (operations between two ``bool``
+    values are not supported).
 
     :rtype: TensorList of the type that is calculated based on the type promotion rules.
 

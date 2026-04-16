@@ -165,12 +165,23 @@ class DataNode(object):
     def __rfloordiv__(self, other) -> DataNode:
         return _arithm_op("div", other, self)
 
+    def __mod__(self, other) -> DataNode:
+        return _arithm_op("mod", self, other)
+
+    def __rmod__(self, other) -> DataNode:
+        return _arithm_op("mod", other, self)
+
     def __neg__(self) -> DataNode:
         return _arithm_op("minus", self)
 
     # Short-circuiting the execution, unary + is basically a no-op
     def __pos__(self) -> DataNode:
         return self
+
+    def __abs__(self) -> DataNode:
+        from nvidia.dali import math
+
+        return math.abs(self)
 
     def __eq__(self, other) -> DataNode:
         return _arithm_op("eq", self, other)
@@ -207,6 +218,21 @@ class DataNode(object):
 
     def __rxor__(self, other) -> DataNode:
         return _arithm_op("bitxor", other, self)
+
+    def __invert__(self) -> DataNode:
+        return _arithm_op("bitnot", self)
+
+    def __lshift__(self, other) -> DataNode:
+        return _arithm_op("lshift", self, other)
+
+    def __rlshift__(self, other) -> DataNode:
+        return _arithm_op("lshift", other, self)
+
+    def __rshift__(self, other) -> DataNode:
+        return _arithm_op("rshift", self, other)
+
+    def __rrshift__(self, other) -> DataNode:
+        return _arithm_op("rshift", other, self)
 
     def __bool__(self):
         raise TypeError(

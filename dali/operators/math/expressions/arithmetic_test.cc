@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -364,16 +364,22 @@ class BinaryArithmeticOpsTest
 };
 
 template <typename T>
+constexpr T ref_mod(T l, T r) {
+  if constexpr (std::is_integral<T>::value) {
+    return l % r;
+  } else {
+    return std::fmod(l, r);
+  }
+}
+
+template <typename T>
 std::vector<std::tuple<std::string, bin_op_pointer<T>>> getOpNameRef() {
   return std::vector<std::tuple<std::string, bin_op_pointer<T>>>{
       std::make_tuple("add", [](T l, T r) -> T { return l + r; }),
       std::make_tuple("sub", [](T l, T r) -> T { return l - r; }),
       std::make_tuple("mul", [](T l, T r) -> T { return l * r; }),
       std::make_tuple("div", [](T l, T r) -> T { return l / r; }),
-      std::make_tuple("mod",
-                      std::is_integral<T>::value
-                      ? [](T l, T r) -> T { return std::fmod(l, r); }
-                      : [](T l, T r) -> T { return std::remainder(l, r); }),
+      std::make_tuple("mod", ref_mod<T>)
   };
 }
 
