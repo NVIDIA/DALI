@@ -16,7 +16,7 @@ from pathlib import Path
 
 import numpy as np
 import nvidia.dali.experimental.dynamic as ndd
-from nose_utils import attr  # type: ignore
+from nose_utils import attr
 from nvidia.dali import types
 from test_utils import get_dali_extra_path
 
@@ -102,3 +102,15 @@ def test_copy_tensor_constant():
     assert np.array_equal(const_tuple, [4, 5])
     assert np.array_equal(const_torch, np.full((2, 2), 6))
     assert np.array_equal(const_np, np.full((2, 2), 7))
+
+
+def test_numpy_reader_roi():
+    reader = ndd.readers.Numpy(
+        file_root=str(_test_root / "db" / "3D" / "MRI" / "Knee" / "npy_2d_slices" / "STU00001"),
+        roi_start=(30, 30),
+        roi_end=(230, 230),
+    )
+    for (data,) in reader.next_epoch():
+        expect_tensor(data)
+        assert data.shape == (200, 200)
+        break

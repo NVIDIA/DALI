@@ -25,7 +25,7 @@ from nvidia.dali.ops import _docs, _names
 
 from . import _device, _invocation, _op_filter, _ops, _type
 from ._batch import Batch
-from ._tensor import Tensor
+from ._tensor import Tensor, tensor as to_tensor
 
 
 def is_external(x):
@@ -175,20 +175,25 @@ def build_constructor(schema, op_class):
     Operator._get() can be used instead of the constructor to utilize the instance caching.
     """
     stateful = op_class._is_stateful
+    is_reader = op_class._is_reader
     function_name = "__init__"
 
     init_args = []
     used_kwargs = set()
+    tensor_arg_names = set()
     for arg in schema.GetArgumentNames():
         if arg in _unsupported_args:
             continue
-        if schema.IsTensorArgument(arg):
+        is_tensor = schema.IsTensorArgument(arg)
+        if is_tensor and not is_reader:
             continue
         if schema.IsArgumentOptional(arg):
             init_args.append(f"{arg}=None")
         else:
             init_args.append(arg)
         used_kwargs.add(arg)
+        if is_tensor:
+            tensor_arg_names.add(arg)
 
     if init_args:
         init_args = ["*"] + init_args
@@ -207,8 +212,25 @@ def build_constructor(schema, op_class):
 
     # Note: Base __init__ will keep the **kwargs
     def init(self, max_batch_size, name, **kwargs):
+        if is_reader:
+            actual_tensor_arg_names = {
+                arg_name for arg_name in tensor_arg_names if kwargs.get(arg_name) is not None
+            }
+            tensor_args = {}
+            for arg_name in tensor_arg_names:
+                arg = kwargs.get(arg_name)
+                if arg is None or isinstance(arg, (int, float, bool, str, tuple, list)):
+                    continue
+                del kwargs[arg_name]
+                if isinstance(arg, Batch):
+                    raise ValueError("Readers cannot be constructed with batch keyword arguments")
+                dtype = op_class._argument_conversion_map[arg_name]
+                tensor_args[arg_name] = to_tensor(arg, dtype=dtype)
         kwargs = {k: _scalar_decay(v) for k, v in kwargs.items()}
         op_class.__base__.__init__(self, max_batch_size, name, **kwargs)
+        if is_reader:  # Need to be done here not to be overridden by the constructor
+            self._tensor_arg_names = actual_tensor_arg_names
+            self._raw_tensor_args = tensor_args
         if stateful:
             self._call_id = 0
 
@@ -286,6 +308,17 @@ def build_call_function(schema, op_class):
     @NVTXRange(f"__call__: {op_class._op_name}", category="op_builder")
     def call(self, *raw_args, batch_size=None, _process_params=True, **raw_kwargs):
         self._pre_call(*raw_args, **raw_kwargs)
+
+        if op_class._is_reader and self._tensor_arg_names:
+            actual_kwargs = {name for name, value in raw_kwargs.items() if value is not None}
+            overlap = actual_kwargs & self._tensor_arg_names
+            if overlap:
+                raise ValueError(
+                    f"Keyword argument{'s'[:len(overlap)^1]} {sorted(overlap)}"
+                    f" cannot be passed both in the constructor and __call__."
+                )
+            raw_kwargs = {**raw_kwargs, **self._raw_tensor_args}
+
         batch_size = _ops._infer_batch_size(batch_size, *raw_args, **raw_kwargs)
         is_batch = batch_size is not None
 
