@@ -126,7 +126,7 @@ class DLL_PUBLIC WebdatasetLoader : public Loader<CPUBackend, vector<Tensor<CPUB
   bool case_sensitive_extensions_ = true;
 
   bool shuffle_after_epoch_ = false;
-  int32_t shuffle_after_epoch_seed_ = 0;
+  int64_t shuffle_after_epoch_seed_ = 0;
   int current_epoch_ = 0;
   // Per-shard sample groups used for shard-level shuffling (populated only when
   // shuffle_after_epoch_ is true).  Preserves sequential reads within each shard.

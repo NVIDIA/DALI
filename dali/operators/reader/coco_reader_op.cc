@@ -93,7 +93,7 @@ This readers produces the following outputs::
   .AddOptionalArg("shuffle_after_epoch",
       R"code(If set to True, the reader shuffles the entire  dataset after each epoch.)code",
       false)
-  .AddOptionalArg<int32_t>("shuffle_after_epoch_seed",
+  .AddOptionalArg<int64_t>("shuffle_after_epoch_seed",
       R"code(Random seed for the dataset shuffling performed after each epoch.
 
 If not provided, a fixed default seed is used, which results in the same shuffling

@@ -240,7 +240,7 @@ WebdatasetLoader::WebdatasetLoader(const OpSpec& spec)
                            spec.GetArgument<std::string>("missing_component_behavior"),
                            "' possible values are: skip, error, empty"));
 
-  int32_t seed_arg = kDaliDataloaderSeed;
+  int64_t seed_arg = kDaliDataloaderSeed;
   bool has_seed_arg = spec.TryGetArgument(seed_arg, "shuffle_after_epoch_seed");
   shuffle_after_epoch_seed_ = seed_arg;
   if (has_seed_arg && !shuffle_after_epoch_) {
@@ -525,9 +525,9 @@ void WebdatasetLoader::Reset(bool wrap_to_shard) {
     // within each archive.
     std::vector<size_t> shard_order(per_shard_samples_.size());
     std::iota(shard_order.begin(), shard_order.end(), 0);
-    uint32_t seed = static_cast<uint32_t>(shuffle_after_epoch_seed_)
-                  + static_cast<uint32_t>(current_epoch_);
-    std::mt19937 g(seed);
+    uint64_t seed = static_cast<uint64_t>(shuffle_after_epoch_seed_)
+                  + (static_cast<uint64_t>(current_epoch_) << 32);
+    std::mt19937_64 g(seed);
     std::shuffle(shard_order.begin(), shard_order.end(), g);
     samples_.clear();
     for (size_t si : shard_order) {

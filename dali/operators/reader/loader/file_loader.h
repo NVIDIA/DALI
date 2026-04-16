@@ -50,7 +50,7 @@ class FileLoader : public Loader<Backend, Target, true> {
         shuffle_after_epoch_(shuffle_after_epoch),
         current_index_(0),
         current_epoch_(0) {
-    int32_t seed_arg = kDaliDataloaderSeed;
+    int64_t seed_arg = kDaliDataloaderSeed;
     bool has_seed_arg = spec.TryGetArgument(seed_arg, "shuffle_after_epoch_seed");
     shuffle_after_epoch_seed_ = seed_arg;
     if (has_seed_arg && !shuffle_after_epoch_) {
@@ -167,7 +167,9 @@ class FileLoader : public Loader<Backend, Target, true> {
         // reduce the randomness.
         file_entries_ = backup_file_entries_;
       }
-      std::mt19937 g(static_cast<uint32_t>(shuffle_after_epoch_seed_ + current_epoch_));
+      uint64_t seed = static_cast<uint64_t>(shuffle_after_epoch_seed_)
+                    + (static_cast<uint64_t>(current_epoch_) << 32);
+      std::mt19937_64 g(seed);
       std::shuffle(file_entries_.begin(), file_entries_.end(), g);
     }
   }
@@ -201,7 +203,7 @@ class FileLoader : public Loader<Backend, Target, true> {
   bool has_file_root_arg_ = false;
 
   bool shuffle_after_epoch_;
-  int32_t shuffle_after_epoch_seed_;
+  int64_t shuffle_after_epoch_seed_;
   Index current_index_;
   int current_epoch_;
   typename InputStream::MappingReserver mmap_reserver_;

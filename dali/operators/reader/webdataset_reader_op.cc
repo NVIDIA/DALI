@@ -164,7 +164,7 @@ shuffle samples within the pipeline's prefetch buffer.
 
 ``stick_to_shard`` cannot be used when this argument is set to True.)code",
         false)
-    .AddOptionalArg<int32_t>("shuffle_after_epoch_seed",
+    .AddOptionalArg<int64_t>("shuffle_after_epoch_seed",
         R"code(Random seed for the shard-order shuffling performed after each epoch.
 
 If not provided, a fixed default seed is used, which results in the same shuffling

@@ -58,7 +58,7 @@ class IndexedFileLoader : public Loader<CPUBackend, IndexedFileLoaderSample, tru
       o_direct_alignm_ = ODirectFileStream::GetAlignment();
       o_direct_read_len_alignm_ = ODirectFileStream::GetLenAlignment();
     }
-    int32_t seed_arg = kDaliDataloaderSeed;
+    int64_t seed_arg = kDaliDataloaderSeed;
     bool has_seed_arg = spec.TryGetArgument(seed_arg, "shuffle_after_epoch_seed");
     shuffle_after_epoch_seed_ = seed_arg;
     if (has_seed_arg && !shuffle_after_epoch_) {
@@ -286,9 +286,9 @@ class IndexedFileLoader : public Loader<CPUBackend, IndexedFileLoaderSample, tru
       // Shuffle the order of files, keeping sequential access within each file.
       std::vector<size_t> file_order(per_file_indices_.size());
       std::iota(file_order.begin(), file_order.end(), 0);
-      uint32_t seed = static_cast<uint32_t>(shuffle_after_epoch_seed_)
-                    + static_cast<uint32_t>(current_epoch_);
-      std::mt19937 g(seed);
+      uint64_t seed = static_cast<uint64_t>(shuffle_after_epoch_seed_)
+                    + (static_cast<uint64_t>(current_epoch_) << 32);
+      std::mt19937_64 g(seed);
       std::shuffle(file_order.begin(), file_order.end(), g);
       indices_.clear();
       for (size_t fi : file_order) {
@@ -343,7 +343,7 @@ class IndexedFileLoader : public Loader<CPUBackend, IndexedFileLoaderSample, tru
   int64_t next_seek_pos_ = 0;
   bool use_o_direct_ = false;
   bool shuffle_after_epoch_ = false;
-  int32_t shuffle_after_epoch_seed_ = kDaliDataloaderSeed;
+  int64_t shuffle_after_epoch_seed_ = kDaliDataloaderSeed;
   int current_epoch_ = 0;
   size_t o_direct_chunk_size_ = 0;
   size_t o_direct_alignm_ = 0;
