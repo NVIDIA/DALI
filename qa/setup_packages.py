@@ -597,7 +597,7 @@ all_packages = [
     CudaPackageExtraIndex(
         "torch",
         {
-            "120": [PckgVer("2.8.0+cu128", python_min_ver="3.9", python_max_ver="3.13")],
+            "120": [PckgVer("2.7.1+cu128", python_min_ver="3.9", python_max_ver="3.13")],
             "130": [PckgVer("2.11.0+cu130", python_min_ver="3.10", python_max_ver="3.14")],
         },
         extra_index="https://download.pytorch.org/whl/",
@@ -605,7 +605,7 @@ all_packages = [
     CudaPackageExtraIndex(
         "torchvision",
         {
-            "120": [PckgVer("0.23.0+cu128", python_min_ver="3.9", python_max_ver="3.13")],
+            "120": [PckgVer("0.22.1+cu128", python_min_ver="3.9", python_max_ver="3.13")],
             "130": [PckgVer("0.26.0+cu130", python_min_ver="3.10", python_max_ver="3.14")],
         },
         extra_index="https://download.pytorch.org/whl/",
