@@ -17,7 +17,7 @@ import itertools
 import numpy as np
 import nvidia.dali.experimental.dynamic as ndd
 from ndd_utils import eval_modes
-from nose2.tools import params
+from nose2.tools import params, cartesian_params
 from nose_utils import assert_raises, attr
 from test_tensor import asnumpy
 
@@ -79,7 +79,7 @@ unary_ops = ["+", "-", "~", "abs"]
 
 
 @eval_modes()
-@params(*itertools.product(["cpu", "gpu"], binary_ops))
+@cartesian_params(["cpu", "gpu"], binary_ops)
 def test_binary_ops(device, op):
     values = [
         (np.array([[1, 2, 3], [4, 5, 6]]), np.array([[2], [3]])),
@@ -103,7 +103,7 @@ def test_binary_ops(device, op):
 
 
 @eval_modes()
-@params(*itertools.product(["cpu", "gpu"], unary_ops))
+@cartesian_params(["cpu", "gpu"], unary_ops)
 def test_unary_ops(device, op):
     values = [
         np.array([[-1, 2, -3], [4, -5, 6]]),
@@ -121,7 +121,7 @@ def test_unary_ops(device, op):
 
 
 @eval_modes()
-@params(*itertools.product(["cpu", "gpu"], integer_binary_ops))
+@cartesian_params(["cpu", "gpu"], integer_binary_ops)
 def test_integer_binary_ops(device, op):
     # All values are positive so numpy % matches C-style %, and shifts are well-defined.
     # Right-hand side values (2, 3, 5) double as safe shift amounts (< 64).
@@ -143,7 +143,7 @@ def test_integer_binary_ops(device, op):
                 raise AssertionError(msg)
 
 
-@params(*itertools.product(["gpu", "cpu"], binary_ops, (None, 4)))
+@cartesian_params(["gpu", "cpu"], binary_ops, (None, 4))
 def test_binary_non_tensor(device: str, op: str, batch_size: int | None):
     tensors = [
         np.array([[1, 2, 3], [4, 5, 6]]),
@@ -179,7 +179,7 @@ def test_binary_non_tensor(device: str, op: str, batch_size: int | None):
             raise AssertionError(msg)
 
 
-@params(*itertools.product(["gpu", "cpu"], integer_binary_ops, (None, 4)))
+@cartesian_params(["gpu", "cpu"], integer_binary_ops, (None, 4))
 def test_integer_binary_non_tensor(device: str, op: str, batch_size: int | None):
     tensors = [
         np.array([[1, 2, 3], [4, 5, 6]], dtype=np.int32),

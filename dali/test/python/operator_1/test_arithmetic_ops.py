@@ -19,7 +19,7 @@ import nvidia.dali.types as types
 import nvidia.dali.math as math
 import numpy as np
 from nose_utils import attr, raises, assert_raises, assert_equals
-from nose2.tools import params
+from nose2.tools import params, cartesian_params
 import itertools
 
 from test_utils import np_type_to_dali
@@ -97,6 +97,12 @@ input_types = integer_types + float_types
 
 selected_input_types = [np.bool_, np.int32, np.uint8, np.float32]
 selected_input_arithm_types = [np.int32, np.uint8, np.float32]
+selected_integer_types = [np.int32, np.uint8, np.int64]
+
+
+def iter_pow(x, n):
+    return itertools.product(*([x] * n))
+
 
 selected_bin_input_kinds = [
     ("cpu", "cpu"),
@@ -698,64 +704,49 @@ def slow_test_ternary_ops_types():
                 yield check_ternary_op, kinds, types_in, op, shape_small, op_desc
 
 
-def test_bitwise_ops_selected():
-    for kinds in selected_bin_input_kinds:
-        for op, op_desc in bitwise_operations:
-            for types_in in itertools.product(selected_input_types, selected_input_types):
-                if types_in[0] in integer_types and types_in[1] in integer_types:
-                    yield check_arithm_op, kinds, types_in, op, shape_small, default_range, op_desc
+@cartesian_params(
+    selected_bin_input_kinds, bitwise_operations, iter_pow([np.bool_] + selected_integer_types, 2)
+)
+def test_bitwise_ops_selected(kinds, op_and_desc, types_in):
+    op, op_desc = op_and_desc
+    check_arithm_op(kinds, types_in, op, shape_small, default_range, op_desc)
 
 
 @attr("slow")
-def slow_test_bitwise_ops():
-    for kinds in bin_input_kinds:
-        for op, op_desc in bitwise_operations:
-            for types_in in itertools.product(input_types, input_types):
-                if types_in[0] in integer_types and types_in[1] in integer_types:
-                    yield check_arithm_op, kinds, types_in, op, shape_small, default_range, op_desc
+@cartesian_params(bin_input_kinds, bitwise_operations, iter_pow(integer_types, 2))
+def slow_test_bitwise_ops(kinds, op_and_desc, types_in):
+    op, op_desc = op_and_desc
+    check_arithm_op(kinds, types_in, op, shape_small, default_range, op_desc)
 
 
-def test_bitnot_selected():
-    # ~x uses logical NOT for bool (matching numpy/torch) and bitwise NOT for other integral types
-    for kinds in unary_input_kinds:
-        for op, op_desc in bitnot_operations:
-            for types_in in integer_types:
-                yield check_unary_op, kinds, types_in, op, shape_small, op_desc
+# ~x uses logical NOT for bool (matching numpy/torch) and bitwise NOT for other integral types
+@cartesian_params(unary_input_kinds, bitnot_operations, integer_types)
+def test_bitnot_selected(kinds, op_and_desc, types_in):
+    op, op_desc = op_and_desc
+    check_unary_op(kinds, types_in, op, shape_small, op_desc)
 
 
 @attr("slow")
-def slow_test_bitnot():
-    for kinds in unary_input_kinds:
-        for op, op_desc in bitnot_operations:
-            for types_in in integer_types:
-                yield check_unary_op, kinds, types_in, op, shape_big, op_desc
+@cartesian_params(unary_input_kinds, bitnot_operations, integer_types)
+def slow_test_bitnot(kinds, op_and_desc, types_in):
+    op, op_desc = op_and_desc
+    check_unary_op(kinds, types_in, op, shape_big, op_desc)
 
 
-def test_shift_ops_selected():
-    # bool is excluded: C's bool << bool produces int, but DALI casts the result back to bool
-    for kinds in selected_bin_input_kinds:
-        for op, op_desc in shift_operations:
-            for types_in in itertools.product(selected_input_types, selected_input_types):
-                if types_in[0] in integer_types and types_in[1] in integer_types:
-                    if np.bool_ not in types_in:
-                        yield (
-                            check_arithm_op,
-                            kinds,
-                            types_in,
-                            op,
-                            shape_small,
-                            shift_range,
-                            op_desc,
-                        )
+# bool is excluded: C's bool << bool produces int, but DALI casts the result back to bool
+@cartesian_params(selected_bin_input_kinds, shift_operations, iter_pow(selected_integer_types, 2))
+def test_shift_ops_selected(kinds, op_and_desc, types_in):
+    op, op_desc = op_and_desc
+    check_arithm_op(kinds, types_in, op, shape_small, shift_range, op_desc)
 
 
 @attr("slow")
-def slow_test_shift_ops():
-    for kinds in bin_input_kinds:
-        for op, op_desc in shift_operations:
-            for types_in in itertools.product(integer_types, integer_types):
-                if np.bool_ not in types_in:
-                    yield check_arithm_op, kinds, types_in, op, shape_small, shift_range, op_desc
+@cartesian_params(
+    bin_input_kinds, shift_operations, iter_pow(set(integer_types) - set([np.bool_]), 2)
+)
+def slow_test_shift_ops(kinds, op_and_desc, types_in):
+    op, op_desc = op_and_desc
+    check_arithm_op(kinds, types_in, op, shape_small, shift_range, op_desc)
 
 
 def check_comparsion_op(kinds, types, op, shape, _):
@@ -948,36 +939,28 @@ def check_arithm_mod(kinds, types, shape):
         )
 
 
-def test_mod_selected():
-    # bool excluded: bool generators ignore limited_range, making zero avoidance unreliable
-    for kinds in selected_bin_input_kinds:
-        for types_in in itertools.product(selected_input_types, selected_input_types):
-            if types_in[0] in integer_types and types_in[1] in integer_types:
-                if np.bool_ not in types_in:
-                    yield check_arithm_mod, kinds, types_in, shape_small
+@cartesian_params(selected_bin_input_kinds, iter_pow(selected_integer_types, 2))
+def test_mod_selected(kinds, types_in):
+    check_arithm_mod(kinds, types_in, shape_small)
 
 
-def test_mod_mixed_signedness():
-    # Explicitly test signed×unsigned and unsigned×signed combinations with negative values.
-    # These require correct sign-extension to result_t before performing %, which was previously
-    # missing: negative signed operands were reinterpreted as large unsigned values.
-    mixed_types = [
-        (np.int32, np.uint32),
-        (np.uint32, np.int32),
-        (np.int64, np.uint64),
-        (np.uint64, np.int64),
-    ]
-    for kinds in selected_bin_input_kinds:
-        for types_in in mixed_types:
-            yield check_arithm_mod, kinds, types_in, shape_small
+mixed_sign_types = [
+    (np.int32, np.uint32),
+    (np.uint32, np.int32),
+    (np.int64, np.uint64),
+    (np.uint64, np.int64),
+]
+
+
+@cartesian_params(selected_bin_input_kinds, mixed_sign_types)
+def test_mod_mixed_signedness(kinds, types_in):
+    check_arithm_mod(kinds, types_in, shape_small)
 
 
 @attr("slow")
-def slow_test_mod():
-    for kinds in bin_input_kinds:
-        for types_in in itertools.product(integer_types, integer_types):
-            if np.bool_ not in types_in:
-                yield check_arithm_mod, kinds, types_in, shape_small
+@cartesian_params(bin_input_kinds, iter_pow(set(integer_types) - set([np.bool_]), 2))
+def slow_test_mod2(kinds, types_in):
+    check_arithm_mod(kinds, types_in, shape_small)
 
 
 def check_raises(kinds, types, op, shape):
