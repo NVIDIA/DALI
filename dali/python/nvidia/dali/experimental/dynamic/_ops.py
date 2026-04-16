@@ -17,7 +17,7 @@ from typing import TypedDict
 import nvidia.dali as dali
 import nvidia.dali.backend_impl as _b
 import math
-from . import _eval_context, _invocation, _device, _type
+from . import _eval_context, _invocation, _device, _type, _compile
 from ._batch import Batch, as_batch as _as_batch, _get_batch_size
 from ._device import Device, DeviceLike
 from ._tensor import Tensor
@@ -612,6 +612,8 @@ class Reader(Operator):
             name = f"Reader_{id(self)}"
         self._actual_batch_size = batch_size
         self._batch_size = batch_size
+        self._compiled_iter = None
+        self._compile_mode: bool | None = None
         device = _device.device(device)
         # _backend is forwarded via **kwargs, we don't need to touch it here
         self._shard_id = shard_id if shard_id is not None else _READER_SHARD_DEFAULTS["shard_id"]
@@ -649,13 +651,38 @@ class Reader(Operator):
     def _get(cls, *_, **__):
         raise RuntimeError("Readers cannot be cached. Construct a new instance instead.")
 
-    def _pre_call(self, *inputs, **args):
+    def _shard_epoch_size(self):
+        meta = self._op_backend.GetReaderMeta()
+        padded_size = meta["epoch_size_padded"]
+        shards_beg = math.floor(self._shard_id * padded_size / self._num_shards)
+        shards_end = math.floor((self._shard_id + 1) * padded_size / self._num_shards)
+        return shards_end - shards_beg
+
+    def _advance_shard(self):
+        if not self._stick_to_shard:
+            self._shard_id = (self._shard_id + 1) % self._num_shards
+
+    def _require_api_type(self, api_type: str) -> None:
+        """Set the API type if unset, or raise if it conflicts with a previous choice."""
         if self._api_type is None:
-            self._api_type = "_run"
-        elif self._api_type != "_run":
+            self._api_type = api_type
+        elif self._api_type != api_type:
             raise RuntimeError(
                 "Cannot mix `samples`, `batches` and `_run`/`__call__` on the same reader."
             )
+
+    def _run_unchecked(self, ctx=None, **kwargs):
+        """Run the reader backend without API-type checking."""
+        return super()._run(ctx, **kwargs)
+
+    @staticmethod
+    def _output_batch_size(outputs: tuple | dict) -> int:
+        """Get the batch size from the first output of a reader step."""
+        first = outputs[0] if isinstance(outputs, tuple) else next(iter(outputs.values()))
+        return first.batch_size if isinstance(first, Batch) else len(first)
+
+    def _pre_call(self, *inputs, **args):
+        self._require_api_type("_run")
 
     def _run(self, ctx=None, *inputs, **args):
         """
@@ -663,16 +690,12 @@ class Reader(Operator):
 
         Do not call this function directly. Use `__call__` instead.
         """
-        if self._api_type is None:
-            self._api_type = "_run"
-        elif self._api_type != "_run":
-            raise RuntimeError(
-                "Cannot mix `samples`, `batches` and `_run`/`__call__` on the same reader."
-            )
-
+        self._require_api_type("_run")
         return super()._run(ctx, *inputs, **args)
 
-    def next_epoch(self, batch_size=None, ctx: _eval_context.EvalContext | None = None):
+    def next_epoch(
+        self, batch_size=None, ctx: _eval_context.EvalContext | None = None, compile=False
+    ):
         """
         Obtains an iterator that goes over the next epoch from the reader.
 
@@ -687,9 +710,49 @@ class Reader(Operator):
             The iterator must be traversed completely before the next call to `next_epoch` is made.
             Therefore, it is impossible to traverse one reader using two iterators.
             If another iterator is necessary, create a separate reader instance.
+
+        Parameters
+        ----------
+        batch_size : int, optional
+            The batch size. If not specified, the batch size from the constructor is used.
+        ctx : EvalContext, optional
+            The evaluation context. If not specified, the current context is used.
+        compile : bool, default: False
+            If True, transparently compile operator sequences into a pipeline for prefetching.
+            Once used in compiled mode, the reader cannot switch back.
         """
         batch_size = self._get_batch_size(batch_size)
-        if batch_size is not None:
+        if batch_size is None:
+            batch_size = self._batch_size
+
+        if compile:
+            if self._compile_mode is False:
+                raise RuntimeError(
+                    "This reader was previously used without compile=True "
+                    "and cannot switch to compiled mode."
+                )
+            if batch_size is None:
+                raise ValueError("compile=True requires a non-None batch_size.")
+            self._compile_mode = True
+            if self._compiled_iter is None:
+                self._compiled_iter = _compile.CompiledEpochIterator(self, batch_size)
+            elif self._compiled_iter.compile_context.batch_size != batch_size:
+                raise ValueError(
+                    f"Cannot change batch_size from "
+                    f"{self._compiled_iter.compile_context.batch_size} to {batch_size} "
+                    f"in compiled mode."
+                )
+        elif self._compile_mode is True:
+            raise RuntimeError(
+                "This reader was previously used with compile=True "
+                "and cannot switch to non-compiled mode."
+            )
+        else:
+            self._compile_mode = False
+
+        if self._compiled_iter is not None:
+            return self._compiled_iter.batches(ctx)
+        elif batch_size is not None:
             return self._batches(batch_size, ctx)
         else:
             return self._samples(ctx)
@@ -718,12 +781,7 @@ class Reader(Operator):
         return self._op_backend.GetReaderMeta()
 
     def _samples(self, ctx: _eval_context.EvalContext | None = None):
-        if self._api_type is None:
-            self._api_type = "samples"
-        elif self._api_type != "samples":
-            raise RuntimeError(
-                "Cannot mix `samples`, `batches` and `_run`/`__call__` on the same reader."
-            )
+        self._require_api_type("samples")
 
         if ctx is None:
             ctx = _eval_context.EvalContext.current()
@@ -736,16 +794,11 @@ class Reader(Operator):
                 self._init_backend(ctx, (), self._process_tensor_args(self._actual_batch_size))
 
             tensor_args = self._process_tensor_args(self._actual_batch_size)
-            meta = self._op_backend.GetReaderMeta()
+            epoch_size = self._shard_epoch_size()
             idx = 0
-            padded_size = meta["epoch_size_padded"]
-            shards_beg = math.floor(self._shard_id * padded_size / self._num_shards)
-            shards_end = math.floor((self._shard_id + 1) * padded_size / self._num_shards)
-            while idx < shards_end - shards_beg:
+            while idx < epoch_size:
                 outputs = super()._run(ctx, batch_size=self._actual_batch_size, **tensor_args)
-                batch_size = len(
-                    outputs[0] if isinstance(outputs, tuple) else next(iter(outputs.values()))
-                )
+                batch_size = self._output_batch_size(outputs)
                 assert batch_size == self._actual_batch_size
                 idx += batch_size
                 if isinstance(outputs, tuple):
@@ -757,14 +810,10 @@ class Reader(Operator):
                     for x in zip(*outputs.values()):
                         outs = tuple(Tensor(o) for o in x)
                         yield dict(zip(names, outs))
-            if not self._stick_to_shard:
-                self._shard_id = (self._shard_id + 1) % self._num_shards
+            self._advance_shard()
 
     def _batches(self, batch_size=None, ctx: _eval_context.EvalContext | None = None):
-        if self._api_type is None:
-            self._api_type = "batches"
-        elif self._api_type != "batches":
-            raise RuntimeError("Cannot mix samples(), batches() and _run() on the same reader.")
+        self._require_api_type("batches")
 
         if ctx is None:
             ctx = _eval_context.EvalContext.current()
@@ -788,26 +837,18 @@ class Reader(Operator):
                         f"`batch_size` {batch_size} is different than the `max_batch_size` "
                         f"{self._max_batch_size} used in the previous call"
                     )
-                tensor_args = None
-            meta = self._op_backend.GetReaderMeta()
+            epoch_size = self._shard_epoch_size()
             idx = 0
-            padded_size = meta["epoch_size_padded"]
-            shards_beg = math.floor(self._shard_id * padded_size / self._num_shards)
-            shards_end = math.floor((self._shard_id + 1) * padded_size / self._num_shards)
-            while idx < shards_end - shards_beg:
+            while idx < epoch_size:
                 tensor_args = self._process_tensor_args(batch_size)
                 outputs = super()._run(ctx, batch_size=batch_size, **tensor_args)
-                batch_size_returned = batch_size = len(
-                    outputs[0] if isinstance(outputs, tuple) else next(iter(outputs.values()))
-                )
-                assert batch_size_returned == batch_size
-                idx += batch_size_returned
+                batch_size = self._output_batch_size(outputs)
+                idx += batch_size
                 if isinstance(outputs, tuple):
                     yield tuple(Batch(o) for o in outputs)
                 else:
                     yield {name: Batch(o) for name, o in outputs.items()}
-            if not self._stick_to_shard:
-                self._shard_id = (self._shard_id + 1) % self._num_shards
+            self._advance_shard()
 
     def _get_batch_size(self, batch_size: int | None) -> int | None:
         return batch_size if batch_size is not None else self._batch_size

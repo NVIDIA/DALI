@@ -14,6 +14,17 @@
 
 import sys
 import types
+from typing import NamedTuple, TypeAlias
+
+
+class CodeLoc(NamedTuple):
+    """A location in bytecode: code object + instruction offset."""
+
+    code: types.CodeType
+    offset: int
+
+
+CallChain: TypeAlias = tuple[CodeLoc, ...]
 
 _transparent_codes: set[types.CodeType] = set()
 
@@ -40,6 +51,16 @@ def resolve_callsite_frame(frame: types.FrameType | None = None) -> types.FrameT
     while frame is not None and frame.f_code in _transparent_codes:
         frame = frame.f_back
     return frame
+
+
+def build_call_chain(start_frame: types.FrameType) -> CallChain:
+    """Collect ``CodeLoc`` entries from *start_frame* to the top of the stack."""
+    chain: list[CodeLoc] = []
+    frame: types.FrameType | None = start_frame
+    while frame is not None:
+        chain.append(CodeLoc(frame.f_code, frame.f_lasti))
+        frame = frame.f_back
+    return tuple(chain)
 
 
 def capture_stack_from_frame(frame: types.FrameType) -> list[tuple[types.CodeType, int]]:
