@@ -598,7 +598,7 @@ all_packages = [
         "torch",
         {
             "120": [PckgVer("2.8.0+cu128", python_min_ver="3.9", python_max_ver="3.13")],
-            "130": [PckgVer("2.10.0+cu130", python_min_ver="3.10", python_max_ver="3.14")],
+            "130": [PckgVer("2.11.0+cu130", python_min_ver="3.10", python_max_ver="3.14")],
         },
         extra_index="https://download.pytorch.org/whl/",
     ),
