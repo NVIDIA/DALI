@@ -221,7 +221,6 @@ class CompileContext:
             warnings.warn(
                 "compile=True was specified but no operators were captured during tracing. "
                 "Falling back to dynamic mode.",
-                stacklevel=2,
             )
             self.state = State.DISABLED
             return
