@@ -17,7 +17,7 @@ import enum
 import threading
 import types
 import warnings
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence, Iterable
 from contextlib import contextmanager
 from typing import TYPE_CHECKING, Any, NamedTuple
 
@@ -424,7 +424,7 @@ class CompiledEpochIterator:
 def _wire_compile_graph(
     source: CompileSource,
     nodes: Sequence[CompileNode],
-    reader_callback: Callable[[], list],
+    reader_callback: Callable[[], Iterable],
 ) -> None:
     """Wire the compile graph into a Pipeline. Must be called inside ``with pipe:``."""
     from ._op_builder import _scalar_decay
@@ -436,11 +436,10 @@ def _wire_compile_graph(
         device=source.device,
     )
     reader_outs = es()
-    if source.num_outputs == 1:
-        reader_outs = (reader_outs,)
+    assert isinstance(reader_outs, Iterable)
 
     datanode_map: dict[CompileRef, Any] = {}
-    for i, out in enumerate(reader_outs):  # type: ignore
+    for i, out in enumerate(reader_outs):
         datanode_map[CompileRef(source, i)] = out
 
     for node in nodes:
