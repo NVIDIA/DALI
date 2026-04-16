@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -46,6 +46,7 @@ template <>
 void MelFilterBank<GPUBackend>::RunImpl(Workspace &ws) {
   const auto &input = ws.Input<GPUBackend>(0);
   auto &output = ws.Output<GPUBackend>(0);
+  output.SetLayout(input.GetLayout());
   const auto &in_shape = input.shape();
   ctx_.gpu.stream = ws.stream();
   TYPE_SWITCH(input.type(), type2id, T, MEL_FBANK_SUPPORTED_TYPES, (

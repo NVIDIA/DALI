@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -38,6 +38,8 @@ If not set, the input type is used.)code")
   .DeprecateArgInFavorOf("output_dtype", "dtype", "0.24")
   .AddOptionalArg("interp_type",
       R"code(Type of interpolation used.)code",
-      DALI_INTERP_LINEAR);
+      DALI_INTERP_LINEAR)
+  .AllowSequences()
+  .AutoExpandDims();
 
 }  // namespace dali

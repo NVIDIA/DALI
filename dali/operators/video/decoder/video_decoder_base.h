@@ -1,4 +1,4 @@
-// Copyright (c) 2022-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -279,6 +279,8 @@ class DLL_PUBLIC VideoDecoderBase : public Operator<Backend> {
     auto &output = ws.Output<OutBackend>(0);
     const auto &input = ws.Input<InBackend>(0);
     int batch_size = input.num_samples();
+
+    output.SetLayout("FHWC");
 
     // Decode samples in parallel
     ThreadPool &thread_pool = GetThreadPool(ws);

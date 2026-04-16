@@ -1,4 +1,4 @@
-// Copyright (c) 2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2024-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -32,7 +32,13 @@ other operator accepting a region of interest. For example::
 )code")
   .NumInput(1)
   .NumOutput(2)
-  .AddParent("RandomCropAttr");
+  .AddParent("RandomCropAttr")
+  .OutputNDim(0, 1)
+  .OutputDType(0, DALI_INT32)
+  .OutputLayout(0, "")
+  .OutputNDim(1, 1)
+  .OutputDType(1, DALI_INT32)
+  .OutputLayout(1, "");
 
 DALI_REGISTER_OPERATOR(RandomCropGenerator, RandomCropGeneratorOp<CPUBackend>, CPU);
 

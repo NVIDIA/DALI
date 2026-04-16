@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -41,7 +41,9 @@ All indices must be in the range of valid dimensions of the input)code", nullptr
   .AddOptionalArg<TensorLayout>("axis_names", R"code(Layout columns which should be removed.
 
 All squeezed dimensions should have size 1, unless the total volume of the tensor is 0 before and after squeeze.
-All layout names should be present in data layout.)code", nullptr);
+All layout names should be present in data layout.)code", nullptr)
+  .OutputLayout(0, std::nullopt)  // TODO(michalz): implement
+  .OutputNDim(0, std::nullopt);   // TODO(michalz): implement
 
 template <typename Backend>
 Squeeze<Backend>::Squeeze(const OpSpec &spec)

@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -93,7 +93,10 @@ come from an external source. When this option is enabled, the operator requires
                 .AddOptionalArg(detail::kImageTypeArgName,
                                 R"code(Input color space (RGB, BGR or GRAY).)code", DALI_RGB,
                                 false)
-                .AllowSequences();
+                .AllowSequences()
+                .OutputDType(0, DALI_FLOAT)
+                .OutputNDim(0, 4)
+                .OutputLayout(0, "FHWC");
 
 
 DALI_REGISTER_OPERATOR(OpticalFlow, OpticalFlow<GPUBackend>, GPU);

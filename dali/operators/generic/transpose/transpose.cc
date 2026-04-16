@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -93,11 +93,47 @@ to `perm`, Otherwise, the input layout is copied to the output.
 
 If `output_layout` is set, this argument is ignored.)code",
         true)
-    .AddOptionalArg(
+    .AddOptionalArg<TensorLayout>(
         "output_layout",
         R"code(Explicitly sets the output data layout.
 
 If this argument is specified, `transpose_layout` is ignored.)code",
-        TensorLayout(""));
+        nullptr)
+    .OutputNDim(0, [](const OpSpec &spec)->std::optional<int> {
+        std::vector<int> perm;
+        if (spec.TryGetRepeatedArgument(perm, "perm"))
+          return perm.size();
+        else
+          return spec.InputDesc(0).ndim;
+    })
+    .OutputLayout(0, [](const OpSpec &spec)->std::optional<TensorLayout> {
+      TensorLayout layout;
+      if (spec.TryGetArgument(layout, "output_layout"))
+        return layout;
+      if (spec.GetArgument<bool>("transpose_layout")) {
+        std::vector<int> perm;
+        auto &in_desc = spec.InputDesc(0);
+        if (in_desc.layout) {
+          if (spec.TryGetRepeatedArgument(perm, "perm")) {
+            if (in_desc.layout->ndim() != static_cast<int>(perm.size()))
+              return std::nullopt;
+            return permute(*in_desc.layout, perm);
+          } else {
+            TensorLayout layout = *in_desc.layout;
+            std::reverse(layout.begin(), layout.end());
+            return layout;
+          }
+        }
+      } else {
+        std::vector<int> perm;
+        auto &in_desc = spec.InputDesc(0);
+        if (in_desc.ndim && in_desc.layout) {
+          if (!spec.TryGetRepeatedArgument(perm, "perm") ||
+              *in_desc.ndim == static_cast<int>(perm.size()))
+            return in_desc.layout;
+        }
+      }
+      return std::nullopt;
+    });
 
 }  // namespace dali

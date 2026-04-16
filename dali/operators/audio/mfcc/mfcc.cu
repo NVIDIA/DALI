@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -87,10 +87,13 @@ bool MFCC<GPUBackend>::SetupImpl(std::vector<OutputDesc> &output_desc,
 template<>
 void MFCC<GPUBackend>::RunImpl(Workspace &ws) {
   auto &input = ws.Input<GPUBackend>(0);
+  auto &output = ws.Output<GPUBackend>(0);
+  output.SetLayout(input.GetLayout());
+
   TYPE_SWITCH(input.type(), type2id, T, MFCC_SUPPORTED_TYPES, (
     using Kernel = kernels::signal::dct::Dct1DGpu<T>;
     auto in_view = view<const T>(input);
-    auto out_view = view<T>(ws.Output<GPUBackend>(0));
+    auto out_view = view<T>(output);
     auto lifter_view = make_tensor_gpu<1>(lifter_coeffs_.data(),
                                           {static_cast<int64_t>(lifter_coeffs_.size())});
     kmgr_.Run<Kernel>(0, ctx_, out_view, in_view, lifter_view);

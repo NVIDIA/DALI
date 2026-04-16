@@ -62,12 +62,6 @@ def exception_tester(function: Callable[[], None]):
 
 
 @exception_tester
-def test_bad_rank():
-    img = ndd.zeros(shape=(100, 100))
-    ndd.resize(img).evaluate()
-
-
-@exception_tester
 def test_bad_dtype():
     img = ndd.zeros(shape=(100, 100, 3), dtype=ndd.bool).gpu()
     ndd.resize(img, size=(50, 50)).evaluate()

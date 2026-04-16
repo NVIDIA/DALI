@@ -1,4 +1,4 @@
-// Copyright (c) 2022-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -44,6 +44,7 @@ class RemapGpu : public Remap<GPUBackend> {
     const auto &mapx = ws.template Input<B>(1);
     const auto &mapy = ws.template Input<B>(2);
     auto &output = ws.template Output<B>(0);
+    output.SetLayout(input.GetLayout());
     km_.Resize<Kernel>(1, spec_.template GetArgument<int>("device_id"));
     kernels::KernelContext ctx;
     ctx.gpu.stream = ws.stream();

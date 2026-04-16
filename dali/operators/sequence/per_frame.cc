@@ -1,4 +1,4 @@
-// Copyright (c) 2022-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <string>
 #include "dali/operators/sequence/per_frame.h"
 
 namespace dali {
@@ -55,7 +56,21 @@ or replaces the character with ``F``.
                           R"code(Controls handling of the input with already specified layout.
 If set to False, the operator errors-out if the first character of the layout is not ``F``.
 If set to True, the first character of the layout is replaced with ``F``.)code",
-                          false);
+                          false)
+    .OutputLayout(0, [](const OpSpec &spec)->std::optional<TensorLayout> {
+      auto &desc = spec.InputDesc(0);
+      if (!desc.layout || !desc.ndim)
+        return std::nullopt;
+      auto layout = *desc.layout;
+      if (layout.ndim() < *desc.ndim)
+        layout = std::string(*desc.ndim - layout.ndim(), '*');  // pad with '*'
+      if (layout[0] != 'F') {
+        if (!spec.GetArgument<bool>("replace"))
+          return std::nullopt;  // this is actually a usage error
+        layout[0] = 'F';
+      }
+      return layout;
+    });
 
 
 DALI_REGISTER_OPERATOR(PerFrame, PerFrame<CPUBackend>, CPU);

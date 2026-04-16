@@ -152,6 +152,13 @@ void ConstantValue<CPUBackend>::RunImpl(Workspace &ws) {
   }
 }
 
+inline std::optional<int> ConstantValueNDim(const OpSpec &spec) {
+  std::vector<int> shape;
+  if (spec.TryGetRepeatedArgument(shape, "shape"))
+    return shape.size();
+  return std::nullopt;
+}
+
 DALI_SCHEMA(Full)
     .DocStr(R"code(Returns new data of given shape and type, filled with a fill value.
 
@@ -166,7 +173,8 @@ In case of different dimensionality, the input shape is padded with 1s for the m
                                       true)
     .AddOptionalArg<TensorLayout>("layout", R"code(Output layout.
 
-If set and not empty, the layout must match the dimensionality of the output.)code", nullptr);
+If set and not empty, the layout must match the dimensionality of the output.)code", nullptr)
+    .OutputNDim(0, ConstantValueNDim);
 
 DALI_REGISTER_OPERATOR(Full, Full<CPUBackend>, CPU);
 
@@ -192,7 +200,8 @@ DALI_SCHEMA(Zeros)
     .AddOptionalArg<TensorLayout>("layout", R"code(Output layout.
 
 If set and not empty, the layout must match the dimensionality of the output.)code", nullptr)
-    .AddOptionalTypeArg("dtype", R"code(Output data type.)code", DALI_INT32);
+    .AddOptionalTypeArg("dtype", R"code(Output data type.)code", DALI_INT32)
+    .OutputNDim(0, ConstantValueNDim);
 DALI_REGISTER_OPERATOR(Zeros, Zeros<CPUBackend>, CPU);
 
 DALI_SCHEMA(ZerosLike)
@@ -201,7 +210,7 @@ DALI_SCHEMA(ZerosLike)
     .InputDox(0, "data_like", "TensorList", R"code(The input data value to copy the shape, type and layout from.)code")
     .InputDevice(0, InputDevice::Metadata)
     .NumOutput(1)
-    .AddOptionalTypeArg("dtype", R"code(Overrides the output data type.)code", DALI_INT32);
+    .AddOptionalTypeArg("dtype", R"code(Overrides the output data type.)code");
 DALI_REGISTER_OPERATOR(ZerosLike, ZerosLike<CPUBackend>, CPU);
 
 DALI_SCHEMA(Ones)
@@ -213,7 +222,8 @@ DALI_SCHEMA(Ones)
     .AddOptionalArg<TensorLayout>("layout", R"code(Output layout.
 
 If set and not empty, the layout must match the dimensionality of the output.)code", nullptr)
-    .AddOptionalTypeArg("dtype", R"code(Output data type.)code", DALI_INT32);
+    .AddOptionalTypeArg("dtype", R"code(Output data type.)code", DALI_INT32)
+    .OutputNDim(0, ConstantValueNDim);
 DALI_REGISTER_OPERATOR(Ones, Ones<CPUBackend>, CPU);
 
 DALI_SCHEMA(OnesLike)
@@ -222,7 +232,7 @@ DALI_SCHEMA(OnesLike)
     .InputDox(0, "data_like", "TensorList", R"code(The input data value to copy the shape, type and layout from.)code")
     .InputDevice(0, InputDevice::Metadata)
     .NumOutput(1)
-    .AddOptionalTypeArg("dtype", R"code(Overrides the output data type.)code", DALI_INT32);
+    .AddOptionalTypeArg("dtype", R"code(Overrides the output data type.)code");
 DALI_REGISTER_OPERATOR(OnesLike, OnesLike<CPUBackend>, CPU);
 
 }  // namespace dali

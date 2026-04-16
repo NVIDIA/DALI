@@ -1,4 +1,4 @@
-// Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2025-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -185,6 +185,14 @@ if the file is not `Format Version 1.0 <https://numpy.org/devdocs/reference/gene
     .AddOptionalArg<DALIDataType>(
         "dtype",
         R"code(Data type of the output tensor. If not specified, it will be inferred from the input data.)code",
-        nullptr);
+        nullptr)
+    .OutputDType(0, [](const OpSpec &spec)->std::optional<DALIDataType> {
+      DALIDataType dtype;
+      if (spec.TryGetArgument(dtype, "dtype"))
+        return dtype;
+      return std::nullopt;
+    })
+    .OutputNDim(0, std::nullopt)
+    .OutputLayout(0, "");
 
 }  // namespace dali

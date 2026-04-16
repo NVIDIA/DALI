@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -91,7 +91,52 @@ Examples::
     .NumInput(1, 64)  // Some arbitrary number that needs to be validated in operator
     .AddOptionalArg<std::vector<float>>("real_constants", "", nullptr, true)
     .NumOutput(1)
-    .MakeDocHidden();
+    .MakeDocHidden()
+    .OutputNDim(0, [](const OpSpec &spec)->std::optional<int> {
+      int ndim = 0;
+      for (int i = 0; i < spec.NumRegularInput(); i++) {
+        auto &desc = spec.InputDesc(i);
+        if (!desc.ndim)
+          return std::nullopt;
+        if (*desc.ndim > ndim)
+          ndim = *desc.ndim;
+      }
+      return ndim;
+    })
+    .OutputDType(0, std::nullopt)  // TODO(michalz): factor out dtype inference and use it here
+    .OutputLayout(0, [](const OpSpec &spec)->std::optional<TensorLayout> {
+      // Layouts must match or be suffixes (when broadcasting), e.g.:
+      // HWC + WC
+      // If any layout is not known, bail out.
+      // Empty layout is considered a suffix and skipped.
+      std::optional<TensorLayout> layout;
+      int ndim = 0;
+      for (int i = 0; i < spec.NumRegularInput(); i++) {
+        auto &desc = spec.InputDesc(i);
+        if (!desc.layout)
+          return std::nullopt;
+        if (!desc.ndim)
+          return std::nullopt;
+        if (*desc.ndim > ndim)
+          ndim = *desc.ndim;
+        if (layout.has_value()) {
+          if (layout->ndim() > desc.layout->ndim()) {
+            if (layout->sub(layout->ndim() - desc.layout->ndim()) != *desc.layout)
+              return std::nullopt;
+          } else {
+            if (desc.layout->sub(desc.layout->ndim() - layout->ndim()) != *layout)
+              return std::nullopt;
+            layout = desc.layout;
+          }
+        } else {
+          layout = desc.layout;
+        }
+      }
+      if (layout && layout->ndim() == ndim)
+        return layout;
+      else
+        return std::nullopt;
+    });
 
 DALI_REGISTER_OPERATOR(_ArithmeticGenericOp, expr::ArithmeticGenericOp<CPUBackend>, CPU);
 

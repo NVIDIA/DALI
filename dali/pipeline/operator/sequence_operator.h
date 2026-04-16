@@ -1,4 +1,4 @@
-// Copyright (c) 2022, 2024, 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022, 2024, 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -88,14 +88,19 @@ class SequenceOperator : public BaseOp<Backend>, protected SampleBroadcasting<Ba
   using BaseOp<Backend>::Run;
   using SampleBroadcasting<Backend>::BroadcastSamples;
 
-  bool Setup(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
+  bool Setup(std::vector<OutputDesc> &output_desc,
+             const Workspace &ws,
+             bool validate_metadata) override {
     CheckInputLayouts(ws, spec_);
     SetupSequenceOperator(ws);
     is_expanding_ = ShouldExpand(ws);
     bool is_inferred;
     if (!IsExpanding()) {
-      is_inferred = BaseOp<Backend>::Setup(output_desc, ws);
+      is_inferred = BaseOp<Backend>::Setup(output_desc, ws, validate_metadata);
     } else {
+      if (validate_metadata)
+        ValidateInputMetadata(ws, spec_);
+
       BaseOp<Backend>::EnforceUniformInputBatchSize(ws);
       DALI_ENFORCE(IsExpandable(),
                    "Operator requested to expand the sequence-like inputs, but no expandable input "
@@ -109,20 +114,22 @@ class SequenceOperator : public BaseOp<Backend>, protected SampleBroadcasting<Ba
       expanded_.SetBatchSizes(GetReferenceExpandDesc().NumExpanded());
       ExpandInputs(ws);
       ExpandArguments(ws);
-      is_inferred = BaseOp<Backend>::Setup(output_desc, expanded_);
+      is_inferred = BaseOp<Backend>::Setup(output_desc, expanded_, false);
     }
     is_inferred = ProcessOutputDesc(output_desc, ws, is_inferred);
     DALI_ENFORCE(is_inferred, "SequenceOperator must infer the input shape");
     return is_inferred;
   }
 
-  void Run(Workspace &ws) override {
+  void Run(Workspace &ws, bool validate_metadata) override {
     if (!IsExpanding()) {
-      BaseOp<Backend>::Run(ws);
+      BaseOp<Backend>::Run(ws, validate_metadata);
     } else {
       ExpandOutputs(ws);
-      BaseOp<Backend>::Run(expanded_);
+      BaseOp<Backend>::Run(expanded_, false);
       PostprocessOutputs(ws);
+      if (validate_metadata)
+        ValidateOutputMetadata(ws, spec_);
     }
   }
 

@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -61,6 +61,7 @@ The same input can be provided as per-sample tensors.
     .NumInput(1)
     .NumOutput(1)
     .AllowSequences()
+    .AutoExpandDims("FC")
     .SupportVolumetric()
     .AddOptionalArg<int>(kWindowSizeArgName, "The diameter of the kernel.",
                          std::vector<int>{0}, true, true)

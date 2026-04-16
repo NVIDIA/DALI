@@ -1,4 +1,4 @@
-// Copyright (c) 2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2024-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -111,6 +111,9 @@ systems, it does not provide a benefit)code",
 cache.
 
 Mutually exclusive with ``dont_use_mmap=False``.)code",
-        false);
+        false)
+    .OutputDType(0, DALI_UINT8)
+    .OutputNDim(0, 1)
+    .OutputLayout(0, "");
 
 }  // namespace dali

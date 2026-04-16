@@ -1,4 +1,4 @@
-// Copyright (c) 2022-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -112,7 +112,27 @@ Different algorithms are supported on the GPU and CPU.
  - ``gray_ocv`` converts the image to grayscale with bilinear interpolation.)code",
         nullptr)
     .InputLayout(0, {"HW", "HWC", "FHW", "FHWC"})
-    .AllowSequences();
+    .AllowSequences()
+    .OutputNDim(0, [](const OpSpec &spec)->std::optional<int> {
+      auto &desc = spec.InputDesc(0);
+      if (!desc.layout || desc.layout->empty())
+        return std::nullopt;
+      return desc.layout->ndim() + !desc.layout->contains('C');  // add channels if absent
+    })
+    .OutputLayout(0, [](const OpSpec &spec)->std::optional<TensorLayout> {
+      auto &desc = spec.InputDesc(0);
+      auto layout = desc.layout.value_or("");
+      if (layout.empty()) {  // empty or unspecified
+        if (!desc.ndim)
+          return std::nullopt;
+        if (*desc.ndim == 3 && !desc.layout)  // ambiguous
+          return std::nullopt;                // it could be HWC or FHW - bail out
+        layout = spec.GetSchema().GetInputLayout(0, *desc.ndim);
+      }
+      return layout.contains('C')
+        ? layout
+        : layout + "C";
+    });
 
 // Deprecated alias
 DALI_SCHEMA(experimental__Debayer)
@@ -123,6 +143,7 @@ DALI_SCHEMA(experimental__Debayer)
     .MakeDocHidden()
     .InputLayout(0, {"HW", "HWC", "FHW", "FHWC"})
     .AllowSequences()
+    .AutoExpandDims()
     .Deprecate(
         "2.0",
         "Debayer",

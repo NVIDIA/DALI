@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -32,6 +32,7 @@
 #include "dali/core/copy_vector_helper.h"
 #include "dali/core/error_handling.h"
 #include "dali/core/format.h"
+#include "dali/core/span.h"
 #include "dali/core/traits.h"
 #include "dali/pipeline/data/types.h"
 #include "dali/pipeline/operator/argument.h"
@@ -150,10 +151,15 @@ struct LazyValue {
 };
 }  // namespace detail
 
-
 class DLL_PUBLIC OpSchema {
  public:
   typedef std::function<int(const OpSpec &spec)> SpecFunc;
+  template <typename meta_t>
+  using OutputMetaFunc   = std::function<std::optional<meta_t>(const OpSpec &spec)>;
+
+  using OutputDTypeFunc  = OutputMetaFunc<DALIDataType>;
+  using OutputNDimFunc   = OutputMetaFunc<int>;
+  using OutputLayoutFunc = OutputMetaFunc<TensorLayout>;
 
   OpSchema(OpSchema &&) = delete;
   OpSchema(const OpSchema &) = delete;
@@ -237,6 +243,108 @@ class DLL_PUBLIC OpSchema {
    */
   OpSchema &AdditionalOutputsFn(SpecFunc f);
 
+  /** Sets a function that determines the data type of a given output.
+   *
+   * @param index Index of the output to set the function for.
+   * @param fn Function that returns the data type for the given output.
+   */
+  OpSchema &OutputDType(int index, OutputDTypeFunc fn);
+
+  /** Assigns a fixed data type to a given output.
+   *
+   * @param index Index of the output to set the function for.
+   * @param dtype The data type (or nullopt, if it cannot be determined statically)
+   */
+  OpSchema &OutputDType(int index, std::optional<DALIDataType> dtype) {
+    if (dtype && !IsValidType(*dtype))
+      throw std::invalid_argument("Invalid data type.");
+    return OutputDType(index, [dtype](const OpSpec &) { return dtype; });
+  }
+
+  /** Sets a function that determines the number of dimensions of a given output.
+   *
+   * @param index Index of the output to set the function for.
+   * @param fn Function that returns the ndim for the given output.
+   */
+  OpSchema &OutputNDim(int index, OutputNDimFunc fn);
+
+  /** Assigns a fixed number of dimensions to a given output.
+   *
+   * @param index Index of the output to set the function for.
+   * @param ndim The number of dimensions (or nullopt, if it cannot be determined statically)
+   */
+  OpSchema &OutputNDim(int index, std::optional<int> ndim) {
+    if (ndim && *ndim < 0)
+      throw std::invalid_argument("Invalid ndim.");
+    return OutputNDim(index, [ndim](const OpSpec &) { return ndim; });
+  }
+
+  /** Assigns a fixed number of dimensions to a given output.
+   *
+   * @param index Index of the output to set the function for.
+   * @param ndim The number of dimensions (or nullopt, if it cannot be determined statically)
+   */
+  OpSchema &OutputNDim(int index, int ndim) {
+    // avoid ambiguity - apparently 0 is a legal initializer for std::function...
+    return OutputNDim(index, std::optional<int>(ndim));
+  }
+
+  /** Sets a function that determines the layout of a given output.
+   *
+   * @param index Index of the output to set the function for.
+   * @param fn Function that returns the layout for the given output.
+   */
+  OpSchema &OutputLayout(int index, OutputLayoutFunc fn);
+
+  /** Assigns a fixed layout to a given output.
+   *
+   * @param index Index of the output to set the function for.
+   * @param layout The layout (or nullopt, if it cannot be determined statically)
+   */
+  OpSchema &OutputLayout(int index, std::optional<TensorLayout> layout) {
+    return OutputLayout(index, [layout](const OpSpec &) { return layout; });
+  }
+
+  /** Enables (or disables) the default metadata policy.
+   *
+   * When enabled, output 0 uses a default metadata policy (unless overridden by specifying
+   * output metadata callbacks). The default policy does the following:
+   * - the output data type is either what is specified in "dtype" argument or, if there's no such
+   *   argument, is the same as that of input 0
+   * - the output layout is taken from "layout" or "output_layout" argument, if present, or copied
+   *   from input 0
+   * - the number of dimensions is taken from the calculated layout (if not null) or copied from
+   *   input 0.
+   * Additionally, operators that expand dimensions automatically (SequenceOperator), apply
+   * additional logic by expanding the dimensions based on other inputs/arguments.
+   *
+   * When building DALI this is enabled by default. User code can make this a default behavior
+   * by defining DALI_SCHEMA_DEFAULT_METADATA_POLICY preprocessor symbol as nonzero.
+   */
+  OpSchema &UseDefaultMetadataPolicy(bool enable = true) {
+    use_default_metadata_policy_ = enable;
+    return *this;
+  }
+
+  /** Gets the function that computes the data type for the given output.
+   *
+   * The returned function may be inherited from a parent schema.
+   */
+  OutputDTypeFunc OutputDTypeFn(int index) const;
+
+  /** Gets the function that computes the number of dimensions of the given output.
+   *
+   * The returned function may be inherited from a parent schema.
+   */
+  OutputNDimFunc OutputNDimFn(int index) const;
+
+  /** Gets the function that computes the layout for the given output.
+   *
+   * The returned function may be inherited from a parent schema.
+   */
+  OutputLayoutFunc OutputLayoutFn(int index) const;
+
+
   /** Sets the number of inputs that the op can receive. */
   OpSchema &NumInput(int n);
 
@@ -275,6 +383,13 @@ class DLL_PUBLIC OpSchema {
 
   /** Notes that this operator doc should not be visible (but the Op is exposed in Python API) */
   OpSchema &MakeDocHidden();
+
+  /** Notes that some dimensions may be expanded to match other inputs/arguments.
+   *
+   * This happens in operators inheriting from SequenceOperator, which may return videos
+   * with single-frame input of other inputs (including arguments) are defined as per-frame.
+   */
+  OpSchema &AutoExpandDims(TensorLayout expanded_dims = "F", bool expand_from_kwargs = false);
 
   /** Notes that this operator doesn't have a state.
    *
@@ -666,6 +781,17 @@ used with DALIDataType, to avoid confusion with `AddOptionalArg<type>(name, doc,
   /** Calculate the number of additional outputs obtained from additional_outputs_fn */
   int CalculateAdditionalOutputs(const OpSpec &spec) const;
 
+  /** Try calculating the data type of a given output */
+  std::optional<DALIDataType> CalculateOutputDType(int index, const OpSpec &spec) const;
+
+  /** Try calculating the ndim of a given output */
+  std::optional<int> CalculateOutputNDim(int index, const OpSpec &spec) const;
+
+  /** Try calculating the layout of a given output */
+  std::optional<TensorLayout> CalculateOutputLayout(int index, const OpSpec &spec) const;
+
+  const std::pair<TensorLayout, bool> &ExpandedDims() const;
+
   bool SupportsInPlace(const OpSpec &spec) const;
 
   void CheckArgs(const OpSpec &spec) const;
@@ -809,6 +935,32 @@ used with DALIDataType, to avoid confusion with `AddOptionalArg<type>(name, doc,
 
   SpecFunc output_fn_, in_place_fn_, additional_outputs_fn_;
 
+  ////////////////////////////////////////////////////////////////////////////
+  // Metadata inference
+
+  // Local Output metadata callbacks
+  std::vector<OutputDTypeFunc> output_dtype_fn_;
+  std::vector<OutputNDimFunc> output_ndim_fn_;
+  std::vector<OutputLayoutFunc> output_layout_fn_;
+  bool use_default_metadata_policy_ = false;
+
+  // Metadata callbacks combined with inherited ones
+  mutable detail::LazyValue<std::vector<OutputDTypeFunc>> flattened_output_dtype_fn_;
+  mutable detail::LazyValue<std::vector<OutputNDimFunc>> flattened_output_ndim_fn_;
+  mutable detail::LazyValue<std::vector<OutputLayoutFunc>> flattened_output_layout_fn_;
+
+  /** Gets flattened output dtype funcs (including inherited ones) */
+  const std::vector<OutputDTypeFunc> &OutputDTypeFuncs() const;
+  /** Gets flattened output ndim funcs (including inherited ones) */
+  const std::vector<OutputNDimFunc> &OutputNDimFuncs() const;
+  /** Gets flattened output layout funcs (including inherited ones) */
+  const std::vector<OutputLayoutFunc> &OutputLayoutFuncs() const;
+
+  // Sequence operators
+  std::pair<TensorLayout, bool> local_expanded_dims_;
+  mutable detail::LazyValue<std::pair<TensorLayout, bool>> flattened_expanded_dims_;
+
+
   int min_num_input_ = 0, max_num_input_ = 0;
   int num_output_ = 0;
 
@@ -819,6 +971,10 @@ used with DALIDataType, to avoid confusion with `AddOptionalArg<type>(name, doc,
   vector<string> parent_names_;
   /// Cached pointers to parent schemas, to avoid repeated lookups
   mutable detail::LazyValue<std::vector<const OpSchema *>> parents_;
+  /// Cached pointers to all ancestors, in DFS order
+  mutable detail::LazyValue<std::vector<const OpSchema *>> ancestors_;
+
+  const std::vector<const OpSchema *> &GetAncestors() const;
 
   ////////////////////////////////////////////////////////////////////////////
   // Documentation-related
@@ -856,6 +1012,7 @@ used with DALIDataType, to avoid confusion with `AddOptionalArg<type>(name, doc,
   std::string deprecation_message_;
   std::string deprecation_version_;
 };
+
 
 class SchemaRegistry {
  public:
@@ -898,7 +1055,11 @@ inline T OpSchema::GetDefaultValueForArgument(std::string_view name) const {
   static ::dali::OpSchema *ANONYMIZE_VARIABLE(OpName) = \
       &::dali::SchemaRegistry::RegisterSchema(#OpName)
 
+#if DALI_SCHEMA_DEFAULT_METADATA_POLICY
+#define DALI_SCHEMA(OpName) DALI_SCHEMA_REG(OpName).UseDefaultMetadataPolicy()
+#else
 #define DALI_SCHEMA(OpName) DALI_SCHEMA_REG(OpName)
+#endif
 
 }  // namespace dali
 

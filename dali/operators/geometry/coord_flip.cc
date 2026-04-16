@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -42,7 +42,10 @@ The string should consist of the following characters:
     .AddOptionalArg("flip_z", R"code(Flip the depthwise (z) coordinate.)code", 0, true)
     .AddOptionalArg("center_x", R"code(Flip center in the horizontal axis.)code", 0.5f, true)
     .AddOptionalArg("center_y", R"code(Flip center in the vertical axis.)code", 0.5f, true)
-    .AddOptionalArg("center_z", R"code(Flip center in the depthwise axis.)code", 0.5f, true);
+    .AddOptionalArg("center_z", R"code(Flip center in the depthwise axis.)code", 0.5f, true)
+    .OutputLayout(0, [](const OpSpec &spec) {
+      return spec.InputDesc(0).layout;  // The "layout" argument has a different meaning here
+    });
 
 
 class CoordFlipCPU : public CoordFlip<CPUBackend> {

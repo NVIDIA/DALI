@@ -58,7 +58,36 @@ constructed by inserting that character into the input layout at the position in
 For example, specifying ``axis = 0`` and ``axis_name = "C"`` with input layout "HW" will yield
 the output layout "CHW")", nullptr, false)
   .NumInput(1, 999)
-  .NumOutput(1);
+  .NumOutput(1)
+  .OutputNDim(0, [](const OpSpec &spec)->std::optional<int> {
+    std::optional<int> ndim;
+    for (int i = 0; i < spec.NumInput(); i++)
+      if (spec.InputDesc(i).ndim) {  // any input will do - they must have the same ndim
+        ndim = spec.InputDesc(i).ndim;
+        break;
+      }
+    if (ndim)
+      return *ndim + 1;
+    else
+      return std::nullopt;
+  })
+  .OutputLayout(0, [](const OpSpec &spec)->std::optional<TensorLayout> {
+    std::string new_axis_name;
+    if (!spec.TryGetArgument(new_axis_name, "axis_name") || new_axis_name.length() != 1)
+      return std::nullopt;
+    int axis = spec.GetArgument<int>("axis");
+    for (int i = 0; i < spec.NumInput(); i++) {
+      auto &desc = spec.InputDesc(i);
+      if (!desc.layout || desc.layout->empty())
+        continue;
+      if (axis < 0)
+        axis += desc.layout->ndim() + 1;  // + 1 because we are adding a dimension
+      if (axis < 0 || axis > desc.layout->ndim())
+        return std::nullopt;
+      return desc.layout->sub(0, axis) + new_axis_name + desc.layout->sub(axis);
+    }
+    return std::nullopt;
+  });
 
 #define TENSOR_JOIN_TYPES (bool, uint8_t, int8_t, uint16_t, int16_t, uint32_t, int32_t, \
                           uint64_t, int64_t, float16, float, double)

@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -81,6 +81,8 @@ is padded with zeros.
   When `center_windows` is set to False, this option is ignored.
 )",
     true)
+  .OutputNDim(0, 2)
+  .OutputDType(0, DALI_FLOAT)
   .AddOptionalArg("layout", R"(Output layout: "ft" (frequency-major) or "tf" (time-major).)",
     TensorLayout("ft"));
 

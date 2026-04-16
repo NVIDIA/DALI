@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -67,7 +67,10 @@ bounds of the input.
   Providing `in_shape` is incompatible with feeding the input data directly as a positional input.
 )code", nullptr, true)
     .NumInput(0, 1)
-    .NumOutput(1);
+    .NumOutput(1)
+    .OutputNDim(0, 1)
+    .OutputDType(0, DALI_INT64)
+    .OutputLayout(0, "");
 
 class ROIRandomCropCPU : public rng::OperatorWithRng<Operator<CPUBackend>> {
  public:

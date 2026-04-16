@@ -1,4 +1,4 @@
-// Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2025-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -96,6 +96,7 @@ class ClaheGPU : public Operator<GPUBackend> {
   void RunImpl(Workspace &ws) override {
     const auto &in = ws.Input<GPUBackend>(0);
     auto &out = ws.Output<GPUBackend>(0);
+    out.SetLayout(in.GetLayout());
     auto stream = ws.stream();
 
     if (in.type() != DALI_UINT8) {
@@ -176,70 +177,70 @@ class ClaheGPU : public Operator<GPUBackend> {
 // -----------------------------------------------------------------------------
 DALI_SCHEMA(Clahe)
     .DocStr(R"code(Contrast Limited Adaptive Histogram Equalization (CLAHE) operator.
-    
-Performs local histogram equalization with clipping and bilinear blending 
-of lookup tables (LUTs) between neighboring tiles. This technique enhances 
+
+Performs local histogram equalization with clipping and bilinear blending
+of lookup tables (LUTs) between neighboring tiles. This technique enhances
 local contrast while preventing over-amplification of noise.
-Attempts to use same algorithm as OpenCV 
+Attempts to use same algorithm as OpenCV
 (https://docs.opencv.org/4.x/d5/daf/tutorial_py_histogram_equalization.html).
 The input image is divided into rectangular tiles, and histogram equalization
 is applied to each tile independently. To avoid artifacts at tile boundaries,
 the lookup tables are bilinearly interpolated between neighboring tiles.
 Supports both grayscale (1-channel) and RGB (3-channel) uint8 images in HWC layout.
 
-**IMPORTANT COLOR ORDER REQUIREMENT**: For 3-channel images, the channels must be in 
-RGB order (Red, Green, Blue). BGR images (common in OpenCV) will produce incorrect 
+**IMPORTANT COLOR ORDER REQUIREMENT**: For 3-channel images, the channels must be in
+RGB order (Red, Green, Blue). BGR images (common in OpenCV) will produce incorrect
 results when luma_only=True, as the luminance calculation assumes RGB channel order.
 If you have BGR images, convert them to RGB first using appropriate operators.
 
 For RGB images, by default CLAHE is applied to the luminance channel only (luma_only=True),
-preserving color relationships. When luma_only=False, CLAHE is applied to each 
+preserving color relationships. When luma_only=False, CLAHE is applied to each
 color channel independently.
-**Performance**: The GPU variant of this operator includes automatic optimizations (kernel fusion, 
-warp-privatized histograms, vectorized memory access) that provide 1.5-3x speedup 
+**Performance**: The GPU variant of this operator includes automatic optimizations (kernel fusion,
+warp-privatized histograms, vectorized memory access) that provide 1.5-3x speedup
 while maintaining OpenCV algorithmic compatibility.
 Example usage:
   # Grayscale image
   clahe_out = fn.clahe(grayscale_image, tiles_x=8, tiles_y=8, clip_limit=2.0)
-  
+
   # RGB image with luminance-only processing (default)
   # NOTE: Input must be RGB order, not BGR!
   clahe_out = fn.clahe(rgb_image, tiles_x=8, tiles_y=8, clip_limit=3.0, luma_only=True)
-  
+
   # RGB image with per-channel processing (color order less critical)
   clahe_out = fn.clahe(rgb_image, tiles_x=8, tiles_y=8, clip_limit=2.0, luma_only=False)
 )code")
     .NumInput(1)
     .NumOutput(1)
     .AddArg("tiles_x", R"code(Number of tiles along the image width.
-    
+
 Higher values provide more localized enhancement but may introduce artifacts.
 Typical values range from 4 to 16. Must be positive.)code",
             DALI_INT32)
     .AddArg("tiles_y", R"code(Number of tiles along the image height.
-    
+
 Higher values provide more localized enhancement but may introduce artifacts.
 Typical values range from 4 to 16. Must be positive.)code",
             DALI_INT32)
     .AddArg("clip_limit", R"code(Relative clip limit multiplier for histogram bins.
-    
+
 Controls the contrast enhancement strength. The actual clip limit is calculated as:
-clip_limit * (tile_area / bins). Values > 1.0 enhance contrast, while values 
+clip_limit * (tile_area / bins). Values > 1.0 enhance contrast, while values
 close to 1.0 provide minimal enhancement. Typical values range from 1.5 to 4.0.
 Higher values may cause over-enhancement and artifacts.)code",
             DALI_FLOAT)
     .AddOptionalArg("bins", R"code(Number of histogram bins for CLAHE computation.
-    
-Must be a power of 2. Higher values provide finer histogram resolution but 
+
+Must be a power of 2. Higher values provide finer histogram resolution but
 increase computation cost. For uint8 images, 256 bins provide optimal results.)code",
                     256)
     .AddOptionalArg("luma_only", R"code(For RGB inputs, apply CLAHE to luminance channel only.
-    
+
 When True (default), CLAHE is applied to the luminance (Y) component of RGB images,
 preserving color relationships. The RGB channels are then scaled proportionally.
 
-**Note**: GPU backend currently only supports luma_only=True for RGB images. 
-Per-channel mode (luma_only=False) is only available on CPU. The GPU will always 
+**Note**: GPU backend currently only supports luma_only=True for RGB images.
+Per-channel mode (luma_only=False) is only available on CPU. The GPU will always
 process RGB images in luminance mode regardless of this parameter.)code",
                     true)
     .InputLayout("HWC");

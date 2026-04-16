@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -32,8 +32,8 @@ class Transpose : public StatelessOperator<Backend> {
  public:
   explicit inline Transpose(const OpSpec &spec)
       : StatelessOperator<Backend>(spec),
-        transpose_layout_(spec.GetArgument<bool>("transpose_layout")),
-        output_layout_arg_(spec.GetArgument<TensorLayout>("output_layout")) {
+        transpose_layout_(spec.GetArgument<bool>("transpose_layout")) {
+    spec.TryGetArgument(output_layout_arg_, "output_layout");
     if (spec.HasArgument("perm"))
       perm_ = spec.GetRepeatedArgument<int>("perm");
     // perm_ is later populated based on the number of dims

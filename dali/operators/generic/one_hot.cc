@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -59,7 +59,37 @@ This value will be cast to the `dtype` type.)code", 0.f)
   .AddOptionalArg<std::string>("axis_name",
                   R"code(Single character that will be used as a name for the newly added
 dimension in the output layout. If no character is provided, the output layout will be
-empty.)code", nullptr);
+empty.)code", nullptr)
+  .OutputNDim(0, [](const OpSpec &spec)->std::optional<int> {
+    if (!spec.ArgumentDefined("axis"))
+      return std::nullopt;  // there's some legacy squeezing, not knowable at run-time
+    auto &desc = spec.InputDesc(0);
+    if (desc.ndim)
+      return *desc.ndim + 1;
+    return std::nullopt;
+  })
+  .OutputLayout(0, [](const OpSpec &spec)->std::optional<TensorLayout> {
+    std::string axis_name;
+    if (!spec.TryGetArgument(axis_name, "axis_name"))
+      return "";
+    if (axis_name.length() != 1)
+      return std::nullopt;
+
+    if (!spec.ArgumentDefined("axis"))  // squeezing - bail out
+      return std::nullopt;
+
+    auto &desc = spec.InputDesc(0);
+    if (!desc.layout && (!desc.ndim || *desc.ndim > 0))
+      return std::nullopt;  // cannot infer layout
+    TensorLayout tl = desc.layout ? *desc.layout : "";
+    int ndim = tl.ndim();
+    int axis = spec.GetArgument<int>("axis");
+    if (axis < 0)
+      axis += ndim + 1;
+    if (axis < 0 || axis > ndim)
+      return std::nullopt;
+    return tl.sub(0, axis) + axis_name + tl.sub(axis);
+  });
 
 class OneHotCPU : public OneHot<CPUBackend> {
  public:

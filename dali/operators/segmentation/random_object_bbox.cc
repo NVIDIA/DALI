@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -111,7 +111,10 @@ of finding object blobs in previously seen inputs.
 Searching for blobs of connected pixels and finding boxes can take a long time. When the dataset
 has few items, but item size is big, you can use caching to save the boxes and reuse them when
 the same input is seen again. The inputs are compared based on 256-bit hash, which is much faster
-to compute than to recalculate the object boxes.)", false);
+to compute than to recalculate the object boxes.)", false)
+  .OutputNDim(0, 1)
+  .OutputDType(0, DALI_INT32)
+  .OutputLayout(0, "");
 
 bool RandomObjectBBox::SetupImpl(vector<OutputDesc> &out_descs, const Workspace &ws) {
   out_descs.resize(spec_.NumOutput());

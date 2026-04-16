@@ -1,4 +1,4 @@
-// Copyright (c) 2023-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2023-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -138,7 +138,9 @@ Values will be converted to the dynamic range of the requested type.)code",
   .AddOptionalArg("use_chunk_allocator", "", false)
   .DeprecateArg("use_chunk_allocator", "1.0", false)
   .AddOptionalArg("memory_stats", "", false)
-  .DeprecateArg("memory_stats", "1.36", false);
+  .DeprecateArg("memory_stats", "1.36", false)
+  .OutputNDim(0, 3)
+  .OutputLayout(0, "HWC");
 
 DALI_SCHEMA(experimental__decoders__Image)
   .DocStr(R"code(Decodes images.
@@ -161,7 +163,8 @@ The implementation uses NVIDIA nvImageCodec to decode images.
   .NumInput(1)
   .NumOutput(1)
   .AddParent("ImgcodecDecoderAttr")
-  .AddParent("CachedDecoderAttr");
+  .AddParent("CachedDecoderAttr")
+  .OutputLayout(0, "HWC");
 
 DALI_SCHEMA(experimental__decoders__ImageCrop)
   .DocStr(R"code(Decodes images and extracts regions-of-interest (ROI) that are specified
@@ -189,7 +192,8 @@ When possible, the operator uses the ROI decoding, reducing the decoding time an
   .NumInput(1)
   .NumOutput(1)
   .AddParent("ImgcodecDecoderAttr")
-  .AddParent("CropAttr");
+  .AddParent("CropAttr")
+  .OutputLayout(0, "HWC");
 
 
 DALI_SCHEMA(experimental__decoders__ImageSlice)

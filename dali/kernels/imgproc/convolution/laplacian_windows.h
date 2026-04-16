@@ -1,4 +1,4 @@
-// Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -32,6 +32,8 @@ class LaplacianWindows {
   }
 
   TensorView<StorageCPU, const T, 1> GetDerivWindow(int window_size) {
+    if (window_size == 0)
+      return {};
     assert(1 <= window_size && window_size <= max_window_size_);
     assert(window_size % 2 == 1);
     auto window_idx = window_size / 2;
@@ -41,6 +43,8 @@ class LaplacianWindows {
   }
 
   TensorView<StorageCPU, const T, 1> GetSmoothingWindow(int window_size) {
+    if (window_size == 0)
+      return {};
     assert(1 <= window_size && window_size <= max_window_size_);
     assert(window_size % 2 == 1);
     auto window_idx = window_size / 2;

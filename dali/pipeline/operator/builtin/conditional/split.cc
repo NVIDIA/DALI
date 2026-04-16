@@ -1,4 +1,4 @@
-// Copyright (c) 2022-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -100,6 +100,24 @@ void Split<Backend>::WriteTestsDiagnostics(const Workspace &ws) {
   out_1_pinned_ = ws.template Output<Backend>(1).is_pinned();
 }
 
+constexpr auto ForwardInputNDim(int idx) {
+  return [=](const OpSpec &spec) {
+    return spec.InputDesc(idx).ndim;
+  };
+}
+
+constexpr auto ForwardInputDType(int idx) {
+  return [=](const OpSpec &spec) {
+    return spec.InputDesc(idx).dtype;
+  };
+}
+
+constexpr auto ForwardInputLayout(int idx) {
+  return [=](const OpSpec &spec) {
+    return spec.InputDesc(idx).layout;
+  };
+}
+
 DALI_SCHEMA(_conditional__Split)
     .DocStr(R"code(Split batch based on a predicate.)code")
     .NumInput(1)
@@ -116,7 +134,13 @@ DALI_SCHEMA(_conditional__Split)
         "additional error checking, presenting the specialized error message. Internal use only.",
         false)
     .SamplewisePassThrough()
-    .MakeDocHidden();
+    .MakeDocHidden()
+    .OutputDType(0, ForwardInputDType(0))
+    .OutputNDim(0, ForwardInputNDim(0))
+    .OutputLayout(0, ForwardInputLayout(0))
+    .OutputDType(1, ForwardInputDType(0))
+    .OutputNDim(1, ForwardInputNDim(0))
+    .OutputLayout(1, ForwardInputLayout(0));
 
 DALI_REGISTER_OPERATOR(_conditional__Split, Split<CPUBackend>, CPU);
 DALI_REGISTER_OPERATOR(_conditional__Split, Split<GPUBackend>, GPU);

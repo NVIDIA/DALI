@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -84,7 +84,25 @@ The operator accepts vertices with arbitrary number of coordinates.)code")
     .AddOptionalArg<bool>("reindex_masks",
       R"code(If set to True, the output mask ids are replaced with the indices at which they appeared
 in ``mask_ids`` input.)code",
-      false);
+      false)
+    .OutputDType(0, [](const OpSpec &spec) {
+      return spec.InputDesc(1).dtype;
+    })
+    .OutputNDim(0, [](const OpSpec &spec) {
+      return spec.InputDesc(1).ndim;
+    })
+    .OutputLayout(0, [](const OpSpec &spec) {
+      return "";
+    })
+    .OutputDType(1, [](const OpSpec &spec) {
+      return spec.InputDesc(2).dtype;
+    })
+    .OutputNDim(1, [](const OpSpec &spec) {
+      return spec.InputDesc(2).ndim;
+    })
+    .OutputLayout(1, [](const OpSpec &spec) {
+      return "";
+    });
 
 bool SelectMasksCPU::SetupImpl(std::vector<OutputDesc> &output_desc,
                               const Workspace &ws) {

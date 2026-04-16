@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -670,8 +670,6 @@ def test_sequences():
     class TransformsParamsProvider(ParamsProvider):
         def unfold_output_layout(self, layout):
             unfolded = super().unfold_output_layout(layout)
-            if unfolded == "**":
-                return ""
             return unfolded
 
     def rand_range(limit):
@@ -770,7 +768,7 @@ def test_sequences():
     ]
 
     seq_cases = test_cases + only_with_seq_input_cases
-    main_input = ArgData(desc=ArgDesc(0, "F", "", "F**"), data=per_frame_input(mt))
+    main_input = ArgData(desc=ArgDesc(0, "F", "**", "F**"), data=per_frame_input(mt))
     yield from sequence_suite_helper(rng, [main_input], seq_cases, num_iters)
 
     # transform the test cases to test the transforms with per-frame args but:
@@ -793,7 +791,7 @@ def test_sequences():
         assert data_dim > 0
         data_layout = "F" + "*" * (data_dim - 1)
         main_input = ArgData(
-            desc=ArgDesc(main_source.desc.name, "F", "", data_layout), data=per_frame_data
+            desc=ArgDesc(main_source.desc.name, "F", "**", data_layout), data=per_frame_data
         )
         yield from sequence_suite_helper(rng, [main_input], cases, num_iters)
 

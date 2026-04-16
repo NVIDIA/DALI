@@ -1,4 +1,4 @@
-// Copyright (c) 2022-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -106,6 +106,7 @@ class DLL_PUBLIC EagerOperator {
       : max_batch_size_(spec.GetArgument<int>("max_batch_size")),
         op_spec_(spec),
         name_(std::move(name)) {
+    op_spec_.AddArg("__debug", true);
     op_spec_.AddArg("num_threads", num_threads);
     op_ = InstantiateOperator(op_spec_);
     num_outputs_ = op_spec_.GetSchema().CalculateOutputs(op_spec_) +

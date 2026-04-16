@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -69,8 +69,10 @@ the half of the input type's positive range (or 0.5 for ``float``) is used.)code
 
 If not set, the input type is used.)code")
     .AllowSequences()
+    .AutoExpandDims()
     .SupportVolumetric()
     .InputLayout({"FHWC", "DHWC", "HWC"});
+
 
 DALI_SCHEMA(BrightnessContrast)
     .AddParent("Brightness")
@@ -88,6 +90,7 @@ This operator can also change the type of data.)code")
     .NumInput(1)
     .NumOutput(1)
     .AllowSequences()
+    .AutoExpandDims()
     .SupportVolumetric()
     .InputLayout({"FHWC", "DHWC", "HWC"});
 

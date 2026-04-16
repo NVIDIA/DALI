@@ -1,4 +1,4 @@
-// Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022, 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -201,7 +201,33 @@ DALI_SCHEMA(_conditional__Merge)
         "branch.",
         DALI_BOOL, true)
     .SamplewisePassThrough()
-    .MakeDocHidden();
+    .MakeDocHidden()
+    // It's technically legal to have conflicting inputs as long as we always choose one,
+    // so there's no static inference possible unless both inputs are known to match.
+    .OutputNDim(0, [](const OpSpec &spec) {
+      auto &desc0 = spec.InputDesc(0);
+      auto &desc1 = spec.InputDesc(1);
+      if (desc0.ndim && desc1.ndim && *desc0.ndim == *desc1.ndim)
+        return desc0.ndim;
+      else
+        return std::optional<int>{};
+    })
+    .OutputDType(0, [](const OpSpec &spec) {
+      auto &desc0 = spec.InputDesc(0);
+      auto &desc1 = spec.InputDesc(1);
+      if (desc0.dtype && desc1.dtype && *desc0.dtype == *desc1.dtype)
+        return desc0.dtype;
+      else
+        return std::optional<DALIDataType>{};
+    })
+    .OutputLayout(0, [](const OpSpec &spec) {
+      auto &desc0 = spec.InputDesc(0);
+      auto &desc1 = spec.InputDesc(1);
+      if (desc0.layout && desc1.layout && *desc0.layout == *desc1.layout)
+        return desc0.layout;
+      else
+        return std::optional<TensorLayout>{};
+    });
 
 DALI_REGISTER_OPERATOR(_conditional__Merge, Merge<CPUBackend>, CPU);
 DALI_REGISTER_OPERATOR(_conditional__Merge, Merge<GPUBackend>, GPU);

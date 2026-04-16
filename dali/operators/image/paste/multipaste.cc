@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -38,6 +38,7 @@ Otherwise, the `output_size` must be specified.
 This operator can also change the type of data.)code")
     .NumInput(1, 64)
     .AllowSequences()
+    .AutoExpandDims()
     .InputLayout({"HWC", "FHWC"})
     .AddOptionalArg<std::vector<int>>("in_ids", R"code(Indices of the inputs to paste data from.
 

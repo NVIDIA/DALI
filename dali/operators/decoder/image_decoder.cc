@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -161,7 +161,10 @@ allocation might be useful to determine suitable values for `device_memory_paddi
   The statistics are global for the entire process, not per operator instance, and include
   the allocations made during construction if the padding hints are non-zero.
 )code",
-      false);
+      false)
+  .OutputDType(0, DALI_UINT8)
+  .OutputNDim(0, 3)
+  .OutputLayout(0, "HWC");
 
 DALI_SCHEMA(decoders__Image)
   .DocStr(R"code(Decodes images.
