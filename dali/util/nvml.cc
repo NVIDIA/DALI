@@ -15,6 +15,7 @@
 #include "dali/util/nvml.h"
 #include <pthread.h>
 #include <sys/sysinfo.h>
+#include <atomic>
 #include <vector>
 
 namespace dali {
@@ -23,27 +24,25 @@ namespace impl {
 
 
 float GetDriverVersion() {
-  if (!nvmlIsInitialized()) {
-    return 0;
-  }
-
-  float driver_version = 0;
-  char version[NVML_SYSTEM_DRIVER_VERSION_BUFFER_SIZE];
-
-  CUDA_CALL(nvmlSystemGetDriverVersion(version, sizeof version));
-  driver_version = std::stof(version);
-  return driver_version;
+  static std::atomic<bool> supported{true};
+  return detail::NvmlCall(supported,
+      "nvmlSystemGetDriverVersion is not supported on this platform.",
+      0.0f, [&]() -> float {
+        char version[NVML_SYSTEM_DRIVER_VERSION_BUFFER_SIZE];
+        CUDA_CALL(nvmlSystemGetDriverVersion(version, sizeof version));
+        return std::stof(version);
+      });
 }
 
 int GetCudaDriverVersion() {
-  if (!nvmlIsInitialized()) {
-    return 0;
-  }
-
-  int driver_version = 0;
-
-  CUDA_CALL(nvmlSystemGetCudaDriverVersion(&driver_version));
-  return driver_version;
+  static std::atomic<bool> supported{true};
+  return detail::NvmlCall(supported,
+      "nvmlSystemGetCudaDriverVersion is not supported on this platform.",
+      0, [&]() -> int {
+        int driver_version = 0;
+        CUDA_CALL(nvmlSystemGetCudaDriverVersion(&driver_version));
+        return driver_version;
+      });
 }
 
 }  // namespace impl
@@ -81,49 +80,52 @@ nvmlDevice_t nvmlGetDeviceHandleForCUDA(int cuda_idx) {
 }
 
 void GetNVMLAffinityMask(cpu_set_t *mask, size_t num_cpus) {
-  if (!nvmlIsInitialized()) {
-    return;
-  }
-  int device_idx;
-  CUDA_CALL(cudaGetDevice(&device_idx));
+  static std::atomic<bool> supported{true};
+  detail::NvmlCall(supported,
+      "nvmlDeviceGetCpuAffinityWithinScope/nvmlDeviceGetCpuAffinity is not supported"
+      " on this platform, skipping CPU affinity setting.",
+      [&]() {
+        int device_idx;
+        CUDA_CALL(cudaGetDevice(&device_idx));
 
-  // Get the ideal placement from NVML
-  size_t cpu_set_size = (num_cpus + 63) / 64;
-  std::vector<unsigned long> nvml_mask_container(cpu_set_size);  // NOLINT(runtime/int)
-  auto * nvml_mask = nvml_mask_container.data();
-  nvmlDevice_t device = nvmlGetDeviceHandleForCUDA(device_idx);
-  #if (CUDART_VERSION >= 11000)
-    if (nvmlHasCuda11NvmlFunctions()) {
-      CUDA_CALL(nvmlDeviceGetCpuAffinityWithinScope(device, cpu_set_size, nvml_mask,
-                                                        NVML_AFFINITY_SCOPE_SOCKET));
-    } else {
-      CUDA_CALL(nvmlDeviceGetCpuAffinity(device, cpu_set_size, nvml_mask));
-    }
-  #else
-    CUDA_CALL(nvmlDeviceGetCpuAffinity(device, cpu_set_size, nvml_mask));
-  #endif
+        // Get the ideal placement from NVML
+        size_t cpu_set_size = (num_cpus + 63) / 64;
+        std::vector<unsigned long> nvml_mask_container(cpu_set_size);  // NOLINT(runtime/int)
+        auto *nvml_mask = nvml_mask_container.data();
+        nvmlDevice_t device = nvmlGetDeviceHandleForCUDA(device_idx);
+        #if (CUDART_VERSION >= 11000)
+          if (nvmlHasCuda11NvmlFunctions()) {
+            CUDA_CALL(nvmlDeviceGetCpuAffinityWithinScope(device, cpu_set_size, nvml_mask,
+                                                              NVML_AFFINITY_SCOPE_SOCKET));
+          } else {
+            CUDA_CALL(nvmlDeviceGetCpuAffinity(device, cpu_set_size, nvml_mask));
+          }
+        #else
+          CUDA_CALL(nvmlDeviceGetCpuAffinity(device, cpu_set_size, nvml_mask));
+        #endif
 
-  // Convert it to cpu_set_t
-  cpu_set_t nvml_set;
-  CPU_ZERO(&nvml_set);
-  const size_t n_bits = sizeof(unsigned long) * 8;  // NOLINT(runtime/int)
-  for (size_t i = 0; i < num_cpus; ++i) {
-    const size_t position = i % n_bits;
-    const size_t index = i / n_bits;
-    const unsigned long current_mask = 1ul << position;  // NOLINT(runtime/int)
-    const bool cpu_is_set = (nvml_mask[index] & current_mask) != 0;
-    if (cpu_is_set) {
-        CPU_SET(i, &nvml_set);
-    }
-  }
+        // Convert it to cpu_set_t
+        cpu_set_t nvml_set;
+        CPU_ZERO(&nvml_set);
+        const size_t n_bits = sizeof(unsigned long) * 8;  // NOLINT(runtime/int)
+        for (size_t i = 0; i < num_cpus; ++i) {
+          const size_t position = i % n_bits;
+          const size_t index = i / n_bits;
+          const unsigned long current_mask = 1ul << position;  // NOLINT(runtime/int)
+          const bool cpu_is_set = (nvml_mask[index] & current_mask) != 0;
+          if (cpu_is_set) {
+            CPU_SET(i, &nvml_set);
+          }
+        }
 
-  // Get the current affinity mask
-  cpu_set_t current_set;
-  CPU_ZERO(&current_set);
-  pthread_getaffinity_np(pthread_self(), sizeof(current_set), &current_set);
+        // Get the current affinity mask
+        cpu_set_t current_set;
+        CPU_ZERO(&current_set);
+        pthread_getaffinity_np(pthread_self(), sizeof(current_set), &current_set);
 
-  // AND masks
-  CPU_AND(mask, &nvml_set, &current_set);
+        // AND masks
+        CPU_AND(mask, &nvml_set, &current_set);
+      });
 }
 
 void SetCPUAffinity(int core) {
