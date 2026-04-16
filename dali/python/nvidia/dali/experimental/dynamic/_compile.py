@@ -51,6 +51,7 @@ class CompileSource(NamedTuple):
 
     num_outputs: int
     output_keys: tuple[str, ...] | None = None
+    device: str = "cpu"
 
 
 class CompileRef(NamedTuple):
@@ -176,12 +177,17 @@ class CompileContext:
         finally:
             CompileContext._tls.current = prev
 
-    def init_source(self, num_outputs: int, output_keys: tuple[str, ...] | None = None) -> None:
+    def init_source(
+        self,
+        num_outputs: int,
+        output_keys: tuple[str, ...] | None = None,
+        device: str = "cpu",
+    ) -> None:
         if self.source is not None:
             assert self.source.num_outputs == num_outputs
             assert self.source.output_keys == output_keys
             return
-        self.source = CompileSource(num_outputs, output_keys)
+        self.source = CompileSource(num_outputs, output_keys, device)
 
     def make_source_batches(self, tensor_lists: Sequence[Any]) -> tuple[CompiledBatch, ...]:
         assert self.source is not None
@@ -383,7 +389,9 @@ class CompiledEpochIterator:
             else:
                 raw = tuple(outputs.values())
                 output_keys = tuple(outputs.keys())
-            compile_ctx.init_source(len(raw), output_keys=output_keys)
+            # No reader returns multiple outputs on different devices
+            device = "gpu" if isinstance(raw[0], _b.TensorListGPU) else "cpu"
+            compile_ctx.init_source(len(raw), output_keys=output_keys, device=device)
             batches = compile_ctx.make_source_batches(raw)
             with compile_ctx.active():
                 if isinstance(outputs, tuple):
@@ -421,7 +429,12 @@ def _wire_compile_graph(
     """Wire the compile graph into a Pipeline. Must be called inside ``with pipe:``."""
     from ._op_builder import _scalar_decay
 
-    es = ExternalSource(source=reader_callback, num_outputs=source.num_outputs, batch=True)
+    es = ExternalSource(
+        source=reader_callback,
+        num_outputs=source.num_outputs,
+        batch=True,
+        device=source.device,
+    )
     reader_outs = es()
     if source.num_outputs == 1:
         reader_outs = (reader_outs,)
