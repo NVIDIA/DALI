@@ -239,6 +239,8 @@ class CompileContext:
         def reader_callback():
             assert self.reader._op_backend is not None
             workspace = _b._Workspace(ctx.thread_pool._create_facade(), ctx.cuda_stream)
+            for name, arg in self.reader._process_tensor_args(self.batch_size).items():
+                workspace.AddArgumentInput(name, arg.evaluate()._storage)
             self.reader._op_backend.SetupAndRun(workspace, self.batch_size)
             return workspace.GetOutputs()
 
@@ -371,16 +373,17 @@ class CompiledEpochIterator:
         compile_ctx = self._compile_ctx
         reader = self._reader
         batch_size = compile_ctx.batch_size
+        tensor_args = reader._process_tensor_args(batch_size)
 
         if not reader._op_backend:
             reader._max_batch_size = batch_size
-            reader._init_backend(ctx, (), {})
+            reader._init_backend(ctx, (), tensor_args)
 
         epoch_size = reader._shard_epoch_size()
         idx = 0
         first_iteration = True
         while idx < epoch_size:
-            outputs = reader._run_unchecked(ctx, batch_size=batch_size)
+            outputs = reader._run_unchecked(ctx, batch_size=batch_size, **tensor_args)
             batch_size_returned = reader._output_batch_size(outputs)
             idx += batch_size_returned
             if isinstance(outputs, tuple):
