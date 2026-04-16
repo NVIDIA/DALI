@@ -22,6 +22,8 @@ from nvidia.dali.data_node import DataNode as _DataNode
 from nvidia.dali.backend import TensorListCPU, TensorListGPU
 
 from .operator import _ValidateTensorOrImage
+from .totensor import ToPureTensor, PILToTensor, ToPILImage
+from .functional.totensor import to_pil_image
 
 import numpy as np
 import multiprocessing
@@ -119,6 +121,17 @@ class PipelineWithLayout(ABC):
     def _cpu_run(self, data_input):
         return self.pipe.run(input_data=data_input)
 
+    @staticmethod
+    def _get_output_format(op_list: List[Callable[..., Sequence[_DataNode] | _DataNode]]) -> str:
+        output_type = "default"
+        for op in op_list:
+            if isinstance(op, (ToPureTensor, PILToTensor)):
+                output_type = "tensor"
+            elif isinstance(op, ToPILImage):
+                output_type = "pil"
+
+        return output_type
+
     def __init__(
         self,
         op_list: List[Callable[..., Sequence[_DataNode] | _DataNode]],
@@ -127,16 +140,7 @@ class PipelineWithLayout(ABC):
         num_threads: int = DEFAULT_NUM_THREADS,
         **dali_pipeline_kwargs,
     ):
-        # TODO:
-        # convert_to_tensor is currently not supported and requires an user's effort
-        # to convert to tensor
-        # ToTensor is deprecated and according to:
-        # https://docs.pytorch.org/vision/stable/_modules/torchvision/transforms/v2/_deprecated.html#ToTensor
-        # should be replaced with:
-        # v2.Compose([v2.ToImage(), v2.ToDtype(torch.float32, scale=True)])
-        #
-        # self.convert_to_tensor = True if isinstance(op_list[-1], ToTensor) else False
-        self.convert_to_tensor = False
+        self.output_type = PipelineWithLayout._get_output_format(op_list)
         self.device = op_list[0].device if len(op_list) > 0 else "cpu"
         self.torch_device_type = "cuda" if self.device == "gpu" else "cpu"
 
@@ -167,13 +171,17 @@ class PipelineWithLayout(ABC):
         if output is None:
             return output
 
-        output = to_torch_tensor(output)
-        # ToTensor
-        if self.convert_to_tensor:
-            if output.shape[-4] > 1:
-                raise NotImplementedError("ToTensor does not currently work for batches")
+        return to_torch_tensor(output)
 
-        return output
+    @abstractmethod
+    def output_to_tensor(self, output: torch.Tensor) -> torch.Tensor:
+        """Return the pipeline output as a CHW ``torch.Tensor``."""
+        ...
+
+    @abstractmethod
+    def output_to_pil(self, output: torch.Tensor) -> Image.Image:
+        """Return the pipeline output tensor as a ``PIL.Image``."""
+        ...
 
     @abstractmethod
     def get_layout(self) -> str: ...
@@ -185,7 +193,7 @@ class PipelineWithLayout(ABC):
     def verify_layout(self, data) -> None: ...
 
     def is_conversion_to_tensor(self) -> bool:
-        return self.convert_to_tensor
+        return self.output_type == "tensor"
 
 
 class PipelineHWC(PipelineWithLayout):
@@ -221,30 +229,6 @@ class PipelineHWC(PipelineWithLayout):
             **dali_pipeline_kwargs,
         )
 
-    def _convert_tensor_to_image(self, in_tensor: torch.Tensor):
-
-        channels = self.get_channel_reverse_idx()
-
-        # TODO: consider when to convert to PIL.Image - e.g. if it make sense for channels < 3
-        # There is no certain method to determine if the tensor is HW, HWC, or NHWC.
-        # The method below checks if tensor's shape is HW or ...HWC with a single channel
-        if len(in_tensor.shape) == 2 or (
-            len(in_tensor.shape) >= 3 and in_tensor.shape[channels] == 1
-        ):
-            mode = "L"
-            if len(in_tensor.shape) != 2:
-                in_tensor = in_tensor.squeeze(-1)
-        elif in_tensor.shape[channels] == 3:
-            mode = "RGB"
-        elif in_tensor.shape[channels] == 4:
-            mode = "RGBA"
-        else:
-            raise ValueError(
-                f"Unsupported number of channels: {in_tensor.shape[channels]}. Should be 1, 3 or 4."
-            )
-        # We need to convert tensor to CPU, PIL does not support CUDA tensors
-        return Image.fromarray(in_tensor.cpu().numpy(), mode=mode)
-
     def run(self, data_input):
         if isinstance(data_input, Image.Image):
             _input = torch.as_tensor(np.array(data_input, copy=True)).unsqueeze(0)
@@ -254,24 +238,26 @@ class PipelineHWC(PipelineWithLayout):
             raise ValueError("HWC layout is currently supported for PIL Images only.\
                 Please check if samples have the same format.")
 
-        output = super().run(_input)
+        output = super().run(_input)  # (H, W, C)
 
-        if self.is_conversion_to_tensor():
-            return output
+        if self.output_type == "tensor":
+            return self.output_to_tensor(output)
 
-        if isinstance(output, tuple):
-            output = self._convert_tensor_to_image(output[0])
-        else:
-            # batches
-            if output.shape[0] > 1:
-                output_list = []
-                for i in range(output.shape[0]):
-                    output_list.append(self._convert_tensor_to_image(output[i]))
-                output = output_list
-            else:
-                output = self._convert_tensor_to_image(output[0])
+        # default: PIL output
+        if output.shape[0] > 1:
+            return [self.output_to_pil(output[i]) for i in range(output.shape[0])]
+        return self.output_to_pil(output[0])
 
-        return output
+    def output_to_tensor(self, output: torch.Tensor) -> torch.Tensor:
+        """Convert a single-sample HWC tensor to a CHW tensor"""
+        if output.shape[0] == 1:
+            return output.squeeze(0).permute(2, 0, 1).contiguous()  # → (C, H, W)
+        return output.permute(0, 3, 1, 2).contiguous()  # → (N, C, H, W)
+
+    def output_to_pil(self, output: torch.Tensor) -> Image.Image:
+        """Convert a single-sample HWC tensor to a ``PIL.Image``."""
+        # Pipeline stores data as HWC; to_pil_image expects CHW, so permute first.
+        return to_pil_image(output, input_layout="HWC")
 
     def get_layout(self) -> str:
         return "HWC"
@@ -331,7 +317,22 @@ class PipelineCHW(PipelineWithLayout):
         if data_input.ndim == 3:
             # Remove the batch dimension we added above
             output = output.squeeze(0)
+
+        if self.output_type == "pil":
+            if output.ndim == 4:
+                if output.shape[0] > 1:
+                    return [self.output_to_pil(output[i]) for i in range(output.shape[0])]
+                return self.output_to_pil(output[0])
+            return self.output_to_pil(output)
+
         return output
+
+    def output_to_tensor(self, output: torch.Tensor) -> torch.Tensor:
+        """Return the pipeline output as a CHW ``torch.Tensor``."""
+        return output
+
+    def output_to_pil(self, output: torch.Tensor) -> Image.Image:
+        return to_pil_image(output)
 
     def get_layout(self) -> str:
         return "CHW"
