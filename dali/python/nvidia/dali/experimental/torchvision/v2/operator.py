@@ -270,7 +270,7 @@ def adjust_input(func):
             if inpt.ndim == 3:
                 _input = ndd.Tensor(inpt, layout="CHW")
             elif inpt.ndim > 3:
-                # Creating baches of NCHW
+                # Creating batches of NCHW
                 _input = ndd.as_batch(inpt, layout="CHW")
             else:
                 raise TypeError(f"Tensor has < 3 dimensions: {inpt.ndim}, shape: {inpt.shape}")
