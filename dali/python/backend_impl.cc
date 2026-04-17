@@ -1293,15 +1293,13 @@ std::shared_ptr<TensorList<GPUBackend>> TensorListFromListOfDLPackObjects(
   if (!stream.is_none())
     copy_order = AccessOrderFromPythonStreamObj(stream);
 
-  // __dlpack__ expects an integer stream handle; extract it from the stream wrapper object
+  // Derive the DLPack consumer-stream handle from copy_order so the producer always
+  // synchronizes with the exact same stream that DALI will use for the copy.
+  // Using copy_order (not the raw Python stream object) avoids mismatches when the
+  // stream wrapper type exposes its handle under a name other than "handle".
   py::object stream_handle = py::none();
-  if (!stream.is_none()) {
-    auto h = getattr(stream, "handle", py::none());
-    if (!h.is_none())
-      stream_handle = h;
-    else if (py::isinstance<py::int_>(stream))
-      stream_handle = stream;
-    // else: unknown stream type - leave stream_handle as None
+  if (copy_order.is_device()) {
+    stream_handle = py::int_(reinterpret_cast<int64_t>(copy_order.stream()));
   }
 
   std::optional<TensorList<GPUBackend>> non_contiguous_tmp;
