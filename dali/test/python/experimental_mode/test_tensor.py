@@ -440,6 +440,33 @@ def test_from_readonly_numpy(dtype):
 
 
 @eval_modes()
+@attr("pytorch")
+def test_tensor_gpu_cai_fallback():
+    """When __dlpack__ raises BufferError, GPU Tensor construction falls back to __cuda_array_interface__."""
+    import torch
+
+    class _BrokenDlpack:
+        def __init__(self, t):
+            self._t = t
+
+        @property
+        def __cuda_array_interface__(self):
+            return self._t.__cuda_array_interface__
+
+        def __dlpack__(self, **kwargs):
+            raise BufferError("DLPack export not supported")
+
+        def __dlpack_device__(self):
+            return (2, self._t.device.index)  # kDLCUDA
+
+    data = torch.tensor([[1, 2, 3], [4, 5, 6]], device="cuda", dtype=torch.int32)
+    t = ndd.tensor(_BrokenDlpack(data), device="gpu").evaluate()
+    assert t.device == ndd.Device("gpu")
+    assert t.dtype == ndd.int32
+    assert np.array_equal(asnumpy(t), data.cpu().numpy())
+
+
+@eval_modes()
 def test_from_readonly_numpy_scalar():
     data = np.array(42, dtype=np.int32)
     data.flags.writeable = False
