@@ -442,7 +442,8 @@ def test_from_readonly_numpy(dtype):
 @eval_modes()
 @attr("pytorch")
 def test_tensor_gpu_cai_fallback():
-    """When __dlpack__ raises BufferError, GPU Tensor construction falls back to __cuda_array_interface__."""
+    """When __dlpack__ raises BufferError, GPU Tensor construction falls back to
+    __cuda_array_interface__."""
     import torch
 
     class _BrokenDlpack:
