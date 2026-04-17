@@ -442,11 +442,12 @@ def test_from_readonly_numpy(dtype):
 @eval_modes()
 @attr("pytorch")
 def test_tensor_gpu_cai_fallback():
-    """When __dlpack__ raises BufferError, GPU Tensor construction falls back to
-    __cuda_array_interface__."""
+    """When __dlpack__ raises TypeError (protocol mismatch), GPU Tensor falls back to
+    __cuda_array_interface__. BufferError is not caught on GPU to avoid bypassing
+    producer synchronization contracts."""
     import torch
 
-    class _BrokenDlpack:
+    class _TypeErrorDlpack:
         def __init__(self, t):
             self._t = t
 
@@ -455,13 +456,13 @@ def test_tensor_gpu_cai_fallback():
             return self._t.__cuda_array_interface__
 
         def __dlpack__(self, **kwargs):
-            raise BufferError("DLPack export not supported")
+            raise TypeError("DLPack stream keyword not supported")
 
         def __dlpack_device__(self):
             return (2, self._t.device.index)  # kDLCUDA
 
     data = torch.tensor([[1, 2, 3], [4, 5, 6]], device="cuda", dtype=torch.int32)
-    t = ndd.tensor(_BrokenDlpack(data), device="gpu").evaluate()
+    t = ndd.tensor(_TypeErrorDlpack(data), device="gpu").evaluate()
     assert t.device == ndd.Device("gpu")
     assert t.dtype == ndd.int32
     assert np.array_equal(asnumpy(t), data.cpu().numpy())

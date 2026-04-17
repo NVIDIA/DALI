@@ -487,12 +487,12 @@ def test_batch_construction_from_list_of_dali_tensors_dtype_mismatch(device_type
 
 @eval_modes()
 @attr("pytorch")
-def test_batch_construction_gpu_dlpack_buffer_error_fallback():
-    """GPU DLPack BufferError is caught; batch falls back to slow path via
-    __cuda_array_interface__."""
+def test_batch_construction_gpu_dlpack_type_error_fallback():
+    """GPU DLPack TypeError (protocol mismatch) is caught; batch falls back to slow path via
+    __cuda_array_interface__. BufferError is intentionally not caught on GPU."""
     import torch
 
-    class _BrokenDlpack:
+    class _TypeErrorDlpack:
         def __init__(self, t):
             self._t = t
 
@@ -501,13 +501,13 @@ def test_batch_construction_gpu_dlpack_buffer_error_fallback():
             return self._t.__cuda_array_interface__
 
         def __dlpack__(self, **kwargs):
-            raise BufferError("DLPack export not supported")
+            raise TypeError("DLPack stream keyword not supported")
 
         def __dlpack_device__(self):
             return (2, self._t.device.index)  # kDLCUDA
 
     data = [
-        _BrokenDlpack(torch.tensor([i, i + 1, i + 2], device="cuda", dtype=torch.int32))
+        _TypeErrorDlpack(torch.tensor([i, i + 1, i + 2], device="cuda", dtype=torch.int32))
         for i in range(3)
     ]
     b = ndd.as_batch(data)
