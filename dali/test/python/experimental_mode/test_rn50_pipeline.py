@@ -22,16 +22,14 @@ from test_utils import get_dali_extra_path
 file_root = os.path.join(get_dali_extra_path(), "db/single/jpeg")
 img_list = os.path.join(file_root, "image_list.txt")
 batch_size = 16
-rng = ndd.random.RNG(seed=42)
-rng_copy = rng.clone()
 
 
-def ndd_rn50_pipeline(jpegs):
+def ndd_rn50_pipeline(jpegs, rng):
     batch_size = jpegs.batch_size
     images = ndd.decoders.image(jpegs, device="gpu")
-    xy = ndd.random.uniform(batch_size=batch_size, range=[0, 1], shape=2, rng=rng_copy)
-    do_mirror = ndd.random.coin_flip(batch_size=batch_size, probability=0.5, rng=rng_copy)
-    size = ndd.random.uniform(batch_size=batch_size, range=[256, 480], rng=rng_copy)
+    xy = ndd.random.uniform(batch_size=batch_size, range=[0, 1], shape=2, rng=rng)
+    do_mirror = ndd.random.coin_flip(batch_size=batch_size, probability=0.5, rng=rng)
+    size = ndd.random.uniform(batch_size=batch_size, range=[256, 480], rng=rng)
     resized_images = ndd.resize_crop_mirror(
         images,
         crop=[224, 224],
@@ -62,7 +60,7 @@ def random_state_source_factory(rng, batch_size):
 
 
 @dali.pipeline_def(num_threads=4, device_id=0, batch_size=batch_size)
-def rn50_pipeline():
+def rn50_pipeline(rng):
     jpegs, labels = fn.readers.file(
         name="reader", file_root=file_root, file_list=img_list, random_shuffle=False
     )
@@ -94,14 +92,17 @@ def rn50_pipeline():
 
 
 def test_rn50_pipeline():
+    rng = ndd.random.RNG(seed=42)
+    rng_copy = rng.clone()
+
     r = ndd.readers.File(file_root=file_root, file_list=img_list, random_shuffle=False)
     iterations = 0
-    p = rn50_pipeline()
+    p = rn50_pipeline(rng)
     with ndd.EvalContext(num_threads=4, device_id=0):
         for epoch in range(10):
             for jpegs, lbl_dynamic in r.next_epoch(batch_size=batch_size):
                 iterations += 1
-                imgs = ndd_rn50_pipeline(jpegs)
+                imgs = ndd_rn50_pipeline(jpegs, rng_copy)
                 out_dynamic = imgs.cpu().evaluate()
                 assert out_dynamic.batch_size == batch_size
                 out_pipeline, lbl_pipeline = p.run()
