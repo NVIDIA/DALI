@@ -71,7 +71,7 @@ This argument is mutually exclusive with `files`.)",
 
 `stick_to_shard` and `random_shuffle` cannot be used when this argument is set to True.)",
                     false)
-    .AddOptionalArg<int32_t>("shuffle_after_epoch_seed",
+    .AddOptionalArg<int64_t>("shuffle_after_epoch_seed",
                     R"(Random seed for the dataset shuffling performed after each epoch.
 
 If not provided, a fixed default seed is used, which results in the same shuffling

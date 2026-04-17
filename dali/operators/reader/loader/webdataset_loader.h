@@ -101,6 +101,7 @@ class DLL_PUBLIC WebdatasetLoader : public Loader<CPUBackend, vector<Tensor<CPUB
   Index SizeImpl() override;
   void PrepareMetadataImpl() override;
   void Reset(bool wrap_to_shard) override;
+  void RestoreStateImpl(const LoaderStateSnapshot &state) override;
 
   std::vector<std::string> paths_;
   std::vector<std::string> index_paths_;
@@ -123,6 +124,13 @@ class DLL_PUBLIC WebdatasetLoader : public Loader<CPUBackend, vector<Tensor<CPUB
   bool generate_index_ = true;
   std::string GetSampleSource(const detail::wds::SampleDesc& sample);
   bool case_sensitive_extensions_ = true;
+
+  bool shuffle_after_epoch_ = false;
+  int64_t shuffle_after_epoch_seed_ = 0;
+  int current_epoch_ = 0;
+  // Per-shard sample groups used for shard-level shuffling (populated only when
+  // shuffle_after_epoch_ is true).  Preserves sequential reads within each shard.
+  std::vector<std::vector<detail::wds::SampleDesc>> per_shard_samples_;
 };
 
 }  // namespace dali

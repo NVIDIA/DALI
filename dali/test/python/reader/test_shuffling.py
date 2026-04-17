@@ -13,11 +13,16 @@
 # limitations under the License.
 
 import nose_utils  # noqa:F401
+import contextlib
 import math
 from nvidia.dali.pipeline import Pipeline
+import nvidia.dali.fn as fn
 import nvidia.dali.ops as ops
+import nvidia.dali.tfrecord as tfrec
 import numpy as np
 import os
+import tempfile
+import webdataset_base as wds_base
 from test_utils import get_dali_extra_path
 
 
@@ -511,3 +516,415 @@ def test_shuffle_after_epoch_seed_backward_compat():
     assert (
         ids_set1[1] == ids_set2[1]
     ), "Without explicit seed, same shard should produce the same order (backward compat)"
+
+
+# ────────────────────────────────────────────────────────────────────────────
+#  WebDataset shuffle_after_epoch tests
+# ────────────────────────────────────────────────────────────────────────────
+
+# Use 3 distinct tar shards so shard-level shuffling is observable.
+_wds_tars = [
+    os.path.join(get_dali_extra_path(), f"db/webdataset/MNIST/devel-{i}.tar") for i in range(3)
+]
+
+
+@contextlib.contextmanager
+def _make_wds_pipe(
+    shuffle_after_epoch, num_shards=1, shard_id=0, shuffle_after_epoch_seed=None, seed=42
+):
+    """Context manager: build a multi-shard WebDataset pipeline (3 tar files)."""
+    index_files = [wds_base.generate_temp_index_file(t) for t in _wds_tars]
+    kwargs = dict(
+        paths=_wds_tars,
+        index_paths=[f.name for f in index_files],
+        ext=["jpg", "cls"],
+        num_shards=num_shards,
+        shard_id=shard_id,
+        shuffle_after_epoch=shuffle_after_epoch,
+        random_shuffle=True,
+        pad_last_batch=False,
+        prefetch_queue_depth=1,
+        name="Reader",
+    )
+    if shuffle_after_epoch_seed is not None:
+        kwargs["shuffle_after_epoch_seed"] = shuffle_after_epoch_seed
+
+    @wds_base.pipeline_def(batch_size=1, num_threads=1, device_id=0, seed=seed)
+    def _pipe():
+        jpg, cls = fn.readers.webdataset(**kwargs)
+        return jpg, cls
+
+    try:
+        yield _pipe()
+    finally:
+        for f in index_files:
+            f.close()
+
+
+def _collect_wds_epoch(pipe):
+    """Run one full epoch; return list of (jpg_header_bytes, cls) fingerprints."""
+    values = []
+    epoch_size = pipe.epoch_size("Reader")
+    for _ in range(epoch_size):
+        jpg, cls = pipe.run()
+        # First 16 bytes of each JPEG are unique enough per image
+        jpg_bytes = bytes(jpg.as_array().flatten()[:16].tolist())
+        cls_byte = int(cls.as_array().flatten()[0])
+        values.append((jpg_bytes, cls_byte))
+    return values
+
+
+def test_wds_shuffle_after_epoch_changes_order():
+    """shuffle_after_epoch=True must produce different sample order across epochs."""
+    with _make_wds_pipe(shuffle_after_epoch=True) as pipe:
+        epoch1 = _collect_wds_epoch(pipe)
+        epoch2 = _collect_wds_epoch(pipe)
+        assert epoch1 != epoch2, "shuffle_after_epoch should change sample order between epochs"
+        assert sorted(epoch1) == sorted(epoch2), "All samples must be present in both epochs"
+
+
+def test_wds_no_shuffle_after_epoch_stable_order():
+    """shuffle_after_epoch=False: two pipelines with the same seed must produce identical output."""
+    with _make_wds_pipe(shuffle_after_epoch=False) as pipe1, _make_wds_pipe(
+        shuffle_after_epoch=False
+    ) as pipe2:
+        assert _collect_wds_epoch(pipe1) == _collect_wds_epoch(
+            pipe2
+        ), "Without shuffle_after_epoch, same-seed pipelines must produce identical output"
+
+
+def test_wds_shuffle_after_epoch_seed_reproducible():
+    """Same seed must produce the same order in independent pipelines."""
+    seed = 42
+    with _make_wds_pipe(
+        shuffle_after_epoch=True, shuffle_after_epoch_seed=seed
+    ) as pipe1, _make_wds_pipe(shuffle_after_epoch=True, shuffle_after_epoch_seed=seed) as pipe2:
+        epoch1_a = _collect_wds_epoch(pipe1)
+        epoch1_b = _collect_wds_epoch(pipe2)
+        assert epoch1_a == epoch1_b, "Same seed must produce the same order"
+        epoch2_a = _collect_wds_epoch(pipe1)
+        epoch2_b = _collect_wds_epoch(pipe2)
+        assert epoch2_a == epoch2_b, "Same seed must produce the same order in epoch 2"
+        assert epoch1_a != epoch2_a, "Different epochs should have different orderings"
+
+
+def test_wds_shuffle_after_epoch_different_seeds():
+    """Different seeds must (almost certainly) produce different orderings."""
+    with _make_wds_pipe(
+        shuffle_after_epoch=True, shuffle_after_epoch_seed=111
+    ) as pipe1, _make_wds_pipe(shuffle_after_epoch=True, shuffle_after_epoch_seed=999) as pipe2:
+        epoch1 = _collect_wds_epoch(pipe1)
+        epoch2 = _collect_wds_epoch(pipe2)
+        assert epoch1 != epoch2, "Different seeds should produce different orderings"
+        assert sorted(epoch1) == sorted(epoch2), "Both seeds must cover all samples"
+
+
+def test_wds_shuffle_after_epoch_different_seeds_first_epoch():
+    """Different seeds must produce different orderings already in the first epoch."""
+    with _make_wds_pipe(
+        shuffle_after_epoch=True, shuffle_after_epoch_seed=111
+    ) as pipe1, _make_wds_pipe(shuffle_after_epoch=True, shuffle_after_epoch_seed=999) as pipe2:
+        epoch1_a = _collect_wds_epoch(pipe1)
+        epoch1_b = _collect_wds_epoch(pipe2)
+        assert epoch1_a != epoch1_b, "Different seeds must differ in the first epoch"
+        assert sorted(epoch1_a) == sorted(epoch1_b), "Both seeds must cover all samples"
+
+
+def test_wds_shuffle_after_epoch_multi_shard_coverage():
+    """With 2 shards, the union of samples per epoch should cover the full dataset."""
+    with _make_wds_pipe(
+        shuffle_after_epoch=True, num_shards=2, shard_id=0
+    ) as pipe0, _make_wds_pipe(shuffle_after_epoch=True, num_shards=2, shard_id=1) as pipe1:
+        epoch1_shards = [_collect_wds_epoch(pipe0), _collect_wds_epoch(pipe1)]
+        epoch2_shards = [_collect_wds_epoch(pipe0), _collect_wds_epoch(pipe1)]
+        all_e1 = sorted(epoch1_shards[0] + epoch1_shards[1])
+        all_e2 = sorted(epoch2_shards[0] + epoch2_shards[1])
+        assert all_e1 == all_e2, "Union of all shards must be the same dataset in every epoch"
+        assert (
+            epoch1_shards[0] != epoch2_shards[0] or epoch1_shards[1] != epoch2_shards[1]
+        ), "At least one shard should change order between epochs"
+
+
+# ────────────────────────────────────────────────────────────────────────────
+#  TFRecord shuffle_after_epoch tests
+# ────────────────────────────────────────────────────────────────────────────
+
+_tfrecord = os.path.join(get_dali_extra_path(), "db", "tfrecord", "train")
+_tfrecord_idx = os.path.join(get_dali_extra_path(), "db", "tfrecord", "train.idx")
+
+
+def _split_tfrecord_index():
+    """Split train.idx into three parts; return (tmp_idx0, tmp_idx1, tmp_idx2).
+
+    All three index files reference the same data file but cover non-overlapping
+    records.  Using three logical files ensures file-level shuffling produces an
+    observable reordering across epochs.
+    """
+    with open(_tfrecord_idx) as f:
+        lines = [line for line in f.readlines() if line.strip()]
+    n = len(lines)
+    t0 = tempfile.NamedTemporaryFile(mode="w", suffix=".idx", delete=False)
+    t1 = tempfile.NamedTemporaryFile(mode="w", suffix=".idx", delete=False)
+    t2 = tempfile.NamedTemporaryFile(mode="w", suffix=".idx", delete=False)
+    t0.writelines(lines[: n // 3])
+    t1.writelines(lines[n // 3 : 2 * n // 3])
+    t2.writelines(lines[2 * n // 3 :])
+    t0.close()
+    t1.close()
+    t2.close()
+    return t0.name, t1.name, t2.name
+
+
+@contextlib.contextmanager
+def _make_tfrecord_pipe(
+    shuffle_after_epoch, num_shards=1, shard_id=0, shuffle_after_epoch_seed=None, seed=42
+):
+    """Context manager: build a 3-shard TFRecord pipeline (same data file, split index).
+
+    Using three logical files ensures file-level shuffling produces an
+    observable reordering across epochs.
+    """
+    idx0, idx1, idx2 = _split_tfrecord_index()
+    kwargs = dict(
+        path=[_tfrecord, _tfrecord, _tfrecord],
+        index_path=[idx0, idx1, idx2],
+        features={"image/class/label": tfrec.FixedLenFeature([1], tfrec.int64, -1)},
+        num_shards=num_shards,
+        shard_id=shard_id,
+        shuffle_after_epoch=shuffle_after_epoch,
+        random_shuffle=True,
+        pad_last_batch=False,
+        prefetch_queue_depth=1,
+        name="Reader",
+    )
+    if shuffle_after_epoch_seed is not None:
+        kwargs["shuffle_after_epoch_seed"] = shuffle_after_epoch_seed
+
+    from nvidia.dali import pipeline_def
+
+    @pipeline_def(batch_size=1, num_threads=1, device_id=0, seed=seed)
+    def _pipe():
+        inputs = fn.readers.tfrecord(**kwargs)
+        return inputs["image/class/label"]
+
+    try:
+        yield _pipe()
+    finally:
+        for path in (idx0, idx1, idx2):
+            try:
+                os.unlink(path)
+            except OSError:
+                pass  # file may not exist if creation failed
+
+
+def _collect_tfrecord_epoch(pipe):
+    """Run one full epoch and return a list of label values."""
+    values = []
+    epoch_size = pipe.epoch_size("Reader")
+    for _ in range(epoch_size):
+        out = pipe.run()
+        values.append(int(out[0].as_array().flatten()[0]))
+    return values
+
+
+def test_tfrecord_shuffle_after_epoch_changes_order():
+    """shuffle_after_epoch=True must produce different sample order across epochs."""
+    with _make_tfrecord_pipe(shuffle_after_epoch=True) as pipe:
+        epoch1 = _collect_tfrecord_epoch(pipe)
+        epoch2 = _collect_tfrecord_epoch(pipe)
+        assert sorted(epoch1) == sorted(epoch2), "All samples must be present in both epochs"
+        assert epoch1 != epoch2, "shuffle_after_epoch should change order between epochs"
+
+
+def test_tfrecord_no_shuffle_after_epoch_stable_order():
+    """shuffle_after_epoch=False: two pipelines with the same seed must produce identical output."""
+    with _make_tfrecord_pipe(shuffle_after_epoch=False) as pipe1, _make_tfrecord_pipe(
+        shuffle_after_epoch=False
+    ) as pipe2:
+        assert _collect_tfrecord_epoch(pipe1) == _collect_tfrecord_epoch(
+            pipe2
+        ), "Without shuffle_after_epoch, same-seed pipelines must produce identical output"
+
+
+def test_tfrecord_shuffle_after_epoch_seed_reproducible():
+    """Same seed must produce the same order across independent pipelines."""
+    seed = 77
+    with _make_tfrecord_pipe(
+        shuffle_after_epoch=True, shuffle_after_epoch_seed=seed
+    ) as pipe1, _make_tfrecord_pipe(
+        shuffle_after_epoch=True, shuffle_after_epoch_seed=seed
+    ) as pipe2:
+        epoch1_a = _collect_tfrecord_epoch(pipe1)
+        epoch1_b = _collect_tfrecord_epoch(pipe2)
+        assert epoch1_a == epoch1_b, "Same seed must produce the same order"
+        epoch2_a = _collect_tfrecord_epoch(pipe1)
+        epoch2_b = _collect_tfrecord_epoch(pipe2)
+        assert epoch2_a == epoch2_b, "Same seed must produce the same order in epoch 2"
+        assert epoch1_a != epoch2_a, "Different epochs should have different orderings"
+
+
+def test_tfrecord_shuffle_after_epoch_different_seeds_first_epoch():
+    """Different seeds must produce different orderings already in the first epoch."""
+    with _make_tfrecord_pipe(
+        shuffle_after_epoch=True, shuffle_after_epoch_seed=111
+    ) as pipe1, _make_tfrecord_pipe(
+        shuffle_after_epoch=True, shuffle_after_epoch_seed=999
+    ) as pipe2:
+        epoch1_a = _collect_tfrecord_epoch(pipe1)
+        epoch1_b = _collect_tfrecord_epoch(pipe2)
+        assert epoch1_a != epoch1_b, "Different seeds must differ in the first epoch"
+        assert sorted(epoch1_a) == sorted(epoch1_b), "Both seeds must cover all samples"
+
+
+# ────────────────────────────────────────────────────────────────────────────
+#  MXNet / RecordIO shuffle_after_epoch tests
+# ────────────────────────────────────────────────────────────────────────────
+
+_mxnet_rec = os.path.join(get_dali_extra_path(), "db", "recordio", "train.rec")
+_mxnet_idx = os.path.join(get_dali_extra_path(), "db", "recordio", "train.idx")
+
+
+def _split_mxnet_rec():
+    """Split train.rec into three roughly equal parts at record boundaries.
+
+    RecordIOLoader accepts a single index file and uses the global offsets in it
+    to map records to files via cumulative file-size accounting.  Splitting the
+    .rec at record-boundary offsets (without touching the .idx) therefore works
+    transparently: the original index contains global offsets and the loader
+    correctly computes local offsets for each piece.
+
+    Returns (rec0_path, rec1_path, rec2_path).
+    """
+    # Parse sorted global offsets from the index
+    offsets = []
+    with open(_mxnet_idx) as f:
+        for line in f:
+            parts = line.strip().split()
+            if parts:
+                offsets.append(int(parts[1]))
+    offsets.sort()
+
+    n = len(offsets)
+    # Choose split points at 1/3 and 2/3 of the record list
+    split1 = offsets[n // 3]
+    split2 = offsets[2 * n // 3]
+
+    with open(_mxnet_rec, "rb") as f:
+        data = f.read()
+
+    f0 = tempfile.NamedTemporaryFile(suffix=".rec", delete=False)
+    f0.write(data[:split1])
+    f0.close()
+
+    f1 = tempfile.NamedTemporaryFile(suffix=".rec", delete=False)
+    f1.write(data[split1:split2])
+    f1.close()
+
+    f2 = tempfile.NamedTemporaryFile(suffix=".rec", delete=False)
+    f2.write(data[split2:])
+    f2.close()
+
+    return f0.name, f1.name, f2.name
+
+
+@contextlib.contextmanager
+def _make_mxnet_pipe(
+    shuffle_after_epoch, num_shards=1, shard_id=0, shuffle_after_epoch_seed=None, seed=42
+):
+    """Context manager: build a MXNet RecordIO pipeline using 3 split .rec files.
+
+    The original .idx file is reused unchanged – it stores global offsets and
+    the loader maps them to the correct file via cumulative file-size tracking.
+    Using three logical files ensures file-level shuffling produces an
+    observable reordering across epochs.
+    """
+    rec0, rec1, rec2 = _split_mxnet_rec()
+    kwargs = dict(
+        path=[rec0, rec1, rec2],
+        index_path=[_mxnet_idx],
+        num_shards=num_shards,
+        shard_id=shard_id,
+        shuffle_after_epoch=shuffle_after_epoch,
+        random_shuffle=True,
+        pad_last_batch=False,
+        prefetch_queue_depth=1,
+        name="Reader",
+    )
+    if shuffle_after_epoch_seed is not None:
+        kwargs["shuffle_after_epoch_seed"] = shuffle_after_epoch_seed
+
+    from nvidia.dali import pipeline_def
+
+    @pipeline_def(batch_size=1, num_threads=1, device_id=0, seed=seed)
+    def _pipe():
+        data, label = fn.readers.mxnet(**kwargs)
+        return data
+
+    try:
+        yield _pipe()
+    finally:
+        for path in (rec0, rec1, rec2):
+            try:
+                os.unlink(path)
+            except OSError:
+                pass  # file may not exist if creation failed
+
+
+def _collect_mxnet_epoch(pipe):
+    """Run one full epoch, return list of per-sample fingerprints."""
+    values = []
+    epoch_size = pipe.epoch_size("Reader")
+    for _ in range(epoch_size):
+        out = pipe.run()
+        arr = out[0].as_array().flatten()
+        # JPEG JFIF header is identical for many images; sample bytes from
+        # multiple offsets for a unique per-sample fingerprint.
+        n = len(arr)
+        fp = bytes(arr[min(i, n - 1)] for i in [0, 20, 40, 60, 80, 100, 200, 300])
+        values.append(fp)
+    return values
+
+
+def test_mxnet_shuffle_after_epoch_changes_order():
+    """shuffle_after_epoch=True must produce different sample order across epochs."""
+    with _make_mxnet_pipe(shuffle_after_epoch=True) as pipe:
+        epoch1 = _collect_mxnet_epoch(pipe)
+        epoch2 = _collect_mxnet_epoch(pipe)
+        assert sorted(epoch1) == sorted(epoch2), "All samples must be present in both epochs"
+        assert epoch1 != epoch2, "shuffle_after_epoch should change order between epochs"
+
+
+def test_mxnet_no_shuffle_after_epoch_stable_order():
+    """shuffle_after_epoch=False: two pipelines with the same seed must produce identical output."""
+    with _make_mxnet_pipe(shuffle_after_epoch=False) as pipe1, _make_mxnet_pipe(
+        shuffle_after_epoch=False
+    ) as pipe2:
+        assert _collect_mxnet_epoch(pipe1) == _collect_mxnet_epoch(
+            pipe2
+        ), "Without shuffle_after_epoch, same-seed pipelines must produce identical output"
+
+
+def test_mxnet_shuffle_after_epoch_seed_reproducible():
+    """Same seed must produce the same order across independent pipelines."""
+    seed = 55
+    with _make_mxnet_pipe(
+        shuffle_after_epoch=True, shuffle_after_epoch_seed=seed
+    ) as pipe1, _make_mxnet_pipe(shuffle_after_epoch=True, shuffle_after_epoch_seed=seed) as pipe2:
+        epoch1_a = _collect_mxnet_epoch(pipe1)
+        epoch1_b = _collect_mxnet_epoch(pipe2)
+        assert epoch1_a == epoch1_b, "Same seed must produce the same order"
+        epoch2_a = _collect_mxnet_epoch(pipe1)
+        epoch2_b = _collect_mxnet_epoch(pipe2)
+        assert epoch2_a == epoch2_b, "Same seed must produce the same order in epoch 2"
+        assert epoch1_a != epoch2_a, "Different epochs should have different orderings"
+
+
+def test_mxnet_shuffle_after_epoch_different_seeds_first_epoch():
+    """Different seeds must produce different orderings already in the first epoch."""
+    with _make_mxnet_pipe(
+        shuffle_after_epoch=True, shuffle_after_epoch_seed=111
+    ) as pipe1, _make_mxnet_pipe(shuffle_after_epoch=True, shuffle_after_epoch_seed=999) as pipe2:
+        epoch1_a = _collect_mxnet_epoch(pipe1)
+        epoch1_b = _collect_mxnet_epoch(pipe2)
+        assert epoch1_a != epoch1_b, "Different seeds must differ in the first epoch"
+        assert sorted(epoch1_a) == sorted(epoch1_b), "Both seeds must cover all samples"

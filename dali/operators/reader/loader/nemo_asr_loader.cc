@@ -104,7 +104,9 @@ void NemoAsrLoader::Reset(bool wrap_to_shard) {
       // reduce the randomness.
       std::iota(shuffled_indices_.begin(), shuffled_indices_.end(), 0);
     }
-    std::mt19937 g(static_cast<uint32_t>(shuffle_after_epoch_seed_ + current_epoch_));
+    uint64_t seed = static_cast<uint64_t>(shuffle_after_epoch_seed_)
+                  + (static_cast<uint64_t>(current_epoch_) << 32);
+    std::mt19937_64 g(seed);
     std::shuffle(shuffled_indices_.begin(), shuffled_indices_.end(), g);
   }
 }

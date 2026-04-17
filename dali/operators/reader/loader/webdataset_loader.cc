@@ -13,10 +13,13 @@
 // limitations under the License.
 
 #include "dali/operators/reader/loader/webdataset_loader.h"
+#include <algorithm>
 #include <cstddef>
 #include <cstring>
 #include <limits>
 #include <memory>
+#include <numeric>
+#include <random>
 #include <tuple>
 #include <utility>
 #include "dali/core/common.h"
@@ -224,7 +227,9 @@ WebdatasetLoader::WebdatasetLoader(const OpSpec& spec)
       paths_(spec.GetRepeatedArgument<std::string>("paths")),
       missing_component_behavior_(detail::wds::ParseMissingExtBehavior(
           spec.GetArgument<std::string>("missing_component_behavior"))),
-      case_sensitive_extensions_(spec.GetArgument<bool>("case_sensitive_extensions")) {
+      case_sensitive_extensions_(spec.GetArgument<bool>("case_sensitive_extensions")),
+      shuffle_after_epoch_(spec.GetArgument<bool>("shuffle_after_epoch")),
+      shuffle_after_epoch_seed_(kDaliDataloaderSeed) {
   spec.TryGetRepeatedArgument(index_paths_, "index_paths");
   DALI_ENFORCE(paths_.size() == index_paths_.size() || index_paths_.size() == 0,
                make_string("The number of index files, if any, must match the number of archives ",
@@ -234,6 +239,18 @@ WebdatasetLoader::WebdatasetLoader(const OpSpec& spec)
                make_string("Invalid value for missing_component_behavior '",
                            spec.GetArgument<std::string>("missing_component_behavior"),
                            "' possible values are: skip, error, empty"));
+
+  int64_t seed_arg = kDaliDataloaderSeed;
+  bool has_seed_arg = spec.TryGetArgument(seed_arg, "shuffle_after_epoch_seed");
+  shuffle_after_epoch_seed_ = seed_arg;
+  if (has_seed_arg && !shuffle_after_epoch_) {
+    DALI_WARN("`shuffle_after_epoch_seed` has no effect when `shuffle_after_epoch` is False.");
+  }
+  DALI_ENFORCE(!(shuffle_after_epoch_ && stick_to_shard_),
+               "shuffle_after_epoch and stick_to_shard cannot be both true");
+  if (shuffle_after_epoch_) {
+    stick_to_shard_ = true;
+  }
 
   std::vector<std::string> samples_exts = spec.GetRepeatedArgument<std::string>("ext");
   ext_.reserve(samples_exts.size());
@@ -487,11 +504,43 @@ void WebdatasetLoader::PrepareMetadataImpl() {
       was_output_set.fill(false);
     }
   }
-  sample_index_ = start_index(shard_id_, num_shards_, samples_.size());
+  if (shuffle_after_epoch_) {
+    // Group samples by their source shard so that per-shard sequential reads
+    // are preserved; only the order of shards is shuffled each epoch.
+    per_shard_samples_.resize(paths_.size());
+    for (auto& s : samples_) {
+      per_shard_samples_[s.wds_shard_index].push_back(s);
+    }
+    Reset(true);
+  } else {
+    // Preserve the original shard_id_-based start position when not shuffling.
+    sample_index_ = start_index(shard_id_, num_shards_, samples_.size());
+  }
 }
 
 void WebdatasetLoader::Reset(bool wrap_to_shard) {
+  current_epoch_++;
+  if (shuffle_after_epoch_) {
+    // Shuffle the order of shards (tar archives), keeping sequential access
+    // within each archive.
+    std::vector<size_t> shard_order(per_shard_samples_.size());
+    std::iota(shard_order.begin(), shard_order.end(), 0);
+    uint64_t seed = static_cast<uint64_t>(shuffle_after_epoch_seed_)
+                  + (static_cast<uint64_t>(current_epoch_) << 32);
+    std::mt19937_64 g(seed);
+    std::shuffle(shard_order.begin(), shard_order.end(), g);
+    samples_.clear();
+    for (size_t si : shard_order) {
+      for (auto& s : per_shard_samples_[si]) {
+        samples_.push_back(s);
+      }
+    }
+  }
   sample_index_ = wrap_to_shard ? start_index(virtual_shard_id_, num_shards_, samples_.size()) : 0;
+}
+
+void WebdatasetLoader::RestoreStateImpl(const LoaderStateSnapshot &state) {
+  current_epoch_ = state.current_epoch;
 }
 
 }  // namespace dali

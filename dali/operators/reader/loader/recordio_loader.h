@@ -108,6 +108,19 @@ class RecordIOLoader : public IndexedFileLoader {
       return;
     }
 
+    // Reopen the correct file when the index jumps to a different one.
+    // This is needed when shuffle_after_epoch reorders records across files.
+    if (file_index != current_file_index_) {
+      current_file_.reset();
+      FileStream::Options switch_opts;
+      switch_opts.read_ahead = read_ahead_;
+      switch_opts.use_mmap = !copy_read_data_;
+      switch_opts.use_odirect = false;
+      current_file_ = FileStream::Open(paths_[file_index], switch_opts);
+      current_file_index_ = file_index;
+      should_seek_ = true;
+    }
+
     if (should_seek_ || next_seek_pos_ != seek_pos) {
       current_file_->SeekRead(seek_pos);
       should_seek_ = false;
