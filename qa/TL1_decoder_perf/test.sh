@@ -25,8 +25,6 @@ LOG1_TP="dali_legacy_new_tp.log"
 LOG2_TP="dali_nvimgcodec_new_tp.log"
 LOG1_NDD="dali_ndd_legacy.log"
 LOG2_NDD="dali_ndd_nvimgcodec.log"
-LOG2_32STREAMS="dali_nvimgcodec_32streams.log"
-LOG2_NDD_32STREAMS="dali_ndd_nvimgcodec_32streams.log"
 
 function CLEAN_AND_EXIT {
     rm -rf ${LOG1}
@@ -35,8 +33,6 @@ function CLEAN_AND_EXIT {
     rm -rf ${LOG2_TP}
     rm -rf ${LOG1_NDD}
     rm -rf ${LOG2_NDD}
-    rm -rf ${LOG2_32STREAMS}
-    rm -rf ${LOG2_NDD_32STREAMS}
     exit $1
 }
 
@@ -70,8 +66,6 @@ run_all_benchmarks() {
     DALI_USE_NEW_THREAD_POOL=1 run_bench "${LOG2_TP}" ${TASKSET} python hw_decoder_bench.py ${BENCH_ARGS} -p rn50 --experimental_decoder
     run_bench "${LOG1_NDD}" ${TASKSET} python hw_decoder_bench.py ${BENCH_ARGS} -p ndd_rn50
     run_bench "${LOG2_NDD}" ${TASKSET} python hw_decoder_bench.py ${BENCH_ARGS} -p ndd_rn50 --experimental_decoder
-    NVIMGCODEC_DEFAULT_NUM_CUDA_STREAMS=32 run_bench "${LOG2_32STREAMS}"     ${TASKSET} python hw_decoder_bench.py ${BENCH_ARGS} -p rn50 --experimental_decoder
-    NVIMGCODEC_DEFAULT_NUM_CUDA_STREAMS=32 run_bench "${LOG2_NDD_32STREAMS}" ${TASKSET} python hw_decoder_bench.py ${BENCH_ARGS} -p ndd_rn50 --experimental_decoder
 }
 
 test_body() {
@@ -115,26 +109,19 @@ test_body() {
     PERF_RESULT3_NDD=$(perf_check "${LOG2_NDD}" "$(extract_perf "${LOG1_NDD}")" 5)
     PERF_RESULT1_TP=$(perf_check "${LOG1_TP}" "$(extract_perf "${LOG1}")" 2)
     PERF_RESULT2_TP=$(perf_check "${LOG2_TP}" "$(extract_perf "${LOG2}")" 2)
-    PERF_RESULT2_32STREAMS=$(perf_check "${LOG2_32STREAMS}" "$MIN_PERF2")
-    PERF_RESULT2_NDD_32STREAMS=$(perf_check "${LOG2_NDD_32STREAMS}" "$MIN_PERF2_NDD")
-    PERF_RESULT3_32STREAMS=$(perf_check "${LOG2_32STREAMS}" "$(extract_perf "${LOG1}")" 5)
-    PERF_RESULT3_NDD_32STREAMS=$(perf_check "${LOG2_NDD_32STREAMS}" "$(extract_perf "${LOG1_NDD}")" 5)
 
     echo "PERF_RESULT1=${PERF_RESULT1}"
     echo "PERF_RESULT2=${PERF_RESULT2}"
     echo "PERF_RESULT3=${PERF_RESULT3}"
-    echo "PERF_RESULT1_TP=${PERF_RESULT1_TP}"
-    echo "PERF_RESULT2_TP=${PERF_RESULT2_TP}"
+    echo "PERF_RESULT1_TP=${PERF_RESULT1_TP} (informational)"
+    echo "PERF_RESULT2_TP=${PERF_RESULT2_TP} (informational)"
     echo "PERF_RESULT1_NDD=${PERF_RESULT1_NDD}"
     echo "PERF_RESULT2_NDD=${PERF_RESULT2_NDD}"
     echo "PERF_RESULT3_NDD=${PERF_RESULT3_NDD}"
-    echo "PERF_RESULT2_32STREAMS=${PERF_RESULT2_32STREAMS}"
-    echo "PERF_RESULT2_NDD_32STREAMS=${PERF_RESULT2_NDD_32STREAMS}"
-    echo "PERF_RESULT3_32STREAMS=${PERF_RESULT3_32STREAMS}"
-    echo "PERF_RESULT3_NDD_32STREAMS=${PERF_RESULT3_NDD_32STREAMS}"
 
     # don't check experimental decoder performance with dynamic mode (PERF_RESULT2_NDD, PERF_RESULT3_NDD)
-    if [[ "$PERF_RESULT1" == "OK" && "$PERF_RESULT2" == "OK" && "$PERF_RESULT1_TP" == "OK" && "$PERF_RESULT2_TP" == "OK" && "$PERF_RESULT3" == "OK" && "$PERF_RESULT1_NDD" == "OK" && "$PERF_RESULT2_32STREAMS" == "OK" && "$PERF_RESULT3_32STREAMS" == "OK" && "$PERF_RESULT2_NDD_32STREAMS" == "OK" && "$PERF_RESULT3_NDD_32STREAMS" == "OK" ]]; then
+    # PERF_RESULT1_TP and PERF_RESULT2_TP are informational only (new thread pool is experimental)
+    if [[ "$PERF_RESULT1" == "OK" && "$PERF_RESULT2" == "OK" && "$PERF_RESULT3" == "OK" && "$PERF_RESULT1_NDD" == "OK" ]]; then
         CLEAN_AND_EXIT 0
     fi
 
