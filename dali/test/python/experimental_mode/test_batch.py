@@ -535,6 +535,7 @@ def test_batch_construction_mixed_gpu_dlpack_value_error_fallback():
     b = ndd.as_batch(data)
     b.evaluate()
     assert b.device.device_type == "gpu"
+    assert b.device.device_id == 0  # slow path uses first tensor's device
     assert b.dtype == ndd.int32
     assert b.batch_size == 2
     assert b.shape == [(3,), (3,)]
@@ -554,6 +555,7 @@ def test_batch_construction_native_fast_path_mixed_gpu_fallback():
     b = ndd.as_batch(data)
     b.evaluate()
     assert b.device.device_type == "gpu"
+    assert b.device.device_id == 0  # slow path uses first tensor's device
     assert b.dtype == ndd.int32
     assert b.batch_size == 2
     assert b.shape == [(3,), (3,)]
