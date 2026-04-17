@@ -203,9 +203,18 @@ class Tensor:
                 if int(dl_device_type) == 1 or int(dl_device_type) == 3:  # CPU
                     try:
                         self._storage = _backend.TensorCPU(data.__dlpack__(), layout)
-                    except (BufferError, TypeError):
-                        # DLPack may fail for read-only buffers or unsupported dtypes;
-                        # fall back to __array__ if available.
+                    except BufferError:
+                        # BufferError means the producer's buffer is immutable (e.g. a
+                        # read-only NumPy array).  Copy the data so DALI does not hold a
+                        # mutable alias of memory that the producer marked as read-only.
+                        a = _get_array_interface(data)
+                        if a is not None:
+                            self._storage = _backend.TensorCPU(np.array(a, copy=True), layout)
+                        else:
+                            raise
+                    except TypeError:
+                        # TypeError typically indicates an unsupported DLPack version or
+                        # dtype; fall back to the array interface without copying.
                         a = _get_array_interface(data)
                         if a is not None:
                             self._storage = _backend.TensorCPU(a, layout)
@@ -226,7 +235,12 @@ class Tensor:
                             layout=layout,
                             stream=stream,
                         )
-                    except (BufferError, TypeError):
+                    except TypeError:
+                        # TypeError indicates a DLPack protocol mismatch (e.g. keyword-
+                        # only stream arg on older implementations). BufferError is NOT
+                        # caught here: on GPU a BufferError may signal a synchronization
+                        # or ownership constraint, and silently switching to
+                        # __cuda_array_interface__ would bypass the required handshake.
                         if hasattr(data, "__cuda_array_interface__"):
                             self._storage = _backend.TensorGPU(data, layout=layout)
                         else:
