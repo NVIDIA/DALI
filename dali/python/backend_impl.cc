@@ -1161,6 +1161,78 @@ std::unique_ptr<Tensor<Backend> > TensorListGetItemImpl(TensorList<Backend> &t, 
   return ptr;
 }
 
+std::shared_ptr<TensorList<CPUBackend>> TensorListFromListOfDLPackObjectsCPU(
+      py::list &list_of_objects,
+      const std::optional<std::string> &layout,
+      bool contiguous) {
+  DomainTimeRange range("TensorListFromListOfDLPackObjectsCPU", kCPUTensorColor);
+
+  if (list_of_objects.empty()) {
+    auto ptr = std::make_shared<TensorList<CPUBackend>>();
+    if (layout.has_value()) {
+      ptr->set_sample_dim(layout->length());
+      ptr->SetLayout(*layout);
+    }
+    return ptr;
+  }
+
+  std::optional<TensorList<CPUBackend>> non_contiguous_tmp;
+  std::shared_ptr<TensorList<CPUBackend>> non_contiguous_out;
+
+  if (contiguous)
+    non_contiguous_tmp = TensorList<CPUBackend>(list_of_objects.size());
+  else
+    non_contiguous_out = std::make_shared<TensorList<CPUBackend>>(list_of_objects.size());
+
+  TensorList<CPUBackend> &non_contiguous = contiguous
+    ? non_contiguous_tmp.value()
+    : *non_contiguous_out;
+
+  int expected_type = -2;
+
+  {
+    DomainTimeRange build_range("Build initial list", kCPUTensorColor);
+    for (size_t i = 0; i < list_of_objects.size(); ++i) {
+      py::object obj = list_of_objects[i];
+      if (!py::hasattr(obj, "__dlpack__"))
+        throw py::type_error(make_string(
+            "Object at position ", i, " does not support the DLPack protocol."));
+
+      py::capsule capsule = obj.attr("__dlpack__")();
+      Tensor<CPUBackend> tensor;
+      FillTensorFromDlPack(capsule, &tensor, i == 0 ? layout : std::optional<std::string>{});
+
+      if (i == 0) {
+        non_contiguous.SetupLike(tensor);
+      }
+
+      DALIDataType cur_type = tensor.type();
+      if (expected_type == -2) {
+        expected_type = cur_type;
+      } else if (expected_type != static_cast<int>(cur_type)) {
+        throw py::type_error(make_string(
+            "Tensors cannot have different data types. Tensor at position ", i, " has type '",
+            cur_type, "' expected to have type '", DALIDataType(expected_type), "'."));
+      }
+      non_contiguous.SetSample(i, tensor);
+    }
+  }
+
+  if (!contiguous) {
+    SetLayout(non_contiguous, layout, false);
+    return non_contiguous_out;
+  }
+
+  {
+    DomainTimeRange copy_range("Copy to contiguous", kCPUTensorColor);
+    auto contiguous_out = std::make_shared<TensorList<CPUBackend>>();
+    contiguous_out->SetContiguity(BatchContiguity::Contiguous);
+    contiguous_out->Copy(non_contiguous, AccessOrder::host());
+    SetLayout(*contiguous_out, layout, false);
+    return contiguous_out;
+  }
+}
+
 std::shared_ptr<TensorList<GPUBackend>> TensorListFromListOfDLPackObjects(
       py::list &list_of_objects,
       const std::optional<std::string> &layout,
@@ -1185,7 +1257,11 @@ std::shared_ptr<TensorList<GPUBackend>> TensorListFromListOfDLPackObjects(
   py::object stream_handle = py::none();
   if (!stream.is_none()) {
     auto h = getattr(stream, "handle", py::none());
-    stream_handle = h.is_none() ? stream : h;
+    if (!h.is_none())
+      stream_handle = h;
+    else if (py::isinstance<py::int_>(stream))
+      stream_handle = stream;
+    // else: unknown stream type - leave stream_handle as None
   }
 
   std::optional<TensorList<GPUBackend>> non_contiguous_tmp;
@@ -1460,6 +1536,26 @@ void ExposeTensorListCPU(py::module &m) {
             If True, the list of tensors is converted to a contiguous TensorListCPU, necessarily
             creating a copy. Otherwise, the copy may be avoided.
       )code")
+    .def_static("from_dlpack_list", [](
+          py::list &list_of_objects,
+          std::optional<std::string> layout = {},
+          bool contiguous = false) {
+        DomainTimeRange range("TensorListCPU::from_dlpack_list", kCPUTensorColor);
+        return TensorListFromListOfDLPackObjectsCPU(list_of_objects, layout, contiguous);
+      },
+      "list_of_objects"_a,
+      "layout"_a = py::none(),
+      "contiguous"_a = false,
+      R"code(
+      List of tensors residing in the CPU memory, constructed from a Python list of DLPack objects.
+
+      list_of_objects : list
+            Python list of objects supporting the DLPack protocol (e.g. CPU tensors)
+      layout : str
+            Layout of the data
+      contiguous : bool, default False
+            If True, samples are copied into a single contiguous CPU buffer
+      )code")
     .def_static("broadcast", [](const Tensor<CPUBackend> &t, int num_samples) {
         return std::make_shared<TensorList<CPUBackend>>(t, num_samples);
       })
@@ -1727,14 +1823,14 @@ void ExposeTesorListGPU(py::module &m) {
             If True, the list of tensors is converted to a contiguous TensorListGPU, necessarily
             creating a copy. Otherwise, the copy may be avoided.
       )code")
-    .def(py::init([](
+    .def_static("from_dlpack_list", [](
           py::list &list_of_objects,
           std::optional<std::string> layout = {},
           py::object stream = py::none(),
           bool contiguous = false) {
-        DomainTimeRange range("TensorListGPU::init from a list of DLPack objects", kGPUTensorColor);
+        DomainTimeRange range("TensorListGPU::from_dlpack_list", kGPUTensorColor);
         return TensorListFromListOfDLPackObjects(list_of_objects, layout, stream, contiguous);
-      }),
+      },
       "list_of_objects"_a,
       "layout"_a = py::none(),
       "stream"_a = py::none(),
