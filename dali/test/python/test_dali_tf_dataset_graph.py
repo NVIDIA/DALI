@@ -210,26 +210,22 @@ def run_tf_dataset_multi_input(dev, start_values, input_names, batches):
     )
 
 
-start_values = [
-    [np.full((2, 4), -42, dtype=np.int64), np.full((3, 5), -123.0, dtype=np.float32)],
-    [np.full((3, 5), -3.14, dtype=np.float32)],
-    [
-        np.full((2, 4), -42, dtype=np.int64),
-        np.full((3, 5), -666.0, dtype=np.float32),
-        np.full((1, 7), 5, dtype=np.int8),
-    ],
+start_value_specs = [
+    [((2, 4), -42, np.int64), ((3, 5), -123.0, np.float32)],
+    [((3, 5), -3.14, np.float32)],
+    [((2, 4), -42, np.int64), ((3, 5), -666.0, np.float32), ((1, 7), 5, np.int8)],
 ]
 
-input_names = [["input_{}".format(i) for i, _ in enumerate(vals)] for vals in start_values]
+input_names = [["input_{}".format(i) for i in range(len(specs))] for specs in start_value_specs]
 
 
 def _generate_tf_dataset_multi_input_test_cases():
     cases = []
     for dev in ["cpu", "gpu"]:
-        for starts, names in zip(start_values, input_names):
-            cases.append((dev, starts, names, ["dataset" for _ in input_names]))
+        for specs, names in zip(start_value_specs, input_names):
+            cases.append((dev, specs, names, ["dataset" for _ in input_names]))
             for batches in list(itertools.product([True, False], repeat=len(input_names))):
-                cases.append((dev, starts, names, batches))
+                cases.append((dev, specs, names, batches))
     return cases
 
 
@@ -238,7 +234,8 @@ class TestTFDatasetMultiInput:
         skip_inputs_for_incompatible_tf()
 
     @params(*_generate_tf_dataset_multi_input_test_cases())
-    def test_tf_dataset_multi_input(self, dev, starts, names, batches):
+    def test_tf_dataset_multi_input(self, dev, start_specs, names, batches):
+        starts = [np.full(shape, val, dtype=dtype) for shape, val, dtype in start_specs]
         run_tf_dataset_multi_input(dev, starts, names, batches)
 
 
@@ -255,11 +252,20 @@ class TestTFWithDALIExternalSource:
     def setUp(self):
         skip_inputs_for_incompatible_tf()
 
-    @params(*gen_tf_with_dali_external_source(run_tf_with_dali_external_source))
+    @params(*gen_tf_with_dali_external_source())
     def test_tf_with_dali_external_source(
-        self, test_run, dev, es_args, es_dev, dtype, iter_limit, dense
+        self, get_callback, is_batched, cycle, batch_info, dense, dev, es_dev, dtype, iter_limit
     ):
-        test_run(dev, es_args, es_dev, dtype, iter_limit, dense)
+        bs = 12 if is_batched else None
+        es_args = {
+            "source": get_callback(dtype, iter_limit, bs, dense),
+            "batch": is_batched,
+            "cycle": cycle,
+            "batch_info": batch_info,
+        }
+        run_tf_with_dali_external_source(
+            dev, es_args, es_dev, tf.dtypes.as_dtype(dtype), iter_limit, dense
+        )
 
 
 tf_dataset_wrong_placement_error_msg = (

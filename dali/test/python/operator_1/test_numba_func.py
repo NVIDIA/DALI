@@ -123,6 +123,18 @@ def change_dim_expected_out(d):
     return np.array(list(range(d)) * 8).reshape(2, 2, 2, d)
 
 
+def _make_expected_out(spec):
+    """Build an expected-output array from a lightweight descriptor.
+
+    spec is either (shape, fill_value, dtype) for np.full, or
+    (callable, *args) to call the function at test run time.
+    """
+    if callable(spec[0]):
+        return spec[0](*spec[1:])
+    shape, fill_value, dtype = spec
+    return np.full(shape, fill_value, dtype=dtype)
+
+
 def get_data(shapes, dtype):
     return [np.empty(shape, dtype=dtype) for shape in shapes]
 
@@ -200,7 +212,7 @@ def _testimpl_numba_func(
         outs = pipe.run()
         for i in range(batch_size):
             out_arr = to_array(outs[0][i])
-            assert np.array_equal(out_arr, expected_out[i])
+            assert np.array_equal(out_arr, _make_expected_out(expected_out[i]))
 
 
 @pipeline_def
@@ -527,7 +539,7 @@ class TestNumbaFuncCPU:
             [3],
             None,
             True,
-            [np.full((10, 10, 10), 1, dtype=np.bool_)],
+            [((10, 10, 10), 1, np.bool_)],
         ),
         (
             [(10, 10, 10)],
@@ -539,7 +551,7 @@ class TestNumbaFuncCPU:
             [3],
             None,
             True,
-            [np.full((10, 10, 10), 255, dtype=np.uint8)],
+            [((10, 10, 10), 255, np.uint8)],
         ),
         (
             [(10, 10, 10)],
@@ -551,7 +563,7 @@ class TestNumbaFuncCPU:
             [3],
             None,
             None,
-            [np.full((10, 10, 10), 255, dtype=np.uint8)],
+            [((10, 10, 10), 255, np.uint8)],
         ),
         (
             [(10, 10, 10)],
@@ -563,7 +575,7 @@ class TestNumbaFuncCPU:
             [3],
             None,
             True,
-            [np.full((10, 10, 10), 0.5, dtype=np.float32)],
+            [((10, 10, 10), 0.5, np.float32)],
         ),
         (
             [(10, 10, 10)],
@@ -575,7 +587,7 @@ class TestNumbaFuncCPU:
             [3],
             None,
             None,
-            [np.full((10, 10, 10), 0.5, dtype=np.float32)],
+            [((10, 10, 10), 0.5, np.float32)],
         ),
         (
             [(10, 20, 30), (20, 10, 30)],
@@ -587,7 +599,7 @@ class TestNumbaFuncCPU:
             [3],
             setup_change_out_shape,
             True,
-            [np.full((20, 30, 10), 42, dtype=np.int32), np.full((10, 30, 20), 42, dtype=np.int32)],
+            [((20, 30, 10), 42, np.int32), ((10, 30, 20), 42, np.int32)],
         ),
         (
             [(10, 20, 30), (20, 10, 30)],
@@ -599,7 +611,7 @@ class TestNumbaFuncCPU:
             [3],
             setup_change_out_shape,
             None,
-            [np.full((20, 30, 10), 42, dtype=np.int32), np.full((10, 30, 20), 42, dtype=np.int32)],
+            [((20, 30, 10), 42, np.int32), ((10, 30, 20), 42, np.int32)],
         ),
     )
     def test_numba_func(
@@ -811,7 +823,7 @@ class TestNumbaFuncGPU:
             [3],
             None,
             None,
-            [np.full((10, 10, 10), 1, dtype=np.bool_)],
+            [((10, 10, 10), 1, np.bool_)],
         ),
         (
             [(10, 10, 10)],
@@ -823,7 +835,7 @@ class TestNumbaFuncGPU:
             [3],
             None,
             None,
-            [np.full((10, 10, 10), 255, dtype=np.uint8)],
+            [((10, 10, 10), 255, np.uint8)],
         ),
         (
             [(10, 10, 10)],
@@ -835,7 +847,7 @@ class TestNumbaFuncGPU:
             [3],
             None,
             None,
-            [np.full((10, 10, 10), 0.5, dtype=np.float32)],
+            [((10, 10, 10), 0.5, np.float32)],
         ),
         (
             [(100, 20, 30), (20, 100, 30)],
@@ -847,10 +859,7 @@ class TestNumbaFuncGPU:
             [3],
             setup_change_out_shape,
             None,
-            [
-                np.full((20, 30, 100), 42, dtype=np.int32),
-                np.full((100, 30, 20), 42, dtype=np.int32),
-            ],
+            [((20, 30, 100), 42, np.int32), ((100, 30, 20), 42, np.int32)],
         ),
         (
             [(20), (30)],
@@ -862,7 +871,7 @@ class TestNumbaFuncGPU:
             [1],
             change_ndim_setup,
             None,
-            [change_dim_expected_out(20), change_dim_expected_out(30)],
+            [(change_dim_expected_out, 20), (change_dim_expected_out, 30)],
         ),
     )
     def test_numba_func(

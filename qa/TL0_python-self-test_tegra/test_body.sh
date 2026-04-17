@@ -28,6 +28,7 @@ test_py_with_framework() {
     done
 
     ${python_new_invoke_test} -A '!slow,!pytorch,!cupy,!numba' test_external_source_parallel.TestParallelFork._test_parallel_fork_cpu_only
+    ${python_new_invoke_test} -A '!slow,!pytorch,!cupy,!numba' test_external_source_parallel.TestParallelFork._test_parallel_fork
 
     XAVIER_OPERATOR_1_TESTS=""
     for test_script in $(ls operator_1/test_*.py); do

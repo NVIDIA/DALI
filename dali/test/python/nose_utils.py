@@ -12,11 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from unittest import SkipTest  # noqa: F401
-import unittest
-import re
 import fnmatch
 import functools
+import re
+import unittest
+
+SkipTest = unittest.SkipTest  # noqa: F401  # re-exported for callers
 
 
 def attr(*tags):

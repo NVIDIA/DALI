@@ -21,7 +21,6 @@ from nose2.tools import params, cartesian_params
 from nose_utils import raises
 import unittest
 import functools
-import nvidia.dali.backend as _b
 
 
 def no_arg_fun():
@@ -180,11 +179,9 @@ class TestParallelFork(unittest.TestCase):
             capture_processes(pipe1._py_pool)
             utils.compare_pipelines(pipe0, pipe1, batch_size, iters)
 
-    def test_parallel_fork(self):
+    def _test_parallel_fork(self):
         epoch_size = 250
         callback = utils.ExtCallback((4, 5), epoch_size, np.int32)
-        # if context is already initialized, use spawn to avoid fork wich will fail immediately
-        init_method = "fork" if not _b.IsDriverInitialized() else "spawn"
         pipes = [
             (
                 utils.create_pipe(
@@ -192,7 +189,7 @@ class TestParallelFork(unittest.TestCase):
                     "cpu",
                     batch_size,
                     py_num_workers=num_workers,
-                    py_start_method=init_method,
+                    py_start_method="fork",
                     parallel=True,
                 ),
                 utils.create_pipe(callback, "cpu", batch_size, parallel=False),
@@ -210,7 +207,7 @@ class TestParallelFork(unittest.TestCase):
                     "cpu",
                     32,
                     py_num_workers=1,
-                    py_start_method=init_method,
+                    py_start_method="fork",
                     parallel=True,
                     batch=True,
                 ),
@@ -492,15 +489,21 @@ class TestCycleRaise:
 
     @cartesian_params(
         [
-            (1, Iterable(BATCH_SIZE, (4, 5), epoch_size=1), False),
-            (4, Iterable(BATCH_SIZE, (4, 5), epoch_size=4), False),
+            (1, (4, 5), False),
+            (4, (4, 5), False),
             (1, generator_epoch_size_1, True),
             (4, generator_epoch_size_4, True),
         ],
         (1, 2, 6),
     )
     def test_cycle_raise(self, case_description, reader_queue_size):
-        epoch_size, cb, is_gen_fun = case_description
+        epoch_size, shape_or_gen_fun, is_gen_fun = case_description
+        if is_gen_fun:
+            cb = shape_or_gen_fun
+            refer_iter = cb()
+        else:
+            cb = Iterable(self.BATCH_SIZE, shape_or_gen_fun, epoch_size=epoch_size)
+            refer_iter = cb
         pipe = utils.create_pipe(
             cb,
             "cpu",
@@ -516,10 +519,6 @@ class TestCycleRaise:
         )
         pipe.build()
         capture_processes(pipe._py_pool)
-        if is_gen_fun:
-            refer_iter = cb()
-        else:
-            refer_iter = cb
         for _ in range(3):
             i = 0
             while True:
@@ -684,9 +683,6 @@ def _make_all_kinds_parallel_cases():
                 if trailing >= batch_size:
                     continue
                 epoch_size = num_iters * batch_size + trailing
-                sample_cb = utils.ExtCallback((4, 5), epoch_size, np.int32)
-                batch_cb = SampleCallbackBatched(sample_cb, batch_size, batch_info=True)
-                iterator_cb = SampleCallbackIterator(sample_cb, batch_size, batch_info=True)
                 for reader_queue_sizes in (
                     (1, 1, 1),
                     (2, 2, 2),
@@ -698,9 +694,7 @@ def _make_all_kinds_parallel_cases():
                     for num_workers in (1, 7):
                         cases.append(
                             (
-                                sample_cb,
-                                batch_cb,
-                                iterator_cb,
+                                epoch_size,
                                 batch_size,
                                 num_workers,
                                 reader_queue_sizes,
@@ -720,14 +714,16 @@ class TestAllKindsParallel:
     @params(*_make_all_kinds_parallel_cases())
     def test_all_kinds_parallel(
         self,
-        sample_cb,
-        batch_cb,
-        iterator_cb,
+        epoch_size,
         batch_size,
         num_workers,
         reader_queue_sizes,
         num_iters,
     ):
+        sample_cb = utils.ExtCallback((4, 5), epoch_size, np.int32)
+        batch_cb = SampleCallbackBatched(sample_cb, batch_size, batch_info=True)
+        iterator_cb = SampleCallbackIterator(sample_cb, batch_size, batch_info=True)
+
         @dali.pipeline_def(
             batch_size=batch_size,
             num_threads=4,

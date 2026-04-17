@@ -441,11 +441,20 @@ class TestTFWithDALIExternalSource:
     def setUp(self):
         skip_inputs_for_incompatible_tf()
 
-    @params(*gen_tf_with_dali_external_source(run_tf_with_dali_external_source))
+    @params(*gen_tf_with_dali_external_source())
     def test_tf_with_dali_external_source(
-        self, test_run, dev, es_args, es_dev, dtype, iter_limit, dense
+        self, get_callback, is_batched, cycle, batch_info, dense, dev, es_dev, dtype, iter_limit
     ):
-        test_run(dev, es_args, es_dev, dtype, iter_limit, dense)
+        bs = 12 if is_batched else None
+        es_args = {
+            "source": get_callback(dtype, iter_limit, bs, dense),
+            "batch": is_batched,
+            "cycle": cycle,
+            "batch_info": batch_info,
+        }
+        run_tf_with_dali_external_source(
+            dev, es_args, es_dev, tf.dtypes.as_dtype(dtype), iter_limit, dense
+        )
 
     def test_tf_dataset_layouts(self):
         for shape, layout in [((2, 3), "XY"), ((10, 20, 3), "HWC"), ((4, 128, 64, 3), "FHWC")]:
