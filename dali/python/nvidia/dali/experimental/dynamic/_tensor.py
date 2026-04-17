@@ -236,15 +236,24 @@ class Tensor:
                             stream=stream,
                         )
                     except TypeError:
-                        # TypeError indicates a DLPack protocol mismatch (e.g. keyword-
-                        # only stream arg on older implementations). BufferError is NOT
-                        # caught here: on GPU a BufferError may signal a synchronization
-                        # or ownership constraint, and silently switching to
-                        # __cuda_array_interface__ would bypass the required handshake.
-                        if hasattr(data, "__cuda_array_interface__"):
-                            self._storage = _backend.TensorGPU(data, layout=layout)
-                        else:
-                            raise
+                        # Older DLPack implementations don't accept the stream keyword;
+                        # retry without it before considering __cuda_array_interface__.
+                        # BufferError is intentionally not caught: on GPU it may signal
+                        # a synchronization or ownership constraint.
+                        try:
+                            dlpack_capsule = data.__dlpack__()
+                            self._storage = _backend.TensorGPU(
+                                dlpack_capsule,
+                                layout=layout,
+                                stream=stream,
+                            )
+                        except TypeError:
+                            # __dlpack__ is entirely non-functional for this object;
+                            # only then fall back to __cuda_array_interface__.
+                            if hasattr(data, "__cuda_array_interface__"):
+                                self._storage = _backend.TensorGPU(data, layout=layout)
+                            else:
+                                raise
                 else:
                     raise ValueError(f"Unsupported device type: {dl_device_type}")
                 self._wraps_external_data = True

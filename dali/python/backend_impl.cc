@@ -1315,6 +1315,8 @@ std::shared_ptr<TensorList<GPUBackend>> TensorListFromListOfDLPackObjects(
 
   if (!contiguous) {
     SetLayout(non_contiguous, layout, false);
+    // Record which stream holds the data so downstream consumers can synchronize correctly.
+    non_contiguous_out->set_order(copy_order);
     return non_contiguous_out;
   }
 
@@ -1325,6 +1327,7 @@ std::shared_ptr<TensorList<GPUBackend>> TensorListFromListOfDLPackObjects(
     contiguous_out->set_pinned(non_contiguous.is_pinned());
     contiguous_out->Copy(non_contiguous, copy_order);
     SetLayout(*contiguous_out, layout, false);
+    contiguous_out->set_order(copy_order);
     return contiguous_out;
   }
 }
