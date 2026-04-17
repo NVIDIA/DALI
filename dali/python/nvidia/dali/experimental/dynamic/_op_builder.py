@@ -25,6 +25,8 @@ from nvidia.dali.ops import _docs, _names
 
 from . import _device, _invocation, _op_filter, _ops, _type
 from ._batch import Batch
+from ._callsite import mark_transparent, resolve_callsite_frame
+from ._eval_mode import EvalMode
 from ._tensor import Tensor, tensor as to_tensor
 
 
@@ -90,20 +92,6 @@ def _get_module_name(module, legacy_op_class):
     if legacy_op_class is not None and legacy_op_class.__module__.endswith("hidden"):
         module_name += ".hidden"
     return module_name
-
-
-def _get_caller_depth(has_fn_wrapper: bool):
-    # By default, the call stack is as follows:
-    # - __call__ function
-    # - nvtx decorator
-    # - makefun-generated function
-    # - fn wrapper
-    # - nvtx decorator
-    # - makefun-generation function
-    # As a result we have to skip 6 frames.
-    # There are however exceptions such as reader called explicitly or manually created operators
-    # that don't rely on the fn wrapper. For such cases, we skip only 3 frames.
-    return 6 if has_fn_wrapper else 3
 
 
 def build_operator_class(schema):
@@ -305,6 +293,7 @@ def build_call_function(schema, op_class):
 
     header = f"__call__({', '.join(['self'] + inputs + call_args + internal_args)})"
 
+    @mark_transparent
     @NVTXRange(f"__call__: {op_class._op_name}", category="op_builder")
     def call(self, *raw_args, batch_size=None, _process_params=True, **raw_kwargs):
         self._pre_call(*raw_args, **raw_kwargs)
@@ -340,6 +329,9 @@ def build_call_function(schema, op_class):
         else:
             call_id = None
         with NVTXRange("__call__: construct Invocation", category="op_builder"):
+            caller_frame = None
+            if EvalMode.current().value <= EvalMode.eager.value:
+                caller_frame = resolve_callsite_frame()
             invocation = _invocation.Invocation(
                 self,
                 call_id,
@@ -348,7 +340,7 @@ def build_call_function(schema, op_class):
                 is_batch=is_batch,
                 batch_size=batch_size or 1,
                 previous_invocation=self._last_invocation,
-                caller_depth=_get_caller_depth(not _process_params),
+                caller_frame=caller_frame,
             )
 
         if stateful:
@@ -372,7 +364,7 @@ def build_call_function(schema, op_class):
             }
 
     doc = _docs._docstring_generator_call(schema.Name(), api="dynamic", args=used_kwargs)
-    function = makefun.create_function(header, call, doc=doc)
+    function = mark_transparent(makefun.create_function(header, call, doc=doc))
 
     return function
 
@@ -433,6 +425,7 @@ def build_fn_wrapper(op, fn_name=None, add_to_module=True):
 
     header = f"{fn_name}({', '.join(inputs + signature_args)})"
 
+    @mark_transparent
     @NVTXRange(f"{fn_name}()", category="op_builder")
     def fn_call(*inputs, batch_size=None, device=None, **raw_kwargs):
         batch_size = _ops._infer_batch_size(batch_size, *inputs, **raw_kwargs)
@@ -509,7 +502,7 @@ def build_fn_wrapper(op, fn_name=None, add_to_module=True):
         return op_inst(*inputs, batch_size=batch_size, _process_params=False, **call_args)
 
     doc = _docs._docstring_generator_fn(schema.Name(), api="dynamic", args=used_kwargs)
-    function = makefun.create_function(header, fn_call, doc=doc)
+    function = mark_transparent(makefun.create_function(header, fn_call, doc=doc))
     function._op_class = op
     function._schema = schema
     function._schema_name = schema.Name()
