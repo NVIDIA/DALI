@@ -219,12 +219,18 @@ class Tensor:
                     else:
                         stream = _stream.stream(device_id=device_id)
                     args = {"stream": stream.handle}
-                    dlpack_capsule = data.__dlpack__(**args)
-                    self._storage = _backend.TensorGPU(
-                        dlpack_capsule,
-                        layout=layout,
-                        stream=stream,
-                    )
+                    try:
+                        dlpack_capsule = data.__dlpack__(**args)
+                        self._storage = _backend.TensorGPU(
+                            dlpack_capsule,
+                            layout=layout,
+                            stream=stream,
+                        )
+                    except (BufferError, TypeError):
+                        if hasattr(data, "__cuda_array_interface__"):
+                            self._storage = _backend.TensorGPU(data, layout=layout)
+                        else:
+                            raise
                 else:
                     raise ValueError(f"Unsupported device type: {dl_device_type}")
                 self._wraps_external_data = True
