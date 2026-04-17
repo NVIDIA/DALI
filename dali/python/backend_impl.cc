@@ -1293,10 +1293,37 @@ std::shared_ptr<TensorList<GPUBackend>> TensorListFromListOfDLPackObjects(
   if (!stream.is_none())
     copy_order = AccessOrderFromPythonStreamObj(stream);
 
+  // Preflight pass: validate device homogeneity and, when no stream was provided,
+  // resolve the consumer stream via UserStream before any __dlpack__() call.
+  // __dlpack__() is single-use (the capsule is consumed), so device/stream
+  // mismatches must be caught here — not after the handshake has already happened.
+  int expected_device_id = -1;
+  for (size_t i = 0; i < list_of_objects.size(); ++i) {
+    py::object obj = list_of_objects[i];
+    if (!py::hasattr(obj, "__dlpack__"))
+      throw py::type_error(make_string(
+          "Object at position ", i, " does not support the DLPack protocol."));
+    if (py::hasattr(obj, "__dlpack_device__")) {
+      py::tuple dev_info = obj.attr("__dlpack_device__")();
+      int dev_id = dev_info[1].cast<int>();
+      if (expected_device_id == -1) {
+        expected_device_id = dev_id;
+        // When no explicit stream was given, look up the UserStream for this device
+        // so every __dlpack__() call below uses the same concrete stream handle.
+        if (copy_order == AccessOrder::host())
+          copy_order = AccessOrder(UserStream::Get()->GetStream(
+              static_cast<size_t>(expected_device_id)));
+      } else if (dev_id != expected_device_id) {
+        throw py::value_error(make_string(
+            "All tensors must reside on the same GPU device. "
+            "Tensor at position ", i, " is on GPU ", dev_id,
+            " but expected GPU ", expected_device_id, "."));
+      }
+    }
+  }
+
   // Derive the DLPack consumer-stream handle from copy_order so the producer always
   // synchronizes with the exact same stream that DALI will use for the copy.
-  // Using copy_order (not the raw Python stream object) avoids mismatches when the
-  // stream wrapper type exposes its handle under a name other than "handle".
   py::object stream_handle = py::none();
   if (copy_order.is_device()) {
     stream_handle = py::int_(reinterpret_cast<int64_t>(copy_order.stream()));
@@ -1315,15 +1342,11 @@ std::shared_ptr<TensorList<GPUBackend>> TensorListFromListOfDLPackObjects(
     : *non_contiguous_out;
 
   int expected_type = -2;
-  int expected_device_id = -1;
 
   {
     DomainTimeRange build_range("Build initial list", kGPUTensorColor);
     for (size_t i = 0; i < list_of_objects.size(); ++i) {
       py::object obj = list_of_objects[i];
-      if (!py::hasattr(obj, "__dlpack__"))
-        throw py::type_error(make_string(
-            "Object at position ", i, " does not support the DLPack protocol."));
 
       py::capsule capsule = obj.attr("__dlpack__")("stream"_a = stream_handle);
       Tensor<GPUBackend> tensor;
@@ -1331,8 +1354,11 @@ std::shared_ptr<TensorList<GPUBackend>> TensorListFromListOfDLPackObjects(
 
       if (i == 0) {
         non_contiguous.SetupLike(tensor);
-        if (copy_order == AccessOrder::host())
+        // If __dlpack_device__ was absent for all tensors, fall back to per-tensor UserStream.
+        if (copy_order == AccessOrder::host()) {
           copy_order = AccessOrder(UserStream::Get()->GetStream(tensor));
+          stream_handle = py::int_(reinterpret_cast<int64_t>(copy_order.stream()));
+        }
         expected_device_id = tensor.device_id();
       } else if (tensor.device_id() != expected_device_id) {
         throw py::value_error(make_string(
