@@ -1,0 +1,6 @@
+queries:
+  - uses: security-and-quality
+
+query-filters:
+  - exclude:
+      id: py/unsafe-cyclic-import
