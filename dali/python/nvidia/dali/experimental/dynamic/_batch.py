@@ -369,7 +369,7 @@ class Batch:
                                     stream=cuda_stream,
                                     contiguous=False,
                                 )
-                            except TypeError:
+                            except (TypeError, ValueError, BufferError):
                                 pass  # fall through to slow path
                             else:
                                 if dtype is None or DType.from_type_id(storage.dtype) == dtype:
@@ -390,7 +390,7 @@ class Batch:
                                     layout=layout or None,
                                     contiguous=False,
                                 )
-                            except TypeError:
+                            except (TypeError, ValueError, BufferError):
                                 pass  # fall through to slow path
                             else:
                                 if dtype is None or DType.from_type_id(storage.dtype) == dtype:
