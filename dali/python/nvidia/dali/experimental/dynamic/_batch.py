@@ -284,104 +284,129 @@ class Batch:
 
             else:
                 # Materialise first so len() and indexing work for any iterable.
-                _tensors_list = tensors if isinstance(tensors, list) else list(tensors)
-                _fast_path_used = False
+                tensors_list = tensors if isinstance(tensors, list) else list(tensors)
+                fast_path_used = False
 
                 # Native DALI fast path: list of evaluated ndd.Tensor objects.
                 # Build TensorList directly from backend storage objects, preserving all
                 # metadata (layout, enum types, etc.) without going through DLPack.
                 if (
-                    dtype is None
-                    and len(_tensors_list) > 0
-                    and isinstance(_tensors_list[0], Tensor)
-                    and _tensors_list[0]._storage is not None
+                    len(tensors_list) > 0
+                    and isinstance(tensors_list[0], Tensor)
+                    and tensors_list[0]._storage is not None
                 ):
-                    _first_storage = _tensors_list[0]._storage
-                    _storages = []
-                    _native_valid = True
-                    for _t in _tensors_list:
+                    first_storage = tensors_list[0]._storage
+                    first_dev_id = (
+                        first_storage.device_id()
+                        if isinstance(first_storage, _backend.TensorGPU)
+                        else None
+                    )
+                    storages = []
+                    for t in tensors_list:
                         if (
-                            not isinstance(_t, Tensor)
-                            or _t._storage is None
-                            or type(_t._storage) is not type(_first_storage)
+                            not isinstance(t, Tensor)
+                            or t._storage is None
+                            or type(t._storage) is not type(first_storage)
+                            or (first_dev_id is not None and t._storage.device_id() != first_dev_id)
+                            or (dtype is not None and DType.from_type_id(t._storage.dtype) != dtype)
                         ):
-                            _native_valid = False
                             break
-                        _storages.append(_t._storage)
-                    if _native_valid:
-                        if isinstance(_first_storage, _backend.TensorGPU):
-                            _dev_id = _first_storage.device_id()
-                            _dev_matches = device is None or (
-                                device.device_type == "gpu" and device.device_id == _dev_id
+                        storages.append(t._storage)
+                    else:
+                        if isinstance(first_storage, _backend.TensorGPU):
+                            dev_matches = device is None or (
+                                device.device_type == "gpu" and device.device_id == first_dev_id
                             )
-                            _backend_type = _backend.TensorListGPU
-                            _dev = Device("gpu", _dev_id)
+                            BackendType = _backend.TensorListGPU
+                            dev = Device("gpu", first_dev_id)
                         else:
-                            _dev_matches = device is None or device.device_type == "cpu"
-                            _backend_type = _backend.TensorListCPU
-                            _dev = Device("cpu")
-                        if _dev_matches:
+                            dev_matches = device is None or device.device_type == "cpu"
+                            BackendType = _backend.TensorListCPU
+                            dev = Device("cpu")
+                        if dev_matches:
                             try:
-                                _storage = _backend_type(
-                                    _storages, layout=layout or None, contiguous=False
+                                storage = BackendType(
+                                    storages, layout=layout or None, contiguous=False
                                 )
                             except (TypeError, RuntimeError):
                                 pass  # fall through to slow path
                             else:
-                                self._storage = _storage
-                                self._device = _dev
+                                self._storage = storage
+                                self._device = dev
                                 self._dtype = DType.from_type_id(self._storage.dtype)
                                 self._layout = self._storage.layout() or ""
                                 self._wraps_external_data = any(
-                                    t._wraps_external_data for t in _tensors_list
+                                    t._wraps_external_data for t in tensors_list
                                 )
                                 device = self._device
                                 dtype = self._dtype
                                 layout = self._layout
-                                _fast_path_used = True
+                                fast_path_used = True
 
-                # DLPack fast path: list of external GPU tensors (e.g. PyTorch GPU tensors).
-                # Build TensorListGPU directly in C++, skipping per-sample Python Tensor wrappers.
-                if not _fast_path_used and (
-                    dtype is None
-                    and len(_tensors_list) > 0
-                    and not isinstance(_tensors_list[0], Tensor)
-                    and hasattr(_tensors_list[0], "__dlpack_device__")
+                # DLPack fast path: list of external tensors (e.g. PyTorch tensors).
+                # Build TensorListGPU/TensorListCPU directly in C++, skipping per-sample
+                # Python Tensor wrappers.
+                if not fast_path_used and (
+                    len(tensors_list) > 0
+                    and not isinstance(tensors_list[0], Tensor)
+                    and hasattr(tensors_list[0], "__dlpack_device__")
                 ):
-                    _dl_dev_type, _dl_dev_id = _tensors_list[0].__dlpack_device__()
-                    if int(_dl_dev_type) == 2:  # GPU
+                    dl_dev_type, dl_dev_id = tensors_list[0].__dlpack_device__()
+                    if int(dl_dev_type) == 2:  # kDLCUDA - GPU
                         if device is None or (
-                            device.device_type == "gpu" and device.device_id == _dl_dev_id
+                            device.device_type == "gpu" and device.device_id == dl_dev_id
                         ):
                             ctx = _EvalContext.current()
-                            _stream = (
+                            cuda_stream = (
                                 ctx.cuda_stream
-                                if ctx.device_id == _dl_dev_id
-                                else _stream_module.stream(device_id=_dl_dev_id)
+                                if ctx.device_id == dl_dev_id
+                                else _stream_module.stream(device_id=dl_dev_id)
                             )
                             try:
-                                _storage = _backend.TensorListGPU(
-                                    _tensors_list,
+                                storage = _backend.TensorListGPU.from_dlpack_list(
+                                    tensors_list,
                                     layout=layout or None,
-                                    stream=_stream,
+                                    stream=cuda_stream,
                                     contiguous=False,
                                 )
                             except TypeError:
                                 pass  # fall through to slow path
                             else:
-                                self._storage = _storage
-                                self._device = Device("gpu", _dl_dev_id)
-                                self._dtype = DType.from_type_id(self._storage.dtype)
-                                self._layout = self._storage.layout() or ""
-                                self._wraps_external_data = True
-                                device = self._device
-                                dtype = self._dtype
-                                layout = self._layout
-                                _fast_path_used = True
+                                if dtype is None or DType.from_type_id(storage.dtype) == dtype:
+                                    self._storage = storage
+                                    self._device = Device("gpu", dl_dev_id)
+                                    self._dtype = DType.from_type_id(self._storage.dtype)
+                                    self._layout = self._storage.layout() or ""
+                                    self._wraps_external_data = True
+                                    device = self._device
+                                    dtype = self._dtype
+                                    layout = self._layout
+                                    fast_path_used = True
+                    elif int(dl_dev_type) == 1:  # kDLCPU
+                        if device is None or device.device_type == "cpu":
+                            try:
+                                storage = _backend.TensorListCPU.from_dlpack_list(
+                                    tensors_list,
+                                    layout=layout or None,
+                                    contiguous=False,
+                                )
+                            except TypeError:
+                                pass  # fall through to slow path
+                            else:
+                                if dtype is None or DType.from_type_id(storage.dtype) == dtype:
+                                    self._storage = storage
+                                    self._device = Device("cpu")
+                                    self._dtype = DType.from_type_id(self._storage.dtype)
+                                    self._layout = self._storage.layout() or ""
+                                    self._wraps_external_data = True
+                                    device = self._device
+                                    dtype = self._dtype
+                                    layout = self._layout
+                                    fast_path_used = True
 
-                if not _fast_path_used:
+                if not fast_path_used:
                     self._tensors = []
-                    for i, t in enumerate(_tensors_list):
+                    for i, t in enumerate(tensors_list):
                         if t is None:
                             raise TypeError(
                                 f"Tensors must be array-like types or numbers. "
