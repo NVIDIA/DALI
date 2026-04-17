@@ -225,8 +225,8 @@ def test_batch_construction_from_list_of_torch_gpu_tensors_dtype_fallback():
 
 @eval_modes()
 @attr("pytorch")
-def test_batch_construction_from_list_of_torch_cpu_tensors_slow_path():
-    """CPU torch tensors do not trigger the GPU fast path; slow path handles them correctly."""
+def test_batch_construction_from_list_of_torch_cpu_tensors():
+    """CPU torch tensors trigger the CPU DLPack fast path via TensorListCPU.from_dlpack_list."""
     import torch
 
     data = [torch.tensor([i, i + 1, i + 2], dtype=torch.int32) for i in range(3)]
