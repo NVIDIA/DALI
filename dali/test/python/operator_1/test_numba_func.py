@@ -126,9 +126,11 @@ def change_dim_expected_out(d):
 def _make_expected_out(spec):
     """Build an expected-output array from a lightweight descriptor.
 
-    spec is either (shape, fill_value, dtype) for np.full, or
-    (callable, *args) to call the function at test run time.
+    spec is either a numpy array (returned as-is), (shape, fill_value, dtype)
+    for np.full, or (callable, *args) to call the function at test run time.
     """
+    if isinstance(spec, np.ndarray):
+        return spec
     if callable(spec[0]):
         return spec[0](*spec[1:])
     shape, fill_value, dtype = spec
