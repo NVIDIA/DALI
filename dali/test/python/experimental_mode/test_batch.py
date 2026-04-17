@@ -488,7 +488,8 @@ def test_batch_construction_from_list_of_dali_tensors_dtype_mismatch(device_type
 @eval_modes()
 @attr("pytorch")
 def test_batch_construction_gpu_dlpack_buffer_error_fallback():
-    """GPU DLPack BufferError is caught; batch falls back to slow path via __cuda_array_interface__."""
+    """GPU DLPack BufferError is caught; batch falls back to slow path via
+    __cuda_array_interface__."""
     import torch
 
     class _BrokenDlpack:
@@ -521,7 +522,8 @@ def test_batch_construction_gpu_dlpack_buffer_error_fallback():
 @eval_modes()
 @attr("pytorch", "multi_gpu")
 def test_batch_construction_mixed_gpu_dlpack_value_error_fallback():
-    """from_dlpack_list raises ValueError for mixed-device tensors; batch falls back to slow path."""
+    """from_dlpack_list raises ValueError for mixed-device tensors; batch falls back to slow
+    path."""
     if _b.GetCUDADeviceCount() < 2:
         raise SkipTest("At least 2 devices needed for the test")
     import torch
