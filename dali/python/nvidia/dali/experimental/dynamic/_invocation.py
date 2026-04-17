@@ -160,7 +160,9 @@ class Invocation:
                     layout = str(layout)
                     return None if layout == "" else layout
             self.run(self._eval_context)
-        return self._results[result_index].layout()
+
+        layout = self._results[result_index].layout()
+        return None if layout == "" else layout
 
     def __iter__(self):
         for index in range(len(self)):
