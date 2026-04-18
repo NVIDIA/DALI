@@ -89,6 +89,24 @@ class DLL_PUBLIC UserStream {
   }
 
   /**
+   * @brief Obtains cudaStream_t for given device, if there is none new one is created and
+   * stored in the internal map
+   */
+  DLL_PUBLIC cudaStream_t GetStream(size_t dev) {
+    std::lock_guard<std::mutex> lock(m_);
+    auto it = streams_.find(dev);
+    if (it != streams_.end()) {
+      return it->second;
+    } else {
+      DeviceGuard g(dev);
+      constexpr int kDefaultStreamPriority = 0;
+      CUDA_CALL(cudaStreamCreateWithPriority(&streams_[dev], cudaStreamNonBlocking,
+                                             kDefaultStreamPriority));
+      return streams_.at(dev);
+    }
+  }
+
+  /**
    * @brief Synchronizes stream connected with the current device
    */
   DLL_PUBLIC void Wait() {
@@ -122,25 +140,6 @@ class DLL_PUBLIC UserStream {
     int dev = tl.device_id();
     DALI_ENFORCE(dev != -1, "Used a pointer from unknown device");
     return dev;
-  }
-
-
-  /**
-   * @brief Obtains cudaStream_t for for given device, if there is none new one is created and
-   * stored in the internal map
-   */
-  DLL_PUBLIC cudaStream_t GetStream(size_t dev) {
-    std::lock_guard<std::mutex> lock(m_);
-    auto it = streams_.find(dev);
-    if (it != streams_.end()) {
-      return it->second;
-    } else {
-      DeviceGuard g(dev);
-      constexpr int kDefaultStreamPriority = 0;
-      CUDA_CALL(cudaStreamCreateWithPriority(&streams_[dev], cudaStreamNonBlocking,
-                                             kDefaultStreamPriority));
-      return streams_.at(dev);
-    }
   }
 
   /**
