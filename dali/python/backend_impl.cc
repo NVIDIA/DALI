@@ -1282,6 +1282,15 @@ std::shared_ptr<TensorList<GPUBackend>> TensorListFromListOfDLPackObjects(
     }
   }
 
+  // If no __dlpack_device__ was found and no explicit stream was provided, fall back to the
+  // current CUDA device so every __dlpack__() call — including tensor 0 — receives a concrete
+  // consumer stream rather than None.
+  if (copy_order == AccessOrder::host()) {
+    int current_dev = -1;
+    CUDA_CALL(cudaGetDevice(&current_dev));
+    copy_order = AccessOrder(UserStream::Get()->GetStream(static_cast<size_t>(current_dev)));
+  }
+
   // Derive the DLPack consumer-stream handle from copy_order so the producer always
   // synchronizes with the exact same stream that DALI will use for the copy.
   py::object stream_handle = py::none();
@@ -1314,11 +1323,6 @@ std::shared_ptr<TensorList<GPUBackend>> TensorListFromListOfDLPackObjects(
 
       if (i == 0) {
         non_contiguous.SetupLike(tensor);
-        // If __dlpack_device__ was absent for all tensors, fall back to per-tensor UserStream.
-        if (copy_order == AccessOrder::host()) {
-          copy_order = AccessOrder(UserStream::Get()->GetStream(tensor));
-          stream_handle = py::int_(reinterpret_cast<int64_t>(copy_order.stream()));
-        }
         expected_device_id = tensor.device_id();
       } else if (tensor.device_id() != expected_device_id) {
         throw py::value_error(make_string(
