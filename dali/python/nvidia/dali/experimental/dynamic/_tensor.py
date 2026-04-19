@@ -228,25 +228,19 @@ class Tensor:
                     else:
                         stream = _stream.stream(device_id=device_id)
                     args = {"stream": stream.handle}
+                    # Separate capsule acquisition from TensorGPU construction: a TypeError
+                    # from TensorGPU (e.g. unsupported dtype) must not trigger a second
+                    # __dlpack__() call — DLPack capsules are single-use.
+                    # BufferError is intentionally not caught: on GPU it may signal
+                    # a synchronization or ownership constraint.
+                    dlpack_capsule = None
                     try:
                         dlpack_capsule = data.__dlpack__(**args)
-                        self._storage = _backend.TensorGPU(
-                            dlpack_capsule,
-                            layout=layout,
-                            stream=stream,
-                        )
                     except TypeError:
                         # Older DLPack implementations don't accept the stream keyword;
                         # retry without it before considering __cuda_array_interface__.
-                        # BufferError is intentionally not caught: on GPU it may signal
-                        # a synchronization or ownership constraint.
                         try:
                             dlpack_capsule = data.__dlpack__()
-                            self._storage = _backend.TensorGPU(
-                                dlpack_capsule,
-                                layout=layout,
-                                stream=stream,
-                            )
                         except TypeError:
                             # __dlpack__ is entirely non-functional for this object;
                             # only then fall back to __cuda_array_interface__.
@@ -254,6 +248,12 @@ class Tensor:
                                 self._storage = _backend.TensorGPU(data, layout=layout)
                             else:
                                 raise
+                    if dlpack_capsule is not None:
+                        self._storage = _backend.TensorGPU(
+                            dlpack_capsule,
+                            layout=layout,
+                            stream=stream,
+                        )
                 else:
                     raise ValueError(f"Unsupported device type: {dl_device_type}")
                 self._wraps_external_data = True
