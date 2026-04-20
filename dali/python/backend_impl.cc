@@ -1446,7 +1446,7 @@ std::shared_ptr<TensorList<Backend>> TensorListFromListOfTensors(
       } catch (const py::type_error &) {
         throw;
       } catch (const std::runtime_error &) {
-        throw py::type_error(make_string("Object at position ", i, " cannot be converted to Tensor",
+        throw py::type_error(make_string("Object at position ", i, " cannot be converted to Tensor ",
                                          std::is_same_v<Backend, GPUBackend> ? "GPU." : "CPU."));
       }
     }
