@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import itertools
 import copy
 
 import makefun
@@ -26,6 +27,7 @@ from nvidia.dali.ops import _docs, _names
 from . import _device, _invocation, _op_filter, _ops, _type
 from ._batch import Batch
 from ._callsite import mark_transparent, resolve_callsite_frame
+from ._compile import _compile_intercept
 from ._eval_mode import EvalMode
 from ._tensor import Tensor, tensor as to_tensor
 
@@ -373,6 +375,49 @@ def _next_pow2(x):
     return 1 << (x - 1).bit_length()
 
 
+def _resolve_backend(
+    op_class, device, inputs, raw_kwargs, *, op_name: str | None = None
+) -> tuple[_device.Device, str]:
+    """Resolve device and backend from user arguments.
+
+    Returns (resolved_device, backend).
+    """
+    if device is None:
+        for arg in itertools.chain(inputs, raw_kwargs.values()):
+            if arg is None:
+                continue
+            dev = _ops._get_input_device(arg)
+            if dev is not None and dev.device_type == "gpu":
+                device = dev
+                break
+        else:
+            device = _device.Device("cpu")
+        device_inferred = True
+    else:
+        if not isinstance(device, _device.Device):
+            device = _device.Device(device)
+        device_inferred = False
+
+    supported_backends = op_class._supported_backends
+    backend = device.device_type
+    if device.device_type not in supported_backends:
+        if len(supported_backends) == 1 and device_inferred:
+            # Maybe we got it wrong? Try the only device that's there
+            backend = next(iter(supported_backends))
+        # Now we want to call "mixed" operators "gpu" - but we still have distinct backends.
+        # Hardly any op has both "mixed" and "gpu", so we can just replace "gpu" with
+        # "mixed".
+        elif backend == "gpu" and "mixed" in supported_backends:
+            backend = "mixed"
+        elif not device_inferred:
+            name = op_name or op_class._schema.OperatorName()
+            raise ValueError(f'Invalid device "{device}" for operator `{name}`')
+        if device.device_type == "cpu" and backend in ["gpu", "mixed"]:
+            device = _device.Device("gpu")
+
+    return device, backend
+
+
 def build_fn_wrapper(op, fn_name=None, add_to_module=True):
     """Generates main API entry point for a dynamic mode operator.
 
@@ -427,7 +472,7 @@ def build_fn_wrapper(op, fn_name=None, add_to_module=True):
 
     @mark_transparent
     @NVTXRange(f"{fn_name}()", category="op_builder")
-    def fn_call(*inputs, batch_size=None, device=None, **raw_kwargs):
+    def fn_call(*inputs, batch_size=None, device=None, _backend=None, **raw_kwargs):
         batch_size = _ops._infer_batch_size(batch_size, *inputs, **raw_kwargs)
         max_batch_size = _next_pow2(batch_size or 1)
         init_args = {
@@ -441,48 +486,7 @@ def build_fn_wrapper(op, fn_name=None, add_to_module=True):
             if arg in raw_kwargs and raw_kwargs[arg] is not None
         }
 
-        # If device is not specified, infer it from the inputs and call_args
-        if device is None:
-
-            def _infer_device():
-                for inp in inputs:
-                    if inp is None:
-                        continue
-                    dev = _ops._get_input_device(inp)
-                    if dev is not None and dev.device_type == "gpu":
-                        return dev
-                for arg in raw_kwargs.values():
-                    if arg is None:
-                        continue
-                    dev = _ops._get_input_device(arg)
-                    if dev is not None and dev.device_type == "gpu":
-                        return dev
-                return _device.Device("cpu")
-
-            device = _infer_device()
-            device_inferred = True
-        elif not isinstance(device, _device.Device):
-            device = _device.Device(device)
-            device_inferred = False
-
-        supported_backends = op._supported_backends
-        backend = device.device_type
-        if device.device_type not in supported_backends:
-            if len(supported_backends) == 1 and device_inferred:
-                # Maybe we got it wrong? Try the only device that's there
-                backend = next(iter(supported_backends))
-            else:
-                # Now we want to call "mixed" operators "gpu" - but we still have distinct backends.
-                # Hardly any op has both "mixed" and "gpu", so we can just replace "gpu" with
-                # "mixed".
-                if backend == "gpu" and "mixed" in supported_backends:
-                    backend = "mixed"
-                elif not device_inferred:
-                    raise ValueError(f'Invalid device "{device}" for operator `{fn_name}`')
-            if device.device_type == "cpu" and backend in ["gpu", "mixed"]:
-                device = _device.Device("gpu")
-
-        inputs, call_args = op._process_params(backend, device, batch_size, *inputs, **call_args)
+        inputs, call_args = op._process_params(_backend, device, batch_size, *inputs, **call_args)
 
         # Get or create the operator instance that matches the arguments
         with NVTXRange(f"get instance {op._op_name}", category="op_builder"):
@@ -492,7 +496,7 @@ def build_fn_wrapper(op, fn_name=None, add_to_module=True):
                 device=device,
                 num_inputs=len(inputs),
                 call_arg_names=tuple(call_args.keys()),
-                _backend=backend,
+                _backend=_backend,
                 inputs=inputs,
                 init_args=init_args,
                 call_args=call_args,
@@ -500,6 +504,8 @@ def build_fn_wrapper(op, fn_name=None, add_to_module=True):
 
         # Call the operator (the result is an Invocation object)
         return op_inst(*inputs, batch_size=batch_size, _process_params=False, **call_args)
+
+    fn_call = _compile_intercept(fn_call, op, op_name=fn_name)
 
     doc = _docs._docstring_generator_fn(schema.Name(), api="dynamic", args=used_kwargs)
     function = mark_transparent(makefun.create_function(header, fn_call, doc=doc))
