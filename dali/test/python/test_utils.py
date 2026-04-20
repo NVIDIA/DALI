@@ -17,6 +17,7 @@ import nvidia.dali.types as dali_types
 from nvidia.dali.backend_impl import TensorListCPU
 from nvidia.dali import plugin_manager
 
+import ctypes
 import functools
 import inspect
 import os
@@ -1067,3 +1068,30 @@ def is_of_supported(device_id=0):
         platform.machine() == "x86_64" or driver_version_major < 495
     )
     return is_of_supported_var
+
+
+def get_nvjpeg_ver():
+    nvjpeg_ver_major, nvjpeg_ver_minor, nvjpeg_ver_patch = (
+        ctypes.c_int(),
+        ctypes.c_int(),
+        ctypes.c_int(),
+    )
+    try:
+        nvjpeg_libname = "libnvjpeg.so"
+        nvjpeg_lib = ctypes.CDLL(nvjpeg_libname)
+        nvjpeg_lib.nvjpegGetProperty(0, ctypes.byref(nvjpeg_ver_major))
+        nvjpeg_lib.nvjpegGetProperty(1, ctypes.byref(nvjpeg_ver_minor))
+        nvjpeg_lib.nvjpegGetProperty(2, ctypes.byref(nvjpeg_ver_patch))
+    except Exception:
+        cuda_lib_dir = "/usr/local/cuda/lib64/"
+        for file in os.listdir(cuda_lib_dir):
+            try:
+                if file.startswith("libnvjpeg.so"):
+                    nvjpeg_lib = ctypes.CDLL(os.path.join(cuda_lib_dir, file))
+                    nvjpeg_lib.nvjpegGetProperty(0, ctypes.byref(nvjpeg_ver_major))
+                    nvjpeg_lib.nvjpegGetProperty(1, ctypes.byref(nvjpeg_ver_minor))
+                    nvjpeg_lib.nvjpegGetProperty(2, ctypes.byref(nvjpeg_ver_patch))
+                    break
+            except Exception:
+                continue
+    return nvjpeg_ver_major.value, nvjpeg_ver_minor.value, nvjpeg_ver_patch.value
