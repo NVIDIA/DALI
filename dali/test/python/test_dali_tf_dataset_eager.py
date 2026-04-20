@@ -18,7 +18,7 @@ from nvidia.dali import Pipeline, pipeline_def
 import nvidia.dali.plugin.tf as dali_tf
 from nvidia.dali.plugin.tf.experimental import Input
 from nvidia.dali import fn
-from nose2.tools import params
+from nose2.tools import params, cartesian_params
 from nose_utils import raises
 from test_dali_tf_dataset_pipelines import (
     FixedSampleIterator,
@@ -93,15 +93,6 @@ def _generate_tf_dataset_with_constant_input_test_cases():
     return cases
 
 
-class TestTFDatasetWithInputs:
-    def setUp(self):
-        skip_inputs_for_incompatible_tf()
-
-    @params(*_generate_tf_dataset_with_constant_input_test_cases())
-    def test_tf_dataset_with_constant_input(self, dev, shape, value, dtype, batch):
-        run_tf_dataset_with_constant_input(dev, shape, value, dtype, batch)
-
-
 def run_tf_dataset_with_random_input(dev, max_shape, dtype, batch="dataset"):
     min_shape = get_min_shape_helper(batch, max_shape)
     it = RandomSampleIterator(max_shape, dtype(0), min_shape=min_shape)
@@ -121,15 +112,6 @@ _tf_dataset_with_random_input_test_cases = [
 ]
 
 
-class TestTFDatasetWithRandomInput:
-    def setUp(self):
-        skip_inputs_for_incompatible_tf()
-
-    @params(*_tf_dataset_with_random_input_test_cases)
-    def test_tf_dataset_with_random_input(self, dev, max_shape, dtype, batch):
-        run_tf_dataset_with_random_input(dev, max_shape, dtype, batch)
-
-
 # Run with everything on GPU (External Source op as well)
 def run_tf_dataset_with_random_input_gpu(max_shape, dtype, batch):
     min_shape = get_min_shape_helper(batch, max_shape)
@@ -147,15 +129,6 @@ _tf_dataset_with_random_input_gpu_test_cases = [
     for dtype in [np.uint8, np.int32, np.float32]
     for batch in ["dataset", False, True, None]
 ]
-
-
-class TestTFDatasetWithRandomInputGPU:
-    def setUp(self):
-        skip_inputs_for_incompatible_tf()
-
-    @params(*_tf_dataset_with_random_input_gpu_test_cases)
-    def test_tf_dataset_with_random_input_gpu(self, max_shape, dtype, batch):
-        run_tf_dataset_with_random_input_gpu(max_shape, dtype, batch)
 
 
 def run_tf_dataset_no_copy(max_shape, dtype, dataset_dev, es_dev, no_copy):
@@ -181,15 +154,6 @@ def _generate_tf_dataset_with_no_copy_test_cases():
     return cases
 
 
-class TestTFDatasetWithNoCopy:
-    def setUp(self):
-        skip_inputs_for_incompatible_tf()
-
-    @params(*_generate_tf_dataset_with_no_copy_test_cases())
-    def test_tf_dataset_with_no_copy(self, max_shape, dtype, dataset_dev, es_dev, no_copy):
-        run_tf_dataset_no_copy(max_shape, dtype, dataset_dev, es_dev, no_copy)
-
-
 def run_tf_dataset_with_stop_iter(dev, max_shape, dtype, stop_samples):
     it1 = RandomSampleIterator(max_shape, dtype(0), start=0, stop=stop_samples)
     get_pipeline_desc = external_source_tester(max_shape, dtype, it1)
@@ -199,24 +163,6 @@ def run_tf_dataset_with_stop_iter(dev, max_shape, dtype, stop_samples):
     run_tf_dataset_eager_mode(
         dev, to_stop_iter=True, get_pipeline_desc=get_pipeline_desc, to_dataset=to_dataset
     )
-
-
-class TestTFDatasetWithStopIter:
-    def setUp(self):
-        skip_inputs_for_incompatible_tf()
-
-    def test_tf_dataset_with_stop_iter(self):
-        batch_size = 12
-        for dev in ["cpu", "gpu"]:
-            for max_shape in [(10, 20), (120, 120, 3), (3, 40, 40, 4)]:
-                for dtype in [np.uint8, np.int32, np.float32]:
-                    for iters in [1, 2, 3, 4, 5]:
-                        run_tf_dataset_with_stop_iter(
-                            dev,
-                            max_shape,
-                            dtype,
-                            iters * batch_size - 3,
-                        )
 
 
 def run_tf_dataset_multi_input(dev, start_values, input_names, batches):
@@ -250,13 +196,183 @@ def _generate_tf_dataset_multi_input_test_cases():
     return cases
 
 
-class TestTFDatasetMultiInput:
+def check_basic_dataset_build(input_datasets):
+    input_names = ["a", "b"]
+    batches = ["dataset" for _ in input_names]
+    pipe = many_input_pipeline(
+        True, "cpu", None, input_names, batches, batch_size=8, num_threads=4, device_id=0
+    )
+
+    with tf.device("/cpu:0"):
+        dali_dataset = dali_tf.experimental.DALIDatasetWithInputs(
+            input_datasets=input_datasets,
+            pipeline=pipe,
+            batch_size=pipe.max_batch_size,
+            output_shapes=(None, None),
+            output_dtypes=(tf.int32, tf.int32),
+            num_threads=pipe.num_threads,
+            device_id=pipe.device_id,
+        )
+        return dali_dataset
+
+
+@raises(
+    TypeError,
+    glob="`input_datasets` must be a dictionary that maps input names * to input datasets",
+)
+def check_tf_dataset_wrong_input_type(wrong_input_datasets):
+    check_basic_dataset_build(wrong_input_datasets)
+
+
+def run_tf_with_dali_external_source(dev, es_args, ed_dev, dtype, *_):
+    run_tf_dataset_eager_mode(
+        dev,
+        get_pipeline_desc=get_external_source_pipe(es_args, dtype, ed_dev),
+        to_dataset=external_source_to_tf_dataset,
+        to_stop_iter=True,
+    )
+
+
+@pipeline_def(batch_size=10, num_threads=4, device_id=0)
+def es_pipe(kwargs):
+    return fn.external_source(**kwargs)
+
+
+def check_single_es_pipeline(kwargs, input_datasets):
+    pipe = es_pipe(kwargs)
+
+    with tf.device("/cpu:0"):
+        dali_dataset = dali_tf.experimental.DALIDatasetWithInputs(
+            input_datasets=input_datasets,
+            pipeline=pipe,
+            batch_size=pipe.max_batch_size,
+            output_shapes=(None, None),
+            output_dtypes=(tf.int32, tf.int32),
+            num_threads=pipe.num_threads,
+            device_id=pipe.device_id,
+        )
+        return dali_dataset
+
+
+def check_layout(kwargs, input_datasets, layout):
+    pipe = Pipeline(10, 4, 0)
+    with pipe:
+        input = fn.external_source(**kwargs)
+        # Rely on the Pad internal check to ensure that External Source set layout
+        pipe.set_outputs(fn.pad(input, axis_names=layout))
+
+    with tf.device("/cpu:0"):
+        dali_dataset = dali_tf.experimental.DALIDatasetWithInputs(
+            input_datasets=input_datasets,
+            pipeline=pipe,
+            batch_size=pipe.max_batch_size,
+            output_shapes=None,
+            output_dtypes=tf.int64,
+            num_threads=pipe.num_threads,
+            device_id=pipe.device_id,
+        )
+
+    run_dataset_eager_mode(dali_dataset, 10)
+
+
+class TestTFDatasetWithInputs:
     def setUp(self):
         skip_inputs_for_incompatible_tf()
+
+    @params(*_generate_tf_dataset_with_constant_input_test_cases())
+    def test_tf_dataset_with_constant_input(self, dev, shape, value, dtype, batch):
+        run_tf_dataset_with_constant_input(dev, shape, value, dtype, batch)
+
+    @params(*_tf_dataset_with_random_input_test_cases)
+    def test_tf_dataset_with_random_input(self, dev, max_shape, dtype, batch):
+        run_tf_dataset_with_random_input(dev, max_shape, dtype, batch)
+
+    @params(*_tf_dataset_with_random_input_gpu_test_cases)
+    def test_tf_dataset_with_random_input_gpu(self, max_shape, dtype, batch):
+        run_tf_dataset_with_random_input_gpu(max_shape, dtype, batch)
+
+    @params(*_generate_tf_dataset_with_no_copy_test_cases())
+    def test_tf_dataset_with_no_copy(self, max_shape, dtype, dataset_dev, es_dev, no_copy):
+        run_tf_dataset_no_copy(max_shape, dtype, dataset_dev, es_dev, no_copy)
+
+    @cartesian_params(
+        ["cpu", "gpu"],
+        [(10, 20), (120, 120, 3), (3, 40, 40, 4)],
+        [np.uint8, np.int32, np.float32],
+        [1, 2, 3, 4, 5],
+    )
+    def test_tf_dataset_with_stop_iter(self, dev, max_shape, dtype, iters):
+        batch_size = 12
+        run_tf_dataset_with_stop_iter(dev, max_shape, dtype, iters * batch_size - 3)
 
     @params(*_generate_tf_dataset_multi_input_test_cases())
     def test_tf_dataset_multi_input(self, dev, starts, names, batches):
         run_tf_dataset_multi_input(dev, starts, names, batches)
+
+    def test_tf_dataset_wrong_input_type(self):
+        input_dataset = tf.data.Dataset.from_tensors(np.full((2, 2), 42)).repeat()
+        # wrong `input_datasets` type (no dictionary)
+        for wrong_input_dataset in ["a", input_dataset, [input_dataset]]:
+            check_tf_dataset_wrong_input_type(wrong_input_dataset)
+        # wrong values in dictionary
+        for wrong_input_dataset in ["str", [input_dataset]]:
+            check_tf_dataset_wrong_input_type(
+                {
+                    "a": wrong_input_dataset,
+                    "b": wrong_input_dataset,
+                }
+            )
+        # wrong keys in dictionary
+        for wrong_input_name in [42, ("a", "b")]:
+            check_tf_dataset_wrong_input_type({wrong_input_name: input_dataset})
+
+    @raises(
+        ValueError,
+        glob="Did not find an External Source placeholder node * in the provided pipeline",
+    )
+    def test_tf_dataset_es_with_source(self):
+        in_dataset = tf.data.Dataset.from_tensors(np.full((2, 2), 42)).repeat()
+        check_single_es_pipeline({"name": "a", "source": []}, {"a": in_dataset})
+
+    @raises(
+        ValueError,
+        glob="The parameter ``num_outputs`` is only valid when using ``source`` to provide data.",
+    )
+    def test_tf_dataset_es_num_outputs_provided(self):
+        in_dataset = tf.data.Dataset.from_tensors(np.full((2, 2), 42)).repeat()
+        check_single_es_pipeline({"name": "a", "num_outputs": 1}, {"a": in_dataset})
+
+    @raises(
+        ValueError,
+        glob="Found placeholder External Source node * in the Pipeline that was not named",
+    )
+    def test_tf_dataset_disallowed_es(self):
+        check_single_es_pipeline({}, {})
+
+    @params(*gen_tf_with_dali_external_source())
+    def test_tf_with_dali_external_source(
+        self, get_callback, is_batched, cycle, batch_info, dense, dev, es_dev, dtype, iter_limit
+    ):
+        bs = 12 if is_batched else None
+        es_args = {
+            "source": get_callback(dtype, iter_limit, bs, dense),
+            "batch": is_batched,
+            "cycle": cycle,
+            "batch_info": batch_info,
+        }
+        run_tf_with_dali_external_source(
+            dev, es_args, es_dev, tf.dtypes.as_dtype(dtype), iter_limit, dense
+        )
+
+    def test_tf_dataset_layouts(self):
+        for shape, layout in [((2, 3), "XY"), ((10, 20, 3), "HWC"), ((4, 128, 64, 3), "FHWC")]:
+            in_dataset = tf.data.Dataset.from_tensors(np.full(shape, 42)).repeat()
+            # Captured from pipeline
+            check_layout({"layout": layout, "name": "in"}, {"in": in_dataset}, layout)
+            # Captured from pipeline
+            check_layout({"layout": layout, "name": "in"}, {"in": Input(in_dataset)}, layout)
+            # Set via experimental.Input, not specified in external source
+            check_layout({"name": "in"}, {"in": Input(in_dataset, layout=layout)}, layout)
 
 
 @raises(tf.errors.InternalError, glob="TF device and DALI device mismatch")
@@ -287,56 +403,6 @@ def test_tf_dataset_wrong_placement_gpu():
         pass
 
 
-def check_basic_dataset_build(input_datasets):
-    input_names = ["a", "b"]
-    batches = ["dataset" for _ in input_names]
-    pipe = many_input_pipeline(
-        True, "cpu", None, input_names, batches, batch_size=8, num_threads=4, device_id=0
-    )
-
-    with tf.device("/cpu:0"):
-        dali_dataset = dali_tf.experimental.DALIDatasetWithInputs(
-            input_datasets=input_datasets,
-            pipeline=pipe,
-            batch_size=pipe.max_batch_size,
-            output_shapes=(None, None),
-            output_dtypes=(tf.int32, tf.int32),
-            num_threads=pipe.num_threads,
-            device_id=pipe.device_id,
-        )
-        return dali_dataset
-
-
-@raises(
-    TypeError,
-    glob="`input_datasets` must be a dictionary that maps input names * to input datasets",
-)
-def check_tf_dataset_wrong_input_type(wrong_input_datasets):
-    check_basic_dataset_build(wrong_input_datasets)
-
-
-class TestTFDatasetInputValidation:
-    def setUp(self):
-        skip_inputs_for_incompatible_tf()
-
-    def test_tf_dataset_wrong_input_type(self):
-        input_dataset = tf.data.Dataset.from_tensors(np.full((2, 2), 42)).repeat()
-        # wrong `input_datasets` type (no dictionary)
-        for wrong_input_dataset in ["a", input_dataset, [input_dataset]]:
-            check_tf_dataset_wrong_input_type(wrong_input_dataset)
-        # wrong values in dictionary
-        for wrong_input_dataset in ["str", [input_dataset]]:
-            check_tf_dataset_wrong_input_type(
-                {
-                    "a": wrong_input_dataset,
-                    "b": wrong_input_dataset,
-                }
-            )
-        # wrong keys in dictionary
-        for wrong_input_name in [42, ("a", "b")]:
-            check_tf_dataset_wrong_input_type({wrong_input_name: input_dataset})
-
-
 class TestTFDatasetExternalSourceValidation:
     def setUp(self):
         skip_for_incompatible_tf()
@@ -356,115 +422,6 @@ class TestTFDatasetExternalSourceValidation:
     def test_missing_es_node(self):
         input_dataset = tf.data.Dataset.from_tensors(np.full((2, 2), 42)).repeat()
         check_basic_dataset_build({"a": input_dataset, "b": input_dataset, "c": input_dataset})
-
-
-@pipeline_def(batch_size=10, num_threads=4, device_id=0)
-def es_pipe(kwargs):
-    return fn.external_source(**kwargs)
-
-
-def check_single_es_pipeline(kwargs, input_datasets):
-    pipe = es_pipe(kwargs)
-
-    with tf.device("/cpu:0"):
-        dali_dataset = dali_tf.experimental.DALIDatasetWithInputs(
-            input_datasets=input_datasets,
-            pipeline=pipe,
-            batch_size=pipe.max_batch_size,
-            output_shapes=(None, None),
-            output_dtypes=(tf.int32, tf.int32),
-            num_threads=pipe.num_threads,
-            device_id=pipe.device_id,
-        )
-        return dali_dataset
-
-
-class TestTFDatasetESParameters:
-    def setUp(self):
-        skip_inputs_for_incompatible_tf()
-
-    @raises(
-        ValueError,
-        glob="Did not find an External Source placeholder node * in the provided pipeline",
-    )
-    def test_tf_dataset_es_with_source(self):
-        in_dataset = tf.data.Dataset.from_tensors(np.full((2, 2), 42)).repeat()
-        check_single_es_pipeline({"name": "a", "source": []}, {"a": in_dataset})
-
-    @raises(
-        ValueError,
-        glob="The parameter ``num_outputs`` is only valid when using ``source`` to provide data.",
-    )
-    def test_tf_dataset_es_num_outputs_provided(self):
-        in_dataset = tf.data.Dataset.from_tensors(np.full((2, 2), 42)).repeat()
-        check_single_es_pipeline({"name": "a", "num_outputs": 1}, {"a": in_dataset})
-
-    @raises(
-        ValueError,
-        glob="Found placeholder External Source node * in the Pipeline that was not named",
-    )
-    def test_tf_dataset_disallowed_es(self):
-        check_single_es_pipeline({}, {})
-
-
-def check_layout(kwargs, input_datasets, layout):
-    pipe = Pipeline(10, 4, 0)
-    with pipe:
-        input = fn.external_source(**kwargs)
-        # Rely on the Pad internal check to ensure that External Source set layout
-        pipe.set_outputs(fn.pad(input, axis_names=layout))
-
-    with tf.device("/cpu:0"):
-        dali_dataset = dali_tf.experimental.DALIDatasetWithInputs(
-            input_datasets=input_datasets,
-            pipeline=pipe,
-            batch_size=pipe.max_batch_size,
-            output_shapes=None,
-            output_dtypes=tf.int64,
-            num_threads=pipe.num_threads,
-            device_id=pipe.device_id,
-        )
-
-    run_dataset_eager_mode(dali_dataset, 10)
-
-
-def run_tf_with_dali_external_source(dev, es_args, ed_dev, dtype, *_):
-    run_tf_dataset_eager_mode(
-        dev,
-        get_pipeline_desc=get_external_source_pipe(es_args, dtype, ed_dev),
-        to_dataset=external_source_to_tf_dataset,
-        to_stop_iter=True,
-    )
-
-
-class TestTFWithDALIExternalSource:
-    def setUp(self):
-        skip_inputs_for_incompatible_tf()
-
-    @params(*gen_tf_with_dali_external_source())
-    def test_tf_with_dali_external_source(
-        self, get_callback, is_batched, cycle, batch_info, dense, dev, es_dev, dtype, iter_limit
-    ):
-        bs = 12 if is_batched else None
-        es_args = {
-            "source": get_callback(dtype, iter_limit, bs, dense),
-            "batch": is_batched,
-            "cycle": cycle,
-            "batch_info": batch_info,
-        }
-        run_tf_with_dali_external_source(
-            dev, es_args, es_dev, tf.dtypes.as_dtype(dtype), iter_limit, dense
-        )
-
-    def test_tf_dataset_layouts(self):
-        for shape, layout in [((2, 3), "XY"), ((10, 20, 3), "HWC"), ((4, 128, 64, 3), "FHWC")]:
-            in_dataset = tf.data.Dataset.from_tensors(np.full(shape, 42)).repeat()
-            # Captured from pipeline
-            check_layout({"layout": layout, "name": "in"}, {"in": in_dataset}, layout)
-            # Captured from pipeline
-            check_layout({"layout": layout, "name": "in"}, {"in": Input(in_dataset)}, layout)
-            # Set via experimental.Input, not specified in external source
-            check_layout({"name": "in"}, {"in": Input(in_dataset, layout=layout)}, layout)
 
 
 # Test if the TypeError is raised for unsupported arguments for regular DALIDataset

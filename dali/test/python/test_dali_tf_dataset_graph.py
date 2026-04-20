@@ -76,15 +76,6 @@ def _generate_tf_dataset_with_constant_input_test_cases():
     return cases
 
 
-class TestTFDatasetWithConstantInput:
-    def setUp(self):
-        skip_inputs_for_incompatible_tf()
-
-    @params(*_generate_tf_dataset_with_constant_input_test_cases())
-    def test_tf_dataset_with_constant_input(self, dev, shape, value, dtype, batch):
-        run_tf_dataset_with_constant_input(dev, shape, value, dtype, batch)
-
-
 def run_tf_dataset_with_random_input(dev, max_shape, dtype, batch):
     min_shape = get_min_shape_helper(batch, max_shape)
     iterator = RandomSampleIterator(max_shape, dtype(0), min_shape=min_shape)
@@ -95,20 +86,6 @@ def run_tf_dataset_with_random_input(dev, max_shape, dtype, batch):
             RandomSampleIterator, max_shape, dtype, 0, 1e10, min_shape, batch=batch
         ),
     )
-
-
-class TestTFDatasetWithRandomInput:
-    def setUp(self):
-        skip_inputs_for_incompatible_tf()
-
-    @cartesian_params(
-        ["cpu", "gpu"],
-        [(10, 20), (120, 120, 3), (3, 40, 40, 4)],
-        [np.uint8, np.int32, np.float32],
-        ["dataset", True, False, None],
-    )
-    def test_tf_dataset_with_random_input(self, dev, max_shape, dtype, batch):
-        run_tf_dataset_with_random_input(dev, max_shape, dtype, batch)
 
 
 # Run with everything on GPU (External Source op as well)
@@ -122,19 +99,6 @@ def run_tf_dataset_with_random_input_gpu(max_shape, dtype, batch):
             RandomSampleIterator, max_shape, dtype, 0, 1e10, min_shape, batch=batch
         ),
     )
-
-
-class TestTFDatasetWithRandomInputGPU:
-    def setUp(self):
-        skip_inputs_for_incompatible_tf()
-
-    @cartesian_params(
-        [(10, 20), (120, 120, 3), (3, 40, 40, 4)],
-        [np.uint8, np.int32, np.float32],
-        ["dataset", True, False, None],
-    )
-    def test_tf_dataset_with_random_input_gpu(self, max_shape, dtype, batch):
-        run_tf_dataset_with_random_input_gpu(max_shape, dtype, batch)
 
 
 def run_tf_dataset_no_copy(max_shape, dtype, dataset_dev, es_dev, no_copy):
@@ -160,15 +124,6 @@ def _generate_tf_dataset_with_no_copy_test_cases():
     return cases
 
 
-class TestTFDatasetWithNoCopy:
-    def setUp(self):
-        skip_inputs_for_incompatible_tf()
-
-    @params(*_generate_tf_dataset_with_no_copy_test_cases())
-    def test_tf_dataset_with_no_copy(self, max_shape, dtype, dataset_dev, es_dev, no_copy):
-        run_tf_dataset_no_copy(max_shape, dtype, dataset_dev, es_dev, no_copy)
-
-
 def run_tf_dataset_with_stop_iter(dev, max_shape, dtype, stop_samples):
     run_tf_dataset_graph(
         dev,
@@ -180,26 +135,6 @@ def run_tf_dataset_with_stop_iter(dev, max_shape, dtype, stop_samples):
             RandomSampleIterator, max_shape, dtype, 0, stop_samples
         ),
     )
-
-
-class TestTFDatasetWithStopIter:
-    def setUp(self):
-        skip_inputs_for_incompatible_tf()
-
-    @cartesian_params(
-        ["cpu", "gpu"],
-        [(10, 20), (120, 120, 3), (3, 40, 40, 4)],
-        [np.uint8, np.int32, np.float32],
-        [1, 2, 3, 4, 5],
-    )
-    def test_tf_dataset_with_stop_iter(self, dev, max_shape, dtype, iters):
-        batch_size = 12
-        run_tf_dataset_with_stop_iter(
-            dev,
-            max_shape,
-            dtype,
-            iters * batch_size - 3,
-        )
 
 
 def run_tf_dataset_multi_input(dev, start_values, input_names, batches):
@@ -229,16 +164,6 @@ def _generate_tf_dataset_multi_input_test_cases():
     return cases
 
 
-class TestTFDatasetMultiInput:
-    def setUp(self):
-        skip_inputs_for_incompatible_tf()
-
-    @params(*_generate_tf_dataset_multi_input_test_cases())
-    def test_tf_dataset_multi_input(self, dev, start_specs, names, batches):
-        starts = [np.full(shape, val, dtype=dtype) for shape, val, dtype in start_specs]
-        run_tf_dataset_multi_input(dev, starts, names, batches)
-
-
 def run_tf_with_dali_external_source(dev, es_args, ed_dev, dtype, *_):
     run_tf_dataset_graph(
         dev,
@@ -248,9 +173,54 @@ def run_tf_with_dali_external_source(dev, es_args, ed_dev, dtype, *_):
     )
 
 
-class TestTFWithDALIExternalSource:
+class TestTFDatasetWithInputs:
     def setUp(self):
         skip_inputs_for_incompatible_tf()
+
+    @params(*_generate_tf_dataset_with_constant_input_test_cases())
+    def test_tf_dataset_with_constant_input(self, dev, shape, value, dtype, batch):
+        run_tf_dataset_with_constant_input(dev, shape, value, dtype, batch)
+
+    @cartesian_params(
+        ["cpu", "gpu"],
+        [(10, 20), (120, 120, 3), (3, 40, 40, 4)],
+        [np.uint8, np.int32, np.float32],
+        ["dataset", True, False, None],
+    )
+    def test_tf_dataset_with_random_input(self, dev, max_shape, dtype, batch):
+        run_tf_dataset_with_random_input(dev, max_shape, dtype, batch)
+
+    @cartesian_params(
+        [(10, 20), (120, 120, 3), (3, 40, 40, 4)],
+        [np.uint8, np.int32, np.float32],
+        ["dataset", True, False, None],
+    )
+    def test_tf_dataset_with_random_input_gpu(self, max_shape, dtype, batch):
+        run_tf_dataset_with_random_input_gpu(max_shape, dtype, batch)
+
+    @params(*_generate_tf_dataset_with_no_copy_test_cases())
+    def test_tf_dataset_with_no_copy(self, max_shape, dtype, dataset_dev, es_dev, no_copy):
+        run_tf_dataset_no_copy(max_shape, dtype, dataset_dev, es_dev, no_copy)
+
+    @cartesian_params(
+        ["cpu", "gpu"],
+        [(10, 20), (120, 120, 3), (3, 40, 40, 4)],
+        [np.uint8, np.int32, np.float32],
+        [1, 2, 3, 4, 5],
+    )
+    def test_tf_dataset_with_stop_iter(self, dev, max_shape, dtype, iters):
+        batch_size = 12
+        run_tf_dataset_with_stop_iter(
+            dev,
+            max_shape,
+            dtype,
+            iters * batch_size - 3,
+        )
+
+    @params(*_generate_tf_dataset_multi_input_test_cases())
+    def test_tf_dataset_multi_input(self, dev, start_specs, names, batches):
+        starts = [np.full(shape, val, dtype=dtype) for shape, val, dtype in start_specs]
+        run_tf_dataset_multi_input(dev, starts, names, batches)
 
     @params(*gen_tf_with_dali_external_source())
     def test_tf_with_dali_external_source(
