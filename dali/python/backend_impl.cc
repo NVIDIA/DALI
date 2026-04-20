@@ -279,7 +279,8 @@ void FillTensorFromDlPack(
   DALI_ENFORCE((std::is_same<SrcBackend, GPUBackend>::value &&
                   dl_tensor.device.device_type == kDLCUDA) ||
                (std::is_same<SrcBackend, CPUBackend>::value &&
-                  dl_tensor.device.device_type == kDLCPU),
+                  (dl_tensor.device.device_type == kDLCPU ||
+                   dl_tensor.device.device_type == kDLCUDAHost)),
                "DLPack device type doesn't match Tensor type");
 
   const TypeInfo &dali_type = TypeTable::GetTypeInfo(ToDALIType(dl_tensor.dtype));
