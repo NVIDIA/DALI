@@ -7,7 +7,7 @@ test_different_numpy_versions() {
     for test_script in $(ls test_pipeline.py \
                             test_pipeline_decorator.py \
                             test_pipeline_segmentation.py); do
-        ${python_invoke_test} ${test_script}
+        ${python_new_invoke_test} ${test_script%.py}
     done
 }
 
@@ -23,19 +23,19 @@ test_py_with_framework() {
                             test_functional_api.py \
                             test_external_source_impl_utils.py); do
         if [ -z "$DALI_ENABLE_SANITIZERS" ]; then
-            ${python_invoke_test} --attr "!slow,!pytorch,!mxnet,!cupy" ${test_script}
+            ${python_new_invoke_test} -A "!slow,!pytorch,!cupy" ${test_script%.py}
         else
-            ${python_invoke_test} --attr "!slow,!pytorch,!mxnet,!cupy,!numba" ${test_script}
+            ${python_new_invoke_test} -A "!slow,!pytorch,!cupy,!numba" ${test_script%.py}
         fi
     done
 
     if [ -z "$DALI_ENABLE_SANITIZERS" ]; then
-        ${python_new_invoke_test} -A "!slow,!pytorch,!mxnet,!cupy" test_dali_variable_batch_size
+        ${python_new_invoke_test} -A "!slow,!pytorch!cupy" test_dali_variable_batch_size
     else
-        ${python_new_invoke_test} -A "!slow,!pytorch,!mxnet,!cupy,!numba" test_dali_variable_batch_size
+        ${python_new_invoke_test} -A "!slow,!pytorch!cupy,!numba" test_dali_variable_batch_size
     fi
 
-    ${python_new_invoke_test} -A '!slow,!pytorch,!mxnet,!cupy' test_backend_impl
+    ${python_new_invoke_test} -A '!slow,!pytorch,!cupy' test_backend_impl
 
     if [ -z "$DALI_ENABLE_SANITIZERS" ]; then
         ${python_new_invoke_test} -A 'numba' -s type_annotations
@@ -74,7 +74,7 @@ test_dynamic_mode_torch() {
 }
 
 test_pytorch() {
-    ${python_invoke_test} --attr '!slow,pytorch' test_dali_variable_batch_size.py
+    ${python_new_invoke_test} -A '!slow,pytorch' test_dali_variable_batch_size
     test_dynamic_mode_torch
     if [ -z "$DALI_ENABLE_SANITIZERS" ]; then
         ${python_new_invoke_test} -A 'pytorch' -s type_annotations
@@ -87,20 +87,20 @@ test_pytorch() {
 
 test_checkpointing() {
     if [ -z "$DALI_ENABLE_SANITIZERS" ]; then
-        ${python_new_invoke_test} -A '!slow,!pytorch,!mxnet,!cupy,!numba' checkpointing.test_dali_checkpointing
-        ${python_new_invoke_test} -A '!slow,!pytorch,!mxnet,!cupy,!numba' checkpointing.test_dali_stateless_operators
+        ${python_new_invoke_test} -A '!slow,!pytorch,!cupy,!numba' checkpointing.test_dali_checkpointing
+        ${python_new_invoke_test} -A '!slow,!pytorch,!cupy,!numba' checkpointing.test_dali_stateless_operators
     else
-        ${python_new_invoke_test} -A '!slow,!pytorch,!mxnet,!cupy,!numba,!sanitizer_skip' checkpointing.test_dali_checkpointing
+        ${python_new_invoke_test} -A '!slow,!pytorch,!cupy,!numba,!sanitizer_skip' checkpointing.test_dali_checkpointing
 
         # External source tests are slow and Python-side mostly, but let's run just one of them
-        ${python_new_invoke_test} -A '!slow,!pytorch,!mxnet,!cupy,!numba' checkpointing.test_dali_checkpointing.test_external_source_checkpointing:1
+        ${python_new_invoke_test} -A '!slow,!pytorch,!cupy,!numba' checkpointing.test_dali_checkpointing.test_external_source_checkpointing:1
     fi
 }
 
 test_dynamic_mode() {
-    ${python_new_invoke_test}  -A '!slow,!pytorch,!mxnet,!cupy,!numba' -s experimental_mode
-    CUDA_VISIBLE_DEVICES= ${python_new_invoke_test}  -A 'cpu_only,!slow,!pytorch,!mxnet,!cupy,!numba' -s experimental_mode
-    ${python_new_invoke_test}  -A '!slow,!pytorch,!mxnet,!cupy,!numba' -s ndd_vs_fn
+    ${python_new_invoke_test}  -A '!slow,!pytorch,!cupy,!numba' -s experimental_mode
+    CUDA_VISIBLE_DEVICES= ${python_new_invoke_test}  -A 'cpu_only,!slow,!pytorch,!cupy,!numba' -s experimental_mode
+    ${python_new_invoke_test}  -A '!slow,!pytorch,!cupy,!numba' -s ndd_vs_fn
 }
 
 

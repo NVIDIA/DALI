@@ -221,19 +221,20 @@ def get_dense_options(is_batched):
         return [True]
 
 
-def gen_tf_with_dali_external_source(test_run):
+def gen_tf_with_dali_external_source():
     for dtype in [np.uint8, np.int32, np.float32]:
         for get_callback, is_batched, cycle, batch_info in es_configurations:
             for dense in get_dense_options(is_batched):
                 for dev, es_dev in [("cpu", "cpu"), ("gpu", "cpu"), ("gpu", "gpu")]:
                     for iter_limit in [3, 9, 10, 11, 100]:
-                        bs = 12 if is_batched else None
-                        es_args = {
-                            "source": get_callback(dtype, iter_limit, bs, dense),
-                            "batch": is_batched,
-                            "cycle": cycle,
-                            "batch_info": batch_info,
-                        }
-                        yield test_run, dev, es_args, es_dev, tf.dtypes.as_dtype(
-                            dtype
-                        ), iter_limit, dense
+                        yield (
+                            get_callback,
+                            is_batched,
+                            cycle,
+                            batch_info,
+                            dense,
+                            dev,
+                            es_dev,
+                            dtype,
+                            iter_limit,
+                        )
