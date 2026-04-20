@@ -983,13 +983,18 @@ TYPED_TEST(TensorListSuite, SetupLikeMultiGPU) {
 template <typename Backend>
 std::vector<std::pair<std::string, std::function<void(TensorList<Backend> &)>>> SetRequiredSetters(
     int sample_dim, DALIDataType type, TensorLayout layout, bool pinned, int device_id) {
-  return {
+  std::vector<std::pair<std::string, std::function<void(TensorList<Backend> &)>>> result = {
       {"sample dim", [sample_dim](TensorList<Backend> &t) { t.set_sample_dim(sample_dim); }},
       {"type", [type](TensorList<Backend> &t) { t.set_type(type); }},
       {"layout", [layout](TensorList<Backend> &t) { t.SetLayout(layout); }},
       {"device id", [device_id](TensorList<Backend> &t) { t.set_device_id(device_id); }},
-      {"pinned", [pinned](TensorList<Backend> &t) { t.set_pinned(pinned); }},
   };
+  // GPU TensorList allows mixed pinned/non-pinned samples in non-contiguous mode
+  // (pinned tensors are valid GPU-accessible staging buffers).
+  if constexpr (std::is_same_v<Backend, CPUBackend>) {
+    result.push_back({"pinned", [pinned](TensorList<Backend> &t) { t.set_pinned(pinned); }});
+  }
+  return result;
 }
 
 TYPED_TEST(TensorListSuite, PartialSetupSetMultiGPU) {
