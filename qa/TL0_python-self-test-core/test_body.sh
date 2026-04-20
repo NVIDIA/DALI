@@ -30,9 +30,9 @@ test_py_with_framework() {
     done
 
     if [ -z "$DALI_ENABLE_SANITIZERS" ]; then
-        ${python_new_invoke_test} -A "!slow,!pytorch,!mxnet,!cupy" test_dali_variable_batch_size
+        ${python_new_invoke_test} -A "!slow,!pytorch!cupy" test_dali_variable_batch_size
     else
-        ${python_new_invoke_test} -A "!slow,!pytorch,!mxnet,!cupy,!numba" test_dali_variable_batch_size
+        ${python_new_invoke_test} -A "!slow,!pytorch!cupy,!numba" test_dali_variable_batch_size
     fi
 
     ${python_new_invoke_test} -A '!slow,!pytorch,!cupy' test_backend_impl
@@ -93,7 +93,7 @@ test_checkpointing() {
         ${python_new_invoke_test} -A '!slow,!pytorch,!cupy,!numba,!sanitizer_skip' checkpointing.test_dali_checkpointing
 
         # External source tests are slow and Python-side mostly, but let's run just one of them
-        ${python_new_invoke_test} -A '!slow,!pytorch,!cupy,!numba' checkpointing.test_dali_checkpointing.test_external_source_checkpointing.1
+        ${python_new_invoke_test} -A '!slow,!pytorch,!cupy,!numba' checkpointing.test_dali_checkpointing.test_external_source_checkpointing:1
     fi
 }
 
