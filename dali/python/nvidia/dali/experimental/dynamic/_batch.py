@@ -382,7 +382,7 @@ class Batch:
                                     dtype = self._dtype
                                     layout = self._layout
                                     fast_path_used = True
-                    elif int(dl_dev_type) == 1:  # kDLCPU
+                    elif int(dl_dev_type) in (1, 3):  # kDLCPU or kDLCUDAHost (pinned)
                         if device is None or device.device_type == "cpu":
                             try:
                                 storage = _backend.TensorListCPU.from_dlpack_list(
