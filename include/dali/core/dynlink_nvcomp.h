@@ -15,6 +15,7 @@
 #ifndef DALI_CORE_DYNLINK_NVCOMP_H_
 #define DALI_CORE_DYNLINK_NVCOMP_H_
 
+#include <nvcomp.h>
 #include <nvcomp/lz4.h>
 #include <string>
 #include "dali/core/cuda_error.h"
@@ -31,39 +32,7 @@ class NvCompError : public std::runtime_error {
   , result_(result) {}
 
   static const char *ErrorString(nvcompStatus_t result) {
-    switch (result) {
-      case nvcompSuccess:
-        return "The API call has finished successfully. Note that many of the calls are "
-               "asynchronous and some of the errors may be seen only after synchronization.";
-      case nvcompErrorInvalidValue:
-        return "Invalid value provided to the API.";
-      case nvcompErrorNotSupported:
-        return "Operation not supported.";
-      case nvcompErrorCannotDecompress:
-        return "Cannot decompress provided input.";
-      case nvcompErrorBadChecksum:
-        return "Wrong checksum of the provided data.";
-      case nvcompErrorCannotVerifyChecksums:
-        return "Cannot verify checksum of the provided data.";
-      case nvcompErrorOutputBufferTooSmall:
-        return "Provided output buffer is too small.";
-      case nvcompErrorWrongHeaderLength:
-        return "Wrong header length of the provided data.";
-      case nvcompErrorAlignment:
-        return "Wrong alignment of the provided data.";
-      case nvcompErrorChunkSizeTooLarge:
-        return "Chunk size of the decoded data is too large.";
-      case nvcompErrorCudaError:
-        return "Unknown CUDA error.";
-      case nvcompErrorInternal:
-        return "Unknown nvCOMP error.";
-#if NVCOMP_VER_MAJOR > 5 || (NVCOMP_VER_MAJOR == 5 && NVCOMP_VER_MINOR >= 1)
-      case nvcompErrorBatchSizeTooLarge:
-        return "Batch size is too large.";
-#endif
-      default:
-        return "< unknown error >";
-    }
+    return nvcompGetStatusString(result);
   }
 
   static std::string Message(nvcompStatus_t result, const char *details) {
