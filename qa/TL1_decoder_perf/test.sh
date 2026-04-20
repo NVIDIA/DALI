@@ -14,7 +14,7 @@ do_once() {
     apt update && apt install -y --no-install-recommends gnupg curl
     echo "deb [signed-by=/usr/share/keyrings/nvidia-devtools.gpg] https://developer.download.nvidia.com/devtools/repos/ubuntu${DISTRO}/${ARCH} /" \
         | tee /etc/apt/sources.list.d/nvidia-devtools.list
-    curl -fsSL "https://developer.download.nvidia.com/compute/cuda/repos/ubuntu${DISTRO}/${ARCH}/3bf863cc.pub" \
+    curl -fsSL "https://developer.download.nvidia.com/devtools/repos/ubuntu${DISTRO}/${ARCH}/nvidia.pub" \
         | gpg --dearmor -o /usr/share/keyrings/nvidia-devtools.gpg
     apt update && apt install -y nsight-systems-cli
 }
