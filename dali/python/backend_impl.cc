@@ -1441,7 +1441,6 @@ std::shared_ptr<TensorList<Backend>> TensorListFromListOfTensors(
   int expected_type = -2;
   int expected_device_id = -1;
 
-  AccessOrder wait_order = AccessOrder::host();
   AccessOrder copy_order = AccessOrder::host();
 
   {
@@ -1488,7 +1487,6 @@ std::shared_ptr<TensorList<Backend>> TensorListFromListOfTensors(
     SetLayout(non_contiguous, layout, false);
     if constexpr (std::is_same_v<Backend, GPUBackend>)
       non_contiguous_out->set_order(copy_order);
-    copy_order.wait(wait_order);
     return non_contiguous_out;
   }
 
@@ -1501,7 +1499,6 @@ std::shared_ptr<TensorList<Backend>> TensorListFromListOfTensors(
     SetLayout(*contiguous_out, layout, false);
     if constexpr (std::is_same_v<Backend, GPUBackend>)
       contiguous_out->set_order(copy_order);
-    copy_order.wait(wait_order);
     return contiguous_out;
   }
 }
