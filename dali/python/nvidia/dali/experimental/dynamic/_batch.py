@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import importlib.util
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from collections.abc import Iterator
 
 import nvidia.dali.backend as _backend
@@ -22,7 +22,10 @@ import nvidia.dali._tensor_formatting as _tensor_formatting
 from ._nvtx import NVTXRange
 from nvidia.dali._typing import BatchLike, TensorLike
 
-from . import _eval_mode, _invocation
+if TYPE_CHECKING:
+    from . import _invocation
+from . import _eval_mode, _stream as _stream_module
+from ._eval_context import EvalContext as _EvalContext
 from ._arithmetic import _arithm_op
 from ._device import Device, DeviceLike
 from ._device import device as _device
@@ -208,7 +211,7 @@ class Batch:
         dtype: DTypeLike | None = None,
         device: DeviceLike | None = None,
         layout: str | None = None,
-        invocation_result: _invocation.InvocationResult | None = None,
+        invocation_result: "_invocation.InvocationResult | None" = None,
         copy: bool = False,
     ):
         assert isinstance(layout, str) or layout is None
@@ -280,38 +283,161 @@ class Batch:
                 self._dtype = dtype
 
             else:
-                self._tensors = []
-                for i, t in enumerate(tensors):
-                    if t is None:
-                        raise TypeError(
-                            f"Tensors must be array-like types or numbers. Got `None` at index {i}"
-                        )
-                    sample = Tensor(t, dtype=dtype, device=device, layout=layout)
-                    if dtype is None:
-                        dtype = sample.dtype
-                    if device is None:
-                        device = sample.device
-                    if layout is None:
-                        layout = sample.layout
-                    self._tensors.append(sample)
-                    if sample._wraps_external_data:
-                        self._wraps_external_data = True
+                # Materialise first so len() and indexing work for any iterable.
+                tensors_list = tensors if isinstance(tensors, list) else list(tensors)
+                fast_path_used = False
+
+                # Native DALI fast path: list of evaluated ndd.Tensor objects.
+                # Build TensorList directly from backend storage objects, preserving all
+                # metadata (layout, enum types, etc.) without going through DLPack.
+                if (
+                    len(tensors_list) > 0
+                    and isinstance(tensors_list[0], Tensor)
+                    and tensors_list[0]._storage is not None
+                ):
+                    first_storage = tensors_list[0]._storage
+                    first_dev_id = (
+                        first_storage.device_id()
+                        if isinstance(first_storage, _backend.TensorGPU)
+                        else None
+                    )
+                    storages = []
+                    for t in tensors_list:
+                        if (
+                            not isinstance(t, Tensor)
+                            or t._storage is None
+                            or type(t._storage) is not type(first_storage)
+                            or (first_dev_id is not None and t._storage.device_id() != first_dev_id)
+                            or (dtype is not None and DType.from_type_id(t._storage.dtype) != dtype)
+                        ):
+                            break
+                        storages.append(t._storage)
                     else:
-                        if not isinstance(t, Tensor) or t._storage is not sample._storage:
-                            copied = True
-                if dtype is None:
-                    # We would have set dtype in the 1st iteration, so the only way it can
-                    # be None is if the `_tensors` are empty.
-                    assert len(self._tensors) == 0
-                    raise ValueError("Element type must be specified if the list is empty")
-                if device is None:
-                    device = Device("cpu")
-                if layout is None:
-                    layout = ""
-                self._device = device
-                self._layout = layout
-                self._dtype = dtype
-                if len(self._tensors) == 0:
+                        if isinstance(first_storage, _backend.TensorGPU):
+                            dev_matches = device is None or (
+                                device.device_type == "gpu" and device.device_id == first_dev_id
+                            )
+                            BackendType = _backend.TensorListGPU
+                            dev = Device("gpu", first_dev_id)
+                        else:
+                            dev_matches = device is None or device.device_type == "cpu"
+                            BackendType = _backend.TensorListCPU
+                            dev = Device("cpu")
+                        if dev_matches:
+                            try:
+                                storage = BackendType(
+                                    storages, layout=layout or None, contiguous=False
+                                )
+                            except (TypeError, RuntimeError):
+                                pass  # fall through to slow path
+                            else:
+                                self._storage = storage
+                                self._device = dev
+                                self._dtype = DType.from_type_id(self._storage.dtype)
+                                self._layout = self._storage.layout() or ""
+                                self._wraps_external_data = any(
+                                    t._wraps_external_data for t in tensors_list
+                                )
+                                device = self._device
+                                dtype = self._dtype
+                                layout = self._layout
+                                fast_path_used = True
+
+                # DLPack fast path: list of external tensors (e.g. PyTorch tensors).
+                # Build TensorListGPU/TensorListCPU directly in C++, skipping per-sample
+                # Python Tensor wrappers.
+                if not fast_path_used and (
+                    len(tensors_list) > 0
+                    and not isinstance(tensors_list[0], Tensor)
+                    and hasattr(tensors_list[0], "__dlpack_device__")
+                ):
+                    dl_dev_type, dl_dev_id = tensors_list[0].__dlpack_device__()
+                    if int(dl_dev_type) == 2:  # kDLCUDA - GPU
+                        if device is None or (
+                            device.device_type == "gpu" and device.device_id == dl_dev_id
+                        ):
+                            ctx = _EvalContext.current()
+                            cuda_stream = (
+                                ctx.cuda_stream
+                                if ctx.device_id == dl_dev_id
+                                else _stream_module.stream(device_id=dl_dev_id)
+                            )
+                            try:
+                                storage = _backend.TensorListGPU.from_dlpack_list(
+                                    tensors_list,
+                                    layout=layout or None,
+                                    stream=cuda_stream,
+                                    contiguous=False,
+                                )
+                            except (TypeError, ValueError):
+                                pass  # fall through to slow path
+                            else:
+                                if dtype is None or DType.from_type_id(storage.dtype) == dtype:
+                                    self._storage = storage
+                                    self._device = Device("gpu", dl_dev_id)
+                                    self._dtype = DType.from_type_id(self._storage.dtype)
+                                    self._layout = self._storage.layout() or ""
+                                    self._wraps_external_data = True
+                                    device = self._device
+                                    dtype = self._dtype
+                                    layout = self._layout
+                                    fast_path_used = True
+                    elif int(dl_dev_type) in (1, 3):  # kDLCPU or kDLCUDAHost (pinned)
+                        if device is None or device.device_type == "cpu":
+                            try:
+                                storage = _backend.TensorListCPU.from_dlpack_list(
+                                    tensors_list,
+                                    layout=layout or None,
+                                    contiguous=False,
+                                )
+                            except (TypeError, ValueError, BufferError):
+                                pass  # fall through to slow path
+                            else:
+                                if dtype is None or DType.from_type_id(storage.dtype) == dtype:
+                                    self._storage = storage
+                                    self._device = Device("cpu")
+                                    self._dtype = DType.from_type_id(self._storage.dtype)
+                                    self._layout = self._storage.layout() or ""
+                                    self._wraps_external_data = True
+                                    device = self._device
+                                    dtype = self._dtype
+                                    layout = self._layout
+                                    fast_path_used = True
+
+                if not fast_path_used:
+                    self._tensors = []
+                    for i, t in enumerate(tensors_list):
+                        if t is None:
+                            raise TypeError(
+                                f"Tensors must be array-like types or numbers. "
+                                f"Got `None` at index {i}"
+                            )
+                        sample = Tensor(t, dtype=dtype, device=device, layout=layout)
+                        if dtype is None:
+                            dtype = sample.dtype
+                        if device is None:
+                            device = sample.device
+                        if layout is None:
+                            layout = sample.layout
+                        self._tensors.append(sample)
+                        if sample._wraps_external_data:
+                            self._wraps_external_data = True
+                        else:
+                            if not isinstance(t, Tensor) or t._storage is not sample._storage:
+                                copied = True
+                    if dtype is None:
+                        # We would have set dtype in the 1st iteration, so the only way it can
+                        # be None is if the `_tensors` are empty.
+                        assert len(self._tensors) == 0
+                        raise ValueError("Element type must be specified if the list is empty")
+                    if device is None:
+                        device = Device("cpu")
+                    if layout is None:
+                        layout = ""
+                    self._device = device
+                    self._layout = layout
+                    self._dtype = dtype
+                if self._tensors is not None and len(self._tensors) == 0:
                     with device:
                         t = Tensor([], dtype=dtype, device=device).evaluate()
                         if self._device.device_type == "cpu":
