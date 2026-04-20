@@ -30,9 +30,9 @@ test_py_with_framework() {
     done
 
     if [ -z "$DALI_ENABLE_SANITIZERS" ]; then
-        ${python_new_invoke_test} -A "!slow,!pytorch!cupy" test_dali_variable_batch_size
+        ${python_new_invoke_test} -A "!slow,!pytorch,!cupy" test_dali_variable_batch_size
     else
-        ${python_new_invoke_test} -A "!slow,!pytorch!cupy,!numba" test_dali_variable_batch_size
+        ${python_new_invoke_test} -A "!slow,!pytorch,!cupy,!numba" test_dali_variable_batch_size
     fi
 
     ${python_new_invoke_test} -A '!slow,!pytorch,!cupy' test_backend_impl
