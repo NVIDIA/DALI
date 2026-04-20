@@ -1439,6 +1439,8 @@ std::shared_ptr<TensorList<Backend>> TensorListFromListOfTensors(
 
   if (!contiguous) {
     SetLayout(non_contiguous, layout, false);
+    if constexpr (std::is_same_v<Backend, GPUBackend>)
+      non_contiguous_out->set_order(copy_order);
     copy_order.wait(wait_order);
     return non_contiguous_out;
   }
@@ -1450,6 +1452,8 @@ std::shared_ptr<TensorList<Backend>> TensorListFromListOfTensors(
     contiguous_out->set_pinned(non_contiguous.is_pinned());
     contiguous_out->Copy(non_contiguous, copy_order);
     SetLayout(*contiguous_out, layout, false);
+    if constexpr (std::is_same_v<Backend, GPUBackend>)
+      contiguous_out->set_order(copy_order);
     copy_order.wait(wait_order);
     return contiguous_out;
   }
