@@ -520,18 +520,20 @@ def test_batch_construction_gpu_dlpack_type_error_fallback():
 
 
 @eval_modes()
-@attr("pytorch", "multi_gpu")
+@attr("multi_gpu")
+@attr("cupy")
 def test_batch_construction_mixed_gpu_dlpack_value_error_fallback():
     """from_dlpack_list raises ValueError for mixed-device tensors; batch falls back to slow
     path."""
     if _b.GetCUDADeviceCount() < 2:
         raise SkipTest("At least 2 devices needed for the test")
-    import torch
+    import cupy as cp
 
-    data = [
-        torch.tensor([1, 2, 3], device="cuda:0", dtype=torch.int32),
-        torch.tensor([4, 5, 6], device="cuda:1", dtype=torch.int32),
-    ]
+    with cp.cuda.Device(0):
+        t0 = cp.array([1, 2, 3], dtype=cp.int32)
+    with cp.cuda.Device(1):
+        t1 = cp.array([4, 5, 6], dtype=cp.int32)
+    data = [t0, t1]
     b = ndd.as_batch(data)
     b.evaluate()
     assert b.device.device_type == "gpu"
