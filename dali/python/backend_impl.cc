@@ -1177,6 +1177,25 @@ std::shared_ptr<TensorList<CPUBackend>> TensorListFromListOfDLPackObjectsCPU(
     return ptr;
   }
 
+  // Preflight: validate that all elements are CPU tensors before consuming any capsule.
+  // __dlpack__() is single-use, so device mismatches must be caught here — not after
+  // the handshake has started. Throws py::value_error (caught by the Python fast-path
+  // except clause) rather than letting DALI_ENFORCE produce a RuntimeError.
+  for (size_t i = 0; i < list_of_objects.size(); ++i) {
+    py::object obj = list_of_objects[i];
+    if (!py::hasattr(obj, "__dlpack__"))
+      throw py::type_error(make_string(
+          "Object at position ", i, " does not support the DLPack protocol."));
+    if (py::hasattr(obj, "__dlpack_device__")) {
+      py::tuple dev_info = obj.attr("__dlpack_device__")();
+      int dev_type = dev_info[0].cast<int>();
+      if (dev_type != kDLCPU && dev_type != kDLCUDAHost)
+        throw py::value_error(make_string(
+            "All tensors must reside in CPU memory. "
+            "Tensor at position ", i, " has DLPack device type ", dev_type, "."));
+    }
+  }
+
   std::optional<TensorList<CPUBackend>> non_contiguous_tmp;
   std::shared_ptr<TensorList<CPUBackend>> non_contiguous_out;
 
@@ -1195,10 +1214,6 @@ std::shared_ptr<TensorList<CPUBackend>> TensorListFromListOfDLPackObjectsCPU(
     DomainTimeRange build_range("Build initial list", kCPUTensorColor);
     for (size_t i = 0; i < list_of_objects.size(); ++i) {
       py::object obj = list_of_objects[i];
-      if (!py::hasattr(obj, "__dlpack__"))
-        throw py::type_error(make_string(
-            "Object at position ", i, " does not support the DLPack protocol."));
-
       py::capsule capsule = obj.attr("__dlpack__")();
       Tensor<CPUBackend> tensor;
       FillTensorFromDlPack(capsule, &tensor, i == 0 ? layout : std::optional<std::string>{});
