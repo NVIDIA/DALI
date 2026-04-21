@@ -276,11 +276,12 @@ void FillTensorFromDlPack(
       const std::optional<std::string> &layout) {
   auto dlm_tensor_ptr = DLMTensorPtrFromCapsule(capsule);
   const auto &dl_tensor = dlm_tensor_ptr->dl_tensor;
-  DALI_ENFORCE((std::is_same<SrcBackend, GPUBackend>::value &&
-                  dl_tensor.device.device_type == kDLCUDA) ||
-               (std::is_same<SrcBackend, CPUBackend>::value &&
-                  dl_tensor.device.device_type == kDLCPU),
-               "DLPack device type doesn't match Tensor type");
+  DALI_ENFORCE(
+    (std::is_same<SrcBackend, GPUBackend>::value &&
+      dl_tensor.device.device_type == kDLCUDA) ||
+    (std::is_same<SrcBackend, CPUBackend>::value &&
+      (dl_tensor.device.device_type == kDLCPU || dl_tensor.device.device_type == kDLCUDAHost)),
+    "DLPack device type doesn't match Tensor type");
 
   const TypeInfo &dali_type = TypeTable::GetTypeInfo(ToDALIType(dl_tensor.dtype));
   TensorShape<> shape;
@@ -614,10 +615,25 @@ DLMTensorPtr ToDLMTensor(Tensor<Backend> &tensor,
 template <typename Backend>
 py::capsule ToDLPack(Tensor<Backend> &tensor,
                      std::optional<intptr_t> stream,
-                     std::optional<std::pair<DLDeviceType, int>> dl_device) {
+                     std::optional<std::pair<int, int>> max_version,
+                     std::optional<std::pair<DLDeviceType, int>> dl_device,
+                     std::optional<bool> copy) {
+  // `max_version` is ignored - for now DALI always returns legacy, unversioned capsule.
+  (void)max_version;
+
+  DomainTimeRange range("__dlpack__");
+  auto *t = &tensor;
+  std::optional<Tensor<Backend>> copied;
+  if (copy && *copy) {
+    copied.emplace();
+    copied->set_pinned(tensor.is_pinned());
+    copied->set_order(tensor.order());
+    copied->Copy(tensor);
+    t = &*copied;
+  }
   return DLTensorToCapsule([&]() {
     py::gil_scoped_release interpreter_unlock{};
-    return ToDLMTensor(tensor, stream, dl_device);
+    return ToDLMTensor(*t, stream, dl_device);
   }());
 }
 
@@ -711,7 +727,9 @@ void ExposeTensor(py::module &m) {
     .def(
       "__dlpack__", ToDLPack<CPUBackend>,
       "stream"_a = py::none(),
+      "max_version"_a = py::none(),
       "dl_device"_a = py::none(),
+      "copy"_a = py::none(),
       R"code(
       Exposes the tensor as a DLPack capsule.
 
@@ -732,6 +750,16 @@ void ExposeTensor(py::module &m) {
           * ``2``    - legacy per-thread stream
           * ``>2``   - a CUDA stream handle converted to an integer
           * ``0``    - forbidden value
+
+      dl_device : (Enum, int) | None
+          The requested device. Must match the tensor's device or be None.
+
+      max_version : int | None
+          Ignored; DALI always returns a legacy unversioned capsule.
+
+      copy : bool | None
+          If True, a copy of the tensor will be returned; otherwise, the capsule will wrap
+          existing data.
       )code")
     .def_buffer([](Tensor<CPUBackend> &t) -> py::buffer_info {
           DALI_ENFORCE(IsValidType(t.type()), "Cannot produce "
@@ -969,7 +997,9 @@ void ExposeTensor(py::module &m) {
     .def(
       "__dlpack__", ToDLPack<GPUBackend>,
       "stream"_a = py::none(),
+      "max_version"_a = py::none(),
       "dl_device"_a = py::none(),
+      "copy"_a = py::none(),
       R"code(
       Exposes the tensor as a DLPack capsule.
 
@@ -990,6 +1020,16 @@ void ExposeTensor(py::module &m) {
           * ``2``    - legacy per-thread stream
           * ``>2``   - a CUDA stream handle converted to an integer
           * ``0``    - forbidden value
+
+      dl_device : (Enum, int) | None
+          The requested device. Must match the tensor's device or be None.
+
+      max_version : int | None
+          Ignored; DALI always returns a legacy unversioned capsule.
+
+      copy : bool | None
+          If True, a copy of the tensor will be returned; otherwise, the capsule will wrap
+          existing data.
       )code")
     .def(py::init([](const py::object &object,
                      const std::optional<std::string> &layout = {},
