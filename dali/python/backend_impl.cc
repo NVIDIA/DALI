@@ -618,6 +618,9 @@ py::capsule ToDLPack(Tensor<Backend> &tensor,
                      std::optional<std::pair<int, int>> max_version,
                      std::optional<std::pair<DLDeviceType, int>> dl_device,
                      std::optional<bool> copy) {
+  // `max_version` is ignored - for now DALI always returns legacy, unversioned capsule.
+  (void)max_version;
+
   DomainTimeRange range("__dlpack__");
   auto *t = &tensor;
   std::optional<Tensor<Backend>> copied;
@@ -747,6 +750,16 @@ void ExposeTensor(py::module &m) {
           * ``2``    - legacy per-thread stream
           * ``>2``   - a CUDA stream handle converted to an integer
           * ``0``    - forbidden value
+
+      dl_device : (Enum, int) | None
+          The requested device. Must match the tensor's device or be None.
+
+      max_version : int | None
+          Ignored; DALI always returns a legacy unversioned capsule.
+
+      copy : bool | None
+          If True, a copy of the tensor will be returned; otherwise, the capsule will wrap
+          existing data.
       )code")
     .def_buffer([](Tensor<CPUBackend> &t) -> py::buffer_info {
           DALI_ENFORCE(IsValidType(t.type()), "Cannot produce "
@@ -1007,6 +1020,16 @@ void ExposeTensor(py::module &m) {
           * ``2``    - legacy per-thread stream
           * ``>2``   - a CUDA stream handle converted to an integer
           * ``0``    - forbidden value
+
+      dl_device : (Enum, int) | None
+          The requested device. Must match the tensor's device or be None.
+
+      max_version : int | None
+          Ignored; DALI always returns a legacy unversioned capsule.
+
+      copy : bool | None
+          If True, a copy of the tensor will be returned; otherwise, the capsule will wrap
+          existing data.
       )code")
     .def(py::init([](const py::object &object,
                      const std::optional<std::string> &layout = {},
