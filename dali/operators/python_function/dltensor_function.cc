@@ -39,9 +39,7 @@ outputs have no layout assigned.)code", nullptr)
     .NoPrune()
     .Unserializable()
     .MakeInternal()
-    .OutputLayout(0, std::nullopt)
-    .OutputDType(0, std::nullopt)
-    .OutputNDim(0, std::nullopt);
+    .UseDefaultMetadataPolicy(false);  // It's user-defined in Python, we don't know anything.
 
 
 DALI_SCHEMA(DLTensorPythonFunction)
@@ -75,9 +73,8 @@ If set to True, the function will receive its arguments as lists of DLPack tenso
     .SupportVolumetric()
     .NoPrune()
     .AddParent("PythonFunctionBase")
-    .OutputLayout(0, std::nullopt)
-    .OutputDType(0, std::nullopt)
-    .OutputNDim(0, std::nullopt);
+    .UseDefaultMetadataPolicy(false);  // It's user-defined in Python, we don't know anything.
+
 
 namespace detail {
 

@@ -1,4 +1,4 @@
-// Copyright (c) 2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2024-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -54,7 +54,8 @@ from the input to the output.)code",
                                                nullptr)
     .Unserializable()
     .MakeInternal()
-    .MakeDocHidden();
+    .MakeDocHidden()
+    .UseDefaultMetadataPolicy(false);  // It's user-defined in Python, we don't know anything.
 
 
 DALI_REGISTER_OPERATOR(_JaxFunction, JaxFunction<CPUBackend>, CPU);
