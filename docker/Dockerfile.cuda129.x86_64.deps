@@ -28,9 +28,9 @@ RUN NVJPEG2K_VERSION=0.9.0.43-1 && \
     cp /usr/include/libnvjpeg2k/${CUDA_VERSION_MAJOR}/* /usr/local/cuda/include/ && \
     cp /usr/lib/x86_64-linux-gnu/libnvjpeg2k/${CUDA_VERSION_MAJOR}/* /usr/local/cuda/lib64/ && \
     mkdir /tmp/nvcomp && cd /tmp/nvcomp && \
-    wget https://developer.download.nvidia.com/compute/nvcomp/redist/nvcomp/linux-x86_64/nvcomp-linux-x86_64-5.0.0.6_cuda12-archive.tar.xz && \
+    wget https://developer.download.nvidia.com/compute/nvcomp/redist/nvcomp/linux-x86_64/nvcomp-linux-x86_64-5.2.0.10_cuda12-archive.tar.xz && \
     tar -xf * && \
-    cp -r nvcomp-linux-x86_64-5.0.0.6_cuda12-archive/include/* /usr/local/cuda/include/ && \
-    cp -r nvcomp-linux-x86_64-5.0.0.6_cuda12-archive/lib/* /usr/local/cuda/lib64/ && \
+    cp -r nvcomp-linux-x86_64-5.2.0.10_cuda12-archive/include/* /usr/local/cuda/include/ && \
+    cp -r nvcomp-linux-x86_64-5.2.0.10_cuda12-archive/lib/* /usr/local/cuda/lib64/ && \
     cd / && rm -rf /tmp/nvcomp && \
     rm -rf /var/lib/apt/lists/*
