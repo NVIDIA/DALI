@@ -2930,7 +2930,7 @@ PYBIND11_MODULE(backend_impl, m, py::mod_gil_not_used()) {
               std::string_view device,
               std::optional<int> ndim,
               std::optional<DALIDataType> dtype,
-              std::optional<std::string> layout) {
+              std::optional<std::string> layout) -> OpSpec& {
           std::optional<TensorLayout> tl;
           if (layout.has_value())
             tl = *layout;
@@ -2948,7 +2948,7 @@ PYBIND11_MODULE(backend_impl, m, py::mod_gil_not_used()) {
               std::string_view inp_name,
               std::optional<int> ndim,
               std::optional<DALIDataType> dtype,
-              std::optional<std::string> layout) {
+              std::optional<std::string> layout) -> OpSpec& {
           std::optional<TensorLayout> tl;
           if (layout.has_value())
             tl = *layout;

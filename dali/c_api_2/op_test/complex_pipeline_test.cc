@@ -432,8 +432,8 @@ TEST(CAPI2_PipelineBuilderTest, ResizeWithArgumentInput) {
       ptr[1] = sample_sizes[i][1];
     }
 
-    auto images_handle = Wrap(images_tl);
-    auto sizes_handle  = Wrap(sizes_tl);
+    auto images_handle = Wrap(std::move(images_tl));
+    auto sizes_handle  = Wrap(std::move(sizes_tl));
     CHECK_DALI(daliPipelineFeedInput(h, "images", images_handle.get(), nullptr, {}, nullptr));
     CHECK_DALI(daliPipelineFeedInput(h, "sizes",  sizes_handle.get(),  nullptr, {}, nullptr));
   }

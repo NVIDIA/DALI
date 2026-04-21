@@ -268,7 +268,8 @@ DALI_SCHEMA(DummyPassthrough)
 
 TEST(OpSchemaTest, OutputMetadataPassthrough) {
   auto &schema = SchemaRegistry::GetSchema("DummyPassthrough");
-  auto spec = OpSpec("DummyPassthrough").AddInput("in", StorageDevice::CPU, 3, DALI_FLOAT, "HWC");
+  auto spec = OpSpec("DummyPassthrough");
+  spec.AddInput("in", StorageDevice::CPU, 3, DALI_FLOAT, "HWC");
 
   ASSERT_EQ(schema.CalculateOutputDType(0, spec), DALI_FLOAT);
   ASSERT_EQ(schema.CalculateOutputNDim(0, spec), 3);
@@ -297,7 +298,8 @@ DALI_SCHEMA(DummyMultiOutput)
 
 TEST(OpSchemaTest, OutputMetadataMultiOutput) {
   auto &schema = SchemaRegistry::GetSchema("DummyMultiOutput");
-  auto spec = OpSpec("DummyMultiOutput").AddInput("in", StorageDevice::CPU, {}, DALI_FLOAT);
+  auto spec = OpSpec("DummyMultiOutput");
+  spec.AddInput("in", StorageDevice::CPU, {}, DALI_FLOAT);
 
   ASSERT_EQ(schema.CalculateOutputDType(0, spec), DALI_FLOAT);
   ASSERT_EQ(schema.CalculateOutputDType(1, spec), DALI_INT32);

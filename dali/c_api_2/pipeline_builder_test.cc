@@ -241,7 +241,7 @@ TEST(CAPI2_PipelineBuilderTest, AddExternalInput) {
     ref->SetExternalInput("ext", *cpp_tl);
 
     // Feed to test C API pipeline
-    auto tl_handle = Wrap(cpp_tl);
+    auto tl_handle = Wrap(std::move(cpp_tl));
     CHECK_DALI(daliPipelineFeedInput(test, "ext", tl_handle.get(), nullptr, {}, nullptr));
   }
 
