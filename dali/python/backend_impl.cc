@@ -614,10 +614,21 @@ DLMTensorPtr ToDLMTensor(Tensor<Backend> &tensor,
 template <typename Backend>
 py::capsule ToDLPack(Tensor<Backend> &tensor,
                      std::optional<intptr_t> stream,
-                     std::optional<std::pair<DLDeviceType, int>> dl_device) {
+                     std::optional<std::pair<int, int>> max_version,
+                     std::optional<std::pair<DLDeviceType, int>> dl_device,
+                     std::optional<bool> copy) {
+  DomainTimeRange range("__dlpack__");
+  auto *t = &tensor;
+  std::optional<Tensor<Backend>> copied;
+  if (copy && *copy) {
+    copied.emplace();
+    copied->set_order(tensor.order());
+    copied->Copy(tensor);
+    t = &*copied;
+  }
   return DLTensorToCapsule([&]() {
     py::gil_scoped_release interpreter_unlock{};
-    return ToDLMTensor(tensor, stream, dl_device);
+    return ToDLMTensor(*t, stream, dl_device);
   }());
 }
 
@@ -711,7 +722,9 @@ void ExposeTensor(py::module &m) {
     .def(
       "__dlpack__", ToDLPack<CPUBackend>,
       "stream"_a = py::none(),
+      "max_version"_a = py::none(),
       "dl_device"_a = py::none(),
+      "copy"_a = py::none(),
       R"code(
       Exposes the tensor as a DLPack capsule.
 
@@ -969,7 +982,9 @@ void ExposeTensor(py::module &m) {
     .def(
       "__dlpack__", ToDLPack<GPUBackend>,
       "stream"_a = py::none(),
+      "max_version"_a = py::none(),
       "dl_device"_a = py::none(),
+      "copy"_a = py::none(),
       R"code(
       Exposes the tensor as a DLPack capsule.
 
