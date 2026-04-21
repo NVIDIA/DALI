@@ -151,7 +151,7 @@ class Invocation:
             self.run(self._eval_context)
         return self._results[result_index].dtype
 
-    def layout(self, result_index: int) -> str:
+    def layout(self, result_index: int) -> str | None:
         if self._results is None:
             if init_spec := getattr(self._operator, "_init_spec", None):
                 init_spec(self._inputs, self._args)
