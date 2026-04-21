@@ -276,11 +276,12 @@ void FillTensorFromDlPack(
       const std::optional<std::string> &layout) {
   auto dlm_tensor_ptr = DLMTensorPtrFromCapsule(capsule);
   const auto &dl_tensor = dlm_tensor_ptr->dl_tensor;
-  DALI_ENFORCE((std::is_same<SrcBackend, GPUBackend>::value &&
-                  dl_tensor.device.device_type == kDLCUDA) ||
-               (std::is_same<SrcBackend, CPUBackend>::value &&
-                  dl_tensor.device.device_type == kDLCPU),
-               "DLPack device type doesn't match Tensor type");
+  DALI_ENFORCE(
+    (std::is_same<SrcBackend, GPUBackend>::value &&
+      dl_tensor.device.device_type == kDLCUDA) ||
+    (std::is_same<SrcBackend, CPUBackend>::value &&
+      (dl_tensor.device.device_type == kDLCPU || dl_tensor.device.device_type == kDLCUDAHost)),
+    "DLPack device type doesn't match Tensor type");
 
   const TypeInfo &dali_type = TypeTable::GetTypeInfo(ToDALIType(dl_tensor.dtype));
   TensorShape<> shape;
@@ -622,6 +623,7 @@ py::capsule ToDLPack(Tensor<Backend> &tensor,
   std::optional<Tensor<Backend>> copied;
   if (copy && *copy) {
     copied.emplace();
+    copied->set_pinned(tensor.is_pinned());
     copied->set_order(tensor.order());
     copied->Copy(tensor);
     t = &*copied;
