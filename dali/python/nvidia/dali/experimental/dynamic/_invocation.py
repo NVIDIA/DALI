@@ -162,7 +162,7 @@ class Invocation:
             self.run(self._eval_context)
 
         layout = self._results[result_index].layout()
-        return None if layout == "" else layout
+        return layout or None  # this will override "" with None
 
     def __iter__(self):
         for index in range(len(self)):

@@ -56,6 +56,7 @@ def assert_correct_metadata(
     (ndd.brightness_contrast, dict(brightness=1.2)),
     (ndd.crop_mirror_normalize, dict(crop=(2, 2))),
     (ndd.crop_mirror_normalize, dict(crop=(2, 2), dtype=ndd.float32)),
+    (ndd.reshape, dict(layout="")),
 )
 def test_image_ops(func, kwargs):
     tensor = ndd.zeros(shape=(4, 4, 3), dtype=ndd.uint8, layout="HWC")
@@ -206,3 +207,15 @@ def test_gaussian_blur_fchw():
     sigmas = ndd.per_frame(sigmas)
 
     assert_correct_metadata(ndd.gaussian_blur(input, sigma=sigmas))
+
+
+# --- Empty layout handling ---
+
+
+@eval_modes(ndd.EvalMode.deferred)
+def test_empty_layout():
+    input = ndd.as_batch([ndd.zeros(shape=(3, 3)), ndd.zeros(shape=(4, 4))])
+    reshaped = ndd.reshape(input, layout="")
+    assert reshaped._invocation_result.layout is None
+    reshaped.evaluate()
+    assert reshaped._invocation_result.layout is None
