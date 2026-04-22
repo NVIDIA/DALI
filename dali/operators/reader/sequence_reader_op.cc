@@ -1,4 +1,4 @@
-// Copyright (c) 2018-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2018-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -90,18 +90,13 @@ For reading video sequences, one of :meth:`nvidia.dali.fn.readers.video`,
 // Deprecated alias
 DALI_REGISTER_OPERATOR(SequenceReader, SequenceReader, CPU);
 
-DALI_SCHEMA(SequenceReader)
-    .DocStr("Legacy alias for :meth:`readers.sequence`.")
-    .NumInput(0)
-    .NumOutput(1)  // ([Frames])
-    .AllowSequences()
-    .AddParent("readers__Sequence")
-    .MakeDocHidden()
+DALI_SCHEMA_ALIAS(SequenceReader, readers__Sequence)
     .Deprecate(
         "1.0",
         "readers__Sequence",
         R"code(In DALI 1.0 all readers were moved into a dedicated :mod:`~nvidia.dali.fn.readers`
 submodule and renamed to follow a common pattern. This is a placeholder operator with identical
-functionality to allow for backward compatibility.)code");
+functionality to allow for backward compatibility.)code")
+    .MakeDocHidden();
 
 }  // namespace dali
