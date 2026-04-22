@@ -15,8 +15,8 @@
 #ifndef DALI_OPERATORS_READER_PARSER_SEQUENCE_PARSER_H_
 #define DALI_OPERATORS_READER_PARSER_SEQUENCE_PARSER_H_
 
+#include <map>
 #include <mutex>
-#include <unordered_map>
 #include "dali/operators/imgcodec/image_decoder.h"
 #include "dali/operators/reader/loader/sequence_loader.h"
 #include "dali/operators/reader/parser/parser.h"
@@ -66,8 +66,10 @@ class SequenceParser : public Parser<TensorSequence> {
   DALIImageType image_type_;
   imgcodec::NvImageCodecInstance instance_ = {};
 
+  // Use std::map for pointer/reference stability across insertions — GetDecoder returns a
+  // reference that callers use outside the lock; unordered_map rehash would invalidate it.
   std::mutex decoders_mtx_;
-  std::unordered_map<int, imgcodec::NvImageCodecDecoder> decoders_;
+  std::map<int, imgcodec::NvImageCodecDecoder> decoders_;
 
   nvimgcodecBackend_t backend_{
       NVIMGCODEC_STRUCTURE_TYPE_BACKEND,

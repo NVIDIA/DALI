@@ -155,6 +155,6 @@ class ProgressiveJpeg(unittest.TestCase):
             data, _ = fn.readers.file(files=self.files[(decoding_method, decoding_step)].name)
             return fn.decoders.image(data, device=decoding_device)
 
-        with assert_raises(RuntimeError):
+        with assert_raises(RuntimeError, glob="*Failed to decode sample*"):
             p = pipeline()
             p.run()

@@ -15,8 +15,10 @@
 #ifndef DALI_TEST_DALI_TEST_DECODER_H_
 #define DALI_TEST_DALI_TEST_DECODER_H_
 
+#include <cstring>
 #include <memory>
 #include <opencv2/imgcodecs.hpp>
+#include <opencv2/imgproc.hpp>
 #include <string>
 #include <utility>
 #include <vector>
