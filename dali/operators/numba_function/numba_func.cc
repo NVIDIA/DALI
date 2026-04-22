@@ -136,9 +136,7 @@ When `batch_processing` is set to ``True``, the function processes the whole bat
 function has to perform cross-sample operations and may be beneficial if significant part of the work can
 be reused. For other use cases, specifying False and using per-sample processing function allows the operator
 to process samples in parallel.)code", false)
-  .OutputDType(0, std::nullopt)
-  .OutputNDim(0, std::nullopt)
-  .OutputLayout(0, std::nullopt);
+  .UseDefaultMetadataPolicy(false);  // It's user-defined in Python, we don't know anything.
 
 DALI_SCHEMA(NumbaFuncImpl)
   .DocStr("")
@@ -162,9 +160,7 @@ block used to execute a CUDA kernel)code", DALI_INT_VEC, {})
 This function is invoked once per batch.)code", 0)
   .AddOptionalArg("batch_processing", R"code(Determines whether the function is invoked once per batch or
 separately for each sample in the batch.)code", false)
-  .OutputDType(0, std::nullopt)
-  .OutputNDim(0, std::nullopt)
-  .OutputLayout(0, std::nullopt);
+  .UseDefaultMetadataPolicy(false);  // It's user-defined in Python, we don't know anything.
 
 template <>
 NumbaFuncImpl<CPUBackend>::NumbaFuncImpl(const OpSpec &spec) : Base(spec) {

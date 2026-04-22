@@ -35,9 +35,8 @@ fewer than num_outputs elements, only the first outputs have the layout set and 
 outputs have no layout assigned.)code", nullptr)
     .MakeStateful()  // The python function may have some state
     .MakeInternal()
-    .OutputLayout(0, std::nullopt)
-    .OutputDType(0, std::nullopt)
-    .OutputNDim(0, std::nullopt);
+    .UseDefaultMetadataPolicy(false);  // It's user-defined in Python, we don't know anything.
+
 
 DALI_SCHEMA(PythonFunction)
         .DocStr(R"code(Executes a Python function.
@@ -75,9 +74,8 @@ once per batch or separately for every sample in the batch.
 
 If set to True, the function will receive its arguments as lists of NumPy or CuPy arrays,
 for CPU and GPU backend, respectively.)code", false)
-        .OutputLayout(0, std::nullopt)
-        .OutputDType(0, std::nullopt)
-        .OutputNDim(0, std::nullopt);
+        .UseDefaultMetadataPolicy(false);  // It's user-defined in Python, we don't know anything.
+
 
 DALI_SCHEMA(TorchPythonFunction)
         .DocStr(R"code(Executes a function that is operating on Torch tensors.
@@ -91,8 +89,6 @@ as PyTorch tensors.)code")
         .AddParent("PythonFunctionBase")
         .AddOptionalArg("batch_processing", R"code(Determines whether the function gets
 an entire batch as an input.)code", true)
-        .OutputLayout(0, std::nullopt)
-        .OutputDType(0, std::nullopt)
-        .OutputNDim(0, std::nullopt);
+        .UseDefaultMetadataPolicy(false);  // It's user-defined in Python, we don't know anything.
 
 }  // namespace dali
