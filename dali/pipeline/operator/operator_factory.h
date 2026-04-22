@@ -52,11 +52,13 @@ class OperatorRegistry {
     std::lock_guard<std::mutex> lock(mutex_);
     auto it = registry_.find(name);
     std::string_view lookup_name = name;
-    if (it == registry_.end()) {
+    while (it == registry_.end()) {
       // Maybe we got an alias? Check the schema's actual name.
-      while (auto *schema = SchemaRegistry::TryGetSchema(lookup_name)) {
+      if (auto *schema = SchemaRegistry::TryGetSchema(lookup_name)) {
         lookup_name = schema->name();
         it = registry_.find(lookup_name);
+      } else {
+        break;
       }
     }
     DALI_ENFORCE(it != registry_.end(), make_string(
