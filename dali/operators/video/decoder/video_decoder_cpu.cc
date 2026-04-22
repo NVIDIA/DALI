@@ -198,18 +198,14 @@ apart or starting playback from a frame deep into the video.)code",
     .OutputDType(0, DALI_UINT8)
     .OutputLayout(0, "FHWC");
 
-DALI_SCHEMA(experimental__decoders__Video)
-    .AddParent("decoders__Video")
-    .DocStr("Legacy alias for :meth:`decoders.video`.")
-    .NumInput(1)
-    .NumOutput(1)
-    .MakeDocHidden()
+DALI_SCHEMA_ALIAS(experimental__decoders__Video, decoders__Video)
     .Deprecate(
         "2.0",
         "decoders__Video",
         "This operator was moved out from the experimental phase, "
         "and is now a regular DALI operator. This is just a deprecated "
-        "alias kept for backward compatibility.");
+        "alias kept for backward compatibility.")
+    .MakeDocHidden();
 
 class VideoDecoderCpu : public VideoDecoderBase<CPUBackend, FramesDecoderCpu> {
  public:
