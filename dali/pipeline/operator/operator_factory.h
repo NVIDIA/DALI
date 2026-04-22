@@ -67,14 +67,27 @@ class OperatorRegistry {
   std::unique_ptr<OpType> Create(
         std::string_view name,
         const OpSpec &spec,
-        std::optional<std::string_view> device_name = {}) {
+        std::optional<std::string_view> devName = {}) {
     std::lock_guard<std::mutex> lock(mutex_);
-    auto creator_it = registry_.find(name);
-    DALI_ENFORCE(creator_it != registry_.end(), make_string(
+    auto it = registry_.find(name);
+    std::string_view lookup_name = name;
+    while (it == registry_.end()) {
+      // Maybe we got an alias? Check the schema's actual name.
+      if (auto *schema = SchemaRegistry::TryGetSchema(lookup_name)) {
+        std::string_view new_name = schema->name();
+        if (new_name == lookup_name)
+          break;  // no alias found
+        lookup_name = new_name;
+        it = registry_.find(lookup_name);
+      } else {
+        break;
+      }
+    }
+    DALI_ENFORCE(it != registry_.end(), make_string(
         "Operator \"", name, "\" not registered",
-        (device_name? make_string(" for \"", *device_name, "\"") : "")));
-
-    return creator_it->second(spec);
+        (devName ? make_string(" for ", *devName) : ""),
+        "."));
+    return it->second(spec);
   }
 
   vector<std::string> RegisteredNames(bool internal_ops) {
@@ -119,12 +132,12 @@ class Registerer {
 #define DALI_DECLARE_OPTYPE_REGISTRY(RegistryName, OpType)            \
   class DLL_PUBLIC RegistryName##Registry {                           \
    public:                                                            \
-    DLL_PUBLIC static ::dali::OperatorRegistry<OpType>& Registry();     \
+    DLL_PUBLIC static ::dali::OperatorRegistry<OpType>& Registry();   \
   };
 
 #define DALI_DEFINE_OPTYPE_REGISTRY(RegistryName, OpType)               \
   dali::OperatorRegistry<OpType>& RegistryName##Registry::Registry() {  \
-    static ::dali::OperatorRegistry<OpType> registry;                     \
+    static ::dali::OperatorRegistry<OpType> registry;                   \
     return registry;                                                    \
   }
 
