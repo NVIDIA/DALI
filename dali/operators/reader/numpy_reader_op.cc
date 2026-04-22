@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -238,18 +238,14 @@ Mutually exclusive with ``dont_use_mmap=False``.)code",
 // Deprecated alias
 DALI_REGISTER_OPERATOR(NumpyReader, NumpyReaderCPU, CPU);
 
-DALI_SCHEMA(NumpyReader)
-    .DocStr("Legacy alias for :meth:`readers.numpy`.")
-    .NumInput(0)
-    .NumOutput(1)  // (Arrays)
-    .AddParent("readers__Numpy")
-    .MakeDocHidden()
+DALI_SCHEMA_ALIAS(NumpyReader, readers__Numpy)
     .Deprecate(
         "1.0",
         "readers__Numpy",
         R"code(In DALI 1.0 all readers were moved into a dedicated :mod:`~nvidia.dali.fn.readers`
 submodule and renamed to follow a common pattern. This is a placeholder operator with identical
-functionality to allow for backward compatibility.)code");
+functionality to allow for backward compatibility.)code")
+    .MakeDocHidden();
 
 NumpyReaderCPU::~NumpyReaderCPU() {
   // Stop the prefetch thread as it uses the thread pool from this class. So before we can
