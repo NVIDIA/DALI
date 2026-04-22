@@ -51,10 +51,12 @@ class OperatorRegistry {
       std::string_view name, const OpSpec &spec, std::optional<std::string_view> devName = {}) {
     std::lock_guard<std::mutex> lock(mutex_);
     auto it = registry_.find(name);
+    std::string_view lookup_name = name;
     if (it == registry_.end()) {
       // Maybe we got an alias? Check the schema's actual name.
-      if (auto *schema = SchemaRegistry::TryGetSchema(name)) {
-        it = registry_.find(schema->name());
+      while (auto *schema = SchemaRegistry::TryGetSchema(lookup_name)) {
+        lookup_name = schema->name();
+        it = registry_.find(lookup_name);
       }
     }
     DALI_ENFORCE(it != registry_.end(), make_string(
