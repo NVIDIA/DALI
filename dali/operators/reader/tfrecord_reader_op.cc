@@ -134,16 +134,14 @@ functionality to allow for backward compatibility.)code");
 
 
 // Deprecated alias
-DALI_SCHEMA(TFRecordReader)
-    .DocStr("Legacy alias for :meth:`readers.tfrecord`.")
-    .AddParent("readers__TFRecord")
-    .MakeDocHidden()
+DALI_SCHEMA_ALIAS(TFRecordReader, readers__TFRecord)
     .Deprecate(
         "1.0",
         "readers__TFRecord",
         R"code(In DALI 1.0 all readers were moved into a dedicated :mod:`~nvidia.dali.fn.readers`
 submodule and renamed to follow a common pattern. This is a placeholder operator with identical
-functionality to allow for backward compatibility.)code");
+functionality to allow for backward compatibility.)code")
+    .MakeDocHidden();
 
 void TFRecordReader::Prefetch() {
   // We actually prepare the next batch

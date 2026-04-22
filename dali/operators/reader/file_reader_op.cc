@@ -146,17 +146,13 @@ case-sensitively, otherwise case-insensitively.)", false)
 // Deprecated alias
 DALI_REGISTER_OPERATOR(FileReader, FileReader, CPU);
 
-DALI_SCHEMA(FileReader)
-    .DocStr("Legacy alias for :meth:`readers.file`.")
-    .NumInput(0)
-    .NumOutput(2)  // (Images, Labels)
-    .AddParent("readers__File")
-    .MakeDocHidden()
+DALI_SCHEMA_ALIAS(FileReader, readers__File)
     .Deprecate(
         "1.0",
         "readers__File",
         R"code(In DALI 1.0 all readers were moved into a dedicated :mod:`~nvidia.dali.fn.readers`
 submodule and renamed to follow a common pattern. This is a placeholder operator with identical
-functionality to allow for backward compatibility.)code");
+functionality to allow for backward compatibility.)code")
+    .MakeDocHidden();
 
 }  // namespace dali
