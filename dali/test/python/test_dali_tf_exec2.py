@@ -19,7 +19,6 @@ from nvidia.dali import pipeline_def
 import nvidia.dali.fn as fn
 import nvidia.dali.types as types
 import nvidia.dali.plugin.tf as dali_tf
-from nose_utils import with_setup
 from test_utils_tensorflow import skip_inputs_for_incompatible_tf
 from test_utils import get_dali_extra_path
 
@@ -43,9 +42,10 @@ def dali_exec2_pipeline():
     return output.cpu()
 
 
-@with_setup(skip_inputs_for_incompatible_tf)
-def test_tf_dataset_exec2():
-    """Test that exec_dynamic is propagated to DALI pipeline from dali_tf.DALIDatasetWithInputs"""
+def test_tf_dataset_exec2(self):
+    """Test that exec_dynamic is propagated to DALI pipeline
+    by dali_tf.DALIDatasetWithInputs"""
+    skip_inputs_for_incompatible_tf()
     # From Tensorflow's perspective, this is a CPU pipeline
     with tf.device("/cpu:0"):
         dali_dataset = dali_tf.experimental.DALIDatasetWithInputs(
@@ -69,8 +69,25 @@ def test_tf_dataset_exec2():
             return negative, positive
 
         pos, neg = tf_function_with_conditionals(dali_dataset.take(5))
-        assert pos == 3
-        assert neg == 2
+        # Eager mode: integers, graph mode: tensors, need to fetch value if it's Tensor
+        if (
+            tf.executing_eagerly() is False
+            or getattr(tf.compat.v1, "_eager_context", None) is not None
+        ):
+            # get concrete function and run in session for static graph mode
+            # fallback for session-based TF execution (e.g. when other test turned eager off)
+            try:
+                from tensorflow.compat.v1 import Session
+            except ImportError:
+                # Older TF versions don't have compat.v1 layer
+                from tensorflow import Session
+
+            with Session() as sess:
+                pos_val, neg_val = sess.run([pos, neg])
+        else:
+            pos_val, neg_val = pos, neg
+        assert pos_val == 3
+        assert neg_val == 2
 
 
 @pipeline_def(num_threads=4, exec_dynamic=True)

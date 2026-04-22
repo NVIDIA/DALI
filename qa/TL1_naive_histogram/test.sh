@@ -12,7 +12,7 @@ do_once() {
 test_body() {
     pushd $(pwd)/docs/examples/custom_operations/custom_operator/naive_histogram
     (mkdir build && cd build && cmake .. && make -j"$(grep ^processor /proc/cpuinfo | wc -l)")
-    ${python_invoke_test} test_naive_histogram.py
+    ${python_new_invoke_test} test_naive_histogram
     popd
 }
 
