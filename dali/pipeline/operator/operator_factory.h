@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@
 #include <functional>
 
 #include "dali/core/common.h"
+#include "dali/core/string_map.h"
 #include "dali/core/error_handling.h"
 #include "dali/pipeline/operator/op_schema.h"
 
@@ -34,25 +35,33 @@ template <typename OpType>
 class OperatorRegistry {
  public:
   typedef std::function<std::unique_ptr<OpType> (const OpSpec &spec)> Creator;
-  typedef std::unordered_map<std::string, Creator> CreatorRegistry;
+  typedef unordered_string_map<Creator> CreatorRegistry;
 
   OperatorRegistry() {}
 
-  void Register(const std::string &name, Creator creator, const std::string &devName = "") {
+  void Register(const std::string &name, Creator creator, std::string_view devName = "") {
       std::lock_guard<std::mutex> lock(mutex_);
-    DALI_ENFORCE(registry_.count(name) == 0,
-        "Operator \"" + name + "\" already registered" +
-        (!devName.empty() ? (" for " + devName) : "") + ".");
+    DALI_ENFORCE(registry_.count(name) == 0, make_string(
+        "Operator \"", name, "\" already registered",
+        (!devName.empty() ? make_string(" for ", devName) : ""), "."));
     registry_[name] = creator;
   }
 
   std::unique_ptr<OpType> Create(
-      const std::string &name, const OpSpec &spec, const std::string *devName = NULL) {
+      std::string_view name, const OpSpec &spec, std::optional<std::string_view> devName = {}) {
     std::lock_guard<std::mutex> lock(mutex_);
-    auto creator_it = registry_.find(name);
-    DALI_ENFORCE(creator_it != registry_.end(),
-        "Operator \"" + name + "\" not registered" + (devName? (" for " + *devName) : "") + ".");
-    return registry_[name](spec);
+    auto it = registry_.find(name);
+    if (it == registry_.end()) {
+      // Maybe we got an alias? Check the schema's actual name.
+      if (auto *schema = SchemaRegistry::TryGetSchema(name)) {
+        it = registry_.find(schema->name());
+      }
+    }
+    DALI_ENFORCE(it != registry_.end(), make_string(
+        "Operator \"", name, "\" not registered",
+        (devName ? make_string(" for ", *devName) : ""),
+        "."));
+    return it->second(spec);
   }
 
   vector<std::string> RegisteredNames(bool internal_ops) {

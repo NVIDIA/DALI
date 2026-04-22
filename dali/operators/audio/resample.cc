@@ -1,4 +1,4 @@
-// Copyright (c) 2022-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -97,18 +97,14 @@ type. Example::
     nullptr, false);
 
 // Deprecated alias
-DALI_SCHEMA(experimental__AudioResample)
-    .AddParent("AudioResample")
-    .DocStr("Legacy alias for :meth:`audio_resample`.")
-    .NumInput(1)
-    .NumOutput(1)
-    .MakeDocHidden()
+DALI_SCHEMA_ALIAS(experimental__AudioResample, AudioResample)
     .Deprecate(
         "1.18",
         "AudioResample",
         "This operator was moved out from the experimental phase, "
-        "and is now a regular DALI operator. This is just an deprecated "
-        "alias kept for backward compatibility.");
+        "and is now a regular DALI operator. This is just a deprecated "
+        "alias kept for backward compatibility.")
+    .MakeDocHidden();
 
 namespace audio {
 
