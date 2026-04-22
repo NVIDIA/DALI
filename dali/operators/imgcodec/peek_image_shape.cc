@@ -81,8 +81,8 @@ ImgcodecPeekImageShape::ImgcodecPeekImageShape(const OpSpec &spec)
   nvimgcodecInstanceCreateInfo_t instance_create_info = {
       NVIMGCODEC_STRUCTURE_TYPE_INSTANCE_CREATE_INFO, sizeof(nvimgcodecInstanceCreateInfo_t),
       nullptr};
-  instance_create_info.load_extension_modules = 1;
-  instance_create_info.load_builtin_modules = 1;
+  instance_create_info.load_extension_modules = 1;  // loads codecs extensions
+  instance_create_info.load_builtin_modules = 1;  // loads parsers
   instance_create_info.extension_modules_path = nullptr;
   instance_create_info.create_debug_messenger = 1;
   instance_create_info.message_severity = NVIMGCODEC_DEBUG_MESSAGE_SEVERITY_FATAL |

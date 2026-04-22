@@ -36,8 +36,8 @@ class SequenceParser : public Parser<TensorSequence> {
     const char* log_lvl_env = std::getenv("DALI_NVIMGCODEC_LOG_LEVEL");
     int log_lvl = log_lvl_env ? clamp(atoi(log_lvl_env), 1, 5) : 2;
 
-    instance_create_info.load_extension_modules = 1;
-    instance_create_info.load_builtin_modules = 1;
+    instance_create_info.load_extension_modules = 1;  // loads codecs extensions
+    instance_create_info.load_builtin_modules = 1;  // loads parsers
     instance_create_info.extension_modules_path = nullptr;
     instance_create_info.create_debug_messenger = 1;
     instance_create_info.debug_messenger_desc = nullptr;
