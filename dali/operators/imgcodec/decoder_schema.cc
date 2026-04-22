@@ -306,8 +306,8 @@ DALI_SCHEMA(ImageDecoder)
     .Deprecate(
         "1.0",
         "decoders__Image",
-        R"code(In DALI 1.0 all decoders were moved into a dedicated :mod:`~nvidia.dali.fn.decoders`
-submodule and renamed to follow a common pattern. This is a placeholder operator with identical
+        R"code(In DALI 1.0 all decoders were moved into a dedicated ``decoders`` submodule
+and renamed to follow a common pattern. This is a placeholder operator with identical
 functionality to allow for backward compatibility.)code");
 
 DALI_SCHEMA(experimental__decoders__Image)
@@ -319,8 +319,8 @@ DALI_SCHEMA(experimental__decoders__Image)
     .Deprecate(
         "2.2",
         "decoders__Image",
-        R"code(Experimental features of the decoders have been moved to the main decoder module
-:mod:`~nvidia.dali.fn.decoders`, this is just an alias maintained for backward compatibility.)code");
+        R"code(Experimental features of the decoders have been moved to the main ``decoders``
+module, this is just an alias maintained for backward compatibility.)code");
 
 // Fused
 
@@ -333,8 +333,8 @@ DALI_SCHEMA(ImageDecoderCrop)
     .Deprecate(
         "1.0",
         "decoders__ImageCrop",
-        R"code(In DALI 1.0 all decoders were moved into a dedicated :mod:`~nvidia.dali.fn.decoders`
-submodule and renamed to follow a common pattern. This is a placeholder operator with identical
+        R"code(In DALI 1.0 all decoders were moved into a dedicated ``decoders`` submodule
+and renamed to follow a common pattern. This is a placeholder operator with identical
 functionality to allow for backward compatibility.)code");
 
 DALI_SCHEMA(experimental__decoders__ImageCrop)
@@ -346,8 +346,8 @@ DALI_SCHEMA(experimental__decoders__ImageCrop)
     .Deprecate(
         "2.2",
         "decoders__ImageCrop",
-        R"code(Experimental features of the decoders have been moved to the main decoder module
-:mod:`~nvidia.dali.fn.decoders`, this is just an alias maintained for backward compatibility.)code");
+        R"code(Experimental features of the decoders have been moved to the main ``decoders``
+module, this is just an alias maintained for backward compatibility.)code");
 
 DALI_SCHEMA(ImageDecoderRandomCrop)
     .DocStr("Alias for :meth:`decoders.image_random_crop`.")
@@ -358,8 +358,8 @@ DALI_SCHEMA(ImageDecoderRandomCrop)
     .Deprecate(
         "1.0",
         "decoders__ImageRandomCrop",
-        R"code(In DALI 1.0 all decoders were moved into a dedicated :mod:`~nvidia.dali.fn.decoders`
-submodule and renamed to follow a common pattern. This is a placeholder operator with identical
+        R"code(In DALI 1.0 all decoders were moved into a dedicated ``decoders`` submodule
+and renamed to follow a common pattern. This is a placeholder operator with identical
 functionality to allow for backward compatibility.)code");
 
 DALI_SCHEMA(experimental__decoders__ImageRandomCrop)
@@ -371,8 +371,8 @@ DALI_SCHEMA(experimental__decoders__ImageRandomCrop)
     .Deprecate(
         "2.2",
         "decoders__ImageRandomCrop",
-        R"code(Experimental features of the decoders have been moved to the main decoder module
-:mod:`~nvidia.dali.fn.decoders`, this is just an alias maintained for backward compatibility.)code");
+        R"code(Experimental features of the decoders have been moved to the main ``decoders``
+module, this is just an alias maintained for backward compatibility.)code");
 
 DALI_SCHEMA(ImageDecoderSlice)
     .DocStr("Alias for :meth:`decoders.image_slice`.")
@@ -383,8 +383,8 @@ DALI_SCHEMA(ImageDecoderSlice)
     .Deprecate(
         "1.0",
         "decoders__ImageSlice",
-        R"code(In DALI 1.0 all decoders were moved into a dedicated :mod:`~nvidia.dali.fn.decoders`
-submodule and renamed to follow a common pattern. This is a placeholder operator with identical
+        R"code(In DALI 1.0 all decoders were moved into a dedicated ``decoders`` submodule
+and renamed to follow a common pattern. This is a placeholder operator with identical
 functionality to allow for backward compatibility.)code");
 
 DALI_SCHEMA(experimental__decoders__ImageSlice)
@@ -396,8 +396,8 @@ DALI_SCHEMA(experimental__decoders__ImageSlice)
     .Deprecate(
         "2.2",
         "decoders__ImageSlice",
-        R"code(Experimental features of the decoders have been moved to the main decoder module
-:mod:`~nvidia.dali.fn.decoders`, this is just an alias maintained for backward compatibility.)code");
+        R"code(Experimental features of the decoders have been moved to the main ``decoders``
+module, this is just an alias maintained for backward compatibility.)code");
 
 }  // namespace imgcodec
 }  // namespace dali

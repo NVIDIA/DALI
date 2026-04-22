@@ -1083,7 +1083,10 @@ def get_nvjpeg_ver():
         nvjpeg_lib.nvjpegGetProperty(1, ctypes.byref(nvjpeg_ver_minor))
         nvjpeg_lib.nvjpegGetProperty(2, ctypes.byref(nvjpeg_ver_patch))
     except Exception:
-        cuda_lib_dir = "/usr/local/cuda/lib64/"
+        cuda_root = os.environ.get("CUDA_PATH") or os.environ.get("CUDA_HOME") or "/usr/local/cuda"
+        cuda_lib_dir = os.path.join(cuda_root, "lib64")
+        if not os.path.isdir(cuda_lib_dir):
+            return nvjpeg_ver_major.value, nvjpeg_ver_minor.value, nvjpeg_ver_patch.value
         for file in os.listdir(cuda_lib_dir):
             try:
                 if file.startswith("libnvjpeg.so"):

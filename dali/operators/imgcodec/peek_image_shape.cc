@@ -50,8 +50,8 @@ DALI_SCHEMA(experimental__PeekImageShape)
     .Deprecate(
         "2.2",
         "PeekImageShape",
-        R"code(Experimental features of the decoders have been moved to the main decoder module
-:mod:`~nvidia.dali.fn`, this is just an alias maintained for backward compatibility.)code");
+        R"code(Experimental features of the decoders have been moved to the main module, this is
+just an alias maintained for backward compatibility.)code");
 
 ImgcodecPeekImageShape::ImgcodecPeekImageShape(const OpSpec &spec)
     : StatelessOperator<CPUBackend>(spec) {
