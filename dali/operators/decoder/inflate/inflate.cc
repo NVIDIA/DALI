@@ -89,10 +89,7 @@ The value is ignored if the `layout` is not specified or the input is not a sequ
     .OutputLayout(0, std::nullopt)
     .OutputNDim(0, std::nullopt);
 
-DALI_SCHEMA(experimental__Inflate)
-    .AddParent("decoders__Inflate")
-    .NumInput(1)
-    .NumOutput(1)
+DALI_SCHEMA_ALIAS(experimental__Inflate, decoders__Inflate)
     .Deprecate("2.0", "decoders__Inflate")
     .MakeDocHidden();
 
