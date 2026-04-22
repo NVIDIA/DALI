@@ -64,7 +64,7 @@ const OpSchema &SchemaRegistry::GetSchema(std::string_view name) {
 const OpSchema *SchemaRegistry::TryGetSchema(std::string_view name) {
   auto &schema_map = registry();
   auto it = schema_map.find(name);
-  if (it == schema_map.end()) {
+  if (it == schema_map.end() || !it->second.AliasFor().empty()) {
     auto &alias_map = aliases();
     auto alias_it = alias_map.find(name);
     if (alias_it != alias_map.end()) {
