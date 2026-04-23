@@ -813,6 +813,11 @@ bool OpSchema::IsInternal() const {
 }
 
 
+bool OpSchema::IsAbstract() const {
+  return is_abstract_;
+}
+
+
 bool OpSchema::IsDefined() const {
   return is_defined_;
 }
