@@ -338,6 +338,10 @@ OpSchema &OpSchema::SupportVolumetric() {
 
 
 OpSchema &OpSchema::MakeDefined() {
+  if (is_defined_)
+    throw std::logic_error(make_string(
+      "OpSchema already defined for operator '", name(), "'.\n"
+      "DALI_SCHEMA(op) should only be called once per op."));
   is_defined_ = true;
   return *this;
 }

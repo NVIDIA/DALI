@@ -181,7 +181,7 @@ class DLL_PUBLIC OpSchema {
   /** Returns the camel case name of the operator (without the module path) */
   const std::string &OperatorName() const;
 
-  /** Marks a schema _delcaration_ as defined - must be called only once */
+  /** Marks a schema _declaration_ as defined - must be called only once */
   OpSchema &MakeDefined();
 
   /** Sets the doc string for this operator. */
