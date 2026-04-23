@@ -84,10 +84,10 @@ void SchemaRegistry::AddAlias(std::string_view alias_name, std::string_view actu
     throw std::invalid_argument("Schema name self-aliasing is forbidden");
 
   auto &alias_map = aliases();
-  auto &actual = alias_map[std::string(alias_name)];
-  if (!actual.empty())
+  auto previous_target_it = alias_map.find(alias_name);
+  if (previous_target_it != alias_map.end())
     throw std::invalid_argument(make_string("\"", alias_name,
-        "\" is already used as a schema alias name for \"", actual, "\""));
+        "\" is already used as a schema alias name for \"", previous_target_it->second, "\""));
 
   for (;;) {
     auto redir = alias_map.find(actual_name);
@@ -97,7 +97,7 @@ void SchemaRegistry::AddAlias(std::string_view alias_name, std::string_view actu
       throw std::invalid_argument("Cycle detected while adding schema alias.");
     actual_name = redir->second;
   }
-  actual = actual_name;
+  alias_map[std::string(alias_name)] = actual_name;
 }
 
 

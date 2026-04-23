@@ -55,7 +55,10 @@ class OperatorRegistry {
     while (it == registry_.end()) {
       // Maybe we got an alias? Check the schema's actual name.
       if (auto *schema = SchemaRegistry::TryGetSchema(lookup_name)) {
-        lookup_name = schema->name();
+        std::string_view new_name = schema->name();
+        if (new_name == lookup_name)
+          break;  // no alias found
+        lookup_name = new_name;
         it = registry_.find(lookup_name);
       } else {
         break;
