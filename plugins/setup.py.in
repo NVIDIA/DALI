@@ -87,7 +87,7 @@ if __name__ == "__main__":
         os.environ["PYTHON_EXECUTABLE"] = sys.executable
 
     skbuild.setup(
-        name="nvidia-dali-@DALI_PLUGIN_NAME@@DALI_FLAVOR_MINUS@",
+        name="nvidia-dali-@DALI_PLUGIN_NAME@",
         description="@DALI_PLUGIN_DESCRIPTION@. For NVIDIA DALI, @DALI_FLAVOR@. Git SHA: @GIT_SHA@",
         url='https://github.com/NVIDIA/DALI',
         version='@DALI_VERSION@',
