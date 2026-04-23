@@ -66,6 +66,9 @@ version = str(version_long + "-" + git_sha)
 # The full version, including alpha/beta/rc tags
 release = str(version_long)
 
+# Used by the :manpage: role
+manpages_url = "https://linux.die.net/man/{section}/{page}"
+
 # Use a predefined path as a place for all the automatically generated docs pages
 generated_path = Path("./operations")
 generated_path.mkdir(exist_ok=True)
