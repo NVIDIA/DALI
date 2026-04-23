@@ -151,7 +151,7 @@ class Invocation:
             self.run(self._eval_context)
         return self._results[result_index].dtype
 
-    def layout(self, result_index: int) -> str:
+    def layout(self, result_index: int) -> str | None:
         if self._results is None:
             if init_spec := getattr(self._operator, "_init_spec", None):
                 init_spec(self._inputs, self._args)
@@ -160,7 +160,9 @@ class Invocation:
                     layout = str(layout)
                     return None if layout == "" else layout
             self.run(self._eval_context)
-        return self._results[result_index].layout()
+
+        layout = self._results[result_index].layout()
+        return layout or None  # this will override "" with None
 
     def __iter__(self):
         for index in range(len(self)):

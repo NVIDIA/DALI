@@ -26,13 +26,20 @@
 namespace dali {
 
 inline std::optional<int> ReshapeNDimFunc(const OpSpec &spec) {
+  // run-time shape is no-go
+  if (spec.NumRegularInput() > 1)
+    return std::nullopt;
+  if (spec.HasTensorArgument("shape") || spec.HasTensorArgument("rel_shape"))
+    return std::nullopt;
+
   std::vector<int> shape;
   if (spec.TryGetRepeatedArgument(shape, "shape"))
     return shape.size();
   std::vector<float> rel_shape;
   if (spec.TryGetRepeatedArgument(rel_shape, "rel_shape"))
     return rel_shape.size();
-  return std::nullopt;
+
+  return spec.InputDesc(0).ndim;
 }
 
 DALI_SCHEMA(Reshape)
