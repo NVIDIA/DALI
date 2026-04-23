@@ -3138,6 +3138,7 @@ PYBIND11_MODULE(backend_impl, m, py::mod_gil_not_used()) {
     .def("SupportsVolumetric", &OpSchema::SupportsVolumetric)
     .def("IsStateful", &OpSchema::IsStateful)
     .def("IsInternal", &OpSchema::IsInternal)
+    .def("IsAbstract", &OpSchema::IsAbstract)
     .def("IsDocHidden", &OpSchema::IsDocHidden)
     .def("IsDocPartiallyHidden", &OpSchema::IsDocPartiallyHidden)
     .def("IsNoPrune", &OpSchema::IsNoPrune)

@@ -19,6 +19,7 @@ namespace dali {
 
 // Note that random.choice does not inherit from RNGAttr as it does not support "dtype".
 DALI_SCHEMA(RNGAttr)
+    .MakeAbstract()
     .DocStr(R"code(Random Number Generator attributes.
 
 It should be added as parent to all RNG operators.)code")

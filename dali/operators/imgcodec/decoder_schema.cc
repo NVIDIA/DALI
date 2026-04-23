@@ -19,6 +19,7 @@ namespace dali {
 namespace imgcodec {
 
 DALI_SCHEMA(ImgcodecDecoderAttr)
+.MakeAbstract()
 .AddOptionalArg("output_type",
       R"code(The color space of the output image.
 

@@ -904,7 +904,7 @@ def _build_module_tree():
         schema = _b.TryGetSchema(schema_name)
         if schema is None:
             continue
-        if schema.IsDocHidden() or schema.IsInternal():
+        if schema.IsDocHidden() or schema.IsInternal() or schema.IsAbstract():
             continue
         dotted_name, module_nesting, op_name = _names._process_op_name(schema_name)
         if dotted_name not in processed:
@@ -996,7 +996,7 @@ def _group_signatures(api: Api):
             sig_groups["python_only"].append((schema_name, op))
             continue
 
-        if schema.IsDocHidden() or schema.IsInternal():
+        if schema.IsDocHidden() or schema.IsInternal() or schema.IsAbstract():
             sig_groups["hidden_or_internal"].append((schema_name, op))
             continue
 

@@ -1,4 +1,4 @@
-// Copyright (c) 2022-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@ namespace dali {
 
 
 DALI_SCHEMA(InputOperatorBase)
+                .MakeAbstract()
                 .DocStr(R"doc(
 A base for any operator that forwards in-memory data to DALI pipeline.)doc")
                 .NumInput(0)

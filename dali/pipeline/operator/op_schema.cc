@@ -35,11 +35,6 @@ std::map<string, OpSchema, std::less<>> &SchemaRegistry::registry() {
 OpSchema &SchemaRegistry::RegisterSchema(std::string_view name) {
   auto &schema_map = registry();
 
-  if (schema_map.count(name))
-    throw std::logic_error(make_string(
-      "OpSchema already registered for operator '", name, "'.\n"
-      "DALI_SCHEMA(op) should only be called once per op."));
-
   // Insert the op schema and return a reference to it
   auto [it, inserted] = schema_map.emplace(name, name);
   return it->second;
@@ -342,8 +337,20 @@ OpSchema &OpSchema::SupportVolumetric() {
 }
 
 
+OpSchema &OpSchema::MakeDefined() {
+  is_defined_ = true;
+  return *this;
+}
+
+
 OpSchema &OpSchema::MakeInternal() {
   is_internal_ = true;
+  return *this;
+}
+
+
+OpSchema &OpSchema::MakeAbstract() {
+  is_abstract_ = true;
   return *this;
 }
 
@@ -799,6 +806,11 @@ bool OpSchema::SupportsVolumetric() const {
 
 bool OpSchema::IsInternal() const {
   return is_internal_;
+}
+
+
+bool OpSchema::IsDefined() const {
+  return is_defined_;
 }
 
 
