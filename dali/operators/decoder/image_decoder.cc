@@ -317,59 +317,42 @@ interpreted as absolute or relative coordinates, depending on the value of
 
 // Deprecated aliases
 
-DALI_SCHEMA(ImageDecoder)
-    .DocStr("Legacy alias for :meth:`decoders.image`.")
-    .NumInput(1)
-    .NumOutput(1)
-    .AddParent("decoders__Image")
-    .MakeDocHidden()
+DALI_SCHEMA_ALIAS(ImageDecoder, decoders__Image)
     .Deprecate(
         "1.0",
         "decoders__Image",
         R"code(In DALI 1.0 all decoders were moved into a dedicated :mod:`~nvidia.dali.fn.decoders`
 submodule and renamed to follow a common pattern. This is a placeholder operator with identical
-functionality to allow for backward compatibility.)code");
+functionality to allow for backward compatibility.)code")
+    .MakeDocHidden();
 
 // Fused
 
-DALI_SCHEMA(ImageDecoderCrop)
-    .DocStr("Legacy alias for :meth:`decoders.image_crop`.")
-    .NumInput(1)
-    .NumOutput(1)
-    .AddParent("decoders__ImageCrop")
-    .MakeDocHidden()
+DALI_SCHEMA_ALIAS(ImageDecoderCrop, decoders__ImageCrop)
     .Deprecate(
         "1.0",
         "decoders__ImageCrop",
         R"code(In DALI 1.0 all decoders were moved into a dedicated :mod:`~nvidia.dali.fn.decoders`
 submodule and renamed to follow a common pattern. This is a placeholder operator with identical
-functionality to allow for backward compatibility.)code");
+functionality to allow for backward compatibility.)code")
+    .MakeDocHidden();
 
-DALI_SCHEMA(ImageDecoderRandomCrop)
-    .DocStr("Legacy alias for :meth:`decoders.image_random_crop`.")
-    .NumInput(1)
-    .NumOutput(1)
-    .AddParent("decoders__ImageRandomCrop")
-    .MakeDocHidden()
+DALI_SCHEMA_ALIAS(ImageDecoderRandomCrop, decoders__ImageRandomCrop)
     .Deprecate(
         "1.0",
         "decoders__ImageRandomCrop",
         R"code(In DALI 1.0 all decoders were moved into a dedicated :mod:`~nvidia.dali.fn.decoders`
 submodule and renamed to follow a common pattern. This is a placeholder operator with identical
-functionality to allow for backward compatibility.)code");
+functionality to allow for backward compatibility.)code")
+    .MakeDocHidden();
 
-
-DALI_SCHEMA(ImageDecoderSlice)
-    .DocStr("Legacy alias for :meth:`decoders.image_slice`.")
-    .NumInput(1, 3)
-    .NumOutput(1)
-    .AddParent("decoders__ImageSlice")
-    .MakeDocHidden()
+DALI_SCHEMA_ALIAS(ImageDecoderSlice, decoders__ImageSlice)
     .Deprecate(
         "1.0",
         "decoders__ImageSlice",
         R"code(In DALI 1.0 all decoders were moved into a dedicated :mod:`~nvidia.dali.fn.decoders`
 submodule and renamed to follow a common pattern. This is a placeholder operator with identical
-functionality to allow for backward compatibility.)code");
+functionality to allow for backward compatibility.)code")
+    .MakeDocHidden();
 
 }  // namespace dali
