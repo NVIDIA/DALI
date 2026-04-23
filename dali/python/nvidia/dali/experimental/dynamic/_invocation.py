@@ -38,9 +38,6 @@ class Invocation:
     It binds the operator instance and the call arguments.
     It also tracks the order of invocations of stateful operators, which is important for
     lazy evaluation of stateful operators or operators with side-effects.
-
-    NOTE:  This class is not thread safe. Subsequent invocations of the same operator instance
-           must be synchronized by the caller.
     """
 
     def __init__(
@@ -141,7 +138,8 @@ class Invocation:
 
     def dtype(self, result_index: int) -> DType:
         if self._results is None:
-            if dtype := self._try_get_metadata(result_index, 3):
+            dtype = self._try_get_metadata(result_index, 3)
+            if dtype is not None:
                 return dtype
             self.run(self._eval_context)
         return self._results[result_index].dtype
