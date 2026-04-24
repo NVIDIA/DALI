@@ -31,14 +31,14 @@ class DLL_PUBLIC GPUBackend {};
 class DLL_PUBLIC MixedBackend {};
 
 template <typename Backend>
-constexpr std::string_view BackendDeviceName = "<unsupported>";
+constexpr inline std::string_view BackendDeviceName = "<unsupported>";
 
 template <>
-constexpr std::string_view BackendDeviceName<CPUBackend> = "cpu";
+constexpr inline std::string_view BackendDeviceName<CPUBackend> = "cpu";
 template <>
-constexpr std::string_view BackendDeviceName<GPUBackend> = "gpu";
+constexpr inline std::string_view BackendDeviceName<GPUBackend> = "gpu";
 template <>
-constexpr std::string_view BackendDeviceName<MixedBackend> = "mixed";
+constexpr inline std::string_view BackendDeviceName<MixedBackend> = "mixed";
 
 // This is defined only for backends that map to actual storage devices
 template <typename Backend>
