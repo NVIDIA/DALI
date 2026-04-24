@@ -24,7 +24,12 @@ def _check_no_pipeline_mode_wording(s, schema):
 
 
 def should_skip(x):
-    return x._schema.IsDocHidden() or x._schema.IsDocPartiallyHidden() or x._schema.IsInternal()
+    return (
+        x._schema.IsDocHidden()
+        or x._schema.IsDocPartiallyHidden()
+        or x._schema.IsInternal()
+        or x._schema.IsAbstract()
+    )
 
 
 def test_function_docs_present():

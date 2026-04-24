@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@
 
 #include <cuda_runtime_api.h>
 #include <memory>
+#include <string_view>
 
 #include "dali/core/error_handling.h"
 #include "dali/core/cuda_error.h"
@@ -29,18 +30,18 @@ class DLL_PUBLIC CPUBackend {};
 class DLL_PUBLIC GPUBackend {};
 class DLL_PUBLIC MixedBackend {};
 
-// Utility to copy between backends
-inline void MemCopy(void *dst, const void *src, size_t bytes, cudaStream_t stream = 0) {
-  // Copying 0 bytes is no-op anyways
-  if (bytes == 0) {
-    return;
-  }
-#ifndef NDEBUG
-  DALI_ENFORCE(dst != nullptr);
-  DALI_ENFORCE(src != nullptr);
-#endif
-  CUDA_CALL(cudaMemcpyAsync(dst, src, bytes, cudaMemcpyDefault, stream));
-}
+template <typename Backend>
+constexpr std::string_view UnsupportedBackendName() = delete;
+
+template <typename Backend>
+constexpr inline std::string_view BackendDeviceName = UnsupportedBackendName<Backend>();
+
+template <>
+constexpr inline std::string_view BackendDeviceName<CPUBackend> = "cpu";
+template <>
+constexpr inline std::string_view BackendDeviceName<GPUBackend> = "gpu";
+template <>
+constexpr inline std::string_view BackendDeviceName<MixedBackend> = "mixed";
 
 // This is defined only for backends that map to actual storage devices
 template <typename Backend>

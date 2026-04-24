@@ -1,4 +1,4 @@
-// Copyright (c) 2022-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@
 namespace dali {
 
 DALI_SCHEMA(TensorResizeAttr)
+    .MakeAbstract()
     .AddOptionalArg<vector<float>>("sizes", R"code(Output sizes.
 
 When `axes` is provided, the size values refer to the axes specified.

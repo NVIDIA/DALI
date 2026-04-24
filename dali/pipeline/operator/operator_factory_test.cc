@@ -76,7 +76,7 @@ DALI_DEFINE_OPTYPE_REGISTRY(GPUDummy, DummyBase<GPUBackend>);
 #define DALI_REGISTER_CPU_DUMMY(OpName, OpType)        \
   DALI_DEFINE_OPTYPE_REGISTERER(OpName, OpType,        \
       CPUDummy, DummyBase<CPUBackend>, "CPU");         \
-  DALI_SCHEMA_REG(OpName)
+  DALI_SCHEMA(OpName)
 
 #define DALI_REGISTER_GPU_DUMMY(OpName, OpType)         \
   DALI_DEFINE_OPTYPE_REGISTERER(OpName, OpType,         \

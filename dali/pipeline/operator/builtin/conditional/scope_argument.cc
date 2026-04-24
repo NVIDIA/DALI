@@ -1,4 +1,4 @@
-// Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2023-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,6 +15,7 @@
 #include "dali/pipeline/operator/operator.h"
 
 DALI_SCHEMA(ImplicitScopeAttr)
+    .MakeAbstract()
     .AddOptionalArg<int>("_scope", R"code(Any batch to infer the current batch size from.
 
 If the operator has no other tensor inputs, this argument can serve as a source of a current

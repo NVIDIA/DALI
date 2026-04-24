@@ -34,6 +34,7 @@
 #include "dali/core/format.h"
 #include "dali/core/span.h"
 #include "dali/core/traits.h"
+#include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/data/types.h"
 #include "dali/pipeline/operator/argument.h"
 
@@ -91,13 +92,12 @@ struct ArgumentDef {
   std::string doc;
   DALIDataType dtype;
 
-  // TODO(michalz): Convert to bit fields in C++20 (before C++20 bit fields can't have initializers)
-  bool required   = false;  //< The argument must be set.
-  bool tensor     = false;  //< The argument can be provided as a TensorList
-  bool per_frame  = false;  //< The (tensor) argument can be expanded to multiple frames
-  bool internal   = false;  //< The argument cannot be set by the user in Python
-  bool hidden     = false;  //< The argument doesn't appear in the documentation
-  bool ignore_cmp = false;  //< Two operators can be considered equal if this argument differs
+  bool required   : 1 = false;  //< The argument must be set.
+  bool tensor     : 1 = false;  //< The argument can be provided as a TensorList
+  bool per_frame  : 1 = false;  //< The (tensor) argument can be expanded to multiple frames
+  bool internal   : 1 = false;  //< The argument cannot be set by the user in Python
+  bool hidden     : 1 = false;  //< The argument doesn't appear in the documentation
+  bool ignore_cmp : 1 = false;  //< Two operators can be considered equal if this argument differs
 
   std::unique_ptr<Value> default_value;
   std::unique_ptr<ArgumentDeprecation> deprecated;
@@ -181,6 +181,9 @@ class DLL_PUBLIC OpSchema {
 
   /** Returns the camel case name of the operator (without the module path) */
   const std::string &OperatorName() const;
+
+  /** Marks a schema _declaration_ as defined - must be called only once */
+  OpSchema &MakeDefined();
 
   /** Sets the doc string for this operator. */
   OpSchema &DocStr(std::string dox);
@@ -381,8 +384,28 @@ class DLL_PUBLIC OpSchema {
   /** Notes that this operator is internal and shouldn't be exposed in Python API. */
   OpSchema &MakeInternal();
 
+  /** Notes that this operator is abstract and cannot be instantiated. */
+  OpSchema &MakeAbstract();
+
   /** Notes that this operator doc should not be visible (but the Op is exposed in Python API) */
   OpSchema &MakeDocHidden();
+
+  /** Notes that this operator has CPU backend. */
+  OpSchema &SupportCPU() { has_cpu_ = true; return *this; }
+  OpSchema &SupportBackend(CPUBackend) { return SupportCPU(); }
+
+  /** Notes that this operator has mixed backend. */
+  OpSchema &SupportMixed() { has_mixed_ = true; return *this; }
+  OpSchema &SupportBackend(MixedBackend) { return SupportMixed(); }
+
+  /** Notes that this operator has GPU backend. */
+  OpSchema &SupportGPU() { has_gpu_ = true; return *this; }
+  OpSchema &SupportBackend(GPUBackend) { return SupportGPU(); }
+
+  template <typename Backend>
+  OpSchema &SupportBackend() {
+    return SupportBackend(Backend());
+  }
 
   /** Notes that some dimensions may be expanded to match other inputs/arguments.
    *
@@ -698,6 +721,9 @@ used with DALIDataType, to avoid confusion with `AddOptionalArg<type>(name, doc,
   /** Get the number of static outputs, see also CalculateOutputs and CalculateAdditionalOutputs */
   int NumOutput() const;
 
+  /**  Whether this schema is defined (as opposed to just forward-declared) */
+  bool IsDefined() const;
+
   /** Whether this operator accepts ONLY sequences as inputs */
   bool IsSequenceOperator() const;
 
@@ -709,6 +735,19 @@ used with DALIDataType, to avoid confusion with `AddOptionalArg<type>(name, doc,
 
   /**  Whether this operator is internal to DALI backend (and shouldn't be exposed in Python API) */
   bool IsInternal() const;
+
+  /**  Whether this operator is marked as abstract */
+  bool IsAbstract() const;
+
+  /** Whether this operator has CPU backend. */
+  bool SupportsCPU() const { return has_cpu_; }
+
+  /** Whether this operator has mixed backend. */
+  bool SupportsMixed() const { return has_mixed_; }
+
+  /** Whether this operator has GPU backend. */
+  bool SupportsGPU() const { return has_gpu_; }
+
 
   /** Whether this operator is stateful.
    *
@@ -996,8 +1035,14 @@ used with DALIDataType, to avoid confusion with `AddOptionalArg<type>(name, doc,
 
   ////////////////////////////////////////////////////////////////////////////
   // Internal flags
-  bool no_prune_ = false;
-  bool serializable_ = true;
+  bool is_defined_    : 1 = false;
+  bool has_cpu_       : 1 = false;
+  bool has_gpu_       : 1 = false;
+  bool has_mixed_     : 1 = false;
+  bool is_abstract_   : 1 = false;
+  bool no_prune_      : 1 = false;
+  bool serializable_  : 1 = true;
+
   const bool default_ = false;
 
   ////////////////////////////////////////////////////////////////////////////
@@ -1048,17 +1093,20 @@ inline T OpSchema::GetDefaultValueForArgument(std::string_view name) const {
   return static_cast<T>(vS->Get());
 }
 
-#define DALI_SCHEMA_REG(OpName)                         \
-  int DALI_OPERATOR_SCHEMA_REQUIRED_FOR_##OpName() {    \
-    return 42;                                          \
-  }                                                     \
+#define DALI_DECLARE_SCHEMA(OpName)                     \
   static ::dali::OpSchema *ANONYMIZE_VARIABLE(OpName) = \
       &::dali::SchemaRegistry::RegisterSchema(#OpName)
 
+#define DALI_DEFINE_SCHEMA(OpName)                      \
+  int DALI_OPERATOR_SCHEMA_REQUIRED_FOR_##OpName() {    \
+    return 42;                                          \
+  }                                                     \
+  DALI_DECLARE_SCHEMA(OpName).MakeDefined()
+
 #if DALI_SCHEMA_DEFAULT_METADATA_POLICY
-#define DALI_SCHEMA(OpName) DALI_SCHEMA_REG(OpName).UseDefaultMetadataPolicy()
+#define DALI_SCHEMA(OpName) DALI_DEFINE_SCHEMA(OpName).UseDefaultMetadataPolicy()
 #else
-#define DALI_SCHEMA(OpName) DALI_SCHEMA_REG(OpName)
+#define DALI_SCHEMA(OpName) DALI_DEFINE_SCHEMA(OpName)
 #endif
 
 }  // namespace dali

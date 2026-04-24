@@ -324,10 +324,13 @@ DALI_DECLARE_OPTYPE_REGISTRY(GPUOperator, OperatorBase);
 DALI_DECLARE_OPTYPE_REGISTRY(MixedOperator, OperatorBase);
 
 // Must be called from .cc or .cu file
-#define DALI_REGISTER_OPERATOR(OpName, OpType, device)                                  \
-  int DALI_OPERATOR_SCHEMA_REQUIRED_FOR_##OpName();                                     \
-  static int ANONYMIZE_VARIABLE(OpName) = DALI_OPERATOR_SCHEMA_REQUIRED_FOR_##OpName(); \
-  DALI_DEFINE_OPTYPE_REGISTERER(OpName, OpType, device##Operator, ::dali::OperatorBase, #device)
+#define DALI_REGISTER_OPERATOR(OpName, OpType, device)                                           \
+  int DALI_OPERATOR_SCHEMA_REQUIRED_FOR_##OpName();                                              \
+  static int ANONYMIZE_VARIABLE(OpName##Factory) = DALI_OPERATOR_SCHEMA_REQUIRED_FOR_##OpName(); \
+  DALI_DECLARE_SCHEMA(OpName).SupportBackend<device##Backend>();                                 \
+  DALI_DEFINE_OPTYPE_REGISTERER(                                                                 \
+    OpName, OpType, device##Operator, ::dali::OperatorBase,                                      \
+    ::dali::BackendDeviceName<device##Backend>)
 
 
 DLL_PUBLIC std::unique_ptr<OperatorBase> InstantiateOperator(const OpSpec &spec);

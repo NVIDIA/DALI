@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@
 namespace dali {
 
 DALI_SCHEMA(CropAttr)
+    .MakeAbstract()
     .DocStr(R"code(Crops attributes placeholder)code")
     .AddOptionalArg<std::vector<float>>(
         "crop", R"code(Shape of the cropped image, specified as a list of values (for example,

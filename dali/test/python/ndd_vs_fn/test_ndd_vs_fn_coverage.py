@@ -26,7 +26,12 @@ excluded_operators = [
 def get_all_operators():
     ret = []
     for o in _all_ops:
-        if o._schema.IsInternal() or o._schema.IsDocHidden() or o._schema_name.startswith("_"):
+        if (
+            o._schema.IsInternal()
+            or o._schema.IsAbstract()
+            or o._schema.IsDocHidden()
+            or o._schema_name.startswith("_")
+        ):
             continue  # skip internal/hidden operators
         ret.append(o._op_path if o._is_reader else o._fn_path)
     return ret

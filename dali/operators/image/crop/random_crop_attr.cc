@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@
 namespace dali {
 
 DALI_SCHEMA(RandomCropAttr)
+    .MakeAbstract()
     .DocStr(R"code(Random Crop attributes placeholder)code")
     .AddOptionalArg("random_aspect_ratio",
       R"code(Range from which to choose random aspect ratio (width/height).)code",

@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -59,6 +59,19 @@ inline std::ostream &operator<<(std::ostream &, daliDataType_t dtype);
 namespace dali {
 
 class TensorLayout;
+
+// Utility to copy between backends
+inline void MemCopy(void *dst, const void *src, size_t bytes, cudaStream_t stream = 0) {
+  // Copying 0 bytes is no-op anyways
+  if (bytes == 0) {
+    return;
+  }
+#ifndef NDEBUG
+  DALI_ENFORCE(dst != nullptr);
+  DALI_ENFORCE(src != nullptr);
+#endif
+  CUDA_CALL(cudaMemcpyAsync(dst, src, bytes, cudaMemcpyDefault, stream));
+}
 
 namespace detail {
 

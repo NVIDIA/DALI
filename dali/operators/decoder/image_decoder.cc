@@ -20,6 +20,7 @@ namespace dali {
 // ImageDecoder common attributes (does not include Cached decoder attributes which are present in
 // ImageDecoder but not on the fused variants)
 DALI_SCHEMA(ImageDecoderAttr)
+  .MakeAbstract()
   .DocStr(R"code(Image decoder common attributes)code")
   .NumInput(1)
   .NumOutput(1)

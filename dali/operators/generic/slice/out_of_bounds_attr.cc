@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@
 namespace dali {
 
 DALI_SCHEMA(OutOfBoundsAttr)
+    .MakeAbstract()
     .DocStr(R"code(Out-of-bounds slicing attributes placeholder)code")
     .AddOptionalArg("out_of_bounds_policy",
         R"code(Determines the policy when slicing the out of bounds area of the input.
@@ -38,6 +39,7 @@ provided, the number of values and channels must be identical (extent of dimensi
 in the layout) in the output slice.)code", std::vector<float>{0.f});
 
 DALI_SCHEMA(OutOfBoundsAttrBorderMode)
+    .MakeAbstract()
     .DocStr(R"code(Out-of-bounds slicing attributes placeholder)code")
     .AddOptionalArg("out_of_bounds_policy",
         R"code(Determines the policy when slicing the out of bounds area of the input.

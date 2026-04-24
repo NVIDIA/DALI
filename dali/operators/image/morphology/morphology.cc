@@ -51,6 +51,7 @@ void Morphology::RunImpl(Workspace &ws) {
 }
 
 DALI_SCHEMA(Morphology)
+  .MakeAbstract()
   .AddOptionalArg("mask_size", "Size of the structuring element.",
                   std::vector<int32_t>({3, 3}), true, true)
   .AddOptionalArg("anchor",

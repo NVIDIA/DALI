@@ -54,6 +54,7 @@ If a value is not set, the input type is used.)code",
     .AllowSequences();
 
 DALI_SCHEMA(ColorTransformBase)
+    .MakeAbstract()
     .DocStr(R"code(Base Schema for color transformations operators.)code")
     .AddOptionalArg("image_type",
         R"code(The color space of the input and the output image.)code", DALI_RGB)

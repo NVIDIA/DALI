@@ -18,6 +18,7 @@
 namespace dali {
 
 DALI_SCHEMA(WarpAttr)
+  .MakeAbstract()
   .DocStr(R"code(Apply an affine transformation to the image.)code")
   .AddOptionalArg<float>("size",
       R"code(Output size, in pixels/points.
