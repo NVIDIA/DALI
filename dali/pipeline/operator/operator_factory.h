@@ -54,7 +54,7 @@ class OperatorRegistry {
     std::lock_guard<std::mutex> lock(mutex_);
     auto [it, inserted] = registry_.emplace(std::move(name), std::move(creator));
     DALI_ENFORCE(inserted, make_string(
-        "Operator \"", name, "\" already registered",
+        "Operator \"", it->first, "\" already registered",  // it->first because `name` is moved out
         (device_name ? make_string(" for \"", *device_name, "\"") : "")));
   }
 
