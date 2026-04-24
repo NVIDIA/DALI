@@ -31,7 +31,10 @@ class DLL_PUBLIC GPUBackend {};
 class DLL_PUBLIC MixedBackend {};
 
 template <typename Backend>
-constexpr inline std::string_view BackendDeviceName = "<unsupported>";
+constexpr std::string_view UnsupportedBackendName() = delete;
+
+template <typename Backend>
+constexpr inline std::string_view BackendDeviceName = UnsupportedBackendName<Backend>();
 
 template <>
 constexpr inline std::string_view BackendDeviceName<CPUBackend> = "cpu";

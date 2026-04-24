@@ -44,7 +44,7 @@ class OperatorRegistry {
 
   template <typename Backend>
   void Register(std::string name, Creator creator) {
-    Register(name, creator, BackendDeviceName<Backend>);
+    Register(name, std::move(creator), BackendDeviceName<Backend>);
   }
 
   void Register(
@@ -71,7 +71,7 @@ class OperatorRegistry {
     std::lock_guard<std::mutex> lock(mutex_);
     auto creator_it = registry_.find(name);
     DALI_ENFORCE(creator_it != registry_.end(), make_string(
-        "Operator \"", name, "\" not registered ",
+        "Operator \"", name, "\" not registered",
         (device_name? make_string(" for \"", *device_name, "\"") : "")));
 
     return creator_it->second(spec);
