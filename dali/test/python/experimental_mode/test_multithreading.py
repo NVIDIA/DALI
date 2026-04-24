@@ -252,3 +252,19 @@ def test_error_parallel_eval_contexts():
 
     with assert_raises(RuntimeError, glob="*EvalContext*"):
         run_parallel(worker)
+
+
+def test_parallel_op_metadata_query():
+    layouts = ["ABC", "XYZ", None]
+    dtypes = [ndd.int32, ndd.float32, ndd.uint8]
+
+    def worker(thread_id: int):
+        layout = layouts[thread_id % len(layouts)]
+        dtype = dtypes[thread_id % len(dtypes)]
+        for _ in range(1_000):
+            batch = ndd.zeros(batch_size=8, shape=[64, 64, 3], layout=layout, dtype=dtype)
+            assert batch.layout == layout
+            assert batch.dtype == dtype
+            assert batch.ndim == 3
+
+    run_parallel(worker)
