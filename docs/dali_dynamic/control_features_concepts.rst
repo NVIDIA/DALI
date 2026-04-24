@@ -186,12 +186,11 @@ reordered.
 Execution environment
 ---------------------
 
-DALI automatically picks a CUDA device, stream, and thread pool for
-each thread of execution, bundled as a thread-local default
-:class:`EvalContext`. Most applications never construct one. The
-subsections below cover the overrides: custom device pinning, custom
-streams for framework interop, and constructing an :class:`EvalContext`
-explicitly.
+DALI automatically picks a CUDA device and stream per thread, backed by a
+shared per-device thread pool, bundled as a thread-local default
+:class:`EvalContext`. Most applications never construct one. The subsections
+below cover the overrides: custom device pinning, custom streams for framework
+interop, and constructing an :class:`EvalContext` explicitly.
 
 Evaluation context
 ~~~~~~~~~~~~~~~~~~
