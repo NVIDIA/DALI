@@ -158,11 +158,11 @@ std::unique_ptr<OperatorBase> InstantiateOperator(const OpSpec &spec) {
   string device = spec.GetArgument<string>("device");
   // traverse devices by likelihood (gpu, cpu, mixed)
   if (device == "gpu") {
-    return GPUOperatorRegistry::Registry().Create(spec.SchemaName(), spec, &device);
+    return GPUOperatorRegistry::Registry().Create(spec.SchemaName(), spec, device);
   } else if (device == "cpu") {
-    return CPUOperatorRegistry::Registry().Create(spec.SchemaName(), spec, &device);
+    return CPUOperatorRegistry::Registry().Create(spec.SchemaName(), spec, device);
   } else if (device == "mixed") {
-    return MixedOperatorRegistry::Registry().Create(spec.SchemaName(), spec, &device);
+    return MixedOperatorRegistry::Registry().Create(spec.SchemaName(), spec, device);
   } else {
     DALI_FAIL("Unknown device: " + device);
   }

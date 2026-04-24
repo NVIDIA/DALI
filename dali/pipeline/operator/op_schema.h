@@ -34,6 +34,7 @@
 #include "dali/core/format.h"
 #include "dali/core/span.h"
 #include "dali/core/traits.h"
+#include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/data/types.h"
 #include "dali/pipeline/operator/argument.h"
 
@@ -391,12 +392,20 @@ class DLL_PUBLIC OpSchema {
 
   /** Notes that this operator has CPU backend. */
   OpSchema &SupportCPU() { has_cpu_ = true; return *this; }
+  OpSchema &SupportBackend(CPUBackend) { return SupportCPU(); }
 
   /** Notes that this operator has mixed backend. */
   OpSchema &SupportMixed() { has_mixed_ = true; return *this; }
+  OpSchema &SupportBackend(MixedBackend) { return SupportMixed(); }
 
   /** Notes that this operator has GPU backend. */
   OpSchema &SupportGPU() { has_gpu_ = true; return *this; }
+  OpSchema &SupportBackend(GPUBackend) { return SupportGPU(); }
+
+  template <typename Backend>
+  OpSchema &SupportBackend() {
+    return SupportBackend(Backend());
+  }
 
   /** Notes that some dimensions may be expanded to match other inputs/arguments.
    *

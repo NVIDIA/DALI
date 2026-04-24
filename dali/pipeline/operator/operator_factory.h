@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,14 +15,18 @@
 #ifndef DALI_PIPELINE_OPERATOR_OPERATOR_FACTORY_H_
 #define DALI_PIPELINE_OPERATOR_OPERATOR_FACTORY_H_
 
+#include <functional>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <string>
+#include <string_view>
 #include <unordered_map>
+#include <utility>
 #include <vector>
-#include <functional>
 
 #include "dali/core/common.h"
+#include "dali/core/string_map.h"
 #include "dali/core/error_handling.h"
 #include "dali/pipeline/operator/op_schema.h"
 
@@ -34,25 +38,43 @@ template <typename OpType>
 class OperatorRegistry {
  public:
   typedef std::function<std::unique_ptr<OpType> (const OpSpec &spec)> Creator;
-  typedef std::unordered_map<std::string, Creator> CreatorRegistry;
+  typedef unordered_string_map<Creator> CreatorRegistry;
 
   OperatorRegistry() {}
 
-  void Register(const std::string &name, Creator creator, const std::string &devName = "") {
-      std::lock_guard<std::mutex> lock(mutex_);
-    DALI_ENFORCE(registry_.count(name) == 0,
-        "Operator \"" + name + "\" already registered" +
-        (!devName.empty() ? (" for " + devName) : "") + ".");
-    registry_[name] = creator;
+  template <typename Backend>
+  void Register(std::string name, Creator creator) {
+    Register(name, creator, BackendDeviceName<Backend>);
+  }
+
+  void Register(
+        std::string name,
+        Creator creator,
+        std::optional<std::string_view> device_name = {}) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    auto [it, inserted] = registry_.emplace(std::move(name), std::move(creator));
+    DALI_ENFORCE(inserted, make_string(
+        "Operator \"", name, "\" already registered",
+        (device_name ? make_string(" for \"", *device_name, "\"") : "")));
+  }
+
+  template <typename Backend>
+  std::unique_ptr<OpType> Create(
+      std::string_view name, const OpSpec &spec) {
+    return Create(name, spec, BackendDeviceName<Backend>);
   }
 
   std::unique_ptr<OpType> Create(
-      const std::string &name, const OpSpec &spec, const std::string *devName = NULL) {
+        std::string_view name,
+        const OpSpec &spec,
+        std::optional<std::string_view> device_name = {}) {
     std::lock_guard<std::mutex> lock(mutex_);
     auto creator_it = registry_.find(name);
-    DALI_ENFORCE(creator_it != registry_.end(),
-        "Operator \"" + name + "\" not registered" + (devName? (" for " + *devName) : "") + ".");
-    return registry_[name](spec);
+    DALI_ENFORCE(creator_it != registry_.end(), make_string(
+        "Operator \"", name, "\" not registered ",
+        (device_name? make_string(" for \"", *device_name, "\"") : "")));
+
+    return creator_it->second(spec);
   }
 
   vector<std::string> RegisteredNames(bool internal_ops) {
@@ -80,7 +102,8 @@ class Registerer {
  public:
   Registerer(const std::string &name,
       OperatorRegistry<OpType> *registry,
-      typename OperatorRegistry<OpType>::Creator creator, const std::string &devName = "") {
+      typename OperatorRegistry<OpType>::Creator creator,
+      std::string_view devName = "") {
     registry->Register(name, creator, devName);
   }
 
@@ -110,9 +133,9 @@ class Registerer {
 #define DALI_DEFINE_OPTYPE_REGISTERER(OpName, DerivedType,              \
     RegistryName, OpType, dev)                                          \
   namespace {                                                           \
-    static ::dali::Registerer<OpType> ANONYMIZE_VARIABLE(anon##OpName)(   \
+    static ::dali::Registerer<OpType> ANONYMIZE_VARIABLE(anon##OpName)( \
         #OpName, &RegistryName##Registry::Registry(),                   \
-        ::dali::Registerer<OpType>::OperatorCreator<DerivedType>, dev);   \
+        ::dali::Registerer<OpType>::OperatorCreator<DerivedType>, dev); \
   }
 
 }  // namespace dali
