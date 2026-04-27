@@ -88,7 +88,7 @@ cmake_dependent_option(USE_PREBUILD_PYBIND11 "Use prebuilt pybind11 from the sys
                        "BUILD_PYTHON" OFF)
 cmake_dependent_option(BUILD_LMDB "Build LMDB readers" ON
                        "NOT BUILD_DALI_NODEPS" OFF)
-cmake_dependent_option(BUILD_JPEG_TURBO "Build with libjpeg-turbo support" ON
+cmake_dependent_option(BUILD_LIBJPEG_TURBO "Build with libjpeg-turbo support" ON
                        "NOT BUILD_DALI_NODEPS" OFF)
 cmake_dependent_option(BUILD_LIBTIFF "Build with libtiff support" ON
                        "NOT BUILD_DALI_NODEPS" OFF)
@@ -331,7 +331,7 @@ propagate_option(BUILD_NVTX)
 propagate_option(BUILD_PYTHON)
 propagate_option(BUILD_SHM_WRAPPER)
 propagate_option(BUILD_LMDB)
-propagate_option(BUILD_JPEG_TURBO)
+propagate_option(BUILD_LIBJPEG_TURBO)
 propagate_option(BUILD_LIBTIFF)
 propagate_option(BUILD_LIBSND)
 propagate_option(BUILD_LIBTAR)

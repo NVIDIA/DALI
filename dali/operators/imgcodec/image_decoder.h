@@ -690,7 +690,8 @@ class ImageDecoder : public StatelessOperator<Backend> {
           auto cached_shape = cache_->CacheImageShape(src_info);
           auto roi = GetRoi(spec_, ws, i, cached_shape);
           if (!roi.use_roi()) {
-            out_shape.set_tensor_shape(i, st->out_shape);
+            st->out_shape = cached_shape;
+            out_shape.set_tensor_shape(i, cached_shape);
             st->load_from_cache = true;
             continue;
           }

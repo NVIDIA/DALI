@@ -19,20 +19,14 @@ do_once() {
     apt update && apt install -y nsight-systems-cli
 }
 
-LOG1="dali_legacy.log"
-LOG2="dali_nvimgcodec.log"
-LOG1_TP="dali_legacy_new_tp.log"
-LOG2_TP="dali_nvimgcodec_new_tp.log"
-LOG1_NDD="dali_ndd_legacy.log"
-LOG2_NDD="dali_ndd_nvimgcodec.log"
+LOG_RN50="dali_rn50.log"
+LOG_RN50_TP="dali_rn50_new_tp.log"
+LOG_NDD="dali_ndd.log"
 
 function CLEAN_AND_EXIT {
-    rm -rf ${LOG1}
-    rm -rf ${LOG2}
-    rm -rf ${LOG1_TP}
-    rm -rf ${LOG2_TP}
-    rm -rf ${LOG1_NDD}
-    rm -rf ${LOG2_NDD}
+    rm -rf ${LOG_RN50}
+    rm -rf ${LOG_RN50_TP}
+    rm -rf ${LOG_NDD}
     exit $1
 }
 
@@ -60,25 +54,18 @@ run_all_benchmarks() {
         TASKSET="taskset --cpu-list 0-71"
         BENCH_ARGS="--width_hint 6000 --height_hint 6000 -b 408 -d 0 -g gpu -w 100 -t 100000 -i ${DALI_EXTRA_PATH}/db/single/jpeg -j 72 --hw_load 0.11"
     fi
-    run_bench "${LOG1}"     ${TASKSET} python hw_decoder_bench.py ${BENCH_ARGS} -p rn50
-    run_bench "${LOG2}"     ${TASKSET} python hw_decoder_bench.py ${BENCH_ARGS} -p rn50 --experimental_decoder
-    DALI_USE_NEW_THREAD_POOL=1 run_bench "${LOG1_TP}" ${TASKSET} python hw_decoder_bench.py ${BENCH_ARGS} -p rn50
-    DALI_USE_NEW_THREAD_POOL=1 run_bench "${LOG2_TP}" ${TASKSET} python hw_decoder_bench.py ${BENCH_ARGS} -p rn50 --experimental_decoder
-    run_bench "${LOG1_NDD}" ${TASKSET} python hw_decoder_bench.py ${BENCH_ARGS} -p ndd_rn50
-    run_bench "${LOG2_NDD}" ${TASKSET} python hw_decoder_bench.py ${BENCH_ARGS} -p ndd_rn50 --experimental_decoder
+    run_bench "${LOG_RN50}" ${TASKSET} python hw_decoder_bench.py ${BENCH_ARGS} -p rn50
+    DALI_USE_NEW_THREAD_POOL=1 run_bench "${LOG_RN50_TP}" ${TASKSET} python hw_decoder_bench.py ${BENCH_ARGS} -p rn50
+    run_bench "${LOG_NDD}" ${TASKSET} python hw_decoder_bench.py ${BENCH_ARGS} -p ndd_rn50
 }
 
 test_body() {
     if [ "$(uname -p)" == "x86_64" ]; then
         MIN_PERF=19000
-        MIN_PERF2=18000  # TODO(janton): target is to be 19000 as well
         MIN_PERF_NDD=14000
-        MIN_PERF2_NDD=14000  # TODO(janton): remove this second value.
     else
         MIN_PERF=29000
-        MIN_PERF2=29000  # TODO(janton): remove this second value.
         MIN_PERF_NDD=20000
-        MIN_PERF2_NDD=20000  # TODO(janton): remove this second value.
     fi
 
     # First run: all benchmarks without nsys
@@ -101,27 +88,16 @@ test_body() {
         }'
     }
 
-    PERF_RESULT1=$(perf_check "${LOG1}" "$MIN_PERF")
-    PERF_RESULT2=$(perf_check "${LOG2}" "$MIN_PERF2")
-    PERF_RESULT1_NDD=$(perf_check "${LOG1_NDD}" "$MIN_PERF_NDD")
-    PERF_RESULT2_NDD=$(perf_check "${LOG2_NDD}" "$MIN_PERF2_NDD")
-    PERF_RESULT3=$(perf_check "${LOG2}" "$(extract_perf "${LOG1}")" 5)
-    PERF_RESULT3_NDD=$(perf_check "${LOG2_NDD}" "$(extract_perf "${LOG1_NDD}")" 5)
-    PERF_RESULT1_TP=$(perf_check "${LOG1_TP}" "$(extract_perf "${LOG1}")" 2)
-    PERF_RESULT2_TP=$(perf_check "${LOG2_TP}" "$(extract_perf "${LOG2}")" 2)
+    PERF_RESULT=$(perf_check "${LOG_RN50}" "$MIN_PERF")
+    PERF_RESULT_NDD=$(perf_check "${LOG_NDD}" "$MIN_PERF_NDD")
+    PERF_RESULT_TP=$(perf_check "${LOG_RN50_TP}" "$(extract_perf "${LOG_RN50}")" 2)
 
-    echo "PERF_RESULT1=${PERF_RESULT1}"
-    echo "PERF_RESULT2=${PERF_RESULT2}"
-    echo "PERF_RESULT3=${PERF_RESULT3}"
-    echo "PERF_RESULT1_TP=${PERF_RESULT1_TP} (informational)"
-    echo "PERF_RESULT2_TP=${PERF_RESULT2_TP} (informational)"
-    echo "PERF_RESULT1_NDD=${PERF_RESULT1_NDD}"
-    echo "PERF_RESULT2_NDD=${PERF_RESULT2_NDD}"
-    echo "PERF_RESULT3_NDD=${PERF_RESULT3_NDD}"
+    echo "PERF_RESULT=${PERF_RESULT}"
+    echo "PERF_RESULT_NDD=${PERF_RESULT_NDD}"
+    echo "PERF_RESULT_TP=${PERF_RESULT_TP} (informational)"
 
-    # don't check experimental decoder performance with dynamic mode (PERF_RESULT2_NDD, PERF_RESULT3_NDD)
-    # PERF_RESULT1_TP and PERF_RESULT2_TP are informational only (new thread pool is experimental)
-    if [[ "$PERF_RESULT1" == "OK" && "$PERF_RESULT2" == "OK" && "$PERF_RESULT3" == "OK" && "$PERF_RESULT1_NDD" == "OK" ]]; then
+    # PERF_RESULT_TP is informational only (new thread pool is experimental)
+    if [[ "$PERF_RESULT" == "OK" && "$PERF_RESULT_NDD" == "OK" ]]; then
         CLEAN_AND_EXIT 0
     fi
 

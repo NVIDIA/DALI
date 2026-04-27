@@ -143,7 +143,7 @@ Values will be converted to the dynamic range of the requested type.)code",
   .OutputNDim(0, 3)
   .OutputLayout(0, "HWC");
 
-DALI_SCHEMA(experimental__decoders__Image)
+DALI_SCHEMA(decoders__Image)
   .DocStr(R"code(Decodes images.
 
 Supported formats: JPEG, JPEG 2000, TIFF, PNG, BMP, PNM, PPM, PGM, PBM, WebP.
@@ -167,7 +167,7 @@ The implementation uses NVIDIA nvImageCodec to decode images.
   .AddParent("CachedDecoderAttr")
   .OutputLayout(0, "HWC");
 
-DALI_SCHEMA(experimental__decoders__ImageCrop)
+DALI_SCHEMA(decoders__ImageCrop)
   .DocStr(R"code(Decodes images and extracts regions-of-interest (ROI) that are specified
 by fixed window dimensions and variable anchors.
 
@@ -197,7 +197,7 @@ When possible, the operator uses the ROI decoding, reducing the decoding time an
   .OutputLayout(0, "HWC");
 
 
-DALI_SCHEMA(experimental__decoders__ImageSlice)
+DALI_SCHEMA(decoders__ImageSlice)
   .DocStr(R"code(Decodes images and extracts regions of interest.
 
 Supported formats: JPEG, JPEG 2000, TIFF, PNG, BMP, PNM, PPM, PGM, PBM, WebP.
@@ -267,7 +267,7 @@ interpreted as absolute or relative coordinates, depending on the value of
 `normalized_shape`.)code");
 
 
-DALI_SCHEMA(experimental__decoders__ImageRandomCrop)
+DALI_SCHEMA(decoders__ImageRandomCrop)
   .DocStr(R"code(Decodes images and randomly crops them.
 
 Supported formats: JPEG, JPEG 2000, TIFF, PNG, BMP, PNM, PPM, PGM, PBM, WebP.
@@ -295,6 +295,109 @@ When possible, the operator uses the ROI decoding, reducing the decoding time an
   .NumOutput(1)
   .AddParent("ImgcodecDecoderAttr")
   .AddParent("RandomCropAttr");
+
+
+DALI_SCHEMA(ImageDecoder)
+    .DocStr("Alias for :meth:`decoders.image`.")
+    .NumInput(1)
+    .NumOutput(1)
+    .AddParent("decoders__Image")
+    .MakeDocPartiallyHidden()
+    .Deprecate(
+        "1.0",
+        "decoders__Image",
+        R"code(In DALI 1.0 all decoders were moved into a dedicated ``decoders`` submodule
+and renamed to follow a common pattern. This is a placeholder operator with identical
+functionality to allow for backward compatibility.)code");
+
+DALI_SCHEMA(experimental__decoders__Image)
+    .DocStr("Alias for :meth:`decoders.image`.")
+    .NumInput(1)
+    .NumOutput(1)
+    .AddParent("decoders__Image")
+    .MakeDocPartiallyHidden()
+    .Deprecate(
+        "2.2",
+        "decoders__Image",
+        R"code(Experimental features of the decoders have been moved to the main ``decoders``
+module, this is just an alias maintained for backward compatibility.)code");
+
+// Fused
+
+DALI_SCHEMA(ImageDecoderCrop)
+    .DocStr("Alias for :meth:`decoders.image_crop`.")
+    .NumInput(1)
+    .NumOutput(1)
+    .AddParent("decoders__ImageCrop")
+    .MakeDocPartiallyHidden()
+    .Deprecate(
+        "1.0",
+        "decoders__ImageCrop",
+        R"code(In DALI 1.0 all decoders were moved into a dedicated ``decoders`` submodule
+and renamed to follow a common pattern. This is a placeholder operator with identical
+functionality to allow for backward compatibility.)code");
+
+DALI_SCHEMA(experimental__decoders__ImageCrop)
+    .DocStr("Alias for :meth:`decoders.image_crop`.")
+    .NumInput(1)
+    .NumOutput(1)
+    .AddParent("decoders__ImageCrop")
+    .MakeDocPartiallyHidden()
+    .Deprecate(
+        "2.2",
+        "decoders__ImageCrop",
+        R"code(Experimental features of the decoders have been moved to the main ``decoders``
+module, this is just an alias maintained for backward compatibility.)code");
+
+DALI_SCHEMA(ImageDecoderRandomCrop)
+    .DocStr("Alias for :meth:`decoders.image_random_crop`.")
+    .NumInput(1)
+    .NumOutput(1)
+    .AddParent("decoders__ImageRandomCrop")
+    .MakeDocPartiallyHidden()
+    .Deprecate(
+        "1.0",
+        "decoders__ImageRandomCrop",
+        R"code(In DALI 1.0 all decoders were moved into a dedicated ``decoders`` submodule
+and renamed to follow a common pattern. This is a placeholder operator with identical
+functionality to allow for backward compatibility.)code");
+
+DALI_SCHEMA(experimental__decoders__ImageRandomCrop)
+    .DocStr("Alias for :meth:`decoders.image_random_crop`.")
+    .NumInput(1)
+    .NumOutput(1)
+    .AddParent("decoders__ImageRandomCrop")
+    .MakeDocPartiallyHidden()
+    .Deprecate(
+        "2.2",
+        "decoders__ImageRandomCrop",
+        R"code(Experimental features of the decoders have been moved to the main ``decoders``
+module, this is just an alias maintained for backward compatibility.)code");
+
+DALI_SCHEMA(ImageDecoderSlice)
+    .DocStr("Alias for :meth:`decoders.image_slice`.")
+    .NumInput(1, 3)
+    .NumOutput(1)
+    .AddParent("decoders__ImageSlice")
+    .MakeDocPartiallyHidden()
+    .Deprecate(
+        "1.0",
+        "decoders__ImageSlice",
+        R"code(In DALI 1.0 all decoders were moved into a dedicated ``decoders`` submodule
+and renamed to follow a common pattern. This is a placeholder operator with identical
+functionality to allow for backward compatibility.)code");
+
+DALI_SCHEMA(experimental__decoders__ImageSlice)
+    .DocStr("Alias for :meth:`decoders.image_slice`.")
+    .NumInput(1, 3)
+    .NumOutput(1)
+    .AddParent("decoders__ImageSlice")
+    .MakeDocPartiallyHidden()
+    .Deprecate(
+        "2.2",
+        "decoders__ImageSlice",
+        R"code(Experimental features of the decoders have been moved to the main ``decoders``
+module, this is just an alias maintained for backward compatibility.)code");
 
 }  // namespace imgcodec
 }  // namespace dali

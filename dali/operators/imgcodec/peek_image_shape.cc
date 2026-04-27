@@ -19,7 +19,7 @@
 namespace dali {
 namespace imgcodec {
 
-DALI_SCHEMA(experimental__PeekImageShape)
+DALI_SCHEMA(PeekImageShape)
   .DocStr(R"(Obtains the shape of the encoded image.
 
 This operator returns the shape that an image would have after decoding.
@@ -40,6 +40,18 @@ This operator returns the shape that an image would have after decoding.
     R"code(Color format of the image.)code", DALI_RGB)
   .OutputNDim(0, 1)
   .OutputLayout(0, "");
+
+DALI_SCHEMA(experimental__PeekImageShape)
+    .DocStr("Alias for :meth:`peek_image_shape`.")
+    .NumInput(1)
+    .NumOutput(1)
+    .AddParent("PeekImageShape")
+    .MakeDocPartiallyHidden()
+    .Deprecate(
+        "2.2",
+        "PeekImageShape",
+        R"code(Experimental features of the decoders have been moved to the main module, this is
+just an alias maintained for backward compatibility.)code");
 
 ImgcodecPeekImageShape::ImgcodecPeekImageShape(const OpSpec &spec)
     : StatelessOperator<CPUBackend>(spec) {
@@ -69,8 +81,8 @@ ImgcodecPeekImageShape::ImgcodecPeekImageShape(const OpSpec &spec)
   nvimgcodecInstanceCreateInfo_t instance_create_info = {
       NVIMGCODEC_STRUCTURE_TYPE_INSTANCE_CREATE_INFO, sizeof(nvimgcodecInstanceCreateInfo_t),
       nullptr};
-  instance_create_info.load_extension_modules = 1;
-  instance_create_info.load_builtin_modules = 1;
+  instance_create_info.load_extension_modules = 1;  // loads codecs extensions
+  instance_create_info.load_builtin_modules = 1;  // loads parsers
   instance_create_info.extension_modules_path = nullptr;
   instance_create_info.create_debug_messenger = 1;
   instance_create_info.message_severity = NVIMGCODEC_DEBUG_MESSAGE_SEVERITY_FATAL |
@@ -122,6 +134,7 @@ void ImgcodecPeekImageShape::RunImpl(Workspace &ws) {
 }
 
 
+DALI_REGISTER_OPERATOR(PeekImageShape, ImgcodecPeekImageShape, CPU);
 DALI_REGISTER_OPERATOR(experimental__PeekImageShape, ImgcodecPeekImageShape, CPU);
 
 }  // namespace imgcodec

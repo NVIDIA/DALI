@@ -18,7 +18,6 @@ from nvidia.dali.backend_impl import (
     GetCudaVersion,
     GetCufftVersion,
     GetNppVersion,
-    GetNvjpegVersion,
 )
 
 # Re-expose some private symbols not imported with `import *`
@@ -106,7 +105,7 @@ cuda_checked = False
 
 def check_cuda_runtime():
     """
-    Checks the availability of CUDA runtime/GPU, and NPP, nvJPEG, and cuFFT libraries and prints an
+    Checks the availability of CUDA runtime/GPU, and NPP, and cuFFT libraries and prints an
     appropriate warning.
     """
     global cuda_checked
@@ -130,17 +129,6 @@ def check_cuda_runtime():
             deprecation_warning(
                 "nvidia-dali-cuda120 is no longer shipped with CUDA runtime. "
                 "You need to install it separately. NPP is typically "
-                "provided with CUDA Toolkit installation or an appropriate wheel. "
-                "Please check "
-                "https://docs.nvidia.com/cuda/cuda-quick-start-guide/index.html"
-                "#pip-wheels-installation-linux "
-                "for the reference."
-            )
-
-        if GetNvjpegVersion() == -1:
-            deprecation_warning(
-                "nvidia-dali-cuda120 is no longer shipped with CUDA runtime. "
-                "You need to install it separately. nvJPEG is typically "
                 "provided with CUDA Toolkit installation or an appropriate wheel. "
                 "Please check "
                 "https://docs.nvidia.com/cuda/cuda-quick-start-guide/index.html"
