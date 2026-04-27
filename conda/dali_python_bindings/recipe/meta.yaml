@@ -77,6 +77,9 @@ requirements:
     - bandit
   host:
     - libprotobuf-static =6.33.5
+    # libprotobuf's CMake config exposes a ZLIB::ZLIB link interface dep,
+    # so zlib must be in host for find_package(Protobuf) to succeed.
+    - zlib
     - libopencv
     - dali-ffmpeg
     - python

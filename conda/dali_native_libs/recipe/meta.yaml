@@ -75,6 +75,9 @@ requirements:
   host:
     - protobuf =6.33.5
     - libprotobuf-static =6.33.5
+    # libprotobuf's CMake config exposes a ZLIB::ZLIB link interface dep,
+    # so zlib must be in host for find_package(Protobuf) to succeed.
+    - zlib
     - libjpeg-turbo
     - libopencv
     - dali-ffmpeg
