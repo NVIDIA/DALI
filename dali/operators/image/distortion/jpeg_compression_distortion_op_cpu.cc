@@ -15,6 +15,7 @@
 #include <nvimgcodec.h>
 #include <algorithm>
 #include <map>
+#include <memory>
 #include <vector>
 #include "dali/operators/image/distortion/jpeg_compression_distortion_op.h"
 #include "dali/operators/imgcodec/util/nvimagecodec_types.h"
@@ -246,12 +247,17 @@ void JpegCompressionDistortionCPU::RunImpl(Workspace& ws) {
     CHECK_NVIMGCODEC(nvimgcodecEncoderEncode(encoder_, in_img_handles.data(),
                                              out_stream_handles.data(), batch,
                                              &enc_params, &future));
+    std::unique_ptr<std::remove_pointer_t<nvimgcodecFuture_t>,
+                    decltype(&nvimgcodecFutureDestroy)>
+        future_guard(future, nvimgcodecFutureDestroy);
     CHECK_NVIMGCODEC(nvimgcodecFutureWaitForAll(future));
     size_t status_size = 0;
     CHECK_NVIMGCODEC(nvimgcodecFutureGetProcessingStatus(future, nullptr, &status_size));
     std::vector<nvimgcodecProcessingStatus_t> statuses(status_size);
     CHECK_NVIMGCODEC(nvimgcodecFutureGetProcessingStatus(future, statuses.data(), &status_size));
-    nvimgcodecFutureDestroy(future);
+    DALI_ENFORCE(status_size == static_cast<size_t>(batch),
+                 make_string("nvimgcodec encode returned ", status_size,
+                             " statuses for ", batch, " frames"));
     for (size_t k = 0; k < statuses.size(); k++) {
       DALI_ENFORCE(statuses[k] == NVIMGCODEC_PROCESSING_STATUS_SUCCESS,
                    make_string("nvimgcodec encode failed for frame ", idxs[k],
@@ -283,12 +289,17 @@ void JpegCompressionDistortionCPU::RunImpl(Workspace& ws) {
   CHECK_NVIMGCODEC(nvimgcodecDecoderDecode(decoder_, code_stream_handles.data(),
                                            out_img_handles.data(), static_cast<int>(N),
                                            &dec_params, &future));
+  std::unique_ptr<std::remove_pointer_t<nvimgcodecFuture_t>,
+                  decltype(&nvimgcodecFutureDestroy)>
+      future_guard(future, nvimgcodecFutureDestroy);
   CHECK_NVIMGCODEC(nvimgcodecFutureWaitForAll(future));
   size_t status_size = 0;
   CHECK_NVIMGCODEC(nvimgcodecFutureGetProcessingStatus(future, nullptr, &status_size));
   std::vector<nvimgcodecProcessingStatus_t> statuses(status_size);
   CHECK_NVIMGCODEC(nvimgcodecFutureGetProcessingStatus(future, statuses.data(), &status_size));
-  nvimgcodecFutureDestroy(future);
+  DALI_ENFORCE(status_size == N,
+               make_string("nvimgcodec decode returned ", status_size,
+                           " statuses for ", N, " frames"));
   for (size_t i = 0; i < statuses.size(); i++) {
     DALI_ENFORCE(statuses[i] == NVIMGCODEC_PROCESSING_STATUS_SUCCESS,
                  make_string("nvimgcodec decode failed for frame ", i,
