@@ -447,6 +447,7 @@ def _wire_compile_graph(
         num_outputs=source.num_outputs,
         batch=True,
         device=source.device,
+        no_copy=True,
     )
     reader_outs = es()
     assert isinstance(reader_outs, Iterable)
