@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,8 +17,6 @@
 # OpenCV
 ##################################################################
 if (BUILD_OPENCV)
-  # For OpenCV 3 and later, 'imdecode()' is in the imgcodecs library
-
   find_package(OpenCV 4.0 QUIET COMPONENTS core imgproc)
   if(NOT OpenCV_FOUND)
     find_package(OpenCV 3.0 REQUIRED COMPONENTS core imgproc)
@@ -29,6 +27,19 @@ if (BUILD_OPENCV)
   list(APPEND DALI_LIBS ${OpenCV_LIBRARIES})
   message("OpenCV libraries: ${OpenCV_LIBRARIES}")
   list(APPEND DALI_EXCLUDES libopencv_core.a;libopencv_imgproc.a;libopencv_highgui.a)
+
+  # Test-only OpenCV component. `imgcodecs` is needed by test fixtures
+  # (cv::imread/imwrite of golden images, diff dumps), but is intentionally
+  # kept out of DALI_LIBS so that libdali doesn't link opencv_imgcodecs and
+  # its bundled codec statics (libwebp/libpng/libjasper/libIlmImf/libtiff).
+  if (BUILD_TEST)
+    find_package(OpenCV 4.0 QUIET COMPONENTS imgcodecs)
+    if(NOT OpenCV_FOUND)
+      find_package(OpenCV 3.0 REQUIRED COMPONENTS imgcodecs)
+    endif()
+    set(DALI_OPENCV_TEST_EXTRA_LIBS opencv_imgcodecs CACHE INTERNAL
+        "OpenCV imgcodecs target, for test executables only")
+  endif()
 endif()
 
 ##################################################################
@@ -41,16 +52,6 @@ endif()
 # Google C++ testing framework
 ##################################################################
 if (BUILD_TEST)
-  # Test-only OpenCV components (used by tests for image I/O of fixture data
-  # and diff dumps). Kept out of DALI_LIBS so that libdali doesn't link
-  # opencv_imgcodecs and its bundled codec statics.
-  find_package(OpenCV 4.0 QUIET COMPONENTS imgcodecs)
-  if(NOT OpenCV_FOUND)
-    find_package(OpenCV 3.0 REQUIRED COMPONENTS imgcodecs)
-  endif()
-  set(DALI_OPENCV_TEST_EXTRA_LIBS opencv_imgcodecs CACHE INTERNAL
-      "OpenCV imgcodecs target, for test executables only")
-
   set(BUILD_GTEST ON CACHE INTERNAL "Build gtest submodule")
   set(BUILD_GMOCK OFF CACHE INTERNAL "Build gmock submodule")
   check_and_add_cmake_submodule(${PROJECT_SOURCE_DIR}/third_party/googletest EXCLUDE_FROM_ALL)
