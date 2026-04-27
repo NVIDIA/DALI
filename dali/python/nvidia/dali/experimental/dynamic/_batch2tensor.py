@@ -15,7 +15,7 @@
 
 from . import _device, _invocation, _op_builder
 from ._batch import Batch, Tensor, as_batch, batch
-from ._callsite import mark_transparent, resolve_callsite_frame
+from ._call_site import mark_transparent, resolve_callsite_frame
 from ._nvtx import NVTXRange
 
 

@@ -26,7 +26,7 @@ from nvidia.dali.external_source import ExternalSource
 from nvidia.dali.pipeline import Pipeline
 
 from ._batch import Batch
-from ._callsite import (
+from ._call_site import (
     CallChain,
     CodeLoc,
     build_call_chain,

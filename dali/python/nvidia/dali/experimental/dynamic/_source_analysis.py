@@ -19,7 +19,7 @@ from typing import Any
 
 from nvidia.dali.types import DALIDataType, DALIImageType, DALIInterpType
 
-from ._callsite import CodeLoc
+from ._call_site import CodeLoc
 from ._compile import CompileRef
 from ._device import Device
 from ._type import DType

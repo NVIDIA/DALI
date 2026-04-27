@@ -26,7 +26,7 @@ from nvidia.dali.ops import _docs, _names
 
 from . import _device, _invocation, _op_filter, _ops, _type
 from ._batch import Batch
-from ._callsite import mark_transparent, resolve_callsite_frame
+from ._call_site import mark_transparent, resolve_callsite_frame
 from ._compile import _compile_intercept
 from ._eval_mode import EvalMode
 from ._tensor import Tensor, tensor as to_tensor

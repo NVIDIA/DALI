@@ -18,7 +18,7 @@ import weakref
 from typing import TYPE_CHECKING, Any, Optional
 
 from ._async import _Future
-from ._callsite import capture_stack_from_frame
+from ._call_site import capture_stack_from_frame
 from ._device import Device
 from ._eval_context import EvalContext as _EvalContext
 from ._eval_mode import EvalMode as _EvalMode
