@@ -15,7 +15,6 @@
 #include <nvimgcodec.h>
 #include <algorithm>
 #include <map>
-#include <memory>
 #include <vector>
 #include "dali/operators/image/distortion/jpeg_compression_distortion_op.h"
 #include "dali/operators/imgcodec/util/nvimagecodec_types.h"
@@ -52,6 +51,7 @@ namespace {
 using imgcodec::NvImageCodecCodeStream;
 using imgcodec::NvImageCodecDecoder;
 using imgcodec::NvImageCodecEncoder;
+using imgcodec::NvImageCodecFuture;
 using imgcodec::NvImageCodecImage;
 using imgcodec::NvImageCodecInstance;
 
@@ -181,6 +181,7 @@ void JpegCompressionDistortionCPU::RunImpl(Workspace& ws) {
     int quality;
   };
   std::vector<FrameDesc> frames;
+  frames.reserve(nsamples);
 
   for (int sample_idx = 0; sample_idx < nsamples; sample_idx++) {
     auto shape = in_shape.tensor_shape_span(sample_idx);
@@ -206,7 +207,8 @@ void JpegCompressionDistortionCPU::RunImpl(Workspace& ws) {
   }
 
   const size_t N = frames.size();
-  encoded_buffers_.clear();
+  // Resize without clearing first so each inner vector retains its previous
+  // capacity — the resize callback below reuses it on the next encode.
   encoded_buffers_.resize(N);
 
   // ---- Encode pass: bucket by quality, one batched submit per bucket ----
@@ -243,13 +245,11 @@ void JpegCompressionDistortionCPU::RunImpl(Workspace& ws) {
                                         sizeof(nvimgcodecEncodeParams_t), &jpeg_params,
                                         NVIMGCODEC_QUALITY_TYPE_QUALITY, static_cast<float>(q)};
 
-    nvimgcodecFuture_t future = nullptr;
+    nvimgcodecFuture_t future_handle = nullptr;
     CHECK_NVIMGCODEC(nvimgcodecEncoderEncode(encoder_, in_img_handles.data(),
                                              out_stream_handles.data(), batch,
-                                             &enc_params, &future));
-    std::unique_ptr<std::remove_pointer_t<nvimgcodecFuture_t>,
-                    decltype(&nvimgcodecFutureDestroy)>
-        future_guard(future, nvimgcodecFutureDestroy);
+                                             &enc_params, &future_handle));
+    NvImageCodecFuture future(future_handle);
     CHECK_NVIMGCODEC(nvimgcodecFutureWaitForAll(future));
     size_t status_size = 0;
     CHECK_NVIMGCODEC(nvimgcodecFutureGetProcessingStatus(future, nullptr, &status_size));
@@ -285,13 +285,11 @@ void JpegCompressionDistortionCPU::RunImpl(Workspace& ws) {
                                       sizeof(nvimgcodecDecodeParams_t), nullptr,
                                       /*apply_exif_orientation=*/0};
 
-  nvimgcodecFuture_t future = nullptr;
+  nvimgcodecFuture_t future_handle = nullptr;
   CHECK_NVIMGCODEC(nvimgcodecDecoderDecode(decoder_, code_stream_handles.data(),
                                            out_img_handles.data(), static_cast<int>(N),
-                                           &dec_params, &future));
-  std::unique_ptr<std::remove_pointer_t<nvimgcodecFuture_t>,
-                  decltype(&nvimgcodecFutureDestroy)>
-      future_guard(future, nvimgcodecFutureDestroy);
+                                           &dec_params, &future_handle));
+  NvImageCodecFuture future(future_handle);
   CHECK_NVIMGCODEC(nvimgcodecFutureWaitForAll(future));
   size_t status_size = 0;
   CHECK_NVIMGCODEC(nvimgcodecFutureGetProcessingStatus(future, nullptr, &status_size));

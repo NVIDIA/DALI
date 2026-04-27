@@ -1,4 +1,4 @@
-// Copyright (c) 2023-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2023-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -154,6 +154,24 @@ struct DLL_PUBLIC NvImageCodecEncoder
   }
 
   static void DestroyHandle(nvimgcodecEncoder_t handle);
+};
+
+struct DLL_PUBLIC NvImageCodecFuture
+    : public UniqueHandle<nvimgcodecFuture_t, NvImageCodecFuture> {
+  DALI_INHERIT_UNIQUE_HANDLE(nvimgcodecFuture_t, NvImageCodecFuture);
+
+  NvImageCodecFuture() = default;
+
+  /** Wraps a future handle returned by an `Encode`/`Decode` call. */
+  explicit NvImageCodecFuture(nvimgcodecFuture_t handle) {
+    handle_ = handle;
+  }
+
+  static constexpr nvimgcodecFuture_t null_handle() {
+    return nullptr;
+  }
+
+  static void DestroyHandle(nvimgcodecFuture_t handle);
 };
 
 }  // namespace imgcodec
