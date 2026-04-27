@@ -19,16 +19,16 @@
 if (BUILD_OPENCV)
   # For OpenCV 3 and later, 'imdecode()' is in the imgcodecs library
 
-  find_package(OpenCV 4.0 QUIET COMPONENTS core imgproc imgcodecs)
+  find_package(OpenCV 4.0 QUIET COMPONENTS core imgproc)
   if(NOT OpenCV_FOUND)
-    find_package(OpenCV 3.0 REQUIRED COMPONENTS core imgproc imgcodecs)
+    find_package(OpenCV 3.0 REQUIRED COMPONENTS core imgproc)
   endif()
 
   message(STATUS "Found OpenCV: ${OpenCV_INCLUDE_DIRS} (found suitable version \"${OpenCV_VERSION}\", minimum required is \"3.0\")")
   include_directories(SYSTEM ${OpenCV_INCLUDE_DIRS})
   list(APPEND DALI_LIBS ${OpenCV_LIBRARIES})
   message("OpenCV libraries: ${OpenCV_LIBRARIES}")
-  list(APPEND DALI_EXCLUDES libopencv_core.a;libopencv_imgproc.a;libopencv_highgui.a;libopencv_imgcodecs.a;liblibwebp.a;libittnotify.a;libpng.a;liblibtiff.a;liblibjasper.a;libIlmImf.a;liblibjpeg-turbo.a)
+  list(APPEND DALI_EXCLUDES libopencv_core.a;libopencv_imgproc.a;libopencv_highgui.a)
 endif()
 
 ##################################################################
@@ -41,6 +41,16 @@ endif()
 # Google C++ testing framework
 ##################################################################
 if (BUILD_TEST)
+  # Test-only OpenCV components (used by tests for image I/O of fixture data
+  # and diff dumps). Kept out of DALI_LIBS so that libdali doesn't link
+  # opencv_imgcodecs and its bundled codec statics.
+  find_package(OpenCV 4.0 QUIET COMPONENTS imgcodecs)
+  if(NOT OpenCV_FOUND)
+    find_package(OpenCV 3.0 REQUIRED COMPONENTS imgcodecs)
+  endif()
+  set(DALI_OPENCV_TEST_EXTRA_LIBS opencv_imgcodecs CACHE INTERNAL
+      "OpenCV imgcodecs target, for test executables only")
+
   set(BUILD_GTEST ON CACHE INTERNAL "Build gtest submodule")
   set(BUILD_GMOCK OFF CACHE INTERNAL "Build gmock submodule")
   check_and_add_cmake_submodule(${PROJECT_SOURCE_DIR}/third_party/googletest EXCLUDE_FROM_ALL)
