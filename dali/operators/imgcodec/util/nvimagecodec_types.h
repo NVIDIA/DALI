@@ -112,6 +112,11 @@ struct DLL_PUBLIC NvImageCodecCodeStream
   static NvImageCodecCodeStream FromSubCodeStream(nvimgcodecCodeStream_t code_stream,
                                                   const nvimgcodecCodeStreamView_t* cs_view);
 
+  static NvImageCodecCodeStream ToHostMem(nvimgcodecInstance_t instance,
+                                          void* ctx,
+                                          nvimgcodecResizeBufferFunc_t resize_buffer_func,
+                                          const nvimgcodecImageInfo_t* image_info);
+
   static constexpr nvimgcodecCodeStream_t null_handle() {
     return nullptr;
   }
@@ -132,6 +137,23 @@ struct DLL_PUBLIC NvImageCodecImage : public UniqueHandle<nvimgcodecImage_t, NvI
   }
 
   static void DestroyHandle(nvimgcodecImage_t handle);
+};
+
+struct DLL_PUBLIC NvImageCodecEncoder
+    : public UniqueHandle<nvimgcodecEncoder_t, NvImageCodecEncoder> {
+  DALI_INHERIT_UNIQUE_HANDLE(nvimgcodecEncoder_t, NvImageCodecEncoder);
+
+  NvImageCodecEncoder() = default;
+
+  static NvImageCodecEncoder Create(nvimgcodecInstance_t instance,
+                                    const nvimgcodecExecutionParams_t* exec_params,
+                                    const std::string& opts);
+
+  static constexpr nvimgcodecEncoder_t null_handle() {
+    return nullptr;
+  }
+
+  static void DestroyHandle(nvimgcodecEncoder_t handle);
 };
 
 }  // namespace imgcodec
