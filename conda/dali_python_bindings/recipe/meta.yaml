@@ -77,7 +77,7 @@ requirements:
     - bandit
   host:
     - libprotobuf-static =6.33.5
-    - dali-opencv
+    - libopencv
     - dali-ffmpeg
     - python
     - setuptools
@@ -90,7 +90,7 @@ requirements:
     - makefun
     - numpy
     - nvidia-dali-core{% if environ.get('NVIDIA_DALI_BUILD_FLAVOR', '')|length %}{{"-" + environ.get('NVIDIA_DALI_BUILD_FLAVOR', '')}}{% endif %}-cuda{{ environ.get('CUDA_VERSION', '') | replace(".","") }} ={{ environ.get('DALI_CONDA_BUILD_VERSION', '') }}
-    - nvidia-nvimagecodec-cuda{{ environ.get('CUDA_VERSION', '') | replace(".","") }}
+    - libnvimgcodec-dev
   run:
     - python
     # libprotobuf-static we link statically depends on libabseil so add libprotobuf here as a runtime
@@ -107,7 +107,10 @@ requirements:
     - makefun
     - numpy
     - nvidia-dali-core{% if environ.get('NVIDIA_DALI_BUILD_FLAVOR', '')|length %}{{"-" + environ.get('NVIDIA_DALI_BUILD_FLAVOR', '')}}{% endif %}-cuda{{ environ.get('CUDA_VERSION', '') | replace(".","") }} ={{ environ.get('DALI_CONDA_BUILD_VERSION', '') }}
-    - nvidia-nvimagecodec-cuda{{ environ.get('CUDA_VERSION', '') | replace(".","") }}
+    - libnvimgcodec
+    - libnvimgcodec-libjpeg-turbo-ext
+    - libnvimgcodec-libtiff-ext
+    - libnvimgcodec-libopencv-ext
 about:
   home: https://github.com/NVIDIA/DALI
   license: Apache-2.0 license

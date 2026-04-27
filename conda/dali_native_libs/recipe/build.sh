@@ -57,7 +57,7 @@ cmake -DCUDA_TOOLKIT_ROOT_DIR=/usr/local/cuda \
       -DCUDA_CUDA_LIBRARY=/usr/local/cuda/targets/${ARCH}-linux/lib/stubs/libcuda.so \
       -DCUDA_TARGET_ARCHS=${CUDA_TARGET_ARCHS}            \
       -DFFMPEG_ROOT_DIR=$PREFIX/lib                       \
-      -DCMAKE_PREFIX_PATH="$PREFIX/libjpeg-turbo;$PREFIX" \
+      -DCMAKE_PREFIX_PATH="$PREFIX"                       \
       -DCMAKE_INSTALL_PREFIX=$PREFIX                      \
       -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE:-Release}     \
       -DBUILD_TEST=${BUILD_TEST:-ON}                      \
@@ -96,7 +96,6 @@ cmake -DCUDA_TOOLKIT_ROOT_DIR=/usr/local/cuda \
       -DBUILD_WITH_UBSAN=${BUILD_WITH_UBSAN:-OFF}         \
       -DDALI_BUILD_FLAVOR=${NVIDIA_DALI_BUILD_FLAVOR}     \
       -DTIMESTAMP=${DALI_TIMESTAMP} -DGIT_SHA=${GIT_SHA-${GIT_FULL_HASH}} \
-      -DNVIMGCODEC_DEFAULT_INSTALL_PATH=$PREFIX/opt/nvidia/nvimgcodec \
       ..
 make -j"$(nproc --all)"
 

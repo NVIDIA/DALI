@@ -76,40 +76,36 @@ requirements:
     - protobuf =6.33.5
     - libprotobuf-static =6.33.5
     - libjpeg-turbo
-    - dali-opencv
+    - libopencv
     - dali-ffmpeg
     - lmdb
     - libtiff
     - libsndfile
     - libtar
     - libvorbis =1.3.7
-    # dali-opencv silently depends on openjpeg and libwebp-base
-    # Since we link statically, we need to add those dependencies explicitly
-    - libwebp-base
-    - openjpeg
     - cfitsio
-    - nvidia-nvimagecodec-cuda{{ environ.get('CUDA_VERSION', '') | replace(".","") }}
+    - libnvimgcodec-dev
     - libnvcomp
     # libnvcomp depends on cuda, so make sure it uses the right version for the build
     - cuda-version {{ environ.get('CUDA_VERSION', '').split('.')[0] }}
     - aws-sdk-cpp
   run:
     - libjpeg-turbo
+    - libopencv
     - lmdb
     - libtiff
     - libsndfile
     - libvorbis =1.3.7
-    # dali-opencv silently depends on openjpeg and libwebp-base
-    # Since we link statically, we need to add those dependencies explicitly
-    - libwebp-base
-    - openjpeg
     # libprotobuf-static we link statically depends on libabseil so add libprotobuf here as a runtime
     # dependency to install the right version on the libabseil (as protobuf depends on
     # libprotobuf-static and a newer version of libprotobuf-static may be available than
     # the protobuf was build with)
     - libprotobuf =6.33.5
     - cfitsio
-    - nvidia-nvimagecodec-cuda{{ environ.get('CUDA_VERSION', '') | replace(".","") }}
+    - libnvimgcodec
+    - libnvimgcodec-libjpeg-turbo-ext
+    - libnvimgcodec-libtiff-ext
+    - libnvimgcodec-libopencv-ext
     - libnvcomp
     # libnvcomp depends on cuda, so make sure it uses the right version for the build
     - cuda-version {{ environ.get('CUDA_VERSION', '').split('.')[0] }}
