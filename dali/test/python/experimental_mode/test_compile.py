@@ -85,7 +85,7 @@ def test_compile_basic_pipeline():
 
     assert len(dynamic_results) == len(compiled_results)
     for dyn, comp in zip(dynamic_results, compiled_results):
-        np.testing.assert_allclose(dyn, comp, atol=1e-5)
+        np.testing.assert_array_almost_equal(dyn, comp)
 
 
 @eval_modes()
@@ -100,8 +100,14 @@ def test_compile_same_call_site():
         flipped2 = flip(flipped1)
         assert _is_compiled(flipped1)
         assert _is_compiled(flipped2)
-        assert np.allclose(ndd.as_tensor(flipped2, pad=True), ndd.as_tensor(images, pad=True))
-        assert not np.allclose(ndd.as_tensor(flipped1, pad=True), ndd.as_tensor(images, pad=True))
+        np.testing.assert_array_equal(
+            ndd.as_tensor(flipped2, pad=True),
+            ndd.as_tensor(images, pad=True),
+        )
+        np.testing.assert_array_equal(
+            ndd.as_tensor(flipped1, pad=True),
+            ndd.as_tensor(images.slice[:, ::-1, :], pad=True),
+        )
 
 
 @eval_modes()
