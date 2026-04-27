@@ -42,8 +42,13 @@ CUFFTDIVER loadCufftLibrary() {
   if (!ret) {
     ret = dlopen(__CufftLibName, RTLD_NOW);
     if (!ret) {
+#if FOR_CONDA_ENABLED
+      throw std::runtime_error("dlopen libcufft.so failed!. Please install "
+                               "libcufft: `conda install -c conda-forge libcufft`.");
+#else
       throw std::runtime_error("dlopen libcufft.so failed!. Please install "
                                 "CUDA toolkit or cuFFT python wheel.");
+#endif
     }
   }
   return ret;

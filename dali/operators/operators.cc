@@ -66,16 +66,22 @@ DLL_PUBLIC void EnforceMinimumNvimgcodecVersion() {
   int minor = NVIMGCODEC_MINOR_FROM_SEMVER(version);
   int patch = NVIMGCODEC_PATCH_FROM_SEMVER(version);
 
-  int cuda_version_major = CUDA_VERSION / 1000;  // 11020 -> 11, 12000 -> 12
   if (version < NVIMGCODEC_VER) {
     std::stringstream ss;
     ss << "DALI requires nvImageCodec at minimum version " << NVIMGCODEC_VER_MAJOR << "."
        << NVIMGCODEC_VER_MINOR << "." << NVIMGCODEC_VER_PATCH << ", but got " << major << "."
-       << minor << "." << patch
-       << ". Please upgrade: See https://developer.nvidia.com/nvimgcodec-downloads or simply do "
-          "`pip install nvidia-nvimgcodec-cu" + std::to_string(cuda_version_major) + "~="
+       << minor << "." << patch;
+#if FOR_CONDA_ENABLED
+    ss << ". Please upgrade: `conda install -c conda-forge 'libnvimgcodec"
+       << ">=" << NVIMGCODEC_VER_MAJOR << "." << NVIMGCODEC_VER_MINOR << "."
+       << NVIMGCODEC_VER_PATCH << ",==" << NVIMGCODEC_VER_MAJOR << "." << NVIMGCODEC_VER_MINOR
+       << ".*'`.";
+#else
+    ss << ". Please upgrade: See https://developer.nvidia.com/nvimgcodec-downloads or simply do "
+          "`pip install nvidia-nvimgcodec-cu" + std::to_string(CUDA_VERSION / 1000) + "~="
        << NVIMGCODEC_VER_MAJOR << "." << NVIMGCODEC_VER_MINOR << "." << NVIMGCODEC_VER_PATCH
        << "`.";
+#endif
     throw std::runtime_error(ss.str());
   }
 #endif

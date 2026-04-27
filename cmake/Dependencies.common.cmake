@@ -118,8 +118,13 @@ endif()
 # libtar
 ##################################################################
 if(BUILD_LIBTAR)
+  if(BUILD_FOR_CONDA)
+    set(libtar_NAMES tar libtar)
+  else()
+    set(libtar_NAMES libtar.a tar libtar)
+  endif()
   find_library(libtar_LIBS
-          NAMES libtar.a tar libtar
+          NAMES ${libtar_NAMES}
           PATHS ${LIBTAR_ROOT_DIR} "/usr/local" ${CMAKE_SYSTEM_PREFIX_PATH}
           PATH_SUFFIXES lib lib64)
   if(${libtar_LIBS} STREQUAL libtar_LIBS-NOTFOUND)
@@ -215,7 +220,7 @@ include_directories(${PROJECT_SOURCE_DIR}/third_party/rapidjson/include)
 ##################################################################
 # FFTS
 ##################################################################
-if (BUILD_FFTS)
+if (BUILD_FFTS AND NOT PREBUILD_DALI_LIBS)
   set(GENERATE_POSITION_INDEPENDENT_CODE ON CACHE BOOL "-fPIC")
   set(ENABLE_SHARED OFF CACHE BOOL "shared library target")
   set(ENABLE_STATIC ON CACHE BOOL "static library target")
@@ -246,11 +251,13 @@ include_directories(SYSTEM third_party/cutlass/tools/util/include)
 ##################################################################
 # CocoAPI
 ##################################################################
-set(SOURCE_FILES third_party/cocoapi/common/maskApi.c)
-add_library(cocoapi STATIC ${SOURCE_FILES})
-set_target_properties(cocoapi PROPERTIES POSITION_INDEPENDENT_CODE ON)
-list(APPEND DALI_LIBS cocoapi)
-list(APPEND DALI_EXCLUDES libcocoapi.a)
+if(NOT PREBUILD_DALI_LIBS)
+  set(SOURCE_FILES third_party/cocoapi/common/maskApi.c)
+  add_library(cocoapi STATIC ${SOURCE_FILES})
+  set_target_properties(cocoapi PROPERTIES POSITION_INDEPENDENT_CODE ON)
+  list(APPEND DALI_LIBS cocoapi)
+  list(APPEND DALI_EXCLUDES libcocoapi.a)
+endif()
 
 ##################################################################
 # cfitsio
