@@ -155,7 +155,7 @@ Examples::
         if (!ex)
           return std::nullopt;
         return PropagateTypes(*ex, spec);
-      } catch (std::exception) {
+      } catch (const std::exception &) {
         return std::nullopt;
       }
     })
