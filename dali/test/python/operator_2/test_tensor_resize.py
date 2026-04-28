@@ -39,6 +39,18 @@ def run_and_compare(expected, data, device, resize_fn):
     np.testing.assert_allclose(expected, as_array(out[0][0]), rtol=1e-3, atol=1e-7)
 
 
+def run_and_compare_batch(expected, data, device, resize_fn):
+    @pipeline_def(batch_size=len(data), num_threads=3, device_id=0)
+    def pipe():
+        input_data = fn.external_source(source=lambda: data, batch=True, device=device)
+        return resize_fn(input_data)
+
+    p = pipe()
+    out = p.run()
+    for i, expected_sample in enumerate(expected):
+        np.testing.assert_allclose(expected_sample, as_array(out[0][i]), rtol=1e-3, atol=1e-7)
+
+
 @params("cpu", "gpu")
 def test_resize_upsample_scales_nearest(device):
     data = data_1x1x2x2
@@ -61,9 +73,7 @@ def test_resize_upsample_scales_nearest(device):
     )
 
     def resize_fn(input_data):
-        return fn.experimental.tensor_resize(
-            input_data, scales=scales, alignment=0, interp_type=types.INTERP_NN
-        )
+        return fn.tensor_resize(input_data, scales=scales, alignment=0, interp_type=types.INTERP_NN)
 
     run_and_compare(expected, data, device, resize_fn)
 
@@ -78,9 +88,7 @@ def test_resize_downsample_scales_nearest(device):
     expected = np.array([[[[1.0, 3.0]]]], dtype=np.float32)
 
     def resize_fn(input_data):
-        return fn.experimental.tensor_resize(
-            input_data, scales=scales, alignment=0, interp_type=types.INTERP_NN
-        )
+        return fn.tensor_resize(input_data, scales=scales, alignment=0, interp_type=types.INTERP_NN)
 
     run_and_compare(expected, data, device, resize_fn)
 
@@ -111,9 +119,7 @@ def test_resize_upsample_sizes_nearest(device):
     )
 
     def resize_fn(input_data):
-        return fn.experimental.tensor_resize(
-            input_data, sizes=sizes, alignment=0, interp_type=types.INTERP_NN
-        )
+        return fn.tensor_resize(input_data, sizes=sizes, alignment=0, interp_type=types.INTERP_NN)
 
     run_and_compare(expected, data, device, resize_fn)
 
@@ -141,7 +147,7 @@ def test_resize_upsample_scales_linear(device):
     )
 
     def resize_fn(input_data):
-        return fn.experimental.tensor_resize(
+        return fn.tensor_resize(
             input_data, scales=scales, alignment=0, interp_type=types.INTERP_LINEAR, antialias=False
         )
 
@@ -158,7 +164,7 @@ def test_resize_downsample_scales_linear(device):
     expected = np.array([[[[2.6666665, 4.3333331]]]], dtype=np.float32)
 
     def resize_fn(input_data):
-        return fn.experimental.tensor_resize(
+        return fn.tensor_resize(
             input_data, scales=scales, alignment=0, interp_type=types.INTERP_LINEAR, antialias=False
         )
 
@@ -171,7 +177,7 @@ def test_resize_alignment(device):
     scales = np.array([1.0, 1.0, 0.6, 0.6], dtype=np.float32)
 
     def resize_fn(input_data, alignment=0):
-        return fn.experimental.tensor_resize(
+        return fn.tensor_resize(
             input_data,
             scales=scales,
             alignment=alignment,
@@ -288,7 +294,7 @@ def test_resize_upsample_scales_cubic(device):
     )
 
     def resize_fn(input_data):
-        return fn.experimental.tensor_resize(
+        return fn.tensor_resize(
             input_data, scales=scales, alignment=0, interp_type=types.INTERP_CUBIC, antialias=False
         )
 
@@ -316,7 +322,7 @@ def test_resize_downsample_scales_cubic(device):
     )
 
     def resize_fn(input_data):
-        return fn.experimental.tensor_resize(
+        return fn.tensor_resize(
             input_data, scales=scales, alignment=0, interp_type=types.INTERP_CUBIC, antialias=False
         )
 
@@ -439,7 +445,7 @@ def test_resize_upsample_sizes_cubic(device):
     )
 
     def resize_fn(input_data):
-        return fn.experimental.tensor_resize(
+        return fn.tensor_resize(
             input_data, sizes=sizes, alignment=0, interp_type=types.INTERP_CUBIC, antialias=False
         )
 
@@ -468,7 +474,7 @@ def test_resize_downsample_sizes_cubic(device):
     )
 
     def resize_fn(input_data):
-        return fn.experimental.tensor_resize(
+        return fn.tensor_resize(
             input_data, sizes=sizes, alignment=0, interp_type=types.INTERP_CUBIC, antialias=False
         )
 
@@ -484,9 +490,7 @@ def test_resize_upsample_resize_only_1d(device):
     )
 
     def resize_fn(input_data):
-        return fn.experimental.tensor_resize(
-            input_data, scales=scales, alignment=0, interp_type=types.INTERP_NN
-        )
+        return fn.tensor_resize(input_data, scales=scales, alignment=0, interp_type=types.INTERP_NN)
 
     run_and_compare(expected, data, device, resize_fn)
 
@@ -497,9 +501,7 @@ def test_resize_upsample_resize_only_noop(device):
     scales = np.array([1.0, 1.0, 1.0, 1.0], dtype=np.float32)
 
     def resize_fn(input_data):
-        return fn.experimental.tensor_resize(
-            input_data, scales=scales, alignment=0, interp_type=types.INTERP_NN
-        )
+        return fn.tensor_resize(input_data, scales=scales, alignment=0, interp_type=types.INTERP_NN)
 
     run_and_compare(data, data, device, resize_fn)
 
@@ -511,8 +513,101 @@ def test_resize_upsample_1d(device):
     expected = np.array([1.0, 1.0, 1.0, 2.0, 2.0, 2.0], dtype=np.float32)
 
     def resize_fn(input_data):
-        return fn.experimental.tensor_resize(
-            input_data, scales=scales, alignment=0, interp_type=types.INTERP_NN
-        )
+        return fn.tensor_resize(input_data, scales=scales, alignment=0, interp_type=types.INTERP_NN)
 
     run_and_compare(expected, data, device, resize_fn)
+
+
+@params("cpu", "gpu")
+def test_resize_sizes_arg_input_1d(device):
+    data = [
+        np.array([1, 2, 3], dtype=np.uint8),
+        np.array([4], dtype=np.uint8),
+    ]
+    sizes = [
+        np.array([3], dtype=np.float32),
+        np.array([1], dtype=np.float32),
+    ]
+
+    def resize_fn(input_data):
+        requested_sizes = fn.external_source(source=lambda: sizes, batch=True)
+        return fn.tensor_resize(input_data, sizes=requested_sizes, alignment=0)
+
+    run_and_compare_batch(data, data, device, resize_fn)
+
+
+@params("cpu", "gpu")
+def test_resize_sizes_arg_input_axes(device):
+    data = [
+        np.arange(6, dtype=np.uint8).reshape(2, 3),
+        np.arange(4, dtype=np.uint8).reshape(4, 1),
+    ]
+    sizes = [
+        np.array([3], dtype=np.float32),
+        np.array([2], dtype=np.float32),
+    ]
+    expected = [
+        data[0],
+        np.repeat(data[1], 2, axis=1),
+    ]
+
+    def resize_fn(input_data):
+        requested_sizes = fn.external_source(source=lambda: sizes, batch=True)
+        return fn.tensor_resize(input_data, sizes=requested_sizes, axes=[1], alignment=0)
+
+    run_and_compare_batch(expected, data, device, resize_fn)
+
+
+@params("cpu", "gpu")
+def test_resize_scales_arg_input_axes(device):
+    data = [
+        np.arange(6, dtype=np.uint8).reshape(2, 3),
+        np.arange(4, dtype=np.uint8).reshape(4, 1),
+    ]
+    scales = [
+        np.array([1.0], dtype=np.float32),
+        np.array([2.0], dtype=np.float32),
+    ]
+    expected = [
+        data[0],
+        np.repeat(data[1], 2, axis=1),
+    ]
+
+    def resize_fn(input_data):
+        requested_scales = fn.external_source(source=lambda: scales, batch=True)
+        return fn.tensor_resize(input_data, scales=requested_scales, axes=[1], alignment=0)
+
+    run_and_compare_batch(expected, data, device, resize_fn)
+
+
+@params("cpu", "gpu")
+def test_resize_alignment_arg_input_axes(device):
+    data = [
+        np.array([[0, 1, 2, 3]], dtype=np.float32),
+        np.array([[0, 1, 2, 3]], dtype=np.float32),
+    ]
+    scales = [
+        np.array([0.6], dtype=np.float32),
+        np.array([0.6], dtype=np.float32),
+    ]
+    alignments = [
+        np.array([0.0], dtype=np.float32),
+        np.array([1.0], dtype=np.float32),
+    ]
+    expected = [
+        np.array([[0.33333328, 2.0]], dtype=np.float32),
+        np.array([[1.0000001, 2.6666667]], dtype=np.float32),
+    ]
+
+    def resize_fn(input_data):
+        requested_scales = fn.external_source(source=lambda: scales, batch=True)
+        requested_alignments = fn.external_source(source=lambda: alignments, batch=True)
+        return fn.tensor_resize(
+            input_data,
+            scales=requested_scales,
+            axes=[1],
+            alignment=requested_alignments,
+            antialias=False,
+        )
+
+    run_and_compare_batch(expected, data, device, resize_fn)
