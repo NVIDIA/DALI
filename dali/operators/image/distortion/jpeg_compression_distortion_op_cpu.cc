@@ -251,9 +251,8 @@ void JpegCompressionDistortionCPU::RunImpl(Workspace& ws) {
                                              &enc_params, &future_handle));
     NvImageCodecFuture future(future_handle);
     CHECK_NVIMGCODEC(nvimgcodecFutureWaitForAll(future));
-    size_t status_size = 0;
-    CHECK_NVIMGCODEC(nvimgcodecFutureGetProcessingStatus(future, nullptr, &status_size));
-    std::vector<nvimgcodecProcessingStatus_t> statuses(status_size);
+    std::vector<nvimgcodecProcessingStatus_t> statuses(batch);
+    size_t status_size = statuses.size();
     CHECK_NVIMGCODEC(nvimgcodecFutureGetProcessingStatus(future, statuses.data(), &status_size));
     DALI_ENFORCE(status_size == static_cast<size_t>(batch),
                  make_string("nvimgcodec encode returned ", status_size,
@@ -291,9 +290,8 @@ void JpegCompressionDistortionCPU::RunImpl(Workspace& ws) {
                                            &dec_params, &future_handle));
   NvImageCodecFuture future(future_handle);
   CHECK_NVIMGCODEC(nvimgcodecFutureWaitForAll(future));
-  size_t status_size = 0;
-  CHECK_NVIMGCODEC(nvimgcodecFutureGetProcessingStatus(future, nullptr, &status_size));
-  std::vector<nvimgcodecProcessingStatus_t> statuses(status_size);
+  std::vector<nvimgcodecProcessingStatus_t> statuses(N);
+  size_t status_size = statuses.size();
   CHECK_NVIMGCODEC(nvimgcodecFutureGetProcessingStatus(future, statuses.data(), &status_size));
   DALI_ENFORCE(status_size == N,
                make_string("nvimgcodec decode returned ", status_size,
