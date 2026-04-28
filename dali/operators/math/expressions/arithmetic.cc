@@ -69,7 +69,7 @@ DALIDataType PropagateTypes(ExprNode &expr, const Workspace &ws) {
 
 std::optional<DALIDataType> PropagateTypes(ExprNode &expr, const OpSpec &spec) {
   SmallVector<std::optional<DALIDataType>, 8> input_types;
-  for (int i = 0; i < spec.NumInput(); i++)
+  for (int i = 0; i < spec.NumRegularInput(); i++)
     input_types.push_back(spec.InputDesc(i).dtype);
   return PropagateTypes(expr, make_cspan(input_types));
 }
