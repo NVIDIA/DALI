@@ -214,8 +214,7 @@ class CompileContext:
             if not isinstance(data, CompiledBatch):
                 continue
 
-            expected_type = schema.GetArgumentType(name)
-            expected_type = dali_types._vector_types.get(expected_type, expected_type)
+            expected_type = op._argument_conversion_map[name].type_id
             if expected_type == data.dtype.type_id:
                 continue
 
