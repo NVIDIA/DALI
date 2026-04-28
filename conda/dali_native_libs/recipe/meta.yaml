@@ -87,7 +87,7 @@ requirements:
     - libtar
     - libvorbis =1.3.7
     - cfitsio
-    - libnvimgcodec-dev
+    - libnvimgcodec-dev >=0.8.0,<0.9.0
     - libnvcomp
     # libnvcomp depends on cuda, so make sure it uses the right version for the build
     - cuda-version {{ environ.get('CUDA_VERSION', '').split('.')[0] }}
@@ -105,10 +105,10 @@ requirements:
     # the protobuf was build with)
     - libprotobuf =6.33.5
     - cfitsio
-    - libnvimgcodec
-    - libnvimgcodec-libjpeg-turbo-ext
-    - libnvimgcodec-libtiff-ext
-    - libnvimgcodec-libopencv-ext
+    - libnvimgcodec >=0.8.0,<0.9.0
+    - libnvimgcodec-libjpeg-turbo-ext >=0.8.0,<0.9.0
+    - libnvimgcodec-libtiff-ext >=0.8.0,<0.9.0
+    - libnvimgcodec-libopencv-ext >=0.8.0,<0.9.0
     - libnvcomp
     # libnvcomp depends on cuda, so make sure it uses the right version for the build
     - cuda-version {{ environ.get('CUDA_VERSION', '').split('.')[0] }}
