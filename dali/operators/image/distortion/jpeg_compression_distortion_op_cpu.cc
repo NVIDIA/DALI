@@ -180,17 +180,24 @@ void JpegCompressionDistortionCPU::RunImpl(Workspace& ws) {
     int64_t height;
     int quality;
   };
+  const int w_dim = layout.find('W');
+  const int h_dim = layout.find('H');
+  const int c_dim = layout.find('C');
+  const int f_dim = layout.find('F');
+  assert(w_dim >= 0 && h_dim >= 0 && c_dim >= 0);
+
+  int64_t total_frames = 0;
+  for (int sample_idx = 0; sample_idx < nsamples; sample_idx++) {
+    auto shape = in_shape.tensor_shape_span(sample_idx);
+    total_frames += volume(shape.begin(), shape.begin() + f_dim + 1);
+  }
+
   std::vector<FrameDesc> frames;
-  frames.reserve(nsamples);
+  frames.reserve(total_frames);
 
   for (int sample_idx = 0; sample_idx < nsamples; sample_idx++) {
     auto shape = in_shape.tensor_shape_span(sample_idx);
     int ndim = shape.size();
-    int w_dim = layout.find('W');
-    int h_dim = layout.find('H');
-    int c_dim = layout.find('C');
-    assert(w_dim >= 0 && h_dim >= 0 && c_dim >= 0);
-    int f_dim = layout.find('F');
 
     int64_t nframes = volume(shape.begin(), shape.begin() + f_dim + 1);
     int64_t frame_size = volume(shape.begin() + f_dim + 1, shape.begin() + ndim);
@@ -246,10 +253,11 @@ void JpegCompressionDistortionCPU::RunImpl(Workspace& ws) {
                                         NVIMGCODEC_QUALITY_TYPE_QUALITY, static_cast<float>(q)};
 
     nvimgcodecFuture_t future_handle = nullptr;
-    CHECK_NVIMGCODEC(nvimgcodecEncoderEncode(encoder_, in_img_handles.data(),
-                                             out_stream_handles.data(), batch,
-                                             &enc_params, &future_handle));
+    auto enc_status = nvimgcodecEncoderEncode(encoder_, in_img_handles.data(),
+                                              out_stream_handles.data(), batch,
+                                              &enc_params, &future_handle);
     NvImageCodecFuture future(future_handle);
+    CHECK_NVIMGCODEC(enc_status);
     CHECK_NVIMGCODEC(nvimgcodecFutureWaitForAll(future));
     std::vector<nvimgcodecProcessingStatus_t> statuses(batch);
     size_t status_size = statuses.size();
@@ -285,10 +293,11 @@ void JpegCompressionDistortionCPU::RunImpl(Workspace& ws) {
                                       /*apply_exif_orientation=*/0};
 
   nvimgcodecFuture_t future_handle = nullptr;
-  CHECK_NVIMGCODEC(nvimgcodecDecoderDecode(decoder_, code_stream_handles.data(),
-                                           out_img_handles.data(), static_cast<int>(N),
-                                           &dec_params, &future_handle));
+  auto dec_status = nvimgcodecDecoderDecode(decoder_, code_stream_handles.data(),
+                                            out_img_handles.data(), static_cast<int>(N),
+                                            &dec_params, &future_handle);
   NvImageCodecFuture future(future_handle);
+  CHECK_NVIMGCODEC(dec_status);
   CHECK_NVIMGCODEC(nvimgcodecFutureWaitForAll(future));
   std::vector<nvimgcodecProcessingStatus_t> statuses(N);
   size_t status_size = statuses.size();

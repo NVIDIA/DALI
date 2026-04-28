@@ -162,11 +162,6 @@ struct DLL_PUBLIC NvImageCodecFuture
 
   NvImageCodecFuture() = default;
 
-  /** Wraps a future handle returned by an `Encode`/`Decode` call. */
-  explicit NvImageCodecFuture(nvimgcodecFuture_t handle) {
-    handle_ = handle;
-  }
-
   static constexpr nvimgcodecFuture_t null_handle() {
     return nullptr;
   }
