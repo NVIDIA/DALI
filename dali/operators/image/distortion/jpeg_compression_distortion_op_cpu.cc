@@ -14,10 +14,17 @@
 
 #include <nvimgcodec.h>
 #include <algorithm>
+#include <cstdio>
+#include <cstdlib>
 #include <map>
 #include <vector>
+#include "dali/operators.h"
 #include "dali/operators/image/distortion/jpeg_compression_distortion_op.h"
 #include "dali/operators/imgcodec/util/nvimagecodec_types.h"
+
+#if not(WITH_DYNAMIC_NVIMGCODEC_ENABLED)
+nvimgcodecStatus_t get_libjpeg_turbo_extension_desc(nvimgcodecExtensionDesc_t *ext_desc);
+#endif
 
 namespace dali {
 
@@ -119,6 +126,10 @@ class JpegCompressionDistortionCPU : public JpegCompressionDistortion<CPUBackend
   imgcodec::NvImageCodecInstance instance_;
   imgcodec::NvImageCodecEncoder encoder_;
   imgcodec::NvImageCodecDecoder decoder_;
+#if not(WITH_DYNAMIC_NVIMGCODEC_ENABLED)
+  std::vector<nvimgcodecExtensionDesc_t> extensions_descs_;
+  std::vector<nvimgcodecExtension_t> extensions_;
+#endif
 
   // Reused across RunImpl calls.
   std::vector<std::vector<uint8_t>> encoded_buffers_;
@@ -128,18 +139,34 @@ void JpegCompressionDistortionCPU::EnsureCodecs() {
   if (codecs_ready_)
     return;
 
+  EnforceMinimumNvimgcodecVersion();
+
   nvimgcodecInstanceCreateInfo_t instance_create_info{
       NVIMGCODEC_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
       sizeof(nvimgcodecInstanceCreateInfo_t), nullptr};
-  instance_create_info.load_extension_modules = 1;
+
+  const char* log_lvl_env = std::getenv("DALI_NVIMGCODEC_LOG_LEVEL");
+  int log_lvl = log_lvl_env ? std::clamp(std::atoi(log_lvl_env), 1, 5) : 2;
+
+  instance_create_info.load_extension_modules =
+      static_cast<int>(WITH_DYNAMIC_NVIMGCODEC_ENABLED);
   instance_create_info.load_builtin_modules = 1;
   instance_create_info.extension_modules_path = nullptr;
   instance_create_info.create_debug_messenger = 1;
-  instance_create_info.message_severity = NVIMGCODEC_DEBUG_MESSAGE_SEVERITY_FATAL |
-                                          NVIMGCODEC_DEBUG_MESSAGE_SEVERITY_ERROR |
-                                          NVIMGCODEC_DEBUG_MESSAGE_SEVERITY_WARNING;
+  instance_create_info.message_severity = imgcodec::verbosity_to_severity(log_lvl);
   instance_create_info.message_category = NVIMGCODEC_DEBUG_MESSAGE_CATEGORY_ALL;
   instance_ = imgcodec::NvImageCodecInstance::Create(&instance_create_info);
+
+  // Statically linked nvimgcodec doesn't pick up extensions automatically;
+  // explicitly register the libjpeg-turbo extension that backs JPEG encode/decode.
+#if not(WITH_DYNAMIC_NVIMGCODEC_ENABLED) && LIBJPEG_TURBO_ENABLED
+  extensions_descs_.push_back(
+      {NVIMGCODEC_STRUCTURE_TYPE_EXTENSION_DESC, sizeof(nvimgcodecExtensionDesc_t), nullptr});
+  extensions_.emplace_back();
+  get_libjpeg_turbo_extension_desc(&extensions_descs_.back());
+  CHECK_NVIMGCODEC(
+      nvimgcodecExtensionCreate(instance_, &extensions_.back(), &extensions_descs_.back()));
+#endif
 
   nvimgcodecBackend_t cpu_backend{NVIMGCODEC_STRUCTURE_TYPE_BACKEND,
                                   sizeof(nvimgcodecBackend_t), nullptr,

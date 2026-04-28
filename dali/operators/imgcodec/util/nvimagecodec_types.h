@@ -37,6 +37,21 @@
 namespace dali {
 namespace imgcodec {
 
+constexpr uint32_t verbosity_to_severity(int verbose) {
+  uint32_t result = 0;
+  if (verbose >= 1)
+    result |= NVIMGCODEC_DEBUG_MESSAGE_SEVERITY_FATAL | NVIMGCODEC_DEBUG_MESSAGE_SEVERITY_ERROR;
+  if (verbose >= 2)
+    result |= NVIMGCODEC_DEBUG_MESSAGE_SEVERITY_WARNING;
+  if (verbose >= 3)
+    result |= NVIMGCODEC_DEBUG_MESSAGE_SEVERITY_INFO;
+  if (verbose >= 4)
+    result |= NVIMGCODEC_DEBUG_MESSAGE_SEVERITY_DEBUG;
+  if (verbose >= 5)
+    result |= NVIMGCODEC_DEBUG_MESSAGE_SEVERITY_TRACE;
+  return result;
+}
+
 static DALIDataType to_dali_dtype(nvimgcodecSampleDataType_t dtype) {
   switch (dtype) {
     case NVIMGCODEC_SAMPLE_DATA_TYPE_UINT8:
