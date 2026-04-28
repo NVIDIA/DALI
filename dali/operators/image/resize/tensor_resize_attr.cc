@@ -144,7 +144,7 @@ void TensorResizeAttr::PrepareResizeParams(const OpSpec &spec, const ArgumentWor
     for (int i = 0; i < nsamples; i++) {
       for (int a = 0; a < nargs; a++) {
         int d = axes[a];
-        values[d] = arg[i * nargs + a];
+        values[i * spatial_ndim_ + d] = arg[i * nargs + a];
       }
     }
   };
@@ -161,7 +161,7 @@ void TensorResizeAttr::PrepareResizeParams(const OpSpec &spec, const ArgumentWor
     for (int i = 0; i < nsamples; i++) {
       span<const int64_t> in_sample_shape = input_shape.tensor_shape_span(i);
       for (int d = 0; d < spatial_ndim_; d++) {
-        values[d] = in_sample_shape[d];
+        values[i * spatial_ndim_ + d] = in_sample_shape[d];
       }
     }
     set_values_axes(values, arg);
@@ -235,7 +235,7 @@ void TensorResizeAttr::PrepareResizeParams(const OpSpec &spec, const ArgumentWor
 
     span<const float> alignment;
     if (has_alignment_)
-      alignment = {alignment_arg_.data() + i * spatial_ndim_, spatial_ndim_};
+      alignment = {alignment_.data() + i * spatial_ndim_, spatial_ndim_};
     assert(subpixel_scale_ || !has_alignment_);
     CalculateSampleParams(params_[i], requested_size, in_lo, in_hi, subpixel_scale_, empty_input,
                           spatial_ndim_, mode_, max_size, alignment, scale_round_fn_);
