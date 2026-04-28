@@ -27,7 +27,16 @@ std::optional<DALIDataType> PropagateTypes(
   }
   if (expr.GetNodeType() == NodeType::Tensor) {
     auto &e = dynamic_cast<ExprTensor &>(expr);
-    if (!input_types[e.GetInputIndex()])
+    int idx = e.GetInputIndex();
+    if (idx < 0)
+      throw std::out_of_range("Negative input index encountered.");
+
+    if (idx >= input_types.size()) {
+      throw std::out_of_range(make_string(
+        "Input index ", idx, " is out of range. "
+        "Only ", input_types.size(), " inputs are present."));
+    }
+    if (!input_types[idx])
       return std::nullopt;
 
     expr.SetTypeId(*input_types[e.GetInputIndex()]);
