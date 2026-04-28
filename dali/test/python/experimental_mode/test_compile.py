@@ -85,7 +85,7 @@ def test_compile_basic_pipeline():
 
     assert len(dynamic_results) == len(compiled_results)
     for dyn, comp in zip(dynamic_results, compiled_results):
-        np.testing.assert_array_almost_equal(dyn, comp)
+        np.testing.assert_array_equal(dyn, comp)
 
 
 @eval_modes()
@@ -329,6 +329,28 @@ def test_compile_tensor_args():
         rotated = ndd.rotate(videos, angle=60)
         assert _is_compiled(rotated)
         compiled_results.append(ndd.as_tensor(rotated).cpu())
+
+    assert len(dynamic_results) == len(compiled_results)
+    for dyn, comp in zip(dynamic_results, compiled_results):
+        np.testing.assert_array_equal(dyn, comp)
+
+
+def test_compile_incompatible_kwarg_dtype():
+    reader_dyn = ndd.readers.File(file_root=images_root)
+    reader_comp = ndd.readers.File(file_root=images_root)
+
+    dynamic_results = []
+    for jpegs, _ in reader_dyn.next_epoch(batch_size=4, compile=False):
+        img = ndd.decoders.image(jpegs, device="gpu")
+        resized = ndd.tensor_resize(img, sizes=ndd._shape(img))
+        dynamic_results.append(ndd.as_tensor(resized, pad=True).cpu())
+
+    compiled_results = []
+    for jpegs, _ in reader_comp.next_epoch(batch_size=4, compile=True):
+        img = ndd.decoders.image(jpegs, device="gpu")
+        resized = ndd.tensor_resize(img, sizes=ndd._shape(img))
+        assert _is_compiled(resized), resized
+        compiled_results.append(ndd.as_tensor(resized, pad=True).cpu())
 
     assert len(dynamic_results) == len(compiled_results)
     for dyn, comp in zip(dynamic_results, compiled_results):

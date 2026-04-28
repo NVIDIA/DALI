@@ -22,6 +22,8 @@ from contextlib import contextmanager
 from typing import TYPE_CHECKING, Any, NamedTuple
 
 import nvidia.dali.backend_impl as _b
+import nvidia.dali.types as dali_types
+from nvidia.dali import fn
 from nvidia.dali.external_source import ExternalSource
 from nvidia.dali.pipeline import Pipeline
 
@@ -74,6 +76,7 @@ class CompileNode:
     backend: str
     inputs: Sequence[CompileRef | Any]
     kwargs: Mapping[str, CompileRef | Any]
+    kwarg_casts: dict[str, dali_types.DALIDataType]
     num_outputs: int
     device: Device | None = None
     pipeline_output_offset: int | None = dataclasses.field(default=None, repr=False)
@@ -201,6 +204,25 @@ class CompileContext:
             for i, tl in enumerate(tensor_lists)
         )
 
+    @staticmethod
+    def _compute_kwarg_casts(op: type["Operator"], raw_kwargs: Mapping[str, CompiledBatch | Any]):
+        casts: dict[str, dali_types.DALIDataType] = {}
+        schema = op._schema
+        assert schema is not None
+
+        for name, data in raw_kwargs.items():
+            if not isinstance(data, CompiledBatch):
+                continue
+
+            expected_type = schema.GetArgumentType(name)
+            expected_type = dali_types._vector_types.get(expected_type, expected_type)
+            if expected_type == data.dtype.type_id:
+                continue
+
+            casts[name] = expected_type
+
+        return casts
+
     @_nvtx_range("Recording operator")
     def record(
         self,
@@ -209,6 +231,7 @@ class CompileContext:
         backend: str,
         inputs: Sequence[CompileRef | Any],
         kwargs: Mapping[str, CompileRef | Any],
+        raw_kwargs: Mapping[str, CompiledBatch | Any],
         num_outputs: int,
         device: Device | None = None,
     ) -> CompileNode | None:
@@ -216,11 +239,13 @@ class CompileContext:
             if existing.inputs == inputs and existing.kwargs == kwargs:
                 return existing
             return None
+
         node = CompileNode(
             op_class=op_class,
             backend=backend,
             inputs=inputs,
             kwargs=kwargs,
+            kwarg_casts=self._compute_kwarg_casts(op_class, raw_kwargs),
             num_outputs=num_outputs,
             device=device,
         )
@@ -466,6 +491,14 @@ def _wire_compile_graph(
         kw_scalars = {
             k: _scalar_decay(v) for k, v in node.kwargs.items() if not isinstance(v, CompileRef)
         }
+
+        # Cast kwargs when necessary
+        for name, dtype in node.kwarg_casts.items():
+            kw_nodes[name] = fn.cast(kw_nodes[name], dtype=dtype)
+        # All kwargs need to be on the CPU
+        for name, kw_node in kw_nodes.items():
+            kw_nodes[name] = kw_node.cpu()
+
         op = node.op_class._legacy_op(device=node.backend, **kw_scalars)
         out = op(*positional, **kw_nodes)
 
@@ -535,6 +568,7 @@ def _compile_intercept(
             backend=backend,
             inputs=classified_inputs,
             kwargs=classified_kwargs,
+            raw_kwargs=raw_kwargs,
             num_outputs=len(results),
             device=device,
         )
