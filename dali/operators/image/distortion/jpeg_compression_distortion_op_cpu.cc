@@ -131,6 +131,18 @@ class JpegCompressionDistortionCPU : public JpegCompressionDistortion<CPUBackend
   std::vector<nvimgcodecExtension_t> extensions_;
 #endif
 
+  // Backend descriptor and execution params must outlive Encoder/Decoder
+  // creation (nvimgcodec may retain a pointer to them past the Create call),
+  // so we keep them as members rather than stack locals in EnsureCodecs().
+  nvimgcodecBackend_t cpu_backend_{NVIMGCODEC_STRUCTURE_TYPE_BACKEND,
+                                   sizeof(nvimgcodecBackend_t), nullptr,
+                                   NVIMGCODEC_BACKEND_KIND_CPU_ONLY,
+                                   {NVIMGCODEC_STRUCTURE_TYPE_BACKEND_PARAMS,
+                                    sizeof(nvimgcodecBackendParams_t), nullptr,
+                                    1.0f, NVIMGCODEC_LOAD_HINT_POLICY_FIXED}};
+  nvimgcodecExecutionParams_t exec_params_{NVIMGCODEC_STRUCTURE_TYPE_EXECUTION_PARAMS,
+                                           sizeof(nvimgcodecExecutionParams_t), nullptr};
+
   // Reused across RunImpl calls.
   std::vector<std::vector<uint8_t>> encoded_buffers_;
 };
@@ -168,22 +180,14 @@ void JpegCompressionDistortionCPU::EnsureCodecs() {
       nvimgcodecExtensionCreate(instance_, &extensions_.back(), &extensions_descs_.back()));
 #endif
 
-  nvimgcodecBackend_t cpu_backend{NVIMGCODEC_STRUCTURE_TYPE_BACKEND,
-                                  sizeof(nvimgcodecBackend_t), nullptr,
-                                  NVIMGCODEC_BACKEND_KIND_CPU_ONLY,
-                                  {NVIMGCODEC_STRUCTURE_TYPE_BACKEND_PARAMS,
-                                   sizeof(nvimgcodecBackendParams_t), nullptr,
-                                   1.0f, NVIMGCODEC_LOAD_HINT_POLICY_FIXED}};
-  nvimgcodecExecutionParams_t exec_params{NVIMGCODEC_STRUCTURE_TYPE_EXECUTION_PARAMS,
-                                          sizeof(nvimgcodecExecutionParams_t), nullptr};
-  exec_params.device_id = NVIMGCODEC_DEVICE_CPU_ONLY;
-  exec_params.backends = &cpu_backend;
-  exec_params.num_backends = 1;
-  exec_params.pre_init = 1;
-  exec_params.skip_pre_sync = 1;
+  exec_params_.device_id = NVIMGCODEC_DEVICE_CPU_ONLY;
+  exec_params_.backends = &cpu_backend_;
+  exec_params_.num_backends = 1;
+  exec_params_.pre_init = 1;
+  exec_params_.skip_pre_sync = 1;
 
-  encoder_ = imgcodec::NvImageCodecEncoder::Create(instance_, &exec_params, "");
-  decoder_ = imgcodec::NvImageCodecDecoder::Create(instance_, &exec_params, "");
+  encoder_ = imgcodec::NvImageCodecEncoder::Create(instance_, &exec_params_, "");
+  decoder_ = imgcodec::NvImageCodecDecoder::Create(instance_, &exec_params_, "");
 
   codecs_ready_ = true;
 }
