@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import ast
-import functools
 import itertools
 import linecache
 import sys
@@ -27,6 +26,7 @@ from ._compile import CompileRef
 from ._device import Device
 from ._type import DType
 
+_file_ast_cache: dict[str, tuple[object, ast.Module | None]] = {}
 CodePosition: TypeAlias = tuple[int, int, int, int]
 
 
@@ -50,16 +50,26 @@ def is_dali_constant(value: Any) -> bool:
     return isinstance(value, (Device, DType, DALIDataType, DALIInterpType, DALIImageType))
 
 
-@functools.lru_cache
 def _get_file_ast(filename: str) -> ast.Module | None:
     """Parse and cache the whole-file AST. Returns None for empty/invalid source."""
     lines = linecache.getlines(filename)
     if not lines:
         return None
+
+    # We rely on the linecache entry to make sure that our cache didn't get invalidated
+    entry = linecache.cache[filename]
+    cached = _file_ast_cache.get(filename)
+    # The cache entry is not hashable so we can't use it as a key
+    if cached is not None and cached[0] is entry:
+        return cached[1]
+
     try:
-        return ast.parse("".join(lines), filename=filename)
+        tree = ast.parse("".join(lines), filename=filename)
     except SyntaxError:
-        return None
+        tree = None
+
+    _file_ast_cache[filename] = (entry, tree)
+    return tree
 
 
 def _get_positions(code: types.CodeType, lasti: int) -> CodePosition | None:
