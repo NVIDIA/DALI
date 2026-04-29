@@ -50,24 +50,31 @@ inline QuantTable PrepareQuantTable(const mat<8, 8, uint8_t> &Q) {
   return t;
 }
 
-inline void fwd_dct_8x8(float blk[8][8]) {
+// 8x8 DCT/quantize helpers templated on the row stride of the surrounding
+// buffer. RowStride=8 for standalone 8x8 blocks (chroma); RowStride=macro_w
+// for luma blocks tiled inside a flat macro_h x macro_w scratch buffer.
+template <int RowStride>
+inline void fwd_dct_8x8(float *blk) {
   for (int r = 0; r < 8; r++)
-    dct_fwd_8x8_1d<1>(&blk[r][0]);
+    dct_fwd_8x8_1d<1>(blk + r * RowStride);
   for (int c = 0; c < 8; c++)
-    dct_fwd_8x8_1d<8>(&blk[0][c]);
+    dct_fwd_8x8_1d<RowStride>(blk + c);
 }
 
-inline void inv_dct_8x8(float blk[8][8]) {
+template <int RowStride>
+inline void inv_dct_8x8(float *blk) {
   for (int c = 0; c < 8; c++)
-    dct_inv_8x8_1d<8>(&blk[0][c]);
+    dct_inv_8x8_1d<RowStride>(blk + c);
   for (int r = 0; r < 8; r++)
-    dct_inv_8x8_1d<1>(&blk[r][0]);
+    dct_inv_8x8_1d<1>(blk + r * RowStride);
 }
 
-inline void quantize_8x8(float blk[8][8], const QuantTable &Q) {
+template <int RowStride>
+inline void quantize_8x8(float *blk, const QuantTable &Q) {
   for (int i = 0; i < 8; i++) {
     for (int j = 0; j < 8; j++) {
-      blk[i][j] = Q.q[i][j] * std::round(blk[i][j] * Q.inv_q[i][j]);
+      float &v = blk[i * RowStride + j];
+      v = Q.q[i][j] * std::round(v * Q.inv_q[i][j]);
     }
   }
 }
@@ -82,6 +89,8 @@ inline void ProcessMacroblock(uint8_t *out, const uint8_t *in, int H, int W,
                               const QuantTable &chromaQ) {
   constexpr int LX = 1 + static_cast<int>(HorzSub);
   constexpr int LY = 1 + static_cast<int>(VertSub);
+  constexpr int macro_w = 8 * LX;
+  constexpr int macro_h = 8 * LY;
 
   auto sample_rgb = [&](int x, int y) -> vec<3, uint8_t> {
     if constexpr (BoundsCheck) {
@@ -92,7 +101,9 @@ inline void ProcessMacroblock(uint8_t *out, const uint8_t *in, int H, int W,
     return {p[0], p[1], p[2]};
   };
 
-  float luma[LY][LX][8][8];
+  // Flat row-major luma buffer covering the whole macroblock. The DCT/quantize
+  // calls walk it as a tiling of LY*LX 8x8 blocks via the row-stride template.
+  float luma[macro_h][macro_w];
   float cb[8][8];
   float cr[8][8];
 
@@ -141,13 +152,7 @@ inline void ProcessMacroblock(uint8_t *out, const uint8_t *in, int H, int W,
 
       for (int i = 0; i < LY; i++) {
         for (int j = 0; j < LX; j++) {
-          int local_y = cy * LY + i;
-          int local_x = cx * LX + j;
-          int blk_y = local_y / 8;
-          int blk_x = local_x / 8;
-          int in_blk_y = local_y & 7;
-          int in_blk_x = local_x & 7;
-          luma[blk_y][blk_x][in_blk_y][in_blk_x] =
+          luma[cy * LY + i][cx * LX + j] =
               static_cast<float>(color::jpeg::rgb_to_y<uint8_t>(rgb[i][j])) - 128.0f;
         }
       }
@@ -155,23 +160,23 @@ inline void ProcessMacroblock(uint8_t *out, const uint8_t *in, int H, int W,
   }
 
   // DCT, quantize, inverse DCT
-  fwd_dct_8x8(cb);
-  fwd_dct_8x8(cr);
-  for (int i = 0; i < LY; i++)
-    for (int j = 0; j < LX; j++)
-      fwd_dct_8x8(luma[i][j]);
+  fwd_dct_8x8<8>(&cb[0][0]);
+  fwd_dct_8x8<8>(&cr[0][0]);
+  for (int by_ = 0; by_ < LY; by_++)
+    for (int bx_ = 0; bx_ < LX; bx_++)
+      fwd_dct_8x8<macro_w>(&luma[by_ * 8][bx_ * 8]);
 
-  quantize_8x8(cb, chromaQ);
-  quantize_8x8(cr, chromaQ);
-  for (int i = 0; i < LY; i++)
-    for (int j = 0; j < LX; j++)
-      quantize_8x8(luma[i][j], lumaQ);
+  quantize_8x8<8>(&cb[0][0], chromaQ);
+  quantize_8x8<8>(&cr[0][0], chromaQ);
+  for (int by_ = 0; by_ < LY; by_++)
+    for (int bx_ = 0; bx_ < LX; bx_++)
+      quantize_8x8<macro_w>(&luma[by_ * 8][bx_ * 8], lumaQ);
 
-  inv_dct_8x8(cb);
-  inv_dct_8x8(cr);
-  for (int i = 0; i < LY; i++)
-    for (int j = 0; j < LX; j++)
-      inv_dct_8x8(luma[i][j]);
+  inv_dct_8x8<8>(&cb[0][0]);
+  inv_dct_8x8<8>(&cr[0][0]);
+  for (int by_ = 0; by_ < LY; by_++)
+    for (int bx_ = 0; bx_ < LX; bx_++)
+      inv_dct_8x8<macro_w>(&luma[by_ * 8][bx_ * 8]);
 
   // Backward path: shift +128, YCbCr->RGB, write
   for (int cy = 0; cy < 8; cy++) {
@@ -188,14 +193,7 @@ inline void ProcessMacroblock(uint8_t *out, const uint8_t *in, int H, int W,
               continue;
           }
 
-          int local_y = cy * LY + i;
-          int local_x = cx * LX + j;
-          int blk_y = local_y / 8;
-          int blk_x = local_x / 8;
-          int in_blk_y = local_y & 7;
-          int in_blk_x = local_x & 7;
-          uint8_t Y_u = ConvertSat<uint8_t>(
-              luma[blk_y][blk_x][in_blk_y][in_blk_x] + 128.0f);
+          uint8_t Y_u = ConvertSat<uint8_t>(luma[cy * LY + i][cx * LX + j] + 128.0f);
 
           auto rgb = color::jpeg::ycbcr_to_rgb<uint8_t>(
               vec<3, uint8_t>{Y_u, Cb_u, Cr_u});
