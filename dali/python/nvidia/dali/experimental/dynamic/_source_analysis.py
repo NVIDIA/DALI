@@ -13,9 +13,12 @@
 # limitations under the License.
 
 import ast
+import functools
+import itertools
 import linecache
+import sys
 import types
-from typing import Any
+from typing import Any, TypeAlias, cast
 
 from nvidia.dali.types import DALIDataType, DALIImageType, DALIInterpType
 
@@ -23,6 +26,8 @@ from ._call_site import CodeLoc
 from ._compile import CompileRef
 from ._device import Device
 from ._type import DType
+
+CodePosition: TypeAlias = tuple[int, int, int, int]
 
 
 def is_constant_node(node: ast.AST) -> bool:
@@ -45,27 +50,59 @@ def is_dali_constant(value: Any) -> bool:
     return isinstance(value, (Device, DType, DALIDataType, DALIInterpType, DALIImageType))
 
 
-def parse_call_from_frame(frame: types.FrameType) -> ast.Call | None:
-    """Parse the source line and return the outermost Call node.
-
-    Current limitations:
-        - Multiline expressions are not supported
-        - When there are multiple calls on the same line, we pick the first one
-
-    The second one requires Python 3.11+ with columns offsets to be done precisely.
-    Best effort with fallback to dynamic can be done for Python 3.10.
-    """
-    source_line = linecache.getline(frame.f_code.co_filename, frame.f_lineno).strip()
-    if not source_line:
+@functools.lru_cache
+def _get_file_ast(filename: str) -> ast.Module | None:
+    """Parse and cache the whole-file AST. Returns None for empty/invalid source."""
+    lines = linecache.getlines(filename)
+    if not lines:
         return None
     try:
-        tree = ast.parse(source_line)
+        return ast.parse("".join(lines), filename=filename)
     except SyntaxError:
         return None
+
+
+def _get_positions(code: types.CodeType, lasti: int) -> CodePosition | None:
+    """Return the (start_line, end_line, start_col, end_col) for the bytecode index `lasti`."""
+    if sys.version_info < (3, 11) or lasti < 0:
+        return None
+    pos = next(itertools.islice(code.co_positions(), lasti // 2, None), None)
+    if pos is None or any(x is None for x in pos):
+        # Some items can be None, e.g. when PYTHONNODEBUGRANGES=1
+        return None
+
+    return cast(CodePosition, pos)
+
+
+def _find_call_by_span(tree: ast.Module, pos: CodePosition) -> ast.Call | None:
+    """3.11+: return the Call with exactly this span, else None."""
+    start_line, end_line, start_col, end_col = pos
     for node in ast.walk(tree):
-        if isinstance(node, ast.Call):
+        if (
+            isinstance(node, ast.Call)
+            and node.lineno == start_line
+            and node.end_lineno == end_line
+            and node.col_offset == start_col
+            and node.end_col_offset == end_col
+        ):
             return node
     return None
+
+
+def _find_call_by_start_line(tree: ast.Module, lineno: int) -> ast.Call | None:
+    """3.10: unique Call whose ``node.lineno == lineno``, else None."""
+    candidates = [n for n in ast.walk(tree) if isinstance(n, ast.Call) and n.lineno == lineno]
+    return candidates[0] if len(candidates) == 1 else None
+
+
+def parse_call_from_frame(frame: types.FrameType) -> ast.Call | None:
+    """Resolve the ``ast.Call`` executing at `frame`'s current instruction, or None"""
+    tree = _get_file_ast(frame.f_code.co_filename)
+    if tree is None:
+        return None
+    if pos := _get_positions(frame.f_code, frame.f_lasti):
+        return _find_call_by_span(tree, pos)
+    return _find_call_by_start_line(tree, frame.f_lineno)
 
 
 class CallSiteAnalyzer:
