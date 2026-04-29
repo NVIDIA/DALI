@@ -14,7 +14,10 @@
 
 #include <gtest/gtest.h>
 #include <opencv2/opencv.hpp>
+#include <chrono>
 #include <cstring>
+#include <iostream>
+#include <random>
 #include <string>
 #include <tuple>
 #include <vector>
@@ -114,6 +117,47 @@ INSTANTIATE_TEST_SUITE_P(JpegDistortionTestCPU, JpegDistortionTestCPU, ::testing
   ::testing::Values(false, true),
   ::testing::Values(false, true)
 ));  // NOLINT
+
+// Disabled by default so it doesn't run in normal CI. Invoke with
+//   --gtest_filter='*JpegDistortionPerfCPU*' --gtest_also_run_disabled_tests
+// to measure RunSample throughput on a synthetic 1080p RGB image.
+TEST(JpegDistortionPerfCPU, DISABLED_RunSample_1080p_q75_420) {
+  using clock = std::chrono::steady_clock;
+  constexpr int H = 1080;
+  constexpr int W = 1920;
+  constexpr int q = 75;
+  constexpr int warmup = 3;
+  constexpr int iters = 50;
+
+  std::vector<uint8_t> in(static_cast<size_t>(H) * W * 3);
+  std::vector<uint8_t> out(in.size());
+  std::mt19937 rng(0xC0FFEE);
+  std::uniform_int_distribution<int> dist(0, 255);
+  for (auto &v : in) v = static_cast<uint8_t>(dist(rng));
+
+  TensorShape<3> sh{H, W, 3};
+  TensorView<StorageCPU, const uint8_t, 3> in_view{in.data(), sh};
+  TensorView<StorageCPU, uint8_t, 3> out_view{out.data(), sh};
+
+  JpegCompressionDistortionCPU kernel;
+  for (int i = 0; i < warmup; i++)
+    kernel.RunSample(out_view, in_view, q, true, true);
+
+  auto t0 = clock::now();
+  for (int i = 0; i < iters; i++)
+    kernel.RunSample(out_view, in_view, q, true, true);
+  auto t1 = clock::now();
+
+  double total_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
+  double per_call_ms = total_ms / iters;
+  double mp = (static_cast<double>(H) * W) / 1e6;
+  double mpps = mp * 1000.0 / per_call_ms;
+
+  std::cout << "[ PERF     ] iters=" << iters << " HxW=" << H << "x" << W
+            << " q=" << q << " 4:2:0  per-call=" << per_call_ms
+            << " ms  total=" << total_ms << " ms  throughput=" << mpps
+            << " MP/s" << std::endl;
+}
 
 }  // namespace test
 }  // namespace jpeg
