@@ -60,6 +60,13 @@ class JpegDistortionTestCPU : public ::testing::TestWithParam<std::tuple<bool, b
 
   void TestQuality(int q) {
     JpegCompressionDistortionCPU kernel;
+    // The reference image is produced by cv::imencode(".jpg", ...) which
+    // always uses 4:2:0 chroma subsampling. For (horz_subsample,
+    // vert_subsample) != (true, true) the kernel produces 4:4:4 / 4:2:2 /
+    // 4:4:0 output, so the comparison is necessarily looser -- we assert
+    // gross correctness (no crash, no wildly out-of-range pixels) rather
+    // than tight numerical agreement. These thresholds mirror the GPU
+    // kernel test (jpeg_distortion_gpu_test.cu).
     int max_abs_error = vert_subsample && horz_subsample ? 80 : 128;
     double max_avg_error = vert_subsample && horz_subsample ? 3 : 10;
 

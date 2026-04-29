@@ -33,7 +33,13 @@ namespace jpeg {
 // image; the operator drives a thread pool across frames/samples.
 class DLL_PUBLIC JpegCompressionDistortionCPU {
  public:
-  // Apply the distortion to one image in-place layout (output may alias input).
+  // Apply the distortion to one image. `out` may alias `in`: the kernel
+  // processes one macroblock at a time, completes all RGB reads (with
+  // clamp-to-edge sampling on partial edge macroblocks) into per-macroblock
+  // float scratch before producing any RGB output, and the partial-macroblock
+  // clamp coordinates W-1 / H-1 always lie within the current macroblock's
+  // own pixel span -- so a clamped read can never hit a pixel that an earlier
+  // macroblock has already overwritten.
   //
   // @param out             interleaved RGB output, shape (H, W, 3)
   // @param in              interleaved RGB input,  shape (H, W, 3)

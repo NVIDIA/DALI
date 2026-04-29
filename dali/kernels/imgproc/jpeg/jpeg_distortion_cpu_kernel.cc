@@ -16,6 +16,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include "dali/core/error_handling.h"
 #include "dali/core/convert.h"
 #include "dali/core/geom/mat.h"
 #include "dali/core/geom/vec.h"
@@ -242,10 +243,12 @@ void JpegCompressionDistortionCPU::RunSample(
     bool horz_subsample,
     bool vert_subsample) {
   const auto &sh = in.shape;
-  assert(out.shape == sh);
+  DALI_ENFORCE(out.shape == sh,
+               "JpegCompressionDistortionCPU: output and input must have matching shapes.");
   const int H = sh[0];
   const int W = sh[1];
-  assert(sh[2] == 3);
+  DALI_ENFORCE(sh[2] == 3, "JpegCompressionDistortionCPU: only interleaved 3-channel "
+                           "(RGB) input is supported.");
   if (H == 0 || W == 0) return;
 
   const auto lumaQ = PrepareQuantTable(GetLumaQuantizationTable(quality));

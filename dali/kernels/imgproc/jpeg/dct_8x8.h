@@ -25,17 +25,24 @@ namespace kernels {
 // as described in:
 // https://docs.nvidia.com/cuda/samples/3_Imaging/dct8x8/doc/dct8x8.pdf
 
-static constexpr float a = 1.387039845322148f;             // sqrt(2) * cos(    pi / 16);
-static constexpr float b = 1.306562964876377f;             // sqrt(2) * cos(    pi /  8);
-static constexpr float c = 1.175875602419359f;             // sqrt(2) * cos(3 * pi / 16);
-static constexpr float d = 0.785694958387102f;             // sqrt(2) * cos(5 * pi / 16);
-static constexpr float e = 0.541196100146197f;             // sqrt(2) * cos(3 * pi /  8);
-static constexpr float f = 0.275899379282943f;             // sqrt(2) * cos(7 * pi / 16);
-static constexpr float norm_factor = 0.3535533905932737f;  // 1 / sqrt(8)
+namespace dct8x8 {
+
+// Per-coefficient cosine constants and the 1/sqrt(8) normalization. Kept in
+// a nested namespace so single-letter names don't leak into dali::kernels.
+constexpr float a = 1.387039845322148f;             // sqrt(2) * cos(    pi / 16);
+constexpr float b = 1.306562964876377f;             // sqrt(2) * cos(    pi /  8);
+constexpr float c = 1.175875602419359f;             // sqrt(2) * cos(3 * pi / 16);
+constexpr float d = 0.785694958387102f;             // sqrt(2) * cos(5 * pi / 16);
+constexpr float e = 0.541196100146197f;             // sqrt(2) * cos(3 * pi /  8);
+constexpr float f = 0.275899379282943f;             // sqrt(2) * cos(7 * pi / 16);
+constexpr float norm_factor = 0.3535533905932737f;  // 1 / sqrt(8)
+
+}  // namespace dct8x8
 
 template <int stride>
 DALI_HOST_DEV DALI_FORCEINLINE
 void dct_fwd_8x8_1d(float* data) {
+  using namespace dct8x8;  // NOLINT(build/namespaces)
   float x0 = data[0 * stride];
   float x1 = data[1 * stride];
   float x2 = data[2 * stride];
@@ -83,6 +90,7 @@ void dct_fwd_8x8_1d(float* data) {
 template <int stride>
 DALI_HOST_DEV DALI_FORCEINLINE
 void dct_inv_8x8_1d(float *data) {
+  using namespace dct8x8;  // NOLINT(build/namespaces)
   float x0 = data[0 * stride];
   float x1 = data[1 * stride];
   float x2 = data[2 * stride];

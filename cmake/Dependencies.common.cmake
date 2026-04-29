@@ -35,16 +35,28 @@ if (BUILD_OPENCV)
   message(STATUS "Found OpenCV: ${OpenCV_INCLUDE_DIRS} (found suitable version \"${OpenCV_VERSION}\", minimum required is \"3.0\")")
   include_directories(SYSTEM ${OpenCV_INCLUDE_DIRS})
 
-  # Production link line: only core+imgproc, never imgcodecs (keeps libdali
-  # free of opencv_imgcodecs and its bundled codec statics:
-  # libwebp/libpng/libjasper/libIlmImf/libtiff).
-  list(APPEND DALI_LIBS opencv_core opencv_imgproc)
-  message("OpenCV production libraries: opencv_core opencv_imgproc")
+  # Production link line: everything find_package() exported EXCEPT imgcodecs
+  # -- keeps libdali free of opencv_imgcodecs and its bundled codec statics
+  # (libwebp/libpng/libjasper/libIlmImf/libtiff). Filtering OpenCV_LIBRARIES
+  # rather than hard-coding `opencv_core opencv_imgproc` keeps this portable
+  # across OpenCV configs that export libraries via different naming styles
+  # (raw `opencv_core`, namespaced `OpenCV::core`, or absolute paths).
+  set(_opencv_prod_libs)
+  set(_opencv_test_extra_libs)
+  foreach(_opencv_lib IN LISTS OpenCV_LIBRARIES)
+    if (_opencv_lib MATCHES "imgcodecs")
+      list(APPEND _opencv_test_extra_libs ${_opencv_lib})
+    else()
+      list(APPEND _opencv_prod_libs ${_opencv_lib})
+    endif()
+  endforeach()
+  list(APPEND DALI_LIBS ${_opencv_prod_libs})
+  message(STATUS "OpenCV production libraries: ${_opencv_prod_libs}")
   list(APPEND DALI_EXCLUDES libopencv_core.a;libopencv_imgproc.a;libopencv_highgui.a)
 
   if (BUILD_TEST)
-    set(DALI_OPENCV_TEST_EXTRA_LIBS opencv_imgcodecs CACHE INTERNAL
-        "OpenCV imgcodecs target, for test executables only")
+    set(DALI_OPENCV_TEST_EXTRA_LIBS "${_opencv_test_extra_libs}" CACHE INTERNAL
+        "OpenCV imgcodecs library/target, for test executables only")
   endif()
 endif()
 
