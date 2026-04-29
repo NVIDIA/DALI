@@ -33,6 +33,8 @@ class DLL_PUBLIC DeviceGuard {
   /// @brief Saves current device id, sets a new one and switches back
   ///        to the original device upon object destruction.
   //         for device id < 0 it is no-op
+  //         if no primary context was current at construction, a new one will be created
+  //         and the new device will be made the primary context
   explicit DeviceGuard(int new_device);
   ~DeviceGuard();
  private:
