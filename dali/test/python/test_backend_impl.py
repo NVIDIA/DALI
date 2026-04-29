@@ -124,16 +124,13 @@ def test_data_ptr_tensor_list_cpu():
     assert np.array_equal(arr, from_tensor_list)
 
 
-def _assert_pointer_int_has_no_extra_refs(name, get_value):
+def _assert_pointer_int_has_no_extra_refs(name, get_value, allow_none=False):
     value = get_value()
+    if value is None:
+        assert allow_none, f"{name} returned None instead of int"
+        return
     assert isinstance(value, int), f"{name} returned {type(value)} instead of int"
-    refcount = sys.getrefcount(value)
-    assert refcount == 2, f"{name} returned an int with refcount {refcount}, expected 2"
-
-
-def _assert_optional_pointer_int_has_no_extra_refs(name, get_value):
-    value = get_value()
-    if value is None or -5 <= value <= 256:
+    if -5 <= value <= 256:
         return
     refcount = sys.getrefcount(value)
     assert refcount == 2, f"{name} returned an int with refcount {refcount}, expected 2"
@@ -159,9 +156,11 @@ def test_pointer_returning_bindings_do_not_leak_python_int_refs():
         lambda: tensor_gpu.__cuda_array_interface__["data"][0],
     )
     _assert_pointer_int_has_no_extra_refs("TensorListGPU.data_ptr()", tensorlist_gpu.data_ptr)
-    _assert_optional_pointer_int_has_no_extra_refs("TensorGPU.stream", lambda: tensor_gpu.stream)
-    _assert_optional_pointer_int_has_no_extra_refs(
-        "TensorListGPU.stream", lambda: tensorlist_gpu.stream
+    _assert_pointer_int_has_no_extra_refs(
+        "TensorGPU.stream", lambda: tensor_gpu.stream, allow_none=True
+    )
+    _assert_pointer_int_has_no_extra_refs(
+        "TensorListGPU.stream", lambda: tensorlist_gpu.stream, allow_none=True
     )
 
 
@@ -169,6 +168,7 @@ def _traced_current_memory_after_calls(get_value, iterations):
     gc.collect()
     tracemalloc.start()
     try:
+        value = None
         for _ in range(iterations):
             value = get_value()
         del value
