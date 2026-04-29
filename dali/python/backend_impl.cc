@@ -156,6 +156,10 @@ static string TensorLayoutRepr(const TensorLayout &tl) {
   return ss.str();
 }
 
+static py::object PyLongFromVoidPtr(void *ptr) {
+  return py::reinterpret_steal<py::object>(PyLong_FromVoidPtr(ptr));
+}
+
 template<typename Backend>
 py::dict ArrayInterfaceRepr(Tensor<Backend> &t) {
   py::dict d;
@@ -164,7 +168,7 @@ py::dict ArrayInterfaceRepr(Tensor<Backend> &t) {
   // __array_interface__ expects shape to be a tuple
   d["shape"] = py::tuple(py_shape<Backend>(t));
   // tuple of (raw_data_pointer, if_data_is_read_only)
-  tup[0] = py::reinterpret_borrow<py::object>(PyLong_FromVoidPtr(t.raw_mutable_data()));
+  tup[0] = PyLongFromVoidPtr(t.raw_mutable_data());
   // if we make it readonly, it prevents us from sharing memory with PyTorch tensor
   tup[1] = false;
   d["data"] = tup;
@@ -918,7 +922,7 @@ void ExposeTensor(py::module &m) {
             Destination of the copy.
       )code")
     .def("data_ptr", [](Tensor<CPUBackend> &t) {
-          return py::reinterpret_borrow<py::object>(PyLong_FromVoidPtr(t.raw_mutable_data()));
+          return PyLongFromVoidPtr(t.raw_mutable_data());
         },
       R"code(
       Returns the address of the first element of tensor.
@@ -1139,13 +1143,13 @@ void ExposeTensor(py::module &m) {
       )code")
     .def_property_readonly("stream", [](const Tensor<GPUBackend> &t)->py::object {
       if (t.order().is_device())
-        return py::reinterpret_borrow<py::object>(PyLong_FromVoidPtr(t.order().stream()));
+        return PyLongFromVoidPtr(t.order().stream());
       else
         return py::none();
     })
     .def("data_ptr",
         [](Tensor<GPUBackend> &t) {
-          return py::reinterpret_borrow<py::object>(PyLong_FromVoidPtr(t.raw_mutable_data()));
+          return PyLongFromVoidPtr(t.raw_mutable_data());
         },
       R"code(
       Returns the address of the first element of tensor.
@@ -1571,8 +1575,7 @@ void ExposeTensorListCPU(py::module &m) {
       )code")
     .def("data_ptr",
         [](TensorList<CPUBackend> &tl) {
-          return py::reinterpret_borrow<py::object>(
-              PyLong_FromVoidPtr(contiguous_raw_mutable_data(tl)));
+          return PyLongFromVoidPtr(contiguous_raw_mutable_data(tl));
         },
       R"code(
       Returns the address of the first element of TensorList.
@@ -1814,8 +1817,7 @@ void ExposeTesorListGPU(py::module &m) {
       )code")
     .def("data_ptr",
         [](TensorList<GPUBackend> &tl) {
-          return py::reinterpret_borrow<py::object>(
-              PyLong_FromVoidPtr(contiguous_raw_mutable_data(tl)));
+          return PyLongFromVoidPtr(contiguous_raw_mutable_data(tl));
         },
       R"code(
       Returns the address of the first element of TensorList.
@@ -1833,7 +1835,7 @@ void ExposeTesorListGPU(py::module &m) {
     })
     .def_property_readonly("stream", [](const TensorList<GPUBackend> &t)->py::object {
       if (t.order().is_device())
-        return py::reinterpret_borrow<py::object>(PyLong_FromVoidPtr(t.order().stream()));
+        return PyLongFromVoidPtr(t.order().stream());
       else
         return py::none();
     })
