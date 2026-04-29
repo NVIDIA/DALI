@@ -120,6 +120,33 @@ def test_slice():
     assert_correct_metadata(input.slice[1:, 1:, 1:])
 
 
+# --- Arithm ---
+
+
+@eval_modes(ndd.EvalMode.deferred)
+def test_arithm():
+    a = ndd.as_batch(
+        [
+            ndd.zeros(shape=(2, 3, 4), dtype=ndd.int8),
+            ndd.zeros(shape=(3, 2, 5), dtype=ndd.int8),
+        ],
+        layout="XYZ",
+    ).evaluate()
+    b = ndd.as_batch(
+        [
+            ndd.zeros(shape=(2, 3, 4), dtype=ndd.float32),
+            ndd.zeros(shape=(3, 2, 5), dtype=ndd.float32),
+        ],
+        layout="XYZ",
+    ).evaluate()
+
+    assert_correct_metadata(a + b)
+    assert_correct_metadata(a << 3)
+    assert_correct_metadata(~a)
+    assert_correct_metadata(a * 5.0)
+    assert_correct_metadata(a * 5)
+
+
 # --- New dimensions ---
 
 

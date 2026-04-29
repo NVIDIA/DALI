@@ -20,6 +20,61 @@
 namespace dali {
 namespace expr {
 
+std::optional<DALIDataType> PropagateTypes(
+      ExprNode &expr, span<const std::optional<DALIDataType>> input_types) {
+  if (expr.GetNodeType() == NodeType::Constant) {
+    return expr.GetTypeId();
+  }
+  if (expr.GetNodeType() == NodeType::Tensor) {
+    auto &e = dynamic_cast<ExprTensor &>(expr);
+    int idx = e.GetInputIndex();
+    if (idx < 0)
+      throw std::out_of_range("Negative input index encountered.");
+
+    if (idx >= input_types.size()) {
+      throw std::out_of_range(make_string(
+        "Input index ", idx, " is out of range. "
+        "Only ", input_types.size(), " inputs are present."));
+    }
+    if (!input_types[idx])
+      return std::nullopt;
+
+    expr.SetTypeId(*input_types[e.GetInputIndex()]);
+    return expr.GetTypeId();
+  }
+  auto &func = dynamic_cast<ExprFunc &>(expr);
+  int subexpression_count = func.GetSubexpressionCount();
+  DALI_ENFORCE(0 < subexpression_count && subexpression_count <= kMaxArity,
+               "Only unary, binary and ternary expressions are supported");
+
+  SmallVector<DALIDataType, kMaxArity> types;
+  types.resize(subexpression_count);
+  for (int i = 0; i < subexpression_count; i++) {
+    auto subexpr_type = PropagateTypes(func[i], input_types);
+    if (!subexpr_type)
+      return std::nullopt;
+    types[i] = *subexpr_type;
+  }
+  expr.SetTypeId(TypePromotion(NameToOp(func.GetFuncName()), make_span(types)));
+  return expr.GetTypeId();
+}
+
+
+DALIDataType PropagateTypes(ExprNode &expr, const Workspace &ws) {
+  SmallVector<std::optional<DALIDataType>, 8> input_types;
+  for (int i = 0; i < ws.NumInput(); i++)
+    input_types.push_back(ws.GetInputDataType(i));
+  return PropagateTypes(expr, make_cspan(input_types)).value();
+}
+
+std::optional<DALIDataType> PropagateTypes(ExprNode &expr, const OpSpec &spec) {
+  SmallVector<std::optional<DALIDataType>, 8> input_types;
+  for (int i = 0; i < spec.NumRegularInput(); i++)
+    input_types.push_back(spec.InputDesc(i).dtype);
+  return PropagateTypes(expr, make_cspan(input_types));
+}
+
+
 template <>
 void ArithmeticGenericOp<CPUBackend>::RunImpl(Workspace &ws) {
   PrepareSamplesPerTask<CPUBackend>(samples_per_task_, exec_order_, ws, constant_storage_, spec_);
@@ -103,7 +158,16 @@ Examples::
       }
       return ndim;
     })
-    .OutputDType(0, std::nullopt)  // TODO(michalz): factor out dtype inference and use it here
+    .OutputDType(0, [](const OpSpec &spec)->std::optional<DALIDataType> {
+      try {
+        auto ex = expr::ParseExpressionString(spec.GetArgument<std::string>("expression_desc"));
+        if (!ex)
+          return std::nullopt;
+        return PropagateTypes(*ex, spec);
+      } catch (const std::exception &) {
+        return std::nullopt;
+      }
+    })
     .OutputLayout(0, [](const OpSpec &spec)->std::optional<TensorLayout> {
       // Layouts must match or be suffixes (when broadcasting), e.g.:
       // HWC + WC

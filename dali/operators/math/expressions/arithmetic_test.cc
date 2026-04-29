@@ -45,7 +45,7 @@ TEST(ArithmeticOpsTest, TreePropagation) {
   ws.AddInput(in[0]);
   ws.AddInput(in[1]);
 
-  auto result_type = PropagateTypes<CPUBackend>(expr_ref, ws);
+  auto result_type = PropagateTypes(expr_ref, ws);
   TensorListShape<> result_shape;
   PropagateShapes<CPUBackend>(result_shape, expr_ref, ws, 2);
   auto result_layout = GetCommonLayout<CPUBackend>(expr_ref, ws);

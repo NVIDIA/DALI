@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -138,29 +138,12 @@ DLL_PUBLIC TensorLayout GetCommonLayout(ExprNode &expr, const Workspace &ws) {
 /**
  * @brief Recurse over expression tree, fill the missing types of TensorInputs
  */
-template <typename Backend>
-DLL_PUBLIC DALIDataType PropagateTypes(ExprNode &expr, const Workspace &ws) {
-  if (expr.GetNodeType() == NodeType::Constant) {
-    return expr.GetTypeId();
-  }
-  if (expr.GetNodeType() == NodeType::Tensor) {
-    auto &e = dynamic_cast<ExprTensor &>(expr);
-    expr.SetTypeId(ws.Input<Backend>(e.GetInputIndex()).type());
-    return expr.GetTypeId();
-  }
-  auto &func = dynamic_cast<ExprFunc &>(expr);
-  int subexpression_count = func.GetSubexpressionCount();
-  DALI_ENFORCE(0 < subexpression_count && subexpression_count <= kMaxArity,
-               "Only unary, binary and ternary expressions are supported");
+DLL_PUBLIC std::optional<DALIDataType> PropagateTypes(
+      ExprNode &expr, span<const std::optional<DALIDataType>> input_types);
 
-  SmallVector<DALIDataType, kMaxArity> types;
-  types.resize(subexpression_count);
-  for (int i = 0; i < subexpression_count; i++) {
-    types[i] = PropagateTypes<Backend>(func[i], ws);
-  }
-  expr.SetTypeId(TypePromotion(NameToOp(func.GetFuncName()), make_span(types)));
-  return expr.GetTypeId();
-}
+DLL_PUBLIC DALIDataType PropagateTypes(ExprNode &expr, const Workspace &ws);
+
+DLL_PUBLIC std::optional<DALIDataType> PropagateTypes(ExprNode &expr, const OpSpec &spec);
 
 /**
  * @brief Helper for recursively filling vector of tasks to execute
@@ -345,7 +328,7 @@ class ArithmeticGenericOp : public StatelessOperator<Backend> {
     PropagateShapes<Backend>(result_shape_, *expr_, ws, curr_batch_size);
 
     if (!types_layout_inferred_) {
-      result_type_id_ = PropagateTypes<Backend>(*expr_, ws);
+      result_type_id_ = PropagateTypes(*expr_, ws);
       result_layout_ = GetCommonLayout<Backend>(*expr_, ws);
       // sample_ndim is assumed to be constant between iterations.
       if (result_layout_.size() != result_shape_.sample_dim()) {
