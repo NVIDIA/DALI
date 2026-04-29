@@ -1,4 +1,4 @@
-// Copyright (c) 2021, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2021-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,18 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_KERNELS_IMGPROC_JPEG_DCT_8X8_GPU_CUH_
-#define DALI_KERNELS_IMGPROC_JPEG_DCT_8X8_GPU_CUH_
+#ifndef DALI_KERNELS_IMGPROC_JPEG_DCT_8X8_H_
+#define DALI_KERNELS_IMGPROC_JPEG_DCT_8X8_H_
 
-#include <cuda_runtime_api.h>
+#include "dali/core/host_dev.h"
+#include "dali/core/force_inline.h"
 
 namespace dali {
 namespace kernels {
 
 // Implements optimized routines required for 8x8 DCT (forward and inverse)
-// as described in the paper:
+// as described in:
 // https://docs.nvidia.com/cuda/samples/3_Imaging/dct8x8/doc/dct8x8.pdf
-
 
 static constexpr float a = 1.387039845322148f;             // sqrt(2) * cos(    pi / 16);
 static constexpr float b = 1.306562964876377f;             // sqrt(2) * cos(    pi /  8);
@@ -34,7 +34,7 @@ static constexpr float f = 0.275899379282943f;             // sqrt(2) * cos(7 * 
 static constexpr float norm_factor = 0.3535533905932737f;  // 1 / sqrt(8)
 
 template <int stride>
-__inline__ __device__
+DALI_HOST_DEV DALI_FORCEINLINE
 void dct_fwd_8x8_1d(float* data) {
   float x0 = data[0 * stride];
   float x1 = data[1 * stride];
@@ -81,7 +81,7 @@ void dct_fwd_8x8_1d(float* data) {
 }
 
 template <int stride>
-__inline__ __device__
+DALI_HOST_DEV DALI_FORCEINLINE
 void dct_inv_8x8_1d(float *data) {
   float x0 = data[0 * stride];
   float x1 = data[1 * stride];
@@ -131,5 +131,4 @@ void dct_inv_8x8_1d(float *data) {
 }  // namespace kernels
 }  // namespace dali
 
-
-#endif  // DALI_KERNELS_IMGPROC_JPEG_DCT_8X8_GPU_CUH_
+#endif  // DALI_KERNELS_IMGPROC_JPEG_DCT_8X8_H_
