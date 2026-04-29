@@ -521,22 +521,20 @@ def _compile_intercept(
 
     @mark_transparent
     def wrapper(*inputs, batch_size=None, device=None, **raw_kwargs):
-        @mark_transparent
-        def _call():
-            return fn_call(
-                *inputs, batch_size=batch_size, device=device, _backend=backend, **raw_kwargs
-            )
-
         device, backend = _resolve_backend(op_class, device, inputs, raw_kwargs, op_name=op_name)
         compile_ctx = CompileContext.current()
         if compile_ctx is None:
-            return _call()
+            return fn_call(
+                *inputs, batch_size=batch_size, device=device, _backend=backend, **raw_kwargs
+            )
 
         # Resolves past transparent frames (this wrapper, makefun, NVTXRange, fn_call)
         # to the user's call site.
         frame = resolve_callsite_frame()
         if frame is None:
-            return _call()
+            return fn_call(
+                *inputs, batch_size=batch_size, device=device, _backend=backend, **raw_kwargs
+            )
 
         if compile_ctx.state is State.COMPILED:
             if batch_size is not None and batch_size != compile_ctx.batch_size:
@@ -547,10 +545,14 @@ def _compile_intercept(
                 )
             if result := compile_ctx.get_compiled_result(frame, inputs, raw_kwargs, device=device):
                 return result
-            return _call()
+            return fn_call(
+                *inputs, batch_size=batch_size, device=device, _backend=backend, **raw_kwargs
+            )
 
         # Run first, classify after, we need the result before we can inspect it
-        result = _call()
+        result = fn_call(
+            *inputs, batch_size=batch_size, device=device, _backend=backend, **raw_kwargs
+        )
 
         if op_class._is_stateful:
             return result

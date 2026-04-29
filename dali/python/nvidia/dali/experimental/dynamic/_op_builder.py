@@ -383,15 +383,23 @@ def _resolve_backend(
     Returns (resolved_device, backend).
     """
     if device is None:
-        for arg in itertools.chain(inputs, raw_kwargs.values()):
-            if arg is None:
-                continue
-            dev = _ops._get_input_device(arg)
-            if dev is not None and dev.device_type == "gpu":
-                device = dev
-                break
-        else:
-            device = _device.Device("cpu")
+
+        def infer_device():
+            for arg in inputs:
+                if arg is None:
+                    continue
+                dev = _ops._get_input_device(arg)
+                if dev is not None and dev.device_type == "gpu":
+                    return dev
+            for arg in raw_kwargs.values():
+                if arg is None:
+                    continue
+                dev = _ops._get_input_device(arg)
+                if dev is not None and dev.device_type == "gpu":
+                    return dev
+            return _device.Device("cpu")
+
+        device = infer_device()
         device_inferred = True
     else:
         if not isinstance(device, _device.Device):
