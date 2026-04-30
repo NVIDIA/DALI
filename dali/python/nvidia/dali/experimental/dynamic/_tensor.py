@@ -201,7 +201,25 @@ class Tensor:
             elif hasattr(data, "__dlpack_device__"):
                 dl_device_type, device_id = data.__dlpack_device__()
                 if int(dl_device_type) == 1 or int(dl_device_type) == 3:  # CPU
-                    self._storage = _backend.TensorCPU(data.__dlpack__(), layout)
+                    try:
+                        self._storage = _backend.TensorCPU(data.__dlpack__(), layout)
+                    except BufferError:
+                        # BufferError means the producer's buffer is immutable (e.g. a
+                        # read-only NumPy array).  Copy the data so DALI does not hold a
+                        # mutable alias of memory that the producer marked as read-only.
+                        a = _get_array_interface(data)
+                        if a is not None:
+                            self._storage = _backend.TensorCPU(np.array(a, copy=True), layout)
+                        else:
+                            raise
+                    except TypeError:
+                        # TypeError typically indicates an unsupported DLPack version or
+                        # dtype; fall back to the array interface without copying.
+                        a = _get_array_interface(data)
+                        if a is not None:
+                            self._storage = _backend.TensorCPU(a, layout)
+                        else:
+                            raise
                 elif int(dl_device_type) == 2:  # GPU
                     # If the current context is on the same device, use the same stream.
                     ctx = _EvalContext.current()
@@ -210,11 +228,32 @@ class Tensor:
                     else:
                         stream = _stream.stream(device_id=device_id)
                     args = {"stream": stream.handle}
-                    self._storage = _backend.TensorGPU(
-                        data.__dlpack__(**args),
-                        layout=layout,
-                        stream=stream,
-                    )
+                    # Separate capsule acquisition from TensorGPU construction: a TypeError
+                    # from TensorGPU (e.g. unsupported dtype) must not trigger a second
+                    # __dlpack__() call — DLPack capsules are single-use.
+                    # BufferError is intentionally not caught: on GPU it may signal
+                    # a synchronization or ownership constraint.
+                    dlpack_capsule = None
+                    try:
+                        dlpack_capsule = data.__dlpack__(**args)
+                    except TypeError:
+                        # Older DLPack implementations don't accept the stream keyword;
+                        # retry without it before considering __cuda_array_interface__.
+                        try:
+                            dlpack_capsule = data.__dlpack__()
+                        except TypeError:
+                            # __dlpack__ is entirely non-functional for this object;
+                            # only then fall back to __cuda_array_interface__.
+                            if hasattr(data, "__cuda_array_interface__"):
+                                self._storage = _backend.TensorGPU(data, layout=layout)
+                            else:
+                                raise
+                    if dlpack_capsule is not None:
+                        self._storage = _backend.TensorGPU(
+                            dlpack_capsule,
+                            layout=layout,
+                            stream=stream,
+                        )
                 else:
                     raise ValueError(f"Unsupported device type: {dl_device_type}")
                 self._wraps_external_data = True
@@ -276,7 +315,7 @@ class Tensor:
                 self._dtype = DType.from_type_id(self._storage.dtype)
                 self._layout = self._storage.layout()
 
-            if self._storage is not None and device != _backend_device(self._storage):
+            if self._storage is not None and device != self._device:
                 self._assign(self.to_device(device).evaluate())
                 copied = True
         elif invocation_result is not None:

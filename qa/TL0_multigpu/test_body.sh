@@ -38,6 +38,7 @@ test_gtest() {
 
 test_cupy() {
     ${python_new_invoke_test} -A 'multigpu' test_external_source_cupy
+    ${python_new_invoke_test} -A 'cupy,multi_gpu' -s experimental_mode
 }
 
 
