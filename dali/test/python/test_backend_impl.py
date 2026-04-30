@@ -12,10 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import gc
+import sys
+import tracemalloc
+import warnings
+
 import numpy as np
 import nvidia.dali.fn as fn
 import nvidia.dali.types as types
-import warnings
 from numpy.testing import assert_array_equal
 from nvidia.dali import pipeline_def
 from nvidia.dali.backend_impl import TensorCPU, TensorGPU, TensorListCPU, TensorListGPU, GetSchema
@@ -118,6 +122,95 @@ def test_data_ptr_tensor_list_cpu():
         tensorlist.data_ptr(), tensor.shape(), types.to_numpy_type(tensor.dtype)
     )
     assert np.array_equal(arr, from_tensor_list)
+
+
+def _assert_pointer_int_has_no_extra_refs(name, get_value, allow_none=False):
+    value = get_value()
+    if value is None:
+        assert allow_none, f"{name} returned None instead of int"
+        return
+    assert isinstance(value, int), f"{name} returned {type(value)} instead of int"
+    if -5 <= value <= 256:
+        return
+    refcount = sys.getrefcount(value)
+    assert refcount == 2, f"{name} returned an int with refcount {refcount}, expected 2"
+
+
+def test_pointer_returning_bindings_do_not_leak_python_int_refs():
+    arr = np.arange(6, dtype=np.uint8).reshape(2, 3)
+    tensor_cpu = TensorCPU(arr, "HW")
+    tensorlist_cpu = TensorListCPU(arr, "W")
+
+    _assert_pointer_int_has_no_extra_refs("TensorCPU.data_ptr()", tensor_cpu.data_ptr)
+    _assert_pointer_int_has_no_extra_refs(
+        'TensorCPU.__array_interface__["data"][0]',
+        lambda: tensor_cpu.__array_interface__["data"][0],
+    )
+    _assert_pointer_int_has_no_extra_refs("TensorListCPU.data_ptr()", tensorlist_cpu.data_ptr)
+
+    tensor_gpu = tensor_cpu._as_gpu()
+    tensorlist_gpu = tensorlist_cpu._as_gpu()
+    _assert_pointer_int_has_no_extra_refs("TensorGPU.data_ptr()", tensor_gpu.data_ptr)
+    _assert_pointer_int_has_no_extra_refs(
+        'TensorGPU.__cuda_array_interface__["data"][0]',
+        lambda: tensor_gpu.__cuda_array_interface__["data"][0],
+    )
+    _assert_pointer_int_has_no_extra_refs("TensorListGPU.data_ptr()", tensorlist_gpu.data_ptr)
+    _assert_pointer_int_has_no_extra_refs(
+        "TensorGPU.stream", lambda: tensor_gpu.stream, allow_none=True
+    )
+    _assert_pointer_int_has_no_extra_refs(
+        "TensorListGPU.stream", lambda: tensorlist_gpu.stream, allow_none=True
+    )
+
+
+def _traced_current_memory_after_calls(get_value, iterations):
+    gc.collect()
+    tracemalloc.start()
+    try:
+        value = None
+        for _ in range(iterations):
+            value = get_value()
+        del value
+        gc.collect()
+        current, _ = tracemalloc.get_traced_memory()
+    finally:
+        tracemalloc.stop()
+    return current
+
+
+def _assert_no_traced_memory_leak(name, get_value, iterations=10000):
+    current = _traced_current_memory_after_calls(get_value, iterations)
+    assert current < 64 * 1024, f"{name} retained {current} bytes after {iterations} calls"
+
+
+@params(
+    ("TensorCPU.data_ptr()", lambda t: t["tensor_cpu"].data_ptr()),
+    (
+        'TensorCPU.__array_interface__["data"][0]',
+        lambda t: t["tensor_cpu"].__array_interface__["data"][0],
+    ),
+    ("TensorListCPU.data_ptr()", lambda t: t["tensorlist_cpu"].data_ptr()),
+    ("TensorGPU.data_ptr()", lambda t: t["tensor_gpu"].data_ptr()),
+    (
+        'TensorGPU.__cuda_array_interface__["data"][0]',
+        lambda t: t["tensor_gpu"].__cuda_array_interface__["data"][0],
+    ),
+    ("TensorListGPU.data_ptr()", lambda t: t["tensorlist_gpu"].data_ptr()),
+    ("TensorGPU.stream", lambda t: t["tensor_gpu"].stream),
+    ("TensorListGPU.stream", lambda t: t["tensorlist_gpu"].stream),
+)
+def test_pointer_returning_bindings_do_not_leak_python_int_allocations(name, get_from_tensors):
+    arr = np.array([[1]], dtype=np.uint8)
+    tensor_cpu = TensorCPU(arr, "")
+    tensorlist_cpu = TensorListCPU(arr, "")
+    tensors = {
+        "tensor_cpu": tensor_cpu,
+        "tensorlist_cpu": tensorlist_cpu,
+        "tensor_gpu": tensor_cpu._as_gpu(),
+        "tensorlist_gpu": tensorlist_cpu._as_gpu(),
+    }
+    _assert_no_traced_memory_leak(name, lambda: get_from_tensors(tensors))
 
 
 def test_array_interface_tensor_cpu():
