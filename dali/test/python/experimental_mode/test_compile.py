@@ -352,7 +352,10 @@ def test_compile_incompatible_kwarg_dtype():
     compiled_results = []
     for jpegs, _ in reader_comp.next_epoch(batch_size=4, compile=True):
         img = ndd.decoders.image(jpegs, device="gpu")
-        resized = ndd.tensor_resize(img, sizes=ndd._shape(img))
+        resized = ndd.tensor_resize(
+            img,
+            sizes=ndd._shape(img),
+        )
         assert _is_compiled(resized), resized
         compiled_results.append(ndd.as_tensor(resized, pad=True).cpu())
 
