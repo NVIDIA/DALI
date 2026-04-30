@@ -118,8 +118,8 @@ def get_transform(angle, input_size, output_size):
 def ToCVMatrix(matrix):
     offset = np.matmul(matrix, np.array([[0.5], [0.5], [1]]))
     result = matrix.copy()
-    result[0][2] = offset[0] - 0.5
-    result[1][2] = offset[1] - 0.5
+    result[0][2] = offset[0].item() - 0.5
+    result[1][2] = offset[1].item() - 0.5
     return result
 
 

@@ -532,6 +532,7 @@ all_packages = [
         "opencv-python-headless",
         [
             PckgVer(
+                # freeze these versions until https://github.com/opencv/opencv/pull/28756 lands
                 "4.12.0.88",
                 # Free-threaded Python build is incompatible with numpy<2.
                 python_free_threaded=False,
@@ -543,8 +544,8 @@ all_packages = [
         {
             "120": [
                 PckgVer(
-                    "13.6.0",
-                    python_min_ver="3.9",
+                    "14.0.1",
+                    python_min_ver="3.10",
                     alias="cupy-cuda12x",
                     # CuPy does not support free-threaded Python yet
                     python_free_threaded=False,
@@ -552,8 +553,8 @@ all_packages = [
             ],
             "130": [
                 PckgVer(
-                    "13.6.0",
-                    python_min_ver="3.9",
+                    "14.0.1",
+                    python_min_ver="3.10",
                     alias="cupy-cuda13x",
                     # CuPy does not support free-threaded Python yet
                     python_free_threaded=False,
@@ -566,27 +567,25 @@ all_packages = [
         {
             "120": [
                 PckgVer(
-                    "2.19.1",
+                    "2.20.0",
                     python_min_ver="3.9",
-                    python_max_ver="3.12",
+                    python_max_ver="3.13",
                     alias="tensorflow[and-cuda]",
                     dependencies=[
-                        "protobuf<4",
                         "urllib3<2.0",
-                        "tf_keras==2.19",
+                        "tf_keras==2.20",
                     ],
                     # Free-threaded Python build is incompatible with numpy<2.
                     python_free_threaded=False,
                 ),
                 PckgVer(
-                    "2.20.0",
-                    python_min_ver="3.9",
-                    python_max_ver="3.12",
+                    "2.21.0",
+                    python_min_ver="3.10",
+                    python_max_ver="3.13",
                     alias="tensorflow[and-cuda]",
                     dependencies=[
-                        "protobuf",
                         "urllib3<2.0",
-                        "tf_keras==2.20",
+                        "tf_keras==2.21",
                     ],
                     # Free-threaded Python build is incompatible with numpy<2.
                     python_free_threaded=False,
@@ -675,15 +674,7 @@ all_packages = [
         {
             "120": [
                 PckgVer(
-                    "0.59.1",
-                    python_min_ver="3.9",
-                    python_max_ver="3.9",
-                    dependencies=["numpy<2"],
-                    # Free-threaded Python build is incompatible with numpy<2.
-                    python_free_threaded=False,
-                ),
-                PckgVer(
-                    "0.63.1",
+                    "0.65.1",
                     python_min_ver="3.10",
                     # Free-threaded Python build is incompatible with numpy<2.
                     python_free_threaded=False,
@@ -696,15 +687,7 @@ all_packages = [
         {
             "120": [
                 PckgVer(
-                    "0.20.1",
-                    python_min_ver="3.9",
-                    python_max_ver="3.9",
-                    dependencies=["numpy<2"],
-                    # Free-threaded Python build is incompatible with numpy<2.
-                    python_free_threaded=False,
-                ),
-                PckgVer(
-                    "0.22.0",
+                    "0.30.1",
                     python_min_ver="3.10",
                     dependencies=["numpy<2"],
                     # Free-threaded Python build is incompatible with numpy<2.
@@ -713,15 +696,7 @@ all_packages = [
             ],
             "130": [
                 PckgVer(
-                    "0.20.1",
-                    python_min_ver="3.9",
-                    python_max_ver="3.9",
-                    dependencies=["numpy<2"],
-                    # Free-threaded Python build is incompatible with numpy<2.
-                    python_free_threaded=False,
-                ),
-                PckgVer(
-                    "0.22.0",
+                    "0.30.1",
                     python_min_ver="3.10",
                     dependencies=["numpy<2"],
                     # Free-threaded Python build is incompatible with numpy<2.

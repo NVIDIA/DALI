@@ -346,7 +346,7 @@ def test_sum_with_output_type():
         for batch_gen in batch_gens:
             for type_map in types:
                 input_type = type_map[0]
-                keep_dims = np.random.choice([False, True])
+                keep_dims = bool(np.random.choice([False, True]))
                 for output_type in type_map[1]:
                     layout = rng.choice([None, "RGB"])
                     yield (

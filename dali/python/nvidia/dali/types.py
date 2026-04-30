@@ -125,6 +125,9 @@ def _type_name_convert_to_string(dtype, allow_tensors, api="fn"):
 def _type_convert_value(dtype, val):
     if dtype not in _known_types:
         raise RuntimeError(str(dtype) + " does not correspond to a known type.")
+    # handle non-0 numpy 1 element tensors that cannot be direclty converted to scalars
+    if item := getattr(val, "item", None):
+        val = item()
     return _known_types[dtype][1](val)
 
 

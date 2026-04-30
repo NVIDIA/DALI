@@ -123,8 +123,8 @@ def test_operator_coco_reader_label_remap(avoid_remap):
         out = pipeline.run()
         for s in range(batch_size):
             print(out[0].at(s), out[1].at(s))
-            assert ids_map[int(out[0].at(s))] == int(
-                out[1].at(s)
+            assert ids_map[int(out[0].at(s).item())] == int(
+                out[1].at(s).item()
             ), f"{i}, {ids_map[int(out[0].at(s))]} vs {out[1].at(s)}"
             i = i + 1
 
@@ -270,7 +270,7 @@ def test_coco_include_crowd(include_iscrowd):
     all_iscrowd = []
     for _ in range(number_of_samples):
         boxes, image_ids = pipe.run()
-        image_ids = int(image_ids.as_array())
+        image_ids = int(image_ids.as_array().item())
         boxes = boxes.as_array()[0]
         anno = anno_mapping[image_ids]
         idx = 0
@@ -315,7 +315,7 @@ def test_coco_empty_annotations_pix():
 
     for _ in range(number_of_samples):
         mask, image_ids = pipe.run()
-        image_ids = int(image_ids.as_array())
+        image_ids = int(image_ids.as_array().item())
         max_mask = np.max(np.array(mask.as_tensor()))
         assert (max_mask != 0 and image_ids in anno_mapping and anno_mapping[image_ids]) or (
             max_mask == 0 and not (image_ids in anno_mapping and anno_mapping[image_ids])
@@ -354,7 +354,7 @@ def test_coco_empty_annotations_poly():
 
     for _ in range(number_of_samples):
         poly, vert, image_ids = pipe.run()
-        image_ids = int(image_ids.as_array())
+        image_ids = int(image_ids.as_array().item())
         poly = np.array(poly.as_tensor()).size
         vert = np.array(vert.as_tensor()).size
         assert (poly != 0 and image_ids in anno_mapping and anno_mapping[image_ids]) or (

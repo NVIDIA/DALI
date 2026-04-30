@@ -195,6 +195,17 @@ do
                 export LD_LIBRARY_PATH=${LD_LIBRARY_PATH##*:}
             fi
         fi
+        export OLD_TF_LD_LIBRARY_PATH=${LD_LIBRARY_PATH}
+        if [[ "$inst" == *tensorflow* ]]; then
+            # Only update LD_LIBRARY_PATH for TensorFlow 2.1 which doesn't define cuSolver library path in its rpath
+            TF_VERSION=$(${python_binary:-python} -c "import tensorflow as tf; print(tf.__version__)")
+            if [[ "${TF_VERSION}" == 2.21* ]]; then
+                # Use path returned by pip show pip and append nvidia/cusolver/lib/ to it
+                PIP_PATH=$(${python_binary:-python} -m pip show pip | awk -F': ' '/Location: /{print $2}')
+                export LD_LIBRARY_PATH="${PIP_PATH}/nvidia/cusolver/lib:${LD_LIBRARY_PATH}"
+
+            fi
+        fi
         # test code
         # Run test_body in subshell, the exit on error is turned off in current shell,
         # but it will be present in subshell (thanks to wrapper).
@@ -204,6 +215,7 @@ do
         test_body_wrapper
         RV=$?
         set -e
+        export LD_LIBRARY_PATH=${OLD_TF_LD_LIBRARY_PATH}
         if [ -n "$DALI_ENABLE_SANITIZERS" ]; then
             process_sanitizers_logs
         fi
