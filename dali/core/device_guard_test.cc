@@ -1,4 +1,4 @@
-// Copyright (c) 2018-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2018-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,8 +17,34 @@
 #include "dali/core/device_guard.h"
 #include "dali/core/cuda_error.h"
 #include "dali/core/unique_handle.h"
+#include "dali/test/timing.h"
 
 namespace dali {
+
+TEST(DeviceGuard, RestoreUninit0) {
+  ASSERT_TRUE(cuInitChecked());
+  int count = 0;
+  CUDA_CALL(cudaGetDeviceCount(&count));
+  if (count < 2) {
+    GTEST_SKIP() << "This test requires at least 2 CUDA devices.";
+  }
+
+  unsigned flags = 0;
+  int active = 0;
+  CUDA_CALL(cuDevicePrimaryCtxGetState(0, &flags, &active));
+  if (active) {
+    GTEST_SKIP() << "This test cannot be run with a primary context already active for device 0";
+  }
+
+  int curr = -1;
+  {
+    DeviceGuard dg(1);
+    CUDA_CALL(cudaGetDevice(&curr));
+    EXPECT_EQ(curr, 1);
+  }
+  CUDA_CALL(cudaGetDevice(&curr));
+  EXPECT_EQ(curr, 0);
+}
 
 TEST(DeviceGuard, ConstructorWithDevice) {
   int test_device = 0;
@@ -159,6 +185,43 @@ TEST(DeviceGuard, CheckcontextNoArgs) {
   CUDA_CALL(cuCtxGetDevice(&cu_current_device));
   EXPECT_EQ(cu_current_ctx, cu_test_ctx);
   EXPECT_EQ(cu_current_device, cu_test_device);
+}
+
+TEST(DeviceGuard, SwitchPerf) {
+  ASSERT_TRUE(cuInitChecked());
+  int count = 0;
+  CUDA_CALL(cudaGetDeviceCount(&count));
+  if (count < 2) {
+    GTEST_SKIP() << "This test requires at least 2 CUDA devices.";
+  }
+
+  {
+    DeviceGuard dg0(0);
+    DeviceGuard dg1(1);
+  }
+
+  auto start = test::perf_timer::now();
+  int iters = 100000;
+  for (int i = 0; i < iters; i++) {
+    DeviceGuard dg0(0);
+    DeviceGuard dg1(1);
+  }
+  auto end = test::perf_timer::now();
+  std::cout << test::format_time(test::seconds(end - start) / (2 * iters)) << std::endl;
+}
+
+TEST(DeviceGuard, SameDevPerf) {
+  ASSERT_TRUE(cuInitChecked());
+  int count = 0;
+  DeviceGuard dg0(0);
+
+  auto start = test::perf_timer::now();
+  int iters = 100000;
+  for (int i = 0; i < iters; i++) {
+    DeviceGuard dg0(0);
+  }
+  auto end = test::perf_timer::now();
+  std::cout << test::format_time(test::seconds(end - start) / iters) << std::endl;
 }
 
 }  // namespace dali
