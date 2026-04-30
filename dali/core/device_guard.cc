@@ -73,7 +73,7 @@ DeviceGuard::DeviceGuard(int new_device) :
         ctxs[i].device = i;
       return ctxs;
     }();
-    if (new_device < 0 || new_device >= static_cast<int>(default_contexts.size()))
+    if (new_device >= static_cast<int>(default_contexts.size()))
       throw std::out_of_range(make_string("Invalid device ordinal: ", new_device));
     auto *ctx = default_contexts[new_device].Get();
     CUDA_CALL(cuCtxSetCurrent(ctx));
