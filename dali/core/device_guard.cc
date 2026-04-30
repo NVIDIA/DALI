@@ -33,7 +33,9 @@ namespace {
 
 struct PrimaryContext {
   ~PrimaryContext() {
-    CUDA_DTOR_CALL(cuDevicePrimaryCtxRelease(device));
+    if (handle.load(std::memory_order::acquire) != nullptr) {
+      CUDA_DTOR_CALL(cuDevicePrimaryCtxRelease(device));
+    }
   }
 
   CUdevice device{};
