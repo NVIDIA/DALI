@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import itertools
 import copy
 
 import makefun
@@ -295,6 +294,9 @@ def build_call_function(schema, op_class):
 
     header = f"__call__({', '.join(['self'] + inputs + call_args + internal_args)})"
 
+    nvtx_arg_shallowcopy = NVTXRange("__call__: shallowcopy", category="op_builder")
+    nvtx_construct_invocation = NVTXRange("__call__: construct Invocation", category="op_builder")
+
     @mark_transparent
     @NVTXRange(f"__call__: {op_class._op_name}", category="op_builder")
     def call(self, *raw_args, batch_size=None, _process_params=True, **raw_kwargs):
@@ -310,7 +312,8 @@ def build_call_function(schema, op_class):
                 )
             raw_kwargs = {**raw_kwargs, **self._raw_tensor_args}
 
-        batch_size = _ops._infer_batch_size(batch_size, *raw_args, **raw_kwargs)
+        if batch_size is None:
+            batch_size = _ops._infer_batch_size(*raw_args, **raw_kwargs)
         is_batch = batch_size is not None
 
         if _process_params:
@@ -321,7 +324,7 @@ def build_call_function(schema, op_class):
             inputs = [inp for inp in raw_args if inp is not None]
             kwargs = {name: value for name, value in raw_kwargs.items() if value is not None}
 
-        with NVTXRange("__call__: shallowcopy", category="op_builder"):
+        with nvtx_arg_shallowcopy:
             inputs = [copy.copy(x) for x in inputs]
             kwargs = {k: copy.copy(v) for k, v in kwargs.items()}
 
@@ -330,7 +333,7 @@ def build_call_function(schema, op_class):
             self._call_id += 1
         else:
             call_id = None
-        with NVTXRange("__call__: construct Invocation", category="op_builder"):
+        with nvtx_construct_invocation:
             caller_frame = None
             if EvalMode.current().value <= EvalMode.eager.value:
                 caller_frame = resolve_callsite_frame()
@@ -478,26 +481,29 @@ def build_fn_wrapper(op, fn_name=None, add_to_module=True):
 
     header = f"{fn_name}({', '.join(inputs + signature_args)})"
 
+    nvtx_get_instance_range = NVTXRange(f"get instance {op._op_name}", category="op_builder")
+
     @mark_transparent
     @NVTXRange(f"{fn_name}()", category="op_builder")
     def fn_call(*inputs, batch_size=None, device=None, _backend=None, **raw_kwargs):
-        batch_size = _ops._infer_batch_size(batch_size, *inputs, **raw_kwargs)
+        if batch_size is None:
+            batch_size = _ops._infer_batch_size(*inputs, **raw_kwargs)
         max_batch_size = _next_pow2(batch_size or 1)
         init_args = {
-            arg: _scalar_decay(raw_kwargs[arg])
-            for arg in fixed_args
-            if arg != "max_batch_size" and arg in raw_kwargs and raw_kwargs[arg] is not None
+            arg: _scalar_decay(value)
+            for arg, value in raw_kwargs.items()
+            if value is not None and arg != "max_batch_size" and arg in fixed_args
         }
         call_args = {
-            arg: _scalar_decay(raw_kwargs[arg])
-            for arg in tensor_args
-            if arg in raw_kwargs and raw_kwargs[arg] is not None
+            arg: _scalar_decay(value)
+            for arg, value in raw_kwargs.items()
+            if value is not None and arg != "max_batch_size" and arg in tensor_args
         }
 
         inputs, call_args = op._process_params(_backend, device, batch_size, *inputs, **call_args)
 
         # Get or create the operator instance that matches the arguments
-        with NVTXRange(f"get instance {op._op_name}", category="op_builder"):
+        with nvtx_get_instance_range:
             op_inst = op._get(
                 max_batch_size=max_batch_size,
                 name=None,

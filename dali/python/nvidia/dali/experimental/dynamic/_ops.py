@@ -25,9 +25,11 @@ from ._tensor import Tensor
 from ._nvtx import NVTXRange
 from threading import Lock
 
+_nvtx_to_tensor = NVTXRange("to_tensor", category="op_builder")
+
 
 def _to_tensor(x, device=None, dtype=None):
-    with NVTXRange("to_tensor", category="op_builder"):
+    with _nvtx_to_tensor:
         if x is None:
             return None
         if isinstance(x, Tensor):
@@ -96,11 +98,12 @@ def _get_input_device(x):
     return None
 
 
-def _infer_batch_size(explicit_batch_size, *raw_args, **raw_kwargs):
-    if explicit_batch_size is not None:
-        return explicit_batch_size
+_nvtx_infer_batch_size = NVTXRange("_infer_batch_size", category="op_builder")
+
+
+def _infer_batch_size(*raw_args, **raw_kwargs):
     batch_size = None
-    with NVTXRange("_infer_batch_size", category="op_builder"):
+    with _nvtx_infer_batch_size:
         for i, x in enumerate(list(raw_args) + list(raw_kwargs.values())):
             x_batch_size = _get_batch_size(x)
             if x_batch_size is not None:
@@ -285,6 +288,9 @@ class Operator:
 
         return Device(dev_type, dev_id)  # inherit the device id
 
+    _nvtx_convert_to_batches = NVTXRange("__call__: convert to batches", category="op_builder")
+    _nvtx_convert_to_tensors = NVTXRange("__call__: convert to tensors", category="op_builder")
+
     @classmethod
     def _process_params(cls, backend, op_device, batch_size, *raw_args, **raw_kwargs):
         """
@@ -322,7 +328,7 @@ class Operator:
         kwargs = {}
 
         if is_batch:
-            with NVTXRange("__call__: convert to batches", category="op_builder"):
+            with Operator._nvtx_convert_to_batches:
                 for i, inp in enumerate(raw_args):
                     if inp is None:
                         continue
@@ -335,7 +341,7 @@ class Operator:
                     dtype = cls._argument_conversion_map[k]
                     kwargs[k] = _to_batch(v, batch_size, device=_device.Device("cpu"), dtype=dtype)
         else:
-            with NVTXRange("__call__: convert to tensors", category="op_builder"):
+            with Operator._nvtx_convert_to_tensors:
                 for inp in raw_args:
                     if inp is None:
                         continue
