@@ -126,7 +126,7 @@ def test_cuda_array_interface_tensor_gpu_direct_creation():
 
 def test_dlpack_tensor_gpu_direct_creation():
     arr = cp.random.rand(3, 5, 6)
-    tensor = TensorGPU(arr.toDlpack())
+    tensor = TensorGPU(arr.__dlpack__())
     assert cp.allclose(arr, cp.asanyarray(tensor))
 
 
@@ -138,7 +138,7 @@ def test_cuda_array_interface_tensor_gpu_to_cpu():
 
 def test_dlpack_tensor_gpu_to_cpu():
     arr = cp.random.rand(3, 5, 6)
-    tensor = TensorGPU(arr.toDlpack(), "HWC")
+    tensor = TensorGPU(arr.__dlpack__(), "HWC")
     assert np.allclose(arr.get(), tensor.as_cpu())
 
 
@@ -176,13 +176,13 @@ def test_cuda_array_interface_v3_stream():
 
 def test_dlpack_tensor_list_gpu_direct_creation():
     arr = cp.random.rand(3, 5, 6)
-    tensor_list = TensorListGPU(arr.toDlpack(), "HW")
+    tensor_list = TensorListGPU(arr.__dlpack__(), "HW")
     assert cp.allclose(arr, cp.asanyarray(tensor_list.as_tensor()))
 
 
 def test_dlpack_tensor_list_gpu_direct_creation_list():
     arr = cp.random.rand(3, 5, 6)
-    tensor_list = TensorListGPU([arr.toDlpack()], "HWC")
+    tensor_list = TensorListGPU([arr.__dlpack__()], "HWC")
     assert cp.allclose(arr.reshape(tuple([1]) + arr.shape), cp.asanyarray(tensor_list.as_tensor()))
 
 
@@ -194,7 +194,7 @@ def test_cuda_array_interface_tensor_list_gpu_to_cpu():
 
 def test_dlpack_tensor_list_gpu_to_cpu():
     arr = cp.random.rand(3, 5, 6, 3)
-    tensor_list = TensorListGPU(arr.toDlpack(), "HWC")
+    tensor_list = TensorListGPU(arr.__dlpack__(), "HWC")
     assert cp.allclose(arr, cp.asanyarray(tensor_list.as_tensor()))
 
 
@@ -238,7 +238,7 @@ def check_dlpack_types(t):
     else:
         _arr = [[-0.39, 1.5], [-1.5, 0.33]]
     arr = cp.array(_arr, dtype=t)
-    tensor = TensorGPU(arr.toDlpack(), "HW")
+    tensor = TensorGPU(arr.__dlpack__(), "HW")
     assert cp.allclose(arr, cp.asanyarray(tensor))
 
 

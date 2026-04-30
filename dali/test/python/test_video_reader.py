@@ -142,7 +142,7 @@ def compare_experimental_to_legacy_reader(device, batch_size, **kwargs):
                     for k in range(num_frames):
                         compare_frames(sample_experimental[k], sample_legacy[k], i, j, k)
                 else:
-                    np.testing.assert_array_equal(sample_legacy, sample_experimental)
+                    assert np.array_equal(sample_legacy, sample_experimental)
                 break
             break
         break
@@ -295,17 +295,16 @@ def test_uniform_sample(device, sequence_length):
             ), f"Video {i}: last frame index should be {n - 1}, got {fn_arr[-1]}"
         # Use floor(x + 0.5) to match C++ std::round (rounds half away from zero).
         expected_idxs = np.floor(np.linspace(0, n - 1, sequence_length) + 0.5).astype(np.int32)
-        np.testing.assert_array_equal(
-            fn_arr, expected_idxs, err_msg=f"Video {i}: frame index mismatch (num_frames={n})"
-        )
+        assert np.array_equal(
+            fn_arr, expected_idxs
+        ), f"Video {i}: frame index mismatch (num_frames={n})"
+
         if device == "gpu":
             uniform_frames = np.array(video.evaluate().cpu())  # shape (k, H, W, C)
             expected_frames = all_frames[i][expected_idxs]  # shape (k, H, W, C)
-            np.testing.assert_array_equal(
-                uniform_frames,
-                expected_frames,
-                err_msg=f"Video {i}: pixel mismatch at linspace positions",
-            )
+            assert np.array_equal(
+                uniform_frames, expected_frames
+            ), f"Video {i}: pixel mismatch at linspace positions"
 
 
 @cartesian_params(
@@ -358,11 +357,9 @@ def test_uniform_sample_file_list_roi(device, sequence_length):
         expected_idxs = start_frame + np.floor(
             np.linspace(0, roi_frames - 1, sequence_length) + 0.5
         ).astype(np.int32)
-        np.testing.assert_array_equal(
-            fn_arr,
-            expected_idxs,
-            err_msg=f"Frame index mismatch (start={start_frame}, end={end_frame})",
-        )
+        assert np.array_equal(
+            fn_arr, expected_idxs
+        ), f"Frame index mismatch (start={start_frame}, end={end_frame})"
 
         # Scalar mode: enable_frame_num="scalar" should return the first sampled frame index
         # (= start_frame), even with a non-zero ROI offset.
@@ -432,8 +429,6 @@ def test_uniform_sample_stride_step_ignored(device):
     _, fn_stride_step = samples_with_stride_step[0]
     idxs_default = np.array(fn_default.evaluate().cpu()).flatten()
     idxs_stride_step = np.array(fn_stride_step.evaluate().cpu()).flatten()
-    np.testing.assert_array_equal(
-        idxs_default,
-        idxs_stride_step,
-        err_msg="stride/step should be ignored when uniform_sample=True",
-    )
+    assert np.array_equal(
+        idxs_default, idxs_stride_step
+    ), "stride/step should be ignored when uniform_sample=True"

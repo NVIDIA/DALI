@@ -889,7 +889,7 @@ def test_reader_operator_codec_support(device, codec, sequence_length=3, stride=
 
     for i in range(batch_size):
         frames = out.as_cpu().at(i)
-        frame_no_cpu = int(frame_no.as_cpu().at(i))
+        frame_no_cpu = int(frame_no.as_cpu().at(i).item())
         assert frames.shape[0] > 0, f"No frames decoded for sample {i}"
 
         # Get the filename for the i-th sample

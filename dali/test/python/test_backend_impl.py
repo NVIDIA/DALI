@@ -124,6 +124,16 @@ def test_data_ptr_tensor_list_cpu():
     assert np.array_equal(arr, from_tensor_list)
 
 
+def _expected_refcount_for_fresh_int():
+    # Build a runtime-computed int well outside the small-int cache and
+    # measure its refcount with the same single-local layout the assertion
+    # below uses. This sidesteps version-specific differences in how
+    # sys.getrefcount accounts for its argument (e.g. Python 3.14 reports
+    # one less than 3.13 for the same setup).
+    fresh = id(object()) ^ (1 << 60)
+    return sys.getrefcount(fresh)
+
+
 def _assert_pointer_int_has_no_extra_refs(name, get_value, allow_none=False):
     value = get_value()
     if value is None:
@@ -132,8 +142,11 @@ def _assert_pointer_int_has_no_extra_refs(name, get_value, allow_none=False):
     assert isinstance(value, int), f"{name} returned {type(value)} instead of int"
     if -5 <= value <= 256:
         return
+    expected = _expected_refcount_for_fresh_int()
     refcount = sys.getrefcount(value)
-    assert refcount == 2, f"{name} returned an int with refcount {refcount}, expected 2"
+    assert (
+        refcount == expected
+    ), f"{name} returned an int with refcount {refcount}, expected {expected}"
 
 
 def test_pointer_returning_bindings_do_not_leak_python_int_refs():
