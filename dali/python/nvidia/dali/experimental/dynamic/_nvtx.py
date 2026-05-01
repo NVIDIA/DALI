@@ -30,6 +30,8 @@ if _NVTX_ENABLED:
         """
         NVTX range marker for the DALI domain. Can be used as a context manager or decorator.
         Use categories to organize annotations.
+        Note that this class is used only if a profiler is detected; otherwise it's replaced with
+        a no-op stub.
         """
 
         def __init__(self, message: str, color: int | str = 0x957DAD, category: str | None = None):
@@ -52,7 +54,8 @@ else:
     class NVTXRange(contextlib.ContextDecorator):
         """
         NVTX range marker for the DALI domain. Can be used as a context manager or decorator.
-        Use categories to organize annotations.
+        Use categories to organize annotations. This variant is no-op and is used when profiling
+        is disabled.
         """
 
         def __init__(self, message: str, color: int | str = 0x957DAD, category: str | None = None):

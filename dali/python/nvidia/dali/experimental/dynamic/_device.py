@@ -218,6 +218,9 @@ class Device:
             _backend.SetCUDACurrentDevice(dev.device_id)
 
 
+Device.CPU = Device("cpu")
+
+
 def device(obj: DeviceLike, id: int | None = None) -> Device:
     """
     Returns a Device object from various input types.

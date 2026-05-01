@@ -320,7 +320,7 @@ class Invocation:
                 if isinstance(x, (_b.TensorGPU, _b.TensorListGPU)):
                     return Device("gpu", x.device_id())
                 else:
-                    return Device("cpu")
+                    return Device.CPU
 
             if self._output_devices is None:
                 self._output_devices = [output_device(r) for r in self._results]

@@ -78,7 +78,7 @@ def _get_input_device(x):
     if isinstance(x, Tensor):
         return x.device
     if isinstance(x, _b.TensorListCPU):
-        return _device.Device("cpu")
+        return _device.Device.CPU
     if isinstance(x, _b.TensorListGPU):
         return _device.Device("gpu")
     if hasattr(x, "__cuda_array_interface__"):
@@ -86,13 +86,13 @@ def _get_input_device(x):
     if hasattr(x, "__dlpack_device__"):
         dev = x.__dlpack_device__()
         if int(dev[0]) == 1 or int(dev[0]) == 3:  # CPU or CPU_PINNED
-            return _device.Device("cpu")
+            return _device.Device.CPU
         elif int(dev[0]) == 2:
             return _device.Device("gpu", dev[1])
         else:
             raise ValueError(f"Unknown DLPack device type: {dev.type}")
     if hasattr(x, "__dlpack__"):
-        return _device.Device("cpu")
+        return _device.Device.CPU
     if isinstance(x, list) and x:
         return _get_input_device(x[0])
     return None
@@ -339,7 +339,7 @@ class Operator:
                     if v is None:
                         continue
                     dtype = cls._argument_conversion_map[k]
-                    kwargs[k] = _to_batch(v, batch_size, device=_device.Device("cpu"), dtype=dtype)
+                    kwargs[k] = _to_batch(v, batch_size, device=_device.Device.CPU, dtype=dtype)
         else:
             with Operator._nvtx_convert_to_tensors:
                 for inp in raw_args:
@@ -465,7 +465,7 @@ class Operator:
 
     def _run(self, ctx, *inputs, batch_size=None, **args):
         device_id = ctx.device_id if ctx is not None else None
-        device_ctx = Device("gpu", device_id) if device_id is not None else Device("cpu")
+        device_ctx = Device("gpu", device_id) if device_id is not None else Device.CPU
         with device_ctx:
             if (
                 batch_size is not None

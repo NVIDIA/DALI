@@ -35,7 +35,7 @@ from ._type import dtype as _dtype
 
 def _backend_device(backend: _backend.TensorListCPU | _backend.TensorListGPU) -> Device:
     if isinstance(backend, _backend.TensorListCPU):
-        return Device("cpu")
+        return Device.CPU
     elif isinstance(backend, _backend.TensorListGPU):
         return Device("gpu", backend.device_id())
     else:
@@ -305,7 +305,7 @@ class Batch:
                     assert len(self._tensors) == 0
                     raise ValueError("Element type must be specified if the list is empty")
                 if device is None:
-                    device = Device("cpu")
+                    device = Device.CPU
                 if layout is None:
                     layout = ""
                 self._device = device
@@ -521,7 +521,7 @@ class Batch:
         """
         Returns the batch on the CPU. If it's already there, this function returns `self`.
         """
-        return self.to_device(Device("cpu"))
+        return self.to_device(Device.CPU)
 
     def gpu(self, index: int | None = None) -> "Batch":
         """

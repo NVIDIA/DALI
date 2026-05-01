@@ -43,7 +43,7 @@ def _volume(shape: tuple[int, ...]) -> int:
 
 def _backend_device(backend: _backend.TensorCPU | _backend.TensorGPU) -> Device:
     if isinstance(backend, _backend.TensorCPU):
-        return Device("cpu")
+        return Device.CPU
     elif isinstance(backend, _backend.TensorGPU):
         return Device("gpu", backend.device_id())
     else:
@@ -265,7 +265,7 @@ class Tensor:
             else:
                 if self._device is None:
                     if device is None:
-                        device = Device("cpu")
+                        device = Device.CPU
                     self._device = device
                 else:
                     if device is None:
@@ -319,7 +319,7 @@ class Tensor:
         """
         Returns the tensor on the CPU. If it's already there, this function returns `self`.
         """
-        return self.to_device(Device("cpu"))
+        return self.to_device(Device.CPU)
 
     def gpu(self, index: int | None = None) -> "Tensor":
         """

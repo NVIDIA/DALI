@@ -388,19 +388,14 @@ def _resolve_backend(
     if device is None:
 
         def infer_device():
-            for arg in inputs:
-                if arg is None:
-                    continue
-                dev = _ops._get_input_device(arg)
-                if dev is not None and dev.device_type == "gpu":
-                    return dev
-            for arg in raw_kwargs.values():
-                if arg is None:
-                    continue
-                dev = _ops._get_input_device(arg)
-                if dev is not None and dev.device_type == "gpu":
-                    return dev
-            return _device.Device("cpu")
+            for args in (inputs, raw_kwargs.values()):
+                for arg in args:
+                    if arg is None:
+                        continue
+                    dev = _ops._get_input_device(arg)
+                    if dev is not None and dev.device_type == "gpu":
+                        return dev
+            return _device.Device.CPU
 
         device = infer_device()
         device_inferred = True
@@ -497,7 +492,7 @@ def build_fn_wrapper(op, fn_name=None, add_to_module=True):
         call_args = {
             arg: _scalar_decay(value)
             for arg, value in raw_kwargs.items()
-            if value is not None and arg != "max_batch_size" and arg in tensor_args
+            if value is not None and arg in tensor_args
         }
 
         inputs, call_args = op._process_params(_backend, device, batch_size, *inputs, **call_args)
