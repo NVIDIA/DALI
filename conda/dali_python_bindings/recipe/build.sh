@@ -55,7 +55,7 @@ mkdir $SRC_DIR/build_bindings
 cd $SRC_DIR/build_bindings
 
 # allow DALI import all dependencies in the build env
-export LD_LIBRARY_PATH="$PREFIX/libjpeg-turbo/lib:$PREFIX/lib:$LD_LIBRARY_PATH"
+export LD_LIBRARY_PATH="$PREFIX/lib:$LD_LIBRARY_PATH"
 
 # Build
 cmake -DCUDA_TOOLKIT_ROOT_DIR=/usr/local/cuda \
@@ -63,7 +63,7 @@ cmake -DCUDA_TOOLKIT_ROOT_DIR=/usr/local/cuda \
       -DCUDA_CUDA_LIBRARY=/usr/local/cuda/targets/${ARCH}-linux/lib/stubs/libcuda.so \
       -DCUDA_TARGET_ARCHS=${CUDA_TARGET_ARCHS}            \
       -DFFMPEG_ROOT_DIR=$PREFIX/lib                       \
-      -DCMAKE_PREFIX_PATH="$PREFIX/libjpeg-turbo;$PREFIX" \
+      -DCMAKE_PREFIX_PATH="$PREFIX"                       \
       -DCMAKE_INSTALL_PREFIX=$PREFIX                      \
       -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE:-Release}     \
       -DBUILD_TEST=${BUILD_TEST:-ON}                      \
