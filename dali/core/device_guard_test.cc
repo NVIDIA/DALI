@@ -21,29 +21,121 @@
 
 namespace dali {
 
-TEST(DeviceGuard, RestoreUninit0) {
-  ASSERT_TRUE(cuInitChecked());
-  int count = 0;
-  CUDA_CALL(cudaGetDeviceCount(&count));
-  if (count < 2) {
-    GTEST_SKIP() << "This test requires at least 2 CUDA devices.";
+int DoTestUninit0() {
+  if (!cuInitChecked()) {
+    std::cout << "Cannot initialize CUDA." << std::endl;
+    return 0xdead;
   }
 
   unsigned flags = 0;
   int active = 0;
   CUDA_CALL(cuDevicePrimaryCtxGetState(0, &flags, &active));
   if (active) {
-    GTEST_SKIP() << "This test cannot be run with a primary context already active for device 0";
+    std::cout << "This test cannot be run with a primary context already active for device 0"
+              << std::endl;
+    return 0xbad;
   }
 
   int curr = -1;
   {
     DeviceGuard dg(1);
     CUDA_CALL(cudaGetDevice(&curr));
-    EXPECT_EQ(curr, 1);
+    if (curr != 1) {
+      std::cout << "Device not switched properly." << std::endl;
+      return 1;
+    }
   }
   CUDA_CALL(cudaGetDevice(&curr));
-  EXPECT_EQ(curr, 0);
+  if (curr != 0) {
+    std::cout << "Device not restored properly." << std::endl;
+    return 2;
+  }
+  return 0;
+}
+
+void TestUninit0() {
+  _exit(DoTestUninit0());
+}
+
+int DoTestPrimaryContextInitMultithreaded() {
+  if (!cuInitChecked()) {
+    std::cout << "Cannot initialize CUDA." << std::endl;
+    return 0xdead;
+  }
+
+  unsigned flags = 0;
+  int active = 0;
+  CUDA_CALL(cuDevicePrimaryCtxGetState(0, &flags, &active));
+  if (active) {
+    std::cout << "This test cannot be run with a primary context already active for device 0";
+    return 0xbad;
+  }
+
+  std::atomic<bool> start{false};
+  bool failure = false;
+
+  std::vector<std::thread> threads;
+  for (int i = 0; i < 10; i++) {
+    threads.emplace_back([&]() {
+      while (!start.load()) {}
+      DeviceGuard dg(0);
+      unsigned flags = 0;
+      int active = 0;
+      if (cuDevicePrimaryCtxGetState(0, &flags, &active) != CUDA_SUCCESS) {
+        std::cout << "Cannot get primary context for device 0." << std::endl;
+        failure = true;
+      }
+      if (!active) {
+        std::cout << "Primary context not active" << std::endl;
+        failure = true;
+      }
+    });
+  }
+
+  start.store(true);
+  for (auto &t : threads)
+    t.join();
+
+  if (failure) {
+    std::cout << "A failure was detected in one of the worker threads." << std::endl;
+    return 1;
+  }
+
+  {
+    unsigned flags = 0;
+    int active = 0;
+    if (cuDevicePrimaryCtxGetState(0, &flags, &active) != CUDA_SUCCESS) {
+      std::cout << "Cannot get primary context for device 0." << std::endl;
+      return 2;
+    }
+
+    if (!active) {
+      std::cout << "Primary context should be active as a side-effect" << std::endl;
+      return 3;
+    }
+  }
+
+  return 0;
+}
+
+void TestPrimaryContextInitMultithreaded() {
+  _exit(DoTestPrimaryContextInitMultithreaded());
+}
+
+TEST(DeviceGuard, RestoreUninit0) {
+  int count = 0;
+  CUDA_CALL(cudaGetDeviceCount(&count));
+  if (count < 2) {
+    GTEST_SKIP() << "This test requires at least 2 CUDA devices.";
+  }
+
+  GTEST_FLAG_SET(death_test_style, "threadsafe");
+  EXPECT_EXIT(TestUninit0(), testing::ExitedWithCode(0), "");
+}
+
+TEST(DeviceGuard, Multithreaded) {
+  GTEST_FLAG_SET(death_test_style, "threadsafe");
+  EXPECT_EXIT(TestPrimaryContextInitMultithreaded(), testing::ExitedWithCode(0), "");
 }
 
 TEST(DeviceGuard, ConstructorWithDevice) {
@@ -116,7 +208,7 @@ struct CUDAContext : UniqueHandle<CUcontext, CUDAContext> {
 
 }  // namespace
 
-TEST(DeviceGuard, Checkcontext) {
+TEST(DeviceGuard, CheckContext) {
   int test_device = 0;
   CUdevice cu_test_device = 0;
   int guard_device = 0;
@@ -151,7 +243,7 @@ TEST(DeviceGuard, Checkcontext) {
   EXPECT_EQ(cu_current_device, cu_test_device);
 }
 
-TEST(DeviceGuard, CheckcontextNoArgs) {
+TEST(DeviceGuard, CheckContextNoArgs) {
   int test_device = 0;
   CUdevice cu_test_device = 0;
   CUcontext cu_current_ctx = nullptr;
@@ -185,6 +277,43 @@ TEST(DeviceGuard, CheckcontextNoArgs) {
   CUDA_CALL(cuCtxGetDevice(&cu_current_device));
   EXPECT_EQ(cu_current_ctx, cu_test_ctx);
   EXPECT_EQ(cu_current_device, cu_test_device);
+}
+
+TEST(DeviceGuard, NegativeDevicNoOp) {
+  // This test creates a DeviceGuard with a negative device ID and destroys it out-of-order
+  // to verify that it's really no-op, even with valid CUDA context present.
+
+  ASSERT_TRUE(cuInitChecked());
+  int count = 0;
+  CUDA_CALL(cudaGetDeviceCount(&count));
+  if (count < 2) {
+    GTEST_SKIP() << "This test requires at least 2 CUDA devices.";
+  }
+
+  int dev = -1;
+  {
+    DeviceGuard dg0(0);
+    std::optional<DeviceGuard> dgneg;
+    {
+      DeviceGuard dg1(1);
+      dgneg.emplace(-1);  // this will outlive the scope
+      CUDA_CALL(cudaGetDevice(&dev));
+      EXPECT_EQ(dev, 1);
+    }
+    CUDA_CALL(cudaGetDevice(&dev));
+    EXPECT_EQ(dev, 0);
+    dgneg.reset();  // shouldn't change anything
+    CUDA_CALL(cudaGetDevice(&dev));
+    EXPECT_EQ(dev, 0);
+  }
+  CUDA_CALL(cudaGetDevice(&dev));
+  EXPECT_EQ(dev, 0);
+}
+
+TEST(DeviceGuard, CheckOutOfRange) {
+  int ndevs = 0;
+  CUDA_CALL(cudaGetDeviceCount(&ndevs));
+  EXPECT_THROW(DeviceGuard{ndevs}, std::out_of_range);
 }
 
 TEST(DeviceGuard, SwitchPerf) {
