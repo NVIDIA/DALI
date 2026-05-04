@@ -330,7 +330,6 @@ TEST(DeviceGuard, SwitchPerf_MultiGPU) {
 
 TEST(DeviceGuard, SameDevPerf) {
   ASSERT_TRUE(cuInitChecked());
-  int count = 0;
   DeviceGuard dg0(0);
 
   auto start = test::perf_timer::now();
