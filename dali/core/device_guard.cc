@@ -13,6 +13,8 @@
 // limitations under the License.
 
 #include <atomic>
+#include <vector>
+#include <stdexcept>
 #include "dali/core/device_guard.h"
 #include "dali/core/cuda_error.h"
 

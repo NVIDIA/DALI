@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <gtest/gtest.h>
+#include "dali/core/call_at_exit.h"
 #include "dali/core/dynlink_cuda.h"
 #include "dali/core/device_guard.h"
 #include "dali/core/cuda_error.h"
@@ -209,39 +210,27 @@ struct CUDAContext : UniqueHandle<CUcontext, CUDAContext> {
 }  // namespace
 
 TEST(DeviceGuard, CheckContext) {
-  int test_device = 0;
-  CUdevice cu_test_device = 0;
-  int guard_device = 0;
-  int current_device;
-  CUdevice cu_current_device = 0;
-  CUcontext cu_current_ctx = nullptr;
-  int count = 1;
-
   ASSERT_TRUE(cuInitChecked());
-  CUDA_CALL(cudaGetDeviceCount(&count));
-  if (count > 1) {
-    guard_device = 1;
-  }
 
-  CUDA_CALL(cuDeviceGet(&cu_test_device, test_device));
-  auto cu_test_ctx = CUDAContext::Create(0, cu_test_device);
-  CUDA_CALL(cuCtxSetCurrent(cu_test_ctx));
-  CUDA_CALL(cuCtxGetCurrent(&cu_current_ctx));
-  CUDA_CALL(cuCtxGetDevice(&cu_current_device));
-  EXPECT_EQ(cu_current_ctx, cu_test_ctx);
-  EXPECT_EQ(cu_current_device, cu_test_device);
+  CUcontext old = nullptr;
+  CUDA_CALL(cuCtxGetCurrent(&old));
+  auto restore = AtScopeExit([old]() {
+    CUDA_DTOR_CALL(cuCtxSetCurrent(old));
+  });
+  auto cu_test_ctx0 = CUDAContext::Create(0, 0);
+  auto cu_test_ctx1 = CUDAContext::Create(0, 0);
+  CUDA_CALL(cuCtxSetCurrent(cu_test_ctx0));
+  CUcontext ctx = nullptr;
   {
-    DeviceGuard g(guard_device);
-    CUDA_CALL(cudaGetDevice(&current_device));
-    EXPECT_EQ(current_device, guard_device);
-    CUDA_CALL(cuCtxGetCurrent(&cu_current_ctx));
-    EXPECT_NE(cu_current_ctx, cu_test_ctx);
+    DeviceGuard g;
+    CUDA_CALL(cuCtxGetCurrent(&ctx));
+    EXPECT_EQ(ctx, cu_test_ctx0.get());
+    CUDA_CALL(cuCtxSetCurrent(cu_test_ctx1));
   }
-  CUDA_CALL(cuCtxGetCurrent(&cu_current_ctx));
-  CUDA_CALL(cuCtxGetDevice(&cu_current_device));
-  EXPECT_EQ(cu_current_ctx, cu_test_ctx);
-  EXPECT_EQ(cu_current_device, cu_test_device);
+  CUDA_CALL(cuCtxGetCurrent(&ctx));
+  EXPECT_EQ(ctx, cu_test_ctx0.get()) << "Context not restored upon construction";
 }
+
 
 TEST(DeviceGuard, CheckContextNoArgs) {
   int test_device = 0;
@@ -316,7 +305,7 @@ TEST(DeviceGuard, CheckOutOfRange) {
   EXPECT_THROW(DeviceGuard{ndevs}, std::out_of_range);
 }
 
-TEST(DeviceGuard, SwitchPerf) {
+TEST(DeviceGuard, SwitchPerf_MultiGPU) {
   ASSERT_TRUE(cuInitChecked());
   int count = 0;
   CUDA_CALL(cudaGetDeviceCount(&count));
