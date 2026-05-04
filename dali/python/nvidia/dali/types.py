@@ -125,6 +125,8 @@ def _type_name_convert_to_string(dtype, allow_tensors, api="fn"):
 def _type_convert_value(dtype, val):
     if dtype not in _known_types:
         raise RuntimeError(str(dtype) + " does not correspond to a known type.")
+    if item := getattr(val, "item", None):
+        val = item()
     return _known_types[dtype][1](val)
 
 
@@ -247,11 +249,13 @@ class ScalarConstant(object):
         if value_dtype is not None:
             dali_type = to_dali_type(value.dtype)
             if dali_type in _int_types:
-                value = int(value)
+                value = int(value.item())
             elif dali_type in _float_types:
-                value = float(value)
+                value = float(value.item())
             elif dali_type in _bool_types:
-                value = bool(value)
+                value = bool(value.item())
+            else:
+                value = value.item()
             if dtype is None:
                 dtype = dali_type
 
