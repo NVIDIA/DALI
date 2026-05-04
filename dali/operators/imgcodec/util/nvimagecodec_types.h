@@ -1,4 +1,4 @@
-// Copyright (c) 2023-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2023-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -36,6 +36,21 @@
 
 namespace dali {
 namespace imgcodec {
+
+constexpr uint32_t verbosity_to_severity(int verbose) {
+  uint32_t result = 0;
+  if (verbose >= 1)
+    result |= NVIMGCODEC_DEBUG_MESSAGE_SEVERITY_FATAL | NVIMGCODEC_DEBUG_MESSAGE_SEVERITY_ERROR;
+  if (verbose >= 2)
+    result |= NVIMGCODEC_DEBUG_MESSAGE_SEVERITY_WARNING;
+  if (verbose >= 3)
+    result |= NVIMGCODEC_DEBUG_MESSAGE_SEVERITY_INFO;
+  if (verbose >= 4)
+    result |= NVIMGCODEC_DEBUG_MESSAGE_SEVERITY_DEBUG;
+  if (verbose >= 5)
+    result |= NVIMGCODEC_DEBUG_MESSAGE_SEVERITY_TRACE;
+  return result;
+}
 
 static DALIDataType to_dali_dtype(nvimgcodecSampleDataType_t dtype) {
   switch (dtype) {
@@ -112,6 +127,11 @@ struct DLL_PUBLIC NvImageCodecCodeStream
   static NvImageCodecCodeStream FromSubCodeStream(nvimgcodecCodeStream_t code_stream,
                                                   const nvimgcodecCodeStreamView_t* cs_view);
 
+  static NvImageCodecCodeStream ToHostMem(nvimgcodecInstance_t instance,
+                                          void* ctx,
+                                          nvimgcodecResizeBufferFunc_t resize_buffer_func,
+                                          const nvimgcodecImageInfo_t* image_info);
+
   static constexpr nvimgcodecCodeStream_t null_handle() {
     return nullptr;
   }
@@ -132,6 +152,36 @@ struct DLL_PUBLIC NvImageCodecImage : public UniqueHandle<nvimgcodecImage_t, NvI
   }
 
   static void DestroyHandle(nvimgcodecImage_t handle);
+};
+
+struct DLL_PUBLIC NvImageCodecEncoder
+    : public UniqueHandle<nvimgcodecEncoder_t, NvImageCodecEncoder> {
+  DALI_INHERIT_UNIQUE_HANDLE(nvimgcodecEncoder_t, NvImageCodecEncoder);
+
+  NvImageCodecEncoder() = default;
+
+  static NvImageCodecEncoder Create(nvimgcodecInstance_t instance,
+                                    const nvimgcodecExecutionParams_t* exec_params,
+                                    const std::string& opts);
+
+  static constexpr nvimgcodecEncoder_t null_handle() {
+    return nullptr;
+  }
+
+  static void DestroyHandle(nvimgcodecEncoder_t handle);
+};
+
+struct DLL_PUBLIC NvImageCodecFuture
+    : public UniqueHandle<nvimgcodecFuture_t, NvImageCodecFuture> {
+  DALI_INHERIT_UNIQUE_HANDLE(nvimgcodecFuture_t, NvImageCodecFuture);
+
+  NvImageCodecFuture() = default;
+
+  static constexpr nvimgcodecFuture_t null_handle() {
+    return nullptr;
+  }
+
+  static void DestroyHandle(nvimgcodecFuture_t handle);
 };
 
 }  // namespace imgcodec
