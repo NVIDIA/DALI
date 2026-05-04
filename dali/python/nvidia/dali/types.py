@@ -247,11 +247,13 @@ class ScalarConstant(object):
         if value_dtype is not None:
             dali_type = to_dali_type(value.dtype)
             if dali_type in _int_types:
-                value = int(value)
+                value = int(value.item())
             elif dali_type in _float_types:
-                value = float(value)
+                value = float(value.item())
             elif dali_type in _bool_types:
-                value = bool(value)
+                value = bool(value.item())
+            else:
+                value = value.item()
             if dtype is None:
                 dtype = dali_type
 
