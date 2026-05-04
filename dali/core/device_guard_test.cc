@@ -210,7 +210,7 @@ struct CUDAContext : UniqueHandle<CUcontext, CUDAContext> {
 
 }  // namespace
 
-TEST(DeviceGuard, CheckContext) {
+TEST(DeviceGuard, CheckContext_MultiGPU) {
   ASSERT_TRUE(cuInitChecked());
 
   int ndevs = 0;
@@ -283,7 +283,7 @@ TEST(DeviceGuard, CheckContextNoArgs) {
   EXPECT_EQ(cu_current_device, cu_test_device);
 }
 
-TEST(DeviceGuard, NegativeDeviceNoOp) {
+TEST(DeviceGuard, NegativeDeviceNoOp_MultiGPU) {
   // This test creates a DeviceGuard with a negative device ID and destroys it out-of-order
   // to verify that it's really no-op, even with valid CUDA context present.
 
