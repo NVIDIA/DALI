@@ -68,12 +68,13 @@ int DoTestPrimaryContextInitMultithreaded() {
   int active = 0;
   CUDA_CALL(cuDevicePrimaryCtxGetState(0, &flags, &active));
   if (active) {
-    std::cout << "This test cannot be run with a primary context already active for device 0";
+    std::cout << "This test cannot be run with a primary context already active for device 0"
+              << std::endl;
     return 0xbad;
   }
 
   std::atomic<bool> start{false};
-  bool failure = false;
+  std::atomic<bool> failure{false};
 
   std::vector<std::thread> threads;
   for (int i = 0; i < 10; i++) {
@@ -212,6 +213,9 @@ struct CUDAContext : UniqueHandle<CUcontext, CUDAContext> {
 TEST(DeviceGuard, CheckContext) {
   ASSERT_TRUE(cuInitChecked());
 
+  int ndevs = 0;
+  CUDA_CALL(cudaGetDeviceCount(&ndevs));
+  int test_dev = ndevs - 1;
   CUcontext old = nullptr;
   CUDA_CALL(cuCtxGetCurrent(&old));
   auto restore = AtScopeExit([old]() {
@@ -225,6 +229,17 @@ TEST(DeviceGuard, CheckContext) {
     DeviceGuard g;
     CUDA_CALL(cuCtxGetCurrent(&ctx));
     EXPECT_EQ(ctx, cu_test_ctx0.get());
+    CUDA_CALL(cuCtxSetCurrent(cu_test_ctx1));
+  }
+  CUDA_CALL(cuCtxGetCurrent(&ctx));
+  EXPECT_EQ(ctx, cu_test_ctx0.get()) << "Context not restored upon destruction";
+  {
+    DeviceGuard g(test_dev);
+    CUDA_CALL(cuCtxGetCurrent(&ctx));
+    EXPECT_NE(ctx, cu_test_ctx0.get());
+    int dev = -1;
+    CUDA_CALL(cuCtxGetDevice(&dev));
+    EXPECT_EQ(dev, test_dev);
     CUDA_CALL(cuCtxSetCurrent(cu_test_ctx1));
   }
   CUDA_CALL(cuCtxGetCurrent(&ctx));
@@ -268,7 +283,7 @@ TEST(DeviceGuard, CheckContextNoArgs) {
   EXPECT_EQ(cu_current_device, cu_test_device);
 }
 
-TEST(DeviceGuard, NegativeDevicNoOp) {
+TEST(DeviceGuard, NegativeDeviceNoOp) {
   // This test creates a DeviceGuard with a negative device ID and destroys it out-of-order
   // to verify that it's really no-op, even with valid CUDA context present.
 
