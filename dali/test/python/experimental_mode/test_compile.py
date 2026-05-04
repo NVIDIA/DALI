@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import os
+import sys
 
 import numpy as np
 import nvidia.dali.backend_impl as _backend
@@ -77,9 +78,12 @@ def test_compile_basic_pipeline():
     for jpegs, _ in reader_comp.next_epoch(batch_size=4, compile=True):
         images = ndd.decoders.image(jpegs)
         images = ndd.resize(images, size=[64, 64])
-        # fmt: off
-        images = ndd.crop_mirror_normalize(images, mean=[0.485 * 255, 0.456 * 255, 0.406 * 255], std=[0.229 * 255, 0.224 * 255, 0.225 * 255], dtype=ndd.float32)  # noqa: E501
-        # fmt: on
+        images = ndd.crop_mirror_normalize(
+            images,
+            mean=[0.485 * 255, 0.456 * 255, 0.406 * 255],
+            std=[0.229 * 255, 0.224 * 255, 0.225 * 255],
+            dtype=ndd.float32,
+        )
         compiled_results.append(ndd.as_tensor(images))
         assert _is_compiled(images)
 
@@ -348,10 +352,52 @@ def test_compile_incompatible_kwarg_dtype():
     compiled_results = []
     for jpegs, _ in reader_comp.next_epoch(batch_size=4, compile=True):
         img = ndd.decoders.image(jpegs, device="gpu")
-        resized = ndd.tensor_resize(img, sizes=ndd._shape(img))
+        resized = ndd.tensor_resize(
+            img,
+            sizes=ndd._shape(img),
+        )
         assert _is_compiled(resized), resized
         compiled_results.append(ndd.as_tensor(resized, pad=True).cpu())
 
     assert len(dynamic_results) == len(compiled_results)
     for dyn, comp in zip(dynamic_results, compiled_results):
         np.testing.assert_array_equal(dyn, comp)
+
+
+def test_compile_nested_calls():
+    reader = ndd.readers.File(file_root=images_root)
+    for jpegs, _ in reader.next_epoch(batch_size=4, compile=True):
+        resized = ndd.resize(ndd.decoders.image(jpegs), size=[64, 64])
+        if sys.version_info >= (3, 11):
+            # PEP 657 positions disambiguate inner vs outer call by exact span.
+            assert _is_compiled(resized)
+        else:
+            # Two calls share lineno on 3.10; ambiguous, both fall back to dynamic.
+            assert not _is_compiled(resized)
+
+
+def test_compile_multiple_calls_per_line():
+    reader = ndd.readers.File(file_root=images_root)
+    for jpegs, _ in reader.next_epoch(batch_size=4, compile=True):
+        images = ndd.decoders.image(jpegs)
+        # fmt: off
+        a = ndd.flip(images, horizontal=1); b = ndd.flip(a, horizontal=1)  # noqa: E501,E702
+        # fmt: on
+        if sys.version_info >= (3, 11):
+            assert _is_compiled(a)
+            assert _is_compiled(b)
+        else:
+            assert not _is_compiled(a)
+            assert not _is_compiled(b)
+
+        np.testing.assert_array_equal(ndd.as_tensor(images, pad=True), ndd.as_tensor(b, pad=True))
+
+
+def test_compile_multiline_nested_calls():
+    reader = ndd.readers.File(file_root=images_root)
+    for jpegs, _ in reader.next_epoch(batch_size=4, compile=True):
+        resized = ndd.resize(
+            ndd.decoders.image(jpegs),
+            size=[64, 64],
+        )
+        assert _is_compiled(resized)
