@@ -228,7 +228,7 @@ TEST(DeviceGuard, CheckContext) {
     CUDA_CALL(cuCtxSetCurrent(cu_test_ctx1));
   }
   CUDA_CALL(cuCtxGetCurrent(&ctx));
-  EXPECT_EQ(ctx, cu_test_ctx0.get()) << "Context not restored upon construction";
+  EXPECT_EQ(ctx, cu_test_ctx0.get()) << "Context not restored upon destruction";
 }
 
 
