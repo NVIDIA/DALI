@@ -28,7 +28,7 @@
 #include "dali/pipeline/operator/operator.h"
 #include "dali/pipeline/operator/checkpointing/op_checkpoint.h"
 #include "dali/core/static_switch.h"
-#include "dali/operators/random/philox.h"
+#include "dali/core/random/philox.h"
 
 namespace dali {
 namespace rng {
