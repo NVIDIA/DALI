@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <opencv2/opencv.hpp>
 #include <vector>
+#include "dali/kernels/imgproc/jpeg/jpeg_distortion_cpu_kernel.h"
 #include "dali/operators/image/distortion/jpeg_compression_distortion_op.h"
 
 namespace dali {
@@ -50,25 +50,7 @@ class JpegCompressionDistortionCPU : public JpegCompressionDistortion<CPUBackend
 
  protected:
   void RunImpl(Workspace &ws) override;
-
- private:
-  struct ThreadCtx {
-    std::vector<uint8_t> encoded;
-  };
-  std::vector<ThreadCtx> thread_ctx_;
 };
-
-template <typename ThreadCtx>
-static void RunJpegDistortionCPU(ThreadCtx &ctx, const uint8_t *input, uint8_t *output,
-                                 size_t width, size_t height, int quality) {
-  auto in_mat = cv::Mat(height, width, CV_8UC3, const_cast<uint8_t *>(input));
-  auto out_mat = cv::Mat(height, width, CV_8UC3, output);
-
-  cv::cvtColor(in_mat, out_mat, cv::COLOR_RGB2BGR);
-  cv::imencode(".jpg", out_mat, ctx.encoded, {cv::IMWRITE_JPEG_QUALITY, quality});
-  cv::imdecode(ctx.encoded, cv::IMREAD_COLOR, &out_mat);
-  cv::cvtColor(out_mat, out_mat, cv::COLOR_BGR2RGB);
-}
 
 void JpegCompressionDistortionCPU::RunImpl(Workspace &ws) {
   const auto &input = ws.Input<CPUBackend>(0);
@@ -77,11 +59,9 @@ void JpegCompressionDistortionCPU::RunImpl(Workspace &ws) {
   output.SetLayout(layout);
   auto in_shape = input.shape();
   int nsamples = input.num_samples();
-  auto& thread_pool = ws.GetThreadPool();
+  auto &thread_pool = ws.GetThreadPool();
   auto in_view = view<const uint8_t>(input);
   auto out_view = view<uint8_t>(output);
-
-  thread_ctx_.resize(thread_pool.NumThreads());
 
   for (int sample_idx = 0; sample_idx < nsamples; sample_idx++) {
     auto shape = in_shape.tensor_shape_span(sample_idx);
@@ -95,20 +75,24 @@ void JpegCompressionDistortionCPU::RunImpl(Workspace &ws) {
     assert(c_dim >= 0);
     int f_dim = layout.find('F');
 
-    int64_t nframes =
-        volume(shape.begin(), shape.begin() + f_dim + 1);  // note that if f_dim is -1, this
-                                                           // evaluates to an empty range,
-                                                           // volume of 1
+    // f_dim == -1 for HWC: nframes = volume([], [0]) = 1.
+    int64_t nframes = volume(shape.begin(), shape.begin() + f_dim + 1);
     int64_t frame_size = volume(shape.begin() + f_dim + 1, shape.begin() + ndim);
     int64_t width = shape[w_dim];
     int64_t height = shape[h_dim];
-    for (int elem_idx = 0; elem_idx < nframes; elem_idx++) {
+
+    for (int frame_idx = 0; frame_idx < nframes; frame_idx++) {
       thread_pool.AddWork(
-          [&, sample_idx, elem_idx, width, height, frame_size,
-           quality = quality_arg_[sample_idx].data[0]](int thread_id) {
-            auto *in = in_view[sample_idx].data + elem_idx * frame_size;
-            auto *out = out_view[sample_idx].data + elem_idx * frame_size;
-            RunJpegDistortionCPU(thread_ctx_[thread_id], in, out, width, height, quality);
+          [&, sample_idx, frame_idx, width, height, frame_size,
+           quality = quality_arg_[sample_idx].data[0]](int) {
+            const uint8_t *in_ptr = in_view[sample_idx].data + frame_idx * frame_size;
+            uint8_t *out_ptr = out_view[sample_idx].data + frame_idx * frame_size;
+            TensorShape<3> sh{static_cast<int64_t>(height), static_cast<int64_t>(width), 3};
+            TensorView<StorageCPU, const uint8_t, 3> in_tv{in_ptr, sh};
+            TensorView<StorageCPU, uint8_t, 3> out_tv{out_ptr, sh};
+            kernels::jpeg::JpegCompressionDistortionCPU kernel;
+            kernel.RunSample(out_tv, in_tv, quality,
+                             /*horz_subsample=*/true, /*vert_subsample=*/true);
           },
           frame_size);
     }

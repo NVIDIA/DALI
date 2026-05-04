@@ -174,7 +174,12 @@ def test_jpeg_compression_distortion_sequence():
     seq_len = 10
     for batch_size in [1, 15]:
         for device in ["cpu", "gpu"]:
-            for quality in [2, None, 50]:
+            # Numerical behavior across quality values is covered by
+            # test_jpeg_compression_distortion. This test only verifies that
+            # distorting a sequence equals distorting each slice independently,
+            # which doesn't depend on the quality value. Use quality=None so
+            # the per-sample random-quality tensor path is exercised.
+            for quality in [None]:
                 yield (
                     _testimpl_jpeg_compression_distortion_sequence,
                     batch_size,

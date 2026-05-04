@@ -21,7 +21,7 @@
 #include "dali/core/geom/vec.h"
 #include "dali/core/util.h"
 #include "dali/kernels/common/block_setup.h"
-#include "dali/kernels/imgproc/jpeg/dct_8x8_gpu.cuh"
+#include "dali/kernels/imgproc/jpeg/dct_8x8.h"
 #include "dali/kernels/imgproc/jpeg/jpeg_distortion_gpu_kernel.h"
 #include "dali/kernels/imgproc/color_manipulation/color_space_conversion_impl.h"
 #include "dali/kernels/imgproc/sampler.h"

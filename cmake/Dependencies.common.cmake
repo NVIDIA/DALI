@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,18 +17,47 @@
 # OpenCV
 ##################################################################
 if (BUILD_OPENCV)
-  # For OpenCV 3 and later, 'imdecode()' is in the imgcodecs library
+  # Single find_package call with the full set of components needed for the
+  # current build. `imgcodecs` is added when BUILD_TEST is on (test fixtures
+  # use cv::imread/imwrite for golden images and diff dumps). Splitting into
+  # two find_package calls would risk core/imgproc and imgcodecs resolving
+  # against different OpenCV installs and mixing versions on the link line.
+  set(_opencv_components core imgproc)
+  if (BUILD_TEST)
+    list(APPEND _opencv_components imgcodecs)
+  endif()
 
-  find_package(OpenCV 4.0 QUIET COMPONENTS core imgproc imgcodecs)
+  find_package(OpenCV 4.0 QUIET COMPONENTS ${_opencv_components})
   if(NOT OpenCV_FOUND)
-    find_package(OpenCV 3.0 REQUIRED COMPONENTS core imgproc imgcodecs)
+    find_package(OpenCV 3.0 REQUIRED COMPONENTS ${_opencv_components})
   endif()
 
   message(STATUS "Found OpenCV: ${OpenCV_INCLUDE_DIRS} (found suitable version \"${OpenCV_VERSION}\", minimum required is \"3.0\")")
   include_directories(SYSTEM ${OpenCV_INCLUDE_DIRS})
-  list(APPEND DALI_LIBS ${OpenCV_LIBRARIES})
-  message("OpenCV libraries: ${OpenCV_LIBRARIES}")
-  list(APPEND DALI_EXCLUDES libopencv_core.a;libopencv_imgproc.a;libopencv_highgui.a;libopencv_imgcodecs.a;liblibwebp.a;libittnotify.a;libpng.a;liblibtiff.a;liblibjasper.a;libIlmImf.a;liblibjpeg-turbo.a)
+
+  # Production link line: everything find_package() exported EXCEPT imgcodecs
+  # -- keeps libdali free of opencv_imgcodecs and its bundled codec statics
+  # (libwebp/libpng/libjasper/libIlmImf/libtiff). Filtering OpenCV_LIBRARIES
+  # rather than hard-coding `opencv_core opencv_imgproc` keeps this portable
+  # across OpenCV configs that export libraries via different naming styles
+  # (raw `opencv_core`, namespaced `OpenCV::core`, or absolute paths).
+  set(_opencv_prod_libs)
+  set(_opencv_test_extra_libs)
+  foreach(_opencv_lib IN LISTS OpenCV_LIBRARIES)
+    if (_opencv_lib MATCHES "imgcodecs")
+      list(APPEND _opencv_test_extra_libs ${_opencv_lib})
+    else()
+      list(APPEND _opencv_prod_libs ${_opencv_lib})
+    endif()
+  endforeach()
+  list(APPEND DALI_LIBS ${_opencv_prod_libs})
+  message(STATUS "OpenCV production libraries: ${_opencv_prod_libs}")
+  list(APPEND DALI_EXCLUDES libopencv_core.a;libopencv_imgproc.a;libopencv_highgui.a)
+
+  if (BUILD_TEST)
+    set(DALI_OPENCV_TEST_EXTRA_LIBS "${_opencv_test_extra_libs}" CACHE INTERNAL
+        "OpenCV imgcodecs library/target, for test executables only")
+  endif()
 endif()
 
 ##################################################################
