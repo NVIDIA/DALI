@@ -21,7 +21,7 @@
 #include <utility>
 #include "dali/core/common.h"
 #include "dali/util/crop_window.h"
-#include "dali/operators/random/philox.h"
+#include "dali/core/random/philox.h"
 
 namespace dali {
 

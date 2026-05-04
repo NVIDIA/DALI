@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef DALI_OPERATORS_RANDOM_PHILOX_H_
-#define DALI_OPERATORS_RANDOM_PHILOX_H_
+#ifndef DALI_CORE_RANDOM_PHILOX_H_
+#define DALI_CORE_RANDOM_PHILOX_H_
 
 #include <cassert>
 #include <cstdint>
@@ -157,4 +157,4 @@ inline std::istream &operator>>(std::istream &is, Philox4x32_10::State &state) {
 
 }  // namespace dali
 
-#endif  // DALI_OPERATORS_RANDOM_PHILOX_H_
+#endif  // DALI_CORE_RANDOM_PHILOX_H_
