@@ -1,0 +1,353 @@
+{
+  "strictness": 1,
+  "commentTypes": ["logic", "syntax", "style"],
+  "ignorePatterns": "third_party/\n**/*_pb2.py\n**/*_pb2.pyi\ndocs/_build/\nbuild/\nrelease_build/\ndebug_build/\ndali/python/nvidia/dali/_autograph/\n",
+  "context": {
+    "repos": ["NVIDIA/DALI_extra"]
+  },
+  "summarySection": { "included": true, "collapsible": true, "defaultOpen": false },
+  "rules": [
+    {
+      "id": "cuda-bounds-guard",
+      "rule": "Every CUDA kernel must guard out-of-bounds threads. Pass total work size as a kernel parameter and start with `if (idx >= size) return;` (or equivalent for 2D/3D grids). Flag kernels that compute indices without a bounds check.",
+      "scope": ["**/*.cu", "**/*.cuh"],
+      "severity": "high"
+    },
+    {
+      "id": "cuda-restrict",
+      "rule": "Non-aliasing input/output kernel pointers must be `__restrict__`-qualified. If a kernel takes both an input and output pointer of the same element type, both should be `__restrict__` unless aliasing is explicitly intended.",
+      "scope": ["**/*.cu", "**/*.cuh"],
+      "severity": "medium"
+    },
+    {
+      "id": "size-t-pixel-index",
+      "rule": "Pixel/byte index math that can exceed 2^31 must use `size_t` (or `int64_t`) to prevent overflow on large images. Pattern: `size_t idx = static_cast<size_t>(y) * W + x`. Flag `int * int` index arithmetic in code that can run on multi-megapixel images.",
+      "scope": ["**/*.cu", "**/*.cuh", "**/*.cc", "**/*.h"],
+      "severity": "high"
+    },
+    {
+      "id": "no-raw-cuda-alloc",
+      "rule": "Use DALI memory APIs (`mm::alloc_raw_unique`, `DynamicScratchpad`, `scratchpad->ToContiguousGPU()`, `CUDAStreamPool`). Don't call `cudaMalloc`/`cudaFree` directly, and don't hoard intermediate buffers as operator members — that risks clobbering data when the stream changes.",
+      "scope": ["dali/**/*.cu", "dali/**/*.cuh", "dali/**/*.cc", "dali/**/*.h"],
+      "severity": "medium"
+    },
+    {
+      "id": "use-operator-stream",
+      "rule": "Operators must launch CUDA work on `ws.stream()`, never the implicit default stream. The default stream creates a global synchronization point.",
+      "scope": ["dali/**/*.cu", "dali/**/*.cuh", "dali/**/*.cc"],
+      "severity": "high"
+    },
+    {
+      "id": "cuda-call-after-launch",
+      "rule": "Kernel launches don't return a `cudaError_t` — never wrap `kernel<<<...>>>(...)` directly in `CUDA_CALL(...)`. After a launch, follow with `CUDA_CALL(cudaGetLastError());` to check for launch errors.",
+      "scope": ["**/*.cu", "**/*.cuh"],
+      "severity": "high"
+    },
+    {
+      "id": "memcpy-output-first",
+      "rule": "DALI convention: memcpy-style helpers take output first, input second (matches the C `memcpy` signature). Flag callers that pass them in input-first order.",
+      "scope": ["dali/**/*.cc", "dali/**/*.h", "dali/**/*.cu", "dali/**/*.cuh"],
+      "severity": "high"
+    },
+    {
+      "id": "scratchpad-no-cuda-malloc",
+      "rule": "Temporary GPU buffers inside kernels/operators should come from `DynamicScratchpad`, not bare `cudaMalloc`/`cudaFree`. The scratchpad is pooled and avoids per-call allocator overhead.",
+      "scope": ["dali/**/*.cu", "dali/**/*.cc"],
+      "severity": "medium"
+    },
+    {
+      "id": "no-degraded-batching",
+      "rule": "Don't fall back to single-sample processing inside a batched path. If some samples need to be skipped, skip them or store explicit indices — never silently degrade the batched code path.",
+      "scope": ["dali/**/*.cc", "dali/**/*.cu", "dali/**/*.h"],
+      "severity": "medium"
+    },
+    {
+      "id": "float-literal-in-gpu-hot-path",
+      "rule": "In CUDA hot paths, use `0.5f`/`1.0f` (single precision) literals — `0.5`/`1.0` are doubles and force unnecessary fp64 promotion with poor codegen on consumer GPUs.",
+      "scope": ["**/*.cu", "**/*.cuh"],
+      "severity": "low"
+    },
+
+    {
+      "id": "raii-not-manual-cleanup",
+      "rule": "C resources (FILE*, AVFormatContext*, CUDA streams created locally, etc.) must be wrapped in `unique_ptr` with a custom deleter or guarded with `AtScopeExit` — not cleaned up manually across multiple branches.",
+      "scope": ["dali/**/*.cc", "dali/**/*.h", "dali/**/*.cu", "dali/**/*.cuh"],
+      "severity": "high"
+    },
+    {
+      "id": "assert-vs-enforce",
+      "rule": "`assert` is for internal invariants (compiled out in release). User-facing input validation must use `DALI_ENFORCE` (or `DALI_FAIL`) so failures surface in release builds with actionable messages.",
+      "scope": ["dali/**/*.cc", "dali/**/*.h", "dali/**/*.cu", "dali/**/*.cuh"],
+      "severity": "high"
+    },
+    {
+      "id": "no-c-style-cast",
+      "rule": "Use `static_cast<T>` (or typed accessors like `mutable_tensor<uint8_t>(i)`) over C-style casts `(T)expr`. Reserve `reinterpret_cast` for genuinely unrelated types — prefer `static_cast` whenever it compiles.",
+      "scope": ["**/*.cc", "**/*.h", "**/*.cu", "**/*.cuh"],
+      "severity": "medium"
+    },
+    {
+      "id": "make-unique-not-new",
+      "rule": "Use `std::make_unique` / `std::make_shared` instead of bare `new`. Never write `emplace_back(new Foo(...))` — if the container reallocates before the smart pointer is constructed, the raw allocation leaks.",
+      "scope": ["**/*.cc", "**/*.h", "**/*.cu", "**/*.cuh"],
+      "severity": "high"
+    },
+    {
+      "id": "value-init-pod",
+      "rule": "Value-initialize POD/aggregate structs with `= {}`. Especially important for opaque API structs (CUDA, FFmpeg, nvJPEG) — `= {}` keeps working when the struct gains new fields.",
+      "scope": ["**/*.cc", "**/*.h", "**/*.cu", "**/*.cuh"],
+      "severity": "medium"
+    },
+    {
+      "id": "static-in-header-must-inline",
+      "rule": "Non-template free functions defined in a header must be `inline`, not `static`. `static` in a header gives every translation unit its own copy with no shared address; `inline` ensures one definition.",
+      "scope": ["**/*.h", "**/*.hpp", "**/*.cuh"],
+      "severity": "high"
+    },
+    {
+      "id": "no-double-underscore",
+      "rule": "Identifiers starting with `__` (or `_` followed by uppercase) are reserved by the C++ standard for the implementation. Don't use them for your own variables, macros, or include guards.",
+      "scope": ["**/*.cc", "**/*.h", "**/*.cu", "**/*.cuh", "**/*.hpp"],
+      "severity": "medium"
+    },
+    {
+      "id": "trailing-underscore-private",
+      "rule": "DALI convention: `member_` (trailing underscore) marks a private/protected data member. If a `foo_` is exposed publicly, either rename it to `foo` or move it to private. No leading-underscore members.",
+      "scope": ["dali/**/*.cc", "dali/**/*.h", "dali/**/*.cu", "dali/**/*.cuh"],
+      "severity": "low"
+    },
+    {
+      "id": "self-assignment-safety",
+      "rule": "Copy/move-assignment operators on RAII types must handle `&other == this` correctly: release old resources before taking over new ones, no double-free, no leak. Destructors that mutate state must clear flags to prevent double-shutdown.",
+      "scope": ["dali/**/*.cc", "dali/**/*.h", "dali/**/*.cu", "dali/**/*.cuh"],
+      "severity": "high"
+    },
+    {
+      "id": "string-view-by-value",
+      "rule": "Pass `std::string_view` by value, not `const std::string_view &`. It's two pointers — by-reference adds an indirection for no benefit.",
+      "scope": ["**/*.cc", "**/*.h", "**/*.cu", "**/*.cuh"],
+      "severity": "low"
+    },
+    {
+      "id": "container-by-const-ref",
+      "rule": "Function parameters of `std::vector`, `std::string`, `std::map`, etc. must be `const T&` (or sink params taken by value with `std::move`). Plain by-value of large containers silently copies.",
+      "scope": ["**/*.cc", "**/*.h", "**/*.cu", "**/*.cuh"],
+      "severity": "medium"
+    },
+    {
+      "id": "no-virtual-without-polymorphism",
+      "rule": "Don't add `virtual` to a method that no derived class overrides — it's dead vtable weight. Don't make instance data members `const` unless immutability is essential; `const` members make the class non-movable.",
+      "scope": ["dali/**/*.cc", "dali/**/*.h", "dali/**/*.cu", "dali/**/*.cuh"],
+      "severity": "low"
+    },
+
+    {
+      "id": "py-list-of-bool-truthiness",
+      "rule": "`if [False, False, False]:` evaluates to `True` because the list is non-empty. Use `if all(xs):` or `if any(xs):` for list-of-bool checks.",
+      "scope": ["**/*.py"],
+      "severity": "high"
+    },
+    {
+      "id": "py-no-assert-for-user-errors",
+      "rule": "`assert` is disabled with `python -O`. Don't use it for user-facing validation. Raise `ValueError`, `RuntimeError`, or `TypeError` with a message that names the parameter and shows expected vs. actual values.",
+      "scope": ["**/*.py"],
+      "severity": "high"
+    },
+    {
+      "id": "py-pipeline-def-not-class",
+      "rule": "New code should use the `@pipeline_def` decorator instead of the legacy class-based `Pipeline` + `with pipe:` + `set_outputs(...)` API.",
+      "scope": ["**/*.py"],
+      "severity": "medium",
+      "enabled": true
+    },
+    {
+      "id": "py-private-internal-state",
+      "rule": "Internal attributes must be prefixed with `_` to avoid polluting the public API (e.g., `self._cache_outputs`, not `self.cache_outputs`). Public API surface is anything not underscore-prefixed.",
+      "scope": ["dali/python/**/*.py"],
+      "severity": "medium"
+    },
+    {
+      "id": "py-zip-strict",
+      "rule": "Use `zip(a, b, strict=True)` (Python 3.10+) when iteration assumes equal lengths. Plain `zip` silently truncates to the shorter sequence and hides bugs.",
+      "scope": ["**/*.py"],
+      "severity": "medium"
+    },
+    {
+      "id": "py-positive-bool-names",
+      "rule": "Boolean parameters and attributes should use the positive form to avoid double negatives at call sites. `case_sensitive=True` (not `case_insensitive=False`); `direct=True` (not `indirect=False`).",
+      "scope": ["**/*.py"],
+      "severity": "low"
+    },
+    {
+      "id": "py-warnings-warn-not-print",
+      "rule": "Use `warnings.warn(...)` for warnings, not `print(...)`. And don't prefix the message with `\"Warning: \"` — `warnings` already adds it.",
+      "scope": ["**/*.py"],
+      "severity": "low"
+    },
+    {
+      "id": "py-os-path-join",
+      "rule": "Build filesystem paths with `os.path.join(...)` (or `pathlib.Path`), not string concatenation with `\"/\"`.",
+      "scope": ["**/*.py"],
+      "severity": "low"
+    },
+
+    {
+      "id": "boolean-method-naming",
+      "rule": "Methods that return `bool` should be named with `Is*`, `Has*`, `Can*`, or `Should*` (C++) / `is_*`, `has_*` (Python). Imperative-sounding names (`HideArgument`, `Convert`) read as commands, not queries.",
+      "scope": ["dali/**/*.cc", "dali/**/*.h", "dali/**/*.cu", "dali/**/*.cuh", "dali/**/*.py"],
+      "severity": "low"
+    },
+    {
+      "id": "enum-over-magic-strings",
+      "rule": "Use enums (or `IntEnum`/`Enum` in Python) for type/mode/format dispatch — not magic strings or magic integers. Self-documenting and compiler-checkable.",
+      "scope": ["dali/**/*.cc", "dali/**/*.h", "dali/**/*.cu", "dali/**/*.cuh", "dali/**/*.py"],
+      "severity": "medium"
+    },
+    {
+      "id": "use-dali-utilities",
+      "rule": "Reach for existing DALI utilities before reimplementing: `ConvertSat<uint8_t>(...)` over `lrintf(fminf(fmaxf(...)))`; `clamp<T>(...)` over manual `fminf/fmaxf`; `make_string(...)` over `+`-concatenation; `div_ceil(a,b)` over `(a+b-1)/b`. Search for the helper before writing your own.",
+      "scope": ["dali/**/*.cc", "dali/**/*.h", "dali/**/*.cu", "dali/**/*.cuh"],
+      "severity": "medium"
+    },
+    {
+      "id": "no-side-effects-on-input",
+      "rule": "Operator inputs must not be mutated. Two consumers may read the same input in parallel — mutation creates races. Use `ShareData`/views, or copy if you genuinely need a writable buffer.",
+      "scope": ["dali/operators/**", "dali/kernels/**"],
+      "severity": "high"
+    },
+
+    {
+      "id": "error-message-with-context",
+      "rule": "Error messages must name the affected parameter/operator, show expected vs. actual values, and end as a complete sentence. Not `\"is 5\"` but `\"got 5 channels, expected 1 or 3.\"`. Use `make_string(...)` for C++ concatenation; f-strings in Python.",
+      "severity": "medium"
+    },
+    {
+      "id": "no-silent-fallback",
+      "rule": "Don't silently degrade or skip when an unsupported feature/config is requested. Either raise/`DALI_FAIL`, or `DALI_WARN` loudly with a reason. Silent fallbacks become invisible regressions.",
+      "scope": ["dali/**/*.cc", "dali/**/*.h", "dali/**/*.cu", "dali/**/*.cuh", "dali/**/*.py"],
+      "severity": "high"
+    },
+    {
+      "id": "actionable-validation",
+      "rule": "Validation messages should tell the user how to fix the problem, not just that it's wrong. Include valid values when the set is small (e.g., `\"Expected 'CHW' or 'HWC', got 'XYZ'\"`).",
+      "severity": "medium"
+    },
+
+    {
+      "id": "test-validates-correctness",
+      "rule": "Tests must compare against expected values or a reference implementation (NumPy/OpenCV/torchvision), not just check shape/dtype. Ask: \"if the operator returned all zeros, would this test still pass?\" If yes, the assertion is insufficient.",
+      "scope": ["**/test_*.py", "dali/test/**", "dali/**/*_test.cc", "dali/**/*_test.cu"],
+      "severity": "high"
+    },
+    {
+      "id": "test-edge-cases",
+      "rule": "New operator tests must cover: empty input, single sample (`batch_size=1`), boundary values, CPU and GPU variants, and invalid-input rejection (via `assert_raises(..., glob=...)` with the expected message pattern).",
+      "scope": ["**/test_*.py", "dali/test/**", "dali/**/*_test.cc", "dali/**/*_test.cu"],
+      "severity": "medium"
+    },
+    {
+      "id": "test-set-seed",
+      "rule": "Tests using random data must set a deterministic seed (e.g., `np.random.seed(...)` or `pipeline_def(seed=...)`) — otherwise CI flakes hide real bugs.",
+      "scope": ["**/test_*.py", "dali/test/**"],
+      "severity": "medium"
+    },
+    {
+      "id": "test-no-hard-skip",
+      "rule": "Don't unconditionally skip tests in CI when a feature is unavailable — silent skips mean we stop noticing when the feature breaks. Either run the test conditionally with logging, or fail loudly when the prerequisite is missing.",
+      "scope": ["**/test_*.py", "dali/test/**"],
+      "severity": "medium"
+    },
+    {
+      "id": "test-no-self-invocation",
+      "rule": "Don't call test functions at module scope. Let pytest/nose discover them — invoking them by hand at import time runs them at collection time and breaks parallel runners.",
+      "scope": ["**/test_*.py", "dali/test/**"],
+      "severity": "medium"
+    },
+    {
+      "id": "test-use-pipeline-def",
+      "rule": "New tests should use `@pipeline_def` and `DALI_extra` paths (via `dali_extra_path()` / `DALI_EXTRA_PATH`). Don't use the legacy `ops.` API in new tests, and don't hardcode personal data paths.",
+      "scope": ["**/test_*.py", "dali/test/**"],
+      "severity": "medium"
+    },
+
+    {
+      "id": "doc-copyright-current-year",
+      "rule": "Files that are added or substantially modified must have a copyright header with the current year (or year range ending in the current year).",
+      "scope": ["**/*.cc", "**/*.h", "**/*.cu", "**/*.cuh", "**/*.py"],
+      "severity": "low"
+    },
+    {
+      "id": "doc-param-name-matches",
+      "rule": "Doxygen `@param`/Sphinx `:param:` labels must match the actual parameter names in the function signature. A mismatch is a real bug — readers think the wrong arg is being documented.",
+      "scope": ["**/*.cc", "**/*.h", "**/*.cu", "**/*.cuh", "**/*.py"],
+      "severity": "medium"
+    },
+    {
+      "id": "doc-no-todo-on-merge",
+      "rule": "Don't merge with `TODO`/`FIXME`/`XXX`/placeholder text (`by MW`, `tbd`, `???`) in docstrings, comments, or release notes. Either resolve before merge, or open a tracked issue and reference it.",
+      "scope": ["**/*.cc", "**/*.h", "**/*.cu", "**/*.cuh", "**/*.py", "**/*.rst", "**/*.md"],
+      "severity": "low"
+    },
+    {
+      "id": "doc-no-unverified-perf",
+      "rule": "Don't put unverified performance claims in user-visible docs (\"X is the fastest\", \"always faster than Y\"). If you can't guarantee the claim across configurations, use neutral language.",
+      "scope": ["docs/**/*.rst", "docs/**/*.md", "**/*.py"],
+      "severity": "low"
+    },
+    {
+      "id": "doc-rst-backticks",
+      "rule": "RST formatting: single backticks for cross-reference links (``:ref:`name``` or `` `link <url>`_ ``), double backticks for literal/monospace code (``` ``code`` ```). Mixing them up renders incorrectly.",
+      "scope": ["**/*.rst", "**/*.py"],
+      "severity": "low"
+    },
+
+    {
+      "id": "no-commented-out-code",
+      "rule": "Delete commented-out code instead of leaving it in. If it's there \"in case we need it later\", git history is the place for that. Exception: `#if 0` blocks with an explanatory comment.",
+      "severity": "low"
+    },
+    {
+      "id": "no-debug-print",
+      "rule": "Remove debug/profiling code before merge: `std::cout` debug prints, ad-hoc timing, `#if 1` flag-flips, `print()` statements left from debugging.",
+      "severity": "medium"
+    },
+    {
+      "id": "no-reformat-unchanged",
+      "rule": "Don't reformat unchanged code in the same PR as a behavior change — it bloats the diff and hides the real change. Format-only changes belong in their own PR.",
+      "severity": "low"
+    },
+    {
+      "id": "fix-typos",
+      "rule": "Fix typos in identifiers, comments, error messages, and docs. Common ones spotted in DALI history: `sequenece`, `Allready`, `Whtether`, `milliseoncds`, `on-pair`, `Succesful`, `poitner`, `funciton`, `syncrhonized`, `deleteion`, `retruned`, `worskpace`, `explnation`, `dimention`, `indefinately`. Typos in enum values are real bugs (wrong case matched).",
+      "severity": "low"
+    },
+    {
+      "id": "cpp-naming-no-camelcase",
+      "rule": "C++ in DALI uses PascalCase for methods/functions and snake_case for variables — never camelCase. Acronyms in names follow PascalCase too: `StftGpu`, not `STFTGPU`.",
+      "scope": ["dali/**/*.cc", "dali/**/*.h", "dali/**/*.cu", "dali/**/*.cuh"],
+      "severity": "low"
+    },
+    {
+      "id": "pointer-spacing",
+      "rule": "DALI pointer-declaration style: `T *ptr` (space before `*`), not `T* ptr`. Applies to references too: `T &ref`.",
+      "scope": ["dali/**/*.cc", "dali/**/*.h", "dali/**/*.cu", "dali/**/*.cuh"],
+      "severity": "low"
+    },
+    {
+      "id": "variable-name-cardinality",
+      "rule": "Variable names must match cardinality: plurals for collections (`indices`, `samples`, `streams`), singulars for single items (`index`, `sample`, `stream`). `idxs` for plural, `idx` for singular — not the other way around.",
+      "severity": "low"
+    },
+    {
+      "id": "include-style",
+      "rule": "Include style: `\"...\"` for project-internal headers, `<...>` for system/third-party headers. Be consistent throughout the file.",
+      "scope": ["**/*.cc", "**/*.h", "**/*.cu", "**/*.cuh"],
+      "severity": "low"
+    },
+    {
+      "id": "no-orphan-trailing-summary",
+      "rule": "Don't review code that wasn't actually changed by this PR. Distinguish issues introduced by the diff from pre-existing patterns — flag pre-existing issues only when they directly affect the new code's correctness, and label them as pre-existing.",
+      "severity": "low"
+    }
+  ]
+}
