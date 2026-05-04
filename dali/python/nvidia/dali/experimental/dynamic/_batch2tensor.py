@@ -34,6 +34,8 @@ class BatchToTensor:
     Only a minimal required subset of ``Operator`` interface is implemented.
     """
 
+    _nvtx_construct_invocation = NVTXRange("__call__: construct Invocation", category="op_builder")
+
     @mark_transparent
     @NVTXRange("__call__: Batch2Tensor", category="op_builder")
     def __call__(
@@ -49,7 +51,7 @@ class BatchToTensor:
     ):
         if not isinstance(batch, Batch):
             batch = _op_builder._to_batch(batch, batch_size)
-        with NVTXRange("__call__: construct Invocation", category="op_builder"):
+        with BatchToTensor._nvtx_construct_invocation:
             invocation = _invocation.Invocation(
                 self,
                 None,

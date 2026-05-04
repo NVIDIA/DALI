@@ -35,7 +35,7 @@ from ._type import dtype as _dtype
 
 def _backend_device(backend: _backend.TensorListCPU | _backend.TensorListGPU) -> Device:
     if isinstance(backend, _backend.TensorListCPU):
-        return Device("cpu")
+        return Device.CPU
     elif isinstance(backend, _backend.TensorListGPU):
         return Device("gpu", backend.device_id())
     else:
@@ -305,7 +305,7 @@ class Batch:
                     assert len(self._tensors) == 0
                     raise ValueError("Element type must be specified if the list is empty")
                 if device is None:
-                    device = Device("cpu")
+                    device = Device.CPU
                 if layout is None:
                     layout = ""
                 self._device = device
@@ -364,6 +364,10 @@ class Batch:
     def _is_external(self) -> bool:
         return self._wraps_external_data
 
+    _nvtx_to_numpy_and_stack = NVTXRange("broadcast: to numpy and stack", category="batch")
+    _nvtx_to_backend = NVTXRange("broadcast: to backend", category="batch")
+    _nvtx_create_batch = NVTXRange("broadcast: create batch", category="batch")
+
     @staticmethod
     @NVTXRange("broadcast", category="batch")
     def broadcast(
@@ -394,7 +398,7 @@ class Batch:
             return Batch(tl_type.broadcast(t._storage, batch_size))
         import numpy as np
 
-        with NVTXRange("to numpy and stack", category="batch"):
+        with Batch._nvtx_to_numpy_and_stack:
             arr = np.array(sample)
             converted_dtype_id = None
             if arr.dtype == np.float64:
@@ -409,11 +413,11 @@ class Batch:
                 arr = arr.astype(_dali_types.to_numpy_type(dtype.type_id))
             arr = np.repeat(arr[np.newaxis], batch_size, axis=0)
 
-        with NVTXRange("to backend", category="batch"):
+        with Batch._nvtx_to_backend:
             tl = _backend.TensorListCPU(arr)
             if converted_dtype_id is not None:
                 tl.reinterpret(converted_dtype_id)
-        with NVTXRange("create batch", category="batch"):
+        with Batch._nvtx_create_batch:
             return Batch(tl, device=device, dtype=dtype)
 
     @property
@@ -517,7 +521,7 @@ class Batch:
         """
         Returns the batch on the CPU. If it's already there, this function returns `self`.
         """
-        return self.to_device(Device("cpu"))
+        return self.to_device(Device.CPU)
 
     def gpu(self, index: int | None = None) -> "Batch":
         """

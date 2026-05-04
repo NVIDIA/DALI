@@ -215,10 +215,13 @@ class Invocation:
             if stream is not None:  # If the stream is None, there's no GPU
                 stream.synchronize()
 
+    _nvtx_wait = NVTXRange("Invocation.wait", category="invocation")
+    _nvtx_run = NVTXRange("Invocation.run", category="invocation")
+
     def run(self, ctx: Optional[_EvalContext] = None):
         """Executes the operator immediately."""
         if future := self._future:
-            with NVTXRange("Invocation.wait", category="invocation"):
+            with Invocation._nvtx_wait:
                 future.wait()
             self._future = None
         else:
@@ -270,7 +273,7 @@ class Invocation:
         if self._results is not None:
             return
 
-        with NVTXRange("Invocation.run", category="invocation"):
+        with Invocation._nvtx_run:
             # If the invocation was created with a GPU device, validate that
             # the evaluation context matches.
             if (
@@ -317,7 +320,7 @@ class Invocation:
                 if isinstance(x, (_b.TensorGPU, _b.TensorListGPU)):
                     return Device("gpu", x.device_id())
                 else:
-                    return Device("cpu")
+                    return Device.CPU
 
             if self._output_devices is None:
                 self._output_devices = [output_device(r) for r in self._results]
