@@ -513,7 +513,11 @@ def test_resize_upsample_1d(device):
     expected = np.array([1.0, 1.0, 1.0, 2.0, 2.0, 2.0], dtype=np.float32)
 
     def resize_fn(input_data):
-        return fn.tensor_resize(input_data, scales=scales, alignment=0, interp_type=types.INTERP_NN)
+        # scales is either a list or a scalar, as numpy doesn't allow converting 1 element
+        # array to a scalar we need to call item() to get the scalar value
+        return fn.tensor_resize(
+            input_data, scales=scales, alignment=0, interp_type=types.INTERP_NN
+        )
 
     run_and_compare(expected, data, device, resize_fn)
 

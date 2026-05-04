@@ -106,7 +106,7 @@ def one_hot_3_axes(input, axis):
 def one_hot(input):
     outp = np.zeros([batch_size, num_classes], dtype=np.int32)
     for i in range(batch_size):
-        outp[i, int(input[i])] = 1
+        outp[i, int(input[i].item())] = 1
     return outp
 
 
