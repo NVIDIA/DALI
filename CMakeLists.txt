@@ -30,8 +30,17 @@ endif()
 
 project(DALI CUDA CXX C)
 
+option(BUILD_FOR_CONDA "Enable build adjustments used by conda-forge packaging" OFF)
+
 set(DALI_ROOT ${PROJECT_SOURCE_DIR})
 set(CUDA_VERSION "${CMAKE_CUDA_COMPILER_VERSION}")
+
+if(BUILD_FOR_CONDA AND DEFINED CUDAToolkit_TARGET_DIR AND
+   NOT "${CUDAToolkit_TARGET_DIR}" STREQUAL "")
+  set(CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES "${CUDAToolkit_TARGET_DIR}/include")
+  message(STATUS "BUILD_FOR_CONDA -- using CUDA target include directory: "
+                 "${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}")
+endif()
 
 # more recent CMake puts both cuda/targets/x86_64-linux/include and cuda/targets/x86_64-linux/include/cccl into the path
 # while we usually need only the former
@@ -242,12 +251,22 @@ foreach(rpath IN ITEMS
   "$ORIGIN/../cufft/lib"
   "$ORIGIN/../npp/lib"
   "$ORIGIN/../nvjpeg/lib"
-  "$ORIGIN/../nvimgcodec"
-  "${NVIMGCODEC_DEFAULT_INSTALL_PATH}/lib64")
+  "$ORIGIN/../nvimgcodec")
   message(STATUS "Add to rpath: ${rpath}")
   list(APPEND CMAKE_BUILD_RPATH ${rpath})
   list(APPEND CMAKE_INSTALL_RPATH ${rpath})
 endforeach()
+
+if (BUILD_FOR_CONDA)
+  set(NVIMGCODEC_DEFAULT_LIBRARY_DIR "lib")
+else()
+  set(NVIMGCODEC_DEFAULT_LIBRARY_DIR "lib64")
+endif()
+set(nvimgcodec_default_rpath
+    "${NVIMGCODEC_DEFAULT_INSTALL_PATH}/${NVIMGCODEC_DEFAULT_LIBRARY_DIR}")
+message(STATUS "Add to rpath: ${nvimgcodec_default_rpath}")
+list(APPEND CMAKE_BUILD_RPATH ${nvimgcodec_default_rpath})
+list(APPEND CMAKE_INSTALL_RPATH ${nvimgcodec_default_rpath})
 
 get_dali_version(${PROJECT_SOURCE_DIR}/VERSION DALI_VERSION)
 
@@ -348,6 +367,7 @@ propagate_option(BUILD_NVML)
 propagate_option(BUILD_CUFILE)
 propagate_option(BUILD_NVIMAGECODEC)
 propagate_option(BUILD_AWSSDK)
+propagate_option(BUILD_FOR_CONDA)
 propagate_option(LINK_DRIVER)
 propagate_option(WITH_DYNAMIC_NVJPEG)
 propagate_option(WITH_DYNAMIC_CUFFT)

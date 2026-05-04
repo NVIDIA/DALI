@@ -29,6 +29,12 @@
   "." STR(NVIMGCODEC_VER_MINOR) "." STR(NVIMGCODEC_VER_PATCH)
 #define MAJOR_VER_STR STR(NVIMGCODEC_VER_MAJOR)
 
+#if FOR_CONDA_ENABLED
+#define NVIMGCODEC_DEFAULT_LIBRARY_DIR "lib"
+#else
+#define NVIMGCODEC_DEFAULT_LIBRARY_DIR "lib64"
+#endif
+
 namespace {
 
 typedef void *NVIMGCODECDRIVER;
@@ -37,11 +43,13 @@ const char nvimgcodecLibNameFullVer[] = "libnvimgcodec.so." FULL_VER_STR;
 const char nvimgcodecLibNameMajorVer[] = "libnvimgcodec.so." MAJOR_VER_STR;
 const char nvimgcodecLibName[] = "libnvimgcodec.so";
 const char nvimgcodecLibDefaultPathFullVer[] =
-    NVIMGCODEC_DEFAULT_INSTALL_PATH "/lib64/libnvimgcodec.so." FULL_VER_STR;
+    NVIMGCODEC_DEFAULT_INSTALL_PATH "/" NVIMGCODEC_DEFAULT_LIBRARY_DIR
+    "/libnvimgcodec.so." FULL_VER_STR;
 const char nvimgcodecLibDefaultPathMajorVer[] =
-    NVIMGCODEC_DEFAULT_INSTALL_PATH "/lib64/libnvimgcodec.so." MAJOR_VER_STR;
+    NVIMGCODEC_DEFAULT_INSTALL_PATH "/" NVIMGCODEC_DEFAULT_LIBRARY_DIR
+    "/libnvimgcodec.so." MAJOR_VER_STR;
 const char nvimgcodecLibDefaultPath[] =
-    NVIMGCODEC_DEFAULT_INSTALL_PATH "/lib64/libnvimgcodec.so";
+    NVIMGCODEC_DEFAULT_INSTALL_PATH "/" NVIMGCODEC_DEFAULT_LIBRARY_DIR "/libnvimgcodec.so";
 
 NVIMGCODECDRIVER loadNvimgcodecLibrary() {
   static const char *paths[] = {nvimgcodecLibNameFullVer,
@@ -58,11 +66,17 @@ NVIMGCODECDRIVER loadNvimgcodecLibrary() {
   }
 
   if (!ret) {
+#if FOR_CONDA_ENABLED
+    throw std::runtime_error(
+        "dlopen libnvimgcodec.so failed!. Please install "
+        "libnvimgcodec: `conda install -c conda-forge libnvimgcodec`.");
+#else
     int cuda_version_major = CUDA_VERSION / 1000;  // 11020 -> 11, 12000 -> 12
     throw std::runtime_error(
         "dlopen libnvimgcodec.so failed!. Please install nvimagecodec: See "
         "https://developer.nvidia.com/nvimgcodec-downloads or simply do `pip install "
         "nvidia-nvimgcodec-cu" + std::to_string(cuda_version_major) + "`.");
+#endif
   }
   return ret;
 }
