@@ -122,7 +122,7 @@ void TestPrimaryContextInitMultithreaded() {
   _exit(DoTestPrimaryContextInitMultithreaded());
 }
 
-TEST(DeviceGuard, RestoreUninit0) {
+TEST(DeviceGuard, RestoreUninit0_MultiGPU) {
   int count = 0;
   CUDA_CALL(cudaGetDeviceCount(&count));
   if (count < 2) {
