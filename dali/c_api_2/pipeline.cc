@@ -420,9 +420,8 @@ daliResult_t daliPipelineGetOutputDesc(
 
 daliResult_t daliPipelinePopOutputs(daliPipeline_h pipeline, daliPipelineOutputs_h *out) {
   DALI_PROLOG();
-  CHECK_OUTPUT(out);
-  *out = nullptr;
   auto pipe = ToPointer(pipeline);
+  CHECK_OUTPUT(out);
   *out = pipe->PopOutputs().release();
   DALI_EPILOG();
 }
@@ -432,9 +431,8 @@ daliResult_t daliPipelinePopOutputsAsync(
         daliPipelineOutputs_h *out,
         cudaStream_t stream) {
   DALI_PROLOG();
-  CHECK_OUTPUT(out);
-  *out = nullptr;
   auto pipe = ToPointer(pipeline);
+  CHECK_OUTPUT(out);
   *out = pipe->PopOutputs(stream).release();
   DALI_EPILOG();
 }

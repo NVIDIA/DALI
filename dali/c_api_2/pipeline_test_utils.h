@@ -38,13 +38,13 @@ inline TensorListHandle GetOutput(daliPipelineOutputs_h h, int idx) {
 }
 
 inline PipelineOutputsHandle PopOutputs(daliPipeline_h h) {
-  daliPipelineOutputs_h raw_out_h;
+  daliPipelineOutputs_h raw_out_h = nullptr;
   CHECK_DALI(daliPipelinePopOutputs(h, &raw_out_h));
   return PipelineOutputsHandle(raw_out_h);
 }
 
 inline PipelineOutputsHandle PopOutputsAsync(daliPipeline_h h, cudaStream_t stream) {
-  daliPipelineOutputs_h raw_out_h;
+  daliPipelineOutputs_h raw_out_h = nullptr;
   CHECK_DALI(daliPipelinePopOutputsAsync(h, &raw_out_h, stream));
   return PipelineOutputsHandle(raw_out_h);
 }
