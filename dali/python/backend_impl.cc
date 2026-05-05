@@ -2436,8 +2436,7 @@ void ExposePhilox(py::module &m) {
       Philox4x32_10::State s;
       Philox4x32_10::state_from_string(s, str);
       return s;
-    }),
-    "str"_a)
+    }), "str"_a)
     .def("__str__", [](const Philox4x32_10::State &s) {
       return Philox4x32_10::state_to_string(s);
     })

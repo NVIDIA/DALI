@@ -1,4 +1,4 @@
-# Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -111,9 +111,6 @@ def test_rng_clone():
     # Clone it
     rng2 = rng1.clone()
 
-    # Verify they have the same seed
-    assert rng1.seed == rng2.seed, f"Seeds don't match: {rng1.seed} != {rng2.seed}"
-
     # Verify they are different objects
     assert rng1 is not rng2, "Clone should create a new object"
 
@@ -143,26 +140,25 @@ def test_rng_set_seed():
     # Explicit RNG instance
     rng = ndd.random.RNG(seed=1234)
     values1 = [rng() for _ in range(5)]
-    rng.seed = 1234
+    rng.seed(1234)
     values2 = [rng() for _ in range(5)]
     assert values1 == values2
-    rng.seed = 5678  # Different seed should produce different values
+    rng.seed(5678)  # Different seed should produce different values
     values3 = [rng() for _ in range(5)]
     assert values1 != values3
 
     # Explicit RNG instance with operators
-    rng.seed = 1234
+    rng.seed(1234)
     result1_np = asnumpy(ndd.random.uniform(range=[0.0, 1.0], shape=[10], rng=rng))
-    rng.seed = 1234
+    rng.seed(1234)
     result2_np = asnumpy(ndd.random.uniform(range=[0.0, 1.0], shape=[10], rng=rng))
     assert np.array_equal(result1_np, result2_np)
-    rng.seed = 5678  # Different seed
+    rng.seed(5678)  # Different seed
     result3_np = asnumpy(ndd.random.uniform(range=[0.0, 1.0], shape=[10], rng=rng))
     assert not np.array_equal(result1_np, result3_np)
 
     # Default RNG
     ndd.random.set_seed(9876)
-    assert ndd.random.get_default_rng().seed == 9876
     values1 = [ndd.random.get_default_rng()() for _ in range(5)]
     ndd.random.set_seed(9876)
     values2 = [ndd.random.get_default_rng()() for _ in range(5)]

@@ -37,6 +37,10 @@ class RNG:
     seed : int, optional
         Seed for the random number generator. If not provided, a random seed is used.
         The seed is truncated to 64 bits.
+        Mutually exclusive with `state`.
+    state : State object, optional
+        The state object as returned RNG.state property.
+        Mutually exclusive with `seed`.
 
     Examples
     --------
@@ -49,11 +53,16 @@ class RNG:
     >>> result = ndd.random.uniform(range=(-1, 1), shape=[10], rng=my_rng, device="cpu")
     """
 
-    def __init__(self, seed=None):
-        if seed is None:
-            seed = _random.randint(0, 2**63 - 1)
-        self._seed = seed
-        self._rng = _b.Philox4x32_10(seed & 0xFFFFFFFFFFFFFFFF, 0, 0)
+    def __init__(self, seed=None, state=None):
+        if seed is not None:
+            if state is not None:
+                raise ValueError("Cannot specify both `seed` and `state`")
+            self._rng = _b.Philox4x32_10(seed & 0xFFFFFFFFFFFFFFFF, 0, 0)
+        elif state is not None:
+            self._rng = _b.Philox4x32_10(state)
+        else:
+            seed = _random.randint(0, 0xFFFFFFFFFFFFFFFF)
+            self._rng = _b.Philox4x32_10(seed, 0, 0)
 
     def __call__(self):
         """Generate a random uint32 value.
@@ -65,28 +74,19 @@ class RNG:
         """
         return self._rng.next()
 
-    @property
-    def seed(self):
-        """Get the seed used to initialize this RNG."""
-        return self._seed
-
-    @seed.setter
     def seed(self, value):
         """Set the seed for this RNG and reset its random sequence.
         The seed is truncated to 64 bits.
         """
-        self._seed = value
         self._rng = _b.Philox4x32_10(value & 0xFFFFFFFFFFFFFFFF, 0, 0)
 
     def clone(self):
-        """Create a new RNG with the same seed.
+        """Create a new RNG with the same state
 
         Returns
         -------
         RNG
-            A new RNG instance initialized with the same seed as this one.
-            This allows creating independent RNG streams that produce the same
-            sequence of random numbers.
+            A new RNG which will continue the same sequence as this one.
 
         Examples
         --------
@@ -94,6 +94,7 @@ class RNG:
         >>>
         >>> # Create an RNG
         >>> rng1 = ndd.random.RNG(seed=1234)
+        >>> _ = rng1()  # change the state of the generator
         >>>
         >>> # Clone it to create an independent copy
         >>> rng2 = rng1.clone()
@@ -102,10 +103,20 @@ class RNG:
         >>> for i in range(10):
         >>>     assert rng1() == rng2()
         """
-        return RNG(seed=self._seed)
+        return RNG(state=self.state)
 
     def __repr__(self):
         return f"RNG(seed={self._seed})"
+
+    @property
+    def state(self):
+        """Returns the internal state of the generator."""
+        return self._rng.get_state()
+
+    @state.setter
+    def state(self, value):
+        """Sets the internal state of the generator."""
+        return self._rng.set_state(value)
 
 
 # Thread-local storage for the default RNG
@@ -157,4 +168,4 @@ def set_seed(seed):
     >>> result2 = ndd.random.uniform(range=(-1, 1), shape=[10])
     >>> # result1 and result2 should be identical
     """
-    get_default_rng().seed = seed
+    get_default_rng().seed(seed)
