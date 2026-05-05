@@ -106,7 +106,7 @@ class RNG:
         return RNG(state=self.state)
 
     def __repr__(self):
-        return f"RNG(seed={self._seed})"
+        return f"RNG(state={self.state})"
 
     @property
     def state(self):
