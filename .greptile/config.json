@@ -218,7 +218,8 @@
     {
       "id": "no-side-effects-on-input",
       "rule": "Operator inputs must not be mutated. Two consumers may read the same input in parallel — mutation creates races. Use `ShareData`/views, or copy if you genuinely need a writable buffer.",
-      "scope": ["dali/operators/**", "dali/kernels/**"],
+      "scope": ["dali/operators/**/*.cc", "dali/operators/**/*.h", "dali/operators/**/*.cu", "dali/operators/**/*.cuh",
+                "dali/kernels/**/*.cc", "dali/kernels/**/*.h", "dali/kernels/**/*.cu", "dali/kernels/**/*.cuh"],
       "severity": "high"
     },
 
@@ -229,7 +230,7 @@
     },
     {
       "id": "no-silent-fallback",
-      "rule": "Don't silently degrade or skip when an unsupported feature/config is requested. Either raise/`DALI_FAIL`, or `DALI_WARN` loudly with a reason. Silent fallbacks become invisible regressions.",
+      "rule": "Don't silently degrade or skip when an unsupported feature/config is requested. Either throw an appropriate exception (see `assert-vs-exception`) or `DALI_WARN` loudly with a reason. Silent fallbacks become invisible regressions.",
       "scope": ["dali/**/*.cc", "dali/**/*.h", "dali/**/*.cu", "dali/**/*.cuh", "dali/**/*.py"],
       "severity": "high"
     },
