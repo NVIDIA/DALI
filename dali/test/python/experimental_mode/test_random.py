@@ -15,6 +15,7 @@
 import nvidia.dali.experimental.dynamic as ndd
 import numpy as np
 from nose2.tools import cartesian_params, params
+from nose_utils import raises
 
 
 def asnumpy(tensor_or_batch):
@@ -142,6 +143,11 @@ def test_rng_clone():
     assert np.array_equal(
         result1_np, result2_np
     ), "Cloned RNGs should produce identical operator results"
+
+
+@raises(ValueError, glob="both")
+def test_rng_init_seed_and_state_error():
+    ndd.random.RNG(seed=0, state="")
 
 
 def test_rng_set_seed():
