@@ -83,9 +83,18 @@ void SuppressGeoTIFFTagWarnings(const char *module, const char *fmt, va_list ap)
   }
   char buf[1024];
   vsnprintf(buf, sizeof(buf), fmt, ap);
-  std::cerr << module << ": " << buf << "\n";
+  // libtiff permits a null module name in some code paths
+  if (module)
+    std::cerr << module << ": " << buf << "\n";
+  else
+    std::cerr << buf << "\n";
 }
 
+// Note: because this function lives in an anonymous namespace in a header,
+// each translation unit that includes image_decoder.h gets its own copy of
+// the once_flag. TIFFSetWarningHandler may therefore be called once per TU
+// (in practice at most twice: host_decoder.cc and mixed_decoder.cc).
+// All copies install the same handler so the behaviour is correct.
 void InstallGeoTIFFWarningFilter() {
   static std::once_flag flag;
   std::call_once(flag, [] { TIFFSetWarningHandler(SuppressGeoTIFFTagWarnings); });

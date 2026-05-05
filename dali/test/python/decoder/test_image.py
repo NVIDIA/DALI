@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -26,8 +26,9 @@ from nose2.tools import params
 from nose_utils import assert_raises, SkipTest
 from test_utils import compare_pipelines
 from test_utils import get_dali_extra_path
-from test_utils import to_array
+from test_utils import get_gpu_num
 from test_utils import get_nvjpeg_ver
+from test_utils import to_array
 
 
 def get_img_files(data_path, subdir="*", ext=None):
@@ -574,7 +575,11 @@ def test_image_decoder_geotiff():
         geo_path = os.path.join(tmpdir, "geo.tif")
         expected = _create_geotiff(geo_path)
 
-        for device in ["cpu", "mixed"]:
+        devices = ["cpu"]
+        if get_gpu_num() > 0:
+            devices.append("mixed")
+
+        for device in devices:
 
             @pipeline_def(batch_size=1, device_id=0, num_threads=1)
             def geo_pipe(files):
