@@ -28,6 +28,7 @@
 #include "dali/core/os/shared_mem.h"
 #endif
 #include "dali/core/python_util.h"
+#include "dali/core/random/philox.h"
 #include "dali/core/mm/default_resources.h"
 #include "dali/operators.h"
 #include "dali/kernels/kernel.h"
@@ -2419,6 +2420,52 @@ std::shared_ptr<TensorList<Backend>> CloneTL(const TensorList<Backend> &tl) {
   return tl_clone;
 }
 
+void ExposePhilox(py::module &m) {
+  auto philox = py::class_<Philox4x32_10>(m, "Philox4x32_10");
+
+  py::class_<Philox4x32_10::State>(philox, "State")
+    .def(py::init([](uint64_t key, uint64_t sequence, uint64_t offset) {
+      return Philox4x32_10::State(key, sequence, offset);
+    }), "key"_a, "sequence"_a, "offset"_a)
+    .def(py::init([](uint64_t key, uint64_t ctr_hi, uint64_t ctr_lo, unsigned phase) {
+      if (phase > 3)
+        throw py::value_error("phase must be in [0, 3]");
+      return Philox4x32_10::State(key, ctr_hi, ctr_lo, phase);
+    }), "key"_a, "ctr_hi"_a, "ctr_lo"_a, "phase"_a)
+    .def(py::init([](std::string_view str) {
+      Philox4x32_10::State s;
+      Philox4x32_10::state_from_string(s, str);
+      return s;
+    }),
+    "str"_a)
+    .def("__str__", [](const Philox4x32_10::State &s) {
+      return Philox4x32_10::state_to_string(s);
+    })
+    .def("__repr__", [](const Philox4x32_10::State &s) {
+      return make_string("Philox.State('", Philox4x32_10::state_to_string(s), "')");
+    })
+    .def_static("parse", [](std::string_view str) {
+      Philox4x32_10::State s;
+      Philox4x32_10::state_from_string(s, str);
+      return s;
+    }, "str"_a);
+
+  philox
+    .def(py::init([](uint64_t key, uint64_t sequence, uint64_t offset) {
+      auto p = std::make_unique<Philox4x32_10>();
+      p->init(key, sequence, offset);
+      return p;
+    }), "key"_a, "sequence"_a, "offset"_a)
+    .def(py::init([](const Philox4x32_10::State &state) {
+      return std::make_unique<Philox4x32_10>(state);
+    }), "state"_a)
+    .def("next", &Philox4x32_10::next)
+    .def("skipahead", &Philox4x32_10::skipahead, "n"_a)
+    .def("skipahead_sequence", &Philox4x32_10::skipahead_sequence, "n"_a)
+    .def("get_state", &Philox4x32_10::get_state)
+    .def("set_state", &Philox4x32_10::set_state, "state"_a);
+}
+
 void ExposeStream(py::module &m) {
   py::class_<dali::CUDAStreamLease>(m, "Stream")
     .def(py::init([](std::optional<int> device_id) {
@@ -2938,6 +2985,8 @@ PYBIND11_MODULE(backend_impl, m, py::mod_gil_not_used()) {
         [](ExternalContextCheckpoint &self, const std::string &new_data) {
           self.iterator_data = new_data;
         });
+
+  ExposePhilox(m);
 
   // Pipeline class and parameters
   ExposeStream(m);

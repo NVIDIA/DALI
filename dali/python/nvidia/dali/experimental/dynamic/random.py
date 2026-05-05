@@ -1,4 +1,4 @@
-# Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,6 +20,8 @@ that are dynamically added during module initialization.
 
 import random as _random
 import threading as _threading
+
+import nvidia.dali.backend_impl as _b
 
 # Note: __all__ is intentionally not defined here to allow help() to show
 # dynamically added random operator functions (uniform, normal, etc.)
@@ -48,10 +50,9 @@ class RNG:
 
     def __init__(self, seed=None):
         if seed is None:
-            # Use Python's random to generate a random seed
-            seed = _random.randint(0, 2**31 - 1)
-        self._rng = _random.Random(seed)
+            seed = _random.randint(0, 2**63 - 1)
         self._seed = seed
+        self._rng = _b.Philox4x32_10(seed & 0xFFFFFFFFFFFFFFFF, 0, 0)
 
     def __call__(self):
         """Generate a random uint32 value.
@@ -61,9 +62,7 @@ class RNG:
         int
             A random uint32 value (as Python int, but in range [0, 2^32-1]).
         """
-        # Generate a random value in the uint32 range [0, 2^32-1]
-        # Return as Python int (numpy will convert it when creating the array)
-        return self._rng.randint(0, 0xFFFFFFFF)
+        return self._rng.next()
 
     @property
     def seed(self):
@@ -74,7 +73,7 @@ class RNG:
     def seed(self, value):
         """Set the seed for this RNG and reset its random sequence."""
         self._seed = value
-        self._rng = _random.Random(value)
+        self._rng = _b.Philox4x32_10(value, 0, 0)
 
     def clone(self):
         """Create a new RNG with the same seed.
