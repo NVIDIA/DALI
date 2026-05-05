@@ -36,6 +36,7 @@ class RNG:
     ----------
     seed : int, optional
         Seed for the random number generator. If not provided, a random seed is used.
+        Values that are out of range of uint64 are wrapped.
 
     Examples
     --------
