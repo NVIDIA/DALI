@@ -2421,7 +2421,8 @@ std::shared_ptr<TensorList<Backend>> CloneTL(const TensorList<Backend> &tl) {
 }
 
 void ExposePhilox(py::module &m) {
-  auto philox = py::class_<Philox4x32_10>(m, "_Philox4x32_10");
+  // Declare, but do not populate it yet; we need to define the nested class first.
+  py::class_<Philox4x32_10> philox(m, "_Philox4x32_10");
 
   py::class_<Philox4x32_10::State>(philox, "State")
     .def(py::init([](uint64_t key, uint64_t sequence, uint64_t offset) {

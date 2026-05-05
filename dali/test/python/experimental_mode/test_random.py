@@ -131,6 +131,8 @@ def test_rng_clone():
 
     # Verify cloned RNG works with operators
     rng4 = ndd.random.RNG(seed=9999)
+    for _ in range(10):
+        _ = rng4()  # advance by 10 iterations
     rng5 = rng4.clone()
 
     result1 = ndd.random.uniform(range=[0.0, 1.0], shape=[10], rng=rng4)
