@@ -280,14 +280,14 @@ void RunCheckpointingTest(Pipeline &ref, daliPipeline_h pipe1, daliPipeline_h pi
   ext.pipeline_data.data = pipeline_data;
   ext.pipeline_data.size = strlen(ext.pipeline_data.data);
 
-  daliCheckpoint_h checkpoint_h{};
+  daliCheckpoint_h checkpoint1_h{};
   // Take a checkpoint from pipe1...
-  CHECK_DALI(daliPipelineGetCheckpoint(pipe1, &checkpoint_h, &ext));
-  CheckpointHandle checkpoint(checkpoint_h);
+  CHECK_DALI(daliPipelineGetCheckpoint(pipe1, &checkpoint1_h, &ext));
+  CheckpointHandle checkpoint1(checkpoint1_h);
 
   const char *data = nullptr;
   size_t size = 0;
-  CHECK_DALI(daliPipelineSerializeCheckpoint(pipe1, checkpoint, &data, &size));
+  CHECK_DALI(daliPipelineSerializeCheckpoint(pipe1, checkpoint1, &data, &size));
   ASSERT_NE(data, nullptr);
 
   // ...restore into ref...
@@ -299,9 +299,10 @@ void RunCheckpointingTest(Pipeline &ref, daliPipeline_h pipe1, daliPipeline_h pi
   auto chk_str = ref.GetSerializedCheckpoint({ ext.pipeline_data.data, ext.iterator_data.data });
 
   // ...deserialize into pipe2...
+  daliCheckpoint_h checkpoint2_h{};
   CHECK_DALI(daliPipelineDeserializeCheckpoint(
-        pipe2, &checkpoint_h, chk_str.data(), chk_str.length()));
-  CheckpointHandle checkpoint2(checkpoint_h);
+        pipe2, &checkpoint2_h, chk_str.data(), chk_str.length()));
+  CheckpointHandle checkpoint2(checkpoint2_h);
 
   daliCheckpointExternalData_t ext2{};
   CHECK_DALI(daliCheckpointGetExternalData(checkpoint2, &ext2));

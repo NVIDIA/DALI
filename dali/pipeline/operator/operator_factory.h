@@ -44,7 +44,7 @@ class OperatorRegistry {
 
   template <typename Backend>
   void Register(std::string name, Creator creator) {
-    Register(name, std::move(creator), BackendDeviceName<Backend>);
+    Register(std::move(name), std::move(creator), BackendDeviceName<Backend>);
   }
 
   void Register(
@@ -100,11 +100,11 @@ class OperatorRegistry {
 template <typename OpType>
 class Registerer {
  public:
-  Registerer(const std::string &name,
+  Registerer(std::string name,
       OperatorRegistry<OpType> *registry,
       typename OperatorRegistry<OpType>::Creator creator,
       std::string_view devName = "") {
-    registry->Register(name, creator, devName);
+    registry->Register(std::move(name), std::move(creator), devName);
   }
 
   // Standard creator function used by all operators
