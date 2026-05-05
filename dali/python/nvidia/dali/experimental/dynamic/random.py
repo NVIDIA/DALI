@@ -36,7 +36,7 @@ class RNG:
     ----------
     seed : int, optional
         Seed for the random number generator. If not provided, a random seed is used.
-        Values that are out of range of uint64 are wrapped.
+        The seed is truncated to 64 bits.
 
     Examples
     --------
@@ -72,9 +72,11 @@ class RNG:
 
     @seed.setter
     def seed(self, value):
-        """Set the seed for this RNG and reset its random sequence."""
+        """Set the seed for this RNG and reset its random sequence.
+        The seed is truncated to 64 bits.
+        """
         self._seed = value
-        self._rng = _b.Philox4x32_10(value, 0, 0)
+        self._rng = _b.Philox4x32_10(value & 0xFFFFFFFFFFFFFFFF, 0, 0)
 
     def clone(self):
         """Create a new RNG with the same seed.
