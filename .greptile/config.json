@@ -20,8 +20,8 @@
       "severity": "medium"
     },
     {
-      "id": "size-t-pixel-index",
-      "rule": "Pixel/byte index math that can exceed 2^31 must use `size_t` (or `int64_t`) to prevent overflow on large images. Pattern: `size_t idx = static_cast<size_t>(y) * W + x`. Flag `int * int` index arithmetic in code that can run on multi-megapixel images.",
+      "id": "int64-pixel-index",
+      "rule": "Pixel/byte index math that can exceed 2^31 must use a 64-bit type to avoid overflow on large images. Prefer signed `int64_t` for indices; only use `size_t` when comparing against container sizes (`std::vector::size()` etc.). Pattern: `int64_t idx = static_cast<int64_t>(y) * W + x`. Flag `int * int` index arithmetic in code that can run on multi-megapixel images.",
       "scope": ["**/*.cu", "**/*.cuh", "**/*.cc", "**/*.h"],
       "severity": "high"
     },
@@ -75,8 +75,8 @@
       "severity": "high"
     },
     {
-      "id": "assert-vs-enforce",
-      "rule": "`assert` is for internal invariants (compiled out in release). User-facing input validation must use `DALI_ENFORCE` (or `DALI_FAIL`) so failures surface in release builds with actionable messages.",
+      "id": "assert-vs-exception",
+      "rule": "`assert` is for internal invariants (compiled out in release). User-facing input validation must throw — prefer specific C++ exceptions (`std::invalid_argument`, `std::out_of_range`, `std::runtime_error`) or DALI errors that build on them (e.g., `dali::invalid_key`) so they survive release builds and map cleanly to Python. New code should avoid `DALI_ENFORCE`/`DALI_FAIL`, which collapse to a single exception type and are being phased out.",
       "scope": ["dali/**/*.cc", "dali/**/*.h", "dali/**/*.cu", "dali/**/*.cuh"],
       "severity": "high"
     },
@@ -100,7 +100,7 @@
     },
     {
       "id": "static-in-header-must-inline",
-      "rule": "Non-template free functions defined in a header must be `inline`, not `static`. `static` in a header gives every translation unit its own copy with no shared address; `inline` ensures one definition.",
+      "rule": "Non-template free functions defined in a header must be `inline`, not `static`. `static` in a header gives every translation unit its own copy with no shared address; `inline` is the ODR exemption that lets the same definition appear in multiple TUs so the linker can fold them into a single symbol.",
       "scope": ["**/*.h", "**/*.hpp", "**/*.cuh"],
       "severity": "high"
     },
@@ -136,7 +136,13 @@
     },
     {
       "id": "no-virtual-without-polymorphism",
-      "rule": "Don't add `virtual` to a method that no derived class overrides — it's dead vtable weight. Don't make instance data members `const` unless immutability is essential; `const` members make the class non-movable.",
+      "rule": "Don't add `virtual` to a method that no derived class overrides — it's dead vtable weight. Drop `virtual` (and `override`) when the class isn't actually used polymorphically.",
+      "scope": ["dali/**/*.cc", "dali/**/*.h", "dali/**/*.cu", "dali/**/*.cuh"],
+      "severity": "low"
+    },
+    {
+      "id": "no-const-data-members",
+      "rule": "Don't make instance data members `const` unless immutability is essential — `const` members make the class non-movable and non-assignable, which fights the rest of the codebase's value semantics.",
       "scope": ["dali/**/*.cc", "dali/**/*.h", "dali/**/*.cu", "dali/**/*.cuh"],
       "severity": "low"
     },
@@ -252,12 +258,6 @@
       "severity": "medium"
     },
     {
-      "id": "test-no-hard-skip",
-      "rule": "Don't unconditionally skip tests in CI when a feature is unavailable — silent skips mean we stop noticing when the feature breaks. Either run the test conditionally with logging, or fail loudly when the prerequisite is missing.",
-      "scope": ["**/test_*.py", "dali/test/**"],
-      "severity": "medium"
-    },
-    {
       "id": "test-no-self-invocation",
       "rule": "Don't call test functions at module scope. Let pytest/nose discover them — invoking them by hand at import time runs them at collection time and breaks parallel runners.",
       "scope": ["**/test_*.py", "dali/test/**"],
@@ -296,7 +296,7 @@
     },
     {
       "id": "doc-rst-backticks",
-      "rule": "RST formatting: single backticks for cross-reference links (``:ref:`name``` or `` `link <url>`_ ``), double backticks for literal/monospace code (``` ``code`` ```). Mixing them up renders incorrectly.",
+      "rule": "RST formatting: single backticks for cross-reference roles (`:ref:`, `:py:obj:`) and named external links, double backticks for literal/inline code. Don't mix the two — using single backticks for what should be a code literal renders as italics, and double backticks inside a role break the role syntax.",
       "scope": ["**/*.rst", "**/*.py"],
       "severity": "low"
     },
@@ -323,7 +323,7 @@
     },
     {
       "id": "cpp-naming-no-camelcase",
-      "rule": "C++ in DALI uses PascalCase for methods/functions and snake_case for variables — never camelCase. Acronyms in names follow PascalCase too: `StftGpu`, not `STFTGPU`.",
+      "rule": "C++ in DALI uses PascalCase for methods/functions and snake_case for variables — never camelCase. Common acronyms (`GPU`, `CPU`, `IO`, `RNG`) stay in all-caps inside identifiers: `StorageCPU`, `InListGPU`, `RunGPU` — not `StorageCpu`/`InListGpu`. Less-common acronyms (e.g. `Stft`, `Jpeg`) follow PascalCase.",
       "scope": ["dali/**/*.cc", "dali/**/*.h", "dali/**/*.cu", "dali/**/*.cuh"],
       "severity": "low"
     },

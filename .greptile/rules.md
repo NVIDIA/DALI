@@ -39,8 +39,8 @@ A test that "passes when the operator returns all zeros" is not a test. Look for
 
 DALI's hot paths get exercised at thousands of frames per second. Watch for:
 - Unnecessary `cudaStreamSynchronize` calls — every one needs justification.
-- Default-stream launches (`<<<g, b>>>(...)` without an explicit stream) — they create global sync points.
-- Per-sample work that could be hoisted to constructor or `Setup` (file opens, decoder construction, attribute lookups).
+- Default-stream launches (`<<<g, b>>>(...)` without an explicit stream). DALI uses non-blocking custom streams, so a default-stream launch is almost always *missing* the explicit synchronization with the operator's intended stream — not helpfully syncing with it.
+- One-time work performed on every batch (file opens, decoder construction, attribute lookups) that could be hoisted to the operator constructor.
 - `std::string` from string literals where `string_view` or `const char*` would do.
 - Container reallocation in inner loops (`reserve` when the size is known).
 - Falling back to single-sample processing inside a batched code path.
