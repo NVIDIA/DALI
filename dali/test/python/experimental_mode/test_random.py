@@ -107,9 +107,15 @@ def test_rng_clone():
     """Test that RNG.clone() creates an independent copy with the same seed."""
     # Create an RNG with a specific seed
     rng1 = ndd.random.RNG(seed=5678)
+    _ = rng1()  # advance
+    _ = rng1()  # advance some more
 
     # Clone it
     rng2 = rng1.clone()
+
+    # set state - effectively clone
+    rng3 = ndd.random.RNG(seed=12345)  # different seed
+    rng3.state = rng2.state
 
     # Verify they are different objects
     assert rng1 is not rng2, "Clone should create a new object"
@@ -118,16 +124,18 @@ def test_rng_clone():
     for i in range(10):
         val1 = rng1()
         val2 = rng2()
+        val3 = rng3()
         assert val1 == val2, f"Value {i} doesn't match: {val1} != {val2}"
+        assert val1 == val3, f"Value {i} doesn't match: {val1} != {val3}"
 
     # Verify cloned RNG works with operators
-    rng3 = ndd.random.RNG(seed=9999)
-    rng4 = rng3.clone()
+    rng4 = ndd.random.RNG(seed=9999)
+    rng5 = rng4.clone()
 
-    result1 = ndd.random.uniform(range=[0.0, 1.0], shape=[10], rng=rng3)
+    result1 = ndd.random.uniform(range=[0.0, 1.0], shape=[10], rng=rng4)
     result1_np = asnumpy(result1)
 
-    result2 = ndd.random.uniform(range=[0.0, 1.0], shape=[10], rng=rng4)
+    result2 = ndd.random.uniform(range=[0.0, 1.0], shape=[10], rng=rng5)
     result2_np = asnumpy(result2)
 
     # Results should be identical since clones have the same seed
@@ -140,20 +148,20 @@ def test_rng_set_seed():
     # Explicit RNG instance
     rng = ndd.random.RNG(seed=1234)
     values1 = [rng() for _ in range(5)]
-    rng.seed(1234)
+    rng.seed = 1234
     values2 = [rng() for _ in range(5)]
     assert values1 == values2
-    rng.seed(5678)  # Different seed should produce different values
+    rng.seed = 5678  # Different seed should produce different values
     values3 = [rng() for _ in range(5)]
     assert values1 != values3
 
     # Explicit RNG instance with operators
-    rng.seed(1234)
+    rng.seed = 1234
     result1_np = asnumpy(ndd.random.uniform(range=[0.0, 1.0], shape=[10], rng=rng))
-    rng.seed(1234)
+    rng.seed = 1234
     result2_np = asnumpy(ndd.random.uniform(range=[0.0, 1.0], shape=[10], rng=rng))
     assert np.array_equal(result1_np, result2_np)
-    rng.seed(5678)  # Different seed
+    rng.seed = 5678  # Different seed
     result3_np = asnumpy(ndd.random.uniform(range=[0.0, 1.0], shape=[10], rng=rng))
     assert not np.array_equal(result1_np, result3_np)
 

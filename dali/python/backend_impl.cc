@@ -2421,7 +2421,7 @@ std::shared_ptr<TensorList<Backend>> CloneTL(const TensorList<Backend> &tl) {
 }
 
 void ExposePhilox(py::module &m) {
-  auto philox = py::class_<Philox4x32_10>(m, "Philox4x32_10");
+  auto philox = py::class_<Philox4x32_10>(m, "_Philox4x32_10");
 
   py::class_<Philox4x32_10::State>(philox, "State")
     .def(py::init([](uint64_t key, uint64_t sequence, uint64_t offset) {
@@ -2458,11 +2458,19 @@ void ExposePhilox(py::module &m) {
     .def(py::init([](const Philox4x32_10::State &state) {
       return std::make_unique<Philox4x32_10>(state);
     }), "state"_a)
+    .def(py::init([](std::string_view state_str) {
+      Philox4x32_10::State state;
+      Philox4x32_10::state_from_string(state, state_str);
+      return std::make_unique<Philox4x32_10>(state);
+    }), "state"_a)
     .def("next", &Philox4x32_10::next)
     .def("skipahead", &Philox4x32_10::skipahead, "n"_a)
     .def("skipahead_sequence", &Philox4x32_10::skipahead_sequence, "n"_a)
     .def("get_state", &Philox4x32_10::get_state)
-    .def("set_state", &Philox4x32_10::set_state, "state"_a);
+    .def("set_state", &Philox4x32_10::set_state, "state"_a)
+    .def("set_state", [](Philox4x32_10 &self, std::string_view state) {
+      self.state_from_string(state);
+    }, "state"_a);
 }
 
 void ExposeStream(py::module &m) {

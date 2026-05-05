@@ -57,12 +57,12 @@ class RNG:
         if seed is not None:
             if state is not None:
                 raise ValueError("Cannot specify both `seed` and `state`")
-            self._rng = _b.Philox4x32_10(seed & 0xFFFFFFFFFFFFFFFF, 0, 0)
+            self._rng = _b._Philox4x32_10(seed & 0xFFFFFFFFFFFFFFFF, 0, 0)
         elif state is not None:
-            self._rng = _b.Philox4x32_10(state)
+            self._rng = _b._Philox4x32_10(state)
         else:
             seed = _random.randint(0, 0xFFFFFFFFFFFFFFFF)
-            self._rng = _b.Philox4x32_10(seed, 0, 0)
+            self._rng = _b._Philox4x32_10(seed, 0, 0)
 
     def __call__(self):
         """Generate a random uint32 value.
@@ -74,11 +74,16 @@ class RNG:
         """
         return self._rng.next()
 
+    @property
+    def seed(self):
+        raise AttributeError("seed is write-only")
+
+    @seed.setter
     def seed(self, value):
         """Set the seed for this RNG and reset its random sequence.
         The seed is truncated to 64 bits.
         """
-        self._rng = _b.Philox4x32_10(value & 0xFFFFFFFFFFFFFFFF, 0, 0)
+        self._rng = _b._Philox4x32_10(value & 0xFFFFFFFFFFFFFFFF, 0, 0)
 
     def clone(self):
         """Create a new RNG with the same state
@@ -110,13 +115,25 @@ class RNG:
 
     @property
     def state(self):
-        """Returns the internal state of the generator."""
+        """Returns the internal state of the generator.
+
+        Returns
+        -------
+        Opaque state object. This object can be converted to a string and that string can be used
+        later to set the state or construct an RNG.
+        """
         return self._rng.get_state()
 
     @state.setter
     def state(self, value):
-        """Sets the internal state of the generator."""
-        return self._rng.set_state(value)
+        """Sets the internal state of the generator.
+
+        Parameters
+        ----------
+        value : object | str
+            Either a state object obtained from another RNG instance of its string representation
+        """
+        self._rng.set_state(value)
 
 
 # Thread-local storage for the default RNG
@@ -168,4 +185,4 @@ def set_seed(seed):
     >>> result2 = ndd.random.uniform(range=(-1, 1), shape=[10])
     >>> # result1 and result2 should be identical
     """
-    get_default_rng().seed(seed)
+    get_default_rng().seed = seed
