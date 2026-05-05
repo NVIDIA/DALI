@@ -12,11 +12,18 @@
 // limitations under the License.
 
 #include <atomic>
+#include <cstdarg>
+#include <cstdio>
+#include <cstring>
 #include <map>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <utility>
 #include <vector>
+#if LIBTIFF_ENABLED
+#include <tiffio.h>
+#endif
 #include "dali/core/call_at_exit.h"
 #include "dali/core/mm/memory.h"
 #include "dali/operators.h"
@@ -45,6 +52,47 @@ nvimgcodecStatus_t get_nvjpeg2k_extension_desc(nvimgcodecExtensionDesc_t *ext_de
 
 namespace dali {
 namespace imgcodec {
+
+#if LIBTIFF_ENABLED
+namespace {
+
+// GeoTIFF-specific TIFF tag IDs that libtiff does not recognize natively.
+// When decoding GeoTIFF files, libtiff emits "Unknown field with tag X" warnings for these tags.
+// The image data is decoded correctly; the tags only carry geographic metadata.
+constexpr uint32_t kGeoTIFFTags[] = {
+    33550,  // ModelPixelScaleTag
+    33922,  // ModelTiepointTag
+    34264,  // ModelTransformationTag
+    34735,  // GeoKeyDirectoryTag
+    34736,  // GeoDoubleParamsTag
+    34737,  // GeoAsciiParamsTag
+    42112,  // GDAL_METADATA
+    42113,  // GDAL_NODATA
+};
+
+void SuppressGeoTIFFTagWarnings(const char *module, const char *fmt, va_list ap) {
+  if (strstr(fmt, "Unknown field with tag") != nullptr) {
+    va_list ap_copy;
+    va_copy(ap_copy, ap);
+    unsigned int tag = va_arg(ap_copy, unsigned int);
+    va_end(ap_copy);
+    for (auto geotiff_tag : kGeoTIFFTags) {
+      if (tag == geotiff_tag)
+        return;
+    }
+  }
+  char buf[1024];
+  vsnprintf(buf, sizeof(buf), fmt, ap);
+  std::cerr << module << ": " << buf << "\n";
+}
+
+void InstallGeoTIFFWarningFilter() {
+  static std::once_flag flag;
+  std::call_once(flag, [] { TIFFSetWarningHandler(SuppressGeoTIFFTagWarnings); });
+}
+
+}  // namespace
+#endif  // LIBTIFF_ENABLED
 
 template <typename Backend>
 struct OutBackend {
@@ -219,6 +267,9 @@ class ImageDecoder : public StatelessOperator<Backend> {
 
 
   explicit ImageDecoder(const OpSpec &spec) : StatelessOperator<Backend>(spec) {
+#if LIBTIFF_ENABLED
+    InstallGeoTIFFWarningFilter();
+#endif
     device_id_ = std::is_same<CPUBackend, Backend>::value ? CPU_ONLY_DEVICE_ID :
                                                             spec.GetArgument<int>("device_id");
     format_ = spec.GetArgument<DALIImageType>("output_type");
