@@ -227,3 +227,11 @@ find -iname *.pb.h | while read FILE; do
    mkdir -p $(dirname $PREFIX/include/$FILE)
    cp $FILE $PREFIX/include/$FILE
 done
+
+# Install conda activate/deactivate scripts so libnvimgcodec finds the conda-forge
+# extension modules. The default search path compiled into libnvimgcodec.so does not
+# match the conda-forge install layout, so without this nvimgcodecDecoderCreate would
+# succeed but every decode would fail with NVIMGCODEC_PROCESSING_STATUS_*.
+mkdir -p "$PREFIX/etc/conda/activate.d" "$PREFIX/etc/conda/deactivate.d"
+cp "$RECIPE_DIR/activate.d/"*.sh "$PREFIX/etc/conda/activate.d/"
+cp "$RECIPE_DIR/deactivate.d/"*.sh "$PREFIX/etc/conda/deactivate.d/"
