@@ -27,7 +27,6 @@ from nose2.tools import params
 from nose_utils import assert_raises, SkipTest
 from test_utils import compare_pipelines
 from test_utils import get_dali_extra_path
-from test_utils import get_gpu_num
 from test_utils import get_nvjpeg_ver
 from test_utils import to_array
 
