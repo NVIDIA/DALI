@@ -80,7 +80,11 @@ requirements:
     # libprotobuf's CMake config exposes a ZLIB::ZLIB link interface dep,
     # so zlib must be in host for find_package(Protobuf) to succeed.
     - zlib
-    - libopencv
+    # Keep in sync with conda/dali_native_libs/recipe/meta.yaml — 4.13.0 has
+    # an IPP HAL warpPerspective NN+FP32 regression (opencv/opencv#27324),
+    # fixed by opencv/opencv#28756 which will ship in OpenCV 4.14.0.
+    # TODO: bump to `libopencv >=4.14.0` once conda-forge picks it up.
+    - libopencv =4.12.*
     - dali-ffmpeg
     - python
     - setuptools

@@ -79,7 +79,13 @@ requirements:
     # so zlib must be in host for find_package(Protobuf) to succeed.
     - zlib
     - libjpeg-turbo
-    - libopencv
+    # Pinned to libopencv 4.12.* — 4.13.0 has a regression in the IPP HAL
+    # path of cv::warpPerspective (INTER_NEAREST + CV_32FC1) introduced by
+    # opencv/opencv#27324 that produces wrong results at cv::parallel_for
+    # chunk-start rows. Fix is opencv/opencv#28756, merged into the 4.x
+    # branch on 2026-04-24 — will ship in OpenCV 4.14.0 (expected mid-2026).
+    # TODO: when conda-forge picks up 4.14.0, bump to `libopencv >=4.14.0`.
+    - libopencv =4.12.*
     - dali-ffmpeg
     - lmdb
     - libtiff
@@ -94,7 +100,8 @@ requirements:
     - aws-sdk-cpp
   run:
     - libjpeg-turbo
-    - libopencv
+    # See note above — keep host/run pin in sync.
+    - libopencv =4.12.*
     - lmdb
     - libtiff
     - libsndfile
