@@ -157,8 +157,8 @@ def test_checkpoint_register_anonymous_returns_sequential_keys():
     ckpt = ndd.checkpoint.Checkpoint()
     rng1 = ndd.random.RNG(seed=1)
     rng2 = ndd.random.RNG(seed=2)
-    assert ckpt.register(rng1) == "0"
-    assert ckpt.register(rng2) == "1"
+    assert ckpt.register(rng1) == "__op_0"
+    assert ckpt.register(rng2) == "__op_1"
 
 
 def test_checkpoint_register_anonymous_idempotent():
@@ -198,8 +198,11 @@ def test_checkpoint_get_state_no_state_yet_returns_none():
 def test_checkpoint_set_state_unregistered_errors():
     """set_state raises KeyError if the name was not registered."""
     ckpt = ndd.checkpoint.Checkpoint()
+    rng1 = ndd.random.RNG(seed=1)
+    ckpt.register(rng1)
+    ckpt.collect()  # it's complete now
     with assert_raises(KeyError):
-        ckpt.set_state("unknown", "...")
+        ckpt.set_state("unknown2", "...")
 
 
 # ---------------------------------------------------------------------------
@@ -384,7 +387,7 @@ def test_checkpoint_register_anonymous_after_load_extra_op_errors():
     ckpt2 = ndd.checkpoint.Checkpoint()
     ckpt2.deserialize(payload)
     ckpt2.register(ndd.random.RNG(seed=2))  # consumes "0"
-    with assert_raises(KeyError, glob="inferred key"):
+    with assert_raises(KeyError, glob="Loaded checkpoint has no state"):
         ckpt2.register(ndd.random.RNG(seed=3))
 
 

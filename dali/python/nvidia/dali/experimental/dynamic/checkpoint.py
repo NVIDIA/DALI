@@ -44,13 +44,6 @@ __all__ = ["Checkpoint", "current"]
 _CHECKPOINT_FORMAT_VERSION = 1
 
 
-class _Sentinel:
-    """A unique marker used to signal "no name was provided"."""
-
-
-_NO_NAME = _Sentinel()
-
-
 def _pattern_to_regex(pattern: str) -> re.Pattern:
     """Translates a Python format string with a ``{seq}`` field into a regex.
 
@@ -148,8 +141,10 @@ class Checkpoint:
     def __init__(self):
         # name -> registered op instance
         self._ops: dict[str, Any] = {}
+        # id -> name for reverse lookup of operator instances
+        self._reverse: dict[int, str] = {}
         # name -> serialized state string (`str` for both readers and RNGs)
-        self._states: dict[str, str] = {}
+        self._states: dict[str, Any] = {}
         # set of names whose state in `self._states` is "dirty" - has been set but
         # not yet propagated to the corresponding op via `op.set_state`.
         self._dirty: set[str] = set()
@@ -157,8 +152,6 @@ class Checkpoint:
         self._complete: bool = False
         # True after a successful :meth:`load` (and cleared by :meth:`collect`).
         self._loaded: bool = False
-        # Counter for auto-generated keys.
-        self._seq_counter: int = 0
         # Counter used by :meth:`save` to pick a sequential file name. Initialized
         # lazily on first save by scanning the filesystem.
         self._save_seq: Optional[int] = None
@@ -178,7 +171,6 @@ class Checkpoint:
         self._dirty.clear()
         self._complete = False
         self._loaded = False
-        self._seq_counter = 0
         self._save_seq = None
 
     @property
@@ -206,7 +198,7 @@ class Checkpoint:
     # Registration / state access
     # ------------------------------------------------------------------
 
-    def register(self, op, name=_NO_NAME) -> str:
+    def register(self, op : Any, name : str | None = None) -> str:
         """Adds a stateful op to the checkpoint.
 
         Parameters
@@ -218,7 +210,9 @@ class Checkpoint:
             The key under which to store the op. If omitted, a sequential numeric
             key is generated, unless ``op`` was already registered (under any
             name), in which case its existing key is returned. If ``name`` is
-            provided, any existing op under that key is replaced.
+            provided, any existing operator under that key is replaced.
+            The key must not start with ``"__op_"`` - this prefix is reserved for
+            automatically generated names.
 
         Returns
         -------
@@ -231,38 +225,48 @@ class Checkpoint:
         (e.g. it came from a recent :meth:`load`), the state is immediately
         applied to ``op`` via ``op.set_state`` and the entry is marked clean.
         """
-        if name is _NO_NAME:
+        old_key = self._reverse.get(id(op), None)
+
+        if name is None:
             # Anonymous registration - reverse-lookup the op first so that
             # registering the same op twice is a no-op.
-            for key, registered_op in self._ops.items():
-                if registered_op is op:
-                    self._maybe_apply(key)
-                    return key
+            if old_key:
+                self._maybe_apply(old_key)
+                return old_key
             if self._complete:
                 raise RuntimeError(
-                    "Cannot register a new op into a checkpoint that has been "
+                    "Cannot register a new operator into a checkpoint that has been "
                     "completed via `collect`. Call `clear` first."
                 )
-            # Pick the next free sequential key.
-            while True:
-                key = str(self._seq_counter)
-                self._seq_counter += 1
-                if key not in self._ops:
-                    break
+            # Use a sequential key
+            key = f"__op_{len(self._ops)}"
             if self._loaded and key not in self._states:
                 raise KeyError(
-                    f"Loaded checkpoint has no state for inferred key {key!r}. "
+                    f"Loaded checkpoint has no state for the operator's key {key!r}. "
                     "If your registration order changed since the checkpoint was "
                     "saved, use the named form `register(op, name)` instead."
                 )
             self._ops[key] = op
+            self._reverse[id(op)] = key
             self._maybe_apply(key)
             return key
 
-        key = str(name)
-        if key in self._ops:
+        if name.startswith("__op_"):
+            raise ValueError("Manually assigned names must not start with '__op_'.")
+        if not name:
+            raise ValueError("The name must not be empty.")
+        key = name
+        if old_key is not None and old_key != key:
+            raise RuntimeError(
+                f"Cannot register the operator with a new key {key!r} "
+                f"when it's already been added with the key {old_key!r}."
+            )
+        if old_op := self._ops.get(key, None):
             # Existing entry - replace and apply pending state if any.
-            self._ops[key] = op
+            if old_op is not op:
+                del self._reverse[id(old_op)]
+                self._ops[key] = op
+                self._reverse[id(op)] = key
             self._maybe_apply(key)
             return key
 
@@ -278,6 +282,7 @@ class Checkpoint:
                     f"Checkpoint was loaded but does not contain a state for {key!r}."
                 )
         self._ops[key] = op
+        self._reverse[id(op)] = key
         self._maybe_apply(key)
         return key
 
@@ -296,9 +301,9 @@ class Checkpoint:
 
         Returns
         -------
-        str or None
-            The serialized state string, or ``None`` if no state has been
-            collected/loaded for that key yet.
+            The state object passed to ``set_state`` or obtained from the
+            operator during ``collect``. If the checkpoint was deserialized
+            or loaded from a file, it'll be stringified.
 
         Raises
         ------
@@ -310,21 +315,21 @@ class Checkpoint:
             raise KeyError(f"No op registered under {key!r}.")
         return self._states.get(key)
 
-    def set_state(self, name, value) -> None:
-        """Manually sets the state for an already-registered op.
+    def set_state(self, name : str, value : Any) -> None:
+        """Manually sets the state for an operator (registered or future)
 
         Parameters
         ----------
         name : str
             The key under which the op is registered.
         value
-            The state value. Will be stringified via ``str(value)``. Strings are
-            stored verbatim.
+            The state value. It can be of any type that the respective
+            operator's ``set_state`` accepts.
 
         Raises
         ------
         KeyError
-            If no op is registered under ``name``.
+            If no operator is registered under ``name``.
 
         Notes
         -----
@@ -333,9 +338,9 @@ class Checkpoint:
         invoked.
         """
         key = str(name)
-        if key not in self._ops:
-            raise KeyError(f"No op registered under {key!r}.")
-        self._states[key] = value if isinstance(value, str) else str(value)
+        if self._complete and key not in self._ops:
+            raise KeyError(f"No operator registered under {key!r}.")
+        self._states[key] = value
         self._dirty.add(key)
 
     # ------------------------------------------------------------------
@@ -358,7 +363,7 @@ class Checkpoint:
         new_states: dict[str, str] = {}
         for key, op in self._ops.items():
             state = op.get_state()
-            new_states[key] = state if isinstance(state, str) else str(state)
+            new_states[key] = state
         self._states = new_states
         self._dirty.clear()
         self._complete = True
@@ -416,7 +421,7 @@ class Checkpoint:
             )
         payload = {
             "version": _CHECKPOINT_FORMAT_VERSION,
-            "states": self._states,
+            "states": { k : str(v) for k, v in self._states.items() },
         }
         return json.dumps(payload)
 
@@ -448,18 +453,18 @@ class Checkpoint:
             raise ValueError("Invalid checkpoint payload: `states` must be a dict.")
         self._states = {str(k): str(v) for k, v in states.items()}
         self._dirty = set(self._states.keys())
-        self._complete = False
+        self._complete = False  # we can (and likely will) register operators in this checkpoint
         self._loaded = True
 
-    def save(self, pattern: str) -> str:
+    def save(self, filename: str) -> str:
         """Serializes the checkpoint and writes it to a file.
 
         Parameters
         ----------
-        pattern : str
-            A Python format string containing ``{seq}`` (e.g. ``"ckpt_{seq:04d}.json"``).
-            The placeholder is replaced with a sequential number that does not
-            collide with any existing file.
+        filename : str
+            A Python format string, optionally containing ``{seq}``
+            (e.g. ``"ckpt_{seq:04d}.json"``). The placeholder is replaced with a sequential number
+            that does not collide with any existing file.
 
         Returns
         -------
@@ -471,13 +476,13 @@ class Checkpoint:
         RuntimeError
             If the state dictionary is empty.
         """
-        seq = self._next_save_seq(pattern)
-        path = pattern.format(seq=seq)
+        seq = self._next_save_seq(filename)
+        path = filename.format(seq=seq)
         # Avoid overwriting an existing file - bump the counter if one appeared in
         # the meantime.
         while os.path.exists(path):
             seq += 1
-            path = pattern.format(seq=seq)
+            path = filename.format(seq=seq)
         data = self.serialize()
         directory = os.path.dirname(path)
         if directory:
@@ -487,13 +492,14 @@ class Checkpoint:
         self._save_seq = seq + 1
         return path
 
-    def load(self, pattern: str) -> str:
+    def load(self, filename: str) -> str:
         """Reads a previously saved checkpoint from a file.
 
         Parameters
         ----------
-        pattern : str
-            A Python format string containing ``{seq}`` (e.g. ``"ckpt_{seq:04d}.json"``).
+        filename : str
+            A Python format string, optionally containing
+            ``{seq}`` (e.g. ``"ckpt_{seq:04d}.json"``).
             If multiple files match, the one with the highest sequence number
             is loaded.
 
@@ -511,9 +517,9 @@ class Checkpoint:
         -----
         Marks all loaded entries as dirty (see :meth:`deserialize`).
         """
-        candidates = list(_matching_files(pattern))
+        candidates = list(_matching_files(filename))
         if not candidates:
-            raise FileNotFoundError(f"No checkpoint file matches pattern {pattern!r}.")
+            raise FileNotFoundError(f"No checkpoint file matches filename {filename!r}.")
         candidates.sort(key=lambda x: x[0])
         seq, path = candidates[-1]
         with open(path, "r", encoding="utf-8") as f:
