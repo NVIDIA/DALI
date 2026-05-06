@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -21,6 +21,8 @@
 #include <string>
 #include <unordered_map>
 #include <stdexcept>
+
+#include "dali/core/format.h"
 
 #define STR_IMPL_(x) #x
 #define STR(x) STR_IMPL_(x)
@@ -54,7 +56,7 @@ NVIMGCODECDRIVER loadNvimgcodecLibrary() {
   std::string attempts;
   // Clear any pending dlerror() before the loop so the first dlerror() call
   // we make corresponds to our own dlopen failure, not a prior unrelated one.
-  dlerror();
+  (void)dlerror();
   for (const char *path : paths) {
     ret = dlopen(path, RTLD_NOW);
     if (ret)
@@ -63,16 +65,16 @@ NVIMGCODECDRIVER loadNvimgcodecLibrary() {
     attempts += "\n  ";
     attempts += path;
     attempts += ": ";
-    attempts += err ? err : "(no dlerror)";
+    attempts += err ? err : "(unknown dlerror)";
   }
 
   if (!ret) {
     int cuda_version_major = CUDA_VERSION / 1000;  // 11020 -> 11, 12000 -> 12
-    throw std::runtime_error(
+    throw std::runtime_error(dali::make_string(
         "dlopen libnvimgcodec.so failed!. Please install nvimagecodec: See "
         "https://developer.nvidia.com/nvimgcodec-downloads or simply do `pip install "
-        "nvidia-nvimgcodec-cu" + std::to_string(cuda_version_major) + "`."
-        "\nAttempted paths:" + attempts);
+        "nvidia-nvimgcodec-cu", cuda_version_major, "`."
+        "\nAttempted paths:", attempts));
   }
   return ret;
 }
