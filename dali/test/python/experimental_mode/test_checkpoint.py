@@ -21,7 +21,6 @@ from nose_utils import assert_raises
 from nose2.tools import params
 from test_utils import get_dali_extra_path
 
-
 _DALI_EXTRA = get_dali_extra_path()
 _FILE_ROOT = os.path.join(_DALI_EXTRA, "db", "single", "jpeg")
 _FILE_LIST = os.path.join(_FILE_ROOT, "image_list.txt")
@@ -355,7 +354,7 @@ def test_checkpoint_register_anonymous_after_load_replays_keys():
     ref_other = ndd.random.RNG(seed=99)
 
     ckpt = ndd.checkpoint.Checkpoint()
-    ckpt.register(ref_rng)            # gets "0"
+    ckpt.register(ref_rng)  # gets "0"
     ckpt.register(ref_other, "other")  # named
     ckpt.collect()
     payload = ckpt.serialize()
@@ -369,7 +368,7 @@ def test_checkpoint_register_anonymous_after_load_replays_keys():
     ckpt2 = ndd.checkpoint.Checkpoint()
     ckpt2.deserialize(payload)
     # Same registration order: anonymous first, then named.
-    ckpt2.register(new_rng)            # picks up sequential key "0"
+    ckpt2.register(new_rng)  # picks up sequential key "0"
     ckpt2.register(new_other, "other")
     got_rng = [new_rng() for _ in range(3)]
     got_other = [new_other() for _ in range(3)]

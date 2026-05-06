@@ -761,8 +761,7 @@ class Reader(Operator):
             serialized = state.decode("ascii")
         else:
             raise TypeError(
-                "state must be a ReaderState, str or bytes, "
-                f"got {type(state).__name__}."
+                "state must be a ReaderState, str or bytes, " f"got {type(state).__name__}."
             )
         # The C++ reader can only restore a snapshot before its prefetch thread
         # has started - i.e. before the first iteration. Reject late calls clearly

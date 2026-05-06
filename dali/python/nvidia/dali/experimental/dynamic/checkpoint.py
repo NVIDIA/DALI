@@ -198,7 +198,7 @@ class Checkpoint:
     # Registration / state access
     # ------------------------------------------------------------------
 
-    def register(self, op : Any, name : str | None = None) -> str:
+    def register(self, op: Any, name: str | None = None) -> str:
         """Adds a stateful op to the checkpoint.
 
         Parameters
@@ -278,9 +278,7 @@ class Checkpoint:
             )
         if self._loaded:
             if key not in self._states:
-                raise KeyError(
-                    f"Checkpoint was loaded but does not contain a state for {key!r}."
-                )
+                raise KeyError(f"Checkpoint was loaded but does not contain a state for {key!r}.")
         self._ops[key] = op
         self._reverse[id(op)] = key
         self._maybe_apply(key)
@@ -315,7 +313,7 @@ class Checkpoint:
             raise KeyError(f"No op registered under {key!r}.")
         return self._states.get(key)
 
-    def set_state(self, name : str, value : Any) -> None:
+    def set_state(self, name: str, value: Any) -> None:
         """Manually sets the state for an operator (registered or future)
 
         Parameters
@@ -395,8 +393,7 @@ class Checkpoint:
         missing = set(self._ops.keys()) - set(self._states.keys())
         if missing:
             raise RuntimeError(
-                "Checkpoint state is incomplete - missing entries for "
-                f"{sorted(missing)}."
+                "Checkpoint state is incomplete - missing entries for " f"{sorted(missing)}."
             )
         for key in list(self._dirty):
             self._ops[key].set_state(self._states[key])
@@ -416,12 +413,11 @@ class Checkpoint:
         """
         if not self._states:
             raise RuntimeError(
-                "Cannot serialize an empty checkpoint. Call `collect` (or "
-                "`set_state`) first."
+                "Cannot serialize an empty checkpoint. Call `collect` (or " "`set_state`) first."
             )
         payload = {
             "version": _CHECKPOINT_FORMAT_VERSION,
-            "states": { k : str(v) for k, v in self._states.items() },
+            "states": {k: str(v) for k, v in self._states.items()},
         }
         return json.dumps(payload)
 
