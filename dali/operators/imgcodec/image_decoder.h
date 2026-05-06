@@ -54,7 +54,6 @@ namespace dali {
 namespace imgcodec {
 
 #if LIBTIFF_ENABLED
-namespace {
 
 // GeoTIFF-specific TIFF tag IDs that libtiff does not recognize natively.
 // When decoding GeoTIFF files, libtiff emits "Unknown field with tag X" warnings for these tags.
@@ -70,7 +69,7 @@ constexpr uint32_t kGeoTIFFTags[] = {
     42113,  // GDAL_NODATA
 };
 
-void SuppressGeoTIFFTagWarnings(const char *module, const char *fmt, va_list ap) {
+inline void SuppressGeoTIFFTagWarnings(const char *module, const char *fmt, va_list ap) {
   if (strstr(fmt, "Unknown field with tag") != nullptr) {
     va_list ap_copy;
     va_copy(ap_copy, ap);
@@ -90,17 +89,13 @@ void SuppressGeoTIFFTagWarnings(const char *module, const char *fmt, va_list ap)
     std::cerr << buf << "\n";
 }
 
-// Note: because this function lives in an anonymous namespace in a header,
-// each translation unit that includes image_decoder.h gets its own copy of
-// the once_flag. TIFFSetWarningHandler may therefore be called once per TU
-// (in practice at most twice: host_decoder.cc and mixed_decoder.cc).
-// All copies install the same handler so the behaviour is correct.
-void InstallGeoTIFFWarningFilter() {
+// Declared inline so the static once_flag is shared across all translation units,
+// guaranteeing TIFFSetWarningHandler is called exactly once per process.
+inline void InstallGeoTIFFWarningFilter() {
   static std::once_flag flag;
   std::call_once(flag, [] { TIFFSetWarningHandler(SuppressGeoTIFFTagWarnings); });
 }
 
-}  // namespace
 #endif  // LIBTIFF_ENABLED
 
 template <typename Backend>
