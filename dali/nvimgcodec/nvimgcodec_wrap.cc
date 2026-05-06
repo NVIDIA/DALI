@@ -51,10 +51,19 @@ NVIMGCODECDRIVER loadNvimgcodecLibrary() {
                                 nvimgcodecLibDefaultPathMajorVer,
                                 nvimgcodecLibDefaultPath};
   NVIMGCODECDRIVER ret = nullptr;
+  std::string attempts;
+  // Clear any pending dlerror() before the loop so the first dlerror() call
+  // we make corresponds to our own dlopen failure, not a prior unrelated one.
+  dlerror();
   for (const char *path : paths) {
     ret = dlopen(path, RTLD_NOW);
     if (ret)
       break;
+    const char *err = dlerror();
+    attempts += "\n  ";
+    attempts += path;
+    attempts += ": ";
+    attempts += err ? err : "(no dlerror)";
   }
 
   if (!ret) {
@@ -62,7 +71,8 @@ NVIMGCODECDRIVER loadNvimgcodecLibrary() {
     throw std::runtime_error(
         "dlopen libnvimgcodec.so failed!. Please install nvimagecodec: See "
         "https://developer.nvidia.com/nvimgcodec-downloads or simply do `pip install "
-        "nvidia-nvimgcodec-cu" + std::to_string(cuda_version_major) + "`.");
+        "nvidia-nvimgcodec-cu" + std::to_string(cuda_version_major) + "`."
+        "\nAttempted paths:" + attempts);
   }
   return ret;
 }
