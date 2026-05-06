@@ -29,6 +29,7 @@ from ._imread import imread  # noqa: F401
 from . import _ops
 from . import math  # noqa: F401
 from . import random  # noqa: F401
+from . import checkpoint  # noqa: F401
 from . import pytorch as pytorch  # noqa: F401
 
 _ops._initialize()
