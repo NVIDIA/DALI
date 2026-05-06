@@ -21,6 +21,7 @@ test_py_with_framework() {
                             test_pipeline_segmentation.py \
                             test_triton_autoserialize.py \
                             test_functional_api.py \
+                            test_random_state_arg.py \
                             test_external_source_impl_utils.py); do
         if [ -z "$DALI_ENABLE_SANITIZERS" ]; then
             ${python_new_invoke_test} -A "!slow,!pytorch,!cupy" ${test_script%.py}
