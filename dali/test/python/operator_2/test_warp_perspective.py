@@ -13,14 +13,13 @@
 # limitations under the License.
 
 import multiprocessing as mp
-import os
 
 import cv2
 import numpy as np
 import test_utils
 from nose2.tools import cartesian_params
 from nose_utils import raises, SkipTest
-from nvidia.dali import fn, types
+from nvidia.dali import backend as _b, fn, types
 from nvidia.dali.pipeline import Pipeline, pipeline_def
 from nvidia.dali.types import DALIInterpType
 
@@ -53,37 +52,25 @@ def ocv_interp_type(interp_type: DALIInterpType):
         raise ValueError("Invalid interpolation type") from err
 
 
-def _cv2_is_from_conda():
-    conda_prefix = os.environ.get("CONDA_PREFIX")
-    if not conda_prefix:
-        return False
-    try:
-        cv2_path = os.path.realpath(cv2.__file__)
-    except (AttributeError, TypeError):
-        return False
-    return cv2_path.startswith(os.path.realpath(conda_prefix) + os.sep)
-
-
 def _skip_if_opencv_413_warp_nn_fp32(device, dtype, interp_type):
     # opencv/opencv#27324 (4.13.0) moved warpPerspective IPP into a HAL plugin
     # that miscomputes inverse-mapped y at parallel_for chunk-start rows for
     # INTER_NEAREST + CV_32F, producing OOB reads. The bug is present in any
     # opencv 4.13.x built with IPP HAL enabled — DALI's wheel disables IPP at
-    # build time so its bundled opencv is fine, but conda-forge libopencv
-    # 4.13.x ships IPP HAL on. We use "cv2 imported from $CONDA_PREFIX" as a
-    # proxy for "this opencv has the broken HAL plugin"; the wheel CI run
-    # therefore keeps exercising the full matrix. Fix is opencv/opencv#28756,
-    # ships in OpenCV 4.14 (~mid-2026) — drop this once 4.14 is the floor.
-    if (
-        cv2.__version__.startswith("4.13.")
-        and _cv2_is_from_conda()
-        and device == "cpu"
-        and dtype is np.float32
-        and interp_type == DALIInterpType.INTERP_NN
-    ):
+    # build time so its bundled opencv is fine, while conda-forge libopencv
+    # 4.13.x ships IPP HAL on. Both DALI's own CPU warp_perspective op and the
+    # cv2 reference call into libopencv, so probe both: dali.backend exposes
+    # the version of the libopencv DALI is linked against, and cv2.__version__
+    # covers the reference path. Fix is opencv/opencv#28756, ships in OpenCV
+    # 4.14 (~mid-2026) — drop this once 4.14 is the floor.
+    if not (device == "cpu" and dtype is np.float32 and interp_type == DALIInterpType.INTERP_NN):
+        return
+    dali_opencv = _b.GetOpenCVVersion() or ""
+    if dali_opencv.startswith("4.13.") or cv2.__version__.startswith("4.13."):
         raise SkipTest(
-            "conda-forge libopencv 4.13 IPP HAL warpPerspective NN+FP32 regression "
-            "(opencv/opencv#27324; fix opencv/opencv#28756 ships in 4.14)"
+            "opencv 4.13 IPP HAL warpPerspective NN+FP32 regression "
+            "(opencv/opencv#27324; fix opencv/opencv#28756 ships in 4.14) — "
+            f"dali libopencv={dali_opencv!r}, cv2={cv2.__version__!r}"
         )
 
 
