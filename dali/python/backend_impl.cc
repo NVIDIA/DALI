@@ -14,6 +14,7 @@
 
 #include <cuda_runtime_api.h>
 #include <dlfcn.h>
+#include <opencv2/core/utility.hpp>
 #include <algorithm>
 #include <sstream>
 #include <cstring>
@@ -2786,6 +2787,13 @@ PYBIND11_MODULE(backend_impl, m, py::mod_gil_not_used()) {
       ret = GetNvimgcodecVersion();
     } catch (const std::runtime_error &) {}
     return ret;
+  });
+
+  m.def("GetOpenCVVersion", [] {
+    // Returns the version string ("4.13.0") of the libopencv DALI is linked
+    // against at runtime (via cv::getVersionString in libopencv_core),
+    // independent of any opencv-python the test environment installs.
+    return cv::getVersionString();
   });
 
 #if SHM_WRAPPER_ENABLED
