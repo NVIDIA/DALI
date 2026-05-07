@@ -58,19 +58,26 @@ def _skip_if_opencv_413_warp_nn_fp32(device, dtype, interp_type):
     # INTER_NEAREST + CV_32F, producing OOB reads. The bug is present in any
     # opencv 4.13.x built with IPP HAL enabled — DALI's wheel disables IPP at
     # build time so its bundled opencv is fine, while conda-forge libopencv
-    # 4.13.x ships IPP HAL on. Both DALI's own CPU warp_perspective op and the
-    # cv2 reference call into libopencv, so probe both: dali.backend exposes
-    # the version of the libopencv DALI is linked against, and cv2.__version__
-    # covers the reference path. Fix is opencv/opencv#28756, ships in OpenCV
-    # 4.14 (~mid-2026) — drop this once 4.14 is the floor.
-    if not (device == "cpu" and dtype is np.float32 and interp_type == DALIInterpType.INTERP_NN):
+    # 4.13.x ships IPP HAL on.
+    #
+    # The reference_pipe runs cv2.warpPerspective on the CPU regardless of the
+    # DALI device, so a buggy cv2 invalidates pipe2 even when DALI runs on
+    # GPU. DALI's CPU op also calls cv::warpPerspective from the linked
+    # libopencv. Probe both: dali.backend exposes the version of the
+    # libopencv DALI is linked against, cv2.__version__ covers the reference.
+    # Skip whenever either is 4.13.x, irrespective of `device` — the cv2 path
+    # alone is enough to taint the comparison.
+    #
+    # Fix is opencv/opencv#28756, ships in OpenCV 4.14 (~mid-2026) — drop
+    # this once 4.14 is the floor.
+    if not (dtype is np.float32 and interp_type == DALIInterpType.INTERP_NN):
         return
     dali_opencv = _b.GetOpenCVVersion() or ""
     if dali_opencv.startswith("4.13.") or cv2.__version__.startswith("4.13."):
         raise SkipTest(
             "opencv 4.13 IPP HAL warpPerspective NN+FP32 regression "
             "(opencv/opencv#27324; fix opencv/opencv#28756 ships in 4.14) — "
-            f"dali libopencv={dali_opencv!r}, cv2={cv2.__version__!r}"
+            f"device={device!r}, dali libopencv={dali_opencv!r}, cv2={cv2.__version__!r}"
         )
 
 
