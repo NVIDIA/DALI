@@ -169,6 +169,7 @@ class Checkpoint:
         self._ops.clear()
         self._states.clear()
         self._dirty.clear()
+        self._reverse.clear()
         self._complete = False
         self._loaded = False
         self._save_seq = None

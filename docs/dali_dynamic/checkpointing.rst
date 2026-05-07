@@ -112,6 +112,7 @@ The convenience function :func:`checkpoint.current` returns the
 :class:`~checkpoint.Checkpoint` bound to the current
 :class:`EvalContext`. It is created lazily on first access, so the same instance
 is reused across the lifetime of the context:
+Using :func:`checkpoint.current`
 
 .. code-block:: python
 
@@ -126,8 +127,8 @@ Registration semantics
 * If ``name`` is provided, the entry is stored under that key. Any previous op
   registered under the same key is replaced.
 * If ``name`` is omitted, the checkpoint first looks up the op by identity. If
-  it is already registered, the existing key is returned. Otherwise, a sequential
-  numeric key (``"0"``, ``"1"``, ...) is generated.
+  it is already registered, the existing key is returned. Otherwise, internally
+  generated sequential names are used.
 
 When the checkpoint is in *loaded* state and the registered key is present in
 the loaded dictionary, the saved state is applied to the op immediately. This

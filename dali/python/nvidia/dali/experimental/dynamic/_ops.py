@@ -673,8 +673,8 @@ class Reader(Operator):
         self._previous_batch_size: int | None = None
         # Used to make sure that args passed to the constructor are not repeated in __call__
         self._tensor_arg_names: set[str] = set()
-        # If set, the serialized checkpoint state to apply once the backend is constructed.
-        self._pending_state: str | None = None
+        # If set, the checkpoint state to apply once the backend is constructed.
+        self._pending_state = None
 
         if self._num_shards < 1:
             raise ValueError(
