@@ -186,6 +186,9 @@ def build_constructor(schema, op_class):
 
     if init_args:
         init_args = ["*"] + init_args
+    if is_reader:
+        init_args.append("enable_checkpointing=False")
+
     header_args = (
         [
             "self",

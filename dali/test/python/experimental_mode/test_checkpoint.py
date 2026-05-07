@@ -82,7 +82,7 @@ def test_reader_get_state_before_iteration_errors():
 
 def test_reader_state_str_roundtrip():
     """The state object's __str__ is a serialized form usable with set_state."""
-    reader = _make_reader()
+    reader = _make_reader(enable_checkpointing=True)
     it = reader.next_epoch(batch_size=4)
     next(it)
     state = reader.get_state()
@@ -100,7 +100,7 @@ def test_reader_state_str_roundtrip():
 def test_reader_get_set_state_resume():
     """set_state on a fresh reader resumes from the captured iteration position."""
     # Reference reader, iterate through and capture state after the first batch.
-    ref = _make_reader()
+    ref = _make_reader(enable_checkpointing=True)
     it_ref = ref.next_epoch(batch_size=4)
     next(it_ref)  # discard first batch
     state = ref.get_state()
@@ -109,6 +109,7 @@ def test_reader_get_set_state_resume():
     # Restored reader: set_state before the first iteration so that the state
     # is buffered and applied on backend creation.
     restored = _make_reader()
+    # The backend hasn't been initialized - this should enable checkpointing
     restored.set_state(state)
     it_restored = restored.next_epoch(batch_size=4)
     got = _labels_of(next(it_restored))
@@ -122,7 +123,7 @@ def test_reader_set_state_after_iteration_errors():
     thread starts. Calling :meth:`set_state` after the first batch must therefore
     fail loudly rather than silently misbehave.
     """
-    reader = _make_reader()
+    reader = _make_reader(enable_checkpointing=True)
     next(reader.next_epoch(batch_size=4))
     state = reader.get_state()
     with assert_raises(RuntimeError, glob="after iteration has begun"):
@@ -280,10 +281,10 @@ def test_checkpoint_collect_restore_rng_roundtrip():
 def test_checkpoint_collect_restore_reader_roundtrip():
     """A captured Reader state can be restored to resume iteration."""
     ref = _make_reader()
-    it_ref = ref.next_epoch(batch_size=4)
-    next(it_ref)
     ckpt = ndd.checkpoint.Checkpoint()
     ckpt.register(ref, "reader")
+    it_ref = ref.next_epoch(batch_size=4)
+    next(it_ref)
     ckpt.collect()
     expected = _labels_of(next(it_ref))
 
@@ -399,13 +400,8 @@ def test_checkpoint_register_anonymous_after_load_extra_op_errors():
 def test_checkpoint_save_load_roundtrip(name_pattern):
     """save writes a file; load returns the most recent one."""
     rng = ndd.random.RNG(seed=42)
-    rng()
-    expected = [rng() for _ in range(5)]
-    rng.set_state(rng.get_state())  # reset to current state
-
-    # Recreate to capture state cleanly.
-    rng = ndd.random.RNG(seed=42)
-    rng()
+    for _ in range(10):
+        rng()  # advance
     ckpt = ndd.checkpoint.Checkpoint()
     ckpt.register(rng, "rng")
     ckpt.collect()
@@ -509,7 +505,7 @@ def test_checkpoint_current_returns_eval_context_checkpoint():
 
 def test_checkpoint_mixed_reader_and_rng_end_to_end():
     """Mixed reader + RNG round-trip through serialize/deserialize."""
-    reader = _make_reader()
+    reader = _make_reader(enable_checkpointing=True)
     rng = ndd.random.RNG(seed=2024)
 
     # Run a few iterations to advance state.

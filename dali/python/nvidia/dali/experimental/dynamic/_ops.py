@@ -647,6 +647,7 @@ class Reader(Operator):
         shard_id=_READER_SHARD_DEFAULTS["shard_id"],
         num_shards=_READER_SHARD_DEFAULTS["num_shards"],
         stick_to_shard=_READER_SHARD_DEFAULTS["stick_to_shard"],
+        enable_checkpointing=False,
         **kwargs,
     ):
         if name is None:
@@ -655,6 +656,7 @@ class Reader(Operator):
         self._batch_size = batch_size
         self._compiled_iter = None
         self._compile_mode: bool | None = None
+        self._checkpointing_enabled = enable_checkpointing
         device = _device.device(device)
         # _backend is forwarded via **kwargs, we don't need to touch it here
         self._shard_id = shard_id if shard_id is not None else _READER_SHARD_DEFAULTS["shard_id"]
@@ -688,7 +690,21 @@ class Reader(Operator):
         kwargs["shard_id"] = self._shard_id
         kwargs["num_shards"] = self._num_shards
         kwargs["stick_to_shard"] = self._stick_to_shard
+        kwargs["checkpointing"] = self._checkpointing_enabled
         super().__init__(self._actual_batch_size, name, device, **kwargs)
+
+    def _enable_checkpointing(self):
+        if self._checkpointing_enabled:
+            return
+        if self._compile_mode is True:
+            raise NotImplementedError("Checkpointing is currently not supported in compiled mode.")
+
+        if self._op_backend:
+            raise RuntimeError(
+                f"The operator '{self._schema_name}' was initialized with checkpointing disabled. "
+                f"Pass `enable_checkpointing=True` to the reader's constructor."
+            )
+        self._init_args["checkpointing"] = self._checkpointing_enabled = True
 
     @classmethod
     def _get(cls, *_, **__):
@@ -698,9 +714,6 @@ class Reader(Operator):
         if self._op_spec is not None:
             return
         super()._init_spec_no_lock(inputs, args)
-        # Enable checkpointing so the underlying loader maintains a snapshot queue.
-        # For readers that don't support checkpointing, this is a no-op at runtime.
-        self._op_spec.AddArg("checkpointing", True)
 
     def _init_backend(self, ctx, inputs, args):
         was_initialized = self._op_backend is not None
@@ -709,12 +722,17 @@ class Reader(Operator):
             self._op_backend.RestoreCheckpoint(self._pending_state)
             self._pending_state = None
 
-    def get_state(self) -> "ReaderState":
+    def get_state(self, *, cuda_stream = None) -> "ReaderState":
         """Returns the current checkpoint state of this reader.
 
         The returned state object captures the iteration position of the underlying
         loader. It can be passed back to :meth:`set_state` to resume processing
         from this point. The state is serialized to a string by ``str(state)``.
+
+        Parameters
+        ----------
+        cuda_stream
+            The CUDA stream on which the readers is running or None.
 
         Returns
         -------
@@ -732,9 +750,14 @@ class Reader(Operator):
                 "Cannot get the reader's state before its first iteration. "
                 "Call `next_epoch` once before calling `get_state`."
             )
+        if not self._checkpointing_enabled:
+            raise RuntimeError(
+                f"The reader '{self._schema_name}' was initialized with checkpointing disabled. "
+                f"Pass `enable_checkpointing=True` to the reader's constructor."
+            )
         # SaveCheckpoint returns a `bytes` blob (binary protobuf payload).
         # Wrap it as a base64 ASCII string so it round-trips through JSON / `str`.
-        raw = self._op_backend.SaveCheckpoint()
+        raw = self._op_backend.SaveCheckpoint(cuda_stream)
         serialized = base64.b64encode(raw).decode("ascii")
         return ReaderState(self, serialized)
 
@@ -773,6 +796,7 @@ class Reader(Operator):
                 "call to `next_epoch`, `samples`, `batches` or `__call__`."
             )
         raw = base64.b64decode(serialized)
+        self._enable_checkpointing()
         if self._op_backend is not None:
             self._op_backend.RestoreCheckpoint(raw)
         else:
@@ -853,6 +877,10 @@ class Reader(Operator):
             batch_size = self._batch_size
 
         if compile:
+            if self._checkpointing_enabled:
+                raise NotImplementedError(
+                    "Checkpointing is currently not supported in compiled mode."
+                )
             if self._compile_mode is False:
                 raise RuntimeError(
                     "This reader was previously used without compile=True "

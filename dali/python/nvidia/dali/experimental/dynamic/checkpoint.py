@@ -35,7 +35,7 @@ import re
 import string
 from typing import Any, Optional
 
-from . import _eval_context
+from . import _eval_context, _ops
 
 __all__ = ["Checkpoint", "current"]
 
@@ -208,7 +208,7 @@ class Checkpoint:
             The stateful object to register. Must expose ``get_state`` /
             ``set_state`` methods.
         name : str, optional
-            The key under which to store the op. If omitted, a sequential numeric
+            The key under which to store the op. If omitted, a sequential
             key is generated, unless ``op`` was already registered (under any
             name), in which case its existing key is returned. If ``name`` is
             provided, any existing operator under that key is replaced.
@@ -227,6 +227,9 @@ class Checkpoint:
         applied to ``op`` via ``op.set_state`` and the entry is marked clean.
         """
         old_key = self._reverse.get(id(op), None)
+
+        if isinstance(op, _ops.Reader):
+            op._enable_checkpointing()
 
         if name is None:
             # Anonymous registration - reverse-lookup the op first so that
@@ -290,7 +293,7 @@ class Checkpoint:
             self._ops[key].set_state(self._states[key])
             self._dirty.discard(key)
 
-    def get_state(self, name) -> Optional[str]:
+    def get_state(self, name):
         """Returns the stored state for the op registered under ``name``.
 
         Parameters
@@ -328,7 +331,7 @@ class Checkpoint:
         Raises
         ------
         KeyError
-            If no operator is registered under ``name``.
+            If the checkpoint is complete and no operator is registered under ``name``.
 
         Notes
         -----
@@ -360,8 +363,11 @@ class Checkpoint:
                 f"ops: {sorted(extra)}."
             )
         new_states: dict[str, str] = {}
+        stream = None
         for key, op in self._ops.items():
-            state = op.get_state()
+            if stream is None and isinstance(op, _ops.Operator) and op._backend != "cpu":
+                stream = _eval_context.EvalContext.current().cuda_stream
+            state = op.get_state(cuda_stream = stream)
             new_states[key] = state
         self._states = new_states
         self._dirty.clear()

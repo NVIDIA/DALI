@@ -2755,15 +2755,15 @@ void ExposeOperator(py::module &m) {
     .def("GetReaderMeta", [](OperatorBase &self) {
       return ReaderMetaToDict(self.GetReaderMeta());
     })
-    .def("SaveCheckpoint", [](OperatorBase &self) -> py::bytes {
+    .def("SaveCheckpoint", [](OperatorBase &self, py::object stream) -> py::bytes {
       // Saves the operator state, serializes it and returns the serialized representation.
       // Used by the dynamic API to expose stateful operator checkpointing to Python.
       // The returned blob may contain arbitrary bytes (e.g. protobuf-serialized loader
       // state), so it is returned as `py::bytes` to avoid UTF-8 conversion.
       OpCheckpoint cpt(self.GetSpec().SchemaName());
-      self.SaveState(cpt, AccessOrder{});
+      self.SaveState(cpt, AccessOrderFromPythonStreamObj(stream));
       return py::bytes(self.SerializeCheckpoint(cpt));
-    })
+    }, "stream"_a = py::none())
     .def("RestoreCheckpoint", [](OperatorBase &self, const std::string &data) {
       // Deserializes the operator state from a string/bytes blob and restores it.
       OpCheckpoint cpt(self.GetSpec().SchemaName());
