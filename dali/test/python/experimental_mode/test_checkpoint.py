@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 import os
 import tempfile
 
@@ -536,3 +537,156 @@ def test_checkpoint_mixed_reader_and_rng_end_to_end():
     got_rngs = [rng2() for _ in range(5)]
     assert got_labels == expected_labels
     assert got_rngs == expected_rngs
+
+
+# ---------------------------------------------------------------------------
+# Checkpoint - operator type tracking
+# ---------------------------------------------------------------------------
+
+
+def test_checkpoint_collect_records_type():
+    """collect stores the operator's qualified type name in each entry."""
+    ckpt = ndd.checkpoint.Checkpoint()
+    rng = ndd.random.RNG(seed=1)
+    reader = _make_reader(enable_checkpointing=True)
+    next(reader.next_epoch(batch_size=4))  # advance so get_state is valid
+    ckpt.register(rng, "rng")
+    ckpt.register(reader, "reader")
+    ckpt.collect()
+    assert ckpt._states["rng"].type_name == "RNG"
+    assert ckpt._states["reader"].type_name == "File"
+
+
+def test_checkpoint_serialize_includes_type():
+    """The serialized payload carries the operator type alongside the state."""
+    ckpt = ndd.checkpoint.Checkpoint()
+    rng = ndd.random.RNG(seed=1)
+    ckpt.register(rng, "rng")
+    ckpt.collect()
+    payload = json.loads(ckpt.serialize())
+    assert payload["version"] == 2
+    assert payload["states"]["rng"]["type"] == "RNG"
+    assert isinstance(payload["states"]["rng"]["state"], str)
+
+
+def test_checkpoint_set_state_with_op_type_class():
+    """set_state accepts a class as op_type and stores its qualified name."""
+    ckpt = ndd.checkpoint.Checkpoint()
+    ckpt.set_state("rng", "some_state", op_type=ndd.random.RNG)
+    assert ckpt._states["rng"].type_name == "RNG"
+
+
+def test_checkpoint_set_state_with_op_type_string():
+    """set_state accepts a string as op_type and stores it verbatim."""
+    ckpt = ndd.checkpoint.Checkpoint()
+    ckpt.set_state("rng", "some_state", op_type="RNG")
+    assert ckpt._states["rng"].type_name == "RNG"
+
+
+def test_checkpoint_set_state_invalid_op_type_errors():
+    """set_state rejects an op_type that is neither a type nor a string."""
+    ckpt = ndd.checkpoint.Checkpoint()
+    with assert_raises(TypeError, glob="op_type"):
+        ckpt.set_state("rng", "some_state", op_type=42)
+
+
+def test_checkpoint_set_state_op_type_mismatch_errors():
+    """Registering an op of the wrong type for a typed state raises TypeError."""
+    ckpt = ndd.checkpoint.Checkpoint()
+    # Pretend a state for a File reader is buffered under "x".
+    ckpt.set_state("x", "irrelevant", op_type=ndd.readers.File)
+    rng = ndd.random.RNG(seed=1)
+    # Registering an RNG under "x" must trigger a type-mismatch error before
+    # the state is propagated.
+    with assert_raises(TypeError, glob="Type mismatch*'File'*'RNG'*"):
+        ckpt.register(rng, "x")
+
+
+def test_checkpoint_register_replace_different_type_errors():
+    """Replacing a registered op with one of a different type raises TypeError."""
+    ckpt = ndd.checkpoint.Checkpoint()
+    rng = ndd.random.RNG(seed=1)
+    reader = _make_reader()
+    ckpt.register(rng, "key")
+    with assert_raises(TypeError, glob="Cannot replace operator*'RNG'*'File'*"):
+        ckpt.register(reader, "key")
+
+
+def test_checkpoint_register_after_load_wrong_type_errors():
+    """Registering an op of a different type than the one in a loaded checkpoint errors."""
+    rng = ndd.random.RNG(seed=1)
+    ckpt = ndd.checkpoint.Checkpoint()
+    ckpt.register(rng, "x")
+    ckpt.collect()
+    payload = ckpt.serialize()
+
+    ckpt2 = ndd.checkpoint.Checkpoint()
+    ckpt2.deserialize(payload)
+    reader = _make_reader()
+    with assert_raises(TypeError, glob="Type mismatch*'RNG'*'File'*"):
+        ckpt2.register(reader, "x")
+
+
+def test_checkpoint_register_after_load_correct_type_ok():
+    """A loaded checkpoint with type info applies cleanly to a matching op."""
+    rng = ndd.random.RNG(seed=42)
+    for _ in range(3):
+        rng()
+    ckpt = ndd.checkpoint.Checkpoint()
+    ckpt.register(rng, "rng")
+    ckpt.collect()
+    expected = [rng() for _ in range(5)]
+    payload = ckpt.serialize()
+
+    ckpt2 = ndd.checkpoint.Checkpoint()
+    ckpt2.deserialize(payload)
+    rng2 = ndd.random.RNG(seed=999)
+    ckpt2.register(rng2, "rng")  # types match - no error
+    got = [rng2() for _ in range(5)]
+    assert got == expected
+
+
+# ---------------------------------------------------------------------------
+# Checkpoint - deserialize payload validation
+# ---------------------------------------------------------------------------
+
+
+def test_checkpoint_deserialize_format_version_mismatch_errors():
+    """deserialize rejects payloads with an unsupported version."""
+    payload = json.dumps({"version": 1, "states": {"rng": {"state": "x", "type": "RNG"}}})
+    ckpt = ndd.checkpoint.Checkpoint()
+    with assert_raises(ValueError, glob="version"):
+        ckpt.deserialize(payload)
+
+
+def test_checkpoint_deserialize_entry_not_a_dict_errors():
+    """deserialize rejects entries that are not dicts (legacy v1 inline strings)."""
+    payload = json.dumps({"version": 2, "states": {"rng": "raw_string_state"}})
+    ckpt = ndd.checkpoint.Checkpoint()
+    with assert_raises(ValueError, glob="Invalid checkpoint entry"):
+        ckpt.deserialize(payload)
+
+
+def test_checkpoint_deserialize_entry_missing_state_errors():
+    """deserialize rejects entries that lack the ``state`` field."""
+    payload = json.dumps({"version": 2, "states": {"rng": {"type": "RNG"}}})
+    ckpt = ndd.checkpoint.Checkpoint()
+    with assert_raises(ValueError, glob="Invalid checkpoint entry"):
+        ckpt.deserialize(payload)
+
+
+def test_checkpoint_deserialize_invalid_type_field_errors():
+    """deserialize rejects entries whose ``type`` is not a string."""
+    payload = json.dumps({"version": 2, "states": {"rng": {"state": "x", "type": 42}}})
+    ckpt = ndd.checkpoint.Checkpoint()
+    with assert_raises(ValueError, glob="Invalid `type`"):
+        ckpt.deserialize(payload)
+
+
+def test_checkpoint_deserialize_null_type_ok():
+    """deserialize accepts a null ``type`` (matches set_state without op_type)."""
+    payload = json.dumps({"version": 2, "states": {"rng": {"state": "x", "type": None}}})
+    ckpt = ndd.checkpoint.Checkpoint()
+    ckpt.deserialize(payload)
+    assert ckpt._states["rng"].type_name is None
+    assert ckpt._states["rng"].state == "x"

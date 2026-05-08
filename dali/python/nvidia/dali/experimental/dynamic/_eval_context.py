@@ -119,6 +119,7 @@ class EvalContext:
         self._lock = threading.RLock()
 
         from . import checkpoint as _checkpoint_mod
+
         self._checkpoint = _checkpoint_mod.Checkpoint()
 
     def _purge_operator_cache(self):

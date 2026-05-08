@@ -29,11 +29,12 @@ objects so that processing can be resumed at the captured point. See
 from __future__ import annotations
 
 import glob
+import inspect
 import json
 import os
 import re
 import string
-from typing import Any, Optional
+from typing import Any, NamedTuple, Optional
 
 from . import _eval_context, _ops
 
@@ -41,7 +42,22 @@ __all__ = ["Checkpoint", "current"]
 
 
 # Format-string version. Bumped if the on-disk layout becomes incompatible.
-_CHECKPOINT_FORMAT_VERSION = 1
+_CHECKPOINT_FORMAT_VERSION = 2
+
+
+class _StateEntry(NamedTuple):
+    """Per-operator entry in the checkpoint state map.
+
+    ``state`` is the serialized state (as returned by ``op.get_state`` or, after
+    deserialization, its string form). ``type_name`` is the qualified name of the
+    operator's class - populated by :meth:`Checkpoint.collect`, by an explicit
+    :meth:`Checkpoint.set_state` ``type`` argument, or by a deserialized payload.
+    When set, it is verified against the actual operator's type before the state
+    is applied (see :meth:`Checkpoint._maybe_apply`).
+    """
+
+    state: Any
+    type_name: Optional[str] = None
 
 
 def _pattern_to_regex(pattern: str) -> re.Pattern:
@@ -143,8 +159,11 @@ class Checkpoint:
         self._ops: dict[str, Any] = {}
         # id -> name for reverse lookup of operator instances
         self._reverse: dict[int, str] = {}
-        # name -> serialized state string (`str` for both readers and RNGs)
-        self._states: dict[str, Any] = {}
+        # name -> entry holding the serialized state and the operator's
+        # (optional) type name. The type name is populated by `collect` or by an
+        # explicit `set_state(..., op_type=...)` call, and is verified in
+        # `_maybe_apply` when the state is propagated to the op.
+        self._states: dict[str, _StateEntry] = {}
         # set of names whose state in `self._states` is "dirty" - has been set but
         # not yet propagated to the corresponding op via `op.set_state`.
         self._dirty: set[str] = set()
@@ -268,6 +287,12 @@ class Checkpoint:
         if old_op := self._ops.get(key, None):
             # Existing entry - replace and apply pending state if any.
             if old_op is not op:
+                if type(old_op) is not type(op):
+                    raise TypeError(
+                        f"Cannot replace operator {key!r} of type "
+                        f"{type(old_op).__qualname__!r} with an operator of type "
+                        f"{type(op).__qualname__!r}."
+                    )
                 del self._reverse[id(old_op)]
                 self._ops[key] = op
                 self._reverse[id(op)] = key
@@ -290,7 +315,15 @@ class Checkpoint:
 
     def _maybe_apply(self, key: str) -> None:
         if key in self._dirty:
-            self._ops[key].set_state(self._states[key])
+            entry = self._states[key]
+            op = self._ops[key]
+            if entry.type_name is not None and type(op).__qualname__ != entry.type_name:
+                raise TypeError(
+                    f"Type mismatch for operator {key!r}: checkpoint stores state "
+                    f"for type {entry.type_name!r}, but the registered operator is "
+                    f"of type {type(op).__qualname__!r}."
+                )
+            op.set_state(entry.state)
             self._dirty.discard(key)
 
     def get_state(self, name):
@@ -315,9 +348,10 @@ class Checkpoint:
         key = str(name)
         if key not in self._ops:
             raise KeyError(f"No op registered under {key!r}.")
-        return self._states.get(key)
+        entry = self._states.get(key)
+        return None if entry is None else entry.state
 
-    def set_state(self, name: str, value: Any) -> None:
+    def set_state(self, name: str, value: Any, op_type: Optional[Any] = None) -> None:
         """Manually sets the state for an operator (registered or future)
 
         Parameters
@@ -327,11 +361,18 @@ class Checkpoint:
         value
             The state value. It can be of any type that the respective
             operator's ``set_state`` accepts.
+        op_type : class or str, optional
+            The class (or its qualified name) of the operator that this state
+            belongs to. When provided, the type name is stored alongside the
+            state and verified against the actual operator's type before the
+            state is applied (in :meth:`_maybe_apply`).
 
         Raises
         ------
         KeyError
             If the checkpoint is complete and no operator is registered under ``name``.
+        TypeError
+            If ``op_type`` is neither a type nor a string.
 
         Notes
         -----
@@ -342,7 +383,15 @@ class Checkpoint:
         key = str(name)
         if self._complete and key not in self._ops:
             raise KeyError(f"No operator registered under {key!r}.")
-        self._states[key] = value
+        if op_type is None:
+            type_name = None
+        elif isinstance(op_type, str):
+            type_name = op_type
+        elif isinstance(op_type, type):
+            type_name = op_type.__qualname__
+        else:
+            raise TypeError(f"`op_type` must be a class or a string, got {op_type!r}.")
+        self._states[key] = _StateEntry(state=value, type_name=type_name)
         self._dirty.add(key)
 
     # ------------------------------------------------------------------
@@ -362,13 +411,13 @@ class Checkpoint:
                 "Checkpoint state has entries with no corresponding registered "
                 f"ops: {sorted(extra)}."
             )
-        new_states: dict[str, str] = {}
+        new_states: dict[str, _StateEntry] = {}
         stream = None
         for key, op in self._ops.items():
             if stream is None and isinstance(op, _ops.Operator) and op._backend != "cpu":
                 stream = _eval_context.EvalContext.current().cuda_stream
-            state = op.get_state(cuda_stream = stream)
-            new_states[key] = state
+            state = op.get_state(cuda_stream=stream)
+            new_states[key] = _StateEntry(state=state, type_name=type(op).__qualname__)
         self._states = new_states
         self._dirty.clear()
         self._complete = True
@@ -403,8 +452,7 @@ class Checkpoint:
                 "Checkpoint state is incomplete - missing entries for " f"{sorted(missing)}."
             )
         for key in list(self._dirty):
-            self._ops[key].set_state(self._states[key])
-        self._dirty.clear()
+            self._maybe_apply(key)
 
     # ------------------------------------------------------------------
     # (De)serialization and persistence
@@ -424,7 +472,9 @@ class Checkpoint:
             )
         payload = {
             "version": _CHECKPOINT_FORMAT_VERSION,
-            "states": {k: str(v) for k, v in self._states.items()},
+            "states": {
+                k: {"state": str(v.state), "type": v.type_name} for k, v in self._states.items()
+            },
         }
         return json.dumps(payload)
 
@@ -454,7 +504,15 @@ class Checkpoint:
         states = payload["states"]
         if not isinstance(states, dict):
             raise ValueError("Invalid checkpoint payload: `states` must be a dict.")
-        self._states = {str(k): str(v) for k, v in states.items()}
+        new_states: dict[str, _StateEntry] = {}
+        for k, v in states.items():
+            if not isinstance(v, dict) or "state" not in v:
+                raise ValueError(f"Invalid checkpoint entry for {k!r}.")
+            type_name = v.get("type")
+            if type_name is not None and not isinstance(type_name, str):
+                raise ValueError(f"Invalid `type` for entry {k!r}: expected a string.")
+            new_states[str(k)] = _StateEntry(state=str(v["state"]), type_name=type_name)
+        self._states = new_states
         self._dirty = set(self._states.keys())
         self._complete = False  # we can (and likely will) register operators in this checkpoint
         self._loaded = True

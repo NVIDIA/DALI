@@ -722,7 +722,7 @@ class Reader(Operator):
             self._op_backend.RestoreCheckpoint(self._pending_state)
             self._pending_state = None
 
-    def get_state(self, *, cuda_stream = None) -> "ReaderState":
+    def get_state(self, *, cuda_stream=None) -> "ReaderState":
         """Returns the current checkpoint state of this reader.
 
         The returned state object captures the iteration position of the underlying
