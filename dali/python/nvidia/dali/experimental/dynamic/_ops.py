@@ -729,6 +729,14 @@ class Reader(Operator):
         loader. It can be passed back to :meth:`set_state` to resume processing
         from this point. The state is serialized to a string by ``str(state)``.
 
+        .. warning::
+            The methods ``get_state`` and ``set_state`` are not inherently thread-safe
+            with respect to running the reader. External synchronization is necessary.
+
+        .. note::
+            If there are any pending asynchronous or deferred calls to this operator,
+            the function will wait for them to finish before getting the state.
+
         Parameters
         ----------
         cuda_stream
@@ -755,6 +763,11 @@ class Reader(Operator):
                 f"The reader '{self._schema_name}' was initialized with checkpointing disabled. "
                 f"Pass `enable_checkpointing=True` to the reader's constructor."
             )
+
+        # Make sure that all pending invocations are done before we save the state
+        if self._last_invocation is not None:
+            self._last_invocation.run()
+
         # SaveCheckpoint returns a `bytes` blob (binary protobuf payload).
         # Wrap it as a base64 ASCII string so it round-trips through JSON / `str`.
         raw = self._op_backend.SaveCheckpoint(cuda_stream)
@@ -770,8 +783,14 @@ class Reader(Operator):
             Either a state object obtained from :meth:`get_state`, or its
             string representation (as produced by ``str(state)``).
 
-        Notes
-        -----
+        .. warning::
+            The methods ``get_state`` and ``set_state`` are not inherently thread-safe
+            with respect to running the reader. External synchronization is necessary.
+
+        .. note::
+            If there are any pending asynchronous or deferred calls to this operator,
+            the function will wait for them to finish before setting the state.
+
         If the reader's backend has not yet been initialized (i.e. no epoch has
         been started), the state is buffered and applied automatically the first
         time the backend is created.
@@ -798,6 +817,10 @@ class Reader(Operator):
         raw = base64.b64decode(serialized)
         self._enable_checkpointing()
         if self._op_backend is not None:
+            # if there was a previous invocation in flight, make sure it's finished before we
+            # try load the state
+            if self._last_invocation is not None:
+                self._last_invocation.run()
             self._op_backend.RestoreCheckpoint(raw)
         else:
             self._pending_state = raw
