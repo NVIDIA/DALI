@@ -690,3 +690,159 @@ def test_checkpoint_deserialize_null_type_ok():
     ckpt.deserialize(payload)
     assert ckpt._states["rng"].type_name is None
     assert ckpt._states["rng"].state == "x"
+
+
+# ---------------------------------------------------------------------------
+# Reader.set_state bytes branch
+# ---------------------------------------------------------------------------
+
+
+def test_reader_set_state_accepts_bytes():
+    """set_state accepts a raw ``bytes`` blob (ASCII-encoded serialized form)."""
+    ref = _make_reader(enable_checkpointing=True)
+    it_ref = ref.next_epoch(batch_size=4)
+    next(it_ref)
+    state_bytes = str(ref.get_state()).encode("ascii")
+    expected = _labels_of(next(it_ref))
+
+    restored = _make_reader()
+    restored.set_state(state_bytes)
+    got = _labels_of(next(restored.next_epoch(batch_size=4)))
+    assert got == expected, f"Restored reader produced {got} instead of {expected}."
+
+
+# ---------------------------------------------------------------------------
+# Failure during _maybe_apply
+# ---------------------------------------------------------------------------
+
+
+class _RaisingRNG:
+    """Stand-in op whose ``set_state`` raises. Used to test partial-restore behavior."""
+
+    def __init__(self):
+        self.calls = 0
+
+    def get_state(self, *, cuda_stream=None):
+        return "state"
+
+    def set_state(self, value):
+        self.calls += 1
+        raise RuntimeError("simulated set_state failure")
+
+
+def test_checkpoint_register_after_load_set_state_failure_keeps_dirty():
+    """If ``op.set_state`` raises during register-after-load, the key stays dirty."""
+    payload = json.dumps(
+        {
+            "version": 2,
+            "states": {
+                "good": {"state": "x", "type": "_RaisingRNG"},
+                "bad": {"state": "x", "type": "_RaisingRNG"},
+            },
+        }
+    )
+    ckpt = ndd.checkpoint.Checkpoint()
+    ckpt.deserialize(payload)
+    assert ckpt._dirty == {"good", "bad"}
+
+    bad = _RaisingRNG()
+    with assert_raises(RuntimeError, glob="simulated set_state failure"):
+        ckpt.register(bad, "bad")
+    # Failed apply does not clear `_dirty` for the failed key, and the unrelated
+    # key remains dirty too - the caller can retry registration without losing state.
+    assert "bad" in ckpt._dirty
+    assert "good" in ckpt._dirty
+    assert bad.calls == 1
+
+
+# ---------------------------------------------------------------------------
+# End-to-end via ndd.checkpoint.current()
+# ---------------------------------------------------------------------------
+
+
+def test_checkpoint_current_end_to_end():
+    """A full save/load cycle going through ``ndd.checkpoint.current()``."""
+    ndd.checkpoint.current().clear()  # ensure no leftover registrations from prior tests
+    try:
+        reader = _make_reader(enable_checkpointing=True)
+        rng = ndd.random.RNG(seed=2026)
+        ckpt = ndd.checkpoint.current()
+        ckpt.register(reader, "reader")
+        ckpt.register(rng, "rng")
+
+        it = reader.next_epoch(batch_size=4)
+        next(it)
+        rng()
+
+        ckpt.collect()
+        with tempfile.TemporaryDirectory() as d:
+            path = ckpt.save(os.path.join(d, "ckpt_{seq:04d}.json"))
+            assert os.path.exists(path)
+
+            expected_labels = _labels_of(next(it))
+            expected_rngs = [rng() for _ in range(3)]
+
+            ndd.checkpoint.current().clear()
+            ckpt2 = ndd.checkpoint.current()
+            ckpt2.load(os.path.join(d, "ckpt_{seq:04d}.json"))
+
+            reader2 = _make_reader()
+            rng2 = ndd.random.RNG(seed=0)
+            ckpt2.register(reader2, "reader")
+            ckpt2.register(rng2, "rng")
+
+            got_labels = _labels_of(next(reader2.next_epoch(batch_size=4)))
+            got_rngs = [rng2() for _ in range(3)]
+            assert got_labels == expected_labels
+            assert got_rngs == expected_rngs
+    finally:
+        ndd.checkpoint.current().clear()
+
+
+# ---------------------------------------------------------------------------
+# Compiled mode is rejected
+# ---------------------------------------------------------------------------
+
+
+def test_reader_checkpointing_rejects_compile_mode():
+    """``enable_checkpointing=True`` and ``next_epoch(compile=True)`` are mutually exclusive."""
+    reader = _make_reader(enable_checkpointing=True)
+    with assert_raises(NotImplementedError, glob="*compiled mode*"):
+        reader.next_epoch(batch_size=4, compile=True)
+
+
+def test_reader_enable_checkpointing_rejected_after_compile():
+    """A reader that has entered compiled mode cannot then opt in to checkpointing."""
+    reader = _make_reader()
+    next(reader.next_epoch(batch_size=4, compile=True))
+    ckpt = ndd.checkpoint.Checkpoint()
+    with assert_raises(NotImplementedError, glob="*compiled mode*"):
+        ckpt.register(reader, "reader")
+
+
+# ---------------------------------------------------------------------------
+# Filename pattern regression - bracket characters in literals
+# ---------------------------------------------------------------------------
+
+
+def test_checkpoint_save_load_with_glob_metachars_in_literal():
+    """Bracket characters in the filename literal must not be expanded as glob classes.
+
+    Without escaping, ``glob.iglob`` would interpret ``[a-z]`` as a character class
+    and refuse to match a file actually named ``[a-z]_0.json``.
+    """
+    rng = ndd.random.RNG(seed=42)
+    for _ in range(3):
+        rng()
+    ckpt = ndd.checkpoint.Checkpoint()
+    ckpt.register(rng, "rng")
+    ckpt.collect()
+
+    with tempfile.TemporaryDirectory() as d:
+        pattern = os.path.join(d, "[a-z]_{seq}.json")
+        saved = ckpt.save(pattern)
+        assert os.path.basename(saved) == "[a-z]_0.json"
+
+        ckpt2 = ndd.checkpoint.Checkpoint()
+        loaded = ckpt2.load(pattern)
+        assert loaded == saved

@@ -159,6 +159,57 @@ substitutes the next free sequence number, ``load`` picks the highest one
 matching the pattern on disk. Format specifiers (e.g. ``{seq:04d}``) are
 honored.
 
+Manual restore
+^^^^^^^^^^^^^^
+
+The state of every registered op is applied implicitly when the op is added to
+a loaded checkpoint via :meth:`~checkpoint.Checkpoint.register`. The
+:meth:`~checkpoint.Checkpoint.restore` method is the explicit counterpart -
+it applies all currently dirty states in one call, and is mostly useful when
+the ops were registered *before* the state was supplied (e.g. via
+:meth:`~checkpoint.Checkpoint.set_state` or
+:meth:`~checkpoint.Checkpoint.deserialize`).
+
+Limitations
+^^^^^^^^^^^
+
+A few constraints to keep in mind when using ``Checkpoint``:
+
+* **Readers must opt in.** A :class:`Reader` only supports checkpointing when
+  constructed with ``enable_checkpointing=True``; the backend then maintains a
+  ``prefetch_queue_depth + 1`` deep snapshot queue, which has a small runtime
+  cost. Registering a reader that was not opted in is allowed only if its
+  backend has not yet been initialized - the call to
+  :meth:`~checkpoint.Checkpoint.register` will then enable checkpointing
+  retroactively; otherwise it raises a :class:`RuntimeError`.
+* **Compiled mode is not supported.** Calling
+  :meth:`Reader.next_epoch <nvidia.dali.experimental.dynamic._ops.Reader.next_epoch>`
+  with ``compile=True`` on a reader that has checkpointing enabled (or vice
+  versa) raises :class:`NotImplementedError`.
+* **Reader state must be applied early.** ``Reader.set_state`` (and any
+  buffered state propagated through :meth:`~checkpoint.Checkpoint.register`)
+  must run before the reader's first iteration; the prefetch thread cannot
+  be restored once it has started.
+* **The order of anonymous registrations matters.** When a checkpoint is
+  loaded and ops are re-added without explicit names, the same number of ops
+  must be registered in the same order as at save time. The count is
+  validated, and a stored type tag is checked at apply time - so cross-type
+  swaps fail loudly - but registering ops of compatible types in a different
+  order is not detected. Prefer named registration when in doubt.
+* **Format version is strict.** :meth:`~checkpoint.Checkpoint.deserialize`
+  rejects payloads whose ``version`` does not match the current format with a
+  :class:`ValueError`; there is no automatic upgrade path.
+* **Not thread-safe.** A single :class:`Checkpoint` instance must not be
+  accessed concurrently from multiple threads. The
+  :class:`EvalContext`-bound checkpoint shared by
+  :func:`checkpoint.current` follows the same rule.
+* **The default ``EvalContext`` is reused.** ``ndd.checkpoint.current()``
+  returns the checkpoint bound to the thread-local default
+  :class:`EvalContext`, which lives for the lifetime of the process (or the
+  enclosing ``with EvalContext(...):`` block). Registrations accumulate
+  across unrelated runs unless you call
+  :meth:`~checkpoint.Checkpoint.clear` between them.
+
 API reference
 -------------
 

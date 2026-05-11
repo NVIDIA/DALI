@@ -29,7 +29,6 @@ objects so that processing can be resumed at the captured point. See
 from __future__ import annotations
 
 import glob
-import inspect
 import json
 import os
 import re
@@ -92,11 +91,13 @@ def _pattern_to_regex(pattern: str) -> re.Pattern:
 
 def _matching_files(pattern: str):
     """Yields ``(seq, path)`` pairs for paths in the filesystem matching pattern."""
-    # Build a glob equivalent by replacing `{seq...}` with `*`.
+    # Build a glob equivalent by replacing `{seq...}` with `*`. The regex below uses
+    # `re.escape` on the same literals, so the two views must agree on bracket /
+    # `?` / `*` characters in the path - escape them on the glob side too.
     glob_parts = []
     seq_seen = False
     for literal, field_name, _format_spec, _conv in string.Formatter().parse(pattern):
-        glob_parts.append(literal)
+        glob_parts.append(glob.escape(literal))
         if field_name is None:
             continue
         if field_name != "seq":

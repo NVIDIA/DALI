@@ -808,7 +808,7 @@ class Reader(Operator):
         # The C++ reader can only restore a snapshot before its prefetch thread
         # has started - i.e. before the first iteration. Reject late calls clearly
         # rather than letting the underlying assertion fire.
-        if self._api_type is not None:
+        if self._op_backend is not None:
             raise RuntimeError(
                 "Cannot set the reader's state after iteration has begun. "
                 "Call `set_state` on a freshly constructed reader, before any "
