@@ -548,8 +548,9 @@ class Checkpoint:
         directory = os.path.dirname(path)
         if directory:
             os.makedirs(directory, exist_ok=True)
-        with open(path, "w", encoding="utf-8") as f:
+        with open(path + ".tmp", "w", encoding="utf-8") as f:
             f.write(data)
+        os.replace(path + ".tmp", path)
         self._save_seq = seq + 1
         return path
 
