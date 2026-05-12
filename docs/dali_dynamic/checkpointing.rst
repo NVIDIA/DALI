@@ -108,9 +108,13 @@ Restoring from disk is the symmetric operation:
    for batch in reader.next_epoch(batch_size=16):
        ...
 
+Current checkpoint
+^^^^^^^^^^^^^^^^^^
+
 The convenience function :func:`checkpoint.current` returns the
-:class:`~checkpoint.Checkpoint` bound to the current
-:class:`EvalContext`.
+:class:`~checkpoint.Checkpoint` bound to the current :class:`EvalContext`.
+This function allows the code hidden behind function calls to use checkpointing
+without modifying the API to pass the context explicitly.
 
 Using :func:`checkpoint.current`:
 
