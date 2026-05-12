@@ -233,9 +233,9 @@ class EvalContext:
         """The :class:`~nvidia.dali.experimental.dynamic.checkpoint.Checkpoint` bound
         to this context.
 
-        Lazily created on first access. The same object is reused across
-        ``__enter__`` / ``__exit__`` of this context, so it is safe to register ops
-        once and refer to them across multiple iterations.
+        When reusing a context (e.g. by using the default one), remember to call
+        ``clear`` on the checkpoint object before using the checkpoint in a new
+        processing pipeline.
         """
         return self._checkpoint
 

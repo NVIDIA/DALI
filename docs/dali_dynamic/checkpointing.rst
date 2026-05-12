@@ -110,8 +110,7 @@ Restoring from disk is the symmetric operation:
 
 The convenience function :func:`checkpoint.current` returns the
 :class:`~checkpoint.Checkpoint` bound to the current
-:class:`EvalContext`. It is created lazily on first access, so the same instance
-is reused across the lifetime of the context.
+:class:`EvalContext`.
 
 Using :func:`checkpoint.current`:
 
