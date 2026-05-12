@@ -58,7 +58,7 @@ class Result:
 )
 def dali_pipeline():
     enc = fn.external_source(name="INPUT")
-    img = fn.decoders.image(enc, device="mixed")
+    img = fn.decoders.image(enc, device="mixed", hw_decoder_load=0)
     img = fn.resize(img, size=(224, 224))
     img = fn.crop_mirror_normalize(
         img,
