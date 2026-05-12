@@ -187,6 +187,10 @@ class ImageDecoder : public StatelessOperator<Backend> {
 
     SampleView<CPUBackend> decode_out_cpu;
     SampleView<GPUBackend> decode_out_gpu;
+
+    // When non-empty: nvImageCodec ROI/orientation workaround is active for this sample.
+    // The decode targets the full oriented image; ConvertCPU/GPU crops to this ROI.
+    ROI post_decode_roi = {};
   };
 
   struct nvImagecodecOpts {
@@ -556,6 +560,13 @@ class ImageDecoder : public StatelessOperator<Backend> {
     st.req_img_type = format_;
     int64_t &nchannels = st.out_shape[2];
     auto decode_shape = st.out_shape;
+    // Workaround: decode the full oriented image; ConvertCPU/GPU crops to post_decode_roi.
+    if (st.post_decode_roi.use_roi()) {
+      decode_shape = st.parsed_sample.dali_img_info.shape;
+      decode_shape[2] = nchannels;
+      if (st.parsed_sample.nvimgcodec_img_info.orientation.rotated % 180 != 0)
+        std::swap(decode_shape[0], decode_shape[1]);
+    }
 
     // Decode to format
     st.image_info.color_spec = NVIMGCODEC_COLORSPEC_SRGB;
@@ -598,7 +609,8 @@ class ImageDecoder : public StatelessOperator<Backend> {
                                   1.0f;
 
     st.need_processing = st.req_img_type != st.orig_img_type ||
-                         dtype_ != st.parsed_sample.orig_dtype || need_dynamic_range_scaling;
+                         dtype_ != st.parsed_sample.orig_dtype || need_dynamic_range_scaling ||
+                         st.post_decode_roi.use_roi();
 
     st.image_info.buffer_kind = std::is_same<MixedBackend, Backend>::value ?
                                     NVIMGCODEC_IMAGE_BUFFER_KIND_STRIDED_DEVICE :
@@ -708,6 +720,16 @@ class ImageDecoder : public StatelessOperator<Backend> {
         }
 
         ROI &roi = rois_[i] = GetRoi(spec_, ws, i, st->out_shape);
+        st->post_decode_roi = ROI{};
+        // WORKAROUND(nvimgcodec ROI+EXIF orientation): for 90/270-rotated images, the
+        // raw codestream dims differ from the display dims, and nvImageCodec rejects
+        // display-coord ROIs whose extent exceeds the raw dims. Until this is fixed on
+        // the nvimgcodec side, decode the full oriented image and let ConvertCPU/GPU
+        // crop to `roi` in the post-decode step.
+        if (roi.use_roi() && use_orientation_ && !version_at_least(0, 9, 0) &&
+            st->parsed_sample.nvimgcodec_img_info.orientation.rotated % 180 != 0) {
+          st->post_decode_roi = roi;
+        }
         if (roi.use_roi()) {
           auto roi_sh = roi.shape();
           if (roi.end.size() >= 2) {
@@ -800,7 +822,7 @@ class ImageDecoder : public StatelessOperator<Backend> {
         } else {
           st.image = NvImageCodecImage::Create(instance_, &st.image_info);
         }
-        if (has_roi) {
+        if (has_roi && !st.post_decode_roi.use_roi()) {
           batch_encoded_streams_.push_back(st.sub_encoded_stream);
         } else {
           batch_encoded_streams_.push_back(st.parsed_sample.encoded_stream);
@@ -868,15 +890,17 @@ class ImageDecoder : public StatelessOperator<Backend> {
                 [&, out = output[orig_idx], st_ptr, orig_idx](int tid) {
                   DomainTimeRange tr(make_string("Convert #", orig_idx), DomainTimeRange::kOrange);
                   auto &st = *st_ptr;
+                  const ROI &convert_roi = st.post_decode_roi;
                   if constexpr (std::is_same<MixedBackend, Backend>::value) {
                     ConvertGPU(out, st.req_layout, st.req_img_type, st.decode_out_gpu,
-                               st.req_layout, st.orig_img_type, order.stream(), ROI{},
+                               st.req_layout, st.orig_img_type, order.stream(), convert_roi,
                                nvimgcodecOrientation_t{}, st.dyn_range_multiplier);
                     st.device_buf.reset();
                   } else {
                     assert(st.dyn_range_multiplier == 1.0f);  // TODO(janton): enable
                     ConvertCPU(out, st.req_layout, st.req_img_type, st.decode_out_cpu,
-                               st.req_layout, st.orig_img_type, ROI{}, nvimgcodecOrientation_t{});
+                               st.req_layout, st.orig_img_type, convert_roi,
+                               nvimgcodecOrientation_t{});
                     st.host_buf.reset();
                   }
                 },

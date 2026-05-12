@@ -505,3 +505,46 @@ def test_image_decoder_crafted_tiny_files():
 
         p = pipe()
         assert_raises(RuntimeError, p.run)
+
+
+# Regression test for the nvImageCodec ROI/orientation contract bug: with
+# adjust_orientation=True (the default), the random-crop selector picks a region in
+# display coords. For EXIF orientations 5-8 (which swap width and height), pre-fix
+# nvImageCodec rejected display-coord ROIs that exceeded the raw codestream's smaller
+# dimension, causing image_random_crop to throw. The workaround in image_decoder.h
+# routes those samples through full-decode + post-decode crop.
+@params(
+    "padlock-406986_640_rotate_90.jpg",
+    "padlock-406986_640_rotate_270.jpg",
+    "padlock-406986_640_mirror_horizontal_rotate_90.jpg",
+    "padlock-406986_640_mirror_horizontal_rotate_270.jpg",
+)
+def test_image_random_crop_on_exif_rotated(image_name):
+    image_path = os.path.join(
+        test_data_root, "db", "imgcodec", "jpeg", "orientation", image_name
+    )
+
+    @pipeline_def(batch_size=1, device_id=0, num_threads=1)
+    def pipe(device):
+        encoded, _ = fn.readers.file(files=[image_path])
+        # Use random_area=[0.5, 1.0] to bias the crop selector toward wide regions —
+        # those are the ones that triggered the pre-fix bounds rejection on rotated
+        # images. Run a handful of iterations to cover multiple random selections.
+        decoded = fn.decoders.image_random_crop(
+            encoded,
+            device=device,
+            output_type=types.RGB,
+            random_area=[0.5, 1.0],
+            random_aspect_ratio=[0.75, 1.3333],
+            num_attempts=10,
+        )
+        return decoded
+
+    for device in ("cpu", "mixed"):
+        p = pipe(device=device, seed=42)
+        for _ in range(8):
+            (out,) = p.run()
+            img = to_array(out[0])
+            # Sanity: at least one pixel decoded and the output has 3 channels.
+            assert img.ndim == 3 and img.shape[2] == 3
+            assert img.shape[0] > 0 and img.shape[1] > 0
