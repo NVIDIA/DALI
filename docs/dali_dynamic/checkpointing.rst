@@ -30,6 +30,16 @@ This page describes the two checkpointing layers that DALI Dynamic exposes:
 Manual checkpointing
 --------------------
 
+.. note::
+  Manual checkpointing is a an advanced feature. It is a set building blocks
+  for higher level systems, including the built-in
+  :ref:`semi-automatic <ndd_checkpointing_semi_automatic>` checkpointing.
+  It allows fine-grained control over individual reader or RNG
+  states, enabling integration with pre-existing checkpoint systems or
+  transferring state of compatible objects across process boundary. In typical
+  usage scenario, it's more convenent to use the
+  :ref:`semi-automatic <ndd_checkpointing_semi_automatic>` checkpointing.
+
 Both :class:`~nvidia.dali.experimental.dynamic.random.RNG` and the readers
 exposed via ``ndd.readers.*`` provide ``get_state`` and ``set_state`` methods.
 The state object returned by ``get_state`` can be converted to a string with
