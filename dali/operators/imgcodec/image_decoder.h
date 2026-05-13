@@ -745,23 +745,28 @@ class ImageDecoder : public StatelessOperator<Backend> {
           st->out_shape[0] = roi_sh[0];
           st->out_shape[1] = roi_sh[1];
 
-          nvimgcodecCodeStreamView_t cs_view = {
-              NVIMGCODEC_STRUCTURE_TYPE_CODE_STREAM_VIEW,
-              sizeof(nvimgcodecCodeStreamView_t),
-              nullptr,
-              0,  // image_idx
-              {NVIMGCODEC_STRUCTURE_TYPE_REGION, sizeof(nvimgcodecRegion_t), nullptr, 2}};
-          cs_view.region.start[0] = roi.begin[0];
-          cs_view.region.start[1] = roi.begin[1];
-          cs_view.region.end[0] = roi.end[0];
-          cs_view.region.end[1] = roi.end[1];
-          nvimgcodecCodeStream_t sub_encoded_stream = st->sub_encoded_stream.get();
-          if (sub_encoded_stream) {  // reuses the code stream object
-            CHECK_NVIMGCODEC(nvimgcodecCodeStreamGetSubCodeStream(
-                st->parsed_sample.encoded_stream.get(), &sub_encoded_stream, &cs_view));
-          } else {
-            st->sub_encoded_stream = NvImageCodecCodeStream::FromSubCodeStream(
-                st->parsed_sample.encoded_stream.get(), &cs_view);
+          // Skip handing the display-coord ROI to nvImageCodec when the WAR is active —
+          // the sub-stream wouldn't be used (the decoder consumes the full stream) and
+          // nvImageCodec rejects this ROI at sub-stream creation time on rotated samples.
+          if (!st->post_decode_roi.use_roi()) {
+            nvimgcodecCodeStreamView_t cs_view = {
+                NVIMGCODEC_STRUCTURE_TYPE_CODE_STREAM_VIEW,
+                sizeof(nvimgcodecCodeStreamView_t),
+                nullptr,
+                0,  // image_idx
+                {NVIMGCODEC_STRUCTURE_TYPE_REGION, sizeof(nvimgcodecRegion_t), nullptr, 2}};
+            cs_view.region.start[0] = roi.begin[0];
+            cs_view.region.start[1] = roi.begin[1];
+            cs_view.region.end[0] = roi.end[0];
+            cs_view.region.end[1] = roi.end[1];
+            nvimgcodecCodeStream_t sub_encoded_stream = st->sub_encoded_stream.get();
+            if (sub_encoded_stream) {  // reuses the code stream object
+              CHECK_NVIMGCODEC(nvimgcodecCodeStreamGetSubCodeStream(
+                  st->parsed_sample.encoded_stream.get(), &sub_encoded_stream, &cs_view));
+            } else {
+              st->sub_encoded_stream = NvImageCodecCodeStream::FromSubCodeStream(
+                  st->parsed_sample.encoded_stream.get(), &cs_view);
+            }
           }
         }
         out_shape.set_tensor_shape(i, st->out_shape);
