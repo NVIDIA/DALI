@@ -510,9 +510,11 @@ def test_image_decoder_crafted_tiny_files():
 # Regression test for the nvImageCodec ROI/orientation contract bug. For EXIF
 # orientations 5-8 (which swap width and height), pre-fix nvImageCodec rejected
 # display-coord ROIs whose extent exceeded the raw codestream's smaller dimension.
-# The workaround in image_decoder.h routes those samples through full-decode +
-# post-decode crop. The non-symmetric absolute ROI here would surface any axis
-# mix-up as a content mismatch against a slice of the full decode.
+# The workaround in image_decoder.h disables nvImageCodec's orientation pass,
+# translates the ROI to raw codestream coords, and applies orientation in
+# post-decode Convert. The non-symmetric absolute ROI here would surface any
+# axis or anchor mix-up in the translation as a content mismatch against a
+# slice of the full decode.
 @params(
     "padlock-406986_640_rotate_90.jpg",
     "padlock-406986_640_rotate_270.jpg",
