@@ -274,6 +274,93 @@ TEST_F(ConvertLayoutTest, RoiCHW) {
 }
 
 
+// Rotation/flip tests for ConvertCPU. These mirror the rotation tests in convert_gpu_test.cc
+// to guarantee CPU and GPU paths agree on EXIF orientation semantics — the contract relied on
+// by image_decoder.h's ROI/orientation workaround.
+class ConvertOrientationTest : public ::testing::Test {
+ protected:
+  static constexpr int kH = 2;
+  static constexpr int kW = 3;
+  static constexpr int kC = 3;
+
+  // 2x3 RGB input; each pixel uniquely identifiable so axis mix-ups surface as mismatches.
+  static std::vector<uint8_t> MakeInput() {
+    return {
+      0x00, 0x01, 0x02,  0x10, 0x11, 0x12,  0x20, 0x21, 0x22,  // row 0: A B C
+      0x30, 0x31, 0x32,  0x40, 0x41, 0x42,  0x50, 0x51, 0x52,  // row 1: D E F
+    };
+  }
+
+  void Run(int rotated, bool flip_x, bool flip_y, std::vector<uint8_t> expected) {
+    bool swap = rotated % 180 == 90;
+    int out_h = swap ? kW : kH;
+    int out_w = swap ? kH : kW;
+    ASSERT_EQ(expected.size(), static_cast<size_t>(out_h * out_w * kC));
+
+    auto input_buf = MakeInput();
+    TensorShape<> in_shape{kH, kW, kC};
+    TensorShape<> out_shape{out_h, out_w, kC};
+    ConstSampleView<CPUBackend> in_view(input_buf.data(), in_shape, DALI_UINT8);
+    std::vector<uint8_t> output_buf(out_h * out_w * kC, 0xFF);
+    SampleView<CPUBackend> out_view(output_buf.data(), out_shape, DALI_UINT8);
+
+    nvimgcodecOrientation_t orientation{
+        NVIMGCODEC_STRUCTURE_TYPE_ORIENTATION, sizeof(nvimgcodecOrientation_t),
+        nullptr, rotated, flip_x, flip_y};
+    ConvertCPU(out_view, "HWC", DALI_RGB, in_view, "HWC", DALI_RGB, {}, orientation);
+    EXPECT_EQ(output_buf, expected);
+  }
+};
+
+TEST_F(ConvertOrientationTest, Rotated90) {
+  // Matches convert_gpu_test.cc Rotation90: A→(2,0), C→(0,0), F→(0,1)
+  Run(90, false, false, {
+    0x20, 0x21, 0x22,  0x50, 0x51, 0x52,
+    0x10, 0x11, 0x12,  0x40, 0x41, 0x42,
+    0x00, 0x01, 0x02,  0x30, 0x31, 0x32,
+  });
+}
+
+TEST_F(ConvertOrientationTest, Rotated270) {
+  // Matches convert_gpu_test.cc Rotation270: A→(0,1), D→(0,0)
+  Run(270, false, false, {
+    0x30, 0x31, 0x32,  0x00, 0x01, 0x02,
+    0x40, 0x41, 0x42,  0x10, 0x11, 0x12,
+    0x50, 0x51, 0x52,  0x20, 0x21, 0x22,
+  });
+}
+
+TEST_F(ConvertOrientationTest, Rotated180) {
+  Run(180, false, false, {
+    0x50, 0x51, 0x52,  0x40, 0x41, 0x42,  0x30, 0x31, 0x32,
+    0x20, 0x21, 0x22,  0x10, 0x11, 0x12,  0x00, 0x01, 0x02,
+  });
+}
+
+TEST_F(ConvertOrientationTest, Rotated90FlipX) {
+  // Matches convert_gpu_test.cc Rotation90FlipX: input flipped along W, then rotated 90
+  Run(90, true, false, {
+    0x50, 0x51, 0x52,  0x20, 0x21, 0x22,
+    0x40, 0x41, 0x42,  0x10, 0x11, 0x12,
+    0x30, 0x31, 0x32,  0x00, 0x01, 0x02,
+  });
+}
+
+TEST_F(ConvertOrientationTest, FlipX) {
+  Run(0, true, false, {
+    0x20, 0x21, 0x22,  0x10, 0x11, 0x12,  0x00, 0x01, 0x02,
+    0x50, 0x51, 0x52,  0x40, 0x41, 0x42,  0x30, 0x31, 0x32,
+  });
+}
+
+TEST_F(ConvertOrientationTest, FlipY) {
+  Run(0, false, true, {
+    0x30, 0x31, 0x32,  0x40, 0x41, 0x42,  0x50, 0x51, 0x52,
+    0x00, 0x01, 0x02,  0x10, 0x11, 0x12,  0x20, 0x21, 0x22,
+  });
+}
+
+
 }  // namespace test
 }  // namespace imgcodec
 }  // namespace dali
