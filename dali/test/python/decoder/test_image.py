@@ -509,7 +509,7 @@ def test_image_decoder_crafted_tiny_files():
 
 # Regression test for the nvImageCodec ROI/orientation contract bug. For EXIF
 # orientations 5-8 (which swap width and height), pre-fix nvImageCodec rejected
-# display-coord ROIs whose extent exceeded the raw codestream's smaller dimension.
+# output-coord ROIs whose extent exceeded the raw codestream's smaller dimension.
 # The workaround in image_decoder.h disables nvImageCodec's orientation pass,
 # translates the ROI to raw codestream coords, and applies orientation in
 # post-decode Convert. The non-symmetric absolute ROI here would surface any
@@ -528,7 +528,7 @@ def test_image_slice_on_exif_rotated(image_name):
     def pipe(device):
         encoded, _ = fn.readers.file(files=[image_path])
         decoded_full = fn.decoders.image(encoded, device=device, output_type=types.RGB)
-        # Non-symmetric absolute ROI in display coords. Small insets so the ROI fits
+        # Non-symmetric absolute ROI in output coords. Small insets so the ROI fits
         # in both H/W orderings of the (almost-square) padlock test images.
         full_shape = decoded_full.shape()
         anchor = fn.stack(
