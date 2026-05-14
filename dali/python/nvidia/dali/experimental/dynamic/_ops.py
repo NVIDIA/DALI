@@ -79,10 +79,10 @@ def _get_input_device(x):
         return x.device
     if isinstance(x, Tensor):
         return x.device
-    if isinstance(x, _b.TensorListCPU):
+    if isinstance(x, (_b.TensorListCPU, _b.TensorCPU)):
         return _device.Device.CPU
-    if isinstance(x, _b.TensorListGPU):
-        return _device.Device("gpu")
+    if isinstance(x, (_b.TensorListGPU, _b.TensorGPU)):
+        return _device.Device("gpu", _b.device_id())
     if hasattr(x, "__cuda_array_interface__"):
         return _device.Device("gpu")
     if hasattr(x, "__dlpack_device__"):
@@ -329,30 +329,52 @@ class Operator:
         inputs = []
         kwargs = {}
 
+        input_device_id = None
+        input_device_id_src = None
+
+        def validate_input_device(dev, input_index):
+            nonlocal input_device_id
+            nonlocal input_device_id_src
+            if dev is not None and dev.device_type == "gpu":
+                if input_device_id is None:
+                    input_device_id = dev.device_id
+                    input_device_id_src = input_index
+                elif input_device_id != dev.device_id:
+                    from nvidia.dali.ops import _names
+
+                    src_name = _names._get_input_name(cls._schema, input_device_id_src)
+                    clash_name = _names._get_input_name(cls._schema, input_index)
+                    raise RuntimeError(
+                        f"Got inputs with different device ids:\n"
+                        f'{src_name!r} is on "gpu:{input_device_id}"'
+                        f' and {clash_name!r} is on "gpu:{dev.device_id}'
+                    )
+
+        def convert_args(convert_fn):
+            for i, inp in enumerate(raw_args):
+                if inp is None:
+                    continue
+                actual_input_device = _get_input_device(inp)
+                validate_input_device(actual_input_device, i)
+                input_device = cls._input_device(backend, i, actual_input_device, op_device)
+                inp = convert_fn(inp, device=input_device)
+                inputs.append(inp)
+            for k, v in raw_kwargs.items():
+                if v is None:
+                    continue
+                dtype = cls._argument_conversion_map[k]
+                kwargs[k] = convert_fn(v, device=_device.Device.CPU, dtype=dtype)
+
         if is_batch:
             with Operator._nvtx_convert_to_batches:
-                for i, inp in enumerate(raw_args):
-                    if inp is None:
-                        continue
-                    input_device = cls._input_device(backend, i, _get_input_device(inp), op_device)
-                    inp = _to_batch(inp, batch_size, device=input_device)
-                    inputs.append(inp)
-                for k, v in raw_kwargs.items():
-                    if v is None:
-                        continue
-                    dtype = cls._argument_conversion_map[k]
-                    kwargs[k] = _to_batch(v, batch_size, device=_device.Device.CPU, dtype=dtype)
+
+                def _batch(inp, batch_size, device=None, dtype=None):
+                    return _to_batch(inp, batch_size, device=device, dtype=dtype)
+
+                convert_args(_batch)
         else:
             with Operator._nvtx_convert_to_tensors:
-                for inp in raw_args:
-                    if inp is None:
-                        continue
-                    inputs.append(_to_tensor(inp))
-                for k, v in raw_kwargs.items():
-                    if v is None:
-                        continue
-                    dtype = cls._argument_conversion_map[k]
-                    kwargs[k] = _to_tensor(v, dtype=dtype)
+                convert_args(_to_tensor)
 
         return inputs, kwargs
 
@@ -496,8 +518,18 @@ class Operator:
 
             self._init_backend(ctx, inputs, args)
             workspace = _b._Workspace(ctx.thread_pool._create_facade(), ctx.cuda_stream)
+            ctx_device_id = ctx.device_id
             for i, input in enumerate(inputs):
-                workspace.AddInput(self._to_batch(input).evaluate()._storage)
+                inp = self._to_batch(input)
+                if inp.device.device_id is not None and inp.device.device_id != ctx_device_id:
+                    from nvidia.dali.ops import _names
+
+                    raise RuntimeError(
+                        f"The input {_names._get_input_name(self._schema, i)!r} is on device "
+                        f"({inp.device.device_id}) which is not the device associated with the "
+                        f"current EvalContext ({ctx_device_id})"
+                    )
+                workspace.AddInput(inp.evaluate()._storage)
             for name, arg in args.items():
                 workspace.AddArgumentInput(name, self._to_batch(arg).evaluate()._storage)
             self._op_backend.SetupAndRun(workspace, batch_size)

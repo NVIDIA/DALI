@@ -521,7 +521,8 @@ def _compile_intercept(
 
     @mark_transparent
     def wrapper(*inputs, batch_size=None, device=None, **raw_kwargs):
-        device, backend = _resolve_backend(op_class, device, inputs, raw_kwargs, op_name=op_name)
+        print("wrapper device: ", device)
+        device, backend = _resolve_backend(op_class, device, inputs, op_name=op_name)
         compile_ctx = CompileContext.current()
         if compile_ctx is None:
             return fn_call(
