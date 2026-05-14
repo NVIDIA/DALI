@@ -533,8 +533,8 @@ class Operator:
 
                     raise RuntimeError(
                         f"The input {_names._get_input_name(self._schema, i)!r} is on device "
-                        f"({inp.device.device_id}) which is not the device associated with the "
-                        f"current EvalContext ({ctx_device_id})"
+                        f'"gpu:{inp.device.device_id}" which is not the device associated with the '
+                        f'current EvalContext ("{ctx_device_id}")'
                     )
                 workspace.AddInput(inp.evaluate()._storage)
             for name, arg in args.items():
