@@ -55,10 +55,6 @@ if [ "${CUDA_VERSION/./}" -ge 110 ]; then
   export CUDA_VERSION="${CUDA_VERSION%?}0"
 fi
 
-# Build custom FFmpeg, as DALI requires only bare FFmpeg without many features and dependencies
-# but wiht mpeg4_unpack_bframes enabled
-conda mambabuild ${CONDA_BUILD_OPTIONS} third_party/dali_ffmpeg/recipe
-
 # Building DALI core package
 conda mambabuild ${CONDA_BUILD_OPTIONS} dali_native_libs/recipe
 

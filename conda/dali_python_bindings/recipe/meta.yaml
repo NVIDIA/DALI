@@ -81,7 +81,6 @@ requirements:
     # so zlib must be in host for find_package(Protobuf) to succeed.
     - zlib
     - libopencv
-    - dali-ffmpeg
     - python
     - setuptools
     - future
