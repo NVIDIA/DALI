@@ -82,7 +82,7 @@ def _get_input_device(x):
     if isinstance(x, (_b.TensorListCPU, _b.TensorCPU)):
         return _device.Device.CPU
     if isinstance(x, (_b.TensorListGPU, _b.TensorGPU)):
-        return _device.Device("gpu", _b.device_id())
+        return _device.Device("gpu", x.device_id())
     if hasattr(x, "__cuda_array_interface__"):
         return _device.Device("gpu")
     if hasattr(x, "__dlpack_device__"):
@@ -172,6 +172,7 @@ class Operator:
         self._max_batch_size = max_batch_size
         self._init_args = kwargs
         self._api_type = None
+        self._is_copy = self._schema_name == "Copy"
 
         self._device = _device.device(device)
         if _backend is None:
@@ -346,8 +347,8 @@ class Operator:
                     clash_name = _names._get_input_name(cls._schema, input_index)
                     raise RuntimeError(
                         f"Got inputs with different device ids:\n"
-                        f'{src_name!r} is on "gpu:{input_device_id}"'
-                        f' and {clash_name!r} is on "gpu:{dev.device_id}'
+                        f'{src_name!r} is on "gpu:{input_device_id}" '
+                        f'and {clash_name!r} is on "gpu:{dev.device_id}".'
                     )
 
         def convert_args(convert_fn):
@@ -368,7 +369,7 @@ class Operator:
         if is_batch:
             with Operator._nvtx_convert_to_batches:
 
-                def _batch(inp, batch_size, device=None, dtype=None):
+                def _batch(inp, device=None, dtype=None):
                     return _to_batch(inp, batch_size, device=device, dtype=dtype)
 
                 convert_args(_batch)
@@ -521,7 +522,13 @@ class Operator:
             ctx_device_id = ctx.device_id
             for i, input in enumerate(inputs):
                 inp = self._to_batch(input)
-                if inp.device.device_id is not None and inp.device.device_id != ctx_device_id:
+                # Validate input device unless the operator is a Copy, which is explicitly meant
+                # for cross-device communication.
+                if (
+                    not self._is_copy
+                    and inp.device.device_id is not None
+                    and inp.device.device_id != ctx_device_id
+                ):
                     from nvidia.dali.ops import _names
 
                     raise RuntimeError(
