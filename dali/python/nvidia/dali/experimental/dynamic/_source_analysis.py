@@ -105,7 +105,7 @@ def _find_call_by_start_line(tree: ast.Module, lineno: int) -> ast.Call | None:
     return candidates[0] if len(candidates) == 1 else None
 
 
-def parse_call_from_frame(frame: types.FrameType) -> ast.Call | None:
+def get_call_from_frame(frame: types.FrameType) -> ast.Call | None:
     """Resolve the ``ast.Call`` executing at `frame`'s current instruction, or None"""
     tree = _get_file_ast(frame.f_code.co_filename)
     if tree is None:
@@ -163,5 +163,5 @@ class CallSiteAnalyzer:
     def _get_call_node(self, frame: types.FrameType) -> ast.Call | None:
         code_loc = CodeLoc(frame.f_code, frame.f_lasti)
         if code_loc not in self._cache:
-            self._cache[code_loc] = parse_call_from_frame(frame)
+            self._cache[code_loc] = get_call_from_frame(frame)
         return self._cache[code_loc]
