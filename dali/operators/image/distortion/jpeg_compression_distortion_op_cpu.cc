@@ -107,6 +107,26 @@ unsigned char* ResizeVectorBufferCb(void* ctx, size_t req_size) {
   return v->data();
 }
 
+// Drain a future, fetch per-frame processing statuses, and convert any failure
+// (status-count mismatch or non-success entry) into a DALI exception. `frame_id`
+// maps a status index to the frame id printed in error messages.
+template <typename FrameIdFn>
+void WaitAndCheck(const NvImageCodecFuture& future, size_t expected_count,
+                  const char* op_name, FrameIdFn&& frame_id) {
+  CHECK_NVIMGCODEC(nvimgcodecFutureWaitForAll(future));
+  std::vector<nvimgcodecProcessingStatus_t> statuses(expected_count);
+  size_t status_size = statuses.size();
+  CHECK_NVIMGCODEC(nvimgcodecFutureGetProcessingStatus(future, statuses.data(), &status_size));
+  DALI_ENFORCE(status_size == expected_count,
+               make_string("nvimgcodec ", op_name, " returned ", status_size,
+                           " statuses for ", expected_count, " frames"));
+  for (size_t k = 0; k < statuses.size(); k++) {
+    DALI_ENFORCE(statuses[k] == NVIMGCODEC_PROCESSING_STATUS_SUCCESS,
+                 make_string("nvimgcodec ", op_name, " failed for frame ", frame_id(k),
+                             " (status=", static_cast<int>(statuses[k]), ")"));
+  }
+}
+
 }  // namespace
 
 // Per-sample work is dispatched to nvimgcodec's internal executor rather than
@@ -136,6 +156,26 @@ class JpegCompressionDistortionCPU : public JpegCompressionDistortion<CPUBackend
  private:
   void EnsureCodecs();
 
+  struct FrameDesc {
+    const uint8_t* in_ptr;
+    uint8_t* out_ptr;
+    int64_t width;
+    int64_t height;
+    int quality;
+  };
+
+  // Per-bucket encode state. The encoder takes raw pointers into `enc_params`
+  // and into the handle arrays built from `in_imgs` / `out_streams`, so every
+  // member must remain at a stable address until the corresponding `future`
+  // is drained.
+  struct EncodeBucket {
+    std::vector<size_t> idxs;
+    std::vector<imgcodec::NvImageCodecImage> in_imgs;
+    std::vector<imgcodec::NvImageCodecCodeStream> out_streams;
+    nvimgcodecEncodeParams_t enc_params{};
+    NvImageCodecFuture future;
+  };
+
   // Lazily initialized; constructed on first RunImpl invocation.
   bool codecs_ready_ = false;
 
@@ -161,8 +201,12 @@ class JpegCompressionDistortionCPU : public JpegCompressionDistortion<CPUBackend
   std::vector<nvimgcodecExtension_t> extensions_;
 #endif
 
-  // Reused across RunImpl calls.
+  // Scratch state reused across RunImpl calls; .clear()-ed at the top of
+  // each invocation so capacity is amortised across pipeline iterations.
   std::vector<std::vector<uint8_t>> encoded_buffers_;
+  std::vector<FrameDesc> frames_;
+  std::map<int, std::vector<size_t>> by_quality_;
+  std::vector<EncodeBucket> buckets_;
 };
 
 void JpegCompressionDistortionCPU::EnsureCodecs() {
@@ -222,13 +266,6 @@ void JpegCompressionDistortionCPU::RunImpl(Workspace& ws) {
   const auto in_view = view<const uint8_t>(input);
   const auto out_view = view<uint8_t>(output);
 
-  struct FrameDesc {
-    const uint8_t* in_ptr;
-    uint8_t* out_ptr;
-    int64_t width;
-    int64_t height;
-    int quality;
-  };
   const int w_dim = layout.find('W');
   const int h_dim = layout.find('H');
   const int f_dim = layout.find('F');
@@ -240,8 +277,8 @@ void JpegCompressionDistortionCPU::RunImpl(Workspace& ws) {
     total_frames += volume(shape.begin(), shape.begin() + f_dim + 1);
   }
 
-  std::vector<FrameDesc> frames;
-  frames.reserve(total_frames);
+  frames_.clear();
+  frames_.reserve(total_frames);
 
   for (int sample_idx = 0; sample_idx < nsamples; sample_idx++) {
     auto shape = in_shape.tensor_shape_span(sample_idx);
@@ -254,14 +291,14 @@ void JpegCompressionDistortionCPU::RunImpl(Workspace& ws) {
 
     int q = std::clamp(quality_arg_[sample_idx].data[0], 1, 100);
     for (int64_t elem = 0; elem < nframes; elem++) {
-      frames.push_back(FrameDesc{
+      frames_.push_back(FrameDesc{
           in_view[sample_idx].data + elem * frame_size,
           out_view[sample_idx].data + elem * frame_size,
           width, height, q});
     }
   }
 
-  const size_t N = frames.size();
+  const size_t N = frames_.size();
   // Resize without clearing first so each inner vector retains its previous
   // capacity — the resize callback below reuses it on the next encode.
   encoded_buffers_.resize(N);
@@ -273,9 +310,9 @@ void JpegCompressionDistortionCPU::RunImpl(Workspace& ws) {
   // drained at the end so each bucket can make progress concurrently. With a
   // single quality value across the whole input (the common case), this
   // collapses to a single batched submit covering all frames.
-  std::map<int, std::vector<size_t>> by_quality;
+  by_quality_.clear();
   for (size_t i = 0; i < N; i++)
-    by_quality[frames[i].quality].push_back(i);
+    by_quality_[frames_[i].quality].push_back(i);
 
   // Constant across all buckets; referenced via enc_params.struct_next, so it
   // must outlive any in-flight encode.
@@ -283,22 +320,15 @@ void JpegCompressionDistortionCPU::RunImpl(Workspace& ws) {
                                            sizeof(nvimgcodecJpegEncodeParams_t), nullptr,
                                            /*optimized_huffman=*/0};
 
-  // Per-bucket state: images, code streams, enc_params and future. The encoder
-  // is given pointers into these (via the handle arrays and &enc_params), so
-  // everything must remain at a stable address until the corresponding future
-  // is drained.
-  struct EncodeBucket {
-    std::vector<size_t> idxs;
-    std::vector<imgcodec::NvImageCodecImage> in_imgs;
-    std::vector<imgcodec::NvImageCodecCodeStream> out_streams;
-    nvimgcodecEncodeParams_t enc_params{};
-    NvImageCodecFuture future;
-  };
-  std::vector<EncodeBucket> buckets;
-  buckets.reserve(by_quality.size());  // Prevents reallocation; addresses stay stable.
+  // Recycle the bucket vector across calls: .clear() destroys any handles
+  // (futures, images, code streams) carried over from the previous RunImpl
+  // while keeping the outer vector's capacity, then .reserve() guarantees no
+  // reallocation invalidates &bucket.enc_params during the submit loop.
+  buckets_.clear();
+  buckets_.reserve(by_quality_.size());
 
-  for (auto& kv : by_quality) {
-    auto& bucket = buckets.emplace_back();
+  for (auto& kv : by_quality_) {
+    auto& bucket = buckets_.emplace_back();
     bucket.idxs = std::move(kv.second);
     const int batch = static_cast<int>(bucket.idxs.size());
     bucket.in_imgs.resize(batch);
@@ -307,7 +337,7 @@ void JpegCompressionDistortionCPU::RunImpl(Workspace& ws) {
     std::vector<nvimgcodecImage_t> in_img_handles(batch);
     std::vector<nvimgcodecCodeStream_t> out_stream_handles(batch);
     for (int k = 0; k < batch; k++) {
-      const auto& fd = frames[bucket.idxs[k]];
+      const auto& fd = frames_[bucket.idxs[k]];
       // nvimgcodecImageInfo_t.buffer is void* (no const qualifier in the C API);
       // the encoder only reads from this buffer.
       auto in_info = MakeRgbU8ImageInfo(const_cast<uint8_t*>(fd.in_ptr), fd.width, fd.height);
@@ -334,21 +364,9 @@ void JpegCompressionDistortionCPU::RunImpl(Workspace& ws) {
   }
 
   // Drain all encode futures and check per-frame statuses.
-  for (const auto& bucket : buckets) {
-    const int batch = static_cast<int>(bucket.idxs.size());
-    CHECK_NVIMGCODEC(nvimgcodecFutureWaitForAll(bucket.future));
-    std::vector<nvimgcodecProcessingStatus_t> statuses(batch);
-    size_t status_size = statuses.size();
-    CHECK_NVIMGCODEC(
-        nvimgcodecFutureGetProcessingStatus(bucket.future, statuses.data(), &status_size));
-    DALI_ENFORCE(status_size == static_cast<size_t>(batch),
-                 make_string("nvimgcodec encode returned ", status_size,
-                             " statuses for ", batch, " frames"));
-    for (size_t k = 0; k < statuses.size(); k++) {
-      DALI_ENFORCE(statuses[k] == NVIMGCODEC_PROCESSING_STATUS_SUCCESS,
-                   make_string("nvimgcodec encode failed for frame ", bucket.idxs[k],
-                               " (status=", static_cast<int>(statuses[k]), ")"));
-    }
+  for (const auto& bucket : buckets_) {
+    WaitAndCheck(bucket.future, bucket.idxs.size(), "encode",
+                 [&](size_t k) { return bucket.idxs[k]; });
   }
 
   // ---- Decode pass: one batched submit for the whole batch ----
@@ -366,7 +384,7 @@ void JpegCompressionDistortionCPU::RunImpl(Workspace& ws) {
         instance_, encoded_buffers_[i].data(), encoded_buffers_[i].size());
     code_stream_handles[i] = code_streams[i];
 
-    auto out_info = MakeRgbU8ImageInfo(frames[i].out_ptr, frames[i].width, frames[i].height);
+    auto out_info = MakeRgbU8ImageInfo(frames_[i].out_ptr, frames_[i].width, frames_[i].height);
     out_imgs[i] = imgcodec::NvImageCodecImage::Create(instance_, &out_info);
     out_img_handles[i] = out_imgs[i];
   }
@@ -381,18 +399,7 @@ void JpegCompressionDistortionCPU::RunImpl(Workspace& ws) {
                                             &dec_params, &future_handle);
   NvImageCodecFuture future(future_handle);
   CHECK_NVIMGCODEC(dec_status);
-  CHECK_NVIMGCODEC(nvimgcodecFutureWaitForAll(future));
-  std::vector<nvimgcodecProcessingStatus_t> statuses(N);
-  size_t status_size = statuses.size();
-  CHECK_NVIMGCODEC(nvimgcodecFutureGetProcessingStatus(future, statuses.data(), &status_size));
-  DALI_ENFORCE(status_size == N,
-               make_string("nvimgcodec decode returned ", status_size,
-                           " statuses for ", N, " frames"));
-  for (size_t i = 0; i < statuses.size(); i++) {
-    DALI_ENFORCE(statuses[i] == NVIMGCODEC_PROCESSING_STATUS_SUCCESS,
-                 make_string("nvimgcodec decode failed for frame ", i,
-                             " (status=", static_cast<int>(statuses[i]), ")"));
-  }
+  WaitAndCheck(future, N, "decode", [](size_t k) { return k; });
 }
 
 DALI_REGISTER_OPERATOR(JpegCompressionDistortion, JpegCompressionDistortionCPU, CPU);
