@@ -45,6 +45,10 @@ if (BUILD_OPENCV)
   if (BUILD_TEST)
     set(DALI_OPENCV_TEST_EXTRA_LIBS opencv_imgcodecs CACHE INTERNAL
         "OpenCV imgcodecs target, for test executables only")
+  else()
+    # Drop any stale value from a previous BUILD_TEST=ON configuration so a
+    # reconfigure to BUILD_TEST=OFF cannot leave imgcodecs hanging in the cache.
+    unset(DALI_OPENCV_TEST_EXTRA_LIBS CACHE)
   endif()
 endif()
 

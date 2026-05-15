@@ -109,11 +109,26 @@ unsigned char* ResizeVectorBufferCb(void* ctx, size_t req_size) {
 
 }  // namespace
 
+// Per-sample work is dispatched to nvimgcodec's internal executor rather than
+// the workspace thread pool — encode/decode are issued as batched submits on
+// the calling thread, so `ws.GetThreadPool()` is intentionally unused here.
 class JpegCompressionDistortionCPU : public JpegCompressionDistortion<CPUBackend> {
  public:
   explicit JpegCompressionDistortionCPU(const OpSpec& spec)
       : JpegCompressionDistortion(spec) {}
   using Operator<CPUBackend>::RunImpl;
+
+  ~JpegCompressionDistortionCPU() noexcept override {
+#if not(WITH_DYNAMIC_NVIMGCODEC_ENABLED)
+    // Tear down codecs before destroying extensions so encoder/decoder do not
+    // outlive the extension that backs them.
+    decoder_.reset();
+    encoder_.reset();
+    for (auto& extension : extensions_) {
+      nvimgcodecExtensionDestroy(extension);
+    }
+#endif
+  }
 
  protected:
   void RunImpl(Workspace& ws) override;
@@ -250,6 +265,10 @@ void JpegCompressionDistortionCPU::RunImpl(Workspace& ws) {
   encoded_buffers_.resize(N);
 
   // ---- Encode pass: bucket by quality, one batched submit per bucket ----
+  // nvimgcodecEncodeParams_t carries a single `quality` value per call, so
+  // batching across frames requires identical quality. With per-sample random
+  // quality this bucketing can degenerate toward batch size 1; that is an
+  // accepted tradeoff over running a per-frame call sequence ourselves.
   std::map<int, std::vector<size_t>> by_quality;
   for (size_t i = 0; i < N; i++)
     by_quality[frames[i].quality].push_back(i);
@@ -304,6 +323,10 @@ void JpegCompressionDistortionCPU::RunImpl(Workspace& ws) {
   }
 
   // ---- Decode pass: one batched submit for the whole batch ----
+  // Empty inputs (no samples / all-zero-frame sequences) skip the decode call
+  // entirely — nvimgcodec's behaviour on a zero-length batch is unspecified.
+  if (N == 0) return;
+
   std::vector<imgcodec::NvImageCodecCodeStream> code_streams(N);
   std::vector<imgcodec::NvImageCodecImage> out_imgs(N);
   std::vector<nvimgcodecCodeStream_t> code_stream_handles(N);
