@@ -1,5 +1,5 @@
 ---
-name: using-dali-dynamic-mode
+name: dali-dynamic-mode
 description: "Use when writing DALI data loading or preprocessing code with `nvidia.dali.experimental.dynamic` (ndd), or when converting DALI pipeline-mode code to dynamic mode, or when the user asks about DALI dynamic mode, imperative DALI, or ndd. Use this skill any time someone mentions 'ndd', 'dynamic mode', or wants to load/augment data with DALI outside of a pipeline definition."
 ---
 
@@ -120,7 +120,7 @@ Use `EvalMode.sync_full` for debugging instead of scattering `.evaluate()` calls
 ## Thread Configuration
 
 ```python
-ndd.set_num_threads(4)  # Call once at startup
+ndd.set_num_threads(4)  # Call once at startup, only if necessary to override the defaults
 ```
 
 Controls DALI's internal worker threads for CPU operators. Defaults to CPU affinity count or `DALI_NUM_THREADS` env var. Unrelated to Python-level threading.
