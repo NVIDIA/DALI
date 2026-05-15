@@ -17,6 +17,8 @@ import itertools
 import linecache
 import sys
 import types
+from collections.abc import Mapping
+from dataclasses import dataclass
 from typing import Any, TypeAlias, cast
 
 from nvidia.dali.types import DALIDataType, DALIImageType, DALIInterpType
@@ -26,8 +28,42 @@ from ._compile import CompileRef
 from ._device import Device
 from ._type import DType
 
-_file_ast_cache: dict[str, tuple[object, ast.Module | None]] = {}
 CodePosition: TypeAlias = tuple[int, int, int, int]
+
+
+@dataclass(frozen=True, slots=True)
+class SourceCalls:
+    by_span: Mapping[CodePosition, ast.Call | None]
+    by_line: Mapping[int, tuple[ast.Call, ...]]
+
+    @classmethod
+    def from_ast(cls, tree: ast.Module) -> "SourceCalls":
+        by_span: dict[CodePosition, ast.Call | None] = {}
+        by_line: dict[int, list[ast.Call]] = {}
+        collect_spans = sys.version_info >= (3, 11)
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+
+            by_line.setdefault(node.lineno, []).append(node)
+            if not collect_spans:
+                continue
+
+            pos = (node.lineno, node.end_lineno, node.col_offset, node.end_col_offset)
+            if any(x is None for x in pos):
+                continue
+            pos = cast(CodePosition, pos)
+            by_span[pos] = None if pos in by_span else node
+
+        return cls(
+            by_span=types.MappingProxyType(by_span),
+            by_line=types.MappingProxyType(
+                {lineno: tuple(calls) for lineno, calls in by_line.items()}
+            ),
+        )
+
+
+_file_cache: dict[str, tuple[object, SourceCalls | None]] = {}
 
 
 def is_constant_node(node: ast.AST) -> bool:
@@ -50,15 +86,15 @@ def is_dali_constant(value: Any) -> bool:
     return isinstance(value, (Device, DType, DALIDataType, DALIInterpType, DALIImageType))
 
 
-def _get_file_ast(filename: str) -> ast.Module | None:
-    """Parse and cache the whole-file AST. Returns None for empty/invalid source."""
+def _get_source_calls(filename: str) -> SourceCalls | None:
+    """Parse and cache source calls. Returns None for empty/invalid source."""
     lines = linecache.getlines(filename)
     if not lines:
         return None
 
     # We rely on the linecache entry to make sure that our cache didn't get invalidated
     entry = linecache.cache[filename]
-    cached = _file_ast_cache.get(filename)
+    cached = _file_cache.get(filename)
     # The cache entry is not hashable so we can't use it as a key
     if cached is not None and cached[0] is entry:
         return cached[1]
@@ -66,10 +102,12 @@ def _get_file_ast(filename: str) -> ast.Module | None:
     try:
         tree = ast.parse("".join(lines), filename=filename)
     except SyntaxError:
-        tree = None
+        calls = None
+    else:
+        calls = SourceCalls.from_ast(tree)
 
-    _file_ast_cache[filename] = (entry, tree)
-    return tree
+    _file_cache[filename] = (entry, calls)
+    return calls
 
 
 def _get_positions(code: types.CodeType, lasti: int) -> CodePosition | None:
@@ -84,35 +122,15 @@ def _get_positions(code: types.CodeType, lasti: int) -> CodePosition | None:
     return cast(CodePosition, pos)
 
 
-def _find_call_by_span(tree: ast.Module, pos: CodePosition) -> ast.Call | None:
-    """3.11+: return the Call with exactly this span, else None."""
-    start_line, end_line, start_col, end_col = pos
-    for node in ast.walk(tree):
-        if (
-            isinstance(node, ast.Call)
-            and node.lineno == start_line
-            and node.end_lineno == end_line
-            and node.col_offset == start_col
-            and node.end_col_offset == end_col
-        ):
-            return node
-    return None
-
-
-def _find_call_by_start_line(tree: ast.Module, lineno: int) -> ast.Call | None:
-    """3.10: unique Call whose ``node.lineno == lineno``, else None."""
-    candidates = [n for n in ast.walk(tree) if isinstance(n, ast.Call) and n.lineno == lineno]
-    return candidates[0] if len(candidates) == 1 else None
-
-
 def get_call_from_frame(frame: types.FrameType) -> ast.Call | None:
     """Resolve the ``ast.Call`` executing at `frame`'s current instruction, or None"""
-    tree = _get_file_ast(frame.f_code.co_filename)
-    if tree is None:
+    calls = _get_source_calls(frame.f_code.co_filename)
+    if calls is None:
         return None
     if pos := _get_positions(frame.f_code, frame.f_lasti):
-        return _find_call_by_span(tree, pos)
-    return _find_call_by_start_line(tree, frame.f_lineno)
+        return calls.by_span.get(pos)
+    candidates = calls.by_line.get(frame.f_lineno, ())
+    return candidates[0] if len(candidates) == 1 else None
 
 
 class CallSiteAnalyzer:
