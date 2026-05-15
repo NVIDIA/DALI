@@ -138,17 +138,12 @@ class JpegCompressionDistortionCPU : public JpegCompressionDistortion<CPUBackend
 
   // Lazily initialized; constructed on first RunImpl invocation.
   bool codecs_ready_ = false;
-  imgcodec::NvImageCodecInstance instance_;
-  imgcodec::NvImageCodecEncoder encoder_;
-  imgcodec::NvImageCodecDecoder decoder_;
-#if not(WITH_DYNAMIC_NVIMGCODEC_ENABLED)
-  std::vector<nvimgcodecExtensionDesc_t> extensions_descs_;
-  std::vector<nvimgcodecExtension_t> extensions_;
-#endif
 
   // Backend descriptor and execution params must outlive Encoder/Decoder
-  // creation (nvimgcodec may retain a pointer to them past the Create call),
-  // so we keep them as members rather than stack locals in EnsureCodecs().
+  // creation (nvimgcodec may retain a pointer to them past the Create call).
+  // They are declared before the codec/extension/instance members so that
+  // reverse-declaration destruction order tears down codecs (and any
+  // implicit references they hold to these structs) first.
   nvimgcodecBackend_t cpu_backend_{NVIMGCODEC_STRUCTURE_TYPE_BACKEND,
                                    sizeof(nvimgcodecBackend_t), nullptr,
                                    NVIMGCODEC_BACKEND_KIND_CPU_ONLY,
@@ -157,6 +152,14 @@ class JpegCompressionDistortionCPU : public JpegCompressionDistortion<CPUBackend
                                     1.0f, NVIMGCODEC_LOAD_HINT_POLICY_FIXED}};
   nvimgcodecExecutionParams_t exec_params_{NVIMGCODEC_STRUCTURE_TYPE_EXECUTION_PARAMS,
                                            sizeof(nvimgcodecExecutionParams_t), nullptr};
+
+  imgcodec::NvImageCodecInstance instance_;
+  imgcodec::NvImageCodecEncoder encoder_;
+  imgcodec::NvImageCodecDecoder decoder_;
+#if not(WITH_DYNAMIC_NVIMGCODEC_ENABLED)
+  std::vector<nvimgcodecExtensionDesc_t> extensions_descs_;
+  std::vector<nvimgcodecExtension_t> extensions_;
+#endif
 
   // Reused across RunImpl calls.
   std::vector<std::vector<uint8_t>> encoded_buffers_;
@@ -228,9 +231,8 @@ void JpegCompressionDistortionCPU::RunImpl(Workspace& ws) {
   };
   const int w_dim = layout.find('W');
   const int h_dim = layout.find('H');
-  const int c_dim = layout.find('C');
   const int f_dim = layout.find('F');
-  assert(w_dim >= 0 && h_dim >= 0 && c_dim >= 0);
+  assert(w_dim >= 0 && h_dim >= 0 && layout.find('C') >= 0);
 
   int64_t total_frames = 0;
   for (int sample_idx = 0; sample_idx < nsamples; sample_idx++) {
@@ -285,6 +287,8 @@ void JpegCompressionDistortionCPU::RunImpl(Workspace& ws) {
 
     for (int k = 0; k < batch; k++) {
       const auto& fd = frames[idxs[k]];
+      // nvimgcodecImageInfo_t.buffer is void* (no const qualifier in the C API);
+      // the encoder only reads from this buffer.
       auto in_info = MakeRgbU8ImageInfo(const_cast<uint8_t*>(fd.in_ptr), fd.width, fd.height);
       in_imgs[k] = imgcodec::NvImageCodecImage::Create(instance_, &in_info);
       in_img_handles[k] = in_imgs[k];
