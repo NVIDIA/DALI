@@ -16,7 +16,7 @@
 #ifndef DALI_OPERATORS_IMAGE_REMAP_WATER_H_
 #define DALI_OPERATORS_IMAGE_REMAP_WATER_H_
 
-#include <ctgmath>
+#include <cmath>
 #include <vector>
 #include <string>
 #include "dali/core/host_dev.h"
