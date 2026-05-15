@@ -485,7 +485,10 @@ dali_type_converters = []
 
 
 def to_dali_type(framework_type):
-    t = str(framework_type)
+    if isinstance(framework_type, type):
+        t = framework_type.__qualname__  # handle np.int8, etc.
+    else:
+        t = str(framework_type)
     if t.startswith("torch."):
         t = t[6:]
     t = _type_name_to_dali_type.get(t)
