@@ -125,7 +125,7 @@ def test_operator_coco_reader_label_remap(avoid_remap):
             print(out[0].at(s), out[1].at(s))
             assert ids_map[int(out[0].at(s).item())] == int(
                 out[1].at(s).item()
-            ), f"{i}, {ids_map[int(out[0].at(s))]} vs {out[1].at(s)}"
+            ), f"{i}, {ids_map[int(out[0].at(s).item())]} vs {out[1].at(s).item()}"
             i = i + 1
 
 
