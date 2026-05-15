@@ -233,7 +233,7 @@ void JpegCompressionDistortionCPU::EnsureCodecs() {
 
   // Statically linked nvimgcodec doesn't pick up extensions automatically;
   // explicitly register the libjpeg-turbo extension that backs JPEG encode/decode.
-#if not(WITH_DYNAMIC_NVIMGCODEC_ENABLED) && LIBJPEG_TURBO_ENABLED
+#if not(WITH_DYNAMIC_NVIMGCODEC_ENABLED)
   extensions_descs_.push_back(
       {NVIMGCODEC_STRUCTURE_TYPE_EXTENSION_DESC, sizeof(nvimgcodecExtensionDesc_t), nullptr});
   extensions_.emplace_back();

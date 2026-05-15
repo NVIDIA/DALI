@@ -80,26 +80,6 @@ if (BUILD_BENCHMARK)
 endif()
 
 ##################################################################
-# libjpeg-turbo
-##################################################################
-if (BUILD_LIBJPEG_TURBO)
-  find_package(JPEG 62 REQUIRED) # 1.5.3 version
-  include_directories(${JPEG_INCLUDE_DIR})
-  message("Using libjpeg-turbo at ${JPEG_LIBRARY}")
-  list(APPEND DALI_LIBS ${JPEG_LIBRARY})
-endif()
-
-##################################################################
-# libtiff
-##################################################################
-if (BUILD_LIBTIFF)
-  find_package(TIFF REQUIRED)
-  include_directories(${TIFF_INCLUDE_DIR})
-  message("Using libtiff at ${TIFF_LIBRARY}")
-  list(APPEND DALI_LIBS ${TIFF_LIBRARY})
-endif()
-
-##################################################################
 # PyBind
 ##################################################################
 if (BUILD_PYTHON)
@@ -387,16 +367,16 @@ if(BUILD_NVIMAGECODEC)
                         "-DBUILD_TEST=OFF"
                         "-DBUILD_SAMPLES=OFF"
                         "-DBUILD_PYTHON=OFF"
-                        "-DBUILD_NVJPEG2K_EXT=${BUILD_NVJPEG2K}"
+                        "-DBUILD_NVJPEG2K_EXT=ON"
                         "-DWITH_DYNAMIC_NVJPEG2K=OFF"
-                        "-DBUILD_NVJPEG_EXT=${BUILD_NVJPEG}"
-                        "-DWITH_DYNAMIC_NVJPEG=${WITH_DYNAMIC_NVJPEG}"
+                        "-DBUILD_NVJPEG_EXT=ON"
+                        "-DWITH_DYNAMIC_NVJPEG=OFF"
                         "-DBUILD_NVTIFF_EXT=OFF"
                         "-DWITH_DYNAMIC_NVTIFF=OFF"
                         "-DBUILD_NVBMP_EXT=OFF"
                         "-DBUILD_NVPNM_EXT=OFF"
-                        "-DBUILD_LIBJPEG_TURBO_EXT=${BUILD_LIBJPEG_TURBO}"
-                        "-DBUILD_LIBTIFF_EXT=${BUILD_LIBTIFF}"
+                        "-DBUILD_LIBJPEG_TURBO_EXT=ON"
+                        "-DBUILD_LIBTIFF_EXT=ON"
                         "-DBUILD_OPENCV_EXT=${BUILD_OPENCV}"
                         "-DBUILD_DOCS=OFF"
                         "${EXTRA_CMAKE_OPTIONS_LIST}"
@@ -416,26 +396,17 @@ if(BUILD_NVIMAGECODEC)
     list(APPEND NVIMGCODEC_LIBS opencv_ext_static)
     list(APPEND DALI_EXCLUDES libopencv_ext_static.a)
 
-    if (BUILD_LIBJPEG_TURBO)
-      message(STATUS "nvImageCodec - Include libjpeg-turbo extension")
-      list(APPEND NVIMGCODEC_LIBS jpeg_turbo_ext_static)
-      list(APPEND DALI_EXCLUDES libjpeg_turbo_ext_static.a)
-      endif()
-    if (BUILD_LIBTIFF)
-      message(STATUS "nvImageCodec - Include libtiff extension")
-      list(APPEND NVIMGCODEC_LIBS tiff_ext_static)
-      list(APPEND DALI_EXCLUDES libtiff_ext_static.a)
-      endif()
-    if (BUILD_NVJPEG2K)
-      message(STATUS "nvImageCodec - Include nvjpeg2k extension")
-      list(APPEND NVIMGCODEC_LIBS nvjpeg2k_ext_static)
-      list(APPEND DALI_EXCLUDES libnvjpeg2k_ext_static.a)
-      endif()
-    if (BUILD_NVJPEG)
-      message(STATUS "nvImageCodec - Include nvjpeg extension")
-      list(APPEND NVIMGCODEC_LIBS nvjpeg_ext_static)
-      list(APPEND DALI_EXCLUDES libnvjpeg_ext_static.a)
-      endif()
+    list(APPEND NVIMGCODEC_LIBS jpeg_turbo_ext_static)
+    list(APPEND DALI_EXCLUDES libjpeg_turbo_ext_static.a)
+
+    list(APPEND NVIMGCODEC_LIBS tiff_ext_static)
+    list(APPEND DALI_EXCLUDES libtiff_ext_static.a)
+
+    list(APPEND NVIMGCODEC_LIBS nvjpeg2k_ext_static)
+    list(APPEND DALI_EXCLUDES libnvjpeg2k_ext_static.a)
+
+    list(APPEND NVIMGCODEC_LIBS nvjpeg_ext_static)
+    list(APPEND DALI_EXCLUDES libnvjpeg_ext_static.a)
   endif()
 endif()
 

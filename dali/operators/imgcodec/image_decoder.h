@@ -285,22 +285,10 @@ class ImageDecoder : public StatelessOperator<Backend> {
     };
 
     load_ext(get_opencv_extension_desc);
-
-#if LIBJPEG_TURBO_ENABLED
     load_ext(get_libjpeg_turbo_extension_desc);
-#endif
-
-#if LIBTIFF_ENABLED
     load_ext(get_libtiff_extension_desc);
-#endif
-
-#if NVJPEG_ENABLED
     load_ext(get_nvjpeg_extension_desc);
-#endif
-
-#if NVJPEG2K_ENABLED
     load_ext(get_nvjpeg2k_extension_desc);
-#endif
 
 #endif
 
