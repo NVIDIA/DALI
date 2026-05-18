@@ -14,6 +14,7 @@
 
 from .centercrop import center_crop
 from .color import to_grayscale, rgb_to_grayscale
+from .crop import crop
 from .flips import horizontal_flip, vertical_flip
 from .gaussian_blur import gaussian_blur
 from .normalize import normalize
@@ -23,6 +24,7 @@ from .totensor import pil_to_tensor, to_tensor, to_pil_image
 
 __all__ = [
     "center_crop",
+    "crop",
     "gaussian_blur",
     "horizontal_flip",
     "normalize",
