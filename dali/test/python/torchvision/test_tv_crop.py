@@ -1,0 +1,157 @@
+# Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+import math
+import unittest
+
+from nose2.tools import params
+from nose_utils import assert_raises
+import numpy as np
+from PIL import Image
+import torch
+import torchvision.transforms.v2.functional as tv_fn
+
+from nvidia.dali.experimental.torchvision.v2.functional import crop
+
+
+def make_test_tensor(shape=(3, 8, 10), dtype=torch.uint8):
+    return torch.arange(math.prod(shape), dtype=dtype).reshape(shape)
+
+
+def _make_pil_image(mode, h=8, w=10, seed=42):
+    rng = np.random.default_rng(seed)
+    if mode == "L":
+        data = rng.integers(0, 256, (h, w), dtype=np.uint8)
+    elif mode == "RGB":
+        data = rng.integers(0, 256, (h, w, 3), dtype=np.uint8)
+    elif mode == "RGBA":
+        data = rng.integers(0, 256, (h, w, 4), dtype=np.uint8)
+    else:
+        raise ValueError(f"Unsupported mode: {mode}")
+    return Image.fromarray(data, mode=mode)
+
+
+def _assert_crop_matches_torchvision(inpt, top, left, height, width, device="cpu"):
+    dali_out = crop(inpt, top, left, height, width, device=device)
+    tv_out = tv_fn.crop(inpt, top, left, height, width)
+
+    if device == "gpu" and not isinstance(dali_out, Image.Image):
+        dali_out = dali_out.cpu()
+        if isinstance(tv_out, torch.Tensor):
+            tv_out = tv_out.cpu()
+
+    if isinstance(inpt, Image.Image):
+        assert isinstance(dali_out, Image.Image), f"Expected PIL Image, got {type(dali_out)}"
+        assert dali_out.mode == tv_out.mode, f"Expected mode {tv_out.mode}, got {dali_out.mode}"
+        dali_out = tv_fn.pil_to_tensor(dali_out)
+        tv_out = tv_fn.pil_to_tensor(tv_out)
+
+    assert dali_out.shape == tv_out.shape, f"Shape mismatch: {dali_out.shape} != {tv_out.shape}"
+    assert torch.equal(dali_out, tv_out), "DALI crop output differs from torchvision"
+
+
+@params(
+    (1, 2, 4, 5),
+    (0, 0, 8, 10),
+    (3, 4, 2, 3),
+)
+def test_crop_tensor_cpu(top, left, height, width):
+    _assert_crop_matches_torchvision(make_test_tensor(), top, left, height, width)
+
+
+@params("L", "RGB", "RGBA")
+def test_crop_pil_cpu(mode):
+    _assert_crop_matches_torchvision(_make_pil_image(mode), top=1, left=2, height=4, width=5)
+
+
+@params(
+    (-1, -2, 6, 8),
+    (6, 8, 5, 6),
+    (0, 0, 12, 14),
+)
+def test_crop_out_of_bounds_tensor_cpu(top, left, height, width):
+    _assert_crop_matches_torchvision(make_test_tensor(), top, left, height, width)
+
+
+@params("L", "RGB", "RGBA")
+def test_crop_out_of_bounds_pil_cpu(mode):
+    _assert_crop_matches_torchvision(_make_pil_image(mode), top=-2, left=-3, height=12, width=14)
+
+
+def test_crop_batched_tensor_cpu():
+    tensor = make_test_tensor(shape=(4, 3, 8, 10))
+    _assert_crop_matches_torchvision(tensor, top=2, left=3, height=4, width=5)
+
+
+@unittest.skipUnless(torch.cuda.is_available(), "CUDA is not available")
+def test_crop_batched_tensor_gpu():
+    tensor = make_test_tensor(shape=(4, 3, 8, 10)).cuda()
+    _assert_crop_matches_torchvision(tensor, top=2, left=3, height=4, width=5, device="gpu")
+
+
+@params(torch.float32, torch.int16, torch.int32)
+def test_crop_preserves_tensor_dtype_cpu(dtype):
+    tensor = make_test_tensor(dtype=dtype)
+    dali_out = crop(tensor, top=1, left=1, height=4, width=5)
+    tv_out = tv_fn.crop(tensor, top=1, left=1, height=4, width=5)
+
+    assert dali_out.dtype == tv_out.dtype, f"Expected dtype {tv_out.dtype}, got {dali_out.dtype}"
+    assert torch.equal(dali_out, tv_out), "DALI crop output differs from torchvision"
+
+
+def test_crop_invalid_input_type():
+    with assert_raises(TypeError):
+        _ = crop([1, 2, 3], top=0, left=0, height=1, width=1)
+
+
+@params(
+    (0, 1),
+    (1, 0),
+    (-1, 1),
+    (1, -1),
+    (1.0, 1),
+    (1, 1.0),
+)
+def test_crop_invalid_output_size(height, width):
+    with assert_raises((TypeError, ValueError)):
+        _ = crop(make_test_tensor(), top=0, left=0, height=height, width=width)
+
+
+@params(
+    (0.5, 0),
+    ("0", 0),
+    (0, 0.5),
+    (0, "0"),
+)
+def test_crop_invalid_coordinates(top, left):
+    with assert_raises(TypeError):
+        _ = crop(make_test_tensor(), top=top, left=left, height=1, width=1)
+
+
+@unittest.skipUnless(torch.cuda.is_available(), "CUDA is not available")
+@params(
+    (1, 2, 4, 5),
+    (-1, -2, 6, 8),
+)
+def test_crop_tensor_gpu(top, left, height, width):
+    tensor = make_test_tensor().cuda()
+    _assert_crop_matches_torchvision(tensor, top, left, height, width, device="gpu")
+
+
+@unittest.skipUnless(torch.cuda.is_available(), "CUDA is not available")
+@params("L", "RGB", "RGBA")
+def test_crop_pil_gpu(mode):
+    _assert_crop_matches_torchvision(
+        _make_pil_image(mode), top=-2, left=-3, height=12, width=14, device="gpu"
+    )
