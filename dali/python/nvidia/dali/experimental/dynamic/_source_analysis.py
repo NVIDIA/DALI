@@ -13,9 +13,13 @@
 # limitations under the License.
 
 import ast
+import itertools
 import linecache
+import sys
 import types
-from typing import Any
+from collections.abc import Mapping
+from dataclasses import dataclass
+from typing import Any, TypeAlias, cast
 
 from nvidia.dali.types import DALIDataType, DALIImageType, DALIInterpType
 
@@ -23,6 +27,43 @@ from ._call_site import CodeLoc
 from ._compile import CompileRef
 from ._device import Device
 from ._type import DType
+
+CodePosition: TypeAlias = tuple[int, int, int, int]
+
+
+@dataclass(frozen=True, slots=True)
+class SourceCalls:
+    by_span: Mapping[CodePosition, ast.Call | None]
+    by_line: Mapping[int, tuple[ast.Call, ...]]
+
+    @classmethod
+    def from_ast(cls, tree: ast.Module) -> "SourceCalls":
+        by_span: dict[CodePosition, ast.Call | None] = {}
+        by_line: dict[int, list[ast.Call]] = {}
+        collect_spans = sys.version_info >= (3, 11)
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+
+            by_line.setdefault(node.lineno, []).append(node)
+            if not collect_spans:
+                continue
+
+            pos = (node.lineno, node.end_lineno, node.col_offset, node.end_col_offset)
+            if any(x is None for x in pos):
+                continue
+            pos = cast(CodePosition, pos)
+            by_span[pos] = None if pos in by_span else node
+
+        return cls(
+            by_span=types.MappingProxyType(by_span),
+            by_line=types.MappingProxyType(
+                {lineno: tuple(calls) for lineno, calls in by_line.items()}
+            ),
+        )
+
+
+_file_cache: dict[str, tuple[object, SourceCalls | None]] = {}
 
 
 def is_constant_node(node: ast.AST) -> bool:
@@ -45,27 +86,51 @@ def is_dali_constant(value: Any) -> bool:
     return isinstance(value, (Device, DType, DALIDataType, DALIInterpType, DALIImageType))
 
 
-def parse_call_from_frame(frame: types.FrameType) -> ast.Call | None:
-    """Parse the source line and return the outermost Call node.
-
-    Current limitations:
-        - Multiline expressions are not supported
-        - When there are multiple calls on the same line, we pick the first one
-
-    The second one requires Python 3.11+ with columns offsets to be done precisely.
-    Best effort with fallback to dynamic can be done for Python 3.10.
-    """
-    source_line = linecache.getline(frame.f_code.co_filename, frame.f_lineno).strip()
-    if not source_line:
+def _get_source_calls(filename: str) -> SourceCalls | None:
+    """Parse and cache source calls. Returns None for empty/invalid source."""
+    lines = linecache.getlines(filename)
+    if not lines:
         return None
+
+    # We rely on the linecache entry to make sure that our cache didn't get invalidated
+    entry = linecache.cache[filename]
+    cached = _file_cache.get(filename)
+    # The cache entry is not hashable so we can't use it as a key
+    if cached is not None and cached[0] is entry:
+        return cached[1]
+
     try:
-        tree = ast.parse(source_line)
+        tree = ast.parse("".join(lines), filename=filename)
     except SyntaxError:
+        calls = None
+    else:
+        calls = SourceCalls.from_ast(tree)
+
+    _file_cache[filename] = (entry, calls)
+    return calls
+
+
+def _get_positions(code: types.CodeType, lasti: int) -> CodePosition | None:
+    """Return the (start_line, end_line, start_col, end_col) for the bytecode index `lasti`."""
+    if sys.version_info < (3, 11) or lasti < 0:
         return None
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Call):
-            return node
-    return None
+    pos = next(itertools.islice(code.co_positions(), lasti // 2, None), None)
+    if pos is None or any(x is None for x in pos):
+        # Some items can be None, e.g. when PYTHONNODEBUGRANGES=1
+        return None
+
+    return cast(CodePosition, pos)
+
+
+def get_call_from_frame(frame: types.FrameType) -> ast.Call | None:
+    """Resolve the ``ast.Call`` executing at `frame`'s current instruction, or None"""
+    calls = _get_source_calls(frame.f_code.co_filename)
+    if calls is None:
+        return None
+    if pos := _get_positions(frame.f_code, frame.f_lasti):
+        return calls.by_span.get(pos)
+    candidates = calls.by_line.get(frame.f_lineno, ())
+    return candidates[0] if len(candidates) == 1 else None
 
 
 class CallSiteAnalyzer:
@@ -116,5 +181,5 @@ class CallSiteAnalyzer:
     def _get_call_node(self, frame: types.FrameType) -> ast.Call | None:
         code_loc = CodeLoc(frame.f_code, frame.f_lasti)
         if code_loc not in self._cache:
-            self._cache[code_loc] = parse_call_from_frame(frame)
+            self._cache[code_loc] = get_call_from_frame(frame)
         return self._cache[code_loc]
