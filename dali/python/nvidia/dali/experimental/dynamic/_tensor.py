@@ -201,7 +201,16 @@ class Tensor:
             elif hasattr(data, "__dlpack_device__"):
                 dl_device_type, device_id = data.__dlpack_device__()
                 if int(dl_device_type) == 1 or int(dl_device_type) == 3:  # CPU
-                    self._storage = _backend.TensorCPU(data.__dlpack__(), layout)
+                    try:
+                        self._storage = _backend.TensorCPU(data.__dlpack__(), layout)
+                    except (BufferError, TypeError):
+                        # DLPack may fail for read-only buffers or unsupported dtypes;
+                        # fall back to __array__ if available.
+                        a = _get_array_interface(data)
+                        if a is not None:
+                            self._storage = _backend.TensorCPU(a, layout)
+                        else:
+                            raise
                 elif int(dl_device_type) == 2:  # GPU
                     # If the current context is on the same device, use the same stream.
                     ctx = _EvalContext.current()
@@ -210,8 +219,9 @@ class Tensor:
                     else:
                         stream = _stream.stream(device_id=device_id)
                     args = {"stream": stream.handle}
+                    dlpack_capsule = data.__dlpack__(**args)
                     self._storage = _backend.TensorGPU(
-                        data.__dlpack__(**args),
+                        dlpack_capsule,
                         layout=layout,
                         stream=stream,
                     )
@@ -276,7 +286,7 @@ class Tensor:
                 self._dtype = DType.from_type_id(self._storage.dtype)
                 self._layout = self._storage.layout()
 
-            if self._storage is not None and device != _backend_device(self._storage):
+            if self._storage is not None and device != self._device:
                 self._assign(self.to_device(device).evaluate())
                 copied = True
         elif invocation_result is not None:
