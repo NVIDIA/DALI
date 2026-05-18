@@ -1,4 +1,4 @@
-# Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -11,6 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+import numpy as np
 
 import nvidia.dali.experimental.dynamic as ndd
 import nvidia.dali.types as types
@@ -88,6 +90,36 @@ def test_type_names_to_type():
     assert ndd.dtype("DataType") is ndd.DataType
     assert ndd.dtype("ImageType") is ndd.ImageType
     assert ndd.dtype("InterpType") is ndd.InterpType
+
+
+def test_numpy_scalar_type_to_type():
+    assert ndd.dtype(np.bool_) is ndd.bool
+    assert ndd.dtype(np.int8) is ndd.int8
+    assert ndd.dtype(np.uint8) is ndd.uint8
+    assert ndd.dtype(np.int16) is ndd.int16
+    assert ndd.dtype(np.uint16) is ndd.uint16
+    assert ndd.dtype(np.int32) is ndd.int32
+    assert ndd.dtype(np.uint32) is ndd.uint32
+    assert ndd.dtype(np.int64) is ndd.int64
+    assert ndd.dtype(np.uint64) is ndd.uint64
+    assert ndd.dtype(np.float16) is ndd.float16
+    assert ndd.dtype(np.float32) is ndd.float32
+    assert ndd.dtype(np.float64) is ndd.float64
+
+
+def test_numpy_dtype_to_type():
+    assert ndd.dtype(np.dtype(np.bool_)) is ndd.bool
+    assert ndd.dtype(np.dtype(np.int8)) is ndd.int8
+    assert ndd.dtype(np.dtype(np.uint8)) is ndd.uint8
+    assert ndd.dtype(np.dtype(np.int16)) is ndd.int16
+    assert ndd.dtype(np.dtype(np.uint16)) is ndd.uint16
+    assert ndd.dtype(np.dtype(np.int32)) is ndd.int32
+    assert ndd.dtype(np.dtype(np.uint32)) is ndd.uint32
+    assert ndd.dtype(np.dtype(np.int64)) is ndd.int64
+    assert ndd.dtype(np.dtype(np.uint64)) is ndd.uint64
+    assert ndd.dtype(np.dtype(np.float16)) is ndd.float16
+    assert ndd.dtype(np.dtype(np.float32)) is ndd.float32
+    assert ndd.dtype(np.dtype(np.float64)) is ndd.float64
 
 
 def test_type_bytes():
