@@ -215,6 +215,16 @@ class JpegCompressionDistortionCPU : public JpegCompressionDistortion<CPUBackend
   std::vector<FrameDesc> frames_;
   std::map<int, std::vector<size_t>> by_quality_;
   std::vector<EncodeBucket> buckets_;
+
+  // Per-call handle arrays for the nvimgcodec submits. Resized to the current
+  // bucket / batch size on each entry; the underlying handles outlive each
+  // submit via `buckets_` (encode) and the dec_* RAII vectors below (decode).
+  std::vector<nvimgcodecImage_t> enc_in_img_handles_;
+  std::vector<nvimgcodecCodeStream_t> enc_out_stream_handles_;
+  std::vector<imgcodec::NvImageCodecCodeStream> dec_code_streams_;
+  std::vector<imgcodec::NvImageCodecImage> dec_out_imgs_;
+  std::vector<nvimgcodecCodeStream_t> dec_code_stream_handles_;
+  std::vector<nvimgcodecImage_t> dec_out_img_handles_;
 };
 
 void JpegCompressionDistortionCPU::EnsureCodecs() {
@@ -359,20 +369,20 @@ void JpegCompressionDistortionCPU::RunImpl(Workspace& ws) {
     bucket.in_imgs.resize(batch);
     bucket.out_streams.resize(batch);
 
-    std::vector<nvimgcodecImage_t> in_img_handles(batch);
-    std::vector<nvimgcodecCodeStream_t> out_stream_handles(batch);
+    enc_in_img_handles_.resize(batch);
+    enc_out_stream_handles_.resize(batch);
     for (int k = 0; k < batch; k++) {
       const auto& fd = frames_[bucket.idxs[k]];
       // nvimgcodecImageInfo_t.buffer is void* (no const qualifier in the C API);
       // the encoder only reads from this buffer.
       auto in_info = MakeRgbU8ImageInfo(const_cast<uint8_t*>(fd.in_ptr), fd.width, fd.height);
       bucket.in_imgs[k] = imgcodec::NvImageCodecImage::Create(instance_, &in_info);
-      in_img_handles[k] = bucket.in_imgs[k];
+      enc_in_img_handles_[k] = bucket.in_imgs[k];
 
       auto out_info = MakeJpegOutputStreamInfo(fd.width, fd.height);
       bucket.out_streams[k] = imgcodec::NvImageCodecCodeStream::ToHostMem(
           instance_, &encoded_buffers_[bucket.idxs[k]], &ResizeVectorBufferCb, &out_info);
-      out_stream_handles[k] = bucket.out_streams[k];
+      enc_out_stream_handles_[k] = bucket.out_streams[k];
     }
 
     bucket.enc_params = nvimgcodecEncodeParams_t{NVIMGCODEC_STRUCTURE_TYPE_ENCODE_PARAMS,
@@ -382,8 +392,8 @@ void JpegCompressionDistortionCPU::RunImpl(Workspace& ws) {
 
     nvimgcodecFuture_t future_handle = nullptr;
     auto enc_status = nvimgcodecEncoderEncode(encoder_pool_[pool_idx++],
-                                              in_img_handles.data(),
-                                              out_stream_handles.data(), batch,
+                                              enc_in_img_handles_.data(),
+                                              enc_out_stream_handles_.data(), batch,
                                               &bucket.enc_params, &future_handle);
     bucket.future = NvImageCodecFuture(future_handle);
     CHECK_NVIMGCODEC(enc_status);
@@ -400,19 +410,19 @@ void JpegCompressionDistortionCPU::RunImpl(Workspace& ws) {
   // entirely — nvimgcodec's behaviour on a zero-length batch is unspecified.
   if (N == 0) return;
 
-  std::vector<imgcodec::NvImageCodecCodeStream> code_streams(N);
-  std::vector<imgcodec::NvImageCodecImage> out_imgs(N);
-  std::vector<nvimgcodecCodeStream_t> code_stream_handles(N);
-  std::vector<nvimgcodecImage_t> out_img_handles(N);
+  dec_code_streams_.resize(N);
+  dec_out_imgs_.resize(N);
+  dec_code_stream_handles_.resize(N);
+  dec_out_img_handles_.resize(N);
 
   for (size_t i = 0; i < N; i++) {
-    code_streams[i] = imgcodec::NvImageCodecCodeStream::FromHostMem(
+    dec_code_streams_[i] = imgcodec::NvImageCodecCodeStream::FromHostMem(
         instance_, encoded_buffers_[i].data(), encoded_buffers_[i].size());
-    code_stream_handles[i] = code_streams[i];
+    dec_code_stream_handles_[i] = dec_code_streams_[i];
 
     auto out_info = MakeRgbU8ImageInfo(frames_[i].out_ptr, frames_[i].width, frames_[i].height);
-    out_imgs[i] = imgcodec::NvImageCodecImage::Create(instance_, &out_info);
-    out_img_handles[i] = out_imgs[i];
+    dec_out_imgs_[i] = imgcodec::NvImageCodecImage::Create(instance_, &out_info);
+    dec_out_img_handles_[i] = dec_out_imgs_[i];
   }
 
   nvimgcodecDecodeParams_t dec_params{NVIMGCODEC_STRUCTURE_TYPE_DECODE_PARAMS,
@@ -420,8 +430,8 @@ void JpegCompressionDistortionCPU::RunImpl(Workspace& ws) {
                                       /*apply_exif_orientation=*/0};
 
   nvimgcodecFuture_t future_handle = nullptr;
-  auto dec_status = nvimgcodecDecoderDecode(decoder_, code_stream_handles.data(),
-                                            out_img_handles.data(), static_cast<int>(N),
+  auto dec_status = nvimgcodecDecoderDecode(decoder_, dec_code_stream_handles_.data(),
+                                            dec_out_img_handles_.data(), static_cast<int>(N),
                                             &dec_params, &future_handle);
   NvImageCodecFuture future(future_handle);
   CHECK_NVIMGCODEC(dec_status);
