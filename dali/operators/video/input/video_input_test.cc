@@ -228,17 +228,17 @@ class VideoInputNextOutputDataIdTest : public ::testing::Test {
   const std::string video_input_name_ = "VIDEO_INPUT";
   const std::vector<TestFileDescriptor> test_files_ = {
           {
-                  make_string(testing::dali_extra_path(), "/db/video/cfr/test_1.mp4"),
+                  make_string(testing::dali_extra_path(), "/db/video/cfr/test_1_vp9.mp4"),
                   50,
                   "there will be cake"
           },
           {
-                  make_string(testing::dali_extra_path(), "/db/video/cfr/test_2.mp4"),
+                  make_string(testing::dali_extra_path(), "/db/video/cfr/test_2_vp9.mp4"),
                   60,
                   "cake is a lie"
           },
           {
-                  make_string(testing::dali_extra_path(), "/db/video/cfr/test_2.mp4"),
+                  make_string(testing::dali_extra_path(), "/db/video/cfr/test_2_vp9.mp4"),
                   60,
                   ""  // No data_id for this file.
           },

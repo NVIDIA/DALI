@@ -83,7 +83,9 @@ def test_image_decoders(device, operator_name, fn_operator, ndd_operator, operat
 def test_video_decoder(device):
     batch_size = 1
     n_iterations = 3
-    video_path = os.path.join(test_utils.get_dali_extra_path(), "db", "video", "cfr", "test_1.mp4")
+    video_path = os.path.join(
+        test_utils.get_dali_extra_path(), "db", "video", "cfr", "test_1_vp9.mp4"
+    )
     data = np.array([np.fromfile(video_path, dtype=np.uint8)] * batch_size)
     data = np.array([data] * n_iterations)
 

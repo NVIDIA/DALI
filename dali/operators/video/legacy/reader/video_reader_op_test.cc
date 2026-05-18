@@ -175,7 +175,7 @@ TEST_F(VIDEO_READER_TEST_CLASS, MultipleVideoResolution) {
           .AddArg("sequence_length", sequence_length)
           .AddArg("random_shuffle", true)
           .AddArg("initial_fill", initial_fill)
-          .AddArg("file_root", std::string{testing::dali_extra_path() + "/db/video_resolution/"})
+          .AddArg("file_root", std::string{testing::dali_extra_path() + "/db/video_resolution/vp9/"})
           .AddOutput("frames", StorageDevice::GPU)
           .AddOutput("labels", StorageDevice::GPU));
 
@@ -413,7 +413,7 @@ TEST_F(VIDEO_READER_TEST_CLASS, HEVC) {
       "Decoder hardware does not support this video codec"
       " and/or chroma format";
 
-  // richer FFmpeg configuration leads to different behaviour of VFR heuristics so dissable it for
+  // richer FFmpeg configuration leads to different behaviour of VFR heuristics so disable it for
   // this video
   pipe.AddOperator(OpSpec(VIDEO_READER_OP_STR)
                        .AddArg("device", "gpu")

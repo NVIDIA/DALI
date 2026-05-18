@@ -14,9 +14,11 @@ do_once() {
   mkdir -p $TMP_VIDEO_FILES
   mkdir -p $TMP_MANY_VIDEO_FILES
   mkdir -p $TMP_LABLED_VIDEO_FILES/{0..2}
-  cp -r ${DALI_EXTRA_PATH}/db/video_resolution /tmp/
 
-  container_path=${DALI_EXTRA_PATH}/db/optical_flow/sintel_trailer/sintel_trailer.mp4
+  mkdir -p /tmp/video_resolution/
+  cp -r ${DALI_EXTRA_PATH}/db/video_resolution/vp9/ /tmp/video_resolution/
+
+  container_path=${DALI_EXTRA_PATH}/db/optical_flow/sintel_trailer/sintel_trailer_vp9.mp4
 
   IFS='/' read -a container_name <<< "$container_path"
   IFS='.' read -a split <<< "${container_name[-1]}"
