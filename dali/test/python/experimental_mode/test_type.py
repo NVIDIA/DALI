@@ -1,4 +1,4 @@
-# Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -93,6 +93,7 @@ def test_type_names_to_type():
 
 
 def test_numpy_scalar_type_to_type():
+    assert ndd.dtype(np.bool_) is ndd.bool
     assert ndd.dtype(np.int8) is ndd.int8
     assert ndd.dtype(np.uint8) is ndd.uint8
     assert ndd.dtype(np.int16) is ndd.int16
@@ -107,6 +108,7 @@ def test_numpy_scalar_type_to_type():
 
 
 def test_numpy_dtype_to_type():
+    assert ndd.dtype(np.dtype(np.bool_)) is ndd.bool
     assert ndd.dtype(np.dtype(np.int8)) is ndd.int8
     assert ndd.dtype(np.dtype(np.uint8)) is ndd.uint8
     assert ndd.dtype(np.dtype(np.int16)) is ndd.int16

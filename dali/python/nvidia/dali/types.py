@@ -457,6 +457,7 @@ def _is_cupy_array(value):
 # common type names used by numpy, torch and possibly
 _type_name_to_dali_type = {
     "bool": DALIDataType.BOOL,
+    "bool_": DALIDataType.BOOL,
     "boolean": DALIDataType.BOOL,
     "int8": DALIDataType.INT8,
     "sbyte": DALIDataType.INT8,
