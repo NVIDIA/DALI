@@ -143,7 +143,7 @@ class JpegCompressionDistortionCPU : public JpegCompressionDistortion<CPUBackend
     // Tear down codecs before destroying extensions so encoder/decoder do not
     // outlive the extension that backs them.
     decoder_.reset();
-    encoders_by_quality_.clear();
+    encoder_pool_.clear();
     for (auto& extension : extensions_) {
       nvimgcodecExtensionDestroy(extension);
     }
@@ -155,13 +155,6 @@ class JpegCompressionDistortionCPU : public JpegCompressionDistortion<CPUBackend
 
  private:
   void EnsureCodecs();
-  // One encoder per distinct quality, lazily created and cached across
-  // RunImpl calls. nvimgcodec stashes the encode-params pointer in an
-  // encoder member that worker threads read asynchronously, so reusing one
-  // encoder across back-to-back submits with different params would let the
-  // first submit's workers see the second submit's params. With independent
-  // encoders per bucket the submits can be pipelined and drained together.
-  imgcodec::NvImageCodecEncoder& EncoderForQuality(int quality);
 
   struct FrameDesc {
     const uint8_t* in_ptr;
@@ -201,7 +194,15 @@ class JpegCompressionDistortionCPU : public JpegCompressionDistortion<CPUBackend
                                            sizeof(nvimgcodecExecutionParams_t), nullptr};
 
   imgcodec::NvImageCodecInstance instance_;
-  std::map<int, imgcodec::NvImageCodecEncoder> encoders_by_quality_;
+  // Pool of encoders reused across RunImpl invocations. nvimgcodec stashes
+  // the encode-params pointer in an encoder member that worker threads read
+  // asynchronously, so two in-flight submits cannot share an encoder. The
+  // pool grows on demand to match the peak number of concurrent buckets ever
+  // submitted in a single RunImpl; each iteration's buckets are assigned to
+  // pool[0..buckets-1] regardless of their quality value — the quality is
+  // passed per-submit through enc_params, so encoders are quality-agnostic
+  // across drained iterations.
+  std::vector<imgcodec::NvImageCodecEncoder> encoder_pool_;
   imgcodec::NvImageCodecDecoder decoder_;
 #if not(WITH_DYNAMIC_NVIMGCODEC_ENABLED)
   std::vector<nvimgcodecExtensionDesc_t> extensions_descs_;
@@ -260,15 +261,6 @@ void JpegCompressionDistortionCPU::EnsureCodecs() {
   codecs_ready_ = true;
 }
 
-imgcodec::NvImageCodecEncoder& JpegCompressionDistortionCPU::EncoderForQuality(int quality) {
-  auto it = encoders_by_quality_.find(quality);
-  if (it != encoders_by_quality_.end())
-    return it->second;
-  auto [new_it, _] = encoders_by_quality_.emplace(
-      quality, imgcodec::NvImageCodecEncoder::Create(instance_, &exec_params_, ""));
-  return new_it->second;
-}
-
 void JpegCompressionDistortionCPU::RunImpl(Workspace& ws) {
   EnsureCodecs();
 
@@ -319,12 +311,12 @@ void JpegCompressionDistortionCPU::RunImpl(Workspace& ws) {
   encoded_buffers_.resize(N);
 
   // ---- Encode pass ----
-  // Each distinct quality goes through its own encoder (lazily cached in
-  // encoders_by_quality_). The submits are pipelined across buckets and the
-  // futures are drained together at the end — independent encoders have
-  // independent curr_params_ members inside nvimgcodec, so they cannot stomp
-  // on each other. The single-quality common case collapses to one batched
-  // submit on a single encoder.
+  // Frames are grouped by quality (one bucket per distinct quality), and each
+  // bucket is dispatched on its own encoder taken from encoder_pool_. The
+  // submits are pipelined across buckets and the futures are drained together
+  // at the end — independent encoders have independent curr_params_ members
+  // inside nvimgcodec, so they cannot stomp on each other. The single-quality
+  // common case collapses to one batched submit on a single encoder.
   by_quality_.clear();
   for (size_t i = 0; i < N; i++)
     by_quality_[frames_[i].quality].push_back(i);
@@ -342,6 +334,16 @@ void JpegCompressionDistortionCPU::RunImpl(Workspace& ws) {
   buckets_.clear();
   buckets_.reserve(by_quality_.size());
 
+  // Grow the encoder pool to cover all buckets in this iteration. Encoders
+  // survive across RunImpl invocations; the pool only grows when an iteration
+  // needs more concurrent submits than any previous one, so steady-state size
+  // tracks the peak distinct-qualities-per-iter, not the lifetime cumulative.
+  while (encoder_pool_.size() < by_quality_.size()) {
+    encoder_pool_.push_back(
+        imgcodec::NvImageCodecEncoder::Create(instance_, &exec_params_, ""));
+  }
+
+  size_t pool_idx = 0;
   for (auto& kv : by_quality_) {
     auto& bucket = buckets_.emplace_back();
     bucket.idxs = std::move(kv.second);
@@ -371,7 +373,7 @@ void JpegCompressionDistortionCPU::RunImpl(Workspace& ws) {
                                                  static_cast<float>(kv.first)};
 
     nvimgcodecFuture_t future_handle = nullptr;
-    auto enc_status = nvimgcodecEncoderEncode(EncoderForQuality(kv.first),
+    auto enc_status = nvimgcodecEncoderEncode(encoder_pool_[pool_idx++],
                                               in_img_handles.data(),
                                               out_stream_handles.data(), batch,
                                               &bucket.enc_params, &future_handle);
