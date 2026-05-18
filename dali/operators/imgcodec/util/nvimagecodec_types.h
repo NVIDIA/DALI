@@ -132,10 +132,6 @@ struct DLL_PUBLIC NvImageCodecCodeStream
                                           nvimgcodecResizeBufferFunc_t resize_buffer_func,
                                           const nvimgcodecImageInfo_t* image_info);
 
-  static constexpr nvimgcodecCodeStream_t null_handle() {
-    return nullptr;
-  }
-
   static void DestroyHandle(nvimgcodecCodeStream_t handle);
 };
 
@@ -164,10 +160,6 @@ struct DLL_PUBLIC NvImageCodecEncoder
                                     const nvimgcodecExecutionParams_t* exec_params,
                                     const std::string& opts);
 
-  static constexpr nvimgcodecEncoder_t null_handle() {
-    return nullptr;
-  }
-
   static void DestroyHandle(nvimgcodecEncoder_t handle);
 };
 
@@ -176,10 +168,6 @@ struct DLL_PUBLIC NvImageCodecFuture
   DALI_INHERIT_UNIQUE_HANDLE(nvimgcodecFuture_t, NvImageCodecFuture);
 
   NvImageCodecFuture() = default;
-
-  static constexpr nvimgcodecFuture_t null_handle() {
-    return nullptr;
-  }
 
   static void DestroyHandle(nvimgcodecFuture_t handle);
 };
