@@ -16,7 +16,7 @@
 #ifndef DALI_OPERATORS_IMAGE_REMAP_JITTER_CUH_
 #define DALI_OPERATORS_IMAGE_REMAP_JITTER_CUH_
 
-#include <ctgmath>
+#include <cmath>
 #include <vector>
 #include <random>
 #include <string>

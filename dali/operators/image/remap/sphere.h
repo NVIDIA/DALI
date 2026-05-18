@@ -16,7 +16,7 @@
 #ifndef DALI_OPERATORS_IMAGE_REMAP_SPHERE_H_
 #define DALI_OPERATORS_IMAGE_REMAP_SPHERE_H_
 
-#include <ctgmath>
+#include <cmath>
 #include <vector>
 #include "dali/pipeline/operator/operator.h"
 #include "dali/core/geom/vec.h"
