@@ -242,6 +242,14 @@ void JpegCompressionDistortionCPU::EnsureCodecs() {
   // Statically linked nvimgcodec doesn't pick up extensions automatically;
   // explicitly register the libjpeg-turbo extension that backs JPEG encode/decode.
 #if not(WITH_DYNAMIC_NVIMGCODEC_ENABLED)
+  // Drop any entries from a previous failed EnsureCodecs() attempt: extensions
+  // were registered against the prior instance_, which the move-assign above
+  // just destroyed, so their handles are stale. The old instance's teardown
+  // cascades to its extensions; we discard the stale handles here so the
+  // destructor doesn't later call ExtensionDestroy on them.
+  extensions_.clear();
+  extensions_descs_.clear();
+
   extensions_descs_.push_back(
       {NVIMGCODEC_STRUCTURE_TYPE_EXTENSION_DESC, sizeof(nvimgcodecExtensionDesc_t), nullptr});
   extensions_.emplace_back();
