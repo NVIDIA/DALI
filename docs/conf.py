@@ -294,7 +294,7 @@ correction = -1 if "dev" in version_long else 0
 v_major = int(version_short.split(".")[0])
 v_minor = int(version_short.split(".")[1])
 for i in range(0, v_minor + correction):
-    versions.append((f"{v_major}.{i}", f"dali_{v_major}_{i}_0"))
+    versions.append((f"{v_major}.{i}", f"dali_{v_major}_{i}_0", "short_user"))
 
 # ToDo add logic to handle other major releases after 1 and before the current
 
