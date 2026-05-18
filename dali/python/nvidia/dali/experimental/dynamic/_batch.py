@@ -14,7 +14,7 @@
 
 import importlib.util
 from typing import TYPE_CHECKING, Any
-from collections.abc import Iterator
+from collections.abc import Iterator, Sequence
 
 import nvidia.dali.backend as _backend
 import nvidia.dali.types as _dali_types
@@ -284,8 +284,20 @@ class Batch:
 
             else:
                 # Materialise first so len() and indexing work for any iterable.
-                tensors_list = tensors if isinstance(tensors, list) else list(tensors)
+                tensors_list = tensors if isinstance(tensors, Sequence) else list(tensors)
                 fast_path_used = False
+
+                def assign_fast_path_storage(storage, dev, wraps_external_data):
+                    nonlocal device, dtype, layout, fast_path_used
+                    self._storage = storage
+                    self._device = dev
+                    self._dtype = DType.from_type_id(storage.dtype)
+                    self._layout = storage.layout() or ""
+                    self._wraps_external_data = wraps_external_data
+                    device = self._device
+                    dtype = self._dtype
+                    layout = self._layout
+                    fast_path_used = True
 
                 # Native DALI fast path: list of evaluated ndd.Tensor objects.
                 # Build TensorList directly from backend storage objects, preserving all
@@ -331,23 +343,18 @@ class Batch:
                             except (TypeError, RuntimeError):
                                 pass  # fall through to slow path
                             else:
-                                self._storage = storage
-                                self._device = dev
-                                self._dtype = DType.from_type_id(self._storage.dtype)
-                                self._layout = self._storage.layout() or ""
-                                self._wraps_external_data = any(
-                                    t._wraps_external_data for t in tensors_list
+                                assign_fast_path_storage(
+                                    storage,
+                                    dev,
+                                    any(t._wraps_external_data for t in tensors_list),
                                 )
-                                device = self._device
-                                dtype = self._dtype
-                                layout = self._layout
-                                fast_path_used = True
 
                 # DLPack fast path: list of external tensors (e.g. PyTorch tensors).
                 # Build TensorListGPU/TensorListCPU directly in C++, skipping per-sample
                 # Python Tensor wrappers.
                 if not fast_path_used and (
-                    len(tensors_list) > 0
+                    dtype is None
+                    and len(tensors_list) > 0
                     and not isinstance(tensors_list[0], Tensor)
                     and hasattr(tensors_list[0], "__dlpack_device__")
                 ):
@@ -372,16 +379,7 @@ class Batch:
                             except (TypeError, ValueError):
                                 pass  # fall through to slow path
                             else:
-                                if dtype is None or DType.from_type_id(storage.dtype) == dtype:
-                                    self._storage = storage
-                                    self._device = Device("gpu", dl_dev_id)
-                                    self._dtype = DType.from_type_id(self._storage.dtype)
-                                    self._layout = self._storage.layout() or ""
-                                    self._wraps_external_data = True
-                                    device = self._device
-                                    dtype = self._dtype
-                                    layout = self._layout
-                                    fast_path_used = True
+                                assign_fast_path_storage(storage, Device("gpu", dl_dev_id), True)
                     elif int(dl_dev_type) in (1, 3):  # kDLCPU or kDLCUDAHost (pinned)
                         if device is None or device.device_type == "cpu":
                             try:
@@ -393,16 +391,7 @@ class Batch:
                             except (TypeError, ValueError, BufferError):
                                 pass  # fall through to slow path
                             else:
-                                if dtype is None or DType.from_type_id(storage.dtype) == dtype:
-                                    self._storage = storage
-                                    self._device = Device("cpu")
-                                    self._dtype = DType.from_type_id(self._storage.dtype)
-                                    self._layout = self._storage.layout() or ""
-                                    self._wraps_external_data = True
-                                    device = self._device
-                                    dtype = self._dtype
-                                    layout = self._layout
-                                    fast_path_used = True
+                                assign_fast_path_storage(storage, Device.CPU, True)
 
                 if not fast_path_used:
                     self._tensors = []

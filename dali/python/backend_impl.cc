@@ -1295,12 +1295,12 @@ std::shared_ptr<TensorList<CPUBackend>> TensorListFromListOfDLPackObjectsCPU(
   }
 }
 
-std::shared_ptr<TensorList<GPUBackend>> TensorListFromListOfDLPackObjects(
+std::shared_ptr<TensorList<GPUBackend>> TensorListFromListOfDLPackObjectsGPU(
       py::list &list_of_objects,
       const std::optional<std::string> &layout,
       py::object stream,
       bool contiguous) {
-  DomainTimeRange range("TensorListFromListOfDLPackObjects", kGPUTensorColor);
+  DomainTimeRange range("TensorListFromListOfDLPackObjectsGPU", kGPUTensorColor);
 
   if (list_of_objects.empty()) {
     auto ptr = std::make_shared<TensorList<GPUBackend>>();
@@ -1327,6 +1327,11 @@ std::shared_ptr<TensorList<GPUBackend>> TensorListFromListOfDLPackObjects(
           "Object at position ", i, " does not support the DLPack protocol."));
     if (py::hasattr(obj, "__dlpack_device__")) {
       py::tuple dev_info = obj.attr("__dlpack_device__")();
+      int dev_type = dev_info[0].cast<int>();
+      if (dev_type != kDLCUDA)
+        throw py::value_error(make_string(
+            "All tensors must reside in GPU memory. "
+            "Tensor at position ", i, " has DLPack device type ", dev_type, "."));
       int dev_id = dev_info[1].cast<int>();
       if (expected_device_id == -1) {
         expected_device_id = dev_id;
@@ -1923,7 +1928,7 @@ void ExposeTesorListGPU(py::module &m) {
           py::object stream = py::none(),
           bool contiguous = false) {
         DomainTimeRange range("TensorListGPU::from_dlpack_list", kGPUTensorColor);
-        return TensorListFromListOfDLPackObjects(list_of_objects, layout, stream, contiguous);
+        return TensorListFromListOfDLPackObjectsGPU(list_of_objects, layout, stream, contiguous);
       },
       "list_of_objects"_a,
       "layout"_a = py::none(),
