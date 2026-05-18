@@ -143,7 +143,7 @@ class JpegCompressionDistortionCPU : public JpegCompressionDistortion<CPUBackend
     // Tear down codecs before destroying extensions so encoder/decoder do not
     // outlive the extension that backs them.
     decoder_.reset();
-    encoder_.reset();
+    encoders_by_quality_.clear();
     for (auto& extension : extensions_) {
       nvimgcodecExtensionDestroy(extension);
     }
@@ -155,6 +155,13 @@ class JpegCompressionDistortionCPU : public JpegCompressionDistortion<CPUBackend
 
  private:
   void EnsureCodecs();
+  // One encoder per distinct quality, lazily created and cached across
+  // RunImpl calls. nvimgcodec stashes the encode-params pointer in an
+  // encoder member that worker threads read asynchronously, so reusing one
+  // encoder across back-to-back submits with different params would let the
+  // first submit's workers see the second submit's params. With independent
+  // encoders per bucket the submits can be pipelined and drained together.
+  imgcodec::NvImageCodecEncoder& EncoderForQuality(int quality);
 
   struct FrameDesc {
     const uint8_t* in_ptr;
@@ -162,6 +169,18 @@ class JpegCompressionDistortionCPU : public JpegCompressionDistortion<CPUBackend
     int64_t width;
     int64_t height;
     int quality;
+  };
+
+  // Per-bucket encode state. The encoder takes raw pointers into `enc_params`
+  // and references into `in_imgs` / `out_streams` via the handle arrays it
+  // is given, so every member must remain at a stable address until the
+  // corresponding `future` is drained.
+  struct EncodeBucket {
+    std::vector<size_t> idxs;
+    std::vector<imgcodec::NvImageCodecImage> in_imgs;
+    std::vector<imgcodec::NvImageCodecCodeStream> out_streams;
+    nvimgcodecEncodeParams_t enc_params{};
+    NvImageCodecFuture future;
   };
 
   // Lazily initialized; constructed on first RunImpl invocation.
@@ -182,7 +201,7 @@ class JpegCompressionDistortionCPU : public JpegCompressionDistortion<CPUBackend
                                            sizeof(nvimgcodecExecutionParams_t), nullptr};
 
   imgcodec::NvImageCodecInstance instance_;
-  imgcodec::NvImageCodecEncoder encoder_;
+  std::map<int, imgcodec::NvImageCodecEncoder> encoders_by_quality_;
   imgcodec::NvImageCodecDecoder decoder_;
 #if not(WITH_DYNAMIC_NVIMGCODEC_ENABLED)
   std::vector<nvimgcodecExtensionDesc_t> extensions_descs_;
@@ -194,6 +213,7 @@ class JpegCompressionDistortionCPU : public JpegCompressionDistortion<CPUBackend
   std::vector<std::vector<uint8_t>> encoded_buffers_;
   std::vector<FrameDesc> frames_;
   std::map<int, std::vector<size_t>> by_quality_;
+  std::vector<EncodeBucket> buckets_;
 };
 
 void JpegCompressionDistortionCPU::EnsureCodecs() {
@@ -235,10 +255,18 @@ void JpegCompressionDistortionCPU::EnsureCodecs() {
   exec_params_.pre_init = 1;
   exec_params_.skip_pre_sync = 1;
 
-  encoder_ = imgcodec::NvImageCodecEncoder::Create(instance_, &exec_params_, "");
   decoder_ = imgcodec::NvImageCodecDecoder::Create(instance_, &exec_params_, "");
 
   codecs_ready_ = true;
+}
+
+imgcodec::NvImageCodecEncoder& JpegCompressionDistortionCPU::EncoderForQuality(int quality) {
+  auto it = encoders_by_quality_.find(quality);
+  if (it != encoders_by_quality_.end())
+    return it->second;
+  auto [new_it, _] = encoders_by_quality_.emplace(
+      quality, imgcodec::NvImageCodecEncoder::Create(instance_, &exec_params_, ""));
+  return new_it->second;
 }
 
 void JpegCompressionDistortionCPU::RunImpl(Workspace& ws) {
@@ -291,55 +319,70 @@ void JpegCompressionDistortionCPU::RunImpl(Workspace& ws) {
   encoded_buffers_.resize(N);
 
   // ---- Encode pass ----
-  // nvimgcodecEncodeParams_t carries a single quality value per call, so frames
-  // are grouped into buckets by quality and one batched submit is issued per
-  // bucket. Submits must be drained before the next is issued: the encoder
-  // stores the params pointer in a member that worker threads read
-  // asynchronously, so issuing a second submit before the first finishes would
-  // make the in-flight workers see the second submit's quality.
+  // Each distinct quality goes through its own encoder (lazily cached in
+  // encoders_by_quality_). The submits are pipelined across buckets and the
+  // futures are drained together at the end — independent encoders have
+  // independent curr_params_ members inside nvimgcodec, so they cannot stomp
+  // on each other. The single-quality common case collapses to one batched
+  // submit on a single encoder.
   by_quality_.clear();
   for (size_t i = 0; i < N; i++)
     by_quality_[frames_[i].quality].push_back(i);
 
+  // Constant across all buckets; referenced via enc_params.struct_next, so it
+  // must outlive any in-flight encode.
   nvimgcodecJpegEncodeParams_t jpeg_params{NVIMGCODEC_STRUCTURE_TYPE_JPEG_ENCODE_PARAMS,
                                            sizeof(nvimgcodecJpegEncodeParams_t), nullptr,
                                            /*optimized_huffman=*/0};
 
-  for (const auto& kv : by_quality_) {
-    const int q = kv.first;
-    const auto& idxs = kv.second;
-    const int batch = static_cast<int>(idxs.size());
+  // Recycle the bucket vector across calls: .clear() destroys any handles
+  // (futures, images, code streams) carried over from the previous RunImpl
+  // while keeping the outer vector's capacity, then .reserve() guarantees no
+  // reallocation invalidates &bucket.enc_params during the submit loop.
+  buckets_.clear();
+  buckets_.reserve(by_quality_.size());
 
-    std::vector<imgcodec::NvImageCodecImage> in_imgs(batch);
-    std::vector<imgcodec::NvImageCodecCodeStream> out_streams(batch);
+  for (auto& kv : by_quality_) {
+    auto& bucket = buckets_.emplace_back();
+    bucket.idxs = std::move(kv.second);
+    const int batch = static_cast<int>(bucket.idxs.size());
+    bucket.in_imgs.resize(batch);
+    bucket.out_streams.resize(batch);
+
     std::vector<nvimgcodecImage_t> in_img_handles(batch);
     std::vector<nvimgcodecCodeStream_t> out_stream_handles(batch);
     for (int k = 0; k < batch; k++) {
-      const auto& fd = frames_[idxs[k]];
+      const auto& fd = frames_[bucket.idxs[k]];
       // nvimgcodecImageInfo_t.buffer is void* (no const qualifier in the C API);
       // the encoder only reads from this buffer.
       auto in_info = MakeRgbU8ImageInfo(const_cast<uint8_t*>(fd.in_ptr), fd.width, fd.height);
-      in_imgs[k] = imgcodec::NvImageCodecImage::Create(instance_, &in_info);
-      in_img_handles[k] = in_imgs[k];
+      bucket.in_imgs[k] = imgcodec::NvImageCodecImage::Create(instance_, &in_info);
+      in_img_handles[k] = bucket.in_imgs[k];
 
       auto out_info = MakeJpegOutputStreamInfo(fd.width, fd.height);
-      out_streams[k] = imgcodec::NvImageCodecCodeStream::ToHostMem(
-          instance_, &encoded_buffers_[idxs[k]], &ResizeVectorBufferCb, &out_info);
-      out_stream_handles[k] = out_streams[k];
+      bucket.out_streams[k] = imgcodec::NvImageCodecCodeStream::ToHostMem(
+          instance_, &encoded_buffers_[bucket.idxs[k]], &ResizeVectorBufferCb, &out_info);
+      out_stream_handles[k] = bucket.out_streams[k];
     }
 
-    nvimgcodecEncodeParams_t enc_params{NVIMGCODEC_STRUCTURE_TYPE_ENCODE_PARAMS,
-                                        sizeof(nvimgcodecEncodeParams_t), &jpeg_params,
-                                        NVIMGCODEC_QUALITY_TYPE_QUALITY,
-                                        static_cast<float>(q)};
+    bucket.enc_params = nvimgcodecEncodeParams_t{NVIMGCODEC_STRUCTURE_TYPE_ENCODE_PARAMS,
+                                                 sizeof(nvimgcodecEncodeParams_t), &jpeg_params,
+                                                 NVIMGCODEC_QUALITY_TYPE_QUALITY,
+                                                 static_cast<float>(kv.first)};
 
     nvimgcodecFuture_t future_handle = nullptr;
-    auto enc_status = nvimgcodecEncoderEncode(encoder_, in_img_handles.data(),
+    auto enc_status = nvimgcodecEncoderEncode(EncoderForQuality(kv.first),
+                                              in_img_handles.data(),
                                               out_stream_handles.data(), batch,
-                                              &enc_params, &future_handle);
-    NvImageCodecFuture future(future_handle);
+                                              &bucket.enc_params, &future_handle);
+    bucket.future = NvImageCodecFuture(future_handle);
     CHECK_NVIMGCODEC(enc_status);
-    WaitAndCheck(future, batch, "encode", [&](size_t k) { return idxs[k]; });
+  }
+
+  // Drain all encode futures and check per-frame statuses.
+  for (const auto& bucket : buckets_) {
+    WaitAndCheck(bucket.future, bucket.idxs.size(), "encode",
+                 [&](size_t k) { return bucket.idxs[k]; });
   }
 
   // ---- Decode pass: one batched submit for the whole batch ----
