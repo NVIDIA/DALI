@@ -191,19 +191,19 @@ def test_pytorch():
 
 def cupy_adapter_sync(fun, in1, in2):
     with cupy_stream:
-        tin1 = [cupy.fromDlpack(dltensor) for dltensor in in1]
-        tin2 = [cupy.fromDlpack(dltensor) for dltensor in in2]
+        tin1 = [cupy.from_dlpack(dltensor) for dltensor in in1]
+        tin2 = [cupy.from_dlpack(dltensor) for dltensor in in2]
         tout1, tout2 = fun(tin1, tin2)
-        out1, out2 = [tout.toDlpack() for tout in tout1], [tout.toDlpack() for tout in tout2]
+        out1, out2 = [tout.__dlpack__() for tout in tout1], [tout.__dlpack__() for tout in tout2]
     cupy_stream.synchronize()
     return out1, out2
 
 
 def cupy_adapter(fun, in1, in2):
-    tin1 = [cupy.fromDlpack(dltensor) for dltensor in in1]
-    tin2 = [cupy.fromDlpack(dltensor) for dltensor in in2]
+    tin1 = [cupy.from_dlpack(dltensor) for dltensor in in1]
+    tin2 = [cupy.from_dlpack(dltensor) for dltensor in in2]
     tout1, tout2 = fun(tin1, tin2)
-    return [tout.toDlpack() for tout in tout1], [tout.toDlpack() for tout in tout2]
+    return [tout.__dlpack__() for tout in tout1], [tout.__dlpack__() for tout in tout2]
 
 
 def cupy_wrapper(fun, synchronize):
@@ -598,7 +598,7 @@ def _cupy_negative_strides_case(dtype, batch_size, steps):
         with cp_stream:
             imgs = [cupy.from_dlpack(dlp) for dlp in dlps]
             imgs = [img[tuple(slice(None, None, step) for step in steps)] for img in imgs]
-            imgs = [img.toDlpack() for img in imgs]
+            imgs = [img.__dlpack__() for img in imgs]
         return imgs
 
     @pipeline_def(batch_size=batch_size, num_threads=4, device_id=0, seed=42)
