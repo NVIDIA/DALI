@@ -7,6 +7,10 @@ do_once() {
     fi
     mkdir -p idx-files/
 
+    # Use path returned by pip show pip and append nvidia/cusolver/lib/ to it
+    PIP_PATH=$(${python_binary:-python} -m pip show pip | awk -F': ' '/Location: /{print $2}')
+    export LD_LIBRARY_PATH="${PIP_PATH}/nvidia/cusolver/lib:${LD_LIBRARY_PATH}"
+
     NUM_GPUS=$(nvidia-smi -L | wc -l)
 
     CUDA_VERSION=$(echo $(nvcc --version) | sed 's/.*\(release \)\([0-9]\+\)\.\([0-9]\+\).*/\2\3/')
@@ -61,6 +65,18 @@ do_once() {
     sed -i "s/::xla::StatusOr/absl::StatusOr/" horovod/tensorflow/xla_mpi_ops.cc && \
     echo "find_package(absl REQUIRED)" >> horovod/tensorflow/CMakeLists.txt && \
     echo "target_link_libraries(\${TF_TARGET_LIB} absl::log)" >> horovod/tensorflow/CMakeLists.txt && \
+    echo 'find_path(TF_ARCH_SPECIFIC_INCLUDE_PATH external/highwayhash/highwayhash/arch_specific.h PATHS ${Tensorflow_INCLUDE_DIRS} NO_DEFAULT_PATH)' >> horovod/tensorflow/CMakeLists.txt && \
+    echo 'if (NOT TF_ARCH_SPECIFIC_INCLUDE_PATH STREQUAL "TF_ARCH_SPECIFIC_INCLUDE_PATH-NOTFOUND")' >> horovod/tensorflow/CMakeLists.txt && \
+    echo '    include_directories(SYSTEM "${Tensorflow_INCLUDE_DIRS}/external/highwayhash")' >> horovod/tensorflow/CMakeLists.txt && \
+    echo 'endif()' >> horovod/tensorflow/CMakeLists.txt && \
+    echo 'find_path(TF_FARMHASH_INCLUDE_PATH external/farmhash_archive/src/farmhash.h PATHS ${Tensorflow_INCLUDE_DIRS} NO_DEFAULT_PATH)' >> horovod/tensorflow/CMakeLists.txt && \
+    echo 'if (NOT TF_FARMHASH_INCLUDE_PATH STREQUAL "TF_FARMHASH_INCLUDE_PATH-NOTFOUND")' >> horovod/tensorflow/CMakeLists.txt && \
+    echo '    include_directories(SYSTEM "${Tensorflow_INCLUDE_DIRS}/external/farmhash_archive/src")' >> horovod/tensorflow/CMakeLists.txt && \
+    echo 'endif()' >> horovod/tensorflow/CMakeLists.txt && \
+    # TF 2.16 removed stream_executor::gpu::AsGpuStreamValue; switch to the public
+    # Stream::platform_specific_handle() API so Horovod links against current TF.
+    perl -0777 -i -pe 's{stream_executor::gpu::AsGpuStreamValue\(\s*device_context->stream\(\)\s*\)}{reinterpret_cast<gpuStream_t>(device_context->stream()->platform_specific_handle().stream)}g' horovod/tensorflow/mpi_ops.cc && \
+    perl -0777 -i -pe 's{namespace stream_executor\s*\{\s*namespace gpu\s*\{\s*GpuStreamHandle AsGpuStreamValue\(Stream\*\s*stream\);\s*\}[^\n]*\n\s*\}[^\n]*\n}{}g' horovod/tensorflow/mpi_ops.cc && \
     pip install . && cd .. && rm -rf horovod*
 
     for file in $(ls /data/imagenet/train-val-tfrecord-small);

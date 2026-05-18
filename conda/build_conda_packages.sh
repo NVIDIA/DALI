@@ -59,7 +59,13 @@ fi
 conda mambabuild ${CONDA_BUILD_OPTIONS} dali_native_libs/recipe
 
 # Building DALI python bindings package
-conda mambabuild ${CONDA_BUILD_OPTIONS} --variants="{python: [3.10, 3.11, 3.12, 3.13]}" dali_python_bindings/recipe
+conda mambabuild ${CONDA_BUILD_OPTIONS} \
+  --variants="{python: [3.10, 3.11, 3.12, 3.13, 3.14], freethreading: ['no']}" \
+  dali_python_bindings/recipe
+# ToDo - enable when DALI deps fully support ree-threded python
+# conda mambabuild ${CONDA_BUILD_OPTIONS} \
+#   --variants="{python: [3.14], freethreading: ['yes']}" \
+#   dali_python_bindings/recipe
 
 # Copying the artifacts from conda prefix
 mkdir -p artifacts
