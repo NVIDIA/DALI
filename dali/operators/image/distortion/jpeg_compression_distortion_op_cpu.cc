@@ -16,7 +16,7 @@
 #include <algorithm>
 #include <cstdio>
 #include <cstdlib>
-#include <map>
+#include <utility>
 #include <vector>
 #include "dali/operators.h"
 #include "dali/operators/image/distortion/jpeg_compression_distortion_op.h"
@@ -155,6 +155,8 @@ class JpegCompressionDistortionCPU : public JpegCompressionDistortion<CPUBackend
 
  private:
   void EnsureCodecs();
+  void EncodePass(size_t n_frames);
+  void DecodePass(size_t n_frames);
 
   struct FrameDesc {
     const uint8_t* in_ptr;
@@ -213,7 +215,10 @@ class JpegCompressionDistortionCPU : public JpegCompressionDistortion<CPUBackend
   // each invocation so capacity is amortised across pipeline iterations.
   std::vector<std::vector<uint8_t>> encoded_buffers_;
   std::vector<FrameDesc> frames_;
-  std::map<int, std::vector<size_t>> by_quality_;
+  // (quality, frame indices) groups. Linear find/insert is fine: the
+  // distinct-quality count K is small (≤100), and per-frame group lookup is
+  // O(K) — for the dominant single-quality case (K=1) it's one comparison.
+  std::vector<std::pair<int, std::vector<size_t>>> by_quality_;
   std::vector<EncodeBucket> buckets_;
 
   // Per-call handle arrays for the nvimgcodec submits. Resized to the current
@@ -296,15 +301,7 @@ void JpegCompressionDistortionCPU::RunImpl(Workspace& ws) {
   const int f_dim = layout.find('F');
   assert(w_dim >= 0 && h_dim >= 0 && layout.find('C') >= 0);
 
-  int64_t total_frames = 0;
-  for (int sample_idx = 0; sample_idx < nsamples; sample_idx++) {
-    auto shape = in_shape.tensor_shape_span(sample_idx);
-    total_frames += volume(shape.begin(), shape.begin() + f_dim + 1);
-  }
-
   frames_.clear();
-  frames_.reserve(total_frames);
-
   for (int sample_idx = 0; sample_idx < nsamples; sample_idx++) {
     auto shape = in_shape.tensor_shape_span(sample_idx);
     int ndim = shape.size();
@@ -328,7 +325,14 @@ void JpegCompressionDistortionCPU::RunImpl(Workspace& ws) {
   // capacity — the resize callback below reuses it on the next encode.
   encoded_buffers_.resize(N);
 
-  // ---- Encode pass ----
+  EncodePass(N);
+  // Empty inputs (no samples / all-zero-frame sequences) skip the decode call
+  // entirely — nvimgcodec's behaviour on a zero-length batch is unspecified.
+  if (N == 0) return;
+  DecodePass(N);
+}
+
+void JpegCompressionDistortionCPU::EncodePass(size_t n_frames) {
   // Frames are grouped by quality (one bucket per distinct quality), and each
   // bucket is dispatched on its own encoder taken from encoder_pool_. The
   // submits are pipelined across buckets and the futures are drained together
@@ -336,8 +340,16 @@ void JpegCompressionDistortionCPU::RunImpl(Workspace& ws) {
   // inside nvimgcodec, so they cannot stomp on each other. The single-quality
   // common case collapses to one batched submit on a single encoder.
   by_quality_.clear();
-  for (size_t i = 0; i < N; i++)
-    by_quality_[frames_[i].quality].push_back(i);
+  for (size_t i = 0; i < n_frames; i++) {
+    int q = frames_[i].quality;
+    auto it = std::find_if(by_quality_.begin(), by_quality_.end(),
+                           [q](const auto& p) { return p.first == q; });
+    if (it == by_quality_.end()) {
+      by_quality_.emplace_back(q, std::vector<size_t>{i});
+    } else {
+      it->second.push_back(i);
+    }
+  }
 
   // Constant across all buckets; referenced via enc_params.struct_next, so it
   // must outlive any in-flight encode.
@@ -404,18 +416,15 @@ void JpegCompressionDistortionCPU::RunImpl(Workspace& ws) {
     WaitAndCheck(bucket.future, bucket.idxs.size(), "encode",
                  [&](size_t k) { return bucket.idxs[k]; });
   }
+}
 
-  // ---- Decode pass: one batched submit for the whole batch ----
-  // Empty inputs (no samples / all-zero-frame sequences) skip the decode call
-  // entirely — nvimgcodec's behaviour on a zero-length batch is unspecified.
-  if (N == 0) return;
+void JpegCompressionDistortionCPU::DecodePass(size_t n_frames) {
+  dec_code_streams_.resize(n_frames);
+  dec_out_imgs_.resize(n_frames);
+  dec_code_stream_handles_.resize(n_frames);
+  dec_out_img_handles_.resize(n_frames);
 
-  dec_code_streams_.resize(N);
-  dec_out_imgs_.resize(N);
-  dec_code_stream_handles_.resize(N);
-  dec_out_img_handles_.resize(N);
-
-  for (size_t i = 0; i < N; i++) {
+  for (size_t i = 0; i < n_frames; i++) {
     dec_code_streams_[i] = imgcodec::NvImageCodecCodeStream::FromHostMem(
         instance_, encoded_buffers_[i].data(), encoded_buffers_[i].size());
     dec_code_stream_handles_[i] = dec_code_streams_[i];
@@ -430,12 +439,12 @@ void JpegCompressionDistortionCPU::RunImpl(Workspace& ws) {
                                       /*apply_exif_orientation=*/0};
 
   nvimgcodecFuture_t future_handle = nullptr;
-  auto dec_status = nvimgcodecDecoderDecode(decoder_, dec_code_stream_handles_.data(),
-                                            dec_out_img_handles_.data(), static_cast<int>(N),
-                                            &dec_params, &future_handle);
+  auto dec_status = nvimgcodecDecoderDecode(
+      decoder_, dec_code_stream_handles_.data(), dec_out_img_handles_.data(),
+      static_cast<int>(n_frames), &dec_params, &future_handle);
   NvImageCodecFuture future(future_handle);
   CHECK_NVIMGCODEC(dec_status);
-  WaitAndCheck(future, N, "decode", [](size_t k) { return k; });
+  WaitAndCheck(future, n_frames, "decode", [](size_t k) { return k; });
 }
 
 DALI_REGISTER_OPERATOR(JpegCompressionDistortion, JpegCompressionDistortionCPU, CPU);
