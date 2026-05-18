@@ -505,3 +505,48 @@ def test_image_decoder_crafted_tiny_files():
 
         p = pipe()
         assert_raises(RuntimeError, p.run)
+
+
+# Regression test for the nvImageCodec ROI/orientation contract bug. For EXIF
+# orientations 5-8 (which swap width and height), pre-fix nvImageCodec rejected
+# output-coord ROIs whose extent exceeded the raw codestream's smaller dimension.
+# The workaround in image_decoder.h disables nvImageCodec's orientation pass,
+# translates the ROI to raw codestream coords, and applies orientation in
+# post-decode Convert. The non-symmetric absolute ROI here would surface any
+# axis or anchor mix-up in the translation as a content mismatch against a
+# slice of the full decode.
+@params(
+    "padlock-406986_640_rotate_90.jpg",
+    "padlock-406986_640_rotate_270.jpg",
+    "padlock-406986_640_mirror_horizontal_rotate_90.jpg",
+    "padlock-406986_640_mirror_horizontal_rotate_270.jpg",
+)
+def test_image_slice_on_exif_rotated(image_name):
+    image_path = os.path.join(test_data_root, "db", "imgcodec", "jpeg", "orientation", image_name)
+
+    @pipeline_def(batch_size=1, device_id=0, num_threads=1)
+    def pipe(device):
+        encoded, _ = fn.readers.file(files=[image_path])
+        decoded_full = fn.decoders.image(encoded, device=device, output_type=types.RGB)
+        # Non-symmetric absolute ROI in output coords. Small insets so the ROI fits
+        # in both H/W orderings of the (almost-square) padlock test images.
+        full_shape = decoded_full.shape()
+        anchor = fn.stack(
+            types.Constant(2, dtype=types.INT64), types.Constant(1, dtype=types.INT64)
+        )
+        size = fn.stack(full_shape[0] - 6, full_shape[1] - 4)
+        decoded = fn.decoders.image_slice(
+            encoded,
+            anchor,
+            size,
+            device=device,
+            output_type=types.RGB,
+            axes=[0, 1],
+        )
+        ref = fn.slice(decoded_full, anchor, size, axes=[0, 1])
+        return decoded, ref
+
+    for device in ("cpu", "mixed"):
+        p = pipe(device=device)
+        decoded_out, ref_out = p.run()
+        np.testing.assert_array_equal(to_array(decoded_out[0]), to_array(ref_out[0]))

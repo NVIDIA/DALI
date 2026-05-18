@@ -118,6 +118,10 @@ class EvalContext:
         # Used to disallow the EvalContext to be active in two threads simultaneously
         self._lock = threading.RLock()
 
+        from . import checkpoint as _checkpoint_mod
+
+        self._checkpoint = _checkpoint_mod.Checkpoint()
+
     def _purge_operator_cache(self):
         """Empties the operator instance cache"""
         self._instance_cache = {}
@@ -223,6 +227,17 @@ class EvalContext:
             return s
         else:
             return self._cuda_stream
+
+    @property
+    def checkpoint(self):
+        """The :class:`~nvidia.dali.experimental.dynamic.checkpoint.Checkpoint` bound
+        to this context.
+
+        When reusing a context (e.g. by using the default one), remember to call
+        ``clear`` on the checkpoint object before using the checkpoint in a new
+        processing pipeline.
+        """
+        return self._checkpoint
 
     @staticmethod
     def default() -> "EvalContext":

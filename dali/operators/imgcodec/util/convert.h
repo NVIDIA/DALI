@@ -223,6 +223,11 @@ void ApplyOrientation(nvimgcodecOrientation_t orientation, T *&data,
   if (swap_xy) {
     std::swap(x_stride, y_stride);
     std::swap(x_size, y_size);
+    // Keep flip_x/flip_y semantics tied to OUTPUT axes (consistent with the GPU path in
+    // convert_gpu.cu): after swap, flipping output W direction means writing to the post-swap
+    // y_stride and vice versa. Without this swap, swap_xy + flip_x produces the visual of the
+    // opposite rotation direction (the latent bug surfaced by ROI/orientation WAR).
+    std::swap(flip_x, flip_y);
   }
 
   if (flip_x) {

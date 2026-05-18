@@ -186,6 +186,9 @@ def build_constructor(schema, op_class):
 
     if init_args:
         init_args = ["*"] + init_args
+    if is_reader:
+        init_args.append("enable_checkpointing=False")
+
     header_args = (
         [
             "self",
@@ -379,7 +382,7 @@ def _next_pow2(x):
 
 
 def _resolve_backend(
-    op_class, device, inputs, raw_kwargs, *, op_name: str | None = None
+    op_class, device, inputs, *, op_name: str | None = None
 ) -> tuple[_device.Device, str]:
     """Resolve device and backend from user arguments.
 
@@ -388,13 +391,12 @@ def _resolve_backend(
     if device is None:
 
         def infer_device():
-            for args in (inputs, raw_kwargs.values()):
-                for arg in args:
-                    if arg is None:
-                        continue
-                    dev = _ops._get_input_device(arg)
-                    if dev is not None and dev.device_type == "gpu":
-                        return dev
+            for arg in inputs:
+                if arg is None:
+                    continue
+                dev = _ops._get_input_device(arg)
+                if dev is not None and dev.device_type == "gpu":
+                    return dev
             return _device.Device.CPU
 
         device = infer_device()

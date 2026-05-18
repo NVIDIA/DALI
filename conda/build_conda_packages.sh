@@ -55,32 +55,18 @@ if [ "${CUDA_VERSION/./}" -ge 110 ]; then
   export CUDA_VERSION="${CUDA_VERSION%?}0"
 fi
 
-# Build custom OpenCV first, as DALI requires only bare OpenCV without many features and dependencies
-conda mambabuild ${CONDA_BUILD_OPTIONS} third_party/dali_opencv/recipe
-
-# Build custom FFmpeg, as DALI requires only bare FFmpeg without many features and dependencies
-# but wiht mpeg4_unpack_bframes enabled
-conda mambabuild ${CONDA_BUILD_OPTIONS} third_party/dali_ffmpeg/recipe
-
-# Build nvimagecodec
-# conda does bare mirror first and then clones the code to the build dir
-# it also fetches the LFS object, but it does that only for the built reference, if there are
-# other objects they are left out. Then it does the full cone and checkout and that is why it
-# complains about missing objects. Also, it doesn't allow running any post-clone hooks.
-# see https://github.com/conda/conda-build/issues/1462
-export GIT_LFS_SKIP_SMUDGE=1
-export GIT_CLONE_PROTECTION_ACTIVE=false
-conda mambabuild ${CONDA_BUILD_OPTIONS} third_party/dali_nvimagecodec/recipe
-export GIT_LFS_SKIP_SMUDGE=0
-export GIT_CLONE_PROTECTION_ACTIVE=true
-
 # Building DALI core package
 conda mambabuild ${CONDA_BUILD_OPTIONS} dali_native_libs/recipe
 
 # Building DALI python bindings package
-conda mambabuild ${CONDA_BUILD_OPTIONS} --variants="{python: [3.10, 3.11, 3.12, 3.13]}" dali_python_bindings/recipe
+conda mambabuild ${CONDA_BUILD_OPTIONS} \
+  --variants="{python: [3.10, 3.11, 3.12, 3.13, 3.14], freethreading: ['no']}" \
+  dali_python_bindings/recipe
+# ToDo - enable when DALI deps fully support ree-threded python
+# conda mambabuild ${CONDA_BUILD_OPTIONS} \
+#   --variants="{python: [3.14], freethreading: ['yes']}" \
+#   dali_python_bindings/recipe
 
 # Copying the artifacts from conda prefix
 mkdir -p artifacts
 cp ${CONDA_PREFIX}/conda-bld/*/nvidia-dali*.tar.bz2 artifacts
-cp ${CONDA_PREFIX}/conda-bld/*/nvidia-nvimagecodec*.tar.bz2 artifacts

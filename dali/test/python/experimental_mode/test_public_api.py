@@ -1,4 +1,4 @@
-# Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -25,7 +25,7 @@ def test_ndd_reader_api():
     for reader in dir(ndd.readers):
         reader_cls = getattr(ndd.readers, reader)
         if isinstance(reader_cls, type) and issubclass(reader_cls, ndd._ops.Reader):
-            allowed_members = {"next_epoch", "get_metadata"}
+            allowed_members = {"next_epoch", "get_metadata", "get_state", "set_state"}
             for member in dir(reader_cls):
                 assert (
                     member.startswith("_") or member in allowed_members

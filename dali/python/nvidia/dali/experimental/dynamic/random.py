@@ -135,6 +135,40 @@ class RNG:
         """
         self._rng.set_state(value)
 
+    def get_state(self, *, cuda_stream=None):
+        """Returns the internal state of the generator.
+
+        Equivalent to :attr:`state`. Provided so that an :class:`RNG` exposes the same
+        ``get_state`` / ``set_state`` interface as a :class:`Reader`, which is the
+        contract used by the checkpointing API.
+
+        Parameters
+        ----------
+        cuda_stream: Any
+            Not used.
+
+        Returns
+        -------
+        Opaque state object. The object can be converted to a string with ``str(state)`` and
+        later used to set the state or construct an RNG.
+        """
+        return self._rng.get_state()
+
+    def set_state(self, value):
+        """Sets the internal state of the generator.
+
+        Equivalent to assigning to :attr:`state`. Provided so that an :class:`RNG` exposes
+        the same ``get_state`` / ``set_state`` interface as a :class:`Reader`, which is
+        the contract used by the checkpointing API.
+
+        Parameters
+        ----------
+        value : object | str
+            Either a state object obtained from :func:`get_state` (or the :attr:`state`
+            property) or its string representation.
+        """
+        self._rng.set_state(value)
+
 
 # Thread-local storage for the default RNG
 _thread_local = _threading.local()

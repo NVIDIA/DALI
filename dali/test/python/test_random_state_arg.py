@@ -1,4 +1,4 @@
-# Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -21,7 +21,7 @@ from nvidia.dali.ops import _registry
 def test_random_state_multiple_state_values():
     """Test that _random_state can accept different state arrays per sample."""
     batch_size = 3
-    state_size = 6  # Number of uint32 values in the state
+    state_size = 7  # Number of uint32 values in the state
 
     @pipeline_def(
         batch_size=batch_size,

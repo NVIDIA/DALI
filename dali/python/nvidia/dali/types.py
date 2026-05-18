@@ -125,6 +125,9 @@ def _type_name_convert_to_string(dtype, allow_tensors, api="fn"):
 def _type_convert_value(dtype, val):
     if dtype not in _known_types:
         raise RuntimeError(str(dtype) + " does not correspond to a known type.")
+    # handle non-0 numpy 1 element tensors that cannot be direclty converted to scalars
+    if item := getattr(val, "item", None):
+        val = item()
     return _known_types[dtype][1](val)
 
 
@@ -247,11 +250,13 @@ class ScalarConstant(object):
         if value_dtype is not None:
             dali_type = to_dali_type(value.dtype)
             if dali_type in _int_types:
-                value = int(value)
+                value = int(value.item())
             elif dali_type in _float_types:
-                value = float(value)
+                value = float(value.item())
             elif dali_type in _bool_types:
-                value = bool(value)
+                value = bool(value.item())
+            else:
+                value = value.item()
             if dtype is None:
                 dtype = dali_type
 
@@ -453,6 +458,7 @@ def _is_cupy_array(value):
 # common type names used by numpy, torch and possibly
 _type_name_to_dali_type = {
     "bool": DALIDataType.BOOL,
+    "bool_": DALIDataType.BOOL,
     "boolean": DALIDataType.BOOL,
     "int8": DALIDataType.INT8,
     "sbyte": DALIDataType.INT8,
@@ -481,7 +487,10 @@ dali_type_converters = []
 
 
 def to_dali_type(framework_type):
-    t = str(framework_type)
+    if isinstance(framework_type, type):
+        t = framework_type.__qualname__  # handle np.int8, etc.
+    else:
+        t = str(framework_type)
     if t.startswith("torch."):
         t = t[6:]
     t = _type_name_to_dali_type.get(t)

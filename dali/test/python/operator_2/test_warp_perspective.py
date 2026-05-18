@@ -18,8 +18,8 @@ import cv2
 import numpy as np
 import test_utils
 from nose2.tools import cartesian_params
-from nose_utils import raises
-from nvidia.dali import fn, types
+from nose_utils import raises, SkipTest
+from nvidia.dali import backend as _b, fn, types
 from nvidia.dali.pipeline import Pipeline, pipeline_def
 from nvidia.dali.types import DALIInterpType
 
@@ -50,6 +50,35 @@ def ocv_interp_type(interp_type: DALIInterpType):
         }[interp_type]
     except KeyError as err:
         raise ValueError("Invalid interpolation type") from err
+
+
+def _skip_if_opencv_413_warp_nn_fp32(device, dtype, interp_type):
+    # opencv/opencv#27324 (4.13.0) moved warpPerspective IPP into a HAL plugin
+    # that miscomputes inverse-mapped y at parallel_for chunk-start rows for
+    # INTER_NEAREST + CV_32F, producing OOB reads. The bug is present in any
+    # opencv 4.13.x built with IPP HAL enabled — DALI's wheel disables IPP at
+    # build time so its bundled opencv is fine, while conda-forge libopencv
+    # 4.13.x ships IPP HAL on.
+    #
+    # The reference_pipe runs cv2.warpPerspective on the CPU regardless of the
+    # DALI device, so a buggy cv2 invalidates pipe2 even when DALI runs on
+    # GPU. DALI's CPU op also calls cv::warpPerspective from the linked
+    # libopencv. Probe both: dali.backend exposes the version of the
+    # libopencv DALI is linked against, cv2.__version__ covers the reference.
+    # Skip whenever either is 4.13.x, irrespective of `device` — the cv2 path
+    # alone is enough to taint the comparison.
+    #
+    # Fix is opencv/opencv#28756, ships in OpenCV 4.14 (~mid-2026) — drop
+    # this once 4.14 is the floor.
+    if not (dtype is np.float32 and interp_type == DALIInterpType.INTERP_NN):
+        return
+    dali_opencv = _b.GetOpenCVVersion() or ""
+    if dali_opencv.startswith("4.13.") or cv2.__version__.startswith("4.13."):
+        raise SkipTest(
+            "opencv 4.13 IPP HAL warpPerspective NN+FP32 regression "
+            "(opencv/opencv#27324; fix opencv/opencv#28756 ships in 4.14) — "
+            f"device={device!r}, dali libopencv={dali_opencv!r}, cv2={cv2.__version__!r}"
+        )
 
 
 def ToCVMatrix(matrix):
@@ -296,6 +325,7 @@ def compare_pipelines(pipe1, pipe2, bs, dtype):
 )
 def test_warp_perspective_const_matrix_vs_ocv(device, args):
     bs, layout, dtype, channels, border_mode, interp_type, inverse_map, fill_value = args
+    _skip_if_opencv_413_warp_nn_fp32(device, dtype, interp_type)
     data1 = input_iterator(bs, layout, dtype, channels)
     data2 = input_iterator(bs, layout, dtype, channels)
 
@@ -346,6 +376,7 @@ def test_warp_perspective_const_matrix_vs_ocv(device, args):
 )
 def test_warp_perspective_arg_inp_matrix_vs_ocv(device, args):
     bs, layout, dtype, channels, border_mode, interp_type, inverse_map, fill_value = args
+    _skip_if_opencv_413_warp_nn_fp32(device, dtype, interp_type)
     data1 = input_iterator(bs, layout, dtype, channels)
     data2 = input_iterator(bs, layout, dtype, channels)
 
@@ -406,6 +437,7 @@ def test_warp_perspective_arg_inp_matrix_vs_ocv(device, args):
 )
 def test_warp_perspective_const_size_vs_ocv(device, args):
     bs, layout, dtype, channels, size, border_mode, interp_type, inverse_map, fill_value = args
+    _skip_if_opencv_413_warp_nn_fp32(device, dtype, interp_type)
     data1 = input_iterator(bs, layout, dtype, channels)
     data2 = input_iterator(bs, layout, dtype, channels)
 
@@ -464,6 +496,7 @@ def test_warp_perspective_const_size_vs_ocv(device, args):
 )
 def test_warp_perspective_gpu_inp_matrix_vs_ocv(device, args):
     bs, layout, dtype, channels, border_mode, interp_type, inverse_map, fill_value = args
+    _skip_if_opencv_413_warp_nn_fp32(device, dtype, interp_type)
     data1 = input_iterator(bs, layout, dtype, channels)
     data2 = input_iterator(bs, layout, dtype, channels)
 

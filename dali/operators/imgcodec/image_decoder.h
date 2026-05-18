@@ -187,6 +187,10 @@ class ImageDecoder : public StatelessOperator<Backend> {
 
     SampleView<CPUBackend> decode_out_cpu;
     SampleView<GPUBackend> decode_out_gpu;
+
+    // When non-identity (rotated != 0 || flip_x || flip_y): nvImageCodec was asked to
+    // decode without applying orientation; ConvertCPU/GPU applies it post-decode.
+    nvimgcodecOrientation_t post_decode_orientation = {};
   };
 
   struct nvImagecodecOpts {
@@ -235,6 +239,12 @@ class ImageDecoder : public StatelessOperator<Backend> {
         cache_ = std::make_unique<CachedDecoderImpl>(spec_);
     }
     EnforceMinimumNvimgcodecVersion();
+
+    // WAR for the nvImageCodec ROI/orientation contract bug: on affected versions, the decoder
+    // validates the ROI against raw codestream dims while interpreting it in output (post-EXIF)
+    // coords, breaking 90/270-rotated samples that carry a ROI. Disable orientation in the
+    // decoder and apply it in the post-decode Convert; ROIs are translated to raw coords.
+    roi_orient_war_ = use_orientation_ && !version_at_least(0, 9, 0);
 
     nvimgcodecDeviceAllocator_t *dev_alloc_ptr = nullptr;
     nvimgcodecPinnedAllocator_t *pinned_alloc_ptr = nullptr;
@@ -534,6 +544,43 @@ class ImageDecoder : public StatelessOperator<Backend> {
   }
 
   /**
+   * @brief Maps an ROI expressed in output (post-orientation) coords to raw codestream coords.
+   * Used by the ROI/orientation workaround so the sub-stream ROI handed to nvImageCodec is
+   * valid in raw coords (the decoder is told not to apply orientation; Convert applies it).
+   */
+  static ROI OutputToRawROI(const ROI &output_roi, const nvimgcodecOrientation_t &ori,
+                            int64_t output_h, int64_t output_w) {
+    bool swap_xy = ori.rotated % 180 == 90;
+    bool flip_x = ori.rotated == 180 || ori.rotated == 270;
+    bool flip_y = ori.rotated == 90 || ori.rotated == 180;
+    flip_x ^= ori.flip_x;
+    flip_y ^= ori.flip_y;
+    int64_t y0 = output_roi.begin[0], y1 = output_roi.end[0];
+    int64_t x0 = output_roi.begin[1], x1 = output_roi.end[1];
+    if (flip_y) {
+      int64_t new_y0 = output_h - y1, new_y1 = output_h - y0;
+      y0 = new_y0;
+      y1 = new_y1;
+    }
+    if (flip_x) {
+      int64_t new_x0 = output_w - x1, new_x1 = output_w - x0;
+      x0 = new_x0;
+      x1 = new_x1;
+    }
+    ROI raw;
+    raw.begin.resize(2);
+    raw.end.resize(2);
+    if (swap_xy) {
+      raw.begin[0] = x0; raw.end[0] = x1;
+      raw.begin[1] = y0; raw.end[1] = y1;
+    } else {
+      raw.begin[0] = y0; raw.end[0] = y1;
+      raw.begin[1] = x0; raw.end[1] = x1;
+    }
+    return raw;
+  }
+
+  /**
    * @brief Checks that nvImageCodec version is at least a given version
    */
   bool version_at_least(int req_major, int req_minor, int req_patch) {
@@ -556,6 +603,11 @@ class ImageDecoder : public StatelessOperator<Backend> {
     st.req_img_type = format_;
     int64_t &nchannels = st.out_shape[2];
     auto decode_shape = st.out_shape;
+    // Workaround: nvImageCodec is told not to apply orientation; its output is in raw codestream
+    // coords (smaller side swapped relative to st.out_shape for 90/270). Convert applies the
+    // orientation post-decode and produces st.out_shape-sized output.
+    if (st.post_decode_orientation.rotated % 180 != 0)
+      std::swap(decode_shape[0], decode_shape[1]);
 
     // Decode to format
     st.image_info.color_spec = NVIMGCODEC_COLORSPEC_SRGB;
@@ -597,8 +649,12 @@ class ImageDecoder : public StatelessOperator<Backend> {
                                   DynamicRangeMultiplier(precision, st.parsed_sample.orig_dtype) :
                                   1.0f;
 
+    const auto &post_orient = st.post_decode_orientation;
+    bool post_decode_orient =
+        post_orient.rotated != 0 || post_orient.flip_x || post_orient.flip_y;
     st.need_processing = st.req_img_type != st.orig_img_type ||
-                         dtype_ != st.parsed_sample.orig_dtype || need_dynamic_range_scaling;
+                         dtype_ != st.parsed_sample.orig_dtype || need_dynamic_range_scaling ||
+                         post_decode_orient;
 
     st.image_info.buffer_kind = std::is_same<MixedBackend, Backend>::value ?
                                     NVIMGCODEC_IMAGE_BUFFER_KIND_STRIDED_DEVICE :
@@ -708,6 +764,16 @@ class ImageDecoder : public StatelessOperator<Backend> {
         }
 
         ROI &roi = rois_[i] = GetRoi(spec_, ws, i, st->out_shape);
+        // WORKAROUND(nvimgcodec ROI+EXIF orientation): on affected versions nvImageCodec
+        // rejects output-coord ROIs whose extent exceeds the raw codestream dims, which
+        // happens for 90/270-rotated samples carrying a ROI. We tell the decoder not to
+        // apply orientation on this batch, translate the ROI to raw coords, and let
+        // ConvertCPU/GPU apply the orientation post-decode.
+        const auto &parsed_orient = st->parsed_sample.nvimgcodec_img_info.orientation;
+        bool sample_oriented = use_orientation_ &&
+            (parsed_orient.rotated != 0 || parsed_orient.flip_x || parsed_orient.flip_y);
+        st->post_decode_orientation =
+            (roi_orient_war_ && sample_oriented) ? parsed_orient : nvimgcodecOrientation_t{};
         if (roi.use_roi()) {
           auto roi_sh = roi.shape();
           if (roi.end.size() >= 2) {
@@ -720,6 +786,11 @@ class ImageDecoder : public StatelessOperator<Backend> {
                               0 <= roi.begin[1] && roi.begin[1] <= st->out_shape[1],
                           "ROI begin must fit within the image bounds");
           }
+          ROI sub_stream_roi = roi;
+          if (roi_orient_war_ && sample_oriented) {
+            sub_stream_roi = OutputToRawROI(roi, parsed_orient,
+                                            st->out_shape[0], st->out_shape[1]);
+          }
           st->out_shape[0] = roi_sh[0];
           st->out_shape[1] = roi_sh[1];
 
@@ -729,10 +800,10 @@ class ImageDecoder : public StatelessOperator<Backend> {
               nullptr,
               0,  // image_idx
               {NVIMGCODEC_STRUCTURE_TYPE_REGION, sizeof(nvimgcodecRegion_t), nullptr, 2}};
-          cs_view.region.start[0] = roi.begin[0];
-          cs_view.region.start[1] = roi.begin[1];
-          cs_view.region.end[0] = roi.end[0];
-          cs_view.region.end[1] = roi.end[1];
+          cs_view.region.start[0] = sub_stream_roi.begin[0];
+          cs_view.region.start[1] = sub_stream_roi.begin[1];
+          cs_view.region.end[0] = sub_stream_roi.end[0];
+          cs_view.region.end[1] = sub_stream_roi.end[1];
           nvimgcodecCodeStream_t sub_encoded_stream = st->sub_encoded_stream.get();
           if (sub_encoded_stream) {  // reuses the code stream object
             CHECK_NVIMGCODEC(nvimgcodecCodeStreamGetSubCodeStream(
@@ -830,7 +901,8 @@ class ImageDecoder : public StatelessOperator<Backend> {
       size_t decode_status_size = 0;
       nvimgcodecDecodeParams_t decode_params = {NVIMGCODEC_STRUCTURE_TYPE_DECODE_PARAMS,
                                                 sizeof(nvimgcodecDecodeParams_t), nullptr};
-      decode_params.apply_exif_orientation = static_cast<int>(use_orientation_);
+      decode_params.apply_exif_orientation =
+          static_cast<int>(use_orientation_ && !roi_orient_war_);
 
       {
         DomainTimeRange tr("nvimgcodecDecoderDecode", DomainTimeRange::kOrange);
@@ -871,12 +943,13 @@ class ImageDecoder : public StatelessOperator<Backend> {
                   if constexpr (std::is_same<MixedBackend, Backend>::value) {
                     ConvertGPU(out, st.req_layout, st.req_img_type, st.decode_out_gpu,
                                st.req_layout, st.orig_img_type, order.stream(), ROI{},
-                               nvimgcodecOrientation_t{}, st.dyn_range_multiplier);
+                               st.post_decode_orientation, st.dyn_range_multiplier);
                     st.device_buf.reset();
                   } else {
                     assert(st.dyn_range_multiplier == 1.0f);  // TODO(janton): enable
                     ConvertCPU(out, st.req_layout, st.req_img_type, st.decode_out_cpu,
-                               st.req_layout, st.orig_img_type, ROI{}, nvimgcodecOrientation_t{});
+                               st.req_layout, st.orig_img_type, ROI{},
+                               st.post_decode_orientation);
                     st.host_buf.reset();
                   }
                 },
@@ -935,6 +1008,7 @@ class ImageDecoder : public StatelessOperator<Backend> {
   DALIDataType dtype_;
   TensorLayout layout_ = "HWC";
   bool use_orientation_ = true;
+  bool roi_orient_war_ = false;
   int max_batch_size_ = 1;
   int num_threads_ = -1;
   ThreadPool *tp_ = nullptr;

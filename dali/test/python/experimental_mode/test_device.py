@@ -15,6 +15,7 @@
 import nvidia.dali.experimental.dynamic as ndd
 import nvidia.dali.backend as _backend
 from nose_utils import SkipTest, assert_raises, attr
+from nose2.tools import params
 
 
 def test_default_device():
@@ -94,3 +95,29 @@ def test_invalid_device():
 
     with assert_raises(ValueError, glob="Invalid device"):
         ndd.random_bbox_crop(0, device="gpu")
+
+
+@attr("multi_gpu")
+@params(False, True)
+def test_different_input_device_ids(batch):
+    if _backend.GetCUDADeviceCount() < 2:
+        raise SkipTest("At least 2 devices needed for the test")
+    make = ndd.batch if batch else ndd.tensor
+    x = make([1, 2, 3], device="gpu:0")
+    y = make([1, 2, 3], device="gpu:1")
+    with assert_raises(RuntimeError, glob="different device"):
+        (x + y).evaluate()
+
+
+@attr("multi_gpu")
+@params(False, True)
+def test_ctx_vs_input_device_id_mismatch(batch):
+    if _backend.GetCUDADeviceCount() < 2:
+        raise SkipTest("At least 2 devices needed for the test")
+    make = ndd.batch if batch else ndd.tensor
+    x = make([1, 2, 3], device="gpu:1")
+    y = make([1, 2, 3], device="gpu:1")
+    with ndd.EvalMode.sync_cpu:
+        with assert_raises(RuntimeError, glob="not the device associated with*EvalContext"):
+            with ndd.Device("gpu:0"):
+                (x + y).evaluate()

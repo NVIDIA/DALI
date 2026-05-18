@@ -57,7 +57,7 @@ cmake -DCUDA_TOOLKIT_ROOT_DIR=/usr/local/cuda \
       -DCUDA_CUDA_LIBRARY=/usr/local/cuda/targets/${ARCH}-linux/lib/stubs/libcuda.so \
       -DCUDA_TARGET_ARCHS=${CUDA_TARGET_ARCHS}            \
       -DFFMPEG_ROOT_DIR=$PREFIX/lib                       \
-      -DCMAKE_PREFIX_PATH="$PREFIX/libjpeg-turbo;$PREFIX" \
+      -DCMAKE_PREFIX_PATH="$PREFIX"                       \
       -DCMAKE_INSTALL_PREFIX=$PREFIX                      \
       -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE:-Release}     \
       -DBUILD_TEST=${BUILD_TEST:-ON}                      \
@@ -96,7 +96,6 @@ cmake -DCUDA_TOOLKIT_ROOT_DIR=/usr/local/cuda \
       -DBUILD_WITH_UBSAN=${BUILD_WITH_UBSAN:-OFF}         \
       -DDALI_BUILD_FLAVOR=${NVIDIA_DALI_BUILD_FLAVOR}     \
       -DTIMESTAMP=${DALI_TIMESTAMP} -DGIT_SHA=${GIT_SHA-${GIT_FULL_HASH}} \
-      -DNVIMGCODEC_DEFAULT_INSTALL_PATH=$PREFIX/opt/nvidia/nvimgcodec \
       ..
 make -j"$(nproc --all)"
 
@@ -228,3 +227,11 @@ find -iname *.pb.h | while read FILE; do
    mkdir -p $(dirname $PREFIX/include/$FILE)
    cp $FILE $PREFIX/include/$FILE
 done
+
+# Install conda activate/deactivate scripts so libnvimgcodec finds the conda-forge
+# extension modules. The default search path compiled into libnvimgcodec.so does not
+# match the conda-forge install layout, so without this nvimgcodecDecoderCreate would
+# succeed but every decode would fail with NVIMGCODEC_PROCESSING_STATUS_*.
+mkdir -p "$PREFIX/etc/conda/activate.d" "$PREFIX/etc/conda/deactivate.d"
+cp "$RECIPE_DIR/activate.d/"*.sh "$PREFIX/etc/conda/activate.d/"
+cp "$RECIPE_DIR/deactivate.d/"*.sh "$PREFIX/etc/conda/deactivate.d/"

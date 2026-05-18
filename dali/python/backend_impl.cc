@@ -14,6 +14,7 @@
 
 #include <cuda_runtime_api.h>
 #include <dlfcn.h>
+#include <opencv2/core/version.hpp>
 #include <algorithm>
 #include <sstream>
 #include <cstring>
@@ -38,6 +39,7 @@
 #include "dali/pipeline/data/tensor.h"
 #include "dali/pipeline/data/tensor_list.h"
 #include "dali/pipeline/init.h"
+#include "dali/pipeline/operator/checkpointing/op_checkpoint.h"
 #include "dali/pipeline/operator/error_reporting.h"
 #include "dali/pipeline/operator/op_schema.h"
 #include "dali/pipeline/operator/op_spec.h"
@@ -2752,7 +2754,22 @@ void ExposeOperator(py::module &m) {
     }, "ws"_a, "batch_size"_a = py::none())
     .def("GetReaderMeta", [](OperatorBase &self) {
       return ReaderMetaToDict(self.GetReaderMeta());
-    });
+    })
+    .def("SaveCheckpoint", [](OperatorBase &self, py::object stream) -> py::bytes {
+      // Saves the operator state, serializes it and returns the serialized representation.
+      // Used by the dynamic API to expose stateful operator checkpointing to Python.
+      // The returned blob may contain arbitrary bytes (e.g. protobuf-serialized loader
+      // state), so it is returned as `py::bytes` to avoid UTF-8 conversion.
+      OpCheckpoint cpt(self.GetSpec().SchemaName());
+      self.SaveState(cpt, AccessOrderFromPythonStreamObj(stream));
+      return py::bytes(self.SerializeCheckpoint(cpt));
+    }, "stream"_a = py::none())
+    .def("RestoreCheckpoint", [](OperatorBase &self, const std::string &data) {
+      // Deserializes the operator state from a string/bytes blob and restores it.
+      OpCheckpoint cpt(self.GetSpec().SchemaName());
+      self.DeserializeCheckpoint(cpt, data);
+      self.RestoreState(cpt);
+    }, "data"_a);
 }
 
 auto GetSupportedBackends(OpSchema &schema) {
@@ -2843,6 +2860,18 @@ PYBIND11_MODULE(backend_impl, m, py::mod_gil_not_used()) {
       ret = GetNvimgcodecVersion();
     } catch (const std::runtime_error &) {}
     return ret;
+  });
+
+  m.def("GetOpenCVVersion", [] {
+    // Returns the OpenCV version string ("4.13.0") DALI was built against
+    // via the CV_VERSION macro from <opencv2/core/version.hpp>. Build-time
+    // and runtime libopencv share the same SONAME, so this matches the
+    // major.minor of the actually-loaded library — sufficient for triage
+    // gates like the 4.13.x IPP HAL warpPerspective regression. We avoid
+    // cv::getVersionString() because it lives in libopencv_core, which
+    // dali_python doesn't link directly, and Python extensions hide the
+    // unresolved symbol until import time.
+    return std::string(CV_VERSION);
   });
 
 #if SHM_WRAPPER_ENABLED
