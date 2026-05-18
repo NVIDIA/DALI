@@ -12,8 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+<<<<<<< HEAD
 import operator
 
+=======
+>>>>>>> 8449e0fc (Torchvision API RandomCrop and crop operartors)
 import nvidia.dali.experimental.dynamic as ndd
 from nvidia.dali._typing import TensorLike
 from nvidia.dali.experimental.dynamic._device import DeviceLike
@@ -22,6 +25,7 @@ from ..operator import adjust_input
 from ..randomcrop import RandomCrop
 
 
+<<<<<<< HEAD
 def _validate_integer_param(value, name: str) -> int:
     try:
         return operator.index(value)
@@ -59,6 +63,22 @@ def _validate_crop_params(inpt, top, left, height, width) -> tuple[int, int, int
         _validate_integer_param(height, "height"),
         _validate_integer_param(width, "width"),
     )
+=======
+def _get_crop_axes(inpt: TensorLike | ndd.Batch) -> list[int]:
+    layout = inpt.layout[-3:]
+    if layout == "HWC":
+        return [-3, -2]
+    if layout == "CHW":
+        return [-2, -1]
+    if inpt.layout[-2:] == "HW":
+        return [-2, -1]
+    raise ValueError(f"Unsupported layout: {inpt.layout!r}. Expected one of HWC, CHW, HW.")
+
+
+def _verify_crop_coordinate(value, name: str) -> None:
+    if not isinstance(value, int):
+        raise TypeError(f"{name} must be int, got {type(value)}")
+>>>>>>> 8449e0fc (Torchvision API RandomCrop and crop operartors)
 
 
 @adjust_input
