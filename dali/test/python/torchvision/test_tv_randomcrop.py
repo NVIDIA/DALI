@@ -163,7 +163,7 @@ def test_random_crop_padding_matches_torchvision_pil(device, mode):
 
 
 """
-# TODO: Tensor fill pattern is not currently supported
+# TODO: Fill using dictionary pattern is currently not supported
 def test_random_crop_fill_dict_matches_torchvision_tensor():
     tensor = make_tensor(shape=(3, 4, 5))
     fill = {torch.Tensor: 9}
@@ -173,7 +173,6 @@ def test_random_crop_fill_dict_matches_torchvision_tensor():
         transforms.RandomCrop(size=(6, 7), padding=1, fill=fill),
     )
 
-# TODO: fill pattern as tensor is not currently supported
 def test_random_crop_fill_dict_matches_torchvision_pil():
     img = make_pil_image(mode="RGB", h=4, w=5)
     fill = {Image.Image: (1, 2, 3)}
