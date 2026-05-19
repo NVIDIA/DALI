@@ -17,11 +17,8 @@ import numbers
 from types import NoneType
 from typing import Literal, Sequence, Union
 
-from PIL import Image
 import nvidia.dali as dali
 import nvidia.dali.fn as fn
-import numpy as np
-import torch
 
 from .centercrop import CenterCrop
 from .operator import (
