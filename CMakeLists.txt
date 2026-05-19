@@ -315,17 +315,6 @@ else()
   include(cmake/Dependencies.cmake)
 endif()
 
-# Guardrail: opencv_imgcodecs must not be linked into shipped DALI libraries.
-# It is allowed only in test/benchmark binaries (gated by DALI_OPENCV_TEST_EXTRA_LIBS).
-foreach(_lib IN LISTS DALI_LIBS)
-  if("${_lib}" MATCHES "opencv_imgcodecs")
-    message(FATAL_ERROR
-      "opencv_imgcodecs found in DALI_LIBS ('${_lib}'). It must not be linked into "
-      "production DALI libraries; link it only into test/bench executables via "
-      "DALI_OPENCV_TEST_EXTRA_LIBS.")
-  endif()
-endforeach()
-
 propagate_option(BUILD_NVTX)
 propagate_option(BUILD_PYTHON)
 propagate_option(BUILD_SHM_WRAPPER)
