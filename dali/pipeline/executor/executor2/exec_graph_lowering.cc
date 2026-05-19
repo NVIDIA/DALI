@@ -22,22 +22,31 @@
 namespace dali {
 namespace exec2 {
 
-void ExecGraph::Lower(const graph::OpGraph &def) {
+void ExecGraph::Lower(const graph::OpGraph &def, OperatorsMap &&operators) {
   Invalidate();
   std::unordered_map<const graph::OpNode *, ExecNode *> def2exec(def.OpNodes().size());
   for (const graph::OpNode &op_node : def.OpNodes()) {
     std::unique_ptr<OperatorBase> op;
-    try {
-      op = InstantiateOperator(op_node.spec);
-    } catch (...) {
-      PropagateError({std::current_exception(),
-                      "Critical error when building pipeline:\n" +
-                          GetErrorContextMessage(op_node.spec),
-                      "\nCurrent pipeline object is no longer valid."});
+    auto op_it = operators.find(op_node.instance_name);
+    if (op_it != operators.end()) {
+      op = std::move(op_it->second);
+      operators.erase(op_it);
+    } else {
+      try {
+        op = InstantiateOperator(op_node.spec);
+      } catch (...) {
+        PropagateError({std::current_exception(),
+                        "Critical error when building pipeline:\n" +
+                            GetErrorContextMessage(op_node.spec),
+                        "\nCurrent pipeline object is no longer valid."});
+      }
     }
     ExecNode *exec_node = AddNode(std::move(op), &op_node);
     def2exec.emplace(&op_node, exec_node);
   }
+  DALI_ENFORCE(operators.empty(),
+               make_string("Transferred operator instance \"", operators.begin()->first,
+                           "\" was not found in the pipeline graph."));
 
   auto it_def = def.OpNodes().begin();
   for (ExecNode &exec_node : nodes_) {

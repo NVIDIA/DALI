@@ -15,6 +15,7 @@
 #ifndef DALI_PIPELINE_EXECUTOR_EXECUTOR_H_
 #define DALI_PIPELINE_EXECUTOR_EXECUTOR_H_
 
+#include <memory>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -27,6 +28,7 @@
 namespace dali {
 
 class OperatorBase;
+using OperatorsMap = std::unordered_map<std::string, std::unique_ptr<OperatorBase>>;
 
 struct DLL_PUBLIC ExecutorMeta {
   size_t real_size;
@@ -42,7 +44,7 @@ class OpGraph;
 class DLL_PUBLIC ExecutorBase {
  public:
   DLL_PUBLIC virtual ~ExecutorBase() {}
-  DLL_PUBLIC virtual void Build(const graph::OpGraph &graph) = 0;
+  DLL_PUBLIC virtual void Build(const graph::OpGraph &graph, OperatorsMap &&operators) = 0;
   // TODO(michalz): Remove
   DLL_PUBLIC virtual void Build(OpGraph *graph, std::vector<std::string> output_names) = 0;
   DLL_PUBLIC virtual void Init() = 0;
