@@ -15,7 +15,7 @@
 import math
 import unittest
 
-from nose2.tools import params
+from nose2.tools import cartesian_params, params
 from nose_utils import assert_raises
 import numpy as np
 from PIL import Image
@@ -70,58 +70,65 @@ def _build_dali_random_crop(**kwargs):
     return Compose([RandomCrop(**kwargs)], batch_size=batch_size)
 
 
+def _skip_if_gpu_unavailable(device):
+    if device == "gpu" and not torch.cuda.is_available():
+        raise unittest.SkipTest("CUDA is not available")
+
+
+def _move_tensor_to_device(inpt, device):
+    if device == "gpu" and isinstance(inpt, torch.Tensor):
+        return inpt.cuda()
+    return inpt
+
+
 def test_random_crop_is_operator():
     assert issubclass(RandomCrop, Operator)
 
 
-@params(
-    (make_tensor(), (8, 10)),
-    (make_tensor(shape=(4, 3, 8, 10)), (8, 10)),
-    (make_pil_image("L"), (8, 10)),
-    (make_pil_image("RGB"), (8, 10)),
-    (make_pil_image("RGBA"), (8, 10)),
+@cartesian_params(
+    ("cpu", "gpu"),
+    (
+        ("tensor", (3, 8, 10), (8, 10)),
+        ("tensor", (4, 3, 8, 10), (8, 10)),
+        ("pil", "L", (8, 10)),
+        ("pil", "RGB", (8, 10)),
+        ("pil", "RGBA", (8, 10)),
+    ),
 )
-def test_random_crop_identity_matches_torchvision_cpu(inpt, size):
+def test_random_crop_identity_matches_torchvision(device, input_case):
+    _skip_if_gpu_unavailable(device)
+    input_type, input_arg, size = input_case
+    inpt = make_pil_image(input_arg) if input_type == "pil" else make_tensor(shape=input_arg)
+    inpt = _move_tensor_to_device(inpt, device)
     batch_size = inpt.shape[0] if isinstance(inpt, torch.Tensor) and inpt.ndim > 3 else 1
     _assert_equal_to_torchvision(
         inpt,
-        _build_dali_random_crop(size=size, batch_size=batch_size),
+        _build_dali_random_crop(size=size, device=device, batch_size=batch_size),
         transforms.RandomCrop(size=size),
+        device=device,
     )
 
 
-@unittest.skipUnless(torch.cuda.is_available(), "CUDA is not available")
-@params(
-    ("tensor", (3, 8, 10), (8, 10)),
-    ("tensor", (4, 3, 8, 10), (8, 10)),
-    ("pil", "RGB", (8, 10)),
+@cartesian_params(
+    ("cpu", "gpu"),
+    (
+        (None, 0, "constant"),
+        (1, 0, "constant"),
+        ([1], 0, "constant"),
+        ([1, 1], 0, "constant"),
+        ([1, 1, 1, 1], 0, "constant"),
+        (1, 7, "constant"),
+        (1, (1, 2, 3), "constant"),
+        (1, None, "constant"),
+        (1, 0, "edge"),
+        (1, 0, "reflect"),
+        (1, 0, "symmetric"),
+    ),
 )
-def test_random_crop_identity_matches_torchvision_gpu(input_type, input_arg, size):
-    inpt = make_pil_image(input_arg) if input_type == "pil" else make_tensor(shape=input_arg).cuda()
-    batch_size = inpt.shape[0] if isinstance(inpt, torch.Tensor) and inpt.ndim > 3 else 1
-    _assert_equal_to_torchvision(
-        inpt,
-        _build_dali_random_crop(size=size, device="gpu", batch_size=batch_size),
-        transforms.RandomCrop(size=size),
-        device="gpu",
-    )
-
-
-@params(
-    (None, 0, "constant"),
-    (1, 0, "constant"),
-    ([1], 0, "constant"),
-    ([1, 1], 0, "constant"),
-    ([1, 1, 1, 1], 0, "constant"),
-    (1, 7, "constant"),
-    (1, (1, 2, 3), "constant"),
-    (1, None, "constant"),
-    (1, 0, "edge"),
-    (1, 0, "reflect"),
-    (1, 0, "symmetric"),
-)
-def test_random_crop_padding_matches_torchvision_tensor_cpu(padding, fill, padding_mode):
-    tensor = make_tensor(shape=(3, 4, 5))
+def test_random_crop_padding_matches_torchvision_tensor(device, padding_case):
+    _skip_if_gpu_unavailable(device)
+    padding, fill, padding_mode = padding_case
+    tensor = _move_tensor_to_device(make_tensor(shape=(3, 4, 5)), device)
     size = (4, 5) if padding is None else (6, 7)
 
     _assert_equal_to_torchvision(
@@ -131,6 +138,7 @@ def test_random_crop_padding_matches_torchvision_tensor_cpu(padding, fill, paddi
             padding=padding,
             fill=fill,
             padding_mode=padding_mode,
+            device=device,
         ),
         transforms.RandomCrop(
             size=size,
@@ -138,62 +146,25 @@ def test_random_crop_padding_matches_torchvision_tensor_cpu(padding, fill, paddi
             fill=fill,
             padding_mode=padding_mode,
         ),
+        device=device,
     )
 
 
-@unittest.skipUnless(torch.cuda.is_available(), "CUDA is not available")
-@params(
-    (1, 7, "constant"),
-    (1, 0, "edge"),
-    (1, 0, "reflect"),
-    (1, 0, "symmetric"),
-)
-def test_random_crop_padding_matches_torchvision_tensor_gpu(padding, fill, padding_mode):
-    tensor = make_tensor(shape=(3, 4, 5)).cuda()
-    _assert_equal_to_torchvision(
-        tensor,
-        _build_dali_random_crop(
-            size=(6, 7),
-            padding=padding,
-            fill=fill,
-            padding_mode=padding_mode,
-            device="gpu",
-        ),
-        transforms.RandomCrop(
-            size=(6, 7),
-            padding=padding,
-            fill=fill,
-            padding_mode=padding_mode,
-        ),
-        device="gpu",
-    )
-
-
-@params("L", "RGB", "RGBA")
-def test_random_crop_padding_matches_torchvision_pil_cpu(mode):
+@cartesian_params(("cpu", "gpu"), ("L", "RGB", "RGBA"))
+def test_random_crop_padding_matches_torchvision_pil(device, mode):
+    _skip_if_gpu_unavailable(device)
     img = make_pil_image(mode=mode, h=4, w=5)
     _assert_equal_to_torchvision(
         img,
-        _build_dali_random_crop(size=(6, 7), padding=1, fill=3),
+        _build_dali_random_crop(size=(6, 7), padding=1, fill=3, device=device),
         transforms.RandomCrop(size=(6, 7), padding=1, fill=3),
-    )
-
-
-@unittest.skipUnless(torch.cuda.is_available(), "CUDA is not available")
-@params("L", "RGB", "RGBA")
-def test_random_crop_padding_matches_torchvision_pil_gpu(mode):
-    img = make_pil_image(mode=mode, h=4, w=5)
-    _assert_equal_to_torchvision(
-        img,
-        _build_dali_random_crop(size=(6, 7), padding=1, fill=3, device="gpu"),
-        transforms.RandomCrop(size=(6, 7), padding=1, fill=3),
-        device="gpu",
+        device=device,
     )
 
 
 """
 # TODO: Tensor fill pattern is not currently supported
-def test_random_crop_fill_dict_matches_torchvision_tensor_cpu():
+def test_random_crop_fill_dict_matches_torchvision_tensor():
     tensor = make_tensor(shape=(3, 4, 5))
     fill = {torch.Tensor: 9}
     _assert_equal_to_torchvision(
@@ -203,7 +174,7 @@ def test_random_crop_fill_dict_matches_torchvision_tensor_cpu():
     )
 
 # TODO: fill pattern as tensor is not currently supported
-def test_random_crop_fill_dict_matches_torchvision_pil_cpu():
+def test_random_crop_fill_dict_matches_torchvision_pil():
     img = make_pil_image(mode="RGB", h=4, w=5)
     fill = {Image.Image: (1, 2, 3)}
     _assert_equal_to_torchvision(
@@ -214,25 +185,18 @@ def test_random_crop_fill_dict_matches_torchvision_pil_cpu():
 """
 
 
-@params(
-    (4, (4, 4)),
-    ([4, 5], (4, 5)),
+@cartesian_params(
+    ("cpu", "gpu"),
+    (
+        (4, (4, 4)),
+        ([4, 5], (4, 5)),
+    ),
 )
-def test_random_crop_tensor_shape_cpu(size, expected_hw):
-    tensor = make_tensor()
-    out = _build_dali_random_crop(size=size)(tensor)
-
-    assert out.shape == (3, *expected_hw)
-
-
-@unittest.skipUnless(torch.cuda.is_available(), "CUDA is not available")
-@params(
-    (4, (4, 4)),
-    ([4, 5], (4, 5)),
-)
-def test_random_crop_tensor_shape_gpu(size, expected_hw):
-    tensor = make_tensor().cuda()
-    out = _build_dali_random_crop(size=size, device="gpu")(tensor)
+def test_random_crop_tensor_shape(device, shape_case):
+    _skip_if_gpu_unavailable(device)
+    size, expected_hw = shape_case
+    tensor = _move_tensor_to_device(make_tensor(), device)
+    out = _build_dali_random_crop(size=size, device=device)(tensor)
 
     assert out.shape == (3, *expected_hw)
 
