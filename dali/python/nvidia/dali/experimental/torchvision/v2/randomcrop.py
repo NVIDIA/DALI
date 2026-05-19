@@ -164,31 +164,8 @@ class RandomCrop(Operator):
         return tuple(fill)
 
     @staticmethod
-    def _get_input_type(tensor):
-        layout = tensor.property("layout")[0]
-        if layout == np.frombuffer(bytes("F", "utf-8"), dtype=np.uint8)[0]:
-            layout = tensor.property("layout")[1]
-        if layout == np.frombuffer(bytes("C", "utf-8"), dtype=np.uint8)[0]:
-            return torch.Tensor
-        return Image.Image
-
-    @staticmethod
-    def _get_fill(fill, tensor):
-        if not isinstance(fill, dict):
-            return fill
-
-        input_type = RandomCrop._get_input_type(tensor)
-        string_keys = (input_type.__name__, f"{input_type.__module__}.{input_type.__name__}")
-        for key in (input_type, *string_keys):
-            if key in fill:
-                return fill[key]
-        if "others" in fill:
-            return fill["others"]
-        raise ValueError(f"fill dictionary does not contain a value for {input_type}")
-
-    @staticmethod
     def _randint(max_value):
-        range_start = fn.cast(max_value * 0, dtype=dali.types.FLOAT)
+        range_start = fn.cast(0, dtype=dali.types.FLOAT)
         range_end = fn.cast(max_value + 1, dtype=dali.types.FLOAT)
         value = dali.math.floor(fn.random.uniform(range=fn.stack(range_start, range_end)))
         return fn.cast(value, dtype=dali.types.INT32)
