@@ -15,7 +15,7 @@
 import math
 import unittest
 
-from nose2.tools import params
+from nose2.tools import cartesian_params, params
 from nose_utils import assert_raises
 import numpy as np
 from PIL import Image
@@ -61,47 +61,56 @@ def _assert_crop_matches_torchvision(inpt, top, left, height, width, device="cpu
     assert torch.equal(dali_out, tv_out), "DALI crop output differs from torchvision"
 
 
-@params(
-    (1, 2, 4, 5),
-    (0, 0, 8, 10),
-    (3, 4, 2, 3),
+def _skip_if_gpu_unavailable(device):
+    if device == "gpu" and not torch.cuda.is_available():
+        raise unittest.SkipTest("CUDA is not available")
+
+
+def _move_tensor_to_device(tensor, device):
+    if device == "gpu":
+        return tensor.cuda()
+    return tensor
+
+
+@cartesian_params(
+    ("cpu", "gpu"),
+    (
+        (1, 2, 4, 5),
+        (0, 0, 8, 10),
+        (3, 4, 2, 3),
+        (-1, -2, 6, 8),
+        (6, 8, 5, 6),
+        (0, 0, 12, 14),
+    ),
 )
-def test_crop_tensor_cpu(top, left, height, width):
-    _assert_crop_matches_torchvision(make_test_tensor(), top, left, height, width)
+def test_crop_tensor(device, crop_case):
+    _skip_if_gpu_unavailable(device)
+    tensor = _move_tensor_to_device(make_test_tensor(), device)
+    _assert_crop_matches_torchvision(tensor, *crop_case, device=device)
 
 
-@params("L", "RGB", "RGBA")
-def test_crop_pil_cpu(mode):
-    _assert_crop_matches_torchvision(_make_pil_image(mode), top=1, left=2, height=4, width=5)
-
-
-@params(
-    (-1, -2, 6, 8),
-    (6, 8, 5, 6),
-    (0, 0, 12, 14),
+@cartesian_params(
+    ("cpu", "gpu"),
+    ("L", "RGB", "RGBA"),
+    (
+        (1, 2, 4, 5),
+        (-2, -3, 12, 14),
+    ),
 )
-def test_crop_out_of_bounds_tensor_cpu(top, left, height, width):
-    _assert_crop_matches_torchvision(make_test_tensor(), top, left, height, width)
+def test_crop_pil(device, mode, crop_case):
+    _skip_if_gpu_unavailable(device)
+    _assert_crop_matches_torchvision(_make_pil_image(mode), *crop_case, device=device)
 
 
-@params("L", "RGB", "RGBA")
-def test_crop_out_of_bounds_pil_cpu(mode):
-    _assert_crop_matches_torchvision(_make_pil_image(mode), top=-2, left=-3, height=12, width=14)
-
-
-def test_crop_batched_tensor_cpu():
-    tensor = make_test_tensor(shape=(4, 3, 8, 10))
-    _assert_crop_matches_torchvision(tensor, top=2, left=3, height=4, width=5)
-
-
-@unittest.skipUnless(torch.cuda.is_available(), "CUDA is not available")
-def test_crop_batched_tensor_gpu():
-    tensor = make_test_tensor(shape=(4, 3, 8, 10)).cuda()
-    _assert_crop_matches_torchvision(tensor, top=2, left=3, height=4, width=5, device="gpu")
+@cartesian_params(("cpu", "gpu"), ((2, 3, 4, 5),))
+def test_crop_batched_tensor(device, crop_case):
+    _skip_if_gpu_unavailable(device)
+    tensor = _move_tensor_to_device(make_test_tensor(shape=(4, 3, 8, 10)), device)
+    _assert_crop_matches_torchvision(tensor, *crop_case, device=device)
 
 
 @params(torch.float32, torch.int16, torch.int32)
-def test_crop_preserves_tensor_dtype_cpu(dtype):
+def test_crop_preserves_tensor_dtype(dtype):
     tensor = make_test_tensor(dtype=dtype)
     dali_out = crop(tensor, top=1, left=1, height=4, width=5)
     tv_out = tv_fn.crop(tensor, top=1, left=1, height=4, width=5)
@@ -137,21 +146,3 @@ def test_crop_invalid_output_size(height, width):
 def test_crop_invalid_coordinates(top, left):
     with assert_raises(TypeError):
         _ = crop(make_test_tensor(), top=top, left=left, height=1, width=1)
-
-
-@unittest.skipUnless(torch.cuda.is_available(), "CUDA is not available")
-@params(
-    (1, 2, 4, 5),
-    (-1, -2, 6, 8),
-)
-def test_crop_tensor_gpu(top, left, height, width):
-    tensor = make_test_tensor().cuda()
-    _assert_crop_matches_torchvision(tensor, top, left, height, width, device="gpu")
-
-
-@unittest.skipUnless(torch.cuda.is_available(), "CUDA is not available")
-@params("L", "RGB", "RGBA")
-def test_crop_pil_gpu(mode):
-    _assert_crop_matches_torchvision(
-        _make_pil_image(mode), top=-2, left=-3, height=12, width=14, device="gpu"
-    )
