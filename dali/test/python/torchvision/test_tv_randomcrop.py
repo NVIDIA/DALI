@@ -81,6 +81,42 @@ def _move_tensor_to_device(inpt, device):
     return inpt
 
 
+def _possible_torchvision_random_crop_outputs(inpt, size, padding, fill=0, padding_mode="constant"):
+    crop_h, crop_w = RandomCrop.adjust_size(size)
+    pad_left, pad_top, pad_right, pad_bottom = RandomCrop.adjust_padding(padding)
+
+    padded_h = inpt.shape[-2] + pad_top + pad_bottom
+    padded_w = inpt.shape[-1] + pad_left + pad_right
+
+    if padded_h < crop_h:
+        diff = crop_h - padded_h
+        pad_top += diff
+        pad_bottom += diff
+        padded_h += 2 * diff
+
+    if padded_w < crop_w:
+        diff = crop_w - padded_w
+        pad_left += diff
+        pad_right += diff
+        padded_w += 2 * diff
+
+    padded = tv_fn.pad(
+        inpt,
+        padding=[pad_left, pad_top, pad_right, pad_bottom],
+        fill=fill,
+        padding_mode=padding_mode,
+    )
+
+    top_values = range(padded_h - crop_h + 1) if padded_h > crop_h else range(1)
+    left_values = range(padded_w - crop_w + 1) if padded_w > crop_w else range(1)
+
+    return [
+        tv_fn.crop(padded, top=top, left=left, height=crop_h, width=crop_w)
+        for top in top_values
+        for left in left_values
+    ]
+
+
 def test_random_crop_is_operator():
     assert issubclass(RandomCrop, Operator)
 
@@ -162,6 +198,65 @@ def test_random_crop_padding_matches_torchvision_pil(device, mode):
     )
 
 
+@cartesian_params(
+    ("cpu", "gpu"),
+    (
+        ([0, 1, 2, 0], (7, 8)),
+        ([2, 0, 0, 1], (6, 9)),
+        ([1, 2, 0, 3], (10, 7)),
+    ),
+)
+def test_random_crop_asymmetric_padding_with_pad_if_needed(device, padding_case):
+    _skip_if_gpu_unavailable(device)
+    padding, size = padding_case
+    tensor = make_tensor(shape=(3, 4, 5))
+    expected_outputs = _possible_torchvision_random_crop_outputs(
+        tensor,
+        size=size,
+        padding=padding,
+    )
+
+    dali_out = _build_dali_random_crop(
+        size=size,
+        padding=padding,
+        pad_if_needed=True,
+        device=device,
+    )(_move_tensor_to_device(tensor, device)).cpu()
+
+    assert any(
+        torch.equal(dali_out, expected) for expected in expected_outputs
+    ), "DALI RandomCrop output is not a valid torchvision crop"
+
+
+@cartesian_params(("cpu", "gpu"))
+def test_random_crop_pad_if_needed_matches_torchvision_random_offsets(device):
+    _skip_if_gpu_unavailable(device)
+    tensor = make_tensor(shape=(3, 4, 5))
+    size = (6, 7)
+
+    expected_outputs = {
+        out.numpy().tobytes()
+        for out in _possible_torchvision_random_crop_outputs(
+            tensor,
+            size=size,
+            padding=None,
+        )
+    }
+    tv_transform = transforms.RandomCrop(size=size, pad_if_needed=True)
+    tv_outputs = {tv_transform(tensor).numpy().tobytes() for _ in range(100)}
+
+    assert len(tv_outputs) > 1, "Torchvision RandomCrop did not sample multiple offsets"
+    assert tv_outputs <= expected_outputs, "Torchvision produced an unexpected pad_if_needed crop"
+
+    dali_tensor = _move_tensor_to_device(tensor, device)
+    dali_transform = _build_dali_random_crop(size=size, pad_if_needed=True, device=device)
+    dali_outputs = {dali_transform(dali_tensor).cpu().numpy().tobytes() for _ in range(20)}
+
+    assert (
+        dali_outputs <= expected_outputs
+    ), "DALI RandomCrop produced an invalid pad_if_needed crop"
+
+
 """
 # TODO: Fill using dictionary pattern is currently not supported
 def test_random_crop_fill_dict_matches_torchvision_tensor():
@@ -198,6 +293,17 @@ def test_random_crop_tensor_shape(device, shape_case):
     out = _build_dali_random_crop(size=size, device=device)(tensor)
 
     assert out.shape == (3, *expected_hw)
+
+
+@cartesian_params(("cpu", "gpu"))
+def test_random_crop_samples_different_offsets(device):
+    _skip_if_gpu_unavailable(device)
+    tensor = _move_tensor_to_device(make_tensor(), device)
+    transform = _build_dali_random_crop(size=(4, 5), device=device)
+
+    outputs = {bytes(transform(tensor).cpu().numpy().tobytes()) for _ in range(20)}
+
+    assert len(outputs) > 1, "RandomCrop produced the same crop for every run"
 
 
 @params("cpu", "gpu")
