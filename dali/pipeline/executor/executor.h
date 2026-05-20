@@ -44,7 +44,7 @@ class OpGraph;
 class DLL_PUBLIC ExecutorBase {
  public:
   DLL_PUBLIC virtual ~ExecutorBase() {}
-  DLL_PUBLIC virtual void Build(const graph::OpGraph &graph, OperatorsMap &&operators) = 0;
+  DLL_PUBLIC virtual void Build(const graph::OpGraph &graph, OperatorsMap &&transferred_ops) = 0;
   // TODO(michalz): Remove
   DLL_PUBLIC virtual void Build(OpGraph *graph, std::vector<std::string> output_names) = 0;
   DLL_PUBLIC virtual void Init() = 0;

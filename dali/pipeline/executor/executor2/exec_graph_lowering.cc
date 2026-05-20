@@ -22,15 +22,15 @@
 namespace dali {
 namespace exec2 {
 
-void ExecGraph::Lower(const graph::OpGraph &def, OperatorsMap &&operators) {
+void ExecGraph::Lower(const graph::OpGraph &def, OperatorsMap &&transferred_ops) {
   Invalidate();
   std::unordered_map<const graph::OpNode *, ExecNode *> def2exec(def.OpNodes().size());
   for (const graph::OpNode &op_node : def.OpNodes()) {
     std::unique_ptr<OperatorBase> op;
-    auto op_it = operators.find(op_node.instance_name);
-    if (op_it != operators.end()) {
+    auto op_it = transferred_ops.find(op_node.instance_name);
+    if (op_it != transferred_ops.end()) {
       op = std::move(op_it->second);
-      operators.erase(op_it);
+      transferred_ops.erase(op_it);
     } else {
       try {
         op = InstantiateOperator(op_node.spec);
@@ -44,8 +44,8 @@ void ExecGraph::Lower(const graph::OpGraph &def, OperatorsMap &&operators) {
     ExecNode *exec_node = AddNode(std::move(op), &op_node);
     def2exec.emplace(&op_node, exec_node);
   }
-  DALI_ENFORCE(operators.empty(),
-               make_string("Transferred operator instance \"", operators.begin()->first,
+  DALI_ENFORCE(transferred_ops.empty(),
+               make_string("Transferred operator instance \"", transferred_ops.begin()->first,
                            "\" was not found in the pipeline graph."));
 
   auto it_def = def.OpNodes().begin();

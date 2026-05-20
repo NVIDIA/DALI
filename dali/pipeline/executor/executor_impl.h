@@ -129,8 +129,8 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
 
   DLL_PUBLIC int InputFeedCount(std::string_view op_name) override;
 
-  DLL_PUBLIC void Build(const graph::OpGraph &graph, OperatorsMap &&operators) override {
-    DALI_ENFORCE(operators.empty(), "Pre-instantiated operator instances are not supported.");
+  DLL_PUBLIC void Build(const graph::OpGraph &graph, OperatorsMap &&transferred_ops) override {
+    DALI_ENFORCE(transferred_ops.empty(), "Pre-instantiated operator instances are not supported.");
     lowered_graph_.Lower(graph);
     std::vector<std::string> output_names;
     for (std::string_view out : graph.Outputs())

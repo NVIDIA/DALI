@@ -364,7 +364,7 @@ int Pipeline::AddOperatorInstance(const OpSpec &spec,
   DALI_ENFORCE(op);
   DALI_ENFORCE(op->GetSpec().SchemaName() == spec.SchemaName());
   int result = AddOperator(spec, inst_name, logical_id);
-  transfer_ops_.emplace(std::string(inst_name), std::move(op));
+  transferred_ops_.emplace(std::string(inst_name), std::move(op));
   return result;
 }
 
@@ -653,7 +653,7 @@ void Pipeline::Build(std::vector<PipelineOutputDesc> output_descs) {
     const string &inst_name = name_op_spec.instance_name;
     OpSpec op_spec = name_op_spec.spec;
     try {
-      if (!transfer_ops_.count(inst_name))
+      if (!transferred_ops_.count(inst_name))
         PrepareOpSpec(&op_spec, name_op_spec.logical_id);
       graph_builder_.Add(inst_name, op_spec);
     } catch (...) {
@@ -681,7 +681,7 @@ void Pipeline::Build(std::vector<PipelineOutputDesc> output_descs) {
   graph::ComputeDataNodeMetadata(graph_);
 
   // Load the final graph into the executor
-  executor_->Build(graph_, std::move(transfer_ops_));
+  executor_->Build(graph_, std::move(transferred_ops_));
   // CAUTION: Do not insert anything that can throw between `executor_->Build()` and
   //          `DiscoverInputOperators`.
   DiscoverInputOperators();

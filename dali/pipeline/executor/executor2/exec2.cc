@@ -94,7 +94,7 @@ class Executor2::Impl {
     ShutDown,
   };
 
-  void Build(const graph::OpGraph &graph, OperatorsMap &&operators) {
+  void Build(const graph::OpGraph &graph, OperatorsMap &&transferred_ops) {
     DomainTimeRange tr("[DALI][Executor] Build");
     if (state_ != State::New)
       throw std::logic_error("Already built.");
@@ -109,7 +109,7 @@ class Executor2::Impl {
 
     state_ = State::Building;
     DeviceGuard dg(config_.device.value_or(CPU_ONLY_DEVICE_ID));
-    graph_.Lower(graph, std::move(operators));
+    graph_.Lower(graph, std::move(transferred_ops));
     BuildNodeDict();
     AnalyzeGraph();
     CheckNodeTypes();
@@ -470,8 +470,8 @@ Executor2::~Executor2() {
   impl_.reset();
 }
 
-void Executor2::Build(const graph::OpGraph &graph, OperatorsMap &&operators) {
-  impl_->Build(graph, std::move(operators));
+void Executor2::Build(const graph::OpGraph &graph, OperatorsMap &&transferred_ops) {
+  impl_->Build(graph, std::move(transferred_ops));
 }
 
 void Executor2::Init() {
