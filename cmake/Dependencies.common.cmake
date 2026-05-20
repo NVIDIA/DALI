@@ -320,18 +320,24 @@ if(BUILD_NVIMAGECODEC)
 
     find_package(nvimgcodec ${NVIMGCODEC_MIN_VERSION}...<${NVIMGCODEC_MAX_VERSION})
     if (NOT nvimgcodec_FOUND)
-      message(STATUS "nvImageCodec - not found; downloading from nvidia.com")
-      # Note: We are getting the x86_64 tarball, but we are only interested in the headers.
-      include(FetchContent)
-      FetchContent_Declare(
-        nvimgcodec_headers
-        URL      https://developer.download.nvidia.com/compute/nvimgcodec/redist/nvimgcodec/linux-x86_64/nvimgcodec-linux-x86_64-0.8.0.22-archive.tar.xz
-        URL_HASH SHA512=2a400f75c619a10c3dbcd298a83ef3307f6e08453b2cfb5040f6b22c64c7be0ac4552a2a80ed057afe7657cf0bb8cc2d54cdccf8bc50ffdf34cfd05b45082978
-      )
-      FetchContent_Populate(nvimgcodec_headers)
-      set(nvimgcodec_INCLUDE_DIR "${nvimgcodec_headers_SOURCE_DIR}/${CUDA_VERSION_MAJOR}/include")
-      if (NOT EXISTS "${nvimgcodec_INCLUDE_DIR}/nvimgcodec.h")
-        message(FATAL_ERROR "nvimgcodec.h not found in ${nvimgcodec_INCLUDE_DIR} - something went wrong with the download")
+      set(_nvimgcodec_local_include "${PROJECT_SOURCE_DIR}/third_party/nvimgcodec/include")
+      if (EXISTS "${_nvimgcodec_local_include}/nvimgcodec.h")
+        message(STATUS "nvImageCodec - using local headers from third_party/nvimgcodec/include")
+        set(nvimgcodec_INCLUDE_DIR "${_nvimgcodec_local_include}")
+      else()
+        message(STATUS "nvImageCodec - not found; downloading from nvidia.com")
+        # Note: We are getting the x86_64 tarball, but we are only interested in the headers.
+        include(FetchContent)
+        FetchContent_Declare(
+          nvimgcodec_headers
+          URL      https://developer.download.nvidia.com/compute/nvimgcodec/redist/nvimgcodec/linux-x86_64/nvimgcodec-linux-x86_64-0.8.0.22-archive.tar.xz
+          URL_HASH SHA512=2a400f75c619a10c3dbcd298a83ef3307f6e08453b2cfb5040f6b22c64c7be0ac4552a2a80ed057afe7657cf0bb8cc2d54cdccf8bc50ffdf34cfd05b45082978
+        )
+        FetchContent_Populate(nvimgcodec_headers)
+        set(nvimgcodec_INCLUDE_DIR "${nvimgcodec_headers_SOURCE_DIR}/${CUDA_VERSION_MAJOR}/include")
+        if (NOT EXISTS "${nvimgcodec_INCLUDE_DIR}/nvimgcodec.h")
+          message(FATAL_ERROR "nvimgcodec.h not found in ${nvimgcodec_INCLUDE_DIR} - something went wrong with the download")
+        endif()
       endif()
     endif()
     message(STATUS "Using nvimgcodec_INCLUDE_DIR=${nvimgcodec_INCLUDE_DIR}")
