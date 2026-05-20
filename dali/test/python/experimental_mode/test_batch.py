@@ -234,7 +234,7 @@ def test_batch_construction_from_list_of_torch_gpu_tensors_with_layout():
     assert b.batch_size == 3
     assert b.shape == [(3, 4)] * 3
     for i, t in enumerate(b.tensors):
-        expected = (np.ones((3, 4), dtype=np.float32) * i)
+        expected = np.ones((3, 4), dtype=np.float32) * i
         assert np.array_equal(asnumpy(t), expected)
 
 
@@ -249,6 +249,7 @@ def test_batch_construction_from_list_of_torch_gpu_tensors_dtype_fallback():
     b.evaluate()
     assert b.dtype == ndd.float32
     assert b.batch_size == 1
+    assert np.array_equal(asnumpy(b.tensors[0]), np.array([1, 2, 3], dtype=np.float32))
 
 
 @eval_modes()

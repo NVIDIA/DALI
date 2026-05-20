@@ -1343,14 +1343,37 @@ std::shared_ptr<TensorList<Backend>> TensorListFromListOfDLPackObjects(
 
   int expected_type = -2;
 
+  // Acquire all DLPack capsules and validate dtype consistency before consuming any of them.
+  // The capsule destructor restores ownership to the producer if a capsule is dropped before
+  // FillTensorFromDlPack consumes it, so a dtype-mismatch error here leaves the slow-path
+  // fallback in _batch.py free to re-call __dlpack__() without hitting a partially-consumed
+  // list of capsules.
+  std::vector<py::capsule> capsules;
+  capsules.reserve(list_of_objects.size());
   {
-    DomainTimeRange build_range("Build initial list", rangeColor);
+    DomainTimeRange peek_range("Peek dtypes", rangeColor);
     for (size_t i = 0; i < list_of_objects.size(); ++i) {
       py::object obj = list_of_objects[i];
-
       py::capsule capsule = GetDLPackCapsule<Backend>(obj, stream_handle);
+      DLManagedTensor *dlm_peek = DLMTensorRawPtrFromCapsule(capsule, /* consume */ false);
+      DALIDataType cur_type = ToDALIType(dlm_peek->dl_tensor.dtype);
+      if (expected_type == -2) {
+        expected_type = cur_type;
+      } else if (expected_type != static_cast<int>(cur_type)) {
+        throw py::type_error(make_string(
+            "Tensors cannot have different data types. Tensor at position ", i, " has type '",
+            cur_type, "' expected to have type '", DALIDataType(expected_type), "'."));
+      }
+      capsules.push_back(std::move(capsule));
+    }
+  }
+
+  {
+    DomainTimeRange build_range("Build initial list", rangeColor);
+    for (size_t i = 0; i < capsules.size(); ++i) {
       Tensor<Backend> tensor;
-      FillTensorFromDlPack(capsule, &tensor, i == 0 ? layout : std::optional<std::string>{});
+      FillTensorFromDlPack(capsules[i], &tensor,
+                           i == 0 ? layout : std::optional<std::string>{});
 
       if (i == 0) {
         non_contiguous.SetupLike(tensor);
@@ -1366,15 +1389,6 @@ std::shared_ptr<TensorList<Backend>> TensorListFromListOfDLPackObjects(
                 " but expected GPU ", expected_device_id, "."));
           }
         }
-      }
-
-      DALIDataType cur_type = tensor.type();
-      if (expected_type == -2) {
-        expected_type = cur_type;
-      } else if (expected_type != static_cast<int>(cur_type)) {
-        throw py::type_error(make_string(
-            "Tensors cannot have different data types. Tensor at position ", i, " has type '",
-            cur_type, "' expected to have type '", DALIDataType(expected_type), "'."));
       }
       non_contiguous.SetSample(i, tensor);
     }
