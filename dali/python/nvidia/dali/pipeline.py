@@ -1061,7 +1061,7 @@ class Pipeline(object):
         self._backend_prepared = True
         self._names_and_devices = [(e.name, e.device) for e in self._graph_outputs]
 
-    def _transfer_operator_instance(self, name, op_backend):
+    def _transfer_operator(self, name, op_backend):
         assert op_backend is not None
         assert name not in self._transfer_ops
         self._transfer_ops[name] = op_backend

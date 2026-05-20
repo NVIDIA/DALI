@@ -269,6 +269,7 @@ class CompileContext:
         source = self.source
         assert source is not None
 
+        transferred = False
         try:
             pipe = Pipeline(
                 batch_size=self.batch_size,
@@ -279,9 +280,10 @@ class CompileContext:
             with pipe:
                 _wire_compile_graph(self.reader, source, self.nodes)
             assert self.reader._op_backend is not None
-            pipe._transfer_operator_instance(self.reader._name, self.reader._op_backend)
+            pipe._transfer_operator(self.reader._name, self.reader._op_backend)
+            transferred = True
             pipe.build()
-        except Exception:
+        except Exception as exception:
             self.nodes.clear()
             self._call_trie = _CallTrie()
             self._pipeline_results.clear()
@@ -290,6 +292,15 @@ class CompileContext:
             # Reset Reader fields here, the exception propagates past the iterator
             self.reader._compile_mode = None
             self.reader._compiled_iter = None
+            # If there's a failure after _op_backend was transferred, we can't safely recover.
+            # Disable the reader. In practice, this case should be rare.
+            if transferred:
+                self.reader._disabled = True
+                raise RuntimeError(
+                    "Failed to build pipeline after transferring operator. "
+                    "Reader is now in invalid state."
+                ) from exception
+
             raise
 
         self.pipeline = pipe

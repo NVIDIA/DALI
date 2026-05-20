@@ -723,6 +723,8 @@ class Reader(Operator):
         self._tensor_arg_names: set[str] = set()
         # If set, the checkpoint state to apply once the backend is constructed.
         self._pending_state = None
+        # If set, the reader is in an invalid state and cannot be used
+        self._disabled = False
 
         if self._num_shards < 1:
             raise ValueError(
@@ -890,6 +892,10 @@ class Reader(Operator):
 
     def _run_unchecked(self, ctx=None, **kwargs):
         """Run the reader backend without API-type checking."""
+        if self._disabled:
+            raise RuntimeError(
+                "This reader is in an invalidate state due to a previous error and cannot be used."
+            )
         return super()._run(ctx, **kwargs)
 
     @staticmethod
@@ -938,6 +944,11 @@ class Reader(Operator):
             If True, transparently compile operator sequences into a pipeline for prefetching.
             Once used in compiled mode, the reader cannot switch back.
         """
+        if self._disabled:
+            raise RuntimeError(
+                "This reader is in an invalidate state due to a previous error and cannot be used."
+            )
+
         batch_size = self._get_batch_size(batch_size)
         if batch_size is None:
             batch_size = self._batch_size
