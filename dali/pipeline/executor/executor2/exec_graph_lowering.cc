@@ -22,7 +22,7 @@
 namespace dali {
 namespace exec2 {
 
-void ExecGraph::Lower(const graph::OpGraph &def, OperatorsMap &&transferred_ops) {
+void ExecGraph::Lower(const graph::OpGraph &def, OperatorMap &&transferred_ops) {
   Invalidate();
   std::unordered_map<const graph::OpNode *, ExecNode *> def2exec(def.OpNodes().size());
   for (const graph::OpNode &op_node : def.OpNodes()) {

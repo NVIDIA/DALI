@@ -97,7 +97,7 @@ class DLL_PUBLIC Executor2 : public ExecutorBase {
   explicit Executor2(const Config &config);
   ~Executor2() override;
 
-  void Build(const graph::OpGraph &graph, OperatorsMap &&transferred_ops) override;
+  void Build(const graph::OpGraph &graph, OperatorMap &&transferred_ops) override;
 
   void Build(OpGraph *graph, std::vector<std::string> output_names) override {
     throw std::logic_error("This function is maintained in the interface for legacy tests only.");

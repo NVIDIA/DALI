@@ -756,7 +756,7 @@ class DLL_PUBLIC Pipeline {
 
   std::vector<OpDefinition> op_specs_;
   std::vector<OpDefinition> op_specs_for_serialization_;
-  OperatorsMap transferred_ops_;
+  OperatorMap transferred_ops_;
   std::set<std::string, std::less<>> instance_names_;
 
   std::vector<PipelineOutputDesc> output_descs_;

@@ -380,7 +380,7 @@ class DLL_PUBLIC ExecGraph {
   tasking::TaskFuture Launch(tasking::Scheduler &sched);
 
   /** Populates the graph based on a pipeline definiton graph. */
-  void Lower(const graph::OpGraph &def, OperatorsMap &&transferred_ops = {});
+  void Lower(const graph::OpGraph &def, OperatorMap &&transferred_ops = {});
 
  private:
   /** Sorts the graph topologically. */

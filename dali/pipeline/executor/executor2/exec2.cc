@@ -94,7 +94,7 @@ class Executor2::Impl {
     ShutDown,
   };
 
-  void Build(const graph::OpGraph &graph, OperatorsMap &&transferred_ops) {
+  void Build(const graph::OpGraph &graph, OperatorMap &&transferred_ops) {
     DomainTimeRange tr("[DALI][Executor] Build");
     if (state_ != State::New)
       throw std::logic_error("Already built.");
@@ -470,7 +470,7 @@ Executor2::~Executor2() {
   impl_.reset();
 }
 
-void Executor2::Build(const graph::OpGraph &graph, OperatorsMap &&transferred_ops) {
+void Executor2::Build(const graph::OpGraph &graph, OperatorMap &&transferred_ops) {
   impl_->Build(graph, std::move(transferred_ops));
 }
 
