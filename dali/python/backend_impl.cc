@@ -1489,6 +1489,8 @@ std::shared_ptr<TensorList<Backend>> TensorListFromListOfTensors(
         non_contiguous.SetSample(i, t);
       } catch (const py::type_error &) {
         throw;
+      } catch (const py::value_error &) {
+        throw;
       } catch (const std::runtime_error &) {
         auto tensor_type = std::is_same_v<Backend, GPUBackend> ? "TensorGPU." : "TensorCPU.";
         throw py::type_error(

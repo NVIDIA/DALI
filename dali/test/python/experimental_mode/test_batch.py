@@ -233,6 +233,9 @@ def test_batch_construction_from_list_of_torch_gpu_tensors_with_layout():
     assert b.layout == "HW"
     assert b.batch_size == 3
     assert b.shape == [(3, 4)] * 3
+    for i, t in enumerate(b.tensors):
+        expected = (np.ones((3, 4), dtype=np.float32) * i)
+        assert np.array_equal(asnumpy(t), expected)
 
 
 @eval_modes()
@@ -566,6 +569,8 @@ def test_batch_construction_mixed_gpu_dlpack_value_error_fallback():
     assert b.dtype == ndd.int32
     assert b.batch_size == 2
     assert b.shape == [(3,), (3,)]
+    assert np.array_equal(asnumpy(b.tensors[0]), np.array([1, 2, 3], dtype=np.int32))
+    assert np.array_equal(asnumpy(b.tensors[1]), np.array([4, 5, 6], dtype=np.int32))
 
 
 @eval_modes()
@@ -586,6 +591,8 @@ def test_batch_construction_mixed_gpu_ndd_tensors():
     assert b.dtype == ndd.int32
     assert b.batch_size == 2
     assert b.shape == [(3,), (3,)]
+    assert np.array_equal(asnumpy(b.tensors[0]), np.array([1, 2, 3], dtype=np.int32))
+    assert np.array_equal(asnumpy(b.tensors[1]), np.array([4, 5, 6], dtype=np.int32))
 
 
 @eval_modes()

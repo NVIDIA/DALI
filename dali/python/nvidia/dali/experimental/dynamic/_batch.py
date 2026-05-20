@@ -302,11 +302,15 @@ class Batch:
                 # DLPack fast path: list of external tensors (e.g. PyTorch tensors).
                 # Build TensorListGPU/TensorListCPU directly in C++, skipping per-sample
                 # Python Tensor wrappers.
+                # Require every element to support DLPack so we never start consuming
+                # capsules in C++ only to discover a non-DLPack element halfway through.
                 if not fast_path_used and (
                     dtype is None
                     and len(tensors_list) > 0
-                    and not isinstance(tensors_list[0], Tensor)
-                    and hasattr(tensors_list[0], "__dlpack_device__")
+                    and all(
+                        not isinstance(t, Tensor) and hasattr(t, "__dlpack_device__")
+                        for t in tensors_list
+                    )
                 ):
                     dl_dev_type, dl_dev_id = tensors_list[0].__dlpack_device__()
                     if int(dl_dev_type) == 2:  # kDLCUDA - GPU
