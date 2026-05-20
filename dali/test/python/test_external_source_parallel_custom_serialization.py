@@ -347,7 +347,13 @@ def test_if_custom_type_reducers_are_respected_by_dali_reducer():
 
 
 @register_case(tests_dali_pickling)
-@raises(PicklingError, "Can't pickle * attribute lookup simple_callback on * failed")
+@raises(
+    PicklingError,
+    regex=(
+        r"Can't pickle .*simple_callback.*"
+        r"(attribute lookup simple_callback on .* failed|not found as .*\.simple_callback)"
+    ),
+)
 def _test_global_function_pickled_by_reference(name, py_callback_pickler):
     # modify callback name so that an attempt to pickle by reference,
     # which is default Python behavior, fails

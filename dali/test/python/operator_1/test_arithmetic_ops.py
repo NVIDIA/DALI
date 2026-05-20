@@ -503,7 +503,7 @@ def check_unary_op(kind, type, op, shape, _):
         if "f" in np.dtype(type).kind:
             np.testing.assert_allclose(out, op(in_np), rtol=1e-07 if type != np.float16 else 0.005)
         else:
-            np.testing.assert_array_equal(out, op(in_np))
+            assert np.array_equal(out, op(in_np))
 
 
 def test_unary_arithmetic_ops():
@@ -606,7 +606,7 @@ def check_arithm_op(kinds, types, op, shape, get_range, op_desc):
                 out, numpy_op(l_np, r_np), rtol=1e-06 if target_type != np.float16 else 0.005
             )
         else:
-            np.testing.assert_array_equal(out, numpy_op(l_np, r_np))
+            assert np.array_equal(out, numpy_op(l_np, r_np))
 
 
 def check_ternary_op(kinds, types, op, shape, _):
@@ -629,7 +629,7 @@ def check_ternary_op(kinds, types, op, shape, _):
                 out, numpy_op(x, y, z), rtol=1e-07 if target_type != np.float16 else 0.005
             )
         else:
-            np.testing.assert_array_equal(out, numpy_op(x, y, z))
+            assert np.array_equal(out, numpy_op(x, y, z))
 
 
 def test_arithmetic_ops_big():
@@ -759,7 +759,7 @@ def check_comparsion_op(kinds, types, op, shape, _):
     for sample in range(batch_size):
         l_np, r_np, out = extract_data(pipe_out, sample, kinds, None)
         assert_equals(out.dtype, np.bool_)
-        np.testing.assert_array_equal(out, op(l_np, r_np), err_msg=f"{l_np} op\n{r_np} =\n{out}")
+        assert np.array_equal(out, op(l_np, r_np)), f"{l_np} op\n{r_np} =\n{out}"
 
 
 def test_comparison_ops_selected():
@@ -880,7 +880,7 @@ def check_arithm_div(kinds, types, shape):
             neg = ((l_np < 0) & (r_np > 0)) | ((l_np > 0) & (r_np < 0))
             pos = ~neg
             result = result * (pos * 1 - neg * 1)
-            np.testing.assert_array_equal(out, result)
+            assert np.array_equal(out, result)
 
 
 def test_arithmetic_division_big():
@@ -934,7 +934,7 @@ def check_arithm_mod(kinds, types, shape):
         l_np, r_np, out = extract_data(pipe_out, sample, kinds, target_type)
         assert_equals(out.dtype, target_type)
 
-        np.testing.assert_array_equal(
+        assert np.array_equal(
             out, np.fmod(l_np.astype(np.float64), r_np.astype(np.float64)).astype(target_type)
         )
 

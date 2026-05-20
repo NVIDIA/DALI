@@ -21,12 +21,12 @@ import nvidia.dali.tfrecord as tfrec
 import nvidia.dali as dali
 from nvidia.dali import pipeline_def
 import numpy as np
-from numpy.testing import assert_array_equal
 import os
 import random
 from math import floor, ceil
-import sys
 import warnings
+import weakref
+import gc
 from webdataset_base import generate_temp_index_file as generate_temp_wds_index
 
 from test_utils import (
@@ -736,8 +736,8 @@ def test_type_conversion():
         orig_cpu = pipe_out[1].as_cpu().as_tensor()
         int_cpu = pipe_out[2].as_cpu().as_tensor()
         arg1_cpu = pipe_out[3].as_cpu().as_tensor()
-        assert_array_equal(orig_cpu, int_cpu)
-        assert_array_equal(orig_cpu, arg1_cpu)
+        assert np.array_equal(orig_cpu, int_cpu)
+        assert np.array_equal(orig_cpu, arg1_cpu)
 
 
 class ExternalInputIterator(object):
@@ -1328,8 +1328,8 @@ def check_duplicated_outs_pipeline(first_device, second_device):
         out2 = as_array(out[1][i])
         out3 = as_array(out[2][i])
 
-        np.testing.assert_array_equal(out1, out2)
-        np.testing.assert_array_equal(out1, out3)
+        assert np.array_equal(out1, out2)
+        assert np.array_equal(out1, out3)
 
 
 def test_duplicated_outs_pipeline():
@@ -1364,8 +1364,8 @@ def check_serialized_outs_duplicated_pipeline(first_device, second_device):
         out2 = as_array(out[1][i])
         out3 = as_array(out[2][i])
 
-        np.testing.assert_array_equal(out1, out2)
-        np.testing.assert_array_equal(out1, out3)
+        assert np.array_equal(out1, out2)
+        assert np.array_equal(out1, out3)
 
 
 def test_serialized_outs_duplicated_pipeline():
@@ -1582,8 +1582,10 @@ def test_ref_count():
             return self.labels
 
     pipe = HybridPipe()
-    assert sys.getrefcount(pipe) == 2
-    assert sys.getrefcount(pipe) == 2
+    ref = weakref.ref(pipe)
+    del pipe
+    gc.collect()
+    assert ref() is None, "Pipeline leaked a reference"
 
 
 def test_executor_meta():

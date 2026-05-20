@@ -80,7 +80,7 @@ requirements:
     - zlib
     - libjpeg-turbo
     - libopencv
-    - dali-ffmpeg
+    - ffmpeg
     - lmdb
     - libtiff
     - libsndfile
@@ -95,6 +95,7 @@ requirements:
   run:
     - libjpeg-turbo
     - libopencv
+    - ffmpeg
     - lmdb
     - libtiff
     - libsndfile

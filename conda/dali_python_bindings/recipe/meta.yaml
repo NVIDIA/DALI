@@ -17,6 +17,15 @@ package:
   name: nvidia-dali{% if environ.get('NVIDIA_DALI_BUILD_FLAVOR', '')|length %}{{"-" + environ.get('NVIDIA_DALI_BUILD_FLAVOR', '')}}{% endif %}-cuda{{ environ.get('CUDA_VERSION', '') | replace(".","") }}
   version: {{ environ.get('DALI_CONDA_BUILD_VERSION', '') }}
 
+{% if freethreading is not defined %}
+{% set freethreading = "no" %}
+{% endif %}
+{% set freethreading = freethreading | string | lower %}
+{% if freethreading == "true" %}
+{% set freethreading = "yes" %}
+{% endif %}
+{% set py_abi_suffix = "t" if freethreading == "yes" else "" %}
+
 source:
   # Beware: Only committed files are used
   - git_url: ../../..
@@ -59,7 +68,7 @@ build:
    - LD_LIBRARY_PATH
    - DALI_CONDA_BUILD_VERSION
    - CUDA_VERSION
-  string: py{{ python | replace(".","") }}_{{ environ.get('NVIDIA_BUILD_ID', '') }}
+  string: py{{ python | replace(".","") }}{{ py_abi_suffix }}_{{ environ.get('NVIDIA_BUILD_ID', '') }}
 
 requirements:
   build:
@@ -81,8 +90,12 @@ requirements:
     # so zlib must be in host for find_package(Protobuf) to succeed.
     - zlib
     - libopencv
-    - dali-ffmpeg
     - python
+    {% if freethreading == "yes" %}
+    - python-freethreading
+    {% elif python | float >= 3.13 %}
+    - python-gil
+    {% endif %}
     - setuptools
     - future
     - astunparse >=1.6.0
@@ -96,6 +109,11 @@ requirements:
     - libnvimgcodec-dev >=0.8.0,<0.9.0
   run:
     - python
+    {% if freethreading == "yes" %}
+    - python-freethreading
+    {% elif python | float >= 3.13 %}
+    - python-gil
+    {% endif %}
     # libprotobuf-static we link statically depends on libabseil so add libprotobuf here as a runtime
     # dependency to install the right version on the libabseil (as protobuf depends on
     # libprotobuf-static and a newer version of libprotobuf-static may be available than

@@ -31,19 +31,7 @@ class PrettyPrinterTest(unittest.TestCase):
         self.assertIsNotNone(pretty_printer.fmt(node))
 
     def test_format(self):
-        node = ast.FunctionDef(
-            name="f",
-            args=ast.arguments(
-                args=[ast.Name(id="a", ctx=ast.Param())], vararg=None, kwarg=None, defaults=[]
-            ),
-            body=[
-                ast.Return(
-                    ast.BinOp(op=ast.Add(), left=ast.Name(id="a", ctx=ast.Load()), right=ast.Num(1))
-                )
-            ],
-            decorator_list=[],
-            returns=None,
-        )
+        node = ast.parse("def f(a):\n    return a + 1\n").body[0]
         # Just checking for functionality, the color control characters make it
         # difficult to inspect the result.
         self.assertIsNotNone(pretty_printer.fmt(node))
