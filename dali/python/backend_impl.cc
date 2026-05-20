@@ -1383,7 +1383,7 @@ std::shared_ptr<TensorList<Backend>> TensorListFromListOfDLPackObjects(
       } else {
         if constexpr (std::is_same_v<Backend, GPUBackend>) {
           if (tensor.device_id() != expected_device_id) {
-            throw py::value_error(make_string(
+            throw std::runtime_error(make_string(
                 "All tensors must reside on the same GPU device. "
                 "Tensor at position ", i, " is on GPU ", tensor.device_id(),
                 " but expected GPU ", expected_device_id, "."));
