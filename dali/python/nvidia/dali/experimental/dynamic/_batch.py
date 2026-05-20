@@ -299,56 +299,6 @@ class Batch:
                     layout = self._layout
                     fast_path_used = True
 
-                # Native DALI fast path: list of evaluated ndd.Tensor objects.
-                # Build TensorList directly from backend storage objects, preserving all
-                # metadata (layout, enum types, etc.) without going through DLPack.
-                if (
-                    len(tensors_list) > 0
-                    and isinstance(tensors_list[0], Tensor)
-                    and tensors_list[0]._storage is not None
-                ):
-                    first_storage = tensors_list[0]._storage
-                    first_dev_id = (
-                        first_storage.device_id()
-                        if isinstance(first_storage, _backend.TensorGPU)
-                        else None
-                    )
-                    storages = []
-                    for t in tensors_list:
-                        if (
-                            not isinstance(t, Tensor)
-                            or t._storage is None
-                            or type(t._storage) is not type(first_storage)
-                            or (first_dev_id is not None and t._storage.device_id() != first_dev_id)
-                            or (dtype is not None and DType.from_type_id(t._storage.dtype) != dtype)
-                        ):
-                            break
-                        storages.append(t._storage)
-                    else:
-                        if isinstance(first_storage, _backend.TensorGPU):
-                            dev_matches = device is None or (
-                                device.device_type == "gpu" and device.device_id == first_dev_id
-                            )
-                            BackendType = _backend.TensorListGPU
-                            dev = Device("gpu", first_dev_id)
-                        else:
-                            dev_matches = device is None or device.device_type == "cpu"
-                            BackendType = _backend.TensorListCPU
-                            dev = Device("cpu")
-                        if dev_matches:
-                            try:
-                                storage = BackendType(
-                                    storages, layout=layout or None, contiguous=False
-                                )
-                            except (TypeError, RuntimeError):
-                                pass  # fall through to slow path
-                            else:
-                                assign_fast_path_storage(
-                                    storage,
-                                    dev,
-                                    any(t._wraps_external_data for t in tensors_list),
-                                )
-
                 # DLPack fast path: list of external tensors (e.g. PyTorch tensors).
                 # Build TensorListGPU/TensorListCPU directly in C++, skipping per-sample
                 # Python Tensor wrappers.

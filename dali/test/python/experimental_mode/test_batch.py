@@ -159,7 +159,8 @@ def test_batch_construction_with_torch_tensor(device_type):
 @eval_modes()
 @params(("cpu",), ("gpu",))
 def test_batch_construction_from_list_of_dali_tensors(device_type):
-    """Native fast path: list of evaluated ndd.Tensor builds TensorList directly from storage."""
+    """Batch from a list of evaluated ndd.Tensor objects preserves device, dtype, layout, shape,
+    and values."""
     data = [
         ndd.tensor(np.array([i, i + 1, i + 2], dtype=np.int32), device=device_type, layout="X")
         for i in range(4)
@@ -175,6 +176,30 @@ def test_batch_construction_from_list_of_dali_tensors(device_type):
     for i, t in enumerate(b.tensors):
         expected = np.array([i, i + 1, i + 2], dtype=np.int32)
         assert np.array_equal(asnumpy(t), expected)
+
+
+@eval_modes(ndd.EvalMode.deferred, ndd.EvalMode.eager)
+@params(("cpu",), ("gpu",))
+def test_as_batch_does_not_eagerly_create_storage(device_type):
+    # as_batch over a list of evaluated ndd.Tensors must not eagerly allocate a TensorList:
+    # the per-sample Tensor objects can still be retrieved via .tensors and the backing
+    # storage is materialised lazily only when required. Each per-sample Tensor must also
+    # share its underlying storage with the corresponding input tensor (no copy).
+    # The sync_* eval modes are excluded because they explicitly evaluate the Batch at the
+    # end of construction.
+    data = [
+        ndd.tensor(np.array([i, i + 1, i + 2], dtype=np.int32), device=device_type, layout="X")
+        for i in range(4)
+    ]
+    for t in data:
+        t.evaluate()
+    b = ndd.as_batch(data)
+    assert b._storage is None
+    extracted = [b.tensors[i] for i in range(4)]
+    assert b._storage is None
+    for i, t in enumerate(extracted):
+        assert t._storage is data[i]._storage
+        assert np.array_equal(asnumpy(t), np.array([i, i + 1, i + 2], dtype=np.int32))
 
 
 @eval_modes()
@@ -454,7 +479,7 @@ def test_batch_from_tensor_and_layout(device_type):
 @eval_modes()
 @params(("cpu",), ("gpu",))
 def test_batch_construction_from_list_of_dali_tensors_matching_dtype(device_type):
-    """Native fast path: matching dtype does not prevent the fast path from being used."""
+    """An explicit dtype that matches the input ndd.Tensor dtype is accepted without conversion."""
     data = [
         ndd.tensor(np.array([i, i + 1, i + 2], dtype=np.int32), device=device_type)
         for i in range(3)
@@ -471,7 +496,7 @@ def test_batch_construction_from_list_of_dali_tensors_matching_dtype(device_type
 @eval_modes()
 @params(("cpu",), ("gpu",))
 def test_batch_construction_from_list_of_dali_tensors_dtype_mismatch(device_type):
-    """Dtype mismatch in native fast path falls through to slow path with type conversion."""
+    """An explicit dtype that differs from the input ndd.Tensor dtype triggers type conversion."""
     data = [
         ndd.tensor(np.array([i, i + 1, i + 2], dtype=np.int32), device=device_type)
         for i in range(3)
@@ -545,8 +570,8 @@ def test_batch_construction_mixed_gpu_dlpack_value_error_fallback():
 
 @eval_modes()
 @attr("multi_gpu")
-def test_batch_construction_native_fast_path_mixed_gpu_fallback():
-    """Native fast path rejects tensors from different GPU devices; slow path handles them."""
+def test_batch_construction_mixed_gpu_ndd_tensors():
+    """Batch from ndd.Tensors residing on different GPU devices uses the first tensor's device."""
     if _b.GetCUDADeviceCount() < 2:
         raise SkipTest("At least 2 devices needed for the test")
 
