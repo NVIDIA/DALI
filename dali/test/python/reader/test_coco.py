@@ -19,7 +19,7 @@ import tempfile
 import json
 from nvidia.dali import Pipeline, pipeline_def
 
-from nose_utils import raises
+from nose_utils import assert_raises, raises
 from nose2.tools import params
 from test_utils import compare_pipelines, get_dali_extra_path
 
@@ -127,6 +127,51 @@ def test_operator_coco_reader_label_remap(avoid_remap):
                 out[1].at(s).item()
             ), f"{i}, {ids_map[int(out[0].at(s).item())]} vs {out[1].at(s).item()}"
             i = i + 1
+
+
+@pipeline_def(batch_size=1, num_threads=1, device_id=None)
+def coco_invalid_bbox_pipe(annotations_file):
+    inputs, boxes, labels = fn.readers.coco(
+        file_root=file_root,
+        annotations_file=annotations_file,
+    )
+    return inputs, boxes, labels
+
+
+@params([], [1, 2, 3], [1, 2, 3, 4, 5])
+def test_operator_coco_reader_rejects_invalid_bbox_size(bbox):
+    annotations = {
+        "images": [
+            {
+                "id": 1,
+                "width": 640,
+                "height": 480,
+                "file_name": "car-race-438467_1280.jpg",
+            }
+        ],
+        "categories": [{"id": 1}],
+        "annotations": [
+            {
+                "id": 1,
+                "image_id": 1,
+                "category_id": 1,
+                "bbox": bbox,
+                "iscrowd": 0,
+            }
+        ],
+    }
+
+    with tempfile.TemporaryDirectory() as annotations_dir:
+        annotations_file = os.path.join(annotations_dir, "instances.json")
+        with open(annotations_file, "w") as f:
+            json.dump(annotations, f)
+
+        pipe = coco_invalid_bbox_pipe(annotations_file)
+        assert_raises(
+            ValueError,
+            pipe.run,
+            glob="*Invalid COCO annotation: `bbox` must contain exactly 4 values*",
+        )
 
 
 def test_operator_coco_reader_same_images():
