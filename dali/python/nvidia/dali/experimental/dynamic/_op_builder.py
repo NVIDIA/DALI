@@ -257,6 +257,11 @@ def _get_inputs(schema):
     return inputs
 
 
+def _check_batch_size_available(op_class, batch_size):
+    if op_class._schema_name == "BatchPermutation" and batch_size is None:
+        raise ValueError("`batch_size` must be specified for dynamic `batch_permutation`.")
+
+
 def build_call_function(schema, op_class):
     """
     Generates __call__ method for an operator subclass.
@@ -317,6 +322,7 @@ def build_call_function(schema, op_class):
 
         if batch_size is None:
             batch_size = _ops._infer_batch_size(*raw_args, **raw_kwargs)
+        _check_batch_size_available(op_class, batch_size)
         is_batch = batch_size is not None
 
         if _process_params:
@@ -484,6 +490,7 @@ def build_fn_wrapper(op, fn_name=None, add_to_module=True):
     def fn_call(*inputs, batch_size=None, device=None, _backend=None, **raw_kwargs):
         if batch_size is None:
             batch_size = _ops._infer_batch_size(*inputs, **raw_kwargs)
+        _check_batch_size_available(op, batch_size)
         max_batch_size = _next_pow2(batch_size or 1)
         init_args = {
             arg: _scalar_decay(value)

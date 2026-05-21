@@ -15,7 +15,7 @@
 import nvidia.dali.experimental.dynamic as ndd
 import numpy as np
 from nose2.tools import cartesian_params, params
-from nose_utils import raises
+from nose_utils import assert_raises, raises
 
 
 def asnumpy(tensor_or_batch):
@@ -150,6 +150,15 @@ def test_rng_clone():
 @raises(ValueError, glob="both")
 def test_rng_init_seed_and_state_error():
     ndd.random.RNG(seed=0, state="")
+
+
+def test_batch_permutation_requires_batch_size():
+    with assert_raises(ValueError, glob="*batch_size*batch_permutation*"):
+        ndd.batch_permutation(rng=ndd.random.RNG(seed=1234))
+
+    op = ndd._ops.BatchPermutation()
+    with assert_raises(ValueError, glob="*batch_size*batch_permutation*"):
+        op(rng=ndd.random.RNG(seed=1234))
 
 
 def test_rng_set_seed():
