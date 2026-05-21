@@ -257,9 +257,11 @@ void TensorList<Backend>::VerifySampleShareCompatibility(DALIDataType type, int 
                            this->GetLayout(), ", new: ", layout, " or come with empty layout ",
                            error_suffix));
 
-  DALI_ENFORCE(this->is_pinned() == pinned,
-               make_string("Sample must have the same pinned status as target batch, current: ",
-                           this->is_pinned(), ", new: ", pinned, error_suffix));
+  if constexpr (std::is_same_v<Backend, CPUBackend>) {
+    DALI_ENFORCE(this->is_pinned() == pinned,
+                 make_string("Sample must have the same pinned status as target batch, current: ",
+                             this->is_pinned(), ", new: ", pinned, error_suffix));
+  }
 
   DALI_ENFORCE(this->device_id() == device_id,
                make_string("Sample must have the same device id as target batch, current: ",

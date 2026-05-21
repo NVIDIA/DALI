@@ -283,12 +283,12 @@ void FillTensorFromDlPack(
       const std::optional<std::string> &layout) {
   auto dlm_tensor_ptr = DLMTensorPtrFromCapsule(capsule);
   const auto &dl_tensor = dlm_tensor_ptr->dl_tensor;
-  DALI_ENFORCE(
-    (std::is_same<SrcBackend, GPUBackend>::value &&
-      dl_tensor.device.device_type == kDLCUDA) ||
-    (std::is_same<SrcBackend, CPUBackend>::value &&
-      (dl_tensor.device.device_type == kDLCPU || dl_tensor.device.device_type == kDLCUDAHost)),
-    "DLPack device type doesn't match Tensor type");
+  DALI_ENFORCE((std::is_same<SrcBackend, GPUBackend>::value &&
+                  dl_tensor.device.device_type == kDLCUDA) ||
+               (std::is_same<SrcBackend, CPUBackend>::value &&
+                  (dl_tensor.device.device_type == kDLCPU ||
+                   dl_tensor.device.device_type == kDLCUDAHost)),
+               "DLPack device type doesn't match Tensor type");
 
   const TypeInfo &dali_type = TypeTable::GetTypeInfo(ToDALIType(dl_tensor.dtype));
   TensorShape<> shape;
@@ -1209,6 +1209,234 @@ std::unique_ptr<Tensor<Backend> > TensorListGetItemImpl(TensorList<Backend> &t, 
 }
 
 template <typename Backend>
+constexpr uint32_t TensorListDLPackRangeColor() {
+  return std::is_same_v<Backend, CPUBackend> ? kCPUTensorColor : kGPUTensorColor;
+}
+
+template <typename Backend>
+const char *TensorListDLPackRangeName() {
+  if constexpr (std::is_same_v<Backend, CPUBackend>) {
+    return "TensorListFromListOfDLPackObjectsCPU";
+  } else {
+    return "TensorListFromListOfDLPackObjectsGPU";
+  }
+}
+
+template <typename Backend>
+void CheckDLPackDeviceBeforeCapsule(py::object obj, size_t idx,
+                                    int &expected_device_id,
+                                    AccessOrder &copy_order) {
+  if (!py::hasattr(obj, "__dlpack__")) {
+    throw py::type_error(make_string(
+        "Object at position ", idx, " does not support the DLPack protocol."));
+  }
+  if (!py::hasattr(obj, "__dlpack_device__")) {
+    return;
+  }
+
+  py::tuple dev_info = obj.attr("__dlpack_device__")();
+  int dev_type = dev_info[0].cast<int>();
+  if constexpr (std::is_same_v<Backend, CPUBackend>) {
+    (void)expected_device_id;
+    (void)copy_order;
+    if (dev_type != kDLCPU && dev_type != kDLCUDAHost) {
+      throw py::value_error(make_string(
+          "All tensors must reside in CPU memory. "
+          "Tensor at position ", idx, " has DLPack device type ", dev_type, "."));
+    }
+  } else {
+    if (dev_type != kDLCUDA) {
+      throw py::value_error(make_string(
+          "All tensors must reside in GPU memory. "
+          "Tensor at position ", idx, " has DLPack device type ", dev_type, "."));
+    }
+    int dev_id = dev_info[1].cast<int>();
+    if (expected_device_id == -1) {
+      expected_device_id = dev_id;
+      // When no explicit stream was given, look up the UserStream for this device
+      // so every __dlpack__() call below uses the same concrete stream handle.
+      if (copy_order == AccessOrder::host()) {
+        copy_order = AccessOrder(UserStream::Get()->GetStream(
+            static_cast<size_t>(expected_device_id)));
+      }
+    } else if (dev_id != expected_device_id) {
+      throw py::value_error(make_string(
+          "All tensors must reside on the same GPU device. "
+          "Tensor at position ", idx, " is on GPU ", dev_id,
+          " but expected GPU ", expected_device_id, "."));
+    }
+  }
+}
+
+template <typename Backend>
+py::capsule GetDLPackCapsule(py::object obj, py::object stream_handle) {
+  if constexpr (std::is_same_v<Backend, CPUBackend>) {
+    (void)stream_handle;
+    return obj.attr("__dlpack__")();
+  } else {
+    return obj.attr("__dlpack__")("stream"_a = stream_handle);
+  }
+}
+
+template <typename Backend>
+std::shared_ptr<TensorList<Backend>> TensorListFromListOfDLPackObjects(
+      py::list &list_of_objects,
+      const std::optional<std::string> &layout,
+      py::object stream,
+      bool contiguous) {
+  constexpr uint32_t rangeColor = TensorListDLPackRangeColor<Backend>();
+  DomainTimeRange range(TensorListDLPackRangeName<Backend>(), rangeColor);
+
+  if (list_of_objects.empty()) {
+    auto ptr = std::make_shared<TensorList<Backend>>();
+    if (layout.has_value()) {
+      ptr->set_sample_dim(layout->length());
+      ptr->SetLayout(*layout);
+    }
+    return ptr;
+  }
+
+  AccessOrder copy_order = AccessOrder::host();
+  if constexpr (std::is_same_v<Backend, GPUBackend>) {
+    if (!stream.is_none())
+      copy_order = AccessOrderFromPythonStreamObj(stream);
+  }
+
+  // Preflight pass: validate device compatibility before consuming any capsule.
+  // __dlpack__() is single-use, so mismatches must be caught before the handshake starts.
+  int expected_device_id = -1;
+  for (size_t i = 0; i < list_of_objects.size(); ++i) {
+    py::object obj = list_of_objects[i];
+    CheckDLPackDeviceBeforeCapsule<Backend>(obj, i, expected_device_id, copy_order);
+  }
+
+  if constexpr (std::is_same_v<Backend, GPUBackend>) {
+    // If no __dlpack_device__ was found and no explicit stream was provided, fall back to the
+    // current CUDA device so every __dlpack__() call receives a concrete consumer stream.
+    if (copy_order == AccessOrder::host()) {
+      int current_dev = -1;
+      CUDA_CALL(cudaGetDevice(&current_dev));
+      copy_order = AccessOrder(UserStream::Get()->GetStream(static_cast<size_t>(current_dev)));
+    }
+  }
+
+  // Derive the DLPack consumer-stream handle from copy_order so the producer always
+  // synchronizes with the exact same stream that DALI will use for the copy.
+  py::object stream_handle = py::none();
+  if constexpr (std::is_same_v<Backend, GPUBackend>) {
+    if (copy_order.is_device()) {
+      stream_handle = py::int_(reinterpret_cast<int64_t>(copy_order.stream()));
+    }
+  }
+
+  std::optional<TensorList<Backend>> non_contiguous_tmp;
+  std::shared_ptr<TensorList<Backend>> non_contiguous_out;
+
+  if (contiguous)
+    non_contiguous_tmp = TensorList<Backend>(list_of_objects.size());
+  else
+    non_contiguous_out = std::make_shared<TensorList<Backend>>(list_of_objects.size());
+
+  TensorList<Backend> &non_contiguous = contiguous
+    ? non_contiguous_tmp.value()
+    : *non_contiguous_out;
+
+  int expected_type = -2;
+
+  // Acquire all DLPack capsules and validate dtype consistency before consuming any of them.
+  // The capsule destructor restores ownership to the producer if a capsule is dropped before
+  // FillTensorFromDlPack consumes it, so a dtype-mismatch error here leaves the slow-path
+  // fallback in _batch.py free to re-call __dlpack__() without hitting a partially-consumed
+  // list of capsules.
+  std::vector<py::capsule> capsules;
+  capsules.reserve(list_of_objects.size());
+  {
+    DomainTimeRange peek_range("Peek dtypes", rangeColor);
+    for (size_t i = 0; i < list_of_objects.size(); ++i) {
+      py::object obj = list_of_objects[i];
+      py::capsule capsule = GetDLPackCapsule<Backend>(obj, stream_handle);
+      DLManagedTensor *dlm_peek = DLMTensorRawPtrFromCapsule(capsule, /* consume */ false);
+      DALIDataType cur_type = ToDALIType(dlm_peek->dl_tensor.dtype);
+      if (expected_type == -2) {
+        expected_type = cur_type;
+      } else if (expected_type != static_cast<int>(cur_type)) {
+        throw py::type_error(make_string(
+            "Tensors cannot have different data types. Tensor at position ", i, " has type '",
+            cur_type, "' expected to have type '", DALIDataType(expected_type), "'."));
+      }
+      capsules.push_back(std::move(capsule));
+    }
+  }
+
+  {
+    DomainTimeRange build_range("Build initial list", rangeColor);
+    for (size_t i = 0; i < capsules.size(); ++i) {
+      Tensor<Backend> tensor;
+      FillTensorFromDlPack(capsules[i], &tensor,
+                           i == 0 ? layout : std::optional<std::string>{});
+
+      if (i == 0) {
+        non_contiguous.SetupLike(tensor);
+        if constexpr (std::is_same_v<Backend, GPUBackend>) {
+          expected_device_id = tensor.device_id();
+        }
+      } else {
+        if constexpr (std::is_same_v<Backend, GPUBackend>) {
+          if (tensor.device_id() != expected_device_id) {
+            throw std::runtime_error(make_string(
+                "All tensors must reside on the same GPU device. "
+                "Tensor at position ", i, " is on GPU ", tensor.device_id(),
+                " but expected GPU ", expected_device_id, "."));
+          }
+        }
+      }
+      non_contiguous.SetSample(i, tensor);
+    }
+  }
+
+  if (!contiguous) {
+    SetLayout(non_contiguous, layout, false);
+    if constexpr (std::is_same_v<Backend, GPUBackend>) {
+      // Record which stream holds the data so downstream consumers can synchronize correctly.
+      non_contiguous_out->set_order(copy_order);
+    }
+    return non_contiguous_out;
+  }
+
+  {
+    DomainTimeRange copy_range("Copy to contiguous", rangeColor);
+    auto contiguous_out = std::make_shared<TensorList<Backend>>();
+    contiguous_out->SetContiguity(BatchContiguity::Contiguous);
+    if constexpr (std::is_same_v<Backend, GPUBackend>) {
+      contiguous_out->set_pinned(non_contiguous.is_pinned());
+    }
+    contiguous_out->Copy(non_contiguous, copy_order);
+    SetLayout(*contiguous_out, layout, false);
+    if constexpr (std::is_same_v<Backend, GPUBackend>) {
+      contiguous_out->set_order(copy_order);
+    }
+    return contiguous_out;
+  }
+}
+
+std::shared_ptr<TensorList<CPUBackend>> TensorListFromListOfDLPackObjectsCPU(
+      py::list &list_of_objects,
+      const std::optional<std::string> &layout,
+      bool contiguous) {
+  return TensorListFromListOfDLPackObjects<CPUBackend>(
+      list_of_objects, layout, py::none(), contiguous);
+}
+
+std::shared_ptr<TensorList<GPUBackend>> TensorListFromListOfDLPackObjectsGPU(
+      py::list &list_of_objects,
+      const std::optional<std::string> &layout,
+      py::object stream,
+      bool contiguous) {
+  return TensorListFromListOfDLPackObjects<GPUBackend>(
+      list_of_objects, layout, stream, contiguous);
+}
+
+template <typename Backend>
 std::shared_ptr<TensorList<Backend>> TensorListFromListOfTensors(
       py::list &list_of_tensors,
       const std::optional<std::string> &layout = {},
@@ -1238,8 +1466,8 @@ std::shared_ptr<TensorList<Backend>> TensorListFromListOfTensors(
     : *non_contiguous_out;
 
   int expected_type = -2;
+  int expected_device_id = -1;
 
-  AccessOrder wait_order = AccessOrder::host();
   AccessOrder copy_order = AccessOrder::host();
 
   {
@@ -1252,6 +1480,7 @@ std::shared_ptr<TensorList<Backend>> TensorListFromListOfTensors(
           non_contiguous.SetupLike(t);
           if constexpr (std::is_same_v<Backend, GPUBackend>) {
             copy_order = AccessOrder(UserStream::Get()->GetStream(t));
+            expected_device_id = t.device_id();
           }
         }
         DALIDataType cur_type = t.type();
@@ -1263,19 +1492,31 @@ std::shared_ptr<TensorList<Backend>> TensorListFromListOfTensors(
               "Tensors cannot have different data types. Tensor at position ", i, " has type '",
               cur_type, "' expected to have type '", DALIDataType(expected_type), "'."));
         }
+        if constexpr (std::is_same_v<Backend, GPUBackend>) {
+          if (t.device_id() != expected_device_id) {
+            throw py::value_error(make_string(
+                "All tensors must reside on the same GPU device. "
+                "Tensor at position ", i, " is on GPU ", t.device_id(),
+                " but expected GPU ", expected_device_id, "."));
+          }
+        }
         non_contiguous.SetSample(i, t);
       } catch (const py::type_error &) {
         throw;
+      } catch (const py::value_error &) {
+        throw;
       } catch (const std::runtime_error &) {
-        throw py::type_error(make_string("Object at position ", i, " cannot be converted to Tensor",
-                                         std::is_same_v<Backend, GPUBackend> ? "GPU." : "CPU."));
+        auto tensor_type = std::is_same_v<Backend, GPUBackend> ? "TensorGPU." : "TensorCPU.";
+        throw py::type_error(
+            make_string("Object at position ", i, " cannot be converted to ", tensor_type));
       }
     }
   }
 
   if (!contiguous) {
     SetLayout(non_contiguous, layout, false);
-    copy_order.wait(wait_order);
+    if constexpr (std::is_same_v<Backend, GPUBackend>)
+      non_contiguous_out->set_order(copy_order);
     return non_contiguous_out;
   }
 
@@ -1286,7 +1527,8 @@ std::shared_ptr<TensorList<Backend>> TensorListFromListOfTensors(
     contiguous_out->set_pinned(non_contiguous.is_pinned());
     contiguous_out->Copy(non_contiguous, copy_order);
     SetLayout(*contiguous_out, layout, false);
-    copy_order.wait(wait_order);
+    if constexpr (std::is_same_v<Backend, GPUBackend>)
+      contiguous_out->set_order(copy_order);
     return contiguous_out;
   }
 }
@@ -1402,6 +1644,26 @@ void ExposeTensorListCPU(py::module &m) {
       contiguous : bool = True
             If True, the list of tensors is converted to a contiguous TensorListCPU, necessarily
             creating a copy. Otherwise, the copy may be avoided.
+      )code")
+    .def_static("from_dlpack_list", [](
+          py::list &list_of_objects,
+          std::optional<std::string> layout = {},
+          bool contiguous = false) {
+        DomainTimeRange range("TensorListCPU::from_dlpack_list", kCPUTensorColor);
+        return TensorListFromListOfDLPackObjectsCPU(list_of_objects, layout, contiguous);
+      },
+      "list_of_objects"_a,
+      "layout"_a = py::none(),
+      "contiguous"_a = false,
+      R"code(
+      List of tensors residing in the CPU memory, constructed from a Python list of DLPack objects.
+
+      list_of_objects : list
+            Python list of objects supporting the DLPack protocol (e.g. CPU tensors)
+      layout : str
+            Layout of the data
+      contiguous : bool, default False
+            If True, samples are copied into a single contiguous CPU buffer
       )code")
     .def_static("broadcast", [](const Tensor<CPUBackend> &t, int num_samples) {
         return std::make_shared<TensorList<CPUBackend>>(t, num_samples);
@@ -1668,6 +1930,30 @@ void ExposeTesorListGPU(py::module &m) {
       contiguous : bool = True
             If True, the list of tensors is converted to a contiguous TensorListGPU, necessarily
             creating a copy. Otherwise, the copy may be avoided.
+      )code")
+    .def_static("from_dlpack_list", [](
+          py::list &list_of_objects,
+          std::optional<std::string> layout = {},
+          py::object stream = py::none(),
+          bool contiguous = false) {
+        DomainTimeRange range("TensorListGPU::from_dlpack_list", kGPUTensorColor);
+        return TensorListFromListOfDLPackObjectsGPU(list_of_objects, layout, stream, contiguous);
+      },
+      "list_of_objects"_a,
+      "layout"_a = py::none(),
+      "stream"_a = py::none(),
+      "contiguous"_a = false,
+      R"code(
+      List of tensors residing in the GPU memory, constructed from a Python list of DLPack objects.
+
+      list_of_objects : list
+            Python list of objects supporting the DLPack protocol (e.g. PyTorch GPU tensors)
+      layout : str
+            Layout of the data
+      stream : stream, optional
+            CUDA stream used for the DLPack export handshake
+      contiguous : bool, default False
+            If True, samples are copied into a single contiguous GPU buffer
       )code")
     .def(py::init([](const py::object &object,
                      const std::optional<std::string> &layout = {},
