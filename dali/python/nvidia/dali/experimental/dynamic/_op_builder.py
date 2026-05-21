@@ -259,7 +259,10 @@ def _get_inputs(schema):
 
 def _check_batch_size_available(op_class, batch_size):
     if op_class._schema_name == "BatchPermutation" and batch_size is None:
-        raise ValueError("`batch_size` must be specified for dynamic `batch_permutation`.")
+        raise ValueError(
+            "`batch_size` must be specified for dynamic `batch_permutation` "
+            "because it has no data inputs to infer the batch size from."
+        )
 
 
 def build_call_function(schema, op_class):

@@ -160,6 +160,17 @@ def test_batch_permutation_requires_batch_size():
     with assert_raises(ValueError, glob="*batch_size*batch_permutation*"):
         op(rng=ndd.random.RNG(seed=1234))
 
+    batch_size = 4
+    result = ndd.batch_permutation(batch_size=batch_size, rng=ndd.random.RNG(seed=1234))
+    result_np = asnumpy(result)
+    assert result_np.shape == (batch_size,)
+    assert sorted(result_np.tolist()) == list(range(batch_size))
+
+    result = op(batch_size=batch_size, rng=ndd.random.RNG(seed=1234))
+    result_np = asnumpy(result)
+    assert result_np.shape == (batch_size,)
+    assert sorted(result_np.tolist()) == list(range(batch_size))
+
 
 def test_rng_set_seed():
     # Explicit RNG instance
