@@ -728,12 +728,12 @@ void VideoLoader::ReadSample(SequenceWrapper& tensor) {
     tensor.read_sample_f = [this,
                             file_name = file_info_[seq_meta.filename_idx].filename,
                             index = seq_meta.frame_idx, count = seq_meta.length, &tensor] () {
-      thread_file_reader_.DoWork([this]() {
+      thread_file_reader_->DoWork([this]() {
         read_file();
       });
       push_sequence_to_read(file_name, index, count);
       receive_frames(tensor);
-      thread_file_reader_.WaitForWork();
+      thread_file_reader_->WaitForWork();
     };
     ++current_frame_idx_;
 

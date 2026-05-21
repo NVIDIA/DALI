@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -152,7 +152,7 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper, true> {
         spec.GetArgument<bool>("file_list_include_preceding_frame")),
       pad_sequences_(spec.GetArgument<bool>("pad_sequences")),
       stats_({0, 0, 0, 0, 0}),
-      thread_file_reader_(device_id_, false, "Video read_file thread"),
+      thread_file_reader_(CreateWorkerThread(device_id_, false, "Video read_file thread")),
       current_frame_idx_(-1),
       stop_(false) {
     DALI_ENFORCE(stride_ > 0, "Stride should be > 0");
@@ -175,7 +175,7 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper, true> {
       "to https://github.com/NVIDIA/nvidia-docker/wiki/Usage");
 
       av_log_set_level(AV_LOG_ERROR);
-      thread_file_reader_.WaitForInit();
+      thread_file_reader_->WaitForInit();
   }
 
   ~VideoLoader() noexcept override {
@@ -184,8 +184,8 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper, true> {
     if (vid_decoder_) {
       vid_decoder_->finish();
     }
-    thread_file_reader_.ForceStop();
-    thread_file_reader_.Shutdown();
+    thread_file_reader_->ForceStop();
+    thread_file_reader_->Shutdown();
   }
 
   void PrepareEmpty(SequenceWrapper &tensor) override;
@@ -358,7 +358,7 @@ class VideoLoader : public Loader<GPUBackend, SequenceWrapper, true> {
 
   ThreadSafeQueue<FrameReq> send_queue_;
 
-  WorkerThread thread_file_reader_;
+  std::unique_ptr<WorkerThread> thread_file_reader_;
 
   std::vector<struct sequence_meta> frame_starts_;
   Index current_frame_idx_;

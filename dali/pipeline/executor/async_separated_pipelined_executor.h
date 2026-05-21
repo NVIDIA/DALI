@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,6 +15,7 @@
 #ifndef DALI_PIPELINE_EXECUTOR_ASYNC_SEPARATED_PIPELINED_EXECUTOR_H_
 #define DALI_PIPELINE_EXECUTOR_ASYNC_SEPARATED_PIPELINED_EXECUTOR_H_
 
+#include <memory>
 #include <string>
 #include "dali/core/common.h"
 #include "dali/core/error_handling.h"
@@ -37,9 +38,12 @@ class DLL_PUBLIC AsyncSeparatedPipelinedExecutor : public SeparatedPipelinedExec
       ExecutorFlags flags = {}, QueueSizes prefetch_queue_depth = QueueSizes{2, 2})
       : SeparatedPipelinedExecutor(batch_size, num_thread, device_id, bytes_per_sample_hint,
                                    flags, prefetch_queue_depth),
-        cpu_thread_(device_id, Test(flags, ExecutorFlags::SetAffinity), "CPU executor"),
-        mixed_thread_(device_id, Test(flags, ExecutorFlags::SetAffinity), "Mixed executor"),
-        gpu_thread_(device_id, Test(flags, ExecutorFlags::SetAffinity), "GPU executor") {}
+        cpu_thread_(CreateWorkerThread(
+            device_id, Test(flags, ExecutorFlags::SetAffinity), "CPU executor")),
+        mixed_thread_(CreateWorkerThread(
+            device_id, Test(flags, ExecutorFlags::SetAffinity), "Mixed executor")),
+        gpu_thread_(CreateWorkerThread(
+            device_id, Test(flags, ExecutorFlags::SetAffinity), "GPU executor")) {}
 
   DLL_PUBLIC ~AsyncSeparatedPipelinedExecutor() override {
     Shutdown();
@@ -48,9 +52,9 @@ class DLL_PUBLIC AsyncSeparatedPipelinedExecutor : public SeparatedPipelinedExec
   DLL_PUBLIC void Shutdown() override {
     ShutdownQueue();
 
-    cpu_thread_.ForceStop();
-    mixed_thread_.ForceStop();
-    gpu_thread_.ForceStop();
+    cpu_thread_->ForceStop();
+    mixed_thread_->ForceStop();
+    gpu_thread_->ForceStop();
     SyncDevice();
 
     /*
@@ -59,16 +63,17 @@ class DLL_PUBLIC AsyncSeparatedPipelinedExecutor : public SeparatedPipelinedExec
      * from this class may no longer exist while work inside WorkerThread is still
      * using it what can cause a hang
      */
-    cpu_thread_.Shutdown();
-    mixed_thread_.Shutdown();
-    gpu_thread_.Shutdown();
+    cpu_thread_->Shutdown();
+    mixed_thread_->Shutdown();
+    gpu_thread_->Shutdown();
   }
 
   DLL_PUBLIC void Init() override {
-    if (!cpu_thread_.WaitForInit() || !mixed_thread_.WaitForInit() || !gpu_thread_.WaitForInit()) {
-      cpu_thread_.ForceStop();
-      mixed_thread_.ForceStop();
-      gpu_thread_.ForceStop();
+    if (!cpu_thread_->WaitForInit() || !mixed_thread_->WaitForInit() ||
+        !gpu_thread_->WaitForInit()) {
+      cpu_thread_->ForceStop();
+      mixed_thread_->ForceStop();
+      gpu_thread_->ForceStop();
       std::string error = "Failed to init pipeline on device " + std::to_string(device_id_);
       throw std::runtime_error(error);
     }
@@ -101,12 +106,18 @@ class DLL_PUBLIC AsyncSeparatedPipelinedExecutor : public SeparatedPipelinedExec
   DLL_PUBLIC void RunGPU() override;
 
   void CheckForErrors() {
-    cpu_thread_.CheckForErrors();
-    mixed_thread_.CheckForErrors();
-    gpu_thread_.CheckForErrors();
+    try {
+      cpu_thread_->CheckForErrors();
+      mixed_thread_->CheckForErrors();
+      gpu_thread_->CheckForErrors();
+    } catch (...) {
+      exec_error_ = true;
+      SignalStop();
+      throw;
+    }
   }
 
-  WorkerThread cpu_thread_, mixed_thread_, gpu_thread_;
+  std::unique_ptr<WorkerThread> cpu_thread_, mixed_thread_, gpu_thread_;
 };
 
 }  // namespace dali

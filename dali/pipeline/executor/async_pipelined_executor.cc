@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -21,7 +21,7 @@ void AsyncPipelinedExecutor::RunCPU() {
   std::unique_lock<std::mutex> lock(GetReadyMutex());
   ++cpu_work_counter_;
   lock.unlock();
-  cpu_thread_.DoWork([this]() {
+  cpu_thread_->DoWork([this]() {
         // Run the cpu work. We know there is cpu
         // work so we do not have to wait to take
         // the work
@@ -48,7 +48,7 @@ void AsyncPipelinedExecutor::RunCPU() {
 
 void AsyncPipelinedExecutor::RunMixed() {
   CheckForErrors();
-  mixed_thread_.DoWork([this]() {
+  mixed_thread_->DoWork([this]() {
         // Block until there is mixed work to do
         std::unique_lock<std::mutex> lock(GetReadyMutex());
         while (mixed_work_counter_ == 0 && !exec_error_ && !IsStopSignaled()) {
@@ -74,7 +74,7 @@ void AsyncPipelinedExecutor::RunMixed() {
 
 void AsyncPipelinedExecutor::RunGPU() {
   CheckForErrors();
-  gpu_thread_.DoWork([this]() {
+  gpu_thread_->DoWork([this]() {
         // Block until there is gpu work to do
         std::unique_lock<std::mutex> lock(GetReadyMutex());
         while (gpu_work_counter_ == 0 && !exec_error_ && !IsStopSignaled()) {

@@ -1,4 +1,4 @@
-// Copyright (c) 2022-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,6 +15,7 @@
 #ifndef DALI_PIPELINE_OPERATOR_BUILTIN_INPUT_OPERATOR_H_
 #define DALI_PIPELINE_OPERATOR_BUILTIN_INPUT_OPERATOR_H_
 
+#include <condition_variable>
 #include <list>
 #include <memory>
 #include <optional>
@@ -28,6 +29,7 @@
 #include "dali/pipeline/operator/builtin/caching_list.h"
 #include "dali/pipeline/operator/operator.h"
 #include "dali/pipeline/util/worker_thread.h"
+#include "dali/core/nvtx.h"
 
 namespace dali {
 
@@ -147,18 +149,18 @@ class InputOperator : public Operator<Backend>, virtual public BatchSizeProvider
           device_id_(spec.GetArgument<int>("device_id")),
           blocking_(spec.GetArgument<bool>("blocking")),
           no_copy_(spec.GetArgument<bool>("no_copy")),
-          sync_worker_(device_id_, false, "InputOperator sync_worker_") {
+          sync_worker_(CreateWorkerThread(device_id_, false, "InputOperator sync_worker_")) {
     if (std::is_same<Backend, GPUBackend>::value) {
       internal_copy_stream_ = CUDAStreamPool::instance().Get(device_id_);
       internal_copy_order_ = internal_copy_stream_;
     }
-    sync_worker_.WaitForInit();
+    sync_worker_->WaitForInit();
   }
 
 
   virtual ~InputOperator() {
-    sync_worker_.ForceStop();
-    sync_worker_.Shutdown();
+    sync_worker_->ForceStop();
+    sync_worker_->Shutdown();
   }
 
   DISABLE_COPY_MOVE_ASSIGN(InputOperator);
@@ -560,7 +562,7 @@ class InputOperator : public Operator<Backend>, virtual public BatchSizeProvider
    */
   bool zero_copy_noncontiguous_gpu_input_ = false;
 
-  WorkerThread sync_worker_;
+  std::unique_ptr<WorkerThread> sync_worker_;
   CUDAStreamLease internal_copy_stream_ = {};
   AccessOrder internal_copy_order_ = AccessOrder::host();
 };
