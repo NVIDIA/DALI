@@ -98,7 +98,7 @@ class Exec2Test : public::testing::TestWithParam<Executor2::Config> {
 TEST_P(Exec2Test, Graph1_CPUOnly) {
   Executor2 exec(config_);
   graph::OpGraph graph = GetTestGraph1();
-  exec.Build(graph, {});
+  exec.Build(graph);
   for (int i = 0; i < 10; i++) {
     exec.Run();
   }
@@ -113,7 +113,7 @@ TEST_P(Exec2Test, Graph1_CPUOnly) {
 TEST_P(Exec2Test, Graph2_CPU2GPU) {
   Executor2 exec(config_);
   graph::OpGraph graph = GetTestGraph2();
-  exec.Build(graph, {});
+  exec.Build(graph);
   for (int i = 0; i < 10; i++) {
     exec.Run();
   }
@@ -128,7 +128,7 @@ TEST_P(Exec2Test, Graph2_CPU2GPU) {
 TEST_P(Exec2Test, Graph3_SinkOnly) {
   Executor2 exec(config_);
   graph::OpGraph graph = GetTestGraph3();
-  exec.Build(graph, {});
+  exec.Build(graph);
   for (int i = 0; i < 10; i++) {
     exec.Run();
   }
