@@ -1,4 +1,4 @@
-# Copyright (c) 2023-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2023-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -114,6 +114,26 @@ Args
     return ret
 
 
+def _get_batch_size_doc():
+    """Return documentation for the batch_size argument used in dynamic API."""
+    return _numpydoc_formatter(
+        "batch_size",
+        "int",
+        "The batch size to broadcast input tensors to. Ignored for batch inputs.",
+        optional=True,
+    )
+
+
+def _get_device_doc():
+    """Return documentation for the device argument used in dynamic API."""
+    return _numpydoc_formatter(
+        "device",
+        "device-like",
+        "The device to use for the operation. Must not conflict with the device of the inputs.",
+        optional=True,
+    )
+
+
 def _get_rng_doc():
     """Return documentation for the rng argument used in dynamic API random operators."""
     return _numpydoc_formatter(
@@ -190,10 +210,16 @@ def _get_kwargs(schema, api="ops", args=None):
         ret += "\n"
 
     # Add rng documentation for dynamic API random operators
-    if api == "dynamic" and args is not None and "rng" in args:
-        ret += _get_rng_doc()
-        ret += "\n"
-
+    if api == "dynamic" and args is not None:
+        if "batch_size" in args:
+            ret += _get_batch_size_doc()
+            ret += "\n"
+        if "device" in args:
+            ret += _get_device_doc()
+            ret += "\n"
+        if "rng" in args:
+            ret += _get_rng_doc()
+            ret += "\n"
     return ret
 
 

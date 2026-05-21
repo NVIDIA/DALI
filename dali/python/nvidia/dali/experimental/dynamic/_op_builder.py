@@ -450,8 +450,8 @@ def build_fn_wrapper(op, fn_name=None, add_to_module=True):
 
     fixed_args = []
     tensor_args = []
-    signature_args = ["batch_size=None, device=None"]
-    used_kwargs = set()
+    signature_args = ["batch_size=None", "device=None"]
+    used_kwargs = {"batch_size", "device"}
 
     for arg in op._schema.GetArgumentNames():
         if arg in _unsupported_args:
@@ -473,8 +473,7 @@ def build_fn_wrapper(op, fn_name=None, add_to_module=True):
         # Remove 'seed' from used_kwargs and signature_args if present
         if "seed" in used_kwargs:
             used_kwargs.remove("seed")
-        if "seed" in signature_args:
-            signature_args.remove("seed")
+        signature_args = [arg for arg in signature_args if "seed" not in arg]
 
     header = f"{fn_name}({', '.join(inputs + signature_args)})"
 
