@@ -192,7 +192,7 @@ DALI_SCHEMA(BoxEncoder)
 passed as an argument.
 
 This operator follows the algorithm described in "SSD: Single Shot MultiBox Detector"
-and implemented in https://github.com/mlperf/training/tree/master/single_stage_detector/ssd.
+and implemented in https://github.com/mlcommons/training/tree/v4.0/single_stage_detector/ssd.
 Inputs must be supplied as the following Tensors:
 
 - ``BBoxes`` that contain bounding boxes that are represented as ``[l,t,r,b]``.
