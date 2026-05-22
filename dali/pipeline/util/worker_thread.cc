@@ -13,71 +13,20 @@
 // limitations under the License.
 
 #include "dali/pipeline/util/worker_thread.h"
+#include "dali/pipeline/util/worker_thread_internal.h"
 
-#include <condition_variable>
-#include <cstddef>
 #include <exception>
 #include <iostream>
-#include <mutex>
-#include <queue>
 #include <stdexcept>
-#include <thread>
 #include <utility>
 
 #include "dali/core/device_guard.h"
 #include "dali/core/error_handling.h"
 #include "dali/core/nvtx.h"
-#if NVML_ENABLED
-#include "dali/util/nvml.h"
-#endif
 
 namespace dali {
 
-class Barrier {
- public:
-  explicit Barrier(std::size_t count) : count_(count), current_(count) {}
-
-  void Wait(bool reset = false);
-  void Break();
-
- private:
-  std::mutex mutex_;
-  std::condition_variable cv_;
-  size_t count_;
-  size_t current_;
-};
-
-class WorkerThreadImpl final : public WorkerThread {
- public:
-  explicit WorkerThreadImpl(int device_id, bool set_affinity, const std::string &name);
-  ~WorkerThreadImpl() override;
-
-  void Shutdown() override;
-  void DoWork(Work work) override;
-  void WaitForWork(bool rethrow_worker_errors = true) override;
-  void ForceStop() override;
-  void CheckForErrors() override;
-  bool WaitForInit() override;
-
- private:
-  void ThreadMain(int device_id, bool set_affinity, const std::string &name);
-
-  bool running_ = true;
-  bool work_complete_ = true;
-  std::queue<Work> work_queue_;
-  std::thread thread_;
-  std::mutex mutex_;
-  std::condition_variable cv_, completed_;
-
-  std::queue<string> errors_;
-
-  Barrier barrier_{2};
-#if NVML_ENABLED
-  nvml::NvmlInstance nvml_handle_;
-#endif
-};
-
-void Barrier::Wait(bool reset) {
+void detail::Barrier::Wait(bool reset) {
   std::unique_lock<std::mutex> lock(mutex_);
   current_--;
   if (current_ == 0 || count_ == 0) {
@@ -90,7 +39,7 @@ void Barrier::Wait(bool reset) {
   }
 }
 
-void Barrier::Break() {
+void detail::Barrier::Break() {
   {
     std::lock_guard<std::mutex> lock(mutex_);
     count_ = 0;

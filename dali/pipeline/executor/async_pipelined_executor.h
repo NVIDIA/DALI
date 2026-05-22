@@ -15,12 +15,11 @@
 #ifndef DALI_PIPELINE_EXECUTOR_ASYNC_PIPELINED_EXECUTOR_H_
 #define DALI_PIPELINE_EXECUTOR_ASYNC_PIPELINED_EXECUTOR_H_
 
-#include <memory>
 #include <string>
 #include "dali/core/common.h"
 #include "dali/core/error_handling.h"
 #include "dali/pipeline/executor/pipelined_executor.h"
-#include "dali/pipeline/util/worker_thread.h"
+#include "dali/pipeline/util/worker_thread_internal.h"
 
 namespace dali {
 
@@ -38,12 +37,9 @@ class DLL_PUBLIC AsyncPipelinedExecutor : public PipelinedExecutor {
                                            QueueSizes prefetch_queue_depth = QueueSizes{2, 2})
       : PipelinedExecutor(batch_size, num_thread, device_id, bytes_per_sample_hint, flags,
                           prefetch_queue_depth),
-        cpu_thread_(CreateWorkerThread(
-            device_id, Test(flags, ExecutorFlags::SetAffinity), "CPU executor")),
-        mixed_thread_(CreateWorkerThread(
-            device_id, Test(flags, ExecutorFlags::SetAffinity), "Mixed executor")),
-        gpu_thread_(CreateWorkerThread(
-            device_id, Test(flags, ExecutorFlags::SetAffinity), "GPU executor")) {}
+        cpu_thread_(device_id, Test(flags, ExecutorFlags::SetAffinity), "CPU executor"),
+        mixed_thread_(device_id, Test(flags, ExecutorFlags::SetAffinity), "Mixed executor"),
+        gpu_thread_(device_id, Test(flags, ExecutorFlags::SetAffinity), "GPU executor") {}
 
   DLL_PUBLIC ~AsyncPipelinedExecutor() override {
     Shutdown();
@@ -51,9 +47,9 @@ class DLL_PUBLIC AsyncPipelinedExecutor : public PipelinedExecutor {
 
   DLL_PUBLIC void Shutdown() override {
     ShutdownQueue();
-    cpu_thread_->ForceStop();
-    mixed_thread_->ForceStop();
-    gpu_thread_->ForceStop();
+    cpu_thread_.ForceStop();
+    mixed_thread_.ForceStop();
+    gpu_thread_.ForceStop();
     PipelinedExecutor::Shutdown();
 
     /*
@@ -70,17 +66,17 @@ class DLL_PUBLIC AsyncPipelinedExecutor : public PipelinedExecutor {
      * from this class may no longer exist while work inside WorkerThread is still
      * using it what can cause a hang
      */
-    cpu_thread_->Shutdown();
-    mixed_thread_->Shutdown();
-    gpu_thread_->Shutdown();
+    cpu_thread_.Shutdown();
+    mixed_thread_.Shutdown();
+    gpu_thread_.Shutdown();
   }
 
   DLL_PUBLIC void Init() override {
-    if (!cpu_thread_->WaitForInit() || !mixed_thread_->WaitForInit() ||
-        !gpu_thread_->WaitForInit()) {
-      cpu_thread_->ForceStop();
-      mixed_thread_->ForceStop();
-      gpu_thread_->ForceStop();
+    if (!cpu_thread_.WaitForInit() || !mixed_thread_.WaitForInit() ||
+        !gpu_thread_.WaitForInit()) {
+      cpu_thread_.ForceStop();
+      mixed_thread_.ForceStop();
+      gpu_thread_.ForceStop();
       std::string error = "Failed to init pipeline on device " + std::to_string(device_id_);
       throw std::runtime_error(error);
     }
@@ -114,9 +110,9 @@ class DLL_PUBLIC AsyncPipelinedExecutor : public PipelinedExecutor {
 
   void CheckForErrors() {
     try {
-      cpu_thread_->CheckForErrors();
-      mixed_thread_->CheckForErrors();
-      gpu_thread_->CheckForErrors();
+      cpu_thread_.CheckForErrors();
+      mixed_thread_.CheckForErrors();
+      gpu_thread_.CheckForErrors();
     } catch (...) {
       exec_error_ = true;
       SignalStop();
@@ -126,7 +122,7 @@ class DLL_PUBLIC AsyncPipelinedExecutor : public PipelinedExecutor {
     }
   }
 
-  std::unique_ptr<WorkerThread> cpu_thread_, mixed_thread_, gpu_thread_;
+  WorkerThreadImpl cpu_thread_, mixed_thread_, gpu_thread_;
   int cpu_work_counter_ = 0, mixed_work_counter_ = 0, gpu_work_counter_ = 0;
   std::condition_variable mixed_work_cv_, gpu_work_cv_;
 };

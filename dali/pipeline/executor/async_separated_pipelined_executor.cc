@@ -19,17 +19,17 @@ namespace dali {
 void AsyncSeparatedPipelinedExecutor::RunCPU() {
   CheckForErrors();
   // Run the cpu work. We schedule it in queue and wait for free buffers
-  cpu_thread_->DoWork([this]() { SeparatedPipelinedExecutor::RunCPU(); });
+  cpu_thread_.DoWork([this]() { SeparatedPipelinedExecutor::RunCPU(); });
 }
 
 void AsyncSeparatedPipelinedExecutor::RunMixed() {
   CheckForErrors();
-  mixed_thread_->DoWork([this]() { SeparatedPipelinedExecutor::RunMixed(); });
+  mixed_thread_.DoWork([this]() { SeparatedPipelinedExecutor::RunMixed(); });
 }
 
 void AsyncSeparatedPipelinedExecutor::RunGPU() {
   CheckForErrors();
-  gpu_thread_->DoWork([this]() { SeparatedPipelinedExecutor::RunGPU(); });
+  gpu_thread_.DoWork([this]() { SeparatedPipelinedExecutor::RunGPU(); });
 }
 
 void AsyncSeparatedPipelinedExecutor::Prefetch() {
