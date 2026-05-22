@@ -12,10 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import collections
 import numbers
-from types import NoneType
-from typing import Literal, Sequence, Union
+from typing import Literal, Sequence
 
 import nvidia.dali as dali
 import nvidia.dali.fn as fn
@@ -76,24 +74,16 @@ class _ValidateFill(_ArgumentValidateRule):
     """
 
     @classmethod
-    def _verify_fill_value(cls, fill) -> None:
+    def verify(cls, *, fill, **_) -> None:
         if fill is None or isinstance(fill, numbers.Number):
             return
         if isinstance(fill, (list, tuple)) and all(
             isinstance(value, numbers.Number) for value in fill
         ):
+            if len(fill) == 0:
+                raise ValueError("fill sequence must be non-empty")
             return
-        raise TypeError(f"fill must be a number, sequence of numbers, None or a dict, got {fill!r}")
-
-    @classmethod
-    def verify(cls, *, fill, **_) -> None:
-        if isinstance(fill, dict):
-            for key, value in fill.items():
-                if not isinstance(key, (type, str)):
-                    raise TypeError(f"fill dictionary keys must be types or strings, got {key!r}")
-                cls._verify_fill_value(value)
-        else:
-            cls._verify_fill_value(fill)
+        raise TypeError(f"fill must be a number, sequence of numbers, or None, got {fill!r}")
 
 
 class RandomCrop(Operator):
@@ -117,9 +107,9 @@ class RandomCrop(Operator):
         bottom borders respectively.
     pad_if_needed : bool, optional, default = False
         Pad the image if it is smaller than the desired size.
-    fill : number or tuple or dict, optional, default = 0
+    fill : number or tuple, optional, default = 0
         Pixel fill value used when the padding_mode is constant.
-    padding_mode : Literal["constant", "edge", "reflect", "symmetric"], optional,
+    padding_mode : Literal["constant", "edge", "reflect", "symmetric"], optional, default="constant"
         Type of padding. Should be: constant, edge, reflect or symmetric.
     device : Literal["cpu", "gpu"], optional, default = "cpu"
         Device to use for the crop. Can be ``"cpu"`` or ``"gpu"``.
@@ -152,8 +142,6 @@ class RandomCrop(Operator):
 
     @staticmethod
     def adjust_fill(fill):
-        if isinstance(fill, dict):
-            return {key: RandomCrop.adjust_fill(value) for key, value in fill.items()}
         if fill is None:
             return 0
         if isinstance(fill, numbers.Number):
@@ -162,6 +150,10 @@ class RandomCrop(Operator):
 
     @staticmethod
     def _randint(max_value):
+        # Clamp to 0 so a negative max_value (crop larger than the available range)
+        # collapses to a single valid position 0 instead of giving fn.random.uniform
+        # an empty / inverted range.
+        max_value = dali.math.max(max_value, 0)
         range_start = fn.cast(0, dtype=dali.types.FLOAT)
         range_end = fn.cast(max_value + 1, dtype=dali.types.FLOAT)
         value = dali.math.floor(fn.random.uniform(range=fn.stack(range_start, range_end)))
@@ -172,21 +164,7 @@ class RandomCrop(Operator):
         size: int | Sequence[int],
         padding: None | int | Sequence[int] = None,
         pad_if_needed: bool = False,
-        fill: Union[
-            int,
-            float,
-            Sequence[int],
-            Sequence[float],
-            None,
-            dict[
-                type | str,
-                int
-                | float
-                | collections.abc.Sequence[int]
-                | collections.abc.Sequence[float]
-                | NoneType,
-            ],
-        ] = 0,
+        fill: int | float | Sequence[int] | Sequence[float] | None = 0,
         padding_mode: Literal["constant", "edge", "reflect", "symmetric"] = "constant",
         device: Literal["cpu", "gpu"] = "cpu",
     ):
@@ -214,44 +192,40 @@ class RandomCrop(Operator):
         crop_h, crop_w = self.size
         pad_left, pad_top, pad_right, pad_bottom = self.padding
 
-        if self.needs_padding:
-            padded_h = in_h + pad_top + pad_bottom
-            padded_w = in_w + pad_left + pad_right
+        padded_h = in_h + pad_top + pad_bottom
+        padded_w = in_w + pad_left + pad_right
 
-            if self.pad_if_needed:
-                pad_h = dali.math.max(crop_h - padded_h, 0)
-                pad_w = dali.math.max(crop_w - padded_w, 0)
-                pad_top = pad_top + pad_h
-                pad_bottom = pad_bottom + pad_h
-                pad_left = pad_left + pad_w
-                pad_right = pad_right + pad_w
+        if self.pad_if_needed:
+            pad_h = dali.math.max(crop_h - padded_h, 0)
+            pad_w = dali.math.max(crop_w - padded_w, 0)
+            pad_top = pad_top + pad_h
+            pad_left = pad_left + pad_w
+            # Only pad_top / pad_left are read below; pad_bottom / pad_right are dropped.
+            padded_h = padded_h + 2 * pad_h
+            padded_w = padded_w + 2 * pad_w
 
-            tensor = fn.slice(
-                tensor,
-                fn.stack(
-                    fn.cast(-pad_left, dtype=dali.types.INT64),
-                    fn.cast(-pad_top, dtype=dali.types.INT64),
-                ),
-                fn.stack(in_w + pad_left + pad_right, in_h + pad_top + pad_bottom),
-                out_of_bounds_policy=PADDING_CLASS[self.padding_mode].border_type,
-                fill_values=self.fill,
-                device=self.device,
-                axis_names="WH",
-            )
-
-            in_h = in_h + pad_top + pad_bottom
-            in_w = in_w + pad_left + pad_right
-
-        max_top = fn.cast(in_h, dtype=dali.types.INT32) - crop_h
-        max_left = fn.cast(in_w, dtype=dali.types.INT32) - crop_w
+        max_top = fn.cast(padded_h, dtype=dali.types.INT32) - crop_h
+        max_left = fn.cast(padded_w, dtype=dali.types.INT32) - crop_w
 
         top = RandomCrop._randint(max_top)
         left = RandomCrop._randint(max_left)
 
+        slice_kwargs = {
+            "device": self.device,
+            "axis_names": "WH",
+        }
+        if self.needs_padding:
+            slice_kwargs.update(
+                out_of_bounds_policy=PADDING_CLASS[self.padding_mode].border_type,
+                fill_values=self.fill,
+            )
+
         return fn.slice(
             tensor,
-            fn.stack(left, top),
+            fn.stack(
+                fn.cast(left - pad_left, dtype=dali.types.INT32),
+                fn.cast(top - pad_top, dtype=dali.types.INT32),
+            ),
             fn.stack(crop_w, crop_h),
-            device=self.device,
-            axis_names="WH",
+            **slice_kwargs,
         )

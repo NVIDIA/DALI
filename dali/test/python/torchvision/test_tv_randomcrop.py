@@ -23,6 +23,8 @@ import torch
 import torchvision.transforms.v2 as transforms
 import torchvision.transforms.v2.functional as tv_fn
 
+import nvidia.dali as dali
+import nvidia.dali.experimental.torchvision.v2.randomcrop as randomcrop_module
 from nvidia.dali.experimental.torchvision import Compose, RandomCrop
 from nvidia.dali.experimental.torchvision.v2.operator import Operator
 
@@ -119,6 +121,47 @@ def _possible_torchvision_random_crop_outputs(inpt, size, padding, fill=0, paddi
 
 def test_random_crop_is_operator():
     assert issubclass(RandomCrop, Operator)
+
+
+def test_random_crop_fuses_padding_into_crop_slice():
+    transform = RandomCrop(size=(4, 5), padding=1)
+    slice_calls = []
+    cast_calls = []
+
+    def fake_slice(tensor, anchor, shape, **kwargs):
+        slice_calls.append((tensor, anchor, shape, kwargs))
+        return "cropped"
+
+    def fake_cast(value, dtype):
+        cast_calls.append((value, dtype))
+        return value
+
+    old_slice = randomcrop_module.fn.slice
+    old_stack = randomcrop_module.fn.stack
+    old_cast = randomcrop_module.fn.cast
+    old_randint = RandomCrop._randint
+    try:
+        randomcrop_module.fn.slice = fake_slice
+        randomcrop_module.fn.stack = lambda *args: args
+        randomcrop_module.fn.cast = fake_cast
+        RandomCrop._randint = staticmethod(lambda max_value: 0)
+
+        out = transform._kernel((4, 5, 3, "input"))
+    finally:
+        randomcrop_module.fn.slice = old_slice
+        randomcrop_module.fn.stack = old_stack
+        randomcrop_module.fn.cast = old_cast
+        RandomCrop._randint = staticmethod(old_randint)
+
+    assert out == "cropped"
+    assert len(slice_calls) == 1
+    tensor, anchor, shape, kwargs = slice_calls[0]
+    assert tensor == "input"
+    assert anchor == (-1, -1)
+    assert shape == (5, 4)
+    assert kwargs["out_of_bounds_policy"] == "pad"
+    assert kwargs["fill_values"] == 0
+    assert cast_calls[-2:] == [(-1, dali.types.INT32), (-1, dali.types.INT32)]
 
 
 @cartesian_params(
@@ -257,8 +300,26 @@ def test_random_crop_pad_if_needed_matches_torchvision_random_offsets(device):
     ), "DALI RandomCrop produced an invalid pad_if_needed crop"
 
 
-"""
+@cartesian_params(("cpu", "gpu"))
+def test_random_crop_crop_larger_than_padded_input_does_not_crash(device):
+    # Crop (10, 10) exceeds the padded input shape (4 + 2, 5 + 2) = (6, 7).
+    # Before clamping _randint's max_value, fn.random.uniform received a
+    # negative / inverted range and emitted a cryptic DALI runtime error.
+    _skip_if_gpu_unavailable(device)
+    tensor = make_tensor(shape=(3, 4, 5))
+    dali_transform = _build_dali_random_crop(
+        size=(10, 10),
+        padding=1,
+        pad_if_needed=False,
+        fill=0,
+        device=device,
+    )
+    out = dali_transform(_move_tensor_to_device(tensor, device)).cpu()
+    assert out.shape[-2:] == (10, 10)
+
+
 # TODO: Fill using dictionary pattern is currently not supported
+@unittest.skip("dict fill not supported")
 def test_random_crop_fill_dict_matches_torchvision_tensor():
     tensor = make_tensor(shape=(3, 4, 5))
     fill = {torch.Tensor: 9}
@@ -268,6 +329,9 @@ def test_random_crop_fill_dict_matches_torchvision_tensor():
         transforms.RandomCrop(size=(6, 7), padding=1, fill=fill),
     )
 
+
+# TODO: Fill using dictionary pattern is currently not supported
+@unittest.skip("dict fill not supported")
 def test_random_crop_fill_dict_matches_torchvision_pil():
     img = make_pil_image(mode="RGB", h=4, w=5)
     fill = {Image.Image: (1, 2, 3)}
@@ -276,7 +340,6 @@ def test_random_crop_fill_dict_matches_torchvision_pil():
         _build_dali_random_crop(size=(6, 7), padding=1, fill=fill),
         transforms.RandomCrop(size=(6, 7), padding=1, fill=fill),
     )
-"""
 
 
 @cartesian_params(
@@ -330,7 +393,7 @@ def test_random_crop_pad_if_needed_shape(device):
     {"bad": "value"},
 )
 def test_random_crop_invalid_size(size):
-    with assert_raises((TypeError, ValueError)):
+    with assert_raises((TypeError, ValueError), glob="*size*"):
         _ = RandomCrop(size=size)
 
 
@@ -342,12 +405,12 @@ def test_random_crop_invalid_size(size):
     "bad",
 )
 def test_random_crop_invalid_padding(padding):
-    with assert_raises((TypeError, ValueError)):
+    with assert_raises((TypeError, ValueError), glob="*padding*"):
         _ = RandomCrop(size=3, padding=padding)
 
 
 def test_random_crop_invalid_pad_if_needed():
-    with assert_raises(TypeError):
+    with assert_raises(TypeError, glob="*pad_if_needed must be bool*"):
         _ = RandomCrop(size=3, pad_if_needed="yes")
 
 
@@ -357,17 +420,25 @@ def test_random_crop_invalid_pad_if_needed():
     [1, object()],
     {object(): 1},
     {torch.Tensor: object()},
+    {Image.Image: (1, 2, 3)},  # TODO: dict fill patterns are not supported
+    {torch.Tensor: 9},  # TODO: dict fill patterns are not supported
 )
 def test_random_crop_invalid_fill(fill):
-    with assert_raises(TypeError):
+    with assert_raises(TypeError, glob="*fill must be*"):
+        _ = RandomCrop(size=3, padding=1, fill=fill)
+
+
+@params(([],), ((),))
+def test_random_crop_empty_fill_sequence(fill):
+    with assert_raises(ValueError, glob="*fill sequence must be non-empty*"):
         _ = RandomCrop(size=3, padding=1, fill=fill)
 
 
 def test_random_crop_invalid_padding_mode_when_padding_is_used():
-    with assert_raises(ValueError):
+    with assert_raises(ValueError, glob="*Invalid padding mode*"):
         _ = RandomCrop(size=3, padding=1, padding_mode="bad")
 
 
 def test_random_crop_invalid_padding_mode_when_pad_if_needed_is_used():
-    with assert_raises(ValueError):
+    with assert_raises(ValueError, glob="*Invalid padding mode*"):
         _ = RandomCrop(size=3, pad_if_needed=True, padding_mode="bad")
