@@ -155,7 +155,8 @@ def get_references(name, references):
     if name in references:
         result += ".. seealso::\n"
         for desc, url in references[name]:
-            result += f"   * `{desc} </{url}>`_\n"
+            doc = url.removesuffix(".html")
+            result += f"   * :doc:`{desc} </{doc}>`\n"
     return result
 
 
