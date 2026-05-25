@@ -44,10 +44,10 @@ def get_image_size(inpt: Image.Image | torch.Tensor) -> List[int]:
     elif isinstance(inpt, torch.Tensor):
         if inpt.ndim < 2:
             raise TypeError(
-                f"get_image_size requires a tensor with at least 2 dimensions, got {inpt.ndim}"
+                f"get_image_size requires a tensor with at least 2 dimensions, got {inpt.ndim}."
             )
         return [inpt.shape[-1], inpt.shape[-2]]  # [W, H]
-    raise TypeError(f"Unsupported input type: {type(inpt)}")
+    raise TypeError(f"Unsupported input type: {type(inpt)}.")
 
 
 def get_dimensions(inpt: Image.Image | torch.Tensor) -> List[int]:
@@ -74,9 +74,9 @@ def get_dimensions(inpt: Image.Image | torch.Tensor) -> List[int]:
     elif isinstance(inpt, torch.Tensor):
         if inpt.ndim < 2:
             raise TypeError(
-                f"get_dimensions requires a tensor with at least 2 dimensions, got {inpt.ndim}"
+                f"get_dimensions requires a tensor with at least 2 dimensions, got {inpt.ndim}."
             )
         if inpt.ndim == 2:
             return [1, inpt.shape[-2], inpt.shape[-1]]
         return [inpt.shape[-3], inpt.shape[-2], inpt.shape[-1]]  # [C, H, W]
-    raise TypeError(f"Unsupported input type: {type(inpt)}")
+    raise TypeError(f"Unsupported input type: {type(inpt)}.")

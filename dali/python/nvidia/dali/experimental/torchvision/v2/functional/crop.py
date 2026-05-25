@@ -22,17 +22,6 @@ from ..operator import adjust_input
 from ..randomcrop import RandomCrop
 
 
-def _get_crop_axes(inpt: TensorLike | ndd.Batch) -> list[int]:
-    layout = inpt.layout[-3:]
-    if layout == "HWC":
-        return [-3, -2]
-    if layout == "CHW":
-        return [-2, -1]
-    if inpt.layout[-2:] == "HW":
-        return [-2, -1]
-    raise ValueError(f"Unsupported layout: {inpt.layout!r}. Expected one of HWC, CHW, HW.")
-
-
 def _validate_integer_param(value, name: str) -> int:
     try:
         return operator.index(value)
@@ -95,9 +84,8 @@ def crop(
 
     return ndd.slice(
         inpt,
-        [float(top), float(left)],
-        [float(height), float(width)],
-        axes=_get_crop_axes(inpt),
+        [float(left), float(top)],
+        [float(width), float(height)],
         normalized_anchor=False,
         normalized_shape=False,
         out_of_bounds_policy="pad",
