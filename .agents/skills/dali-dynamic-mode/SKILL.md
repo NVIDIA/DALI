@@ -149,7 +149,7 @@ Dynamic mode has **no pipeline-level checkpoint**. Checkpoints aggregate the sta
 
 ```python
 ckpt = ndd.checkpoint.Checkpoint()
-ckpt.register(reader, "reader")
+ckpt.register(reader, "my_reader")
 ckpt.register(rng, "rng")
 
 # ... iterate for a while ...
@@ -161,12 +161,12 @@ ckpt.save("ckpt_{seq:04d}.json")     # writes ckpt_0000.json, ckpt_0001.json, ..
 Restoring is the symmetric operation -- build a *fresh* reader and `RNG`, then `load` + `register`. The loaded state is applied to each object at `register` time:
 
 ```python
-reader = ndd.readers.File(file_root=..., enable_checkpointing=True)
+reader = ndd.readers.File(file_root=..., enable_checkpointing=True, name="my_reader")
 rng = ndd.random.RNG()
 
 ckpt = ndd.checkpoint.Checkpoint()
 ckpt.load("ckpt_{seq:04d}.json")     # picks the highest sequence number
-ckpt.register(reader, "reader")      # state applied here
+ckpt.register(reader, "my_reader")   # state applied here
 ckpt.register(rng, "rng")            # ditto
 
 for batch in reader.next_epoch(batch_size=N):
