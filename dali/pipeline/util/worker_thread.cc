@@ -201,7 +201,7 @@ void WorkerThreadImpl::ThreadMain(int device_id, bool set_affinity, const std::s
 }
 
 std::unique_ptr<WorkerThread> CreateWorkerThread(
-    int device_id, bool set_affinity, std::string_view &name) {
+    int device_id, bool set_affinity, const std::string &name) {
   return std::make_unique<WorkerThreadImpl>(device_id, set_affinity, name);
 }
 
