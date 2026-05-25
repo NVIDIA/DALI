@@ -143,6 +143,49 @@ When `rng=` is passed to a random op, the explicit RNG overrides the default see
 
 Random ops need an explicit `batch_size` when working with batches -- there is no pipeline-level batch size to inherit.
 
+## Checkpointing
+
+Dynamic mode has **no pipeline-level checkpoint**. Checkpoints aggregate the state of individual stateful objects: readers and `RNG` instances. Stateless ops (decoders, resize, rotate, normalize, ...) are not part of a checkpoint.
+
+```python
+ckpt = ndd.checkpoint.Checkpoint()
+ckpt.register(reader, "reader")
+ckpt.register(rng, "rng")
+
+# ... iterate for a while ...
+
+ckpt.collect()                       # snapshot the registered objects
+ckpt.save("ckpt_{seq:04d}.json")     # writes ckpt_0000.json, ckpt_0001.json, ...
+```
+
+Restoring is the symmetric operation -- build a *fresh* reader and `RNG`, then `load` + `register`. The loaded state is applied to each object at `register` time:
+
+```python
+reader = ndd.readers.File(file_root=..., enable_checkpointing=True)
+rng = ndd.random.RNG()
+
+ckpt = ndd.checkpoint.Checkpoint()
+ckpt.load("ckpt_{seq:04d}.json")     # picks the highest sequence number
+ckpt.register(reader, "reader")      # state applied here
+ckpt.register(rng, "rng")            # ditto
+
+for batch in reader.next_epoch(batch_size=N):
+    ...  # produces the next batch after the checkpointed iteration
+```
+
+Key rules:
+
+- **Readers must opt in.** Construct with `enable_checkpointing=True`. Registering an already-iterated reader without it raises `RuntimeError`; if the reader has not been iterated yet, `register` enables it retroactively.
+- **Reader state must be applied before the first `next_epoch` call.** The prefetch thread starts on first iteration and the snapshot queue is locked after that. `set_state` (or a `register` from a loaded checkpoint) on an already-iterated reader raises `RuntimeError`.
+- **`enable_checkpointing=True` is incompatible with `compile=True`.** Calling `reader.next_epoch(..., compile=True)` on a checkpointing-enabled reader raises `NotImplementedError`.
+- **Named registration is safer.** Anonymous `register(op)` uses sequential keys (`__op_0`, `__op_1`, ...) so the registration order must match between save and restore. Type tags catch cross-type swaps but not reorders of compatible types. Prefer `register(op, name)`.
+- **`ndd.checkpoint.current()`** returns the `Checkpoint` bound to the current thread-local `EvalContext`. It's shared across calls -- call `ckpt.clear()` if reusing the default context for unrelated runs.
+- **Filename pattern:** `save`/`load` take a Python format string with a single `{seq}` placeholder (e.g. `"ckpt_{seq:04d}.json"`). `save` picks the next free sequence; `load` picks the highest matching one on disk.
+- **Format version is strict.** `deserialize` rejects payloads from a different checkpoint format version -- no automatic upgrade.
+- **Not thread-safe.** One `Checkpoint` per thread.
+
+Manual `get_state` / `set_state` is also available directly on each `Reader` and `RNG` -- the `Checkpoint` aggregator is built on top of it. Use the manual API only when integrating with an external checkpoint system.
+
 ## Example: Image Classification Pipeline
 
 ```python
@@ -176,6 +219,8 @@ for epoch in range(num_epochs):
 | `ndd.readers.file(...)` | `ndd.readers.File(...)` | Reader classes are PascalCase |
 | `break` from `next_epoch()` loop | Exhaust iterator or create new reader | Iterator must be fully consumed before next `next_epoch()` |
 | No `batch_size` to random ops | `ndd.random.uniform(batch_size=N, ...)` | No pipeline-level batch size to inherit |
+| `register(reader)` after first `next_epoch` to restore | Register the freshly built reader before the first iteration | Reader state can only be applied before the prefetch thread starts |
+| Restoring into a reader built without `enable_checkpointing=True` after iteration | Pass `enable_checkpointing=True` at construction (or register before first iteration) | Backend doesn't keep snapshots otherwise |
 
 ## Pipeline Mode Migration
 
@@ -191,3 +236,4 @@ for epoch in range(num_epochs):
 | `output.at(i)` | `batch.select(i)` |
 | `output.as_cpu()` | `batch.cpu()` |
 | `pipe.run()` returns tuple of `TensorList` | `reader.next_epoch(batch_size=N)` yields tuples of `Batch` |
+| `Pipeline(..., enable_checkpointing=True)` + `pipe.checkpoint()` / `pipeline(checkpoint=...)` | `ndd.checkpoint.Checkpoint` + per-object `register` / `collect` / `save` / `load`; readers opt in with `enable_checkpointing=True` |

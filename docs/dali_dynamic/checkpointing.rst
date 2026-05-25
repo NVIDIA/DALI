@@ -17,6 +17,11 @@ This page describes the two checkpointing layers that DALI Dynamic exposes:
    :class:`~checkpoint.Checkpoint` aggregator that collects, serializes, and
    restores the state of a registered set of objects.
 
+For a worked example that exercises the semi-automatic flow, see the
+:doc:`Dynamic mode checkpointing notebook <checkpointing_tutorial>`. The
+:doc:`pipeline-mode counterpart <../examples/advanced/pipeline_checkpointing>`
+covers the same scenario with the classic ``@pipeline_def`` API.
+
 .. note::
 
    A :class:`Reader`'s state can be applied only to a freshly constructed
@@ -255,3 +260,8 @@ Checkpoint
 current
 ^^^^^^^
 .. autofunction:: current
+
+.. toctree::
+   :hidden:
+
+   Dynamic mode checkpointing notebook <checkpointing_tutorial>
