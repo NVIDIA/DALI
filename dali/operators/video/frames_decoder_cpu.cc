@@ -51,7 +51,7 @@ void FramesDecoderCpu::Flush() {
 bool FramesDecoderCpu::ReadNextFrame(uint8_t *data) {
   LOG_LINE << "FramesDecoderCpu::ReadNextFrame: next_frame_idx_=" << next_frame_idx_ << std::endl;
   if (next_frame_idx_ == 0) {
-    // call NumFrames() to populate the index before nay frames are read
+    // call NumFrames() to populate the index before any frames are read
     NumFrames();
   }
   // No more frames in the file
