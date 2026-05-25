@@ -18,6 +18,7 @@
 #include <functional>
 #include <memory>
 #include <string>
+#include <string_view>
 
 #include "dali/core/common.h"
 
@@ -44,7 +45,7 @@ class DLL_PUBLIC WorkerThread {
 };
 
 DLL_PUBLIC std::unique_ptr<WorkerThread> CreateWorkerThread(
-    int device_id, bool set_affinity, const std::string &name);
+    int device_id, bool set_affinity, std::string_view name);
 
 }  // namespace dali
 

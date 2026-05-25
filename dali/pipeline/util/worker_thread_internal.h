@@ -22,6 +22,7 @@
 #include <mutex>
 #include <queue>
 #include <string>
+#include <string_view>
 #include <thread>
 
 #if NVML_ENABLED
@@ -50,7 +51,7 @@ class Barrier {
 
 class DLL_PUBLIC WorkerThreadImpl final : public WorkerThread {
  public:
-  explicit WorkerThreadImpl(int device_id, bool set_affinity, const std::string &name);
+  explicit WorkerThreadImpl(int device_id, bool set_affinity, std::string_view name);
   ~WorkerThreadImpl() override;
 
   void Shutdown() override;

@@ -48,7 +48,7 @@ void detail::Barrier::Break() {
   cv_.notify_all();
 }
 
-WorkerThreadImpl::WorkerThreadImpl(int device_id, bool set_affinity, const std::string &name) {
+WorkerThreadImpl::WorkerThreadImpl(int device_id, bool set_affinity, std::string_view name) {
 #if NVML_ENABLED
   if (set_affinity && device_id != CPU_ONLY_DEVICE_ID) {
     nvml_handle_ = nvml::NvmlInstance::CreateNvmlInstance();
@@ -201,7 +201,7 @@ void WorkerThreadImpl::ThreadMain(int device_id, bool set_affinity, const std::s
 }
 
 std::unique_ptr<WorkerThread> CreateWorkerThread(
-    int device_id, bool set_affinity, const std::string &name) {
+    int device_id, bool set_affinity, std::string_view name) {
   return std::make_unique<WorkerThreadImpl>(device_id, set_affinity, name);
 }
 
