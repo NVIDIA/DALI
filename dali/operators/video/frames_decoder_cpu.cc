@@ -104,12 +104,27 @@ void FramesDecoderCpu::CopyToOutput(uint8_t *data) {
       sws_freeContext);
     DALI_ENFORCE(sws_ctx_, "Could not create sw context");
   }
+  bool src_full_range = frame_->color_range == AVCOL_RANGE_JPEG ||
+                        (frame_->color_range == AVCOL_RANGE_UNSPECIFIED &&
+                         codec_params_->color_range == AVCOL_RANGE_JPEG);
+  int ret = sws_setColorspaceDetails(
+    sws_ctx_.get(),
+    sws_getCoefficients(SWS_CS_DEFAULT),
+    src_full_range,
+    sws_getCoefficients(SWS_CS_DEFAULT),
+    1,
+    0,
+    1 << 16,
+    1 << 16);
+  DALI_ENFORCE(ret >= 0,
+               make_string("Could not set color space conversion details: ",
+                           av_error_string(ret)));
 
   uint8_t *dest[4] = {sws_output_data, nullptr, nullptr, nullptr};
   int dest_linesize[4] = {frame_->width * Channels(), 0, 0, 0};
 
   LOG_LINE << "Converting frame data to format " << (sws_output_format == AV_PIX_FMT_RGB24 ? "RGB" : "YUV") << std::endl;
-  int ret = sws_scale(
+  ret = sws_scale(
     sws_ctx_.get(),
     frame_->data,
     frame_->linesize,

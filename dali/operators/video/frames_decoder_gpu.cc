@@ -361,9 +361,14 @@ cudaVideoCodec FramesDecoderGpu::GetCodecType(AVCodecID codec_id) const {
   }
 }
 
+bool FramesDecoderGpu::IsFullRange(CUVIDEOFORMAT *video_format) const {
+  return video_format->video_signal_description.video_full_range_flag ||
+         codec_params_->color_range == AVCOL_RANGE_JPEG;
+}
+
 void FramesDecoderGpu::InitGpuDecoder(CUVIDEOFORMAT *video_format) {
   if (!nvdecode_state_->decoder) {
-    bool is_full_range = video_format->video_signal_description.video_full_range_flag;
+    bool is_full_range = IsFullRange(video_format);
     conversion_type_ = image_type_ == DALI_RGB ?
                            is_full_range ? VIDEO_COLOR_SPACE_CONVERSION_TYPE_YUV_TO_RGB_FULL_RANGE :
                                            VIDEO_COLOR_SPACE_CONVERSION_TYPE_YUV_TO_RGB :

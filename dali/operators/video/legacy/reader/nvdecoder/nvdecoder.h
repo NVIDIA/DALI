@@ -147,6 +147,7 @@ class NvDecoder {
   bool rgb_;
   DALIDataType dtype_;
   bool normalized_;
+  bool full_range_from_codecpar_;
 
   CUdevice device_;
   CUVideoParser parser_;
