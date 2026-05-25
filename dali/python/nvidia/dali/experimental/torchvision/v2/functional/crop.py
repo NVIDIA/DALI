@@ -64,6 +64,8 @@ def _validate_crop_params(inpt, top, left, height, width) -> tuple[int, int, int
 def _verify_crop_coordinate(value, name: str) -> None:
     if not isinstance(value, int):
         raise TypeError(f"{name} must be int, got {type(value)}")
+
+
 def _validate_integer_param(value, name: str) -> int:
     try:
         return operator.index(value)
