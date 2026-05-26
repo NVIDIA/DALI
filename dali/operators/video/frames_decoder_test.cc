@@ -200,22 +200,10 @@ TEST_F(FramesDecoderTest_CpuOnlyTests, ConstantFrameRate) {
   RunTest(decoder, cfr_videos_[0]);
 }
 
-TEST_F(FramesDecoderTest_CpuOnlyTests, ConstantFrameRateHevc) {
-  FramesDecoderCpu decoder(cfr_hevc_videos_paths_[0]);
-  decoder.BuildIndex();
-  RunTest(decoder, cfr_videos_[0]);
-}
-
 TEST_F(FramesDecoderTest_CpuOnlyTests, VariableFrameRate) {
   FramesDecoderCpu decoder(vfr_videos_paths_[1]);
   decoder.BuildIndex();
   RunTest(decoder, vfr_videos_[1]);
-}
-
-TEST_F(FramesDecoderTest_CpuOnlyTests, VariableFrameRateHevc) {
-  FramesDecoderCpu decoder(vfr_hevc_videos_paths_[0]);
-  decoder.BuildIndex();
-  RunTest(decoder, vfr_hevc_videos_[0]);
 }
 
 TEST_F(FramesDecoderTest_CpuOnlyTests, InvalidSeek) {
@@ -284,13 +272,6 @@ TEST_F(FramesDecoderGpuTest, InMemoryVfrVideo) {
   RunTest(decoder, vfr_videos_[0]);
 }
 
-TEST_F(FramesDecoderTest_CpuOnlyTests, InMemoryVfrHevcVideo) {
-  auto memory_video = MemoryVideo(vfr_videos_paths_[0]);
-  FramesDecoderCpu decoder(memory_video.data(), memory_video.size());
-  decoder.BuildIndex();
-  RunTest(decoder, vfr_videos_[0]);
-}
-
 TEST_F(FramesDecoderGpuTest, InMemoryVfrHevcVideo) {
   if (!FramesDecoderGpu::SupportsHevc()) {
     GTEST_SKIP();
@@ -305,12 +286,6 @@ TEST_F(FramesDecoderTest_CpuOnlyTests, VariableFrameRateNoIndex) {
   auto memory_video = MemoryVideo(vfr_videos_paths_[0]);
   FramesDecoderCpu decoder(memory_video.data(), memory_video.size());
   RunTest(decoder, vfr_videos_[0], false);
-}
-
-TEST_F(FramesDecoderTest_CpuOnlyTests, VariableFrameRateHevcNoIndex) {
-  auto memory_video = MemoryVideo(vfr_hevc_videos_paths_[1]);
-  FramesDecoderCpu decoder(memory_video.data(), memory_video.size());
-  RunTest(decoder, vfr_hevc_videos_[1], false);
 }
 
 TEST_F(FramesDecoderTest_CpuOnlyTests, NoIndexSeek) {

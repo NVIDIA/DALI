@@ -22,7 +22,13 @@ import glob
 import os
 import random
 from itertools import cycle
-from test_utils import get_dali_extra_path, is_mulit_gpu, skip_if_m60, compare_pipelines
+from test_utils import (
+    get_dali_extra_path,
+    is_mulit_gpu,
+    skip_if_m60,
+    compare_pipelines,
+    check_output_pattern,
+)
 from nose2.tools import cartesian_params, params
 from nose_utils import SkipTest, attr, assert_raises
 
@@ -37,12 +43,12 @@ files = [np.fromfile(filename, dtype=np.uint8) for filename in filenames]
 
 
 cfr_files = [
-    f"{get_dali_extra_path()}/db/video/cfr/test_1.mp4",
-    f"{get_dali_extra_path()}/db/video/cfr/test_2.mp4",
+    f"{get_dali_extra_path()}/db/video/cfr/test_1_vp9.mp4",
+    f"{get_dali_extra_path()}/db/video/cfr/test_2_vp9.mp4",
 ]
 vfr_files = [
-    f"{get_dali_extra_path()}/db/video/vfr/test_1.mp4",
-    f"{get_dali_extra_path()}/db/video/vfr/test_2.mp4",
+    f"{get_dali_extra_path()}/db/video/vfr/test_1_vp9.mp4",
+    f"{get_dali_extra_path()}/db/video/vfr/test_2_vp9.mp4",
 ]
 
 codec_files = {
@@ -53,6 +59,17 @@ codec_files = {
     "vp8": [f"{get_dali_extra_path()}/db/video/vp8/vp8.webm"],
     "vp9": [f"{get_dali_extra_path()}/db/video/vp9/vp9_0.mp4"],
 }
+
+
+# list all not supported codecs by the CPU operator we test on
+unsupported_cpu_codec_error = r"is not supported by the CPU variant of this operator\."
+unsupported_cpu_codecs = {"h264", "hevc", "mpeg4", "av1"}
+
+
+def assert_unsupported_cpu_codec(run_pipeline):
+    with check_output_pattern(unsupported_cpu_codec_error):
+        with assert_raises(RuntimeError):
+            run_pipeline()
 
 
 def idx_reflect_101(idx, lo, hi):
@@ -254,7 +271,7 @@ def test_full_range_video():
     assert np.mean(absdiff) < 2
 
 
-@params("cpu", "gpu")
+@params("gpu")
 def test_full_range_video_in_memory(device):
     skip_if_m60()
 
@@ -294,10 +311,15 @@ def test_multi_gpu_video(device):
     def input_gen(batch_size):
         filenames = glob.glob(f"{get_dali_extra_path()}/db/video/[cv]fr/*.mp4")
         # test overflow of frame_buffer_
-        filenames.append(f"{get_dali_extra_path()}/db/video/cfr_test.mp4")
-        filenames = filter(lambda filename: "mpeg4" not in filename, filenames)
+        if device == "mixed":
+            filenames.append(f"{get_dali_extra_path()}/db/video/cfr_test.mp4")
         filenames = filter(lambda filename: "hevc" not in filename, filenames)
         filenames = filter(lambda filename: "av1" not in filename, filenames)
+        if device == "cpu":
+            # some formats are not yet supported in the CPU operator itself
+            filenames = filter(lambda filename: "mpeg4" not in filename, filenames)
+            excluded = {"test_1.mp4", "test_2.mp4"}
+            filenames = filter(lambda f: os.path.basename(f) not in excluded, filenames)
         filenames = cycle(filenames)
         while True:
             batch = []
@@ -326,9 +348,13 @@ def test_source_info(device):
     filenames = glob.glob(f"{get_dali_extra_path()}/db/video/[cv]fr/*.mp4")
     # filter out HEVC because some GPUs do not support it
     filenames = filter(lambda filename: "hevc" not in filename, filenames)
-    # mpeg4 is not yet supported in the CPU operator itself
-    filenames = filter(lambda filename: "mpeg4" not in filename, filenames)
+    # filter out AV1 because some GPUs do not support it
     filenames = filter(lambda filename: "av1" not in filename, filenames)
+    if device == "cpu":
+        # some formats are not yet supported in the CPU operator itself
+        filenames = filter(lambda filename: "mpeg4" not in filename, filenames)
+        excluded = {"test_1.mp4", "test_2.mp4"}
+        filenames = filter(lambda f: os.path.basename(f) not in excluded, filenames)
 
     files = list(filenames)
 
@@ -343,7 +369,8 @@ def test_source_info(device):
         return videos
 
     batch_size = 4
-    p = test_pipeline(batch_size=batch_size, num_threads=1, device_id=0)
+    device_id = None if device == "cpu" else 0
+    p = test_pipeline(batch_size=batch_size, num_threads=1, device_id=device_id)
 
     samples_read = 0
     while samples_read < len(files):
@@ -687,8 +714,8 @@ def test_multichannel_fill_value(device):
         return decoded0, decoded1
 
     batch_size = 3
-    pipe = test_pipeline(batch_size=batch_size, num_threads=3, device_id=0)
-    pipe.build()
+    device_id = None if device == "cpu" else 0
+    pipe = test_pipeline(batch_size=batch_size, num_threads=3, device_id=device_id)
     out = pipe.run()
     out0, out1 = (o.as_cpu() for o in out)
 
@@ -803,8 +830,6 @@ def test_decoder_operator_codec_support(
     filenames = codec_files[codec]
     assert len(filenames) > 0, f"No {codec} test files found"
 
-    if device == "cpu" and codec == "mpeg4":
-        raise SkipTest(f"Codec {codec} is not supported by the CPU decoder.")
     if codec == "av1":
         raise SkipTest(f"Codec {codec} is only supported by Ampere+ GPUs, skipping test for now.")
 
@@ -812,9 +837,6 @@ def test_decoder_operator_codec_support(
     diff_step = 5 if codec == "mpeg4" else 2
 
     batch = []
-    for i in range(batch_size):
-        with open(filenames[i % len(filenames)], "rb") as f:
-            batch.append(np.frombuffer(f.read(), dtype=np.uint8))
 
     def get_batch():
         random.shuffle(batch)
@@ -833,8 +855,20 @@ def test_decoder_operator_codec_support(
         )
         return videos
 
-    pipe = decoder_pipeline(batch_size=batch_size, num_threads=2, device_id=0)
-    pipe.build()
+    device_id = None if device == "cpu" else 0
+    pipe = decoder_pipeline(batch_size=batch_size, num_threads=2, device_id=device_id)
+    if device == "cpu" and codec in unsupported_cpu_codecs:
+        # Only the codec-detection path is exercised; load a single file so the decoder
+        # has bytes to inspect, then return without consuming the full test batch.
+        with open(filenames[0], "rb") as f:
+            batch.append(np.frombuffer(f.read(), dtype=np.uint8))
+        assert_unsupported_cpu_codec(pipe.run)
+        return
+
+    for i in range(batch_size):
+        with open(filenames[i % len(filenames)], "rb") as f:
+            batch.append(np.frombuffer(f.read(), dtype=np.uint8))
+
     (out,) = pipe.run()
     assert len(out) > 0, f"No output from decoder pipeline for {codec}"
 
@@ -864,8 +898,6 @@ def test_reader_operator_codec_support(device, codec, sequence_length=3, stride=
     filenames = codec_files[codec]
     assert len(filenames) > 0, f"No {codec} test files found"
 
-    if device == "cpu" and codec == "mpeg4":
-        raise SkipTest(f"Codec {codec} is not supported by the CPU decoder.")
     if codec == "av1":
         raise SkipTest(f"Codec {codec} is only supported by Ampere+ GPUs, skipping test for now.")
 
@@ -883,7 +915,12 @@ def test_reader_operator_codec_support(device, codec, sequence_length=3, stride=
         )
         return videos, frame_no
 
-    pipe = decoder_pipeline(batch_size=batch_size, num_threads=2, device_id=0)
+    device_id = None if device == "cpu" else 0
+    pipe = decoder_pipeline(batch_size=batch_size, num_threads=2, device_id=device_id)
+    if device == "cpu" and codec in unsupported_cpu_codecs:
+        assert_unsupported_cpu_codec(pipe.run)
+        return
+
     out, frame_no = pipe.run()
     assert len(out) > 0, f"No output from decoder pipeline for {codec}"
 
@@ -931,7 +968,6 @@ def test_no_first_key_frame():
         seed=123456,
     )
 
-    pipe.build()
     pipe.run()
 
 
@@ -1266,8 +1302,6 @@ def test_video_index_reuse():
         filenames=video_files,
         seed=123456,
     )
-
-    pipe.build()
 
     # recreate the pipeline to reuse indices build already
     pipe = video_pipe(

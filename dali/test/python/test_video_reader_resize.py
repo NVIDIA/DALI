@@ -18,7 +18,7 @@ import nvidia.dali as dali
 import nvidia.dali.types as types
 
 video_directory = "/tmp/labelled_videos/"
-video_directory_multiple_resolutions = "/tmp/video_resolution/"
+video_directory_multiple_resolutions = "/tmp/video_resolution/vp9/"
 
 pipeline_params = {"num_threads": 8, "device_id": 0, "seed": 0}
 

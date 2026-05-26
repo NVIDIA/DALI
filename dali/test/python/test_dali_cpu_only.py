@@ -51,8 +51,8 @@ coco_dir = os.path.join(data_root, "db", "coco", "images")
 coco_annotation = os.path.join(data_root, "db", "coco", "instances.json")
 sequence_dir = os.path.join(data_root, "db", "sequence", "frames")
 video_files = [
-    os.path.join(get_dali_extra_path(), "db", "video", "vfr", "test_1.mp4"),
-    os.path.join(get_dali_extra_path(), "db", "video", "vfr", "test_2.mp4"),
+    os.path.join(get_dali_extra_path(), "db", "video", "vfr", "test_1_vp9.mp4"),
+    os.path.join(get_dali_extra_path(), "db", "video", "vfr", "test_2_vp9.mp4"),
 ]
 
 batch_size = 2
@@ -1341,7 +1341,7 @@ def test_get_property():
 
 def test_video_decoder():
     def get_data():
-        filename = os.path.join(get_dali_extra_path(), "db", "video", "cfr", "test_1.mp4")
+        filename = os.path.join(get_dali_extra_path(), "db", "video", "cfr", "test_1_vp9.mp4")
         return np.fromfile(filename, dtype=np.uint8)
 
     check_single_input(fn.experimental.decoders.video, "", get_data, batch=False)
