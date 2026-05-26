@@ -52,8 +52,6 @@ leak:_PyLong_New
 leak:PyBytes_FromString
 leak:PyType_GenericAlloc
 leak:PyCapsule_New
-leak:_PyObject_GC_NewVar
-leak:_PyObject_GC_New
 leak:PyDict_Copy
 leak:_PyObject_New
 leak:PyUnicode_New
@@ -64,3 +62,18 @@ leak:PyDict_SetDefault
 leak:PySequence_List
 leak:_PyFunction_Vectorcall
 leak:numa_node_to_cpus
+leak:PyUnicode_FromKindAndData
+leak:PyImport_ImportModuleLevelObject
+leak:_PyImport_*
+leak:_PyObject_GC_*
+leak:PyDict_SetItemString
+leak:PyUnicode_InternFromString
+leak:PyRun_SimpleStringFlags
+leak:PyRun_StringFlags
+leak:_PyRun_SimpleFileObject
+leak:_PyUnicode_FromASCII
+leak:Py_CompileStringObject
+leak:_PyUnicode_DecodeUnicodeEscapeInternal2
+leak:/usr/bin/sort
+leak:/usr/bin/tr
+leak:yyparse

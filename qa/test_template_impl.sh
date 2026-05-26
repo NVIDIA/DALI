@@ -65,8 +65,6 @@ epilog=${epilog-:}
 numer_of_prolog_elms=${#prolog[@]}
 
 enable_sanitizer() {
-    export ASAN_OPTIONS=symbolize=1:protect_shadow_gap=0:log_path=sanitizer.log:start_deactivated=true:allocator_may_return_null=1:detect_leaks=1:fast_unwind_on_malloc=0:verify_asan_link_order=0:detect_container_overflow=0:suppressions=$topdir/qa/address.sup
-    export ASAN_SYMBOLIZER_PATH=$(which llvm-symbolizer)
     # avoid python false positives
     export PYTHONMALLOC=malloc
     # if something calls dlclose on a module that leaks and it happens before asan can extract symbols we get "unknown module"
@@ -76,7 +74,13 @@ enable_sanitizer() {
     export LD_PRELOAD="/usr/lib/x86_64-linux-gnu/libasan.so /tmp/glibc_fix.so /tmp/libfakeclose.so /usr/lib/x86_64-linux-gnu/libstdc++.so"
     # Workaround for bug in asan ignoring RPATHs https://bugzilla.redhat.com/show_bug.cgi?id=1449604
     export OLD_LD_LIBRARY_PATH2=${LD_LIBRARY_PATH}  # OLD_LD_LIBRARY_PATH variable name already used
-    export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$(python -c 'import nvidia.nvimgcodec as n; import os; print(os.path.dirname(n.__file__))')
+    # first provide paths to nvimgcodec deps then learn its location
+    export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:"$(python -c 'import nvidia.nvjpeg2k as n, os; print(os.path.dirname(n.__file__) + "/lib")' 2>/dev/null || echo '')"
+    export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:"$(python -c 'import nvidia.nvtiff as n, os; print(os.path.dirname(n.__file__) + "/lib")' 2>/dev/null || echo '')"
+    export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:"$(python -c 'import nvidia.nvimgcodec as n, os; print(os.path.dirname(n.__file__))' 2>/dev/null || echo '')"
+
+    export ASAN_OPTIONS=symbolize=1:protect_shadow_gap=0:log_path=sanitizer.log:start_deactivated=false:allocator_may_return_null=1:detect_leaks=1:fast_unwind_on_malloc=0:verify_asan_link_order=0:detect_container_overflow=0:suppressions=$topdir/qa/address.sup:malloc_context_size=96
+    export ASAN_SYMBOLIZER_PATH=$(which llvm-symbolizer)
 }
 
 # turn off sanitizer to avoid breaking any non-related system built-ins

@@ -12,7 +12,10 @@ test_body() {
     # $ORIGIN/../nvimgcodec rpath entry. Keep the wheel-installed nvimgcodec dir
     # reachable via LD_LIBRARY_PATH instead. Mirrors the same workaround in
     # qa/test_template_impl.sh::enable_sanitizer().
-    export LD_LIBRARY_PATH="$(python -c 'import nvidia.nvimgcodec as n, os; print(os.path.dirname(n.__file__))' 2>/dev/null || echo '')"
+    # first provide paths to nvimgcodec deps then learn its location
+    export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:"$(python -c 'import nvidia.nvjpeg2k as n, os; print(os.path.dirname(n.__file__) + "/lib")' 2>/dev/null || echo '')"
+    export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:"$(python -c 'import nvidia.nvtiff as n, os; print(os.path.dirname(n.__file__) + "/lib")' 2>/dev/null || echo '')"
+    export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:"$(python -c 'import nvidia.nvimgcodec as n, os; print(os.path.dirname(n.__file__))' 2>/dev/null || echo '')"
   else
     export LD_LIBRARY_PATH=""
   fi
