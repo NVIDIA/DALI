@@ -1,4 +1,4 @@
-// Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2025-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -107,24 +107,27 @@ void FramesDecoderCpu::CopyToOutput(uint8_t *data) {
   bool src_full_range = frame_->color_range == AVCOL_RANGE_JPEG ||
                         (frame_->color_range == AVCOL_RANGE_UNSPECIFIED &&
                          codec_params_->color_range == AVCOL_RANGE_JPEG);
-  int ret = sws_setColorspaceDetails(
-    sws_ctx_.get(),
-    sws_getCoefficients(SWS_CS_DEFAULT),
-    src_full_range,
-    sws_getCoefficients(SWS_CS_DEFAULT),
-    1,
-    0,
-    1 << 16,
-    1 << 16);
-  DALI_ENFORCE(ret >= 0,
-               make_string("Could not set color space conversion details: ",
-                           av_error_string(ret)));
+  if (sws_src_full_range_ != src_full_range) {
+    int ret = sws_setColorspaceDetails(
+      sws_ctx_.get(),
+      sws_getCoefficients(SWS_CS_DEFAULT),
+      src_full_range,
+      sws_getCoefficients(SWS_CS_DEFAULT),
+      1,
+      0,
+      1 << 16,
+      1 << 16);
+    DALI_ENFORCE(ret >= 0,
+                 make_string("Could not set color space conversion details: ",
+                             av_error_string(ret)));
+    sws_src_full_range_ = src_full_range;
+  }
 
   uint8_t *dest[4] = {sws_output_data, nullptr, nullptr, nullptr};
   int dest_linesize[4] = {frame_->width * Channels(), 0, 0, 0};
 
   LOG_LINE << "Converting frame data to format " << (sws_output_format == AV_PIX_FMT_RGB24 ? "RGB" : "YUV") << std::endl;
-  ret = sws_scale(
+  int ret = sws_scale(
     sws_ctx_.get(),
     frame_->data,
     frame_->linesize,
