@@ -12,11 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-<<<<<<< HEAD
 import operator
 
-=======
->>>>>>> 8449e0fc (Torchvision API RandomCrop and crop operartors)
 import nvidia.dali.experimental.dynamic as ndd
 from nvidia.dali._typing import TensorLike
 from nvidia.dali.experimental.dynamic._device import DeviceLike
@@ -25,7 +22,6 @@ from ..operator import adjust_input
 from ..randomcrop import RandomCrop
 
 
-<<<<<<< HEAD
 def _validate_integer_param(value, name: str) -> int:
     try:
         return operator.index(value)
@@ -63,22 +59,48 @@ def _validate_crop_params(inpt, top, left, height, width) -> tuple[int, int, int
         _validate_integer_param(height, "height"),
         _validate_integer_param(width, "width"),
     )
-=======
-def _get_crop_axes(inpt: TensorLike | ndd.Batch) -> list[int]:
-    layout = inpt.layout[-3:]
-    if layout == "HWC":
-        return [-3, -2]
-    if layout == "CHW":
-        return [-2, -1]
-    if inpt.layout[-2:] == "HW":
-        return [-2, -1]
-    raise ValueError(f"Unsupported layout: {inpt.layout!r}. Expected one of HWC, CHW, HW.")
 
 
 def _verify_crop_coordinate(value, name: str) -> None:
     if not isinstance(value, int):
         raise TypeError(f"{name} must be int, got {type(value)}")
->>>>>>> 8449e0fc (Torchvision API RandomCrop and crop operartors)
+def _validate_integer_param(value, name: str) -> int:
+    try:
+        return operator.index(value)
+    except TypeError as err:
+        raise TypeError(f"{name} must be an integer, got {type(value)}") from err
+
+
+def _round_pil_box(top, left, height, width) -> tuple[int, int, int, int]:
+    try:
+        rounded_top = int(round(top))
+        rounded_left = int(round(left))
+        rounded_bottom = int(round(top + height))
+        rounded_right = int(round(left + width))
+    except TypeError as err:
+        raise TypeError("top, left, height, and width must be real numbers") from err
+
+    return (
+        rounded_top,
+        rounded_left,
+        rounded_bottom - rounded_top,
+        rounded_right - rounded_left,
+    )
+
+
+def _is_pil_image_layout(inpt: TensorLike | ndd.Batch) -> bool:
+    return inpt.layout[-3:] == "HWC"
+
+
+def _validate_crop_params(inpt, top, left, height, width) -> tuple[int, int, int, int]:
+    if _is_pil_image_layout(inpt):
+        return _round_pil_box(top, left, height, width)
+    return (
+        _validate_integer_param(top, "top"),
+        _validate_integer_param(left, "left"),
+        _validate_integer_param(height, "height"),
+        _validate_integer_param(width, "width"),
+    )
 
 
 @adjust_input
