@@ -325,7 +325,6 @@ def build_call_function(schema, op_class):
 
         if batch_size is None:
             batch_size = _ops._infer_batch_size(*raw_args, **raw_kwargs)
-        _check_batch_size_available(op_class, batch_size)
         is_batch = batch_size is not None
 
         if _process_params:
