@@ -30,6 +30,10 @@ filenames = filter(lambda filename: "hevc" not in filename, filenames)
 # mpeg4 is not yet supported in the CPU operator
 filenames = filter(lambda filename: "mpeg4" not in filename, filenames)
 filenames = filter(lambda filename: "av1" not in filename, filenames)
+# h264 (the unsuffixed test_{1,2}.mp4 in cfr/ and vfr/) is not supported by the CPU operator
+filenames = filter(
+    lambda filename: os.path.basename(filename) not in {"test_1.mp4", "test_2.mp4"}, filenames
+)
 files = [np.fromfile(filename, dtype=np.uint8) for filename in filenames]
 
 batch_size_values = [1, 3, 100]
@@ -267,7 +271,9 @@ def test_video_input_audio_stream(device):
         **common_pipeline_params,
     )
 
-    filename = os.path.join(test_data_root, "db", "video", "sintel", "sintel_trailer-720p.mp4")
+    filename = os.path.join(
+        test_data_root, "db", "optical_flow", "sintel_trailer", "sintel_trailer_vp9.mp4"
+    )
     test_file = np.fromfile(filename, dtype=np.uint8)
     input_pipe.feed_input(input_name, np.array([[test_file]]))
 

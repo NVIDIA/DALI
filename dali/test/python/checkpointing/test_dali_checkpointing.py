@@ -855,7 +855,8 @@ def test_experimental_video_reader(
     video: VideoConfig,
 ):
     files = [
-        os.path.join(get_dali_extra_path(), "db", "video", "vfr", f"test_{i}.mp4") for i in (1, 2)
+        os.path.join(get_dali_extra_path(), "db", "video", "vfr", f"test_{i}_vp9.mp4")
+        for i in (1, 2)
     ]
 
     check_reader_checkpointing(

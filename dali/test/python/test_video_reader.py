@@ -34,7 +34,7 @@ PLENTY_VIDEO_FILES = os.listdir(PLENTY_VIDEO_DIRECTORY)
 VIDEO_FILES = [VIDEO_DIRECTORY + "/" + f for f in VIDEO_FILES]
 PLENTY_VIDEO_FILES = [PLENTY_VIDEO_DIRECTORY + "/" + f for f in PLENTY_VIDEO_FILES]
 FILE_LIST = "/tmp/file_list.txt"
-MULTIPLE_RESOLUTION_ROOT = "/tmp/video_resolution/"
+MULTIPLE_RESOLUTION_ROOT = "/tmp/video_resolution/vp9/"
 
 devices = ["cpu", "gpu"]
 sequence_lengths = [3]

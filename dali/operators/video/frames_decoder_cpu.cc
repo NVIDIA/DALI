@@ -50,6 +50,10 @@ void FramesDecoderCpu::Flush() {
 
 bool FramesDecoderCpu::ReadNextFrame(uint8_t *data) {
   LOG_LINE << "FramesDecoderCpu::ReadNextFrame: next_frame_idx_=" << next_frame_idx_ << std::endl;
+  if (next_frame_idx_ == 0) {
+    // call NumFrames() to populate the index before any frames are read
+    NumFrames();
+  }
   // No more frames in the file
   if (next_frame_idx_ == -1) {
     return false;
@@ -154,19 +158,21 @@ bool FramesDecoderCpu::ReadRegularFrame(uint8_t *data) {
     LOG_LINE << (copy_to_output ? "Read" : "Skip") << " frame (ReadRegularFrame), index "
              << next_frame_idx_ << ", timestamp " << std::setw(5) << frame_->pts
              << std::endl;
-    if (!copy_to_output) {
-      ++next_frame_idx_;
-      return true;
+    if (copy_to_output) {
+      CopyToOutput(data);
     }
-
-    CopyToOutput(data);
     ++next_frame_idx_;
+    if (next_frame_idx_ >= NumFrames()) {
+      next_frame_idx_ = -1;
+      LOG_LINE << "Next frame index out of bounds (regular), setting to -1" << std::endl;
+    }
     return true;
   }
 
   ret = avcodec_send_packet(codec_ctx_, nullptr);
-  DALI_ENFORCE(ret >= 0,
-               make_string("Failed to send packet to decoder: ", av_error_string(ret)));
+  // the decoder has already drained — no more packets to send
+  DALI_ENFORCE(ret >= 0 || ret == AVERROR_EOF,
+               make_string("avcodec_send_packet failed: ", av_error_string(ret)));
   flush_state_ = true;
 
   return false;
@@ -176,6 +182,7 @@ bool FramesDecoderCpu::ReadFlushFrame(uint8_t *data) {
   bool copy_to_output = data != nullptr;
   if (avcodec_receive_frame(codec_ctx_, frame_) < 0) {
     flush_state_ = false;
+    next_frame_idx_ = -1;
     return false;
   }
 
@@ -189,7 +196,7 @@ bool FramesDecoderCpu::ReadFlushFrame(uint8_t *data) {
   ++next_frame_idx_;
 
   // TODO(awolant): Figure out how to handle this during index building
-  // Or when NumFrames in unavailible
+  // Or when NumFrames in unavailable
   if (next_frame_idx_ >= NumFrames()) {
     next_frame_idx_ = -1;
     LOG_LINE << "Next frame index out of bounds, setting to -1" << std::endl;
@@ -213,15 +220,15 @@ bool FramesDecoderCpu::SelectVideoStream(int stream_id) {
   assert(codec_params_);
   AVCodecID codec_id = codec_params_->codec_id;
 
-  static constexpr std::array<AVCodecID, 7> codecs = {
-    AVCodecID::AV_CODEC_ID_H264,
-    AVCodecID::AV_CODEC_ID_HEVC,
+  static constexpr std::array<AVCodecID, 3> codecs = {
     AVCodecID::AV_CODEC_ID_VP8,
     AVCodecID::AV_CODEC_ID_VP9,
     AVCodecID::AV_CODEC_ID_MJPEG,
     // Those are not supported by our compiled version of libavcodec,
     // AVCodecID::AV_CODEC_ID_AV1,
     // AVCodecID::AV_CODEC_ID_MPEG4,
+    // AVCodecID::AV_CODEC_ID_H264,
+    // AVCodecID::AV_CODEC_ID_HEVC,
   };
 
   if (std::find(codecs.begin(), codecs.end(), codec_id) == codecs.end()) {

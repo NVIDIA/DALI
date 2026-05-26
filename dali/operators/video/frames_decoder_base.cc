@@ -509,7 +509,8 @@ void FramesDecoderBase::SeekFrame(int frame_id) {
     return;  // No need to seek
   }
 
-  if (next_frame_idx_ < 0) {
+  if (next_frame_idx_ < 0 || (HasIndex() && next_frame_idx_ >= NumFrames())) {
+    LOG_LINE << "Resetting decoder because next_frame_idx_ is out of bounds" << std::endl;
     Reset();
   }
   assert(next_frame_idx_ >= 0);

@@ -73,11 +73,11 @@ webdataset_dir = os.path.join(data_root, "db", "webdataset")
 coco_dir = os.path.join(data_root, "db", "coco", "images")
 coco_annotation = os.path.join(data_root, "db", "coco", "instances.json")
 video_files = [
-    os.path.join(test_utils.get_dali_extra_path(), "db", "video", "vfr", "test_1.mp4"),
-    os.path.join(test_utils.get_dali_extra_path(), "db", "video", "vfr", "test_2.mp4"),
+    os.path.join(test_utils.get_dali_extra_path(), "db", "video", "vfr", "test_1_vp9.mp4"),
+    os.path.join(test_utils.get_dali_extra_path(), "db", "video", "vfr", "test_2_vp9.mp4"),
 ]
-vid_dir = os.path.join(data_root, "db", "video", "sintel", "video_files")
-vid_files = ["sintel_trailer-720p_2.mp4"]
+vid_dir = os.path.join(data_root, "db", "optical_flow", "sintel_trailer")
+vid_files = ["sintel_trailer_vp9.mp4"]
 vid_filenames = [os.path.join(vid_dir, vid_file) for vid_file in vid_files]
 
 
@@ -120,7 +120,7 @@ READERS = _expand_reader_test_cases(
             {
                 "filenames": [
                     os.path.join(
-                        test_utils.get_dali_extra_path(), "db", "video", "cfr", "test_1.mp4"
+                        test_utils.get_dali_extra_path(), "db", "video", "cfr", "test_1_vp9.mp4"
                     )
                 ],
                 "sequence_length": 3,
