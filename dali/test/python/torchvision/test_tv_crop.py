@@ -81,6 +81,8 @@ def _move_tensor_to_device(tensor, device):
         (-1, -2, 6, 8),
         (6, 8, 5, 6),
         (0, 0, 12, 14),
+        (np.int32(5), np.int32(2), np.int32(2), np.int32(3)),
+        (np.int64(-1), np.int64(-2), np.uint16(6), np.uint16(8)),
     ),
 )
 def test_crop_tensor(device, crop_case):
@@ -95,6 +97,8 @@ def test_crop_tensor(device, crop_case):
     (
         (1, 2, 4, 5),
         (-2, -3, 12, 14),
+        (1.5, 2.5, 4.0, 5.0),
+        (np.float32(1.5), np.float64(2.5), np.float32(4.5), np.float64(5.5)),
     ),
 )
 def test_crop_pil(device, mode, crop_case):
@@ -102,7 +106,7 @@ def test_crop_pil(device, mode, crop_case):
     _assert_crop_matches_torchvision(_make_pil_image(mode), *crop_case, device=device)
 
 
-@cartesian_params(("cpu", "gpu"), ((2, 3, 4, 5),))
+@cartesian_params(("cpu", "gpu"), ((2, 3, 4, 5), (np.int32(2), np.int64(3), 4, 5)))
 def test_crop_batched_tensor(device, crop_case):
     _skip_if_gpu_unavailable(device)
     tensor = _move_tensor_to_device(make_test_tensor(shape=(4, 3, 8, 10)), device)
@@ -119,7 +123,36 @@ def test_crop_preserves_tensor_dtype(dtype):
     assert torch.equal(dali_out, tv_out), "DALI crop output differs from torchvision"
 
 
+@params(
+    dict(top=1.0, left=0, height=1, width=1),
+    dict(top=0, left=1.0, height=1, width=1),
+    dict(top=0, left=0, height=1.0, width=1),
+    dict(top=0, left=0, height=1, width=1.0),
+)
+def test_crop_tensor_rejects_float_parameters(crop_kwargs):
+    with assert_raises(TypeError):
+        _ = tv_fn.crop(make_test_tensor(), **crop_kwargs)
+    with assert_raises(TypeError):
+        _ = crop(make_test_tensor(), **crop_kwargs)
+
+
+@params(
+    dict(top="0", left=0, height=1, width=1),
+    dict(top=0, left="0", height=1, width=1),
+    dict(top=0, left=0, height="1", width=1),
+    dict(top=0, left=0, height=1, width="1"),
+)
+def test_crop_pil_rejects_non_numeric_parameters(crop_kwargs):
+    pil_image = _make_pil_image("RGB")
+    with assert_raises(TypeError):
+        _ = tv_fn.crop(pil_image, **crop_kwargs)
+    with assert_raises(TypeError):
+        _ = crop(pil_image, **crop_kwargs)
+
+
 def test_crop_invalid_input_type():
+    with assert_raises(TypeError):
+        _ = tv_fn.crop([1, 2, 3], top=0, left=0, height=1, width=1)
     with assert_raises(TypeError):
         _ = crop([1, 2, 3], top=0, left=0, height=1, width=1)
 
@@ -144,5 +177,7 @@ def test_crop_invalid_output_size(height, width):
     (0, "0"),
 )
 def test_crop_invalid_coordinates(top, left):
+    with assert_raises(TypeError):
+        _ = tv_fn.crop(make_test_tensor(), top=top, left=left, height=1, width=1)
     with assert_raises(TypeError):
         _ = crop(make_test_tensor(), top=top, left=left, height=1, width=1)
