@@ -30,6 +30,16 @@ can easily be retargeted to TensorFlow, PyTorch, and PaddlePaddle.
     :align: center
     :alt: DALI Diagram
 
+.. tip::
+    The `dali-dynamic-mode <https://github.com/NVIDIA/skills/blob/main/skills/DALI/dali-dynamic-mode/SKILL.md>`_ skill
+    provides AI agents with guidance on the Dynamic Mode API and best practices. It can be installed as follows:
+
+    .. code-block:: sh
+
+        npx skills add nvidia/skills --skill dali-dynamic-mode
+
+    For more information, see the `NVIDIA/skills <https://github.com/NVIDIA/skills>`_ GitHub repository.
+
 DALI in action:
 
 .. container:: dali-tabs
