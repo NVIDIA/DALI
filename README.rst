@@ -30,7 +30,24 @@ can easily be retargeted to TensorFlow, PyTorch, and PaddlePaddle.
     :align: center
     :alt: DALI Diagram
 
-.. tip::
+.. github display off
+
+.. GitHub discards custom styles when rendering Markdown. We can use it to our advantage to hide the GitHub-style
+   admonition in the sphinx-rendered documentation
+
+.. only:: html
+    .. raw:: html
+        <style>
+        .github-only {
+            display: none !important;
+        }
+        </style>
+
+.. rst-class:: github-only
+.. pull-quote::
+
+    [!TIP]
+
     The `dali-dynamic-mode <https://github.com/NVIDIA/skills/blob/main/skills/DALI/dali-dynamic-mode/SKILL.md>`_ skill
     provides AI agents with guidance on the Dynamic Mode API and best practices. It can be installed as follows:
 
@@ -40,7 +57,8 @@ can easily be retargeted to TensorFlow, PyTorch, and PaddlePaddle.
 
     For more information, see the `NVIDIA/skills <https://github.com/NVIDIA/skills>`_ GitHub repository.
 
-DALI in action:
+DALI in action
+--------------
 
 .. container:: dali-tabs
 
