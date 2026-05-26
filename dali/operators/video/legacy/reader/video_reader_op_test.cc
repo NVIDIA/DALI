@@ -18,7 +18,7 @@
 #include <fstream>
 #include "dali/pipeline/pipeline.h"
 #include "dali/test/dali_test_config.h"
-#include "dali/util/nvml_wrap.h"
+#include "dali/util/nvml.h"
 #include "opencv2/opencv.hpp"
 
 #ifndef VIDEO_READER_OP

@@ -23,6 +23,7 @@
 #include "dali/core/format.h"
 #include "dali/core/tensor_shape.h"
 #include "dali/core/mm/default_resources.h"
+#include "dali/core/nvtx.h"
 #include "dali/pipeline/init.h"
 
 #include "dali/pipeline/pipeline.h"
@@ -905,4 +906,3 @@ void daliDestroyExternalContextCheckpoint(daliExternalContextCheckpoint *externa
   if (external_context->pipeline_data.data) daliFree(external_context->pipeline_data.data);
   if (external_context->iterator_data.data) daliFree(external_context->iterator_data.data);
 }
-
