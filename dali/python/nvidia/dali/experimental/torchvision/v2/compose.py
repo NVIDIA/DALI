@@ -77,7 +77,7 @@ def _pipeline_function(op_list: Sequence, layout: str = "HWC", input_device: str
     """
     input_node = fn.external_source(name="input_data", layout=layout, device=input_device)
     for op in op_list:
-        input_node = op(input_node)
+        input_node = op._invoke(input_node)
     return input_node
 
 
