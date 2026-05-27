@@ -1,0 +1,444 @@
+# Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+import math
+import unittest
+
+from nose2.tools import cartesian_params, params
+from nose_utils import assert_raises
+import numpy as np
+from PIL import Image
+import torch
+import torchvision.transforms.v2 as transforms
+import torchvision.transforms.v2.functional as tv_fn
+
+import nvidia.dali as dali
+import nvidia.dali.experimental.torchvision.v2.randomcrop as randomcrop_module
+from nvidia.dali.experimental.torchvision import Compose, RandomCrop
+from nvidia.dali.experimental.torchvision.v2.operator import Operator
+
+
+def make_tensor(shape=(3, 8, 10), dtype=torch.uint8):
+    return torch.arange(math.prod(shape), dtype=dtype).reshape(shape)
+
+
+def make_pil_image(mode="RGB", h=8, w=10, seed=42):
+    rng = np.random.default_rng(seed)
+    if mode == "L":
+        data = rng.integers(0, 256, (h, w), dtype=np.uint8)
+    elif mode == "RGB":
+        data = rng.integers(0, 256, (h, w, 3), dtype=np.uint8)
+    elif mode == "RGBA":
+        data = rng.integers(0, 256, (h, w, 4), dtype=np.uint8)
+    else:
+        raise ValueError(f"Unsupported mode: {mode}")
+    return Image.fromarray(data, mode=mode)
+
+
+def _to_tensor(inpt):
+    if isinstance(inpt, Image.Image):
+        return tv_fn.pil_to_tensor(inpt)
+    return inpt
+
+
+def _assert_equal_to_torchvision(inpt, dali_transform, tv_transform, device="cpu"):
+    out = dali_transform(inpt)
+    tv_out = tv_transform(inpt)
+
+    out = _to_tensor(out)
+    tv_out = _to_tensor(tv_out)
+    if device == "gpu":
+        out = out.cpu()
+        if isinstance(tv_out, torch.Tensor):
+            tv_out = tv_out.cpu()
+
+    assert out.shape == tv_out.shape, f"Shape mismatch: {out.shape} != {tv_out.shape}"
+    assert torch.equal(out, tv_out), "DALI RandomCrop output differs from torchvision"
+
+
+def _build_dali_random_crop(**kwargs):
+    batch_size = kwargs.pop("batch_size", 1)
+    return Compose([RandomCrop(**kwargs)], batch_size=batch_size)
+
+
+def _skip_if_gpu_unavailable(device):
+    if device == "gpu" and not torch.cuda.is_available():
+        raise unittest.SkipTest("CUDA is not available")
+
+
+def _move_tensor_to_device(inpt, device):
+    if device == "gpu" and isinstance(inpt, torch.Tensor):
+        return inpt.cuda()
+    return inpt
+
+
+def _possible_torchvision_random_crop_outputs(inpt, size, padding, fill=0, padding_mode="constant"):
+    crop_h, crop_w = RandomCrop.adjust_size(size)
+    pad_left, pad_top, pad_right, pad_bottom = RandomCrop.adjust_padding(padding)
+
+    padded_h = inpt.shape[-2] + pad_top + pad_bottom
+    padded_w = inpt.shape[-1] + pad_left + pad_right
+
+    if padded_h < crop_h:
+        diff = crop_h - padded_h
+        pad_top += diff
+        pad_bottom += diff
+        padded_h += 2 * diff
+
+    if padded_w < crop_w:
+        diff = crop_w - padded_w
+        pad_left += diff
+        pad_right += diff
+        padded_w += 2 * diff
+
+    padded = tv_fn.pad(
+        inpt,
+        padding=[pad_left, pad_top, pad_right, pad_bottom],
+        fill=fill,
+        padding_mode=padding_mode,
+    )
+
+    top_values = range(padded_h - crop_h + 1) if padded_h > crop_h else range(1)
+    left_values = range(padded_w - crop_w + 1) if padded_w > crop_w else range(1)
+
+    return [
+        tv_fn.crop(padded, top=top, left=left, height=crop_h, width=crop_w)
+        for top in top_values
+        for left in left_values
+    ]
+
+
+def test_random_crop_is_operator():
+    assert issubclass(RandomCrop, Operator)
+
+
+def test_random_crop_fuses_padding_into_crop_slice():
+    transform = RandomCrop(size=(4, 5), padding=1)
+    slice_calls = []
+    cast_calls = []
+
+    def fake_slice(tensor, anchor, shape, **kwargs):
+        slice_calls.append((tensor, anchor, shape, kwargs))
+        return "cropped"
+
+    def fake_cast(value, dtype):
+        cast_calls.append((value, dtype))
+        return value
+
+    old_slice = randomcrop_module.fn.slice
+    old_stack = randomcrop_module.fn.stack
+    old_cast = randomcrop_module.fn.cast
+    old_randint = RandomCrop._randint
+    try:
+        randomcrop_module.fn.slice = fake_slice
+        randomcrop_module.fn.stack = lambda *args: args
+        randomcrop_module.fn.cast = fake_cast
+        RandomCrop._randint = staticmethod(lambda max_value: 0)
+
+        out = transform._kernel((4, 5, 3, "input"))
+    finally:
+        randomcrop_module.fn.slice = old_slice
+        randomcrop_module.fn.stack = old_stack
+        randomcrop_module.fn.cast = old_cast
+        RandomCrop._randint = staticmethod(old_randint)
+
+    assert out == "cropped"
+    assert len(slice_calls) == 1
+    tensor, anchor, shape, kwargs = slice_calls[0]
+    assert tensor == "input"
+    assert anchor == (-1, -1)
+    assert shape == (5, 4)
+    assert kwargs["out_of_bounds_policy"] == "pad"
+    assert kwargs["fill_values"] == 0
+    assert cast_calls[-2:] == [(-1, dali.types.INT32), (-1, dali.types.INT32)]
+
+
+@cartesian_params(
+    ("cpu", "gpu"),
+    (
+        ("tensor", (3, 8, 10), (8, 10)),
+        ("tensor", (4, 3, 8, 10), (8, 10)),
+        ("pil", "L", (8, 10)),
+        ("pil", "RGB", (8, 10)),
+        ("pil", "RGBA", (8, 10)),
+    ),
+)
+def test_random_crop_identity_matches_torchvision(device, input_case):
+    _skip_if_gpu_unavailable(device)
+    input_type, input_arg, size = input_case
+    inpt = make_pil_image(input_arg) if input_type == "pil" else make_tensor(shape=input_arg)
+    inpt = _move_tensor_to_device(inpt, device)
+    batch_size = inpt.shape[0] if isinstance(inpt, torch.Tensor) and inpt.ndim > 3 else 1
+    _assert_equal_to_torchvision(
+        inpt,
+        _build_dali_random_crop(size=size, device=device, batch_size=batch_size),
+        transforms.RandomCrop(size=size),
+        device=device,
+    )
+
+
+@cartesian_params(
+    ("cpu", "gpu"),
+    (
+        (None, 0, "constant"),
+        (1, 0, "constant"),
+        ([1], 0, "constant"),
+        ([1, 1], 0, "constant"),
+        ([1, 1, 1, 1], 0, "constant"),
+        (1, 7, "constant"),
+        (1, (1, 2, 3), "constant"),
+        (1, None, "constant"),
+        (1, 0, "edge"),
+        (1, 0, "reflect"),
+        (1, 0, "symmetric"),
+    ),
+)
+def test_random_crop_padding_matches_torchvision_tensor(device, padding_case):
+    _skip_if_gpu_unavailable(device)
+    padding, fill, padding_mode = padding_case
+    tensor = _move_tensor_to_device(make_tensor(shape=(3, 4, 5)), device)
+    size = (4, 5) if padding is None else (6, 7)
+
+    _assert_equal_to_torchvision(
+        tensor,
+        _build_dali_random_crop(
+            size=size,
+            padding=padding,
+            fill=fill,
+            padding_mode=padding_mode,
+            device=device,
+        ),
+        transforms.RandomCrop(
+            size=size,
+            padding=padding,
+            fill=fill,
+            padding_mode=padding_mode,
+        ),
+        device=device,
+    )
+
+
+@cartesian_params(("cpu", "gpu"), ("L", "RGB", "RGBA"))
+def test_random_crop_padding_matches_torchvision_pil(device, mode):
+    _skip_if_gpu_unavailable(device)
+    img = make_pil_image(mode=mode, h=4, w=5)
+    _assert_equal_to_torchvision(
+        img,
+        _build_dali_random_crop(size=(6, 7), padding=1, fill=3, device=device),
+        transforms.RandomCrop(size=(6, 7), padding=1, fill=3),
+        device=device,
+    )
+
+
+@cartesian_params(
+    ("cpu", "gpu"),
+    (
+        ([0, 1, 2, 0], (7, 8)),
+        ([2, 0, 0, 1], (6, 9)),
+        ([1, 2, 0, 3], (10, 7)),
+    ),
+)
+def test_random_crop_asymmetric_padding_with_pad_if_needed(device, padding_case):
+    _skip_if_gpu_unavailable(device)
+    padding, size = padding_case
+    tensor = make_tensor(shape=(3, 4, 5))
+    expected_outputs = _possible_torchvision_random_crop_outputs(
+        tensor,
+        size=size,
+        padding=padding,
+    )
+
+    dali_out = _build_dali_random_crop(
+        size=size,
+        padding=padding,
+        pad_if_needed=True,
+        device=device,
+    )(_move_tensor_to_device(tensor, device)).cpu()
+
+    assert any(
+        torch.equal(dali_out, expected) for expected in expected_outputs
+    ), "DALI RandomCrop output is not a valid torchvision crop"
+
+
+@cartesian_params(("cpu", "gpu"))
+def test_random_crop_pad_if_needed_matches_torchvision_random_offsets(device):
+    _skip_if_gpu_unavailable(device)
+    tensor = make_tensor(shape=(3, 4, 5))
+    size = (6, 7)
+
+    expected_outputs = {
+        out.numpy().tobytes()
+        for out in _possible_torchvision_random_crop_outputs(
+            tensor,
+            size=size,
+            padding=None,
+        )
+    }
+    tv_transform = transforms.RandomCrop(size=size, pad_if_needed=True)
+    tv_outputs = {tv_transform(tensor).numpy().tobytes() for _ in range(100)}
+
+    assert len(tv_outputs) > 1, "Torchvision RandomCrop did not sample multiple offsets"
+    assert tv_outputs <= expected_outputs, "Torchvision produced an unexpected pad_if_needed crop"
+
+    dali_tensor = _move_tensor_to_device(tensor, device)
+    dali_transform = _build_dali_random_crop(size=size, pad_if_needed=True, device=device)
+    dali_outputs = {dali_transform(dali_tensor).cpu().numpy().tobytes() for _ in range(20)}
+
+    assert (
+        dali_outputs <= expected_outputs
+    ), "DALI RandomCrop produced an invalid pad_if_needed crop"
+
+
+@cartesian_params(("cpu", "gpu"))
+def test_random_crop_crop_larger_than_padded_input_does_not_crash(device):
+    # Crop (10, 10) exceeds the padded input shape (4 + 2, 5 + 2) = (6, 7).
+    # Before clamping _randint's max_value, fn.random.uniform received a
+    # negative / inverted range and emitted a cryptic DALI runtime error.
+    _skip_if_gpu_unavailable(device)
+    tensor = make_tensor(shape=(3, 4, 5))
+    dali_transform = _build_dali_random_crop(
+        size=(10, 10),
+        padding=1,
+        pad_if_needed=False,
+        fill=0,
+        device=device,
+    )
+    out = dali_transform(_move_tensor_to_device(tensor, device)).cpu()
+    assert out.shape[-2:] == (10, 10)
+
+
+# TODO: Fill using dictionary pattern is currently not supported
+@unittest.skip("dict fill not supported")
+def test_random_crop_fill_dict_matches_torchvision_tensor():
+    tensor = make_tensor(shape=(3, 4, 5))
+    fill = {torch.Tensor: 9}
+    _assert_equal_to_torchvision(
+        tensor,
+        _build_dali_random_crop(size=(6, 7), padding=1, fill=fill),
+        transforms.RandomCrop(size=(6, 7), padding=1, fill=fill),
+    )
+
+
+# TODO: Fill using dictionary pattern is currently not supported
+@unittest.skip("dict fill not supported")
+def test_random_crop_fill_dict_matches_torchvision_pil():
+    img = make_pil_image(mode="RGB", h=4, w=5)
+    fill = {Image.Image: (1, 2, 3)}
+    _assert_equal_to_torchvision(
+        img,
+        _build_dali_random_crop(size=(6, 7), padding=1, fill=fill),
+        transforms.RandomCrop(size=(6, 7), padding=1, fill=fill),
+    )
+
+
+@cartesian_params(
+    ("cpu", "gpu"),
+    (
+        (4, (4, 4)),
+        ([4, 5], (4, 5)),
+    ),
+)
+def test_random_crop_tensor_shape(device, shape_case):
+    _skip_if_gpu_unavailable(device)
+    size, expected_hw = shape_case
+    tensor = _move_tensor_to_device(make_tensor(), device)
+    out = _build_dali_random_crop(size=size, device=device)(tensor)
+
+    assert out.shape == (3, *expected_hw)
+
+
+@cartesian_params(("cpu", "gpu"))
+def test_random_crop_samples_different_offsets(device):
+    _skip_if_gpu_unavailable(device)
+    tensor = _move_tensor_to_device(make_tensor(), device)
+    transform = _build_dali_random_crop(size=(4, 5), device=device)
+
+    outputs = {bytes(transform(tensor).cpu().numpy().tobytes()) for _ in range(20)}
+
+    assert len(outputs) > 1, "RandomCrop produced the same crop for every run"
+
+
+@params("cpu", "gpu")
+def test_random_crop_pad_if_needed_shape(device):
+    if device == "gpu" and not torch.cuda.is_available():
+        raise unittest.SkipTest("CUDA is not available")
+
+    tensor = make_tensor(shape=(3, 4, 5))
+    if device == "gpu":
+        tensor = tensor.cuda()
+    out = _build_dali_random_crop(size=(6, 7), pad_if_needed=True, device=device)(tensor)
+
+    assert out.shape == (3, 6, 7)
+
+
+@params(
+    [],
+    [0, 5],
+    [5, 0],
+    [1.0, 2],
+    [1, 2, 3],
+    -1,
+    1.0,
+    {"bad": "value"},
+)
+def test_random_crop_invalid_size(size):
+    with assert_raises((TypeError, ValueError), glob="*size*"):
+        _ = RandomCrop(size=size)
+
+
+@params(
+    -1,
+    [1, -1],
+    [1, 2, 3],
+    [1.0],
+    "bad",
+)
+def test_random_crop_invalid_padding(padding):
+    with assert_raises((TypeError, ValueError), glob="*padding*"):
+        _ = RandomCrop(size=3, padding=padding)
+
+
+def test_random_crop_invalid_pad_if_needed():
+    with assert_raises(TypeError, glob="*pad_if_needed must be bool*"):
+        _ = RandomCrop(size=3, pad_if_needed="yes")
+
+
+@params(
+    object(),
+    "bad",
+    [1, object()],
+    {object(): 1},
+    {torch.Tensor: object()},
+    {Image.Image: (1, 2, 3)},  # TODO: dict fill patterns are not supported
+    {torch.Tensor: 9},  # TODO: dict fill patterns are not supported
+)
+def test_random_crop_invalid_fill(fill):
+    with assert_raises(TypeError, glob="*fill must be*"):
+        _ = RandomCrop(size=3, padding=1, fill=fill)
+
+
+@params(([],), ((),))
+def test_random_crop_empty_fill_sequence(fill):
+    with assert_raises(ValueError, glob="*fill sequence must be non-empty*"):
+        _ = RandomCrop(size=3, padding=1, fill=fill)
+
+
+def test_random_crop_invalid_padding_mode_when_padding_is_used():
+    with assert_raises(ValueError, glob="*Invalid padding mode*"):
+        _ = RandomCrop(size=3, padding=1, padding_mode="bad")
+
+
+def test_random_crop_invalid_padding_mode_when_pad_if_needed_is_used():
+    with assert_raises(ValueError, glob="*Invalid padding mode*"):
+        _ = RandomCrop(size=3, pad_if_needed=True, padding_mode="bad")
