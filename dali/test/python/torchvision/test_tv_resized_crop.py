@@ -260,7 +260,7 @@ def test_resized_crop_exported_from_crop_module():
     (0, "0"),
 )
 def test_resized_crop_invalid_coordinates(top, left):
-    with assert_raises(TypeError, glob="*must be int*"):
+    with assert_raises(TypeError, glob="*must be an integer*"):
         _ = fn_dali.resized_crop(
             build_tensors(h=8, w=10)[0], top=top, left=left, height=1, width=1, size=1
         )
@@ -275,7 +275,7 @@ def test_resized_crop_invalid_coordinates(top, left):
     (1, 1.0),
 )
 def test_resized_crop_invalid_crop_size(height, width):
-    with assert_raises((TypeError, ValueError), glob="*size*"):
+    with assert_raises((TypeError, ValueError), glob="*must be*"):
         _ = fn_dali.resized_crop(
             build_tensors(h=8, w=10)[0], top=0, left=0, height=height, width=width, size=1
         )

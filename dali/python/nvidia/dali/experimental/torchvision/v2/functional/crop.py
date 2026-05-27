@@ -150,6 +150,13 @@ def resized_crop(
     then resize the crop to the given size.
     """
     top, left, height, width = _validate_crop_params(inpt, top, left, height, width)
+    RandomCrop.verify_args(
+        size=(height, width),
+        padding=None,
+        pad_if_needed=False,
+        padding_mode="constant",
+        fill=0,
+    )
     interpolation = Resize.normalize_interpolation(interpolation)
     Resize.verify_args(size=size, max_size=None, interpolation=interpolation, antialias=antialias)
 
