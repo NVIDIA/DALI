@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,6 +14,7 @@
 
 #include <list>
 #include <map>
+#include <stdexcept>
 #include <unordered_map>
 #include <iomanip>
 #include <iostream>
@@ -296,10 +297,19 @@ void ParseAnnotations(LookaheadParser &parser, std::vector<Annotation> &annotati
       } else if (0 == std::strcmp(internal_key, "bbox")) {
         RAPIDJSON_ASSERT(parser.PeekType() == kArrayType);
         parser.EnterArray();
-        int i = 0;
+        size_t i = 0;
         while (parser.NextArrayValue()) {
+          if (i >= annotation.box_.size()) {
+            throw std::invalid_argument(make_string(
+                "Invalid COCO annotation: `bbox` must contain exactly 4 values, got at least ",
+                i + 1, "."));
+          }
           annotation.box_[i] = parser.GetDouble();
           ++i;
+        }
+        if (i != annotation.box_.size()) {
+          throw std::invalid_argument(make_string(
+              "Invalid COCO annotation: `bbox` must contain exactly 4 values, got ", i, "."));
         }
       } else if (parse_segmentation && 0 == std::strcmp(internal_key, "segmentation")) {
         // That means that the mask encoding is not polygons but RLE
