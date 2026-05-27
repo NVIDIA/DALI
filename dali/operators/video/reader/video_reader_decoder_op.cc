@@ -26,6 +26,9 @@
 #include "dali/operators/video/frames_decoder_cpu.h"
 #include "dali/operators/video/frames_decoder_gpu.h"
 #include "dali/operators/video/video_utils.h"
+#if NVML_ENABLED
+#include "dali/util/nvml.h"
+#endif
 
 #include "libavutil/rational.h"
 

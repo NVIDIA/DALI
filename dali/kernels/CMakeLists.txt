@@ -1,4 +1,4 @@
-# Copyright (c) 2018-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2018-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -96,6 +96,9 @@ if (BUILD_TEST)
   # TODO(janton): Remove dependency with target `dali`
   target_link_libraries(dali_kernel_test PUBLIC dali_kernels dali)
   target_link_libraries(dali_kernel_test PRIVATE gtest dynlink_cuda ${DALI_LIBS})
+  if (DALI_OPENCV_TEST_EXTRA_LIBS)
+    target_link_libraries(dali_kernel_test PRIVATE ${DALI_OPENCV_TEST_EXTRA_LIBS})
+  endif()
   target_link_libraries(dali_kernel_test PRIVATE "-Wl,--exclude-libs,${exclude_libs}")
   if (WITH_DYNAMIC_NPP)
     target_link_libraries(dali_kernel_test PRIVATE dynlink_npp)

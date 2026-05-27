@@ -1,4 +1,4 @@
-// Copyright (c) 2023-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2023-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -55,6 +55,16 @@ NvImageCodecCodeStream NvImageCodecCodeStream::FromSubCodeStream(
   return ret;
 }
 
+NvImageCodecCodeStream NvImageCodecCodeStream::ToHostMem(
+    nvimgcodecInstance_t instance, void* ctx,
+    nvimgcodecResizeBufferFunc_t resize_buffer_func,
+    const nvimgcodecImageInfo_t* image_info) {
+  NvImageCodecCodeStream ret;
+  CHECK_NVIMGCODEC(nvimgcodecCodeStreamCreateToHostMem(
+      instance, &ret.handle_, ctx, resize_buffer_func, image_info));
+  return ret;
+}
+
 void NvImageCodecCodeStream::DestroyHandle(nvimgcodecCodeStream_t handle) {
   nvimgcodecCodeStreamDestroy(handle);
 }
@@ -71,6 +81,22 @@ void NvImageCodecImage::DestroyHandle(nvimgcodecImage_t handle) {
   nvimgcodecImageDestroy(handle);
 }
 
+
+NvImageCodecEncoder NvImageCodecEncoder::Create(nvimgcodecInstance_t instance,
+                                                const nvimgcodecExecutionParams_t* exec_params,
+                                                const std::string& opts) {
+  NvImageCodecEncoder ret;
+  CHECK_NVIMGCODEC(nvimgcodecEncoderCreate(instance, &ret.handle_, exec_params, opts.c_str()));
+  return ret;
+}
+
+void NvImageCodecEncoder::DestroyHandle(nvimgcodecEncoder_t handle) {
+  nvimgcodecEncoderDestroy(handle);
+}
+
+void NvImageCodecFuture::DestroyHandle(nvimgcodecFuture_t handle) {
+  nvimgcodecFutureDestroy(handle);
+}
 
 }  // namespace imgcodec
 }  // namespace dali

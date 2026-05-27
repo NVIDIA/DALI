@@ -346,6 +346,7 @@ class Pipeline(object):
         self._skip_api_check = False
         self._graph_out = None
         self._ops = None
+        self._transfer_ops = {}
         self._graph_outputs = None
         self._py_pool = None
         self._input_callbacks = None
@@ -1046,12 +1047,24 @@ class Pipeline(object):
         related_logical_id = {}
 
         for op in self._ops:
-            if op.relation_id not in related_logical_id:
-                related_logical_id[op.relation_id] = self._pipe.AddOperator(op.spec, op.name)
+            transfer_op = self._transfer_ops.pop(op.name, None)
+            if transfer_op is not None:
+                add_fn = self._pipe.AddOperatorInstance
+                extra = (transfer_op,)
             else:
-                self._pipe.AddOperator(op.spec, op.name, related_logical_id[op.relation_id])
+                add_fn = self._pipe.AddOperator
+                extra = ()
+            if op.relation_id in related_logical_id:
+                add_fn(op.spec, op.name, *extra, related_logical_id[op.relation_id])
+            else:
+                related_logical_id[op.relation_id] = add_fn(op.spec, op.name, *extra)
         self._backend_prepared = True
         self._names_and_devices = [(e.name, e.device) for e in self._graph_outputs]
+
+    def _transfer_operator(self, name, op_backend):
+        assert op_backend is not None
+        assert name not in self._transfer_ops
+        self._transfer_ops[name] = op_backend
 
     def _disable_pruned_external_source_instances(self):
         def truncate_str(obj, max_len=103):

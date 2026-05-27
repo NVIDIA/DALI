@@ -161,6 +161,30 @@ def test_compile_multi_epoch():
             np.testing.assert_array_equal(dyn, comp)
 
 
+def test_compile_shard_rotation():
+    reader_dyn = ndd.readers.File(file_root=images_root, shard_id=0, num_shards=2)
+    reader_comp = ndd.readers.File(file_root=images_root, shard_id=0, num_shards=2)
+    num_epochs = 4
+
+    dynamic_epochs = []
+    for _ in range(num_epochs):
+        epoch = []
+        for jpegs, _ in reader_dyn.next_epoch(batch_size=2):
+            epoch.extend(np.asarray(sample).tobytes() for sample in jpegs)
+        dynamic_epochs.append(epoch)
+
+    compiled_epochs = []
+    for _ in range(num_epochs):
+        epoch = []
+        for jpegs, _ in reader_comp.next_epoch(batch_size=2, compile=True):
+            images = ndd.decoders.image(jpegs)
+            assert _is_compiled(images)
+            epoch.extend(np.asarray(sample).tobytes() for sample in jpegs)
+        compiled_epochs.append(epoch)
+
+    assert dynamic_epochs == compiled_epochs
+
+
 @eval_modes()
 def test_compile_loop_identical():
     reader_dyn = ndd.readers.File(file_root=images_root)
@@ -306,22 +330,20 @@ def test_compile_stale_batch():
         prev = images
 
 
-def test_compile_tensor_args():
-    def make_reader():
-        video_root = os.path.join(dali_extra_path, "db", "video", "sintel", "video_files")
-        sequence_length = 60
-        width, height = 108, 192
-        return ndd.readers.VideoResize(
-            filenames=[os.path.join(video_root, "sintel_trailer-720p_3.mp4")],
-            sequence_length=sequence_length,
-            device="gpu",
-            resize_x=ndd.tensor(width),
-            resize_y=height,
-            file_list_include_preceding_frame=True,
-        )
+def _make_video_reader(**resize_args):
+    video_root = os.path.join(dali_extra_path, "db", "video", "sintel", "video_files")
+    return ndd.readers.VideoResize(
+        filenames=[os.path.join(video_root, "sintel_trailer-720p_3.mp4")],
+        sequence_length=60,
+        device="gpu",
+        file_list_include_preceding_frame=True,
+        **resize_args,
+    )
 
-    reader_dyn = make_reader()
-    reader_comp = make_reader()
+
+def _test_video_resize(**resize_args):
+    reader_dyn = _make_video_reader(**resize_args)
+    reader_comp = _make_video_reader(**resize_args)
 
     dynamic_results = []
     for (videos,) in reader_dyn.next_epoch(batch_size=4):
@@ -337,6 +359,18 @@ def test_compile_tensor_args():
     assert len(dynamic_results) == len(compiled_results)
     for dyn, comp in zip(dynamic_results, compiled_results):
         np.testing.assert_array_equal(dyn, comp)
+
+
+def test_compile_tensor_arg():
+    _test_video_resize(size=ndd.tensor([192, 108]))
+
+
+def test_compile_tensor_arg_external():
+    _test_video_resize(size=np.array([192, 108]))
+
+
+def test_compile_scalar_args():
+    _test_video_resize(resize_x=ndd.tensor(108), resize_y=192)
 
 
 def test_compile_incompatible_kwarg_dtype():

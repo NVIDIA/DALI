@@ -208,6 +208,7 @@ def build_constructor(schema, op_class):
             actual_tensor_arg_names = {
                 arg_name for arg_name in tensor_arg_names if kwargs.get(arg_name) is not None
             }
+            original_tensor_args = {}
             tensor_args = {}
             for arg_name in tensor_arg_names:
                 arg = kwargs.get(arg_name)
@@ -216,6 +217,7 @@ def build_constructor(schema, op_class):
                 del kwargs[arg_name]
                 if isinstance(arg, Batch):
                     raise ValueError("Readers cannot be constructed with batch keyword arguments")
+                original_tensor_args[arg_name] = arg
                 dtype = op_class._argument_conversion_map[arg_name]
                 tensor_args[arg_name] = to_tensor(arg, dtype=dtype)
         kwargs = {k: _scalar_decay(v) for k, v in kwargs.items()}
@@ -223,6 +225,7 @@ def build_constructor(schema, op_class):
         if is_reader:  # Need to be done here not to be overridden by the constructor
             self._tensor_arg_names = actual_tensor_arg_names
             self._raw_tensor_args = tensor_args
+            self._original_tensor_args = original_tensor_args
         if stateful:
             self._call_id = 0
 
@@ -255,6 +258,14 @@ def _get_inputs(schema):
     else:
         inputs.append("*")
     return inputs
+
+
+def _check_batch_size_available(op_class, batch_size):
+    if op_class._schema_name == "BatchPermutation" and batch_size is None:
+        raise ValueError(
+            "`batch_size` must be specified for dynamic `batch_permutation` "
+            "because it has no data inputs to infer the batch size from."
+        )
 
 
 def build_call_function(schema, op_class):
@@ -450,8 +461,8 @@ def build_fn_wrapper(op, fn_name=None, add_to_module=True):
 
     fixed_args = []
     tensor_args = []
-    signature_args = ["batch_size=None, device=None"]
-    used_kwargs = set()
+    signature_args = ["batch_size=None", "device=None"]
+    used_kwargs = {"batch_size", "device"}
 
     for arg in op._schema.GetArgumentNames():
         if arg in _unsupported_args:
@@ -473,8 +484,7 @@ def build_fn_wrapper(op, fn_name=None, add_to_module=True):
         # Remove 'seed' from used_kwargs and signature_args if present
         if "seed" in used_kwargs:
             used_kwargs.remove("seed")
-        if "seed" in signature_args:
-            signature_args.remove("seed")
+        signature_args = [arg for arg in signature_args if "seed" not in arg]
 
     header = f"{fn_name}({', '.join(inputs + signature_args)})"
 
@@ -485,6 +495,7 @@ def build_fn_wrapper(op, fn_name=None, add_to_module=True):
     def fn_call(*inputs, batch_size=None, device=None, _backend=None, **raw_kwargs):
         if batch_size is None:
             batch_size = _ops._infer_batch_size(*inputs, **raw_kwargs)
+        _check_batch_size_available(op, batch_size)
         max_batch_size = _next_pow2(batch_size or 1)
         init_args = {
             arg: _scalar_decay(value)

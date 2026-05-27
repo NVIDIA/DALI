@@ -423,3 +423,54 @@ def test_batch_to_tensor_no_pad_error():
     data = ragged("cpu")
     with assert_raises(ValueError):
         ndd.as_tensor(data, pad=False).evaluate()
+
+
+@eval_modes()
+@params(
+    (np.int32,),
+    (np.float32,),
+    (np.uint8,),
+)
+def test_from_readonly_numpy(dtype):
+    data = np.array([[1, 2, 3], [4, 5, 6]], dtype=dtype)
+    data.flags.writeable = False
+    t = ndd.as_tensor(data).evaluate()
+    assert np.array_equal(np.array(t._storage), data)
+    assert t.shape == (2, 3)
+
+
+@eval_modes()
+@attr("pytorch")
+def test_tensor_gpu_cai_fallback():
+    """When __dlpack__ raises TypeError (protocol mismatch), GPU Tensor falls back to
+    __cuda_array_interface__. BufferError is not caught on GPU to avoid bypassing
+    producer synchronization contracts."""
+    import torch
+
+    class _TypeErrorDlpack:
+        def __init__(self, t):
+            self._t = t
+
+        @property
+        def __cuda_array_interface__(self):
+            return self._t.__cuda_array_interface__
+
+        def __dlpack__(self, **kwargs):
+            raise TypeError("DLPack stream keyword not supported")
+
+        def __dlpack_device__(self):
+            return (2, self._t.device.index)  # kDLCUDA
+
+    data = torch.tensor([[1, 2, 3], [4, 5, 6]], device="cuda", dtype=torch.int32)
+    t = ndd.tensor(_TypeErrorDlpack(data), device="gpu").evaluate()
+    assert t.device == ndd.Device("gpu")
+    assert t.dtype == ndd.int32
+    assert np.array_equal(asnumpy(t), data.cpu().numpy())
+
+
+@eval_modes()
+def test_from_readonly_numpy_scalar():
+    data = np.array(42, dtype=np.int32)
+    data.flags.writeable = False
+    t = ndd.as_tensor(data).evaluate()
+    assert int(np.array(t._storage)) == 42

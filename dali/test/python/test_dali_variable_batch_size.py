@@ -1433,7 +1433,9 @@ def test_video_decoder(decoder):
         pipe.set_outputs(decoded)
         return pipe
 
-    file_path = os.path.join(test_utils.get_dali_extra_path(), "db", "video", "cfr", "test_1.mp4")
+    file_path = os.path.join(
+        test_utils.get_dali_extra_path(), "db", "video", "cfr", "test_1_vp9.mp4"
+    )
     video_file = np.fromfile(file_path, dtype=np.uint8)
     batches = [[video_file] * 2, [video_file] * 5, [video_file] * 3]
     check_pipeline(batches, video_decoder_pipe, devices=["cpu", "mixed"])

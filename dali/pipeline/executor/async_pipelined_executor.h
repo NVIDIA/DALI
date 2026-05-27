@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,7 +19,7 @@
 #include "dali/core/common.h"
 #include "dali/core/error_handling.h"
 #include "dali/pipeline/executor/pipelined_executor.h"
-#include "dali/pipeline/util/worker_thread.h"
+#include "dali/pipeline/util/worker_thread_internal.h"
 
 namespace dali {
 
@@ -72,7 +72,8 @@ class DLL_PUBLIC AsyncPipelinedExecutor : public PipelinedExecutor {
   }
 
   DLL_PUBLIC void Init() override {
-    if (!cpu_thread_.WaitForInit() || !mixed_thread_.WaitForInit() || !gpu_thread_.WaitForInit()) {
+    if (!cpu_thread_.WaitForInit() || !mixed_thread_.WaitForInit() ||
+        !gpu_thread_.WaitForInit()) {
       cpu_thread_.ForceStop();
       mixed_thread_.ForceStop();
       gpu_thread_.ForceStop();
@@ -108,12 +109,20 @@ class DLL_PUBLIC AsyncPipelinedExecutor : public PipelinedExecutor {
   DLL_PUBLIC void RunGPU() override;
 
   void CheckForErrors() {
-    cpu_thread_.CheckForErrors();
-    mixed_thread_.CheckForErrors();
-    gpu_thread_.CheckForErrors();
+    try {
+      cpu_thread_.CheckForErrors();
+      mixed_thread_.CheckForErrors();
+      gpu_thread_.CheckForErrors();
+    } catch (...) {
+      exec_error_ = true;
+      SignalStop();
+      mixed_work_cv_.notify_all();
+      gpu_work_cv_.notify_all();
+      throw;
+    }
   }
 
-  WorkerThread cpu_thread_, mixed_thread_, gpu_thread_;
+  WorkerThreadImpl cpu_thread_, mixed_thread_, gpu_thread_;
   int cpu_work_counter_ = 0, mixed_work_counter_ = 0, gpu_work_counter_ = 0;
   std::condition_variable mixed_work_cv_, gpu_work_cv_;
 };

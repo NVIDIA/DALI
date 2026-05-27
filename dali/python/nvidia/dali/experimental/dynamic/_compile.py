@@ -17,14 +17,14 @@ import enum
 import threading
 import types
 import warnings
-from collections.abc import Callable, Iterable, Mapping, Sequence
+from collections.abc import Mapping, Sequence
 from contextlib import contextmanager
 from typing import TYPE_CHECKING, Any, NamedTuple
 
+import numpy as np
 import nvidia.dali.backend_impl as _b
 import nvidia.dali.types as dali_types
 from nvidia.dali import fn
-from nvidia.dali.external_source import ExternalSource
 from nvidia.dali.pipeline import Pipeline
 
 from ._batch import Batch
@@ -37,6 +37,7 @@ from ._call_site import (
 )
 from ._device import Device
 from ._nvtx import NVTXRange
+from ._tensor import Tensor, as_tensor
 
 if TYPE_CHECKING:
     from ._eval_context import EvalContext
@@ -162,6 +163,7 @@ class CompileContext:
         self.pipeline: Pipeline | None = None
         self._pipeline_results: dict[CompileNode, Any] = {}
         self._iteration = 0
+        self._epoch_size_padded: int | None = None
         self.analyzer = CallSiteAnalyzer()
 
     @classmethod
@@ -267,14 +269,7 @@ class CompileContext:
         source = self.source
         assert source is not None
 
-        def reader_callback():
-            assert self.reader._op_backend is not None
-            workspace = _b._Workspace(ctx.thread_pool._create_facade(), ctx.cuda_stream)
-            for name, arg in self.reader._process_tensor_args(self.batch_size).items():
-                workspace.AddArgumentInput(name, arg.evaluate()._storage)
-            self.reader._op_backend.SetupAndRun(workspace, self.batch_size)
-            return workspace.GetOutputs()
-
+        transferred = False
         try:
             pipe = Pipeline(
                 batch_size=self.batch_size,
@@ -283,9 +278,12 @@ class CompileContext:
                 prefetch_queue_depth=2,
             )
             with pipe:
-                _wire_compile_graph(source, self.nodes, reader_callback)
+                _wire_compile_graph(self.reader, source, self.nodes)
+            assert self.reader._op_backend is not None
+            pipe._transfer_operator(self.reader._name, self.reader._op_backend)
+            transferred = True
             pipe.build()
-        except Exception:
+        except Exception as exception:
             self.nodes.clear()
             self._call_trie = _CallTrie()
             self._pipeline_results.clear()
@@ -294,10 +292,28 @@ class CompileContext:
             # Reset Reader fields here, the exception propagates past the iterator
             self.reader._compile_mode = None
             self.reader._compiled_iter = None
+            # If there's a failure after _op_backend was transferred, we can't safely recover.
+            # Disable the reader. In practice, this case should be rare.
+            if transferred:
+                self.reader._disabled = True
+                raise RuntimeError(
+                    "Failed to build pipeline after transferring operator. "
+                    "Reader is now in invalid state."
+                ) from exception
+
             raise
 
         self.pipeline = pipe
         self.state = State.COMPILED
+
+    def reader_epoch_size(self) -> int:
+        from ._ops import _shard_size
+
+        assert self.pipeline is not None
+        if self._epoch_size_padded is None:
+            metadata = self.pipeline.reader_meta(self.reader._name)
+            self._epoch_size_padded = metadata["epoch_size_padded"]
+        return _shard_size(self._epoch_size_padded, self.reader._shard_id, self.reader._num_shards)
 
     @_nvtx_range("Running compiled pipeline")
     def run_pipeline(self) -> tuple | dict:
@@ -448,7 +464,7 @@ class CompiledEpochIterator:
         """Subsequent epochs: yield from compiled pipeline."""
         compile_ctx = self._compile_ctx
 
-        epoch_size = self._reader._shard_epoch_size()
+        epoch_size = compile_ctx.reader_epoch_size()
         idx = start_idx
         while idx < epoch_size:
             batches = compile_ctx.run_pipeline()
@@ -457,24 +473,39 @@ class CompiledEpochIterator:
                 yield batches
 
 
+def _prepare_reader_arg(value: Any) -> Any:
+    if isinstance(value, (bool, int, float, str)):
+        return value
+    if isinstance(value, (Tensor, Batch)):
+        if value.device.device_type != "cpu":
+            raise ValueError("GPU arguments inputs are not supported")
+        # TODO(rtabet, DALI-4708): Classify scalar CPU Tensor args earlier to allow ScalarConstant.
+        return dali_types.Constant(np.asarray(as_tensor(value)), layout=value.layout, device="cpu")
+    return dali_types.Constant(value, device="cpu")
+
+
 @_nvtx_range("Graph Wiring")
 def _wire_compile_graph(
+    reader: "Reader",
     source: CompileSource,
     nodes: Sequence[CompileNode],
-    reader_callback: Callable[[], Iterable],
 ) -> None:
     """Wire the compile graph into a Pipeline. Must be called inside ``with pipe:``."""
     from ._op_builder import _scalar_decay
 
-    es = ExternalSource(
-        source=reader_callback,
-        num_outputs=source.num_outputs,
-        batch=True,
-        device=source.device,
-        no_copy=True,
-    )
-    reader_outs = es()
-    assert isinstance(reader_outs, Iterable)
+    reader_op = reader._legacy_op(name=reader._name, device=reader._backend, **reader._init_args)
+    reader_args = {
+        name: _prepare_reader_arg(value) for name, value in reader._original_tensor_args.items()
+    }
+    reader_out = reader_op(**reader_args)
+    if isinstance(reader_out, dict):
+        assert source.output_keys is not None
+        reader_outs = tuple(reader_out[k] for k in source.output_keys)
+    elif isinstance(reader_out, (tuple, list)):
+        reader_outs = tuple(reader_out)
+    else:
+        reader_outs = (reader_out,)
+    assert len(reader_outs) == source.num_outputs
 
     datanode_map: dict[CompileRef, Any] = {}
     for i, out in enumerate(reader_outs):
