@@ -429,5 +429,5 @@ def test_error_in_isolated_operators():
 
     test_tensor = torch.ones(5, 3, 10, 10, dtype=torch.uint8)
     dali_resize = Resize(size=(7, 7))
-    with assert_raises(TypeError, glob="*is not directly callable*"):
+    with assert_raises(RuntimeError, glob="*is not directly callable*"):
         _ = dali_resize(test_tensor)
