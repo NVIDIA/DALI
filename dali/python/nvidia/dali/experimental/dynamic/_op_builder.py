@@ -208,6 +208,7 @@ def build_constructor(schema, op_class):
             actual_tensor_arg_names = {
                 arg_name for arg_name in tensor_arg_names if kwargs.get(arg_name) is not None
             }
+            original_tensor_args = {}
             tensor_args = {}
             for arg_name in tensor_arg_names:
                 arg = kwargs.get(arg_name)
@@ -216,6 +217,7 @@ def build_constructor(schema, op_class):
                 del kwargs[arg_name]
                 if isinstance(arg, Batch):
                     raise ValueError("Readers cannot be constructed with batch keyword arguments")
+                original_tensor_args[arg_name] = arg
                 dtype = op_class._argument_conversion_map[arg_name]
                 tensor_args[arg_name] = to_tensor(arg, dtype=dtype)
         kwargs = {k: _scalar_decay(v) for k, v in kwargs.items()}
@@ -223,6 +225,7 @@ def build_constructor(schema, op_class):
         if is_reader:  # Need to be done here not to be overridden by the constructor
             self._tensor_arg_names = actual_tensor_arg_names
             self._raw_tensor_args = tensor_args
+            self._original_tensor_args = original_tensor_args
         if stateful:
             self._call_id = 0
 

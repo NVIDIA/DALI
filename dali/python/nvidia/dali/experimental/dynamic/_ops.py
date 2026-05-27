@@ -30,6 +30,12 @@ from threading import Lock
 _nvtx_to_tensor = NVTXRange("to_tensor", category="op_builder")
 
 
+def _shard_size(padded_size: int, shard_id: int, num_shards: int) -> int:
+    beg = math.floor(shard_id * padded_size / num_shards)
+    end = math.floor((shard_id + 1) * padded_size / num_shards)
+    return end - beg
+
+
 def _to_tensor(x, device=None, dtype=None):
     with _nvtx_to_tensor:
         if x is None:
@@ -709,6 +715,7 @@ class Reader(Operator):
         )
 
         self._raw_tensor_args = {}
+        self._original_tensor_args = {}  # Used when compile=True
         self._tensor_args = {}
         # Used to know when to recompute _tensor_args for _raw_tensor_args
         self._previous_batch_size: int | None = None
@@ -716,6 +723,8 @@ class Reader(Operator):
         self._tensor_arg_names: set[str] = set()
         # If set, the checkpoint state to apply once the backend is constructed.
         self._pending_state = None
+        # If set, the reader is in an invalid state and cannot be used
+        self._disabled = False
 
         if self._num_shards < 1:
             raise ValueError(
@@ -865,11 +874,8 @@ class Reader(Operator):
             self._pending_state = raw
 
     def _shard_epoch_size(self):
-        meta = self._op_backend.GetReaderMeta()
-        padded_size = meta["epoch_size_padded"]
-        shards_beg = math.floor(self._shard_id * padded_size / self._num_shards)
-        shards_end = math.floor((self._shard_id + 1) * padded_size / self._num_shards)
-        return shards_end - shards_beg
+        epoch_size = self._op_backend.GetReaderMeta()["epoch_size_padded"]
+        return _shard_size(epoch_size, self._shard_id, self._num_shards)
 
     def _advance_shard(self):
         if not self._stick_to_shard:
@@ -886,6 +892,10 @@ class Reader(Operator):
 
     def _run_unchecked(self, ctx=None, **kwargs):
         """Run the reader backend without API-type checking."""
+        if self._disabled:
+            raise RuntimeError(
+                "This reader is in an invalidate state due to a previous error and cannot be used."
+            )
         return super()._run(ctx, **kwargs)
 
     @staticmethod
@@ -934,6 +944,11 @@ class Reader(Operator):
             If True, transparently compile operator sequences into a pipeline for prefetching.
             Once used in compiled mode, the reader cannot switch back.
         """
+        if self._disabled:
+            raise RuntimeError(
+                "This reader is in an invalidate state due to a previous error and cannot be used."
+            )
+
         batch_size = self._get_batch_size(batch_size)
         if batch_size is None:
             batch_size = self._batch_size
@@ -995,7 +1010,10 @@ class Reader(Operator):
 
         batch_size = self._get_batch_size(batch_size)
         self._init_backend(None, (), self._process_tensor_args(batch_size))
-        return self._op_backend.GetReaderMeta()
+        try:
+            return self._op_backend.GetReaderMeta()
+        except ValueError as e:
+            raise RuntimeError("Reader was transferred to a compiled pipeline.") from e
 
     def _samples(self, ctx: _eval_context.EvalContext | None = None):
         self._require_api_type("samples")

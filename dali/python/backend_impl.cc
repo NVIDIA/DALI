@@ -2494,6 +2494,16 @@ void ExposePipeline(py::module &m) {
     .def("AddOperator",
          static_cast<int (Pipeline::*)(const OpSpec &, std::string_view, int)>
                                       (&Pipeline::AddOperator))
+    .def("AddOperatorInstance",
+         [](Pipeline *p, const OpSpec &spec, std::string_view name,
+            std::unique_ptr<OperatorBase> op) {
+           return p->AddOperatorInstance(spec, name, std::move(op));
+         })
+    .def("AddOperatorInstance",
+         [](Pipeline *p, const OpSpec &spec, std::string_view name,
+            std::unique_ptr<OperatorBase> op, int logical_id) {
+           return p->AddOperatorInstance(spec, name, std::move(op), logical_id);
+         })
     .def("GetOperatorNode", &Pipeline::GetOperatorNode)
     .def("Build",
          [](Pipeline *p, const std::vector<OutputDesc> &outputs) {
@@ -3019,7 +3029,7 @@ void SetupAndRun(OperatorBase &self, Workspace &ws, std::optional<int> batch_siz
 }
 
 void ExposeOperator(py::module &m) {
-  py::class_<OperatorBase, std::unique_ptr<OperatorBase>>(m, "_Operator")
+  py::class_<OperatorBase, py::smart_holder>(m, "_Operator")
     .def(py::init([](const OpSpec &spec) {
       DomainTimeRange tr("Instantiate " + GetOpDisplayName(spec, true), kDynamicDefaultColor);
       return dali::InstantiateOperator(spec);

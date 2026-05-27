@@ -27,6 +27,7 @@
 #include <vector>
 
 #include "dali/core/cuda_shared_event.h"
+#include "dali/pipeline/executor/executor.h"
 #include "dali/pipeline/operator/operator.h"
 #include "dali/pipeline/workspace/workspace.h"
 
@@ -379,7 +380,7 @@ class DLL_PUBLIC ExecGraph {
   tasking::TaskFuture Launch(tasking::Scheduler &sched);
 
   /** Populates the graph based on a pipeline definiton graph. */
-  void Lower(const graph::OpGraph &def);
+  void Lower(const graph::OpGraph &def, OperatorMap &&transferred_ops = {});
 
  private:
   /** Sorts the graph topologically. */
@@ -412,4 +413,3 @@ class DLL_PUBLIC ExecGraph {
 }  // namespace dali
 
 #endif  // DALI_PIPELINE_EXECUTOR_EXECUTOR2_EXEC_GRAPH_H_
-

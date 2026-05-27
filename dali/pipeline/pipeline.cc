@@ -357,6 +357,23 @@ int Pipeline::AddOperator(const OpSpec &const_spec, std::string_view inst_name, 
   return result;
 }
 
+int Pipeline::AddOperatorInstance(const OpSpec &spec,
+                                  std::string_view inst_name,
+                                  std::unique_ptr<OperatorBase> op,
+                                  int logical_id) {
+  DALI_ENFORCE(op);
+  DALI_ENFORCE(op->GetSpec().SchemaName() == spec.SchemaName());
+  int result = AddOperator(spec, inst_name, logical_id);
+  transferred_ops_.emplace(std::string(inst_name), std::move(op));
+  return result;
+}
+
+int Pipeline::AddOperatorInstance(const OpSpec &spec,
+                                  std::string_view inst_name,
+                                  std::unique_ptr<OperatorBase> op) {
+  return AddOperatorInstance(spec, inst_name, std::move(op), GetNextLogicalId());
+}
+
 int Pipeline::AddOperatorImpl(const OpSpec &const_spec,
                               std::string_view inst_name,
                               int logical_id) {
@@ -636,7 +653,8 @@ void Pipeline::Build(std::vector<PipelineOutputDesc> output_descs) {
     const string &inst_name = name_op_spec.instance_name;
     OpSpec op_spec = name_op_spec.spec;
     try {
-      PrepareOpSpec(&op_spec, name_op_spec.logical_id);
+      if (!transferred_ops_.count(inst_name))
+        PrepareOpSpec(&op_spec, name_op_spec.logical_id);
       graph_builder_.Add(inst_name, op_spec);
     } catch (...) {
       PropagateError({std::current_exception(),
@@ -663,7 +681,7 @@ void Pipeline::Build(std::vector<PipelineOutputDesc> output_descs) {
   graph::ComputeDataNodeMetadata(graph_);
 
   // Load the final graph into the executor
-  executor_->Build(graph_);
+  executor_->Build(graph_, std::move(transferred_ops_));
   // CAUTION: Do not insert anything that can throw between `executor_->Build()` and
   //          `DiscoverInputOperators`.
   DiscoverInputOperators();

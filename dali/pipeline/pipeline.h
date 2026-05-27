@@ -225,6 +225,21 @@ class DLL_PUBLIC Pipeline {
   DLL_PUBLIC int AddOperator(const OpSpec &spec, std::string_view inst_name, int logical_id);
 
   /**
+   * @brief Adds an operator to the pipeline and transfers a live operator instance to the executor.
+   */
+  DLL_PUBLIC int AddOperatorInstance(const OpSpec &spec,
+                                     std::string_view inst_name,
+                                     std::unique_ptr<OperatorBase> op,
+                                     int logical_id);
+
+  /**
+   * @brief Adds an operator instance with a separate logical_id.
+   */
+  DLL_PUBLIC int AddOperatorInstance(const OpSpec &spec,
+                                     std::string_view inst_name,
+                                     std::unique_ptr<OperatorBase> op);
+
+  /**
    * @brief Adds an Operator with the input specification to the pipeline. It will be assigned
    * a separate logical_id based on internal state of the pipeline.
    */
@@ -741,6 +756,7 @@ class DLL_PUBLIC Pipeline {
 
   std::vector<OpDefinition> op_specs_;
   std::vector<OpDefinition> op_specs_for_serialization_;
+  OperatorMap transferred_ops_;
   std::set<std::string, std::less<>> instance_names_;
 
   std::vector<PipelineOutputDesc> output_descs_;
