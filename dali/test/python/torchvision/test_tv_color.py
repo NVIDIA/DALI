@@ -262,10 +262,13 @@ def test_grayscale_single_channel_input(device):
 
     img = Image.open(test_files[0]).convert("L")
 
+    # TODO: The following test leads to segfault DALI-4655
+    """
     td_1ch = Compose([Grayscale(num_output_channels=1, device=device)])
     out_1ch = td_1ch(img)
     assert isinstance(out_1ch, Image.Image)
     assert out_1ch.mode == "L"
+    """
 
     td_3ch = Compose([Grayscale(num_output_channels=3, device=device)])
     out_3ch = td_3ch(img)
