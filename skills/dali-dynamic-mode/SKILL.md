@@ -1,6 +1,6 @@
 ---
 name: dali-dynamic-mode
-description: "Use when writing DALI data loading or preprocessing code with `nvidia.dali.experimental.dynamic` (ndd), or when converting DALI pipeline-mode code to dynamic mode, or when the user asks about DALI dynamic mode, imperative DALI, or ndd. Use this skill any time someone mentions 'ndd', 'dynamic mode', or wants to load/augment data with DALI outside of a pipeline definition."
+description: "DALI imperative dynamic mode (`nvidia.dali.experimental.dynamic`, ndd): write/review ndd code or migrate pipelines; skip pipeline-only tasks."
 license: Apache-2.0
 metadata:
   author: "DALI Team <dali-team@nvidia.com>"
@@ -18,6 +18,23 @@ metadata:
 ---
 
 # DALI Dynamic Mode
+
+## Purpose
+
+Guide AI agents in writing, reviewing, and migrating code that uses DALI's imperative dynamic-mode API, `nvidia.dali.experimental.dynamic` (`ndd`).
+
+## Instructions
+
+- Write dynamic-mode code as direct `ndd` calls in ordinary Python; do not use pipeline-mode APIs such as `Pipeline`, `@pipeline_def`, `pipe.build()`, or `pipe.run()`.
+- Treat readers as stateful: create them once, reuse them across epochs, and pass `batch_size` to `next_epoch(...)`.
+- Pass explicit `batch_size` to random ops; there is no pipeline-level batch size to inherit.
+- Use dynamic-mode API conventions: `device="gpu"` instead of pipeline-mode `"mixed"`, `Batch.tensors[...]` for sample selection, and `Batch.slice[...]` for per-sample slicing.
+
+## Prerequisites
+
+- To run or validate code, NVIDIA DALI must be installed with dynamic mode importable as `nvidia.dali.experimental.dynamic`.
+- GPU decode or GPU operators require a CUDA-capable DALI build and an available NVIDIA GPU/driver.
+- Framework conversion examples require the target framework installed, such as PyTorch for `.torch()`.
 
 ## Introduction
 
