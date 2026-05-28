@@ -70,7 +70,7 @@ b = ndd.as_batch(data)         # wrap, no copy if possible
 | Get sample i | `batch.tensors[i]` | `Tensor` |
 | Get subset of samples | `batch.tensors[slice_or_list]` | `Batch` |
 | Slice within each sample | `batch.slice[...]` | `Batch` (same batch_size) |
-| Sample-wise slicing | `batch.slice[batch_of_indices]` | `Batch` (same_batch_size) |
+| Sample-wise slicing | `batch.slice[batch_of_indices]` | `Batch` (same batch_size) |
 
 `.tensors[]` picks **which samples**. `.slice` indexes **inside each sample**.
 
@@ -78,7 +78,7 @@ b = ndd.as_batch(data)         # wrap, no copy if possible
 xy = ndd.random.uniform(batch_size=16, range=[0, 1], shape=2)
 crop_x = xy.slice[0]       # Batch of 16 scalars, first element from each sample
 crop_y = xy.slice[1]       # Batch of 16 scalars, second element from each sample
-sample_0 = xy.select(0)    # Tensor, the entire first sample [x, y]
+sample_0 = xy.tensors[0]   # Tensor, the entire first sample [x, y]
 ```
 
 ### Advanced slicing
