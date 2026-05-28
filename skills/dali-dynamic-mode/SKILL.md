@@ -2,6 +2,19 @@
 name: dali-dynamic-mode
 description: "Use when writing DALI data loading or preprocessing code with `nvidia.dali.experimental.dynamic` (ndd), or when converting DALI pipeline-mode code to dynamic mode, or when the user asks about DALI dynamic mode, imperative DALI, or ndd. Use this skill any time someone mentions 'ndd', 'dynamic mode', or wants to load/augment data with DALI outside of a pipeline definition."
 license: Apache-2.0
+metadata:
+  author: "DALI Team <dali-team@nvidia.com>"
+  tags:
+    - dali
+    - dynamic-mode
+    - ndd
+    - data-loading
+    - data-processing
+    - gpu-processing
+  languages:
+    - python
+  team: dali
+  domain: deep-learning
 ---
 
 # DALI Dynamic Mode
