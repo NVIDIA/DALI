@@ -12,13 +12,43 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import List
+from nvidia.dali._typing import TensorLike
+import nvidia.dali.experimental.dynamic as ndd
 
 from PIL import Image
 import torch
 
 
-def get_image_size(inpt: Image.Image | torch.Tensor) -> List[int]:
+def get_size(inpt: Image.Image | TensorLike) -> list[int]:
+    """
+    Return the spatial size of an image as ``[height, width]``.
+
+    Mirrors ``torchvision.transforms.v2.functional.get_size``.
+
+    Parameters
+    ----------
+    inpt : PIL Image or TensorLike
+        Input image.  Tensors are expected in ``[…, H, W]`` layout (leading
+        channel / batch dimensions are ignored).
+
+    Returns
+    -------
+    list[int]
+        ``[height, width]``
+    """
+    if isinstance(inpt, Image.Image):
+        w, h = inpt.size
+        return [h, w]  # PIL .size is (W, H)
+    elif isinstance(inpt, (torch.Tensor, ndd.Tensor)):
+        if inpt.ndim < 2:
+            raise TypeError(
+                f"get_image_size requires a tensor with at least 2 dimensions, got {inpt.ndim}."
+            )
+        return [inpt.shape[-2], inpt.shape[-1]]  # [H, W]
+    raise TypeError(f"Unsupported input type: {type(inpt)}.")
+
+
+def get_image_size(inpt: Image.Image | TensorLike) -> list[int]:
     """
     Return the spatial size of an image as ``[width, height]``.
 
@@ -30,27 +60,20 @@ def get_image_size(inpt: Image.Image | torch.Tensor) -> List[int]:
 
     Parameters
     ----------
-    inpt : PIL Image or torch.Tensor
+    inpt : PIL Image or TensorLike
         Input image.  Tensors are expected in ``[…, H, W]`` layout (leading
         channel / batch dimensions are ignored).
 
     Returns
     -------
-    List[int]
+    list[int]
         ``[width, height]``
     """
-    if isinstance(inpt, Image.Image):
-        return list(inpt.size)  # PIL .size is (W, H)
-    elif isinstance(inpt, torch.Tensor):
-        if inpt.ndim < 2:
-            raise TypeError(
-                f"get_image_size requires a tensor with at least 2 dimensions, got {inpt.ndim}."
-            )
-        return [inpt.shape[-1], inpt.shape[-2]]  # [W, H]
-    raise TypeError(f"Unsupported input type: {type(inpt)}.")
+    h, w = get_size(inpt)
+    return [w, h]
 
 
-def get_dimensions(inpt: Image.Image | torch.Tensor) -> List[int]:
+def get_dimensions(inpt: Image.Image | TensorLike) -> list[int]:
     """
     Return the number of channels, height, and width of an image as
     ``[channels, height, width]``.
@@ -71,7 +94,7 @@ def get_dimensions(inpt: Image.Image | torch.Tensor) -> List[int]:
     if isinstance(inpt, Image.Image):
         w, h = inpt.size
         return [len(inpt.getbands()), h, w]
-    elif isinstance(inpt, torch.Tensor):
+    elif isinstance(inpt, (torch.Tensor, ndd.Tensor)):
         if inpt.ndim < 2:
             raise TypeError(
                 f"get_dimensions requires a tensor with at least 2 dimensions, got {inpt.ndim}."

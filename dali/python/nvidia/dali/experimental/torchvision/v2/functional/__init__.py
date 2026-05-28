@@ -17,7 +17,7 @@ from .color import to_grayscale, rgb_to_grayscale
 from .crop import crop
 from .flips import horizontal_flip, vertical_flip
 from .gaussian_blur import gaussian_blur
-from .image_metadata import get_dimensions, get_image_size
+from .image_metadata import get_dimensions, get_image_size, get_size
 from .normalize import normalize
 from .pad import pad
 from .resize import resize
@@ -29,6 +29,7 @@ __all__ = [
     "gaussian_blur",
     "get_dimensions",
     "get_image_size",
+    "get_size",
     "horizontal_flip",
     "normalize",
     "pad",

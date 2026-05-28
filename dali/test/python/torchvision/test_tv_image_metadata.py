@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import warnings
 import unittest
 
 from nose2.tools import cartesian_params, params
@@ -22,7 +21,11 @@ import torch
 from torchvision import tv_tensors
 import torchvision.transforms.v2.functional as fn_tv
 
-from nvidia.dali.experimental.torchvision.v2.functional import get_image_size, get_dimensions
+from nvidia.dali.experimental.torchvision.v2.functional import (
+    get_image_size,
+    get_dimensions,
+    get_size,
+)
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -30,10 +33,9 @@ from nvidia.dali.experimental.torchvision.v2.functional import get_image_size, g
 
 
 def _tv_get_image_size(inpt):
-    """Call torchvision get_image_size while suppressing its deprecation warning."""
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore", UserWarning)
-        return fn_tv.get_image_size(inpt)
+    """Call torchvision get_size and adjust the output to be aligned with get_image_size."""
+    w, h = fn_tv.get_size(inpt)
+    return [h, w]
 
 
 def _skip_if_gpu_unavailable(device):
@@ -85,7 +87,7 @@ TORCHVISION_COMPATIBILITY_CASES = [
 
 
 # ---------------------------------------------------------------------------
-# get_image_size — PIL
+# get_(image_)size — PIL
 # ---------------------------------------------------------------------------
 
 
@@ -97,8 +99,16 @@ def test_get_image_size_pil(img):
     ), f"mode={img.mode} size={img.size}: got {get_image_size(img)}, expected {expected}"
 
 
+@params(*PIL_CASES)
+def test_get_size_pil(img):
+    expected = fn_tv.get_size(img)
+    assert (
+        get_size(img) == expected
+    ), f"mode={img.mode} size={img.size}: got {get_size(img)}, expected {expected}"
+
+
 # ---------------------------------------------------------------------------
-# get_image_size — tensors
+# get_(image_)size — tensors
 # ---------------------------------------------------------------------------
 
 
@@ -110,6 +120,16 @@ def test_get_image_size_tensor(device, t):
     assert (
         get_image_size(t) == expected
     ), f"device={device} shape={t.shape}: got {get_image_size(t)}, expected {expected}"
+
+
+@cartesian_params(("cpu", "gpu"), TENSOR_CASES)
+def test_get_size_tensor(device, t):
+    _skip_if_gpu_unavailable(device)
+    t = _move_tensor_to_device(t, device)
+    expected = fn_tv.get_size(t)
+    assert (
+        get_size(t) == expected
+    ), f"device={device} shape={t.shape}: got {get_size(t)}, expected {expected}"
 
 
 # ---------------------------------------------------------------------------
@@ -147,6 +167,7 @@ def test_get_dimensions_tensor(device, t):
 
 @params(*PIL_CASES)
 def test_image_metadata_pil_matches_torchvision(img):
+    assert get_size(img) == fn_tv.get_size(img)
     assert get_image_size(img) == _tv_get_image_size(img)
     assert get_dimensions(img) == fn_tv.get_dimensions(img)
 
@@ -157,6 +178,7 @@ def test_image_metadata_tensor_inputs_match_torchvision(device, input_case):
     input_kind, shape = input_case
     inpt = _move_tensor_to_device(_make_compatibility_input(input_kind, shape), device)
 
+    assert get_size(inpt) == fn_tv.get_size(inpt)
     assert get_image_size(inpt) == _tv_get_image_size(inpt)
     assert get_dimensions(inpt) == fn_tv.get_dimensions(inpt)
 
@@ -169,6 +191,8 @@ def test_image_metadata_tensor_inputs_match_torchvision(device, input_case):
 def test_get_image_size_1d_tensor_raises():
     with assert_raises(TypeError):
         get_image_size(torch.zeros(10))
+    with assert_raises(TypeError):
+        get_size(torch.zeros(10))
 
 
 def test_get_dimensions_1d_tensor_raises():
@@ -179,6 +203,8 @@ def test_get_dimensions_1d_tensor_raises():
 def test_get_image_size_unsupported_type_raises():
     with assert_raises(TypeError):
         get_image_size("not_an_image")
+    with assert_raises(TypeError):
+        get_size("not_an_image")
 
 
 def test_get_dimensions_unsupported_type_raises():
