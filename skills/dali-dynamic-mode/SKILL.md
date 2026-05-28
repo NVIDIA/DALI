@@ -89,7 +89,7 @@ scalar values, e.g.:
 imgs = ndd.as_batch([ndd.imread(file) for file in filenames])
 sliced = imgs.slice[
     42 :  # value broadcast to all samples
-    ndd.batch(imgs.shape).slice[0] / 2  # half of the height of _respective_ samples
+    ndd.batch(imgs.shape).slice[0] // 2  # half of the height of _respective_ samples
 ]
 ```
 
