@@ -1,6 +1,6 @@
 ---
 name: dali-dynamic-mode
-description: "DALI imperative dynamic mode (`nvidia.dali.experimental.dynamic`, ndd): write/review ndd code or migrate pipelines; skip pipeline-only tasks."
+description: "DALI imperative dynamic mode (`nvidia.dali.experimental.dynamic`, ndd): use when working on ndd code or migrating pipelines; skip pipeline-only tasks."
 license: Apache-2.0
 metadata:
   author: "DALI Team <dali-team@nvidia.com>"
@@ -25,7 +25,7 @@ Guide AI agents in writing, reviewing, and migrating code that uses DALI's imper
 
 ## Instructions
 
-- Write dynamic-mode code as direct `ndd` calls in ordinary Python; do not use pipeline-mode APIs such as `Pipeline`, `@pipeline_def`, `pipe.build()`, or `pipe.run()`.
+- Import dynamic mode as `nvidia.dali.experimental.dynamic as ndd` and write code as direct `ndd` calls in ordinary Python; do not use pipeline-mode APIs such as `Pipeline`, `@pipeline_def`, `pipe.build()`, or `pipe.run()`.
 - Treat readers as stateful: create them once, reuse them across epochs, and pass `batch_size` to `next_epoch(...)`.
 - Pass explicit `batch_size` to random ops; there is no pipeline-level batch size to inherit.
 - Use dynamic-mode API conventions: `device="gpu"` instead of pipeline-mode `"mixed"`, `Batch.tensors[...]` for sample selection, and `Batch.slice[...]` for per-sample slicing.
@@ -38,11 +38,7 @@ Guide AI agents in writing, reviewing, and migrating code that uses DALI's imper
 
 ## Introduction
 
-Dynamic mode is DALI's imperative Python API. Call DALI operators as regular Python functions with standard control flow -- no pipeline graph, no `pipe.build()`, no `pipe.run()`.
-
-```python
-import nvidia.dali.experimental.dynamic as ndd
-```
+Dynamic mode is DALI's imperative Python API. It lets code call DALI operators directly from normal Python control flow instead of building and running a pipeline graph.
 
 ## Core Data Types
 
@@ -271,3 +267,12 @@ for epoch in range(num_epochs):
 | `output.as_cpu()` | `batch.cpu()` |
 | `pipe.run()` returns tuple of `TensorList` | `reader.next_epoch(batch_size=N)` yields tuples of `Batch` |
 | `Pipeline(..., enable_checkpointing=True)` + `pipe.checkpoint()` / `pipeline(checkpoint=...)` | `ndd.checkpoint.Checkpoint` + per-object `register` / `collect` / `save` / `load`; readers opt in with `enable_checkpointing=True` |
+
+## Limitations
+
+Dynamic mode is more flexible than pipeline mode, but can have slightly worse performance. For maximum throughput, prefer pipeline mode.
+
+## Troubleshooting
+
+- If errors surface later than the failing call, rerun the block under `with ndd.EvalMode.sync_full:`.
+- If a reader behaves unexpectedly across epochs, check that it is created once and each `next_epoch()` iterator is fully consumed.
