@@ -19,6 +19,8 @@ metadata:
 
 # DALI Dynamic Mode
 
+## Introduction
+
 Dynamic mode is DALI's imperative Python API. Call DALI operators as regular Python functions with standard control flow -- no pipeline graph, no `pipe.build()`, no `pipe.run()`.
 
 ```python
@@ -200,12 +202,13 @@ Key rules:
 
 Manual `get_state` / `set_state` is also available directly on each `Reader` and `RNG` -- the `Checkpoint` aggregator is built on top of it. Use the manual API only when integrating with an external checkpoint system.
 
-## Example: Image Classification Pipeline
+## Examples
+
+### Image Classification Pipeline
 
 ```python
 import nvidia.dali.experimental.dynamic as ndd
 
-ndd.set_num_threads(4)
 reader = ndd.readers.File(file_root="/data/imagenet/train", random_shuffle=True)
 
 for epoch in range(num_epochs):
