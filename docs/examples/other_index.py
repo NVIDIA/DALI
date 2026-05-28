@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2022-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -74,6 +74,19 @@ doc(
         doc_entry("general/conditionals.ipynb"),
         doc_entry("custom_operations/index.py"),
         doc_entry("advanced/serialization.ipynb"),
+        doc_entry(
+            "advanced/pipeline_checkpointing.ipynb",
+            [
+                op_reference(
+                    "fn.readers.file",
+                    "Saving and restoring pipeline state via checkpointing.",
+                ),
+                op_reference(
+                    "fn.rotate",
+                    "Saving and restoring pipeline state via checkpointing.",
+                ),
+            ],
+        ),
         doc_entry("legacy_getting_started.ipynb"),
     ],
 )

@@ -9,6 +9,11 @@ It is particularly useful for long-running training jobs which are likely to be 
 
 A checkpoint of DALI pipeline contains information about states of all random number generators used in the pipeline and about the progress of each reader.
 
+For a worked example, see the
+:doc:`Pipeline checkpointing notebook <examples/advanced/pipeline_checkpointing>`.
+For the equivalent flow in dynamic mode, see
+:doc:`Dynamic mode checkpointing <dali_dynamic/checkpointing_tutorial>`.
+
 Checkpointing API
 -----------------
 
