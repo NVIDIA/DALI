@@ -87,8 +87,7 @@ def test_compile_basic_pipeline():
         compiled_results.append(ndd.as_tensor(images))
         assert _is_compiled(images)
 
-    assert len(dynamic_results) == len(compiled_results)
-    for dyn, comp in zip(dynamic_results, compiled_results):
+    for dyn, comp in zip(dynamic_results, compiled_results, strict=True):
         np.testing.assert_array_equal(dyn, comp)
 
 
@@ -138,8 +137,7 @@ def test_compile_different_ops_same_call_site():
                 assert _is_compiled(out)
                 compiled_results.append(ndd.as_tensor(out, pad=True))
 
-        assert len(compiled_results) == len(dynamic_results)
-        for dyn, comp in zip(dynamic_results, compiled_results):
+        for dyn, comp in zip(dynamic_results, compiled_results, strict=True):
             np.testing.assert_array_equal(dyn, comp)
 
 
@@ -164,8 +162,7 @@ def test_compile_partial():
         assert not _is_compiled(resized)
         compiled_results.append(ndd.as_tensor(resized))
 
-    assert len(dynamic_results) == len(compiled_results)
-    for dyn, comp in zip(dynamic_results, compiled_results):
+    for dyn, comp in zip(dynamic_results, compiled_results, strict=True):
         np.testing.assert_array_equal(dyn, comp)
 
 
@@ -185,8 +182,7 @@ def test_compile_multi_epoch():
             images = ndd.decoders.image(jpegs)
             assert _is_compiled(images)
             compiled_results.append(ndd.as_tensor(images, pad=True))
-        assert len(compiled_results) == len(dynamic_results)
-        for dyn, comp in zip(dynamic_results, compiled_results):
+        for dyn, comp in zip(dynamic_results, compiled_results, strict=True):
             np.testing.assert_array_equal(dyn, comp)
 
 
@@ -234,8 +230,7 @@ def test_compile_loop_identical():
             assert _is_compiled(resized)
         compiled_results.append(ndd.as_tensor(resized))
 
-    assert len(dynamic_results) == len(compiled_results)
-    for dyn, comp in zip(dynamic_results, compiled_results):
+    for dyn, comp in zip(dynamic_results, compiled_results, strict=True):
         np.testing.assert_array_equal(dyn, comp)
 
 
@@ -259,8 +254,7 @@ def test_compile_loop_data_dependent():
             assert _is_compiled(images) == (i == 0)
         compiled_results.append(ndd.as_tensor(images))
 
-    assert len(dynamic_results) == len(compiled_results)
-    for dyn, comp in zip(dynamic_results, compiled_results):
+    for dyn, comp in zip(dynamic_results, compiled_results, strict=True):
         np.testing.assert_array_equal(dyn, comp)
 
 
@@ -298,8 +292,7 @@ def test_compile_diverging_inputs():
         assert _is_compiled(images) == (i % 2 == 0)
         compiled_results.append(ndd.as_tensor(images))
 
-    assert len(dynamic_results) == len(compiled_results)
-    for dyn, comp in zip(dynamic_results, compiled_results):
+    for dyn, comp in zip(dynamic_results, compiled_results, strict=True):
         np.testing.assert_array_equal(dyn, comp)
 
 
@@ -385,8 +378,7 @@ def _test_video_resize(**resize_args):
         assert _is_compiled(rotated)
         compiled_results.append(ndd.as_tensor(rotated).cpu())
 
-    assert len(dynamic_results) == len(compiled_results)
-    for dyn, comp in zip(dynamic_results, compiled_results):
+    for dyn, comp in zip(dynamic_results, compiled_results, strict=True):
         np.testing.assert_array_equal(dyn, comp)
 
 
@@ -422,8 +414,7 @@ def test_compile_incompatible_kwarg_dtype():
         assert _is_compiled(resized), resized
         compiled_results.append(ndd.as_tensor(resized, pad=True).cpu())
 
-    assert len(dynamic_results) == len(compiled_results)
-    for dyn, comp in zip(dynamic_results, compiled_results):
+    for dyn, comp in zip(dynamic_results, compiled_results, strict=True):
         np.testing.assert_array_equal(dyn, comp)
 
 
