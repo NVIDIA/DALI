@@ -264,7 +264,7 @@ for epoch in range(num_epochs):
 | No `batch_size` to random ops | `ndd.random.uniform(batch_size=N, ...)` | No pipeline-level batch size to inherit |
 | `register(reader)` after first `next_epoch` to restore | Register the freshly built reader before the first iteration | Reader state can only be applied before the prefetch thread starts |
 | Restoring into a reader built without `enable_checkpointing=True` after iteration | Pass `enable_checkpointing=True` at construction (or register before first iteration) | Backend doesn't keep snapshots otherwise |
-| Spelling out default argument values | Skip default argument values | Very high Python-side overhead, especially when the argument accepts Tensors/Batches |
+| Spelling out default argument values | Skip default argument values | Very high Python-side overhead, especially when the argument accepts Tensors/Batches. Skipping arguments uses a fast path, actually passing a sentinel value. |
 
 ## Pipeline Mode Migration
 
