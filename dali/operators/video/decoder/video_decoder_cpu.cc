@@ -26,8 +26,6 @@ The operator utilizes either libavcodec (FFmpeg) or NVIDIA Video Codec SDK (NVDE
 
 The following video codecs are supported by both CPU and Mixed backends:
 
-* H.264/AVC
-* H.265/HEVC
 * VP8
 * VP9
 * MJPEG
@@ -36,6 +34,8 @@ The following codecs are supported by the Mixed backend only:
 
 * AV1
 * MPEG-4
+* H.264/AVC
+* H.265/HEVC
 
 Each output sample is a sequence of frames with shape ``(F, H, W, C)`` where:
 

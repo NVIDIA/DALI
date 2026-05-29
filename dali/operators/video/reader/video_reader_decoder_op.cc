@@ -736,8 +736,6 @@ The operator utilizes either libavcodec (FFmpeg) or NVIDIA Video Codec SDK (NVDE
 
 The following video codecs are supported by both CPU and GPU backends:
 
-* H.264/AVC
-* H.265/HEVC
 * VP8
 * VP9
 * MJPEG
@@ -746,6 +744,8 @@ The following codecs are supported by the GPU backend only:
 
 * AV1
 * MPEG-4
+* H.264/AVC
+* H.265/HEVC
 
 The outputs of the operator are: video, [labels], [frame_num], [timestamps].
 
