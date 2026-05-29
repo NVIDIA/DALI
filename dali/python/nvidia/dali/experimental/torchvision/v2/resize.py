@@ -44,6 +44,16 @@ class _ValidateSize(_ArgumentValidateRule):
                  edge, i.e. size should be an int"
             )
 
+        if isinstance(size, int) and size <= 0:
+            raise ValueError(f"size must be positive, got {size}")
+        if isinstance(size, (tuple, list)):
+            if len(size) not in (1, 2):
+                raise ValueError(f"size sequence must have length 1 or 2, got {len(size)}")
+            if any(not isinstance(s, int) for s in size):
+                raise ValueError(f"size values must be integers, got {size}")
+            if any(s <= 0 for s in size):
+                raise ValueError(f"size values must be positive, got {size}")
+
         if interpolation in Resize.not_supported_interpolation_modes:
             raise NotImplementedError(f"Interpolation mode: {interpolation} is not supported")
 

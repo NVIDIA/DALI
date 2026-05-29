@@ -130,9 +130,9 @@ def test_crop_preserves_tensor_dtype(dtype):
     dict(top=0, left=0, height=1, width=1.0),
 )
 def test_crop_tensor_rejects_float_parameters(crop_kwargs):
-    with assert_raises(TypeError):
+    with assert_raises(TypeError, glob="*integer*"):
         _ = tv_fn.crop(make_test_tensor(), **crop_kwargs)
-    with assert_raises(TypeError):
+    with assert_raises(TypeError, glob="*integer*"):
         _ = crop(make_test_tensor(), **crop_kwargs)
 
 
@@ -144,16 +144,16 @@ def test_crop_tensor_rejects_float_parameters(crop_kwargs):
 )
 def test_crop_pil_rejects_non_numeric_parameters(crop_kwargs):
     pil_image = _make_pil_image("RGB")
-    with assert_raises(TypeError):
+    with assert_raises(TypeError, glob="*str*"):
         _ = tv_fn.crop(pil_image, **crop_kwargs)
-    with assert_raises(TypeError):
+    with assert_raises(TypeError, glob="*real numbers*"):
         _ = crop(pil_image, **crop_kwargs)
 
 
 def test_crop_invalid_input_type():
-    with assert_raises(TypeError):
+    with assert_raises(TypeError, glob="*support*"):
         _ = tv_fn.crop([1, 2, 3], top=0, left=0, height=1, width=1)
-    with assert_raises(TypeError):
+    with assert_raises(TypeError, glob="*support*"):
         _ = crop([1, 2, 3], top=0, left=0, height=1, width=1)
 
 
@@ -166,7 +166,7 @@ def test_crop_invalid_input_type():
     (1, 1.0),
 )
 def test_crop_invalid_output_size(height, width):
-    with assert_raises((TypeError, ValueError)):
+    with assert_raises((TypeError, ValueError), glob="*must be*"):
         _ = crop(make_test_tensor(), top=0, left=0, height=height, width=width)
 
 
@@ -177,7 +177,7 @@ def test_crop_invalid_output_size(height, width):
     (0, "0"),
 )
 def test_crop_invalid_coordinates(top, left):
-    with assert_raises(TypeError):
+    with assert_raises(TypeError, glob="*int*"):
         _ = tv_fn.crop(make_test_tensor(), top=top, left=left, height=1, width=1)
-    with assert_raises(TypeError):
+    with assert_raises(TypeError, glob="*int*"):
         _ = crop(make_test_tensor(), top=top, left=left, height=1, width=1)

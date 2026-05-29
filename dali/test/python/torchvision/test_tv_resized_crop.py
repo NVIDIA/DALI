@@ -194,7 +194,7 @@ def test_resized_crop_crop_padding_tensors(crop_case, device):
 )
 def test_resized_crop_interpolation(interpolation, device):
     if interpolation == transforms.InterpolationMode.NEAREST_EXACT:
-        with assert_raises(NotImplementedError):
+        with assert_raises(NotImplementedError, glob="*Interpolation mode*"):
             loop_images_test(
                 top=10,
                 left=10,
@@ -279,3 +279,55 @@ def test_resized_crop_invalid_crop_size(height, width):
         _ = fn_dali.resized_crop(
             build_tensors(h=8, w=10)[0], top=0, left=0, height=height, width=width, size=1
         )
+
+
+@params(
+    [],
+    [0, 5],
+    [5, 0],
+    [1.0, 2],
+    [1, 2, 3],
+    -1,
+    0,
+    1.0,
+    {"bad": "value"},
+)
+def test_resized_crop_invalid_size(size):
+    with assert_raises((TypeError, ValueError), glob="*size*"):
+        _ = fn_dali.resized_crop(
+            build_tensors(h=8, w=10)[0], top=0, left=0, height=4, width=4, size=size
+        )
+
+
+def test_resized_crop_invalid_interpolation():
+    with assert_raises(ValueError, glob="*Interpolation*"):
+        _ = fn_dali.resized_crop(
+            build_tensors(h=8, w=10)[0],
+            top=0,
+            left=0,
+            height=4,
+            width=4,
+            size=2,
+            interpolation="bad",
+        )
+
+
+def test_resized_crop_invalid_int_interpolation():
+    with assert_raises(ValueError, glob="*PIL code*"):
+        _ = fn_dali.resized_crop(
+            build_tensors(h=8, w=10)[0],
+            top=0,
+            left=0,
+            height=4,
+            width=4,
+            size=2,
+            interpolation=99,
+        )
+
+
+@params([1, 2, 3], "not a tensor", 42)
+def test_resized_crop_invalid_input_type(inpt):
+    with assert_raises(TypeError, glob="*support*"):
+        _ = fn_tv.resized_crop(inpt, top=0, left=0, height=1, width=1, size=1)
+    with assert_raises(TypeError, glob="*support*"):
+        _ = fn_dali.resized_crop(inpt, top=0, left=0, height=1, width=1, size=1)
