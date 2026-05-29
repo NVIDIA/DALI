@@ -115,6 +115,35 @@ def test_compile_same_call_site():
 
 
 @eval_modes()
+def test_compile_different_ops_same_call_site():
+    ops = [ndd.flip, ndd.sphere]
+
+    reader_dyn = ndd.readers.File(file_root=images_root, pad_last_batch=True)
+    reader_comp = ndd.readers.File(file_root=images_root, pad_last_batch=True)
+
+    dynamic_results = []
+    for jpegs, _ in reader_dyn.next_epoch(batch_size=4):
+        images = ndd.decoders.image(jpegs)
+        for op in ops:
+            out = op(images)
+            assert not _is_compiled(out)
+            dynamic_results.append(ndd.as_tensor(out, pad=True))
+
+    for _ in range(3):
+        compiled_results = []
+        for jpegs, _ in reader_comp.next_epoch(batch_size=4, compile=True):
+            images = ndd.decoders.image(jpegs)
+            for op in ops:
+                out = op(images)
+                assert _is_compiled(out)
+                compiled_results.append(ndd.as_tensor(out, pad=True))
+
+        assert len(compiled_results) == len(dynamic_results)
+        for dyn, comp in zip(dynamic_results, compiled_results):
+            np.testing.assert_array_equal(dyn, comp)
+
+
+@eval_modes()
 def test_compile_partial():
     reader_dyn = ndd.readers.File(file_root=images_root)
     reader_comp = ndd.readers.File(file_root=images_root)
