@@ -26,51 +26,6 @@ from ..randomcrop import RandomCrop
 from ..resize import Resize
 
 
-def _validate_integer_param(value, name: str) -> int:
-    try:
-        return operator.index(value)
-    except TypeError as err:
-        raise TypeError(f"{name} must be an integer, got {type(value)}") from err
-
-
-def _round_pil_box(top, left, height, width) -> tuple[int, int, int, int]:
-    try:
-        rounded_top = int(round(top))
-        rounded_left = int(round(left))
-        rounded_bottom = int(round(top + height))
-        rounded_right = int(round(left + width))
-    except TypeError as err:
-        raise TypeError("top, left, height, and width must be real numbers") from err
-
-    return (
-        rounded_top,
-        rounded_left,
-        rounded_bottom - rounded_top,
-        rounded_right - rounded_left,
-    )
-
-
-def _is_pil_image_layout(inpt: TensorLike | ndd.Batch) -> bool:
-    return inpt.layout[-3:] == "HWC"
-
-
-def _validate_crop_params(inpt, top, left, height, width) -> tuple[int, int, int, int]:
-    if _is_pil_image_layout(inpt):
-        top, left, height, width = _round_pil_box(top, left, height, width)
-    else:
-        top = _validate_integer_param(top, "top")
-        left = _validate_integer_param(left, "left")
-        height = _validate_integer_param(height, "height")
-        width = _validate_integer_param(width, "width")
-
-    if height <= 0:
-        raise ValueError(f"height must be positive, got {height}")
-    if width <= 0:
-        raise ValueError(f"width must be positive, got {width}")
-
-    return top, left, height, width
-
-
 def _verify_crop_coordinate(value, name: str) -> None:
     if not isinstance(value, int):
         raise TypeError(f"{name} must be int, got {type(value)}")
@@ -112,6 +67,26 @@ def _validate_crop_params(inpt, top, left, height, width) -> tuple[int, int, int
         _validate_integer_param(left, "left"),
         _validate_integer_param(height, "height"),
         _validate_integer_param(width, "width"),
+    )
+
+
+def _crop(
+    inpt: ndd.Tensor | ndd.Batch,
+    top: int,
+    left: int,
+    height: int,
+    width: int,
+    device: DeviceLike = "cpu",
+) -> ndd.Tensor | ndd.Batch:
+    axes = [-3, -2] if _is_pil_image_layout(inpt) else [-2, -1]
+    return ndd.slice(
+        inpt,
+        (top, left),
+        (height, width),
+        axes=axes,
+        out_of_bounds_policy="pad",
+        fill_values=0,
+        device=device,
     )
 
 
