@@ -86,10 +86,10 @@ sample_0 = xy.tensors[0]   # Tensor, the entire first sample [x, y]
 The `.slice[]` API accepts batches of indices, allowing the user to mix and match batches and
 scalar values, e.g.:
 ```python
-imgs = ndd.as_batch([ndd.imread(file) for file in filenames])
+imgs = ndd.imread(filenames)  # a batch of images, if `filenames` is a list
 sliced = imgs.slice[
-    42 :  # value broadcast to all samples
-    ndd.batch(imgs.shape).slice[0] // 2  # half of the height of _respective_ samples
+    42 :  # the range start is broadcast to all samples
+    ndd.batch(imgs.shape).slice[0] // 2  # per-sample range stop (half of each image)
 ]
 ```
 
@@ -255,7 +255,7 @@ for epoch in range(num_epochs):
 |-------|-------|-----|
 | `device="mixed"` | `device="gpu"` | `"mixed"` is pipeline mode only |
 | `batch[i]` | `batch.tensors[i]` | `Batch` has no `__getitem__` |
-| `batch.tensors[0]` for per-sample slicing | `batch.slice[0]` | `.tensors` and `.select()` pick samples; `.slice` slices within each sample |
+| `batch.tensors[0]` for per-sample slicing | `batch.slice[0]` | `.tensors` pick samples; `.slice` slices within each sample |
 | `.evaluate()` after every op | Let consumption trigger eval | `.torch()`, `.shape`, etc. trigger it automatically |
 | `.cpu()` before GPU model | `.torch()` directly | Avoids wasteful D2H + H2D round-trip |
 | Recreate reader each epoch | `reader.next_epoch()` | Readers are stateful -- create once, reuse |
