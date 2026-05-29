@@ -56,13 +56,19 @@ def _is_pil_image_layout(inpt: TensorLike | ndd.Batch) -> bool:
 
 def _validate_crop_params(inpt, top, left, height, width) -> tuple[int, int, int, int]:
     if _is_pil_image_layout(inpt):
-        return _round_pil_box(top, left, height, width)
-    return (
-        _validate_integer_param(top, "top"),
-        _validate_integer_param(left, "left"),
-        _validate_integer_param(height, "height"),
-        _validate_integer_param(width, "width"),
-    )
+        top, left, height, width = _round_pil_box(top, left, height, width)
+    else:
+        top = _validate_integer_param(top, "top")
+        left = _validate_integer_param(left, "left")
+        height = _validate_integer_param(height, "height")
+        width = _validate_integer_param(width, "width")
+
+    if height <= 0:
+        raise ValueError(f"height must be positive, got {height}")
+    if width <= 0:
+        raise ValueError(f"width must be positive, got {width}")
+
+    return top, left, height, width
 
 
 def _verify_crop_coordinate(value, name: str) -> None:
