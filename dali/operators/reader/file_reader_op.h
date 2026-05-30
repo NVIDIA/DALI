@@ -42,7 +42,7 @@ class FileReader : public DataReader<CPUBackend, ImageLabelWrapper, ImageLabelWr
   bool SetupImpl(std::vector<OutputDesc>& output_desc, const Workspace& ws) override {
     // If necessary start prefetching thread and wait for a consumable batch
     DataReader<CPUBackend, ImageLabelWrapper, ImageLabelWrapper, true>::SetupImpl(output_desc, ws);
-    auto samples = GetCurrBatch();
+    const auto &samples = GetCurrBatch();
     int batch_size = samples.size();
 
     output_desc.resize(2);
@@ -65,7 +65,7 @@ class FileReader : public DataReader<CPUBackend, ImageLabelWrapper, ImageLabelWr
   void RunImpl(Workspace &ws) override {
     auto &file_output = ws.Output<CPUBackend>(0);
     auto &label_output = ws.Output<CPUBackend>(1);
-    auto samples = GetCurrBatch();
+    const auto &samples = GetCurrBatch();
     int batch_size = samples.size();
 
     auto &thread_pool = ws.GetThreadPool();
