@@ -130,9 +130,9 @@ def test_crop_preserves_tensor_dtype(dtype):
     dict(top=0, left=0, height=1, width=1.0),
 )
 def test_crop_tensor_rejects_float_parameters(crop_kwargs):
-    with assert_raises(TypeError, glob="*integer*"):
+    with assert_raises(TypeError, glob="integer"):
         _ = tv_fn.crop(make_test_tensor(), **crop_kwargs)
-    with assert_raises(TypeError, glob="*integer*"):
+    with assert_raises(TypeError, glob="integer"):
         _ = crop(make_test_tensor(), **crop_kwargs)
 
 

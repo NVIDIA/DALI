@@ -117,10 +117,7 @@ class _ValidateRandomResizedCropInterpolation(_ArgumentValidateRule):
 
     @classmethod
     def verify(cls, *, interpolation, **_) -> None:
-        if interpolation in Resize.not_supported_interpolation_modes:
-            raise NotImplementedError(f"Interpolation mode: {interpolation} is not supported")
-        if interpolation not in Resize.interpolation_modes:
-            raise ValueError(f"Interpolation {interpolation!r} is not supported")
+        Resize.validate_interpoliation(interpolation)
 
 
 class RandomCrop(Operator):

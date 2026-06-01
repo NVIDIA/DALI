@@ -26,11 +26,6 @@ from ..randomcrop import RandomCrop
 from ..resize import Resize
 
 
-def _verify_crop_coordinate(value, name: str) -> None:
-    if not isinstance(value, int):
-        raise TypeError(f"{name} must be int, got {type(value)}")
-
-
 def _validate_integer_param(value, name: str) -> int:
     try:
         return operator.index(value)

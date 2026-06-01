@@ -54,11 +54,7 @@ class _ValidateSize(_ArgumentValidateRule):
             if any(s <= 0 for s in size):
                 raise ValueError(f"size values must be positive, got {size}")
 
-        if interpolation in Resize.not_supported_interpolation_modes:
-            raise NotImplementedError(f"Interpolation mode: {interpolation} is not supported")
-
-        if interpolation not in Resize.interpolation_modes.keys():
-            raise ValueError(f"Interpolation {type(interpolation)} is not supported")
+        Resize.validate_interpoliation(interpolation)
 
 
 class Resize(Operator):
@@ -121,6 +117,13 @@ class Resize(Operator):
 
     arg_rules = [_ValidateSize]
     preprocess_data = get_HWC_from_layout_pipeline
+
+    @classmethod
+    def validate_interpoliation(cls, interpolation) -> None:
+        if interpolation in cls.not_supported_interpolation_modes:
+            raise NotImplementedError(f"Interpolation mode: {interpolation!r} is not supported")
+        if interpolation not in cls.interpolation_modes:
+            raise ValueError(f"Interpolation {interpolation!r} is not supported")
 
     @classmethod
     def normalize_interpolation(cls, interpolation):

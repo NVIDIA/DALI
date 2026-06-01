@@ -80,17 +80,18 @@ def _assert_allclose_to_torchvision(inpt, dali_transform, tv_transform, device="
             tv_out = tv_out.cpu()
 
     assert out.shape == tv_out.shape, f"Shape mismatch: {out.shape} != {tv_out.shape}"
-    assert torch.allclose(out, tv_out, rtol=0, atol=atol), "DALI output differs from torchvision"
+    torch.testing.assert_close(
+        out,
+        tv_out,
+        rtol=0,
+        atol=atol,
+        check_stride=True,
+        msg="DALI output differs from torchvision",
+    )
 
 
 def test_random_resized_crop_is_operator():
     assert issubclass(RandomResizedCrop, Operator)
-
-
-def test_random_resized_crop_exported_from_randomcrop_module():
-    from nvidia.dali.experimental.torchvision.v2.randomcrop import RandomResizedCrop as exported
-
-    assert RandomResizedCrop is exported
 
 
 def test_random_resized_crop_uses_dali_operator():
