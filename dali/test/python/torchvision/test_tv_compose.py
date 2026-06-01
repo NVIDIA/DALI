@@ -422,3 +422,12 @@ def test_compose_non_uint8_dtype_resize(dtype):
     else:
         with assert_raises(RuntimeError):
             _ = dali_pipeline(test_tensor)
+
+
+def test_error_in_isolated_operators():
+    """Operators must not be called outside of Compose"""
+
+    test_tensor = torch.ones(5, 3, 10, 10, dtype=torch.uint8)
+    dali_resize = Resize(size=(7, 7))
+    with assert_raises(RuntimeError, glob="*is not directly callable*"):
+        _ = dali_resize(test_tensor)
