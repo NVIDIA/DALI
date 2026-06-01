@@ -44,15 +44,14 @@ if (WITH_DYNAMIC_NPP)
         OUTPUT ${NPP_GENERATED_STUB}
         COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/../../internal_tools/stub_generator/stub_codegen.py --unique_prefix=Npp --
                     "${CMAKE_CURRENT_SOURCE_DIR}/../../internal_tools/stub_generator/npp.json" ${NPP_GENERATED_STUB}
-                    "${CUDA_TOOLKIT_INCLUDE_MAJOR_DIRECTORY}/npp.h"
-                    ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES_DIRECTIVE}
+                    "${CUDAToolkit_TARGET_DIR}/include/npp.h" "-I${CUDAToolkit_TARGET_DIR}/include"
                     # for some reason QNX fails with 'too many errors emitted' is this is not set
                     "-ferror-limit=0"
                     # let clang know which architecutre we compile for
                     "--target=${CMAKE_SYSTEM_PROCESSOR}-linux-gnu"
                     ${DEFAULT_COMPILER_INCLUDE}
         DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/../../internal_tools/stub_generator/stub_codegen.py
-                "${CUDA_TOOLKIT_INCLUDE_MAJOR_DIRECTORY}/npp.h"
+                "${CUDAToolkit_TARGET_DIR}/include/npp.h"
                 "${CMAKE_CURRENT_SOURCE_DIR}/../../internal_tools/stub_generator/npp.json"
         COMMENT "Running npp.h stub generator"
         VERBATIM)

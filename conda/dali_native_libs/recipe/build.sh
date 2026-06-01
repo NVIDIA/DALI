@@ -64,6 +64,7 @@ cmake -DCUDA_TOOLKIT_ROOT_DIR=/usr/local/cuda \
       -DBUILD_BENCHMARK=${BUILD_BENCHMARK:-ON}            \
       -DBUILD_NVTX=${BUILD_NVTX}                          \
       -DBUILD_PYTHON=OFF                                  \
+      -DBUILD_FOR_CONDA=ON                                \
       -DPREBUILD_DALI_LIBS=OFF                            \
       -DPYTHON_STUBGEN_INTERPRETER=${PYTHON}              \
       -DBUILD_LMDB=${BUILD_LMDB:-ON}                      \

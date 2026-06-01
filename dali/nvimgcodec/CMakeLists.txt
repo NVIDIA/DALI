@@ -44,8 +44,7 @@ if(WITH_DYNAMIC_NVIMGCODEC)
     OUTPUT ${NVIMGCODEC_GENERATED_STUB}
     COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/../../internal_tools/stub_generator/stub_codegen.py --unique_prefix=Nvimgcodec --
     "${CMAKE_CURRENT_SOURCE_DIR}/../../internal_tools/stub_generator/nvimgcodec.json" ${NVIMGCODEC_GENERATED_STUB}
-    "${nvimgcodec_INCLUDE_DIR}/nvimgcodec.h" "-I${nvimgcodec_INCLUDE_DIR}"
-    ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES_DIRECTIVE}
+    "${nvimgcodec_INCLUDE_DIR}/nvimgcodec.h" "-I${nvimgcodec_INCLUDE_DIR}" "-I${CUDAToolkit_TARGET_DIR}/include"
     # for some reason QNX fails with 'too many errors emitted' if this is not set
     "-ferror-limit=0"
     # let clang know which architecutre we compile for

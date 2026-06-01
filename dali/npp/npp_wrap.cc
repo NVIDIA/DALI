@@ -55,8 +55,13 @@ NPPCDRIVER loadNppcLibrary() {
   if (!ret) {
     ret = dlopen(__NppcLibName, RTLD_NOW);
     if (!ret) {
+#if FOR_CONDA_ENABLED
+      throw std::runtime_error("dlopen libnppc.so failed!. Please install "
+          "libnpp: `conda install -c conda-forge libnpp`.");
+#else
       throw std::runtime_error("dlopen libnppc.so failed!. Please install "
           "CUDA toolkit or NPP python wheel.");
+#endif
     }
   }
   return ret;
@@ -69,8 +74,13 @@ NPPICCDRIVER loadNppiccLibrary() {
   if (!ret) {
     ret = dlopen(__NppiccLibName, RTLD_NOW);
     if (!ret) {
+#if FOR_CONDA_ENABLED
+      throw std::runtime_error("dlopen libnppicc.so failed!. Please install "
+          "libnpp: `conda install -c conda-forge libnpp`.");
+#else
       throw std::runtime_error("dlopen libnppicc.so failed!. Please install "
           "CUDA toolkit or NPP python wheel.");
+#endif
     }
   }
   return ret;
@@ -83,8 +93,13 @@ NPPIGDRIVER loadNppigLibrary() {
   if (!ret) {
     ret = dlopen(__NppigLibName, RTLD_NOW);
     if (!ret) {
+#if FOR_CONDA_ENABLED
+      throw std::runtime_error("dlopen libnppig.so failed!. Please install "
+          "libnpp: `conda install -c conda-forge libnpp`.");
+#else
       throw std::runtime_error("dlopen libnppig.so failed!. Please install "
           "CUDA toolkit or NPP python wheel.");
+#endif
     }
   }
   return ret;
