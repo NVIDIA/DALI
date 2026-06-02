@@ -25,6 +25,16 @@ You can also access the :ref:`DALI Pipeline API <pipeline_api_overview>`, which 
 graph-based execution model.
 
 
+.. tip::
+   The `dali-dynamic-mode <https://github.com/NVIDIA/skills/blob/main/skills/dali-dynamic-mode/SKILL.md>`_ skill
+   provides AI agents with guidance on the Dynamic Mode API and best practices. It can be installed as follows:
+
+   .. code-block:: sh
+
+      npx skills add nvidia/skills --skill dali-dynamic-mode
+
+   For more information, see the `NVIDIA/skills <https://github.com/NVIDIA/skills>`_ GitHub repository.
+
 How it works
 ------------
 
