@@ -94,6 +94,7 @@ For more details please check the
           'numpy',
           'nvtx',
           'makefun',
+          'libcst ~= 1.8',
           @DALI_INSTALL_REQUIRES_NVIMGCODEC@
           @DALI_INSTALL_REQUIRES_NVCOMP@
           ],
