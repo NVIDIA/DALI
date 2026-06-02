@@ -44,11 +44,17 @@ class _ValidateSize(_ArgumentValidateRule):
                  edge, i.e. size should be an int"
             )
 
-        if interpolation in Resize.not_supported_interpolation_modes:
-            raise NotImplementedError(f"Interpolation mode: {interpolation} is not supported")
+        if isinstance(size, int) and size <= 0:
+            raise ValueError(f"size must be positive, got {size}")
+        if isinstance(size, (tuple, list)):
+            if len(size) not in (1, 2):
+                raise ValueError(f"size sequence must have length 1 or 2, got {len(size)}")
+            if any(not isinstance(s, int) for s in size):
+                raise ValueError(f"size values must be integers, got {size}")
+            if any(s <= 0 for s in size):
+                raise ValueError(f"size values must be positive, got {size}")
 
-        if interpolation not in Resize.interpolation_modes.keys():
-            raise ValueError(f"Interpolation {type(interpolation)} is not supported")
+        Resize.validate_interpoliation(interpolation)
 
 
 class Resize(Operator):
@@ -98,8 +104,38 @@ class Resize(Operator):
         InterpolationMode.HAMMING,
     ]
 
+    # Legacy PIL integer codes accepted by torchvision for back-compat
+    # (mirrors torchvision.transforms.functional._interpolation_modes_from_int).
+    int_to_interpolation_mode = {
+        0: InterpolationMode.NEAREST,
+        1: InterpolationMode.LANCZOS,
+        2: InterpolationMode.BILINEAR,
+        3: InterpolationMode.BICUBIC,
+        4: InterpolationMode.BOX,
+        5: InterpolationMode.HAMMING,
+    }
+
     arg_rules = [_ValidateSize]
     preprocess_data = get_HWC_from_layout_pipeline
+
+    @classmethod
+    def validate_interpoliation(cls, interpolation) -> None:
+        if interpolation in cls.not_supported_interpolation_modes:
+            raise NotImplementedError(f"Interpolation mode: {interpolation!r} is not supported")
+        if interpolation not in cls.interpolation_modes:
+            raise ValueError(f"Interpolation {interpolation!r} is not supported")
+
+    @classmethod
+    def normalize_interpolation(cls, interpolation):
+        if isinstance(interpolation, int) and not isinstance(interpolation, InterpolationMode):
+            try:
+                return cls.int_to_interpolation_mode[interpolation]
+            except KeyError:
+                raise ValueError(
+                    f"Interpolation int {interpolation} is not a valid PIL code; "
+                    f"expected one of {sorted(cls.int_to_interpolation_mode)}"
+                )
+        return interpolation
 
     @classmethod
     def infer_effective_size(
@@ -228,6 +264,7 @@ class Resize(Operator):
         antialias: Optional[bool] = True,
         device: Literal["cpu", "gpu"] = "cpu",
     ):
+        interpolation = Resize.normalize_interpolation(interpolation)
 
         super().__init__(
             device=device,

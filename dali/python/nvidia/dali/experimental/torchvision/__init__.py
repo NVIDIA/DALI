@@ -20,7 +20,7 @@ from .v2.gaussian_blur import GaussianBlur
 from .v2.normalize import Normalize
 from .v2.pad import Pad
 from .v2.rand_apply import RandomApply
-from .v2.randomcrop import RandomCrop
+from .v2.randomcrop import RandomCrop, RandomResizedCrop
 from .v2.resize import Resize
 from .v2.totensor import ToPureTensor, PILToTensor, ToPILImage
 
@@ -37,6 +37,7 @@ __all__ = [
     "RandomCrop",
     "RandomGrayscale",
     "RandomHorizontalFlip",
+    "RandomResizedCrop",
     "RandomVerticalFlip",
     "Resize",
     "ToPILImage",

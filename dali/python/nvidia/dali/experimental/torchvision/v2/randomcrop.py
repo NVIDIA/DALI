@@ -17,6 +17,7 @@ from typing import Literal, Sequence
 
 import nvidia.dali as dali
 import nvidia.dali.fn as fn
+from torchvision.transforms import InterpolationMode
 
 from .centercrop import CenterCrop
 from .operator import (
@@ -27,6 +28,7 @@ from .operator import (
     get_HWC_from_layout_pipeline,
 )
 from .pad import PADDING_CLASS, _ValidatePaddingMode
+from .resize import Resize
 
 
 class _ValidateCropSize(_ArgumentValidateRule):
@@ -84,6 +86,38 @@ class _ValidateFill(_ArgumentValidateRule):
                 raise ValueError("fill sequence must be non-empty")
             return
         raise TypeError(f"fill must be a number, sequence of numbers, or None, got {fill!r}")
+
+
+class _ValidateRandomResizedCropScaleRatio(_ArgumentValidateRule):
+    """
+    Verify RandomResizedCrop scale and ratio arguments.
+    """
+
+    @classmethod
+    def _verify_range(cls, value, name: str) -> None:
+        if not isinstance(value, (list, tuple)) or len(value) != 2:
+            raise TypeError(f"{name} should be a sequence of two numbers")
+        if any(not isinstance(elem, numbers.Number) for elem in value):
+            raise TypeError(f"{name} values must be numbers, got {value}")
+        if any(elem <= 0 for elem in value):
+            raise ValueError(f"{name} values must be positive, got {value}")
+        if value[0] > value[1]:
+            raise ValueError(f"{name} should be a (min, max) range, got {value}")
+
+    @classmethod
+    def verify(cls, *, scale, ratio, **_) -> None:
+        cls._verify_range(scale, "scale")
+        cls._verify_range(ratio, "ratio")
+
+
+class _ValidateRandomResizedCropInterpolation(_ArgumentValidateRule):
+    """
+    Verify RandomResizedCrop interpolation argument.
+    """
+
+    @classmethod
+    def verify(cls, *, interpolation, **_) -> None:
+        Resize.validate_interpoliation(interpolation)
 
 
 class RandomCrop(Operator):
@@ -228,4 +262,86 @@ class RandomCrop(Operator):
             ),
             fn.stack(crop_w, crop_h),
             **slice_kwargs,
+        )
+
+
+class RandomResizedCrop(Operator):
+    """
+    Crop a random portion of the input and resize it to a given size.
+
+    If the input is a ``torch.Tensor`` it can have an arbitrary number of leading batch dimensions.
+    For example, the image tensor can have [..., C, H, W] shape.
+
+    Parameters
+    ----------
+    size : sequence or int
+        Expected output size of the crop. If size is an int instead of sequence like (h, w),
+        a square output size (size, size) is made. If provided a sequence of length 1, it will be
+        interpreted as (size[0], size[0]).
+    scale : tuple of float, optional, default = (0.08, 1.0)
+        Lower and upper bounds for the random crop area, relative to the input image area.
+    ratio : tuple of float, optional, default = (3 / 4, 4 / 3)
+        Lower and upper bounds for the random crop aspect ratio, width / height.
+    interpolation : InterpolationMode or int, optional, default = InterpolationMode.BILINEAR
+        Interpolation mode to use for resizing. Legacy PIL integer codes
+        (``0`` = NEAREST, ``1`` = LANCZOS, ``2`` = BILINEAR, ``3`` = BICUBIC,
+        ``4`` = BOX, ``5`` = HAMMING) are accepted for torchvision compatibility.
+    antialias : bool, optional, default = True
+        Whether to apply antialiasing during resize.
+    device : Literal["cpu", "gpu"], optional, default = "cpu"
+        Device to use for the crop. Can be ``"cpu"`` or ``"gpu"``.
+    """
+
+    arg_rules = [
+        _ValidateSizeDescriptor,
+        _ValidateCropSize,
+        _ValidateRandomResizedCropScaleRatio,
+        _ValidateRandomResizedCropInterpolation,
+    ]
+    preprocess_data = get_HWC_from_layout_pipeline
+
+    @classmethod
+    def adjust_size(cls, size: int | Sequence[int]) -> Sequence[int]:
+        return CenterCrop.adjust_size(size)
+
+    def __init__(
+        self,
+        size: int | Sequence[int],
+        scale: tuple[float, float] = (0.08, 1.0),
+        ratio: tuple[float, float] = (3.0 / 4.0, 4.0 / 3.0),
+        interpolation: InterpolationMode | int = InterpolationMode.BILINEAR,
+        antialias: bool | None = True,
+        device: Literal["cpu", "gpu"] = "cpu",
+    ):
+        interpolation = Resize.normalize_interpolation(interpolation)
+
+        super().__init__(
+            device=device,
+            size=size,
+            scale=scale,
+            ratio=ratio,
+            interpolation=interpolation,
+        )
+
+        self.size = RandomResizedCrop.adjust_size(size)
+        self.scale = tuple(scale)
+        self.ratio = tuple(ratio)
+        self.interpolation = Resize.interpolation_modes[interpolation]
+        self.antialias = antialias
+
+    def _kernel(self, data_input):
+        """
+        Applies random resized crop to the input data.
+        """
+        _, _, _, tensor = data_input
+
+        return fn.random_resized_crop(
+            tensor,
+            device=self.device,
+            size=self.size,
+            random_area=self.scale,
+            random_aspect_ratio=self.ratio,
+            interp_type=self.interpolation,
+            antialias=self.antialias,
+            num_attempts=10,
         )
