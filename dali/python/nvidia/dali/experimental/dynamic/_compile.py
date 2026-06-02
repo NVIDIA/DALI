@@ -152,8 +152,6 @@ class CompileContext:
     _tls = threading.local()
 
     def __init__(self, reader: "Reader", batch_size: int):
-        from ._source_analysis import CallSiteAnalyzer
-
         self.state = State.TRACING
         self.reader = reader
         self.batch_size = batch_size
@@ -164,7 +162,6 @@ class CompileContext:
         self._pipeline_results: dict[CompileNode, Any] = {}
         self._iteration = 0
         self._epoch_size_padded: int | None = None
-        self.analyzer = CallSiteAnalyzer()
 
     @classmethod
     def current(cls) -> "CompileContext | None":
@@ -549,6 +546,7 @@ def _compile_intercept(
 ) -> types.FunctionType:
     """Wrap an fn_call to intercept operator calls for transparent pipelining."""
     from ._op_builder import _resolve_backend
+    from ._source_analysis import classify
 
     @mark_transparent
     def wrapper(*inputs, batch_size=None, device=None, **raw_kwargs):
@@ -588,7 +586,7 @@ def _compile_intercept(
         if op_class._is_stateful:
             return result
 
-        classification = compile_ctx.analyzer.classify(frame, inputs, raw_kwargs)
+        classification = classify(frame, inputs, raw_kwargs)
         if classification is None:
             return result
 
