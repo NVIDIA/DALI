@@ -36,7 +36,9 @@ can easily be retargeted to TensorFlow, PyTorch, and PaddlePaddle.
    admonition in the sphinx-rendered documentation
 
 .. only:: html
+
     .. raw:: html
+
         <style>
         .github-only {
             display: none !important;
@@ -48,7 +50,7 @@ can easily be retargeted to TensorFlow, PyTorch, and PaddlePaddle.
 
     [!TIP]
 
-    The `dali-dynamic-mode <https://github.com/NVIDIA/skills/blob/main/skills/DALI/dali-dynamic-mode/SKILL.md>`_ skill
+    The `dali-dynamic-mode <https://github.com/NVIDIA/skills/blob/main/skills/dali-dynamic-mode/SKILL.md>`_ skill
     provides AI agents with guidance on the Dynamic Mode API and best practices. It can be installed as follows:
 
     .. code-block:: sh

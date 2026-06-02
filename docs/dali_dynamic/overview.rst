@@ -26,7 +26,7 @@ graph-based execution model.
 
 
 .. tip::
-   The `dali-dynamic-mode <https://github.com/NVIDIA/skills/blob/main/skills/DALI/dali-dynamic-mode/SKILL.md>`_ skill
+   The `dali-dynamic-mode <https://github.com/NVIDIA/skills/blob/main/skills/dali-dynamic-mode/SKILL.md>`_ skill
    provides AI agents with guidance on the Dynamic Mode API and best practices. It can be installed as follows:
 
    .. code-block:: sh
