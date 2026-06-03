@@ -130,7 +130,7 @@ class Resize(Operator):
 
     @classmethod
     def normalize_interpolation(cls, interpolation):
-        if isinstance(interpolation, int) and not isinstance(interpolation, InterpolationMode):
+        if isinstance(interpolation, int):
             try:
                 return cls.int_to_interpolation_mode[interpolation]
             except KeyError:

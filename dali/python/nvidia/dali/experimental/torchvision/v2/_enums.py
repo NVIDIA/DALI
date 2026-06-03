@@ -33,7 +33,7 @@ def _normalize_enum_like_interpolation_mode(interpolation):
         return interpolation
 
     name = getattr(interpolation, "name", None)
-    if isinstance(name, str) and name in InterpolationMode.__members__:
+    if isinstance(name, str):
         return InterpolationMode[name]
 
     value = getattr(interpolation, "value", None)
@@ -43,7 +43,7 @@ def _normalize_enum_like_interpolation_mode(interpolation):
         except ValueError:
             pass
 
-    return interpolation
+    return InterpolationMode(value)
 
 
 __all__ = ["InterpolationMode"]
