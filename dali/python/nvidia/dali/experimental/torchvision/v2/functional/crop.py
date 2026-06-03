@@ -16,11 +16,11 @@ import operator
 from typing import List
 
 import nvidia.dali.experimental.dynamic as ndd
-from torchvision.transforms import InterpolationMode
 
 from nvidia.dali._typing import TensorLike
 from nvidia.dali.experimental.dynamic._device import DeviceLike
 
+from .._enums import InterpolationMode
 from ..operator import adjust_input
 from ..randomcrop import RandomCrop
 from ..resize import Resize

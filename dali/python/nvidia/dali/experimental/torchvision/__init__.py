@@ -15,6 +15,7 @@
 from .v2.centercrop import CenterCrop
 from .v2.color import ColorJitter, Grayscale, RandomGrayscale
 from .v2.compose import Compose
+from .v2._enums import InterpolationMode
 from .v2.flips import RandomHorizontalFlip, RandomVerticalFlip
 from .v2.gaussian_blur import GaussianBlur
 from .v2.normalize import Normalize
@@ -30,6 +31,7 @@ __all__ = [
     "Compose",
     "GaussianBlur",
     "Grayscale",
+    "InterpolationMode",
     "Normalize",
     "Pad",
     "PILToTensor",

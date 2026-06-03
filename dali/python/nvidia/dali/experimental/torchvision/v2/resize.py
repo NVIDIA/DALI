@@ -20,8 +20,9 @@ import nvidia.dali as dali
 import nvidia.dali.fn as fn
 from nvidia.dali.types import DALIInterpType
 
-from torchvision.transforms import InterpolationMode
 import numpy as np
+
+from ._enums import InterpolationMode, normalize_enum_like_interpolation_mode
 
 
 class _ValidateSize(_ArgumentValidateRule):
@@ -70,7 +71,8 @@ class Resize(Operator):
             to this. If size is an int, smaller edge of the image will be matched to this number.
             i.e, if height > width, then image will be rescaled to (size * height / width, size).
         interpolation : InterpolationMode or int
-            ``torchvision.transforms.InterpolationMode``. Default is InterpolationMode.BILINEAR.
+            ``nvidia.dali.experimental.torchvision.InterpolationMode``.
+            Default is InterpolationMode.BILINEAR.
             If input is Tensor, only ``InterpolationMode.NEAREST``,
             ``InterpolationMode.NEAREST_EXACT``, ``InterpolationMode.BILINEAR`` and
             ``InterpolationMode.BICUBIC`` are supported.
@@ -120,6 +122,7 @@ class Resize(Operator):
 
     @classmethod
     def validate_interpoliation(cls, interpolation) -> None:
+        interpolation = cls.normalize_interpolation(interpolation)
         if interpolation in cls.not_supported_interpolation_modes:
             raise NotImplementedError(f"Interpolation mode: {interpolation!r} is not supported")
         if interpolation not in cls.interpolation_modes:
@@ -135,7 +138,7 @@ class Resize(Operator):
                     f"Interpolation int {interpolation} is not a valid PIL code; "
                     f"expected one of {sorted(cls.int_to_interpolation_mode)}"
                 )
-        return interpolation
+        return normalize_enum_like_interpolation_mode(interpolation)
 
     @classmethod
     def infer_effective_size(

@@ -17,8 +17,8 @@ from typing import Literal, Sequence
 
 import nvidia.dali as dali
 import nvidia.dali.fn as fn
-from torchvision.transforms import InterpolationMode
 
+from ._enums import InterpolationMode
 from .centercrop import CenterCrop
 from .operator import (
     Operator,
