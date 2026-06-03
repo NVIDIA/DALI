@@ -1,4 +1,4 @@
-// Copyright (c) 2022-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -87,7 +87,9 @@ std::string ParseStringValue(const char*& input, char delim_start = '\'', char d
   std::string out;
   for (; *input != '\0'; input++) {
     if (*input == '\\') {
-      switch (*++input) {
+      input++;
+      DALI_ENFORCE(*input != '\0', "Unexpected end of string after escape character.");
+      switch (*input) {
         case '\\':
           out += '\\';
           break;
