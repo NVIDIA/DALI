@@ -250,5 +250,5 @@ class Pad:
         self.device = device
         self.pad = PADDING_CLASS[padding_mode](padding, fill, device)
 
-    def __call__(self, data_input):
-        return self.pad(data_input)
+    def _invoke(self, data_input):
+        return self.pad._invoke(data_input)

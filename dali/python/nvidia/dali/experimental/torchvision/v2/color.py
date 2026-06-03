@@ -319,6 +319,6 @@ class RandomGrayscale(Operator):
         convert = fn.random.coin_flip(dtype=dali.types.DALIDataType.BOOL, probability=self.p)
 
         if convert:
-            output = self.grayscale(output)
+            output = self.grayscale._invoke(output)
 
         return output
