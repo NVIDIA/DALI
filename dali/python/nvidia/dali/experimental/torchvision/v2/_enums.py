@@ -27,7 +27,7 @@ class InterpolationMode(Enum):
     LANCZOS = "lanczos"
 
 
-def normalize_enum_like_interpolation_mode(interpolation):
+def _normalize_enum_like_interpolation_mode(interpolation):
     """Normalize local and torchvision-like interpolation enums without importing torchvision."""
     if isinstance(interpolation, InterpolationMode):
         return interpolation

@@ -22,7 +22,7 @@ from nvidia.dali.types import DALIInterpType
 
 import numpy as np
 
-from ._enums import InterpolationMode, normalize_enum_like_interpolation_mode
+from ._enums import InterpolationMode, _normalize_enum_like_interpolation_mode
 
 
 class _ValidateSize(_ArgumentValidateRule):
@@ -138,7 +138,7 @@ class Resize(Operator):
                     f"Interpolation int {interpolation} is not a valid PIL code; "
                     f"expected one of {sorted(cls.int_to_interpolation_mode)}"
                 )
-        return normalize_enum_like_interpolation_mode(interpolation)
+        return _normalize_enum_like_interpolation_mode(interpolation)
 
     @classmethod
     def infer_effective_size(
