@@ -53,6 +53,6 @@ class RandomApply(Operator):
         convert = fn.random.coin_flip(dtype=dali.types.DALIDataType.BOOL, probability=self.p)
         if convert:
             for op in self._op_list:
-                output = op(output)
+                output = op._invoke(output)
 
         return output

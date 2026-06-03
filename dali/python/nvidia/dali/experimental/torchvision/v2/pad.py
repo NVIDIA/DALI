@@ -250,5 +250,21 @@ class Pad:
         self.device = device
         self.pad = PADDING_CLASS[padding_mode](padding, fill, device)
 
+    def _invoke(self, data_input):
+        """
+        Private method is used to execute operator from a Compose pipeline
+
+        Note: Do not call directly this is to unify the architecture with the Operator class
+        """
+        return self.pad._invoke(data_input)
+
     def __call__(self, data_input):
-        return self.pad(data_input)
+        """
+        Torchvision creates callable objects, but DALI Torchvision needs to implement a pipeline.
+        The pipeline is implemented in Compose class and uses _invoke to execute operators' logic.
+
+        Note: this method is to unify the architecture with the Operator class
+        """
+        raise RuntimeError(
+            f"Operator {self!r} is not directly callable. Use it only inside Compose pipeline."
+        )
