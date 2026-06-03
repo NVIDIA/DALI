@@ -117,7 +117,7 @@ class _ValidateRandomResizedCropInterpolation(_ArgumentValidateRule):
 
     @classmethod
     def verify(cls, *, interpolation, **_) -> None:
-        Resize.validate_interpoliation(interpolation)
+        Resize.validate_interpolation(interpolation)
 
 
 class RandomCrop(Operator):

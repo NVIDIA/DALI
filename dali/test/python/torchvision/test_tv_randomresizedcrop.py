@@ -100,7 +100,7 @@ def test_random_resized_crop_uses_dali_operator():
         size=(4, 5),
         scale=(0.5, 1.0),
         ratio=(0.75, 1.25),
-        interpolation=transforms.InterpolationMode.NEAREST,
+        interpolation=InterpolationMode.NEAREST,
         antialias=False,
     )
     calls = []
@@ -208,7 +208,7 @@ def test_random_resized_crop_samples_different_crops(device):
         size=(8, 10),
         scale=(0.2, 0.8),
         ratio=(0.75, 1.3333333333333333),
-        interpolation=transforms.InterpolationMode.NEAREST,
+        interpolation=InterpolationMode.NEAREST,
         antialias=False,
         device=device,
     )
@@ -220,9 +220,9 @@ def test_random_resized_crop_samples_different_crops(device):
 
 @cartesian_params(
     (
-        transforms.InterpolationMode.NEAREST,
-        transforms.InterpolationMode.BILINEAR,
-        transforms.InterpolationMode.BICUBIC,
+        InterpolationMode.NEAREST,
+        InterpolationMode.BILINEAR,
+        InterpolationMode.BICUBIC,
     ),
     ("cpu", "gpu"),
 )
@@ -243,7 +243,7 @@ def test_random_resized_crop_interpolation_shape(interpolation, device):
 
 def test_random_resized_crop_unsupported_interpolation():
     with assert_raises(NotImplementedError, glob="*Interpolation mode*"):
-        _ = RandomResizedCrop(size=3, interpolation=transforms.InterpolationMode.NEAREST_EXACT)
+        _ = RandomResizedCrop(size=3, interpolation=InterpolationMode.NEAREST_EXACT)
 
 
 @cartesian_params((True, False), ("cpu", "gpu"))
@@ -254,7 +254,7 @@ def test_random_resized_crop_antialias_shape(antialias, device):
         size=(4, 5),
         scale=(1.0, 1.0),
         ratio=(10.0 / 8.0, 10.0 / 8.0),
-        interpolation=transforms.InterpolationMode.BILINEAR,
+        interpolation=InterpolationMode.BILINEAR,
         antialias=antialias,
         device=device,
     )(tensor)
