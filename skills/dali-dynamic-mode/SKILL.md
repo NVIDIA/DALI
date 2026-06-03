@@ -67,17 +67,30 @@ b = ndd.as_batch(data)         # wrap, no copy if possible
 
 | Intent | Method | Returns |
 |--------|--------|---------|
-| Get sample i | `batch.select(i)` | `Tensor` |
-| Get subset of samples | `batch.select(slice_or_list)` | `Batch` |
+| Get sample i | `batch.tensors[i]` | `Tensor` |
+| Get subset of samples | `batch.tensors[slice_or_list]` | `Batch` |
 | Slice within each sample | `batch.slice[...]` | `Batch` (same batch_size) |
+| Sample-wise slicing | `batch.slice[batch_of_indices]` | `Batch` (same batch_size) |
 
-`.select()` picks **which samples**. `.slice` indexes **inside each sample**.
+`.tensors[]` picks **which samples**. `.slice` indexes **inside each sample**.
 
 ```python
 xy = ndd.random.uniform(batch_size=16, range=[0, 1], shape=2)
 crop_x = xy.slice[0]       # Batch of 16 scalars, first element from each sample
 crop_y = xy.slice[1]       # Batch of 16 scalars, second element from each sample
-sample_0 = xy.select(0)    # Tensor, the entire first sample [x, y]
+sample_0 = xy.tensors[0]   # Tensor, the entire first sample [x, y]
+```
+
+### Advanced slicing
+
+The `.slice[]` API accepts batches of indices, allowing the user to mix and match batches and
+scalar values, e.g.:
+```python
+imgs = ndd.imread(filenames)  # a batch of images, if `filenames` is a list
+sliced = imgs.slice[
+    42 :  # the range start is broadcast to all samples
+    ndd.batch(imgs.shape).slice[0] // 2  # per-sample range stop (half of each image)
+]
 ```
 
 **PyTorch conversion:**
@@ -241,8 +254,8 @@ for epoch in range(num_epochs):
 | Wrong | Right | Why |
 |-------|-------|-----|
 | `device="mixed"` | `device="gpu"` | `"mixed"` is pipeline mode only |
-| `batch[i]` | `batch.select(i)` | `Batch` has no `__getitem__` |
-| `batch.select(0)` for per-sample slicing | `batch.slice[0]` | `.select()` picks samples; `.slice` slices within each sample |
+| `batch[i]` | `batch.tensors[i]` | `Batch` has no `__getitem__` |
+| `batch.tensors[0]` for per-sample slicing | `batch.slice[0]` | `.tensors` pick samples; `.slice` slices within each sample |
 | `.evaluate()` after every op | Let consumption trigger eval | `.torch()`, `.shape`, etc. trigger it automatically |
 | `.cpu()` before GPU model | `.torch()` directly | Avoids wasteful D2H + H2D round-trip |
 | Recreate reader each epoch | `reader.next_epoch()` | Readers are stateful -- create once, reuse |
@@ -251,6 +264,7 @@ for epoch in range(num_epochs):
 | No `batch_size` to random ops | `ndd.random.uniform(batch_size=N, ...)` | No pipeline-level batch size to inherit |
 | `register(reader)` after first `next_epoch` to restore | Register the freshly built reader before the first iteration | Reader state can only be applied before the prefetch thread starts |
 | Restoring into a reader built without `enable_checkpointing=True` after iteration | Pass `enable_checkpointing=True` at construction (or register before first iteration) | Backend doesn't keep snapshots otherwise |
+| Spelling out default argument values | Skip default argument values | Very high Python-side overhead, especially when the argument accepts Tensors/Batches. Skipping arguments uses a fast path, actually passing a sentinel value. |
 
 ## Pipeline Mode Migration
 
@@ -263,7 +277,7 @@ for epoch in range(num_epochs):
 | Pipeline-level `batch_size=64` | `reader.next_epoch(batch_size=64)` + random ops `batch_size=64` |
 | Pipeline-level `seed=42` | `ndd.random.set_seed(42)` or `ndd.random.RNG(seed=42)` |
 | Pipeline-level `num_threads=4` | `ndd.set_num_threads(4)` at startup |
-| `output.at(i)` | `batch.select(i)` |
+| `output.at(i)` | `batch.tensors[i]` |
 | `output.as_cpu()` | `batch.cpu()` |
 | `pipe.run()` returns tuple of `TensorList` | `reader.next_epoch(batch_size=N)` yields tuples of `Batch` |
 | `Pipeline(..., enable_checkpointing=True)` + `pipe.checkpoint()` / `pipeline(checkpoint=...)` | `ndd.checkpoint.Checkpoint` + per-object `register` / `collect` / `save` / `load`; readers opt in with `enable_checkpointing=True` |

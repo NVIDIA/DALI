@@ -24,7 +24,7 @@
       "expected_output": "Uses batch.slice[0] and batch.slice[1] for samplewise slicing",
       "files": [],
       "assertions": [
-        {"name": "correct-slice-usage", "text": "Uses batch.slice[0] and batch.slice[1] (not batch.select())"},
+        {"name": "correct-slice-usage", "text": "Uses batch.slice[0] and batch.slice[1] (not batch.tensors)"},
         {"name": "no-getitem", "text": "Does not use batch[0] or batch[:, 0] (Batch has no __getitem__)"},
         {"name": "correct-slice-semantics", "text": "Correctly explains that .slice indexes within each sample, not across samples"},
         {"name": "batch-size-to-random", "text": "Passes batch_size to ndd.random.uniform()"}
@@ -54,7 +54,7 @@
         {"name": "recommends-sync-mode", "text": "Recommends EvalMode.sync_full or EvalMode.sync_cpu for debugging"},
         {"name": "no-scatter-evaluate", "text": "Does not recommend adding .evaluate() after every operation as the primary debugging approach"},
         {"name": "correct-evalmode-syntax", "text": "Uses correct context manager syntax: with ndd.EvalMode.sync_full: (not ndd.eval_mode(...) or other invented API)"},
-        {"name": "correct-sample-inspection", "text": "When inspecting intermediate values, uses batch.select(i).cpu() or np.asarray(batch.select(i).cpu()) — not batch[i] or batch.as_cpu().as_array()"},
+        {"name": "correct-sample-inspection", "text": "When inspecting intermediate values, uses batch.tensors[i].cpu() or np.asarray(batch.tensors[i].cpu()) — not batch[i] or batch.as_cpu().as_array()"},
         {"name": "code-examples-no-pipeline-mode", "text": "All code examples in the guide use dynamic mode patterns (ndd.decoders.image, ndd.resize, etc.) — no fn.* or ndd.fn.* operators in any code snippet"},
         {"name": "code-examples-device-gpu", "text": "All code examples use device='gpu' for decode, NOT device='mixed'"}
       ]
