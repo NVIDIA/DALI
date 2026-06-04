@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -36,7 +36,8 @@
 #include "dali/util/std_cufile.h"
 
 // import cufile and return handle
-static void cufile_open(cufile::CUFileHandle& fh, size_t& length, const char* path) {
+static void cufile_open(cufile::CUFileHandle& fh, size_t& length, std::string& resolved_path_out,
+                        const char* path) {
   // make sure handle is closed
   fh.Close();
 
@@ -48,15 +49,13 @@ static void cufile_open(cufile::CUFileHandle& fh, size_t& length, const char* pa
   if (rpath == nullptr) {
     DALI_FAIL("Could not resolve real path of: ", path);
   }
+  resolved_path_out = rpath.get();
 
-  // do conventional open
-  if ((fh.fdd = open(rpath.get(), O_RDONLY | O_DIRECT)) < 0) {
+  // Open O_DIRECT descriptor for cuFile. The buffered descriptor is opened lazily by Read().
+  if ((fh.fdd = open(resolved_path_out.c_str(), O_RDONLY | O_DIRECT)) < 0) {
     DALI_FAIL("CUFile open failed: ", path);
   }
-  if ((fh.fd = open(rpath.get(), O_RDONLY)) < 0) {
-    DALI_FAIL("CUFile open failed: ", path);
-  }
-  if (fstat(fh.fd, &s) < 0) {
+  if (fstat(fh.fdd, &s) < 0) {
     DALI_FAIL("CUFile stats failed: ", path);
   }
 
@@ -79,7 +78,7 @@ namespace dali {
 
 StdCUFileStream::StdCUFileStream(const std::string& path) : CUFileStream(path) {
   // open file
-  cufile_open(f_, length_, path.c_str());
+  cufile_open(f_, length_, resolved_path_, path.c_str());
   // set the path to current path
   path_ = path;
 }
@@ -96,6 +95,7 @@ void StdCUFileStream::Close() {
   length_ = 0;
   pos_ = 0;
   path_ = "";
+  resolved_path_ = "";
 }
 
 void StdCUFileStream::SeekRead(ptrdiff_t pos, int whence) {
@@ -123,6 +123,16 @@ void StdCUFileStream::HandleIOError(int64_t ret) const {
   } else {
     DALI_FAIL("CUFile read failed for file ", path_, " with error (", -ret,
               "): ", cufileop_status_error(static_cast<CUfileOpError>(-ret)));
+  }
+}
+
+void StdCUFileStream::OpenBufferedHandle() {
+  if (f_.fd != -1) {
+    return;
+  }
+
+  if ((f_.fd = open(resolved_path_.c_str(), O_RDONLY)) < 0) {
+    DALI_FAIL("Could not open file for buffered read: ", path_);
   }
 }
 
@@ -163,6 +173,11 @@ size_t StdCUFileStream::ReadGPU(void *gpu_buffer, size_t n_bytes, ptrdiff_t buff
 size_t StdCUFileStream::Read(void *cpu_buffer, size_t n_bytes) {
   // compute size
   n_bytes = std::min(n_bytes, length_ - pos_);
+  if (n_bytes == 0) {
+    return 0;
+  }
+
+  OpenBufferedHandle();
 
   // read data
   size_t n_read = n_bytes;

@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,8 +16,8 @@
 #define DALI_UTIL_STD_CUFILE_H_
 
 #include <cstdio>
-#include <string>
 #include <memory>
+#include <string>
 
 #include "dali/core/common.h"
 #include "dali/core/format.h"
@@ -44,11 +44,14 @@ class StdCUFileStream : public CUFileStream {
   ~StdCUFileStream() override;
 
  private:
+  void OpenBufferedHandle();
+
   StdCUFileStream(const StdCUFileStream &) = delete;
   StdCUFileStream(StdCUFileStream &&) = delete;
   StdCUFileStream &operator=(const StdCUFileStream &) = delete;
   StdCUFileStream &operator=(StdCUFileStream &&) = delete;
   cufile::CUFileHandle f_ = {};
+  std::string resolved_path_;
   size_t length_ = 0;
   size_t pos_ = 0;
 };
