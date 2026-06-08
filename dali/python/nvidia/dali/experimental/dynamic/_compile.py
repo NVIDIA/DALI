@@ -345,7 +345,11 @@ class CompileContext:
             )
         if expected is None:
             return actual is None
-        return not isinstance(actual, Batch) and actual == expected
+        if isinstance(actual, Batch):
+            return False
+
+        result = actual == expected
+        return result if isinstance(result, bool) else np.all(result).item()
 
     @_nvtx_range("Getting compiled result")
     def get_compiled_result(
