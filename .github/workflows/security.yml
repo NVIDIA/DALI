@@ -1,0 +1,16 @@
+name: Secret Scan
+
+on:
+  pull_request:
+    branches: [ "main" ]
+
+permissions:
+    contents: read
+
+jobs:
+  secret-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: NVIDIA/security-workflows/.github/workflows/secret-scan-pulse.yml@031c5429271b5692e025c3e292fcc2bf11e116f7
+        with:
+          fetch-depth: 0
