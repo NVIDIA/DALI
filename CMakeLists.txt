@@ -44,10 +44,6 @@ if(BUILD_FOR_CONDA AND DEFINED CUDAToolkit_TARGET_DIR AND
                  "${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}")
 endif()
 
-# more recent CMake puts both cuda/targets/x86_64-linux/include and cuda/targets/x86_64-linux/include/cccl into the path
-# while we usually need only the former
-string(FIND "${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}" ";" SEMICOLON_POS)
-
 parse_cuda_version(${CUDA_VERSION} CUDA_VERSION_MAJOR CUDA_VERSION_MINOR CUDA_VERSION_PATCH CUDA_VERSION_SHORT CUDA_VERSION_SHORT_DIGIT_ONLY)
 # CUDA_utils.cmake uses CUDA_VERSION_MAJOR value to determine the content of CUDA_known_archs and CUDA_TARGET_ARCHS
 include(cmake/CUDA_utils.cmake)
