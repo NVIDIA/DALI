@@ -12,6 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import importlib.util
+import pathlib
+import tempfile
 import functools
 import os
 from collections.abc import Callable
@@ -63,8 +66,6 @@ def compiled_test(*, expect_captured: bool):
     return decorator
 
 
-# Module-level fixtures for the rejection tests
-#
 _MODULE_DTYPE = ndd.float32
 _GLOBAL_ANGLE = 60
 
@@ -223,6 +224,171 @@ def test_not_decorated_callsite():
     compiled_test(expect_captured=True)(transform)()
 
 
+@compiled_test(expect_captured=True)
+def test_param_literal(images):
+    def rotate(imgs, angle):
+        return ndd.rotate(imgs, angle=angle)
+
+    return rotate(images, 60)
+
+
+@compiled_test(expect_captured=True)
+def test_param_expression(images):
+    def rotate(imgs, angle, /):
+        return ndd.rotate(imgs, angle=angle)
+
+    return rotate(images, 40 + 20)
+
+
+@compiled_test(expect_captured=True)
+def test_param_dali_attribute(images):
+    def cast(imgs, dtype):
+        return ndd.cast(imgs, dtype=dtype)
+
+    return cast(images, ndd.int32)
+
+
+@compiled_test(expect_captured=True)
+def test_param_chained(images):
+    def inner(imgs, angle):
+        return ndd.rotate(imgs, angle=angle)
+
+    def outer(imgs, angle):
+        return inner(imgs, angle)
+
+    return outer(images, 60)
+
+
+@compiled_test(expect_captured=True)
+def test_param_recursive(images):
+    def _rotate_recursive(images, angle, depth):
+        if depth == 0:
+            return ndd.rotate(images, angle=angle)
+        return _rotate_recursive(images, angle, depth - 1)
+
+    return _rotate_recursive(images, 60, 4)
+
+
+@compiled_test(expect_captured=True)
+def test_param_cross_file(images):
+    source = """
+import nvidia.dali.experimental.dynamic as ndd
+
+def resize(*, images, size):
+    return ndd.resize(images, size=size)
+"""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        module_path = pathlib.Path(tmpdir) / "module.py"
+        module_path.write_text(source)
+
+        # Import the module
+        spec = importlib.util.spec_from_file_location("module", module_path)
+        assert spec is not None and spec.loader is not None
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+
+        return module.resize(images=images, size=(224, 224))
+
+
+@compiled_test(expect_captured=True)
+def test_param_method(images):
+    class Aug:
+        def rotate(self, imgs, angle):
+            return ndd.rotate(imgs, angle=angle)
+
+    aug = Aug()
+    return aug.rotate(images, 60)
+
+
+@compiled_test(expect_captured=True)
+def test_param_classmethod(images):
+    class Aug:
+        @classmethod
+        def rotate(cls, imgs, angle):
+            return ndd.rotate(imgs, angle=angle)
+
+    return Aug.rotate(images, 60)
+
+
+@compiled_test(expect_captured=True)
+def test_param_staticmethod(images):
+    class Aug:
+        @staticmethod
+        def rotate(imgs, angle):
+            return ndd.rotate(imgs, angle=angle)
+
+    return Aug.rotate(images, 60)
+
+
+@compiled_test(expect_captured=True)
+def test_param_partial_keyword(images):
+    def resize(imgs, width, height):
+        return ndd.resize(imgs, size=[width, height])
+
+    resize_partial = functools.partial(resize, width=64)
+    return resize_partial(images, height=128)
+
+
+@compiled_test(expect_captured=True)
+def test_closure_param(images):
+    def make_rotate(angle):
+        def rotate():
+            return ndd.rotate(images, angle=angle)
+
+        return rotate
+
+    return make_rotate(60)()
+
+
+@compiled_test(expect_captured=True)
+def test_closure_local(images):
+    def make_rotate():
+        def rotate():
+            return ndd.rotate(images, angle=angle)
+
+        angle = 60
+        return rotate
+
+    return make_rotate()()
+
+
+@compiled_test(expect_captured=True)
+def test_closure_live_parent(images):
+    def rotate(angle):
+        def transform():
+            return ndd.rotate(images, angle=angle)
+
+        return transform()
+
+    return rotate(60)
+
+
+@compiled_test(expect_captured=True)
+def test_param_default_literal(images):
+    def rotate(imgs, angle=60):
+        return ndd.rotate(imgs, angle=angle)
+
+    return rotate(images)
+
+
+@compiled_test(expect_captured=True)
+def test_param_default_dali_attribute(images):
+    def cast(imgs, dtype=ndd.int32):
+        return ndd.cast(imgs, dtype=dtype)
+
+    return cast(images)
+
+
+@compiled_test(expect_captured=True)
+def test_param_default_name(images):
+    angle = 60
+
+    def rotate(imgs, angle=angle):
+        return ndd.rotate(imgs, angle=angle)
+
+    return rotate(images)
+
+
 # Tests for rejected cases
 
 
@@ -313,3 +479,100 @@ def test_import_name(images):
     from math import pi
 
     return ndd.rotate(images, angle=pi)
+
+
+@compiled_test(expect_captured=False)
+def test_param_mutable(images):
+    def resize(imgs, size):
+        size[1] = 42
+        return ndd.resize(imgs, size=size)
+
+    return resize(images, [224, 224])
+
+
+@compiled_test(expect_captured=False)
+def test_param_varargs(images):
+    def resize(imgs, *size):
+        return ndd.resize(imgs, size=size)
+
+    return resize(images, 224, 224)
+
+
+@compiled_test(expect_captured=False)
+def test_default_mutable(images):
+    def resize(imgs, size=[224, 224]):  # noqa: B006
+        return ndd.resize(imgs, size=size)
+
+    return resize(images)
+
+
+@compiled_test(expect_captured=False)
+def test_closure_mutable_cell(images):
+    def make_resize(size):
+        def resize():
+            return ndd.resize(images, size=size)
+
+        return resize
+
+    return make_resize([224, 224])()
+
+
+@compiled_test(expect_captured=False)
+def test_closure_nonlocal_rebind(images):
+    def make_rotate():
+        angle = 60
+
+        def rebind():
+            nonlocal angle
+            angle = 90
+
+        def rotate():
+            return ndd.rotate(images, angle=angle)
+
+        rebind()
+        return rotate
+
+    return make_rotate()()
+
+
+@compiled_test(expect_captured=False)
+def test_param_through_decorator(images):
+    def rotate(imgs, angle):
+        return ndd.rotate(imgs, angle=angle)
+
+    @functools.wraps(rotate)
+    def wrapped(*args, **kwargs):
+        return rotate(*args, **kwargs)
+
+    return wrapped(images, 60)
+
+
+@compiled_test(expect_captured=False)
+def test_param_inline_call_target(images):
+    def make_rotate():
+        def rotate(imgs, angle):
+            return ndd.rotate(imgs, angle=angle)
+
+        return rotate
+
+    return make_rotate()(images, 60)
+
+
+@compiled_test(expect_captured=False)
+def test_param_callable_instance_attr(images):
+    class Aug:
+        def __call__(self, imgs, angle):
+            return ndd.rotate(imgs, angle=angle)
+
+    class Holder:
+        aug = Aug()
+
+    return Holder.aug(images, 60)
+
+
+@compiled_test(expect_captured=False)
+def test_param_global_arg(images):
+    def augment(imgs, crop):
+        return ndd.rotate(imgs, angle=crop)
+
+    return augment(images, _GLOBAL_ANGLE)
