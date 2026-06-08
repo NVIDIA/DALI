@@ -20,8 +20,9 @@ import nvidia.dali as dali
 import nvidia.dali.fn as fn
 from nvidia.dali.types import DALIInterpType
 
-from torchvision.transforms import InterpolationMode
 import numpy as np
+
+from ._enums import InterpolationMode, _normalize_enum_like_interpolation_mode
 
 
 class _ValidateSize(_ArgumentValidateRule):
@@ -54,7 +55,7 @@ class _ValidateSize(_ArgumentValidateRule):
             if any(s <= 0 for s in size):
                 raise ValueError(f"size values must be positive, got {size}")
 
-        Resize.validate_interpoliation(interpolation)
+        Resize.validate_interpolation(interpolation)
 
 
 class Resize(Operator):
@@ -70,7 +71,8 @@ class Resize(Operator):
             to this. If size is an int, smaller edge of the image will be matched to this number.
             i.e, if height > width, then image will be rescaled to (size * height / width, size).
         interpolation : InterpolationMode or int
-            ``torchvision.transforms.InterpolationMode``. Default is InterpolationMode.BILINEAR.
+            ``nvidia.dali.experimental.torchvision.InterpolationMode``.
+            Default is InterpolationMode.BILINEAR.
             If input is Tensor, only ``InterpolationMode.NEAREST``,
             ``InterpolationMode.NEAREST_EXACT``, ``InterpolationMode.BILINEAR`` and
             ``InterpolationMode.BICUBIC`` are supported.
@@ -119,7 +121,8 @@ class Resize(Operator):
     preprocess_data = get_HWC_from_layout_pipeline
 
     @classmethod
-    def validate_interpoliation(cls, interpolation) -> None:
+    def validate_interpolation(cls, interpolation) -> None:
+        interpolation = cls.normalize_interpolation(interpolation)
         if interpolation in cls.not_supported_interpolation_modes:
             raise NotImplementedError(f"Interpolation mode: {interpolation!r} is not supported")
         if interpolation not in cls.interpolation_modes:
@@ -127,7 +130,7 @@ class Resize(Operator):
 
     @classmethod
     def normalize_interpolation(cls, interpolation):
-        if isinstance(interpolation, int) and not isinstance(interpolation, InterpolationMode):
+        if isinstance(interpolation, int):
             try:
                 return cls.int_to_interpolation_mode[interpolation]
             except KeyError:
@@ -135,7 +138,7 @@ class Resize(Operator):
                     f"Interpolation int {interpolation} is not a valid PIL code; "
                     f"expected one of {sorted(cls.int_to_interpolation_mode)}"
                 )
-        return interpolation
+        return _normalize_enum_like_interpolation_mode(interpolation)
 
     @classmethod
     def infer_effective_size(

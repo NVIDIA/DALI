@@ -14,11 +14,11 @@
 
 from typing import Optional, List
 import nvidia.dali.experimental.dynamic as ndd
-from torchvision.transforms import InterpolationMode
 
 from nvidia.dali._typing import TensorLike
 from nvidia.dali.experimental.dynamic._device import DeviceLike
 
+from .._enums import InterpolationMode
 from ..operator import adjust_input, get_HWC_from_layout_dynamic  # noqa: E402
 from ..resize import Resize  # noqa: E402
 
@@ -35,6 +35,7 @@ def resize(
     """
     Please refer to the ``Resize`` operator for more details.
     """
+    interpolation = Resize.normalize_interpolation(interpolation)
     Resize.verify_args(
         size=size, max_size=max_size, interpolation=interpolation, antialias=antialias
     )
