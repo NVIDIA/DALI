@@ -34,7 +34,10 @@ def _normalize_enum_like_interpolation_mode(interpolation):
 
     name = getattr(interpolation, "name", None)
     if isinstance(name, str):
-        return InterpolationMode[name]
+        try:
+            return InterpolationMode[name]
+        except KeyError:
+            pass  # name unknown; fall through to value-based lookup
 
     value = getattr(interpolation, "value", None)
     if isinstance(value, str):
@@ -42,8 +45,10 @@ def _normalize_enum_like_interpolation_mode(interpolation):
             return InterpolationMode(value)
         except ValueError:
             pass
-
-    return InterpolationMode(value)
+    raise ValueError(
+        "Argument interpolation should be an `InterpolationMode` or a corresponding "
+        f"Pillow integer constant, but got {interpolation}."
+    )
 
 
 __all__ = ["InterpolationMode"]

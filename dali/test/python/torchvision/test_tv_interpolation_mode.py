@@ -18,6 +18,7 @@ from nose_utils import assert_raises
 
 from nvidia.dali.types import DALIInterpType
 from nvidia.dali.experimental.torchvision import InterpolationMode, Resize
+from nvidia.dali.experimental.torchvision.v2._enums import _normalize_enum_like_interpolation_mode
 
 
 class TorchvisionLikeInterpolationMode(Enum):
@@ -25,6 +26,10 @@ class TorchvisionLikeInterpolationMode(Enum):
     NEAREST_EXACT = "nearest-exact"
     BILINEAR = "bilinear"
     BICUBIC = "bicubic"
+
+
+class InvalidInterpolationMode(Enum):
+    BAD = "bad"
 
 
 def test_interpolation_mode_is_exported_and_uses_torchvision_values():
@@ -52,6 +57,21 @@ def test_local_interpolation_mode_maps_to_dali_interpolation_type():
     assert Resize.interpolation_modes[InterpolationMode.BILINEAR] == DALIInterpType.INTERP_LINEAR
     assert Resize.interpolation_modes[InterpolationMode.BICUBIC] == DALIInterpType.INTERP_CUBIC
     assert Resize.interpolation_modes[InterpolationMode.LANCZOS] == DALIInterpType.INTERP_LANCZOS3
+
+
+def test_invalid_interpolation_errors_match_torchvision():
+    from torchvision.transforms.v2.functional._geometry import _check_interpolation
+
+    invalid_interpolations = ["bilinear", "bad", object(), InvalidInterpolationMode.BAD]
+
+    for interpolation in invalid_interpolations:
+        with assert_raises(ValueError) as torchvision_error:
+            _check_interpolation(interpolation)
+
+        with assert_raises(ValueError) as dali_error:
+            _normalize_enum_like_interpolation_mode(interpolation)
+
+        assert str(dali_error.exception) == str(torchvision_error.exception)
 
 
 def test_enum_like_interpolation_mode_is_normalized_without_importing_torchvision():
