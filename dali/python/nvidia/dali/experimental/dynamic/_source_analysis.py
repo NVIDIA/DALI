@@ -266,6 +266,7 @@ def _get_module_info(filename: str) -> ModuleInfo | None:
         return None
     # The linecache entry detects edits; it is not hashable so it can't be the key itself.
     entry = linecache.cache.get(filename)
+    # Note: We don't guard for concurrent calls because the function is idempotent anyway.
     if (cached := _file_cache.get(filename)) is not None and cached[0] is entry:
         return cached[1]
     try:
