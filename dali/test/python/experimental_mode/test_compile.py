@@ -18,17 +18,12 @@ import sys
 import numpy as np
 import nvidia.dali.backend_impl as _backend
 import nvidia.dali.experimental.dynamic as ndd
-from ndd_utils import eval_modes
+from ndd_utils import _is_compiled, eval_modes
 from nose_utils import SkipTest, assert_raises, assert_warns
-from nvidia.dali.experimental.dynamic._compile import CompiledBatch
 from test_utils import get_dali_extra_path
 
 dali_extra_path = get_dali_extra_path()
 images_root = os.path.join(dali_extra_path, "db", "single", "jpeg")
-
-
-def _is_compiled(batch):
-    return isinstance(batch, CompiledBatch)
 
 
 def test_compile_mode_stickiness():

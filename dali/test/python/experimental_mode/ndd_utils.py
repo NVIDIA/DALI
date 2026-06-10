@@ -20,6 +20,11 @@ from typing import Any
 
 import nvidia.dali.experimental.dynamic as ndd
 from nose_utils import SkipTest
+from nvidia.dali.experimental.dynamic._compile import CompiledBatch
+
+
+def _is_compiled(batch):
+    return isinstance(batch, CompiledBatch)
 
 
 def eval_modes(*modes: ndd.EvalMode):
