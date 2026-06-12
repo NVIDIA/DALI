@@ -104,7 +104,7 @@ URI URI::Parse(std::string uri, URI::ParseOpts opts) {
   if (*p == '/' && *(p + 1) == '/') {
     p += 2;
     parsed.authority_start_ = p - p_start;
-    while (*p != '\0' && *p !=  '/') {
+    while (*p != '\0' && *p != '/' && *p != '?' && *p != '#') {
       if (!allowed_char(*p)) {
         parsed.valid_ = false;
         parsed.err_msg_ = "Invalid character found (" + display_char(*p) + ") in authority";
@@ -123,7 +123,7 @@ URI URI::Parse(std::string uri, URI::ParseOpts opts) {
 
   // Path
   parsed.path_start_ = p - p_start;
-  while (*p != '\0' && *p !=  '?') {
+  while (*p != '\0' && *p != '?' && *p != '#') {
     if (!allowed_char(*p) && !allow_non_escaped) {
       parsed.valid_ = false;
       parsed.err_msg_ = "Invalid character found (" + display_char(*p) + ") in path";
@@ -135,20 +135,22 @@ URI URI::Parse(std::string uri, URI::ParseOpts opts) {
   if (*p == '\0')
     return parsed;
 
-  // Query
-  p++;
-  parsed.query_start_ = p - p_start;
-  while (*p != '\0' && *p !=  '#') {
-    if (!allowed_char(*p) && !allow_non_escaped) {
-      parsed.valid_ = false;
-      parsed.err_msg_ = "Invalid character found (" + display_char(*p) + ") in query";
-      return parsed;
-    }
+  if (*p == '?') {
+    // Query
     p++;
+    parsed.query_start_ = p - p_start;
+    while (*p != '\0' && *p !=  '#') {
+      if (!allowed_char(*p) && !allow_non_escaped) {
+        parsed.valid_ = false;
+        parsed.err_msg_ = "Invalid character found (" + display_char(*p) + ") in query";
+        return parsed;
+      }
+      p++;
+    }
+    parsed.query_end_ = p - p_start;
+    if (*p == '\0')
+      return parsed;
   }
-  parsed.query_end_ = p - p_start;
-  if (*p == '\0')
-    return parsed;
 
   // Fragment
   p++;
