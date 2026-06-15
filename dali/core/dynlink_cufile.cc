@@ -35,8 +35,13 @@ CUFILE loadCufileLibrary() {
     ret = dlopen(__CufileLibName, RTLD_NOW);
 
     if (!ret) {
+#if FOR_CONDA_ENABLED
+      fprintf(stderr, "dlopen libcufile.so failed with error %s!. Please install libcufile: "
+              "`conda install -c conda-forge libcufile`.\n", dlerror());
+#else
       fprintf(stderr, "dlopen libcufile.so failed with error %s!. Please install libcufile.\n",
               dlerror());
+#endif
     }
   }
   return ret;

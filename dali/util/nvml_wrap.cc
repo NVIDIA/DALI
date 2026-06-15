@@ -38,7 +38,7 @@ NVMLRIVER loadNvmlLibrary() {
     ret = dlopen(__NvmlLibName, RTLD_NOW);
 
     if (!ret) {
-      fprintf(stderr, "dlopen libnvidia-ml.so failed!. Please install GPU dirver");
+      fprintf(stderr, "dlopen libnvidia-ml.so failed!. Please install GPU driver");
     }
   }
   return ret;

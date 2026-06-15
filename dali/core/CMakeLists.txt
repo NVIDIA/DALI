@@ -53,15 +53,14 @@ if (NOT LINK_DRIVER)
       OUTPUT ${CUDA_GENERATED_STUB}
       COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/../../internal_tools/stub_generator/stub_codegen.py --unique_prefix=Cuda --
                   "${CMAKE_CURRENT_SOURCE_DIR}/../../internal_tools/stub_generator/cuda.json" ${CUDA_GENERATED_STUB}
-                  "${CUDA_TOOLKIT_INCLUDE_MAJOR_DIRECTORY}/cuda.h"
-                  ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES_DIRECTIVE}
+                  "${CUDAToolkit_TARGET_DIR}/include/cuda.h" "-I${CUDAToolkit_TARGET_DIR}/include"
                   # for some reason QNX fails with 'too many errors emitted' is this is not set
                   "-ferror-limit=0"
                   # let clang know which architecutre we compile for
                   "--target=${CMAKE_SYSTEM_PROCESSOR}-linux-gnu"
                   ${DEFAULT_COMPILER_INCLUDE}
       DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/../../internal_tools/stub_generator/stub_codegen.py
-              "${CUDA_TOOLKIT_INCLUDE_MAJOR_DIRECTORY}/cuda.h"
+              "${CUDAToolkit_TARGET_DIR}/include/cuda.h"
               "${CMAKE_CURRENT_SOURCE_DIR}/../../internal_tools/stub_generator/cuda.json"
       COMMENT "Running cuda.h stub generator"
       VERBATIM)
@@ -80,15 +79,14 @@ if (BUILD_CUFILE)
       OUTPUT ${CUFILE_GENERATED_STUB}
       COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/../../internal_tools/stub_generator/stub_codegen.py --unique_prefix=Cufile --
                   "${CMAKE_CURRENT_SOURCE_DIR}/../../internal_tools/stub_generator/cufile.json" ${CUFILE_GENERATED_STUB}
-                  "${CUDA_TOOLKIT_INCLUDE_MAJOR_DIRECTORY}/cufile.h"
-                  ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES_DIRECTIVE}
+                  "${CUDAToolkit_TARGET_DIR}/include/cufile.h" "-I${CUDAToolkit_TARGET_DIR}/include"
                   # for some reason QNX fails with 'too many errors emitted' is this is not set
                   "-ferror-limit=0"
                   # let clang know which architecutre we compile for
                   "--target=${CMAKE_SYSTEM_PROCESSOR}-linux-gnu"
                   ${DEFAULT_COMPILER_INCLUDE}
       DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/../../internal_tools/stub_generator/stub_codegen.py
-              "${CUDA_TOOLKIT_INCLUDE_MAJOR_DIRECTORY}/cufile.h"
+              "${CUDAToolkit_TARGET_DIR}/include/cufile.h"
               "${CMAKE_CURRENT_SOURCE_DIR}/../../internal_tools/stub_generator/cufile.json"
       COMMENT "Running cufile.h stub generator"
       VERBATIM)
@@ -127,7 +125,7 @@ list(FILTER DALI_CORE_SRCS EXCLUDE REGEX ".*dynlink_nvcomp.cc")
 
 adjust_source_file_language_property("${DALI_CORE_SRCS}")
 add_library(dali_core ${LIBTYPE} ${DALI_CORE_SRCS})
-target_include_directories(dali_core SYSTEM PUBLIC ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES})
+target_include_directories(dali_core SYSTEM PUBLIC "${CUDAToolkit_TARGET_DIR}/include")
 target_link_libraries(dali_core PRIVATE dynlink_cuda ${CUDART_LIB})
 if (BUILD_CUFILE)
     target_link_libraries(dali_core PRIVATE dynlink_cufile)

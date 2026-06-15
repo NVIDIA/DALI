@@ -41,8 +41,7 @@ add_custom_command(
     OUTPUT ${NVCUVID_GENERATED_STUB}
     COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/../../../../internal_tools/stub_generator/stub_codegen.py --unique_prefix=Nvcuvid --
                 "${CMAKE_CURRENT_SOURCE_DIR}/../../../../internal_tools/stub_generator/nvcuvid.json" ${NVCUVID_GENERATED_STUB}
-                "${CMAKE_CURRENT_SOURCE_DIR}/nvcuvid.h"
-                ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES_DIRECTIVE}
+                "${CMAKE_CURRENT_SOURCE_DIR}/nvcuvid.h" "-I${CUDAToolkit_TARGET_DIR}/include"
                 "-I${CMAKE_SOURCE_DIR}/include" "-I${CMAKE_SOURCE_DIR}"
                 # for some reason QNX fails with 'too many errors emitted' is this is not set
                 "-ferror-limit=0"
