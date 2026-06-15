@@ -296,6 +296,9 @@ v_minor = int(version_short.split(".")[1])
 for i in range(0, v_minor + correction):
     versions.append((f"{v_major}.{i}", f"dali_{v_major}_{i}_0", "short_user"))
 
+# add extra patch version/s
+versions.append(("2.1.1", "dali_2.1.1", "short_user"))
+
 # ToDo add logic to handle other major releases after 1 and before the current
 
 # releases pre 2.0
@@ -304,7 +307,7 @@ for i in range(10, 54):
         versions.append((f"1.{i}", f"dali_1_{i}_0", "short_user"))
     else:
         versions.append((f"1.{i}", f"dali_1_{i}_0"))
-# add extra patch version
+# add extra patch version/s
 versions.append(("1.37.1", "dali_1_37_1", "short_user"))
 versions.append(("1.11.1", "dali_1_11_1"))
 # paths are different for 1.0-1.10
