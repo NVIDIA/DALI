@@ -2,7 +2,7 @@ import os
 import sys
 import sysconfig
 import threading
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, wait
 from typing import Any, Dict, List
 
 import numpy as np
@@ -71,14 +71,27 @@ def dali_pipeline():
 
 
 def run_thread(dali_pipeline, barrier, thread_id, results):
-    barrier.wait()
-    dali_pipeline.build()
-    for _ in range(prefetch_queue_depth * 2):  # Feed twice as many as the queue depth
-        dali_pipeline.feed_input("INPUT", test_input)
-    barrier.wait()
-    for _ in range(prefetch_queue_depth):
-        outputs = dali_pipeline.run()
-        results.set(thread_id, outputs[0].as_cpu().as_array())
+    try:
+        barrier.wait()
+        dali_pipeline.build()
+        for _ in range(prefetch_queue_depth * 2):  # Feed twice as many as the queue depth
+            dali_pipeline.feed_input("INPUT", test_input)
+        barrier.wait()
+        for _ in range(prefetch_queue_depth):
+            outputs = dali_pipeline.run()
+            results.set(thread_id, outputs[0].as_cpu().as_array())
+    except BaseException:
+        barrier.abort()
+        raise
+
+
+def wait_for_workers(futures):
+    wait(futures)
+
+    for future in futures:
+        error = future.exception()
+        if error is not None and not isinstance(error, threading.BrokenBarrierError):
+            raise error
 
 
 def test_gil_disabled():
@@ -97,7 +110,6 @@ def test_parallel_pipelines():
             executor.submit(run_thread, dali_pipeline(), barrier, i, results)
             for i in range(num_workers)
         ]
-        for future in futures:
-            future.result()
+        wait_for_workers(futures)
 
     assert results.all_equal()
