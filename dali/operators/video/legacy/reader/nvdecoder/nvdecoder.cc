@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -45,6 +45,7 @@ NvDecoder::NvDecoder(int device_id,
                      int additional_decode_surfaces)
     : device_id_(device_id),
       rgb_(image_type == DALI_RGB), dtype_(dtype), normalized_(normalized),
+      full_range_from_codecpar_(codecpar->color_range == AVCOL_RANGE_JPEG),
       device_(), parser_(), decoder_(max_height, max_width, additional_decode_surfaces),
       frame_in_use_(32),  // 32 is cuvid's max number of decode surfaces
       frame_full_range_(32),  // 32 is cuvid's max number of decode surfaces
@@ -189,9 +190,11 @@ int NvDecoder::handle_display(void* user_data, CUVIDPARSERDISPINFO* disp_info) {
 int NvDecoder::handle_sequence_(CUVIDEOFORMAT* format) {
   int ret = kNvcuvid_failure;
   try {
-    // utilize the NVDEC parser to determine if the video is full range
+    // The NVDEC parser does not report full range for all codecs, for example VP9.
+    // Fall back to the FFmpeg stream metadata when the parser omits it.
     recv_queue_.front().full_range =
-        static_cast<bool>(format->video_signal_description.video_full_range_flag);
+        static_cast<bool>(format->video_signal_description.video_full_range_flag) ||
+        full_range_from_codecpar_;
     ret = decoder_.initialize(format);
   } catch (...) {
     ERROR_LOG << "Unable to decode file " << recv_queue_.peek().filename << '\n';

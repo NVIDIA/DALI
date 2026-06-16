@@ -1,4 +1,4 @@
-// Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2025-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,6 +16,7 @@
 #define DALI_OPERATORS_VIDEO_FRAMES_DECODER_CPU_H_
 
 #include "dali/operators/video/frames_decoder_base.h"
+#include <optional>
 #include <string>
 #include <string_view>
 
@@ -63,6 +64,7 @@ class DLL_PUBLIC FramesDecoderCpu : public FramesDecoderBase {
   const AVCodec *codec_ = nullptr;
   std::unique_ptr<SwsContext, decltype(&sws_freeContext)> sws_ctx_{
     nullptr, sws_freeContext};
+  std::optional<bool> sws_src_full_range_;
 
   std::vector<uint8_t> tmp_buffer_;
 };

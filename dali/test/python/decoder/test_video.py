@@ -244,14 +244,15 @@ def test_video_decoder(device, module):
         assert np.array_equal(seq, ref_seq)
 
 
-def test_full_range_video():
+@params(("video.mp4", "0001.png"), ("video_vp9.mp4", "0001_vp9.png"))
+def test_full_range_video(filename, reference):
     skip_if_m60()
 
     @pipeline_def
     def test_pipeline():
         videos = fn.readers.video(
             device="gpu",
-            filenames=[get_dali_extra_path() + "/db/video/full_dynamic_range/video.mp4"],
+            filenames=[get_dali_extra_path() + f"/db/video/full_dynamic_range/{filename}"],
             sequence_length=1,
             initial_fill=10,
             normalized=False,
@@ -263,7 +264,7 @@ def test_full_range_video():
 
     o = video_pipeline.run()
     out = o[0].as_cpu().as_array()
-    ref = cv2.imread(get_dali_extra_path() + "/db/video/full_dynamic_range/0001.png")
+    ref = cv2.imread(get_dali_extra_path() + f"/db/video/full_dynamic_range/{reference}")
     ref = cv2.cvtColor(ref, cv2.COLOR_BGR2RGB)
     left = ref
     right = out
@@ -271,27 +272,33 @@ def test_full_range_video():
     assert np.mean(absdiff) < 2
 
 
-@params("gpu")
-def test_full_range_video_in_memory(device):
+@params(
+    ("gpu", ("video.mp4", "0001.png")),
+    ("gpu", ("video_vp9.mp4", "0001_vp9.png")),
+    ("cpu", ("video_vp9.mp4", "0001_vp9.png")),
+)
+def test_full_range_video_experimental(device, video):
     skip_if_m60()
+    filename, reference = video
 
     @pipeline_def
     def test_pipeline():
         videos = fn.experimental.readers.video(
             device=device,
-            filenames=[get_dali_extra_path() + "/db/video/full_dynamic_range/video.mp4"],
+            filenames=[get_dali_extra_path() + f"/db/video/full_dynamic_range/{filename}"],
             sequence_length=1,
         )
         return videos
 
-    video_pipeline = test_pipeline(batch_size=1, num_threads=1, device_id=0)
+    device_id = None if device == "cpu" else 0
+    video_pipeline = test_pipeline(batch_size=1, num_threads=1, device_id=device_id)
 
     o = video_pipeline.run()
     out = o[0]
     if device == "gpu":
         out = out.as_cpu()
     out = out.as_array()
-    ref = cv2.imread(get_dali_extra_path() + "/db/video/full_dynamic_range/0001.png")
+    ref = cv2.imread(get_dali_extra_path() + f"/db/video/full_dynamic_range/{reference}")
     ref = cv2.cvtColor(ref, cv2.COLOR_BGR2RGB)
     left = ref
     right = out
