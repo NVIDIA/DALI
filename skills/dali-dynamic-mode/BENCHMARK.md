@@ -7,14 +7,18 @@ This benchmark summarizes 3-Tier Evaluation from NVSkills-Eval results for the s
 ## Evaluation Summary
 
 - Skill: `dali-dynamic-mode`
-- Evaluation date: 2026-05-28
+- Evaluation date: 2026-06-08
 - NVSkills-Eval profile: `external`
+- Environment: `astra-sandbox`
+- Dataset: 24 evaluation tasks
+- Attempts per task: 2
+- Pass threshold: 50%
 - Overall verdict: PASS
-- Tier 3 live agent evaluation: not available in this report
 
 ## Agents Used
 
-- Tier 3 agent details were not available in this report.
+- `claude-code`
+- `codex`
 
 ## Metrics Used
 
@@ -28,15 +32,29 @@ Reported benchmark dimensions:
 
 Underlying evaluation signals used in this run:
 
-- No Tier 3 evaluation signal details were available in this report.
+- `security` (Security): checks for unsafe operations, secret leakage, and unauthorized access.
+- `skill_execution` (Skill Execution): verifies that the agent loaded the expected skill and workflow.
+- `skill_efficiency` (Efficiency): checks routing quality, decoy avoidance, and redundant tool usage.
+- `accuracy` (Accuracy): grades final-answer correctness against the reference answer.
+- `goal_accuracy` (Goal Accuracy): checks whether the overall user task completed successfully.
+- `behavior_check` (Behavior Check): verifies expected behavior steps, including safety expectations.
+- `token_efficiency` (Token Efficiency): compares token usage with and without the skill.
 
 ## Test Tasks
 
-Tier 3 evaluation task details were not available in this report.
+The benchmark included 24 recorded Tier 3 trials, but the source evaluation dataset was not available in this report payload.
 
 ## Results
 
-Tier 3 dimension rollup was not available in this report.
+| Dimension | Num | `claude-code` | `codex` |
+|---|---:|---:|---:|
+| Security | 8 | 100% (+0%) | 100% (+0%) |
+| Correctness | 8 | 98% (+61%) | 86% (+31%) |
+| Discoverability | 8 | 97% (+84%) | 81% (+47%) |
+| Effectiveness | 8 | 77% (+45%) | 66% (+29%) |
+| Efficiency | 8 | 88% (+59%) | 76% (+41%) |
+
+Score values show skill-assisted performance. Values in parentheses show uplift versus the no-skill baseline when baseline data is available.
 
 ## Tier 1: Static Validation Summary
 
@@ -44,10 +62,10 @@ Tier 1 validation passed. NVSkills-Eval ran 9 checks and found 0 total findings.
 
 Notable observations:
 
-- SECURITY: No security vulnerabilities detected (secrets, API keys, credentials)
+- SECURITY: no findings reported.
 - SCHEMA: Found skill manifest: SKILL.md
 - VERSION: No semantic version label present; resource will use commit-hash history (opting back out of an existing label is allowed)
-- PII: Scanning 1 files for PII
+- PII: Scanning 2 files for PII
 - LICENSE: no findings reported.
 
 ## Tier 2: Deduplication Summary

@@ -29,6 +29,7 @@ Guide AI agents in writing, reviewing, and migrating code that uses DALI's imper
 - Treat readers as stateful: create them once, reuse them across epochs, and pass `batch_size` to `next_epoch(...)`.
 - Pass explicit `batch_size` to random ops; there is no pipeline-level batch size to inherit.
 - Use dynamic-mode API conventions: `device="gpu"` instead of pipeline-mode `"mixed"`, `Batch.tensors[...]` for sample selection, and `Batch.slice[...]` for per-sample slicing.
+- Use `.torch()` to convert a tensor or batch to a PyTorch tensor. Use `pad=True` for batches with variable shapes.
 
 ## Prerequisites
 
@@ -149,7 +150,7 @@ Default mode is `eager` -- async execution in a background thread, returns immed
 For debugging, switch to synchronous mode so errors surface at the exact call site rather than later in the async queue:
 
 ```python
-with ndd.EvalMode.sync_full:
+with ndd.EvalMode.sync_cpu:
     images = ndd.decoders.image(jpegs, device="gpu")
     images = ndd.resize(images, size=[224, 224])
     # Any error surfaces here, at the exact op that failed
@@ -288,5 +289,5 @@ Dynamic mode is more flexible than pipeline mode, but can have slightly worse pe
 
 ## Troubleshooting
 
-- If errors surface later than the failing call, rerun the block under `with ndd.EvalMode.sync_full:`.
+- If errors surface later than the failing call, rerun the block under `EvalMode.sync_cpu` or `EvalMode.sync_full`.
 - If a reader behaves unexpectedly across epochs, check that it is created once and each `next_epoch()` iterator is fully consumed.

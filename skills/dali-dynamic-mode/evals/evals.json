@@ -3,7 +3,7 @@
   "evals": [
     {
       "id": 1,
-      "prompt": "Write a complete Python script that uses DALI dynamic mode to load and preprocess images for training an image classification model with PyTorch. The images are JPEGs on disk, and I need GPU-accelerated decode, resize to 224x224, and ImageNet normalization. The script should include the training loop.",
+      "prompt": "Write a Python script that uses DALI dynamic mode to load and preprocess images for training an image classification model with PyTorch. The images are JPEGs on disk, and I need GPU-accelerated decode, resize to 224x224, and ImageNet normalization. Show the full script, do not save it to a file.",
       "expected_output": "Complete pipeline using ndd.readers.File, ndd.decoders.image(device='gpu'), ndd.resize, ndd.crop_mirror_normalize, .torch() handoff",
       "files": [],
       "assertions": [
@@ -24,7 +24,8 @@
       "expected_output": "Uses batch.slice[0] and batch.slice[1] for samplewise slicing",
       "files": [],
       "assertions": [
-        {"name": "correct-slice-usage", "text": "Uses batch.slice[0] and batch.slice[1] (not batch.tensors)"},
+        {"name": "correct-import", "text": "Uses import nvidia.dali.experimental.dynamic as ndd"},
+        {"name": "correct-slice-usage", "text": "Uses batch.slice[0] and batch.slice[1]"},
         {"name": "no-getitem", "text": "Does not use batch[0] or batch[:, 0] (Batch has no __getitem__)"},
         {"name": "correct-slice-semantics", "text": "Correctly explains that .slice indexes within each sample, not across samples"},
         {"name": "batch-size-to-random", "text": "Passes batch_size to ndd.random.uniform()"}
@@ -32,10 +33,11 @@
     },
     {
       "id": 3,
-      "prompt": "Convert the following pipeline-mode DALI code to dynamic mode. Write the complete converted script.",
+      "prompt": "Convert the file /workspace/input/pipeline_to_convert.py to dynamic mode. Include the complete converted script in your response.",
       "expected_output": "Correct conversion with all pipeline-mode patterns replaced",
       "files": ["evals/files/pipeline_to_convert.py"],
       "assertions": [
+        {"name": "correct-import", "text": "Uses import nvidia.dali.experimental.dynamic as ndd"},
         {"name": "device-gpu-not-mixed", "text": "device='mixed' converted to device='gpu'"},
         {"name": "reader-pascalcase", "text": "fn.readers.file converted to ndd.readers.File (PascalCase)"},
         {"name": "no-pipeline-mode", "text": "No pipeline-mode constructs (no @pipeline_def, pipe.build(), pipe.run()) and operators called directly on ndd (e.g. ndd.rotate, not fn.rotate or ndd.fn.rotate)"},
@@ -48,20 +50,21 @@
     {
       "id": 4,
       "prompt": "My data loading code built with DALI's dynamic (imperative) API produces wrong results intermittently — images sometimes appear corrupted. The code decodes JPEG images on the GPU, resizes them, and normalizes them. How do I debug this? Write a debugging guide with code examples.",
-      "expected_output": "Recommends EvalMode.sync_full or sync_cpu for debugging, explains async execution model, code examples use correct dynamic mode patterns",
+      "expected_output": "Recommends EvalMode.sync_full or sync_cpu for debugging (not necessarily both), explains async execution model, code examples use correct dynamic mode patterns",
       "files": [],
       "assertions": [
+        {"name": "correct-import", "text": "Uses import nvidia.dali.experimental.dynamic as ndd"},
         {"name": "recommends-sync-mode", "text": "Recommends EvalMode.sync_full or EvalMode.sync_cpu for debugging"},
         {"name": "no-scatter-evaluate", "text": "Does not recommend adding .evaluate() after every operation as the primary debugging approach"},
-        {"name": "correct-evalmode-syntax", "text": "Uses correct context manager syntax: with ndd.EvalMode.sync_full: (not ndd.eval_mode(...) or other invented API)"},
-        {"name": "correct-sample-inspection", "text": "When inspecting intermediate values, uses batch.tensors[i].cpu() or np.asarray(batch.tensors[i].cpu()) — not batch[i] or batch.as_cpu().as_array()"},
+        {"name": "correct-evalmode-syntax", "text": "Uses correct context manager syntax: `with ndd.EvalMode.sync_cpu:` or `with ndd.EvalMode.sync_full:` (not ndd.eval_mode(...) or other invented API)"},
+        {"name": "correct-sample-inspection", "text": "When inspecting intermediate values, uses batch.tensors[i], not batch[i] or batch.as_cpu().as_array()"},
         {"name": "code-examples-no-pipeline-mode", "text": "All code examples in the guide use dynamic mode patterns (ndd.decoders.image, ndd.resize, etc.) — no fn.* or ndd.fn.* operators in any code snippet"},
         {"name": "code-examples-device-gpu", "text": "All code examples use device='gpu' for decode, NOT device='mixed'"}
       ]
     },
     {
       "id": 5,
-      "prompt": "I need to train a speech classification model on WAV files using PyTorch. Write a complete Python script that uses DALI dynamic mode for the data loading and audio feature extraction (mel spectrograms). My audio clips have different durations.",
+      "prompt": "I need to train a speech classification model on WAV files using PyTorch. Show me a complete Python script that uses DALI dynamic mode for the data loading and audio feature extraction (mel spectrograms). My audio clips have different durations.",
       "expected_output": "Uses ndd.readers, ndd.decoders.audio(), spectral ops, handles variable-length via .torch(pad=True)",
       "files": [],
       "assertions": [
@@ -75,7 +78,7 @@
     },
     {
       "id": 6,
-      "prompt": "Write a complete Python script for an object detection training pipeline using DALI dynamic mode and PyTorch. It should read COCO-format images and annotations, apply random horizontal flip as augmentation (both images and their bounding boxes), resize, normalize, and feed to a model.",
+      "prompt": "Write a complete Python script for an object detection training pipeline using DALI dynamic mode and PyTorch. It should read COCO-format images and annotations, apply random horizontal flip as augmentation (both images and their bounding boxes), resize, normalize, and feed to a model. Images are of variable sizes.",
       "expected_output": "DALI reader with bbox support, coordinated augmentation via ndd.random, correct dynamic mode patterns",
       "files": [],
       "assertions": [
