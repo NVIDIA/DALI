@@ -86,21 +86,19 @@ class CompileNode:
 class _CallTrie:
     """Trie keyed by call chain CodeLocs for safe call-site identification."""
 
-    __slots__ = ("children", "node")
+    __slots__ = ("children", "nodes")
 
     def __init__(self) -> None:
         self.children: dict[CodeLoc, _CallTrie] = {}
-        self.node: CompileNode | None = None
+        self.nodes: dict[type["Operator"], CompileNode] = {}
 
-    def insert(self, call_chain: CallChain, node: CompileNode) -> None:
+    def insert(self, call_chain: CallChain, op: type["Operator"], node: CompileNode) -> None:
         current = self
         for code_loc in call_chain:
-            if code_loc not in current.children:
-                current.children[code_loc] = _CallTrie()
-            current = current.children[code_loc]
-        current.node = node
+            current = current.children.setdefault(code_loc, _CallTrie())
+        current.nodes[op] = node
 
-    def find(self, call_chain: CallChain) -> CompileNode | None:
+    def find(self, call_chain: CallChain, op: type["Operator"]) -> CompileNode | None:
         """Look up a node by call chain tuple (not frame). Returns None if not found."""
         current = self
         for code_loc in call_chain:
@@ -108,9 +106,9 @@ class _CallTrie:
             if child is None:
                 return None
             current = child
-        return current.node
+        return current.nodes.get(op)
 
-    def lookup(self, start_frame: types.FrameType) -> CompileNode | None:
+    def lookup(self, start_frame: types.FrameType, op: type["Operator"]) -> CompileNode | None:
         """Walk frames to stack exhaustion or stop early if a frame differs."""
         current = self
         frame: types.FrameType | None = start_frame
@@ -120,7 +118,7 @@ class _CallTrie:
                 return None
             current = child
             frame = frame.f_back
-        return current.node
+        return current.nodes.get(op)
 
 
 class CompiledBatch(Batch):
@@ -233,8 +231,12 @@ class CompileContext:
         num_outputs: int,
         device: Device | None = None,
     ) -> CompileNode | None:
-        if existing := self._call_trie.find(call_chain):
-            if existing.inputs == inputs and existing.kwargs == kwargs:
+        if existing := self._call_trie.find(call_chain, op_class):
+            if (
+                existing.inputs == inputs
+                and existing.kwargs == kwargs
+                and existing.device == device
+            ):
                 return existing
             return None
 
@@ -248,7 +250,7 @@ class CompileContext:
             device=device,
         )
         self.nodes.append(node)
-        self._call_trie.insert(call_chain, node)
+        self._call_trie.insert(call_chain, op_class, node)
         return node
 
     @_nvtx_range("Building pipeline")
@@ -351,12 +353,13 @@ class CompileContext:
     def get_compiled_result(
         self,
         frame: types.FrameType,
+        op_class: type["Operator"],
         inputs: Sequence[Any],
         kwargs: Mapping[str, Any],
         device: Device | None = None,
     ) -> Any | None:
         """Return pre-built result for a known call site, or None."""
-        node = self._call_trie.lookup(frame)
+        node = self._call_trie.lookup(frame, op_class)
         if node is None:
             return None
         if device != node.device:
@@ -572,7 +575,10 @@ def _compile_intercept(
                     f"called with batch_size={batch_size}. Cannot change batch_size in "
                     f"compiled mode."
                 )
-            if result := compile_ctx.get_compiled_result(frame, inputs, raw_kwargs, device=device):
+            result = compile_ctx.get_compiled_result(
+                frame, op_class, inputs, raw_kwargs, device=device
+            )
+            if result is not None:
                 return result
             return fn_call(
                 *inputs, batch_size=batch_size, device=device, _backend=backend, **raw_kwargs
