@@ -1591,22 +1591,32 @@ class Pipeline(object):
             raise RuntimeError("The pipeline was destroyed.")
         self._schedule_py_workers()
 
-        # Keep input feeding interleaved with backend runs. Feeding all inputs
-        # first can leave separated execution with CPU-prefetched batches that
-        # have no scheduled Mixed/GPU work when an external source reaches end
-        # of epoch.
-        self._legacy_interleaved_prefetch()
+        # A larger separated CPU queue leaves CPU-only iterations after backend
+        # Prefetch. If a Python source reaches end of epoch, those iterations
+        # cannot be advanced through Mixed/GPU without feeding more CPU work.
+        cpu_queue_is_longer = self._cpu_queue_size > self._gpu_queue_size
+        if not self._exec_separated or cpu_queue_is_longer:
+            self._legacy_interleaved_prefetch()
+            return
+
+        # The new way: try to run the inputs and then feed them, finally call
+        # _pipe.Prefetch(). If this fails, we just run `_pipe.Run()` a bunch of
+        # times. This will likely blow up for separated queues, which are not
+        # properly supported anyway.
+        iters_fed = 0
+        self._first_iter = False
+        iters_fed, success = self._prefetch_inputs()
+        if success:
+            self._pipe.Prefetch()
+        else:
+            self._last_iter = True
+            for _ in range(iters_fed):
+                self._pipe.Run()
 
     # This is the old way of prefetching - the feeding and running steps are interleaved.
     # Running all callbacks at once, then feeding, then running - may affect the performance
     # of the 1st iteration.
     def _legacy_interleaved_prefetch(self):
-        # Separated execution has independent CPU and GPU queue depths, but an
-        # interleaved Run schedules one whole pipeline iteration through all
-        # stages. After max(cpu, gpu) runs each stage has seen enough iterations
-        # to fill its own queue. Using cpu + gpu would schedule extra full
-        # iterations, not just fill the GPU queue, and could over-read external
-        # inputs at an epoch boundary.
         prefetch_count = (
             max(self._cpu_queue_size, self._gpu_queue_size)
             if self._exec_separated
@@ -1623,6 +1633,27 @@ class Pipeline(object):
             except StopIteration:
                 self._last_iter = True
                 break
+
+    def _prefetch_inputs(self):
+        prefetched, success = self._run_input_callbacks(True)
+        self._batches_to_consume += prefetched
+
+        if success:
+            if self._exec_separated:
+                prefetch_count = max(self._cpu_queue_size, self._gpu_queue_size)
+            else:
+                prefetch_count = self._cpu_queue_size
+
+            for i in range(prefetched, prefetch_count):
+                try:
+                    self.iter_setup()
+                    prefetched = i + 1
+                    self._batches_to_consume += 1
+                except StopIteration:
+                    success = False
+                    break
+
+        return prefetched, success
 
     def _run_once(self):
         """Start running the whole pipeline once without waiting for its results.
