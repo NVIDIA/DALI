@@ -1933,53 +1933,36 @@ class Pipeline(object):
         if iters == 0:
             self.iter_setup()
 
-    def _run_input_callbacks(self, is_prefetch=False):
+    def _run_input_callbacks(self):
         if self._input_callbacks is None:
             return 0, True
 
-        done = False
-        stop_iter = False
-        iter = 0
-        while not done and not stop_iter:
-            done = True
-            batches = []  # data from external source callbacks is gathered here
-            for i, group in enumerate(self._parallel_input_callbacks):
-                try:
-                    count = group.feed_count(self) if is_prefetch else 1
-                    if iter < count:
-                        batches.append(
-                            group.schedule_and_receive(
-                                self, self._py_pool, i, self._max_batch_size, self._epoch_idx
-                            )
-                        )
-                        if iter + 1 < count:
-                            done = False
-                except StopIteration:
-                    stop_iter = True
-            for group in self._seq_input_callbacks:
-                try:
-                    count = group.feed_count(self) if is_prefetch else 1
-                    if iter < count:
-                        batches.append(group.get_batch(self, self._max_batch_size, self._epoch_idx))
-                        if iter + 1 < count:
-                            done = False
-                except StopIteration:
-                    stop_iter = True
-
-            if stop_iter:
-                return iter, False
-
+        batches = []  # data from external source callbacks is gathered here
+        for i, group in enumerate(self._parallel_input_callbacks):
             try:
-                self.iter_setup()
+                batches.append(
+                    group.schedule_and_receive(
+                        self, self._py_pool, i, self._max_batch_size, self._epoch_idx
+                    )
+                )
             except StopIteration:
-                return iter, False
+                return 0, False
+        for group in self._seq_input_callbacks:
+            try:
+                batches.append(group.get_batch(self, self._max_batch_size, self._epoch_idx))
+            except StopIteration:
+                return 0, False
 
-            # we only fill external source queues when we know that all callbacks succeeded
-            for batch in batches:
-                batch.feed()
+        try:
+            self.iter_setup()
+        except StopIteration:
+            return 0, False
 
-            iter += 1
-        return iter, True
+        # we only fill external source queues when we know that all callbacks succeeded
+        for batch in batches:
+            batch.feed()
+
+        return 1, True
 
     def iter_setup(self):
         """A deprecated method of providing the pipeline with external inputs.
