@@ -1601,9 +1601,12 @@ class Pipeline(object):
     # Running all callbacks at once, then feeding, then running - may affect the performance
     # of the 1st iteration.
     def _legacy_interleaved_prefetch(self):
-        # Separated execution has independent CPU and GPU queue depths. Each
-        # interleaved Run schedules one batch through every stage, so the
-        # larger queue depth is enough to prime both queues.
+        # Separated execution has independent CPU and GPU queue depths, but an
+        # interleaved Run schedules one whole pipeline iteration through all
+        # stages. After max(cpu, gpu) runs each stage has seen enough iterations
+        # to fill its own queue. Using cpu + gpu would schedule extra full
+        # iterations, not just fill the GPU queue, and could over-read external
+        # inputs at an epoch boundary.
         prefetch_count = (
             max(self._cpu_queue_size, self._gpu_queue_size)
             if self._exec_separated
