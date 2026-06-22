@@ -83,6 +83,14 @@ def _argument_type_conversion(dtype_id):
         return None
 
 
+def _promote_0d_cpu_tensor(value):
+    if not isinstance(value, Tensor):
+        return value
+    if value.device.device_type != "cpu" or value.ndim != 0:
+        return value
+    return value.item()
+
+
 def _get_module_name(module, legacy_op_class):
     """
     Replicates behaviour of _names._process_op_name() + _adjust_operator_module()
@@ -214,12 +222,17 @@ def build_constructor(schema, op_class):
                 arg = kwargs.get(arg_name)
                 if arg is None or isinstance(arg, (int, float, bool, str, tuple, list)):
                     continue
-                del kwargs[arg_name]
                 if isinstance(arg, Batch):
                     raise ValueError("Readers cannot be constructed with batch keyword arguments")
-                original_tensor_args[arg_name] = arg
+                original_arg = arg
                 dtype = op_class._argument_conversion_map[arg_name]
-                tensor_args[arg_name] = to_tensor(arg, dtype=dtype)
+                arg = _promote_0d_cpu_tensor(to_tensor(arg, dtype=dtype))
+                if isinstance(arg, (int, float, bool, str)):
+                    kwargs[arg_name] = arg
+                    continue
+                del kwargs[arg_name]
+                original_tensor_args[arg_name] = original_arg
+                tensor_args[arg_name] = arg
         kwargs = {k: _scalar_decay(v) for k, v in kwargs.items()}
         op_class.__base__.__init__(self, max_batch_size, name, **kwargs)
         if is_reader:  # Need to be done here not to be overridden by the constructor

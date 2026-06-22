@@ -483,7 +483,6 @@ def _prepare_reader_arg(value: Any) -> Any:
     if isinstance(value, (Tensor, Batch)):
         if value.device.device_type != "cpu":
             raise ValueError("GPU arguments inputs are not supported")
-        # TODO(rtabet, DALI-4708): Classify scalar CPU Tensor args earlier to allow ScalarConstant.
         return dali_types.Constant(np.asarray(as_tensor(value)), layout=value.layout, device="cpu")
     return dali_types.Constant(value, device="cpu")
 

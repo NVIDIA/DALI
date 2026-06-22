@@ -389,6 +389,22 @@ def test_compile_scalar_args():
     _test_video_resize(resize_x=ndd.tensor(108), resize_y=192)
 
 
+def test_reader_constructor_promotes_0d_tensor_args_to_scalars():
+    reader = ndd.readers.Numpy(
+        files=["unused.npy"],
+        roi_start=ndd.tensor(0),
+        roi_shape=ndd.tensor([10]),
+    )
+
+    assert reader._init_args["roi_start"] == 0
+    assert "roi_start" in reader._tensor_arg_names
+    assert "roi_start" not in reader._raw_tensor_args
+    assert "roi_start" not in reader._original_tensor_args
+    assert "roi_shape" in reader._tensor_arg_names
+    assert "roi_shape" in reader._raw_tensor_args
+    assert "roi_shape" in reader._original_tensor_args
+
+
 def test_compile_incompatible_kwarg_dtype():
     reader_dyn = ndd.readers.File(file_root=images_root)
     reader_comp = ndd.readers.File(file_root=images_root)
