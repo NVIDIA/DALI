@@ -1931,6 +1931,7 @@ class Pipeline(object):
             return 0, True
 
         batches = []  # data from external source callbacks is gathered here
+        stop_iter = False
         for i, group in enumerate(self._parallel_input_callbacks):
             try:
                 batches.append(
@@ -1939,12 +1940,15 @@ class Pipeline(object):
                     )
                 )
             except StopIteration:
-                return 0, False
+                stop_iter = True
         for group in self._seq_input_callbacks:
             try:
                 batches.append(group.get_batch(self, self._max_batch_size, self._epoch_idx))
             except StopIteration:
-                return 0, False
+                stop_iter = True
+
+        if stop_iter:
+            return 0, False
 
         try:
             self.iter_setup()
