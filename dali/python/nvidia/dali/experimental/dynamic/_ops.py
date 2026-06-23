@@ -12,20 +12,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import base64
+import math
+from threading import Lock
 from typing import TypedDict
 
-import base64
+import numpy as np
 
 import nvidia.dali as dali
 import nvidia.dali.backend_impl as _b
-import math
-from . import _eval_context, _invocation, _device, _type, _compile
-from ._batch import Batch, as_batch as _as_batch, _get_batch_size
-from ._device import Device, DeviceLike
-from ._tensor import Tensor
 
+from . import _compile, _device, _eval_context, _invocation, _type
+from ._batch import Batch, _get_batch_size
+from ._batch import as_batch as _as_batch
+from ._device import Device, DeviceLike
 from ._nvtx import NVTXRange
-from threading import Lock
+from ._tensor import Tensor, as_tensor
 
 _nvtx_to_tensor = NVTXRange("to_tensor", category="op_builder")
 
@@ -641,6 +643,17 @@ class Operator:
             return type_name
 
 
+def _wire_arg(value):
+    """Convert a stored reader argument into a pipeline-ready constant DataNode."""
+    if isinstance(value, (bool, int, float, str)):
+        return value
+    if isinstance(value, (Tensor, Batch)):
+        if value.device.device_type != "cpu":
+            raise ValueError("GPU arguments are not supported")
+        return dali.types.Constant(np.asarray(as_tensor(value)), layout=value.layout, device="cpu")
+    return dali.types.Constant(value, device="cpu")
+
+
 # Defaults used by Reader for sharding; must match Reader.__init__ normalization.
 _READER_SHARD_DEFAULTS = {"shard_id": 0, "num_shards": 1, "stick_to_shard": False}
 
@@ -699,7 +712,7 @@ class Reader(Operator):
             name = f"Reader_{id(self)}"
         self._actual_batch_size = batch_size
         self._batch_size = batch_size
-        self._compiled_iter = None
+        self._compiled_iter: "_compile.CompiledEpochIterator | None" = None
         self._compile_mode: bool | None = None
         self._checkpointing_enabled = enable_checkpointing
         device = _device.device(device)
@@ -715,7 +728,6 @@ class Reader(Operator):
         )
 
         self._raw_tensor_args = {}
-        self._original_tensor_args = {}  # Used when compile=True
         self._tensor_args = {}
         # Used to know when to recompute _tensor_args for _raw_tensor_args
         self._previous_batch_size: int | None = None
@@ -725,6 +737,8 @@ class Reader(Operator):
         self._pending_state = None
         # If set, the reader is in an invalid state and cannot be used
         self._disabled = False
+        # If set, the reader's op was transferred into a compiled pipeline
+        self._transferred = False
 
         if self._num_shards < 1:
             raise ValueError(
@@ -881,6 +895,42 @@ class Reader(Operator):
         if not self._stick_to_shard:
             self._shard_id = (self._shard_id + 1) % self._num_shards
 
+    def _teardown_compile(self) -> None:
+        """Tear down compile bindings. Reader is unrecoverable after transfer."""
+        self._compile_mode = None
+        self._compiled_iter = None
+        if self._transferred:
+            self._disabled = True
+
+    def _wire_pipeline(self, source: "_compile.CompileSource") -> tuple:
+        """Build the reader's pipeline outputs from its operator instance."""
+        op = self._legacy_op(name=self._name, device=self._backend, **self._init_args)
+        out = op(**{name: _wire_arg(value) for name, value in self._raw_tensor_args.items()})
+
+        if isinstance(out, dict):
+            assert source.output_keys is not None
+            outs = tuple(out[k] for k in source.output_keys)
+        elif isinstance(out, (tuple, list)):
+            outs = tuple(out)
+        else:
+            outs = (out,)
+        assert len(outs) == source.num_outputs
+        return outs
+
+    def _shape_result(self, source: "_compile.CompileSource", batches: tuple):
+        if source.output_keys is not None:
+            return dict(zip(source.output_keys, batches))
+        return batches
+
+    def _transfer_into(self, pipe: dali.Pipeline) -> bool:
+        assert self._op_backend is not None
+        pipe._transfer_operator(self._name, self._op_backend)
+        self._transferred = True
+        return True
+
+    def _make_epoch_iterator(self, batch_size: int) -> "_compile.CompiledEpochIterator":
+        return _compile._ReaderEpochIterator(self, batch_size)
+
     def _require_api_type(self, api_type: str) -> None:
         """Set the API type if unset, or raise if it conflicts with a previous choice."""
         if self._api_type is None:
@@ -894,7 +944,7 @@ class Reader(Operator):
         """Run the reader backend without API-type checking."""
         if self._disabled:
             raise RuntimeError(
-                "This reader is in an invalidate state due to a previous error and cannot be used."
+                "This reader is in an invalid state due to a previous error and cannot be used."
             )
         return super()._run(ctx, **kwargs)
 
@@ -946,7 +996,7 @@ class Reader(Operator):
         """
         if self._disabled:
             raise RuntimeError(
-                "This reader is in an invalidate state due to a previous error and cannot be used."
+                "This reader is in an invalid state due to a previous error and cannot be used."
             )
 
         batch_size = self._get_batch_size(batch_size)
@@ -966,14 +1016,7 @@ class Reader(Operator):
             if batch_size is None:
                 raise ValueError("compile=True requires a non-None batch_size.")
             self._compile_mode = True
-            if self._compiled_iter is None:
-                self._compiled_iter = _compile.CompiledEpochIterator(self, batch_size)
-            elif self._compiled_iter.compile_context.batch_size != batch_size:
-                raise ValueError(
-                    f"Cannot change batch_size from "
-                    f"{self._compiled_iter.compile_context.batch_size} to {batch_size} "
-                    f"in compiled mode."
-                )
+            _compile.make_iterator(self, batch_size)
         elif self._compile_mode is True:
             raise RuntimeError(
                 "This reader was previously used with compile=True "
