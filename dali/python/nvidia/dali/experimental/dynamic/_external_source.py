@@ -12,20 +12,40 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import enum
 from collections.abc import Callable, Iterable, Sequence
-from typing import Any, Literal, TypeAlias, cast, TypeGuard
+from typing import TYPE_CHECKING, Any, Literal, TypeAlias, TypeGuard, cast
+
+from nvidia.dali import fn
 
 from ..._typing import BatchLike
 from ..._utils.external_source_impl import get_callback_from_source
+from . import _compile
 from ._batch import Batch, _get_batch_size, as_batch
 from ._device import DeviceLike
+from ._device import device as _as_device
 from ._nvtx import NVTXRange
 from ._tensor import Tensor, as_tensor
 from ._type import DTypeLike
 
-# Note: TensorLike <: BatchLike
+if TYPE_CHECKING:
+    from ._eval_context import EvalContext
+
 _SourceOutput: TypeAlias = BatchLike | Sequence[BatchLike]
 SourceType: TypeAlias = Callable[[], _SourceOutput] | Iterable[_SourceOutput]
+
+_CallResult: TypeAlias = Tensor | Batch | tuple[Tensor, ...] | tuple[Batch, ...]
+
+
+class _Role(enum.Enum):
+    UNUSED = enum.auto()
+    EAGER = enum.auto()
+    FEEDER = enum.auto()  # pulled inside another source's compiled loop
+    ROOT = enum.auto()  # iterated through its own .compiled()
+
+    @property
+    def is_compiled(self) -> bool:
+        return self in (_Role.FEEDER, _Role.ROOT)
 
 
 # We don't inherit from _ops.Operator because there's nothing to reuse from there
@@ -127,14 +147,16 @@ class ExternalSource:
         if num_outputs <= 0:
             raise ValueError("num_outputs must be strictly positive")
         self._num_outputs = num_outputs
-        self._device = device
+        self._device = _as_device(device)
         self._layouts = self._broadcast_arg(layout)
         self._dtypes = self._broadcast_arg(dtype)
 
+        self._role = _Role.UNUSED
+        self._compile_source: _compile.CompileSource | None = None
+        self._compiled_iter: _compile.CompiledEpochIterator | None = None
+
     @NVTXRange("__call__: ExternalSource", category="op_builder")
-    def __call__(
-        self, *, batch_size: int | None = None
-    ) -> Tensor | Batch | tuple[Tensor, ...] | tuple[Batch, ...]:
+    def __call__(self, *, batch_size: int | None = None) -> _CallResult:
         """Consume one item from the source.
 
         Parameters
@@ -153,17 +175,132 @@ class ExternalSource:
         StopIteration
             When the source is exhausted, depending on the ``cycle`` argument.
         """
-        outputs = self._get_outputs(self._callback())
+        ctx = _compile.CompileContext.current()
+        if ctx is None:
+            if self._role.is_compiled:
+                raise RuntimeError("This ExternalSource is already used in a compiled loop")
+            self._role = _Role.EAGER
+            return self._eager_call(batch_size=batch_size)
+
+        if self._role is _Role.EAGER:
+            raise RuntimeError("This ExternalSource was already used eagerly")
+        if self._role is _Role.ROOT:
+            raise RuntimeError("Instance already used through .compiled() method")
+
+        if ctx.state is _compile.State.TRACING:
+            result = self._trace_pull(ctx, batch_size)
+            self._role = _Role.FEEDER
+            return result
+        return self._compiled_call(ctx, batch_size)
+
+    def compiled(self, batch_size: int, ctx: "EvalContext | None" = None):
+        """Iterate one epoch with this source as the compiled graph's root.
+
+        ``ExternalSource`` equivalent of :meth:`Reader.next_epoch` with ``compile=True``.
+
+        Any other ``ExternalSource`` called inside the loop must be consumed exactly once per step.
+        They are prefetched, so they are polled ahead of the loop body and breaking out may discard
+        already-pulled items.
+        """
+        if self._role is _Role.EAGER:
+            raise RuntimeError("This ExternalSource was already used eagerly")
+        if self._role is _Role.FEEDER:
+            raise RuntimeError("Instance already used through __call__")
+
+        iterator = _compile.make_iterator(self, batch_size)
+        self._role = _Role.ROOT
+        return iterator.batches(ctx)
+
+    def _unwrap(self, outputs: tuple[Tensor, ...] | tuple[Batch, ...]) -> _CallResult:
+        return outputs[0] if self._num_outputs == 1 else outputs
+
+    def _eager_call(self, *, batch_size: int | None = None) -> _CallResult:
+        data = self._callback()
+        outputs = self._convert_outputs(data, batch_size)
+        return self._unwrap(outputs)
+
+    def _trace_pull(self, ctx: _compile.CompileContext, batch_size: int | None) -> _CallResult:
+        """Pull, convert and wrap one item during tracing, registering the root on first use."""
+        src = self._compile_source
+        if src is not None and src.ctx is not ctx:
+            raise RuntimeError("Already bound to a different compile context.")
+
+        ctx.check_batch_size(batch_size)
+        # pull before registering: an empty source raises here, leaving nothing half-bound
+        try:
+            data = self._callback()
+            tensor_lists = self._to_tensor_lists(data, ctx.batch_size)
+        except Exception:
+            self._teardown_compile()
+            raise
+
+        if src is None:
+            src = self._compile_source = ctx.add_source(self._num_outputs, self)
+        ctx._mark_read(src)
+        return self._unwrap(ctx._wrap_tensor_lists(src, tensor_lists))
+
+    def _compiled_call(self, ctx: _compile.CompileContext, batch_size: int | None) -> _CallResult:
+        src = self._compile_source
+        if src is None or src.ctx is not ctx:
+            ctx._teardown()
+            raise RuntimeError("ExternalSource wasn't seen during tracing")
+
+        ctx.check_batch_size(batch_size)
+        ctx._mark_read(src)
+        return ctx.result_for(src)
+
+    def _source_callback(self):
+        """``fn.external_source``'s ``source`` callback: pull, convert, return TensorList(s)"""
+        src = self._compile_source
+        assert src is not None
+        try:
+            data = self._callback()
+        except StopIteration:
+            src.ctx._mark_stopped(src)  # lets the loop tell a clean epoch end from underrun
+            raise
+        tensor_lists = self._to_tensor_lists(data, src.ctx.batch_size)
+        return tensor_lists[0] if self._num_outputs == 1 else list(tensor_lists)
+
+    def _to_tensor_lists(self, data: _SourceOutput, batch_size: int) -> tuple:
+        outputs = self._convert_outputs(data, batch_size)
+        return tuple(output.evaluate()._storage for output in outputs)
+
+    def _teardown_compile(self):
+        self._role = _Role.UNUSED
+        self._compile_source = None
+        self._compiled_iter = None
+
+    def _wire_pipeline(self, source: "_compile.CompileSource") -> tuple:
+        device = self._device.device_type
+        if source.num_outputs == 1:
+            return (fn.external_source(self._source_callback, device=device),)
+        out = fn.external_source(self._source_callback, source.num_outputs, device=device)
+        return tuple(out)
+
+    def _shape_result(self, source, batches: tuple):
+        return self._unwrap(batches)
+
+    def _transfer_into(self, pipe) -> bool:
+        return False  # an ExternalSource holds no native op to move into a pipeline
+
+    def _make_epoch_iterator(self, batch_size: int) -> "_compile.CompiledEpochIterator":
+        return _compile._ExternalSourceEpochIterator(self, batch_size)
+
+    def _convert_outputs(
+        self, data: _SourceOutput, batch_size: int | None
+    ) -> tuple[Tensor, ...] | tuple[Batch, ...]:
+        """Convert the source's outputs, requiring them uniformly Tensors or uniformly Batches."""
+        outputs = self._get_outputs(data)
         results = tuple(
             self._convert_output(output, batch_size, idx) for idx, output in enumerate(outputs)
         )
         if not _are_types_uniform(results):
             raise TypeError("Outputs must be uniformly Tensors or uniformly Batches")
-        return results[0] if self._num_outputs == 1 else results
+        return results
 
     def _get_outputs(self, data: _SourceOutput) -> Sequence[BatchLike]:
         if self._num_outputs == 1:
-            return (cast(BatchLike, data),)
+            return (data,)  # type: ignore
         if not isinstance(data, Sequence) or len(data) != self._num_outputs:
             raise ValueError(f"Expected {self._num_outputs} outputs from the source")
         return data  # type: ignore
