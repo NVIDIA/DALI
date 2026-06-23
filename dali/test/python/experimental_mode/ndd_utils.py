@@ -16,14 +16,15 @@ import ctypes
 import functools
 import itertools
 from collections.abc import Callable
-from typing import Any
+from typing import Any, TypeGuard
+
+from nose_utils import SkipTest
 
 import nvidia.dali.experimental.dynamic as ndd
-from nose_utils import SkipTest
 from nvidia.dali.experimental.dynamic._compile import CompiledBatch
 
 
-def _is_compiled(batch):
+def _is_compiled(batch) -> TypeGuard[CompiledBatch]:
     return isinstance(batch, CompiledBatch)
 
 
