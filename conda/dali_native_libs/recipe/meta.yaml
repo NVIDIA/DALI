@@ -79,7 +79,7 @@ requirements:
     # so zlib must be in host for find_package(Protobuf) to succeed.
     - zlib
     - libjpeg-turbo
-    - libopencv
+    - libopencv >=4.13,<5
     - ffmpeg
     - lmdb
     - libtiff
@@ -94,7 +94,7 @@ requirements:
     - aws-sdk-cpp
   run:
     - libjpeg-turbo
-    - libopencv
+    - libopencv >=4.13,<5
     - ffmpeg
     - lmdb
     - libtiff

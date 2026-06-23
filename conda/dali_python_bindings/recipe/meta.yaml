@@ -89,7 +89,7 @@ requirements:
     # libprotobuf's CMake config exposes a ZLIB::ZLIB link interface dep,
     # so zlib must be in host for find_package(Protobuf) to succeed.
     - zlib
-    - libopencv
+    - libopencv >=4.13,<5
     - python
     {% if freethreading == "yes" %}
     - python-freethreading
