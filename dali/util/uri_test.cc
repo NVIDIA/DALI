@@ -94,6 +94,16 @@ TEST(URI, Parse_7) {
   EXPECT_EQ("", uri.fragment());
 }
 
+TEST(URI, Parse_FragmentWithoutAuthority) {
+  auto uri = URI::Parse("urn:path#frag");
+  EXPECT_EQ("urn", uri.scheme());
+  EXPECT_EQ("", uri.authority());
+  EXPECT_EQ("path", uri.path());
+  EXPECT_EQ("", uri.query());
+  EXPECT_EQ("path", uri.path_and_query());
+  EXPECT_EQ("frag", uri.fragment());
+}
+
 TEST(URI, Parse_FragmentWithoutQuery) {
   auto uri = URI::Parse("s3://bucket/path#fragment");
   EXPECT_EQ("s3", uri.scheme());
