@@ -25,6 +25,14 @@ fi
 
 echo "Using nvidia-dali-python-feedstock at $(git rev-parse HEAD)"
 
+# DALI uses nvCOMP APIs introduced after 5.1. Keep all feedstock variants aligned with
+# the DALI source dependency requirement until the upstream feedstock catches up.
+sed -i 's/5\.1\.0\.\*/5.2.0.*/g' .ci_support/*.yaml recipe/conda_build_config.yaml
+grep -R -q '5\.1\.0\.\*' .ci_support recipe/conda_build_config.yaml && \
+  { echo "Feedstock patch failed: libnvcomp 5.1 pin still present" >&2; exit 1; }
+grep -R -q '5\.2\.0\.\*' .ci_support recipe/conda_build_config.yaml || \
+  { echo "Feedstock patch failed: libnvcomp 5.2 pin not found" >&2; exit 1; }
+
 # Use the local DALI checkout instead of downloading the release tarball.
 RECIPE=recipe/recipe.yaml
 sed -i 's|  - url: https://github.com/NVIDIA/DALI/archive/refs/tags/v${{ version }}.tar.gz|  - path: /opt/dali|' "${RECIPE}"
