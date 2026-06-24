@@ -55,6 +55,17 @@ grep -q 'target_directory: third_party/ffts' "${RECIPE}" && \
   { echo "Recipe patch failed: ffts source still present" >&2; exit 1; }
 
 BUILD_SCRIPT=recipe/build.sh
+sed -i '/^ln -sf \$PREFIX\/include\/boost /i\rm -rf third_party/boost/preprocessor/include/boost' \
+  "${BUILD_SCRIPT}"
+sed -i '/^ln -sf \$PREFIX\/include\/dlpack /i\rm -rf third_party/dlpack/include/dlpack' \
+  "${BUILD_SCRIPT}"
+sed -i '/^ln -sf \$PREFIX\/include\/cute /i\rm -rf third_party/cutlass/include/cute' \
+  "${BUILD_SCRIPT}"
+sed -i '/^ln -sf \$PREFIX\/include\/cutlass /i\rm -rf third_party/cutlass/include/cutlass' \
+  "${BUILD_SCRIPT}"
+grep -q 'rm -rf third_party/boost/preprocessor/include/boost' "${BUILD_SCRIPT}" || \
+  { echo "build.sh patch failed: boost symlink cleanup not found" >&2; exit 1; }
+
 sed -i '/^cmake \${CMAKE_ARGS} \\$/,/^\$SRC_DIR$/ s/^  -GNinja \\$/  -GNinja \\\n  -DBUILD_FOR_CONDA=ON \\/' \
   "${BUILD_SCRIPT}"
 grep -q 'BUILD_FOR_CONDA=ON' "${BUILD_SCRIPT}" || \
