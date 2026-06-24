@@ -65,6 +65,12 @@ sed -i '/^ln -sf \$PREFIX\/include\/cutlass /i\rm -rf third_party/cutlass/includ
   "${BUILD_SCRIPT}"
 grep -q 'rm -rf third_party/boost/preprocessor/include/boost' "${BUILD_SCRIPT}" || \
   { echo "build.sh patch failed: boost symlink cleanup not found" >&2; exit 1; }
+grep -q 'rm -rf third_party/dlpack/include/dlpack' "${BUILD_SCRIPT}" || \
+  { echo "build.sh patch failed: dlpack symlink cleanup not found" >&2; exit 1; }
+grep -q 'rm -rf third_party/cutlass/include/cute' "${BUILD_SCRIPT}" || \
+  { echo "build.sh patch failed: cute symlink cleanup not found" >&2; exit 1; }
+grep -q 'rm -rf third_party/cutlass/include/cutlass' "${BUILD_SCRIPT}" || \
+  { echo "build.sh patch failed: cutlass symlink cleanup not found" >&2; exit 1; }
 
 sed -i '/^cmake \${CMAKE_ARGS} \\$/,/^\$SRC_DIR$/ s/^  -GNinja \\$/  -GNinja \\\n  -DBUILD_FOR_CONDA=ON \\/' \
   "${BUILD_SCRIPT}"
