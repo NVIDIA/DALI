@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2017-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -28,6 +28,7 @@ import warnings
 import weakref
 import gc
 from webdataset_base import generate_temp_index_file as generate_temp_wds_index
+from nose2.tools import params
 
 from test_utils import (
     check_batch,
@@ -1891,6 +1892,53 @@ def test_properties():
         return np.float32([1, 2, 3])
 
     my_pipe(device_id=0, seed=1234, num_threads=3, set_affinity=True, py_num_workers=3)
+
+
+@params((2, 2), (3, 2), (2, 3))
+def test_separated_queue_external_source_drains_prefetched_batches(cpu_size, gpu_size):
+    batch_size = 4
+    num_batches = 10
+    image_pattern = os.path.join(jpeg_folder, "*", "*.jpg")
+    paths = sorted(glob.glob(image_pattern))[: batch_size * num_batches]
+    assert len(paths) == batch_size * num_batches
+
+    def batches():
+        for i in range(num_batches):
+            batch_paths = paths[i * batch_size : (i + 1) * batch_size]
+            yield [np.fromfile(path, dtype=np.uint8) for path in batch_paths]
+
+    @dali.pipeline_def(
+        batch_size=batch_size,
+        num_threads=4,
+        device_id=0,
+        prefetch_queue_depth={"cpu_size": cpu_size, "gpu_size": gpu_size},
+    )
+    def pipe():
+        encoded = fn.external_source(
+            source=batches,
+            batch=True,
+            cycle="raise",
+        )
+        decoded = fn.decoders.image(
+            encoded,
+            device="mixed",
+            output_type=types.RGB,
+        )
+        return decoded
+
+    p = pipe()
+    p.build()
+    for _ in range(num_batches):
+        out = p.run()[0]
+        assert len(out) == batch_size
+        decoded = out.as_cpu()
+        for sample_idx in range(batch_size):
+            sample = decoded.at(sample_idx)
+            assert sample.ndim == 3
+            assert sample.shape[-1] == 3
+            assert np.any(sample)
+    with assert_raises(StopIteration):
+        p.run()
 
 
 def test_not_iterable():
