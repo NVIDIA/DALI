@@ -109,13 +109,6 @@ class RecordIOParser : public Parser<Tensor<CPUBackend>> {
     ImageRecordIOHeader hdr;
     ReadSingle(&input, end, &hdr, source_info, "record header");
 
-    if (hdr.flag == 0) {
-      o_label.Resize({1}, DALI_FLOAT);
-      o_label.mutable_data<float>()[0] = hdr.label;
-    } else {
-      o_label.Resize({hdr.flag}, DALI_FLOAT);
-    }
-
     size_t data_size = clength - sizeof(ImageRecordIOHeader);
     size_t label_size = static_cast<size_t>(hdr.flag) * sizeof(float);
     if (label_size > data_size) {
@@ -125,6 +118,14 @@ class RecordIOParser : public Parser<Tensor<CPUBackend>> {
     }
     size_t image_size = data_size - label_size;
     CheckAvailable(input, end, data_size, source_info, "record data");
+
+    if (hdr.flag == 0) {
+      o_label.Resize({1}, DALI_FLOAT);
+      o_label.mutable_data<float>()[0] = hdr.label;
+    } else {
+      o_label.Resize({hdr.flag}, DALI_FLOAT);
+    }
+
     if (cflag == 0) {
       o_image.Resize({static_cast<Index>(image_size)}, DALI_UINT8);
       uint8_t* data = o_image.mutable_data<uint8_t>();
