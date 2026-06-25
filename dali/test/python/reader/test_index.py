@@ -1,4 +1,4 @@
-# Copyright (c) 2021-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2021-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@ import nvidia.dali.fn as fn
 import nvidia.dali.types as types
 import nvidia.dali.tfrecord as tfrec
 import os.path
+import struct
 import tempfile
 import numpy as np
 from test_utils import compare_pipelines, get_dali_extra_path
@@ -202,6 +203,51 @@ def test_wrong_feature_shape():
         pipe.run,
         glob="Error in CPU operator `nvidia.dali.fn.readers.tfrecord`*"
         "Output tensor shape is too small*[]*Expected at least 4 elements",
+    )
+
+
+def _write_tfrecord_with_index(record):
+    data_dir = tempfile.TemporaryDirectory()
+    path = os.path.join(data_dir.name, "malformed.tfrecord")
+    index_path = os.path.join(data_dir.name, "malformed.idx")
+    with open(path, "wb") as f:
+        f.write(record)
+    with open(index_path, "w") as f:
+        f.write(f"0 {len(record)}\n")
+    return data_dir, path, index_path
+
+
+def _assert_malformed_tfrecord_fails(record, message):
+    data_dir, path, index_path = _write_tfrecord_with_index(record)
+
+    @pipeline_def(batch_size=1, device_id=None, num_threads=1)
+    def malformed_tfrecord_pipe():
+        data = fn.readers.tfrecord(
+            path=path,
+            index_path=index_path,
+            features={"image/encoded": tfrec.FixedLenFeature((), tfrec.string, "")},
+        )
+        return data["image/encoded"]
+
+    pipe = malformed_tfrecord_pipe()
+    try:
+        assert_raises(
+            RuntimeError,
+            pipe.run,
+            glob="Error in CPU operator `nvidia.dali.fn.readers.tfrecord`*" + message,
+        )
+    finally:
+        data_dir.cleanup()
+
+
+def test_tfrecord_reader_rejects_short_record():
+    _assert_malformed_tfrecord_fails(b"\x00" * 8, "record is too short: 8 bytes")
+
+
+def test_tfrecord_reader_rejects_oversized_payload_length():
+    record = struct.pack("<QI", 1024, 0) + b"x" + struct.pack("<I", 0)
+    _assert_malformed_tfrecord_fails(
+        record, "record payload length: 1024 bytes, available payload: 1 bytes"
     )
 
 

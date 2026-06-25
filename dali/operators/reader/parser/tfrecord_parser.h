@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -53,11 +53,25 @@ class TFRecordParser : public Parser<Tensor<CPUBackend>> {
     uint32_t crc;
 
     const uint8_t* raw_data = tensor.data<uint8_t>();
+    const size_t record_size = tensor.nbytes();
+    constexpr size_t kLengthSize = sizeof(length);
+    constexpr size_t kCrcSize = sizeof(crc);
+    constexpr size_t kHeaderSize = kLengthSize + kCrcSize;
+    constexpr size_t kMinRecordSize = kHeaderSize + kCrcSize;
 
-    std::memcpy(&length, raw_data, sizeof(length));
+    DALI_ENFORCE(record_size >= kMinRecordSize,
+      make_string("Error while parsing TFRecord file: ", tensor.GetSourceInfo(),
+                  " (record is too short: ", record_size, " bytes)."));
+
+    std::memcpy(&length, raw_data, kLengthSize);
+    const size_t payload_size = record_size - kHeaderSize - kCrcSize;
+    DALI_ENFORCE(length <= static_cast<uint64_t>(payload_size),
+      make_string("Error while parsing TFRecord file: ", tensor.GetSourceInfo(),
+                  " (record payload length: ", length, " bytes, available payload: ",
+                  payload_size, " bytes)."));
 
     // Omit length and crc
-    raw_data = raw_data + sizeof(length) + sizeof(crc);
+    raw_data = raw_data + kHeaderSize;
     DALI_ENFORCE(example.ParseFromArray(raw_data, length),
       make_string("Error while parsing TFRecord file: ", tensor.GetSourceInfo(),
                   " (raw data length: ", length, " bytes)."));
