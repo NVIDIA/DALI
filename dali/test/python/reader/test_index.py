@@ -238,6 +238,12 @@ def test_recordio_reader_rejects_oversized_label_data():
     _assert_malformed_recordio_fails(record, "label size: 4 bytes, available data: 0 bytes")
 
 
+def test_recordio_reader_rejects_wrong_segment_magic():
+    payload = _recordio_header()
+    record = _recordio_record(len(payload), payload, cflag=1) + struct.pack("<I", 0)
+    _assert_malformed_recordio_fails(record, "wrong segment magic number")
+
+
 def test_wrong_feature_shape():
     features = {
         "image/encoded": tfrec.FixedLenFeature((), tfrec.string, ""),

@@ -15,12 +15,14 @@
 #ifndef DALI_OPERATORS_READER_PARSER_RECORDIO_PARSER_H_
 #define DALI_OPERATORS_READER_PARSER_RECORDIO_PARSER_H_
 
+#include <cstddef>
 #include <cstring>
 #include <stdexcept>
 #include <string>
 #include <string_view>
 #include <vector>
 
+#include "dali/core/int_literals.h"
 #include "dali/operators/reader/parser/parser.h"
 
 namespace dali {
@@ -54,14 +56,13 @@ class RecordIOParser : public Parser<Tensor<CPUBackend>> {
     return rec & ((1U << 29U) - 1U);
   }
 
-  inline size_t RemainingBytes(const uint8_t* in, const uint8_t* end) {
-    return static_cast<size_t>(end - in);
-  }
-
   inline void CheckAvailable(const uint8_t* in, const uint8_t* end, size_t size,
                              std::string_view source_info, std::string_view context) {
-    size_t available = RemainingBytes(in, end);
-    if (size > available) {
+    std::ptrdiff_t available = end - in;
+    if (available < 0) {
+      throw std::out_of_range("Internal error: the input pointer is past the end of buffer.");
+    }
+    if (size > static_cast<size_t>(available)) {
       throw std::runtime_error(
         make_string("Invalid RecordIO file: ", source_info, " (", context, " requires ", size,
                     " bytes, but only ", available, " bytes are available)."));
@@ -69,7 +70,7 @@ class RecordIOParser : public Parser<Tensor<CPUBackend>> {
   }
 
   inline size_t PaddedLength(uint32_t length) {
-    return (static_cast<size_t>(length) + 3U) & ~static_cast<size_t>(3U);
+    return (length + 3) & ~3_uz;
   }
 
   inline void CopyBytes(void* out, const void* in, size_t size) {
