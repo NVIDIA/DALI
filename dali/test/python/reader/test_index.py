@@ -209,8 +209,8 @@ def _assert_malformed_recordio_fails(record, message):
         image, _ = fn.readers.mxnet(path=path, index_path=index_path)
         return image
 
-    pipe = malformed_recordio_pipe()
     try:
+        pipe = malformed_recordio_pipe()
         assert_raises(
             RuntimeError,
             pipe.run,

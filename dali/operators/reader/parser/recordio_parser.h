@@ -101,14 +101,13 @@ class RecordIOParser : public Parser<Tensor<CPUBackend>> {
     uint32_t cflag = DecodeFlag(length_flag);
     uint32_t clength = DecodeLength(length_flag);
     CheckAvailable(input, end, clength, source_info, "record payload");
-    ImageRecordIOHeader hdr;
-    ReadSingle(&input, end, &hdr, source_info, "record header");
-
     if (clength < sizeof(ImageRecordIOHeader)) {
       throw std::runtime_error(
         make_string("Invalid RecordIO file: ", source_info, " (record payload length: ", clength,
                     " bytes, minimum is ", sizeof(ImageRecordIOHeader), " bytes)."));
     }
+    ImageRecordIOHeader hdr;
+    ReadSingle(&input, end, &hdr, source_info, "record header");
 
     if (hdr.flag == 0) {
       o_label.Resize({1}, DALI_FLOAT);
@@ -152,7 +151,11 @@ class RecordIOParser : public Parser<Tensor<CPUBackend>> {
           break;
         }
         ReadSingle(&input, end, &magic, source_info, "segment magic number");
-        DALI_ENFORCE(magic == kMagic, "Invalid RecordIO: wrong magic number");
+        if (magic != kMagic) {
+          throw std::runtime_error(
+            make_string("Invalid RecordIO file: ", source_info,
+                        " (wrong segment magic number)."));
+        }
         ReadSingle(&input, end, &length_flag, source_info, "segment length flag");
         cflag = DecodeFlag(length_flag);
         clength = DecodeLength(length_flag);
