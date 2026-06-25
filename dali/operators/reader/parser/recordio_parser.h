@@ -18,6 +18,7 @@
 #include <cstring>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "dali/operators/reader/parser/parser.h"
@@ -58,7 +59,7 @@ class RecordIOParser : public Parser<Tensor<CPUBackend>> {
   }
 
   inline void CheckAvailable(const uint8_t* in, const uint8_t* end, size_t size,
-                             const string& source_info, const string& context) {
+                             std::string_view source_info, std::string_view context) {
     size_t available = RemainingBytes(in, end);
     if (size > available) {
       throw std::runtime_error(
@@ -78,8 +79,8 @@ class RecordIOParser : public Parser<Tensor<CPUBackend>> {
   }
 
   template <typename T>
-  void ReadSingle(const uint8_t** in, const uint8_t* end, T* out, const string& source_info,
-                  const string& context) {
+  void ReadSingle(const uint8_t** in, const uint8_t* end, T* out,
+                  std::string_view source_info, std::string_view context) {
     CheckAvailable(*in, end, sizeof(T), source_info, context);
     std::memcpy(out, *in, sizeof(T));
     *in += sizeof(T);
@@ -89,7 +90,7 @@ class RecordIOParser : public Parser<Tensor<CPUBackend>> {
                 Tensor<CPUBackend>& o_label,
                 const uint8_t* input,
                 size_t record_size,
-                const string& source_info) {
+                std::string_view source_info) {
     const uint8_t* end = input + record_size;
     uint32_t magic;
     const uint32_t kMagic = 0xced7230a;
