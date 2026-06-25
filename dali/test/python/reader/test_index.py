@@ -241,7 +241,9 @@ def _assert_malformed_tfrecord_fails(record, message):
 
 
 def test_tfrecord_reader_rejects_short_record():
-    _assert_malformed_tfrecord_fails(b"\x00" * 8, "record is too short: 8 bytes")
+    _assert_malformed_tfrecord_fails(
+        b"\x00" * 8, "record is too short: 8 bytes, minimum is 16 bytes"
+    )
 
 
 def test_tfrecord_reader_rejects_oversized_payload_length():
