@@ -19,20 +19,11 @@ FFMPEG_DIR=$1
 LDSOFLAGS=-Wl,-rpath,\''$$$$ORIGIN'\' \
 ./configure \
   --prefix=${FFMPEG_DIR} \
-  --enable-shared \
-  --enable-pic \
-  --enable-avformat \
-  --enable-avcodec \
-  --enable-avfilter \
-  --enable-avutil \
-  --enable-swresample \
-  --enable-protocol=file \
-  --enable-bsf=h264_mp4toannexb,hevc_mp4toannexb,mpeg4_unpack_bframes \
   --disable-static \
   --disable-programs \
   --disable-doc \
   --disable-avdevice \
-  --disable-postproc \
+  --disable-swresample \
   --disable-w32threads \
   --disable-os2threads \
   --disable-dwt \
@@ -42,16 +33,28 @@ LDSOFLAGS=-Wl,-rpath,\''$$$$ORIGIN'\' \
   --disable-pixelutils \
   --disable-autodetect \
   --disable-iconv \
+  --enable-shared \
+  --enable-avformat \
+  --enable-avcodec \
+  --enable-avfilter \
   --disable-encoders \
   --disable-hwaccels \
   --disable-muxers \
   --disable-protocols \
+  --enable-protocol=file \
   --disable-indevs \
-  --disable-outdevs \
+  --disable-outdevs  \
   --disable-devices \
   --disable-filters \
   --disable-bsfs \
-  --disable-decoder=ipu
+  --disable-decoder=ipu \
+  --disable-decoder=hevc \
+  --disable-decoder=h264 \
+  --disable-decoder=aac \
+  --disable-decoder=aac_fixed \
+  --disable-decoder=aac_latm \
+  --enable-bsf=h264_mp4toannexb,hevc_mp4toannexb,mpeg4_unpack_bframes \
+  --disable-lzma
 # adds | sed 's/\(.*{\)/DALI_\1/' | to the version file generation command - it prepends "DALI_" to the symbol version
 sed -i 's/\$\$(M)sed '\''s\/MAJOR\/\$(lib$(NAME)_VERSION_MAJOR)\/'\'' \$\$< | \$(VERSION_SCRIPT_POSTPROCESS_CMD) > \$\$\@/\$\$(M)sed '\''s\/MAJOR\/\$(lib$(NAME)_VERSION_MAJOR)\/'\'' \$\$< | sed '\''s\/\\(\.*{\\)\/DALI_\\1\/'\'' | \$(VERSION_SCRIPT_POSTPROCESS_CMD) > \$\$\@/' ffbuild/library.mak
 make -j install
