@@ -63,5 +63,17 @@ TEST(NumpyLoaderTest, ParseHeaderError) {
   }
 }
 
+TEST(NumpyLoaderTest, ParseHeaderDoesNotReadPastStringView) {
+  HeaderData target;
+  std::string header = "{'descr':'<f4','fortran_order':False,'shape':(";
+  std::string valid_suffix_outside_view = "1,),}";
+  std::string backing_storage = header + valid_suffix_outside_view;
+
+  EXPECT_THROW(
+      ParseHeaderContents(
+          target, std::string_view(backing_storage.data(), header.size())),
+      std::runtime_error);
+}
+
 }  // namespace numpy
 }  // namespace dali
