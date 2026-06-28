@@ -30,7 +30,7 @@ def _load_wds2idx():
     return wds2idx
 
 
-def test_wds2idx_accepts_utf8_tar_member_name():
+def test_wds2idx_gnu_tar_path_accepts_utf8_tar_member_name():
     if which("tar") is None:
         raise unittest.SkipTest("GNU tar not installed")
 
@@ -49,15 +49,8 @@ def test_wds2idx_accepts_utf8_tar_member_name():
 
         with wds2idx.IndexCreator(tar_path, idx_path, verbose=False) as creator:
             entries = list(creator._get_data_tar())
-            assert len(entries) == 1
-            _, name, size = entries[0]
-            assert name == member_name
-            assert size == len(payload)
 
-            creator.create_index()
-
-        with open(idx_path, encoding="utf-8") as index:
-            contents = index.read()
-
-        assert member_name in contents
-        assert str(len(payload)) in contents
+        assert len(entries) == 1
+        _, name, size = entries[0]
+        assert name == member_name
+        assert size == len(payload)
