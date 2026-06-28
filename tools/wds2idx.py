@@ -104,7 +104,7 @@ class IndexCreator:
             if not blocks_line or not types_sizes_line:
                 continue
 
-            name = str(blocks_line[blocks_line.find(b":") + 2 :], "ascii")
+            name = os.fsdecode(blocks_line[blocks_line.find(b":") + 2 :])
             entry_type = types_sizes_line[0:1]
 
             if entry_type != b"-":
@@ -117,9 +117,7 @@ class IndexCreator:
             # So the size of the header needs to be added to get the data offset
             offset = (offset + 1) * 512
 
-            size = types_sizes_line[: -len(name)]
-            size = size[: size.rfind(b"-") - 8]  # "... <size> 20yy-mm-...."
-            size = int(size[size.rfind(b" ") :])
+            size = int(types_sizes_line.split(maxsplit=5)[2])
 
             yield offset, name, size
 
