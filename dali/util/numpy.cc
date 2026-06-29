@@ -122,7 +122,8 @@ std::string ParseStringValue(const char*& input, char delim_start = '\'', char d
 
 void ParseHeaderContents(HeaderData& target, const std::string_view header) {
   target.shape = {};
-  const char* hdr = header.data();
+  std::string header_contents(header);
+  const char* hdr = header_contents.c_str();
   SkipSpaces(hdr);
   Skip(hdr, "{");
   SkipFieldName(hdr, "descr");
