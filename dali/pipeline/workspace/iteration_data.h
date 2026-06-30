@@ -97,6 +97,8 @@ class UnshareableData {
   }
 
   void Add(const void *base, size_t length) {
+    if (length == 0)
+      return;
     auto start = reinterpret_cast<uintptr_t>(base);
     auto end = start + length;
     auto it = end_start_.lower_bound(start);
