@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -30,9 +30,10 @@
 namespace dali {
 
 enum class MakeContiguousMode {
-  AlwaysCopy,    //! Always perform a copy.
-  PassThrough,   //! Never copy.
-  Opportunistic  //! If already contiguous, pass through; otherwise copy.
+  AlwaysCopy,       //! Always perform a copy.
+  PassThrough,      //! Never copy.
+  Opportunistic,    //! If already contiguous, pass through; otherwise copy.
+  PipelineOutput,   //! Opportunistic + check against iteration's UnshareableData
 };
 
 template<typename Backend>
@@ -48,21 +49,48 @@ class MakeContiguousBase : public StatelessOperator<Backend> {
 
   virtual inline ~MakeContiguousBase() = default;
 
+  template <typename InputBackend>
+  void SetPassthrough(const Workspace &ws, const TensorList<InputBackend> &input) {
+    bool is_contiguous = input.IsContiguousInMemory();
+    pass_through_ =
+      mode_ == MakeContiguousMode::PassThrough ||
+      ((mode_ == MakeContiguousMode::Opportunistic || mode_ == MakeContiguousMode::PipelineOutput)
+        && is_contiguous);
+    if (pass_through_ && mode_ == MakeContiguousMode::PipelineOutput) {
+      auto &unshareable = ws.GetIterationData()->unshareable_data;
+      auto lock = unshareable.Lock();
+      if (!unshareable.Empty()) {
+        if (is_contiguous) {
+          if (unshareable.Contains(input.raw_tensor(0)))
+            pass_through_ = false;
+        } else {
+          for (int i = 0; i < input.num_samples(); i++) {
+            if (unshareable.Contains(input.raw_tensor(i))) {
+              pass_through_ = false;
+              break;
+            }
+          }
+        }
+      }
+    }
+  }
+
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     output_desc.resize(1);
+    bool is_contiguous = false;
+
     if (ws.InputIsType<CPUBackend>(0)) {
       auto &input = ws.Input<CPUBackend>(0);
       output_desc[0].shape = input.shape();
       output_desc[0].type = input.type();
-      pass_through_ = mode_ == MakeContiguousMode::PassThrough ||
-                      (mode_ == MakeContiguousMode::Opportunistic && input.IsContiguousInMemory());
+      SetPassthrough(ws, input);
     } else {
       auto &input = ws.Input<GPUBackend>(0);
       output_desc[0].shape = input.shape();
       output_desc[0].type = input.type();
-      pass_through_ = mode_ == MakeContiguousMode::PassThrough ||
-                      (mode_ == MakeContiguousMode::Opportunistic && input.IsContiguousInMemory());
+      SetPassthrough(ws, input);
     }
+
     return !pass_through_;
   }
 

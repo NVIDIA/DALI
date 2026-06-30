@@ -1,4 +1,4 @@
-// Copyright (c) 2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2024-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -50,8 +50,16 @@ class ExecGraph::Analyzer {
 
   void SetMakeContiguousMode(ExecGraph &g) {
     for (auto &node : g.Nodes()) {
-      if (node.op)
+      if (node.op) {
         dali::SetMakeContiguousMode(*node.op, MakeContiguousMode::Opportunistic);
+      }
+    }
+    for (auto &node : g.Nodes()) {
+      if (node.is_pipeline_output) {
+        assert(node.inputs.size() == 1);
+        auto &op = *node.inputs[0]->producer->op;
+        dali::SetMakeContiguousMode(op, MakeContiguousMode::PipelineOutput);
+      }
     }
   }
 

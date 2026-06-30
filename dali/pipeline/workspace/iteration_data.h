@@ -1,4 +1,4 @@
-// Copyright (c) 2023-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2023-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,6 +15,7 @@
 #ifndef DALI_PIPELINE_WORKSPACE_ITERATION_DATA_H_
 #define DALI_PIPELINE_WORKSPACE_ITERATION_DATA_H_
 
+#include <cassert>
 #include <functional>
 #include <map>
 #include <memory>
@@ -84,6 +85,51 @@ class OperatorTraces {
   > map_;
 };
 
+/** Contains data ranges that must not be passed as-is to the pipeline output */
+class UnshareableData {
+ public:
+  auto Lock() const {
+    return std::unique_lock(m_);
+  }
+
+  bool Empty() const {
+    return end_start_.empty();
+  }
+
+  void Add(const void *base, size_t length) {
+    auto start = reinterpret_cast<uintptr_t>(base);
+    auto end = start + length;
+    auto it = end_start_.lower_bound(start);
+    if (it != end_start_.end()) {
+      if (it->first == start) {
+        // another block ends where this one starts - fuse and reinsert
+        start = it->second;  // extend
+        end_start_.erase(it);  // remove the old block - we'll re-insert it
+      } else if (it->second == end) {
+        // another block starts where this one ends - fuse and extend
+        it->second = start;
+        return;
+      }
+    }
+    bool inserted = end_start_.insert({end, start}).second;
+    (void)inserted;  // silence unused variable warning for release builds
+    assert(inserted);
+  }
+
+  bool Contains(const void *ptr) const {
+    auto x = reinterpret_cast<uintptr_t>(ptr);
+    auto it = end_start_.upper_bound(x);  // find the first block than ends after x
+    if (it == end_start_.end())  // no such block?
+      return false;
+    return it->second <= x;  // does the block start before x? If so, then x is covered.
+  }
+
+ private:
+  // Use _end_ pointer as the key to make direct use of upper_bound
+  std::map<uintptr_t, uintptr_t> end_start_;
+  mutable std::mutex m_;
+};
+
 /**
  * Contains the data of an iteration. This data is shared across all Workspaces that belong to
  * a single iteration.
@@ -102,6 +148,7 @@ struct IterationData {
 
   OperatorTraces operator_traces;
   std::shared_ptr<Checkpoint> checkpoint;
+  UnshareableData unshareable_data;
 };
 
 using SharedIterData = std::shared_ptr<IterationData>;
