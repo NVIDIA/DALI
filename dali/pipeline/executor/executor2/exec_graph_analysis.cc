@@ -49,7 +49,6 @@ class ExecGraph::Analyzer {
   }
 
   void SetMakeContiguousMode(ExecGraph &g) {
-    SmallVector<ExecNode *, 4> output_nodes;
     for (auto &node : g.Nodes()) {
       if (node.op) {
         dali::SetMakeContiguousMode(*node.op, MakeContiguousMode::Opportunistic);
