@@ -183,8 +183,8 @@ def test_operator_coco_reader_rejects_invalid_bbox_size(bbox):
         )
 
 
-@params(None, 123, True, {})
-def test_operator_coco_reader_rejects_non_string_filename(filename):
+@params((None, "null"), (123, "number"), (True, "boolean"), ({}, "object"))
+def test_operator_coco_reader_rejects_non_string_filename(filename, filename_type):
     annotations = {
         "images": [{"id": 1, "width": 640, "height": 480, "file_name": filename}],
         "categories": [],
@@ -198,9 +198,9 @@ def test_operator_coco_reader_rejects_non_string_filename(filename):
 
         pipe = coco_invalid_filename_pipe(annotations_file, annotations_dir)
         assert_raises(
-            RuntimeError,
+            ValueError,
             pipe.run,
-            glob="*Invalid COCO annotation: `file_name` must be a string*",
+            glob=f"*Invalid COCO annotation: `file_name` must be a string, got {filename_type}*",
         )
 
 

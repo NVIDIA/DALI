@@ -26,6 +26,26 @@
 namespace dali {
 namespace detail {
 
+const char *JsonTypeName(int type) {
+  switch (type) {
+    case rapidjson::kNullType:
+      return "null";
+    case rapidjson::kFalseType:
+    case rapidjson::kTrueType:
+      return "boolean";
+    case rapidjson::kObjectType:
+      return "object";
+    case rapidjson::kArrayType:
+      return "array";
+    case rapidjson::kStringType:
+      return "string";
+    case rapidjson::kNumberType:
+      return "number";
+    default:
+      return "unknown";
+  }
+}
+
 struct ImageInfo {
   std::string filename_;
   int original_id_;
@@ -235,8 +255,11 @@ void ParseImageInfo(LookaheadParser &parser, std::vector<ImageInfo> &image_infos
       } else if (0 == std::strcmp(internal_key, "height")) {
           image_info.height_ = parser.GetInt();
       } else if (0 == std::strcmp(internal_key, "file_name")) {
-          DALI_ENFORCE(parser.PeekType() == kStringType,
-                       "Invalid COCO annotation: `file_name` must be a string.");
+          if (parser.PeekType() != kStringType) {
+            throw std::invalid_argument(make_string(
+                "Invalid COCO annotation: `file_name` must be a string, got ",
+                JsonTypeName(parser.PeekType()), "."));
+          }
           image_info.filename_ = parser.GetString();
       } else {
         parser.SkipValue();
