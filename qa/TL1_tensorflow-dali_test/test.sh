@@ -77,7 +77,7 @@ do_once() {
     # Stream::platform_specific_handle() API so Horovod links against current TF.
     perl -0777 -i -pe 's{stream_executor::gpu::AsGpuStreamValue\(\s*device_context->stream\(\)\s*\)}{reinterpret_cast<gpuStream_t>(device_context->stream()->platform_specific_handle().stream)}g' horovod/tensorflow/mpi_ops.cc && \
     perl -0777 -i -pe 's{namespace stream_executor\s*\{\s*namespace gpu\s*\{\s*GpuStreamHandle AsGpuStreamValue\(Stream\*\s*stream\);\s*\}[^\n]*\n\s*\}[^\n]*\n}{}g' horovod/tensorflow/mpi_ops.cc && \
-    pip install . && cd .. && rm -rf horovod*
+    pip install --no-build-isolation . && cd .. && rm -rf horovod*
 
     for file in $(ls /data/imagenet/train-val-tfrecord-small);
     do

@@ -258,6 +258,9 @@ class BasePackage:
                 Cuda version used for this query
         """
         version = self.get_version(idx, cuda_version)
+        # empty version is any version
+        if len(str(version)) == 0:
+            return f"{self.get_name(cuda_version, idx)}"
         op = "" if str(version)[0] in ("<", ">", "=") else "=="
         pkg_cmd = f"{self.get_name(cuda_version, idx)}{op}{version}"
         deps_cmd = self.get_dependencies(cuda_version, idx)
@@ -647,6 +650,7 @@ all_packages = [
                     python_min_ver="3.10",
                     python_max_ver="3.13",
                     dependencies=["jaxlib"],
+                    constraints=["scipy==1.17.1"],
                 ),
             ],
             "130": [
@@ -655,6 +659,7 @@ all_packages = [
                     python_min_ver="3.11",
                     python_max_ver="3.14",
                     dependencies=["jaxlib"],
+                    constraints=["scipy==1.17.1"],
                 ),
             ],
         },
@@ -679,6 +684,46 @@ all_packages = [
                 "0.0.12",
                 # Free-threaded Python build is incompatible with numpy<2.
                 python_free_threaded=False,
+            ),
+        ],
+    ),
+    PlainPackage(
+        "scipy",
+        [
+            PckgVer(
+                "",
+                python_max_ver="3.12",
+            ),
+            # 1.17.1 is the latest version that supports Python 3.13t
+            PckgVer(
+                "1.17.1",
+                python_min_ver="3.13",
+                python_max_ver="3.13",
+                python_free_threaded=True,
+            ),
+            PckgVer(
+                "",
+                python_min_ver="3.14",
+            ),
+        ],
+    ),
+    PlainPackage(
+        "scikit-image",
+        [
+            PckgVer(
+                "",
+                python_max_ver="3.12",
+            ),
+            # 1.17.1 is the latest version that supports Python 3.13t
+            PckgVer(
+                "",
+                python_min_ver="3.13",
+                python_max_ver="3.13",
+                constraints=["scipy==1.17.1"],
+            ),
+            PckgVer(
+                "",
+                python_min_ver="3.14",
             ),
         ],
     ),
