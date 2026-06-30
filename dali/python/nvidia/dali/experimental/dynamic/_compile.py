@@ -14,15 +14,17 @@
 
 import dataclasses
 import enum
+import itertools
 import threading
 import types
 import warnings
-from collections.abc import Mapping, Sequence
+from abc import ABC, abstractmethod
+from collections.abc import Iterator, Mapping, Sequence
 from contextlib import contextmanager
-from typing import TYPE_CHECKING, Any, NamedTuple
+from typing import TYPE_CHECKING, Any, Generic, NamedTuple, Protocol, TypeVar
 
 import numpy as np
-import nvidia.dali.backend_impl as _b
+
 import nvidia.dali.types as dali_types
 from nvidia.dali import fn
 from nvidia.dali.pipeline import Pipeline
@@ -37,10 +39,10 @@ from ._call_site import (
 )
 from ._device import Device
 from ._nvtx import NVTXRange
-from ._tensor import Tensor, as_tensor
 
 if TYPE_CHECKING:
     from ._eval_context import EvalContext
+    from ._external_source import ExternalSource  # noqa: F401
     from ._ops import Operator, Reader
 
 
@@ -54,19 +56,27 @@ class State(enum.Enum):
     DISABLED = enum.auto()
 
 
-class CompileSource(NamedTuple):
-    """The reader root of the compile graph."""
+class SupportsCompile(Protocol):
+    """A class supporting being used as a source of a compile graph."""
+
+    _compiled_iter: "CompiledEpochIterator | None"
+
+    def _wire_pipeline(self, source: "CompileSource") -> tuple: ...
+    def _shape_result(self, source: "CompileSource", batches: tuple) -> Any: ...
+    def _transfer_into(self, pipe: Pipeline) -> bool: ...
+    def _make_epoch_iterator(self, batch_size: int) -> "CompiledEpochIterator": ...
+    def _teardown_compile(self) -> None: ...
+
+
+@dataclasses.dataclass(eq=False, slots=True)
+class CompileSource:
+    """A compile graph source: a transferred reader op or an external_source callback."""
 
     num_outputs: int
+    ctx: "CompileContext"
+    compilable: "SupportsCompile"  # the Reader or ExternalSource behind this source
     output_keys: tuple[str, ...] | None = None
-    device: str = "cpu"
-
-
-class CompileRef(NamedTuple):
-    """Reference to one output of a compile graph node."""
-
-    source: "CompileSource | CompileNode"
-    output_index: int
+    pipeline_output_offset: int | None = None
 
 
 @dataclasses.dataclass(eq=False)
@@ -75,12 +85,19 @@ class CompileNode:
 
     op_class: type["Operator"]
     backend: str
-    inputs: Sequence[CompileRef | Any]
-    kwargs: Mapping[str, CompileRef | Any]
+    inputs: Sequence["CompileRef | Any"]
+    kwargs: Mapping[str, "CompileRef | Any"]
     kwarg_casts: dict[str, dali_types.DALIDataType]
     num_outputs: int
     device: Device | None = None
     pipeline_output_offset: int | None = dataclasses.field(default=None, repr=False)
+
+
+class CompileRef(NamedTuple):
+    """Reference to one output of a compile graph node."""
+
+    owner: "CompileSource | CompileNode"
+    output_index: int
 
 
 class _CallTrie:
@@ -145,21 +162,22 @@ class CompiledBatch(Batch):
 
 
 class CompileContext:
-    """Manages compile state for one reader (TRACING → COMPILED or DISABLED)."""
+    """Manages the compile state (TRACING -> COMPILED or DISABLED)."""
 
     _tls = threading.local()
 
-    def __init__(self, reader: "Reader", batch_size: int):
+    def __init__(self, batch_size: int):
         self.state = State.TRACING
-        self.reader = reader
         self.batch_size = batch_size
-        self.source: CompileSource | None = None
+        self.sources: list[CompileSource] = []  # only sources[0] is iterated on
         self.nodes: list[CompileNode] = []
         self._call_trie = _CallTrie()
         self.pipeline: Pipeline | None = None
-        self._pipeline_results: dict[CompileNode, Any] = {}
+        self._results: dict[CompileSource | CompileNode, tuple[CompiledBatch, ...]] = {}
         self._iteration = 0
-        self._epoch_size_padded: int | None = None
+        self._read_this_step: set[CompileSource] = set()  # extra sources pulled this step
+        # Sources that raised StopIteration this step. The root's presence marks a clean epoch end.
+        self._stopped_sources: set[CompileSource] = set()
 
     @classmethod
     def current(cls) -> "CompileContext | None":
@@ -172,34 +190,64 @@ class CompileContext:
             return
         prev = getattr(CompileContext._tls, "current", None)
         if prev is not None and prev is not self:
-            raise RuntimeError(
-                "Multiple compiled readers active simultaneously is not supported. "
-                "Only one reader can use compile=True at a time."
-            )
+            raise RuntimeError("Only one compiled loop can be active at a time")
         CompileContext._tls.current = self
         try:
             yield
         finally:
             CompileContext._tls.current = prev
 
-    def init_source(
+    def check_batch_size(self, batch_size: int | None) -> None:
+        if batch_size is not None and batch_size != self.batch_size:
+            raise RuntimeError(
+                f"Cannot change batch size to {batch_size}, "
+                f"the compiled loop uses {self.batch_size}."
+            )
+
+    def add_source(
         self,
         num_outputs: int,
+        compilable: "SupportsCompile",
+        *,
         output_keys: tuple[str, ...] | None = None,
-        device: str = "cpu",
-    ) -> None:
-        if self.source is not None:
-            assert self.source.num_outputs == num_outputs
-            assert self.source.output_keys == output_keys
-            return
-        self.source = CompileSource(num_outputs, output_keys, device)
+    ) -> CompileSource:
+        """Register a graph source (sources[0] is registered first and iterated by the loop)"""
+        source = CompileSource(num_outputs, self, compilable, output_keys=output_keys)
+        self.sources.append(source)
+        return source
 
-    def make_source_batches(self, tensor_lists: Sequence[Any]) -> tuple[CompiledBatch, ...]:
-        assert self.source is not None
+    def _wrap_tensor_lists(
+        self,
+        source: CompileSource,
+        tensor_lists: Sequence,
+    ) -> tuple[CompiledBatch, ...]:
         return tuple(
-            CompiledBatch(tl, CompileRef(self.source, i), self._iteration)
+            CompiledBatch(tl, CompileRef(source, i), self._iteration)
             for i, tl in enumerate(tensor_lists)
         )
+
+    def _mark_read(self, source: CompileSource) -> None:
+        if source in self._read_this_step:
+            raise RuntimeError("An ExternalSource may be read only once per compiled step")
+        self._read_this_step.add(source)
+
+    def _mark_stopped(self, source: CompileSource) -> None:
+        self._stopped_sources.add(source)
+
+    def _reset_stop(self) -> None:
+        self._stopped_sources.clear()
+
+    def _require_consumed(self) -> None:
+        # the executor pulls every source each step, so a skipped one silently drops data
+        for source in self.sources[1:]:
+            if source not in self._read_this_step:
+                self._teardown()
+                raise RuntimeError("An ExternalSource was not consumed this step")
+
+    def _teardown(self) -> None:
+        self.state = State.DISABLED
+        for source in self.sources:
+            source.compilable._teardown_compile()
 
     @staticmethod
     def _compute_kwarg_casts(op: type["Operator"], raw_kwargs: Mapping[str, CompiledBatch | Any]):
@@ -260,13 +308,10 @@ class CompileContext:
                 "compile=True was specified but no operators were captured during tracing. "
                 "Falling back to dynamic mode.",
             )
-            self.state = State.DISABLED
+            self._teardown()
             return
 
         self._assign_output_offsets()
-
-        source = self.source
-        assert source is not None
 
         transferred = False
         try:
@@ -277,65 +322,60 @@ class CompileContext:
                 prefetch_queue_depth=2,
             )
             with pipe:
-                _wire_compile_graph(self.reader, source, self.nodes)
-            assert self.reader._op_backend is not None
-            pipe._transfer_operator(self.reader._name, self.reader._op_backend)
-            transferred = True
+                _wire_compile_graph(self.sources, self.nodes)
+            for source in self.sources:
+                transferred |= source.compilable._transfer_into(pipe)
             pipe.build()
         except Exception as exception:
-            self.nodes.clear()
-            self._call_trie = _CallTrie()
-            self._pipeline_results.clear()
-            self.source = None
-            self.state = State.DISABLED
-            # Reset Reader fields here, the exception propagates past the iterator
-            self.reader._compile_mode = None
-            self.reader._compiled_iter = None
-            # If there's a failure after _op_backend was transferred, we can't safely recover.
-            # Disable the reader. In practice, this case should be rare.
+            self._teardown()
+            # Only a transferred reader sets `transferred`; its op now belongs to the failed
+            # pipeline and cannot be recovered, so the reader is left disabled.
             if transferred:
-                self.reader._disabled = True
                 raise RuntimeError(
-                    "Failed to build pipeline after transferring operator. "
-                    "Reader is now in invalid state."
+                    "Failed to build pipeline. Reader is now in invalid state."
                 ) from exception
-
             raise
 
         self.pipeline = pipe
         self.state = State.COMPILED
 
-    def reader_epoch_size(self) -> int:
-        from ._ops import _shard_size
-
-        assert self.pipeline is not None
-        if self._epoch_size_padded is None:
-            metadata = self.pipeline.reader_meta(self.reader._name)
-            self._epoch_size_padded = metadata["epoch_size_padded"]
-        return _shard_size(self._epoch_size_padded, self.reader._shard_id, self.reader._num_shards)
-
     @_nvtx_range("Running compiled pipeline")
     def run_pipeline(self) -> tuple | dict:
-        """Run the compiled pipeline and cache all node results for this iteration."""
-        assert self.pipeline is not None and self.source is not None
+        """Run the pipeline, cache results, and return sources[0]'s output.
+
+        ``StopIteration`` propagates for the caller to classify (epoch end or underrun).
+        Any other failure invalidates the context.
+        """
+        assert self.pipeline is not None
         self._iteration += 1
-        pipeline_outputs = self.pipeline.run()
-        source_batches = tuple(
-            CompiledBatch(pipeline_outputs[i], CompileRef(self.source, i), self._iteration)
-            for i in range(self.source.num_outputs)
+        self._read_this_step.clear()
+        try:
+            pipeline_outputs = self.pipeline.run()
+        except StopIteration:
+            raise  # Propagate and let the caller classify
+        except Exception:
+            self._teardown()
+            raise
+        self._results.clear()
+        for owner in itertools.chain(self.sources, self.nodes):
+            self._results[owner] = self._wrap_outputs(owner, pipeline_outputs)
+        return self.result_for(self.sources[0])
+
+    def _wrap_outputs(
+        self, owner: "CompileSource | CompileNode", pipeline_outputs: Sequence
+    ) -> tuple[CompiledBatch, ...]:
+        offset = owner.pipeline_output_offset
+        assert offset is not None
+        return tuple(
+            CompiledBatch(pipeline_outputs[offset + i], CompileRef(owner, i), self._iteration)
+            for i in range(owner.num_outputs)
         )
-        self._pipeline_results.clear()
-        for node in self.nodes:
-            assert node.pipeline_output_offset is not None
-            offset = node.pipeline_output_offset
-            batches = tuple(
-                CompiledBatch(pipeline_outputs[offset + i], CompileRef(node, i), self._iteration)
-                for i in range(node.num_outputs)
-            )
-            self._pipeline_results[node] = batches[0] if node.num_outputs == 1 else batches
-        if self.source.output_keys is not None:
-            return dict(zip(self.source.output_keys, source_batches))
-        return source_batches
+
+    def result_for(self, owner: "CompileSource | CompileNode") -> Any:
+        batches = self._results[owner]
+        if isinstance(owner, CompileNode):
+            return batches[0] if owner.num_outputs == 1 else batches
+        return owner.compilable._shape_result(owner, batches)
 
     def _matches(self, actual: Any, expected: Any) -> bool:
         """Check if an actual value matches the expected traced value."""
@@ -380,51 +420,126 @@ class CompileContext:
             return None
         if not all(self._matches(kwargs[name], expected) for name, expected in node.kwargs.items()):
             return None
-        return self._pipeline_results.get(node)
+        if node not in self._results:
+            return None
+        return self.result_for(node)
 
     def _assign_output_offsets(self) -> None:
-        assert self.source is not None
-        offset = self.source.num_outputs
-        for node in self.nodes:
+        offset = 0
+        for node in itertools.chain(self.sources, self.nodes):
             node.pipeline_output_offset = offset
             offset += node.num_outputs
 
 
-class CompiledEpochIterator:
-    """Owns the compile lifecycle for one reader."""
+_Compilable = TypeVar("_Compilable", bound=SupportsCompile)
 
-    def __init__(self, reader: "Reader", batch_size: int):
-        self._reader = reader
-        self._compile_ctx = CompileContext(reader, batch_size)
-        self._ctx: "EvalContext | None" = None
+
+class CompiledEpochIterator(ABC, Generic[_Compilable]):
+    """Owns the compile lifecycle for one compilable source."""
+
+    def __init__(self, compilable: _Compilable, batch_size: int):
+        self._compilable = compilable
+        self._compile_ctx = CompileContext(batch_size)
+        self._eval_ctx: "EvalContext | None" = None
 
     @property
     def compile_context(self) -> CompileContext:
         return self._compile_ctx
 
-    def batches(self, ctx: "EvalContext | None"):
-        """Yield batches, tracing on first epoch, compiled thereafter."""
-        from . import _eval_context
-
-        reader = self._reader
-        reader._require_api_type("batches")
+    def batches(self, ctx: "EvalContext | None") -> Iterator[CompiledBatch]:
+        """Yield one epoch: tracing on the first, compiled thereafter."""
+        from ._eval_context import EvalContext
 
         if ctx is None:
-            ctx = _eval_context.EvalContext.current()
-        if self._ctx is not None and ctx is not self._ctx:
-            raise RuntimeError("Cannot change EvalContext for a compiled reader.")
-        self._ctx = ctx
-        with ctx:
-            if self._compile_ctx.state is State.COMPILED:
-                yield from self._batches_compiled()
-            else:
-                yield from self._batches_tracing(ctx)
-        reader._advance_shard()
+            ctx = EvalContext.current()
+        if self._eval_ctx is not None and ctx is not self._eval_ctx:
+            raise RuntimeError("Cannot change EvalContext for a compiled loop.")
+        self._eval_ctx = ctx
 
-    def _batches_tracing(self, ctx: "EvalContext"):
-        """First epoch: run dynamically, record graph, build pipeline."""
+        compiled = self._compile_ctx.state is State.COMPILED
+        with ctx:
+            yield from (self._compiled() if compiled else self._tracing(ctx))
+
+    def _next_batches(self) -> tuple | dict | None:
+        """Run one compiled step. Return the batches, or None at a clean epoch end."""
+        try:
+            return self._compile_ctx.run_pipeline()
+        except StopIteration:
+            if self._stop_is_epoch_end():
+                return None
+            self._compile_ctx._teardown()
+            raise RuntimeError("A source was exhausted before the iteration ended")
+
+    def _emit_step(self, batches):
+        ctx = self._compile_ctx
+        try:
+            with ctx.active():
+                yield batches
+        except GeneratorExit:
+            self._on_break()
+            raise
+        ctx._require_consumed()
+
+    @abstractmethod
+    def _tracing(self, ctx: "EvalContext") -> Iterator: ...
+
+    @abstractmethod
+    def _compiled(self) -> Iterator: ...
+
+    @abstractmethod
+    def _stop_is_epoch_end(self) -> bool: ...
+
+    @abstractmethod
+    def _on_break(self) -> None: ...
+
+
+class _ReaderEpochIterator(CompiledEpochIterator["Reader"]):
+    def __init__(self, compilable: "Reader", batch_size: int):
+        super().__init__(compilable, batch_size)
+        self._epoch_size_padded: int | None = None
+        self._resume_idx = 0  # batches already emitted during tracing, resumed by _compiled
+
+    def batches(self, ctx: "EvalContext | None"):
+        self._compilable._require_api_type("batches")
+        yield from super().batches(ctx)
+        self._compilable._advance_shard()
+
+    def _epoch_size(self) -> int:
+        from ._ops import _shard_size
+
+        reader = self._compilable
+        pipeline = self._compile_ctx.pipeline
+        assert pipeline is not None
+
+        if self._epoch_size_padded is None:
+            meta = pipeline.reader_meta(reader._name)
+            self._epoch_size_padded = meta["epoch_size_padded"]
+
+        return _shard_size(self._epoch_size_padded, reader._shard_id, reader._num_shards)
+
+    def _trace_step(self, ctx: "EvalContext", tensor_args: dict) -> tuple[Any, int]:
+        """Run one eager reader step, registering the source on first use.
+        Return (batches, batch_size).
+        """
+        reader = self._compilable
         compile_ctx = self._compile_ctx
-        reader = self._reader
+        outputs = reader._run_unchecked(ctx, batch_size=compile_ctx.batch_size, **tensor_args)
+
+        if isinstance(outputs, tuple):
+            output_keys, raw = None, outputs
+        else:
+            output_keys, raw = zip(*outputs.items())
+
+        if not compile_ctx.sources:
+            compile_ctx.add_source(len(raw), reader, output_keys=output_keys)
+
+        batches = compile_ctx._wrap_tensor_lists(compile_ctx.sources[0], raw)
+        result = batches if output_keys is None else dict(zip(output_keys, batches))
+        return result, reader._output_batch_size(outputs)
+
+    def _tracing(self, ctx: "EvalContext"):
+        compile_ctx = self._compile_ctx
+        reader = self._compilable
         batch_size = compile_ctx.batch_size
         tensor_args = reader._process_tensor_args(batch_size)
 
@@ -433,87 +548,107 @@ class CompiledEpochIterator:
             reader._init_backend(ctx, (), tensor_args)
 
         epoch_size = reader._shard_epoch_size()
-        idx = 0
-        first_iteration = True
-        while idx < epoch_size:
-            outputs = reader._run_unchecked(ctx, batch_size=batch_size, **tensor_args)
-            batch_size_returned = reader._output_batch_size(outputs)
-            idx += batch_size_returned
-            if isinstance(outputs, tuple):
-                raw = outputs
-                output_keys = None
-            else:
-                raw = tuple(outputs.values())
-                output_keys = tuple(outputs.keys())
-            # No reader returns multiple outputs on different devices
-            device = "gpu" if isinstance(raw[0], _b.TensorListGPU) else "cpu"
-            compile_ctx.init_source(len(raw), output_keys=output_keys, device=device)
-            batches = compile_ctx.make_source_batches(raw)
+        if epoch_size == 0:
+            return
+
+        value, idx = self._trace_step(ctx, tensor_args)  # step 0 records the graph
+        with compile_ctx.active():
+            yield value
+
+        compile_ctx.build_pipeline(ctx)
+        if compile_ctx.state is State.COMPILED:
+            self._resume_idx = idx
+            yield from self._compiled()
+            return
+
+        while idx < epoch_size:  # build disabled: finish the epoch eagerly
+            value, count = self._trace_step(ctx, tensor_args)
+            idx += count
             with compile_ctx.active():
-                if isinstance(outputs, tuple):
-                    yield batches
-                else:
-                    yield dict(zip(outputs.keys(), batches))
-            if first_iteration:
-                first_iteration = False
-                compile_ctx.build_pipeline(ctx)
-                if compile_ctx.state is State.COMPILED:
-                    yield from self._batches_compiled(start_idx=idx)
-                    return
-                if compile_ctx.state is State.DISABLED:
-                    reader._compile_mode = None
-                    reader._compiled_iter = None
+                yield value
 
-    def _batches_compiled(self, start_idx: int = 0):
-        """Subsequent epochs: yield from compiled pipeline."""
-        compile_ctx = self._compile_ctx
+    def _compiled(self):
+        self._compile_ctx._reset_stop()
+        epoch_size = self._epoch_size()
+        idx = self._resume_idx
+        self._resume_idx = 0
 
-        epoch_size = compile_ctx.reader_epoch_size()
-        idx = start_idx
         while idx < epoch_size:
-            batches = compile_ctx.run_pipeline()
-            idx += self._reader._output_batch_size(batches)
-            with compile_ctx.active():
-                yield batches
+            batches = self._next_batches()
+            assert batches is not None
+            idx += self._compilable._output_batch_size(batches)
+            yield from self._emit_step(batches)
+
+    def _stop_is_epoch_end(self) -> bool:
+        return False  # reader is count-bounded, a StopIteration means a feeder died
+
+    def _on_break(self):
+        # consumer aborted mid-step, extra sources already advanced, fail safe
+        if len(self._compile_ctx.sources) > 1:
+            self._compile_ctx._teardown()
 
 
-def _prepare_reader_arg(value: Any) -> Any:
-    if isinstance(value, (bool, int, float, str)):
-        return value
-    if isinstance(value, (Tensor, Batch)):
-        if value.device.device_type != "cpu":
-            raise ValueError("GPU arguments inputs are not supported")
-        # TODO(rtabet, DALI-4708): Classify scalar CPU Tensor args earlier to allow ScalarConstant.
-        return dali_types.Constant(np.asarray(as_tensor(value)), layout=value.layout, device="cpu")
-    return dali_types.Constant(value, device="cpu")
+class _ExternalSourceEpochIterator(CompiledEpochIterator["ExternalSource"]):
+    def _tracing(self, ctx: "EvalContext"):
+        es = self._compilable
+        try:
+            first = es._trace_pull(self._compile_ctx, self._compile_ctx.batch_size)
+        except StopIteration:
+            es._teardown_compile()  # empty source: leave the instance unbound and reusable
+            return
+
+        yield from self._emit_step(first)
+
+        self._compile_ctx.build_pipeline(ctx)
+        if self._compile_ctx.state is State.COMPILED:
+            yield from self._compiled()
+            return
+
+        assert self._compile_ctx.state is State.DISABLED
+        # first batch already yielded above; finish the epoch eagerly
+        while True:
+            try:
+                yield es._eager_call(batch_size=self._compile_ctx.batch_size)
+            except StopIteration:
+                return
+
+    def _compiled(self):
+        ctx = self._compile_ctx
+        ctx._reset_stop()
+        while (batches := self._next_batches()) is not None:
+            yield from self._emit_step(batches)
+        assert ctx.pipeline is not None
+        ctx.pipeline.reset()
+
+    def _stop_is_epoch_end(self) -> bool:
+        ctx = self._compile_ctx
+        return ctx.sources[0] in ctx._stopped_sources
+
+    def _on_break(self) -> None:
+        self._compile_ctx._teardown()
+
+
+def make_iterator(compilable: SupportsCompile, batch_size: int) -> CompiledEpochIterator:
+    """Return ``compilable._compiled_iter``, creating it or rejecting a batch_size change"""
+    if compilable._compiled_iter is None:
+        compilable._compiled_iter = compilable._make_epoch_iterator(batch_size)
+    elif compilable._compiled_iter.compile_context.batch_size != batch_size:
+        raise ValueError(
+            f"Cannot change batch_size from "
+            f"{compilable._compiled_iter.compile_context.batch_size} to {batch_size}"
+        )
+    return compilable._compiled_iter
 
 
 @_nvtx_range("Graph Wiring")
-def _wire_compile_graph(
-    reader: "Reader",
-    source: CompileSource,
-    nodes: Sequence[CompileNode],
-) -> None:
+def _wire_compile_graph(sources: Sequence[CompileSource], nodes: Sequence[CompileNode]) -> None:
     """Wire the compile graph into a Pipeline. Must be called inside ``with pipe:``."""
     from ._op_builder import _scalar_decay
 
-    reader_op = reader._legacy_op(name=reader._name, device=reader._backend, **reader._init_args)
-    reader_args = {
-        name: _prepare_reader_arg(value) for name, value in reader._original_tensor_args.items()
-    }
-    reader_out = reader_op(**reader_args)
-    if isinstance(reader_out, dict):
-        assert source.output_keys is not None
-        reader_outs = tuple(reader_out[k] for k in source.output_keys)
-    elif isinstance(reader_out, (tuple, list)):
-        reader_outs = tuple(reader_out)
-    else:
-        reader_outs = (reader_out,)
-    assert len(reader_outs) == source.num_outputs
-
     datanode_map: dict[CompileRef, Any] = {}
-    for i, out in enumerate(reader_outs):
-        datanode_map[CompileRef(source, i)] = out
+    for source in sources:
+        for i, out in enumerate(source.compilable._wire_pipeline(source)):
+            datanode_map[CompileRef(source, i)] = out
 
     for node in nodes:
         positional = [
@@ -542,8 +677,8 @@ def _wire_compile_graph(
             for i, o in enumerate(out):
                 datanode_map[CompileRef(node, i)] = o
 
-    outputs = [datanode_map[CompileRef(source, i)] for i in range(source.num_outputs)]
-    for node in nodes:
+    outputs = []
+    for node in itertools.chain(sources, nodes):
         outputs.extend(datanode_map[CompileRef(node, i)] for i in range(node.num_outputs))
     Pipeline.current().set_outputs(*outputs)
 
