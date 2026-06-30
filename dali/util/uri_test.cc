@@ -94,6 +94,56 @@ TEST(URI, Parse_7) {
   EXPECT_EQ("", uri.fragment());
 }
 
+TEST(URI, Parse_FragmentWithoutAuthority) {
+  auto uri = URI::Parse("urn:path#frag");
+  EXPECT_EQ("urn", uri.scheme());
+  EXPECT_EQ("", uri.authority());
+  EXPECT_EQ("path", uri.path());
+  EXPECT_EQ("", uri.query());
+  EXPECT_EQ("path", uri.path_and_query());
+  EXPECT_EQ("frag", uri.fragment());
+}
+
+TEST(URI, Parse_FragmentWithoutQuery) {
+  auto uri = URI::Parse("s3://bucket/path#fragment");
+  EXPECT_EQ("s3", uri.scheme());
+  EXPECT_EQ("bucket", uri.authority());
+  EXPECT_EQ("/path", uri.path());
+  EXPECT_EQ("", uri.query());
+  EXPECT_EQ("/path", uri.path_and_query());
+  EXPECT_EQ("fragment", uri.fragment());
+}
+
+TEST(URI, Parse_EmptyQueryWithFragment) {
+  auto uri = URI::Parse("s3://bucket/path?#fragment");
+  EXPECT_EQ("s3", uri.scheme());
+  EXPECT_EQ("bucket", uri.authority());
+  EXPECT_EQ("/path", uri.path());
+  EXPECT_EQ("", uri.query());
+  EXPECT_EQ("/path?", uri.path_and_query());
+  EXPECT_EQ("fragment", uri.fragment());
+}
+
+TEST(URI, Parse_EmptyPathWithFragment) {
+  auto uri = URI::Parse("s3://bucket#fragment");
+  EXPECT_EQ("s3", uri.scheme());
+  EXPECT_EQ("bucket", uri.authority());
+  EXPECT_EQ("", uri.path());
+  EXPECT_EQ("", uri.query());
+  EXPECT_EQ("", uri.path_and_query());
+  EXPECT_EQ("fragment", uri.fragment());
+}
+
+TEST(URI, Parse_EmptyPathWithQueryAndFragment) {
+  auto uri = URI::Parse("s3://bucket?query#fragment");
+  EXPECT_EQ("s3", uri.scheme());
+  EXPECT_EQ("bucket", uri.authority());
+  EXPECT_EQ("", uri.path());
+  EXPECT_EQ("query", uri.query());
+  EXPECT_EQ("?query", uri.path_and_query());
+  EXPECT_EQ("fragment", uri.fragment());
+}
+
 TEST(URI, Parse_Error1) {
   auto uri = URI::Parse(
     "telnet://192.  0.2.16:80/");
