@@ -67,7 +67,7 @@ class OperatorRegistry {
   std::unique_ptr<OpType> Create(
         std::string_view name,
         const OpSpec &spec,
-        std::optional<std::string_view> devName = {}) {
+        std::optional<std::string_view> device_name = {}) {
     std::lock_guard<std::mutex> lock(mutex_);
     auto it = registry_.find(name);
     std::string_view lookup_name = name;
@@ -85,7 +85,7 @@ class OperatorRegistry {
     }
     DALI_ENFORCE(it != registry_.end(), make_string(
         "Operator \"", name, "\" not registered",
-        (devName ? make_string(" for ", *devName) : ""),
+        (device_name ? make_string(" for ", *device_name) : ""),
         "."));
     return it->second(spec);
   }
@@ -116,8 +116,8 @@ class Registerer {
   Registerer(std::string name,
       OperatorRegistry<OpType> *registry,
       typename OperatorRegistry<OpType>::Creator creator,
-      std::string_view devName = "") {
-    registry->Register(std::move(name), std::move(creator), devName);
+      std::optional<std::string_view> device_name = {}) {
+    registry->Register(std::move(name), std::move(creator), device_name);
   }
 
   // Standard creator function used by all operators
