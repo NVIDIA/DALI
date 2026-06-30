@@ -7,11 +7,11 @@ This benchmark summarizes 3-Tier Evaluation from NVSkills-Eval results for the s
 ## Evaluation Summary
 
 - Skill: `dali-dynamic-mode`
-- Evaluation date: 2026-06-08
+- Evaluation date: 2026-06-30
 - NVSkills-Eval profile: `external`
 - Environment: `astra-sandbox`
-- Dataset: 24 evaluation tasks
-- Attempts per task: 2
+- Dataset: 12 evaluation tasks
+- Attempts per task: 1
 - Pass threshold: 50%
 - Overall verdict: PASS
 
@@ -42,40 +42,31 @@ Underlying evaluation signals used in this run:
 
 ## Test Tasks
 
-The benchmark included 24 recorded Tier 3 trials, but the source evaluation dataset was not available in this report payload.
+The benchmark included 12 recorded Tier 3 trials, but the source evaluation dataset was not available in this report payload.
 
 ## Results
 
 | Dimension | Num | `claude-code` | `codex` |
 |---|---:|---:|---:|
-| Security | 8 | 100% (+0%) | 100% (+0%) |
-| Correctness | 8 | 98% (+61%) | 86% (+31%) |
-| Discoverability | 8 | 97% (+84%) | 81% (+47%) |
-| Effectiveness | 8 | 77% (+45%) | 66% (+29%) |
-| Efficiency | 8 | 88% (+59%) | 76% (+41%) |
+| Security | 6 | 100% (+0%) | 100% (+0%) |
+| Correctness | 6 | 92% (+48%) | 81% (+27%) |
+| Discoverability | 6 | 98% (+85%) | 91% (+66%) |
+| Effectiveness | 6 | 85% (+45%) | 69% (+25%) |
+| Efficiency | 6 | 90% (+59%) | 88% (+54%) |
 
 Score values show skill-assisted performance. Values in parentheses show uplift versus the no-skill baseline when baseline data is available.
 
 ## Tier 1: Static Validation Summary
 
-Tier 1 validation passed. NVSkills-Eval ran 9 checks and found 0 total findings.
+Tier 1 validation passed. NVSkills-Eval ran 1 checks and found 0 total findings.
 
 Notable observations:
 
-- SECURITY: no findings reported.
 - SCHEMA: Found skill manifest: SKILL.md
-- VERSION: No semantic version label present; resource will use commit-hash history (opting back out of an existing label is allowed)
-- PII: Scanning 2 files for PII
-- LICENSE: no findings reported.
 
 ## Tier 2: Deduplication Summary
 
-Tier 2 validation passed. NVSkills-Eval ran 2 checks and found 0 total findings.
-
-Notable observations:
-
-- Context Deduplication: Collected 1 file(s)
-- Inter-Skill Deduplication: Parsed skill 'dali-dynamic-mode': 150 char description
+This tier was not run or did not produce findings in this report.
 
 ## Publication Recommendation
 
