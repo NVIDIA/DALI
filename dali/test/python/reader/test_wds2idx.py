@@ -30,7 +30,7 @@ def _load_wds2idx():
     return wds2idx
 
 
-def test_wds2idx_gnu_tar_path_accepts_utf8_tar_member_name():
+def test_wds2idx_gnu_tar_path_accepts_non_ascii_tar_member_name_with_spaces():
     if which("tar") is None:
         raise unittest.SkipTest("GNU tar not installed")
 
@@ -39,7 +39,7 @@ def test_wds2idx_gnu_tar_path_accepts_utf8_tar_member_name():
     with tempfile.TemporaryDirectory() as test_dir:
         tar_path = os.path.join(test_dir, "data.tar")
         idx_path = os.path.join(test_dir, "data.idx")
-        member_name = "imgé.jpg"
+        member_name = "my imgé file.jpg"
         payload = b"\xff\xd8\xff\xe0payload"
 
         with tarfile.open(tar_path, "w") as archive:
