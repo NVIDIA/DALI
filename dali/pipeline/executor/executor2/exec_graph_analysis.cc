@@ -58,9 +58,9 @@ class ExecGraph::Analyzer {
         assert(&g.Nodes().back() == &node && "Invalid graph: output node must come last");
         for (auto *inp : node.inputs) {
           auto &op = *inp->producer->op;
-          bool mode_set = dali::SetMakeContiguousMode(op, MakeContiguousMode::PipelineOutput);
-          (void)mode_set;  // silence an unused variable warning in release builds
-          assert(mode_set);
+          // If the output is not a MakeContiguous node (in regular pipelines it always is),
+          // there's nothing we can do.
+          dali::SetMakeContiguousMode(op, MakeContiguousMode::PipelineOutput);
         }
       }
     }
