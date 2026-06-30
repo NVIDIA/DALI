@@ -118,7 +118,7 @@ class UnshareableData {
 
   bool Contains(const void *ptr) const {
     auto x = reinterpret_cast<uintptr_t>(ptr);
-    auto it = end_start_.upper_bound(x);  // find the first block than ends after x
+    auto it = end_start_.upper_bound(x);  // find the first block that ends after x
     if (it == end_start_.end())  // no such block?
       return false;
     return it->second <= x;  // does the block start before x? If so, then x is covered.

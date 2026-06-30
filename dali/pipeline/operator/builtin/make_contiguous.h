@@ -60,24 +60,15 @@ class MakeContiguousBase : public StatelessOperator<Backend> {
       auto &unshareable = ws.GetIterationData()->unshareable_data;
       auto lock = unshareable.Lock();
       if (!unshareable.Empty()) {
-        if (is_contiguous) {
-          if (unshareable.Contains(input.raw_tensor(0)))
-            pass_through_ = false;
-        } else {
-          for (int i = 0; i < input.num_samples(); i++) {
-            if (unshareable.Contains(input.raw_tensor(i))) {
-              pass_through_ = false;
-              break;
-            }
-          }
-        }
+        assert(is_contiguous);
+        if (unshareable.Contains(input.raw_tensor(0)))
+          pass_through_ = false;
       }
     }
   }
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     output_desc.resize(1);
-    bool is_contiguous = false;
 
     if (ws.InputIsType<CPUBackend>(0)) {
       auto &input = ws.Input<CPUBackend>(0);

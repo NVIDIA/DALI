@@ -49,16 +49,19 @@ class ExecGraph::Analyzer {
   }
 
   void SetMakeContiguousMode(ExecGraph &g) {
+    SmallVector<ExecNode *, 4> output_nodes;
     for (auto &node : g.Nodes()) {
       if (node.op) {
         dali::SetMakeContiguousMode(*node.op, MakeContiguousMode::Opportunistic);
-      }
-    }
-    for (auto &node : g.Nodes()) {
-      if (node.is_pipeline_output) {
-        assert(node.inputs.size() == 1);
-        auto &op = *node.inputs[0]->producer->op;
-        dali::SetMakeContiguousMode(op, MakeContiguousMode::PipelineOutput);
+      } else if (node.is_pipeline_output) {
+        // output node always comes last
+        assert(&g.Nodes().back() == &node && "Invalid graph: output node must come last");
+        for (auto *inp : node.inputs) {
+          auto &op = *inp->producer->op;
+          bool mode_set = dali::SetMakeContiguousMode(op, MakeContiguousMode::PipelineOutput);
+          (void)mode_set;  // silence an unused variable warning in release builds
+          assert(mode_set);
+        }
       }
     }
   }
