@@ -235,6 +235,8 @@ void ParseImageInfo(LookaheadParser &parser, std::vector<ImageInfo> &image_infos
       } else if (0 == std::strcmp(internal_key, "height")) {
           image_info.height_ = parser.GetInt();
       } else if (0 == std::strcmp(internal_key, "file_name")) {
+          DALI_ENFORCE(parser.PeekType() == kStringType,
+                       "Invalid COCO annotation: `file_name` must be a string.");
           image_info.filename_ = parser.GetString();
       } else {
         parser.SkipValue();
