@@ -130,16 +130,7 @@ def test_operator_coco_reader_label_remap(avoid_remap):
 
 
 @pipeline_def(batch_size=1, num_threads=1, device_id=None)
-def coco_invalid_bbox_pipe(annotations_file):
-    inputs, boxes, labels = fn.readers.coco(
-        file_root=file_root,
-        annotations_file=annotations_file,
-    )
-    return inputs, boxes, labels
-
-
-@pipeline_def(batch_size=1, num_threads=1, device_id=None)
-def coco_invalid_filename_pipe(annotations_file, file_root):
+def coco_invalid_annotations_pipe(annotations_file, file_root):
     inputs, boxes, labels = fn.readers.coco(
         file_root=file_root,
         annotations_file=annotations_file,
@@ -175,7 +166,7 @@ def test_operator_coco_reader_rejects_invalid_bbox_size(bbox):
         with open(annotations_file, "w") as f:
             json.dump(annotations, f)
 
-        pipe = coco_invalid_bbox_pipe(annotations_file)
+        pipe = coco_invalid_annotations_pipe(annotations_file, file_root)
         assert_raises(
             ValueError,
             pipe.run,
@@ -183,7 +174,7 @@ def test_operator_coco_reader_rejects_invalid_bbox_size(bbox):
         )
 
 
-@params((None, "null"), (123, "number"), (True, "boolean"), ({}, "object"))
+@params((None, "null"), (123, "number"), (True, "boolean"), ({}, "object"), ([], "array"))
 def test_operator_coco_reader_rejects_non_string_filename(filename, filename_type):
     annotations = {
         "images": [{"id": 1, "width": 640, "height": 480, "file_name": filename}],
@@ -196,7 +187,7 @@ def test_operator_coco_reader_rejects_non_string_filename(filename, filename_typ
         with open(annotations_file, "w") as f:
             json.dump(annotations, f)
 
-        pipe = coco_invalid_filename_pipe(annotations_file, annotations_dir)
+        pipe = coco_invalid_annotations_pipe(annotations_file, annotations_dir)
         assert_raises(
             ValueError,
             pipe.run,
