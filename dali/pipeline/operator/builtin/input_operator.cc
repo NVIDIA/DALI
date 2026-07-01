@@ -60,7 +60,7 @@ bool InputOperator<CPUBackend>::ForwardCurrentData(TensorList<CPUBackend> &targe
   }
   target_data_id = std::move(tensor_list_elm->data_id);
   tensor_list_elm->data_id = std::nullopt;
-  bool copied = false;
+  bool copied = tensor_list_elm->copy_performed;
   // if the output is pinned and input not it needs to be copied
   if (target.is_pinned() && !tensor_list_elm->data.is_pinned()) {
     const auto &shapes = tensor_list_elm->data.shape();
@@ -84,7 +84,6 @@ bool InputOperator<CPUBackend>::ForwardCurrentData(TensorList<CPUBackend> &targe
   } else {
     // swap output with tensor_list_elm content
     std::swap(target, tensor_list_elm->data);
-    copied = false;
   }
   RecycleBuffer(std::move(tensor_list_elm));
   return copied;
@@ -101,6 +100,7 @@ bool InputOperator<GPUBackend>::ForwardCurrentData(TensorList<GPUBackend> &targe
     tensor_list_elm = tl_data_.PopFront();
   }
 
+  bool copied = tensor_list_elm->copy_performed;
   if (tensor_list_elm->copy_complete) {
     CUDA_CALL(cudaStreamWaitEvent(stream, tensor_list_elm->copy_complete));
   }
@@ -114,7 +114,7 @@ bool InputOperator<GPUBackend>::ForwardCurrentData(TensorList<GPUBackend> &targe
 
   RecycleBuffer(std::move(tensor_list_elm));
 
-  return false;
+  return copied;
 }
 
 
@@ -151,7 +151,7 @@ bool InputOperator<MixedBackend>::ForwardCurrentData(TensorList<CPUBackend> &tar
   }
   target_data_id = std::move(tensor_list_elm->data_id);
   tensor_list_elm->data_id = std::nullopt;
-  bool copied = false;
+  bool copied = tensor_list_elm->copy_performed;
   // if the output is pinned and input not it needs to be copied
   if (target.is_pinned() && !tensor_list_elm->data.is_pinned()) {
     const auto &shapes = tensor_list_elm->data.shape();
@@ -175,7 +175,6 @@ bool InputOperator<MixedBackend>::ForwardCurrentData(TensorList<CPUBackend> &tar
   } else {
     // swap output with tensor_list_elm content
     std::swap(target, tensor_list_elm->data);
-    copied = false;
   }
   RecycleBuffer(std::move(tensor_list_elm));
   return copied;
