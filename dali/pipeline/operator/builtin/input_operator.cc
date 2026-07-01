@@ -50,7 +50,7 @@ and bandwidth.
 
 
 template<>
-void InputOperator<CPUBackend>::ForwardCurrentData(TensorList<CPUBackend> &target,
+bool InputOperator<CPUBackend>::ForwardCurrentData(TensorList<CPUBackend> &target,
                                                    std::optional<std::string> &target_data_id,
                                                    ThreadPool &thread_pool) {
   queue_item_t tensor_list_elm;
@@ -60,6 +60,7 @@ void InputOperator<CPUBackend>::ForwardCurrentData(TensorList<CPUBackend> &targe
   }
   target_data_id = std::move(tensor_list_elm->data_id);
   tensor_list_elm->data_id = std::nullopt;
+  bool copied = tensor_list_elm->copy_performed;
   // if the output is pinned and input not it needs to be copied
   if (target.is_pinned() && !tensor_list_elm->data.is_pinned()) {
     const auto &shapes = tensor_list_elm->data.shape();
@@ -79,16 +80,18 @@ void InputOperator<CPUBackend>::ForwardCurrentData(TensorList<CPUBackend> &targe
               shapes.tensor_size(sample_id));
     }
     thread_pool.RunAll();
+    copied = true;
   } else {
     // swap output with tensor_list_elm content
     std::swap(target, tensor_list_elm->data);
   }
   RecycleBuffer(std::move(tensor_list_elm));
+  return copied;
 }
 
 
 template<>
-void InputOperator<GPUBackend>::ForwardCurrentData(TensorList<GPUBackend> &target,
+bool InputOperator<GPUBackend>::ForwardCurrentData(TensorList<GPUBackend> &target,
                                                    std::optional<std::string> &target_data_id,
                                                    cudaStream_t stream) {
   queue_item_t tensor_list_elm;
@@ -97,6 +100,7 @@ void InputOperator<GPUBackend>::ForwardCurrentData(TensorList<GPUBackend> &targe
     tensor_list_elm = tl_data_.PopFront();
   }
 
+  bool copied = tensor_list_elm->copy_performed;
   if (tensor_list_elm->copy_complete) {
     CUDA_CALL(cudaStreamWaitEvent(stream, tensor_list_elm->copy_complete));
   }
@@ -109,11 +113,13 @@ void InputOperator<GPUBackend>::ForwardCurrentData(TensorList<GPUBackend> &targe
   tensor_list_elm->data.set_order(internal_copy_order_);
 
   RecycleBuffer(std::move(tensor_list_elm));
+
+  return copied;
 }
 
 
 template<>
-void InputOperator<MixedBackend>::ForwardCurrentData(TensorList<GPUBackend> &target,
+bool InputOperator<MixedBackend>::ForwardCurrentData(TensorList<GPUBackend> &target,
                                                      std::optional<std::string> &target_data_id,
                                                      cudaStream_t stream) {
   queue_item_t tensor_list_elm;
@@ -129,11 +135,13 @@ void InputOperator<MixedBackend>::ForwardCurrentData(TensorList<GPUBackend> &tar
   tensor_list_elm->data.set_order(internal_copy_order_);
 
   RecycleBuffer(std::move(tensor_list_elm));
+
+  return true;
 }
 
 
 template<>
-void InputOperator<MixedBackend>::ForwardCurrentData(TensorList<CPUBackend> &target,
+bool InputOperator<MixedBackend>::ForwardCurrentData(TensorList<CPUBackend> &target,
                                                      std::optional<std::string> &target_data_id,
                                                      ThreadPool &thread_pool) {
   queue_item_t tensor_list_elm;
@@ -143,6 +151,7 @@ void InputOperator<MixedBackend>::ForwardCurrentData(TensorList<CPUBackend> &tar
   }
   target_data_id = std::move(tensor_list_elm->data_id);
   tensor_list_elm->data_id = std::nullopt;
+  bool copied = tensor_list_elm->copy_performed;
   // if the output is pinned and input not it needs to be copied
   if (target.is_pinned() && !tensor_list_elm->data.is_pinned()) {
     const auto &shapes = tensor_list_elm->data.shape();
@@ -162,11 +171,13 @@ void InputOperator<MixedBackend>::ForwardCurrentData(TensorList<CPUBackend> &tar
               shapes.tensor_size(sample_id));
     }
     thread_pool.RunAll();
+    copied = true;
   } else {
     // swap output with tensor_list_elm content
     std::swap(target, tensor_list_elm->data);
   }
   RecycleBuffer(std::move(tensor_list_elm));
+  return copied;
 }
 
 

@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -467,6 +467,78 @@ class TestVsNonParallel:
                 s = seq.at(j)
                 p = par.at(j)
                 assert np.array_equal(s, p)
+
+
+class ArangeSampleCallback:
+    """Per-sample callback returning a unique, fully-populated vector.
+
+    Every sample holds a distinct ``arange`` so that any byte read back from a
+    recycled shared-memory buffer (one a worker reused for a later sample)
+    shows up as a value mismatch.
+    """
+
+    def __init__(self, sample_len, epoch_size):
+        self.sample_len = sample_len
+        self.epoch_size = epoch_size
+
+    def __call__(self, sample_info):
+        idx = sample_info.idx_in_epoch
+        if idx >= self.epoch_size:
+            raise StopIteration
+        return np.arange(idx, idx + self.sample_len, dtype=np.float32)
+
+
+class TestParallelOutputNotRecycled:
+    """Regression test for https://github.com/NVIDIA/DALI/issues/6027.
+
+    In parallel mode ``ExternalSource`` may forward a worker's shared-memory
+    buffer straight to the pipeline output without copying it. The worker is
+    then free to recycle that buffer for a later sample. When the pipeline
+    output aliases the buffer, outputs the user still holds get silently
+    overwritten with unrelated (or garbage) data. The fix tags such buffers as
+    "unshareable" so the pipeline-output ``MakeContiguous`` copies them instead
+    of passing them through.
+
+    The single-sample batch keeps the external source output contiguous, which
+    is the case that triggers the pass-through. Outputs are kept alive without
+    copying and only verified after the whole epoch has run, by which point a
+    recycled buffer would already have been clobbered.
+    """
+
+    def setUp(self):
+        setup_function()
+
+    def tearDown(self):
+        teardown_function()
+
+    @params(1, 4)
+    def test_output_not_recycled(self, num_workers):
+        sample_len = 1536
+        epoch_size = 32
+        pipe = utils.create_pipe(
+            ArangeSampleCallback(sample_len, epoch_size),
+            "cpu",
+            batch_size=1,
+            py_num_workers=num_workers,
+            py_start_method="spawn",
+            parallel=True,
+            device_id=0,
+            batch=False,
+            num_threads=1,
+        )
+        pipe.build()
+        capture_processes(pipe._py_pool)
+        # Hold references to every output without copying the data out. If the
+        # output aliases a worker's shared-memory buffer, running the whole
+        # epoch recycles that buffer and corrupts the earlier outputs.
+        outs = [pipe.run() for _ in range(epoch_size)]
+        for idx, (batch,) in enumerate(outs):
+            assert len(batch) == 1, f"Unexpected batch size at iteration {idx}: {len(batch)}"
+            np.testing.assert_array_equal(
+                np.array(batch[0]),
+                np.arange(idx, idx + sample_len, dtype=np.float32),
+                err_msg=f"Output of iteration {idx} was corrupted by buffer recycling.",
+            )
 
 
 def generator_epoch_size_1():

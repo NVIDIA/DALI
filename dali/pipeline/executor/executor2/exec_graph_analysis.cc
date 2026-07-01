@@ -1,4 +1,4 @@
-// Copyright (c) 2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2024-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -50,8 +50,18 @@ class ExecGraph::Analyzer {
 
   void SetMakeContiguousMode(ExecGraph &g) {
     for (auto &node : g.Nodes()) {
-      if (node.op)
+      if (node.op) {
         dali::SetMakeContiguousMode(*node.op, MakeContiguousMode::Opportunistic);
+      } else if (node.is_pipeline_output) {
+        // output node always comes last
+        assert(&g.Nodes().back() == &node && "Invalid graph: output node must come last");
+        for (auto *inp : node.inputs) {
+          auto &op = *inp->producer->op;
+          // If the output is not a MakeContiguous node (in regular pipelines it always is),
+          // there's nothing we can do.
+          dali::SetMakeContiguousMode(op, MakeContiguousMode::PipelineOutput);
+        }
+      }
     }
   }
 

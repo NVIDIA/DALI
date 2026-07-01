@@ -336,14 +336,10 @@ class DLL_PUBLIC ExecGraph {
 
   ExecNode *AddOutputNode() {
     Invalidate();
+    if (!nodes_.empty() && nodes_.back().is_pipeline_output)
+      throw std::logic_error("The graph already has an output node.");
     ExecNode *node = &nodes_.emplace_back(PipelineOutputTag());
-    if (!node->instance_name.empty()) {
-      if (!name2node_.emplace(node->instance_name, node).second) {
-        nodes_.pop_back();
-        throw std::invalid_argument(
-            make_string("Duplicate node name: \"", node->instance_name, "\""));
-      }
-    }
+
     return node;
   }
 
