@@ -130,7 +130,7 @@ def test_operator_coco_reader_label_remap(avoid_remap):
 
 
 @pipeline_def(batch_size=1, num_threads=1, device_id=None)
-def coco_invalid_bbox_pipe(annotations_file):
+def coco_invalid_annotations_pipe(annotations_file, file_root):
     inputs, boxes, labels = fn.readers.coco(
         file_root=file_root,
         annotations_file=annotations_file,
@@ -166,11 +166,32 @@ def test_operator_coco_reader_rejects_invalid_bbox_size(bbox):
         with open(annotations_file, "w") as f:
             json.dump(annotations, f)
 
-        pipe = coco_invalid_bbox_pipe(annotations_file)
+        pipe = coco_invalid_annotations_pipe(annotations_file, file_root)
         assert_raises(
             ValueError,
             pipe.run,
             glob="*Invalid COCO annotation: `bbox` must contain exactly 4 values*",
+        )
+
+
+@params((None, "null"), (123, "number"), (True, "boolean"), ({}, "object"), ([], "array"))
+def test_operator_coco_reader_rejects_non_string_filename(filename, filename_type):
+    annotations = {
+        "images": [{"id": 1, "width": 640, "height": 480, "file_name": filename}],
+        "categories": [],
+        "annotations": [],
+    }
+
+    with tempfile.TemporaryDirectory() as annotations_dir:
+        annotations_file = os.path.join(annotations_dir, "instances.json")
+        with open(annotations_file, "w") as f:
+            json.dump(annotations, f)
+
+        pipe = coco_invalid_annotations_pipe(annotations_file, annotations_dir)
+        assert_raises(
+            ValueError,
+            pipe.run,
+            glob=f"*Invalid COCO annotation: `file_name` must be a string, got {filename_type}*",
         )
 
 
