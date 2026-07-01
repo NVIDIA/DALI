@@ -49,24 +49,6 @@ class MakeContiguousBase : public StatelessOperator<Backend> {
 
   virtual inline ~MakeContiguousBase() = default;
 
-  template <typename InputBackend>
-  void SetPassthrough(const Workspace &ws, const TensorList<InputBackend> &input) {
-    bool is_contiguous = input.IsContiguousInMemory();
-    pass_through_ =
-      mode_ == MakeContiguousMode::PassThrough ||
-      ((mode_ == MakeContiguousMode::Opportunistic || mode_ == MakeContiguousMode::PipelineOutput)
-        && is_contiguous);
-    if (pass_through_ && mode_ == MakeContiguousMode::PipelineOutput) {
-      auto &unshareable = ws.GetIterationData()->unshareable_data;
-      auto lock = unshareable.Lock();
-      if (!unshareable.Empty()) {
-        assert(is_contiguous);
-        if (unshareable.Contains(input.raw_tensor(0)))
-          pass_through_ = false;
-      }
-    }
-  }
-
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     output_desc.resize(1);
 
@@ -123,6 +105,25 @@ class MakeContiguousBase : public StatelessOperator<Backend> {
   bool pass_through_ = false;
   int bytes_per_sample_hint = 0;
   MakeContiguousMode mode_ = MakeContiguousMode::AlwaysCopy;
+
+ private:
+  template <typename InputBackend>
+  void SetPassthrough(const Workspace &ws, const TensorList<InputBackend> &input) {
+    bool is_contiguous = input.IsContiguousInMemory();
+    pass_through_ =
+      mode_ == MakeContiguousMode::PassThrough ||
+      ((mode_ == MakeContiguousMode::Opportunistic || mode_ == MakeContiguousMode::PipelineOutput)
+        && is_contiguous);
+    if (pass_through_ && mode_ == MakeContiguousMode::PipelineOutput) {
+      auto &unshareable = ws.GetIterationData()->unshareable_data;
+      auto lock = unshareable.Lock();
+      if (!unshareable.Empty()) {
+        assert(is_contiguous);
+        if (unshareable.Contains(input.raw_tensor(0)))
+          pass_through_ = false;
+      }
+    }
+  }
 };
 
 
