@@ -1,0 +1,61 @@
+ARG TOOLKIT_BASE_IMAGE=ubuntu:24.04
+FROM ${TOOLKIT_BASE_IMAGE} AS cuda
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN CUDA_SUBVERSION=13.4.0-1 && \
+    CUFILE_VERSION=1.19.0.95-1 && \
+    CUDA_VERSION_MAJOR=13 && \
+    CUDA_VERSION_MINOR=4 && \
+    apt-get update && \
+    apt-get install wget software-properties-common -y && \
+    apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/sbsa/3bf863cc.pub && \
+    add-apt-repository "deb https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/sbsa/ /" && \
+    apt-get update && \
+    apt install -y \
+        cuda-minimal-build-${CUDA_VERSION_MAJOR}-${CUDA_VERSION_MINOR}=${CUDA_SUBVERSION} \
+        cuda-nvdisasm-${CUDA_VERSION_MAJOR}-${CUDA_VERSION_MINOR} \
+        cuda-nvml-dev-${CUDA_VERSION_MAJOR}-${CUDA_VERSION_MINOR} \
+        cuda-nvtx-${CUDA_VERSION_MAJOR}-${CUDA_VERSION_MINOR} \
+        libcurand-${CUDA_VERSION_MAJOR}-${CUDA_VERSION_MINOR} \
+        libcurand-dev-${CUDA_VERSION_MAJOR}-${CUDA_VERSION_MINOR} \
+        libnpp-${CUDA_VERSION_MAJOR}-${CUDA_VERSION_MINOR} \
+        libnpp-dev-${CUDA_VERSION_MAJOR}-${CUDA_VERSION_MINOR} \
+        libnvjpeg-${CUDA_VERSION_MAJOR}-${CUDA_VERSION_MINOR} \
+        libnvjpeg-dev-${CUDA_VERSION_MAJOR}-${CUDA_VERSION_MINOR} \
+        libcufft-${CUDA_VERSION_MAJOR}-${CUDA_VERSION_MINOR} \
+        libcufft-dev-${CUDA_VERSION_MAJOR}-${CUDA_VERSION_MINOR} \
+        libcusolver-dev-${CUDA_VERSION_MAJOR}-${CUDA_VERSION_MINOR} \
+        libcublas-dev-${CUDA_VERSION_MAJOR}-${CUDA_VERSION_MINOR} \
+        cuda-compat-${CUDA_VERSION_MAJOR}-${CUDA_VERSION_MINOR} \
+        libcufile-dev-${CUDA_VERSION_MAJOR}-${CUDA_VERSION_MINOR}=${CUFILE_VERSION} && \
+    mkdir /tmp/nvcomp && cd /tmp/nvcomp && \
+    wget https://developer.download.nvidia.com/compute/nvcomp/redist/nvcomp/linux-sbsa/nvcomp-linux-sbsa-5.2.0.10_cuda13-archive.tar.xz && \
+    tar -xf * && \
+    cp -r nvcomp-linux-sbsa-5.2.0.10_cuda13-archive/include/* /usr/local/cuda/include/ && \
+    cp -r nvcomp-linux-sbsa-5.2.0.10_cuda13-archive/lib/* /usr/local/cuda/lib64/ && \
+    cd / && rm -rf /tmp/nvcomp && \
+    mv /usr/local/cuda/bin/fatbinary /usr/local/cuda/bin/fatbinary_org && \
+    echo '#!/bin/bash' > /usr/local/cuda/bin/fatbinary && \
+    echo 'real_fatbinary=$(which fatbinary_org || which fatbinary)' >> /usr/local/cuda/bin/fatbinary && \
+    echo 'if [ -z "$real_fatbinary" ]; then' >> /usr/local/cuda/bin/fatbinary && \
+    echo '    echo "Error: Could not find real fatbinary executable" >&2' >> /usr/local/cuda/bin/fatbinary && \
+    echo '    exit 1' >> /usr/local/cuda/bin/fatbinary && \
+    echo 'fi' >> /usr/local/cuda/bin/fatbinary && \
+    echo 'args=()' >> /usr/local/cuda/bin/fatbinary && \
+    echo 'while [ $# -gt 0 ]; do' >> /usr/local/cuda/bin/fatbinary && \
+    echo '    case "$1" in' >> /usr/local/cuda/bin/fatbinary && \
+    echo '        --image=*)' >> /usr/local/cuda/bin/fatbinary && \
+    echo '            specs=$1' >> /usr/local/cuda/bin/fatbinary && \
+    echo '            new_spec=$(echo "$specs" | sed "s/image=/image3=/g" | sed "s/profile=sm_/kind=elf,sm=/g")' >> /usr/local/cuda/bin/fatbinary && \
+    echo '            args+=("${new_spec[@]}")' >> /usr/local/cuda/bin/fatbinary && \
+    echo '            ;;' >> /usr/local/cuda/bin/fatbinary && \
+    echo '        *)' >> /usr/local/cuda/bin/fatbinary && \
+    echo '            args+=("$1")' >> /usr/local/cuda/bin/fatbinary && \
+    echo '            ;;' >> /usr/local/cuda/bin/fatbinary && \
+    echo '    esac' >> /usr/local/cuda/bin/fatbinary && \
+    echo '    shift' >> /usr/local/cuda/bin/fatbinary && \
+    echo 'done' >> /usr/local/cuda/bin/fatbinary && \
+    echo 'exec "$real_fatbinary" "${args[@]}"' >> /usr/local/cuda/bin/fatbinary && \
+    chmod a+x /usr/local/cuda/bin/fatbinary && \
+    rm -rf /var/lib/apt/lists/*
