@@ -147,7 +147,7 @@ class ExternalSource:
         if num_outputs <= 0:
             raise ValueError("num_outputs must be strictly positive")
         self._num_outputs = num_outputs
-        self._device = _as_device(device)
+        self._device = device
         self._layouts = self._broadcast_arg(layout)
         self._dtypes = self._broadcast_arg(dtype)
 
@@ -271,7 +271,7 @@ class ExternalSource:
         self._compiled_iter = None
 
     def _wire_pipeline(self, source: "_compile.CompileSource") -> tuple:
-        device = self._device.device_type
+        device = _as_device(self._device).device_type
         if source.num_outputs == 1:
             return (fn.external_source(self._source_callback, device=device),)
         out = fn.external_source(self._source_callback, source.num_outputs, device=device)
@@ -308,15 +308,16 @@ class ExternalSource:
     def _convert_output(self, data: BatchLike, batch_size: int | None, idx: int) -> Tensor | Batch:
         layout = self._layouts[idx]
         dtype = self._dtypes[idx]
+        device = _as_device(self._device)
 
         actual_batch_size = _get_batch_size(data)
         if actual_batch_size is not None:
-            batch = as_batch(data, dtype=dtype, device=self._device, layout=layout)
+            batch = as_batch(data, dtype=dtype, device=device, layout=layout)
             if batch_size is not None and actual_batch_size != batch_size:
                 raise ValueError(f"Expected batch size {batch_size}, got {actual_batch_size}")
             return batch
 
-        tensor = as_tensor(data, dtype=dtype, device=self._device, layout=layout)
+        tensor = as_tensor(data, dtype=dtype, device=device, layout=layout)
         if batch_size is not None:
             return Batch.broadcast(tensor, batch_size=batch_size)
         return tensor
