@@ -73,8 +73,8 @@ requirements:
     - python-clang
     - git-lfs
   host:
-    - protobuf =6.33.5
-    - libprotobuf-static =6.33.5
+    - protobuf =7.35.1
+    - libprotobuf-static =7.35.1
     # libprotobuf's CMake config exposes a ZLIB::ZLIB link interface dep,
     # so zlib must be in host for find_package(Protobuf) to succeed.
     - zlib
@@ -108,7 +108,7 @@ requirements:
     # dependency to install the right version on the libabseil (as protobuf depends on
     # libprotobuf-static and a newer version of libprotobuf-static may be available than
     # the protobuf was build with)
-    - libprotobuf =6.33.5
+    - libprotobuf =7.35.1
     - cfitsio
     - libnvimgcodec >=0.8.0,<0.9.0
     - libnvimgcodec-libjpeg-turbo-ext >=0.8.0,<0.9.0
