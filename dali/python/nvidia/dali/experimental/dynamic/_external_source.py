@@ -175,6 +175,11 @@ class ExternalSource:
         StopIteration
             When the source is exhausted, depending on the ``cycle`` argument.
         """
+        # Valid dispatch paths:
+        # - without a compile context, run eagerly
+        # - while tracing, pull and register the source as a feeder
+        # - while executing a compiled context, return the traced feeder's result
+
         ctx = _compile.CompileContext.current()
         if ctx is None:
             if self._role.is_compiled:
