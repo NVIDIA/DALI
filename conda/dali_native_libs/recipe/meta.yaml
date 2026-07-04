@@ -80,7 +80,10 @@ requirements:
     - zlib
     - libjpeg-turbo
     - libopencv >=4.13,<5
-    - ffmpeg
+    # FFmpeg 8.1.2 needs libjxl.so.0.11, but its metadata permits libjxl 0.12.
+    # Remove these pins once FFmpeg is rebuilt for the newer libjxl ABI.
+    - ffmpeg =8.1.2
+    - libjxl <0.12
     - lmdb
     - libtiff
     - libsndfile
@@ -95,7 +98,8 @@ requirements:
   run:
     - libjpeg-turbo
     - libopencv >=4.13,<5
-    - ffmpeg
+    - ffmpeg =8.1.2
+    - libjxl <0.12
     - lmdb
     - libtiff
     - libsndfile

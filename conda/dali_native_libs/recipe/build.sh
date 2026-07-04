@@ -100,7 +100,6 @@ cmake -DCUDA_TOOLKIT_ROOT_DIR=/usr/local/cuda \
       ..
 make -j"$(nproc --all)"
 
-# bundle FFmpeg to make sure DALI ships and uses own version
 fname_with_sha256() {
     HASH=$(sha256sum $1 | cut -c1-8)
     BASENAME=$(basename $1)
@@ -110,11 +109,6 @@ fname_with_sha256() {
 }
 
 DEPS_LIST=(
-    "$PREFIX/lib/libavformat.so.62"
-    "$PREFIX/lib/libavcodec.so.62"
-    "$PREFIX/lib/libavfilter.so.11"
-    "$PREFIX/lib/libavutil.so.60"
-    "$PREFIX/lib/libswscale.so.9"
     "lib/libcvcuda.so.0"
     "lib/libnvcv_types.so.0"
 )
