@@ -31,16 +31,15 @@ TensorShape<ndim> tensor_shape(const cv::Mat &mat) {
   TensorShape<ndim> shape;
   if (ndim != DynamicDimensions) {
     // require extra dimension for channels, if #channels > 1
-    // number of cv::Mat dimensions is kept at [-1] index of .size field
-    if (ndim != mat.size[-1] + 1 && !(ndim == mat.size[-1] && mat.channels() == 1))
+    if (ndim != mat.dims + 1 && !(ndim == mat.dims && mat.channels() == 1))
       throw std::logic_error("Invalid number of dimensions");
   } else {
-    shape.resize(mat.size[-1] + 1);
+    shape.resize(mat.dims + 1);
   }
-  for (int i = 0; i < shape.size(); i++)
+  for (int i = 0; i < mat.dims; i++)
     shape[i] = mat.size[i];
-  if (shape.size() > mat.size[-1])
-    shape[mat.size[-1]] = mat.channels();
+  if (shape.size() > mat.dims)
+    shape[mat.dims] = mat.channels();
   return shape;
 }
 
