@@ -29,17 +29,32 @@ namespace kernels {
 template <int ndim>
 TensorShape<ndim> tensor_shape(const cv::Mat &mat) {
   TensorShape<ndim> shape;
+#if CV_VERSION_MAJOR >= 5
+  // OpenCV 5 bounds-checks MatSize indexing, so the legacy convention of
+  // reading the number of dimensions from `mat.size[-1]` is no longer valid.
+  const int mat_dims = mat.dims;
+#else
+  // OpenCV 4 stores the number of dimensions immediately before MatSize.
+  const int mat_dims = mat.size[-1];
+#endif
   if (ndim != DynamicDimensions) {
     // require extra dimension for channels, if #channels > 1
-    if (ndim != mat.dims + 1 && !(ndim == mat.dims && mat.channels() == 1))
+    if (ndim != mat_dims + 1 && !(ndim == mat_dims && mat.channels() == 1))
       throw std::logic_error("Invalid number of dimensions");
   } else {
-    shape.resize(mat.dims + 1);
+    shape.resize(mat_dims + 1);
   }
-  for (int i = 0; i < mat.dims; i++)
+#if CV_VERSION_MAJOR >= 5
+  for (int i = 0; i < mat_dims; i++)
     shape[i] = mat.size[i];
-  if (shape.size() > mat.dims)
-    shape[mat.dims] = mat.channels();
+  if (shape.size() > mat_dims)
+    shape[mat_dims] = mat.channels();
+#else
+  for (int i = 0; i < shape.size(); i++)
+    shape[i] = mat.size[i];
+  if (shape.size() > mat_dims)
+    shape[mat_dims] = mat.channels();
+#endif
   return shape;
 }
 
