@@ -22,7 +22,7 @@ from ..._typing import BatchLike
 from ..._utils.external_source_impl import get_callback_from_source
 from . import _compile
 from ._batch import Batch, _get_batch_size, as_batch
-from ._device import DeviceLike
+from ._device import Device, DeviceLike
 from ._device import device as _as_device
 from ._nvtx import NVTXRange
 from ._tensor import Tensor, as_tensor
@@ -42,10 +42,6 @@ class _Role(enum.Enum):
     EAGER = enum.auto()
     FEEDER = enum.auto()  # pulled inside another source's compiled loop
     ROOT = enum.auto()  # iterated through its own .compiled()
-
-    @property
-    def is_compiled(self) -> bool:
-        return self in (_Role.FEEDER, _Role.ROOT)
 
 
 # We don't inherit from _ops.Operator because there's nothing to reuse from there
@@ -181,8 +177,8 @@ class ExternalSource:
         # - while executing a compiled context, return the traced feeder's result
 
         ctx = _compile.CompileContext.current()
-        if ctx is None:
-            if self._role.is_compiled:
+        if ctx is None or ctx.state is _compile.State.DISABLED:
+            if self._role in (_Role.FEEDER, _Role.ROOT):
                 raise RuntimeError("This ExternalSource is already used in a compiled loop")
             self._role = _Role.EAGER
             return self._eager_call(batch_size=batch_size)
@@ -216,13 +212,10 @@ class ExternalSource:
         self._role = _Role.ROOT
         return iterator.batches(ctx)
 
-    def _unwrap(self, outputs: tuple[Tensor, ...] | tuple[Batch, ...]) -> _CallResult:
-        return outputs[0] if self._num_outputs == 1 else outputs
-
     def _eager_call(self, *, batch_size: int | None = None) -> _CallResult:
         data = self._callback()
         outputs = self._convert_outputs(data, batch_size)
-        return self._unwrap(outputs)
+        return self._shape_result(..., outputs)
 
     def _trace_pull(self, ctx: _compile.CompileContext, batch_size: int | None) -> _CallResult:
         """Pull, convert and wrap one item during tracing, registering the root on first use."""
@@ -242,7 +235,7 @@ class ExternalSource:
         if src is None:
             src = self._compile_source = ctx.add_source(self._num_outputs, self)
         ctx._mark_read(src)
-        return self._unwrap(ctx._wrap_tensor_lists(src, tensor_lists))
+        return self._shape_result(src, ctx._wrap_tensor_lists(src, tensor_lists))
 
     def _compiled_call(self, ctx: _compile.CompileContext, batch_size: int | None) -> _CallResult:
         src = self._compile_source
@@ -263,8 +256,7 @@ class ExternalSource:
         except StopIteration:
             src.ctx._mark_stopped(src)  # lets the loop tell a clean epoch end from underrun
             raise
-        tensor_lists = self._to_tensor_lists(data, src.ctx.batch_size)
-        return tensor_lists[0] if self._num_outputs == 1 else list(tensor_lists)
+        return list(self._to_tensor_lists(data, src.ctx.batch_size))
 
     def _to_tensor_lists(self, data: _SourceOutput, batch_size: int) -> tuple:
         outputs = self._convert_outputs(data, batch_size)
@@ -277,13 +269,10 @@ class ExternalSource:
 
     def _wire_pipeline(self, source: "_compile.CompileSource") -> tuple:
         device = _as_device(self._device).device_type
-        if source.num_outputs == 1:
-            return (fn.external_source(self._source_callback, device=device),)
-        out = fn.external_source(self._source_callback, source.num_outputs, device=device)
-        return tuple(out)
+        return tuple(fn.external_source(self._source_callback, source.num_outputs, device=device))
 
-    def _shape_result(self, source, batches: tuple):
-        return self._unwrap(batches)
+    def _shape_result(self, source, batches: tuple) -> _CallResult:
+        return batches[0] if self._num_outputs == 1 else batches
 
     def _transfer_into(self, pipe) -> bool:
         return False  # an ExternalSource holds no native op to move into a pipeline
@@ -296,8 +285,10 @@ class ExternalSource:
     ) -> tuple[Tensor, ...] | tuple[Batch, ...]:
         """Convert the source's outputs, requiring them uniformly Tensors or uniformly Batches."""
         outputs = self._get_outputs(data)
+        device = _as_device(self._device)
         results = tuple(
-            self._convert_output(output, batch_size, idx) for idx, output in enumerate(outputs)
+            self._convert_output(output, device, batch_size, idx)
+            for idx, output in enumerate(outputs)
         )
         if not _are_types_uniform(results):
             raise TypeError("Outputs must be uniformly Tensors or uniformly Batches")
@@ -310,10 +301,11 @@ class ExternalSource:
             raise ValueError(f"Expected {self._num_outputs} outputs from the source")
         return data  # type: ignore
 
-    def _convert_output(self, data: BatchLike, batch_size: int | None, idx: int) -> Tensor | Batch:
+    def _convert_output(
+        self, data: BatchLike, device: Device, batch_size: int | None, idx: int
+    ) -> Tensor | Batch:
         layout = self._layouts[idx]
         dtype = self._dtypes[idx]
-        device = _as_device(self._device)
 
         actual_batch_size = _get_batch_size(data)
         if actual_batch_size is not None:

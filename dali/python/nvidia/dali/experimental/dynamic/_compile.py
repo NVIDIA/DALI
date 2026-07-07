@@ -176,8 +176,7 @@ class CompileContext:
         self._results: dict[CompileSource | CompileNode, tuple[CompiledBatch, ...]] = {}
         self._iteration = 0
         self._read_this_step: set[CompileSource] = set()  # extra sources pulled this step
-        # Sources that raised StopIteration this step. The root's presence marks a clean epoch end.
-        self._stopped_sources: set[CompileSource] = set()
+        self._root_stopped = False  # sources[0] raised StopIteration: a clean epoch end
 
     @classmethod
     def current(cls) -> "CompileContext | None":
@@ -218,7 +217,7 @@ class CompileContext:
 
     def _wrap_tensor_lists(
         self,
-        source: CompileSource,
+        source: "CompileSource | CompileNode",
         tensor_lists: Sequence,
     ) -> tuple[CompiledBatch, ...]:
         return tuple(
@@ -232,28 +231,32 @@ class CompileContext:
         self._read_this_step.add(source)
 
     def _mark_stopped(self, source: CompileSource) -> None:
-        self._stopped_sources.add(source)
+        if source is self.sources[0]:
+            self._root_stopped = True
 
     def _reset_stop(self) -> None:
-        self._stopped_sources.clear()
+        # Once per epoch, not per step: prefetch can raise the source's StopIteration
+        # one or more run() calls before the step that surfaces it.
+        self._root_stopped = False
 
     def _require_consumed(self) -> None:
         # the executor pulls every source each step, so a skipped one silently drops data
         for source in self.sources[1:]:
             if source not in self._read_this_step:
-                self._teardown()
-                raise RuntimeError("An ExternalSource was not consumed this step")
+                self._fail("An ExternalSource was not consumed this step")
 
     def _teardown(self) -> None:
         self.state = State.DISABLED
         for source in self.sources:
             source.compilable._teardown_compile()
 
+    def _fail(self, message: str):
+        self._teardown()
+        raise RuntimeError(message)
+
     @staticmethod
     def _compute_kwarg_casts(op: type["Operator"], raw_kwargs: Mapping[str, CompiledBatch | Any]):
         casts: dict[str, dali_types.DALIDataType] = {}
-        schema = op._schema
-        assert schema is not None
 
         for name, data in raw_kwargs.items():
             if not isinstance(data, CompiledBatch):
@@ -366,10 +369,8 @@ class CompileContext:
     ) -> tuple[CompiledBatch, ...]:
         offset = owner.pipeline_output_offset
         assert offset is not None
-        return tuple(
-            CompiledBatch(pipeline_outputs[offset + i], CompileRef(owner, i), self._iteration)
-            for i in range(owner.num_outputs)
-        )
+        outputs = pipeline_outputs[offset : offset + owner.num_outputs]
+        return self._wrap_tensor_lists(owner, outputs)
 
     def result_for(self, owner: "CompileSource | CompileNode") -> Any:
         batches = self._results[owner]
@@ -442,10 +443,6 @@ class CompiledEpochIterator(ABC, Generic[_Compilable]):
         self._compile_ctx = CompileContext(batch_size)
         self._eval_ctx: "EvalContext | None" = None
 
-    @property
-    def compile_context(self) -> CompileContext:
-        return self._compile_ctx
-
     def batches(self, ctx: "EvalContext | None") -> Iterator[CompiledBatch]:
         """Yield one epoch: tracing on the first, compiled thereafter."""
         from ._eval_context import EvalContext
@@ -465,10 +462,9 @@ class CompiledEpochIterator(ABC, Generic[_Compilable]):
         try:
             return self._compile_ctx.run_pipeline()
         except StopIteration:
-            if self._stop_is_epoch_end():
+            if self._compile_ctx._root_stopped:
                 return None
-            self._compile_ctx._teardown()
-            raise RuntimeError("A source was exhausted before the iteration ended")
+            self._compile_ctx._fail("A source was exhausted before the iteration ended")
 
     def _emit_step(self, batches):
         ctx = self._compile_ctx
@@ -485,9 +481,6 @@ class CompiledEpochIterator(ABC, Generic[_Compilable]):
 
     @abstractmethod
     def _compiled(self) -> Iterator: ...
-
-    @abstractmethod
-    def _stop_is_epoch_end(self) -> bool: ...
 
     @abstractmethod
     def _on_break(self) -> None: ...
@@ -534,7 +527,7 @@ class _ReaderEpochIterator(CompiledEpochIterator["Reader"]):
             compile_ctx.add_source(len(raw), reader, output_keys=output_keys)
 
         batches = compile_ctx._wrap_tensor_lists(compile_ctx.sources[0], raw)
-        result = batches if output_keys is None else dict(zip(output_keys, batches))
+        result = reader._shape_result(compile_ctx.sources[0], batches)
         return result, reader._output_batch_size(outputs)
 
     def _tracing(self, ctx: "EvalContext"):
@@ -552,8 +545,7 @@ class _ReaderEpochIterator(CompiledEpochIterator["Reader"]):
             return
 
         value, idx = self._trace_step(ctx, tensor_args)  # step 0 records the graph
-        with compile_ctx.active():
-            yield value
+        yield from self._emit_step(value)
 
         compile_ctx.build_pipeline(ctx)
         if compile_ctx.state is State.COMPILED:
@@ -568,7 +560,6 @@ class _ReaderEpochIterator(CompiledEpochIterator["Reader"]):
                 yield value
 
     def _compiled(self):
-        self._compile_ctx._reset_stop()
         epoch_size = self._epoch_size()
         idx = self._resume_idx
         self._resume_idx = 0
@@ -578,9 +569,6 @@ class _ReaderEpochIterator(CompiledEpochIterator["Reader"]):
             assert batches is not None
             idx += self._compilable._output_batch_size(batches)
             yield from self._emit_step(batches)
-
-    def _stop_is_epoch_end(self) -> bool:
-        return False  # reader is count-bounded, a StopIteration means a feeder died
 
     def _on_break(self):
         # consumer aborted mid-step, extra sources already advanced, fail safe
@@ -620,10 +608,6 @@ class _ExternalSourceEpochIterator(CompiledEpochIterator["ExternalSource"]):
         assert ctx.pipeline is not None
         ctx.pipeline.reset()
 
-    def _stop_is_epoch_end(self) -> bool:
-        ctx = self._compile_ctx
-        return ctx.sources[0] in ctx._stopped_sources
-
     def _on_break(self) -> None:
         self._compile_ctx._teardown()
 
@@ -632,10 +616,10 @@ def make_iterator(compilable: SupportsCompile, batch_size: int) -> CompiledEpoch
     """Return ``compilable._compiled_iter``, creating it or rejecting a batch_size change"""
     if compilable._compiled_iter is None:
         compilable._compiled_iter = compilable._make_epoch_iterator(batch_size)
-    elif compilable._compiled_iter.compile_context.batch_size != batch_size:
+    elif compilable._compiled_iter._compile_ctx.batch_size != batch_size:
         raise ValueError(
             f"Cannot change batch_size from "
-            f"{compilable._compiled_iter.compile_context.batch_size} to {batch_size}"
+            f"{compilable._compiled_iter._compile_ctx.batch_size} to {batch_size}"
         )
     return compilable._compiled_iter
 
@@ -708,12 +692,7 @@ def _compile_intercept(
             )
 
         if compile_ctx.state is State.COMPILED:
-            if batch_size is not None and batch_size != compile_ctx.batch_size:
-                raise RuntimeError(
-                    f"Compiled reader uses batch_size={compile_ctx.batch_size} but operator "
-                    f"called with batch_size={batch_size}. Cannot change batch_size in "
-                    f"compiled mode."
-                )
+            compile_ctx.check_batch_size(batch_size)
             result = compile_ctx.get_compiled_result(
                 frame, op_class, inputs, raw_kwargs, device=device
             )

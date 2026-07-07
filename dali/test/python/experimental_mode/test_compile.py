@@ -309,7 +309,7 @@ def test_compile_batch_size_op_mismatch():
         images = ndd.decoders.image(jpegs)
         ndd.resize(images, size=[64, 64])
 
-    with assert_raises(RuntimeError, glob="*cannot change batch_size*"):
+    with assert_raises(RuntimeError, glob="cannot change batch size"):
         for jpegs, _ in reader.next_epoch(batch_size=4, compile=True):
             ndd.resize(ndd.decoders.image(jpegs), size=[64, 64], batch_size=8)
 

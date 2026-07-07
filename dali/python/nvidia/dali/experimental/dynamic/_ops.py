@@ -940,12 +940,15 @@ class Reader(Operator):
                 "Cannot mix `samples`, `batches` and `_run`/`__call__` on the same reader."
             )
 
-    def _run_unchecked(self, ctx=None, **kwargs):
-        """Run the reader backend without API-type checking."""
+    def _check_not_disabled(self):
         if self._disabled:
             raise RuntimeError(
                 "This reader is in an invalid state due to a previous error and cannot be used."
             )
+
+    def _run_unchecked(self, ctx=None, **kwargs):
+        """Run the reader backend without API-type checking."""
+        self._check_not_disabled()
         return super()._run(ctx, **kwargs)
 
     @staticmethod
@@ -994,14 +997,9 @@ class Reader(Operator):
             If True, transparently compile operator sequences into a pipeline for prefetching.
             Once used in compiled mode, the reader cannot switch back.
         """
-        if self._disabled:
-            raise RuntimeError(
-                "This reader is in an invalid state due to a previous error and cannot be used."
-            )
+        self._check_not_disabled()
 
         batch_size = self._get_batch_size(batch_size)
-        if batch_size is None:
-            batch_size = self._batch_size
 
         if compile:
             if self._checkpointing_enabled:
@@ -1016,21 +1014,18 @@ class Reader(Operator):
             if batch_size is None:
                 raise ValueError("compile=True requires a non-None batch_size.")
             self._compile_mode = True
-            _compile.make_iterator(self, batch_size)
-        elif self._compile_mode is True:
+            return _compile.make_iterator(self, batch_size).batches(ctx)
+
+        if self._compile_mode is True:
             raise RuntimeError(
                 "This reader was previously used with compile=True "
                 "and cannot switch to non-compiled mode."
             )
-        else:
-            self._compile_mode = False
+        self._compile_mode = False
 
-        if self._compiled_iter is not None:
-            return self._compiled_iter.batches(ctx)
-        elif batch_size is not None:
+        if batch_size is not None:
             return self._batches(batch_size, ctx)
-        else:
-            return self._samples(ctx)
+        return self._samples(ctx)
 
     def _process_tensor_args(self, batch_size: int | None):
         """Converts stored tensor args to Batch/Tensor form for the given batch_size."""
