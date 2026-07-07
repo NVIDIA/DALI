@@ -363,7 +363,7 @@ def build_call_function(schema, op_class):
         with nvtx_construct_invocation:
             caller_frame = None
             if EvalMode.current().value <= EvalMode.eager.value:
-                caller_frame = resolve_callsite_frame()
+                caller_frame = resolve_callsite_frame(depth_hint=4)
             invocation = _invocation.Invocation(
                 self,
                 call_id,
