@@ -712,7 +712,12 @@ def _compile_intercept(
         frame = resolve_callsite_frame(depth_hint=2)
         if frame is None:
             return fn_call(
-                *inputs, batch_size=batch_size, device=device, _backend=backend, **raw_kwargs
+                *inputs,
+                batch_size=batch_size,
+                device=device,
+                _backend=backend,
+                _caller_frame=frame,
+                **raw_kwargs,
             )
 
         if compile_ctx.state is State.COMPILED:
@@ -723,12 +728,22 @@ def _compile_intercept(
             if result is not None:
                 return result
             return fn_call(
-                *inputs, batch_size=batch_size, device=device, _backend=backend, **raw_kwargs
+                *inputs,
+                batch_size=batch_size,
+                device=device,
+                _backend=backend,
+                _caller_frame=frame,
+                **raw_kwargs,
             )
 
         # Run first, classify after, we need the result before we can inspect it
         result = fn_call(
-            *inputs, batch_size=batch_size, device=device, _backend=backend, **raw_kwargs
+            *inputs,
+            batch_size=batch_size,
+            device=device,
+            _backend=backend,
+            _caller_frame=frame,
+            **raw_kwargs,
         )
 
         if op_class._is_stateful:

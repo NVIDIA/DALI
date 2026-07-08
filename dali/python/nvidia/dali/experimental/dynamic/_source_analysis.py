@@ -265,23 +265,30 @@ class ModuleInfo:
 # Keyed by filename, holding the linecache entry for invalidation.
 # A file edit rebuilds the ModuleInfo and with it a fresh cache.
 _file_cache: dict[str, tuple[object, ModuleInfo | None]] = {}
+_code_cache: dict[int, tuple[object, ModuleInfo]] = {}
 
 
-def _get_module_info(filename: str) -> ModuleInfo | None:
+def _get_module_info(code: types.CodeType) -> ModuleInfo | None:
     """Parse and cache the ModuleInfo for `filename`.
 
     Resolving metadata for the whole file is the dominant trace-time cost
     but is paid once per file and amortizes over a multi-epoch run.
     """
-    lines = linecache.getlines(filename)
-    if not lines:
-        return None
+
+    if cached := _code_cache.get(id(code), None):
+        return cached[1]
+
+    filename = code.co_filename
+
     # The linecache entry detects edits; it is not hashable so it can't be the key itself.
     entry = linecache.cache.get(filename)
     # Note: We don't guard for concurrent calls because the function is idempotent anyway.
     if (cached := _file_cache.get(filename)) is not None and cached[0] is entry:
         return cached[1]
     try:
+        lines = linecache.getlines(filename)
+        if not lines:
+            return None
         wrapper = MetadataWrapper(cst.parse_module("".join(lines)), unsafe_skip_copy=True)
         md = wrapper.resolve_many([PositionProvider, ScopeProvider, ParentNodeProvider])
 
@@ -303,7 +310,9 @@ def _get_module_info(filename: str) -> ModuleInfo | None:
         )
     except Exception:
         info = None
-    _file_cache[filename] = (entry, info)
+    entry_info = (entry, info)
+    _file_cache[filename] = entry_info
+    _code_cache[id(code)] = entry_info
     return info
 
 
@@ -439,7 +448,7 @@ class _Classifier:
         if caller is None:
             return False
 
-        mi = _get_module_info(caller.f_code.co_filename)  # caller may be in another module
+        mi = _get_module_info(caller.f_code)  # caller may be in another module
         if mi is None:
             return False
 
@@ -534,5 +543,5 @@ def classify(
     frame: types.FrameType, inputs: tuple[Any, ...], raw_kwargs: dict[str, Any]
 ) -> tuple[list[CompileRef | Any], dict[str, CompileRef | Any]] | None:
     """Classify operator args as captured constants / CompileRefs, or None to run eager."""
-    mi = _get_module_info(frame.f_code.co_filename)
+    mi = _get_module_info(frame.f_code)
     return _Classifier(mi, frame).classify(inputs, raw_kwargs)
