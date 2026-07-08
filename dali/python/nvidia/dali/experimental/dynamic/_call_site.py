@@ -26,7 +26,7 @@ class CodeLoc(NamedTuple):
 
 CallChain: TypeAlias = tuple[CodeLoc, ...]
 
-_transparent_codes: set[types.CodeType] = set()
+_transparent_codes = set()
 
 
 def mark_transparent(func: types.FunctionType) -> types.FunctionType:
@@ -35,20 +35,24 @@ def mark_transparent(func: types.FunctionType) -> types.FunctionType:
     Transparent frames are skipped by :func:`resolve_callsite_frame`.
     Follows ``__wrapped__`` decorator chains.
     """
-    _transparent_codes.add(func.__code__)
+    _transparent_codes.add(id(func.__code__))
     wrapped = getattr(func, "__wrapped__", None)
     if wrapped is not None:
         mark_transparent(wrapped)
     return func
 
 
-def resolve_callsite_frame(frame: types.FrameType | None = None) -> types.FrameType | None:
+def resolve_callsite_frame(
+    frame: types.FrameType | None = None, depth_hint: int | None = None
+) -> types.FrameType | None:
     """Walk ``f_back`` from `frame`, skipping transparent frames.
     The call site is typically at most a few frames above so this shouldn't be too expensive.
     """
     if frame is None:
-        frame = sys._getframe(1)
-    while frame is not None and frame.f_code in _transparent_codes:
+        frame = sys._getframe(1 if depth_hint is None else depth_hint)
+    else:
+        assert depth_hint is None, "`depth_hint` should not be provided if `frame` is given."
+    while frame is not None and id(frame.f_code) in _transparent_codes:
         frame = frame.f_back
     return frame
 

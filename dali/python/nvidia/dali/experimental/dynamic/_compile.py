@@ -565,7 +565,7 @@ def _compile_intercept(
 
         # Resolves past transparent frames (this wrapper, makefun, NVTXRange, fn_call)
         # to the user's call site.
-        frame = resolve_callsite_frame()
+        frame = resolve_callsite_frame(depth_hint=2)
         if frame is None:
             return fn_call(
                 *inputs, batch_size=batch_size, device=device, _backend=backend, **raw_kwargs

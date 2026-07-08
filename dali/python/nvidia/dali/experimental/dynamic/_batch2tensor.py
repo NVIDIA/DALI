@@ -66,7 +66,7 @@ class BatchToTensor:
                 is_batch=False,
                 batch_size=None,
                 previous_invocation=None,
-                caller_frame=resolve_callsite_frame(),
+                caller_frame=resolve_callsite_frame(depth_hint=2),
             )
         invocation.apply_eval_policy(_op_builder.is_external(batch))
         return Tensor(invocation_result=invocation[0])
