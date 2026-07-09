@@ -18,15 +18,21 @@ This module also contains functional wrappers for random operators (e.g., unifor
 that are dynamically added during module initialization.
 """
 
+import operator as _operator
 import random as _random
 import threading as _threading
+import typing as _typing
 
 import nvidia.dali.backend_impl as _b
+
+from ._tensor import Tensor as _Tensor
+from ._type import uint32 as _uint32
 
 # Note: __all__ is intentionally not defined here to allow help() to show
 # dynamically added random operator functions (uniform, normal, etc.)
 
 
+@_typing.final
 class RNG:
     """Random number generator for DALI dynamic mode operations.
 
@@ -54,15 +60,16 @@ class RNG:
     """
 
     def __init__(self, seed=None, state=None):
-        if seed is not None:
-            if state is not None:
+        self._pending_draws = 0
+        self._version = 0
+        if state is not None:
+            if seed is not None:
                 raise ValueError("Cannot specify both `seed` and `state`")
-            self._rng = _b._Philox4x32_10(seed & 0xFFFFFFFFFFFFFFFF, 0, 0)
-        elif state is not None:
-            self._rng = _b._Philox4x32_10(state)
+            self.set_state(state)
         else:
-            seed = _random.randint(0, 0xFFFFFFFFFFFFFFFF)
-            self._rng = _b._Philox4x32_10(seed, 0, 0)
+            if seed is None:
+                seed = _random.randint(0, 0xFFFFFFFFFFFFFFFF)
+            self.seed = seed
 
     def __call__(self):
         """Generate a random uint32 value.
@@ -72,6 +79,8 @@ class RNG:
         int
             A random uint32 value (as Python int, but in range [0, 2^32-1]).
         """
+        self._flush_pending()
+        self._version += 1
         return self._rng.next()
 
     @property
@@ -84,6 +93,28 @@ class RNG:
         The seed is truncated to 64 bits.
         """
         self._rng = _b._Philox4x32_10(value & 0xFFFFFFFFFFFFFFFF, 0, 0)
+        self._pending_draws = 0
+        self._version += 1
+
+    def advance(self, n: _typing.SupportsIndex) -> None:
+        """Advance the generator by ``n`` draws, equivalent to ``n`` calls to ``self()``.
+
+        The advance is deferred and applied lazily on the next observation of the generator
+        (a draw, a state read, a clone or a repr), coalescing repeated advances into a single
+        backend skip-ahead.
+
+        Parameters
+        ----------
+        n : int
+            A uint64 number of draws to skip.
+        """
+        n = _operator.index(n)
+        if n < 0:
+            raise ValueError("Cannot advance by a negative number")
+
+        if n:
+            self._pending_draws += n
+            self._version += 1
 
     def clone(self):
         """Create a new RNG with the same state
@@ -122,7 +153,7 @@ class RNG:
         Opaque state object. This object can be converted to a string and that string can be used
         later to set the state or construct an RNG.
         """
-        return self._rng.get_state()
+        return self.get_state()
 
     @state.setter
     def state(self, value):
@@ -131,9 +162,9 @@ class RNG:
         Parameters
         ----------
         value : object | str
-            Either a state object obtained from another RNG instance of its string representation
+            A state object obtained from another RNG instance or its string representation.
         """
-        self._rng.set_state(value)
+        self.set_state(value)
 
     def get_state(self, *, cuda_stream=None):
         """Returns the internal state of the generator.
@@ -144,7 +175,7 @@ class RNG:
 
         Parameters
         ----------
-        cuda_stream: Any
+        cuda_stream : Any
             Not used.
 
         Returns
@@ -152,6 +183,7 @@ class RNG:
         Opaque state object. The object can be converted to a string with ``str(state)`` and
         later used to set the state or construct an RNG.
         """
+        self._flush_pending()
         return self._rng.get_state()
 
     def set_state(self, value):
@@ -167,7 +199,17 @@ class RNG:
             Either a state object obtained from :func:`get_state` (or the :attr:`state`
             property) or its string representation.
         """
-        self._rng.set_state(value)
+        self._rng = _b._Philox4x32_10(value)
+        self._pending_draws = 0
+        self._version += 1
+
+    def _flush_pending(self) -> None:
+        if pending := self._pending_draws:
+            self._rng.skipahead(pending)
+            self._pending_draws = 0
+
+    def _snapshot_backend(self):
+        return _b._Philox4x32_10(self.state), self._version
 
 
 # Thread-local storage for the default RNG
@@ -220,3 +262,26 @@ def set_seed(seed):
     >>> # result1 and result2 should be identical
     """
     get_default_rng().seed = seed
+
+
+_STATE_WORDS = 7  # whole uint32 words needed for the backend's 25-byte state
+
+
+def _draw_state(next_uint32: _typing.Callable[[], int]) -> list[int]:
+    return [next_uint32() for _ in range(_STATE_WORDS)]
+
+
+def _state_tensor(words: list[int]):
+    """CPU uint32 tensor holding one drawn random state."""
+    return _Tensor(words, dtype=_uint32, device="cpu")
+
+
+def _resolve_rng(rng: _typing.Any) -> RNG:
+    """Return a validated RNG, using the thread-local default when omitted."""
+    if rng is None:
+        rng = get_default_rng()
+    if not isinstance(rng, RNG):
+        rng_class = f"{RNG.__module__}.{RNG.__qualname__}"
+        user_class = f"{type(rng).__module__}.{type(rng).__qualname__}"
+        raise ValueError(f"rng must be an instance of {rng_class}, but got {user_class}")
+    return rng
