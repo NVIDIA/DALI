@@ -44,6 +44,7 @@ if TYPE_CHECKING:
     from ._eval_context import EvalContext
     from ._external_source import ExternalSource  # noqa: F401
     from ._ops import Operator, Reader
+    from .random import RNG
 
 
 def _nvtx_range(message: str):
@@ -57,14 +58,14 @@ class State(enum.Enum):
 
 
 class SupportsCompile(Protocol):
-    """A class supporting being used as a source of a compile graph."""
+    """Interface for sources that support compiled iteration."""
 
     _compiled_iter: "CompiledEpochIterator | None"
 
-    def _wire_pipeline(self, source: "CompileSource") -> tuple: ...
-    def _shape_result(self, source: "CompileSource", batches: tuple) -> Any: ...
-    def _transfer_into(self, pipe: Pipeline) -> bool: ...
     def _make_epoch_iterator(self, batch_size: int) -> "CompiledEpochIterator": ...
+    def _wire_pipeline(self, source: "CompileSource") -> tuple: ...
+    def _transfer_into(self, pipe: Pipeline) -> bool: ...
+    def _shape_result(self, source: "CompileSource", batches: tuple) -> Any: ...
     def _teardown_compile(self) -> None: ...
 
 
