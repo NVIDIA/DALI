@@ -18,7 +18,7 @@ import numpy as np
 import nvidia.dali.backend as _backend
 import nvidia.dali.experimental.dynamic as ndd
 from nose2.tools import params
-from nose_utils import SkipTest, assert_raises
+from nose_utils import SkipTest, assert_raises, attr
 
 
 def _samples(n=3):
@@ -208,3 +208,14 @@ def test_device(device_type):
     result = es()
     assert result.device == ndd.Device(device_type)
     np.testing.assert_array_equal(result.cpu(), data)
+
+
+@attr("multi_gpu")
+def test_device_resolved_at_call():
+    if _backend.GetCUDADeviceCount() < 2:
+        raise SkipTest("At least 2 devices needed for the test")
+    with ndd.Device("gpu:0"):
+        es = ndd.ExternalSource(lambda: np.array([1, 2, 3]), device="gpu")
+    with ndd.Device("gpu:1"):
+        result = es()
+    assert result.device == ndd.Device("gpu:1")

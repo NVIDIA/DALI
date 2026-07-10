@@ -12,18 +12,27 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import itertools
 import os
 import sys
 
 import numpy as np
-import nvidia.dali.backend_impl as _backend
-import nvidia.dali.experimental.dynamic as ndd
 from ndd_utils import _is_compiled, eval_modes
+from nose2.tools import params
 from nose_utils import SkipTest, assert_raises, assert_warns
 from test_utils import get_dali_extra_path
 
+import nvidia.dali.backend_impl as _backend
+import nvidia.dali.experimental.dynamic as ndd
+
 dali_extra_path = get_dali_extra_path()
 images_root = os.path.join(dali_extra_path, "db", "single", "jpeg")
+
+
+def _assert_parity(expected, actual):
+    """Assert two result lists match element-wise; lengths must be equal."""
+    for e, a in zip(expected, actual, strict=True):
+        np.testing.assert_array_equal(e, a)
 
 
 def test_compile_mode_stickiness():
@@ -82,8 +91,7 @@ def test_compile_basic_pipeline():
         compiled_results.append(ndd.as_tensor(images))
         assert _is_compiled(images)
 
-    for dyn, comp in zip(dynamic_results, compiled_results, strict=True):
-        np.testing.assert_array_equal(dyn, comp)
+    _assert_parity(dynamic_results, compiled_results)
 
 
 @eval_modes()
@@ -132,8 +140,7 @@ def test_compile_different_ops_same_call_site():
                 assert _is_compiled(out)
                 compiled_results.append(ndd.as_tensor(out, pad=True))
 
-        for dyn, comp in zip(dynamic_results, compiled_results, strict=True):
-            np.testing.assert_array_equal(dyn, comp)
+        _assert_parity(dynamic_results, compiled_results)
 
 
 @eval_modes()
@@ -157,8 +164,7 @@ def test_compile_partial():
         assert not _is_compiled(resized)
         compiled_results.append(ndd.as_tensor(resized))
 
-    for dyn, comp in zip(dynamic_results, compiled_results, strict=True):
-        np.testing.assert_array_equal(dyn, comp)
+    _assert_parity(dynamic_results, compiled_results)
 
 
 @eval_modes()
@@ -177,8 +183,7 @@ def test_compile_multi_epoch():
             images = ndd.decoders.image(jpegs)
             assert _is_compiled(images)
             compiled_results.append(ndd.as_tensor(images, pad=True))
-        for dyn, comp in zip(dynamic_results, compiled_results, strict=True):
-            np.testing.assert_array_equal(dyn, comp)
+        _assert_parity(dynamic_results, compiled_results)
 
 
 def test_compile_shard_rotation():
@@ -225,8 +230,7 @@ def test_compile_loop_identical():
             assert _is_compiled(resized)
         compiled_results.append(ndd.as_tensor(resized))
 
-    for dyn, comp in zip(dynamic_results, compiled_results, strict=True):
-        np.testing.assert_array_equal(dyn, comp)
+    _assert_parity(dynamic_results, compiled_results)
 
 
 @eval_modes()
@@ -249,8 +253,7 @@ def test_compile_loop_data_dependent():
             assert _is_compiled(images) == (i == 0)
         compiled_results.append(ndd.as_tensor(images))
 
-    for dyn, comp in zip(dynamic_results, compiled_results, strict=True):
-        np.testing.assert_array_equal(dyn, comp)
+    _assert_parity(dynamic_results, compiled_results)
 
 
 def test_compile_empty_graph():
@@ -287,8 +290,7 @@ def test_compile_diverging_inputs():
         assert _is_compiled(images) == (i % 2 == 0)
         compiled_results.append(ndd.as_tensor(images))
 
-    for dyn, comp in zip(dynamic_results, compiled_results, strict=True):
-        np.testing.assert_array_equal(dyn, comp)
+    _assert_parity(dynamic_results, compiled_results)
 
 
 def test_compile_batch_size_change_between_epochs():
@@ -307,7 +309,7 @@ def test_compile_batch_size_op_mismatch():
         images = ndd.decoders.image(jpegs)
         ndd.resize(images, size=[64, 64])
 
-    with assert_raises(RuntimeError, glob="*cannot change batch_size*"):
+    with assert_raises(RuntimeError, glob="cannot change batch size"):
         for jpegs, _ in reader.next_epoch(batch_size=4, compile=True):
             ndd.resize(ndd.decoders.image(jpegs), size=[64, 64], batch_size=8)
 
@@ -363,18 +365,19 @@ def _test_video_resize(**resize_args):
     reader_comp = _make_video_reader(**resize_args)
 
     dynamic_results = []
-    for (videos,) in reader_dyn.next_epoch(batch_size=4):
-        rotated = ndd.rotate(videos, angle=60)
-        dynamic_results.append(ndd.as_tensor(rotated).cpu())
+    for _ in range(3):
+        for (videos,) in reader_dyn.next_epoch(batch_size=4):
+            rotated = ndd.rotate(videos, angle=60)
+            dynamic_results.append(ndd.as_tensor(rotated).cpu())
 
     compiled_results = []
-    for (videos,) in reader_comp.next_epoch(batch_size=4, compile=True):
-        rotated = ndd.rotate(videos, angle=60)
-        assert _is_compiled(rotated)
-        compiled_results.append(ndd.as_tensor(rotated).cpu())
+    for _ in range(3):
+        for (videos,) in reader_comp.next_epoch(batch_size=4, compile=True):
+            rotated = ndd.rotate(videos, angle=60)
+            assert _is_compiled(rotated)
+            compiled_results.append(ndd.as_tensor(rotated).cpu())
 
-    for dyn, comp in zip(dynamic_results, compiled_results, strict=True):
-        np.testing.assert_array_equal(dyn, comp)
+    _assert_parity(dynamic_results, compiled_results)
 
 
 def test_compile_tensor_arg():
@@ -399,10 +402,8 @@ def test_reader_constructor_promotes_0d_tensor_args_to_scalars():
     assert reader._init_args["roi_start"] == 0
     assert "roi_start" in reader._tensor_arg_names
     assert "roi_start" not in reader._raw_tensor_args
-    assert "roi_start" not in reader._original_tensor_args
     assert "roi_shape" in reader._tensor_arg_names
     assert "roi_shape" in reader._raw_tensor_args
-    assert "roi_shape" in reader._original_tensor_args
 
 
 def test_compile_incompatible_kwarg_dtype():
@@ -425,8 +426,7 @@ def test_compile_incompatible_kwarg_dtype():
         assert _is_compiled(resized), resized
         compiled_results.append(ndd.as_tensor(resized, pad=True).cpu())
 
-    for dyn, comp in zip(dynamic_results, compiled_results, strict=True):
-        np.testing.assert_array_equal(dyn, comp)
+    _assert_parity(dynamic_results, compiled_results)
 
 
 def test_compile_nested_calls():
@@ -466,3 +466,411 @@ def test_compile_multiline_nested_calls():
             size=[64, 64],
         )
         assert _is_compiled(resized)
+
+
+def _es(n_batches: int, batch_size: int, dim=3, **kwargs):
+    """Finite (or cycling) ExternalSource of `n_batches` batches, distinct value per sample."""
+    batches = [
+        ndd.batch(
+            [np.full((dim,), b * batch_size + s, dtype=np.float32) for s in range(batch_size)]
+        )
+        for b in range(n_batches)
+    ]
+    return ndd.ExternalSource(batches, **kwargs)
+
+
+def _const_es(sample, batch_size: int):
+    """Infinite callable ExternalSource returning a batch of `sample` each call."""
+    sample = np.asarray(sample, dtype=np.float32)
+    return ndd.ExternalSource(lambda: ndd.batch([sample] * batch_size))
+
+
+@eval_modes()
+def test_compile_es_basic():
+    es_dyn = _es(3, batch_size=4)
+    es_comp = _es(3, batch_size=4)
+
+    dynamic_results = []
+    for _ in range(3):
+        out = ndd.cast(es_dyn(), dtype=ndd.int32)
+        assert not _is_compiled(out)
+        dynamic_results.append(ndd.as_tensor(out))
+
+    compiled_results = []
+    for batch in es_comp.compiled(batch_size=4):
+        assert _is_compiled(batch)
+        out = ndd.cast(batch, dtype=ndd.int32)
+        assert _is_compiled(out)
+        compiled_results.append(ndd.as_tensor(out))
+
+    assert len(compiled_results) == 3
+    _assert_parity(dynamic_results, compiled_results)
+
+
+def test_compile_es_cycle_raise():
+    es_dyn = _es(2, cycle="raise", batch_size=4)
+    es_comp = _es(2, cycle="raise", batch_size=4)
+
+    expected = []
+    try:
+        while True:
+            expected.append(ndd.as_tensor(ndd.cast(es_dyn(), dtype=ndd.int32)))
+    except StopIteration:
+        pass
+
+    for _ in range(3):
+        compiled_results = []
+        for batch in es_comp.compiled(batch_size=4):
+            assert _is_compiled(batch)
+            compiled_results.append(ndd.as_tensor(ndd.cast(batch, dtype=ndd.int32)))
+
+        assert len(compiled_results) == 2
+        _assert_parity(expected, compiled_results)
+
+
+def test_compile_es_cycle_no():
+    es = _es(3, cycle="no", batch_size=4)
+    batches = []
+    for batch in es.compiled(batch_size=4):
+        ndd.cast(batch, dtype=ndd.int32)
+        assert _is_compiled(batch)
+        batches.append(batch)
+    assert len(batches) == 3
+
+    # The source is exhausted, a subsequent epoch yields nothing.
+    second = []
+    for batch in es.compiled(batch_size=4):
+        ndd.cast(batch, dtype=ndd.int32)
+        second.append(batch)
+    assert second == []
+
+
+def test_compile_es_multi_output():
+    data = [
+        (
+            ndd.batch([np.full((2,), float(i), np.float32)] * 4),
+            ndd.batch([np.full((3,), float(i + 10), np.float32)] * 4),
+        )
+        for i in range(2)
+    ]
+    es = ndd.ExternalSource(data, num_outputs=2)
+    count = 0
+    for outputs in es.compiled(batch_size=4):
+        assert isinstance(outputs, tuple) and len(outputs) == 2
+        a, b = outputs
+        assert _is_compiled(a) and _is_compiled(b)
+        np.testing.assert_array_equal(ndd.as_tensor(a)[0], [count, count])
+        np.testing.assert_array_equal(ndd.as_tensor(b)[0], [count + 10] * 3)
+        ndd.cast(a, dtype=ndd.float32)
+        ndd.cast(b, dtype=ndd.float32)
+        count += 1
+    assert count == 2
+
+
+def test_compile_es_broadcast():
+    es = ndd.ExternalSource(lambda: np.arange(3, dtype=np.float32))
+    expected = np.broadcast_to(np.arange(3, dtype=np.float32), (4, 3))
+    count = 0
+    for batch in es.compiled(batch_size=4):
+        assert batch.batch_size == 4
+        np.testing.assert_array_equal(ndd.as_tensor(batch), expected)
+        ndd.cast(batch, dtype=ndd.float32)
+        count += 1
+        if count >= 2:  # check both the traced and a compiled batch
+            break
+    assert count == 2
+
+
+def test_compile_es_layout_dtype():
+    es = ndd.ExternalSource(
+        lambda: (np.zeros((4, 4, 3), np.float32), np.zeros((4, 4), np.float32)),
+        num_outputs=2,
+        layout=["HWC", "HW"],
+        dtype=[ndd.float32, ndd.int32],
+    )
+    count = 0
+    for a, b in es.compiled(batch_size=4):
+        assert a.layout == "HWC" and b.layout == "HW"
+        assert a.dtype == ndd.float32 and b.dtype == ndd.int32
+        ndd.cast(a, dtype=ndd.float32)
+        ndd.cast(b, dtype=ndd.int32)
+        count += 1
+        if count >= 2:  # check both the traced and a compiled batch
+            break
+    assert count == 2
+
+
+def test_compile_es_gpu():
+    if _backend.GetCUDADeviceCount() == 0:
+        raise SkipTest("At least 1 GPU device needed for the test")
+    es = ndd.ExternalSource(lambda: np.arange(3, dtype=np.float32), device="gpu")
+    count = 0
+    for batch in es.compiled(batch_size=4):
+        assert batch.device == ndd.Device("gpu")
+        ndd.cast(batch, dtype=ndd.float32)
+        count += 1
+        if count >= 2:
+            break
+    assert count == 2
+
+
+def test_compile_es_empty_graph():
+    es = _es(2, batch_size=4, cycle="raise")
+    with assert_warns(UserWarning, glob="no operators were captured"):
+        for batch in es.compiled(batch_size=4):
+            batch.evaluate()
+    # After an empty graph the source falls back to eager mode and stays reusable.
+    out = es()
+    assert not _is_compiled(out)
+
+
+def test_compile_es_break_reuse():
+    es = _const_es([3, 3], batch_size=4)
+    for i, batch in enumerate(es.compiled(batch_size=4)):
+        ndd.cast(batch, dtype=ndd.int32)
+        if i == 1:  # i=0 traced, i=1 the first compiled batch
+            break
+
+    count = 0
+    for batch in es.compiled(batch_size=4):
+        assert _is_compiled(batch)
+        ndd.cast(batch, dtype=ndd.int32)
+        count += 1
+        if count >= 3:
+            break
+    assert count == 3
+
+
+def test_compile_es_break_during_tracing():
+    es = _const_es([1, 1], batch_size=4)
+    feeder = _const_es([2, 2], batch_size=4)
+    for batch in es.compiled(batch_size=4):
+        ndd.cast(batch, dtype=ndd.float32)
+        ndd.cast(feeder(), dtype=ndd.float32)
+        break
+
+    # Both unbound and reusable, the feeder was not left locked to the abandoned context.
+    assert not _is_compiled(feeder())
+    assert not _is_compiled(es())
+
+
+def test_compile_reader_feeder():
+    reader_dyn = ndd.readers.File(file_root=images_root, pad_last_batch=True)
+    reader_comp = ndd.readers.File(file_root=images_root, pad_last_batch=True)
+    size_dyn = _const_es([64, 64], batch_size=4)
+    size_comp = _const_es([64, 64], batch_size=4)
+
+    dynamic_results = []
+    for jpegs, _ in reader_dyn.next_epoch(batch_size=4):
+        images = ndd.decoders.image(jpegs)
+        images = ndd.resize(images, size=size_dyn())
+        dynamic_results.append(ndd.as_tensor(images, pad=True))
+
+    for _ in range(3):
+        compiled_results = []
+        for jpegs, _ in reader_comp.next_epoch(batch_size=4, compile=True):
+            images = ndd.decoders.image(jpegs)
+            size = size_comp()
+            assert _is_compiled(size)
+            images = ndd.resize(images, size=size)
+            assert _is_compiled(images)
+            compiled_results.append(ndd.as_tensor(images, pad=True))
+        _assert_parity(dynamic_results, compiled_results)
+
+
+def test_compile_es_feeder():
+    es_dyn = _es(3, batch_size=4)
+    es_comp = _es(3, batch_size=4)
+    other_dyn = _const_es([7, 8], batch_size=4)
+    other_comp = _const_es([7, 8], batch_size=4)
+
+    dyn_a, dyn_b = [], []
+    for _ in range(3):
+        dyn_a.append(ndd.as_tensor(ndd.cast(es_dyn(), dtype=ndd.int32)))
+        dyn_b.append(ndd.as_tensor(ndd.cast(other_dyn(), dtype=ndd.int32)))
+
+    comp_a, comp_b = [], []
+    for batch in es_comp.compiled(batch_size=4):
+        a = ndd.cast(batch, dtype=ndd.int32)
+        b = ndd.cast(other_comp(), dtype=ndd.int32)
+        assert _is_compiled(a) and _is_compiled(b)
+        comp_a.append(ndd.as_tensor(a))
+        comp_b.append(ndd.as_tensor(b))
+
+    assert len(comp_a) == 3
+    _assert_parity(dyn_a, comp_a)
+    _assert_parity(dyn_b, comp_b)
+
+
+def test_compile_feeder_broadcast():
+    reader_dyn = ndd.readers.File(file_root=images_root, pad_last_batch=True)
+    reader_comp = ndd.readers.File(file_root=images_root, pad_last_batch=True)
+    size_dyn = ndd.ExternalSource(lambda: np.array([64, 64], dtype=np.float32))
+    size_comp = ndd.ExternalSource(lambda: np.array([64, 64], dtype=np.float32))
+
+    dynamic_results = []
+    for jpegs, _ in reader_dyn.next_epoch(batch_size=4):
+        images = ndd.decoders.image(jpegs)
+        images = ndd.resize(images, size=size_dyn())  # type: ignore
+        dynamic_results.append(ndd.as_tensor(images, pad=True))
+
+    for _ in range(3):
+        compiled_results = []
+        for jpegs, _ in reader_comp.next_epoch(batch_size=4, compile=True):
+            images = ndd.decoders.image(jpegs)
+            size = size_comp()
+            assert _is_compiled(size) and size.batch_size == 4
+            images = ndd.resize(images, size=size)
+            assert _is_compiled(images)
+            compiled_results.append(ndd.as_tensor(images, pad=True))
+        _assert_parity(dynamic_results, compiled_results)
+
+
+def test_compile_feeder_coexhaust():
+    # Root and a finite feeder of equal length end the epoch cleanly
+    es = _es(3, batch_size=4)
+    extra = _es(3, batch_size=4)
+    count = 0
+    for batch in es.compiled(batch_size=4):
+        ndd.cast(batch, dtype=ndd.float32)
+        ndd.cast(extra(), dtype=ndd.float32)
+        count += 1
+    assert count == 3
+
+
+# Tests for compiled ExternalSource misuse
+
+
+def _es_no_compiled_after_eager():
+    es = _es(3, batch_size=4)
+    es()  # eager use locks the instance to eager mode
+    for _ in es.compiled(batch_size=4):
+        pass
+
+
+def _es_no_eager_while_compiled():
+    es = _es(3, batch_size=4)
+    es.compiled(batch_size=4)  # binds the instance to a compiled loop
+    es()
+
+
+def _es_no_self_read():
+    es = _const_es([1, 1], batch_size=4)
+    for batch in es.compiled(batch_size=4):
+        ndd.cast(batch, dtype=ndd.float32)
+        ndd.cast(es(), dtype=ndd.float32)  # the iterated source must be read via the loop var
+
+
+def _es_role_lock():
+    es = _const_es([1, 1], batch_size=4)
+    es.compiled(batch_size=4)  # es now iterates its own loop
+    other = _es(3, batch_size=4)
+    for batch in other.compiled(batch_size=4):
+        ndd.cast(es(), dtype=ndd.float32)  # es already iterates its own loop
+        ndd.cast(batch, dtype=ndd.float32)
+
+
+def _feeder_context_lock():
+    co = _const_es([3, 3], batch_size=4)
+    es1 = _es(3, batch_size=4)
+    es2 = _es(3, batch_size=4)
+
+    for batch in es1.compiled(batch_size=4):
+        ndd.cast(co(), dtype=ndd.float32)
+        ndd.cast(batch, dtype=ndd.float32)
+
+    for batch in es2.compiled(batch_size=4):
+        ndd.cast(co(), dtype=ndd.float32)  # already bound to es1's context
+        ndd.cast(batch, dtype=ndd.float32)
+
+
+def _feeder_no_source_after_eager():
+    co = _const_es([1, 1], batch_size=4)
+    co()  # eager use
+    es = _es(3, batch_size=4)
+    for batch in es.compiled(batch_size=4):
+        ndd.cast(co(), dtype=ndd.float32)  # can't become a compiled feeder now
+        ndd.cast(batch, dtype=ndd.float32)
+
+
+@params(
+    (_es_no_compiled_after_eager, "used eagerly"),
+    (_es_no_eager_while_compiled, "already used in a compiled loop"),
+    (_es_no_self_read, "used through .compiled()"),
+    (_es_role_lock, "used through .compiled()"),
+    (_feeder_context_lock, "different compile context"),
+    (_feeder_no_source_after_eager, "used eagerly"),
+)
+def test_compile_es_role_errors(scenario, glob):
+    with assert_raises(RuntimeError, glob=glob):
+        scenario()
+
+
+def _feeder_underrun():
+    es = _const_es([1, 1], batch_size=4)
+    short = _es(1, batch_size=4)  # a single batch, then exhausted -> underrun
+    for batch in es.compiled(batch_size=4):
+        ndd.cast(batch, dtype=ndd.float32)
+        ndd.cast(short(), dtype=ndd.float32)
+
+
+def _feeder_read_once():
+    es = _const_es([1, 1], batch_size=4)
+    co = _const_es([2, 2], batch_size=4)
+    for batch in es.compiled(batch_size=4):
+        ndd.cast(batch, dtype=ndd.float32)
+        ndd.cast(co(), dtype=ndd.float32)
+        ndd.cast(co(), dtype=ndd.float32)  # second read in the same step
+
+
+def _feeder_must_be_consumed():
+    es = _es(3, batch_size=4)
+    co = _const_es([2, 2], batch_size=4)
+    for i, batch in enumerate(es.compiled(batch_size=4)):
+        ndd.cast(batch, dtype=ndd.float32)
+        if i == 0:  # consumed during tracing, then skipped -> not consumed next step
+            ndd.cast(co(), dtype=ndd.float32)
+
+
+def _feeder_late():
+    es = _es(3, batch_size=4)
+    late = _const_es([5, 5], batch_size=4)
+    for i, batch in enumerate(es.compiled(batch_size=4)):
+        ndd.cast(batch, dtype=ndd.float32)
+        if i > 0:  # first used only after the trace iteration
+            ndd.cast(late(), dtype=ndd.float32)
+
+
+@params(
+    (_feeder_underrun, "exhausted"),
+    (_feeder_read_once, "once per compiled step"),
+    (_feeder_must_be_consumed, "not consumed"),
+    (_feeder_late, "during tracing"),
+)
+def test_compile_feeder_errors(scenario, glob):
+    with assert_raises(RuntimeError, glob=glob):
+        scenario()
+
+
+def _es_batch_size_trace():
+    es = _es(3, batch_size=5)
+    for batch in es.compiled(batch_size=4):
+        ndd.cast(batch, dtype=ndd.float32)
+
+
+def _es_batch_size_runtime():
+    counter = itertools.count()
+    es = ndd.ExternalSource(
+        lambda: ndd.batch([np.zeros(3, np.float32)] * (4 if next(counter) == 0 else 5))
+    )
+    for batch in es.compiled(batch_size=4):
+        ndd.cast(batch, dtype=ndd.float32)
+
+
+@params(
+    (_es_batch_size_trace, ValueError, "batch size 4"),
+    (_es_batch_size_runtime, (ValueError, RuntimeError), "batch size"),
+)
+def test_compile_es_batch_size_errors(scenario, exc, glob):
+    with assert_raises(exc, glob=glob):
+        scenario()

@@ -15,10 +15,10 @@
 import copy
 
 import makefun
+
 import nvidia.dali.backend as _b
 import nvidia.dali.ops as _legacy_ops
 import nvidia.dali.types
-from ._nvtx import NVTXRange
 from nvidia.dali import internal as _internal
 from nvidia.dali.fn import _to_snake_case
 from nvidia.dali.ops import _docs, _names
@@ -28,7 +28,9 @@ from ._batch import Batch
 from ._call_site import mark_transparent, resolve_callsite_frame
 from ._compile import _compile_intercept
 from ._eval_mode import EvalMode
-from ._tensor import Tensor, tensor as to_tensor
+from ._nvtx import NVTXRange
+from ._tensor import Tensor
+from ._tensor import tensor as to_tensor
 
 
 def is_external(x):
@@ -216,7 +218,6 @@ def build_constructor(schema, op_class):
             actual_tensor_arg_names = {
                 arg_name for arg_name in tensor_arg_names if kwargs.get(arg_name) is not None
             }
-            original_tensor_args = {}
             tensor_args = {}
             for arg_name in tensor_arg_names:
                 arg = kwargs.get(arg_name)
@@ -224,21 +225,18 @@ def build_constructor(schema, op_class):
                     continue
                 if isinstance(arg, Batch):
                     raise ValueError("Readers cannot be constructed with batch keyword arguments")
-                original_arg = arg
                 dtype = op_class._argument_conversion_map[arg_name]
                 arg = _promote_0d_cpu_tensor(to_tensor(arg, dtype=dtype))
                 if isinstance(arg, (int, float, bool, str)):
                     kwargs[arg_name] = arg
                     continue
                 del kwargs[arg_name]
-                original_tensor_args[arg_name] = original_arg
                 tensor_args[arg_name] = arg
         kwargs = {k: _scalar_decay(v) for k, v in kwargs.items()}
         op_class.__base__.__init__(self, max_batch_size, name, **kwargs)
         if is_reader:  # Need to be done here not to be overridden by the constructor
             self._tensor_arg_names = actual_tensor_arg_names
             self._raw_tensor_args = tensor_args
-            self._original_tensor_args = original_tensor_args
         if stateful:
             self._call_id = 0
 
