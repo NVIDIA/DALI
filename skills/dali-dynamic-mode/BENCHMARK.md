@@ -7,7 +7,7 @@ This benchmark summarizes 3-Tier Evaluation from NVSkills-Eval results for the s
 ## Evaluation Summary
 
 - Skill: `dali-dynamic-mode`
-- Evaluation date: 2026-06-30
+- Evaluation date: 2026-07-13
 - NVSkills-Eval profile: `external`
 - Environment: `astra-sandbox`
 - Dataset: 12 evaluation tasks
@@ -48,11 +48,11 @@ The benchmark included 12 recorded Tier 3 trials, but the source evaluation data
 
 | Dimension | Num | `claude-code` | `codex` |
 |---|---:|---:|---:|
-| Security | 6 | 100% (+0%) | 100% (+0%) |
-| Correctness | 6 | 92% (+48%) | 81% (+27%) |
-| Discoverability | 6 | 98% (+85%) | 91% (+66%) |
-| Effectiveness | 6 | 85% (+45%) | 69% (+25%) |
-| Efficiency | 6 | 90% (+59%) | 88% (+54%) |
+| Security | 6 | 100% (+0%) | 100% (+8%) |
+| Correctness | 6 | 92% (+45%) | 84% (+16%) |
+| Discoverability | 6 | 98% (+85%) | 85% (+56%) |
+| Effectiveness | 6 | 85% (+36%) | 71% (+15%) |
+| Efficiency | 6 | 90% (+59%) | 77% (+47%) |
 
 Score values show skill-assisted performance. Values in parentheses show uplift versus the no-skill baseline when baseline data is available.
 
