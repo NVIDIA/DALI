@@ -317,7 +317,6 @@ class Operator:
             from . import random
 
             rng = random._resolve_rng(raw_kwargs.pop("rng", None))
-
             # Only one random state tensor is created per call, not per sample.
             raw_kwargs["_random_state"] = random._state_tensor(random._draw_state(rng))
 

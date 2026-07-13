@@ -19,9 +19,10 @@ import threading
 import types
 import warnings
 from abc import ABC, abstractmethod
+from collections import deque
 from collections.abc import Iterator, Mapping, Sequence
 from contextlib import contextmanager
-from typing import TYPE_CHECKING, Any, Generic, NamedTuple, Protocol, TypeVar
+from typing import TYPE_CHECKING, Any, Generic, NamedTuple, NoReturn, Protocol, TypeVar
 
 import numpy as np
 
@@ -29,6 +30,7 @@ import nvidia.dali.types as dali_types
 from nvidia.dali import fn
 from nvidia.dali.pipeline import Pipeline
 
+from . import random as _random
 from ._batch import Batch
 from ._call_site import (
     CallChain,
@@ -44,7 +46,6 @@ if TYPE_CHECKING:
     from ._eval_context import EvalContext
     from ._external_source import ExternalSource  # noqa: F401
     from ._ops import Operator, Reader
-    from .random import RNG
 
 
 def _nvtx_range(message: str):
@@ -92,12 +93,13 @@ class CompileNode:
     num_outputs: int
     device: Device | None = None
     pipeline_output_offset: int | None = dataclasses.field(default=None, repr=False)
+    random_state_ref: "CompileRef | None" = dataclasses.field(default=None, repr=False)
 
 
 class CompileRef(NamedTuple):
     """Reference to one output of a compile graph node."""
 
-    owner: "CompileSource | CompileNode"
+    owner: "CompileSource | CompileNode | CompiledRNG"
     output_index: int
 
 
@@ -138,6 +140,17 @@ class _CallTrie:
             frame = frame.f_back
         return current.nodes.get(op)
 
+    def prune(self, nodes: set[CompileNode]) -> None:
+        """Remove graph nodes and any branches left empty by the removal."""
+        self.nodes = {op: node for op, node in self.nodes.items() if node not in nodes}
+        for child in self.children.values():
+            child.prune(nodes)
+        self.children = {
+            code_loc: child
+            for code_loc, child in self.children.items()
+            if child.nodes or child.children
+        }
+
 
 class CompiledBatch(Batch):
     """A Batch that carries compile-graph provenance."""
@@ -162,6 +175,143 @@ class CompiledBatch(Batch):
             self._compile_iteration = None
 
 
+def _wrap_captured_result(
+    node: CompileNode,
+    result: Batch | tuple[Batch, ...],
+    iteration: int,
+) -> CompiledBatch | tuple[CompiledBatch, ...]:
+    """Wrap an eager result with its compile provenance."""
+    is_tuple = isinstance(result, tuple)
+    result = result if is_tuple else (result,)
+    wrapped = tuple(
+        CompiledBatch.from_batch(batch, CompileRef(node, i), iteration)
+        for i, batch in enumerate(result)
+    )
+    return wrapped if is_tuple else wrapped[0]
+
+
+class CompiledRNG:
+    """Manage one RNG across tracing and compiled execution.
+
+    The public RNG advances when the Python body consumes a compiled random call. A backend clone
+    feeds the pipeline and may advance ahead due to prefetch. The call index verifies that the
+    Python body consumes the prefetched results in trace order.
+    """
+
+    __slots__ = (
+        "rng",
+        "batch_size",
+        "nodes",
+        "_used_eagerly",
+        "_pipeline_rng",
+        "_version",
+        "_next_call",
+    )
+
+    def __init__(self, rng: _random.RNG, batch_size: int):
+        self.rng = rng
+        self.batch_size = batch_size
+        self.nodes: list[CompileNode] = []  # Operators that this rng is assigned to
+        self._used_eagerly = False
+        self._pipeline_rng = None  # Clone of rng's generator, advanced in parallel
+        self._version = 0
+        self._next_call = 0
+
+    def record_use(self, node: CompileNode | None) -> None:
+        """Record one traced use."""
+        if node is None:
+            self._used_eagerly = True
+            return
+
+        if node.random_state_ref is None:
+            node.random_state_ref = CompileRef(self, len(self.nodes))
+            self.nodes.append(node)
+            return
+
+        # random_state_ref already present: same call site hit twice
+        owner = node.random_state_ref.owner
+        assert isinstance(owner, CompiledRNG)
+        owner._used_eagerly = True
+        self._used_eagerly = True
+
+    @property
+    def needs_pruning(self) -> bool:
+        return self._used_eagerly and bool(self.nodes)
+
+    def prune(self, nodes: set[CompileNode]) -> bool:
+        self.nodes = [node for node in self.nodes if node not in nodes]
+        for call_index, node in enumerate(self.nodes):
+            node.random_state_ref = CompileRef(self, call_index)
+        return bool(self.nodes)
+
+    def sync(self) -> None:
+        self._pipeline_rng, self._version = self.rng._snapshot_backend()
+
+    def check_version(self) -> None:
+        if self._version != self.rng._version:
+            raise RuntimeError("The RNG of a compiled operator was modified outside the loop.")
+
+    def consume_call(self, call_index: int, actual_rng: _random.RNG) -> None:
+        if self.rng is not actual_rng:
+            raise RuntimeError("A compiled operator was called with a different RNG.")
+        self.check_version()
+        if call_index < self._next_call:
+            raise RuntimeError("A compiled random operator may be called only once per step.")
+        if call_index != self._next_call:
+            raise RuntimeError(
+                "Compiled operators sharing an RNG must be called in the same order."
+            )
+
+        self.rng.advance(_random._STATE_WORDS)
+        self._version = self.rng._version
+        self._next_call += 1
+
+    def finish_step(self) -> None:
+        if self._next_call != len(self.nodes):
+            raise RuntimeError("A compiled random operator was not consumed this step")
+        self._next_call = 0
+
+    def _draw_states(self) -> tuple[Any, ...]:
+        random_words = (_random._draw_state(self._pipeline_rng.next) for _ in self.nodes)
+        return tuple(
+            Batch.broadcast(_random._state_tensor(words), self.batch_size).evaluate()._storage
+            for words in random_words
+        )
+
+    def _wire_source(self) -> tuple:
+        return tuple(fn.external_source(self._draw_states, len(self.nodes), device="cpu"))
+
+
+def _find_nodes_to_prune(
+    nodes: Sequence[CompileNode],
+    rngs: Sequence[CompiledRNG],
+) -> set[CompileNode]:
+    """Find nodes made eager by dependencies or shared RNGs."""
+    dependents: dict[CompileNode, list[CompileNode]] = {}
+    for node in nodes:
+        for ref in itertools.chain(node.inputs, node.kwargs.values()):
+            if isinstance(ref, CompileRef) and isinstance(ref.owner, CompileNode):
+                dependents.setdefault(ref.owner, []).append(node)
+
+    queue = deque(node for rng in rngs if rng.needs_pruning for node in rng.nodes)
+    nodes_to_prune: set[CompileNode] = set()
+
+    while queue:
+        node = queue.popleft()
+        if node in nodes_to_prune:
+            continue
+
+        nodes_to_prune.add(node)
+        queue.extend(dependents.get(node, ()))
+
+        if node.random_state_ref is not None:
+            rng = node.random_state_ref.owner
+            assert isinstance(rng, CompiledRNG)
+            queue.extend(rng.nodes)
+
+    return nodes_to_prune
+
+
 class CompileContext:
     """Manages the compile state (TRACING -> COMPILED or DISABLED)."""
 
@@ -172,6 +322,7 @@ class CompileContext:
         self.batch_size = batch_size
         self.sources: list[CompileSource] = []  # only sources[0] is iterated on
         self.nodes: list[CompileNode] = []
+        self.rngs: dict[_random.RNG, CompiledRNG] = {}
         self._call_trie = _CallTrie()
         self.pipeline: Pipeline | None = None
         self._results: dict[CompileSource | CompileNode, tuple[CompiledBatch, ...]] = {}
@@ -246,14 +397,27 @@ class CompileContext:
             if source not in self._read_this_step:
                 self._fail("An ExternalSource was not consumed this step")
 
+        if self.state is State.COMPILED:
+            with self._invalidate_on_error():
+                for rng in self.rngs.values():
+                    rng.finish_step()
+
     def _teardown(self) -> None:
         self.state = State.DISABLED
         for source in self.sources:
             source.compilable._teardown_compile()
 
-    def _fail(self, message: str):
+    def _fail(self, message: str) -> NoReturn:
         self._teardown()
         raise RuntimeError(message)
+
+    @contextmanager
+    def _invalidate_on_error(self):
+        try:
+            yield
+        except RuntimeError:
+            self._teardown()
+            raise
 
     @staticmethod
     def _compute_kwarg_casts(op: type["Operator"], raw_kwargs: Mapping[str, CompiledBatch | Any]):
@@ -274,19 +438,26 @@ class CompileContext:
     @_nvtx_range("Recording operator")
     def record(
         self,
-        call_chain: CallChain,
+        frame: types.FrameType,
         op_class: type["Operator"],
+        inputs: Sequence[Any],
+        kwargs: Mapping[str, Any],
+        result: Any,
         backend: str,
-        inputs: Sequence[CompileRef | Any],
-        kwargs: Mapping[str, CompileRef | Any],
-        raw_kwargs: Mapping[str, CompiledBatch | Any],
-        num_outputs: int,
-        device: Device | None = None,
+        device: Device | None,
     ) -> CompileNode | None:
+        from ._source_analysis import classify
+
+        classification = classify(frame, inputs, kwargs)
+        if classification is None:
+            return None
+
+        captured_inputs, captured_kwargs = classification
+        call_chain = build_call_chain(frame)
         if existing := self._call_trie.find(call_chain, op_class):
             if (
-                existing.inputs == inputs
-                and existing.kwargs == kwargs
+                existing.inputs == captured_inputs
+                and existing.kwargs == captured_kwargs
                 and existing.device == device
             ):
                 return existing
@@ -295,15 +466,44 @@ class CompileContext:
         node = CompileNode(
             op_class=op_class,
             backend=backend,
-            inputs=inputs,
-            kwargs=kwargs,
-            kwarg_casts=self._compute_kwarg_casts(op_class, raw_kwargs),
-            num_outputs=num_outputs,
+            inputs=captured_inputs,
+            kwargs=captured_kwargs,
+            kwarg_casts=self._compute_kwarg_casts(op_class, kwargs),
+            num_outputs=len(result) if isinstance(result, tuple) else 1,
             device=device,
         )
         self.nodes.append(node)
         self._call_trie.insert(call_chain, op_class, node)
         return node
+
+    def _record_rng_use(self, rng: _random.RNG, captured_node: CompileNode | None) -> None:
+        compiled_rng = self.rngs.get(rng)
+        if compiled_rng is None:
+            compiled_rng = CompiledRNG(rng, self.batch_size)
+            self.rngs[rng] = compiled_rng
+        compiled_rng.record_use(captured_node)
+
+    def _prune_rng_nodes(self) -> None:
+        nodes_to_prune = _find_nodes_to_prune(self.nodes, tuple(self.rngs.values()))
+        if nodes_to_prune:
+            warnings.warn(
+                "An RNG was used both by a capturable random operator and by a non-capturable "
+                "random call, or a capturable random call site was used more than once during "
+                "tracing. Affected operators and everything depending on them run eagerly."
+            )
+        self.nodes = [node for node in self.nodes if node not in nodes_to_prune]
+        self._call_trie.prune(nodes_to_prune)
+        self.rngs = {
+            rng: compiled_rng
+            for rng, compiled_rng in self.rngs.items()
+            if compiled_rng.prune(nodes_to_prune)
+        }
+
+    def _assign_output_offsets(self) -> None:
+        offset = 0
+        for node in itertools.chain(self.sources, self.nodes):
+            node.pipeline_output_offset = offset
+            offset += node.num_outputs
 
     @_nvtx_range("Building pipeline")
     def build_pipeline(self, ctx: "EvalContext") -> None:
@@ -312,11 +512,14 @@ class CompileContext:
                 "compile=True was specified but no operators were captured during tracing. "
                 "Falling back to dynamic mode.",
             )
+        self._prune_rng_nodes()
+        if not self.nodes:
             self._teardown()
             return
 
         self._assign_output_offsets()
 
+        compiled_rngs = tuple(self.rngs.values())
         transferred = False
         try:
             pipe = Pipeline(
@@ -326,7 +529,9 @@ class CompileContext:
                 prefetch_queue_depth=2,
             )
             with pipe:
-                _wire_compile_graph(self.sources, self.nodes)
+                _wire_compile_graph(self.sources, self.nodes, compiled_rngs)
+            for rng in compiled_rngs:
+                rng.sync()
             for source in self.sources:
                 transferred |= source.compilable._transfer_into(pipe)
             pipe.build()
@@ -360,10 +565,22 @@ class CompileContext:
         except Exception:
             self._teardown()
             raise
+
+        self._check_rng_versions()
         self._results.clear()
         for owner in itertools.chain(self.sources, self.nodes):
             self._results[owner] = self._wrap_outputs(owner, pipeline_outputs)
         return self.result_for(self.sources[0])
+
+    def _check_rng_versions(self) -> None:
+        with self._invalidate_on_error():
+            for rng in self.rngs.values():
+                rng.check_version()
+
+    def _resync_rngs(self) -> None:
+        self._check_rng_versions()
+        for rng in self.rngs.values():
+            rng.sync()
 
     def _wrap_outputs(
         self, owner: "CompileSource | CompileNode", pipeline_outputs: Sequence
@@ -396,15 +613,15 @@ class CompileContext:
         return result if isinstance(result, bool) else np.all(result).item()
 
     @_nvtx_range("Getting compiled result")
-    def get_compiled_result(
+    def _find_compiled_node(
         self,
         frame: types.FrameType,
         op_class: type["Operator"],
         inputs: Sequence[Any],
         kwargs: Mapping[str, Any],
         device: Device | None = None,
-    ) -> Any | None:
-        """Return pre-built result for a known call site, or None."""
+    ) -> CompileNode | None:
+        """Find a compiled node matching this call."""
         node = self._call_trie.lookup(frame, op_class)
         if node is None:
             return None
@@ -422,15 +639,21 @@ class CompileContext:
             return None
         if not all(self._matches(kwargs[name], expected) for name, expected in node.kwargs.items()):
             return None
-        if node not in self._results:
-            return None
-        return self.result_for(node)
+        return node
 
-    def _assign_output_offsets(self) -> None:
-        offset = 0
-        for node in itertools.chain(self.sources, self.nodes):
-            node.pipeline_output_offset = offset
-            offset += node.num_outputs
+    def _resolve_random_call(self, node: CompileNode | None, rng: _random.RNG) -> Any | None:
+        """Return a compiled random result, or None to request eager fallback."""
+        if node is not None and node.random_state_ref is not None:
+            ref = node.random_state_ref
+            compiled_rng = ref.owner
+            assert isinstance(compiled_rng, CompiledRNG)
+            with self._invalidate_on_error():
+                compiled_rng.consume_call(ref.output_index, rng)
+            return self.result_for(node)
+
+        if rng in self.rngs:
+            self._fail("A captured RNG was used by a non-compiled random operator.")
+        return None
 
 
 _Compilable = TypeVar("_Compilable", bound=SupportsCompile)
@@ -475,6 +698,8 @@ class CompiledEpochIterator(ABC, Generic[_Compilable]):
         except GeneratorExit:
             self._on_break()
             raise
+        if ctx.state is State.DISABLED:
+            raise RuntimeError("The compiled loop was invalidated and cannot continue.")
         ctx._require_consumed()
 
     @abstractmethod
@@ -573,7 +798,7 @@ class _ReaderEpochIterator(CompiledEpochIterator["Reader"]):
 
     def _on_break(self):
         # consumer aborted mid-step, extra sources already advanced, fail safe
-        if len(self._compile_ctx.sources) > 1:
+        if len(self._compile_ctx.sources) > 1 or self._compile_ctx.rngs:
             self._compile_ctx._teardown()
 
 
@@ -604,6 +829,8 @@ class _ExternalSourceEpochIterator(CompiledEpochIterator["ExternalSource"]):
     def _compiled(self):
         ctx = self._compile_ctx
         ctx._reset_stop()
+        if ctx._iteration > 0:  # a previous epoch's reset discarded prefetched states
+            ctx._resync_rngs()
         while (batches := self._next_batches()) is not None:
             yield from self._emit_step(batches)
         assert ctx.pipeline is not None
@@ -626,7 +853,11 @@ def make_iterator(compilable: SupportsCompile, batch_size: int) -> CompiledEpoch
 
 
 @_nvtx_range("Graph Wiring")
-def _wire_compile_graph(sources: Sequence[CompileSource], nodes: Sequence[CompileNode]) -> None:
+def _wire_compile_graph(
+    sources: Sequence[CompileSource],
+    nodes: Sequence[CompileNode],
+    rngs: Sequence[CompiledRNG],
+) -> None:
     """Wire the compile graph into a Pipeline. Must be called inside ``with pipe:``."""
     from ._op_builder import _scalar_decay
 
@@ -634,6 +865,9 @@ def _wire_compile_graph(sources: Sequence[CompileSource], nodes: Sequence[Compil
     for source in sources:
         for i, out in enumerate(source.compilable._wire_pipeline(source)):
             datanode_map[CompileRef(source, i)] = out
+    for rng in rngs:
+        for i, out in enumerate(rng._wire_source()):
+            datanode_map[CompileRef(rng, i)] = out
 
     for node in nodes:
         positional = [
@@ -652,6 +886,10 @@ def _wire_compile_graph(sources: Sequence[CompileSource], nodes: Sequence[Compil
         # All kwargs need to be on the CPU
         for name, kw_node in kw_nodes.items():
             kw_nodes[name] = kw_node.cpu()
+
+        # Inject random state nodes
+        if node.random_state_ref is not None:
+            kw_nodes["_random_state"] = datanode_map[node.random_state_ref].cpu()
 
         op = node.op_class._legacy_op(device=node.backend, **kw_scalars)
         out = op(*positional, **kw_nodes)
@@ -673,13 +911,15 @@ def _compile_intercept(
 ) -> types.FunctionType:
     """Wrap an fn_call to intercept operator calls for transparent pipelining."""
     from ._op_builder import _resolve_backend
-    from ._source_analysis import classify
+    from ._ops import _infer_batch_size
+
+    is_random = op_class._has_random_state_arg
 
     @mark_transparent
     def wrapper(*inputs, batch_size=None, device=None, **raw_kwargs):
         device, backend = _resolve_backend(op_class, device, inputs, op_name=op_name)
         compile_ctx = CompileContext.current()
-        if compile_ctx is None:
+        if compile_ctx is None or compile_ctx.state is State.DISABLED:
             return fn_call(
                 *inputs, batch_size=batch_size, device=device, _backend=backend, **raw_kwargs
             )
@@ -692,11 +932,26 @@ def _compile_intercept(
                 *inputs, batch_size=batch_size, device=device, _backend=backend, **raw_kwargs
             )
 
+        if is_random:
+            rng = _random._resolve_rng(raw_kwargs.get("rng"))
+            graph_kwargs = {name: value for name, value in raw_kwargs.items() if name != "rng"}
+        else:
+            graph_kwargs = raw_kwargs
+
         if compile_ctx.state is State.COMPILED:
             compile_ctx.check_batch_size(batch_size)
-            result = compile_ctx.get_compiled_result(
-                frame, op_class, inputs, raw_kwargs, device=device
-            )
+            node = compile_ctx._find_compiled_node(frame, op_class, inputs, graph_kwargs, device)
+            if not is_random:
+                result = compile_ctx.result_for(node) if node is not None else None
+            else:
+                if node is not None and batch_size is None:
+                    actual_batch_size = _infer_batch_size(*inputs, **graph_kwargs)
+                    if actual_batch_size != compile_ctx.batch_size:
+                        raise RuntimeError(
+                            f"Compiled random operator cannot change batch_size from "
+                            f"{compile_ctx.batch_size} to {actual_batch_size}."
+                        )
+                result = compile_ctx._resolve_random_call(node, rng)
             if result is not None:
                 return result
             return fn_call(
@@ -707,33 +962,26 @@ def _compile_intercept(
         result = fn_call(
             *inputs, batch_size=batch_size, device=device, _backend=backend, **raw_kwargs
         )
-
-        if op_class._is_stateful:
-            return result
-
-        classification = classify(frame, inputs, raw_kwargs)
-        if classification is None:
-            return result
-
-        classified_inputs, classified_kwargs = classification
-        results = result if isinstance(result, tuple) else (result,)
-        node = compile_ctx.record(
-            call_chain=build_call_chain(frame),
-            op_class=op_class,
-            backend=backend,
-            inputs=classified_inputs,
-            kwargs=classified_kwargs,
-            raw_kwargs=raw_kwargs,
-            num_outputs=len(results),
-            device=device,
+        if not is_random:
+            capturable = not op_class._is_stateful
+        else:
+            outputs = result if isinstance(result, tuple) else (result,)
+            capturable = all(
+                isinstance(output, Batch) and output.batch_size == compile_ctx.batch_size
+                for output in outputs
+            )
+        node = (
+            compile_ctx.record(
+                frame, op_class, inputs, graph_kwargs, result, backend=backend, device=device
+            )
+            if capturable
+            else None
         )
+        if is_random:
+            compile_ctx._record_rng_use(rng, node)
+
         if node is None:
             return result
-
-        new_results = tuple(
-            CompiledBatch.from_batch(batch, CompileRef(node, i), compile_ctx._iteration)
-            for i, batch in enumerate(results)
-        )
-        return new_results[0] if not isinstance(result, tuple) else new_results
+        return _wrap_captured_result(node, result, compile_ctx._iteration)
 
     return wrapper
