@@ -9,14 +9,14 @@ NVIDIA <br>
 ### License/Terms of Use: <br>
 Apache 2.0 <br>
 ## Use Case: <br>
-Developers and engineers writing, reviewing, or migrating code that uses NVIDIA DALI's imperative dynamic-mode API for GPU-accelerated data loading and preprocessing in deep learning applications. <br>
+Developers and engineers writing, reviewing, or migrating deep learning data-loading code to use DALI's imperative dynamic-mode API instead of pipeline mode. <br>
 
 ### Deployment Geography for Use: <br>
 Global <br>
 
 ## Requirements / Dependencies: <br>
 **Requires API Key or External Credential:** [No] <br>
-**Credential Type(s):** [None] <br>  
+**Credential Type(s):** [None] <br>
 
 Do not include secrets in prompts/logs/output; use least-privilege credentials; rotate keys as appropriate. <br>
 
@@ -25,7 +25,7 @@ Risk: Review before execution as proposals could introduce incorrect or misleadi
 Mitigation: Review and scan skill before deployment. <br>
 
 ## Reference(s): <br>
-- [NVIDIA DALI Repository](https://github.com/NVIDIA/DALI) <br>
+- [NVIDIA DALI Documentation](https://github.com/NVIDIA/DALI) <br>
 
 
 ## Skill Output: <br>
@@ -35,13 +35,13 @@ Mitigation: Review and scan skill before deployment. <br>
 **Other Properties Related to Output:** [None] <br>
 
 ## Evaluation Agents Used: <br>
-- claude-code <br>
-- codex <br>
+- `claude-code` <br>
+- `codex` <br>
 
 
 
 ## Evaluation Tasks: <br>
-Evaluated against 12 evaluation tasks using NVSkills-Eval 3-Tier Evaluation (external profile). <br>
+Evaluated against 12 tasks using NVSkills-Eval `external` profile in `astra-sandbox` environment. <br>
 
 ## Evaluation Metrics Used: <br>
 Reported benchmark dimensions: <br>
@@ -65,14 +65,14 @@ Underlying evaluation signals used in this run: <br>
 ## Evaluation Results: <br>
 | Dimension | Num | `claude-code` | `codex` |
 |---|---:|---:|---:|
-| Security | 6 | 100% (+0%) | 100% (+0%) |
-| Correctness | 6 | 92% (+48%) | 81% (+27%) |
-| Discoverability | 6 | 98% (+85%) | 91% (+66%) |
-| Effectiveness | 6 | 85% (+45%) | 69% (+25%) |
-| Efficiency | 6 | 90% (+59%) | 88% (+54%) |
+| Security | 6 | 100% (+0%) | 100% (+8%) |
+| Correctness | 6 | 92% (+45%) | 84% (+16%) |
+| Discoverability | 6 | 98% (+85%) | 85% (+56%) |
+| Effectiveness | 6 | 85% (+36%) | 71% (+15%) |
+| Efficiency | 6 | 90% (+59%) | 77% (+47%) |
 
 ## Skill Version(s): <br>
-v2.3.0-dev (source: git tag) <br>
+v2.3.0-dev-27-gf083c02c (source: git describe) <br>
 
 ## Ethical Considerations: <br>
 NVIDIA believes Trustworthy AI is a shared responsibility and we have established policies and practices to enable development for a wide array of AI applications. When downloaded or used in accordance with our terms of service, developers should work with their internal team to ensure this skill meets requirements for the relevant industry and use case and addresses unforeseen product misuse. <br>
