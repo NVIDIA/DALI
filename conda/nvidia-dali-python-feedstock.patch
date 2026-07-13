@@ -1,0 +1,135 @@
+diff --git a/recipe/build.sh b/recipe/build.sh
+index 23d3cee..b1e9f12 100755
+--- a/recipe/build.sh
++++ b/recipe/build.sh
+@@ -48,13 +48,17 @@ if [ -z "${targetsDir+x}" ]; then
+ fi
+ 
+ mkdir -p third_party/boost/preprocessor/include
++rm -rf third_party/boost/preprocessor/include/boost
+ ln -sf $PREFIX/include/boost third_party/boost/preprocessor/include/
+ 
+ mkdir -p third_party/dlpack/include/
++rm -rf third_party/dlpack/include/dlpack
+ ln -sf $PREFIX/include/dlpack third_party/dlpack/include/
+ 
+ mkdir -p third_party/cutlass/include/
++rm -rf third_party/cutlass/include/cute
+ ln -sf $PREFIX/include/cute    third_party/cutlass/include/
++rm -rf third_party/cutlass/include/cutlass
+ ln -sf $PREFIX/include/cutlass third_party/cutlass/include/
+ 
+ export CXXFLAGS="$CXXFLAGS -isystem $PREFIX/include/opencv4"
+@@ -105,6 +109,9 @@ fi
+ # https://docs.nvidia.com/deeplearning/dali/user-guide/docs/compilation.html#optional-cmake-build-parameters
+ cmake ${CMAKE_ARGS} \
+   -GNinja \
++  -DBUILD_FOR_CONDA=ON \
++  -DDALI_BUILD_FLAVOR="${NVIDIA_DALI_BUILD_FLAVOR}" \
++  -DTIMESTAMP="${DALI_TIMESTAMP}" \
+   -DBUILD_AWSSDK=ON \
+   -DBUILD_BENCHMARK=ON \
++  -DBUILD_TEST=ON \
+   -DBUILD_CFITSIO=ON \
+diff --git a/recipe/conda_build_config.yaml b/recipe/conda_build_config.yaml
+index d0bd8f8..4bbc9b0 100644
+--- a/recipe/conda_build_config.yaml
++++ b/recipe/conda_build_config.yaml
+@@ -1,5 +1,6 @@
+ libnvimgcodec:
+   - "0.8.*"
++# nvcompGetStatusString used by DALI requires nvCOMP 5.2 or newer.
+ libnvcomp:
+   - "5.2.0.*"
+ # https://github.com/NVIDIA/DALI/tree/main/third_party
+diff --git a/recipe/recipe.yaml b/recipe/recipe.yaml
+index 274759a..940d1b0 100644
+--- a/recipe/recipe.yaml
++++ b/recipe/recipe.yaml
+@@ -1,7 +1,11 @@
+ # TODO: Update package pinnings in conda_build_config for every release
+ schema_version: 1
+ context:
+-  version: "2.2.0"
++  dali_version: ${{ env.get("DALI_VERSION") }}
++  dali_build_flavor: ${{ env.get("NVIDIA_DALI_BUILD_FLAVOR", default="") }}
++  dali_timestamp: ${{ env.get("DALI_TIMESTAMP", default="") }}
++  version: ${{ dali_version ~ ("." ~ dali_timestamp if dali_build_flavor else "") }}
++  build_number: ${{ env.get("NVIDIA_BUILD_ID", default="0") }}
+ 
+ recipe:
+   name: nvidia-dali
+@@ -9,20 +13,9 @@ recipe:
+ 
+ source:
+   - url: https://github.com/NVIDIA/DALI/archive/refs/tags/v${{ version }}.tar.gz
+-    sha256: 2a3fda834ab0f767159996c3685f1981cc59ce6fd097483f8b23ff8fabe9331d
+-    patches:
+-      - patches/0001-BLD-Use-CUDA-target-include-directory-to-support-cro.patch
+-      - patches/0002-DOC-Patch-dlopen-failure-message-and-dlopen-search-p.patch
+-      - patches/0003-BLD-Use-shared-libtar-instead-of-static.patch
+-  - url: https://github.com/cocodataset/cocoapi/archive/8c9bcc3cf640524c4c20a9c40e89cb6a2f2fa0e9.tar.gz
+-    sha256: 4dd3450bab2287d1c1b271cf4a1420db05294194f0ad9af4e3af592d6f2b4410
+-    target_directory: third_party/cocoapi
+-  - url: https://github.com/JanuszL/ffts/archive/6ef8d818f46f679c95110ab199ae915fb04bfef5.tar.gz
+-    sha256: 1d157157828ce1c85d0a43a6de312ce168b3c5dc1223c6ad3f02e074c3806c15
+-    target_directory: third_party/ffts
+ 
+ build:
+-  number: 0
++  number: ${{ build_number }}
+   skip:
+     - cuda_compiler_version == "None"
+     - win
+@@ -32,7 +25,11 @@ outputs:
+   - staging:
+       name: core-build
+     build:
+-      script: build.sh
++      script:
++        file: build.sh
++        env:
++          NVIDIA_DALI_BUILD_FLAVOR: ${{ dali_build_flavor }}
++          DALI_TIMESTAMP: ${{ dali_timestamp }}
+     requirements:
+       build:
+         - ${{ compiler('cuda') }}
+@@ -93,7 +90,11 @@ outputs:
+       from: core-build
+       run_exports: true
+     build:
+-      script: build.sh
++      script:
++        file: build.sh
++        env:
++          NVIDIA_DALI_BUILD_FLAVOR: ${{ dali_build_flavor }}
++          DALI_TIMESTAMP: ${{ dali_timestamp }}
+       files:
+         - lib/libdali*.so
+     requirements:
+@@ -164,7 +165,11 @@ outputs:
+       from: core-build
+       run_exports: false
+     build:
+-      script: build.sh
++      script:
++        file: build.sh
++        env:
++          NVIDIA_DALI_BUILD_FLAVOR: ${{ dali_build_flavor }}
++          DALI_TIMESTAMP: ${{ dali_timestamp }}
+       files:
+         - include/dali/**
+     requirements:
+@@ -211,7 +216,11 @@ outputs:
+       from: core-build
+       run_exports: false
+     build:
+-      script: build.sh
++      script:
++        file: build.sh
++        env:
++          NVIDIA_DALI_BUILD_FLAVOR: ${{ dali_build_flavor }}
++          DALI_TIMESTAMP: ${{ dali_timestamp }}
+     requirements:
+       ignore_run_exports:
+         by_name:
