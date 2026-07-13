@@ -149,7 +149,7 @@ class _CallTrie:
         current = self
         frame: types.FrameType | None = start_frame
         while frame is not None:
-            child = current.children.get(CodeLoc(frame.f_code, frame.f_lasti))
+            child = current.children.get((frame.f_code, frame.f_lasti))
             if child is None:
                 return None
             current = child

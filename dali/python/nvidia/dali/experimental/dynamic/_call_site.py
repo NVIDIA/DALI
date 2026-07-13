@@ -14,14 +14,9 @@
 
 import sys
 import types
-from typing import NamedTuple, TypeAlias
+from typing import TypeAlias
 
-
-class CodeLoc(NamedTuple):
-    """A location in bytecode: code object + instruction offset."""
-
-    code: types.CodeType
-    offset: int
+CodeLoc = tuple
 
 
 CallChain: TypeAlias = tuple[CodeLoc, ...]
@@ -62,7 +57,7 @@ def build_call_chain(start_frame: types.FrameType) -> CallChain:
     chain: list[CodeLoc] = []
     frame: types.FrameType | None = start_frame
     while frame is not None:
-        chain.append(CodeLoc(frame.f_code, frame.f_lasti))
+        chain.append((frame.f_code, frame.f_lasti))
         frame = frame.f_back
     return tuple(chain)
 

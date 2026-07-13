@@ -38,7 +38,7 @@ from libcst.metadata import (
 
 from nvidia.dali.types import DALIDataType, DALIImageType, DALIInterpType
 
-from ._call_site import CodeLoc, resolve_callsite_frame
+from ._call_site import resolve_callsite_frame
 from ._compile import CompiledBatch, CompileRef
 from ._device import Device
 from ._type import DType
@@ -188,14 +188,17 @@ class ModuleInfo:
     calls_by_position: Mapping[tuple[int, int, int, int], cst.Call | None]  # None if ambiguous
     calls_by_line: Mapping[int, tuple[cst.Call, ...]]  # 3.10 fallback for call-site identification
 
-    call_cache: dict[CodeLoc, cst.Call | None] = field(default_factory=dict, repr=False)
+    call_cache: dict[tuple[int, int], cst.Call | None] = field(default_factory=dict, repr=False)
 
     def call_at(self, frame: types.FrameType) -> cst.Call | None:
         """The ``cst.Call`` executing at `frame`'s current instruction, memoized per call site."""
-        key = CodeLoc(frame.f_code, frame.f_lasti)
-        if key not in self.call_cache:
-            self.call_cache[key] = self._resolve_call(frame)
-        return self.call_cache[key]
+        key = (id(frame.f_code), frame.f_lasti)
+        # Use _Unresolved as sentinel value - None is a legitimate cache entry
+        if (call := self.call_cache.get(key, _Unresolved)) is not _Unresolved:
+            return call
+        call = self._resolve_call(frame)
+        self.call_cache[key] = call
+        return call
 
     def _resolve_call(self, frame: types.FrameType) -> cst.Call | None:
         code = frame.f_code
@@ -316,6 +319,31 @@ def _get_module_info(code: types.CodeType) -> ModuleInfo | None:
     return info
 
 
+_call_cache = {}
+
+
+@dataclass(frozen=True, slots=True)
+class CallInfo:
+    call: Any
+    module_info: ModuleInfo
+    meta: dict = field(default_factory=dict)
+
+
+def _call_at(frame: types.FrameType) -> cst.Call | None:
+    key = (id(frame.f_code), frame.f_lasti)
+    if (call_info := _call_cache.get(key, None)) is not None:
+        return call_info
+
+    mi = _get_module_info(frame.f_code)
+    if mi is not None:
+        call = mi.call_at(frame)
+        call_info = CallInfo(call, mi)
+    else:
+        call_info = None
+    _call_cache[key] = call_info
+    return call_info
+
+
 @dataclass(frozen=True, slots=True)
 class _Classifier:
     """Per call frame argument classifier.
@@ -350,29 +378,53 @@ class _Classifier:
             return None  # an argument is neither a CompiledBatch nor a capturable constant
         return classified_inputs, classified_kwargs
 
+    def detect_invariant_args(
+        self, inputs: tuple[Any, ...], raw_kwargs: dict[str, Any]
+    ) -> tuple[list[bool], dict[str, bool]] | None:
+        call = self.module_info.call_at(self.frame)
+
+        if call is None:
+            return None
+
+        split = _split_call_args(call)
+        if split is None:
+            return None
+        pos_nodes, kw_nodes = split
+
+        classified_inputs: list[CompileRef | Any] = []
+        for i in range(len(inputs)):
+            node = pos_nodes[i] if i < len(pos_nodes) else None
+            classified_inputs.append(self.is_invariant(node, static=True))
+        classified_kwargs = {
+            name: self.is_invariant(kw_nodes.get(name), static=True) for name in raw_kwargs
+        }
+        return classified_inputs, classified_kwargs
+
     def _capture_arg(self, node: cst.BaseExpression | None, value: Any) -> Any:
         if isinstance(value, CompiledBatch):
             return value._compile_ref
         if _is_explicit_invariant(value):
             return value
-        if node is not None and self.is_invariant(node):
+        if node is not None and self.is_invariant(node, static=False):
             return value
         raise _Unresolved
 
-    def is_invariant(self, node: cst.BaseExpression) -> bool:
+    def is_invariant(self, node: cst.BaseExpression, static: bool) -> bool:
         match node:
             case cst.BaseNumber() | cst.SimpleString() | cst.Name(value="True" | "False" | "None"):
                 return True
             case cst.UnaryOperation(operator=cst.Minus() | cst.Plus(), expression=x):
-                return self.is_invariant(x)
+                return self.is_invariant(x, static=static)
             case cst.BinaryOperation(left=left, right=right):
-                return self.is_invariant(left) and self.is_invariant(right)
+                return self.is_invariant(left, static=static) and self.is_invariant(
+                    right, static=static
+                )
             case cst.NamedExpr(value=value):
-                return self.is_invariant(value)  # walrus `(c := v)` evaluates to v
+                return self.is_invariant(value, static=static)  # walrus `(c := v)` evaluates to v
             case cst.List() | cst.Tuple():
-                return all(self.is_invariant(e.value) for e in node.elements)
+                return all(self.is_invariant(e.value, static=static) for e in node.elements)
             case cst.Name():
-                return self._is_name_invariant(node)
+                return self._is_name_invariant(node, static=static)
             case cst.Attribute():
                 # We can't accept any attributes, even if the base is a local name.
                 # Mutability and aliasing makes them hard to reliably track.
@@ -401,13 +453,13 @@ class _Classifier:
                 return not is_dunder(attr.value) and self._is_explicit_invariant_expr(base)
         return False
 
-    def _is_name_invariant(self, name_node: cst.Name) -> bool:
+    def _is_name_invariant(self, name_node: cst.Name, static: bool = False) -> bool:
         try:
             value = _safe_resolve(name_node, self.frame)
         except _Unresolved:
             return False
 
-        if _is_explicit_invariant(value):
+        if not static and _is_explicit_invariant(value):
             return True
 
         if self.module_info is None:
@@ -420,18 +472,31 @@ class _Classifier:
         # It's hard to prove that they are invariant.
         return _is_immutable_value(value)
 
-    def _is_binding_invariant(self, binding: Binding, name_node: cst.Name) -> bool:
+    def _is_binding_invariant(
+        self, binding: Binding, name_node: cst.Name, static: bool = False
+    ) -> bool:
         """True if `name_node`'s binding is invariant (captured name re-roots at live owner)."""
         if binding.in_scope:
             classifier, frame = self, self.frame
-        elif frame := self._live_owner_frame(name_node.value):
-            classifier = _Classifier(self.module_info, frame)
         else:
-            return True  # owner returned: frozen cell
+            if static:
+                # if it's not assigned in the same scope, then static analysis can't do much
+                return False
+            if frame := self._live_owner_frame(name_node.value):
+                classifier = _Classifier(self.module_info, frame)
+            else:
+                return True  # owner returned: frozen cell
 
         if binding.rhs is None:
+            if static:
+                # Parameters are never statically invariant, since the callee might be called from
+                # multiple sites.
+                # Theoretically we could track lambdas or local functions, but that's not
+                # worth the effort.
+                return False
             return classifier._is_param_invariant(name_node, frame)
-        return classifier.is_invariant(binding.rhs)
+        # punch through local assignments
+        return classifier.is_invariant(binding.rhs, static=static)
 
     def _live_owner_frame(self, name: str) -> types.FrameType | None:
         """Find the live frame owning a closure cell"""
@@ -493,7 +558,7 @@ class _Classifier:
 
         if param_name not in bound.arguments:
             return param.default is not inspect.Parameter.empty  # omitted: frozen default
-        return self.is_invariant(bound.arguments[param_name])
+        return self.is_invariant(bound.arguments[param_name], static=False)
 
     def _is_dali_chain(self, node: cst.Attribute) -> bool:
         """The only supported exceptions for attributes are those
@@ -540,7 +605,10 @@ def _matches_callee(obj: Any, callee_code: types.CodeType) -> bool:
 
 
 def classify(
-    frame: types.FrameType, inputs: tuple[Any, ...], raw_kwargs: dict[str, Any]
+    frame: types.FrameType,
+    inputs: tuple[Any, ...],
+    raw_kwargs: dict[str, Any],
+    static: bool = False,
 ) -> tuple[list[CompileRef | Any], dict[str, CompileRef | Any]] | None:
     """Classify operator args as captured constants / CompileRefs, or None to run eager."""
     mi = _get_module_info(frame.f_code)

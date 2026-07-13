@@ -32,6 +32,7 @@ from ._nvtx import NVTXRange
 from ._tensor import Tensor
 from ._tensor import tensor as to_tensor
 from .compile._invariant import unwrap_invariant, unwrap_invariants
+from ._source_analysis import _call_at, _Classifier
 
 
 def is_external(x):
@@ -186,9 +187,7 @@ def build_constructor(schema, op_class):
         if arg in _unsupported_args:
             continue
         is_tensor = schema.IsTensorArgument(arg)
-        if is_tensor and not is_reader:
-            continue
-        if schema.IsArgumentOptional(arg):
+        if schema.IsArgumentOptional(arg) or (is_tensor and not is_reader):
             init_args.append(f"{arg}=None")
         else:
             init_args.append(arg)
@@ -300,10 +299,7 @@ def build_call_function(schema, op_class):
             continue
         if not schema.IsTensorArgument(arg):
             continue
-        if schema.IsArgumentOptional(arg):
-            call_args.append(f"{arg}=None")
-        else:
-            call_args.append(arg)
+        call_args.append(f"{arg}=None")
         used_kwargs.add(arg)
 
     call_args = ["batch_size=None"] + call_args
@@ -357,7 +353,6 @@ def build_call_function(schema, op_class):
                 self._backend,
                 self._device,
                 batch_size,
-                _caller_frame=_caller_frame,
                 *raw_args,
                 **raw_kwargs,
             )
@@ -522,24 +517,48 @@ def build_fn_wrapper(op, fn_name=None, add_to_module=True):
             batch_size = _ops._infer_batch_size(*inputs, **raw_kwargs)
         _check_batch_size_available(op, batch_size)
         max_batch_size = _next_pow2(batch_size or 1)
+
+        if _caller_frame is None:
+            _caller_frame = resolve_callsite_frame(depth_hint=3)
+
+        def default_arg_classification():
+            return [False] * len(inputs), {k: False for k in raw_kwargs}
+
+        constant_args = None
+        if _caller_frame is not None:
+            info = _call_at(_caller_frame)
+            if info is not None:
+                arg_classification = None
+                if "constant_args" in info.meta:
+                    constant_args = info.meta["constant_args"]
+                else:
+                    arg_classification = _Classifier(
+                        info.module_info, _caller_frame
+                    ).detect_invariant_args(raw_kwargs, raw_kwargs)
+                    if arg_classification is not None:
+                        info.meta["constant_inputs"] = arg_classification[0]
+                        info.meta["constant_args"] = arg_classification[1]
+                        constant_args = arg_classification[1]
+                    else:
+                        info.meta["constant_inputs"] = None
+                        info.meta["constant_args"] = None
+                        constant_args = None
+                print(f"{fn_name}: constant args:\n{constant_args}")
+
         init_args = {}
         call_args = {}
         for arg, value in raw_kwargs.items():
             if arg == "max_batch_size":
                 continue
-            if arg in fixed_args:
+            is_constant = constant_args.get(arg, False) if constant_args is not None else False
+            if arg in fixed_args or is_constant:
                 value = _scalar_decay(value)
                 if value is not None:
                     init_args[arg] = value
-            elif arg in tensor_args:
+            elif arg in tensor_args and not is_constant:
                 call_args[arg] = value
 
-        if _caller_frame is None:
-            _caller_frame = resolve_callsite_frame(depth_hint=3)
-
-        inputs, call_args = op._process_params(
-            _backend, device, batch_size, *inputs, _caller_frame=_caller_frame, **call_args
-        )
+        inputs, call_args = op._process_params(_backend, device, batch_size, *inputs, **call_args)
 
         # Get or create the operator instance that matches the arguments
         with nvtx_get_instance_range:
