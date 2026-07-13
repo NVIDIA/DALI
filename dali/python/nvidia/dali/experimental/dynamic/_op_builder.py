@@ -543,7 +543,6 @@ def build_fn_wrapper(op, fn_name=None, add_to_module=True):
                         info.meta["constant_inputs"] = None
                         info.meta["constant_args"] = None
                         constant_args = None
-                print(f"{fn_name}: constant args:\n{constant_args}")
 
         init_args = {}
         call_args = {}

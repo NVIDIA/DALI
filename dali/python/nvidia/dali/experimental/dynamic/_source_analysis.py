@@ -22,6 +22,7 @@ import types
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any, cast
+from ._nvtx import NVTXRange
 
 import libcst as cst
 from libcst import matchers
@@ -200,6 +201,7 @@ class ModuleInfo:
         self.call_cache[key] = call
         return call
 
+    @NVTXRange("_resolve_call", category="source analysis")
     def _resolve_call(self, frame: types.FrameType) -> cst.Call | None:
         code = frame.f_code
         if sys.version_info >= (3, 11):
@@ -270,7 +272,6 @@ class ModuleInfo:
 _file_cache: dict[str, tuple[object, ModuleInfo | None]] = {}
 _code_cache: dict[int, tuple[object, ModuleInfo]] = {}
 
-
 def _get_module_info(code: types.CodeType) -> ModuleInfo | None:
     """Parse and cache the ModuleInfo for `filename`.
 
@@ -281,39 +282,50 @@ def _get_module_info(code: types.CodeType) -> ModuleInfo | None:
     if cached := _code_cache.get(id(code), None):
         return cached[1]
 
-    filename = code.co_filename
+    with NVTXRange(f"Get module info for: {code.co_filename}", category="source analysis"):
+        filename = code.co_filename
 
-    # The linecache entry detects edits; it is not hashable so it can't be the key itself.
-    entry = linecache.cache.get(filename)
-    # Note: We don't guard for concurrent calls because the function is idempotent anyway.
-    if (cached := _file_cache.get(filename)) is not None and cached[0] is entry:
-        return cached[1]
-    try:
-        lines = linecache.getlines(filename)
-        if not lines:
-            return None
-        wrapper = MetadataWrapper(cst.parse_module("".join(lines)), unsafe_skip_copy=True)
-        md = wrapper.resolve_many([PositionProvider, ScopeProvider, ParentNodeProvider])
+        # The linecache entry detects edits; it is not hashable so it can't be the key itself.
+        entry = linecache.cache.get(filename)
+        # Note: We don't guard for concurrent calls because the function is idempotent anyway.
+        if (cached := _file_cache.get(filename)) is not None and cached[0] is entry:
+            return cached[1]
+        try:
+            lines = linecache.getlines(filename)
+            if not lines:
+                return None
+            with NVTXRange("Join lines", category="source analysis"):
+                src = "".join(lines)
+            with NVTXRange("Parse module", category="source analysis"):
+                module = cst.parse_module(src)
+            with NVTXRange("wrapper =", category="source analysis"):
+                wrapper = MetadataWrapper(module, unsafe_skip_copy=True)
+            with NVTXRange("md = ", category="source analysis"):
+                md = wrapper.resolve_many([PositionProvider, ScopeProvider, ParentNodeProvider])
 
-        pos = cast(Mapping[cst.CSTNode, CodeRange], md[PositionProvider])
-        by_position: dict[tuple[int, int, int, int], cst.Call | None] = {}
-        by_line: dict[int, list[cst.Call]] = {}
-        for node in matchers.findall(wrapper.module, matchers.Call()):
-            call = cast(cst.Call, node)
-            r = pos[call]
-            span = (r.start.line, r.end.line, r.start.column, r.end.column)
-            by_position[span] = None if span in by_position else call  # seen twice -> ambiguous
-            by_line.setdefault(r.start.line, []).append(call)
+            with NVTXRange("pos =", category="source analysis"):
+                pos = cast(Mapping[cst.CSTNode, CodeRange], md[PositionProvider])
+            by_position: dict[tuple[int, int, int, int], cst.Call | None] = {}
+            by_line: dict[int, list[cst.Call]] = {}
+            with NVTXRange("Find calls", category="source analysis"):
+                calls = matchers.findall(wrapper.module, matchers.Call())
+            with NVTXRange("Visit calls", category="source analysis"):
+                for node in calls:
+                    call = cast(cst.Call, node)
+                    r = pos[call]
+                    span = (r.start.line, r.end.line, r.start.column, r.end.column)
+                    by_position[span] = None if span in by_position else call  # seen twice -> ambiguous
+                    by_line.setdefault(r.start.line, []).append(call)
 
-        info = ModuleInfo(
-            scope_of_node=cast(Mapping[cst.CSTNode, Scope], md[ScopeProvider]),
-            parent_of=cast(Mapping[cst.CSTNode, cst.CSTNode], md[ParentNodeProvider]),
-            calls_by_position=by_position,
-            calls_by_line={ln: tuple(calls) for ln, calls in by_line.items()},
-        )
-    except Exception:
-        info = None
-    entry_info = (entry, info)
+            info = ModuleInfo(
+                scope_of_node=cast(Mapping[cst.CSTNode, Scope], md[ScopeProvider]),
+                parent_of=cast(Mapping[cst.CSTNode, cst.CSTNode], md[ParentNodeProvider]),
+                calls_by_position=by_position,
+                calls_by_line={ln: tuple(calls) for ln, calls in by_line.items()},
+            )
+        except Exception:
+            info = None
+        entry_info = (entry, info)
     _file_cache[filename] = entry_info
     _code_cache[id(code)] = entry_info
     return info
@@ -378,6 +390,7 @@ class _Classifier:
             return None  # an argument is neither a CompiledBatch nor a capturable constant
         return classified_inputs, classified_kwargs
 
+    @NVTXRange("detect_invariant_args", category="source analysis")
     def detect_invariant_args(
         self, inputs: tuple[Any, ...], raw_kwargs: dict[str, Any]
     ) -> tuple[list[bool], dict[str, bool]] | None:
