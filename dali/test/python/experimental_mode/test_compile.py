@@ -30,9 +30,11 @@ images_root = os.path.join(dali_extra_path, "db", "single", "jpeg")
 
 
 def _assert_parity(expected, actual):
-    """Assert two result lists match element-wise; lengths must be equal."""
-    for e, a in zip(expected, actual, strict=True):
-        np.testing.assert_array_equal(e, a)
+    if isinstance(expected, (list, tuple)):
+        for e, a in zip(expected, actual, strict=True):
+            _assert_parity(e, a)
+    else:
+        np.testing.assert_array_equal(expected, actual)
 
 
 def test_compile_mode_stickiness():
@@ -879,3 +881,238 @@ def _es_batch_size_runtime():
 def test_compile_es_batch_size_errors(scenario, exc, glob):
     with assert_raises(exc, glob=glob):
         scenario()
+
+
+# Tests for random operators
+
+
+def _uniform(rng):
+    return ndd.random.uniform(batch_size=4, range=[0.0, 1.0], shape=[5], rng=rng)
+
+
+def _collect_random(reader, op, rng, *, compiled=False, epochs=1, observe_state=False):
+    values: list[tuple[ndd.Tensor, ...]] = []
+    states: list[str] = []
+    for _ in range(epochs):
+        epoch = reader.next_epoch(batch_size=4, compile=compiled)
+        for _ in epoch:
+            result = op(rng)
+            outputs = result if isinstance(result, tuple) else (result,)
+            if compiled:
+                assert all(_is_compiled(x) for x in outputs)
+            values.append(tuple(ndd.as_tensor(x, device="cpu") for x in outputs))
+            if observe_state:
+                states.append(str(rng.state))
+    return values, states
+
+
+def _assert_random_parity(op, *, epochs=1, observe_state=False):
+    values = []
+    states = []
+    for compiled in (False, True):
+        rng = ndd.random.RNG(seed=42)
+        result, observed_states = _collect_random(
+            ndd.readers.File(file_root=images_root, pad_last_batch=True),
+            op,
+            rng,
+            compiled=compiled,
+            epochs=epochs,
+            observe_state=observe_state,
+        )
+        values.append(result)
+        states.append((observed_states, str(rng.state)))
+
+    _assert_parity(*values)
+    assert states[0] == states[1]
+
+
+def test_compile_random_parity():
+    # Explicit rng
+    _assert_random_parity(_uniform, epochs=3, observe_state=True)
+
+    # Default rng
+    ndd.random.set_seed(123)
+    dynamic, _ = _collect_random(ndd.readers.File(file_root=images_root), _uniform, None)
+    dynamic_state = str(ndd.random.get_default_rng().state)
+
+    ndd.random.set_seed(123)
+    compiled, _ = _collect_random(
+        ndd.readers.File(file_root=images_root), _uniform, None, compiled=True
+    )
+
+    _assert_parity(dynamic, compiled)
+    assert dynamic_state == str(ndd.random.get_default_rng().state)
+
+
+def test_compile_random_es_cycle_reset():
+    dynamic_es = _es(2, cycle="raise", batch_size=4)
+    dynamic_rng = ndd.random.RNG(seed=4)
+    dynamic = []
+    for _ in range(3):
+        try:
+            while True:
+                dynamic_es()
+                dynamic.append(ndd.as_tensor(_uniform(dynamic_rng), device="cpu"))
+        except StopIteration:
+            pass
+
+    compiled_es = _es(2, cycle="raise", batch_size=4)
+    compiled_rng = ndd.random.RNG(seed=4)
+    compiled = []
+    for _ in range(3):
+        for _ in compiled_es.compiled(batch_size=4):
+            result = _uniform(compiled_rng)
+            assert _is_compiled(result)
+            compiled.append(ndd.as_tensor(result, device="cpu"))
+
+    _assert_parity(dynamic, compiled)
+    assert str(dynamic_rng.state) == str(compiled_rng.state)
+
+
+def test_compile_random_multiple_rngs():
+    def rng_calls(rngs):
+        rng, independent_rng = rngs
+        first = ndd.random.uniform(batch_size=4, range=[0.0, 1.0], shape=[3], rng=rng)
+        second = ndd.random.uniform(batch_size=4, range=[0.0, 1.0], shape=[3], rng=rng)
+        independent = ndd.random.uniform(
+            batch_size=4, range=[0.0, 1.0], shape=[3], rng=independent_rng
+        )
+        return first, second, independent
+
+    dynamic_rngs = ndd.random.RNG(seed=8), ndd.random.RNG(seed=8)
+    dynamic, _ = _collect_random(
+        ndd.readers.File(file_root=images_root),
+        rng_calls,
+        dynamic_rngs,
+        compiled=False,
+    )
+
+    compiled_rngs = ndd.random.RNG(seed=8), ndd.random.RNG(seed=8)
+    compiled, _ = _collect_random(
+        ndd.readers.File(file_root=images_root),
+        rng_calls,
+        compiled_rngs,
+        compiled=True,
+    )
+
+    _assert_parity(dynamic, compiled)
+    assert [str(rng.state) for rng in dynamic_rngs] == [str(rng.state) for rng in compiled_rngs]
+
+
+@params(False, True)
+def test_compile_random_repeated_callsite(different_rngs):
+    def make_rngs():
+        first = ndd.random.RNG(seed=10)
+        return (first, ndd.random.RNG(seed=11)) if different_rngs else (first, first)
+
+    def body(rngs, batch):
+        repeated = []
+        for rng in rngs:
+            x = ndd.random.uniform(batch_size=4, shape=[3], rng=rng)
+            repeated.append(x)
+        independent = ndd.cast(batch, dtype=ndd.float32)
+        return (*repeated, independent)
+
+    dynamic_rngs = make_rngs()
+    dynamic = []
+    dynamic_es = _es(3, batch_size=4)
+    for _ in range(3):
+        outputs = body(dynamic_rngs, dynamic_es())
+        dynamic.append(tuple(ndd.as_tensor(output, device="cpu") for output in outputs))
+
+    compiled_rngs = make_rngs()
+    compiled = []
+    compiled_es = _es(3, batch_size=4)
+    with assert_warns(UserWarning, glob="call site was used more than once"):
+        for step, batch in enumerate(compiled_es.compiled(batch_size=4)):
+            first, second, independent = body(compiled_rngs, batch)
+            assert _is_compiled(first) == (step == 0)
+            assert _is_compiled(second) == (step == 0)
+            assert _is_compiled(independent)
+            compiled.append(
+                tuple(
+                    ndd.as_tensor(output, device="cpu") for output in (first, second, independent)
+                )
+            )
+
+    _assert_parity(dynamic, compiled)
+    assert [str(rng.state) for rng in dynamic_rngs] == [str(rng.state) for rng in compiled_rngs]
+
+
+def test_compile_random_eager_fallback():
+    dynamic_reader = ndd.readers.File(file_root=images_root)
+    compiled_reader = ndd.readers.File(file_root=images_root)
+
+    def body(rngs, labels):
+        fallback_rng, linked_rng = rngs
+        independent = ndd.cast(labels, dtype=ndd.float32)
+        early = ndd.random.uniform(batch_size=4, shape=[3], rng=linked_rng)
+        early_dependent = ndd.cast(early, dtype=ndd.float64)
+        captured = ndd.random.uniform(batch_size=4, shape=[3], rng=fallback_rng)
+        bridge = ndd.noise.gaussian(captured, rng=linked_rng)
+        eager = ndd.random.uniform(shape=3, rng=fallback_rng)  # no batch size, fallback to eager
+        return independent, early, early_dependent, captured, bridge, eager
+
+    dynamic_rngs = ndd.random.RNG(seed=2), ndd.random.RNG(seed=3)
+    dynamic = []
+    for _, labels in dynamic_reader.next_epoch(batch_size=4):
+        outputs = body(dynamic_rngs, labels)
+        dynamic.append(tuple(ndd.as_tensor(x, device="cpu") for x in outputs))
+
+    compiled_rngs = ndd.random.RNG(seed=2), ndd.random.RNG(seed=3)
+    compiled = []
+    with assert_warns(UserWarning, glob="both"):
+        for step, (_, labels) in enumerate(compiled_reader.next_epoch(batch_size=4, compile=True)):
+            outputs = body(compiled_rngs, labels)
+            independent, early, early_dependent, captured, bridge, eager = outputs
+
+            assert _is_compiled(independent)
+            for output in (early, early_dependent, captured, bridge):
+                assert _is_compiled(output) == (step == 0)
+            assert isinstance(eager, ndd.Tensor)
+            assert not _is_compiled(eager)
+
+            compiled.append(tuple(ndd.as_tensor(x, device="cpu") for x in outputs))
+
+    _assert_parity(dynamic, compiled)
+    assert [str(rng.state) for rng in dynamic_rngs] == [str(rng.state) for rng in compiled_rngs]
+
+
+def test_compile_random_rng_reuse():
+    reference = ndd.random.RNG(seed=9)
+    expected, _ = _collect_random(
+        ndd.readers.File(file_root=images_root),
+        _uniform,
+        reference,
+        epochs=2,
+        compiled=False,
+    )
+
+    rng = ndd.random.RNG(seed=9)
+    first_reader = ndd.readers.File(file_root=images_root)
+    first, _ = _collect_random(first_reader, _uniform, rng, compiled=True)
+    second, _ = _collect_random(
+        ndd.readers.File(file_root=images_root),
+        _uniform,
+        rng,
+        compiled=True,
+    )
+
+    _assert_parity(expected, first + second)
+    assert str(reference.state) == str(rng.state)
+    with assert_raises(RuntimeError, glob="modified outside*loop"):
+        _collect_random(first_reader, _uniform, rng, compiled=True)
+
+
+def test_compile_random_gpu():
+    if _backend.GetCUDADeviceCount() == 0:
+        raise SkipTest("At least 1 GPU needed for the GPU random test")
+    _assert_random_parity(
+        lambda rng: ndd.random.uniform(
+            batch_size=4,
+            range=[0.0, 1.0],
+            shape=[5],
+            rng=rng,
+            device="gpu",
+        )
+    )
