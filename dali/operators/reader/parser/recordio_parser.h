@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,9 +15,14 @@
 #ifndef DALI_OPERATORS_READER_PARSER_RECORDIO_PARSER_H_
 #define DALI_OPERATORS_READER_PARSER_RECORDIO_PARSER_H_
 
+#include <cstddef>
+#include <cstring>
+#include <stdexcept>
 #include <string>
+#include <string_view>
 #include <vector>
 
+#include "dali/core/int_literals.h"
 #include "dali/operators/reader/parser/parser.h"
 
 namespace dali {
@@ -37,7 +42,8 @@ class RecordIOParser : public Parser<Tensor<CPUBackend>> {
   void Parse(const Tensor<CPUBackend>& tensor, SampleWorkspace* ws) override {
     auto& image = ws->Output<CPUBackend>(0);
     auto& label = ws->Output<CPUBackend>(1);
-    ReadSingleImageRecordIO(image, label, tensor.data<uint8_t>());
+    ReadSingleImageRecordIO(image, label, tensor.data<uint8_t>(), tensor.nbytes(),
+                            tensor.GetSourceInfo());
     image.SetSourceInfo(tensor.GetSourceInfo());
   }
 
@@ -50,26 +56,70 @@ class RecordIOParser : public Parser<Tensor<CPUBackend>> {
     return rec & ((1U << 29U) - 1U);
   }
 
+  inline void CheckAvailable(const uint8_t* in, const uint8_t* end, size_t size,
+                             std::string_view source_info, std::string_view context) {
+    std::ptrdiff_t available = end - in;
+    if (available < 0) {
+      throw std::out_of_range("Internal error: the input pointer is past the end of buffer.");
+    }
+    if (size > static_cast<size_t>(available)) {
+      throw std::runtime_error(
+        make_string("Invalid RecordIO file: ", source_info, " (", context, " requires ", size,
+                    " bytes, but only ", available, " bytes are available)."));
+    }
+  }
+
+  inline size_t PaddedLength(uint32_t length) {
+    return (length + 3) & ~3_uz;
+  }
+
+  inline void CopyBytes(void* out, const void* in, size_t size) {
+    if (size > 0) {
+      std::memcpy(out, in, size);
+    }
+  }
+
   template <typename T>
-  void ReadSingle(const uint8_t** in, T* out) {
-    memcpy(out, *in, sizeof(T));
+  void ReadSingle(const uint8_t** in, const uint8_t* end, T* out,
+                  std::string_view source_info, std::string_view context) {
+    CheckAvailable(*in, end, sizeof(T), source_info, context);
+    std::memcpy(out, *in, sizeof(T));
     *in += sizeof(T);
   }
 
   inline void ReadSingleImageRecordIO(Tensor<CPUBackend>& o_image,
                 Tensor<CPUBackend>& o_label,
-                const uint8_t* input) {
+                const uint8_t* input,
+                size_t record_size,
+                std::string_view source_info) {
+    const uint8_t* end = input + record_size;
     uint32_t magic;
     const uint32_t kMagic = 0xced7230a;
-    ReadSingle<uint32_t>(&input, &magic);
+    ReadSingle<uint32_t>(&input, end, &magic, source_info, "magic number");
     DALI_ENFORCE(magic == kMagic, "Invalid RecordIO: wrong magic number");
 
     uint32_t length_flag;
-    ReadSingle(&input, &length_flag);
+    ReadSingle(&input, end, &length_flag, source_info, "length flag");
     uint32_t cflag = DecodeFlag(length_flag);
     uint32_t clength = DecodeLength(length_flag);
+    CheckAvailable(input, end, clength, source_info, "record payload");
+    if (clength < sizeof(ImageRecordIOHeader)) {
+      throw std::runtime_error(
+        make_string("Invalid RecordIO file: ", source_info, " (record payload length: ", clength,
+                    " bytes, minimum is ", sizeof(ImageRecordIOHeader), " bytes)."));
+    }
     ImageRecordIOHeader hdr;
-    ReadSingle(&input, &hdr);
+    ReadSingle(&input, end, &hdr, source_info, "record header");
+
+    size_t data_size = clength - sizeof(ImageRecordIOHeader);
+    size_t label_size = static_cast<size_t>(hdr.flag) * sizeof(float);
+    if (label_size > data_size) {
+      throw std::runtime_error(
+        make_string("Invalid RecordIO file: ", source_info, " (label size: ", label_size,
+                    " bytes, available data: ", data_size, " bytes)."));
+    }
+    size_t image_size = data_size - label_size;
+    CheckAvailable(input, end, data_size, source_info, "record data");
 
     if (hdr.flag == 0) {
       o_label.Resize({1}, DALI_FLOAT);
@@ -78,48 +128,62 @@ class RecordIOParser : public Parser<Tensor<CPUBackend>> {
       o_label.Resize({hdr.flag}, DALI_FLOAT);
     }
 
-    int64_t data_size = clength - sizeof(ImageRecordIOHeader);
-    int64_t label_size = hdr.flag * sizeof(float);
-    int64_t image_size = data_size - label_size;
     if (cflag == 0) {
-      o_image.Resize({image_size}, DALI_UINT8);
+      o_image.Resize({static_cast<Index>(image_size)}, DALI_UINT8);
       uint8_t* data = o_image.mutable_data<uint8_t>();
-      memcpy(data, input + label_size, image_size);
+      CopyBytes(data, input + label_size, image_size);
       if (hdr.flag > 0) {
         float * label = o_label.mutable_data<float>();
-        memcpy(label, input, label_size);
+        CopyBytes(label, input, label_size);
       }
     } else {
       std::vector<uint8_t> temp_vec(data_size);
-      memcpy(&temp_vec[0], input, data_size);
+      CopyBytes(temp_vec.data(), input, data_size);
       input += data_size;
 
       while (true) {
-        size_t pad = clength - (((clength + 3U) >> 2U) << 2U);
+        size_t pad = PaddedLength(clength) - clength;
+        CheckAvailable(input, end, pad, source_info, "record padding");
         input += pad;
 
         if (cflag != 3) {
           size_t s = temp_vec.size();
-          temp_vec.resize(static_cast<int64_t>(s + sizeof(kMagic)));
-          memcpy(&temp_vec[s], &kMagic, sizeof(kMagic));
+          temp_vec.resize(s + sizeof(kMagic));
+          std::memcpy(&temp_vec[s], &kMagic, sizeof(kMagic));
         } else {
           break;
         }
-        ReadSingle(&input, &magic);
-        ReadSingle(&input, &length_flag);
+        ReadSingle(&input, end, &magic, source_info, "segment magic number");
+        if (magic != kMagic) {
+          throw std::runtime_error(
+            make_string("Invalid RecordIO file: ", source_info,
+                        " (wrong segment magic number)."));
+        }
+        ReadSingle(&input, end, &length_flag, source_info, "segment length flag");
         cflag = DecodeFlag(length_flag);
         clength = DecodeLength(length_flag);
+        CheckAvailable(input, end, clength, source_info, "segment payload");
         size_t s = temp_vec.size();
-        temp_vec.resize(static_cast<int64_t>(s + clength));
-        memcpy(&temp_vec[s], input, clength);
+        temp_vec.resize(s + clength);
+        if (clength > 0) {
+          std::memcpy(temp_vec.data() + s, input, clength);
+        }
         input += clength;
       }
-      o_image.Resize({static_cast<Index>(temp_vec.size() - label_size)}, DALI_UINT8);
+      if (label_size > temp_vec.size()) {
+        throw std::runtime_error(
+          make_string("Invalid RecordIO file: ", source_info, " (label size: ", label_size,
+                      " bytes, decoded data: ", temp_vec.size(), " bytes)."));
+      }
+      size_t decoded_image_size = temp_vec.size() - label_size;
+      o_image.Resize({static_cast<Index>(decoded_image_size)}, DALI_UINT8);
       uint8_t* data = o_image.mutable_data<uint8_t>();
-      memcpy(data, (&temp_vec[0]) + label_size, temp_vec.size() - label_size);
+      if (decoded_image_size > 0) {
+        std::memcpy(data, temp_vec.data() + label_size, decoded_image_size);
+      }
       if (hdr.flag > 0) {
         float * label = o_label.mutable_data<float>();
-        memcpy(label, &temp_vec[0], label_size);
+        CopyBytes(label, temp_vec.data(), label_size);
       }
     }
   }

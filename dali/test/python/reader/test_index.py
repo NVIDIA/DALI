@@ -180,6 +180,70 @@ def test_recordio():
         _ = pipe_org.run()
 
 
+def _recordio_header(num_labels=0):
+    return struct.pack("<IfQQ", num_labels, 0.0, 0, 0)
+
+
+def _recordio_record(payload_length, payload, cflag=0):
+    magic = 0xCED7230A
+    length_flag = (cflag << 29) | payload_length
+    return struct.pack("<II", magic, length_flag) + payload
+
+
+def _write_recordio_with_index(record):
+    data_dir = tempfile.TemporaryDirectory()
+    path = os.path.join(data_dir.name, "malformed.rec")
+    index_path = os.path.join(data_dir.name, "malformed.idx")
+    with open(path, "wb") as f:
+        f.write(record)
+    with open(index_path, "w") as f:
+        f.write("0 0\n")
+    return data_dir, path, index_path
+
+
+def _assert_malformed_recordio_fails(record, message):
+    data_dir, path, index_path = _write_recordio_with_index(record)
+
+    @pipeline_def(batch_size=1, device_id=None, num_threads=1)
+    def malformed_recordio_pipe():
+        image, _ = fn.readers.mxnet(path=path, index_path=index_path)
+        return image
+
+    try:
+        pipe = malformed_recordio_pipe()
+        assert_raises(
+            RuntimeError,
+            pipe.run,
+            glob="Error in CPU operator `nvidia.dali.fn.readers.mxnet`*" + message,
+        )
+    finally:
+        data_dir.cleanup()
+
+
+def test_recordio_reader_rejects_oversized_payload_length():
+    record = _recordio_record(1024, _recordio_header())
+    _assert_malformed_recordio_fails(
+        record, "record payload requires 1024 bytes, but only 24 bytes are available"
+    )
+
+
+def test_recordio_reader_rejects_too_short_payload_length():
+    record = _recordio_record(4, _recordio_header())
+    _assert_malformed_recordio_fails(record, "record payload length: 4 bytes, minimum is 24 bytes")
+
+
+def test_recordio_reader_rejects_oversized_label_data():
+    payload = _recordio_header(num_labels=1)
+    record = _recordio_record(len(payload), payload)
+    _assert_malformed_recordio_fails(record, "label size: 4 bytes, available data: 0 bytes")
+
+
+def test_recordio_reader_rejects_wrong_segment_magic():
+    payload = _recordio_header()
+    record = _recordio_record(len(payload), payload, cflag=1) + struct.pack("<I", 0)
+    _assert_malformed_recordio_fails(record, "wrong segment magic number")
+
+
 def test_wrong_feature_shape():
     features = {
         "image/encoded": tfrec.FixedLenFeature((), tfrec.string, ""),
