@@ -20,7 +20,7 @@ index 23d3cee..b1e9f12 100755
  ln -sf $PREFIX/include/cutlass third_party/cutlass/include/
  
  export CXXFLAGS="$CXXFLAGS -isystem $PREFIX/include/opencv4"
-@@ -105,6 +109,9 @@ fi
+@@ -105,6 +109,10 @@ fi
  # https://docs.nvidia.com/deeplearning/dali/user-guide/docs/compilation.html#optional-cmake-build-parameters
  cmake ${CMAKE_ARGS} \
    -GNinja \
