@@ -522,7 +522,11 @@ def test_compile_es_cycle_raise():
         compiled_results = []
         for batch in es_comp.compiled(batch_size=4):
             assert _is_compiled(batch)
-            compiled_results.append(ndd.as_tensor(ndd.cast(batch, dtype=ndd.int32)))
+            compiled_results.append(
+                ndd.as_tensor(
+                    ndd.cast(batch, dtype=ndd.int32),
+                )
+            )
 
         assert len(compiled_results) == 2
         _assert_parity(expected, compiled_results)
@@ -691,8 +695,9 @@ def test_compile_es_feeder():
 
     comp_a, comp_b = [], []
     for batch in es_comp.compiled(batch_size=4):
+        other_batch = other_comp()
         a = ndd.cast(batch, dtype=ndd.int32)
-        b = ndd.cast(other_comp(), dtype=ndd.int32)
+        b = ndd.cast(other_batch, dtype=ndd.int32)
         assert _is_compiled(a) and _is_compiled(b)
         comp_a.append(ndd.as_tensor(a))
         comp_b.append(ndd.as_tensor(b))
