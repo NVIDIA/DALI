@@ -54,3 +54,31 @@ def test_wds2idx_gnu_tar_path_accepts_non_ascii_tar_member_name_with_spaces():
         _, name, size = entries[0]
         assert name == member_name
         assert size == len(payload)
+
+
+def test_wds2idx_gnu_tar_path_accepts_member_owner_with_space():
+    if which("tar") is None:
+        raise unittest.SkipTest("GNU tar not installed")
+
+    wds2idx = _load_wds2idx()
+
+    with tempfile.TemporaryDirectory() as test_dir:
+        tar_path = os.path.join(test_dir, "data.tar")
+        idx_path = os.path.join(test_dir, "data.idx")
+        member_name = "sample.bin"
+        payload = b"payload"
+
+        with tarfile.open(tar_path, "w", format=tarfile.USTAR_FORMAT) as archive:
+            info = tarfile.TarInfo(name=member_name)
+            info.size = len(payload)
+            info.uname = "owner name"
+            info.gname = "group"
+            archive.addfile(info, io.BytesIO(payload))
+
+        with wds2idx.IndexCreator(tar_path, idx_path, verbose=False) as creator:
+            entries = list(creator._get_data_tar())
+
+        assert len(entries) == 1
+        _, name, size = entries[0]
+        assert name == member_name
+        assert size == len(payload)

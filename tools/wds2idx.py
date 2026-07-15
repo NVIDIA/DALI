@@ -89,7 +89,7 @@ class IndexCreator:
             stderr=subprocess.PIPE,
         )
         tar_types_sizes_proc = subprocess.Popen(  # nosec B603, B607
-            ["tar", "--verbose", "--list", "--file", self.uri],
+            ["tar", "--verbose", "--list", "--numeric-owner", "--file", self.uri],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
         )
