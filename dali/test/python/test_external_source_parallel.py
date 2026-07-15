@@ -297,11 +297,11 @@ class TestExceptionPropagation:
         teardown_function()
 
     @cartesian_params(
-        [(StopIteration, StopIteration), (utils.CustomException, Exception)],
         [1, 4],
+        [(StopIteration, StopIteration), (utils.CustomException, Exception)],
         [1, 15, 150],
     )
-    def test_exception_propagation(self, exceptions, batch_size, num_workers):
+    def test_exception_propagation(self, num_workers, exceptions, batch_size):
         raised, expected = exceptions
         callback = utils.ExtCallback((4, 4), 250, np.int32, exception_class=raised)
         pipe = utils.create_pipe(
@@ -362,11 +362,11 @@ class TestLayout:
         teardown_function()
 
     @cartesian_params(
-        [((4,), "X"), ((4, 4), "XY"), ((4, 4, 4), "XYZ")],
         [1, 4],
+        [((4,), "X"), ((4, 4), "XY"), ((4, 4, 4), "XYZ")],
         [1, 256, 600],
     )
-    def test_layout(self, inputs_description, batch_size, num_workers):
+    def test_layout(self, num_workers, inputs_description, batch_size):
         dims, layout = inputs_description
         callback = utils.ExtCallback(dims, 1024, "int32")
         pipe = utils.create_pipe(
