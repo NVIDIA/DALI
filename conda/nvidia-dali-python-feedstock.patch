@@ -20,7 +20,7 @@ index 23d3cee..b1e9f12 100755
  ln -sf $PREFIX/include/cutlass third_party/cutlass/include/
  
  export CXXFLAGS="$CXXFLAGS -isystem $PREFIX/include/opencv4"
-@@ -105,6 +109,10 @@ fi
+@@ -105,6 +105,9 @@ fi
  # https://docs.nvidia.com/deeplearning/dali/user-guide/docs/compilation.html#optional-cmake-build-parameters
  cmake ${CMAKE_ARGS} \
    -GNinja \
@@ -28,9 +28,18 @@ index 23d3cee..b1e9f12 100755
 +  -DDALI_BUILD_FLAVOR="${NVIDIA_DALI_BUILD_FLAVOR}" \
 +  -DTIMESTAMP="${DALI_TIMESTAMP}" \
    -DBUILD_AWSSDK=ON \
-   -DBUILD_BENCHMARK=ON \
-+  -DBUILD_TEST=ON \
+-  -DBUILD_BENCHMARK=OFF \
++  -DBUILD_BENCHMARK=ON \
    -DBUILD_CFITSIO=ON \
+@@ -122,7 +125,7 @@ cmake ${CMAKE_ARGS} \
+   -DBUILD_NVOF=ON \
+   -DBUILD_NVTX=ON \
+   -DBUILD_OPENCV=ON \
+-  -DBUILD_TEST=OFF \
++  -DBUILD_TEST=ON \
+   -DBUILD_WITH_ASAN=OFF \
+   -DBUILD_WITH_LSAN=OFF \
+   -DBUILD_WITH_UBSAN=OFF \
 diff --git a/recipe/conda_build_config.yaml b/recipe/conda_build_config.yaml
 index d0bd8f8..4bbc9b0 100644
 --- a/recipe/conda_build_config.yaml
