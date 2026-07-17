@@ -81,11 +81,11 @@ requirements:
     - patchelf
     - python-clang
     - git-lfs
-    - black =26.1.0
-    - black-jupyter =26.1.0
+    - black =26.5.1
+    - black-jupyter =26.5.1
     - bandit
   host:
-    - libprotobuf-static =6.33.5
+    - libprotobuf-static =7.35.1
     # libprotobuf's CMake config exposes a ZLIB::ZLIB link interface dep,
     # so zlib must be in host for find_package(Protobuf) to succeed.
     - zlib
@@ -119,7 +119,7 @@ requirements:
     # dependency to install the right version on the libabseil (as protobuf depends on
     # libprotobuf-static and a newer version of libprotobuf-static may be available than
     # the protobuf was build with)
-    - libprotobuf =6.33.5
+    - libprotobuf =7.35.1
     - future
     - astunparse >=1.6.0
     - gast >=0.3.3
