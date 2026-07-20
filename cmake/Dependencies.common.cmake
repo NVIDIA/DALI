@@ -320,24 +320,28 @@ if(BUILD_NVIMAGECODEC)
 
     find_package(nvimgcodec ${NVIMGCODEC_MIN_VERSION}...<${NVIMGCODEC_MAX_VERSION})
     if (NOT nvimgcodec_FOUND)
-      set(_nvimgcodec_local_include "${PROJECT_SOURCE_DIR}/third_party/nvimgcodec/include")
-      if (EXISTS "${_nvimgcodec_local_include}/nvimgcodec.h")
-        message(STATUS "nvImageCodec - using local headers from third_party/nvimgcodec/include")
-        set(nvimgcodec_INCLUDE_DIR "${_nvimgcodec_local_include}")
-      else()
-        message(STATUS "nvImageCodec - not found; downloading from nvidia.com")
-        # Note: We are getting the x86_64 tarball, but we are only interested in the headers.
-        include(FetchContent)
+      message(STATUS "nvImageCodec - not found; downloading from nvidia.com")
+      # Note: We are getting the x86_64 tarball, but we are only interested in the headers.
+      include(FetchContent)
+      if ("${CUDA_VERSION_MAJOR}" EQUAL "13")
         FetchContent_Declare(
-          nvimgcodec_headers
-          URL      https://developer.download.nvidia.com/compute/nvimgcodec/redist/nvimgcodec/linux-x86_64/nvimgcodec-linux-x86_64-0.8.0.22-archive.tar.xz
-          URL_HASH SHA512=2a400f75c619a10c3dbcd298a83ef3307f6e08453b2cfb5040f6b22c64c7be0ac4552a2a80ed057afe7657cf0bb8cc2d54cdccf8bc50ffdf34cfd05b45082978
+            nvimgcodec_headers
+            URL      https://developer.download.nvidia.com/compute/nvimgcodec/redist/nvimgcodec/linux-x86_64/nvimgcodec-linux-x86_64-0.9.0.20-cuda13-archive.tar.xz
+            URL_HASH SHA512=a7a07e8f297eaeb41c51769dba57bd56773a88c2612df8bc7c563c8679ffb2da137106589af48f4448a1481764ca62bf5e1250dbfd017e3acbf394b1680e92c1
         )
-        FetchContent_Populate(nvimgcodec_headers)
-        set(nvimgcodec_INCLUDE_DIR "${nvimgcodec_headers_SOURCE_DIR}/${CUDA_VERSION_MAJOR}/include")
-        if (NOT EXISTS "${nvimgcodec_INCLUDE_DIR}/nvimgcodec.h")
-          message(FATAL_ERROR "nvimgcodec.h not found in ${nvimgcodec_INCLUDE_DIR} - something went wrong with the download")
-        endif()
+      elseif ("${CUDA_VERSION_MAJOR}" EQUAL "12")
+        FetchContent_Declare(
+            nvimgcodec_headers
+            URL      https://developer.download.nvidia.com/compute/nvimgcodec/redist/nvimgcodec/linux-x86_64/nvimgcodec-linux-x86_64-0.9.0.20-cuda12-archive.tar.xz
+            URL_HASH SHA512=687e88cd850574bcfd7dbd5b728580ac4a8bd00ba64ed27f1866efa2b01c7ae0743617daddc3f3b743089484cfdd7fff85d1dc3c0fd99e016988171fbaf83363
+        )
+      else()
+        message(FATAL_ERROR "Unsupported CUDA major version: ${CUDA_VERSION_MAJOR}")
+      endif()
+      FetchContent_Populate(nvimgcodec_headers)
+      set(nvimgcodec_INCLUDE_DIR "${nvimgcodec_headers_SOURCE_DIR}/${CUDA_VERSION_MAJOR}/include")
+      if (NOT EXISTS "${nvimgcodec_INCLUDE_DIR}/nvimgcodec.h")
+        message(FATAL_ERROR "nvimgcodec.h not found in ${nvimgcodec_INCLUDE_DIR} - something went wrong with the download")
       endif()
     endif()
     message(STATUS "Using nvimgcodec_INCLUDE_DIR=${nvimgcodec_INCLUDE_DIR}")
