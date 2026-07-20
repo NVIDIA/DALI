@@ -107,7 +107,7 @@ requirements:
     - numpy
     - libcst ~=1.8
     - nvidia-dali-core{% if environ.get('NVIDIA_DALI_BUILD_FLAVOR', '')|length %}{{"-" + environ.get('NVIDIA_DALI_BUILD_FLAVOR', '')}}{% endif %}-cuda{{ environ.get('CUDA_VERSION', '') | replace(".","") }} ={{ environ.get('DALI_CONDA_BUILD_VERSION', '') }}
-    - libnvimgcodec-dev >=0.8.0,<0.9.0
+    - libnvimgcodec-dev >=0.9.0,<0.10.0
   run:
     - python
     {% if freethreading == "yes" %}
@@ -130,10 +130,10 @@ requirements:
     - numpy
     - libcst ~=1.8
     - nvidia-dali-core{% if environ.get('NVIDIA_DALI_BUILD_FLAVOR', '')|length %}{{"-" + environ.get('NVIDIA_DALI_BUILD_FLAVOR', '')}}{% endif %}-cuda{{ environ.get('CUDA_VERSION', '') | replace(".","") }} ={{ environ.get('DALI_CONDA_BUILD_VERSION', '') }}
-    - libnvimgcodec >=0.8.0,<0.9.0
-    - libnvimgcodec-libjpeg-turbo-ext >=0.8.0,<0.9.0
-    - libnvimgcodec-libtiff-ext >=0.8.0,<0.9.0
-    - libnvimgcodec-libopencv-ext >=0.8.0,<0.9.0
+    - libnvimgcodec >=0.9.0,<0.10.0
+    - libnvimgcodec-libjpeg-turbo-ext >=0.9.0,<0.10.0
+    - libnvimgcodec-libtiff-ext >=0.9.0,<0.10.0
+    - libnvimgcodec-libopencv-ext >=0.9.0,<0.10.0
 about:
   home: https://github.com/NVIDIA/DALI
   license: Apache-2.0 license

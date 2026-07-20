@@ -326,20 +326,21 @@ if(BUILD_NVIMAGECODEC)
       if ("${CUDA_VERSION_MAJOR}" EQUAL "13")
         FetchContent_Declare(
             nvimgcodec_headers
-            URL      https://developer.download.nvidia.com/compute/nvimgcodec/redist/nvimgcodec/linux-x86_64/nvimgcodec-linux-x86_64-0.9.0.20-cuda13-archive.tar.xz
+            URL      https://developer.download.nvidia.com/compute/nvimgcodec/redist/nvimgcodec/linux-x86_64/nvimgcodec-linux-x86_64-0.9.0.20_cuda13-archive.tar.xz
             URL_HASH SHA512=a7a07e8f297eaeb41c51769dba57bd56773a88c2612df8bc7c563c8679ffb2da137106589af48f4448a1481764ca62bf5e1250dbfd017e3acbf394b1680e92c1
         )
       elseif ("${CUDA_VERSION_MAJOR}" EQUAL "12")
         FetchContent_Declare(
             nvimgcodec_headers
-            URL      https://developer.download.nvidia.com/compute/nvimgcodec/redist/nvimgcodec/linux-x86_64/nvimgcodec-linux-x86_64-0.9.0.20-cuda12-archive.tar.xz
+            URL      https://developer.download.nvidia.com/compute/nvimgcodec/redist/nvimgcodec/linux-x86_64/nvimgcodec-linux-x86_64-0.9.0.20_cuda12-archive.tar.xz
             URL_HASH SHA512=687e88cd850574bcfd7dbd5b728580ac4a8bd00ba64ed27f1866efa2b01c7ae0743617daddc3f3b743089484cfdd7fff85d1dc3c0fd99e016988171fbaf83363
         )
       else()
         message(FATAL_ERROR "Unsupported CUDA major version: ${CUDA_VERSION_MAJOR}")
       endif()
       FetchContent_Populate(nvimgcodec_headers)
-      set(nvimgcodec_INCLUDE_DIR "${nvimgcodec_headers_SOURCE_DIR}/${CUDA_VERSION_MAJOR}/include")
+      message("nvimgcodec_headers_SOURCE_DIR = ${nvimgcodec_headers_SOURCE_DIR}")
+      set(nvimgcodec_INCLUDE_DIR "${nvimgcodec_headers_SOURCE_DIR}/include")
       if (NOT EXISTS "${nvimgcodec_INCLUDE_DIR}/nvimgcodec.h")
         message(FATAL_ERROR "nvimgcodec.h not found in ${nvimgcodec_INCLUDE_DIR} - something went wrong with the download")
       endif()
@@ -376,7 +377,7 @@ if(BUILD_NVIMAGECODEC)
     ExternalProject_Add(
       nvImageCodec
       GIT_REPOSITORY    https://github.com/NVIDIA/nvImageCodec.git
-      GIT_TAG           v0.8.0
+      GIT_TAG           v0.9.0
       GIT_SUBMODULES    "external/pybind11"
                         "external/NVTX"
                         "external/googletest"
