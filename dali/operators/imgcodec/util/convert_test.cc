@@ -275,8 +275,7 @@ TEST_F(ConvertLayoutTest, RoiCHW) {
 
 
 // Rotation/flip tests for ConvertCPU. These mirror the rotation tests in convert_gpu_test.cc
-// to guarantee CPU and GPU paths agree on EXIF orientation semantics — the contract relied on
-// by image_decoder.h's ROI/orientation workaround.
+// to guarantee CPU and GPU paths agree on EXIF orientation semantics.
 class ConvertOrientationTest : public ::testing::Test {
  protected:
   static constexpr int kH = 2;
