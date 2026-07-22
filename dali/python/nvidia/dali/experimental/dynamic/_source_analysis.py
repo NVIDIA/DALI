@@ -272,6 +272,7 @@ class ModuleInfo:
 _file_cache: dict[str, tuple[object, ModuleInfo | None]] = {}
 _code_cache: dict[int, tuple[object, ModuleInfo]] = {}
 
+
 def _get_module_info(code: types.CodeType) -> ModuleInfo | None:
     """Parse and cache the ModuleInfo for `filename`.
 
@@ -285,14 +286,22 @@ def _get_module_info(code: types.CodeType) -> ModuleInfo | None:
     with NVTXRange(f"Get module info for: {code.co_filename}", category="source analysis"):
         filename = code.co_filename
 
+        # getlines() must run *before* we snapshot the linecache entry. For a module the import
+        # machinery registered lazily, linecache holds a 1-tuple placeholder that getlines()
+        # replaces with the fully-populated entry; snapshotting the entry first would capture the
+        # placeholder, so the next call (a different code object in the same file) would see the
+        # real entry, mismatch the token, and re-parse the file a second time.
+        lines = linecache.getlines(filename)
+
         # The linecache entry detects edits; it is not hashable so it can't be the key itself.
         entry = linecache.cache.get(filename)
         # Note: We don't guard for concurrent calls because the function is idempotent anyway.
         if (cached := _file_cache.get(filename)) is not None and cached[0] is entry:
+            _code_cache[id(code)] = cached  # let the exact-code fast path short-circuit next time
             return cached[1]
         try:
-            lines = linecache.getlines(filename)
             if not lines:
+                _code_cache[id(code)] = None
                 return None
             with NVTXRange("Join lines", category="source analysis"):
                 src = "".join(lines)
