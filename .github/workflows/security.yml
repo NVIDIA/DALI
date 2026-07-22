@@ -1,0 +1,22 @@
+name: Secret Scan
+
+on:
+  pull_request:
+    branches: [ "main" ]
+
+permissions:
+    contents: read
+
+jobs:
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: NVIDIA/security-workflows/.github/actions/secret-scan-trufflehog@d7945f4856b8f3f285c75abbc2af3054d5b28e1e
+        with:
+          fetch-depth: 0
+
+      # Optional overrides — see the workflow file for the full interface:
+      # with:
+      #   runs-on: linux-amd64-cpu4              # nv-gha-runners label
+      #   extra-args: "--results=verified,unknown"
+      #   fail-on-findings: false                # warn-only during initial rollout
