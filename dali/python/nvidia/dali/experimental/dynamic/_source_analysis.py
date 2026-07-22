@@ -22,26 +22,24 @@ import types
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any, cast
-from ._nvtx import NVTXRange
 
 import libcst as cst
-from libcst import matchers
 from libcst.metadata import (
     Assignment,
     CodeRange,
     FunctionScope,
     MetadataWrapper,
-    ParentNodeProvider,
-    PositionProvider,
     Scope,
     ScopeProvider,
 )
+from libcst.metadata.position_provider import PositionProvidingCodegenState
 
 from nvidia.dali.types import DALIDataType, DALIImageType, DALIInterpType
 
 from ._call_site import resolve_callsite_frame
 from ._compile import CompiledBatch, CompileRef
 from ._device import Device
+from ._nvtx import NVTXRange
 from ._type import DType
 from .compile._invariant import invariant, is_dunder
 from .compile._invariant import is_invariant as _is_explicit_invariant
@@ -184,7 +182,7 @@ class ModuleInfo:
     """Per-file parsed libcst data plus the queries classification needs over it."""
 
     scope_of_node: Mapping[cst.CSTNode, Scope]  # LibCST ScopeProvider
-    parent_of: Mapping[cst.CSTNode, cst.CSTNode]  # LibCST ParentNodeProvider
+    parent_of: Mapping[cst.CSTNode, cst.CSTNode]  # built by the fused codegen pass
 
     calls_by_position: Mapping[tuple[int, int, int, int], cst.Call | None]  # None if ambiguous
     calls_by_line: Mapping[int, tuple[cst.Call, ...]]  # 3.10 fallback for call-site identification
@@ -273,6 +271,43 @@ _file_cache: dict[str, tuple[object, ModuleInfo | None]] = {}
 _code_cache: dict[int, tuple[object, ModuleInfo]] = {}
 
 
+class _PositionSink:
+    """Minimal object satisfying the ``provider`` protocol the codegen state writes to."""
+
+    __slots__ = ("_computed",)
+
+    def __init__(self) -> None:
+        self._computed: dict[cst.CSTNode, CodeRange] = {}
+
+
+class _FusedCodegenState(PositionProvidingCodegenState):
+    """A single codegen pass that yields everything classification reads off the tree.
+
+    ``PositionProvider`` already renders every node to compute syntactic positions, so we
+    piggyback the parent map and call collection onto that same traversal. This replaces
+    three separate full-tree passes (``PositionProvider``, ``ParentNodeProvider`` and
+    ``matchers.findall``) with one; only ``ScopeProvider`` still needs its own pass.
+    """
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        self.parent_of: dict[cst.CSTNode, cst.CSTNode] = {}
+        self.calls: list[cst.Call] = []
+        self._node_stack: list[cst.CSTNode] = []
+
+    def before_codegen(self, node: cst.CSTNode) -> None:
+        super().before_codegen(node)
+        if self._node_stack:
+            self.parent_of[node] = self._node_stack[-1]
+        self._node_stack.append(node)
+
+    def after_codegen(self, node: cst.CSTNode) -> None:
+        super().after_codegen(node)
+        self._node_stack.pop()
+        if type(node) is cst.Call:
+            self.calls.append(cast(cst.Call, node))
+
+
 def _get_module_info(code: types.CodeType) -> ModuleInfo | None:
     """Parse and cache the ModuleInfo for `filename`.
 
@@ -309,26 +344,35 @@ def _get_module_info(code: types.CodeType) -> ModuleInfo | None:
                 module = cst.parse_module(src)
             with NVTXRange("wrapper =", category="source analysis"):
                 wrapper = MetadataWrapper(module, unsafe_skip_copy=True)
+            # ScopeProvider (and its ExpressionContextProvider dependency) is the one piece we
+            # can't cheaply reproduce; positions, parents and the call list all come from the
+            # single fused codegen pass below.
             with NVTXRange("md = ", category="source analysis"):
-                md = wrapper.resolve_many([PositionProvider, ScopeProvider, ParentNodeProvider])
+                md = wrapper.resolve(ScopeProvider)
 
-            with NVTXRange("pos =", category="source analysis"):
-                pos = cast(Mapping[cst.CSTNode, CodeRange], md[PositionProvider])
+            with NVTXRange("Fused codegen", category="source analysis"):
+                positions = _PositionSink()
+                state = _FusedCodegenState(
+                    default_indent=wrapper.module.default_indent,
+                    default_newline=wrapper.module.default_newline,
+                    provider=positions,
+                )
+                wrapper.module._codegen(state)
+
             by_position: dict[tuple[int, int, int, int], cst.Call | None] = {}
             by_line: dict[int, list[cst.Call]] = {}
-            with NVTXRange("Find calls", category="source analysis"):
-                calls = matchers.findall(wrapper.module, matchers.Call())
             with NVTXRange("Visit calls", category="source analysis"):
-                for node in calls:
-                    call = cast(cst.Call, node)
-                    r = pos[call]
+                for call in state.calls:
+                    r = positions._computed[call]
                     span = (r.start.line, r.end.line, r.start.column, r.end.column)
-                    by_position[span] = None if span in by_position else call  # seen twice -> ambiguous
+                    by_position[span] = (
+                        None if span in by_position else call
+                    )  # seen twice -> ambiguous
                     by_line.setdefault(r.start.line, []).append(call)
 
             info = ModuleInfo(
-                scope_of_node=cast(Mapping[cst.CSTNode, Scope], md[ScopeProvider]),
-                parent_of=cast(Mapping[cst.CSTNode, cst.CSTNode], md[ParentNodeProvider]),
+                scope_of_node=cast(Mapping[cst.CSTNode, Scope], md),
+                parent_of=state.parent_of,
                 calls_by_position=by_position,
                 calls_by_line={ln: tuple(calls) for ln, calls in by_line.items()},
             )
