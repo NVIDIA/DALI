@@ -34,6 +34,7 @@ from ._tensor import as_tensor as _as_tensor
 from ._tensor import tensor as _tensor
 from ._type import DType, DTypeLike
 from ._type import dtype as _dtype
+from .compile._invariant import unwrap_invariant_args, unwrap_invariants
 
 
 def _backend_device(backend: _backend.TensorListCPU | _backend.TensorListGPU) -> Device:
@@ -214,6 +215,7 @@ class Batch:
         invocation_result: "_invocation.InvocationResult | None" = None,
         copy: bool = False,
     ):
+        tensors, dtype, device, layout = unwrap_invariant_args(tensors, dtype, device, layout)
         assert isinstance(layout, str) or layout is None
         if device is not None and not isinstance(device, Device):
             device = _device(device)
@@ -456,6 +458,7 @@ class Batch:
         ``as_batch([tensor(sample, dtype=dtype, device=device)] * batch_size)``
         but is much more efficient.
         """
+        sample, batch_size, device, dtype = unwrap_invariant_args(sample, batch_size, device, dtype)
         if isinstance(sample, Batch):
             raise ValueError("Cannot broadcast a Batch")
         if _is_tensor_type(sample):
@@ -468,7 +471,7 @@ class Batch:
         import numpy as np
 
         with Batch._nvtx_to_numpy_and_stack:
-            arr = np.array(sample)
+            arr = np.array(unwrap_invariants(sample))
             converted_dtype_id = None
             if arr.dtype == np.float64:
                 arr = arr.astype(np.float32)
@@ -941,6 +944,7 @@ def batch(
         If not specified, the layout is inferred from the input tensors.
     """
     if isinstance(tensors, Batch):
+        tensors, dtype, device, layout = unwrap_invariant_args(tensors, dtype, device, layout)
         b = tensors.to_device(device or tensors.device, force_copy=True)
         if dtype is not None and b.dtype != dtype:
             from . import cast
@@ -993,6 +997,7 @@ def as_batch(
         If not specified, the layout is inferred from the input tensors.
     """
     if isinstance(tensors, Batch):
+        tensors, dtype, device, layout = unwrap_invariant_args(tensors, dtype, device, layout)
         b = tensors
         if device is not None:
             b = tensors.to_device(device)

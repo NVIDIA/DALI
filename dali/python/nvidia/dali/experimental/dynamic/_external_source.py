@@ -27,6 +27,7 @@ from ._device import device as _as_device
 from ._nvtx import NVTXRange
 from ._tensor import Tensor, as_tensor
 from ._type import DTypeLike
+from .compile._invariant import unwrap_invariant, unwrap_invariant_args
 
 if TYPE_CHECKING:
     from ._eval_context import EvalContext
@@ -134,6 +135,9 @@ class ExternalSource:
         layout: str | Sequence[str] | None = None,
         dtype: DTypeLike | Sequence[DTypeLike] | None = None,
     ):
+        source, num_outputs, cycle, device = unwrap_invariant_args(
+            source, num_outputs, cycle, device
+        )
         callback, source_desc = get_callback_from_source(source, cycle)
         assert source_desc is not None  # `source` is never None here, so a callback is built
         if source_desc.has_inputs:
@@ -176,6 +180,7 @@ class ExternalSource:
         # - while tracing, pull and register the source as a feeder
         # - while executing a compiled context, return the traced feeder's result
 
+        batch_size = unwrap_invariant(batch_size)
         ctx = _compile.CompileContext.current()
         if ctx is None or ctx.state is _compile.State.DISABLED:
             if self._role in (_Role.FEEDER, _Role.ROOT):
@@ -203,6 +208,7 @@ class ExternalSource:
         They are prefetched, so they are polled ahead of the loop body and breaking out may discard
         already-pulled items.
         """
+        batch_size = unwrap_invariant(batch_size)
         if self._role is _Role.EAGER:
             raise RuntimeError("This ExternalSource was already used eagerly")
         if self._role is _Role.FEEDER:
