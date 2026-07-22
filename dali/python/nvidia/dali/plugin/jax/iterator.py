@@ -11,6 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import functools
+
 import numpy as np
 import jax
 import jax.dlpack
@@ -299,6 +301,7 @@ def _data_iterator_impl(
         raise ValueError("Only one of `sharding` and `devices` arguments can be provided.")
 
     def data_iterator_decorator(func):
+        @functools.wraps(func)
         def create_iterator(*args, checkpoints=None, **wrapper_kwargs):
             pipeline_def_fn = pipeline_def(func)
 

@@ -47,6 +47,18 @@ def test_dali_iterator_decorator_declarative():
     run_and_assert_sequential_iterator(iter)
 
 
+def test_dali_iterator_decorator_preserves_function_metadata():
+    def iterator_function(data_path, *, random_shuffle=False):
+        """Create a DALI pipeline for the provided data path."""
+        return iterator_function_def()
+
+    decorated = data_iterator(output_map=["data"], reader_name="reader")(iterator_function)
+
+    assert decorated.__wrapped__ is iterator_function
+    assert inspect.signature(decorated) == inspect.signature(iterator_function)
+    assert inspect.getdoc(decorated) == inspect.getdoc(iterator_function)
+
+
 @params((False,), (True,))
 def test_dali_iterator_decorator_declarative_with_default_args(exec_dynamic):
     # given
