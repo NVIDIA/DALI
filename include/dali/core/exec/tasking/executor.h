@@ -70,6 +70,10 @@ class Executor : public Scheduler {
   }
 
  private:
+  int NumThreads() const override {
+    return num_threads_;
+  }
+
   bool started_ = false;
 
   void RunWorker() {
