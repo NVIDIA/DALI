@@ -3,70 +3,68 @@
 set -o xtrace
 set -e
 
-# Adding conda-forge channel for dependencies
-conda config --add channels conda-forge
-conda config --add channels nvidia
-conda config --add channels local
+source /root/miniconda3/bin/activate
 
-CONDA_BUILD_OPTIONS="--exclusive-config-file config/conda_build_config.yaml"
-
-CONDA_PREFIX=${CONDA_PREFIX:-/root/miniconda3}
-
-export CUDA_TARGET_ARCHS=${CUDA_TARGET_ARCHS}
-export CMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE:-Release}
-export BUILD_TEST=${BUILD_TEST:-ON}
-export BUILD_BENCHMARK=${BUILD_BENCHMARK:-ON}
-export BUILD_FUZZING=${BUILD_FUZZING:-OFF}
-export BUILD_NVTX=${BUILD_NVTX}
-export BUILD_LMDB=${BUILD_LMDB:-ON}
-export BUILD_LIBJPEG_TURBO=${BUILD_LIBJPEG_TURBO:-ON}
-export BUILD_NVJPEG=${BUILD_NVJPEG:-ON}
-export BUILD_LIBTIFF=${BUILD_LIBTIFF:-ON}
-export BUILD_LIBSND=${BUILD_LIBSND:-ON}
-export BUILD_LIBTAR=${BUILD_LIBTAR:-ON}
-export BUILD_FFTS=${BUILD_FFTS:-ON}
-export BUILD_CFITSIO=${BUILD_CFITSIO:-ON}
-export BUILD_NVOF=${BUILD_NVOF:-ON}
-export BUILD_NVDEC=${BUILD_NVDEC:-ON}
-export BUILD_NVML=${BUILD_NVML:-ON}
-export BUILD_NVCOMP=${BUILD_NVCOMP:-ON}
-export WITH_DYNAMIC_CUDA_TOOLKIT=${WITH_DYNAMIC_CUDA_TOOLKIT:-OFF}
-export WITH_DYNAMIC_NVJPEG=${WITH_DYNAMIC_NVJPEG:-ON}
-export WITH_DYNAMIC_CUFFT=${WITH_DYNAMIC_CUFFT:-ON}
-export WITH_DYNAMIC_NPP=${WITH_DYNAMIC_NPP:-ON}
-export WITH_DYNAMIC_NVCOMP=${WITH_DYNAMIC_NVCOMP:-ON}
-export VERBOSE_LOGS=${VERBOSE_LOGS:-OFF}
-export WERROR=${WERROR:-ON}
-export BUILD_WITH_ASAN=${BUILD_WITH_ASAN:-OFF}
-export BUILD_WITH_LSAN=${BUILD_WITH_LSAN:-OFF}
-export BUILD_WITH_UBSAN=${BUILD_WITH_UBSAN:-OFF}
-export NVIDIA_BUILD_ID=${NVIDIA_BUILD_ID:-0}
-export GIT_SHA=${GIT_SHA}
-export DALI_TIMESTAMP=${DALI_TIMESTAMP}
-export NVIDIA_DALI_BUILD_FLAVOR=${NVIDIA_DALI_BUILD_FLAVOR}
-export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}
-export DALI_CONDA_BUILD_VERSION=$(cat ../VERSION)$(if [ "${NVIDIA_DALI_BUILD_FLAVOR}" != "" ]; then \
-                                                     echo .${DALI_TIMESTAMP}; \
-                                                   fi)
-export CUDA_VERSION=$(echo $(ls /usr/local/cuda/lib64/libcudart.so*)  | sed 's/.*\.\([0-9]\+\)\.\([0-9]\+\)\.\([0-9]\+\)/\1.\2/')
-export CONDA_OVERRIDE_CUDA=${CUDA_VERSION}
-# when building for any version >= 11.0 use CUDA compatibility mode and claim it is a CUDA 110 package
-if [ "${CUDA_VERSION/./}" -ge 110 ]; then
-  export CUDA_VERSION="${CUDA_VERSION%?}0"
+if [ -z "${CUDA_VERSION_MAJOR}" ]; then
+  echo "CUDA_VERSION_MAJOR must be set (e.g. 12 or 13)" >&2
+  exit 1
+fi
+if [ "${CUDA_VERSION_MAJOR}" -eq 13 ]; then
+  export METAL_YAML=linux_64_c_stdlib_version2.28cuda_compiler_version13.0.yaml
+else
+  export METAL_YAML=linux_64_c_stdlib_version2.17cuda_compiler_version12.9.yaml
 fi
 
-# Building DALI core package
-conda mambabuild ${CONDA_BUILD_OPTIONS} dali_native_libs/recipe
+export DALI_VERSION="$(tr -d '\r\n' < /opt/dali/VERSION)"
+export NVIDIA_DALI_BUILD_FLAVOR="${NVIDIA_DALI_BUILD_FLAVOR:-}"
+export DALI_TIMESTAMP="${DALI_TIMESTAMP:-}"
+export NVIDIA_BUILD_ID="${NVIDIA_BUILD_ID:-0}"
 
-# Building DALI python bindings package
-conda mambabuild ${CONDA_BUILD_OPTIONS} \
-  --variants="{python: [3.10, 3.11, 3.12, 3.13, 3.14], freethreading: ['no']}" \
-  dali_python_bindings/recipe
-# ToDo - enable when DALI deps fully support ree-threded python
-# conda mambabuild ${CONDA_BUILD_OPTIONS} \
-#   --variants="{python: [3.14], freethreading: ['yes']}" \
-#   dali_python_bindings/recipe
+if [[ ! "${DALI_VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+[[:alnum:].]*$ ]]; then
+  echo "Invalid DALI version in /opt/dali/VERSION: ${DALI_VERSION}" >&2
+  exit 1
+fi
+if [[ -n "${NVIDIA_DALI_BUILD_FLAVOR}" && ! "${DALI_TIMESTAMP}" =~ ^[0-9]{8}$ ]]; then
+  echo "DALI_TIMESTAMP must use YYYYMMDD format when NVIDIA_DALI_BUILD_FLAVOR is set" >&2
+  exit 1
+fi
+if [[ ! "${NVIDIA_BUILD_ID}" =~ ^[0-9]+$ ]]; then
+  echo "NVIDIA_BUILD_ID must be a non-negative integer" >&2
+  exit 1
+fi
+
+cd /opt/
+git clone https://github.com/conda-forge/nvidia-dali-python-feedstock
+
+cd nvidia-dali-python-feedstock
+if [ -n "${DALI_FEEDSTOCK_SHA}" ]; then
+  git checkout ${DALI_FEEDSTOCK_SHA}
+fi
+
+echo "Using nvidia-dali-python-feedstock at $(git rev-parse HEAD)"
+
+# Adapt the current feedstock for building from the local DALI checkout. The patch removes
+# release-tarball-only sources and patches, clears vendored include directories before the
+# feedstock creates conda include symlinks, enables DALI's conda build configuration, and
+# documents the nvCOMP 5.2 requirement.
+git apply --check /opt/dali/conda/nvidia-dali-python-feedstock.patch
+git apply /opt/dali/conda/nvidia-dali-python-feedstock.patch
+
+# Use the local DALI checkout instead of downloading the release tarball.
+RECIPE=recipe/recipe.yaml
+sed -i 's|  - url: https://github.com/NVIDIA/DALI/archive/refs/tags/v${{ version }}.tar.gz|  - path: /opt/dali|' "${RECIPE}"
+grep -q 'path: /opt/dali' "${RECIPE}" || { echo "Recipe patch failed: path: /opt/dali not found" >&2; exit 1; }
+grep -q 'github.com/NVIDIA/DALI/archive' "${RECIPE}" && \
+  { echo "Recipe patch failed: DALI tarball URL still present" >&2; exit 1; }
+
+sed -i '/path: \/opt\/dali/a\    use_gitignore: false' "${RECIPE}"
+grep -q 'use_gitignore: false' "${RECIPE}" || \
+  { echo "Recipe patch failed: use_gitignore: false not found" >&2; exit 1; }
+
+rattler-build build --recipe $(pwd)/recipe -m  $(pwd)/.ci_support/${METAL_YAML} \
+                    --target-platform linux-64 --extra-meta flow_run_id=${NVIDIA_BUILD_ID:-0} \
+                    --extra-meta remote_url= --extra-meta sha=${GIT_SHA}
 
 # Copying the artifacts from conda prefix
-mkdir -p artifacts
-cp ${CONDA_PREFIX}/conda-bld/*/nvidia-dali*.tar.bz2 artifacts
+mkdir -p /opt/dali/conda/artifacts/
+cp output/linux-64/*.conda /opt/dali/conda/artifacts/
