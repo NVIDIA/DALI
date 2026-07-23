@@ -22,7 +22,7 @@ import numpy as np
 import nvidia.dali as dali
 import nvidia.dali.backend_impl as _b
 
-from . import _compile, _device, _eval_context, _invocation, _type
+from . import _compile, _device, _eval_context, _invocation
 from ._batch import Batch, _get_batch_size
 from ._batch import as_batch as _as_batch
 from ._device import Device, DeviceLike
@@ -316,24 +316,9 @@ class Operator:
         if cls._has_random_state_arg:
             from . import random
 
-            rng = raw_kwargs.pop("rng", None)
-            if rng is None:
-                rng = random.get_default_rng()
-            if not isinstance(rng, random.RNG):
-                raise ValueError(
-                    f"rng must be an instance of nvidia.dali.experimental.dynamic.random.RNG, "
-                    f"but got {type(rng)}"
-                )
-
-            # Use the provided RNG to generate 7 random uint32 values.
-            # This creates a fixed-size random state tensor.
-            # 7 uint32 words = 224 bits; required is 194 bits (operator reads first 25 bytes).
+            rng = random._resolve_rng(raw_kwargs.pop("rng", None))
             # Only one random state tensor is created per call, not per sample.
-            raw_kwargs["_random_state"] = Tensor(
-                [rng() for _ in range(7)],
-                dtype=_type.uint32,
-                device="cpu",
-            )
+            raw_kwargs["_random_state"] = random._state_tensor(random._draw_state(rng))
 
         inputs = []
         kwargs = {}

@@ -12,16 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import nvidia.dali.experimental.dynamic as ndd
+from typing import SupportsIndex
 import numpy as np
 from nose2.tools import cartesian_params, params
 from nose_utils import assert_raises, raises
 
-
-def asnumpy(tensor_or_batch):
-    """Convert a DALI dynamic tensor to numpy array."""
-    return np.array(ndd.as_tensor(tensor_or_batch, device="cpu"))
-
+import nvidia.dali.experimental.dynamic as ndd
 
 ops = {
     "uniform": ndd._ops.random.Uniform,
@@ -50,25 +46,25 @@ def test_rng_argument(device_type, batch_size, api_type, opname):
         if api_type == "ops":
             if op_instance is None:
                 op_instance = ops[opname](device=device_type, max_batch_size=batch_size)
-            result1 = op_instance(batch_size=batch_size, rng=rng, **op_args[opname])
+            result = op_instance(batch_size=batch_size, rng=rng, **op_args[opname])
         else:
-            result1 = fn[opname](
+            result = fn[opname](
                 batch_size=batch_size, rng=rng, device=device_type, **op_args[opname]
             )
 
         # Verify result type and shape
         if batch_size is not None:
-            assert isinstance(result1, ndd.Batch), f"Expected Batch, got {type(result1)}"
-            result1_np = asnumpy(result1)
-            assert result1_np.shape == (
+            assert isinstance(result, ndd.Batch), f"Expected Batch, got {type(result)}"
+            tensor = ndd.as_tensor(result, device="cpu")
+            assert tensor.shape == (
                 batch_size,
                 10,
-            ), f"Expected shape ({batch_size}, 10), got {result1_np.shape}"
+            ), f"Expected shape ({batch_size}, 10), got {tensor.shape}"
         else:
-            assert isinstance(result1, ndd.Tensor), f"Expected Tensor, got {type(result1)}"
-            result1_np = asnumpy(result1)
-            assert result1_np.shape == (10,), f"Expected shape (10,), got {result1_np.shape}"
-        return result1_np
+            assert isinstance(result, ndd.Tensor), f"Expected Tensor, got {type(result)}"
+            tensor = result.cpu()
+            assert tensor.shape == (10,), f"Expected shape (10,), got {tensor.shape}"
+        return tensor
 
     rng1 = ndd.random.RNG(seed=1234)
     rng2 = ndd.random.RNG(seed=1234)
@@ -94,14 +90,13 @@ def test_rng_seed_exclusion(device_type):
     uniform_op2 = ndd._ops.random.Uniform(device=device_type, seed=42)
     result1 = uniform_op1(range=[0.0, 1.0], shape=[10], rng=rng1)  # This should override the seed
     result2 = uniform_op2(range=[0.0, 1.0], shape=[10], rng=rng2)  # This should override the seed
-    result_np1 = asnumpy(result1)
-    assert result_np1.shape == (10,)
-    result_np2 = asnumpy(result2)
-    assert result_np2.shape == (10,)
+
+    assert result1.shape == (10,)
+    assert result2.shape == (10,)
 
     # expected to be different because of different random states
     # regardless of the initial seed
-    assert not np.array_equal(result_np1, result_np2)
+    assert not np.array_equal(result1.cpu(), result2.cpu())
 
 
 def test_rng_clone():
@@ -136,15 +131,10 @@ def test_rng_clone():
     rng5 = rng4.clone()
 
     result1 = ndd.random.uniform(range=[0.0, 1.0], shape=[10], rng=rng4)
-    result1_np = asnumpy(result1)
-
     result2 = ndd.random.uniform(range=[0.0, 1.0], shape=[10], rng=rng5)
-    result2_np = asnumpy(result2)
 
     # Results should be identical since clones have the same seed
-    assert np.array_equal(
-        result1_np, result2_np
-    ), "Cloned RNGs should produce identical operator results"
+    assert np.array_equal(result1, result2), "Cloned RNGs should produce identical operator results"
 
 
 @raises(ValueError, glob="both")
@@ -158,9 +148,9 @@ def test_batch_permutation_requires_batch_size():
 
     batch_size = 4
     result = ndd.batch_permutation(batch_size=batch_size, rng=ndd.random.RNG(seed=1234))
-    result_np = asnumpy(result)
-    assert result_np.shape == (batch_size,)
-    assert sorted(result_np.tolist()) == list(range(batch_size))
+    tensor = ndd.as_tensor(result, device="cpu")
+    assert tensor.shape == (batch_size,)
+    assert np.array_equal(np.sort(tensor), np.arange(batch_size))
 
 
 def test_rng_set_seed():
@@ -176,13 +166,13 @@ def test_rng_set_seed():
 
     # Explicit RNG instance with operators
     rng.seed = 1234
-    result1_np = asnumpy(ndd.random.uniform(range=[0.0, 1.0], shape=[10], rng=rng))
+    result1 = ndd.random.uniform(range=[0.0, 1.0], shape=[10], rng=rng)
     rng.seed = 1234
-    result2_np = asnumpy(ndd.random.uniform(range=[0.0, 1.0], shape=[10], rng=rng))
-    assert np.array_equal(result1_np, result2_np)
+    result2 = ndd.random.uniform(range=[0.0, 1.0], shape=[10], rng=rng)
+    assert np.array_equal(result1, result2)
     rng.seed = 5678  # Different seed
-    result3_np = asnumpy(ndd.random.uniform(range=[0.0, 1.0], shape=[10], rng=rng))
-    assert not np.array_equal(result1_np, result3_np)
+    result3 = ndd.random.uniform(range=[0.0, 1.0], shape=[10], rng=rng)
+    assert not np.array_equal(result1, result3)
 
     # Default RNG
     ndd.random.set_seed(9876)
@@ -196,10 +186,30 @@ def test_rng_set_seed():
 
     # Default RNG with operators
     ndd.random.set_seed(1111)
-    result1_np = asnumpy(ndd.random.uniform(range=[0.0, 1.0], shape=[10]))
+    result1 = ndd.random.uniform(range=[0.0, 1.0], shape=[10])
     ndd.random.set_seed(1111)
-    result2_np = asnumpy(ndd.random.uniform(range=[0.0, 1.0], shape=[10]))
-    assert np.array_equal(result1_np, result2_np)
+    result2 = ndd.random.uniform(range=[0.0, 1.0], shape=[10])
+    assert np.array_equal(result1, result2)
     ndd.random.set_seed(2222)  # Different seed
-    result3_np = asnumpy(ndd.random.uniform(range=[0.0, 1.0], shape=[10]))
-    assert not np.array_equal(result1_np, result3_np)
+    result3 = ndd.random.uniform(range=[0.0, 1.0], shape=[10])
+    assert not np.array_equal(result1, result3)
+
+
+@params(
+    (0, (0,)),
+    (1, (1, 2)),
+    (2, (np.int64(2), np.uint64(3))),
+)
+def test_rng_advance_matches(offset: int, advances: tuple[SupportsIndex, ...]):
+    rng = ndd.random.RNG(seed=7)
+    for _ in range(offset):
+        rng()
+    reference = rng.clone()
+
+    for n in advances:
+        rng.advance(n)
+
+    for _ in range(sum(int(n) for n in advances)):
+        reference()
+
+    assert [rng() for _ in range(5)] == [reference() for _ in range(5)]
