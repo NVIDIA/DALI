@@ -299,14 +299,15 @@ class ConvertOrientationTest : public ::testing::Test {
     auto input_buf = MakeInput();
     TensorShape<> in_shape{kH, kW, kC};
     TensorShape<> out_shape{out_h, out_w, kC};
-    ConstSampleView<CPUBackend> in_view(input_buf.data(), in_shape, DALI_UINT8);
+    ConstSampleView<CPUBackend> in_view(input_buf.data(), std::move(in_shape), DALI_UINT8);
     std::vector<uint8_t> output_buf(out_h * out_w * kC, 0xFF);
-    SampleView<CPUBackend> out_view(output_buf.data(), out_shape, DALI_UINT8);
+    SampleView<CPUBackend> out_view(output_buf.data(), std::move(out_shape), DALI_UINT8);
 
     nvimgcodecOrientation_t orientation{
         NVIMGCODEC_STRUCTURE_TYPE_ORIENTATION, sizeof(nvimgcodecOrientation_t),
         nullptr, rotated, flip_x, flip_y};
-    ConvertCPU(out_view, "HWC", DALI_RGB, in_view, "HWC", DALI_RGB, {}, orientation);
+    ConvertCPU(std::move(out_view), "HWC", DALI_RGB, std::move(in_view),
+               "HWC", DALI_RGB, {}, orientation);
     EXPECT_EQ(output_buf, expected);
   }
 };

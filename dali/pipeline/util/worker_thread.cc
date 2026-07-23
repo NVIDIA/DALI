@@ -17,6 +17,7 @@
 
 #include <exception>
 #include <iostream>
+#include <optional>
 #include <stdexcept>
 #include <utility>
 
@@ -64,21 +65,11 @@ WorkerThreadImpl::~WorkerThreadImpl() {
 
 void WorkerThreadImpl::Shutdown() {
   // Wait for work to find errors
-  if (running_) {
-    WaitForWork(false);
+  WaitForWork(false);
+  ForceStop();
 
-    // Mark the thread as not running
-    {
-      std::lock_guard<std::mutex> lock(mutex_);
-      running_ = false;
-    }
-    cv_.notify_one();
-  } else {
-    ForceStop();
-  }
   // Join the thread
   if (thread_.joinable()) {
-    ForceStop();
     thread_.join();
   }
 }
@@ -137,8 +128,9 @@ bool WorkerThreadImpl::WaitForInit() {
 
 void WorkerThreadImpl::ThreadMain(int device_id, bool set_affinity, const std::string &name) {
   SetThreadName(name.c_str());
-  DeviceGuard g(device_id);
+  std::optional<DeviceGuard> device_guard;
   try {
+    device_guard.emplace(device_id);
     if (set_affinity) {
 #if NVML_ENABLED
       nvml::SetCPUAffinity();
@@ -156,7 +148,7 @@ void WorkerThreadImpl::ThreadMain(int device_id, bool set_affinity, const std::s
 
   barrier_.Wait();
 
-  while (running_) {
+  while (true) {
     // Check the queue for work
     std::unique_lock<std::mutex> lock(mutex_);
     while (work_queue_.empty() && running_) {
