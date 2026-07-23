@@ -16,8 +16,8 @@ image_file = os.path.join(test_data_root, "db", "single", "jpeg", "100", "swan-3
 
 batch_size = 12
 prefetch_queue_depth = 3
-num_dali_threads = 8
-num_workers = 100
+num_dali_threads = 4
+num_workers = 20
 test_input = [np.fromfile(image_file, dtype=np.uint8)] * batch_size
 
 
