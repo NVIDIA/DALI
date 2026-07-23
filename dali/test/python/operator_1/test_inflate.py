@@ -141,7 +141,9 @@ def test_rejects_insufficient_output_buffer():
         # dtype defaults to uint8, which is too small for the int64 LZ4 payload.
         return fn.decoders.inflate(compressed.gpu(), shape=sample.shape, check_output_size=True)
 
-    with assert_raises(RuntimeError, glob="Output buffer for inflated chunk 0 in sample 0 is too small"):
+    with assert_raises(
+        RuntimeError, glob="Output buffer for inflated chunk 0 in sample 0 is too small"
+    ):
         pipeline().run()
 
 
