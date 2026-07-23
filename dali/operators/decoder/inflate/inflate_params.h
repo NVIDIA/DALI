@@ -36,6 +36,7 @@ constexpr static const char *offsetArgName = "chunk_offsets";
 constexpr static const char *sizeArgName = "chunk_sizes";
 constexpr static const char *layoutArgName = "layout";
 constexpr static const char *sequenceLayoutArgName = "sequence_axis_name";
+constexpr static const char *checkOutputSizeArgName = "check_output_size";
 
 enum class InflateAlg {
   LZ4
