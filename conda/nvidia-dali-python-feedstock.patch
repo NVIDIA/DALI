@@ -40,6 +40,71 @@ index 23d3cee..b1e9f12 100755
    -DBUILD_WITH_ASAN=OFF \
    -DBUILD_WITH_LSAN=OFF \
    -DBUILD_WITH_UBSAN=OFF \
+diff --git a/.ci_support/linux_64_c_stdlib_version2.17cuda_compiler_version12.9.yaml b/.ci_support/linux_64_c_stdlib_version2.17cuda_compiler_version12.9.yaml
+index f2ec986..0645c09 100644
+--- a/.ci_support/linux_64_c_stdlib_version2.17cuda_compiler_version12.9.yaml
++++ b/.ci_support/linux_64_c_stdlib_version2.17cuda_compiler_version12.9.yaml
+@@ -39,7 +39,7 @@ libjpeg_turbo:
+ libnvcomp:
+ - 5.2.0.*
+ libnvimgcodec:
+-- 0.8.*
++- 0.9.*
+ libopencv:
+ - 4.13.0
+ libprotobuf:
+diff --git a/.ci_support/linux_64_c_stdlib_version2.28cuda_compiler_version13.0.yaml b/.ci_support/linux_64_c_stdlib_version2.28cuda_compiler_version13.0.yaml
+index 4ffa2a3..c848114 100644
+--- a/.ci_support/linux_64_c_stdlib_version2.28cuda_compiler_version13.0.yaml
++++ b/.ci_support/linux_64_c_stdlib_version2.28cuda_compiler_version13.0.yaml
+@@ -39,7 +39,7 @@ libjpeg_turbo:
+ libnvcomp:
+ - 5.2.0.*
+ libnvimgcodec:
+-- 0.8.*
++- 0.9.*
+ libopencv:
+ - 4.13.0
+ libprotobuf:
+diff --git a/.ci_support/linux_aarch64_arm_variant_typesbsac_stdlib_version2.17cuda_compiler_version12.9.yaml b/.ci_support/linux_aarch64_arm_variant_typesbsac_stdlib_version2.17cuda_compiler_version12.9.yaml
+index 71ccb73..a0bf61b 100644
+--- a/.ci_support/linux_aarch64_arm_variant_typesbsac_stdlib_version2.17cuda_compiler_version12.9.yaml
++++ b/.ci_support/linux_aarch64_arm_variant_typesbsac_stdlib_version2.17cuda_compiler_version12.9.yaml
+@@ -41,7 +41,7 @@ libjpeg_turbo:
+ libnvcomp:
+ - 5.2.0.*
+ libnvimgcodec:
+-- 0.8.*
++- 0.9.*
+ libopencv:
+ - 4.13.0
+ libprotobuf:
+diff --git a/.ci_support/linux_aarch64_arm_variant_typesbsac_stdlib_version2.28cuda_compiler_version13.0.yaml b/.ci_support/linux_aarch64_arm_variant_typesbsac_stdlib_version2.28cuda_compiler_version13.0.yaml
+index 9ff0eb4..88c103e 100644
+--- a/.ci_support/linux_aarch64_arm_variant_typesbsac_stdlib_version2.28cuda_compiler_version13.0.yaml
++++ b/.ci_support/linux_aarch64_arm_variant_typesbsac_stdlib_version2.28cuda_compiler_version13.0.yaml
+@@ -41,7 +41,7 @@ libjpeg_turbo:
+ libnvcomp:
+ - 5.2.0.*
+ libnvimgcodec:
+-- 0.8.*
++- 0.9.*
+ libopencv:
+ - 4.13.0
+ libprotobuf:
+diff --git a/.ci_support/linux_aarch64_arm_variant_typetegrac_stdlib_version2.34cuda_compiler_version12.9.yaml b/.ci_support/linux_aarch64_arm_variant_typetegrac_stdlib_version2.34cuda_compiler_version12.9.yaml
+index c2e7b4a..4b4adfc 100644
+--- a/.ci_support/linux_aarch64_arm_variant_typetegrac_stdlib_version2.34cuda_compiler_version12.9.yaml
++++ b/.ci_support/linux_aarch64_arm_variant_typetegrac_stdlib_version2.34cuda_compiler_version12.9.yaml
+@@ -41,7 +41,7 @@ libjpeg_turbo:
+ libnvcomp:
+ - 5.2.0.*
+ libnvimgcodec:
+-- 0.8.*
++- 0.9.*
+ libopencv:
+ - 4.13.0
+ libprotobuf:
 diff --git a/recipe/conda_build_config.yaml b/recipe/conda_build_config.yaml
 index d0bd8f8..4bbc9b0 100644
 --- a/recipe/conda_build_config.yaml
