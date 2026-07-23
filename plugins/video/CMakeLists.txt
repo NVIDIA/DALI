@@ -33,7 +33,7 @@ add_custom_command(
     TARGET dali-plugin-video
     POST_BUILD
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/pkg_src
-    COMMAND ${PYTHON_EXECUTABLE} setup.py sdist)
+    COMMAND ${PYTHON_EXECUTABLE} -m build --sdist --no-isolation)
 
 install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/pkg_src/dist
         DESTINATION . FILES_MATCHING PATTERN "*.tar.gz")
