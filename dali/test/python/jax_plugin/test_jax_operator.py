@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import inspect
 import os
 
 import numpy as np
@@ -26,6 +27,19 @@ from test_utils import get_dali_extra_path, check_batch, restrict_python_version
 
 test_data_root = get_dali_extra_path()
 images_dir = os.path.join(test_data_root, "db", "single", "jpeg")
+
+
+@restrict_python_version(3, 9)
+def test_jax_function_preserves_function_metadata():
+    def callback(image, *, flip=False):
+        """Flip an image batch when requested."""
+        return image
+
+    decorated = dax.fn.jax_function(callback)
+
+    assert decorated.__wrapped__ is callback
+    assert inspect.signature(decorated) == inspect.signature(callback)
+    assert inspect.getdoc(decorated) == inspect.getdoc(callback)
 
 
 @restrict_python_version(3, 9)

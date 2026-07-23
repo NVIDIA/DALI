@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import functools
 from typing import Optional, Protocol, Tuple, Union
 
 from packaging.version import Version
@@ -174,7 +175,7 @@ def jax_function(
         raise RuntimeError("DALI `jax_function` requires JAX 0.4.16 or above.")
 
     def decorator(function):
-
+        @functools.wraps(function)
         def dali_callback(*args: _DataNode) -> Optional[Tuple[_DataNode, ...]]:
             jax_fn_outputs = dax.fn._jax_function(
                 *args,
