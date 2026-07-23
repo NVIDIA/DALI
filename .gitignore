@@ -12,8 +12,6 @@ valgrind-out.txt
 **/.ipynb_checkpoints
 .dockerignore
 wheelhouse
-compile
-compile_debug
 .idea
 .vscode
 cmake-build-*

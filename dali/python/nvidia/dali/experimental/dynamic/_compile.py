@@ -39,6 +39,7 @@ from ._call_site import (
 )
 from ._device import Device
 from ._nvtx import NVTXRange
+from .compile._invariant import is_invariant, unwrap_invariant, unwrap_invariants
 
 if TYPE_CHECKING:
     from ._eval_context import EvalContext
@@ -91,6 +92,24 @@ class CompileNode:
     num_outputs: int
     device: Device | None = None
     pipeline_output_offset: int | None = dataclasses.field(default=None, repr=False)
+
+
+def _value_matches(actual: Any, expected: Any) -> bool:
+    if is_invariant(expected):
+        if not is_invariant(actual):
+            raise RuntimeError(
+                "An argument marked with ndd.compile.invariant when captured must remain marked."
+            )
+        return True
+
+    if expected is None:
+        return actual is None
+
+    try:
+        result = actual == expected
+        return result if isinstance(result, bool) else np.all(result).item()
+    except Exception:
+        return False
 
 
 class CompileRef(NamedTuple):
@@ -284,12 +303,16 @@ class CompileContext:
     ) -> CompileNode | None:
         if existing := self._call_trie.find(call_chain, op_class):
             if (
-                existing.inputs == inputs
-                and existing.kwargs == kwargs
-                and existing.device == device
+                len(existing.inputs) != len(inputs)
+                or existing.kwargs.keys() != kwargs.keys()
+                or existing.device != device
             ):
-                return existing
-            return None
+                return None
+            if not all(_value_matches(a, e) for a, e in zip(inputs, existing.inputs)):
+                return None
+            if not all(_value_matches(kwargs[name], e) for name, e in existing.kwargs.items()):
+                return None
+            return existing
 
         node = CompileNode(
             op_class=op_class,
@@ -380,19 +403,16 @@ class CompileContext:
 
     def _matches(self, actual: Any, expected: Any) -> bool:
         """Check if an actual value matches the expected traced value."""
-        if isinstance(expected, CompileRef):
+        if type(expected) is CompileRef:
+            actual = unwrap_invariant(actual)
             return (
                 isinstance(actual, CompiledBatch)
                 and actual._compile_ref == expected
                 and actual._compile_iteration == self._iteration
             )
-        if expected is None:
-            return actual is None
         if isinstance(actual, Batch):
             return False
-
-        result = actual == expected
-        return result if isinstance(result, bool) else np.all(result).item()
+        return _value_matches(actual, expected)
 
     @_nvtx_range("Getting compiled result")
     def get_compiled_result(
@@ -637,13 +657,16 @@ def _wire_compile_graph(sources: Sequence[CompileSource], nodes: Sequence[Compil
     for node in nodes:
         positional = [
             datanode_map[x] if isinstance(x, CompileRef) else _scalar_decay(x)
-            for x in node.inputs
+            for x in map(unwrap_invariants, node.inputs)
             if x is not None
         ]
-        kw_nodes = {k: datanode_map[v] for k, v in node.kwargs.items() if isinstance(v, CompileRef)}
-        kw_scalars = {
-            k: _scalar_decay(v) for k, v in node.kwargs.items() if not isinstance(v, CompileRef)
-        }
+        kw_nodes, kw_scalars = {}, {}
+        for name, value in node.kwargs.items():
+            value = unwrap_invariants(value)
+            if isinstance(value, CompileRef):
+                kw_nodes[name] = datanode_map[value]
+            elif value is not None:
+                kw_scalars[name] = _scalar_decay(value)
 
         # Cast kwargs when necessary
         for name, dtype in node.kwarg_casts.items():
@@ -676,6 +699,7 @@ def _compile_intercept(
 
     @mark_transparent
     def wrapper(*inputs, batch_size=None, device=None, **raw_kwargs):
+        batch_size = unwrap_invariant(batch_size)
         device, backend = _resolve_backend(op_class, device, inputs, op_name=op_name)
         compile_ctx = CompileContext.current()
         if compile_ctx is None:

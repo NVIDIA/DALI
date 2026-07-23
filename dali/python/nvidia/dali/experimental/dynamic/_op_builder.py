@@ -31,6 +31,7 @@ from ._eval_mode import EvalMode
 from ._nvtx import NVTXRange
 from ._tensor import Tensor
 from ._tensor import tensor as to_tensor
+from .compile._invariant import unwrap_invariant, unwrap_invariants
 
 
 def is_external(x):
@@ -42,6 +43,7 @@ def is_external(x):
 
 
 def _scalar_decay(x):
+    x = unwrap_invariants(x)
     if isinstance(x, _device.Device):
         return x.device_type
     if isinstance(x, _type.DType):
@@ -215,13 +217,14 @@ def build_constructor(schema, op_class):
     # Note: Base __init__ will keep the **kwargs
     def init(self, max_batch_size, name, **kwargs):
         if is_reader:
-            actual_tensor_arg_names = {
-                arg_name for arg_name in tensor_arg_names if kwargs.get(arg_name) is not None
-            }
+            actual_tensor_arg_names = set()
             tensor_args = {}
             for arg_name in tensor_arg_names:
-                arg = kwargs.get(arg_name)
-                if arg is None or isinstance(arg, (int, float, bool, str, tuple, list)):
+                arg = unwrap_invariant(kwargs.get(arg_name))
+                if arg is None:
+                    continue
+                actual_tensor_arg_names.add(arg_name)
+                if isinstance(arg, (int, float, bool, str, tuple, list)):
                     continue
                 if isinstance(arg, Batch):
                     raise ValueError("Readers cannot be constructed with batch keyword arguments")
@@ -325,10 +328,13 @@ def build_call_function(schema, op_class):
     @mark_transparent
     @NVTXRange(f"__call__: {op_class._op_name}", category="op_builder")
     def call(self, *raw_args, batch_size=None, _process_params=True, **raw_kwargs):
+        batch_size = unwrap_invariant(batch_size)
         self._pre_call(*raw_args, **raw_kwargs)
 
         if op_class._is_reader and self._tensor_arg_names:
-            actual_kwargs = {name for name, value in raw_kwargs.items() if value is not None}
+            actual_kwargs = {
+                name for name, value in raw_kwargs.items() if unwrap_invariant(value) is not None
+            }
             overlap = actual_kwargs & self._tensor_arg_names
             if overlap:
                 raise ValueError(
@@ -410,13 +416,12 @@ def _resolve_backend(
 
     Returns (resolved_device, backend).
     """
+    device = unwrap_invariant(device)
     if device is None:
 
         def infer_device():
             for arg in inputs:
-                if arg is None:
-                    continue
-                dev = _ops._get_input_device(arg)
+                dev = _ops._get_input_device(unwrap_invariant(arg))
                 if dev is not None and dev.device_type == "gpu":
                     return dev
             return _device.Device.CPU
@@ -508,16 +513,17 @@ def build_fn_wrapper(op, fn_name=None, add_to_module=True):
             batch_size = _ops._infer_batch_size(*inputs, **raw_kwargs)
         _check_batch_size_available(op, batch_size)
         max_batch_size = _next_pow2(batch_size or 1)
-        init_args = {
-            arg: _scalar_decay(value)
-            for arg, value in raw_kwargs.items()
-            if value is not None and arg != "max_batch_size" and arg in fixed_args
-        }
-        call_args = {
-            arg: _scalar_decay(value)
-            for arg, value in raw_kwargs.items()
-            if value is not None and arg in tensor_args
-        }
+        init_args = {}
+        call_args = {}
+        for arg, value in raw_kwargs.items():
+            if arg == "max_batch_size":
+                continue
+            if arg in fixed_args:
+                value = _scalar_decay(value)
+                if value is not None:
+                    init_args[arg] = value
+            elif arg in tensor_args:
+                call_args[arg] = value
 
         inputs, call_args = op._process_params(_backend, device, batch_size, *inputs, **call_args)
 

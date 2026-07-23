@@ -17,6 +17,7 @@ from . import _device, _invocation, _op_builder
 from ._batch import Batch, Tensor, as_batch, batch
 from ._call_site import mark_transparent, resolve_callsite_frame
 from ._nvtx import NVTXRange
+from .compile._invariant import unwrap_invariant, unwrap_invariant_args
 
 
 def is_uniform(shape):
@@ -49,6 +50,7 @@ class BatchToTensor:
         batch_size=None,
         device=None,
     ):
+        batch, device = unwrap_invariant_args(batch, device)
         if not isinstance(batch, Batch):
             batch = _op_builder._to_batch(batch, batch_size)
         with BatchToTensor._nvtx_construct_invocation:
@@ -102,7 +104,7 @@ class BatchToTensor:
                 t = _pad(input_batch).evaluate()._storage.as_tensor()
 
             if layout:
-                t.set_layout(layout)
+                t.set_layout(unwrap_invariant(layout))
             return t
 
 

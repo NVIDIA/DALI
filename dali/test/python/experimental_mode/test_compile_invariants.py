@@ -12,19 +12,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import functools
 import importlib.util
+import os
 import pathlib
 import tempfile
-import functools
-import os
 from collections.abc import Callable
 
 import numpy as np
+from ndd_utils import _is_compiled
+from nose_utils import assert_raises
+from test_utils import get_dali_extra_path
+
 import nvidia.dali.experimental.dynamic as ndd
 import nvidia.dali.types
-from ndd_utils import _is_compiled
 from nvidia.dali.types import DALIDataType
-from test_utils import get_dali_extra_path
 
 dali_extra_path = get_dali_extra_path()
 images_root = os.path.join(dali_extra_path, "db", "single", "jpeg")
@@ -68,10 +70,19 @@ def compiled_test(*, expect_captured: bool):
 
 _MODULE_DTYPE = ndd.float32
 _GLOBAL_ANGLE = 60
+_INVARIANT_ANGLE = ndd.compile.invariant(0.0)
+_INVARIANT_SIZE = ndd.compile.invariant(4)
 
 
 class _Cfg:
     DTYPE = ndd.float32
+
+
+class _InvariantCfg:
+    angle = 60
+
+
+_INVARIANT_CFG = ndd.compile.invariant(_InvariantCfg())
 
 
 class _DaliHolder:
@@ -389,6 +400,38 @@ def test_param_default_name(images):
     return rotate(images)
 
 
+@compiled_test(expect_captured=True)
+def test_invariant_marker(images):
+    angle = ndd.compile.invariant(10) + _INVARIANT_CFG.angle
+    return ndd.rotate(images, angle=angle, fill_value=ndd.compile.invariant(None))
+
+
+@compiled_test(expect_captured=True)
+def test_invariant_marker_parameter(images):
+    def rotate(imgs, angle):
+        return ndd.rotate(imgs, angle=angle)
+
+    return rotate(images, _INVARIANT_ANGLE)
+
+
+@compiled_test(expect_captured=True)
+def test_invariant_marker_list(images):
+    images = ndd.resize(images, size=[_INVARIANT_SIZE, _INVARIANT_SIZE])
+    size = ndd.compile.invariant([4, 4])
+    return ndd.resize(images, size=size)
+
+
+@compiled_test(expect_captured=True)
+def test_invariant_marker_without_source(images):
+    source = """
+def transform(images, angle):
+    return ndd.rotate(images, angle=angle)
+"""
+    namespace = {"ndd": ndd}
+    exec(compile(source, "<source-unavailable>", "exec"), namespace)
+    return namespace["transform"](images, _INVARIANT_ANGLE)
+
+
 # Tests for rejected cases
 
 
@@ -576,3 +619,18 @@ def test_param_global_arg(images):
         return ndd.rotate(imgs, angle=crop)
 
     return augment(images, _GLOBAL_ANGLE)
+
+
+@compiled_test(expect_captured=False)
+def test_invariant_marker_with_global(images):
+    angle = ndd.compile.invariant(0.0) + _GLOBAL_ANGLE
+    return ndd.rotate(images, angle=angle)
+
+
+def test_invariant_marker_removed():
+    es = ndd.ExternalSource(lambda: ndd.zeros(batch_size=2, shape=(4, 4, 3), layout="HWC"))
+    angles = iter((ndd.compile.invariant(0.0), 0.0))
+
+    with assert_raises(RuntimeError, glob="marked with ndd.compile.invariant*remain marked"):
+        for images in es.compiled(batch_size=2):
+            ndd.rotate(images, angle=next(angles))
