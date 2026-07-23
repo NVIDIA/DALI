@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2022-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -141,8 +141,28 @@ def test_rejects_insufficient_output_buffer():
         # dtype defaults to uint8, which is too small for the int64 LZ4 payload.
         return fn.decoders.inflate(compressed.gpu(), shape=sample.shape, check_output_size=True)
 
-    with assert_raises(RuntimeError, glob="Output buffer for inflated chunk 0 is too small"):
+    with assert_raises(RuntimeError, glob="Output buffer for inflated chunk 0 in sample 0 is too small"):
         pipeline().run()
+
+
+@has_operator("decoders.inflate")
+@restrict_platform(min_compute_cap=6.0)
+def test_checks_sufficient_output_buffer():
+    sample = np.full((13, 7), 42, dtype=np.int64)
+    deflated = sample_to_lz4(sample)
+
+    @pipeline_def(batch_size=1, num_threads=4, device_id=0)
+    def pipeline():
+        compressed = fn.external_source(source=lambda: deflated, batch=False)
+        return fn.decoders.inflate(
+            compressed.gpu(),
+            shape=sample.shape,
+            dtype=types.INT64,
+            check_output_size=True,
+        )
+
+    (inflated,) = pipeline().run()
+    check_batch(inflated, [sample], batch_size=1)
 
 
 def _test_scalar_shape(dtype, shape, layout):

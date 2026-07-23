@@ -35,7 +35,9 @@ namespace inflate {
 
 class InflateOpGpuLZ4Impl : public InflateOpImplBase<GPUBackend> {
  public:
-  explicit InflateOpGpuLZ4Impl(const OpSpec &spec) : InflateOpImplBase<GPUBackend>{spec} {}
+  explicit InflateOpGpuLZ4Impl(const OpSpec &spec)
+      : InflateOpImplBase<GPUBackend>{spec},
+        check_output_size_{spec.GetArgument<bool>(inflate::checkOutputSizeArgName)} {}
 
   void RunImpl(Workspace &ws) override {
     const auto &input = ws.template Input<GPUBackend>(0);
@@ -67,13 +69,19 @@ class InflateOpGpuLZ4Impl : public InflateOpImplBase<GPUBackend> {
       CUDA_CALL(cudaMemcpyAsync(decoded_sizes.data(), actual_out_sizes,
                                 total_chunks_num * sizeof(size_t), cudaMemcpyDeviceToHost, stream));
       CUDA_CALL(cudaStreamSynchronize(stream));
-      for (size_t chunk_idx = 0; chunk_idx < total_chunks_num; chunk_idx++) {
-        DALI_ENFORCE(
-            decoded_sizes[chunk_idx] <= inflated_sizes_[chunk_idx],
-            make_string("Output buffer for inflated chunk ", chunk_idx, " is too small: it has ",
-                        inflated_sizes_[chunk_idx], " bytes, but the compressed input expands to ",
-                        decoded_sizes[chunk_idx],
-                        " bytes. Check the `shape` and `dtype` arguments."));
+      size_t flat_chunk_idx = 0;
+      const auto &chunks_per_sample = params_.GetChunksNumPerSample();
+      for (int sample_idx = 0; sample_idx < chunks_per_sample.num_samples(); sample_idx++) {
+        auto num_chunks = chunks_per_sample[sample_idx].num_elements();
+        for (int chunk_idx = 0; chunk_idx < num_chunks; chunk_idx++, flat_chunk_idx++) {
+          DALI_ENFORCE(
+              decoded_sizes[flat_chunk_idx] <= inflated_sizes_[flat_chunk_idx],
+              make_string("Output buffer for inflated chunk ", chunk_idx, " in sample ", sample_idx,
+                          " is too small: it has ", inflated_sizes_[flat_chunk_idx],
+                          " bytes, but the compressed input expands to ",
+                          decoded_sizes[flat_chunk_idx],
+                          " bytes. Check the `shape` and `dtype` arguments."));
+        }
       }
     }
 
@@ -151,6 +159,7 @@ class InflateOpGpuLZ4Impl : public InflateOpImplBase<GPUBackend> {
   std::vector<const void *> input_ptrs_;
   std::vector<void *> inflated_ptrs_;
   std::vector<size_t> inflated_sizes_;
+  bool check_output_size_;
 };
 
 }  // namespace inflate
