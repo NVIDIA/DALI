@@ -32,7 +32,9 @@ namespace inflate {
 template <typename Backend>
 class InflateOpImplBase : public OpImplBase<Backend> {
  public:
-  explicit InflateOpImplBase(const OpSpec &spec) : params_{spec} {
+  explicit InflateOpImplBase(const OpSpec &spec)
+      : check_output_size_{spec.GetArgument<bool>(inflate::checkOutputSizeArgName)},
+        params_{spec} {
     dtype_ = spec.GetArgument<DALIDataType>(inflate::dTypeArgName);
     DALI_ENFORCE(
         IsFloatingPoint(dtype_) || IsIntegral(dtype_),
@@ -64,6 +66,7 @@ class InflateOpImplBase : public OpImplBase<Backend> {
  protected:
   DALIDataType dtype_;
   TypeInfo element_type_;
+  bool check_output_size_;
   inflate::ShapeParams<Backend> params_;
 };
 

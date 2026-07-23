@@ -54,6 +54,12 @@ concatenating compressed frames from the corresponding sequences.::
     .NumOutput(1)
     .AddArg(inflate::shapeArgName, "The shape of the output (inflated) chunk.", DALI_INT_VEC, true)
     .AddOptionalTypeArg(inflate::dTypeArgName, "The output (inflated) data type.", DALI_UINT8)
+    .AddOptionalArg<bool>(inflate::checkOutputSizeArgName,
+                          R"code(If True, validates before decompression that the requested output
+buffers are large enough for the compressed data.
+
+This validation synchronizes the GPU stream and is disabled by default.)code",
+                          false)
     .AddOptionalArg<std::vector<int>>(inflate::offsetArgName,
                                       R"code(A list of offsets within the input sample
 describing where the consecutive chunks begin.

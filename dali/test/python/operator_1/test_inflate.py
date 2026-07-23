@@ -129,6 +129,22 @@ def test_sample_inflate():
             seed += 1
 
 
+@has_operator("decoders.inflate")
+@restrict_platform(min_compute_cap=6.0)
+def test_rejects_insufficient_output_buffer():
+    sample = np.full((13, 7), 42, dtype=np.int64)
+    deflated = sample_to_lz4(sample)
+
+    @pipeline_def(batch_size=1, num_threads=4, device_id=0)
+    def pipeline():
+        compressed = fn.external_source(source=lambda: deflated, batch=False)
+        # dtype defaults to uint8, which is too small for the int64 LZ4 payload.
+        return fn.decoders.inflate(compressed.gpu(), shape=sample.shape, check_output_size=True)
+
+    with assert_raises(RuntimeError, glob="Output buffer for inflated chunk 0 is too small"):
+        pipeline().run()
+
+
 def _test_scalar_shape(dtype, shape, layout):
     def sample_source(sample_info):
         sample_size = np.prod(shape)

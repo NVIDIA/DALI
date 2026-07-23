@@ -57,6 +57,26 @@ class InflateOpGpuLZ4Impl : public InflateOpImplBase<GPUBackend> {
     auto [in_sizes, in, out_sizes, out] = scratchpad.ToContiguousGPU(
         stream, params_.GetInChunkSizes(), input_ptrs_, inflated_sizes_, inflated_ptrs_);
 
+    if (check_output_size_) {
+      // Query the decoded sizes before decompression. nvCOMP's decompression API documents an
+      // insufficient output buffer as undefined behaviour for some backends, so relying on its
+      // per-chunk status is not safe here.
+      CUDA_CALL(nvcompBatchedLZ4GetDecompressSizeAsync(in, in_sizes, actual_out_sizes,
+                                                        total_chunks_num, stream));
+      std::vector<size_t> decoded_sizes(total_chunks_num);
+      CUDA_CALL(cudaMemcpyAsync(decoded_sizes.data(), actual_out_sizes,
+                                total_chunks_num * sizeof(size_t), cudaMemcpyDeviceToHost, stream));
+      CUDA_CALL(cudaStreamSynchronize(stream));
+      for (size_t chunk_idx = 0; chunk_idx < total_chunks_num; chunk_idx++) {
+        DALI_ENFORCE(
+            decoded_sizes[chunk_idx] <= inflated_sizes_[chunk_idx],
+            make_string("Output buffer for inflated chunk ", chunk_idx, " is too small: it has ",
+                        inflated_sizes_[chunk_idx], " bytes, but the compressed input expands to ",
+                        decoded_sizes[chunk_idx],
+                        " bytes. Check the `shape` and `dtype` arguments."));
+      }
+    }
+
     size_t tempSize;
     CUDA_CALL(nvcompBatchedLZ4DecompressGetTempSizeAsync(
         total_chunks_num,
