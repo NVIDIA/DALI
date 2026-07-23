@@ -46,7 +46,8 @@ index d0bd8f8..4bbc9b0 100644
 +++ b/recipe/conda_build_config.yaml
 @@ -1,5 +1,6 @@
  libnvimgcodec:
-   - "0.8.*"
+-  - "0.8.*"
++  - "0.9.*"
 +# nvcompGetStatusString used by DALI requires nvCOMP 5.2 or newer.
  libnvcomp:
    - "5.2.0.*"
