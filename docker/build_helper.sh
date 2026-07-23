@@ -141,13 +141,13 @@ bundle_wheel() {
 
 if [ "${BUILD_PYTHON}" = "ON" ]; then
     # use stored as a compression method to make it faster as bundle-wheel.sh need to repack anyway
-    # call setup.py to avoid slow copy to tmp dir
+    # avoid isolated venv creation and use dependencies already installed in the image
     pushd dali/python
     python -m build --wheel --no-isolation \
         -C--global-option=--verbose \
-        -C--global-option=--compression=stored \
-        -C--global-option=--python-tag=py3 \
-        -C--global-option="--plat-name=${WHL_PLATFORM_NAME}"
+        -C--build-option=--compression=stored \
+        -C--build-option=--python-tag=py3 \
+        -C--build-option="--plat-name=${WHL_PLATFORM_NAME}"
     popd
     mv dali/python/dist/*.whl ./
 
