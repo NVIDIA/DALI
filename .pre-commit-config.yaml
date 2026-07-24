@@ -1,0 +1,5 @@
+repos:
+  - repo: https://github.com/NVIDIA/security-workflows
+    rev: v0.2.0
+    hooks:
+      - id: secret-scan-trufflehog
