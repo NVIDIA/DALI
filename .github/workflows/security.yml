@@ -15,3 +15,5 @@ permissions:
 jobs:
   secret-scan:
     uses: NVIDIA/security-workflows/.github/workflows/secret-scan-pulse.yml@031c5429271b5692e025c3e292fcc2bf11e116f7
+    with:
+      runs-on: ubuntu-latest
