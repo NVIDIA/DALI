@@ -315,7 +315,7 @@ def _get_module_info(code: types.CodeType) -> ModuleInfo | None:
     but is paid once per file and amortizes over a multi-epoch run.
     """
 
-    if cached := _code_cache.get(id(code), None):
+    if cached := _code_cache.get(id(code)):
         return cached[1]
 
     with NVTXRange(f"Get module info for: {code.co_filename}", category="source analysis"):
@@ -394,9 +394,10 @@ class CallInfo:
     meta: dict = field(default_factory=dict)
 
 
+@NVTXRange("_call_at", category="source analysis")
 def _call_at(frame: types.FrameType) -> cst.Call | None:
     key = (id(frame.f_code), frame.f_lasti)
-    if (call_info := _call_cache.get(key, None)) is not None:
+    if (call_info := _call_cache.get(key)) is not None:
         return call_info
 
     mi = _get_module_info(frame.f_code)
@@ -462,8 +463,11 @@ class _Classifier:
             node = pos_nodes[i] if i < len(pos_nodes) else None
             classified_inputs.append(self.is_invariant(node, static=True))
         classified_kwargs = {
-            name: self.is_invariant(kw_nodes.get(name), static=True) for name in raw_kwargs
+            name for name in raw_kwargs if self.is_invariant(kw_nodes.get(name), static=True)
         }
+        print("----------------------")
+        print(classified_inputs)
+        print(classified_kwargs)
         return classified_inputs, classified_kwargs
 
     def _capture_arg(self, node: cst.BaseExpression | None, value: Any) -> Any:

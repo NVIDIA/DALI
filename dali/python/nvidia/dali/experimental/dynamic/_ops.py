@@ -306,9 +306,7 @@ class Operator:
     _nvtx_convert_to_tensors = NVTXRange("__call__: convert to tensors", category="op_builder")
 
     @classmethod
-    def _process_params(
-        cls, backend, op_device, batch_size, *raw_args, **raw_kwargs
-    ):
+    def _process_params(cls, backend, op_device, batch_size, *raw_args, **raw_kwargs):
         """
         Processes run-time parameters passed to the operator to ones that can be consumed DALI
         (Batch or Tensor).

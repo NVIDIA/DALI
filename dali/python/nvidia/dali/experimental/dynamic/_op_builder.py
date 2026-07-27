@@ -549,7 +549,7 @@ def build_fn_wrapper(op, fn_name=None, add_to_module=True):
         for arg, value in raw_kwargs.items():
             if arg == "max_batch_size":
                 continue
-            is_constant = constant_args.get(arg, False) if constant_args is not None else False
+            is_constant = arg in constant_args if constant_args is not None else False
             if arg in fixed_args or is_constant:
                 value = _scalar_decay(value)
                 if value is not None:

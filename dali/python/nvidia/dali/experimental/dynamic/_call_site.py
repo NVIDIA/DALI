@@ -16,6 +16,8 @@ import sys
 import types
 from typing import TypeAlias
 
+from ._nvtx import NVTXRange
+
 CodeLoc = tuple
 
 
@@ -37,6 +39,7 @@ def mark_transparent(func: types.FunctionType) -> types.FunctionType:
     return func
 
 
+@NVTXRange("resolve_callsite_frame", category="source analysis")
 def resolve_callsite_frame(
     frame: types.FrameType | None = None, depth_hint: int | None = None
 ) -> types.FrameType | None:
