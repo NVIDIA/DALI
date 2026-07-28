@@ -19,6 +19,7 @@ import itertools
 import linecache
 import sys
 import types
+import weakref
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any, cast
@@ -316,7 +317,11 @@ def _get_module_info(code: types.CodeType) -> ModuleInfo | None:
     """
 
     if cached := _code_cache.get(id(code)):
-        return cached[1]
+        # if it's alive, we're good - we cannot, however, remove this entry without risking a race
+        # condition - it must be kept stale until it's replaced (which happens near the end of
+        # this function)
+        if cached[0]() is code:
+            return cached[1]
 
     with NVTXRange(f"Get module info for: {code.co_filename}", category="source analysis"):
         filename = code.co_filename
@@ -332,7 +337,8 @@ def _get_module_info(code: types.CodeType) -> ModuleInfo | None:
         entry = linecache.cache.get(filename)
         # Note: We don't guard for concurrent calls because the function is idempotent anyway.
         if (cached := _file_cache.get(filename)) is not None and cached[0] is entry:
-            _code_cache[id(code)] = cached  # let the exact-code fast path short-circuit next time
+            # let the exact-code fast path short-circuit next time
+            _code_cache[id(code)] = (weakref.ref(code), cached[1])
             return cached[1]
         try:
             if not lines:
@@ -378,9 +384,10 @@ def _get_module_info(code: types.CodeType) -> ModuleInfo | None:
             )
         except Exception:
             info = None
-        entry_info = (entry, info)
-    _file_cache[filename] = entry_info
-    _code_cache[id(code)] = entry_info
+        file_info = (entry, info)
+        code_info = (weakref.ref(code), info)
+    _file_cache[filename] = file_info
+    _code_cache[id(code)] = code_info
     return info
 
 
@@ -397,8 +404,9 @@ class CallInfo:
 @NVTXRange("_call_at", category="source analysis")
 def _call_at(frame: types.FrameType) -> cst.Call | None:
     key = (id(frame.f_code), frame.f_lasti)
-    if (call_info := _call_cache.get(key)) is not None:
-        return call_info
+    if (entry := _call_cache.get(key)) is not None:
+        if entry[0]() is frame.f_code:
+            return entry[1]
 
     mi = _get_module_info(frame.f_code)
     if mi is not None:
@@ -406,7 +414,7 @@ def _call_at(frame: types.FrameType) -> cst.Call | None:
         call_info = CallInfo(call, mi)
     else:
         call_info = None
-    _call_cache[key] = call_info
+    _call_cache[key] = (weakref.ref(frame.f_code), call_info)
     return call_info
 
 
@@ -459,15 +467,16 @@ class _Classifier:
         pos_nodes, kw_nodes = split
 
         classified_inputs: list[CompileRef | Any] = []
-        for i in range(len(inputs)):
-            node = pos_nodes[i] if i < len(pos_nodes) else None
+        for i in range(min(len(inputs), len(pos_nodes))):
+            node = pos_nodes[i]
             classified_inputs.append(self.is_invariant(node, static=True))
+        # Go over defaults - they are invariant, because they have to be None
+        for i in range(len(pos_nodes), len(inputs)):
+            assert inputs[i] is None  #
+            classified_inputs.append(True)
         classified_kwargs = {
             name for name in raw_kwargs if self.is_invariant(kw_nodes.get(name), static=True)
         }
-        print("----------------------")
-        print(classified_inputs)
-        print(classified_kwargs)
         return classified_inputs, classified_kwargs
 
     def _capture_arg(self, node: cst.BaseExpression | None, value: Any) -> Any:
@@ -536,8 +545,9 @@ class _Classifier:
             return False
 
         binding = self.module_info.binding(name_node)
-        if binding is None or not self._is_binding_invariant(binding, name_node):
+        if binding is None or not self._is_binding_invariant(binding, name_node, static=static):
             return False
+
         # A named mutable is a live handle the user can alias and mutate.
         # It's hard to prove that they are invariant.
         return _is_immutable_value(value)

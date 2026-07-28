@@ -534,7 +534,7 @@ def build_fn_wrapper(op, fn_name=None, add_to_module=True):
                 else:
                     arg_classification = _Classifier(
                         info.module_info, _caller_frame
-                    ).detect_invariant_args(raw_kwargs, raw_kwargs)
+                    ).detect_invariant_args(inputs, raw_kwargs)
                     if arg_classification is not None:
                         info.meta["constant_inputs"] = arg_classification[0]
                         info.meta["constant_args"] = arg_classification[1]
