@@ -147,6 +147,18 @@ def _get_rng_doc():
     )
 
 
+def _get_name_doc():
+    """Return documentation for the operator name used in pipeline mode."""
+    return _numpydoc_formatter(
+        "name",
+        "str, optional, default = None",
+        "Name of the operator instance. Names must be unique within a pipeline.\n\n"
+        "Set an explicit name when another API needs to refer to the operator, for\n"
+        "example through an iterator's ``reader_name`` argument. If omitted, DALI\n"
+        "generates a name automatically.",
+    )
+
+
 def _get_kwargs(schema, api="ops", args=None):
     """
     Get the numpydoc-formatted docstring section for keywords arguments.
@@ -155,7 +167,7 @@ def _get_kwargs(schema, api="ops", args=None):
     schema : OpSchema
        Schema of the operator to be documented
     """
-    ret = ""
+    ret = _get_name_doc() + "\n" if api != "dynamic" else ""
     for arg in schema.GetArgumentNames():
         if args is not None and arg not in args:
             continue
