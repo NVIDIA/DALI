@@ -521,9 +521,6 @@ def build_fn_wrapper(op, fn_name=None, add_to_module=True):
         if _caller_frame is None:
             _caller_frame = resolve_callsite_frame(depth_hint=3)
 
-        def default_arg_classification():
-            return [False] * len(inputs), {k: False for k in raw_kwargs}
-
         constant_args = None
         if _caller_frame is not None:
             info = _call_at(_caller_frame)
