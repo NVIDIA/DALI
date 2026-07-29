@@ -15,7 +15,6 @@
 #include <chrono>
 #include <cstdlib>
 #include <limits>
-#include <optional>
 #include <utility>
 #include "dali/pipeline/util/thread_pool.h"
 #if NVML_ENABLED
@@ -135,9 +134,8 @@ void OldThreadPool::ThreadMain(int thread_id, int device_id, bool set_affinity,
                             const std::string &name) {
   this_thread_idx_ = thread_id;
   SetThreadName(name.c_str());
-  std::optional<DeviceGuard> device_guard;
+  DeviceGuard g(device_id);
   try {
-    device_guard.emplace(device_id);
 #if NVML_ENABLED
     if (set_affinity) {
       const char *env_affinity = std::getenv("DALI_AFFINITY_MASK");

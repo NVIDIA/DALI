@@ -148,7 +148,7 @@ void WorkerThreadImpl::ThreadMain(int device_id, bool set_affinity, const std::s
 
   barrier_.Wait();
 
-  while (true) {
+  while (running_) {
     // Check the queue for work
     std::unique_lock<std::mutex> lock(mutex_);
     while (work_queue_.empty() && running_) {
