@@ -507,8 +507,11 @@ class _Classifier:
             case cst.Attribute():
                 # We can't accept any attributes, even if the base is a local name.
                 # Mutability and aliasing makes them hard to reliably track.
-                return self._is_explicit_invariant_expr(node) or self._is_dali_chain(node)
-            case cst.Call():
+                is_dali_chain = self._is_dali_chain(node)
+                if static:
+                    return is_dali_chain
+                return is_dali_chain or self._is_explicit_invariant_expr(node)
+            case cst.Call() if not static:
                 return self._is_explicit_invariant_expr(node)
         return False
 
