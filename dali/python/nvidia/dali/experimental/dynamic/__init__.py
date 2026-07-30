@@ -32,5 +32,6 @@ from . import math  # noqa: F401
 from . import random  # noqa: F401
 from . import checkpoint  # noqa: F401
 from . import pytorch as pytorch  # noqa: F401
+from . import compile as compile  # noqa: F401
 
 _ops._initialize()

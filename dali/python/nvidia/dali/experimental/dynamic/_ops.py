@@ -28,6 +28,7 @@ from ._batch import as_batch as _as_batch
 from ._device import Device, DeviceLike
 from ._nvtx import NVTXRange
 from ._tensor import Tensor, as_tensor
+from .compile._invariant import unwrap_invariant, unwrap_invariant_args
 
 _nvtx_to_tensor = NVTXRange("to_tensor", category="op_builder")
 
@@ -114,7 +115,8 @@ _nvtx_infer_batch_size = NVTXRange("_infer_batch_size", category="op_builder")
 def _infer_batch_size(*raw_args, **raw_kwargs):
     batch_size = None
     with _nvtx_infer_batch_size:
-        for i, x in enumerate(list(raw_args) + list(raw_kwargs.values())):
+        for x in list(raw_args) + list(raw_kwargs.values()):
+            x = unwrap_invariant(x)
             x_batch_size = _get_batch_size(x)
             if x_batch_size is not None:
                 if batch_size is not None:
@@ -175,6 +177,7 @@ class Operator:
         device : Device or str, optional
             The device where the operation is executed.
         """
+        max_batch_size, name = unwrap_invariant_args(max_batch_size, name)
         self._lock = Lock()
         self._name = name
         self._max_batch_size = max_batch_size
@@ -316,7 +319,7 @@ class Operator:
         if cls._has_random_state_arg:
             from . import random
 
-            rng = raw_kwargs.pop("rng", None)
+            rng = unwrap_invariant(raw_kwargs.pop("rng", None))
             if rng is None:
                 rng = random.get_default_rng()
             if not isinstance(rng, random.RNG):
@@ -361,6 +364,7 @@ class Operator:
 
         def convert_args(convert_fn):
             for i, inp in enumerate(raw_args):
+                inp = unwrap_invariant(inp)
                 if inp is None:
                     continue
                 actual_input_device = _get_input_device(inp)
@@ -369,6 +373,7 @@ class Operator:
                 inp = convert_fn(inp, device=input_device)
                 inputs.append(inp)
             for k, v in raw_kwargs.items():
+                v = unwrap_invariant(v)
                 if v is None:
                     continue
                 dtype = cls._argument_conversion_map[k]
@@ -997,6 +1002,7 @@ class Reader(Operator):
             If True, transparently compile operator sequences into a pipeline for prefetching.
             Once used in compiled mode, the reader cannot switch back.
         """
+        batch_size = unwrap_invariant(batch_size)
         self._check_not_disabled()
 
         batch_size = self._get_batch_size(batch_size)
@@ -1046,6 +1052,7 @@ class Reader(Operator):
     def get_metadata(self, batch_size: int | None = None) -> ReaderMeta:
         """Returns the metadata of the underlying reader operator"""
 
+        batch_size = unwrap_invariant(batch_size)
         batch_size = self._get_batch_size(batch_size)
         self._init_backend(None, (), self._process_tensor_args(batch_size))
         try:

@@ -35,12 +35,15 @@ from libcst.metadata import (
     Scope,
     ScopeProvider,
 )
+
 from nvidia.dali.types import DALIDataType, DALIImageType, DALIInterpType
 
 from ._call_site import CodeLoc, resolve_callsite_frame
 from ._compile import CompiledBatch, CompileRef
 from ._device import Device
 from ._type import DType
+from .compile._invariant import invariant, is_dunder
+from .compile._invariant import is_invariant as _is_explicit_invariant
 
 _DALI_CONST_TYPES = (Device, DType, DALIDataType, DALIInterpType, DALIImageType)
 
@@ -311,20 +314,15 @@ class _Classifier:
     Each argument is either an already captured batch, invariant or not capturable.
     """
 
-    module_info: ModuleInfo
+    module_info: ModuleInfo | None
     frame: types.FrameType
 
     def classify(
         self, inputs: tuple[Any, ...], raw_kwargs: dict[str, Any]
     ) -> tuple[list[CompileRef | Any], dict[str, CompileRef | Any]] | None:
-        call = self.module_info.call_at(self.frame)
-        if call is None:
-            return None
-
-        split = _split_call_args(call)
-        if split is None:
-            return None
-        pos_nodes, kw_nodes = split
+        call = self.module_info.call_at(self.frame) if self.module_info is not None else None
+        source_args = _split_call_args(call) if call is not None else None
+        pos_nodes, kw_nodes = source_args or ((), {})
 
         try:
             classified_inputs: list[CompileRef | Any] = []
@@ -343,9 +341,11 @@ class _Classifier:
             return None  # an argument is neither a CompiledBatch nor a capturable constant
         return classified_inputs, classified_kwargs
 
-    def _capture_arg(self, node: cst.BaseExpression | None, value: Any) -> CompileRef | Any:
+    def _capture_arg(self, node: cst.BaseExpression | None, value: Any) -> Any:
         if isinstance(value, CompiledBatch):
             return value._compile_ref
+        if _is_explicit_invariant(value):
+            return value
         if node is not None and self.is_invariant(node):
             return value
         raise _Unresolved
@@ -367,19 +367,49 @@ class _Classifier:
             case cst.Attribute():
                 # We can't accept any attributes, even if the base is a local name.
                 # Mutability and aliasing makes them hard to reliably track.
-                return self._is_dali_chain(node)
+                return self._is_explicit_invariant_expr(node) or self._is_dali_chain(node)
+            case cst.Call():
+                return self._is_explicit_invariant_expr(node)
+        return False
+
+    def _is_explicit_invariant_expr(self, expr: cst.BaseExpression) -> bool:
+        """Check if an expression corresponds to something wrapped with ndd.invariant"""
+        match expr:
+            case cst.Name():
+                try:
+                    return _is_explicit_invariant(_safe_resolve(expr, self.frame))
+                except _Unresolved:
+                    return False
+            case cst.Call():
+                try:
+                    return _safe_resolve(expr.func, self.frame) is invariant
+                except _Unresolved:
+                    return False
+            case cst.NamedExpr(value=value):
+                return self._is_explicit_invariant_expr(value)
+            case cst.Attribute(value=base, attr=attr):
+                # dunder attributes don't propagate the invariant property
+                return not is_dunder(attr.value) and self._is_explicit_invariant_expr(base)
         return False
 
     def _is_name_invariant(self, name_node: cst.Name) -> bool:
+        try:
+            value = _safe_resolve(name_node, self.frame)
+        except _Unresolved:
+            return False
+
+        if _is_explicit_invariant(value):
+            return True
+
+        if self.module_info is None:
+            return False
+
         binding = self.module_info.binding(name_node)
         if binding is None or not self._is_binding_invariant(binding, name_node):
             return False
         # A named mutable is a live handle the user can alias and mutate.
         # It's hard to prove that they are invariant.
-        try:
-            return _is_immutable_value(_safe_resolve(name_node, self.frame))
-        except _Unresolved:
-            return False
+        return _is_immutable_value(value)
 
     def _is_binding_invariant(self, binding: Binding, name_node: cst.Name) -> bool:
         """True if `name_node`'s binding is invariant (captured name re-roots at live owner)."""
@@ -505,8 +535,4 @@ def classify(
 ) -> tuple[list[CompileRef | Any], dict[str, CompileRef | Any]] | None:
     """Classify operator args as captured constants / CompileRefs, or None to run eager."""
     mi = _get_module_info(frame.f_code.co_filename)
-    if mi is None:
-        return None
-
-    classifier = _Classifier(mi, frame)
-    return classifier.classify(inputs, raw_kwargs)
+    return _Classifier(mi, frame).classify(inputs, raw_kwargs)

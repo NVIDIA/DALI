@@ -16,8 +16,9 @@ import copy
 from typing import TYPE_CHECKING, Any, SupportsInt, Union
 
 import numpy as np
-import nvidia.dali.backend as _backend
+
 import nvidia.dali._tensor_formatting as _tensor_formatting
+import nvidia.dali.backend as _backend
 import nvidia.dali.types
 from nvidia.dali._typing import TensorLike
 
@@ -29,6 +30,7 @@ from ._eval_context import EvalContext as _EvalContext
 from ._type import DType
 from ._type import dtype as _dtype
 from ._type import type_id as _type_id
+from .compile._invariant import unwrap_invariant_args, unwrap_invariants
 
 if TYPE_CHECKING:
     from ._batch import Batch
@@ -135,6 +137,7 @@ class Tensor:
         invocation_result: _invocation.InvocationResult | None = None,
         copy: bool = False,
     ):
+        data, dtype, device, layout = unwrap_invariant_args(data, dtype, device, layout)
         if layout is None:
             layout = ""
         elif not isinstance(layout, str):
@@ -268,7 +271,7 @@ class Tensor:
                         numpy_type = nvidia.dali.types.to_numpy_type(dtype.type_id)
 
                     self._storage = _backend.TensorCPU(
-                        np.array(data, dtype=numpy_type),
+                        np.array(unwrap_invariants(data), dtype=numpy_type),
                         layout,
                         False,
                     )
@@ -279,7 +282,7 @@ class Tensor:
                     self._wraps_external_data = False
                     self._dtype = dtype
                 else:
-                    arr = np.array(data)
+                    arr = np.array(unwrap_invariants(data))
                     # DALI doesn't support int64 and float64, so we need to convert them to int32
                     # and float32, respectively.
                     converted_dtype_id = None
