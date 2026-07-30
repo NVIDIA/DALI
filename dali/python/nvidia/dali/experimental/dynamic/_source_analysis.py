@@ -269,7 +269,7 @@ class ModuleInfo:
 # Keyed by filename, holding the linecache entry for invalidation.
 # A file edit rebuilds the ModuleInfo and with it a fresh cache.
 _file_cache: dict[str, tuple[object, ModuleInfo | None]] = {}
-_code_cache: dict[int, tuple[object, ModuleInfo]] = {}
+_code_cache: dict[int, tuple[weakref.ReferenceType[types.CodeType], ModuleInfo]] = {}
 
 
 class _PositionSink:
@@ -306,7 +306,7 @@ class _FusedCodegenState(PositionProvidingCodegenState):
         super().after_codegen(node)
         self._node_stack.pop()
         if type(node) is cst.Call:
-            self.calls.append(cast(cst.Call, node))
+            self.calls.append(node)
 
 
 def _get_module_info(code: types.CodeType) -> ModuleInfo | None:
@@ -344,19 +344,19 @@ def _get_module_info(code: types.CodeType) -> ModuleInfo | None:
             if not lines:
                 _code_cache[id(code)] = None
                 return None
-            with NVTXRange("Join lines", category="source analysis"):
+            with NVTXRange("_get_module_info: Join lines", category="source analysis"):
                 src = "".join(lines)
-            with NVTXRange("Parse module", category="source analysis"):
+            with NVTXRange("_get_module_info: Parse module", category="source analysis"):
                 module = cst.parse_module(src)
-            with NVTXRange("wrapper =", category="source analysis"):
+            with NVTXRange("_get_module_info: build MetadataWrapper", category="source analysis"):
                 wrapper = MetadataWrapper(module, unsafe_skip_copy=True)
             # ScopeProvider (and its ExpressionContextProvider dependency) is the one piece we
             # can't cheaply reproduce; positions, parents and the call list all come from the
             # single fused codegen pass below.
-            with NVTXRange("md = ", category="source analysis"):
+            with NVTXRange("_get_module_info: wrapper.resolve", category="source analysis"):
                 md = wrapper.resolve(ScopeProvider)
 
-            with NVTXRange("Fused codegen", category="source analysis"):
+            with NVTXRange("_get_module_info: Fused codegen", category="source analysis"):
                 positions = _PositionSink()
                 state = _FusedCodegenState(
                     default_indent=wrapper.module.default_indent,
@@ -367,7 +367,7 @@ def _get_module_info(code: types.CodeType) -> ModuleInfo | None:
 
             by_position: dict[tuple[int, int, int, int], cst.Call | None] = {}
             by_line: dict[int, list[cst.Call]] = {}
-            with NVTXRange("Visit calls", category="source analysis"):
+            with NVTXRange("_get_module_info: Visit calls", category="source analysis"):
                 for call in state.calls:
                     r = positions._computed[call]
                     span = (r.start.line, r.end.line, r.start.column, r.end.column)
@@ -401,8 +401,8 @@ class CallInfo:
     meta: dict = field(default_factory=dict)
 
 
-@NVTXRange("_call_at", category="source analysis")
-def _call_at(frame: types.FrameType) -> cst.Call | None:
+@NVTXRange("call_info", category="source analysis")
+def call_info(frame: types.FrameType) -> CallInfo | None:
     key = (id(frame.f_code), frame.f_lasti)
     if (entry := _call_cache.get(key)) is not None:
         if entry[0]() is frame.f_code:

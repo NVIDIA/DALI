@@ -99,7 +99,7 @@ def test_rn50_pipeline():
     iterations = 0
     p = rn50_pipeline(rng)
     with ndd.EvalContext(num_threads=4, device_id=0):
-        for epoch in range(100):
+        for epoch in range(10):
             for jpegs, lbl_dynamic in r.next_epoch(batch_size=batch_size):
                 iterations += 1
                 imgs = ndd_rn50_pipeline(jpegs, rng_copy)

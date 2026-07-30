@@ -29,10 +29,11 @@ from ._call_site import mark_transparent, resolve_callsite_frame
 from ._compile import _compile_intercept
 from ._eval_mode import EvalMode
 from ._nvtx import NVTXRange
+from ._source_analysis import _Classifier
+from ._source_analysis import call_info as _call_info
 from ._tensor import Tensor
 from ._tensor import tensor as to_tensor
 from .compile._invariant import unwrap_invariant, unwrap_invariants
-from ._source_analysis import _call_at, _Classifier
 
 
 def is_external(x):
@@ -523,21 +524,25 @@ def build_fn_wrapper(op, fn_name=None, add_to_module=True):
 
         constant_args = None
         if _caller_frame is not None:
-            info = _call_at(_caller_frame)
+            info = _call_info(_caller_frame)
             if info is not None:
                 arg_classification = None
                 if "constant_args" in info.meta:
                     constant_args = info.meta["constant_args"]
                 else:
+                    # TODO(michalz): use (inputs, raw_kwargs) when we have a way to utilize
+                    #                constant inputs
                     arg_classification = _Classifier(
                         info.module_info, _caller_frame
-                    ).detect_invariant_args(inputs, raw_kwargs)
+                    ).detect_invariant_args([], raw_kwargs)
                     if arg_classification is not None:
-                        info.meta["constant_inputs"] = arg_classification[0]
+                        # For future use
+                        # info.meta["constant_inputs"] = arg_classification[0]
                         info.meta["constant_args"] = arg_classification[1]
                         constant_args = arg_classification[1]
                     else:
-                        info.meta["constant_inputs"] = None
+                        # For future use
+                        # info.meta["constant_inputs"] = None
                         info.meta["constant_args"] = None
                         constant_args = None
 
