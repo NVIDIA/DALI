@@ -234,6 +234,10 @@ class CompileContext:
         self.sources.append(source)
         return source
 
+    def __del__(self):
+        if self.pipeline:
+            self.pipeline._shutdown()
+
     def _wrap_tensor_lists(
         self,
         source: "CompileSource | CompileNode",

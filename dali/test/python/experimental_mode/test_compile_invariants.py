@@ -23,6 +23,7 @@ import numpy as np
 from ndd_utils import _is_compiled
 from nose_utils import assert_raises
 from test_utils import get_dali_extra_path
+import gc
 
 import nvidia.dali.experimental.dynamic as ndd
 import nvidia.dali.types
@@ -62,6 +63,7 @@ def compiled_test(*, expect_captured: bool):
         @functools.wraps(transform)
         def test():
             assert_compiled_matches_eager(transform, expect_captured=expect_captured)
+            gc.collect()
 
         return test
 
@@ -403,7 +405,11 @@ def test_param_default_name(images):
 @compiled_test(expect_captured=True)
 def test_invariant_marker(images):
     angle = ndd.compile.invariant(10) + _INVARIANT_CFG.angle
-    return ndd.rotate(images, angle=angle, fill_value=ndd.compile.invariant(None))
+    return ndd.rotate(
+        images,
+        angle=angle,
+        fill_value=ndd.compile.invariant(None),
+    )
 
 
 @compiled_test(expect_captured=True)
@@ -634,3 +640,4 @@ def test_invariant_marker_removed():
     with assert_raises(RuntimeError, glob="marked with ndd.compile.invariant*remain marked"):
         for images in es.compiled(batch_size=2):
             ndd.rotate(images, angle=next(angles))
+    gc.collect()
