@@ -19,28 +19,28 @@ import itertools
 import linecache
 import sys
 import types
+import weakref
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any, cast
 
 import libcst as cst
-from libcst import matchers
 from libcst.metadata import (
     Assignment,
     CodeRange,
     FunctionScope,
     MetadataWrapper,
-    ParentNodeProvider,
-    PositionProvider,
     Scope,
     ScopeProvider,
 )
+from libcst.metadata.position_provider import PositionProvidingCodegenState
 
 from nvidia.dali.types import DALIDataType, DALIImageType, DALIInterpType
 
-from ._call_site import CodeLoc, resolve_callsite_frame
+from ._call_site import resolve_callsite_frame
 from ._compile import CompiledBatch, CompileRef
 from ._device import Device
+from ._nvtx import NVTXRange
 from ._type import DType
 from .compile._invariant import invariant, is_dunder
 from .compile._invariant import is_invariant as _is_explicit_invariant
@@ -183,20 +183,24 @@ class ModuleInfo:
     """Per-file parsed libcst data plus the queries classification needs over it."""
 
     scope_of_node: Mapping[cst.CSTNode, Scope]  # LibCST ScopeProvider
-    parent_of: Mapping[cst.CSTNode, cst.CSTNode]  # LibCST ParentNodeProvider
+    parent_of: Mapping[cst.CSTNode, cst.CSTNode]  # built by the fused codegen pass
 
     calls_by_position: Mapping[tuple[int, int, int, int], cst.Call | None]  # None if ambiguous
     calls_by_line: Mapping[int, tuple[cst.Call, ...]]  # 3.10 fallback for call-site identification
 
-    call_cache: dict[CodeLoc, cst.Call | None] = field(default_factory=dict, repr=False)
+    call_cache: dict[tuple[int, int], cst.Call | None] = field(default_factory=dict, repr=False)
 
     def call_at(self, frame: types.FrameType) -> cst.Call | None:
         """The ``cst.Call`` executing at `frame`'s current instruction, memoized per call site."""
-        key = CodeLoc(frame.f_code, frame.f_lasti)
-        if key not in self.call_cache:
-            self.call_cache[key] = self._resolve_call(frame)
-        return self.call_cache[key]
+        key = (id(frame.f_code), frame.f_lasti)
+        # Use _Unresolved as sentinel value - None is a legitimate cache entry
+        if (call := self.call_cache.get(key, _Unresolved)) is not _Unresolved:
+            return call
+        call = self._resolve_call(frame)
+        self.call_cache[key] = call
+        return call
 
+    @NVTXRange("_resolve_call", category="source analysis")
     def _resolve_call(self, frame: types.FrameType) -> cst.Call | None:
         code = frame.f_code
         if sys.version_info >= (3, 11):
@@ -265,46 +269,153 @@ class ModuleInfo:
 # Keyed by filename, holding the linecache entry for invalidation.
 # A file edit rebuilds the ModuleInfo and with it a fresh cache.
 _file_cache: dict[str, tuple[object, ModuleInfo | None]] = {}
+_code_cache: dict[int, tuple[weakref.ReferenceType[types.CodeType], ModuleInfo]] = {}
 
 
-def _get_module_info(filename: str) -> ModuleInfo | None:
+class _PositionSink:
+    """Minimal object satisfying the ``provider`` protocol the codegen state writes to."""
+
+    __slots__ = ("_computed",)
+
+    def __init__(self) -> None:
+        self._computed: dict[cst.CSTNode, CodeRange] = {}
+
+
+class _FusedCodegenState(PositionProvidingCodegenState):
+    """A single codegen pass that yields everything classification reads off the tree.
+
+    ``PositionProvider`` already renders every node to compute syntactic positions, so we
+    piggyback the parent map and call collection onto that same traversal. This replaces
+    three separate full-tree passes (``PositionProvider``, ``ParentNodeProvider`` and
+    ``matchers.findall``) with one; only ``ScopeProvider`` still needs its own pass.
+    """
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        self.parent_of: dict[cst.CSTNode, cst.CSTNode] = {}
+        self.calls: list[cst.Call] = []
+        self._node_stack: list[cst.CSTNode] = []
+
+    def before_codegen(self, node: cst.CSTNode) -> None:
+        super().before_codegen(node)
+        if self._node_stack:
+            self.parent_of[node] = self._node_stack[-1]
+        self._node_stack.append(node)
+
+    def after_codegen(self, node: cst.CSTNode) -> None:
+        super().after_codegen(node)
+        self._node_stack.pop()
+        if type(node) is cst.Call:
+            self.calls.append(node)
+
+
+def _get_module_info(code: types.CodeType) -> ModuleInfo | None:
     """Parse and cache the ModuleInfo for `filename`.
 
     Resolving metadata for the whole file is the dominant trace-time cost
     but is paid once per file and amortizes over a multi-epoch run.
     """
-    lines = linecache.getlines(filename)
-    if not lines:
-        return None
-    # The linecache entry detects edits; it is not hashable so it can't be the key itself.
-    entry = linecache.cache.get(filename)
-    # Note: We don't guard for concurrent calls because the function is idempotent anyway.
-    if (cached := _file_cache.get(filename)) is not None and cached[0] is entry:
-        return cached[1]
-    try:
-        wrapper = MetadataWrapper(cst.parse_module("".join(lines)), unsafe_skip_copy=True)
-        md = wrapper.resolve_many([PositionProvider, ScopeProvider, ParentNodeProvider])
 
-        pos = cast(Mapping[cst.CSTNode, CodeRange], md[PositionProvider])
-        by_position: dict[tuple[int, int, int, int], cst.Call | None] = {}
-        by_line: dict[int, list[cst.Call]] = {}
-        for node in matchers.findall(wrapper.module, matchers.Call()):
-            call = cast(cst.Call, node)
-            r = pos[call]
-            span = (r.start.line, r.end.line, r.start.column, r.end.column)
-            by_position[span] = None if span in by_position else call  # seen twice -> ambiguous
-            by_line.setdefault(r.start.line, []).append(call)
+    if cached := _code_cache.get(id(code)):
+        # if it's alive, we're good - we cannot, however, remove this entry without risking a race
+        # condition - it must be kept stale until it's replaced (which happens near the end of
+        # this function)
+        if cached[0]() is code:
+            return cached[1]
 
-        info = ModuleInfo(
-            scope_of_node=cast(Mapping[cst.CSTNode, Scope], md[ScopeProvider]),
-            parent_of=cast(Mapping[cst.CSTNode, cst.CSTNode], md[ParentNodeProvider]),
-            calls_by_position=by_position,
-            calls_by_line={ln: tuple(calls) for ln, calls in by_line.items()},
-        )
-    except Exception:
-        info = None
-    _file_cache[filename] = (entry, info)
+    with NVTXRange(f"Get module info for: {code.co_filename}", category="source analysis"):
+        filename = code.co_filename
+
+        # getlines() must run *before* we snapshot the linecache entry. For a module the import
+        # machinery registered lazily, linecache holds a 1-tuple placeholder that getlines()
+        # replaces with the fully-populated entry; snapshotting the entry first would capture the
+        # placeholder, so the next call (a different code object in the same file) would see the
+        # real entry, mismatch the token, and re-parse the file a second time.
+        lines = linecache.getlines(filename)
+
+        # The linecache entry detects edits; it is not hashable so it can't be the key itself.
+        entry = linecache.cache.get(filename)
+        # Note: We don't guard for concurrent calls because the function is idempotent anyway.
+        if (cached := _file_cache.get(filename)) is not None and cached[0] is entry:
+            # let the exact-code fast path short-circuit next time
+            _code_cache[id(code)] = (weakref.ref(code), cached[1])
+            return cached[1]
+        try:
+            if not lines:
+                _code_cache[id(code)] = None
+                return None
+            with NVTXRange("_get_module_info: Join lines", category="source analysis"):
+                src = "".join(lines)
+            with NVTXRange("_get_module_info: Parse module", category="source analysis"):
+                module = cst.parse_module(src)
+            with NVTXRange("_get_module_info: build MetadataWrapper", category="source analysis"):
+                wrapper = MetadataWrapper(module, unsafe_skip_copy=True)
+            # ScopeProvider (and its ExpressionContextProvider dependency) is the one piece we
+            # can't cheaply reproduce; positions, parents and the call list all come from the
+            # single fused codegen pass below.
+            with NVTXRange("_get_module_info: wrapper.resolve", category="source analysis"):
+                md = wrapper.resolve(ScopeProvider)
+
+            with NVTXRange("_get_module_info: Fused codegen", category="source analysis"):
+                positions = _PositionSink()
+                state = _FusedCodegenState(
+                    default_indent=wrapper.module.default_indent,
+                    default_newline=wrapper.module.default_newline,
+                    provider=positions,
+                )
+                wrapper.module._codegen(state)
+
+            by_position: dict[tuple[int, int, int, int], cst.Call | None] = {}
+            by_line: dict[int, list[cst.Call]] = {}
+            with NVTXRange("_get_module_info: Visit calls", category="source analysis"):
+                for call in state.calls:
+                    r = positions._computed[call]
+                    span = (r.start.line, r.end.line, r.start.column, r.end.column)
+                    by_position[span] = (
+                        None if span in by_position else call
+                    )  # seen twice -> ambiguous
+                    by_line.setdefault(r.start.line, []).append(call)
+
+            info = ModuleInfo(
+                scope_of_node=cast(Mapping[cst.CSTNode, Scope], md),
+                parent_of=state.parent_of,
+                calls_by_position=by_position,
+                calls_by_line={ln: tuple(calls) for ln, calls in by_line.items()},
+            )
+        except Exception:
+            info = None
+        file_info = (entry, info)
+        code_info = (weakref.ref(code), info)
+    _file_cache[filename] = file_info
+    _code_cache[id(code)] = code_info
     return info
+
+
+_call_cache = {}
+
+
+@dataclass(frozen=True, slots=True)
+class CallInfo:
+    call: Any
+    module_info: ModuleInfo
+    meta: dict = field(default_factory=dict)
+
+
+@NVTXRange("call_info", category="source analysis")
+def call_info(frame: types.FrameType) -> CallInfo | None:
+    key = (id(frame.f_code), frame.f_lasti)
+    if (entry := _call_cache.get(key)) is not None:
+        if entry[0]() is frame.f_code:
+            return entry[1]
+
+    mi = _get_module_info(frame.f_code)
+    if mi is not None:
+        call = mi.call_at(frame)
+        call_info = CallInfo(call, mi)
+    else:
+        call_info = None
+    _call_cache[key] = (weakref.ref(frame.f_code), call_info)
+    return call_info
 
 
 @dataclass(frozen=True, slots=True)
@@ -341,34 +452,66 @@ class _Classifier:
             return None  # an argument is neither a CompiledBatch nor a capturable constant
         return classified_inputs, classified_kwargs
 
+    @NVTXRange("detect_invariant_args", category="source analysis")
+    def detect_invariant_args(
+        self, inputs: tuple[Any, ...], raw_kwargs: dict[str, Any]
+    ) -> tuple[list[bool], dict[str, bool]] | None:
+        call = self.module_info.call_at(self.frame)
+
+        if call is None:
+            return None
+
+        split = _split_call_args(call)
+        if split is None:
+            return None
+        pos_nodes, kw_nodes = split
+
+        classified_inputs: list[CompileRef | Any] = []
+        for i in range(min(len(inputs), len(pos_nodes))):
+            node = pos_nodes[i]
+            classified_inputs.append(self.is_invariant(node, static=True))
+        # Go over defaults - they are invariant, because they have to be None
+        for i in range(len(pos_nodes), len(inputs)):
+            assert inputs[i] is None  #
+            classified_inputs.append(True)
+        classified_kwargs = {
+            name for name in raw_kwargs if self.is_invariant(kw_nodes.get(name), static=True)
+        }
+        return classified_inputs, classified_kwargs
+
     def _capture_arg(self, node: cst.BaseExpression | None, value: Any) -> Any:
         if isinstance(value, CompiledBatch):
             return value._compile_ref
         if _is_explicit_invariant(value):
             return value
-        if node is not None and self.is_invariant(node):
+        if node is not None and self.is_invariant(node, static=False):
             return value
         raise _Unresolved
 
-    def is_invariant(self, node: cst.BaseExpression) -> bool:
+    def is_invariant(self, node: cst.BaseExpression, static: bool) -> bool:
         match node:
             case cst.BaseNumber() | cst.SimpleString() | cst.Name(value="True" | "False" | "None"):
                 return True
             case cst.UnaryOperation(operator=cst.Minus() | cst.Plus(), expression=x):
-                return self.is_invariant(x)
+                return self.is_invariant(x, static=static)
             case cst.BinaryOperation(left=left, right=right):
-                return self.is_invariant(left) and self.is_invariant(right)
+                return self.is_invariant(left, static=static) and self.is_invariant(
+                    right, static=static
+                )
             case cst.NamedExpr(value=value):
-                return self.is_invariant(value)  # walrus `(c := v)` evaluates to v
+                return self.is_invariant(value, static=static)  # walrus `(c := v)` evaluates to v
             case cst.List() | cst.Tuple():
-                return all(self.is_invariant(e.value) for e in node.elements)
+                return all(self.is_invariant(e.value, static=static) for e in node.elements)
             case cst.Name():
-                return self._is_name_invariant(node)
+                return self._is_name_invariant(node, static=static)
             case cst.Attribute():
                 # We can't accept any attributes, even if the base is a local name.
                 # Mutability and aliasing makes them hard to reliably track.
-                return self._is_explicit_invariant_expr(node) or self._is_dali_chain(node)
-            case cst.Call():
+                is_dali_chain = self._is_dali_chain(node)
+                if static:
+                    return is_dali_chain
+                return is_dali_chain or self._is_explicit_invariant_expr(node)
+            case cst.Call() if not static:
                 return self._is_explicit_invariant_expr(node)
         return False
 
@@ -392,37 +535,51 @@ class _Classifier:
                 return not is_dunder(attr.value) and self._is_explicit_invariant_expr(base)
         return False
 
-    def _is_name_invariant(self, name_node: cst.Name) -> bool:
+    def _is_name_invariant(self, name_node: cst.Name, static: bool = False) -> bool:
         try:
             value = _safe_resolve(name_node, self.frame)
         except _Unresolved:
             return False
 
-        if _is_explicit_invariant(value):
+        if not static and _is_explicit_invariant(value):
             return True
 
         if self.module_info is None:
             return False
 
         binding = self.module_info.binding(name_node)
-        if binding is None or not self._is_binding_invariant(binding, name_node):
+        if binding is None or not self._is_binding_invariant(binding, name_node, static=static):
             return False
+
         # A named mutable is a live handle the user can alias and mutate.
         # It's hard to prove that they are invariant.
         return _is_immutable_value(value)
 
-    def _is_binding_invariant(self, binding: Binding, name_node: cst.Name) -> bool:
+    def _is_binding_invariant(
+        self, binding: Binding, name_node: cst.Name, static: bool = False
+    ) -> bool:
         """True if `name_node`'s binding is invariant (captured name re-roots at live owner)."""
         if binding.in_scope:
             classifier, frame = self, self.frame
-        elif frame := self._live_owner_frame(name_node.value):
-            classifier = _Classifier(self.module_info, frame)
         else:
-            return True  # owner returned: frozen cell
+            if static:
+                # if it's not assigned in the same scope, then static analysis can't do much
+                return False
+            if frame := self._live_owner_frame(name_node.value):
+                classifier = _Classifier(self.module_info, frame)
+            else:
+                return True  # owner returned: frozen cell
 
         if binding.rhs is None:
+            if static:
+                # Parameters are never statically invariant, since the callee might be called from
+                # multiple sites.
+                # Theoretically we could track lambdas or local functions, but that's not
+                # worth the effort.
+                return False
             return classifier._is_param_invariant(name_node, frame)
-        return classifier.is_invariant(binding.rhs)
+        # punch through local assignments
+        return classifier.is_invariant(binding.rhs, static=static)
 
     def _live_owner_frame(self, name: str) -> types.FrameType | None:
         """Find the live frame owning a closure cell"""
@@ -439,7 +596,7 @@ class _Classifier:
         if caller is None:
             return False
 
-        mi = _get_module_info(caller.f_code.co_filename)  # caller may be in another module
+        mi = _get_module_info(caller.f_code)  # caller may be in another module
         if mi is None:
             return False
 
@@ -484,7 +641,7 @@ class _Classifier:
 
         if param_name not in bound.arguments:
             return param.default is not inspect.Parameter.empty  # omitted: frozen default
-        return self.is_invariant(bound.arguments[param_name])
+        return self.is_invariant(bound.arguments[param_name], static=False)
 
     def _is_dali_chain(self, node: cst.Attribute) -> bool:
         """The only supported exceptions for attributes are those
@@ -531,8 +688,11 @@ def _matches_callee(obj: Any, callee_code: types.CodeType) -> bool:
 
 
 def classify(
-    frame: types.FrameType, inputs: tuple[Any, ...], raw_kwargs: dict[str, Any]
+    frame: types.FrameType,
+    inputs: tuple[Any, ...],
+    raw_kwargs: dict[str, Any],
+    static: bool = False,
 ) -> tuple[list[CompileRef | Any], dict[str, CompileRef | Any]] | None:
     """Classify operator args as captured constants / CompileRefs, or None to run eager."""
-    mi = _get_module_info(frame.f_code.co_filename)
+    mi = _get_module_info(frame.f_code)
     return _Classifier(mi, frame).classify(inputs, raw_kwargs)

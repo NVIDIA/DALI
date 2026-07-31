@@ -29,6 +29,8 @@ from ._call_site import mark_transparent, resolve_callsite_frame
 from ._compile import _compile_intercept
 from ._eval_mode import EvalMode
 from ._nvtx import NVTXRange
+from ._source_analysis import _Classifier
+from ._source_analysis import call_info as _call_info
 from ._tensor import Tensor
 from ._tensor import tensor as to_tensor
 from .compile._invariant import unwrap_invariant, unwrap_invariants
@@ -186,9 +188,7 @@ def build_constructor(schema, op_class):
         if arg in _unsupported_args:
             continue
         is_tensor = schema.IsTensorArgument(arg)
-        if is_tensor and not is_reader:
-            continue
-        if schema.IsArgumentOptional(arg):
+        if schema.IsArgumentOptional(arg) or (is_tensor and not is_reader):
             init_args.append(f"{arg}=None")
         else:
             init_args.append(arg)
@@ -300,14 +300,11 @@ def build_call_function(schema, op_class):
             continue
         if not schema.IsTensorArgument(arg):
             continue
-        if schema.IsArgumentOptional(arg):
-            call_args.append(f"{arg}=None")
-        else:
-            call_args.append(arg)
+        call_args.append(f"{arg}=None")
         used_kwargs.add(arg)
 
     call_args = ["batch_size=None"] + call_args
-    internal_args = ["_process_params=True"]
+    internal_args = ["_process_params=True", "_caller_frame=None"]
 
     # Add rng argument for random operators
     if has_random_state_arg:
@@ -327,7 +324,9 @@ def build_call_function(schema, op_class):
 
     @mark_transparent
     @NVTXRange(f"__call__: {op_class._op_name}", category="op_builder")
-    def call(self, *raw_args, batch_size=None, _process_params=True, **raw_kwargs):
+    def call(
+        self, *raw_args, batch_size=None, _process_params=True, _caller_frame=None, **raw_kwargs
+    ):
         batch_size = unwrap_invariant(batch_size)
         self._pre_call(*raw_args, **raw_kwargs)
 
@@ -347,9 +346,16 @@ def build_call_function(schema, op_class):
             batch_size = _ops._infer_batch_size(*raw_args, **raw_kwargs)
         is_batch = batch_size is not None
 
+        if _caller_frame is None and EvalMode.current().value <= EvalMode.eager.value:
+            _caller_frame = resolve_callsite_frame(depth_hint=4)
+
         if _process_params:
             inputs, kwargs = op_class._process_params(
-                self._backend, self._device, batch_size, *raw_args, **raw_kwargs
+                self._backend,
+                self._device,
+                batch_size,
+                *raw_args,
+                **raw_kwargs,
             )
         else:
             inputs = [inp for inp in raw_args if inp is not None]
@@ -365,9 +371,6 @@ def build_call_function(schema, op_class):
         else:
             call_id = None
         with nvtx_construct_invocation:
-            caller_frame = None
-            if EvalMode.current().value <= EvalMode.eager.value:
-                caller_frame = resolve_callsite_frame(depth_hint=4)
             invocation = _invocation.Invocation(
                 self,
                 call_id,
@@ -376,7 +379,7 @@ def build_call_function(schema, op_class):
                 is_batch=is_batch,
                 batch_size=batch_size or 1,
                 previous_invocation=self._last_invocation,
-                caller_frame=caller_frame,
+                caller_frame=_caller_frame,
             )
 
         if stateful:
@@ -508,21 +511,52 @@ def build_fn_wrapper(op, fn_name=None, add_to_module=True):
 
     @mark_transparent
     @NVTXRange(f"{fn_name}()", category="op_builder")
-    def fn_call(*inputs, batch_size=None, device=None, _backend=None, **raw_kwargs):
+    def fn_call(
+        *inputs, batch_size=None, device=None, _backend=None, _caller_frame=None, **raw_kwargs
+    ):
         if batch_size is None:
             batch_size = _ops._infer_batch_size(*inputs, **raw_kwargs)
         _check_batch_size_available(op, batch_size)
         max_batch_size = _next_pow2(batch_size or 1)
+
+        if _caller_frame is None:
+            _caller_frame = resolve_callsite_frame(depth_hint=3)
+
+        constant_args = None
+        if _caller_frame is not None:
+            info = _call_info(_caller_frame)
+            if info is not None:
+                arg_classification = None
+                if "constant_args" in info.meta:
+                    constant_args = info.meta["constant_args"]
+                else:
+                    # TODO(michalz): use (inputs, raw_kwargs) when we have a way to utilize
+                    #                constant inputs
+                    arg_classification = _Classifier(
+                        info.module_info, _caller_frame
+                    ).detect_invariant_args([], raw_kwargs)
+                    if arg_classification is not None:
+                        # For future use
+                        # info.meta["constant_inputs"] = arg_classification[0]
+                        info.meta["constant_args"] = arg_classification[1]
+                        constant_args = arg_classification[1]
+                    else:
+                        # For future use
+                        # info.meta["constant_inputs"] = None
+                        info.meta["constant_args"] = None
+                        constant_args = None
+
         init_args = {}
         call_args = {}
         for arg, value in raw_kwargs.items():
             if arg == "max_batch_size":
                 continue
-            if arg in fixed_args:
+            is_constant = arg in constant_args if constant_args is not None else False
+            if arg in fixed_args or is_constant:
                 value = _scalar_decay(value)
                 if value is not None:
                     init_args[arg] = value
-            elif arg in tensor_args:
+            elif arg in tensor_args and not is_constant:
                 call_args[arg] = value
 
         inputs, call_args = op._process_params(_backend, device, batch_size, *inputs, **call_args)
@@ -542,7 +576,13 @@ def build_fn_wrapper(op, fn_name=None, add_to_module=True):
             )
 
         # Call the operator (the result is an Invocation object)
-        return op_inst(*inputs, batch_size=batch_size, _process_params=False, **call_args)
+        return op_inst(
+            *inputs,
+            batch_size=batch_size,
+            _process_params=False,
+            _caller_frame=_caller_frame,
+            **call_args,
+        )
 
     fn_call = _compile_intercept(fn_call, op, op_name=fn_name)
 

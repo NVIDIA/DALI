@@ -315,6 +315,7 @@ class Operator:
         is essential for proper operator instance caching, as input/argument metadata is a part
         of the operator cache key.
         """
+
         is_batch = batch_size is not None
         if cls._has_random_state_arg:
             from . import random

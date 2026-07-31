@@ -149,7 +149,7 @@ class _CallTrie:
         current = self
         frame: types.FrameType | None = start_frame
         while frame is not None:
-            child = current.children.get(CodeLoc(frame.f_code, frame.f_lasti))
+            child = current.children.get((frame.f_code, frame.f_lasti))
             if child is None:
                 return None
             current = child
@@ -233,6 +233,10 @@ class CompileContext:
         source = CompileSource(num_outputs, self, compilable, output_keys=output_keys)
         self.sources.append(source)
         return source
+
+    def __del__(self):
+        if self.pipeline:
+            self.pipeline._shutdown()
 
     def _wrap_tensor_lists(
         self,
@@ -712,7 +716,12 @@ def _compile_intercept(
         frame = resolve_callsite_frame(depth_hint=2)
         if frame is None:
             return fn_call(
-                *inputs, batch_size=batch_size, device=device, _backend=backend, **raw_kwargs
+                *inputs,
+                batch_size=batch_size,
+                device=device,
+                _backend=backend,
+                _caller_frame=frame,
+                **raw_kwargs,
             )
 
         if compile_ctx.state is State.COMPILED:
@@ -723,12 +732,22 @@ def _compile_intercept(
             if result is not None:
                 return result
             return fn_call(
-                *inputs, batch_size=batch_size, device=device, _backend=backend, **raw_kwargs
+                *inputs,
+                batch_size=batch_size,
+                device=device,
+                _backend=backend,
+                _caller_frame=frame,
+                **raw_kwargs,
             )
 
         # Run first, classify after, we need the result before we can inspect it
         result = fn_call(
-            *inputs, batch_size=batch_size, device=device, _backend=backend, **raw_kwargs
+            *inputs,
+            batch_size=batch_size,
+            device=device,
+            _backend=backend,
+            _caller_frame=frame,
+            **raw_kwargs,
         )
 
         if op_class._is_stateful:

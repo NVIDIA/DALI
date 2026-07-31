@@ -41,10 +41,18 @@ def test_arg_conversion():
         test_calls += 1
         assert args["size"].dtype == ndd.float32, "size should be float32"
 
-    _conversion_test_op(check_converted)(img, size=[100, 100]).evaluate()
+    the_op = _conversion_test_op(check_converted)
+    # keep it as a variable - the type is mutable, so we don't treat it as invariant and
+    # therefore it's not exempt from conversion
+    size = [100, 100]
+    x = the_op(img, size=size)
+    x.evaluate()
     assert test_calls == 1, "Argument check function not called"
+
+    the_op = _conversion_test_op(check_converted)
     size = ndd.tensor([100, 100])
-    _conversion_test_op(check_converted)(img, size=size).evaluate()
+    x = the_op(img, size=size)
+    x.evaluate()
     assert test_calls == 2, "Argument check function not called"
 
     size = ndd.tensor([100, 100], dtype=ndd.float32)
@@ -72,10 +80,17 @@ def test_arg_conversion_batch():
         test_calls_1 += 1
         assert args["size"].dtype == ndd.float32, "size should be float32"
 
-    _conversion_test_op(check_converted)(imgs, size=[100, 100]).evaluate()
+    the_op = _conversion_test_op(check_converted)
+    size = [100, 100]
+    # keep it as a variable - the type is mutable, so we don't treat it as invariant and
+    # therefore it's not exempt from conversion
+    x = the_op(imgs, size=size)
+    x.evaluate()
     assert test_calls_1 == 1, "Argument check function not called"
     size = ndd.batch([[100, 100], [150, 150]])
-    _conversion_test_op(check_converted)(imgs, size=size).evaluate()
+    the_op = _conversion_test_op(check_converted)
+    x = the_op(imgs, size=size)
+    x.evaluate()
     assert test_calls_1 == 2, "Argument check function not called"
 
     size = ndd.batch([[100, 100], [150, 150]], dtype=ndd.float32)
@@ -85,5 +100,7 @@ def test_arg_conversion_batch():
         test_calls_2 += 1
         assert args["size"]._storage is size._storage, "size should be passed as-is"
 
-    _conversion_test_op(check_not_converted)(imgs, size=size).evaluate()
+    the_op = _conversion_test_op(check_not_converted)
+    x = the_op(imgs, size=size)
+    x.evaluate()
     assert test_calls_2 == 1, "Argument check function not called"
