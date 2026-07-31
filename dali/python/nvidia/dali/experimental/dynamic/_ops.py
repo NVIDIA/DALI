@@ -319,7 +319,7 @@ class Operator:
         if cls._has_random_state_arg:
             from . import random
 
-            rng = random._resolve_rng(unwrap_invariant(raw_kwargs.pop("rng", None)))
+            rng = random._resolve_rng(raw_kwargs.pop("rng", None))
 
             # Only one random state tensor is created per call, not per sample.
             raw_kwargs["_random_state"] = random._state_tensor(random._draw_state(rng))

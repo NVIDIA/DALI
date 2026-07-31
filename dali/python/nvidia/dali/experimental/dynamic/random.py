@@ -61,6 +61,7 @@ class RNG:
 
     def __init__(self, seed=None, state=None):
         self._pending_draws = 0
+        self._draws = 0
         self._version = 0
         if state is not None:
             if seed is not None:
@@ -79,8 +80,9 @@ class RNG:
         int
             A random uint32 value (as Python int, but in range [0, 2^32-1]).
         """
+        self._on_draw()
         self._flush_pending()
-        self._version += 1
+        self._draws += 1
         return self._rng.next()
 
     @property
@@ -113,8 +115,9 @@ class RNG:
             raise ValueError("Cannot advance by a negative number")
 
         if n:
+            self._on_draw()
             self._pending_draws += n
-            self._version += 1
+            self._draws += n
 
     def clone(self):
         """Create a new RNG with the same state
@@ -210,6 +213,11 @@ class RNG:
 
     def _snapshot_backend(self):
         return _b._Philox4x32_10(self.state), self._version
+
+    def _on_draw(self) -> None:
+        """Called before this consuming a random word.
+        Replaced on the class by the compile layer, if applicable.
+        """
 
 
 # Thread-local storage for the default RNG

@@ -19,7 +19,6 @@ import threading
 import types
 import warnings
 from abc import ABC, abstractmethod
-from collections import deque
 from collections.abc import Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from typing import TYPE_CHECKING, Any, Generic, NamedTuple, NoReturn, Protocol, TypeVar
@@ -159,17 +158,6 @@ class _CallTrie:
             frame = frame.f_back
         return current.nodes.get(op)
 
-    def prune(self, nodes: set[CompileNode]) -> None:
-        """Remove graph nodes and any branches left empty by the removal."""
-        self.nodes = {op: node for op, node in self.nodes.items() if node not in nodes}
-        for child in self.children.values():
-            child.prune(nodes)
-        self.children = {
-            code_loc: child
-            for code_loc, child in self.children.items()
-            if child.nodes or child.children
-        }
-
 
 class CompiledBatch(Batch):
     """A Batch that carries compile-graph provenance."""
@@ -209,126 +197,114 @@ def _wrap_captured_result(
     return wrapped if is_tuple else wrapped[0]
 
 
-class CompiledRNG:
-    """Manage one RNG across tracing and compiled execution.
+def _raise_rng_desync() -> NoReturn:
+    raise RuntimeError(
+        "The RNG of a compiled operator was used unexpectedly: the number of random draws per "
+        "iteration changed or the RNG was modified outside the loop"
+    )
 
-    The public RNG advances when the Python body consumes a compiled random call. A backend clone
-    feeds the pipeline and may advance ahead due to prefetch. The call index verifies that the
-    Python body consumes the prefetched results in trace order.
+
+class CompiledRNG:
+    """Schedule one RNG's states across tracing and compiled execution.
+
+    A captured operator must see the words the eager path would have reached, but the pipeline
+    draws iterations ahead of the body. The schedule is therefore predicted from the tracing
+    iteration: `period` words per iteration, each captured call at a fixed offset within it.
     """
 
     __slots__ = (
         "rng",
         "batch_size",
-        "nodes",
-        "_used_eagerly",
-        "_pipeline_rng",
+        "calls",
+        "period",
         "_version",
-        "_next_call",
+        "_clone",
+        "_in_flight",
+        "_start_pos",
     )
 
-    def __init__(self, rng: _random.RNG, batch_size: int):
+    def __init__(self, rng: _random.RNG, batch_size: int, start_pos: int):
         self.rng = rng
         self.batch_size = batch_size
-        self.nodes: list[CompileNode] = []  # Operators that this rng is assigned to
-        self._used_eagerly = False
-        self._pipeline_rng = None  # Clone of rng's generator, advanced in parallel
-        self._version = 0
-        self._next_call = 0
 
-    def record_use(self, node: CompileNode | None) -> None:
-        """Record one traced use."""
-        if node is None:
-            self._used_eagerly = True
-            return
+        self.calls: list[tuple[CompileNode, int]] = []  # node, and where in an iteration it draws
+        self.period = 0
+        self._version = rng._version
+        self._clone = None  # the pipeline draws its states from this copy of the generator
+        self._in_flight = 0  # iterations scheduled but not yet consumed
+        self._start_pos = start_pos  # where the current iteration begins
 
-        if node.random_state_ref is None:
-            node.random_state_ref = CompileRef(self, len(self.nodes))
-            self.nodes.append(node)
-            return
-
-        # random_state_ref already present: same call site hit twice
-        owner = node.random_state_ref.owner
-        assert isinstance(owner, CompiledRNG)
-        owner._used_eagerly = True
-        self._used_eagerly = True
-
-    @property
-    def needs_pruning(self) -> bool:
-        return self._used_eagerly and bool(self.nodes)
-
-    def prune(self, nodes: set[CompileNode]) -> bool:
-        self.nodes = [node for node in self.nodes if node not in nodes]
-        for call_index, node in enumerate(self.nodes):
-            node.random_state_ref = CompileRef(self, call_index)
-        return bool(self.nodes)
+    def record_call(self, node: CompileNode) -> None:
+        node.random_state_ref = CompileRef(self, len(self.calls))
+        self.calls.append((node, self.rng._draws - _random._STATE_WORDS - self._start_pos))
 
     def sync(self) -> None:
-        self._pipeline_rng, self._version = self.rng._snapshot_backend()
+        """Start scheduling, now that the traced iteration has given us the period."""
+        self.period = self.rng._draws - self._start_pos
+        self._clone, self._version = self.rng._snapshot_backend()
+        self._start_pos = self.rng._draws
+        self._in_flight = 0
 
-    def check_version(self) -> None:
-        if self._version != self.rng._version:
-            raise RuntimeError("The RNG of a compiled operator was modified outside the loop.")
+    def resync(self) -> None:
+        """Resync at epoch boundary"""
+        self._clone, _ = self.rng._snapshot_backend()
+        self._in_flight = 0
 
-    def consume_call(self, call_index: int, actual_rng: _random.RNG) -> None:
-        if self.rng is not actual_rng:
-            raise RuntimeError("A compiled operator was called with a different RNG.")
-        self.check_version()
-        if call_index < self._next_call:
-            raise RuntimeError("A compiled random operator may be called only once per step.")
-        if call_index != self._next_call:
-            raise RuntimeError(
-                "Compiled operators sharing an RNG must be called in the same order."
-            )
+    def begin_step(self) -> None:
+        """Take up the iteration whose outputs are about to be consumed."""
+        if self.rng._draws != self._start_pos or self.rng._version != self._version:
+            _raise_rng_desync()
 
+        if not self._in_flight:
+            _raise_rng_desync()
+        self._in_flight -= 1
+
+    def consume_call(self, call_index: int, actual_rng: _random.RNG) -> bool:
+        """True to use the pipeline's state for this call, False to draw eagerly instead."""
+        expected = self._start_pos + self.calls[call_index][1]
+        if self.rng._draws > expected:
+            return False  # already drawn: the site ran twice, or its first run went eager
+        if actual_rng is not self.rng or actual_rng._version != self._version:
+            _raise_rng_desync()
+        if actual_rng._draws != expected:
+            _raise_rng_desync()
         self.rng.advance(_random._STATE_WORDS)
-        self._version = self.rng._version
-        self._next_call += 1
+        return True
 
     def finish_step(self) -> None:
-        if self._next_call != len(self.nodes):
-            raise RuntimeError("A compiled random operator was not consumed this step")
-        self._next_call = 0
+        if self.rng._draws != self._start_pos + self.period or self.rng._version != self._version:
+            _raise_rng_desync()
+        self._start_pos += self.period
 
     def _draw_states(self) -> tuple[Any, ...]:
-        random_words = (_random._draw_state(self._pipeline_rng.next) for _ in self.nodes)
-        return tuple(
-            Batch.broadcast(_random._state_tensor(words), self.batch_size).evaluate()._storage
-            for words in random_words
-        )
+        """Draw the states for one iteration.
+
+        The clone enters on the first word that iteration draws and leaves on the first word of
+        the next one, so only the gaps between offsets are ever needed.
+        """
+        states = []
+        drawn = 0
+        for _, offset in self.calls:
+            if skip := offset - drawn:  # offsets increase, so never negative
+                self._clone.skipahead(skip)
+            words = _random._draw_state(self._clone.next)
+            drawn = offset + _random._STATE_WORDS
+            states.append(
+                Batch.broadcast(_random._state_tensor(words), self.batch_size).evaluate()._storage
+            )
+        if tail := self.period - drawn:
+            self._clone.skipahead(tail)  # onto the next iteration's first word
+        self._in_flight += 1
+        return tuple(states)
 
     def _wire_source(self) -> tuple:
-        return tuple(fn.external_source(self._draw_states, len(self.nodes), device="cpu"))
-
-
-def _find_nodes_to_prune(
-    nodes: Sequence[CompileNode],
-    rngs: Sequence[CompiledRNG],
-) -> set[CompileNode]:
-    """Find nodes made eager by dependencies or shared RNGs."""
-    dependents: dict[CompileNode, list[CompileNode]] = {}
-    for node in nodes:
-        for ref in itertools.chain(node.inputs, node.kwargs.values()):
-            if isinstance(ref, CompileRef) and isinstance(ref.owner, CompileNode):
-                dependents.setdefault(ref.owner, []).append(node)
-
-    queue = deque(node for rng in rngs if rng.needs_pruning for node in rng.nodes)
-    nodes_to_prune: set[CompileNode] = set()
-
-    while queue:
-        node = queue.popleft()
-        if node in nodes_to_prune:
-            continue
-
-        nodes_to_prune.add(node)
-        queue.extend(dependents.get(node, ()))
-
-        if node.random_state_ref is not None:
-            rng = node.random_state_ref.owner
-            assert isinstance(rng, CompiledRNG)
-            queue.extend(rng.nodes)
-
-    return nodes_to_prune
+        return tuple(
+            fn.external_source(
+                self._draw_states,
+                num_outputs=len(self.calls),
+                device="cpu",
+            )
+        )
 
 
 class CompileContext:
@@ -501,28 +477,32 @@ class CompileContext:
         self._call_trie.insert(call_chain, op_class, node)
         return node
 
-    def _record_rng_use(self, rng: _random.RNG, captured_node: CompileNode | None) -> None:
-        compiled_rng = self.rngs.get(rng)
-        if compiled_rng is None:
-            compiled_rng = CompiledRNG(rng, self.batch_size)
-            self.rngs[rng] = compiled_rng
-        compiled_rng.record_use(captured_node)
+    def _rng_on_draw(self, rng: _random.RNG) -> None:
+        """Anchor an RNG at its first traced draw. Fires for bare generator calls too."""
+        if rng not in self.rngs:
+            self.rngs[rng] = CompiledRNG(rng, self.batch_size, rng._draws)
 
-    def _prune_rng_nodes(self) -> None:
-        nodes_to_prune = _find_nodes_to_prune(self.nodes, tuple(self.rngs.values()))
-        if nodes_to_prune:
-            warnings.warn(
-                "An RNG was used both by a capturable random operator and by a non-capturable "
-                "random call, or a capturable random call site was used more than once during "
-                "tracing. Affected operators and everything depending on them run eagerly."
+    def _record_rng_use(
+        self,
+        rng: _random.RNG,
+        captured_node: CompileNode,
+        frame: types.FrameType,
+    ) -> None:
+        if captured_node.random_state_ref is not None:
+            # Warning points to the user's call site
+            warnings.warn_explicit(
+                "A random operator call site runs more than once per iteration. Only the first "
+                "call each iteration uses the compiled pipeline; the rest run eagerly.",
+                UserWarning,
+                frame.f_code.co_filename,
+                frame.f_lineno,
             )
-        self.nodes = [node for node in self.nodes if node not in nodes_to_prune]
-        self._call_trie.prune(nodes_to_prune)
-        self.rngs = {
-            rng: compiled_rng
-            for rng, compiled_rng in self.rngs.items()
-            if compiled_rng.prune(nodes_to_prune)
-        }
+            return
+        self.rngs[rng].record_call(captured_node)
+
+    def _drop_unused_rngs(self) -> None:
+        """Discard the generators the body only drew from directly; they schedule nothing."""
+        self.rngs = {rng: compiled for rng, compiled in self.rngs.items() if compiled.calls}
 
     def _assign_output_offsets(self) -> None:
         offset = 0
@@ -537,7 +517,7 @@ class CompileContext:
                 "compile=True was specified but no operators were captured during tracing. "
                 "Falling back to dynamic mode.",
             )
-        self._prune_rng_nodes()
+        self._drop_unused_rngs()
         if not self.nodes:
             self._teardown()
             return
@@ -591,21 +571,19 @@ class CompileContext:
             self._teardown()
             raise
 
-        self._check_rng_versions()
+        with self._invalidate_on_error():
+            for rng in self.rngs.values():
+                rng.begin_step()
+
         self._results.clear()
         for owner in itertools.chain(self.sources, self.nodes):
             self._results[owner] = self._wrap_outputs(owner, pipeline_outputs)
         return self.result_for(self.sources[0])
 
-    def _check_rng_versions(self) -> None:
+    def _resync_rngs(self) -> None:
         with self._invalidate_on_error():
             for rng in self.rngs.values():
-                rng.check_version()
-
-    def _resync_rngs(self) -> None:
-        self._check_rng_versions()
-        for rng in self.rngs.values():
-            rng.sync()
+                rng.resync()
 
     def _wrap_outputs(
         self, owner: "CompileSource | CompileNode", pipeline_outputs: Sequence
@@ -670,12 +648,22 @@ class CompileContext:
             compiled_rng = ref.owner
             assert isinstance(compiled_rng, CompiledRNG)
             with self._invalidate_on_error():
-                compiled_rng.consume_call(ref.output_index, rng)
-            return self.result_for(node)
+                if compiled_rng.consume_call(ref.output_index, rng):
+                    return self.result_for(node)
 
-        if rng in self.rngs:
-            self._fail("A captured RNG was used by a non-compiled random operator.")
+        # The eager call draws where the schedule already expects it to.
         return None
+
+
+def _note_rng_draw(self: _random.RNG) -> None:
+    """`RNG._on_draw`, installed below."""
+    ctx = CompileContext.current()
+    if ctx is not None and ctx.state is State.TRACING:
+        ctx._rng_on_draw(self)
+
+
+# Intercept on `RNG` rather than in `_compile_intercept`, which bare generator RNG calls bypass.
+_random.RNG._on_draw = _note_rng_draw
 
 
 _Compilable = TypeVar("_Compilable", bound=SupportsCompile)
@@ -1003,8 +991,8 @@ def _compile_intercept(
             if capturable
             else None
         )
-        if is_random:
-            compile_ctx._record_rng_use(rng, node)
+        if is_random and node is not None:
+            compile_ctx._record_rng_use(rng, node, frame)
 
         if node is None:
             return result
