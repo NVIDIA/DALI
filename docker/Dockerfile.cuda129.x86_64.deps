@@ -12,7 +12,7 @@ RUN curl -LO https://developer.download.nvidia.com/compute/cuda/12.9.1/local_ins
     rm -f cuda_*.run;
 
 RUN CUFILE_VERSION=1.14.1.1-1 && \
-    NVCOMP_VERSION=4.2.0.11-1 && \
+    NVCOMP_VERSION=5.3.0.16 && \
     CUDA_VERSION_MAJOR=12 && \
     CUDA_VERSION_MINOR=9 && \
     apt-get update && \
@@ -22,9 +22,9 @@ RUN CUFILE_VERSION=1.14.1.1-1 && \
     apt-get update && \
     apt-get install libcufile-dev-${CUDA_VERSION_MAJOR}-${CUDA_VERSION_MINOR}=${CUFILE_VERSION} -y  && \
     mkdir /tmp/nvcomp && cd /tmp/nvcomp && \
-    wget https://developer.download.nvidia.com/compute/nvcomp/redist/nvcomp/linux-x86_64/nvcomp-linux-x86_64-5.2.0.10_cuda12-archive.tar.xz && \
+    wget https://developer.download.nvidia.com/compute/nvcomp/redist/nvcomp/linux-x86_64/nvcomp-linux-x86_64-${NVCOMP_VERSION}_cuda12-archive.tar.xz && \
     tar -xf * && \
-    cp -r nvcomp-linux-x86_64-5.2.0.10_cuda12-archive/include/* /usr/local/cuda/include/ && \
-    cp -r nvcomp-linux-x86_64-5.2.0.10_cuda12-archive/lib/* /usr/local/cuda/lib64/ && \
+    cp -r nvcomp-linux-x86_64-${NVCOMP_VERSION}_cuda12-archive/include/* /usr/local/cuda/include/ && \
+    cp -r nvcomp-linux-x86_64-${NVCOMP_VERSION}_cuda12-archive/lib/* /usr/local/cuda/lib64/ && \
     cd / && rm -rf /tmp/nvcomp && \
     rm -rf /var/lib/apt/lists/*

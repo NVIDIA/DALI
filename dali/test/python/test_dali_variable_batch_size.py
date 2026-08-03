@@ -1460,7 +1460,7 @@ def test_inflate():
         def piepline():
             defalted = fn.external_source(source=input_data)
             shape = fn.external_source(source=input_shape)
-            return fn.decoders.inflate(defalted.gpu(), shape=shape)
+            return fn.decoders.inflate(defalted.gpu(), shape=shape, dtype=types.INT64)
 
         return piepline(batch_size=max_batch_size, num_threads=4, device_id=0)
 
