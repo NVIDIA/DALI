@@ -47,7 +47,8 @@ def require(req_spec: str) -> None:
             sys.exit(1)
 
 if __name__ == "__main__":
-    if len(sys.argv) > 1 and sys.argv[1] != 'sdist':
+    # PEP 517 uses egg_info to query requirements before creating an sdist.
+    if len(sys.argv) > 1 and sys.argv[1] not in ('sdist', 'egg_info'):
         try:
             os.environ['DALI_PRELOAD_PLUGINS'] = ""  # no need to load plugins
             import nvidia.dali as dali
