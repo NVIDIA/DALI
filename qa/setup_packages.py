@@ -620,42 +620,8 @@ all_packages = [
     CudaPackageExtraIndex(
         "torchvision",
         {
-            "120": [
-                PckgVer("0.22.1+cu128", python_min_ver="3.9", python_max_ver="3.12"),
-                PckgVer(
-                    "0.22.1+cu128",
-                    python_min_ver="3.13",
-                    python_max_ver="3.13",
-                    python_free_threaded=False,
-                ),
-                # Pillow 12.2.0 is the latest version that provides a wheel for Python 3.13t.
-                PckgVer(
-                    "0.22.1+cu128",
-                    python_min_ver="3.13",
-                    python_max_ver="3.13",
-                    python_free_threaded=True,
-                    constraints=["pillow==12.2.0"],
-                ),
-                PckgVer("0.22.1+cu128", python_min_ver="3.14"),
-            ],
-            "130": [
-                PckgVer("0.26.0+cu130", python_min_ver="3.10", python_max_ver="3.12"),
-                PckgVer(
-                    "0.26.0+cu130",
-                    python_min_ver="3.13",
-                    python_max_ver="3.13",
-                    python_free_threaded=False,
-                ),
-                # Pillow 12.2.0 is the latest version that provides a wheel for Python 3.13t.
-                PckgVer(
-                    "0.26.0+cu130",
-                    python_min_ver="3.13",
-                    python_max_ver="3.13",
-                    python_free_threaded=True,
-                    constraints=["pillow==12.2.0"],
-                ),
-                PckgVer("0.26.0+cu130", python_min_ver="3.14"),
-            ],
+            "120": [PckgVer("0.22.1+cu128", python_min_ver="3.9", python_max_ver="3.14")],
+            "130": [PckgVer("0.26.0+cu130", python_min_ver="3.10", python_max_ver="3.14")],
         },
         extra_index="https://download.pytorch.org/whl/",
     ),
@@ -683,37 +649,13 @@ all_packages = [
                     "0.6.0",
                     python_min_ver="3.10",
                     python_max_ver="3.13",
-                    python_free_threaded=False,
                     dependencies=["jaxlib"],
-                ),
-                PckgVer(
-                    "0.6.0",
-                    python_min_ver="3.13",
-                    python_max_ver="3.13",
-                    python_free_threaded=True,
-                    dependencies=["jaxlib"],
-                    constraints=["scipy==1.17.1"],
                 ),
             ],
             "130": [
                 PckgVer(
                     "0.9.0.1",
                     python_min_ver="3.11",
-                    python_max_ver="3.13",
-                    python_free_threaded=False,
-                    dependencies=["jaxlib"],
-                ),
-                PckgVer(
-                    "0.9.0.1",
-                    python_min_ver="3.13",
-                    python_max_ver="3.13",
-                    python_free_threaded=True,
-                    dependencies=["jaxlib"],
-                    constraints=["scipy==1.17.1"],
-                ),
-                PckgVer(
-                    "0.9.0.1",
-                    python_min_ver="3.14",
                     dependencies=["jaxlib"],
                 ),
             ],
@@ -739,46 +681,6 @@ all_packages = [
                 "0.0.12",
                 # Free-threaded Python build is incompatible with numpy<2.
                 python_free_threaded=False,
-            ),
-        ],
-    ),
-    PlainPackage(
-        "scipy",
-        [
-            PckgVer(
-                "",
-                python_max_ver="3.12",
-            ),
-            # 1.17.1 is the latest version that supports Python 3.13t
-            PckgVer(
-                "1.17.1",
-                python_min_ver="3.13",
-                python_max_ver="3.13",
-                python_free_threaded=True,
-            ),
-            PckgVer(
-                "",
-                python_min_ver="3.14",
-            ),
-        ],
-    ),
-    PlainPackage(
-        "scikit-image",
-        [
-            PckgVer(
-                "",
-                python_max_ver="3.12",
-            ),
-            # 1.17.1 is the latest version that supports Python 3.13t
-            PckgVer(
-                "",
-                python_min_ver="3.13",
-                python_max_ver="3.13",
-                constraints=["scipy==1.17.1"],
-            ),
-            PckgVer(
-                "",
-                python_min_ver="3.14",
             ),
         ],
     ),

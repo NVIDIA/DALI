@@ -34,6 +34,7 @@ from nvidia.dali.backend_impl import *  # noqa: F401, F403
 from . import __cuda_version__
 import warnings
 import sys
+import sysconfig
 import atexit
 import gc
 
@@ -89,6 +90,16 @@ if not initialized:
             "DALI 1.53 is the last release to support Python 3.9 "
             "Please update your environment to use Python 3.10, "
             "or newer."
+        )
+    # py3.13t warning
+    if (
+        sys.version_info[0] == 3
+        and sys.version_info[1] == 13
+        and sysconfig.get_config_var("Py_GIL_DISABLED") == 1
+    ):
+        deprecation_warning(
+            "Python 3.13t is experimental and DALI is not officially tested with it. "
+            "The free-threaded build is officially supported as of Python 3.14t. See PEP 779."
         )
 
     if int(str(__cuda_version__)[:2]) < 11:
