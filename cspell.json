@@ -1,0 +1,97 @@
+{
+    "$schema": "https://raw.githubusercontent.com/streetsidesoftware/cspell/main/cspell.schema.json",
+    "version": "0.2",
+    "dictionaryDefinitions": [
+        {
+            "name": "project-words",
+            "path": "./cspell_dicts/cspell_dict.txt",
+            "addWords": true
+        },
+        {
+            "name": "maintainers",
+            "path": "./cspell_dicts/maintainers_dict.txt",
+            "addWords": true
+        },
+        {
+            "name": "personal-names",
+            "path": "./cspell_dicts/names_dict.txt",
+            "addWords": true
+        },
+        {
+            "name": "layouts",
+            "path": "./cspell_dicts/layouts_dict.txt",
+            "addWords": true
+        },
+    ],
+    "dictionaries": [
+        "project-words",
+        "maintainers",
+        "layouts",
+        "personal-names",
+    ],
+    "ignorePaths": [
+        // Skip build directories
+        "build*",
+        // and dependencies
+        "third_party/**",
+        // Do not scan the dictionaries
+        "cspell_dicts/**",
+        // file containing lot of names
+        "Acknowledgements.txt",
+        // Doxygen has weird names in config
+        "Doxyfile",
+        // TODO(klecki): Check cmake spelling
+        "*.cmake",
+        "CMakeLists.txt",
+        // files encoded as text
+        "*.ipynb",
+        // Internal config files and similar
+        "*.sh",
+        "*.json",
+        "*.sup",
+        "*.yml",
+        "*.yaml",
+        "*map.in",
+         // test data with lots of names
+        "*synset*",
+        // Do not include C++ tests, as they use weird strings
+        "*_test.cc",
+        "*_test.cu",
+        // temporary file pattern for developement
+        "*-words.txt",
+    ],
+    "overrides": [
+        // Force `*.cu` and `*.cuh` files to be treated as `cpp` files:
+        {
+          "filename": "**/{*.cu,*.cuh}",
+          "languageId": "cpp"
+        },
+    ],
+    "languageSettings": [
+        // Specific, per-language settings
+        {
+            // use with cpp or c files
+            "languageId": "cpp,c",
+            // turn off compound words, because it is only checking strings.
+            "allowCompoundWords": false,
+            // Only check comments and strings
+            "includeRegExpList": [
+                "CStyleComment",
+                "strings",
+                "/([R]\".*\\()[^\\1]*?\\1/g"   // multiline docstrings don't want to work
+            ],
+
+            "ignoreRegExpList": [
+                "/#include.*/",        // Exclude includes, because they are also strings.
+                "/@param([ ]+[^ ]+)/"  // match anything of form "@param   <param_name>"
+            ],
+        },
+        {
+            "languageId": "python",
+            "includeRegExpList": [
+                "strings",
+                "comments"
+            ]
+        }
+    ]
+}
