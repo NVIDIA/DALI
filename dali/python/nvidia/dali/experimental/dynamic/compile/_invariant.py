@@ -23,11 +23,11 @@ _Ts = TypeVarTuple("_Ts")
 
 
 def invariant(value: _T) -> _T:
-    """Mark `value` as invariant for transparent pipelining.
+    """Mark `value` as invariant for compiled mode.
 
     The marker is an unchecked promise that the value represented by the returned object will not
-    change between compiled iterations. It lets transparent pipelining capture values whose
-    stability cannot be proven from source, such as module globals.
+    change between compiled iterations. It lets compiled mode capture values whose stability cannot
+    be proven from source, such as module globals.
 
     During compiled replay, a corresponding present argument must remain marked; removing the
     marker raises ``RuntimeError``.

@@ -641,3 +641,21 @@ def test_invariant_marker_removed():
         for images in es.compiled(batch_size=2):
             ndd.rotate(images, angle=next(angles))
     gc.collect()
+
+
+# These tests pin behavior documented in docs/dali_dynamic/compiled_mode/capture.rst.
+
+
+@compiled_test(expect_captured=False)
+def test_slice(images):
+    return images.slice[0:4]
+
+
+@compiled_test(expect_captured=False)
+def test_arithmetic(images):
+    return images + 1
+
+
+@compiled_test(expect_captured=False)
+def test_math_function(images):
+    return ndd.math.sqrt(images)

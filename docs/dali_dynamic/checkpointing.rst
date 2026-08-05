@@ -203,7 +203,7 @@ A few constraints to keep in mind when using ``Checkpoint``:
 * **Compiled mode is not supported.** Calling
   :meth:`Reader.next_epoch <nvidia.dali.experimental.dynamic._ops.Reader.next_epoch>`
   with ``compile=True`` on a reader that has checkpointing enabled (or vice
-  versa) raises :class:`NotImplementedError`.
+  versa) raises :class:`NotImplementedError`. See :doc:`compiled_mode/index`.
 * **Reader state must be applied early.** ``Reader.set_state`` (and any
   buffered state propagated through :meth:`~checkpoint.Checkpoint.register`)
   must run before the reader's first iteration; the prefetch thread cannot
