@@ -43,6 +43,75 @@ Changing the draw pattern after tracing raises :class:`RuntimeError`.
      - Touching the RNG between epochs of an :class:`ExternalSource` loop, which re-bases its
        schedule on the generator each epoch
 
+.. dropdown:: Examples
+
+   .. rubric:: Allowed patterns
+
+   Captured and eager calls can share an RNG. Bare draws count towards the fixed pattern. DALI
+   warns when a call site repeats and captures only its first call:
+
+   .. code-block:: python
+
+      rng = ndd.random.RNG(seed=42)
+
+      for _ in source.compiled(batch_size=4):
+          rng()  # bare draw
+          eager = ndd.random.coin_flip(batch_size=4, probability=self.prob, rng=rng)
+          captured = ndd.random.uniform(batch_size=4, shape=3, rng=rng)
+
+          for repeat in range(2):
+              repeated = ndd.random.uniform(batch_size=4, shape=3, rng=rng)
+
+   ``coin_flip`` runs eagerly because ``self.prob`` cannot be proven constant. The other random
+   operators stay captured, except for the second call at the repeated site.
+
+   .. rubric:: Adding or dropping a call
+
+   Adding this call after tracing raises:
+
+   .. code-block:: python
+
+      for step, _ in enumerate(source.compiled(batch_size=4)):
+          ndd.random.uniform(batch_size=4, shape=3, rng=rng)
+          if step > 0:
+              ndd.random.coin_flip(batch_size=4, rng=rng)
+
+   Dropping this traced call also raises:
+
+   .. code-block:: python
+
+      for step, _ in enumerate(source.compiled(batch_size=4)):
+          ndd.random.uniform(batch_size=4, shape=3, rng=rng)
+          if step == 0:
+              ndd.random.coin_flip(batch_size=4, rng=rng)
+
+   .. rubric:: Replacing the RNG state
+
+   Replacing the state while the loop is live raises, even if the assigned state is unchanged:
+
+   .. code-block:: python
+
+      for step, _ in enumerate(source.compiled(batch_size=4)):
+          if step > 0:
+              rng.state = new_state
+          ndd.random.uniform(batch_size=4, shape=3, rng=rng)
+
+   .. rubric:: Touching the RNG between epochs
+
+   Changing the RNG between :class:`ExternalSource` epochs raises:
+
+   .. code-block:: python
+
+      source = ndd.ExternalSource(batches, cycle="raise")
+
+      def epoch():
+          for _ in source.compiled(batch_size=4):
+              ndd.random.uniform(batch_size=4, shape=3, rng=rng)
+
+      epoch()
+      rng()
+      epoch()  # raises RuntimeError
+
 .. warning::
 
    A random operator that produces a single sample instead of a batch is never captured. That
