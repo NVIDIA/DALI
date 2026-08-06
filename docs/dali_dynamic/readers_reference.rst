@@ -26,7 +26,7 @@ and once it has started iterating, the batch size cannot change either.
     for jpeg, label in sample_reader.next_epoch():
         # process the single sample
 
-:doc:`Compiled mode <compiled_mode/index>` adds further constraints on a reader that uses it.
+:doc:`Capture mode <capture_mode/index>` adds further constraints on a reader that uses it.
 
 The table below lists the available readers.
 

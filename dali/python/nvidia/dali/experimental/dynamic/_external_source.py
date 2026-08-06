@@ -41,7 +41,7 @@ _CallResult: TypeAlias = Tensor | Batch | tuple[Tensor, ...] | tuple[Batch, ...]
 class _Role(enum.Enum):
     UNUSED = enum.auto()
     EAGER = enum.auto()
-    FEEDER = enum.auto()  # pulled inside another source's compiled loop
+    FEEDER = enum.auto()  # pulled inside another source's capture-mode loop
     ROOT = enum.auto()  # iterated through its own .compiled()
 
 
@@ -178,7 +178,7 @@ class ExternalSource:
         # Valid dispatch paths:
         # - without a compile context, run eagerly
         # - while tracing, pull and register the source as a feeder
-        # - while executing a compiled context, return the traced feeder's result
+        # - while executing a capture-mode context, return the traced feeder's result
 
         batch_size = unwrap_invariant(batch_size)
         ctx = _compile.CompileContext.current()
@@ -200,7 +200,7 @@ class ExternalSource:
         return self._compiled_call(ctx, batch_size)
 
     def compiled(self, batch_size: int, ctx: "EvalContext | None" = None):
-        """Iterate one epoch with this source as the compiled graph's root.
+        """Iterate one epoch with this source as the root of a capture-mode loop.
 
         ``ExternalSource`` equivalent of :meth:`Reader.next_epoch` with ``compile=True``.
 

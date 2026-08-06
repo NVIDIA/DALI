@@ -12,7 +12,7 @@ The draw-pattern rule
 An RNG used by a captured random operator must make the same draws in the same order on every
 iteration. RNGs used only by eager operators are not tracked.
 
-With a fixed draw pattern, compiled and eager loops produce the same random values and leave the
+With a fixed draw pattern, capture-mode and eager loops produce the same random values and leave the
 RNG in the same state. The guarantee holds across epochs for default and explicit RNGs, regardless
 of the source driving the loop.
 
@@ -33,7 +33,7 @@ Changing the draw pattern after tracing raises :class:`RuntimeError`.
    * - Sharing one RNG between captured and uncaptured operators
      - Adding a random call that was not there when the loop was traced
    * - A random operator whose arguments cannot be captured, such as a probability read from
-       ``self.prob``. It runs eagerly, the rest stays compiled
+       ``self.prob``. It runs eagerly, the rest stays captured
      - Dropping a random call that was traced, since the schedule still expects its draws
    * - Bare ``rng()`` draws in the loop body, which count towards the draw pattern like anything
        else

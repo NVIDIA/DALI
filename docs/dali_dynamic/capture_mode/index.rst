@@ -1,33 +1,33 @@
-Compiled Mode
-=============
+Capture Mode
+============
 
 .. currentmodule:: nvidia.dali.experimental.dynamic
 
-Dynamic mode executes each operator as Python reaches it. Compiled mode traces the first step
+Dynamic mode executes each operator as Python reaches it. Capture mode traces the first step
 of a loop and builds a :doc:`DALI pipeline <../../pipeline>` from the calls it can capture.
 The pipeline is reused for the rest of that epoch and for later epochs.
 
-The loop body remains ordinary dynamic mode code. Compiled mode reduces the Python overhead of
+The loop body remains ordinary dynamic mode code. Capture mode reduces the Python overhead of
 operator calls and allows prefetching later batches while the caller processes the current one.
 
 .. note::
 
-   Compiled mode is independent of :class:`EvalMode`. It changes how DALI executes the loop, while
+   Capture mode is independent of :class:`EvalMode`. It changes how DALI executes the loop, while
    :class:`EvalMode` controls when results are evaluated.
 
 Turning it on
 -------------
 
-A compiled loop can start from a reader or an external source. Only the line that drives it
+A capture-mode loop can start from a reader or an external source. Only the line that drives it
 changes: the body stays ordinary dynamic mode code, and the results are the same as without
-compilation.
+capture mode.
 
 .. tab-set::
 
    .. tab-item:: Reader
 
-      Compiled mode is enabled for loops driven by a reader by setting the ``compile`` argument
-      in ``next_epoch``. Only a single reader per compiled loop is supported for now.
+      Capture mode is enabled for loops driven by a reader by setting the ``compile`` argument
+      in ``next_epoch``. Only a single reader per capture-mode loop is supported for now.
 
       .. code-block:: python
          :emphasize-lines: 5
@@ -48,8 +48,8 @@ compilation.
 
    .. tab-item:: External Source
 
-      :meth:`ExternalSource.compiled` iterates the source and compiles the body around it. The
-      loop ends when the source does.
+      :meth:`ExternalSource.compiled` iterates the source with capture mode enabled for the loop
+      body. The loop ends when the source does.
 
       .. code-block:: python
          :emphasize-lines: 5
@@ -84,7 +84,7 @@ In this section
       :link: concepts
       :link-type: doc
 
-      How tracing, epochs and teardown work, and what a compiled loop fixes for its lifetime.
+      How tracing, epochs and teardown work, and what a capture-mode loop fixes for its lifetime.
 
    .. grid-item-card:: Capture rules
       :link: capture
@@ -102,7 +102,7 @@ In this section
       :link: tutorial
       :link-type: doc
 
-      A worked image loop, compiled and timed against the same loop run eagerly.
+      A worked image loop, run in capture mode and timed against the same loop run eagerly.
 
 .. toctree::
    :hidden:

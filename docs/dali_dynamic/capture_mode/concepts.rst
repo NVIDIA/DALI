@@ -6,7 +6,7 @@ Execution Model
 Tracing and running
 -------------------
 
-Compiled mode traces the first step of the first epoch while executing it eagerly. DALI checks
+Capture mode traces the first step of the first epoch while executing it eagerly. DALI checks
 each operator call for capture and builds a pipeline from the calls it accepts. This usually
 makes the traced step slower than an eager step.
 
@@ -19,7 +19,7 @@ Performance
 The pipeline prefetches batches while the caller processes the current one. Its stages can also
 overlap across iterations.
 
-Compiled mode replaces most Python operator dispatch with a cheaper call-site lookup. This can
+Capture mode replaces most Python operator dispatch with a cheaper call-site lookup. This can
 help even when the caller provides little work to overlap.
 
 Sources and feeders
@@ -65,7 +65,7 @@ Read exactly once, on every step
               if step == 0:
                   ndd.cast(feeder(), dtype=ndd.float32)
 
-Not shared between compiled loops
+Not shared between capture-mode loops
     Each loop needs its own instance.
 
     .. dropdown:: Example
@@ -100,15 +100,15 @@ Not exhausted before the loop's own source
 .. warning::
 
    An :class:`ExternalSource` instance locks to the first way it is used. Calling it directly
-   once prevents it from ever being used in a compiled loop, and binding it to a compiled loop
-   prevents direct calls until that loop is torn down. Both raise :class:`RuntimeError`.
+   once prevents it from ever being used in a capture-mode loop, and binding it to one prevents
+   direct calls until that loop is torn down. Both raise :class:`RuntimeError`.
 
 .. _capture-limitations:
 
 Limitations
 -----------
 
-Every operator call still goes through Python to look up its call site, and compiled mode leaves
+Every operator call still goes through Python to look up its call site, and capture mode leaves
 the operators alone, so it fuses nothing and generates no code.
 
 Fixed batch size
@@ -145,12 +145,12 @@ Fixed evaluation context
 
 Fixed mode
     A reader used with ``compile=True`` cannot go back to eager iteration, and one already used
-    eagerly cannot switch to compiled. Compiled iteration also counts as batch iteration, so it
-    cannot be mixed with sample iteration or direct calls on the same reader.
+    eagerly cannot switch to capture mode. Capture-mode iteration also counts as batch iteration,
+    so it cannot be mixed with sample iteration or direct calls on the same reader.
 
     .. dropdown:: Example
 
-       This snippet raises because the same reader instance is used in compiled and eager mode.
+       This snippet raises because the same reader instance is used in capture and eager mode.
 
        .. code-block:: python
           :emphasize-lines: 4
@@ -161,17 +161,17 @@ Fixed mode
           for jpegs, labels in reader.next_epoch(batch_size=128):
               ...
 
-One compiled loop per thread
+One capture-mode loop per thread
     Entering a second one in the same thread raises. A loop is not pinned to the thread that
     created it. See :doc:`../threading` for how dynamic mode behaves across threads generally.
 
 Checkpointing
-    A reader cannot use compiled mode and checkpointing together, in either order. See
+    A reader cannot use capture mode and checkpointing together, in either order. See
     :doc:`../checkpointing`.
 
     .. dropdown:: Example
 
-       The snippet below raises when trying to use a checkpointed reader in compiled mode.
+       The snippet below raises when trying to use a checkpointed reader in capture mode.
 
        .. code-block:: python
 
@@ -183,7 +183,7 @@ Checkpointing
 
 .. warning::
 
-   If a compiled loop driven by a reader consumes a feeder or has captured random operators,
+   If a capture-mode loop driven by a reader consumes a feeder or has captured random operators,
    breaking out destroys the reader driving it. Those sources have already been advanced for a
    step that never completes, so DALI tears the loop down rather than guess. Every later use of
    the reader fails.

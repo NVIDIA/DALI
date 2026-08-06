@@ -37,7 +37,7 @@ def assert_compiled_matches_eager(
     transform: Callable[[ndd.Batch], ndd.Batch],
     expect_captured: bool,
 ) -> None:
-    """Apply `transform` to an eager and compiled epoch. Assert that the results are identical."""
+    """Apply `transform` to eager and capture-mode epochs and compare the results."""
     reader_dyn = ndd.readers.File(file_root=images_root)
     reader_comp = ndd.readers.File(file_root=images_root)
 
@@ -643,7 +643,7 @@ def test_invariant_marker_removed():
     gc.collect()
 
 
-# These tests pin behavior documented in docs/dali_dynamic/compiled_mode/capture.rst.
+# These tests pin behavior documented in docs/dali_dynamic/capture_mode/capture.rst.
 
 
 @compiled_test(expect_captured=False)

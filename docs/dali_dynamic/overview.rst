@@ -77,7 +77,7 @@ Key features
 
 - **Minimal performance overhead**
   DALI Dynamic is designed to deliver performance that is close to graph-based pipelines, incurring
-  only marginal overhead. :doc:`Compiled mode <compiled_mode/index>` can close the remaining gap by
+  only marginal overhead. :doc:`Capture mode <capture_mode/index>` can close the remaining gap by
   building a pipeline from the loop and prefetching through it.
 
 - **Batch processing support**

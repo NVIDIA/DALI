@@ -67,7 +67,7 @@ Here, the code should either create an instance of the evaluation context per th
    :func:`set_num_threads` controls DALI's internal thread pool. It is unrelated to Python-level
    multithreading.
 
-In :doc:`compiled mode <compiled_mode/index>`, only one compiled loop can be active per thread,
+In :doc:`capture mode <capture_mode/index>`, only one capture-mode loop can be active per thread,
 and a loop keeps the same :class:`EvalContext` for its lifetime.
 
 Thread-local storage

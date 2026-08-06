@@ -6,7 +6,7 @@ Capture Rules
 .. role:: python(code)
    :language: python
 
-Compiled mode speeds up a loop only for the operators it captures. Uncaptured operators run
+Capture mode speeds up a loop only for the operators it captures. Uncaptured operators run
 eagerly, with no warning and no change in the result.
 
 The capture rule
@@ -40,7 +40,7 @@ RNG's draw pattern. See :ref:`capture-limitations`.
 Arguments from other calls
 --------------------------
 
-A captured call gives a :class:`Batch`, usable as a compiled input for the rest of that step.
+A captured call gives a :class:`Batch`, usable as a captured input for the rest of that step.
 However, consuming a batch from a previous step leads to falling back to eager execution.
 
 .. code-block:: python
@@ -144,7 +144,7 @@ The invariant marker
 --------------------
 
 :func:`compile.invariant` marks a value that DALI cannot prove constant. Calling it is an
-unchecked promise that the value will not change between compiled iterations. Module globals
+unchecked promise that the value will not change between capture-mode iterations. Module globals
 and configuration objects can then participate in captured calls.
 
 It propagates through attribute access, which makes it a good fit for a configuration object
