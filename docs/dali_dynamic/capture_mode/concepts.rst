@@ -28,7 +28,7 @@ Sources and feeders
 The loop is driven by one source, which becomes part of the graph. A reader is moved into the
 pipeline itself, which is why a torn-down loop can leave it unusable. An :class:`ExternalSource`
 stays put and the pipeline polls it. Breaking out of an :class:`ExternalSource` loop leaves the
-source usable, but may discard prefetched batches. The next call to ``compiled()`` traces again.
+source usable, but may discard prefetched batches. The next call to ``captured()`` traces again.
 
 Any *other* :class:`ExternalSource` called inside the loop body is a feeder. The pipeline polls
 it ahead of the body rather than at the point where the call appears, so it has to behave
@@ -46,7 +46,7 @@ First used during the traced step
 
        .. code-block:: python
 
-          for step, batch in enumerate(source.compiled(batch_size=4)):
+          for step, batch in enumerate(source.captured(batch_size=4)):
               ndd.cast(batch, dtype=ndd.float32)
               if step > 0:
                   ndd.cast(late_feeder(), dtype=ndd.float32)  # raises RuntimeError
@@ -60,7 +60,7 @@ Read exactly once, on every step
 
        .. code-block:: python
 
-          for step, batch in enumerate(source.compiled(batch_size=4)):
+          for step, batch in enumerate(source.captured(batch_size=4)):
               ndd.cast(batch, dtype=ndd.float32)
               if step == 0:
                   ndd.cast(feeder(), dtype=ndd.float32)
@@ -74,11 +74,11 @@ Not shared between capture-mode loops
 
        .. code-block:: python
 
-          for batch in first_source.compiled(batch_size=4):
+          for batch in first_source.captured(batch_size=4):
               ndd.cast(batch, dtype=ndd.float32)
               ndd.cast(shared_feeder(), dtype=ndd.float32)
 
-          for batch in second_source.compiled(batch_size=4):
+          for batch in second_source.captured(batch_size=4):
               ndd.cast(batch, dtype=ndd.float32)
               ndd.cast(shared_feeder(), dtype=ndd.float32)  # raises RuntimeError
 
@@ -93,7 +93,7 @@ Not exhausted before the loop's own source
 
           short_feeder = ndd.ExternalSource(short_batches)
 
-          for batch in source.compiled(batch_size=4):
+          for batch in source.captured(batch_size=4):
               ndd.cast(batch, dtype=ndd.float32)
               ndd.cast(short_feeder(), dtype=ndd.float32)  # raises when exhausted
 
@@ -112,7 +112,7 @@ Every operator call still goes through Python to look up its call site, and capt
 the operators alone, so it fuses nothing and generates no code.
 
 Fixed batch size
-    ``compile=True`` requires an explicit ``batch_size``, and every later epoch must use the same
+    ``capture=True`` requires an explicit ``batch_size``, and every later epoch must use the same
     one. An operator called with a conflicting explicit ``batch_size`` raises.
 
     .. dropdown:: Example
@@ -121,7 +121,7 @@ Fixed batch size
 
         .. code-block:: python
 
-           for jpegs, labels in reader.next_epoch(batch_size=128, compile=True):
+           for jpegs, labels in reader.next_epoch(batch_size=128, capture=True):
                images = ndd.decoders.image(jpegs)
                coin_flip = ndd.random.coin_flip(probability=0.5, batch_size=32)
 
@@ -136,7 +136,7 @@ Fixed device
 
        .. code-block:: python
 
-         for jpegs in source.compiled(batch_size=128):
+         for jpegs in source.captured(batch_size=128):
              device = "gpu" if fits_on_device(jpegs) else "cpu"
              images = ndd.decoders.image(jpegs, device=device)
 
@@ -144,7 +144,7 @@ Fixed evaluation context
     A live loop cannot run under a different :class:`EvalContext`.
 
 Fixed mode
-    A reader used with ``compile=True`` cannot go back to eager iteration, and one already used
+    A reader used with ``capture=True`` cannot go back to eager iteration, and one already used
     eagerly cannot switch to capture mode. Capture-mode iteration also counts as batch iteration,
     so it cannot be mixed with sample iteration or direct calls on the same reader.
 
@@ -155,7 +155,7 @@ Fixed mode
        .. code-block:: python
           :emphasize-lines: 4
 
-          for jpegs, labels in reader.next_epoch(batch_size=128, compile=True):
+          for jpegs, labels in reader.next_epoch(batch_size=128, capture=True):
               ...
 
           for jpegs, labels in reader.next_epoch(batch_size=128):
@@ -178,7 +178,7 @@ Checkpointing
           ckpt = ndd.checkpoint.Checkpoint()
           ckpt.register(reader)
 
-          for jpegs, labels in reader.next_epoch(batch_size=128, compile=True):
+          for jpegs, labels in reader.next_epoch(batch_size=128, capture=True):
               ...
 
 .. warning::

@@ -202,7 +202,7 @@ A few constraints to keep in mind when using ``Checkpoint``:
   retroactively; otherwise it raises a :class:`RuntimeError`.
 * **Capture mode is not supported.** Calling
   :meth:`Reader.next_epoch <nvidia.dali.experimental.dynamic._ops.Reader.next_epoch>`
-  with ``compile=True`` on a reader that has checkpointing enabled (or vice
+  with ``capture=True`` on a reader that has checkpointing enabled (or vice
   versa) raises :class:`NotImplementedError`. See :doc:`capture_mode/index`.
 * **Reader state must be applied early.** ``Reader.set_state`` (and any
   buffered state propagated through :meth:`~checkpoint.Checkpoint.register`)

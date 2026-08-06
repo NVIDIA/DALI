@@ -34,7 +34,7 @@ from ._tensor import as_tensor as _as_tensor
 from ._tensor import tensor as _tensor
 from ._type import DType, DTypeLike
 from ._type import dtype as _dtype
-from .compile._invariant import unwrap_invariant_args, unwrap_invariants
+from .capture._invariant import unwrap_invariant_args, unwrap_invariants
 
 
 def _backend_device(backend: _backend.TensorListCPU | _backend.TensorListGPU) -> Device:

@@ -54,7 +54,7 @@ Changing the draw pattern after tracing raises :class:`RuntimeError`.
 
       rng = ndd.random.RNG(seed=42)
 
-      for _ in source.compiled(batch_size=4):
+      for _ in source.captured(batch_size=4):
           rng()  # bare draw
           eager = ndd.random.coin_flip(batch_size=4, probability=self.prob, rng=rng)
           captured = ndd.random.uniform(batch_size=4, shape=3, rng=rng)
@@ -71,7 +71,7 @@ Changing the draw pattern after tracing raises :class:`RuntimeError`.
 
    .. code-block:: python
 
-      for step, _ in enumerate(source.compiled(batch_size=4)):
+      for step, _ in enumerate(source.captured(batch_size=4)):
           ndd.random.uniform(batch_size=4, shape=3, rng=rng)
           if step > 0:
               ndd.random.coin_flip(batch_size=4, rng=rng)
@@ -80,7 +80,7 @@ Changing the draw pattern after tracing raises :class:`RuntimeError`.
 
    .. code-block:: python
 
-      for step, _ in enumerate(source.compiled(batch_size=4)):
+      for step, _ in enumerate(source.captured(batch_size=4)):
           ndd.random.uniform(batch_size=4, shape=3, rng=rng)
           if step == 0:
               ndd.random.coin_flip(batch_size=4, rng=rng)
@@ -91,7 +91,7 @@ Changing the draw pattern after tracing raises :class:`RuntimeError`.
 
    .. code-block:: python
 
-      for step, _ in enumerate(source.compiled(batch_size=4)):
+      for step, _ in enumerate(source.captured(batch_size=4)):
           if step > 0:
               rng.state = new_state
           ndd.random.uniform(batch_size=4, shape=3, rng=rng)
@@ -105,7 +105,7 @@ Changing the draw pattern after tracing raises :class:`RuntimeError`.
       source = ndd.ExternalSource(batches, cycle="raise")
 
       def epoch():
-          for _ in source.compiled(batch_size=4):
+          for _ in source.captured(batch_size=4):
               ndd.random.uniform(batch_size=4, shape=3, rng=rng)
 
       epoch()

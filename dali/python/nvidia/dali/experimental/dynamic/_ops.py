@@ -22,13 +22,13 @@ import numpy as np
 import nvidia.dali as dali
 import nvidia.dali.backend_impl as _b
 
-from . import _compile, _device, _eval_context, _invocation
+from . import _capture, _device, _eval_context, _invocation
 from ._batch import Batch, _get_batch_size
 from ._batch import as_batch as _as_batch
 from ._device import Device, DeviceLike
 from ._nvtx import NVTXRange
 from ._tensor import Tensor, as_tensor
-from .compile._invariant import unwrap_invariant, unwrap_invariant_args
+from .capture._invariant import unwrap_invariant, unwrap_invariant_args
 
 _nvtx_to_tensor = NVTXRange("to_tensor", category="op_builder")
 
@@ -704,8 +704,8 @@ class Reader(Operator):
             name = f"Reader_{id(self)}"
         self._actual_batch_size = batch_size
         self._batch_size = batch_size
-        self._compiled_iter: "_compile.CompiledEpochIterator | None" = None
-        self._compile_mode: bool | None = None
+        self._captured_iter: "_capture.CapturedEpochIterator | None" = None
+        self._capture_mode: bool | None = None
         self._checkpointing_enabled = enable_checkpointing
         device = _device.device(device)
         # _backend is forwarded via **kwargs, we don't need to touch it here
@@ -729,7 +729,7 @@ class Reader(Operator):
         self._pending_state = None
         # If set, the reader is in an invalid state and cannot be used
         self._disabled = False
-        # If set, the reader's op was transferred into a compiled pipeline
+        # If set, the reader's op was transferred into a captured pipeline
         self._transferred = False
 
         if self._num_shards < 1:
@@ -750,8 +750,8 @@ class Reader(Operator):
     def _enable_checkpointing(self):
         if self._checkpointing_enabled:
             return
-        if self._compile_mode is True:
-            raise NotImplementedError("Checkpointing is currently not supported in compiled mode.")
+        if self._capture_mode is True:
+            raise NotImplementedError("Checkpointing is currently not supported in capture mode.")
 
         if self._op_backend:
             raise RuntimeError(
@@ -887,14 +887,14 @@ class Reader(Operator):
         if not self._stick_to_shard:
             self._shard_id = (self._shard_id + 1) % self._num_shards
 
-    def _teardown_compile(self) -> None:
-        """Tear down compile bindings. Reader is unrecoverable after transfer."""
-        self._compile_mode = None
-        self._compiled_iter = None
+    def _teardown_capture(self) -> None:
+        """Tear down capture bindings. Reader is unrecoverable after transfer."""
+        self._capture_mode = None
+        self._captured_iter = None
         if self._transferred:
             self._disabled = True
 
-    def _wire_pipeline(self, source: "_compile.CompileSource") -> tuple:
+    def _wire_pipeline(self, source: "_capture.CaptureSource") -> tuple:
         """Build the reader's pipeline outputs from its operator instance."""
         op = self._legacy_op(name=self._name, device=self._backend, **self._init_args)
         out = op(**{name: _wire_arg(value) for name, value in self._raw_tensor_args.items()})
@@ -909,7 +909,7 @@ class Reader(Operator):
         assert len(outs) == source.num_outputs
         return outs
 
-    def _shape_result(self, source: "_compile.CompileSource", batches: tuple):
+    def _shape_result(self, source: "_capture.CaptureSource", batches: tuple):
         if source.output_keys is not None:
             return dict(zip(source.output_keys, batches))
         return batches
@@ -920,8 +920,8 @@ class Reader(Operator):
         self._transferred = True
         return True
 
-    def _make_epoch_iterator(self, batch_size: int) -> "_compile.CompiledEpochIterator":
-        return _compile._ReaderEpochIterator(self, batch_size)
+    def _make_epoch_iterator(self, batch_size: int) -> "_capture.CapturedEpochIterator":
+        return _capture._ReaderEpochIterator(self, batch_size)
 
     def _require_api_type(self, api_type: str) -> None:
         """Set the API type if unset, or raise if it conflicts with a previous choice."""
@@ -962,7 +962,7 @@ class Reader(Operator):
         return super()._run(ctx, *inputs, **args)
 
     def next_epoch(
-        self, batch_size=None, ctx: _eval_context.EvalContext | None = None, compile=False
+        self, batch_size=None, ctx: _eval_context.EvalContext | None = None, capture=False
     ):
         """
         Obtains an iterator that goes over the next epoch from the reader.
@@ -985,7 +985,7 @@ class Reader(Operator):
             The batch size. If not specified, the batch size from the constructor is used.
         ctx : EvalContext, optional
             The evaluation context. If not specified, the current context is used.
-        compile : bool, default: False
+        capture : bool, default: False
             If True, capture operator sequences in a pipeline for prefetching.
             Once used in capture mode, the reader cannot switch back.
         """
@@ -994,27 +994,27 @@ class Reader(Operator):
 
         batch_size = self._get_batch_size(batch_size)
 
-        if compile:
+        if capture:
             if self._checkpointing_enabled:
                 raise NotImplementedError(
-                    "Checkpointing is currently not supported in compiled mode."
+                    "Checkpointing is currently not supported in capture mode."
                 )
-            if self._compile_mode is False:
+            if self._capture_mode is False:
                 raise RuntimeError(
-                    "This reader was previously used without compile=True "
-                    "and cannot switch to compiled mode."
+                    "This reader was previously used without capture=True "
+                    "and cannot switch to capture mode."
                 )
             if batch_size is None:
-                raise ValueError("compile=True requires a non-None batch_size.")
-            self._compile_mode = True
-            return _compile.make_iterator(self, batch_size).batches(ctx)
+                raise ValueError("capture=True requires a non-None batch_size.")
+            self._capture_mode = True
+            return _capture.make_iterator(self, batch_size).batches(ctx)
 
-        if self._compile_mode is True:
+        if self._capture_mode is True:
             raise RuntimeError(
-                "This reader was previously used with compile=True "
-                "and cannot switch to non-compiled mode."
+                "This reader was previously used with capture=True "
+                "and cannot switch to eager mode."
             )
-        self._compile_mode = False
+        self._capture_mode = False
 
         if batch_size is not None:
             return self._batches(batch_size, ctx)
@@ -1045,7 +1045,7 @@ class Reader(Operator):
         try:
             return self._op_backend.GetReaderMeta()
         except ValueError as e:
-            raise RuntimeError("Reader was transferred to a compiled pipeline.") from e
+            raise RuntimeError("Reader was transferred to a captured pipeline.") from e
 
     def _samples(self, ctx: _eval_context.EvalContext | None = None):
         self._require_api_type("samples")

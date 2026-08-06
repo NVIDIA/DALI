@@ -804,19 +804,19 @@ def test_checkpoint_current_end_to_end():
 # ---------------------------------------------------------------------------
 
 
-def test_reader_checkpointing_rejects_compile_mode():
-    """``enable_checkpointing=True`` and ``next_epoch(compile=True)`` are mutually exclusive."""
+def test_reader_checkpointing_rejects_capture_mode():
+    """``enable_checkpointing=True`` and ``next_epoch(capture=True)`` are mutually exclusive."""
     reader = _make_reader(enable_checkpointing=True)
-    with assert_raises(NotImplementedError, glob="*compiled mode*"):
-        reader.next_epoch(batch_size=4, compile=True)
+    with assert_raises(NotImplementedError, glob="*capture mode*"):
+        reader.next_epoch(batch_size=4, capture=True)
 
 
-def test_reader_enable_checkpointing_rejected_after_compile():
+def test_reader_enable_checkpointing_rejected_after_capture():
     """A reader that has entered capture mode cannot then opt in to checkpointing."""
     reader = _make_reader()
-    next(reader.next_epoch(batch_size=4, compile=True))
+    next(reader.next_epoch(batch_size=4, capture=True))
     ckpt = ndd.checkpoint.Checkpoint()
-    with assert_raises(NotImplementedError, glob="*compiled mode*"):
+    with assert_raises(NotImplementedError, glob="*capture mode*"):
         ckpt.register(reader, "reader")
 
 

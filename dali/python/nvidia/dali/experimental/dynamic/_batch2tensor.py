@@ -17,7 +17,7 @@ from . import _device, _invocation, _op_builder
 from ._batch import Batch, Tensor, as_batch, batch
 from ._call_site import mark_transparent, resolve_callsite_frame
 from ._nvtx import NVTXRange
-from .compile._invariant import unwrap_invariant, unwrap_invariant_args
+from .capture._invariant import unwrap_invariant, unwrap_invariant_args
 
 
 def is_uniform(shape):
