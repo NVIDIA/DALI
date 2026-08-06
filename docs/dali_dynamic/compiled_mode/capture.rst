@@ -16,7 +16,7 @@ Tracing identifies an operator call by its source location and the path of Pytho
 reached it. A helper reached through different call paths is recorded separately for each path.
 Captured sites form the pipeline graph.
 
-A call is recorded only when each argument is either:
+A call is recorded only when each ordinary input and argument is either:
 
 - The result of another captured call,
 - A value that DALI can prove is constant by reading the source, or
