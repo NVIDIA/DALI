@@ -17,7 +17,7 @@ import os
 
 # The Fleet static-graph optimizer used by this example requires the legacy
 # Program representation. Paddle 3.4 defaults to PIR.
-os.environ.setdefault("FLAGS_enable_pir_api", "0")
+os.environ["FLAGS_enable_pir_api"] = "0"
 
 from dali import build_dataloader
 from utils.affinity import set_cpu_affinity
