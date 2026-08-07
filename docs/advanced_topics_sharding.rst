@@ -25,29 +25,52 @@ to be aware of this padding and other reader properties.
 
 Here are the iterator options:
 
-- | ``reader_name`` - Allows you to provide the name of the reader that drives the iterator and
-   provides the necessary parameters.
+``reader_name``
+    Name of the reader operator that provides the iterator's size and last-batch
+    padding. It must match the reader's ``name`` argument in every supplied
+    pipeline.
 
-  .. note::
-    We recommend that you use this option, so that the next two options
-    (``size`` and ``last_batch_padded``) are obtained automatically from the pipeline configuration.
-    If it is used, the ``size`` and ``last_batch_padded`` should not be provided explicitly to
-    the iterator.
+    For example, use matching names:
 
-  | This option is more flexible and accurate and takes into account that shard size for a pipeline
-    can differ between epochs when the shards are rotated.
-- ``size``: Provides the size of the shard for an iterator or, if there is more than one shard,
-  the sum of all shard sizes for all wrapped pipelines.
-- | ``last_batch_padded``: Determines whether the tail of the data consists of data from the next
-    shard (``False``) or is duplicated dummy data (``True``).
-  | It is applicable when the shard size is not a multiple of the batch size,
-- | ``last_batch_policy`` - Determines the handling of the last batch when the shard size is not
-    divisible by the batch size.
-  | It affects batches only partially filled with the data. See
-    :meth:`~nvidia.dali.plugin.base_iterator.LastBatchPolicy` enum for possible values..
+    .. code-block:: python
 
-- ``fill_last_batch`` – (Deprecated in favour of ``last_batch_policy``) Determines whether the last
-  batch should be full, regardless of whether the shard size is divisible by the batch size.
+       @pipeline_def(batch_size=64, num_threads=4, device_id=0)
+       def pipeline():
+           return fn.readers.file(file_root="/path/to/images", name="train_reader")
+
+       iterator = DALIGenericIterator(
+           pipeline(), ["images", "labels"], reader_name="train_reader"
+       )
+
+    If a matching, compatible reader is not present in every pipeline, iterator
+    construction fails. Providing ``reader_name`` does not change
+    ``last_batch_policy``.
+
+    .. tip::
+
+       Prefer ``reader_name`` to setting ``size`` and ``last_batch_padded``
+       manually. DALI then keeps the iterator length and padding aligned with the
+       reader configuration, including when shards rotate between epochs.
+
+``size``
+    Provides the size of the shard for an iterator or, if there is more than one
+    shard, the sum of all shard sizes for all wrapped pipelines.
+
+``last_batch_padded``
+    Whether the reader pads the last batch by repeating its last sample
+    (``True``) or continues into the next epoch (``False``). It applies when
+    the shard size is not a multiple of the batch size.
+
+``last_batch_policy``
+    Determines the handling of the last batch when the shard size is not divisible
+    by the batch size. It affects batches only partially filled with the data. See
+    :meth:`~nvidia.dali.plugin.base_iterator.LastBatchPolicy` enum for possible
+    values.
+
+``fill_last_batch``
+    Deprecated in favour of ``last_batch_policy``. Determines whether the last
+    batch should be full, regardless of whether the shard size is divisible by the
+    batch size.
 
 Enums
 ~~~~~
@@ -77,4 +100,3 @@ When this occurs, use the first formula.
 
 To address these challenges, use the ``reader_name`` parameter and allow the iterator to
 handle the configuration automatically.
-

@@ -56,18 +56,18 @@ class DALIGenericIterator(_DaliBaseIterator):
                 of those names.
                 Each name should be distinct
     size : int, default = -1
-                Number of samples in the shard for the wrapped pipeline (if there is more than
-                one it is a sum)
-                Providing -1 means that the iterator will work until StopIteration is raised
-                from the inside of iter_setup(). The options `last_batch_policy` and
-                `last_batch_padded` don't work in such case. It works with only one pipeline inside
-                the iterator.
-                Mutually exclusive with `reader_name` argument
+                Number of samples in the shard. For multiple pipelines, this is the sum of
+                their shard sizes.
+                Mutually exclusive with `reader_name`. When left at -1 without
+                `reader_name`, a single-pipeline iterator reads until the pipeline raises
+                `StopIteration`, for example when an external source is exhausted;
+                `last_batch_policy` and `last_batch_padded` do not apply.
     reader_name : str, default = None
-                Name of the reader which will be queried for the shard size, number of shards and
-                all other properties necessary to count properly the number of relevant and padded
-                samples that iterator needs to deal with. It automatically sets
-                `last_batch_padded` accordingly to match the reader's configuration.
+                Name of the reader operator that determines the iterator length and
+                last-batch padding. It must match the reader's `name` argument in every
+                supplied pipeline.
+                When set, `size` and `last_batch_padded` are determined automatically and
+                must not be provided. It does not change `last_batch_policy`.
     auto_reset : string or bool, optional, default = False
                 Whether the iterator resets itself for the next epoch or it requires reset() to be
                 called explicitly.
@@ -93,15 +93,11 @@ class DALIGenericIterator(_DaliBaseIterator):
                 What to do with the last batch when there are not enough samples in the epoch
                 to fully fill it. See :meth:`nvidia.dali.plugin.base_iterator.LastBatchPolicy`
     last_batch_padded : bool, optional, default = False
-                Whether the last batch provided by DALI is padded with the last sample
-                or it just wraps up. In the conjunction with `last_batch_policy` it tells
-                if the iterator returning last batch with data only partially filled with
-                data from the current epoch is dropping padding samples or samples from
-                the next epoch. If set to ``False`` next
-                epoch will end sooner as data from it was consumed but dropped. If set to
-                True next epoch would be the same length as the first one. For this to happen,
-                the option `pad_last_batch` in the reader needs to be set to True as well.
-                It is overwritten when `reader_name` argument is provided
+                Whether the reader pads the last batch by repeating its last sample
+                (`True`) or continues into the next epoch (`False`).
+                Without `reader_name`, set this to the same value as the reader's
+                `pad_last_batch` argument. With `reader_name`, it is determined
+                automatically and must not be provided.
     prepare_first_batch : bool, optional, default = True
                 Whether DALI should buffer the first batch right after the creation of the iterator,
                 so one batch is already prepared when the iterator is prompted for the data
@@ -308,18 +304,18 @@ class DALIClassificationIterator(DALIGenericIterator):
     pipelines : list of nvidia.dali.Pipeline
                 List of pipelines to use
     size : int, default = -1
-                Number of samples in the shard for the wrapped pipeline (if there is more than
-                one it is a sum)
-                Providing -1 means that the iterator will work until StopIteration is raised
-                from the inside of iter_setup(). The options `last_batch_policy` and
-                `last_batch_padded` don't work in such case. It works with only one pipeline inside
-                the iterator.
-                Mutually exclusive with `reader_name` argument
+                Number of samples in the shard. For multiple pipelines, this is the sum of
+                their shard sizes.
+                Mutually exclusive with `reader_name`. When left at -1 without
+                `reader_name`, a single-pipeline iterator reads until the pipeline raises
+                `StopIteration`, for example when an external source is exhausted;
+                `last_batch_policy` and `last_batch_padded` do not apply.
     reader_name : str, default = None
-                Name of the reader which will be queried for the shard size, number of shards and
-                all other properties necessary to count properly the number of relevant and padded
-                samples that iterator needs to deal with. It automatically sets
-                `last_batch_padded` accordingly to match the reader's configuration.
+                Name of the reader operator that determines the iterator length and
+                last-batch padding. It must match the reader's `name` argument in every
+                supplied pipeline.
+                When set, `size` and `last_batch_padded` are determined automatically and
+                must not be provided. It does not change `last_batch_policy`.
     auto_reset : string or bool, optional, default = False
                 Whether the iterator resets itself for the next epoch or it requires reset() to be
                 called explicitly.
@@ -345,15 +341,11 @@ class DALIClassificationIterator(DALIGenericIterator):
                 What to do with the last batch when there are not enough samples in the epoch
                 to fully fill it. See :meth:`nvidia.dali.plugin.base_iterator.LastBatchPolicy`
     last_batch_padded : bool, optional, default = False
-                Whether the last batch provided by DALI is padded with the last sample
-                or it just wraps up. In the conjunction with `last_batch_policy` it tells
-                if the iterator returning last batch with data only partially filled with
-                data from the current epoch is dropping padding samples or samples from
-                the next epoch. If set to ``False`` next
-                epoch will end sooner as data from it was consumed but dropped. If set to
-                True next epoch would be the same length as the first one. For this to happen,
-                the option `pad_last_batch` in the reader needs to be set to True as well.
-                It is overwritten when `reader_name` argument is provided
+                Whether the reader pads the last batch by repeating its last sample
+                (`True`) or continues into the next epoch (`False`).
+                Without `reader_name`, set this to the same value as the reader's
+                `pad_last_batch` argument. With `reader_name`, it is determined
+                automatically and must not be provided.
     prepare_first_batch : bool, optional, default = True
                 Whether DALI should buffer the first batch right after the creation of the iterator,
                 so one batch is already prepared when the iterator is prompted for the data
@@ -424,19 +416,18 @@ class DALIRaggedIterator(_DaliBaseIterator):
     pipelines : list of nvidia.dali.Pipeline
                 List of pipelines to use
     size : int, default = -1
-                Number of samples in the shard for the wrapped pipeline (if there is more than
-                one it is a sum)
-                Providing -1 means that the iterator will work until StopIteration is raised
-                from the inside of iter_setup(). The options `last_batch_policy` and
-                `last_batch_padded` don't work in such case. It works with only one pipeline inside
-                the iterator.
-                Mutually exclusive with `reader_name` argument
+                Number of samples in the shard. For multiple pipelines, this is the sum of
+                their shard sizes.
+                Mutually exclusive with `reader_name`. When left at -1 without
+                `reader_name`, a single-pipeline iterator reads until the pipeline raises
+                `StopIteration`, for example when an external source is exhausted;
+                `last_batch_policy` and `last_batch_padded` do not apply.
     reader_name : str, default = None
-                Name of the reader which will be queried for the shard size, number of shards and
-                all other properties necessary to count properly the number of relevant and padded
-                samples that iterator needs to deal with. It automatically sets `last_batch_policy`
-                to PARTIAL when the FILL is used, and `last_batch_padded` accordingly to match
-                the reader's configuration
+                Name of the reader operator that determines the iterator length and
+                last-batch padding. It must match the reader's `name` argument in every
+                supplied pipeline.
+                When set, `size` and `last_batch_padded` are determined automatically and
+                must not be provided. It does not change `last_batch_policy`.
     output_types : list of str, optional, default = None
                 List of tags indicating whether the pipeline(s) output batch is
                 uniform (all the samples have the same size) or not. Batch output marked
@@ -472,16 +463,11 @@ class DALIRaggedIterator(_DaliBaseIterator):
                 What to do with the last batch when there are not enough samples in the epoch
                 to fully fill it. See :meth:`nvidia.dali.plugin.base_iterator.LastBatchPolicy`
     last_batch_padded : bool, optional, default = False
-                Whether the last batch provided by DALI is padded with the last sample
-                or it just wraps up. In the conjunction with `last_batch_policy` it tells
-                if the iterator returning last batch with data only partially filled with
-                data from the current epoch is dropping padding samples or samples from
-                the next epoch (it doesn't literally drop but sets ``pad`` field of ndarray
-                so the following code could use it to drop the data). If set to ``False`` next
-                epoch will end sooner as data from it was consumed but dropped. If set to
-                True next epoch would be the same length as the first one. For this to happen,
-                the option `pad_last_batch` in the reader needs to be set to True as well.
-                It is overwritten when `reader_name` argument is provided
+                Whether the reader pads the last batch by repeating its last sample
+                (`True`) or continues into the next epoch (`False`).
+                Without `reader_name`, set this to the same value as the reader's
+                `pad_last_batch` argument. With `reader_name`, it is determined
+                automatically and must not be provided.
     prepare_first_batch : bool, optional, default = True
                 Whether DALI should buffer the first batch right after the creation of the iterator,
                 so one batch is already prepared when the iterator is prompted for the data
