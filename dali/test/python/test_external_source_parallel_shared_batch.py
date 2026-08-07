@@ -1,4 +1,4 @@
-# Copyright (c) 2021-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2021-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,6 +15,7 @@
 
 import os
 import multiprocessing
+import pickle
 import socket
 from contextlib import closing, contextmanager
 import numpy as np
@@ -24,12 +25,23 @@ from nvidia.dali._multiproc.shared_batch import (
     SharedBatchWriter,
     SharedBatchMeta,
     deserialize_batch,
+    restricted_pickle_loads,
 )
 from nvidia.dali._multiproc.shared_queue import ShmQueue
 from nvidia.dali._multiproc.messages import ShmMessageDesc
 
 from test_utils import RandomlyShapedDataIterator
 from nose_utils import raises
+
+
+class UnsafePicklePayload:
+    def __reduce__(self):
+        return eval, ("1 + 1",)  # nosec B307
+
+
+def test_restricted_unpickler_rejects_unsafe_globals():
+    payload = pickle.dumps(UnsafePicklePayload())
+    raises(pickle.UnpicklingError, "not permitted")(restricted_pickle_loads)(payload)
 
 
 def check_serialize_deserialize(batch):
