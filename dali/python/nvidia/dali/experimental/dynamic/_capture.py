@@ -121,6 +121,10 @@ class CaptureRef(NamedTuple):
     output_index: int
 
 
+def _common_prefix_len(a: CallChain, b: CallChain) -> int:
+    return sum(1 for _ in itertools.takewhile(lambda pair: pair[0] == pair[1], zip(a, b)))
+
+
 class _CallTrie:
     """Trie keyed by call chain CodeLocs for safe call-site identification."""
 
@@ -146,8 +150,37 @@ class _CallTrie:
             current = child
         return current.nodes.get(op)
 
+    def compact(self, required_depths: Mapping[CaptureNode, int]) -> "_CallTrie":
+        """Return a trie using the shortest proof-preserving, operator-unique prefixes."""
+        entries: dict[type["Operator"], list[tuple[CallChain, CaptureNode]]] = {}
+        pending: list[tuple[_CallTrie, CallChain]] = [(self, ())]
+        while pending:
+            current, call_chain = pending.pop()
+            for op, node in current.nodes.items():
+                entries.setdefault(op, []).append((call_chain, node))
+            pending.extend(
+                (child, call_chain + (code_loc,)) for code_loc, child in current.children.items()
+            )
+
+        compacted = _CallTrie()
+        for op, op_entries in entries.items():
+            for call_chain, node in op_entries:
+                shared = max(
+                    (
+                        _common_prefix_len(call_chain, other_chain)
+                        for other_chain, other_node in op_entries
+                        if other_node is not node
+                    ),
+                    default=0,
+                )
+                depth = max(required_depths[node], shared + 1)
+                assert depth <= len(call_chain)
+                compacted.insert(call_chain[:depth], op, node)
+
+        return compacted
+
     def lookup(self, start_frame: types.FrameType, op: type["Operator"]) -> CaptureNode | None:
-        """Walk frames to stack exhaustion or stop early if a frame differs."""
+        """Walk frames until the operator's compacted terminal is reached."""
         current = self
         frame: types.FrameType | None = start_frame
         while frame is not None:
@@ -155,8 +188,11 @@ class _CallTrie:
             if child is None:
                 return None
             current = child
+            node = current.nodes.get(op)
+            if node is not None:
+                return node
             frame = frame.f_back
-        return current.nodes.get(op)
+        return None
 
 
 class CapturedBatch(Batch):
@@ -319,6 +355,7 @@ class CaptureContext:
         self.nodes: list[CaptureNode] = []
         self.rngs: dict[_random.RNG, CapturedRNG] = {}
         self._call_trie = _CallTrie()
+        self._required_depths: dict[CaptureNode, int] = {}
         self.pipeline: Pipeline | None = None
         self._results: dict[CaptureSource | CaptureNode, tuple[CapturedBatch, ...]] = {}
         self._iteration = 0
@@ -451,7 +488,7 @@ class CaptureContext:
         if classification is None:
             return None
 
-        captured_inputs, captured_kwargs = classification
+        captured_inputs, captured_kwargs, required_depth = classification
         call_chain = build_call_chain(frame)
         if existing := self._call_trie.find(call_chain, op_class):
             if (
@@ -466,19 +503,21 @@ class CaptureContext:
                 _value_matches(captured_kwargs[name], e) for name, e in existing.kwargs.items()
             ):
                 return None
-            return existing
+            node = existing
+        else:
+            node = CaptureNode(
+                op_class=op_class,
+                backend=backend,
+                inputs=captured_inputs,
+                kwargs=captured_kwargs,
+                kwarg_casts=self._compute_kwarg_casts(op_class, kwargs),
+                num_outputs=len(result) if isinstance(result, tuple) else 1,
+                device=device,
+            )
+            self.nodes.append(node)
+            self._call_trie.insert(call_chain, op_class, node)
 
-        node = CaptureNode(
-            op_class=op_class,
-            backend=backend,
-            inputs=captured_inputs,
-            kwargs=captured_kwargs,
-            kwarg_casts=self._compute_kwarg_casts(op_class, kwargs),
-            num_outputs=len(result) if isinstance(result, tuple) else 1,
-            device=device,
-        )
-        self.nodes.append(node)
-        self._call_trie.insert(call_chain, op_class, node)
+        self._required_depths[node] = max(self._required_depths.get(node, 0), required_depth)
         return node
 
     def _rng_on_draw(self, rng: _random.RNG) -> None:
@@ -526,6 +565,8 @@ class CaptureContext:
             self._teardown()
             return
 
+        self._call_trie = self._call_trie.compact(self._required_depths)
+        self._required_depths.clear()
         self._assign_output_offsets()
 
         captured_rngs = tuple(self.rngs.values())
