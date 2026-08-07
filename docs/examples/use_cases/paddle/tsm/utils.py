@@ -1,5 +1,5 @@
 # Copyright (c) 2019 PaddlePaddle Authors. All Rights Reserved.
-# Copyright (c) 2017-2019, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2017-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -28,6 +28,11 @@ except Exception:  # python 2
     from urlparse import urlparse
 
 import paddle
+
+
+def in_pir_mode():
+    return getattr(getattr(paddle, "framework", None), "in_pir_mode", lambda: False)()
+
 
 def _extract_tar(filename, dest):
     print("extracting to {}".format(dest))
@@ -97,4 +102,7 @@ def load_weights(exe, prog, url):
             predicate=lambda v: os.path.exists(
                 os.path.join(weight_path, v.name)))
     else:
-        paddle.distributed.io.load_persistables(exe, '', prog, filename=weight_path)
+        if in_pir_mode():
+            prog.set_state_dict(paddle.load(weight_path), paddle.static.global_scope())
+        else:
+            paddle.distributed.io.load_persistables(exe, '', prog, filename=weight_path)

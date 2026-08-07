@@ -1,4 +1,4 @@
-# Copyright (c) 2022 NVIDIA Corporation.  All rights reserved.
+# Copyright (c) 2022-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,6 +15,10 @@
 import logging
 import os
 
+# The Fleet static-graph optimizer used by this example requires the legacy
+# Program representation. Paddle 3.4 defaults to PIR.
+os.environ.setdefault("FLAGS_enable_pir_api", "0")
+
 from dali import build_dataloader
 from utils.affinity import set_cpu_affinity
 from utils.config import parse_args, print_args
@@ -28,6 +32,10 @@ from paddle.distributed import fleet
 from paddle.static.amp.fp16_lists import AutoMixedPrecisionLists
 from paddle.static.amp.fp16_utils import cast_model_to_fp16
 from paddle.incubate import asp as sparsity
+
+
+def in_pir_mode():
+    return getattr(getattr(paddle, "framework", None), "in_pir_mode", lambda: False)()
 
 
 class MetricSummary:
@@ -117,8 +125,12 @@ def main(args):
             step_each_epoch=eval_step_each_epoch,
             is_train=False,
         )
-        # clone to prune some content which is irrelevant in eval_prog
-        eval_prog = eval_prog.clone(for_test=True)
+        # PIR does not support the legacy ``for_test`` clone argument.
+        eval_prog = (
+            eval_prog.clone()
+            if in_pir_mode()
+            else eval_prog.clone(for_test=True)
+        )
 
     exe = paddle.static.Executor(device)
     exe.run(startup_prog)

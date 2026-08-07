@@ -638,8 +638,17 @@ all_packages = [
                     python_free_threaded=False,
                 )
             ],
+            "130": [
+                PckgVer(
+                    "3.4.0",
+                    python_min_ver="3.9",
+                    python_max_ver="3.13",
+                    # Free-threaded Python build is incompatible with numpy<2.
+                    python_free_threaded=False,
+                )
+            ],
         },
-        links_index="https://www.paddlepaddle.org.cn/whl/linux/mkl/avx/stable.html",
+        extra_index="https://www.paddlepaddle.org.cn/packages/stable/cu{cuda_v[0]}{cuda_v[1]}0/",
     ),
     CudaPackageExtraIndex(
         "jax",  # name used in our test script
