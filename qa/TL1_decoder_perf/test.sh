@@ -22,11 +22,13 @@ do_once() {
 LOG_RN50="dali_rn50.log"
 LOG_RN50_TP="dali_rn50_new_tp.log"
 LOG_NDD="dali_ndd.log"
+LOG_NDD_CAPTURE="dali_ndd_capture.log"
 
 function CLEAN_AND_EXIT {
     rm -rf ${LOG_RN50}
     rm -rf ${LOG_RN50_TP}
     rm -rf ${LOG_NDD}
+    rm -rf ${LOG_NDD_CAPTURE}
     exit $1
 }
 
@@ -57,6 +59,7 @@ run_all_benchmarks() {
     run_bench "${LOG_RN50}" ${TASKSET} python hw_decoder_bench.py ${BENCH_ARGS} -p rn50
     DALI_USE_NEW_THREAD_POOL=1 run_bench "${LOG_RN50_TP}" ${TASKSET} python hw_decoder_bench.py ${BENCH_ARGS} -p rn50
     run_bench "${LOG_NDD}" ${TASKSET} python hw_decoder_bench.py ${BENCH_ARGS} -p ndd_rn50
+    run_bench "${LOG_NDD_CAPTURE}" ${TASKSET} python hw_decoder_bench.py ${BENCH_ARGS} -p ndd_rn50 --ndd-capture
 }
 
 test_body() {
@@ -90,14 +93,16 @@ test_body() {
 
     PERF_RESULT=$(perf_check "${LOG_RN50}" "$MIN_PERF")
     PERF_RESULT_NDD=$(perf_check "${LOG_NDD}" "$MIN_PERF_NDD")
+    PERF_RESULT_NDD_CAPTURE=$(perf_check "${LOG_NDD_CAPTURE}" "$MIN_PERF")
     PERF_RESULT_TP=$(perf_check "${LOG_RN50_TP}" "$(extract_perf "${LOG_RN50}")" 2)
 
     echo "PERF_RESULT=${PERF_RESULT}"
     echo "PERF_RESULT_NDD=${PERF_RESULT_NDD}"
+    echo "PERF_RESULT_NDD_CAPTURE=${PERF_RESULT_NDD_CAPTURE}"
     echo "PERF_RESULT_TP=${PERF_RESULT_TP} (informational)"
 
     # PERF_RESULT_TP is informational only (new thread pool is experimental)
-    if [[ "$PERF_RESULT" == "OK" && "$PERF_RESULT_NDD" == "OK" ]]; then
+    if [[ "$PERF_RESULT" == "OK" && "$PERF_RESULT_NDD" == "OK" && "$PERF_RESULT_NDD_CAPTURE" == "OK" ]]; then
         CLEAN_AND_EXIT 0
     fi
 
