@@ -63,6 +63,18 @@ TEST(NumpyLoaderTest, ParseHeaderError) {
   }
 }
 
+TEST(NumpyLoaderTest, RejectsInvalidOrOverflowingShape) {
+  HeaderData target;
+  EXPECT_THROW(
+      ParseHeaderContents(target, "{'descr':'<f4','fortran_order':False,'shape':(-1,),}"),
+      std::runtime_error);
+
+  ParseHeaderContents(
+      target, "{'descr':'<f4','fortran_order':False,'shape':(4294967296,4294967296),}");
+  EXPECT_THROW(target.size(), std::runtime_error);
+  EXPECT_THROW(target.nbytes(), std::runtime_error);
+}
+
 TEST(NumpyLoaderTest, ParseHeaderDoesNotReadPastStringView) {
   HeaderData target;
   std::string header = "{'descr':'<f4','fortran_order':False,'shape':(";
