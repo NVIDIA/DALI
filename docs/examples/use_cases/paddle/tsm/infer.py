@@ -19,7 +19,7 @@ import os
 
 # This example uses the static graph APIs required by the published TSM weights.
 # Paddle 3.4 defaults to PIR, which does not support all of those APIs yet.
-os.environ.setdefault("FLAGS_enable_pir_api", "0")
+os.environ["FLAGS_enable_pir_api"] = "0"
 
 import paddle
 import paddle.static as static
