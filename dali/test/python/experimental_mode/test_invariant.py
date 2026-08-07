@@ -17,7 +17,7 @@ import numpy as np
 import nvidia.dali.experimental.dynamic as ndd
 from nose2.tools import params
 from nose_utils import assert_raises
-from nvidia.dali.experimental.dynamic.compile._invariant import (
+from nvidia.dali.experimental.dynamic.capture._invariant import (
     is_invariant,
     unwrap_invariant,
     unwrap_invariants,
@@ -26,12 +26,12 @@ from nvidia.dali.experimental.dynamic.compile._invariant import (
 
 @params((None,), (1,), ("text",), ([1],), (int,))
 def test_invariant_marker(value):
-    marked = ndd.compile.invariant(value)
+    marked = ndd.capture.invariant(value)
     assert marked == value
     assert is_invariant(marked)
     assert isinstance(marked, type(value))
     assert unwrap_invariant(marked) is value
-    assert ndd.compile.invariant(marked) is marked
+    assert ndd.capture.invariant(marked) is marked
 
 
 def test_invariant_attributes():
@@ -43,12 +43,12 @@ def test_invariant_attributes():
             return self.item
 
     value = Value()
-    marked = ndd.compile.invariant(value)
+    marked = ndd.capture.invariant(value)
     assert is_invariant(marked.item)
     assert is_invariant(marked.get_item())
     assert not is_invariant(value.item)
 
-    replacement = ndd.compile.invariant([1])
+    replacement = ndd.capture.invariant([1])
     marked.item = replacement
     assert value.item is replacement
     del marked.item
@@ -56,21 +56,21 @@ def test_invariant_attributes():
 
 
 def test_invariant_magic_methods():
-    assert ndd.compile.invariant(2) + ndd.compile.invariant(3) == 5
-    assert 7 - ndd.compile.invariant(2) == 5
-    assert ndd.compile.invariant([1, 2])[ndd.compile.invariant(0)] == 1
-    assert list(ndd.compile.invariant([1, 2])) == [1, 2]
+    assert ndd.capture.invariant(2) + ndd.capture.invariant(3) == 5
+    assert 7 - ndd.capture.invariant(2) == 5
+    assert ndd.capture.invariant([1, 2])[ndd.capture.invariant(0)] == 1
+    assert list(ndd.capture.invariant([1, 2])) == [1, 2]
 
-    value = ndd.compile.invariant(object())
-    assert ndd.compile.invariant(lambda x: x)(value) is value
-    np.testing.assert_array_equal(np.asarray(ndd.compile.invariant(np.asarray([1, 2]))), [1, 2])
+    value = ndd.capture.invariant(object())
+    assert ndd.capture.invariant(lambda x: x)(value) is value
+    np.testing.assert_array_equal(np.asarray(ndd.capture.invariant(np.asarray([1, 2]))), [1, 2])
 
     with assert_raises(TypeError, glob="unhashable type"):
-        hash(ndd.compile.invariant([1, 2]))
+        hash(ndd.capture.invariant([1, 2]))
 
 
 def test_invariant_unwrap():
-    marked = ndd.compile.invariant(1)
+    marked = ndd.capture.invariant(1)
     original = [marked, (marked,)]
     assert unwrap_invariants(original) == [1, (1,)]
     assert original[0] is marked
@@ -84,26 +84,26 @@ def test_invariant_unwrap():
             raise AssertionError("unwrap must not iterate user values")
 
     value = Iterable()
-    assert unwrap_invariants(ndd.compile.invariant(value)) is value
+    assert unwrap_invariants(ndd.capture.invariant(value)) is value
 
 
 def test_invariant_api_inputs():
-    data = ndd.compile.invariant([np.asarray([1, 2]), np.asarray([3, 4])])
+    data = ndd.capture.invariant([np.asarray([1, 2]), np.asarray([3, 4])])
     batch = ndd.as_batch(data)
-    dense = ndd.as_tensor(batch, pad=ndd.compile.invariant(False))
+    dense = ndd.as_tensor(batch, pad=ndd.capture.invariant(False))
     np.testing.assert_array_equal(dense, [[1, 2], [3, 4]])
 
     images = ndd.as_batch([np.zeros((4, 4, 3), dtype=np.uint8) for _ in range(2)], layout="HWC")
     output = ndd.rotate(
         images,
-        batch_size=ndd.compile.invariant(2),
-        device=ndd.compile.invariant("cpu"),
-        angle=ndd.compile.invariant(0.0),
+        batch_size=ndd.capture.invariant(2),
+        device=ndd.capture.invariant("cpu"),
+        angle=ndd.capture.invariant(0.0),
     )
     np.testing.assert_array_equal(ndd.as_tensor(output, pad=True), ndd.as_tensor(images, pad=True))
 
     source = ndd.ExternalSource(
-        ndd.compile.invariant(iter([np.asarray([1, 2, 3], dtype=np.int32)])),
-        device=ndd.compile.invariant("cpu"),
+        ndd.capture.invariant(iter([np.asarray([1, 2, 3], dtype=np.int32)])),
+        device=ndd.capture.invariant("cpu"),
     )
     np.testing.assert_array_equal(source(), [1, 2, 3])

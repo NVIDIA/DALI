@@ -21,11 +21,11 @@ from typing import Any, TypeGuard
 from nose_utils import SkipTest
 
 import nvidia.dali.experimental.dynamic as ndd
-from nvidia.dali.experimental.dynamic._compile import CompiledBatch
+from nvidia.dali.experimental.dynamic._capture import CapturedBatch
 
 
-def _is_compiled(batch) -> TypeGuard[CompiledBatch]:
-    return isinstance(batch, CompiledBatch)
+def _is_captured(batch) -> TypeGuard[CapturedBatch]:
+    return isinstance(batch, CapturedBatch)
 
 
 def eval_modes(*modes: ndd.EvalMode):

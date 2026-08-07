@@ -26,7 +26,7 @@ capture mode.
 
    .. tab-item:: Reader
 
-      Capture mode is enabled for loops driven by a reader by setting the ``compile`` argument
+      Capture mode is enabled for loops driven by a reader by setting the ``capture`` argument
       in ``next_epoch``. Only a single reader per capture-mode loop is supported for now.
 
       .. code-block:: python
@@ -36,7 +36,7 @@ capture mode.
 
          reader = ndd.readers.File(file_root=images_dir)
 
-         for jpegs, labels in reader.next_epoch(batch_size=4, compile=True):
+         for jpegs, labels in reader.next_epoch(batch_size=4, capture=True):
              images = ndd.decoders.image(jpegs)
              images = ndd.resize(images, size=[64, 64])
              images = ndd.crop_mirror_normalize(
@@ -48,7 +48,7 @@ capture mode.
 
    .. tab-item:: External Source
 
-      :meth:`ExternalSource.compiled` iterates the source with capture mode enabled for the loop
+      :meth:`ExternalSource.captured` iterates the source with capture mode enabled for the loop
       body. The loop ends when the source does.
 
       .. code-block:: python
@@ -58,7 +58,7 @@ capture mode.
 
          source = ndd.ExternalSource(encoded_jpegs)  # callable returning batches of JPEGs
 
-         for jpegs in source.compiled(batch_size=4):
+         for jpegs in source.captured(batch_size=4):
              images = ndd.decoders.image(jpegs)
              images = ndd.resize(images, size=[64, 64])
              images = ndd.crop_mirror_normalize(

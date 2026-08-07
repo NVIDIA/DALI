@@ -20,7 +20,7 @@ A call is recorded only when each ordinary input and argument is either:
 
 - The result of another captured call,
 - A value that DALI can prove is constant by reading the source, or
-- A value wrapped with :func:`compile.invariant`.
+- A value wrapped with :func:`capture.invariant`.
 
 On later steps, DALI matches each operator call to a traced call site. Uncaptured and previously
 unseen sites run eagerly. At a captured site, a :class:`Batch` argument must be the current output
@@ -34,7 +34,7 @@ Captured random calls cannot be skipped because that changes the RNG draw patter
 :doc:`random`.
 
 Note that some mismatches are errors instead of eager fallbacks: changing the device, dropping an
-:func:`compile.invariant` marker, passing a conflicting batch size, or changing a captured
+:func:`capture.invariant` marker, passing a conflicting batch size, or changing a captured
 RNG's draw pattern. See :ref:`capture-limitations`.
 
 Arguments from other calls
@@ -46,7 +46,7 @@ However, consuming a batch from a previous step leads to falling back to eager e
 .. code-block:: python
 
    previous = None
-   for jpegs, labels in reader.next_epoch(batch_size=4, compile=True):
+   for jpegs, labels in reader.next_epoch(batch_size=4, capture=True):
        images = ndd.decoders.image(jpegs)
        target = previous if previous is not None else images
        resized = ndd.resize(target, size=[64, 64])   # captured on the first step only
@@ -136,14 +136,14 @@ that is all it takes.
    instructions mapped to column offsets as described in :pep:`657`.
 
 For values you cannot express as constants, such as module globals or attributes on a
-configuration object, see :ref:`ndd_compiled_invariant` below.
+configuration object, see :ref:`ndd_capture_invariant` below.
 
-.. _ndd_compiled_invariant:
+.. _ndd_capture_invariant:
 
 The invariant marker
 --------------------
 
-:func:`compile.invariant` marks a value that DALI cannot prove constant. Calling it is an
+:func:`capture.invariant` marks a value that DALI cannot prove constant. Calling it is an
 unchecked promise that the value will not change between capture-mode iterations. Module globals
 and configuration objects can then participate in captured calls.
 
@@ -153,9 +153,9 @@ read on every iteration:
 .. code-block:: python
 
    args = parser.parse_args()
-   args = ndd.compile.invariant(args)
+   args = ndd.capture.invariant(args)
 
-   for jpegs, labels in reader.next_epoch(batch_size=args.batch_size, compile=True):
+   for jpegs, labels in reader.next_epoch(batch_size=args.batch_size, capture=True):
        images = ndd.decoders.image(jpegs, device="gpu")
        images = ndd.resize(images, size=args.size)
 
@@ -169,6 +169,6 @@ Marking part of an expression does not make the rest constant, so
 API reference
 +++++++++++++
 
-.. currentmodule:: nvidia.dali.experimental.dynamic.compile
+.. currentmodule:: nvidia.dali.experimental.dynamic.capture
 
 .. autofunction:: invariant

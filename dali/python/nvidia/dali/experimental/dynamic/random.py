@@ -216,7 +216,7 @@ class RNG:
 
     def _on_draw(self) -> None:
         """Called before this consuming a random word.
-        Replaced on the class by the compile layer, if applicable.
+        Replaced on the class by the capture layer, if applicable.
         """
 
 

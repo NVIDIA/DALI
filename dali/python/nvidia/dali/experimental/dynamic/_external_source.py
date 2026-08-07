@@ -20,14 +20,14 @@ from nvidia.dali import fn
 
 from ..._typing import BatchLike
 from ..._utils.external_source_impl import get_callback_from_source
-from . import _compile
+from . import _capture
 from ._batch import Batch, _get_batch_size, as_batch
 from ._device import Device, DeviceLike
 from ._device import device as _as_device
 from ._nvtx import NVTXRange
 from ._tensor import Tensor, as_tensor
 from ._type import DTypeLike
-from .compile._invariant import unwrap_invariant, unwrap_invariant_args
+from .capture._invariant import unwrap_invariant, unwrap_invariant_args
 
 if TYPE_CHECKING:
     from ._eval_context import EvalContext
@@ -42,7 +42,7 @@ class _Role(enum.Enum):
     UNUSED = enum.auto()
     EAGER = enum.auto()
     FEEDER = enum.auto()  # pulled inside another source's capture-mode loop
-    ROOT = enum.auto()  # iterated through its own .compiled()
+    ROOT = enum.auto()  # iterated through its own .captured()
 
 
 # We don't inherit from _ops.Operator because there's nothing to reuse from there
@@ -152,8 +152,8 @@ class ExternalSource:
         self._dtypes = self._broadcast_arg(dtype)
 
         self._role = _Role.UNUSED
-        self._compile_source: _compile.CompileSource | None = None
-        self._compiled_iter: _compile.CompiledEpochIterator | None = None
+        self._capture_source: _capture.CaptureSource | None = None
+        self._captured_iter: _capture.CapturedEpochIterator | None = None
 
     @NVTXRange("__call__: ExternalSource", category="op_builder")
     def __call__(self, *, batch_size: int | None = None) -> _CallResult:
@@ -176,33 +176,33 @@ class ExternalSource:
             When the source is exhausted, depending on the ``cycle`` argument.
         """
         # Valid dispatch paths:
-        # - without a compile context, run eagerly
+        # - without a capture context, run eagerly
         # - while tracing, pull and register the source as a feeder
         # - while executing a capture-mode context, return the traced feeder's result
 
         batch_size = unwrap_invariant(batch_size)
-        ctx = _compile.CompileContext.current()
-        if ctx is None or ctx.state is _compile.State.DISABLED:
+        ctx = _capture.CaptureContext.current()
+        if ctx is None or ctx.state is _capture.State.DISABLED:
             if self._role in (_Role.FEEDER, _Role.ROOT):
-                raise RuntimeError("This ExternalSource is already used in a compiled loop")
+                raise RuntimeError("This ExternalSource is already used in a capture-mode loop")
             self._role = _Role.EAGER
             return self._eager_call(batch_size=batch_size)
 
         if self._role is _Role.EAGER:
             raise RuntimeError("This ExternalSource was already used eagerly")
         if self._role is _Role.ROOT:
-            raise RuntimeError("Instance already used through .compiled() method")
+            raise RuntimeError("Instance already used through .captured() method")
 
-        if ctx.state is _compile.State.TRACING:
+        if ctx.state is _capture.State.TRACING:
             result = self._trace_pull(ctx, batch_size)
             self._role = _Role.FEEDER
             return result
-        return self._compiled_call(ctx, batch_size)
+        return self._captured_call(ctx, batch_size)
 
-    def compiled(self, batch_size: int, ctx: "EvalContext | None" = None):
+    def captured(self, batch_size: int, ctx: "EvalContext | None" = None):
         """Iterate one epoch with this source as the root of a capture-mode loop.
 
-        ``ExternalSource`` equivalent of :meth:`Reader.next_epoch` with ``compile=True``.
+        ``ExternalSource`` equivalent of :meth:`Reader.next_epoch` with ``capture=True``.
 
         Any other ``ExternalSource`` called inside the loop must be consumed exactly once per step.
         They are prefetched, so they are polled ahead of the loop body and breaking out may discard
@@ -214,7 +214,7 @@ class ExternalSource:
         if self._role is _Role.FEEDER:
             raise RuntimeError("Instance already used through __call__")
 
-        iterator = _compile.make_iterator(self, batch_size)
+        iterator = _capture.make_iterator(self, batch_size)
         self._role = _Role.ROOT
         return iterator.batches(ctx)
 
@@ -223,11 +223,11 @@ class ExternalSource:
         outputs = self._convert_outputs(data, batch_size)
         return self._shape_result(..., outputs)
 
-    def _trace_pull(self, ctx: _compile.CompileContext, batch_size: int | None) -> _CallResult:
+    def _trace_pull(self, ctx: _capture.CaptureContext, batch_size: int | None) -> _CallResult:
         """Pull, convert and wrap one item during tracing, registering the root on first use."""
-        src = self._compile_source
+        src = self._capture_source
         if src is not None and src.ctx is not ctx:
-            raise RuntimeError("Already bound to a different compile context.")
+            raise RuntimeError("Already bound to a different capture context.")
 
         ctx.check_batch_size(batch_size)
         # pull before registering: an empty source raises here, leaving nothing half-bound
@@ -235,16 +235,16 @@ class ExternalSource:
             data = self._callback()
             tensor_lists = self._to_tensor_lists(data, ctx.batch_size)
         except Exception:
-            self._teardown_compile()
+            self._teardown_capture()
             raise
 
         if src is None:
-            src = self._compile_source = ctx.add_source(self._num_outputs, self)
+            src = self._capture_source = ctx.add_source(self._num_outputs, self)
         ctx._mark_read(src)
         return self._shape_result(src, ctx._wrap_tensor_lists(src, tensor_lists))
 
-    def _compiled_call(self, ctx: _compile.CompileContext, batch_size: int | None) -> _CallResult:
-        src = self._compile_source
+    def _captured_call(self, ctx: _capture.CaptureContext, batch_size: int | None) -> _CallResult:
+        src = self._capture_source
         if src is None or src.ctx is not ctx:
             ctx._teardown()
             raise RuntimeError("ExternalSource wasn't seen during tracing")
@@ -255,7 +255,7 @@ class ExternalSource:
 
     def _source_callback(self):
         """``fn.external_source``'s ``source`` callback: pull, convert, return TensorList(s)"""
-        src = self._compile_source
+        src = self._capture_source
         assert src is not None
         try:
             data = self._callback()
@@ -268,12 +268,12 @@ class ExternalSource:
         outputs = self._convert_outputs(data, batch_size)
         return tuple(output.evaluate()._storage for output in outputs)
 
-    def _teardown_compile(self):
+    def _teardown_capture(self):
         self._role = _Role.UNUSED
-        self._compile_source = None
-        self._compiled_iter = None
+        self._capture_source = None
+        self._captured_iter = None
 
-    def _wire_pipeline(self, source: "_compile.CompileSource") -> tuple:
+    def _wire_pipeline(self, source: "_capture.CaptureSource") -> tuple:
         device = _as_device(self._device).device_type
         return tuple(fn.external_source(self._source_callback, source.num_outputs, device=device))
 
@@ -283,8 +283,8 @@ class ExternalSource:
     def _transfer_into(self, pipe) -> bool:
         return False  # an ExternalSource holds no native op to move into a pipeline
 
-    def _make_epoch_iterator(self, batch_size: int) -> "_compile.CompiledEpochIterator":
-        return _compile._ExternalSourceEpochIterator(self, batch_size)
+    def _make_epoch_iterator(self, batch_size: int) -> "_capture.CapturedEpochIterator":
+        return _capture._ExternalSourceEpochIterator(self, batch_size)
 
     def _convert_outputs(
         self, data: _SourceOutput, batch_size: int | None

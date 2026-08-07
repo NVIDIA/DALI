@@ -26,14 +26,14 @@ from nvidia.dali.ops import _docs, _names
 from . import _device, _invocation, _op_filter, _ops, _type
 from ._batch import Batch
 from ._call_site import mark_transparent, resolve_callsite_frame
-from ._compile import _compile_intercept
+from ._capture import _capture_intercept
 from ._eval_mode import EvalMode
 from ._nvtx import NVTXRange
 from ._source_analysis import _Classifier
 from ._source_analysis import call_info as _call_info
 from ._tensor import Tensor
 from ._tensor import tensor as to_tensor
-from .compile._invariant import unwrap_invariant, unwrap_invariants
+from .capture._invariant import unwrap_invariant, unwrap_invariants
 
 
 def is_external(x):
@@ -584,7 +584,7 @@ def build_fn_wrapper(op, fn_name=None, add_to_module=True):
             **call_args,
         )
 
-    fn_call = _compile_intercept(fn_call, op, op_name=fn_name)
+    fn_call = _capture_intercept(fn_call, op, op_name=fn_name)
 
     doc = _docs._docstring_generator_fn(schema.Name(), api="dynamic", args=used_kwargs)
     function = mark_transparent(makefun.create_function(header, fn_call, doc=doc))

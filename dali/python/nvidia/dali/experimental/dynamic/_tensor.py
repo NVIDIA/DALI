@@ -30,7 +30,7 @@ from ._eval_context import EvalContext as _EvalContext
 from ._type import DType
 from ._type import dtype as _dtype
 from ._type import type_id as _type_id
-from .compile._invariant import unwrap_invariant_args, unwrap_invariants
+from .capture._invariant import unwrap_invariant_args, unwrap_invariants
 
 if TYPE_CHECKING:
     from ._batch import Batch

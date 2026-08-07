@@ -38,12 +38,12 @@ from libcst.metadata.position_provider import PositionProvidingCodegenState
 from nvidia.dali.types import DALIDataType, DALIImageType, DALIInterpType
 
 from ._call_site import resolve_callsite_frame
-from ._compile import CompiledBatch, CompileRef
+from ._capture import CapturedBatch, CaptureRef
 from ._device import Device
 from ._nvtx import NVTXRange
 from ._type import DType
-from .compile._invariant import invariant, is_dunder
-from .compile._invariant import is_invariant as _is_explicit_invariant
+from .capture._invariant import invariant, is_dunder
+from .capture._invariant import is_invariant as _is_explicit_invariant
 
 _DALI_CONST_TYPES = (Device, DType, DALIDataType, DALIInterpType, DALIImageType)
 
@@ -430,13 +430,13 @@ class _Classifier:
 
     def classify(
         self, inputs: tuple[Any, ...], raw_kwargs: dict[str, Any]
-    ) -> tuple[list[CompileRef | Any], dict[str, CompileRef | Any]] | None:
+    ) -> tuple[list[CaptureRef | Any], dict[str, CaptureRef | Any]] | None:
         call = self.module_info.call_at(self.frame) if self.module_info is not None else None
         source_args = _split_call_args(call) if call is not None else None
         pos_nodes, kw_nodes = source_args or ((), {})
 
         try:
-            classified_inputs: list[CompileRef | Any] = []
+            classified_inputs: list[CaptureRef | Any] = []
             for i, inp in enumerate(inputs):
                 if inp is None:
                     classified_inputs.append(None)
@@ -449,7 +449,7 @@ class _Classifier:
                 if raw is not None
             }
         except _Unresolved:
-            return None  # an argument is neither a CompiledBatch nor a capturable constant
+            return None  # an argument is neither a CapturedBatch nor a capturable constant
         return classified_inputs, classified_kwargs
 
     @NVTXRange("detect_invariant_args", category="source analysis")
@@ -466,7 +466,7 @@ class _Classifier:
             return None
         pos_nodes, kw_nodes = split
 
-        classified_inputs: list[CompileRef | Any] = []
+        classified_inputs: list[CaptureRef | Any] = []
         for i in range(min(len(inputs), len(pos_nodes))):
             node = pos_nodes[i]
             classified_inputs.append(self.is_invariant(node, static=True))
@@ -480,8 +480,8 @@ class _Classifier:
         return classified_inputs, classified_kwargs
 
     def _capture_arg(self, node: cst.BaseExpression | None, value: Any) -> Any:
-        if isinstance(value, CompiledBatch):
-            return value._compile_ref
+        if isinstance(value, CapturedBatch):
+            return value._capture_ref
         if _is_explicit_invariant(value):
             return value
         if node is not None and self.is_invariant(node, static=False):
@@ -692,7 +692,7 @@ def classify(
     inputs: tuple[Any, ...],
     raw_kwargs: dict[str, Any],
     static: bool = False,
-) -> tuple[list[CompileRef | Any], dict[str, CompileRef | Any]] | None:
-    """Classify operator args as captured constants / CompileRefs, or None to run eager."""
+) -> tuple[list[CaptureRef | Any], dict[str, CaptureRef | Any]] | None:
+    """Classify operator args as captured constants / CaptureRefs, or None to run eager."""
     mi = _get_module_info(frame.f_code)
     return _Classifier(mi, frame).classify(inputs, raw_kwargs)
