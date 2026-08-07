@@ -136,8 +136,16 @@ parser.add_argument(
     action="store_true",
     help="If True, uses the experimental decoder instead of the default",
 )
+parser.add_argument(
+    "--ndd-capture",
+    action="store_true",
+    help="Use capture mode for the dynamic pipeline.",
+)
 
 args = parser.parse_args()
+
+if args.ndd_capture and args.pipeline != "ndd_rn50":
+    parser.error("--ndd-capture requires -p ndd_rn50")
 
 
 @pipeline_def(
@@ -202,6 +210,7 @@ class NDDRN50Pipeline:
         num_threads=1,
         decoders_module=fn.decoders,
         hw_load=0,
+        capture=False,
     ):
         self.batch_size = batch_size
         self.device = args.device
@@ -210,10 +219,16 @@ class NDDRN50Pipeline:
         self.decoders_module = decoders_module
         self.hw_load = hw_load
         self.minibatch_size = minibatch_size
+        self.capture = capture
         self.rng = ndd.random.RNG(seed=42)
         self.reader = ndd.readers.File(file_root=args.images_dir)
         self.next_input_data = None
         self.eval_context = ndd.EvalContext(num_threads=self.num_threads, device_id=self.device_id)
+        self.args = args
+        if capture:
+            self.hw_load = ndd.capture.invariant(self.hw_load)
+            self.minibatch_size = ndd.capture.invariant(self.minibatch_size)
+            self.args = ndd.capture.invariant(self.args)
 
     def build(self):
         pass
@@ -221,11 +236,15 @@ class NDDRN50Pipeline:
     def share_outputs(self):
         with self.eval_context:
             if self.next_input_data is None:
-                self.next_input_data = iter(self.reader.next_epoch(batch_size=self.batch_size))
+                self.next_input_data = iter(
+                    self.reader.next_epoch(batch_size=self.batch_size, capture=self.capture)
+                )
             try:
                 jpegs, _ = next(self.next_input_data)
             except StopIteration:
-                self.next_input_data = iter(self.reader.next_epoch(batch_size=self.batch_size))
+                self.next_input_data = iter(
+                    self.reader.next_epoch(batch_size=self.batch_size, capture=self.capture)
+                )
                 jpegs, _ = next(self.next_input_data)
 
             images = self.decoders_module.image_random_crop(
@@ -233,8 +252,9 @@ class NDDRN50Pipeline:
                 device=self.device,
                 output_type=types.RGB,
                 hw_decoder_load=self.hw_load,
-                preallocate_width_hint=args.width_hint,
-                preallocate_height_hint=args.height_hint,
+                preallocate_width_hint=self.args.width_hint,
+                preallocate_height_hint=self.args.height_hint,
+                rng=self.rng,
             )
             coin_flip = ndd.random.coin_flip(
                 batch_size=self.batch_size, probability=0.5, rng=self.rng
@@ -526,6 +546,7 @@ for cpu_num in threads_num:
                         num_threads=cpu_num,
                         decoders_module=decoders_module,
                         hw_load=hw_load,
+                        capture=args.ndd_capture,
                     )
                 )
         elif args.pipeline == "efficientnet_inference":
