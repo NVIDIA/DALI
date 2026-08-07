@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <gtest/gtest.h>
+#include <limits>
 #include <string>
 #include <vector>
 #include "dali/util/numpy.h"
@@ -72,6 +73,13 @@ TEST(NumpyLoaderTest, RejectsInvalidOrOverflowingShape) {
   ParseHeaderContents(
       target, "{'descr':'<f4','fortran_order':False,'shape':(4294967296,4294967296),}");
   EXPECT_THROW(target.size(), std::runtime_error);
+  EXPECT_THROW(target.nbytes(), std::runtime_error);
+
+  auto byte_overflow_shape =
+      std::to_string(std::numeric_limits<size_t>::max() / sizeof(uint64_t) + 1);
+  ParseHeaderContents(target, "{'descr':'<u8','fortran_order':False,'shape':(" +
+                                  byte_overflow_shape + ",),}");
+  EXPECT_NO_THROW(target.size());
   EXPECT_THROW(target.nbytes(), std::runtime_error);
 }
 
