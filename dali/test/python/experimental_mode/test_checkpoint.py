@@ -800,7 +800,7 @@ def test_checkpoint_current_end_to_end():
 
 
 # ---------------------------------------------------------------------------
-# Compiled mode is rejected
+# Capture mode is rejected
 # ---------------------------------------------------------------------------
 
 
@@ -812,7 +812,7 @@ def test_reader_checkpointing_rejects_compile_mode():
 
 
 def test_reader_enable_checkpointing_rejected_after_compile():
-    """A reader that has entered compiled mode cannot then opt in to checkpointing."""
+    """A reader that has entered capture mode cannot then opt in to checkpointing."""
     reader = _make_reader()
     next(reader.next_epoch(batch_size=4, compile=True))
     ckpt = ndd.checkpoint.Checkpoint()

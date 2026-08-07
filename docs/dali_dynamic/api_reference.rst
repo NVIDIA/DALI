@@ -35,6 +35,15 @@ as_batch
 ^^^^^^^^
 .. autofunction:: as_batch
 
+External data
+-------------
+
+ExternalSource
+^^^^^^^^^^^^^^
+.. autoclass:: ExternalSource
+   :members:
+   :special-members: __call__
+
 Data types
 ----------
 

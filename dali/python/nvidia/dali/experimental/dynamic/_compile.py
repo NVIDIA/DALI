@@ -59,7 +59,7 @@ class State(enum.Enum):
 
 
 class SupportsCompile(Protocol):
-    """Interface for sources that support compiled iteration."""
+    """Interface for sources that support capture-mode iteration."""
 
     _compiled_iter: "CompiledEpochIterator | None"
 
@@ -177,7 +177,7 @@ class CompiledBatch(Batch):
             self._compile_ref = other._compile_ref
             self._compile_iteration = other._compile_iteration
         else:
-            # Overwritten with non-compiled data, provenance is invalid
+            # Overwritten with uncaptured data, provenance is invalid
             self._compile_ref = None
             self._compile_iteration = None
 
@@ -205,7 +205,7 @@ def _raise_rng_desync() -> NoReturn:
 
 
 class CompiledRNG:
-    """Schedule one RNG's states across tracing and compiled execution.
+    """Schedule one RNG's states across tracing and pipeline execution.
 
     A captured operator must see the words the eager path would have reached, but the pipeline
     draws iterations ahead of the body. The schedule is therefore predicted from the tracing
@@ -682,7 +682,7 @@ class CompiledEpochIterator(ABC, Generic[_Compilable]):
         self._eval_ctx: "EvalContext | None" = None
 
     def batches(self, ctx: "EvalContext | None") -> Iterator[CompiledBatch]:
-        """Yield one epoch: tracing on the first, compiled thereafter."""
+        """Yield one epoch: tracing on the first, pipeline execution thereafter."""
         from ._eval_context import EvalContext
 
         if ctx is None:
@@ -696,7 +696,7 @@ class CompiledEpochIterator(ABC, Generic[_Compilable]):
             yield from (self._compiled() if compiled else self._tracing(ctx))
 
     def _next_batches(self) -> tuple | dict | None:
-        """Run one compiled step. Return the batches, or None at a clean epoch end."""
+        """Run one pipeline step. Return the batches, or None at a clean epoch end."""
         try:
             return self._compile_ctx.run_pipeline()
         except StopIteration:

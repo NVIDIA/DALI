@@ -55,6 +55,7 @@ NVIDIA DALI Documentation
    dali_dynamic/api_reference
    dali_dynamic/threading
    dali_dynamic/control_features
+   dali_dynamic/capture_mode/index
    dali_dynamic/checkpointing
    dali_dynamic/readers_reference
    dali_dynamic/ops_reference

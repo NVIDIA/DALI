@@ -986,8 +986,8 @@ class Reader(Operator):
         ctx : EvalContext, optional
             The evaluation context. If not specified, the current context is used.
         compile : bool, default: False
-            If True, transparently compile operator sequences into a pipeline for prefetching.
-            Once used in compiled mode, the reader cannot switch back.
+            If True, capture operator sequences in a pipeline for prefetching.
+            Once used in capture mode, the reader cannot switch back.
         """
         batch_size = unwrap_invariant(batch_size)
         self._check_not_disabled()

@@ -288,7 +288,7 @@ def test_compile_diverging_inputs():
             images = ndd.flip(images, horizontal=1)
         assert _is_compiled(images)
         images = ndd.resize(images, size=[64, 64])
-        # resize uses the compiled result only when its input matches tracing (flip was called)
+        # resize uses the captured result only when its input matches tracing (flip was called)
         assert _is_compiled(images) == (i % 2 == 0)
         compiled_results.append(ndd.as_tensor(images))
 
@@ -582,7 +582,7 @@ def test_compile_es_broadcast():
         np.testing.assert_array_equal(ndd.as_tensor(batch), expected)
         ndd.cast(batch, dtype=ndd.float32)
         count += 1
-        if count >= 2:  # check both the traced and a compiled batch
+        if count >= 2:  # check both the traced and a pipeline batch
             break
     assert count == 2
 
@@ -601,7 +601,7 @@ def test_compile_es_layout_dtype():
         ndd.cast(a, dtype=ndd.float32)
         ndd.cast(b, dtype=ndd.int32)
         count += 1
-        if count >= 2:  # check both the traced and a compiled batch
+        if count >= 2:  # check both the traced and a pipeline batch
             break
     assert count == 2
 
@@ -634,7 +634,7 @@ def test_compile_es_break_reuse():
     es = _const_es([3, 3], batch_size=4)
     for i, batch in enumerate(es.compiled(batch_size=4)):
         ndd.cast(batch, dtype=ndd.int32)
-        if i == 1:  # i=0 traced, i=1 the first compiled batch
+        if i == 1:  # i=0 traced, i=1 the first pipeline batch
             break
 
     count = 0
@@ -745,7 +745,7 @@ def test_compile_feeder_coexhaust():
     assert count == 3
 
 
-# Tests for compiled ExternalSource misuse
+# Tests for capture-mode ExternalSource misuse
 
 
 def _es_no_compiled_after_eager():
@@ -757,7 +757,7 @@ def _es_no_compiled_after_eager():
 
 def _es_no_eager_while_compiled():
     es = _es(3, batch_size=4)
-    es.compiled(batch_size=4)  # binds the instance to a compiled loop
+    es.compiled(batch_size=4)  # binds the instance to a capture-mode loop
     es()
 
 
@@ -796,7 +796,7 @@ def _feeder_no_source_after_eager():
     co()  # eager use
     es = _es(3, batch_size=4)
     for batch in es.compiled(batch_size=4):
-        ndd.cast(co(), dtype=ndd.float32)  # can't become a compiled feeder now
+        ndd.cast(co(), dtype=ndd.float32)  # can't become a captured feeder now
         ndd.cast(batch, dtype=ndd.float32)
 
 
@@ -1131,7 +1131,7 @@ def test_compile_random_gpu():
 
 
 def _assert_body_parity(make_body, *, epochs=1, seed=11):
-    """The same body eagerly and compiled: identical values and identical final RNG state."""
+    """The same body in eager and capture modes: identical values and final RNG state."""
     runs = []
     for compiled in (False, True):
         rng = ndd.random.RNG(seed=seed)

@@ -11,7 +11,7 @@ Dynamic mode generally is thread-safe and supports
 be called from multiple threads concurrently, and :class:`Tensor` and :class:`Batch` objects can be
 safely passed between threads.
 
-The one limitation is that a single :class:`EvalContext` instance must not be active in multiple
+One limitation is that a single :class:`EvalContext` instance must not be active in multiple
 threads simultaneously. Because the default evaluation context is thread-local (each thread
 automatically gets its own), this is only an issue when it is manually created and shared across
 threads.
@@ -66,6 +66,9 @@ Here, the code should either create an instance of the evaluation context per th
 
    :func:`set_num_threads` controls DALI's internal thread pool. It is unrelated to Python-level
    multithreading.
+
+In :doc:`capture mode <capture_mode/index>`, only one capture-mode loop can be active per thread,
+and a loop keeps the same :class:`EvalContext` for its lifetime.
 
 Thread-local storage
 --------------------
