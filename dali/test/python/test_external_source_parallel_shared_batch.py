@@ -59,7 +59,7 @@ def test_restricted_unpickler_normalizes_stop_iteration_subclasses():
     )
     completed = CompletedTask.failed(0, processed)
     unpickled = restricted_pickle_loads(pickle.dumps(completed))
-    assert type(unpickled.exception) is RuntimeError
+    assert type(unpickled.exception) is StopIteration
 
 
 def check_serialize_deserialize(batch):

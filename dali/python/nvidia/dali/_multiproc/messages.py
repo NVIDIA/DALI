@@ -262,10 +262,12 @@ class CompletedTask:
 
     @classmethod
     def failed(cls, worker_id, processed):
-        # Worker exceptions can be arbitrary user-defined objects. Only StopIteration has
-        # protocol semantics in the parent; normalize all other errors before serializing them.
+        # Worker exceptions can be arbitrary user-defined objects. Normalize them to the
+        # restricted protocol's built-in exception types before serializing them.
         exception = processed.exception
-        if type(exception) is not StopIteration:
+        if isinstance(exception, StopIteration):
+            exception = StopIteration(str(exception))
+        else:
             exception = RuntimeError(str(exception))
         return cls(
             worker_id,
