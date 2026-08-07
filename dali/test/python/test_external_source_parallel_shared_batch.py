@@ -17,6 +17,7 @@ import os
 import multiprocessing
 import pickle
 import socket
+from types import SimpleNamespace
 from contextlib import closing, contextmanager
 import numpy as np
 
@@ -28,7 +29,7 @@ from nvidia.dali._multiproc.shared_batch import (
     restricted_pickle_loads,
 )
 from nvidia.dali._multiproc.shared_queue import ShmQueue
-from nvidia.dali._multiproc.messages import ShmMessageDesc
+from nvidia.dali._multiproc.messages import CompletedTask, ShmMessageDesc
 
 from test_utils import RandomlyShapedDataIterator
 from nose_utils import raises
@@ -42,6 +43,23 @@ class UnsafePicklePayload:
 def test_restricted_unpickler_rejects_unsafe_globals():
     payload = pickle.dumps(UnsafePicklePayload())
     raises(pickle.UnpicklingError, "not permitted")(restricted_pickle_loads)(payload)
+
+
+class CustomStopIteration(StopIteration):
+    pass
+
+
+def test_restricted_unpickler_normalizes_stop_iteration_subclasses():
+    processed = SimpleNamespace(
+        context_i=0,
+        scheduled_i=0,
+        minibatch_i=0,
+        exception=CustomStopIteration("done"),
+        traceback_str="",
+    )
+    completed = CompletedTask.failed(0, processed)
+    unpickled = restricted_pickle_loads(pickle.dumps(completed))
+    assert type(unpickled.exception) is RuntimeError
 
 
 def check_serialize_deserialize(batch):
