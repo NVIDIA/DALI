@@ -1,4 +1,4 @@
-# Copyright (c) 2022 NVIDIA Corporation.  All rights reserved.
+# Copyright (c) 2022-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -32,6 +32,10 @@ from paddle.distributed import fleet
 from paddle.distributed.fleet import DistributedStrategy
 from paddle.incubate import asp as sparsity
 from paddle.distributed.fleet.meta_optimizers.common import CollectiveHelper
+
+
+def in_pir_mode():
+    return getattr(getattr(paddle, "framework", None), "in_pir_mode", lambda: False)()
 
 
 def create_feeds(image_shape):
@@ -82,7 +86,9 @@ def create_fetchs(out, feeds, class_num, label_smoothing=0, mode=Mode.TRAIN):
                 label_one_hot, epsilon=label_smoothing)
             soft_target = paddle.reshape(soft_target, shape=[-1, class_num])
             log_softmax = -F.log_softmax(out, axis=-1)
-            loss = paddle.sum(log_softmax * soft_target, axis=-1)
+            # ``paddle.sum`` no longer accepts legacy static Variables in
+            # Paddle 3.4. Keep the per-sample summed cross entropy.
+            loss = paddle.mean(log_softmax * soft_target, axis=-1) * class_num
     else:
         loss = F.cross_entropy(out, target)
         label = paddle.argmax(out, axis=-1, dtype='int32')
@@ -124,11 +130,13 @@ def create_strategy(args, is_train=True):
         exec_strategy(paddle.static.ExecutionStrategy): A instance of ExecutionStrategy.
     """
     build_strategy = paddle.static.BuildStrategy()
-    exec_strategy = paddle.static.ExecutionStrategy()
+    execution_strategy = getattr(paddle.static, "ExecutionStrategy", None)
+    exec_strategy = execution_strategy() if execution_strategy is not None else None
 
-    exec_strategy.num_threads = 1
-    exec_strategy.num_iteration_per_drop_scope = (10000 if args.amp and
-                                                  args.use_pure_fp16 else 10)
+    if exec_strategy is not None:
+        exec_strategy.num_threads = 1
+        exec_strategy.num_iteration_per_drop_scope = (10000 if args.amp and
+                                                      args.use_pure_fp16 else 10)
 
     paddle.set_flags({
         'FLAGS_cudnn_exhaustive_search': True,
@@ -159,10 +167,16 @@ def dist_optimizer(args, optimizer):
     Returns:
         optimizer(fleet.distributed_optimizer): A distributed optimizer.
     """
+    if in_pir_mode():
+        # Legacy execution/build strategies are unavailable with PIR. Fleet
+        # configures the distributed optimizer directly from the PIR program.
+        return fleet.distributed_optimizer(optimizer)
+
     build_strategy, exec_strategy = create_strategy(args)
 
     dist_strategy = DistributedStrategy()
-    dist_strategy.execution_strategy = exec_strategy
+    if exec_strategy is not None:
+        dist_strategy.execution_strategy = exec_strategy
     dist_strategy.build_strategy = build_strategy
 
     dist_strategy.fuse_all_reduce_ops = True
@@ -266,12 +280,16 @@ def compile_prog(args, program, loss_name=None, is_train=True):
         is_train(bool, optional): Indicate the prupose of strategy is for
                                   training of not. Default is True.
     Returns:
-        compiled_program(paddle.static.CompiledProgram): A compiled program.
+        compiled_program(paddle.static.Program|paddle.static.CompiledProgram):
+            A program executable by ``Executor``.
     """
-    build_strategy, exec_strategy = create_strategy(args, is_train)
+    if in_pir_mode():
+        # CompiledProgram accepts the legacy static Program, but not a PIR Program.
+        # The PIR executor consumes the Program directly.
+        return program
 
-    compiled_program = paddle.static.CompiledProgram(program, build_strategy=build_strategy)
-    return compiled_program
+    build_strategy, _ = create_strategy(args, is_train)
+    return paddle.static.CompiledProgram(program, build_strategy=build_strategy)
 
 
 def run(args,

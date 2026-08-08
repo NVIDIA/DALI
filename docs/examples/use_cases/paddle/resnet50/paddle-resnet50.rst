@@ -28,7 +28,9 @@ This model uses the following data augmentation:
 Usage
 -----
 
-Install the necessary packages from requirements.txt before use.
+Install the necessary packages from requirements.txt and PaddlePaddle 2.6.1 or newer before use.
+The training script automatically selects Paddle's legacy static graph mode,
+which is required by its Fleet static-graph optimizer.
 
 The startup script is :fileref:`docs/examples/use_cases/paddle/resnet50/train.py`.
 
