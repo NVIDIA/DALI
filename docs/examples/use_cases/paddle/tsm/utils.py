@@ -30,10 +30,6 @@ except Exception:  # python 2
 import paddle
 
 
-def in_pir_mode():
-    return getattr(getattr(paddle, "framework", None), "in_pir_mode", lambda: False)()
-
-
 def _extract_tar(filename, dest):
     print("extracting to {}".format(dest))
     if not os.path.exists(dest):
@@ -102,7 +98,4 @@ def load_weights(exe, prog, url):
             predicate=lambda v: os.path.exists(
                 os.path.join(weight_path, v.name)))
     else:
-        if in_pir_mode():
-            prog.set_state_dict(paddle.load(weight_path), paddle.static.global_scope())
-        else:
-            paddle.distributed.io.load_persistables(exe, '', prog, filename=weight_path)
+        paddle.distributed.io.load_persistables(exe, '', prog, filename=weight_path)

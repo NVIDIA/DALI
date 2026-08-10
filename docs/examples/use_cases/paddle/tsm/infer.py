@@ -35,10 +35,6 @@ from utils import load_weights
 PRETRAIN_WEIGHTS = 'https://paddlemodels.bj.bcebos.com/video_classification/TSM_final.pdparams'
 
 
-def in_pir_mode():
-    return getattr(getattr(paddle, "framework", None), "in_pir_mode", lambda: False)()
-
-
 def create_video_pipe(video_files, sequence_length=8, target_size=224,stride=30):
     pipeline = Pipeline(1, 4, 0, seed=42)
     with pipeline:
@@ -85,10 +81,7 @@ def main():
             fetch_list = build(seg_num, target_size)
 
     exe.run(startup_prog)
-    # PIR Programs are executed directly. CompiledProgram only supports the
-    # legacy static Program representation.
-    compiled_eval_prog = (eval_prog if in_pir_mode()
-                          else static.CompiledProgram(eval_prog))
+    compiled_eval_prog = static.CompiledProgram(eval_prog)
 
     load_weights(exe, eval_prog, PRETRAIN_WEIGHTS)
 
