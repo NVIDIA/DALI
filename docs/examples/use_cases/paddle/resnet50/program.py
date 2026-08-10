@@ -143,7 +143,7 @@ def create_strategy(args, is_train=True):
         'FLAGS_conv_workspace_size_limit': 4096
     })
 
-    if not is_train:
+    if not is_train and hasattr(build_strategy, "fix_op_run_order"):
         build_strategy.fix_op_run_order = True
 
     if args.amp:
