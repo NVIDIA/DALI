@@ -34,10 +34,6 @@ from paddle.incubate import asp as sparsity
 from paddle.distributed.fleet.meta_optimizers.common import CollectiveHelper
 
 
-def in_pir_mode():
-    return getattr(getattr(paddle, "framework", None), "in_pir_mode", lambda: False)()
-
-
 def create_feeds(image_shape):
     """
     Create feeds mapping for the inputs of Pragrm execution.
@@ -167,11 +163,6 @@ def dist_optimizer(args, optimizer):
     Returns:
         optimizer(fleet.distributed_optimizer): A distributed optimizer.
     """
-    if in_pir_mode():
-        # Legacy execution/build strategies are unavailable with PIR. Fleet
-        # configures the distributed optimizer directly from the PIR program.
-        return fleet.distributed_optimizer(optimizer)
-
     build_strategy, exec_strategy = create_strategy(args)
 
     dist_strategy = DistributedStrategy()
@@ -283,11 +274,6 @@ def compile_prog(args, program, loss_name=None, is_train=True):
         compiled_program(paddle.static.Program|paddle.static.CompiledProgram):
             A program executable by ``Executor``.
     """
-    if in_pir_mode():
-        # CompiledProgram accepts the legacy static Program, but not a PIR Program.
-        # The PIR executor consumes the Program directly.
-        return program
-
     build_strategy, _ = create_strategy(args, is_train)
     return paddle.static.CompiledProgram(program, build_strategy=build_strategy)
 

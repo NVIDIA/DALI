@@ -34,10 +34,6 @@ from paddle.static.amp.fp16_utils import cast_model_to_fp16
 from paddle.incubate import asp as sparsity
 
 
-def in_pir_mode():
-    return getattr(getattr(paddle, "framework", None), "in_pir_mode", lambda: False)()
-
-
 class MetricSummary:
     def __init__(self):
         super().__init__()
@@ -125,12 +121,7 @@ def main(args):
             step_each_epoch=eval_step_each_epoch,
             is_train=False,
         )
-        # PIR does not support the legacy ``for_test`` clone argument.
-        eval_prog = (
-            eval_prog.clone()
-            if in_pir_mode()
-            else eval_prog.clone(for_test=True)
-        )
+        eval_prog = eval_prog.clone(for_test=True)
 
     exe = paddle.static.Executor(device)
     exe.run(startup_prog)
