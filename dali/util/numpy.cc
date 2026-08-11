@@ -302,11 +302,12 @@ size_t HeaderData::size() const {
   size_t result = 1;
   for (auto dim : shape) {
     auto extent = static_cast<size_t>(dim);
-    DALI_ENFORCE(extent == 0 || result <= std::numeric_limits<size_t>::max() / extent,
+    size_t product;
+    DALI_ENFORCE(!__builtin_mul_overflow(result, extent, &product),
                  make_string("Numpy array shape is too large: requested ", result, " * ",
                              extent, " elements exceeds the maximum ",
                              std::numeric_limits<size_t>::max(), " elements."));
-    result *= extent;
+    result = product;
   }
   return result;
 }
@@ -316,11 +317,12 @@ size_t HeaderData::nbytes() const {
     return 0_uz;
   auto elements = size();
   auto item_size = type_info->size();
-  DALI_ENFORCE(elements == 0 || item_size <= std::numeric_limits<size_t>::max() / elements,
+  size_t bytes;
+  DALI_ENFORCE(!__builtin_mul_overflow(elements, item_size, &bytes),
                make_string("Numpy array is too large: requested ", elements, " * ", item_size,
                            " bytes exceeds the maximum ", std::numeric_limits<size_t>::max(),
                            " bytes."));
-  return item_size * elements;
+  return bytes;
 }
 
 Tensor<CPUBackend> ReadTensor(InputStream *src, bool pinned) {
