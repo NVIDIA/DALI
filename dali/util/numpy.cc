@@ -303,7 +303,8 @@ size_t HeaderData::size() const {
   for (auto dim : shape) {
     auto extent = static_cast<size_t>(dim);
     size_t product;
-    DALI_ENFORCE(!__builtin_mul_overflow(result, extent, &product),
+    const bool overflow = __builtin_mul_overflow(result, extent, &product);
+    DALI_ENFORCE(!overflow,
                  make_string("Numpy array shape is too large: requested ", result, " * ",
                              extent, " elements exceeds the maximum ",
                              std::numeric_limits<size_t>::max(), " elements."));
@@ -318,7 +319,8 @@ size_t HeaderData::nbytes() const {
   auto elements = size();
   auto item_size = type_info->size();
   size_t bytes;
-  DALI_ENFORCE(!__builtin_mul_overflow(elements, item_size, &bytes),
+  const bool overflow = __builtin_mul_overflow(elements, item_size, &bytes);
+  DALI_ENFORCE(!overflow,
                make_string("Numpy array is too large: requested ", elements, " * ", item_size,
                            " bytes exceeds the maximum ", std::numeric_limits<size_t>::max(),
                            " bytes."));
