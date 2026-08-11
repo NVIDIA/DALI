@@ -3,11 +3,14 @@ name: Request NVSkills CI
 on:
   issue_comment:
     types: [created]
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review]
   push:
 
 jobs:
   request:
     if: >
+      github.event_name == 'pull_request' ||
       (github.event_name == 'issue_comment' &&
         github.event.issue.pull_request &&
         startsWith(github.event.comment.body, '/nvskills-ci')) ||
@@ -17,6 +20,7 @@ jobs:
     permissions:
       contents: read
       pull-requests: read
+      statuses: read
     uses: NVIDIA/skills/.github/workflows/team-request.yml@main
     secrets:
       NVSKILLS_CI_DISPATCH_TOKEN: ${{ secrets.NVSKILLS_CI_DISPATCH_TOKEN }}
