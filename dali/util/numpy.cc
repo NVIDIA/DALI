@@ -13,6 +13,8 @@
 // limitations under the License.
 
 #include "dali/util/numpy.h"
+#include <cerrno>
+#include <limits>
 #include <string>
 #include <vector>
 #include <memory>
@@ -76,8 +78,13 @@ void SkipFieldName(const char*& ptr, const char (&name)[N]) {
 template <typename T = int64_t>
 T ParseInteger(const char*& ptr) {
   char *out_ptr = const_cast<char*>(ptr);  // strtol takes a non-const pointer
+  const auto saved_errno = errno;
+  errno = 0;
   T value = static_cast<T>(strtol(ptr, &out_ptr, 10));
+  const bool out_of_range = errno == ERANGE;
+  errno = saved_errno;
   DALI_ENFORCE(out_ptr != ptr, "Parse error: expected a number.");
+  DALI_ENFORCE(!out_of_range, "Parse error: integer is out of range.");
   ptr = out_ptr;
   return value;
 }
@@ -150,7 +157,9 @@ void ParseHeaderContents(HeaderData& target, const std::string_view header) {
   SkipSpaces(hdr);
   while (*hdr != ')') {
     // ParseInteger already skips the leading spaces (strtol does).
-    target.shape.shape.push_back(ParseInteger<int64_t>(hdr));
+    auto dim = ParseInteger<int64_t>(hdr);
+    DALI_ENFORCE(dim >= 0, "Numpy array dimensions must be non-negative.");
+    target.shape.shape.push_back(dim);
     SkipSpaces(hdr);
     DALI_ENFORCE(TrySkip(hdr, ",") || target.shape.size() > 1,
                  "The first number in a tuple must be followed by a comma.");
@@ -290,11 +299,32 @@ DALIDataType HeaderData::type() const {
 }
 
 size_t HeaderData::size() const {
-  return volume(shape);
+  size_t result = 1;
+  for (auto dim : shape) {
+    auto extent = static_cast<size_t>(dim);
+    size_t product;
+    const bool overflow = __builtin_mul_overflow(result, extent, &product);
+    DALI_ENFORCE(!overflow,
+                 make_string("Numpy array shape is too large: requested ", result, " * ",
+                             extent, " elements exceeds the maximum ",
+                             std::numeric_limits<size_t>::max(), " elements."));
+    result = product;
+  }
+  return result;
 }
 
 size_t HeaderData::nbytes() const {
-  return type_info ? type_info->size() * size() : 0_uz;
+  if (!type_info)
+    return 0_uz;
+  auto elements = size();
+  auto item_size = type_info->size();
+  size_t bytes;
+  const bool overflow = __builtin_mul_overflow(elements, item_size, &bytes);
+  DALI_ENFORCE(!overflow,
+               make_string("Numpy array is too large: requested ", elements, " * ", item_size,
+                           " bytes exceeds the maximum ", std::numeric_limits<size_t>::max(),
+                           " bytes."));
+  return bytes;
 }
 
 Tensor<CPUBackend> ReadTensor(InputStream *src, bool pinned) {

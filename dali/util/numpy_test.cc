@@ -13,6 +13,8 @@
 // limitations under the License.
 
 #include <gtest/gtest.h>
+#include <cerrno>
+#include <limits>
 #include <string>
 #include <vector>
 #include "dali/util/numpy.h"
@@ -61,6 +63,35 @@ TEST(NumpyLoaderTest, ParseHeaderError) {
   for (const auto &header : wrong) {
     EXPECT_THROW(ParseHeaderContents(target, header), std::runtime_error);
   }
+}
+
+TEST(NumpyLoaderTest, RejectsInvalidOrOverflowingShape) {
+  HeaderData target;
+  EXPECT_THROW(
+      ParseHeaderContents(target, "{'descr':'<f4','fortran_order':False,'shape':(-1,),}"),
+      std::runtime_error);
+
+  ParseHeaderContents(
+      target, "{'descr':'<f4','fortran_order':False,'shape':(4294967296,4294967296),}");
+  EXPECT_THROW(target.size(), std::runtime_error);
+  EXPECT_THROW(target.nbytes(), std::runtime_error);
+
+  auto byte_overflow_shape =
+      std::to_string(std::numeric_limits<size_t>::max() / sizeof(uint64_t) + 1);
+  ParseHeaderContents(target, "{'descr':'<u8','fortran_order':False,'shape':(" +
+                                  byte_overflow_shape + ",),}");
+  EXPECT_NO_THROW(target.size());
+  EXPECT_THROW(target.nbytes(), std::runtime_error);
+}
+
+TEST(NumpyLoaderTest, ParseHeaderPreservesErrno) {
+  HeaderData target;
+  const auto saved_errno = errno;
+  errno = EDOM;
+  ParseHeaderContents(target, "{'descr':'<f4','fortran_order':False,'shape':(1,),}");
+  const auto parsed_errno = errno;
+  errno = saved_errno;
+  EXPECT_EQ(parsed_errno, EDOM);
 }
 
 TEST(NumpyLoaderTest, ParseHeaderDoesNotReadPastStringView) {
