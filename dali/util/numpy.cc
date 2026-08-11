@@ -78,10 +78,13 @@ void SkipFieldName(const char*& ptr, const char (&name)[N]) {
 template <typename T = int64_t>
 T ParseInteger(const char*& ptr) {
   char *out_ptr = const_cast<char*>(ptr);  // strtol takes a non-const pointer
+  const auto saved_errno = errno;
   errno = 0;
   T value = static_cast<T>(strtol(ptr, &out_ptr, 10));
+  const bool out_of_range = errno == ERANGE;
+  errno = saved_errno;
   DALI_ENFORCE(out_ptr != ptr, "Parse error: expected a number.");
-  DALI_ENFORCE(errno != ERANGE, "Parse error: integer is out of range.");
+  DALI_ENFORCE(!out_of_range, "Parse error: integer is out of range.");
   ptr = out_ptr;
   return value;
 }

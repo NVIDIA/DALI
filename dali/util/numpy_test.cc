@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <gtest/gtest.h>
+#include <cerrno>
 #include <limits>
 #include <string>
 #include <vector>
@@ -81,6 +82,16 @@ TEST(NumpyLoaderTest, RejectsInvalidOrOverflowingShape) {
                                   byte_overflow_shape + ",),}");
   EXPECT_NO_THROW(target.size());
   EXPECT_THROW(target.nbytes(), std::runtime_error);
+}
+
+TEST(NumpyLoaderTest, ParseHeaderPreservesErrno) {
+  HeaderData target;
+  const auto saved_errno = errno;
+  errno = EDOM;
+  ParseHeaderContents(target, "{'descr':'<f4','fortran_order':False,'shape':(1,),}");
+  const auto parsed_errno = errno;
+  errno = saved_errno;
+  EXPECT_EQ(parsed_errno, EDOM);
 }
 
 TEST(NumpyLoaderTest, ParseHeaderDoesNotReadPastStringView) {
