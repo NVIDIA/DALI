@@ -145,6 +145,46 @@ def test_capture_different_ops_same_call_site():
         _assert_parity(dynamic_results, captured_results)
 
 
+def test_capture_warmup():
+    reader = ndd.readers.File(file_root=images_root)
+
+    def epoch():
+        iterations = 0
+        for jpegs, _ in reader.next_epoch(batch_size=2, capture=True):
+            images = ndd.decoders.image(jpegs)
+            assert _is_captured(images)
+            iterations += 1
+        assert iterations > 0
+
+    epoch()
+    for _ in range(2):
+        epoch()
+
+
+def test_capture_proof_frames():
+    reader = ndd.readers.File(file_root=images_root)
+
+    def transform(images, angle):
+        fill_value = 0
+
+        def apply():
+            return ndd.rotate(images, angle=angle, fill_value=fill_value)
+
+        def middle():
+            return apply()
+
+        return middle()
+
+    for i, (jpegs, _) in enumerate(reader.next_epoch(batch_size=2, capture=True)):
+        images = ndd.decoders.image(jpegs)
+        # Distinct call sites for transform, same arguments.
+        if i == 0:
+            rotated = transform(images, 10)
+        else:
+            rotated = transform(images, 10)
+        assert _is_captured(rotated) is (i == 0)
+
+
 @eval_modes()
 def test_capture_partial():
     reader_dyn = ndd.readers.File(file_root=images_root)

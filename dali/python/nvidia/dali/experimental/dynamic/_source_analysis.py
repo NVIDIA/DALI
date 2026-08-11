@@ -418,7 +418,7 @@ def call_info(frame: types.FrameType) -> CallInfo | None:
     return call_info
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(slots=True)
 class _Classifier:
     """Per call frame argument classifier.
 
@@ -427,6 +427,16 @@ class _Classifier:
 
     module_info: ModuleInfo | None
     frame: types.FrameType
+    required_depth: int = field(default=1, init=False, repr=False)
+
+    def _merge_required_depth(self, child: "_Classifier") -> None:
+        current = self.frame
+        required_depth = child.required_depth
+        while current is not child.frame:
+            assert current is not None
+            current = current.f_back
+            required_depth += 1
+        self.required_depth = max(self.required_depth, required_depth)
 
     def classify(
         self, inputs: tuple[Any, ...], raw_kwargs: dict[str, Any]
@@ -577,9 +587,13 @@ class _Classifier:
                 # Theoretically we could track lambdas or local functions, but that's not
                 # worth the effort.
                 return False
-            return classifier._is_param_invariant(name_node, frame)
-        # punch through local assignments
-        return classifier.is_invariant(binding.rhs, static=static)
+            result = classifier._is_param_invariant(name_node, frame)
+        else:
+            # punch through local assignments
+            result = classifier.is_invariant(binding.rhs, static=static)
+
+        self._merge_required_depth(classifier)
+        return result
 
     def _live_owner_frame(self, name: str) -> types.FrameType | None:
         """Find the live frame owning a closure cell"""
@@ -604,7 +618,10 @@ class _Classifier:
         if call is None:
             return False
 
-        return _Classifier(mi, caller)._is_arg_invariant(call, name_node.value, owner_frame.f_code)
+        child = _Classifier(mi, caller)
+        result = child._is_arg_invariant(call, name_node.value, owner_frame.f_code)
+        self._merge_required_depth(child)
+        return result
 
     def _is_arg_invariant(
         self, call: cst.Call, param_name: str, callee_code: types.CodeType
@@ -692,7 +709,11 @@ def classify(
     inputs: tuple[Any, ...],
     raw_kwargs: dict[str, Any],
     static: bool = False,
-) -> tuple[list[CaptureRef | Any], dict[str, CaptureRef | Any]] | None:
+) -> tuple[list[CaptureRef | Any], dict[str, CaptureRef | Any], int] | None:
     """Classify operator args as captured constants / CaptureRefs, or None to run eager."""
     mi = _get_module_info(frame.f_code)
-    return _Classifier(mi, frame).classify(inputs, raw_kwargs)
+    classifier = _Classifier(mi, frame)
+    classification = classifier.classify(inputs, raw_kwargs)
+    if classification is None:
+        return None
+    return (*classification, classifier.required_depth)
