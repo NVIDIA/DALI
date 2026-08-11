@@ -4,6 +4,8 @@ pip_packages='jupyter numpy matplotlib jax flax'
 target_dir=./docs/examples
 
 test_body() {
+    export XLA_FLAGS="--xla_gpu_enable_command_buffer="
+
     test_files=(
         "frameworks/jax/jax-basic_example.ipynb"
     )

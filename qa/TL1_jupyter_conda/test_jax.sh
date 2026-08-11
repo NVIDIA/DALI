@@ -9,6 +9,8 @@ prolog=(enable_conda)
 epilog=(disable_conda)
 
 test_body() {
+    export XLA_FLAGS="--xla_gpu_enable_command_buffer="
+
     test_files=(
         "frameworks/jax/jax-basic_example.ipynb"
     )
