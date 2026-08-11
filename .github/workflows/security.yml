@@ -2,10 +2,8 @@ name: Secret Scan
 
 on:
   push:
-    branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
-
+    branches:
+      - "pull-request/[0-9]+"
 permissions:
   actions: read
   contents: read
