@@ -482,10 +482,13 @@ def test_global_thread_pool_thread_safety():
         threading.Thread(target=worker, kwargs={"idx": idx}, daemon=True)
         for idx in range(num_workers)
     ]
+
+    # Start the workers at the first value in the sweep. Otherwise they may observe the
+    # platform default first and record two different pools if that value occurs in the sweep.
+    ndd.set_num_threads(1)
+    run_event.set()
     for t in threads:
         t.start()
-
-    run_event.set()
 
     all_thread_counts_seen = False
     try:
