@@ -297,7 +297,7 @@ for i in range(0, v_minor + correction):
     versions.append((f"{v_major}.{i}", f"dali_{v_major}_{i}_0", "short_user"))
 
 # add extra patch version/s
-versions.append(("2.1.1", "dali_2.1.1", "short_user"))
+versions.append(("2.1.1", "dali_2_1_1", "short_user"))
 
 # ToDo add logic to handle other major releases after 1 and before the current
 
