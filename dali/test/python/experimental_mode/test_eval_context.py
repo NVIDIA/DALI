@@ -448,6 +448,8 @@ def test_global_thread_pool_thread_safety():
     # The test also checks that there are no unnecessary updates to the default thread pool and
     # that the threads see the same thread pool objects.
     num_workers = 8
+    min_threads = 1
+    max_threads = 32
     results = [set() for _ in range(num_workers)]
     prev_pool = [None] * num_workers
     stop_event = threading.Event()
@@ -482,15 +484,18 @@ def test_global_thread_pool_thread_safety():
         threading.Thread(target=worker, kwargs={"idx": idx}, daemon=True)
         for idx in range(num_workers)
     ]
+
+    # Start the workers at the first value in the sweep. Otherwise they may observe the
+    # platform default first and record two different pools if that value occurs in the sweep.
+    ndd.set_num_threads(min_threads)
+    run_event.set()
     for t in threads:
         t.start()
-
-    run_event.set()
 
     all_thread_counts_seen = False
     try:
         for _ in range(3):
-            for n in range(1, 33):
+            for n in range(min_threads, max_threads + 1):
                 ndd.set_num_threads(n)
                 time.sleep(0.01)
             # Pause the workers
@@ -506,7 +511,7 @@ def test_global_thread_pool_thread_safety():
             assert len(combined_results) == len(
                 set(p.num_threads for p in combined_results)
             ), "The number of pool objects is different than the number of distinct thread counts."
-            if len(combined_results) == 32:
+            if len(combined_results) == max_threads - min_threads + 1:
                 all_thread_counts_seen = True
             ndd.set_num_threads(1)
             for r in results:
