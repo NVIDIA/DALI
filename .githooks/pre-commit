@@ -1,6 +1,6 @@
 #!/bin/sh
 
-# Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2021, 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,6 +13,14 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+# Check staged content for leaked secrets
+if command -v pre-commit >/dev/null 2>&1; then
+    pre-commit run --hook-stage pre-commit || exit $?
+else
+    echo "pre-commit is required to run the secret-scan hook."
+    exit 1
+fi
 
 # Check copyright notice
 files=`git diff --cached --name-only`
