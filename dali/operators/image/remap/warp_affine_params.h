@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -98,7 +98,9 @@ class WarpAffineParamProvider
           << shape.sample_dim() << "-D elements with varying size.";
       } else {
         ss << "\nThe actual input is a list with " << shape.num_samples() << " "
-          << shape.sample_dim() << "-D elements with shape " << shape[0];
+          << shape.sample_dim() << "-D elements";
+        if (shape.num_samples() > 0)
+          ss << " with shape " << shape[0];
       }
       ss << "\n";
       return ss.str();
@@ -110,7 +112,7 @@ class WarpAffineParamProvider
     } else {
       DALI_ENFORCE(shape.num_samples() == num_samples_ &&
                    is_uniform(shape) &&
-                   shape[0] == mat_shape,
+                   (shape.num_samples() == 0 || shape[0] == mat_shape),
                    error_message());
     }
   }

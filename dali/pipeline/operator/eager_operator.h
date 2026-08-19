@@ -39,7 +39,7 @@ namespace dali {
 
 template <typename Backend>
 std::shared_ptr<TensorList<Backend>> AsContiguousOutput(std::shared_ptr<TensorList<Backend>> in) {
-  if (in->IsContiguous()) {
+  if (in->IsContiguousInMemory()) {
     return in;
   } else {
     auto result = std::make_shared<TensorList<Backend>>();
@@ -262,6 +262,7 @@ EagerOperator<Backend>::RunImpl(
   DALI_ENFORCE(batch_size <= max_batch_size_,
                make_string("Expected batch size lower or equal to max batch size. Requested: ",
                            batch_size, " > ", max_batch_size_));
+  bool is_split_or_merge = IsSplitOrMerge(op_spec_.GetSchema());
   // Convert and add inputs to the workspace.
   for (size_t in_idx = 0; in_idx < inputs.size(); ++in_idx) {
     auto tensor_in = std::make_shared<WSInputType>();
@@ -272,7 +273,7 @@ EagerOperator<Backend>::RunImpl(
       batch_size = cur_batch_size;
     }
 
-    if (!IsSplitOrMerge(op_spec_.GetSchema())) {
+    if (!is_split_or_merge) {
       DALI_ENFORCE(cur_batch_size == batch_size,
                    make_string("Expected uniform batch size in a single operator. Expected: ",
                                batch_size, ", input ", in_idx, " batch size: ", cur_batch_size));
@@ -308,14 +309,19 @@ EagerOperator<Backend>::RunImpl(
   ws_.SetBatchSizes(batch_size);
 
   // Setup outputs.
-  if (op_->Setup(output_desc, ws_)) {
+  if (batch_size || is_split_or_merge) {
+    if (op_->Setup(output_desc, ws_)) {
+      for (size_t i = 0; i < num_outputs_; ++i) {
+        ws_.Output<OutBackend>(i).Resize(output_desc[i].shape, output_desc[i].type,
+                                                  BatchContiguity::Contiguous);
+      }
+    }
+    op_->Run(ws_);
+  } else {
     for (size_t i = 0; i < num_outputs_; ++i) {
-      ws_.Output<OutBackend>(i).Resize(output_desc[i].shape, output_desc[i].type,
-                                                BatchContiguity::Contiguous);
+      ws_.Output<OutBackend>(i).Reset();
     }
   }
-
-  op_->Run(ws_);
 
   for (size_t i = 0; i < num_outputs_; ++i) {
     outputs[i] = AsContiguousOutput<OutBackend>(ws_.template OutputPtr<OutBackend>(i));

@@ -1,4 +1,4 @@
-// Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2025-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -726,6 +726,8 @@ class TensorListWrapper : public ITensorList {
     if (!tl_->IsDenseTensor())
       throw std::runtime_error(
         "Only a densely packed list of tensors of uniform shape can be viewed as a Tensor.");
+    if (tl_->num_samples() == 0)
+        throw std::runtime_error("An empty list of tensors cannot be converted to a tensor.");
 
     auto t = std::make_shared<Tensor<Backend>>();
     auto buf = unsafe_owner(*tl_);
