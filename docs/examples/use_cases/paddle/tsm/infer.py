@@ -1,5 +1,5 @@
 # Copyright (c) 2019 PaddlePaddle Authors. All Rights Reserved.
-# Copyright (c) 2017-2019, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2017-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,6 +16,10 @@
 import argparse
 import json
 import os
+
+# This example uses the static graph APIs required by the published TSM weights.
+# Paddle 3.4 defaults to PIR, which does not support all of those APIs yet.
+os.environ["FLAGS_enable_pir_api"] = "0"
 
 import paddle
 import paddle.static as static

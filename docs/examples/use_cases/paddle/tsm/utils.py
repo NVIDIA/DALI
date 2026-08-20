@@ -1,5 +1,5 @@
 # Copyright (c) 2019 PaddlePaddle Authors. All Rights Reserved.
-# Copyright (c) 2017-2019, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2017-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -28,6 +28,7 @@ except Exception:  # python 2
     from urlparse import urlparse
 
 import paddle
+
 
 def _extract_tar(filename, dest):
     print("extracting to {}".format(dest))
