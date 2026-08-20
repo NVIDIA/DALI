@@ -1,4 +1,4 @@
-// Copyright (c) 2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2024-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@
 #include <string>
 #include <utility>
 #include "dali/core/common.h"
+#include "dali/core/error_handling.h"
 #include "dali/pipeline/util/thread_pool.h"
 
 namespace dali {
@@ -63,6 +64,9 @@ struct S3ClientManager {
     auto no_verify_ptr = std::getenv("DALI_S3_NO_VERIFY_SSL");
     if (no_verify_ptr) {
       config.verifySSL = std::atoi(no_verify_ptr) == 0;
+      DALI_WARN(make_string("DALI_S3_NO_VERIFY_SSL is set to ", no_verify_ptr,
+                            "; SSL certificate verification is ",
+                            config.verifySSL ? "enabled." : "disabled."));
     }
     client_ = std::make_unique<Aws::S3::S3Client>(std::move(config));
   }
