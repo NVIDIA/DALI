@@ -1,4 +1,4 @@
-# Copyright (c) 2024-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -219,7 +219,7 @@ encountered:
 def test_conditional_merge():
     @pipeline_def(enable_conditionals=True, batch_size=10, num_threads=4, device_id=0)
     def non_scalar_condition():
-        pred = fn.random.coin_flip(dtype=types.DALIDataType.BOOL)
+        pred = fn.random.coin_flip(dtype=types.DALIDataType.BOOL, seed=42)
         if pred:
             output = types.Constant([1])
         else:
