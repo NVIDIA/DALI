@@ -63,7 +63,7 @@ Augmentations
 
 Here is a list of callable :meth:`~nvidia.dali.auto_aug.core._augmentation.Augmentation` instances
 defined by DALI. Note that the ``mag_to_param``, ``param_device`` and ``name`` parameters were
-ommitted from the :py:func:`@augmentation <nvidia.dali.auto_aug.core.augmentation>` decorator listing
+omitted from the :py:func:`@augmentation <nvidia.dali.auto_aug.core.augmentation>` decorator listing
 for simplicity.
 
 To adjust the range of parameter, use the ``augmentation`` method
