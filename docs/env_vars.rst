@@ -18,7 +18,7 @@ Default: 1
 If nonzero, DALI uses a memory pool for device memory; otherwise plain ``cudaMalloc`` is used.
 
 .. warning::
-    Specify 0 for debugging only, doing so will drastically degrade performace.
+    Specify 0 for debugging only, doing so will drastically degrade performance.
 
 `DALI_USE_VMM`
 --------------
@@ -42,7 +42,7 @@ If nonzero, DALI uses a memory pool for device-accessible host memory; otherwise
 ``cudaMallocHost`` is used.
 
 .. warning::
-    Specify 0 for debugging only, doing so will drastically degrade performace.
+    Specify 0 for debugging only, doing so will drastically degrade performance.
 
 `DALI_USE_CUDA_MALLOC_ASYNC`
 ----------------------------
@@ -89,7 +89,7 @@ Values: floating point, >=1
 
 Default: 1.1
 
-When greather than 1, buffers are allocated with allowance to avoid frequent reallocation.
+When greater than 1, buffers are allocated with allowance to avoid frequent reallocation.
 
 `DALI_HOST_BUFFER_GROWTH_FACTOR`
 --------------------------------
@@ -164,7 +164,7 @@ Values: 0, 1
 Default: 0
 
 If set, DALI will use the default execution model (as if ``exec_dynamic=True`` was set in the Pipeline)
-whenever the default asychronous pipelined execution with uniform queue size is specified.
+whenever the default asynchronous pipelined execution with uniform queue size is specified.
 Enabling this flag can potentially improve memory consumption.
 
 .. note::
