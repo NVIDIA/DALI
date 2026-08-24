@@ -1,4 +1,4 @@
-// Copyright (c) 2018-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2018-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -99,8 +99,11 @@ void PluginManager::LoadDefaultPlugins() {
   static bool run_once = []() {
     std::string preload_plugins_str = "default";
     const char* dali_preload_plugins = std::getenv("DALI_PRELOAD_PLUGINS");
-    if (dali_preload_plugins)
+    if (dali_preload_plugins) {
       preload_plugins_str = dali_preload_plugins;
+      DALI_WARN(make_string("DALI_PRELOAD_PLUGINS is set; loading plugins from ",
+                            preload_plugins_str));
+    }
     if (preload_plugins_str == "default") {
       PluginManager::LoadDirectory(DefaultPluginPath(), false, true);
     } else {
