@@ -1,0 +1,18 @@
+name: Secret Scan
+
+on:
+  push:
+    branches:
+      - "pull-request/[0-9]+"
+permissions:
+  actions: read
+  contents: read
+  id-token: write
+  security-events: write
+
+jobs:
+  secret-scan:
+    # v0.3
+    uses: NVIDIA/security-workflows/.github/workflows/secret-scan-pulse.yml@711025b090f2aa728da576700750b195d1e816dc
+    with:
+      runs-on: linux-amd64-cpu4
