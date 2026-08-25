@@ -21,6 +21,8 @@ ENV PYVER=${PYVER} \
 /opt/python/cp313-cp313t/bin:\
 /opt/python/cp314-cp314/bin:\
 /opt/python/cp314-cp314t/bin:\
+/opt/python/cp315-cp315/bin:\
+/opt/python/cp315-cp315t/bin:\
 ${PYBIN}:\
 ${PATH} \
     LD_LIBRARY_PATH=/opt/python/cp${PYV}-cp${PYV}/lib:\
@@ -32,6 +34,8 @@ ${PATH} \
 /opt/python/cp313-cp313t/lib:\
 /opt/python/cp314-cp314/lib:\
 /opt/python/cp314-cp314t/lib:\
+/opt/python/cp315-cp315/lib:\
+/opt/python/cp315-cp315t/lib:\
 ${PYLIB}:\
 ${LD_LIBRARY_PATH} \
     LIBRARY_PATH=/opt/python/cp${PYV}-cp${PYV}/lib:\
@@ -44,6 +48,8 @@ ${LD_LIBRARY_PATH} \
 /opt/python/cp313-cp313t/lib:\
 /opt/python/cp314-cp314/lib:\
 /opt/python/cp314-cp314t/lib:\
+/opt/python/cp315-cp315/lib:\
+/opt/python/cp315-cp315t/lib:\
 ${PYLIB}:\
 ${LIBRARY_PATH}
 
