@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,6 +16,8 @@
 #include "dali/operators/video/legacy/reader/nvdecoder/cuvideoparser.h"
 #include "dali/operators/video/legacy/reader/nvdecoder/nvdecoder.h"
 #include "dali/core/error_handling.h"
+
+#include <algorithm>
 
 namespace dali {
 
@@ -120,7 +122,8 @@ CUVideoDecoder& CUVideoDecoder::operator=(CUVideoDecoder&& other) {
     return *this;
 }
 
-void CUVideoDecoder::reconfigure(unsigned int height, unsigned int width) {
+void CUVideoDecoder::reconfigure(unsigned int height, unsigned int width,
+                                 unsigned int num_decode_surfaces) {
     DALI_ENFORCE(NVCUVID_API_EXISTS(cuvidReconfigureDecoder),
                  "cuvidReconfigureDecoder API is not available.");
 
@@ -154,6 +157,8 @@ void CUVideoDecoder::reconfigure(unsigned int height, unsigned int width) {
     decoder_info_.ulTargetHeight = decoder_info_.ulHeight = height;
     reconfigParams.ulTargetHeight = reconfigParams.ulHeight = height;
 
+    decoder_info_.ulNumDecodeSurfaces =
+        std::max(decoder_info_.ulNumDecodeSurfaces, static_cast<unsigned long>(num_decode_surfaces));
     reconfigParams.ulNumDecodeSurfaces = decoder_info_.ulNumDecodeSurfaces;
 
 
@@ -169,17 +174,25 @@ int CUVideoDecoder::initialize(CUVIDEOFORMAT* format) {
         if (format->bit_depth_chroma_minus8 != decoder_info_.bitDepthMinus8) {
             NVCUVID_CALL(cuvidDestroyDecoder(decoder_));
             decoder_ = {};
-        } else if ((format->coded_width != decoder_info_.ulWidth) ||
-            (format->coded_height != decoder_info_.ulHeight)) {
-            if (NVCUVID_API_EXISTS(cuvidReconfigureDecoder)) {
-              LOG_LINE << "reconfigure decoder";
-              CUVideoDecoder::reconfigure(format->coded_height, format->coded_width);
-            } else {
-             DALI_FAIL("Encountered a dynamic video resolution change. Install Nvidia driver"
-                       " version >=396 (x86) or >=415 (Power PC)");
-            }
-            return 1;
         } else {
+            auto num_decode_surfaces = format->min_num_decode_surfaces == 0
+                                           ? 20UL
+                                           : static_cast<unsigned long>(format->min_num_decode_surfaces) +
+                                                 additional_decode_surfaces_;
+            if ((format->coded_width != decoder_info_.ulWidth) ||
+                (format->coded_height != decoder_info_.ulHeight) ||
+                (num_decode_surfaces > decoder_info_.ulNumDecodeSurfaces)) {
+                if (NVCUVID_API_EXISTS(cuvidReconfigureDecoder)) {
+                    LOG_LINE << "reconfigure decoder";
+                    CUVideoDecoder::reconfigure(format->coded_height, format->coded_width,
+                                                 num_decode_surfaces);
+                } else {
+                    DALI_FAIL("Encountered a dynamic video resolution or decode-surface requirement "
+                              "change. Install Nvidia driver version >=396 (x86) or >=415 "
+                              "(Power PC).");
+                }
+                return decoder_info_.ulNumDecodeSurfaces;
+            }
             return 1;
         }
     }

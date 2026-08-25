@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2018, 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -36,7 +36,7 @@ class CUVideoDecoder {
 
   operator CUvideodecoder() const;
 
-  void reconfigure(unsigned int height, unsigned int width);
+  void reconfigure(unsigned int height, unsigned int width, unsigned int num_decode_surfaces);
   int initialize(CUVIDEOFORMAT* format);
   bool initialized() const;
 
