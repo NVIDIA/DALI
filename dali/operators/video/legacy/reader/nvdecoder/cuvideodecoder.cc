@@ -187,8 +187,9 @@ int CUVideoDecoder::initialize(CUVIDEOFORMAT* format) {
                     CUVideoDecoder::reconfigure(format->coded_height, format->coded_width,
                                                  num_decode_surfaces);
                 } else {
-                    DALI_FAIL("Encountered a dynamic video resolution change. Install Nvidia driver"
-                              " version >=396 (x86) or >=415 (Power PC)");
+                    DALI_FAIL("Encountered a dynamic video resolution or decode-surface requirement "
+                              "change. Install Nvidia driver version >=396 (x86) or >=415 "
+                              "(Power PC).");
                 }
                 return decoder_info_.ulNumDecodeSurfaces;
             }
