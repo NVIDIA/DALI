@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -262,12 +262,19 @@ class CompletedTask:
 
     @classmethod
     def failed(cls, worker_id, processed):
+        # Worker exceptions can be arbitrary user-defined objects. Normalize them to the
+        # restricted protocol's built-in exception types before serializing them.
+        exception = processed.exception
+        if isinstance(exception, StopIteration):
+            exception = StopIteration(str(exception))
+        else:
+            exception = RuntimeError(str(exception))
         return cls(
             worker_id,
             processed.context_i,
             processed.scheduled_i,
             processed.minibatch_i,
-            exception=processed.exception,
+            exception=exception,
             traceback_str=processed.traceback_str,
         )
 

@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,16 +12,53 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import io
 import os
+import pickle  # nosec B403
+
 from nvidia.dali._multiproc import shared_mem
-from nvidia.dali._multiproc.messages import ShmMessageDesc
+from nvidia.dali._multiproc.messages import CompletedTask, ShmMessageDesc
 from nvidia.dali._utils.external_source_impl import (
     assert_cpu_sample_data_type as _assert_cpu_sample_data_type,
     sample_to_numpy as _sample_to_numpy,
 )
-import pickle  # nosec B403
 
 np = None
+
+
+class _WorkerResultUnpickler(pickle.Unpickler):
+    """Unpickler for data written by a worker into a shared-memory chunk.
+
+    Worker results have a fixed, internal object graph. Restricting globals here prevents a
+    compromised worker from invoking an arbitrary callable while the parent reads its result.
+    """
+
+    _allowed_globals = {
+        ("nvidia.dali._multiproc.messages", "CompletedTask"): CompletedTask,
+        ("nvidia.dali._multiproc.shared_batch", "SharedBatchMeta"): None,
+        ("nvidia.dali._multiproc.shared_batch", "SampleMeta"): None,
+        ("numpy", "dtype"): None,
+        ("builtins", "RuntimeError"): RuntimeError,
+        ("builtins", "StopIteration"): StopIteration,
+    }
+
+    def find_class(self, module, name):
+        allowed = self._allowed_globals.get((module, name), ...)
+        if allowed is ...:
+            raise pickle.UnpicklingError(
+                f"global '{module}.{name}' is not permitted in worker shared-memory data"
+            )
+        if allowed is None:
+            if module == "numpy":
+                import_numpy()
+                return np.dtype
+            return globals()[name]
+        return allowed
+
+
+def restricted_pickle_loads(data):
+    """Loads the fixed-format pickle payloads sent from workers to the parent process."""
+    return _WorkerResultUnpickler(io.BytesIO(data)).load()
 
 
 def _div_ceil(a, b):
@@ -159,7 +196,7 @@ def deserialize_sample_meta(buffer: BufShmChunk, shared_batch_meta: SharedBatchM
     if sbm.meta_size == 0:
         return []
     pickled_meta = buffer.buf[sbm.meta_offset : sbm.meta_offset + sbm.meta_size]
-    samples_meta = pickle.loads(pickled_meta)  # nosec B301
+    samples_meta = restricted_pickle_loads(pickled_meta)
     return samples_meta
 
 
@@ -293,6 +330,10 @@ def read_shm_message(shm_chunk: BufShmChunk, shm_message):
     if shm_message.shm_capacity != shm_chunk.capacity:
         shm_chunk.resize(shm_message.shm_capacity, trunc=False)
     buffer = shm_chunk.buf[shm_message.offset : shm_message.offset + shm_message.num_bytes]
+    # Messages written by the parent may contain user-provided batch arguments and are trusted
+    # parent-to-child input. Worker-to-parent messages have a fixed protocol and are restricted.
+    if shm_message.worker_id >= 0:
+        return restricted_pickle_loads(buffer)
     return pickle.loads(buffer)  # nosec B301
 
 
