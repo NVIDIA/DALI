@@ -14,6 +14,7 @@
 
 import sys
 import types
+import weakref
 from typing import TypeAlias
 
 from ._nvtx import NVTXRange
@@ -32,7 +33,11 @@ def mark_transparent(func: types.FunctionType) -> types.FunctionType:
     Transparent frames are skipped by :func:`resolve_callsite_frame`.
     Follows ``__wrapped__`` decorator chains.
     """
-    _transparent_codes.add(id(func.__code__))
+    code = func.__code__
+    code_id = id(code)
+    if code_id not in _transparent_codes:
+        _transparent_codes.add(code_id)
+        weakref.finalize(code, _transparent_codes.discard, code_id)
     wrapped = getattr(func, "__wrapped__", None)
     if wrapped is not None:
         mark_transparent(wrapped)
