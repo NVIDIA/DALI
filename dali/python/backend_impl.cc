@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <Python.h>
 #include <cuda_runtime_api.h>
 #include <dlfcn.h>
 #include <opencv2/core/version.hpp>
@@ -47,6 +48,7 @@
 #include "dali/pipeline/pipeline.h"
 #include "dali/pipeline/pipeline_debug.h"
 #include "dali/plugin/plugin_manager.h"
+#include "dali/python/python3_compat.h"
 #include "dali/util/pybind.h"
 #include "dali/util/user_stream.h"
 #include "dali/pipeline/util/new_thread_pool.h"
