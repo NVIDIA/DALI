@@ -1,4 +1,4 @@
-# Copyright (c) 2022 NVIDIA Corporation.  All rights reserved.
+# Copyright (c) 2022-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,6 +14,10 @@
 
 import logging
 import os
+
+# The Fleet static-graph optimizer used by this example requires the legacy
+# Program representation. Paddle 3.4 defaults to PIR.
+os.environ["FLAGS_enable_pir_api"] = "0"
 
 from dali import build_dataloader
 from utils.affinity import set_cpu_affinity
@@ -117,7 +121,6 @@ def main(args):
             step_each_epoch=eval_step_each_epoch,
             is_train=False,
         )
-        # clone to prune some content which is irrelevant in eval_prog
         eval_prog = eval_prog.clone(for_test=True)
 
     exe = paddle.static.Executor(device)

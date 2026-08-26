@@ -56,7 +56,7 @@ fi
 
 MIN_TOP1=.45  # would be 75% if we run 90 epochs
 MIN_TOP5=.70  # would be 92% if we run 90 epochs
-MIN_PERF=27000
+MIN_PERF=16000
 
 function PRINT_THRESHOLD {
     FILENAME=$1

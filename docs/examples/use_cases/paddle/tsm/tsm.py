@@ -1,5 +1,5 @@
 # Copyright (c) 2019 PaddlePaddle Authors. All Rights Reserved.
-# Copyright (c) 2017-2019, NVIDIA CORPORATION. All rights reserved.
+# Copyright (c) 2017-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -41,28 +41,28 @@ class TSM():
                       groups=1,
                       act=None,
                       name=None):
-        conv = paddle.static.nn.conv2d(
-            input=input,
-            num_filters=num_filters,
-            filter_size=filter_size,
+        conv = paddle.nn.Conv2D(
+            in_channels=input.shape[1],
+            out_channels=num_filters,
+            kernel_size=filter_size,
             stride=stride,
             padding=(filter_size - 1) // 2,
             groups=groups,
-            param_attr=paddle.ParamAttr(name=name + "_weights"),
-            bias_attr=False)
+            weight_attr=paddle.ParamAttr(name=name + "_weights"),
+            bias_attr=False)(input)
         if name == "conv1":
             bn_name = "bn_" + name
         else:
             bn_name = "bn" + name[3:]
 
-        return paddle.static.nn.batch_norm(
-            input=conv,
-            act=act,
-            is_test=(not self.training),
-            param_attr=paddle.ParamAttr(name=bn_name + "_scale"),
+        batch_norm = paddle.nn.BatchNorm2D(
+            num_features=num_filters,
+            weight_attr=paddle.ParamAttr(name=bn_name + "_scale"),
             bias_attr=paddle.ParamAttr(bn_name + '_offset'),
-            moving_mean_name=bn_name + "_mean",
-            moving_variance_name=bn_name + '_variance')
+            use_global_stats=not self.training,
+            name=bn_name)
+        output = batch_norm(conv)
+        return paddle.nn.functional.relu(output) if act == 'relu' else output
 
     def shortcut(self, input, ch_out, stride, name):
         ch_in = input.shape[1]

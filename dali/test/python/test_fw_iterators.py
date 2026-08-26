@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -1436,6 +1436,27 @@ def test_pytorch_external_source_variable_size_fail():
 
 
 # PaddlePaddle
+
+
+@attr("paddle")
+def test_paddle_lod_tensor_clip():
+    import paddle
+    from nvidia.dali.plugin.paddle import lod_tensor_clip
+
+    data = np.arange(12, dtype=np.float32).reshape(6, 2)
+
+    dense_tensor = paddle.framework.core.LoDTensor()
+    dense_tensor.set(data, paddle.CPUPlace())
+    clipped_dense_tensor = lod_tensor_clip(dense_tensor, 2)
+    np.testing.assert_array_equal(np.array(clipped_dense_tensor), data[:2])
+    assert clipped_dense_tensor.lod() == []
+
+    lod_tensor = paddle.framework.core.LoDTensor()
+    lod_tensor.set(data, paddle.CPUPlace())
+    lod_tensor.set_recursive_sequence_lengths([[2, 4]])
+    clipped_lod_tensor = lod_tensor_clip(lod_tensor, 1)
+    np.testing.assert_array_equal(np.array(clipped_lod_tensor), data[:2])
+    assert clipped_lod_tensor.lod() == [[0, 2]]
 
 
 @attr("paddle")

@@ -1,5 +1,5 @@
 # Copyright (c) 2019 PaddlePaddle Authors. All Rights Reserved.
-# Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2017-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -113,10 +113,21 @@ def recursive_length(tensor, lod_level):
     return seq_len
 
 
+def _recursive_sequence_lengths(lod_tensor):
+    if hasattr(lod_tensor, "recursive_sequence_lengths"):
+        return lod_tensor.recursive_sequence_lengths()
+
+    # Paddle 3.4 removed ``recursive_sequence_lengths``. Its ``lod`` method
+    # still provides the equivalent sequence offsets for every LoD level.
+    return [
+        [end - start for start, end in zip(offsets, offsets[1:])] for offsets in lod_tensor.lod()
+    ]
+
+
 def lod_tensor_clip(lod_tensor, size):
     output = paddle.framework.core.LoDTensor()
     ndarray = np.array(lod_tensor)
-    seq_len = lod_tensor.recursive_sequence_lengths()
+    seq_len = _recursive_sequence_lengths(lod_tensor)
     if not seq_len:
         output.set(ndarray[0:size], paddle.CPUPlace())
     else:

@@ -37,7 +37,10 @@ Requirements
 
 - Install the following python packages via pip or other means.
 
-  - `PaddlePaddle <https://www.paddlepaddle.org>`_ (1.6 or above)
+  - `PaddlePaddle <https://www.paddlepaddle.org>`_ (2.6.1 or above)
+
+    The example selects Paddle's legacy static graph mode automatically because
+    the published TSM checkpoint uses legacy static graph APIs.
 
   - `Nvidia DALI <https://github.com/NVIDIA/DALI>`_
 
