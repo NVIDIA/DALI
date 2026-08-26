@@ -1758,7 +1758,10 @@ void ExposeTensorListCPU(py::module &m) {
             DALI_ENFORCE(IsValidType(tl.type()), "Cannot produce "
                 "buffer info for tensor w/ invalid type.");
             DALI_ENFORCE(tl.IsDenseTensor(),
-                        "Tensors in the list must have the same shape");
+                        "Cannot produce a numpy array: the tensors in the list "
+                        "do not all have the same shape. Pad or crop the "
+                        "samples to a common shape, or check is_dense_tensor() "
+                        "beforehand.");
             raw_mutable_data = contiguous_raw_mutable_data(tl);
           }
 
