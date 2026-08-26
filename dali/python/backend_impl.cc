@@ -47,7 +47,6 @@
 #include "dali/pipeline/pipeline.h"
 #include "dali/pipeline/pipeline_debug.h"
 #include "dali/plugin/plugin_manager.h"
-#include "dali/python/python3_compat.h"
 #include "dali/util/pybind.h"
 #include "dali/util/user_stream.h"
 #include "dali/pipeline/util/new_thread_pool.h"
