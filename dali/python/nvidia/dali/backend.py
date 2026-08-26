@@ -52,9 +52,9 @@ _ExecutorFlags.__invert__ = lambda x: _ExecutorFlags(~x.value)
 
 
 def deprecation_warning(what):
-    # show only this warning
+    # show by default, but honor warning filters configured by the user
     with warnings.catch_warnings():
-        warnings.simplefilter("default")
+        warnings.simplefilter("default", append=True)
         warnings.warn(what, Warning, stacklevel=2)
 
 

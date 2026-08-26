@@ -20,6 +20,7 @@ import nvidia.dali.types as types
 import nvidia.dali.tfrecord as tfrec
 import nvidia.dali as dali
 from nvidia.dali import pipeline_def
+from nvidia.dali.pipeline import _show_deprecation_warning
 import numpy as np
 import os
 import random
@@ -1769,6 +1770,26 @@ def test_image_type_deprecation():
             "in a future release."
         )
         assert expected_msg == str(w[-1].message)
+
+
+def test_deprecation_warning_honors_user_filters():
+    with warnings.catch_warnings(record=True) as w:
+        warnings.filterwarnings("ignore")
+        _show_deprecation_warning("deprecated_test_argument", "replacement_test_argument")
+        assert len(w) == 0
+
+
+def test_deprecation_warning_shown_by_default():
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter("default")
+        _show_deprecation_warning("another_deprecated_test_argument", "other_replacement")
+        assert len(w) == 1
+        assert w[0].category is Warning
+        expected_msg = (
+            "another_deprecated_test_argument is deprecated, "
+            "please use other_replacement instead"
+        )
+        assert expected_msg == str(w[0].message)
 
 
 @raises(TypeError, glob="unexpected*output_dtype*dtype")
