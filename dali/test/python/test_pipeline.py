@@ -1781,7 +1781,7 @@ def test_deprecation_warning_honors_user_filters():
 
 def test_deprecation_warning_shown_by_default():
     with warnings.catch_warnings(record=True) as w:
-        warnings.simplefilter("default")
+        warnings.resetwarnings()
         _show_deprecation_warning("another_deprecated_test_argument", "other_replacement")
         assert len(w) == 1
         assert w[0].category is Warning
