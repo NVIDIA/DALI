@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2017-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -101,6 +101,9 @@ if not initialized:
             "Python 3.13t is experimental and DALI is not officially tested with it. "
             "The free-threaded build is officially supported as of Python 3.14t. See PEP 779."
         )
+    # py3.15 warning
+    if sys.version_info[0] == 3 and sys.version_info[1] == 15:
+        deprecation_warning("Python 3.15 support is experimental and not officially tested.")
 
     if int(str(__cuda_version__)[:2]) < 11:
         deprecation_warning(

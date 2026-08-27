@@ -35,7 +35,8 @@ RUN apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/
     python3.11 python3.11-dev \
     python3.12 python3.12-dev \
     python3.13 python3.13-dev python3.13-nogil \
-    python3.14 python3.14-dev python3.14-nogil && \
+    python3.14 python3.14-dev python3.14-nogil \
+    python3.15 python3.15-dev python3.15-nogil && \
     apt-key adv --fetch-key http://repo.download.nvidia.com/jetson/jetson-ota-public.asc && \
     add-apt-repository 'deb https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/cross-linux-aarch64/ /' && \
     apt-get update && \
@@ -102,9 +103,9 @@ RUN /bin/bash -c 'DALI_DEPS_VERSION_SHA=${DALI_DEPS_VERSION_SHA:-$(cat /tmp/DALI
 
 # hack - install cross headers in the default python paths, so host python3-config would point to them
 #        free-threaded sources are included in 3.13.0
-RUN export PYVERS="3.10.0 3.11.0 3.12.0 3.13.0 3.14.0" && \
+RUN export PYVERS="3.10.0 3.11.0 3.12.0 3.13.0 3.14.0 3.15.0rc1" && \
     for PYVER in ${PYVERS}; do \
-        cd /tmp && (curl -L https://www.python.org/ftp/python/${PYVER}/Python-${PYVER}.tgz | tar -xzf - || exit 1) && \
+        cd /tmp && (curl -L https://www.python.org/ftp/python/${PYVER%%[a-z]*}/Python-${PYVER}.tgz | tar -xzf - || exit 1) && \
         rm -rf *.tgz && cd Python*                                                                     && \
         ./configure --disable-ipv6 ac_cv_file__dev_ptmx=no ac_cv_file__dev_ptc=no                         \
             --disable-shared CC=aarch64-linux-gnu-gcc CXX=aarch64-linux-gnu-g++                           \
