@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -25,6 +25,11 @@
 #include "dali/util/s3_file.h"
 #endif
 
+#if GCS_ENABLED
+#include "dali/util/gcs_client_manager.h"
+#include "dali/util/gcs_file.h"
+#endif
+
 namespace dali {
 
 std::unique_ptr<FileStream> FileStream::Open(const std::string& uri, FileStream::Options opts,
@@ -35,6 +40,16 @@ std::unique_ptr<FileStream> FileStream::Open(const std::string& uri, FileStream:
     return std::make_unique<S3FileStream>(S3ClientManager::Instance().client(), uri, size);
 #else
     throw std::runtime_error("This version of DALI was not built with AWS S3 storage support.");
+#endif
+  }
+
+  bool is_gcs = uri.rfind("gs://", 0) == 0;
+  if (is_gcs) {
+#if GCS_ENABLED
+    return std::make_unique<GCSFileStream>(GCSClientManager::Instance().client(), uri, size);
+#else
+    throw std::runtime_error(
+        "This version of DALI was not built with Google Cloud Storage support.");
 #endif
   }
 
