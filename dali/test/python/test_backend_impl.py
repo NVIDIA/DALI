@@ -395,6 +395,22 @@ def test_dtype_deprecation_warning():
         assert "Calling '.dtype()' is deprecated, please use '.dtype' instead" == str(w[-1].message)
 
 
+def test_backend_deprecation_warning_honors_user_filters():
+    with warnings.catch_warnings(record=True) as w:
+        warnings.filterwarnings("ignore")
+        dali.backend.deprecation_warning("backend deprecation warning filter check")
+        assert len(w) == 0
+
+
+def test_backend_deprecation_warning_shown_by_default():
+    with warnings.catch_warnings(record=True) as w:
+        warnings.resetwarnings()
+        dali.backend.deprecation_warning("backend deprecation warning default check")
+        assert len(w) == 1
+        assert w[0].category is Warning
+        assert "backend deprecation warning default check" == str(w[0].message)
+
+
 def test_dtype_placeholder_equivalence():
     dali_types = types._all_types
     np_types = list(map(dali_type_to_np, dali_types))
