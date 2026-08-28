@@ -290,8 +290,11 @@ independent equivalent work.
 
 ## Interpret
 
-Build one end-to-end hierarchy from the workload code and trace. Cover the report template's
-stages, using their names as guidance rather than an allow-list.
+Build one end-to-end hierarchy from the workload code and trace, with one row per profile
+summary range group. Include each applicable source/read, parsing or materialization,
+per-record operation, batching or packing, handoff or IPC, exposed wait, device copy,
+forward/loss, backward, optimizer, synchronization, and residual stage. Indent children and
+mark every row measured, absent, composite, or unavailable.
 
 ### Attribute and stop
 

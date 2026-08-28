@@ -180,10 +180,30 @@ mark it untested, and do not implement or benchmark it. Otherwise, state the mis
 
 ### 6. Report
 
-Use `assets/report-template.md` and return the completed report in the final response. Do not
-replace it with a path to a Markdown file. Include the sections and tables required for the
-outcome, cite the evidence for the verdict and any recommendation, and scope the result to
-the measured workload and recorded source cache state.
+Complete `assets/report-template.md` and return it in the final response, *not* as a path to a
+Markdown file. Remove unused sections and placeholders. Always keep the decision table,
+Workload, Detection, and Confidence and scope. Keep Workload to one paragraph when the
+canonical command ran as-is.
+
+- For `DETECTED` or `POTENTIAL`, give Cause and Next action. Include Localization when
+  profiling ran and Recommendation when supported. Without localization, set Cause to
+  `unresolved composite`.
+- For `NOT DETECTED`, set Cause and Next action to `not applicable`, then omit Localization
+  and Recommendation.
+- For `INCONCLUSIVE`, set Cause to `unresolved composite`, name the missing evidence under
+  Next action, and add Localization only when profiling ran.
+
+Add Substitutions only when the measured run differed from canonical. Add Distributed
+behavior and Trace navigation only for `world_size > 1`. Use Real timing for every rank,
+profiled GPU or NCCL values only for captured ranks, and map profiled PIDs to ranks. Mark
+missing measurements `invalid` or `unavailable`. Report excluded input costs in Detection
+with their value and frequency, never as Cause. A recommendation must cite its measurement,
+mechanism, feasibility constraint, and `untested` status.
+
+Under Confidence and scope, keep only facts that could change the interpretation. Include
+invalid and superseded artifacts with their rejection reasons. Use absolute artifact paths,
+including the full `.nsys-rep` path. Cite the evidence for the verdict and recommendation,
+and limit the result to the measured workload and recorded source cache state.
 
 ## Available Scripts
 
