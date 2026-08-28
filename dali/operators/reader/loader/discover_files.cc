@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -32,6 +32,9 @@
 #include "dali/operators/reader/loader/utils.h"
 #if AWSSDK_ENABLED
 #include "dali/operators/reader/loader/discover_files_s3.h"
+#endif
+#if GCS_ENABLED
+#include "dali/operators/reader/loader/discover_files_gcs.h"
 #endif
 
 namespace dali {
@@ -119,6 +122,15 @@ std::vector<FileLabelEntry> discover_files(const std::string &file_root,
     return s3_discover_files(file_root, opts);
 #else
     DALI_FAIL("This version of DALI was not built with AWS S3 storage support.");
+#endif
+  }
+
+  bool is_gcs = starts_with(file_root, "gs://");
+  if (is_gcs) {
+#if GCS_ENABLED
+    return gcs_discover_files(file_root, opts);
+#else
+    DALI_FAIL("This version of DALI was not built with Google Cloud Storage support.");
 #endif
   }
 
