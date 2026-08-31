@@ -10,9 +10,9 @@ if [ -z "${CUDA_VERSION_MAJOR}" ]; then
   exit 1
 fi
 if [ "${CUDA_VERSION_MAJOR}" -eq 13 ]; then
-  export METAL_YAML=linux_64_c_stdlib_version2.28cuda_compiler_version13.0.yaml
+  export METAL_YAML=linux_64_c_stdlib_version2.28cuda_compiler_version13.0cxx_compiler_version15.yaml
 else
-  export METAL_YAML=linux_64_c_stdlib_version2.17cuda_compiler_version12.9.yaml
+  export METAL_YAML=linux_64_c_stdlib_version2.17cuda_compiler_version12.9cxx_compiler_version14.yaml
 fi
 
 export DALI_VERSION="$(tr -d '\r\n' < /opt/dali/VERSION)"
@@ -45,8 +45,7 @@ echo "Using nvidia-dali-python-feedstock at $(git rev-parse HEAD)"
 
 # Adapt the current feedstock for building from the local DALI checkout. The patch removes
 # release-tarball-only sources and patches, clears vendored include directories before the
-# feedstock creates conda include symlinks, enables DALI's conda build configuration, and
-# documents the nvCOMP 5.2 requirement.
+# feedstock creates conda include symlinks and enables DALI's conda build configuration.
 git apply --check /opt/dali/conda/nvidia-dali-python-feedstock.patch
 git apply /opt/dali/conda/nvidia-dali-python-feedstock.patch
 
