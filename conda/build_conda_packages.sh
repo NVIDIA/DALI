@@ -11,8 +11,11 @@ if [ -z "${CUDA_VERSION_MAJOR}" ]; then
 fi
 if [ "${CUDA_VERSION_MAJOR}" -eq 13 ]; then
   export METAL_YAML=linux_64_c_stdlib_version2.28cuda_compiler_version13.0cxx_compiler_version15.yaml
-else
+elif [ "${CUDA_VERSION_MAJOR}" -eq 12 ]; then
   export METAL_YAML=linux_64_c_stdlib_version2.17cuda_compiler_version12.9cxx_compiler_version14.yaml
+else
+  echo "CUDA_VERSION_MAJOR must be 12 or 13, got: ${CUDA_VERSION_MAJOR}" >&2
+  exit 1
 fi
 
 export DALI_VERSION="$(tr -d '\r\n' < /opt/dali/VERSION)"
