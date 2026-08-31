@@ -2,7 +2,7 @@ diff --git a/recipe/build.sh b/recipe/build.sh
 index 3ac3249..7de51f7 100755
 --- a/recipe/build.sh
 +++ b/recipe/build.sh
-@@ -48,13 +48,17 @@ if [ -z "${targetsDir+x}" ]; then
+@@ -48,13 +48,18 @@ if [ -z "${targetsDir+x}" ]; then
  fi
  
  mkdir -p third_party/boost/preprocessor/include
@@ -18,9 +18,10 @@ index 3ac3249..7de51f7 100755
  ln -sf $PREFIX/include/cute    third_party/cutlass/include/
 +rm -rf third_party/cutlass/include/cutlass
  ln -sf $PREFIX/include/cutlass third_party/cutlass/include/
++rm -rf third_party/cvcuda
  
  export CXXFLAGS="$CXXFLAGS -isystem $PREFIX/include/opencv4"
-@@ -107,8 +111,11 @@ fi
+@@ -107,8 +112,11 @@ fi
  # https://docs.nvidia.com/deeplearning/dali/user-guide/docs/compilation.html#optional-cmake-build-parameters
  cmake ${CMAKE_ARGS} \
    -GNinja \
@@ -59,13 +60,13 @@ index 5145af2..7b5e36e 100644
  
  recipe:
    name: nvidia-dali
-@@ -9,18 +13,9 @@ recipe:
+@@ -9,18 +13,11 @@ recipe:
  
  source:
    - url: https://github.com/NVIDIA/DALI/archive/refs/tags/v${{ version }}.tar.gz
 -    sha256: 4a54e22e13e713aed35e7eb8a81410a509a48491956534bcb46ccd8f70e25200
--    patches:
--      - patches/0007-BLD-Use-pre-build-cvcuda-instead-of-submodule.patch
+     patches:
+       - patches/0007-BLD-Use-pre-build-cvcuda-instead-of-submodule.patch
 -  - url: https://github.com/cocodataset/cocoapi/archive/8c9bcc3cf640524c4c20a9c40e89cb6a2f2fa0e9.tar.gz
 -    sha256: 4dd3450bab2287d1c1b271cf4a1420db05294194f0ad9af4e3af592d6f2b4410
 -    target_directory: third_party/cocoapi
@@ -79,7 +80,7 @@ index 5145af2..7b5e36e 100644
    skip:
      - cuda_compiler_version == "None"
      - win
-@@ -30,7 +25,11 @@ outputs:
+@@ -30,7 +27,11 @@ outputs:
    - staging:
        name: core-build
      build:
@@ -92,7 +93,7 @@ index 5145af2..7b5e36e 100644
      requirements:
        build:
          - ${{ compiler('cuda') }}
-@@ -92,7 +91,11 @@ outputs:
+@@ -92,7 +93,11 @@ outputs:
        from: core-build
        run_exports: true
      build:
@@ -105,7 +106,7 @@ index 5145af2..7b5e36e 100644
        files:
          - lib/libdali*.so
      requirements:
-@@ -164,7 +167,11 @@ outputs:
+@@ -164,7 +169,11 @@ outputs:
        from: core-build
        run_exports: false
      build:
@@ -118,7 +119,7 @@ index 5145af2..7b5e36e 100644
        files:
          - include/dali/**
      requirements:
-@@ -211,7 +218,11 @@ outputs:
+@@ -211,7 +220,11 @@ outputs:
        from: core-build
        run_exports: false
      build:
