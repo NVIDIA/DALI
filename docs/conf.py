@@ -258,6 +258,7 @@ except ImportError:
 templates_path = ["_templates"]
 
 html_theme_options = {
+    "public_docs_features": True,
     "switcher": {
         # use for local testing
         # "json_url": "http://localhost:8888/_static/switcher.json",
