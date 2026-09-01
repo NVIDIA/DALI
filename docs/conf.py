@@ -258,7 +258,6 @@ except ImportError:
 templates_path = ["_templates"]
 
 html_theme_options = {
-    "public_docs_features": True,
     "switcher": {
         # use for local testing
         # "json_url": "http://localhost:8888/_static/switcher.json",
@@ -269,6 +268,9 @@ html_theme_options = {
     "navbar_start": ["navbar-logo", "sha_version"],
     "primary_sidebar_end": [],
 }
+
+if html_theme == "nvidia_sphinx_theme":
+    html_theme_options["public_docs_features"] = True
 
 
 # Theme options are theme-specific and customize the look and feel of a theme
