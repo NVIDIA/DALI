@@ -14,6 +14,7 @@
 
 import os
 
+import numpy as np
 from nose2.tools import params, cartesian_params
 from nose_utils import assert_raises
 from PIL import Image
@@ -147,6 +148,35 @@ def test_colorjitter_images(cj_params, device):
     for fn in test_files:
         img = Image.open(fn)
         _ = cj(img)
+
+
+def median_hue_shift(before: Image.Image, after: Image.Image) -> float:
+    """Median hue rotation from `before` to `after`, in degrees, over the colorful pixels."""
+    hue_before, saturation, _ = before.convert("HSV").split()
+    hue_after, _, _ = after.convert("HSV").split()
+    to_degrees = 360.0 / 256.0
+    hue_before = np.asarray(hue_before, dtype=np.float64) * to_degrees
+    hue_after = np.asarray(hue_after, dtype=np.float64) * to_degrees
+    # hue is meaningless for near-gray pixels
+    colorful = np.asarray(saturation) > 32
+    shift = (hue_after - hue_before + 180.0) % 360.0 - 180.0
+    return float(np.median(shift[colorful]))
+
+
+@cartesian_params((0.05, 0.1, -0.1), ("cpu", "gpu"))
+def test_colorjitter_hue_rotation(hue, device):
+    # torchvision expresses hue as a fraction of a full turn, fn.color_twist takes degrees.
+    # The tolerance covers DALI's linear YIQ approximation of the hue rotation.
+    cj = Compose([ColorJitter(hue=(hue, hue), device=device)])
+
+    for fn in test_files:
+        img = Image.open(fn).convert("RGB")
+        expected = median_hue_shift(img, transforms.functional.adjust_hue(img, hue))
+        actual = median_hue_shift(img, cj(img))
+        assert abs(actual - expected) < 15.0, (
+            f"hue={hue} rotated by {actual:.2f} degrees, torchvision rotates by "
+            f"{expected:.2f} degrees: {fn}"
+        )
 
 
 """

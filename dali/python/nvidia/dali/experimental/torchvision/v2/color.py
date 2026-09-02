@@ -208,12 +208,16 @@ class ColorJitter(Operator):
         if isinstance(hue, (int, float)):
             self.hue = (-float(hue), float(hue))
 
+        # torchvision expresses hue as a fraction of a full turn (|hue| <= 0.5), while
+        # fn.color_twist takes the hue delta in degrees.
+        self._hue_degrees = tuple(float(h) * 360.0 for h in self.hue)
+
     def _kernel(self, data_input):
         """
         Performs the color jitter using the ``fn.color_twist`` operator.
         """
         brightness, contrast, saturation, hue = _get_BrightnessContrastSaturationHue(
-            self.brightness, self.contrast, self.saturation, self.hue, fn.random.uniform
+            self.brightness, self.contrast, self.saturation, self._hue_degrees, fn.random.uniform
         )
 
         data_input = fn.color_twist(
