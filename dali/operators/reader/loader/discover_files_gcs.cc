@@ -51,11 +51,19 @@ std::vector<FileLabelEntry> gcs_discover_files(const std::string &file_root,
       client, gcs_object_location, [&](const std::string &object_key, size_t object_size) {
         auto p = std::filesystem::relative(object_key, parent_object_key);
         auto path_elems = count_elems(p);
-        assert(path_elems >= 2);
-        if (path_elems > 2)
-          return;  // we only look at one subdir level
+        // We only look at one subdir level. Fewer than two components means either an object
+        // directly under the listed prefix, or the prefix's own directory marker, which relative()
+        // maps to "."; neither is a labelled file, and both must be rejected before dereferencing
+        // the second component below.
+        if (path_elems != 2)
+          return;
         const auto& subdir = p.begin()->native();
         const auto& fname = (++p.begin())->native();
+        // GCS directory markers are zero-byte objects whose name ends with '/'. A trailing
+        // separator becomes an empty final component, so "<prefix>/class/" arrives here as
+        // ("class", "") - a directory, not a file.
+        if (fname.empty())
+          return;
         bool subdir_ok = opts.dir_filters.empty();
         bool fname_ok = opts.file_filters.empty();
         for (auto &filter : opts.dir_filters) {
