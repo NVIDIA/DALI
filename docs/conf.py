@@ -269,6 +269,10 @@ html_theme_options = {
     "primary_sidebar_end": [],
 }
 
+count_unique_visitor_script = os.getenv("ADD_NVIDIA_VISITS_COUNTING_SCRIPT")
+if html_theme == "nvidia_sphinx_theme" and count_unique_visitor_script:
+    html_theme_options["public_docs_features"] = True
+
 
 # Theme options are theme-specific and customize the look and feel of a theme
 # further.  For a list of options available for each theme, see the
@@ -560,10 +564,7 @@ _dali_enums = [
     "PipelineAPIType",
 ]
 
-count_unique_visitor_script = os.getenv("ADD_NVIDIA_VISITS_COUNTING_SCRIPT")
-
 html_context = {
-    "nvidia_analytics_id": count_unique_visitor_script,
     "git_sha": git_sha,
 }
 
