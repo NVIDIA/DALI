@@ -163,17 +163,24 @@ def median_hue_shift(before: Image.Image, after: Image.Image) -> float:
     return float(np.median(shift[colorful]))
 
 
-@cartesian_params((0.05, 0.1, -0.1), ("cpu", "gpu"))
+def hue_error(actual: float, expected: float) -> float:
+    """Absolute difference between two hue rotations, taking the shorter way around."""
+    return abs((actual - expected + 180.0) % 360.0 - 180.0)
+
+
+@cartesian_params((0.05, 0.1, -0.1, 0.25, -0.25, 0.5, -0.5), ("cpu", "gpu"))
 def test_colorjitter_hue_rotation(hue, device):
     # torchvision expresses hue as a fraction of a full turn, fn.color_twist takes degrees.
-    # The tolerance covers DALI's linear YIQ approximation of the hue rotation.
+    # The tolerance covers DALI's linear YIQ approximation of the hue rotation. The
+    # comparison is circular because hue=+-0.5 lands on +-180 degrees, where two
+    # implementations that agree to within a degree can report opposite signs.
     cj = Compose([ColorJitter(hue=(hue, hue), device=device)])
 
     for fn in test_files:
         img = Image.open(fn).convert("RGB")
         expected = median_hue_shift(img, transforms.functional.adjust_hue(img, hue))
         actual = median_hue_shift(img, cj(img))
-        assert abs(actual - expected) < 15.0, (
+        assert hue_error(actual, expected) < 15.0, (
             f"hue={hue} rotated by {actual:.2f} degrees, torchvision rotates by "
             f"{expected:.2f} degrees: {fn}"
         )
