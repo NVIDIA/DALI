@@ -101,6 +101,8 @@ cmake_dependent_option(BUILD_NVIMAGECODEC "Build with support for nvimagecodec l
                        "NOT BUILD_DALI_NODEPS" OFF)
 cmake_dependent_option(BUILD_AWSSDK "Build with support for AWS SKD library" ON
                        "NOT BUILD_DALI_NODEPS" OFF)
+cmake_dependent_option(BUILD_GCS "Build with support for Google Cloud Storage library" ON
+                       "NOT BUILD_DALI_NODEPS" OFF)
 set(NVIMGCODEC_DEFAULT_INSTALL_PATH "/opt/nvidia/nvimgcodec_cuda${CUDA_VERSION_MAJOR}" CACHE STRING
     "Path of the nvimagecodec installation")
 
@@ -344,6 +346,7 @@ propagate_option(BUILD_NVML)
 propagate_option(BUILD_CUFILE)
 propagate_option(BUILD_NVIMAGECODEC)
 propagate_option(BUILD_AWSSDK)
+propagate_option(BUILD_GCS)
 propagate_option(BUILD_FOR_CONDA)
 propagate_option(LINK_DRIVER)
 propagate_option(WITH_DYNAMIC_CUFFT)

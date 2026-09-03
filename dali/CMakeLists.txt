@@ -94,6 +94,10 @@ if (BUILD_AWSSDK)
   target_link_libraries(dali PRIVATE ${AWSSDK_LIBRARIES})
 endif()
 
+if (BUILD_GCS)
+  target_link_libraries(dali PRIVATE google-cloud-cpp::storage)
+endif()
+
 # Build test suite
 ################################################
 if (BUILD_DALI_PIPELINE AND BUILD_TEST)

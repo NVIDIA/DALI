@@ -452,3 +452,16 @@ if(BUILD_AWSSDK)
     message(STATUS "AWSSDK_LIBRARIES=${AWSSDK_LIBRARIES}")
   endif()
 endif()
+
+##################################################################
+# Google Cloud Storage (google-cloud-cpp)
+##################################################################
+if(BUILD_GCS)
+  find_package(google_cloud_cpp_storage CONFIG QUIET)
+  if (NOT google_cloud_cpp_storage_FOUND)
+    message(WARNING "google-cloud-cpp storage not found. Disabling Google Cloud Storage support.")
+    set(BUILD_GCS OFF)
+  else()
+    message(STATUS "google-cloud-cpp storage version=${google_cloud_cpp_storage_VERSION}")
+  endif()
+endif()
