@@ -170,6 +170,9 @@ class ColorJitter(Operator):
         How much to jitter hue. hue_factor is chosen uniformly from [-hue, hue] or the given
         [min, max]. Should have 0<= hue <= 0.5 or -0.5 <= min <= max <= 0.5. To jitter hue,
         the pixel values of the input image has to be non-negative for conversion to HSV space.
+        DALI rotates hue linearly in YIQ, so results are close to but not identical to
+        ``torchvision.transforms.v2.functional.adjust_hue``, which rotates in HSV. The gap
+        grows with the angle, reaching roughly 24 degrees at a 90 degree rotation.
     device : Literal["cpu", "gpu"], optional, default = "cpu"
         Device to use for the color jitter. Can be ``"cpu"`` or ``"gpu"``.
     """
@@ -212,8 +215,11 @@ class ColorJitter(Operator):
         """
         Performs the color jitter using the ``fn.color_twist`` operator.
         """
+        # torchvision expresses hue as a fraction of a full turn (|hue| <= 0.5), while
+        # fn.color_twist takes the hue delta in degrees.
+        hue_degrees = tuple(float(h) * 360.0 for h in self.hue)
         brightness, contrast, saturation, hue = _get_BrightnessContrastSaturationHue(
-            self.brightness, self.contrast, self.saturation, self.hue, fn.random.uniform
+            self.brightness, self.contrast, self.saturation, hue_degrees, fn.random.uniform
         )
 
         data_input = fn.color_twist(
