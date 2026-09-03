@@ -159,6 +159,7 @@ def median_hue_shift(before: Image.Image, after: Image.Image) -> float:
     hue_after = np.asarray(hue_after, dtype=np.float64) * to_degrees
     # hue is meaningless for near-gray pixels
     colorful = np.asarray(saturation) > 32
+    assert colorful.any(), "image has no colorful pixels to measure hue on"
     shift = (hue_after - hue_before + 180.0) % 360.0 - 180.0
     return float(np.median(shift[colorful]))
 
@@ -175,15 +176,38 @@ def test_colorjitter_hue_rotation(hue, device):
     # to the angle, so the tolerance scales too. The comparison is circular because hue=+-0.5
     # lands on +-180, where implementations that agree closely can report opposite signs.
     requested = abs(hue) * 360.0
+    # 0.35 is the worst YIQ-vs-HSV drift measured across these files; the floor keeps the
+    # bound useful for small rotations, where a purely relative tolerance admits almost
+    # any unit error.
+    tol = max(4.0, 0.35 * requested)
     cj = Compose([ColorJitter(hue=(hue, hue), device=device)])
 
     for fn in test_files:
         img = Image.open(fn).convert("RGB")
         expected = median_hue_shift(img, transforms.functional.adjust_hue(img, hue))
         actual = median_hue_shift(img, cj(img))
-        assert hue_error(actual, expected) < 0.5 * requested, (
+        assert hue_error(actual, expected) < tol, (
             f"hue={hue} rotated by {actual:.2f} degrees, torchvision rotates by "
             f"{expected:.2f} degrees: {fn}"
+        )
+
+
+@params("cpu", "gpu")
+def test_colorjitter_hue_range_is_converted(device):
+    # hue=(h, h) short-circuits in _get_BrightnessContrastSaturationHue and passes a scalar.
+    # A genuine range takes the fn.random.uniform branch, which is the one that consumes the
+    # converted range, and is what ColorJitter(hue=0.1) expands to. Both endpoints must be
+    # converted, so the sampled rotation has to land inside [36, 72] degrees.
+    lo, hi = 0.1, 0.2
+    cj = Compose([ColorJitter(hue=(lo, hi), device=device)])
+    tol = max(4.0, 0.35 * hi * 360.0)
+
+    for fn in test_files:
+        img = Image.open(fn).convert("RGB")
+        actual = median_hue_shift(img, cj(img))
+        assert lo * 360.0 - tol <= actual <= hi * 360.0 + tol, (
+            f"hue range ({lo}, {hi}) should rotate within "
+            f"[{lo * 360.0:.0f}, {hi * 360.0:.0f}] degrees, measured {actual:.2f}: {fn}"
         )
 
 
