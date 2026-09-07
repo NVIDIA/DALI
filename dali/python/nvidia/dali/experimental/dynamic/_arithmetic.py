@@ -14,11 +14,6 @@
 
 
 import numbers
-from typing import Any
-
-
-def _implicitly_convertible(value: Any):
-    return isinstance(value, (numbers.Real, list, tuple))
 
 
 def _arithm_op(name: str, *args):
@@ -26,21 +21,42 @@ def _arithm_op(name: str, *args):
     from ._batch import Batch
     from ._tensor import Tensor, as_tensor
 
-    # scalar arguments are turned into tensors
-    argsstr = " ".join(f"&{i}" for i in range(len(args)))
-    gpu = any(arg.device.device_type == "gpu" for arg in args if isinstance(arg, (Tensor, Batch)))
+    tensor_args = [arg for arg in args if isinstance(arg, (Tensor, Batch))]
+    gpu = any(arg.device.device_type == "gpu" for arg in tensor_args)
 
-    new_args = []
-    for arg in args:
+    def to_input(arg):
         if not isinstance(arg, (Tensor, Batch)):
-            if gpu and _implicitly_convertible(arg):
-                arg = as_tensor(arg, device="gpu")
-            else:
-                arg = as_tensor(arg)
+            device = "gpu" if gpu and isinstance(arg, (numbers.Real, list, tuple)) else None
+            arg = as_tensor(arg, device=device)
 
         if (arg.device.device_type == "gpu") != gpu:
             raise ValueError("Cannot mix GPU and CPU inputs.")
 
-        new_args.append(arg)
+        return arg
 
-    return _arithmetic_generic_op(*new_args, expression_desc=f"{name}({argsstr})")
+    # only reachable from math functions called with only scalars, e.g. ndd.math.max(2, 3)
+    if not tensor_args and args:
+        args = (to_input(args[0]), *args[1:])
+
+    desc, inputs, integers, reals = [], [], [], []
+    for arg in args:
+        type_ = type(arg)
+        if type_ is bool:
+            desc.append(f"${len(integers)}:bool")
+            integers.append(int(arg))
+        elif type_ is int:
+            desc.append(f"${len(integers)}:int32")
+            integers.append(arg)
+        elif type_ is float:
+            desc.append(f"${len(reals)}:float32")
+            reals.append(arg)
+        else:
+            desc.append(f"&{len(inputs)}")
+            inputs.append(to_input(arg))
+
+    return _arithmetic_generic_op(
+        *inputs,
+        expression_desc=f"{name}({' '.join(desc)})",
+        integer_constants=integers or None,
+        real_constants=reals or None,
+    )
