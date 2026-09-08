@@ -13,7 +13,45 @@
 # limitations under the License.
 
 
+import functools
 import numbers
+
+from ._call_site import mark_transparent, resolve_callsite_frame
+
+
+@functools.cache
+def _arithmetic_dunders():
+    # Comparisons are omitted for now because we'd need to handle chains and reverse orders
+    binary_ops = (
+        "add",
+        "sub",
+        "mul",
+        "truediv",
+        "floordiv",
+        "mod",
+        "pow",
+        "lshift",
+        "rshift",
+        "and",
+        "or",
+        "xor",
+        "matmul",
+        "divmod",
+    )
+    unary_ops = ("neg", "pos", "abs", "invert")
+
+    binary_dunders = (f"__{prefix}{stem}__" for stem in binary_ops for prefix in ("", "r"))
+    unary_dunders = (f"__{stem}__" for stem in unary_ops)
+
+    return (*binary_dunders, *unary_dunders)
+
+
+def transparent_arithmetic(cls: type) -> type:
+    """Annotate a class' arithmetic dunders with ``mark_transparent``"""
+    for dunder in _arithmetic_dunders():
+        if func := vars(cls).get(dunder):
+            mark_transparent(func)
+    return cls
 
 
 def _arithm_op(name: str, *args):

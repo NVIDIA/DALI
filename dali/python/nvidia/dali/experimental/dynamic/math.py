@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from ._batch import _arithm_op
+from ._call_site import mark_transparent as _mark_transparent
 
 
 def sqrt(input):
@@ -270,3 +271,8 @@ def clamp(value, lo, hi):
     :rtype: Tensor or Batch of the type that is calculated based on the type promotion rules.
     """
     return _arithm_op("clamp", value, lo, hi)
+
+
+for _name, _fn in list(globals().items()):
+    if not _name.startswith("_"):
+        _mark_transparent(_fn)
