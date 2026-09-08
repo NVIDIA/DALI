@@ -264,9 +264,11 @@ void RunCheckpointingTest(Pipeline &ref, daliPipeline_h pipe1, daliPipeline_h pi
   daliPipelineOutputs_h out1_h{};
   CHECK_DALI(daliPipelinePopOutputs(pipe1, &out1_h));
   CHECK_DALI(daliPipelineOutputsDestroy(out1_h));
+  out1_h = nullptr;
   CHECK_DALI(daliPipelineRun(pipe1));
   CHECK_DALI(daliPipelinePopOutputs(pipe1, &out1_h));
   CHECK_DALI(daliPipelineOutputsDestroy(out1_h));
+  out1_h = nullptr;
   CHECK_DALI(daliPipelineRun(pipe1));
   CHECK_DALI(daliPipelinePopOutputs(pipe1, &out1_h));
   CHECK_DALI(daliPipelineOutputsDestroy(out1_h));
