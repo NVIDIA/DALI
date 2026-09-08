@@ -23,7 +23,7 @@ import nvidia.dali.types
 from nvidia.dali._typing import TensorLike
 
 from . import _call_site, _eval_mode, _invocation, _stream
-from ._arithmetic import _arithm_op
+from ._arithmetic import _arithm_op, transparent_arithmetic
 from ._device import Device, DeviceLike
 from ._device import device as _device
 from ._eval_context import EvalContext as _EvalContext
@@ -124,6 +124,7 @@ def _array_from_python(data, dtype=None):
     return arr, converted_dtype_id
 
 
+@transparent_arithmetic
 class Tensor:
     """A Tensor object.
 
