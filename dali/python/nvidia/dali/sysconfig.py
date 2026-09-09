@@ -29,18 +29,12 @@ def get_include_dir():
     conda_prefix = os.environ.get("CONDA_PREFIX")
     if conda_prefix:
         conda_prefix = os.path.realpath(conda_prefix)
-        conda_include_dir = os.path.join(conda_prefix, "include")
         package_is_in_conda_prefix = os.path.commonpath((package_dir, conda_prefix)) == conda_prefix
     else:
-        conda_include_dir = None
         package_is_in_conda_prefix = False
 
-    if (
-        package_is_in_conda_prefix
-        and conda_include_dir
-        and os.path.isdir(os.path.join(conda_include_dir, "dali"))
-    ):
-        return conda_include_dir
+    if package_is_in_conda_prefix and os.path.isdir(os.path.join(conda_prefix, "include", "dali")):
+        return os.path.join(conda_prefix, "include")
 
     return package_include_dir
 
