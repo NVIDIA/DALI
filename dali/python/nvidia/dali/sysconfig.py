@@ -24,11 +24,22 @@ def get_include_dir():
     # Import inside the function to avoid circular import as dali imports sysconfig
     import nvidia.dali as dali
 
-    package_include_dir = os.path.join(os.path.dirname(dali.__file__), "include")
+    package_dir = os.path.realpath(os.path.dirname(dali.__file__))
+    package_include_dir = os.path.join(package_dir, "include")
     conda_prefix = os.environ.get("CONDA_PREFIX")
-    conda_include_dir = os.path.join(conda_prefix, "include") if conda_prefix else None
+    if conda_prefix:
+        conda_prefix = os.path.realpath(conda_prefix)
+        conda_include_dir = os.path.join(conda_prefix, "include")
+        package_is_in_conda_prefix = os.path.commonpath((package_dir, conda_prefix)) == conda_prefix
+    else:
+        conda_include_dir = None
+        package_is_in_conda_prefix = False
 
-    if conda_include_dir and os.path.isdir(os.path.join(conda_include_dir, "dali")):
+    if (
+        package_is_in_conda_prefix
+        and conda_include_dir
+        and os.path.isdir(os.path.join(conda_include_dir, "dali"))
+    ):
         return conda_include_dir
 
     return package_include_dir

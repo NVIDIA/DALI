@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2017-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@ import unittest
 import os
 import numpy as np
 import tempfile
+from unittest import mock
 
 test_bin_dir = os.path.dirname(dali.__file__) + "/test"
 batch_size = 4
@@ -86,6 +87,34 @@ class TestLoadedPlugin(unittest.TestCase):
         assert "" != dali_sysconfig.get_link_flags()
         assert "" != dali_sysconfig.get_include_dir()
         assert "" != dali_sysconfig.get_lib_dir()
+
+    def test_sysconfig_uses_conda_headers_for_conda_package(self):
+        import nvidia.dali.sysconfig as dali_sysconfig
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            conda_prefix = os.path.join(tmp_dir, "conda")
+            conda_include_dir = os.path.join(conda_prefix, "include")
+            package_file = os.path.join(
+                conda_prefix, "lib", "python", "site-packages", "nvidia", "dali", "__init__.py"
+            )
+            os.makedirs(os.path.join(conda_include_dir, "dali"))
+
+            with mock.patch.dict(os.environ, {"CONDA_PREFIX": conda_prefix}):
+                with mock.patch.object(dali, "__file__", package_file):
+                    assert dali_sysconfig.get_include_dir() == conda_include_dir
+
+    def test_sysconfig_avoids_mismatched_conda_headers(self):
+        import nvidia.dali.sysconfig as dali_sysconfig
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            conda_prefix = os.path.join(tmp_dir, "conda")
+            package_dir = os.path.join(tmp_dir, "wheel", "nvidia", "dali")
+            package_file = os.path.join(package_dir, "__init__.py")
+            os.makedirs(os.path.join(conda_prefix, "include", "dali"))
+
+            with mock.patch.dict(os.environ, {"CONDA_PREFIX": conda_prefix}):
+                with mock.patch.object(dali, "__file__", package_file):
+                    assert dali_sysconfig.get_include_dir() == os.path.join(package_dir, "include")
 
     def test_load_unexisting_library(self):
         with self.assertRaises(RuntimeError):
