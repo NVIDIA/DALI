@@ -1,4 +1,4 @@
-# Copyright (c) 2018-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2018-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -24,7 +24,14 @@ def get_include_dir():
     # Import inside the function to avoid circular import as dali imports sysconfig
     import nvidia.dali as dali
 
-    return os.path.join(os.path.dirname(dali.__file__), "include")
+    package_include_dir = os.path.join(os.path.dirname(dali.__file__), "include")
+    conda_prefix = os.environ.get("CONDA_PREFIX")
+    conda_include_dir = os.path.join(conda_prefix, "include") if conda_prefix else None
+
+    if conda_include_dir and os.path.isdir(os.path.join(conda_include_dir, "dali")):
+        return conda_include_dir
+
+    return package_include_dir
 
 
 def get_lib_dir():

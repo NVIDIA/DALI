@@ -12,12 +12,28 @@ test_body() {
     "dali_test.bin" \
     "dali_operator_test.bin"
   do
-    # use `which` to invoke test binary with full path so
-    # https://google.github.io/googletest/advanced.html#death-test-styles which runs tests in
-    # a separate process don't use PATH to discover the file location and fails
+    FULLPATH=""
+    for DIRNAME in \
+      "../../build/dali/python/nvidia/dali" \
+      "$(python -c 'import os; from nvidia import dali; print(os.path.dirname(dali.__file__))' 2>/dev/null || echo '')"
+    do
+        if [ -x "$DIRNAME/test/$BINNAME" ]; then
+            FULLPATH="$DIRNAME/test/$BINNAME"
+            break
+        fi
+    done
+
+    if [[ -z "$FULLPATH" ]]; then
+        echo "ERROR: $BINNAME not found"
+        exit 1
+    fi
+
+    # Invoke the test binary with an absolute path so
+    # https://google.github.io/googletest/advanced.html#death-test-styles tests that run in
+    # a separate process do not rely on PATH to find the executable.
     # PackedBFrames test is disabled because it doesn't work with the conda upstream build
     # of FFMpeg
-    $(which $BINNAME) --gtest_filter="*:-*PackedBFrames*"
+    DALI_USE_EXEC2=0 "$FULLPATH" --gtest_filter="*:-*PackedBFrames*"
   done
 }
 
