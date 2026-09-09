@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -64,17 +64,13 @@ properties.
 // Deprecated alias
 DALI_REGISTER_OPERATOR(MXNetReader, MXNetReader, CPU);
 
-DALI_SCHEMA(MXNetReader)
-    .DocStr("Legacy alias for :meth:`readers.mxnet`.")
-    .NumInput(0)
-    .NumOutput(2)
-    .AddParent("readers__MXNet")
-    .MakeDocHidden()
+DALI_SCHEMA_ALIAS(MXNetReader, readers__MXNet)
     .Deprecate(
         "1.0",
         "readers__MXNet",
         R"code(In DALI 1.0 all readers were moved into a dedicated :mod:`~nvidia.dali.fn.readers`
 submodule and renamed to follow a common pattern. This is a placeholder operator with identical
-functionality to allow for backward compatibility.)code");
+functionality to allow for backward compatibility.)code")
+    .MakeDocHidden();
 
 }  // namespace dali
