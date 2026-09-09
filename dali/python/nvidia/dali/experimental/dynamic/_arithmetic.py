@@ -76,15 +76,24 @@ def _arithm_op(name: str, *args):
     if not tensor_args and args:
         args = (to_input(args[0]), *args[1:])
 
+    if any(type(arg) in (bool, int, float) for arg in args):
+        from ._source_analysis import constant_inputs
+
+        constants = constant_inputs(resolve_callsite_frame(depth_hint=3), args)
+    else:
+        constants = (False,) * len(args)
+
     desc, inputs, integers, reals = [], [], [], []
-    for arg in args:
+    for arg, constant in zip(args, constants, strict=True):
         type_ = type(arg)
+        if type_ is int and (arg >> 31) not in (0, -1):
+            raise OverflowError(f"Integer {arg} is out of range for int32.")
+
+        type_ = type_ if constant else None
         if type_ is bool:
             desc.append(f"${len(integers)}:bool")
             integers.append(int(arg))
         elif type_ is int:
-            if (arg >> 31) not in (0, -1):
-                raise OverflowError(f"Integer constant {arg} is out of range for int32.")
             desc.append(f"${len(integers)}:int32")
             integers.append(arg)
         elif type_ is float:
