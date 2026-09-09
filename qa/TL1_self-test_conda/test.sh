@@ -14,11 +14,11 @@ test_body() {
   do
     FULLPATH=""
     for DIRNAME in \
-      "../../build/dali/python/nvidia/dali" \
-      "$(python -c 'import os; from nvidia import dali; print(os.path.dirname(dali.__file__))' 2>/dev/null || echo '')"
+      "$(python -c 'import os; from nvidia import dali; print(os.path.dirname(dali.__file__))' 2>/dev/null || echo '')" \
+      "../../build/dali/python/nvidia/dali"
     do
         if [ -x "$DIRNAME/test/$BINNAME" ]; then
-            FULLPATH="$DIRNAME/test/$BINNAME"
+            FULLPATH="$(readlink -f "$DIRNAME/test/$BINNAME")"
             break
         fi
     done
@@ -33,7 +33,7 @@ test_body() {
     # a separate process do not rely on PATH to find the executable.
     # PackedBFrames test is disabled because it doesn't work with the conda upstream build
     # of FFMpeg
-    DALI_USE_EXEC2=0 "$FULLPATH" --gtest_filter="*:-*PackedBFrames*"
+    "$FULLPATH" --gtest_filter="*:-*PackedBFrames*"
   done
 }
 

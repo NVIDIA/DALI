@@ -29,10 +29,14 @@ def get_include_dir():
     conda_prefix = os.environ.get("CONDA_PREFIX")
     if conda_prefix:
         conda_prefix = os.path.realpath(conda_prefix)
+        # An active Conda environment may import DALI from another location.
+        # Use its headers only when it also supplies the imported package.
         package_is_in_conda_prefix = os.path.commonpath((package_dir, conda_prefix)) == conda_prefix
     else:
         package_is_in_conda_prefix = False
 
+    # Conda packages headers separately in libdali-devel. Fall back to the
+    # package-bundled headers when that optional package is not installed.
     if package_is_in_conda_prefix and os.path.isdir(os.path.join(conda_prefix, "include", "dali")):
         return os.path.join(conda_prefix, "include")
 
@@ -47,6 +51,8 @@ def get_lib_dir():
     """
     import nvidia.dali as dali
 
+    # Unlike headers, Conda's bindings package keeps prebuilt DALI libraries
+    # alongside the Python package.
     return os.path.dirname(dali.__file__)
 
 

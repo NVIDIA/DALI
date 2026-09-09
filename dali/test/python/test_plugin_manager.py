@@ -103,6 +103,20 @@ class TestLoadedPlugin(unittest.TestCase):
                 with mock.patch.object(dali, "__file__", package_file):
                     assert dali_sysconfig.get_include_dir() == conda_include_dir
 
+    def test_sysconfig_falls_back_without_conda_devel_package(self):
+        import nvidia.dali.sysconfig as dali_sysconfig
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            conda_prefix = os.path.join(tmp_dir, "conda")
+            package_dir = os.path.join(
+                conda_prefix, "lib", "python", "site-packages", "nvidia", "dali"
+            )
+            package_file = os.path.join(package_dir, "__init__.py")
+
+            with mock.patch.dict(os.environ, {"CONDA_PREFIX": conda_prefix}):
+                with mock.patch.object(dali, "__file__", package_file):
+                    assert dali_sysconfig.get_include_dir() == os.path.join(package_dir, "include")
+
     def test_sysconfig_avoids_mismatched_conda_headers(self):
         import nvidia.dali.sysconfig as dali_sysconfig
 
