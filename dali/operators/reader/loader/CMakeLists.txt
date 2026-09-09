@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2017-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -65,6 +65,11 @@ endif()
 if (BUILD_AWSSDK)
   set(DALI_OPERATOR_SRCS ${DALI_OPERATOR_SRCS}
     "${CMAKE_CURRENT_SOURCE_DIR}/discover_files_s3.cc")
+endif()
+
+if (BUILD_GCS)
+  set(DALI_OPERATOR_SRCS ${DALI_OPERATOR_SRCS}
+    "${CMAKE_CURRENT_SOURCE_DIR}/discover_files_gcs.cc")
 endif()
 
 set(DALI_OPERATOR_SRCS ${DALI_OPERATOR_SRCS} PARENT_SCOPE)

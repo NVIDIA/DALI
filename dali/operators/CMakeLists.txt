@@ -102,6 +102,12 @@ if (BUILD_CVCUDA)
   target_link_libraries(dali_operators PRIVATE cvcuda nvcv_types)
 endif(BUILD_CVCUDA)
 
+if (BUILD_GCS)
+  # GCSClientManager is header-only, so discover_files_gcs.cc needs the client library directly -
+  # it cannot rely on it being reachable through libdali.
+  target_link_libraries(dali_operators PRIVATE google-cloud-cpp::storage)
+endif()
+
 if (BUILD_NVIMAGECODEC)
   if (WITH_DYNAMIC_NVIMGCODEC)
     target_link_libraries(dali_operators PRIVATE dynlink_nvimgcodec)
