@@ -1,0 +1,48 @@
+{
+  "skill_name": "data-loading-bottleneck",
+  "evals": [
+    {
+      "id": "mobilenet-input-bound",
+      "prompt": "Training throughput dropped after our vision team moved its single-GPU jobs to a new worker image. The GPU now runs in short bursts and sits idle between them, especially with smaller models. Determine whether the input path materially limits full-step throughput for the reproduction below.\n\nRepository: /workspace/workloads/pytorch-image-models\nDataset: /opt/eval/data/imagenette2\nCommand (run from the repository root):\npython train.py --data-dir /opt/eval/data/imagenette2 --train-split train --val-split val --model mobilenetv3_small_100 --num-classes 10 --batch-size 32 --workers 4 --epochs 1 --amp --pin-mem --output /workspace/output",
+      "expected_output": "An inline data-loading report based on the stated timm training path. It gives a valid DETECTED verdict and follows the required profiling route before naming a cause or leaving the limiter unresolved.",
+      "files": [],
+      "assertions": [
+        "The agent ran collect_preflight.py and diagnosed the supplied timm train.py path rather than replacing it with an independent harness.",
+        "The agent worked in a disposable Git worktree, preserved the original checkout, and bounded enough production batches for warmup, measurement, and drain.",
+        "The DETECTED verdict is supported by valid fresh-process Real and Replay windows whose only run-mode change was log versus replay and whose timed post-boundary work was shown to be equivalent.",
+        "The agent captured and inspected the required Nsight Systems profile, attributed only what the evidence supports, and returned the completed report inline rather than only linking to a Markdown file."
+      ],
+      "expected_skill": "data-loading-bottleneck",
+      "expected_script": "collect_preflight.py",
+      "should_trigger": true
+    },
+    {
+      "id": "vit-not-input-bound",
+      "prompt": "GPU utilization is below what the training team expected and throughput is disappointing. One group blames JPEG decoding while another thinks the large ViT dominates the step. Determine whether the input path materially limits full-step throughput before we spend time rewriting the loader.\n\nRepository: /workspace/workloads/vision\nDataset: /opt/eval/data/imagenette2\nCommand (run from /workspace/workloads/vision/references/classification):\npython train.py --data-path /opt/eval/data/imagenette2 --model vit_l_16 --epochs 1 --batch-size 16 --workers 4 --amp --print-freq 20 --output-dir ''",
+      "expected_output": "An inline data-loading report based on the torchvision reference training path. It gives a valid NOT DETECTED verdict and stops without unsupported localization or optimization advice.",
+      "files": [],
+      "assertions": [
+        "The agent ran collect_preflight.py and diagnosed the supplied torchvision reference train.py path rather than replacing it with an independent harness.",
+        "The agent used a disposable Git worktree and valid bounded Real and Replay windows with equivalent timed post-boundary work.",
+        "A Replay speedup at or below 1.10x leads to NOT DETECTED, and the agent does not profile, localize, or recommend a data-loading optimization after that verdict.",
+        "The final response contains the completed report inline with Cause and Next action marked not applicable."
+      ],
+      "expected_skill": "data-loading-bottleneck",
+      "expected_script": "collect_preflight.py",
+      "should_trigger": true
+    },
+    {
+      "id": "inference-latency",
+      "prompt": "An online image-classification service built from /workspace/workloads/vision has developed a p99 inference-latency regression after deployment. Diagnose the inference problem.",
+      "expected_output": "The agent treats the request as an inference problem and does not run the training-focused data-loading diagnosis.",
+      "files": [],
+      "assertions": [
+        "The agent recognizes that this incident concerns deployed inference rather than training input throughput.",
+        "The agent does not run collect_preflight.py, Real/Replay training comparisons, or a training Nsight workflow."
+      ],
+      "expected_skill": null,
+      "expected_script": null,
+      "should_trigger": false
+    }
+  ]
+}
