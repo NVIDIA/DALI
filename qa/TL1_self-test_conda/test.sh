@@ -12,21 +12,7 @@ test_body() {
     "dali_test.bin" \
     "dali_operator_test.bin"
   do
-    FULLPATH=""
-    for DIRNAME in \
-      "$(python -c 'import os; from nvidia import dali; print(os.path.dirname(dali.__file__))' 2>/dev/null || echo '')" \
-      "../../build/dali/python/nvidia/dali"
-    do
-        if [ -x "$DIRNAME/test/$BINNAME" ]; then
-            FULLPATH="$(readlink -f "$DIRNAME/test/$BINNAME")"
-            break
-        fi
-    done
-
-    if [[ -z "$FULLPATH" ]]; then
-        echo "ERROR: $BINNAME not found"
-        exit 1
-    fi
+    FULLPATH="$(find_test_bin "$BINNAME")"
 
     # Invoke the test binary with an absolute path so
     # https://google.github.io/googletest/advanced.html#death-test-styles tests that run in
