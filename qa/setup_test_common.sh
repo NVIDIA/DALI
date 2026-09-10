@@ -26,6 +26,39 @@ function version_lt() { test "$(echo "$@" | tr " " "\n" | sort -rV | head -n 1)"
 function version_ge() { test "$(echo "$@" | tr " " "\n" | sort -rV | head -n 1)" == "$1"; }
 function version_eq() { test "$1" == "$2"; }
 
+# Finds a self-test binary and prints its canonical path. Pass `conda` to prefer
+# the package installed in the active Conda environment; other suites prefer the
+# local build tree so they test the code built by the current job.
+find_test_bin() {
+    local bin_name="$1"
+    local prefer_conda_package="${2:-}"
+    local package_dir
+    local local_build_dir="../../build/dali/python/nvidia/dali"
+    local candidate
+    local -a candidates
+
+    package_dir="$(python -c 'import os; from nvidia import dali; print(os.path.dirname(dali.__file__))' \
+        2>/dev/null || echo '')"
+
+    if [ "$prefer_conda_package" = "conda" ] && [ -n "${CONDA_PREFIX:-}" ] &&
+       [ -n "$package_dir" ] &&
+       [[ "$(readlink -f "$package_dir")" == "$(readlink -f "$CONDA_PREFIX")"/* ]]; then
+        candidates=("$package_dir/test/$bin_name" "$local_build_dir/test/$bin_name")
+    else
+        candidates=("$local_build_dir/test/$bin_name" "$package_dir/test/$bin_name")
+    fi
+
+    for candidate in "${candidates[@]}"; do
+        if [ -x "$candidate" ]; then
+            readlink -f "$candidate"
+            return 0
+        fi
+    done
+
+    echo "ERROR: Self-test binary '$bin_name' was not found. Searched: ${candidates[*]}." >&2
+    return 1
+}
+
 if [ -n "$gather_pip_packages" ]
 then
     # early exit
