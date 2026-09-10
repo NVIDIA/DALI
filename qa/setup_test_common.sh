@@ -55,7 +55,7 @@ find_test_bin() {
         fi
     done
 
-    echo "ERROR: $bin_name not found" >&2
+    echo "ERROR: Self-test binary '$bin_name' was not found. Searched: ${candidates[*]}." >&2
     return 1
 }
 
