@@ -17,6 +17,7 @@ import nvidia.dali.fn as fn
 import numpy as np
 import math
 from nvidia.dali import pipeline_def
+from nose2.tools import params
 from test_utils import check_batch
 from nose_utils import assert_raises
 
@@ -272,18 +273,40 @@ def _check_join(op, devices, batch_size, shape, layouts, expected_layout, axis=0
         check_batch(out, ref, batch_size, eps=0, expected_layout=expected_layout)
 
 
-def test_cat_layout_from_any_input():
+@params(
+    (1, (2, 4), 0),  # single sample
+    (3, (2, 4), 0),
+    (3, (1, 1), 0),  # smallest non-empty sample
+    (3, (2, 0), 0),  # empty sample
+    (3, (2, 4), -2),  # negative axis at the edge of the accepted range
+)
+def test_cat_layout_from_any_input(batch_size, shape, axis):
     """Cat should take the layout from any input that has one, not only the first."""
-    _check_join(fn.cat, ("cpu", "gpu"), 3, (2, 4), [None, "XY"], "XY")
+    _check_join(fn.cat, ("cpu", "gpu"), batch_size, shape, [None, "XY"], "XY", axis=axis)
 
 
-def test_stack_layout_from_any_input():
+@params(
+    (1, (2, 4)),
+    (3, (2, 4)),
+    (3, (1, 1)),
+    (3, (2, 0)),
+)
+def test_stack_layout_from_any_input(batch_size, shape):
     """Stack should insert the new axis name when a non-first input carries the layout."""
-    _check_join(fn.stack, ("cpu", "gpu"), 3, (2, 4), [None, "XY"], "CXY", axis_name="C")
+    _check_join(fn.stack, ("cpu", "gpu"), batch_size, shape, [None, "XY"], "CXY", axis_name="C")
 
 
-def test_cat_layout_mismatch():
+@params("cpu", "gpu")
+def test_cat_layout_mismatch(device):
     """Joining inputs with conflicting non-empty layouts should be an error."""
-    pipe = _join_pipeline(fn.cat, ("cpu",), 2, (2, 4), ["XY", "AB"])
+    pipe = _join_pipeline(fn.cat, (device,), 2, (2, 4), ["XY", "AB"])
+    with assert_raises(RuntimeError, glob="All non-empty input layouts must match"):
+        pipe.run()
+
+
+@params("cpu", "gpu")
+def test_stack_layout_mismatch(device):
+    """The same conflict must be caught when the new axis name is the one being resolved."""
+    pipe = _join_pipeline(fn.stack, (device,), 2, (2, 4), ["XY", "AB"], axis_name="C")
     with assert_raises(RuntimeError, glob="All non-empty input layouts must match"):
         pipe.run()
