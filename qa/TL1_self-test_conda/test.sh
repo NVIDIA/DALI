@@ -12,7 +12,7 @@ test_body() {
     "dali_test.bin" \
     "dali_operator_test.bin"
   do
-    FULLPATH="$(find_test_bin "$BINNAME")"
+    FULLPATH="$(find_test_bin "$BINNAME" conda)"
 
     # Invoke the test binary with an absolute path so
     # https://google.github.io/googletest/advanced.html#death-test-styles tests that run in
