@@ -16,6 +16,7 @@ import nvidia.dali as dali
 import nvidia.dali.fn as fn
 import numpy as np
 import math
+from nvidia.dali import pipeline_def
 from test_utils import check_batch
 from nose_utils import assert_raises
 
@@ -220,63 +221,69 @@ def test_stack():
                     yield _run_test_stack, num_inputs, layout, ndim, axis, axis_name
 
 
-def _make_input(shape, value, batch_size, layout=None):
+def _layout_input(shape, value, batch_size, layout=None):
+    """external_source feeding a batch of constant-valued samples."""
+
     def source():
         return [np.full(shape, value, dtype=np.float32) for _ in range(batch_size)]
 
     return fn.external_source(source, layout=layout)
 
 
-def test_cat_layout_from_any_input():
-    """Cat should pick up the layout from any input that has one, not only the first."""
-    batch_size = 3
-    shape = (2, 4)
-    pipe = dali.pipeline.Pipeline(batch_size=batch_size, num_threads=3, device_id=0)
-    with pipe:
-        a = _make_input(shape, 1, batch_size)
-        b = _make_input(shape, 2, batch_size, layout="XY")
-        out_cpu = fn.cat(a, b, axis=0)
-        out_gpu = fn.cat(a.gpu(), b.gpu(), axis=0)
-        pipe.set_outputs(out_cpu, out_gpu)
+def _join_pipeline(op, devices, batch_size, shape, layouts, axis=0, axis_name=None):
+    """Builds a pipeline that joins one input per entry of ``layouts``.
 
-    ref = [np.concatenate([np.full(shape, 1, np.float32), np.full(shape, 2, np.float32)], axis=0)
-           for _ in range(batch_size)]
-    for _ in range(2):
-        o_cpu, o_gpu = pipe.run()
-        check_batch(o_cpu, ref, batch_size, eps=0, expected_layout="XY")
-        check_batch(o_gpu, ref, batch_size, eps=0, expected_layout="XY")
+    The inputs hold the values 1, 2, ... and only some of them carry a layout, so the
+    output layout shows which input the operator took the layout from.
+    """
+    values = list(range(1, len(layouts) + 1))
+
+    @pipeline_def(batch_size=batch_size, num_threads=3, device_id=0)
+    def join_pipeline():
+        inputs = [
+            _layout_input(shape, value, batch_size, layout)
+            for value, layout in zip(values, layouts)
+        ]
+        kwargs = {"axis": axis}
+        if axis_name is not None:
+            kwargs["axis_name"] = axis_name
+        outputs = []
+        for device in devices:
+            operands = [t.gpu() for t in inputs] if device == "gpu" else inputs
+            outputs.append(op(*operands, **kwargs))
+        return tuple(outputs)
+
+    return join_pipeline
+
+
+def _join_ref(op, shape, num_inputs, batch_size, axis):
+    """NumPy reference for joining the same constant-valued inputs."""
+    inputs = [np.full(shape, value, np.float32) for value in range(1, num_inputs + 1)]
+    joined = np.stack(inputs, axis=axis) if op is fn.stack else np.concatenate(inputs, axis=axis)
+    return [joined] * batch_size
+
+
+def _check_join(op, devices, batch_size, shape, layouts, expected_layout, axis=0, axis_name=None):
+    pipe = _join_pipeline(op, devices, batch_size, shape, layouts, axis=axis, axis_name=axis_name)
+    ref = _join_ref(op, shape, len(layouts), batch_size, axis)
+    for device, out in zip(devices, pipe.run()):
+        if device == "gpu":
+            out = out.as_cpu()
+        check_batch(out, ref, batch_size, eps=0, expected_layout=expected_layout)
+
+
+def test_cat_layout_from_any_input():
+    """Cat should take the layout from any input that has one, not only the first."""
+    _check_join(fn.cat, ("cpu", "gpu"), 3, (2, 4), [None, "XY"], "XY")
 
 
 def test_stack_layout_from_any_input():
-    """Stack should be able to insert the new axis name when the layout is carried
-    by a non-first input."""
-    batch_size = 3
-    shape = (2, 4)
-    pipe = dali.pipeline.Pipeline(batch_size=batch_size, num_threads=3, device_id=0)
-    with pipe:
-        a = _make_input(shape, 1, batch_size)
-        b = _make_input(shape, 2, batch_size, layout="XY")
-        out_cpu = fn.stack(a, b, axis=0, axis_name="C")
-        out_gpu = fn.stack(a.gpu(), b.gpu(), axis=0, axis_name="C")
-        pipe.set_outputs(out_cpu, out_gpu)
-
-    ref = [np.stack([np.full(shape, 1, np.float32), np.full(shape, 2, np.float32)], axis=0)
-           for _ in range(batch_size)]
-    for _ in range(2):
-        o_cpu, o_gpu = pipe.run()
-        check_batch(o_cpu, ref, batch_size, eps=0, expected_layout="CXY")
-        check_batch(o_gpu, ref, batch_size, eps=0, expected_layout="CXY")
+    """Stack should insert the new axis name when a non-first input carries the layout."""
+    _check_join(fn.stack, ("cpu", "gpu"), 3, (2, 4), [None, "XY"], "CXY", axis_name="C")
 
 
 def test_cat_layout_mismatch():
-    """Concatenating inputs with conflicting non-empty layouts should be an error."""
-    batch_size = 2
-    shape = (2, 4)
-    pipe = dali.pipeline.Pipeline(batch_size=batch_size, num_threads=3, device_id=0)
-    with pipe:
-        a = _make_input(shape, 1, batch_size, layout="XY")
-        b = _make_input(shape, 2, batch_size, layout="AB")
-        pipe.set_outputs(fn.cat(a, b, axis=0))
-
+    """Joining inputs with conflicting non-empty layouts should be an error."""
+    pipe = _join_pipeline(fn.cat, ("cpu",), 2, (2, 4), ["XY", "AB"])
     with assert_raises(RuntimeError, glob="All non-empty input layouts must match"):
         pipe.run()
