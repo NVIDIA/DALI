@@ -229,10 +229,25 @@ def test_int_overflow(data, faulty_value, dtype):
 
 
 @eval_modes()
-def test_int_overflow_explicit():
-    value = 1 << 31
-    with assert_raises(OverflowError, glob=f"*{value}*out of range for int32*"):
-        ndd.tensor(value, dtype=ndd.int32)
+@params(
+    (1 << 31, np.int32),
+    ([np.int64(1 << 31)], np.int32),
+    ([np.uint64(1 << 32)], np.uint32),
+    ([np.int32(-1)], np.uint32),
+    (5_000_000_000, np.int64),
+)
+def test_explicit_int_cast_matches_numpy(data, numpy_type):
+    dtype = ndd.dtype(numpy_type)
+    # NumPy may reject Python integers while wrapping NumPy integer scalars.
+    try:
+        expected = np.array(data, dtype=numpy_type)
+    except OverflowError:
+        with assert_raises(OverflowError):
+            ndd.tensor(data, dtype=dtype)
+    else:
+        tensor = ndd.tensor(data, dtype=dtype)
+        assert tensor.dtype == dtype
+        assert np.array_equal(tensor, expected)
 
 
 @eval_modes()

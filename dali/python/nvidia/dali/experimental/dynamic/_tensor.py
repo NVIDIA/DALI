@@ -84,17 +84,18 @@ def _is_wide_int_array(arr: np.ndarray):
     return arr.dtype == object and arr.size > 0 and all(type(value) is int for value in arr.flat)
 
 
-def _convert_integer_array(arr: np.ndarray, dtype=None):
-    """Cast integer data without overflow, inferring int32 or uint32 when dtype is omitted."""
+def _convert_integer_array(arr: np.ndarray):
+    """Infer int32 or uint32 for integer data and prevent overflow."""
+    dtype = np.int32
     if arr.size:
         min_value, max_value = int(arr.min()), int(arr.max())
-        if dtype is None:
-            dtype = np.uint32 if min_value >= 0 and max_value >= 1 << 31 else np.int32
+        if min_value >= 0 and max_value >> 31:
+            dtype = np.uint32
         limits = np.iinfo(dtype)
         if min_value < limits.min or max_value > limits.max:
             value = min_value if min_value < limits.min else max_value
-            raise OverflowError(f"Integer value {value} is out of range for {limits.dtype}.")
-    return arr.astype(dtype or np.int32, copy=False)
+            raise OverflowError(f"Python integer {value} out of bounds for {limits.dtype}.")
+    return arr.astype(dtype, copy=False)
 
 
 def _array_from_python(data, dtype=None):
@@ -110,10 +111,7 @@ def _array_from_python(data, dtype=None):
         else:
             numpy_type = nvidia.dali.types.to_numpy_type(dtype.type_id)
 
-        if numpy_type == np.int32 and _is_wide_int_array(arr := np.array(data)):
-            arr = _convert_integer_array(arr, numpy_type)
-        else:
-            arr = np.array(data, dtype=numpy_type)
+        arr = np.array(data, dtype=numpy_type)
     else:
         arr = np.array(data)
         # Infer 32-bit types for Python numbers, preserving integer values.
