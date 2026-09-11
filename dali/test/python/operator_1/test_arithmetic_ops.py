@@ -647,6 +647,16 @@ def test_arithmetic_ops_selected():
                     yield check_arithm_op, kinds, types_in, op, shape_small, get_range, op_desc
 
 
+@params(1 << 31, -(1 << 31) - 1)
+def test_integer_constant_overflow(value):
+    @pipeline_def(batch_size=1, num_threads=1, device_id=None)
+    def pipe():
+        return types.Constant([1], dtype=types.INT32) + value
+
+    with assert_raises(OverflowError, glob=f"Integer constant {value} out of bounds for int32"):
+        pipe().run()
+
+
 @attr("slow")
 def slow_test_arithmetic_ops():
     for kinds in bin_input_kinds:
