@@ -260,7 +260,7 @@ class Tensor:
                 else:
                     raise ValueError(f"Unsupported device type: {dl_device_type}")
                 self._wraps_external_data = True
-            elif a := _get_array_interface(data):
+            elif (a := _get_array_interface(data)) is not None:
                 self._storage = _backend.TensorCPU(a, layout)
                 self._wraps_external_data = True
             else:
