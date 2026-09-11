@@ -25,7 +25,9 @@ test_py_with_framework() {
 
 
     if [ -n "$DALI_ENABLE_SANITIZERS" ]; then
-      SKIP_TESTS="test_numpy.py"
+      # test_s3 spawns a mock S3 server subprocess that would inherit LD_PRELOAD=libasan, and
+      # qa/leak.sup has no suppressions for the AWS SDK, libcurl or OpenSSL globals
+      SKIP_TESTS="test_numpy.py test_s3.py"
       READER_TESTS=""
 
       for test_script in $(ls reader/test_*); do

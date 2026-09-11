@@ -205,6 +205,28 @@ If set, DALI doesn't try to use NVML. Useful on systems without NVML support, e.
 Network
 ~~~~~~~
 
+`AWS_ENDPOINT_URL`
+------------------
+
+Values: a URL, e.g. ``http://127.0.0.1:9000``
+
+Default: unset (the AWS SDK resolves the regional S3 endpoint)
+
+Overrides the endpoint used for ``s3://`` paths, which allows DALI to read from an S3-compatible
+service such as MinIO. The value must include the scheme; without it the AWS SDK assumes ``https://``.
+
+.. note::
+  DALI uses the AWS SDK default addressing mode. When the endpoint host is a host name, requests are
+  addressed as ``<scheme>://<bucket>.<host>``, which requires a matching DNS entry to exist. When the
+  host is an IP literal, path-style addressing (``<scheme>://<host>/<bucket>``) is used instead.
+
+.. note::
+  The value is read once, when the S3 client is created on the first ``s3://`` access in the process.
+  Changing it afterwards has no effect.
+
+Credentials and region are taken from the standard AWS variables (``AWS_ACCESS_KEY_ID``,
+``AWS_SECRET_ACCESS_KEY``, ``AWS_DEFAULT_REGION``).
+
 `DALI_S3_NO_VERIFY_SSL`
 -----------------------
 
