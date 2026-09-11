@@ -202,6 +202,40 @@ def test_scalar():
 
 
 @eval_modes()
+@params(
+    (-(1 << 31), ndd.int32),
+    ((1 << 31) - 1, ndd.int32),
+    (1 << 31, ndd.uint32),
+    ((1 << 32) - 1, ndd.uint32),
+    ([-(1 << 31), 0, (1 << 31) - 1], ndd.int32),
+    ([0, 1 << 31, (1 << 32) - 1], ndd.uint32),
+)
+def test_int_dtype(data, dtype):
+    tensor = ndd.tensor(data)
+    assert tensor.dtype == dtype
+    assert np.array_equal(tensor, data)
+
+
+@eval_modes()
+@params(
+    (-(1 << 31) - 1, -(1 << 31) - 1, "int32"),
+    (1 << 32, 1 << 32, "uint32"),
+    ([0, 1 << 80], 1 << 80, "uint32"),
+    ([-1, 1 << 31], 1 << 31, "int32"),
+)
+def test_int_overflow(data, faulty_value, dtype):
+    with assert_raises(OverflowError, glob=f"{faulty_value}*out of range for {dtype}"):
+        ndd.tensor(data)
+
+
+@eval_modes()
+def test_int_overflow_explicit():
+    value = 1 << 31
+    with assert_raises(OverflowError, glob=f"*{value}*out of range for int32*"):
+        ndd.tensor(value, dtype=ndd.int32)
+
+
+@eval_modes()
 def test_shapes():
     shapes = [
         (),

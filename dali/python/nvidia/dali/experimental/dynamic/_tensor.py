@@ -78,6 +78,25 @@ def _try_convert_enums(arr):
         raise TypeError(f"Unexpected element type {type(item)}")
 
 
+def _is_wide_int_array(arr: np.ndarray):
+    if arr.dtype in (np.int64, np.uint64):
+        return True
+    return arr.dtype == object and arr.size > 0 and all(type(value) is int for value in arr.flat)
+
+
+def _convert_integer_array(arr: np.ndarray, dtype=None):
+    """Cast integer data without overflow, inferring int32 or uint32 when dtype is omitted."""
+    if arr.size:
+        min_value, max_value = int(arr.min()), int(arr.max())
+        if dtype is None:
+            dtype = np.uint32 if min_value >= 0 and max_value >= 1 << 31 else np.int32
+        limits = np.iinfo(dtype)
+        if min_value < limits.min or max_value > limits.max:
+            value = min_value if min_value < limits.min else max_value
+            raise OverflowError(f"Integer value {value} is out of range for {limits.dtype}.")
+    return arr.astype(dtype or np.int32, copy=False)
+
+
 class Tensor:
     """A Tensor object.
 
@@ -264,41 +283,34 @@ class Tensor:
                 self._storage = _backend.TensorCPU(a, layout)
                 self._wraps_external_data = True
             else:
+                data = unwrap_invariants(data)
+                converted_dtype_id = None
                 if dtype is not None:
                     if dtype.kind == DType.Kind.enum:
                         numpy_type = np.int32
+                        converted_dtype_id = dtype.type_id
                     else:
                         numpy_type = nvidia.dali.types.to_numpy_type(dtype.type_id)
 
-                    self._storage = _backend.TensorCPU(
-                        np.array(unwrap_invariants(data), dtype=numpy_type),
-                        layout,
-                        False,
-                    )
-                    if dtype.kind == DType.Kind.enum:
-                        self._storage.reinterpret(dtype.type_id)
+                    if numpy_type == np.int32 and _is_wide_int_array(arr := np.array(data)):
+                        arr = _convert_integer_array(arr, numpy_type)
+                    else:
+                        arr = np.array(data, dtype=numpy_type)
 
-                    copied = True
-                    self._wraps_external_data = False
-                    self._dtype = dtype
                 else:
-                    arr = np.array(unwrap_invariants(data))
-                    # DALI doesn't support int64 and float64, so we need to convert them to int32
-                    # and float32, respectively.
-                    converted_dtype_id = None
-                    if arr.dtype == np.int64:
-                        arr = arr.astype(np.int32)
-                    elif arr.dtype == np.uint64:
-                        arr = arr.astype(np.uint32)
+                    arr = np.array(data)
+                    # Infer 32-bit types for Python numbers, preserving integer values.
+                    if _is_wide_int_array(arr):
+                        arr = _convert_integer_array(arr)
                     elif arr.dtype == np.float64:
                         arr = arr.astype(np.float32)
                     elif arr.dtype == object:
                         arr, converted_dtype_id = _try_convert_enums(arr)
-                    self._storage = _backend.TensorCPU(arr, layout, False)
-                    if converted_dtype_id is not None:
-                        self._storage.reinterpret(converted_dtype_id)
-                    copied = True
-                    self._wraps_external_data = False
+                self._storage = _backend.TensorCPU(arr, layout, False)
+                if converted_dtype_id is not None:
+                    self._storage.reinterpret(converted_dtype_id)
+                copied = True
+                self._wraps_external_data = False
 
             if self._storage is not None:
                 self._device = _backend_device(self._storage)
