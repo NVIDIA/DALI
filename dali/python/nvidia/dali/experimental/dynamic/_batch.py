@@ -28,7 +28,7 @@ from ._eval_context import EvalContext as _EvalContext
 from ._arithmetic import _arithm_op
 from ._device import Device, DeviceLike
 from ._device import device as _device
-from ._tensor import Tensor, _is_full_slice
+from ._tensor import Tensor, _array_from_python, _is_full_slice
 from ._tensor import as_tensor as _as_tensor
 from ._tensor import tensor as _tensor
 from ._type import DType, DTypeLike
@@ -456,6 +456,16 @@ class Batch:
         sample, batch_size, device, dtype = unwrap_invariant_args(sample, batch_size, device, dtype)
         if isinstance(sample, Batch):
             raise ValueError("Cannot broadcast a Batch")
+        if not _is_tensor_type(sample):
+            import numpy as np
+
+            arr, converted_dtype_id = _array_from_python(sample, dtype)
+            # Materialize Python constants contiguously for bulk CPU/GPU transfers.
+            arr = np.repeat(arr[np.newaxis], batch_size, axis=0)
+            tl = _backend.TensorListCPU(arr)
+            if converted_dtype_id is not None:
+                tl.reinterpret(converted_dtype_id)
+            return Batch(tl, device=device)
         t = _as_tensor(sample, device=device, dtype=dtype).evaluate()
         tl_type = (
             _backend.TensorListGPU if t.device.device_type == "gpu" else _backend.TensorListCPU
