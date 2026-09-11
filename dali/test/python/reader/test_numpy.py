@@ -1220,3 +1220,38 @@ def test_shuffle_after_epoch_seed_numpy_default_reproducible():
         assert (
             order1 == order2
         ), "Without explicit seed, default behavior should be reproducible (backward compat)"
+
+
+def test_sample_data_is_read_when_mmap_is_unavailable():
+    """Samples must be read even when the loader falls back to a non-mapped stream.
+
+    NumpyLoader::ReadSample defers the read whenever the stream cannot be memory mapped, which
+    happens for remote storage and, locally, when the mmap reservation cannot be satisfied.
+    NumpyReaderCPU::Prefetch used to skip that deferred read unless dont_use_mmap was requested,
+    so the sample was handed out as a never-written buffer. See DALI-4887.
+    """
+    try:
+        with open("/proc/sys/vm/max_map_count") as f:
+            max_map_count = int(f.read())
+    except OSError:
+        raise SkipTest("/proc/sys/vm/max_map_count is not readable")
+
+    # FileLoader reserves initial_buffer_fill_ mappings up front and falls back to copying reads
+    # when that fails; the limit is max_map_count / 2 (mmaped_file.cc). initial_fill only feeds
+    # initial_buffer_fill_ when random_shuffle is on.
+    initial_fill = max_map_count // 2 + 1
+
+    with tempfile.TemporaryDirectory() as test_data_root:
+        ref = np.arange(64, dtype=np.uint8).reshape(8, 8)
+        # a single sample, so random_shuffle cannot change what we get back
+        np.save(os.path.join(test_data_root, "sample.npy"), ref)
+
+        pipe = Pipeline(batch_size=1, num_threads=1, device_id=None)
+        with pipe:
+            pipe.set_outputs(
+                fn.readers.numpy(
+                    file_root=test_data_root, random_shuffle=True, initial_fill=initial_fill
+                )
+            )
+        pipe.build()
+        assert_array_equal(to_array(pipe.run()[0][0]), ref)

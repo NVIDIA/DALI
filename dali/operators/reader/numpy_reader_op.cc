@@ -263,8 +263,12 @@ void NumpyReaderCPU::Prefetch() {
                       DomainTimeRange::kRed);
   DataReader<CPUBackend, NumpyFileWrapper, NumpyFileWrapper, true>::Prefetch();
 
-  if (!dont_use_mmap_)
-    return;
+  // Read the samples that the loader could not provide by memory mapping. Note that this is not
+  // the same as `dont_use_mmap_`: NumpyLoader::ReadSample decides based on the actual stream
+  // (`!opts.use_mmap || !current_file->CanMemoryMap()`), so a sample can need a deferred read even
+  // when the user did not ask for `dont_use_mmap`, e.g. for remote storage, which is never
+  // mappable, or when the mmap reservation could not be satisfied. Samples that the loader already
+  // provided leave `current_file` empty and are skipped below.
   auto &curr_batch = prefetched_batch_queue_[curr_batch_producer_];
 
   string previous_path;
