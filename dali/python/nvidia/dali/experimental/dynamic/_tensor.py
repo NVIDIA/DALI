@@ -97,6 +97,35 @@ def _convert_integer_array(arr: np.ndarray, dtype=None):
     return arr.astype(dtype or np.int32, copy=False)
 
 
+def _array_from_python(data, dtype=None):
+    """Convert Python data to NumPy, returning any DALI enum type to reinterpret."""
+    data = unwrap_invariants(data)
+    converted_dtype_id = None
+    if dtype is not None:
+        if not isinstance(dtype, DType):
+            dtype = _dtype(dtype)
+        if dtype.kind == DType.Kind.enum:
+            numpy_type = np.int32
+            converted_dtype_id = dtype.type_id
+        else:
+            numpy_type = nvidia.dali.types.to_numpy_type(dtype.type_id)
+
+        if numpy_type == np.int32 and _is_wide_int_array(arr := np.array(data)):
+            arr = _convert_integer_array(arr, numpy_type)
+        else:
+            arr = np.array(data, dtype=numpy_type)
+    else:
+        arr = np.array(data)
+        # Infer 32-bit types for Python numbers, preserving integer values.
+        if _is_wide_int_array(arr):
+            arr = _convert_integer_array(arr)
+        elif arr.dtype == np.float64:
+            arr = arr.astype(np.float32)
+        elif arr.dtype == object:
+            arr, converted_dtype_id = _try_convert_enums(arr)
+    return arr, converted_dtype_id
+
+
 class Tensor:
     """A Tensor object.
 
@@ -283,29 +312,7 @@ class Tensor:
                 self._storage = _backend.TensorCPU(a, layout)
                 self._wraps_external_data = True
             else:
-                data = unwrap_invariants(data)
-                converted_dtype_id = None
-                if dtype is not None:
-                    if dtype.kind == DType.Kind.enum:
-                        numpy_type = np.int32
-                        converted_dtype_id = dtype.type_id
-                    else:
-                        numpy_type = nvidia.dali.types.to_numpy_type(dtype.type_id)
-
-                    if numpy_type == np.int32 and _is_wide_int_array(arr := np.array(data)):
-                        arr = _convert_integer_array(arr, numpy_type)
-                    else:
-                        arr = np.array(data, dtype=numpy_type)
-
-                else:
-                    arr = np.array(data)
-                    # Infer 32-bit types for Python numbers, preserving integer values.
-                    if _is_wide_int_array(arr):
-                        arr = _convert_integer_array(arr)
-                    elif arr.dtype == np.float64:
-                        arr = arr.astype(np.float32)
-                    elif arr.dtype == object:
-                        arr, converted_dtype_id = _try_convert_enums(arr)
+                arr, converted_dtype_id = _array_from_python(data, dtype)
                 self._storage = _backend.TensorCPU(arr, layout, False)
                 if converted_dtype_id is not None:
                     self._storage.reinterpret(converted_dtype_id)
