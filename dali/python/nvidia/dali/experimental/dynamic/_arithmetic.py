@@ -45,6 +45,8 @@ def _arithm_op(name: str, *args):
             desc.append(f"${len(integers)}:bool")
             integers.append(int(arg))
         elif type_ is int:
+            if (arg >> 31) not in (0, -1):
+                raise OverflowError(f"Integer constant {arg} is out of range for int32.")
             desc.append(f"${len(integers)}:int32")
             integers.append(arg)
         elif type_ is float:
