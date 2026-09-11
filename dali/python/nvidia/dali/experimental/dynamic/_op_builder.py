@@ -29,8 +29,7 @@ from ._call_site import mark_transparent, resolve_callsite_frame
 from ._capture import _capture_intercept
 from ._eval_mode import EvalMode
 from ._nvtx import NVTXRange
-from ._source_analysis import _Classifier
-from ._source_analysis import call_info as _call_info
+from ._source_analysis import constant_kwargs
 from ._tensor import Tensor
 from ._tensor import tensor as to_tensor
 from .capture._invariant import unwrap_invariant, unwrap_invariants
@@ -522,29 +521,8 @@ def build_fn_wrapper(op, fn_name=None, add_to_module=True):
         if _caller_frame is None:
             _caller_frame = resolve_callsite_frame(depth_hint=3)
 
-        constant_args = None
-        if _caller_frame is not None:
-            info = _call_info(_caller_frame)
-            if info is not None:
-                arg_classification = None
-                if "constant_args" in info.meta:
-                    constant_args = info.meta["constant_args"]
-                else:
-                    # TODO(michalz): use (inputs, raw_kwargs) when we have a way to utilize
-                    #                constant inputs
-                    arg_classification = _Classifier(
-                        info.module_info, _caller_frame
-                    ).detect_invariant_args([], raw_kwargs)
-                    if arg_classification is not None:
-                        # For future use
-                        # info.meta["constant_inputs"] = arg_classification[0]
-                        info.meta["constant_args"] = arg_classification[1]
-                        constant_args = arg_classification[1]
-                    else:
-                        # For future use
-                        # info.meta["constant_inputs"] = None
-                        info.meta["constant_args"] = None
-                        constant_args = None
+        # TODO(michalz): utilize constant inputs
+        constant_args = constant_kwargs(_caller_frame, raw_kwargs)
 
         init_args = {}
         call_args = {}
