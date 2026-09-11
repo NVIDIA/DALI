@@ -116,7 +116,6 @@ class DaliError : public std::exception {
  * MemoryError - recoverable memory errors
  * NameError, UnboundLocalError - lookup of unqualified names, Python code-level error
  * NotImplementedError - used for abstract base
- * OverflowError - we assume the code is safe :)
  * RecursionError
  * ReferenceError - Python weakref related errors
  * StopAsyncIteration - async iteration not supported in DALI
@@ -135,6 +134,7 @@ class DaliError : public std::exception {
  * ValueError
  * TypeError
  * StopIteration
+ * OverflowError
  */
 
 /**
