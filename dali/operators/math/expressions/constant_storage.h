@@ -52,8 +52,14 @@ class ConstantStorage {
   void Initialize(const OpSpec &spec, AccessOrder order,
                   const std::vector<ExprConstant *> &constant_nodes) {
     auto integers_vec = spec.HasArgument("integer_constants")
-                            ? spec.GetRepeatedArgument<int>("integer_constants")
-                            : std::vector<int>{};
+                            ? spec.GetRepeatedArgument<int64_t>("integer_constants")
+                            : std::vector<int64_t>{};
+    for (auto value : integers_vec) {
+      if (!std::in_range<int32_t>(value)) {
+        throw std::overflow_error(make_string(
+            "Integer constant ", value, " out of bounds for int32."));
+      }
+    }
     auto reals_vec = spec.HasArgument("real_constants")
                          ? spec.GetRepeatedArgument<float>("real_constants")
                          : std::vector<float>{};
