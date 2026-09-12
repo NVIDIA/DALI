@@ -128,6 +128,21 @@ def test_broadcast():
         assert np.array_equal(np.array(t), a)
 
 
+@eval_modes()
+@params(((1 << 31) - 1, ndd.int32), (1 << 31, ndd.uint32))
+def test_broadcast_int_dtype(value, dtype):
+    batch = ndd.Batch.broadcast(value, 5)
+    assert batch.dtype == dtype
+    assert all(sample.item() == value for sample in batch.tensors)
+
+
+@eval_modes()
+@params((1 << 32,), ([0, 5_000_000_000]))
+def test_broadcast_int_overflow(data):
+    with assert_raises(OverflowError, glob=f"*{data}*out of range for uint32*"):
+        ndd.Batch.broadcast(data, 5)
+
+
 def batch_equal(a, b):
     if len(a) != len(b):
         return False
