@@ -12,8 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import math
 import os
 
+import numpy as np
 from nose2.tools import params, cartesian_params
 from nose_utils import assert_raises
 from PIL import Image
@@ -147,6 +149,107 @@ def test_colorjitter_images(cj_params, device):
     for fn in test_files:
         img = Image.open(fn)
         _ = cj(img)
+
+
+# Mirrors the hue-only path of ref_color_twist in dali/test/python/operator_1/test_color_twist.py.
+# It is duplicated rather than imported because that module lives in another test directory with
+# no package init, and nothing in this tree imports across those directories today.
+_rgb2yiq = np.array([[0.299, 0.587, 0.114], [0.596, -0.274, -0.321], [0.211, -0.523, 0.311]])
+_yiq2rgb = np.linalg.inv(_rgb2yiq)
+
+
+def yiq_hue_rotate(img: np.ndarray, degrees: float) -> np.ndarray:
+    """Rotate hue by `degrees` in YIQ, the way fn.color_twist defines it."""
+    angle = math.radians(degrees)
+    s, c = math.sin(angle), math.cos(angle)
+    hmat = np.array([[1, 0, 0], [0, c, s], [0, -s, c]])
+    m = np.matmul(_yiq2rgb, np.matmul(hmat, _rgb2yiq))
+    pixels = img.reshape([-1, img.shape[-1]]).astype(np.float64)
+    pixels = np.matmul(pixels, m.transpose())
+    return np.clip(np.round(pixels.reshape(img.shape)), 0, 255).astype(np.uint8)
+
+
+def median_hue_shift(before: Image.Image, after: Image.Image) -> float:
+    """Median hue rotation from `before` to `after`, in degrees, over the colorful pixels."""
+    hue_before, saturation, _ = before.convert("HSV").split()
+    hue_after, _, _ = after.convert("HSV").split()
+    to_degrees = 360.0 / 256.0
+    hue_before = np.asarray(hue_before, dtype=np.float64) * to_degrees
+    hue_after = np.asarray(hue_after, dtype=np.float64) * to_degrees
+    # hue is meaningless for near-gray pixels
+    colorful = np.asarray(saturation) > 32
+    assert colorful.any(), "image has no colorful pixels to measure hue on"
+    shift = (hue_after - hue_before + 180.0) % 360.0 - 180.0
+    return float(np.median(shift[colorful]))
+
+
+def hue_error(actual: float, expected: float) -> float:
+    """Absolute difference between two hue rotations, taking the shorter way around."""
+    return abs((actual - expected + 180.0) % 360.0 - 180.0)
+
+
+@cartesian_params((0.05, 0.1, -0.1, 0.25, -0.25, 0.5, -0.5), ("cpu", "gpu"))
+def test_colorjitter_hue_rotation(hue, device):
+    # torchvision expresses hue as a fraction of a full turn, fn.color_twist takes degrees.
+    # DALI rotates linearly in YIQ, which drifts from torchvision's HSV shift in proportion
+    # to the angle, so the tolerance scales too. The comparison is circular because hue=+-0.5
+    # lands on +-180, where implementations that agree closely can report opposite signs.
+    requested = abs(hue) * 360.0
+    # Deliberately loose. test_colorjitter_hue_matches_yiq_reference pins the unit conversion
+    # exactly, so this only has to catch a gross unit error. 0.35 was the measured worst case
+    # and left no margin: at hue=-0.1 the drift is 12.66 degrees against a 12.60 bound. Errors
+    # here move in steps of 360/256 degrees, the PIL HSV hue quantum, so the bound needs more
+    # than one step of slack. 0.45 leaves over 3 degrees everywhere and still catches a 1.5x
+    # unit error.
+    tol = max(4.0, 0.45 * requested)
+    cj = Compose([ColorJitter(hue=(hue, hue), device=device)])
+
+    for fn in test_files:
+        img = Image.open(fn).convert("RGB")
+        expected = median_hue_shift(img, transforms.functional.adjust_hue(img, hue))
+        actual = median_hue_shift(img, cj(img))
+        assert hue_error(actual, expected) < tol, (
+            f"hue={hue} rotated by {actual:.2f} degrees, torchvision rotates by "
+            f"{expected:.2f} degrees: {fn}"
+        )
+
+
+@cartesian_params((0.05, 0.1, -0.1, 0.25, -0.25, 0.5, -0.5), ("cpu", "gpu"))
+def test_colorjitter_hue_matches_yiq_reference(hue, device):
+    # This is what pins the unit conversion. fn.color_twist rotates hue by the number of degrees
+    # it is handed, so ColorJitter(hue=h) has to match a rotation of h*360 degrees in YIQ.
+    # Measuring against DALI's own model takes the YIQ-vs-HSV drift out of the comparison, which
+    # is what forced the loose bound in the test above, and leaves a per-pixel check instead.
+    cj = Compose([ColorJitter(hue=(hue, hue), device=device)])
+
+    for fn in test_files:
+        img = Image.open(fn).convert("RGB")
+        expected = yiq_hue_rotate(np.asarray(img), hue * 360.0)
+        actual = np.asarray(cj(img).convert("RGB"))
+        # The bound test_color_twist.py uses for this operator with uint8 output.
+        assert np.allclose(actual, expected, 1 / 512, 1), (
+            f"hue={hue} on {fn}: max abs difference "
+            f"{np.abs(actual.astype(np.int32) - expected.astype(np.int32)).max()}"
+        )
+
+
+@params("cpu", "gpu")
+def test_colorjitter_hue_range_is_converted(device):
+    # hue=(h, h) short-circuits in _get_BrightnessContrastSaturationHue and passes a scalar.
+    # A genuine range takes the fn.random.uniform branch, which is the one that consumes the
+    # converted range, and is what ColorJitter(hue=0.1) expands to. Both endpoints must be
+    # converted, so the sampled rotation has to land inside [36, 72] degrees.
+    lo, hi = 0.1, 0.2
+    cj = Compose([ColorJitter(hue=(lo, hi), device=device)])
+    tol = max(4.0, 0.45 * hi * 360.0)
+
+    for fn in test_files:
+        img = Image.open(fn).convert("RGB")
+        actual = median_hue_shift(img, cj(img))
+        assert lo * 360.0 - tol <= actual <= hi * 360.0 + tol, (
+            f"hue range ({lo}, {hi}) should rotate within "
+            f"[{lo * 360.0:.0f}, {hi * 360.0:.0f}] degrees, measured {actual:.2f}: {fn}"
+        )
 
 
 """
