@@ -165,7 +165,7 @@ void TensorJoin<Backend, new_axis>::GetInputLayout(const Workspace &ws) {
 
   int ninp = this->spec_.NumRegularInput();
   for (int i = 0; i < ninp; i++) {
-    auto &in = ws.Input<Backend>(0);
+    auto &in = ws.Input<Backend>(i);
     TensorLayout tl = in.GetLayout();
     if (!tl.empty()) {
         if (!input_layout_.empty())
