@@ -288,13 +288,25 @@ def delete_bucket(endpoint_url, bucket=BUCKET):
             raise
 
 
-def skip_if_no_mock_server():
+def require_mock_server():
+    """The emulator is a required dependency, not an optional one.
+
+    A missing binary is an error rather than a skip: every suite that runs dali/test/python/reader
+    runs from an image built on docker/Dockerfile.base.clean_*, and all of those install it. Were
+    this a skip, the binary silently disappearing from an image would silently delete the coverage
+    with it. Builds without GCS support are the case that legitimately skips, and that is handled
+    separately by skip_if_no_gcs_support.
+    """
     if os.environ.get("DALI_ENABLE_SANITIZERS"):
         raise SkipTest("the GCS tests are not run under sanitizers")
     if os.environ.get("DALI_TEST_GCS_ENDPOINT"):
         return
     if shutil.which(SERVER_BINARY) is None and not os.path.isfile(SERVER_BINARY):
-        raise SkipTest(f"{SERVER_BINARY} is required to run the GCS tests")
+        raise RuntimeError(
+            f"{SERVER_BINARY} not found. It is installed by the test images "
+            f"(docker/Dockerfile.base.clean_*); set DALI_TEST_FAKE_GCS_SERVER to point at it, or "
+            f"DALI_TEST_GCS_ENDPOINT to use an external emulator."
+        )
 
 
 def skip_if_no_gcs_support():

@@ -115,7 +115,7 @@ def _seed_many_objects(endpoint, count=1100):
 def setUpModule():
     global g_server, g_tmpdir, g_root, g_files, g_tar, g_index, g_endpoint
     global g_quirks_files, g_odd_sizes
-    gcs.skip_if_no_mock_server()
+    gcs.require_mock_server()
 
     g_tmpdir = tempfile.TemporaryDirectory()
     g_root = os.path.join(g_tmpdir.name, "data")
