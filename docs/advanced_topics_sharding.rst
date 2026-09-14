@@ -1,5 +1,8 @@
+Sharding and Shuffling
+======================
+
 Sharding
-========
+--------
 
 Sharding allows DALI to partition the dataset into non-overlapping pieces on which each DALI pipeline
 instance can work. This functionality addresses the issue of having a global and a shared state
@@ -16,6 +19,42 @@ which prevents DALI from reading data from the next shard when the batch doesn't
 The parameter also ensures that all pipelines return the same number of batches, when one batch
 is divisible by the batch size but other batches are bigger by one sample. This process pads every
 shard to the same size, which is a multiple of the batch size.
+
+Shuffling
+---------
+
+Readers provide two kinds of shuffling. ``random_shuffle`` selects samples randomly from a
+prefetch buffer and uses the reader's ``seed``. ``shuffle_after_epoch`` changes the dataset or
+source-file order between epochs and uses ``shuffle_after_epoch_seed``. When multiple pipelines
+partition one dataset, they must use the same ``shuffle_after_epoch_seed`` so that every pipeline
+computes the same shuffled ordering before partitioning it into shards.
+
+With ``shuffle_after_epoch=True``, each pipeline keeps its shard index while the shuffled ordering
+changes which samples belong to that shard. This conflicts with ``stick_to_shard=True``, which
+keeps shard membership stable across epochs, so these options cannot be enabled together.
+
+Whether ``random_shuffle`` can be combined with ``shuffle_after_epoch`` depends on what the reader
+reshuffles:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 3,3,2
+
+   * - Readers
+     - ``shuffle_after_epoch`` reshuffles
+     - With ``random_shuffle``
+   * - :func:`~nvidia.dali.fn.readers.file`, :func:`~nvidia.dali.fn.readers.coco`,
+       :func:`~nvidia.dali.fn.readers.numpy`,
+       :func:`~nvidia.dali.fn.experimental.readers.fits`,
+       :func:`~nvidia.dali.fn.readers.nemo_asr`
+     - Samples
+     - Not supported
+   * - :func:`~nvidia.dali.fn.readers.tfrecord`, :func:`~nvidia.dali.fn.readers.mxnet`
+     - Source files
+     - Supported
+   * - :func:`~nvidia.dali.fn.readers.webdataset`
+     - Tar archives
+     - Supported
 
 Framework iterator configuration
 --------------------------------
