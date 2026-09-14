@@ -202,6 +202,55 @@ def test_scalar():
 
 
 @eval_modes()
+@params(
+    (-(1 << 31), ndd.int32),
+    ((1 << 31) - 1, ndd.int32),
+    (1 << 31, ndd.uint32),
+    ((1 << 32) - 1, ndd.uint32),
+    ([-(1 << 31), 0, (1 << 31) - 1], ndd.int32),
+    ([0, 1 << 31, (1 << 32) - 1], ndd.uint32),
+)
+def test_int_dtype(data, dtype):
+    tensor = ndd.tensor(data)
+    assert tensor.dtype == dtype
+    assert np.array_equal(tensor, data)
+
+
+@eval_modes()
+@params(
+    (-(1 << 31) - 1, -(1 << 31) - 1, "int32"),
+    (1 << 32, 1 << 32, "uint32"),
+    ([0, 1 << 80], 1 << 80, "uint32"),
+    ([-1, 1 << 31], 1 << 31, "int32"),
+)
+def test_int_overflow(data, faulty_value, dtype):
+    with assert_raises(OverflowError, glob=f"{faulty_value}*out of range for {dtype}"):
+        ndd.tensor(data)
+
+
+@eval_modes()
+@params(
+    (1 << 31, np.int32),
+    ([np.int64(1 << 31)], np.int32),
+    ([np.uint64(1 << 32)], np.uint32),
+    ([np.int32(-1)], np.uint32),
+    (5_000_000_000, np.int64),
+)
+def test_explicit_int_cast_matches_numpy(data, numpy_type):
+    dtype = ndd.dtype(numpy_type)
+    # NumPy may reject Python integers while wrapping NumPy integer scalars.
+    try:
+        expected = np.array(data, dtype=numpy_type)
+    except OverflowError:
+        with assert_raises(OverflowError):
+            ndd.tensor(data, dtype=dtype)
+    else:
+        tensor = ndd.tensor(data, dtype=dtype)
+        assert tensor.dtype == dtype
+        assert np.array_equal(tensor, expected)
+
+
+@eval_modes()
 def test_shapes():
     shapes = [
         (),
