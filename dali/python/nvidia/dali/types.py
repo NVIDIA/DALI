@@ -230,8 +230,8 @@ class ScalarConstant(object):
     :meth:`nvidia.dali.Pipeline.define_graph` step.
 
     ScalarConstant indicates what type should the value be treated as with respect
-    to type promotions. The actual values passed to the backend from python
-    would be `int32` for integer values and `float32` for floating point values.
+    to type promotions. In mathematical expressions, integer values must fit both
+    `dtype` and `int64`; floating point values are passed to the backend as `float32`.
     Python builtin types `bool`, `int` and `float` will be marked to indicate
     :const:`nvidia.dali.types.DALIDataType.BOOL`, :const:`nvidia.dali.types.DALIDataType.INT32`,
     and :const:`nvidia.dali.types.DALIDataType.FLOAT` respectively.
