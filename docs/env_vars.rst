@@ -240,6 +240,44 @@ If set, DALI will not verify SSL certificates when communicating with S3 service
 By default, DALI uses SSL when communicating with S3 services, which includes verifying SSL certificates.
 This option allows you to override the default behavior of verifying SSL certificates.
 
+`DALI_GCS_ENDPOINT_URL`
+-----------------------
+
+Values: a URL, e.g. ``http://127.0.0.1:4443``
+
+Default: unset (the client talks to Google Cloud Storage)
+
+Overrides the endpoint used for ``gs://`` paths, which allows DALI to read from a Google Cloud
+Storage emulator. The value must include the scheme.
+
+.. note::
+  The value is read once, when the GCS client is created on the first ``gs://`` access in the
+  process. Changing it afterwards has no effect.
+
+`DALI_GCS_ANONYMOUS`
+--------------------
+
+Values: 0, 1
+
+Default: 0
+
+If set, DALI accesses ``gs://`` paths without credentials. By default the client uses Application
+Default Credentials, which neither a public bucket nor a local emulator requires - reading either
+one means opting out of authentication explicitly.
+
+`DALI_GCS_VERIFY_CHECKSUMS`
+---------------------------
+
+Values: 0, 1
+
+Default: 0
+
+If set, DALI validates the CRC32C checksum of the data it downloads from ``gs://`` paths.
+
+DALI only ever issues ranged reads, while Google Cloud Storage reports checksums for whole objects
+only, so a per-read checksum cannot be validated end to end - which is why this is off by default
+and costs CPU in the data loading path when turned on. It is meant for debugging.
+
 Testing
 ~~~~~~~
 
