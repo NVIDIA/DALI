@@ -86,7 +86,9 @@ This reader produces between 1 and 3 outputs:
   .AddOptionalArg("shuffle_after_epoch",
     R"code(If set to True, the reader shuffles the entire dataset after each epoch.
 
-`stick_to_shard` and `random_shuffle` cannot be used when this argument is set to True.)code",
+`stick_to_shard` and `random_shuffle` cannot be used when this argument is set to True.
+
+See the Sharding and Shuffling documentation for details.)code",
     false)
   .AddOptionalArg<int64_t>("shuffle_after_epoch_seed",
     R"code(Random seed for the dataset shuffling performed after each epoch.

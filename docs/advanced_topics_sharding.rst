@@ -33,28 +33,8 @@ With ``shuffle_after_epoch=True``, each pipeline keeps its shard index while the
 changes which samples belong to that shard. This conflicts with ``stick_to_shard=True``, which
 keeps shard membership stable across epochs, so these options cannot be enabled together.
 
-Whether ``random_shuffle`` can be combined with ``shuffle_after_epoch`` depends on what the reader
-reshuffles:
-
-.. list-table::
-   :header-rows: 1
-   :widths: 3,3,2
-
-   * - Readers
-     - ``shuffle_after_epoch`` reshuffles
-     - With ``random_shuffle``
-   * - :func:`~nvidia.dali.fn.readers.file`, :func:`~nvidia.dali.fn.readers.coco`,
-       :func:`~nvidia.dali.fn.readers.numpy`,
-       :func:`~nvidia.dali.fn.experimental.readers.fits`,
-       :func:`~nvidia.dali.fn.readers.nemo_asr`
-     - Samples
-     - Not supported
-   * - :func:`~nvidia.dali.fn.readers.tfrecord`, :func:`~nvidia.dali.fn.readers.mxnet`
-     - Source files
-     - Supported
-   * - :func:`~nvidia.dali.fn.readers.webdataset`
-     - Tar archives
-     - Supported
+Whether ``random_shuffle`` can be combined with ``shuffle_after_epoch`` depends on the reader.
+See the reader's ``shuffle_after_epoch`` argument documentation for supported combinations.
 
 Framework iterator configuration
 --------------------------------
