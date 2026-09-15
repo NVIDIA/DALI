@@ -162,7 +162,9 @@ This keeps I/O access patterns sequential — only the order in which whole shar
 changes between epochs. ``random_shuffle`` can be combined with this option to additionally
 shuffle samples within the pipeline's prefetch buffer.
 
-``stick_to_shard`` cannot be used when this argument is set to True.)code",
+``stick_to_shard`` cannot be used when this argument is set to True.
+
+See the Sharding and Shuffling documentation for details.)code",
         false)
     .AddOptionalArg<int64_t>("shuffle_after_epoch_seed",
         R"code(Random seed for the shard-order shuffling performed after each epoch.
