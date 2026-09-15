@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -54,7 +54,7 @@ class Constant : public StatelessOperator<Backend> {
 
       output_type_ = DALI_INT32;
 
-      idata_ = spec.GetRepeatedArgument<int>("idata");
+      idata_ = spec.GetRepeatedArgument<int64_t>("idata");
       if (!has_shape) {
         shape_arg_ = { static_cast<int>(idata_.size()) };
       } else {
@@ -94,7 +94,7 @@ class Constant : public StatelessOperator<Backend> {
  private:
   USE_OPERATOR_MEMBERS();
   std::vector<int> shape_arg_;
-  std::vector<int> idata_;
+  std::vector<int64_t> idata_;
   std::vector<float> fdata_;
   TensorListShape<> output_shape_;
   TensorListShape<> max_output_shape_;

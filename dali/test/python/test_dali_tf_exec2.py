@@ -36,9 +36,9 @@ lmdb_folder = os.path.join(test_data_root, "db", "lmdb")
 def dali_exec2_pipeline():
     iter_id = fn.external_source(source=lambda x: np.array(x.iteration), batch=False)
     if iter_id & 1 == 0:
-        output = types.Constant(np.array(-1), device="gpu")
+        output = types.Constant(np.array(-1, dtype=np.int32), device="gpu")
     else:
-        output = types.Constant(np.array(1), device="gpu")
+        output = types.Constant(np.array(1, dtype=np.int32), device="gpu")
     return output.cpu()
 
 

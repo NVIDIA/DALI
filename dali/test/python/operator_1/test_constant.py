@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@ import nvidia.dali.ops as ops
 import nvidia.dali.types as types
 import os
 from nvidia.dali import Pipeline
+from nvidia.dali.backend import GetSchema
 
 from test_utils import check_batch
 from test_utils import get_dali_extra_path
@@ -173,6 +174,33 @@ def test_constant_fn():
 def test_scalar_constant_promotion():
     yield _test_scalar_constant_promotion, "cpu"
     yield _test_scalar_constant_promotion, "gpu"
+
+
+def _test_int64_constant(device):
+    scalar = np.array(12345678901234, dtype=np.int64)
+    signed = np.array([np.iinfo(np.int64).min, -1, 0, np.iinfo(np.int64).max], dtype=np.int64)
+    unsigned = np.array([0, np.iinfo(np.uint32).max + 1, np.iinfo(np.int64).max], dtype=np.uint64)
+
+    pipe = Pipeline(1, 1, 0 if device == "gpu" else None)
+    pipe.set_outputs(
+        types.Constant(scalar),
+        types.Constant(signed, device=device),
+        types.Constant(unsigned, device=device),
+    )
+
+    scalar_out, signed_out, unsigned_out = pipe.run()
+    if device == "gpu":
+        signed_out = signed_out.as_cpu()
+        unsigned_out = unsigned_out.as_cpu()
+    check(scalar_out.at(0), scalar)
+    check(signed_out.at(0), signed)
+    check(unsigned_out.at(0), unsigned)
+
+
+def test_int64_constant():
+    assert GetSchema("Constant").GetArgumentType("idata") == types.DALIDataType._INT64_VEC
+    yield _test_int64_constant, "cpu"
+    yield _test_int64_constant, "gpu"
 
 
 def test_variable_batch():

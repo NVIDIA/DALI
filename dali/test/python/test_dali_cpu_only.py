@@ -416,7 +416,9 @@ def test_grid_mask_cpu():
 
 
 def test_multi_paste_cpu():
-    check_single_input(fn.multi_paste, in_ids=np.array([0, 1]), output_size=test_data_shape)
+    check_single_input(
+        fn.multi_paste, in_ids=np.array([0, 1], dtype=np.int32), output_size=test_data_shape
+    )
 
 
 def test_paste_cpu():

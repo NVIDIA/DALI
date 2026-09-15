@@ -596,6 +596,12 @@ void AddArgToSpec(dali::OpSpec &spec, const daliArgDesc_t &arg) {
       spec.AddArg(name, std::vector<int>(d, d + arg.size));
       break;
     }
+    case DALI_INT64_VEC: {
+      check_arr();
+      auto *d = static_cast<const int64_t *>(arg.arr);
+      spec.AddArg(name, std::vector<int64_t>(d, d + arg.size));
+      break;
+    }
     case DALI_FLOAT_VEC: {
       check_arr();
       auto *d = static_cast<const float *>(arg.arr);

@@ -63,6 +63,7 @@ _known_types = {
     DALIDataType.STRING: ("str", str),
     DALIDataType._BOOL_VEC: ("bool", _to_list(bool)),
     DALIDataType._INT32_VEC: ("int", _to_list(int)),
+    DALIDataType._INT64_VEC: ("int", _to_list(int)),
     DALIDataType._STRING_VEC: ("str", _to_list(str)),
     DALIDataType._FLOAT_VEC: ("float", _to_list(float)),
     DALIDataType.IMAGE_TYPE: ("nvidia.dali.types.DALIImageType", lambda x: DALIImageType(int(x))),
@@ -86,6 +87,7 @@ _known_types = {
 _vector_types = {
     DALIDataType._BOOL_VEC: DALIDataType.BOOL,
     DALIDataType._INT32_VEC: DALIDataType.INT32,
+    DALIDataType._INT64_VEC: DALIDataType.INT64,
     DALIDataType._STRING_VEC: DALIDataType.STRING,
     DALIDataType._FLOAT_VEC: DALIDataType.FLOAT,
     DALIDataType._TENSOR_LAYOUT_VEC: DALIDataType.TENSOR_LAYOUT,
@@ -510,13 +512,9 @@ def _preprocess_constant_array_type(value):
     if _is_numpy_array(value):
         import numpy as np
 
-        # 64-bit types require explicit dtype
+        # Double precision data is transported as float32.
         if value.dtype == np.float64:
             value = value.astype(np.float32)
-        if value.dtype == np.int64:
-            value = value.astype(np.int32)
-        if value.dtype == np.uint64:
-            value = value.astype(np.uint32)
 
     return value
 
