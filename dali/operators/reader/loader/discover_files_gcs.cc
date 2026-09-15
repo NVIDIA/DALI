@@ -55,20 +55,32 @@ std::vector<FileLabelEntry> gcs_discover_files(const std::string &file_root,
         // syscalls per object and can silently reject every key.
         auto p = std::filesystem::path(object_key).lexically_relative(parent_object_key);
         auto path_elems = count_elems(p);
-        // We only look at one subdir level. Fewer than two components means either an object
-        // directly under the listed prefix, or the prefix's own directory marker, which relative()
-        // maps to "."; neither is a labelled file, and both must be rejected before dereferencing
-        // the second component below.
-        if (path_elems != 2)
+        // One subdir level at most. With label_from_subdir the label is the subdirectory, so only
+        // objects exactly one level below the prefix are samples. Without it there is no label to
+        // infer and objects directly under the prefix count too - which is what the local backend
+        // does by visiting "." as well as the subdirectories (see discover_files.cc). Readers
+        // built on FileLoader - numpy and fits among them - come through here with the flag off.
+        if (path_elems != 2 && !(path_elems == 1 && !opts.label_from_subdir))
           return;
-        const auto& subdir = p.begin()->native();
-        const auto& fname = (++p.begin())->native();
+        std::string subdir, fname;
+        if (path_elems == 2) {
+          subdir = p.begin()->native();
+          fname = (++p.begin())->native();
+        } else {
+          // The prefix's own directory marker relativizes to ".", which is one component with a
+          // non-empty name - otherwise indistinguishable from an object directly under it.
+          if (p.native() == ".")
+            return;
+          fname = p.native();
+        }
         // GCS directory markers are zero-byte objects whose name ends with '/'. A trailing
         // separator becomes an empty final component, so "<prefix>/class/" arrives here as
         // ("class", "") - a directory, not a file.
         if (fname.empty())
           return;
-        bool subdir_ok = opts.dir_filters.empty();
+        // A file directly under the prefix has no subdirectory for dir_filters to match, and the
+        // local backend does not apply them to it either.
+        bool subdir_ok = subdir.empty() || opts.dir_filters.empty();
         bool fname_ok = opts.file_filters.empty();
         for (auto &filter : opts.dir_filters) {
           if (fnmatch(filter.c_str(), subdir.c_str(),
