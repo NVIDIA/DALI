@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,6 +19,8 @@ import nvidia.dali.ops as ops
 import nvidia.dali.types as types
 import os
 from nvidia.dali import Pipeline
+from nvidia.dali.backend import GetSchema
+from nose_utils import assert_raises
 
 from test_utils import check_batch
 from test_utils import get_dali_extra_path
@@ -173,6 +175,46 @@ def test_constant_fn():
 def test_scalar_constant_promotion():
     yield _test_scalar_constant_promotion, "cpu"
     yield _test_scalar_constant_promotion, "gpu"
+
+
+def _test_int64_constant(device):
+    scalar = np.array(12345678901234, dtype=np.int64)
+    signed = np.array([np.iinfo(np.int64).min, -1, 0, np.iinfo(np.int64).max], dtype=np.int64)
+    unsigned = np.array([0, np.iinfo(np.uint32).max + 1, np.iinfo(np.int64).max], dtype=np.uint64)
+    implicit_signed = np.array([np.iinfo(np.int32).min, -1, 0, np.iinfo(np.int32).max])
+    implicit_unsigned = np.array([0, np.iinfo(np.uint32).max], dtype=np.uint64)
+
+    pipe = Pipeline(1, 1, 0 if device == "gpu" else None)
+    pipe.set_outputs(
+        types.Constant(scalar),
+        types.Constant(signed, dtype=types.INT64, device=device),
+        types.Constant(unsigned, dtype=types.UINT64, device=device),
+        types.Constant(implicit_signed, device=device),
+        types.Constant(implicit_unsigned, device=device),
+    )
+
+    scalar_out, signed_out, unsigned_out, implicit_signed_out, implicit_unsigned_out = pipe.run()
+    if device == "gpu":
+        signed_out = signed_out.as_cpu()
+        unsigned_out = unsigned_out.as_cpu()
+        implicit_signed_out = implicit_signed_out.as_cpu()
+        implicit_unsigned_out = implicit_unsigned_out.as_cpu()
+    check(scalar_out.at(0), scalar)
+    check(signed_out.at(0), signed)
+    check(unsigned_out.at(0), unsigned)
+    check(implicit_signed_out.at(0), implicit_signed.astype(np.int32))
+    check(implicit_unsigned_out.at(0), implicit_unsigned.astype(np.uint32))
+
+
+def test_int64_constant():
+    assert GetSchema("Constant").GetArgumentType("idata") == types.DALIDataType._INT64_VEC
+    yield _test_int64_constant, "cpu"
+    yield _test_int64_constant, "gpu"
+
+
+def test_int64_constant_overflow():
+    with assert_raises(OverflowError, glob="Integer * out of range for int32"):
+        types.Constant(np.array([(1 << 31) + 1]))
 
 
 def test_variable_batch():
