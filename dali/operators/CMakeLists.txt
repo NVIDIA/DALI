@@ -102,6 +102,14 @@ if (BUILD_CVCUDA)
   target_link_libraries(dali_operators PRIVATE cvcuda nvcv_types)
 endif(BUILD_CVCUDA)
 
+if (BUILD_GCS)
+  # GCSClientManager is header-only, so discover_files_gcs.cc needs google-cloud-cpp's headers,
+  # and `dali` links the library PRIVATE so its include directories do not propagate here. The
+  # symbols themselves would resolve through libdali.so at load time - google-cloud-cpp is a
+  # shared library, exactly like the AWS SDK - so this is about the include path, not the link.
+  target_link_libraries(dali_operators PRIVATE google-cloud-cpp::storage)
+endif()
+
 if (BUILD_NVIMAGECODEC)
   if (WITH_DYNAMIC_NVIMGCODEC)
     target_link_libraries(dali_operators PRIVATE dynlink_nvimgcodec)

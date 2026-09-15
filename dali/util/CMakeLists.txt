@@ -65,6 +65,23 @@ if (BUILD_AWSSDK)
   "${CMAKE_CURRENT_SOURCE_DIR}/s3_filesystem.cc")
 endif()
 
+if (BUILD_GCS)
+  # Guarded, unlike the S3 headers above: these include <google/cloud/...>, which is not part of
+  # the installed tree, so shipping them from a build without GCS support would ship headers that
+  # cannot be preprocessed.
+  set(DALI_INST_HDRS ${DALI_INST_HDRS}
+  "${CMAKE_CURRENT_SOURCE_DIR}/gcs_file.h"
+  "${CMAKE_CURRENT_SOURCE_DIR}/gcs_filesystem.h"
+  "${CMAKE_CURRENT_SOURCE_DIR}/gcs_client_manager.h")
+
+  set(DALI_SRCS ${DALI_SRCS}
+  "${CMAKE_CURRENT_SOURCE_DIR}/gcs_file.cc"
+  "${CMAKE_CURRENT_SOURCE_DIR}/gcs_filesystem.cc")
+
+  set(DALI_TEST_SRCS ${DALI_TEST_SRCS}
+  "${CMAKE_CURRENT_SOURCE_DIR}/gcs_filesystem_test.cc")
+endif()
+
 set(DALI_TEST_SRCS ${DALI_TEST_SRCS}
   "${CMAKE_CURRENT_SOURCE_DIR}/numpy_test.cc"
   "${CMAKE_CURRENT_SOURCE_DIR}/uri_test.cc")
