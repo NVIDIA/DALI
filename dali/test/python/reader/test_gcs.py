@@ -20,6 +20,8 @@ import tarfile
 import tempfile
 from concurrent.futures import ThreadPoolExecutor
 
+import numpy as np
+
 import nvidia.dali.fn as fn
 from nvidia.dali import pipeline_def
 
@@ -39,6 +41,8 @@ g_index = None
 g_endpoint = None
 g_quirks_files = None
 g_odd_sizes = None
+g_reserved_files = None
+g_numpy_root = None
 
 DATA_PREFIX = f"{gcs.PREFIX}/data"
 WDS_PREFIX = f"{gcs.PREFIX}/wds"
@@ -47,6 +51,9 @@ MANY_PREFIX = f"{gcs.PREFIX}/many"
 # away, and mixing them into the comparison fixture would make a failure hard to read.
 QUIRKS_PREFIX = f"{gcs.PREFIX}/quirks"
 ODD_PREFIX = f"{gcs.PREFIX}/odd"
+# Object names holding characters that are reserved in a URI but ordinary in a GCS name.
+RESERVED_PREFIX = f"{gcs.PREFIX}/reserved"
+NUMPY_PREFIX = f"{gcs.PREFIX}/numpy"
 
 # Sizes that are deliberately not round: they catch an off-by-one between the right-open
 # ReadRange([begin, end)) that DALI issues and the inclusive HTTP "Range: bytes=first-last".
@@ -93,6 +100,33 @@ def _seed_quirks(endpoint):
     return sorted(kept)
 
 
+def _seed_reserved_chars(endpoint):
+    """Seeds names containing '?' and '#', which are reserved in a URI but legal in a GCS name.
+
+    Discovery alone does not catch a parser that truncates at them: listing reports the name in
+    full, so the object still becomes a sample and only the read fails. The test therefore has to
+    compare contents, not just the epoch size.
+    """
+    names = ["class_a/plain.dat", "class_a/quest?mark.dat", "class_a/hash#mark.dat"]
+    for name in names:
+        gcs.put_object(endpoint, f"{RESERVED_PREFIX}/{name}", f"Contents of {name}.\n".encode())
+    return sorted(names)
+
+
+def _seed_numpy(endpoint, root):
+    """Mirrors .npy files to GCS and to a local directory, in both layouts the reader accepts.
+
+    readers.numpy reaches discovery through FileLoader with label_from_subdir off, so objects
+    sitting directly under the prefix are samples as well - the flat layout is where GCS discovery
+    can diverge from the local backend, which visits "." on top of the subdirectories.
+    """
+    for rel in ("nested/class_a", "flat"):
+        os.makedirs(os.path.join(root, rel))
+        for i in range(3):
+            np.save(os.path.join(root, rel, f"{i:03}.npy"), np.full((2, 3), i, dtype=np.int32))
+    gcs.upload_dir(endpoint, root, NUMPY_PREFIX)
+
+
 def _seed_odd_sizes(endpoint, root):
     """Writes the same odd-sized payloads to GCS and to a local directory, for a byte compare."""
     os.makedirs(os.path.join(root, "odd"))
@@ -114,7 +148,7 @@ def _seed_many_objects(endpoint, count=1100):
 
 def setUpModule():
     global g_server, g_tmpdir, g_root, g_files, g_tar, g_index, g_endpoint
-    global g_quirks_files, g_odd_sizes
+    global g_quirks_files, g_odd_sizes, g_reserved_files, g_numpy_root
     gcs.require_mock_server()
 
     g_tmpdir = tempfile.TemporaryDirectory()
@@ -134,6 +168,9 @@ def setUpModule():
         with open(g_tar, "rb") as f:
             gcs.put_object(g_endpoint, f"{WDS_PREFIX}/shard0.tar", f.read())
         g_quirks_files = _seed_quirks(g_endpoint)
+        g_reserved_files = _seed_reserved_chars(g_endpoint)
+        g_numpy_root = os.path.join(g_tmpdir.name, "numpy")
+        _seed_numpy(g_endpoint, g_numpy_root)
         g_odd_sizes = os.path.join(g_tmpdir.name, "sizes")
         _seed_odd_sizes(g_endpoint, g_odd_sizes)
     except Exception:
@@ -176,6 +213,11 @@ def file_pipe(file_root=None, files=None, dont_use_mmap=False):
             file_filters=["*.dat"],
         )
     )
+
+
+@pipeline_def(batch_size=3, num_threads=num_threads, device_id=None)
+def numpy_pipe(file_root, dont_use_mmap=False):
+    return fn.readers.numpy(file_root=file_root, name="Reader", dont_use_mmap=dont_use_mmap)
 
 
 @pipeline_def(batch_size=batch_size, num_threads=num_threads, device_id=None)
@@ -261,8 +303,8 @@ def test_file_reader_missing_bucket():
 def test_directory_markers_are_not_samples():
     """A zero-byte object named "<prefix>/class_a/" is a folder, not a sample.
 
-    relative() turns it into ("class_a", ""), so it only stays out of the dataset because of the
-    empty-filename guard in gcs_discover_files.
+    lexically_relative() turns it into ("class_a", ""), so it only stays out of the dataset
+    because of the empty-filename guard in gcs_discover_files.
     """
     pipe = file_pipe(file_root=f"gs://{gcs.BUCKET}/{QUIRKS_PREFIX}")
     pipe.build()
@@ -274,13 +316,54 @@ def test_listing_depth_filtering():
 
     The fixture also holds an object directly under the prefix and one two levels down; both are
     rejected by the path_elems != 2 check, which is also what keeps the prefix's own directory
-    marker (relative() maps it to ".") from being dereferenced.
+    marker (lexically_relative() maps it to ".") from being dereferenced.
     """
     pipe = file_pipe(file_root=f"gs://{gcs.BUCKET}/{QUIRKS_PREFIX}")
     pipe.build()
     data, _ = pipe.run()  # fn.readers.file yields (contents, label)
     read = sorted(bytes(to_array(data[i])).decode() for i in range(len(g_quirks_files)))
     assert read == [f"Contents of {name}.\n" for name in g_quirks_files], read
+
+
+def test_reserved_uri_characters_in_object_names():
+    """'?' and '#' are ordinary characters in a GCS object name.
+
+    Neither starts a query or a fragment in a gs:// URI, so parse_uri must keep the whole name.
+    Truncating at them is the worst kind of failure: the object is listed, becomes a sample, and
+    only the read of the shortened name fails - so this asserts on the contents.
+    """
+    pipe = file_pipe(file_root=f"gs://{gcs.BUCKET}/{RESERVED_PREFIX}")
+    pipe.build()
+    assert _epoch_size(pipe) == len(g_reserved_files), pipe.reader_meta("Reader")
+    data, _ = pipe.run()
+    read = sorted(bytes(to_array(data[i])).decode() for i in range(len(g_reserved_files)))
+    assert read == [f"Contents of {name}.\n" for name in g_reserved_files], read
+
+
+def test_numpy_reader_nested_prefix():
+    """readers.numpy over gs://, one subdirectory below the prefix."""
+    compare_pipelines(
+        numpy_pipe(file_root=f"gs://{gcs.BUCKET}/{NUMPY_PREFIX}/nested"),
+        numpy_pipe(file_root=os.path.join(g_numpy_root, "nested"), dont_use_mmap=True),
+        3,
+        2,
+    )
+
+
+def test_numpy_reader_flat_prefix():
+    """readers.numpy over gs://, objects directly under the prefix.
+
+    Without label_from_subdir there is no subdirectory to take a label from, so these count as
+    samples - the local backend reads them and discovery over gs:// has to agree. Dropping them
+    surfaces as "No files found." rather than a wrong result, which is why this compares against
+    the local reader instead of asserting a count.
+    """
+    compare_pipelines(
+        numpy_pipe(file_root=f"gs://{gcs.BUCKET}/{NUMPY_PREFIX}/flat"),
+        numpy_pipe(file_root=os.path.join(g_numpy_root, "flat"), dont_use_mmap=True),
+        3,
+        2,
+    )
 
 
 def test_read_size_not_multiple_of_chunk():

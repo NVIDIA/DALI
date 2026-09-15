@@ -57,6 +57,26 @@ TEST(GCSParseURI, UnescapedCharactersAreAllowed) {
   EXPECT_EQ("data/class_a/0 x.dat", loc.object);
 }
 
+TEST(GCSParseURI, QuestionMarkIsPartOfTheName) {
+  // '?' does not start a query string in a gs:// URI - GCS object names may contain it, and
+  // listing reports it verbatim. Truncating here would make the object discoverable but
+  // unreadable.
+  auto loc = parse_uri("gs://my-bucket/data/class_a/quest?mark.dat");
+  EXPECT_EQ("my-bucket", loc.bucket);
+  EXPECT_EQ("data/class_a/quest?mark.dat", loc.object);
+}
+
+TEST(GCSParseURI, HashIsPartOfTheName) {
+  auto loc = parse_uri("gs://my-bucket/data/class_a/hash#mark.dat");
+  EXPECT_EQ("my-bucket", loc.bucket);
+  EXPECT_EQ("data/class_a/hash#mark.dat", loc.object);
+}
+
+TEST(GCSParseURI, QuestionMarkAndHashTogether) {
+  auto loc = parse_uri("gs://my-bucket/a?b#c/d.dat");
+  EXPECT_EQ("a?b#c/d.dat", loc.object);
+}
+
 TEST(GCSParseURI, RejectsOtherSchemes) {
   EXPECT_THROW(parse_uri("s3://my-bucket/object.dat"), std::runtime_error);
   EXPECT_THROW(parse_uri("file:///tmp/object.dat"), std::runtime_error);
