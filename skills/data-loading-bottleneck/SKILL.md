@@ -58,7 +58,8 @@ CPU execution is not a substitute. Record any environment change made in respons
 warning.
 
 Start with the replay-support result from preflight. If replay is unavailable, use
-`torch.version.cuda` to choose one package for a single isolated installation attempt:
+`torch.version.cuda` to choose one package, then make one isolated installation attempt
+with any available installer. An unavailable installer does not count as an attempt:
 
 - CUDA 12.x: `nvidia-dali-cuda120`
 - CUDA 13.x: `nvidia-dali-cuda130`
@@ -66,14 +67,17 @@ Start with the replay-support result from preflight. If replay is unavailable, u
 
 ```bash
 <production-python> -m pip install --target <artifact-dir>/dali-deps <dali-package>
+# Alternatively, if uv is used
+uv pip install --python <production-python> \
+  --target <artifact-dir>/dali-deps <dali-package>
 ```
 
 After a successful installation, append the target with `site.addsitedir()` and retry
 `from nvidia.dali.plugin.pytorch.loader_evaluator import LoaderEvaluator`. Keep
 target-installed dependencies behind production packages. If the import succeeds, use the
-same setup for Real and Replay. If it fails, preserve the failure, leave production unchanged,
-and profile after Real. Do not try another installation strategy. Use the production Python
-and worktree `PYTHONPATH` for every run.
+same setup for Real and Replay. If installation or import fails, preserve the failure, leave
+production unchanged, and profile after Real. Once installation starts, do not retry or try
+another DALI package. Use the production Python and worktree `PYTHONPATH` for every run.
 
 After preflight, record the original checkout status and diff, then create a disposable Git
 worktree. Reproduce the canonical code and configuration, including staged, unstaged, and
