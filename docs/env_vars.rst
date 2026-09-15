@@ -265,6 +265,10 @@ If set, DALI accesses ``gs://`` paths without credentials. By default the client
 Default Credentials, which neither a public bucket nor a local emulator requires - reading either
 one means opting out of authentication explicitly.
 
+.. note::
+  The value is read once, when the GCS client is created on the first ``gs://`` access in the
+  process. Changing it afterwards has no effect.
+
 `DALI_GCS_VERIFY_CHECKSUMS`
 ---------------------------
 
@@ -277,6 +281,10 @@ If set, DALI validates the CRC32C checksum of the data it downloads from ``gs://
 DALI only ever issues ranged reads, while Google Cloud Storage reports checksums for whole objects
 only, so a per-read checksum cannot be validated end to end - which is why this is off by default
 and costs CPU in the data loading path when turned on. It is meant for debugging.
+
+.. note::
+  The value is read once, when the GCS client is created on the first ``gs://`` access in the
+  process. Changing it afterwards has no effect.
 
 Testing
 ~~~~~~~
