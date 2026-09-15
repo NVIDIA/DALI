@@ -286,6 +286,27 @@ and costs CPU in the data loading path when turned on. It is meant for debugging
   The value is read once, when the GCS client is created on the first ``gs://`` access in the
   process. Changing it afterwards has no effect.
 
+`DALI_GCS_REQUEST_TIMEOUT_SEC`
+------------------------------
+
+Values: a non-negative integer number of seconds
+
+Default: 60
+
+Bounds how long a single ``gs://`` request may take. A transfer that receives no bytes for this
+long is aborted, and the retry loop around it gives up once this much time has elapsed, so an
+unreachable endpoint surfaces an error after roughly twice this value in the worst case.
+
+Without it the google-cloud-cpp defaults apply - a 120 second stall timeout and a 15 minute retry
+window - so an endpoint that is dead or misrouted makes the pipeline hang for a quarter of an hour
+with no output. Transient errors from Google Cloud Storage are still retried with exponential
+backoff; the default leaves room for about six attempts. Set the value to 0 to restore the
+google-cloud-cpp defaults.
+
+.. note::
+  The value is read once, when the GCS client is created on the first ``gs://`` access in the
+  process. Changing it afterwards has no effect.
+
 Testing
 ~~~~~~~
 
