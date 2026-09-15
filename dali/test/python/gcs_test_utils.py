@@ -25,6 +25,7 @@ import os
 import shutil
 import socket
 import subprocess
+import sys
 import time
 import urllib.error
 import urllib.parse
@@ -288,24 +289,76 @@ def delete_bucket(endpoint_url, bucket=BUCKET):
             raise
 
 
+_SUPPORT_PROBE = """
+import os, sys
+# A throwaway endpoint: on a build with GCS support the client is created and the listing then
+# fails to connect, which is all this needs. It is never expected to answer.
+os.environ["DALI_GCS_ENDPOINT_URL"] = "http://127.0.0.1:1"
+os.environ["DALI_GCS_ANONYMOUS"] = "1"
+import nvidia.dali.fn as fn
+from nvidia.dali import pipeline_def
+
+@pipeline_def(batch_size=1, num_threads=1, device_id=None)
+def probe():
+    return tuple(fn.readers.file(file_root="gs://dali-no-such-bucket/no-such-prefix"))
+
+try:
+    probe().build()
+except Exception as e:
+    if "not built with Google Cloud Storage support" in str(e):
+        print("NO_GCS")
+        sys.exit(0)
+print("HAS_GCS")
+"""
+
+
+def _build_has_gcs_support():
+    """Answers the question without an emulator, in a subprocess.
+
+    Two reasons it cannot run in this process. The client is built once from a getenv snapshot, so
+    probing here would pin the whole suite to the throwaway endpoint above. And on a build that
+    does have GCS support the probe does not fail fast - google-cloud-cpp retries a refused
+    connection for up to its 15 minute maximum retry period - so it has to be killable.
+
+    Anything other than the "not built with" message means the support is there: a build without
+    it raises immediately, so a timeout is an answer rather than a failure.
+    """
+    try:
+        out = subprocess.run(
+            [sys.executable, "-c", _SUPPORT_PROBE],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        ).stdout
+    except subprocess.TimeoutExpired:
+        return True
+    return "NO_GCS" not in out
+
+
 def require_mock_server():
     """The emulator is a required dependency, not an optional one.
 
-    A missing binary is an error rather than a skip: every suite that runs dali/test/python/reader
-    runs from an image built on docker/Dockerfile.base.clean_*, and all of those install it. Were
-    this a skip, the binary silently disappearing from an image would silently delete the coverage
-    with it. Builds without GCS support are the case that legitimately skips, and that is handled
-    separately by skip_if_no_gcs_support.
+    On a build that has GCS support a missing binary is an error rather than a skip: the test
+    images that run dali/test/python/reader all install it, and were this a skip, the binary
+    silently disappearing from an image would silently delete the coverage with it.
+
+    A build without GCS support is the case that legitimately skips. It is decided here rather
+    than left to skip_if_no_gcs_support, which runs later and only once an endpoint exists: an
+    image that has neither the support nor the binary - a conda build, or any BUILD_GCS=OFF job -
+    would otherwise hard-error on the binary it has no use for.
     """
     if os.environ.get("DALI_ENABLE_SANITIZERS"):
         raise SkipTest("the GCS tests are not run under sanitizers")
     if os.environ.get("DALI_TEST_GCS_ENDPOINT"):
         return
     if shutil.which(SERVER_BINARY) is None and not os.path.isfile(SERVER_BINARY):
+        if not _build_has_gcs_support():
+            raise SkipTest("DALI was built without Google Cloud Storage support (BUILD_GCS=OFF)")
         raise RuntimeError(
-            f"{SERVER_BINARY} not found. It is installed by the test images "
-            f"(docker/Dockerfile.base.clean_*); set DALI_TEST_FAKE_GCS_SERVER to point at it, or "
-            f"DALI_TEST_GCS_ENDPOINT to use an external emulator."
+            f"{SERVER_BINARY} not found, but this build has Google Cloud Storage support, so the "
+            f"tests below would silently stop covering it. The test images install the binary; "
+            f"set DALI_TEST_FAKE_GCS_SERVER to point at a local one, or DALI_TEST_GCS_ENDPOINT to "
+            f"use an external emulator."
         )
 
 
