@@ -19,8 +19,13 @@
 #include <google/cloud/options.h>
 #include <google/cloud/storage/client.h>
 #include <google/cloud/storage/options.h>
+#include <google/cloud/storage/retry_policy.h>
+#include <cerrno>
+#include <chrono>
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
+#include <limits>
 #include <string>
 #include "dali/core/common.h"
 #include "dali/core/error_handling.h"
@@ -61,6 +66,29 @@ class GCSClientManager {
     return std::atoi(value) != 0;
   }
 
+  /**
+   * @brief Reads a non-negative integer from the environment.
+   *
+   * Unlike EnvFlag, a malformed value is reported and ignored rather than silently taken as 0 -
+   * the variable read this way bounds how long a stalled request may take, and a typo turning
+   * into 0 would remove the bound instead of shortening it.
+   */
+  static int EnvInt(const char* name, int default_value) {
+    auto* value = std::getenv(name);
+    if (!value || *value == '\0')
+      return default_value;
+    char* end = nullptr;
+    errno = 0;
+    std::int64_t parsed = std::strtoll(value, &end, 10);
+    if (errno != 0 || end == value || *end != '\0' || parsed < 0 ||
+        parsed > std::numeric_limits<int>::max()) {
+      DALI_WARN(name, " is set to \"", value, "\", which is not a non-negative integer; using ",
+                default_value, " instead.");
+      return default_value;
+    }
+    return static_cast<int>(parsed);
+  }
+
   static google::cloud::Options MakeOptions() {
     namespace gcs = google::cloud::storage;
     google::cloud::Options options;
@@ -84,6 +112,25 @@ class GCSClientManager {
     if (!EnvFlag("DALI_GCS_VERIFY_CHECKSUMS", false)) {
       options.set<gcs::DownloadChecksumValidationOption>(  // NOLINT(build/include_what_you_use)
           gcs::ChecksumAlgorithm::kNone);
+    }
+
+    // google-cloud-cpp bounds neither the retry loop nor a stalled transfer tightly enough for a
+    // data loading library: the defaults are a 120 s stall timeout and a 15 minute retry window,
+    // and a refused or timed out connection is retryable (kUnavailable/kDeadlineExceeded), so an
+    // endpoint that is dead or misrouted makes Pipeline.build() hang for a quarter of an hour
+    // with no output. Bound a single stalled transfer and the whole retry loop by the same
+    // budget, which caps a failing request at roughly twice that budget while still retrying the
+    // transient 5xx/429 that GCS asks clients to retry - with the library's default backoff
+    // (1 s, doubling) 60 s leaves room for about six attempts. The stall timeout doubles as the
+    // connect timeout: the library falls back to it for CURLOPT_CONNECTTIMEOUT_MS when no
+    // explicit connect timeout is configured.
+    int timeout_s = EnvInt("DALI_GCS_REQUEST_TIMEOUT_SEC", 60);
+    if (timeout_s > 0) {
+      std::chrono::seconds timeout(timeout_s);
+      options.set<gcs::TransferStallTimeoutOption>(timeout)  // NOLINT(build/include_what_you_use)
+          .set<gcs::DownloadStallTimeoutOption>(timeout)  // NOLINT(build/include_what_you_use)
+          .set<gcs::RetryPolicyOption>(  // NOLINT(build/include_what_you_use)
+              gcs::LimitedTimeRetryPolicy(timeout).clone());
     }
 
     return options;
