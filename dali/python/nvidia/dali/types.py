@@ -512,13 +512,9 @@ def _preprocess_constant_array_type(value):
     if _is_numpy_array(value):
         import numpy as np
 
-        # 64-bit types require explicit dtype
+        # Double precision data is transported as float32.
         if value.dtype == np.float64:
             value = value.astype(np.float32)
-        if value.dtype == np.int64:
-            value = value.astype(np.int32)
-        if value.dtype == np.uint64:
-            value = value.astype(np.uint32)
 
     return value
 

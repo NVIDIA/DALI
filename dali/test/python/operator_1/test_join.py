@@ -72,7 +72,7 @@ def test_cat_empty_input():
     pipe = dali.pipeline.Pipeline(batch_size=1, num_threads=3, device_id=0)
     with pipe:
         src1 = dali.types.Constant(np.array([[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12]]))
-        src2 = dali.types.Constant(np.array([[], [], []], dtype=np.int32))
+        src2 = dali.types.Constant(np.array([[], [], []], dtype=np.int64))
         src3 = dali.types.Constant(np.array([[13, 14, 15], [16, 17, 18], [19, 20, 21]]))
         out_cpu = fn.cat(src1, src2, src3, axis=1)
         out_gpu = fn.cat(src1.gpu(), src2.gpu(), src3.gpu(), axis=1)

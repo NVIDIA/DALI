@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -39,8 +39,7 @@ The value can be a scalar, a tuple, a list, or a numpy array. If not explicitly 
 the `shape` and `dtype`, will be taken from the array.
 
 .. warning::
-  64-bit integer and double precision arrays are not supported and will be silently
-  downgraded to 32-bit.)code")
+  Double precision arrays are not supported and will be silently downgraded to 32-bit.)code")
   .NumInput(0)
   .NumOutput(1)
   .MakeDocHidden()
@@ -53,7 +52,7 @@ the `shape` and `dtype`, will be taken from the array.
 .. note::
     `fdata` and `idata` are mutually exclusive, and one of them is required.)code",
                   nullptr)
-  .AddOptionalArg<std::vector<int>>("idata",
+  .AddOptionalArg<std::vector<int64_t>>("idata",
                   R"code(Contents of the constant that is produced (for integer point types).
 
 .. note::
