@@ -1220,3 +1220,88 @@ def test_shuffle_after_epoch_seed_numpy_default_reproducible():
         assert (
             order1 == order2
         ), "Without explicit seed, default behavior should be reproducible (backward compat)"
+
+
+def _is_memory_mapped(path):
+    """Tells whether `path` is currently memory mapped by this process."""
+    # /proc/self/maps reports the path as the kernel resolved it, not the one that was opened
+    path = os.path.realpath(path)
+    with open("/proc/self/maps") as f:
+        return any(path in line for line in f)
+
+
+def test_sample_data_is_read_when_mmap_is_unavailable():
+    """Samples must be read even when the loader falls back to a non-mapped stream.
+
+    NumpyLoader::ReadSample defers the read whenever the stream cannot be memory mapped, which
+    happens for remote storage and, locally, when the mmap reservation cannot be satisfied.
+    NumpyReaderCPU::Prefetch used to skip that deferred read unless dont_use_mmap was requested,
+    so the sample was handed out as a never-written buffer.
+    """
+    try:
+        with open("/proc/sys/vm/max_map_count") as f:
+            max_map_count = int(f.read())
+    except OSError:
+        raise SkipTest("/proc/sys/vm/max_map_count is not readable")
+
+    # FileLoader reserves initial_buffer_fill_ entries of a process-wide pool of max_map_count / 2
+    # entries (mmaped_file.cc) and falls back to copying reads when the reservation fails.
+    # initial_fill only feeds initial_buffer_fill_ when random_shuffle is on.
+    pool_size = max_map_count // 2
+
+    @pipeline_def(batch_size=1, num_threads=1, device_id=None)
+    def numpy_reader(files, random_shuffle=False, initial_fill=1):
+        return fn.readers.numpy(
+            files=files, random_shuffle=random_shuffle, initial_fill=initial_fill
+        )
+
+    # distinct contents, so that a batch that is only partially read is caught as well
+    refs = [np.arange(64 * i, 64 * (i + 1), dtype=np.uint8).reshape(8, 8) for i in range(4)]
+    keep_alive = []
+    written = 0
+    with tempfile.TemporaryDirectory() as test_data_root:
+
+        def new_samples(count=1):
+            nonlocal written
+            paths = []
+            for i in range(count):
+                path = os.path.join(test_data_root, f"sample_{written}.npy")
+                written += 1
+                np.save(path, refs[i])
+                paths.append(path)
+            return paths
+
+        try:
+            # Claim the pool with readers that are only built, never run: the reservation is taken
+            # in the loader constructor and nothing else happens, so this costs no reads, no file
+            # descriptors and no mappings. A request is granted all or nothing, so halve it until
+            # it fits next to whatever another live reader already holds.
+            request = pool_size
+            while request >= 1:
+                hog = numpy_reader(files=new_samples(), random_shuffle=True, initial_fill=request)
+                hog.build()
+                keep_alive.append(hog)
+                request //= 2
+
+            # Mop up the entries the ladder left over, one at a time, and observe the outcome
+            # rather than assume it: a reader that still got a mapping holds that entry for as
+            # long as it is alive, so keep it and try again. The loop stops at the first reader
+            # that the exhausted pool pushed onto the non-mapped path - the case under test.
+            # The ladder leaves only a handful of entries behind, so the bound is generous.
+            for _ in range(64):
+                paths = new_samples(len(refs))
+                pipe = numpy_reader(files=paths, batch_size=len(refs))
+                pipe.build()
+                (out,) = pipe.run()
+                keep_alive.append(pipe)
+                if not _is_memory_mapped(paths[0]):
+                    break
+            else:
+                raise AssertionError("could not exhaust the mmap reservation pool")
+
+            for idx, ref in enumerate(refs):
+                assert_array_equal(to_array(out[idx]), ref)
+        finally:
+            # MappingReserver is an in-process counter released by its destructor, so dropping the
+            # last reference to each pipeline hands the entries back. No mapping is involved.
+            keep_alive.clear()
