@@ -34,8 +34,8 @@ changing the production path, lifecycle, data flow, or topology.
 
 ## Prerequisites
 
-Requires Linux, Git, CUDA, and PyTorch. DALI replay and Nsight/NVTX profiling are optional.
-Preflight attempts their allowed setup and routes around anything unavailable.
+Requires Linux, Git, CUDA, and PyTorch. Replay requires DALI 2.0+; Nsight/NVTX profiling is
+optional. Preflight attempts their allowed setup and routes around anything unavailable.
 
 ## Instructions
 
