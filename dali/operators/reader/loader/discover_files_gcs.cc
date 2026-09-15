@@ -49,7 +49,11 @@ std::vector<FileLabelEntry> gcs_discover_files(const std::string &file_root,
   auto client = GCSClientManager::Instance().client();
   gcs_filesystem::list_objects_f(
       client, gcs_object_location, [&](const std::string &object_key, size_t object_size) {
-        auto p = std::filesystem::relative(object_key, parent_object_key);
+        // lexically_relative(), not relative(): relative() is specified in terms of
+        // weakly_canonical(), which resolves against the real filesystem and the process
+        // CWD. These are GCS object keys, not local paths, so that both costs a batch of
+        // syscalls per object and can silently reject every key.
+        auto p = std::filesystem::path(object_key).lexically_relative(parent_object_key);
         auto path_elems = count_elems(p);
         // We only look at one subdir level. Fewer than two components means either an object
         // directly under the listed prefix, or the prefix's own directory marker, which relative()
