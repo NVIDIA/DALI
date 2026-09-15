@@ -35,7 +35,6 @@ g_files = None
 g_tar = None
 g_index = None
 g_client = None
-g_created_bucket = False
 
 DATA_PREFIX = f"{s3.PREFIX}/data"
 WDS_PREFIX = f"{s3.PREFIX}/wds"
@@ -75,7 +74,7 @@ def _seed_many_objects(client, count=1100):
 
 
 def setUpModule():
-    global g_server, g_tmpdir, g_root, g_files, g_tar, g_index, g_client, g_created_bucket
+    global g_server, g_tmpdir, g_root, g_files, g_tar, g_index, g_client
     s3.skip_if_no_mock_server()
 
     g_tmpdir = tempfile.TemporaryDirectory()
@@ -91,35 +90,34 @@ def setUpModule():
         s3.export_s3_env(endpoint)
         s3.skip_if_no_s3_support()
         g_client = s3.s3_client(endpoint)
-        try:
-            g_client.create_bucket(Bucket=s3.BUCKET)
-            g_created_bucket = True
-        except g_client.exceptions.BucketAlreadyOwnedByYou:
-            pass  # a shared endpoint may already have it; our keys are prefixed anyway
+        s3.create_bucket(g_client, s3.BUCKET)
         s3.upload_dir(g_client, s3.BUCKET, g_root, DATA_PREFIX)
         g_client.upload_file(g_tar, s3.BUCKET, f"{WDS_PREFIX}/shard0.tar")
+
+        # everything past the first upload has to stay inside this try: unittest skips
+        # tearDownModule once setUpModule raised, so the call below is the only thing that
+        # removes what was uploaded
+        import webdataset_base as base
+
+        g_index = base.generate_temp_index_file(g_tar)
     except Exception:
         tearDownModule()
         raise
 
-    import webdataset_base as base
-
-    g_index = base.generate_temp_index_file(g_tar)
-
 
 def tearDownModule():
-    global g_server, g_tmpdir, g_index, g_client, g_created_bucket
+    global g_server, g_tmpdir, g_index, g_client
     try:
         # The mock server is thrown away wholesale, but an external endpoint outlives the test
-        # run, so everything uploaded there has to be removed again.
+        # run, so everything uploaded there has to be removed again - our prefix, and only our
+        # prefix. The bucket stays even if this run created it: a concurrent run may be using it
+        # under its own prefix, so deleting it would either fail with BucketNotEmpty or pull the
+        # bucket from under that run, and on real S3 the name is not immediately reusable after.
         if g_client is not None and isinstance(g_server, s3.ExternalS3Server):
             try:
                 s3.delete_prefix(g_client, s3.BUCKET, s3.PREFIX + "/")
-                if g_created_bucket:
-                    g_client.delete_bucket(Bucket=s3.BUCKET)
             finally:
                 g_client = None
-                g_created_bucket = False
         g_client = None
         if g_server is not None:
             g_server.stop()
@@ -209,4 +207,4 @@ def test_file_reader_missing_object():
 
 def test_file_reader_missing_bucket():
     with assert_raises(RuntimeError, glob="*NoSuchBucket*"):
-        file_pipe(file_root="s3://dali-no-such-bucket/data").build()
+        file_pipe(file_root=f"s3://{s3.MISSING_BUCKET}/data").build()
