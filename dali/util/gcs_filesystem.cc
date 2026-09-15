@@ -42,7 +42,12 @@ GCSObjectLocation parse_uri(const std::string& uri) {
     throw std::runtime_error("Not a GCS URI: " + uri);
   GCSObjectLocation object_location;
   object_location.bucket = parsed_uri.authority();
-  object_location.object = parsed_uri.path();
+  // Everything after the bucket is the object name, taken from the original string rather than
+  // from path(). '?' and '#' are ordinary characters in a GCS object name, but URI::Parse ends
+  // the path at the first of them and hands the rest to query()/fragment(). Going through path()
+  // truncates such a name there, which is worse than failing outright: listing returns the name
+  // in full, so the object is discovered and only the read of the truncated name fails.
+  object_location.object = uri.substr(parsed_uri.scheme_authority().size());
   if (object_location.object.length() >= 1 && object_location.object[0] == '/')
     object_location.object = object_location.object.substr(1);
   return object_location;
