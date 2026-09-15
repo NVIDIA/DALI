@@ -41,6 +41,10 @@ Preflight attempts their allowed setup and routes around anything unavailable.
 
 ### 1. Preflight and route
 
+If the canonical training environment is not accessible or identifiable, ask the user for
+its Python path, activation command, or container invocation. Do not reconstruct it from
+dependency files; stop if access cannot be provided.
+
 Create an artifact directory for commands and raw output, then run preflight with the
 production Python:
 
