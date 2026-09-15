@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -70,6 +70,7 @@ typedef enum _DALIDataType {
   DALI_PYTHON_OBJECT     = 24,
   DALI_TENSOR_LAYOUT_VEC = 25,
   DALI_DATA_TYPE_VEC     = 26,
+  DALI_INT64_VEC         = 27,
   DALI_NUM_BUILTIN_TYPES,
   DALI_CUSTOM_TYPE_START = 1001,
   DALI_DATA_TYPE_FORCE_INT32 = 0x7fffffff
@@ -164,6 +165,8 @@ inline const char *daliDataTypeName(daliDataType_t t) {
       break;
     case DALI_DATA_TYPE_VEC:
       return "list of DALIDataType";
+    case DALI_INT64_VEC:
+      return "list of int64";
     default:
       return 0;
   }

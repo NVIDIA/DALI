@@ -488,6 +488,7 @@ DALI_REGISTER_TYPE(std::vector<TFUtil::Feature>, DALI_TF_FEATURE_VEC);
 #endif
 DALI_REGISTER_TYPE(std::vector<bool>, DALI_BOOL_VEC);
 DALI_REGISTER_TYPE(std::vector<int>, DALI_INT_VEC);
+DALI_REGISTER_TYPE(std::vector<int64_t>, DALI_INT64_VEC);
 DALI_REGISTER_TYPE(std::vector<std::string>, DALI_STRING_VEC);
 DALI_REGISTER_TYPE(std::vector<float>, DALI_FLOAT_VEC);
 DALI_REGISTER_TYPE(std::vector<TensorLayout>, DALI_TENSOR_LAYOUT_VEC);
