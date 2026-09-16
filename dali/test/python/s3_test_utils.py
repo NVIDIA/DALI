@@ -96,10 +96,8 @@ finally:
 
 
 def _with_loopback(no_proxy):
-    entries = [e for e in no_proxy.split(",") if e]
-    for host in ("localhost", "127.0.0.1"):
-        if host not in entries:
-            entries.insert(0, host)
+    entries = set(e for e in no_proxy.split(",") if e)
+    entries.update(["localhost", "127.0.0.1"])
     return ",".join(entries)
 
 
