@@ -122,7 +122,14 @@ class FileStreamBuf : public std::streambuf {
  protected:
   int_type underflow() override {
     if (gptr() == egptr()) {  // get area is exhausted
+      // A short read is the only EOF signal FileStream::Read gives: don't read again past it.
+      // For a remote FileStream, requesting a byte range starting at (or past) the end of the
+      // file raises, since it's an out-of-range read rather than a well-defined "0 bytes left".
+      if (eof_)
+        return traits_type::eof();
       size_t nbytes = reader_->Read(buffer_, BufferSize);
+      if (nbytes < BufferSize)
+        eof_ = true;
       if (nbytes == 0)
         return traits_type::eof();
       setg(buffer_, buffer_, buffer_ + nbytes);
@@ -133,6 +140,7 @@ class FileStreamBuf : public std::streambuf {
  private:
   FileStream *reader_;
   char buffer_[BufferSize];
+  bool eof_ = false;
 };
 
 }  // namespace dali

@@ -119,14 +119,13 @@ inline int ParseIndexVersion(const string& version_str) {
 inline void ParseIndexFile(std::vector<SampleDesc>& samples_container,
                            std::vector<ComponentDesc>& components_container,
                            const std::string& index_path) {
-  // The index is small text metadata, sequentially parsed via std::getline, so the whole thing
-  // is read upfront into memory rather than plumbing FileStream's Read/SeekRead through the
-  // getline-based parsing below. FileStream::Open dispatches on the URI scheme (e.g. s3://),
-  // so index files can live next to the shards they describe, remote or local.
+  // FileStream::Open dispatches on the URI scheme (e.g. s3://), so index files can live next to
+  // the shards they describe, remote or local. index_paths is a public, caller-controlled
+  // argument and the index can be arbitrarily large, so it's streamed through FileStreamBuf
+  // (also used by IndexedFileLoader) rather than read into memory in full.
   auto file = FileStream::Open(index_path);
-  std::string content(file->Size(), '\0');
-  file->ReadAll(content.data(), content.size());
-  std::istringstream index_file(content);
+  FileStreamBuf<64 * 1024> file_buf(file.get());
+  std::istream index_file(&file_buf);
 
   // Index Checking
   std::string global_meta;
