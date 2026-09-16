@@ -12,7 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Helpers for running DALI tests against a mock S3 server started by the test itself."""
+"""Helpers for running DALI tests against a mock S3 server started by the test itself.
+
+Environment variables, all optional:
+    DALI_TEST_S3_ENDPOINT      - point the tests at minio or real S3 instead of the mock server.
+    DALI_TEST_S3_ACCESS_KEY    - credentials; fall back to AWS_ACCESS_KEY_ID, then a mock default.
+    DALI_TEST_S3_SECRET_KEY    - credentials; fall back to AWS_SECRET_ACCESS_KEY, then a mock default.
+    DALI_TEST_S3_REGION        - fall back to AWS_DEFAULT_REGION, then AWS_REGION, then us-east-1.
+    DALI_TEST_S3_BUCKET        - bucket to create/reuse; never deleted, only its own prefix is.
+    DALI_TEST_S3_VERBOSE       - if set, don't silence the mock server's own stdout/stderr.
+"""
 
 import atexit
 import os
