@@ -75,7 +75,7 @@ def _seed_many_objects(client, count=1100):
 
 def setUpModule():
     global g_server, g_tmpdir, g_root, g_files, g_tar, g_index, g_client
-    s3.skip_if_no_mock_server()
+    s3.require_mock_server()
 
     g_tmpdir = tempfile.TemporaryDirectory()
     g_root = os.path.join(g_tmpdir.name, "data")

@@ -278,13 +278,26 @@ def delete_prefix(client, bucket, prefix):
         raise RuntimeError(f"could not delete {len(errors)} object(s) under {prefix}: {errors[:5]}")
 
 
-def skip_if_no_mock_server():
+def require_mock_server():
+    """boto3 and moto are required dependencies, not optional ones.
+
+    A missing package is an error rather than a skip: every suite that runs
+    dali/test/python/reader installs them (see
+    qa/TL0_python-self-test-readers-decoders/test_nofw.sh). Were this a skip, the package
+    silently disappearing from the environment would silently delete the coverage with it.
+    Builds without S3 support are the case that legitimately skips, and that is handled
+    separately by skip_if_no_s3_support.
+    """
     # boto3 seeds the bucket in either mode; only the mock server itself is optional.
     for mod in ["boto3"] if EXTERNAL_ENDPOINT else ["boto3", "moto.server"]:
         try:
             __import__(mod)
         except ImportError:
-            raise SkipTest(f"{mod} is required to run the S3 tests")
+            raise RuntimeError(
+                f"{mod} is required to run the S3 tests. It is installed by "
+                f"qa/TL0_python-self-test-readers-decoders/test_nofw.sh; install it, or set "
+                f"DALI_TEST_S3_ENDPOINT to point at an external S3-compatible endpoint."
+            )
 
 
 def skip_if_no_s3_support():
