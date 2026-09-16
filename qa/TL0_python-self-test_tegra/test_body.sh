@@ -12,6 +12,8 @@ test_py_with_framework() {
         "video\("
         "caffe"
         "numba"
+        # boto3/moto are not in this suite's pip_packages; s3_test_utils requires them
+        "s3_test_utils"
     )
 
     for test_script in $(ls test_pipeline*.py test_pool.py test_external_source_dali.py test_external_source_numpy.py test_external_source_parallel.py test_external_source_parallel_shared_batch.py test_functional_api.py test_backend_impl.py); do

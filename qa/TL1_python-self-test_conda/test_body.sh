@@ -9,7 +9,21 @@ test_py_with_framework() {
 
     ${python_new_invoke_test} -A '!slow,!pytorch,!cupy,!numba' -s operator_1
     ${python_new_invoke_test} -A '!slow,!pytorch,!cupy,!numba' -s operator_2
-    ${python_new_invoke_test} -A '!slow,!pytorch,!cupy,!numba' -s reader
+
+    # boto3/moto are not in this suite's pip_packages; test_s3 requires them
+    SKIP_TESTS="test_s3.py"
+    READER_TESTS=""
+    for test_script in $(ls reader/test_*); do
+        test_script=(${test_script//// })
+        test_script=${test_script[1]}
+
+        if [[ "$SKIP_TESTS" != *"$test_script"* ]]; then
+            test_script=${test_script::-3}
+            READER_TESTS="$READER_TESTS $test_script"
+        fi
+    done
+    ${python_new_invoke_test} -A '!slow,!pytorch,!cupy,!numba' -s reader $READER_TESTS
+
     ${python_new_invoke_test} -A '!slow,!pytorch,!cupy,!numba,!jpeg_scans_limit' -s decoder
 }
 
