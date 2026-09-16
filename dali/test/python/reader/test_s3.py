@@ -88,7 +88,7 @@ def setUpModule():
     try:
         endpoint = g_server.start()
         s3.export_s3_env(endpoint)
-        s3.skip_if_no_s3_support()
+        s3.require_s3_support()
         g_client = s3.s3_client(endpoint)
         s3.create_bucket(g_client, s3.BUCKET)
         s3.upload_dir(g_client, s3.BUCKET, g_root, DATA_PREFIX)

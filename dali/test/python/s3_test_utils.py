@@ -17,7 +17,7 @@
 Environment variables, all optional:
     DALI_TEST_S3_ENDPOINT      - point the tests at minio or real S3 instead of the mock server.
     DALI_TEST_S3_ACCESS_KEY    - credentials; fall back to AWS_ACCESS_KEY_ID, then a mock default.
-    DALI_TEST_S3_SECRET_KEY    - credentials; fall back to AWS_SECRET_ACCESS_KEY, then a mock default.
+    DALI_TEST_S3_SECRET_KEY    - credentials; fall back to AWS_SECRET_ACCESS_KEY, then mock default.
     DALI_TEST_S3_REGION        - fall back to AWS_DEFAULT_REGION, then AWS_REGION, then us-east-1.
     DALI_TEST_S3_BUCKET        - bucket to create/reuse; never deleted, only its own prefix is.
     DALI_TEST_S3_VERBOSE       - if set, don't silence the mock server's own stdout/stderr.
@@ -32,8 +32,6 @@ import time
 import urllib.error
 import urllib.request
 import uuid
-
-from nose_utils import SkipTest
 
 # Escape hatch: points the same tests at minio or at real S3 instead of at the mock server.
 EXTERNAL_ENDPOINT = os.environ.get("DALI_TEST_S3_ENDPOINT")
@@ -294,8 +292,8 @@ def require_mock_server():
     dali/test/python/reader installs them (see
     qa/TL0_python-self-test-readers-decoders/test_nofw.sh). Were this a skip, the package
     silently disappearing from the environment would silently delete the coverage with it.
-    Builds without S3 support are the case that legitimately skips, and that is handled
-    separately by skip_if_no_s3_support.
+    Builds without S3 support are a separate, required precondition, checked by
+    require_s3_support.
     """
     # boto3 seeds the bucket in either mode; only the mock server itself is optional.
     for mod in ["boto3"] if EXTERNAL_ENDPOINT else ["boto3", "moto.server"]:
@@ -309,14 +307,18 @@ def require_mock_server():
             )
 
 
-def skip_if_no_s3_support():
+def require_s3_support():
     """DALI built with BUILD_AWSSDK=OFF raises a fixed message, in discover_files.cc.
     Must be called AFTER export_s3_env, otherwise the probe talks to real AWS.
+
+    S3 support is required, not optional: BUILD_AWSSDK only turns itself off when the AWS SDK
+    isn't found on the build machine (cmake/Dependencies.common.cmake), which is a build
+    regression in any configuration this test suite runs in, not an intentional choice.
 
     The probe uses file_root, not files: only file_root makes the loader list the bucket while
     the pipeline is being built, and listing is what raises on a BUILD_AWSSDK=OFF build. With
     files= nothing is opened until the pipeline runs, so the probe would pass and the tests
-    would fail instead of being skipped."""
+    would fail instead of being caught here."""
     import nvidia.dali.fn as fn
     from nvidia.dali import pipeline_def
 
@@ -332,4 +334,8 @@ def skip_if_no_s3_support():
         # build WITH S3 support has to fail here, and a broken endpoint or bad credentials show up
         # in setUpModule immediately afterwards anyway.
         if "not built with AWS S3 storage support" in str(e):
-            raise SkipTest("DALI was built without AWS S3 storage support (BUILD_AWSSDK=OFF)")
+            raise RuntimeError(
+                "DALI was built without AWS S3 storage support (BUILD_AWSSDK=OFF), which this "
+                "test suite requires. If a build variant is intentionally without S3 support, "
+                "exclude reader/test_s3.py from it explicitly instead of relying on a skip here."
+            )
