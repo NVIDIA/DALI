@@ -632,6 +632,8 @@ all_packages = [
                 PckgVer(
                     "2.6.1.post120",
                     dependencies=["protobuf<4", "numpy<2"],
+                    # Other packages are installed separately and may otherwise upgrade NumPy.
+                    constraints=["numpy<2"],
                     python_min_ver="3.8",
                     python_max_ver="3.12",
                     # Free-threaded Python build is incompatible with numpy<2.
@@ -642,21 +644,14 @@ all_packages = [
                 PckgVer(
                     "3.3.1",
                     python_min_ver="3.9",
-                    python_max_ver="3.11",
+                    python_max_ver="3.9",
                     # Free-threaded Python build is incompatible with numpy<2.
                     python_free_threaded=False,
                 ),
                 PckgVer(
-                    "3.3.1",
-                    python_min_ver="3.13",
+                    "3.4.0",
+                    python_min_ver="3.10",
                     python_max_ver="3.13",
-                    # Free-threaded Python build is incompatible with numpy<2.
-                    python_free_threaded=False,
-                ),
-                PckgVer(
-                    "3.4.0.post20260808",
-                    python_min_ver="3.12",
-                    python_max_ver="3.12",
                     # Free-threaded Python build is incompatible with numpy<2.
                     python_free_threaded=False,
                 ),

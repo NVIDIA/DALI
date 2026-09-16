@@ -12,12 +12,14 @@ test_body() {
     "dali_test.bin" \
     "dali_operator_test.bin"
   do
-    # use `which` to invoke test binary with full path so
-    # https://google.github.io/googletest/advanced.html#death-test-styles which runs tests in
-    # a separate process don't use PATH to discover the file location and fails
+    FULLPATH="$(find_test_bin "$BINNAME" conda)"
+
+    # Invoke the test binary with an absolute path so
+    # https://google.github.io/googletest/advanced.html#death-test-styles tests that run in
+    # a separate process do not rely on PATH to find the executable.
     # PackedBFrames test is disabled because it doesn't work with the conda upstream build
     # of FFMpeg
-    $(which $BINNAME) --gtest_filter="*:-*PackedBFrames*"
+    "$FULLPATH" --gtest_filter="*:-*PackedBFrames*"
   done
 }
 
