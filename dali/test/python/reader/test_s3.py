@@ -100,6 +100,7 @@ def setUpModule():
         import webdataset_base as base
 
         g_index = base.generate_temp_index_file(g_tar)
+        g_client.upload_file(g_index.name, s3.BUCKET, f"{WDS_PREFIX}/shard0.index")
     except Exception:
         tearDownModule()
         raise
@@ -192,6 +193,18 @@ def test_webdataset_index_inferred():
 def test_webdataset_local_index():
     compare_pipelines(
         wds_pipe(paths=f"s3://{s3.BUCKET}/{WDS_PREFIX}/shard0.tar", index_paths=[g_index.name]),
+        wds_pipe(paths=g_tar, index_paths=[g_index.name], dont_use_mmap=True),
+        batch_size,
+        2,
+    )
+
+
+def test_webdataset_remote_index():
+    compare_pipelines(
+        wds_pipe(
+            paths=f"s3://{s3.BUCKET}/{WDS_PREFIX}/shard0.tar",
+            index_paths=[f"s3://{s3.BUCKET}/{WDS_PREFIX}/shard0.index"],
+        ),
         wds_pipe(paths=g_tar, index_paths=[g_index.name], dont_use_mmap=True),
         batch_size,
         2,

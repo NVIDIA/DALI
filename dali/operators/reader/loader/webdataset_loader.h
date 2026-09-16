@@ -15,7 +15,6 @@
 #ifndef DALI_OPERATORS_READER_LOADER_WEBDATASET_LOADER_H_
 #define DALI_OPERATORS_READER_LOADER_WEBDATASET_LOADER_H_
 
-#include <fstream>
 #include <memory>
 #include <set>
 #include <string>

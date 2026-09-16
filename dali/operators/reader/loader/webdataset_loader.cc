@@ -20,6 +20,7 @@
 #include <memory>
 #include <numeric>
 #include <random>
+#include <sstream>
 #include <tuple>
 #include <utility>
 #include "dali/core/common.h"
@@ -60,7 +61,7 @@ inline MissingExtBehavior ParseMissingExtBehavior(std::string missing_component_
 
 inline void ParseSampleDesc(std::vector<SampleDesc>& samples_container,
                             std::vector<ComponentDesc>& components_container,
-                            std::ifstream& index_file, const std::string& index_path, int64_t line,
+                            std::istream& index_file, const std::string& index_path, int64_t line,
                             int index_version) {
   // Preparing the SampleDesc
   samples_container.emplace_back();
@@ -118,7 +119,14 @@ inline int ParseIndexVersion(const string& version_str) {
 inline void ParseIndexFile(std::vector<SampleDesc>& samples_container,
                            std::vector<ComponentDesc>& components_container,
                            const std::string& index_path) {
-  std::ifstream index_file(index_path);
+  // The index is small text metadata, sequentially parsed via std::getline, so the whole thing
+  // is read upfront into memory rather than plumbing FileStream's Read/SeekRead through the
+  // getline-based parsing below. FileStream::Open dispatches on the URI scheme (e.g. s3://),
+  // so index files can live next to the shards they describe, remote or local.
+  auto file = FileStream::Open(index_path);
+  std::string content(file->Size(), '\0');
+  file->ReadAll(content.data(), content.size());
+  std::istringstream index_file(content);
 
   // Index Checking
   std::string global_meta;
