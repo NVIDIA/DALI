@@ -66,10 +66,10 @@ PREFIX = f"dali-test-{uuid.uuid4().hex[:12]}"
 # MinIO, where listing it would simply succeed.
 MISSING_BUCKET = f"{PREFIX}-missing"
 
-# The mock server intentionally runs in a SEPARATE PROCESS. Pipeline.Build() is bound without
-# py::call_guard<py::gil_scoped_release> (dali/python/backend_impl.cc:2512, 2520 - unlike Run at
-# :2548 and Shutdown at :2521), and S3 listing happens inside Build(), so an in-process server
-# thread is GIL-starved and DALI eventually fails with "curlCode: 28, Timeout was reached".
+# The mock server intentionally runs in a SEPARATE PROCESS. In dali/python/backend_impl.cc,
+# Pipeline.Build() is bound without py::call_guard<py::gil_scoped_release> (unlike Run and
+# Shutdown), and S3 listing happens inside Build(), so an in-process server thread is
+# GIL-starved and DALI eventually fails with "curlCode: 28, Timeout was reached".
 _SERVER_MAIN = r"""
 import ctypes, logging, os, signal, sys
 
@@ -80,6 +80,7 @@ except Exception:
 if os.getppid() == 1:
     sys.exit(0)
 
+# werkzeug is the WSGI server moto.server runs on; it logs every request at INFO by default.
 logging.getLogger("werkzeug").setLevel(logging.ERROR)
 from moto.server import ThreadedMotoServer
 
@@ -106,7 +107,7 @@ class MockS3Server:
     """A mock S3 server in a subprocess, bound to an ephemeral port on 127.0.0.1.
 
     The endpoint MUST be an IP literal: aws-sdk-cpp defaults to virtual-host addressing and DALI
-    never sets useVirtualAddressing=false (dali/util/s3_client_manager.h:58-72), so
+    never sets useVirtualAddressing=false in dali/util/s3_client_manager.h, so
     "http://localhost:<port>" would be addressed as "http://<bucket>.localhost:<port>".
     """
 
