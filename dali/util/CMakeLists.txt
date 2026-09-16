@@ -66,6 +66,7 @@ if (BUILD_AWSSDK)
 endif()
 
 set(DALI_TEST_SRCS ${DALI_TEST_SRCS}
+  "${CMAKE_CURRENT_SOURCE_DIR}/file_test.cc"
   "${CMAKE_CURRENT_SOURCE_DIR}/numpy_test.cc"
   "${CMAKE_CURRENT_SOURCE_DIR}/uri_test.cc")
 
