@@ -279,8 +279,6 @@ def delete_prefix(client, bucket, prefix):
 
 
 def skip_if_no_mock_server():
-    if os.environ.get("DALI_ENABLE_SANITIZERS"):
-        raise SkipTest("the S3 tests are not run under sanitizers")
     # boto3 seeds the bucket in either mode; only the mock server itself is optional.
     for mod in ["boto3"] if EXTERNAL_ENDPOINT else ["boto3", "moto.server"]:
         try:
@@ -290,7 +288,7 @@ def skip_if_no_mock_server():
 
 
 def skip_if_no_s3_support():
-    """DALI built with BUILD_AWSSDK=OFF raises a fixed message (discover_files.cc:121).
+    """DALI built with BUILD_AWSSDK=OFF raises a fixed message, in discover_files.cc.
     Must be called AFTER export_s3_env, otherwise the probe talks to real AWS.
 
     The probe uses file_root, not files: only file_root makes the loader list the bucket while
