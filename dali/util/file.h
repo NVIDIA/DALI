@@ -15,6 +15,7 @@
 #ifndef DALI_UTIL_FILE_H_
 #define DALI_UTIL_FILE_H_
 
+#include <algorithm>
 #include <cstdio>
 #include <streambuf>
 #include <memory>
@@ -115,24 +116,33 @@ class DLL_PUBLIC FileStream : public InputStream {
 template <size_t BufferSize = (1 << 10)>
 class FileStreamBuf : public std::streambuf {
  public:
-  explicit FileStreamBuf(FileStream *reader) : reader_(reader) {
+  explicit FileStreamBuf(FileStream *reader) : reader_(reader), remaining_(reader->Size()) {
     setg(buffer_, buffer_, buffer_);  // Initialize get area pointers
   }
 
  protected:
   int_type underflow() override {
     if (gptr() == egptr()) {  // get area is exhausted
-      // A short read is the only EOF signal FileStream::Read gives: don't read again past it.
-      // For a remote FileStream, requesting a byte range starting at (or past) the end of the
-      // file raises, since it's an out-of-range read rather than a well-defined "0 bytes left".
-      if (eof_)
+      if (remaining_ == 0)
         return traits_type::eof();
-      size_t nbytes = reader_->Read(buffer_, BufferSize);
-      if (nbytes < BufferSize)
-        eof_ = true;
-      if (nbytes == 0)
+      // FileStream::Read permits returning fewer bytes than requested without that meaning EOF
+      // (e.g. ODirectFileStream wraps a raw read() syscall, which isn't guaranteed to fill the
+      // buffer in one call), so a short read here is retried rather than treated as end of
+      // stream. What bounds the request instead is remaining_, tracked from Size(): reading past
+      // it is what a remote FileStream can't tolerate - a byte range starting at or past the end
+      // of the file raises there, rather than returning a well-defined "0 bytes left".
+      size_t to_read = std::min(remaining_, BufferSize);
+      size_t total = 0;
+      while (total < to_read) {
+        size_t nbytes = reader_->Read(buffer_ + total, to_read - total);
+        if (nbytes == 0)
+          break;
+        total += nbytes;
+      }
+      remaining_ -= total;
+      if (total == 0)
         return traits_type::eof();
-      setg(buffer_, buffer_, buffer_ + nbytes);
+      setg(buffer_, buffer_, buffer_ + total);
     }
     return traits_type::to_int_type(*gptr());
   }
@@ -140,7 +150,7 @@ class FileStreamBuf : public std::streambuf {
  private:
   FileStream *reader_;
   char buffer_[BufferSize];
-  bool eof_ = false;
+  size_t remaining_;
 };
 
 }  // namespace dali
