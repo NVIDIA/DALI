@@ -211,6 +211,35 @@ def test_webdataset_remote_index():
     )
 
 
+@attr("slow")
+def test_webdataset_remote_index_multi_chunk():
+    # 3000 samples puts the index well past FileStreamBuf's 64 KiB read chunk
+    # (webdataset_loader.cc), so building this pipeline exercises multiple Read() round trips
+    # against S3 - including the one at the exact end of the index - not just the single-chunk
+    # case every other webdataset test here happens to hit.
+    import webdataset_base as base
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        big_tar = os.path.join(tmpdir, "big.tar")
+        _make_local_tar(big_tar, num_samples=3000)
+        big_index = base.generate_temp_index_file(big_tar)
+        try:
+            prefix = f"{WDS_PREFIX}/big"
+            g_client.upload_file(big_tar, s3.BUCKET, f"{prefix}/shard0.tar")
+            g_client.upload_file(big_index.name, s3.BUCKET, f"{prefix}/shard0.index")
+            compare_pipelines(
+                wds_pipe(
+                    paths=f"s3://{s3.BUCKET}/{prefix}/shard0.tar",
+                    index_paths=[f"s3://{s3.BUCKET}/{prefix}/shard0.index"],
+                ),
+                wds_pipe(paths=big_tar, index_paths=[big_index.name], dont_use_mmap=True),
+                batch_size,
+                2,
+            )
+        finally:
+            big_index.close()
+
+
 def test_file_reader_missing_object():
     with assert_raises(RuntimeError, glob="*S3 Object not found. bucket=*object=*"):
         pipe = file_pipe(files=[f"s3://{s3.BUCKET}/{DATA_PREFIX}/no-such-object.dat"])
