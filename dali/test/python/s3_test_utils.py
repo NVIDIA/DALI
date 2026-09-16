@@ -117,11 +117,15 @@ class MockS3Server:
     def start(self):
         env = dict(os.environ)
         env["PYTHONUNBUFFERED"] = "1"
-        env["NO_PROXY"] = env["no_proxy"] = _with_loopback(env.get("no_proxy", ""))
+        # Both keys are set because consumers disagree on casing; both are read from for the same
+        # reason - the environment may already carry a bypass list under either one.
+        no_proxy = env.get("no_proxy") or env.get("NO_PROXY", "")
+        env["NO_PROXY"] = env["no_proxy"] = _with_loopback(no_proxy)
         self._proc = subprocess.Popen(
             [sys.executable, "-c", _SERVER_MAIN],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
+            # Set DALI_TEST_S3_VERBOSE to see the mock server's own stdout/stderr.
             stderr=None if os.environ.get("DALI_TEST_S3_VERBOSE") else subprocess.DEVNULL,
             env=env,
             text=True,
