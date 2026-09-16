@@ -654,7 +654,7 @@ all_packages = [
                     python_free_threaded=False,
                 ),
                 PckgVer(
-                    "3.4.0.post20260808",
+                    "3.4.0",
                     python_min_ver="3.12",
                     python_max_ver="3.12",
                     # Free-threaded Python build is incompatible with numpy<2.
