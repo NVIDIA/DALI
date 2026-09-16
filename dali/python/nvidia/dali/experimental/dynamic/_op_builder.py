@@ -72,6 +72,8 @@ def _find_or_create_module(root_module, module_path):
 def _scalar_arg_type_id(dtype_id):
     if dtype_id == nvidia.dali.types.DALIDataType._INT32_VEC:
         return nvidia.dali.types.INT32
+    elif dtype_id == nvidia.dali.types.DALIDataType._INT64_VEC:
+        return nvidia.dali.types.INT64
     elif dtype_id == nvidia.dali.types.DALIDataType._FLOAT_VEC:
         return nvidia.dali.types.FLOAT
     elif dtype_id == nvidia.dali.types.DALIDataType._STRING_VEC:

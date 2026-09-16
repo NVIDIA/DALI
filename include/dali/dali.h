@@ -385,6 +385,7 @@ typedef struct _DALIArgInputDesc {
  *
  * Vector (list) types — use the {size, arr} struct:
  *   - DALI_INT_VEC            -> arr points to int[], size = element count
+ *   - DALI_INT64_VEC          -> arr points to int64_t[], size = element count
  *   - DALI_FLOAT_VEC          -> arr points to float[], size = element count
  *   - DALI_BOOL_VEC           -> arr points to bool[], size = element count
  *   - DALI_STRING_VEC         -> arr points to const char*[], size = element count

@@ -63,6 +63,7 @@ _known_types = {
     DALIDataType.STRING: ("str", str),
     DALIDataType._BOOL_VEC: ("bool", _to_list(bool)),
     DALIDataType._INT32_VEC: ("int", _to_list(int)),
+    DALIDataType._INT64_VEC: ("int", _to_list(int)),
     DALIDataType._STRING_VEC: ("str", _to_list(str)),
     DALIDataType._FLOAT_VEC: ("float", _to_list(float)),
     DALIDataType.IMAGE_TYPE: ("nvidia.dali.types.DALIImageType", lambda x: DALIImageType(int(x))),
@@ -86,6 +87,7 @@ _known_types = {
 _vector_types = {
     DALIDataType._BOOL_VEC: DALIDataType.BOOL,
     DALIDataType._INT32_VEC: DALIDataType.INT32,
+    DALIDataType._INT64_VEC: DALIDataType.INT64,
     DALIDataType._STRING_VEC: DALIDataType.STRING,
     DALIDataType._FLOAT_VEC: DALIDataType.FLOAT,
     DALIDataType._TENSOR_LAYOUT_VEC: DALIDataType.TENSOR_LAYOUT,
@@ -503,20 +505,24 @@ def _is_compatible_array_type(value):
     return _is_numpy_array(value) or _is_mxnet_array(value) or _is_torch_tensor(value)
 
 
-def _preprocess_constant_array_type(value):
+def _preprocess_constant_array_type(value, dtype=None):
     if _is_mxnet_array(value):
         # mxnet ndarray is not directly compatible with numpy.ndarray, but provides conversion
         value = value.asnumpy()
     if _is_numpy_array(value):
         import numpy as np
 
-        # 64-bit types require explicit dtype
+        # Double precision data is transported as float32.
         if value.dtype == np.float64:
             value = value.astype(np.float32)
-        if value.dtype == np.int64:
-            value = value.astype(np.int32)
-        if value.dtype == np.uint64:
-            value = value.astype(np.uint32)
+        elif dtype is None and value.dtype in (np.int64, np.uint64):
+            limits = np.iinfo(np.int32 if value.dtype == np.int64 else np.uint32)
+            if value.size:
+                min_value, max_value = value.min().item(), value.max().item()
+                if min_value < limits.min or max_value > limits.max:
+                    bad_value = min_value if min_value < limits.min else max_value
+                    raise OverflowError(f"Integer {bad_value} out of range for {limits.dtype}")
+            value = value.astype(limits.dtype)
 
     return value
 
@@ -524,7 +530,7 @@ def _preprocess_constant_array_type(value):
 def ConstantNode(device, value, dtype, shape, layout, **kwargs):
     data = value
     if _is_compatible_array_type(value):
-        value = _preprocess_constant_array_type(value)
+        value = _preprocess_constant_array_type(value, dtype)
 
         # At this point value is a numpy array or a torch tensor. They have very similar API
         actual_type = to_dali_type(value.dtype)
@@ -639,6 +645,10 @@ def Constant(value, dtype=None, shape=None, layout=None, device=None, **kwargs):
 
     Otherwise, the function creates a `dali.ops.Constant` node, which produces
     a batch of constant tensors.
+
+    .. warning::
+      Double precision arrays are not supported and will be silently downgraded to 32-bit.
+      When `dtype` is not specified, 64-bit integer arrays are downgraded to 32 bits.
 
     Args
     ----

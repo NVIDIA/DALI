@@ -3257,6 +3257,7 @@ PYBIND11_MODULE(backend_impl, m, py::mod_gil_not_used()) {
     .value("PYTHON_OBJECT", DALI_PYTHON_OBJECT)
     .value("_TENSOR_LAYOUT_VEC", DALI_TENSOR_LAYOUT_VEC)
     .value("_DATA_TYPE_VEC", DALI_DATA_TYPE_VEC)
+    .value("_INT64_VEC",     DALI_INT64_VEC)
     .export_values();
 
   // Placeholder data type allowing to use legacy __call__ method on dtype (to be deprecated).
