@@ -172,7 +172,7 @@ def wds_pipe(paths, index_paths=None, dont_use_mmap=False):
 
 @pipeline_def(batch_size=batch_size, num_threads=num_threads, device_id=None)
 def mxnet_pipe(path, index_path, dont_use_mmap=False):
-    return fn.readers.mxnet(path=path, index_path=index_path, dont_use_mmap=dont_use_mmap)
+    return tuple(fn.readers.mxnet(path=path, index_path=index_path, dont_use_mmap=dont_use_mmap))
 
 
 def test_file_reader_file_root():
