@@ -193,6 +193,12 @@ def _is_loopback(endpoint_url):
     return host in ("127.0.0.1", "::1", "localhost")
 
 
+_PROXY_VARS = ("http_proxy", "https_proxy", "all_proxy", "HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY")
+# Values this module removed from the environment, so a later module in the same test process
+# (nose2/pytest run all suites in one interpreter) doesn't silently lose its proxy config too.
+_saved_proxy_vars = None
+
+
 def _drop_proxy_vars():
     """Removes the proxy from this process, for a loopback endpoint.
 
@@ -205,10 +211,21 @@ def _drop_proxy_vars():
     listing inside Pipeline.build() retries until it times out.
 
     Only done for a loopback endpoint: an external DALI_TEST_GCS_ENDPOINT may well need the
-    proxy to be reachable.
+    proxy to be reachable. Call `restore_proxy_vars()` in tearDownModule to undo this.
     """
-    for var in ("http_proxy", "https_proxy", "all_proxy", "HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY"):
+    global _saved_proxy_vars
+    _saved_proxy_vars = {var: os.environ[var] for var in _PROXY_VARS if var in os.environ}
+    for var in _PROXY_VARS:
         os.environ.pop(var, None)
+
+
+def restore_proxy_vars():
+    """Undoes `_drop_proxy_vars()`. A no-op if it was never called (external endpoint, or a
+    loopback one that was never seen)."""
+    global _saved_proxy_vars
+    if _saved_proxy_vars is not None:
+        os.environ.update(_saved_proxy_vars)
+        _saved_proxy_vars = None
 
 
 def create_bucket(endpoint_url, bucket=BUCKET):

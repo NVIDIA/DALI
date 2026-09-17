@@ -185,6 +185,7 @@ def setUpModule():
 def tearDownModule():
     global g_server, g_tmpdir, g_index, g_endpoint
     try:
+        gcs.restore_proxy_vars()
         # The emulator is thrown away wholesale, but an external endpoint outlives the test run,
         # so everything uploaded there has to be removed again.
         if g_endpoint is not None and isinstance(g_server, gcs.ExternalGCSServer):
