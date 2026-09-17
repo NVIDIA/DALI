@@ -17,7 +17,6 @@ from typing import TYPE_CHECKING, Any
 from collections.abc import Iterator, Sequence
 
 import nvidia.dali.backend as _backend
-import nvidia.dali.types as _dali_types
 import nvidia.dali._tensor_formatting as _tensor_formatting
 from ._nvtx import NVTXRange
 from nvidia.dali._typing import BatchLike, TensorLike
@@ -29,12 +28,12 @@ from ._eval_context import EvalContext as _EvalContext
 from ._arithmetic import _arithm_op
 from ._device import Device, DeviceLike
 from ._device import device as _device
-from ._tensor import Tensor, _is_full_slice, _try_convert_enums
+from ._tensor import Tensor, _array_from_python, _is_full_slice
 from ._tensor import as_tensor as _as_tensor
 from ._tensor import tensor as _tensor
 from ._type import DType, DTypeLike
 from ._type import dtype as _dtype
-from .capture._invariant import unwrap_invariant_args, unwrap_invariants
+from .capture._invariant import unwrap_invariant_args
 
 
 def _backend_device(backend: _backend.TensorListCPU | _backend.TensorListGPU) -> Device:
@@ -435,10 +434,6 @@ class Batch:
     def _is_external(self) -> bool:
         return self._wraps_external_data
 
-    _nvtx_to_numpy_and_stack = NVTXRange("broadcast: to numpy and stack", category="batch")
-    _nvtx_to_backend = NVTXRange("broadcast: to backend", category="batch")
-    _nvtx_create_batch = NVTXRange("broadcast: create batch", category="batch")
-
     @staticmethod
     @NVTXRange("broadcast", category="batch")
     def broadcast(
@@ -461,36 +456,21 @@ class Batch:
         sample, batch_size, device, dtype = unwrap_invariant_args(sample, batch_size, device, dtype)
         if isinstance(sample, Batch):
             raise ValueError("Cannot broadcast a Batch")
-        if _is_tensor_type(sample):
-            t = _as_tensor(sample, device=device, dtype=dtype).evaluate()
-            if t.device.device_type == "gpu":
-                tl_type = _backend.TensorListGPU
-            else:
-                tl_type = _backend.TensorListCPU
-            return Batch(tl_type.broadcast(t._storage, batch_size))
-        import numpy as np
+        if not _is_tensor_type(sample):
+            import numpy as np
 
-        with Batch._nvtx_to_numpy_and_stack:
-            arr = np.array(unwrap_invariants(sample))
-            converted_dtype_id = None
-            if arr.dtype == np.float64:
-                arr = arr.astype(np.float32)
-            elif arr.dtype == np.int64:
-                arr = arr.astype(np.int32)
-            elif arr.dtype == np.uint64:
-                arr = arr.astype(np.uint32)
-            elif arr.dtype == object:
-                arr, converted_dtype_id = _try_convert_enums(arr)
-            if dtype is not None and dtype.kind != DType.Kind.enum:
-                arr = arr.astype(_dali_types.to_numpy_type(dtype.type_id))
+            arr, converted_dtype_id = _array_from_python(sample, dtype)
+            # Materialize Python constants contiguously for bulk CPU/GPU transfers.
             arr = np.repeat(arr[np.newaxis], batch_size, axis=0)
-
-        with Batch._nvtx_to_backend:
             tl = _backend.TensorListCPU(arr)
             if converted_dtype_id is not None:
                 tl.reinterpret(converted_dtype_id)
-        with Batch._nvtx_create_batch:
-            return Batch(tl, device=device, dtype=dtype)
+            return Batch(tl, device=device)
+        t = _as_tensor(sample, device=device, dtype=dtype).evaluate()
+        tl_type = (
+            _backend.TensorListGPU if t.device.device_type == "gpu" else _backend.TensorListCPU
+        )
+        return Batch(tl_type.broadcast(t._storage, batch_size))
 
     @property
     def dtype(self) -> DType:
