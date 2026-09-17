@@ -134,16 +134,7 @@ def setUpModule():
 def tearDownModule():
     global g_server, g_tmpdir, g_index, g_client
     try:
-        # The mock server is thrown away wholesale, but an external endpoint outlives the test
-        # run, so everything uploaded there has to be removed again - our prefix, and only our
-        # prefix. The bucket stays even if this run created it: a concurrent run may be using it
-        # under its own prefix, so deleting it would either fail with BucketNotEmpty or pull the
-        # bucket from under that run, and on real S3 the name is not immediately reusable after.
-        if g_client is not None and isinstance(g_server, s3.ExternalS3Server):
-            try:
-                s3.delete_prefix(g_client, s3.BUCKET, s3.PREFIX + "/")
-            finally:
-                g_client = None
+        # The mock server, and everything uploaded to it, is thrown away wholesale.
         g_client = None
         if g_server is not None:
             g_server.stop()

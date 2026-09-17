@@ -15,11 +15,6 @@
 """Helpers for running DALI tests against a mock S3 server started by the test itself.
 
 Environment variables, all optional:
-    DALI_TEST_S3_ENDPOINT      - point the tests at minio or real S3 instead of the mock server.
-    DALI_TEST_S3_ACCESS_KEY    - credentials; fall back to AWS_ACCESS_KEY_ID, then a mock default.
-    DALI_TEST_S3_SECRET_KEY    - credentials; fall back to AWS_SECRET_ACCESS_KEY, then mock default.
-    DALI_TEST_S3_REGION        - fall back to AWS_DEFAULT_REGION, then AWS_REGION, then us-east-1.
-    DALI_TEST_S3_BUCKET        - bucket to create/reuse; never deleted, only its own prefix is.
     DALI_TEST_S3_VERBOSE       - if set, don't silence the mock server's own stdout/stderr.
 """
 
@@ -33,44 +28,19 @@ import urllib.error
 import urllib.request
 import uuid
 
-# Escape hatch: points the same tests at minio or at real S3 instead of at the mock server.
-EXTERNAL_ENDPOINT = os.environ.get("DALI_TEST_S3_ENDPOINT")
+# The mock server accepts any credentials/region; these are fixed rather than configurable since
+# nothing here talks to a real endpoint.
+ACCESS_KEY = "dalitestaccesskey"
+SECRET_KEY = "dalitestsecretkey"
+REGION = "us-east-1"
+BUCKET = "dali-test-bucket"
 
-
-def _cred(dali_var, aws_var, mock_default):
-    """The mock server accepts anything, a real endpoint does not.
-
-    DALI_TEST_S3_* wins, then whatever the environment already carries for the AWS SDK. Against an
-    external endpoint an unresolved value stays unset instead of falling back to the mock default,
-    so that both SDKs resolve it through their own credential chain: a dummy AWS_ACCESS_KEY_ID
-    exported here would shadow a profile, an SSO session or an EC2 instance role.
-    """
-    value = os.environ.get(dali_var) or os.environ.get(aws_var)
-    return value or (None if EXTERNAL_ENDPOINT else mock_default)
-
-
-ACCESS_KEY = _cred("DALI_TEST_S3_ACCESS_KEY", "AWS_ACCESS_KEY_ID", "dalitestaccesskey")
-SECRET_KEY = _cred("DALI_TEST_S3_SECRET_KEY", "AWS_SECRET_ACCESS_KEY", "dalitestsecretkey")
-# Not a credential, and CreateBucket has to state it, so this one always has a value.
-REGION = (
-    os.environ.get("DALI_TEST_S3_REGION")
-    or os.environ.get("AWS_DEFAULT_REGION")
-    or os.environ.get("AWS_REGION")
-    or "us-east-1"
-)
-# The tests create this bucket if it is missing, and remove only what they uploaded - never the
-# bucket itself, which a concurrent run may still be using and which a killed run cannot clean up
-# either. Point DALI_TEST_S3_BUCKET at a bucket you do not mind keeping around.
-BUCKET = os.environ.get("DALI_TEST_S3_BUCKET", "dali-test-bucket")
-
-# Everything this module uploads goes under a prefix unique to the process, so that a run against
-# a shared endpoint neither collides with a concurrent run nor inherits its leftovers.
+# Everything this module uploads goes under a prefix unique to the process, even though each test
+# run gets its own private mock server - keeps the object keys self-documenting and collision-proof
+# if this module is ever imported more than once in the same interpreter.
 PREFIX = f"dali-test-{uuid.uuid4().hex[:12]}"
 
-# A bucket nothing ever creates, for the error paths. Derived from the per-run uuid rather than
-# hardcoded because bucket names are one global namespace: a fixed name may be owned by somebody
-# else on real S3, which answers AccessDenied and not NoSuchBucket, or be left over on a shared
-# MinIO, where listing it would simply succeed.
+# A bucket nothing ever creates, for the error paths.
 MISSING_BUCKET = f"{PREFIX}-missing"
 
 # The mock server intentionally runs in a SEPARATE PROCESS. In dali/python/backend_impl.cc,
@@ -191,38 +161,20 @@ class MockS3Server:
             proc.stdout.close()
 
 
-class ExternalS3Server:
-    """Escape hatch: DALI_TEST_S3_ENDPOINT points the same tests at minio or at real S3."""
-
-    def __init__(self, endpoint_url):
-        self.endpoint_url = endpoint_url
-
-    def start(self):
-        return self.endpoint_url
-
-    def stop(self):
-        pass
-
-
 def make_server():
-    return ExternalS3Server(EXTERNAL_ENDPOINT) if EXTERNAL_ENDPOINT else MockS3Server()
+    return MockS3Server()
 
 
 def export_s3_env(endpoint_url):
     """Exports what DALI's S3 client reads. MUST run before the first s3:// access: DALI builds
     one process-wide S3 client from a getenv snapshot (dali/util/s3_client_manager.h:33-41).
-
-    Only what this module actually resolved is exported: against an external endpoint the
-    credentials belong to the SDK's own chain, so nothing here may overwrite them.
     """
     os.environ["AWS_ENDPOINT_URL"] = endpoint_url
     os.environ["AWS_DEFAULT_REGION"] = REGION
     os.environ["AWS_REGION"] = REGION
-    if ACCESS_KEY and SECRET_KEY:
-        os.environ["AWS_ACCESS_KEY_ID"] = ACCESS_KEY
-        os.environ["AWS_SECRET_ACCESS_KEY"] = SECRET_KEY
-    if not EXTERNAL_ENDPOINT:  # setting it would cut off an EC2 instance role
-        os.environ["AWS_EC2_METADATA_DISABLED"] = "true"
+    os.environ["AWS_ACCESS_KEY_ID"] = ACCESS_KEY
+    os.environ["AWS_SECRET_ACCESS_KEY"] = SECRET_KEY
+    os.environ["AWS_EC2_METADATA_DISABLED"] = "true"
     os.environ["NO_PROXY"] = os.environ["no_proxy"] = _with_loopback(os.environ.get("no_proxy", ""))
 
 
@@ -255,7 +207,7 @@ def create_bucket(client, bucket):
     try:
         client.create_bucket(**kwargs)
     except client.exceptions.BucketAlreadyOwnedByYou:
-        pass  # a shared endpoint may already have it; our keys are prefixed anyway
+        pass
 
 
 def upload_dir(client, bucket, local_dir, key_prefix):
@@ -270,21 +222,6 @@ def upload_dir(client, bucket, local_dir, key_prefix):
     return keys
 
 
-def delete_prefix(client, bucket, prefix):
-    """Deletes every object under `prefix`. Paginates: a page holds at most 1000 keys, which is
-    also as many as DeleteObjects takes per request."""
-    paginator = client.get_paginator("list_objects_v2")
-    errors = []
-    for page in paginator.paginate(Bucket=bucket, Prefix=prefix):
-        keys = [{"Key": obj["Key"]} for obj in page.get("Contents", [])]
-        if keys:
-            # a key that cannot be deleted is reported in the response, not raised
-            response = client.delete_objects(Bucket=bucket, Delete={"Objects": keys})
-            errors += response.get("Errors", [])
-    if errors:
-        raise RuntimeError(f"could not delete {len(errors)} object(s) under {prefix}: {errors[:5]}")
-
-
 def require_mock_server():
     """boto3 and moto are required dependencies, not optional ones.
 
@@ -295,15 +232,13 @@ def require_mock_server():
     Builds without S3 support are a separate, required precondition, checked by
     require_s3_support.
     """
-    # boto3 seeds the bucket in either mode; only the mock server itself is optional.
-    for mod in ["boto3"] if EXTERNAL_ENDPOINT else ["boto3", "moto.server"]:
+    for mod in ["boto3", "moto.server"]:
         try:
             __import__(mod)
         except ImportError:
             raise RuntimeError(
                 f"{mod} is required to run the S3 tests. It is installed by "
-                f"qa/TL0_python-self-test-readers-decoders/test_nofw.sh; install it, or set "
-                f"DALI_TEST_S3_ENDPOINT to point at an external S3-compatible endpoint."
+                f"qa/TL0_python-self-test-readers-decoders/test_nofw.sh; install it to run them."
             )
 
 
