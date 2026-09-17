@@ -14,6 +14,7 @@
 
 import io
 import os
+import struct
 import tarfile
 import tempfile
 from concurrent.futures import ThreadPoolExecutor
@@ -34,11 +35,14 @@ g_root = None
 g_files = None
 g_tar = None
 g_index = None
+g_rec = None
+g_rec_index = None
 g_client = None
 
 DATA_PREFIX = f"{s3.PREFIX}/data"
 WDS_PREFIX = f"{s3.PREFIX}/wds"
 MANY_PREFIX = f"{s3.PREFIX}/many"
+REC_PREFIX = f"{s3.PREFIX}/rec"
 
 
 def _make_local_dataset(root):
@@ -65,6 +69,22 @@ def _make_local_tar(path, num_samples=8):
                 tar.addfile(info, io.BytesIO(payload))
 
 
+def _make_local_recordio(path, index_path, num_samples=8):
+    """A minimal MXNet RecordIO shard: magic (0xced7230a) + length/cflag word (cflag=0, no
+    continuation) + a 24-byte ImageRecordIOHeader (flag=0 -> a single float label, no extra
+    labels) + the sample payload. The index is plain text, "<ignored> <byte offset>" per line -
+    RecordIOLoader::ReadIndexFile only reads the second column (dali/operators/reader/loader/
+    recordio_loader.h)."""
+    with open(path, "wb") as rec, open(index_path, "w") as idx:
+        offset = 0
+        for i in range(num_samples):
+            payload = struct.pack("<IfQQ", 0, float(i), 0, 0) + b"sample-%d" % i
+            record = struct.pack("<II", 0xCED7230A, len(payload)) + payload
+            rec.write(record)
+            idx.write(f"{i} {offset}\n")
+            offset += len(record)
+
+
 def _seed_many_objects(client, count=1100):
     def put(i):
         client.put_object(Bucket=s3.BUCKET, Key=f"{MANY_PREFIX}/c/{i:04}.dat", Body=b"x")
@@ -74,7 +94,7 @@ def _seed_many_objects(client, count=1100):
 
 
 def setUpModule():
-    global g_server, g_tmpdir, g_root, g_files, g_tar, g_index, g_client
+    global g_server, g_tmpdir, g_root, g_files, g_tar, g_index, g_rec, g_rec_index, g_client
     s3.require_mock_server()
 
     g_tmpdir = tempfile.TemporaryDirectory()
@@ -83,6 +103,9 @@ def setUpModule():
     g_files = _make_local_dataset(g_root)
     g_tar = os.path.join(g_tmpdir.name, "shard0.tar")
     _make_local_tar(g_tar)
+    g_rec = os.path.join(g_tmpdir.name, "train.rec")
+    g_rec_index = os.path.join(g_tmpdir.name, "train.idx")
+    _make_local_recordio(g_rec, g_rec_index)
 
     g_server = s3.make_server()
     try:
@@ -93,6 +116,8 @@ def setUpModule():
         s3.create_bucket(g_client, s3.BUCKET)
         s3.upload_dir(g_client, s3.BUCKET, g_root, DATA_PREFIX)
         g_client.upload_file(g_tar, s3.BUCKET, f"{WDS_PREFIX}/shard0.tar")
+        g_client.upload_file(g_rec, s3.BUCKET, f"{REC_PREFIX}/train.rec")
+        g_client.upload_file(g_rec_index, s3.BUCKET, f"{REC_PREFIX}/train.idx")
 
         # everything past the first upload has to stay inside this try: unittest skips
         # tearDownModule once setUpModule raised, so the call below is the only thing that
@@ -152,6 +177,11 @@ def wds_pipe(paths, index_paths=None, dont_use_mmap=False):
             paths=paths, index_paths=index_paths, ext=["txt", "cls"], dont_use_mmap=dont_use_mmap
         )
     )
+
+
+@pipeline_def(batch_size=batch_size, num_threads=num_threads, device_id=None)
+def mxnet_pipe(path, index_path, dont_use_mmap=False):
+    return fn.readers.mxnet(path=path, index_path=index_path, dont_use_mmap=dont_use_mmap)
 
 
 def test_file_reader_file_root():
@@ -238,6 +268,27 @@ def test_webdataset_remote_index_multi_chunk():
             )
         finally:
             big_index.close()
+
+
+def test_mxnet_reader_local_index():
+    compare_pipelines(
+        mxnet_pipe(path=f"s3://{s3.BUCKET}/{REC_PREFIX}/train.rec", index_path=g_rec_index),
+        mxnet_pipe(path=g_rec, index_path=g_rec_index, dont_use_mmap=True),
+        batch_size,
+        2,
+    )
+
+
+def test_mxnet_reader_remote_index():
+    compare_pipelines(
+        mxnet_pipe(
+            path=f"s3://{s3.BUCKET}/{REC_PREFIX}/train.rec",
+            index_path=f"s3://{s3.BUCKET}/{REC_PREFIX}/train.idx",
+        ),
+        mxnet_pipe(path=g_rec, index_path=g_rec_index, dont_use_mmap=True),
+        batch_size,
+        2,
+    )
 
 
 def test_file_reader_missing_object():

@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -49,12 +49,20 @@ class RecordIOLoader : public IndexedFileLoader {
     DALI_ENFORCE(index_paths.size() == 1,
         "RecordIOReader supports only a single index file");
     const std::string& path = index_paths[0];
-    std::ifstream index_file(path);
-    DALI_ENFORCE(index_file.good(),
+    // FileStream::Open dispatches on the URI scheme (e.g. s3://), so the index file can live
+    // next to the shards it describes, remote or local, same as indexed_file_loader.h.
+    auto index_file = FileStream::Open(path);
+    auto index_file_cleanup = AtScopeExit([&index_file] {
+      if (index_file)
+        index_file->Close();
+    });
+    FileStreamBuf<> stream_buf(index_file.get());
+    std::istream fin(&stream_buf);
+    DALI_ENFORCE(fin.good(),
         "Could not open RecordIO index file. Provided path: \"" + path + "\"");
     std::vector<size_t> temp;
     size_t index, offset, prev_offset = -1;
-    while (index_file >> index >> offset) {
+    while (fin >> index >> offset) {
       temp.push_back(offset);
     }
     DALI_ENFORCE(!temp.empty(),
@@ -80,7 +88,6 @@ class RecordIOLoader : public IndexedFileLoader {
       indices_.emplace_back(temp.back() - file_offsets[file_offset_index],
                             size, file_offset_index);
     }
-    index_file.close();
   }
 
   void ReadSample(IndexedFileLoaderSample& sample) override {
