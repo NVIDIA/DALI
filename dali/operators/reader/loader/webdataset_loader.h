@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,7 +15,6 @@
 #ifndef DALI_OPERATORS_READER_LOADER_WEBDATASET_LOADER_H_
 #define DALI_OPERATORS_READER_LOADER_WEBDATASET_LOADER_H_
 
-#include <fstream>
 #include <memory>
 #include <set>
 #include <string>

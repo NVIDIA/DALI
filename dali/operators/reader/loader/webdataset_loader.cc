@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@
 #include <memory>
 #include <numeric>
 #include <random>
+#include <sstream>
 #include <tuple>
 #include <utility>
 #include "dali/core/common.h"
@@ -60,7 +61,7 @@ inline MissingExtBehavior ParseMissingExtBehavior(std::string missing_component_
 
 inline void ParseSampleDesc(std::vector<SampleDesc>& samples_container,
                             std::vector<ComponentDesc>& components_container,
-                            std::ifstream& index_file, const std::string& index_path, int64_t line,
+                            std::istream& index_file, const std::string& index_path, int64_t line,
                             int index_version) {
   // Preparing the SampleDesc
   samples_container.emplace_back();
@@ -118,7 +119,13 @@ inline int ParseIndexVersion(const string& version_str) {
 inline void ParseIndexFile(std::vector<SampleDesc>& samples_container,
                            std::vector<ComponentDesc>& components_container,
                            const std::string& index_path) {
-  std::ifstream index_file(index_path);
+  // FileStream::Open dispatches on the URI scheme (e.g. s3://), so index files can live next to
+  // the shards they describe, remote or local. index_paths is a public, caller-controlled
+  // argument and the index can be arbitrarily large, so it's streamed through FileStreamBuf
+  // (also used by IndexedFileLoader) rather than read into memory in full.
+  auto file = FileStream::Open(index_path);
+  FileStreamBuf<64 * 1024> file_buf(file.get());
+  std::istream index_file(&file_buf);
 
   // Index Checking
   std::string global_meta;

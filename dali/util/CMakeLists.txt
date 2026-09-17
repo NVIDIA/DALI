@@ -62,10 +62,12 @@ endif()
 if (BUILD_AWSSDK)
   set(DALI_SRCS ${DALI_SRCS}
   "${CMAKE_CURRENT_SOURCE_DIR}/s3_file.cc"
-  "${CMAKE_CURRENT_SOURCE_DIR}/s3_filesystem.cc")
+  "${CMAKE_CURRENT_SOURCE_DIR}/s3_filesystem.cc"
+  "${CMAKE_CURRENT_SOURCE_DIR}/s3_client_manager.cc")
 endif()
 
 set(DALI_TEST_SRCS ${DALI_TEST_SRCS}
+  "${CMAKE_CURRENT_SOURCE_DIR}/file_test.cc"
   "${CMAKE_CURRENT_SOURCE_DIR}/numpy_test.cc"
   "${CMAKE_CURRENT_SOURCE_DIR}/uri_test.cc")
 
