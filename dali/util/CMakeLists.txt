@@ -77,7 +77,8 @@ if (BUILD_GCS)
 
   set(DALI_SRCS ${DALI_SRCS}
   "${CMAKE_CURRENT_SOURCE_DIR}/gcs_file.cc"
-  "${CMAKE_CURRENT_SOURCE_DIR}/gcs_filesystem.cc")
+  "${CMAKE_CURRENT_SOURCE_DIR}/gcs_filesystem.cc"
+  "${CMAKE_CURRENT_SOURCE_DIR}/gcs_client_manager.cc")
 
   set(DALI_TEST_SRCS ${DALI_TEST_SRCS}
   "${CMAKE_CURRENT_SOURCE_DIR}/gcs_filesystem_test.cc")
