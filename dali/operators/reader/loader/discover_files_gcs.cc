@@ -85,7 +85,7 @@ std::vector<FileLabelEntry> gcs_discover_files(const std::string &file_root,
         for (auto &filter : opts.dir_filters) {
           if (fnmatch(filter.c_str(), subdir.c_str(),
                       opts.case_sensitive_filter ? 0 : FNM_CASEFOLD) == 0) {
-            subdir_ok |= true;
+            subdir_ok = true;
             break;
           }
         }
@@ -93,7 +93,7 @@ std::vector<FileLabelEntry> gcs_discover_files(const std::string &file_root,
         for (auto &filter : opts.file_filters) {
           if (fnmatch(filter.c_str(), fname.c_str(),
                       opts.case_sensitive_filter ? 0 : FNM_CASEFOLD) == 0) {
-            fname_ok |= true;
+            fname_ok = true;
             break;
           }
         }

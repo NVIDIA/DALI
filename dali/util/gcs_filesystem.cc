@@ -42,6 +42,8 @@ GCSObjectLocation parse_uri(const std::string& uri) {
     throw std::runtime_error("Not a GCS URI: " + uri);
   GCSObjectLocation object_location;
   object_location.bucket = parsed_uri.authority();
+  if (object_location.bucket.empty())
+    throw std::runtime_error("GCS URI is missing a bucket: " + uri);
   // Everything after the bucket is the object name, taken from the original string rather than
   // from path(). '?' and '#' are ordinary characters in a GCS object name, but URI::Parse ends
   // the path at the first of them and hands the rest to query()/fragment(). Going through path()
@@ -57,7 +59,7 @@ GCSObjectStats get_stats(gcs::Client& client, const GCSObjectLocation& object_lo
   DomainTimeRange tr(make_string("get_stats @ ", object_location.object), DomainTimeRange::kOrange);
   GCSObjectStats stats;
   if (object_location.object.empty())
-    throw std::runtime_error("Object can't be empty");
+    throw std::runtime_error("Empty GCS object name. bucket=" + object_location.bucket);
 
   auto metadata = client.GetObjectMetadata(object_location.bucket, object_location.object);
   if (!metadata) {
@@ -101,7 +103,7 @@ size_t read_object_contents(gcs::Client& client, const GCSObjectLocation& object
 
 void list_objects_f(gcs::Client& client, const GCSObjectLocation& object_location,
                     PerObjectCallable per_object_call) {
-  DomainTimeRange tr(make_string("list_object_contents @ ", object_location.object),
+  DomainTimeRange tr(make_string("list_objects_f @ ", object_location.object),
                      DomainTimeRange::kOrange);
   std::string prefix = object_location.object;
   if (!prefix.empty() && prefix.back() != '/') {

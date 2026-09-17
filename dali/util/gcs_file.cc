@@ -48,10 +48,10 @@ void GCSFileStream::SeekRead(ptrdiff_t pos, int whence) {
       new_pos += pos;
       break;
     case SEEK_END:
-      new_pos = object_stats_.size + pos;
+      new_pos = static_cast<ptrdiff_t>(object_stats_.size) + pos;
       break;
     default:
-      assert(false);
+      throw std::invalid_argument("Unsupported whence value in GCSFileStream::SeekRead.");
   }
   if (new_pos < 0 || new_pos > static_cast<ptrdiff_t>(object_stats_.size))
     throw std::out_of_range("The requested offset points outside of the file.");
