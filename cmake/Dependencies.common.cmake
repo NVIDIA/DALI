@@ -452,3 +452,23 @@ if(BUILD_AWSSDK)
     message(STATUS "AWSSDK_LIBRARIES=${AWSSDK_LIBRARIES}")
   endif()
 endif()
+
+##################################################################
+# Google Cloud Storage (google-cloud-cpp)
+##################################################################
+if(BUILD_GCS)
+  find_package(google_cloud_cpp_storage CONFIG QUIET)
+  if (NOT google_cloud_cpp_storage_FOUND)
+    message(WARNING "google-cloud-cpp storage not found. Disabling Google Cloud Storage support.")
+    set(BUILD_GCS OFF)
+  elseif (google_cloud_cpp_storage_VERSION VERSION_LESS "3.0")
+    # gcs_client_manager.h uses gcs::DownloadChecksumValidationOption and gcs::ChecksumAlgorithm,
+    # which were introduced in google-cloud-cpp 3.0. Without this check an older install is
+    # accepted here and fails much later, with a compile error inside the GCS headers.
+    message(WARNING "google-cloud-cpp storage ${google_cloud_cpp_storage_VERSION} is too old, "
+                    "3.0 or newer is required. Disabling Google Cloud Storage support.")
+    set(BUILD_GCS OFF)
+  else()
+    message(STATUS "google-cloud-cpp storage version=${google_cloud_cpp_storage_VERSION}")
+  endif()
+endif()

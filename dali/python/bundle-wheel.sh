@@ -138,6 +138,13 @@ DEPS_LIST=(
     "${DEPS_PATH}/lib/libaws-c-s3.so.1.0.0"
     "${DEPS_PATH}/lib/libaws-c-s3.so.0unstable"
     "${DEPS_PATH}/lib/libs2n.so.1"
+    # google-cloud-cpp, shared for the same reason the AWS SDK is: libdali.so and
+    # libdali_operators.so both use the client, and a gcs::Client has to be the same object on
+    # both sides of that boundary. Everything below it - gRPC, protobuf, abseil, curl, OpenSSL -
+    # is linked statically into these three.
+    "${DEPS_PATH}/lib/libgoogle_cloud_cpp_storage.so.3"
+    "${DEPS_PATH}/lib/libgoogle_cloud_cpp_rest_internal.so.3"
+    "${DEPS_PATH}/lib/libgoogle_cloud_cpp_common.so.3"
     "lib/libcvcuda.so.0"
     "lib/libnvcv_types.so.0"
     # cvcuda adds _d suffix to lib names for debug builds

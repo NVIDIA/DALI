@@ -94,6 +94,10 @@ if (BUILD_AWSSDK)
   target_link_libraries(dali PRIVATE ${AWSSDK_LIBRARIES})
 endif()
 
+if (BUILD_GCS)
+  target_link_libraries(dali PRIVATE google-cloud-cpp::storage)
+endif()
+
 # Build test suite
 ################################################
 if (BUILD_DALI_PIPELINE AND BUILD_TEST)
@@ -111,6 +115,11 @@ if (BUILD_DALI_PIPELINE AND BUILD_TEST)
   endif(BUILD_NVML)
   if (BUILD_CUFILE)
     target_link_libraries(dali_test PRIVATE dynlink_cufile)
+  endif()
+  if (BUILD_GCS)
+    # gcs_filesystem_test.cc reaches the google-cloud-cpp headers through gcs_filesystem.h. The
+    # library is linked PRIVATE to `dali`, so its include directories do not propagate here.
+    target_link_libraries(dali_test PRIVATE google-cloud-cpp::storage)
   endif()
   target_link_libraries(dali_test PRIVATE "-pie")
   set_target_properties(dali_test PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${TEST_BINARY_DIR})

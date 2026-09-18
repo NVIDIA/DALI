@@ -102,6 +102,15 @@ if (BUILD_CVCUDA)
   target_link_libraries(dali_operators PRIVATE cvcuda nvcv_types)
 endif(BUILD_CVCUDA)
 
+if (BUILD_GCS)
+  # GCSClientManager is header-only, so discover_files_gcs.cc needs google-cloud-cpp's headers
+  # directly, and `dali` links the library PRIVATE so its include directories do not propagate
+  # here. google-cloud-cpp is not otherwise linked into dali_operators, so this both re-adds the
+  # include directories and links the shared library dali_operators calls into through the
+  # header-only wrapper.
+  target_link_libraries(dali_operators PRIVATE google-cloud-cpp::storage)
+endif()
+
 if (BUILD_NVIMAGECODEC)
   if (WITH_DYNAMIC_NVIMGCODEC)
     target_link_libraries(dali_operators PRIVATE dynlink_nvimgcodec)
