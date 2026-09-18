@@ -25,7 +25,7 @@ if TYPE_CHECKING:
     from . import _invocation
 from . import _eval_mode, _stream as _stream_module
 from ._eval_context import EvalContext as _EvalContext
-from ._arithmetic import _arithm_op
+from ._arithmetic import _arithm_op, transparent_arithmetic
 from ._device import Device, DeviceLike
 from ._device import device as _device
 from ._tensor import Tensor, _array_from_python, _is_full_slice
@@ -153,6 +153,7 @@ class _TensorList:
         return batch(self) if copy else as_batch(self)  # type: ignore
 
 
+@transparent_arithmetic
 class Batch:
     """A Batch object.
 
