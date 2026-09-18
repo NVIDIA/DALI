@@ -39,11 +39,11 @@ std::string error_message(const google::cloud::Status& status) {
 GCSObjectLocation parse_uri(const std::string& uri) {
   auto parsed_uri = URI::Parse(uri, URI::ParseOpts::AllowNonEscaped);
   if (parsed_uri.scheme() != "gs")
-    throw std::runtime_error("Not a GCS URI: " + uri);
+    throw std::runtime_error(make_string("Not a GCS URI: ", uri));
   GCSObjectLocation object_location;
   object_location.bucket = parsed_uri.authority();
   if (object_location.bucket.empty())
-    throw std::runtime_error("GCS URI is missing a bucket: " + uri);
+    throw std::runtime_error(make_string("GCS URI is missing a bucket: ", uri));
   // Everything after the bucket is the object name, taken from the original string rather than
   // from path(). '?' and '#' are ordinary characters in a GCS object name, but URI::Parse ends
   // the path at the first of them and hands the rest to query()/fragment(). Going through path()
@@ -59,13 +59,14 @@ GCSObjectStats get_stats(gcs::Client& client, const GCSObjectLocation& object_lo
   DomainTimeRange tr(make_string("get_stats @ ", object_location.object), DomainTimeRange::kOrange);
   GCSObjectStats stats;
   if (object_location.object.empty())
-    throw std::runtime_error("Empty GCS object name. bucket=" + object_location.bucket);
+    throw std::runtime_error(make_string("Empty GCS object name. bucket=",
+                                         object_location.bucket));
 
   auto metadata = client.GetObjectMetadata(object_location.bucket, object_location.object);
   if (!metadata) {
-    throw std::runtime_error("GCS object not found. bucket=" + object_location.bucket +
-                             " object=" + object_location.object + ":\n" +
-                             error_message(metadata.status()));
+    throw std::runtime_error(make_string("GCS object not found. bucket=", object_location.bucket,
+                                         " object=", object_location.object, ":\n",
+                                         error_message(metadata.status())));
   }
   stats.exists = true;
   stats.size = metadata->size();
@@ -94,9 +95,10 @@ size_t read_object_contents(gcs::Client& client, const GCSObjectLocation& object
   auto bytes_read = static_cast<size_t>(stream.gcount());
   stream.Close();
   if (!stream.status().ok()) {
-    throw std::runtime_error("Failed to read GCS object. bucket=" + object_location.bucket +
-                             " object=" + object_location.object + ":\n" +
-                             error_message(stream.status()));
+    throw std::runtime_error(make_string("Failed to read GCS object. bucket=",
+                                         object_location.bucket, " object=",
+                                         object_location.object, ":\n",
+                                         error_message(stream.status())));
   }
   return bytes_read;
 }
@@ -112,8 +114,9 @@ void list_objects_f(gcs::Client& client, const GCSObjectLocation& object_locatio
   // ListObjects returns a lazy range that pages through the results transparently.
   for (auto& metadata : client.ListObjects(object_location.bucket, gcs::Prefix(prefix))) {
     if (!metadata) {
-      throw std::runtime_error("Failed to list GCS objects. bucket=" + object_location.bucket +
-                               " prefix=" + prefix + ":\n" + error_message(metadata.status()));
+      throw std::runtime_error(make_string("Failed to list GCS objects. bucket=",
+                                           object_location.bucket, " prefix=", prefix, ":\n",
+                                           error_message(metadata.status())));
     }
     per_object_call(metadata->name(), metadata->size());
   }

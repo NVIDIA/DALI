@@ -428,11 +428,22 @@ def test_checksum_validation_enabled():
     env = dict(os.environ)
     env["DALI_GCS_VERIFY_CHECKSUMS"] = "1"
     env["PYTHONPATH"] = os.pathsep.join(sys.path)
-    child = subprocess.run(
-        [sys.executable, "-c", _CHECKSUM_CHILD, gcs.BUCKET, DATA_PREFIX, g_root],
-        env=env,
-        capture_output=True,
-        text=True,
-    )
+    # DALI_GCS_REQUEST_TIMEOUT_SEC bounds a single stalled request to 60s by default, but that
+    # is a property of the child's client, not of this subprocess call - a misconfigured
+    # endpoint or a client built before the env var takes effect could still hang past it, and
+    # this timeout keeps that from blocking the whole reader test job.
+    try:
+        child = subprocess.run(
+            [sys.executable, "-c", _CHECKSUM_CHILD, gcs.BUCKET, DATA_PREFIX, g_root],
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+    except subprocess.TimeoutExpired as e:
+        raise AssertionError(
+            f"checksum validation subprocess did not finish within {e.timeout}s "
+            f"(stdout:\n{e.stdout}\nstderr:\n{e.stderr})"
+        ) from e
     assert child.returncode == 0, f"stdout:\n{child.stdout}\nstderr:\n{child.stderr}"
     assert "OK" in child.stdout, child.stdout
