@@ -235,7 +235,8 @@ def _epoch_size(pipe):
 
 
 # ---------------------------------------------------------------------------------------------
-# The same ground covered by the S3 suite
+# File reader against gs:// paths: file_root/files args, listing pagination, webdataset index
+# files, and error handling for missing objects/buckets
 # ---------------------------------------------------------------------------------------------
 
 

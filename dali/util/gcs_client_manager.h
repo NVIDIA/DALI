@@ -23,9 +23,9 @@ namespace dali {
 /**
  * @brief Owns the process-wide configuration of the GCS client.
  *
- * Unlike `Aws::S3::S3Client`, `google::cloud::storage::Client` is not documented as safe for
- * concurrent use of a *single* instance ("Two threads operating on the same instance of this
- * class is not guaranteed to work"). Copies, on the other hand, share the underlying connection
+ * `google::cloud::storage::Client` is not documented as safe for concurrent use of a *single*
+ * instance ("Two threads operating on the same instance of this class is not guaranteed to
+ * work"). Copies, on the other hand, share the underlying connection
  * pool and are explicitly safe to use from different threads, and copying is about as expensive
  * as copying a few shared pointers. Therefore `client()` hands out a copy and each caller
  * (file stream, file discovery) keeps its own.

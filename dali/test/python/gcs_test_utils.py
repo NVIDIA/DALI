@@ -85,10 +85,10 @@ class FakeGCSServer:
     replace it with an in-process Python emulator thread. Pipeline.Build() is bound without
     py::call_guard<py::gil_scoped_release> (dali/python/backend_impl.cc), and GCS object listing
     happens inside Build(), so an in-process server thread is GIL-starved and the request
-    eventually times out in libcurl. The same failure mode applies to the S3 suite.
+    eventually times out in libcurl.
 
-    Unlike S3, the endpoint does not have to be an IP literal: google-cloud-cpp puts the bucket in
-    the request path and never uses virtual-host addressing.
+    The endpoint does not have to be an IP literal: google-cloud-cpp puts the bucket in the
+    request path and never uses virtual-host addressing.
     """
 
     def __init__(self, startup_timeout_s=60):

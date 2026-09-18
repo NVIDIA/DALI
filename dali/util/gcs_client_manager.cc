@@ -63,10 +63,9 @@ google::cloud::Options MakeOptions() {
   namespace gcs = google::cloud::storage;
   google::cloud::Options options;
 
-  // The library also honors CLOUD_STORAGE_EMULATOR_ENDPOINT on its own; DALI_GCS_ENDPOINT_URL is
-  // the GCS-reader counterpart of AWS_ENDPOINT_URL, which S3ClientManager
-  // (dali/util/s3_client_manager.cc) reads the same way to point the S3 client at a
-  // local/mock endpoint.
+  // The library also honors CLOUD_STORAGE_EMULATOR_ENDPOINT on its own; DALI_GCS_ENDPOINT_URL
+  // additionally lets a caller override the endpoint without touching the environment the
+  // library itself reads, e.g. to point at a local/mock GCS server for testing.
   if (auto* endpoint_url = std::getenv("DALI_GCS_ENDPOINT_URL")) {
     options.set<gcs::RestEndpointOption>(endpoint_url);
   }
