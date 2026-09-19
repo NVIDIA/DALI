@@ -36,6 +36,21 @@ keeps shard membership stable across epochs, so these options cannot be enabled 
 Whether ``random_shuffle`` can be combined with ``shuffle_after_epoch`` depends on the reader.
 See the reader's ``shuffle_after_epoch`` argument documentation for supported combinations.
 
+``random_shuffle`` shuffles the data only within the prefetch buffer. The reader fills the buffer
+with ``initial_fill`` samples read sequentially. Each returned sample is then selected randomly
+from the buffer and replaced with the next sample from the dataset. When the buffer is much smaller
+than the dataset, samples that are far apart in the dataset rarely end up in the same batch.
+
+This matters when the samples are stored in a meaningful order, for example sorted by label.
+Readers that work on a list of files, such as ``fn.readers.file``, shuffle the whole list once
+when ``random_shuffle`` is enabled, so the order of the files does not matter. Readers of container
+formats, such as ``fn.readers.tfrecord``, ``fn.readers.mxnet``, ``fn.readers.caffe``,
+``fn.readers.caffe2``, and ``fn.readers.webdataset``, read the samples in the order in which they
+are stored. Where such a reader supports ``shuffle_after_epoch``, it changes only the order of the
+files. With these readers, shuffle the dataset when you create it or increase ``initial_fill``.
+A larger buffer uses more memory and delays the first batch, and a buffer as large as the shard
+read by the pipeline shuffles that shard completely.
+
 Framework iterator configuration
 --------------------------------
 
