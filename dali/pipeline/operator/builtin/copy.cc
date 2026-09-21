@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -49,15 +49,9 @@ void Copy<CPUBackend>::RunImpl(Workspace &ws) {
 
 template <>
 void Copy<GPUBackend>::RunImpl(Workspace &ws) {
-  if (ws.InputIsType<CPUBackend>(0)) {
-    auto &input = ws.Input<CPUBackend>(0);
-    auto &output = ws.Output<GPUBackend>(0);
-    output.Copy(input, ws.output_order());
-  } else {
-    auto &input = ws.Input<GPUBackend>(0);
-    auto &output = ws.Output<GPUBackend>(0);
-    output.Copy(input, ws.output_order());
-  }
+  ws.WithInput(0, [&](auto &input) {
+    ws.Output<GPUBackend>(0).Copy(input, ws.output_order());
+  });
 }
 
 DALI_REGISTER_OPERATOR(Copy, Copy<CPUBackend>, CPU);

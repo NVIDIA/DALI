@@ -1,4 +1,4 @@
-// Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -43,10 +43,7 @@ void SetInputSourceInfo(Workspace &ws, int idx, const std::vector<std::string> &
 }
 
 void SetOutputSourceInfo(Workspace &ws, int idx, const std::vector<std::string> &infos) {
-  if (ws.OutputIsType<CPUBackend>(idx))
-    SetSourceInfo(ws.Output<CPUBackend>(idx), infos);
-  else
-    SetSourceInfo(ws.Output<GPUBackend>(idx), infos);
+  ws.WithOutput(idx, [&](auto &output) { SetSourceInfo(output, infos); });
 }
 
 template <typename Backend, typename T>
@@ -59,10 +56,7 @@ void CheckSourceInfo(const TensorList<Backend> &tl, T &&infos) {
 }
 
 void CheckOutputSourceInfo(const Workspace &ws, int idx, const std::vector<std::string> &infos) {
-  if (ws.OutputIsType<CPUBackend>(idx))
-    CheckSourceInfo(ws.Output<CPUBackend>(idx), infos);
-  else
-    CheckSourceInfo(ws.Output<GPUBackend>(idx), infos);
+  ws.WithOutput(idx, [&](auto &output) { CheckSourceInfo(output, infos); });
 }
 
 struct BufferDesc {

@@ -1,4 +1,4 @@
-// Copyright (c) 2018-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2018-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -133,11 +133,7 @@ GetOutputsFromPipeline(Workspace &ws, Pipeline &pipeline, const std::string &out
   ws = {};
   pipeline.Outputs(&ws);
   for (int output_idx = 0; output_idx < ws.NumOutput(); output_idx++) {
-    if (ws.OutputIsType<CPUBackend>(output_idx)) {
-      ret.emplace_back(&ws.Output<CPUBackend>(output_idx));
-    } else {
-      ret.emplace_back(&ws.Output<GPUBackend>(output_idx));
-    }
+    ws.WithOutput(output_idx, [&](auto &output) { ret.emplace_back(&output); });
   }
   return ret;
 }

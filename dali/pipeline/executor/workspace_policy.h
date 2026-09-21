@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -267,10 +267,7 @@ inline void SetOrder(Workspace &ws, AccessOrder order) {
       ws.UnsafeMutableInput<GPUBackend>(i).set_order(order);
   }
   for (int i = 0; i < ws.NumOutput(); i++) {
-    if (ws.OutputIsType<CPUBackend>(i))
-      ws.Output<CPUBackend>(i).set_order(order);
-    else if (ws.OutputIsType<GPUBackend>(i))
-      ws.Output<GPUBackend>(i).set_order(order);
+    ws.WithOutput(i, [&](auto &output) { output.set_order(order); });
   }
 }
 

@@ -229,7 +229,7 @@ class SequenceOperator : public BaseOp<Backend>, protected SampleBroadcasting<Ba
   }
 
   virtual void InitializeExpandedInput(const Workspace &ws, int input_idx) {
-    ProcessInput(ws, input_idx, [&](const auto &batch) {
+    ws.WithInput(input_idx, [&](const auto &batch) {
       expanded_.AddInput(sequence_utils::expanded_like(batch));
     });
   }
@@ -256,7 +256,7 @@ class SequenceOperator : public BaseOp<Backend>, protected SampleBroadcasting<Ba
     const auto &input_desc = GetInputExpandDesc(input_idx);
     int num_expand_dims = input_desc.NumDimsToExpand();
     if (num_expand_dims == 0) {
-      ProcessInput(ws, input_idx, [&](const auto &input) {
+      ws.WithInput(input_idx, [&](const auto &input) {
         auto &expanded_input = ExpandedInput<batch_backend_t<decltype(input)>>(input_idx);
         BroadcastBatch(expanded_input, input, ref_expand_desc);
       });
@@ -264,7 +264,7 @@ class SequenceOperator : public BaseOp<Backend>, protected SampleBroadcasting<Ba
       if (ref_expand_desc.SourceInfo().InputIdx() != input_idx) {
         VerifyExpansionConsistency(ref_expand_desc, input_desc);
       }
-      ProcessInput(ws, input_idx, [&](const auto &input) {
+      ws.WithInput(input_idx, [&](const auto &input) {
         auto &expanded_input = ExpandedInput<batch_backend_t<decltype(input)>>(input_idx);
         UnfoldBatch(expanded_input, input, input_desc);
       });
@@ -272,7 +272,7 @@ class SequenceOperator : public BaseOp<Backend>, protected SampleBroadcasting<Ba
   }
 
   virtual void InitializeExpandedOutput(const Workspace &ws, int output_idx) {
-    ProcessOutput(ws, output_idx, [&](const auto &batch) {
+    ws.WithOutput(output_idx, [&](const auto &batch) {
       expanded_.AddOutput(sequence_utils::expanded_like(batch));
     });
   }
@@ -284,7 +284,7 @@ class SequenceOperator : public BaseOp<Backend>, protected SampleBroadcasting<Ba
    */
   virtual void ExpandOutput(const Workspace &ws, int output_idx) {
     const auto &expand_desc = GetOutputExpandDesc(ws, output_idx);
-    ProcessOutput(ws, output_idx, [&](const auto &output) {
+    ws.WithOutput(output_idx, [&](const auto &output) {
       auto &expanded_output = ExpandedOutput<batch_backend_t<decltype(output)>>(output_idx);
       UnfoldBatch(expanded_output, output, expand_desc);
     });
@@ -299,11 +299,9 @@ class SequenceOperator : public BaseOp<Backend>, protected SampleBroadcasting<Ba
     for (int output_idx = 0; output_idx < num_output; output_idx++) {
       const auto &expand_desc = GetOutputExpandDesc(ws, output_idx);
       auto layout_prefix = expand_desc.ExpandedLayout();
-      if (ws.OutputIsType<GPUBackend>(output_idx)) {
-        SetOutputLayout<GPUBackend>(ws, output_idx, layout_prefix);
-      } else {
-        SetOutputLayout<CPUBackend>(ws, output_idx, layout_prefix);
-      }
+      ws.WithOutput(output_idx, [&](auto &output) {
+        SetOutputLayout(output_idx, output, layout_prefix);
+      });
     }
   }
 
@@ -478,10 +476,9 @@ class SequenceOperator : public BaseOp<Backend>, protected SampleBroadcasting<Ba
             " while the limit for batch size is ", std::numeric_limits<int>::max(), "."));
   }
 
-  template <typename OutputBackend>
-  void SetOutputLayout(const Workspace &ws, int output_idx, TensorLayout layout_prefix) {
-    auto &expanded_output = ExpandedOutput<OutputBackend>(output_idx);
-    auto &output = ws.Output<OutputBackend>(output_idx);
+  template <typename OutputBatch>
+  void SetOutputLayout(int output_idx, OutputBatch &output, TensorLayout layout_prefix) {
+    auto &expanded_output = ExpandedOutput<batch_backend_t<OutputBatch>>(output_idx);
     const auto &layout = expanded_output.GetLayout();
     if (layout.size() == 0) {
       output.SetLayout(layout);
@@ -519,24 +516,6 @@ class SequenceOperator : public BaseOp<Backend>, protected SampleBroadcasting<Ba
     InitializeExpandedInputs(ws);
     InitializeExpandedArguments(ws);
     InitializeExpandedOutputs(ws);
-  }
-
-  template <typename ProcessFunc>
-  void ProcessInput(const Workspace &ws, int input_idx, ProcessFunc &&process) {
-    if (ws.InputIsType<GPUBackend>(input_idx)) {
-      process(ws.Input<GPUBackend>(input_idx));
-    } else {
-      process(ws.Input<CPUBackend>(input_idx));
-    }
-  }
-
-  template <typename ProcessFunc>
-  void ProcessOutput(const Workspace &ws, int output_idx, ProcessFunc &&process) {
-    if (ws.OutputIsType<GPUBackend>(output_idx)) {
-      process(ws.Output<GPUBackend>(output_idx));
-    } else {
-      process(ws.Output<CPUBackend>(output_idx));
-    }
   }
 
   template <typename InputBackend>

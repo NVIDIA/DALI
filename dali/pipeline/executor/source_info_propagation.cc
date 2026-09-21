@@ -1,4 +1,4 @@
-// Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -35,25 +35,10 @@ bool SourceInfoDefined(const TensorList<Backend> &tl) {
 
 inline bool OutputSourceInfoDefined(Workspace &ws) {
   for (int o = 0; o < ws.NumOutput(); o++) {
-    if (ws.OutputIsType<GPUBackend>(o)) {
-      if (SourceInfoDefined(ws.Output<GPUBackend>(o)))
-        return true;
-    } else {
-      assert(ws.OutputIsType<CPUBackend>(o));
-      if (SourceInfoDefined(ws.Output<CPUBackend>(o)))
-        return true;
-    }
+    if (ws.WithOutput(o, [](auto &output) { return SourceInfoDefined(output); }))
+      return true;
   }
   return false;
-}
-
-inline int GetOutputBatchSize(Workspace &ws, int output_idx) {
-  if (ws.OutputIsType<CPUBackend>(output_idx)) {
-    return ws.Output<CPUBackend>(output_idx).num_samples();
-  } else {
-    assert(ws.OutputIsType<GPUBackend>(output_idx));
-    return ws.Output<GPUBackend>(output_idx).num_samples();
-  }
 }
 
 template <typename Backend>
@@ -66,12 +51,7 @@ void ClearSourceInfo(TensorList<Backend> &tl) {
 
 void ClearOutputSourceInfo(Workspace &ws) {
   for (int o = 0; o < ws.NumOutput(); o++) {
-    if (ws.OutputIsType<CPUBackend>(o)) {
-      ClearSourceInfo(ws.Output<CPUBackend>(o));
-    } else {
-      assert(ws.OutputIsType<GPUBackend>(o));
-      ClearSourceInfo(ws.Output<GPUBackend>(o));
-    }
+    ws.WithOutput(o, [](auto &output) { ClearSourceInfo(output); });
   }
 }
 
@@ -102,18 +82,12 @@ bool PropagateSourceInfo(Workspace &ws) {
       return true;
     };
 
-    if (ws.InputIsType<CPUBackend>(i)) {
-      if (!process_input(ws.Input<CPUBackend>(i)))
-        return false;
-    } else {
-      assert(ws.InputIsType<GPUBackend>(i));
-      if (!process_input(ws.Input<GPUBackend>(i)))
-        return false;
-    }
+    if (!ws.WithInput(i, process_input))
+      return false;
   }
 
   for (int o = 0; o < num_outputs; o++) {
-    if (GetOutputBatchSize(ws, o) != batch_size)
+    if (ws.GetOutputBatchSize(o) != batch_size)
       return false;  // this operator changes the batch size - bailing out
   }
 
@@ -141,12 +115,7 @@ bool PropagateSourceInfo(Workspace &ws) {
   };
 
   for (int o = 0; o < num_outputs; o++) {
-    if (ws.OutputIsType<CPUBackend>(o)) {
-      set_source_infos(ws.Output<CPUBackend>(o));
-    } else {
-      assert(ws.OutputIsType<GPUBackend>(o));
-      set_source_infos(ws.Output<GPUBackend>(o));
-    }
+    ws.WithOutput(o, set_source_infos);
   }
   return true;
 }

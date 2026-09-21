@@ -39,6 +39,7 @@
 #include "dali/pipeline/data/dltensor.h"
 #include "dali/pipeline/data/tensor.h"
 #include "dali/pipeline/data/tensor_list.h"
+#include "dali/pipeline/data/type_traits.h"
 #include "dali/pipeline/init.h"
 #include "dali/pipeline/operator/checkpointing/op_checkpoint.h"
 #include "dali/pipeline/operator/error_reporting.h"
@@ -2941,9 +2942,8 @@ void SetupAndRun(OperatorBase &self, Workspace &ws, std::optional<int> batch_siz
   if (ws.NumOutput() != 0)
     throw std::runtime_error("Workspace already has outputs defined");
 
-  auto AdjustLayout = [&](int idx, const TensorLayout &layout, auto backend) {
-    using Backend = decltype(backend);
-    const auto &inp = ws.Input<Backend>(idx);
+  auto AdjustLayout = [&](int idx, const TensorLayout &layout, const auto &inp) {
+    using Backend = batch_backend_t<decltype(inp)>;
     auto tl = std::make_shared<TensorList<Backend>>();
     tl->ShareData(inp);
     tl->SetLayout(layout);
@@ -2956,11 +2956,9 @@ void SetupAndRun(OperatorBase &self, Workspace &ws, std::optional<int> batch_siz
     auto ndim = ws.GetInputDim(i);
     auto adjusted_layout = schema.GetInputLayout(i, ndim, layout);
     if (layout != adjusted_layout) {
-      if (ws.InputIsType<GPUBackend>(i)) {
-        AdjustLayout(i, adjusted_layout, GPUBackend());
-      } else {
-        AdjustLayout(i, adjusted_layout, CPUBackend());
-      }
+      ws.WithInput(i, [&](auto &input) {
+        AdjustLayout(i, adjusted_layout, input);
+      });
     }
   }
 
@@ -3009,10 +3007,9 @@ void SetupAndRun(OperatorBase &self, Workspace &ws, std::optional<int> batch_siz
                              kDynamicDefaultColor);
     if (self.Setup(out_descs, ws)) {
       for (int i = 0; i < ws.NumOutput(); i++) {
-        if (ws.OutputIsType<CPUBackend>(i))
-          ws.Output<CPUBackend>(i).Resize(out_descs[i].shape, out_descs[i].type);
-        else
-          ws.Output<GPUBackend>(i).Resize(out_descs[i].shape, out_descs[i].type);
+        ws.WithOutput(i, [&](auto &output) {
+          output.Resize(out_descs[i].shape, out_descs[i].type);
+        });
       }
     }
   }

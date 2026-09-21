@@ -84,12 +84,7 @@ void SourceInfoToTL(TensorList<GPUBackend> &out, const TensorList<Backend> &in) 
 template <typename OutputBackend>
 void SourceInfoToTL(TensorList<OutputBackend> &out, const Workspace &ws) {
   ws.Output<OutputBackend>(0).set_order(ws.output_order());
-  if (ws.InputIsType<CPUBackend>(0))
-    return SourceInfoToTL(out, ws.Input<CPUBackend>(0));
-  else if (ws.InputIsType<GPUBackend>(0))
-    return SourceInfoToTL(out, ws.Input<GPUBackend>(0));
-  else
-    DALI_FAIL("Internal error - input 0 is neither CPU nor GPU.");
+  ws.WithInput(0, [&](auto &input) { SourceInfoToTL(out, input); });
 }
 
 template <typename Backend>
