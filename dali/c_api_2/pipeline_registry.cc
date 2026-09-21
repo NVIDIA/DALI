@@ -19,8 +19,8 @@
 namespace dali::c_api {
 
 PipelineRegistry &PipelineRegistry::instance() {
-  static PipelineRegistry *registry = new PipelineRegistry();  // intentionally never destroyed
-  return *registry;
+  static PipelineRegistry registry;
+  return registry;
 }
 
 void PipelineRegistry::Register(void *pipeline, Deleter deleter) {
