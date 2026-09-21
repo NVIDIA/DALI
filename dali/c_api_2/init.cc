@@ -15,6 +15,8 @@
 #include <atomic>
 #include "dali/dali.h"
 #include "dali/c_api_2/error_handling.h"
+#include "dali/c_api_2/pipeline_registry.h"
+#include "dali/core/error_handling.h"
 #include "dali/pipeline/init.h"
 #include "dali/pipeline/operator/op_spec.h"
 
@@ -62,7 +64,11 @@ daliResult_t daliShutdown() {
     return DALI_ERROR_UNLOADING;
   }
   if (init_count == 0) {
-    // actual shutdown code goes here
+    size_t destroyed = dali::c_api::DestroyOutstandingPipelines();
+    if (destroyed > 0) {
+      DALI_WARN(destroyed, " pipeline instance(s) were not destroyed before daliShutdown was "
+                "called. Destroying them now.");
+    }
   }
   DALI_EPILOG();
 }

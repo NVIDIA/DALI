@@ -15,6 +15,7 @@
 #include <utility>
 #include "dali/c_api_2/pipeline.h"
 #include "dali/c_api_2/pipeline_outputs.h"
+#include "dali/c_api_2/pipeline_registry.h"
 #include "dali/c_api_2/checkpoint.h"
 #include "dali/c_api_2/error_handling.h"
 #include "dali/pipeline/pipeline.h"
@@ -66,8 +67,17 @@ PipelineParams ToCppParams(const daliPipelineParams_t &params) {
   return cpp_params;
 }
 
+namespace {
+
+void DestroyPipelineWrapper(void *wrapper) {
+  delete static_cast<PipelineWrapper *>(wrapper);
+}
+
+}  // namespace
+
 PipelineWrapper::PipelineWrapper(const daliPipelineParams_t &params) {
   pipeline_ = std::make_unique<Pipeline>(ToCppParams(params));
+  PipelineRegistry::instance().Register(this, DestroyPipelineWrapper);
 }
 
 PipelineWrapper::PipelineWrapper(
@@ -77,9 +87,12 @@ PipelineWrapper::PipelineWrapper(
   pipeline_ = std::make_unique<Pipeline>(
     std::string(static_cast<const char *>(serialized), length),
     ToCppParams(params));
+  PipelineRegistry::instance().Register(this, DestroyPipelineWrapper);
 }
 
-PipelineWrapper::~PipelineWrapper() = default;
+PipelineWrapper::~PipelineWrapper() {
+  PipelineRegistry::instance().Unregister(this);
+}
 
 std::unique_ptr<PipelineOutputs>
 PipelineWrapper::PopOutputs(AccessOrder order) {
