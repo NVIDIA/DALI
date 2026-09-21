@@ -43,12 +43,14 @@ execute the following cell to install DALI, fetch the test data and export ``DAL
    !curl -sSL https://raw.githubusercontent.com/NVIDIA/DALI/main/docs/examples/colab_setup.py -o colab_setup.py
    %run colab_setup.py --ref main
 
-The :fileref:`docs/examples/colab_setup.py` script installs the DALI wheel and checks out the
-DALI_extra revision matching ``--ref``. It pins release revisions to the version in their
-``VERSION`` file and uses the latest nightly wheel for development revisions. Every tutorial page
-shows a setup cell containing its exact documentation revision. You can also select a release
-explicitly (for example ``%run colab_setup.py --ref v2.3.0``), override the inferred wheel with
-``--dali-version`` or ``--nightly``, or run ``%run colab_setup.py --help`` to list all options.
+The :fileref:`docs/examples/colab_setup.py` script installs the DALI wheel and checks out matching
+DALI_extra data. It pins release revisions to the version in their ``VERSION`` file and the
+corresponding DALI_extra tag. For development revisions, it uses the latest nightly wheel and the
+``DALI_EXTRA_VERSION`` recorded at ``--ref``. Every tutorial page shows a setup cell containing
+its exact documentation revision. You can also select a release explicitly (for example
+``%run colab_setup.py --ref v2.3.0``), override the inferred wheel with ``--dali-version`` or
+``--nightly``, override the data with ``--dali-extra-version``, or run
+``%run colab_setup.py --help`` to list all options.
 
 .. note::
 

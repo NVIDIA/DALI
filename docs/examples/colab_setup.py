@@ -132,6 +132,13 @@ def resolve_dali_version(ref, version=None, nightly=False):
     return ref_version, False
 
 
+def resolve_dali_extra_revision(ref, dali_version=None, nightly=False):
+    """Select the DALI_extra revision matching the resolved DALI wheel."""
+    if dali_version is not None and not nightly:
+        return f"v{dali_version.removeprefix('v')}"
+    return fetch_dali_extra_version(ref)
+
+
 def _ensure_git_lfs():
     if shutil.which("git-lfs"):
         return
@@ -218,7 +225,8 @@ def main(argv=None):
     parser.add_argument(
         "--dali-extra-version",
         default=None,
-        help="DALI_extra revision to check out (default: DALI_EXTRA_VERSION at --ref)",
+        help="DALI_extra revision to check out (default: tag matching the resolved DALI release, "
+        "or DALI_EXTRA_VERSION at --ref for nightly builds)",
     )
     parser.add_argument(
         "--skip-dali-extra",
@@ -228,15 +236,23 @@ def main(argv=None):
     )
     args = parser.parse_args(argv)
 
-    if args.install_dali:
+    dali_version = args.dali_version
+    nightly = args.nightly
+    if args.install_dali or (
+        args.fetch_dali_extra and args.dali_extra_version is None
+    ):
         dali_version, nightly = resolve_dali_version(
-            args.ref, args.dali_version, args.nightly
+            args.ref, dali_version, nightly
         )
+
+    if args.install_dali:
         package = install_dali(args.cuda, dali_version, nightly)
         print(f"Installed {package}")
 
     if args.fetch_dali_extra:
-        revision = args.dali_extra_version or fetch_dali_extra_version(args.ref)
+        revision = args.dali_extra_version or resolve_dali_extra_revision(
+            args.ref, dali_version, nightly
+        )
         dali_extra_path = setup_dali_extra(args.dali_extra_path, revision)
         os.environ["DALI_EXTRA_PATH"] = dali_extra_path
         print(f"DALI_extra {revision} is available at {dali_extra_path}")
