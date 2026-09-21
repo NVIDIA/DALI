@@ -30,7 +30,9 @@ namespace dali::c_api {
  * the lifetime of the resources they depend on.
  *
  * The registry can be closed (see `Close`). While closed, registration attempts throw
- * `Unloading`, so a pipeline whose creation overlaps the final shutdown cannot outlive it.
+ * `Unloading`, so a pipeline whose creation starts after the final shutdown began cannot be
+ * created. The shutdown sequence is: `Close()`, wait for the API calls in flight to finish,
+ * `DestroyAll()`.
  */
 class DLL_PUBLIC PipelineRegistry {
  public:
@@ -66,14 +68,8 @@ class DLL_PUBLIC PipelineRegistry {
    */
   size_t DestroyAll();
 
-  /** Marks the registry as closed and destroys all registered pipelines.
-   *
-   * Closing and draining happen under the same lock, so every pipeline registered before
-   * the call is destroyed and every registration after it fails.
-   *
-   * @return the number of pipelines that were destroyed
-   */
-  size_t Close();
+  /** Rejects any further registration until `Open` is called. */
+  void Close();
 
   /** Re-enables registration after `Close`. */
   void Open();
@@ -83,8 +79,6 @@ class DLL_PUBLIC PipelineRegistry {
   size_t Count() const;
 
  private:
-  size_t DestroyAllImpl(bool close);
-
   mutable std::mutex mtx_;
   std::unordered_map<void *, Deleter> pipelines_;
   bool closed_ = false;

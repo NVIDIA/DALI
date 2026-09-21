@@ -105,10 +105,12 @@ TEST(CAPI2_PipelineRegistryTest, CloseRejectsRegistration) {
   auto deleter = [](void *) { destroyed++; };
 
   registry.Register(&a, deleter);
-  EXPECT_EQ(registry.Close(), 1u);
-  EXPECT_EQ(destroyed, 1);
+  registry.Close();
   EXPECT_TRUE(registry.IsClosed());
   EXPECT_THROW(registry.Register(&b, deleter), Unloading);
+  EXPECT_EQ(registry.Count(), 1u);  // closing doesn't destroy the pipelines by itself
+  EXPECT_EQ(registry.DestroyAll(), 1u);
+  EXPECT_EQ(destroyed, 1);
   EXPECT_EQ(registry.Count(), 0u);
 
   registry.Open();
