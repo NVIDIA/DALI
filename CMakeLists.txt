@@ -252,6 +252,10 @@ list(APPEND CMAKE_BUILD_RPATH ${nvimgcodec_default_rpath})
 list(APPEND CMAKE_INSTALL_RPATH ${nvimgcodec_default_rpath})
 
 get_dali_version(${PROJECT_SOURCE_DIR}/VERSION DALI_VERSION)
+parse_dali_version(${DALI_VERSION} DALI_VERSION)
+configure_file("${PROJECT_SOURCE_DIR}/dali/core/version.h.in"
+               "${PROJECT_BINARY_DIR}/dali/core/version.h")
+set(DALI_GENERATED_HDRS "${PROJECT_BINARY_DIR}/dali/core/version.h")
 
 get_dali_extra_version(${PROJECT_SOURCE_DIR}/DALI_EXTRA_VERSION DALI_EXTRA_VERSION)
 configure_file("${PROJECT_SOURCE_DIR}/dali/test/dali_test_info.h.in"
