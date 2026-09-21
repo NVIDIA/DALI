@@ -47,9 +47,11 @@ when ``random_shuffle`` is enabled, so the order of the files does not matter. R
 formats, such as ``fn.readers.tfrecord``, ``fn.readers.mxnet``, ``fn.readers.caffe``,
 ``fn.readers.caffe2``, and ``fn.readers.webdataset``, read the samples in the order in which they
 are stored. Where such a reader supports ``shuffle_after_epoch``, it changes only the order of the
-files. With these readers, shuffle the dataset when you create it or increase ``initial_fill``.
-A larger buffer uses more memory and delays the first batch, and a buffer as large as the shard
-read by the pipeline shuffles that shard completely.
+files, preserving the sample order within each file. Datasets stored in these formats are often
+shuffled during creation, so their stored sample order may already be random. If it is meaningful,
+shuffle the dataset when you create it or increase ``initial_fill``. A larger buffer uses more
+memory and delays the first batch, and a buffer as large as the shard read by the pipeline shuffles
+that shard completely.
 
 Framework iterator configuration
 --------------------------------

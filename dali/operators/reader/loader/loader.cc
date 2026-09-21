@@ -29,7 +29,9 @@ and then samples are selected randomly to form a batch.
 .. note::
   The buffer shuffles the data only locally. When it is much smaller than the dataset, samples
   that are read far apart rarely end up in the same batch. Readers of container formats, such as
-  TFRecord, read the samples in the order in which they are stored. If that order is meaningful,
+  TFRecord, read the samples in their stored order. Such datasets are often shuffled during
+  creation. Some readers also support shuffling the order of container files between epochs,
+  without reordering the samples within each file. If the stored sample order is meaningful,
   for example the samples are sorted by label, shuffle the dataset when you create it or increase
   `initial_fill`.
 
