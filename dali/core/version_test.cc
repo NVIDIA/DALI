@@ -14,6 +14,7 @@
 
 #include <gtest/gtest.h>
 #include <string>
+#include "dali/core/format.h"
 #include "dali/core/version.h"
 
 namespace dali {
@@ -28,9 +29,8 @@ TEST(VersionTest, MacrosAreConsistent) {
   static_assert(DALI_MAKE_VERSION(1, 2, 3) == 10203);
   static_assert(DALI_MAKE_VERSION(1, 2, 3) < DALI_MAKE_VERSION(1, 3, 0));
 
-  std::string expected = std::to_string(DALI_VERSION_MAJOR) + "." +
-                         std::to_string(DALI_VERSION_MINOR) + "." +
-                         std::to_string(DALI_VERSION_PATCH) + DALI_VERSION_SUFFIX;
+  std::string expected = make_string(DALI_VERSION_MAJOR, ".", DALI_VERSION_MINOR, ".",
+                                     DALI_VERSION_PATCH, DALI_VERSION_SUFFIX);
   EXPECT_EQ(expected, DALI_VERSION_STRING);
 }
 
