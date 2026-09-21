@@ -13,19 +13,25 @@
 // limitations under the License.
 
 #include "dali/c_api_2/pipeline_registry.h"
+#include <cassert>
+#include <memory>
 #include <utility>
+#include "dali/c_api_2/error_handling.h"
 #include "dali/core/error_handling.h"
 
 namespace dali::c_api {
 
 PipelineRegistry &PipelineRegistry::instance() {
-  static PipelineRegistry registry;
+  // Never destroyed - pipelines owned by other static objects may unregister during exit.
+  static PipelineRegistry &registry = *std::make_unique<PipelineRegistry>().release();
   return registry;
 }
 
 void PipelineRegistry::Register(void *pipeline, Deleter deleter) {
   assert(pipeline && deleter);
   std::lock_guard g(mtx_);
+  if (closed_)
+    throw Unloading("Cannot create a pipeline - DALI is shutting down.");
   pipelines_[pipeline] = deleter;
 }
 
@@ -48,10 +54,25 @@ bool PipelineRegistry::Destroy(void *pipeline) {
   return true;
 }
 
+void PipelineRegistry::Open() {
+  std::lock_guard g(mtx_);
+  closed_ = false;
+}
+
+size_t PipelineRegistry::Close() {
+  return DestroyAllImpl(true);
+}
+
 size_t PipelineRegistry::DestroyAll() {
+  return DestroyAllImpl(false);
+}
+
+size_t PipelineRegistry::DestroyAllImpl(bool close) {
   std::unordered_map<void *, Deleter> pipelines;
   {
     std::lock_guard g(mtx_);
+    if (close)
+      closed_ = true;
     std::swap(pipelines, pipelines_);
   }
   for (auto &[pipeline, deleter] : pipelines) {
@@ -69,6 +90,11 @@ size_t PipelineRegistry::DestroyAll() {
 size_t PipelineRegistry::Count() const {
   std::lock_guard g(mtx_);
   return pipelines_.size();
+}
+
+bool PipelineRegistry::IsClosed() const {
+  std::lock_guard g(mtx_);
+  return closed_;
 }
 
 size_t GetOutstandingPipelineCount() {

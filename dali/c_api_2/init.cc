@@ -1,4 +1,4 @@
-// Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2025-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -48,6 +48,7 @@ daliResult_t daliInit() {
       return 0;
     }();
     (void)init;
+    dali::c_api::PipelineRegistry::instance().Open();
     g_init_count++;
     g_was_initialized = true;
     return DALI_SUCCESS;
@@ -64,7 +65,7 @@ daliResult_t daliShutdown() {
     return DALI_ERROR_UNLOADING;
   }
   if (init_count == 0) {
-    size_t destroyed = dali::c_api::DestroyOutstandingPipelines();
+    size_t destroyed = dali::c_api::PipelineRegistry::instance().Close();
     if (destroyed > 0) {
       DALI_WARN(destroyed, " pipeline instance(s) were not destroyed before daliShutdown was "
                 "called. Destroying them now.");
