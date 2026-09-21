@@ -76,6 +76,23 @@ TEST(CAPI2_PipelineRegistryTest, DestroyAll) {
   EXPECT_EQ(registry.DestroyAll(), 0u);
 }
 
+TEST(CAPI2_PipelineRegistryTest, Destroy) {
+  auto &registry = PipelineRegistry::instance();
+  ASSERT_EQ(registry.Count(), 0u);
+
+  static std::atomic<int> destroyed;
+  destroyed = 0;
+  int a = 0;
+  auto deleter = [](void *) { destroyed++; };
+
+  registry.Register(&a, deleter);
+  EXPECT_TRUE(registry.Destroy(&a));
+  EXPECT_EQ(destroyed, 1);
+  EXPECT_EQ(registry.Count(), 0u);
+  EXPECT_FALSE(registry.Destroy(&a));  // already claimed - the deleter must not run again
+  EXPECT_EQ(destroyed, 1);
+}
+
 TEST(CAPI2_PipelineRegistryTest, TracksCApi2Pipelines) {
   ASSERT_EQ(GetOutstandingPipelineCount(), 0u);
 

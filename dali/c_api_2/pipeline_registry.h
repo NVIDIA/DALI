@@ -40,6 +40,15 @@ class DLL_PUBLIC PipelineRegistry {
   /** Removes the pipeline from the registry without destroying it. */
   void Unregister(void *pipeline);
 
+  /** Atomically claims the pipeline and destroys it with the registered deleter.
+   *
+   * Only one caller can claim a given entry, so a pipeline destroyed explicitly by the user
+   * cannot be destroyed again by `DestroyAll` running concurrently and vice versa.
+   *
+   * @return true if the pipeline was registered and has been destroyed by this call
+   */
+  bool Destroy(void *pipeline);
+
   /** Destroys all registered pipelines and empties the registry.
    *
    * @return the number of pipelines that were destroyed
