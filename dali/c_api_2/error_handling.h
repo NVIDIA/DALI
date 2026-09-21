@@ -45,8 +45,10 @@ DLL_PUBLIC daliResult_t CheckInit();
 
 /** Marks an API call as being in flight for the duration of its lifetime.
  *
- * The final `daliShutdown` waits until all calls in flight have finished before destroying
- * the outstanding pipelines, so a pipeline cannot be destroyed while it's still being created.
+ * The guard is created before the initialization check, so every call that passes the check
+ * is already counted. The final `daliShutdown` waits until all calls in flight have finished
+ * before destroying the outstanding pipelines, so a pipeline cannot be destroyed while a call
+ * that was admitted before the shutdown is still using or creating it.
  */
 class DLL_PUBLIC ActiveCallGuard {
  public:
@@ -80,8 +82,8 @@ inline InvalidHandle NullHandle(const char *what_handle) {
 }  // namespace c_api
 }  // namespace dali
 
-#define DALI_PROLOG() try { if (auto err = dali::c_api::CheckInit()) return err; \
-  ::dali::c_api::ActiveCallGuard dali_active_call_guard__
+#define DALI_PROLOG() try { ::dali::c_api::ActiveCallGuard dali_active_call_guard__; \
+  if (auto err = dali::c_api::CheckInit()) return err; else;  // NOLINT(readability/braces)
 #define DALI_EPILOG() return DALI_SUCCESS; } catch (...) {     \
   return ::dali::c_api::HandleError(std::current_exception()); \
 }
