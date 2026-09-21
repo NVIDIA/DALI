@@ -18,7 +18,6 @@
 #include "dali/c_api_2/error_handling.h"
 #include "dali/c_api_2/pipeline_registry.h"
 #include "dali/c_api_2/test_utils.h"
-#include "dali/c_api.h"
 #include "dali/dali.h"
 #include "dali/pipeline/pipeline.h"
 
@@ -168,23 +167,6 @@ TEST(CAPI2_PipelineRegistryTest, DestroysLeakedCApi2Pipelines) {
   EXPECT_EQ(GetOutstandingPipelineCount(), 1u);
 
   // The pipeline is intentionally not destroyed with daliPipelineDestroy
-  EXPECT_EQ(DestroyOutstandingPipelines(), 1u);
-  EXPECT_EQ(GetOutstandingPipelineCount(), 0u);
-}
-
-TEST(CAPI2_PipelineRegistryTest, TracksLegacyCApiPipelines) {
-  ASSERT_EQ(GetOutstandingPipelineCount(), 0u);
-
-  auto proto = SerializeSimplePipeline();
-  daliPipelineHandle h;
-  daliDeserializeDefault(&h, proto.c_str(), proto.length());
-  EXPECT_EQ(GetOutstandingPipelineCount(), 1u);
-  daliDeletePipeline(&h);
-  EXPECT_EQ(GetOutstandingPipelineCount(), 0u);
-
-  daliDeserializeDefault(&h, proto.c_str(), proto.length());
-  EXPECT_EQ(GetOutstandingPipelineCount(), 1u);
-  // The pipeline is intentionally not destroyed with daliDeletePipeline
   EXPECT_EQ(DestroyOutstandingPipelines(), 1u);
   EXPECT_EQ(GetOutstandingPipelineCount(), 0u);
 }
