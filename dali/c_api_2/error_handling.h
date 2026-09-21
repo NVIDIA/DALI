@@ -1,4 +1,4 @@
-// Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2025-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -48,6 +48,14 @@ class InvalidHandle : public std::invalid_argument {
   InvalidHandle() : std::invalid_argument("The handle is invalid") {}
   explicit InvalidHandle(const std::string &what) : std::invalid_argument(what) {}
   explicit InvalidHandle(const char *what) : std::invalid_argument(what) {}
+};
+
+/** Thrown when an operation is attempted while DALI is shutting down or has been shut down. */
+class Unloading : public std::runtime_error {
+ public:
+  Unloading() : std::runtime_error("DALI is unloading") {}
+  explicit Unloading(const std::string &what) : std::runtime_error(what) {}
+  explicit Unloading(const char *what) : std::runtime_error(what) {}
 };
 
 inline InvalidHandle NullHandle() { return InvalidHandle("The handle must not be NULL."); }

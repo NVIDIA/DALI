@@ -28,13 +28,24 @@ namespace dali::c_api {
  * together with a function that destroys it. This makes it possible to tear down pipelines
  * that the user has leaked when the library is shut down, instead of letting them run past
  * the lifetime of the resources they depend on.
+ *
+ * The registry can be closed (see `Close`). While closed, registration attempts throw
+ * `Unloading`, so a pipeline whose creation overlaps the final shutdown cannot outlive it.
  */
 class DLL_PUBLIC PipelineRegistry {
  public:
   using Deleter = void (*)(void *);
 
+  PipelineRegistry() = default;
+  PipelineRegistry(const PipelineRegistry &) = delete;
+  PipelineRegistry &operator=(const PipelineRegistry &) = delete;
+
   static PipelineRegistry &instance();
 
+  /** Adds a pipeline to the registry.
+   *
+   * @throws Unloading if the registry is closed
+   */
   void Register(void *pipeline, Deleter deleter);
 
   /** Removes the pipeline from the registry without destroying it. */
@@ -55,13 +66,28 @@ class DLL_PUBLIC PipelineRegistry {
    */
   size_t DestroyAll();
 
+  /** Marks the registry as closed and destroys all registered pipelines.
+   *
+   * Closing and draining happen under the same lock, so every pipeline registered before
+   * the call is destroyed and every registration after it fails.
+   *
+   * @return the number of pipelines that were destroyed
+   */
+  size_t Close();
+
+  /** Re-enables registration after `Close`. */
+  void Open();
+
+  bool IsClosed() const;
+
   size_t Count() const;
 
  private:
-  PipelineRegistry() = default;
+  size_t DestroyAllImpl(bool close);
 
   mutable std::mutex mtx_;
   std::unordered_map<void *, Deleter> pipelines_;
+  bool closed_ = false;
 };
 
 /** Returns the number of pipeline instances created by the C APIs that were not destroyed. */

@@ -15,6 +15,7 @@
 #include <gtest/gtest.h>
 #include <atomic>
 #include <string>
+#include "dali/c_api_2/error_handling.h"
 #include "dali/c_api_2/pipeline_registry.h"
 #include "dali/c_api_2/test_utils.h"
 #include "dali/c_api.h"
@@ -91,6 +92,49 @@ TEST(CAPI2_PipelineRegistryTest, Destroy) {
   EXPECT_EQ(registry.Count(), 0u);
   EXPECT_FALSE(registry.Destroy(&a));  // already claimed - the deleter must not run again
   EXPECT_EQ(destroyed, 1);
+}
+
+TEST(CAPI2_PipelineRegistryTest, CloseRejectsRegistration) {
+  auto &registry = PipelineRegistry::instance();
+  ASSERT_EQ(registry.Count(), 0u);
+  ASSERT_FALSE(registry.IsClosed());
+
+  static std::atomic<int> destroyed;
+  destroyed = 0;
+  int a = 0, b = 0;
+  auto deleter = [](void *) { destroyed++; };
+
+  registry.Register(&a, deleter);
+  EXPECT_EQ(registry.Close(), 1u);
+  EXPECT_EQ(destroyed, 1);
+  EXPECT_TRUE(registry.IsClosed());
+  EXPECT_THROW(registry.Register(&b, deleter), Unloading);
+  EXPECT_EQ(registry.Count(), 0u);
+
+  registry.Open();
+  EXPECT_FALSE(registry.IsClosed());
+  registry.Register(&b, deleter);
+  EXPECT_EQ(registry.Count(), 1u);
+  registry.Unregister(&b);
+}
+
+TEST(CAPI2_PipelineRegistryTest, CreateAfterCloseFails) {
+  auto &registry = PipelineRegistry::instance();
+  ASSERT_EQ(registry.Count(), 0u);
+  CHECK_DALI(daliInit());  // make sure the lazy initialization doesn't reopen the registry
+
+  registry.Close();
+  daliPipelineParams_t params{};
+  daliPipeline_h h = nullptr;
+  EXPECT_EQ(daliPipelineCreate(&h, &params), DALI_ERROR_UNLOADING);
+  EXPECT_EQ(h, nullptr);
+  EXPECT_EQ(registry.Count(), 0u);
+  registry.Open();
+
+  CHECK_DALI(daliPipelineCreate(&h, &params));
+  EXPECT_EQ(registry.Count(), 1u);
+  CHECK_DALI(daliPipelineDestroy(h));
+  EXPECT_EQ(registry.Count(), 0u);
 }
 
 TEST(CAPI2_PipelineRegistryTest, TracksCApi2Pipelines) {
