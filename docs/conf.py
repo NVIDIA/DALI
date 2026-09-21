@@ -62,6 +62,10 @@ if not git_sha:
 
 git_sha = git_sha[:7] if len(git_sha) > 7 else git_sha
 
+# git ref used for links to the sources of the documented revision
+github_ref = git_sha if git_sha != "0000000" else "main"
+github_url = "https://github.com/NVIDIA/DALI"
+
 version = str(version_long + "-" + git_sha)
 # The full version, including alpha/beta/rc tags
 release = str(version_long)
@@ -172,13 +176,23 @@ extensions = [
     "dali_tabs",
 ]
 
-nbsphinx_prolog = """
-{% if 'dynamic_mode' in env.docname %}
+# Prolog prepended to every notebook. Renders the mode badges and a note linking to the
+# notebook source on GitHub and to Google Colab, see docs/examples/running_examples.rst.
+nbsphinx_prolog = f"""
+{{% set notebook = "docs/" ~ env.docname ~ ".ipynb" %}}
+{{% if 'dynamic_mode' in env.docname %}}
 :bdg-primary:`Dynamic Mode`
-{% endif %}
-{% if 'pipeline_mode' in env.docname %}
+{{% endif %}}
+{{% if 'pipeline_mode' in env.docname %}}
 :bdg-primary:`Pipeline Mode`
-{% endif %}
+{{% endif %}}
+
+.. note::
+
+   This page was generated from the :fileref:`{{{{ notebook }}}}` Jupyter notebook.
+   You can run it locally or `open it in Google Colab
+   <https://colab.research.google.com/github/NVIDIA/DALI/blob/{github_ref}/{{{{ notebook }}}}>`__,
+   see :ref:`running_examples` for the setup instructions.
 """
 
 # https://stackoverflow.com/questions/67473396/shorten-display-format-of-python-type-annotations-in-sphinx
@@ -544,12 +558,7 @@ texinfo_documents = [
 # -- Extension configuration -------------------------------------------------
 extlinks = {
     "issue": ("https://github.com/NVIDIA/DALI/issues/%s", "issue %s"),
-    "fileref": (
-        "https://github.com/NVIDIA/DALI/tree/"
-        + (git_sha if git_sha != "0000000" else "main")
-        + "/%s",
-        "%s",
-    ),
+    "fileref": (f"{github_url}/tree/{github_ref}/%s", "%s"),
 }
 
 intersphinx_mapping = {
