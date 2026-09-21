@@ -52,17 +52,11 @@ class MakeContiguousBase : public StatelessOperator<Backend> {
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     output_desc.resize(1);
 
-    if (ws.InputIsType<CPUBackend>(0)) {
-      auto &input = ws.Input<CPUBackend>(0);
+    ws.VisitInput(0, [&](auto &input) {
       output_desc[0].shape = input.shape();
       output_desc[0].type = input.type();
       SetPassthrough(ws, input);
-    } else {
-      auto &input = ws.Input<GPUBackend>(0);
-      output_desc[0].shape = input.shape();
-      output_desc[0].type = input.type();
-      SetPassthrough(ws, input);
-    }
+    });
 
     return !pass_through_;
   }

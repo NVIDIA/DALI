@@ -260,18 +260,10 @@ template <typename QueuePolicy>
 struct AOT_WS_Policy;
 
 inline void SetOrder(Workspace &ws, AccessOrder order) {
-  for (int i = 0; i < ws.NumInput(); i++) {
-    if (ws.InputIsType<CPUBackend>(i))
-      ws.UnsafeMutableInput<CPUBackend>(i).set_order(order);
-    else if (ws.InputIsType<GPUBackend>(i))
-      ws.UnsafeMutableInput<GPUBackend>(i).set_order(order);
-  }
-  for (int i = 0; i < ws.NumOutput(); i++) {
-    if (ws.OutputIsType<CPUBackend>(i))
-      ws.Output<CPUBackend>(i).set_order(order);
-    else if (ws.OutputIsType<GPUBackend>(i))
-      ws.Output<GPUBackend>(i).set_order(order);
-  }
+  for (int i = 0; i < ws.NumInput(); i++)
+    ws.VisitUnsafeMutableInput(i, [&](auto &input) { input.set_order(order); });
+  for (int i = 0; i < ws.NumOutput(); i++)
+    ws.VisitOutput(i, [&](auto &output) { output.set_order(order); });
 }
 
 /**

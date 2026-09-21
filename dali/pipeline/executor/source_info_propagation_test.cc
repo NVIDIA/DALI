@@ -36,17 +36,11 @@ void SetSourceInfo(TensorList<Backend> &tl, T &&infos) {
 }
 
 void SetInputSourceInfo(Workspace &ws, int idx, const std::vector<std::string> &infos) {
-  if (ws.InputIsType<CPUBackend>(idx))
-    SetSourceInfo(ws.UnsafeMutableInput<CPUBackend>(idx), infos);
-  else
-    SetSourceInfo(ws.UnsafeMutableInput<GPUBackend>(idx), infos);
+  ws.VisitUnsafeMutableInput(idx, [&](auto &input) { SetSourceInfo(input, infos); });
 }
 
 void SetOutputSourceInfo(Workspace &ws, int idx, const std::vector<std::string> &infos) {
-  if (ws.OutputIsType<CPUBackend>(idx))
-    SetSourceInfo(ws.Output<CPUBackend>(idx), infos);
-  else
-    SetSourceInfo(ws.Output<GPUBackend>(idx), infos);
+  ws.VisitOutput(idx, [&](auto &output) { SetSourceInfo(output, infos); });
 }
 
 template <typename Backend, typename T>
@@ -59,10 +53,7 @@ void CheckSourceInfo(const TensorList<Backend> &tl, T &&infos) {
 }
 
 void CheckOutputSourceInfo(const Workspace &ws, int idx, const std::vector<std::string> &infos) {
-  if (ws.OutputIsType<CPUBackend>(idx))
-    CheckSourceInfo(ws.Output<CPUBackend>(idx), infos);
-  else
-    CheckSourceInfo(ws.Output<GPUBackend>(idx), infos);
+  ws.VisitOutput(idx, [&](auto &output) { CheckSourceInfo(output, infos); });
 }
 
 struct BufferDesc {

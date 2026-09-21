@@ -234,12 +234,58 @@ class WorkspaceBase : public ArgumentWorkspace {
 
   /** @} */
 
+  /** @name Backend-agnostic input and output access
+   * Functions that operate on an input or output regardless of the backend it resides on,
+   * dispatching to the CPU or GPU data object internally. They should be preferred over
+   * `if (ws.InputIsType<CPUBackend>(i)) ... else ...` chains.
+   * @{
+   */
+
+  /**
+   * @brief Invokes `visitor` with the const reference to the input batch at the position `idx`.
+   *
+   * The visitor is called with `const DataObject<CPUBackend> &` or `const DataObject<GPUBackend> &`
+   * depending on where the input resides, so it must be callable with both (e.g. a generic lambda).
+   *
+   * @return The value returned by the visitor.
+   */
+  template <typename Visitor>
+  decltype(auto) VisitInput(int idx, Visitor &&visitor) const {
+    return VisitBuffer(inputs_, idx, [&](auto &buf) -> decltype(auto) {
+      return visitor(std::as_const(buf));
+    });
+  }
+
+  /**
+   * @brief Invokes `visitor` with the mutable reference to the input batch at the position `idx`.
+   *
+   * Intended only for executor and other internal APIs.
+   *
+   * @return The value returned by the visitor.
+   * @see VisitInput
+   */
+  template <typename Visitor>
+  decltype(auto) VisitUnsafeMutableInput(int idx, Visitor &&visitor) const {
+    return VisitBuffer(inputs_, idx, std::forward<Visitor>(visitor));
+  }
+
+  /**
+   * @brief Invokes `visitor` with the mutable reference to the output batch at the position `idx`.
+   *
+   * @return The value returned by the visitor.
+   * @see VisitInput
+   */
+  template <typename Visitor>
+  decltype(auto) VisitOutput(int idx, Visitor &&visitor) const {
+    return VisitBuffer(outputs_, idx, std::forward<Visitor>(visitor));
+  }
+
   /**
    * Returns shape of the input at given index
    * @return TensorShape<> for SampleWorkspace, TensorListShape<> for other Workspaces
    */
   auto GetInputShape(int input_idx) const {
-    return GetBufferProperty(inputs_, input_idx, [](auto &buf) { return buf->shape(); });
+    return VisitInput(input_idx, [](auto &buf) { return buf.shape(); });
   }
 
   /**
@@ -247,64 +293,82 @@ class WorkspaceBase : public ArgumentWorkspace {
    * @return TensorShape<> for SampleWorkspace, TensorListShape<> for other Workspaces
    */
   auto GetOutputShape(int output_idx) const {
-    return GetBufferProperty(outputs_, output_idx, [](auto &buf) { return buf->shape(); });
+    return VisitOutput(output_idx, [](auto &buf) { return buf.shape(); });
   }
 
   /**
    * @brief Returns the type of the data in the input at given index.
    */
   DALIDataType GetInputDataType(int input_idx) const {
-    return GetBufferProperty(inputs_, input_idx, [](auto &buf) { return buf->type(); });
+    return VisitInput(input_idx, [](auto &buf) { return buf.type(); });
   }
 
   /**
    * @brief Returns the type of the data in the output at given index.
    */
   DALIDataType GetOutputDataType(int output_idx) const {
-    return GetBufferProperty(outputs_, output_idx, [](auto &buf) { return buf->type(); });
+    return VisitOutput(output_idx, [](auto &buf) { return buf.type(); });
   }
 
   /**
    * @brief Returns the layout of the input at given index
    */
   TensorLayout GetInputLayout(int input_idx) const {
-    return GetBufferProperty(inputs_, input_idx, [](auto &buf) { return buf->GetLayout(); });
+    return VisitInput(input_idx, [](auto &buf) { return buf.GetLayout(); });
   }
 
   /**
    * @brief Returns the layout of the output at given index
    */
   TensorLayout GetOutputLayout(int output_idx) const {
-    return GetBufferProperty(outputs_, output_idx, [](auto &buf) { return buf->GetLayout(); });
+    return VisitOutput(output_idx, [](auto &buf) { return buf.GetLayout(); });
+  }
+
+  /**
+   * @brief Sets the layout of the input at given index
+   *
+   * Intended only for executor and other internal APIs.
+   */
+  void SetInputLayout(int input_idx, const TensorLayout &layout) const {
+    VisitUnsafeMutableInput(input_idx, [&](auto &buf) { buf.SetLayout(layout); });
+  }
+
+  /**
+   * @brief Sets the layout of the output at given index
+   */
+  void SetOutputLayout(int output_idx, const TensorLayout &layout) const {
+    VisitOutput(output_idx, [&](auto &buf) { buf.SetLayout(layout); });
   }
 
   /**
    * Returns batch size for a given input
    */
   int GetInputBatchSize(int input_idx) const {
-    return GetBufferProperty(inputs_, input_idx, [](auto &buf) { return buf->num_samples(); });
+    return VisitInput(input_idx, [](auto &buf) { return buf.num_samples(); });
   }
 
   /**
    * Returns batch size for a given output
    */
   int GetOutputBatchSize(int output_idx) const {
-    return GetBufferProperty(outputs_, output_idx, [](auto &buf) { return buf->num_samples(); });
+    return VisitOutput(output_idx, [](auto &buf) { return buf.num_samples(); });
   }
 
   /**
    * Returns number of dimensions for a given input
    */
   int GetInputDim(int input_idx) const {
-    return GetBufferProperty(inputs_, input_idx, [](auto &buf) { return buf->sample_dim(); });
+    return VisitInput(input_idx, [](auto &buf) { return buf.sample_dim(); });
   }
 
   /**
    * Returns number of dimensions for a given output
    */
   int GetOutputDim(int output_idx) const {
-    return GetBufferProperty(outputs_, output_idx, [](auto &buf) { return buf->sample_dim(); });
+    return VisitOutput(output_idx, [](auto &buf) { return buf.sample_dim(); });
   }
+
+  /** @} */
 
   /**
    * Returns batch size that the Operator is expected to produce on a given output
@@ -694,14 +758,14 @@ class WorkspaceBase : public ArgumentWorkspace {
   SmallVector<IOBuffers, 2> outputs_;
 
  private:
-  template <typename Buffers, typename Getter>
-  static auto GetBufferProperty(Buffers &buffers, int idx, Getter &&getter) {
+  template <typename Buffers, typename Visitor>
+  static decltype(auto) VisitBuffer(Buffers &buffers, int idx, Visitor &&visitor) {
     DALI_ENFORCE_VALID_INDEX(idx, buffers.size());
-    auto &inp = buffers[idx];
-    if (inp.device == StorageDevice::GPU)
-      return getter(inp.gpu);
+    auto &buf = buffers[idx];
+    if (buf.device == StorageDevice::GPU)
+      return visitor(*buf.gpu);
     else
-      return getter(inp.cpu);
+      return visitor(*buf.cpu);
   }
 
   AccessOrder output_order_ = AccessOrder::host();

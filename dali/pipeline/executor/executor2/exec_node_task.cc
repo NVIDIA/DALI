@@ -228,12 +228,7 @@ void OpTask::ApplyDefaultLayout(int input_idx, const OpSchema &schema) {
 
 void OpTask::ResetInputLayouts() {
   for (int i : reset_input_layouts_) {
-    if (ws_->InputIsType<CPUBackend>(i)) {
-      ws_->UnsafeMutableInput<CPUBackend>(i).SetLayout({});
-    } else {
-      assert(ws_->InputIsType<GPUBackend>(i));
-      ws_->UnsafeMutableInput<GPUBackend>(i).SetLayout({});
-    }
+    ws_->SetInputLayout(i, {});
   }
 }
 

@@ -102,14 +102,8 @@ bool PropagateSourceInfo(Workspace &ws) {
       return true;
     };
 
-    if (ws.InputIsType<CPUBackend>(i)) {
-      if (!process_input(ws.Input<CPUBackend>(i)))
-        return false;
-    } else {
-      assert(ws.InputIsType<GPUBackend>(i));
-      if (!process_input(ws.Input<GPUBackend>(i)))
-        return false;
-    }
+    if (!ws.VisitInput(i, process_input))
+      return false;
   }
 
   for (int o = 0; o < num_outputs; o++) {

@@ -523,20 +523,12 @@ class SequenceOperator : public BaseOp<Backend>, protected SampleBroadcasting<Ba
 
   template <typename ProcessFunc>
   void ProcessInput(const Workspace &ws, int input_idx, ProcessFunc &&process) {
-    if (ws.InputIsType<GPUBackend>(input_idx)) {
-      process(ws.Input<GPUBackend>(input_idx));
-    } else {
-      process(ws.Input<CPUBackend>(input_idx));
-    }
+    ws.VisitInput(input_idx, std::forward<ProcessFunc>(process));
   }
 
   template <typename ProcessFunc>
   void ProcessOutput(const Workspace &ws, int output_idx, ProcessFunc &&process) {
-    if (ws.OutputIsType<GPUBackend>(output_idx)) {
-      process(ws.Output<GPUBackend>(output_idx));
-    } else {
-      process(ws.Output<CPUBackend>(output_idx));
-    }
+    ws.VisitOutput(output_idx, std::forward<ProcessFunc>(process));
   }
 
   template <typename InputBackend>

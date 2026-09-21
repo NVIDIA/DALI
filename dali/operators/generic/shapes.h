@@ -102,11 +102,9 @@ class Shapes : public StatelessOperator<Backend> {
   }
 
   static const TensorListShape<> &GetInputShape(const Workspace &ws) {
-    if (ws.InputIsType<GPUBackend>(0)) {
-      return ws.Input<GPUBackend>(0).shape();
-    } else {
-      return ws.Input<CPUBackend>(0).shape();
-    }
+    return ws.VisitInput(0, [](auto &input) -> const TensorListShape<> & {
+      return input.shape();
+    });
   }
 
  private:

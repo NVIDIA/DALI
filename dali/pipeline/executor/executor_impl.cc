@@ -481,14 +481,9 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunHelper(OpNode &op_node, Workspac
   }
 
   for (int i = 0; i < spec.NumRegularInput(); i++) {
-    bool had_empty_layout = false;
-    if (ws.InputIsType<CPUBackend>(i)) {
-      had_empty_layout =
-          SetDefaultLayoutIfNeeded(ws.UnsafeMutableInput<CPUBackend>(i), schema, i);
-    } else {
-      had_empty_layout =
-          SetDefaultLayoutIfNeeded(ws.UnsafeMutableInput<GPUBackend>(i), schema, i);
-    }
+    bool had_empty_layout = ws.VisitUnsafeMutableInput(i, [&](auto &input) {
+      return SetDefaultLayoutIfNeeded(input, schema, i);
+    });
     if (had_empty_layout) empty_layout_in_idxs.push_back(i);
   }
 
@@ -538,13 +533,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunHelper(OpNode &op_node, Workspac
   */
 
   for (int i : empty_layout_in_idxs) {
-    if (ws.InputIsType<CPUBackend>(i)) {
-      auto &in = ws.UnsafeMutableInput<CPUBackend>(i);
-      in.SetLayout({});
-    } else {
-      auto &in = ws.UnsafeMutableInput<GPUBackend>(i);
-      in.SetLayout({});
-    }
+    ws.SetInputLayout(i, {});
   }
 
   // Create a checkpoint.
