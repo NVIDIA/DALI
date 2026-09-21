@@ -311,7 +311,7 @@ daliResult_t daliPipelineCreate(
 
 daliResult_t daliPipelineDestroy(daliPipeline_h pipeline) {
   DALI_PROLOG();
-  delete ToPointer(pipeline);
+  PipelineRegistry::instance().Destroy(ToPointer(pipeline));
   DALI_EPILOG();
 }
 

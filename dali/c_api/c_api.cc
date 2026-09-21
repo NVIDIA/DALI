@@ -219,7 +219,6 @@ inline dali::mm::memory_kind_id GetMemKind(device_type_t device_type, bool is_pi
 
 void DestroyPipeline(DALIPipeline *pipe_wrap) {
   auto wrap = std::unique_ptr<DALIPipeline>(pipe_wrap);
-  dali::c_api::PipelineRegistry::instance().Unregister(pipe_wrap);
   if (wrap->copy_stream)
     CUDA_CALL(cudaStreamSynchronize(wrap->copy_stream));
 }
@@ -739,7 +738,7 @@ void daliDeletePipeline(daliPipelineHandle_t pipe_handle) {
   if (!pipe_handle)
     return;
 
-  DestroyPipeline(*pipe_handle);
+  dali::c_api::PipelineRegistry::instance().Destroy(*pipe_handle);
 }
 
 void daliLoadLibrary(const char* lib_path) {

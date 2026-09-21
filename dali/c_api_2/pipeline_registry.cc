@@ -34,6 +34,20 @@ void PipelineRegistry::Unregister(void *pipeline) {
   pipelines_.erase(pipeline);
 }
 
+bool PipelineRegistry::Destroy(void *pipeline) {
+  Deleter deleter = nullptr;
+  {
+    std::lock_guard g(mtx_);
+    auto it = pipelines_.find(pipeline);
+    if (it == pipelines_.end())
+      return false;
+    deleter = it->second;
+    pipelines_.erase(it);
+  }
+  deleter(pipeline);
+  return true;
+}
+
 size_t PipelineRegistry::DestroyAll() {
   std::unordered_map<void *, Deleter> pipelines;
   {
