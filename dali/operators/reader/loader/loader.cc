@@ -24,9 +24,23 @@ DALI_SCHEMA(LoaderBase)
       R"code(Determines whether to randomly shuffle data.
 
 A prefetch buffer with a size equal to `initial_fill` is used to read data sequentially,
-and then samples are selected randomly to form a batch.)code", false)
+and then samples are selected randomly to form a batch.
+
+.. note::
+  The buffer shuffles the data only locally. When it is much smaller than the dataset, samples
+  that are read far apart rarely end up in the same batch. Readers of container formats, such as
+  TFRecord, read the samples in their stored order. Such datasets are often shuffled during
+  creation. Some readers also support shuffling the order of container files between epochs,
+  without reordering the samples within each file. If the stored sample order is meaningful,
+  for example the samples are sorted by label, shuffle the dataset when you create it or increase
+  `initial_fill`.
+
+See the Sharding and Shuffling documentation for details.)code", false)
   .AddOptionalArg("initial_fill",
       R"code(Size of the buffer that is used for shuffling.
+
+A larger buffer shuffles the data more thoroughly, but it uses more memory and takes longer to
+fill before the first batch is returned.
 
 If `random_shuffle` is False, this parameter is ignored.)code", 1024)
   .AddOptionalArg("num_shards",
