@@ -392,6 +392,12 @@ endif()
 
 if (BUILD_WITH_ASAN)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address -fno-omit-frame-pointer -fsanitize-address-use-after-scope")
+  if (BUILD_PROTOBUF)
+    # Protobuf 36 enables its experimental message-globals layout for ASAN consumers.
+    # Our bundled protobuf library is built without ASAN, so keep generated code on the
+    # matching, established layout until the temporary upstream opt-out is no longer needed.
+    add_compile_definitions(PROTOBUF_MESSAGE_GLOBALS_TEMPORARY_OPTOUT)
+  endif()
 endif()
 
 if (BUILD_WITH_LSAN)
