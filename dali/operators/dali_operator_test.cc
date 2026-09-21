@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@
 #include "dali/pipeline/init.h"
 #include "dali/pipeline/operator/op_spec.h"
 #include "dali/test/dali_cuda_finalize_test.h"
+#include "dali/test/dali_pipeline_leak_test.h"
 #include "dali/test/dali_test_config.h"
 
 #if (CUDART_VERSION >= 10200 && CUDART_VERSION < 11100)
@@ -44,6 +45,7 @@ int main(int argc, char **argv) {
   ::testing::TestEventListeners& listeners = testing::UnitTest::GetInstance()->listeners();
   // Adds a listener to the end.  googletest takes the ownership.
   listeners.Append(new dali::CudaFinalizeEventListener);
+  listeners.Append(new dali::PipelineLeakEventListener);
 
   return RUN_ALL_TESTS();
 }

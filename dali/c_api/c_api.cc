@@ -34,6 +34,7 @@
 #include "dali/pipeline/operator/checkpointing/checkpoint.h"
 
 #include "dali/c_api.h"  // NOLINT [build/include]
+#include "dali/c_api_2/pipeline_registry.h"
 
 // Sanity check that the values of the flags are consistent with the ExecutorType enum.
 namespace dali {
@@ -216,6 +217,13 @@ inline dali::mm::memory_kind_id GetMemKind(device_type_t device_type, bool is_pi
         : (is_pinned ? dali::mm::memory_kind_id::pinned : dali::mm::memory_kind_id::host);
 }
 
+void DestroyPipeline(DALIPipeline *pipe_wrap) {
+  auto wrap = std::unique_ptr<DALIPipeline>(pipe_wrap);
+  dali::c_api::PipelineRegistry::instance().Unregister(pipe_wrap);
+  if (wrap->copy_stream)
+    CUDA_CALL(cudaStreamSynchronize(wrap->copy_stream));
+}
+
 inline std::unique_ptr<DALIPipeline> WrapPipeline(std::unique_ptr<dali::Pipeline> pipeline) {
   auto pipe_wrap = std::make_unique<DALIPipeline>();
 
@@ -224,6 +232,9 @@ inline std::unique_ptr<DALIPipeline> WrapPipeline(std::unique_ptr<dali::Pipeline
   }
 
   pipe_wrap->pipeline = std::move(pipeline);
+  dali::c_api::PipelineRegistry::instance().Register(pipe_wrap.get(), [](void *p) {
+    DestroyPipeline(static_cast<DALIPipeline *>(p));
+  });
   return pipe_wrap;
 }
 
@@ -728,9 +739,7 @@ void daliDeletePipeline(daliPipelineHandle_t pipe_handle) {
   if (!pipe_handle)
     return;
 
-  auto wrap = std::unique_ptr<DALIPipeline>(*pipe_handle);
-  if (wrap->copy_stream)
-    CUDA_CALL(cudaStreamSynchronize(wrap->copy_stream));
+  DestroyPipeline(*pipe_handle);
 }
 
 void daliLoadLibrary(const char* lib_path) {
