@@ -41,13 +41,14 @@ Every tutorial page has an *Open in Colab* link that opens the notebook straight
 execute the following cell to install DALI, fetch the test data and export ``DALI_EXTRA_PATH``::
 
    !curl -sSL https://raw.githubusercontent.com/NVIDIA/DALI/main/docs/examples/colab_setup.py -o colab_setup.py
-   %run colab_setup.py
+   %run colab_setup.py --ref main
 
-The :fileref:`docs/examples/colab_setup.py` script installs the latest DALI release for the CUDA
-version available in the runtime and checks out the DALI_extra revision matching the ``main``
-branch. Use ``--ref <tag or commit>`` to match the notebooks of a particular DALI release
-(for example ``%run colab_setup.py --ref v2.3.0``), ``--nightly`` to install the nightly build
-when running notebooks from ``main``, or ``%run colab_setup.py --help`` to list all the options.
+The :fileref:`docs/examples/colab_setup.py` script installs the DALI wheel and checks out the
+DALI_extra revision matching ``--ref``. It pins release revisions to the version in their
+``VERSION`` file and uses the latest nightly wheel for development revisions. Every tutorial page
+shows a setup cell containing its exact documentation revision. You can also select a release
+explicitly (for example ``%run colab_setup.py --ref v2.3.0``), override the inferred wheel with
+``--dali-version`` or ``--nightly``, or run ``%run colab_setup.py --help`` to list all options.
 
 .. note::
 

@@ -16,8 +16,8 @@
 """Prepare a Google Colab (or any other Jupyter) runtime for running DALI example notebooks.
 
 The script installs the DALI wheel matching the CUDA version available in the runtime, fetches
-the `DALI_extra <https://github.com/NVIDIA/DALI_extra>`_ test data at the revision expected by
-the notebooks and exports ``DALI_EXTRA_PATH`` so that the notebooks can locate it.
+the DALI version and `DALI_extra <https://github.com/NVIDIA/DALI_extra>`_ test data expected by
+the selected DALI revision, and exports ``DALI_EXTRA_PATH`` so that the notebooks can locate it.
 
 Run it from a notebook cell so that the environment variable is set in the kernel process::
 
@@ -115,15 +115,40 @@ def fetch_dali_extra_version(ref):
         return response.read().decode("ascii").strip()
 
 
+def fetch_dali_version(ref):
+    """Read ``VERSION`` from the DALI repository at the given git ref."""
+    url = f"https://raw.githubusercontent.com/{DALI_REPO}/{ref}/VERSION"
+    with urllib.request.urlopen(url) as response:
+        return response.read().decode("ascii").strip()
+
+
+def resolve_dali_version(ref, version=None, nightly=False):
+    """Select the wheel version and channel matching ``ref`` unless explicitly overridden."""
+    if version is not None or nightly:
+        return version, nightly
+    ref_version = fetch_dali_version(ref)
+    if ref_version.endswith("dev"):
+        return None, True
+    return ref_version, False
+
+
 def _ensure_git_lfs():
     if shutil.which("git-lfs"):
         return
-    if shutil.which("apt-get"):
-        _run(["apt-get", "install", "-y", "-qq", "git-lfs"])
-    else:
+    install_hint = (
+        "Install git-lfs (https://git-lfs.com) and run the setup again."
+    )
+    if not shutil.which("apt-get") or os.geteuid() != 0:
         raise RuntimeError(
-            "git-lfs is required to fetch DALI_extra, see https://git-lfs.com for installation."
+            f"git-lfs is required to fetch DALI_extra. {install_hint}"
         )
+    try:
+        _run(["apt-get", "update", "-qq"])
+        _run(["apt-get", "install", "-y", "-qq", "git-lfs"])
+    except subprocess.CalledProcessError as e:
+        raise RuntimeError(
+            f"Could not install git-lfs with apt-get. {install_hint}"
+        ) from e
 
 
 def setup_dali_extra(path, revision):
@@ -165,12 +190,12 @@ def main(argv=None):
     parser.add_argument(
         "--dali-version",
         default=None,
-        help="DALI wheel version to install (default: the latest available)",
+        help="DALI wheel version to install (default: VERSION at --ref for releases)",
     )
     parser.add_argument(
         "--nightly",
         action="store_true",
-        help="install the nightly DALI build instead of the latest release",
+        help="install the latest nightly DALI build (default for development revisions)",
     )
     parser.add_argument(
         "--cuda",
@@ -181,7 +206,8 @@ def main(argv=None):
     )
     parser.add_argument(
         "--skip-dali",
-        action="store_true",
+        action="store_false",
+        dest="install_dali",
         help="do not install DALI (e.g. when it is already installed)",
     )
     parser.add_argument(
@@ -196,16 +222,20 @@ def main(argv=None):
     )
     parser.add_argument(
         "--skip-dali-extra",
-        action="store_true",
+        action="store_false",
+        dest="fetch_dali_extra",
         help="do not fetch DALI_extra test data",
     )
     args = parser.parse_args(argv)
 
-    if not args.skip_dali:
-        package = install_dali(args.cuda, args.dali_version, args.nightly)
+    if args.install_dali:
+        dali_version, nightly = resolve_dali_version(
+            args.ref, args.dali_version, args.nightly
+        )
+        package = install_dali(args.cuda, dali_version, nightly)
         print(f"Installed {package}")
 
-    if not args.skip_dali_extra:
+    if args.fetch_dali_extra:
         revision = args.dali_extra_version or fetch_dali_extra_version(args.ref)
         dali_extra_path = setup_dali_extra(args.dali_extra_path, revision)
         os.environ["DALI_EXTRA_PATH"] = dali_extra_path

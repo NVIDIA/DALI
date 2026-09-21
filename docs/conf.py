@@ -192,7 +192,17 @@ nbsphinx_prolog = f"""
    This page was generated from the :fileref:`{{{{ notebook }}}}` Jupyter notebook.
    You can run it locally or `open it in Google Colab
    <https://colab.research.google.com/github/NVIDIA/DALI/blob/{github_ref}/{{{{ notebook }}}}>`__,
-   see :ref:`running_examples` for the setup instructions.
+   see :ref:`running_examples` for more information. To prepare Colab for this exact
+   documentation revision, run this cell before the tutorial:
+
+   .. code-block:: python
+
+      setup_url = (
+          "https://raw.githubusercontent.com/NVIDIA/DALI/"
+          "{github_ref}/docs/examples/colab_setup.py"
+      )
+      !curl -sSL $setup_url -o colab_setup.py
+      %run colab_setup.py --ref {github_ref}
 """
 
 # https://stackoverflow.com/questions/67473396/shorten-display-format-of-python-type-annotations-in-sphinx
