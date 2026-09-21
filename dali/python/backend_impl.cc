@@ -177,9 +177,29 @@ py::dict ArrayInterfaceRepr(Tensor<Backend> &t) {
   tup[1] = false;
   d["data"] = tup;
   if constexpr (std::is_same<Backend, GPUBackend>::value) {
-    // see https://numba.pydata.org/numba-doc/dev/cuda/cuda_array_interface.html
-    // this set of atributes is tagged as version 2
-    d["version"] = 2;
+    // see https://numba.readthedocs.io/en/stable/cuda/cuda_array_interface.html
+    // this set of attributes is tagged as version 3
+    d["version"] = 3;
+    const auto &order = t.order();
+    if (order.is_device()) {
+      // make the exported stream wait for the data to be ready, so that synchronizing with
+      // the stream (as CAI v3 requires from the consumer) is sufficient
+      if (auto &event = t.ready_event())
+        order.wait(event);
+      cudaStream_t stream = order.stream();
+      // CAI v3: 0 is disallowed, 1 denotes the legacy default stream and 2 - the per-thread one
+      if (stream == 0)
+        d["stream"] = 1;
+      else if (stream == cudaStreamPerThread)
+        d["stream"] = 2;
+      else
+        d["stream"] = PyLongFromVoidPtr(stream);
+    } else {
+      // the data is host-synchronous - no synchronization is needed on the consumer's side
+      if (auto &event = t.ready_event())
+        AccessOrder::host().wait(event);
+      d["stream"] = py::none();
+    }
   } else {
     // see https://docs.scipy.org/doc/numpy/reference/arrays.interface.html
     // this set of atributes is tagged as version 3
@@ -1166,7 +1186,12 @@ void ExposeTensor(py::module &m) {
     })
     .def_property("__cuda_array_interface__",  &ArrayInterfaceRepr<GPUBackend>, nullptr,
       R"code(
-      Returns CUDA Array Interface (Version 2) representation of TensorGPU.
+      Returns CUDA Array Interface (Version 3) representation of TensorGPU.
+
+      The ``stream`` entry denotes the CUDA stream on which the tensor's data is produced
+      (``1`` for the legacy default stream, ``2`` for the per-thread default stream);
+      the consumer has to synchronize with it before accessing the data. If the entry is
+      ``None``, the data is already available and no synchronization is required.
       )code")
     .def_property_readonly("dtype", [](Tensor<GPUBackend> &t) {
           return static_cast<DALIDataTypePlaceholder>(t.type());
@@ -1185,8 +1210,8 @@ void ExposeTensor(py::module &m) {
       samples of a :class:`TensorListGPU` or used to wrap GPU memory that is intended
       to be passed as an input to DALI.
 
-      It is compatible with `CUDA Array Interface <https://numba.pydata.org/numba-doc/dev/cuda/cuda_array_interface.html>`_
-      and `DLPack <https://github.com/dmlc/dlpack>`_.)code";
+      It is compatible with `CUDA Array Interface <https://numba.readthedocs.io/en/stable/cuda/cuda_array_interface.html>`_
+      (version 3) and `DLPack <https://github.com/dmlc/dlpack>`_.)code";
 }
 
 template <typename Backend>
