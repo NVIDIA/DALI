@@ -59,20 +59,15 @@ void PipelineRegistry::Open() {
   closed_ = false;
 }
 
-size_t PipelineRegistry::Close() {
-  return DestroyAllImpl(true);
+void PipelineRegistry::Close() {
+  std::lock_guard g(mtx_);
+  closed_ = true;
 }
 
 size_t PipelineRegistry::DestroyAll() {
-  return DestroyAllImpl(false);
-}
-
-size_t PipelineRegistry::DestroyAllImpl(bool close) {
   std::unordered_map<void *, Deleter> pipelines;
   {
     std::lock_guard g(mtx_);
-    if (close)
-      closed_ = true;
     std::swap(pipelines, pipelines_);
   }
   for (auto &[pipeline, deleter] : pipelines) {

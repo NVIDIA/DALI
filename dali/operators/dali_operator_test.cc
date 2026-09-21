@@ -14,6 +14,7 @@
 
 #include <cuda_runtime_api.h>
 #include <gtest/gtest.h>
+#include <memory>
 
 #include "dali/pipeline/init.h"
 #include "dali/pipeline/operator/op_spec.h"
@@ -45,7 +46,7 @@ int main(int argc, char **argv) {
   ::testing::TestEventListeners& listeners = testing::UnitTest::GetInstance()->listeners();
   // Adds a listener to the end.  googletest takes the ownership.
   listeners.Append(new dali::CudaFinalizeEventListener);
-  listeners.Append(new dali::PipelineLeakEventListener);
+  listeners.Append(std::make_unique<dali::PipelineLeakEventListener>().release());
 
   return RUN_ALL_TESTS();
 }

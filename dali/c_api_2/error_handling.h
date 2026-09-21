@@ -43,6 +43,19 @@ namespace c_api {
 DLL_PUBLIC daliResult_t HandleError(std::exception_ptr ex);
 DLL_PUBLIC daliResult_t CheckInit();
 
+/** Marks an API call as being in flight for the duration of its lifetime.
+ *
+ * The final `daliShutdown` waits until all calls in flight have finished before destroying
+ * the outstanding pipelines, so a pipeline cannot be destroyed while it's still being created.
+ */
+class DLL_PUBLIC ActiveCallGuard {
+ public:
+  ActiveCallGuard();
+  ~ActiveCallGuard();
+  ActiveCallGuard(const ActiveCallGuard &) = delete;
+  ActiveCallGuard &operator=(const ActiveCallGuard &) = delete;
+};
+
 class InvalidHandle : public std::invalid_argument {
  public:
   InvalidHandle() : std::invalid_argument("The handle is invalid") {}
@@ -67,7 +80,8 @@ inline InvalidHandle NullHandle(const char *what_handle) {
 }  // namespace c_api
 }  // namespace dali
 
-#define DALI_PROLOG() try { if (auto err = dali::c_api::CheckInit()) return err; else;
+#define DALI_PROLOG() try { if (auto err = dali::c_api::CheckInit()) return err; \
+  ::dali::c_api::ActiveCallGuard dali_active_call_guard__
 #define DALI_EPILOG() return DALI_SUCCESS; } catch (...) {     \
   return ::dali::c_api::HandleError(std::current_exception()); \
 }
