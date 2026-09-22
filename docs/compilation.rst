@@ -305,12 +305,12 @@ DALI tests consist of 2 parts: C++ (GTest) and Python (usually Nose, but that's 
   cd <path_to_DALI>/build
   make check-gtest check-python
 
-Building DALI with Clang (Experimental)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Building DALI with Clang (Unofficial)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 .. note::
 
-  This build is experimental. It is neither maintained nor tested. It is not guaranteed to work.
+  This build is unofficial. It is neither maintained nor tested. It is not guaranteed to work.
   We recommend using GCC for production builds.
 
 

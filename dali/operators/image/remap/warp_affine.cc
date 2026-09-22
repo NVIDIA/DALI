@@ -46,8 +46,10 @@ It is equivalent to OpenCV's ``warpAffine`` operation with the `inverse_map` arg
 analog to the ``WARP_INVERSE_MAP`` flag.
 
 .. note::
-  Instead of this argument, the operator can take a second positional input, in which
-  case the matrix can be placed on the GPU.
+  In the ``fn``/``ops`` APIs, instead of this argument, the operator can take a second
+  positional input, in which case the matrix can be placed on the GPU. In the dynamic
+  (``ndd``) API, passing a GPU-placed ``Tensor``/``Batch`` directly to this argument
+  achieves the same effect.
 )code",
       vector<float>(), true, true)
   .AddOptionalArg<bool>("inverse_map", "Set to ``False`` if the given transform is a "

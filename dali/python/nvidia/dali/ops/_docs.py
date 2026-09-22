@@ -70,24 +70,29 @@ def _get_inputs_doc(schema, api):
 Args
 ----
 """
+    merged_input_name = api == "dynamic" and _names.MERGED_INPUT_ARGS.get(schema.Name())
     if schema.HasInputDox():
         for i in range(schema.MaxNumInput()):
+            input_name = _names._get_input_name(schema, i)
+            if input_name == merged_input_name:
+                continue
             optional = i >= schema.MinNumInput()
             input_type_str = schema.GetInputType(i) + _supported_layouts_str(
                 schema.GetSupportedLayouts(i)
             )
             dox = schema.GetInputDox(i)
-            input_name = _names._get_input_name(schema, i)
             dox = _numpydoc_formatter(input_name, input_type_str, dox, optional)
             dox = _adjust_dox(dox, api)
             ret += dox + "\n"
     else:
         for i in range(schema.MinNumInput()):
+            input_name = _names._get_input_name(schema, i)
+            if input_name == merged_input_name:
+                continue
             input_type_str = _input_type(api) + _supported_layouts_str(
                 schema.GetSupportedLayouts(i)
             )
             dox = "Input to the operator."
-            input_name = _names._get_input_name(schema, i)
             dox = _numpydoc_formatter(input_name, input_type_str, dox, False)
             dox = _adjust_dox(dox, api)
             ret += dox + "\n"
