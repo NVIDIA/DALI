@@ -122,3 +122,16 @@ def _get_input_name(schema, input_idx):
 def _get_variadic_input_name():
     """Return the string representing the name of positional-only input for a variadic context."""
     return "inputs"
+
+
+# Mode spec, "Uniform inputs and arguments": some operators have a positional input and an
+# optional argument that represent the same value, differing only in device placement, e.g.
+# Reshape's `shape_input` (CPU-only) vs. its `shape` tensor-argument (also always CPU). Exposing
+# both separately in the dynamic (ndd) API is redundant, so for that API the input is hidden and
+# the argument is the single canonical, merged parameter for that value. The fn/ops APIs are
+# unaffected and keep exposing both, as before.
+MERGED_INPUT_ARGS = {
+    "Reshape": "shape_input",
+    "Reinterpret": "shape_input",
+    "WarpAffine": "mtx",
+}
