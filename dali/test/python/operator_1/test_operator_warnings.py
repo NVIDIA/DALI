@@ -38,7 +38,7 @@ module_variants = [
     (
         ops.sub.DeprecationWarningOp(),
         "DeprecationWarningOp",
-        "sub.sub.deprecation_warning_op",
+        "sub.sub.DeprecationWarningOp",
         "Another message",
     ),
     (
@@ -50,7 +50,7 @@ module_variants = [
     (
         ops.sub.sub.DeprecationWarningOp(),
         "DeprecationWarningOp",
-        "sub.sub.deprecation_warning_op",
+        "sub.sub.DeprecationWarningOp",
         "",
     ),
 ]
@@ -61,7 +61,10 @@ def test_warnings(op, name, replacement, message):
 
     glob = f"WARNING: `{op.__module__}.{name}` is now deprecated."
     if replacement:
-        glob += f" Use `nvidia.dali.fn.{replacement}` instead."
+        # The replacement is reported through whichever API namespace (`fn` or `ops`) the
+        # deprecated operator was actually called through.
+        api = "ops" if op.__module__.startswith("nvidia.dali.ops") else "fn"
+        glob += f" Use `nvidia.dali.{api}.{replacement}` instead."
     if message:
         glob += f"\n{message}"
     with assert_warns(DeprecationWarning, glob=glob):
