@@ -135,3 +135,37 @@ MERGED_INPUT_ARGS = {
     "Reinterpret": "shape_input",
     "WarpAffine": "mtx",
 }
+
+# Same idea as `MERGED_INPUT_ARGS`, but for operators where a single positional input is
+# redundant with more than one named argument at once (the named arguments being mutually
+# exclusive with each other, so at most one is ever actually given). Slice's `anchor` input
+# is equivalent to giving either `start` (absolute) or `rel_start` (relative); its `shape`
+# input (named `shape_input` once disambiguated from the `shape` argument, see
+# `_get_input_name`) is equivalent to giving either `shape` or `rel_shape`. `end`/`rel_end`
+# have no positional-input equivalent at all, so they are unaffected either way.
+#
+# Unlike WarpAffine's `mtx`/`matrix`, there is no GPU-routing fallback here: Slice's own doc
+# already discourages placing `anchor`/`shape` on GPU (it costs an extra D2H copy), and,
+# critically, the operator requires `anchor` and `shape` to be given together as positional
+# inputs or not at all (never just one) - so a GPU value for only one of the merged argument
+# groups can't be routed as a lone extra positional input the way WarpAffine's `matrix` is.
+MERGED_MULTI_INPUT_ARGS = {
+    "Slice": {
+        "anchor": ("start", "rel_start"),
+        "shape_input": ("shape", "rel_shape"),
+    },
+}
+
+
+def get_merged_input_names(schema_name):
+    """Return the set of dynamic-API-hidden input names for `schema_name` (empty if none).
+
+    Combines `MERGED_INPUT_ARGS` (1 input <-> 1 argument) and `MERGED_MULTI_INPUT_ARGS`
+    (1 input <-> several mutually exclusive arguments).
+    """
+    names = set()
+    single = MERGED_INPUT_ARGS.get(schema_name)
+    if single is not None:
+        names.add(single)
+    names.update(MERGED_MULTI_INPUT_ARGS.get(schema_name, {}))
+    return names
