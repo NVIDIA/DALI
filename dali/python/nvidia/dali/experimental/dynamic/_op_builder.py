@@ -80,6 +80,33 @@ def _is_gpu_tensor_or_batch(value):
     return isinstance(value, (Tensor, Batch)) and value.device.device_type == "gpu"
 
 
+def _filter_merged_inputs(inputs, schema_name):
+    """Hide the input merged into an argument (see `_MERGED_INPUT_ARGS`) from a generated
+    `inputs` header list.
+
+    For GPU-routable merged cases (`schema_name` in `_MERGED_ARG_GPU_INPUT`), a value passed
+    for the merged argument can still show up as an extra *positional* input (see
+    `_MERGED_ARG_GPU_INPUT` above), so the generated signature must keep a positional
+    catch-all. `_get_inputs` may have picked a hard stop "*" instead of "*inputs" because,
+    before this filtering, the merged input made `num_separate_inputs == max_inputs`; once
+    that input is hidden by name, restore the catch-all so it can still be given positionally.
+    This is what makes both `warp_affine(data, mtx)` positional calls and the `matrix=`
+    GPU-routing path in `build_fn_wrapper` (which relies on the same catch-all to append the
+    routed value to `inputs`) work.
+
+    Reshape/Reinterpret (also in `_MERGED_INPUT_ARGS`, but not GPU-routable) are deliberately
+    left alone: no known caller relies on their hidden input positionally, and reducing that
+    API surface was an intentional part of the original merge.
+    """
+    merged_input_name = _MERGED_INPUT_ARGS.get(schema_name)
+    if merged_input_name is None:
+        return inputs
+    inputs = [i for i in inputs if i not in (merged_input_name, f"{merged_input_name}=None")]
+    if schema_name in _MERGED_ARG_GPU_INPUT and inputs and inputs[-1] == "*":
+        inputs = inputs[:-1] + ["*inputs"]
+    return inputs
+
+
 def _find_or_create_module(root_module, module_path):
     return _internal.get_submodule(root_module, module_path)
 
@@ -333,9 +360,7 @@ def build_call_function(schema, op_class):
             used_kwargs.remove("seed")
 
     inputs = _get_inputs(schema)
-    merged_input_name = _MERGED_INPUT_ARGS.get(op_class._schema_name)
-    if merged_input_name is not None:
-        inputs = [i for i in inputs if i not in (merged_input_name, f"{merged_input_name}=None")]
+    inputs = _filter_merged_inputs(inputs, op_class._schema_name)
 
     header = f"__call__({', '.join(['self'] + inputs + call_args + internal_args)})"
 
@@ -497,9 +522,7 @@ def build_fn_wrapper(op, fn_name=None, add_to_module=True):
     if fn_name is None:  # for tests
         fn_name = _to_snake_case(op._schema.OperatorName())
     inputs = _get_inputs(schema)
-    merged_input_name = _MERGED_INPUT_ARGS.get(op._schema_name)
-    if merged_input_name is not None:
-        inputs = [i for i in inputs if i not in (merged_input_name, f"{merged_input_name}=None")]
+    inputs = _filter_merged_inputs(inputs, op._schema_name)
 
     fixed_args = []
     tensor_args = []
