@@ -311,7 +311,8 @@ daliResult_t daliPipelineCreate(
 
 daliResult_t daliPipelineDestroy(daliPipeline_h pipeline) {
   DALI_PROLOG();
-  PipelineRegistry::instance().Destroy(ToPointer(pipeline));
+  if (!PipelineRegistry::instance().Destroy(ToPointer(pipeline)))
+    throw InvalidHandle("The pipeline handle is invalid or has already been destroyed.");
   DALI_EPILOG();
 }
 

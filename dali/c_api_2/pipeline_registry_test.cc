@@ -14,7 +14,10 @@
 
 #include <gtest/gtest.h>
 #include <atomic>
+#include <chrono>
 #include <string>
+#include <thread>
+#include <vector>
 #include "dali/c_api_2/error_handling.h"
 #include "dali/c_api_2/pipeline_registry.h"
 #include "dali/c_api_2/test_utils.h"
@@ -164,6 +167,84 @@ TEST(CAPI2_PipelineRegistryTest, TracksCApi2Pipelines) {
   EXPECT_EQ(GetOutstandingPipelineCount(), 1u);
   CHECK_DALI(daliPipelineDestroy(h2));
   EXPECT_EQ(GetOutstandingPipelineCount(), 0u);
+}
+
+TEST(CAPI2_PipelineRegistryTest, DestroyUnknownHandleFails) {
+  auto params = MakeCreateParams();
+  daliPipeline_h h = nullptr;
+  CHECK_DALI(daliPipelineCreate(&h, &params));
+  CHECK_DALI(daliPipelineDestroy(h));
+  // the handle is no longer tracked - the registry must reject it instead of deleting it twice
+  EXPECT_EQ(daliPipelineDestroy(h), DALI_ERROR_INVALID_HANDLE);
+  EXPECT_EQ(daliPipelineDestroy(nullptr), DALI_ERROR_INVALID_HANDLE);
+}
+
+/** Creates and destroys pipelines on several threads while another thread performs the final
+ * shutdown. Every call is either admitted (and then must finish before the registry is torn
+ * down) or rejected with DALI_ERROR_UNLOADING; no call may crash or leak a pipeline.
+ */
+TEST(CAPI2_PipelineRegistryTest, ConcurrentCreateVsShutdown) {
+  auto &registry = PipelineRegistry::instance();
+  ASSERT_EQ(registry.Count(), 0u);
+  const int num_threads = 8;
+  const int num_rounds = 5;
+
+  for (int round = 0; round < num_rounds; round++) {
+    std::atomic<bool> stop{false};
+    std::atomic<int> created{0}, destroyed{0}, destroy_rejected{0}, create_rejected{0};
+    std::atomic<int> unexpected{0};
+    std::vector<std::thread> workers;
+    for (int t = 0; t < num_threads; t++) {
+      workers.emplace_back([&]() {
+        auto params = MakeCreateParams();
+        while (!stop) {
+          daliPipeline_h h = nullptr;
+          auto err = daliPipelineCreate(&h, &params);
+          if (err == DALI_ERROR_UNLOADING) {
+            create_rejected++;
+            if (h != nullptr)
+              unexpected++;
+            continue;
+          }
+          if (err != DALI_SUCCESS) {
+            unexpected++;
+            continue;
+          }
+          created++;
+          err = daliPipelineDestroy(h);
+          if (err == DALI_SUCCESS) {
+            destroyed++;
+          } else if (err == DALI_ERROR_UNLOADING) {
+            destroy_rejected++;  // the final shutdown has already destroyed the pipeline
+          } else {
+            unexpected++;
+          }
+        }
+      });
+    }
+
+    // let the workers reach a steady state, then shut down for real
+    std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    while (!registry.IsClosed())
+      CHECK_DALI(daliShutdown());  // the lazy initialization may have bumped the counter
+    // after the final shutdown, nothing may be tracked and no new creation may succeed
+    EXPECT_EQ(registry.Count(), 0u);
+    daliPipeline_h h = nullptr;
+    auto params = MakeCreateParams();
+    EXPECT_EQ(daliPipelineCreate(&h, &params), DALI_ERROR_UNLOADING);
+    EXPECT_EQ(h, nullptr);
+
+    stop = true;
+    for (auto &w : workers)
+      w.join();
+
+    EXPECT_EQ(unexpected, 0);
+    EXPECT_EQ(created, destroyed + destroy_rejected);
+    EXPECT_EQ(registry.Count(), 0u);
+
+    CHECK_DALI(daliInit());  // reopen for the remaining tests (and the next round)
+    EXPECT_FALSE(registry.IsClosed());
+  }
 }
 
 TEST(CAPI2_PipelineRegistryTest, DestroysLeakedCApi2Pipelines) {

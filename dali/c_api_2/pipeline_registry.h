@@ -22,6 +22,21 @@
 
 namespace dali::c_api {
 
+/** Marks an API call as being in flight for the duration of its lifetime.
+ *
+ * The guard is created before the initialization check, so every call that passes the check
+ * is already counted. The final `daliShutdown` waits until all calls in flight have finished
+ * before destroying the outstanding pipelines, so a pipeline cannot be destroyed while a call
+ * that was admitted before the shutdown is still using or creating it.
+ */
+class DLL_PUBLIC ActiveCallGuard {
+ public:
+  ActiveCallGuard();
+  ~ActiveCallGuard();
+  ActiveCallGuard(const ActiveCallGuard &) = delete;
+  ActiveCallGuard &operator=(const ActiveCallGuard &) = delete;
+};
+
 /** Tracks pipeline instances handed out through the C APIs.
  *
  * Every pipeline object created by either the legacy or the new C API is registered here

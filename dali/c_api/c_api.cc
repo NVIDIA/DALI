@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <algorithm>
+#include <stdexcept>
 #include <string>
 #include <utility>
 #include <vector>
@@ -286,6 +287,7 @@ daliCreatePipeline3(daliPipelineHandle *pipe_handle, const char *serialized_pipe
                     dali_exec_flags_t exec_flags, int prefetch_queue_depth,
                     int cpu_prefetch_queue_depth, int gpu_prefetch_queue_depth,
                     int enable_memory_stats) {
+  dali::c_api::ActiveCallGuard active_call_guard;
   dali::PipelineParams params = dali::MakePipelineParams(max_batch_size, num_threads, device_id);
   params.executor_type = static_cast<dali::ExecutorType>(exec_flags);
   if (exec_flags & DALI_EXEC_IS_SEPARATED) {
@@ -306,6 +308,7 @@ daliCreatePipeline3(daliPipelineHandle *pipe_handle, const char *serialized_pipe
 
 void daliDeserializeDefault(daliPipelineHandle *pipe_handle, const char *serialized_pipeline,
                             int length) {
+  dali::c_api::ActiveCallGuard active_call_guard;
   auto pipeline = std::make_unique<dali::Pipeline>(std::string(serialized_pipeline, length));
   pipeline->Build();
   *pipe_handle = WrapPipeline(std::move(pipeline)).release();
@@ -738,7 +741,9 @@ void daliDeletePipeline(daliPipelineHandle_t pipe_handle) {
   if (!pipe_handle)
     return;
 
-  dali::c_api::PipelineRegistry::instance().Destroy(*pipe_handle);
+  dali::c_api::ActiveCallGuard active_call_guard;
+  if (!dali::c_api::PipelineRegistry::instance().Destroy(*pipe_handle))
+    throw std::invalid_argument("The pipeline handle is invalid or has already been deleted.");
 }
 
 void daliLoadLibrary(const char* lib_path) {
