@@ -64,10 +64,10 @@ def _scalar_decay(x):
 
 _unsupported_args = {"bytes_per_sample_hint", "preserve"}
 
-# See nvidia.dali.ops._names.MERGED_INPUT_ARGS for the rationale.
-_MERGED_INPUT_ARGS = _names.MERGED_INPUT_ARGS
+# See nvidia.dali.ops._names.MERGED_INPUT_ARGS / MERGED_MULTI_INPUT_ARGS for the rationale.
+_get_merged_input_names = _names.get_merged_input_names
 
-# Subset of `_MERGED_INPUT_ARGS` whose hidden input allowed GPU placement
+# Subset of `_names.MERGED_INPUT_ARGS` whose hidden input allowed GPU placement
 # (InputDevice::MatchBackendOrCPU rather than InputDevice::CPU), mapped to the merged argument
 # name. Since arguments must always be CPU (see Mode spec, "Special arguments"), a GPU-placed
 # value passed for that argument is routed through as a positional input instead.
@@ -81,28 +81,34 @@ def _is_gpu_tensor_or_batch(value):
 
 
 def _filter_merged_inputs(inputs, schema_name):
-    """Hide the input merged into an argument (see `_MERGED_INPUT_ARGS`) from a generated
-    `inputs` header list.
+    """Hide the inputs merged into arguments (see `_names.get_merged_input_names`) from a
+    generated `inputs` header list.
 
-    For GPU-routable merged cases (`schema_name` in `_MERGED_ARG_GPU_INPUT`), a value passed
-    for the merged argument can still show up as an extra *positional* input (see
-    `_MERGED_ARG_GPU_INPUT` above), so the generated signature must keep a positional
-    catch-all. `_get_inputs` may have picked a hard stop "*" instead of "*inputs" because,
-    before this filtering, the merged input made `num_separate_inputs == max_inputs`; once
-    that input is hidden by name, restore the catch-all so it can still be given positionally.
-    This is what makes both `warp_affine(data, mtx)` positional calls and the `matrix=`
-    GPU-routing path in `build_fn_wrapper` (which relies on the same catch-all to append the
-    routed value to `inputs`) work.
+    Two cases need the trailing "*" (hard stop on further positional args) that `_get_inputs`
+    may have picked - because, before this filtering, the merged input(s) made
+    `num_separate_inputs == max_inputs` - relaxed back into a "*inputs" positional catch-all
+    once the input is hidden by name:
 
-    Reshape/Reinterpret (also in `_MERGED_INPUT_ARGS`, but not GPU-routable) are deliberately
-    left alone: no known caller relies on their hidden input positionally, and reducing that
-    API surface was an intentional part of the original merge.
+    - GPU-routable merged cases (`schema_name` in `_MERGED_ARG_GPU_INPUT`): a value passed for
+      the merged argument can still show up as an extra *positional* input (see
+      `_MERGED_ARG_GPU_INPUT` above).
+    - Multi-input merged cases (`schema_name` in `_names.MERGED_MULTI_INPUT_ARGS`, e.g. Slice):
+      the hidden inputs were reachable positionally before the merge (e.g.
+      `slice(x, 0.1, 0.5, axes=...)`, mirroring `fn.slice`), so hiding them by name must not
+      also take away the positional slots, or backward-compatible positional calls break.
+
+    Reshape/Reinterpret (`_names.MERGED_INPUT_ARGS`, not GPU-routable, not multi-input) are
+    deliberately left alone: no known caller relies on their hidden input positionally, and
+    reducing that API surface was an intentional part of the original merge.
     """
-    merged_input_name = _MERGED_INPUT_ARGS.get(schema_name)
-    if merged_input_name is None:
+    merged_input_names = _get_merged_input_names(schema_name)
+    if not merged_input_names:
         return inputs
-    inputs = [i for i in inputs if i not in (merged_input_name, f"{merged_input_name}=None")]
-    if schema_name in _MERGED_ARG_GPU_INPUT and inputs and inputs[-1] == "*":
+    inputs = [i for i in inputs if i.split("=", 1)[0] not in merged_input_names]
+    restore_catchall = (
+        schema_name in _MERGED_ARG_GPU_INPUT or schema_name in _names.MERGED_MULTI_INPUT_ARGS
+    )
+    if restore_catchall and inputs and inputs[-1] == "*":
         inputs = inputs[:-1] + ["*inputs"]
     return inputs
 
