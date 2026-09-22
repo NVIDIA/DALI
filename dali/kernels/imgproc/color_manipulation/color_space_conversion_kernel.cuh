@@ -153,6 +153,8 @@ __global__ void ColorSpaceConvKernel(Out *output, const In *input, int64_t sz) {
 template <typename Out, typename In>
 void RunColorSpaceConversionKernel(Out *output, const In *input, DALIImageType out_type,
                                    DALIImageType in_type, int64_t npixels, cudaStream_t stream) {
+  if (npixels == 0)
+    return;
   // For CUDA kernel
   const unsigned int block = npixels < 1024 ? npixels : 1024;
   const unsigned int grid = (npixels + block - 1) / block;

@@ -12,6 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <string>
+#include <utility>
+#include <vector>
+
 #include "dali/test/dali_test_conversion.h"
 #include "dali/core/cuda_error.h"
 
@@ -55,6 +59,44 @@ TYPED_TEST_SUITE(ColorSpaceConversionToYCbCrTest, ConvertibleToYCbCr);
 
 TYPED_TEST(ColorSpaceConversionToYCbCrTest, test) {
   this->RunTest("ColorSpaceConversion", nullptr, 0, false, 0.002);
+}
+
+TEST(ColorSpaceConversionTest, ZeroExtentSampleGPU) {
+  TensorList<CPUBackend> input;
+  input.Resize(TensorListShape<3>({{0, 2, 3}, {1, 1, 3}}), DALI_UINT8);
+  input.SetLayout("HWC");
+  auto *pixel = input.mutable_tensor<uint8_t>(1);
+  pixel[0] = 1;
+  pixel[1] = 2;
+  pixel[2] = 3;
+
+  Pipeline pipe(2, 1, 0);
+  pipe.AddExternalInput("input");
+  pipe.AddOperator(OpSpec("Flip")
+                       .AddArg("device", "gpu")
+                       .AddInput("input", StorageDevice::GPU)
+                       .AddOutput("flipped", StorageDevice::GPU));
+  pipe.AddOperator(OpSpec("ColorSpaceConversion")
+                       .AddArg("device", "gpu")
+                       .AddArg("image_type", DALI_RGB)
+                       .AddArg("output_type", DALI_BGR)
+                       .AddInput("flipped", StorageDevice::GPU)
+                       .AddOutput("output", StorageDevice::GPU));
+  pipe.Build(std::vector<std::pair<std::string, std::string>>{{"output", "gpu"}});
+  pipe.SetExternalInput("input", input);
+
+  Workspace ws;
+  pipe.Run();
+  pipe.Outputs(&ws);
+  TensorList<CPUBackend> output;
+  output.Copy(ws.Output<GPUBackend>(0));
+  EXPECT_EQ(output.num_samples(), 2);
+  EXPECT_EQ(output.tensor_shape(0), input.tensor_shape(0));
+  EXPECT_EQ(output.tensor_shape(1), input.tensor_shape(1));
+  const auto *converted = output.tensor<uint8_t>(1);
+  EXPECT_EQ(converted[0], 3);
+  EXPECT_EQ(converted[1], 2);
+  EXPECT_EQ(converted[2], 1);
 }
 
 }  // namespace dali
