@@ -2,8 +2,6 @@ schema_version: 1
 
 harbor:
   task_source: evals_json
-  custom_dockerfile_mode: preserve
-  base_image_mode: disabled
   n_attempts: 1
   n_concurrent: 1
   max_agents: 1
@@ -11,6 +9,8 @@ harbor:
   timeout_multiplier: 6
   auto_scale_timeout: true
   sandbox:
-    template: harbor-eval-claude-code-gpu
+    templates:
+      claude-code: harbor-eval-dali-gpu-claude-code
+      codex: harbor-eval-dali-gpu-codex
   pre_agent_setup:
     - cp -a /opt/eval/workloads /workspace/workloads
