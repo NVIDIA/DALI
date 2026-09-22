@@ -201,14 +201,14 @@ warp-privatized histograms, vectorized memory access) that provide 1.5-3x speedu
 while maintaining OpenCV algorithmic compatibility.
 Example usage:
   # Grayscale image
-  clahe_out = fn.clahe(grayscale_image, tiles_x=8, tiles_y=8, clip_limit=2.0)
+  clahe_out = clahe(grayscale_image, tiles_x=8, tiles_y=8, clip_limit=2.0)
 
   # RGB image with luminance-only processing (default)
   # NOTE: Input must be RGB order, not BGR!
-  clahe_out = fn.clahe(rgb_image, tiles_x=8, tiles_y=8, clip_limit=3.0, luma_only=True)
+  clahe_out = clahe(rgb_image, tiles_x=8, tiles_y=8, clip_limit=3.0, luma_only=True)
 
   # RGB image with per-channel processing (color order less critical)
-  clahe_out = fn.clahe(rgb_image, tiles_x=8, tiles_y=8, clip_limit=2.0, luma_only=False)
+  clahe_out = clahe(rgb_image, tiles_x=8, tiles_y=8, clip_limit=2.0, luma_only=False)
 )code")
     .NumInput(1)
     .NumOutput(1)

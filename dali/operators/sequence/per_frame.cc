@@ -30,9 +30,9 @@ so that a different ``sigma`` is used for each frame in each sequence::
 
   @pipeline_def
   def random_per_frame_blur():
-    video, _ = fn.readers.video_resize(sequence_length=50, ...)
-    sigma = fn.random.uniform(range=[0.5, 5], shape=(50,))
-    blurred = fn.gaussian_blur(video, sigma=fn.per_frame(sigma))
+    video, _ = readers.video_resize(sequence_length=50, ...)
+    sigma = random.uniform(range=[0.5, 5], shape=(50,))
+    blurred = gaussian_blur(video, sigma=per_frame(sigma))
     return blurred
 
 Note that the outermost dimension of each tensor from a batch specified as per-frame argument
