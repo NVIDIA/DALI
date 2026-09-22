@@ -99,4 +99,27 @@ TEST(ColorSpaceConversionTest, ZeroExtentSampleGPU) {
   EXPECT_EQ(converted[2], 1);
 }
 
+TEST(ColorSpaceConversionTest, ZeroExtentUnsupportedConversionGPU) {
+  TensorList<CPUBackend> input;
+  input.Resize(TensorListShape<3>({{0, 1, 3}}), DALI_UINT8);
+  input.SetLayout("HWC");
+
+  Pipeline pipe(1, 1, 0);
+  pipe.AddExternalInput("input");
+  pipe.AddOperator(OpSpec("ColorSpaceConversion")
+                       .AddArg("device", "gpu")
+                       .AddArg("image_type", DALI_RGB)
+                       .AddArg("output_type", DALI_RGB)
+                       .AddInput("input", StorageDevice::GPU)
+                       .AddOutput("output", StorageDevice::GPU));
+  pipe.Build(std::vector<std::pair<std::string, std::string>>{{"output", "gpu"}});
+  pipe.SetExternalInput("input", input);
+
+  Workspace ws;
+  EXPECT_ANY_THROW({
+    pipe.Run();
+    pipe.Outputs(&ws);
+  });
+}
+
 }  // namespace dali

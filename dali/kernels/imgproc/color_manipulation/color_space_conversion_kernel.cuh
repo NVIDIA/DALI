@@ -153,12 +153,6 @@ __global__ void ColorSpaceConvKernel(Out *output, const In *input, int64_t sz) {
 template <typename Out, typename In>
 void RunColorSpaceConversionKernel(Out *output, const In *input, DALIImageType out_type,
                                    DALIImageType in_type, int64_t npixels, cudaStream_t stream) {
-  if (npixels == 0)
-    return;
-  // For CUDA kernel
-  const unsigned int block = npixels < 1024 ? npixels : 1024;
-  const unsigned int grid = (npixels + block - 1) / block;
-
   using ImageTypePair = std::pair<DALIImageType, DALIImageType>;
   ImageTypePair conversion{in_type, out_type};
   const ImageTypePair kRGB_TO_BGR{DALI_RGB, DALI_BGR};
@@ -173,6 +167,21 @@ void RunColorSpaceConversionKernel(Out *output, const In *input, DALIImageType o
   const ImageTypePair kGRAY_TO_RGB{DALI_GRAY, DALI_RGB};
   const ImageTypePair kGRAY_TO_BGR{DALI_GRAY, DALI_BGR};
   const ImageTypePair kGRAY_TO_YCbCr{DALI_GRAY, DALI_YCbCr};
+
+  if (npixels == 0) {
+    if (conversion != kRGB_TO_BGR && conversion != kBGR_TO_RGB &&
+        conversion != kRGB_TO_YCbCr && conversion != kBGR_TO_YCbCr &&
+        conversion != kRGB_TO_GRAY && conversion != kBGR_TO_GRAY &&
+        conversion != kYCbCr_TO_BGR && conversion != kYCbCr_TO_RGB &&
+        conversion != kYCbCr_TO_GRAY && conversion != kGRAY_TO_RGB &&
+        conversion != kGRAY_TO_BGR && conversion != kGRAY_TO_YCbCr) {
+      DALI_FAIL(make_string("conversion not supported ", in_type, " to ", out_type));
+    }
+    return;
+  }
+  // For CUDA kernel
+  const unsigned int block = npixels < 1024 ? npixels : 1024;
+  const unsigned int grid = (npixels + block - 1) / block;
 
   if (conversion == kRGB_TO_BGR || conversion == kBGR_TO_RGB) {
     ColorSpaceConvKernel<RGB_to_BGR_Converter<Out, In>, Out, In>
