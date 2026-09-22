@@ -64,6 +64,21 @@ def _scalar_decay(x):
 
 _unsupported_args = {"bytes_per_sample_hint", "preserve"}
 
+# See nvidia.dali.ops._names.MERGED_INPUT_ARGS for the rationale.
+_MERGED_INPUT_ARGS = _names.MERGED_INPUT_ARGS
+
+# Subset of `_MERGED_INPUT_ARGS` whose hidden input allowed GPU placement
+# (InputDevice::MatchBackendOrCPU rather than InputDevice::CPU), mapped to the merged argument
+# name. Since arguments must always be CPU (see Mode spec, "Special arguments"), a GPU-placed
+# value passed for that argument is routed through as a positional input instead.
+_MERGED_ARG_GPU_INPUT = {
+    "WarpAffine": "matrix",
+}
+
+
+def _is_gpu_tensor_or_batch(value):
+    return isinstance(value, (Tensor, Batch)) and value.device.device_type == "gpu"
+
 
 def _find_or_create_module(root_module, module_path):
     return _internal.get_submodule(root_module, module_path)
@@ -318,6 +333,9 @@ def build_call_function(schema, op_class):
             used_kwargs.remove("seed")
 
     inputs = _get_inputs(schema)
+    merged_input_name = _MERGED_INPUT_ARGS.get(op_class._schema_name)
+    if merged_input_name is not None:
+        inputs = [i for i in inputs if i not in (merged_input_name, f"{merged_input_name}=None")]
 
     header = f"__call__({', '.join(['self'] + inputs + call_args + internal_args)})"
 
@@ -479,6 +497,9 @@ def build_fn_wrapper(op, fn_name=None, add_to_module=True):
     if fn_name is None:  # for tests
         fn_name = _to_snake_case(op._schema.OperatorName())
     inputs = _get_inputs(schema)
+    merged_input_name = _MERGED_INPUT_ARGS.get(op._schema_name)
+    if merged_input_name is not None:
+        inputs = [i for i in inputs if i not in (merged_input_name, f"{merged_input_name}=None")]
 
     fixed_args = []
     tensor_args = []
@@ -547,6 +568,13 @@ def build_fn_wrapper(op, fn_name=None, add_to_module=True):
                         # info.meta["constant_inputs"] = None
                         info.meta["constant_args"] = None
                         constant_args = None
+
+        # Uniform inputs and arguments (Mode spec): a GPU-placed value given for the merged
+        # argument can't flow through the (CPU-only) argument channel, so route it as an
+        # extra positional input instead - the same way a directly-passed GPU input would.
+        gpu_route_arg = _MERGED_ARG_GPU_INPUT.get(op._schema_name)
+        if gpu_route_arg is not None and _is_gpu_tensor_or_batch(raw_kwargs.get(gpu_route_arg)):
+            inputs = (*inputs, raw_kwargs.pop(gpu_route_arg))
 
         init_args = {}
         call_args = {}
