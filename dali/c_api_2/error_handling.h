@@ -20,6 +20,7 @@
 #include <string>
 #include <sstream>
 #include "dali/dali.h"
+#include "dali/c_api_2/pipeline_registry.h"
 #include "dali/core/error_handling.h"
 
 inline std::ostream &operator<<(std::ostream &os, daliResult_t result) {
@@ -42,21 +43,6 @@ namespace c_api {
 
 DLL_PUBLIC daliResult_t HandleError(std::exception_ptr ex);
 DLL_PUBLIC daliResult_t CheckInit();
-
-/** Marks an API call as being in flight for the duration of its lifetime.
- *
- * The guard is created before the initialization check, so every call that passes the check
- * is already counted. The final `daliShutdown` waits until all calls in flight have finished
- * before destroying the outstanding pipelines, so a pipeline cannot be destroyed while a call
- * that was admitted before the shutdown is still using or creating it.
- */
-class DLL_PUBLIC ActiveCallGuard {
- public:
-  ActiveCallGuard();
-  ~ActiveCallGuard();
-  ActiveCallGuard(const ActiveCallGuard &) = delete;
-  ActiveCallGuard &operator=(const ActiveCallGuard &) = delete;
-};
 
 class InvalidHandle : public std::invalid_argument {
  public:
