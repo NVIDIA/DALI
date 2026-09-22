@@ -40,8 +40,8 @@ concatenating compressed frames from the corresponding sequences.::
 
   @pipeline_def
   def inflate_sequence_pipeline():
-    compres_seq, uncompres_hwc_shape, compres_chunk_sizes = fn.external_source(...)
-    sequences = fn.decoders.inflate(
+    compres_seq, uncompres_hwc_shape, compres_chunk_sizes = external_source(...)
+    sequences = decoders.inflate(
         compres_seq.gpu(),
         chunk_sizes=compres_chunk_sizes,  # refers to sizes in ``compres_seq``
         shape=uncompres_hwc_shape,

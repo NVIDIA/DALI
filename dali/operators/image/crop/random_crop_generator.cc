@@ -23,11 +23,11 @@ Expects a one-dimensional input representing the shape of the input we want to c
 
 Produces two outputs, representing the anchor and shape of the cropping window.
 
-The outputs of this operator (anchor and shape) can be fed to `fn.slice`, `fn.decoders.image_slice` or any
+The outputs of this operator (anchor and shape) can be fed to ``slice``, ``decoders.image_slice`` or any
 other operator accepting a region of interest. For example::
 
-  crop_anchor, crop_shape = fn.random_crop_generator(image_shapes)
-  images_crop = fn.slice(images, start=crop_anchor, shape=crop_shape, axes=[0, 1])
+  crop_anchor, crop_shape = random_crop_generator(image_shapes)
+  images_crop = slice(images, start=crop_anchor, shape=crop_shape, axes=[0, 1])
 
 )code")
   .NumInput(1)

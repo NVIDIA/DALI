@@ -45,10 +45,10 @@ For example, the following snippet presents debayering of batch of image sequenc
 
   @pipeline_def
   def debayer_pipeline():
-    bayered_sequences, blue_positions = fn.external_source(
+    bayered_sequences, blue_positions = external_source(
       source=bayered_sequence, batch=False, num_outputs=2,
       layout=["FHW", None])  # note the "FHW" layout, for plain images it would be "HW"
-    debayered_sequences = fn.experimental.debayer(
+    debayered_sequences = experimental.debayer(
       bayered_sequences.gpu(), blue_position=blue_positions, algorithm='default_npp')
     return debayered_sequences
 

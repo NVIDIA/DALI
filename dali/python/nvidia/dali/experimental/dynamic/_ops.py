@@ -426,8 +426,14 @@ class Operator:
                 }
 
                 # legacy_op is a member of the old `ops` module - we use the ops API to obtain
-                # an OpSpec
-                op = self._legacy_op(name=self._name, device=self._backend, **self._init_args)
+                # an OpSpec. Report the ndd module/name (not the legacy op's) so e.g. deprecation
+                # warnings correctly point at the dynamic API the user actually called.
+                legacy_init_args = {
+                    "_module": type(self).__module__,
+                    "_display_name": self._fn_name or type(self)._op_name,
+                    **self._init_args,
+                }
+                op = self._legacy_op(name=self._name, device=self._backend, **legacy_init_args)
                 self._op_inst = op
                 out = op(*input_nodes, **arg_nodes)
                 if isinstance(out, (list, tuple)):
