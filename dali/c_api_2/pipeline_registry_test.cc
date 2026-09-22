@@ -32,6 +32,15 @@ std::string SerializeSimplePipeline() {
   return p.SerializeToProtobuf();
 }
 
+daliPipelineParams_t MakeCreateParams() {
+  daliPipelineParams_t params{};
+  params.max_batch_size_present = true;
+  params.max_batch_size = 1;
+  params.num_threads_present = true;
+  params.num_threads = 1;
+  return params;  // no device_id - CPU-only pipeline
+}
+
 }  // namespace
 
 TEST(CAPI2_PipelineRegistryTest, RegisterUnregister) {
@@ -125,7 +134,7 @@ TEST(CAPI2_PipelineRegistryTest, CreateAfterCloseFails) {
   CHECK_DALI(daliInit());  // make sure the lazy initialization doesn't reopen the registry
 
   registry.Close();
-  daliPipelineParams_t params{};
+  auto params = MakeCreateParams();
   daliPipeline_h h = nullptr;
   EXPECT_EQ(daliPipelineCreate(&h, &params), DALI_ERROR_UNLOADING);
   EXPECT_EQ(h, nullptr);
@@ -141,13 +150,14 @@ TEST(CAPI2_PipelineRegistryTest, CreateAfterCloseFails) {
 TEST(CAPI2_PipelineRegistryTest, TracksCApi2Pipelines) {
   ASSERT_EQ(GetOutstandingPipelineCount(), 0u);
 
-  daliPipelineParams_t params{};
+  auto params = MakeCreateParams();
   daliPipeline_h h1 = nullptr, h2 = nullptr;
   CHECK_DALI(daliPipelineCreate(&h1, &params));
   EXPECT_EQ(GetOutstandingPipelineCount(), 1u);
 
   auto proto = SerializeSimplePipeline();
-  CHECK_DALI(daliPipelineDeserialize(&h2, proto.c_str(), proto.length(), &params));
+  daliPipelineParams_t deserialize_params{};
+  CHECK_DALI(daliPipelineDeserialize(&h2, proto.c_str(), proto.length(), &deserialize_params));
   EXPECT_EQ(GetOutstandingPipelineCount(), 2u);
 
   CHECK_DALI(daliPipelineDestroy(h1));
