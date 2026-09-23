@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -51,8 +51,7 @@ class Shapes : public StatelessOperator<Backend> {
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     output_desc.resize(1);
     output_desc[0].type = output_type_;
-    decltype(auto) shape = GetInputShape(ws);
-    output_desc[0].shape = ShapeShape(shape);
+    output_desc[0].shape = ShapeShape(ws.GetInputShape(0));
     return true;
   }
 
@@ -89,24 +88,16 @@ class Shapes : public StatelessOperator<Backend> {
 
     auto &output = ws.Output<GPUBackend>(0);
     tmp_.Resize(output.shape());
-    ConvertShape(tmp_, GetInputShape(ws));
+    ConvertShape(tmp_, ws.GetInputShape(0));
     output.Copy(tmp_, ws.stream());
   }
 
   void RunBackend(Workspace &ws, CPUBackend) {
-    ConvertShape(ws.Output<CPUBackend>(0), GetInputShape(ws));
+    ConvertShape(ws.Output<CPUBackend>(0), ws.GetInputShape(0));
   }
 
   static TensorListShape<1> ShapeShape(const TensorListShape<> &shape) {
     return uniform_list_shape<1>(shape.num_samples(), { shape.sample_dim() });
-  }
-
-  static const TensorListShape<> &GetInputShape(const Workspace &ws) {
-    if (ws.InputIsType<GPUBackend>(0)) {
-      return ws.Input<GPUBackend>(0).shape();
-    } else {
-      return ws.Input<CPUBackend>(0).shape();
-    }
   }
 
  private:

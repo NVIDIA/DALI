@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -75,11 +75,7 @@ bool AnyBatchPartial(const Workspace &ws, const OpSpec &spec, int max_batch_size
  */
 void ClearOutputs(Workspace &ws, const OpSpec &spec) {
   for (int i = 0; i < spec.NumOutput(); i++) {
-    if (ws.template OutputIsType<CPUBackend>(i)) {
-      ws.template Output<CPUBackend>(i).Reset();
-    } else {
-      ws.template Output<GPUBackend>(i).Reset();
-    }
+    ws.WithOutput(i, [](auto &output) { output.Reset(); });
   }
 }
 
@@ -394,10 +390,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunGPU() {
 
 inline void AssertOutputsContiguous(const Workspace &ws) {
   for (int i = 0; i < ws.NumOutput(); i++) {
-    if (ws.OutputIsType<CPUBackend>(i))
-      assert(ws.Output<CPUBackend>(i).IsContiguousInMemory());
-    else if (ws.OutputIsType<GPUBackend>(i))
-      assert(ws.Output<GPUBackend>(i).IsContiguousInMemory());
+    ws.WithOutput(i, [](auto &output) { assert(output.IsContiguousInMemory()); });
   }
 }
 
@@ -505,11 +498,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::RunHelper(OpNode &op_node, Workspac
           "Operator::Setup returned shape and type information for mismatched number of outputs");
       for (int i = 0; i < ws.NumOutput(); i++) {
         auto &desc = output_desc[i];
-        if (ws.OutputIsType<CPUBackend>(i)) {
-          ws.Output<CPUBackend>(i).Resize(desc.shape, desc.type);
-        } else {
-          ws.Output<GPUBackend>(i).Resize(desc.shape, desc.type);
-        }
+        ws.WithOutput(i, [&](auto &output) { output.Resize(desc.shape, desc.type); });
       }
     }
   }
@@ -596,11 +585,7 @@ void Executor<WorkspacePolicy, QueuePolicy>::ShareOutputsImpl(Workspace *ws, siz
     const char *error_msg =
             "DALI internal error: all outputs from the Pipeline must be contiguous after being "
             "processed by MakeContiguous operator.";
-    if (ws->OutputIsType<CPUBackend>(i)) {
-      DALI_ENFORCE(ws->Output<CPUBackend>(i).IsContiguous(), error_msg);
-    } else {
-      DALI_ENFORCE(ws->Output<GPUBackend>(i).IsContiguous(), error_msg);
-    }
+    ws->WithOutput(i, [&](auto &output) { DALI_ENFORCE(output.IsContiguous(), error_msg); });
   }
 
   // We than need to wait for GPU outputs from Mixed & GPU stages that are computed asynchronously.

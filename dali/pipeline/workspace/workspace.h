@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -230,6 +230,47 @@ class WorkspaceBase : public ArgumentWorkspace {
   template <typename Backend>
   const DataObjectPtr<Backend>& OutputPtr(int idx, Backend backend = {}) const {
     return OutputHandle(idx, backend);
+  }
+
+  /** @} */
+
+  /** @name Backend-agnostic input and output access
+   * Functions that resolve the backend of an input/output at run time and pass the respective
+   * batch to a callback. They are useful when the code that operates on the batch is the same
+   * for all backends - the callback is typically a generic lambda.
+   * @{
+   */
+
+  /**
+   * @brief Calls the callback with the input batch at the position `idx`.
+   *
+   * The callback must be callable with both CPU and GPU batches and both instantiations must
+   * return the same type.
+   *
+   * @return The value returned by the callback.
+   */
+  template <typename Callback>
+  decltype(auto) WithInput(int idx, Callback &&callback) const {
+    if (InputIsType<GPUBackend>(idx))
+      return std::forward<Callback>(callback)(Input<GPUBackend>(idx));
+    else
+      return std::forward<Callback>(callback)(Input<CPUBackend>(idx));
+  }
+
+  /**
+   * @brief Calls the callback with the output batch at the position `idx`.
+   *
+   * The callback must be callable with both CPU and GPU batches and both instantiations must
+   * return the same type.
+   *
+   * @return The value returned by the callback.
+   */
+  template <typename Callback>
+  decltype(auto) WithOutput(int idx, Callback &&callback) const {
+    if (OutputIsType<GPUBackend>(idx))
+      return std::forward<Callback>(callback)(Output<GPUBackend>(idx));
+    else
+      return std::forward<Callback>(callback)(Output<CPUBackend>(idx));
   }
 
   /** @} */

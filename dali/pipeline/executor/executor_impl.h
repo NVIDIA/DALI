@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -203,17 +203,11 @@ class DLL_PUBLIC Executor : public ExecutorBase, public QueuePolicy {
           max_out_size = 0;
           reserved_size = 0;
           max_reserved_size = 0;
-          if (ws.OutputIsType<CPUBackend>(i)) {
-            auto &out = ws.Output<CPUBackend>(i);
+          ws.WithOutput(i, [&](auto &out) {
             out_size = out.nbytes();
             reserved_size = out.capacity();
             GetMaxSizes(out, max_out_size, max_reserved_size);
-          } else {
-            auto &out = ws.Output<GPUBackend>(i);
-            out_size = out.nbytes();
-            reserved_size = out.capacity();
-            GetMaxSizes(out, max_out_size, max_reserved_size);
-          }
+          });
           stats[i].real_size = std::max(out_size, stats[i].real_size);
           stats[i].max_real_size = std::max(max_out_size, stats[i].max_real_size);
           stats[i].reserved = std::max(reserved_size, stats[i].reserved);

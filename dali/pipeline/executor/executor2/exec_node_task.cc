@@ -1,4 +1,4 @@
-// Copyright (c) 2023-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2023-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -296,14 +296,9 @@ void OpTask::SetupOp() {
     if (node_->op->Setup(output_descs, ws)) {
       assert(output_descs.size() == static_cast<size_t>(nout));
       for (int i = 0; i < nout; i++) {
-        if (ws.OutputIsType<CPUBackend>(i)) {
-          ws.Output<CPUBackend>(i).Resize(output_descs[i].shape, output_descs[i].type);
-        } else if (ws.OutputIsType<GPUBackend>(i)) {
-          auto &output = ws.Output<GPUBackend>(i);
+        ws.WithOutput(i, [&](auto &output) {
           output.Resize(output_descs[i].shape, output_descs[i].type);
-        } else {
-          assert(!"Unreachable code - unknown backend.");
-        }
+        });
       }
     }
   }

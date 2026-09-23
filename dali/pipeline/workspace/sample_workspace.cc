@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -36,13 +36,9 @@ void MakeSampleView(SampleWorkspace &sample, Workspace &batch, int data_idx, int
 
   int num_outputs = batch.NumOutput();
   for (int i = 0; i < num_outputs; i++) {
-    if (batch.OutputIsType<CPUBackend>(i)) {
-      auto &output_ref = batch.Output<CPUBackend>(i);
+    batch.WithOutput(i, [&](auto &output_ref) {
       sample.AddOutput(&output_ref.tensor_handle(data_idx));
-    } else {
-      auto &output_ref = batch.Output<GPUBackend>(i);
-      sample.AddOutput(&output_ref.tensor_handle(data_idx));
-    }
+    });
   }
   for (auto &arg_inp : batch.ArgumentInputs()) {
     sample.AddArgumentInput(arg_inp.name, arg_inp.cpu);

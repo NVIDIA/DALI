@@ -77,10 +77,7 @@ DLL_PUBLIC void ValidateInputMetadata(const Workspace &ws /* to validate */, con
   for (int i = 0; i < spec.NumRegularInput(); i++) {
     auto &desc = spec.InputDesc(i);
     if (desc.has_metadata()) {
-      if (ws.InputIsType<GPUBackend>(i))
-        ValidateMetadata(ws.Input<GPUBackend>(i), desc, "input", i);
-      else
-        ValidateMetadata(ws.Input<CPUBackend>(i), desc, "input", i);
+      ws.WithInput(i, [&](auto &input) { ValidateMetadata(input, desc, "input", i); });
     }
   }
 
@@ -105,10 +102,7 @@ DLL_PUBLIC void ValidateOutputMetadata(const Workspace &ws /* to_validate */, co
   for (int i = 0; i < spec.NumOutput(); i++) {
     auto &desc = spec.OutputDesc(i);
     if (desc.has_metadata()) {
-      if (ws.OutputIsType<GPUBackend>(i))
-        ValidateMetadata(ws.Output<GPUBackend>(i), desc, "output", i);
-      else
-        ValidateMetadata(ws.Output<CPUBackend>(i), desc, "output", i);
+      ws.WithOutput(i, [&](auto &output) { ValidateMetadata(output, desc, "output", i); });
     }
   }
 }

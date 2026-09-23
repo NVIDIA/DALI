@@ -1,4 +1,4 @@
-// Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -29,15 +29,9 @@ namespace dali {
 inline void CheckInputLayouts(const Workspace &ws, const OpSpec &spec) {
   auto &schema = spec.GetSchema();
   for (int i = 0; i < spec.NumRegularInput(); ++i) {
-    if (ws.InputIsType<CPUBackend>(i)) {
-      auto &input = ws.Input<CPUBackend>(i);
+    ws.WithInput(i, [&](auto &input) {
       (void)schema.GetInputLayout(i, input.shape().sample_dim(), input.GetLayout());
-    } else if (ws.InputIsType<GPUBackend>(i)) {
-      auto &input = ws.Input<GPUBackend>(i);
-      (void)schema.GetInputLayout(i, input.shape().sample_dim(), input.GetLayout());
-    } else {
-      DALI_FAIL(make_string("Input ", i, " has an unknown backend"));
-    }
+    });
   }
 }
 

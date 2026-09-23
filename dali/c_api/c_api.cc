@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -464,25 +464,21 @@ void daliOutputRelease(daliPipelineHandle_t pipe_handle) {
 
 int64_t daliOutputHasUniformShape(daliPipelineHandle_t pipe_handle, int i) {
   dali::Workspace* ws = &(*pipe_handle)->workspace;
-  if (ws->OutputIsType<CPUBackend>(i)) {
-    return is_uniform(ws->Output<CPUBackend>(i).shape());
-  } else {
-    return is_uniform(ws->Output<GPUBackend>(i).shape());
-  }
+  return is_uniform(ws->GetOutputShape(i));
 }
 
-template<typename T>
-static int64_t *daliShapeAtHelper(dali::Workspace *ws, int n, int k) {
+static int64_t *daliShapeAtHelper(daliPipelineHandle_t pipe_handle, int n, int k) {
+  dali::Workspace* ws = &(*pipe_handle)->workspace;
   int64_t *c_shape = nullptr;
   std::vector<dali::Index> shape;
-  const auto &out_tensor_list = ws->Output<T>(n);
+  auto out_shape = ws->GetOutputShape(n);
   if (k >= 0) {
-    auto shape_span = out_tensor_list.tensor_shape_span(k);
+    auto shape_span = out_shape.tensor_shape_span(k);
     shape = std::vector<dali::Index>(shape_span.begin(), shape_span.end());
   } else {
-    auto shape_span = out_tensor_list.tensor_shape_span(0);
+    auto shape_span = out_shape.tensor_shape_span(0);
     shape = std::vector<dali::Index>(shape_span.begin(), shape_span.end());
-    shape.insert(shape.begin(), out_tensor_list.num_samples());
+    shape.insert(shape.begin(), out_shape.num_samples());
   }
 
   c_shape = static_cast<int64_t*>(malloc(sizeof(int64_t) * (shape.size() + 1)));
@@ -494,80 +490,37 @@ static int64_t *daliShapeAtHelper(dali::Workspace *ws, int n, int k) {
   return c_shape;
 }
 
-static int64_t* daliShapeAtTypedHelper(daliPipelineHandle_t pipe_handle, int n, int k) {
-  dali::Workspace* ws = &(*pipe_handle)->workspace;
-  if (ws->OutputIsType<CPUBackend>(n)) {
-    return daliShapeAtHelper<CPUBackend>(ws, n, k);
-  } else {
-    return daliShapeAtHelper<GPUBackend>(ws, n, k);
-  }
-}
-
 int64_t* daliShapeAtSample(daliPipelineHandle_t pipe_handle, int n, int k) {
-  return daliShapeAtTypedHelper(pipe_handle, n, k);
+  return daliShapeAtHelper(pipe_handle, n, k);
 }
 
 int64_t* daliShapeAt(daliPipelineHandle_t pipe_handle, int n) {
-  return daliShapeAtTypedHelper(pipe_handle, n, -1);
-}
-
-template <typename T>
-static dali_data_type_t daliTypeAtHelper(dali::Workspace* ws, int n) {
-  const auto &out_tensor_list = ws->Output<T>(n);
-  auto type_id = out_tensor_list.type();
-  return static_cast<dali_data_type_t>(static_cast<int>(type_id));
+  return daliShapeAtHelper(pipe_handle, n, -1);
 }
 
 dali_data_type_t daliTypeAt(daliPipelineHandle_t pipe_handle, int n) {
   dali::Workspace* ws = &(*pipe_handle)->workspace;
-  if (ws->OutputIsType<CPUBackend>(n)) {
-    return daliTypeAtHelper<CPUBackend>(ws, n);
-  } else {
-    return daliTypeAtHelper<GPUBackend>(ws, n);
-  }
+  return static_cast<dali_data_type_t>(static_cast<int>(ws->GetOutputDataType(n)));
 }
 
-
-template <typename T>
-static size_t daliNumTensorsHelper(dali::Workspace* ws, int n) {
-  return ws->Output<T>(n).num_samples();
-}
 
 size_t daliNumTensors(daliPipelineHandle_t pipe_handle, int n) {
   dali::Workspace* ws = &(*pipe_handle)->workspace;
-  if (ws->OutputIsType<CPUBackend>(n)) {
-    return daliNumTensorsHelper<CPUBackend>(ws, n);
-  } else {
-    return daliNumTensorsHelper<GPUBackend>(ws, n);
-  }
-}
-
-template <typename T>
-static size_t daliNumElementsHelper(dali::Workspace* ws, int n) {
-  return ws->Output<T>(n)._num_elements();
+  return ws->GetOutputBatchSize(n);
 }
 
 size_t daliNumElements(daliPipelineHandle_t pipe_handle, int n) {
   dali::Workspace* ws = &(*pipe_handle)->workspace;
-  if (ws->OutputIsType<CPUBackend>(n)) {
-    return daliNumElementsHelper<CPUBackend>(ws, n);
-  } else {
-    return daliNumElementsHelper<GPUBackend>(ws, n);
-  }
-}
-
-template <typename T>
-static size_t daliTensorSizeHelper(dali::Workspace* ws, int n) {
-  return ws->Output<T>(n).nbytes();
+  return ws->WithOutput(n, [](auto &output) {
+    return output._num_elements();
+  });
 }
 
 size_t daliTensorSize(daliPipelineHandle_t pipe_handle, int n) {
   dali::Workspace* ws = &(*pipe_handle)->workspace;
-  if (ws->OutputIsType<CPUBackend>(n)) {
-    return daliTensorSizeHelper<CPUBackend>(ws, n);
-  } else {
-    return daliTensorSizeHelper<GPUBackend>(ws, n);
-  }
+  return ws->WithOutput(n, [](auto &output) {
+    return output.nbytes();
+  });
 }
 
 size_t daliMaxDimTensors(daliPipelineHandle_t pipe_handle, int n) {
