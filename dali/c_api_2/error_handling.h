@@ -68,7 +68,7 @@ inline InvalidHandle NullHandle(const char *what_handle) {
 }  // namespace c_api
 }  // namespace dali
 
-#define DALI_PROLOG() try { ::dali::c_api::ActiveCallGuard dali_active_call_guard__; \
+#define DALI_PROLOG() try { ::dali::c_api::ActiveCallGuard dali_active_call_guard_; \
   if (auto err = dali::c_api::CheckInit()) return err; else;  // NOLINT(readability/braces)
 #define DALI_EPILOG() return DALI_SUCCESS; } catch (...) {     \
   return ::dali::c_api::HandleError(std::current_exception()); \
