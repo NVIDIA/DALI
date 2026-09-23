@@ -156,6 +156,28 @@ MERGED_MULTI_INPUT_ARGS = {
     },
 }
 
+# Subset of `MERGED_INPUT_ARGS` whose hidden input allowed GPU placement
+# (InputDevice::MatchBackendOrCPU rather than InputDevice::CPU), mapped to the merged argument
+# name. Since arguments must always be CPU (see Mode spec, "Special arguments"), a GPU-placed
+# value passed for that argument is routed through as a positional input instead, in the dynamic
+# API runtime (see `dynamic._op_builder._route_gpu_merged_arg`); typing/signature generation
+# (`_signatures._get_positional_input_params`) also consults this, via
+# `merge_restores_catchall`, to keep the generated signature able to accept it positionally.
+MERGED_ARG_GPU_INPUT = {
+    "WarpAffine": "matrix",
+}
+
+
+def merge_restores_catchall(schema_name):
+    """Whether hiding `schema_name`'s merged input(s) (see `get_merged_input_names`) from a
+    generated signature must keep a positional catch-all in place.
+
+    GPU-routable (`MERGED_ARG_GPU_INPUT`) and multi-input (`MERGED_MULTI_INPUT_ARGS`) merged
+    cases were reachable positionally before the merge and must stay that way; see
+    `dynamic._op_builder._filter_merged_inputs` for the full rationale.
+    """
+    return schema_name in MERGED_ARG_GPU_INPUT or schema_name in MERGED_MULTI_INPUT_ARGS
+
 
 def get_merged_input_names(schema_name):
     """Return the set of dynamic-API-hidden input names for `schema_name` (empty if none).

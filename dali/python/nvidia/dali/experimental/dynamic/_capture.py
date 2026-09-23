@@ -968,7 +968,7 @@ def _capture_intercept(
     fn_call: types.FunctionType, op_class: type["Operator"], op_name: str | None = None
 ) -> types.FunctionType:
     """Wrap an fn_call to intercept operator calls for transparent pipelining."""
-    from ._op_builder import _resolve_backend
+    from ._op_builder import _resolve_backend, _route_gpu_merged_arg
     from ._ops import _infer_batch_size
 
     is_random = op_class._has_random_state_arg
@@ -976,6 +976,11 @@ def _capture_intercept(
     @mark_transparent
     def wrapper(*inputs, batch_size=None, device=None, **raw_kwargs):
         batch_size = unwrap_invariant(batch_size)
+        # Must run before backend resolution, which infers device/backend from `inputs` alone:
+        # a GPU-placed value given for a GPU-routable merged argument (see
+        # `_op_builder._MERGED_ARG_GPU_INPUT`) needs to be visible there too, or backend
+        # resolution silently picks CPU instead.
+        inputs = _route_gpu_merged_arg(op_class._schema_name, inputs, raw_kwargs)
         device, backend = _resolve_backend(op_class, device, inputs, op_name=op_name)
         capture_ctx = CaptureContext.current()
         if capture_ctx is None or capture_ctx.state is State.DISABLED:
