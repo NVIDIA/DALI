@@ -122,3 +122,72 @@ def _get_input_name(schema, input_idx):
 def _get_variadic_input_name():
     """Return the string representing the name of positional-only input for a variadic context."""
     return "inputs"
+
+
+# Mode spec, "Uniform inputs and arguments": some operators have a positional input and an
+# optional argument that represent the same value, differing only in device placement, e.g.
+# Reshape's `shape_input` (CPU-only) vs. its `shape` tensor-argument (also always CPU). Exposing
+# both separately in the dynamic (ndd) API is redundant, so for that API the input is hidden and
+# the argument is the single canonical, merged parameter for that value. The fn/ops APIs are
+# unaffected and keep exposing both, as before.
+MERGED_INPUT_ARGS = {
+    "Reshape": "shape_input",
+    "Reinterpret": "shape_input",
+    "WarpAffine": "mtx",
+}
+
+# Same idea as `MERGED_INPUT_ARGS`, but for operators where a single positional input is
+# redundant with more than one named argument at once (the named arguments being mutually
+# exclusive with each other, so at most one is ever actually given). Slice's `anchor` input
+# is equivalent to giving either `start` (absolute) or `rel_start` (relative); its `shape`
+# input (named `shape_input` once disambiguated from the `shape` argument, see
+# `_get_input_name`) is equivalent to giving either `shape` or `rel_shape`. `end`/`rel_end`
+# have no positional-input equivalent at all, so they are unaffected either way.
+#
+# Unlike WarpAffine's `mtx`/`matrix`, there is no GPU-routing fallback here: Slice's own doc
+# already discourages placing `anchor`/`shape` on GPU (it costs an extra D2H copy), and,
+# critically, the operator requires `anchor` and `shape` to be given together as positional
+# inputs or not at all (never just one) - so a GPU value for only one of the merged argument
+# groups can't be routed as a lone extra positional input the way WarpAffine's `matrix` is.
+MERGED_MULTI_INPUT_ARGS = {
+    "Slice": {
+        "anchor": ("start", "rel_start"),
+        "shape_input": ("shape", "rel_shape"),
+    },
+}
+
+# Subset of `MERGED_INPUT_ARGS` whose hidden input allowed GPU placement
+# (InputDevice::MatchBackendOrCPU rather than InputDevice::CPU), mapped to the merged argument
+# name. Since arguments must always be CPU (see Mode spec, "Special arguments"), a GPU-placed
+# value passed for that argument is routed through as a positional input instead, in the dynamic
+# API runtime (see `dynamic._op_builder._route_gpu_merged_arg`); typing/signature generation
+# (`_signatures._get_positional_input_params`) also consults this, via
+# `merge_restores_catchall`, to keep the generated signature able to accept it positionally.
+MERGED_ARG_GPU_INPUT = {
+    "WarpAffine": "matrix",
+}
+
+
+def merge_restores_catchall(schema_name):
+    """Whether hiding `schema_name`'s merged input(s) (see `get_merged_input_names`) from a
+    generated signature must keep a positional catch-all in place.
+
+    GPU-routable (`MERGED_ARG_GPU_INPUT`) and multi-input (`MERGED_MULTI_INPUT_ARGS`) merged
+    cases were reachable positionally before the merge and must stay that way; see
+    `dynamic._op_builder._filter_merged_inputs` for the full rationale.
+    """
+    return schema_name in MERGED_ARG_GPU_INPUT or schema_name in MERGED_MULTI_INPUT_ARGS
+
+
+def get_merged_input_names(schema_name):
+    """Return the set of dynamic-API-hidden input names for `schema_name` (empty if none).
+
+    Combines `MERGED_INPUT_ARGS` (1 input <-> 1 argument) and `MERGED_MULTI_INPUT_ARGS`
+    (1 input <-> several mutually exclusive arguments).
+    """
+    names = set()
+    single = MERGED_INPUT_ARGS.get(schema_name)
+    if single is not None:
+        names.add(single)
+    names.update(MERGED_MULTI_INPUT_ARGS.get(schema_name, {}))
+    return names
