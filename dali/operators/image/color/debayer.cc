@@ -26,7 +26,10 @@ The input images must be 2D tensors (``HW``) or 3D tensors (``HWC``) where the n
 The operator supports sequence of images/video-like inputs (layout ``FHW``).
 The output of the operator is always ``HWC`` (or ``FHWC`` for sequences).
 
-For example, the following snippet presents debayering of batch of image sequences::
+For example, the following snippet presents debayering of batch of image sequences. The operator
+names are shown without an API prefix; use whichever API you're working with, e.g.
+``fn.external_source`` and ``fn.experimental.debayer``, ``ops`` equivalents, or the dynamic API
+equivalents::
 
   def bayered_sequence(sample_info):
     # some actual source of video inputs with corresponding pattern
