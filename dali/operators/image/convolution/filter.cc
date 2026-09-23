@@ -56,8 +56,7 @@ Please note that the intermediate type used for the computation is always float3
     .InputDox(1, "filter", "TensorList", R"code(Batch of filters.
 
 For inputs with two spatial dimensions (images or video), each filter must be a 2D array
-(or a sequence of 2D arrays to be applied
-:func:`per-frame<nvidia.dali.fn.per_frame>` to a video input).
+(or a sequence of 2D arrays to be applied per-frame to a video input, see ``per_frame``).
 For volumetric inputs, the filter must be a 3D array.
 The filter values must have float32 type.)code")
     .InputDox(2, "fill_value", "TensorList", R"code(Batch of scalars used for padding.
@@ -65,8 +64,8 @@ The filter values must have float32 type.)code")
 If ``"border"`` is set to ``"constant"``, the input samples will be padded with
 the corresponding scalars when convolved with the filter.
 The scalars must be of the same type as the input samples.
-For video/sequence input, an array of scalars can be specified to be applied
-:func:`per-frame<nvidia.dali.fn.per_frame>`.)code")
+For video/sequence input, an array of scalars can be specified to be applied per-frame
+(see ``per_frame``).)code")
     .InputDevice(1, 3, InputDevice::MatchBackendOrCPU)
     .AddOptionalArg("anchor",
                     R"code(Specifies the position of the filter over the input.
