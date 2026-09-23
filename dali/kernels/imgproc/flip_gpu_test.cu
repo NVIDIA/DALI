@@ -101,5 +101,43 @@ INSTANTIATE_TEST_SUITE_P(FlipGpuTest, FlipGpuTest,
         std::array<Index, sample_ndim>{1, 4, 9, 18, 3},
         std::array<Index, sample_ndim>{1, 3, 18, 9, 4}}));
 
+TEST(FlipGpuZeroExtentTest, DoesNotCrashOnZeroExtentSample) {
+  // Regression test for https://github.com/NVIDIA/DALI/issues/6504
+  // Zero-extent samples used to cause a host-side division by zero when computing
+  // the CUDA launch grid, before any kernel was launched.
+  TensorListShape<sample_ndim> shape({
+      TensorShape<sample_ndim>{1, 1, 4, 4, 3},   // normal sample
+      TensorShape<sample_ndim>{1, 1, 0, 4, 3},   // zero height
+      TensorShape<sample_ndim>{1, 1, 4, 0, 3},   // zero width
+      TensorShape<sample_ndim>{1, 1, 4, 4, 3}});  // normal sample
+
+  TestTensorList<float, sample_ndim> ttl_in, ttl_out;
+  ttl_in.reshape(shape);
+  auto tlv = ttl_in.cpu(nullptr);
+  std::mt19937_64 rng;
+  UniformRandomFill(tlv, rng, 0., 10.);
+
+  KernelContext ctx;
+  ctx.gpu.stream = 0;
+  FlipGPU<float> kernel;
+  auto in_view = ttl_in.gpu(nullptr);
+  ttl_in.invalidate_cpu();
+  KernelRequirements reqs = kernel.Setup(ctx, in_view);
+  ttl_out.reshape(reqs.output_shapes[0].to_static<sample_ndim>());
+  auto out_view = ttl_out.gpu();
+  std::vector<int> flip_z(4, 0), flip_y(4, 1), flip_x(4, 1);
+  ASSERT_NO_THROW(kernel.Run(ctx, out_view, in_view, flip_z, flip_y, flip_x));
+  CUDA_CALL(cudaStreamSynchronize(0));
+
+  auto out_view_cpu = ttl_out.cpu(nullptr);
+  auto in_view_cpu = ttl_in.cpu(nullptr);
+  for (int i : {0, 3}) {
+    ASSERT_TRUE(is_flipped(out_view_cpu.tensor_data(i),
+                           in_view_cpu.tensor_data(i),
+                           shape[i][0], shape[i][1], shape[i][2], shape[i][3], shape[i][4],
+                           flip_z[i], flip_y[i], flip_x[i]));
+  }
+}
+
 }  // namespace kernels
 }  // namespace dali

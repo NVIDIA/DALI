@@ -61,6 +61,9 @@ void FlipImpl(T *__restrict__ output, const T *__restrict__ input,
               const TensorShape<sample_ndim> &shape,
               bool flip_z, bool flip_y, bool flip_x, cudaStream_t stream) {
   auto plane_width = shape[3] * shape[4];
+  if (plane_width == 0 || shape[2] == 0 || shape[0] == 0 || shape[1] == 0) {
+    return;
+  }
   unsigned int block_x = plane_width < 32 ? plane_width : 32;
   unsigned int block_y = shape[2] < 32 ? shape[2] : 32;
   dim3 block(block_x, block_y, 1);
