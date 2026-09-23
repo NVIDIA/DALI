@@ -14,6 +14,7 @@
 
 import os
 from contextlib import contextmanager
+from operator import attrgetter
 
 from ndd_utils import _is_captured
 from nose2.tools import params
@@ -21,7 +22,7 @@ from nose_utils import assert_warns
 from test_utils import get_dali_extra_path, load_test_operator_plugin
 
 import nvidia.dali.backend as _b
-import nvidia.dali.experimental.dynamic as ndd
+from nvidia.dali.experimental import dynamic as ndd
 from nvidia.dali.experimental.dynamic import _op_builder
 
 load_test_operator_plugin()
@@ -42,9 +43,7 @@ images_root = os.path.join(get_dali_extra_path(), "db", "single", "jpeg")
     ("sub.dyn_deprecation_warning_op", "sub.dyn_deprecation_replacement_op", "Another message"),
 )
 def test_deprecation_warning_names_dynamic_api(op_path, replacement, message):
-    op = ndd
-    for part in op_path.split("."):
-        op = getattr(op, part)
+    op = attrgetter(op_path)(ndd)
 
     glob = f"WARNING: `nvidia.dali.experimental.dynamic.{op_path}` is now deprecated."
     if replacement:
