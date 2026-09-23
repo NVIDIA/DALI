@@ -33,7 +33,8 @@ or between the full expansion and original shape with ``mode='halfway'``.
   Boxes should be rotated first before the image as this op requires the original image shape to calculate
   the rotated boxes.
 
-Example usage is below:
+Example usage is below (the operator names are shown without an API prefix; use whichever API
+you're working with, e.g. ``fn.bbox_rotate``, ``ops.BBoxRotate()``, or the dynamic API equivalent):
 
 .. code-block:: python
 

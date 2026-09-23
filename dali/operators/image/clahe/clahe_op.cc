@@ -199,7 +199,8 @@ color channel independently.
 **Performance**: The GPU variant of this operator includes automatic optimizations (kernel fusion,
 warp-privatized histograms, vectorized memory access) that provide 1.5-3x speedup
 while maintaining OpenCV algorithmic compatibility.
-Example usage:
+Example usage (``clahe`` is shown without an API prefix; use whichever API you're working with,
+e.g. ``fn.clahe``, ``ops.Clahe()``, or the dynamic API equivalent):
   # Grayscale image
   clahe_out = clahe(grayscale_image, tiles_x=8, tiles_y=8, clip_limit=2.0)
 

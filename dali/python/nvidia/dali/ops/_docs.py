@@ -208,10 +208,14 @@ def _get_kwargs(schema, api="ops", args=None):
                     default_value = ast.literal_eval(default_value_string)
                     type_name += ", default = `{}`".format(_default_converter(dtype, default_value))
             doc += schema.GetArgumentDox(arg).rstrip("\n")
-            if schema.ArgSupportsPerFrameInput(arg) and api != "dynamic":
-                # `per_frame` is a fn/pipeline-graph-mode concept; the dynamic (ndd) API has no
-                # equivalent, so the note is omitted there instead of pointing at fn.per_frame.
-                doc += "\n\nSupports :func:`per-frame<nvidia.dali.fn.per_frame>` inputs."
+            if schema.ArgSupportsPerFrameInput(arg):
+                if api == "dynamic":
+                    doc += (
+                        "\n\nSupports :func:`per-frame"
+                        "<nvidia.dali.experimental.dynamic.per_frame>` inputs."
+                    )
+                else:
+                    doc += "\n\nSupports :func:`per-frame<nvidia.dali.fn.per_frame>` inputs."
             if deprecation_warning:
                 doc += "\n\n" + deprecation_warning
         elif deprecation_warning:
