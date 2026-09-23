@@ -56,12 +56,15 @@ def _to_numpy(x):
 
 @contextlib.contextmanager
 def _spy_process_params():
-    """Record the (raw_args, raw_kwargs) each `Operator._process_params` call receives."""
+    """Record the (cls_name, raw_args, raw_kwargs) each `Operator._process_params` call
+    receives. A GPU-routed argument can make the runtime insert its own internal `Copy` calls
+    around the op being tested, so callers must pick the call by class name (see
+    `_warp_affine_call`) instead of assuming the op's own call is the last one recorded."""
     calls = []
     orig = Operator.__dict__["_process_params"]
 
     def spy(cls, backend, op_device, batch_size, *raw_args, **raw_kwargs):
-        calls.append((raw_args, dict(raw_kwargs)))
+        calls.append((cls.__name__, raw_args, dict(raw_kwargs)))
         return orig.__func__(cls, backend, op_device, batch_size, *raw_args, **raw_kwargs)
 
     Operator._process_params = classmethod(spy)
@@ -69,6 +72,19 @@ def _spy_process_params():
         yield calls
     finally:
         Operator._process_params = orig
+
+
+def _warp_affine_call(calls):
+    """Pick the recorded `_process_params` call that belongs to WarpAffine itself, out of the
+    calls captured by `_spy_process_params` (which also sees internal `Copy` calls the runtime
+    inserts around a GPU-routed argument)."""
+    matches = [
+        (raw_args, raw_kwargs)
+        for cls_name, raw_args, raw_kwargs in calls
+        if cls_name == "WarpAffine"
+    ]
+    assert len(matches) == 1, calls
+    return matches[0]
 
 
 # --- fn-style (`ndd.warp_affine`) ---
@@ -92,7 +108,7 @@ def test_warp_affine_fn_cpu_matrix_stays_an_argument():
     with _spy_process_params() as calls:
         out = ndd.warp_affine(_image(), matrix=matrix)
     assert out.device.device_type == "cpu"
-    raw_args, raw_kwargs = calls[-1]
+    raw_args, raw_kwargs = _warp_affine_call(calls)
     assert raw_kwargs.get("matrix") is matrix
     assert not any(a is matrix for a in raw_args)
 
@@ -108,7 +124,7 @@ def test_warp_affine_fn_gpu_matrix_routes_backend_to_gpu():
     with _spy_process_params() as calls:
         out = ndd.warp_affine(_image("cpu"), matrix=matrix)
     assert out.device.device_type == "gpu"
-    raw_args, raw_kwargs = calls[-1]
+    raw_args, raw_kwargs = _warp_affine_call(calls)
     assert "matrix" not in raw_kwargs
     assert raw_args[-1] is matrix
 
@@ -173,10 +189,14 @@ def test_warp_affine_ops_class_gpu_matrix_routes_to_input():
     with _spy_process_params() as calls:
         out = op(image, matrix=matrix)
     assert out.device.device_type == "gpu"
-    raw_args, raw_kwargs = calls[-1]
+    raw_args, raw_kwargs = _warp_affine_call(calls)
     assert "matrix" not in raw_kwargs
     assert raw_args[-1] is matrix
-    np.testing.assert_array_equal(_to_numpy(out), _to_numpy(op(image, matrix=_matrix("cpu"))))
+    # A fresh instance: the op's input/argument shape must stay fixed across calls on the same
+    # (stateful) instance, and this call's matrix takes the CPU-argument path instead of the
+    # GPU-routed input path, changing that shape.
+    other_op = ndd._ops.WarpAffine(device="gpu")
+    np.testing.assert_array_equal(_to_numpy(out), _to_numpy(other_op(image, matrix=_matrix("cpu"))))
 
 
 @eval_modes()
@@ -186,7 +206,7 @@ def test_warp_affine_ops_class_cpu_matrix_stays_an_argument():
     with _spy_process_params() as calls:
         out = op(_image(), matrix=matrix)
     assert out.device.device_type == "cpu"
-    raw_args, raw_kwargs = calls[-1]
+    raw_args, raw_kwargs = _warp_affine_call(calls)
     assert raw_kwargs.get("matrix") is matrix
     assert not any(a is matrix for a in raw_args)
 
