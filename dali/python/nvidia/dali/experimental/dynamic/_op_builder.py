@@ -610,9 +610,7 @@ def build_fn_wrapper(op, fn_name=None, add_to_module=True):
         # Uniform inputs and arguments (Mode spec): a GPU-placed value given for the merged
         # argument can't flow through the (CPU-only) argument channel, so route it as an
         # extra positional input instead - the same way a directly-passed GPU input would.
-        # Normally already routed by `_capture_intercept`'s wrapper (before backend resolution,
-        # which needs to see it too); this is a no-op then, and only takes effect when `fn_call`
-        # is invoked directly, bypassing that wrapper (e.g. in tests).
+        # (`_capture_intercept`'s wrapper already accounted for it in backend resolution.)
         inputs = _route_gpu_merged_arg(op._schema_name, inputs, raw_kwargs)
 
         init_args = {}
