@@ -33,14 +33,15 @@ or between the full expansion and original shape with ``mode='halfway'``.
   Boxes should be rotated first before the image as this op requires the original image shape to calculate
   the rotated boxes.
 
-Example usage is below:
+Example usage is below (the operator names are shown without an API prefix; use whichever API
+you're working with, e.g. ``fn.bbox_rotate``, ``ops.BBoxRotate()``, or the dynamic API equivalent):
 
 .. code-block:: python
 
-  boxes, labels = fn.bbox_rotate(
+  boxes, labels = bbox_rotate(
     boxes, labels, angle=angle, input_shape=image.shape(), keep_size=keep_size
   )
-  image = fn.rotate(image, angle=angle, keep_size=keep_size)
+  image = rotate(image, angle=angle, keep_size=keep_size)
 
 )code")
     .NumInput(1, 2)
@@ -77,11 +78,11 @@ The order of dimensions is determined by the layout that is provided in `shape_l
     .AddOptionalArg(
         "keep_size",
         R"code(If true, the bounding box output coordinates will assume the image canvas size was also kept
-(see ``nvidia.dali.fn.rotate``).)code",
+(see the ``rotate`` operator).)code",
         false, false)
     .AddOptionalArg<float>(
         "size",
-        R"code(The output canvas size optionally specified in the associated `fn.rotate`.)code",
+        R"code(The output canvas size optionally specified in the associated ``rotate`` operator.)code",
         dali::vector<float>(), true)
     .AddOptionalArg("mode",
                     R"code(Mode of the bounding box transformation. Possible values are:

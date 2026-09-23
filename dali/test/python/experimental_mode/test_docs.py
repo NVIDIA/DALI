@@ -14,6 +14,7 @@
 
 import nvidia.dali.experimental.dynamic as ndd
 import re
+from nvidia.dali import fn
 
 _graph_regex = re.compile(r".*(^|[^A-Za-z0-9_])[Gg]raph([ .,)]|$).*")
 
@@ -46,6 +47,33 @@ def test_function_docs_no_tensor_list():
         if should_skip(f):
             continue
         _check_no_pipeline_mode_wording(f.__doc__, f._schema)
+
+
+def test_per_frame_docs_point_to_dynamic_api():
+    checked = 0
+    for f in ndd._ops._all_functions:
+        if should_skip(f):
+            continue
+        schema = f._schema
+        if not any(schema.ArgSupportsPerFrameInput(arg) for arg in schema.GetArgumentNames()):
+            continue
+        assert "nvidia.dali.experimental.dynamic.per_frame" in f.__doc__, schema.Name()
+        checked += 1
+    assert checked > 0
+
+    assert "nvidia.dali.fn.per_frame" in fn.gaussian_blur.__doc__
+
+
+def test_docs_no_fn_api_references():
+    for f in ndd._ops._all_functions:
+        if should_skip(f):
+            continue
+        assert "nvidia.dali.fn." not in f.__doc__, f._schema.Name()
+    for c in ndd._ops._all_ops:
+        if should_skip(c):
+            continue
+        assert "nvidia.dali.fn." not in c.__init__.__doc__, c._schema.Name()
+        assert "nvidia.dali.fn." not in c.__call__.__doc__, c._schema.Name()
 
 
 def test_op_docs_present():
