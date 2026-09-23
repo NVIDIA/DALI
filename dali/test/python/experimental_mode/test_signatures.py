@@ -21,39 +21,55 @@ the generated typing, or IDE-suggested calls fail at runtime.
 from inspect import Parameter
 
 import nvidia.dali.backend as _b
-from nvidia.dali.ops import _signatures
+from nose2.tools import params
+from nvidia.dali.ops import _names, _signatures
+
+_VARIADIC = _names._get_variadic_input_name()
 
 
-def _positional_input_names(schema_name, api):
+def _positional_inputs(schema_name, api):
     schema = _b.GetSchema(schema_name)
     sig = _signatures._call_signature(schema, api, include_kwargs=False)
     return [
-        p.name
+        (p.name, p.kind)
         for p in sig.parameters.values()
         if p.kind in (Parameter.POSITIONAL_ONLY, Parameter.VAR_POSITIONAL)
     ]
 
 
-def test_warp_affine_dynamic_signature_hides_merged_input_but_keeps_catchall():
-    # "mtx" is merged into the "matrix" argument for the dynamic API...
-    names = _positional_input_names("WarpAffine", "dynamic")
-    assert "mtx" not in names
-    # ...but WarpAffine's merge is GPU-routable, so a catch-all must remain so a GPU-placed
-    # `matrix` (or a plain positional `mtx`, for backward compatibility) can still be given
-    # positionally at runtime - see `dynamic._op_builder._filter_merged_inputs`.
-    assert names[-1] == _signatures._names._get_variadic_input_name()
+@params(
+    ("WarpAffine", ["mtx"]),
+    ("Slice", ["anchor", "shape_input"]),
+)
+def test_dynamic_signature_hides_merged_inputs_but_keeps_catchall(schema_name, merged):
+    """GPU-routable (WarpAffine) and multi-input (Slice) merges keep a positional catch-all at
+    runtime (see `dynamic._op_builder._filter_merged_inputs`), so the typing must too."""
+    inputs = _positional_inputs(schema_name, "dynamic")
+    names = [name for name, _ in inputs]
+    for name in merged:
+        assert name not in names, f"{name!r} still advertised in {names}"
+    assert inputs[0] == ("data", Parameter.POSITIONAL_ONLY)
+    assert inputs[-1] == (_VARIADIC, Parameter.VAR_POSITIONAL)
+    assert len(inputs) == 2
 
 
-def test_warp_affine_fn_signature_keeps_named_input():
-    # The fn/ops APIs are unaffected by the dynamic-API-only merge.
-    names = _positional_input_names("WarpAffine", "fn")
-    assert "mtx" in names
+@params("Reshape", "Reinterpret")
+def test_dynamic_signature_hides_merged_input_without_catchall(schema_name):
+    """Non-GPU-routable single-input merges drop the positional slot at runtime; the typing
+    must not advertise it (neither by name nor through a catch-all)."""
+    inputs = _positional_inputs(schema_name, "dynamic")
+    assert inputs == [("data", Parameter.POSITIONAL_ONLY)]
 
 
-def test_reshape_dynamic_signature_hides_merged_input_without_catchall():
-    # "shape_input" is merged into the "shape" argument for the dynamic API. Unlike WarpAffine,
-    # this merge isn't GPU-routable, so no caller can reach it positionally any more; the
-    # generated signature must not advertise it as if they still could.
-    names = _positional_input_names("Reshape", "dynamic")
-    assert "shape_input" not in names
-    assert _signatures._names._get_variadic_input_name() not in names
+@params(
+    ("WarpAffine", ["mtx"]),
+    ("Slice", ["anchor", "shape_input"]),
+    ("Reshape", ["shape_input"]),
+    ("Reinterpret", ["shape_input"]),
+)
+def test_fn_signature_keeps_merged_inputs(schema_name, merged):
+    """The fn/ops APIs are unaffected by the dynamic-API-only merge."""
+    for api in ("fn", "ops"):
+        names = [name for name, _ in _positional_inputs(schema_name, api)]
+        for name in merged:
+            assert name in names, f"{name!r} missing from {api} signature {names}"
