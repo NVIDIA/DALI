@@ -60,6 +60,8 @@ template <typename T>
 void FlipImpl(T *__restrict__ output, const T *__restrict__ input,
               const TensorShape<sample_ndim> &shape,
               bool flip_z, bool flip_y, bool flip_x, cudaStream_t stream) {
+  if (volume(shape) == 0)
+    return;
   auto plane_width = shape[3] * shape[4];
   unsigned int block_x = plane_width < 32 ? plane_width : 32;
   unsigned int block_y = shape[2] < 32 ? shape[2] : 32;
