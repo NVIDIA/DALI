@@ -976,12 +976,13 @@ def _capture_intercept(
     @mark_transparent
     def wrapper(*inputs, batch_size=None, device=None, **raw_kwargs):
         batch_size = unwrap_invariant(batch_size)
-        # Must run before backend resolution, which infers device/backend from `inputs` alone:
-        # a GPU-placed value given for a GPU-routable merged argument (see
-        # `_op_builder._MERGED_ARG_GPU_INPUT`) needs to be visible there too, or backend
-        # resolution silently picks CPU instead.
-        inputs = _route_gpu_merged_arg(op_class._schema_name, inputs, raw_kwargs)
-        device, backend = _resolve_backend(op_class, device, inputs, op_name=op_name)
+        # Backend resolution infers the device from `inputs` alone, so it must also see a
+        # GPU-placed value given for a GPU-routable merged argument (see
+        # `_op_builder._MERGED_ARG_GPU_INPUT`), or it silently picks CPU. Only a copy is routed:
+        # capture classification maps `inputs`/`raw_kwargs` back to the call's source by
+        # position/name, so the actual routing is left to `fn_call`.
+        backend_inputs = _route_gpu_merged_arg(op_class._schema_name, inputs, dict(raw_kwargs))
+        device, backend = _resolve_backend(op_class, device, backend_inputs, op_name=op_name)
         capture_ctx = CaptureContext.current()
         if capture_ctx is None or capture_ctx.state is State.DISABLED:
             return fn_call(
