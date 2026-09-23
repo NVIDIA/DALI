@@ -35,6 +35,9 @@ __global__ void CopyTransformsKernel(WarpAffineParams<ndims> *output,
 template <int ndims>
 void InvertTransforms(WarpAffineParams<ndims> *output, const WarpAffineParams<ndims> **input,
                       int count, cudaStream_t stream) {
+  if (count == 0) {
+    return;
+  }
   int blocks = div_ceil(count, 512);
   int threads = std::min(count, 512);
   InvertTransformsKernel<ndims><<<blocks, threads, 0, stream>>>(output, input, count);
@@ -43,6 +46,9 @@ void InvertTransforms(WarpAffineParams<ndims> *output, const WarpAffineParams<nd
 template <int ndims>
 void CopyTransforms(WarpAffineParams<ndims> *output, const WarpAffineParams<ndims> **input,
                     int count, cudaStream_t stream) {
+  if (count == 0) {
+    return;
+  }
   int blocks = div_ceil(count, 512);
   int threads = std::min(count, 512);
   CopyTransformsKernel<ndims><<<blocks, threads, 0, stream>>>(output, input, count);
