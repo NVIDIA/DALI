@@ -1,4 +1,4 @@
-// Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2025-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@
 #include <string>
 #include <sstream>
 #include "dali/dali.h"
+#include "dali/c_api_2/pipeline_registry.h"
 #include "dali/core/error_handling.h"
 
 inline std::ostream &operator<<(std::ostream &os, daliResult_t result) {
@@ -50,6 +51,14 @@ class InvalidHandle : public std::invalid_argument {
   explicit InvalidHandle(const char *what) : std::invalid_argument(what) {}
 };
 
+/** Thrown when an operation is attempted while DALI is shutting down or has been shut down. */
+class Unloading : public std::runtime_error {
+ public:
+  Unloading() : std::runtime_error("DALI is unloading") {}
+  explicit Unloading(const std::string &what) : std::runtime_error(what) {}
+  explicit Unloading(const char *what) : std::runtime_error(what) {}
+};
+
 inline InvalidHandle NullHandle() { return InvalidHandle("The handle must not be NULL."); }
 
 inline InvalidHandle NullHandle(const char *what_handle) {
@@ -59,7 +68,8 @@ inline InvalidHandle NullHandle(const char *what_handle) {
 }  // namespace c_api
 }  // namespace dali
 
-#define DALI_PROLOG() try { if (auto err = dali::c_api::CheckInit()) return err; else;
+#define DALI_PROLOG() try { ::dali::c_api::ActiveCallGuard dali_active_call_guard_; \
+  if (auto err = dali::c_api::CheckInit()) return err; else;  // NOLINT(readability/braces)
 #define DALI_EPILOG() return DALI_SUCCESS; } catch (...) {     \
   return ::dali::c_api::HandleError(std::current_exception()); \
 }

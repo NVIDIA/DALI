@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <algorithm>
+#include <stdexcept>
 #include <string>
 #include <utility>
 #include <vector>
@@ -34,6 +35,7 @@
 #include "dali/pipeline/operator/checkpointing/checkpoint.h"
 
 #include "dali/c_api.h"  // NOLINT [build/include]
+#include "dali/c_api_2/pipeline_registry.h"
 
 // Sanity check that the values of the flags are consistent with the ExecutorType enum.
 namespace dali {
@@ -216,6 +218,12 @@ inline dali::mm::memory_kind_id GetMemKind(device_type_t device_type, bool is_pi
         : (is_pinned ? dali::mm::memory_kind_id::pinned : dali::mm::memory_kind_id::host);
 }
 
+void DestroyPipeline(DALIPipeline *pipe_wrap) {
+  auto wrap = std::unique_ptr<DALIPipeline>(pipe_wrap);
+  if (wrap->copy_stream)
+    CUDA_CALL(cudaStreamSynchronize(wrap->copy_stream));
+}
+
 inline std::unique_ptr<DALIPipeline> WrapPipeline(std::unique_ptr<dali::Pipeline> pipeline) {
   auto pipe_wrap = std::make_unique<DALIPipeline>();
 
@@ -224,6 +232,9 @@ inline std::unique_ptr<DALIPipeline> WrapPipeline(std::unique_ptr<dali::Pipeline
   }
 
   pipe_wrap->pipeline = std::move(pipeline);
+  dali::c_api::PipelineRegistry::instance().Register(pipe_wrap.get(), [](void *p) {
+    DestroyPipeline(static_cast<DALIPipeline *>(p));
+  });
   return pipe_wrap;
 }
 
@@ -276,6 +287,7 @@ daliCreatePipeline3(daliPipelineHandle *pipe_handle, const char *serialized_pipe
                     dali_exec_flags_t exec_flags, int prefetch_queue_depth,
                     int cpu_prefetch_queue_depth, int gpu_prefetch_queue_depth,
                     int enable_memory_stats) {
+  dali::c_api::ActiveCallGuard active_call_guard;
   dali::PipelineParams params = dali::MakePipelineParams(max_batch_size, num_threads, device_id);
   params.executor_type = static_cast<dali::ExecutorType>(exec_flags);
   if (exec_flags & DALI_EXEC_IS_SEPARATED) {
@@ -296,6 +308,7 @@ daliCreatePipeline3(daliPipelineHandle *pipe_handle, const char *serialized_pipe
 
 void daliDeserializeDefault(daliPipelineHandle *pipe_handle, const char *serialized_pipeline,
                             int length) {
+  dali::c_api::ActiveCallGuard active_call_guard;
   auto pipeline = std::make_unique<dali::Pipeline>(std::string(serialized_pipeline, length));
   pipeline->Build();
   *pipe_handle = WrapPipeline(std::move(pipeline)).release();
@@ -728,9 +741,9 @@ void daliDeletePipeline(daliPipelineHandle_t pipe_handle) {
   if (!pipe_handle)
     return;
 
-  auto wrap = std::unique_ptr<DALIPipeline>(*pipe_handle);
-  if (wrap->copy_stream)
-    CUDA_CALL(cudaStreamSynchronize(wrap->copy_stream));
+  dali::c_api::ActiveCallGuard active_call_guard;
+  if (!dali::c_api::PipelineRegistry::instance().Destroy(*pipe_handle))
+    throw std::invalid_argument("The pipeline handle is invalid or has already been deleted.");
 }
 
 void daliLoadLibrary(const char* lib_path) {
