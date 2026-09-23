@@ -67,17 +67,28 @@ _unsupported_args = {"bytes_per_sample_hint", "preserve"}
 # See nvidia.dali.ops._names.MERGED_INPUT_ARGS / MERGED_MULTI_INPUT_ARGS for the rationale.
 _get_merged_input_names = _names.get_merged_input_names
 
-# Subset of `_names.MERGED_INPUT_ARGS` whose hidden input allowed GPU placement
-# (InputDevice::MatchBackendOrCPU rather than InputDevice::CPU), mapped to the merged argument
-# name. Since arguments must always be CPU (see Mode spec, "Special arguments"), a GPU-placed
-# value passed for that argument is routed through as a positional input instead.
-_MERGED_ARG_GPU_INPUT = {
-    "WarpAffine": "matrix",
-}
+# See nvidia.dali.ops._names.MERGED_ARG_GPU_INPUT for the rationale.
+_MERGED_ARG_GPU_INPUT = _names.MERGED_ARG_GPU_INPUT
 
 
 def _is_gpu_tensor_or_batch(value):
     return isinstance(value, (Tensor, Batch)) and value.device.device_type == "gpu"
+
+
+def _route_gpu_merged_arg(schema_name, inputs, raw_kwargs):
+    """Move a GPU-placed value given for a GPU-routable merged argument (see
+    `_MERGED_ARG_GPU_INPUT`) from `raw_kwargs` into `inputs`, the same way a value passed
+    directly as a positional input would flow.
+
+    Must run before backend/device resolution (which only looks at `inputs`) and before the
+    value could otherwise reach the (CPU-only) argument-processing path, or the GPU placement
+    is lost. Mutates `raw_kwargs` in place (pops the routed argument) when routing occurs;
+    returns the (possibly extended) `inputs` tuple.
+    """
+    gpu_route_arg = _MERGED_ARG_GPU_INPUT.get(schema_name)
+    if gpu_route_arg is not None and _is_gpu_tensor_or_batch(raw_kwargs.get(gpu_route_arg)):
+        inputs = (*inputs, raw_kwargs.pop(gpu_route_arg))
+    return inputs
 
 
 def _filter_merged_inputs(inputs, schema_name):
@@ -105,10 +116,7 @@ def _filter_merged_inputs(inputs, schema_name):
     if not merged_input_names:
         return inputs
     inputs = [i for i in inputs if i.split("=", 1)[0] not in merged_input_names]
-    restore_catchall = (
-        schema_name in _MERGED_ARG_GPU_INPUT or schema_name in _names.MERGED_MULTI_INPUT_ARGS
-    )
-    if restore_catchall and inputs and inputs[-1] == "*":
+    if _names.merge_restores_catchall(schema_name) and inputs and inputs[-1] == "*":
         inputs = inputs[:-1] + ["*inputs"]
     return inputs
 
@@ -401,6 +409,7 @@ def build_call_function(schema, op_class):
             _caller_frame = resolve_callsite_frame(depth_hint=4)
 
         if _process_params:
+            raw_args = _route_gpu_merged_arg(op_class._schema_name, raw_args, raw_kwargs)
             inputs, kwargs = op_class._process_params(
                 self._backend,
                 self._device,
@@ -601,9 +610,10 @@ def build_fn_wrapper(op, fn_name=None, add_to_module=True):
         # Uniform inputs and arguments (Mode spec): a GPU-placed value given for the merged
         # argument can't flow through the (CPU-only) argument channel, so route it as an
         # extra positional input instead - the same way a directly-passed GPU input would.
-        gpu_route_arg = _MERGED_ARG_GPU_INPUT.get(op._schema_name)
-        if gpu_route_arg is not None and _is_gpu_tensor_or_batch(raw_kwargs.get(gpu_route_arg)):
-            inputs = (*inputs, raw_kwargs.pop(gpu_route_arg))
+        # Normally already routed by `_capture_intercept`'s wrapper (before backend resolution,
+        # which needs to see it too); this is a no-op then, and only takes effect when `fn_call`
+        # is invoked directly, bypassing that wrapper (e.g. in tests).
+        inputs = _route_gpu_merged_arg(op._schema_name, inputs, raw_kwargs)
 
         init_args = {}
         call_args = {}
