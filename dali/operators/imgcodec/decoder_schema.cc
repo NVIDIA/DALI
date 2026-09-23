@@ -230,7 +230,7 @@ and shape is incompatible with the named arguments specified above.
 The slice arguments should provide as many dimensions as specified by the `axis_names` or `axes`
 arguments.
 
-By default, the :meth:`nvidia.dali.fn.decoders.image_slice` operator uses normalized coordinates
+By default, the ``decoders.image_slice`` operator uses normalized coordinates
 and "WH" order for the slice arguments.
 
 When possible, the operator uses the ROI decoding, reducing the decoding time and memory consumption.
