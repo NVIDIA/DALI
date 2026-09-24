@@ -1,4 +1,17 @@
 # -*- coding: utf-8 -*-
+# Copyright (c) 2018-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 #
 # Configuration file for the Sphinx documentation builder.
 #
@@ -61,6 +74,10 @@ if not git_sha:
         git_sha = "0000000"
 
 git_sha = git_sha[:7] if len(git_sha) > 7 else git_sha
+
+# git ref used for links to the sources of the documented revision
+github_ref = git_sha if git_sha != "0000000" else "main"
+github_url = "https://github.com/NVIDIA/DALI"
 
 version = str(version_long + "-" + git_sha)
 # The full version, including alpha/beta/rc tags
@@ -172,13 +189,33 @@ extensions = [
     "dali_tabs",
 ]
 
-nbsphinx_prolog = """
-{% if 'dynamic_mode' in env.docname %}
+# Prolog prepended to every notebook. Renders the mode badges and a note linking to the
+# notebook source on GitHub and to Google Colab, see docs/examples/running_examples.rst.
+nbsphinx_prolog = f"""
+{{% set notebook = "docs/" ~ env.docname ~ ".ipynb" %}}
+{{% if 'dynamic_mode' in env.docname %}}
 :bdg-primary:`Dynamic Mode`
-{% endif %}
-{% if 'pipeline_mode' in env.docname %}
+{{% endif %}}
+{{% if 'pipeline_mode' in env.docname %}}
 :bdg-primary:`Pipeline Mode`
-{% endif %}
+{{% endif %}}
+
+.. note::
+
+   This page was generated from the :fileref:`{{{{ notebook }}}}` Jupyter notebook.
+   You can run it locally or `open it in Google Colab
+   <https://colab.research.google.com/github/NVIDIA/DALI/blob/{github_ref}/{{{{ notebook }}}}>`__,
+   see :ref:`running_examples` for more information. To prepare Colab for this exact
+   documentation revision, run this cell before the tutorial:
+
+   .. code-block:: python
+
+      setup_url = (
+          "https://raw.githubusercontent.com/NVIDIA/DALI/"
+          "{github_ref}/docs/examples/colab_setup.py"
+      )
+      !curl -sSL $setup_url -o colab_setup.py
+      %run colab_setup.py --ref {github_ref}
 """
 
 # https://stackoverflow.com/questions/67473396/shorten-display-format-of-python-type-annotations-in-sphinx
@@ -544,12 +581,7 @@ texinfo_documents = [
 # -- Extension configuration -------------------------------------------------
 extlinks = {
     "issue": ("https://github.com/NVIDIA/DALI/issues/%s", "issue %s"),
-    "fileref": (
-        "https://github.com/NVIDIA/DALI/tree/"
-        + (git_sha if git_sha != "0000000" else "main")
-        + "/%s",
-        "%s",
-    ),
+    "fileref": (f"{github_url}/tree/{github_ref}/%s", "%s"),
 }
 
 intersphinx_mapping = {
