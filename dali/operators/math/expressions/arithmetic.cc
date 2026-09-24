@@ -142,9 +142,9 @@ Examples::
   add(&0 mul(&1 $0:int8))
   add(&0 rand()))code",
             DALIDataType::DALI_STRING, false)
-    .AddOptionalArg<std::vector<int32_t>>("integer_constants", "", nullptr, true)
+    .AddOptionalArg<std::vector<int32_t>>("integer_constants", "", nullptr)
     .NumInput(1, 64)  // Some arbitrary number that needs to be validated in operator
-    .AddOptionalArg<std::vector<float>>("real_constants", "", nullptr, true)
+    .AddOptionalArg<std::vector<float>>("real_constants", "", nullptr)
     .NumOutput(1)
     .MakeDocHidden()
     .OutputNDim(0, [](const OpSpec &spec)->std::optional<int> {
