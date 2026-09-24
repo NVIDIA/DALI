@@ -44,3 +44,5 @@ install(DIRECTORY ${CMAKE_SOURCE_DIR}/include/ ${CMAKE_SOURCE_DIR}/dali
           PATTERN "*.h"
           # float16.h, a public header, includes dali/util/half.hpp.
           PATTERN "*.hpp")
+
+install(FILES ${DALI_GENERATED_HDRS} DESTINATION include/dali/core)
