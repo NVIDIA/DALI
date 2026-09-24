@@ -174,6 +174,46 @@ def test_cuda_array_interface_v3_stream():
     clear_context_caches()
 
 
+def test_cuda_array_interface_v3_export_pipeline_output():
+    arr = np.random.default_rng(1234).random((3, 5, 6))
+    pipe = ExternalSourcePipe(arr.shape[0], arr)
+    tensor = pipe.run()[0][0]
+    cai = tensor.__cuda_array_interface__
+    assert cai["version"] == 3
+    assert "stream" in cai
+    # 0 is disallowed by CAI v3; 1 and 2 denote default streams
+    assert cai["stream"] != 0
+    tensor_stream = tensor.stream
+    if tensor_stream is None:
+        assert cai["stream"] is None
+    elif tensor_stream == 0:
+        assert cai["stream"] == 1
+    else:
+        assert cai["stream"] == tensor_stream
+    assert cp.allclose(arr[0], cp.asanyarray(tensor))
+
+
+def test_cuda_array_interface_v3_export_custom_stream():
+    stream = cp.cuda.Stream(non_blocking=True)
+    with stream:
+        arr = cp.asarray(np.random.default_rng(1234).random((3, 5, 6)))
+        tensor = TensorGPU(arr, "HWC")
+    cai = tensor.__cuda_array_interface__
+    assert cai["version"] == 3
+    assert cai["stream"] == stream.ptr
+    assert tensor.stream == stream.ptr
+    assert cp.allclose(arr, cp.asanyarray(tensor))
+
+
+def test_cuda_array_interface_v3_export_default_stream():
+    arr = cp.asarray(np.random.default_rng(1234).random((3, 5, 6)))
+    tensor = TensorGPU(arr, "HWC")
+    cai = tensor.__cuda_array_interface__
+    assert cai["version"] == 3
+    assert cai["stream"] in (None, 1, 2)
+    assert cp.allclose(arr, cp.asanyarray(tensor))
+
+
 def test_dlpack_tensor_list_gpu_direct_creation():
     arr = cp.random.rand(3, 5, 6)
     tensor_list = TensorListGPU(arr.__dlpack__(), "HW")
