@@ -38,7 +38,11 @@ bool Scheduler::AcquireAllAndMoveToReady(SharedTask &task) noexcept {
   task->preconditions_.clear();
   task->state_ = TaskState::Ready;
   pending_.Remove(task);
-  ready_.push(std::move(task));
+  {
+    std::lock_guard lock(queue_lock_);
+    ready_.push(std::move(task));
+  }
+  queue_sem_.release();
   return true;
 }
 
@@ -46,7 +50,6 @@ void Scheduler::Notify(Waitable *w) {
   bool is_completion_event = dynamic_cast<CompletionEvent *>(w) != nullptr;
   bool is_task = is_completion_event && dynamic_cast<Task *>(w);
 
-  int new_ready = 0;
   {
     std::lock_guard g(mtx_);
     if (is_task)
@@ -88,22 +91,19 @@ void Scheduler::Notify(Waitable *w) {
         if (task->Ready()) {
           pending_.Remove(task);
           task->state_ = TaskState::Ready;
-          ready_.push(std::move(task));
-          new_ready++;
+          {
+            std::lock_guard lock(queue_lock_);
+            ready_.push(std::move(task));
+          }
+          queue_sem_.release();
           // OK, the task is ready, we're done with it
           continue;
         }
       }
 
-      if (AcquireAllAndMoveToReady(task))
-        new_ready++;
+      AcquireAllAndMoveToReady(task);
     }
   }
-
-  if (new_ready == 1)
-    this->task_ready_.notify_one();
-  else if (new_ready > 1)
-    this->task_ready_.notify_all();
 }
 
 }  // namespace dali::tasking
