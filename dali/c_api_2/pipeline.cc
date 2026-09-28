@@ -312,10 +312,10 @@ daliResult_t daliPipelineCreate(
 daliResult_t daliPipelineDestroy(daliPipeline_h pipeline) {
   DALI_PROLOG();
   if (!PipelineRegistry::instance().Destroy(ToPointer(pipeline)))
-    throw InvalidHandle(make_string("Cannot destroy the pipeline: the handle ", ToPointer(pipeline),
-                                    " does not refer to a live pipeline created by DALI C API "
-                                    "(expected a handle returned by daliPipelineCreate or "
-                                    "daliPipelineDeserialize that has not been destroyed yet)."));
+    throw InvalidHandle(dali::make_string(
+        "Cannot destroy the pipeline: the handle ", ToPointer(pipeline),
+        " does not refer to a live pipeline created by DALI C API (expected a handle returned by "
+        "daliPipelineCreate or daliPipelineDeserialize that has not been destroyed yet)."));
   DALI_EPILOG();
 }
 
