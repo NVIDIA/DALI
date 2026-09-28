@@ -29,8 +29,43 @@ last_config_index=$($topdir/qa/setup_packages.py -n -u $pip_packages --cuda ${CU
 
 install_pip_pkg() {
     install_cmd="$@"
-    # if no package was found in our download dir, so install it from index
-    ${install_cmd} --no-index || ${install_cmd}
+    # pip refuses to uninstall a distribution whose metadata has no RECORD file - which is how
+    # distro package managers install Python packages - and aborts the whole command instead of
+    # upgrading it. That can happen with any package list, so recognize it here rather than at
+    # each call site. The message differs across pip versions: pip >= 23.3 tags it
+    # "uninstall-no-record-file", older pip just says "RECORD file not found"; the distutils
+    # sibling case has no reference tag at all.
+    local no_record_re='uninstall-no-record-file|RECORD file not found|distutils installed project'
+    local pip_log pip_status
+    pip_log=$(mktemp)
+    pip_status=$(mktemp)
+    # `tee` keeps the output streaming into the test log; the exit status has to be captured
+    # through a file rather than $? or $PIPESTATUS[0], because the `if` below runs the AND-OR
+    # list in a pipeline subshell - with `set -e` in force (as in every caller of this function)
+    # a non-zero status inside that subshell would abort it before any assignment after the list
+    # could run, so the status has to be written from inside the list itself.
+    {
+        # if no package was found in our download dir, so install it from index
+        if ${install_cmd} --no-index || ${install_cmd}; then
+            echo 0 >"${pip_status}"
+        else
+            echo $? >"${pip_status}"
+        fi
+    } 2>&1 | tee "${pip_log}"
+    local ret
+    ret=$(cat "${pip_status}" 2>/dev/null || echo 1)
+    if [ "${ret}" != "0" ] && grep -qE "${no_record_re}" "${pip_log}"; then
+        # this is what pip itself now suggests for this error; it leaves the stale .dist-info
+        # behind, so anything introspecting installed versions afterwards may see the old one
+        echo "pip cannot uninstall a preinstalled package, retrying with --ignore-installed"
+        if ${install_cmd} --ignore-installed --no-index || ${install_cmd} --ignore-installed; then
+            ret=0
+        else
+            ret=$?
+        fi
+    fi
+    rm -f "${pip_log}" "${pip_status}"
+    return "${ret}"
 }
 
 if [ -n "$gather_pip_packages" ]
