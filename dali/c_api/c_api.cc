@@ -631,9 +631,8 @@ device_type_t daliGetOutputDevice(daliPipelineHandle_t pipe_handle, int id) {
 }
 
 
-int daliHasOperatorTrace(daliPipelineHandle_t pipe_handle, const char *operator_name,
-                         const char *trace_name) {
-  dali::c_api::CheckedActiveCallGuard active_call_guard;
+static int HasOperatorTraceImpl(daliPipelineHandle_t pipe_handle, const char *operator_name,
+                                const char *trace_name) {
   auto *ws = &(*pipe_handle)->workspace;
   try {
     auto& traces = ws->GetOperatorTraces(operator_name);
@@ -643,12 +642,19 @@ int daliHasOperatorTrace(daliPipelineHandle_t pipe_handle, const char *operator_
   }
 }
 
+int daliHasOperatorTrace(daliPipelineHandle_t pipe_handle, const char *operator_name,
+                         const char *trace_name) {
+  dali::c_api::CheckedActiveCallGuard active_call_guard;
+  return HasOperatorTraceImpl(pipe_handle, operator_name, trace_name);
+}
+
 
 const char *
 daliGetOperatorTrace(daliPipelineHandle_t pipe_handle, const char *operator_name,
                      const char *trace_name) {
+  dali::c_api::CheckedActiveCallGuard active_call_guard;
   auto *ws = &(*pipe_handle)->workspace;
-  if (daliHasOperatorTrace(pipe_handle, operator_name, trace_name)) {
+  if (HasOperatorTraceImpl(pipe_handle, operator_name, trace_name)) {
     return ws->GetOperatorTraces(operator_name).at(trace_name).c_str();
   }
   return nullptr;
