@@ -35,6 +35,7 @@ import re
 import shutil
 import subprocess
 import sys
+import urllib.error
 import urllib.request
 
 DALI_REPO = "NVIDIA/DALI"
@@ -44,6 +45,7 @@ NIGHTLY_INDEX_URL = (
     "https://developer.download.nvidia.com/compute/redist/nightly"
 )
 SUPPORTED_CUDA_MAJORS = (12, 13)
+URL_TIMEOUT_SECONDS = 30
 
 
 def _run(cmd, **kwargs):
@@ -59,8 +61,8 @@ def _detect_cuda_major():
         )
     except (OSError, subprocess.CalledProcessError) as e:
         raise RuntimeError(
-            "nvidia-smi is not available - DALI requires a GPU runtime. In Colab select "
-            "Runtime -> Change runtime type -> Hardware accelerator: GPU."
+            "nvidia-smi is not available - DALI requires an attached GPU runtime. In Colab, "
+            "select Runtime -> Change runtime type -> Hardware accelerator: GPU."
         ) from e
     match = re.search(r"CUDA Version:\s*(\d+)\.(\d+)", out)
     if not match:
@@ -108,18 +110,28 @@ def install_dali(cuda_major=None, version=None, nightly=False):
     return package
 
 
+def _fetch_dali_text_file(ref, path):
+    url = f"https://raw.githubusercontent.com/{DALI_REPO}/{ref}/{path}"
+    try:
+        with urllib.request.urlopen(
+            url, timeout=URL_TIMEOUT_SECONDS
+        ) as response:
+            return response.read().decode("ascii").strip()
+    except (urllib.error.URLError, TimeoutError) as e:
+        raise RuntimeError(
+            f"Could not fetch {path} for DALI revision {ref!r} from GitHub. "
+            "Check the revision and the runtime's network connection."
+        ) from e
+
+
 def fetch_dali_extra_version(ref):
     """Read ``DALI_EXTRA_VERSION`` from the DALI repository at the given git ref."""
-    url = f"https://raw.githubusercontent.com/{DALI_REPO}/{ref}/DALI_EXTRA_VERSION"
-    with urllib.request.urlopen(url) as response:
-        return response.read().decode("ascii").strip()
+    return _fetch_dali_text_file(ref, "DALI_EXTRA_VERSION")
 
 
 def fetch_dali_version(ref):
     """Read ``VERSION`` from the DALI repository at the given git ref."""
-    url = f"https://raw.githubusercontent.com/{DALI_REPO}/{ref}/VERSION"
-    with urllib.request.urlopen(url) as response:
-        return response.read().decode("ascii").strip()
+    return _fetch_dali_text_file(ref, "VERSION")
 
 
 def resolve_dali_version(ref, version=None, nightly=False):

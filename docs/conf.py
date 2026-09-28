@@ -208,7 +208,7 @@ nbsphinx_prolog = f"""
    see :ref:`running_examples` for more information. To prepare Colab for this exact
    documentation revision, run this cell before the tutorial:
 
-   .. code-block:: python
+   .. code-block:: ipython3
 
       setup_url = (
           "https://raw.githubusercontent.com/NVIDIA/DALI/"
