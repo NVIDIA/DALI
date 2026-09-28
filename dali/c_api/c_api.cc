@@ -377,11 +377,17 @@ void daliSetExternalInputDataId(daliPipelineHandle_t pipe_handle, const char *op
 }
 
 
+static void SetExternalInputAsyncImpl(daliPipelineHandle_t pipe_handle, const char *name,
+                                      device_type_t device, const void *data_ptr,
+                                      dali_data_type_t data_type, const int64_t *shapes,
+                                      int sample_dim, const char *layout_str, cudaStream_t stream,
+                                      unsigned int flags);
+
 void daliSetExternalInput(daliPipelineHandle_t pipe_handle, const char *name, device_type_t device,
                           const void *data_ptr, dali_data_type_t data_type, const int64_t *shapes,
                           int sample_dim, const char *layout_str, unsigned int flags) {
   dali::c_api::CheckedActiveCallGuard active_call_guard;
-  daliSetExternalInputAsync(pipe_handle, name, device, data_ptr, data_type, shapes, sample_dim,
+  SetExternalInputAsyncImpl(pipe_handle, name, device, data_ptr, data_type, shapes, sample_dim,
                             layout_str, (*pipe_handle)->copy_stream, flags | DALI_ext_force_sync);
 }
 
@@ -391,6 +397,15 @@ void daliSetExternalInputAsync(daliPipelineHandle_t pipe_handle, const char *nam
                                int sample_dim, const char *layout_str, cudaStream_t stream,
                                unsigned int flags) {
   dali::c_api::CheckedActiveCallGuard active_call_guard;
+  SetExternalInputAsyncImpl(pipe_handle, name, device, data_ptr, data_type, shapes, sample_dim,
+                            layout_str, stream, flags);
+}
+
+static void SetExternalInputAsyncImpl(daliPipelineHandle_t pipe_handle, const char *name,
+                                      device_type_t device, const void *data_ptr,
+                                      dali_data_type_t data_type, const int64_t *shapes,
+                                      int sample_dim, const char *layout_str, cudaStream_t stream,
+                                      unsigned int flags) {
   switch (device) {
     case device_type_t::CPU:
       SetExternalInput<CPUBackend>(pipe_handle, name, data_ptr, data_type, shapes, sample_dim,
@@ -406,14 +421,20 @@ void daliSetExternalInputAsync(daliPipelineHandle_t pipe_handle, const char *nam
 }
 
 
+static void SetExternalInputTensorsAsyncImpl(daliPipelineHandle_t pipe_handle, const char *name,
+                                             device_type_t device, const void *const *data_ptr,
+                                             dali_data_type_t data_type, const int64_t *shapes,
+                                             int64_t sample_dim, const char *layout_str,
+                                             cudaStream_t stream, unsigned int flags);
+
 void daliSetExternalInputTensors(daliPipelineHandle_t pipe_handle, const char *name,
                                  device_type_t device, const void *const *data_ptr,
                                  dali_data_type_t data_type, const int64_t *shapes,
                                  int64_t sample_dim, const char *layout_str, unsigned int flags) {
   dali::c_api::CheckedActiveCallGuard active_call_guard;
-  daliSetExternalInputTensorsAsync(pipe_handle, name, device, data_ptr, data_type, shapes,
-                                        sample_dim, layout_str, (*pipe_handle)->copy_stream,
-                                        flags | DALI_ext_force_sync);
+  SetExternalInputTensorsAsyncImpl(pipe_handle, name, device, data_ptr, data_type, shapes,
+                                   sample_dim, layout_str, (*pipe_handle)->copy_stream,
+                                   flags | DALI_ext_force_sync);
 }
 
 
@@ -423,6 +444,15 @@ void daliSetExternalInputTensorsAsync(daliPipelineHandle_t pipe_handle, const ch
                                       int64_t sample_dim, const char *layout_str,
                                       cudaStream_t stream, unsigned int flags) {
   dali::c_api::CheckedActiveCallGuard active_call_guard;
+  SetExternalInputTensorsAsyncImpl(pipe_handle, name, device, data_ptr, data_type, shapes,
+                                   sample_dim, layout_str, stream, flags);
+}
+
+static void SetExternalInputTensorsAsyncImpl(daliPipelineHandle_t pipe_handle, const char *name,
+                                             device_type_t device, const void *const *data_ptr,
+                                             dali_data_type_t data_type, const int64_t *shapes,
+                                             int64_t sample_dim, const char *layout_str,
+                                             cudaStream_t stream, unsigned int flags) {
   switch (device) {
     case device_type_t::CPU:
       SetExternalInputTensors<CPUBackend>(pipe_handle, name, data_ptr, data_type, shapes,
@@ -625,9 +655,8 @@ daliGetOperatorTrace(daliPipelineHandle_t pipe_handle, const char *operator_name
 }
 
 
-void daliOutputCopy(daliPipelineHandle_t pipe_handle, void *dst, int output_idx,
-                    device_type_t dst_type, cudaStream_t stream, unsigned int flags) {
-  dali::c_api::CheckedActiveCallGuard active_call_guard;
+static void OutputCopyImpl(daliPipelineHandle_t pipe_handle, void *dst, int output_idx,
+                           device_type_t dst_type, cudaStream_t stream, unsigned int flags) {
   dali::DomainTimeRange tr("[DALI][C API] daliOutputCopy", dali::DomainTimeRange::kGreen);
 
   bool is_pinned = flags & DALI_ext_pinned;
@@ -662,6 +691,12 @@ void daliOutputCopy(daliPipelineHandle_t pipe_handle, void *dst, int output_idx,
       wait_order = src.order();
   }
   wait_order.wait(copy_order);
+}
+
+void daliOutputCopy(daliPipelineHandle_t pipe_handle, void *dst, int output_idx,
+                    device_type_t dst_type, cudaStream_t stream, unsigned int flags) {
+  dali::c_api::CheckedActiveCallGuard active_call_guard;
+  OutputCopyImpl(pipe_handle, dst, output_idx, dst_type, stream, flags);
 }
 
 void daliOutputCopySamples(daliPipelineHandle_t pipe_handle, void **dsts, int output_idx,
@@ -713,7 +748,7 @@ void daliCopyTensorNTo(daliPipelineHandle_t pipe_handle, void *dst, int output_i
   if (non_blocking == 0)
     flags |= DALI_ext_force_sync;
 
-  daliOutputCopy(pipe_handle, dst, output_id, dst_type, stream, flags);
+  OutputCopyImpl(pipe_handle, dst, output_id, dst_type, stream, flags);
 }
 
 void daliCopyTensorListNTo(daliPipelineHandle_t pipe_handle, void *dst, int output_id,
@@ -725,7 +760,7 @@ void daliCopyTensorListNTo(daliPipelineHandle_t pipe_handle, void *dst, int outp
   if (non_blocking == 0)
     flags |= DALI_ext_force_sync;
 
-  daliOutputCopy(pipe_handle, dst, output_id, dst_type, stream, flags);
+  OutputCopyImpl(pipe_handle, dst, output_id, dst_type, stream, flags);
 }
 
 void daliDeletePipeline(daliPipelineHandle_t pipe_handle) {
