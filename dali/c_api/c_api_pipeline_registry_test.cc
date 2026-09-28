@@ -69,4 +69,23 @@ TEST(CApiPipelineRegistryTest, CreateAfterCloseThrows) {
   EXPECT_EQ(registry.Count(), 0u);
 }
 
+TEST(CApiPipelineRegistryTest, UseAfterCloseThrows) {
+  auto &registry = c_api::PipelineRegistry::instance();
+  ASSERT_EQ(registry.Count(), 0u);
+  auto proto = SerializeSimplePipeline();
+  daliPipelineHandle h = nullptr;
+  daliDeserializeDefault(&h, proto.c_str(), proto.length());
+  EXPECT_EQ(daliGetMaxBatchSize(&h), 1);
+
+  // once the final shutdown has begun, no legacy call may touch the pipeline - it is about to be
+  // (or has already been) destroyed by the shutdown
+  registry.Close();
+  EXPECT_THROW(daliGetMaxBatchSize(&h), std::runtime_error);
+  EXPECT_THROW(daliRun(&h), std::runtime_error);
+  EXPECT_THROW(daliDeletePipeline(&h), std::runtime_error);
+  EXPECT_EQ(registry.Count(), 1u);
+  EXPECT_EQ(registry.DestroyAll(), 1u);
+  registry.Open();
+}
+
 }  // namespace dali::test

@@ -21,6 +21,12 @@
 
 namespace dali::c_api {
 
+CheckedActiveCallGuard::CheckedActiveCallGuard() {
+  if (PipelineRegistry::instance().IsClosed())
+    throw Unloading("Cannot use the pipeline - DALI has been shut down and all pipeline "
+                    "instances have been or are being destroyed.");
+}
+
 PipelineRegistry &PipelineRegistry::instance() {
   // Never destroyed - pipelines owned by other static objects may unregister during exit.
   static PipelineRegistry &registry = *std::make_unique<PipelineRegistry>().release();

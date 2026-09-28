@@ -287,7 +287,7 @@ daliCreatePipeline3(daliPipelineHandle *pipe_handle, const char *serialized_pipe
                     dali_exec_flags_t exec_flags, int prefetch_queue_depth,
                     int cpu_prefetch_queue_depth, int gpu_prefetch_queue_depth,
                     int enable_memory_stats) {
-  dali::c_api::ActiveCallGuard active_call_guard;
+  dali::c_api::CheckedActiveCallGuard active_call_guard;
   dali::PipelineParams params = dali::MakePipelineParams(max_batch_size, num_threads, device_id);
   params.executor_type = static_cast<dali::ExecutorType>(exec_flags);
   if (exec_flags & DALI_EXEC_IS_SEPARATED) {
@@ -308,7 +308,7 @@ daliCreatePipeline3(daliPipelineHandle *pipe_handle, const char *serialized_pipe
 
 void daliDeserializeDefault(daliPipelineHandle *pipe_handle, const char *serialized_pipeline,
                             int length) {
-  dali::c_api::ActiveCallGuard active_call_guard;
+  dali::c_api::CheckedActiveCallGuard active_call_guard;
   auto pipeline = std::make_unique<dali::Pipeline>(std::string(serialized_pipeline, length));
   pipeline->Build();
   *pipe_handle = WrapPipeline(std::move(pipeline)).release();
@@ -322,24 +322,24 @@ int daliIsDeserializable(const char* serialized_pipeline, int length) {
 
 
 int daliGetMaxBatchSize(daliPipelineHandle_t pipe_handle) {
-  dali::c_api::ActiveCallGuard active_call_guard;
+  dali::c_api::CheckedActiveCallGuard active_call_guard;
   return (*pipe_handle)->pipeline->max_batch_size();
 }
 
 int daliInputFeedCount(daliPipelineHandle_t pipe_handle, const char *input_name) {
-  dali::c_api::ActiveCallGuard active_call_guard;
+  dali::c_api::CheckedActiveCallGuard active_call_guard;
   auto &pipeline = (*pipe_handle)->pipeline;
   return pipeline->InputFeedCount(input_name);
 }
 
 void daliPrefetch(daliPipelineHandle_t pipe_handle) {
-  dali::c_api::ActiveCallGuard active_call_guard;
+  dali::c_api::CheckedActiveCallGuard active_call_guard;
   auto &pipeline = (*pipe_handle)->pipeline;
   pipeline->Prefetch();
 }
 
 void daliPrefetchUniform(daliPipelineHandle_t pipe_handle, int queue_depth) {
-  dali::c_api::ActiveCallGuard active_call_guard;
+  dali::c_api::CheckedActiveCallGuard active_call_guard;
   auto &pipeline = (*pipe_handle)->pipeline;
   auto sz = pipeline->GetQueueSizes();
   if (queue_depth != sz.cpu_size || queue_depth != sz.gpu_size) {
@@ -352,7 +352,7 @@ void daliPrefetchUniform(daliPipelineHandle_t pipe_handle, int queue_depth) {
 
 void daliPrefetchSeparate(daliPipelineHandle_t pipe_handle,
                           int cpu_queue_depth, int gpu_queue_depth) {
-  dali::c_api::ActiveCallGuard active_call_guard;
+  dali::c_api::CheckedActiveCallGuard active_call_guard;
   auto &pipeline = (*pipe_handle)->pipeline;
   auto sz = pipeline->GetQueueSizes();
   if (cpu_queue_depth != sz.cpu_size || gpu_queue_depth != sz.gpu_size) {
@@ -365,14 +365,14 @@ void daliPrefetchSeparate(daliPipelineHandle_t pipe_handle,
 
 void daliSetExternalInputBatchSize(daliPipelineHandle_t pipe_handle, const char *name,
                                    int batch_size) {
-  dali::c_api::ActiveCallGuard active_call_guard;
+  dali::c_api::CheckedActiveCallGuard active_call_guard;
   (*pipe_handle)->batch_size_map[name] = batch_size;
 }
 
 
 void daliSetExternalInputDataId(daliPipelineHandle_t pipe_handle, const char *operator_name,
                                 const char *data_id) {
-  dali::c_api::ActiveCallGuard active_call_guard;
+  dali::c_api::CheckedActiveCallGuard active_call_guard;
   (*pipe_handle)->data_id_map[operator_name] = data_id;
 }
 
@@ -380,7 +380,7 @@ void daliSetExternalInputDataId(daliPipelineHandle_t pipe_handle, const char *op
 void daliSetExternalInput(daliPipelineHandle_t pipe_handle, const char *name, device_type_t device,
                           const void *data_ptr, dali_data_type_t data_type, const int64_t *shapes,
                           int sample_dim, const char *layout_str, unsigned int flags) {
-  dali::c_api::ActiveCallGuard active_call_guard;
+  dali::c_api::CheckedActiveCallGuard active_call_guard;
   daliSetExternalInputAsync(pipe_handle, name, device, data_ptr, data_type, shapes, sample_dim,
                             layout_str, (*pipe_handle)->copy_stream, flags | DALI_ext_force_sync);
 }
@@ -390,7 +390,7 @@ void daliSetExternalInputAsync(daliPipelineHandle_t pipe_handle, const char *nam
                                dali_data_type_t data_type, const int64_t *shapes,
                                int sample_dim, const char *layout_str, cudaStream_t stream,
                                unsigned int flags) {
-  dali::c_api::ActiveCallGuard active_call_guard;
+  dali::c_api::CheckedActiveCallGuard active_call_guard;
   switch (device) {
     case device_type_t::CPU:
       SetExternalInput<CPUBackend>(pipe_handle, name, data_ptr, data_type, shapes, sample_dim,
@@ -410,7 +410,7 @@ void daliSetExternalInputTensors(daliPipelineHandle_t pipe_handle, const char *n
                                  device_type_t device, const void *const *data_ptr,
                                  dali_data_type_t data_type, const int64_t *shapes,
                                  int64_t sample_dim, const char *layout_str, unsigned int flags) {
-  dali::c_api::ActiveCallGuard active_call_guard;
+  dali::c_api::CheckedActiveCallGuard active_call_guard;
   daliSetExternalInputTensorsAsync(pipe_handle, name, device, data_ptr, data_type, shapes,
                                         sample_dim, layout_str, (*pipe_handle)->copy_stream,
                                         flags | DALI_ext_force_sync);
@@ -422,7 +422,7 @@ void daliSetExternalInputTensorsAsync(daliPipelineHandle_t pipe_handle, const ch
                                       dali_data_type_t data_type, const int64_t *shapes,
                                       int64_t sample_dim, const char *layout_str,
                                       cudaStream_t stream, unsigned int flags) {
-  dali::c_api::ActiveCallGuard active_call_guard;
+  dali::c_api::CheckedActiveCallGuard active_call_guard;
   switch (device) {
     case device_type_t::CPU:
       SetExternalInputTensors<CPUBackend>(pipe_handle, name, data_ptr, data_type, shapes,
@@ -439,64 +439,64 @@ void daliSetExternalInputTensorsAsync(daliPipelineHandle_t pipe_handle, const ch
 
 
 int daliGetNumExternalInput(daliPipelineHandle_t pipe_handle) {
-  dali::c_api::ActiveCallGuard active_call_guard;
+  dali::c_api::CheckedActiveCallGuard active_call_guard;
   return (*pipe_handle)->pipeline->num_inputs();
 }
 
 
 const char *daliGetExternalInputName(daliPipelineHandle_t pipe_handle, int n) {
-  dali::c_api::ActiveCallGuard active_call_guard;
+  dali::c_api::CheckedActiveCallGuard active_call_guard;
   return (*pipe_handle)->pipeline->input_name(n).c_str();
 }
 
 
 const char *daliGetExternalInputLayout(daliPipelineHandle_t pipe_handle, const char *name) {
-  dali::c_api::ActiveCallGuard active_call_guard;
+  dali::c_api::CheckedActiveCallGuard active_call_guard;
   return (*pipe_handle)->pipeline->GetInputLayout(name).c_str();
 }
 
 
 int daliGetExternalInputNdim(daliPipelineHandle_t pipe_handle, const char *name) {
-  dali::c_api::ActiveCallGuard active_call_guard;
+  dali::c_api::CheckedActiveCallGuard active_call_guard;
   return (*pipe_handle)->pipeline->GetInputNdim(name);
 }
 
 dali_data_type_t daliGetExternalInputType(daliPipelineHandle_t pipe_handle, const char *name) {
-  dali::c_api::ActiveCallGuard active_call_guard;
+  dali::c_api::CheckedActiveCallGuard active_call_guard;
   dali::Pipeline *pipeline = (*pipe_handle)->pipeline.get();
   auto type_id = pipeline->GetInputDtype(name);
   return static_cast<dali_data_type_t>(static_cast<int>(type_id));
 }
 
 void daliRun(daliPipelineHandle_t pipe_handle) {
-  dali::c_api::ActiveCallGuard active_call_guard;
+  dali::c_api::CheckedActiveCallGuard active_call_guard;
   dali::Pipeline *pipeline = (*pipe_handle)->pipeline.get();
   pipeline->Run();
 }
 
 
 void daliOutput(daliPipelineHandle_t pipe_handle) {
-  dali::c_api::ActiveCallGuard active_call_guard;
+  dali::c_api::CheckedActiveCallGuard active_call_guard;
   dali::Pipeline *pipeline = (*pipe_handle)->pipeline.get();
   pipeline->Outputs(&(*pipe_handle)->workspace);
 }
 
 
 void daliShareOutput(daliPipelineHandle_t pipe_handle) {
-  dali::c_api::ActiveCallGuard active_call_guard;
+  dali::c_api::CheckedActiveCallGuard active_call_guard;
   dali::Pipeline *pipeline = (*pipe_handle)->pipeline.get();
   pipeline->ShareOutputs(&(*pipe_handle)->workspace);
 }
 
 
 void daliOutputRelease(daliPipelineHandle_t pipe_handle) {
-  dali::c_api::ActiveCallGuard active_call_guard;
+  dali::c_api::CheckedActiveCallGuard active_call_guard;
   dali::Pipeline *pipeline = (*pipe_handle)->pipeline.get();
   pipeline->ReleaseOutputs();
 }
 
 int64_t daliOutputHasUniformShape(daliPipelineHandle_t pipe_handle, int i) {
-  dali::c_api::ActiveCallGuard active_call_guard;
+  dali::c_api::CheckedActiveCallGuard active_call_guard;
   dali::Workspace* ws = &(*pipe_handle)->workspace;
   return is_uniform(ws->GetOutputShape(i));
 }
@@ -525,30 +525,30 @@ static int64_t *daliShapeAtHelper(daliPipelineHandle_t pipe_handle, int n, int k
 }
 
 int64_t* daliShapeAtSample(daliPipelineHandle_t pipe_handle, int n, int k) {
-  dali::c_api::ActiveCallGuard active_call_guard;
+  dali::c_api::CheckedActiveCallGuard active_call_guard;
   return daliShapeAtHelper(pipe_handle, n, k);
 }
 
 int64_t* daliShapeAt(daliPipelineHandle_t pipe_handle, int n) {
-  dali::c_api::ActiveCallGuard active_call_guard;
+  dali::c_api::CheckedActiveCallGuard active_call_guard;
   return daliShapeAtHelper(pipe_handle, n, -1);
 }
 
 dali_data_type_t daliTypeAt(daliPipelineHandle_t pipe_handle, int n) {
-  dali::c_api::ActiveCallGuard active_call_guard;
+  dali::c_api::CheckedActiveCallGuard active_call_guard;
   dali::Workspace* ws = &(*pipe_handle)->workspace;
   return static_cast<dali_data_type_t>(static_cast<int>(ws->GetOutputDataType(n)));
 }
 
 
 size_t daliNumTensors(daliPipelineHandle_t pipe_handle, int n) {
-  dali::c_api::ActiveCallGuard active_call_guard;
+  dali::c_api::CheckedActiveCallGuard active_call_guard;
   dali::Workspace* ws = &(*pipe_handle)->workspace;
   return ws->GetOutputBatchSize(n);
 }
 
 size_t daliNumElements(daliPipelineHandle_t pipe_handle, int n) {
-  dali::c_api::ActiveCallGuard active_call_guard;
+  dali::c_api::CheckedActiveCallGuard active_call_guard;
   dali::Workspace* ws = &(*pipe_handle)->workspace;
   return ws->WithOutput(n, [](auto &output) {
     return output._num_elements();
@@ -556,7 +556,7 @@ size_t daliNumElements(daliPipelineHandle_t pipe_handle, int n) {
 }
 
 size_t daliTensorSize(daliPipelineHandle_t pipe_handle, int n) {
-  dali::c_api::ActiveCallGuard active_call_guard;
+  dali::c_api::CheckedActiveCallGuard active_call_guard;
   dali::Workspace* ws = &(*pipe_handle)->workspace;
   return ws->WithOutput(n, [](auto &output) {
     return output.nbytes();
@@ -564,38 +564,38 @@ size_t daliTensorSize(daliPipelineHandle_t pipe_handle, int n) {
 }
 
 size_t daliMaxDimTensors(daliPipelineHandle_t pipe_handle, int n) {
-  dali::c_api::ActiveCallGuard active_call_guard;
+  dali::c_api::CheckedActiveCallGuard active_call_guard;
   dali::Workspace* ws = &(*pipe_handle)->workspace;
   return ws->GetOutputDim(n);
 }
 
 size_t daliGetDeclaredOutputNdim(daliPipelineHandle_t pipe_handle, int n) {
-  dali::c_api::ActiveCallGuard active_call_guard;
+  dali::c_api::CheckedActiveCallGuard active_call_guard;
   dali::Pipeline *pipeline = (*pipe_handle)->pipeline.get();
   return pipeline->output_ndim(n);
 }
 
 dali_data_type_t daliGetDeclaredOutputDtype(daliPipelineHandle_t pipe_handle, int n) {
-  dali::c_api::ActiveCallGuard active_call_guard;
+  dali::c_api::CheckedActiveCallGuard active_call_guard;
   dali::Pipeline *pipeline = (*pipe_handle)->pipeline.get();
   return static_cast<dali_data_type_t>(static_cast<int>(pipeline->output_dtype(n)));
 }
 
 unsigned daliGetNumOutput(daliPipelineHandle_t pipe_handle) {
-  dali::c_api::ActiveCallGuard active_call_guard;
+  dali::c_api::CheckedActiveCallGuard active_call_guard;
   dali::Pipeline *pipeline = (*pipe_handle)->pipeline.get();
   return pipeline->num_outputs();
 }
 
 const char *daliGetOutputName(daliPipelineHandle_t pipe_handle, int id) {
-  dali::c_api::ActiveCallGuard active_call_guard;
+  dali::c_api::CheckedActiveCallGuard active_call_guard;
   auto *pipeline = (*pipe_handle)->pipeline.get();
   return pipeline->output_name(id).c_str();
 }
 
 
 device_type_t daliGetOutputDevice(daliPipelineHandle_t pipe_handle, int id) {
-  dali::c_api::ActiveCallGuard active_call_guard;
+  dali::c_api::CheckedActiveCallGuard active_call_guard;
   dali::Pipeline *pipeline = (*pipe_handle)->pipeline.get();
   return static_cast<device_type_t>(pipeline->output_device(id));
 }
@@ -603,7 +603,7 @@ device_type_t daliGetOutputDevice(daliPipelineHandle_t pipe_handle, int id) {
 
 int daliHasOperatorTrace(daliPipelineHandle_t pipe_handle, const char *operator_name,
                          const char *trace_name) {
-  dali::c_api::ActiveCallGuard active_call_guard;
+  dali::c_api::CheckedActiveCallGuard active_call_guard;
   auto *ws = &(*pipe_handle)->workspace;
   try {
     auto& traces = ws->GetOperatorTraces(operator_name);
@@ -627,7 +627,7 @@ daliGetOperatorTrace(daliPipelineHandle_t pipe_handle, const char *operator_name
 
 void daliOutputCopy(daliPipelineHandle_t pipe_handle, void *dst, int output_idx,
                     device_type_t dst_type, cudaStream_t stream, unsigned int flags) {
-  dali::c_api::ActiveCallGuard active_call_guard;
+  dali::c_api::CheckedActiveCallGuard active_call_guard;
   dali::DomainTimeRange tr("[DALI][C API] daliOutputCopy", dali::DomainTimeRange::kGreen);
 
   bool is_pinned = flags & DALI_ext_pinned;
@@ -666,7 +666,7 @@ void daliOutputCopy(daliPipelineHandle_t pipe_handle, void *dst, int output_idx,
 
 void daliOutputCopySamples(daliPipelineHandle_t pipe_handle, void **dsts, int output_idx,
                            device_type_t dst_type, cudaStream_t stream, unsigned int flags) {
-  dali::c_api::ActiveCallGuard active_call_guard;
+  dali::c_api::CheckedActiveCallGuard active_call_guard;
   dali::DomainTimeRange tr("[DALI][C API] daliOutputCopySamples", dali::DomainTimeRange::kGreen);
 
   bool is_pinned = flags & DALI_ext_pinned;
@@ -706,7 +706,7 @@ void daliOutputCopySamples(daliPipelineHandle_t pipe_handle, void **dsts, int ou
 
 void daliCopyTensorNTo(daliPipelineHandle_t pipe_handle, void *dst, int output_id,
                     device_type_t dst_type, cudaStream_t stream, int non_blocking) {
-  dali::c_api::ActiveCallGuard active_call_guard;
+  dali::c_api::CheckedActiveCallGuard active_call_guard;
   DALI_WARN("Warning: daliCopyTensorNTo is now deprecated. Use daliOutputCopy instead.");
 
   unsigned int flags = DALI_ext_default;
@@ -718,7 +718,7 @@ void daliCopyTensorNTo(daliPipelineHandle_t pipe_handle, void *dst, int output_i
 
 void daliCopyTensorListNTo(daliPipelineHandle_t pipe_handle, void *dst, int output_id,
                            device_type_t dst_type, cudaStream_t stream, int non_blocking) {
-  dali::c_api::ActiveCallGuard active_call_guard;
+  dali::c_api::CheckedActiveCallGuard active_call_guard;
   DALI_WARN("Warning: daliCopyTensorListNTo is now deprecated. Use daliOutputCopy instead.");
 
   unsigned int flags = DALI_ext_default;
@@ -729,12 +729,15 @@ void daliCopyTensorListNTo(daliPipelineHandle_t pipe_handle, void *dst, int outp
 }
 
 void daliDeletePipeline(daliPipelineHandle_t pipe_handle) {
-  dali::c_api::ActiveCallGuard active_call_guard;
+  dali::c_api::CheckedActiveCallGuard active_call_guard;
   if (!pipe_handle)
     return;
 
   if (!dali::c_api::PipelineRegistry::instance().Destroy(*pipe_handle))
-    throw std::invalid_argument("The pipeline handle is invalid or has already been deleted.");
+    throw std::invalid_argument(dali::make_string(
+        "Cannot delete the pipeline: the handle ", static_cast<void *>(*pipe_handle),
+        " does not refer to a live pipeline created by DALI C API (expected a handle returned by "
+        "daliCreatePipeline or daliDeserializeDefault that has not been deleted yet)."));
 }
 
 void daliLoadLibrary(const char* lib_path) {
@@ -751,7 +754,7 @@ void daliLoadDefaultPlugins() {
 
 void daliGetReaderMetadata(daliPipelineHandle_t pipe_handle, const char *reader_name,
                            daliReaderMetadata* meta) {
-  dali::c_api::ActiveCallGuard active_call_guard;
+  dali::c_api::CheckedActiveCallGuard active_call_guard;
   DALI_ENFORCE(meta, "Provided pointer to meta cannot be NULL.");
   dali::Pipeline* pipeline = (*pipe_handle)->pipeline.get();
   dali::ReaderMeta returned_meta = pipeline->GetReaderMeta(reader_name);
@@ -764,7 +767,7 @@ void daliGetReaderMetadata(daliPipelineHandle_t pipe_handle, const char *reader_
 }
 
 dali_backend_t daliGetOperatorBackend(daliPipelineHandle_t pipe_handle, const char *operator_name) {
-  dali::c_api::ActiveCallGuard active_call_guard;
+  dali::c_api::CheckedActiveCallGuard active_call_guard;
   dali::Pipeline* pipeline = (*pipe_handle)->pipeline.get();
   auto *node = pipeline->GetOperatorNode(operator_name);
   switch (node->op_type) {
@@ -781,7 +784,7 @@ dali_backend_t daliGetOperatorBackend(daliPipelineHandle_t pipe_handle, const ch
 
 void daliGetExecutorMetadata(daliPipelineHandle_t pipe_handle, daliExecutorMetadata **operator_meta,
                              size_t *operator_meta_num) {
-  dali::c_api::ActiveCallGuard active_call_guard;
+  dali::c_api::CheckedActiveCallGuard active_call_guard;
   dali::Pipeline* pipeline = (*pipe_handle)->pipeline.get();
   auto returned_meta = pipeline->GetExecutorMeta();
   *operator_meta_num = returned_meta.size();
@@ -859,7 +862,7 @@ void daliGetSerializedCheckpoint(
     daliPipelineHandle_t pipe_handle,
     const daliExternalContextCheckpoint *external_context,
     char **checkpoint, size_t *n) {
-  dali::c_api::ActiveCallGuard active_call_guard;
+  dali::c_api::CheckedActiveCallGuard active_call_guard;
   DALI_ENFORCE(external_context, "Provided pointer to external context cannot be NULL.");
   auto &pipeline = (*pipe_handle)->pipeline;
   dali::ExternalContextCheckpoint ctx{};
@@ -895,7 +898,7 @@ void daliRestoreFromSerializedCheckpoint(
     daliPipelineHandle *pipe_handle,
     const char *checkpoint, size_t n,
     daliExternalContextCheckpoint *external_context) {
-  dali::c_api::ActiveCallGuard active_call_guard;
+  dali::c_api::CheckedActiveCallGuard active_call_guard;
   DALI_ENFORCE(external_context != nullptr,
                "Null external context provided.");
   auto &pipeline = (*pipe_handle)->pipeline;

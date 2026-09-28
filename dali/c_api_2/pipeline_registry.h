@@ -37,6 +37,22 @@ class DLL_PUBLIC ActiveCallGuard {
   ActiveCallGuard &operator=(const ActiveCallGuard &) = delete;
 };
 
+/** `ActiveCallGuard` that additionally rejects calls made after the final shutdown began.
+ *
+ * The call is counted first and only then the registry state is checked, so a call that
+ * observes the registry as open is guaranteed to be waited for by the shutdown. Used by the
+ * legacy C API, which has no initialization check of its own that could reject such calls.
+ *
+ * @throws Unloading if the registry is closed
+ */
+class DLL_PUBLIC CheckedActiveCallGuard {
+ public:
+  CheckedActiveCallGuard();
+
+ private:
+  ActiveCallGuard active_call_;
+};
+
 /** Tracks pipeline instances handed out through the C APIs.
  *
  * Every pipeline object created by either the legacy or the new C API is registered here
