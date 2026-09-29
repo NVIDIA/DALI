@@ -379,7 +379,11 @@ def deserialize_message(buffer):
     return message
 
 
-def _write_sample_meta(writer, sample):
+def _write_sample_meta(writer, sample, depth=0):
+    if depth > _MAX_SAMPLE_NESTING:
+        raise TypeError(
+            f"Samples nested deeper than {_MAX_SAMPLE_NESTING} levels are not supported."
+        )
     if isinstance(sample, SampleMeta):
         dtype = sample.dtype
         dtype_str = dtype.str
@@ -392,7 +396,7 @@ def _write_sample_meta(writer, sample):
     elif isinstance(sample, (tuple, list)):
         writer.pack("BQ", _SAMPLE_TUPLE if isinstance(sample, tuple) else _SAMPLE_LIST, len(sample))
         for part in sample:
-            _write_sample_meta(writer, part)
+            _write_sample_meta(writer, part, depth + 1)
     else:
         raise TypeError(f"Unsupported sample meta-data type: `{type(sample)}`.")
 

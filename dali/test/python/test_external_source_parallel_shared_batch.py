@@ -63,6 +63,10 @@ def test_message_deserialization_rejects_pickle():
 def test_samples_meta_deserialization_rejects_malformed_data():
     too_deep = struct.pack("<Q", 1) + (b"\x01" + struct.pack("<Q", 1)) * 100
     raises(RuntimeError, "nesting is too deep")(deserialize_samples_meta)(too_deep)
+    deep_sample = SampleMeta(0, (1,), np.dtype(np.uint8), 1)
+    for _ in range(100):
+        deep_sample = (deep_sample,)
+    raises(TypeError, "nested deeper than")(serialize_samples_meta)([deep_sample])
     bad_dtype = struct.pack("<QBQQQ", 1, 0, 0, 1, 3) + b"xyz" + struct.pack("<I", 0)
     raises(RuntimeError, "invalid sample data type")(deserialize_samples_meta)(bad_dtype)
     object_dtype = struct.pack("<QBQQQ", 1, 0, 0, 8, 3) + b"|O8" + struct.pack("<I", 0)
@@ -100,7 +104,7 @@ def _check_scheduled_task_roundtrip(task):
     else:
         assert not decoded.task.is_sample_mode()
         assert len(decoded.task.batch_args) == len(task.task.batch_args)
-        for decoded_arg, arg in zip(decoded.task.batch_args, task.task.batch_args):
+        for decoded_arg, arg in zip(decoded.task.batch_args, task.task.batch_args, strict=True):
             assert type(decoded_arg) is type(arg)
             if isinstance(arg, BatchInfo):
                 assert vars(decoded_arg) == vars(arg)
@@ -219,9 +223,9 @@ def test_serialize_deserialize_nested():
         writer = SharedBatchWriter(shm_chunk, batch)
         deserialized_batch = deserialize_batch(shm_chunk, SharedBatchMeta.from_writer(writer))
         assert len(deserialized_batch) == len(batch)
-        for sample, deserialized in zip(batch, deserialized_batch):
+        for sample, deserialized in zip(batch, deserialized_batch, strict=True):
             assert type(deserialized) is type(sample)
-            for part, deserialized_part in zip(sample, deserialized):
+            for part, deserialized_part in zip(sample, deserialized, strict=True):
                 assert part.dtype == deserialized_part.dtype
                 np.testing.assert_array_equal(part, deserialized_part)
 
