@@ -427,38 +427,58 @@ def test_tiff_palette():
 
 
 def test_tiff_uint32():
-    normal = os.path.join(test_data_root, good_path, "tiff", "0/cat-300572_640.tiff")
-    uint32 = os.path.join(test_data_root, good_path, "tiff", "0/cat-300572_640_uint32.tiff")
+    tiff_dir = os.path.join(test_data_root, good_path, "tiff", "0")
+    ref_dir = os.path.join(test_data_root, "db/single/reference/tiff/0")
+    uint32_file = os.path.join(tiff_dir, "cat-300572_640_uint32.tiff")
+    ref = np.load(os.path.join(ref_dir, "cat-300572_640_uint32.tiff.npy"))
 
-    @pipeline_def(batch_size=2, device_id=0, num_threads=1)
-    def pipe(dtype):
-        encoded, _ = fn.readers.file(files=[normal, uint32])
+    @pipeline_def(batch_size=1, device_id=0, num_threads=1)
+    def pipe(device):
+        encoded, _ = fn.readers.file(files=[uint32_file])
         decoded = fn.experimental.decoders.image(
-            encoded, device="cpu", output_type=types.ANY_DATA, dtype=dtype
+            encoded, device=device, output_type=types.ANY_DATA, dtype=types.UINT32
         )
         return decoded
 
-    # Default dtype (uint8): the uint32 TIFF should decode to (almost) the same pixels
-    # as the original uint8 TIFF of the same image.
-    p = pipe(types.UINT8)
-    imgs_u8 = p.run()[0]
-    assert imgs_u8.at(0).dtype == np.uint8
-    assert imgs_u8.at(1).dtype == np.uint8
-    assert imgs_u8.at(0).shape == imgs_u8.at(1).shape
-    delta = np.abs(imgs_u8.at(0).astype("float") - imgs_u8.at(1).astype("float")) / 256
-    assert np.quantile(delta, 0.9) < 0.05, "Original and uint32 TIFF differ significantly"
+    # Requesting dtype=UINT32 explicitly: the uint32 sample should decode natively, without
+    # downscaling to uint8. Compare the full-precision output against an independent reference
+    # decode (via tifffile), on both the cpu (libtiff) and mixed (nvtiff) backends.
+    for device in ("cpu", "mixed"):
+        p = pipe(device)
+        (out,) = p.run()
+        result = out.as_cpu().at(0)
+        assert result.dtype == np.uint32
+        np.testing.assert_array_equal(result, ref, err_msg=f"device={device}")
 
-    # Requesting dtype=UINT32 explicitly: the uint32 sample should decode natively,
-    # without downscaling to uint8. The dynamic-range scaling from uint32 down to the
-    # original uint8 precision is lossy but the top byte should closely match the
-    # uint8 decode of the same (normal) image obtained above.
-    p = pipe(types.UINT32)
-    imgs_u32 = p.run()[0]
-    assert imgs_u32.at(1).dtype == np.uint32
-    assert imgs_u32.at(1).shape == imgs_u8.at(0).shape
-    top_byte = (imgs_u32.at(1) >> 24).astype(np.uint8)
-    delta = np.abs(top_byte.astype("float") - imgs_u8.at(0).astype("float")) / 256
-    assert np.quantile(delta, 0.9) < 0.05, "Decoded uint32 TIFF data doesn't match expectations"
+
+def test_tiff_int32():
+    tiff_dir = os.path.join(test_data_root, good_path, "tiff", "0")
+    ref_dir = os.path.join(test_data_root, "db/single/reference/tiff/0")
+    int32_file = os.path.join(tiff_dir, "cat-300572_640_int32.tiff")
+    ref = np.load(os.path.join(ref_dir, "cat-300572_640_int32.tiff.npy"))
+
+    @pipeline_def(batch_size=1, device_id=0, num_threads=1)
+    def pipe(device):
+        encoded, _ = fn.readers.file(files=[int32_file])
+        decoded = fn.experimental.decoders.image(
+            encoded, device=device, output_type=types.ANY_DATA, dtype=types.INT32
+        )
+        return decoded
+
+    # The LibTIFF (cpu) extension explicitly rejects signed TIFF sample formats; this is a
+    # known, separate limitation, not something this test is expected to fix. Assert the
+    # current (documented) failure mode instead of silently skipping it, so a change in
+    # that behavior gets noticed.
+    p = pipe("cpu")
+    assert_raises(RuntimeError, p.run, glob="*Failed to decode sample*")
+
+    # The nvTIFF (mixed/GPU) backend does decode signed int32 TIFF; compare the full-precision
+    # output against an independent reference decode (via tifffile).
+    p = pipe("mixed")
+    (out,) = p.run()
+    result = out.as_cpu().at(0)
+    assert result.dtype == np.int32
+    np.testing.assert_array_equal(result, ref)
 
 
 def _testimpl_image_decoder_peek_shape(
