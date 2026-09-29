@@ -502,6 +502,10 @@ class VideoReaderDecoder
                              " requested, but the decoder always produces 3 channels "
                              "(RGB or YCbCr) for the currently supported image types."));
 
+    DALI_ENFORCE(additional_decode_surfaces_ >= 0,
+                 make_string("additional_decode_surfaces must be non-negative, got ",
+                             additional_decode_surfaces_, "."));
+
     constant_frame_.set_pinned(std::is_same_v<Backend, GPUBackend>);
   }
 

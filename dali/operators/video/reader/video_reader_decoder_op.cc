@@ -102,8 +102,13 @@ Default: ``timestamps``.)code",
 * ``all_down``: Round both down)code",
         "start_down_end_up")
     .AddOptionalArg("file_list_include_end",
-        R"code(If true, include the end frame in the range. Default: true)code",
-        true)
+        R"code(If set to True, the ``end`` value of a `file_list` entry is treated as inclusive,
+i.e. the frame at ``end`` is included in the selected range.
+
+By default (False), ``end`` acts as an exclusive bound, which matches the behavior of the
+legacy ``readers.video`` operator. Setting this to True selects one more frame (unless the range
+already reaches the end of the video) than ``readers.video`` would for the same `file_list`.)code",
+        false)
     .AddOptionalArg<vector<int>>("labels", R"(Labels associated with the files listed in
 `filenames` argument. If not provided, no labels will be yielded.)",
                                  nullptr)
@@ -182,9 +187,15 @@ normalized data in the range ``[0.0, 1.0]``. Ignored when ``dtype`` is ``UINT8``
 decoded channels (currently always ``3``); provided for compatibility with ``readers.video``.)code",
                     3)
     .AddOptionalArg("additional_decode_surfaces",
-                    R"code(Additional NVDEC decode surfaces to allocate beyond the baseline.
+                    R"code(Additional decode-lookahead slots, beyond a baseline of 8, used by the GPU
+decoder.
 
-Only relevant for the GPU backend; ignored on CPU.)code",
+This value sizes the GPU decoder's host-side frame reorder buffer (and the initial surface
+count hint given to the video parser), which bounds how many frames can be decoded ahead of
+the one being returned. It does not directly set the number of NVDEC decode surfaces; that
+count is determined by the codec's own requirements (``min_num_decode_surfaces``).
+
+Must be non-negative. Only relevant for the GPU backend; ignored on CPU.)code",
                     2)
     .AddOptionalArg("require_constant_frame_rate",
                     R"code(If set, raises an error if the video has a variable
@@ -193,7 +204,10 @@ indexing).)code",
                     false)
     .AddParent("LoaderBase")
     .OutputNDim(0, 4)
-    .OutputLayout(0, "FHWC");
+    .OutputLayout(0, "FHWC")
+    .OutputDType(0, [](const OpSpec &spec) {
+      return spec.GetArgument<DALIDataType>("dtype");
+    });
 
 
 DALI_REGISTER_OPERATOR(experimental__readers__Video, VideoReaderDecoder<CPUBackend>, CPU);
