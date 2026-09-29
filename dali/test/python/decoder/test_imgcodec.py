@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -49,9 +49,27 @@ def get_img_files(data_path, subdir="*", ext=None):
         return list(set(files) - set(txt_files))
 
 
+# cat-300572_640_int32.tiff is a signed-format TIFF, added for the dedicated test_tiff_int32
+# test. It needs dtype=INT32 to decode (see test_tiff_int32); the generic decoders.image() calls
+# below don't request that, so this file must be excluded from their directory-wide file lists.
+TIFF_UNSUPPORTED_BY_GENERIC_DECODE = {"cat-300572_640_int32.tiff"}
+
+
 @pipeline_def
-def decoder_pipe(data_path, device, use_fast_idct=False, jpeg_fancy_upsampling=False):
-    inputs, labels = fn.readers.file(file_root=data_path, shard_id=0, num_shards=1, name="Reader")
+def decoder_pipe(
+    data_path, device, use_fast_idct=False, jpeg_fancy_upsampling=False, exclude_names=None
+):
+    if exclude_names:
+        files = [
+            os.path.relpath(f, data_path)
+            for f in get_img_files(data_path)
+            if os.path.basename(f) not in exclude_names
+        ]
+        inputs, labels = fn.readers.file(file_root=data_path, files=files, name="Reader")
+    else:
+        inputs, labels = fn.readers.file(
+            file_root=data_path, shard_id=0, num_shards=1, name="Reader"
+        )
     decoded = fn.experimental.decoders.image(
         inputs,
         device=device,
@@ -70,7 +88,7 @@ test_good_path = ["jpeg", "mixed", "png", "tiff", "pnm", "bmp", "jpeg2k", "webp"
 test_misnamed_path = ["jpeg", "png", "tiff", "pnm", "bmp"]
 
 
-def run_decode(data_path, batch, device, threads):
+def run_decode(data_path, batch, device, threads, exclude_names=None):
     pipe = decoder_pipe(
         data_path=data_path,
         batch_size=batch,
@@ -78,6 +96,7 @@ def run_decode(data_path, batch, device, threads):
         device_id=0,
         device=device,
         prefetch_queue_depth=1,
+        exclude_names=exclude_names,
     )
     iters = math.ceil(pipe.epoch_size("Reader") / batch)
     for iter in range(iters):
@@ -88,13 +107,15 @@ def test_image_decoder():
     for device in ["cpu", "mixed"]:
         for batch_size in [1, 10]:
             for img_type in test_good_path:
+                exclude = TIFF_UNSUPPORTED_BY_GENERIC_DECODE if img_type == "tiff" else None
                 for threads in [1, random.choice([2, 3, 4])]:
                     data_path = os.path.join(test_data_root, good_path, img_type)
-                    yield run_decode, data_path, batch_size, device, threads
+                    yield run_decode, data_path, batch_size, device, threads, exclude
             for img_type in test_misnamed_path:
+                exclude = TIFF_UNSUPPORTED_BY_GENERIC_DECODE if img_type == "tiff" else None
                 for threads in [1, random.choice([2, 3, 4])]:
                     data_path = os.path.join(test_data_root, misnamed_path, img_type)
-                    yield run_decode, data_path, batch_size, device, threads
+                    yield run_decode, data_path, batch_size, device, threads, exclude
 
 
 @pipeline_def
@@ -219,6 +240,7 @@ def test_image_decoder_fused():
 
 def check_FastDCT_body(batch_size, img_type, device):
     data_path = os.path.join(test_data_root, good_path, img_type)
+    exclude = TIFF_UNSUPPORTED_BY_GENERIC_DECODE if img_type == "tiff" else None
     compare_pipelines(
         decoder_pipe(
             data_path=data_path,
@@ -227,6 +249,7 @@ def check_FastDCT_body(batch_size, img_type, device):
             device_id=0,
             device=device,
             use_fast_idct=False,
+            exclude_names=exclude,
         ),
         decoder_pipe(
             data_path=data_path,
@@ -235,6 +258,7 @@ def check_FastDCT_body(batch_size, img_type, device):
             device_id=0,
             device="cpu",
             use_fast_idct=True,
+            exclude_names=exclude,
         ),
         # average difference should be no bigger than off-by-3
         batch_size=batch_size,
@@ -311,6 +335,8 @@ def _testimpl_image_decoder_consistency(img_out_type, file_fmt, path, subdir="*"
     if (file_fmt == "jpeg2k" or file_fmt == "mixed") and img_out_type == types.YCbCr:
         eps = 6
     files = get_img_files(os.path.join(test_data_root, path), subdir=subdir, ext=ext)
+    if file_fmt == "tiff":
+        files = [f for f in files if os.path.basename(f) not in TIFF_UNSUPPORTED_BY_GENERIC_DECODE]
     compare_pipelines(
         img_decoder_pipe("cpu", out_type=img_out_type, files=files),
         img_decoder_pipe("mixed", out_type=img_out_type, files=files),
