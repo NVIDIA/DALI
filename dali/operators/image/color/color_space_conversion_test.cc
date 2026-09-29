@@ -101,7 +101,7 @@ TEST(ColorSpaceConversionTest, ZeroExtentSampleGPU) {
 
 TEST(ColorSpaceConversionTest, ZeroExtentUnsupportedConversionGPU) {
   TensorList<CPUBackend> input;
-  input.Resize(TensorListShape<3>({{0, 1, 3}}), DALI_UINT8);
+  input.Resize(TensorListShape<3>(std::vector<TensorShape<3>>{{0, 1, 3}}), DALI_UINT8);
   input.SetLayout("HWC");
 
   Pipeline pipe(1, 1, 0);
