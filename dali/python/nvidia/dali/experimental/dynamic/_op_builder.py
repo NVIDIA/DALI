@@ -72,7 +72,12 @@ _MERGED_ARG_GPU_INPUT = _names.MERGED_ARG_GPU_INPUT
 
 
 def _is_gpu_tensor_or_batch(value):
-    return isinstance(value, (Tensor, Batch)) and value.device.device_type == "gpu"
+    # `value` may be a concrete `Tensor`/`Batch`, a `capture.invariant`-wrapped value, or a raw
+    # GPU array/DLPack object (the dynamic conversion path accepts all of these as inputs), so
+    # device placement must be detected the same way `Operator._process_params` detects it for
+    # positional inputs, not restricted to concrete `Tensor`/`Batch`.
+    device = _ops._get_input_device(unwrap_invariant(value))
+    return device is not None and device.device_type == "gpu"
 
 
 def _route_gpu_merged_arg(schema_name, inputs, raw_kwargs):
