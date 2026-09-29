@@ -300,7 +300,7 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
           case FileListFormat::kFrames:
             if (entry.start < 0)
               entry.start = num_frames + entry.start;
-            if (entry.end < 0)
+            if (entry.end <= 0)
               entry.end = num_frames + entry.end;
             entry.start_frame = file_list_opts_.round_start(entry.start);
             entry.end_frame = file_list_opts_.round_end(entry.end);
@@ -317,7 +317,7 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
             DALI_FAIL("Invalid file_list_format");
         }
         if (file_list_opts_.include_end) {
-          entry.end_frame = std::min<int>(entry.end_frame, num_frames);
+          entry.end_frame = std::min<int>(entry.end_frame + 1, num_frames);
         }
         LOG_LINE << "Frame range after conversion: [" << entry.start_frame << ", "
                  << entry.end_frame << "]" << std::endl;

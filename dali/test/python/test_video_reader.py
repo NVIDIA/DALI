@@ -221,6 +221,65 @@ def test_compare_experimental_to_legacy_reader_file_list(
     )
 
 
+def test_file_list_include_end_actually_includes_end_frame():
+    # Deterministic (non-randomized) boundary test: a file_list entry with
+    # file_list_format="frames", start=0, end=2 should yield 3 frames (0, 1, 2)
+    # when file_list_include_end=True, and 2 frames (0, 1) when False.
+    #
+    # sequence_length is chosen to exactly match the expected frame count for each
+    # branch: with pad_mode="none" (ISOLATED boundary), a range shorter than
+    # sequence_length produces zero samples rather than a short/padded one, so
+    # sequence_length must equal the exact number of frames being pinned down.
+    list_file = tempfile.NamedTemporaryFile(mode="w", delete=False)
+    list_file.write(f"{VIDEO_FILES[0]} 0 0 2\n")
+    list_file.close()
+
+    def run(include_end, sequence_length):
+        @pipeline_def(batch_size=1, num_threads=3, device_id=0)
+        def pipe():
+            video, _label = fn.experimental.readers.video(
+                device="cpu",
+                file_list=list_file.name,
+                file_list_format="frames",
+                file_list_rounding="all_down",
+                file_list_include_end=include_end,
+                sequence_length=sequence_length,
+                pad_mode="none",
+            )
+            return video
+
+        p = pipe()
+        p.build()
+        (video,) = p.run()
+        return np.array(video[0]).shape[0]
+
+    assert run(include_end=True, sequence_length=3) == 3
+    assert run(include_end=False, sequence_length=2) == 2
+
+
+def test_file_list_omitted_end_means_end_of_video():
+    list_file = tempfile.NamedTemporaryFile(mode="w", delete=False)
+    list_file.write(f"{VIDEO_FILES[0]} 0 2\n")  # label=0, start=2, end omitted (parses as 0)
+    list_file.close()
+
+    @pipeline_def(batch_size=1, num_threads=3, device_id=0)
+    def pipe():
+        video, _label = fn.experimental.readers.video(
+            device="cpu",
+            file_list=list_file.name,
+            file_list_format="frames",
+            sequence_length=1,
+            pad_mode="none",
+        )
+        return video
+
+    p = pipe()
+    p.build()
+    (video,) = p.run()
+    # Must decode from frame 2 through the end of the video, not zero frames.
+    assert np.array(video[0]).shape[0] > 0
+
+
 @cartesian_params(
     devices,
     batch_sizes,
