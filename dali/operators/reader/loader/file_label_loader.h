@@ -25,6 +25,7 @@
 #include <memory>
 #include <string>
 #include <optional>
+#include <stdexcept>
 #include <tuple>
 #include <utility>
 #include <variant>
@@ -114,10 +115,9 @@ class DLL_PUBLIC FileLabelLoaderBase : public Loader<CPUBackend, ImageLabelWrapp
     vector<float> float_labels;
 
     label_dtype_ = GetFileLabelDType(spec);
-    DALI_ENFORCE(label_dtype_ == DALI_INT32 || label_dtype_ == DALI_INT64 ||
-                 label_dtype_ == DALI_FLOAT,
-                 make_string("Unsupported ``label_dtype``: ", label_dtype_,
-                             ". Supported types are: INT32, INT64 and FLOAT."));
+    if (label_dtype_ != DALI_INT32 && label_dtype_ != DALI_INT64 && label_dtype_ != DALI_FLOAT)
+      throw std::invalid_argument(make_string("Unsupported ``label_dtype``: ", label_dtype_,
+                                              ". Supported types are: INT32, INT64 and FLOAT."));
 
     has_files_arg_ = spec.TryGetRepeatedArgument(files, "files");
     has_labels_arg_ = spec.TryGetRepeatedArgument(labels, "labels");
@@ -143,16 +143,18 @@ class DLL_PUBLIC FileLabelLoaderBase : public Loader<CPUBackend, ImageLabelWrapp
       "The argument ``labels`` is valid only when file paths "
       "are provided as `files` argument.");
 
-    DALI_ENFORCE(has_files_arg_ || !has_float_labels_arg,
-      "The argument ``float_labels`` is valid only when file paths "
-      "are provided as `files` argument.");
+    if (has_float_labels_arg && !has_files_arg_)
+      throw std::invalid_argument("The argument ``float_labels`` is valid only when file paths "
+                                  "are provided as ``files`` argument.");
 
-    DALI_ENFORCE(!(has_labels_arg_ && has_float_labels_arg),
-      "The arguments ``labels`` and ``float_labels`` are mutually exclusive.");
+    if (has_labels_arg_ && has_float_labels_arg)
+      throw std::invalid_argument(
+          "The arguments ``labels`` and ``float_labels`` are mutually exclusive.");
 
-    DALI_ENFORCE(!has_float_labels_arg || label_dtype_ == DALI_FLOAT,
-      make_string("The argument ``float_labels`` requires a floating point ``label_dtype``; got: ",
-                  label_dtype_, ". Use ``labels`` to provide integer labels."));
+    if (has_float_labels_arg && label_dtype_ != DALI_FLOAT)
+      throw std::invalid_argument(make_string(
+          "The argument ``float_labels`` requires a floating point ``label_dtype``; got: ",
+          label_dtype_, ". Use ``labels`` to provide integer labels."));
 
     DALI_ENFORCE(!has_file_filters_arg || file_discovery_opts_.file_filters.size() > 0,
                  "``file_filters`` list cannot be empty.");
@@ -178,8 +180,9 @@ class DLL_PUBLIC FileLabelLoaderBase : public Loader<CPUBackend, ImageLabelWrapp
         for (int i = 0, n = files.size(); i < n; i++)
           AddEntry({std::move(files[i])}, MakeFileLabel(labels[i], label_dtype_));
       } else if (has_float_labels_arg) {
-        DALI_ENFORCE(files.size() == float_labels.size(), make_string("Provided ",
-          float_labels.size(), " float labels for ", files.size(), " files."));
+        if (files.size() != float_labels.size())
+          throw std::invalid_argument(make_string("Provided ", float_labels.size(),
+                                                  " float labels for ", files.size(), " files."));
 
         for (int i = 0, n = files.size(); i < n; i++)
           AddEntry({std::move(files[i])}, MakeFileLabel(float_labels[i], label_dtype_));
@@ -260,17 +263,17 @@ class DLL_PUBLIC FileLabelLoaderBase : public Loader<CPUBackend, ImageLabelWrapp
           int name_end = i + 1;
           DALI_ENFORCE(name_end > 0 && name_end < label_start && label_end > label_start,
                        make_string("Incorrect format of the list file \"",  file_list_, "\":", n,
-                       " expected file name followed by a label; got: ", line));
+                       " expected file name followed by a label; got: \"", line, "\"."));
 
           line[label_end] = 0;
           line[name_end] = 0;
 
           const char *label_str = line + label_start;
           auto label = ParseFileLabel(label_str, label_dtype_);
-          DALI_ENFORCE(label.has_value(),
-                       make_string("Incorrect label in the list file \"", file_list_, "\":", n,
-                       " expected a value of type ", label_dtype_, "; got: \"", label_str,
-                       "\""));
+          if (!label.has_value())
+            throw std::invalid_argument(make_string(
+                "Incorrect label in the list file \"", file_list_, "\":", n,
+                " expected a value of type ", label_dtype_, "; got: \"", label_str, "\"."));
 
           AddEntry({std::string(line)}, *label);
         }

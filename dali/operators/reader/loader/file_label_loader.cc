@@ -14,10 +14,10 @@
 
 #include "dali/operators/reader/loader/file_label_loader.h"
 #include <cerrno>
-#include <cmath>
 #include <cstdlib>
 #include <limits>
 #include <memory>
+#include <stdexcept>
 #include "dali/core/common.h"
 #include "dali/operators/reader/loader/filesystem.h"
 #include "dali/operators/reader/loader/utils.h"
@@ -32,22 +32,24 @@ using filesystem::dir_sep;
 FileLabel MakeFileLabel(int64_t value, DALIDataType dtype) {
   switch (dtype) {
     case DALI_INT32:
-      DALI_ENFORCE(value >= std::numeric_limits<int32_t>::min() &&
-                   value <= std::numeric_limits<int32_t>::max(),
-                   make_string("Label ", value, " is out of range of the label type ", dtype, "."));
+      if (value < std::numeric_limits<int32_t>::min() ||
+          value > std::numeric_limits<int32_t>::max())
+        throw std::invalid_argument(
+            make_string("Label ", value, " is out of range of the label type ", dtype, "."));
       return static_cast<int32_t>(value);
     case DALI_INT64:
       return value;
     case DALI_FLOAT:
       return static_cast<float>(value);
     default:
-      DALI_FAIL(make_string("Unsupported label type: ", dtype));
+      throw std::invalid_argument(make_string("Unsupported label type: ", dtype, "."));
   }
 }
 
 FileLabel MakeFileLabel(float value, DALIDataType dtype) {
-  DALI_ENFORCE(dtype == DALI_FLOAT,
-               make_string("Cannot store a floating point label in the label type ", dtype, "."));
+  if (dtype != DALI_FLOAT)
+    throw std::invalid_argument(
+        make_string("Cannot store a floating point label in the label type ", dtype, "."));
   return value;
 }
 
@@ -69,12 +71,12 @@ std::optional<FileLabel> ParseFileLabel(const char *str, DALIDataType dtype) {
     }
     case DALI_FLOAT: {
       float value = std::strtof(str, &end);
-      if (end == str || *end != '\0' || (errno == ERANGE && std::isinf(value)))
+      if (end == str || *end != '\0' || errno == ERANGE)
         return std::nullopt;
       return value;
     }
     default:
-      DALI_FAIL(make_string("Unsupported label type: ", dtype));
+      throw std::invalid_argument(make_string("Unsupported label type: ", dtype, "."));
   }
 }
 
