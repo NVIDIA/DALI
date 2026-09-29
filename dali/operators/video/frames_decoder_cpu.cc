@@ -162,6 +162,10 @@ void FramesDecoderCpu::CopyToOutput(uint8_t *data) {
     sws_src_colorspace_ = sws_colorspace;
   }
 
+  // TODO(DALI-4916): For image_type == DALI_YCbCr, sws_output_format is planar
+  // AV_PIX_FMT_YUV444P, but only dest[0] / dest_linesize[0] are populated (as if the output
+  // were packed). dest[1] / dest[2] stay null, so sws_scale fails ("bad dst image pointers")
+  // and the CPU backend cannot decode YCbCr. The U and V plane pointers/linesizes need to be set.
   uint8_t *dest[4] = {sws_output_data, nullptr, nullptr, nullptr};
   int dest_linesize[4] = {row_stride, 0, 0, 0};
   if (image_type_ == DALI_YCbCr) {

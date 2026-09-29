@@ -18,6 +18,7 @@ import nvidia.dali.experimental.dynamic as ndd
 import numpy as np
 import os
 import cv2
+import functools
 import tempfile
 from test_utils import get_dali_extra_path
 from nose2.tools import cartesian_params
@@ -50,18 +51,16 @@ image_type_supported_by_legacy_reader = [types.RGB, types.YCbCr]
 
 
 def skip_if_experimental_ycbcr_cpu_bug(device, image_type):
-    # Known pre-existing bug (not introduced by this task, not a legacy-vs-experimental
-    # parity gap): experimental.readers.video's CPU backend crashes for
-    # image_type=YCbCr with `DALI_ENFORCE` "Could not convert frame data: Invalid
-    # argument" (dali/operators/video/frames_decoder_cpu.cc:146-147,
-    # FramesDecoderCpu::CopyToOutput). For YCbCr it asks libswscale to produce planar
-    # AV_PIX_FMT_YUV444P output but only supplies a single packed destination
-    # buffer/linesize (dest[1]/dest[2] are left null), so sws_scale fails with "bad dst
-    # image pointers". The GPU backend does not have this bug. Skip until the CPU
-    # decoder's YCbCr sws_scale destination planes are fixed in a dedicated follow-up.
+    # Known bug DALI-4916 (not a legacy-vs-experimental parity gap):
+    # experimental.readers.video's CPU backend crashes for image_type=YCbCr with
+    # `DALI_ENFORCE` "Could not convert frame data: Invalid argument"
+    # (FramesDecoderCpu::CopyToOutput in dali/operators/video/frames_decoder_cpu.cc). For
+    # YCbCr it asks libswscale to produce planar AV_PIX_FMT_YUV444P output but only supplies a
+    # single packed destination buffer/linesize (dest[1]/dest[2] are left null), so sws_scale
+    # fails with "bad dst image pointers". The GPU backend does not have this bug.
     if device == "cpu" and image_type == types.YCbCr:
         raise SkipTest(
-            "Known bug: experimental.readers.video CPU backend crashes for "
+            "Known bug DALI-4916: experimental.readers.video CPU backend crashes for "
             "image_type=YCbCr (see frames_decoder_cpu.cc CopyToOutput sws_scale call)"
         )
 
@@ -69,14 +68,17 @@ def skip_if_experimental_ycbcr_cpu_bug(device, image_type):
 def compare_frames(
     frame, ref_frame, iteration_idx, batch_idx, frame_idx, diff_step=2, threshold=0.03
 ):
-    # Compare frames
+    # Compare frames. `diff_step` is expressed in the 8-bit [0, 255] intensity scale, so frames
+    # must be given in that scale (normalized float frames should be multiplied by 255 first).
     diff_pixels = np.count_nonzero(np.abs(np.float32(frame) - np.float32(ref_frame)) > diff_step)
     total_pixels = frame.size
     # More than threshold of the pixels differ in more than 2 steps
     if diff_pixels / total_pixels > threshold:
         # Save the mismatched frames for inspection
-        frame_bgr = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
-        ref_frame_bgr = cv2.cvtColor(ref_frame, cv2.COLOR_RGB2BGR)
+        frame_u8 = np.uint8(np.clip(np.round(frame), 0, 255))
+        ref_frame_u8 = np.uint8(np.clip(np.round(ref_frame), 0, 255))
+        frame_bgr = cv2.cvtColor(frame_u8, cv2.COLOR_RGB2BGR)
+        ref_frame_bgr = cv2.cvtColor(ref_frame_u8, cv2.COLOR_RGB2BGR)
 
         output_path = f"frame_{iteration_idx:03d}_{batch_idx:03d}_{frame_idx:03d}.png"
         ref_output_path = f"ref_frame_{iteration_idx:03d}_{batch_idx:03d}_{frame_idx:03d}.png"
@@ -138,6 +140,12 @@ def compare_experimental_to_legacy_reader(device, batch_size, **kwargs):
 
         return tuple(list(outs0) + list(outs1))
 
+    # compare_frames' threshold is expressed in 8-bit intensity steps; normalized float output
+    # lies in [0.0, 1.0], so scale it back to [0, 255] before comparing, otherwise no content
+    # difference could ever exceed the threshold.
+    normalized_float = kwargs.get("dtype") == types.FLOAT and kwargs.get("normalized", False)
+    value_scale = 255.0 if normalized_float else 1.0
+
     pipe = video_reader_pipeline()
     pipe.build()
     legacy_epoch_size = pipe.reader_meta("legacy_reader")["epoch_size"]
@@ -164,7 +172,13 @@ def compare_experimental_to_legacy_reader(device, batch_size, **kwargs):
                 ), f"Number of frames mismatch: {num_frames} != {sample_experimental.shape[0]}"
                 if i == 0:
                     for k in range(num_frames):
-                        compare_frames(sample_experimental[k], sample_legacy[k], i, j, k)
+                        compare_frames(
+                            np.float32(sample_experimental[k]) * value_scale,
+                            np.float32(sample_legacy[k]) * value_scale,
+                            i,
+                            j,
+                            k,
+                        )
                 else:
                     assert np.array_equal(sample_legacy, sample_experimental)
                 break
@@ -210,44 +224,6 @@ def test_compare_experimental_to_legacy_reader_filenames(
 def test_compare_experimental_to_legacy_reader_file_list(
     device, batch_size, sequence_length, file_list_format, file_list_rounding, pad_mode, image_type
 ):
-    # Known divergence (see commit 8a8ea9901, "Fix file_list frame-mode rounding to
-    # match legacy semantics"): this test never passes `file_list_include_end`, so
-    # experimental.readers.video uses its schema default of True, which now (correctly,
-    # per its docstring) actually extends the selected frame range by one frame to
-    # include the end frame. Legacy's `file_list_frame_num=True` frame-mode end column
-    # is always a literal exclusive bound -- legacy has no equivalent of
-    # `file_list_include_end`, and `file_list_include_preceding_frame` only affects
-    # start-frame rounding, not end-frame inclusion. So for `file_list_format="frames"`,
-    # the two readers can legitimately select a different-sized frame range depending on
-    # the random start/end drawn below, which then also perturbs deterministic shuffling
-    # (fixed-seed `std::shuffle` over a differently-sized sample list), so the mismatch
-    # shows up as a pixel/content mismatch rather than a frame-count mismatch.
-    #
-    # With the fixed `np.random.seed(42)` at module scope, this reproducibly affects a
-    # handful of the parametrizations below (all `file_list_format="frames"`); the exact
-    # set below is tied not just to (device, batch_size, file_list_format,
-    # file_list_rounding, pad_mode) but also to image_type, since each parametrization
-    # instance generates its own random file_list content by drawing from the shared
-    # np.random stream, so adding/reordering ANY parametrization axis (including
-    # image_type) shifts which random file_lists later parametrizations receive and can
-    # change this set. Skip those known cases so the suite doesn't show unexplained red;
-    # if the random file_list content or the cartesian parameter lists above ever change,
-    # this list may need updating (the underlying cause is a genuine reader semantic gap,
-    # not something to "fix" here).
-    #
-    # NOTE: the skip check below is deliberately placed *after* generating (and thus
-    # consuming np.random draws for) the file_list, so that every other parametrization
-    # still gets exactly the same random file_list content as before this skip was
-    # added -- skipping earlier would shift the RNG stream and silently change which
-    # random file_lists later parametrizations receive.
-    _known_include_end_divergences = {
-        ("cpu", 1, "frames", "start_down_end_up", "constant", types.RGB),
-        ("cpu", 1, "frames", "start_up_end_down", "none", types.RGB),
-        ("cpu", 10, "frames", "start_up_end_down", "constant", types.RGB),
-        ("gpu", 1, "frames", "start_up_end_down", "constant", types.YCbCr),
-        ("gpu", 10, "frames", "start_down_end_up", "none", types.RGB),
-    }
-
     files = VIDEO_FILES
     list_file = tempfile.NamedTemporaryFile(mode="w", delete=False)
     for i, file in enumerate(files):
@@ -264,20 +240,6 @@ def test_compare_experimental_to_legacy_reader_file_list(
     list_file.close()
 
     skip_if_experimental_ycbcr_cpu_bug(device, image_type)
-
-    if (
-        device,
-        batch_size,
-        file_list_format,
-        file_list_rounding,
-        pad_mode,
-        image_type,
-    ) in _known_include_end_divergences:
-        raise SkipTest(
-            "Known experimental-vs-legacy divergence: file_list_include_end=True "
-            "(default) has no legacy equivalent for file_list_format='frames'. "
-            "See commit 8a8ea9901."
-        )
 
     if debug:
         print("File list contents:")
@@ -357,6 +319,79 @@ def test_file_list_omitted_end_means_end_of_video():
     assert np.array(video[0]).shape[0] > 0
 
 
+def _file_list_frame_selection(reader_fn, file_list, **kwargs):
+    """Returns (epoch_size, sorted start frame indices) for a single-frame-per-sample reader."""
+
+    @pipeline_def(batch_size=1, num_threads=2, device_id=0, prefetch_queue_depth=1)
+    def pipe():
+        _, _, frame_num = reader_fn(
+            name="reader",
+            file_list=file_list,
+            sequence_length=1,
+            step=1,
+            enable_frame_num=True,
+            **kwargs,
+        )
+        return frame_num
+
+    p = pipe()
+    p.build()
+    epoch_size = p.reader_meta("reader")["epoch_size"]
+    frame_nums = []
+    for _ in range(epoch_size):
+        (frame_num,) = p.run()
+        frame_nums.append(int(np.array(frame_num.as_cpu()[0]).flatten()[0]))
+    return epoch_size, sorted(frame_nums)
+
+
+@cartesian_params(devices, file_list_formats)
+def test_file_list_default_end_matches_legacy(device, file_list_format):
+    # Deterministic check that, without any `file_list_include_end` override,
+    # experimental.readers.video selects exactly the same frames from a file_list with explicit
+    # start/end values as the legacy readers.video does (i.e. `end` is exclusive by default).
+    video_files = sorted(VIDEO_FILES)
+    if file_list_format == "frames":
+        entries = [(video_files[0], 5, 15), (video_files[1], 0, 10), (video_files[2], 3, 7)]
+    else:
+        entries = [(video_files[0], 0.2, 0.8), (video_files[1], 0.1, 0.9)]
+
+    for filename, start, end in entries:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".txt") as list_file:
+            list_file.write(f"{filename} 0 {start} {end}\n")
+            list_file.flush()
+
+            legacy_kwargs = dict(file_list_frame_num=(file_list_format == "frames"))
+            experimental_kwargs = dict(file_list_format=file_list_format)
+            if file_list_format == "timestamps":
+                # The default start/end rounding of the two readers differs for timestamps
+                # (legacy's `file_list_include_preceding_frame` defaults to False, while
+                # experimental's `file_list_rounding` defaults to "start_down_end_up"). That
+                # is a separate rounding-default difference, unrelated to end-frame inclusion,
+                # so pin both readers to the equivalent rounding mode explicitly and leave only
+                # the end-inclusion behavior at its default.
+                legacy_kwargs["file_list_include_preceding_frame"] = True
+                experimental_kwargs["file_list_rounding"] = "start_down_end_up"
+
+            legacy = _file_list_frame_selection(
+                functools.partial(fn.readers.video, device="gpu"),
+                list_file.name,
+                **legacy_kwargs,
+            )
+            experimental = _file_list_frame_selection(
+                functools.partial(fn.experimental.readers.video, device=device),
+                list_file.name,
+                **experimental_kwargs,
+            )
+            assert legacy == experimental, (
+                f"Frame selection mismatch for {filename} [{start}, {end}] "
+                f"({file_list_format}): legacy (epoch_size, frames)={legacy}, "
+                f"experimental={experimental}"
+            )
+            if file_list_format == "frames":
+                # Exclusive end: frames start..end-1.
+                assert experimental == (end - start, list(range(start, end)))
+
+
 @cartesian_params(
     devices,
     batch_sizes,
@@ -383,9 +418,19 @@ def test_compare_experimental_to_legacy_reader_file_root(
     )
 
 
-@cartesian_params(devices, batch_sizes, sequence_lengths, [types.UINT8, types.FLOAT])
-def test_compare_experimental_to_legacy_reader_dtype(device, batch_size, sequence_length, dtype):
-    if device == "cpu" and dtype == types.FLOAT:
+_dtype_cases = {
+    "uint8": dict(dtype=types.UINT8, normalized=False),
+    "float_normalized": dict(dtype=types.FLOAT, normalized=True),
+    "float_unnormalized": dict(dtype=types.FLOAT, normalized=False),
+}
+
+
+@cartesian_params(devices, batch_sizes, sequence_lengths, list(_dtype_cases.keys()))
+def test_compare_experimental_to_legacy_reader_dtype(
+    device, batch_size, sequence_length, dtype_case
+):
+    dtype_kwargs = _dtype_cases[dtype_case]
+    if device == "cpu" and dtype_kwargs["dtype"] == types.FLOAT:
         # dtype=FLOAT is only supported on the GPU backend of experimental.readers.video
         # (see test_dtype_float_on_cpu_raises); not a legacy-vs-experimental parity gap.
         raise SkipTest("dtype=FLOAT is not supported on the CPU backend")
@@ -394,8 +439,7 @@ def test_compare_experimental_to_legacy_reader_dtype(device, batch_size, sequenc
         batch_size=batch_size,
         filenames=VIDEO_FILES,
         sequence_length=sequence_length,
-        dtype=dtype,
-        normalized=(dtype == types.FLOAT),
+        **dtype_kwargs,
     )
 
 
@@ -479,8 +523,7 @@ def test_uniform_sample_file_list_roi(device, sequence_length):
     # Define a ROI that excludes the first and last few frames.
     start_frame = max(1, total_frames // 5)
     end_frame = min(total_frames - 1, total_frames * 4 // 5)
-    # file_list_include_end defaults to True, so the ROI is inclusive of end_frame.
-    roi_frames = end_frame - start_frame + 1
+    roi_frames = end_frame - start_frame
     assert roi_frames >= sequence_length, "ROI too small for this test"
 
     # Write a file_list with the ROI.
@@ -507,8 +550,8 @@ def test_uniform_sample_file_list_roi(device, sequence_length):
         assert fn_arr[0] == start_frame, f"First index should be {start_frame}, got {fn_arr[0]}"
         if sequence_length > 1:
             assert (
-                fn_arr[-1] == end_frame
-            ), f"Last index should be {end_frame}, got {fn_arr[-1]}"
+                fn_arr[-1] == end_frame - 1
+            ), f"Last index should be {end_frame - 1}, got {fn_arr[-1]}"
 
         expected_idxs = start_frame + np.floor(
             np.linspace(0, roi_frames - 1, sequence_length) + 0.5
@@ -769,9 +812,9 @@ def test_additional_decode_surfaces_does_not_crash():
 
 
 def test_additional_decode_surfaces_matches_default_output():
-    # additional_decode_surfaces only tunes NVDEC surface pooling; it must not change the
-    # decoded pixel data, so decoding the same video with a non-default value should produce
-    # identical output to the default (additional_decode_surfaces=2).
+    # additional_decode_surfaces only sizes the GPU decoder's decode-lookahead / reorder buffer;
+    # it must not change the decoded pixel data, so decoding the same video with a non-default
+    # value should produce identical output to the default (additional_decode_surfaces=2).
     @pipeline_def(batch_size=2, num_threads=3, device_id=0)
     def pipe(additional_decode_surfaces):
         return fn.experimental.readers.video(
@@ -793,3 +836,35 @@ def test_additional_decode_surfaces_matches_default_output():
         np.testing.assert_array_equal(
             np.array(sample_default.as_cpu()), np.array(sample_custom.as_cpu())
         )
+
+
+def test_additional_decode_surfaces_negative_raises():
+    @pipeline_def(batch_size=1, num_threads=3, device_id=0)
+    def pipe():
+        return fn.experimental.readers.video(
+            device="gpu", filenames=VIDEO_FILES, sequence_length=3, additional_decode_surfaces=-1
+        )
+
+    try:
+        pipe().build()
+        assert False, "Expected an exception for a negative additional_decode_surfaces"
+    except RuntimeError:
+        pass  # expected
+
+
+@cartesian_params([None, types.UINT8, types.FLOAT])
+def test_output_dtype_metadata(dtype):
+    # The schema must statically report the video output's dtype (derived from the `dtype`
+    # argument), so that graph-level metadata consumers see it before the operator runs.
+    from nvidia.dali import backend
+
+    spec = backend.OpSpec("experimental__readers__Video")
+    spec.AddArg("device", "gpu")
+    spec.AddArg("sequence_length", 3)
+    if dtype is not None:
+        spec.AddArg("dtype", dtype)
+    spec.AddOutput("video", "gpu")
+    spec.InferOutputMetadata()
+    output_dtype = spec.OutputDesc(0)[3]
+    expected = types.UINT8 if dtype is None else dtype
+    assert output_dtype == expected, f"Expected {expected}, got {output_dtype}"
