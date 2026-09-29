@@ -41,6 +41,16 @@
 
 namespace dali {
 
+namespace detail {
+
+/**
+ * @brief Number of outputs of experimental.readers.video (and its fused-resize variant):
+ *        video, [labels], [frame_num], [timestamps].
+ */
+int VideoReaderDecoderOutputFn(const OpSpec &spec);
+
+}  // namespace detail
+
 struct VideoSampleDesc {
   VideoSampleDesc(const VideoFileMeta *video_file_meta = nullptr, int start = -1, int end = -1, int stride = -1)
       : video_file_meta_(video_file_meta), start_(start), end_(end), stride_(stride), frame_idxs_() {}
@@ -554,6 +564,15 @@ class VideoReaderDecoder
   }
 
   void RunImpl(Workspace &ws) override {
+    WriteVideoOutput(ws);
+    WriteMetadataOutputs(ws);
+  }
+
+ protected:
+  /**
+   * @brief Copies the decoded sequences of the current batch to output 0.
+   */
+  void WriteVideoOutput(Workspace &ws) {
     auto &video_output = ws.Output<Backend>(0);
     int batch_size = GetCurrBatchSize();
 
@@ -563,8 +582,12 @@ class VideoReaderDecoder
       auto &sample = GetSample(sample_id);
       video_output.CopySample(sample_id, sample.data_, order);
     }
+  }
 
-    // Copy optional metadata outputs
+  /**
+   * @brief Writes the optional outputs (labels, frame_num, timestamps), starting at output 1.
+   */
+  void WriteMetadataOutputs(Workspace &ws) {
     int out_index = 1;
     if (has_labels_) {
       OutputMetadata<int32_t>(ws, out_index++, [](auto &s) {
@@ -587,6 +610,7 @@ class VideoReaderDecoder
     }
   }
 
+ public:
   bool HasContiguousOutputs() const override {
     return true;
   }

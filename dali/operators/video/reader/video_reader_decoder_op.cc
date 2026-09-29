@@ -19,6 +19,19 @@
 
 namespace dali {
 
+namespace detail {
+
+int VideoReaderDecoderOutputFn(const OpSpec &spec) {
+  bool has_labels = spec.HasArgument("labels") || spec.HasArgument("file_list") ||
+                    spec.HasArgument("file_root");
+  bool has_frame_num =
+      ParseFrameNumPolicy(spec.GetArgument<std::string>("enable_frame_num")) !=
+      FrameNumPolicy::None;
+  return 1 + has_labels + has_frame_num + spec.GetArgument<bool>("enable_timestamps");
+}
+
+}  // namespace detail
+
 DALI_SCHEMA(experimental__readers__Video)
     .DocStr(R"code(Loads and decodes video files from disk.
 
@@ -53,14 +66,7 @@ The outputs of the operator are: video, [labels], [frame_num], [timestamps].
 * ``timestamps``: Time in seconds of each frame in the sequence. Only available when ``enable_timestamps=True``.
 )code")
     .NumInput(0)
-    .OutputFn([](const OpSpec &spec) {
-      bool has_labels = spec.HasArgument("labels") || spec.HasArgument("file_list") ||
-                        spec.HasArgument("file_root");
-      bool has_frame_num =
-          ParseFrameNumPolicy(spec.GetArgument<std::string>("enable_frame_num")) !=
-          FrameNumPolicy::None;
-      return 1 + has_labels + has_frame_num + spec.GetArgument<bool>("enable_timestamps");
-    })
+    .OutputFn(detail::VideoReaderDecoderOutputFn)
     .AddOptionalArg("filenames",
                     R"code(Absolute paths to the video files to load.
 
