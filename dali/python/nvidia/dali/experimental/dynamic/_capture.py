@@ -915,6 +915,7 @@ def _wire_capture_graph(
 ) -> None:
     """Wire the capture graph into a Pipeline. Must be called inside ``with pipe:``."""
     from ._op_builder import _scalar_decay
+    from nvidia.dali.ops._names import MERGED_ARG_GPU_INPUT
 
     datanode_map: dict[CaptureRef, Any] = {}
     for source in sources:
@@ -941,6 +942,17 @@ def _wire_capture_graph(
         # Cast kwargs when necessary
         for name, dtype in node.kwarg_casts.items():
             kw_nodes[name] = fn.cast(kw_nodes[name], dtype=dtype)
+
+        # A GPU-placed value given for a GPU-routable merged argument (see
+        # `_op_builder._MERGED_ARG_GPU_INPUT`) must flow into the graph as a positional input,
+        # not a (CPU-only) argument-input, mirroring what `_op_builder._route_gpu_merged_arg`
+        # does for the eager path - recording always classifies it as a kwarg (see
+        # `_capture_intercept`), so the routing has to happen here, at wiring time, instead.
+        gpu_route_arg = MERGED_ARG_GPU_INPUT.get(node.op_class._schema_name)
+        if gpu_route_arg is not None and gpu_route_arg in kw_nodes:
+            if kw_nodes[gpu_route_arg].device == "gpu":
+                positional.append(kw_nodes.pop(gpu_route_arg))
+
         # All kwargs need to be on the CPU
         for name, kw_node in kw_nodes.items():
             kw_nodes[name] = kw_node.cpu()
