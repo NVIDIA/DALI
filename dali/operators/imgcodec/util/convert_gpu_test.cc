@@ -466,18 +466,10 @@ class ConvertCPUvsGPUTest : public ::testing::Test {
     } else {
       values = {-2.0f, -1.0f, -0.5f, 0.0f, 0.25f, 0.5f, 1.0f, 1.5f};
     }
-    // The SNORM min_value is clamped to -1 by the CPU color conversion, while the GPU path
-    // normalizes with ConvertSatNorm-like scaling, which doesn't clamp it for floating point
-    // output. Skip this single value for floating point outputs.
-    if (std::is_floating_point_v<Output> && std::is_signed_v<Input> &&
-        std::is_integral_v<Input>)
-      values.erase(values.begin());
     std::mt19937_64 rng(42);
     while (static_cast<int>(values.size()) < n) {
       if constexpr (std::is_integral_v<Input>) {
-        std::uniform_int_distribution<int64_t> dist(
-          std::is_floating_point_v<Output> ? min_value<Input>() + 1 : min_value<Input>(),
-          max_value<Input>());
+        std::uniform_int_distribution<int64_t> dist(min_value<Input>(), max_value<Input>());
         values.push_back(static_cast<Input>(dist(rng)));
       } else {
         std::uniform_real_distribution<float> dist(-2, 2);

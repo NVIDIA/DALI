@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -475,6 +475,49 @@ def _signed_tiff_test_images():
         yield f"synthetic_{np.dtype(dtype).name}", encoded, combos
 
 
+def _signed_tiff_decode_pipe(encoded, device, output_type):
+    @pipeline_def(batch_size=1, device_id=0, num_threads=1)
+    def pipe(encoded, device, output_type):
+        data = fn.external_source(source=lambda: [encoded], batch=True)
+        return fn.experimental.decoders.image(data, device=device, output_type=output_type)
+
+    return pipe(encoded, device, output_type, prefetch_queue_depth=1)
+
+
+def _int32_tiff_capability(device):
+    """Whether `device` can decode an int32-sample TIFF at all, probed once with a tiny
+    synthetic image and cached.
+
+    Only the two specific, known "this feature isn't implemented here" errors are treated as
+    "unsupported" (missing DALI int32-dtype-mapping, and libTIFF's CPU extension rejecting
+    signed sample formats outright). Any other error is re-raised immediately, so a genuine
+    decoding regression in the real per-image assertions in test_tiff_signed_color_conversion
+    below still fails that test instead of being silently skipped here.
+    """
+    try:
+        import tifffile
+    except ImportError:
+        return False
+    import io
+
+    buf = io.BytesIO()
+    tifffile.imwrite(buf, np.zeros((2, 2, 3), dtype=np.int32), photometric="rgb")
+    encoded = np.frombuffer(buf.getvalue(), dtype=np.uint8)
+    try:
+        _signed_tiff_decode_pipe(encoded, device, types.ANY_DATA).run()
+        return True
+    except RuntimeError as e:
+        msg = str(e)
+        # Missing DALI int32 sample-type -> dtype mapping (see nvimagecodec_types.h).
+        if "Invalid sample_type" in msg:
+            return False
+        # libTIFF (CPU) extension explicitly rejects SAMPLEFORMAT_INT; the underlying message
+        # ("Unsupported sample format: N") isn't propagated to Python, only this wrapper is.
+        if device == "cpu" and "Failed to decode sample" in msg:
+            return False
+        raise
+
+
 def test_tiff_signed_color_conversion():
     """Decoding a signed integer TIFF to (uint8) YCbCr or GRAY must give the same results on the
     CPU and on the GPU; YCbCr (converted by DALI) must also match an independent reference.
@@ -487,35 +530,26 @@ def test_tiff_signed_color_conversion():
 
     Note: this requires DALI to map int32 nvImageCodec sample types (and the DALI_extra fixture)
     and, for the CPU backend, an nvImageCodec version whose libTIFF extension can decode signed
-    integer samples. When one of these is not available, the test is skipped.
+    integer samples. When one of these is not available, the test is skipped -- see
+    `_int32_tiff_capability` for exactly what "not available" means.
     """
     images = list(_signed_tiff_test_images())
     if not images:
         raise SkipTest("No signed TIFF test images available (DALI_extra fixture / tifffile)")
 
-    @pipeline_def(batch_size=1, device_id=0, num_threads=1)
-    def pipe(encoded, device, output_type):
-        data = fn.external_source(source=lambda: [encoded], batch=True)
-        return fn.experimental.decoders.image(data, device=device, output_type=output_type)
+    devices = [d for d in ("mixed", "cpu") if _int32_tiff_capability(d)]
+    if not devices:
+        raise SkipTest("Neither backend can decode int32-sample TIFF in this environment")
 
     def decode(encoded, device, output_type):
-        p = pipe(encoded, device, output_type, prefetch_queue_depth=1)
-        try:
-            (out,) = p.run()
-        except RuntimeError as e:
-            msg = str(e)
-            if "Failed to decode" in msg or "Invalid sample_type" in msg:
-                raise SkipTest(f"Signed TIFF decoding is not supported on {device}: {msg[:300]}")
-            raise
+        (out,) = _signed_tiff_decode_pipe(encoded, device, output_type).run()
         return np.array(out.as_cpu().at(0))
 
     for name, encoded, raw in images:
         for output_type in (types.YCbCr, types.GRAY):
             ref = _signed_rgb_to_uint8_ref(raw, output_type)
             results = {}
-            # mixed first: it's validated against the reference even if the CPU backend can't
-            # decode signed TIFF (and the test is skipped afterwards)
-            for device in ("mixed", "cpu"):
+            for device in devices:
                 out = decode(encoded, device, output_type)
                 assert out.dtype == np.uint8
                 assert out.shape == ref.shape, f"{name} {device}: {out.shape} vs {ref.shape}"
@@ -528,8 +562,22 @@ def test_tiff_signed_color_conversion():
                         out, ref, atol=1, rtol=0, err_msg=f"{name} {device} {output_type}"
                     )
                 results[device] = out.astype(np.int32)
-            diff = np.abs(results["cpu"] - results["mixed"])
-            assert diff.max() <= 1, f"{name} {output_type}: cpu and mixed differ by {diff.max()}"
+            if len(devices) > 1:
+                diff = np.abs(results["cpu"] - results["mixed"])
+                assert diff.max() <= 1, (
+                    f"{name} {output_type}: cpu and mixed differ by {diff.max()}"
+                )
+
+
+def test_tiff_signed_color_conversion_invalid_input():
+    """Empty and corrupt (non-TIFF) input must be rejected with a clear error on both backends,
+    not crash or return garbage."""
+    empty = np.empty((0,), dtype=np.uint8)
+    corrupt = np.frombuffer(b"not a TIFF file", dtype=np.uint8)
+    for encoded in (empty, corrupt):
+        for device in ("cpu", "mixed"):
+            p = _signed_tiff_decode_pipe(encoded, device, types.YCbCr)
+            assert_raises(RuntimeError, p.run, glob="*nvImageCodec failure*")
 
 
 def _testimpl_image_decoder_peek_shape(

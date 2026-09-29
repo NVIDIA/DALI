@@ -66,13 +66,18 @@ constexpr DALI_HOST_DEV std::enable_if_t<!std::is_integral<T>::value, float> bia
  *
  * Sample values are interpreted as normalized values:
  *  - unsigned integers are UNORM: v / max_value<Input>(), in [0, 1]
- *  - signed integers are SNORM: v / max_value<Input>(), in [-1, 1]; min_value<Input>(), which is
- *    one code below -max_value<Input>(), is clamped to -1 (like SNORM formats in graphics APIs)
+ *  - signed integers are SNORM: v / max_value<Input>(), in [-1, 1]; when `Output` is an integer
+ *    type, min_value<Input>(), which is one code below -max_value<Input>(), is clamped to -1
+ *    (like SNORM formats in graphics APIs). When `Output` is floating point, no clamping is
+ *    applied here, matching `ConvertSatNorm<float>`/`ConvertNorm<float>` (dali/core/convert.h)
+ *    and the GPU decode path (ConvertGPU), which both leave min_value<Input>() at its true,
+ *    slightly-past-(-1) normalized value instead of clamping it - so int8_t(-128) normalizes to
+ *    -128/127, not -1, when the output is floating point.
  *  - floating point values are used as-is
  *
  * The normalized value is then saturated to the range that `ConvertSatNorm<Output>` keeps:
  * [0, 1] for unsigned `Output`, [-1, 1] for signed integer `Output`; floating point `Output` has
- * no limit (except for the SNORM clamp at -1 mentioned above).
+ * no limit.
  *
  * This makes the color space conversion functions equivalent to converting each channel with
  * `ConvertSatNorm<Output>` first and then running the conversion with `Output` as both input and
@@ -85,7 +90,7 @@ constexpr DALI_HOST_DEV std::enable_if_t<!std::is_integral<T>::value, float> bia
 template <typename Output, typename Input>
 constexpr DALI_HOST_DEV Input saturate_norm(Input v) {
   if constexpr (std::is_integral<Input>::value) {
-    if constexpr (std::is_signed<Input>::value) {
+    if constexpr (std::is_signed<Input>::value && !is_fp_or_half<Output>::value) {
       constexpr Input lo = std::is_unsigned<Output>::value
                          ? Input(0)
                          : static_cast<Input>(-max_value<Input>());

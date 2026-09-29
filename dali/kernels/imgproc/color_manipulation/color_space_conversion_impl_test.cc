@@ -388,12 +388,14 @@ TYPED_TEST(ColorSpaceConversionTypedTest, Gray_Y_BothWays) {
 //
 // The convention verified below is the one documented in color_space_conversion_impl.h:
 //  * an unsigned integer sample is UNORM:  x = v / max_value<In>(),          in [0, 1]
-//  * a signed integer sample is SNORM:     x = max(v / max_value<In>(), -1), in [-1, 1]
-//    (min_value<In>() is one code below -max_value<In>() and is clamped to -1)
+//  * a signed integer sample is SNORM:     x = v / max_value<In>(),          in [min/max, 1]
+//    (min_value<In>() is one code below -max_value<In>(); it is clamped to -1 only when Output
+//    is an integer type, matching ConvertSatNorm<float> and the GPU decode path, which leave it
+//    unclamped for floating point Output)
 //  * a floating point sample is used as-is
 //  * before the color transform, the normalized input is saturated to the range that
 //    ConvertSatNorm<Output> can represent: [0, 1] for unsigned Output, [-1, 1] for signed
-//    integer Output and unbounded for floating point Output (except for the SNORM clamp above).
+//    integer Output and unbounded for floating point Output.
 //    This makes the color conversion equivalent to ConvertSatNorm<Output>(input) followed by the
 //    color transform in Output type (which is what the GPU image decoder path does), but without
 //    the intermediate rounding.
@@ -426,8 +428,11 @@ template <typename Out, typename In>
 constexpr double norm(In v) {
   double x = std::is_integral_v<In> ? static_cast<double>(v) / max_value<In>()
                                     : static_cast<double>(v);
-  if (std::is_integral_v<In> && std::is_signed_v<In> && x < -1)
-    x = -1;  // SNORM: min_value<In>() is clamped to -1
+  // SNORM: min_value<In>() is clamped to -1, but only when Out is an integer type - matching
+  // ConvertSatNorm<float>/ConvertNorm<float> and the GPU decode path, which leave it unclamped
+  // (e.g. int8_t(-128) normalizes to -128/127, not -1) when Out is floating point.
+  if (std::is_integral_v<In> && std::is_signed_v<In> && std::is_integral_v<Out> && x < -1)
+    x = -1;
   if (std::is_integral_v<Out>) {
     double lo = std::is_unsigned_v<Out> ? 0.0 : -1.0;
     x = x < lo ? lo : x > 1 ? 1 : x;
@@ -525,7 +530,7 @@ double y_to_gray(In y) {
 static_assert(any_ref::norm<uint8_t, int8_t>(int8_t(-128)) == 0);
 static_assert(any_ref::norm<int8_t, int8_t>(int8_t(-128)) == -1);
 static_assert(any_ref::norm<int8_t, int8_t>(int8_t(-127)) == -1);
-static_assert(any_ref::norm<float, int16_t>(int16_t(-32768)) == -1);
+static_assert(any_ref::norm<float, int16_t>(int16_t(-32768)) == -32768.0 / 32767);
 static_assert(any_ref::norm<float, int16_t>(int16_t(32767)) == 1);
 static_assert(any_ref::norm<uint8_t, float>(1.5f) == 1);
 static_assert(any_ref::norm<uint8_t, float>(-0.5f) == 0);
@@ -542,7 +547,8 @@ static_assert(detail::saturate_norm<uint8_t>(int8_t(5)) == 5);
 static_assert(detail::saturate_norm<uint16_t>(min_value<int32_t>()) == 0);
 static_assert(detail::saturate_norm<int8_t>(int8_t(-128)) == -127);
 static_assert(detail::saturate_norm<int32_t>(int8_t(-128)) == -127);
-static_assert(detail::saturate_norm<float>(int16_t(-32768)) == -32767);
+// ...but not when Output is floating point: min_value<Input>() is passed through unchanged.
+static_assert(detail::saturate_norm<float>(int16_t(-32768)) == -32768);
 static_assert(detail::saturate_norm<float>(int16_t(-32767)) == -32767);
 static_assert(detail::saturate_norm<float>(int32_t(-5)) == -5);
 static_assert(detail::saturate_norm<int8_t>(max_value<int32_t>()) == max_value<int32_t>());
@@ -817,8 +823,8 @@ TYPED_TEST(ColorSpaceConversionAnyTypeTest, YCbCr_to_Gray) {
  * It also means that decoding to YCbCr gives the same results as decoding to RGB and then
  * converting the result to YCbCr.
  *
- * The check is limited to integral outputs: ConvertSatNorm<float> does not clamp the SNORM
- * min_value<In>() to -1, so for floating point outputs the two differ at that single value.
+ * This holds for floating point outputs too: ConvertSatNorm<float> does not clamp the SNORM
+ * min_value<In>() to -1 either, matching saturate_norm's behavior for a floating point Output.
  */
 TYPED_TEST(ColorSpaceConversionAnyTypeTest, EquivalentToConvertSatNormFirst) {
   using In = TypeParam;
@@ -827,7 +833,7 @@ TYPED_TEST(ColorSpaceConversionAnyTypeTest, EquivalentToConvertSatNormFirst) {
   for_all_methods_and_outputs([&](auto method, auto out_type) {
     using Method = decltype(method);
     using Out = decltype(out_type);
-    if constexpr (std::is_integral_v<Out>) {
+    {
       SCOPED_TRACE(make_string(method_name<Method>(), " ", type_name<In>(), " -> ",
                                type_name<Out>()));
       auto to_out = [](vec<3, In> v) {
@@ -908,9 +914,12 @@ TEST(ColorSpaceConversionSignedTest, ITU_R_BT601_RGB2YCbCr_Pinned) {
   // Y = 2048 - 32767 * 219/255 = -26093.07
   EXPECT_EQ((method::rgb_to_ycbcr<int16_t, int8_t>({-128, -128, -128})),
             i16vec3(-26093, 16384, 16384));
-  // Floating point output: Y = 1/16 - 219/255
+  // Floating point output: min_value<int16_t>() (-32768) is NOT clamped to -1 here (unlike for
+  // an integer Output): it normalizes to -32768/32767, slightly past -max_value's -1, matching
+  // ConvertSatNorm<float> and the GPU decode path. Y = 1/16 - (219/255) * (-32768/32767).
   EXPECT_NEAR((method::rgb_to_y<float, int16_t>({-32768, -32768, -32768})),
-              0.0625 - 219.0 / 255, 1e-6);
+              0.0625 - 219.0 / 255 * (32768.0 / 32767), 1e-6);
+  // -max_value<int16_t>() (-32767) normalizes to exactly -1: Y = 1/16 - 219/255.
   EXPECT_NEAR((method::rgb_to_y<float, int16_t>({-32767, -32767, -32767})),
               0.0625 - 219.0 / 255, 1e-6);
 }
