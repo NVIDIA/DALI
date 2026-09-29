@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -149,14 +149,16 @@ __global__ void ColorSpaceConvKernel(Out *output, const In *input, int64_t sz) {
   }
 }
 
+template <typename Converter, typename Out, typename In>
+void LaunchColorSpaceConvKernel(Out *output, const In *input, int64_t npixels,
+                                 unsigned int grid, unsigned int block, cudaStream_t stream) {
+  ColorSpaceConvKernel<Converter, Out, In><<<grid, block, 0, stream>>>(output, input, npixels);
+}
+
 // TODO(janton): Write a generic batched color space conversion kernel template
 template <typename Out, typename In>
 void RunColorSpaceConversionKernel(Out *output, const In *input, DALIImageType out_type,
                                    DALIImageType in_type, int64_t npixels, cudaStream_t stream) {
-  // For CUDA kernel
-  const unsigned int block = npixels < 1024 ? npixels : 1024;
-  const unsigned int grid = (npixels + block - 1) / block;
-
   using ImageTypePair = std::pair<DALIImageType, DALIImageType>;
   ImageTypePair conversion{in_type, out_type};
   const ImageTypePair kRGB_TO_BGR{DALI_RGB, DALI_BGR};
@@ -172,40 +174,45 @@ void RunColorSpaceConversionKernel(Out *output, const In *input, DALIImageType o
   const ImageTypePair kGRAY_TO_BGR{DALI_GRAY, DALI_BGR};
   const ImageTypePair kGRAY_TO_YCbCr{DALI_GRAY, DALI_YCbCr};
 
+  // For CUDA kernel. A zero-pixel sample yields grid == 0, which CUDA rejects with
+  // cudaErrorInvalidConfiguration rather than treating as a no-op, so the launch is skipped in
+  // that case. Unsupported conversions still fall through to the DALI_FAIL below regardless of
+  // npixels, so there's a single place that decides which conversions are supported.
+  const unsigned int block = npixels > 0 ? (npixels < 1024 ? npixels : 1024) : 1;
+  const unsigned int grid = npixels > 0 ? (npixels + block - 1) / block : 0;
+
+  using KernelLaunchFn = void (*)(Out *, const In *, int64_t, unsigned int, unsigned int,
+                                   cudaStream_t);
+  KernelLaunchFn kernel_launch = nullptr;
+
   if (conversion == kRGB_TO_BGR || conversion == kBGR_TO_RGB) {
-    ColorSpaceConvKernel<RGB_to_BGR_Converter<Out, In>, Out, In>
-        <<<grid, block, 0, stream>>>(output, input, npixels);
+    kernel_launch = &LaunchColorSpaceConvKernel<RGB_to_BGR_Converter<Out, In>, Out, In>;
   } else if (conversion == kRGB_TO_YCbCr) {
-    ColorSpaceConvKernel<RGB_to_YCbCr_Converter<Out, In>, Out, In>
-        <<<grid, block, 0, stream>>>(output, input, npixels);
+    kernel_launch = &LaunchColorSpaceConvKernel<RGB_to_YCbCr_Converter<Out, In>, Out, In>;
   } else if (conversion == kBGR_TO_YCbCr) {
-    ColorSpaceConvKernel<BGR_to_YCbCr_Converter<Out, In>, Out, In>
-        <<<grid, block, 0, stream>>>(output, input, npixels);
+    kernel_launch = &LaunchColorSpaceConvKernel<BGR_to_YCbCr_Converter<Out, In>, Out, In>;
   } else if (conversion == kRGB_TO_GRAY) {
-    ColorSpaceConvKernel<RGB_to_Gray_Converter<Out, In>, Out, In>
-        <<<grid, block, 0, stream>>>(output, input, npixels);
+    kernel_launch = &LaunchColorSpaceConvKernel<RGB_to_Gray_Converter<Out, In>, Out, In>;
   } else if (conversion == kBGR_TO_GRAY) {
-    ColorSpaceConvKernel<BGR_to_Gray_Converter<Out, In>, Out, In>
-        <<<grid, block, 0, stream>>>(output, input, npixels);
+    kernel_launch = &LaunchColorSpaceConvKernel<BGR_to_Gray_Converter<Out, In>, Out, In>;
   } else if (conversion == kYCbCr_TO_BGR) {
-    ColorSpaceConvKernel<YCbCr_to_BGR_Converter<Out, In>, Out, In>
-        <<<grid, block, 0, stream>>>(output, input, npixels);
+    kernel_launch = &LaunchColorSpaceConvKernel<YCbCr_to_BGR_Converter<Out, In>, Out, In>;
   } else if (conversion == kYCbCr_TO_RGB) {
-    ColorSpaceConvKernel<YCbCr_to_RGB_Converter<Out, In>, Out, In>
-        <<<grid, block, 0, stream>>>(output, input, npixels);
+    kernel_launch = &LaunchColorSpaceConvKernel<YCbCr_to_RGB_Converter<Out, In>, Out, In>;
   } else if (conversion == kGRAY_TO_BGR || conversion == kGRAY_TO_RGB) {
-    ColorSpaceConvKernel<Gray_to_RGB_Converter<Out, In>, Out, In>
-        <<<grid, block, 0, stream>>>(output, input, npixels);
+    kernel_launch = &LaunchColorSpaceConvKernel<Gray_to_RGB_Converter<Out, In>, Out, In>;
   } else if (conversion == kGRAY_TO_YCbCr) {
-    ColorSpaceConvKernel<Gray_to_YCbCr_Converter<Out, In>, Out, In>
-        <<<grid, block, 0, stream>>>(output, input, npixels);
+    kernel_launch = &LaunchColorSpaceConvKernel<Gray_to_YCbCr_Converter<Out, In>, Out, In>;
   } else if (conversion == kYCbCr_TO_GRAY) {
-    ColorSpaceConvKernel<YCbCr_to_Gray_Converter<Out, In>, Out, In>
-        <<<grid, block, 0, stream>>>(output, input, npixels);
+    kernel_launch = &LaunchColorSpaceConvKernel<YCbCr_to_Gray_Converter<Out, In>, Out, In>;
   } else {
     DALI_FAIL(make_string("conversion not supported ", in_type, " to ", out_type));
   }
-  CUDA_CALL(cudaGetLastError());
+
+  if (grid > 0) {
+    kernel_launch(output, input, npixels, grid, block, stream);
+    CUDA_CALL(cudaGetLastError());
+  }
 }
 
 }  // namespace color
