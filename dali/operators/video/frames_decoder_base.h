@@ -424,7 +424,7 @@ class DLL_PUBLIC FramesDecoderBase {
     return is_valid_;
   }
 
-  void SetOutputType(DALIDataType dtype) {
+  virtual void SetOutputType(DALIDataType dtype) {
     dtype_ = dtype;
   }
 
