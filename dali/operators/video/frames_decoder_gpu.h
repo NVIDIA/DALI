@@ -132,9 +132,11 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
    * @param filename Path to a video file.
    * @param stream CUDA stream to use for decoding.
    * @param image_type Image type of the video.
+   * @param num_decode_surfaces Baseline number of NVDEC decode surfaces to allocate.
    */
   explicit FramesDecoderGpu(const std::string &filename, cudaStream_t stream = 0,
-                            DALIImageType image_type = DALI_RGB);
+                            DALIImageType image_type = DALI_RGB,
+                            int num_decode_surfaces = 8);
 
   /**
    * @brief Construct a new FramesDecoder object.
@@ -144,12 +146,14 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
    * @param source_info Source info of the video file.
    * @param stream CUDA stream to use for decoding.
    * @param image_type Image type of the video.
+   * @param num_decode_surfaces Baseline number of NVDEC decode surfaces to allocate.
    * @note This constructor assumes that the `memory_file` and
    * `memory_file_size` arguments cover the entire video file, including the header.
    */
   FramesDecoderGpu(const char *memory_file, size_t memory_file_size,
                    std::string_view source_info = {}, cudaStream_t stream = 0,
-                   DALIImageType image_type = DALI_RGB);
+                   DALIImageType image_type = DALI_RGB,
+                   int num_decode_surfaces = 8);
 
   bool ReadNextFrame(uint8_t *data) override;
 
@@ -202,7 +206,9 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
   AVUniquePtr<AVPacket> filtered_packet_;
 
   // TODO(awolant): This value is an approximation. Make it set dynamically
-  const int num_decode_surfaces_ = 8;
+  // Baseline decode surface count; can be increased via the constructor's
+  // num_decode_surfaces parameter (see additional_decode_surfaces in the reader op).
+  int num_decode_surfaces_ = 8;
 
   std::vector<BufferedFrame> frame_buffer_;
 

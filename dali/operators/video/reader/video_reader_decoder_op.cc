@@ -441,7 +441,8 @@ class VideoReaderDecoder
         boundary_type_(GetBoundaryType(spec)),
         image_type_(spec.GetArgument<DALIImageType>("image_type")),
         dtype_(spec.GetArgument<DALIDataType>("dtype")),
-        normalized_(spec.GetArgument<bool>("normalized")) {
+        normalized_(spec.GetArgument<bool>("normalized")),
+        additional_decode_surfaces_(spec.GetArgument<int>("additional_decode_surfaces")) {
     loader_ = InitLoader<VideoLoaderImpl>(spec);
     this->SetInitialSnapshot();
 
@@ -631,7 +632,8 @@ class VideoReaderDecoder
         if constexpr (std::is_same_v<Backend, CPUBackend>) {
           decoder_ = std::make_unique<FramesDecoderImpl>(filename, image_type_);
         } else {
-          decoder_ = std::make_unique<FramesDecoderImpl>(filename, cuda_stream_, image_type_);
+          decoder_ = std::make_unique<FramesDecoderImpl>(filename, cuda_stream_, image_type_,
+                                                          8 + additional_decode_surfaces_);
           decoder_->SetOutputType(dtype_);
           decoder_->SetNormalizedRange(normalized_);
         }
@@ -748,6 +750,7 @@ class VideoReaderDecoder
   DALIImageType image_type_;
   DALIDataType dtype_;
   bool normalized_;
+  int additional_decode_surfaces_;
   std::vector<uint8_t> fill_value_;
   bool has_labels_ = false;
 
@@ -913,6 +916,11 @@ normalized data in the range ``[0.0, 1.0]``. Ignored when ``dtype`` is ``UINT8``
                     R"code(Number of channels in the output. Must match the actual number of
 decoded channels (currently always ``3``); provided for compatibility with ``readers.video``.)code",
                     3)
+    .AddOptionalArg("additional_decode_surfaces",
+                    R"code(Additional NVDEC decode surfaces to allocate beyond the baseline.
+
+Only relevant for the GPU backend; ignored on CPU.)code",
+                    2)
     .AddParent("LoaderBase")
     .OutputNDim(0, 4)
     .OutputLayout(0, "FHWC");
