@@ -66,6 +66,8 @@ struct Annotation {
   // union
   Polygons poly_;
   RLEMaskPtr rle_;
+  // (x, y, visibility) triplets
+  std::vector<float> keypoints_;
 
   void ToLtrb() {
     box_[2] += box_[0];
@@ -298,7 +300,7 @@ void ParseCategories(LookaheadParser &parser, std::map<int, int> &category_ids) 
 
 void ParseAnnotations(LookaheadParser &parser, std::vector<Annotation> &annotations,
                       float min_size_threshold, bool ltrb,
-                      bool parse_segmentation, bool parse_rle,
+                      bool parse_segmentation, bool parse_rle, bool parse_keypoints,
                       bool include_iscrowd = true) {
   std::string rle_str;
   std::vector<uint32_t> rle_uints;
@@ -395,6 +397,26 @@ void ParseAnnotations(LookaheadParser &parser, std::vector<Annotation> &annotati
         } else {
           parser.SkipValue();
         }
+      } else if (parse_keypoints && 0 == std::strcmp(internal_key, "keypoints")) {
+        if (parser.PeekType() != kArrayType) {
+          throw std::invalid_argument(make_string(
+              "Invalid COCO annotation: `keypoints` must be an array, got ",
+              JsonTypeName(parser.PeekType()), "."));
+        }
+        parser.EnterArray();
+        while (parser.NextArrayValue()) {
+          if (parser.PeekType() != rapidjson::kNumberType) {
+            throw std::invalid_argument(make_string(
+                "Invalid COCO annotation: `keypoints` must contain only numbers, got ",
+                JsonTypeName(parser.PeekType()), "."));
+          }
+          annotation.keypoints_.push_back(parser.GetDouble());
+        }
+        if (annotation.keypoints_.size() % 3 != 0) {
+          throw std::invalid_argument(make_string(
+              "Invalid COCO annotation: the number of values in `keypoints` must be a multiple "
+              "of 3 (x, y, visibility), got ", annotation.keypoints_.size(), "."));
+        }
       } else {
         parser.SkipValue();
       }
@@ -414,7 +436,7 @@ void ParseAnnotations(LookaheadParser &parser, std::vector<Annotation> &annotati
 void ParseJsonFile(const OpSpec &spec, std::vector<detail::ImageInfo> &image_infos,
                    std::vector<detail::Annotation> &annotations,
                    std::map<int, int> &category_ids,
-                   bool parse_segmentation, bool parse_rle) {
+                   bool parse_segmentation, bool parse_rle, bool parse_keypoints) {
   const auto annotations_file = spec.GetArgument<string>("annotations_file");
 
   std::ifstream f(annotations_file);
@@ -443,7 +465,7 @@ void ParseJsonFile(const OpSpec &spec, std::vector<detail::ImageInfo> &image_inf
       detail::ParseCategories(parser, category_ids);
     } else if (0 == std::strcmp(key, "annotations")) {
       ParseAnnotations(parser, annotations, sz_threshold, ltrb, parse_segmentation,
-                       parse_rle, include_iscrowd);
+                       parse_rle, parse_keypoints, include_iscrowd);
     } else {
       parser.SkipValue();
     }
@@ -477,6 +499,11 @@ void CocoLoader::SavePreprocessedAnnotations(
     SaveToFile(mask_counts_, path + "/mask_count.dat");
     SaveToFile(heights_, path + "/heights.dat");
     SaveToFile(widths_, path + "/widths.dat");
+  }
+
+  if (output_keypoints_) {
+    SaveToFile(std::vector<int>{num_keypoints_}, path + "/num_keypoints.dat");
+    SaveToFile(keypoints_, path + "/keypoints.dat");
   }
 
   if (output_image_ids_) {
@@ -514,6 +541,21 @@ void CocoLoader::ParsePreprocessedAnnotations() {
     LoadFromFile(widths_, path + "/widths.dat");
   }
 
+  if (output_keypoints_) {
+    std::vector<int> num_keypoints;
+    LoadFromFile(num_keypoints, path + "/num_keypoints.dat");
+    DALI_ENFORCE(num_keypoints.size() == 1,
+        make_string("Keypoints were requested, but the preprocessed annotations in \"", path,
+                    "\" don't contain them. Preprocessed annotations must be saved with "
+                    "``keypoints`` enabled."));
+    num_keypoints_ = num_keypoints[0];
+    LoadFromFile(keypoints_, path + "/keypoints.dat");
+    DALI_ENFORCE(keypoints_.size() == boxes_.size() / 4 * num_keypoints_ * 3,
+        make_string("Corrupted preprocessed keypoints in \"", path, "\": expected ",
+                    boxes_.size() / 4 * num_keypoints_ * 3, " values, got ", keypoints_.size(),
+                    "."));
+  }
+
   if (output_image_ids_) {
     LoadFromFile(original_ids_, path + "/original_ids.dat");
   }
@@ -526,7 +568,23 @@ void CocoLoader::ParseJsonAnnotations() {
 
   bool parse_segmentation = output_polygon_masks_ || output_pixelwise_masks_;
   detail::ParseJsonFile(spec_, image_infos, annotations, category_ids,
-                        parse_segmentation, output_pixelwise_masks_);
+                        parse_segmentation, output_pixelwise_masks_, output_keypoints_);
+
+  if (output_keypoints_) {
+    num_keypoints_ = 0;
+    for (const auto &annotation : annotations) {
+      int n = annotation.keypoints_.size() / 3;
+      if (n == 0)
+        continue;
+      if (num_keypoints_ == 0) {
+        num_keypoints_ = n;
+      } else if (n != num_keypoints_) {
+        throw std::invalid_argument(make_string(
+            "Invalid COCO annotation: all annotations with `keypoints` must have the same number "
+            "of keypoints, got ", num_keypoints_, " and ", n, "."));
+      }
+    }
+  }
 
   if (images_.empty()) {
     std::sort(image_infos.begin(), image_infos.end(), [&](auto &left, auto &right) {
@@ -596,6 +654,21 @@ void CocoLoader::ParseJsonAnnotations() {
         boxes_.push_back(annotation.box_[1]);
         boxes_.push_back(annotation.box_[2]);
         boxes_.push_back(annotation.box_[3]);
+      }
+      if (output_keypoints_) {
+        const auto &kps = annotation.keypoints_;
+        if (kps.empty()) {
+          // annotations without keypoints are reported as all keypoints "not labeled" (v=0)
+          keypoints_.resize(keypoints_.size() + num_keypoints_ * 3, 0.0f);
+        } else if (ratio) {
+          for (size_t i = 0; i < kps.size(); i += 3) {
+            keypoints_.push_back(kps[i] / image_info.width_);
+            keypoints_.push_back(kps[i + 1] / image_info.height_);
+            keypoints_.push_back(kps[i + 2]);
+          }
+        } else {
+          keypoints_.insert(keypoints_.end(), kps.begin(), kps.end());
+        }
       }
       if (parse_segmentation) {
         switch (annotation.tag_) {

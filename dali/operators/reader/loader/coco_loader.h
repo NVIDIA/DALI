@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -41,6 +41,10 @@ inline bool OutPolygonMasksEnabled(const OpSpec &spec) {
 
 inline bool OutPixelwiseMasksEnabled(const OpSpec &spec) {
   return spec.GetArgument<bool>("pixelwise_masks");
+}
+
+inline bool OutKeypointsEnabled(const OpSpec &spec) {
+  return spec.GetArgument<bool>("keypoints");
 }
 
 inline bool OutImageIdsEnabled(const OpSpec &spec) {
@@ -115,6 +119,7 @@ class DLL_PUBLIC CocoLoader : public FileLabelLoaderBase<true> {
     spec.TryGetRepeatedArgument(images_, "images");
     output_polygon_masks_ = OutPolygonMasksEnabled(spec);
     output_pixelwise_masks_ = OutPixelwiseMasksEnabled(spec);
+    output_keypoints_ = OutKeypointsEnabled(spec);
     output_image_ids_ = OutImageIdsEnabled(spec);
     if (output_polygon_masks_ && output_pixelwise_masks_) {
       DALI_FAIL("``pixelwise_masks`` and ``polygon_masks`` are mutually exclusive");
@@ -144,6 +149,22 @@ class DLL_PUBLIC CocoLoader : public FileLabelLoaderBase<true> {
 
   span<const int> labels(int image_idx) const {
     return {labels_.data() + offsets_[image_idx], counts_[image_idx]};
+  }
+
+  int num_keypoints() const {
+    assert(output_keypoints_);
+    return num_keypoints_;
+  }
+
+  /**
+   * @brief Keypoints of all annotations of a given image, as a flat array of
+   *        counts[image_idx] * num_keypoints() * 3 values (x, y, visibility).
+   */
+  span<const float> keypoints(int image_idx) const {
+    assert(output_keypoints_);
+    int64_t annotation_size = num_keypoints_ * 3;
+    return {keypoints_.data() + offsets_[image_idx] * annotation_size,
+            counts_[image_idx] * annotation_size};
   }
 
   int image_id(int image_idx) const {
@@ -230,8 +251,13 @@ class DLL_PUBLIC CocoLoader : public FileLabelLoaderBase<true> {
   std::vector<int64_t> mask_offsets_;  // per-sample offsets of masks
   std::vector<int64_t> mask_counts_;   // number of masks per sample
 
+  // keypoints: (x, y, visibility) triplets, num_keypoints_ per annotation, indexed like boxes_
+  std::vector<float> keypoints_;
+  int num_keypoints_ = 0;
+
   bool output_polygon_masks_ = false;
   bool output_pixelwise_masks_ = false;
+  bool output_keypoints_ = false;
   bool output_image_ids_ = false;
   bool has_preprocessed_annotations_ = false;
 
