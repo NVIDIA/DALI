@@ -146,27 +146,45 @@ struct ConvertPixel<Out, In, DALI_RGB, DALI_RGB> : ConvertPixelDType<Out, In, 3>
 template <typename Out, typename In>
 struct ConvertPixel<Out, In, DALI_YCbCr, DALI_YCbCr> : ConvertPixelDType<Out, In, 3> {};
 
+// The color-conversion math in kernels::color (coefficients, biases) is calibrated for a
+// channel value in the "brightness" range [0, max_value<T>()], as is the case for a typical
+// unsigned pixel type. It is not aware of dyn_range_multiplier or of a signed In whose raw value
+// spans [min_value<In>(), max_value<In>()] - e.g. a negative sample would otherwise contribute a
+// large *negative* term to the color matrix instead of a small positive one, producing wildly
+// wrong (unclamped) results. GPU decoding (ConvertGPU/convert_gpu.cu) avoids this by first
+// normalizing to Out's dtype/range and only then running the color conversion on same-typed
+// (Out, Out) data. Do the same here: convert to Out per-channel (which already goes through the
+// dtype-conversion machinery in dali/core/convert.h that handles signed sources correctly) before
+// handing the data to the color-space conversion.
+template <typename Out, typename In, int channels>
+vec<channels, Out> ToOutDType(vec<channels, In> in) {
+  vec<channels, Out> out{};
+  for (int i = 0; i < channels; i++)
+    out[i] = ConvertSatNorm<Out>(in[i]);
+  return out;
+}
+
 template <typename Out, typename In>
 struct ConvertPixel<Out, In, DALI_GRAY, DALI_RGB> : ColorConversionBase<Out, 1, In, 3> {
   void operator()(Out *out, const In *in) const {
-    auto rgb = this->vload(in);
-    this->store(out, kernels::color::rgb_to_gray<Out, In>(rgb));
+    auto rgb = ToOutDType<Out>(this->vload(in));
+    this->store(out, kernels::color::rgb_to_gray<Out, Out>(rgb));
   }
 };
 
 template <typename Out, typename In>
 struct ConvertPixel<Out, In, DALI_YCbCr, DALI_RGB> : ColorConversionBase<Out, 3, In, 3> {
   void operator()(Out *out, const In *in) const {
-    auto rgb = this->vload(in);
-    this->vstore(out, kernels::color::itu_r_bt_601::rgb_to_ycbcr<Out, In>(rgb));
+    auto rgb = ToOutDType<Out>(this->vload(in));
+    this->vstore(out, kernels::color::itu_r_bt_601::rgb_to_ycbcr<Out, Out>(rgb));
   }
 };
 
 template <typename Out, typename In>
 struct ConvertPixel<Out, In, DALI_YCbCr, DALI_GRAY> : ColorConversionBase<Out, 3, In, 1> {
   void operator()(Out *out, const In *in) const {
-    auto gray = this->load(in);
-    this->vstore(out, kernels::color::itu_r_bt_601::gray_to_ycbcr<Out, In>(gray));
+    auto gray = ConvertSatNorm<Out>(this->load(in));
+    this->vstore(out, kernels::color::itu_r_bt_601::gray_to_ycbcr<Out, Out>(gray));
   }
 };
 template <typename Out, typename In>
@@ -180,15 +198,15 @@ struct ConvertPixel<Out, In, DALI_RGB, DALI_GRAY> : ColorConversionBase<Out, 3, 
 template <typename Out, typename In>
 struct ConvertPixel<Out, In, DALI_RGB, DALI_YCbCr> : ColorConversionBase<Out, 3, In, 3> {
   void operator()(Out *out, const In *in) const {
-    auto ycbcr = this->vload(in);
-    this->vstore(out, kernels::color::itu_r_bt_601::ycbcr_to_rgb<Out, In>(ycbcr));
+    auto ycbcr = ToOutDType<Out>(this->vload(in));
+    this->vstore(out, kernels::color::itu_r_bt_601::ycbcr_to_rgb<Out, Out>(ycbcr));
   }
 };
 template <typename Out, typename In>
 struct ConvertPixel<Out, In, DALI_GRAY, DALI_YCbCr> : ColorConversionBase<Out, 1, In, 3> {
   void operator()(Out *out, const In *in) const {
-    auto ycbcr = this->vload(in);
-    this->store(out, kernels::color::itu_r_bt_601::ycbcr_to_gray<Out, In>(ycbcr));
+    auto ycbcr = ToOutDType<Out>(this->vload(in));
+    this->store(out, kernels::color::itu_r_bt_601::ycbcr_to_gray<Out, Out>(ycbcr));
   }
 };
 
