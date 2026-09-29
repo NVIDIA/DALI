@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@
 #include <string>
 #include <unordered_map>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include "dali/core/small_vector.h"
@@ -29,7 +30,8 @@ namespace dali {
 class FileReader : public DataReader<CPUBackend, ImageLabelWrapper, ImageLabelWrapper, true> {
  public:
   explicit FileReader(const OpSpec& spec)
-    : DataReader<CPUBackend, ImageLabelWrapper, ImageLabelWrapper, true>(spec) {
+    : DataReader<CPUBackend, ImageLabelWrapper, ImageLabelWrapper, true>(spec),
+      label_dtype_(GetFileLabelDType(spec)) {
     bool shuffle_after_epoch = spec.GetArgument<bool>("shuffle_after_epoch");
     loader_ = InitLoader<FileLabelLoader>(spec, shuffle_after_epoch);
     this->SetInitialSnapshot();
@@ -49,7 +51,7 @@ class FileReader : public DataReader<CPUBackend, ImageLabelWrapper, ImageLabelWr
     output_desc[0].shape.resize(batch_size, 1);
     output_desc[0].type = DALI_UINT8;
     output_desc[1].shape = uniform_list_shape<1>(batch_size, {1});
-    output_desc[1].type = DALI_INT32;
+    output_desc[1].type = label_dtype_;
 
     TensorListShape<1> out_shape(batch_size);
     for (int sample_idx = 0; sample_idx < batch_size; ++sample_idx) {
@@ -95,7 +97,12 @@ class FileReader : public DataReader<CPUBackend, ImageLabelWrapper, ImageLabelWr
                       sample.image.size());
         }
         file_output.SetSourceInfo(sample_idx, sample.image.GetSourceInfo());
-        label_output.mutable_tensor<int>(sample_idx)[0] = sample.label;
+        auto write_label = [&](int idx) {
+          std::visit([&](auto label) {
+            label_output.mutable_tensor<decltype(label)>(idx)[0] = label;
+          }, sample.label);
+        };
+        write_label(sample_idx);
 
         // Now copy the sample we read to any repeated samples
         for (size_t i = 1; i < sample_idxs.size(); i++) {
@@ -105,8 +112,7 @@ class FileReader : public DataReader<CPUBackend, ImageLabelWrapper, ImageLabelWr
                       file_output.shape().tensor_size(sample_idx));
           file_output.SetSourceInfo(repeated_sample_idx,
                                     file_output.GetMeta(sample_idx).GetSourceInfo());
-          label_output.mutable_tensor<int>(repeated_sample_idx)[0] =
-              label_output.mutable_tensor<int>(sample_idx)[0];
+          write_label(repeated_sample_idx);
         }
       }, file_output.shape().tensor_size(sample_idxs[0]));
     }
@@ -115,6 +121,9 @@ class FileReader : public DataReader<CPUBackend, ImageLabelWrapper, ImageLabelWr
 
  protected:
   USE_READER_OPERATOR_MEMBERS(CPUBackend, ImageLabelWrapper, ImageLabelWrapper, true);
+
+ private:
+  DALIDataType label_dtype_;
 };
 
 }  // namespace dali
