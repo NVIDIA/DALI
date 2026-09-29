@@ -237,5 +237,5 @@ def test_warp_affine_gpu_matrix_capture_parity():
     eager = run(capture=False)
     captured = run(capture=True)
     assert len(eager) == len(captured)
-    for e, c in zip(eager, captured):
+    for e, c in zip(eager, captured, strict=True):
         np.testing.assert_array_equal(e, c)
