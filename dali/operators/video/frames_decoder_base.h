@@ -232,6 +232,14 @@ class DLL_PUBLIC FramesDecoderBase {
     return Channels() * Width() * Height();
   }
 
+  /**
+   * @brief Total number of bytes in a frame, accounting for the output element type
+   * set via SetOutputType() (width * height * channels * element size).
+   */
+  int64_t FrameSizeBytes() const {
+    return static_cast<int64_t>(FrameSize()) * TypeTable::GetTypeInfo(dtype_).size();
+  }
+
   TensorShape<3> FrameShape() const {
     return {Height(), Width(), Channels()};
   }
