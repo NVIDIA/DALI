@@ -560,10 +560,18 @@ class ImageDecoder : public StatelessOperator<Backend> {
     assert(IsIntegral(st.parsed_sample.orig_dtype));
 
     int precision = st.image_info.plane_info[0].precision;
-    if (precision == 0)
+    if (precision == 0) {
       precision = PositiveBits(st.parsed_sample.orig_dtype);
-    if (precision == 1 && st.parsed_sample.orig_dtype == DALI_UINT8)
+    } else if (precision == 1 && st.parsed_sample.orig_dtype == DALI_UINT8) {
       precision = 8;  // nvimgcodec produces at minimum uint8 dynamic range (0..255)
+    } else if (IsSigned(st.parsed_sample.orig_dtype)) {
+      // `precision` reported by the source (e.g. TIFF BitsPerSample) is the raw bit width of
+      // the stored sample, which for a signed sample format already includes the sign bit.
+      // PositiveBits() only counts the magnitude bits, so convert `precision` to the same basis
+      // before comparing, otherwise a full-width signed source (the common case) is treated as
+      // if it used one bit less than its actual dynamic range and gets scaled down incorrectly.
+      precision -= 1;
+    }
     bool need_dynamic_range_scaling =
         NeedDynamicRangeScaling(precision, st.parsed_sample.orig_dtype);
     st.dyn_range_multiplier = need_dynamic_range_scaling ?
