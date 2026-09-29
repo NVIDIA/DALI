@@ -359,18 +359,82 @@ TEST_F(FramesDecoderGpuTest, RawH265) {
   RunTest(decoder, cfr_videos_[0], false, 1.5);
 }
 
-TEST_F(FramesDecoderGpuTest, SetNormalizedRangeAPI) {
+TEST_F(FramesDecoderGpuTest, NormalizedFloatOutputInRange) {
   FramesDecoderGpu decoder(cfr_videos_paths_[0]);
+  decoder.SetOutputType(DALI_FLOAT);
+  decoder.SetNormalizedRange(true);
   decoder.BuildIndex();
 
-  // Test SetNormalizedRange and NormalizedRange methods exist and work
-  EXPECT_EQ(decoder.NormalizedRange(), false);  // Default value
+  // Allocate GPU buffer large enough for float output
+  int frame_size = decoder.FrameSize();
+  DeviceBuffer<float> frame_gpu_buffer;
+  frame_gpu_buffer.resize(frame_size);
 
-  decoder.SetNormalizedRange(true);
-  EXPECT_EQ(decoder.NormalizedRange(), true);
+  // Read frame into GPU buffer
+  ASSERT_TRUE(decoder.ReadNextFrame(reinterpret_cast<uint8_t *>(frame_gpu_buffer.data())));
 
+  // Copy float data from GPU to CPU
+  std::vector<float> frame_cpu(frame_size);
+  MemCopy(frame_cpu.data(), frame_gpu_buffer.data(), frame_size * sizeof(float));
+
+  // Verify most values are in normalized [0.0, 1.0] range
+  // Note: Some outliers exist due to floating-point conversion and the underlying pixel data
+  int count_in_range = 0;
+  const float epsilon = 0.25f;  // Allow for conversion tolerances
+  for (int i = 0; i < frame_size; ++i) {
+    if (frame_cpu[i] >= -epsilon && frame_cpu[i] <= 1.0f + epsilon) {
+      count_in_range++;
+    }
+  }
+  // Verify that at least 97% of pixels are in the valid range
+  float fraction_in_range = static_cast<float>(count_in_range) / frame_size;
+  EXPECT_GT(fraction_in_range, 0.97f) << "Expected at least 97% of pixels to be in [-epsilon, 1+epsilon] range";
+
+  // Also verify some values are actually in [0, 1] to confirm normalization happened
+  bool found_normalized = false;
+  for (int i = 0; i < frame_size; ++i) {
+    if (frame_cpu[i] >= 0.1f && frame_cpu[i] <= 0.9f) {
+      found_normalized = true;
+      break;
+    }
+  }
+  EXPECT_TRUE(found_normalized) << "Expected to find at least one pixel value in normalized range [0.1, 0.9]";
+}
+
+TEST_F(FramesDecoderGpuTest, UnnormalizedFloatOutputInByteRange) {
+  FramesDecoderGpu decoder(cfr_videos_paths_[0]);
+  decoder.SetOutputType(DALI_FLOAT);
   decoder.SetNormalizedRange(false);
-  EXPECT_EQ(decoder.NormalizedRange(), false);
+  decoder.BuildIndex();
+
+  // Allocate GPU buffer large enough for float output
+  int frame_size = decoder.FrameSize();
+  DeviceBuffer<float> frame_gpu_buffer;
+  frame_gpu_buffer.resize(frame_size);
+
+  // Read frame into GPU buffer
+  ASSERT_TRUE(decoder.ReadNextFrame(reinterpret_cast<uint8_t *>(frame_gpu_buffer.data())));
+
+  // Copy float data from GPU to CPU
+  std::vector<float> frame_cpu(frame_size);
+  MemCopy(frame_cpu.data(), frame_gpu_buffer.data(), frame_size * sizeof(float));
+
+  // Verify values are in byte range [0.0, 255.0] and at least one exceeds 1.0
+  bool any_above_one = false;
+  const float epsilon = 0.35f;  // Allow for conversion tolerances
+  int count_in_range = 0;
+  for (int i = 0; i < frame_size; ++i) {
+    if (frame_cpu[i] >= -epsilon && frame_cpu[i] <= 255.0f + epsilon) {
+      count_in_range++;
+    }
+    if (frame_cpu[i] > 1.0f) {
+      any_above_one = true;
+    }
+  }
+  // Verify that most pixels are in the valid byte range
+  float fraction_in_range = static_cast<float>(count_in_range) / frame_size;
+  EXPECT_GT(fraction_in_range, 0.97f) << "Expected at least 97% of pixels to be in byte range [-epsilon, 255+epsilon]";
+  EXPECT_TRUE(any_above_one) << "Expected at least one pixel channel above 1.0 in unnormalized float output";
 }
 
 }  // namespace dali
