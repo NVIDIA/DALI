@@ -181,7 +181,8 @@ void RunColorSpaceConversionKernel(Out *output, const In *input, DALIImageType o
   const unsigned int block = npixels > 0 ? (npixels < 1024 ? npixels : 1024) : 1;
   const unsigned int grid = npixels > 0 ? (npixels + block - 1) / block : 0;
 
-  using KernelLaunchFn = void (*)(Out *, const In *, int64_t, unsigned int, unsigned int, cudaStream_t);
+  using KernelLaunchFn = void (*)(Out *, const In *, int64_t, unsigned int, unsigned int,
+                                   cudaStream_t);
   KernelLaunchFn kernel_launch = nullptr;
 
   if (conversion == kRGB_TO_BGR || conversion == kBGR_TO_RGB) {
