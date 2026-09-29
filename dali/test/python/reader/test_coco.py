@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import numpy as np
+import nvidia.dali.experimental.dynamic as ndd
 import nvidia.dali.fn as fn
 import os
 import tempfile
@@ -447,3 +448,244 @@ def test_coco_pix_mask_ratio():
     pipe_ref = coco_pipe(batch_size=batch_size, ratio=False)
     pipe_test = coco_pipe(batch_size=batch_size, ratio=True)
     compare_pipelines(pipe_ref, pipe_test, batch_size, 5)
+
+
+def _write_keypoints_dataset(root, num_keypoints=17, extra_annotations=()):
+    """Writes a synthetic COCO keypoints dataset. Returns the parsed annotations dict."""
+    rng = np.random.default_rng(1234)
+    images_dir = os.path.join(root, "images")
+    os.makedirs(images_dir)
+    image_sizes = {1: (640, 480), 2: (800, 600), 3: (320, 240), 4: (1024, 768)}
+    images = []
+    for img_id, (w, h) in image_sizes.items():
+        file_name = f"img_{img_id}.jpg"
+        with open(os.path.join(images_dir, file_name), "wb") as f:
+            f.write(bytes([img_id]) * 16)
+        images.append({"id": img_id, "width": w, "height": h, "file_name": file_name})
+
+    def person(ann_id, img_id):
+        w, h = image_sizes[img_id]
+        kps = []
+        for _ in range(num_keypoints):
+            v = int(rng.integers(0, 3))
+            x, y = (float(rng.integers(0, w)), float(rng.integers(0, h))) if v else (0.0, 0.0)
+            kps += [x, y, v]
+        return {
+            "id": ann_id,
+            "image_id": img_id,
+            "category_id": 1,
+            "bbox": [10.0, 20.0, 30.0, 40.0],
+            "iscrowd": 0,
+            "keypoints": kps,
+            "num_keypoints": sum(1 for v in kps[2::3] if v > 0),
+        }
+
+    def other(ann_id, img_id):
+        return {
+            "id": ann_id,
+            "image_id": img_id,
+            "category_id": 2,
+            "bbox": [1.0, 2.0, 50.0, 60.0],
+            "iscrowd": 0,
+        }
+
+    annotations = [
+        person(1, 1),
+        person(2, 1),
+        other(3, 2),  # image with a mix of annotations with and without keypoints
+        person(4, 2),
+        other(5, 2),
+        # image 3 has no annotations
+        other(6, 4),  # image with annotations, none of which have keypoints
+        *extra_annotations,
+    ]
+    data = {
+        "images": images,
+        "categories": [{"id": 1, "name": "person"}, {"id": 2, "name": "other"}],
+        "annotations": annotations,
+    }
+    with open(os.path.join(root, "annotations.json"), "w") as f:
+        json.dump(data, f)
+    return data
+
+
+def _ref_keypoints(data, image_id, num_keypoints, ratio):
+    img = next(i for i in data["images"] if i["id"] == image_id)
+    anns = [a for a in data["annotations"] if a["image_id"] == image_id]
+    out = np.zeros((len(anns), num_keypoints, 3), dtype=np.float32)
+    for i, a in enumerate(anns):
+        if "keypoints" in a:
+            out[i] = np.array(a["keypoints"], dtype=np.float32).reshape(num_keypoints, 3)
+    if ratio:
+        out[:, :, 0] /= img["width"]
+        out[:, :, 1] /= img["height"]
+    return out
+
+
+@pipeline_def(batch_size=1, num_threads=1, device_id=None)
+def coco_keypoints_pipe(**kwargs):
+    _, boxes, labels, keypoints, ids = fn.readers.coco(keypoints=True, image_ids=True, **kwargs)
+    return boxes, labels, keypoints, ids
+
+
+def _run_keypoints_pipe(**kwargs):
+    pipe = coco_keypoints_pipe(**kwargs)
+    (epoch_size,) = pipe.epoch_size().values()
+    results = {}
+    for _ in range(epoch_size):
+        boxes, labels, keypoints, ids = (np.array(o.at(0)) for o in pipe.run())
+        results[int(ids.item())] = (boxes, labels, keypoints)
+    return results
+
+
+@params(*[(ratio, skip_empty) for ratio in (False, True) for skip_empty in (False, True)])
+def test_coco_keypoints(ratio, skip_empty):
+    num_keypoints = 17
+    with tempfile.TemporaryDirectory() as root:
+        data = _write_keypoints_dataset(root, num_keypoints)
+        results = _run_keypoints_pipe(
+            file_root=os.path.join(root, "images"),
+            annotations_file=os.path.join(root, "annotations.json"),
+            ratio=ratio,
+            skip_empty=skip_empty,
+        )
+    expected_ids = {1, 2, 4} if skip_empty else {1, 2, 3, 4}
+    assert set(results.keys()) == expected_ids, f"{results.keys()} vs {expected_ids}"
+    for image_id, (boxes, labels, keypoints) in results.items():
+        ref = _ref_keypoints(data, image_id, num_keypoints, ratio)
+        assert keypoints.dtype == np.float32
+        assert keypoints.shape == ref.shape, f"{keypoints.shape} vs {ref.shape}"
+        assert keypoints.shape[0] == boxes.shape[0] == labels.shape[0]
+        np.testing.assert_allclose(keypoints, ref, rtol=1e-6)
+
+
+def test_coco_keypoints_none_defined():
+    with tempfile.TemporaryDirectory() as root:
+        _write_keypoints_dataset(root)
+        data_file = os.path.join(root, "annotations.json")
+        with open(data_file) as f:
+            data = json.load(f)
+        for a in data["annotations"]:
+            a.pop("keypoints", None)
+        with open(data_file, "w") as f:
+            json.dump(data, f)
+        results = _run_keypoints_pipe(
+            file_root=os.path.join(root, "images"), annotations_file=data_file
+        )
+    for boxes, _, keypoints in results.values():
+        assert keypoints.shape == (boxes.shape[0], 0, 3), keypoints.shape
+
+
+def test_coco_keypoints_size_threshold():
+    small_person = {
+        "id": 100,
+        "image_id": 1,
+        "category_id": 1,
+        "bbox": [0.0, 0.0, 1.0, 1.0],
+        "iscrowd": 0,
+        "keypoints": [1.0, 1.0, 2.0] * 17,
+    }
+    with tempfile.TemporaryDirectory() as root:
+        data = _write_keypoints_dataset(root, extra_annotations=[small_person])
+        results = _run_keypoints_pipe(
+            file_root=os.path.join(root, "images"),
+            annotations_file=os.path.join(root, "annotations.json"),
+            size_threshold=5.0,
+        )
+    data["annotations"] = [a for a in data["annotations"] if a["id"] != small_person["id"]]
+    boxes, _, keypoints = results[1]
+    np.testing.assert_array_equal(keypoints, _ref_keypoints(data, 1, 17, False))
+    assert keypoints.shape[0] == boxes.shape[0] == 2
+
+
+@params(True, False)
+def test_coco_keypoints_preprocessed_annotations(ratio):
+    with tempfile.TemporaryDirectory() as root:
+        _write_keypoints_dataset(root)
+        preprocessed_dir = os.path.join(root, "preprocessed")
+        os.makedirs(preprocessed_dir)
+        file_root = os.path.join(root, "images")
+        ref = _run_keypoints_pipe(
+            file_root=file_root,
+            annotations_file=os.path.join(root, "annotations.json"),
+            ratio=ratio,
+            save_preprocessed_annotations=True,
+            save_preprocessed_annotations_dir=preprocessed_dir,
+        )
+        out = _run_keypoints_pipe(file_root=file_root, preprocessed_annotations=preprocessed_dir)
+    assert ref.keys() == out.keys()
+    for image_id in ref:
+        for ref_arr, out_arr in zip(ref[image_id], out[image_id]):
+            np.testing.assert_array_equal(ref_arr, out_arr)
+
+
+def test_coco_keypoints_preprocessed_annotations_missing():
+    with tempfile.TemporaryDirectory() as root:
+        _write_keypoints_dataset(root)
+        preprocessed_dir = os.path.join(root, "preprocessed")
+        os.makedirs(preprocessed_dir)
+        file_root = os.path.join(root, "images")
+
+        @pipeline_def(batch_size=1, num_threads=1, device_id=None)
+        def save_pipe():
+            _, boxes, _, ids = fn.readers.coco(
+                file_root=file_root,
+                annotations_file=os.path.join(root, "annotations.json"),
+                image_ids=True,
+                save_preprocessed_annotations=True,
+                save_preprocessed_annotations_dir=preprocessed_dir,
+            )
+            return boxes, ids
+
+        save_pipe().run()
+        pipe = coco_keypoints_pipe(file_root=file_root, preprocessed_annotations=preprocessed_dir)
+        assert_raises(
+            RuntimeError,
+            pipe.run,
+            glob="*Keypoints were requested, but the preprocessed annotations*",
+        )
+
+
+@params(
+    ([1.0, 2.0], "*must be a multiple of 3*"),
+    ("abc", "*`keypoints` must be an array, got string*"),
+    ([1.0, None, 2.0], "*`keypoints` must contain only numbers, got null*"),
+    ([1.0, 2.0, 2.0] * 5, "*must have the same number of keypoints, got 17 and 5*"),
+)
+def test_coco_keypoints_invalid(keypoints, error_glob):
+    invalid = {
+        "id": 100,
+        "image_id": 3,
+        "category_id": 1,
+        "bbox": [10.0, 20.0, 30.0, 40.0],
+        "iscrowd": 0,
+        "keypoints": keypoints,
+    }
+    with tempfile.TemporaryDirectory() as root:
+        _write_keypoints_dataset(root, extra_annotations=[invalid])
+        pipe = coco_keypoints_pipe(
+            file_root=os.path.join(root, "images"),
+            annotations_file=os.path.join(root, "annotations.json"),
+        )
+        assert_raises(ValueError, pipe.run, glob=error_glob)
+
+
+def test_coco_keypoints_ndd():
+    with tempfile.TemporaryDirectory() as root:
+        _write_keypoints_dataset(root)
+        kwargs = dict(
+            file_root=os.path.join(root, "images"),
+            annotations_file=os.path.join(root, "annotations.json"),
+            ratio=True,
+        )
+        ref = _run_keypoints_pipe(**kwargs)
+        reader = ndd.readers.COCO(keypoints=True, image_ids=True, **kwargs)
+        out = {}
+        for _, boxes, labels, keypoints, ids in reader.next_epoch():
+            out[int(np.asarray(ids).item())] = tuple(
+                np.asarray(x) for x in (boxes, labels, keypoints)
+            )
+    assert ref.keys() == out.keys()
+    for image_id in ref:
+        for ref_arr, out_arr in zip(ref[image_id], out[image_id]):
+            np.testing.assert_array_equal(ref_arr, out_arr)

@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -26,7 +26,7 @@ namespace {
 
 int COCOReaderOutputFn(const OpSpec &spec) {
   return OutPolygonMasksEnabled(spec) * 2 + OutPixelwiseMasksEnabled(spec) +
-         OutImageIdsEnabled(spec);
+         OutKeypointsEnabled(spec) + OutImageIdsEnabled(spec);
 }
 
 }  // namespace
@@ -42,7 +42,7 @@ images and annotation JSON files.
 This readers produces the following outputs::
 
     images, bounding_boxes, labels, ((polygons, vertices) | (pixelwise_masks)),
-    (image_ids)
+    (keypoints), (image_ids)
 
 * **images**
   Each sample contains image data with layout ``HWC`` (height, width, channels).
@@ -81,6 +81,18 @@ This readers produces the following outputs::
 
 * **pixelwise_masks** (Optional, present if argument `pixelwise_masks` is set to True)
   Contains image-like data, same shape and layout as `images`, representing a pixelwise segmentation mask.
+* **keypoints** (Optional, present if argument `keypoints` is set to True)
+  Each sample contains ``K`` keypoints per bounding box, as a float tensor of shape ``[M, K, 3]``::
+
+    [[[x_0_0, y_0_0, v_0_0], ..., [x_0_K, y_0_K, v_0_K]],
+     ...
+     [[x_M_0, y_M_0, v_M_0], ..., [x_M_K, y_M_K, v_M_K]]]
+
+  where ``x`` and ``y`` are the keypoint coordinates and ``v`` is the visibility flag, as defined
+  by the COCO format (0 - not labeled, 1 - labeled but not visible, 2 - labeled and visible).
+  ``K`` is the number of keypoints per annotation, which must be the same for all annotations
+  that define ``keypoints``. Annotations without ``keypoints`` (e.g., non-person objects) are
+  reported with all keypoints set to 0 (not labeled).
 * **image_ids** (Optional, present if argument `image_ids` is set to True)
   One element per sample, representing an image identifier.)code")
   .AddOptionalArg("preprocessed_annotations",
@@ -140,6 +152,11 @@ argument ``masks``, but ``[mask_id, 0, 3]`` when using the new argument `polygon
       R"code(If true, segmentation masks are read and returned as pixel-wise masks. This argument is
 mutually exclusive with `polygon_masks`.)code",
       false)
+  .AddOptionalArg("keypoints",
+      R"code(If set to True, the keypoints of each annotation are returned in an extra output.
+
+See the description of the ``keypoints`` output above for details.)code",
+      false)
   .AddOptionalArg("skip_empty",
       R"code(If true, reader will skip samples with no object instances in them)code",
       false)
@@ -149,7 +166,7 @@ instance of an object is lower than this value, the object will be ignored.)code
       0.1f,
       false)
   .AddOptionalArg("ratio",
-      R"code(If set to True, the returned bbox and mask polygon coordinates are relative to the image dimensions.)code",
+      R"code(If set to True, the returned bbox, mask polygon and keypoint coordinates are relative to the image dimensions.)code",
       false)
   .AddOptionalArg("image_ids",
       R"code(If set to True, the image IDs will be produced in an extra output.)code",
@@ -211,6 +228,7 @@ COCOReader::COCOReader(const OpSpec& spec)
   output_polygon_masks_ = OutPolygonMasksEnabled(spec);
   legacy_polygon_format_ = spec.HasArgument("masks") && spec.GetArgument<bool>("masks");
   output_pixelwise_masks_ = OutPixelwiseMasksEnabled(spec);
+  output_keypoints_ = OutKeypointsEnabled(spec);
   output_image_ids_ = OutImageIdsEnabled(spec);
   loader_ = InitLoader<CocoLoader>(spec);
   this->SetInitialSnapshot();
@@ -272,6 +290,14 @@ void COCOReader::RunImpl(SampleWorkspace &ws) {
     masks_output.Resize(masks_info.shape, DALI_INT32);
     masks_output.SetLayout("HWC");
     PixelwiseMasks(image_idx, masks_output.mutable_data<int>());
+  }
+
+  if (output_keypoints_) {
+    auto &keypoints_output = ws.Output<CPUBackend>(curr_out_idx++);
+    auto keypoints = loader_impl.keypoints(image_idx);
+    keypoints_output.Resize({labels.size(), loader_impl.num_keypoints(), 3}, DALI_FLOAT);
+    std::memcpy(keypoints_output.mutable_data<float>(), keypoints.data(),
+                keypoints.size() * sizeof(float));
   }
 
   if (output_image_ids_) {
