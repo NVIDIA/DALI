@@ -458,7 +458,8 @@ class ProcPool:
     def worker_failure_error(self, msg):
         """Creates an error describing a failed communication with the workers, extended with
         the information on the worker processes that exited unexpectedly, if any."""
-        exited_workers = self._observer._exited_workers if self._observer is not None else []
+        observer = self._observer
+        exited_workers = observer._exited_workers if observer is not None else []
         if not exited_workers:
             return RuntimeError(msg)
         details = "\n".join(
