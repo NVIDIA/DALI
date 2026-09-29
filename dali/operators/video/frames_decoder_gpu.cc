@@ -526,7 +526,7 @@ int FramesDecoderGpu::HandlePictureDisplay(CUVIDPARSERDISPINFO *picture_display_
       Height(),
       Width(),
       conversion_type_,
-      false,  // normalized_range_,
+      normalized_range_,
       stream_);
   ), DALI_FAIL(make_string("Unsupported type: ", dtype_)));
 

@@ -398,6 +398,14 @@ class DLL_PUBLIC FramesDecoderBase {
     dtype_ = dtype;
   }
 
+  void SetNormalizedRange(bool normalized) {
+    normalized_range_ = normalized;
+  }
+
+  bool NormalizedRange() const {
+    return normalized_range_;
+  }
+
  protected:
   void DecodeFramesImpl(uint8_t *data, SmallVector<std::pair<int, int>, 32> frame_ids,
                         boundary::BoundaryType boundary_type,
@@ -426,6 +434,7 @@ class DLL_PUBLIC FramesDecoderBase {
 
   DALIImageType image_type_ = DALI_RGB;
   DALIDataType dtype_ = DALI_UINT8;
+  bool normalized_range_ = false;
 
   // False when the file doesn't have any correct content or doesn't have a valid video stream
   bool is_valid_ = false;
