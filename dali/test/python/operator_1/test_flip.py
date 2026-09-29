@@ -18,6 +18,7 @@ import nvidia.dali.ops as ops
 import nvidia.dali.types as types
 import numpy as np
 import os
+from nose2.tools import cartesian_params
 
 from test_utils import compare_pipelines
 from test_utils import RandomDataIterator
@@ -149,21 +150,25 @@ def test_flip_vs_numpy():
                 yield check_flip, batch_size, layout, shape, device
 
 
-@pipeline_def(batch_size=4, num_threads=4, device_id=0)
-def zero_extent_flip_pipe(data):
+@pipeline_def(num_threads=4, device_id=0)
+def zero_extent_flip_pipe(data, device):
     images = fn.external_source(source=[data], cycle=True, layout="HWC")
-    return fn.flip(images.gpu(), horizontal=1, vertical=1)
+    if device == "gpu":
+        images = images.gpu()
+    return fn.flip(images, horizontal=1, vertical=1)
 
 
-def test_flip_zero_extent_samples():
+@cartesian_params(("cpu", "gpu"), (1, 4))
+def test_flip_zero_extent_samples(device, batch_size):
     data = [
         np.zeros((0, 8, 3), dtype=np.uint8),
         np.arange(2 * 3 * 3, dtype=np.uint8).reshape(2, 3, 3),
         np.zeros((4, 0, 3), dtype=np.uint8),
         np.zeros((0, 0, 3), dtype=np.uint8),
-    ]
-    pipe = zero_extent_flip_pipe(data)
+    ][:batch_size]
+    pipe = zero_extent_flip_pipe(data, device, batch_size=batch_size)
     (out,) = pipe.run()
-    out = out.as_cpu()
+    if device == "gpu":
+        out = out.as_cpu()
     for i, ref in enumerate(data):
         np.testing.assert_array_equal(np.flip(np.flip(ref, 0), 1), out.at(i))

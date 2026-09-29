@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019, 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -80,6 +80,9 @@ void FlipImpl(Type *output, const Type *input,
   // the kernel here relies on the sample_dim = 5,
   // the calling op pads the shape to 5 dimensions
   static_assert(sample_ndim == 5);
+  if (volume(shape) == 0)
+    return;
+
   auto frame_size = volume(shape.begin() + 1, shape.end());
   if (flip_x || flip_y) {
     for (Index f = 0; f < shape[0]; ++f) {
