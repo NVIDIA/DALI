@@ -884,7 +884,9 @@ The ``stride``, ``step``, and ``pad_mode`` arguments are ignored.)code",
 * ``'reflect_1001'`` or ``'symmetric'``: Reflect padding, including the last element: ABC -> ABCCBA
 * ``'reflect_101'`` or ``'reflect'``: Reflect padding, not including the last element: ABC -> ABCBA
 
-Not relevant when using ``frames`` argument.)code",
+Not relevant when using ``frames`` argument.
+
+``'constant'`` is currently not supported together with ``dtype=FLOAT``.)code",
         "none", true)
     .AddOptionalArg("fill_value",
                     R"code(Value(s) used to pad missing frames when ``pad_mode='constant'``'.
@@ -898,7 +900,10 @@ Otherwise, the number of values must match the number of channels in the video.)
     .AddOptionalArg("image_type", R"(The color space of the output frames (RGB or YCbCr).)",
                     DALI_RGB)
     .AddOptionalTypeArg("dtype",
-                    R"code(Output data type. Supported types: ``UINT8`` or ``FLOAT``.)code",
+                    R"code(Output data type. Supported types: ``UINT8`` or ``FLOAT``.
+
+``FLOAT`` is only supported on the GPU backend, and is currently not supported together with
+``pad_mode='constant'``.)code",
                     DALI_UINT8)
     .AddOptionalArg("normalized",
                     R"code(If set, and ``dtype`` is ``FLOAT``, the output is returned as

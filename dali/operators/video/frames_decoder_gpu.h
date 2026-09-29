@@ -175,6 +175,15 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
 
   void CopyFrame(uint8_t *dst, const uint8_t *src) override;
 
+  /**
+   * @brief Sets the output element type and, if it grows the per-frame byte size (e.g.
+   * switching to DALI_FLOAT), resizes the internal frame-reorder buffer to match. Buffers are
+   * initially allocated assuming DALI_UINT8 (see InitGpuParser()); this only reallocates them
+   * when the actual dtype needs more space, so DALI_UINT8 callers keep their original,
+   * smaller footprint.
+   */
+  void SetOutputType(DALIDataType dtype) override;
+
  protected:
   bool SelectVideoStream(int stream_id = -1) override;
 
