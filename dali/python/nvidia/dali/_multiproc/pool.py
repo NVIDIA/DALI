@@ -455,7 +455,7 @@ class ProcPool:
             raise RuntimeError("Cannot receive data from the pool that has been closed")
         return self._result_queue.get(None)
 
-    def _worker_failure_error(self, msg):
+    def worker_failure_error(self, msg):
         """Creates an error describing a failed communication with the workers, extended with
         the information on the worker processes that exited unexpectedly, if any."""
         exited_workers = self._observer._exited_workers if self._observer is not None else []
@@ -485,11 +485,11 @@ class ProcPool:
         ]
         if dedicated_worker_id is None:
             if self._general_task_queue.put(shm_msg_descs) is None:
-                raise self._worker_failure_error("Sending tasks to workers failed")
+                raise self.worker_failure_error("Sending tasks to workers failed")
         else:
             worker_ctx = self._workers_contexts[dedicated_worker_id]
             if worker_ctx.dedicated_task_queue.put(shm_msg_descs) is None:
-                raise self._worker_failure_error(
+                raise self.worker_failure_error(
                     "Sending tasks to worker {} failed".format(dedicated_worker_id)
                 )
 
@@ -498,7 +498,7 @@ class ProcPool:
         while len(workers_received) < self.num_workers:
             shm_msgs = self.wait_for_res()
             if shm_msgs is None:
-                raise self._worker_failure_error("Workers initialization failed")
+                raise self.worker_failure_error("Workers initialization failed")
             synced_ids = [shm_msg.worker_id for shm_msg in shm_msgs]
             assert all(
                 0 <= worker_id < self.num_workers and worker_id not in workers_received
@@ -895,7 +895,7 @@ class WorkerPool:
     def _receive_chunk(self):
         completed_tasks_meta = self.pool.wait_for_res()
         if completed_tasks_meta is None:
-            raise self.pool._worker_failure_error("Worker data receiving interrupted")
+            raise self.pool.worker_failure_error("Worker data receiving interrupted")
         for completed_task_meta in completed_tasks_meta:
             context = self.shm_chunks_contexts[completed_task_meta.shm_chunk_id]
             shm_chunk = context.shm_manager.get_chunk_by_id(completed_task_meta.shm_chunk_id)
