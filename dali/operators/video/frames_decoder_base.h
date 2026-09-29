@@ -388,6 +388,10 @@ class DLL_PUBLIC FramesDecoderBase {
   void SetIndex(const FrameIndex& index) {
     index_ = index;
     num_frames_ = index.size();
+    // is_vfr_ is derived solely from index_, so it must be recomputed whenever the index is
+    // restored from a cache (e.g. FrameIndexCache) instead of freshly built by BuildIndex();
+    // otherwise IsVfr() would silently report false (the default) for a cache-hit decoder.
+    DetectVariableFrameRate();
   }
 
   virtual ~FramesDecoderBase() = default;
