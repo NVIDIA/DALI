@@ -392,6 +392,53 @@ def test_file_list_default_end_matches_legacy(device, file_list_format):
                 assert experimental == (end - start, list(range(start, end)))
 
 
+@cartesian_params(devices)
+def test_file_list_end_beyond_video_length_is_clamped(device):
+    # Regression test: with the default file_list_include_end=False, a file_list `end` value
+    # larger than the video's actual frame count must be clamped to the video's frame count,
+    # not used verbatim. Previously (before this fix) the num_frames clamp only ran inside the
+    # `if (include_end)` branch of PrepareMetadataImpl in video_reader_decoder_op.h, so default
+    # users got no clamp at all: a `5 100000` entry on a 240-frame video produced a bogus
+    # epoch_size of 99995 and crashed partway through the epoch ("Unexpected out-of-bounds frame
+    # index ... for pad_mode = 'none'"). Legacy readers.video rejects such input at build time
+    # instead; experimental.readers.video should at least clamp to a valid, decodable range.
+    video_file = sorted(VIDEO_FILES)[0]
+
+    # Determine the video's actual frame count.
+    @pipeline_def(batch_size=1, num_threads=2, device_id=0)
+    def count_pipe():
+        video = fn.experimental.readers.video(
+            device=device, filenames=[video_file], sequence_length=1, pad_mode="none", name="r"
+        )
+        return video
+
+    p = count_pipe()
+    p.build()
+    num_frames = p.reader_meta("r")["epoch_size"]
+
+    start = 5
+    huge_end = 100000
+    assert huge_end > num_frames, "Test assumption: huge_end must exceed the video's frame count"
+
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".txt") as list_file:
+        list_file.write(f"{video_file} 0 {start} {huge_end}\n")
+        list_file.flush()
+
+        epoch_size, frame_nums = _file_list_frame_selection(
+            functools.partial(fn.experimental.readers.video, device=device),
+            list_file.name,
+            file_list_format="frames",
+        )
+
+        # end_frame should clamp to num_frames (no +1, since include_end defaults to False), so
+        # the epoch covers exactly [start, num_frames).
+        assert epoch_size == num_frames - start, (
+            f"Expected epoch_size={num_frames - start} (clamped to video length), "
+            f"got {epoch_size}"
+        )
+        assert frame_nums == list(range(start, num_frames))
+
+
 @cartesian_params(
     devices,
     batch_sizes,

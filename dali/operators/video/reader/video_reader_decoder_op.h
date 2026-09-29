@@ -333,9 +333,11 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
           default:
             DALI_FAIL("Invalid file_list_format");
         }
-        if (file_list_opts_.include_end) {
-          entry.end_frame = std::min<int>(entry.end_frame + 1, num_frames);
-        }
+        // Always clamp to the video's actual frame count (a file_list entry may specify an
+        // `end` beyond the video's length). Only add +1 when include_end is set, to make the
+        // range inclusive of the raw `end` value.
+        entry.end_frame =
+            std::min<int>(entry.end_frame + (file_list_opts_.include_end ? 1 : 0), num_frames);
         LOG_LINE << "Frame range after conversion: [" << entry.start_frame << ", "
                  << entry.end_frame << "]" << std::endl;
       }
