@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2023, 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,7 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nvidia.dali.pipeline import Pipeline
+from nvidia.dali.pipeline import Pipeline, pipeline_def
+import nvidia.dali.fn as fn
 import nvidia.dali.ops as ops
 import nvidia.dali.types as types
 import numpy as np
@@ -146,3 +147,23 @@ def test_flip_vs_numpy():
                 ("FCDHW", (3, 3, 20, 50, 30)),
             ]:
                 yield check_flip, batch_size, layout, shape, device
+
+
+@pipeline_def(batch_size=4, num_threads=4, device_id=0)
+def zero_extent_flip_pipe(data):
+    images = fn.external_source(source=[data], cycle=True, layout="HWC")
+    return fn.flip(images.gpu(), horizontal=1, vertical=1)
+
+
+def test_flip_zero_extent_samples():
+    data = [
+        np.zeros((0, 8, 3), dtype=np.uint8),
+        np.arange(2 * 3 * 3, dtype=np.uint8).reshape(2, 3, 3),
+        np.zeros((4, 0, 3), dtype=np.uint8),
+        np.zeros((0, 0, 3), dtype=np.uint8),
+    ]
+    pipe = zero_extent_flip_pipe(data)
+    (out,) = pipe.run()
+    out = out.as_cpu()
+    for i, ref in enumerate(data):
+        np.testing.assert_array_equal(np.flip(np.flip(ref, 0), 1), out.at(i))

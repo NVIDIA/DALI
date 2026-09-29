@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019, 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -60,6 +60,9 @@ template <typename T>
 void FlipImpl(T *__restrict__ output, const T *__restrict__ input,
               const TensorShape<sample_ndim> &shape,
               bool flip_z, bool flip_y, bool flip_x, cudaStream_t stream) {
+  if (volume(shape) == 0)
+    return;
+
   auto plane_width = shape[3] * shape[4];
   unsigned int block_x = plane_width < 32 ? plane_width : 32;
   unsigned int block_y = shape[2] < 32 ? shape[2] : 32;
