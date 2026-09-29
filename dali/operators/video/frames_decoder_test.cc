@@ -439,6 +439,46 @@ TEST_F(FramesDecoderGpuTest, DefaultDecodeSurfaceCountUnchanged) {
   RunTest(decoder, cfr_videos_[0]);
 }
 
+TEST_F(FramesDecoderGpuTest, MjpegDecodesMultipleFrames) {
+  // DALI-4918: the NVDEC driver reports min_num_decode_surfaces=1 for this MJPEG file --
+  // with zero surface headroom, decoding the 2nd frame used to fail with
+  // CUDA_ERROR_INVALID_VALUE, because this decoder never registers a real pfnDisplayPicture
+  // callback (HandlePictureDisplay runs synchronously, inline, from ProcessPictureDecode), so
+  // the parser's own surface-recycling bookkeeping never saw the 1st picture as "consumed"
+  // before the 2nd one needed a surface. AdjustedNumDecodeSurfaces forces a larger surface
+  // count for MJPEG specifically (mirroring legacy's hardcoded ulMaxNumDecodeSurfaces=20).
+  auto mjpeg_path = testing::dali_extra_path() + "/db/video/mjpeg/mjpeg.avi";
+  FramesDecoderGpu decoder(mjpeg_path, 0, DALI_RGB);
+  decoder.BuildIndex();
+  ASSERT_GT(decoder.NumFrames(), 1);
+
+  // VideoColorSpaceConversion writes directly into this pointer via a CUDA kernel, so it must
+  // be device memory, not a host std::vector.
+  DeviceBuffer<uint8_t> frame0_device;
+  DeviceBuffer<uint8_t> frame1_device;
+  frame0_device.resize(decoder.FrameSize());
+  frame1_device.resize(decoder.FrameSize());
+  ASSERT_TRUE(decoder.ReadNextFrame(frame0_device.data()));
+  ASSERT_TRUE(decoder.ReadNextFrame(frame1_device.data()));
+
+  std::vector<uint8_t> frame0_host(decoder.FrameSize());
+  MemCopy(frame0_host.data(), frame0_device.data(), decoder.FrameSize());
+  bool any_nonzero = false;
+  for (uint8_t v : frame0_host) {
+    if (v != 0) {
+      any_nonzero = true;
+      break;
+    }
+  }
+  EXPECT_TRUE(any_nonzero) << "Decoded MJPEG frame 0 was all zeros";
+
+  // Decode the rest of the video too -- the surface-count fix must hold for the whole file,
+  // not just the first couple of frames.
+  for (int i = 2; i < decoder.NumFrames(); ++i) {
+    ASSERT_TRUE(decoder.ReadNextFrame(frame0_device.data())) << "Failed decoding frame " << i;
+  }
+}
+
 TEST_F(FramesDecoderGpuTest, NormalizedFloatOutputInRange) {
   FramesDecoderGpu decoder(cfr_videos_paths_[0]);
   decoder.SetOutputType(DALI_FLOAT);

@@ -371,19 +371,20 @@ TEST_F(VIDEO_READER_TEST_CLASS, MJpeg) {
       "Decoder hardware does not support this video codec"
       " and/or chroma format";
 
-  if (strcmp(VIDEO_READER_OP_STR, "experimental__readers__Video") == 0) {
-    GTEST_SKIP() << "Skipped because of unsupported codec.";
+  // richer FFmpeg configuration leads to different behaviour of VFR heuristics, so disable the
+  // VFR check for this video. readers__Video's default (VFR check enabled) rejects this file;
+  // experimental__readers__Video's default is already permissive (no VFR check unless
+  // require_constant_frame_rate=True is explicitly requested), so it needs no equivalent arg.
+  auto op_spec = OpSpec(VIDEO_READER_OP_STR)
+                     .AddArg("device", "gpu")
+                     .AddArg("sequence_length", sequence_length)
+                     .AddArg("filenames", std::vector<std::string>{testing::dali_extra_path() +
+                                                                   "/db/video/mjpeg/mjpeg.avi"})
+                     .AddOutput("frames", StorageDevice::GPU);
+  if (strcmp(VIDEO_READER_OP_STR, "experimental__readers__Video") != 0) {
+    op_spec = op_spec.AddArg("skip_vfr_check", true);
   }
-
-  // richer FFmpeg configuration leads to different behaviour of VFR heuristics so dissable it for
-  // this video
-  pipe.AddOperator(OpSpec(VIDEO_READER_OP_STR)
-                       .AddArg("device", "gpu")
-                       .AddArg("sequence_length", sequence_length)
-                       .AddArg("skip_vfr_check", true)
-                       .AddArg("filenames", std::vector<std::string>{testing::dali_extra_path() +
-                                                                     "/db/video/mjpeg/mjpeg.avi"})
-                       .AddOutput("frames", StorageDevice::GPU));
+  pipe.AddOperator(op_spec);
 
   Workspace ws;
   try {

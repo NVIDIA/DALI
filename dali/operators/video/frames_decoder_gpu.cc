@@ -78,6 +78,25 @@ const char *codec_to_string(cudaVideoCodec in) {
   }
 }
 
+// The driver-reported minimum decode-surface count for a sequence. For most codecs this is
+// already generous enough (multiple reference/reorder surfaces), but for single-picture-at-a-time
+// codecs like MJPEG the driver can report as few as 1 -- with zero surfaces of headroom, the next
+// picture's cuvidDecodePicture call fails, because this decoder never registers a real
+// pfnDisplayPicture callback (HandlePictureDisplay is invoked synchronously, inline, from
+// ProcessPictureDecode instead) so the parser's own internal surface-recycling bookkeeping never
+// sees the previous picture as "consumed" before the next one needs a surface. Legacy's NVDEC
+// integration (dali/operators/video/legacy/reader/nvdecoder/cuvideoparser.h) works around exactly
+// this by hardcoding ulMaxNumDecodeSurfaces=20 for MJPEG (and HEVC) instead of trusting the
+// driver's reported minimum; mirror that here for MJPEG. Both the sequence callback (which tells
+// the parser how many surfaces to expect) and decoder creation (GetDecoder, below) must use this
+// same adjusted value, or the two disagree.
+int AdjustedNumDecodeSurfaces(cudaVideoCodec codec_type, int min_num_decode_surfaces) {
+  if (codec_type == cudaVideoCodec_JPEG) {
+    return std::max(min_num_decode_surfaces, 20);
+  }
+  return min_num_decode_surfaces;
+}
+
 class NVDECCache {
  public:
     static NVDECCache &GetCache(int device_id = -1) {
@@ -123,7 +142,8 @@ class NVDECCache {
       auto codec_type = video_format->codec;
       unsigned height =  video_format->coded_height;
       unsigned width = video_format->coded_width;
-      auto num_decode_surfaces = video_format->min_num_decode_surfaces;
+      unsigned num_decode_surfaces = static_cast<unsigned>(
+          AdjustedNumDecodeSurfaces(codec_type, video_format->min_num_decode_surfaces));
       auto chroma_format = video_format->chroma_format;
       auto bit_depth_luma_minus8 = video_format->bit_depth_luma_minus8;
 
@@ -274,7 +294,10 @@ int process_video_sequence(void *user_data, CUVIDEOFORMAT *video_format) {
   FramesDecoderGpu *frames_decoder = static_cast<FramesDecoderGpu*>(user_data);
   frames_decoder->InitGpuDecoder(video_format);
 
-  return video_format->min_num_decode_surfaces;
+  // Must match GetDecoder's num_decode_surfaces exactly -- this return value is what tells the
+  // NVDEC parser how many decode surfaces it has to cycle through; the actual CUvideodecoder is
+  // created with the same value (see AdjustedNumDecodeSurfaces).
+  return AdjustedNumDecodeSurfaces(video_format->codec, video_format->min_num_decode_surfaces);
 }
 
 int process_picture_decode(void *user_data, CUVIDPICPARAMS *picture_params) {
@@ -943,12 +966,12 @@ bool FramesDecoderGpu::SelectVideoStream(int stream_id) {
   assert(codec_params_);
   AVCodecID codec_id = codec_params_->codec_id;
 
-  static constexpr std::array<AVCodecID, /*7*/ 6> codecs = {
+  static constexpr std::array<AVCodecID, 7> codecs = {
     AVCodecID::AV_CODEC_ID_H264,
     AVCodecID::AV_CODEC_ID_HEVC,
     AVCodecID::AV_CODEC_ID_VP8,
     AVCodecID::AV_CODEC_ID_VP9,
-    //AVCodecID::AV_CODEC_ID_MJPEG,  // TODO(janton): add support for MJPEG
+    AVCodecID::AV_CODEC_ID_MJPEG,
     AVCodecID::AV_CODEC_ID_AV1,
     AVCodecID::AV_CODEC_ID_MPEG4,
   };
