@@ -439,7 +439,9 @@ class VideoReaderDecoder
         frame_num_policy_(ParseFrameNumPolicy(spec.GetArgument<std::string>("enable_frame_num"))),
         has_timestamps_(spec.GetArgument<bool>("enable_timestamps")),
         boundary_type_(GetBoundaryType(spec)),
-        image_type_(spec.GetArgument<DALIImageType>("image_type")) {
+        image_type_(spec.GetArgument<DALIImageType>("image_type")),
+        dtype_(spec.GetArgument<DALIDataType>("dtype")),
+        normalized_(spec.GetArgument<bool>("normalized")) {
     loader_ = InitLoader<VideoLoaderImpl>(spec);
     this->SetInitialSnapshot();
 
@@ -459,6 +461,26 @@ class VideoReaderDecoder
     StreamInitialization(spec);
     DALI_ENFORCE(image_type_ == DALI_RGB || image_type_ == DALI_YCbCr,
                  make_string("Invalid image_type: ", image_type_));
+    DALI_ENFORCE(dtype_ == DALI_UINT8 || dtype_ == DALI_FLOAT,
+                 make_string("Invalid dtype: ", dtype_, ". Supported types are UINT8 and FLOAT."));
+    if constexpr (std::is_same_v<Backend, CPUBackend>) {
+      DALI_ENFORCE(dtype_ == DALI_UINT8,
+                   "dtype=FLOAT is only supported on the GPU backend of "
+                   "experimental.readers.video.");
+    }
+    // ConstantFrame() (video_utils.h) always builds a DALI_UINT8-typed fill buffer; using it
+    // as the CONSTANT boundary padding source with a DALI_FLOAT output buffer would
+    // reinterpret those raw bytes as float data (wrong values) and, since the buffer is
+    // sized for 1-byte elements, read past its end once padding elements are 4 bytes each.
+    // Reject the combination explicitly instead of risking memory corruption.
+    DALI_ENFORCE(!(dtype_ == DALI_FLOAT && boundary_type_ == boundary::BoundaryType::CONSTANT),
+                 "dtype=FLOAT combined with pad_mode='constant' is not currently supported.");
+
+    int requested_channels = spec.GetArgument<int>("channels");
+    DALI_ENFORCE(requested_channels == 3,
+                 make_string("channels=", requested_channels,
+                             " requested, but the decoder always produces 3 channels "
+                             "(RGB or YCbCr) for the currently supported image types."));
 
     constant_frame_.set_pinned(std::is_same_v<Backend, GPUBackend>);
   }
@@ -500,7 +522,7 @@ class VideoReaderDecoder
       auto &sample = GetSample(sample_id);
       video_shape.set_tensor_shape(sample_id, sample.data_.shape());
     }
-    output_desc.push_back({video_shape, DALI_UINT8});
+    output_desc.push_back({video_shape, dtype_});
 
     if (has_labels_) {
       TensorListShape<1> label_shape = uniform_list_shape<1>(batch_size, {1});
@@ -610,6 +632,8 @@ class VideoReaderDecoder
           decoder_ = std::make_unique<FramesDecoderImpl>(filename, image_type_);
         } else {
           decoder_ = std::make_unique<FramesDecoderImpl>(filename, cuda_stream_, image_type_);
+          decoder_->SetOutputType(dtype_);
+          decoder_->SetNormalizedRange(normalized_);
         }
         LOG_LINE << "Initialized decoder to " << decoder_->Filename() << " ptr: " << decoder_.get()
                  << " num_frames: " << decoder_->NumFrames() << std::endl;
@@ -633,7 +657,7 @@ class VideoReaderDecoder
           ? (sample->end_ - sample->start_ + sample->stride_ - 1) / sample->stride_
           : static_cast<int64_t>(sample->frame_idxs_.size());
       sample->data_.Resize(
-          {num_frames, decoder_->Height(), decoder_->Width(), decoder_->Channels()}, DALI_UINT8);
+          {num_frames, decoder_->Height(), decoder_->Width(), decoder_->Channels()}, dtype_);
       sample->data_.SetSourceInfo(decoder_->Filename());
       sample->data_.SetLayout("FHWC");
 
@@ -685,11 +709,16 @@ class VideoReaderDecoder
       } else {
         sample->frame_idx_.clear();
       }
+      // The output buffer's element type follows dtype_ (UINT8 or FLOAT), but the decoder's
+      // DecodeFrames() API always takes a raw uint8_t* (the frame data is reinterpreted
+      // internally according to dtype_); use raw_mutable_data() rather than
+      // mutable_data<uint8_t>() so this doesn't trip the buffer's type check when dtype_ is
+      // DALI_FLOAT.
+      auto *sample_data = static_cast<uint8_t *>(sample->data_.raw_mutable_data());
       if (!sample->frame_idxs_.empty()) {
         // Uniform sampling: explicit frame indices already include ROI offset (start_frame)
-        decoder_->DecodeFrames(sample->data_.template mutable_data<uint8_t>(),
-                               make_cspan(sample->frame_idxs_), boundary_type_, constant_frame,
-                               make_span(sample->timestamps_));
+        decoder_->DecodeFrames(sample_data, make_cspan(sample->frame_idxs_), boundary_type_,
+                               constant_frame, make_span(sample->timestamps_));
       } else if (roi_start != 0 || roi_end != decoder_->NumFrames()) {
         frame_idxs_.clear();
         for (int frame_idx = sample->start_; frame_idx < sample->end_;
@@ -697,13 +726,11 @@ class VideoReaderDecoder
           frame_idxs_.push_back(decoder_->HandleBoundary(
               boundary_type_, frame_idx, roi_start, roi_end));
         }
-        decoder_->DecodeFrames(sample->data_.template mutable_data<uint8_t>(),
-                               make_cspan(frame_idxs_), boundary_type_, constant_frame,
-                               make_span(sample->timestamps_));
+        decoder_->DecodeFrames(sample_data, make_cspan(frame_idxs_), boundary_type_,
+                               constant_frame, make_span(sample->timestamps_));
       } else {
-        decoder_->DecodeFrames(sample->data_.template mutable_data<uint8_t>(), sample->start_,
-                               sample->end_, sample->stride_, boundary_type_, constant_frame,
-                               make_span(sample->timestamps_));
+        decoder_->DecodeFrames(sample_data, sample->start_, sample->end_, sample->stride_,
+                               boundary_type_, constant_frame, make_span(sample->timestamps_));
       }
       LOG_LINE << "Decoding frames done" << std::endl;
     }
@@ -719,6 +746,8 @@ class VideoReaderDecoder
   bool has_timestamps_;
   boundary::BoundaryType boundary_type_;
   DALIImageType image_type_;
+  DALIDataType dtype_;
+  bool normalized_;
   std::vector<uint8_t> fill_value_;
   bool has_labels_ = false;
 
@@ -868,9 +897,19 @@ Otherwise, the number of values must match the number of channels in the video.)
                     })
     .AddOptionalArg("image_type", R"(The color space of the output frames (RGB or YCbCr).)",
                     DALI_RGB)
+    .AddOptionalTypeArg("dtype",
+                    R"code(Output data type. Supported types: ``UINT8`` or ``FLOAT``.)code",
+                    DALI_UINT8)
+    .AddOptionalArg("normalized",
+                    R"code(If set, and ``dtype`` is ``FLOAT``, the output is returned as
+normalized data in the range ``[0.0, 1.0]``. Ignored when ``dtype`` is ``UINT8``.)code",
+                    false)
+    .AddOptionalArg("channels",
+                    R"code(Number of channels in the output. Must match the actual number of
+decoded channels (currently always ``3``); provided for compatibility with ``readers.video``.)code",
+                    3)
     .AddParent("LoaderBase")
     .OutputNDim(0, 4)
-    .OutputDType(0, DALI_UINT8)
     .OutputLayout(0, "FHWC");
 
 

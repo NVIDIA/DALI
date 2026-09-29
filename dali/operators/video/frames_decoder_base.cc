@@ -608,7 +608,7 @@ void FramesDecoderBase::DecodeFramesImpl(uint8_t *data,
 
   uint8_t *last_out_frame_start = nullptr;
   for (auto &[frame_id, i] : frame_ids) {
-    uint8_t* out_frame_start = data + ptrdiff_t(i) * FrameSize();
+    uint8_t* out_frame_start = data + ptrdiff_t(i) * FrameSizeBytes();
     assert(out_frame_start >= data);
     if (frame_id >= 0 && frame_id < NumFrames()) {
       LOG_LINE << "Decoding frame " << frame_id << " to position " << i << std::endl;

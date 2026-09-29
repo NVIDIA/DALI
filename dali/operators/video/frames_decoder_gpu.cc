@@ -416,8 +416,11 @@ void FramesDecoderGpu::InitGpuParser() {
 
   // Init internal frame buffer
   // TODO(awolant): Check, if continuous buffer would be faster
+  // NOTE: SetOutputType() may be called after this constructor runs, so we can't rely on
+  // dtype_ here. Size for the largest supported output element (float) so the buffer is
+  // never under-allocated regardless of when SetOutputType() is called.
   for (size_t i = 0; i < frame_buffer_.size(); ++i) {
-    frame_buffer_[i].frame_.resize(FrameSize());
+    frame_buffer_[i].frame_.resize(FrameSize() * sizeof(float));
     frame_buffer_[i].pts_ = -1;
   }
 }
@@ -562,7 +565,7 @@ bool FramesDecoderGpu::ReadNextFrameWithIndex(uint8_t *data) {
     if (frame.pts_ != -1 && frame.pts_ == index_[next_frame_idx_].pts) {
       if (copy_to_output) {
         LOG_LINE << "Copying from frame buffer to frame_output" << std::endl;
-        copyD2D(data, frame.frame_.data(), FrameSize(), stream_);
+        copyD2D(data, frame.frame_.data(), FrameSizeBytes(), stream_);
       }
       LOG_LINE << "Found buffered frame with pts=" << frame.pts_ << std::endl;
 
@@ -733,10 +736,7 @@ bool FramesDecoderGpu::ReadNextFrameWithoutIndex(uint8_t *data) {
 
   if (current_copy_to_output_) {
     assert(current_frame_output_ != nullptr);
-    int64_t total_size = FrameSize();
-    if (dtype_ == DALI_FLOAT) {
-      total_size *= 4;
-    }
+    int64_t total_size = FrameSizeBytes();
     LOG_LINE << "Copying from frame buffer at index " << frame_to_return_index
              << " to frame_output at " << current_frame_output_ << " (frame_idx=" << next_frame_idx_
              << ")" << std::endl;
@@ -850,7 +850,7 @@ BufferedFrame& FramesDecoderGpu::FindEmptySlot() {
   }
   frame_buffer_ = std::move(new_frame_buffer);
   auto &new_frame = frame_buffer_.back();
-  new_frame.frame_.resize(FrameSize());
+  new_frame.frame_.resize(FrameSizeBytes());
   new_frame.pts_ = -1;
   return new_frame;
 }
@@ -915,7 +915,7 @@ bool FramesDecoderGpu::SupportsHevc() {
 }
 
 void FramesDecoderGpu::CopyFrame(uint8_t *dst, const uint8_t *src) {
-  CUDA_CALL(cudaMemcpyAsync(dst, src, FrameSize(), cudaMemcpyDeviceToDevice, stream_));
+  CUDA_CALL(cudaMemcpyAsync(dst, src, FrameSizeBytes(), cudaMemcpyDeviceToDevice, stream_));
 }
 
 bool FramesDecoderGpu::SelectVideoStream(int stream_id) {

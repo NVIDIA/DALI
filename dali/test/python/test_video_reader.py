@@ -432,3 +432,82 @@ def test_uniform_sample_stride_step_ignored(device):
     assert np.array_equal(
         idxs_default, idxs_stride_step
     ), "stride/step should be ignored when uniform_sample=True"
+
+
+@cartesian_params([True, False])
+def test_dtype_normalized(normalized):
+    # dtype=FLOAT is only supported on the GPU backend (see test_dtype_float_on_cpu_raises);
+    # unlike most experimental.readers.video tests, this one is GPU-only.
+    device = "gpu"
+
+    @pipeline_def(batch_size=2, num_threads=3, device_id=0)
+    def pipe():
+        return fn.experimental.readers.video(
+            device=device,
+            filenames=VIDEO_FILES,
+            sequence_length=3,
+            dtype=types.FLOAT,
+            normalized=normalized,
+        )
+
+    p = pipe()
+    p.build()
+    (video,) = p.run()
+    sample = np.array(video[0].as_cpu())
+    assert sample.dtype == np.float32
+    if normalized:
+        # Chroma<->RGB conversion introduces small floating-point overshoot/undershoot
+        # around the [0, 1] boundary (matching the tolerance used by the C++
+        # FramesDecoderGpuTest.NormalizedFloatOutputInRange/UnnormalizedFloatOutputInByteRange
+        # tests for the same conversion path), so allow a small epsilon rather than a hard
+        # [0, 1] bound.
+        epsilon = 0.25
+        in_range = np.logical_and(sample >= -epsilon, sample <= 1.0 + epsilon)
+        assert in_range.mean() > 0.97, "Expected almost all pixels in [0, 1] (+/- epsilon)"
+        assert np.any(np.logical_and(sample >= 0.1, sample <= 0.9)), (
+            "Expected to find pixel values within the normalized range, "
+            "confirming normalization actually happened"
+        )
+    else:
+        assert sample.max() > 1.0, "Expected unnormalized float output above 1.0"
+
+
+@cartesian_params(devices)
+def test_channels_arg_matches_decoder_channels(device):
+    @pipeline_def(batch_size=2, num_threads=3, device_id=0)
+    def pipe():
+        return fn.experimental.readers.video(
+            device=device, filenames=VIDEO_FILES, sequence_length=3, channels=3
+        )
+
+    p = pipe()
+    p.build()
+    p.run()  # should not raise
+
+
+def test_channels_arg_mismatch_raises():
+    @pipeline_def(batch_size=2, num_threads=3, device_id=0)
+    def pipe():
+        return fn.experimental.readers.video(
+            device="cpu", filenames=VIDEO_FILES, sequence_length=3, channels=4
+        )
+
+    try:
+        pipe().build()
+        assert False, "Expected an exception for channels=4 (decoder always produces 3 channels)"
+    except RuntimeError:
+        pass  # expected
+
+
+def test_dtype_float_on_cpu_raises():
+    @pipeline_def(batch_size=2, num_threads=3, device_id=0)
+    def pipe():
+        return fn.experimental.readers.video(
+            device="cpu", filenames=VIDEO_FILES, sequence_length=3, dtype=types.FLOAT
+        )
+
+    try:
+        pipe().build()
+        assert False, "Expected an exception for dtype=FLOAT on the CPU backend"
+    except RuntimeError:
+        pass  # expected
