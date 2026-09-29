@@ -273,7 +273,7 @@ TEST_F(VideoReaderDecoderCpuTest, RandomShuffle_CpuOnlyTests) {
 }
 
 TEST_F(VideoReaderDecoderGpuTest, RandomShuffle) {
-  RunShuffleTest<dali::CPUBackend>();
+  RunShuffleTest<dali::GPUBackend>();
 }
 
 class VideoReaderDecoderCompareTest : public VideoTestBase {};
@@ -284,7 +284,7 @@ TEST_F(VideoReaderDecoderCompareTest, CompareReaders) {
   const int stride = 3;
   const int step = 10;
   const int shard_id = 3;
-  const int num_shards = 10;
+  const int num_shards = 4;
   const int seed = 1234;
   const int initial_fill = 50;
 
@@ -295,8 +295,8 @@ TEST_F(VideoReaderDecoderCompareTest, CompareReaders) {
     .AddArg("sequence_length", sequence_length)
     .AddArg("stride", stride)
     .AddArg("step", step)
-    .AddArg("shard_id ", shard_id)
-    .AddArg("num_shards ", num_shards)
+    .AddArg("shard_id", shard_id)
+    .AddArg("num_shards", num_shards)
     .AddArg("seed", seed)
     .AddArg("initial_fill", initial_fill)
     .AddArg("random_shuffle", true)
@@ -311,8 +311,8 @@ TEST_F(VideoReaderDecoderCompareTest, CompareReaders) {
     .AddArg("sequence_length", sequence_length)
     .AddArg("stride", stride)
     .AddArg("step", step)
-    .AddArg("shard_id ", shard_id)
-    .AddArg("num_shards ", num_shards)
+    .AddArg("shard_id", shard_id)
+    .AddArg("num_shards", num_shards)
     .AddArg("seed", seed)
     .AddArg("initial_fill", initial_fill)
     .AddArg("random_shuffle", true)
@@ -327,8 +327,8 @@ TEST_F(VideoReaderDecoderCompareTest, CompareReaders) {
     .AddArg("sequence_length", sequence_length)
     .AddArg("stride", stride)
     .AddArg("step", step)
-    .AddArg("shard_id ", shard_id)
-    .AddArg("num_shards ", num_shards)
+    .AddArg("shard_id", shard_id)
+    .AddArg("num_shards", num_shards)
     .AddArg("seed", seed)
     .AddArg("initial_fill", initial_fill)
     .AddArg("random_shuffle", true)
