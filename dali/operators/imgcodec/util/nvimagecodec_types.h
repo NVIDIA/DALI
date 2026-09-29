@@ -62,6 +62,10 @@ static DALIDataType to_dali_dtype(nvimgcodecSampleDataType_t dtype) {
       return DALI_UINT16;
     case NVIMGCODEC_SAMPLE_DATA_TYPE_INT16:
       return DALI_INT16;
+    case NVIMGCODEC_SAMPLE_DATA_TYPE_UINT32:
+      return DALI_UINT32;
+    case NVIMGCODEC_SAMPLE_DATA_TYPE_INT32:
+      return DALI_INT32;
     case NVIMGCODEC_SAMPLE_DATA_TYPE_FLOAT32:
       return DALI_FLOAT;
     default:
