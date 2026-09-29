@@ -416,11 +416,13 @@ void FramesDecoderGpu::InitGpuParser() {
 
   // Init internal frame buffer
   // TODO(awolant): Check, if continuous buffer would be faster
-  // NOTE: SetOutputType() may be called after this constructor runs, so we can't rely on
-  // dtype_ here. Size for the largest supported output element (float) so the buffer is
-  // never under-allocated regardless of when SetOutputType() is called.
+  // NOTE: dtype_ is DALI_UINT8 here (the default) unless SetOutputType() was already called
+  // before this runs. If SetOutputType(DALI_FLOAT) is called afterward, SetOutputType() (see
+  // below) grows these buffers to match; this keeps the common UINT8 case (the default, and
+  // all of the legacy reader's traffic) at its original, smaller footprint instead of always
+  // paying for the largest possible (float) allocation.
   for (size_t i = 0; i < frame_buffer_.size(); ++i) {
-    frame_buffer_[i].frame_.resize(FrameSize() * sizeof(float));
+    frame_buffer_[i].frame_.resize(FrameSizeBytes());
     frame_buffer_[i].pts_ = -1;
   }
 }
@@ -916,6 +918,17 @@ bool FramesDecoderGpu::SupportsHevc() {
 
 void FramesDecoderGpu::CopyFrame(uint8_t *dst, const uint8_t *src) {
   CUDA_CALL(cudaMemcpyAsync(dst, src, FrameSizeBytes(), cudaMemcpyDeviceToDevice, stream_));
+}
+
+void FramesDecoderGpu::SetOutputType(DALIDataType dtype) {
+  FramesDecoderBase::SetOutputType(dtype);
+  // frame_buffer_ entries are allocated in InitGpuParser() (constructor time) assuming
+  // DALI_UINT8, before the caller has a chance to call SetOutputType(). DeviceBuffer::resize()
+  // only reallocates when growing past the current capacity, so this is a no-op for the
+  // common DALI_UINT8 case and only actually grows memory for DALI_FLOAT.
+  for (auto &frame : frame_buffer_) {
+    frame.frame_.resize(FrameSizeBytes());
+  }
 }
 
 bool FramesDecoderGpu::SelectVideoStream(int stream_id) {
