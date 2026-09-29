@@ -19,6 +19,7 @@ import nvidia.dali.fn as fn
 import nvidia.dali.types as types
 import os
 import random
+import tempfile
 from nvidia.dali import pipeline_def
 
 from nose_utils import assert_raises, SkipTest
@@ -479,6 +480,31 @@ def test_tiff_int32():
     result = out.as_cpu().at(0)
     assert result.dtype == np.int32
     np.testing.assert_array_equal(result, ref)
+
+
+def test_tiff_uint32_truncated_input():
+    # Invalid-input rejection: a truncated 32-bit TIFF (valid header, no pixel data) must be
+    # rejected with an error rather than crashing or returning garbage, on both backends.
+    tiff_dir = os.path.join(test_data_root, good_path, "tiff", "0")
+    uint32_file = os.path.join(tiff_dir, "cat-300572_640_uint32.tiff")
+    with open(uint32_file, "rb") as f:
+        truncated_bytes = f.read(256)
+
+    with tempfile.NamedTemporaryFile(suffix=".tiff") as truncated_file:
+        truncated_file.write(truncated_bytes)
+        truncated_file.flush()
+
+        @pipeline_def(batch_size=1, device_id=0, num_threads=1)
+        def pipe(device):
+            encoded, _ = fn.readers.file(files=[truncated_file.name])
+            decoded = fn.experimental.decoders.image(
+                encoded, device=device, output_type=types.ANY_DATA, dtype=types.UINT32
+            )
+            return decoded
+
+        for device in ("cpu", "mixed"):
+            p = pipe(device)
+            assert_raises(RuntimeError, p.run, glob="*nvImageCodec failure*")
 
 
 def _testimpl_image_decoder_peek_shape(
