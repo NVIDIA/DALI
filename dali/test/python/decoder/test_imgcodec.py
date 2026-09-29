@@ -55,21 +55,24 @@ def get_img_files(data_path, subdir="*", ext=None):
 TIFF_UNSUPPORTED_BY_GENERIC_DECODE = {"cat-300572_640_int32.tiff"}
 
 
+def _reader_file_kwargs(data_path, exclude_names):
+    """Builds fn.readers.file kwargs, optionally filtering out `exclude_names` (by basename)
+    from the file_root's directory listing."""
+    if not exclude_names:
+        return dict(file_root=data_path, shard_id=0, num_shards=1)
+    files = [
+        os.path.relpath(f, data_path)
+        for f in get_img_files(data_path)
+        if os.path.basename(f) not in exclude_names
+    ]
+    return dict(file_root=data_path, files=files)
+
+
 @pipeline_def
 def decoder_pipe(
     data_path, device, use_fast_idct=False, jpeg_fancy_upsampling=False, exclude_names=None
 ):
-    if exclude_names:
-        files = [
-            os.path.relpath(f, data_path)
-            for f in get_img_files(data_path)
-            if os.path.basename(f) not in exclude_names
-        ]
-        inputs, labels = fn.readers.file(file_root=data_path, files=files, name="Reader")
-    else:
-        inputs, labels = fn.readers.file(
-            file_root=data_path, shard_id=0, num_shards=1, name="Reader"
-        )
+    inputs, labels = fn.readers.file(**_reader_file_kwargs(data_path, exclude_names), name="Reader")
     decoded = fn.experimental.decoders.image(
         inputs,
         device=device,
@@ -119,8 +122,8 @@ def test_image_decoder():
 
 
 @pipeline_def
-def create_decoder_slice_pipeline(data_path, device):
-    jpegs, _ = fn.readers.file(file_root=data_path, shard_id=0, num_shards=1, name="Reader")
+def create_decoder_slice_pipeline(data_path, device, exclude_names=None):
+    jpegs, _ = fn.readers.file(**_reader_file_kwargs(data_path, exclude_names), name="Reader")
 
     anchor = fn.random.uniform(range=[0.05, 0.15], shape=(2,))
     shape = fn.random.uniform(range=[0.5, 0.7], shape=(2,))
@@ -135,8 +138,8 @@ def create_decoder_slice_pipeline(data_path, device):
 
 
 @pipeline_def
-def create_decoder_crop_pipeline(data_path, device):
-    jpegs, _ = fn.readers.file(file_root=data_path, shard_id=0, num_shards=1, name="Reader")
+def create_decoder_crop_pipeline(data_path, device, exclude_names=None):
+    jpegs, _ = fn.readers.file(**_reader_file_kwargs(data_path, exclude_names), name="Reader")
 
     crop_pos_x = fn.random.uniform(range=[0.1, 0.9])
     crop_pos_y = fn.random.uniform(range=[0.1, 0.9])
@@ -155,9 +158,9 @@ def create_decoder_crop_pipeline(data_path, device):
 
 
 @pipeline_def
-def create_decoder_random_crop_pipeline(data_path, device):
+def create_decoder_random_crop_pipeline(data_path, device, exclude_names=None):
     seed = 1234
-    jpegs, _ = fn.readers.file(file_root=data_path, shard_id=0, num_shards=1, name="Reader")
+    jpegs, _ = fn.readers.file(**_reader_file_kwargs(data_path, exclude_names), name="Reader")
 
     w = 242
     h = 230
@@ -174,6 +177,7 @@ def create_decoder_random_crop_pipeline(data_path, device):
 
 def run_decode_fused(test_fun, path, img_type, batch, device, threads, validation_fun):
     data_path = os.path.join(test_data_root, path, img_type)
+    exclude = TIFF_UNSUPPORTED_BY_GENERIC_DECODE if img_type == "tiff" else None
     pipe = test_fun(
         data_path=data_path,
         batch_size=batch,
@@ -181,6 +185,7 @@ def run_decode_fused(test_fun, path, img_type, batch, device, threads, validatio
         device_id=0,
         device=device,
         prefetch_queue_depth=1,
+        exclude_names=exclude,
     )
     idxs = [i for i in range(batch)]
     iters = math.ceil(pipe.epoch_size("Reader") / batch)
