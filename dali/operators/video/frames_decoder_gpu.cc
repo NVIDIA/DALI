@@ -427,8 +427,10 @@ void FramesDecoderGpu::InitGpuParser() {
   }
 }
 
-FramesDecoderGpu::FramesDecoderGpu(const std::string &filename, cudaStream_t stream, DALIImageType image_type)
+FramesDecoderGpu::FramesDecoderGpu(const std::string &filename, cudaStream_t stream, DALIImageType image_type,
+                                   int num_decode_surfaces)
     : FramesDecoderBase(filename, image_type),
+      num_decode_surfaces_(num_decode_surfaces),
       frame_buffer_(num_decode_surfaces_),
       stream_(stream) {
   is_valid_ = is_valid_ && SelectVideoStream();
@@ -438,8 +440,9 @@ FramesDecoderGpu::FramesDecoderGpu(const std::string &filename, cudaStream_t str
 }
 
 FramesDecoderGpu::FramesDecoderGpu(const char *memory_file, size_t memory_file_size, std::string_view source_info,
-                                   cudaStream_t stream, DALIImageType image_type)
+                                   cudaStream_t stream, DALIImageType image_type, int num_decode_surfaces)
     : FramesDecoderBase(memory_file, memory_file_size, source_info, image_type),
+      num_decode_surfaces_(num_decode_surfaces),
       frame_buffer_(num_decode_surfaces_),
       stream_(stream) {
   is_valid_ = is_valid_ && SelectVideoStream();

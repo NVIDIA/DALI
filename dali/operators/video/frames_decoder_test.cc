@@ -359,6 +359,22 @@ TEST_F(FramesDecoderGpuTest, RawH265) {
   RunTest(decoder, cfr_videos_[0], false, 1.5);
 }
 
+TEST_F(FramesDecoderGpuTest, CustomDecodeSurfaceCount) {
+  // A non-default surface count (larger than the baseline of 8) must still decode the whole
+  // video correctly; this exercises the frame_buffer_ sizing that num_decode_surfaces_ drives.
+  FramesDecoderGpu decoder(cfr_videos_paths_[0], 0, DALI_RGB, 12);
+  decoder.BuildIndex();
+  RunTest(decoder, cfr_videos_[0]);
+}
+
+TEST_F(FramesDecoderGpuTest, DefaultDecodeSurfaceCountUnchanged) {
+  // Explicitly verifies the default (no 4th arg) still behaves like the pre-existing
+  // hardcoded value of 8, per this plan's Global Constraints (no default-behavior change).
+  FramesDecoderGpu decoder(cfr_videos_paths_[0]);
+  decoder.BuildIndex();
+  RunTest(decoder, cfr_videos_[0]);
+}
+
 TEST_F(FramesDecoderGpuTest, NormalizedFloatOutputInRange) {
   FramesDecoderGpu decoder(cfr_videos_paths_[0]);
   decoder.SetOutputType(DALI_FLOAT);

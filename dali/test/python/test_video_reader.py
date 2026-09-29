@@ -511,3 +511,42 @@ def test_dtype_float_on_cpu_raises():
         assert False, "Expected an exception for dtype=FLOAT on the CPU backend"
     except RuntimeError:
         pass  # expected
+
+
+def test_additional_decode_surfaces_does_not_crash():
+    @pipeline_def(batch_size=2, num_threads=3, device_id=0)
+    def pipe():
+        return fn.experimental.readers.video(
+            device="gpu", filenames=VIDEO_FILES, sequence_length=3, additional_decode_surfaces=4
+        )
+
+    p = pipe()
+    p.build()
+    p.run()
+
+
+def test_additional_decode_surfaces_matches_default_output():
+    # additional_decode_surfaces only tunes NVDEC surface pooling; it must not change the
+    # decoded pixel data, so decoding the same video with a non-default value should produce
+    # identical output to the default (additional_decode_surfaces=2).
+    @pipeline_def(batch_size=2, num_threads=3, device_id=0)
+    def pipe(additional_decode_surfaces):
+        return fn.experimental.readers.video(
+            device="gpu",
+            filenames=VIDEO_FILES,
+            sequence_length=3,
+            additional_decode_surfaces=additional_decode_surfaces,
+        )
+
+    p_default = pipe(2)
+    p_default.build()
+    (video_default,) = p_default.run()
+
+    p_custom = pipe(6)
+    p_custom.build()
+    (video_custom,) = p_custom.run()
+
+    for sample_default, sample_custom in zip(video_default, video_custom):
+        np.testing.assert_array_equal(
+            np.array(sample_default.as_cpu()), np.array(sample_custom.as_cpu())
+        )
