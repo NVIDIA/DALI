@@ -233,11 +233,42 @@ def _get_annotation_return_mis(schema):
     return return_annotation
 
 
-def _get_positional_input_params(schema, input_annotation_gen=_get_annotation_input_regular):
+def _filter_merged_input_params(param_list, schema, input_annotation_gen):
+    """Hide the inputs merged into arguments (see `_names.get_merged_input_names`) from a
+    generated positional-input `Parameter` list - dynamic (ndd) API only. Mirrors
+    `dynamic._op_builder._filter_merged_inputs`; see there for the full rationale.
+
+    A trailing hard stop (no `Parameter.VAR_POSITIONAL` already present) is relaxed into a
+    generic variadic catch-all for GPU-routable and multi-input merged cases
+    (`_names.merge_restores_catchall`), whose hidden input(s) must stay reachable positionally
+    in the dynamic API's runtime signature.
+    """
+    merged_input_names = _names.get_merged_input_names(schema.Name())
+    if not merged_input_names:
+        return param_list
+    had_var_positional = any(p.kind == Parameter.VAR_POSITIONAL for p in param_list)
+    param_list = [p for p in param_list if p.name not in merged_input_names]
+    if not had_var_positional and _names.merge_restores_catchall(schema.Name()):
+        param_list.append(
+            Parameter(
+                _names._get_variadic_input_name(),
+                Parameter.VAR_POSITIONAL,
+                annotation=input_annotation_gen(schema),
+            )
+        )
+    return param_list
+
+
+def _get_positional_input_params(
+    schema, api: "Api" = "fn", input_annotation_gen=_get_annotation_input_regular
+):
     """Get the list of positional only inputs to the operator.
 
     Parameters
     ----------
+    api : str
+        "fn", "ops" or "dynamic". Only the dynamic (ndd) API hides inputs merged into arguments
+        (see `_names.get_merged_input_names`); "fn"/"ops" keep exposing them, as before.
     input_annotation_gen: Callable[[OpSchema], type annotation]
         Input type annotation, used to indicate regular inputs or multiple input set overloads.
         See _get_annotation_* functions.
@@ -273,6 +304,9 @@ def _get_positional_input_params(schema, input_annotation_gen=_get_annotation_in
                     annotation=input_annotation_gen(schema),
                 )
             )
+
+    if api == "dynamic":
+        param_list = _filter_merged_input_params(param_list, schema, input_annotation_gen)
     return param_list
 
 
@@ -480,7 +514,7 @@ def _call_signature(
 
     if include_inputs:
         param_list.extend(
-            _get_positional_input_params(schema, input_annotation_gen=input_annotation_gen)
+            _get_positional_input_params(schema, api, input_annotation_gen=input_annotation_gen)
         )
 
     if include_kwargs and not include_only_inputs:
