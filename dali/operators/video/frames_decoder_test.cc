@@ -461,16 +461,22 @@ TEST_F(FramesDecoderGpuTest, MjpegDecodesMultipleFrames) {
   ASSERT_TRUE(decoder.ReadNextFrame(frame0_device.data()));
   ASSERT_TRUE(decoder.ReadNextFrame(frame1_device.data()));
 
+  auto any_nonzero = [](const std::vector<uint8_t> &frame) {
+    for (uint8_t v : frame) {
+      if (v != 0) return true;
+    }
+    return false;
+  };
+
   std::vector<uint8_t> frame0_host(decoder.FrameSize());
   MemCopy(frame0_host.data(), frame0_device.data(), decoder.FrameSize());
-  bool any_nonzero = false;
-  for (uint8_t v : frame0_host) {
-    if (v != 0) {
-      any_nonzero = true;
-      break;
-    }
-  }
-  EXPECT_TRUE(any_nonzero) << "Decoded MJPEG frame 0 was all zeros";
+  EXPECT_TRUE(any_nonzero(frame0_host)) << "Decoded MJPEG frame 0 was all zeros";
+
+  // frame 1 is the specific point that used to crash with CUDA_ERROR_INVALID_VALUE -- check its
+  // content too, not just that ReadNextFrame returned true for it.
+  std::vector<uint8_t> frame1_host(decoder.FrameSize());
+  MemCopy(frame1_host.data(), frame1_device.data(), decoder.FrameSize());
+  EXPECT_TRUE(any_nonzero(frame1_host)) << "Decoded MJPEG frame 1 was all zeros";
 
   // Decode the rest of the video too -- the surface-count fix must hold for the whole file,
   // not just the first couple of frames.

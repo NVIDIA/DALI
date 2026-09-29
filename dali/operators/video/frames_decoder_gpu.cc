@@ -84,12 +84,22 @@ const char *codec_to_string(cudaVideoCodec in) {
 // picture's cuvidDecodePicture call fails, because this decoder never registers a real
 // pfnDisplayPicture callback (HandlePictureDisplay is invoked synchronously, inline, from
 // ProcessPictureDecode instead) so the parser's own internal surface-recycling bookkeeping never
-// sees the previous picture as "consumed" before the next one needs a surface. Legacy's NVDEC
-// integration (dali/operators/video/legacy/reader/nvdecoder/cuvideoparser.h) works around exactly
-// this by hardcoding ulMaxNumDecodeSurfaces=20 for MJPEG (and HEVC) instead of trusting the
-// driver's reported minimum; mirror that here for MJPEG. Both the sequence callback (which tells
-// the parser how many surfaces to expect) and decoder creation (GetDecoder, below) must use this
-// same adjusted value, or the two disagree.
+// sees the previous picture as "consumed" before the next one needs a surface.
+//
+// Legacy's NVDEC integration also decodes MJPEG successfully, but NOT via a hardcoded 20-surface
+// decoder: its real CUvideodecoder is created with min_num_decode_surfaces + a small
+// additional_decode_surfaces margin (nvdecoder.cc/cuvideodecoder.cc) -- 3 surfaces for this same
+// test file, not 20. (The literal `20` that does appear in legacy's per-codec switch in
+// cuvideoparser.h is a *parser* hint passed uniformly for every codec by its only caller, not an
+// MJPEG-specific override, and is unrelated to the actual decoder's surface count.) Legacy gets
+// away with so few real surfaces because it registers a genuine pfnDisplayPicture callback, which
+// gives the parser a proper "this picture was consumed" signal -- this backend's synchronous-
+// inline HandlePictureDisplay does not, so it structurally needs more headroom regardless of what
+// legacy uses. `20` here is therefore a conservative, empirically-verified value (confirmed against
+// the full 180-frame test file), not a value inherited from an equivalent legacy precedent.
+//
+// Both the sequence callback (which tells the parser how many surfaces to expect) and decoder
+// creation (GetDecoder, below) must use this same adjusted value, or the two disagree.
 int AdjustedNumDecodeSurfaces(cudaVideoCodec codec_type, int min_num_decode_surfaces) {
   if (codec_type == cudaVideoCodec_JPEG) {
     return std::max(min_num_decode_surfaces, 20);
