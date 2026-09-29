@@ -342,17 +342,11 @@ def test_file_list_default_end_matches_legacy(device, file_list_format):
             list_file.write(f"{filename} 0 {start} {end}\n")
             list_file.flush()
 
+            # DALI-4917: experimental's file_list_rounding default ("start_up_end_down") now
+            # matches legacy's file_list_include_preceding_frame default (False), so no
+            # explicit rounding override is needed for either format any more.
             legacy_kwargs = dict(file_list_frame_num=(file_list_format == "frames"))
             experimental_kwargs = dict(file_list_format=file_list_format)
-            if file_list_format == "timestamps":
-                # The default start/end rounding of the two readers differs for timestamps
-                # (legacy's `file_list_include_preceding_frame` defaults to False, while
-                # experimental's `file_list_rounding` defaults to "start_down_end_up"). That
-                # is a separate rounding-default difference, unrelated to end-frame inclusion,
-                # so pin both readers to the equivalent rounding mode explicitly and leave only
-                # the end-inclusion behavior at its default.
-                legacy_kwargs["file_list_include_preceding_frame"] = True
-                experimental_kwargs["file_list_rounding"] = "start_down_end_up"
 
             legacy = _file_list_frame_selection(
                 functools.partial(fn.readers.video, device="gpu"),
