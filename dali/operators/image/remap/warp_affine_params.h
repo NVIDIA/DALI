@@ -22,15 +22,20 @@
 #include "dali/kernels/imgproc/warp/mapping_traits.h"
 #include "dali/operators/image/remap/warp_param_provider.h"
 #include "dali/core/tensor_shape_print.h"
+#include "dali/core/api_helper.h"
 
 namespace dali {
 
 template <int spatial_ndim>
 using WarpAffineParams = kernels::warp::mapping_params_t<kernels::AffineMapping<spatial_ndim>>;
 
+// DLL_PUBLIC: explicit specializations are also called directly from
+// warp_affine_params_test.cu, which links against dali_operators as a separate binary and
+// needs these symbols exported despite the library's default hidden visibility.
 template <int ndims, bool invert>
-void CopyTransformsGPU(WarpAffineParams<ndims> *output, const WarpAffineParams<ndims> **input,
-                       int count, cudaStream_t stream);
+DLL_PUBLIC void CopyTransformsGPU(WarpAffineParams<ndims> *output,
+                                  const WarpAffineParams<ndims> **input, int count,
+                                  cudaStream_t stream);
 
 
 template <typename Backend,

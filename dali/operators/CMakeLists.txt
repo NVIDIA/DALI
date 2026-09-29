@@ -163,6 +163,11 @@ if (BUILD_TEST)
   if (BUILD_NVML)
     target_link_libraries(dali_operator_test PRIVATE dynlink_nvml)
   endif(BUILD_NVML)
+  if (BUILD_CVCUDA)
+    # matrix_adjust_test.cu includes nvcv/Tensor.hpp directly; dali_operators links cvcuda PRIVATE
+    # so its include directories do not propagate here.
+    target_link_libraries(dali_operator_test PRIVATE cvcuda nvcv_types)
+  endif(BUILD_CVCUDA)
   if (WITH_DYNAMIC_NPP)
     target_link_libraries(dali_operator_test PRIVATE dynlink_npp)
     target_link_libraries(dali_operator_test PRIVATE "-Wl,--exclude-libs,$<TARGET_FILE_NAME:dynlink_npp>")
