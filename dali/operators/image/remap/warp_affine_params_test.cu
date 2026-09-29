@@ -15,6 +15,7 @@
 #include <gtest/gtest.h>
 #include "dali/operators/image/remap/warp_affine_params.h"
 #include "dali/core/cuda_error.h"
+#include "dali/core/mm/memory.h"
 
 namespace dali {
 
@@ -44,30 +45,25 @@ TEST(WarpAffineParamsTest, CopyTransformsGPUCopiesAndInvertsSingleSample) {
   Params transform{mat<2, 3>{{{1, 0, 5}, {0, 1, 3}}}};
   Params expected_inv{mat<2, 3>{{{1, 0, -5}, {0, 1, -3}}}};
 
-  Params *d_input, *d_output;
-  const Params **d_input_ptrs;
-  CUDA_CALL(cudaMalloc(&d_input, sizeof(Params)));
-  CUDA_CALL(cudaMalloc(&d_output, sizeof(Params)));
-  CUDA_CALL(cudaMalloc(&d_input_ptrs, sizeof(Params *)));
-  CUDA_CALL(cudaMemcpy(d_input, &transform, sizeof(Params), cudaMemcpyHostToDevice));
-  const Params *h_input_ptr = d_input;
-  CUDA_CALL(cudaMemcpy(d_input_ptrs, &h_input_ptr, sizeof(Params *), cudaMemcpyHostToDevice));
+  auto d_input = mm::alloc_raw_unique<Params, mm::memory_kind::device>(1);
+  auto d_output = mm::alloc_raw_unique<Params, mm::memory_kind::device>(1);
+  auto d_input_ptrs = mm::alloc_raw_unique<const Params *, mm::memory_kind::device>(1);
+  CUDA_CALL(cudaMemcpy(d_input.get(), &transform, sizeof(Params), cudaMemcpyHostToDevice));
+  const Params *h_input_ptr = d_input.get();
+  CUDA_CALL(
+      cudaMemcpy(d_input_ptrs.get(), &h_input_ptr, sizeof(Params *), cudaMemcpyHostToDevice));
 
-  CopyTransformsGPU<2, false>(d_output, d_input_ptrs, 1, 0);
+  CopyTransformsGPU<2, false>(d_output.get(), d_input_ptrs.get(), 1, 0);
   CUDA_CALL(cudaStreamSynchronize(0));
   Params copied;
-  CUDA_CALL(cudaMemcpy(&copied, d_output, sizeof(Params), cudaMemcpyDeviceToHost));
+  CUDA_CALL(cudaMemcpy(&copied, d_output.get(), sizeof(Params), cudaMemcpyDeviceToHost));
   EXPECT_EQ(copied.transform, transform.transform);
 
-  CopyTransformsGPU<2, true>(d_output, d_input_ptrs, 1, 0);
+  CopyTransformsGPU<2, true>(d_output.get(), d_input_ptrs.get(), 1, 0);
   CUDA_CALL(cudaStreamSynchronize(0));
   Params inverted;
-  CUDA_CALL(cudaMemcpy(&inverted, d_output, sizeof(Params), cudaMemcpyDeviceToHost));
+  CUDA_CALL(cudaMemcpy(&inverted, d_output.get(), sizeof(Params), cudaMemcpyDeviceToHost));
   EXPECT_EQ(inverted.transform, expected_inv.transform);
-
-  CUDA_CALL(cudaFree(d_input));
-  CUDA_CALL(cudaFree(d_output));
-  CUDA_CALL(cudaFree(d_input_ptrs));
 }
 
 }  // namespace dali
