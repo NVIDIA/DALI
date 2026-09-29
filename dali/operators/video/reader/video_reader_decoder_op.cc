@@ -96,11 +96,13 @@ Default: ``timestamps``.)code",
     .AddOptionalArg("file_list_rounding",
         R"code(How to handle non-exact frame matches:
 
-* ``start_down_end_up`` (default): Round start down and end up
-* ``start_up_end_down``: Round start up and end down
+* ``start_up_end_down`` (default): Round start up and end down. Matches the rounding
+  convention of the legacy ``readers.video`` operator's ``file_list_include_preceding_frame``
+  default (``False``).
+* ``start_down_end_up``: Round start down and end up
 * ``all_up``: Round both up
 * ``all_down``: Round both down)code",
-        "start_down_end_up")
+        "start_up_end_down")
     .AddOptionalArg("file_list_include_end",
         R"code(If set to True, the ``end`` value of a `file_list` entry is treated as inclusive,
 i.e. the frame at ``end`` is included in the selected range.
