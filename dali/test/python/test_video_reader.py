@@ -50,21 +50,6 @@ pad_modes_supported_by_legacy_reader = ["none", "constant"]
 image_type_supported_by_legacy_reader = [types.RGB, types.YCbCr]
 
 
-def skip_if_experimental_ycbcr_cpu_bug(device, image_type):
-    # Known bug DALI-4916 (not a legacy-vs-experimental parity gap):
-    # experimental.readers.video's CPU backend crashes for image_type=YCbCr with
-    # `DALI_ENFORCE` "Could not convert frame data: Invalid argument"
-    # (FramesDecoderCpu::CopyToOutput in dali/operators/video/frames_decoder_cpu.cc). For
-    # YCbCr it asks libswscale to produce planar AV_PIX_FMT_YUV444P output but only supplies a
-    # single packed destination buffer/linesize (dest[1]/dest[2] are left null), so sws_scale
-    # fails with "bad dst image pointers". The GPU backend does not have this bug.
-    if device == "cpu" and image_type == types.YCbCr:
-        raise SkipTest(
-            "Known bug DALI-4916: experimental.readers.video CPU backend crashes for "
-            "image_type=YCbCr (see frames_decoder_cpu.cc CopyToOutput sws_scale call)"
-        )
-
-
 def compare_frames(
     frame, ref_frame, iteration_idx, batch_idx, frame_idx, diff_step=2, threshold=0.03
 ):
@@ -196,7 +181,6 @@ def compare_experimental_to_legacy_reader(device, batch_size, **kwargs):
 def test_compare_experimental_to_legacy_reader_filenames(
     device, batch_size, sequence_length, pad_mode, image_type
 ):
-    skip_if_experimental_ycbcr_cpu_bug(device, image_type)
     labels = [np.random.randint(0, 100) for _ in range(len(VIDEO_FILES))]
     files = VIDEO_FILES
     compare_experimental_to_legacy_reader(
@@ -238,8 +222,6 @@ def test_compare_experimental_to_legacy_reader_file_list(
                 end = 0.6 + np.random.random() * 0.4  # Range [0.6, 1.0)
         list_file.write(f"{file} {label} {start} {end}\n")
     list_file.close()
-
-    skip_if_experimental_ycbcr_cpu_bug(device, image_type)
 
     if debug:
         print("File list contents:")
@@ -449,7 +431,6 @@ def test_file_list_end_beyond_video_length_is_clamped(device):
 def test_compare_experimental_to_legacy_reader_file_root(
     device, batch_size, sequence_length, pad_mode, image_type
 ):
-    skip_if_experimental_ycbcr_cpu_bug(device, image_type)
     if debug:
         print("MULTIPLE_RESOLUTION_ROOT contents:")
         for root, dirs, files in os.walk(MULTIPLE_RESOLUTION_ROOT):
