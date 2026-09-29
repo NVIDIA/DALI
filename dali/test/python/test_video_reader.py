@@ -431,7 +431,8 @@ def test_uniform_sample_file_list_roi(device, sequence_length):
     # Define a ROI that excludes the first and last few frames.
     start_frame = max(1, total_frames // 5)
     end_frame = min(total_frames - 1, total_frames * 4 // 5)
-    roi_frames = end_frame - start_frame
+    # file_list_include_end defaults to True, so the ROI is inclusive of end_frame.
+    roi_frames = end_frame - start_frame + 1
     assert roi_frames >= sequence_length, "ROI too small for this test"
 
     # Write a file_list with the ROI.
@@ -458,8 +459,8 @@ def test_uniform_sample_file_list_roi(device, sequence_length):
         assert fn_arr[0] == start_frame, f"First index should be {start_frame}, got {fn_arr[0]}"
         if sequence_length > 1:
             assert (
-                fn_arr[-1] == end_frame - 1
-            ), f"Last index should be {end_frame - 1}, got {fn_arr[-1]}"
+                fn_arr[-1] == end_frame
+            ), f"Last index should be {end_frame}, got {fn_arr[-1]}"
 
         expected_idxs = start_frame + np.floor(
             np.linspace(0, roi_frames - 1, sequence_length) + 0.5
