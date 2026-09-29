@@ -1,4 +1,4 @@
-// Copyright (c) 2022-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,13 +14,17 @@
 
 #include "dali/operators/imgcodec/util/convert_gpu.h"
 #include <gtest/gtest.h>
+#include <algorithm>
+#include <cmath>
 #include <memory>
+#include <random>
 #include <string>
 #include <vector>
 #include "dali/core/convert.h"
 #include "dali/core/cuda_stream_pool.h"
 #include "dali/core/tensor_shape_print.h"
 #include "dali/kernels/imgproc/color_manipulation/color_space_conversion_impl.h"
+#include "dali/operators/imgcodec/util/convert.h"
 #include "dali/test/dali_test.h"
 #include "dali/test/dali_test_config.h"
 #include "dali/test/tensor_test_utils.h"
@@ -432,6 +436,228 @@ TYPED_TEST(ConvertGPUTest, TransposeAndRotate_PlanarToInterleaved) {
                                       false,
                                       false};
   this->CheckConvert("HWC", DALI_RGB, "CHW", DALI_RGB, {}, orientation);
+}
+
+/**
+ * @brief Checks that ConvertCPU and ConvertGPU agree for arbitrary (in particular: signed)
+ *        input types, when converting both the data type and the color space.
+ *
+ * ConvertGPU first normalizes the data to the output type and then converts the color space,
+ * while ConvertCPU converts directly from the input type. For signed inputs, this used to produce
+ * completely different results (e.g. negative samples would contribute negative terms to the
+ * color conversion matrix on the CPU).
+ */
+template <typename ConversionType>
+class ConvertCPUvsGPUTest : public ::testing::Test {
+ public:
+  using Input = typename ConversionType::In;
+  using Output = typename ConversionType::Out;
+
+  static std::vector<Input> TestValues(int n) {
+    std::vector<Input> values;
+    if constexpr (std::is_integral_v<Input>) {
+      values = {min_value<Input>(), static_cast<Input>(min_value<Input>() + 1), 0, 1,
+                static_cast<Input>(max_value<Input>() / 3),
+                static_cast<Input>(max_value<Input>() / 2 + 1),
+                static_cast<Input>(max_value<Input>() - 1), max_value<Input>()};
+      if (std::is_signed_v<Input>)
+        values.insert(values.end(), {static_cast<Input>(-1),
+                                     static_cast<Input>(-(max_value<Input>() / 3))});
+    } else {
+      values = {-2.0f, -1.0f, -0.5f, 0.0f, 0.25f, 0.5f, 1.0f, 1.5f};
+    }
+    // The SNORM min_value is clamped to -1 by the CPU color conversion, while the GPU path
+    // normalizes with ConvertSatNorm-like scaling, which doesn't clamp it for floating point
+    // output. Skip this single value for floating point outputs.
+    if (std::is_floating_point_v<Output> && std::is_signed_v<Input> &&
+        std::is_integral_v<Input>)
+      values.erase(values.begin());
+    std::mt19937_64 rng(42);
+    while (static_cast<int>(values.size()) < n) {
+      if constexpr (std::is_integral_v<Input>) {
+        std::uniform_int_distribution<int64_t> dist(
+          std::is_floating_point_v<Output> ? min_value<Input>() + 1 : min_value<Input>(),
+          max_value<Input>());
+        values.push_back(static_cast<Input>(dist(rng)));
+      } else {
+        std::uniform_real_distribution<float> dist(-2, 2);
+        values.push_back(dist(rng));
+      }
+    }
+    return values;
+  }
+
+  void Run(DALIImageType out_format, DALIImageType in_format, double int_eps) {
+    int in_channels = NumberOfChannels(in_format, 3);
+    int out_channels = NumberOfChannels(out_format, 3);
+    // All combinations of the edge values in each channel of the first pixels, then random data
+    const int H = 16, W = 128;
+    auto values = TestValues(H * W);
+    TensorShape<> in_shape{H, W, in_channels}, out_shape{H, W, out_channels};
+
+    kernels::TestTensorList<Input> in_list;
+    in_list.reshape(uniform_list_shape(1, in_shape));
+    auto in_cpu = in_list.cpu()[0];
+    int64_t npixels = H * W;
+    int nedge = std::min<int>(values.size(), 10);
+    for (int64_t p = 0; p < npixels; p++) {
+      for (int c = 0; c < in_channels; c++) {
+        int64_t idx = p;
+        // enumerate the combinations of edge values in the first nedge^in_channels pixels
+        int64_t combo = p;
+        for (int k = 0; k < c; k++) combo /= nedge;
+        if (p < std::pow(nedge, in_channels))
+          idx = combo % nedge;
+        else
+          idx = (p * in_channels + c) % values.size();
+        in_cpu.data[p * in_channels + c] = values[idx];
+      }
+    }
+
+    // CPU
+    std::vector<Output> cpu_out(volume(out_shape));
+    ConstSampleView<CPUBackend> cpu_in_view(in_cpu.data, in_shape, type2id<Input>::value);
+    SampleView<CPUBackend> cpu_out_view(cpu_out.data(), out_shape, type2id<Output>::value);
+    ConvertCPU(cpu_out_view, "HWC", out_format, cpu_in_view, "HWC", in_format, {});
+
+    // GPU
+    int device_id;
+    CUDA_CALL(cudaGetDevice(&device_id));
+    auto stream = CUDAStreamPool::instance().Get(device_id);
+    kernels::TestTensorList<Output> out_list;
+    out_list.reshape(uniform_list_shape(1, out_shape));
+    auto in_gpu = in_list.gpu(stream)[0];
+    auto out_gpu = out_list.gpu(stream)[0];
+    SampleView<GPUBackend> gpu_out_view(out_gpu.data, out_shape, type2id<Output>::value);
+    ConstSampleView<GPUBackend> gpu_in_view(in_gpu.data, in_shape, type2id<Input>::value);
+    ConvertGPU(gpu_out_view, "HWC", out_format, gpu_in_view, "HWC", in_format, stream, {}, {},
+               1.0f);
+    auto gpu_out = out_list.cpu(stream)[0];
+    CUDA_CALL(cudaStreamSynchronize(stream));
+
+    // For integral outputs, `int_eps` accounts for the intermediate rounding done by the GPU path,
+    // amplified by the conversion matrix.
+    double abs_eps = std::is_integral_v<Output> ? int_eps : 1e-5;
+    if (in_format == DALI_YCbCr) {
+      // Luma footroom and chroma offsets are powers of two (e.g. 16 and 128 for 8 bits, 4096 and
+      // 32768 for 16 bits), so their normalized values differ slightly between types. The CPU
+      // interprets them in the input type, while the GPU first normalizes the data to the
+      // output type and then interprets them in the output type - account for that difference.
+      auto norm_bias = [](auto type_tag, double bias_fraction) {
+        using T = decltype(type_tag);
+        if constexpr (std::is_integral_v<T>) {
+          constexpr int bits = sizeof(T) * 8 - std::is_signed_v<T>;
+          return std::ldexp(bias_fraction, bits) / max_value<T>();
+        } else {
+          return bias_fraction;
+        }
+      };
+      double dy = std::abs(norm_bias(Input(), 1.0 / 16) - norm_bias(Output(), 1.0 / 16));
+      double dc = std::abs(norm_bias(Input(), 0.5) - norm_bias(Output(), 0.5));
+      double unit = std::is_integral_v<Output> ? static_cast<double>(max_value<Output>()) : 1.0;
+      abs_eps += (255.0 / 219 * dy + 2.02 * dc) * unit;
+    }
+    for (int64_t p = 0; p < npixels; p++) {
+      for (int c = 0; c < out_channels; c++) {
+        int64_t i = p * out_channels + c;
+        ASSERT_NEAR(static_cast<double>(cpu_out[i]), static_cast<double>(gpu_out.data[i]),
+                    abs_eps)
+            << "pixel " << p << " channel " << c << " input: "
+            << static_cast<double>(in_cpu.data[p * in_channels]) << " "
+            << (in_channels > 1 ? static_cast<double>(in_cpu.data[p * in_channels + 1]) : 0.0)
+            << " "
+            << (in_channels > 2 ? static_cast<double>(in_cpu.data[p * in_channels + 2]) : 0.0);
+      }
+    }
+  }
+};
+
+using CPUvsGPUConversionTypes = ::testing::Types<
+    ConversionTestType<int8_t, uint8_t>, ConversionTestType<int16_t, uint8_t>,
+    ConversionTestType<int32_t, uint8_t>, ConversionTestType<uint8_t, uint8_t>,
+    ConversionTestType<uint16_t, uint8_t>, ConversionTestType<uint32_t, uint8_t>,
+    ConversionTestType<float, uint8_t>,
+    ConversionTestType<int32_t, uint16_t>, ConversionTestType<int8_t, int16_t>,
+    ConversionTestType<int16_t, int16_t>, ConversionTestType<int32_t, int16_t>,
+    ConversionTestType<uint16_t, int16_t>, ConversionTestType<float, int16_t>,
+    ConversionTestType<int8_t, float>, ConversionTestType<int32_t, float>,
+    ConversionTestType<uint8_t, float>>;
+
+TYPED_TEST_SUITE(ConvertCPUvsGPUTest, CPUvsGPUConversionTypes);
+
+TYPED_TEST(ConvertCPUvsGPUTest, RGBToYCbCr) {
+  this->Run(DALI_YCbCr, DALI_RGB, 1);
+}
+
+TYPED_TEST(ConvertCPUvsGPUTest, RGBToGray) {
+  this->Run(DALI_GRAY, DALI_RGB, 1);
+}
+
+TYPED_TEST(ConvertCPUvsGPUTest, BGRToYCbCr) {
+  this->Run(DALI_YCbCr, DALI_BGR, 1);
+}
+
+TYPED_TEST(ConvertCPUvsGPUTest, YCbCrToRGB) {
+  // intermediate rounding (0.5) * (1.164 + 2.017) + rounding of both results (0.5 + 0.5)
+  this->Run(DALI_RGB, DALI_YCbCr, 3);
+}
+
+TYPED_TEST(ConvertCPUvsGPUTest, YCbCrToGray) {
+  this->Run(DALI_GRAY, DALI_YCbCr, 1);
+}
+
+TYPED_TEST(ConvertCPUvsGPUTest, GrayToYCbCr) {
+  this->Run(DALI_YCbCr, DALI_GRAY, 1);
+}
+
+TYPED_TEST(ConvertCPUvsGPUTest, GrayToRGB) {
+  this->Run(DALI_RGB, DALI_GRAY, 1);
+}
+
+TYPED_TEST(ConvertCPUvsGPUTest, RGBToRGB) {
+  this->Run(DALI_RGB, DALI_RGB, 1);
+}
+
+/**
+ * @brief A pixel from a signed int32 TIFF, for which CPU and GPU decoding to YCbCr used to differ.
+ *
+ * Normalized (SNORM) RGB: R = 0.98824, G = -0.97255 (not representable in uint8 -> 0),
+ * B = 0.99608, which in ITU-R BT.601 YCbCr is Y = 105.58, Cb = 202.21, Cr = 220.54.
+ * GRAY (JPEG luma) is 104.30.
+ */
+TEST(ConvertSignedTest, Int32RGBToYCbCrAndGray) {
+  std::vector<int32_t> in = {2122218880, -2088533504, 2139061888};
+  TensorShape<> in_shape{1, 1, 3}, ycbcr_shape{1, 1, 3}, gray_shape{1, 1, 1};
+  ConstSampleView<CPUBackend> in_view(in.data(), in_shape, DALI_INT32);
+
+  std::vector<uint8_t> ycbcr(3), gray(1);
+  ConvertCPU(SampleView<CPUBackend>(ycbcr.data(), ycbcr_shape, DALI_UINT8), "HWC", DALI_YCbCr,
+             in_view, "HWC", DALI_RGB, {});
+  EXPECT_EQ(ycbcr, (std::vector<uint8_t>{106, 202, 221}));
+  ConvertCPU(SampleView<CPUBackend>(gray.data(), gray_shape, DALI_UINT8), "HWC", DALI_GRAY,
+             in_view, "HWC", DALI_RGB, {});
+  EXPECT_EQ(gray, (std::vector<uint8_t>{104}));
+
+  int device_id;
+  CUDA_CALL(cudaGetDevice(&device_id));
+  auto stream = CUDAStreamPool::instance().Get(device_id);
+  kernels::TestTensorList<int32_t> in_list;
+  kernels::TestTensorList<uint8_t> ycbcr_list, gray_list;
+  in_list.reshape(uniform_list_shape(1, in_shape));
+  ycbcr_list.reshape(uniform_list_shape(1, ycbcr_shape));
+  gray_list.reshape(uniform_list_shape(1, gray_shape));
+  std::copy(in.begin(), in.end(), in_list.cpu()[0].data);
+  ConstSampleView<GPUBackend> gpu_in(in_list.gpu(stream)[0].data, in_shape, DALI_INT32);
+  ConvertGPU(SampleView<GPUBackend>(ycbcr_list.gpu(stream)[0].data, ycbcr_shape, DALI_UINT8),
+             "HWC", DALI_YCbCr, gpu_in, "HWC", DALI_RGB, stream);
+  ConvertGPU(SampleView<GPUBackend>(gray_list.gpu(stream)[0].data, gray_shape, DALI_UINT8),
+             "HWC", DALI_GRAY, gpu_in, "HWC", DALI_RGB, stream);
+  auto gpu_ycbcr = ycbcr_list.cpu(stream)[0];
+  auto gpu_gray = gray_list.cpu(stream)[0];
+  CUDA_CALL(cudaStreamSynchronize(stream));
+  EXPECT_EQ(std::vector<uint8_t>(gpu_ycbcr.data, gpu_ycbcr.data + 3),
+            (std::vector<uint8_t>{106, 202, 221}));
+  EXPECT_EQ(gpu_gray.data[0], 104);
 }
 
 }  // namespace test
