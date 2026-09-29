@@ -442,7 +442,9 @@ class VideoReaderDecoder
         image_type_(spec.GetArgument<DALIImageType>("image_type")),
         dtype_(spec.GetArgument<DALIDataType>("dtype")),
         normalized_(spec.GetArgument<bool>("normalized")),
-        additional_decode_surfaces_(spec.GetArgument<int>("additional_decode_surfaces")) {
+        additional_decode_surfaces_(spec.GetArgument<int>("additional_decode_surfaces")),
+        require_constant_frame_rate_(
+            spec.GetArgument<bool>("require_constant_frame_rate")) {
     loader_ = InitLoader<VideoLoaderImpl>(spec);
     this->SetInitialSnapshot();
 
@@ -648,6 +650,17 @@ class VideoReaderDecoder
           LOG_LINE << "Reusing index for " << filename << std::endl;
           decoder_->SetIndex(it->second);
         }
+        // Checked after both branches above (fresh BuildIndex() and cache-hit SetIndex()):
+        // IsVfr() is a per-file property, and SetIndex() recomputes is_vfr_ from the restored
+        // index, so this must fire regardless of which branch populated the decoder's index
+        // (e.g. a second operator instance, or a later epoch, hitting the warm
+        // FrameIndexCache).
+        if (require_constant_frame_rate_) {
+          DALI_ENFORCE(!decoder_->IsVfr(),
+                       make_string("File ", filename,
+                                   " has a variable frame rate, but "
+                                   "require_constant_frame_rate=True was specified."));
+        }
       } else {
         LOG_LINE << "Reusing decoder for " << decoder_->Filename() << " ptr: " << decoder_.get()
                  << " num_frames: " << decoder_->NumFrames() << std::endl;
@@ -751,6 +764,7 @@ class VideoReaderDecoder
   DALIDataType dtype_;
   bool normalized_;
   int additional_decode_surfaces_;
+  bool require_constant_frame_rate_;
   std::vector<uint8_t> fill_value_;
   bool has_labels_ = false;
 
@@ -921,6 +935,11 @@ decoded channels (currently always ``3``); provided for compatibility with ``rea
 
 Only relevant for the GPU backend; ignored on CPU.)code",
                     2)
+    .AddOptionalArg("require_constant_frame_rate",
+                    R"code(If set, raises an error if the video has a variable
+frame rate. Default: ``False`` (variable frame rate videos are decoded using decode-order frame
+indexing).)code",
+                    false)
     .AddParent("LoaderBase")
     .OutputNDim(0, 4)
     .OutputLayout(0, "FHWC");
