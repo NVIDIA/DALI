@@ -284,7 +284,8 @@ class DLL_PUBLIC FramesDecoderBase {
   /**
    * @brief Decodes a collection of frames, not necessarily in ascending order, applying a boundary type
    * (what to do when sampling out of bounds).
-   * @param data Output buffer to copy data to. Should be of size FrameSize() * frame_ids.size().
+   * @param data Output buffer to copy data to. Should be at least
+   *             FrameSizeBytes() * frame_ids.size() bytes.
    * @param frame_ids Frame indices to decode.
    * @param boundary_type Boundary type to apply
    * @param constant_frame Constant frame data to repeat when sampling out of bounds.
@@ -300,7 +301,9 @@ class DLL_PUBLIC FramesDecoderBase {
   /**
    * @brief Decodes a range of evenly spaced frames, applying a boundary type
    * (what to do when sampling out of bounds).
-   * @param data Output buffer to copy data to. Should be of size FrameSize() * frame_ids.size().
+   * @param data Output buffer to copy data to. Should be at least
+   *             FrameSizeBytes() * num_frames bytes, where num_frames is the number of frames
+   *             in [start_frame, end_frame) with the given stride.
    * @param start_frame Start frame index.
    * @param end_frame End frame index.
    * @param stride Stride between frames.
