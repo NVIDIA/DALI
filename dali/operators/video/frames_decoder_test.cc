@@ -206,6 +206,55 @@ TEST_F(FramesDecoderTest_CpuOnlyTests, VariableFrameRate) {
   RunTest(decoder, vfr_videos_[1]);
 }
 
+TEST_F(FramesDecoderTest_CpuOnlyTests, YCbCrDecodesWithoutCrashing) {
+  FramesDecoderCpu ycbcr_decoder(cfr_videos_paths_[0], DALI_YCbCr);
+  ycbcr_decoder.BuildIndex();
+  std::vector<uint8_t> ycbcr_frame(ycbcr_decoder.FrameSize());
+  ASSERT_TRUE(ycbcr_decoder.ReadNextFrame(ycbcr_frame.data()));
+
+  bool any_nonzero = false;
+  for (uint8_t v : ycbcr_frame) {
+    if (v != 0) {
+      any_nonzero = true;
+      break;
+    }
+  }
+  EXPECT_TRUE(any_nonzero) << "Decoded YCbCr frame was all zeros";
+
+  // Decode the same frame as RGB and confirm the two conversions genuinely differ pixel-wise
+  // (guards against a fix that "doesn't crash" but silently reuses/garbles the RGB path).
+  FramesDecoderCpu rgb_decoder(cfr_videos_paths_[0], DALI_RGB);
+  rgb_decoder.BuildIndex();
+  std::vector<uint8_t> rgb_frame(rgb_decoder.FrameSize());
+  ASSERT_TRUE(rgb_decoder.ReadNextFrame(rgb_frame.data()));
+
+  ASSERT_EQ(ycbcr_frame.size(), rgb_frame.size());
+  EXPECT_FALSE(std::equal(ycbcr_frame.begin(), ycbcr_frame.end(), rgb_frame.begin()))
+      << "YCbCr and RGB decodes of the same frame were byte-identical";
+}
+
+TEST_F(FramesDecoderTest_CpuOnlyTests, YCbCrMatchesGpuBackendExactly) {
+  // The CPU backend's YCbCr conversion (libswscale) is a completely independent
+  // implementation from the GPU backend's (a custom CUDA kernel matching the legacy reader's
+  // conversion). Both must agree on colorimetry (limited/"TV" range for YCbCr, not full range,
+  // per DALI-4916) to produce the same values for the same source frame.
+  FramesDecoderCpu cpu_decoder(cfr_videos_paths_[0], DALI_YCbCr);
+  cpu_decoder.BuildIndex();
+  std::vector<uint8_t> frame_cpu(cpu_decoder.FrameSize());
+  ASSERT_TRUE(cpu_decoder.ReadNextFrame(frame_cpu.data()));
+
+  FramesDecoderGpu gpu_decoder(cfr_videos_paths_[0], 0, DALI_YCbCr);
+  gpu_decoder.BuildIndex();
+  DeviceBuffer<uint8_t> frame_gpu_device;
+  frame_gpu_device.resize(gpu_decoder.FrameSize());
+  ASSERT_TRUE(gpu_decoder.ReadNextFrame(frame_gpu_device.data()));
+  std::vector<uint8_t> frame_gpu(gpu_decoder.FrameSize());
+  MemCopy(frame_gpu.data(), frame_gpu_device.data(), gpu_decoder.FrameSize());
+
+  ASSERT_EQ(frame_cpu.size(), frame_gpu.size());
+  EXPECT_EQ(frame_cpu, frame_gpu);
+}
+
 TEST_F(FramesDecoderTest_CpuOnlyTests, InvalidSeek) {
   FramesDecoderCpu decoder(cfr_videos_paths_[0]);
   decoder.BuildIndex();

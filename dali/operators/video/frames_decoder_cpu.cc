@@ -107,13 +107,18 @@ void FramesDecoderCpu::CopyToOutput(uint8_t *data) {
   bool src_full_range = frame_->color_range == AVCOL_RANGE_JPEG ||
                         (frame_->color_range == AVCOL_RANGE_UNSPECIFIED &&
                          codec_params_->color_range == AVCOL_RANGE_JPEG);
+  // RGB output is conventionally full-range (0-255). YCbCr output follows the same limited
+  // ("TV"/legal) range convention as the GPU backend and legacy reader (16-235 for luma), not
+  // full range -- using full range here would systematically shift every YCbCr value relative
+  // to both of those (DALI-4916).
+  bool dst_full_range = image_type_ != DALI_YCbCr;
   if (sws_src_full_range_ != src_full_range) {
     int ret = sws_setColorspaceDetails(
       sws_ctx_.get(),
       sws_getCoefficients(SWS_CS_DEFAULT),
       src_full_range,
       sws_getCoefficients(SWS_CS_DEFAULT),
-      1,
+      dst_full_range,
       0,
       1 << 16,
       1 << 16);
@@ -123,12 +128,18 @@ void FramesDecoderCpu::CopyToOutput(uint8_t *data) {
     sws_src_full_range_ = src_full_range;
   }
 
-  // TODO(DALI-4916): For image_type == DALI_YCbCr, sws_output_format is planar
-  // AV_PIX_FMT_YUV444P, but only dest[0] / dest_linesize[0] are populated (as if the output
-  // were packed). dest[1] / dest[2] stay null, so sws_scale fails ("bad dst image pointers")
-  // and the CPU backend cannot decode YCbCr. The U and V plane pointers/linesizes need to be set.
   uint8_t *dest[4] = {sws_output_data, nullptr, nullptr, nullptr};
   int dest_linesize[4] = {frame_->width * Channels(), 0, 0, 0};
+  if (image_type_ == DALI_YCbCr) {
+    // AV_PIX_FMT_YUV444P is planar: 3 full-resolution, 1-byte-per-pixel planes laid out
+    // contiguously in sws_output_data (matching tmp_buffer_'s FrameSize()-sized allocation
+    // above). Point dest[1]/dest[2] at the U/V planes with their own (unscaled) linesize.
+    dest[1] = sws_output_data + Width() * Height();
+    dest[2] = sws_output_data + 2 * Width() * Height();
+    dest_linesize[0] = Width();
+    dest_linesize[1] = Width();
+    dest_linesize[2] = Width();
+  }
 
   LOG_LINE << "Converting frame data to format " << (sws_output_format == AV_PIX_FMT_RGB24 ? "RGB" : "YUV") << std::endl;
   int ret = sws_scale(
