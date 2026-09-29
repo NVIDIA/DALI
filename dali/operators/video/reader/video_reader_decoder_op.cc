@@ -406,7 +406,9 @@ class VideoReaderDecoder
         image_type_(spec.GetArgument<DALIImageType>("image_type")),
         dtype_(spec.GetArgument<DALIDataType>("dtype")),
         normalized_(spec.GetArgument<bool>("normalized")),
-        additional_decode_surfaces_(spec.GetArgument<int>("additional_decode_surfaces")) {
+        additional_decode_surfaces_(spec.GetArgument<int>("additional_decode_surfaces")),
+        require_constant_frame_rate_(
+            spec.GetArgument<bool>("require_constant_frame_rate")) {
     loader_ = InitLoader<VideoLoaderImpl>(spec);
     this->SetInitialSnapshot();
 
@@ -612,6 +614,13 @@ class VideoReaderDecoder
         DALI_ENFORCE(index, make_string("Internal error: no frame index for \"", filename, "\"."));
         if (!decoder_->HasIndex())
           decoder_->SetIndex(*index);
+        // IsVfr() is a per-file property; SetIndex() recomputes is_vfr_ from the shared index.
+        if (require_constant_frame_rate_) {
+          DALI_ENFORCE(!decoder_->IsVfr(),
+                       make_string("File ", filename,
+                                   " has a variable frame rate, but "
+                                   "require_constant_frame_rate=True was specified."));
+        }
       } else {
         LOG_LINE << "Reusing decoder for " << decoder_->Filename() << " ptr: " << decoder_.get()
                  << " num_frames: " << decoder_->NumFrames() << std::endl;
@@ -715,6 +724,7 @@ class VideoReaderDecoder
   DALIDataType dtype_;
   bool normalized_;
   int additional_decode_surfaces_;
+  bool require_constant_frame_rate_;
   std::vector<uint8_t> fill_value_;
   bool has_labels_ = false;
 
@@ -895,6 +905,11 @@ decoded channels (currently always ``3``); provided for compatibility with ``rea
 
 Only relevant for the GPU backend; ignored on CPU.)code",
                     2)
+    .AddOptionalArg("require_constant_frame_rate",
+                    R"code(If set, raises an error if the video has a variable
+frame rate. Default: ``False`` (variable frame rate videos are decoded using decode-order frame
+indexing).)code",
+                    false)
     .AddParent("LoaderBase")
     .OutputNDim(0, 4)
     .OutputLayout(0, "FHWC");

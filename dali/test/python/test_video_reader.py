@@ -35,6 +35,8 @@ VIDEO_FILES = [VIDEO_DIRECTORY + "/" + f for f in VIDEO_FILES]
 PLENTY_VIDEO_FILES = [PLENTY_VIDEO_DIRECTORY + "/" + f for f in PLENTY_VIDEO_FILES]
 FILE_LIST = "/tmp/file_list.txt"
 MULTIPLE_RESOLUTION_ROOT = "/tmp/video_resolution/vp9/"
+VFR_VIDEO_FILE = DALI_EXTRA_PATH + "/db/video/vfr_test.mp4"
+CFR_VIDEO_FILE = DALI_EXTRA_PATH + "/db/video/cfr_test.mp4"
 
 devices = ["cpu", "gpu"]
 sequence_lengths = [3]
@@ -509,6 +511,93 @@ def test_dtype_float_on_cpu_raises():
     try:
         pipe().build()
         assert False, "Expected an exception for dtype=FLOAT on the CPU backend"
+    except RuntimeError:
+        pass  # expected
+
+
+# VFR_VIDEO_FILE/CFR_VIDEO_FILE are h264, which the CPU variant of this operator does not
+# support (see frames_decoder_cpu.cc), so these tests are GPU-only, matching the way VFR
+# content is exercised in the legacy C++ gtest suite (VariableFrameRate/VariableFrameRate2 in
+# video_reader_op_test.cc).
+def test_require_constant_frame_rate_default_is_permissive():
+    # Default behavior (require_constant_frame_rate=False) must remain unchanged: VFR content
+    # decodes without error, exactly as before this argument existed.
+    @pipeline_def(batch_size=1, num_threads=3, device_id=0)
+    def pipe():
+        return fn.experimental.readers.video(
+            device="gpu", filenames=[VFR_VIDEO_FILE], sequence_length=3
+        )
+
+    p = pipe()
+    p.build()
+    p.run()  # must not raise
+
+
+def test_require_constant_frame_rate_accepts_cfr():
+    # A constant frame rate video must not be rejected when the strict check is enabled.
+    @pipeline_def(batch_size=1, num_threads=3, device_id=0)
+    def pipe():
+        return fn.experimental.readers.video(
+            device="gpu",
+            filenames=[CFR_VIDEO_FILE],
+            sequence_length=3,
+            require_constant_frame_rate=True,
+        )
+
+    p = pipe()
+    p.build()
+    p.run()  # must not raise
+
+
+def test_require_constant_frame_rate_rejects_vfr():
+    @pipeline_def(batch_size=1, num_threads=3, device_id=0)
+    def pipe():
+        return fn.experimental.readers.video(
+            device="gpu",
+            filenames=[VFR_VIDEO_FILE],
+            sequence_length=3,
+            require_constant_frame_rate=True,
+        )
+
+    try:
+        p = pipe()
+        p.build()
+        p.run()
+        assert False, "Expected an exception for a variable frame rate video"
+    except RuntimeError:
+        pass  # expected
+
+
+def test_require_constant_frame_rate_rejects_vfr_on_cache_hit():
+    # FrameIndexCache caches the per-filename decode index across operator instances. Warm the
+    # cache first with a permissive reader (require_constant_frame_rate=False), then build a
+    # second, independent operator instance for the same file with the strict check enabled:
+    # it must still raise, exercising the SetIndex()/cache-hit path rather than the fresh
+    # BuildIndex() path.
+    @pipeline_def(batch_size=1, num_threads=3, device_id=0)
+    def warm_pipe():
+        return fn.experimental.readers.video(
+            device="gpu", filenames=[VFR_VIDEO_FILE], sequence_length=3
+        )
+
+    warm = warm_pipe()
+    warm.build()
+    warm.run()  # must not raise; also populates FrameIndexCache for VFR_VIDEO_FILE
+
+    @pipeline_def(batch_size=1, num_threads=3, device_id=0)
+    def strict_pipe():
+        return fn.experimental.readers.video(
+            device="gpu",
+            filenames=[VFR_VIDEO_FILE],
+            sequence_length=3,
+            require_constant_frame_rate=True,
+        )
+
+    try:
+        strict = strict_pipe()
+        strict.build()
+        strict.run()
+        assert False, "Expected an exception for a variable frame rate video (cache-hit path)"
     except RuntimeError:
         pass  # expected
 
