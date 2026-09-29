@@ -145,13 +145,18 @@ void FramesDecoderCpu::CopyToOutput(uint8_t *data) {
   int sws_colorspace = (image_type_ == DALI_RGB && src_colorspace == AVCOL_SPC_BT709)
                            ? SWS_CS_ITU709
                            : SWS_CS_DEFAULT;
+  // RGB output is conventionally full-range (0-255). YCbCr output follows the same limited
+  // ("TV"/legal) range convention as the GPU backend and legacy reader (16-235 for luma), not
+  // full range -- using full range here would systematically shift every YCbCr value relative
+  // to both of those (DALI-4916).
+  bool dst_full_range = image_type_ != DALI_YCbCr;
   if (sws_src_full_range_ != src_full_range || sws_src_colorspace_ != sws_colorspace) {
     int ret = sws_setColorspaceDetails(
       sws_ctx_.get(),
       sws_getCoefficients(sws_colorspace),
       src_full_range,
       sws_getCoefficients(SWS_CS_DEFAULT),
-      1,
+      dst_full_range,
       0,
       1 << 16,
       1 << 16);
@@ -162,10 +167,6 @@ void FramesDecoderCpu::CopyToOutput(uint8_t *data) {
     sws_src_colorspace_ = sws_colorspace;
   }
 
-  // TODO(DALI-4916): For image_type == DALI_YCbCr, sws_output_format is planar
-  // AV_PIX_FMT_YUV444P, but only dest[0] / dest_linesize[0] are populated (as if the output
-  // were packed). dest[1] / dest[2] stay null, so sws_scale fails ("bad dst image pointers")
-  // and the CPU backend cannot decode YCbCr. The U and V plane pointers/linesizes need to be set.
   uint8_t *dest[4] = {sws_output_data, nullptr, nullptr, nullptr};
   int dest_linesize[4] = {row_stride, 0, 0, 0};
   if (image_type_ == DALI_YCbCr) {
