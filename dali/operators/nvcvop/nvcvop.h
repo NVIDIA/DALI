@@ -34,6 +34,7 @@
 #include "dali/pipeline/operator/operator.h"
 #include "dali/pipeline/operator/sequence_operator.h"
 #include "dali/core/cuda_event_pool.h"
+#include "dali/core/api_helper.h"
 
 
 namespace dali::nvcvop {
@@ -60,7 +61,7 @@ nvcv::DataKind GetDataKind(DALIDataType dtype);
 /**
  * @brief Construct a DataType object with a given number of channels and given channel type
  */
-nvcv::DataType GetDataType(DALIDataType dtype, int num_channels = 1);
+DLL_PUBLIC nvcv::DataType GetDataType(DALIDataType dtype, int num_channels = 1);
 
 /**
  * @brief Construct a DataType object with a given number of channels and given channel type

@@ -18,6 +18,7 @@
 #include <dali/core/geom/mat.h>
 #include <dali/pipeline/data/tensor.h>
 #include <nvcv/Tensor.hpp>
+#include "dali/core/api_helper.h"
 
 namespace dali {
 namespace warp_perspective {
@@ -26,7 +27,7 @@ namespace warp_perspective {
  * @brief Modifies (in-place) tensor of perspective matrices to match
  * the OpenCV convention of pixel origin (center instead of corner).
  */
-void adjustMatrices(nvcv::Tensor &matrices, cudaStream_t stream);
+DLL_PUBLIC void adjustMatrices(nvcv::Tensor &matrices, cudaStream_t stream);
 
 }  // namespace warp_perspective
 }  // namespace dali
