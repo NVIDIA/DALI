@@ -522,10 +522,13 @@ def _ref_keypoints(data, image_id, num_keypoints, ratio):
     return out
 
 
-@pipeline_def(batch_size=1, num_threads=1, device_id=None)
 def coco_keypoints_pipe(**kwargs):
-    _, boxes, labels, keypoints, ids = fn.readers.coco(keypoints=True, image_ids=True, **kwargs)
-    return boxes, labels, keypoints, ids
+    @pipeline_def(batch_size=1, num_threads=1, device_id=None)
+    def _coco_keypoints_pipe():
+        _, boxes, labels, keypoints, ids = fn.readers.coco(keypoints=True, image_ids=True, **kwargs)
+        return boxes, labels, keypoints, ids
+
+    return _coco_keypoints_pipe()
 
 
 def _run_keypoints_pipe(**kwargs):
