@@ -235,9 +235,14 @@ def test_invalid_number_of_shards():
     )
 
 
-@pipeline_def(batch_size=3, num_threads=1, device_id=0)
-def _label_pipe(**reader_args):
-    return fn.readers.file(**reader_args)
+@pipeline_def(num_threads=1, device_id=0)
+def _file_reader_pipe(reader_args):
+    files, labels = fn.readers.file(**reader_args)
+    return files, labels
+
+
+def _label_pipe(batch_size=3, **reader_args):
+    return _file_reader_pipe(reader_args, batch_size=batch_size)
 
 
 def _check_file_labels(pipe, fnames, expected_labels, dtype):
@@ -290,7 +295,7 @@ def test_file_list_boundary_labels(label_dtype, np_dtype):
     fnames = g_files[:4]
     if np_dtype == np.float32:
         info = np.finfo(np_dtype)
-        labels = [f"{info.max!r}", f"{-info.max!r}", f"{info.tiny!r}", "-0.0"]
+        labels = [repr(float(x)) for x in (info.max, -info.max, info.tiny)] + ["-0.0"]
     else:
         info = np.iinfo(np_dtype)
         labels = [info.max, info.min, 0, -1]
