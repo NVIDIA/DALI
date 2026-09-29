@@ -1,4 +1,4 @@
-# Copyright (c) 2021-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2021-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@ import nvidia.dali.fn as fn
 import os
 import random
 import tempfile
+import nvidia.dali.types as types
 from nvidia.dali import Pipeline, pipeline_def
 
 from nose_utils import assert_raises
@@ -231,3 +232,149 @@ def test_invalid_number_of_shards():
             " needs to be at least equal to the requested number of shards:*."
         ),
     )
+
+
+def _run_label_pipe(batch_size=3, **reader_args):
+    pipe = Pipeline(batch_size, 1, 0)
+    files, labels = fn.readers.file(**reader_args)
+    pipe.set_outputs(files, labels)
+    return pipe
+
+
+def _check_file_labels(pipe, fnames, expected_labels, dtype, batch_size=3):
+    num_iters = (len(fnames) + 2 * batch_size) // batch_size
+    label_of = {ref_contents(f): lbl for f, lbl in zip(fnames, expected_labels)}
+    for _ in range(num_iters):
+        out_f, out_l = pipe.run()
+        for j in range(batch_size):
+            contents = bytes(out_f.at(j)).decode("utf-8")
+            label = out_l.at(j)
+            assert label.dtype == dtype, f"{label.dtype} != {dtype}"
+            assert label.shape == (1,)
+            assert label[0] == dtype(label_of[contents]), f"{label[0]} != {label_of[contents]}"
+
+
+def _write_file_list(fnames, labels):
+    list_file = os.path.join(g_root, "list_label_dtype.txt")
+    with open(list_file, "w") as f:
+        for name, label in zip(fnames, labels):
+            f.write(f"{name} {label}\n")
+    return list_file
+
+
+def test_file_list_float_labels():
+    fnames = g_files
+    labels = [0.375 * i - 1 for i in range(len(fnames))]
+    list_file = _write_file_list(fnames, labels)
+    pipe = _run_label_pipe(file_list=list_file, label_dtype=types.FLOAT, random_shuffle=True)
+    _check_file_labels(pipe, fnames, labels, np.float32)
+
+
+def test_file_list_float_labels_exponent():
+    fnames = g_files
+    labels = [f"{i}e-3" for i in range(len(fnames))]
+    list_file = _write_file_list(fnames, labels)
+    pipe = _run_label_pipe(file_list=list_file, label_dtype=types.FLOAT)
+    _check_file_labels(pipe, fnames, [float(x) for x in labels], np.float32)
+
+
+def test_file_list_int64_labels():
+    fnames = g_files
+    labels = [(1 << 40) + i for i in range(len(fnames))]
+    list_file = _write_file_list(fnames, labels)
+    pipe = _run_label_pipe(file_list=list_file, label_dtype=types.INT64, random_shuffle=True)
+    _check_file_labels(pipe, fnames, labels, np.int64)
+
+
+def test_file_list_default_label_dtype():
+    fnames = g_files
+    labels = [10000 - i for i in range(len(fnames))]
+    list_file = _write_file_list(fnames, labels)
+    pipe = _run_label_pipe(file_list=list_file)
+    _check_file_labels(pipe, fnames, labels, np.int32)
+
+
+def test_files_float_labels():
+    fnames = g_files
+    labels = [0.5 + i for i in range(len(fnames))]
+    for label_dtype in [None, types.FLOAT]:
+        pipe = _run_label_pipe(
+            file_root=g_root,
+            files=fnames,
+            float_labels=labels,
+            label_dtype=label_dtype,
+            random_shuffle=True,
+        )
+        _check_file_labels(pipe, fnames, labels, np.float32)
+
+
+def test_files_labels_label_dtype():
+    fnames = g_files
+    labels = [10000 + i for i in range(len(fnames))]
+    for label_dtype, np_dtype in [(types.INT64, np.int64), (types.FLOAT, np.float32)]:
+        pipe = _run_label_pipe(
+            file_root=g_root, files=fnames, labels=labels, label_dtype=label_dtype
+        )
+        _check_file_labels(pipe, fnames, labels, np_dtype)
+
+
+def test_files_index_labels_float():
+    fnames = g_files
+    pipe = _run_label_pipe(file_root=g_root, files=fnames, label_dtype=types.FLOAT)
+    _check_file_labels(pipe, fnames, list(range(len(fnames))), np.float32)
+
+
+def test_file_root_label_dtype():
+    batch_size = 4
+    root = os.path.join(os.environ["DALI_EXTRA_PATH"], "db/single/mixed")
+    ref_pipe = _run_label_pipe(batch_size, file_root=root)
+    pipe = _run_label_pipe(batch_size, file_root=root, label_dtype=types.FLOAT)
+    for _ in range(3):
+        (ref_f, ref_l), (out_f, out_l) = ref_pipe.run(), pipe.run()
+        for j in range(batch_size):
+            assert np.array_equal(ref_f.at(j), out_f.at(j))
+            assert out_l.at(j).dtype == np.float32
+            assert out_l.at(j)[0] == ref_l.at(j)[0]
+
+
+def test_file_list_malformed_label():
+    fnames = g_files[:3]
+    for labels, label_dtype in [
+        ([0, 0.375, 1], None),
+        ([0, 0.375, 1], types.INT32),
+        ([0, 0.375, 1], types.INT64),
+        ([0, "abc", 1], types.FLOAT),
+        ([0, "1.5x", 1], types.FLOAT),
+        ([0, 1 << 40, 1], types.INT32),
+    ]:
+        list_file = _write_file_list(fnames, labels)
+        pipe = _run_label_pipe(file_list=list_file, label_dtype=label_dtype)
+        with assert_raises(RuntimeError, glob="Incorrect label in the list file*:2*"):
+            pipe.build()
+
+
+def test_float_labels_invalid_args():
+    fnames = g_files
+    float_labels = [0.5] * len(fnames)
+    cases = [
+        (
+            dict(files=fnames, float_labels=float_labels, label_dtype=types.INT32),
+            "*``float_labels`` requires a floating point ``label_dtype``*",
+        ),
+        (
+            dict(files=fnames, float_labels=float_labels, labels=list(range(len(fnames)))),
+            "*``labels`` and ``float_labels`` are mutually exclusive*",
+        ),
+        (
+            dict(files=fnames, float_labels=float_labels[:-1]),
+            "*float labels for*files*",
+        ),
+        (
+            dict(files=fnames, label_dtype=types.UINT8),
+            "*Unsupported ``label_dtype``*",
+        ),
+    ]
+    for args, pattern in cases:
+        pipe = _run_label_pipe(file_root=g_root, **args)
+        with assert_raises(RuntimeError, glob=pattern):
+            pipe.build()
