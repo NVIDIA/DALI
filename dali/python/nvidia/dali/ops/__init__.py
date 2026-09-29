@@ -214,8 +214,14 @@ def _handle_op_deprecation(schema, module, display_name):
         msg = f"WARNING: `{module}.{display_name}` is now deprecated."
         replacement = schema.DeprecatedInFavorOf()
         if replacement:
-            use_instead = _op_name(replacement, "fn")
-            msg += f" Use `nvidia.dali.fn.{use_instead}` instead."
+            if module.startswith("nvidia.dali.experimental.dynamic"):
+                api, prefix = "dynamic", "nvidia.dali.experimental.dynamic."
+            elif module.startswith("nvidia.dali.ops"):
+                api, prefix = "ops", "nvidia.dali.ops."
+            else:
+                api, prefix = "fn", "nvidia.dali.fn."
+            use_instead = _op_name(replacement, api)
+            msg += f" Use `{prefix}{use_instead}` instead."
         explanation = schema.DeprecationMessage()
         if explanation:
             msg += "\n" + explanation
