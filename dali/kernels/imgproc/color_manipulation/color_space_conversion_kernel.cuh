@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -168,20 +168,11 @@ void RunColorSpaceConversionKernel(Out *output, const In *input, DALIImageType o
   const ImageTypePair kGRAY_TO_BGR{DALI_GRAY, DALI_BGR};
   const ImageTypePair kGRAY_TO_YCbCr{DALI_GRAY, DALI_YCbCr};
 
-  if (npixels == 0) {
-    if (conversion != kRGB_TO_BGR && conversion != kBGR_TO_RGB &&
-        conversion != kRGB_TO_YCbCr && conversion != kBGR_TO_YCbCr &&
-        conversion != kRGB_TO_GRAY && conversion != kBGR_TO_GRAY &&
-        conversion != kYCbCr_TO_BGR && conversion != kYCbCr_TO_RGB &&
-        conversion != kYCbCr_TO_GRAY && conversion != kGRAY_TO_RGB &&
-        conversion != kGRAY_TO_BGR && conversion != kGRAY_TO_YCbCr) {
-      DALI_FAIL(make_string("conversion not supported ", in_type, " to ", out_type));
-    }
-    return;
-  }
-  // For CUDA kernel
-  const unsigned int block = npixels < 1024 ? npixels : 1024;
-  const unsigned int grid = (npixels + block - 1) / block;
+  // For CUDA kernel. A zero-pixel sample yields grid == 0, which is a valid no-op launch;
+  // unsupported conversions still fall through to the DALI_FAIL below regardless of npixels,
+  // so there's a single place that decides which conversions are supported.
+  const unsigned int block = npixels > 0 ? (npixels < 1024 ? npixels : 1024) : 1;
+  const unsigned int grid = npixels > 0 ? (npixels + block - 1) / block : 0;
 
   if (conversion == kRGB_TO_BGR || conversion == kBGR_TO_RGB) {
     ColorSpaceConvKernel<RGB_to_BGR_Converter<Out, In>, Out, In>
