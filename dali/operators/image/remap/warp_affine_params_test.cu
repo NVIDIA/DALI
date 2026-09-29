@@ -35,4 +35,39 @@ TEST(WarpAffineParamsTest, CopyTransformsGPUDoesNotCrashOnZeroCount) {
   CUDA_CALL(cudaStreamSynchronize(0));
 }
 
+// Companion test that exercises the same launchers with a non-empty batch and checks the
+// actual output against a reference value, so the zero-count guard above can't be
+// satisfied by a launcher that silently does nothing for every input.
+TEST(WarpAffineParamsTest, CopyTransformsGPUCopiesAndInvertsSingleSample) {
+  using Params = WarpAffineParams<2>;
+  // Pure translation: trivial to invert exactly by hand (negate the translation column).
+  Params transform{mat<2, 3>{{{1, 0, 5}, {0, 1, 3}}}};
+  Params expected_inv{mat<2, 3>{{{1, 0, -5}, {0, 1, -3}}}};
+
+  Params *d_input, *d_output;
+  const Params **d_input_ptrs;
+  CUDA_CALL(cudaMalloc(&d_input, sizeof(Params)));
+  CUDA_CALL(cudaMalloc(&d_output, sizeof(Params)));
+  CUDA_CALL(cudaMalloc(&d_input_ptrs, sizeof(Params *)));
+  CUDA_CALL(cudaMemcpy(d_input, &transform, sizeof(Params), cudaMemcpyHostToDevice));
+  const Params *h_input_ptr = d_input;
+  CUDA_CALL(cudaMemcpy(d_input_ptrs, &h_input_ptr, sizeof(Params *), cudaMemcpyHostToDevice));
+
+  CopyTransformsGPU<2, false>(d_output, d_input_ptrs, 1, 0);
+  CUDA_CALL(cudaStreamSynchronize(0));
+  Params copied;
+  CUDA_CALL(cudaMemcpy(&copied, d_output, sizeof(Params), cudaMemcpyDeviceToHost));
+  EXPECT_EQ(copied.transform, transform.transform);
+
+  CopyTransformsGPU<2, true>(d_output, d_input_ptrs, 1, 0);
+  CUDA_CALL(cudaStreamSynchronize(0));
+  Params inverted;
+  CUDA_CALL(cudaMemcpy(&inverted, d_output, sizeof(Params), cudaMemcpyDeviceToHost));
+  EXPECT_EQ(inverted.transform, expected_inv.transform);
+
+  CUDA_CALL(cudaFree(d_input));
+  CUDA_CALL(cudaFree(d_output));
+  CUDA_CALL(cudaFree(d_input_ptrs));
+}
+
 }  // namespace dali
