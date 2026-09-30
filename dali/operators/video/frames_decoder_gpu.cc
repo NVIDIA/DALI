@@ -588,6 +588,20 @@ int FramesDecoderGpu::HandlePictureDisplay(CUVIDPARSERDISPINFO *picture_display_
       return 1;
     }
     frame_output = current_frame_output_;
+  } else if (HasIndex() && current_pts_ < index_[NextFrameIdx()].pts) {
+    // This frame is strictly behind the next frame we still need. Targets only move forward
+    // within a decode run (SeekFrame only ever seeks backward by first flushing and restarting
+    // from a keyframe), so a frame behind the target can never be requested before that happens
+    // -- and a flush/reset drops any buffered frames anyway. This is common for the reference
+    // frames NVDEC must decode to reach a mid-GOP seek target (e.g. pre-roll frames with a pts
+    // before the stream's first requested frame): skip the map/color-conversion entirely instead
+    // of paying for it and stashing the result in a frame_buffer_ slot that will never be read.
+    // Frames *ahead* of the target (current_pts_ > target, e.g. B-frame reordering) still need
+    // the buffer path below.
+    LOG_LINE << "Dropping frame with display timestamp " << current_pts_
+             << ", behind next wanted index " << next_frame_idx_ << " (pts "
+             << index_[NextFrameIdx()].pts << ")" << std::endl;
+    return 1;
   } else {
     // Put currently decoded frame to the buffer for later
     auto &slot = FindEmptySlot();
