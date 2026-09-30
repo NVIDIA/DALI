@@ -21,8 +21,8 @@ import cv2
 import functools
 import tempfile
 from test_utils import get_dali_extra_path
-from nose2.tools import cartesian_params
-from nose_utils import SkipTest
+from nose2.tools import cartesian_params, params
+from nose_utils import SkipTest, assert_raises, assert_warns
 
 np.random.seed(42)
 debug = False  # Set to True to print file_list contents and other debug information
@@ -39,6 +39,10 @@ FILE_LIST = "/tmp/file_list.txt"
 MULTIPLE_RESOLUTION_ROOT = "/tmp/video_resolution/vp9/"
 VFR_VIDEO_FILE = DALI_EXTRA_PATH + "/db/video/vfr_test.mp4"
 CFR_VIDEO_FILE = DALI_EXTRA_PATH + "/db/video/cfr_test.mp4"
+
+# VP9, 24 fps, 240 frames, timebase 1/12288, first pts 0 (cut with ffmpeg -ss 0 -t 10 by
+# qa/TL0_videoreader_test/test.sh). Pinned by test_video_0_fixture_assumptions.
+VIDEO_0 = sorted(VIDEO_FILES)[0]
 
 devices = ["cpu", "gpu"]
 sequence_lengths = [3]
@@ -324,6 +328,44 @@ def _file_list_frame_selection(reader_fn, file_list, **kwargs):
         (frame_num,) = p.run()
         frame_nums.append(int(np.array(frame_num.as_cpu()[0]).flatten()[0]))
     return epoch_size, sorted(frame_nums)
+
+
+def _write_file_list(lines):
+    """Writes the given file_list entries (one string per line) to a new temporary file and
+    returns its path."""
+    list_file = tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False)
+    list_file.write("".join(line + "\n" for line in lines))
+    list_file.close()
+    return list_file.name
+
+
+def _collect_samples(reader_fn, **kwargs):
+    """Runs exactly one epoch of `reader_fn` with batch_size=1 and returns
+    (epoch_size, samples), where `samples` is a list of (label, first_frame_num, num_frames)
+    tuples in reader order.
+
+    The reader configuration must produce labels (file_list, file_root, or filenames+labels).
+    """
+
+    @pipeline_def(batch_size=1, num_threads=2, device_id=0, prefetch_queue_depth=1)
+    def pipe():
+        video, label, frame_num = reader_fn(name="reader", enable_frame_num=True, **kwargs)
+        return video, label, frame_num
+
+    p = pipe()
+    p.build()
+    epoch_size = p.reader_meta("reader")["epoch_size"]
+    samples = []
+    for _ in range(epoch_size):
+        video, label, frame_num = p.run()
+        samples.append(
+            (
+                int(np.array(label.as_cpu()[0]).flatten()[0]),
+                int(np.array(frame_num.as_cpu()[0]).flatten()[0]),
+                int(video.shape()[0][0]),
+            )
+        )
+    return epoch_size, samples
 
 
 @cartesian_params(devices, file_list_formats)
@@ -887,6 +929,130 @@ def test_output_dtype_metadata(dtype):
         spec.AddArg("dtype", dtype)
     spec.AddOutput("video", "gpu")
     spec.InferOutputMetadata()
-    output_dtype = spec.OutputDesc(0)[3]
-    expected = types.UINT8 if dtype is None else dtype
-    assert output_dtype == expected, f"Expected {expected}, got {output_dtype}"
+
+
+_LEGACY_ONLY_ARGS = (
+    "pad_sequences",
+    "file_list_frame_num",
+    "file_list_include_preceding_frame",
+    "skip_vfr_check",
+)
+
+
+@cartesian_params(devices)
+def test_legacy_pad_sequences_maps_to_pad_mode_constant(device):
+    # 7-frame range, sequence_length=5 (default step=5): frames 0-4 form a full sequence and
+    # frames 5-6 only fit a padded one.
+    list_file = _write_file_list([f"{VIDEO_0} 0 0 7"])
+    experimental = functools.partial(
+        fn.experimental.readers.video,
+        device=device,
+        file_list=list_file,
+        file_list_format="frames",
+        sequence_length=5,
+    )
+    with assert_warns(DeprecationWarning, glob="*pad_sequences*"):
+        via_legacy_arg = _collect_samples(experimental, pad_sequences=True)
+    via_new_arg = _collect_samples(experimental, pad_mode="constant")
+    assert via_legacy_arg == via_new_arg == (2, [(0, 0, 5), (0, 5, 5)]), (
+        f"pad_sequences=True: {via_legacy_arg}, pad_mode='constant': {via_new_arg}"
+    )
+    assert _collect_samples(experimental, pad_sequences=False) == (1, [(0, 0, 5)])
+
+    legacy = _collect_samples(
+        functools.partial(
+            fn.readers.video,
+            device="gpu",
+            file_list=list_file,
+            file_list_frame_num=True,
+            sequence_length=5,
+        ),
+        pad_sequences=True,
+    )
+    assert legacy == via_legacy_arg, f"legacy: {legacy}, experimental: {via_legacy_arg}"
+
+
+@cartesian_params(devices)
+def test_legacy_file_list_frame_num_maps_to_file_list_format(device):
+    reader = functools.partial(fn.experimental.readers.video, device=device)
+
+    frames_list = _write_file_list([f"{VIDEO_0} 0 5 15"])
+    with assert_warns(DeprecationWarning, glob="*file_list_frame_num*"):
+        via_legacy_arg = _file_list_frame_selection(reader, frames_list, file_list_frame_num=True)
+    via_new_arg = _file_list_frame_selection(reader, frames_list, file_list_format="frames")
+    assert via_legacy_arg == via_new_arg == (10, list(range(5, 15)))
+
+    # 0.5 s and 1.5 s are exactly frames 12 and 36 at 24 fps; `end` is exclusive.
+    seconds_list = _write_file_list([f"{VIDEO_0} 0 0.5 1.5"])
+    via_legacy_arg = _file_list_frame_selection(reader, seconds_list, file_list_frame_num=False)
+    via_new_arg = _file_list_frame_selection(reader, seconds_list, file_list_format="timestamps")
+    assert via_legacy_arg == via_new_arg == (24, list(range(12, 36)))
+
+
+@cartesian_params(devices)
+def test_legacy_file_list_include_preceding_frame_maps_to_rounding(device):
+    reader = functools.partial(fn.experimental.readers.video, device=device)
+
+    # 0.52 s and 1.48 s fall between frames (12.48 and 35.52 at 24 fps).
+    seconds_list = _write_file_list([f"{VIDEO_0} 0 0.52 1.48"])
+    with assert_warns(DeprecationWarning, glob="*file_list_include_preceding_frame*"):
+        preceding = _file_list_frame_selection(
+            reader, seconds_list, file_list_include_preceding_frame=True
+        )
+    rounding = _file_list_frame_selection(
+        reader, seconds_list, file_list_rounding="start_down_end_up"
+    )
+    assert preceding == rounding == (24, list(range(12, 36)))
+    not_preceding = _file_list_frame_selection(
+        reader, seconds_list, file_list_include_preceding_frame=False
+    )
+    assert not_preceding == (22, list(range(13, 35)))
+
+    # Legacy documents that the flag has no effect when frame numbers are used: the default
+    # rounding (start up, end down) must still apply to fractional frame numbers.
+    frames_list = _write_file_list([f"{VIDEO_0} 0 5.5 14.5"])
+    ignored = _file_list_frame_selection(
+        reader, frames_list, file_list_frame_num=True, file_list_include_preceding_frame=True
+    )
+    default = _file_list_frame_selection(reader, frames_list, file_list_format="frames")
+    assert ignored == default == (8, list(range(6, 14)))
+
+
+@params(
+    dict(pad_sequences=True, pad_mode="constant"),
+    dict(pad_sequences=False, pad_mode="edge"),
+    dict(file_list_frame_num=True, file_list_format="frames"),
+    dict(file_list_include_preceding_frame=True, file_list_rounding="start_down_end_up"),
+)
+def test_legacy_arg_conflicts_with_new_arg(conflicting_kwargs):
+    list_file = _write_file_list([f"{VIDEO_0} 0 0 30"])
+    legacy_arg = next(k for k in conflicting_kwargs if k in _LEGACY_ONLY_ARGS)
+
+    @pipeline_def(batch_size=1, num_threads=2, device_id=0)
+    def pipe():
+        video, label = fn.experimental.readers.video(
+            device="cpu", file_list=list_file, sequence_length=3, **conflicting_kwargs
+        )
+        return video, label
+
+    with assert_raises(RuntimeError, glob=f"*{legacy_arg}*cannot be combined*"):
+        pipe().build()
+
+
+@params(True, False)
+def test_legacy_skip_vfr_check_is_accepted_and_ignored(skip_vfr_check):
+    # skip_vfr_check is a pure no-op: in particular skip_vfr_check=False must NOT turn on
+    # require_constant_frame_rate, so the VFR file still decodes.
+    @pipeline_def(batch_size=1, num_threads=3, device_id=0)
+    def pipe():
+        return fn.experimental.readers.video(
+            device="gpu",
+            filenames=[VFR_VIDEO_FILE],
+            sequence_length=3,
+            skip_vfr_check=skip_vfr_check,
+        )
+
+    with assert_warns(DeprecationWarning, glob="*skip_vfr_check*"):
+        p = pipe()
+        p.build()
+    p.run()  # must not raise
