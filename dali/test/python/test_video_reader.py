@@ -1366,6 +1366,36 @@ def test_float_constant_padding_matches_legacy_zero_padding():
     np.testing.assert_array_equal(experimental[2:], legacy[2:])
 
 
+def test_pad_sequences_matches_pad_mode_constant_with_float_dtype():
+    # pad_sequences=True is legacy-compat sugar for pad_mode="constant" (see GetReaderBoundaryType
+    # in video_reader_decoder_op.cc); check that equivalence still holds when combined with
+    # dtype=FLOAT, which neither of the two dedicated tests above exercises together.
+    list_file = _write_file_list([f"{VIDEO_0} 0 0 7"])
+
+    def second_sample(**extra_kwargs):
+        @pipeline_def(batch_size=1, num_threads=2, device_id=0, prefetch_queue_depth=1)
+        def pipe():
+            video, _ = fn.experimental.readers.video(
+                device="gpu",
+                file_list=list_file,
+                file_list_format="frames",
+                sequence_length=5,
+                dtype=types.FLOAT,
+                **extra_kwargs,
+            )
+            return video
+
+        p = pipe()
+        p.build()
+        p.run()  # first sample: frames 0-4, no padding
+        (video,) = p.run()
+        return np.array(video.as_cpu()[0])
+
+    via_pad_sequences = second_sample(pad_sequences=True)
+    via_pad_mode = second_sample(pad_mode="constant")
+    np.testing.assert_array_equal(via_pad_sequences, via_pad_mode)
+
+
 @cartesian_params(devices, [1, 2], ["constant", "edge"])
 def test_padding_emits_sample_at_every_remaining_step(device, stride, pad_mode):
     # 10-frame range, sequence_length=3, step=1: full sequences start at 0..7 (stride 1) or
