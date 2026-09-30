@@ -66,40 +66,59 @@ struct FrameIndex {
   }
 
   /**
+   * @brief Pts of the first frame.
+   */
+  int64_t StartPts() const {
+    assert(!index.empty());
+    return index.front().pts;
+  }
+
+  /**
+   * @brief Pts one frame past the last frame, i.e. the end of the stream.
+   *
+   * Estimated as the last frame's pts plus the last inter-frame pts gap (plus 1 when the index
+   * has a single frame).
+   */
+  int64_t EndPts() const {
+    assert(!index.empty());
+    int64_t last = index.back().pts;
+    int64_t gap = index.size() >= 2 ? last - index[index.size() - 2].pts : 1;
+    return last + std::max<int64_t>(gap, 1);
+  }
+
+  /**
    * @brief Returns the index of the frame that has the given timestamp
    *
    * The entries must be sorted by pts, which BuildIndex guarantees.
    *
    * @param timestamp Timestamp of the frame to seek to
    * @param rounddown If true, the seek will be to a frame that has this timestamp or a previous one
+   * @return A value in [0, size()]. size() is a sentinel meaning "one past the last frame": it is
+   *         returned for timestamps at or after EndPts(), and for timestamps after the last
+   *         frame's pts when rounding up. It is not a valid frame index.
    */
   int GetFrameIdxByTimestamp(int64_t timestamp, bool rounddown = false) const {
     LOG_LINE << "GetFrameIdxByTimestamp: timestamp=" << timestamp << ", rounddown=" << rounddown
              << ", index_size=" << index.size() << std::endl;
+    if (index.empty())
+      return 0;
     // The first frame with pts >= timestamp
     auto it = std::lower_bound(index.begin(), index.end(), timestamp,
                                [](const IndexEntry &e, int64_t ts) { return e.pts < ts; });
-    int frame_idx = 0;  // returned when the timestamp is past the last frame
-  #if LOGS_ENABLED
-    std::optional<int64_t> pts_found = {};
-  #endif
     if (it != index.end()) {
-      frame_idx = it - index.begin();
-      if (it->pts > timestamp && rounddown && frame_idx > 0)
-        frame_idx--;
-    #if LOGS_ENABLED
-      pts_found = index[frame_idx].pts;
-    #endif
+      int i = it - index.begin();
+      int frame_idx = (it->pts > timestamp && rounddown && i > 0) ? i - 1 : i;
+      LOG_LINE << "Returning frame_idx=" << frame_idx << " with pts=" << index[frame_idx].pts
+               << std::endl;
+      return frame_idx;
     }
-    assert(frame_idx >= 0 && frame_idx < static_cast<int>(index.size()));
-  #if LOGS_ENABLED
-    if (pts_found) {
-      LOG_LINE << "Returning frame_idx=" << frame_idx << " with pts=" << *pts_found << std::endl;
-    } else {
-      LOG_LINE << "Returning frame_idx=" << frame_idx << " (frame not found)" << std::endl;
+    // The timestamp is past the last frame's pts.
+    if (rounddown && timestamp < EndPts()) {
+      LOG_LINE << "Timestamp inside the last frame; returning " << index.size() - 1 << std::endl;
+      return index.size() - 1;
     }
-  #endif
-    return frame_idx;
+    LOG_LINE << "Timestamp past the end of the stream; returning " << index.size() << std::endl;
+    return index.size();
   }
 };
 
