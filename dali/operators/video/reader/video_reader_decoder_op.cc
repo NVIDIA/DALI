@@ -177,7 +177,10 @@ legacy ``readers.video`` operator. Setting this to True selects one more frame (
 already reaches the end of the video) than ``readers.video`` would for the same `file_list`.)code",
         false)
     .AddOptionalArg<vector<int>>("labels", R"(Labels associated with the files listed in
-`filenames` argument. If not provided, no labels will be yielded.)",
+`filenames` argument.
+
+If an empty list is provided, sequential 0-based indices are used as labels. If not provided,
+no labels will be yielded.)",
                                  nullptr)
     .AddArg("sequence_length", R"code(Frames to load per sequence.)code", DALI_INT32)
     .AddOptionalArg("enable_frame_num",
