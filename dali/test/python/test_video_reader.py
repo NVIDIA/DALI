@@ -929,6 +929,9 @@ def test_output_dtype_metadata(dtype):
         spec.AddArg("dtype", dtype)
     spec.AddOutput("video", "gpu")
     spec.InferOutputMetadata()
+    output_dtype = spec.OutputDesc(0)[3]
+    expected = types.UINT8 if dtype is None else dtype
+    assert output_dtype == expected, f"Expected {expected}, got {output_dtype}"
 
 
 _LEGACY_ONLY_ARGS = (
