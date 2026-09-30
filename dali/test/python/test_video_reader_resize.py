@@ -12,8 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import atexit
 import gc
 import glob
+import os
+import shutil
+import tempfile
+import uuid
 import numpy as np
 import nvidia.dali as dali
 import nvidia.dali.fn as fn
@@ -329,6 +334,58 @@ def test_experimental_video_resize_float():
             {"resize_shorter": 100},
             {"dtype": types.FLOAT, "normalized": normalized},
         )
+
+
+_file_list_dir = tempfile.mkdtemp(prefix="dali_video_reader_resize_file_lists_")
+atexit.register(shutil.rmtree, _file_list_dir, ignore_errors=True)
+
+
+def _write_file_list(lines):
+    """Writes the given file_list entries (one string per line) to a new temporary file and
+    returns its path."""
+    path = os.path.join(_file_list_dir, f"file_list_{uuid.uuid4().hex}.txt")
+    with open(path, "w") as list_file:
+        list_file.write("".join(line + "\n" for line in lines))
+    return path
+
+
+def test_experimental_video_resize_float_constant_padding():
+    # experimental.readers.video_resize shares its constructor with experimental.readers.video,
+    # which supports dtype=FLOAT combined with pad_mode="constant". Exercise that combination
+    # through the fused resize operator: a 7-frame range with sequence_length=5 makes the
+    # second sample hold frames 5 and 6 followed by 3 padded frames.
+    list_file = _write_file_list([f"{experimental_video_files[0]} 0 0 7"])
+    fill_value = [10, 20, 30]
+
+    @pipeline_def(batch_size=1, num_threads=2, device_id=0, prefetch_queue_depth=1)
+    def pipe():
+        video, _label, frame_num = fn.experimental.readers.video_resize(
+            device="gpu",
+            file_list=list_file,
+            file_list_format="frames",
+            sequence_length=5,
+            resize_x=32,
+            resize_y=24,
+            dtype=types.FLOAT,
+            pad_mode="constant",
+            fill_value=fill_value,
+            enable_frame_num="sequence",
+        )
+        return video, frame_num
+
+    p = pipe()
+    p.build()
+    p.run()  # first sample: frames 0-4, no padding
+    video, frame_num = p.run()
+    frames = np.array(video.as_cpu()[0])
+    assert frames.dtype == np.float32
+    assert list(np.array(frame_num.as_cpu()[0])) == [5, 6, -1, -1, -1]
+    padded = frames[2:]
+    # The padded region goes through the same resampling as decoded frames, so allow for the
+    # tiny floating-point error introduced by resizing a constant image.
+    np.testing.assert_allclose(
+        padded, np.broadcast_to(np.float32(fill_value), padded.shape), atol=1e-4
+    )
 
 
 def test_experimental_video_resize_cpu_not_supported():
