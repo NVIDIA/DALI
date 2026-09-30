@@ -22,8 +22,10 @@ namespace dali {
 namespace detail {
 
 int VideoReaderDecoderOutputFn(const OpSpec &spec) {
-  bool has_labels = spec.HasArgument("labels") || spec.HasArgument("file_list") ||
-                    spec.HasArgument("file_root");
+  // Must match VideoReaderDecoder::has_labels_: an empty file_list/file_root is "not provided".
+  bool has_labels = spec.HasArgument("labels") ||
+                    !spec.GetArgument<std::string>("file_list").empty() ||
+                    !spec.GetArgument<std::string>("file_root").empty();
   bool has_frame_num =
       ParseFrameNumPolicy(spec.GetArgument<std::string>("enable_frame_num")) !=
       FrameNumPolicy::None;

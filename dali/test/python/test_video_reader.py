@@ -1346,3 +1346,59 @@ def test_padding_emits_sample_at_every_remaining_step(device, stride, pad_mode):
             **kwargs,
         )
         assert legacy == expected, f"legacy: {legacy}"
+
+
+@cartesian_params(devices)
+def test_empty_string_sources_are_treated_as_not_provided(device):
+    @pipeline_def(batch_size=1, num_threads=2, device_id=0)
+    def filenames_pipe():
+        outs = fn.experimental.readers.video(
+            device=device, filenames=[VIDEO_0], file_root="", file_list="", sequence_length=3
+        )
+        # No labels are requested, so only the video output may be declared.
+        assert isinstance(outs, DataNode), f"Expected only the video output, got {len(outs)}"
+        return outs
+
+    p = filenames_pipe()
+    p.build()
+    (video,) = p.run()
+    assert video.shape()[0][0] == 3
+
+    list_file = _write_file_list([f"{VIDEO_0} 7 0 30"])
+
+    @pipeline_def(batch_size=1, num_threads=2, device_id=0)
+    def file_list_pipe():
+        video, label = fn.experimental.readers.video(
+            device=device,
+            file_list=list_file,
+            filenames=[],
+            file_root="",
+            file_list_format="frames",
+            sequence_length=3,
+        )
+        return video, label
+
+    p = file_list_pipe()
+    p.build()
+    _, label = p.run()
+    assert int(np.array(label.as_cpu()[0]).flatten()[0]) == 7
+
+
+@cartesian_params(devices)
+def test_two_non_empty_sources_raise(device):
+    list_file = _write_file_list([f"{VIDEO_0} 0 0 30"])
+
+    @pipeline_def(batch_size=1, num_threads=2, device_id=0)
+    def pipe():
+        # Both filenames and file_list are provided, which should raise an error.
+        # The output function sees file_list is non-empty, so it declares 2 outputs.
+        # We unpack both to avoid Python validation errors, letting the C++ error occur.
+        video, label = fn.experimental.readers.video(
+            device=device, filenames=[VIDEO_0], file_list=list_file, sequence_length=3
+        )
+        return video, label
+
+    with assert_raises(RuntimeError, glob="*Exactly one of*"):
+        p = pipe()
+        p.build()
+        p.run()  # Error occurs during Acquire, triggered by first run()
