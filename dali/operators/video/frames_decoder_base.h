@@ -23,6 +23,7 @@ extern "C" {
 #include <libavcodec/bsf.h>
 }
 
+#include <algorithm>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -64,35 +65,58 @@ struct FrameIndex {
   }
 
   /**
+   * @brief Pts of the first frame.
+   */
+  int64_t StartPts() const {
+    assert(!index.empty());
+    return index.front().pts;
+  }
+
+  /**
+   * @brief Pts one frame past the last frame, i.e. the end of the stream.
+   *
+   * Estimated as the last frame's pts plus the last inter-frame pts gap (plus 1 when the index
+   * has a single frame).
+   */
+  int64_t EndPts() const {
+    assert(!index.empty());
+    int64_t last = index.back().pts;
+    int64_t gap = index.size() >= 2 ? last - index[index.size() - 2].pts : 1;
+    return last + std::max<int64_t>(gap, 1);
+  }
+
+  /**
    * @brief Returns the index of the frame that has the given timestamp
    *
    * @param timestamp Timestamp of the frame to seek to
    * @param rounddown If true, the seek will be to a frame that has this timestamp or a previous one
+   * @return A value in [0, size()]. size() is a sentinel meaning "one past the last frame": it is
+   *         returned for timestamps at or after EndPts(), and for timestamps after the last
+   *         frame's pts when rounding up. It is not a valid frame index.
    */
   int GetFrameIdxByTimestamp(int64_t timestamp, bool rounddown = false) const {
     LOG_LINE << "GetFrameIdxByTimestamp: timestamp=" << timestamp << ", rounddown=" << rounddown
              << ", index_size=" << index.size() << std::endl;
-    int frame_idx = 0;
     for (size_t i = 0; i < index.size(); i++) {
       if (index[i].pts == timestamp) {
         LOG_LINE << "Exact match found at index " << i << std::endl;
-        frame_idx = i;
-        break;
+        return i;
       } else if (index[i].pts > timestamp) {
-        LOG_LINE << "Frame " << i << " with pts=" << index[i].pts << " is the first frame past the timestamp" << std::endl;
-        if (rounddown && i > 0) {
-          LOG_LINE << "Round down mode: previous frame " << i - 1 << " with pts=" << index[i - 1].pts << " is the last frame before the timestamp" << std::endl;
-          frame_idx = i - 1;
-        } else {
-          LOG_LINE << "Round up mode: frame " << i << " with pts=" << index[i].pts << " is the first frame past the timestamp" << std::endl;
-          frame_idx = i;
-        }
-        break;
+        int frame_idx = (rounddown && i > 0) ? i - 1 : i;
+        LOG_LINE << "Frame " << i << " with pts=" << index[i].pts
+                 << " is the first frame past the timestamp; returning " << frame_idx << std::endl;
+        return frame_idx;
       }
     }
-    assert(frame_idx >= 0 && frame_idx < static_cast<int>(index.size()));
-    LOG_LINE << "Returning frame_idx=" << frame_idx << std::endl;
-    return frame_idx;
+    if (index.empty())
+      return 0;
+    // The timestamp is past the last frame's pts.
+    if (rounddown && timestamp < EndPts()) {
+      LOG_LINE << "Timestamp inside the last frame; returning " << index.size() - 1 << std::endl;
+      return index.size() - 1;
+    }
+    LOG_LINE << "Timestamp past the end of the stream; returning " << index.size() << std::endl;
+    return index.size();
   }
 };
 

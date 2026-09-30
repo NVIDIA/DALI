@@ -323,14 +323,31 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
             entry.start_frame = file_list_opts_.round_start(entry.start);
             entry.end_frame = file_list_opts_.round_end(entry.end);
             break;
-          case FileListFormat::kTimestamps:
+          case FileListFormat::kTimestamps: {
+            // Seconds are relative to the first frame (like legacy readers.video and this
+            // operator's `timestamps` output). A negative start and a non-positive end (which
+            // includes an omitted end, parsed as 0) count back from the end of the stream,
+            // mirroring the kFrames branch above.
+            const auto &index = decoder->GetIndex();
+            auto timebase = decoder->GetTimebase();
+            int64_t start_ts = (entry.start < 0 ? index.EndPts() : index.StartPts()) +
+                               SecondsToTimestamp(timebase, entry.start);
+            int64_t end_ts = (entry.end <= 0 ? index.EndPts() : index.StartPts()) +
+                             SecondsToTimestamp(timebase, entry.end);
+            DALI_ENFORCE(start_ts <= index.EndPts(),
+                         make_string("file_list entry for \"", entry.filename, "\": start time ",
+                                     entry.start, " s is past the end of the video (",
+                                     TimestampToSeconds(timebase,
+                                                        index.EndPts() - index.StartPts()),
+                                     " s)."));
+            // GetFrameIdxByTimestamp returns num_frames (one past the last frame) for times at
+            // or after the end of the stream; for end_frame the clamp below keeps it in range.
             entry.start_frame = decoder->GetFrameIdxByTimestamp(
-                SecondsToTimestamp(decoder->GetTimebase(), entry.start),
-                file_list_opts_.should_round_down_start());
+                start_ts, file_list_opts_.should_round_down_start());
             entry.end_frame = decoder->GetFrameIdxByTimestamp(
-                SecondsToTimestamp(decoder->GetTimebase(), entry.end),
-                file_list_opts_.should_round_down_end());
+                end_ts, file_list_opts_.should_round_down_end());
             break;
+          }
           default:
             DALI_FAIL("Invalid file_list_format");
         }

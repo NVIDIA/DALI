@@ -143,7 +143,8 @@ This option is mutually exclusive with `filenames` and `file_list`.)code",
                     R"code(Path to the file with a list of ``file label [start [end]]`` values.
 
 ``start`` and ``end`` are optional and can be used to specify the start and end of the video to load.
-The values can be interpreted differently depending on the ``file_list_format``.
+The values can be interpreted differently depending on the ``file_list_format``. A missing
+``end`` means "until the end of the video", and negative values count from the end of the video.
 
 This option is mutually exclusive with `filenames` and `file_root`.)code",
                     std::string())
@@ -151,7 +152,9 @@ This option is mutually exclusive with `filenames` and `file_root`.)code",
         R"code(How to interpret start/end values in file_list:
 
 * ``frames``: Use exact frame numbers (0-based). Negative values count from end.
-* ``timestamps``: Use timestamps in seconds.
+* ``timestamps``: Use timestamps in seconds, relative to the first frame of the video. Negative
+  values count from the end. A ``start`` past the end of the video is an error; an ``end`` past
+  the end of the video is clamped.
 
 Default: ``timestamps``.)code",
         "timestamps")

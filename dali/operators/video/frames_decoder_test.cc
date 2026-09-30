@@ -563,4 +563,45 @@ TEST_F(FramesDecoderGpuTest, UnnormalizedFloatOutputInByteRange) {
   EXPECT_TRUE(any_above_one) << "Expected at least one pixel channel above 1.0 in unnormalized float output";
 }
 
+namespace {
+
+FrameIndex MakeFrameIndex(const std::vector<int64_t> &pts) {
+  FrameIndex index;
+  index.timebase = AVRational{1, 1000};
+  for (auto p : pts)
+    index.index.push_back(IndexEntry{p, 0, false, false});
+  return index;
+}
+
+}  // namespace
+
+TEST(FramesDecoderFrameIndexTest, TimestampInsideTheStream) {
+  auto index = MakeFrameIndex({100, 200, 300});
+  EXPECT_EQ(index.GetFrameIdxByTimestamp(200, false), 1);  // exact match
+  EXPECT_EQ(index.GetFrameIdxByTimestamp(200, true), 1);
+  EXPECT_EQ(index.GetFrameIdxByTimestamp(250, false), 2);  // between frames 1 and 2
+  EXPECT_EQ(index.GetFrameIdxByTimestamp(250, true), 1);
+  EXPECT_EQ(index.GetFrameIdxByTimestamp(50, false), 0);   // before the first frame
+  EXPECT_EQ(index.GetFrameIdxByTimestamp(50, true), 0);
+}
+
+TEST(FramesDecoderFrameIndexTest, StartAndEndPts) {
+  auto index = MakeFrameIndex({100, 200, 300});
+  EXPECT_EQ(index.StartPts(), 100);
+  EXPECT_EQ(index.EndPts(), 400);  // last pts + last inter-frame gap
+  EXPECT_EQ(MakeFrameIndex({5}).EndPts(), 6);
+}
+
+TEST(FramesDecoderFrameIndexTest, PastTheLastFrameReturnsSizeSentinel) {
+  auto index = MakeFrameIndex({100, 200, 300});
+  // Inside the last frame's duration: rounding down selects the last frame.
+  EXPECT_EQ(index.GetFrameIdxByTimestamp(350, true), 2);
+  EXPECT_EQ(index.GetFrameIdxByTimestamp(350, false), 3);
+  // At or past the end of the stream: "one past the last frame", never frame 0.
+  EXPECT_EQ(index.GetFrameIdxByTimestamp(400, false), 3);
+  EXPECT_EQ(index.GetFrameIdxByTimestamp(400, true), 3);
+  EXPECT_EQ(index.GetFrameIdxByTimestamp(100000, true), 3);
+  EXPECT_EQ(index.GetFrameIdxByTimestamp(100000, false), 3);
+}
+
 }  // namespace dali
