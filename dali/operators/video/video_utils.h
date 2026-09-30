@@ -24,6 +24,7 @@ extern "C" {
 
 #include <dirent.h>
 #include <string>
+#include <type_traits>
 #include <vector>
 #include "dali/core/error_handling.h"
 #include "dali/core/boundary.h"
@@ -95,38 +96,58 @@ inline boundary::BoundaryType GetBoundaryType(const OpSpec &spec) {
   return boundary_type;
 }
 
+/**
+ * @brief Returns a device/host buffer holding one frame of `shape` filled with `fill_value`.
+ *
+ * `fill_value` is expressed in the 8-bit [0, 255] scale (one value, or one per channel). For
+ * DALI_FLOAT it is converted like decoded pixels are: kept as is, or divided by 255 when
+ * `normalized` is set. The buffer is reused when it already has the right type and is large
+ * enough.
+ */
 template <typename Backend>
 const uint8_t* ConstantFrame(Tensor<Backend>& constant_frame, const TensorShape<>& shape,
                              span<const uint8_t> fill_value, cudaStream_t stream,
-                             bool reuse_existing_data = true) {
-  if (reuse_existing_data && constant_frame.shape().num_elements() >= shape.num_elements()) {
-    return constant_frame.template data<uint8_t>();
+                             bool reuse_existing_data = true, DALIDataType dtype = DALI_UINT8,
+                             bool normalized = false) {
+  DALI_ENFORCE(dtype == DALI_UINT8 || dtype == DALI_FLOAT,
+               make_string("Unsupported constant frame type: ", dtype));
+  if (reuse_existing_data && constant_frame.type() == dtype &&
+      constant_frame.shape().num_elements() >= shape.num_elements()) {
+    return static_cast<const uint8_t*>(constant_frame.raw_data());
   }
-  constant_frame.Resize(shape, DALI_UINT8);
   DALI_ENFORCE(fill_value.size() == 1 || static_cast<int>(fill_value.size()) == shape[2],
                make_string("Fill value size must be 1 or equal to the number of channels. Got ",
                            fill_value.size(), " with num_channels=", shape[2]));
 
-  auto fill_data = [&](uint8_t* data) {
-    if (fill_value.size() == 1) {
-      std::fill(data, data + shape.num_elements(), fill_value[0]);
-    } else {
-      for (int i = 0; i < shape.num_elements(); i++) {
-        data[i] = fill_value[i % fill_value.size()];
+  auto fill_data = [&](auto* data) {
+    using T = std::remove_pointer_t<decltype(data)>;
+    for (int64_t i = 0; i < shape.num_elements(); i++) {
+      uint8_t v = fill_value[fill_value.size() == 1 ? 0 : i % fill_value.size()];
+      if constexpr (std::is_same_v<T, float>) {
+        data[i] = normalized ? v / 255.0f : static_cast<float>(v);
+      } else {
+        data[i] = v;
       }
     }
   };
+  auto fill_host_tensor = [&](Tensor<CPUBackend>& tensor) {
+    if (dtype == DALI_FLOAT)
+      fill_data(tensor.template mutable_data<float>());
+    else
+      fill_data(tensor.template mutable_data<uint8_t>());
+  };
 
-  if (std::is_same_v<Backend, GPUBackend>) {
+  constant_frame.Resize(shape, dtype);
+  if constexpr (std::is_same_v<Backend, GPUBackend>) {
     Tensor<CPUBackend> tmp;
     tmp.set_pinned(true);
-    tmp.Resize(shape, DALI_UINT8);
-    fill_data(tmp.template mutable_data<uint8_t>());
+    tmp.Resize(shape, dtype);
+    fill_host_tensor(tmp);
     constant_frame.Copy(tmp, stream);
   } else {
-    fill_data(constant_frame.template mutable_data<uint8_t>());
+    fill_host_tensor(constant_frame);
   }
-  return constant_frame.template data<uint8_t>();
+  return static_cast<const uint8_t*>(constant_frame.raw_data());
 }
 
 std::string av_error_string(int ret);

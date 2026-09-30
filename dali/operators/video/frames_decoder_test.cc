@@ -24,6 +24,7 @@
 #include "dali/operators/video/frames_decoder_cpu.h"
 #include "dali/operators/video/frames_decoder_gpu.h"
 #include "dali/operators/video/video_test.h"
+#include "dali/operators/video/video_utils.h"
 #include "dali/test/dali_test_config.h"
 
 #include "dali/pipeline/pipeline.h"
@@ -602,6 +603,39 @@ TEST(FramesDecoderFrameIndexTest, PastTheLastFrameReturnsSizeSentinel) {
   EXPECT_EQ(index.GetFrameIdxByTimestamp(400, true), 3);
   EXPECT_EQ(index.GetFrameIdxByTimestamp(100000, true), 3);
   EXPECT_EQ(index.GetFrameIdxByTimestamp(100000, false), 3);
+}
+
+TEST(FramesDecoderConstantFrameTest, FloatNormalizedScalesFillValue) {
+  Tensor<CPUBackend> frame;
+  std::vector<uint8_t> fill = {0, 51, 255};
+  TensorShape<> shape{2, 2, 3};
+  auto *raw = ConstantFrame(frame, shape, make_cspan(fill), 0, true, DALI_FLOAT, true);
+  ASSERT_EQ(frame.type(), DALI_FLOAT);
+  auto *data = reinterpret_cast<const float *>(raw);
+  for (int64_t i = 0; i < shape.num_elements(); i++)
+    EXPECT_FLOAT_EQ(data[i], fill[i % 3] / 255.0f) << "at element " << i;
+}
+
+TEST(FramesDecoderConstantFrameTest, FloatUnnormalizedKeepsByteScale) {
+  Tensor<CPUBackend> frame;
+  std::vector<uint8_t> fill = {10};
+  TensorShape<> shape{2, 2, 3};
+  auto *data = reinterpret_cast<const float *>(
+      ConstantFrame(frame, shape, make_cspan(fill), 0, true, DALI_FLOAT, false));
+  for (int64_t i = 0; i < shape.num_elements(); i++)
+    EXPECT_FLOAT_EQ(data[i], 10.0f) << "at element " << i;
+}
+
+TEST(FramesDecoderConstantFrameTest, ReusedBufferIsRebuiltForADifferentType) {
+  Tensor<CPUBackend> frame;
+  std::vector<uint8_t> fill = {255};
+  TensorShape<> shape{2, 2, 3};
+  ConstantFrame(frame, shape, make_cspan(fill), 0, true);  // uint8
+  ASSERT_EQ(frame.type(), DALI_UINT8);
+  auto *data = reinterpret_cast<const float *>(
+      ConstantFrame(frame, shape, make_cspan(fill), 0, true, DALI_FLOAT, true));
+  ASSERT_EQ(frame.type(), DALI_FLOAT);
+  EXPECT_FLOAT_EQ(data[shape.num_elements() - 1], 1.0f);
 }
 
 }  // namespace dali
