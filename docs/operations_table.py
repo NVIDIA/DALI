@@ -109,7 +109,7 @@ def fn_to_op_table(out_filename):
     for op in sorted(all_ops, key=name_sort):
         op_full_name, submodule, op_name = ops._process_op_name(op, api="ops")
         fn_full_name = ops._op_name(op, api="fn")
-        schema = b.TryGetAlias(op)
+        schema = b.TryGetSchema(op)
         if schema:
             if schema.IsDocHidden():
                 continue
@@ -171,7 +171,7 @@ def operations_table_str(ops_to_process, module_name):
             fn_full_name = ops._op_name(op, api=api_name)
             if op_name in removed_ops:
                 continue
-            schema = b.TryGetSchema(op)
+            schema = b.TryGetSchema(op, follow_aliases=True)
             short_descr = ""
             devices = []
             if op in cpu_ops:
@@ -182,7 +182,7 @@ def operations_table_str(ops_to_process, module_name):
                 devices += ["GPU"]
             devices_str = ", ".join(devices)
             if schema:
-                if b.GetAlias(op).IsDocHidden():
+                if b.GetSchema(op).IsDocHidden():
                     continue
                 full_doc = schema.Dox()
             else:

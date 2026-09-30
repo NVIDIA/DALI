@@ -1066,39 +1066,33 @@ used with DALIDataType, to avoid confusion with `AddOptionalArg<type>(name, doc,
 };
 
 
+/** Controls whether schema lookup resolves aliases to the schema of the actual operator. */
+enum class FollowAliases : bool {
+  No = false,
+  Yes = true
+};
+
 class SchemaRegistry {
  public:
   DLL_PUBLIC static OpSchema &RegisterSchema(std::string_view name);
 
-  /** Gets the schema with the given name, following aliases.
+  /** Gets the schema with the given name.
    *
-   * If `name` is an alias, the schema of the actual operator is returned.
+   * If `name` is an alias and `follow_aliases` is Yes, the schema of the actual operator
+   * is returned; otherwise, the schema of the alias itself is returned.
    * Throws `invalid_key` if the schema is not found.
    */
-  DLL_PUBLIC static const OpSchema &GetSchema(std::string_view name);
+  DLL_PUBLIC static const OpSchema &GetSchema(std::string_view name,
+                                              FollowAliases follow_aliases = FollowAliases::No);
 
-  /** Gets the schema with the given name, following aliases.
+  /** Gets the schema with the given name.
    *
-   * If `name` is an alias, the schema of the actual operator is returned.
+   * If `name` is an alias and `follow_aliases` is Yes, the schema of the actual operator
+   * is returned; otherwise, the schema of the alias itself is returned.
    * Returns nullptr if the schema is not found.
    */
-  DLL_PUBLIC static const OpSchema *TryGetSchema(std::string_view name);
-
-  /** Gets the schema with the given name, without following aliases.
-   *
-   * If `name` is an alias, the schema of the alias itself is returned; otherwise the result
-   * is the same as that of GetSchema.
-   * Throws `invalid_key` if the schema is not found.
-   */
-  DLL_PUBLIC static const OpSchema &GetAlias(std::string_view name);
-
-  /** Gets the schema with the given name, without following aliases.
-   *
-   * If `name` is an alias, the schema of the alias itself is returned; otherwise the result
-   * is the same as that of TryGetSchema.
-   * Returns nullptr if the schema is not found.
-   */
-  DLL_PUBLIC static const OpSchema *TryGetAlias(std::string_view name);
+  DLL_PUBLIC static const OpSchema *TryGetSchema(std::string_view name,
+                                                 FollowAliases follow_aliases = FollowAliases::No);
 
   /** Lists all registered schemas, including aliases. */
   DLL_PUBLIC static std::vector<const OpSchema *> ListSchemas();

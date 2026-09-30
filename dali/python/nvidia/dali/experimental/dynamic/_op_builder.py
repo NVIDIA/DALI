@@ -628,8 +628,8 @@ def build_operators():
         if not _op_filter.should_create_dynamic_op(schema_name):
             continue
 
-        schema = _b.GetSchema(schema_name)
-        if schema.Name() != schema_name:
+        original_schema, schema = _b.GetSchemaAndTarget(schema_name)
+        if original_schema.AliasFor():
             # An alias - it will reuse the class of the actual operator
             aliases[schema_name] = schema.Name()
             continue
@@ -664,7 +664,7 @@ def _expose_aliases(aliases, op_map, fn_wrappers):
         op_class = op_map.get(actual_name)
         if op_class is None:
             continue
-        alias_schema = _b.GetAlias(alias_name)
+        alias_schema = _b.GetSchema(alias_name)
         module_path = alias_schema.ModulePath()
         class_name = alias_schema.OperatorName()
         class_module = _find_or_create_module(parent if op_class._is_reader else _ops, module_path)

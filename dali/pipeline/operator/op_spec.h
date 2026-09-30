@@ -96,7 +96,10 @@ class DLL_PUBLIC OpSpec {
   /** Sets the schema of the Operator. */
   void SetSchema(std::string_view schema_name) {
     schema_name_ = std::string(schema_name);
-    schema_ = schema_name_.empty() ? nullptr : SchemaRegistry::TryGetSchema(schema_name_);
+    // If the name is an alias, use the schema of the actual operator.
+    schema_ = schema_name_.empty()
+            ? nullptr
+            : SchemaRegistry::TryGetSchema(schema_name_, FollowAliases::Yes);
   }
 
   /** Sets the schema of the Operator. */

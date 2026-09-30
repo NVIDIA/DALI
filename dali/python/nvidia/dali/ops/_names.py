@@ -45,7 +45,7 @@ def _process_op_name(op_schema_name, make_hidden=False, api="ops"):
     """
 
     # Use the alias (if any) - the module path and operator name are derived from the name
-    schema = _b.GetAlias(op_schema_name)
+    schema = _b.GetSchema(op_schema_name)
     submodule_path = schema.ModulePath()
     op_name = schema.OperatorName()
     if make_hidden:

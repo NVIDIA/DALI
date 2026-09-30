@@ -36,7 +36,9 @@ def should_create_dynamic_op(schema_name: str) -> bool:
     if any(schema_name.endswith(op) for op in ExcludedOps):
         return False
     # Check both the alias (if `schema_name` is one) and the actual operator
-    for schema in (_b.GetAlias(schema_name), _b.GetSchema(schema_name)):
+    for schema in _b.GetSchemaAndTarget(schema_name):
+        if schema is None:  # alias of an unregistered operator
+            return False
         if schema.IsInternal() or schema.IsAbstract():
             return False
         if schema.IsDeprecated():

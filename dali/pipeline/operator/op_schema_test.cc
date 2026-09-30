@@ -321,30 +321,31 @@ DALI_SCHEMA(DummyAliasTarget)
 
 TEST(OpSchemaTest, Alias) {
   auto &target = SchemaRegistry::GetSchema("DummyAliasTarget");
-  EXPECT_EQ(&SchemaRegistry::GetSchema("DummyAlias"), &target);
-  EXPECT_EQ(SchemaRegistry::TryGetSchema("DummyAlias"), &target);
+  EXPECT_EQ(&SchemaRegistry::GetSchema("DummyAlias", FollowAliases::Yes), &target);
+  EXPECT_EQ(SchemaRegistry::TryGetSchema("DummyAlias", FollowAliases::Yes), &target);
   EXPECT_EQ(&OpSpec("DummyAlias").GetSchema(), &target);
 
-  auto &alias = SchemaRegistry::GetAlias("DummyAlias");
+  auto &alias = SchemaRegistry::GetSchema("DummyAlias");
   EXPECT_NE(&alias, &target);
   EXPECT_EQ(alias.name(), "DummyAlias");
   EXPECT_EQ(alias.AliasFor(), "DummyAliasTarget");
   EXPECT_TRUE(alias.IsDocHidden());
   EXPECT_FALSE(target.IsDocHidden());
-  EXPECT_EQ(SchemaRegistry::TryGetAlias("DummyAlias"), &alias);
+  EXPECT_EQ(SchemaRegistry::TryGetSchema("DummyAlias"), &alias);
 
-  // non-alias schema is returned as-is
-  EXPECT_EQ(&SchemaRegistry::GetAlias("DummyAliasTarget"), &target);
+  // following aliases doesn't affect non-alias schemas
+  EXPECT_EQ(&SchemaRegistry::GetSchema("DummyAliasTarget", FollowAliases::Yes), &target);
 
-  EXPECT_EQ(SchemaRegistry::TryGetAlias("DummyAliasNonexistent"), nullptr);
-  EXPECT_THROW(SchemaRegistry::GetAlias("DummyAliasNonexistent"), invalid_key);
+  EXPECT_EQ(SchemaRegistry::TryGetSchema("DummyAliasNonexistent"), nullptr);
+  EXPECT_EQ(SchemaRegistry::TryGetSchema("DummyAliasNonexistent", FollowAliases::Yes), nullptr);
+  EXPECT_THROW(SchemaRegistry::GetSchema("DummyAliasNonexistent"), invalid_key);
 }
 
 TEST(OpSchemaTest, AliasOfAlias) {
   auto &target = SchemaRegistry::GetSchema("DummyAliasTarget");
-  EXPECT_EQ(&SchemaRegistry::GetSchema("DummyAliasOfAlias"), &target);
+  EXPECT_EQ(&SchemaRegistry::GetSchema("DummyAliasOfAlias", FollowAliases::Yes), &target);
 
-  auto &alias = SchemaRegistry::GetAlias("DummyAliasOfAlias");
+  auto &alias = SchemaRegistry::GetSchema("DummyAliasOfAlias");
   EXPECT_EQ(alias.name(), "DummyAliasOfAlias");
   EXPECT_EQ(alias.AliasFor(), "DummyAlias");
   EXPECT_TRUE(alias.IsDeprecated());
@@ -370,7 +371,7 @@ TEST(OpSchemaTest, AliasErrors) {
 TEST(OpSchemaTest, ListSchemas) {
   bool found_alias = false, found_target = false;
   for (auto *schema : SchemaRegistry::ListSchemas()) {
-    if (schema == &SchemaRegistry::GetAlias("DummyAlias"))
+    if (schema == &SchemaRegistry::GetSchema("DummyAlias"))
       found_alias = true;
     if (schema == &SchemaRegistry::GetSchema("DummyAliasTarget"))
       found_target = true;

@@ -583,7 +583,7 @@ def python_op_factory(name, schema_name, internal_schema_name=None, generated=Tr
             else:
                 schema_name = self._internal_schema_name
             self._spec = _b.OpSpec(schema_name)
-            self._schema = _b.GetSchema(schema_name)
+            self._schema = _b.GetSchema(schema_name, follow_aliases=True)
 
             # Get the device argument. We will need this to determine the device that our outputs
             # will be stored on. The argument is not listed in schema, so we need to add it
@@ -697,12 +697,12 @@ def python_op_factory(name, schema_name, internal_schema_name=None, generated=Tr
     Operator.schema_name = schema_name
     # The schema under the name used in the API - for aliases, it's the schema of the alias itself
     # and not of the actual operator. It's used for checking the deprecation of the alias.
-    Operator._original_schema = _b.TryGetAlias(schema_name)
+    Operator._original_schema = _b.TryGetSchema(schema_name)
     Operator._internal_schema_name = internal_schema_name
     Operator._generated = generated
     Operator.__call__.__doc__ = _docs._docstring_generator_call(Operator.schema_name)
-    if _b.TryGetSchema(schema_name) is not None:
-        schema = _b.GetSchema(schema_name)
+    schema = _b.TryGetSchema(schema_name, follow_aliases=True)
+    if schema is not None:
         from nvidia.dali.ops import _signatures
 
         Operator.__init__.__signature__ = _signatures._call_signature(
@@ -740,7 +740,7 @@ def _load_ops():
         # TODO(klecki): Make this a function: _add_op(op_reg_name) and invoke it immediately
         # with register_xxx_op(). Now it relies on those class being present in this module
         # at the time of registration.
-        schema = _b.TryGetAlias(op_reg_name)
+        schema = _b.TryGetSchema(op_reg_name)
         # The ops that should be hidden from the documentation land in hidden module,
         # and are rexported in the original module, making the actual module and
         # the __module__ attribute mismatch.

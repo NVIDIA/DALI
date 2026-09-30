@@ -50,35 +50,24 @@ OpSchema &SchemaRegistry::RegisterSchema(std::string_view name) {
   return it->second;
 }
 
-const OpSchema &SchemaRegistry::GetSchema(std::string_view name) {
-  if (auto *schema = TryGetSchema(name))
+const OpSchema &SchemaRegistry::GetSchema(std::string_view name, FollowAliases follow_aliases) {
+  if (auto *schema = TryGetSchema(name, follow_aliases))
     return *schema;
   else
     throw invalid_key("Schema for operator '" + std::string(name) + "' not registered");
 }
 
-const OpSchema *SchemaRegistry::TryGetSchema(std::string_view name) {
+const OpSchema *SchemaRegistry::TryGetSchema(std::string_view name, FollowAliases follow_aliases) {
   auto &schema_map = registry();
-  auto &alias_map = aliases();
-  // Follow the aliases until we hit an actual schema.
-  // The alias map is guaranteed to be free of cycles by AddAlias.
-  for (auto alias_it = alias_map.find(name); alias_it != alias_map.end();
-       alias_it = alias_map.find(name))
-    name = alias_it->second;
+  if (follow_aliases == FollowAliases::Yes) {
+    auto &alias_map = aliases();
+    // Follow the aliases until we hit an actual schema.
+    // The alias map is guaranteed to be free of cycles by AddAlias.
+    for (auto alias_it = alias_map.find(name); alias_it != alias_map.end();
+        alias_it = alias_map.find(name))
+      name = alias_it->second;
+  }
 
-  auto it = schema_map.find(name);
-  return it != schema_map.end() ? &it->second : nullptr;
-}
-
-const OpSchema &SchemaRegistry::GetAlias(std::string_view name) {
-  if (auto *schema = TryGetAlias(name))
-    return *schema;
-  else
-    throw invalid_key("Schema for operator '" + std::string(name) + "' not registered");
-}
-
-const OpSchema *SchemaRegistry::TryGetAlias(std::string_view name) {
-  auto &schema_map = registry();
   auto it = schema_map.find(name);
   return it != schema_map.end() ? &it->second : nullptr;
 }

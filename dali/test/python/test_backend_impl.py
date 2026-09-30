@@ -23,7 +23,7 @@ import nvidia.dali.types as types
 from numpy.testing import assert_array_equal
 from nvidia.dali import pipeline_def
 from nvidia.dali.backend_impl import TensorCPU, TensorGPU, TensorListCPU, TensorListGPU, GetSchema
-from nvidia.dali.backend_impl import GetAlias, TryGetAlias
+from nvidia.dali.backend_impl import GetSchemaAndTarget, TryGetSchema
 from nvidia.dali.backend_impl import RegisteredCPUOps, RegisteredGPUOps, RegisteredMixedOps
 from nvidia.dali.backend_impl import types as types_
 import nvidia.dali as dali
@@ -553,7 +553,7 @@ def test_dlpack_copy(tensor_type):
 
 def test_schema_is_stateful():
     def get_schema(fn):
-        return GetSchema(fn._schema_name)
+        return GetSchema(fn._schema_name, follow_aliases=True)
 
     # Special operators
     assert get_schema(fn.external_source).IsStateful()
@@ -706,8 +706,8 @@ def test_registered_ops_contain_aliases():
 
 
 def test_schema_alias():
-    alias = GetAlias("MXNetReader")
-    target = GetSchema("MXNetReader")
+    alias = GetSchema("MXNetReader")
+    target = GetSchema("MXNetReader", follow_aliases=True)
     assert alias.Name() == "MXNetReader"
     assert alias.AliasFor() == "readers__MXNet"
     assert target.Name() == "readers__MXNet"
@@ -721,6 +721,16 @@ def test_schema_alias():
     assert target.ModulePath() == ["readers"]
     assert alias.GetSupportedBackends() == ["cpu"]
     assert target.GetSupportedBackends() == ["cpu"]
-    # For non-alias schemas, GetAlias returns the schema itself
-    assert GetAlias("readers__MXNet").Name() == "readers__MXNet"
-    assert TryGetAlias("ThisOperatorDoesNotExist") is None
+    assert TryGetSchema("MXNetReader", follow_aliases=True).Name() == "readers__MXNet"
+    # Following aliases doesn't affect non-alias schemas
+    assert GetSchema("readers__MXNet", follow_aliases=True).Name() == "readers__MXNet"
+    assert TryGetSchema("ThisOperatorDoesNotExist") is None
+    assert TryGetSchema("ThisOperatorDoesNotExist", follow_aliases=True) is None
+
+
+def test_schema_and_target():
+    alias, target = GetSchemaAndTarget("MXNetReader")
+    assert alias.Name() == "MXNetReader"
+    assert target.Name() == "readers__MXNet"
+    schema, same_schema = GetSchemaAndTarget("readers__MXNet")
+    assert schema.Name() == same_schema.Name() == "readers__MXNet"

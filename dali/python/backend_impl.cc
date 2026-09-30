@@ -2156,7 +2156,7 @@ static vector<string> GetRegisteredOps(bool (OpSchema::*supports_backend)() cons
     if (!internal_ops && schema->IsInternal())
       continue;
     // Aliases don't declare backends - check the actual operator
-    const OpSchema *actual = SchemaRegistry::TryGetSchema(schema->name());
+    const OpSchema *actual = SchemaRegistry::TryGetSchema(schema->name(), FollowAliases::Yes);
     if (actual && (actual->*supports_backend)())
       names.push_back(schema->name());
   }
@@ -2175,20 +2175,24 @@ static vector<string> GetRegisteredMixedOps(bool internal_ops = false) {
   return GetRegisteredOps(&OpSchema::SupportsMixed, internal_ops);
 }
 
-static const OpSchema &GetSchema(const string &name) {
-  return SchemaRegistry::GetSchema(name);
+static const OpSchema &GetSchema(const string &name, bool follow_aliases) {
+  return SchemaRegistry::GetSchema(name, FollowAliases(follow_aliases));
 }
 
-static const OpSchema *TryGetSchema(const string &name) {
-  return SchemaRegistry::TryGetSchema(name);
+static const OpSchema *TryGetSchema(const string &name, bool follow_aliases) {
+  return SchemaRegistry::TryGetSchema(name, FollowAliases(follow_aliases));
 }
 
-static const OpSchema &GetAlias(const string &name) {
-  return SchemaRegistry::GetAlias(name);
-}
-
-static const OpSchema *TryGetAlias(const string &name) {
-  return SchemaRegistry::TryGetAlias(name);
+/** Returns a pair: (schema under the given name, schema of the actual operator)
+ *
+ * If `name` is not an alias, both elements are the same schema.
+ * If `name` is an alias whose target is not registered, the second element is None.
+ */
+static py::tuple GetSchemaAndTarget(const string &name) {
+  auto ref = py::return_value_policy::reference;
+  const OpSchema &schema = SchemaRegistry::GetSchema(name);
+  const OpSchema *target = SchemaRegistry::TryGetSchema(name, FollowAliases::Yes);
+  return py::make_tuple(py::cast(&schema, ref), py::cast(target, ref));
 }
 
 static constexpr int GetCxx11AbiFlag() {
@@ -3101,7 +3105,7 @@ auto GetSupportedBackends(const OpSchema &schema) {
   // Aliases don't declare backends - check the actual operator
   const OpSchema *actual = schema.AliasFor().empty()
                          ? &schema
-                         : SchemaRegistry::TryGetSchema(schema.name());
+                         : SchemaRegistry::TryGetSchema(schema.name(), FollowAliases::Yes);
   if (!actual)
     return ret;
   if (actual->SupportsCPU())
@@ -3472,10 +3476,11 @@ PYBIND11_MODULE(backend_impl, m, py::mod_gil_not_used()) {
   m.def("RegisteredMixedOps", &GetRegisteredMixedOps, py::arg("internal_ops") = false);
 
   // Registry for OpSchema
-  m.def("GetSchema", &GetSchema, py::return_value_policy::reference);
-  m.def("TryGetSchema", &TryGetSchema, py::return_value_policy::reference);
-  m.def("GetAlias", &GetAlias, py::return_value_policy::reference);
-  m.def("TryGetAlias", &TryGetAlias, py::return_value_policy::reference);
+  m.def("GetSchema", &GetSchema, "name"_a, "follow_aliases"_a = false,
+        py::return_value_policy::reference);
+  m.def("TryGetSchema", &TryGetSchema, "name"_a, "follow_aliases"_a = false,
+        py::return_value_policy::reference);
+  m.def("GetSchemaAndTarget", &GetSchemaAndTarget);
 
   py::class_<OpSchema>(m, "OpSchema")
     .def("Name", &OpSchema::name)

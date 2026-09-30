@@ -151,8 +151,9 @@ DALI_DEFINE_OPTYPE_REGISTRY(MixedOperator, OperatorBase);
 std::unique_ptr<OperatorBase> InstantiateOperator(const OpSpec &spec) {
   string device = spec.GetArgument<string>("device");
   // Aliases are not registered in the operator factories - use the name of the actual operator.
-  const OpSchema *schema = SchemaRegistry::TryGetSchema(spec.SchemaName());
-  std::string_view name = schema ? std::string_view(schema->name()) : spec.SchemaName();
+  // The schema in OpSpec is that of the actual operator (aliases are followed).
+  const std::string &schema_name = spec.GetSchemaOrDefault().name();
+  std::string_view name = schema_name.empty() ? spec.SchemaName() : schema_name;
   // traverse devices by likelihood (gpu, cpu, mixed)
   if (device == "gpu") {
     return GPUOperatorRegistry::Registry().Create(name, spec, device);
