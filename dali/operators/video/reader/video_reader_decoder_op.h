@@ -245,9 +245,13 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
     video_files_info_ = GetVideoFiles(file_root_, filenames_, has_labels, labels_, file_list_);
     DALI_ENFORCE(!video_files_info_.empty(), "No files were read.");
 
-    if (!file_list_.empty()) {
-      file_list_opts_ = detail::GetFileListOptions(spec);
-    }
+    // Always validate/compute file_list_opts_, even when `file_list` is not used: the conflict
+    // checks in GetFileListOptions (e.g. `file_list_frame_num` vs `file_list_format`) must fire
+    // regardless of which file source argument is used, matching how e.g. the `pad_sequences`
+    // vs `pad_mode` conflict is always checked in GetReaderBoundaryType. file_list_opts_ itself is
+    // only consulted later for entries with a non-default start/end, which can only happen when
+    // `file_list_` was actually used to populate video_files_info_.
+    file_list_opts_ = detail::GetFileListOptions(spec);
 
     // Both feed the default step (stride_ * sequence_len_); zero would make the sample loop in
     // PrepareMetadataImpl never advance.
