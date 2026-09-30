@@ -18,11 +18,13 @@ import nvidia.dali.experimental.dynamic as ndd
 import numpy as np
 import os
 import cv2
+import atexit
 import functools
 import shutil
 import subprocess
 import sys
 import tempfile
+import uuid
 from test_utils import get_dali_extra_path
 from nose2.tools import cartesian_params, params
 from nose_utils import SkipTest, assert_raises, assert_warns
@@ -355,13 +357,17 @@ def _file_list_frame_selection(reader_fn, file_list, **kwargs):
     return epoch_size, sorted(frame_nums)
 
 
+_file_list_dir = tempfile.mkdtemp(prefix="dali_video_reader_file_lists_")
+atexit.register(shutil.rmtree, _file_list_dir, ignore_errors=True)
+
+
 def _write_file_list(lines):
     """Writes the given file_list entries (one string per line) to a new temporary file and
     returns its path."""
-    list_file = tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False)
-    list_file.write("".join(line + "\n" for line in lines))
-    list_file.close()
-    return list_file.name
+    path = os.path.join(_file_list_dir, f"file_list_{uuid.uuid4().hex}.txt")
+    with open(path, "w") as list_file:
+        list_file.write("".join(line + "\n" for line in lines))
+    return path
 
 
 def _collect_samples(reader_fn, **kwargs):
