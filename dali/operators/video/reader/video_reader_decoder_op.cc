@@ -200,7 +200,7 @@ as an additional output.)code",
     .AddOptionalArg("step",
                     R"code(Frame interval between each sequence.
 
-When the value is less than 0, `step` is set to `sequence_length`.)code",
+When the value is less than or equal to 0, `step` is set to `stride * sequence_length`.)code",
                     -1)
     .AddOptionalArg("stride", R"code(Distance between consecutive frames in the sequence.)code", 1u,
                     false)
@@ -224,7 +224,7 @@ The ``stride``, ``step``, and ``pad_mode`` arguments are ignored.)code",
         R"code(How to handle videos with insufficient frames when using start_frame/sequence_length/stride:
 
 * ``'none'``: Return shorter sequences if not enough frames: ABC -> ABC
-* ``'constant'``: Pad with a fixed value (specified by ``pad_value``): ABC -> ABCPPP
+* ``'constant'``: Pad with a fixed value (specified by ``fill_value``): ABC -> ABCPPP
 * ``'edge'`` or ``'repeat'``: Repeat the last valid frame: ABC -> ABCCCC
 * ``'reflect_1001'`` or ``'symmetric'``: Reflect padding, including the last element: ABC -> ABCCBA
 * ``'reflect_101'`` or ``'reflect'``: Reflect padding, not including the last element: ABC -> ABCBA
@@ -232,7 +232,7 @@ The ``stride``, ``step``, and ``pad_mode`` arguments are ignored.)code",
 Not relevant when using ``frames`` argument.)code",
         "none", true)
     .AddOptionalArg("fill_value",
-                    R"code(Value(s) used to pad missing frames when ``pad_mode='constant'``'.
+                    R"code(Value(s) used to pad missing frames when ``pad_mode='constant'``.
 
 Each value must be in range [0, 255].
 If a single value is provided, it will be used for all channels.
