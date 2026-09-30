@@ -153,8 +153,16 @@ bool FramesDecoderBase::SelectVideoStream(int stream_id) {
     LOG_LINE << "Finding video stream" << std::endl;
     stream_id = av_find_best_stream(ctx_, AVMEDIA_TYPE_VIDEO, -1, -1, nullptr, 0);
     if (stream_id == AVERROR_STREAM_NOT_FOUND) {
-      DALI_WARN(make_string("Could not find a valid video stream in a file in ", Filename()));
-      return false;
+      // Some containers (e.g. MPEG-PS/TS) don't declare stream codec types in a header that's
+      // available right after avformat_open_input -- they only become known once packets are
+      // probed. Fall back to a full probe and retry before giving up.
+      if (avformat_find_stream_info(ctx_, nullptr) >= 0) {
+        stream_id = av_find_best_stream(ctx_, AVMEDIA_TYPE_VIDEO, -1, -1, nullptr, 0);
+      }
+      if (stream_id == AVERROR_STREAM_NOT_FOUND) {
+        DALI_WARN(make_string("Could not find a valid video stream in a file in ", Filename()));
+        return false;
+      }
     }
   }
   if (stream_id < 0 || stream_id >= static_cast<int>(ctx_->nb_streams)) {
@@ -276,20 +284,88 @@ void FramesDecoderBase::ParseNumFrames() {
  * @brief Reads the length of a Network Abstraction Layer (NAL) unit from a buffer.
  *
  * NAL units are the basic elements of H.264/AVC and H.265/HEVC video compression standards.
- * In the Annex B byte stream format, NAL units are prefixed with a 4-byte length field
- * that indicates the size of the following NAL unit.
+ * In the length-prefixed (AVCC / ISO, e.g. as found in most MP4 files) byte stream format,
+ * NAL units are prefixed with a 4-byte length field that indicates the size of the following
+ * NAL unit.
  *
  * This function reads those 4 bytes in big-endian order to get the NAL unit length.
  *
- * Reference: ITU-T H.264 and H.265 specifications
+ * Reference: ITU-T H.264 and H.265 specifications, ISO/IEC 14496-15
+ * (AVCDecoderConfigurationRecord)
  *
  * @param buf Pointer to the buffer containing the NAL unit length prefix
  * @return The length of the NAL unit in bytes
  */
-static inline uint32_t read_nal_unit_length(uint8_t *buf) {
+static inline uint32_t read_nal_unit_length(const uint8_t *buf) {
   uint32_t length = 0;
   length = (buf)[0] << 24 | (buf)[1] << 16 | (buf)[2] << 8 | (buf)[3];
   return length;
+}
+
+/**
+ * @brief Checks for an Annex-B NAL unit start code (00 00 01 or 00 00 00 01) at `buf`.
+ *
+ * @param buf Pointer to the position to check.
+ * @param end End of the buffer (exclusive), to avoid reading out of bounds.
+ * @return The length of the start code (3 or 4), or 0 if no start code is present at `buf`.
+ */
+static inline int nal_start_code_length(const uint8_t *buf, const uint8_t *end) {
+  if (buf + 4 <= end && buf[0] == 0 && buf[1] == 0 && buf[2] == 0 && buf[3] == 1) {
+    return 4;
+  }
+  if (buf + 3 <= end && buf[0] == 0 && buf[1] == 0 && buf[2] == 1) {
+    return 3;
+  }
+  return 0;
+}
+
+/**
+ * @brief Locates the next NAL unit starting at `*pos`, handling both Annex-B (start-code
+ * delimited) and AVCC/ISO (length-prefixed) framing.
+ *
+ * H.264/HEVC packets can use either framing depending on the container: MP4/MOV typically use
+ * AVCC (4-byte big-endian length prefix per NAL unit, as recorded in the stream's
+ * AVCDecoderConfigurationRecord extradata), while raw elementary streams, MPEG-PS/TS and most
+ * other containers carry Annex-B start codes (00 00 01 or 00 00 00 01) instead. Detecting the
+ * framing per-NAL-unit (by checking for a start code first, falling back to a length prefix only
+ * when no start code is present) is more robust than keying off the container format or
+ * extradata, since it can't be fooled by an unusual container/extradata combination and requires
+ * no state to be tracked across NAL units or packets.
+ *
+ * @param pos [in/out] Position to start searching from; advanced past the located NAL unit.
+ * @param end End of the packet buffer (exclusive).
+ * @param nal_data [out] Set to the first byte of the NAL unit payload (after any start code or
+ * length prefix).
+ * @param nal_size [out] Set to the size, in bytes, of the NAL unit payload.
+ * @return true if a NAL unit was located, false if there isn't enough data left in the packet.
+ */
+static inline bool find_next_nal_unit(const uint8_t *&pos, const uint8_t *end,
+                                       const uint8_t *&nal_data, uint32_t &nal_size) {
+  int sc_len = nal_start_code_length(pos, end);
+  if (sc_len > 0) {
+    // Annex-B: the NAL unit runs from here up to the next start code (or the end of the
+    // packet).
+    nal_data = pos + sc_len;
+    const uint8_t *next = nal_data;
+    while (next < end && nal_start_code_length(next, end) == 0) {
+      ++next;
+    }
+    nal_size = static_cast<uint32_t>(next - nal_data);
+    pos = next;
+    return true;
+  }
+
+  // AVCC/ISO: the NAL unit is prefixed with its 4-byte big-endian length.
+  if (pos + 4 >= end) {
+    return false;
+  }
+  nal_size = read_nal_unit_length(pos);
+  nal_data = pos + 4;
+  if (nal_data + nal_size > end) {
+    return false;
+  }
+  pos = nal_data + nal_size;
+  return true;
 }
 
 void FramesDecoderBase::BuildIndex() {
@@ -336,20 +412,20 @@ void FramesDecoderBase::BuildIndex() {
         // Parse NAL units to verify if this is actually a keyframe
         // NAL = Network Abstraction Layer, the basic unit of encoded video
         const uint8_t *end = packet->data + packet->size;
-        uint8_t *nal_start = packet->data;
+        const uint8_t *pos = packet->data;
 
-        // Iterate through NAL units in the packet
-        while (nal_start + 4 < end) {
-          // Each NAL unit is prefixed with a 4-byte length
-          uint32_t nal_size = read_nal_unit_length(nal_start);
-          nal_start += 4;
-          if (nal_start + nal_size > end) {
-            break;
+        // Iterate through NAL units in the packet. find_next_nal_unit handles both Annex-B
+        // (start-code delimited) and AVCC (length-prefixed) framing, detected per NAL unit.
+        const uint8_t *nal_data;
+        uint32_t nal_size;
+        while (find_next_nal_unit(pos, end, nal_data, nal_size)) {
+          if (nal_size == 0) {
+            continue;
           }
 
           if (codec_id == AV_CODEC_ID_H264) {
             // In H.264, the NAL unit type is in the lower 5 bits
-            uint8_t nal_unit_type = nal_start[0] & 0x1F;
+            uint8_t nal_unit_type = nal_data[0] & 0x1F;
             // Type 5 indicates an IDR frame (Instantaneous Decoding Refresh)
             // IDR frames are special keyframes that clear all reference buffers
             if (nal_unit_type == 5) {
@@ -358,7 +434,7 @@ void FramesDecoderBase::BuildIndex() {
             }
           } else {  // AV_CODEC_ID_HEVC
             // In HEVC/H.265, NAL unit type is in bits 1-6 of the first byte
-            uint8_t nal_unit_type = (nal_start[0] >> 1) & 0x3F;
+            uint8_t nal_unit_type = (nal_data[0] >> 1) & 0x3F;
             // Types 16-21 are IRAP (Intra Random Access Point) pictures
             // which serve as keyframes in HEVC
             if (nal_unit_type >= 16 && nal_unit_type <= 21) {
@@ -366,7 +442,6 @@ void FramesDecoderBase::BuildIndex() {
               break;
             }
           }
-          nal_start += nal_size;  // Advance to next NAL unit
         }
       } else {
         // For other codecs, trust the AV_PKT_FLAG_KEY flag

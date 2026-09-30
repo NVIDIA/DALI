@@ -1645,10 +1645,28 @@ def test_annex_b_seek_matches_sequential_decode(case):
     NAL units as 4-byte length-prefixed (AVCC) in FramesDecoderBase::BuildIndex; Annex-B streams
     use start codes. Correct behavior: all frames are indexed, and a frame decoded after a seek
     is identical to the same frame decoded sequentially."""
-    if case in ("h264_in_mpeg_ps", "raw_h264", "raw_h265"):
+    if case == "h264_in_mpeg_ps":
         raise SkipTest(
-            "Known bug: Annex-B keyframe detection fails to build a usable frame index "
-            "(see BuildIndex NAL parsing) -- tracked for follow-up"
+            "Known limitation (not the Annex-B NAL parsing bug this test targets, which is "
+            "fixed): MPEG-PS only stamps pts/dts on some packets (typically the first packet "
+            "of a PES unit), leaving the rest at AV_NOPTS_VALUE. BuildIndex now correctly finds "
+            "the stream and identifies Annex-B keyframes, but frames without a real timestamp "
+            "still need a presentation-time identity that exactly matches what NVDEC reports; "
+            "naive interpolation (last known timestamp + packet duration) produces duplicate/"
+            "ambiguous values because this stream's B-frame reorder delay isn't constant, which "
+            "stalls decoding. Legacy readers.video handles this file via a different, "
+            "duration/frame-rate-based frame count that doesn't need per-packet timestamp "
+            "identity -- porting that design here is a larger rework, tracked for follow-up"
+        )
+    if case in ("raw_h264", "raw_h265"):
+        raise SkipTest(
+            "Known limitation (not the Annex-B NAL parsing bug this test targets, which is "
+            "fixed): these are bare elementary streams with no container-level timestamps at "
+            "all (every packet's pts/dts is AV_NOPTS_VALUE from the very first packet, so there "
+            "is no baseline to interpolate from). This is a shared limitation, not a parity "
+            "gap: legacy readers.video also fails to open these files, hitting its own "
+            "variable-frame-rate heuristic check because it can't determine a reliable "
+            "avg_frame_rate without container timing either"
         )
     path, expected_frames = ANNEX_B_VIDEOS[case]
     # Forward seek into the middle, backward seek, next frame, back to the start, last frame.
