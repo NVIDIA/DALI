@@ -126,8 +126,12 @@ class DType:
         self.type_id = type_id
 
         if kind == DType.Kind.float:
-            self.exponent_bits = exponent_bits or DType._default_exponent_bits(bits, True)
-            self.significand_bits = significand_bits or DType._default_significand_bits(bits, True)
+            if exponent_bits is None:
+                exponent_bits = DType._default_exponent_bits(bits, True)
+            if significand_bits is None:
+                significand_bits = DType._default_significand_bits(bits, True)
+            self.exponent_bits = exponent_bits
+            self.significand_bits = significand_bits
         else:
             self.exponent_bits = None
             self.significand_bits = None
@@ -278,7 +282,10 @@ class DType:
 
         t = parse_internal(name)
         if t.type_id is None:
-            t.type_id = _type2id[t]
+            try:
+                t.type_id = _type2id[t]
+            except KeyError:
+                raise ValueError(f"Unsupported type name: {name}") from None
         if t.type_id is not None:
             t = _id2type[t.type_id]  # use the same DType instance as the one registered with the id
         _name2type[name] = t
