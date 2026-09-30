@@ -23,6 +23,7 @@ extern "C" {
 }
 
 #include <dirent.h>
+#include <cmath>
 #include <string>
 #include <type_traits>
 #include <vector>
@@ -52,7 +53,13 @@ inline double TimestampToSeconds(AVRational timebase, int64_t timestamp) {
 }
 
 inline int64_t SecondsToTimestamp(AVRational timebase, double seconds) {
-  return static_cast<int64_t>(seconds * timebase.den / timebase.num);
+  // Round to the nearest pts tick instead of truncating: truncation systematically biases the
+  // result down, which can make it fall exactly on (or before) the pts of the frame just below
+  // the requested time even when `seconds` is unambiguously past that frame. That in turn makes
+  // FrameIndex::GetFrameIdxByTimestamp's exact-match branch return that frame's own index as an
+  // (exclusive) end boundary, silently excluding an otherwise-included frame -- see the
+  // `file_list` timestamp-mode boundary bug this fixes.
+  return std::llround(seconds * timebase.den / timebase.num);
 }
 
 std::vector<VideoFileMeta> GetVideoFiles(const std::string& file_root,
