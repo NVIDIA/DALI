@@ -1318,3 +1318,31 @@ def test_float_constant_padding_matches_legacy_zero_padding():
     )
     assert legacy.shape == experimental.shape
     np.testing.assert_array_equal(experimental[2:], legacy[2:])
+
+
+@cartesian_params(devices, [1, 2], ["constant", "edge"])
+def test_padding_emits_sample_at_every_remaining_step(device, stride, pad_mode):
+    # 10-frame range, sequence_length=3, step=1: full sequences start at 0..7 (stride 1) or
+    # 0..5 (stride 2); with padding, legacy also emits a padded sample at every remaining start,
+    # i.e. one sample per frame of the range.
+    list_file = _write_file_list([f"{VIDEO_0} 0 0 10"])
+    kwargs = dict(file_list=list_file, sequence_length=3, stride=stride, step=1)
+    expected = (10, [(0, s, 3) for s in range(10)])
+    experimental = _collect_samples(
+        functools.partial(
+            fn.experimental.readers.video,
+            device=device,
+            file_list_format="frames",
+            pad_mode=pad_mode,
+        ),
+        **kwargs,
+    )
+    assert experimental == expected, f"experimental: {experimental}"
+    if pad_mode == "constant":
+        legacy = _collect_samples(
+            functools.partial(
+                fn.readers.video, device="gpu", file_list_frame_num=True, pad_sequences=True
+            ),
+            **kwargs,
+        )
+        assert legacy == expected, f"legacy: {legacy}"

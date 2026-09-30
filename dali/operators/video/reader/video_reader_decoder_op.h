@@ -397,12 +397,14 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
           samples_.emplace_back(&entry, start, start + full_seq_stride, stride_);
         }
 
-        // if we have a tail that doesn't fit a full sequence and we allow padding, extend the last
-        // sequence
-        if (boundary_type_ != boundary::BoundaryType::ISOLATED && start < entry.end_frame) {
-          LOG_LINE << "Adding padded tail sample starting at frame " << start
-                   << ", end=" << entry.end_frame << ", stride=" << stride_ << std::endl;
-          samples_.emplace_back(&entry, start, start + full_seq_stride, stride_);
+        // With padding enabled, emit a padded sample at every remaining step position that
+        // still starts inside the range, like legacy readers.video.
+        if (boundary_type_ != boundary::BoundaryType::ISOLATED) {
+          for (; start < entry.end_frame; start += step_) {
+            LOG_LINE << "Adding padded tail sample starting at frame " << start
+                     << ", end=" << entry.end_frame << ", stride=" << stride_ << std::endl;
+            samples_.emplace_back(&entry, start, start + full_seq_stride, stride_);
+          }
         }
       }
     }
