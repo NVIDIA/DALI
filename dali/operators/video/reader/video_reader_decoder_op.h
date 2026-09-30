@@ -515,14 +515,6 @@ class VideoReaderDecoder
                    "dtype=FLOAT is only supported on the GPU backend of "
                    "experimental.readers.video.");
     }
-    // ConstantFrame() (video_utils.h) always builds a DALI_UINT8-typed fill buffer; using it
-    // as the CONSTANT boundary padding source with a DALI_FLOAT output buffer would
-    // reinterpret those raw bytes as float data (wrong values) and, since the buffer is
-    // sized for 1-byte elements, read past its end once padding elements are 4 bytes each.
-    // Reject the combination explicitly instead of risking memory corruption.
-    DALI_ENFORCE(!(dtype_ == DALI_FLOAT && boundary_type_ == boundary::BoundaryType::CONSTANT),
-                 "dtype=FLOAT combined with pad_mode='constant' is not currently supported.");
-
     int requested_channels = spec.GetArgument<int>("channels");
     DALI_ENFORCE(requested_channels == 3,
                  make_string("channels=", requested_channels,
@@ -767,10 +759,11 @@ class VideoReaderDecoder
       sample->data_.SetSourceInfo(decoder_->Filename());
       sample->data_.SetLayout("FHWC");
 
+      // Typed like the output (dtype_), so CopyFrame's FrameSizeBytes() copy stays in bounds.
       const uint8_t *constant_frame =
           boundary_type_ == boundary::BoundaryType::CONSTANT ?
               ConstantFrame(constant_frame_, decoder_->FrameShape(), make_cspan(fill_value_),
-                            cuda_stream_, true) :
+                            cuda_stream_, true, dtype_, normalized_) :
               nullptr;
       if (has_timestamps_) {
         sample->timestamps_.resize(num_frames);
