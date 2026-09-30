@@ -1440,8 +1440,7 @@ def test_two_non_empty_sources_raise(device):
 
     with assert_raises(RuntimeError, glob="*Exactly one of*"):
         p = pipe()
-        p.build()
-        p.run()  # Error occurs during Acquire, triggered by first run()
+        p.build()  # Error occurs in the loader constructor, triggered by build()
 
 
 # Builds a CPU-only experimental.readers.video pipeline in a child process whose address space
