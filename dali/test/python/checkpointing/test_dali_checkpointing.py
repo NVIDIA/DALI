@@ -727,7 +727,7 @@ def test_video_reader(
     files = [os.path.join(get_dali_extra_path(), f"db/video/small/small{i}.mp4") for i in range(5)]
 
     check_reader_checkpointing(
-        fn.readers.video,
+        fn.experimental.readers.video,
         num_epochs,
         batch_size,
         iters_into_epoch,

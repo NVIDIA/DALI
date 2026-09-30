@@ -388,7 +388,7 @@ def test_corrupted_videos():
     ]
 
     reader_opts = [
-        (fn.readers.video, {"device": "gpu"}),
+        (fn.experimental.readers.video, {"device": "gpu"}),
         (fn.experimental.readers.video, {"device": "gpu"}),
         (fn.experimental.readers.video, {"device": "cpu"}),
     ]
@@ -403,7 +403,7 @@ def check_container(cont):
     test_videos = [path + "/" + f for f in os.listdir(path)]
     with pipe:
         # mkv container for some reason fails in DALI VFR heuristics
-        vid = fn.readers.video(
+        vid = fn.experimental.readers.video(
             device="gpu",
             filenames=test_videos,
             sequence_length=10,
@@ -430,7 +430,7 @@ def test_pad_sequence():
 
     @pipeline_def(batch_size=1, num_threads=4, device_id=0)
     def create_video_pipe(filenames, sequence_length=1, stride=1, step=-1, pad_sequences=False):
-        fr, lab, fr_num, time_stamp = fn.readers.video(
+        fr, lab, fr_num, time_stamp = fn.experimental.readers.video(
             device="gpu",
             filenames=filenames,
             labels=[],
@@ -565,14 +565,14 @@ def test_10bit_vid_reconfigure():
 
     @pipeline_def(device_id=0)
     def video_decoder_pipeline():
-        a = fn.readers.video(
+        a = fn.experimental.readers.video(
             filenames=filenames,
             sequence_length=sequence_length,
             device="gpu",
             random_shuffle=True,
             seed=1234,
         )
-        b = fn.readers.video(
+        b = fn.experimental.readers.video(
             filenames=filenames2,
             sequence_length=sequence_length,
             device="gpu",
@@ -597,7 +597,7 @@ def test_2gb_sequence():
 
     @pipeline_def
     def video_pipe():
-        video, label = fn.readers.video(
+        video, label = fn.experimental.readers.video(
             device="gpu",
             sequence_length=sequence_length,
             filenames=os.path.join(video_data_root, "hevc", "sintel_trailer-720p.mp4"),

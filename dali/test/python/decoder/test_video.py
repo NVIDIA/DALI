@@ -250,7 +250,7 @@ def test_full_range_video(filename, reference):
 
     @pipeline_def
     def test_pipeline():
-        videos = fn.readers.video(
+        videos = fn.experimental.readers.video(
             device="gpu",
             filenames=[get_dali_extra_path() + f"/db/video/full_dynamic_range/{filename}"],
             sequence_length=1,

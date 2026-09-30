@@ -37,7 +37,9 @@ def init_video_data():
 
     video_pipe = dali.pipeline.Pipeline(batch_size, 3, 0, seed=16)
     with video_pipe:
-        input = fn.readers.video(device="gpu", filenames=video_files, sequence_length=32, stride=5)
+        input = fn.experimental.readers.video(
+            device="gpu", filenames=video_files, sequence_length=32, stride=5
+        )
         video_pipe.set_outputs(input)
 
     out = video_pipe.run()

@@ -115,7 +115,7 @@ READERS = _expand_reader_test_cases(
             },
         ),
         (
-            fn.readers.video,
+            fn.experimental.readers.video,
             ndd.readers.Video,
             {
                 "filenames": [
