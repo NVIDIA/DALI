@@ -1228,3 +1228,29 @@ def test_file_list_timestamps_are_relative_to_stream_start(device):
         negative_list = _write_file_list([f"{shifted} 0 -0.29"])
         negative = _file_list_frame_selection(_experimental_reader(device), negative_list)
         assert negative == (17, list(range(33, 50))), f"experimental: {negative}"
+
+
+@cartesian_params(devices)
+def test_empty_labels_means_sequential_labels(device):
+    files = sorted(VIDEO_FILES)[:3]
+    # step=1000 > 240 frames: exactly one sample per file.
+    kwargs = dict(filenames=files, labels=[], sequence_length=10, step=1000)
+    experimental = _collect_samples(_experimental_reader(device), **kwargs)
+    legacy = _collect_samples(_legacy_gpu_reader, **kwargs)
+    assert experimental == legacy == (3, [(0, 0, 10), (1, 0, 10), (2, 0, 10)]), (
+        f"experimental: {experimental}, legacy: {legacy}"
+    )
+
+
+@cartesian_params(devices)
+def test_labels_not_passed_means_no_labels_output(device):
+    # Regression guard for the other side of the distinction: no `labels` -> no labels output.
+    @pipeline_def(batch_size=1, num_threads=2, device_id=0)
+    def pipe():
+        outs = fn.experimental.readers.video(device=device, filenames=[VIDEO_0], sequence_length=3)
+        assert isinstance(outs, DataNode), f"Expected only the video output, got {len(outs)}"
+        return outs
+
+    p = pipe()
+    p.build()
+    p.run()
