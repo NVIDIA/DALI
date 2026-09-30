@@ -1254,3 +1254,67 @@ def test_labels_not_passed_means_no_labels_output(device):
     p = pipe()
     p.build()
     p.run()
+
+
+_float_fill_cases = {
+    "default_fill": (dict(normalized=False), [0.0, 0.0, 0.0]),
+    "normalized_255": (dict(normalized=True, fill_value=[255]), [1.0, 1.0, 1.0]),
+    "per_channel": (dict(normalized=False, fill_value=[10, 20, 30]), [10.0, 20.0, 30.0]),
+}
+
+
+@params(*_float_fill_cases.keys())
+def test_float_constant_padding(case):
+    # dtype=FLOAT is GPU-only. 7-frame range with sequence_length=5: the second sample holds
+    # frames 5 and 6 followed by 3 padded frames.
+    extra_kwargs, expected_pixel = _float_fill_cases[case]
+    list_file = _write_file_list([f"{VIDEO_0} 0 0 7"])
+
+    @pipeline_def(batch_size=1, num_threads=2, device_id=0, prefetch_queue_depth=1)
+    def pipe():
+        video, _, frame_num = fn.experimental.readers.video(
+            device="gpu",
+            file_list=list_file,
+            file_list_format="frames",
+            sequence_length=5,
+            dtype=types.FLOAT,
+            pad_mode="constant",
+            enable_frame_num="sequence",
+            **extra_kwargs,
+        )
+        return video, frame_num
+
+    p = pipe()
+    p.build()
+    p.run()  # first sample: frames 0-4, no padding
+    video, frame_num = p.run()
+    frames = np.array(video.as_cpu()[0])
+    assert frames.dtype == np.float32
+    assert list(np.array(frame_num.as_cpu()[0])) == [5, 6, -1, -1, -1]
+    padded = frames[2:]
+    np.testing.assert_array_equal(padded, np.broadcast_to(np.float32(expected_pixel), padded.shape))
+
+
+def test_float_constant_padding_matches_legacy_zero_padding():
+    list_file = _write_file_list([f"{VIDEO_0} 0 0 7"])
+
+    def second_sample(reader_fn, **kwargs):
+        @pipeline_def(batch_size=1, num_threads=2, device_id=0, prefetch_queue_depth=1)
+        def pipe():
+            video, _ = reader_fn(
+                device="gpu", file_list=list_file, sequence_length=5, dtype=types.FLOAT, **kwargs
+            )
+            return video
+
+        p = pipe()
+        p.build()
+        p.run()
+        (video,) = p.run()
+        return np.array(video.as_cpu()[0])
+
+    legacy = second_sample(fn.readers.video, file_list_frame_num=True, pad_sequences=True)
+    experimental = second_sample(
+        fn.experimental.readers.video, file_list_format="frames", pad_mode="constant"
+    )
+    assert legacy.shape == experimental.shape
+    np.testing.assert_array_equal(experimental[2:], legacy[2:])
