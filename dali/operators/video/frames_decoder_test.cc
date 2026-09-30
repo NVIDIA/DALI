@@ -605,6 +605,28 @@ TEST(FramesDecoderFrameIndexTest, PastTheLastFrameReturnsSizeSentinel) {
   EXPECT_EQ(index.GetFrameIdxByTimestamp(100000, false), 3);
 }
 
+TEST(VideoUtilsSecondsToTimestampTest, RoundsToNearestTickInsteadOfTruncating) {
+  // Reproduces the exact case found by the video reader parity harness: a 24 fps stream with
+  // timebase 1/12288 (512 ticks/frame), where file_list entry
+  // "sintel_trailer_vp9_0.mp4 4 0.03536328934625863 0.9167271357878531" has its `end` timestamp
+  // fall a fraction of a tick above frame 22's exact pts (22 * 512 = 11264).
+  // 0.9167271357878531 s * 12288 ticks/s == 11264.743..., i.e. closer to 11265 than 11264.
+  // Truncating (the old `static_cast<int64_t>` behavior) yields 11264 -- exactly frame 22's own
+  // pts -- which makes GetFrameIdxByTimestamp's exact-match branch return frame 22 itself as the
+  // (exclusive) end_frame, silently excluding frame 22 from the range. Legacy readers.video
+  // includes frame 22. Rounding to the nearest tick yields 11265, which is correctly recognized
+  // as being past frame 22's pts.
+  AVRational timebase{1, 12288};
+  EXPECT_EQ(SecondsToTimestamp(timebase, 0.9167271357878531), 11265);
+}
+
+TEST(VideoUtilsSecondsToTimestampTest, RoundsHalfAwayFromZero) {
+  AVRational timebase{1, 1000};
+  EXPECT_EQ(SecondsToTimestamp(timebase, 0.0015), 2);   // 1.5 ticks -> 2
+  EXPECT_EQ(SecondsToTimestamp(timebase, 0.0014), 1);   // 1.4 ticks -> 1
+  EXPECT_EQ(SecondsToTimestamp(timebase, 0.0), 0);
+}
+
 TEST(FramesDecoderConstantFrameTest, FloatNormalizedScalesFillValue) {
   Tensor<CPUBackend> frame;
   std::vector<uint8_t> fill = {0, 51, 255};
