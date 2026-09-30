@@ -77,7 +77,13 @@ int FramesDecoderBase::OpenFile(const std::string& filename) {
   ctx_.reset(avformat_alloc_context());
   DALI_ENFORCE(ctx_, "Could not alloc avformat context");
 
-  int ret = avformat_open_input(&ctx_, filename.c_str(), nullptr, nullptr);
+  // avformat_open_input parses the filename through avio's URL layer, which treats a colon as a
+  // protocol separator (e.g. a relative path like "clip:01.mp4" would be parsed as protocol
+  // "clip", which doesn't exist, instead of a plain filename). Prefixing with the "file:"
+  // protocol forces it to always be treated as a plain filesystem path, regardless of what
+  // characters it contains, for both relative and absolute paths.
+  std::string url = "file:" + filename;
+  int ret = avformat_open_input(&ctx_, url.c_str(), nullptr, nullptr);
   if (ret < 0) {
     ctx_.reset();
   }
