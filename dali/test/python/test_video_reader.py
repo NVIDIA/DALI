@@ -44,6 +44,9 @@ CFR_VIDEO_FILE = DALI_EXTRA_PATH + "/db/video/cfr_test.mp4"
 # qa/TL0_videoreader_test/test.sh). Pinned by test_video_0_fixture_assumptions.
 VIDEO_0 = sorted(VIDEO_FILES)[0]
 
+# VP9, 60 fps, 50 frames, first pts 0 (see db/video/cfr/README.txt in DALI_extra).
+CFR_VP9_60FPS_FILE = DALI_EXTRA_PATH + "/db/video/cfr/test_1_vp9.mp4"
+
 devices = ["cpu", "gpu"]
 sequence_lengths = [3]
 batch_sizes = [1, 10]
@@ -957,9 +960,9 @@ def test_legacy_pad_sequences_maps_to_pad_mode_constant(device):
     with assert_warns(DeprecationWarning, glob="*pad_sequences*"):
         via_legacy_arg = _collect_samples(experimental, pad_sequences=True)
     via_new_arg = _collect_samples(experimental, pad_mode="constant")
-    assert via_legacy_arg == via_new_arg == (2, [(0, 0, 5), (0, 5, 5)]), (
-        f"pad_sequences=True: {via_legacy_arg}, pad_mode='constant': {via_new_arg}"
-    )
+    assert (
+        via_legacy_arg == via_new_arg == (2, [(0, 0, 5), (0, 5, 5)])
+    ), f"pad_sequences=True: {via_legacy_arg}, pad_mode='constant': {via_new_arg}"
     assert _collect_samples(experimental, pad_sequences=False) == (1, [(0, 0, 5)])
 
     legacy = _collect_samples(
@@ -1078,3 +1081,150 @@ def test_stride_sequence_fits_when_last_frame_exists(device):
     expected = (3, [(0, 0, 3), (1, 0, 3), (1, 12, 3)])
     assert legacy == expected, f"legacy: {legacy}"
     assert experimental == expected, f"experimental: {experimental}, legacy: {legacy}"
+
+
+_legacy_gpu_reader = functools.partial(fn.readers.video, device="gpu")
+
+
+def _experimental_reader(device):
+    return functools.partial(fn.experimental.readers.video, device=device)
+
+
+def _import_av_or_skip():
+    try:
+        import av
+    except ImportError:
+        raise SkipTest("PyAV (`av`) is required to build the shifted-pts fixture")
+    return av
+
+
+def _make_pts_shifted_copy(src, offset_seconds, tmp_dir):
+    """Remuxes (no re-encoding) the video stream of `src` into an MP4 file in `tmp_dir` whose
+    timestamps are all shifted by `offset_seconds`; returns the new file's path.
+
+    MP4 is used (rather than e.g. Matroska) because its header carries the track's frame rate
+    and start time explicitly (mdhd/edit-list boxes), so both the legacy and experimental readers
+    -- which only parse container headers, not deep per-packet probing -- pick up the shifted
+    start time correctly. A plain `add_stream_from_template` remux to Matroska was tried first:
+    ffmpeg's Matroska muxer/demuxer round-trip neither the per-track default frame duration nor a
+    nonzero stream start time through header-only parsing, which made the legacy reader compute
+    a wrong (zero) start time and either miscount frames or fail to seek.
+    """
+    av = _import_av_or_skip()
+    dst = os.path.join(tmp_dir, "shifted.mp4")
+    with av.open(src) as inp, av.open(dst, mode="w", format="mp4") as out:
+        in_stream = inp.streams.video[0]
+        out_stream = out.add_stream(
+            codec_name=in_stream.codec_context.name, rate=in_stream.average_rate
+        )
+        out_stream.codec_context.extradata = in_stream.codec_context.extradata
+        out_stream.codec_context.width = in_stream.codec_context.width
+        out_stream.codec_context.height = in_stream.codec_context.height
+        out_stream.codec_context.pix_fmt = in_stream.codec_context.pix_fmt
+        out_stream.codec_context.time_base = in_stream.time_base
+        offset = int(round(offset_seconds / in_stream.time_base))
+        for packet in inp.demux(in_stream):
+            if packet.dts is None:  # demuxer flush packet
+                continue
+            packet.pts += offset
+            packet.dts += offset
+            packet.stream = out_stream
+            out.mux(packet)
+    with av.open(dst) as check:
+        stream = check.streams.video[0]
+        first_pts = min(p.pts for p in check.demux(stream) if p.pts is not None)
+        first_seconds = float(first_pts * stream.time_base)
+        assert first_seconds >= offset_seconds - 0.01, (
+            f"Fixture precondition: expected the first pts at >= {offset_seconds} s, "
+            f"got {first_seconds} s"
+        )
+    return dst
+
+
+def test_video_0_fixture_assumptions():
+    # The file_list tests hard-code frame numbers for VIDEO_0: 240 frames at 24 fps.
+    @pipeline_def(batch_size=1, num_threads=2, device_id=0)
+    def pipe():
+        return fn.experimental.readers.video(
+            device="cpu", filenames=[VIDEO_0], sequence_length=1, name="r"
+        )
+
+    p = pipe()
+    p.build()
+    assert p.reader_meta("r")["epoch_size"] == 240
+
+
+@cartesian_params(devices)
+def test_file_list_timestamps_omitted_end_means_end_of_video(device):
+    list_file = _write_file_list([f"{VIDEO_0} 0 2.5"])  # end omitted: 2.5 s (frame 60) to the end
+    experimental = _file_list_frame_selection(_experimental_reader(device), list_file)
+    legacy = _file_list_frame_selection(_legacy_gpu_reader, list_file)
+    assert (
+        experimental == legacy == (180, list(range(60, 240)))
+    ), f"experimental: {experimental[0]} frames, legacy: {legacy[0]} frames"
+
+
+@cartesian_params(devices)
+def test_file_list_timestamps_end_at_duration_is_kept(device):
+    list_file = _write_file_list([f"{VIDEO_0} 0 1.0 10.0"])  # end == video duration
+    experimental = _file_list_frame_selection(_experimental_reader(device), list_file)
+    legacy = _file_list_frame_selection(_legacy_gpu_reader, list_file)
+    assert (
+        experimental == legacy == (216, list(range(24, 240)))
+    ), f"experimental: {experimental[0]} frames, legacy: {legacy[0]} frames"
+
+
+@cartesian_params(devices)
+def test_file_list_timestamps_start_past_end_of_video_raises(device):
+    # The valid first entry keeps the dataset non-empty, so the only way to fail is to reject
+    # the second one. `end` is given (and past the duration too) so that legacy's own
+    # start<=end check does not trip before its start<=duration check: with end omitted, legacy
+    # would instead report "Start time number should be lesser or equal to end time" because it
+    # substitutes end=frame_count for an omitted end before comparing.
+    list_file = _write_file_list([f"{VIDEO_0} 0 0 1.0", f"{VIDEO_0} 1 10.5 20"])
+    with assert_raises(RuntimeError, glob="*past the end of the video*"):
+        _file_list_frame_selection(_experimental_reader(device), list_file)
+    with assert_raises(RuntimeError, glob="*greater than video duration*"):
+        _file_list_frame_selection(_legacy_gpu_reader, list_file)
+
+
+@cartesian_params(devices)
+def test_file_list_timestamps_start_at_end_of_video_is_skipped_not_error(device):
+    # Legacy accepts start == duration (ceil(10.0 * 24) == frame count) and yields no samples
+    # for that entry.
+    list_file = _write_file_list([f"{VIDEO_0} 0 0 1.0", f"{VIDEO_0} 1 10.0"])
+    experimental = _file_list_frame_selection(_experimental_reader(device), list_file)
+    legacy = _file_list_frame_selection(_legacy_gpu_reader, list_file)
+    assert experimental == legacy == (24, list(range(0, 24)))
+
+
+@cartesian_params(devices)
+def test_file_list_timestamps_negative_count_from_end(device):
+    # 2 s and 1 s before the end of a 240-frame 24 fps video: frames 192..215.
+    list_file = _write_file_list([f"{VIDEO_0} 0 -2.0 -1.0"])
+    experimental = _file_list_frame_selection(_experimental_reader(device), list_file)
+    legacy = _file_list_frame_selection(_legacy_gpu_reader, list_file)
+    assert (
+        experimental == legacy == (24, list(range(192, 216)))
+    ), f"experimental: {experimental}, legacy: {legacy}"
+
+
+@cartesian_params(devices)
+def test_file_list_timestamps_are_relative_to_stream_start(device):
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        shifted = _make_pts_shifted_copy(CFR_VP9_60FPS_FILE, 1.0, tmp_dir)
+
+        # 0.21 s and 0.49 s after the first frame fall between frames (12.6 and 29.4 at 60 fps),
+        # so the selection is frames 13..28 with the default rounding.
+        list_file = _write_file_list([f"{shifted} 0 0.21 0.49"])
+        experimental = _file_list_frame_selection(_experimental_reader(device), list_file)
+        legacy = _file_list_frame_selection(_legacy_gpu_reader, list_file)
+        assert (
+            experimental == legacy == (16, list(range(13, 29)))
+        ), f"experimental: {experimental}, legacy: {legacy}"
+
+        # A negative start counts back from the end of the stream regardless of the first pts:
+        # 0.29 s before the end of a 50-frame 60 fps video is frame 32.6, rounded up to 33.
+        negative_list = _write_file_list([f"{shifted} 0 -0.29"])
+        negative = _file_list_frame_selection(_experimental_reader(device), negative_list)
+        assert negative == (17, list(range(33, 50))), f"experimental: {negative}"
