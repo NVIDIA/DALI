@@ -19,6 +19,7 @@ import numpy as np
 import os
 import cv2
 import functools
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -1573,3 +1574,121 @@ def test_compare_experimental_to_legacy_reader_empty_labels(device):
         step=100,
         enable_frame_num=True,
     )
+
+
+# Annex-B (start-code delimited) H.264/HEVC fixtures from DALI_extra and their frame counts
+# (see db/video/containers/README.rst and db/video/cfr/README.txt).
+ANNEX_B_VIDEOS = {
+    "h264_in_avi": (DALI_EXTRA_PATH + "/db/video/containers/avi/cfr.avi", 180),
+    "h264_in_mpeg_ps": (DALI_EXTRA_PATH + "/db/video/containers/mpeg/cfr.mpeg", 180),
+    "raw_h264": (DALI_EXTRA_PATH + "/db/video/cfr/test_1.h264", 50),
+    "raw_h265": (DALI_EXTRA_PATH + "/db/video/cfr/test_1.h265", 50),
+}
+
+
+@params(*ANNEX_B_VIDEOS.keys())
+def test_annex_b_seek_matches_sequential_decode(case):
+    """Detection test: experimental.readers.video builds its keyframe index by parsing H.264/HEVC
+    NAL units as 4-byte length-prefixed (AVCC) in FramesDecoderBase::BuildIndex; Annex-B streams
+    use start codes. Correct behavior: all frames are indexed, and a frame decoded after a seek
+    is identical to the same frame decoded sequentially."""
+    path, expected_frames = ANNEX_B_VIDEOS[case]
+    # Forward seek into the middle, backward seek, next frame, back to the start, last frame.
+    targets = [
+        expected_frames * 5 // 6,
+        expected_frames // 2,
+        expected_frames // 2 + 1,
+        0,
+        expected_frames - 1,
+    ]
+
+    @pipeline_def(batch_size=1, num_threads=2, device_id=0, prefetch_queue_depth=1)
+    def sequential_pipe():
+        return fn.experimental.readers.video(
+            device="gpu", filenames=[path], sequence_length=1, name="r"
+        )
+
+    try:
+        p = sequential_pipe()
+        p.build()
+    except RuntimeError as e:
+        raise AssertionError(
+            f"[{case}] experimental.readers.video could not open/index the Annex-B file "
+            f"{path}: {e}"
+        )
+    epoch_size = p.reader_meta("r")["epoch_size"]
+    assert epoch_size == expected_frames, (
+        f"[{case}] indexed {epoch_size} frames, expected {expected_frames}: the frame index "
+        f"built from Annex-B packets is wrong"
+    )
+    reference = {}
+    for idx in range(epoch_size):
+        (video,) = p.run()
+        if idx in targets:
+            reference[idx] = np.array(video.as_cpu()[0])[0]
+
+    list_file = _write_file_list([f"{path} 0 {t} {t + 1}" for t in targets])
+
+    @pipeline_def(batch_size=1, num_threads=2, device_id=0, prefetch_queue_depth=1)
+    def seeking_pipe():
+        video, _, frame_num = fn.experimental.readers.video(
+            device="gpu",
+            file_list=list_file,
+            file_list_format="frames",
+            sequence_length=1,
+            enable_frame_num=True,
+        )
+        return video, frame_num
+
+    p = seeking_pipe()
+    p.build()
+    for t in targets:
+        video, frame_num = p.run()
+        got = int(np.array(frame_num.as_cpu()[0]).flatten()[0])
+        assert got == t, f"[{case}] expected frame {t} next, reader returned frame {got}"
+        frame = np.array(video.as_cpu()[0])[0]
+        diff = np.abs(np.float32(frame) - np.float32(reference[t]))
+        bad_fraction = np.count_nonzero(diff > 2) / diff.size
+        assert bad_fraction <= 0.03, (
+            f"[{case}] frame {t} decoded after a seek differs from the sequentially decoded "
+            f"frame in {bad_fraction * 100:.1f}% of pixels: the seek landed on a wrong or "
+            f"non-key frame (Annex-B keyframe detection in FramesDecoderBase::BuildIndex)"
+        )
+
+
+@cartesian_params(["legacy", "experimental_cpu", "experimental_gpu"], ["absolute", "relative"])
+def test_filename_with_colon_can_be_opened(reader, path_kind):
+    """Detection test: experimental.readers.video opens files with
+    avformat_open_input(filename), which may parse `clip:01.mp4` as a URL with protocol `clip`.
+    Correct behavior: the file opens and all 50 frames are indexed, like any other file."""
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        abs_name = os.path.join(tmp_dir, "clip:01.mp4")
+        shutil.copy(CFR_VP9_60FPS_FILE, abs_name)
+        name = abs_name if path_kind == "absolute" else "clip:01.mp4"
+        if reader == "legacy":
+            reader_fn = functools.partial(fn.readers.video, device="gpu")
+        else:
+            reader_fn = functools.partial(
+                fn.experimental.readers.video, device=reader.split("_")[1]
+            )
+
+        @pipeline_def(batch_size=1, num_threads=2, device_id=0)
+        def pipe():
+            return reader_fn(filenames=[name], sequence_length=1, name="r")
+
+        prev_cwd = os.getcwd()
+        os.chdir(tmp_dir)
+        try:
+            try:
+                p = pipe()
+                p.build()
+            except RuntimeError as e:
+                raise AssertionError(f"[{reader}, {path_kind} path] could not open {name!r}: {e}")
+            epoch_size = p.reader_meta("r")["epoch_size"]
+            assert epoch_size == 50, (
+                f"[{reader}, {path_kind} path] indexed {epoch_size} frames of {name!r}, "
+                f"expected 50"
+            )
+            p.run()
+        finally:
+            os.chdir(prev_cwd)
