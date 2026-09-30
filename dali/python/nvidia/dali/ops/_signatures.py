@@ -901,7 +901,7 @@ def _build_module_tree():
     module_tree = {}
     processed = set()
     for schema_name in _registry._all_registered_ops():
-        schema = _b.TryGetSchema(schema_name)
+        schema = _b.TryGetAlias(schema_name)
         if schema is None:
             continue
         if schema.IsDocHidden() or schema.IsInternal() or schema.IsAbstract():
@@ -984,7 +984,8 @@ def _group_signatures(api: Api):
     api_module = _api_to_module(api)
 
     for schema_name in sorted(_registry._all_registered_ops()):
-        schema = _b.TryGetSchema(schema_name)
+        # Use the alias (if any) - visibility is a property of the name, not the actual operator
+        schema = _b.TryGetAlias(schema_name)
 
         _, module_nesting, op_name = _names._process_op_name(schema_name, api=api)
         op = _get_op(api_module, module_nesting + [op_name])

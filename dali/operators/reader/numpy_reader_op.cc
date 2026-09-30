@@ -237,9 +237,6 @@ Mutually exclusive with ``dont_use_mmap=False``.)code",
   .AddParent("LoaderBase");
 
 
-// Deprecated alias
-DALI_REGISTER_OPERATOR(NumpyReader, NumpyReaderCPU, CPU);
-
 DALI_SCHEMA_ALIAS(NumpyReader, readers__Numpy)
     .Deprecate(
         "1.0",

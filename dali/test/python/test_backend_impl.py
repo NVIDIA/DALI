@@ -23,6 +23,8 @@ import nvidia.dali.types as types
 from numpy.testing import assert_array_equal
 from nvidia.dali import pipeline_def
 from nvidia.dali.backend_impl import TensorCPU, TensorGPU, TensorListCPU, TensorListGPU, GetSchema
+from nvidia.dali.backend_impl import GetAlias, TryGetAlias
+from nvidia.dali.backend_impl import RegisteredCPUOps, RegisteredGPUOps, RegisteredMixedOps
 from nvidia.dali.backend_impl import types as types_
 import nvidia.dali as dali
 
@@ -688,3 +690,37 @@ def test_tl_from_list_of_tensors(TensorType, TensorListType, contiguous):
         assert tl.data_ptr() != t0.data_ptr()
     else:
         assert tl[0].data_ptr() == t0.data_ptr()
+
+
+def test_registered_ops_contain_aliases():
+    for registered_ops in [RegisteredCPUOps(), RegisteredGPUOps(), RegisteredMixedOps()]:
+        assert len(registered_ops) == len(set(registered_ops)), "Duplicate operator names"
+    cpu_ops = RegisteredCPUOps()
+    gpu_ops = RegisteredGPUOps()
+    assert "readers__MXNet" in cpu_ops
+    assert "MXNetReader" in cpu_ops
+    assert "MXNetReader" not in gpu_ops
+    assert "readers__Numpy" in gpu_ops
+    assert "NumpyReader" in cpu_ops
+    assert "NumpyReader" in gpu_ops
+
+
+def test_schema_alias():
+    alias = GetAlias("MXNetReader")
+    target = GetSchema("MXNetReader")
+    assert alias.Name() == "MXNetReader"
+    assert alias.AliasFor() == "readers__MXNet"
+    assert target.Name() == "readers__MXNet"
+    assert target.AliasFor() == ""
+    assert alias.IsDeprecated()
+    assert alias.IsDocHidden()
+    assert not target.IsDeprecated()
+    assert alias.OperatorName() == "MXNetReader"
+    assert alias.ModulePath() == []
+    assert target.OperatorName() == "MXNet"
+    assert target.ModulePath() == ["readers"]
+    assert alias.GetSupportedBackends() == ["cpu"]
+    assert target.GetSupportedBackends() == ["cpu"]
+    # For non-alias schemas, GetAlias returns the schema itself
+    assert GetAlias("readers__MXNet").Name() == "readers__MXNet"
+    assert TryGetAlias("ThisOperatorDoesNotExist") is None

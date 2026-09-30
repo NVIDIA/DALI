@@ -235,6 +235,15 @@ def _get_kwargs(schema, api="ops", args=None):
     return ret
 
 
+def _deprecated_schema(*schemas):
+    """Returns the first deprecated schema from `schemas` or None, if none is deprecated.
+
+    Pass the schema of the alias (which may be deprecated on its own) first and the schema of
+    the actual operator next.
+    """
+    return next((s for s in schemas if s is not None and s.IsDeprecated()), None)
+
+
 def _docstring_generator_main(schema_name, api):
     """
     Generate docstring for the class obtaining it from schema based on cls.__name__
@@ -244,13 +253,14 @@ def _docstring_generator_main(schema_name, api):
     schema = _b.GetSchema(schema_name)
     ret = "\n"
 
-    if schema.IsDeprecated():
+    deprecated_schema = _deprecated_schema(_b.TryGetAlias(schema_name), schema)
+    if deprecated_schema is not None:
         ret += ".. warning::\n\n   This operator is now deprecated."
-        replacement = schema.DeprecatedInFavorOf()
+        replacement = deprecated_schema.DeprecatedInFavorOf()
         if replacement:
             use_instead = _names._op_name(replacement, api)
             ret += " Use :meth:`" + use_instead + "` instead."
-        explanation = schema.DeprecationMessage()
+        explanation = deprecated_schema.DeprecationMessage()
         if explanation:
             indent = "\n" + " " * 3
             ret += indent

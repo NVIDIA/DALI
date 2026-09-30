@@ -109,7 +109,7 @@ def fn_to_op_table(out_filename):
     for op in sorted(all_ops, key=name_sort):
         op_full_name, submodule, op_name = ops._process_op_name(op, api="ops")
         fn_full_name = ops._op_name(op, api="fn")
-        schema = b.TryGetSchema(op)
+        schema = b.TryGetAlias(op)
         if schema:
             if schema.IsDocHidden():
                 continue
@@ -182,7 +182,7 @@ def operations_table_str(ops_to_process, module_name):
                 devices += ["GPU"]
             devices_str = ", ".join(devices)
             if schema:
-                if schema.IsDocHidden():
+                if b.GetAlias(op).IsDocHidden():
                     continue
                 full_doc = schema.Dox()
             else:

@@ -213,7 +213,6 @@ class VideoDecoderCpu : public VideoDecoderBase<CPUBackend, FramesDecoderCpu> {
     VideoDecoderBase<CPUBackend, FramesDecoderCpu>(spec) {}
 };
 
-DALI_REGISTER_OPERATOR(experimental__decoders__Video, VideoDecoderCpu, CPU);
 DALI_REGISTER_OPERATOR(decoders__Video, VideoDecoderCpu, CPU);
 
 }  // namespace dali

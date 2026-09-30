@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -122,7 +122,7 @@ def _wrap_op(op_class, submodule, parent_module, wrapper_doc):
             otherwise in a specified parent module.
         wrapper_doc (str): Documentation of the wrapper function
     """
-    schema = _b.TryGetSchema(op_class.schema_name)
+    schema = _b.TryGetAlias(op_class.schema_name)
     make_hidden = schema.IsDocHidden() if schema else False
     wrapper_name = _to_snake_case(op_class.__name__)
 

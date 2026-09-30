@@ -1069,8 +1069,39 @@ used with DALIDataType, to avoid confusion with `AddOptionalArg<type>(name, doc,
 class SchemaRegistry {
  public:
   DLL_PUBLIC static OpSchema &RegisterSchema(std::string_view name);
+
+  /** Gets the schema with the given name, following aliases.
+   *
+   * If `name` is an alias, the schema of the actual operator is returned.
+   * Throws `invalid_key` if the schema is not found.
+   */
   DLL_PUBLIC static const OpSchema &GetSchema(std::string_view name);
+
+  /** Gets the schema with the given name, following aliases.
+   *
+   * If `name` is an alias, the schema of the actual operator is returned.
+   * Returns nullptr if the schema is not found.
+   */
   DLL_PUBLIC static const OpSchema *TryGetSchema(std::string_view name);
+
+  /** Gets the schema with the given name, without following aliases.
+   *
+   * If `name` is an alias, the schema of the alias itself is returned; otherwise the result
+   * is the same as that of GetSchema.
+   * Throws `invalid_key` if the schema is not found.
+   */
+  DLL_PUBLIC static const OpSchema &GetAlias(std::string_view name);
+
+  /** Gets the schema with the given name, without following aliases.
+   *
+   * If `name` is an alias, the schema of the alias itself is returned; otherwise the result
+   * is the same as that of TryGetSchema.
+   * Returns nullptr if the schema is not found.
+   */
+  DLL_PUBLIC static const OpSchema *TryGetAlias(std::string_view name);
+
+  /** Lists all registered schemas, including aliases. */
+  DLL_PUBLIC static std::vector<const OpSchema *> ListSchemas();
 
   DLL_PUBLIC static void AddAlias(std::string_view alias_name, std::string_view actual_name);
 

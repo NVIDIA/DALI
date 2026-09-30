@@ -175,6 +175,5 @@ void Inflate<GPUBackend>::SetupOpImpl() {
 }
 
 DALI_REGISTER_OPERATOR(decoders__Inflate, Inflate<GPUBackend>, GPU);
-DALI_REGISTER_OPERATOR(experimental__Inflate, Inflate<GPUBackend>, GPU);
 
 }  // namespace dali

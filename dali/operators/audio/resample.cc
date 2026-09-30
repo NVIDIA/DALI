@@ -196,9 +196,6 @@ class ResampleCPU : public ResampleBase<CPUBackend> {
 }  // namespace audio
 
 
-// Kept for backwards compatibility
-DALI_REGISTER_OPERATOR(experimental__AudioResample, audio::ResampleCPU, CPU);
-
 DALI_REGISTER_OPERATOR(AudioResample, audio::ResampleCPU, CPU);
 
 }  // namespace dali

@@ -63,9 +63,6 @@ properties.
   .AddParent("LoaderBase");
 
 
-// Deprecated alias
-DALI_REGISTER_OPERATOR(MXNetReader, MXNetReader, CPU);
-
 DALI_SCHEMA_ALIAS(MXNetReader, readers__MXNet)
     .Deprecate(
         "1.0",

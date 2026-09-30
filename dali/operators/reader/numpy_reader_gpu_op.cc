@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -158,8 +158,5 @@ void NumpyReaderGPU::ScheduleChunkedRead(SampleView<GPUBackend> &out_sample,
 }
 
 DALI_REGISTER_OPERATOR(readers__Numpy, NumpyReaderGPU, GPU);
-
-// Deprecated alias
-DALI_REGISTER_OPERATOR(NumpyReader, NumpyReaderGPU, GPU);
 
 }  // namespace dali

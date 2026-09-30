@@ -17,6 +17,7 @@
 #include <string_view>
 #include <sstream>
 #include <unordered_set>
+#include <vector>
 
 #include "dali/core/bitmask.h"
 #include "dali/core/call_at_exit.h"
@@ -58,20 +59,37 @@ const OpSchema &SchemaRegistry::GetSchema(std::string_view name) {
 
 const OpSchema *SchemaRegistry::TryGetSchema(std::string_view name) {
   auto &schema_map = registry();
+  auto &alias_map = aliases();
+  // Follow the aliases until we hit an actual schema.
+  // The alias map is guaranteed to be free of cycles by AddAlias.
+  for (auto alias_it = alias_map.find(name); alias_it != alias_map.end();
+       alias_it = alias_map.find(name))
+    name = alias_it->second;
+
   auto it = schema_map.find(name);
-  if (it == schema_map.end() || !it->second.AliasFor().empty()) {
-    auto &alias_map = aliases();
-    auto alias_it = alias_map.find(name);
-    if (alias_it != alias_map.end()) {
-      name = alias_it->second;
-      it = schema_map.find(name);
-    }
-  }
+  return it != schema_map.end() ? &it->second : nullptr;
+}
 
-  if (it == schema_map.end())
-    return nullptr;
+const OpSchema &SchemaRegistry::GetAlias(std::string_view name) {
+  if (auto *schema = TryGetAlias(name))
+    return *schema;
+  else
+    throw invalid_key("Schema for operator '" + std::string(name) + "' not registered");
+}
 
-  return &it->second;
+const OpSchema *SchemaRegistry::TryGetAlias(std::string_view name) {
+  auto &schema_map = registry();
+  auto it = schema_map.find(name);
+  return it != schema_map.end() ? &it->second : nullptr;
+}
+
+std::vector<const OpSchema *> SchemaRegistry::ListSchemas() {
+  auto &schema_map = registry();
+  std::vector<const OpSchema *> schemas;
+  schemas.reserve(schema_map.size());
+  for (auto &[name, schema] : schema_map)
+    schemas.push_back(&schema);
+  return schemas;
 }
 
 void SchemaRegistry::AddAlias(std::string_view alias_name, std::string_view actual_name) {

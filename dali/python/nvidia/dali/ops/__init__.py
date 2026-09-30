@@ -209,8 +209,14 @@ def _handle_arg_deprecations(schema, kwargs, op_name):
     return kwargs
 
 
-def _handle_op_deprecation(schema, module, display_name):
-    if schema.IsDeprecated():
+def _handle_op_deprecation(schemas, module, display_name):
+    """Issues a deprecation warning for the first deprecated schema in `schemas`, if any.
+
+    The schema of the alias (if the operator was referred to by an alias name) should come first,
+    followed by the schema of the actual operator.
+    """
+    schema = _docs._deprecated_schema(*schemas)
+    if schema is not None:
         msg = f"WARNING: `{module}.{display_name}` is now deprecated."
         replacement = schema.DeprecatedInFavorOf()
         if replacement:
@@ -403,7 +409,10 @@ class _OperatorInstance(object):
         )
 
         _handle_op_deprecation(
-            self._op.schema, _processed_arguments["_module"], _processed_arguments["_display_name"]
+            # ExternalSource is not created with python_op_factory, hence getattr
+            (getattr(self._op, "_original_schema", None), self._op.schema),
+            _processed_arguments["_module"],
+            _processed_arguments["_display_name"],
         )
 
         self._generate_outputs()
@@ -686,6 +695,9 @@ def python_op_factory(name, schema_name, internal_schema_name=None, generated=Tr
 
     Operator.__name__ = str(name)
     Operator.schema_name = schema_name
+    # The schema under the name used in the API - for aliases, it's the schema of the alias itself
+    # and not of the actual operator. It's used for checking the deprecation of the alias.
+    Operator._original_schema = _b.TryGetAlias(schema_name)
     Operator._internal_schema_name = internal_schema_name
     Operator._generated = generated
     Operator.__call__.__doc__ = _docs._docstring_generator_call(Operator.schema_name)
@@ -728,7 +740,7 @@ def _load_ops():
         # TODO(klecki): Make this a function: _add_op(op_reg_name) and invoke it immediately
         # with register_xxx_op(). Now it relies on those class being present in this module
         # at the time of registration.
-        schema = _b.TryGetSchema(op_reg_name)
+        schema = _b.TryGetAlias(op_reg_name)
         # The ops that should be hidden from the documentation land in hidden module,
         # and are rexported in the original module, making the actual module and
         # the __module__ attribute mismatch.

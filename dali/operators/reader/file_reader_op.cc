@@ -145,9 +145,6 @@ case-sensitively, otherwise case-insensitively.)", false)
   .AddParent("LoaderBase");
 
 
-// Deprecated alias
-DALI_REGISTER_OPERATOR(FileReader, FileReader, CPU);
-
 DALI_SCHEMA_ALIAS(FileReader, readers__File)
     .Deprecate(
         "1.0",

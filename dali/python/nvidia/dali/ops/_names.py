@@ -1,4 +1,4 @@
-# Copyright (c) 2023-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2023-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -44,7 +44,8 @@ def _process_op_name(op_schema_name, make_hidden=False, api="ops"):
             ("experimental.readers.Video", ["experimental", "readers"], "Video")
     """
 
-    schema = _b.GetSchema(op_schema_name)
+    # Use the alias (if any) - the module path and operator name are derived from the name
+    schema = _b.GetAlias(op_schema_name)
     submodule_path = schema.ModulePath()
     op_name = schema.OperatorName()
     if make_hidden:

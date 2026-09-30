@@ -87,9 +87,6 @@ For reading video sequences, one of :meth:`nvidia.dali.fn.readers.video`,
 :meth:`nvidia.dali.fn.experimental.inputs.video` can be used.)code");
 
 
-// Deprecated alias
-DALI_REGISTER_OPERATOR(SequenceReader, SequenceReader, CPU);
-
 DALI_SCHEMA_ALIAS(SequenceReader, readers__Sequence)
     .Deprecate(
         "1.0",

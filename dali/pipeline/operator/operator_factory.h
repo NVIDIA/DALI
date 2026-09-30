@@ -70,34 +70,11 @@ class OperatorRegistry {
         std::optional<std::string_view> device_name = {}) {
     std::lock_guard<std::mutex> lock(mutex_);
     auto it = registry_.find(name);
-    std::string_view lookup_name = name;
-    while (it == registry_.end()) {
-      // Maybe we got an alias? Check the schema's actual name.
-      if (auto *schema = SchemaRegistry::TryGetSchema(lookup_name)) {
-        std::string_view new_name = schema->name();
-        if (new_name == lookup_name)
-          break;  // no alias found
-        lookup_name = new_name;
-        it = registry_.find(lookup_name);
-      } else {
-        break;
-      }
-    }
     DALI_ENFORCE(it != registry_.end(), make_string(
         "Operator \"", name, "\" not registered",
         (device_name ? make_string(" for ", *device_name) : ""),
         "."));
     return it->second(spec);
-  }
-
-  vector<std::string> RegisteredNames(bool internal_ops) {
-    vector<std::string> names;
-    for (const auto &pair : registry_) {
-      auto& schema = SchemaRegistry::GetSchema(pair.first);
-      if (internal_ops || !schema.IsInternal())
-        names.push_back(schema.name().length() ? schema.name() : pair.first);
-    }
-    return names;
   }
 
   bool IsRegistered(const std::string &name) {

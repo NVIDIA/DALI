@@ -55,9 +55,6 @@ DALI_SCHEMA_ALIAS(experimental__TensorResize, TensorResize)
         "alias kept for backward compatibility.")
     .MakeDocHidden();
 
-// Kept for backwards compatibility
-DALI_REGISTER_OPERATOR(experimental__TensorResize, tensor_resize::TensorResizeCPU, CPU);
-
 DALI_REGISTER_OPERATOR(TensorResize, tensor_resize::TensorResizeCPU, CPU);
 
 
