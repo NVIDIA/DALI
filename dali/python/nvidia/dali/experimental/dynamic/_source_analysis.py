@@ -17,6 +17,7 @@ import functools
 import inspect
 import itertools
 import linecache
+import opcode
 import sys
 import types
 import weakref
@@ -185,35 +186,47 @@ class ModuleInfo:
     scope_of_node: Mapping[cst.CSTNode, Scope]  # LibCST ScopeProvider
     parent_of: Mapping[cst.CSTNode, cst.CSTNode]  # built by the fused codegen pass
 
-    calls_by_position: Mapping[tuple[int, int, int, int], cst.Call | None]  # None if ambiguous
-    calls_by_line: Mapping[int, tuple[cst.Call, ...]]  # 3.10 fallback for call-site identification
+    nodes_by_position: Mapping[tuple[int, int, int, int], cst.CSTNode | None]  # None if ambiguous
+    nodes_by_line: Mapping[int, tuple[cst.CSTNode, ...]]  # 3.10 fallback for site identification
 
-    call_cache: dict[tuple[int, int], cst.Call | None] = field(default_factory=dict, repr=False)
+    if sys.version_info >= (3, 11):
 
-    def call_at(self, frame: types.FrameType) -> cst.Call | None:
-        """The ``cst.Call`` executing at `frame`'s current instruction, memoized per call site."""
-        key = (id(frame.f_code), frame.f_lasti)
-        # Use _Unresolved as sentinel value - None is a legitimate cache entry
-        if (call := self.call_cache.get(key, _Unresolved)) is not _Unresolved:
-            return call
-        call = self._resolve_call(frame)
-        self.call_cache[key] = call
-        return call
-
-    @NVTXRange("_resolve_call", category="source analysis")
-    def _resolve_call(self, frame: types.FrameType) -> cst.Call | None:
-        code = frame.f_code
-        if sys.version_info >= (3, 11):
-            # One co_positions tuple per 2-byte code unit.
+        @NVTXRange("node_at", category="source analysis")
+        def node_at(self, frame: types.FrameType) -> cst.CSTNode | None:
+            """The node executing at `frame`'s current instruction."""
+            code = frame.f_code
+            # One co_positions tuple per 2-byte code unit
             pos = next(itertools.islice(code.co_positions(), frame.f_lasti // 2, None), None)
-            if pos is not None and all(x is not None for x in pos):
-                sl, el, sc, ec = cast(tuple[int, int, int, int], pos)
-                lines = linecache.getlines(code.co_filename)
-                sc, ec = _byte_to_char_col(lines, sl, sc), _byte_to_char_col(lines, el, ec)
-                if sc is None or ec is None:
-                    return None
-                return self.calls_by_position.get((sl, el, sc, ec))
-        candidates = self.calls_by_line.get(frame.f_lineno, ())
+            if pos is None or not all(x is not None for x in pos):
+                return self._node_on_line(frame.f_lineno, None)
+            sl, el, sc, ec = cast(tuple[int, int, int, int], pos)
+            lines = linecache.getlines(code.co_filename)
+            sc, ec = _byte_to_char_col(lines, sl, sc), _byte_to_char_col(lines, el, ec)
+            if sc is None or ec is None:
+                return None
+            return self.nodes_by_position.get((sl, el, sc, ec))
+
+    else:
+
+        @NVTXRange("node_at", category="source analysis")
+        def node_at(self, frame: types.FrameType) -> cst.CSTNode | None:
+            """The node executing at `frame`'s current instruction."""
+            name = opcode.opname[frame.f_code.co_code[frame.f_lasti]]
+            if name.startswith("CALL_"):
+                accepted = cst.Call
+            elif name.startswith("INPLACE_"):
+                accepted = cst.AugAssign
+            elif name.startswith("BINARY_") and name != "BINARY_SUBSCR":
+                accepted = cst.BinaryOperation
+            else:
+                return None
+            return self._node_on_line(frame.f_lineno, accepted)
+
+    def _node_on_line(self, lineno: int, accepted: type[cst.CSTNode] | None) -> cst.CSTNode | None:
+        """The single node on `lineno`, restricted to the `accepted` type if given."""
+        candidates = self.nodes_by_line.get(lineno, ())
+        if accepted is not None:
+            candidates = tuple(n for n in candidates if isinstance(n, accepted))
         return candidates[0] if len(candidates) == 1 else None
 
     def binding(self, name_node: cst.Name) -> Binding | None:
@@ -285,7 +298,7 @@ class _FusedCodegenState(PositionProvidingCodegenState):
     """A single codegen pass that yields everything classification reads off the tree.
 
     ``PositionProvider`` already renders every node to compute syntactic positions, so we
-    piggyback the parent map and call collection onto that same traversal. This replaces
+    piggyback the parent map and site collection onto that same traversal. This replaces
     three separate full-tree passes (``PositionProvider``, ``ParentNodeProvider`` and
     ``matchers.findall``) with one; only ``ScopeProvider`` still needs its own pass.
     """
@@ -293,7 +306,7 @@ class _FusedCodegenState(PositionProvidingCodegenState):
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         self.parent_of: dict[cst.CSTNode, cst.CSTNode] = {}
-        self.calls: list[cst.Call] = []
+        self.nodes: list[cst.CSTNode] = []
         self._node_stack: list[cst.CSTNode] = []
 
     def before_codegen(self, node: cst.CSTNode) -> None:
@@ -305,8 +318,9 @@ class _FusedCodegenState(PositionProvidingCodegenState):
     def after_codegen(self, node: cst.CSTNode) -> None:
         super().after_codegen(node)
         self._node_stack.pop()
-        if type(node) is cst.Call:
-            self.calls.append(node)
+        # A frame executes either at a call or at an arithmetic operator reached via a dunder
+        if isinstance(node, (cst.Call, cst.BinaryOperation, cst.AugAssign)):
+            self.nodes.append(node)
 
 
 def _get_module_info(code: types.CodeType) -> ModuleInfo | None:
@@ -365,22 +379,22 @@ def _get_module_info(code: types.CodeType) -> ModuleInfo | None:
                 )
                 wrapper.module._codegen(state)
 
-            by_position: dict[tuple[int, int, int, int], cst.Call | None] = {}
-            by_line: dict[int, list[cst.Call]] = {}
-            with NVTXRange("_get_module_info: Visit calls", category="source analysis"):
-                for call in state.calls:
-                    r = positions._computed[call]
+            by_position: dict[tuple[int, int, int, int], cst.CSTNode | None] = {}
+            by_line: dict[int, list[cst.CSTNode]] = {}
+            with NVTXRange("_get_module_info: Visit sites", category="source analysis"):
+                for site in state.nodes:
+                    r = positions._computed[site]
                     span = (r.start.line, r.end.line, r.start.column, r.end.column)
                     by_position[span] = (
-                        None if span in by_position else call
+                        None if span in by_position else site
                     )  # seen twice -> ambiguous
-                    by_line.setdefault(r.start.line, []).append(call)
+                    by_line.setdefault(r.start.line, []).append(site)
 
             info = ModuleInfo(
                 scope_of_node=cast(Mapping[cst.CSTNode, Scope], md),
                 parent_of=state.parent_of,
-                calls_by_position=by_position,
-                calls_by_line={ln: tuple(calls) for ln, calls in by_line.items()},
+                nodes_by_position=by_position,
+                nodes_by_line={ln: tuple(nodes) for ln, nodes in by_line.items()},
             )
         except Exception:
             info = None
@@ -391,31 +405,30 @@ def _get_module_info(code: types.CodeType) -> ModuleInfo | None:
     return info
 
 
-_call_cache = {}
+_site_cache = {}
 
 
 @dataclass(frozen=True, slots=True)
-class CallInfo:
-    call: Any
+class SiteInfo:
+    node: cst.CSTNode | None
     module_info: ModuleInfo
     meta: dict = field(default_factory=dict)
 
 
-@NVTXRange("call_info", category="source analysis")
-def call_info(frame: types.FrameType) -> CallInfo | None:
+@NVTXRange("site_info", category="source analysis")
+def site_info(frame: types.FrameType) -> SiteInfo | None:
     key = (id(frame.f_code), frame.f_lasti)
-    if (entry := _call_cache.get(key)) is not None:
+    if (entry := _site_cache.get(key)) is not None:
         if entry[0]() is frame.f_code:
             return entry[1]
 
     mi = _get_module_info(frame.f_code)
     if mi is not None:
-        call = mi.call_at(frame)
-        call_info = CallInfo(call, mi)
+        info = SiteInfo(mi.node_at(frame), mi)
     else:
-        call_info = None
-    _call_cache[key] = (weakref.ref(frame.f_code), call_info)
-    return call_info
+        info = None
+    _site_cache[key] = (weakref.ref(frame.f_code), info)
+    return info
 
 
 @dataclass(slots=True)
@@ -441,8 +454,9 @@ class _Classifier:
     def classify(
         self, inputs: tuple[Any, ...], raw_kwargs: dict[str, Any]
     ) -> tuple[list[CaptureRef | Any], dict[str, CaptureRef | Any]] | None:
-        call = self.module_info.call_at(self.frame) if self.module_info is not None else None
-        source_args = _split_call_args(call) if call is not None else None
+        info = site_info(self.frame)
+        call = info.node if info is not None else None
+        source_args = _split_call_args(call) if isinstance(call, cst.Call) else None
         pos_nodes, kw_nodes = source_args or ((), {})
 
         try:
@@ -464,26 +478,29 @@ class _Classifier:
 
     @NVTXRange("detect_invariant_args", category="source analysis")
     def detect_invariant_args(
-        self, inputs: tuple[Any, ...], raw_kwargs: dict[str, Any]
-    ) -> tuple[list[bool], dict[str, bool]] | None:
-        call = self.module_info.call_at(self.frame)
+        self,
+        site: cst.CSTNode | None,
+        inputs: Sequence[Any],
+        raw_kwargs: Mapping[str, Any],
+    ) -> tuple[list[bool], set[str]] | None:
+        match site:
+            case cst.Call() as call:
+                split = _split_call_args(call)
+                if split is None:
+                    return None
+                pos_nodes, kw_nodes = split
+            case cst.BinaryOperation(left=l, right=r) | cst.AugAssign(target=l, value=r):
+                pos_nodes, kw_nodes = (l, r), {}
+            case _:
+                return None
 
-        if call is None:
-            return None
-
-        split = _split_call_args(call)
-        if split is None:
-            return None
-        pos_nodes, kw_nodes = split
-
-        classified_inputs: list[CaptureRef | Any] = []
+        classified_inputs: list[bool] = []
         for i in range(min(len(inputs), len(pos_nodes))):
             node = pos_nodes[i]
             classified_inputs.append(self.is_invariant(node, static=True))
-        # Go over defaults - they are invariant, because they have to be None
+        # A missing positional node is a defaulted argument, invariant only if it is None
         for i in range(len(pos_nodes), len(inputs)):
-            assert inputs[i] is None  #
-            classified_inputs.append(True)
+            classified_inputs.append(inputs[i] is None)
         classified_kwargs = {
             name for name in raw_kwargs if self.is_invariant(kw_nodes.get(name), static=True)
         }
@@ -610,15 +627,12 @@ class _Classifier:
         if caller is None:
             return False
 
-        mi = _get_module_info(caller.f_code)  # caller may be in another module
-        if mi is None:
+        info = site_info(caller)  # caller may be in another module
+        if info is None or not isinstance(info.node, cst.Call):
             return False
 
-        call = mi.call_at(caller)
-        if call is None:
-            return False
-
-        child = _Classifier(mi, caller)
+        call = info.node
+        child = _Classifier(info.module_info, caller)
         result = child._is_arg_invariant(call, name_node.value, owner_frame.f_code)
         self._merge_required_depth(child)
         return result
@@ -717,3 +731,32 @@ def classify(
     if classification is None:
         return None
     return (*classification, classifier.required_depth)
+
+
+def _classify_site(
+    frame: types.FrameType | None,
+    key: str,
+    inputs: Sequence[Any],
+    raw_kwargs: Mapping[str, Any],
+) -> tuple[list[bool], set[str]] | None:
+    """Memoized `detect_invariant_args` at `frame`'s site, or None if the site is unresolved."""
+    if frame is None or not (info := site_info(frame)):
+        return None
+    if key not in info.meta:
+        classifier = _Classifier(info.module_info, frame)
+        info.meta[key] = classifier.detect_invariant_args(info.node, inputs, raw_kwargs)
+    return info.meta[key]
+
+
+def constant_inputs(frame: types.FrameType | None, args: Sequence[Any]) -> Sequence[bool]:
+    """Per-argument flag telling whether the operand is provably constant at `frame`'s site."""
+    classified = _classify_site(frame, "constant_inputs", args, {})
+    return classified[0] if classified is not None else (False,) * len(args)
+
+
+def constant_kwargs(
+    frame: types.FrameType | None, raw_kwargs: Mapping[str, Any]
+) -> set[str] | None:
+    """Names of the keyword arguments provably constant at `frame`'s site."""
+    classified = _classify_site(frame, "constant_kwargs", (), raw_kwargs)
+    return classified[1] if classified is not None else None
