@@ -263,6 +263,7 @@ class NVDECCache {
       decoder_inst.max_height = decoder_info.ulMaxHeight;
       decoder_inst.max_width = decoder_info.ulMaxWidth;
       decoder_inst.num_decode_surfaces = num_decode_surfaces;
+      decoder_inst.num_output_surfaces = decoder_info.ulNumOutputSurfaces;
       decoder_inst.codec_type = codec_type;
       decoder_inst.chroma_format = chroma_format;
       decoder_inst.bit_depth_luma_minus8 = bit_depth_luma_minus8;
@@ -407,7 +408,44 @@ void FramesDecoderGpu::InitGpuDecoder(CUVIDEOFORMAT *video_format) {
                                            VIDEO_COLOR_SPACE_CONVERSION_TYPE_YUV_TO_RGB :
                            VIDEO_COLOR_SPACE_CONVERSION_TYPE_YUV_UPSAMPLE;
     nvdecode_state_->decoder = frame_dec_gpu_impl::NVDECCache::GetDecoderFromCache(video_format);
+    // pending_maps_ is indexed by picture_index, whose valid range is bounded by the *actual*
+    // decoder's ulNumDecodeSurfaces -- which may differ from the num_decode_surfaces_ member
+    // (e.g. MJPEG's AdjustedNumDecodeSurfaces override, or GetDecoder's own 0-surfaces fallback).
+    // Read it directly off the lease instead of recomputing it, so this can never drift out of
+    // sync with whatever GetDecoder actually sized the CUvideodecoder with.
+    InitPendingMaps(nvdecode_state_->decoder.NumDecodeSurfaces(),
+                     nvdecode_state_->decoder.NumOutputSurfaces());
   }
+}
+
+void FramesDecoderGpu::InitPendingMaps(unsigned decode_surface_count, unsigned num_output_surfaces) {
+  pending_maps_.assign(decode_surface_count, {});
+  for (auto &pending : pending_maps_) {
+    CUDA_CALL(cudaEventCreateWithFlags(&pending.event, cudaEventDisableTiming));
+  }
+  pending_map_order_.clear();
+  num_output_surfaces_ = std::max(1u, num_output_surfaces);
+}
+
+void FramesDecoderGpu::EnsureUnmapped(int picture_index) {
+  DALI_ENFORCE(picture_index >= 0 && static_cast<size_t>(picture_index) < pending_maps_.size(),
+               make_string("NVDEC picture_index ", picture_index, " is out of range for the ",
+                            pending_maps_.size(), " decode surfaces pending_maps_ was sized for."));
+  auto &pending = pending_maps_[picture_index];
+  if (!pending.mapped) {
+    return;
+  }
+  CUDA_CALL(cudaEventSynchronize(pending.event));
+  CUDA_CALL(cuvidUnmapVideoFrame(nvdecode_state_->decoder, pending.ptr));
+  pending.mapped = false;
+  pending.ptr = 0;
+}
+
+void FramesDecoderGpu::DrainPendingMaps() {
+  for (size_t idx = 0; idx < pending_maps_.size(); ++idx) {
+    EnsureUnmapped(static_cast<int>(idx));
+  }
+  pending_map_order_.clear();
 }
 
 void FramesDecoderGpu::InitGpuParser() {
@@ -491,6 +529,16 @@ int FramesDecoderGpu::ProcessPictureDecode(CUVIDPICPARAMS *picture_params) {
     return 0;
   }
 
+  // Must run before cuvidDecodePicture, not after: this index's previous occupant (if any) may
+  // still be mapped, and decoding into it now would let NVDEC overwrite a surface the conversion
+  // kernel from the previous picture hasn't necessarily finished reading yet. This mirrors
+  // legacy's frame_in_use_ wait in nvdecoder.cc's handle_decode_, which runs at the same point for
+  // the same reason -- the FIFO eviction in HandlePictureDisplay (below) makes this the expected
+  // no-op case (index reuse only after num_decode_surfaces_ other pictures cycle through), but
+  // index reuse on consecutive pictures is legal parser behavior (e.g. intra-only codecs), so this
+  // is a real guard, not just a defensive assertion.
+  EnsureUnmapped(picture_params->CurrPicIdx);
+
   CUDA_CALL(cuvidDecodePicture(nvdecode_state_->decoder, picture_params));
   CUVIDPARSERDISPINFO picture_display_info;
   memset(&picture_display_info, 0, sizeof(picture_display_info));
@@ -550,9 +598,23 @@ int FramesDecoderGpu::HandlePictureDisplay(CUVIDPARSERDISPINFO *picture_display_
   CUdeviceptr frame = {};
   unsigned int pitch = 0;
 
+  int picture_index = picture_display_info->picture_index;
+
+  // Enforce the driver's output-surface budget (num_output_surfaces_, from ulNumOutputSurfaces)
+  // before mapping a new picture: evict (sync + unmap) the oldest still-mapped surface(s) until
+  // we're under the cap. (picture_index itself was already guaranteed unmapped before decode, in
+  // ProcessPictureDecode -- EnsureUnmapped there may have already unmapped an entry still sitting
+  // in pending_map_order_ here; EnsureUnmapped is a no-op on an already-unmapped index, so that
+  // stale entry just makes this loop evict one extra surface, which is harmless.)
+  while (pending_map_order_.size() >= num_output_surfaces_) {
+    int oldest = pending_map_order_.front();
+    pending_map_order_.pop_front();
+    EnsureUnmapped(oldest);
+  }
+
   CUDA_CALL(cuvidMapVideoFrame(
     nvdecode_state_->decoder,
-    picture_display_info->picture_index,
+    picture_index,
     &frame,
     &pitch,
     &videoProcessingParameters));
@@ -571,11 +633,16 @@ int FramesDecoderGpu::HandlePictureDisplay(CUVIDPARSERDISPINFO *picture_display_
       stream_);
   ), DALI_FAIL(make_string("Unsupported type: ", dtype_)));
 
-  // TODO(awolant): Alternative is to copy the data to a buffer
-  // and then process it on the stream. Check, if this is faster, when
-  // the benchmark is ready.
-  CUDA_CALL(cudaStreamSynchronize(stream_));
-  CUDA_CALL(cuvidUnmapVideoFrame(nvdecode_state_->decoder, frame));
+  // Defer the unmap: record an event right after the conversion kernel instead of synchronizing
+  // the whole stream here. This lets cuvidDecodePicture(next) and cuvidMapVideoFrame(next) proceed
+  // while this picture's conversion kernel is still running on the GPU -- the actual unmap (and
+  // the sync it requires) happens lazily, once this surface's slot is needed again (see the
+  // eviction above) or at teardown (DrainPendingMaps).
+  auto &pending = pending_maps_[picture_index];
+  pending.ptr = frame;
+  pending.mapped = true;
+  CUDA_CALL(cudaEventRecord(pending.event, stream_));
+  pending_map_order_.push_back(picture_index);
 
   return 1;
 }
@@ -829,6 +896,13 @@ void FramesDecoderGpu::SendLastPacket(bool flush) {
            << std::endl;
 
   flush_ = flush;
+  if (flush) {
+    // Surfaces left mapped from before a flush (backward seek or reset) must not survive the
+    // boundary: the safety net in ProcessPictureDecode would still catch a reused index lazily,
+    // but draining here -- reached from both Flush() and SeekFrame()'s direct call -- keeps
+    // behavior deterministic instead of relying on that fallback.
+    DrainPendingMaps();
+  }
   CUVIDSOURCEDATAPACKET *packet = &nvdecode_state_->packet;
   memset(packet, 0, sizeof(CUVIDSOURCEDATAPACKET));
   packet->payload = nullptr;
@@ -939,6 +1013,23 @@ void FramesDecoderGpu::Flush() {
 }
 
 FramesDecoderGpu::~FramesDecoderGpu() {
+  // The underlying CUvideodecoder is pooled (NVDECCache) and may be handed to another
+  // FramesDecoderGpu instance once nvdecode_state_'s lease returns it -- any surface left mapped
+  // by this instance must be unmapped first, or the next owner's decode calls would target an
+  // index the driver still considers in use.
+  if (nvdecode_state_ && nvdecode_state_->decoder) {
+    try {
+      DrainPendingMaps();
+    } catch (...) {
+      LOG_LINE << "Error draining pending NVDEC surface maps in ~FramesDecoderGpu" << std::endl;
+    }
+  }
+  for (auto &pending : pending_maps_) {
+    if (pending.event) {
+      cudaEventDestroy(pending.event);
+      pending.event = nullptr;
+    }
+  }
   filtered_packet_.reset();
   bsfc_.reset();
 }
