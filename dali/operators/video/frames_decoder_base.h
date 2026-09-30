@@ -363,11 +363,14 @@ class DLL_PUBLIC FramesDecoderBase {
    * @brief Returns the index of the frame that has the given timestamp
    *
    * @param timestamp Timestamp of the frame to seek to
-   * @param inclusive If true, the seek will be to a frame that has this timestamp or a previous one
+   * @param rounddown If true, the seek will be to a frame that has this timestamp or a previous one
+   * @return A value in [0, index size]. The index size is a sentinel meaning "one past the last
+   *         frame": it is returned for timestamps at or after the end of the stream, and for
+   *         timestamps after the last frame's pts when rounding up. It is not a valid frame index.
    */
-  int GetFrameIdxByTimestamp(int64_t timestamp, bool inclusive = false) const {
+  int GetFrameIdxByTimestamp(int64_t timestamp, bool rounddown = false) const {
     DALI_ENFORCE(HasIndex(), "No index available, cannot seek by timestamp");
-    return index_.GetFrameIdxByTimestamp(timestamp, inclusive);
+    return index_.GetFrameIdxByTimestamp(timestamp, rounddown);
   }
 
   /**
