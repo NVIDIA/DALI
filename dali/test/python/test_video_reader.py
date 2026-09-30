@@ -1067,6 +1067,24 @@ def test_legacy_arg_conflicts_with_new_arg(conflicting_kwargs):
         pipe().build()
 
 
+def test_legacy_arg_conflicts_with_new_arg_without_file_list():
+    # The legacy-vs-new arg conflict check must fire regardless of which file source argument
+    # is used, not just when `file_list` is given (it is implemented inside GetFileListOptions,
+    # which used to only be called when `file_list` was non-empty).
+    @pipeline_def(batch_size=1, num_threads=2, device_id=0)
+    def pipe():
+        return fn.experimental.readers.video(
+            device="cpu",
+            filenames=[VIDEO_0],
+            sequence_length=3,
+            file_list_frame_num=True,
+            file_list_format="frames",
+        )
+
+    with assert_raises(RuntimeError, glob="*file_list_frame_num*cannot be combined*"):
+        pipe().build()
+
+
 @params(True, False)
 def test_legacy_skip_vfr_check_is_accepted_and_ignored(skip_vfr_check):
     # skip_vfr_check is a pure no-op: in particular skip_vfr_check=False must NOT turn on
