@@ -343,9 +343,11 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
             const auto &index = decoder->GetIndex();
             auto timebase = decoder->GetTimebase();
             int64_t start_ts = (entry.start < 0 ? index.EndPts() : index.StartPts()) +
-                               SecondsToTimestamp(timebase, entry.start);
+                               SecondsToTimestamp(timebase, entry.start,
+                                                   file_list_opts_.should_round_down_start());
             int64_t end_ts = (entry.end <= 0 ? index.EndPts() : index.StartPts()) +
-                             SecondsToTimestamp(timebase, entry.end);
+                             SecondsToTimestamp(timebase, entry.end,
+                                                 file_list_opts_.should_round_down_end());
             DALI_ENFORCE(start_ts <= index.EndPts(),
                          make_string("file_list entry for \"", entry.filename, "\": start time ",
                                      entry.start, " s is past the end of the video (",

@@ -52,14 +52,21 @@ inline double TimestampToSeconds(AVRational timebase, int64_t timestamp) {
   return static_cast<double>(timestamp) * timebase.num / timebase.den;
 }
 
-inline int64_t SecondsToTimestamp(AVRational timebase, double seconds) {
-  // Round to the nearest pts tick instead of truncating: truncation systematically biases the
-  // result down, which can make it fall exactly on (or before) the pts of the frame just below
-  // the requested time even when `seconds` is unambiguously past that frame. That in turn makes
-  // FrameIndex::GetFrameIdxByTimestamp's exact-match branch return that frame's own index as an
-  // (exclusive) end boundary, silently excluding an otherwise-included frame -- see the
-  // `file_list` timestamp-mode boundary bug this fixes.
-  return std::llround(seconds * timebase.den / timebase.num);
+inline int64_t SecondsToTimestamp(AVRational timebase, double seconds, bool round_down) {
+  // Direction-aware quantization, matching legacy readers.video and
+  // FrameIndex::GetFrameIdxByTimestamp's own `rounddown` convention: round down (floor) when the
+  // caller is about to do a round-down lookup, round up (ceil) when it's about to do a round-up
+  // lookup. Never round to nearest: a plain nearest-tick rounding (e.g. std::llround) can still
+  // land exactly on the pts of the frame just below the requested time (e.g. seconds * fps ==
+  // 11264.41 rounds to 11264, which is frame 22's own pts), which makes
+  // GetFrameIdxByTimestamp's exact-match branch treat it as frame 22's own position and exclude
+  // it -- even though the requested time is unambiguously past that frame's boundary. Since pts
+  // values are integers for constant-frame-rate video, ceil/floor of the exact (possibly
+  // fractional, due to floating point) tick position matches legacy's ceil(t*fps)/floor(t*fps)
+  // exactly, closing the bug rather than just shrinking it.
+  double ticks = seconds * timebase.den / timebase.num;
+  return round_down ? static_cast<int64_t>(std::floor(ticks))
+                     : static_cast<int64_t>(std::ceil(ticks));
 }
 
 std::vector<VideoFileMeta> GetVideoFiles(const std::string& file_root,
