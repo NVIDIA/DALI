@@ -1059,3 +1059,22 @@ def test_legacy_skip_vfr_check_is_accepted_and_ignored(skip_vfr_check):
         p = pipe()
         p.build()
     p.run()  # must not raise
+
+
+@cartesian_params(devices)
+def test_stride_sequence_fits_when_last_frame_exists(device):
+    # sequence_length=3, stride=4 uses frames s, s+4, s+8: a 9-frame span. Legacy only requires
+    # the last frame to exist, so a 9-frame range holds exactly one sequence. The second, longer
+    # entry keeps the dataset non-empty on the unfixed reader.
+    list_file = _write_file_list([f"{VIDEO_0} 0 0 9", f"{VIDEO_0} 1 0 30"])
+    kwargs = dict(file_list=list_file, sequence_length=3, stride=4)
+    experimental = _collect_samples(
+        functools.partial(fn.experimental.readers.video, device=device, file_list_format="frames"),
+        **kwargs,
+    )
+    legacy = _collect_samples(
+        functools.partial(fn.readers.video, device="gpu", file_list_frame_num=True), **kwargs
+    )
+    expected = (3, [(0, 0, 3), (1, 0, 3), (1, 12, 3)])
+    assert legacy == expected, f"legacy: {legacy}"
+    assert experimental == expected, f"experimental: {experimental}, legacy: {legacy}"

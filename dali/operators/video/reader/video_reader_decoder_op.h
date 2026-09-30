@@ -365,9 +365,14 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
                  << " with " << sequence_len_ << " frames" << std::endl;
         samples_.emplace_back(std::move(s));
       } else {
-        int start = entry.start_frame;
+        // A sequence fits when its *last* frame exists, i.e. it spans
+        // (sequence_len_ - 1) * stride_ + 1 frames (same criterion as legacy readers.video).
+        // The sample's end_ stays start + stride_ * sequence_len_, so the frame count derived
+        // downstream, (end_ - start_ + stride_ - 1) / stride_, is exactly sequence_len_.
+        int seq_span = (sequence_len_ - 1) * stride_ + 1;
         int full_seq_stride = stride_ * sequence_len_;
-        for (; start + full_seq_stride <= entry.end_frame; start += step_) {
+        int start = entry.start_frame;
+        for (; start + seq_span <= entry.end_frame; start += step_) {
           LOG_LINE << "Adding sample with start=" << start << ", end=" << start + full_seq_stride
                    << ", stride=" << stride_ << std::endl;
           samples_.emplace_back(&entry, start, start + full_seq_stride, stride_);
