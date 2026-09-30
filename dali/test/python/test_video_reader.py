@@ -19,6 +19,8 @@ import numpy as np
 import os
 import cv2
 import functools
+import subprocess
+import sys
 import tempfile
 from test_utils import get_dali_extra_path
 from nose2.tools import cartesian_params, params
@@ -1402,3 +1404,72 @@ def test_two_non_empty_sources_raise(device):
         p = pipe()
         p.build()
         p.run()  # Error occurs during Acquire, triggered by first run()
+
+
+# Builds a CPU-only experimental.readers.video pipeline in a child process whose address space
+# is capped, so that an infinite sample-generation loop cannot exhaust the machine's memory.
+_BOUNDED_BUILD_CHILD = r"""
+import resource
+import sys
+
+limit = 6 * 1024**3
+resource.setrlimit(resource.RLIMIT_AS, (limit, limit))
+
+from nvidia.dali import fn, pipeline_def
+
+
+@pipeline_def(batch_size=1, num_threads=1, device_id=None)
+def pipe():
+    return fn.experimental.readers.video(
+        device="cpu",
+        filenames=[sys.argv[1]],
+        sequence_length=int(sys.argv[2]),
+        stride=int(sys.argv[3]),
+    )
+
+
+try:
+    pipe().build()
+except Exception as e:
+    print("RAISED:", e)
+    sys.exit(0)
+print("BUILT")
+"""
+
+
+def _build_reader_in_bounded_subprocess(sequence_length, stride, timeout=120):
+    try:
+        return subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                _BOUNDED_BUILD_CHILD,
+                VIDEO_0,
+                str(sequence_length),
+                str(stride),
+            ],
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+        )
+    except subprocess.TimeoutExpired:
+        raise AssertionError(
+            f"build() with sequence_length={sequence_length}, stride={stride} did not return "
+            f"within {timeout} s (sample-generation loop not advancing?)"
+        )
+
+
+def test_stride_zero_raises_instead_of_hanging():
+    res = _build_reader_in_bounded_subprocess(sequence_length=3, stride=0)
+    assert "RAISED:" in res.stdout and "stride" in res.stdout, (
+        f"Expected a prompt error mentioning `stride`; returncode={res.returncode}, "
+        f"stdout={res.stdout!r}, stderr tail={res.stderr[-2000:]!r}"
+    )
+
+
+def test_sequence_length_zero_raises_instead_of_hanging():
+    res = _build_reader_in_bounded_subprocess(sequence_length=0, stride=1)
+    assert "RAISED:" in res.stdout and "sequence_length" in res.stdout, (
+        f"Expected a prompt error mentioning `sequence_length`; returncode={res.returncode}, "
+        f"stdout={res.stdout!r}, stderr tail={res.stderr[-2000:]!r}"
+    )

@@ -249,12 +249,18 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
       file_list_opts_ = detail::GetFileListOptions(spec);
     }
 
+    // Both feed the default step (stride_ * sequence_len_); zero would make the sample loop in
+    // PrepareMetadataImpl never advance.
+    DALI_ENFORCE(sequence_len_ >= 1,
+                 make_string("sequence_length must be at least 1, got ", sequence_len_, "."));
+    if (!uniform_sample_) {
+      DALI_ENFORCE(stride_ > 0,
+                   make_string("stride must be greater than 0, got ", stride_, "."));
+    }
     if (step_ <= 0) {
       step_ = stride_ * sequence_len_;
     }
     if (uniform_sample_) {
-      DALI_ENFORCE(sequence_len_ >= 1,
-                   "sequence_length must be at least 1 when uniform_sample=True.");
       if (spec.HasArgument("stride")) {
         DALI_WARN("uniform_sample=True: the `stride` argument is ignored.");
       }
