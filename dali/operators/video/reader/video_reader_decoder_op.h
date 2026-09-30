@@ -17,11 +17,13 @@
 
 #include <algorithm>
 #include <functional>
+#include <list>
 #include <memory>
 #include <random>
 #include <string>
 #include <shared_mutex>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 #include "dali/core/boundary.h"
@@ -657,26 +659,55 @@ class VideoReaderDecoder
     return true;
   }
 
+  // A small LRU cache of open decoders, keyed by filename. Without this, switching between
+  // interleaved files -- the common case once random_shuffle=True mixes samples from more
+  // files than fit in a single batch -- tears down and rebuilds a FramesDecoderImpl (container
+  // reopen/parse, NVDEC parser creation, decode-surface allocation, ...) on nearly every sample,
+  // even though the same file will very likely come up again within the next few samples.
+  // Capacity is a plain constant rather than a user-facing argument: it only needs to be large
+  // enough to cover the interleaving depth random_shuffle's buffer produces, not tuned per use
+  // case, and a fixed cap keeps a bound on how many decoders (and their decode-surface memory)
+  // can be open at once.
+  static constexpr size_t kDecoderCacheCapacity = 8;
+
+  FramesDecoderImpl *GetOrOpenDecoder(const std::string &filename, bool &is_new_decoder) {
+    for (auto it = decoder_cache_.begin(); it != decoder_cache_.end(); ++it) {
+      if (it->first == filename) {
+        if (it != decoder_cache_.begin())
+          decoder_cache_.splice(decoder_cache_.begin(), decoder_cache_, it);
+        is_new_decoder = false;
+        return decoder_cache_.front().second.get();
+      }
+    }
+    std::unique_ptr<FramesDecoderImpl> decoder;
+    if constexpr (std::is_same_v<Backend, CPUBackend>) {
+      decoder = std::make_unique<FramesDecoderImpl>(filename, image_type_);
+    } else {
+      decoder = std::make_unique<FramesDecoderImpl>(filename, cuda_stream_, image_type_,
+                                                      8 + additional_decode_surfaces_);
+      decoder->SetOutputType(dtype_);
+      decoder->SetNormalizedRange(normalized_);
+    }
+    decoder_cache_.emplace_front(filename, std::move(decoder));
+    if (decoder_cache_.size() > kDecoderCacheCapacity)
+      decoder_cache_.pop_back();
+    is_new_decoder = true;
+    return decoder_cache_.front().second.get();
+  }
+
   void Prefetch() override {
     Base::Prefetch();
     auto &current_batch = prefetched_batch_queue_[curr_batch_producer_];
     size_t i = 0;
     for (auto &sample : current_batch) {
       LOG_LINE << "Processing sample " << i++ << " with filename " << sample->video_file_meta_->filename
-               << " and previous decoder " << decoder_.get() << " filename "
+               << " and previous decoder " << decoder_ << " filename "
                << (decoder_ ? decoder_->Filename() : "none") << std::endl;
-      auto prev_filename = decoder_ ? decoder_->Filename() : "";
       const auto &filename = sample->video_file_meta_->filename;
-      if (prev_filename != filename) {
-        if constexpr (std::is_same_v<Backend, CPUBackend>) {
-          decoder_ = std::make_unique<FramesDecoderImpl>(filename, image_type_);
-        } else {
-          decoder_ = std::make_unique<FramesDecoderImpl>(filename, cuda_stream_, image_type_,
-                                                          8 + additional_decode_surfaces_);
-          decoder_->SetOutputType(dtype_);
-          decoder_->SetNormalizedRange(normalized_);
-        }
-        LOG_LINE << "Initialized decoder to " << decoder_->Filename() << " ptr: " << decoder_.get()
+      bool is_new_decoder = false;
+      decoder_ = GetOrOpenDecoder(filename, is_new_decoder);
+      if (is_new_decoder) {
+        LOG_LINE << "Initialized decoder to " << decoder_->Filename() << " ptr: " << decoder_
                  << " num_frames: " << decoder_->NumFrames() << std::endl;
         auto it = FrameIndexCache::instance().find(filename);
         if (it == FrameIndexCache::instance().end()) {
@@ -699,7 +730,7 @@ class VideoReaderDecoder
                                    "require_constant_frame_rate=True was specified."));
         }
       } else {
-        LOG_LINE << "Reusing decoder for " << decoder_->Filename() << " ptr: " << decoder_.get()
+        LOG_LINE << "Reusing decoder for " << decoder_->Filename() << " ptr: " << decoder_
                  << " num_frames: " << decoder_->NumFrames() << std::endl;
       }
       DALI_ENFORCE(decoder_->IsValid(),
@@ -807,7 +838,10 @@ class VideoReaderDecoder
 
   Tensor<Backend> constant_frame_;
   CUDAStreamLease cuda_stream_;
-  std::unique_ptr<FramesDecoderImpl> decoder_;  // keeping one decoder open.
+  // decoder_cache_ owns the open decoders (MRU at the front); decoder_ is a non-owning pointer
+  // to whichever cache entry the sample currently being processed uses.
+  std::list<std::pair<std::string, std::unique_ptr<FramesDecoderImpl>>> decoder_cache_;
+  FramesDecoderImpl *decoder_ = nullptr;
   std::vector<int> frame_idxs_;
 };
 
