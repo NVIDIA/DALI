@@ -21,6 +21,7 @@ extern "C" {
 #include <libavcodec/bsf.h>
 }
 
+#include <deque>
 #include <string>
 #include <memory>
 #include <queue>
@@ -60,6 +61,10 @@ struct DecInstance {
   unsigned height = 0;
   unsigned width = 0;
   unsigned num_decode_surfaces = 0;
+  // How many decoded pictures the driver allows to be simultaneously mapped (unmapped) via
+  // cuvidMapVideoFrame before a cuvidUnmapVideoFrame is required to free a slot. Needed by
+  // FramesDecoderGpu's deferred-unmap pipelining to know its budget.
+  unsigned num_output_surfaces = 0;
   unsigned max_height = 0;
   unsigned max_width = 0;
   unsigned int bit_depth_luma_minus8 = 0;
@@ -98,6 +103,14 @@ class NVDECLease {
     }
 
     operator CUvideodecoder() && = delete;
+
+    unsigned NumOutputSurfaces() const noexcept {
+      return decoder->num_output_surfaces;
+    }
+
+    unsigned NumDecodeSurfaces() const noexcept {
+      return decoder->num_decode_surfaces;
+    }
 
     explicit operator bool() const noexcept {
       return decoder != nullptr;
@@ -218,6 +231,34 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
   cudaStream_t stream_ = 0;
 
   VideoColorSpaceConversionType conversion_type_ = VIDEO_COLOR_SPACE_CONVERSION_TYPE_YUV_TO_RGB;
+
+  // Deferred-unmap pipelining. NVIDIA's own nvcuvid.h documents the intended usage pattern as
+  // `cuvidDecodePicture(N); cuvidMapVideoFrame(N-k); ...; cuvidUnmapVideoFrame(N-k);
+  // cuvidDecodePicture(N+1); ...` -- decode and map/consume are meant to run several pictures
+  // apart so NVDEC hardware decode of picture N+1 can overlap the color-conversion kernel of
+  // picture N, instead of the host synchronizing the whole stream after every single frame.
+  // `num_output_surfaces_` (from the driver's ulNumOutputSurfaces, see DecInstance) is a hard
+  // cap on how many pictures may be mapped (i.e. not yet cuvidUnmapVideoFrame'd) at once; this
+  // is enforced via FIFO eviction in HandlePictureDisplay before every new map.
+  struct PendingMap {
+    CUdeviceptr ptr = 0;
+    cudaEvent_t event = nullptr;  // created once per index in InitPendingMaps, reused thereafter
+    bool mapped = false;
+  };
+  std::vector<PendingMap> pending_maps_;  // indexed by picture_index
+  std::deque<int> pending_map_order_;     // FIFO of currently-mapped picture_index values
+  unsigned num_output_surfaces_ = 1;
+
+  void InitPendingMaps(unsigned decode_surface_count, unsigned num_output_surfaces);
+
+  // Synchronizes and unmaps the surface at picture_index if it is currently mapped; no-op
+  // otherwise. Safe to call redundantly.
+  void EnsureUnmapped(int picture_index);
+
+  // Unmaps every still-pending surface. Must run before the underlying CUvideodecoder is
+  // returned to NVDECCache (it is pooled and reused by other FramesDecoderGpu instances, which
+  // would otherwise inherit surfaces this instance left mapped).
+  void DrainPendingMaps();
 
   void SendLastPacket(bool flush = false);
 
