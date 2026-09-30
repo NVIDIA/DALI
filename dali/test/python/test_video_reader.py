@@ -1737,11 +1737,6 @@ def test_filename_with_colon_can_be_opened(reader, path_kind):
     """Detection test: experimental.readers.video opens files with
     avformat_open_input(filename), which may parse `clip:01.mp4` as a URL with protocol `clip`.
     Correct behavior: the file opens and all 50 frames are indexed, like any other file."""
-    if reader != "legacy" and path_kind == "relative":
-        raise SkipTest(
-            "Known bug: filenames containing ':' fail to open via relative path on the "
-            "experimental reader -- tracked for follow-up"
-        )
     with tempfile.TemporaryDirectory() as tmp_dir:
         abs_name = os.path.join(tmp_dir, "clip:01.mp4")
         shutil.copy(CFR_VP9_60FPS_FILE, abs_name)
