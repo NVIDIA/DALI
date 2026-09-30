@@ -189,6 +189,27 @@ inline std::string make_string(FileListOptions options) {
          (options.include_end ? "include_end" : "exclude_end");
 }
 
+namespace detail {
+
+/**
+ * @brief Effective padding mode of experimental.readers.video.
+ *
+ * Honors the deprecated legacy argument `pad_sequences` (True -> CONSTANT, False -> ISOLATED);
+ * otherwise defers to `pad_mode`. Fails if both are given.
+ */
+boundary::BoundaryType GetReaderBoundaryType(const OpSpec &spec);
+
+/**
+ * @brief Effective `file_list` interpretation options of experimental.readers.video.
+ *
+ * Honors the deprecated legacy arguments `file_list_frame_num` (-> `file_list_format`) and
+ * `file_list_include_preceding_frame` (-> `file_list_rounding`, timestamps only). Fails if a
+ * deprecated argument is given together with its replacement.
+ */
+FileListOptions GetFileListOptions(const OpSpec &spec);
+
+}  // namespace detail
+
 template <typename Backend, typename FramesDecoderImpl, typename Sample = VideoSample<Backend>>
 class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
  public:
@@ -201,7 +222,7 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
         stride_(spec.GetArgument<int>("stride")),
         step_(spec.GetArgument<int>("step")),
         image_type_(spec.GetArgument<DALIImageType>("image_type")),
-        boundary_type_(GetBoundaryType(spec)),
+        boundary_type_(detail::GetReaderBoundaryType(spec)),
         uniform_sample_(spec.GetArgument<bool>("uniform_sample")) {
     if ((spec.HasArgument("file_list") + spec.HasArgument("file_root") + spec.HasArgument("filenames")) != 1) {
       DALI_FAIL("Only one of the following arguments can be provided: ``file_list``, ``file_root``, ``filenames``");
@@ -219,29 +240,7 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
     DALI_ENFORCE(!video_files_info_.empty(), "No files were read.");
 
     if (!file_list_.empty()) {
-      auto format_str = spec.GetArgument<std::string>("file_list_format");
-      if (format_str == "frames") {
-        file_list_opts_.format = FileListFormat::kFrames;
-      } else if (format_str == "timestamps") {
-        file_list_opts_.format = FileListFormat::kTimestamps;
-      } else {
-        DALI_FAIL(make_string("Invalid file_list_format: ", format_str));
-      }
-
-      auto rounding_str = spec.GetArgument<std::string>("file_list_rounding");
-      if (rounding_str == "start_down_end_up") {
-        file_list_opts_.rounding = FileListRounding::kStartDownEndUp;
-      } else if (rounding_str == "start_up_end_down") {
-        file_list_opts_.rounding = FileListRounding::kStartUpEndDown;
-      } else if (rounding_str == "all_up") {
-        file_list_opts_.rounding = FileListRounding::kAllUp;
-      } else if (rounding_str == "all_down") {
-        file_list_opts_.rounding = FileListRounding::kAllDown;
-      } else {
-        DALI_FAIL(make_string("Invalid file_list_rounding: ", rounding_str));
-      }
-
-      file_list_opts_.include_end = spec.GetArgument<bool>("file_list_include_end");
+      file_list_opts_ = detail::GetFileListOptions(spec);
     }
 
     if (step_ <= 0) {
@@ -256,7 +255,7 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
       if (spec.HasArgument("step")) {
         DALI_WARN("uniform_sample=True: the `step` argument is ignored.");
       }
-      if (spec.HasArgument("pad_mode")) {
+      if (spec.HasArgument("pad_mode") || spec.HasArgument("pad_sequences")) {
         DALI_WARN("uniform_sample=True: the `pad_mode` argument is ignored. "
                   "Frames are repeated when sequence_length exceeds the number of available frames.");
       }
@@ -459,7 +458,7 @@ class VideoReaderDecoder
       : Base(spec),
         frame_num_policy_(ParseFrameNumPolicy(spec.GetArgument<std::string>("enable_frame_num"))),
         has_timestamps_(spec.GetArgument<bool>("enable_timestamps")),
-        boundary_type_(GetBoundaryType(spec)),
+        boundary_type_(detail::GetReaderBoundaryType(spec)),
         image_type_(spec.GetArgument<DALIImageType>("image_type")),
         dtype_(spec.GetArgument<DALIDataType>("dtype")),
         normalized_(spec.GetArgument<bool>("normalized")),

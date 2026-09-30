@@ -30,6 +30,68 @@ int VideoReaderDecoderOutputFn(const OpSpec &spec) {
   return 1 + has_labels + has_frame_num + spec.GetArgument<bool>("enable_timestamps");
 }
 
+boundary::BoundaryType GetReaderBoundaryType(const OpSpec &spec) {
+  if (spec.HasArgument("pad_sequences")) {
+    DALI_ENFORCE(!spec.HasArgument("pad_mode"),
+                 "The deprecated argument `pad_sequences` cannot be combined with `pad_mode`. "
+                 "Use `pad_mode` only (`pad_sequences=True` is `pad_mode='constant'`).");
+    return spec.GetArgument<bool>("pad_sequences") ? boundary::BoundaryType::CONSTANT
+                                                   : boundary::BoundaryType::ISOLATED;
+  }
+  return GetBoundaryType(spec);
+}
+
+FileListOptions GetFileListOptions(const OpSpec &spec) {
+  const bool has_frame_num = spec.HasArgument("file_list_frame_num");
+  const bool has_preceding = spec.HasArgument("file_list_include_preceding_frame");
+  DALI_ENFORCE(!(has_frame_num && spec.HasArgument("file_list_format")),
+               "The deprecated argument `file_list_frame_num` cannot be combined with "
+               "`file_list_format`. Use `file_list_format` only (`file_list_frame_num=True` is "
+               "`file_list_format='frames'`).");
+  DALI_ENFORCE(!(has_preceding && spec.HasArgument("file_list_rounding")),
+               "The deprecated argument `file_list_include_preceding_frame` cannot be combined "
+               "with `file_list_rounding`. Use `file_list_rounding` only "
+               "(`file_list_include_preceding_frame=True` is "
+               "`file_list_rounding='start_down_end_up'`).");
+
+  FileListOptions opts;
+  std::string format_str;
+  if (has_frame_num) {
+    format_str = spec.GetArgument<bool>("file_list_frame_num") ? "frames" : "timestamps";
+  } else {
+    format_str = spec.GetArgument<std::string>("file_list_format");
+  }
+  if (format_str == "frames") {
+    opts.format = FileListFormat::kFrames;
+  } else if (format_str == "timestamps") {
+    opts.format = FileListFormat::kTimestamps;
+  } else {
+    DALI_FAIL(make_string("Invalid file_list_format: ", format_str));
+  }
+
+  // Not explicitly given when has_preceding is set (enforced above), so this is the default.
+  auto rounding_str = spec.GetArgument<std::string>("file_list_rounding");
+  // Legacy: "When file_list_frame_num is set to True, this option does not take any effect."
+  if (has_preceding && spec.GetArgument<bool>("file_list_include_preceding_frame") &&
+      opts.format == FileListFormat::kTimestamps) {
+    rounding_str = "start_down_end_up";
+  }
+  if (rounding_str == "start_down_end_up") {
+    opts.rounding = FileListRounding::kStartDownEndUp;
+  } else if (rounding_str == "start_up_end_down") {
+    opts.rounding = FileListRounding::kStartUpEndDown;
+  } else if (rounding_str == "all_up") {
+    opts.rounding = FileListRounding::kAllUp;
+  } else if (rounding_str == "all_down") {
+    opts.rounding = FileListRounding::kAllDown;
+  } else {
+    DALI_FAIL(make_string("Invalid file_list_rounding: ", rounding_str));
+  }
+
+  opts.include_end = spec.GetArgument<bool>("file_list_include_end");
+  return opts;
+}
+
 }  // namespace detail
 
 DALI_SCHEMA(experimental__readers__Video)
@@ -204,6 +266,47 @@ Must be non-negative. Only relevant for the GPU backend; ignored on CPU.)code",
 frame rate. Default: ``False`` (variable frame rate videos are decoded using decode-order frame
 indexing).)code",
                     false)
+    .AddOptionalArg("pad_sequences",
+                    R"code(Legacy ``readers.video`` argument, kept for compatibility.
+
+``True`` is equivalent to ``pad_mode='constant'`` (with the default ``fill_value=0`` the
+missing frames are zeroed, as in ``readers.video``); ``False`` keeps `pad_mode` at its
+default. Cannot be combined with `pad_mode`.)code",
+                    false)
+    .DeprecateArg("pad_sequences", "2.4", false,
+                  "`pad_sequences` is deprecated; use `pad_mode='constant'` instead.")
+    .AddOptionalArg("file_list_frame_num",
+                    R"code(Legacy ``readers.video`` argument, kept for compatibility.
+
+``True`` is equivalent to ``file_list_format='frames'`` and ``False`` to
+``file_list_format='timestamps'``. Cannot be combined with `file_list_format`.)code",
+                    false)
+    .DeprecateArg("file_list_frame_num", "2.4", false,
+                  "`file_list_frame_num` is deprecated; use `file_list_format` instead.")
+    .AddOptionalArg("file_list_include_preceding_frame",
+                    R"code(Legacy ``readers.video`` argument, kept for compatibility.
+
+When `file_list` entries are timestamps, ``True`` is equivalent to
+``file_list_rounding='start_down_end_up'``. Has no effect with frame-number entries (as in
+``readers.video``). Cannot be combined with `file_list_rounding`.)code",
+                    false)
+    .DeprecateArg("file_list_include_preceding_frame", "2.4", false,
+                  "`file_list_include_preceding_frame` is deprecated; use `file_list_rounding` "
+                  "instead.")
+    .AddOptionalArg("skip_vfr_check",
+                    R"code(Legacy ``readers.video`` argument, accepted for compatibility and
+ignored.
+
+This is intentionally NOT mapped onto `require_constant_frame_rate`: ``readers.video``
+rejects variable frame rate (VFR) videos by default (``skip_vfr_check=False``) using a
+heuristic, while this operator decodes VFR videos by default. Mapping the flag would change
+behavior even for callers that never set it. To reject VFR videos, use
+``require_constant_frame_rate=True``.)code",
+                    false)
+    .DeprecateArg("skip_vfr_check", "2.4", true,
+                  "`skip_vfr_check` is ignored by experimental.readers.video, which decodes "
+                  "variable frame rate videos by default. Use `require_constant_frame_rate=True` "
+                  "to reject them.")
     .AddParent("LoaderBase")
     .OutputNDim(0, 4)
     .OutputLayout(0, "FHWC")

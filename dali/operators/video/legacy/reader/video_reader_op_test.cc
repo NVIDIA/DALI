@@ -625,7 +625,6 @@ TEST_F(VIDEO_READER_TEST_CLASS, FrameLabelsWithFileListFrameNum) {
                        .AddArg("enable_frame_num", "scalar")
                        .AddArg("enable_timestamps", true)
                        .AddArg("file_list_frame_num", true)
-                       .AddArg("file_list_format", "frames")  // equivalent to file_list_frame_num in the old decoder
                        .AddArg("image_type", DALI_YCbCr)
                        .AddArg("file_list", file_list_path)
                        .AddOutput("frames", StorageDevice::GPU)
