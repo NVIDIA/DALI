@@ -605,7 +605,7 @@ TEST(FramesDecoderFrameIndexTest, PastTheLastFrameReturnsSizeSentinel) {
   EXPECT_EQ(index.GetFrameIdxByTimestamp(100000, false), 3);
 }
 
-TEST(VideoUtilsSecondsToTimestampTest, RoundsToNearestTickInsteadOfTruncating) {
+TEST(VideoUtilsSecondsToTimestampTest, RoundUpAvoidsExactMatchOnFrameBoundary) {
   // Reproduces the exact case found by the video reader parity harness: a 24 fps stream with
   // timebase 1/12288 (512 ticks/frame), where file_list entry
   // "sintel_trailer_vp9_0.mp4 4 0.03536328934625863 0.9167271357878531" has its `end` timestamp
@@ -614,17 +614,40 @@ TEST(VideoUtilsSecondsToTimestampTest, RoundsToNearestTickInsteadOfTruncating) {
   // Truncating (the old `static_cast<int64_t>` behavior) yields 11264 -- exactly frame 22's own
   // pts -- which makes GetFrameIdxByTimestamp's exact-match branch return frame 22 itself as the
   // (exclusive) end_frame, silently excluding frame 22 from the range. Legacy readers.video
-  // includes frame 22. Rounding to the nearest tick yields 11265, which is correctly recognized
-  // as being past frame 22's pts.
+  // includes frame 22. Rounding up (matching legacy's ceil(t*fps) for round-up lookups) yields
+  // 11265, which is correctly recognized as being past frame 22's pts.
   AVRational timebase{1, 12288};
-  EXPECT_EQ(SecondsToTimestamp(timebase, 0.9167271357878531), 11265);
+  EXPECT_EQ(SecondsToTimestamp(timebase, 0.9167271357878531, /*round_down=*/false), 11265);
+
+  // The reviewer's example: a value whose *nearest-tick* rounding (std::llround, the previous
+  // fix) still lands exactly on frame 22's pts (11264), because 11264.4096 rounds down to 11264
+  // -- reproducing the same exact-match bug that motivated this fix in the first place, just for
+  // a narrower range of inputs. 0.91670 s * 12288 ticks/s == 11264.4096.
+  //   - std::llround(11264.4096) == 11264  (bug: exact match with frame 22's own pts)
+  //   - ceil(11264.4096) == 11265          (correct: unambiguously past frame 22)
+  EXPECT_EQ(SecondsToTimestamp(timebase, 0.91670, /*round_down=*/false), 11265);
+  EXPECT_NE(std::llround(0.91670 * timebase.den / timebase.num), 11265);
 }
 
-TEST(VideoUtilsSecondsToTimestampTest, RoundsHalfAwayFromZero) {
+TEST(VideoUtilsSecondsToTimestampTest, RoundDownMatchesLegacyFloor) {
+  AVRational timebase{1, 12288};
+  // Mirrors legacy's floor(t*fps) for round-down lookups (`should_round_down_start`/`_end`).
+  EXPECT_EQ(SecondsToTimestamp(timebase, 0.9167271357878531, /*round_down=*/true), 11264);
+  EXPECT_EQ(SecondsToTimestamp(timebase, 0.91670, /*round_down=*/true), 11264);
+}
+
+TEST(VideoUtilsSecondsToTimestampTest, RoundsUpOrDownAtTickBoundary) {
   AVRational timebase{1, 1000};
-  EXPECT_EQ(SecondsToTimestamp(timebase, 0.0015), 2);   // 1.5 ticks -> 2
-  EXPECT_EQ(SecondsToTimestamp(timebase, 0.0014), 1);   // 1.4 ticks -> 1
-  EXPECT_EQ(SecondsToTimestamp(timebase, 0.0), 0);
+  // Exact tick boundaries round the same way regardless of direction.
+  EXPECT_EQ(SecondsToTimestamp(timebase, 0.002, /*round_down=*/false), 2);
+  EXPECT_EQ(SecondsToTimestamp(timebase, 0.002, /*round_down=*/true), 2);
+  EXPECT_EQ(SecondsToTimestamp(timebase, 0.0, /*round_down=*/false), 0);
+  EXPECT_EQ(SecondsToTimestamp(timebase, 0.0, /*round_down=*/true), 0);
+  // Fractional ticks: round up goes to the next tick, round down stays at the current one.
+  EXPECT_EQ(SecondsToTimestamp(timebase, 0.0015, /*round_down=*/false), 2);  // 1.5 ticks -> 2
+  EXPECT_EQ(SecondsToTimestamp(timebase, 0.0015, /*round_down=*/true), 1);   // 1.5 ticks -> 1
+  EXPECT_EQ(SecondsToTimestamp(timebase, 0.0014, /*round_down=*/false), 2);  // 1.4 ticks -> 2
+  EXPECT_EQ(SecondsToTimestamp(timebase, 0.0014, /*round_down=*/true), 1);   // 1.4 ticks -> 1
 }
 
 TEST(FramesDecoderConstantFrameTest, FloatNormalizedScalesFillValue) {
