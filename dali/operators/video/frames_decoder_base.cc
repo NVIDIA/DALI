@@ -156,21 +156,6 @@ std::string FramesDecoderBase::GetAllStreamInfo() const {
 }
 
 bool FramesDecoderBase::SelectVideoStream(int stream_id) {
-  // MPEG-PS only stamps a timestamp on some packets (typically the first packet of each PES
-  // unit), which this reader's frame-index/seek machinery can't support reliably (it needs an
-  // exact, collision-free identity for every frame). Reject it explicitly, here, before any
-  // index-building work starts, instead of failing deep inside BuildIndex with a message that
-  // doesn't explain why. MPEG-TS is unaffected (its packets carry PCR-derived timestamps far
-  // more consistently) and is not rejected by this check.
-  if (!strcmp(ctx_->iformat->name, "mpeg")) {
-    DALI_WARN(make_string(
-        "Video file \"", Filename(), "\" is MPEG-PS (MPEG-2 Program Stream), which is not "
-        "supported: this container format only stamps a timestamp on some packets, which "
-        "experimental.readers.video's frame-accurate seeking can't handle reliably. Remux the "
-        "file to MP4 or MKV (e.g. `ffmpeg -i in.mpeg -c copy out.mp4`) to use it with this "
-        "reader."));
-    return false;
-  }
   if (stream_id < 0) {
     LOG_LINE << "Finding video stream" << std::endl;
     stream_id = av_find_best_stream(ctx_, AVMEDIA_TYPE_VIDEO, -1, -1, nullptr, 0);
@@ -441,6 +426,22 @@ bool HasKeyframeNalUnit(AVCodecID codec_id, const uint8_t *data, int size,
 void FramesDecoderBase::BuildIndex() {
   if (HasIndex()) {
     return;
+  }
+
+  // MPEG-PS only stamps a timestamp on some packets (typically the first packet of each PES
+  // unit), which the frame index built below can't support reliably (it needs an exact,
+  // collision-free timestamp for every frame). Reject it here, rather than in
+  // SelectVideoStream(), so the rejection only applies to callers that actually need a seek
+  // index (e.g. experimental.readers.video): sequential-decode-only operators such as
+  // experimental.decoders.video and experimental.inputs.video never call BuildIndex() and can
+  // still open and decode MPEG-PS content. MPEG-TS is unaffected (its packets carry
+  // PCR-derived timestamps far more consistently) and is not rejected by this check.
+  if (!strcmp(ctx_->iformat->name, "mpeg")) {
+    DALI_FAIL(make_string(
+        "Video file \"", Filename(), "\" is MPEG-PS (MPEG-2 Program Stream), which does not "
+        "support building a frame-accurate seek index: this container format only stamps a "
+        "timestamp on some packets. Remux the file to MP4 or MKV (e.g. `ffmpeg -i in.mpeg -c "
+        "copy out.mp4`) to use it where a seek index is required."));
   }
 
   // Initialize frame index
