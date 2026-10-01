@@ -683,4 +683,160 @@ TEST(FramesDecoderConstantFrameTest, ReusedBufferIsRebuiltForADifferentType) {
   EXPECT_FLOAT_EQ(data[shape.num_elements() - 1], 1.0f);
 }
 
+namespace {
+
+// Appends one AVCC/ISO-framed NAL unit: a `length_size`-byte big-endian length prefix followed by
+// `size` bytes, the first `header.size()` of which are the NAL unit header. The rest is filled
+// with a byte pattern that can't form an Annex-B start code.
+void AppendAvccNal(std::vector<uint8_t> &buf, int length_size, std::vector<uint8_t> header,
+                   uint32_t size) {
+  for (int i = length_size - 1; i >= 0; i--)
+    buf.push_back(static_cast<uint8_t>(size >> (8 * i)));
+  for (uint32_t i = 0; i < size; i++)
+    buf.push_back(i < header.size() ? header[i] : 0xAB);
+}
+
+void AppendAnnexBNal(std::vector<uint8_t> &buf, std::vector<uint8_t> header, uint32_t size) {
+  buf.insert(buf.end(), {0, 0, 0, 1});
+  for (uint32_t i = 0; i < size; i++)
+    buf.push_back(i < header.size() ? header[i] : 0xAB);
+}
+
+int CountKeyframes(const FrameIndex &index) {
+  int n = 0;
+  for (auto &e : index.index)
+    n += e.is_keyframe;
+  return n;
+}
+
+// Leading bytes of real extradata, dumped from DALI_extra files.
+// db/video/containers/mov/cfr.mov: AVCDecoderConfigurationRecord, lengthSizeMinusOne = 3
+const std::vector<uint8_t> kAvcC = {0x01, 0x64, 0x00, 0x20, 0xff, 0xe1, 0x00, 0x19,
+                                    0x67, 0x64, 0x00, 0x20, 0xac, 0xd9, 0x40, 0x50};
+// db/video/containers/avi/cfr.avi: Annex-B SPS
+const std::vector<uint8_t> kAnnexBExtradata = {0x00, 0x00, 0x01, 0x67, 0x64, 0x00, 0x20, 0xac,
+                                               0xd9, 0x40, 0x50, 0x05, 0xbb, 0x01, 0x10, 0x00};
+// db/video/hevc/sintel_trailer-720p.mp4: HEVCDecoderConfigurationRecord, lengthSizeMinusOne = 3
+const std::vector<uint8_t> kHvcC = {0x01, 0x01, 0x60, 0x00, 0x00, 0x00, 0x90, 0x00,
+                                    0x00, 0x00, 0x00, 0x00, 0x5d, 0xf0, 0x00, 0xfc,
+                                    0xfd, 0xf8, 0xf8, 0x00, 0x00, 0x0f, 0x04, 0x20};
+
+}  // namespace
+
+TEST(NalFramingTest, LengthSizeFromExtradata) {
+  using detail::GetNalLengthSize;
+  EXPECT_EQ(GetNalLengthSize(AV_CODEC_ID_H264, kAvcC.data(), kAvcC.size()), 4);
+  EXPECT_EQ(GetNalLengthSize(AV_CODEC_ID_HEVC, kHvcC.data(), kHvcC.size()), 4);
+  EXPECT_EQ(GetNalLengthSize(AV_CODEC_ID_H264, kAnnexBExtradata.data(), kAnnexBExtradata.size()),
+            0);
+  EXPECT_EQ(GetNalLengthSize(AV_CODEC_ID_H264, nullptr, 0), 0);
+  std::vector<uint8_t> hevc_annexb(32, 0xAB);  // Annex-B VPS
+  hevc_annexb[0] = hevc_annexb[1] = hevc_annexb[2] = 0;
+  hevc_annexb[3] = 1;
+  EXPECT_EQ(GetNalLengthSize(AV_CODEC_ID_HEVC, hevc_annexb.data(), hevc_annexb.size()), 0);
+  hevc_annexb[2] = 1;  // 3-byte start code
+  EXPECT_EQ(GetNalLengthSize(AV_CODEC_ID_HEVC, hevc_annexb.data(), hevc_annexb.size()), 0);
+
+  auto avcc2 = kAvcC;
+  avcc2[4] = 0xfd;  // lengthSizeMinusOne = 1
+  EXPECT_EQ(GetNalLengthSize(AV_CODEC_ID_H264, avcc2.data(), avcc2.size()), 2);
+  auto hvcc1 = kHvcC;
+  hvcc1[21] = 0x0c;  // lengthSizeMinusOne = 0
+  EXPECT_EQ(GetNalLengthSize(AV_CODEC_ID_HEVC, hvcc1.data(), hvcc1.size()), 1);
+
+  // Too short to hold the lengthSizeMinusOne field: fall back to Annex-B, don't read past the end
+  EXPECT_EQ(GetNalLengthSize(AV_CODEC_ID_H264, kAvcC.data(), 4), 0);
+  EXPECT_EQ(GetNalLengthSize(AV_CODEC_ID_HEVC, kHvcC.data(), 21), 0);
+}
+
+// An AVCC length prefix in [256, 511] is "00 00 01 XX" -- byte-for-byte an Annex-B start code.
+TEST(NalFramingTest, AvccLengthPrefixLookingLikeStartCode) {
+  using detail::HasKeyframeNalUnit;
+  for (uint32_t size : {256u, 300u, 511u}) {
+    std::vector<uint8_t> idr;
+    AppendAvccNal(idr, 4, {0x65}, size);  // H.264 IDR slice
+    EXPECT_TRUE(HasKeyframeNalUnit(AV_CODEC_ID_H264, idr.data(), idr.size(), 4)) << size;
+
+    std::vector<uint8_t> irap;
+    AppendAvccNal(irap, 4, {0x26, 0x01}, size);  // HEVC IDR_W_RADL
+    EXPECT_TRUE(HasKeyframeNalUnit(AV_CODEC_ID_HEVC, irap.data(), irap.size(), 4)) << size;
+  }
+
+  // Length 0x105: the low length byte (0x05) reads as an H.264 IDR NAL header if the prefix is
+  // mistaken for a start code, but the NAL unit is actually a non-IDR slice.
+  std::vector<uint8_t> non_idr;
+  AppendAvccNal(non_idr, 4, {0x41}, 0x105);
+  EXPECT_FALSE(HasKeyframeNalUnit(AV_CODEC_ID_H264, non_idr.data(), non_idr.size(), 4));
+
+  // A 1-byte NAL unit's prefix (00 00 00 01) is a 4-byte start code; the IDR slice follows it.
+  std::vector<uint8_t> multi;
+  AppendAvccNal(multi, 4, {0x09}, 1);  // access unit delimiter (header only)
+  AppendAvccNal(multi, 4, {0x06, 0x05}, 300);  // SEI
+  AppendAvccNal(multi, 4, {0x65}, 1000);  // IDR slice
+  EXPECT_TRUE(HasKeyframeNalUnit(AV_CODEC_ID_H264, multi.data(), multi.size(), 4));
+}
+
+TEST(NalFramingTest, ShortLengthPrefixes) {
+  using detail::HasKeyframeNalUnit;
+  for (int length_size : {1, 2}) {
+    std::vector<uint8_t> buf;
+    AppendAvccNal(buf, length_size, {0x06, 0x05}, 20);  // SEI
+    AppendAvccNal(buf, length_size, {0x65}, 200);  // IDR slice
+    EXPECT_TRUE(HasKeyframeNalUnit(AV_CODEC_ID_H264, buf.data(), buf.size(), length_size));
+    std::vector<uint8_t> p_slice;
+    AppendAvccNal(p_slice, length_size, {0x41}, 200);
+    EXPECT_FALSE(
+        HasKeyframeNalUnit(AV_CODEC_ID_H264, p_slice.data(), p_slice.size(), length_size));
+  }
+}
+
+TEST(NalFramingTest, AnnexB) {
+  using detail::HasKeyframeNalUnit;
+  std::vector<uint8_t> buf;
+  AppendAnnexBNal(buf, {0x67, 0x64}, 20);  // SPS
+  AppendAnnexBNal(buf, {0x68}, 5);  // PPS
+  AppendAnnexBNal(buf, {0x65}, 300);  // IDR slice
+  EXPECT_TRUE(HasKeyframeNalUnit(AV_CODEC_ID_H264, buf.data(), buf.size(), 0));
+  std::vector<uint8_t> p_slice;
+  AppendAnnexBNal(p_slice, {0x41}, 300);
+  EXPECT_FALSE(HasKeyframeNalUnit(AV_CODEC_ID_H264, p_slice.data(), p_slice.size(), 0));
+  std::vector<uint8_t> hevc;
+  AppendAnnexBNal(hevc, {0x40, 0x01}, 20);  // VPS
+  AppendAnnexBNal(hevc, {0x2a, 0x01}, 300);  // CRA
+  EXPECT_TRUE(HasKeyframeNalUnit(AV_CODEC_ID_HEVC, hevc.data(), hevc.size(), 0));
+}
+
+TEST(NalFramingTest, TruncatedAvccPacket) {
+  using detail::HasKeyframeNalUnit;
+  std::vector<uint8_t> buf;
+  AppendAvccNal(buf, 4, {0x65}, 300);
+  // The NAL unit's declared length runs past the end of the packet: stop, don't over-read.
+  EXPECT_FALSE(HasKeyframeNalUnit(AV_CODEC_ID_H264, buf.data(), buf.size() - 1, 4));
+  EXPECT_FALSE(HasKeyframeNalUnit(AV_CODEC_ID_H264, buf.data(), 3, 4));
+}
+
+// Real MP4 files whose IDR slices have AVCC length prefixes in [256, 511].
+TEST_F(FramesDecoderGpuTest, AvccKeyframesWithStartCodeLikeLengthPrefix) {
+  FramesDecoderGpu decoder(testing::dali_extra_path() +
+                           "/db/video/frame_num_timestamp/test_25fps.mp4");
+  decoder.BuildIndex();
+  EXPECT_EQ(CountKeyframes(decoder.GetIndex()), 1);
+}
+
+// AVI carries H.264 as Annex-B, with Annex-B extradata.
+TEST_F(FramesDecoderGpuTest, AnnexBKeyframesInAvi) {
+  FramesDecoderGpu decoder(testing::dali_extra_path() + "/db/video/containers/avi/cfr.avi");
+  decoder.BuildIndex();
+  EXPECT_EQ(CountKeyframes(decoder.GetIndex()), 1);
+}
+
+TEST_F(FramesDecoderGpuTest, AvccHevcKeyframesWithStartCodeLikeLengthPrefix) {
+  if (!FramesDecoderGpu::SupportsHevc()) {
+    GTEST_SKIP();
+  }
+  FramesDecoderGpu decoder(testing::dali_extra_path() + "/db/video/hevc/sintel_trailer-720p.mp4");
+  decoder.BuildIndex();
+  EXPECT_EQ(CountKeyframes(decoder.GetIndex()), 255);
+}
+
 }  // namespace dali
