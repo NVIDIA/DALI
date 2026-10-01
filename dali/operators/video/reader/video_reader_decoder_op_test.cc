@@ -18,6 +18,7 @@
 #include <opencv2/imgcodecs.hpp>
 
 #include "dali/operators/video/video_test.h"
+#include "dali/operators/video/reader/video_reader_decoder_op.h"
 #include "dali/test/dali_test_config.h"
 #include "dali/pipeline/pipeline.h"
 #include "dali/test/cv_mat_utils.h"
@@ -277,6 +278,38 @@ TEST_F(VideoReaderDecoderCpuTest, RandomShuffle_CpuOnlyTests) {
 
 TEST_F(VideoReaderDecoderGpuTest, RandomShuffle) {
   RunShuffleTest<dali::GPUBackend>();
+}
+
+// Regression test for a decoder being cached (GetOrOpenDecoder's decoder_cache_) before it is
+// validated: BuildIndex()/VFR-check/IsValid() must all pass *before* a decoder is inserted into
+// decoder_cache_, so a failing filename never leaves a broken, unvalidated entry behind for a
+// later call to silently reuse. This calls VideoReaderDecoder::GetOrOpenDecoder() directly
+// (rather than through the pipeline's background prefetch thread), because an exception from
+// the prefetch thread permanently stops it (DataReader::PrefetchWorker's catch block), so the
+// bug can't be observed by running the same pipeline instance twice after a failure.
+TEST_F(VideoReaderDecoderCpuTest, DecoderNotCachedBeforeValidation_CpuOnlyTests) {
+  Pipeline pipe(1, 1, CPU_ONLY_DEVICE_ID);
+  pipe.AddOperator(OpSpec("experimental__readers__Video")
+    .AddArg("device", "cpu")
+    .AddArg("sequence_length", 1)
+    .AddArg("require_constant_frame_rate", true)
+    .AddArg("filenames", std::vector<std::string>{vfr_videos_paths_[0]})
+    .AddOutput("frames", StorageDevice::CPU), "r");
+  pipe.Build({{"frames", "cpu"}});
+
+  auto *op = dynamic_cast<VideoReaderDecoder<CPUBackend> *>(pipe.GetOperator("r"));
+  ASSERT_NE(op, nullptr);
+
+  bool is_new_decoder = false;
+  // First call: the file is VFR but require_constant_frame_rate=true was requested, so this
+  // must throw -- and, per the fix, must not leave a cache entry behind.
+  EXPECT_THROW(op->GetOrOpenDecoder(vfr_videos_paths_[0], is_new_decoder), DALIException);
+
+  // Second call for the *same* filename: on the buggy code (cache insertion before
+  // validation), this would return the already-cached, never-checked decoder
+  // (is_new_decoder=false) without re-running the VFR check, silently "succeeding". With the
+  // fix, nothing was cached, so this must construct and validate again, and fail again.
+  EXPECT_THROW(op->GetOrOpenDecoder(vfr_videos_paths_[0], is_new_decoder), DALIException);
 }
 
 class VideoReaderDecoderCompareTest : public VideoTestBase {};
