@@ -746,7 +746,8 @@ class VideoReaderDecoder
       decoder = std::make_unique<FramesDecoderImpl>(filename, image_type_);
     } else {
       decoder = std::make_unique<FramesDecoderImpl>(filename, cuda_stream_, image_type_,
-                                                      8 + additional_decode_surfaces_);
+                                                      8 + additional_decode_surfaces_,
+                                                      additional_decode_surfaces_);
       decoder->SetOutputType(dtype_);
       decoder->SetNormalizedRange(normalized_);
     }

@@ -100,11 +100,21 @@ const char *codec_to_string(cudaVideoCodec in) {
 //
 // Both the sequence callback (which tells the parser how many surfaces to expect) and decoder
 // creation (GetDecoder, below) must use this same adjusted value, or the two disagree.
-int AdjustedNumDecodeSurfaces(cudaVideoCodec codec_type, int min_num_decode_surfaces) {
+//
+// `additional_decode_surfaces` is the user-facing margin (readers.video's
+// `additional_decode_surfaces` argument), added on top of the driver-reported minimum -- this
+// mirrors legacy readers.video's real behavior (min_num_decode_surfaces + additional_decode_
+// surfaces; see nvdecoder.cc/cuvideodecoder.cc), unlike this backend's own `num_decode_surfaces_`
+// member, which only sizes host-side buffering and never touched the real NVDEC surface count.
+// The MJPEG floor of 20 is still applied on top of the margin-adjusted value, preserving the
+// structural fix documented above (needed regardless of any user-requested margin).
+int AdjustedNumDecodeSurfaces(cudaVideoCodec codec_type, int min_num_decode_surfaces,
+                               int additional_decode_surfaces) {
+  int adjusted = min_num_decode_surfaces + additional_decode_surfaces;
   if (codec_type == cudaVideoCodec_JPEG) {
-    return std::max(min_num_decode_surfaces, 20);
+    return std::max(adjusted, 20);
   }
-  return min_num_decode_surfaces;
+  return adjusted;
 }
 
 class NVDECCache {
@@ -117,11 +127,12 @@ class NVDECCache {
       return cache_inst[device_id];
     }
 
-    static NVDECLease GetDecoderFromCache(CUVIDEOFORMAT *video_format, int device_id = -1) {
+    static NVDECLease GetDecoderFromCache(CUVIDEOFORMAT *video_format,
+                                           int additional_decode_surfaces, int device_id = -1) {
       if (device_id == -1) {
         CUDA_CALL(cudaGetDevice(&device_id));
       }
-      return GetCache(device_id).GetDecoder(video_format, device_id);
+      return GetCache(device_id).GetDecoder(video_format, additional_decode_surfaces, device_id);
     }
 
     void ReturnDecoder(DecInstance *decoder) {
@@ -146,14 +157,15 @@ class NVDECCache {
       }
     }
 
-    NVDECLease GetDecoder(CUVIDEOFORMAT *video_format, int device_id) {
+    NVDECLease GetDecoder(CUVIDEOFORMAT *video_format, int additional_decode_surfaces,
+                          int device_id) {
       std::unique_lock lock(access_lock);
 
       auto codec_type = video_format->codec;
       unsigned height =  video_format->coded_height;
       unsigned width = video_format->coded_width;
-      unsigned num_decode_surfaces = static_cast<unsigned>(
-          AdjustedNumDecodeSurfaces(codec_type, video_format->min_num_decode_surfaces));
+      unsigned num_decode_surfaces = static_cast<unsigned>(AdjustedNumDecodeSurfaces(
+          codec_type, video_format->min_num_decode_surfaces, additional_decode_surfaces));
       auto chroma_format = video_format->chroma_format;
       auto bit_depth_luma_minus8 = video_format->bit_depth_luma_minus8;
 
@@ -308,7 +320,8 @@ int process_video_sequence(void *user_data, CUVIDEOFORMAT *video_format) {
   // Must match GetDecoder's num_decode_surfaces exactly -- this return value is what tells the
   // NVDEC parser how many decode surfaces it has to cycle through; the actual CUvideodecoder is
   // created with the same value (see AdjustedNumDecodeSurfaces).
-  return AdjustedNumDecodeSurfaces(video_format->codec, video_format->min_num_decode_surfaces);
+  return AdjustedNumDecodeSurfaces(video_format->codec, video_format->min_num_decode_surfaces,
+                                    frames_decoder->AdditionalDecodeSurfaces());
 }
 
 int process_picture_decode(void *user_data, CUVIDPICPARAMS *picture_params) {
@@ -407,7 +420,8 @@ void FramesDecoderGpu::InitGpuDecoder(CUVIDEOFORMAT *video_format) {
                            is_full_range ? VIDEO_COLOR_SPACE_CONVERSION_TYPE_YUV_TO_RGB_FULL_RANGE :
                                            VIDEO_COLOR_SPACE_CONVERSION_TYPE_YUV_TO_RGB :
                            VIDEO_COLOR_SPACE_CONVERSION_TYPE_YUV_UPSAMPLE;
-    nvdecode_state_->decoder = frame_dec_gpu_impl::NVDECCache::GetDecoderFromCache(video_format);
+    nvdecode_state_->decoder = frame_dec_gpu_impl::NVDECCache::GetDecoderFromCache(
+        video_format, additional_decode_surfaces_);
     // pending_maps_ is indexed by picture_index, whose valid range is bounded by the *actual*
     // decoder's ulNumDecodeSurfaces -- which may differ from the num_decode_surfaces_ member
     // (e.g. MJPEG's AdjustedNumDecodeSurfaces override, or GetDecoder's own 0-surfaces fallback).
@@ -499,9 +513,10 @@ void FramesDecoderGpu::InitGpuParser() {
 }
 
 FramesDecoderGpu::FramesDecoderGpu(const std::string &filename, cudaStream_t stream, DALIImageType image_type,
-                                   int num_decode_surfaces)
+                                   int num_decode_surfaces, int additional_decode_surfaces)
     : FramesDecoderBase(filename, image_type),
       num_decode_surfaces_(num_decode_surfaces),
+      additional_decode_surfaces_(additional_decode_surfaces),
       frame_buffer_(num_decode_surfaces_),
       stream_(stream) {
   is_valid_ = is_valid_ && SelectVideoStream();
@@ -511,9 +526,11 @@ FramesDecoderGpu::FramesDecoderGpu(const std::string &filename, cudaStream_t str
 }
 
 FramesDecoderGpu::FramesDecoderGpu(const char *memory_file, size_t memory_file_size, std::string_view source_info,
-                                   cudaStream_t stream, DALIImageType image_type, int num_decode_surfaces)
+                                   cudaStream_t stream, DALIImageType image_type, int num_decode_surfaces,
+                                   int additional_decode_surfaces)
     : FramesDecoderBase(memory_file, memory_file_size, source_info, image_type),
       num_decode_surfaces_(num_decode_surfaces),
+      additional_decode_surfaces_(additional_decode_surfaces),
       frame_buffer_(num_decode_surfaces_),
       stream_(stream) {
   is_valid_ = is_valid_ && SelectVideoStream();

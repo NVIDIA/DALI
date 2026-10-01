@@ -440,6 +440,19 @@ TEST_F(FramesDecoderGpuTest, DefaultDecodeSurfaceCountUnchanged) {
   RunTest(decoder, cfr_videos_[0]);
 }
 
+TEST_F(FramesDecoderGpuTest, AdditionalDecodeSurfacesStillDecodesCorrectly) {
+  // additional_decode_surfaces (the 5th ctor arg) now also adds real margin to the NVDEC
+  // decoder's own surface count (via AdjustedNumDecodeSurfaces), not just the host-side
+  // frame_buffer_ that num_decode_surfaces (the 4th arg) sizes. This is not directly observable
+  // from the public API (the real surface count is internal to NVDECCache), so this is a
+  // functional check: decoding must still produce pixel-correct output with a non-default
+  // additional_decode_surfaces value, exercising both the larger real NVDEC decoder allocation
+  // and the pending_maps_ sizing read back off the lease in InitGpuDecoder.
+  FramesDecoderGpu decoder(cfr_videos_paths_[0], 0, DALI_RGB, 8, /*additional_decode_surfaces=*/4);
+  decoder.BuildIndex();
+  RunTest(decoder, cfr_videos_[0]);
+}
+
 TEST_F(FramesDecoderGpuTest, MjpegDecodesMultipleFrames) {
   // DALI-4918: the NVDEC driver reports min_num_decode_surfaces=1 for this MJPEG file --
   // with zero surface headroom, decoding the 2nd frame used to fail with
