@@ -275,6 +275,24 @@ count is determined by the codec's own requirements (``min_num_decode_surfaces``
 
 Must be non-negative. Only relevant for the GPU backend; ignored on CPU.)code",
                     2)
+    .AddOptionalArg("decoder_cache_size",
+                    R"code(Number of per-file decoder instances kept open in an LRU cache.
+
+Reusing an already-open decoder avoids tearing down and rebuilding it (container reopen/parse,
+NVDEC parser creation, decode-surface allocation, ...) when the same file comes up again soon
+after, which is the common case once ``random_shuffle=True`` interleaves samples from more files
+than fit in a single batch.
+
+This has a real memory cost: each cached decoder holds an NVDEC lease and device-memory frame
+buffers, which can range from hundreds of MB to several GB depending on resolution and ``dtype``.
+A larger cache only helps when the number of distinct files likely to be interleaved within the
+shuffle window is comparable to or smaller than this value; with a dataset containing far more
+distinct files than `decoder_cache_size`, the cache's hit rate drops and it mostly adds memory
+pressure with little throughput benefit. Tune this down (e.g. to ``1`` to effectively disable
+reuse) for large datasets with a wide shuffle window and tight memory budgets.
+
+Must be positive.)code",
+                    8)
     .AddOptionalArg("require_constant_frame_rate",
                     R"code(If set, raises an error if the video has a variable
 frame rate. Default: ``False`` (variable frame rate videos are decoded using decode-order frame

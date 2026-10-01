@@ -312,6 +312,74 @@ TEST_F(VideoReaderDecoderCpuTest, DecoderNotCachedBeforeValidation_CpuOnlyTests)
   EXPECT_THROW(op->GetOrOpenDecoder(vfr_videos_paths_[0], is_new_decoder), DALIException);
 }
 
+TEST_F(VideoReaderDecoderCpuTest, DecoderCacheSizeMustBePositive_CpuOnlyTests) {
+  Pipeline pipe(1, 1, CPU_ONLY_DEVICE_ID);
+  pipe.AddOperator(OpSpec("experimental__readers__Video")
+    .AddArg("device", "cpu")
+    .AddArg("sequence_length", 1)
+    .AddArg("decoder_cache_size", 0)
+    .AddArg("filenames", std::vector<std::string>{cfr_videos_paths_[0]})
+    .AddOutput("frames", StorageDevice::CPU), "r");
+  EXPECT_THROW(pipe.Build({{"frames", "cpu"}}), std::runtime_error);
+}
+
+// Eviction-boundary test for GetOrOpenDecoder's LRU cache, now sized via `decoder_cache_size`
+// instead of the old hard-coded capacity. With decoder_cache_size=1, opening a second, different
+// file must evict the first, so re-requesting the first file afterwards must build a fresh
+// decoder (is_new_decoder=true) rather than reuse a cached one.
+TEST_F(VideoReaderDecoderCpuTest, DecoderCacheSizeControlsEviction_CpuOnlyTests) {
+  Pipeline pipe(1, 1, CPU_ONLY_DEVICE_ID);
+  pipe.AddOperator(OpSpec("experimental__readers__Video")
+    .AddArg("device", "cpu")
+    .AddArg("sequence_length", 1)
+    .AddArg("decoder_cache_size", 1)
+    .AddArg("filenames", cfr_videos_paths_)
+    .AddOutput("frames", StorageDevice::CPU), "r");
+  pipe.Build({{"frames", "cpu"}});
+
+  auto *op = dynamic_cast<VideoReaderDecoder<CPUBackend> *>(pipe.GetOperator("r"));
+  ASSERT_NE(op, nullptr);
+
+  bool is_new_decoder = false;
+  op->GetOrOpenDecoder(cfr_videos_paths_[0], is_new_decoder);
+  EXPECT_TRUE(is_new_decoder);
+
+  // Different file: with capacity 1, this evicts cfr_videos_paths_[0]'s entry.
+  op->GetOrOpenDecoder(cfr_videos_paths_[1], is_new_decoder);
+  EXPECT_TRUE(is_new_decoder);
+
+  // Re-requesting the first file must rebuild it: it was evicted.
+  op->GetOrOpenDecoder(cfr_videos_paths_[0], is_new_decoder);
+  EXPECT_TRUE(is_new_decoder);
+}
+
+// Same as above, but with a cache large enough to hold both files: the second request for the
+// first file must hit the cache (is_new_decoder=false).
+TEST_F(VideoReaderDecoderCpuTest, DecoderCacheSizeAllowsReuseWhenLargeEnough_CpuOnlyTests) {
+  Pipeline pipe(1, 1, CPU_ONLY_DEVICE_ID);
+  pipe.AddOperator(OpSpec("experimental__readers__Video")
+    .AddArg("device", "cpu")
+    .AddArg("sequence_length", 1)
+    .AddArg("decoder_cache_size", 2)
+    .AddArg("filenames", cfr_videos_paths_)
+    .AddOutput("frames", StorageDevice::CPU), "r");
+  pipe.Build({{"frames", "cpu"}});
+
+  auto *op = dynamic_cast<VideoReaderDecoder<CPUBackend> *>(pipe.GetOperator("r"));
+  ASSERT_NE(op, nullptr);
+
+  bool is_new_decoder = false;
+  op->GetOrOpenDecoder(cfr_videos_paths_[0], is_new_decoder);
+  EXPECT_TRUE(is_new_decoder);
+
+  op->GetOrOpenDecoder(cfr_videos_paths_[1], is_new_decoder);
+  EXPECT_TRUE(is_new_decoder);
+
+  // Both entries fit within capacity 2, so this must hit the cache.
+  op->GetOrOpenDecoder(cfr_videos_paths_[0], is_new_decoder);
+  EXPECT_FALSE(is_new_decoder);
+}
+
 class VideoReaderDecoderCompareTest : public VideoTestBase {};
 
 TEST_F(VideoReaderDecoderCompareTest, CompareReaders) {
