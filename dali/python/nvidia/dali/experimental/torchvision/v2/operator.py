@@ -14,6 +14,7 @@
 
 from abc import ABC, abstractmethod
 import functools
+import inspect
 import logging
 from typing import Literal
 
@@ -361,10 +362,13 @@ def adjust_input(func):
         else:
             return output
 
+    signature = inspect.signature(func)
+
     @functools.wraps(func)
     def inner_function(inpt, *args, **kwargs):
 
-        device = kwargs["device"] if "device" in kwargs else "cpu"
+        # ``device`` may be passed either by position or by keyword
+        device = signature.bind_partial(inpt, *args, **kwargs).arguments.get("device", "cpu")
 
         _input, mode = transform_input(inpt, device)
         output = func(_input, *args, **kwargs)
