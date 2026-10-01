@@ -39,18 +39,18 @@ def test_adjust_input_preserves_metadata():
 @params("cpu", "gpu")
 def test_adjust_input_device_as_keyword(device):
     probe, seen = make_device_probe()
-    probe(torch.rand(3, 8, 8), device=device)
+    probe(torch.zeros(3, 8, 8), device=device)
     assert seen == [device]
 
 
 @params("cpu", "gpu")
 def test_adjust_input_device_as_positional(device):
     probe, seen = make_device_probe()
-    probe(torch.rand(3, 8, 8), 1, device)
+    probe(torch.zeros(3, 8, 8), 1, device)
     assert seen == [device]
 
 
 def test_adjust_input_device_defaults_to_cpu():
     probe, seen = make_device_probe()
-    probe(torch.rand(3, 8, 8))
+    probe(torch.zeros(3, 8, 8))
     assert seen == ["cpu"]

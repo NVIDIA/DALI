@@ -316,7 +316,7 @@ def adjust_input(func):
 
         if device != _input.device.device_type:
             logging.warning(
-                f"Warning: input and operator devices do not match - copying!"
+                "Input and operator devices do not match - copying!"
                 f" Input is {_input.device} operator is {device}"
             )
             _input = _input.cpu() if "cpu" in device else _input.gpu()
@@ -337,7 +337,7 @@ def adjust_input(func):
         if isinstance(inpt, Image.Image):
             if output.device.device_type == "gpu":
                 logging.warning(
-                    "Warning: PIL.Image expected on the output - copying output to CPU!"
+                    "PIL.Image expected on the output - copying output to CPU!"
                     " torch.Tensors are recommended to be used with GPU operators."
                 )
                 output = output.cpu()
