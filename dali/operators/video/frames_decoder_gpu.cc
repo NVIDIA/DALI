@@ -525,8 +525,9 @@ FramesDecoderGpu::FramesDecoderGpu(const std::string &filename, cudaStream_t str
   }
 }
 
-FramesDecoderGpu::FramesDecoderGpu(const char *memory_file, size_t memory_file_size, std::string_view source_info,
-                                   cudaStream_t stream, DALIImageType image_type, int num_decode_surfaces,
+FramesDecoderGpu::FramesDecoderGpu(const char *memory_file, size_t memory_file_size,
+                                   std::string_view source_info, cudaStream_t stream,
+                                   DALIImageType image_type, int num_decode_surfaces,
                                    int additional_decode_surfaces)
     : FramesDecoderBase(memory_file, memory_file_size, source_info, image_type),
       num_decode_surfaces_(num_decode_surfaces),
