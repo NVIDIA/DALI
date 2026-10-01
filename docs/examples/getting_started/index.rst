@@ -53,6 +53,8 @@ DALI extends the standard Torchvision signatures with two optional parameters:
 * Class-based operators must be wrapped in ``Compose``; they cannot be called standalone.
 * Results may differ from Torchvision by ±1 (integer pixel value) due to different underlying implementations.
 
+See the :doc:`Torchvision API Documentation <../../torchvision/overview>` for details.
+
 
 Tutorials
 ---------

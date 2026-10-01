@@ -13,12 +13,12 @@
 # limitations under the License.
 
 from typing import Sequence, Literal
-from .operator import Operator, _ArgumentValidateRule, _ValidateIfPositive, _ValidateIfRange
+from .operator import Operator, ArgumentValidateRule, _ValidateIfPositive, _ValidateIfRange
 
 import nvidia.dali.fn as fn
 
 
-class _ValidateKernel(_ArgumentValidateRule):
+class _ValidateKernel(ArgumentValidateRule):
     """
     Verifies the kernel size argument for the GaussianBlur operator.
 
@@ -52,7 +52,7 @@ class _ValidateKernel(_ArgumentValidateRule):
             )
 
 
-class _ValidateSigma(_ArgumentValidateRule):
+class _ValidateSigma(ArgumentValidateRule):
     """
     Verifies the sigma argument for the GaussianBlur operator.
 

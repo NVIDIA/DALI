@@ -14,7 +14,7 @@
 
 from typing import Optional, Sequence, Literal
 
-from .operator import Operator, _ArgumentValidateRule, get_HWC_from_layout_pipeline
+from .operator import Operator, ArgumentValidateRule, get_HWC_from_layout_pipeline
 
 import nvidia.dali as dali
 import nvidia.dali.fn as fn
@@ -25,7 +25,7 @@ import numpy as np
 from ._enums import InterpolationMode, _normalize_enum_like_interpolation_mode
 
 
-class _ValidateSize(_ArgumentValidateRule):
+class _ValidateSize(ArgumentValidateRule):
     @classmethod
     def verify(cls, *, size, max_size, interpolation, **_):
         if size is not None and not isinstance(size, int) and not isinstance(size, (tuple, list)):
