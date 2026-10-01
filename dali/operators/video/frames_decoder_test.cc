@@ -652,6 +652,54 @@ TEST(VideoUtilsSecondsToTimestampTest, RoundsUpOrDownAtTickBoundary) {
   EXPECT_EQ(SecondsToTimestamp(timebase, 0.0014, /*round_down=*/true), 1);   // 1.4 ticks -> 1
 }
 
+TEST(VideoUtilsSecondsToTimestampTest, SnapsFloatingPointNoiseAtExactTickBoundary) {
+  // The exact collision from the review: at timebase 1/1000 (common, e.g. Matroska/WebM
+  // default), 1.001 * 1000 / 1 is not exactly 1001.0 in double precision -- it's
+  // 1000.9999999999999 -- so without epsilon snapping, floor() would wrongly return 1000 instead
+  // of the mathematically-intended 1001, and a file_list boundary sitting exactly on that frame's
+  // pts would silently select the wrong frame.
+  AVRational timebase{1, 1000};
+  ASSERT_NE(1.001 * timebase.den / timebase.num, 1001.0)
+      << "this test is meant to exercise floating-point noise; if this starts failing because "
+         "1.001 * 1000 became exact, the epsilon-snapping logic is no longer being exercised";
+  EXPECT_EQ(SecondsToTimestamp(timebase, 1.001, /*round_down=*/true), 1001);
+  EXPECT_EQ(SecondsToTimestamp(timebase, 1.001, /*round_down=*/false), 1001);
+}
+
+TEST(VideoUtilsSecondsToTimestampTest, GenuineFractionalOffsetIsNotSnapped) {
+  // A real request landing a tenth of a tick off a boundary must NOT be snapped to the
+  // boundary -- only floating-point representation noise (many orders of magnitude smaller)
+  // should be. 1.0001 s at timebase 1/1000 is 1000.1 ticks: 0.1 of a tick off of 1000, which is
+  // far larger than the relative epsilon used for noise snapping.
+  AVRational timebase{1, 1000};
+  EXPECT_EQ(SecondsToTimestamp(timebase, 1.0001, /*round_down=*/true), 1000);
+  EXPECT_EQ(SecondsToTimestamp(timebase, 1.0001, /*round_down=*/false), 1001);
+}
+
+TEST(VideoUtilsSecondsToTimestampTest, ExactIntegerTicksRoundTripAcrossCommonTimebases) {
+  // Broad scan, similar to the reviewer's: for several common timebases, every millisecond value
+  // from 0 to 2 seconds should produce exactly the mathematically-correct integer tick count when
+  // that count is intended to be an exact integer, regardless of floating-point noise in the
+  // `seconds * den / num` product. Mirrors the 865-collision scan that found this bug.
+  const AVRational timebases[] = {{1, 1000}, {1, 12288}, {1, 90000}, {1, 25}};
+  for (const auto &timebase : timebases) {
+    for (int ms = 0; ms <= 2000; ms++) {
+      // Exact tick count for this millisecond value at this timebase, computed with integer
+      // arithmetic (no floating point) so it's unambiguously correct.
+      int64_t num = static_cast<int64_t>(ms) * timebase.den;
+      int64_t den = static_cast<int64_t>(1000) * timebase.num;
+      if (num % den != 0)
+        continue;  // not an exact integer tick count at this timebase; skip (see other test)
+      int64_t expected_ticks = num / den;
+      double seconds = ms / 1000.0;
+      EXPECT_EQ(SecondsToTimestamp(timebase, seconds, /*round_down=*/true), expected_ticks)
+          << "timebase=1/" << timebase.den << " ms=" << ms;
+      EXPECT_EQ(SecondsToTimestamp(timebase, seconds, /*round_down=*/false), expected_ticks)
+          << "timebase=1/" << timebase.den << " ms=" << ms;
+    }
+  }
+}
+
 TEST(FramesDecoderConstantFrameTest, FloatNormalizedScalesFillValue) {
   Tensor<CPUBackend> frame;
   std::vector<uint8_t> fill = {0, 51, 255};
