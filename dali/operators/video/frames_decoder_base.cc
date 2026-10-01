@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include "dali/operators/video/frames_decoder_base.h"
+#include <cstring>
 #include <iomanip>
 #include <memory>
 #include "dali/core/error_handling.h"
@@ -155,6 +156,21 @@ std::string FramesDecoderBase::GetAllStreamInfo() const {
 }
 
 bool FramesDecoderBase::SelectVideoStream(int stream_id) {
+  // MPEG-PS only stamps a timestamp on some packets (typically the first packet of each PES
+  // unit), which this reader's frame-index/seek machinery can't support reliably (it needs an
+  // exact, collision-free identity for every frame). Reject it explicitly, here, before any
+  // index-building work starts, instead of failing deep inside BuildIndex with a message that
+  // doesn't explain why. MPEG-TS is unaffected (its packets carry PCR-derived timestamps far
+  // more consistently) and is not rejected by this check.
+  if (!strcmp(ctx_->iformat->name, "mpeg")) {
+    DALI_WARN(make_string(
+        "Video file \"", Filename(), "\" is MPEG-PS (MPEG-2 Program Stream), which is not "
+        "supported: this container format only stamps a timestamp on some packets, which "
+        "experimental.readers.video's frame-accurate seeking can't handle reliably. Remux the "
+        "file to MP4 or MKV (e.g. `ffmpeg -i in.mpeg -c copy out.mp4`) to use it with this "
+        "reader."));
+    return false;
+  }
   if (stream_id < 0) {
     LOG_LINE << "Finding video stream" << std::endl;
     stream_id = av_find_best_stream(ctx_, AVMEDIA_TYPE_VIDEO, -1, -1, nullptr, 0);

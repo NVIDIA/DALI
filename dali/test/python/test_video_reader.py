@@ -1630,13 +1630,48 @@ def test_compare_experimental_to_legacy_reader_empty_labels(device):
 
 
 # Annex-B (start-code delimited) H.264/HEVC fixtures from DALI_extra and their frame counts
-# (see db/video/containers/README.rst and db/video/cfr/README.txt).
+# (see db/video/containers/README.rst and db/video/cfr/README.txt). h264_in_mpeg_ps is
+# deliberately not included here: MPEG-PS is rejected outright (see
+# test_mpeg_ps_is_rejected_as_unsupported) rather than reaching the Annex-B parsing this test
+# targets, so it no longer belongs in this set.
 ANNEX_B_VIDEOS = {
     "h264_in_avi": (DALI_EXTRA_PATH + "/db/video/containers/avi/cfr.avi", 180),
-    "h264_in_mpeg_ps": (DALI_EXTRA_PATH + "/db/video/containers/mpeg/cfr.mpeg", 180),
     "raw_h264": (DALI_EXTRA_PATH + "/db/video/cfr/test_1.h264", 50),
     "raw_h265": (DALI_EXTRA_PATH + "/db/video/cfr/test_1.h265", 50),
 }
+
+
+def test_mpeg_ps_is_rejected_as_unsupported():
+    """MPEG-PS (container format 'mpeg') only stamps a timestamp on some packets, which
+    experimental.readers.video's frame-accurate seeking can't handle reliably (see
+    /home/janton/git/worklog/docs/2026-10-01-mpeg-ps-sparse-timestamp-investigation.md for the
+    full investigation). SelectVideoStream rejects it explicitly and early -- before any
+    index-building work starts -- instead of failing deep inside BuildIndex with a message that
+    doesn't explain why. A file list mixing it with a working file excludes only the MPEG-PS
+    entry, same as any other invalid file."""
+    mpeg_ps_file = DALI_EXTRA_PATH + "/db/video/containers/mpeg/cfr.mpeg"
+    avi_file = DALI_EXTRA_PATH + "/db/video/containers/avi/cfr.avi"
+
+    @pipeline_def(batch_size=1, num_threads=2, device_id=0)
+    def alone_pipe():
+        return fn.experimental.readers.video(
+            device="gpu", filenames=[mpeg_ps_file], sequence_length=1
+        )
+
+    with assert_raises(RuntimeError, glob="*number of input samples: 0*"):
+        p = alone_pipe()
+        p.build()
+
+    @pipeline_def(batch_size=1, num_threads=2, device_id=0)
+    def mixed_pipe():
+        return fn.experimental.readers.video(
+            device="gpu", filenames=[mpeg_ps_file, avi_file], sequence_length=1, name="r"
+        )
+
+    p = mixed_pipe()
+    p.build()
+    assert p.reader_meta("r")["epoch_size"] == 180, "expected only the avi file's 180 frames"
+    p.run()
 
 
 @params(*ANNEX_B_VIDEOS.keys())
@@ -1645,20 +1680,6 @@ def test_annex_b_seek_matches_sequential_decode(case):
     NAL units as 4-byte length-prefixed (AVCC) in FramesDecoderBase::BuildIndex; Annex-B streams
     use start codes. Correct behavior: all frames are indexed, and a frame decoded after a seek
     is identical to the same frame decoded sequentially."""
-    if case == "h264_in_mpeg_ps":
-        raise SkipTest(
-            "Known limitation (not the Annex-B NAL parsing bug this test targets, which is "
-            "fixed): MPEG-PS only stamps pts/dts on some packets (typically the first packet "
-            "of a PES unit), leaving the rest at AV_NOPTS_VALUE. BuildIndex now correctly finds "
-            "the stream and identifies Annex-B keyframes, but frames without a real timestamp "
-            "still need a presentation-time identity that exactly matches what NVDEC reports, "
-            "and this stream has no reliable way to assign one without a materially larger, "
-            "ffmpeg-internals-dependent reorder-aware rework. Legacy readers.video also can't "
-            "handle this file, via an unrelated, duration/frame-rate-based frame count that "
-            "never needs per-packet timestamp identity. See "
-            "/home/janton/git/worklog/docs/2026-10-01-mpeg-ps-sparse-timestamp-investigation.md "
-            "for the full investigation if revisiting this."
-        )
     if case in ("raw_h264", "raw_h265"):
         raise SkipTest(
             "Known limitation (not the Annex-B NAL parsing bug this test targets, which is "
