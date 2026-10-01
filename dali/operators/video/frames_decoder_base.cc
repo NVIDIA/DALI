@@ -381,10 +381,13 @@ int GetNalLengthSize(AVCodecID codec_id, const uint8_t *extradata, int extradata
   if (codec_id == AV_CODEC_ID_H264 && extradata_size > 4 && extradata[0] == 1) {
     return (extradata[4] & 0x03) + 1;
   }
-  // Some early HEVC muxers wrote hvcC with configurationVersion = 0, so -- like FFmpeg's HEVC
-  // decoder -- treat anything that doesn't start like an Annex-B start code as hvcC.
-  if (codec_id == AV_CODEC_ID_HEVC && extradata_size > 21 &&
-      (extradata[0] != 0 || extradata[1] != 0 || extradata[2] > 1)) {
+  // Some early HEVC muxers wrote hvcC with configurationVersion = 0, so -- matching FFmpeg's
+  // HEVC parser (libavcodec/hevc/parse.c, ff_hevc_decode_extradata) exactly -- treat extradata
+  // as hvcC when it starts with configurationVersion == 1, or with 0 followed by anything other
+  // than an Annex-B start code's second/third bytes (00 00).
+  if (codec_id == AV_CODEC_ID_HEVC && extradata_size >= 23 &&
+      (extradata[0] == 1 ||
+       (extradata[0] == 0 && (extradata[1] != 0 || extradata[2] > 1)))) {
     return (extradata[21] & 0x03) + 1;
   }
   return 0;
