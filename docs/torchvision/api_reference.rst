@@ -1,5 +1,5 @@
-API Reference
-=============
+Torchvision API Reference
+=========================
 
 .. warning::
    The DALI Torchvision API is an experimental feature and is subject to change.
@@ -13,20 +13,20 @@ see :doc:`custom_operators`.
 Every operator accepts the additional ``device`` argument (``"cpu"`` or ``"gpu"``). ``Compose``
 additionally accepts ``batch_size``.
 
-Object-oriented API
--------------------
+Operator classes
+----------------
 
 .. currentmodule:: nvidia.dali.experimental.torchvision
 
 Available in the :mod:`nvidia.dali.experimental.torchvision` module.
 
-Compose
-^^^^^^^
+Composing transforms
+^^^^^^^^^^^^^^^^^^^^
 .. autoclass:: Compose
    :members:
 
-Geometry
-^^^^^^^^
+Geometry transforms
+^^^^^^^^^^^^^^^^^^^
 .. autoclass:: Resize
 .. autoclass:: CenterCrop
 .. autoclass:: RandomCrop
@@ -35,8 +35,8 @@ Geometry
 .. autoclass:: RandomHorizontalFlip
 .. autoclass:: RandomVerticalFlip
 
-Color and filtering
-^^^^^^^^^^^^^^^^^^^
+Color and filtering transforms
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 .. autoclass:: ColorJitter
 .. autoclass:: Grayscale
 .. autoclass:: RandomGrayscale
@@ -47,8 +47,8 @@ Control flow
 ^^^^^^^^^^^^
 .. autoclass:: RandomApply
 
-Type conversion
-^^^^^^^^^^^^^^^
+Type conversion transforms
+^^^^^^^^^^^^^^^^^^^^^^^^^^
 .. autoclass:: PILToTensor
 .. autoclass:: ToPILImage
 .. autoclass:: ToPureTensor
@@ -59,15 +59,15 @@ Enumerations
    :members:
    :undoc-members:
 
-Functional API
---------------
+Operator functions
+------------------
 
 .. currentmodule:: nvidia.dali.experimental.torchvision.v2.functional
 
 Available in the :mod:`nvidia.dali.experimental.torchvision.v2.functional` module.
 
-Geometry
-^^^^^^^^
+Geometry functions
+^^^^^^^^^^^^^^^^^^
 .. autofunction:: resize
 .. autofunction:: center_crop
 .. autofunction:: crop
@@ -76,15 +76,15 @@ Geometry
 .. autofunction:: horizontal_flip
 .. autofunction:: vertical_flip
 
-Color and filtering
-^^^^^^^^^^^^^^^^^^^
+Color and filtering functions
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 .. autofunction:: rgb_to_grayscale
 .. autofunction:: to_grayscale
 .. autofunction:: gaussian_blur
 .. autofunction:: normalize
 
-Type conversion
-^^^^^^^^^^^^^^^
+PIL and tensor conversion functions
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 .. autofunction:: pil_to_tensor
 .. autofunction:: to_tensor
 .. autofunction:: to_pil_image
