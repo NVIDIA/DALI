@@ -23,6 +23,7 @@ extern "C" {
 }
 
 #include <dirent.h>
+#include <algorithm>
 #include <cmath>
 #include <string>
 #include <type_traits>
@@ -65,6 +66,29 @@ inline int64_t SecondsToTimestamp(AVRational timebase, double seconds, bool roun
   // fractional, due to floating point) tick position matches legacy's ceil(t*fps)/floor(t*fps)
   // exactly, closing the bug rather than just shrinking it.
   double ticks = seconds * timebase.den / timebase.num;
+  // Snap to the nearest integer tick if we're within a small epsilon of one, before applying
+  // the directional floor/ceil above. `seconds * timebase.den / timebase.num` is not exact even
+  // when the mathematical result is an integer: e.g. at timebase 1/1000, seconds = 1.001 gives
+  // ticks = 1000.9999999999999 instead of exactly 1001.0, so floor() would silently return 1000
+  // instead of the intended 1001. This is ordinary floating-point representation noise (on the
+  // order of a few ULPs), not a genuinely fractional request, so it should be snapped before
+  // floor/ceil change the outcome by a whole tick.
+  //
+  // Use a *relative* epsilon (scaled to the magnitude of `ticks`) rather than a fixed absolute
+  // one: ticks can range from a handful (short videos / coarse timebases) to many millions (long
+  // videos at high-resolution timebases, e.g. 1/90000), and the absolute size of floating-point
+  // noise grows with the magnitude of the value. 1e-6 relative error is ~4500x the double epsilon
+  // (~2.22e-16) at ticks ~ 1, giving ample margin for the few-ULP noise accumulated through the
+  // multiply-and-divide above, while still being far smaller than any real fractional-tick offset
+  // we'd want to preserve (a real request would need to land within one part in a million of a
+  // tick boundary to be mistakenly snapped, i.e. far finer than millisecond-precision inputs at
+  // common timebases ever produce).
+  constexpr double kRelativeEpsilon = 1e-6;
+  double rounded = std::round(ticks);
+  double epsilon = std::max(1.0, std::abs(rounded)) * kRelativeEpsilon;
+  if (std::abs(ticks - rounded) < epsilon) {
+    ticks = rounded;
+  }
   return round_down ? static_cast<int64_t>(std::floor(ticks))
                      : static_cast<int64_t>(std::ceil(ticks));
 }
