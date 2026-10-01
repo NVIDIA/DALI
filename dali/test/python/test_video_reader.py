@@ -1691,6 +1691,32 @@ def test_annex_b_seek_matches_sequential_decode(case):
             "avg_frame_rate without container timing either"
         )
     path, expected_frames = ANNEX_B_VIDEOS[case]
+    _check_seek_matches_sequential_decode(case, path, expected_frames)
+
+
+# AVCC/ISO (length-prefixed) H.264/HEVC fixtures from DALI_extra and their frame counts. Each
+# has NAL units whose 4-byte length prefix is 00 00 01 XX (a length in [256, 511]), which is
+# byte-for-byte an Annex-B start code; test_25fps.mp4's only IDR slice and many of
+# sintel_trailer-720p.mp4's IRAP pictures were missed when BuildIndex guessed the framing per
+# NAL unit instead of reading it from the stream's avcC/hvcC extradata.
+AVCC_VIDEOS = {
+    "h264_in_mp4": (DALI_EXTRA_PATH + "/db/video/frame_num_timestamp/test_25fps.mp4", 250),
+    "h264_in_mov": (DALI_EXTRA_PATH + "/db/video/containers/mov/cfr.mov", 180),
+    "hevc_in_mp4": (DALI_EXTRA_PATH + "/db/video/hevc/sintel_trailer-720p.mp4", 1253),
+}
+
+
+@params(*AVCC_VIDEOS.keys())
+def test_avcc_seek_matches_sequential_decode(case):
+    """MP4/MOV store H.264/HEVC with AVCC (length-prefixed) NAL unit framing, which
+    FramesDecoderBase::BuildIndex must parse using the length-prefix size from the stream's
+    extradata. Correct behavior: all frames are indexed, and a frame decoded after a seek is
+    identical to the same frame decoded sequentially."""
+    path, expected_frames = AVCC_VIDEOS[case]
+    _check_seek_matches_sequential_decode(case, path, expected_frames)
+
+
+def _check_seek_matches_sequential_decode(case, path, expected_frames):
     # Forward seek into the middle, backward seek, next frame, back to the start, last frame.
     targets = [
         expected_frames * 5 // 6,
@@ -1711,13 +1737,12 @@ def test_annex_b_seek_matches_sequential_decode(case):
         p.build()
     except RuntimeError as e:
         raise AssertionError(
-            f"[{case}] experimental.readers.video could not open/index the Annex-B file "
-            f"{path}: {e}"
+            f"[{case}] experimental.readers.video could not open/index {path}: {e}"
         )
     epoch_size = p.reader_meta("r")["epoch_size"]
     assert epoch_size == expected_frames, (
         f"[{case}] indexed {epoch_size} frames, expected {expected_frames}: the frame index "
-        f"built from Annex-B packets is wrong"
+        f"is wrong"
     )
     reference = {}
     for idx in range(epoch_size):
@@ -1750,7 +1775,7 @@ def test_annex_b_seek_matches_sequential_decode(case):
         assert bad_fraction <= 0.03, (
             f"[{case}] frame {t} decoded after a seek differs from the sequentially decoded "
             f"frame in {bad_fraction * 100:.1f}% of pixels: the seek landed on a wrong or "
-            f"non-key frame (Annex-B keyframe detection in FramesDecoderBase::BuildIndex)"
+            f"non-key frame (keyframe detection in FramesDecoderBase::BuildIndex)"
         )
 
 

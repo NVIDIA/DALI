@@ -38,6 +38,34 @@ extern "C" {
 
 namespace dali {
 
+namespace detail {
+
+/**
+ * @brief Determines the NAL unit framing of an H.264/HEVC stream from its extradata.
+ *
+ * Streams carried in MP4/MOV/Matroska use AVCC/ISO framing (each NAL unit prefixed with its
+ * big-endian length), signaled by an AVCDecoderConfigurationRecord (H.264) or
+ * HEVCDecoderConfigurationRecord (HEVC) in extradata, which also records the size of that length
+ * prefix. Any other stream (no extradata, or extradata holding Annex-B parameter sets) is treated
+ * as Annex-B (start-code delimited).
+ *
+ * @return The size, in bytes, of the NAL unit length prefix (1-4) for AVCC/ISO-framed streams,
+ * or 0 for Annex-B streams.
+ */
+DLL_PUBLIC int GetNalLengthSize(AVCodecID codec_id, const uint8_t *extradata,
+                                int extradata_size);
+
+/**
+ * @brief Checks whether an H.264/HEVC packet contains an IDR (H.264) or IRAP (HEVC) NAL unit.
+ *
+ * @param nal_length_size Framing of the packet, as returned by GetNalLengthSize: 0 for Annex-B,
+ * otherwise the size of the AVCC/ISO NAL unit length prefix.
+ */
+DLL_PUBLIC bool HasKeyframeNalUnit(AVCodecID codec_id, const uint8_t *data, int size,
+                                   int nal_length_size);
+
+}  // namespace detail
+
 struct IndexEntry {
   int64_t pts;
   int last_keyframe_id;
