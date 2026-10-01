@@ -144,6 +144,21 @@ def test_center_crop_larger_than_tensor(size):
 
 
 @params(
+    (7, 9, [10, 12]),
+    (7, 9, [8, 9]),
+    (7, 9, [9, 15]),
+    (7, 9, [20, 20]),
+    (8, 8, [11, 11]),
+    (5, 6, [6, 13]),
+)
+def test_center_crop_larger_than_tensor_odd_padding(h, w, size):
+    # (crop - dim) is odd or even, torchvision puts the smaller half of the padding on top/left
+    tens = make_tensor(h, w)
+    t, td = build_centercrop_transform(size)
+    _test_core(t, td, tens, size)
+
+
+@params(
     ({"bad": "value"},),
 )
 def test_invalid_type(size):
