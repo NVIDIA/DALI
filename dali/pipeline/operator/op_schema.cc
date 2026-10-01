@@ -96,7 +96,9 @@ void SchemaRegistry::AddAlias(std::string_view alias_name, std::string_view actu
     if (redir == alias_map.end())
       break;
     if (redir->second == alias_name)
-      throw std::invalid_argument("Cycle detected while adding schema alias.");
+      throw std::logic_error(make_string(
+          "Cycle detected while adding schema alias \"",
+          alias_name, "\" for operator \"", actual_name, "\"."));
     actual_name = redir->second;
   }
   alias_map[std::string(alias_name)] = actual_name;
@@ -440,7 +442,8 @@ OpSchema &OpSchema::Deprecate(std::string version, std::string in_favor_of,
 }
 
 OpSchema &OpSchema::AliasFor(std::string_view actual_name) {
-  DALI_ENFORCE(alias_for_.empty(), make_string(
+  if (!alias_for_.empty())
+    throw std::logic_error(make_string(
       "The schema \"", name_, "\" is already an alias for \"", alias_for_, "\""));
 
   alias_for_ = actual_name;
