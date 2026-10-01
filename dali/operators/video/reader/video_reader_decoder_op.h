@@ -518,6 +518,7 @@ class VideoReaderDecoder
         dtype_(spec.GetArgument<DALIDataType>("dtype")),
         normalized_(spec.GetArgument<bool>("normalized")),
         additional_decode_surfaces_(spec.GetArgument<int>("additional_decode_surfaces")),
+        decoder_cache_capacity_(spec.GetArgument<int>("decoder_cache_size")),
         require_constant_frame_rate_(
             spec.GetArgument<bool>("require_constant_frame_rate")) {
     loader_ = InitLoader<VideoLoaderImpl>(spec);
@@ -555,6 +556,10 @@ class VideoReaderDecoder
     DALI_ENFORCE(additional_decode_surfaces_ >= 0,
                  make_string("additional_decode_surfaces must be non-negative, got ",
                              additional_decode_surfaces_, "."));
+
+    DALI_ENFORCE(decoder_cache_capacity_ > 0,
+                 make_string("decoder_cache_size must be positive, got ",
+                             decoder_cache_capacity_, "."));
 
     constant_frame_.set_pinned(std::is_same_v<Backend, GPUBackend>);
   }
@@ -710,11 +715,15 @@ class VideoReaderDecoder
   // files than fit in a single batch -- tears down and rebuilds a FramesDecoderImpl (container
   // reopen/parse, NVDEC parser creation, decode-surface allocation, ...) on nearly every sample,
   // even though the same file will very likely come up again within the next few samples.
-  // Capacity is a plain constant rather than a user-facing argument: it only needs to be large
-  // enough to cover the interleaving depth random_shuffle's buffer produces, not tuned per use
-  // case, and a fixed cap keeps a bound on how many decoders (and their decode-surface memory)
-  // can be open at once.
-  static constexpr size_t kDecoderCacheCapacity = 8;
+  // Capacity defaults to 8 (the long-standing behavior) but is user-tunable via the
+  // `decoder_cache_size` argument (decoder_cache_capacity_ below): each cached decoder holds an
+  // NVDEC lease plus device-memory frame buffers that can run from hundreds of MB to several GB
+  // depending on resolution/dtype, so the real memory cost scales directly with this capacity.
+  // Whether a larger cache actually helps depends on the dataset: it only pays off when the
+  // number of distinct files likely to be interleaved within the shuffle window (e.g.
+  // random_shuffle's buffer) is less than or comparable to the cache size; with far more distinct
+  // files than capacity, the hit rate drops and the cache mostly just adds memory pressure for
+  // little benefit.
 
   // Constructs, indexes, VFR-checks and validates a decoder for `filename` before it is ever
   // placed in decoder_cache_: if any of those steps throws, nothing is left behind in the cache
@@ -764,7 +773,7 @@ class VideoReaderDecoder
     DALI_ENFORCE(decoder->IsValid(), make_string("Invalid decoder for filename ", filename));
 
     decoder_cache_.emplace_front(filename, std::move(decoder));
-    if (decoder_cache_.size() > kDecoderCacheCapacity)
+    if (decoder_cache_.size() > static_cast<size_t>(decoder_cache_capacity_))
       decoder_cache_.pop_back();
     is_new_decoder = true;
     return decoder_cache_.front().second.get();
@@ -888,6 +897,7 @@ class VideoReaderDecoder
   DALIDataType dtype_;
   bool normalized_;
   int additional_decode_surfaces_;
+  int decoder_cache_capacity_;
   bool require_constant_frame_rate_;
   std::vector<uint8_t> fill_value_;
   bool has_labels_ = false;
