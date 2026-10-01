@@ -1651,12 +1651,13 @@ def test_annex_b_seek_matches_sequential_decode(case):
             "fixed): MPEG-PS only stamps pts/dts on some packets (typically the first packet "
             "of a PES unit), leaving the rest at AV_NOPTS_VALUE. BuildIndex now correctly finds "
             "the stream and identifies Annex-B keyframes, but frames without a real timestamp "
-            "still need a presentation-time identity that exactly matches what NVDEC reports; "
-            "naive interpolation (last known timestamp + packet duration) produces duplicate/"
-            "ambiguous values because this stream's B-frame reorder delay isn't constant, which "
-            "stalls decoding. Legacy readers.video handles this file via a different, "
-            "duration/frame-rate-based frame count that doesn't need per-packet timestamp "
-            "identity -- porting that design here is a larger rework, tracked for follow-up"
+            "still need a presentation-time identity that exactly matches what NVDEC reports, "
+            "and this stream has no reliable way to assign one without a materially larger, "
+            "ffmpeg-internals-dependent reorder-aware rework. Legacy readers.video also can't "
+            "handle this file, via an unrelated, duration/frame-rate-based frame count that "
+            "never needs per-packet timestamp identity. See "
+            "/home/janton/git/worklog/docs/2026-10-01-mpeg-ps-sparse-timestamp-investigation.md "
+            "for the full investigation if revisiting this."
         )
     if case in ("raw_h264", "raw_h265"):
         raise SkipTest(
