@@ -75,6 +75,13 @@ parser.add_argument(
     help="output dtype (experimental reader only; legacy always benchmarks the equivalent arg)",
 )
 parser.add_argument(
+    "--decoder_cache_size",
+    dest="decoder_cache_size",
+    help="experimental reader only: size of the per-reader decoder LRU cache",
+    default=8,
+    type=int,
+)
+parser.add_argument(
     "--print_every_n_iterations",
     dest="print_every_n_iterations",
     help="If > 0, print statistics every N iterations.",
@@ -125,6 +132,7 @@ def ExperimentalVideoReaderPipeline():
         random_shuffle=True,
         initial_fill=min(16, len(video_files)),
         dtype=dtype,
+        decoder_cache_size=args.decoder_cache_size,
     )
 
 
@@ -135,6 +143,8 @@ print(f"Sequence length: {args.sequence_length}")
 print(f"dtype: {args.dtype}")
 print(f"CPU threads: {args.num_threads}")
 print(f"Video files: {len(video_files)}")
+if args.reader == "experimental":
+    print(f"Decoder cache size: {args.decoder_cache_size}")
 
 pipe = LegacyVideoReaderPipeline() if args.reader == "legacy" else ExperimentalVideoReaderPipeline()
 pipe.build()
