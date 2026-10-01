@@ -78,6 +78,45 @@ const char *codec_to_string(cudaVideoCodec in) {
   }
 }
 
+// The driver-reported minimum decode-surface count for a sequence. For most codecs this is
+// already generous enough (multiple reference/reorder surfaces), but for single-picture-at-a-time
+// codecs like MJPEG the driver can report as few as 1 -- with zero surfaces of headroom, the next
+// picture's cuvidDecodePicture call fails, because this decoder never registers a real
+// pfnDisplayPicture callback (HandlePictureDisplay is invoked synchronously, inline, from
+// ProcessPictureDecode instead) so the parser's own internal surface-recycling bookkeeping never
+// sees the previous picture as "consumed" before the next one needs a surface.
+//
+// Legacy's NVDEC integration also decodes MJPEG successfully, but NOT via a hardcoded 20-surface
+// decoder: its real CUvideodecoder is created with min_num_decode_surfaces + a small
+// additional_decode_surfaces margin (nvdecoder.cc/cuvideodecoder.cc) -- 3 surfaces for this same
+// test file, not 20. (The literal `20` that does appear in legacy's per-codec switch in
+// cuvideoparser.h is a *parser* hint passed uniformly for every codec by its only caller, not an
+// MJPEG-specific override, and is unrelated to the actual decoder's surface count.) Legacy gets
+// away with so few real surfaces because it registers a genuine pfnDisplayPicture callback, which
+// gives the parser a proper "this picture was consumed" signal -- this backend's synchronous-
+// inline HandlePictureDisplay does not, so it structurally needs more headroom regardless of what
+// legacy uses. `20` here is therefore a conservative, empirically-verified value (confirmed against
+// the full 180-frame test file), not a value inherited from an equivalent legacy precedent.
+//
+// Both the sequence callback (which tells the parser how many surfaces to expect) and decoder
+// creation (GetDecoder, below) must use this same adjusted value, or the two disagree.
+//
+// `additional_decode_surfaces` is the user-facing margin (readers.video's
+// `additional_decode_surfaces` argument), added on top of the driver-reported minimum -- this
+// mirrors legacy readers.video's real behavior (min_num_decode_surfaces + additional_decode_
+// surfaces; see nvdecoder.cc/cuvideodecoder.cc), unlike this backend's own `num_decode_surfaces_`
+// member, which only sizes host-side buffering and never touched the real NVDEC surface count.
+// The MJPEG floor of 20 is still applied on top of the margin-adjusted value, preserving the
+// structural fix documented above (needed regardless of any user-requested margin).
+int AdjustedNumDecodeSurfaces(cudaVideoCodec codec_type, int min_num_decode_surfaces,
+                               int additional_decode_surfaces) {
+  int adjusted = min_num_decode_surfaces + additional_decode_surfaces;
+  if (codec_type == cudaVideoCodec_JPEG) {
+    return std::max(adjusted, 20);
+  }
+  return adjusted;
+}
+
 class NVDECCache {
  public:
     static NVDECCache &GetCache(int device_id = -1) {
@@ -88,11 +127,12 @@ class NVDECCache {
       return cache_inst[device_id];
     }
 
-    static NVDECLease GetDecoderFromCache(CUVIDEOFORMAT *video_format, int device_id = -1) {
+    static NVDECLease GetDecoderFromCache(CUVIDEOFORMAT *video_format,
+                                           int additional_decode_surfaces, int device_id = -1) {
       if (device_id == -1) {
         CUDA_CALL(cudaGetDevice(&device_id));
       }
-      return GetCache(device_id).GetDecoder(video_format, device_id);
+      return GetCache(device_id).GetDecoder(video_format, additional_decode_surfaces, device_id);
     }
 
     void ReturnDecoder(DecInstance *decoder) {
@@ -117,13 +157,15 @@ class NVDECCache {
       }
     }
 
-    NVDECLease GetDecoder(CUVIDEOFORMAT *video_format, int device_id) {
+    NVDECLease GetDecoder(CUVIDEOFORMAT *video_format, int additional_decode_surfaces,
+                          int device_id) {
       std::unique_lock lock(access_lock);
 
       auto codec_type = video_format->codec;
       unsigned height =  video_format->coded_height;
       unsigned width = video_format->coded_width;
-      auto num_decode_surfaces = video_format->min_num_decode_surfaces;
+      unsigned num_decode_surfaces = static_cast<unsigned>(AdjustedNumDecodeSurfaces(
+          codec_type, video_format->min_num_decode_surfaces, additional_decode_surfaces));
       auto chroma_format = video_format->chroma_format;
       auto bit_depth_luma_minus8 = video_format->bit_depth_luma_minus8;
 
@@ -233,6 +275,7 @@ class NVDECCache {
       decoder_inst.max_height = decoder_info.ulMaxHeight;
       decoder_inst.max_width = decoder_info.ulMaxWidth;
       decoder_inst.num_decode_surfaces = num_decode_surfaces;
+      decoder_inst.num_output_surfaces = decoder_info.ulNumOutputSurfaces;
       decoder_inst.codec_type = codec_type;
       decoder_inst.chroma_format = chroma_format;
       decoder_inst.bit_depth_luma_minus8 = bit_depth_luma_minus8;
@@ -274,7 +317,11 @@ int process_video_sequence(void *user_data, CUVIDEOFORMAT *video_format) {
   FramesDecoderGpu *frames_decoder = static_cast<FramesDecoderGpu*>(user_data);
   frames_decoder->InitGpuDecoder(video_format);
 
-  return video_format->min_num_decode_surfaces;
+  // Must match GetDecoder's num_decode_surfaces exactly -- this return value is what tells the
+  // NVDEC parser how many decode surfaces it has to cycle through; the actual CUvideodecoder is
+  // created with the same value (see AdjustedNumDecodeSurfaces).
+  return AdjustedNumDecodeSurfaces(video_format->codec, video_format->min_num_decode_surfaces,
+                                    frames_decoder->AdditionalDecodeSurfaces());
 }
 
 int process_picture_decode(void *user_data, CUVIDPICPARAMS *picture_params) {
@@ -373,8 +420,46 @@ void FramesDecoderGpu::InitGpuDecoder(CUVIDEOFORMAT *video_format) {
                            is_full_range ? VIDEO_COLOR_SPACE_CONVERSION_TYPE_YUV_TO_RGB_FULL_RANGE :
                                            VIDEO_COLOR_SPACE_CONVERSION_TYPE_YUV_TO_RGB :
                            VIDEO_COLOR_SPACE_CONVERSION_TYPE_YUV_UPSAMPLE;
-    nvdecode_state_->decoder = frame_dec_gpu_impl::NVDECCache::GetDecoderFromCache(video_format);
+    nvdecode_state_->decoder = frame_dec_gpu_impl::NVDECCache::GetDecoderFromCache(
+        video_format, additional_decode_surfaces_);
+    // pending_maps_ is indexed by picture_index, whose valid range is bounded by the *actual*
+    // decoder's ulNumDecodeSurfaces -- which may differ from the num_decode_surfaces_ member
+    // (e.g. MJPEG's AdjustedNumDecodeSurfaces override, or GetDecoder's own 0-surfaces fallback).
+    // Read it directly off the lease instead of recomputing it, so this can never drift out of
+    // sync with whatever GetDecoder actually sized the CUvideodecoder with.
+    InitPendingMaps(nvdecode_state_->decoder.NumDecodeSurfaces(),
+                     nvdecode_state_->decoder.NumOutputSurfaces());
   }
+}
+
+void FramesDecoderGpu::InitPendingMaps(unsigned decode_surface_count, unsigned num_output_surfaces) {
+  pending_maps_.assign(decode_surface_count, {});
+  for (auto &pending : pending_maps_) {
+    CUDA_CALL(cudaEventCreateWithFlags(&pending.event, cudaEventDisableTiming));
+  }
+  pending_map_order_.clear();
+  num_output_surfaces_ = std::max(1u, num_output_surfaces);
+}
+
+void FramesDecoderGpu::EnsureUnmapped(int picture_index) {
+  DALI_ENFORCE(picture_index >= 0 && static_cast<size_t>(picture_index) < pending_maps_.size(),
+               make_string("NVDEC picture_index ", picture_index, " is out of range for the ",
+                            pending_maps_.size(), " decode surfaces pending_maps_ was sized for."));
+  auto &pending = pending_maps_[picture_index];
+  if (!pending.mapped) {
+    return;
+  }
+  CUDA_CALL(cudaEventSynchronize(pending.event));
+  CUDA_CALL(cuvidUnmapVideoFrame(nvdecode_state_->decoder, pending.ptr));
+  pending.mapped = false;
+  pending.ptr = 0;
+}
+
+void FramesDecoderGpu::DrainPendingMaps() {
+  for (size_t idx = 0; idx < pending_maps_.size(); ++idx) {
+    EnsureUnmapped(static_cast<int>(idx));
+  }
+  pending_map_order_.clear();
 }
 
 void FramesDecoderGpu::InitGpuParser() {
@@ -416,14 +501,22 @@ void FramesDecoderGpu::InitGpuParser() {
 
   // Init internal frame buffer
   // TODO(awolant): Check, if continuous buffer would be faster
+  // NOTE: dtype_ is DALI_UINT8 here (the default) unless SetOutputType() was already called
+  // before this runs. If SetOutputType(DALI_FLOAT) is called afterward, SetOutputType() (see
+  // below) grows these buffers to match; this keeps the common UINT8 case (the default, and
+  // all of the legacy reader's traffic) at its original, smaller footprint instead of always
+  // paying for the largest possible (float) allocation.
   for (size_t i = 0; i < frame_buffer_.size(); ++i) {
-    frame_buffer_[i].frame_.resize(FrameSize());
+    frame_buffer_[i].frame_.resize(FrameSizeBytes());
     frame_buffer_[i].pts_ = -1;
   }
 }
 
-FramesDecoderGpu::FramesDecoderGpu(const std::string &filename, cudaStream_t stream, DALIImageType image_type)
+FramesDecoderGpu::FramesDecoderGpu(const std::string &filename, cudaStream_t stream, DALIImageType image_type,
+                                   int num_decode_surfaces, int additional_decode_surfaces)
     : FramesDecoderBase(filename, image_type),
+      num_decode_surfaces_(num_decode_surfaces),
+      additional_decode_surfaces_(additional_decode_surfaces),
       frame_buffer_(num_decode_surfaces_),
       stream_(stream) {
   is_valid_ = is_valid_ && SelectVideoStream();
@@ -432,9 +525,13 @@ FramesDecoderGpu::FramesDecoderGpu(const std::string &filename, cudaStream_t str
   }
 }
 
-FramesDecoderGpu::FramesDecoderGpu(const char *memory_file, size_t memory_file_size, std::string_view source_info,
-                                   cudaStream_t stream, DALIImageType image_type)
+FramesDecoderGpu::FramesDecoderGpu(const char *memory_file, size_t memory_file_size,
+                                   std::string_view source_info, cudaStream_t stream,
+                                   DALIImageType image_type, int num_decode_surfaces,
+                                   int additional_decode_surfaces)
     : FramesDecoderBase(memory_file, memory_file_size, source_info, image_type),
+      num_decode_surfaces_(num_decode_surfaces),
+      additional_decode_surfaces_(additional_decode_surfaces),
       frame_buffer_(num_decode_surfaces_),
       stream_(stream) {
   is_valid_ = is_valid_ && SelectVideoStream();
@@ -449,6 +546,16 @@ int FramesDecoderGpu::ProcessPictureDecode(CUVIDPICPARAMS *picture_params) {
   if (flush_) {
     return 0;
   }
+
+  // Must run before cuvidDecodePicture, not after: this index's previous occupant (if any) may
+  // still be mapped, and decoding into it now would let NVDEC overwrite a surface the conversion
+  // kernel from the previous picture hasn't necessarily finished reading yet. This mirrors
+  // legacy's frame_in_use_ wait in nvdecoder.cc's handle_decode_, which runs at the same point for
+  // the same reason -- the FIFO eviction in HandlePictureDisplay (below) makes this the expected
+  // no-op case (index reuse only after num_decode_surfaces_ other pictures cycle through), but
+  // index reuse on consecutive pictures is legal parser behavior (e.g. intra-only codecs), so this
+  // is a real guard, not just a defensive assertion.
+  EnsureUnmapped(picture_params->CurrPicIdx);
 
   CUDA_CALL(cuvidDecodePicture(nvdecode_state_->decoder, picture_params));
   CUVIDPARSERDISPINFO picture_display_info;
@@ -499,6 +606,20 @@ int FramesDecoderGpu::HandlePictureDisplay(CUVIDPARSERDISPINFO *picture_display_
       return 1;
     }
     frame_output = current_frame_output_;
+  } else if (HasIndex() && current_pts_ < index_[NextFrameIdx()].pts) {
+    // This frame is strictly behind the next frame we still need. Targets only move forward
+    // within a decode run (SeekFrame only ever seeks backward by first flushing and restarting
+    // from a keyframe), so a frame behind the target can never be requested before that happens
+    // -- and a flush/reset drops any buffered frames anyway. This is common for the reference
+    // frames NVDEC must decode to reach a mid-GOP seek target (e.g. pre-roll frames with a pts
+    // before the stream's first requested frame): skip the map/color-conversion entirely instead
+    // of paying for it and stashing the result in a frame_buffer_ slot that will never be read.
+    // Frames *ahead* of the target (current_pts_ > target, e.g. B-frame reordering) still need
+    // the buffer path below.
+    LOG_LINE << "Dropping frame with display timestamp " << current_pts_
+             << ", behind next wanted index " << next_frame_idx_ << " (pts "
+             << index_[NextFrameIdx()].pts << ")" << std::endl;
+    return 1;
   } else {
     // Put currently decoded frame to the buffer for later
     auto &slot = FindEmptySlot();
@@ -509,9 +630,23 @@ int FramesDecoderGpu::HandlePictureDisplay(CUVIDPARSERDISPINFO *picture_display_
   CUdeviceptr frame = {};
   unsigned int pitch = 0;
 
+  int picture_index = picture_display_info->picture_index;
+
+  // Enforce the driver's output-surface budget (num_output_surfaces_, from ulNumOutputSurfaces)
+  // before mapping a new picture: evict (sync + unmap) the oldest still-mapped surface(s) until
+  // we're under the cap. (picture_index itself was already guaranteed unmapped before decode, in
+  // ProcessPictureDecode -- EnsureUnmapped there may have already unmapped an entry still sitting
+  // in pending_map_order_ here; EnsureUnmapped is a no-op on an already-unmapped index, so that
+  // stale entry just makes this loop evict one extra surface, which is harmless.)
+  while (pending_map_order_.size() >= num_output_surfaces_) {
+    int oldest = pending_map_order_.front();
+    pending_map_order_.pop_front();
+    EnsureUnmapped(oldest);
+  }
+
   CUDA_CALL(cuvidMapVideoFrame(
     nvdecode_state_->decoder,
-    picture_display_info->picture_index,
+    picture_index,
     &frame,
     &pitch,
     &videoProcessingParameters));
@@ -526,15 +661,20 @@ int FramesDecoderGpu::HandlePictureDisplay(CUVIDPARSERDISPINFO *picture_display_
       Height(),
       Width(),
       conversion_type_,
-      false,  // normalized_range_,
+      normalized_range_,
       stream_);
   ), DALI_FAIL(make_string("Unsupported type: ", dtype_)));
 
-  // TODO(awolant): Alternative is to copy the data to a buffer
-  // and then process it on the stream. Check, if this is faster, when
-  // the benchmark is ready.
-  CUDA_CALL(cudaStreamSynchronize(stream_));
-  CUDA_CALL(cuvidUnmapVideoFrame(nvdecode_state_->decoder, frame));
+  // Defer the unmap: record an event right after the conversion kernel instead of synchronizing
+  // the whole stream here. This lets cuvidDecodePicture(next) and cuvidMapVideoFrame(next) proceed
+  // while this picture's conversion kernel is still running on the GPU -- the actual unmap (and
+  // the sync it requires) happens lazily, once this surface's slot is needed again (see the
+  // eviction above) or at teardown (DrainPendingMaps).
+  auto &pending = pending_maps_[picture_index];
+  pending.ptr = frame;
+  pending.mapped = true;
+  CUDA_CALL(cudaEventRecord(pending.event, stream_));
+  pending_map_order_.push_back(picture_index);
 
   return 1;
 }
@@ -562,7 +702,7 @@ bool FramesDecoderGpu::ReadNextFrameWithIndex(uint8_t *data) {
     if (frame.pts_ != -1 && frame.pts_ == index_[next_frame_idx_].pts) {
       if (copy_to_output) {
         LOG_LINE << "Copying from frame buffer to frame_output" << std::endl;
-        copyD2D(data, frame.frame_.data(), FrameSize(), stream_);
+        copyD2D(data, frame.frame_.data(), FrameSizeBytes(), stream_);
       }
       LOG_LINE << "Found buffered frame with pts=" << frame.pts_ << std::endl;
 
@@ -733,10 +873,7 @@ bool FramesDecoderGpu::ReadNextFrameWithoutIndex(uint8_t *data) {
 
   if (current_copy_to_output_) {
     assert(current_frame_output_ != nullptr);
-    int64_t total_size = FrameSize();
-    if (dtype_ == DALI_FLOAT) {
-      total_size *= 4;
-    }
+    int64_t total_size = FrameSizeBytes();
     LOG_LINE << "Copying from frame buffer at index " << frame_to_return_index
              << " to frame_output at " << current_frame_output_ << " (frame_idx=" << next_frame_idx_
              << ")" << std::endl;
@@ -791,6 +928,13 @@ void FramesDecoderGpu::SendLastPacket(bool flush) {
            << std::endl;
 
   flush_ = flush;
+  if (flush) {
+    // Surfaces left mapped from before a flush (backward seek or reset) must not survive the
+    // boundary: the safety net in ProcessPictureDecode would still catch a reused index lazily,
+    // but draining here -- reached from both Flush() and SeekFrame()'s direct call -- keeps
+    // behavior deterministic instead of relying on that fallback.
+    DrainPendingMaps();
+  }
   CUVIDSOURCEDATAPACKET *packet = &nvdecode_state_->packet;
   memset(packet, 0, sizeof(CUVIDSOURCEDATAPACKET));
   packet->payload = nullptr;
@@ -850,7 +994,7 @@ BufferedFrame& FramesDecoderGpu::FindEmptySlot() {
   }
   frame_buffer_ = std::move(new_frame_buffer);
   auto &new_frame = frame_buffer_.back();
-  new_frame.frame_.resize(FrameSize());
+  new_frame.frame_.resize(FrameSizeBytes());
   new_frame.pts_ = -1;
   return new_frame;
 }
@@ -901,6 +1045,23 @@ void FramesDecoderGpu::Flush() {
 }
 
 FramesDecoderGpu::~FramesDecoderGpu() {
+  // The underlying CUvideodecoder is pooled (NVDECCache) and may be handed to another
+  // FramesDecoderGpu instance once nvdecode_state_'s lease returns it -- any surface left mapped
+  // by this instance must be unmapped first, or the next owner's decode calls would target an
+  // index the driver still considers in use.
+  if (nvdecode_state_ && nvdecode_state_->decoder) {
+    try {
+      DrainPendingMaps();
+    } catch (...) {
+      LOG_LINE << "Error draining pending NVDEC surface maps in ~FramesDecoderGpu" << std::endl;
+    }
+  }
+  for (auto &pending : pending_maps_) {
+    if (pending.event) {
+      cudaEventDestroy(pending.event);
+      pending.event = nullptr;
+    }
+  }
   filtered_packet_.reset();
   bsfc_.reset();
 }
@@ -915,7 +1076,18 @@ bool FramesDecoderGpu::SupportsHevc() {
 }
 
 void FramesDecoderGpu::CopyFrame(uint8_t *dst, const uint8_t *src) {
-  CUDA_CALL(cudaMemcpyAsync(dst, src, FrameSize(), cudaMemcpyDeviceToDevice, stream_));
+  CUDA_CALL(cudaMemcpyAsync(dst, src, FrameSizeBytes(), cudaMemcpyDeviceToDevice, stream_));
+}
+
+void FramesDecoderGpu::SetOutputType(DALIDataType dtype) {
+  FramesDecoderBase::SetOutputType(dtype);
+  // frame_buffer_ entries are allocated in InitGpuParser() (constructor time) assuming
+  // DALI_UINT8, before the caller has a chance to call SetOutputType(). DeviceBuffer::resize()
+  // only reallocates when growing past the current capacity, so this is a no-op for the
+  // common DALI_UINT8 case and only actually grows memory for DALI_FLOAT.
+  for (auto &frame : frame_buffer_) {
+    frame.frame_.resize(FrameSizeBytes());
+  }
 }
 
 bool FramesDecoderGpu::SelectVideoStream(int stream_id) {
@@ -927,12 +1099,12 @@ bool FramesDecoderGpu::SelectVideoStream(int stream_id) {
   assert(codec_params_);
   AVCodecID codec_id = codec_params_->codec_id;
 
-  static constexpr std::array<AVCodecID, /*7*/ 6> codecs = {
+  static constexpr std::array<AVCodecID, 7> codecs = {
     AVCodecID::AV_CODEC_ID_H264,
     AVCodecID::AV_CODEC_ID_HEVC,
     AVCodecID::AV_CODEC_ID_VP8,
     AVCodecID::AV_CODEC_ID_VP9,
-    //AVCodecID::AV_CODEC_ID_MJPEG,  // TODO(janton): add support for MJPEG
+    AVCodecID::AV_CODEC_ID_MJPEG,
     AVCodecID::AV_CODEC_ID_AV1,
     AVCodecID::AV_CODEC_ID_MPEG4,
   };

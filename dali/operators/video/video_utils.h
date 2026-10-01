@@ -23,7 +23,10 @@ extern "C" {
 }
 
 #include <dirent.h>
+#include <algorithm>
+#include <cmath>
 #include <string>
+#include <type_traits>
 #include <vector>
 #include "dali/core/error_handling.h"
 #include "dali/core/boundary.h"
@@ -50,8 +53,44 @@ inline double TimestampToSeconds(AVRational timebase, int64_t timestamp) {
   return static_cast<double>(timestamp) * timebase.num / timebase.den;
 }
 
-inline int64_t SecondsToTimestamp(AVRational timebase, double seconds) {
-  return static_cast<int64_t>(seconds * timebase.den / timebase.num);
+inline int64_t SecondsToTimestamp(AVRational timebase, double seconds, bool round_down) {
+  // Direction-aware quantization, matching legacy readers.video and
+  // FrameIndex::GetFrameIdxByTimestamp's own `rounddown` convention: round down (floor) when the
+  // caller is about to do a round-down lookup, round up (ceil) when it's about to do a round-up
+  // lookup. Never round to nearest: a plain nearest-tick rounding (e.g. std::llround) can still
+  // land exactly on the pts of the frame just below the requested time (e.g. seconds * fps ==
+  // 11264.41 rounds to 11264, which is frame 22's own pts), which makes
+  // GetFrameIdxByTimestamp's exact-match branch treat it as frame 22's own position and exclude
+  // it -- even though the requested time is unambiguously past that frame's boundary. Since pts
+  // values are integers for constant-frame-rate video, ceil/floor of the exact (possibly
+  // fractional, due to floating point) tick position matches legacy's ceil(t*fps)/floor(t*fps)
+  // exactly, closing the bug rather than just shrinking it.
+  double ticks = seconds * timebase.den / timebase.num;
+  // Snap to the nearest integer tick if we're within a small epsilon of one, before applying
+  // the directional floor/ceil above. `seconds * timebase.den / timebase.num` is not exact even
+  // when the mathematical result is an integer: e.g. at timebase 1/1000, seconds = 1.001 gives
+  // ticks = 1000.9999999999999 instead of exactly 1001.0, so floor() would silently return 1000
+  // instead of the intended 1001. This is ordinary floating-point representation noise (on the
+  // order of a few ULPs), not a genuinely fractional request, so it should be snapped before
+  // floor/ceil change the outcome by a whole tick.
+  //
+  // Use a *relative* epsilon (scaled to the magnitude of `ticks`) rather than a fixed absolute
+  // one: ticks can range from a handful (short videos / coarse timebases) to many millions (long
+  // videos at high-resolution timebases, e.g. 1/90000), and the absolute size of floating-point
+  // noise grows with the magnitude of the value. 1e-6 relative error is ~4500x the double epsilon
+  // (~2.22e-16) at ticks ~ 1, giving ample margin for the few-ULP noise accumulated through the
+  // multiply-and-divide above, while still being far smaller than any real fractional-tick offset
+  // we'd want to preserve (a real request would need to land within one part in a million of a
+  // tick boundary to be mistakenly snapped, i.e. far finer than millisecond-precision inputs at
+  // common timebases ever produce).
+  constexpr double kRelativeEpsilon = 1e-6;
+  double rounded = std::round(ticks);
+  double epsilon = std::max(1.0, std::abs(rounded)) * kRelativeEpsilon;
+  if (std::abs(ticks - rounded) < epsilon) {
+    ticks = rounded;
+  }
+  return round_down ? static_cast<int64_t>(std::floor(ticks))
+                     : static_cast<int64_t>(std::ceil(ticks));
 }
 
 std::vector<VideoFileMeta> GetVideoFiles(const std::string& file_root,
@@ -95,38 +134,58 @@ inline boundary::BoundaryType GetBoundaryType(const OpSpec &spec) {
   return boundary_type;
 }
 
+/**
+ * @brief Returns a device/host buffer holding one frame of `shape` filled with `fill_value`.
+ *
+ * `fill_value` is expressed in the 8-bit [0, 255] scale (one value, or one per channel). For
+ * DALI_FLOAT it is converted like decoded pixels are: kept as is, or divided by 255 when
+ * `normalized` is set. The buffer is reused when it already has the right type and is large
+ * enough.
+ */
 template <typename Backend>
 const uint8_t* ConstantFrame(Tensor<Backend>& constant_frame, const TensorShape<>& shape,
                              span<const uint8_t> fill_value, cudaStream_t stream,
-                             bool reuse_existing_data = true) {
-  if (reuse_existing_data && constant_frame.shape().num_elements() >= shape.num_elements()) {
-    return constant_frame.template data<uint8_t>();
+                             bool reuse_existing_data = true, DALIDataType dtype = DALI_UINT8,
+                             bool normalized = false) {
+  DALI_ENFORCE(dtype == DALI_UINT8 || dtype == DALI_FLOAT,
+               make_string("Unsupported constant frame type: ", dtype));
+  if (reuse_existing_data && constant_frame.type() == dtype &&
+      constant_frame.shape().num_elements() >= shape.num_elements()) {
+    return static_cast<const uint8_t*>(constant_frame.raw_data());
   }
-  constant_frame.Resize(shape, DALI_UINT8);
   DALI_ENFORCE(fill_value.size() == 1 || static_cast<int>(fill_value.size()) == shape[2],
                make_string("Fill value size must be 1 or equal to the number of channels. Got ",
                            fill_value.size(), " with num_channels=", shape[2]));
 
-  auto fill_data = [&](uint8_t* data) {
-    if (fill_value.size() == 1) {
-      std::fill(data, data + shape.num_elements(), fill_value[0]);
-    } else {
-      for (int i = 0; i < shape.num_elements(); i++) {
-        data[i] = fill_value[i % fill_value.size()];
+  auto fill_data = [&](auto* data) {
+    using T = std::remove_pointer_t<decltype(data)>;
+    for (int64_t i = 0; i < shape.num_elements(); i++) {
+      uint8_t v = fill_value[fill_value.size() == 1 ? 0 : i % fill_value.size()];
+      if constexpr (std::is_same_v<T, float>) {
+        data[i] = normalized ? v / 255.0f : static_cast<float>(v);
+      } else {
+        data[i] = v;
       }
     }
   };
+  auto fill_host_tensor = [&](Tensor<CPUBackend>& tensor) {
+    if (dtype == DALI_FLOAT)
+      fill_data(tensor.template mutable_data<float>());
+    else
+      fill_data(tensor.template mutable_data<uint8_t>());
+  };
 
-  if (std::is_same_v<Backend, GPUBackend>) {
+  constant_frame.Resize(shape, dtype);
+  if constexpr (std::is_same_v<Backend, GPUBackend>) {
     Tensor<CPUBackend> tmp;
     tmp.set_pinned(true);
-    tmp.Resize(shape, DALI_UINT8);
-    fill_data(tmp.template mutable_data<uint8_t>());
+    tmp.Resize(shape, dtype);
+    fill_host_tensor(tmp);
     constant_frame.Copy(tmp, stream);
   } else {
-    fill_data(constant_frame.template mutable_data<uint8_t>());
+    fill_host_tensor(constant_frame);
   }
-  return constant_frame.template data<uint8_t>();
+  return static_cast<const uint8_t*>(constant_frame.raw_data());
 }
 
 std::string av_error_string(int ret);

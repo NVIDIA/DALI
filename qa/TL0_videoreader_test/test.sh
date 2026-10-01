@@ -1,6 +1,6 @@
 #!/bin/bash -e
 
-pip_packages='${python_test_runner_package} numpy opencv-python-headless'
+pip_packages='${python_test_runner_package} numpy opencv-python-headless av'
 target_dir=./docs/examples/sequence_processing/video
 
 do_once() {
