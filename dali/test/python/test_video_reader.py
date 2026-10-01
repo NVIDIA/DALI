@@ -1642,13 +1642,14 @@ ANNEX_B_VIDEOS = {
 
 
 def test_mpeg_ps_is_rejected_as_unsupported():
-    """MPEG-PS (container format 'mpeg') only stamps a timestamp on some packets, which
-    experimental.readers.video's frame-accurate seeking can't handle reliably (see
-    /home/janton/git/worklog/docs/2026-10-01-mpeg-ps-sparse-timestamp-investigation.md for the
-    full investigation). SelectVideoStream rejects it explicitly and early -- before any
-    index-building work starts -- instead of failing deep inside BuildIndex with a message that
-    doesn't explain why. A file list mixing it with a working file excludes only the MPEG-PS
-    entry, same as any other invalid file."""
+    """MPEG-PS (container format 'mpeg') only stamps a timestamp on some packets, which the
+    frame-accurate seek index experimental.readers.video builds can't handle reliably.
+    FramesDecoderBase::BuildIndex() rejects it explicitly, before doing any index-building work.
+    This only affects operators that need a seek index (this reader); sequential-decode-only
+    operators such as experimental.decoders.video and experimental.inputs.video never call
+    BuildIndex() and are unaffected. At the dataset-metadata-building stage, BuildIndex()'s
+    rejection is caught and treated like any other invalid file: a file list mixing MPEG-PS with
+    a working file excludes only the MPEG-PS entry, with a warning."""
     mpeg_ps_file = DALI_EXTRA_PATH + "/db/video/containers/mpeg/cfr.mpeg"
     avi_file = DALI_EXTRA_PATH + "/db/video/containers/avi/cfr.avi"
 

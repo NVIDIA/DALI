@@ -27,6 +27,7 @@
 
 #include "dali/core/boundary.h"
 #include "dali/core/cuda_stream_pool.h"
+#include "dali/core/error_handling.h"
 #include "dali/core/span.h"
 
 #include "dali/operators/reader/reader_op.h"
@@ -87,7 +88,7 @@ enum class FileListFormat {
 };
 
 enum class FileListRounding {
-  kStartDownEndUp,  // Round start down and end up (default)
+  kStartDownEndUp,  // Round start down and end up
   kStartUpEndDown,  // Round start up and end down
   kAllUp,           // Round both up
   kAllDown          // Round both down
@@ -95,7 +96,9 @@ enum class FileListRounding {
 
 struct FileListOptions {
   FileListFormat format = FileListFormat::kTimestamps;
-  FileListRounding rounding = FileListRounding::kStartDownEndUp;
+  // GetFileListOptions() always overwrites this from the schema's default (start_up_end_down)
+  // before use; kept in sync here only so a default-constructed FileListOptions isn't a trap.
+  FileListRounding rounding = FileListRounding::kStartUpEndDown;
   bool include_end = false;
 
   bool should_round_down_start() const {
@@ -276,11 +279,21 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
         LOG_LINE << "Invalid video file: " << entry.filename << std::endl;
         continue;
       }
-      auto index = FrameIndexCache::instance().GetOrBuild(entry.filename, stamp, [&]() {
-        LOG_LINE << "Building index for " << entry.filename << std::endl;
-        indexer->BuildIndex();
-        return indexer->GetIndex();
-      });
+      FrameIndexCache::IndexPtr index;
+      try {
+        index = FrameIndexCache::instance().GetOrBuild(entry.filename, stamp, [&]() {
+          LOG_LINE << "Building index for " << entry.filename << std::endl;
+          indexer->BuildIndex();
+          return indexer->GetIndex();
+        });
+      } catch (const DALIException &e) {
+        // BuildIndex() can reject content it can't build a reliable seek index for (e.g.
+        // MPEG-PS -- see FramesDecoderBase::BuildIndex()). At this (per-file, metadata-
+        // building) point in time, that's just another kind of invalid file: skip it with a
+        // warning, same as a file that failed to open, rather than failing the whole dataset.
+        DALI_WARN(make_string("Skipping video file \"", entry.filename, "\": ", e.what()));
+        continue;
+      }
       if (!indexer->HasIndex())
         indexer->SetIndex(*index);
       indices_[entry.filename] = index;  // kept for the reader's lifetime
@@ -671,6 +684,13 @@ class VideoReaderDecoder
   // can be open at once.
   static constexpr size_t kDecoderCacheCapacity = 8;
 
+  // Constructs, indexes, VFR-checks and validates a decoder for `filename` before it is ever
+  // placed in decoder_cache_: if any of those steps throws, nothing is left behind in the cache
+  // for this filename (the partially-built decoder is simply destroyed), and any other entries
+  // already in decoder_cache_ are untouched. Cache insertion is deliberately the *last* step,
+  // reached only on full success -- otherwise a corrupt/VFR-rejected file could be cached
+  // unvalidated, and a later call for the same filename would hit the cache and skip
+  // index-building and the VFR check entirely.
   FramesDecoderImpl *GetOrOpenDecoder(const std::string &filename, bool &is_new_decoder) {
     for (auto it = decoder_cache_.begin(); it != decoder_cache_.end(); ++it) {
       if (it->first == filename) {
@@ -689,6 +709,21 @@ class VideoReaderDecoder
       decoder->SetOutputType(dtype_);
       decoder->SetNormalizedRange(normalized_);
     }
+
+    // the index the reader was set up with (the file is not indexed again, even if it changed)
+    auto *index = FileIndex(filename);
+    DALI_ENFORCE(index, make_string("Internal error: no frame index for \"", filename, "\"."));
+    if (!decoder->HasIndex())
+      decoder->SetIndex(*index);
+    // IsVfr() is a per-file property; SetIndex() recomputes is_vfr_ from the shared index.
+    if (require_constant_frame_rate_) {
+      DALI_ENFORCE(!decoder->IsVfr(),
+                   make_string("File ", filename,
+                               " has a variable frame rate, but "
+                               "require_constant_frame_rate=True was specified."));
+    }
+    DALI_ENFORCE(decoder->IsValid(), make_string("Invalid decoder for filename ", filename));
+
     decoder_cache_.emplace_front(filename, std::move(decoder));
     if (decoder_cache_.size() > kDecoderCacheCapacity)
       decoder_cache_.pop_back();
@@ -710,18 +745,6 @@ class VideoReaderDecoder
       if (is_new_decoder) {
         LOG_LINE << "Initialized decoder to " << decoder_->Filename() << " ptr: " << decoder_
                  << " num_frames: " << decoder_->NumFrames() << std::endl;
-        // the index the reader was set up with (the file is not indexed again, even if it changed)
-        auto *index = FileIndex(filename);
-        DALI_ENFORCE(index, make_string("Internal error: no frame index for \"", filename, "\"."));
-        if (!decoder_->HasIndex())
-          decoder_->SetIndex(*index);
-        // IsVfr() is a per-file property; SetIndex() recomputes is_vfr_ from the shared index.
-        if (require_constant_frame_rate_) {
-          DALI_ENFORCE(!decoder_->IsVfr(),
-                       make_string("File ", filename,
-                                   " has a variable frame rate, but "
-                                   "require_constant_frame_rate=True was specified."));
-        }
       } else {
         LOG_LINE << "Reusing decoder for " << decoder_->Filename() << " ptr: " << decoder_
                  << " num_frames: " << decoder_->NumFrames() << std::endl;
