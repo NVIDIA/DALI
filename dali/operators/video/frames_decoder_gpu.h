@@ -145,11 +145,19 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
    * @param filename Path to a video file.
    * @param stream CUDA stream to use for decoding.
    * @param image_type Image type of the video.
-   * @param num_decode_surfaces Baseline number of NVDEC decode surfaces to allocate.
+   * @param num_decode_surfaces Baseline number of NVDEC decode surfaces to allocate. Sizes the
+   * host-side frame reorder buffer and the parser's initial decode-surface hint; does not by
+   * itself change the real NVDEC decoder's surface count (see `additional_decode_surfaces`).
+   * @param additional_decode_surfaces Extra margin added to the driver-reported minimum when
+   * sizing the *real* NVDEC decode surface count (see `AdjustedNumDecodeSurfaces` in
+   * frames_decoder_gpu.cc), matching legacy readers.video's `additional_decode_surfaces`
+   * semantics. Kept separate from `num_decode_surfaces` above, which only affects host-side
+   * buffering, so the two concerns don't get conflated.
    */
   explicit FramesDecoderGpu(const std::string &filename, cudaStream_t stream = 0,
                             DALIImageType image_type = DALI_RGB,
-                            int num_decode_surfaces = 8);
+                            int num_decode_surfaces = 8,
+                            int additional_decode_surfaces = 0);
 
   /**
    * @brief Construct a new FramesDecoder object.
@@ -159,14 +167,21 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
    * @param source_info Source info of the video file.
    * @param stream CUDA stream to use for decoding.
    * @param image_type Image type of the video.
-   * @param num_decode_surfaces Baseline number of NVDEC decode surfaces to allocate.
+   * @param num_decode_surfaces Baseline number of NVDEC decode surfaces to allocate. Sizes the
+   * host-side frame reorder buffer and the parser's initial decode-surface hint; does not by
+   * itself change the real NVDEC decoder's surface count (see `additional_decode_surfaces`).
+   * @param additional_decode_surfaces Extra margin added to the driver-reported minimum when
+   * sizing the *real* NVDEC decode surface count (see `AdjustedNumDecodeSurfaces` in
+   * frames_decoder_gpu.cc), matching legacy readers.video's `additional_decode_surfaces`
+   * semantics.
    * @note This constructor assumes that the `memory_file` and
    * `memory_file_size` arguments cover the entire video file, including the header.
    */
   FramesDecoderGpu(const char *memory_file, size_t memory_file_size,
                    std::string_view source_info = {}, cudaStream_t stream = 0,
                    DALIImageType image_type = DALI_RGB,
-                   int num_decode_surfaces = 8);
+                   int num_decode_surfaces = 8,
+                   int additional_decode_surfaces = 0);
 
   bool ReadNextFrame(uint8_t *data) override;
 
@@ -189,6 +204,10 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
   static bool SupportsCodec(AVCodecID codec_id, uint8_t bit_depth = 8);
 
   void InitGpuDecoder(CUVIDEOFORMAT *video_format);
+
+  int AdditionalDecodeSurfaces() const noexcept {
+    return additional_decode_surfaces_;
+  }
 
   void CopyFrame(uint8_t *dst, const uint8_t *src) override;
 
@@ -220,8 +239,14 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
 
   // TODO(awolant): This value is an approximation. Make it set dynamically
   // Baseline decode surface count; can be increased via the constructor's
-  // num_decode_surfaces parameter (see additional_decode_surfaces in the reader op).
+  // num_decode_surfaces parameter (see additional_decode_surfaces in the reader op). Sizes the
+  // host-side frame reorder buffer and the parser's initial decode-surface hint only.
   int num_decode_surfaces_ = 8;
+
+  // Extra margin added to the driver-reported minimum when sizing the real NVDEC decode surface
+  // count (see AdjustedNumDecodeSurfaces in frames_decoder_gpu.cc). Deliberately separate from
+  // num_decode_surfaces_ above, which only affects host-side buffering.
+  int additional_decode_surfaces_ = 0;
 
   std::vector<BufferedFrame> frame_buffer_;
 

@@ -268,10 +268,10 @@ decoded channels (currently always ``3``); provided for compatibility with ``rea
                     R"code(Additional decode-lookahead slots, beyond a baseline of 8, used by the GPU
 decoder.
 
-This value sizes the GPU decoder's host-side frame reorder buffer (and the initial surface
-count hint given to the video parser), which bounds how many frames can be decoded ahead of
-the one being returned. It does not directly set the number of NVDEC decode surfaces; that
-count is determined by the codec's own requirements (``min_num_decode_surfaces``).
+This value has two effects, matching legacy ``readers.video``'s ``additional_decode_surfaces``:
+it sizes the GPU decoder's host-side frame reorder buffer (which bounds how many frames can be
+decoded ahead of the one being returned), and it adds real margin on top of the driver-reported
+minimum (``min_num_decode_surfaces``) when sizing the actual NVDEC decode-surface count.
 
 Must be non-negative. Only relevant for the GPU backend; ignored on CPU.)code",
                     2)
