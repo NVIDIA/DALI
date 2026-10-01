@@ -102,6 +102,13 @@ DALI_SCHEMA(experimental__readers__Video)
 The operator supports most common video container formats using libavformat (FFmpeg).
 The operator utilizes either libavcodec (FFmpeg) or NVIDIA Video Codec SDK (NVDEC) for decoding the frames.
 
+MPEG-PS (MPEG-2 Program Stream, container format ``mpeg``) is not supported: this format only
+stamps a timestamp on some packets, which this operator's frame-accurate seeking can't handle
+reliably. Such files are treated like any other invalid file (skipped with a warning when mixed
+with valid files, or an error if no valid files remain). Remux affected files to MP4 or MKV
+(e.g. ``ffmpeg -i in.mpeg -c copy out.mp4``) to use them with this operator. MPEG-TS (Transport
+Stream) is unaffected and fully supported.
+
 The following video codecs are supported by both CPU and GPU backends:
 
 * VP8
