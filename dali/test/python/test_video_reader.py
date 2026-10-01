@@ -1709,10 +1709,13 @@ AVCC_VIDEOS = {
 
 @params(*AVCC_VIDEOS.keys())
 def test_avcc_seek_matches_sequential_decode(case):
-    """MP4/MOV store H.264/HEVC with AVCC (length-prefixed) NAL unit framing, which
-    FramesDecoderBase::BuildIndex must parse using the length-prefix size from the stream's
-    extradata. Correct behavior: all frames are indexed, and a frame decoded after a seek is
-    identical to the same frame decoded sequentially."""
+    """MP4/MOV store H.264/HEVC with AVCC (length-prefixed) NAL unit framing. This verifies that,
+    for such content, a frame decoded after a seek is pixel-identical to the same frame decoded
+    sequentially. Note: this is not a regression guard for the NAL-framing/keyframe-detection
+    collision bug fixed alongside this test -- a missed keyframe there degrades seeking to a
+    slower-but-still-pixel-correct fallback, so this test would likely have passed on the old,
+    buggy parser too for these fixtures. The real regression guards for that bug are the C++
+    NalFramingTest unit tests in frames_decoder_test.cc."""
     path, expected_frames = AVCC_VIDEOS[case]
     _check_seek_matches_sequential_decode(case, path, expected_frames)
 
