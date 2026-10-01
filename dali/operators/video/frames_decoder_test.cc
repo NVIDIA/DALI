@@ -434,7 +434,7 @@ TEST_F(FramesDecoderGpuTest, CustomDecodeSurfaceCount) {
 
 TEST_F(FramesDecoderGpuTest, DefaultDecodeSurfaceCountUnchanged) {
   // Explicitly verifies the default (no 4th arg) still behaves like the pre-existing
-  // hardcoded value of 8, per this plan's Global Constraints (no default-behavior change).
+  // hardcoded value of 8 (no default-behavior change).
   FramesDecoderGpu decoder(cfr_videos_paths_[0]);
   decoder.BuildIndex();
   RunTest(decoder, cfr_videos_[0]);
@@ -447,7 +447,9 @@ TEST_F(FramesDecoderGpuTest, MjpegDecodesMultipleFrames) {
   // callback (HandlePictureDisplay runs synchronously, inline, from ProcessPictureDecode), so
   // the parser's own surface-recycling bookkeeping never saw the 1st picture as "consumed"
   // before the 2nd one needed a surface. AdjustedNumDecodeSurfaces forces a larger surface
-  // count for MJPEG specifically (mirroring legacy's hardcoded ulMaxNumDecodeSurfaces=20).
+  // count for MJPEG specifically: `20` is a conservative, empirically-verified value for this
+  // backend's synchronous-inline HandlePictureDisplay (see AdjustedNumDecodeSurfaces's comment
+  // in frames_decoder_gpu.cc), not a value inherited from legacy's NVDEC integration.
   auto mjpeg_path = testing::dali_extra_path() + "/db/video/mjpeg/mjpeg.avi";
   FramesDecoderGpu decoder(mjpeg_path, 0, DALI_RGB);
   decoder.BuildIndex();
