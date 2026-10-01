@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from abc import ABC, abstractmethod
+import functools
 import logging
 from typing import Literal
 
@@ -257,7 +258,7 @@ class Operator(ABC):
         """
         type(self).verify_data(data_input)
 
-        # Original input is transfered to GPU, before being preprocess_data.
+        # Original input is transferred to GPU, before preprocess_data is applied.
         # The preprocess_data creates an arbitrary tuple
         if self.device == "gpu":
             data_input = data_input.gpu()
@@ -314,7 +315,7 @@ def adjust_input(func):
 
         if device != _input.device.device_type:
             logging.warning(
-                f"Warning: input and operator devices do not match - copyig!"
+                f"Warning: input and operator devices do not match - copying!"
                 f" Input is {_input.device} operator is {device}"
             )
             _input = _input.cpu() if "cpu" in device else _input.gpu()
@@ -336,7 +337,7 @@ def adjust_input(func):
             if output.device.device_type == "gpu":
                 logging.warning(
                     "Warning: PIL.Image expected on the output - copying output to CPU!"
-                    " torch.Tensors are recomended to be used with GPU operators."
+                    " torch.Tensors are recommended to be used with GPU operators."
                 )
                 output = output.cpu()
 
@@ -360,6 +361,7 @@ def adjust_input(func):
         else:
             return output
 
+    @functools.wraps(func)
     def inner_function(inpt, *args, **kwargs):
 
         device = kwargs["device"] if "device" in kwargs else "cpu"
