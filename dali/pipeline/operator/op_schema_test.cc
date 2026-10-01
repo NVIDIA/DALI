@@ -360,12 +360,12 @@ TEST(OpSchemaTest, AliasErrors) {
   // Direct cycle
   SchemaRegistry::AddAlias("DummyBadAlias2", "DummyBadAlias3");
   EXPECT_THROW(SchemaRegistry::AddAlias("DummyBadAlias3", "DummyBadAlias2"),
-               std::invalid_argument);
+               std::logic_error);
   // Indirect cycle
   SchemaRegistry::AddAlias("DummyBadAlias4", "DummyBadAlias5");
   SchemaRegistry::AddAlias("DummyBadAlias5", "DummyBadAlias6");
   EXPECT_THROW(SchemaRegistry::AddAlias("DummyBadAlias6", "DummyBadAlias4"),
-               std::invalid_argument);
+               std::logic_error);
 }
 
 TEST(OpSchemaTest, ListSchemas) {
