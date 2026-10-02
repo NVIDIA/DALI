@@ -1,4 +1,4 @@
-// Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -74,9 +74,6 @@ class ResampleGPU : public ResampleBase<GPUBackend> {
 
 }  // namespace audio
 
-
-// Kept for backwards compatibility
-DALI_REGISTER_OPERATOR(experimental__AudioResample, audio::ResampleGPU, GPU);
 
 DALI_REGISTER_OPERATOR(AudioResample, audio::ResampleGPU, GPU);
 

@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -102,7 +102,7 @@ def _wrap_op_fn(op_class, wrapper_name, wrapper_doc):
     fn_wrapper.__name__ = wrapper_name
     fn_wrapper.__qualname__ = wrapper_name
     fn_wrapper.__doc__ = wrapper_doc
-    schema = _b.TryGetSchema(op_class.schema_name)
+    schema = _b.TryGetSchema(op_class.schema_name, follow_aliases=True)
     if schema is not None:
         fn_wrapper.__signature__ = _signatures._call_signature(
             schema, "fn", include_inputs=True, include_kwargs=True, filter_annotations=True

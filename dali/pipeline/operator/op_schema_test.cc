@@ -307,4 +307,77 @@ TEST(OpSchemaTest, OutputMetadataMultiOutput) {
   ASSERT_FALSE(schema.CalculateOutputNDim(0, spec).has_value());
 }
 
+// The alias of an alias is defined before the alias of the actual schema,
+// so the alias map entry for the first alias is not collapsed.
+DALI_SCHEMA_ALIAS(DummyAliasOfAlias, DummyAlias)
+  .Deprecate("1.0", "DummyAliasTarget");
+
+DALI_SCHEMA_ALIAS(DummyAlias, DummyAliasTarget)
+  .MakeDocHidden();
+
+DALI_SCHEMA(DummyAliasTarget)
+  .NumInput(1)
+  .NumOutput(1);
+
+TEST(OpSchemaTest, Alias) {
+  auto &target = SchemaRegistry::GetSchema("DummyAliasTarget");
+  EXPECT_EQ(&SchemaRegistry::GetSchema("DummyAlias", FollowAliases::Yes), &target);
+  EXPECT_EQ(SchemaRegistry::TryGetSchema("DummyAlias", FollowAliases::Yes), &target);
+  EXPECT_EQ(&OpSpec("DummyAlias").GetSchema(), &target);
+
+  auto &alias = SchemaRegistry::GetSchema("DummyAlias");
+  EXPECT_NE(&alias, &target);
+  EXPECT_EQ(alias.name(), "DummyAlias");
+  EXPECT_EQ(alias.AliasFor(), "DummyAliasTarget");
+  EXPECT_TRUE(alias.IsDocHidden());
+  EXPECT_FALSE(target.IsDocHidden());
+  EXPECT_EQ(SchemaRegistry::TryGetSchema("DummyAlias"), &alias);
+
+  // following aliases doesn't affect non-alias schemas
+  EXPECT_EQ(&SchemaRegistry::GetSchema("DummyAliasTarget", FollowAliases::Yes), &target);
+
+  EXPECT_EQ(SchemaRegistry::TryGetSchema("DummyAliasNonexistent"), nullptr);
+  EXPECT_EQ(SchemaRegistry::TryGetSchema("DummyAliasNonexistent", FollowAliases::Yes), nullptr);
+  EXPECT_THROW(SchemaRegistry::GetSchema("DummyAliasNonexistent"), invalid_key);
+}
+
+TEST(OpSchemaTest, AliasOfAlias) {
+  auto &target = SchemaRegistry::GetSchema("DummyAliasTarget");
+  EXPECT_EQ(&SchemaRegistry::GetSchema("DummyAliasOfAlias", FollowAliases::Yes), &target);
+
+  auto &alias = SchemaRegistry::GetSchema("DummyAliasOfAlias");
+  EXPECT_EQ(alias.name(), "DummyAliasOfAlias");
+  EXPECT_EQ(alias.AliasFor(), "DummyAlias");
+  EXPECT_TRUE(alias.IsDeprecated());
+  EXPECT_FALSE(target.IsDeprecated());
+}
+
+TEST(OpSchemaTest, AliasErrors) {
+  EXPECT_THROW(SchemaRegistry::AddAlias("DummyBadAlias1", "DummyBadAlias1"),
+               std::invalid_argument);
+  // Redefinition of an alias
+  EXPECT_THROW(SchemaRegistry::AddAlias("DummyAlias", "Dummy1"), std::invalid_argument);
+  // Direct cycle
+  SchemaRegistry::AddAlias("DummyBadAlias2", "DummyBadAlias3");
+  EXPECT_THROW(SchemaRegistry::AddAlias("DummyBadAlias3", "DummyBadAlias2"),
+               std::logic_error);
+  // Indirect cycle
+  SchemaRegistry::AddAlias("DummyBadAlias4", "DummyBadAlias5");
+  SchemaRegistry::AddAlias("DummyBadAlias5", "DummyBadAlias6");
+  EXPECT_THROW(SchemaRegistry::AddAlias("DummyBadAlias6", "DummyBadAlias4"),
+               std::logic_error);
+}
+
+TEST(OpSchemaTest, ListSchemas) {
+  bool found_alias = false, found_target = false;
+  for (auto *schema : SchemaRegistry::ListSchemas()) {
+    if (schema == &SchemaRegistry::GetSchema("DummyAlias"))
+      found_alias = true;
+    if (schema == &SchemaRegistry::GetSchema("DummyAliasTarget"))
+      found_target = true;
+  }
+  EXPECT_TRUE(found_alias);
+  EXPECT_TRUE(found_target);
+}
+
 }  // namespace dali

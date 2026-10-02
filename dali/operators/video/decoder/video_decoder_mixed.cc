@@ -1,4 +1,4 @@
-// Copyright (c) 2022-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -22,7 +22,6 @@ class VideoDecoderMixed : public VideoDecoderBase<MixedBackend, FramesDecoderGpu
     VideoDecoderBase<MixedBackend, FramesDecoderGpu>(spec) {}
 };
 
-DALI_REGISTER_OPERATOR(experimental__decoders__Video, VideoDecoderMixed, Mixed);
 DALI_REGISTER_OPERATOR(decoders__Video, VideoDecoderMixed, Mixed);
 
 }  // namespace dali

@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -30,6 +30,21 @@ TEST(InstantiateOperator, ValidOperatorName) {
   ASSERT_NE(nullptr,
     InstantiateOperator(
       MakeOpSpec("Copy")));
+}
+
+// The alias of an alias is registered first, so resolving it requires following the chain.
+DALI_SCHEMA_ALIAS(InstantiateOperatorTestAliasOfAlias, InstantiateOperatorTestAlias);
+DALI_SCHEMA_ALIAS(InstantiateOperatorTestAlias, Copy);
+
+TEST(InstantiateOperator, Alias) {
+  EXPECT_NE(nullptr, InstantiateOperator(MakeOpSpec("InstantiateOperatorTestAlias")));
+  EXPECT_NE(nullptr, InstantiateOperator(MakeOpSpec("InstantiateOperatorTestAliasOfAlias")));
+}
+
+TEST(OpSpec, AliasResolvesToActualOperator) {
+  EXPECT_EQ(OpSpec("InstantiateOperatorTestAlias").SchemaName(), "Copy");
+  EXPECT_EQ(OpSpec("InstantiateOperatorTestAliasOfAlias").SchemaName(), "Copy");
+  EXPECT_EQ(OpSpec("DoesNotExist").SchemaName(), "DoesNotExist");
 }
 
 TEST(InstantiateOperator, InvalidOperatorName) {
