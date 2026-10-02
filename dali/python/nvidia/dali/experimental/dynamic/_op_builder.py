@@ -621,7 +621,6 @@ def build_operators():
     Returns a tuple of all operator classes and functional wrappers."""
     _all_ops = _legacy_ops._registry._all_registered_ops()
     all_op_classes = []
-    deprecated = {}
     aliases = {}
     op_map = {}
     for schema_name in _all_ops:
@@ -633,16 +632,9 @@ def build_operators():
             # An alias - it will reuse the class of the actual operator
             aliases[schema_name] = schema.Name()
             continue
-        deprecated_in_favor = schema.DeprecatedInFavorOf()
-        if deprecated_in_favor:
-            deprecated[schema_name] = deprecated_in_favor
         cls = build_operator_class(schema)
         all_op_classes.append(cls)
         op_map[schema_name] = cls
-    for what, in_favor in deprecated.items():
-        schema = _b.GetSchema(what)
-        module = _find_or_create_module(_ops, schema.ModulePath())
-        setattr(module, what, op_map[in_favor])
 
     # Protect from infinite recursion when calling to_device, which internally uses operator Copy.
     op_map["Copy"]._input_device = (
