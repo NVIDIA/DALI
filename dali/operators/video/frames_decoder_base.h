@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -30,6 +30,7 @@ extern "C" {
 #include "dali/core/boundary.h"
 #include "dali/core/common.h"
 #include "dali/core/span.h"
+#include "dali/core/stream.h"
 #include "dali/core/tensor_shape.h"
 #include "dali/core/unique_handle.h"
 #include "dali/pipeline/data/types.h"
@@ -177,7 +178,11 @@ class DLL_PUBLIC FramesDecoderBase {
   /**
    * @brief Initialize the decoder from a file.
    *
-   * @param filename Path to a video file.
+   * Local paths (with no scheme or with the ``file://`` scheme) are opened directly by
+   * libavformat. URLs with any other scheme (e.g. ``s3://``, ``gs://``) are opened with
+   * FileStream::Open and read through the InputStream interface.
+   *
+   * @param filename Path or URL of a video file.
    * @param image_type Image type of the video.
    */
   explicit FramesDecoderBase(const std::string &filename, DALIImageType image_type = DALI_RGB);
@@ -191,6 +196,17 @@ class DLL_PUBLIC FramesDecoderBase {
    */
   explicit FramesDecoderBase(const char *memory_file, size_t memory_file_size,
                              std::string_view source_info = {}, DALIImageType image_type = DALI_RGB);
+
+  /**
+   * @brief Initialize the decoder from an input stream.
+   *
+   * @param stream Stream with video file data; the decoder takes ownership of it.
+   *               The stream must cover the entire video file, including the header.
+   * @param source_info Source information for the video file.
+   */
+  explicit FramesDecoderBase(std::unique_ptr<InputStream> stream,
+                             std::string_view source_info = {},
+                             DALIImageType image_type = DALI_RGB);
 
   /**
    * @brief Number of frames in the video. It returns 0, if this information is unavailable.
@@ -387,7 +403,7 @@ class DLL_PUBLIC FramesDecoderBase {
   FramesDecoderBase& operator=(FramesDecoderBase&&) = default;
 
   std::string Filename() {
-    return filename_.size() ? filename_ : "memory file";
+    return filename_.size() ? filename_ : input_stream_ ? "input stream" : "memory file";
   }
 
   bool IsValid() {
@@ -419,6 +435,7 @@ class DLL_PUBLIC FramesDecoderBase {
 
   int OpenFile(const std::string& filename);
   int OpenMemoryFile(MemoryVideoFile& memory_video_file);
+  int OpenInputStream(InputStream& stream);
 
   FrameIndex index_;
 
@@ -441,11 +458,20 @@ class DLL_PUBLIC FramesDecoderBase {
 
   std::string GetAllStreamInfo() const;
 
+  /**
+   * @brief Opens the format context with custom I/O, reading through the provided callbacks.
+   */
+  int OpenCustomIO(void *opaque,
+                   int (*read_packet)(void *opaque, uint8_t *buf, int buf_size),
+                   int64_t (*seek)(void *opaque, int64_t offset, int whence),
+                   int buffer_size);
+
   int channels_ = 3;
   bool is_vfr_ = false;
 
   std::string filename_ = {};
   std::unique_ptr<MemoryVideoFile> memory_video_file_;
+  std::unique_ptr<InputStream> input_stream_;
 
   int num_frames_ = -1;
   bool can_seek_ = true;  // at first, we assume that the video is seekable

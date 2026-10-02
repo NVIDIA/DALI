@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -25,6 +25,7 @@
 #include "dali/operators/video/frames_decoder_gpu.h"
 #include "dali/operators/video/video_test.h"
 #include "dali/test/dali_test_config.h"
+#include "dali/util/file.h"
 
 #include "dali/pipeline/pipeline.h"
 
@@ -280,6 +281,37 @@ TEST_F(FramesDecoderGpuTest, InMemoryVfrHevcVideo) {
   FramesDecoderGpu decoder(memory_video.data(), memory_video.size());
   decoder.BuildIndex();
   RunTest(decoder, vfr_hevc_videos_[1]);
+}
+
+TEST_F(FramesDecoderTest_CpuOnlyTests, InputStreamCfrVideo) {
+  FramesDecoderCpu decoder(FileStream::Open(cfr_videos_paths_[1]), cfr_videos_paths_[1]);
+  ASSERT_TRUE(decoder.IsValid());
+  EXPECT_EQ(decoder.Filename(), cfr_videos_paths_[1]);
+  decoder.BuildIndex();
+  RunTest(decoder, cfr_videos_[1]);
+}
+
+TEST_F(FramesDecoderGpuTest, InputStreamCfrVideo) {
+  FramesDecoderGpu decoder(FileStream::Open(cfr_videos_paths_[0]), cfr_videos_paths_[0]);
+  ASSERT_TRUE(decoder.IsValid());
+  decoder.BuildIndex();
+  RunTest(decoder, cfr_videos_[0]);
+}
+
+TEST_F(FramesDecoderTest_CpuOnlyTests, InputStreamVfrVideoNoIndex) {
+  auto memory_video = MemoryVideo(vfr_videos_paths_[0]);
+  FramesDecoderCpu decoder(
+      std::make_unique<MemInputStream>(memory_video.data(), memory_video.size()));
+  ASSERT_TRUE(decoder.IsValid());
+  RunTest(decoder, vfr_videos_[0], false);
+}
+
+TEST_F(FramesDecoderGpuTest, InputStreamVfrVideoNoIndex) {
+  auto memory_video = MemoryVideo(vfr_videos_paths_[0]);
+  FramesDecoderGpu decoder(
+      std::make_unique<MemInputStream>(memory_video.data(), memory_video.size()));
+  ASSERT_TRUE(decoder.IsValid());
+  RunTest(decoder, vfr_videos_[0], false);
 }
 
 TEST_F(FramesDecoderTest_CpuOnlyTests, VariableFrameRateNoIndex) {

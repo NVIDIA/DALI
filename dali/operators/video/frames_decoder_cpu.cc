@@ -34,6 +34,12 @@ FramesDecoderCpu::FramesDecoderCpu(const char *memory_file, size_t memory_file_s
   is_valid_ = is_valid_ && SelectVideoStream();
 }
 
+FramesDecoderCpu::FramesDecoderCpu(std::unique_ptr<InputStream> stream,
+                                   std::string_view source_info, DALIImageType image_type)
+  : FramesDecoderBase(std::move(stream), source_info, image_type) {
+  is_valid_ = is_valid_ && SelectVideoStream();
+}
+
 void FramesDecoderCpu::CopyFrame(uint8_t *dst, const uint8_t *src) {
   std::memcpy(dst, src, FrameSize());
 }
