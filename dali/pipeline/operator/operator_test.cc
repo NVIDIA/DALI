@@ -41,6 +41,12 @@ TEST(InstantiateOperator, Alias) {
   EXPECT_NE(nullptr, InstantiateOperator(MakeOpSpec("InstantiateOperatorTestAliasOfAlias")));
 }
 
+TEST(OpSpec, AliasResolvesToActualOperator) {
+  EXPECT_EQ(OpSpec("InstantiateOperatorTestAlias").SchemaName(), "Copy");
+  EXPECT_EQ(OpSpec("InstantiateOperatorTestAliasOfAlias").SchemaName(), "Copy");
+  EXPECT_EQ(OpSpec("DoesNotExist").SchemaName(), "DoesNotExist");
+}
+
 TEST(InstantiateOperator, InvalidOperatorName) {
   ASSERT_THROW(
     InstantiateOperator(
