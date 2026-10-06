@@ -76,9 +76,9 @@ def _mount_info(path: Path) -> dict[str, str] | None:
 
 
 def _path_info(path: Path) -> dict[str, Any]:
-    exists = path.exists()
+    exists = os.path.exists(path)
     probe = path if exists else path.parent
-    is_directory = path.is_dir()
+    is_directory = os.path.isdir(path)
     # Directories need +x to be usable, and a missing path is judged by its parent directory.
     execute = 0 if exists and not is_directory else os.X_OK
     return {
