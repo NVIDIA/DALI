@@ -72,14 +72,12 @@ def _arithm_op(name: str, *args):
 
         return arg
 
-    # only reachable from math functions called with only scalars, e.g. ndd.math.max(2, 3)
-    if not tensor_args and args:
-        args = (to_input(args[0]), *args[1:])
-
     if any(type(arg) in (bool, int, float) for arg in args):
         from ._source_analysis import constant_inputs
 
         constants = constant_inputs(resolve_callsite_frame(depth_hint=3), args)
+        if not tensor_args and all(constants):
+            constants = (False, *constants[1:])
     else:
         constants = (False,) * len(args)
 
@@ -89,8 +87,10 @@ def _arithm_op(name: str, *args):
         if type_ is int and (arg >> 31) not in (0, -1):
             raise OverflowError(f"Integer {arg} is out of range for int32.")
 
-        type_ = type_ if constant else None
-        if type_ is bool:
+        if not constant:
+            desc.append(f"&{len(inputs)}")
+            inputs.append(to_input(arg))
+        elif type_ is bool:
             desc.append(f"${len(integers)}:bool")
             integers.append(int(arg))
         elif type_ is int:
