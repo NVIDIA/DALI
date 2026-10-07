@@ -13,7 +13,45 @@
 # limitations under the License.
 
 
+import functools
 import numbers
+
+from ._call_site import mark_transparent, resolve_callsite_frame
+
+
+@functools.cache
+def _arithmetic_dunders():
+    # Comparisons are omitted for now because we'd need to handle chains and reverse orders
+    binary_ops = (
+        "add",
+        "sub",
+        "mul",
+        "truediv",
+        "floordiv",
+        "mod",
+        "pow",
+        "lshift",
+        "rshift",
+        "and",
+        "or",
+        "xor",
+        "matmul",
+        "divmod",
+    )
+    unary_ops = ("neg", "pos", "abs", "invert")
+
+    binary_dunders = (f"__{prefix}{stem}__" for stem in binary_ops for prefix in ("", "r"))
+    unary_dunders = (f"__{stem}__" for stem in unary_ops)
+
+    return (*binary_dunders, *unary_dunders)
+
+
+def transparent_arithmetic(cls: type) -> type:
+    """Annotate a class' arithmetic dunders with ``mark_transparent``"""
+    for dunder in _arithmetic_dunders():
+        if func := vars(cls).get(dunder):
+            mark_transparent(func)
+    return cls
 
 
 def _arithm_op(name: str, *args):
@@ -34,19 +72,28 @@ def _arithm_op(name: str, *args):
 
         return arg
 
-    # only reachable from math functions called with only scalars, e.g. ndd.math.max(2, 3)
-    if not tensor_args and args:
-        args = (to_input(args[0]), *args[1:])
+    if any(type(arg) in (bool, int, float) for arg in args):
+        from ._source_analysis import constant_inputs
+
+        constants = constant_inputs(resolve_callsite_frame(depth_hint=3), args)
+        if not tensor_args and all(constants):
+            constants = (False, *constants[1:])
+    else:
+        constants = (False,) * len(args)
 
     desc, inputs, integers, reals = [], [], [], []
-    for arg in args:
+    for arg, constant in zip(args, constants, strict=True):
         type_ = type(arg)
-        if type_ is bool:
+        if type_ is int and (arg >> 31) not in (0, -1):
+            raise OverflowError(f"Integer {arg} is out of range for int32.")
+
+        if not constant:
+            desc.append(f"&{len(inputs)}")
+            inputs.append(to_input(arg))
+        elif type_ is bool:
             desc.append(f"${len(integers)}:bool")
             integers.append(int(arg))
         elif type_ is int:
-            if (arg >> 31) not in (0, -1):
-                raise OverflowError(f"Integer constant {arg} is out of range for int32.")
             desc.append(f"${len(integers)}:int32")
             integers.append(arg)
         elif type_ is float:
