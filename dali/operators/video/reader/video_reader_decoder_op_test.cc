@@ -18,6 +18,7 @@
 #include <opencv2/imgcodecs.hpp>
 
 #include "dali/operators/video/video_test.h"
+#include "dali/operators/video/reader/video_reader_decoder_op.h"
 #include "dali/test/dali_test_config.h"
 #include "dali/pipeline/pipeline.h"
 #include "dali/test/cv_mat_utils.h"
@@ -108,7 +109,10 @@ class VideoReaderDecoderBaseTest : public VideoTestBase {
         gt_frame_id += step;
         ++sequence_id;
 
-        if (gt_frame_id + stride * sequence_length >= ground_truth_videos[video_idx].NumFrames()) {
+        // The next sequence exists only if its last frame is inside the video (same fit
+        // criterion as VideoLoaderDecoder::PrepareMetadataImpl and legacy readers.video).
+        if (gt_frame_id + stride * (sequence_length - 1) >=
+            ground_truth_videos[video_idx].NumFrames()) {
           gt_frame_id = 0;
           ++video_idx;
           if (video_idx == this->NumVideos()) {
@@ -273,7 +277,107 @@ TEST_F(VideoReaderDecoderCpuTest, RandomShuffle_CpuOnlyTests) {
 }
 
 TEST_F(VideoReaderDecoderGpuTest, RandomShuffle) {
-  RunShuffleTest<dali::CPUBackend>();
+  RunShuffleTest<dali::GPUBackend>();
+}
+
+// Regression test for a decoder being cached (GetOrOpenDecoder's decoder_cache_) before it is
+// validated: BuildIndex()/VFR-check/IsValid() must all pass *before* a decoder is inserted into
+// decoder_cache_, so a failing filename never leaves a broken, unvalidated entry behind for a
+// later call to silently reuse. This calls VideoReaderDecoder::GetOrOpenDecoder() directly
+// (rather than through the pipeline's background prefetch thread), because an exception from
+// the prefetch thread permanently stops it (DataReader::PrefetchWorker's catch block), so the
+// bug can't be observed by running the same pipeline instance twice after a failure.
+TEST_F(VideoReaderDecoderCpuTest, DecoderNotCachedBeforeValidation_CpuOnlyTests) {
+  Pipeline pipe(1, 1, CPU_ONLY_DEVICE_ID);
+  pipe.AddOperator(OpSpec("experimental__readers__Video")
+    .AddArg("device", "cpu")
+    .AddArg("sequence_length", 1)
+    .AddArg("require_constant_frame_rate", true)
+    .AddArg("filenames", std::vector<std::string>{vfr_videos_paths_[0]})
+    .AddOutput("frames", StorageDevice::CPU), "r");
+  pipe.Build({{"frames", "cpu"}});
+
+  auto *op = dynamic_cast<VideoReaderDecoder<CPUBackend> *>(pipe.GetOperator("r"));
+  ASSERT_NE(op, nullptr);
+
+  bool is_new_decoder = false;
+  // First call: the file is VFR but require_constant_frame_rate=true was requested, so this
+  // must throw -- and, per the fix, must not leave a cache entry behind.
+  EXPECT_THROW(op->GetOrOpenDecoder(vfr_videos_paths_[0], is_new_decoder), DALIException);
+
+  // Second call for the *same* filename: on the buggy code (cache insertion before
+  // validation), this would return the already-cached, never-checked decoder
+  // (is_new_decoder=false) without re-running the VFR check, silently "succeeding". With the
+  // fix, nothing was cached, so this must construct and validate again, and fail again.
+  EXPECT_THROW(op->GetOrOpenDecoder(vfr_videos_paths_[0], is_new_decoder), DALIException);
+}
+
+TEST_F(VideoReaderDecoderCpuTest, DecoderCacheSizeMustBePositive_CpuOnlyTests) {
+  Pipeline pipe(1, 1, CPU_ONLY_DEVICE_ID);
+  pipe.AddOperator(OpSpec("experimental__readers__Video")
+    .AddArg("device", "cpu")
+    .AddArg("sequence_length", 1)
+    .AddArg("decoder_cache_size", 0)
+    .AddArg("filenames", std::vector<std::string>{cfr_videos_paths_[0]})
+    .AddOutput("frames", StorageDevice::CPU), "r");
+  EXPECT_THROW(pipe.Build({{"frames", "cpu"}}), std::runtime_error);
+}
+
+// Eviction-boundary test for GetOrOpenDecoder's LRU cache, now sized via `decoder_cache_size`
+// instead of the old hard-coded capacity. With decoder_cache_size=1, opening a second, different
+// file must evict the first, so re-requesting the first file afterwards must build a fresh
+// decoder (is_new_decoder=true) rather than reuse a cached one.
+TEST_F(VideoReaderDecoderCpuTest, DecoderCacheSizeControlsEviction_CpuOnlyTests) {
+  Pipeline pipe(1, 1, CPU_ONLY_DEVICE_ID);
+  pipe.AddOperator(OpSpec("experimental__readers__Video")
+    .AddArg("device", "cpu")
+    .AddArg("sequence_length", 1)
+    .AddArg("decoder_cache_size", 1)
+    .AddArg("filenames", cfr_videos_paths_)
+    .AddOutput("frames", StorageDevice::CPU), "r");
+  pipe.Build({{"frames", "cpu"}});
+
+  auto *op = dynamic_cast<VideoReaderDecoder<CPUBackend> *>(pipe.GetOperator("r"));
+  ASSERT_NE(op, nullptr);
+
+  bool is_new_decoder = false;
+  op->GetOrOpenDecoder(cfr_videos_paths_[0], is_new_decoder);
+  EXPECT_TRUE(is_new_decoder);
+
+  // Different file: with capacity 1, this evicts cfr_videos_paths_[0]'s entry.
+  op->GetOrOpenDecoder(cfr_videos_paths_[1], is_new_decoder);
+  EXPECT_TRUE(is_new_decoder);
+
+  // Re-requesting the first file must rebuild it: it was evicted.
+  op->GetOrOpenDecoder(cfr_videos_paths_[0], is_new_decoder);
+  EXPECT_TRUE(is_new_decoder);
+}
+
+// Same as above, but with a cache large enough to hold both files: the second request for the
+// first file must hit the cache (is_new_decoder=false).
+TEST_F(VideoReaderDecoderCpuTest, DecoderCacheSizeAllowsReuseWhenLargeEnough_CpuOnlyTests) {
+  Pipeline pipe(1, 1, CPU_ONLY_DEVICE_ID);
+  pipe.AddOperator(OpSpec("experimental__readers__Video")
+    .AddArg("device", "cpu")
+    .AddArg("sequence_length", 1)
+    .AddArg("decoder_cache_size", 2)
+    .AddArg("filenames", cfr_videos_paths_)
+    .AddOutput("frames", StorageDevice::CPU), "r");
+  pipe.Build({{"frames", "cpu"}});
+
+  auto *op = dynamic_cast<VideoReaderDecoder<CPUBackend> *>(pipe.GetOperator("r"));
+  ASSERT_NE(op, nullptr);
+
+  bool is_new_decoder = false;
+  op->GetOrOpenDecoder(cfr_videos_paths_[0], is_new_decoder);
+  EXPECT_TRUE(is_new_decoder);
+
+  op->GetOrOpenDecoder(cfr_videos_paths_[1], is_new_decoder);
+  EXPECT_TRUE(is_new_decoder);
+
+  // Both entries fit within capacity 2, so this must hit the cache.
+  op->GetOrOpenDecoder(cfr_videos_paths_[0], is_new_decoder);
+  EXPECT_FALSE(is_new_decoder);
 }
 
 class VideoReaderDecoderCompareTest : public VideoTestBase {};
@@ -284,7 +388,7 @@ TEST_F(VideoReaderDecoderCompareTest, CompareReaders) {
   const int stride = 3;
   const int step = 10;
   const int shard_id = 3;
-  const int num_shards = 10;
+  const int num_shards = 4;
   const int seed = 1234;
   const int initial_fill = 50;
 
@@ -295,8 +399,8 @@ TEST_F(VideoReaderDecoderCompareTest, CompareReaders) {
     .AddArg("sequence_length", sequence_length)
     .AddArg("stride", stride)
     .AddArg("step", step)
-    .AddArg("shard_id ", shard_id)
-    .AddArg("num_shards ", num_shards)
+    .AddArg("shard_id", shard_id)
+    .AddArg("num_shards", num_shards)
     .AddArg("seed", seed)
     .AddArg("initial_fill", initial_fill)
     .AddArg("random_shuffle", true)
@@ -311,8 +415,8 @@ TEST_F(VideoReaderDecoderCompareTest, CompareReaders) {
     .AddArg("sequence_length", sequence_length)
     .AddArg("stride", stride)
     .AddArg("step", step)
-    .AddArg("shard_id ", shard_id)
-    .AddArg("num_shards ", num_shards)
+    .AddArg("shard_id", shard_id)
+    .AddArg("num_shards", num_shards)
     .AddArg("seed", seed)
     .AddArg("initial_fill", initial_fill)
     .AddArg("random_shuffle", true)
@@ -327,8 +431,8 @@ TEST_F(VideoReaderDecoderCompareTest, CompareReaders) {
     .AddArg("sequence_length", sequence_length)
     .AddArg("stride", stride)
     .AddArg("step", step)
-    .AddArg("shard_id ", shard_id)
-    .AddArg("num_shards ", num_shards)
+    .AddArg("shard_id", shard_id)
+    .AddArg("num_shards", num_shards)
     .AddArg("seed", seed)
     .AddArg("initial_fill", initial_fill)
     .AddArg("random_shuffle", true)
