@@ -218,8 +218,8 @@ class Operator(ABC):
         Additional keyword arguments for the operator.
     """
 
-    arg_rules: tuple[ArgumentValidateRule, ...] = []
-    input_rules: tuple[DataValidateRule, ...] = []
+    arg_rules: tuple[ArgumentValidateRule, ...] = tuple()
+    input_rules: tuple[DataValidateRule, ...] = tuple()
     preprocess_data = None
 
     @classmethod
