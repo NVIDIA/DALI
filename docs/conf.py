@@ -555,6 +555,7 @@ extlinks = {
 intersphinx_mapping = {
     "torch": ("https://docs.pytorch.org/docs/stable/", None),
     "torchdata": ("https://meta-pytorch.org/data/main/", None),
+    "torchvision": ("https://pytorch.org/vision/stable/", None),
 }
 
 _dali_enums = [

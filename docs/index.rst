@@ -63,10 +63,11 @@ NVIDIA DALI Documentation
 
 .. toctree::
    :hidden:
-   :caption: Torchvision API Documentation
+   :caption: TorchVision
 
    torchvision/overview
-   torchvision/api_reference
+   torchvision/object_api
+   torchvision/functional_api
    torchvision/custom_operators
 
 .. toctree::
