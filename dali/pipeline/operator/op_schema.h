@@ -439,6 +439,9 @@ class DLL_PUBLIC OpSchema {
                       std::string in_favor_of = "",
                       std::string explanation = "");
 
+  /** Marks that this schema is actually just an alias */
+  OpSchema &AliasFor(std::string_view actual_name);
+
   /** Notes that this operator cannot be serialized */
   OpSchema &Unserializable();
 
@@ -774,6 +777,9 @@ used with DALIDataType, to avoid confusion with `AddOptionalArg<type>(name, doc,
   /** What operator replaced the current one. */
   const std::string &DeprecatedInFavorOf() const;
 
+  /** Whether this schema is just an alias for another one */
+  const std::string &AliasFor() const;
+
   /** Additional deprecation message */
   const std::string &DeprecationMessage() const;
 
@@ -1056,19 +1062,44 @@ used with DALIDataType, to avoid confusion with `AddOptionalArg<type>(name, doc,
   std::string deprecated_in_favor_of_;
   std::string deprecation_message_;
   std::string deprecation_version_;
+  std::string alias_for_;
 };
 
+
+/** Controls whether schema lookup resolves aliases to the schema of the actual operator. */
+enum class FollowAliases : bool {
+  No = false,
+  Yes = true
+};
 
 class SchemaRegistry {
  public:
   DLL_PUBLIC static OpSchema &RegisterSchema(std::string_view name);
-  DLL_PUBLIC static const OpSchema &GetSchema(std::string_view name);
-  DLL_PUBLIC static const OpSchema *TryGetSchema(std::string_view name);
 
- private:
-  inline SchemaRegistry() {}
+  /** Gets the schema with the given name.
+   *
+   * If `name` is an alias and `follow_aliases` is Yes, the schema of the actual operator
+   * is returned; otherwise, the schema of the alias itself is returned.
+   * Throws `invalid_key` if the schema is not found.
+   */
+  DLL_PUBLIC static const OpSchema &GetSchema(std::string_view name,
+                                              FollowAliases follow_aliases = FollowAliases::No);
 
-  DLL_PUBLIC static std::map<string, OpSchema, std::less<>> &registry();
+  /** Gets the schema with the given name.
+   *
+   * If `name` is an alias and `follow_aliases` is Yes, the schema of the actual operator
+   * is returned; otherwise, the schema of the alias itself is returned.
+   * Returns nullptr if the schema is not found.
+   */
+  DLL_PUBLIC static const OpSchema *TryGetSchema(std::string_view name,
+                                                 FollowAliases follow_aliases = FollowAliases::No);
+
+  /** Lists all registered schemas, including aliases. */
+  DLL_PUBLIC static std::vector<const OpSchema *> ListSchemas();
+
+  DLL_PUBLIC static void AddAlias(std::string_view alias_name, std::string_view actual_name);
+
+  SchemaRegistry() = delete;
 };
 
 template <typename T>
@@ -1108,6 +1139,8 @@ inline T OpSchema::GetDefaultValueForArgument(std::string_view name) const {
 #else
 #define DALI_SCHEMA(OpName) DALI_DEFINE_SCHEMA(OpName)
 #endif
+
+#define DALI_SCHEMA_ALIAS(AliasName, OpName) DALI_SCHEMA(AliasName).AliasFor(#OpName)
 
 }  // namespace dali
 

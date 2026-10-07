@@ -235,22 +235,32 @@ def _get_kwargs(schema, api="ops", args=None):
     return ret
 
 
+def _deprecated_schema(*schemas):
+    """Returns the first deprecated schema from `schemas` or None, if none is deprecated.
+
+    Pass the schema of the alias (which may be deprecated on its own) first and the schema of
+    the actual operator next.
+    """
+    return next((s for s in schemas if s is not None and s.IsDeprecated()), None)
+
+
 def _docstring_generator_main(schema_name, api):
     """
     Generate docstring for the class obtaining it from schema based on cls.__name__
     or the schema name as a str.
     This lists all the Keyword args that can be used when creating operator
     """
-    schema = _b.GetSchema(schema_name)
+    original_schema, schema = _b.GetSchemaAndTarget(schema_name)
     ret = "\n"
 
-    if schema.IsDeprecated():
+    deprecated_schema = _deprecated_schema(original_schema, schema)
+    if deprecated_schema is not None:
         ret += ".. warning::\n\n   This operator is now deprecated."
-        replacement = schema.DeprecatedInFavorOf()
+        replacement = deprecated_schema.DeprecatedInFavorOf()
         if replacement:
             use_instead = _names._op_name(replacement, api)
             ret += " Use :meth:`" + use_instead + "` instead."
-        explanation = schema.DeprecationMessage()
+        explanation = deprecated_schema.DeprecationMessage()
         if explanation:
             indent = "\n" + " " * 3
             ret += indent
@@ -301,7 +311,7 @@ Supported backends
 
 
 def _docstring_generator_class(schema_name, api="ops", args=None):
-    schema = _b.GetSchema(schema_name)
+    schema = _b.GetSchema(schema_name, follow_aliases=True)
     ret = _docstring_generator_main(schema_name, api)
     if schema.IsDocPartiallyHidden():
         return ret
@@ -333,7 +343,7 @@ def _docstring_prefix_from_inputs(op_name, api):
 
     Returns list of `Args` in appropriate section
     """
-    schema = _b.GetSchema(op_name)
+    schema = _b.GetSchema(op_name, follow_aliases=True)
     # __call__ docstring
     ret = f"\n{_call_description(api)}.\n"
     # Args section
@@ -346,7 +356,7 @@ def _docstring_prefix_auto(op_name, api="fn"):
     Generate start of the docstring for `__call__` of Operator `op_name`
     with default values. Assumes there will be 0 or 1 inputs
     """
-    schema = _b.GetSchema(op_name)
+    schema = _b.GetSchema(op_name, follow_aliases=True)
     if schema.MaxNumInput() == 0:
         return f"""
 {_call_description(api)}. This operator doesn't have any inputs.
@@ -371,7 +381,7 @@ def _docstring_generator_call(op_name, api="ops", args=None):
     """
     Generate full docstring for `__call__` of Operator `op_name`.
     """
-    schema = _b.GetSchema(op_name)
+    schema = _b.GetSchema(op_name, follow_aliases=True)
     if schema.IsDocPartiallyHidden():
         return ""
     if schema.HasCallDox():
@@ -396,7 +406,7 @@ Keyword Args
 
 
 def _docstring_generator_fn(schema_name, api="fn", args=None):
-    schema = _b.GetSchema(schema_name)
+    schema = _b.GetSchema(schema_name, follow_aliases=True)
     ret = _docstring_generator_main(schema_name, api)
     if schema.IsDocPartiallyHidden():
         return ret

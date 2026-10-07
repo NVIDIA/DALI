@@ -67,7 +67,7 @@ def test_operator_random_state_requirements():
     missing_random_state = []
     wrong_random_state = []
     for op_name in all_ops:
-        schema = GetSchema(op_name)
+        schema = GetSchema(op_name, follow_aliases=True)
         assert schema is not None, f"Schema for {op_name} not found"
 
         # Check if it's a reader

@@ -621,23 +621,20 @@ def build_operators():
     Returns a tuple of all operator classes and functional wrappers."""
     _all_ops = _legacy_ops._registry._all_registered_ops()
     all_op_classes = []
-    deprecated = {}
+    aliases = {}
     op_map = {}
     for schema_name in _all_ops:
         if not _op_filter.should_create_dynamic_op(schema_name):
             continue
 
-        schema = _b.GetSchema(schema_name)
-        deprecated_in_favor = schema.DeprecatedInFavorOf()
-        if deprecated_in_favor:
-            deprecated[schema_name] = deprecated_in_favor
+        original_schema, schema = _b.GetSchemaAndTarget(schema_name)
+        if original_schema.AliasFor():
+            # An alias - it will reuse the class of the actual operator
+            aliases[schema_name] = schema.Name()
+            continue
         cls = build_operator_class(schema)
         all_op_classes.append(cls)
         op_map[schema_name] = cls
-    for what, in_favor in deprecated.items():
-        schema = _b.GetSchema(what)
-        module = _find_or_create_module(_ops, schema.ModulePath())
-        setattr(module, what, op_map[in_favor])
 
     # Protect from infinite recursion when calling to_device, which internally uses operator Copy.
     op_map["Copy"]._input_device = (
@@ -645,5 +642,26 @@ def build_operators():
     )
 
     all_fn_wrappers = build_fn_wrappers(all_op_classes)
+    _expose_aliases(aliases, op_map, all_fn_wrappers)
 
     return all_op_classes, all_fn_wrappers
+
+
+def _expose_aliases(aliases, op_map, fn_wrappers):
+    """Exposes the operator classes and functional wrappers under the alias names."""
+    from .. import dynamic as parent
+
+    fn_map = {fn._op_class: fn for fn in fn_wrappers}
+    for alias_name, actual_name in aliases.items():
+        op_class = op_map.get(actual_name)
+        if op_class is None:
+            continue
+        alias_schema = _b.GetSchema(alias_name)
+        module_path = alias_schema.ModulePath()
+        class_name = alias_schema.OperatorName()
+        class_module = _find_or_create_module(parent if op_class._is_reader else _ops, module_path)
+        setattr(class_module, class_name, op_class)
+        fn = fn_map.get(op_class)
+        if fn is not None:
+            fn_module = _internal.get_submodule(parent, module_path)
+            setattr(fn_module, _to_snake_case(class_name), fn)

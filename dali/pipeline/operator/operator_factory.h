@@ -69,22 +69,12 @@ class OperatorRegistry {
         const OpSpec &spec,
         std::optional<std::string_view> device_name = {}) {
     std::lock_guard<std::mutex> lock(mutex_);
-    auto creator_it = registry_.find(name);
-    DALI_ENFORCE(creator_it != registry_.end(), make_string(
+    auto it = registry_.find(name);
+    DALI_ENFORCE(it != registry_.end(), make_string(
         "Operator \"", name, "\" not registered",
-        (device_name? make_string(" for \"", *device_name, "\"") : "")));
-
-    return creator_it->second(spec);
-  }
-
-  vector<std::string> RegisteredNames(bool internal_ops) {
-    vector<std::string> names;
-    for (const auto &pair : registry_) {
-      auto& schema = SchemaRegistry::GetSchema(pair.first);
-      if (internal_ops || !schema.IsInternal())
-        names.push_back(schema.name().length() ? schema.name() : pair.first);
-    }
-    return names;
+        (device_name ? make_string(" for ", *device_name) : ""),
+        "."));
+    return it->second(spec);
   }
 
   bool IsRegistered(const std::string &name) {
@@ -103,8 +93,8 @@ class Registerer {
   Registerer(std::string name,
       OperatorRegistry<OpType> *registry,
       typename OperatorRegistry<OpType>::Creator creator,
-      std::string_view devName = "") {
-    registry->Register(std::move(name), std::move(creator), devName);
+      std::optional<std::string_view> device_name = {}) {
+    registry->Register(std::move(name), std::move(creator), device_name);
   }
 
   // Standard creator function used by all operators
@@ -119,12 +109,12 @@ class Registerer {
 #define DALI_DECLARE_OPTYPE_REGISTRY(RegistryName, OpType)            \
   class DLL_PUBLIC RegistryName##Registry {                           \
    public:                                                            \
-    DLL_PUBLIC static ::dali::OperatorRegistry<OpType>& Registry();     \
+    DLL_PUBLIC static ::dali::OperatorRegistry<OpType>& Registry();   \
   };
 
 #define DALI_DEFINE_OPTYPE_REGISTRY(RegistryName, OpType)               \
   dali::OperatorRegistry<OpType>& RegistryName##Registry::Registry() {  \
-    static ::dali::OperatorRegistry<OpType> registry;                     \
+    static ::dali::OperatorRegistry<OpType> registry;                   \
     return registry;                                                    \
   }
 

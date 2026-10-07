@@ -511,7 +511,6 @@ void Pipeline::AddToOpSpecs(std::string_view inst_name, const OpSpec &spec, int 
         "Different Operator types cannot be grouped with the same logical id. Tried to group `" +
             GetOpDisplayName(spec, true) + "` using logical_id=" + std::to_string(logical_id) +
             " which is already assigned to " + group_name + ".");
-    const OpSchema &schema = SchemaRegistry::GetSchema(spec.SchemaName());
   }
   op_specs_.push_back({std::string(inst_name), spec, logical_id});
   logical_ids_[logical_id].push_back(op_specs_.size() - 1);

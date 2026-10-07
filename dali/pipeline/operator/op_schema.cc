@@ -17,6 +17,7 @@
 #include <string_view>
 #include <sstream>
 #include <unordered_set>
+#include <vector>
 
 #include "dali/core/bitmask.h"
 #include "dali/core/call_at_exit.h"
@@ -27,10 +28,19 @@
 
 namespace dali {
 
-std::map<string, OpSchema, std::less<>> &SchemaRegistry::registry() {
+namespace {
+
+std::map<string, OpSchema, std::less<>> &registry() {
   static std::map<string, OpSchema, std::less<>> schema_map;
   return schema_map;
 }
+
+std::map<string, string, std::less<>> &aliases() {
+  static std::map<string, string, std::less<>> alias_map;
+  return alias_map;
+}
+
+}  // namespace
 
 OpSchema &SchemaRegistry::RegisterSchema(std::string_view name) {
   auto &schema_map = registry();
@@ -40,20 +50,60 @@ OpSchema &SchemaRegistry::RegisterSchema(std::string_view name) {
   return it->second;
 }
 
-const OpSchema &SchemaRegistry::GetSchema(std::string_view name) {
-  auto &schema_map = registry();
-  auto it = schema_map.find(name);
-  if (it == schema_map.end())
+const OpSchema &SchemaRegistry::GetSchema(std::string_view name, FollowAliases follow_aliases) {
+  if (auto *schema = TryGetSchema(name, follow_aliases))
+    return *schema;
+  else
     throw invalid_key("Schema for operator '" + std::string(name) + "' not registered");
-
-  return it->second;
 }
 
-const OpSchema *SchemaRegistry::TryGetSchema(std::string_view name) {
+const OpSchema *SchemaRegistry::TryGetSchema(std::string_view name, FollowAliases follow_aliases) {
   auto &schema_map = registry();
+  if (follow_aliases == FollowAliases::Yes) {
+    auto &alias_map = aliases();
+    // Follow the aliases until we hit an actual schema.
+    // The alias map is guaranteed to be free of cycles by AddAlias.
+    for (auto alias_it = alias_map.find(name); alias_it != alias_map.end();
+        alias_it = alias_map.find(name))
+      name = alias_it->second;
+  }
+
   auto it = schema_map.find(name);
   return it != schema_map.end() ? &it->second : nullptr;
 }
+
+std::vector<const OpSchema *> SchemaRegistry::ListSchemas() {
+  auto &schema_map = registry();
+  std::vector<const OpSchema *> schemas;
+  schemas.reserve(schema_map.size());
+  for (auto &[name, schema] : schema_map)
+    schemas.push_back(&schema);
+  return schemas;
+}
+
+void SchemaRegistry::AddAlias(std::string_view alias_name, std::string_view actual_name) {
+  if (alias_name == actual_name)
+    throw std::invalid_argument("Schema name self-aliasing is forbidden");
+
+  auto &alias_map = aliases();
+  auto previous_target_it = alias_map.find(alias_name);
+  if (previous_target_it != alias_map.end())
+    throw std::invalid_argument(make_string("\"", alias_name,
+        "\" is already used as a schema alias name for \"", previous_target_it->second, "\""));
+
+  for (;;) {
+    auto redir = alias_map.find(actual_name);
+    if (redir == alias_map.end())
+      break;
+    if (redir->second == alias_name)
+      throw std::logic_error(make_string(
+          "Cycle detected while adding schema alias \"",
+          alias_name, "\" for operator \"", actual_name, "\"."));
+    actual_name = redir->second;
+  }
+  alias_map[std::string(alias_name)] = actual_name;
+}
+
 
 const OpSchema &OpSchema::Default() {
   static OpSchema default_schema(DefaultSchemaTag{});
@@ -391,6 +441,15 @@ OpSchema &OpSchema::Deprecate(std::string version, std::string in_favor_of,
   return *this;
 }
 
+OpSchema &OpSchema::AliasFor(std::string_view actual_name) {
+  if (!alias_for_.empty())
+    throw std::logic_error(make_string(
+      "The schema \"", name_, "\" is already an alias for \"", alias_for_, "\""));
+
+  alias_for_ = actual_name;
+  SchemaRegistry::AddAlias(name_, actual_name);
+  return *this;
+}
 
 OpSchema &OpSchema::Unserializable() {
   serializable_ = false;
@@ -847,6 +906,9 @@ const std::string &OpSchema::DeprecatedInFavorOf() const {
   return deprecated_in_favor_of_;
 }
 
+const std::string &OpSchema::AliasFor() const {
+  return alias_for_;
+}
 
 const std::string &OpSchema::DeprecationMessage() const {
   return deprecation_message_;
