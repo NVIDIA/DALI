@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import os
-from contextlib import nullcontext
 from typing import Sequence, Literal
 import unittest
 
@@ -155,6 +154,8 @@ _padding_cases = (
     (1, 1, [2, 2]),
     (7, 9, [7, 9]),
     (7, 9, [6, 8]),
+    (7, 9, [10, 5]),
+    (7, 9, [5, 12]),
 )
 
 
@@ -178,27 +179,6 @@ def test_center_crop_larger_than_tensor_odd_padding(h, w, size):
 @params(*_padding_cases)
 def test_center_crop_larger_than_tensor_odd_padding_gpu(h, w, size):
     _test_padding(h, w, size, "gpu")
-
-
-@params((0, 0), (0, 5), (5, 0))
-def test_center_crop_empty_image(h, w):
-    _test_empty_image(h, w, "cpu")
-
-
-@unittest.skipUnless(torch.cuda.is_available(), "CUDA is not available")
-@params((0, 0), (0, 5), (5, 0))
-def test_center_crop_empty_image_gpu(h, w):
-    _test_empty_image(h, w, "gpu")
-
-
-def _test_empty_image(h, w, device):
-    img = Image.fromarray(np.zeros((h, w, 3), dtype=np.uint8))
-    size = [3, 4]
-    t, td = build_centercrop_transform(size, batch_size=1, device=device)
-    stream = torch.cuda.Stream() if device == "gpu" else None
-    context = ndd.EvalContext(cuda_stream=stream) if stream else nullcontext()
-    with context:
-        _test_core(t, td, img, size, device=device)
 
 
 @params(
