@@ -17,10 +17,10 @@ import torch
 from typing import Sequence, Literal
 import nvidia.dali.fn as fn
 
-from .operator import Operator, _ArgumentValidateRule
+from .operator import Operator, ArgumentValidateRule
 
 
-class _ValidateStd(_ArgumentValidateRule):
+class _ValidateStd(ArgumentValidateRule):
     """
     Verify the standard deviation argument for the Normalize operator.
 
@@ -42,7 +42,7 @@ class _ValidateStd(_ArgumentValidateRule):
             raise ValueError("Std must not be 0")
 
 
-class _ValidateMean(_ArgumentValidateRule):
+class _ValidateMean(ArgumentValidateRule):
     """
     Verify the mean argument for the Normalize operator.
 
