@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -94,9 +94,9 @@ class SharedBatchDispatcher(Dispatcher):
         1. Binary encoded samples from the batch (underlying data of numpy arrays),
            aimed to be used as initialization buffers for arrays with no additional copy
            or deserialization.
-        2. Pickled list of meta-data of each sample, such as the sample's binary data offset in
+        2. Serialized list of meta-data of each sample, such as the sample's binary data offset in
            the chunk, a shape and a type of the array.
-        3. Pickled CompletedTask instance (that contains offset and size of the serialized list
+        3. Serialized CompletedTask instance (that contains offset and size of the serialized list
            from the second point).
         Returns `ShmMessageDesc` instance, that describes shared memory chunk and placement
         (offset, size) of the serialized CompletedTask instance in the chunk.
