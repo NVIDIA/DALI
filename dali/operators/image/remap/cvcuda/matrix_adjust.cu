@@ -50,6 +50,9 @@ __global__ void adjustMatricesKernel2(MatricesWrap wrap, int batch_size) {
 void adjustMatrices(nvcv::Tensor &matrices, cudaStream_t stream) {
   auto data = *matrices.exportData<nvcv::TensorDataStridedCuda>();
   int bs = data.shape()[0];
+  if (bs == 0) {
+    return;
+  }
   MatricesWrap wrap(data);
 
   int num_blocks = div_ceil(bs, 256);
