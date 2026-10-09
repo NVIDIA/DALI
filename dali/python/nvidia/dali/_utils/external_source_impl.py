@@ -449,7 +449,6 @@ def get_sample_iterable_from_callback(source_desc: SourceDescription, batch_size
 
 def get_iterable_from_callback(source_desc: SourceDescription, is_batched):
     """Transform callback that doesn't accept arguments into iterable"""
-    print("get_iterable_from_callback")
     first = source_desc.source()
     dtype, shape = _inspect_data(first, is_batched)
 
