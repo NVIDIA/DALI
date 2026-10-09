@@ -36,12 +36,14 @@ to the output tensors.
 
 For example, the following snippet presents decompression of a video-like sequences.
 Each video sequence was deflated by, first, compressing each frame separately and then
-concatenating compressed frames from the corresponding sequences.::
+concatenating compressed frames from the corresponding sequences. The operator names are shown
+without an API prefix; use whichever API you're working with, e.g. ``fn.external_source`` and
+``fn.decoders.inflate``, ``ops`` equivalents, or the dynamic API equivalents::
 
   @pipeline_def
   def inflate_sequence_pipeline():
-    compres_seq, uncompres_hwc_shape, compres_chunk_sizes = fn.external_source(...)
-    sequences = fn.decoders.inflate(
+    compres_seq, uncompres_hwc_shape, compres_chunk_sizes = external_source(...)
+    sequences = decoders.inflate(
         compres_seq.gpu(),
         chunk_sizes=compres_chunk_sizes,  # refers to sizes in ``compres_seq``
         shape=uncompres_hwc_shape,
