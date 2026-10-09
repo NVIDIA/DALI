@@ -359,6 +359,50 @@ TEST_F(ConvertOrientationTest, FlipY) {
   });
 }
 
+// Regression test for the CPU-side signed-source color-conversion fix: the color-conversion
+// coefficients/biases are calibrated for a channel already normalized to Out's range, so a
+// signed In must be normalized to Out first (as ConvertGPU already does), instead of running the
+// color math directly on the raw signed value.
+class ConvertSignedSourceTest : public ::testing::Test {
+ protected:
+  Tensor<CPUBackend> Convert(std::vector<int8_t> rgb, DALIImageType out_format,
+                              int out_channels) {
+    TensorShape<> in_shape{1, 1, 3};
+    ConstSampleView<CPUBackend> in_view(rgb.data(), in_shape, DALI_INT8);
+    Tensor<CPUBackend> out;
+    out.Resize(TensorShape<>{1, 1, out_channels}, DALI_UINT8);
+    SampleView<CPUBackend> out_view(out.raw_mutable_data(), out.shape(), out.type());
+    ConvertCPU(out_view, "HWC", out_format, in_view, "HWC", DALI_RGB, {});
+    return out;
+  }
+};
+
+TEST_F(ConvertSignedSourceTest, AchromaticRgbToGrayMatchesNormalizedInput) {
+  // For an achromatic pixel (R == G == B), the gray formula's coefficients sum to exactly 1.0,
+  // so the correctly-converted gray value must equal the plain range-normalized input, regardless
+  // of the color-conversion math. Before the fix, ConvertCPU ran that math on the raw *signed*
+  // int8 value instead of first normalizing it to the output's [0, 255] range, so a negative
+  // sample produced wildly wrong, unclamped output instead of this simple identity.
+  for (int8_t v : {int8_t{-128}, int8_t{-1}, int8_t{0}, int8_t{1}, int8_t{127}}) {
+    auto out = Convert({v, v, v}, DALI_GRAY, 1);
+    uint8_t expected = ConvertSatNorm<uint8_t>(v);
+    EXPECT_EQ(*out.data<uint8_t>(), expected) << "v=" << static_cast<int>(v);
+  }
+}
+
+TEST_F(ConvertSignedSourceTest, RgbToGrayMatchesJpegFormulaOnNormalizedInput) {
+  // Non-achromatic case: the expected value is computed independently from the normalized
+  // (ConvertSatNorm) RGB values using the standard JPEG luma weights, mirroring what the fixed
+  // ConvertPixel<Out, In, DALI_GRAY, DALI_RGB> does, but recomputed here rather than re-using its
+  // internal helper.
+  std::vector<int8_t> rgb = {int8_t{-128}, int8_t{0}, int8_t{127}};
+  auto out = Convert(rgb, DALI_GRAY, 1);
+  float r = ConvertSatNorm<uint8_t>(rgb[0]);
+  float g = ConvertSatNorm<uint8_t>(rgb[1]);
+  float b = ConvertSatNorm<uint8_t>(rgb[2]);
+  uint8_t expected = ConvertSat<uint8_t>(0.299f * r + 0.587f * g + 0.114f * b);
+  EXPECT_EQ(*out.data<uint8_t>(), expected);
+}
 
 }  // namespace test
 }  // namespace imgcodec

@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@ import nvidia.dali.fn as fn
 import nvidia.dali.types as types
 import os
 import random
+import tempfile
 from nvidia.dali import pipeline_def
 
 from nose_utils import assert_raises, SkipTest
@@ -48,9 +49,30 @@ def get_img_files(data_path, subdir="*", ext=None):
         return list(set(files) - set(txt_files))
 
 
+# cat-300572_640_int32.tiff is a signed-format TIFF, added for the dedicated test_tiff_int32
+# test. It needs dtype=INT32 to decode (see test_tiff_int32); the generic decoders.image() calls
+# below don't request that, so this file must be excluded from their directory-wide file lists.
+TIFF_UNSUPPORTED_BY_GENERIC_DECODE = {"cat-300572_640_int32.tiff"}
+
+
+def _reader_file_kwargs(data_path, exclude_names):
+    """Builds fn.readers.file kwargs, optionally filtering out `exclude_names` (by basename)
+    from the file_root's directory listing."""
+    if not exclude_names:
+        return dict(file_root=data_path, shard_id=0, num_shards=1)
+    files = [
+        os.path.relpath(f, data_path)
+        for f in get_img_files(data_path)
+        if os.path.basename(f) not in exclude_names
+    ]
+    return dict(file_root=data_path, files=files)
+
+
 @pipeline_def
-def decoder_pipe(data_path, device, use_fast_idct=False, jpeg_fancy_upsampling=False):
-    inputs, labels = fn.readers.file(file_root=data_path, shard_id=0, num_shards=1, name="Reader")
+def decoder_pipe(
+    data_path, device, use_fast_idct=False, jpeg_fancy_upsampling=False, exclude_names=None
+):
+    inputs, labels = fn.readers.file(**_reader_file_kwargs(data_path, exclude_names), name="Reader")
     decoded = fn.experimental.decoders.image(
         inputs,
         device=device,
@@ -69,7 +91,7 @@ test_good_path = ["jpeg", "mixed", "png", "tiff", "pnm", "bmp", "jpeg2k", "webp"
 test_misnamed_path = ["jpeg", "png", "tiff", "pnm", "bmp"]
 
 
-def run_decode(data_path, batch, device, threads):
+def run_decode(data_path, batch, device, threads, exclude_names=None):
     pipe = decoder_pipe(
         data_path=data_path,
         batch_size=batch,
@@ -77,6 +99,7 @@ def run_decode(data_path, batch, device, threads):
         device_id=0,
         device=device,
         prefetch_queue_depth=1,
+        exclude_names=exclude_names,
     )
     iters = math.ceil(pipe.epoch_size("Reader") / batch)
     for iter in range(iters):
@@ -87,18 +110,20 @@ def test_image_decoder():
     for device in ["cpu", "mixed"]:
         for batch_size in [1, 10]:
             for img_type in test_good_path:
+                exclude = TIFF_UNSUPPORTED_BY_GENERIC_DECODE if img_type == "tiff" else None
                 for threads in [1, random.choice([2, 3, 4])]:
                     data_path = os.path.join(test_data_root, good_path, img_type)
-                    yield run_decode, data_path, batch_size, device, threads
+                    yield run_decode, data_path, batch_size, device, threads, exclude
             for img_type in test_misnamed_path:
+                exclude = TIFF_UNSUPPORTED_BY_GENERIC_DECODE if img_type == "tiff" else None
                 for threads in [1, random.choice([2, 3, 4])]:
                     data_path = os.path.join(test_data_root, misnamed_path, img_type)
-                    yield run_decode, data_path, batch_size, device, threads
+                    yield run_decode, data_path, batch_size, device, threads, exclude
 
 
 @pipeline_def
-def create_decoder_slice_pipeline(data_path, device):
-    jpegs, _ = fn.readers.file(file_root=data_path, shard_id=0, num_shards=1, name="Reader")
+def create_decoder_slice_pipeline(data_path, device, exclude_names=None):
+    jpegs, _ = fn.readers.file(**_reader_file_kwargs(data_path, exclude_names), name="Reader")
 
     anchor = fn.random.uniform(range=[0.05, 0.15], shape=(2,))
     shape = fn.random.uniform(range=[0.5, 0.7], shape=(2,))
@@ -113,8 +138,8 @@ def create_decoder_slice_pipeline(data_path, device):
 
 
 @pipeline_def
-def create_decoder_crop_pipeline(data_path, device):
-    jpegs, _ = fn.readers.file(file_root=data_path, shard_id=0, num_shards=1, name="Reader")
+def create_decoder_crop_pipeline(data_path, device, exclude_names=None):
+    jpegs, _ = fn.readers.file(**_reader_file_kwargs(data_path, exclude_names), name="Reader")
 
     crop_pos_x = fn.random.uniform(range=[0.1, 0.9])
     crop_pos_y = fn.random.uniform(range=[0.1, 0.9])
@@ -133,9 +158,9 @@ def create_decoder_crop_pipeline(data_path, device):
 
 
 @pipeline_def
-def create_decoder_random_crop_pipeline(data_path, device):
+def create_decoder_random_crop_pipeline(data_path, device, exclude_names=None):
     seed = 1234
-    jpegs, _ = fn.readers.file(file_root=data_path, shard_id=0, num_shards=1, name="Reader")
+    jpegs, _ = fn.readers.file(**_reader_file_kwargs(data_path, exclude_names), name="Reader")
 
     w = 242
     h = 230
@@ -152,6 +177,7 @@ def create_decoder_random_crop_pipeline(data_path, device):
 
 def run_decode_fused(test_fun, path, img_type, batch, device, threads, validation_fun):
     data_path = os.path.join(test_data_root, path, img_type)
+    exclude = TIFF_UNSUPPORTED_BY_GENERIC_DECODE if img_type == "tiff" else None
     pipe = test_fun(
         data_path=data_path,
         batch_size=batch,
@@ -159,6 +185,7 @@ def run_decode_fused(test_fun, path, img_type, batch, device, threads, validatio
         device_id=0,
         device=device,
         prefetch_queue_depth=1,
+        exclude_names=exclude,
     )
     idxs = [i for i in range(batch)]
     iters = math.ceil(pipe.epoch_size("Reader") / batch)
@@ -218,6 +245,7 @@ def test_image_decoder_fused():
 
 def check_FastDCT_body(batch_size, img_type, device):
     data_path = os.path.join(test_data_root, good_path, img_type)
+    exclude = TIFF_UNSUPPORTED_BY_GENERIC_DECODE if img_type == "tiff" else None
     compare_pipelines(
         decoder_pipe(
             data_path=data_path,
@@ -226,6 +254,7 @@ def check_FastDCT_body(batch_size, img_type, device):
             device_id=0,
             device=device,
             use_fast_idct=False,
+            exclude_names=exclude,
         ),
         decoder_pipe(
             data_path=data_path,
@@ -234,6 +263,7 @@ def check_FastDCT_body(batch_size, img_type, device):
             device_id=0,
             device="cpu",
             use_fast_idct=True,
+            exclude_names=exclude,
         ),
         # average difference should be no bigger than off-by-3
         batch_size=batch_size,
@@ -310,6 +340,8 @@ def _testimpl_image_decoder_consistency(img_out_type, file_fmt, path, subdir="*"
     if (file_fmt == "jpeg2k" or file_fmt == "mixed") and img_out_type == types.YCbCr:
         eps = 6
     files = get_img_files(os.path.join(test_data_root, path), subdir=subdir, ext=ext)
+    if file_fmt == "tiff":
+        files = [f for f in files if os.path.basename(f) not in TIFF_UNSUPPORTED_BY_GENERIC_DECODE]
     compare_pipelines(
         img_decoder_pipe("cpu", out_type=img_out_type, files=files),
         img_decoder_pipe("mixed", out_type=img_out_type, files=files),
@@ -424,6 +456,86 @@ def test_tiff_palette():
 
     delta = np.abs(imgs.at(0).astype("float") - imgs.at(1).astype("float")) / 256
     assert np.quantile(delta, 0.9) < 0.05, "Original and palette TIFF differ significantly"
+
+
+def test_tiff_uint32():
+    tiff_dir = os.path.join(test_data_root, good_path, "tiff", "0")
+    ref_dir = os.path.join(test_data_root, "db/single/reference/tiff/0")
+    uint32_file = os.path.join(tiff_dir, "cat-300572_640_uint32.tiff")
+    ref = np.load(os.path.join(ref_dir, "cat-300572_640_uint32.tiff.npy"))
+
+    @pipeline_def(batch_size=1, device_id=0, num_threads=1)
+    def pipe(device):
+        encoded, _ = fn.readers.file(files=[uint32_file])
+        decoded = fn.experimental.decoders.image(
+            encoded, device=device, output_type=types.ANY_DATA, dtype=types.UINT32
+        )
+        return decoded
+
+    # Requesting dtype=UINT32 explicitly: the uint32 sample should decode natively, without
+    # downscaling to uint8. Compare the full-precision output against an independent reference
+    # decode (via tifffile), on both the cpu (libtiff) and mixed (nvtiff) backends.
+    for device in ("cpu", "mixed"):
+        p = pipe(device)
+        (out,) = p.run()
+        result = out.as_cpu().at(0)
+        assert result.dtype == np.uint32
+        np.testing.assert_array_equal(result, ref, err_msg=f"device={device}")
+
+
+def test_tiff_int32():
+    tiff_dir = os.path.join(test_data_root, good_path, "tiff", "0")
+    ref_dir = os.path.join(test_data_root, "db/single/reference/tiff/0")
+    int32_file = os.path.join(tiff_dir, "cat-300572_640_int32.tiff")
+    ref = np.load(os.path.join(ref_dir, "cat-300572_640_int32.tiff.npy"))
+
+    @pipeline_def(batch_size=1, device_id=0, num_threads=1)
+    def pipe(device):
+        encoded, _ = fn.readers.file(files=[int32_file])
+        decoded = fn.experimental.decoders.image(
+            encoded, device=device, output_type=types.ANY_DATA, dtype=types.INT32
+        )
+        return decoded
+
+    # The LibTIFF (cpu) extension explicitly rejects signed TIFF sample formats; this is a
+    # known, separate limitation, not something this test is expected to fix. Assert the
+    # current (documented) failure mode instead of silently skipping it, so a change in
+    # that behavior gets noticed.
+    p = pipe("cpu")
+    assert_raises(RuntimeError, p.run, glob="*Failed to decode sample*")
+
+    # The nvTIFF (mixed/GPU) backend does decode signed int32 TIFF; compare the full-precision
+    # output against an independent reference decode (via tifffile).
+    p = pipe("mixed")
+    (out,) = p.run()
+    result = out.as_cpu().at(0)
+    assert result.dtype == np.int32
+    np.testing.assert_array_equal(result, ref)
+
+
+def test_tiff_uint32_truncated_input():
+    # Invalid-input rejection: a truncated 32-bit TIFF (valid header, no pixel data) must be
+    # rejected with an error rather than crashing or returning garbage, on both backends.
+    tiff_dir = os.path.join(test_data_root, good_path, "tiff", "0")
+    uint32_file = os.path.join(tiff_dir, "cat-300572_640_uint32.tiff")
+    with open(uint32_file, "rb") as f:
+        truncated_bytes = f.read(256)
+
+    with tempfile.NamedTemporaryFile(suffix=".tiff") as truncated_file:
+        truncated_file.write(truncated_bytes)
+        truncated_file.flush()
+
+        @pipeline_def(batch_size=1, device_id=0, num_threads=1)
+        def pipe(device):
+            encoded, _ = fn.readers.file(files=[truncated_file.name])
+            decoded = fn.experimental.decoders.image(
+                encoded, device=device, output_type=types.ANY_DATA, dtype=types.UINT32
+            )
+            return decoded
+
+        for device in ("cpu", "mixed"):
+            p = pipe(device)
+            assert_raises(RuntimeError, p.run, glob="*nvImageCodec failure*")
 
 
 def _testimpl_image_decoder_peek_shape(
