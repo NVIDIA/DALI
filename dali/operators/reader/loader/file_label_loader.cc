@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -13,7 +13,11 @@
 // limitations under the License.
 
 #include "dali/operators/reader/loader/file_label_loader.h"
+#include <cerrno>
+#include <cstdlib>
+#include <limits>
 #include <memory>
+#include <stdexcept>
 #include "dali/core/common.h"
 #include "dali/operators/reader/loader/filesystem.h"
 #include "dali/operators/reader/loader/utils.h"
@@ -24,6 +28,57 @@
 namespace dali {
 
 using filesystem::dir_sep;
+
+FileLabel MakeFileLabel(int64_t value, DALIDataType dtype) {
+  switch (dtype) {
+    case DALI_INT32:
+      if (value < std::numeric_limits<int32_t>::min() ||
+          value > std::numeric_limits<int32_t>::max())
+        throw std::invalid_argument(
+            make_string("Label ", value, " is out of range of the label type ", dtype, "."));
+      return static_cast<int32_t>(value);
+    case DALI_INT64:
+      return value;
+    case DALI_FLOAT:
+      return static_cast<float>(value);
+    default:
+      throw std::invalid_argument(make_string("Unsupported label type: ", dtype, "."));
+  }
+}
+
+FileLabel MakeFileLabel(float value, DALIDataType dtype) {
+  if (dtype != DALI_FLOAT)
+    throw std::invalid_argument(
+        make_string("Cannot store a floating point label in the label type ", dtype, "."));
+  return value;
+}
+
+std::optional<FileLabel> ParseFileLabel(const char *str, DALIDataType dtype) {
+  char *end = nullptr;
+  errno = 0;
+  switch (dtype) {
+    case DALI_INT32:
+    case DALI_INT64: {
+      long long value = std::strtoll(str, &end, 10);  // NOLINT(runtime/int)
+      if (end == str || *end != '\0' || errno == ERANGE)
+        return std::nullopt;
+      if (dtype == DALI_INT64)
+        return static_cast<int64_t>(value);
+      if (value < std::numeric_limits<int32_t>::min() ||
+          value > std::numeric_limits<int32_t>::max())
+        return std::nullopt;
+      return static_cast<int32_t>(value);
+    }
+    case DALI_FLOAT: {
+      float value = std::strtof(str, &end);
+      if (end == str || *end != '\0' || errno == ERANGE)
+        return std::nullopt;
+      return value;
+    }
+    default:
+      throw std::invalid_argument(make_string("Unsupported label type: ", dtype, "."));
+  }
+}
 
 template<bool checkpointing_supported>
 void FileLabelLoaderBase<checkpointing_supported>::PrepareEmpty(ImageLabelWrapper &image_label) {
@@ -41,7 +96,7 @@ void FileLabelLoaderBase<checkpointing_supported>::ReadSample(ImageLabelWrapper 
   assert(image_label.file_stream == nullptr);
 
   // copy the label
-  image_label.label = entry.label.value();
+  image_label.label = GetLabel(entry);
   DALIMeta meta;
   meta.SetSourceInfo(entry.filename);
   meta.SetSkipSample(false);

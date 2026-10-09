@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <optional>
 #include <string>
 
 #include "dali/operators/reader/file_reader_op.h"
@@ -73,7 +74,18 @@ Example::
 
 The file names can contain spaces in the middle, but cannot contain trailing whitespace.
 
-3. Use file names and labels provided as a list of strings and integers, respectively.
+The labels are parsed according to `label_dtype`. For example, with
+``label_dtype=types.FLOAT``, the list file can contain non-integer labels::
+
+  dog.jpg 0.375
+  cute kitten.jpg 1.5e-3
+
+3. Use file names and labels provided as a list of strings and numbers, respectively.
+
+Integer labels are passed in `labels` and floating point labels in `float_labels`.
+
+The type of the label output is controlled by `label_dtype`. Labels assigned based on
+the subdirectory structure or the position in `files` are converted to that type.
 
 As with other readers, the (file, label) pairs returned by this operator can be randomly shuffled
 and various sharding strategies can be applied. See documentation of this operator's arguments
@@ -126,7 +138,24 @@ This argument is mutually exclusive with `file_list`.)", nullptr)
   .AddOptionalArg<vector<int>>("labels", R"(Labels accompanying contents of files listed in
 `files` argument.
 
-If not used, sequential 0-based indices are used as labels)", nullptr)
+If neither this argument nor `float_labels` is used, sequential 0-based indices are used
+as labels.
+
+This argument is mutually exclusive with `float_labels`.)", nullptr)
+  .AddOptionalArg<vector<float>>("float_labels", R"(Floating point labels accompanying
+contents of files listed in `files` argument.
+
+Requires a floating point `label_dtype`. If `label_dtype` is not specified, the labels
+are returned as ``FLOAT``.
+
+This argument is mutually exclusive with `labels`.)", nullptr)
+  .AddOptionalTypeArg("label_dtype", R"(Data type of the label output.
+
+Supported types: ``INT32``, ``INT64`` and ``FLOAT``. If not specified, the type is
+``FLOAT`` when `float_labels` is provided and ``INT32`` otherwise.
+
+Labels read from `file_list` must be valid values of this type, e.g. ``0.375`` is
+rejected when the type is ``INT32``.)")
   .AddOptionalArg<string>("file_filters", R"(A list of glob strings to filter the
 list of files in the sub-directories of the `file_root`.
 
@@ -139,7 +168,9 @@ This argument is ignored when file paths are taken from `file_list` or `files`.)
   .AddOptionalArg<bool>("case_sensitive_filter", R"(If set to True, the filter will be matched
 case-sensitively, otherwise case-insensitively.)", false)
   .OutputDType(0, DALI_UINT8)
-  .OutputDType(1, DALI_INT32)
+  .OutputDType(1, [](const OpSpec &spec) -> std::optional<DALIDataType> {
+    return GetFileLabelDType(spec);
+  })
   .OutputNDim(0, 1)
   .OutputNDim(1, 1)
   .AddParent("LoaderBase");
