@@ -22,6 +22,7 @@ import numpy as np
 
 from nose2.tools import params
 from nose_utils import assert_raises
+import nvidia.dali.experimental.dynamic as ndd
 from nvidia.dali.experimental.torchvision import Compose, CenterCrop
 from nvidia.dali.experimental.torchvision.v2.functional import center_crop
 import torchvision.transforms.v2 as transforms
@@ -51,11 +52,11 @@ def make_tensor(h, w, c=3):
     return torch.tensor(arr)
 
 
-def _test_core(t, td, inpt, size):
+def _test_core(t, td, inpt, size, device="cpu"):
     out_tv = t(inpt)
     out_dali_tv = td(inpt)
     out_tf = tv_fn.center_crop(inpt, size)
-    out_dali_tf = center_crop(inpt, size)
+    out_dali_tf = center_crop(inpt, size, device=device)
 
     if isinstance(inpt, Image.Image):
         out_tv = tv_fn.pil_to_tensor(out_tv)
@@ -143,30 +144,68 @@ def test_center_crop_larger_than_tensor(size):
     assert torch.equal(out_dali_fn, out_fn), f"Functional value mismatch for size={size}"
 
 
+_padding_cases = (
+    (7, 9, [10, 12]),
+    (7, 9, [8, 9]),
+    (7, 9, [9, 15]),
+    (7, 9, [20, 20]),
+    (8, 8, [11, 11]),
+    (5, 6, [6, 13]),
+    (1, 1, [2, 2]),
+    (7, 9, [7, 9]),
+    (7, 9, [6, 8]),
+    (7, 9, [10, 5]),
+    (7, 9, [5, 12]),
+)
+
+
+def _test_padding(h, w, size, device):
+    tens = make_tensor(h, w)
+    t, td = build_centercrop_transform(size, batch_size=1, device=device)
+    if device == "gpu":
+        stream = torch.cuda.Stream()
+        with torch.cuda.stream(stream), ndd.EvalContext(cuda_stream=stream):
+            _test_core(t, td, tens.cuda(), size, device=device)
+    else:
+        _test_core(t, td, tens, size, device=device)
+
+
+@params(*_padding_cases)
+def test_center_crop_larger_than_tensor_odd_padding(h, w, size):
+    _test_padding(h, w, size, "cpu")
+
+
+@unittest.skipUnless(torch.cuda.is_available(), "CUDA is not available")
+@params(*_padding_cases)
+def test_center_crop_larger_than_tensor_odd_padding_gpu(h, w, size):
+    _test_padding(h, w, size, "gpu")
+
+
 @params(
     ({"bad": "value"},),
 )
 def test_invalid_type(size):
-    with assert_raises(TypeError):
+    with assert_raises(TypeError, glob="Size must be int, list, or tuple, got*"):
         _ = Compose([CenterCrop(size=size)])
 
-    with assert_raises(TypeError):
+    with assert_raises(TypeError, glob="Size must be int, list, or tuple, got*"):
         _ = center_crop(torch.ones((3, 256, 256)), output_size=size)
 
 
 @params(
-    [3, 5, 6, 7, 8],
-    [0, 5],
-    [5, 0],
-    [0, 0],
-    -2,
-    [127, -1],
+    ([3, 5, 6, 7, 8], "Size sequence must have length 1 or 2, got 5"),
+    ([0, 5], "Values size must be positive numbers, got*"),
+    ([5, 0], "Values size must be positive numbers, got*"),
+    ([0, 0], "Values size must be positive numbers, got*"),
+    (-2, "Value size must be positive, got -2"),
+    ([127, -1], "Values size must be positive numbers, got*"),
+    ([], "Invalid size length, expected 1 or 2, got 0"),
 )
-def test_value_error(size):
-    with assert_raises(ValueError):
+def test_value_error(size, message):
+    with assert_raises(ValueError, glob=message):
         _ = Compose([CenterCrop(size=size)])
 
-    with assert_raises(ValueError):
+    with assert_raises(ValueError, glob=message):
         _ = center_crop(torch.ones((3, 256, 256)), output_size=size)
 
 
