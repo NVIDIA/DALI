@@ -121,6 +121,18 @@ macro(get_dali_version FILENAME FILE_VAR)
   message("-- DALI version: " ${${FILE_VAR}})
 endmacro()
 
+# Splits a version string like "1.2.3dev" into
+# <PREFIX>_MAJOR, <PREFIX>_MINOR, <PREFIX>_PATCH and <PREFIX>_SUFFIX ("dev")
+macro(parse_dali_version VERSION_STR PREFIX)
+  if(NOT "${VERSION_STR}" MATCHES "^([0-9]+)\\.([0-9]+)\\.([0-9]+)(.*)$")
+    message(FATAL_ERROR "Invalid DALI version string: ${VERSION_STR}")
+  endif()
+  set(${PREFIX}_MAJOR ${CMAKE_MATCH_1})
+  set(${PREFIX}_MINOR ${CMAKE_MATCH_2})
+  set(${PREFIX}_PATCH ${CMAKE_MATCH_3})
+  set(${PREFIX}_SUFFIX ${CMAKE_MATCH_4})
+endmacro()
+
 macro(get_dali_extra_version FILENAME VERSION_VAR)
   if(EXISTS "${FILENAME}")
     file(STRINGS "${FILENAME}" ${VERSION_VAR} LIMIT_INPUT 40)
