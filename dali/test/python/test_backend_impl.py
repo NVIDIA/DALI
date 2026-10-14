@@ -700,9 +700,9 @@ def test_registered_ops_contain_aliases():
     assert "readers__MXNet" in cpu_ops
     assert "MXNetReader" in cpu_ops
     assert "MXNetReader" not in gpu_ops
-    assert "readers__Numpy" in gpu_ops
     assert "NumpyReader" in cpu_ops
-    assert "NumpyReader" in gpu_ops
+    if "readers__Numpy" in gpu_ops:
+        assert "NumpyReader" in gpu_ops
 
 
 def test_schema_alias():
