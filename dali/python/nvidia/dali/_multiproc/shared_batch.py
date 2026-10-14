@@ -14,6 +14,7 @@
 
 import os
 import struct
+from enum import IntEnum
 
 from nvidia.dali._multiproc import shared_mem
 from nvidia.dali._multiproc.messages import (
@@ -189,34 +190,47 @@ class _BinaryReader:
     def read_str(self):
         return self.read_bytes().decode("utf-8", errors="replace")
 
-    def read_tag(self, allowed):
+    def read_tag(self, tag_type):
         (tag,) = self.unpack("B")
-        if tag not in allowed:
-            raise RuntimeError(f"Malformed shared memory message: unexpected tag {tag}.")
-        return tag
+        try:
+            return tag_type(tag)
+        except ValueError:
+            raise RuntimeError(
+                f"Malformed shared memory message: unexpected tag {tag} ({tag_type.__name__})."
+            ) from None
 
     def assert_consumed(self):
         if self._offset != len(self._buf):
             raise RuntimeError("Malformed shared memory message: unexpected trailing data.")
 
 
-_MSG_SCHEDULED_TASK = 1
-_MSG_COMPLETED_TASK = 2
+class _MessageKind(IntEnum):
+    SCHEDULED_TASK = 1
+    COMPLETED_TASK = 2
 
-_TASK_SAMPLE_RANGE = 0
-_TASK_BATCH_ARGS = 1
 
-_BATCH_ARG_NONE = 0
-_BATCH_ARG_INT = 1
-_BATCH_ARG_BATCH_INFO = 2
+class _TaskKind(IntEnum):
+    SAMPLE_RANGE = 0
+    BATCH_ARGS = 1
 
-_EXCEPTION_NONE = 0
-_EXCEPTION_STOP_ITERATION = 1
-_EXCEPTION_RUNTIME_ERROR = 2
 
-_SAMPLE_ARRAY = 0
-_SAMPLE_TUPLE = 1
-_SAMPLE_LIST = 2
+class _BatchArgKind(IntEnum):
+    NONE = 0
+    INT = 1
+    BATCH_INFO = 2
+
+
+class _ExceptionKind(IntEnum):
+    NONE = 0
+    STOP_ITERATION = 1
+    RUNTIME_ERROR = 2
+
+
+class _SampleKind(IntEnum):
+    ARRAY = 0
+    TUPLE = 1
+    LIST = 2
+
 
 _MAX_SAMPLE_NESTING = 64
 
@@ -235,24 +249,24 @@ def _read_optional_str(reader):
 def _write_batch_args(writer, batch_args):
     batch_args = tuple(batch_args)
     if len(batch_args) == 0:
-        writer.pack("B", _BATCH_ARG_NONE)
+        writer.pack("B", _BatchArgKind.NONE)
         return
     if len(batch_args) != 1:
         raise TypeError(f"Expected at most one batch argument, got {len(batch_args)}.")
     (arg,) = batch_args
     if isinstance(arg, BatchInfo):
-        writer.pack("Bqq", _BATCH_ARG_BATCH_INFO, arg.iteration, arg.epoch_idx)
+        writer.pack("Bqq", _BatchArgKind.BATCH_INFO, arg.iteration, arg.epoch_idx)
     elif isinstance(arg, int):
-        writer.pack("Bq", _BATCH_ARG_INT, arg)
+        writer.pack("Bq", _BatchArgKind.INT, arg)
     else:
         raise TypeError(f"Unsupported batch argument type: `{type(arg)}`.")
 
 
 def _read_batch_args(reader):
-    kind = reader.read_tag((_BATCH_ARG_NONE, _BATCH_ARG_INT, _BATCH_ARG_BATCH_INFO))
-    if kind == _BATCH_ARG_NONE:
+    kind = reader.read_tag(_BatchArgKind)
+    if kind == _BatchArgKind.NONE:
         return ()
-    if kind == _BATCH_ARG_INT:
+    if kind == _BatchArgKind.INT:
         return reader.unpack("q")
     return (BatchInfo(*reader.unpack("qq")),)
 
@@ -261,7 +275,7 @@ def _write_scheduled_task(writer, message: ScheduledTask):
     task = message.task
     writer.pack(
         "Bqqqq",
-        _MSG_SCHEDULED_TASK,
+        _MessageKind.SCHEDULED_TASK,
         message.context_i,
         message.scheduled_i,
         message.epoch_start,
@@ -271,7 +285,7 @@ def _write_scheduled_task(writer, message: ScheduledTask):
         sr = task.sample_range
         writer.pack(
             "B6q",
-            _TASK_SAMPLE_RANGE,
+            _TaskKind.SAMPLE_RANGE,
             sr.sample_start,
             sr.sample_end,
             sr.iteration,
@@ -280,14 +294,14 @@ def _write_scheduled_task(writer, message: ScheduledTask):
             sr.slice_end,
         )
     else:
-        writer.pack("B", _TASK_BATCH_ARGS)
+        writer.pack("B", _TaskKind.BATCH_ARGS)
         _write_batch_args(writer, task.batch_args)
 
 
 def _read_scheduled_task(reader):
     context_i, scheduled_i, epoch_start, minibatch_i = reader.unpack("qqqq")
-    kind = reader.read_tag((_TASK_SAMPLE_RANGE, _TASK_BATCH_ARGS))
-    if kind == _TASK_SAMPLE_RANGE:
+    kind = reader.read_tag(_TaskKind)
+    if kind == _TaskKind.SAMPLE_RANGE:
         sample_start, sample_end, iteration, epoch_idx, slice_start, slice_end = reader.unpack("6q")
         try:
             sample_range = SampleRange(
@@ -309,7 +323,7 @@ def _read_scheduled_task(reader):
 def _write_completed_task(writer, message: CompletedTask):
     writer.pack(
         "Bqqqq",
-        _MSG_COMPLETED_TASK,
+        _MessageKind.COMPLETED_TASK,
         message.worker_id,
         message.context_i,
         message.scheduled_i,
@@ -321,12 +335,12 @@ def _write_completed_task(writer, message: CompletedTask):
         writer.pack("QQ", batch_meta.meta_offset, batch_meta.meta_size)
     exception = message.exception
     if exception is None:
-        writer.pack("B", _EXCEPTION_NONE)
+        writer.pack("B", _ExceptionKind.NONE)
     else:
         if isinstance(exception, StopIteration):
-            writer.pack("B", _EXCEPTION_STOP_ITERATION)
+            writer.pack("B", _ExceptionKind.STOP_ITERATION)
         else:
-            writer.pack("B", _EXCEPTION_RUNTIME_ERROR)
+            writer.pack("B", _ExceptionKind.RUNTIME_ERROR)
         writer.write_str(str(exception))
     _write_optional_str(writer, message.traceback_str)
 
@@ -335,13 +349,11 @@ def _read_completed_task(reader):
     worker_id, context_i, scheduled_i, minibatch_i = reader.unpack("qqqq")
     (has_batch_meta,) = reader.unpack("?")
     batch_meta = SharedBatchMeta(*reader.unpack("QQ")) if has_batch_meta else None
-    exception_kind = reader.read_tag(
-        (_EXCEPTION_NONE, _EXCEPTION_STOP_ITERATION, _EXCEPTION_RUNTIME_ERROR)
-    )
+    exception_kind = reader.read_tag(_ExceptionKind)
     exception = None
-    if exception_kind == _EXCEPTION_STOP_ITERATION:
+    if exception_kind == _ExceptionKind.STOP_ITERATION:
         exception = StopIteration(reader.read_str())
-    elif exception_kind == _EXCEPTION_RUNTIME_ERROR:
+    elif exception_kind == _ExceptionKind.RUNTIME_ERROR:
         exception = RuntimeError(reader.read_str())
     traceback_str = _read_optional_str(reader)
     return CompletedTask(
@@ -370,8 +382,8 @@ def serialize_message(message):
 def deserialize_message(buffer):
     """Decodes `ScheduledTask` or `CompletedTask` encoded with `serialize_message`."""
     reader = _BinaryReader(buffer)
-    kind = reader.read_tag((_MSG_SCHEDULED_TASK, _MSG_COMPLETED_TASK))
-    if kind == _MSG_SCHEDULED_TASK:
+    kind = reader.read_tag(_MessageKind)
+    if kind == _MessageKind.SCHEDULED_TASK:
         message = _read_scheduled_task(reader)
     else:
         message = _read_completed_task(reader)
@@ -389,12 +401,13 @@ def _write_sample_meta(writer, sample, depth=0):
         dtype_str = dtype.str
         if dtype.hasobject or np.dtype(dtype_str) != dtype:
             raise TypeError(f"Unsupported sample data type: `{dtype}`.")
-        writer.pack("BQQ", _SAMPLE_ARRAY, sample.offset, sample.nbytes)
+        writer.pack("BQQ", _SampleKind.ARRAY, sample.offset, sample.nbytes)
         writer.write_str(dtype_str)
         writer.pack("I", len(sample.shape))
         writer.pack(f"{len(sample.shape)}Q", *sample.shape)
     elif isinstance(sample, (tuple, list)):
-        writer.pack("BQ", _SAMPLE_TUPLE if isinstance(sample, tuple) else _SAMPLE_LIST, len(sample))
+        kind = _SampleKind.TUPLE if isinstance(sample, tuple) else _SampleKind.LIST
+        writer.pack("BQ", kind, len(sample))
         for part in sample:
             _write_sample_meta(writer, part, depth + 1)
     else:
@@ -404,8 +417,8 @@ def _write_sample_meta(writer, sample, depth=0):
 def _read_sample_meta(reader, depth=0):
     if depth > _MAX_SAMPLE_NESTING:
         raise RuntimeError("Malformed shared memory message: sample nesting is too deep.")
-    kind = reader.read_tag((_SAMPLE_ARRAY, _SAMPLE_TUPLE, _SAMPLE_LIST))
-    if kind == _SAMPLE_ARRAY:
+    kind = reader.read_tag(_SampleKind)
+    if kind == _SampleKind.ARRAY:
         offset, nbytes = reader.unpack("QQ")
         try:
             dtype = np.dtype(reader.read_str())
@@ -418,7 +431,7 @@ def _read_sample_meta(reader, depth=0):
         return SampleMeta(offset, shape, dtype, nbytes)
     (num_parts,) = reader.unpack("Q")
     parts = [_read_sample_meta(reader, depth + 1) for _ in range(num_parts)]
-    return tuple(parts) if kind == _SAMPLE_TUPLE else parts
+    return tuple(parts) if kind == _SampleKind.TUPLE else parts
 
 
 def serialize_samples_meta(samples_meta):

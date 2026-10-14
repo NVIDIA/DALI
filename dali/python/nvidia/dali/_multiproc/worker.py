@@ -115,7 +115,15 @@ class SharedBatchDispatcher(Dispatcher):
             if processed_task.is_failed():  # one of the tasks failed
                 shm_msgs.append(self._serialize_failed_task(processed_task))
             else:
-                shm_msgs.append(self._serialize_done_task(processed_task))
+                try:
+                    shm_msg = self._serialize_done_task(processed_task)
+                except Exception as exception:
+                    # e.g. unsupported sample nesting or dtype; report it as the task's failure
+                    processed_task.data_batch = None
+                    processed_task.exception = exception
+                    processed_task.traceback_str = traceback.format_exc()
+                    shm_msg = self._serialize_failed_task(processed_task)
+                shm_msgs.append(shm_msg)
         return shm_msgs
 
 

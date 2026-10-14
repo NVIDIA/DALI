@@ -73,6 +73,16 @@ def test_samples_meta_deserialization_rejects_malformed_data():
     raises(RuntimeError, "object data type")(deserialize_samples_meta)(object_dtype)
 
 
+def test_message_wire_format():
+    task = ScheduledTask(0, 1, 2, TaskArgs.make_sample(SampleRange(0, 8, 0, 0)))
+    assert serialize_message(task)[0] == 1
+    completed = CompletedTask(3, 0, 1, 2, exception=StopIteration("end"))
+    serialized = serialize_message(completed)
+    assert serialized[0] == 2
+    # worker_id, context_i, scheduled_i, minibatch_i, has_batch_meta, exception kind
+    assert serialized[1 + 4 * 8 + 1] == 1
+
+
 def test_message_deserialization_rejects_malformed_data():
     task = ScheduledTask(0, 1, 2, TaskArgs.make_sample(SampleRange(0, 8, 0, 0)))
     serialized = serialize_message(task)
