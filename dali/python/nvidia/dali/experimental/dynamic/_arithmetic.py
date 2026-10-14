@@ -54,7 +54,13 @@ def transparent_arithmetic(cls: type) -> type:
     return cls
 
 
+@mark_transparent
 def _arithm_op(name: str, *args):
+    return _arithmetic_call()(name, *args)
+
+
+@mark_transparent
+def _eager_arithmetic(name, *args, batch_size=None, device=None, _backend=None, _caller_frame=None):
     from . import _arithmetic_generic_op
     from ._batch import Batch
     from ._tensor import Tensor, as_tensor
