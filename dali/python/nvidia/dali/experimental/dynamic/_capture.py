@@ -1036,14 +1036,11 @@ def _capture_intercept(
             _caller_frame=frame,
             **raw_kwargs,
         )
-        if not is_random:
-            can_capture = not op_class._is_stateful
-        else:
-            outputs = result if isinstance(result, tuple) else (result,)
-            can_capture = all(
-                isinstance(output, Batch) and output.batch_size == capture_ctx.batch_size
-                for output in outputs
-            )
+        outputs = result if isinstance(result, tuple) else (result,)
+        can_capture = (is_random or not op_class._is_stateful) and all(
+            isinstance(output, Batch) and output.batch_size == capture_ctx.batch_size
+            for output in outputs
+        )
         node = (
             capture_ctx.record(
                 frame, op_class, inputs, graph_kwargs, result, backend=backend, device=device
