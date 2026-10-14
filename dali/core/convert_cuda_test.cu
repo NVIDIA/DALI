@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -76,7 +76,8 @@ DEVICE_TEST(ConvertSatNorm_Dev, float2int, 1, 1) {
   DEV_EXPECT_EQ(ConvertSatNorm<uint8_t>(-2.0f), 0);
   DEV_EXPECT_EQ(ConvertSatNorm<int8_t>(2.0f), 127);
   DEV_EXPECT_EQ(ConvertSatNorm<int8_t>(0.499f), 63);
-  DEV_EXPECT_EQ(ConvertSatNorm<int8_t>(-2.0f), -128);
+  DEV_EXPECT_EQ(ConvertSatNorm<int8_t>(-1.0f), -127);
+  DEV_EXPECT_EQ(ConvertSatNorm<int8_t>(-2.0f), -128);  // fp inputs are clamped after scaling
   DEV_EXPECT_EQ(ConvertSatNorm<uint8_t>(0.4f/255), 0);
   DEV_EXPECT_EQ(ConvertSatNorm<uint8_t>(0.6f/255), 1);
 
@@ -86,6 +87,32 @@ DEVICE_TEST(ConvertSatNorm_Dev, float2int, 1, 1) {
   DEV_EXPECT_GE(ConvertSatNorm<int64_t>(2.0f),  0x7fffff8000000000);
   DEV_EXPECT_LE(ConvertSatNorm<int64_t>(-2.0f), -0x7fffff8000000000);
   DEV_EXPECT_EQ(ConvertSatNorm<uint64_t>(-2.0f), 0u);
+}
+
+DEVICE_TEST(ConvertSatNorm_Dev, int2int, 1, 1) {
+  DEV_EXPECT_EQ((ConvertSatNorm<uint8_t, int8_t>(-1)), 0);
+  DEV_EXPECT_EQ((ConvertSatNorm<uint8_t, int16_t>(-0x8000)), 0);
+  DEV_EXPECT_EQ((ConvertSatNorm<uint8_t, int16_t>(0x7fff)), 255);
+  DEV_EXPECT_EQ((ConvertSatNorm<uint16_t, int32_t>(0x7fffffff)), 0xffff);
+  DEV_EXPECT_EQ((ConvertSatNorm<uint16_t, uint8_t>(255)), 0xffff);
+  DEV_EXPECT_EQ((ConvertSatNorm<int8_t, int16_t>(0x7fff)), 127);
+  DEV_EXPECT_EQ((ConvertSatNorm<int16_t, int8_t>(-128)), -0x7fff);
+  DEV_EXPECT_EQ((ConvertSatNorm<int8_t, int16_t>(-0x8000)), -127);
+  DEV_EXPECT_EQ((ConvertSatNorm<int8_t, int8_t>(-128)), -128);
+}
+
+DEVICE_TEST(ConvertSatNorm_Dev, float16_2int, 1, 1) {
+  DEV_EXPECT_EQ(ConvertSatNorm<uint8_t>(float16(0.5f)), 128);
+  DEV_EXPECT_EQ(ConvertSatNorm<uint16_t>(float16(0.0f)), 0);
+  DEV_EXPECT_EQ(ConvertSatNorm<uint16_t>(float16(0.5f)), 0x8000);
+  DEV_EXPECT_EQ(ConvertSatNorm<uint16_t>(float16(1.0f)), 0xffff);
+  DEV_EXPECT_EQ(ConvertSatNorm<int32_t>(float16(0.0f)), 0);
+  DEV_EXPECT_EQ(ConvertSatNorm<int32_t>(float16(0.5f)), 0x40000000);
+  DEV_EXPECT_EQ(ConvertSatNorm<int32_t>(float16(2.0f)), 0x7fffffff);
+  DEV_EXPECT_EQ(ConvertSatNorm<uint32_t>(float16(0.5f)), 0x80000000u);
+  DEV_EXPECT_EQ(ConvertSatNorm<int16_t>(float16(-2.0f)), -0x8000);
+  DEV_EXPECT_EQ(ConvertNorm<uint16_t>(float16(0.5f)), 0x8000);
+  DEV_EXPECT_EQ(ConvertNorm<int32_t>(float16(0.5f)), 0x40000000);
 }
 
 TEST(ConvertNorm_CUDA_Host, int2float) {

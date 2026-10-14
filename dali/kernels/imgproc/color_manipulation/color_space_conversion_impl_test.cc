@@ -540,33 +540,7 @@ static_assert(any_ref::norm<float, float>(1.5f) == 1.5);
 static_assert(any_ref::ybias<int32_t>() == (1 << 27));
 static_assert(any_ref::cbias<uint32_t>() == 2147483648.0);
 
-// Compile-time checks of the input saturation used by the implementation
-static_assert(detail::saturate_norm<uint8_t>(int8_t(-128)) == 0);
-static_assert(detail::saturate_norm<uint8_t>(int8_t(-1)) == 0);
-static_assert(detail::saturate_norm<uint8_t>(int8_t(5)) == 5);
-static_assert(detail::saturate_norm<uint16_t>(min_value<int32_t>()) == 0);
-static_assert(detail::saturate_norm<int8_t>(int8_t(-128)) == -127);
-static_assert(detail::saturate_norm<int32_t>(int8_t(-128)) == -127);
-// ...but not when Output is floating point: min_value<Input>() is passed through unchanged.
-static_assert(detail::saturate_norm<float>(int16_t(-32768)) == -32768);
-static_assert(detail::saturate_norm<float>(int16_t(-32767)) == -32767);
-static_assert(detail::saturate_norm<float>(int32_t(-5)) == -5);
-static_assert(detail::saturate_norm<int8_t>(max_value<int32_t>()) == max_value<int32_t>());
-// Unsigned inputs are never modified - this guarantees unchanged results for unsigned inputs
-static_assert(detail::saturate_norm<uint8_t>(uint8_t(0)) == 0);
-static_assert(detail::saturate_norm<uint8_t>(uint8_t(255)) == 255);
-static_assert(detail::saturate_norm<int8_t>(uint32_t(0xffffffffu)) == 0xffffffffu);
-static_assert(detail::saturate_norm<float>(uint16_t(0xffff)) == 0xffff);
-// Floating point inputs are clamped to the range representable by integral outputs
-static_assert(detail::saturate_norm<uint8_t>(1.5f) == 1.0f);
-static_assert(detail::saturate_norm<uint8_t>(-0.5f) == 0.0f);
-static_assert(detail::saturate_norm<uint8_t>(0.25f) == 0.25f);
-static_assert(detail::saturate_norm<int16_t>(-1.5f) == -1.0f);
-static_assert(detail::saturate_norm<int16_t>(-0.5f) == -0.5f);
-static_assert(detail::saturate_norm<int32_t>(2.0f) == 1.0f);
-// ...but not for floating point outputs
-static_assert(detail::saturate_norm<float>(-1.5f) == -1.5f);
-static_assert(detail::saturate_norm<float>(1.5f) == 1.5f);
+// The input saturation used by the implementation (clamp_norm) is tested in dali/core
 
 namespace {
 
@@ -824,7 +798,7 @@ TYPED_TEST(ColorSpaceConversionAnyTypeTest, YCbCr_to_Gray) {
  * converting the result to YCbCr.
  *
  * This holds for floating point outputs too: ConvertSatNorm<float> does not clamp the SNORM
- * min_value<In>() to -1 either, matching saturate_norm's behavior for a floating point Output.
+ * min_value<In>() to -1 either, matching clamp_norm's behavior for a floating point Output.
  */
 TYPED_TEST(ColorSpaceConversionAnyTypeTest, EquivalentToConvertSatNormFirst) {
   using In = TypeParam;

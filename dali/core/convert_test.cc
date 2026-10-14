@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -80,12 +80,60 @@ TEST(ConvertSatNorm, float2int) {
   EXPECT_EQ(ConvertSatNorm<uint8_t>(-2.0f), 0);
   EXPECT_EQ(ConvertSatNorm<int8_t>(2.0f), 127);
   EXPECT_EQ(ConvertSatNorm<int8_t>(0.499f), 63);
-  EXPECT_EQ(ConvertSatNorm<int8_t>(-2.0f), -128);
+  EXPECT_EQ(ConvertSatNorm<int8_t>(-1.0f), -127);
+  EXPECT_EQ(ConvertSatNorm<int8_t>(-2.0f), -128);  // fp inputs are clamped after scaling
   EXPECT_EQ(ConvertSatNorm<uint8_t>(0.4f/255), 0);
   EXPECT_EQ(ConvertSatNorm<uint8_t>(0.6f/255), 1);
 
   EXPECT_EQ(ConvertSatNorm<int16_t>(2.0f), 0x7fff);
   EXPECT_EQ(ConvertSatNorm<int16_t>(-2.0f), -0x8000);
+}
+
+TEST(ConvertSatNorm, int2int) {
+  EXPECT_EQ((ConvertSatNorm<uint8_t, int8_t>(-1)), 0);
+  EXPECT_EQ((ConvertSatNorm<uint8_t, int16_t>(-0x8000)), 0);
+  EXPECT_EQ((ConvertSatNorm<uint8_t, int16_t>(0x7fff)), 255);
+  EXPECT_EQ((ConvertSatNorm<uint16_t, uint8_t>(255)), 0xffff);
+  EXPECT_EQ((ConvertSatNorm<int8_t, int16_t>(0x7fff)), 127);
+  EXPECT_EQ((ConvertSatNorm<int8_t, int16_t>(256 * 2/3)), 1);
+  // SNORM: min_value<In>() is clamped to -1, so min_value<Out>() is not produced...
+  EXPECT_EQ((ConvertSatNorm<int16_t, int8_t>(-128)), -0x7fff);
+  EXPECT_EQ((ConvertSatNorm<int8_t, int16_t>(-0x8000)), -127);
+  EXPECT_EQ((ConvertSatNorm<int16_t, int8_t>(-127)), -0x7fff);
+  // ...except when converting to the same type, which never modifies the value
+  EXPECT_EQ((ConvertSatNorm<int8_t, int8_t>(-128)), -128);
+}
+
+TEST(ConvertSatNorm, int2float) {
+  EXPECT_EQ((ConvertSatNorm<float, uint8_t>(255)), 1.0f);
+  EXPECT_EQ((ConvertSatNorm<float, int8_t>(-127)), -1.0f);
+  // No clamping for floating point outputs
+  EXPECT_EQ((ConvertSatNorm<float, int8_t>(-128)), -128 / 127.0f);
+  // ...so that the conversion to float and back is lossless, including min_value
+  EXPECT_EQ(ConvertSatNorm<int8_t>(ConvertSatNorm<float>(int8_t(-128))), -128);
+  EXPECT_EQ(ConvertSatNorm<int16_t>(ConvertSatNorm<float>(int16_t(-0x8000))), -0x8000);
+}
+
+TEST(ConvertNorm, float16_2int) {
+  // max_value<Out>() of these types is not representable in float16
+  EXPECT_EQ(ConvertNorm<uint16_t>(float16(0.5f)), 0x8000);
+  EXPECT_EQ(ConvertNorm<int32_t>(float16(0.5f)), 0x40000000);
+  EXPECT_EQ(ConvertNorm<uint32_t>(float16(0.5f)), 0x80000000u);
+  EXPECT_EQ(ConvertNorm<int32_t>(float16(0.0f)), 0);
+}
+
+TEST(ConvertSatNorm, float16_2int) {
+  EXPECT_EQ(ConvertSatNorm<uint8_t>(float16(0.5f)), 128);
+  EXPECT_EQ(ConvertSatNorm<uint16_t>(float16(0.0f)), 0);
+  EXPECT_EQ(ConvertSatNorm<uint16_t>(float16(0.5f)), 0x8000);
+  EXPECT_EQ(ConvertSatNorm<uint16_t>(float16(1.0f)), 0xffff);
+  EXPECT_EQ(ConvertSatNorm<uint16_t>(float16(-1.0f)), 0);
+  EXPECT_EQ(ConvertSatNorm<int32_t>(float16(0.0f)), 0);
+  EXPECT_EQ(ConvertSatNorm<int32_t>(float16(0.5f)), 0x40000000);
+  EXPECT_EQ(ConvertSatNorm<int32_t>(float16(2.0f)), 0x7fffffff);
+  EXPECT_EQ(ConvertSatNorm<uint32_t>(float16(0.5f)), 0x80000000u);
+  EXPECT_EQ(ConvertSatNorm<uint32_t>(float16(2.0f)), 0xffffffffu);
+  EXPECT_EQ(ConvertSatNorm<int16_t>(float16(-2.0f)), -0x8000);
 }
 
 TEST(ConvertNorm, int2float) {
