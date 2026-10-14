@@ -171,13 +171,13 @@ def _test_padding(h, w, size, device):
 
 
 @params(*_padding_cases)
-def test_center_crop_larger_than_tensor_odd_padding(h, w, size):
+def test_center_crop_padding_anchor(h, w, size):
     _test_padding(h, w, size, "cpu")
 
 
 @unittest.skipUnless(torch.cuda.is_available(), "CUDA is not available")
 @params(*_padding_cases)
-def test_center_crop_larger_than_tensor_odd_padding_gpu(h, w, size):
+def test_center_crop_padding_anchor_gpu(h, w, size):
     _test_padding(h, w, size, "gpu")
 
 
