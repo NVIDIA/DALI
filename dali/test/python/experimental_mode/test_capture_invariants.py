@@ -438,6 +438,35 @@ def transform(images, angle):
     return namespace["transform"](images, _INVARIANT_ANGLE)
 
 
+@captured_test(expect_captured=True)
+def test_arithmetic(images):
+    scale = 0.5
+    shifted = 1 - images
+    shifted *= scale
+    return -shifted + images
+
+
+@captured_test(expect_captured=True)
+def test_arithmetic_closure_and_keywords(images):
+    def normalize(imgs, scale):
+        def apply():
+            return ndd.math.clamp(imgs * scale, lo=0, hi=100)
+
+        return apply()
+
+    return normalize(images, 0.5)
+
+
+@captured_test(expect_captured=True)
+def test_arithmetic_constant_vector(images):
+    return images + (1, 2, 3)
+
+
+@captured_test(expect_captured=True)
+def test_math_function(images):
+    return ndd.math.sqrt(images)
+
+
 # Tests for rejected cases
 
 
@@ -649,13 +678,3 @@ def test_invariant_marker_removed():
 @captured_test(expect_captured=False)
 def test_slice(images):
     return images.slice[0:4]
-
-
-@captured_test(expect_captured=False)
-def test_arithmetic(images):
-    return images + 1
-
-
-@captured_test(expect_captured=False)
-def test_math_function(images):
-    return ndd.math.sqrt(images)
