@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import functools
 import glob
 import math
 import numpy as np
@@ -463,16 +464,15 @@ def _signed_tiff_test_images():
     import io
 
     # All combinations of edge values of each channel, as a synthetic image
-    for dtype in (np.int32,):
-        info = np.iinfo(dtype)
-        edge = [info.min, info.min + 1, -(info.max // 3), -1, 0, 1, info.max // 3, info.max]
-        combos = np.array(
-            [(r, g, b) for r in edge for g in edge for b in edge], dtype=dtype
-        ).reshape(len(edge), len(edge) ** 2, 3)
-        buf = io.BytesIO()
-        tifffile.imwrite(buf, combos, photometric="rgb")
-        encoded = np.frombuffer(buf.getvalue(), dtype=np.uint8)
-        yield f"synthetic_{np.dtype(dtype).name}", encoded, combos
+    info = np.iinfo(np.int32)
+    edge = [info.min, info.min + 1, -(info.max // 3), -1, 0, 1, info.max // 3, info.max]
+    combos = np.array(
+        [(r, g, b) for r in edge for g in edge for b in edge], dtype=np.int32
+    ).reshape(len(edge), len(edge) ** 2, 3)
+    buf = io.BytesIO()
+    tifffile.imwrite(buf, combos, photometric="rgb")
+    encoded = np.frombuffer(buf.getvalue(), dtype=np.uint8)
+    yield "synthetic_int32", encoded, combos
 
 
 def _signed_tiff_decode_pipe(encoded, device, output_type):
@@ -484,8 +484,9 @@ def _signed_tiff_decode_pipe(encoded, device, output_type):
     return pipe(encoded, device, output_type, prefetch_queue_depth=1)
 
 
+@functools.lru_cache(maxsize=None)
 def _int32_tiff_capability(device):
-    """Whether `device` can decode an int32-sample TIFF at all, probed once with a tiny
+    """Whether `device` can decode an int32-sample TIFF at all, probed once per device with a tiny
     synthetic image and cached.
 
     Only the two specific, known "this feature isn't implemented here" errors are treated as
@@ -564,14 +565,14 @@ def test_tiff_signed_color_conversion():
                 results[device] = out.astype(np.int32)
             if len(devices) > 1:
                 diff = np.abs(results["cpu"] - results["mixed"])
-                assert diff.max() <= 1, (
-                    f"{name} {output_type}: cpu and mixed differ by {diff.max()}"
-                )
+                assert (
+                    diff.max() <= 1
+                ), f"{name} {output_type}: cpu and mixed differ by {diff.max()}"
 
 
-def test_tiff_signed_color_conversion_invalid_input():
-    """Empty and corrupt (non-TIFF) input must be rejected with a clear error on both backends,
-    not crash or return garbage."""
+def test_decode_ycbcr_invalid_input():
+    """Empty and corrupt (non-image) input decoded to YCbCr must be rejected with a clear error on
+    both backends, not crash or return garbage."""
     empty = np.empty((0,), dtype=np.uint8)
     corrupt = np.frombuffer(b"not a TIFF file", dtype=np.uint8)
     for encoded in (empty, corrupt):

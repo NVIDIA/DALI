@@ -96,11 +96,9 @@ TEST(ConvertSatNorm, int2int) {
   EXPECT_EQ((ConvertSatNorm<uint16_t, uint8_t>(255)), 0xffff);
   EXPECT_EQ((ConvertSatNorm<int8_t, int16_t>(0x7fff)), 127);
   EXPECT_EQ((ConvertSatNorm<int8_t, int16_t>(256 * 2/3)), 1);
-  // SNORM: min_value<In>() is clamped to -1, so min_value<Out>() is not produced...
-  EXPECT_EQ((ConvertSatNorm<int16_t, int8_t>(-128)), -0x7fff);
-  EXPECT_EQ((ConvertSatNorm<int8_t, int16_t>(-0x8000)), -127);
   EXPECT_EQ((ConvertSatNorm<int16_t, int8_t>(-127)), -0x7fff);
-  // ...except when converting to the same type, which never modifies the value
+  // min_value<In>() is not clamped to -1 (unlike clamp_norm)
+  EXPECT_EQ((ConvertSatNorm<int16_t, int8_t>(-128)), -0x8000);
   EXPECT_EQ((ConvertSatNorm<int8_t, int8_t>(-128)), -128);
 }
 

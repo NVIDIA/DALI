@@ -96,7 +96,8 @@ DEVICE_TEST(ConvertSatNorm_Dev, int2int, 1, 1) {
   DEV_EXPECT_EQ((ConvertSatNorm<uint16_t, int32_t>(0x7fffffff)), 0xffff);
   DEV_EXPECT_EQ((ConvertSatNorm<uint16_t, uint8_t>(255)), 0xffff);
   DEV_EXPECT_EQ((ConvertSatNorm<int8_t, int16_t>(0x7fff)), 127);
-  DEV_EXPECT_EQ((ConvertSatNorm<int16_t, int8_t>(-128)), -0x7fff);
+  DEV_EXPECT_EQ((ConvertSatNorm<int16_t, int8_t>(-127)), -0x7fff);
+  DEV_EXPECT_EQ((ConvertSatNorm<int16_t, int8_t>(-128)), -0x8000);
   DEV_EXPECT_EQ((ConvertSatNorm<int8_t, int16_t>(-0x8000)), -127);
   DEV_EXPECT_EQ((ConvertSatNorm<int8_t, int8_t>(-128)), -128);
 }

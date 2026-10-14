@@ -65,14 +65,21 @@ constexpr DALI_HOST_DEV std::enable_if_t<!std::is_integral<T>::value, float> bia
  * channel. The values are kept in the `Input` type (and units), so the conversion formulas below
  * can apply their usual Input -> Output scaling to them.
  *
- * This makes the color space conversion functions equivalent to converting each channel with
- * `ConvertSatNorm<Output>` first and then running the conversion with `Output` as both input and
- * output type (but without the intermediate rounding). Without the saturation, e.g. a negative
- * value of a signed channel would contribute a negative term to the conversion matrix and yield
- * colors not representable in an unsigned output type, which then saturate to wrong values.
+ * This makes the color space conversion functions equivalent to converting each channel to
+ * `Output` first (as the GPU decode path, ConvertGPU, does) and then running the conversion with
+ * `Output` as both input and output type, but without the intermediate rounding. Without the
+ * saturation, e.g. a negative value of a signed channel would contribute a negative term to the
+ * conversion matrix and yield colors not representable in an unsigned output type, which then
+ * saturate to wrong values.
  *
- * When `Output` is floating point, the values are not clamped, matching `ConvertSatNorm<float>`
- * and the GPU decode path (ConvertGPU) - so int8_t(-128) normalizes to -128/127, not -1.
+ * Each channel is clipped separately, before the conversion matrix - also for floating point
+ * inputs out of the [0, 1] (or [-1, 1]) range. This is a deliberate choice that matches the GPU
+ * decode path; clipping only the result of the matrix would give different colors.
+ *
+ * Unlike `ConvertSatNorm`, the signed `min_value<Input>()` is clamped to -1 when `Output` is a
+ * signed integer type - also when `Output` is the same type as `Input`. When `Output` is floating
+ * point, the values are not clamped at all, matching `ConvertSatNorm<float>` and the GPU decode
+ * path - so int8_t(-128) normalizes to -128/127, not -1.
  */
 using dali::clamp_norm;
 
@@ -243,12 +250,16 @@ struct jpeg {
   template <typename Output, typename Input>
   static DALI_HOST_DEV DALI_FORCEINLINE
   constexpr Output gray_to_y(Input gray) {
+    // clamp_norm first, so that the same saturation as in the other functions is applied
+    // (ConvertSatNorm alone doesn't clamp min_value or floating point values before scaling)
     return ConvertSatNorm<Output>(detail::clamp_norm<Output>(gray));
   }
 
   template <typename Output, typename Input>
   static DALI_HOST_DEV DALI_FORCEINLINE
   constexpr Output y_to_gray(Input y) {
+    // clamp_norm first, so that the same saturation as in the other functions is applied
+    // (ConvertSatNorm alone doesn't clamp min_value or floating point values before scaling)
     return ConvertSatNorm<Output>(detail::clamp_norm<Output>(y));
   }
 };  // struct jpeg

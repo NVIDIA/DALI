@@ -200,8 +200,11 @@ DALI_HOST_DEV constexpr T clamp(U value) {
 ///     `-max_value<In>()`, is clamped to -1, as in SNORM formats of graphics APIs
 ///   * floating point `T`: no limit, the value is returned unchanged
 ///
-/// The result is expressed in the units of `In`, so it can be scaled to `T` afterwards - for
-/// integer `In`, `ConvertSatNorm<T>(v)` is `ConvertNorm<T>(clamp_norm<T>(v))`.
+/// The result is expressed in the units of `In`, so it can be scaled to `T` afterwards.
+///
+/// @note `ConvertSatNorm` does not apply the SNORM clamp of `min_value<In>()` - e.g.
+///       `ConvertSatNorm<int16_t>(int8_t(-128))` is -32768. Use `clamp_norm` explicitly where
+///       that is needed (e.g. before a color space conversion matrix).
 ///
 /// Usage:
 /// ```
@@ -405,7 +408,7 @@ struct ConvertIntInt {
   static constexpr Out ConvertSat(In value) { return clamp<Out>(value); }
   DALI_HOST_DEV
   static constexpr Out ConvertSatNorm(In value) {
-    return ConvertNorm(clamp_norm<Out>(value));
+    return ConvertNorm(value);
   }
 };
 
@@ -513,9 +516,6 @@ struct ConverterBase<Out, In, OutIsFP, InIsFP, true, true> : ConverterEnum<Out, 
 };
 
 /// Pass-through conversion
-///
-/// Converting to the same type never modifies the value - including `min_value<T>()` of signed
-/// integers, which `ConvertSatNorm` to other signed integer types clamps to -1 (see `clamp_norm`).
 template <typename T>
 struct Converter<T, T> {
   static DALI_HOST_DEV
@@ -598,18 +598,14 @@ DALI_HOST_DEV constexpr Out ConvertSat(In value) {
 
 /// @brief Converts value from `In` to `Out` keeping whole (positive) dynamic range and clamping
 ///
-///   * When converting between integral types, the value is first clamped to the normalized
-///     range of `Out` (see `clamp_norm`) and then converted with `ConvertNorm`:
-///     - negative values converted to unsigned types produce 0
-///     - for signed `Out`, `min_value<In>()` is clamped to -1 (SNORM), so the result is in
-///       [-max_value<Out>(), max_value<Out>()] - except when converting a value to its own type,
-///       which never modifies it
+///   * When converting from signed to unsigned types, negative values produce 0
 ///   * When converting from floating point to integral types, the value is multiplied
-///     by `max_value<Out>()` and then clamped to range representable in `Out` - values below
-///     -1 produce `min_value<Out>()`. This keeps the conversion from integer to floating point
-///     and back lossless, including `min_value`.
+///     by `max_value<Out>()` and then clamped to range representable in `Out`.
 ///   * When converting from integral type to floating point, the input value is divided
-///     by `Out(max_value<In>())`, with no clamping
+///     by `Out(max_value<In>())`
+///
+/// The signed `min_value<In>()` is not clamped to -1 (see `clamp_norm` for that), so converting
+/// an integer to floating point and back is lossless, including `min_value`.
 ///
 /// Usage:
 /// ```
@@ -620,7 +616,7 @@ DALI_HOST_DEV constexpr Out ConvertSat(In value) {
 ///   ConvertSatNorm<int8_t, int16_t>(256 * 1/3); // == 0
 ///   ConvertSatNorm<int8_t, int16_t>(256 * 2/3); // == 1
 ///   ConvertSatNorm<int8_t, int16_t>(0x7fff);    // == 127
-///   ConvertSatNorm<int16_t, int8_t>(-128);      // == -32767
+///   ConvertSatNorm<int16_t, int8_t>(-128);      // == -32768
 ///   ConvertSatNorm<float, uint8_t>(255);        // == 1.0f
 ///   ConvertSatNorm<float, int8_t>(-128);        // == -128/127.0f
 ///   ConvertSatNorm<uint8_t, int8_t>(-1);        // == 0
