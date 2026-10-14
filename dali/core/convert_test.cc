@@ -99,6 +99,7 @@ TEST(ConvertSatNorm, int2int) {
   EXPECT_EQ((ConvertSatNorm<int16_t, int8_t>(-127)), -0x7fff);
   // min_value<In>() is not clamped to -1 (unlike clamp_norm)
   EXPECT_EQ((ConvertSatNorm<int16_t, int8_t>(-128)), -0x8000);
+  EXPECT_EQ((ConvertSatNorm<int8_t, int16_t>(-0x8000)), -127);
   EXPECT_EQ((ConvertSatNorm<int8_t, int8_t>(-128)), -128);
 }
 
