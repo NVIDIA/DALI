@@ -146,10 +146,7 @@ def _arithmetic_call(name: str):
             def call(*args):
                 inputs = []
                 for arg in args:
-                    scalar = type(arg) in (bool, int, float)
-                    if type(arg) is int and (arg >> 31) not in (0, -1):
-                        scalar = False
-                    if not isinstance(arg, DataNode) and not scalar:
+                    if not isinstance(arg, DataNode) and type(arg) not in (bool, int, float):
                         # Use dynamic mode's dtype inference for tensor constants.
                         tensor = as_tensor(arg)
                         arg = Constant(
