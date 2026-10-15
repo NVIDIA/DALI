@@ -9,6 +9,9 @@ Capture Rules
 Capture mode speeds up a loop only for the operators it captures. Uncaptured operators run
 eagerly, with no warning and no change in the result.
 
+Slicing with :python:`batch.slice[...]` is supported too, including expressions such as
+:python:`images.slice[..., ::-1]`.
+
 The capture rule
 ----------------
 
@@ -52,9 +55,9 @@ However, consuming a batch from a previous step leads to falling back to eager e
        resized = ndd.resize(target, size=[64, 64])   # captured on the first step only
        previous = images                             # stale by the time it is used again
 
-Slicing with :python:`batch.slice[...]`, arithmetic such as :python:`a + b`, and the functions in
-:python:`ndd.math` are not captured at all. Each one silently causes dependent operators to fall
-back to eager execution, because the result is no longer something the pipeline produced.
+Arithmetic such as :python:`a + b` and the functions in :python:`ndd.math` are not captured at
+all. Each one silently causes dependent operators to fall back to eager execution, because the
+result is no longer something the pipeline produced.
 
 Constant arguments
 ------------------
