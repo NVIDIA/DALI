@@ -39,10 +39,14 @@ TEST(CApiPipelineRegistryTest, TracksLegacyCApiPipelines) {
   daliPipelineHandle h;
   daliDeserializeDefault(&h, proto.c_str(), proto.length());
   EXPECT_EQ(c_api::GetOutstandingPipelineCount(), 1u);
+  daliPipelineHandle stale = h;
   daliDeletePipeline(&h);
+  EXPECT_EQ(h, nullptr);
   EXPECT_EQ(c_api::GetOutstandingPipelineCount(), 0u);
-  // the handle is no longer tracked - it must be rejected instead of being deleted twice
-  EXPECT_THROW(daliDeletePipeline(&h), std::invalid_argument);
+  // deleting through the same, now NULL, handle is a no-op
+  EXPECT_NO_THROW(daliDeletePipeline(&h));
+  // a stale copy of the handle is no longer tracked - it must be rejected instead of being deleted
+  EXPECT_THROW(daliDeletePipeline(&stale), std::invalid_argument);
 
   daliDeserializeDefault(&h, proto.c_str(), proto.length());
   EXPECT_EQ(c_api::GetOutstandingPipelineCount(), 1u);

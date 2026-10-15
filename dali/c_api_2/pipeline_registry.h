@@ -15,6 +15,7 @@
 #ifndef DALI_C_API_2_PIPELINE_REGISTRY_H_
 #define DALI_C_API_2_PIPELINE_REGISTRY_H_
 
+#include <atomic>
 #include <cstddef>
 #include <mutex>
 #include <unordered_map>
@@ -112,7 +113,7 @@ class DLL_PUBLIC PipelineRegistry {
  private:
   mutable std::mutex mtx_;
   std::unordered_map<void *, Deleter> pipelines_;
-  bool closed_ = false;
+  std::atomic<bool> closed_{false};  // written under mtx_, read without it in IsClosed
 };
 
 /** Returns the number of pipeline instances created by the C APIs that were not destroyed. */

@@ -771,7 +771,7 @@ void daliCopyTensorListNTo(daliPipelineHandle_t pipe_handle, void *dst, int outp
 
 void daliDeletePipeline(daliPipelineHandle_t pipe_handle) {
   dali::c_api::CheckedActiveCallGuard active_call_guard;
-  if (!pipe_handle)
+  if (!pipe_handle || !*pipe_handle)
     return;
 
   if (!dali::c_api::PipelineRegistry::instance().Destroy(*pipe_handle))
@@ -779,6 +779,7 @@ void daliDeletePipeline(daliPipelineHandle_t pipe_handle) {
         "Cannot delete the pipeline: the handle ", static_cast<void *>(*pipe_handle),
         " does not refer to a live pipeline created by DALI C API (expected a handle returned by "
         "daliCreatePipeline or daliDeserializeDefault that has not been deleted yet)."));
+  *pipe_handle = nullptr;
 }
 
 void daliLoadLibrary(const char* lib_path) {

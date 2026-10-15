@@ -94,8 +94,7 @@ size_t PipelineRegistry::Count() const {
 }
 
 bool PipelineRegistry::IsClosed() const {
-  std::lock_guard g(mtx_);
-  return closed_;
+  return closed_.load();
 }
 
 size_t GetOutstandingPipelineCount() {

@@ -31,12 +31,20 @@ std::atomic<bool> g_was_initialized;
 std::mutex g_lifecycle_mtx;
 
 std::atomic<int> g_active_calls;
+// Set only while the final daliShutdown waits, so that API calls lock and notify only then.
+std::atomic<bool> g_shutdown_waiting;
 std::mutex g_active_calls_mtx;
 std::condition_variable g_active_calls_cv;
 
 void WaitForActiveCalls() {
-  std::unique_lock lock(g_active_calls_mtx);
-  g_active_calls_cv.wait(lock, [] { return g_active_calls.load() == 0; });
+  // seq_cst, like the load in ~ActiveCallGuard: either that load sees the flag and notifies,
+  // or the decrement is visible to the predicate below - a wakeup cannot be lost.
+  g_shutdown_waiting.store(true);
+  {
+    std::unique_lock lock(g_active_calls_mtx);
+    g_active_calls_cv.wait(lock, [] { return g_active_calls.load() == 0; });
+  }
+  g_shutdown_waiting.store(false);
 }
 }  // namespace
 
@@ -56,7 +64,7 @@ namespace dali::c_api {
   }
 
   ActiveCallGuard::~ActiveCallGuard() {
-    if (--g_active_calls == 0) {
+    if (--g_active_calls == 0 && g_shutdown_waiting.load()) {
       std::lock_guard lock(g_active_calls_mtx);
       g_active_calls_cv.notify_all();
     }
