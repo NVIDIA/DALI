@@ -12,727 +12,102 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "dali/operators/video/reader/video_reader_decoder_op.h"
+
 #include <string>
-#include <shared_mutex>
-#include <unordered_map>
 #include <vector>
-
-#include "dali/core/boundary.h"
-#include "dali/core/cuda_stream_pool.h"
-#include "dali/core/span.h"
-
-#include "dali/operators/reader/reader_op.h"
-#include "dali/operators/video/frames_decoder_base.h"
-#include "dali/operators/video/frames_decoder_cpu.h"
-#include "dali/operators/video/frames_decoder_gpu.h"
-#include "dali/operators/video/video_utils.h"
-#if NVML_ENABLED
-#include "dali/util/nvml.h"
-#endif
-
-#include "libavutil/rational.h"
 
 namespace dali {
 
-class FrameIndexCache {
- private:
-  std::unordered_map<std::string, FrameIndex> index_cache_;
-  mutable std::shared_mutex rw_mutex_;
+namespace detail {
 
-  FrameIndexCache() = default;
-
-  ~FrameIndexCache() {
-#ifdef NDEBUG
-    size_t total_size = 0;
-    for (const auto& entry : index_cache_) {
-      total_size += entry.first.size();  // filename string size
-      total_size += entry.second.size() * sizeof(IndexEntry);  // index entries size
-    }
-    LOG_LINE << "FrameIndexCache stats: " << std::endl;
-    LOG_LINE << "  Number of cached files: " << index_cache_.size() << std::endl;
-    LOG_LINE << "  Total memory used: " << total_size << " bytes" << std::endl;
-#endif
-  }
-
- public:
-  static FrameIndexCache& instance() {
-    static FrameIndexCache cache;
-    return cache;
-  }
-
-  std::unordered_map<std::string, FrameIndex>::iterator find(const std::string& filename) {
-    std::shared_lock<std::shared_mutex> read_lock(rw_mutex_);
-    return index_cache_.find(filename);
-  }
-
-  std::unordered_map<std::string, FrameIndex>::iterator end() {
-    std::shared_lock<std::shared_mutex> read_lock(rw_mutex_);
-    return index_cache_.end();
-  }
-
-  void insert(const std::string& filename, const FrameIndex& index) {
-    std::unique_lock<std::shared_mutex> write_lock(rw_mutex_);
-    index_cache_[filename] = index;
-  }
-};
-
-
-struct VideoSampleDesc {
-  VideoSampleDesc(const VideoFileMeta *video_file_meta = nullptr, int start = -1, int end = -1, int stride = -1)
-      : video_file_meta_(video_file_meta), start_(start), end_(end), stride_(stride), frame_idxs_() {}
-  const VideoFileMeta *video_file_meta_;
-  int start_;
-  int end_;
-  int stride_;
-  span<const int> frame_idxs_;  // non-empty → uniform sampling; use these instead of start_/end_/stride_
-};
-
-template <typename Backend>
-struct VideoSample : public VideoSampleDesc {
-  VideoSample(const VideoFileMeta *video_file_meta = nullptr, int start = -1, int end = -1, int stride = -1)
-      : VideoSampleDesc{video_file_meta, start, end, stride} {
-    data_.set_pinned(std::is_same_v<Backend, GPUBackend>);
-  }
-
-  VideoSample(const VideoSampleDesc &other)
-      : VideoSampleDesc(other) {
-    data_.set_pinned(std::is_same_v<Backend, GPUBackend>);
-  }
-
-  // to be filled by Prefetch
-  Tensor<Backend> data_;
-  std::vector<double> timestamps_;
-  std::vector<int32_t> frame_idx_;
-};
-
-enum class FileListFormat {
-  kFrames,          // Use exact frame numbers (0-based). Negative values count from end
-  kTimestamps,      // Use timestamps in seconds
-};
-
-enum class FileListRounding {
-  kStartDownEndUp,  // Round start down and end up (default)
-  kStartUpEndDown,  // Round start up and end down
-  kAllUp,           // Round both up
-  kAllDown          // Round both down
-};
-
-struct FileListOptions {
-  FileListFormat format = FileListFormat::kTimestamps;
-  FileListRounding rounding = FileListRounding::kStartDownEndUp;
-  bool include_end = false;
-
-  bool should_round_down_start() const {
-    return rounding == FileListRounding::kStartDownEndUp || rounding == FileListRounding::kAllDown;
-  }
-
-  int64_t round_start(double value) const {
-    return should_round_down_start() ? std::floor(value) : std::ceil(value);
-  }
-
-  bool should_round_down_end() const {
-    return rounding == FileListRounding::kStartUpEndDown || rounding == FileListRounding::kAllDown;
-  }
-
-  int64_t round_end(double value) const {
-    return should_round_down_end() ? std::floor(value) : std::ceil(value);
-  }
-};
-
-inline std::string make_string(FileListRounding rounding) {
-  switch (rounding) {
-    case FileListRounding::kStartDownEndUp:
-      return "start_down_end_up";
-    case FileListRounding::kStartUpEndDown:
-      return "start_up_end_down";
-    case FileListRounding::kAllUp:
-      return "all_up";
-    case FileListRounding::kAllDown:
-      return "all_down";
-    default:
-      DALI_FAIL("Invalid file_list_rounding");
-  }
+int VideoReaderDecoderOutputFn(const OpSpec &spec) {
+  // Must match VideoReaderDecoder::has_labels_: an empty file_list/file_root is "not provided".
+  bool has_labels = spec.HasArgument("labels") ||
+                    !spec.GetArgument<std::string>("file_list").empty() ||
+                    !spec.GetArgument<std::string>("file_root").empty();
+  bool has_frame_num =
+      ParseFrameNumPolicy(spec.GetArgument<std::string>("enable_frame_num")) !=
+      FrameNumPolicy::None;
+  return 1 + has_labels + has_frame_num + spec.GetArgument<bool>("enable_timestamps");
 }
 
-inline std::string make_string(FileListFormat format) {
-  switch (format) {
-    case FileListFormat::kFrames:
-      return "frames";
-    case FileListFormat::kTimestamps:
-      return "timestamps";
-    default:
-      DALI_FAIL("Invalid file_list_format");
+boundary::BoundaryType GetReaderBoundaryType(const OpSpec &spec) {
+  if (spec.HasArgument("pad_sequences")) {
+    DALI_ENFORCE(!spec.HasArgument("pad_mode"),
+                 "The deprecated argument `pad_sequences` cannot be combined with `pad_mode`. "
+                 "Use `pad_mode` only (`pad_sequences=True` is `pad_mode='constant'`).");
+    return spec.GetArgument<bool>("pad_sequences") ? boundary::BoundaryType::CONSTANT
+                                                   : boundary::BoundaryType::ISOLATED;
   }
+  return GetBoundaryType(spec);
 }
 
-inline std::string make_string(FileListOptions options) {
-  return make_string(options.format) + ", " + make_string(options.rounding) + ", " +
-         (options.include_end ? "include_end" : "exclude_end");
+FileListOptions GetFileListOptions(const OpSpec &spec) {
+  const bool has_frame_num = spec.HasArgument("file_list_frame_num");
+  const bool has_preceding = spec.HasArgument("file_list_include_preceding_frame");
+  DALI_ENFORCE(!(has_frame_num && spec.HasArgument("file_list_format")),
+               "The deprecated argument `file_list_frame_num` cannot be combined with "
+               "`file_list_format`. Use `file_list_format` only (`file_list_frame_num=True` is "
+               "`file_list_format='frames'`).");
+  DALI_ENFORCE(!(has_preceding && spec.HasArgument("file_list_rounding")),
+               "The deprecated argument `file_list_include_preceding_frame` cannot be combined "
+               "with `file_list_rounding`. Use `file_list_rounding` only "
+               "(`file_list_include_preceding_frame=True` is "
+               "`file_list_rounding='start_down_end_up'`).");
+
+  FileListOptions opts;
+  std::string format_str;
+  if (has_frame_num) {
+    format_str = spec.GetArgument<bool>("file_list_frame_num") ? "frames" : "timestamps";
+  } else {
+    format_str = spec.GetArgument<std::string>("file_list_format");
+  }
+  if (format_str == "frames") {
+    opts.format = FileListFormat::kFrames;
+  } else if (format_str == "timestamps") {
+    opts.format = FileListFormat::kTimestamps;
+  } else {
+    DALI_FAIL(make_string("Invalid file_list_format: ", format_str));
+  }
+
+  // Not explicitly given when has_preceding is set (enforced above), so this is the default.
+  auto rounding_str = spec.GetArgument<std::string>("file_list_rounding");
+  // Legacy: "When file_list_frame_num is set to True, this option does not take any effect."
+  if (has_preceding && spec.GetArgument<bool>("file_list_include_preceding_frame") &&
+      opts.format == FileListFormat::kTimestamps) {
+    rounding_str = "start_down_end_up";
+  }
+  if (rounding_str == "start_down_end_up") {
+    opts.rounding = FileListRounding::kStartDownEndUp;
+  } else if (rounding_str == "start_up_end_down") {
+    opts.rounding = FileListRounding::kStartUpEndDown;
+  } else if (rounding_str == "all_up") {
+    opts.rounding = FileListRounding::kAllUp;
+  } else if (rounding_str == "all_down") {
+    opts.rounding = FileListRounding::kAllDown;
+  } else {
+    DALI_FAIL(make_string("Invalid file_list_rounding: ", rounding_str));
+  }
+
+  opts.include_end = spec.GetArgument<bool>("file_list_include_end");
+  return opts;
 }
 
-template <typename Backend, typename FramesDecoderImpl, typename Sample = VideoSample<Backend>>
-class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
- public:
-  explicit inline VideoLoaderDecoder(const OpSpec &spec)
-      : Loader<Backend, Sample, true>(spec),
-        file_root_(spec.GetArgument<std::string>("file_root")),
-        file_list_(spec.GetArgument<std::string>("file_list")),
-        filenames_(spec.GetRepeatedArgument<std::string>("filenames")),
-        sequence_len_(spec.GetArgument<int>("sequence_length")),
-        stride_(spec.GetArgument<int>("stride")),
-        step_(spec.GetArgument<int>("step")),
-        image_type_(spec.GetArgument<DALIImageType>("image_type")),
-        boundary_type_(GetBoundaryType(spec)),
-        uniform_sample_(spec.GetArgument<bool>("uniform_sample")) {
-    if ((spec.HasArgument("file_list") + spec.HasArgument("file_root") + spec.HasArgument("filenames")) != 1) {
-      DALI_FAIL("Only one of the following arguments can be provided: ``file_list``, ``file_root``, ``filenames``");
-    }
-    bool has_labels = spec.TryGetRepeatedArgument(labels_, "labels");
-    if (has_labels) {
-      DALI_ENFORCE(
-          labels_.size() == filenames_.size(),
-          make_string(
-              "Number of provided files and labels should match. Provided ",
-              filenames_.size(), " files and ", labels_.size(), " labels."));
-    }
-
-    video_files_info_ = GetVideoFiles(file_root_, filenames_, has_labels, labels_, file_list_);
-    DALI_ENFORCE(!video_files_info_.empty(), "No files were read.");
-
-    if (!file_list_.empty()) {
-      auto format_str = spec.GetArgument<std::string>("file_list_format");
-      if (format_str == "frames") {
-        file_list_opts_.format = FileListFormat::kFrames;
-      } else if (format_str == "timestamps") {
-        file_list_opts_.format = FileListFormat::kTimestamps;
-      } else {
-        DALI_FAIL(make_string("Invalid file_list_format: ", format_str));
-      }
-
-      auto rounding_str = spec.GetArgument<std::string>("file_list_rounding");
-      if (rounding_str == "start_down_end_up") {
-        file_list_opts_.rounding = FileListRounding::kStartDownEndUp;
-      } else if (rounding_str == "start_up_end_down") {
-        file_list_opts_.rounding = FileListRounding::kStartUpEndDown;
-      } else if (rounding_str == "all_up") {
-        file_list_opts_.rounding = FileListRounding::kAllUp;
-      } else if (rounding_str == "all_down") {
-        file_list_opts_.rounding = FileListRounding::kAllDown;
-      } else {
-        DALI_FAIL(make_string("Invalid file_list_rounding: ", rounding_str));
-      }
-
-      file_list_opts_.include_end = spec.GetArgument<bool>("file_list_include_end");
-    }
-
-    if (step_ <= 0) {
-      step_ = stride_ * sequence_len_;
-    }
-    if (uniform_sample_) {
-      DALI_ENFORCE(sequence_len_ >= 1,
-                   "sequence_length must be at least 1 when uniform_sample=True.");
-      if (spec.HasArgument("stride")) {
-        DALI_WARN("uniform_sample=True: the `stride` argument is ignored.");
-      }
-      if (spec.HasArgument("step")) {
-        DALI_WARN("uniform_sample=True: the `step` argument is ignored.");
-      }
-      if (spec.HasArgument("pad_mode")) {
-        DALI_WARN("uniform_sample=True: the `pad_mode` argument is ignored. "
-                  "Frames are repeated when sequence_length exceeds the number of available frames.");
-      }
-    }
-  }
-
-  void PrepareEmpty(Sample &sample) {
-    sample = Sample();
-  }
-
-  void ReadSample(Sample &sample) override {
-    sample = Sample(samples_[current_index_]);
-    MoveToNextShard(++current_index_);
-  }
-
-  void Skip() override {
-    MoveToNextShard(++current_index_);
-  }
-
-  Index SizeImpl() override {
-    return samples_.size();
-  }
-
-  void PrepareMetadataImpl() override {
-    LOG_LINE << "Starting PrepareMetadataImpl" << std::endl;
-    samples_.clear();
-    all_frame_idxs_.clear();
-    if (uniform_sample_)
-      all_frame_idxs_.reserve(video_files_info_.size());
-    for (size_t i = 0; i < video_files_info_.size(); ++i) {
-      auto& entry = video_files_info_[i];
-      LOG_LINE << "Processing video file " << i << ": " << entry.filename << std::endl;
-      std::unique_ptr<FramesDecoderImpl> decoder;
-      if constexpr(std::is_same_v<Backend, CPUBackend>) {
-        decoder = std::make_unique<FramesDecoderImpl>(entry.filename, image_type_);
-      } else {
-        decoder = std::make_unique<FramesDecoderImpl>(entry.filename, cuda_stream_, image_type_);
-      }
-      if (!decoder->IsValid()) {
-        LOG_LINE << "Invalid video file: " << entry.filename << std::endl;
-        continue;
-      }
-      auto it = FrameIndexCache::instance().find(entry.filename);
-      if (it == FrameIndexCache::instance().end()) {
-        LOG_LINE << "Building index for " << entry.filename << std::endl;
-        decoder->BuildIndex();
-        FrameIndexCache::instance().insert(entry.filename, decoder->GetIndex());
-      } else {
-        LOG_LINE << "Reusing index for " << entry.filename << std::endl;
-        decoder->SetIndex(it->second);
-      }
-      int64_t num_frames = decoder->NumFrames();
-      entry.start_frame = 0;
-      entry.end_frame = num_frames;
-      LOG_LINE << "Total frames in video: " << num_frames << std::endl;
-      if (entry.start != 0.0f || entry.end != 0.0f) {
-        LOG_LINE << "Processing range [" << entry.start << ", " << entry.end
-                 << "], file_list_format: " << make_string(file_list_opts_) << std::endl;
-        switch (file_list_opts_.format) {
-          case FileListFormat::kFrames:
-            if (entry.start < 0)
-              entry.start = num_frames + entry.start;
-            if (entry.end < 0)
-              entry.end = num_frames + entry.end;
-            entry.start_frame = file_list_opts_.round_start(entry.start);
-            entry.end_frame = file_list_opts_.round_end(entry.end);
-            break;
-          case FileListFormat::kTimestamps:
-            entry.start_frame = decoder->GetFrameIdxByTimestamp(
-                SecondsToTimestamp(decoder->GetTimebase(), entry.start),
-                file_list_opts_.should_round_down_start());
-            entry.end_frame = decoder->GetFrameIdxByTimestamp(
-                SecondsToTimestamp(decoder->GetTimebase(), entry.end),
-                file_list_opts_.should_round_down_end());
-            break;
-          default:
-            DALI_FAIL("Invalid file_list_format");
-        }
-        if (file_list_opts_.include_end) {
-          entry.end_frame = std::min<int>(entry.end_frame, num_frames);
-        }
-        LOG_LINE << "Frame range after conversion: [" << entry.start_frame << ", "
-                 << entry.end_frame << "]" << std::endl;
-      }
-
-      if (entry.start_frame >= entry.end_frame) {
-        DALI_WARN(make_string("Empty frame range [", entry.start_frame, ", ", entry.end_frame,
-                              ") for file ", entry.filename, ". Skipping."));
-        continue;
-      }
-
-      if (uniform_sample_) {
-        int total_frames = entry.end_frame - entry.start_frame;
-        VideoSampleDesc s(&entry, entry.start_frame, entry.end_frame, 1);
-        all_frame_idxs_.emplace_back(sequence_len_);
-        auto& idxs = all_frame_idxs_.back();
-        for (int i = 0; i < sequence_len_; ++i) {
-          double t = (sequence_len_ > 1) ? (double)i / (sequence_len_ - 1) : 0.0;
-          idxs[i] = entry.start_frame + static_cast<int>(std::round(t * (total_frames - 1)));
-        }
-        // Moving a std::vector preserves data(), so this span remains valid even if
-        // all_frame_idxs_ is reallocated later (inner vectors are moved, not copied).
-        s.frame_idxs_ = make_cspan(idxs);
-        LOG_LINE << "Adding uniform sample for " << entry.filename
-                 << " with " << sequence_len_ << " frames" << std::endl;
-        samples_.emplace_back(std::move(s));
-      } else {
-        int start = entry.start_frame;
-        int full_seq_stride = stride_ * sequence_len_;
-        for (; start + full_seq_stride <= entry.end_frame; start += step_) {
-          LOG_LINE << "Adding sample with start=" << start << ", end=" << start + full_seq_stride
-                   << ", stride=" << stride_ << std::endl;
-          samples_.emplace_back(&entry, start, start + full_seq_stride, stride_);
-        }
-
-        // if we have a tail that doesn't fit a full sequence and we allow padding, extend the last
-        // sequence
-        if (boundary_type_ != boundary::BoundaryType::ISOLATED && start < entry.end_frame) {
-          LOG_LINE << "Adding padded tail sample starting at frame " << start
-                   << ", end=" << entry.end_frame << ", stride=" << stride_ << std::endl;
-          samples_.emplace_back(&entry, start, start + full_seq_stride, stride_);
-        }
-      }
-    }
-
-    LOG_LINE << "Created " << samples_.size() << " total samples" << std::endl;
-
-    if (shuffle_) {
-      LOG_LINE << "Shuffling samples" << std::endl;
-      // seeded with hardcoded value to get
-      // the same sequence on every shard
-      std::mt19937 g(kDaliDataloaderSeed);
-      std::shuffle(std::begin(samples_), std::end(samples_), g);
-    }
-
-    // set the initial index for each shard
-    Reset(true);
-    LOG_LINE << "Finished PrepareMetadataImpl" << std::endl;
-  }
-
-  void Reset(bool wrap_to_shard) override {
-    current_index_ = wrap_to_shard ? start_index(virtual_shard_id_, num_shards_, SizeImpl()) : 0;
-  }
-
- protected:
-  using Base = Loader<Backend, Sample, true>;
-  using Base::shard_id_;
-  using Base::virtual_shard_id_;
-  using Base::num_shards_;
-  using Base::stick_to_shard_;
-  using Base::shuffle_;
-  using Base::dont_use_mmap_;
-  using Base::initial_buffer_fill_;
-  using Base::copy_read_data_;
-  using Base::read_ahead_;
-  using Base::IsCheckpointingEnabled;
-  using Base::PrepareEmptyTensor;
-  using Base::MoveToNextShard;
-  using Base::ShouldSkipImage;
-
-  std::string file_root_;
-  std::string file_list_;
-  std::vector<std::string> filenames_;
-  std::vector<int> labels_;
-
-  Index current_index_ = 0;
-
-  int sequence_len_;
-  int stride_;
-  int step_;
-  DALIImageType image_type_;
-  boundary::BoundaryType boundary_type_;
-  bool uniform_sample_;
-  FileListOptions file_list_opts_;
-
-  std::vector<VideoFileMeta> video_files_info_;
-  std::vector<std::vector<int>> all_frame_idxs_;  // owns frame index data; samples_ hold spans into these
-  std::vector<VideoSampleDesc> samples_;
-  CUDAStreamLease cuda_stream_;
-};
-
-template <typename Backend>
-class VideoReaderDecoder
-    : public DataReader<Backend, VideoSample<Backend>, VideoSample<Backend>, true> {
- public:
-  using FramesDecoderImpl =
-      std::conditional_t<std::is_same_v<Backend, GPUBackend>, FramesDecoderGpu, FramesDecoderCpu>;
-  using VideoLoaderImpl = VideoLoaderDecoder<Backend, FramesDecoderImpl>;
-  using Base = DataReader<Backend, VideoSample<Backend>, VideoSample<Backend>, true>;
-  using Base::curr_batch_producer_;
-  using Base::GetCurrBatchSize;
-  using Base::GetSample;
-  using Base::loader_;
-  using Base::Prefetch;
-  using Base::prefetched_batch_queue_;
-
-  explicit VideoReaderDecoder(const OpSpec &spec)
-      : Base(spec),
-        frame_num_policy_(ParseFrameNumPolicy(spec.GetArgument<std::string>("enable_frame_num"))),
-        has_timestamps_(spec.GetArgument<bool>("enable_timestamps")),
-        boundary_type_(GetBoundaryType(spec)),
-        image_type_(spec.GetArgument<DALIImageType>("image_type")) {
-    loader_ = InitLoader<VideoLoaderImpl>(spec);
-    this->SetInitialSnapshot();
-
-    has_labels_ = spec.HasArgument("labels") ||
-                  !spec.GetArgument<std::string>("file_list").empty() ||
-                  !spec.GetArgument<std::string>("file_root").empty();
-
-    auto fill_values = spec.GetRepeatedArgument<int>("fill_value");
-    fill_value_.clear();
-    fill_value_.reserve(fill_values.size());
-    for (auto value : fill_values) {
-      DALI_ENFORCE(value >= 0 && value <= 255, "fill_value must be in range [0, 255]");
-      fill_value_.push_back(static_cast<uint8_t>(value));
-    }
-    DALI_ENFORCE(fill_value_.size() >= 1, "fill_value must contain at least one value");
-
-    StreamInitialization(spec);
-    DALI_ENFORCE(image_type_ == DALI_RGB || image_type_ == DALI_YCbCr,
-                 make_string("Invalid image_type: ", image_type_));
-
-    constant_frame_.set_pinned(std::is_same_v<Backend, GPUBackend>);
-  }
-
-  ~VideoReaderDecoder() override {
-    LOG_LINE << "VideoReaderDecoder destructor" << std::endl;
-    Base::StopPrefetchThread();
-    LOG_LINE << "VideoReaderDecoder destructor done" << std::endl;
-  }
-
-  void StreamInitialization(const OpSpec &spec) {
-    if constexpr (std::is_same_v<Backend, GPUBackend>) {
-#if NVML_ENABLED
-      auto nvml_handle = nvml::NvmlInstance::CreateNvmlInstance();
-      static float driver_version = nvml::GetDriverVersion();
-      if (driver_version > 460 && driver_version < 470.21) {
-        DALI_WARN_ONCE("Warning: Decoding on a default stream. Performance may be affected.");
-        return;
-      }
-#else
-      int driver_cuda_version = 0;
-      CUDA_CALL(cuDriverGetVersion(&driver_cuda_version));
-      if (driver_cuda_version >= 11030 && driver_cuda_version < 11040) {
-        DALI_WARN_ONCE("Warning: Decoding on a default stream. Performance may be affected.");
-        return;
-      }
-#endif
-      int device_id = spec.GetArgument<int>("device_id");
-      cuda_stream_ = CUDAStreamPool::instance().Get(device_id);
-    }
-  }
-
-  bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
-    Base::SetupImpl(output_desc, ws);
-    output_desc.reserve(4);
-    int batch_size = GetCurrBatchSize();
-    TensorListShape<4> video_shape(batch_size);
-    for (int sample_id = 0; sample_id < batch_size; ++sample_id) {
-      auto &sample = GetSample(sample_id);
-      video_shape.set_tensor_shape(sample_id, sample.data_.shape());
-    }
-    output_desc.push_back({video_shape, DALI_UINT8});
-
-    if (has_labels_) {
-      TensorListShape<1> label_shape = uniform_list_shape<1>(batch_size, {1});
-      output_desc.push_back({label_shape, DALI_INT32});
-    }
-
-    if (frame_num_policy_ == FrameNumPolicy::Scalar) {
-      TensorListShape<1> frame_idx_shape = uniform_list_shape<1>(batch_size, {1});
-      output_desc.push_back({frame_idx_shape, DALI_INT32});
-    } else if (frame_num_policy_ == FrameNumPolicy::Sequence) {
-      TensorListShape<1> frame_idx_shape(batch_size);
-      for (int sample_id = 0; sample_id < batch_size; ++sample_id) {
-        auto num_frames = GetSample(sample_id).data_.shape()[0];
-        frame_idx_shape.set_tensor_shape(sample_id, {num_frames});
-      }
-      output_desc.push_back({frame_idx_shape, DALI_INT32});
-    }
-
-    if (has_timestamps_) {
-      TensorListShape<1> timestamps_shape(batch_size);
-      for (int sample_id = 0; sample_id < batch_size; ++sample_id) {
-        auto &sample = GetSample(sample_id);
-        auto num_frames = sample.data_.shape()[0];
-        timestamps_shape.set_tensor_shape(sample_id, {num_frames});
-      }
-      output_desc.push_back({timestamps_shape, DALI_FLOAT64});
-    }
-    return true;
-  }
-
-  template <typename T>
-  void OutputMetadata(Workspace &ws, int out_idx,
-                      std::function<span<const T>(const VideoSample<Backend>&)> get_values) {
-    auto &output = ws.Output<Backend>(out_idx);
-    int batch_size = output.num_samples();
-    DALI_ENFORCE(output.IsContiguousInMemory(), "Output must be contiguous in memory");
-    auto output_as_tensor = output.AsTensor();
-
-    auto copy_data = [&](T* data) {
-      for (int sample_id = 0; sample_id < batch_size; ++sample_id)
-        for (auto &elem : get_values(GetSample(sample_id)))
-          *data++ = elem;
-    };
-
-    if constexpr (std::is_same_v<Backend, GPUBackend>) {
-      auto data = mm::alloc_raw_async_unique<T, mm::memory_kind::pinned>(
-        output_as_tensor.shape().num_elements(), nullptr, ws.stream());
-      copy_data(data.get());
-      CUDA_CALL(cudaMemcpyAsync(output_as_tensor.template mutable_data<T>(), data.get(),
-                                output_as_tensor.shape().num_elements() * sizeof(T),
-                                cudaMemcpyHostToDevice, ws.stream()));
-    } else {
-      copy_data(output_as_tensor.template mutable_data<T>());
-    }
-  }
-
-  void RunImpl(Workspace &ws) override {
-    auto &video_output = ws.Output<Backend>(0);
-    int batch_size = GetCurrBatchSize();
-
-    video_output.SetLayout("FHWC");
-    AccessOrder order = std::is_same_v<Backend, GPUBackend> ? ws.stream() : AccessOrder::host();
-    for (int sample_id = 0; sample_id < batch_size; ++sample_id) {
-      auto &sample = GetSample(sample_id);
-      video_output.CopySample(sample_id, sample.data_, order);
-    }
-
-    // Copy optional metadata outputs
-    int out_index = 1;
-    if (has_labels_) {
-      OutputMetadata<int32_t>(ws, out_index++, [](auto &s) {
-        return make_cspan(&s.video_file_meta_->label, 1);
-      });
-    }
-    if (frame_num_policy_ == FrameNumPolicy::Scalar) {
-      OutputMetadata<int32_t>(ws, out_index++, [](auto &s) {
-        return make_cspan(&s.start_, 1);
-      });
-    } else if (frame_num_policy_ == FrameNumPolicy::Sequence) {
-      OutputMetadata<int32_t>(ws, out_index++, [](auto &s) {
-        return make_cspan(s.frame_idx_);
-      });
-    }
-    if (has_timestamps_) {
-      OutputMetadata<double>(ws, out_index++, [](auto &s) {
-        return make_cspan(s.timestamps_);
-      });
-    }
-  }
-
-  bool HasContiguousOutputs() const override {
-    return true;
-  }
-
-  void Prefetch() override {
-    Base::Prefetch();
-    auto &current_batch = prefetched_batch_queue_[curr_batch_producer_];
-    size_t i = 0;
-    for (auto &sample : current_batch) {
-      LOG_LINE << "Processing sample " << i++ << " with filename " << sample->video_file_meta_->filename
-               << " and previous decoder " << decoder_.get() << " filename "
-               << (decoder_ ? decoder_->Filename() : "none") << std::endl;
-      auto prev_filename = decoder_ ? decoder_->Filename() : "";
-      const auto &filename = sample->video_file_meta_->filename;
-      if (prev_filename != filename) {
-        if constexpr (std::is_same_v<Backend, CPUBackend>) {
-          decoder_ = std::make_unique<FramesDecoderImpl>(filename, image_type_);
-        } else {
-          decoder_ = std::make_unique<FramesDecoderImpl>(filename, cuda_stream_, image_type_);
-        }
-        LOG_LINE << "Initialized decoder to " << decoder_->Filename() << " ptr: " << decoder_.get()
-                 << " num_frames: " << decoder_->NumFrames() << std::endl;
-        auto it = FrameIndexCache::instance().find(filename);
-        if (it == FrameIndexCache::instance().end()) {
-          LOG_LINE << "Building index for " << filename << std::endl;
-          decoder_->BuildIndex();
-          FrameIndexCache::instance().insert(filename, decoder_->GetIndex());
-        } else {
-          LOG_LINE << "Reusing index for " << filename << std::endl;
-          decoder_->SetIndex(it->second);
-        }
-      } else {
-        LOG_LINE << "Reusing decoder for " << decoder_->Filename() << " ptr: " << decoder_.get()
-                 << " num_frames: " << decoder_->NumFrames() << std::endl;
-      }
-      DALI_ENFORCE(decoder_->IsValid(),
-                   make_string("Invalid decoder for filename ", filename));
-
-      int64_t num_frames = sample->frame_idxs_.empty()
-          ? (sample->end_ - sample->start_ + sample->stride_ - 1) / sample->stride_
-          : static_cast<int64_t>(sample->frame_idxs_.size());
-      sample->data_.Resize(
-          {num_frames, decoder_->Height(), decoder_->Width(), decoder_->Channels()}, DALI_UINT8);
-      sample->data_.SetSourceInfo(decoder_->Filename());
-      sample->data_.SetLayout("FHWC");
-
-      const uint8_t *constant_frame =
-          boundary_type_ == boundary::BoundaryType::CONSTANT ?
-              ConstantFrame(constant_frame_, decoder_->FrameShape(), make_cspan(fill_value_),
-                            cuda_stream_, true) :
-              nullptr;
-      if (has_timestamps_) {
-        sample->timestamps_.resize(num_frames);
-      } else {
-        sample->timestamps_.clear();
-      }
-      if (!sample->frame_idxs_.empty()) {
-        LOG_LINE << "Decoding frames (uniform) num_frames=" << num_frames
-                 << ", frame_idxs=[" << sample->frame_idxs_.front() << ".."
-                 << sample->frame_idxs_.back() << "]"
-                 << ", filename=" << sample->video_file_meta_->filename
-                 << ", label=" << sample->video_file_meta_->label
-                 << ", boundary_type=" << to_string(boundary_type_) << std::endl;
-      } else {
-        LOG_LINE << "Decoding frames start=" << sample->start_ << ", end=" << sample->end_
-                 << ", stride=" << sample->stride_ << ", num_frames=" << num_frames
-                 << ", filename=" << sample->video_file_meta_->filename
-                 << ", label=" << sample->video_file_meta_->label
-                 << ", start=" << sample->video_file_meta_->start_frame
-                 << ", end=" << sample->video_file_meta_->end_frame
-                 << ", boundary_type=" << to_string(boundary_type_) << std::endl;
-      }
-      int roi_start = sample->video_file_meta_->start_frame;
-      int roi_end = sample->video_file_meta_->end_frame;
-      if (frame_num_policy_ == FrameNumPolicy::Sequence) {
-        sample->frame_idx_.resize(num_frames);
-        if (!sample->frame_idxs_.empty()) {
-          // Uniform indices are always within [roi_start, roi_end-1], so HandleBoundary
-          // is a no-op here — but we call it for consistency with the stride path below.
-          for (int64_t i = 0; i < num_frames; ++i) {
-            sample->frame_idx_[i] = static_cast<int32_t>(decoder_->HandleBoundary(
-                boundary_type_, sample->frame_idxs_[i], roi_start, roi_end));
-          }
-        } else {
-          for (int64_t i = 0; i < num_frames; ++i) {
-            sample->frame_idx_[i] = static_cast<int32_t>(decoder_->HandleBoundary(
-                boundary_type_,
-                static_cast<int>(sample->start_ + i * sample->stride_),
-                roi_start, roi_end));
-          }
-        }
-      } else {
-        sample->frame_idx_.clear();
-      }
-      if (!sample->frame_idxs_.empty()) {
-        // Uniform sampling: explicit frame indices already include ROI offset (start_frame)
-        decoder_->DecodeFrames(sample->data_.template mutable_data<uint8_t>(),
-                               make_cspan(sample->frame_idxs_), boundary_type_, constant_frame,
-                               make_span(sample->timestamps_));
-      } else if (roi_start != 0 || roi_end != decoder_->NumFrames()) {
-        frame_idxs_.clear();
-        for (int frame_idx = sample->start_; frame_idx < sample->end_;
-             frame_idx += sample->stride_) {
-          frame_idxs_.push_back(decoder_->HandleBoundary(
-              boundary_type_, frame_idx, roi_start, roi_end));
-        }
-        decoder_->DecodeFrames(sample->data_.template mutable_data<uint8_t>(),
-                               make_cspan(frame_idxs_), boundary_type_, constant_frame,
-                               make_span(sample->timestamps_));
-      } else {
-        decoder_->DecodeFrames(sample->data_.template mutable_data<uint8_t>(), sample->start_,
-                               sample->end_, sample->stride_, boundary_type_, constant_frame,
-                               make_span(sample->timestamps_));
-      }
-      LOG_LINE << "Decoding frames done" << std::endl;
-    }
-
-    if (cuda_stream_) {
-      CUDA_CALL(cudaStreamSynchronize(cuda_stream_.get()));
-    }
-    LOG_LINE << "Prefetch done" << std::endl;
-  }
-
- private:
-  FrameNumPolicy frame_num_policy_;
-  bool has_timestamps_;
-  boundary::BoundaryType boundary_type_;
-  DALIImageType image_type_;
-  std::vector<uint8_t> fill_value_;
-  bool has_labels_ = false;
-
-  Tensor<Backend> constant_frame_;
-  CUDAStreamLease cuda_stream_;
-  std::unique_ptr<FramesDecoderImpl> decoder_;  // keeping one decoder open.
-  std::vector<int> frame_idxs_;
-};
+}  // namespace detail
 
 DALI_SCHEMA(experimental__readers__Video)
     .DocStr(R"code(Loads and decodes video files from disk.
 
 The operator supports most common video container formats using libavformat (FFmpeg).
 The operator utilizes either libavcodec (FFmpeg) or NVIDIA Video Codec SDK (NVDEC) for decoding the frames.
+
+MPEG-PS (MPEG-2 Program Stream, container format ``mpeg``) is not supported: this format only
+stamps a timestamp on some packets, which this operator's frame-accurate seeking can't handle
+reliably. Such files are treated like any other invalid file (skipped with a warning when mixed
+with valid files, or an error if no valid files remain). Remux affected files to MP4 or MKV
+(e.g. ``ffmpeg -i in.mpeg -c copy out.mp4``) to use them with this operator. MPEG-TS (Transport
+Stream) is unaffected and fully supported.
 
 The following video codecs are supported by both CPU and GPU backends:
 
@@ -762,14 +137,7 @@ The outputs of the operator are: video, [labels], [frame_num], [timestamps].
 * ``timestamps``: Time in seconds of each frame in the sequence. Only available when ``enable_timestamps=True``.
 )code")
     .NumInput(0)
-    .OutputFn([](const OpSpec &spec) {
-      bool has_labels = spec.HasArgument("labels") || spec.HasArgument("file_list") ||
-                        spec.HasArgument("file_root");
-      bool has_frame_num =
-          ParseFrameNumPolicy(spec.GetArgument<std::string>("enable_frame_num")) !=
-          FrameNumPolicy::None;
-      return 1 + has_labels + has_frame_num + spec.GetArgument<bool>("enable_timestamps");
-    })
+    .OutputFn(detail::VideoReaderDecoderOutputFn)
     .AddOptionalArg("filenames",
                     R"code(Absolute paths to the video files to load.
 
@@ -784,7 +152,8 @@ This option is mutually exclusive with `filenames` and `file_list`.)code",
                     R"code(Path to the file with a list of ``file label [start [end]]`` values.
 
 ``start`` and ``end`` are optional and can be used to specify the start and end of the video to load.
-The values can be interpreted differently depending on the ``file_list_format``.
+The values can be interpreted differently depending on the ``file_list_format``. A missing
+``end`` means "until the end of the video", and negative values count from the end of the video.
 
 This option is mutually exclusive with `filenames` and `file_root`.)code",
                     std::string())
@@ -792,23 +161,35 @@ This option is mutually exclusive with `filenames` and `file_root`.)code",
         R"code(How to interpret start/end values in file_list:
 
 * ``frames``: Use exact frame numbers (0-based). Negative values count from end.
-* ``timestamps``: Use timestamps in seconds.
+* ``timestamps``: Use timestamps in seconds, relative to the first frame of the video. Negative
+  values count from the end. A ``start`` past the end of the video is an error; an ``end`` past
+  the end of the video is clamped.
 
 Default: ``timestamps``.)code",
         "timestamps")
     .AddOptionalArg("file_list_rounding",
         R"code(How to handle non-exact frame matches:
 
-* ``start_down_end_up`` (default): Round start down and end up
-* ``start_up_end_down``: Round start up and end down
+* ``start_up_end_down`` (default): Round start up and end down. Matches the rounding
+  convention of the legacy ``readers.video`` operator's ``file_list_include_preceding_frame``
+  default (``False``).
+* ``start_down_end_up``: Round start down and end up
 * ``all_up``: Round both up
 * ``all_down``: Round both down)code",
-        "start_down_end_up")
+        "start_up_end_down")
     .AddOptionalArg("file_list_include_end",
-        R"code(If true, include the end frame in the range. Default: true)code",
-        true)
+        R"code(If set to True, the ``end`` value of a `file_list` entry is treated as inclusive,
+i.e. the frame at ``end`` is included in the selected range.
+
+By default (False), ``end`` acts as an exclusive bound, which matches the behavior of the
+legacy ``readers.video`` operator. Setting this to True selects one more frame (unless the range
+already reaches the end of the video) than ``readers.video`` would for the same `file_list`.)code",
+        false)
     .AddOptionalArg<vector<int>>("labels", R"(Labels associated with the files listed in
-`filenames` argument. If not provided, no labels will be yielded.)",
+`filenames` argument.
+
+If an empty list is provided, sequential 0-based indices are used as labels. If not provided,
+no labels will be yielded.)",
                                  nullptr)
     .AddArg("sequence_length", R"code(Frames to load per sequence.)code", DALI_INT32)
     .AddOptionalArg("enable_frame_num",
@@ -826,7 +207,7 @@ as an additional output.)code",
     .AddOptionalArg("step",
                     R"code(Frame interval between each sequence.
 
-When the value is less than 0, `step` is set to `sequence_length`.)code",
+When the value is less than or equal to 0, `step` is set to `stride * sequence_length`.)code",
                     -1)
     .AddOptionalArg("stride", R"code(Distance between consecutive frames in the sequence.)code", 1u,
                     false)
@@ -850,7 +231,7 @@ The ``stride``, ``step``, and ``pad_mode`` arguments are ignored.)code",
         R"code(How to handle videos with insufficient frames when using start_frame/sequence_length/stride:
 
 * ``'none'``: Return shorter sequences if not enough frames: ABC -> ABC
-* ``'constant'``: Pad with a fixed value (specified by ``pad_value``): ABC -> ABCPPP
+* ``'constant'``: Pad with a fixed value (specified by ``fill_value``): ABC -> ABCPPP
 * ``'edge'`` or ``'repeat'``: Repeat the last valid frame: ABC -> ABCCCC
 * ``'reflect_1001'`` or ``'symmetric'``: Reflect padding, including the last element: ABC -> ABCCBA
 * ``'reflect_101'`` or ``'reflect'``: Reflect padding, not including the last element: ABC -> ABCBA
@@ -858,20 +239,115 @@ The ``stride``, ``step``, and ``pad_mode`` arguments are ignored.)code",
 Not relevant when using ``frames`` argument.)code",
         "none", true)
     .AddOptionalArg("fill_value",
-                    R"code(Value(s) used to pad missing frames when ``pad_mode='constant'``'.
+                    R"code(Value(s) used to pad missing frames when ``pad_mode='constant'``.
 
 Each value must be in range [0, 255].
 If a single value is provided, it will be used for all channels.
-Otherwise, the number of values must match the number of channels in the video.)code",
+Otherwise, the number of values must match the number of channels in the video.
+With ``dtype=FLOAT`` the values keep this 8-bit scale, or are divided by 255 when `normalized`
+is set, so that padding matches decoded pixels of the same value.)code",
                     std::vector<int>{
                         0,
                     })
     .AddOptionalArg("image_type", R"(The color space of the output frames (RGB or YCbCr).)",
                     DALI_RGB)
+    .AddOptionalTypeArg("dtype",
+                    R"code(Output data type. Supported types: ``UINT8`` or ``FLOAT``.
+
+``FLOAT`` is only supported on the GPU backend.)code",
+                    DALI_UINT8)
+    .AddOptionalArg("normalized",
+                    R"code(If set, and ``dtype`` is ``FLOAT``, the output is returned as
+normalized data in the range ``[0.0, 1.0]``. Ignored when ``dtype`` is ``UINT8``.)code",
+                    false)
+    .AddOptionalArg("channels",
+                    R"code(Number of channels in the output. Must match the actual number of
+decoded channels (currently always ``3``); provided for compatibility with ``readers.video``.)code",
+                    3)
+    .AddOptionalArg("additional_decode_surfaces",
+                    R"code(Additional decode-lookahead slots, beyond a baseline of 8, used by the GPU
+decoder.
+
+This value has two effects, matching legacy ``readers.video``'s ``additional_decode_surfaces``:
+it sizes the GPU decoder's host-side frame reorder buffer (which bounds how many frames can be
+decoded ahead of the one being returned), and it adds real margin on top of the driver-reported
+minimum (``min_num_decode_surfaces``) when sizing the actual NVDEC decode-surface count.
+
+Must be non-negative. Only relevant for the GPU backend; ignored on CPU.)code",
+                    2)
+    .AddOptionalArg("decoder_cache_size",
+                    R"code(Number of per-file decoder instances kept open in an LRU cache.
+
+Reusing an already-open decoder avoids tearing down and rebuilding it (container reopen/parse,
+NVDEC parser creation, decode-surface allocation, ...) when the same file comes up again soon
+after, which is the common case once ``random_shuffle=True`` interleaves samples from more files
+than fit in a single batch.
+
+This has a real memory cost: each cached decoder holds an NVDEC lease and device-memory frame
+buffers, which can range from hundreds of MB to several GB depending on resolution and ``dtype``.
+A larger cache only helps when the number of distinct files likely to be interleaved within the
+shuffle window is comparable to or smaller than this value; with a dataset containing far more
+distinct files than `decoder_cache_size`, the cache's hit rate drops and it mostly adds memory
+pressure with little throughput benefit. With the default value and a dataset containing
+substantially more distinct files than that, measured throughput can be below the legacy GPU
+reader's; size this at or above your expected number of concurrently-interleaved files to match
+or exceed it. Tune this down (e.g. to ``1`` to effectively disable reuse) for large datasets with
+a wide shuffle window and tight memory budgets.
+
+Must be positive.)code",
+                    8)
+    .AddOptionalArg("require_constant_frame_rate",
+                    R"code(If set, raises an error if the video has a variable
+frame rate. Default: ``False`` (variable frame rate videos are decoded using decode-order frame
+indexing).)code",
+                    false)
+    .AddOptionalArg("pad_sequences",
+                    R"code(Legacy ``readers.video`` argument, kept for compatibility.
+
+``True`` is equivalent to ``pad_mode='constant'`` (with the default ``fill_value=0`` the
+missing frames are zeroed, as in ``readers.video``); ``False`` keeps `pad_mode` at its
+default. Cannot be combined with `pad_mode`.)code",
+                    false)
+    .DeprecateArg("pad_sequences", "2.4", false,
+                  "`pad_sequences` is deprecated; use `pad_mode='constant'` instead.")
+    .AddOptionalArg("file_list_frame_num",
+                    R"code(Legacy ``readers.video`` argument, kept for compatibility.
+
+``True`` is equivalent to ``file_list_format='frames'`` and ``False`` to
+``file_list_format='timestamps'``. Cannot be combined with `file_list_format`.)code",
+                    false)
+    .DeprecateArg("file_list_frame_num", "2.4", false,
+                  "`file_list_frame_num` is deprecated; use `file_list_format` instead.")
+    .AddOptionalArg("file_list_include_preceding_frame",
+                    R"code(Legacy ``readers.video`` argument, kept for compatibility.
+
+When `file_list` entries are timestamps, ``True`` is equivalent to
+``file_list_rounding='start_down_end_up'``. Has no effect with frame-number entries (as in
+``readers.video``). Cannot be combined with `file_list_rounding`.)code",
+                    false)
+    .DeprecateArg("file_list_include_preceding_frame", "2.4", false,
+                  "`file_list_include_preceding_frame` is deprecated; use `file_list_rounding` "
+                  "instead.")
+    .AddOptionalArg("skip_vfr_check",
+                    R"code(Legacy ``readers.video`` argument, accepted for compatibility and
+ignored.
+
+This is intentionally NOT mapped onto `require_constant_frame_rate`: ``readers.video``
+rejects variable frame rate (VFR) videos by default (``skip_vfr_check=False``) using a
+heuristic, while this operator decodes VFR videos by default. Mapping the flag would change
+behavior even for callers that never set it. To reject VFR videos, use
+``require_constant_frame_rate=True``.)code",
+                    false)
+    .DeprecateArg("skip_vfr_check", "2.4", true,
+                  "`skip_vfr_check` is ignored by experimental.readers.video, which decodes "
+                  "variable frame rate videos by default. Use `require_constant_frame_rate=True` "
+                  "to reject them.")
     .AddParent("LoaderBase")
     .OutputNDim(0, 4)
-    .OutputDType(0, DALI_UINT8)
-    .OutputLayout(0, "FHWC");
+    .OutputLayout(0, "FHWC")
+    .OutputDType(0, [](const OpSpec &spec) {
+      return spec.GetArgument<DALIDataType>("dtype");
+    });
 
 
 DALI_REGISTER_OPERATOR(experimental__readers__Video, VideoReaderDecoder<CPUBackend>, CPU);

@@ -21,6 +21,7 @@ extern "C" {
 #include <libavcodec/bsf.h>
 }
 
+#include <deque>
 #include <string>
 #include <memory>
 #include <queue>
@@ -60,6 +61,10 @@ struct DecInstance {
   unsigned height = 0;
   unsigned width = 0;
   unsigned num_decode_surfaces = 0;
+  // How many decoded pictures the driver allows to be simultaneously mapped (unmapped) via
+  // cuvidMapVideoFrame before a cuvidUnmapVideoFrame is required to free a slot. Needed by
+  // FramesDecoderGpu's deferred-unmap pipelining to know its budget.
+  unsigned num_output_surfaces = 0;
   unsigned max_height = 0;
   unsigned max_width = 0;
   unsigned int bit_depth_luma_minus8 = 0;
@@ -99,6 +104,14 @@ class NVDECLease {
 
     operator CUvideodecoder() && = delete;
 
+    unsigned NumOutputSurfaces() const noexcept {
+      return decoder->num_output_surfaces;
+    }
+
+    unsigned NumDecodeSurfaces() const noexcept {
+      return decoder->num_decode_surfaces;
+    }
+
     explicit operator bool() const noexcept {
       return decoder != nullptr;
     }
@@ -132,9 +145,19 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
    * @param filename Path to a video file.
    * @param stream CUDA stream to use for decoding.
    * @param image_type Image type of the video.
+   * @param num_decode_surfaces Baseline number of NVDEC decode surfaces to allocate. Sizes the
+   * host-side frame reorder buffer and the parser's initial decode-surface hint; does not by
+   * itself change the real NVDEC decoder's surface count (see `additional_decode_surfaces`).
+   * @param additional_decode_surfaces Extra margin added to the driver-reported minimum when
+   * sizing the *real* NVDEC decode surface count (see `AdjustedNumDecodeSurfaces` in
+   * frames_decoder_gpu.cc), matching legacy readers.video's `additional_decode_surfaces`
+   * semantics. Kept separate from `num_decode_surfaces` above, which only affects host-side
+   * buffering, so the two concerns don't get conflated.
    */
   explicit FramesDecoderGpu(const std::string &filename, cudaStream_t stream = 0,
-                            DALIImageType image_type = DALI_RGB);
+                            DALIImageType image_type = DALI_RGB,
+                            int num_decode_surfaces = 8,
+                            int additional_decode_surfaces = 0);
 
   /**
    * @brief Construct a new FramesDecoder object.
@@ -144,12 +167,21 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
    * @param source_info Source info of the video file.
    * @param stream CUDA stream to use for decoding.
    * @param image_type Image type of the video.
+   * @param num_decode_surfaces Baseline number of NVDEC decode surfaces to allocate. Sizes the
+   * host-side frame reorder buffer and the parser's initial decode-surface hint; does not by
+   * itself change the real NVDEC decoder's surface count (see `additional_decode_surfaces`).
+   * @param additional_decode_surfaces Extra margin added to the driver-reported minimum when
+   * sizing the *real* NVDEC decode surface count (see `AdjustedNumDecodeSurfaces` in
+   * frames_decoder_gpu.cc), matching legacy readers.video's `additional_decode_surfaces`
+   * semantics.
    * @note This constructor assumes that the `memory_file` and
    * `memory_file_size` arguments cover the entire video file, including the header.
    */
   FramesDecoderGpu(const char *memory_file, size_t memory_file_size,
                    std::string_view source_info = {}, cudaStream_t stream = 0,
-                   DALIImageType image_type = DALI_RGB);
+                   DALIImageType image_type = DALI_RGB,
+                   int num_decode_surfaces = 8,
+                   int additional_decode_surfaces = 0);
 
   bool ReadNextFrame(uint8_t *data) override;
 
@@ -173,7 +205,20 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
 
   void InitGpuDecoder(CUVIDEOFORMAT *video_format);
 
+  int AdditionalDecodeSurfaces() const noexcept {
+    return additional_decode_surfaces_;
+  }
+
   void CopyFrame(uint8_t *dst, const uint8_t *src) override;
+
+  /**
+   * @brief Sets the output element type and, if it grows the per-frame byte size (e.g.
+   * switching to DALI_FLOAT), resizes the internal frame-reorder buffer to match. Buffers are
+   * initially allocated assuming DALI_UINT8 (see InitGpuParser()); this only reallocates them
+   * when the actual dtype needs more space, so DALI_UINT8 callers keep their original,
+   * smaller footprint.
+   */
+  void SetOutputType(DALIDataType dtype) override;
 
  protected:
   bool SelectVideoStream(int stream_id = -1) override;
@@ -193,7 +238,15 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
   AVUniquePtr<AVPacket> filtered_packet_;
 
   // TODO(awolant): This value is an approximation. Make it set dynamically
-  const int num_decode_surfaces_ = 8;
+  // Baseline decode surface count; can be increased via the constructor's
+  // num_decode_surfaces parameter (see additional_decode_surfaces in the reader op). Sizes the
+  // host-side frame reorder buffer and the parser's initial decode-surface hint only.
+  int num_decode_surfaces_ = 8;
+
+  // Extra margin added to the driver-reported minimum when sizing the real NVDEC decode surface
+  // count (see AdjustedNumDecodeSurfaces in frames_decoder_gpu.cc). Deliberately separate from
+  // num_decode_surfaces_ above, which only affects host-side buffering.
+  int additional_decode_surfaces_ = 0;
 
   std::vector<BufferedFrame> frame_buffer_;
 
@@ -203,6 +256,34 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
   cudaStream_t stream_ = 0;
 
   VideoColorSpaceConversionType conversion_type_ = VIDEO_COLOR_SPACE_CONVERSION_TYPE_YUV_TO_RGB;
+
+  // Deferred-unmap pipelining. NVIDIA's own nvcuvid.h documents the intended usage pattern as
+  // `cuvidDecodePicture(N); cuvidMapVideoFrame(N-k); ...; cuvidUnmapVideoFrame(N-k);
+  // cuvidDecodePicture(N+1); ...` -- decode and map/consume are meant to run several pictures
+  // apart so NVDEC hardware decode of picture N+1 can overlap the color-conversion kernel of
+  // picture N, instead of the host synchronizing the whole stream after every single frame.
+  // `num_output_surfaces_` (from the driver's ulNumOutputSurfaces, see DecInstance) is a hard
+  // cap on how many pictures may be mapped (i.e. not yet cuvidUnmapVideoFrame'd) at once; this
+  // is enforced via FIFO eviction in HandlePictureDisplay before every new map.
+  struct PendingMap {
+    CUdeviceptr ptr = 0;
+    cudaEvent_t event = nullptr;  // created once per index in InitPendingMaps, reused thereafter
+    bool mapped = false;
+  };
+  std::vector<PendingMap> pending_maps_;  // indexed by picture_index
+  std::deque<int> pending_map_order_;     // FIFO of currently-mapped picture_index values
+  unsigned num_output_surfaces_ = 1;
+
+  void InitPendingMaps(unsigned decode_surface_count, unsigned num_output_surfaces);
+
+  // Synchronizes and unmaps the surface at picture_index if it is currently mapped; no-op
+  // otherwise. Safe to call redundantly.
+  void EnsureUnmapped(int picture_index);
+
+  // Unmaps every still-pending surface. Must run before the underlying CUvideodecoder is
+  // returned to NVDECCache (it is pooled and reused by other FramesDecoderGpu instances, which
+  // would otherwise inherit surfaces this instance left mapped).
+  void DrainPendingMaps();
 
   void SendLastPacket(bool flush = false);
 
