@@ -513,6 +513,27 @@ def test_comparison_reflected(images):
     return 128 < images
 
 
+@captured_test(expect_captured=True)
+def test_slice(images):
+    return images.slice[16:-16, 16:-16]
+
+
+@captured_test(expect_captured=True)
+def test_slice_ellipsis(images):
+    return images.slice[..., ::-1]
+
+
+@captured_test(expect_captured=True)
+def test_slice_index(images):
+    return images.slice[..., 0]
+
+
+@captured_test(expect_captured=True)
+def test_slice_captured_bound(images):
+    side = ndd.reductions.min(ndd._shape(images).slice[:2])
+    return images.slice[:side, :side]
+
+
 # Tests for rejected cases
 
 
@@ -578,6 +599,12 @@ def test_math_global(images):
 @captured_test(expect_captured=False)
 def test_comparison_global(images):
     return images > _GLOBAL_SCALAR
+
+
+@captured_test(expect_captured=False)
+def test_slice_data_dependent_bound(images):
+    height = min(shape[0] for shape in images.shape)
+    return images.slice[:height]
 
 
 @captured_test(expect_captured=False)
@@ -749,11 +776,3 @@ def test_invariant_marker_removed():
         for images in es.captured(batch_size=2):
             ndd.rotate(images, angle=next(angles))
     gc.collect()
-
-
-# These tests pin behavior documented in docs/dali_dynamic/capture_mode/capture.rst.
-
-
-@captured_test(expect_captured=False)
-def test_slice(images):
-    return images.slice[0:4]
