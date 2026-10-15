@@ -163,8 +163,10 @@ class DLL_PUBLIC CocoLoader : public FileLabelLoaderBase<true> {
   span<const float> keypoints(int image_idx) const {
     assert(output_keypoints_);
     int64_t annotation_size = num_keypoints_ * 3;
-    return {keypoints_.data() + offsets_[image_idx] * annotation_size,
-            counts_[image_idx] * annotation_size};
+    int64_t size = counts_[image_idx] * annotation_size;
+    if (size == 0)
+      return {};
+    return {keypoints_.data() + offsets_[image_idx] * annotation_size, size};
   }
 
   int image_id(int image_idx) const {

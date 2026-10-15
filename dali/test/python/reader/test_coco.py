@@ -618,7 +618,7 @@ def test_coco_keypoints_preprocessed_annotations(ratio):
         out = _run_keypoints_pipe(file_root=file_root, preprocessed_annotations=preprocessed_dir)
     assert ref.keys() == out.keys()
     for image_id in ref:
-        for ref_arr, out_arr in zip(ref[image_id], out[image_id]):
+        for ref_arr, out_arr in zip(ref[image_id], out[image_id], strict=True):
             np.testing.assert_array_equal(ref_arr, out_arr)
 
 
@@ -690,5 +690,5 @@ def test_coco_keypoints_ndd():
             )
     assert ref.keys() == out.keys()
     for image_id in ref:
-        for ref_arr, out_arr in zip(ref[image_id], out[image_id]):
+        for ref_arr, out_arr in zip(ref[image_id], out[image_id], strict=True):
             np.testing.assert_array_equal(ref_arr, out_arr)

@@ -296,8 +296,9 @@ void COCOReader::RunImpl(SampleWorkspace &ws) {
     auto &keypoints_output = ws.Output<CPUBackend>(curr_out_idx++);
     auto keypoints = loader_impl.keypoints(image_idx);
     keypoints_output.Resize({labels.size(), loader_impl.num_keypoints(), 3}, DALI_FLOAT);
-    std::memcpy(keypoints_output.mutable_data<float>(), keypoints.data(),
-                keypoints.size() * sizeof(float));
+    if (keypoints.size() > 0)
+      std::memcpy(keypoints_output.mutable_data<float>(), keypoints.data(),
+                  keypoints.size() * sizeof(float));
   }
 
   if (output_image_ids_) {
