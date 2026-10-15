@@ -786,7 +786,10 @@ def _is_index(r: Any) -> bool:
 
 
 def _subscript_kwargs(ranges: Sequence[Any], data: "Tensor | Batch") -> dict[str, Any]:
-    """Map subscript ranges to the arguments of ``_tensor_subscript``"""
+    """
+    Map subscript ranges to the arguments of ``_tensor_subscript``.
+    Range components are forwarded as-is, so source analysis can pass CST nodes.
+    """
     args = {}
     d = 0
     for i, r in enumerate(ranges):
