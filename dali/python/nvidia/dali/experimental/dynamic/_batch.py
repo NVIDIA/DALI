@@ -28,7 +28,7 @@ from ._eval_context import EvalContext as _EvalContext
 from ._arithmetic import _arithm_op, transparent_arithmetic
 from ._device import Device, DeviceLike
 from ._device import device as _device
-from ._tensor import Tensor, _array_from_python, _is_full_slice
+from ._tensor import Tensor, _array_from_python, _is_full_slice, _subscript_kwargs
 from ._tensor import as_tensor as _as_tensor
 from ._tensor import tensor as _tensor
 from ._type import DType, DTypeLike
@@ -82,26 +82,9 @@ class BatchedSlice:
         if all(_is_full_slice(r) for r in ranges):
             return self._batch
 
-        args = {}
-        d = 0
-        for i, r in enumerate(ranges):
-            if r is Ellipsis:
-                d = self._batch.ndim - len(ranges) + i + 1
-            elif isinstance(r, slice):
-                if r.start is not None:
-                    args[f"lo_{d}"] = r.start
-                if r.stop is not None:
-                    args[f"hi_{d}"] = r.stop
-                if r.step is not None:
-                    args[f"step_{d}"] = r.step
-                d += 1
-            else:
-                args[f"at_{d}"] = r
-                d += 1
-
         from . import _tensor_subscript
 
-        return _tensor_subscript(self._batch, **args)
+        return _tensor_subscript(self._batch, **_subscript_kwargs(ranges, self._batch))
 
 
 class _TensorList:
