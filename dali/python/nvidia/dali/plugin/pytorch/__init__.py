@@ -714,7 +714,7 @@ class DALIRaggedIterator(_DaliBaseIterator):
                 # 3) Append data together correctly and return.
                 output = data_batches[0:numGPUs_tograb]
                 output[-1] = output[-1].copy()
-                for category in self._output_categories:
+                for category in self.output_map:
                     output[-1][category] = output[-1][category][0:data_fromlastGPU]
                 return output
 
