@@ -464,6 +464,16 @@ def test_arithmetic_constant_vector(images):
 
 
 @captured_test(expect_captured=True)
+def test_arithmetic_constant_list(images):
+    return images + [1, 2, 3]
+
+
+@captured_test(expect_captured=True)
+def test_math_constant_list(images):
+    return ndd.math.clamp(images, [0, 0, 0], [9, 9, 9])
+
+
+@captured_test(expect_captured=True)
 def test_arithmetic_int64_constant(images):
     return images.cpu() + _INVARIANT_INT64
 
@@ -505,6 +515,12 @@ def test_global_name(images):
 def test_mutable_name(images):
     c = [224, 224]  # named mutables are not captured
     return ndd.resize(images, size=c)
+
+
+@captured_test(expect_captured=False)
+def test_arithmetic_mutable_name(images):
+    c = [1, 2, 3]
+    return images + c
 
 
 @captured_test(expect_captured=False)
