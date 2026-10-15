@@ -74,6 +74,7 @@ _MODULE_DTYPE = ndd.float32
 _GLOBAL_ANGLE = 60
 _INVARIANT_ANGLE = ndd.capture.invariant(0.0)
 _INVARIANT_SIZE = ndd.capture.invariant(4)
+_INVARIANT_INT64 = ndd.capture.invariant(np.array([2**40], dtype=np.int64))
 
 
 class _Cfg:
@@ -460,6 +461,11 @@ def test_arithmetic_closure_and_keywords(images):
 @captured_test(expect_captured=True)
 def test_arithmetic_constant_vector(images):
     return images + (1, 2, 3)
+
+
+@captured_test(expect_captured=True)
+def test_arithmetic_int64_constant(images):
+    return images.cpu() + _INVARIANT_INT64
 
 
 @captured_test(expect_captured=True)

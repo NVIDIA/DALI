@@ -151,7 +151,12 @@ def _arithmetic_call(name: str):
                         scalar = False
                     if not isinstance(arg, DataNode) and not scalar:
                         # Use dynamic mode's dtype inference for tensor constants.
-                        arg = Constant(np.asarray(as_tensor(arg).cpu()), device=device)
+                        tensor = as_tensor(arg)
+                        arg = Constant(
+                            np.asarray(tensor.cpu()),
+                            dtype=tensor.dtype.type_id,
+                            device=device,
+                        )
                     inputs.append(arg)
                 return pipeline_arithmetic(name, *inputs)
 
