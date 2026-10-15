@@ -139,7 +139,8 @@ def _arithmetic_call(name: str):
         def _legacy_op(*, device):
             from nvidia.dali.data_node import DataNode
             from nvidia.dali.ops._operators.math import _arithm_op as pipeline_arithmetic
-            from nvidia.dali.types import Constant
+            from nvidia.dali import fn
+            from nvidia.dali.types import Constant, DALIDataType
             from ._tensor import as_tensor
             import numpy as np
 
@@ -149,11 +150,19 @@ def _arithmetic_call(name: str):
                     if not isinstance(arg, DataNode) and type(arg) not in (bool, int, float):
                         # Use dynamic mode's dtype inference for tensor constants.
                         tensor = as_tensor(arg)
-                        arg = Constant(
-                            np.asarray(tensor.cpu()),
-                            dtype=tensor.dtype.type_id,
-                            device=device,
-                        )
+                        array = np.asarray(tensor.cpu())
+                        if array.dtype == np.float64:
+                            # fn.constant doesn't support float64, so pass the bits as int64
+                            arg = fn.reinterpret(
+                                Constant(
+                                    array.view(np.int64),
+                                    dtype=DALIDataType.INT64,
+                                    device=device,
+                                ),
+                                dtype=DALIDataType.FLOAT64,
+                            )
+                        else:
+                            arg = Constant(array, dtype=tensor.dtype.type_id, device=device)
                     inputs.append(arg)
                 return pipeline_arithmetic(name, *inputs)
 
