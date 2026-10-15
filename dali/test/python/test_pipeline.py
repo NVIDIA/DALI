@@ -246,6 +246,41 @@ def test_pipeline_simple_sync_no_prefetch():
         pipe.run()
 
 
+@params(1, 2, 3)
+def test_pipeline_sync_pipelined_run(prefetch_queue_depth):
+    # Pipelined execution without exec_async used to hang in `run` with prefetch_queue_depth > 1
+    batch_size = 2
+    num_batches = 5
+
+    def source():
+        for i in range(num_batches):
+            yield [np.int32([i]) for _ in range(batch_size)]
+
+    @pipeline_def(
+        batch_size=batch_size,
+        num_threads=1,
+        device_id=0,
+        prefetch_queue_depth=prefetch_queue_depth,
+        exec_async=False,
+        exec_pipelined=True,
+        exec_dynamic=False,
+    )
+    def pdef():
+        data = fn.external_source(source=source, batch=True, cycle="raise")
+        return data, data.gpu()
+
+    pipe = pdef()
+    for _ in range(2):
+        for i in range(num_batches):
+            cpu, gpu = pipe.run()
+            expected = np.full((batch_size, 1), i, dtype=np.int32)
+            np.testing.assert_array_equal(cpu.as_array(), expected)
+            np.testing.assert_array_equal(gpu.as_cpu().as_array(), expected)
+        with assert_raises(StopIteration):
+            pipe.run()
+        pipe.reset()
+
+
 def test_use_twice():
     batch_size = 128
 

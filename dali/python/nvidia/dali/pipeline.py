@@ -1610,7 +1610,7 @@ class Pipeline(object):
                 self._first_iter = False
                 self._iter_setup()
                 self._batches_to_consume += 1
-                if not self._exec_async and self._prefetch_queue_depth == 1:
+                if not self._exec_async:
                     self.release_outputs()
                 self._pipe.Run()
             except StopIteration:
@@ -1627,8 +1627,9 @@ class Pipeline(object):
             if not self._last_iter:
                 self._iter_setup()
                 self._batches_to_consume += 1
-            # Special case to prevent a deadlock if user didn't release the only buffer
-            if not self._exec_async and self._prefetch_queue_depth == 1:
+            # Without async execution, the run happens in this thread and needs a free buffer.
+            # If the user didn't release the outputs, the run would wait forever.
+            if not self._exec_async:
                 self.release_outputs()
             if not self._last_iter:
                 self._pipe.Run()
