@@ -262,13 +262,15 @@ def _write_batch_args(writer, batch_args):
         raise TypeError(f"Unsupported batch argument type: `{type(arg)}`.")
 
 
-def _read_batch_args(reader):
+def _read_batch_arg(reader):
+    """Returns the batch callback argument, or None if the callback takes no argument."""
     kind = reader.read_tag(_BatchArgKind)
     if kind == _BatchArgKind.NONE:
-        return ()
+        return None
     if kind == _BatchArgKind.INT:
-        return reader.unpack("q")
-    return (BatchInfo(*reader.unpack("qq")),)
+        (iteration,) = reader.unpack("q")
+        return iteration
+    return BatchInfo(*reader.unpack("qq"))
 
 
 def _write_scheduled_task(writer, message: ScheduledTask):
@@ -316,7 +318,9 @@ def _read_scheduled_task(reader):
             raise RuntimeError("Malformed shared memory message: invalid sample range.")
         task = TaskArgs(minibatch_i, sample_range=sample_range)
     else:
-        task = TaskArgs(minibatch_i, batch_args=_read_batch_args(reader))
+        batch_arg = _read_batch_arg(reader)
+        batch_args = () if batch_arg is None else (batch_arg,)
+        task = TaskArgs(minibatch_i, batch_args=batch_args)
     return ScheduledTask(context_i, scheduled_i, epoch_start, task)
 
 
