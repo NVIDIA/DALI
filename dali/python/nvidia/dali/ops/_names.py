@@ -1,4 +1,4 @@
-# Copyright (c) 2023-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2023-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -124,37 +124,24 @@ def _get_variadic_input_name():
     return "inputs"
 
 
-# Mode spec, "Uniform inputs and arguments": some operators have a positional input and an
-# optional argument that represent the same value, differing only in device placement, e.g.
-# Reshape's `shape_input` (CPU-only) vs. its `shape` tensor-argument (also always CPU). Exposing
-# both separately in the dynamic (ndd) API is redundant, so for that API the input is hidden and
-# the argument is the single canonical, merged parameter for that value. The fn/ops APIs are
-# unaffected and keep exposing both, as before.
+# Dynamic (ndd) API only: optional positional inputs that carry the same value as named arguments.
+# Such an input is hidden from the generated ndd signature and docs, leaving the named argument(s)
+# as the canonical parameter, but it is still accepted positionally, so existing calls keep
+# working. The fn/ops APIs are unaffected.
 #
-# Only inputs that are CPU-only or CPU in practice (a GPU value is copied to the host inside the
-# operator) are merged. Inputs that the operator genuinely consumes on the GPU, such as
-# WarpAffine's `mtx`, stay visible: arguments are always CPU, so the input is the only way to keep
-# such a value on the GPU.
+# Maps a schema name to {input name (see `_get_input_name`): the named arguments it corresponds
+# to}. Only inputs that are CPU-only or CPU in practice (a GPU value is copied to the host inside
+# the operator) are listed. Arguments are always CPU, so an input that the operator consumes on the
+# GPU, such as WarpAffine's `mtx`, is the only way to keep that value on the GPU and stays visible.
+#
+# Slice's `anchor`/`shape` inputs (shared with `decoders.image_slice` through `SliceAttr`) are
+# interpreted by their dtype - integers are absolute, floats follow `normalized_anchor` and
+# `normalized_shape` - while the named arguments are absolute or relative by their name, so each of
+# them corresponds to an absolute and a relative argument. The inputs of the deprecated alias
+# `experimental.decoders.image_slice` have no names in its schema, hence `input_1`/`input_2`.
 MERGED_INPUT_ARGS = {
-    "Reshape": "shape_input",
-    "Reinterpret": "shape_input",
-}
-
-# Same idea as `MERGED_INPUT_ARGS`, but for operators where a single positional input is
-# redundant with more than one named argument at once (the named arguments being mutually
-# exclusive with each other, so at most one is ever actually given). Slice's `anchor` input
-# is equivalent to giving either `start` (absolute) or `rel_start` (relative); its `shape`
-# input (named `shape_input` once disambiguated from the `shape` argument, see
-# `_get_input_name`) is equivalent to giving either `shape` or `rel_shape`. `end`/`rel_end`
-# have no positional-input equivalent at all, so they are unaffected either way.
-# `decoders.image_slice` takes the same inputs and arguments (both share `SliceAttr`), and so does
-# its deprecated alias `experimental.decoders.image_slice`, whose inputs have no names in its
-# schema (hence `input_1`/`input_2`, see `_get_input_name`).
-#
-# Slice's own doc already discourages placing `anchor`/`shape` on GPU (it costs an extra D2H copy).
-# Note that the positional inputs are interpreted by dtype (integers are absolute, floats follow
-# `normalized_anchor`/`normalized_shape`), while the named arguments say absolute/relative by name.
-MERGED_MULTI_INPUT_ARGS = {
+    "Reshape": {"shape_input": ("shape",)},
+    "Reinterpret": {"shape_input": ("shape",)},
     "Slice": {
         "anchor": ("start", "rel_start"),
         "shape_input": ("shape", "rel_shape"),
@@ -170,27 +157,12 @@ MERGED_MULTI_INPUT_ARGS = {
 }
 
 
-def get_undocumented_merged_input_names(schema_name):
-    """Return the subset of `get_merged_input_names` that the dynamic API leaves out of the
-    generated `Args` docs.
-
-    The positional `anchor`/`shape_input` of Slice and `decoders.image_slice` stay documented:
-    their meaning depends on the input dtype (integers are absolute coordinates, floats are
-    relative or absolute depending on `normalized_anchor`/`normalized_shape`), unlike the named
-    `start`/`shape`/`rel_*` arguments, and `normalized_anchor`/`normalized_shape` refer to them.
-    """
-    return get_merged_input_names(schema_name) - set(MERGED_MULTI_INPUT_ARGS.get(schema_name, {}))
+def get_merged_inputs(schema_name):
+    """Return {input name: corresponding named arguments} for the inputs of `schema_name` that the
+    dynamic API hides behind named arguments (see `MERGED_INPUT_ARGS`); empty if none."""
+    return MERGED_INPUT_ARGS.get(schema_name, {})
 
 
 def get_merged_input_names(schema_name):
-    """Return the set of dynamic-API-hidden input names for `schema_name` (empty if none).
-
-    Combines `MERGED_INPUT_ARGS` (1 input <-> 1 argument) and `MERGED_MULTI_INPUT_ARGS`
-    (1 input <-> several mutually exclusive arguments).
-    """
-    names = set()
-    single = MERGED_INPUT_ARGS.get(schema_name)
-    if single is not None:
-        names.add(single)
-    names.update(MERGED_MULTI_INPUT_ARGS.get(schema_name, {}))
-    return names
+    """Return the set of dynamic-API-hidden input names for `schema_name` (empty if none)."""
+    return set(get_merged_inputs(schema_name))

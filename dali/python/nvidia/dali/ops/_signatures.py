@@ -238,9 +238,8 @@ def _filter_merged_input_params(param_list, schema, input_annotation_gen):
     generated positional-input `Parameter` list - dynamic (ndd) API only. Mirrors
     `dynamic._op_builder._filter_merged_inputs`; see there for the full rationale.
 
-    A trailing hard stop (no `Parameter.VAR_POSITIONAL` already present) is relaxed into a
-    generic variadic catch-all, since the hidden input(s) must stay reachable positionally in the
-    dynamic API's runtime signature.
+    Without a `Parameter.VAR_POSITIONAL` already present, a variadic catch-all is added, since the
+    hidden inputs are still accepted positionally by the dynamic API.
     """
     merged_input_names = _names.get_merged_input_names(schema.Name())
     if not merged_input_names:

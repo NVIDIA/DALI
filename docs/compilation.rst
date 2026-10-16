@@ -306,7 +306,7 @@ DALI tests consist of 2 parts: C++ (GTest) and Python (usually Nose, but that's 
   make check-gtest check-python
 
 Building DALI with Clang (Unofficial)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 .. note::
 
