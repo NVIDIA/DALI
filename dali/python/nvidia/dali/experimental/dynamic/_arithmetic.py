@@ -21,7 +21,6 @@ from ._call_site import mark_transparent, resolve_callsite_frame
 
 @functools.cache
 def _arithmetic_dunders():
-    # Comparisons are omitted for now because we'd need to handle chains and reverse orders
     binary_ops = (
         "add",
         "sub",
@@ -38,12 +37,15 @@ def _arithmetic_dunders():
         "matmul",
         "divmod",
     )
+    # Chains and reflections don't keep the source operand order, so constant operands of
+    # comparisons aren't captured
+    comparisons = ("eq", "ne", "lt", "le", "gt", "ge")
     unary_ops = ("neg", "pos", "abs", "invert")
 
     binary_dunders = (f"__{prefix}{stem}__" for stem in binary_ops for prefix in ("", "r"))
-    unary_dunders = (f"__{stem}__" for stem in unary_ops)
+    other_dunders = (f"__{stem}__" for stem in (*comparisons, *unary_ops))
 
-    return (*binary_dunders, *unary_dunders)
+    return (*binary_dunders, *other_dunders)
 
 
 def transparent_arithmetic(cls: type) -> type:
@@ -54,7 +56,13 @@ def transparent_arithmetic(cls: type) -> type:
     return cls
 
 
+@mark_transparent
 def _arithm_op(name: str, *args):
+    return _arithmetic_call(name)(*args)
+
+
+@mark_transparent
+def _eager_arithmetic(name, *args, batch_size=None, device=None, _backend=None, _caller_frame=None):
     from . import _arithmetic_generic_op
     from ._batch import Batch
     from ._tensor import Tensor, as_tensor
@@ -103,9 +111,66 @@ def _arithm_op(name: str, *args):
             desc.append(f"&{len(inputs)}")
             inputs.append(to_input(arg))
 
-    return _arithmetic_generic_op(
+    return _arithmetic_generic_op._eager_call(
         *inputs,
+        batch_size=batch_size,
+        device=device,
+        _backend=_backend,
+        _caller_frame=_caller_frame,
         expression_desc=f"{name}({' '.join(desc)})",
         integer_constants=integers or None,
         real_constants=reals or None,
     )
+
+
+@functools.cache
+def _arithmetic_call(name: str):
+    from . import _arithmetic_generic_op
+    from ._capture import _capture_intercept
+    from ._ops import Operator
+
+    class Arithmetic(Operator):
+        """Capture the original operands, before eager lowering converts them to tensors."""
+
+        _supported_backends = _arithmetic_generic_op._op_class._supported_backends
+        _argument_conversion_map = {}
+
+        @classmethod
+        def _legacy_op_kwargs(cls):
+            return {}  # no schema, and _legacy_op below takes no metadata
+
+        @staticmethod
+        def _legacy_op(*, device):
+            from nvidia.dali.data_node import DataNode
+            from nvidia.dali.ops._operators.math import _arithm_op as pipeline_arithmetic
+            from nvidia.dali import fn
+            from nvidia.dali.types import Constant, DALIDataType
+            from ._tensor import as_tensor
+            import numpy as np
+
+            def call(*args):
+                inputs = []
+                for arg in args:
+                    if not isinstance(arg, DataNode) and type(arg) not in (bool, int, float):
+                        # Use dynamic mode's dtype inference for tensor constants.
+                        tensor = as_tensor(arg)
+                        array = np.asarray(tensor.cpu())
+                        if array.dtype == np.float64:
+                            # fn.constant doesn't support float64, so pass the bits as int64
+                            arg = fn.reinterpret(
+                                Constant(
+                                    array.view(np.int64),
+                                    dtype=DALIDataType.INT64,
+                                    device=device,
+                                ),
+                                dtype=DALIDataType.FLOAT64,
+                            )
+                        else:
+                            arg = Constant(array, dtype=tensor.dtype.type_id, device=device)
+                    inputs.append(arg)
+                return pipeline_arithmetic(name, *inputs)
+
+            return call
+
+    eager = functools.partial(_eager_arithmetic, name)
+    return _capture_intercept(eager, Arithmetic, "arithmetic")
