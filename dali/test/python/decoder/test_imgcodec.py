@@ -499,7 +499,8 @@ def test_tiff_uint32_truncated_input():
     with open(uint32_file, "rb") as f:
         data = f.read()
 
-    for size in (256, len(data) // 2):
+    cases = ((256, "*nvImageCodec failure*"), (len(data) // 2, "*Failed to decode sample*"))
+    for size, msg in cases:
         with tempfile.NamedTemporaryFile(suffix=".tiff") as truncated_file:
             truncated_file.write(data[:size])
             truncated_file.flush()
@@ -514,7 +515,7 @@ def test_tiff_uint32_truncated_input():
 
             for device in ("cpu", "mixed"):
                 p = pipe(device)
-                assert_raises(RuntimeError, p.run)  # in_ifd / in_pixel_data
+                assert_raises(RuntimeError, p.run, glob=msg)
 
 
 def _signed_rgb_to_ycbcr_uint8_ref(rgb):

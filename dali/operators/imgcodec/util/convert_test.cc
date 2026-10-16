@@ -366,7 +366,7 @@ TEST_F(ConvertOrientationTest, FlipY) {
 // normalizes to Out first.
 class ConvertSignedSourceTest : public ::testing::Test {
  protected:
-  Tensor<CPUBackend> Convert(std::vector<int8_t> rgb, DALIImageType out_format,
+  Tensor<CPUBackend> Convert(const std::vector<int8_t> &rgb, DALIImageType out_format,
                               int out_channels) {
     TensorShape<> in_shape{1, 1, 3};
     ConstSampleView<CPUBackend> in_view(rgb.data(), in_shape, DALI_INT8);
