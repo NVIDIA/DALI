@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import functools
 import glob
 import math
 import numpy as np
@@ -19,6 +20,7 @@ import nvidia.dali.fn as fn
 import nvidia.dali.types as types
 import os
 import random
+import tempfile
 from nvidia.dali import pipeline_def
 
 from nose_utils import assert_raises, SkipTest
@@ -424,6 +426,260 @@ def test_tiff_palette():
 
     delta = np.abs(imgs.at(0).astype("float") - imgs.at(1).astype("float")) / 256
     assert np.quantile(delta, 0.9) < 0.05, "Original and palette TIFF differ significantly"
+
+
+def test_tiff_uint32():
+    tiff_dir = os.path.join(test_data_root, good_path, "tiff", "0")
+    ref_dir = os.path.join(test_data_root, "db/single/reference/tiff/0")
+    uint32_file = os.path.join(tiff_dir, "cat-300572_640_uint32.tiff")
+    ref = np.load(os.path.join(ref_dir, "cat-300572_640_uint32.tiff.npy"))
+
+    @pipeline_def(batch_size=1, device_id=0, num_threads=1)
+    def pipe(device):
+        encoded, _ = fn.readers.file(files=[uint32_file])
+        decoded = fn.experimental.decoders.image(
+            encoded, device=device, output_type=types.ANY_DATA, dtype=types.UINT32
+        )
+        return decoded
+
+    # Requesting dtype=UINT32 explicitly: the uint32 sample should decode natively, without
+    # downscaling to uint8. Compare the full-precision output against an independent reference
+    # decode (via tifffile), on both the cpu (libtiff) and mixed (nvtiff) backends.
+    for device in ("cpu", "mixed"):
+        p = pipe(device)
+        (out,) = p.run()
+        result = out.as_cpu().at(0)
+        assert result.dtype == np.uint32
+        np.testing.assert_array_equal(result, ref, err_msg=f"device={device}")
+
+
+def test_tiff_int32():
+    tiff_dir = os.path.join(test_data_root, good_path, "tiff_signed", "0")
+    ref_dir = os.path.join(test_data_root, "db/single/reference/tiff_signed/0")
+    int32_file = os.path.join(tiff_dir, "cat-300572_640_int32.tiff")
+    ref = np.load(os.path.join(ref_dir, "cat-300572_640_int32.tiff.npy"))
+
+    @pipeline_def(batch_size=1, device_id=0, num_threads=1)
+    def pipe(device):
+        encoded, _ = fn.readers.file(files=[int32_file])
+        decoded = fn.experimental.decoders.image(
+            encoded, device=device, output_type=types.ANY_DATA, dtype=types.INT32
+        )
+        return decoded
+
+    # The nvTIFF (mixed/GPU) backend decodes signed int32 TIFF; compare the full-precision
+    # output against an independent reference decode (via tifffile).
+    p = pipe("mixed")
+    (out,) = p.run()
+    result = out.as_cpu().at(0)
+    assert result.dtype == np.int32
+    np.testing.assert_array_equal(result, ref)
+
+    # Older nvImageCodec versions have a LibTIFF (cpu) extension that rejects signed TIFF sample
+    # formats; this is a separate, known limitation. Newer ones decode them, in which case the
+    # result must match the reference as well. Any other failure is a real error.
+    try:
+        (out,) = pipe("cpu").run()
+    except RuntimeError as e:
+        if "Failed to decode sample" not in str(e):
+            raise
+    else:
+        result = out.as_cpu().at(0)
+        assert result.dtype == np.int32
+        np.testing.assert_array_equal(result, ref, err_msg="device=cpu")
+
+
+def test_tiff_uint32_truncated_input():
+    # Invalid-input rejection: a truncated 32-bit TIFF must be rejected with an error rather than
+    # crashing or returning garbage, on both backends. Two cases: cut inside the header/IFD
+    # (metadata can't be parsed) and cut in the middle of the file, past the IFD, so that the
+    # metadata is fine but the pixel data is incomplete.
+    tiff_dir = os.path.join(test_data_root, good_path, "tiff", "0")
+    uint32_file = os.path.join(tiff_dir, "cat-300572_640_uint32.tiff")
+    with open(uint32_file, "rb") as f:
+        data = f.read()
+
+    cases = ((256, "*nvImageCodec failure*"), (len(data) // 2, "*Failed to decode sample*"))
+    for size, msg in cases:
+        with tempfile.NamedTemporaryFile(suffix=".tiff") as truncated_file:
+            truncated_file.write(data[:size])
+            truncated_file.flush()
+
+            @pipeline_def(batch_size=1, device_id=0, num_threads=1)
+            def pipe(device):
+                encoded, _ = fn.readers.file(files=[truncated_file.name])
+                decoded = fn.experimental.decoders.image(
+                    encoded, device=device, output_type=types.ANY_DATA, dtype=types.UINT32
+                )
+                return decoded
+
+            for device in ("cpu", "mixed"):
+                p = pipe(device)
+                assert_raises(RuntimeError, p.run, glob=msg)
+
+
+def _signed_rgb_to_ycbcr_uint8_ref(rgb):
+    """Reference conversion of a signed (SNORM) integer RGB image to a uint8 YCbCr image.
+
+    Signed samples are SNORM: value / max_value, clamped to [-1, 1]. Values not representable in
+    the (unsigned) output are saturated (i.e. negative values are clamped to 0), before the color
+    conversion -- the same as when decoding to RGB, which uses the same saturating normalization.
+    """
+    info = np.iinfo(rgb.dtype)
+    x = np.clip(rgb.astype(np.float64) / info.max, 0, 1)
+    r, g, b = x[..., 0], x[..., 1], x[..., 2]
+    y = 0.299 * r + 0.587 * g + 0.114 * b
+    cb = (b - y) * (0.5 / (1 - 0.114))
+    cr = (r - y) * (0.5 / (1 - 0.299))
+    # ITU-R BT.601, with footroom and headroom
+    return np.stack([16 + 219 * y, 128 + 224 * cb, 128 + 224 * cr], axis=-1)
+
+
+def _encode_int32_rgb_tiff(img):
+    """Encodes an (H, W, 3) int32 array as an uncompressed, single-strip, signed int32 RGB TIFF.
+
+    A minimal writer, so that the tests don't depend on any extra Python package.
+    """
+    import struct
+
+    h, w, c = img.shape
+    assert c == 3 and img.dtype == np.int32
+    pixels = img.astype("<i4").tobytes()
+    num_entries = 11
+    extra = 8 + 2 + num_entries * 12 + 4  # header + IFD (count, entries, next IFD offset)
+    bps_offset = extra  # BitsPerSample: 3 x SHORT
+    sf_offset = bps_offset + 6  # SampleFormat: 3 x SHORT
+    data_offset = sf_offset + 6
+
+    SHORT, LONG = 3, 4
+    entries = [
+        (256, LONG, 1, w),  # ImageWidth
+        (257, LONG, 1, h),  # ImageLength
+        (258, SHORT, 3, bps_offset),  # BitsPerSample
+        (259, SHORT, 1, 1),  # Compression: none
+        (262, SHORT, 1, 2),  # PhotometricInterpretation: RGB
+        (273, LONG, 1, data_offset),  # StripOffsets
+        (277, SHORT, 1, 3),  # SamplesPerPixel
+        (278, LONG, 1, h),  # RowsPerStrip
+        (279, LONG, 1, len(pixels)),  # StripByteCounts
+        (284, SHORT, 1, 1),  # PlanarConfiguration: chunky
+        (339, SHORT, 3, sf_offset),  # SampleFormat
+    ]
+    assert len(entries) == num_entries
+    out = struct.pack("<2sHI", b"II", 42, 8) + struct.pack("<H", num_entries)
+    for tag, typ, count, value in entries:
+        if typ == SHORT and count == 1:
+            out += struct.pack("<HHIHH", tag, typ, count, value, 0)
+        else:
+            out += struct.pack("<HHII", tag, typ, count, value)
+    out += struct.pack("<I", 0)
+    out += struct.pack("<3H", 32, 32, 32) + struct.pack("<3H", 2, 2, 2)  # int32 samples
+    assert len(out) == data_offset
+    return np.frombuffer(out + pixels, dtype=np.uint8)
+
+
+def _signed_tiff_test_images():
+    """Yields (name, encoded TIFF, raw RGB data) for signed integer TIFF test images."""
+    ref_dir = os.path.join(test_data_root, "db/single/reference/tiff_signed/0")
+    fixture = os.path.join(test_data_root, good_path, "tiff_signed", "0/cat-300572_640_int32.tiff")
+    fixture_ref = os.path.join(ref_dir, "cat-300572_640_int32.tiff.npy")
+    with open(fixture, "rb") as f:
+        encoded = np.frombuffer(f.read(), dtype=np.uint8)
+    yield "cat-300572_640_int32.tiff", encoded, np.load(fixture_ref)
+
+    # All combinations of edge values of each channel, as a synthetic image
+    info = np.iinfo(np.int32)
+    edge = [info.min, info.min + 1, -(info.max // 3), -1, 0, 1, info.max // 3, info.max]
+    combos = np.array(
+        [(r, g, b) for r in edge for g in edge for b in edge], dtype=np.int32
+    ).reshape(len(edge), len(edge) ** 2, 3)
+    yield "synthetic_int32", _encode_int32_rgb_tiff(combos), combos
+
+
+def _signed_tiff_decode_pipe(encoded, device, output_type):
+    @pipeline_def(batch_size=1, device_id=0, num_threads=1)
+    def pipe(encoded, device, output_type):
+        data = fn.external_source(source=lambda: [encoded], batch=True)
+        return fn.experimental.decoders.image(data, device=device, output_type=output_type)
+
+    return pipe(encoded, device, output_type, prefetch_queue_depth=1)
+
+
+@functools.lru_cache(maxsize=None)
+def _cpu_decodes_signed_tiff():
+    """Whether the cpu backend can decode a signed int32 TIFF at all.
+
+    Older nvImageCodec versions have a LibTIFF extension that rejects signed TIFF sample formats
+    (the underlying "Unsupported sample format" message is not propagated to Python, only the
+    "Failed to decode sample" wrapper). That is the only failure treated as "unsupported"; any
+    other error is re-raised so that it is not hidden.
+    """
+    encoded = _encode_int32_rgb_tiff(np.zeros((2, 2, 3), dtype=np.int32))
+    try:
+        _signed_tiff_decode_pipe(encoded, "cpu", types.ANY_DATA).run()
+        return True
+    except RuntimeError as e:
+        if "Failed to decode sample" in str(e):
+            return False
+        raise
+
+
+def test_tiff_signed_color_conversion():
+    """Decoding a signed integer TIFF to (uint8) YCbCr or GRAY.
+
+    The YCbCr output (converted by DALI) must match an independent reference on every backend
+    that can decode signed TIFFs. GRAY is requested directly from nvImageCodec (it is not
+    converted by DALI), so there is no DALI reference for it: only its type and shape are checked,
+    plus the agreement between backends, when more than one is available.
+
+    Signed samples are SNORM (value / max_value) and negative values are not representable in
+    the uint8 output, so they saturate to 0 before the color conversion. Before the fix, the CPU
+    color conversion ran the matrix directly on the raw signed samples, producing completely
+    different results than the GPU (e.g. Y=0, Cb=255, Cr=255 instead of Y=106, Cb=202, Cr=221
+    for the RGB pixel [2122218880, -2088533504, 2139061888]).
+
+    The mixed backend is always expected to work. The cpu backend is used only if the installed
+    nvImageCodec has a LibTIFF extension that can decode signed integer samples.
+    """
+    devices = ["mixed"] + (["cpu"] if _cpu_decodes_signed_tiff() else [])
+
+    def decode(encoded, device, output_type):
+        (out,) = _signed_tiff_decode_pipe(encoded, device, output_type).run()
+        return np.array(out.as_cpu().at(0))
+
+    for name, encoded, raw in _signed_tiff_test_images():
+        for output_type in (types.YCbCr, types.GRAY):
+            results = {}
+            for device in devices:
+                out = decode(encoded, device, output_type)
+                assert out.dtype == np.uint8
+                if output_type == types.YCbCr:
+                    ref = _signed_rgb_to_ycbcr_uint8_ref(raw)
+                    assert out.shape == ref.shape, f"{name} {device}: {out.shape} vs {ref.shape}"
+                    # The GPU normalizes to uint8 before the color conversion, so there's an
+                    # extra (intermediate) rounding step there.
+                    np.testing.assert_allclose(
+                        out, ref, atol=1, rtol=0, err_msg=f"{name} {device} {output_type}"
+                    )
+                else:
+                    assert out.shape == raw.shape[:2] + (1,), f"{name} {device}: {out.shape}"
+                results[device] = out.astype(np.int32)
+            if len(devices) > 1:
+                diff = np.abs(results["cpu"] - results["mixed"])
+                assert (
+                    diff.max() <= 1
+                ), f"{name} {output_type}: cpu and mixed differ by {diff.max()}"
+
+
+def test_decode_ycbcr_invalid_input():
+    """Empty and corrupt (non-image) input decoded to YCbCr must be rejected with a clear error on
+    both backends, not crash or return garbage."""
+    empty = np.empty((0,), dtype=np.uint8)
+    corrupt = np.frombuffer(b"not a TIFF file", dtype=np.uint8)
+    for encoded in (empty, corrupt):
+        for device in ("cpu", "mixed"):
+            p = _signed_tiff_decode_pipe(encoded, device, types.YCbCr)
+            assert_raises(RuntimeError, p.run, glob="*nvImageCodec failure*")
 
 
 def _testimpl_image_decoder_peek_shape(
