@@ -45,6 +45,19 @@ class DLL_PUBLIC FramesDecoderCpu : public FramesDecoderBase {
    */
   FramesDecoderCpu(const char *memory_file, size_t memory_file_size, std::string_view = {}, DALIImageType image_type = DALI_RGB);
 
+  /**
+   * @brief Construct a new FramesDecoder object.
+   *
+   * @param stream Input stream with video file data; the decoder takes ownership of it.
+   * @param source_info Source info of the video file.
+   * @param image_type Image type of the video.
+   *
+   * @note This constructor assumes that the stream covers the entire video file,
+   * including the header.
+   */
+  explicit FramesDecoderCpu(std::unique_ptr<InputStream> stream, std::string_view source_info = {},
+                            DALIImageType image_type = DALI_RGB);
+
   FramesDecoderCpu(FramesDecoderCpu&&) = default;
 
   bool ReadNextFrame(uint8_t *data) override;

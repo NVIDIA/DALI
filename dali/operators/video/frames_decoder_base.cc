@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,6 +18,8 @@
 #include "dali/core/error_handling.h"
 #include "dali/core/small_vector.h"
 #include "dali/operators/video/video_utils.h"
+#include "dali/util/file.h"
+#include "dali/util/uri.h"
 
 namespace dali {
 
@@ -70,7 +72,62 @@ int64_t seek_memory_video_file(void *data_ptr, int64_t new_position, int origin)
   return memory_video_file->Seek(new_position, origin);
 }
 
+// The callbacks below are called from libavformat (C code) - exceptions must not escape them.
+
+int read_input_stream(void *data_ptr, uint8_t *av_io_buffer, int av_io_buffer_size) {
+  InputStream *stream = static_cast<InputStream *>(data_ptr);
+  try {
+    // Some streams (e.g. S3) fail when asked to read past the end, so we check it here.
+    ssize_t left = stream->SSize() - stream->TellRead();
+    if (left <= 0)
+      return AVERROR_EOF;
+    size_t n = stream->Read(av_io_buffer, std::min<ssize_t>(left, av_io_buffer_size));
+    return n > 0 ? static_cast<int>(n) : AVERROR_EOF;
+  } catch (const std::exception &e) {
+    DALI_WARN(make_string("Error while reading video data: ", e.what()));
+    return AVERROR(EIO);
+  }
+}
+
+int64_t seek_input_stream(void *data_ptr, int64_t new_position, int origin) {
+  InputStream *stream = static_cast<InputStream *>(data_ptr);
+  try {
+    origin &= ~AVSEEK_FORCE;
+    switch (origin) {
+      case AVSEEK_SIZE:
+        return stream->Size();
+      case SEEK_SET:
+      case SEEK_CUR:
+      case SEEK_END:
+        stream->SeekRead(new_position, origin);
+        return stream->TellRead();
+      default:
+        return AVERROR(EINVAL);
+    }
+  } catch (const std::out_of_range &) {
+    return AVERROR(EINVAL);
+  } catch (const std::exception &e) {
+    DALI_WARN(make_string("Error while seeking in video data: ", e.what()));
+    return AVERROR(EIO);
+  }
+}
+
 }  // namespace detail
+
+namespace {
+
+/**
+ * @brief Checks whether the path should be opened with FileStream::Open instead of libavformat.
+ *
+ * libavformat is built only with the "file" protocol, so any other scheme (e.g. s3://, gs://)
+ * is handled by DALI's FileStream.
+ */
+bool IsRemotePath(const std::string &path) {
+  auto uri = URI::Parse(path, URI::ParseOpts::AllowNonEscaped);
+  return uri.valid() && uri.scheme() != "file";
+}
+
+}  // namespace
 
 int FramesDecoderBase::OpenFile(const std::string& filename) {
   LOG_LINE << "Opening file " << filename << std::endl;
@@ -86,21 +143,43 @@ int FramesDecoderBase::OpenFile(const std::string& filename) {
 
 int FramesDecoderBase::OpenMemoryFile(MemoryVideoFile &memory_video_file) {
   LOG_LINE << "Opening memory file" << std::endl;
+  static constexpr int DEFAULT_AV_BUFFER_SIZE = (1 << 15);
+  return OpenCustomIO(&memory_video_file,
+                      detail::read_memory_video_file,
+                      detail::seek_memory_video_file,
+                      DEFAULT_AV_BUFFER_SIZE);
+}
+
+int FramesDecoderBase::OpenInputStream(InputStream &stream) {
+  LOG_LINE << "Opening input stream" << std::endl;
+  // libavformat assumes that the stream starts at the current position
+  stream.SeekRead(0, SEEK_SET);
+  // Each read may result in a separate request to a remote storage, so we use a larger buffer.
+  static constexpr int INPUT_STREAM_AV_BUFFER_SIZE = (1 << 20);
+  return OpenCustomIO(&stream,
+                      detail::read_input_stream,
+                      detail::seek_input_stream,
+                      INPUT_STREAM_AV_BUFFER_SIZE);
+}
+
+int FramesDecoderBase::OpenCustomIO(void *opaque,
+                                    int (*read_packet)(void *opaque, uint8_t *buf, int buf_size),
+                                    int64_t (*seek)(void *opaque, int64_t offset, int whence),
+                                    int buffer_size) {
   ctx_.reset(avformat_alloc_context());
   DALI_ENFORCE(ctx_, "Could not alloc avformat context");
 
-  static constexpr int DEFAULT_AV_BUFFER_SIZE = (1 << 15);
-  uint8_t* buffer = static_cast<uint8_t*>(av_malloc(DEFAULT_AV_BUFFER_SIZE));
+  uint8_t* buffer = static_cast<uint8_t*>(av_malloc(buffer_size));
   DALI_ENFORCE(buffer, "Could not alloc avio context buffer");
 
   auto avio_ctx = avio_alloc_context(
     buffer,
-    DEFAULT_AV_BUFFER_SIZE,
+    buffer_size,
     0,
-    &memory_video_file,
-    detail::read_memory_video_file,
+    opaque,
+    read_packet,
     nullptr,
-    detail::seek_memory_video_file);
+    seek);
 
   if (!avio_ctx) {
     av_freep(&buffer);
@@ -218,7 +297,13 @@ FramesDecoderBase::FramesDecoderBase(const std::string &filename, DALIImageType 
   DALI_ENFORCE(image_type == DALI_YCbCr || image_type == DALI_RGB,
                make_string("Invalid image type: ", image_type));
   image_type_ = image_type;
-  int ret = OpenFile(filename);
+  int ret = -1;
+  if (IsRemotePath(filename)) {
+    input_stream_ = FileStream::Open(filename);
+    ret = OpenInputStream(*input_stream_);
+  } else {
+    ret = OpenFile(filename);
+  }
   if (ret < 0) {
     DALI_WARN(make_string("Failed to open video file \"", Filename(), "\", due to ",
                           av_error_string(ret)));
@@ -243,6 +328,30 @@ FramesDecoderBase::FramesDecoderBase(const char *memory_file, size_t memory_file
   int ret = OpenMemoryFile(*memory_video_file_);
   if (ret < 0) {
     DALI_WARN(make_string("Failed to open video file from memory buffer due to: ",
+                          av_error_string(ret)));
+    return;
+  }
+
+  packet_.reset(av_packet_alloc());
+  DALI_ENFORCE(packet_, "Could not allocate av packet");
+
+  is_valid_ = true;
+  can_seek_ = true;
+  next_frame_idx_ = 0;
+}
+
+FramesDecoderBase::FramesDecoderBase(std::unique_ptr<InputStream> stream,
+                                     std::string_view source_info, DALIImageType image_type) {
+  av_log_set_level(AV_LOG_ERROR);
+  filename_ = source_info;
+  DALI_ENFORCE(stream, "The input stream must not be null");
+  DALI_ENFORCE(image_type == DALI_YCbCr || image_type == DALI_RGB,
+               make_string("Invalid image type: ", image_type));
+  image_type_ = image_type;
+  input_stream_ = std::move(stream);
+  int ret = OpenInputStream(*input_stream_);
+  if (ret < 0) {
+    DALI_WARN(make_string("Failed to open video file \"", Filename(), "\" due to: ",
                           av_error_string(ret)));
     return;
   }
@@ -480,6 +589,11 @@ void FramesDecoderBase::Reset() {
     DALI_ENFORCE(ret >= 0,
                  make_string("Could not open video file from memory buffer due to: ",
                              av_error_string(ret)));
+  } else if (input_stream_) {
+    ret = OpenInputStream(*input_stream_);
+    DALI_ENFORCE(ret >= 0,
+                 make_string("Could not open video file \"", Filename(),
+                    "\" due to: ", av_error_string(ret)));
   } else {
     ret = OpenFile(Filename());
     DALI_ENFORCE(ret >= 0,

@@ -151,6 +151,20 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
                    std::string_view source_info = {}, cudaStream_t stream = 0,
                    DALIImageType image_type = DALI_RGB);
 
+  /**
+   * @brief Construct a new FramesDecoder object.
+   *
+   * @param input_stream Input stream with video file data; the decoder takes ownership of it.
+   * @param source_info Source info of the video file.
+   * @param stream CUDA stream to use for decoding.
+   * @param image_type Image type of the video.
+   * @note This constructor assumes that the input stream covers the entire video file,
+   * including the header.
+   */
+  explicit FramesDecoderGpu(std::unique_ptr<InputStream> input_stream,
+                            std::string_view source_info = {}, cudaStream_t stream = 0,
+                            DALIImageType image_type = DALI_RGB);
+
   bool ReadNextFrame(uint8_t *data) override;
 
   void SeekFrame(int frame_id) override;
