@@ -76,9 +76,8 @@ def _filter_merged_inputs(inputs, schema_name):
     because, before this filtering, the merged input(s) made `num_separate_inputs == max_inputs` -
     is relaxed back into a "*inputs" positional catch-all once the input is hidden by name. The
     hidden input(s) were reachable positionally before the merge (`reshape(x, shape_tensor)`,
-    `slice(x, 0.1, 0.5, axes=...)`, `warp_affine(img, mtx)`), so hiding them by name must not
-    also take away the positional slots, or backward-compatible positional calls break. A
-    positional input is also the only way to place such a value on the GPU: arguments are CPU-only.
+    `slice(x, 0.1, 0.5, axes=...)`), so hiding them by name must not also take away the
+    positional slots, or backward-compatible positional calls break.
     """
     merged_input_names = _get_merged_input_names(schema_name)
     if not merged_input_names:

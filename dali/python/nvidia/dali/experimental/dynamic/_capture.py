@@ -941,7 +941,6 @@ def _wire_capture_graph(
         # Cast kwargs when necessary
         for name, dtype in node.kwarg_casts.items():
             kw_nodes[name] = fn.cast(kw_nodes[name], dtype=dtype)
-
         # All kwargs need to be on the CPU
         for name, kw_node in kw_nodes.items():
             kw_nodes[name] = kw_node.cpu()

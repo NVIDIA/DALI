@@ -38,8 +38,8 @@ def _positional_inputs(schema_name, api):
 
 
 @params(
-    ("WarpAffine", ["mtx"]),
     ("Slice", ["anchor", "shape_input"]),
+    ("decoders__ImageSlice", ["anchor", "shape_input"]),
     ("Reshape", ["shape_input"]),
     ("Reinterpret", ["shape_input"]),
 )
@@ -56,8 +56,8 @@ def test_dynamic_signature_hides_merged_inputs_but_keeps_catchall(schema_name, m
 
 
 @params(
-    ("WarpAffine", ["mtx"]),
     ("Slice", ["anchor", "shape_input"]),
+    ("decoders__ImageSlice", ["anchor", "shape_input"]),
     ("Reshape", ["shape_input"]),
     ("Reinterpret", ["shape_input"]),
 )
@@ -73,15 +73,25 @@ def _inputs_doc(schema_name, api):
     return _docs._get_inputs_doc(_b.GetSchema(schema_name), api)
 
 
-def test_dynamic_docs_keep_slice_positional_inputs():
+@params("Slice", "decoders__ImageSlice")
+def test_dynamic_docs_keep_slice_positional_inputs(schema_name):
     """Slice's positional `anchor`/`shape_input` are still accepted by the dynamic API and, unlike
     the named `start`/`shape`/`rel_*` arguments, are interpreted by their dtype, so they stay
     documented (`normalized_anchor`/`normalized_shape` refer to them)."""
-    doc = _inputs_doc("Slice", "dynamic")
+    doc = _inputs_doc(schema_name, "dynamic")
     assert "anchor :" in doc and "shape_input :" in doc
 
 
-@params(("WarpAffine", "mtx"), ("Reshape", "shape_input"), ("Reinterpret", "shape_input"))
+@params(("Reshape", "shape_input"), ("Reinterpret", "shape_input"))
 def test_dynamic_docs_hide_other_merged_inputs(schema_name, merged):
     assert f"{merged} :" not in _inputs_doc(schema_name, "dynamic")
     assert f"{merged} :" in _inputs_doc(schema_name, "fn")
+
+
+def test_warp_affine_gpu_matrix_input_is_not_merged():
+    """WarpAffine's `mtx` input is consumed on the GPU, unlike the merged inputs above, and is the
+    only way to keep the matrix on the GPU (arguments are always CPU). It stays a visible input."""
+    assert not _names.get_merged_input_names("WarpAffine")
+    names = [name for name, _ in _positional_inputs("WarpAffine", "dynamic")]
+    assert "mtx" in names, names
+    assert "mtx :" in _inputs_doc("WarpAffine", "dynamic")
