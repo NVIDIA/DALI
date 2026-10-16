@@ -1348,6 +1348,20 @@ def test_nested_datanode_error_math():
         _ = err_pipe()
 
 
+@params(("[[v]]",), ("([v],)",), ("[1, [2, [v]]]",))
+def test_deeply_nested_datanode_error_math(nested):
+    @pipeline_def(device_id=None, batch_size=1, num_threads=4)
+    def err_pipe():
+        u = fn.random.uniform(range=[0, 1])  # noqa(F841)
+        v = fn.random.uniform(range=[0, 1])  # noqa(F841)
+        return math.max(eval(nested), 5)
+
+    with assert_raises(
+        TypeError, glob="input 0 of operator `max` must be*" "Got a `*` with nested *DataNode"
+    ):
+        _ = err_pipe()
+
+
 @params(
     *(
         (x,)
