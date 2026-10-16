@@ -147,7 +147,9 @@ MERGED_INPUT_ARGS = {
 # input (named `shape_input` once disambiguated from the `shape` argument, see
 # `_get_input_name`) is equivalent to giving either `shape` or `rel_shape`. `end`/`rel_end`
 # have no positional-input equivalent at all, so they are unaffected either way.
-# `decoders.image_slice` takes the same inputs and arguments (both share `SliceAttr`).
+# `decoders.image_slice` takes the same inputs and arguments (both share `SliceAttr`), and so does
+# its deprecated alias `experimental.decoders.image_slice`, whose inputs have no names in its
+# schema (hence `input_1`/`input_2`, see `_get_input_name`).
 #
 # Slice's own doc already discourages placing `anchor`/`shape` on GPU (it costs an extra D2H copy).
 # Note that the positional inputs are interpreted by dtype (integers are absolute, floats follow
@@ -160,6 +162,10 @@ MERGED_MULTI_INPUT_ARGS = {
     "decoders__ImageSlice": {
         "anchor": ("start", "rel_start"),
         "shape_input": ("shape", "rel_shape"),
+    },
+    "experimental__decoders__ImageSlice": {
+        "input_1": ("start", "rel_start"),
+        "input_2": ("shape", "rel_shape"),
     },
 }
 

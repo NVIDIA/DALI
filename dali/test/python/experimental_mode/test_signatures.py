@@ -40,6 +40,7 @@ def _positional_inputs(schema_name, api):
 @params(
     ("Slice", ["anchor", "shape_input"]),
     ("decoders__ImageSlice", ["anchor", "shape_input"]),
+    ("experimental__decoders__ImageSlice", ["input_1", "input_2"]),
     ("Reshape", ["shape_input"]),
     ("Reinterpret", ["shape_input"]),
 )
@@ -50,7 +51,7 @@ def test_dynamic_signature_hides_merged_inputs_but_keeps_catchall(schema_name, m
     names = [name for name, _ in inputs]
     for name in merged:
         assert name not in names, f"{name!r} still advertised in {names}"
-    assert inputs[0] == ("data", Parameter.POSITIONAL_ONLY)
+    assert inputs[0][1] == Parameter.POSITIONAL_ONLY  # the data input ("input_0" in the alias)
     assert inputs[-1] == (_VARIADIC, Parameter.VAR_POSITIONAL)
     assert len(inputs) == 2
 
@@ -58,6 +59,7 @@ def test_dynamic_signature_hides_merged_inputs_but_keeps_catchall(schema_name, m
 @params(
     ("Slice", ["anchor", "shape_input"]),
     ("decoders__ImageSlice", ["anchor", "shape_input"]),
+    ("experimental__decoders__ImageSlice", ["input_1", "input_2"]),
     ("Reshape", ["shape_input"]),
     ("Reinterpret", ["shape_input"]),
 )
