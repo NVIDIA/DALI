@@ -1,4 +1,4 @@
-// Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2025-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -89,6 +89,8 @@ daliResult_t HandleError(std::exception_ptr ex) {
     std::rethrow_exception(std::move(ex));
   } catch (dali::c_api::InvalidHandle &e) {
     return SetLastError(DALI_ERROR_INVALID_HANDLE, e.what());
+  } catch (dali::c_api::Unloading &e) {
+    return SetLastError(DALI_ERROR_UNLOADING, e.what());
   } catch (dali::invalid_key &e) {
     return SetLastError(DALI_ERROR_INVALID_KEY, e.what());
   } catch (dali::CUDAError &e) {
