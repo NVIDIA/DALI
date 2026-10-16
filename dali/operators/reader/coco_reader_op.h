@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -42,6 +42,7 @@ class COCOReader : public DataReader<CPUBackend, ImageLabelWrapper, ImageLabelWr
 
   bool output_polygon_masks_ = false;
   bool output_pixelwise_masks_ = false;
+  bool output_keypoints_ = false;
   bool output_image_ids_ = false;
 
   bool legacy_polygon_format_ = false;
