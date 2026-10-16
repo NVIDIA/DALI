@@ -144,8 +144,14 @@ def _encoded_image():
 
 
 @eval_modes()
-@params("cpu", "gpu")
-def test_decoder_image_slice_positional_and_named_forms_match(device):
+@params(
+    *(
+        (op, device)
+        for op in (ndd.decoders.image_slice, ndd.experimental.decoders.image_slice)
+        for device in ("cpu", "gpu")
+    )
+)
+def test_decoder_image_slice_positional_and_named_forms_match(op, device):
     if device == "gpu":
         _skip_if_no_gpu()
     encoded = _encoded_image()
@@ -153,7 +159,7 @@ def test_decoder_image_slice_positional_and_named_forms_match(device):
     expected = full[20:120, 30:230]
     anchor = _t([20, 30], np.int32)
     shape = _t([100, 200], np.int32)
-    positional = ndd.decoders.image_slice(encoded, anchor, shape, axes=[0, 1], device=device)
-    named = ndd.decoders.image_slice(encoded, start=anchor, shape=shape, axes=[0, 1], device=device)
+    positional = op(encoded, anchor, shape, axes=[0, 1], device=device)
+    named = op(encoded, start=anchor, shape=shape, axes=[0, 1], device=device)
     np.testing.assert_array_equal(_to_numpy(positional), expected)
     np.testing.assert_array_equal(_to_numpy(named), expected)
