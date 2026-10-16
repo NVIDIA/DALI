@@ -670,11 +670,6 @@ class CaptureContext:
         node = self._call_trie.lookup(frame, op_class)
         if node is None:
             return None
-        if device != node.device:
-            raise RuntimeError(
-                f"Captured operator was traced with device={node.device} but called with "
-                f"device={device}. Cannot change device in capture mode."
-            )
         if len(inputs) != len(node.inputs):
             return None
         if not all(self._matches(a, e) for a, e in zip(inputs, node.inputs)):
@@ -684,6 +679,12 @@ class CaptureContext:
             return None
         if not all(self._matches(kwargs[name], expected) for name, expected in node.kwargs.items()):
             return None
+        # Checked last: a compacted key can also match calls that were never traced
+        if device != node.device:
+            raise RuntimeError(
+                f"Captured operator was traced with device={node.device} but called with "
+                f"device={device}. Cannot change device in capture mode."
+            )
         return node
 
     def _resolve_random_call(self, node: CaptureNode | None, rng: _random.RNG) -> Any | None:
