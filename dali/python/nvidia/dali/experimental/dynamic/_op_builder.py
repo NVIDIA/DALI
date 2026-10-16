@@ -64,22 +64,16 @@ def _scalar_decay(x):
 
 _unsupported_args = {"bytes_per_sample_hint", "preserve"}
 
-# See nvidia.dali.ops._names.MERGED_INPUT_ARGS / MERGED_MULTI_INPUT_ARGS for the rationale.
-_get_merged_input_names = _names.get_merged_input_names
-
 
 def _filter_merged_inputs(inputs, schema_name):
-    """Hide the inputs merged into arguments (see `_names.get_merged_input_names`) from a
-    generated `inputs` header list.
+    """Hide the inputs merged into arguments (see `_names.MERGED_INPUT_ARGS`) from a generated
+    `inputs` header list.
 
-    The trailing "*" (hard stop on further positional args) that `_get_inputs` may have picked -
-    because, before this filtering, the merged input(s) made `num_separate_inputs == max_inputs` -
-    is relaxed back into a "*inputs" positional catch-all once the input is hidden by name. The
-    hidden input(s) were reachable positionally before the merge (`reshape(x, shape_tensor)`,
-    `slice(x, 0.1, 0.5, axes=...)`), so hiding them by name must not also take away the
-    positional slots, or backward-compatible positional calls break.
+    The hidden inputs are still accepted positionally (`reshape(x, shape_tensor)`,
+    `slice(x, anchor, shape)`), so a trailing "*" (no further positional arguments) is relaxed
+    into a "*inputs" positional catch-all. The operator rejects more inputs than it accepts.
     """
-    merged_input_names = _get_merged_input_names(schema_name)
+    merged_input_names = _names.get_merged_input_names(schema_name)
     if not merged_input_names:
         return inputs
     inputs = [i for i in inputs if i.split("=", 1)[0] not in merged_input_names]

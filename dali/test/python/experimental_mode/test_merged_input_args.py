@@ -12,9 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Regression tests for the dynamic (ndd) API's "uniform inputs and arguments" merge
-(`nvidia.dali.ops._names.MERGED_INPUT_ARGS` et al.): positional inputs that duplicate a named
-argument are hidden from the ndd signature, but are still accepted positionally.
+"""Inputs hidden from the dynamic (ndd) API (`nvidia.dali.ops._names.MERGED_INPUT_ARGS`) are still
+accepted positionally and give the same results as the named arguments they stand for. The
+signatures and docs are checked in `test_signatures.py`.
 """
 
 import os
@@ -24,7 +24,7 @@ import nvidia.dali.backend as _backend
 import nvidia.dali.experimental.dynamic as ndd
 from nose2.tools import params
 from ndd_utils import eval_modes
-from nose_utils import SkipTest
+from nose_utils import SkipTest, assert_raises
 from test_utils import get_dali_extra_path
 
 
@@ -51,6 +51,17 @@ def test_reshape_like_positional_shape_still_works(op):
     named = op(data, shape=shape)
     assert tuple(positional.shape) == (2, 12)
     np.testing.assert_array_equal(_to_numpy(positional), _to_numpy(named))
+
+
+def test_extra_positional_inputs_are_rejected():
+    """The positional catch-all does not lift the operator's limit on the number of inputs."""
+    data = ndd.tensor(np.arange(24, dtype=np.float32))
+    shape = ndd.tensor(np.array([2, 12], dtype=np.int32))
+    with assert_raises(ValueError, glob="*expects from 1 to 2 inputs, but received 3*"):
+        _to_numpy(ndd.reshape(data, shape, shape))
+    image = ndd.tensor(np.zeros((4, 4), dtype=np.uint8))
+    with assert_raises(ValueError, glob="*expects from 1 to 3 inputs, but received 4*"):
+        _to_numpy(ndd.slice(image, shape, shape, shape))
 
 
 # --- Slice: positional inputs are interpreted by dtype, named arguments by name ---
