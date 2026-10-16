@@ -135,6 +135,10 @@ def _arithmetic_call(name: str):
         _supported_backends = _arithmetic_generic_op._op_class._supported_backends
         _argument_conversion_map = {}
 
+        @classmethod
+        def _legacy_op_kwargs(cls):
+            return {}  # no schema, and _legacy_op below takes no metadata
+
         @staticmethod
         def _legacy_op(*, device):
             from nvidia.dali.data_node import DataNode
