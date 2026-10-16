@@ -70,29 +70,32 @@ def _get_inputs_doc(schema, api):
 Args
 ----
 """
+    merged_inputs = _names.get_merged_inputs(schema.Name()) if api == "dynamic" else {}
     if schema.HasInputDox():
         for i in range(schema.MaxNumInput()):
+            input_name = _names._get_input_name(schema, i)
+            if input_name in merged_inputs:
+                continue
             optional = i >= schema.MinNumInput()
             input_type_str = schema.GetInputType(i) + _supported_layouts_str(
                 schema.GetSupportedLayouts(i)
             )
             dox = schema.GetInputDox(i)
-            input_name = _names._get_input_name(schema, i)
             dox = _numpydoc_formatter(input_name, input_type_str, dox, optional)
             dox = _adjust_dox(dox, api)
             ret += dox + "\n"
     else:
         for i in range(schema.MinNumInput()):
+            input_name = _names._get_input_name(schema, i)
             input_type_str = _input_type(api) + _supported_layouts_str(
                 schema.GetSupportedLayouts(i)
             )
             dox = "Input to the operator."
-            input_name = _names._get_input_name(schema, i)
             dox = _numpydoc_formatter(input_name, input_type_str, dox, False)
             dox = _adjust_dox(dox, api)
             ret += dox + "\n"
 
-        extra_opt_args = schema.MaxNumInput() - schema.MinNumInput()
+        extra_opt_args = 0 if merged_inputs else schema.MaxNumInput() - schema.MinNumInput()
         if extra_opt_args == 1:
             i = schema.MinNumInput()
             input_type_str = _input_type(api) + _supported_layouts_str(
@@ -110,8 +113,40 @@ Args
             dox = _adjust_dox(dox, api)
             ret += _numpydoc_formatter(input_name, input_type_str, dox, True) + "\n"
 
+    if merged_inputs:
+        ret += _merged_inputs_doc(schema, merged_inputs, api) + "\n"
     ret += "\n"
     return ret
+
+
+def _merged_inputs_doc(schema, merged_inputs, api):
+    """Document the optional inputs that the dynamic API hides behind named arguments (see
+    `_names.MERGED_INPUT_ARGS`) as the `*inputs` entry of its signature, which accepts them."""
+    entries = []
+    details = []
+    for i in range(schema.MaxNumInput()):
+        input_name = _names._get_input_name(schema, i)
+        if input_name not in merged_inputs:
+            continue
+        args = " / ".join(f"`{arg}`" for arg in merged_inputs[input_name])
+        entries.append(f"``{input_name}`` (instead of {args})")
+        if schema.HasInputDox():
+            details.append(f"``{input_name}`` ({schema.GetInputType(i)}): {schema.GetInputDox(i)}")
+    if len(entries) == 1:
+        dox = f"An optional positional input: {entries[0]}."
+    else:
+        # All the multi-input merges (Slice-like operators) take their inputs all or none.
+        dox = (
+            "Optional positional inputs, given together in this order: " + ", ".join(entries) + "."
+        )
+    dox += (
+        " Accepted for compatibility with the ``fn`` API, as an alternative to the named arguments."
+    )
+    if details:
+        dox += "\n\n" + "\n\n".join(details)
+    dox = _adjust_dox(dox, api)
+    variadic_name = "*" + _names._get_variadic_input_name()
+    return _numpydoc_formatter(variadic_name, _input_type(api), dox, optional=True)
 
 
 def _get_batch_size_doc():
