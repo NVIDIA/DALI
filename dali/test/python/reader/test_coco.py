@@ -643,10 +643,42 @@ def test_coco_keypoints_preprocessed_annotations_missing():
         save_pipe().run()
         pipe = coco_keypoints_pipe(file_root=file_root, preprocessed_annotations=preprocessed_dir)
         assert_raises(
-            RuntimeError,
+            ValueError,
             pipe.run,
             glob="*Keypoints were requested, but the preprocessed annotations*",
         )
+
+
+def test_coco_keypoints_preprocessed_annotations_overwrite():
+    with tempfile.TemporaryDirectory() as root:
+        _write_keypoints_dataset(root)
+        preprocessed_dir = os.path.join(root, "preprocessed")
+        os.makedirs(preprocessed_dir)
+        file_root = os.path.join(root, "images")
+        data_file = os.path.join(root, "annotations.json")
+        _run_keypoints_pipe(
+            file_root=file_root,
+            annotations_file=data_file,
+            save_preprocessed_annotations=True,
+            save_preprocessed_annotations_dir=preprocessed_dir,
+        )
+        with open(data_file) as f:
+            data = json.load(f)
+        for a in data["annotations"]:
+            a.pop("keypoints", None)
+        with open(data_file, "w") as f:
+            json.dump(data, f)
+        _run_keypoints_pipe(
+            file_root=file_root,
+            annotations_file=data_file,
+            save_preprocessed_annotations=True,
+            save_preprocessed_annotations_dir=preprocessed_dir,
+        )
+        results = _run_keypoints_pipe(
+            file_root=file_root, preprocessed_annotations=preprocessed_dir
+        )
+    for boxes, _, keypoints in results.values():
+        assert keypoints.shape == (boxes.shape[0], 0, 3), keypoints.shape
 
 
 @params(

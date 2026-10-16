@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <cstdio>
 #include <list>
 #include <map>
 #include <stdexcept>
@@ -503,7 +504,10 @@ void CocoLoader::SavePreprocessedAnnotations(
 
   if (output_keypoints_) {
     SaveToFile(std::vector<int>{num_keypoints_}, path + "/num_keypoints.dat");
-    SaveToFile(keypoints_, path + "/keypoints.dat");
+    if (keypoints_.empty())
+      std::remove((path + "/keypoints.dat").c_str());
+    else
+      SaveToFile(keypoints_, path + "/keypoints.dat");
   }
 
   if (output_image_ids_) {
@@ -544,16 +548,17 @@ void CocoLoader::ParsePreprocessedAnnotations() {
   if (output_keypoints_) {
     std::vector<int> num_keypoints;
     LoadFromFile(num_keypoints, path + "/num_keypoints.dat");
-    DALI_ENFORCE(num_keypoints.size() == 1,
-        make_string("Keypoints were requested, but the preprocessed annotations in \"", path,
-                    "\" don't contain them. Preprocessed annotations must be saved with "
-                    "``keypoints`` enabled."));
+    if (num_keypoints.size() != 1)
+      throw std::invalid_argument(make_string(
+          "Keypoints were requested, but the preprocessed annotations in \"", path,
+          "\" don't contain them. Preprocessed annotations must be saved with "
+          "``keypoints`` enabled."));
     num_keypoints_ = num_keypoints[0];
     LoadFromFile(keypoints_, path + "/keypoints.dat");
-    DALI_ENFORCE(keypoints_.size() == boxes_.size() / 4 * num_keypoints_ * 3,
-        make_string("Corrupted preprocessed keypoints in \"", path, "\": expected ",
-                    boxes_.size() / 4 * num_keypoints_ * 3, " values, got ", keypoints_.size(),
-                    "."));
+    if (keypoints_.size() != boxes_.size() / 4 * num_keypoints_ * 3)
+      throw std::runtime_error(make_string(
+          "Corrupted preprocessed keypoints in \"", path, "\": expected ",
+          boxes_.size() / 4 * num_keypoints_ * 3, " values, got ", keypoints_.size(), "."));
   }
 
   if (output_image_ids_) {
