@@ -993,7 +993,7 @@ def _capture_intercept(
         # `_op_builder._MERGED_ARG_GPU_INPUT`), or it silently picks CPU. Only a copy is routed:
         # capture classification maps `inputs`/`raw_kwargs` back to the call's source by
         # position/name, so the actual routing is left to `fn_call`.
-        backend_inputs = _route_gpu_merged_arg(op_class._schema_name, inputs, dict(raw_kwargs))
+        backend_inputs = _route_gpu_merged_arg(op_class, inputs, dict(raw_kwargs), cast=False)
         device, backend = _resolve_backend(op_class, device, backend_inputs, op_name=op_name)
         capture_ctx = CaptureContext.current()
         if capture_ctx is None or capture_ctx.state is State.DISABLED:

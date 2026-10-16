@@ -22,7 +22,7 @@ from inspect import Parameter
 
 import nvidia.dali.backend as _b
 from nose2.tools import params
-from nvidia.dali.ops import _names, _signatures
+from nvidia.dali.ops import _docs, _names, _signatures
 
 _VARIADIC = _names._get_variadic_input_name()
 
@@ -40,10 +40,12 @@ def _positional_inputs(schema_name, api):
 @params(
     ("WarpAffine", ["mtx"]),
     ("Slice", ["anchor", "shape_input"]),
+    ("Reshape", ["shape_input"]),
+    ("Reinterpret", ["shape_input"]),
 )
 def test_dynamic_signature_hides_merged_inputs_but_keeps_catchall(schema_name, merged):
-    """GPU-routable (WarpAffine) and multi-input (Slice) merges keep a positional catch-all at
-    runtime (see `dynamic._op_builder._filter_merged_inputs`), so the typing must too."""
+    """Every merge keeps a positional catch-all at runtime (see
+    `dynamic._op_builder._filter_merged_inputs`), so the typing must too."""
     inputs = _positional_inputs(schema_name, "dynamic")
     names = [name for name, _ in inputs]
     for name in merged:
@@ -51,14 +53,6 @@ def test_dynamic_signature_hides_merged_inputs_but_keeps_catchall(schema_name, m
     assert inputs[0] == ("data", Parameter.POSITIONAL_ONLY)
     assert inputs[-1] == (_VARIADIC, Parameter.VAR_POSITIONAL)
     assert len(inputs) == 2
-
-
-@params("Reshape", "Reinterpret")
-def test_dynamic_signature_hides_merged_input_without_catchall(schema_name):
-    """Non-GPU-routable single-input merges drop the positional slot at runtime; the typing
-    must not advertise it (neither by name nor through a catch-all)."""
-    inputs = _positional_inputs(schema_name, "dynamic")
-    assert inputs == [("data", Parameter.POSITIONAL_ONLY)]
 
 
 @params(
@@ -73,3 +67,21 @@ def test_fn_signature_keeps_merged_inputs(schema_name, merged):
         names = [name for name, _ in _positional_inputs(schema_name, api)]
         for name in merged:
             assert name in names, f"{name!r} missing from {api} signature {names}"
+
+
+def _inputs_doc(schema_name, api):
+    return _docs._get_inputs_doc(_b.GetSchema(schema_name), api)
+
+
+def test_dynamic_docs_keep_slice_positional_inputs():
+    """Slice's positional `anchor`/`shape_input` are still accepted by the dynamic API and, unlike
+    the named `start`/`shape`/`rel_*` arguments, are interpreted by their dtype, so they stay
+    documented (`normalized_anchor`/`normalized_shape` refer to them)."""
+    doc = _inputs_doc("Slice", "dynamic")
+    assert "anchor :" in doc and "shape_input :" in doc
+
+
+@params(("WarpAffine", "mtx"), ("Reshape", "shape_input"), ("Reinterpret", "shape_input"))
+def test_dynamic_docs_hide_other_merged_inputs(schema_name, merged):
+    assert f"{merged} :" not in _inputs_doc(schema_name, "dynamic")
+    assert f"{merged} :" in _inputs_doc(schema_name, "fn")

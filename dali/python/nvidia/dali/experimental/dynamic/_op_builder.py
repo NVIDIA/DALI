@@ -80,19 +80,37 @@ def _is_gpu_tensor_or_batch(value):
     return device is not None and device.device_type == "gpu"
 
 
-def _route_gpu_merged_arg(schema_name, inputs, raw_kwargs):
+def _cast_routed_value(value, dtype):
+    """Cast a GPU value moved from an argument to an input to the dtype its argument would have
+    been converted to (`Operator._argument_conversion_map`). Arguments are always converted,
+    inputs never are, so routing without this would change what the operator receives. The cast
+    runs on the value's own device. Lazy `InvocationResult`s are left to the later conversion.
+    """
+    value = unwrap_invariant(value)
+    if isinstance(value, _invocation.InvocationResult):
+        return value
+    if isinstance(value, Batch):
+        return _ops._to_batch(value, None, dtype=dtype)
+    return _ops._to_tensor(value, dtype=dtype)
+
+
+def _route_gpu_merged_arg(op_class, inputs, raw_kwargs, cast=True):
     """Move a GPU-placed value given for a GPU-routable merged argument (see
     `_MERGED_ARG_GPU_INPUT`) from `raw_kwargs` into `inputs`, the same way a value passed
-    directly as a positional input would flow.
+    directly as a positional input would flow, after converting it to the argument's dtype
+    (unless `cast` is false, for callers that only need the routed value's placement).
 
     Must run before backend/device resolution (which only looks at `inputs`) and before the
     value could otherwise reach the (CPU-only) argument-processing path, or the GPU placement
     is lost. Mutates `raw_kwargs` in place (pops the routed argument) when routing occurs;
     returns the (possibly extended) `inputs` tuple.
     """
-    gpu_route_arg = _MERGED_ARG_GPU_INPUT.get(schema_name)
+    gpu_route_arg = _MERGED_ARG_GPU_INPUT.get(op_class._schema_name)
     if gpu_route_arg is not None and _is_gpu_tensor_or_batch(raw_kwargs.get(gpu_route_arg)):
-        inputs = (*inputs, raw_kwargs.pop(gpu_route_arg))
+        value = raw_kwargs.pop(gpu_route_arg)
+        if cast:
+            value = _cast_routed_value(value, op_class._argument_conversion_map[gpu_route_arg])
+        inputs = (*inputs, value)
     return inputs
 
 
@@ -113,9 +131,9 @@ def _filter_merged_inputs(inputs, schema_name):
       `slice(x, 0.1, 0.5, axes=...)`, mirroring `fn.slice`), so hiding them by name must not
       also take away the positional slots, or backward-compatible positional calls break.
 
-    Reshape/Reinterpret (`_names.MERGED_INPUT_ARGS`, not GPU-routable, not multi-input) are
-    deliberately left alone: no known caller relies on their hidden input positionally, and
-    reducing that API surface was an intentional part of the original merge.
+    - Single-input merged cases (`_names.MERGED_INPUT_ARGS`, e.g. Reshape/Reinterpret): same
+      reasoning - the hidden `shape_input` stays accepted positionally, it is just no longer
+      advertised by name.
     """
     merged_input_names = _get_merged_input_names(schema_name)
     if not merged_input_names:
@@ -414,7 +432,7 @@ def build_call_function(schema, op_class):
             _caller_frame = resolve_callsite_frame(depth_hint=4)
 
         if _process_params:
-            raw_args = _route_gpu_merged_arg(op_class._schema_name, raw_args, raw_kwargs)
+            raw_args = _route_gpu_merged_arg(op_class, raw_args, raw_kwargs)
             inputs, kwargs = op_class._process_params(
                 self._backend,
                 self._device,
@@ -616,7 +634,7 @@ def build_fn_wrapper(op, fn_name=None, add_to_module=True):
         # argument can't flow through the (CPU-only) argument channel, so route it as an
         # extra positional input instead - the same way a directly-passed GPU input would.
         # (`_capture_intercept`'s wrapper already accounted for it in backend resolution.)
-        inputs = _route_gpu_merged_arg(op._schema_name, inputs, raw_kwargs)
+        inputs = _route_gpu_merged_arg(op, inputs, raw_kwargs)
 
         init_args = {}
         call_args = {}

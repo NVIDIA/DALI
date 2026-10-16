@@ -24,6 +24,7 @@ import os
 import numpy as np
 import nvidia.dali.backend as _backend
 import nvidia.dali.experimental.dynamic as ndd
+from nose2.tools import params
 from ndd_utils import eval_modes
 from nose_utils import SkipTest
 from nvidia.dali.experimental.dynamic._ops import Operator
@@ -239,3 +240,129 @@ def test_warp_affine_gpu_matrix_capture_parity():
     assert len(eager) == len(captured)
     for e, c in zip(eager, captured, strict=True):
         np.testing.assert_array_equal(e, c)
+
+
+# --- dtype of a GPU-routed `matrix` ---
+
+
+@eval_modes()
+@params(np.float16, np.float64, np.int32, np.int64, np.uint8)
+def test_warp_affine_gpu_matrix_non_float32_is_converted(dtype):
+    """An argument is converted to its declared dtype, an input never is. Routing a GPU `matrix=`
+    through as an input must therefore convert it first, or the operator gets a dtype it
+    rejects (`matrix=` accepts any dtype when it is placed on the CPU)."""
+    _skip_if_no_gpu()
+    matrix = np.array([[1, 0, 2], [0, 1, 3]], dtype=dtype)
+    image = _image("cpu")
+    expected = ndd.warp_affine(image, matrix=ndd.tensor(matrix.astype(np.float32)))
+    routed = ndd.warp_affine(image, matrix=ndd.tensor(matrix, device="gpu"))
+    assert routed.device.device_type == "gpu"
+    np.testing.assert_array_equal(_to_numpy(routed), _to_numpy(expected))
+
+
+@eval_modes()
+def test_warp_affine_gpu_matrix_batch_non_float32_is_converted():
+    _skip_if_no_gpu()
+    matrices = [(_MATRIX * (i + 1)).astype(np.float64) for i in range(2)]
+    images = ndd.batch([_image("cpu"), _image("cpu")], layout="HWC")
+    # The routed call runs on the GPU, so compare with the GPU kernel (CPU/GPU differ in rounding)
+    expected = ndd.warp_affine(
+        images.gpu(), matrix=ndd.batch([m.astype(np.float32) for m in matrices])
+    )
+    routed = ndd.warp_affine(images, matrix=ndd.batch(matrices, device="gpu"))
+    assert routed.device.device_type == "gpu"
+    np.testing.assert_array_equal(_to_numpy(routed), _to_numpy(expected))
+
+
+# --- Reshape / Reinterpret: the hidden `shape_input` is still accepted positionally ---
+
+
+@eval_modes()
+@params(ndd.reshape, ndd.reinterpret)
+def test_reshape_like_positional_shape_still_works(op):
+    data = ndd.tensor(np.arange(24, dtype=np.float32))
+    shape = ndd.tensor(np.array([2, 12], dtype=np.int32))
+    positional = op(data, shape)
+    named = op(data, shape=shape)
+    assert tuple(positional.shape) == (2, 12)
+    np.testing.assert_array_equal(_to_numpy(positional), _to_numpy(named))
+
+
+# --- Slice: positional inputs are interpreted by dtype, named arguments by name ---
+
+
+def _slice_image(device="cpu"):
+    rng = np.random.default_rng(42)
+    data = rng.integers(0, 256, size=(40, 60, 3), dtype=np.uint8)
+    return ndd.tensor(data, device=device, layout="HWC"), data
+
+
+def _t(values, dtype, device="cpu"):
+    return ndd.tensor(np.array(values, dtype=dtype), device=device)
+
+
+@eval_modes()
+@params("cpu", "gpu")
+def test_slice_positional_integers_are_absolute(device):
+    if device == "gpu":
+        _skip_if_no_gpu()
+    image, data = _slice_image(device)
+    for arg_device in ("cpu", "gpu") if device == "gpu" else ("cpu",):
+        out = ndd.slice(
+            image,
+            _t([5, 10], np.int32, arg_device),
+            _t([20, 30], np.int32, arg_device),
+            axes=[0, 1],
+        )
+        np.testing.assert_array_equal(_to_numpy(out), data[5:25, 10:40])
+
+
+@eval_modes()
+def test_slice_positional_floats_follow_normalized_flags():
+    image, data = _slice_image()
+    # default: floats are relative (the operator's default is normalized_anchor/shape=True)
+    rel = ndd.slice(image, _t([0.25, 0.5], np.float32), _t([0.5, 0.25], np.float32), axes=[0, 1])
+    np.testing.assert_array_equal(_to_numpy(rel), data[10:30, 30:45])
+    # the same dtype is absolute once the flags say so
+    absolute = ndd.slice(
+        image,
+        _t([5, 10], np.float32),
+        _t([20, 30], np.float32),
+        axes=[0, 1],
+        normalized_anchor=False,
+        normalized_shape=False,
+    )
+    np.testing.assert_array_equal(_to_numpy(absolute), data[5:25, 10:40])
+
+
+@eval_modes()
+def test_slice_named_arguments_ignore_the_dtype():
+    """The named arguments say absolute or relative by their name, whatever their dtype."""
+    image, data = _slice_image()
+    for dtype in (np.int32, np.float32):
+        out = ndd.slice(image, start=_t([5, 10], dtype), shape=_t([20, 30], dtype), axes=[0, 1])
+        np.testing.assert_array_equal(_to_numpy(out), data[5:25, 10:40])
+    out = ndd.slice(
+        image,
+        rel_start=_t([0.25, 0.5], np.float32),
+        rel_shape=_t([0.5, 0.25], np.float32),
+        axes=[0, 1],
+    )
+    np.testing.assert_array_equal(_to_numpy(out), data[10:30, 30:45])
+
+
+@eval_modes()
+@params(np.int32, np.int64, np.float32, np.float64)
+def test_slice_gpu_named_arguments_are_copied_to_the_host(dtype):
+    """GPU values given as named arguments are accepted: they are converted to the argument's
+    dtype and copied to the host, and the operator stays on the image's backend."""
+    _skip_if_no_gpu()
+    image, data = _slice_image("gpu")
+    out = ndd.slice(
+        image,
+        start=_t([5, 10], dtype, "gpu"),
+        shape=_t([20, 30], dtype, "gpu"),
+        axes=[0, 1],
+    )
+    assert out.device.device_type == "gpu"
+    np.testing.assert_array_equal(_to_numpy(out), data[5:25, 10:40])
