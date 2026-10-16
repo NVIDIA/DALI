@@ -47,10 +47,9 @@ def _to_numpy(x):
 def test_reshape_like_positional_shape_still_works(op):
     data = ndd.tensor(np.arange(24, dtype=np.float32))
     shape = ndd.tensor(np.array([2, 12], dtype=np.int32))
-    positional = op(data, shape)
-    named = op(data, shape=shape)
-    assert tuple(positional.shape) == (2, 12)
-    np.testing.assert_array_equal(_to_numpy(positional), _to_numpy(named))
+    expected = np.arange(24, dtype=np.float32).reshape(2, 12)
+    np.testing.assert_array_equal(_to_numpy(op(data, shape)), expected)
+    np.testing.assert_array_equal(_to_numpy(op(data, shape=shape)), expected)
 
 
 def test_extra_positional_inputs_are_rejected():
