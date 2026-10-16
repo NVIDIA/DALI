@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,7 +17,9 @@
 #include <string.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
+#include <sys/syscall.h>
 #include <unistd.h>
+#include <algorithm>
 #include <cstring>
 #include <exception>
 
@@ -36,6 +38,29 @@ bool dir_exists(const char *str) {
   return S_ISDIR(sb.st_mode);
 }
 
+/**
+ * @brief Creates an anonymous memory file that is never visible in the filesystem.
+ *
+ * Returns -1 and sets errno on failure.
+ */
+int create_memfd() {
+#ifdef SYS_memfd_create
+  constexpr unsigned int kMfdCloexec = 0x0001U;  // MFD_CLOEXEC
+  return static_cast<int>(syscall(SYS_memfd_create, "nvidia_dali", kMfdCloexec));
+#else
+  errno = ENOSYS;
+  return -1;
+#endif
+}
+
+/**
+ * @brief Whether memfd_create failure means it is unavailable (old kernel, seccomp filter)
+ *        rather than an actual allocation error.
+ */
+bool memfd_unavailable(int err) {
+  return err == ENOSYS || err == EPERM || err == EACCES || err == EINVAL;
+}
+
 }  // namespace detail
 
 
@@ -46,7 +71,14 @@ void FileHandle::DestroyHandle(fd_handle_t h) {
 }
 
 ShmHandle ShmHandle::CreateHandle() {
-  // Abstract away the fact that shm_open requires filename.
+  int memfd = detail::create_memfd();
+  if (memfd >= 0) {
+    return ShmHandle(memfd);
+  }
+  if (!detail::memfd_unavailable(errno)) {
+    POSIX_CHECK_STATUS(memfd, "memfd_create");
+  }
+  // Fall back to shm_open, abstracting away the fact that it requires a filename.
   constexpr char dev_shm_path[] = "/dev/shm/";
   constexpr char run_shm_path[] = "/run/shm/";
   constexpr char temp_filename_template[] = "nvidia_dali_XXXXXX";

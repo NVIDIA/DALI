@@ -315,6 +315,14 @@ class TestExceptionPropagation:
         raises(expected)(utils.build_and_run_pipeline)(pipe, None)
 
 
+def test_sample_serialization_error_propagation():
+    callback = utils.DeeplyNestedSampleCallback(100)
+    pipe = utils.create_pipe(
+        callback, "cpu", 4, py_num_workers=1, py_start_method="spawn", parallel=True
+    )
+    raises(Exception, "*nested deeper than*")(utils.build_and_run_pipeline)(pipe, 1)
+
+
 def _test_stop_iteration_resume(callback, batch_size, layout, num_workers):
     pipe = utils.create_pipe(
         callback,
