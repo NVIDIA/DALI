@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import copy
+from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any, SupportsInt, Union
 
 import numpy as np
@@ -784,6 +785,30 @@ def _is_index(r: Any) -> bool:
     return not isinstance(r, slice) and r is not Ellipsis
 
 
+def _subscript_kwargs(ranges: Sequence[Any], data: "Tensor | Batch") -> dict[str, Any]:
+    """
+    Map subscript ranges to the arguments of ``_tensor_subscript``.
+    Range components are forwarded as-is, so source analysis can pass CST nodes.
+    """
+    args = {}
+    d = 0
+    for i, r in enumerate(ranges):
+        if r is Ellipsis:
+            d = data.ndim - len(ranges) + i + 1
+        elif isinstance(r, slice):
+            if r.start is not None:
+                args[f"lo_{d}"] = r.start
+            if r.stop is not None:
+                args[f"hi_{d}"] = r.stop
+            if r.step is not None:
+                args[f"step_{d}"] = r.step
+            d += 1
+        else:
+            args[f"at_{d}"] = r
+            d += 1
+    return args
+
+
 def _clamp(value: int, lo: int, hi: int) -> int:
     return max(lo, min(value, hi))
 
@@ -978,26 +1003,9 @@ class TensorSlice:
             if all(_is_full_slice(r) for r in self._ranges):
                 return self._tensor
 
-            args = {}
-            d = 0
-            for i, r in enumerate(self._ranges):
-                if r is Ellipsis:
-                    d = self._tensor.ndim - len(self._ranges) + i + 1
-                elif isinstance(r, slice):
-                    if r.start is not None:
-                        args[f"lo_{d}"] = r.start
-                    if r.stop is not None:
-                        args[f"hi_{d}"] = r.stop
-                    if r.step is not None:
-                        args[f"step_{d}"] = r.step
-                    d += 1
-                else:
-                    args[f"at_{d}"] = r
-                    d += 1
-
             from . import _tensor_subscript
 
-            return _tensor_subscript(self._tensor, **args)
+            return _tensor_subscript(self._tensor, **_subscript_kwargs(self._ranges, self._tensor))
 
     def evaluate(self):
         return self._run().evaluate()
