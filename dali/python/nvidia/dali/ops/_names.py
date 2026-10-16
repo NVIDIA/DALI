@@ -172,11 +172,24 @@ def merge_restores_catchall(schema_name):
     """Whether hiding `schema_name`'s merged input(s) (see `get_merged_input_names`) from a
     generated signature must keep a positional catch-all in place.
 
-    GPU-routable (`MERGED_ARG_GPU_INPUT`) and multi-input (`MERGED_MULTI_INPUT_ARGS`) merged
-    cases were reachable positionally before the merge and must stay that way; see
-    `dynamic._op_builder._filter_merged_inputs` for the full rationale.
+    Every merged operator keeps one: the hidden input(s) were reachable positionally before the
+    merge (`reshape(x, shape_tensor)`, `slice(x, anchor, shape)`, `warp_affine(img, mtx)`) and
+    must stay that way, so existing calls don't break; they are merely no longer advertised by
+    name. See `dynamic._op_builder._filter_merged_inputs` for the full rationale.
     """
-    return schema_name in MERGED_ARG_GPU_INPUT or schema_name in MERGED_MULTI_INPUT_ARGS
+    return schema_name in MERGED_INPUT_ARGS or schema_name in MERGED_MULTI_INPUT_ARGS
+
+
+def get_undocumented_merged_input_names(schema_name):
+    """Return the subset of `get_merged_input_names` that the dynamic API leaves out of the
+    generated `Args` docs.
+
+    Slice's positional `anchor`/`shape_input` stay documented: their meaning depends on the
+    input dtype (integers are absolute coordinates, floats are relative or absolute depending
+    on `normalized_anchor`/`normalized_shape`), unlike the named `start`/`shape`/`rel_*`
+    arguments, and `normalized_anchor`/`normalized_shape` refer to them.
+    """
+    return get_merged_input_names(schema_name) - set(MERGED_MULTI_INPUT_ARGS.get(schema_name, {}))
 
 
 def get_merged_input_names(schema_name):

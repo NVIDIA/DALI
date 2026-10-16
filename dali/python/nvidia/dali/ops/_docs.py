@@ -70,7 +70,9 @@ def _get_inputs_doc(schema, api):
 Args
 ----
 """
-    merged_input_names = _names.get_merged_input_names(schema.Name()) if api == "dynamic" else set()
+    merged_input_names = (
+        _names.get_undocumented_merged_input_names(schema.Name()) if api == "dynamic" else set()
+    )
     if schema.HasInputDox():
         for i in range(schema.MaxNumInput()):
             input_name = _names._get_input_name(schema, i)
