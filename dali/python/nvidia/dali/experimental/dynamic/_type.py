@@ -285,7 +285,16 @@ class DType:
             try:
                 t.type_id = _type2id[t]
             except KeyError:
-                raise ValueError(f"Unsupported type name: {name}") from None
+                # __init__ caches the temporary type before this lookup. Drop that
+                # entry so a later parse does not return the rejected type. Leave a
+                # name that already pointed at a different type alone.
+                if _name2type.get(t.name) is t:
+                    del _name2type[t.name]
+                if name != t.name and _name2type.get(name) is t:
+                    del _name2type[name]
+                raise ValueError(
+                    f"{name} is not a registered type. Expected a name such as f16 or f32."
+                ) from None
         if t.type_id is not None:
             t = _id2type[t.type_id]  # use the same DType instance as the one registered with the id
         _name2type[name] = t
