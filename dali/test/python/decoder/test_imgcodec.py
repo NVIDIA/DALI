@@ -535,16 +535,18 @@ def _signed_rgb_to_ycbcr_uint8_ref(rgb):
     return np.stack([16 + 219 * y, 128 + 224 * cb, 128 + 224 * cr], axis=-1)
 
 
-def _encode_int32_rgb_tiff(img):
-    """Encodes an (H, W, 3) int32 array as an uncompressed, single-strip, signed int32 RGB TIFF.
+def _encode_signed_rgb_tiff(img):
+    """Encodes an (H, W, 3) int8/int16/int32 array as an uncompressed, single-strip, signed
+    integer RGB TIFF, using the full width of the type (BitsPerSample = 8 * itemsize).
 
     A minimal writer, so that the tests don't depend on any extra Python package.
     """
     import struct
 
     h, w, c = img.shape
-    assert c == 3 and img.dtype == np.int32
-    pixels = img.astype("<i4").tobytes()
+    assert c == 3 and img.dtype in (np.int8, np.int16, np.int32)
+    bits = 8 * img.dtype.itemsize
+    pixels = img.astype(img.dtype.newbyteorder("<")).tobytes()
     num_entries = 11
     extra = 8 + 2 + num_entries * 12 + 4  # header + IFD (count, entries, next IFD offset)
     bps_offset = extra  # BitsPerSample: 3 x SHORT
@@ -573,7 +575,7 @@ def _encode_int32_rgb_tiff(img):
         else:
             out += struct.pack("<HHII", tag, typ, count, value)
     out += struct.pack("<I", 0)
-    out += struct.pack("<3H", 32, 32, 32) + struct.pack("<3H", 2, 2, 2)  # int32 samples
+    out += struct.pack("<3H", bits, bits, bits) + struct.pack("<3H", 2, 2, 2)  # signed int samples
     assert len(out) == data_offset
     return np.frombuffer(out + pixels, dtype=np.uint8)
 
@@ -593,7 +595,7 @@ def _signed_tiff_test_images():
     combos = np.array(
         [(r, g, b) for r in edge for g in edge for b in edge], dtype=np.int32
     ).reshape(len(edge), len(edge) ** 2, 3)
-    yield "synthetic_int32", _encode_int32_rgb_tiff(combos), combos
+    yield "synthetic_int32", _encode_signed_rgb_tiff(combos), combos
 
 
 def _signed_tiff_decode_pipe(encoded, device, output_type):
@@ -614,7 +616,7 @@ def _cpu_decodes_signed_tiff():
     "Failed to decode sample" wrapper). That is the only failure treated as "unsupported"; any
     other error is re-raised so that it is not hidden.
     """
-    encoded = _encode_int32_rgb_tiff(np.zeros((2, 2, 3), dtype=np.int32))
+    encoded = _encode_signed_rgb_tiff(np.zeros((2, 2, 3), dtype=np.int32))
     try:
         _signed_tiff_decode_pipe(encoded, "cpu", types.ANY_DATA).run()
         return True
@@ -663,6 +665,41 @@ def test_tiff_signed_color_conversion():
         if len(devices) > 1:
             diff = np.abs(results["cpu"] - results["mixed"])
             assert diff.max() <= 1, f"{name}: cpu and mixed differ by {diff.max()}"
+
+
+@params(np.int8, np.int16, np.int32)
+def test_tiff_signed_full_width(np_dtype):
+    """A signed integer TIFF using the full width of its type (BitsPerSample = 8 * itemsize),
+    decoded to the same dtype, must come out unchanged.
+
+    The precision reported for a signed sample includes the sign bit. Before it was compared with
+    PositiveBits() on the same basis, such an image was treated as using one bit less than its
+    dynamic range and the dynamic range scaling roughly halved its values.
+
+    The mixed backend is always expected to work. The cpu backend is used only if the installed
+    nvImageCodec has a LibTIFF extension that can decode signed integer samples.
+    """
+    info = np.iinfo(np_dtype)
+    rng = np.random.default_rng(1234)
+    img = rng.integers(info.min, info.max, size=(16, 21, 3), endpoint=True, dtype=np_dtype)
+    edge = np.array([info.min, info.min + 1, -1, 0, 1, info.max - 1, info.max], dtype=np_dtype)
+    img[0, : edge.size, :] = edge[:, np.newaxis]
+    encoded = _encode_signed_rgb_tiff(img)
+    dali_dtype = {np.int8: types.INT8, np.int16: types.INT16, np.int32: types.INT32}[np_dtype]
+
+    @pipeline_def(batch_size=1, device_id=0, num_threads=1, prefetch_queue_depth=1)
+    def pipe(device):
+        data = fn.external_source(source=lambda: [encoded], batch=True)
+        return fn.experimental.decoders.image(
+            data, device=device, output_type=types.ANY_DATA, dtype=dali_dtype
+        )
+
+    devices = ["mixed"] + (["cpu"] if _cpu_decodes_signed_tiff() else [])
+    for device in devices:
+        (out,) = pipe(device).run()
+        result = np.array(out.as_cpu().at(0))
+        assert result.dtype == np_dtype, f"device={device}: {result.dtype}"
+        np.testing.assert_array_equal(result, img, err_msg=f"device={device}")
 
 
 def test_decode_ycbcr_invalid_input():
