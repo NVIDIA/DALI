@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -13,6 +13,8 @@
 // limitations under the License.
 
 #include <gtest/gtest.h>
+#include <cmath>
+#include <limits>
 #include "dali/core/convert.h"
 #include "dali/core/convert_test_static.h"
 #include "dali/core/math_util.h"
@@ -100,6 +102,46 @@ TEST(Clamp, int64_2_float16) {
   EXPECT_EQ(static_cast<float>(clamp<float16>(big_num)), clamp<float16>(clamp<float>(big_num)));
   EXPECT_EQ(65504.0f, clamp<float16>(big_num));
   EXPECT_EQ(-65504.0f, clamp<float16>(-big_num));
+}
+
+template <typename FP>
+class ConvertFP2BoolTest : public ::testing::Test {};
+
+using FP2BoolTypes = ::testing::Types<float, double, float16>;
+TYPED_TEST_SUITE(ConvertFP2BoolTest, FP2BoolTypes);
+
+TYPED_TEST(ConvertFP2BoolTest, NonZeroIsTrue) {
+  using FP = TypeParam;
+  // Values in (-0.5, 0.5) would be rounded to 0 if the conversion went through rounding.
+  for (double v : { 0.1, -0.1, 0.4, -0.4, 0.5, -0.5, 0.9, 1.0, -1.0, 1e-3, 1000.0 }) {
+    FP x = v;
+    EXPECT_TRUE(Convert<bool>(x)) << " with x = " << v;
+    EXPECT_TRUE(ConvertSat<bool>(x)) << " with x = " << v;
+    EXPECT_TRUE(ConvertNorm<bool>(x)) << " with x = " << v;
+    EXPECT_TRUE(ConvertSatNorm<bool>(x)) << " with x = " << v;
+  }
+}
+
+TYPED_TEST(ConvertFP2BoolTest, ZeroIsFalse) {
+  using FP = TypeParam;
+  FP neg_zero = -0.0;
+  ASSERT_TRUE(std::signbit(static_cast<float>(neg_zero)));
+  for (FP x : { FP(0.0), neg_zero }) {
+    EXPECT_FALSE(Convert<bool>(x)) << " with x = " << static_cast<float>(x);
+    EXPECT_FALSE(ConvertSat<bool>(x)) << " with x = " << static_cast<float>(x);
+    EXPECT_FALSE(ConvertNorm<bool>(x)) << " with x = " << static_cast<float>(x);
+    EXPECT_FALSE(ConvertSatNorm<bool>(x)) << " with x = " << static_cast<float>(x);
+  }
+}
+
+TYPED_TEST(ConvertFP2BoolTest, NaNIsTrue) {
+  using FP = TypeParam;
+  FP x = std::numeric_limits<double>::quiet_NaN();
+  ASSERT_TRUE(std::isnan(static_cast<float>(x)));
+  EXPECT_TRUE(Convert<bool>(x));
+  EXPECT_TRUE(ConvertSat<bool>(x));
+  EXPECT_TRUE(ConvertNorm<bool>(x));
+  EXPECT_TRUE(ConvertSatNorm<bool>(x));
 }
 
 

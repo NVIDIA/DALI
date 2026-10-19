@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -344,6 +344,33 @@ struct ConverterBase<Out, In, false, true, false, false> {
   }
 };
 
+/// Converts FP to bool: any non-zero value (including NaN) is true
+///
+/// The comparison is written as !(value == 0) instead of value != 0 because on device
+/// the float16 operator != is an ordered comparison and yields false for NaN.
+template <typename In>
+struct ConverterBase<bool, In, false, true, false, false> {
+  DALI_HOST_DEV
+  static constexpr bool Convert(In value) {
+    return !(value == In(0));
+  }
+
+  DALI_HOST_DEV
+  static constexpr bool ConvertSat(In value) {
+    return !(value == In(0));
+  }
+
+  DALI_HOST_DEV
+  static constexpr bool ConvertNorm(In value) {
+    return !(value == In(0));
+  }
+
+  DALI_HOST_DEV
+  static constexpr bool ConvertSatNorm(In value) {
+    return !(value == In(0));
+  }
+};
+
 /// Converts signed to signed, unsigned to unsigned or unsigned to signed
 template <typename Out, typename In,
           bool IsOutSigned = std::is_signed<Out>::value,
@@ -496,6 +523,9 @@ using converter_t = Converter<
 
 /// @brief Converts value to a specified `Out` type, rounding if necessary
 ///
+/// Floating point values are converted to `bool` without rounding: any non-zero value
+/// (including NaN) is `true`, while 0 and -0 are `false`.
+///
 /// Usage:
 /// ```
 ///   Convert<uint8_t>(100.2f);   // == 100
@@ -515,6 +545,8 @@ DALI_HOST_DEV constexpr Out Convert(In value) {
 ///   * When converting from floating point to integral types, the value is multiplied by
 ///     `max_value<Out>()`. Results are undefined for values where `value * max_value<Out>()`
 ///     cannot be represented by `Out`.
+///   * When converting from floating point to `bool`, any non-zero value (including NaN)
+///     is `true`, while 0 and -0 are `false`.
 ///   * When converting from integral type to floating point, the input value is normalized by
 ///     multiplying by reciprocal of `Out` type's maximum positive value.
 ///
@@ -537,6 +569,9 @@ DALI_HOST_DEV constexpr Out ConvertNorm(In value) {
 
 /// @brief Converts value to a specified `Out` type, rounding and clamping if necessary
 ///
+/// Floating point values are converted to `bool` without rounding: any non-zero value
+/// (including NaN) is `true`, while 0 and -0 are `false`.
+///
 /// Usage:
 /// ```
 ///   ConvertSat<uint8_t>(-1);          // == 0
@@ -554,6 +589,8 @@ DALI_HOST_DEV constexpr Out ConvertSat(In value) {
 ///   * When converting from signed to unsigned types, negative values produce 0
 ///   * When converting from floating point to integral types, the value is multiplied
 ///     by `max_value<Out>()` and then clamped to range representable in `Out`.
+///   * When converting from floating point to `bool`, any non-zero value (including NaN)
+///     is `true`, while 0 and -0 are `false`.
 ///   * When converting from integral type to floating point, the input value is divided
 ///     by `Out(max_value<In>())`
 ///

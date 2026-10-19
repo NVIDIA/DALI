@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -86,6 +86,38 @@ DEVICE_TEST(ConvertSatNorm_Dev, float2int, 1, 1) {
   DEV_EXPECT_GE(ConvertSatNorm<int64_t>(2.0f),  0x7fffff8000000000);
   DEV_EXPECT_LE(ConvertSatNorm<int64_t>(-2.0f), -0x7fffff8000000000);
   DEV_EXPECT_EQ(ConvertSatNorm<uint64_t>(-2.0f), 0u);
+}
+
+template <typename FP>
+__device__ void CheckFP2Bool(testing::TestStatusBlock &test_status) {
+  // Values in (-0.5, 0.5) would be rounded to 0 if the conversion went through rounding.
+  const double nonzero[] = { 0.1, -0.1, 0.4, -0.4, 0.5, -0.5, 0.9, 1.0, -1.0, 1e-3, 1000.0 };
+  for (double v : nonzero) {
+    FP x = v;
+    DEV_EXPECT_TRUE(Convert<bool>(x));
+    DEV_EXPECT_TRUE(ConvertSat<bool>(x));
+    DEV_EXPECT_TRUE(ConvertNorm<bool>(x));
+    DEV_EXPECT_TRUE(ConvertSatNorm<bool>(x));
+  }
+  const FP zeros[] = { FP(0.0), FP(-0.0) };
+  for (FP x : zeros) {
+    DEV_EXPECT_FALSE(Convert<bool>(x));
+    DEV_EXPECT_FALSE(ConvertSat<bool>(x));
+    DEV_EXPECT_FALSE(ConvertNorm<bool>(x));
+    DEV_EXPECT_FALSE(ConvertSatNorm<bool>(x));
+  }
+  FP nan = NAN;
+  DEV_ASSERT_TRUE(isnan(static_cast<float>(nan)));
+  DEV_EXPECT_TRUE(Convert<bool>(nan));
+  DEV_EXPECT_TRUE(ConvertSat<bool>(nan));
+  DEV_EXPECT_TRUE(ConvertNorm<bool>(nan));
+  DEV_EXPECT_TRUE(ConvertSatNorm<bool>(nan));
+}
+
+DEVICE_TEST(ConvertCUDA_Dev, fp2bool, 1, 1) {
+  CheckFP2Bool<float>(test_status);
+  CheckFP2Bool<double>(test_status);
+  CheckFP2Bool<float16>(test_status);
 }
 
 TEST(ConvertNorm_CUDA_Host, int2float) {
