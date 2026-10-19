@@ -157,6 +157,17 @@ MERGED_INPUT_ARGS = {
 }
 
 
+# Named arguments that only qualify the merged inputs above (they say how the positional anchor and
+# shape are interpreted) and have no effect on the named arguments. They stay in the ndd signature,
+# which has no other way to accept them, and their ndd docs say that they apply to `*inputs` only.
+_SLICE_INPUT_QUALIFIERS = ("normalized_anchor", "normalized_shape")
+MERGED_INPUT_QUALIFIER_ARGS = {
+    "Slice": _SLICE_INPUT_QUALIFIERS,
+    "decoders__ImageSlice": _SLICE_INPUT_QUALIFIERS,
+    "experimental__decoders__ImageSlice": _SLICE_INPUT_QUALIFIERS,
+}
+
+
 def get_merged_inputs(schema_name):
     """Return {input name: corresponding named arguments} for the inputs of `schema_name` that the
     dynamic API hides behind named arguments (see `MERGED_INPUT_ARGS`); empty if none."""
@@ -166,3 +177,9 @@ def get_merged_inputs(schema_name):
 def get_merged_input_names(schema_name):
     """Return the set of dynamic-API-hidden input names for `schema_name` (empty if none)."""
     return set(get_merged_inputs(schema_name))
+
+
+def get_merged_input_qualifier_args(schema_name):
+    """Return the named arguments of `schema_name` that only apply to the dynamic-API-hidden
+    inputs (see `MERGED_INPUT_QUALIFIER_ARGS`); empty if none."""
+    return MERGED_INPUT_QUALIFIER_ARGS.get(schema_name, ())

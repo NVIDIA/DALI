@@ -95,9 +95,16 @@ Args
             dox = _adjust_dox(dox, api)
             ret += dox + "\n"
 
-        extra_opt_args = 0 if merged_inputs else schema.MaxNumInput() - schema.MinNumInput()
+        extra_opt_inputs = range(schema.MinNumInput(), schema.MaxNumInput())
+        if merged_inputs:  # documented in `_merged_inputs_doc` instead
+            extra_opt_inputs = [
+                i
+                for i in extra_opt_inputs
+                if _names._get_input_name(schema, i) not in merged_inputs
+            ]
+        extra_opt_args = len(extra_opt_inputs)
         if extra_opt_args == 1:
-            i = schema.MinNumInput()
+            i = extra_opt_inputs[0]
             input_type_str = _input_type(api) + _supported_layouts_str(
                 schema.GetSupportedLayouts(i)
             )
@@ -108,7 +115,7 @@ Args
         elif extra_opt_args > 1:
             input_type_str = _input_type(api)
             generic_name = _names._get_variadic_input_name()
-            input_name = f"{generic_name}[{schema.MinNumInput()}..{schema.MaxNumInput()-1}]"
+            input_name = f"{generic_name}[{extra_opt_inputs[0]}..{extra_opt_inputs[-1]}]"
             dox = f"This function accepts up to {extra_opt_args} optional positional inputs"
             dox = _adjust_dox(dox, api)
             ret += _numpydoc_formatter(input_name, input_type_str, dox, True) + "\n"
@@ -243,6 +250,11 @@ def _get_kwargs(schema, api="ops", args=None):
                     default_value = ast.literal_eval(default_value_string)
                     type_name += ", default = `{}`".format(_default_converter(dtype, default_value))
             doc += schema.GetArgumentDox(arg).rstrip("\n")
+            if api == "dynamic" and arg in _names.get_merged_input_qualifier_args(schema.Name()):
+                doc += (
+                    "\n\nIn the dynamic API, it only applies to the positional anchor and shape "
+                    f"inputs, accepted as ``*{_names._get_variadic_input_name()}``."
+                )
             if schema.ArgSupportsPerFrameInput(arg):
                 doc += "\n\nSupports :func:`per-frame<nvidia.dali.fn.per_frame>` inputs."
             if deprecation_warning:

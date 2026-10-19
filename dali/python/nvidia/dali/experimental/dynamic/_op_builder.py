@@ -65,20 +65,23 @@ def _scalar_decay(x):
 _unsupported_args = {"bytes_per_sample_hint", "preserve"}
 
 
+_VAR_POSITIONAL = "*" + _names._get_variadic_input_name()
+
+
 def _filter_merged_inputs(inputs, schema_name):
     """Hide the inputs merged into arguments (see `_names.MERGED_INPUT_ARGS`) from a generated
     `inputs` header list.
 
     The hidden inputs are still accepted positionally (`reshape(x, shape_tensor)`,
     `slice(x, anchor, shape)`), so a trailing "*" (no further positional arguments) is relaxed
-    into a "*inputs" positional catch-all. The operator rejects more inputs than it accepts.
+    into the `_VAR_POSITIONAL` catch-all. The operator rejects more inputs than it accepts.
     """
     merged_input_names = _names.get_merged_input_names(schema_name)
     if not merged_input_names:
         return inputs
     inputs = [i for i in inputs if i.split("=", 1)[0] not in merged_input_names]
     if inputs and inputs[-1] == "*":
-        inputs = inputs[:-1] + ["*inputs"]
+        inputs = inputs[:-1] + [_VAR_POSITIONAL]
     return inputs
 
 
@@ -287,7 +290,7 @@ def _get_inputs(schema):
     if inputs:
         inputs.append("/")
     if num_separate_inputs < max_inputs:
-        inputs.append("*inputs")
+        inputs.append(_VAR_POSITIONAL)
     else:
         inputs.append("*")
     return inputs
