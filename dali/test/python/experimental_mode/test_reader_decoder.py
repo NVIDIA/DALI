@@ -17,6 +17,7 @@ import subprocess
 import tempfile
 import math
 
+import numpy as np
 import nvidia.dali.experimental.dynamic as ndd
 from nose2.tools import cartesian_params, params
 from nose_utils import SkipTest, assert_raises
@@ -165,7 +166,9 @@ def test_reader_shards(stick_to_shard, pad_last_batch):
                     ref_sample = all_samples[unpadded_shards_end - 1]
                 else:
                     ref_sample = all_samples[unpadded_shards_beg + idx]
-                assert ref_sample == samples[idx], (
+                assert all(
+                    np.array_equal(ref, out) for ref, out in zip(ref_sample, samples[idx])
+                ), (
                     f"Sample {shards_beg + idx} mismatch, shard_id: {shard_id} (initial_shard_id: "
                     + f"{initial_shard_id}, shard_beg: {shards_beg}, shard_end: {shards_end})"
                 )
