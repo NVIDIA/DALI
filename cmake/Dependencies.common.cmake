@@ -148,7 +148,7 @@ endif()
 ##################################################################
 # The nvCOMP version DALI is built against and depends on. Only the major version
 # is enforced when looking for the headers and the library, as it defines the ABI.
-set(DALI_NVCOMP_VERSION "5.3.0.16")
+set(DALI_NVCOMP_VERSION "6.0.0.12")
 string(REGEX MATCH "^[0-9]+" DALI_NVCOMP_VERSION_MAJOR "${DALI_NVCOMP_VERSION}")
 set(DALI_INSTALL_REQUIRES_NVCOMP "")
 if(BUILD_NVCOMP)

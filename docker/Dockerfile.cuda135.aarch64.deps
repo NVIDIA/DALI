@@ -7,7 +7,7 @@ RUN CUDA_SUBVERSION=13.5.0-1 && \
     CUFILE_VERSION=1.20.0.107-1 && \
     CUDA_VERSION_MAJOR=13 && \
     CUDA_VERSION_MINOR=5 && \
-    NVCOMP_VERSION=5.3.0.16 && \
+    NVCOMP_VERSION=6.0.0.12 && \
     apt-get update && \
     apt-get install wget software-properties-common -y && \
     apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/sbsa/3bf863cc.pub && \
