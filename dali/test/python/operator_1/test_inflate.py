@@ -178,7 +178,8 @@ def test_checks_sufficient_output_buffer():
     ]
 )
 def test_unaligned_chunks(dtype, offset, oversized):
-    sample = np.arange(15, dtype=dtype).reshape(3, 5)
+    # Enough unaligned ranges to exercise the batched copy kernel in both directions.
+    sample = np.arange(85, dtype=dtype).reshape(17, 5)
     chunks = [sample_to_lz4(frame) for frame in sample]
     sizes = np.array([len(chunk) for chunk in chunks], dtype=np.int32)
     offsets = np.array(offset + np.cumsum([0] + list(sizes[:-1])), dtype=np.int32)
