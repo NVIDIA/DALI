@@ -1760,6 +1760,10 @@ class Pipeline(object):
 
         exec_pipelined = kw.get("exec_pipelined", None)
         exec_async = kw.get("exec_async", None)
+        if exec_separated and not exec_async:
+            raise ValueError(
+                "`exec_async` must not evaluate to `False` when using separated queues."
+            )
         exec_dynamic = kw.get("exec_dynamic", None)
         stream_policy = kw.get("stream_policy", None)
         concurrency = kw.get("concurrency", None)
