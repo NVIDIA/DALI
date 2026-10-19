@@ -72,6 +72,7 @@ def captured_test(*, expect_captured: bool):
 
 _MODULE_DTYPE = ndd.float32
 _GLOBAL_ANGLE = 60
+_GLOBAL_SCALAR = 2
 _INVARIANT_ANGLE = ndd.capture.invariant(0.0)
 _INVARIANT_SIZE = ndd.capture.invariant(4)
 _INVARIANT_INT64 = ndd.capture.invariant(np.array([2**40], dtype=np.int64))
@@ -482,12 +483,34 @@ def test_arithmetic_int64_constant(images):
 @captured_test(expect_captured=True)
 def test_arithmetic_float64_constant(images):
     x = images.cpu()
-    return ndd.cast(x + _INVARIANT_FLOAT64 - x - 1, dtype=ndd.float32)
+    y = x + _INVARIANT_FLOAT64 - x
+    return ndd.cast(y - 1, dtype=ndd.float32)
 
 
 @captured_test(expect_captured=True)
 def test_math_function(images):
     return ndd.math.sqrt(images)
+
+
+@captured_test(expect_captured=True)
+def test_arithmetic_helper_constants(images):
+    def scale(imgs, factor):
+        return imgs * factor
+
+    half = scale(images, 0.5)
+    double = scale(images, 2.0)
+    return half + double
+
+
+@captured_test(expect_captured=True)
+def test_comparison(images):
+    mask = images > ndd.math.sqrt(images)
+    return mask.cpu() & (images.cpu() > 100)
+
+
+@captured_test(expect_captured=True)
+def test_comparison_reflected(images):
+    return 128 < images
 
 
 # Tests for rejected cases
@@ -528,6 +551,33 @@ def test_mutable_name(images):
 def test_arithmetic_mutable_name(images):
     c = [1, 2, 3]
     return images + c
+
+
+@captured_test(expect_captured=False)
+def test_arithmetic_global(images):
+    return images * _GLOBAL_SCALAR
+
+
+@captured_test(expect_captured=False)
+def test_arithmetic_reflected_global(images):
+    return _GLOBAL_SCALAR - images
+
+
+@captured_test(expect_captured=False)
+def test_arithmetic_augassign_global(images):
+    x = images
+    x *= _GLOBAL_SCALAR
+    return x
+
+
+@captured_test(expect_captured=False)
+def test_math_global(images):
+    return ndd.math.clamp(images, lo=_GLOBAL_SCALAR, hi=100)
+
+
+@captured_test(expect_captured=False)
+def test_comparison_global(images):
+    return images > _GLOBAL_SCALAR
 
 
 @captured_test(expect_captured=False)
