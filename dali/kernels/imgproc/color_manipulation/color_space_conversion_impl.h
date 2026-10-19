@@ -65,10 +65,15 @@ constexpr DALI_HOST_DEV std::enable_if_t<!std::is_integral<T>::value, float> bia
  * channel. The values are kept in the `Input` type (and units), so the conversion formulas below
  * can apply their usual Input -> Output scaling to them.
  *
- * This makes the color space conversion functions equivalent to converting each channel to
- * `Output` first (as the GPU decode path, ConvertGPU, does) and then running the conversion with
- * `Output` as both input and output type, but without the intermediate rounding - up to one code
- * at `min_value<Input>()` for a signed integral `Output` (see below). Without the saturation,
+ * For RGB and GRAY inputs, this makes the color space conversion functions equivalent to
+ * converting each channel to `Output` first (as the GPU decode path, ConvertGPU, does) and then
+ * running the conversion with `Output` as both input and output type, but without the
+ * intermediate rounding - up to one code at `min_value<Input>()` for a signed integral `Output`
+ * (see below). For YCbCr inputs (`ycbcr_to_rgb`, `y_to_gray`, `ycbcr_to_gray`) the Y and chroma
+ * biases are in `Input` units (2^n/16 and 2^n/2), which normalize differently for each type
+ * (e.g. 64/127 for int8_t, 128/255 for uint8_t, 0.5 for float), so the two orders also differ
+ * by that bias difference - e.g. up to ~0.85% of full scale for int8_t YCbCr to float RGB. This
+ * is negligible for 16-bit and wider types. Without the saturation,
  * e.g. a negative value of a signed channel would contribute a negative term to the conversion
  * matrix and yield colors not representable in an unsigned output type, which then saturate to
  * wrong values.

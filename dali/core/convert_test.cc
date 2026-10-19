@@ -108,7 +108,7 @@ TEST(ConvertSatNorm, int2float) {
   EXPECT_EQ((ConvertSatNorm<float, int8_t>(-127)), -1.0f);
   // No clamping for floating point outputs
   EXPECT_EQ((ConvertSatNorm<float, int8_t>(-128)), -128 / 127.0f);
-  // ...so that the conversion to float and back is lossless, including min_value
+  // ...so that min_value survives the conversion to float and back (lossless for 8/16-bit types)
   EXPECT_EQ(ConvertSatNorm<int8_t>(ConvertSatNorm<float>(int8_t(-128))), -128);
   EXPECT_EQ(ConvertSatNorm<int16_t>(ConvertSatNorm<float>(int16_t(-0x8000))), -0x8000);
 }

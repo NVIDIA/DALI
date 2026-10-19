@@ -604,8 +604,10 @@ DALI_HOST_DEV constexpr Out ConvertSat(In value) {
 ///   * When converting from integral type to floating point, the input value is divided
 ///     by `Out(max_value<In>())`
 ///
-/// The signed `min_value<In>()` is not clamped to -1 (see `clamp_norm` for that), so converting
-/// an integer to floating point and back is lossless, including `min_value`.
+/// The signed `min_value<In>()` is not clamped to -1 (see `clamp_norm` for that), so it survives
+/// a conversion to floating point and back. The round trip is lossless only if the floating point
+/// type has enough precision - e.g. for 8- and 16-bit integers with `float`, but not for 32-bit
+/// integers (`int32_t(16777217)` comes back as 16777216).
 ///
 /// Usage:
 /// ```
