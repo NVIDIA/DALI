@@ -22,6 +22,7 @@
 #include "dali/core/common.h"
 #include "dali/core/static_switch.h"
 #include "dali/core/tensor_shape.h"
+#include "dali/kernels/common/scatter_gather.h"
 #include "dali/kernels/kernel_manager.h"
 #include "dali/operators/decoder/inflate/inflate.h"
 #include "dali/operators/decoder/inflate/inflate_gpu.h"
@@ -59,18 +60,20 @@ class InflateOpGpuLZ4Impl : public InflateOpImplBase<GPUBackend> {
     // aligned input and output buffers, so stage only the chunks that need it.
     constexpr size_t alignment = nvcompLZ4RequiredDecompressionAlignment;
     const auto &in_chunk_sizes = params_.GetInChunkSizes();
-    auto original_output_ptrs = inflated_ptrs_;
+    kernels::ScatterGatherGPU input_copies, output_copies;
     for (size_t i = 0; i < total_chunks_num; i++) {
       if (reinterpret_cast<uintptr_t>(input_ptrs_[i]) % alignment != 0) {
         auto *aligned_input = scratchpad.AllocateGPU<uint8_t>(in_chunk_sizes[i], alignment);
-        CUDA_CALL(cudaMemcpyAsync(aligned_input, input_ptrs_[i], in_chunk_sizes[i],
-                                  cudaMemcpyDeviceToDevice, stream));
+        input_copies.AddCopy(aligned_input, input_ptrs_[i], in_chunk_sizes[i]);
         input_ptrs_[i] = aligned_input;
       }
       if (reinterpret_cast<uintptr_t>(inflated_ptrs_[i]) % alignment != 0) {
-        inflated_ptrs_[i] = scratchpad.AllocateGPU<uint8_t>(inflated_sizes_[i], alignment);
+        auto *aligned_output = scratchpad.AllocateGPU<uint8_t>(inflated_sizes_[i], alignment);
+        output_copies.AddCopy(inflated_ptrs_[i], aligned_output, inflated_sizes_[i]);
+        inflated_ptrs_[i] = aligned_output;
       }
     }
+    input_copies.Run(stream);
     size_t *actual_out_sizes = scratchpad.AllocateGPU<size_t>(total_chunks_num);
 
     auto [in_sizes, in, out_sizes, out] = scratchpad.ToContiguousGPU(
@@ -121,12 +124,7 @@ class InflateOpGpuLZ4Impl : public InflateOpImplBase<GPUBackend> {
     // Here, we take care of the opposite case, when the allocations are bigger than really
     // necessary and thus may contain some uninitialized memory.
     FillTheTails(output.type(), total_chunks_num, out, actual_out_sizes, out_sizes, stream);
-    for (size_t i = 0; i < total_chunks_num; i++) {
-      if (inflated_ptrs_[i] != original_output_ptrs[i]) {
-        CUDA_CALL(cudaMemcpyAsync(original_output_ptrs[i], inflated_ptrs_[i], inflated_sizes_[i],
-                                  cudaMemcpyDeviceToDevice, stream));
-      }
-    }
+    output_copies.Run(stream);
   }
 
  protected:
