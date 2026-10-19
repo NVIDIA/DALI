@@ -37,8 +37,7 @@ def _arithmetic_dunders():
         "matmul",
         "divmod",
     )
-    # Chains and reflections don't keep the source operand order, so constant operands of
-    # comparisons aren't captured
+    # Comparisons have no __r*__ variants
     comparisons = ("eq", "ne", "lt", "le", "gt", "ge")
     unary_ops = ("neg", "pos", "abs", "invert")
 

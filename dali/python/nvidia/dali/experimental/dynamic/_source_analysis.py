@@ -218,6 +218,8 @@ class ModuleInfo:
                 accepted = cst.AugAssign
             elif name.startswith("BINARY_") and name != "BINARY_SUBSCR":
                 accepted = cst.BinaryOperation
+            elif name == "COMPARE_OP":
+                accepted = cst.Comparison
             else:
                 return None
             return self._node_on_line(frame.f_lineno, accepted)
@@ -318,8 +320,8 @@ class _FusedCodegenState(PositionProvidingCodegenState):
     def after_codegen(self, node: cst.CSTNode) -> None:
         super().after_codegen(node)
         self._node_stack.pop()
-        # A frame executes either at a call or at an arithmetic operator reached via a dunder
-        if isinstance(node, (cst.Call, cst.BinaryOperation, cst.AugAssign)):
+        # A frame executes either at a call or at an operator reached via a dunder
+        if isinstance(node, (cst.Call, cst.BinaryOperation, cst.AugAssign, cst.Comparison)):
             self.nodes.append(node)
 
 
@@ -460,6 +462,11 @@ class _Classifier:
                 pos_nodes, kw_nodes = self._call_arg_nodes(call)
             case cst.BinaryOperation(left=lhs, right=rhs) | cst.AugAssign(target=lhs, value=rhs):
                 pos_nodes, kw_nodes = (lhs, rhs), {}
+            case cst.Comparison(left=lhs, comparisons=[cst.ComparisonTarget(comparator=rhs)]):
+                probe = _Classifier(self.module_info, self.frame)
+                # There are no reflected dunders for comparisons so we need to check manually
+                reflected = probe.is_invariant(lhs, static=False)
+                pos_nodes, kw_nodes = ((rhs, lhs) if reflected else (lhs, rhs)), {}
             case _:
                 pos_nodes, kw_nodes = (), {}
 
