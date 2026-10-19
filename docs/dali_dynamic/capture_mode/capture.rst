@@ -9,9 +9,6 @@ Capture Rules
 Capture mode speeds up a loop only for the operators it captures. Uncaptured operators run
 eagerly, with no warning and no change in the result.
 
-Slicing with :python:`batch.slice[...]` is supported too, including expressions such as
-:python:`images.slice[..., ::-1]`.
-
 The capture rule
 ----------------
 
@@ -24,6 +21,9 @@ A call is recorded only when each ordinary input and argument is either:
 - The result of another captured call,
 - A value that DALI can prove is constant by reading the source, or
 - A value wrapped with :func:`capture.invariant`.
+
+Slicing with :python:`batch.slice[...]` is captured too, with its bounds and indices following
+the same capture rules as arguments.
 
 On later steps, DALI matches each operator call to a traced call site. Uncaptured and previously
 unseen sites run eagerly. At a captured site, a :class:`Batch` argument must be the current output
