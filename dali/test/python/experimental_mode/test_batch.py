@@ -631,3 +631,17 @@ def test_layout_change(device_type):
     assert f.layout == "ABC"
     assert e.device.device_type == device_type
     assert f.device.device_type == device_type
+
+
+@eval_modes()
+@params(("cpu",), ("gpu",))
+def test_bool_not_supported(device_type):
+    single = ndd.batch([1], device=device_type)
+    multi = ndd.batch([[1, 2], [3]], device=device_type)
+    lazy = single + 1
+    for b in (single, multi, lazy):
+        with assert_raises(TypeError, glob="*Batch cannot be converted to `bool`*"):
+            bool(b)
+        with assert_raises(TypeError, glob="*Batch cannot be converted to `bool`*"):
+            if b:
+                pass

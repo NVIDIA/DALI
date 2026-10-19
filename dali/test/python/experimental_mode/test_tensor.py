@@ -523,3 +523,45 @@ def test_from_readonly_numpy_scalar():
     data.flags.writeable = False
     t = ndd.as_tensor(data).evaluate()
     assert int(np.array(t._storage)) == 42
+
+
+@eval_modes()
+@cartesian_params(
+    ("cpu", "gpu"),
+    (
+        (5, True),
+        (0, False),
+        ([-1], True),
+        ([[0.0]], False),
+        ([[[0.5]]], True),
+        (np.array(True), True),
+        (np.array([[False]]), False),
+    ),
+)
+def test_bool_single_element(device_type, data_and_expected):
+    data, expected = data_and_expected
+    t = ndd.tensor(data, device=device_type)
+    assert bool(t) is expected
+    assert (not t) is not expected
+
+
+@eval_modes()
+@params(("cpu",), ("gpu",))
+def test_bool_lazy_result(device_type):
+    t = ndd.tensor([[3]], device=device_type)
+    assert not (t - 3)
+    assert t + 1
+
+
+@eval_modes()
+@cartesian_params(
+    ("cpu", "gpu"),
+    (np.zeros((0,)), np.zeros((0, 1)), [1, 2], [[0], [0]], np.ones((2, 3))),
+)
+def test_bool_ambiguous(device_type, data):
+    t = ndd.tensor(data, device=device_type)
+    with assert_raises(ValueError, glob="*truth value*ambiguous*"):
+        bool(t)
+    with assert_raises(ValueError, glob="*truth value*ambiguous*"):
+        if t:
+            pass

@@ -630,6 +630,13 @@ class Batch:
         """
         return iter(self.tensors)
 
+    def __bool__(self):
+        raise TypeError(
+            "A Batch cannot be converted to `bool`. "
+            "Use `batch_size` to check whether the batch is empty "
+            "or convert individual samples, e.g. `bool(batch.tensors[i])`."
+        )
+
     def select(self, sample_range) -> "Batch | Tensor":
         """
         Selects a range of samples.

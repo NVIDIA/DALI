@@ -550,6 +550,19 @@ class Tensor:
         with _EvalContext.current():
             return np.array(self.cpu().evaluate()._storage).item()
 
+    def __bool__(self) -> bool:
+        """
+        Returns the truth value of the only element in the tensor.
+
+        Only tensors with exactly one element (regardless of shape) can be converted to `bool`.
+        """
+        if self.size != 1:
+            raise ValueError(
+                f"The truth value of a tensor with {self.size} elements is ambiguous. "
+                "Only tensors with exactly one element can be converted to `bool`."
+            )
+        return bool(self.item())
+
     def __array__(self, dtype: Any | None = None, copy: bool | None = None):
         b = self.evaluate()._storage
         if isinstance(b, _backend.TensorCPU):
