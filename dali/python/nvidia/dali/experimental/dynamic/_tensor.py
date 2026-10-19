@@ -554,7 +554,7 @@ class Tensor:
         """
         Returns the truth value of the only element in the tensor.
 
-        Only tensors with exactly one element (regardless of shape) can be converted to `bool`.
+        Only tensors with exactly one element (regardless of shape) can be converted to ``bool``.
         """
         if self.size != 1:
             raise ValueError(
