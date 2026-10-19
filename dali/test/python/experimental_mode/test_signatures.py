@@ -20,6 +20,7 @@ or IDE-suggested calls fail at runtime.
 import functools
 import inspect
 from inspect import Parameter
+from unittest import mock
 
 import nvidia.dali.backend as _b
 import nvidia.dali.experimental.dynamic as ndd
@@ -46,6 +47,21 @@ _MERGED = [
     ("Reshape", ["shape_input"]),
     ("Reinterpret", ["shape_input"]),
 ]
+
+
+@params(*_names.MERGED_INPUT_ARGS)
+def test_merged_input_args_exist_in_schema(schema_name):
+    """A typo in `MERGED_INPUT_ARGS` would silently keep an input visible or name a wrong
+    argument in the docs."""
+    schema = _b.GetSchema(schema_name)
+    input_names = {_names._get_input_name(schema, i) for i in range(schema.MaxNumInput())}
+    arg_names = set(schema.GetArgumentNames())
+    for input_name, args in _names.get_merged_inputs(schema_name).items():
+        assert input_name in input_names, f"{input_name!r} is not an input of {schema_name}"
+        for arg in args:
+            assert arg in arg_names, f"{arg!r} is not an argument of {schema_name}"
+    for arg in _names.get_merged_input_qualifier_args(schema_name):
+        assert arg in arg_names, f"{arg!r} is not an argument of {schema_name}"
 
 
 @params(*_MERGED)
@@ -135,6 +151,35 @@ def test_fn_docs_keep_merged_inputs(schema_name, merged):
     doc = _inputs_doc(schema_name, "fn")
     for name in merged:
         assert f"{name} :" in doc, doc
+
+
+def test_dynamic_docs_document_optional_inputs_that_are_not_merged():
+    """Only the merged inputs are left out of the generic optional inputs entries."""
+    name = "experimental__decoders__ImageSlice"  # has no input docs, so its inputs are generic
+    with mock.patch.dict(_names.MERGED_INPUT_ARGS, {name: {"input_1": ("start", "rel_start")}}):
+        doc = _inputs_doc(name, "dynamic")
+    assert "input_1 :" not in doc, doc
+    assert "input_2 :" in doc, doc
+    assert "``input_1`` (instead of `start` / `rel_start`)" in doc, doc
+
+
+_QUALIFIER_NOTE = "it only applies to the positional anchor and shape inputs"
+
+
+@params("Slice", "decoders__ImageSlice", "experimental__decoders__ImageSlice")
+def test_dynamic_docs_say_normalized_flags_apply_to_inputs_only(schema_name):
+    """`normalized_anchor`/`normalized_shape` stay in the ndd signature, since the positional
+    inputs can't be interpreted without them, but have no effect on the named arguments."""
+    schema = _b.GetSchema(schema_name)
+    qualifiers = _names.get_merged_input_qualifier_args(schema_name)
+    assert qualifiers == ("normalized_anchor", "normalized_shape")
+    function = _resolve(ndd, _names._op_name(schema_name, "dynamic"))
+    for arg in qualifiers:
+        assert arg in inspect.signature(function).parameters, arg
+    doc = _docs._get_kwargs(schema, "dynamic")
+    assert doc.count(_QUALIFIER_NOTE) == len(qualifiers), doc
+    for api in ("fn", "ops"):
+        assert _QUALIFIER_NOTE not in _docs._get_kwargs(schema, api)
 
 
 def test_warp_affine_gpu_matrix_input_is_not_merged():

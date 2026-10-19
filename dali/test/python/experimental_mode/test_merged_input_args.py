@@ -110,6 +110,41 @@ def test_slice_positional_floats_follow_normalized_flags():
     np.testing.assert_array_equal(_to_numpy(absolute), data[5:25, 10:40])
 
 
+def _subpixel_slice_inputs():
+    # The end coordinates (anchor + shape) are 25.8 and 40.8
+    return _t([5.4, 10.4], np.float32), _t([20.4, 30.4], np.float32)
+
+
+@eval_modes()
+def test_slice_positional_floats_are_rounded_per_coordinate():
+    """The positional inputs accept sub-pixel absolute coordinates, which the integer named
+    arguments can't express. The anchor and the end (anchor + shape) are rounded separately, so
+    the extent is 21 and 31 rather than the rounded shape (20 and 30)."""
+    image, data = _slice_image()
+    anchor, shape = _subpixel_slice_inputs()
+    out = ndd.slice(
+        image, anchor, shape, axes=[0, 1], normalized_anchor=False, normalized_shape=False
+    )
+    np.testing.assert_array_equal(_to_numpy(out), data[5:26, 10:41])
+    # the named arguments are integers: the same values give the rounded shape instead
+    out = ndd.slice(image, start=anchor, shape=shape, axes=[0, 1])
+    np.testing.assert_array_equal(_to_numpy(out), data[5:25, 10:40])
+
+
+@eval_modes()
+def test_slice_operator_class_accepts_positional_inputs():
+    """The operator class's `__call__` accepts the hidden inputs positionally, too. The inputs of
+    an operator instance are fixed after the first call, so each form gets its own instance."""
+    image, data = _slice_image()
+    anchor, shape = _subpixel_slice_inputs()
+    positional = ndd._ops.Slice(axes=[0, 1], normalized_anchor=False, normalized_shape=False)
+    np.testing.assert_array_equal(_to_numpy(positional(image, anchor, shape)), data[5:26, 10:41])
+    named = ndd._ops.Slice(axes=[0, 1])
+    np.testing.assert_array_equal(
+        _to_numpy(named(image, start=anchor, shape=shape)), data[5:25, 10:40]
+    )
+
+
 @eval_modes()
 def test_slice_named_arguments_ignore_the_dtype():
     """The named arguments say absolute or relative by their name, whatever their dtype."""
