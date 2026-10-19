@@ -113,6 +113,18 @@ TEST(ConvertSatNorm, int2float) {
   EXPECT_EQ(ConvertSatNorm<int16_t>(ConvertSatNorm<float>(int16_t(-0x8000))), -0x8000);
 }
 
+TEST(ClampNorm, float16) {
+  // float16 input is compared as float
+  EXPECT_EQ(static_cast<float>(clamp_norm<uint8_t>(float16(1.5f))), 1.0f);
+  EXPECT_EQ(static_cast<float>(clamp_norm<uint8_t>(float16(-0.5f))), 0.0f);
+  EXPECT_EQ(static_cast<float>(clamp_norm<uint8_t>(float16(0.25f))), 0.25f);
+  EXPECT_EQ(static_cast<float>(clamp_norm<int16_t>(float16(-1.5f))), -1.0f);
+  EXPECT_EQ(static_cast<float>(clamp_norm<int16_t>(float16(1.5f))), 1.0f);
+  EXPECT_EQ(static_cast<float>(clamp_norm<int16_t>(float16(-0.5f))), -0.5f);
+  // No clamping for floating point outputs
+  EXPECT_EQ(static_cast<float>(clamp_norm<float>(float16(1.5f))), 1.5f);
+}
+
 TEST(ConvertNorm, float16_2int) {
   // max_value<Out>() of these types is not representable in float16
   EXPECT_EQ(ConvertNorm<uint16_t>(float16(0.5f)), 0x8000);

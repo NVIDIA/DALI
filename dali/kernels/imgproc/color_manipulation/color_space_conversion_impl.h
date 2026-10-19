@@ -67,10 +67,11 @@ constexpr DALI_HOST_DEV std::enable_if_t<!std::is_integral<T>::value, float> bia
  *
  * This makes the color space conversion functions equivalent to converting each channel to
  * `Output` first (as the GPU decode path, ConvertGPU, does) and then running the conversion with
- * `Output` as both input and output type, but without the intermediate rounding. Without the
- * saturation, e.g. a negative value of a signed channel would contribute a negative term to the
- * conversion matrix and yield colors not representable in an unsigned output type, which then
- * saturate to wrong values.
+ * `Output` as both input and output type, but without the intermediate rounding - up to one code
+ * at `min_value<Input>()` for a signed integral `Output` (see below). Without the saturation,
+ * e.g. a negative value of a signed channel would contribute a negative term to the conversion
+ * matrix and yield colors not representable in an unsigned output type, which then saturate to
+ * wrong values.
  *
  * Each channel is clipped separately, before the conversion matrix - also for floating point
  * inputs out of the [0, 1] (or [-1, 1]) range. This is a deliberate choice that matches the GPU

@@ -16,6 +16,7 @@
 #include "dali/test/dali_test.h"
 #include "dali/test/dali_test_config.h"
 #include "dali/operators/imgcodec/decoder_test_helper.h"
+#include "dali/operators/imgcodec/util/convert_utils.h"
 
 namespace dali {
 namespace imgcodec {
@@ -402,6 +403,49 @@ TEST_F(ConvertSignedSourceTest, RgbToGrayMatchesJpegFormulaOnNormalizedInput) {
   float b = ConvertSatNorm<uint8_t>(rgb[2]);
   uint8_t expected = ConvertSat<uint8_t>(0.299f * r + 0.587f * g + 0.114f * b);
   EXPECT_EQ(*out.data<uint8_t>(), expected);
+}
+
+// The precision reported by a codec (e.g. TIFF BitsPerSample) includes the sign bit for signed
+// types, which PositiveBitsFromPrecision accounts for.
+TEST(DynamicRangeScaling, FullWidthSignedSourceIsNotScaled) {
+  for (auto dtype : {DALI_INT8, DALI_INT16, DALI_INT32, DALI_INT64}) {
+    int bits = 8 * TypeTable::GetTypeInfo(dtype).size();
+    int precision = PositiveBitsFromPrecision(bits, dtype);
+    EXPECT_EQ(precision, bits - 1) << dtype;
+    EXPECT_FALSE(NeedDynamicRangeScaling(precision, dtype)) << dtype;
+  }
+}
+
+TEST(DynamicRangeScaling, FullWidthUnsignedSourceIsNotScaled) {
+  for (auto dtype : {DALI_UINT8, DALI_UINT16, DALI_UINT32, DALI_UINT64}) {
+    int bits = 8 * TypeTable::GetTypeInfo(dtype).size();
+    int precision = PositiveBitsFromPrecision(bits, dtype);
+    EXPECT_EQ(precision, bits) << dtype;
+    EXPECT_FALSE(NeedDynamicRangeScaling(precision, dtype)) << dtype;
+  }
+}
+
+TEST(DynamicRangeScaling, ReducedPrecisionSignedSourceIsScaled) {
+  // 12 bits in an int16 container: 11 magnitude bits scaled to 15
+  int precision = PositiveBitsFromPrecision(12, DALI_INT16);
+  EXPECT_EQ(precision, 11);
+  ASSERT_TRUE(NeedDynamicRangeScaling(precision, DALI_INT16));
+  EXPECT_DOUBLE_EQ(DynamicRangeMultiplier(precision, DALI_INT16), 32767.0 / 2047.0);
+  // 4 bits in an int8 container
+  precision = PositiveBitsFromPrecision(4, DALI_INT8);
+  EXPECT_EQ(precision, 3);
+  ASSERT_TRUE(NeedDynamicRangeScaling(precision, DALI_INT8));
+  EXPECT_DOUBLE_EQ(DynamicRangeMultiplier(precision, DALI_INT8), 127.0 / 7.0);
+}
+
+TEST(DynamicRangeScaling, UnknownOrSingleBitPrecisionIsUnchanged) {
+  EXPECT_EQ(PositiveBitsFromPrecision(0, DALI_INT16), 0);
+  EXPECT_EQ(PositiveBitsFromPrecision(1, DALI_INT16), 1);
+}
+
+TEST(DynamicRangeScaling, FloatingPointPrecisionIsUnchanged) {
+  // floating point types are "signed" too, but have no sign bit to account for
+  EXPECT_EQ(PositiveBitsFromPrecision(32, DALI_FLOAT), 32);
 }
 
 }  // namespace test

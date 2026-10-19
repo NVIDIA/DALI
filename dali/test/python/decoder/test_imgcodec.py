@@ -625,12 +625,14 @@ def _cpu_decodes_signed_tiff():
 
 
 def test_tiff_signed_color_conversion():
-    """Decoding a signed integer TIFF to (uint8) YCbCr or GRAY.
+    """Decoding a signed integer TIFF to (uint8) YCbCr.
 
     The YCbCr output (converted by DALI) must match an independent reference on every backend
-    that can decode signed TIFFs. GRAY is requested directly from nvImageCodec (it is not
-    converted by DALI), so there is no DALI reference for it: only its type and shape are checked,
-    plus the agreement between backends, when more than one is available.
+    that can decode signed TIFFs. GRAY is not covered here: it is requested directly from
+    nvImageCodec (it is not converted by DALI), so there is no reference for it. The signed ->
+    GRAY color conversion done by DALI itself is covered by the ConvertSignedSourceTest cases in
+    dali/operators/imgcodec/util/convert_test.cc and by the kernel-level color space conversion
+    tests.
 
     Signed samples are SNORM (value / max_value) and negative values are not representable in
     the uint8 output, so they saturate to 0 before the color conversion. Before the fix, the CPU
@@ -648,27 +650,19 @@ def test_tiff_signed_color_conversion():
         return np.array(out.as_cpu().at(0))
 
     for name, encoded, raw in _signed_tiff_test_images():
-        for output_type in (types.YCbCr, types.GRAY):
-            results = {}
-            for device in devices:
-                out = decode(encoded, device, output_type)
-                assert out.dtype == np.uint8
-                if output_type == types.YCbCr:
-                    ref = _signed_rgb_to_ycbcr_uint8_ref(raw)
-                    assert out.shape == ref.shape, f"{name} {device}: {out.shape} vs {ref.shape}"
-                    # The GPU normalizes to uint8 before the color conversion, so there's an
-                    # extra (intermediate) rounding step there.
-                    np.testing.assert_allclose(
-                        out, ref, atol=1, rtol=0, err_msg=f"{name} {device} {output_type}"
-                    )
-                else:
-                    assert out.shape == raw.shape[:2] + (1,), f"{name} {device}: {out.shape}"
-                results[device] = out.astype(np.int32)
-            if len(devices) > 1:
-                diff = np.abs(results["cpu"] - results["mixed"])
-                assert (
-                    diff.max() <= 1
-                ), f"{name} {output_type}: cpu and mixed differ by {diff.max()}"
+        ref = _signed_rgb_to_ycbcr_uint8_ref(raw)
+        results = {}
+        for device in devices:
+            out = decode(encoded, device, types.YCbCr)
+            assert out.dtype == np.uint8
+            assert out.shape == ref.shape, f"{name} {device}: {out.shape} vs {ref.shape}"
+            # The GPU normalizes to uint8 before the color conversion, so there's an extra
+            # (intermediate) rounding step there.
+            np.testing.assert_allclose(out, ref, atol=1, rtol=0, err_msg=f"{name} {device}")
+            results[device] = out.astype(np.int32)
+        if len(devices) > 1:
+            diff = np.abs(results["cpu"] - results["mixed"])
+            assert diff.max() <= 1, f"{name}: cpu and mixed differ by {diff.max()}"
 
 
 def test_decode_ycbcr_invalid_input():

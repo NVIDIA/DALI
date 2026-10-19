@@ -564,15 +564,16 @@ class ImageDecoder : public StatelessOperator<Backend> {
       precision = PositiveBits(st.parsed_sample.orig_dtype);
     } else if (precision == 1 && st.parsed_sample.orig_dtype == DALI_UINT8) {
       precision = 8;  // nvimgcodec produces at minimum uint8 dynamic range (0..255)
-    } else if (IsIntegral(st.parsed_sample.orig_dtype) && IsSigned(st.parsed_sample.orig_dtype) &&
-               precision > 1) {
-      // `precision` reported by the source (e.g. TIFF BitsPerSample) is the raw bit width of
-      // the stored sample, which for a signed sample format already includes the sign bit.
-      // PositiveBits() only counts the magnitude bits, so convert `precision` to the same basis
-      // before comparing, otherwise a full-width signed source (the common case) is treated as
-      // if it used one bit less than its actual dynamic range and gets scaled down incorrectly.
-      // Only integral types are affected (floating point reports IsSigned() too).
-      precision -= 1;
+    } else {
+      // `precision` reported by the source (e.g. TIFF BitsPerSample) is the raw bit width of the
+      // stored sample, which for a signed sample format already includes the sign bit, while
+      // PositiveBits() counts only the magnitude bits. Convert it to the same basis, otherwise
+      // a full-width signed source (the common case) is treated as if it used one bit less than
+      // its actual dynamic range and gets scaled down incorrectly. This assumes that a codec
+      // producing a signed type reports the precision including the sign bit.
+      // Note that the CPU backend does not apply `dyn_range_multiplier` yet (see the TODO in
+      // the conversion step below), so a reduced-precision source is decoded unscaled there.
+      precision = PositiveBitsFromPrecision(precision, st.parsed_sample.orig_dtype);
     }
     bool need_dynamic_range_scaling =
         NeedDynamicRangeScaling(precision, st.parsed_sample.orig_dtype);

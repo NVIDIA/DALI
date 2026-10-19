@@ -27,6 +27,23 @@ inline int PositiveBits(DALIDataType dtype) {
 }
 
 /**
+ * @brief Converts the `precision` reported by a codec to the same basis as `PositiveBits`
+ *
+ * Codecs report the bit width of the stored sample (e.g. TIFF BitsPerSample), which for a signed
+ * integral type includes the sign bit, whereas `PositiveBits` counts only the magnitude bits.
+ * Without the conversion, a full-width signed source would look like it used one bit less than
+ * its actual dynamic range.
+ *
+ * @remarks This assumes that a codec producing a signed type reports the precision including the
+ *          sign bit. A precision of 0 (unknown) or 1 is returned unchanged.
+ */
+inline int PositiveBitsFromPrecision(int precision, DALIDataType dtype) {
+  if (precision > 1 && IsIntegral(dtype) && IsSigned(dtype))
+    return precision - 1;
+  return precision;
+}
+
+/**
  * @brief Expected maximum value for a given type
  */
 inline double MaxValue(DALIDataType dtype) {
