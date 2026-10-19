@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <vector>
@@ -54,6 +55,22 @@ class InflateOpGpuLZ4Impl : public InflateOpImplBase<GPUBackend> {
     auto stream = ws.stream();
 
     kernels::DynamicScratchpad scratchpad(stream);
+    // Chunks can start at arbitrary byte offsets in DALI tensors. nvCOMP 6 requires
+    // aligned input and output buffers, so stage only the chunks that need it.
+    constexpr size_t alignment = nvcompLZ4RequiredDecompressionAlignment;
+    const auto &in_chunk_sizes = params_.GetInChunkSizes();
+    auto original_output_ptrs = inflated_ptrs_;
+    for (size_t i = 0; i < total_chunks_num; i++) {
+      if (reinterpret_cast<uintptr_t>(input_ptrs_[i]) % alignment != 0) {
+        auto *aligned_input = scratchpad.AllocateGPU<uint8_t>(in_chunk_sizes[i], alignment);
+        CUDA_CALL(cudaMemcpyAsync(aligned_input, input_ptrs_[i], in_chunk_sizes[i],
+                                  cudaMemcpyDeviceToDevice, stream));
+        input_ptrs_[i] = aligned_input;
+      }
+      if (reinterpret_cast<uintptr_t>(inflated_ptrs_[i]) % alignment != 0) {
+        inflated_ptrs_[i] = scratchpad.AllocateGPU<uint8_t>(inflated_sizes_[i], alignment);
+      }
+    }
     size_t *actual_out_sizes = scratchpad.AllocateGPU<size_t>(total_chunks_num);
 
     auto [in_sizes, in, out_sizes, out] = scratchpad.ToContiguousGPU(
@@ -86,14 +103,14 @@ class InflateOpGpuLZ4Impl : public InflateOpImplBase<GPUBackend> {
     }
 
     size_t tempSize;
-    CUDA_CALL(nvcompBatchedLZ4DecompressGetTempSizeAsync(
+    CUDA_CALL(nvcompBatchedLZ4DecompressGetTempSize(
         total_chunks_num,
         params_.GetMaxOutChunkVol() * element_type_.size(),
         {},
         &tempSize,
-        params_.GetMaxOutVol() * element_type_.size()));
+        params_.GetMaxOutVol() * element_type_.size(), stream));
 
-    void *temp = scratchpad.AllocateGPU<uint8_t>(tempSize);
+    void *temp = scratchpad.AllocateGPU<uint8_t>(tempSize, alignment);
     nvcompStatus_t *device_statuses = scratchpad.AllocateGPU<nvcompStatus_t>(total_chunks_num);
     CUDA_CALL(nvcompBatchedLZ4DecompressAsync(in, in_sizes, out_sizes, actual_out_sizes,
                                                total_chunks_num, temp, tempSize, out, {},
@@ -104,6 +121,12 @@ class InflateOpGpuLZ4Impl : public InflateOpImplBase<GPUBackend> {
     // Here, we take care of the opposite case, when the allocations are bigger than really
     // necessary and thus may contain some uninitialized memory.
     FillTheTails(output.type(), total_chunks_num, out, actual_out_sizes, out_sizes, stream);
+    for (size_t i = 0; i < total_chunks_num; i++) {
+      if (inflated_ptrs_[i] != original_output_ptrs[i]) {
+        CUDA_CALL(cudaMemcpyAsync(original_output_ptrs[i], inflated_ptrs_[i], inflated_sizes_[i],
+                                  cudaMemcpyDeviceToDevice, stream));
+      }
+    }
   }
 
  protected:
