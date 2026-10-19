@@ -1581,6 +1581,10 @@ class Pipeline(object):
         for inp_name, inp_value in pipeline_inputs.items():
             self.feed_input(inp_name, inp_value)
         with self._check_api_type_scope(types.PipelineAPIType.BASIC):
+            if not self._exec_async:
+                # Without async execution, the run happens in this thread and needs a free buffer.
+                # The previous outputs would be released by `outputs` anyway, but that's too late.
+                self.release_outputs()
             self.schedule_run()
             return self.outputs(cuda_stream)
 
@@ -1610,8 +1614,6 @@ class Pipeline(object):
                 self._first_iter = False
                 self._iter_setup()
                 self._batches_to_consume += 1
-                if not self._exec_async:
-                    self.release_outputs()
                 self._pipe.Run()
             except StopIteration:
                 self._last_iter = True
@@ -1627,11 +1629,6 @@ class Pipeline(object):
             if not self._last_iter:
                 self._iter_setup()
                 self._batches_to_consume += 1
-            # Without async execution, the run happens in this thread and needs a free buffer.
-            # If the user didn't release the outputs, the run would wait forever.
-            if not self._exec_async:
-                self.release_outputs()
-            if not self._last_iter:
                 self._pipe.Run()
         except StopIteration:
             self._last_iter = True

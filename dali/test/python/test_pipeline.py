@@ -246,12 +246,7 @@ def test_pipeline_simple_sync_no_prefetch():
         pipe.run()
 
 
-@params(1, 2, 3)
-def test_pipeline_sync_pipelined_run(prefetch_queue_depth):
-    # Pipelined execution without exec_async used to hang in `run` with prefetch_queue_depth > 1
-    batch_size = 2
-    num_batches = 5
-
+def _sync_pipelined_pipe(prefetch_queue_depth, batch_size, num_batches):
     def source():
         for i in range(num_batches):
             yield [np.int32([i]) for _ in range(batch_size)]
@@ -269,15 +264,45 @@ def test_pipeline_sync_pipelined_run(prefetch_queue_depth):
         data = fn.external_source(source=source, batch=True, cycle="raise")
         return data, data.gpu()
 
-    pipe = pdef()
+    return pdef()
+
+
+def _check_sync_pipelined_outputs(outputs, batch_size, batch_idx):
+    cpu, gpu = outputs
+    expected = np.full((batch_size, 1), batch_idx, dtype=np.int32)
+    np.testing.assert_array_equal(cpu.as_array(), expected)
+    np.testing.assert_array_equal(gpu.as_cpu().as_array(), expected)
+
+
+@params(1, 2, 3)
+def test_pipeline_sync_pipelined_run(prefetch_queue_depth):
+    # Pipelined execution without exec_async used to hang in `run` with prefetch_queue_depth > 1
+    batch_size = 2
+    num_batches = 5
+    pipe = _sync_pipelined_pipe(prefetch_queue_depth, batch_size, num_batches)
     for _ in range(2):
         for i in range(num_batches):
-            cpu, gpu = pipe.run()
-            expected = np.full((batch_size, 1), i, dtype=np.int32)
-            np.testing.assert_array_equal(cpu.as_array(), expected)
-            np.testing.assert_array_equal(gpu.as_cpu().as_array(), expected)
+            _check_sync_pipelined_outputs(pipe.run(), batch_size, i)
         with assert_raises(StopIteration):
             pipe.run()
+        pipe.reset()
+
+
+@params(1, 2, 3)
+def test_pipeline_sync_pipelined_scheduled(prefetch_queue_depth):
+    # The outputs are released before the next `schedule_run`, so a free buffer is available
+    # without any implicit release
+    batch_size = 2
+    num_batches = 5
+    pipe = _sync_pipelined_pipe(prefetch_queue_depth, batch_size, num_batches)
+    for _ in range(2):
+        pipe.schedule_run()
+        for i in range(num_batches):
+            _check_sync_pipelined_outputs(pipe.share_outputs(), batch_size, i)
+            pipe.release_outputs()
+            pipe.schedule_run()
+        with assert_raises(StopIteration):
+            pipe.share_outputs()
         pipe.reset()
 
 

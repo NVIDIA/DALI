@@ -713,6 +713,10 @@ class DALIServer:
                 for pipe_run_ref in batches:
                     for name, data in pipe_run_ref.call_args.items():
                         self._pipe.feed_input(name, data)
+                    if not self._pipe.exec_async:
+                        # Without async execution, the run happens in this thread and needs a free
+                        # buffer. The previous outputs have already been converted to torch tensors.
+                        self._pipe.release_outputs()
                     self._pipe._run_once()
                     fed_batches.append(pipe_run_ref.batch_id)
                 _nvtx.range_pop()
