@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,6 +15,7 @@
 #include "dali/operators/reader/coco_reader_op.h"
 
 #include <set>
+#include <variant>
 
 extern "C" {
 #include "third_party/cocoapi/common/maskApi.h"
@@ -226,7 +227,7 @@ void COCOReader::RunImpl(SampleWorkspace &ws) {
 
   Index image_size = image_label.image.size();
   auto &image_output = ws.Output<CPUBackend>(0);
-  int image_idx = image_label.label;
+  int image_idx = std::get<int32_t>(image_label.label);
 
   image_output.Resize({image_size}, DALI_UINT8);
   image_output.SetSourceInfo(image_label.image.GetSourceInfo());
