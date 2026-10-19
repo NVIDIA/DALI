@@ -9,9 +9,6 @@ Capture Rules
 Capture mode speeds up a loop only for the operators it captures. Uncaptured operators run
 eagerly, with no warning and no change in the result.
 
-Arithmetic operators are supported too, including expressions such as
-:python:`0.3 * cat + 0.7 * dog`.
-
 The capture rule
 ----------------
 
@@ -57,6 +54,24 @@ However, consuming a batch from a previous step leads to falling back to eager e
 
 Slicing with :python:`batch.slice[...]` is not captured. It causes dependent operators to fall
 back to eager execution because its result is no longer something the pipeline produced.
+
+Arithmetic operators
+--------------------
+
+Arithmetic and comparison operators on batches are captured like any other operator, for example
+:python:`images > 128` or :python:`0.3 * cat + 0.7 * dog` . Operands follow the same rules as
+arguments, so a scalar operand must be a constant as described below. This matters for values
+defined at module level, such as normalization constants:
+
+.. code-block:: python
+
+   MEAN = 128.0
+   STD = 64.0
+
+   def normalize(images: ndd.Batch):
+       return (images - MEAN) / STD   # not captured: MEAN and STD are module globals
+
+Write the values inline or mark them with :func:`capture.invariant`.
 
 Constant arguments
 ------------------
@@ -131,11 +146,13 @@ that is all it takes.
 
 .. note::
 
-   On Python 3.10, DALI cannot differentiate multiple calls on the same line. As a result,
-   arguments in a line containing multiple calls cannot be recognized as constants.
+   On Python 3.10, DALI cannot differentiate multiple calls, or multiple operators, on the same
+   line. As a result, constants on such a line cannot be recognized, as in
+   :python:`0.3 * cat + 0.7 * dog`. Splitting the expression into one operation per line avoids
+   this.
 
-   From Python 3.11 onward, several calls on the same line are distinguished using bytecode
-   instructions mapped to column offsets as described in :pep:`657`.
+   From Python 3.11 onward, several calls or operators on the same line are distinguished using
+   bytecode instructions mapped to column offsets as described in :pep:`657`.
 
 For values you cannot express as constants, such as module globals or attributes on a
 configuration object, see :ref:`ndd_capture_invariant` below.
