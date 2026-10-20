@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,7 +16,7 @@ import nvidia.dali.ops as ops
 from nvidia.dali.pipeline import Pipeline
 
 import test_utils
-from nose_utils import raises
+from nose_utils import assert_raises, raises
 
 
 class TestPipeline(Pipeline):
@@ -128,3 +128,27 @@ def test_incorrect_invocation_mutually_exclusive_params():
 )
 def test_incorrect_invocation_no_params():
     Pipeline.deserialize()
+
+
+def test_separated_queues_require_exec_async():
+    pipe = TestPipeline(batch_size=3, num_threads=1, shape=[666])
+    serialized = pipe.serialize()
+    queue_depth = {"cpu": 2, "gpu": 3}
+    for exec_async in [False, None]:
+        with assert_raises(ValueError, glob="`exec_async` must not evaluate to `False`*"):
+            Pipeline.deserialize(
+                serialized,
+                prefetch_queue_depth=queue_depth,
+                exec_pipelined=True,
+                exec_async=exec_async,
+                exec_dynamic=False,
+            )
+    test_pipe = Pipeline.deserialize(
+        serialized,
+        prefetch_queue_depth=queue_depth,
+        exec_pipelined=True,
+        exec_async=True,
+        exec_dynamic=False,
+    )
+    assert test_pipe.exec_separated and test_pipe.exec_async
+    test_pipe.run()
