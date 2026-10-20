@@ -59,26 +59,25 @@ constexpr DALI_HOST_DEV std::enable_if_t<!std::is_integral<T>::value, float> bia
 }
 
 /**
- * @brief Saturates an input value to the range of normalized values representable in `Output`
+ * @brief Clips an input value to the range that `Output` can represent, without converting it
  *
- * Integer values are interpreted as normalized: unsigned integers as UNORM (`v / max_value`,
- * in [0, 1]) and signed integers as SNORM (`v / max_value`, in [-1, 1]); floating point values
- * are used as they are. The value is then saturated to the normalized range of `Output`:
- *   * unsigned `Output`: [0, 1]
- *   * signed integer `Output`: [-1, 1] - `min_value<Input>()`, which is one code below
- *     `-max_value<Input>()`, is clamped to -1, as in SNORM formats of graphics APIs
+ * The color conversions treat integers as normalized values: unsigned integers as [0, 1]
+ * (UNORM) and signed integers as [-1, 1] (SNORM), so that e.g. uint8_t(255) and
+ * int16_t(32767) both mean 1.0. Floating point values are already normalized.
+ * This function clips the value to the part of that range that `Output` can hold:
+ *   * unsigned `Output`: [0, 1] - negative values become 0
+ *   * signed integer `Output`: [-1, 1] - only `min_value<Input>()` changes: it is one code
+ *     below -1 (e.g. int8_t(-128)), so it becomes -1 (int8_t(-127)), as in the SNORM formats
+ *     of graphics APIs
  *   * floating point `Output`: no limit, the value is returned unchanged
- * Unsigned integer inputs are never modified.
  *
- * Note that the value is not converted to `Output` - it's returned in the `Input` type (and
- * units), so that the conversion formulas below can apply their usual Input -> Output scaling
- * to it.
+ * The result keeps the `Input` type and scale - the scaling to `Output` is left to the
+ * conversion formulas below. For example, with an int16_t `Input` and a uint8_t `Output`,
+ * -500 becomes 0 and 1000 stays int16_t(1000).
  *
- * Unlike here, `ConvertSatNorm` to a signed integer type keeps `min_value<Input>()` one code
- * below -1 when `Output` is as wide as `Input` or wider (e.g. `ConvertSatNorm<int8_t>` of
- * int8_t(-128) is -128 and `ConvertSatNorm<int16_t>` of int8_t(-128) is -32768). Like here,
- * `ConvertSatNorm` to a floating point type doesn't clamp it - int8_t(-128) normalizes to
- * -128/127, not -1.
+ * Note: `ConvertSatNorm` treats `min_value<Input>()` differently. When `Output` is a floating
+ * point type, or a signed integer at least as wide as `Input`, it keeps the value below -1
+ * (e.g. int8_t(-128) becomes -128/127 as a float, or -32768 as an int16_t).
  */
 template <typename Output, typename Input>
 constexpr DALI_HOST_DEV Input saturate_to_output_range(Input value) {
