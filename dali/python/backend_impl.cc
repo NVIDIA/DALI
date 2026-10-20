@@ -3167,8 +3167,8 @@ PYBIND11_MODULE(backend_impl, m, py::mod_gil_not_used()) {
 
   m.def("IsDriverInitialized", [] {
     // we just want to check if cuda has been loaded already
-    if (dlopen("libcuda.so", RTLD_NOLOAD | RTLD_NOW) ||
-        dlopen("libcuda.so.1", RTLD_NOLOAD | RTLD_NOW)) {
+    if (dlopen("libcuda.so.1", RTLD_NOLOAD | RTLD_NOW) ||
+        dlopen("libcuda.so", RTLD_NOLOAD | RTLD_NOW)) {
       int place_holder = -1;
       // call cuDeviceGetCount only if cuda is loaded, if not there is not point in calling
       // a check that would load it
