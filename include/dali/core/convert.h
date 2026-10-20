@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -378,7 +378,7 @@ struct ConvertIntInt<Out, In, false, true> {
   static constexpr Out ConvertSatNorm(In value) {
 #ifdef __CUDA_ARCH__
     return detail::cuda_round_helper(
-      __saturatef(value * (1.0f / max_value<In>())) * max_value<Out>(), Out());
+      __saturatef(value * (1.0f / max_value<In>())) * max_value<Out>());
 #else
     return value < 0 ? 0 : ConvertNorm(value);
 #endif

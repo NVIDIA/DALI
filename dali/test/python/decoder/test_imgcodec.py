@@ -519,11 +519,11 @@ def test_tiff_uint32_truncated_input():
 
 
 def _signed_rgb_to_ycbcr_uint8_ref(rgb):
-    """Reference conversion of a signed (SNORM) integer RGB image to a uint8 YCbCr image.
+    """Reference conversion of a signed integer RGB image to a uint8 YCbCr image.
 
-    Signed samples are SNORM: value / max_value, clamped to [-1, 1]. Values not representable in
-    the (unsigned) output are saturated (i.e. negative values are clamped to 0), before the color
-    conversion -- the same as when decoding to RGB, which uses the same saturating normalization.
+    Signed samples are normalized as value / max_value, and negative values are clamped to 0
+    before the color conversion -- the same as when decoding to uint8 RGB, which uses the same
+    saturating normalization.
     """
     info = np.iinfo(rgb.dtype)
     x = np.clip(rgb.astype(np.float64) / info.max, 0, 1)
@@ -636,8 +636,8 @@ def test_tiff_signed_color_conversion():
     dali/operators/imgcodec/util/convert_test.cc and by the kernel-level color space conversion
     tests.
 
-    Signed samples are SNORM (value / max_value) and negative values are not representable in
-    the uint8 output, so they saturate to 0 before the color conversion. Before the fix, the CPU
+    Signed samples are normalized as value / max_value, and negative values are clamped to 0
+    before the color conversion. Before the fix, the CPU
     color conversion ran the matrix directly on the raw signed samples, producing completely
     different results than the GPU (e.g. Y=0, Cb=255, Cr=255 instead of Y=106, Cb=202, Cr=221
     for the RGB pixel [2122218880, -2088533504, 2139061888]).

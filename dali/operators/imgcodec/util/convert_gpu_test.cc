@@ -613,7 +613,7 @@ TYPED_TEST(ConvertCPUvsGPUTest, RGBToRGB) {
 /**
  * @brief A pixel from a signed int32 TIFF, for which CPU and GPU decoding to YCbCr used to differ.
  *
- * Normalized (SNORM) RGB: R = 0.98824, G = -0.97255 (not representable in uint8 -> 0),
+ * Normalized RGB: R = 0.98824, G = -0.97255 (negative -> 0),
  * B = 0.99608, which in ITU-R BT.601 YCbCr is Y = 105.58, Cb = 202.21, Cr = 220.54.
  * GRAY (JPEG luma) is 104.30.
  */

@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -86,19 +86,6 @@ DEVICE_TEST(ConvertSatNorm_Dev, float2int, 1, 1) {
   DEV_EXPECT_GE(ConvertSatNorm<int64_t>(2.0f),  0x7fffff8000000000);
   DEV_EXPECT_LE(ConvertSatNorm<int64_t>(-2.0f), -0x7fffff8000000000);
   DEV_EXPECT_EQ(ConvertSatNorm<uint64_t>(-2.0f), 0u);
-}
-
-DEVICE_TEST(ConvertSatNorm_Dev, int2int, 1, 1) {
-  DEV_EXPECT_EQ((ConvertSatNorm<uint8_t, int8_t>(-1)), 0);
-  DEV_EXPECT_EQ((ConvertSatNorm<uint8_t, int16_t>(-0x8000)), 0);
-  DEV_EXPECT_EQ((ConvertSatNorm<uint8_t, int16_t>(0x7fff)), 255);
-  DEV_EXPECT_EQ((ConvertSatNorm<uint16_t, int32_t>(0x7fffffff)), 0xffff);
-  DEV_EXPECT_EQ((ConvertSatNorm<uint16_t, uint8_t>(255)), 0xffff);
-  DEV_EXPECT_EQ((ConvertSatNorm<int8_t, int16_t>(0x7fff)), 127);
-  DEV_EXPECT_EQ((ConvertSatNorm<int16_t, int8_t>(-127)), -0x7fff);
-  DEV_EXPECT_EQ((ConvertSatNorm<int16_t, int8_t>(-128)), -0x8000);
-  DEV_EXPECT_EQ((ConvertSatNorm<int8_t, int16_t>(-0x8000)), -127);
-  DEV_EXPECT_EQ((ConvertSatNorm<int8_t, int8_t>(-128)), -128);
 }
 
 TEST(ConvertNorm_CUDA_Host, int2float) {
