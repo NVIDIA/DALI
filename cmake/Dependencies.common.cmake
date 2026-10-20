@@ -143,23 +143,60 @@ endif()
 ##################################################################
 # nvcomp
 ##################################################################
+# The nvCOMP version DALI is built against and depends on. Only the major version
+# is enforced when looking for the headers and the library, as it defines the ABI.
+set(DALI_NVCOMP_VERSION "5.3.0.16")
+string(REGEX MATCH "^[0-9]+" DALI_NVCOMP_VERSION_MAJOR "${DALI_NVCOMP_VERSION}")
 set(DALI_INSTALL_REQUIRES_NVCOMP "")
 if(BUILD_NVCOMP)
+  # The Linux distribution packages put each major version in a versioned subdirectory
+  # and expose only one of them (not necessarily ours) in the default location.
   find_path(
     nvcomp_INCLUDE_DIR
     NAMES nvcomp.h
-    PATHS ${NVCOMP_ROOT_DIR} "/usr/local/cuda" "/usr/local" ${CMAKE_SYSTEM_PREFIX_PATH}
-    PATH_SUFFIXES include include/nvcomp)
+    HINTS ${NVCOMP_ROOT_DIR}
+    PATHS "/usr/local/cuda" "/usr/local" ${CMAKE_SYSTEM_PREFIX_PATH}
+    PATH_SUFFIXES libnvcomp${DALI_NVCOMP_VERSION_MAJOR}-dev-cuda-${CUDA_VERSION_MAJOR}
+                  include/libnvcomp${DALI_NVCOMP_VERSION_MAJOR}-dev-cuda-${CUDA_VERSION_MAJOR}
+                  include include/nvcomp)
   if (${nvcomp_INCLUDE_DIR} STREQUAL nvcomp_INCLUDE_DIR-NOTFOUND)
     message(FATAL_ERROR "nvCOMP headers could not be found. Try to specify nvcomp location with `-DNVCOMP_ROOT_DIR`.")
   endif()
+  set(nvcomp_VERSION_MAJOR "unknown")
+  if (EXISTS "${nvcomp_INCLUDE_DIR}/nvcomp/version.h")
+    file(STRINGS "${nvcomp_INCLUDE_DIR}/nvcomp/version.h" nvcomp_VERSION_MAJOR
+         REGEX "^#define NVCOMP_VER_MAJOR +[0-9]+")
+    string(REGEX REPLACE "^#define NVCOMP_VER_MAJOR +([0-9]+).*" "\\1"
+           nvcomp_VERSION_MAJOR "${nvcomp_VERSION_MAJOR}")
+  endif()
+  if (NOT nvcomp_VERSION_MAJOR STREQUAL DALI_NVCOMP_VERSION_MAJOR)
+    # Don't keep the wrong location in the cache, so that the next run searches again.
+    # This must precede message(FATAL_ERROR), which stops processing.
+    set(nvcomp_WRONG_INCLUDE_DIR "${nvcomp_INCLUDE_DIR}")
+    unset(nvcomp_INCLUDE_DIR CACHE)
+    message(FATAL_ERROR "nvCOMP ${DALI_NVCOMP_VERSION_MAJOR}.x is required, but the headers found in "
+                        "${nvcomp_WRONG_INCLUDE_DIR} are version ${nvcomp_VERSION_MAJOR}. "
+                        "Try to specify nvcomp location with `-DNVCOMP_ROOT_DIR`.")
+  endif()
   include_directories(SYSTEM ${nvcomp_INCLUDE_DIR})
   if (NOT WITH_DYNAMIC_NVCOMP)
+    # Discard a library with a wrong major version, e.g. found by an older configuration.
+    # Symlinks are resolved, so an unversioned libnvcomp.so pointing to the right version is kept.
+    if (nvcomp_LIBS)
+      get_filename_component(nvcomp_LIBS_REALPATH "${nvcomp_LIBS}" REALPATH)
+      if (NOT nvcomp_LIBS_REALPATH MATCHES
+          "libnvcomp\\.so\\.${DALI_NVCOMP_VERSION_MAJOR}(\\.[0-9]+)*$")
+        message(STATUS "Discarding nvcomp_LIBS=${nvcomp_LIBS}, as it's not "
+                       "libnvcomp.so.${DALI_NVCOMP_VERSION_MAJOR}. Searching again.")
+        unset(nvcomp_LIBS CACHE)
+      endif()
+    endif()
     find_library(
       nvcomp_LIBS
-      NAMES nvcomp
-      PATHS ${NVCOMP_ROOT_DIR} "/usr/local/cuda" "/usr/local" ${CMAKE_SYSTEM_PREFIX_PATH}
-      PATH_SUFFIXES lib lib64)
+      NAMES libnvcomp.so.${DALI_NVCOMP_VERSION_MAJOR}
+      HINTS ${NVCOMP_ROOT_DIR}
+      PATHS "/usr/local/cuda" "/usr/local" ${CMAKE_SYSTEM_PREFIX_PATH}
+      PATH_SUFFIXES lib lib64 libnvcomp${DALI_NVCOMP_VERSION_MAJOR}-cuda-${CUDA_VERSION_MAJOR})
     if(${nvcomp_LIBS} STREQUAL nvcomp_LIBS-NOTFOUND)
       message(FATAL_ERROR "nvCOMP libs could not be found. Try to specify nvcomp location with `-DNVCOMP_ROOT_DIR`.")
     endif()
@@ -167,7 +204,7 @@ if(BUILD_NVCOMP)
     list(APPEND DALI_LIBS ${nvcomp_LIBS})
   else()
     message(STATUS "Found nvCOMP: ${nvcomp_INCLUDE_DIR}.")
-    set(DALI_INSTALL_REQUIRES_NVCOMP "\'nvidia-libnvcomp-cu${CUDA_VERSION_MAJOR} == 5.3.0.16\',")
+    set(DALI_INSTALL_REQUIRES_NVCOMP "\'nvidia-libnvcomp-cu${CUDA_VERSION_MAJOR} == ${DALI_NVCOMP_VERSION}\',")
     message(STATUS "Adding nvComp requirement as: ${DALI_INSTALL_REQUIRES_NVCOMP}")
   endif()
 endif()

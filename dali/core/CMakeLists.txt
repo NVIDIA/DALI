@@ -119,6 +119,8 @@ if (BUILD_NVCOMP)
 
   set_source_files_properties(${NVCOMP_GENERATED_STUB} PROPERTIES GENERATED TRUE)
   add_library(dynlink_nvcomp STATIC dynlink_nvcomp.cc ${NVCOMP_GENERATED_STUB})
+  target_compile_definitions(dynlink_nvcomp PRIVATE
+                             DALI_NVCOMP_SONAME="libnvcomp.so.${DALI_NVCOMP_VERSION_MAJOR}")
 endif()
 
 list(FILTER DALI_CORE_SRCS EXCLUDE REGEX ".*dynlink_nvcomp.cc")
