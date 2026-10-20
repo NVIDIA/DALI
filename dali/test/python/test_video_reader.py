@@ -24,6 +24,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import uuid
 from test_utils import get_dali_extra_path
 from nose2.tools import cartesian_params, params
@@ -51,6 +52,9 @@ VIDEO_0 = sorted(VIDEO_FILES)[0]
 
 # VP9, 60 fps, 50 frames, first pts 0 (see db/video/cfr/README.txt in DALI_extra).
 CFR_VP9_60FPS_FILE = DALI_EXTRA_PATH + "/db/video/cfr/test_1_vp9.mp4"
+
+# VP9, full ("pc") color range (see db/video/full_dynamic_range/README.rst in DALI_extra).
+FULL_RANGE_VP9_FILE = DALI_EXTRA_PATH + "/db/video/full_dynamic_range/video_vp9.mp4"
 
 devices = ["cpu", "gpu"]
 sequence_lengths = [3]
@@ -240,7 +244,7 @@ def test_compare_experimental_to_legacy_reader_file_list(
     device, batch_size, sequence_length, file_list_format, file_list_rounding, pad_mode, image_type
 ):
     files = VIDEO_FILES
-    list_file = tempfile.NamedTemporaryFile(mode="w", delete=False)
+    lines = []
     for i, file in enumerate(files):
         label = np.random.randint(0, 20)
         start = end = 0
@@ -251,18 +255,17 @@ def test_compare_experimental_to_legacy_reader_file_list(
             else:
                 start = np.random.random() * 0.4  # Range [0, 0.4)
                 end = 0.6 + np.random.random() * 0.4  # Range [0.6, 1.0)
-        list_file.write(f"{file} {label} {start} {end}\n")
-    list_file.close()
+        lines.append(f"{file} {label} {start} {end}")
+    list_file = _write_file_list(lines)
 
     if debug:
         print("File list contents:")
-        with open(list_file.name, "r") as f:
-            print(f.read())
+        print("\n".join(lines))
 
     compare_experimental_to_legacy_reader(
         device=device,
         batch_size=batch_size,
-        file_list=list_file.name,
+        file_list=list_file,
         sequence_length=sequence_length,
         enable_timestamps=True,
         enable_frame_num=True,
@@ -273,63 +276,41 @@ def test_compare_experimental_to_legacy_reader_file_list(
     )
 
 
-def test_file_list_include_end_actually_includes_end_frame():
-    # Deterministic (non-randomized) boundary test: a file_list entry with
-    # file_list_format="frames", start=0, end=2 should yield 3 frames (0, 1, 2)
-    # when file_list_include_end=True, and 2 frames (0, 1) when False.
-    #
-    # sequence_length is chosen to exactly match the expected frame count for each
-    # branch: with pad_mode="none" (ISOLATED boundary), a range shorter than
-    # sequence_length produces zero samples rather than a short/padded one, so
-    # sequence_length must equal the exact number of frames being pinned down.
-    list_file = tempfile.NamedTemporaryFile(mode="w", delete=False)
-    list_file.write(f"{VIDEO_FILES[0]} 0 0 2\n")
-    list_file.close()
+@cartesian_params(devices)
+def test_file_list_include_end_actually_includes_end_frame(device):
+    # A file_list entry with file_list_format="frames", start=0, end=2 selects frames 0, 1, 2
+    # with file_list_include_end=True and frames 0, 1 with False. One frame per sample, so the
+    # epoch size and the returned frame numbers tell the two apart.
+    list_file = _write_file_list([f"{VIDEO_0} 0 0 2"])
 
-    def run(include_end, sequence_length):
-        @pipeline_def(batch_size=1, num_threads=3, device_id=0)
-        def pipe():
-            video, _label = fn.experimental.readers.video(
-                device="cpu",
-                file_list=list_file.name,
-                file_list_format="frames",
-                file_list_rounding="all_down",
-                file_list_include_end=include_end,
-                sequence_length=sequence_length,
-                pad_mode="none",
-            )
-            return video
-
-        p = pipe()
-        p.build()
-        (video,) = p.run()
-        return np.array(video[0]).shape[0]
-
-    assert run(include_end=True, sequence_length=3) == 3
-    assert run(include_end=False, sequence_length=2) == 2
-
-
-def test_file_list_omitted_end_means_end_of_video():
-    list_file = tempfile.NamedTemporaryFile(mode="w", delete=False)
-    list_file.write(f"{VIDEO_FILES[0]} 0 2\n")  # label=0, start=2, end omitted (parses as 0)
-    list_file.close()
-
-    @pipeline_def(batch_size=1, num_threads=3, device_id=0)
-    def pipe():
-        video, _label = fn.experimental.readers.video(
-            device="cpu",
-            file_list=list_file.name,
+    def selection(include_end):
+        return _file_list_frame_selection(
+            _experimental_reader(device),
+            list_file,
             file_list_format="frames",
-            sequence_length=1,
+            file_list_rounding="all_down",
+            file_list_include_end=include_end,
             pad_mode="none",
         )
-        return video
 
-    p = pipe()
-    p.build()
-    (video,) = p.run()
-    # Must decode from frame 2 through the end of the video, not zero frames.
-    assert np.array(video[0]).shape[0] > 0
+    included = selection(include_end=True)
+    assert included == (3, [0, 1, 2]), f"include_end=True: (epoch_size, frames)={included}"
+    excluded = selection(include_end=False)
+    assert excluded == (2, [0, 1]), f"include_end=False: (epoch_size, frames)={excluded}"
+
+
+@cartesian_params(devices)
+def test_file_list_omitted_end_means_end_of_video(device):
+    # Frames counterpart of test_file_list_timestamps_omitted_end_means_end_of_video: an omitted
+    # end (parsed as 0) selects from the start frame through the last frame of the video.
+    list_file = _write_file_list([f"{VIDEO_0} 0 2"])  # label=0, start=2, end omitted
+    experimental = _file_list_frame_selection(
+        _experimental_reader(device), list_file, file_list_format="frames", pad_mode="none"
+    )
+    legacy = _file_list_frame_selection(_legacy_gpu_reader, list_file, file_list_frame_num=True)
+    assert (
+        experimental == legacy == (238, list(range(2, 240)))
+    ), f"experimental: {experimental[0]} frames, legacy: {legacy[0]} frames"
 
 
 def _file_list_frame_selection(reader_fn, file_list, **kwargs):
@@ -763,7 +744,12 @@ def test_dtype_normalized(normalized):
             "confirming normalization actually happened"
         )
     else:
-        assert sample.max() > 1.0, "Expected unnormalized float output above 1.0"
+        # Normalized output also slightly exceeds 1.0 (see above), so check for values that only
+        # the [0, 255] scale can produce.
+        assert sample.max() > 100.0 and sample.mean() > 2.0, (
+            f"Expected unnormalized float output in the [0, 255] scale, got "
+            f"max={sample.max()}, mean={sample.mean()}"
+        )
 
 
 @cartesian_params(devices)
@@ -805,6 +791,35 @@ def test_dtype_float_on_cpu_raises():
         assert False, "Expected an exception for dtype=FLOAT on the CPU backend"
     except RuntimeError:
         pass  # expected
+
+
+@cartesian_params(devices)
+def test_ycbcr_preserves_full_color_range(device):
+    # A full-range source must give full-range YCbCr: Y relates to the RGB output's luma by
+    # slope 1 and offset 0. Rescaling to limited ("tv") range gives slope 219/255 and offset 16.
+    def first_frame(image_type):
+        @pipeline_def(batch_size=1, num_threads=2, device_id=0)
+        def pipe():
+            return fn.experimental.readers.video(
+                device=device,
+                filenames=[FULL_RANGE_VP9_FILE],
+                sequence_length=1,
+                image_type=image_type,
+            )
+
+        p = pipe()
+        p.build()
+        (video,) = p.run()
+        return np.float64(np.array(video.as_cpu()[0])[0])
+
+    rgb = first_frame(types.RGB)
+    ycbcr = first_frame(types.YCbCr)
+    luma = rgb @ np.array([0.299, 0.587, 0.114])  # BT.601
+    slope, offset = np.polyfit(luma.ravel(), ycbcr[..., 0].ravel(), 1)
+    assert abs(slope - 1.0) < 0.05 and abs(offset) < 5.0, (
+        f"Y = {slope:.3f} * luma(RGB) + {offset:.2f}, expected Y = luma(RGB) for a full-range "
+        f"source (Y range {ycbcr[..., 0].min()}..{ycbcr[..., 0].max()})"
+    )
 
 
 # VFR_VIDEO_FILE/CFR_VIDEO_FILE are h264, which the CPU variant of this operator does not
@@ -892,6 +907,22 @@ def test_require_constant_frame_rate_rejects_vfr_on_cache_hit():
         assert False, "Expected an exception for a variable frame rate video (cache-hit path)"
     except RuntimeError:
         pass  # expected
+
+
+def test_require_constant_frame_rate_rejects_vfr_at_build():
+    # The VFR file comes after a CFR one, so a check deferred to decoding would only fire
+    # mid-epoch; it must fail the pipeline build instead, like legacy readers.video does.
+    @pipeline_def(batch_size=1, num_threads=3, device_id=0)
+    def pipe():
+        return fn.experimental.readers.video(
+            device="gpu",
+            filenames=[CFR_VIDEO_FILE, VFR_VIDEO_FILE],
+            sequence_length=3,
+            require_constant_frame_rate=True,
+        )
+
+    with assert_raises(RuntimeError, glob="*variable frame rate*"):
+        pipe().build()
 
 
 def test_additional_decode_surfaces_does_not_crash():
@@ -1277,6 +1308,66 @@ def test_file_list_timestamps_are_relative_to_stream_start(device):
 
 
 @cartesian_params(devices)
+def test_file_list_frames_negative_start_before_video_start_is_clamped(device):
+    # Like the timestamps format: a negative start counts back from the end of the video and is
+    # clamped at the first frame when it reaches back further than the video's length.
+    list_file = _write_file_list([f"{VIDEO_0} 0 -100000 30"])
+    experimental = _file_list_frame_selection(
+        _experimental_reader(device), list_file, file_list_format="frames"
+    )
+    assert experimental == (30, list(range(0, 30))), f"experimental: {experimental}"
+
+
+@cartesian_params(devices)
+def test_file_list_frames_start_past_end_of_video_raises(device):
+    # Frames counterpart of test_file_list_timestamps_start_past_end_of_video_raises: the valid
+    # first entry keeps the dataset non-empty, so the only way to fail is to reject the second.
+    list_file = _write_file_list([f"{VIDEO_0} 0 0 24", f"{VIDEO_0} 1 300 400"])
+    with assert_raises(RuntimeError, glob="*past the end of the video*"):
+        _file_list_frame_selection(
+            _experimental_reader(device), list_file, file_list_format="frames"
+        )
+
+
+@cartesian_params(devices, ["reflect_101", "reflect_1001"])
+def test_reflect_padding_stays_within_file_list_roi(device, pad_mode):
+    # Frames 10..19 of the video, sequence_length=4, stride=5: every sequence (one per start
+    # frame 10..19) runs past the end of the range and is padded by reflecting within it, e.g.
+    # 19, 24, 29, 34 -> 19, 14, 11, 16 (reflect_101). Reflected indices must stay within the
+    # range: reflecting only off its end gives frames before its start (here 9 and 4).
+    roi_start, roi_end = 10, 20
+    list_file = _write_file_list([f"{VIDEO_0} 0 {roi_start} {roi_end}"])
+
+    @pipeline_def(batch_size=1, num_threads=2, device_id=0, prefetch_queue_depth=1)
+    def pipe():
+        _, _, frame_num = fn.experimental.readers.video(
+            device=device,
+            name="reader",
+            file_list=list_file,
+            file_list_format="frames",
+            sequence_length=4,
+            stride=5,
+            step=1,
+            pad_mode=pad_mode,
+            enable_frame_num="sequence",
+        )
+        return frame_num
+
+    p = pipe()
+    p.build()
+    epoch_size = p.reader_meta("reader")["epoch_size"]
+    assert epoch_size == roi_end - roi_start, f"epoch_size: {epoch_size}"
+    for i in range(epoch_size):
+        (frame_num,) = p.run()
+        frame_nums = [int(x) for x in np.array(frame_num.as_cpu()[0]).flatten()]
+        assert frame_nums[0] == roi_start + i, f"sample {i}: frames {frame_nums}"
+        assert all(roi_start <= f < roi_end for f in frame_nums), (
+            f"sample {i} (pad_mode={pad_mode}) has frames {frame_nums}, outside of the file_list "
+            f"range [{roi_start}, {roi_end})"
+        )
+
+
+@cartesian_params(devices)
 def test_empty_labels_means_sequential_labels(device):
     files = sorted(VIDEO_FILES)[:3]
     # step=1000 > 240 frames: exactly one sample per file.
@@ -1548,6 +1639,15 @@ def test_sequence_length_zero_raises_instead_of_hanging():
     )
 
 
+def test_huge_stride_times_sequence_length_raises_instead_of_hanging():
+    # 65536 * 65536 overflows int: the default step (stride * sequence_length) used to wrap to 0.
+    res = _build_reader_in_bounded_subprocess(sequence_length=65536, stride=65536)
+    assert "RAISED:" in res.stdout and "sequence_length" in res.stdout, (
+        f"Expected a prompt error mentioning `sequence_length`; returncode={res.returncode}, "
+        f"stdout={res.stdout!r}, stderr tail={res.stderr[-2000:]!r}"
+    )
+
+
 def test_harness_detects_epoch_size_mismatch():
     # file_list_include_end=True makes experimental select 11 frames where legacy selects 10.
     list_file = _write_file_list([f"{VIDEO_0} 0 0 10"])
@@ -1675,12 +1775,58 @@ def test_mpeg_ps_is_rejected_as_unsupported():
     p.run()
 
 
+MPEG_PS_VIDEO_FILE = DALI_EXTRA_PATH + "/db/video/containers/mpeg/cfr.mpeg"
+
+
+@params("decoders", "inputs")
+def test_mpeg_ps_is_accepted_by_sequential_decode_operators(op_kind):
+    """Counterpart of test_mpeg_ps_is_rejected_as_unsupported: the MPEG-PS rejection is scoped
+    to the seek index, so experimental.decoders.video and experimental.inputs.video, which only
+    decode sequentially, must still decode MPEG-PS content (180 frames of 1280x720)."""
+    encoded = np.fromfile(MPEG_PS_VIDEO_FILE, dtype=np.uint8)
+    sequence_length = 60
+
+    @pipeline_def(
+        batch_size=1,
+        num_threads=2,
+        device_id=0,
+        exec_pipelined=False,
+        exec_async=False,
+        prefetch_queue_depth=1,
+    )
+    def pipe():
+        if op_kind == "decoders":
+            data = fn.external_source(name="encoded", dtype=types.UINT8, ndim=1)
+            return fn.experimental.decoders.video(data, device="mixed")
+        return fn.experimental.inputs.video(
+            name="encoded", device="mixed", sequence_length=sequence_length, blocking=False
+        )
+
+    p = pipe()
+    p.build()
+    p.feed_input("encoded", [encoded])
+    if op_kind == "decoders":
+        (video,) = p.run()
+        shapes = [video.as_cpu()[0].shape()]
+    else:
+        shapes = []
+        for _ in range(180 // sequence_length):
+            (video,) = p.run()
+            shapes.append(video.as_cpu()[0].shape())
+    num_frames = sum(shape[0] for shape in shapes)
+    assert num_frames == 180, f"decoded {num_frames} frames, expected 180 (shapes: {shapes})"
+    assert all(list(shape[1:]) == [720, 1280, 3] for shape in shapes), f"shapes: {shapes}"
+
+
 @params(*ANNEX_B_VIDEOS.keys())
 def test_annex_b_seek_matches_sequential_decode(case):
-    """Detection test: experimental.readers.video builds its keyframe index by parsing H.264/HEVC
-    NAL units as 4-byte length-prefixed (AVCC) in FramesDecoderBase::BuildIndex; Annex-B streams
-    use start codes. Correct behavior: all frames are indexed, and a frame decoded after a seek
-    is identical to the same frame decoded sequentially."""
+    """Annex-B (start-code delimited) H.264/HEVC content: all frames are indexed, and a frame
+    decoded after a seek is identical to the same frame decoded sequentially. Note: this is not
+    a regression guard for Annex-B keyframe detection in FramesDecoderBase::BuildIndex -- a
+    missed keyframe only makes seeks decode from an earlier keyframe (slower, but still
+    pixel-correct), and h264_in_avi has a single keyframe anyway. The guards for that are
+    test_annex_b_keyframes_are_indexed and the C++ NalFramingTest unit tests in
+    frames_decoder_test.cc."""
     if case in ("raw_h264", "raw_h265"):
         raise SkipTest(
             "Known limitation (not the Annex-B NAL parsing bug this test targets, which is "
@@ -1781,6 +1927,103 @@ def _check_seek_matches_sequential_decode(case, path, expected_frames):
             f"frame in {bad_fraction * 100:.1f}% of pixels: the seek landed on a wrong or "
             f"non-key frame (keyframe detection in FramesDecoderBase::BuildIndex)"
         )
+
+
+def _ffmpeg_or_skip():
+    ffmpeg = shutil.which("ffmpeg")
+    if ffmpeg is None:
+        try:
+            import imageio_ffmpeg
+
+            ffmpeg = imageio_ffmpeg.get_ffmpeg_exe()
+        except (ImportError, RuntimeError):
+            raise SkipTest("ffmpeg is required to generate the multi-GOP Annex-B fixtures")
+    return ffmpeg
+
+
+def _encode_h264_test_video(ffmpeg, dst, num_frames, gop_size):
+    """Encodes a 25 fps, 640x360 H.264 test pattern with a keyframe every `gop_size` frames and
+    no B-frames. The container is picked from `dst`'s extension (MPEG-TS stores Annex-B)."""
+    subprocess.run(
+        [ffmpeg, "-hide_banner", "-loglevel", "error", "-y"]
+        + ["-f", "lavfi", "-i", f"testsrc2=size=640x360:rate=25:duration={num_frames / 25}"]
+        + ["-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p", "-bf", "0"]
+        + ["-g", str(gop_size), "-keyint_min", str(gop_size), "-sc_threshold", "0", dst],
+        check=True,
+    )
+    return dst
+
+
+def _time_seeks(path, targets):
+    """Returns the time experimental.readers.video takes to return the given frames of `path`,
+    one sample per frame, after a warm-up sample (frame 0) that opens the file."""
+    list_file = _write_file_list([f"{path} 0 {t} {t + 1}" for t in [0] + targets])
+
+    @pipeline_def(batch_size=1, num_threads=2, device_id=0, prefetch_queue_depth=1)
+    def pipe():
+        _, _, frame_num = fn.experimental.readers.video(
+            device="gpu",
+            file_list=list_file,
+            file_list_format="frames",
+            sequence_length=1,
+            enable_frame_num=True,
+        )
+        return frame_num
+
+    p = pipe()
+    p.build()
+    p.run()
+    start = time.perf_counter()
+    for t in targets:
+        (frame_num,) = p.run()
+        got = int(np.array(frame_num.as_cpu()[0]).flatten()[0])
+        assert got == t, f"{path}: expected frame {t} next, reader returned frame {got}"
+    return time.perf_counter() - start
+
+
+def test_annex_b_keyframes_are_indexed():
+    """Regression guard for Annex-B keyframe detection in FramesDecoderBase::BuildIndex, which
+    used to parse every H.264/HEVC packet as AVCC (length-prefixed). On Annex-B content that
+    found no keyframe besides frame 0, so every backward seek decoded the stream from its
+    beginning: still pixel-correct, but as slow as for a stream with a single keyframe.
+
+    Generated fixtures (same content, a keyframe every 25 frames): Annex-B in MPEG-TS, the same
+    stream remuxed to AVCC in MP4 (reference), and an MPEG-TS with a single keyframe (control).
+    Backward seeks to the middle of late GOPs must be about as fast as in the reference, not as
+    slow as in the control."""
+    ffmpeg = _ffmpeg_or_skip()
+    num_frames, gop_size = 600, 25
+    targets = list(range(num_frames - 10, 0, -gop_size))[:6]  # backward, mid-GOP
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        annex_b = _encode_h264_test_video(
+            ffmpeg, os.path.join(tmp_dir, "multi_gop.ts"), num_frames, gop_size
+        )
+        reference = os.path.join(tmp_dir, "multi_gop.mp4")
+        subprocess.run(
+            [ffmpeg, "-hide_banner", "-loglevel", "error", "-y", "-i", annex_b]
+            + ["-c", "copy", reference],
+            check=True,
+        )
+        control = _encode_h264_test_video(
+            ffmpeg, os.path.join(tmp_dir, "single_gop.ts"), num_frames, 100 * num_frames
+        )
+
+        # Seeking must also land on correct frames.
+        _check_seek_matches_sequential_decode("generated_h264_in_ts", annex_b, num_frames)
+
+        reference_time = _time_seeks(reference, targets)
+        control_time = _time_seeks(control, targets)
+        annex_b_time = _time_seeks(annex_b, targets)
+    assert control_time > 5 * reference_time, (
+        f"Test precondition: seeking without keyframes ({control_time:.3f} s) should be much "
+        f"slower than with them ({reference_time:.3f} s), otherwise this test can't tell the two "
+        f"apart"
+    )
+    assert annex_b_time * 4 < control_time, (
+        f"Seeking in Annex-B content took {annex_b_time:.3f} s, close to the "
+        f"{control_time:.3f} s it takes without keyframes (AVCC reference: "
+        f"{reference_time:.3f} s): its keyframes were not indexed"
+    )
 
 
 @cartesian_params(["legacy", "experimental_cpu", "experimental_gpu"], ["absolute", "relative"])
