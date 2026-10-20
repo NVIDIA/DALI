@@ -144,5 +144,32 @@ TYPED_TEST(ConvertFP2BoolTest, NaNIsTrue) {
   EXPECT_TRUE(ConvertSatNorm<bool>(x));
 }
 
+// std::numeric_limits is not specialized for float16 - use the limits of the underlying type
+template <typename FP>
+using fp_limits = std::numeric_limits<
+    std::conditional_t<std::is_same_v<FP, float16>, float16::impl_t, FP>>;
+
+TYPED_TEST(ConvertFP2BoolTest, InfIsTrue) {
+  using FP = TypeParam;
+  for (FP x : { FP(fp_limits<FP>::infinity()), FP(-fp_limits<FP>::infinity()) }) {
+    ASSERT_TRUE(std::isinf(static_cast<float>(x)));
+    EXPECT_TRUE(Convert<bool>(x)) << " with x = " << static_cast<float>(x);
+    EXPECT_TRUE(ConvertSat<bool>(x)) << " with x = " << static_cast<float>(x);
+    EXPECT_TRUE(ConvertNorm<bool>(x)) << " with x = " << static_cast<float>(x);
+    EXPECT_TRUE(ConvertSatNorm<bool>(x)) << " with x = " << static_cast<float>(x);
+  }
+}
+
+TYPED_TEST(ConvertFP2BoolTest, DenormIsTrue) {
+  using FP = TypeParam;
+  for (int sign : { 1, -1 }) {
+    FP x = sign > 0 ? FP(fp_limits<FP>::denorm_min()) : FP(-fp_limits<FP>::denorm_min());
+    EXPECT_TRUE(Convert<bool>(x)) << " with x = " << sign << " * denorm_min";
+    EXPECT_TRUE(ConvertSat<bool>(x)) << " with x = " << sign << " * denorm_min";
+    EXPECT_TRUE(ConvertNorm<bool>(x)) << " with x = " << sign << " * denorm_min";
+    EXPECT_TRUE(ConvertSatNorm<bool>(x)) << " with x = " << sign << " * denorm_min";
+  }
+}
+
 
 }  // namespace dali
