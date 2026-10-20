@@ -13,6 +13,12 @@
 // limitations under the License.
 
 #include <gtest/gtest.h>
+#include <unistd.h>
+#include <cstdio>
+#include <cstdlib>
+#include <fstream>
+#include <limits>
+#include <string>
 #include <opencv2/core.hpp>
 #include <opencv2/imgproc.hpp>
 #include <opencv2/imgcodecs.hpp>
@@ -281,35 +287,177 @@ TEST_F(VideoReaderDecoderGpuTest, RandomShuffle) {
 }
 
 // Regression test for a decoder being cached (GetOrOpenDecoder's decoder_cache_) before it is
-// validated: BuildIndex()/VFR-check/IsValid() must all pass *before* a decoder is inserted into
+// validated: BuildIndex()/IsValid() must all pass *before* a decoder is inserted into
 // decoder_cache_, so a failing filename never leaves a broken, unvalidated entry behind for a
 // later call to silently reuse. This calls VideoReaderDecoder::GetOrOpenDecoder() directly
 // (rather than through the pipeline's background prefetch thread), because an exception from
 // the prefetch thread permanently stops it (DataReader::PrefetchWorker's catch block), so the
-// bug can't be observed by running the same pipeline instance twice after a failure.
+// bug can't be observed by running the same pipeline instance twice after a failure. An MPEG-PS
+// file is used as the failing input: it opens fine, but BuildIndex() rejects it.
 TEST_F(VideoReaderDecoderCpuTest, DecoderNotCachedBeforeValidation_CpuOnlyTests) {
   Pipeline pipe(1, 1, CPU_ONLY_DEVICE_ID);
   pipe.AddOperator(OpSpec("experimental__readers__Video")
     .AddArg("device", "cpu")
     .AddArg("sequence_length", 1)
-    .AddArg("require_constant_frame_rate", true)
-    .AddArg("filenames", std::vector<std::string>{vfr_videos_paths_[0]})
+    .AddArg("filenames", std::vector<std::string>{cfr_videos_paths_[0]})
     .AddOutput("frames", StorageDevice::CPU), "r");
   pipe.Build({{"frames", "cpu"}});
 
   auto *op = dynamic_cast<VideoReaderDecoder<CPUBackend> *>(pipe.GetOperator("r"));
   ASSERT_NE(op, nullptr);
 
+  const std::string mpeg_ps_path =
+      testing::dali_extra_path() + "/db/video/containers/mpeg/cfr.mpeg";
   bool is_new_decoder = false;
-  // First call: the file is VFR but require_constant_frame_rate=true was requested, so this
-  // must throw -- and, per the fix, must not leave a cache entry behind.
-  EXPECT_THROW(op->GetOrOpenDecoder(vfr_videos_paths_[0], is_new_decoder), DALIException);
+  // First call: BuildIndex() rejects MPEG-PS, so this must throw -- and must not leave a cache
+  // entry behind.
+  EXPECT_THROW(op->GetOrOpenDecoder(mpeg_ps_path, is_new_decoder), DALIException);
 
   // Second call for the *same* filename: on the buggy code (cache insertion before
-  // validation), this would return the already-cached, never-checked decoder
-  // (is_new_decoder=false) without re-running the VFR check, silently "succeeding". With the
-  // fix, nothing was cached, so this must construct and validate again, and fail again.
-  EXPECT_THROW(op->GetOrOpenDecoder(vfr_videos_paths_[0], is_new_decoder), DALIException);
+  // validation), this would return the already-cached, never-indexed decoder
+  // (is_new_decoder=false), silently "succeeding". With the fix, nothing was cached, so this
+  // must construct and validate again, and fail again.
+  EXPECT_THROW(op->GetOrOpenDecoder(mpeg_ps_path, is_new_decoder), DALIException);
+}
+
+// require_constant_frame_rate=True must reject a VFR file while the dataset metadata is built
+// (i.e. at pipeline build), not only once the file is first decoded mid-epoch.
+TEST_F(VideoReaderDecoderCpuTest, RequireConstantFrameRateFailsAtBuild_CpuOnlyTests) {
+  Pipeline pipe(1, 1, CPU_ONLY_DEVICE_ID);
+  pipe.AddOperator(OpSpec("experimental__readers__Video")
+    .AddArg("device", "cpu")
+    .AddArg("sequence_length", 1)
+    .AddArg("require_constant_frame_rate", true)
+    .AddArg("filenames", std::vector<std::string>{cfr_videos_paths_[0], vfr_videos_paths_[0]})
+    .AddOutput("frames", StorageDevice::CPU), "r");
+  try {
+    pipe.Build({{"frames", "cpu"}});
+    FAIL() << "Expected pipeline build to fail for a variable frame rate video";
+  } catch (const std::exception &e) {
+    EXPECT_NE(std::string(e.what()).find("variable frame rate"), std::string::npos) << e.what();
+  }
+}
+
+TEST_F(VideoReaderDecoderCpuTest, RequireConstantFrameRateAcceptsCfr_CpuOnlyTests) {
+  Pipeline pipe(1, 1, CPU_ONLY_DEVICE_ID);
+  pipe.AddOperator(OpSpec("experimental__readers__Video")
+    .AddArg("device", "cpu")
+    .AddArg("sequence_length", 1)
+    .AddArg("require_constant_frame_rate", true)
+    .AddArg("filenames", std::vector<std::string>{cfr_videos_paths_[0]})
+    .AddOutput("frames", StorageDevice::CPU), "r");
+  EXPECT_NO_THROW(pipe.Build({{"frames", "cpu"}}));
+}
+
+namespace {
+
+/**
+ * @brief Writes `contents` to a fresh temporary file; the file is removed when the returned
+ *        object goes out of scope.
+ */
+struct TempFileList {
+  explicit TempFileList(const std::string &contents) {
+    char path_template[] = "/tmp/video_reader_decoder_test_XXXXXX";
+    int fd = mkstemp(path_template);
+    close(fd);
+    path = path_template;
+    std::ofstream f(path);
+    f << contents;
+  }
+  ~TempFileList() {
+    std::remove(path.c_str());
+  }
+  std::string path;
+};
+
+}  // namespace
+
+class VideoReaderDecoderFileListTest : public VideoReaderDecoderCpuTest {
+ protected:
+  /**
+   * @brief Builds a CPU reader (sequence_length=1, file_list_format='frames') over a one-entry
+   *        file list for cfr_videos_paths_[0] and returns its epoch size.
+   */
+  int64_t FramesModeEpochSize(const std::string &start_end) {
+    TempFileList file_list(cfr_videos_paths_[0] + " 0 " + start_end + "\n");
+    Pipeline pipe(1, 1, CPU_ONLY_DEVICE_ID);
+    pipe.AddOperator(OpSpec("experimental__readers__Video")
+      .AddArg("device", "cpu")
+      .AddArg("sequence_length", 1)
+      .AddArg("file_list", file_list.path)
+      .AddArg("file_list_format", "frames")
+      .AddOutput("frames", StorageDevice::CPU)
+      .AddOutput("labels", StorageDevice::CPU), "r");
+    pipe.Build({{"frames", "cpu"}, {"labels", "cpu"}});
+    return pipe.GetReaderMeta("r").epoch_size;
+  }
+};
+
+// A negative start counts back from the end and is clamped at the first frame.
+TEST_F(VideoReaderDecoderFileListTest, FramesNegativeStartClampedToZero_CpuOnlyTests) {
+  int num_frames = cfr_videos_[0].NumFrames();
+  EXPECT_EQ(FramesModeEpochSize(std::to_string(-(num_frames + 100)) + " 0"), num_frames);
+  EXPECT_EQ(FramesModeEpochSize("-5 0"), 5);
+}
+
+// An end past the end of the video is clamped to the video's length.
+TEST_F(VideoReaderDecoderFileListTest, FramesEndPastEndClamped_CpuOnlyTests) {
+  int num_frames = cfr_videos_[0].NumFrames();
+  EXPECT_EQ(FramesModeEpochSize("2 " + std::to_string(num_frames + 100)), num_frames - 2);
+  // Beyond the range of int: must not wrap around to a negative (empty) end
+  EXPECT_EQ(FramesModeEpochSize("2 3000000000"), num_frames - 2);
+}
+
+// A start at or past the end of the video is an error (same as timestamps mode).
+TEST_F(VideoReaderDecoderFileListTest, FramesStartPastEndIsError_CpuOnlyTests) {
+  int num_frames = cfr_videos_[0].NumFrames();
+  // The last two are beyond the range of int: they must not wrap around to a negative frame
+  // index or to frame 0.
+  for (std::string start : {std::to_string(num_frames), std::to_string(num_frames + 100),
+                            std::string("3000000000"), std::string("4294967300")}) {
+    try {
+      FramesModeEpochSize(start + " 0");
+      FAIL() << "Expected an error for start=" << start << " (num_frames=" << num_frames << ")";
+    } catch (const std::exception &e) {
+      EXPECT_NE(std::string(e.what()).find("past the end of the video"), std::string::npos)
+          << e.what();
+    }
+  }
+}
+
+// stride * sequence_length (the sequence extent and default step) must fit in int: before the
+// fix, sequence_length=stride=65536 wrapped the default step to 0 and PrepareMetadataImpl looped
+// forever.
+TEST_F(VideoReaderDecoderCpuTest, SequenceExtentOverflowIsError_CpuOnlyTests) {
+  Pipeline pipe(1, 1, CPU_ONLY_DEVICE_ID);
+  pipe.AddOperator(OpSpec("experimental__readers__Video")
+    .AddArg("device", "cpu")
+    .AddArg("sequence_length", 65536)
+    .AddArg("stride", 65536)
+    .AddArg("filenames", std::vector<std::string>{cfr_videos_paths_[0]})
+    .AddOutput("frames", StorageDevice::CPU), "r");
+  try {
+    pipe.Build({{"frames", "cpu"}});
+    FAIL() << "Expected an error for stride * sequence_length overflowing int";
+  } catch (const std::exception &e) {
+    EXPECT_NE(std::string(e.what()).find("stride * sequence_length"), std::string::npos)
+        << e.what();
+  }
+}
+
+// A huge (but valid) step must not overflow the sample loop's frame counter: exactly one sample
+// (starting at frame 0) fits per file.
+TEST_F(VideoReaderDecoderCpuTest, HugeStepYieldsOneSamplePerFile_CpuOnlyTests) {
+  Pipeline pipe(1, 1, CPU_ONLY_DEVICE_ID);
+  pipe.AddOperator(OpSpec("experimental__readers__Video")
+    .AddArg("device", "cpu")
+    .AddArg("sequence_length", 1)
+    .AddArg("step", std::numeric_limits<int>::max())
+    .AddArg("pad_mode", "constant")
+    .AddArg("filenames", std::vector<std::string>{cfr_videos_paths_[0]})
+    .AddOutput("frames", StorageDevice::CPU), "r");
+  pipe.Build({{"frames", "cpu"}});
+  EXPECT_EQ(pipe.GetReaderMeta("r").epoch_size, 1);
 }
 
 TEST_F(VideoReaderDecoderCpuTest, DecoderCacheSizeMustBePositive_CpuOnlyTests) {
