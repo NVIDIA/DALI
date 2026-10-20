@@ -103,7 +103,8 @@ endif()
 if (BUILD_DALI_PIPELINE AND BUILD_TEST)
   add_subdirectory(test)
   adjust_source_file_language_property("${DALI_TEST_SRCS}")
-  add_executable(dali_test "${DALI_TEST_SRCS}")
+  # Argument deserialization tests construct protobuf messages whose symbols are private to dali.
+  add_executable(dali_test "${DALI_TEST_SRCS}" ${DALI_PROTO_OBJ})
 
   target_link_libraries(dali_test PUBLIC dali dali_core dali_kernels ${DALI_LIBS} gtest)
   target_link_libraries(dali_test PRIVATE dynlink_cuda ${CUDART_LIB})
