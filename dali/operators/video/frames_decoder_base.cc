@@ -171,6 +171,10 @@ bool FramesDecoderBase::SelectVideoStream(int stream_id) {
         return false;
       }
     }
+  } else if (stream_id >= static_cast<int>(ctx_->nb_streams)) {
+    // Same for an explicitly requested stream, e.g. when Reset() reopens such a file: its streams
+    // don't exist until packets are probed.
+    avformat_find_stream_info(ctx_, nullptr);
   }
   if (stream_id < 0 || stream_id >= static_cast<int>(ctx_->nb_streams)) {
     LOG_LINE << "Invalid stream id: " << stream_id << std::endl;
@@ -381,13 +385,17 @@ int GetNalLengthSize(AVCodecID codec_id, const uint8_t *extradata, int extradata
   if (codec_id == AV_CODEC_ID_H264 && extradata_size > 4 && extradata[0] == 1) {
     return (extradata[4] & 0x03) + 1;
   }
-  // Some early HEVC muxers wrote hvcC with configurationVersion = 0, so -- matching FFmpeg's
-  // HEVC parser (libavcodec/hevc/parse.c, ff_hevc_decode_extradata) exactly -- treat extradata
-  // as hvcC when it starts with configurationVersion == 1, or with 0 followed by anything other
-  // than an Annex-B start code's second/third bytes (00 00).
-  if (codec_id == AV_CODEC_ID_HEVC && extradata_size >= 23 &&
-      (extradata[0] == 1 ||
-       (extradata[0] == 0 && (extradata[1] != 0 || extradata[2] > 1)))) {
+  // HEVC uses the same criterion as FFmpeg's HEVC parser (libavcodec/hevc/parse.c,
+  // ff_hevc_decode_extradata): anything longer than 3 bytes that doesn't start with an Annex-B
+  // start code prefix (00 00 00 / 00 00 01) is hvcC, whatever its configurationVersion -- some
+  // muxers wrote 0, and future versions may be > 1.
+  if (codec_id == AV_CODEC_ID_HEVC && extradata_size > 3 &&
+      (extradata[0] != 0 || extradata[1] != 0 || extradata[2] > 1)) {
+    // hvcC whose fixed 23-byte header is truncated (so lengthSizeMinusOne can't be read) is
+    // malformed; rather than guess a length size, fall back to Annex-B scanning, which can't
+    // read past the end of a packet.
+    if (extradata_size < 23)
+      return 0;
     return (extradata[21] & 0x03) + 1;
   }
   return 0;
@@ -695,7 +703,8 @@ void FramesDecoderBase::SeekFrame(int frame_id) {
   assert(next_frame_idx_ == frame_id);
 }
 
-int FramesDecoderBase::HandleBoundary(boundary::BoundaryType boundary_type, int frame_id, int roi_start, int roi_end) {
+int FramesDecoderBase::HandleBoundary(boundary::BoundaryType boundary_type, int frame_id,
+                                      int roi_start, int roi_end) {
   DALI_ENFORCE(boundary_type == boundary::BoundaryType::CLAMP ||
                    boundary_type == boundary::BoundaryType::CONSTANT ||
                    boundary_type == boundary::BoundaryType::REFLECT_1001 ||
@@ -710,10 +719,11 @@ int FramesDecoderBase::HandleBoundary(boundary::BoundaryType boundary_type, int 
       return std::clamp(frame_id, roi_start, roi_end - 1);
     case boundary::BoundaryType::CONSTANT:
       return -1;
+    // Reflect within [roi_start, roi_end), so that padded indices never leave the ROI
     case boundary::BoundaryType::REFLECT_1001:
-      return boundary::idx_reflect_1001(frame_id, roi_end);
+      return boundary::idx_reflect_1001(frame_id, roi_start, roi_end);
     case boundary::BoundaryType::REFLECT_101:
-      return boundary::idx_reflect_101(frame_id, roi_end);
+      return boundary::idx_reflect_101(frame_id, roi_start, roi_end);
     case boundary::BoundaryType::ISOLATED:
     default:
       DALI_FAIL(make_string(

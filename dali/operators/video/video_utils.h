@@ -53,7 +53,32 @@ inline double TimestampToSeconds(AVRational timebase, int64_t timestamp) {
   return static_cast<double>(timestamp) * timebase.num / timebase.den;
 }
 
+namespace detail {
+
+/// Largest magnitude SecondsToTimestamp returns: 2^62 ticks, which no real stream reaches, and
+/// which leaves enough headroom for callers to add a pts offset without overflowing int64_t.
+constexpr double kMaxTimestampTicks = 4611686018427387904.0;  // 2^62
+
+/// Converts a whole number of ticks to int64_t, saturating to +-kMaxTimestampTicks -- a plain
+/// cast is UB for values outside of int64_t's range (e.g. a file_list time of 1e20 s).
+inline int64_t SaturateTicks(double ticks) {
+  if (ticks >= kMaxTimestampTicks)
+    return static_cast<int64_t>(kMaxTimestampTicks);
+  if (ticks <= -kMaxTimestampTicks)
+    return -static_cast<int64_t>(kMaxTimestampTicks);
+  return static_cast<int64_t>(ticks);
+}
+
+}  // namespace detail
+
+/**
+ * @brief Converts a time in seconds to a timestamp in `timebase` units, rounding down or up.
+ *
+ * The result saturates to +-2^62 ticks for times too large to represent, so a huge start time
+ * is still detected as being past the end of the stream, and a huge end time clamps to the end.
+ */
 inline int64_t SecondsToTimestamp(AVRational timebase, double seconds, bool round_down) {
+  DALI_ENFORCE(!std::isnan(seconds), "Cannot convert a NaN time to a timestamp.");
   // Direction-aware quantization, matching legacy readers.video and
   // FrameIndex::GetFrameIdxByTimestamp's own `rounddown` convention: round down (floor) when the
   // caller is about to do a round-down lookup, round up (ceil) when it's about to do a round-up
@@ -74,23 +99,43 @@ inline int64_t SecondsToTimestamp(AVRational timebase, double seconds, bool roun
   // order of a few ULPs), not a genuinely fractional request, so it should be snapped before
   // floor/ceil change the outcome by a whole tick.
   //
-  // Use a *relative* epsilon (scaled to the magnitude of `ticks`) rather than a fixed absolute
-  // one: ticks can range from a handful (short videos / coarse timebases) to many millions (long
-  // videos at high-resolution timebases, e.g. 1/90000), and the absolute size of floating-point
-  // noise grows with the magnitude of the value. 1e-6 relative error is ~4500x the double epsilon
-  // (~2.22e-16) at ticks ~ 1, giving ample margin for the few-ULP noise accumulated through the
-  // multiply-and-divide above, while still being far smaller than any real fractional-tick offset
-  // we'd want to preserve (a real request would need to land within one part in a million of a
-  // tick boundary to be mistakenly snapped, i.e. far finer than millisecond-precision inputs at
-  // common timebases ever produce).
-  constexpr double kRelativeEpsilon = 1e-6;
+  // The tolerance is relative (the absolute size of floating-point noise grows with the
+  // magnitude of `ticks`), with an absolute floor of the same size for |ticks| < 1: a tick count
+  // is snapped when it is within max(1, |ticks|) * 1e-12 ticks of an integer. The decimal ->
+  // double conversion plus the multiply-and-divide above contribute a few ULPs, i.e. a relative
+  // error of ~1e-16 (measured at most 2.2e-16 across common timebases), so 1e-12 leaves a margin
+  // of several thousand. It also stays far below half a tick: that would take ~5e11 ticks, i.e.
+  // over two months of video even at timebase 1/90000, so genuinely fractional requests keep
+  // their directional floor/ceil at any realistic magnitude.
+  constexpr double kRelativeEpsilon = 1e-12;
   double rounded = std::round(ticks);
   double epsilon = std::max(1.0, std::abs(rounded)) * kRelativeEpsilon;
   if (std::abs(ticks - rounded) < epsilon) {
     ticks = rounded;
   }
-  return round_down ? static_cast<int64_t>(std::floor(ticks))
-                     : static_cast<int64_t>(std::ceil(ticks));
+  return detail::SaturateTicks(round_down ? std::floor(ticks) : std::ceil(ticks));
+}
+
+/**
+ * @brief Single-precision overload: `seconds` was parsed into a float (e.g. a file_list entry),
+ *        so it's only known to within half a float ULP (a relative error of up to ~6e-8).
+ *
+ * That is far more than the double overload's snapping tolerance -- e.g. 1.001f is
+ * 1.00100004673 s, i.e. 1001.0000467 ticks at timebase 1/1000, which would round up to 1002. If
+ * the nearest tick boundary rounds to this very float, then the float is the closest
+ * representation of that boundary, and it is snapped to it; otherwise the double overload's
+ * directional floor/ceil applies.
+ */
+inline int64_t SecondsToTimestamp(AVRational timebase, float seconds, bool round_down) {
+  if (std::isfinite(seconds)) {
+    double ticks = static_cast<double>(seconds) * timebase.den / timebase.num;
+    double rounded = std::round(ticks);
+    if (std::abs(rounded) < detail::kMaxTimestampTicks &&
+        static_cast<float>(rounded * timebase.num / timebase.den) == seconds) {
+      return static_cast<int64_t>(rounded);
+    }
+  }
+  return SecondsToTimestamp(timebase, static_cast<double>(seconds), round_down);
 }
 
 std::vector<VideoFileMeta> GetVideoFiles(const std::string& file_root,

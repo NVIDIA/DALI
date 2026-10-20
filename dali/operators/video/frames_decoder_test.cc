@@ -14,6 +14,7 @@
 
 #include <cuda_runtime_api.h>
 #include <exception>
+#include <limits>
 #include <random>
 
 #include "dali/core/cuda_error.h"
@@ -234,15 +235,17 @@ TEST_F(FramesDecoderTest_CpuOnlyTests, YCbCrDecodesWithoutCrashing) {
       << "YCbCr and RGB decodes of the same frame were byte-identical";
 }
 
-TEST_F(FramesDecoderTest_CpuOnlyTests, YCbCrMatchesGpuBackendWithinTolerance) {
+// Uses the GPU backend, so it belongs to the GPU fixture (not *CpuOnly*, which runs without CUDA).
+TEST_F(FramesDecoderGpuTest, YCbCrMatchesCpuBackendWithinTolerance) {
   // The CPU backend's YCbCr conversion (libswscale) and the GPU backend's (a custom CUDA
   // kernel matching the legacy reader's conversion) are independent implementations of 4:2:0
   // chroma upsampling (libswscale's SWS_BILINEAR vs. the GPU kernel's own bilinear sampling),
   // so they aren't expected to be byte-identical -- rounding can differ by a step or two on
-  // sharp chroma edges. What this fix guarantees is colorimetry (limited/"TV" range for YCbCr,
-  // not full range, per DALI-4916): without it, the two backends disagreed by up to 20/255 per
-  // channel; with it, differences should be small, uniformly-distributed rounding noise, not a
-  // systematic offset.
+  // sharp chroma edges. What is guaranteed is colorimetry: on both backends, YCbCr output keeps
+  // the source's range (no limited <-> full range conversion, DALI-4916). When the CPU backend
+  // expanded limited-range sources to full range, the two disagreed by up to 20/255 per channel;
+  // now differences should be small, uniformly-distributed rounding noise, not a systematic
+  // offset.
   FramesDecoderCpu cpu_decoder(cfr_videos_paths_[0], DALI_YCbCr);
   cpu_decoder.BuildIndex();
   std::vector<uint8_t> frame_cpu(cpu_decoder.FrameSize());
@@ -258,7 +261,7 @@ TEST_F(FramesDecoderTest_CpuOnlyTests, YCbCrMatchesGpuBackendWithinTolerance) {
 
   ASSERT_EQ(frame_cpu.size(), frame_gpu.size());
   int max_abs_diff = 0;
-  long sum_abs_diff = 0;
+  int64_t sum_abs_diff = 0;
   for (size_t i = 0; i < frame_cpu.size(); ++i) {
     int d = std::abs(static_cast<int>(frame_cpu[i]) - static_cast<int>(frame_gpu[i]));
     max_abs_diff = std::max(max_abs_diff, d);
@@ -277,6 +280,28 @@ TEST_F(FramesDecoderTest_CpuOnlyTests, InvalidSeek) {
   RunFailureTest([&]() -> void {
     decoder.SeekFrame(60);},
     "Invalid seek frame id. frame_id = 60, num_frames = 50");
+}
+
+TEST_F(FramesDecoderTest_CpuOnlyTests, HandleBoundaryReflectsWithinRoi) {
+  using boundary::BoundaryType;
+  FramesDecoderCpu decoder(cfr_videos_paths_[0]);
+  // ROI [10, 20), e.g. a file_list entry that doesn't start at frame 0. Reflecting must stay
+  // within the ROI; reflecting within [0, roi_end) instead would give 9, 5 and 9 below.
+  EXPECT_EQ(decoder.HandleBoundary(BoundaryType::REFLECT_101, 29, 10, 20), 11);
+  EXPECT_EQ(decoder.HandleBoundary(BoundaryType::REFLECT_101, 5, 10, 20), 15);
+  EXPECT_EQ(decoder.HandleBoundary(BoundaryType::REFLECT_1001, 5, 10, 20), 14);
+  EXPECT_EQ(decoder.HandleBoundary(BoundaryType::REFLECT_1001, 30, 10, 20), 10);
+  for (auto type : {BoundaryType::REFLECT_101, BoundaryType::REFLECT_1001}) {
+    for (int frame_id = -50; frame_id < 80; frame_id++) {
+      int idx = decoder.HandleBoundary(type, frame_id, 10, 20);
+      EXPECT_GE(idx, 10) << "frame_id=" << frame_id << " type=" << boundary::to_string(type);
+      EXPECT_LT(idx, 20) << "frame_id=" << frame_id << " type=" << boundary::to_string(type);
+    }
+  }
+  // In-range indices are returned as is; clamping is unaffected.
+  EXPECT_EQ(decoder.HandleBoundary(BoundaryType::REFLECT_101, 12, 10, 20), 12);
+  EXPECT_EQ(decoder.HandleBoundary(BoundaryType::CLAMP, 3, 10, 20), 10);
+  EXPECT_EQ(decoder.HandleBoundary(BoundaryType::CLAMP, 25, 10, 20), 19);
 }
 
 TEST_F(FramesDecoderGpuTest, ConstantFrameRate) {
@@ -713,6 +738,72 @@ TEST(VideoUtilsSecondsToTimestampTest, ExactIntegerTicksRoundTripAcrossCommonTim
   }
 }
 
+TEST(VideoUtilsSecondsToTimestampTest, LargeTickCountsStayDirectional) {
+  // The noise-snapping tolerance must stay far below half a tick for long videos at fine
+  // timebases, or every value would snap to the nearest tick instead of being floored/ceiled.
+  AVRational timebase{1, 90000};
+  double seconds = 900000.3 / 90000;  // ~900000.3 ticks (10 s)
+  EXPECT_EQ(SecondsToTimestamp(timebase, seconds, /*round_down=*/false), 900001);
+  EXPECT_EQ(SecondsToTimestamp(timebase, seconds, /*round_down=*/true), 900000);
+  seconds = 3240000000.3 / 90000;  // ~3240000000.3 ticks (10 h)
+  EXPECT_EQ(SecondsToTimestamp(timebase, seconds, /*round_down=*/false), 3240000001);
+  EXPECT_EQ(SecondsToTimestamp(timebase, seconds, /*round_down=*/true), 3240000000);
+}
+
+TEST(VideoUtilsSecondsToTimestampTest, SnapsFloatingPointNoiseAtAnyMagnitude) {
+  // k / 30 s at timebase 1/30 is exactly k ticks, but the double product isn't always exactly k.
+  AVRational timebase{1, 30};
+  for (int64_t k : {123, 500005}) {
+    double seconds = k / 30.0;
+    ASSERT_NE(seconds * timebase.den / timebase.num, static_cast<double>(k))
+        << "meant to exercise floating-point noise at k=" << k;
+    EXPECT_EQ(SecondsToTimestamp(timebase, seconds, /*round_down=*/true), k);
+    EXPECT_EQ(SecondsToTimestamp(timebase, seconds, /*round_down=*/false), k);
+  }
+  // NTSC timebase: 1001/30000 s is exactly 1 tick, computed as 1.0000000000000002.
+  AVRational ntsc{1001, 30000};
+  double one_tick = 1001.0 / 30000;
+  ASSERT_NE(one_tick * ntsc.den / ntsc.num, 1.0);
+  EXPECT_EQ(SecondsToTimestamp(ntsc, one_tick, /*round_down=*/false), 1);
+  EXPECT_EQ(SecondsToTimestamp(ntsc, one_tick, /*round_down=*/true), 1);
+}
+
+TEST(VideoUtilsSecondsToTimestampTest, SinglePrecisionInputSnapsToNearestBoundary) {
+  // file_list times are parsed as float: 1.001f is 1.00100004673 s, i.e. 1001.0000467 ticks at
+  // timebase 1/1000 -- the closest float to tick 1001, which must not round up to 1002.
+  AVRational timebase{1, 1000};
+  EXPECT_EQ(SecondsToTimestamp(timebase, 1.001f, /*round_down=*/false), 1001);
+  EXPECT_EQ(SecondsToTimestamp(timebase, 1.001f, /*round_down=*/true), 1001);
+  EXPECT_EQ(SecondsToTimestamp(timebase, 0.002f, /*round_down=*/false), 2);
+  // Floats that are not the closest representation of a tick boundary stay directional.
+  AVRational fine_timebase{1, 90000};
+  EXPECT_EQ(SecondsToTimestamp(fine_timebase, 10.0000033f, /*round_down=*/false), 900001);
+  EXPECT_EQ(SecondsToTimestamp(fine_timebase, 10.0000033f, /*round_down=*/true), 900000);
+  EXPECT_EQ(SecondsToTimestamp(AVRational{1, 12288}, 0.91670f, /*round_down=*/false), 11265);
+  EXPECT_EQ(SecondsToTimestamp(AVRational{1, 12288}, 0.91670f, /*round_down=*/true), 11264);
+}
+
+TEST(VideoUtilsSecondsToTimestampTest, SaturatesOutOfRangeTimes) {
+  AVRational timebase{1, 90000};
+  const int64_t kMax = int64_t(1) << 62;
+  for (bool round_down : {true, false}) {
+    EXPECT_EQ(SecondsToTimestamp(timebase, 1e20, round_down), kMax);
+    EXPECT_EQ(SecondsToTimestamp(timebase, -1e20, round_down), -kMax);
+    EXPECT_EQ(SecondsToTimestamp(timebase, 1e20f, round_down), kMax);
+    EXPECT_EQ(SecondsToTimestamp(timebase, -1e20f, round_down), -kMax);
+    EXPECT_EQ(SecondsToTimestamp(timebase, std::numeric_limits<double>::infinity(), round_down),
+              kMax);
+    EXPECT_EQ(SecondsToTimestamp(timebase, -std::numeric_limits<float>::infinity(), round_down),
+              -kMax);
+    EXPECT_ANY_THROW(
+        SecondsToTimestamp(timebase, std::numeric_limits<double>::quiet_NaN(), round_down));
+    EXPECT_ANY_THROW(
+        SecondsToTimestamp(timebase, std::numeric_limits<float>::quiet_NaN(), round_down));
+  }
+  // Leaves headroom for adding a pts offset, so a huge start is still "past the end".
+  EXPECT_GT(SecondsToTimestamp(timebase, 1e20, true) + (int64_t(1) << 61), 0);
+}
+
 TEST(FramesDecoderConstantFrameTest, FloatNormalizedScalesFillValue) {
   Tensor<CPUBackend> frame;
   std::vector<uint8_t> fill = {0, 51, 255};
@@ -806,6 +897,22 @@ TEST(NalFramingTest, LengthSizeFromExtradata) {
   auto hvcc1 = kHvcC;
   hvcc1[21] = 0x0c;  // lengthSizeMinusOne = 0
   EXPECT_EQ(GetNalLengthSize(AV_CODEC_ID_HEVC, hvcc1.data(), hvcc1.size()), 1);
+
+  // Like FFmpeg, any HEVC extradata not starting with an Annex-B start code prefix is hvcC,
+  // whatever its configurationVersion.
+  for (int version : {0, 2, 0xff}) {
+    auto hvcc = kHvcC;
+    hvcc[0] = static_cast<uint8_t>(version);
+    EXPECT_EQ(GetNalLengthSize(AV_CODEC_ID_HEVC, hvcc.data(), hvcc.size()), 4) << version;
+  }
+  auto hvcc_v0 = kHvcC;
+  hvcc_v0[0] = hvcc_v0[1] = 0;
+  hvcc_v0[2] = 2;  // 00 00 02 is not a start code prefix
+  EXPECT_EQ(GetNalLengthSize(AV_CODEC_ID_HEVC, hvcc_v0.data(), hvcc_v0.size()), 4);
+  auto hvcc_v2 = kHvcC;
+  hvcc_v2[0] = 2;
+  // Malformed (truncated) hvcC: fall back to Annex-B
+  EXPECT_EQ(GetNalLengthSize(AV_CODEC_ID_HEVC, hvcc_v2.data(), 22), 0);
 
   // Too short to hold the lengthSizeMinusOne field: fall back to Annex-B, don't read past the end
   EXPECT_EQ(GetNalLengthSize(AV_CODEC_ID_H264, kAvcC.data(), 4), 0);

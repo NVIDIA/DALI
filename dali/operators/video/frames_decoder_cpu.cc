@@ -107,11 +107,11 @@ void FramesDecoderCpu::CopyToOutput(uint8_t *data) {
   bool src_full_range = frame_->color_range == AVCOL_RANGE_JPEG ||
                         (frame_->color_range == AVCOL_RANGE_UNSPECIFIED &&
                          codec_params_->color_range == AVCOL_RANGE_JPEG);
-  // RGB output is conventionally full-range (0-255). YCbCr output follows the same limited
-  // ("TV"/legal) range convention as the GPU backend and legacy reader (16-235 for luma), not
-  // full range -- using full range here would systematically shift every YCbCr value relative
-  // to both of those (DALI-4916).
-  bool dst_full_range = image_type_ != DALI_YCbCr;
+  // RGB output is conventionally full-range (0-255). YCbCr output keeps the source's range
+  // (limited/"TV" sources stay limited, full-range sources stay full), like the GPU backend,
+  // which only upsamples chroma for YCbCr (YUV_UPSAMPLE), and the legacy reader. Forcing either
+  // range here would systematically shift YCbCr values relative to both (DALI-4916).
+  bool dst_full_range = image_type_ == DALI_YCbCr ? src_full_range : true;
   if (sws_src_full_range_ != src_full_range) {
     int ret = sws_setColorspaceDetails(
       sws_ctx_.get(),
