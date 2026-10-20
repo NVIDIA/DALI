@@ -121,6 +121,9 @@ TEST(ConvertNorm, float16_2int) {
   EXPECT_EQ(ConvertNorm<int32_t>(float16(0.0f)), 0);
   EXPECT_EQ(ConvertNorm<int32_t>(float16(0.5f)), 0x40000000);
   EXPECT_EQ(ConvertNorm<uint32_t>(float16(0.5f)), 0x80000000u);
+  EXPECT_EQ(ConvertNorm<int16_t>(float16(1.0f)), 0x7fff);  // float16(32767) would be 32768
+  EXPECT_EQ(ConvertNorm<int16_t>(float16(-1.0f)), -0x7fff);
+  EXPECT_EQ(ConvertNorm<int64_t>(float16(0.5f)), 0x4000000000000000);
 }
 
 TEST(ConvertSatNorm, float16_2int) {

@@ -305,8 +305,9 @@ struct ConverterBase<float16, In, true, false, false, false> {
 /// Converts FP to integral type
 template <typename Out, typename In>
 struct ConverterBase<Out, In, false, true, false, false> {
-  // float16 can't represent max_value<Out>() of types wider than 16 bits (nor of uint16_t),
-  // so the scaling is done in float
+  // float16 can't exactly represent max_value<Out>() of integer types wider than 8 bits (it
+  // rounds int16_t's up and overflows to inf for uint16_t and wider), so the scaling is done in
+  // float
   using Calc = std::conditional_t<std::is_same<In, float16>::value, float, In>;
 
   DALI_HOST_DEV
@@ -520,7 +521,7 @@ DALI_HOST_DEV constexpr Out Convert(In value) {
 ///     `max_value<Out>()`. Results are undefined for values where `value * max_value<Out>()`
 ///     cannot be represented by `Out`.
 ///   * When converting from integral type to floating point, the input value is normalized by
-///     multiplying by reciprocal of `Out` type's maximum positive value.
+///     multiplying by reciprocal of `In` type's maximum positive value.
 ///
 /// Usage:
 /// ```
