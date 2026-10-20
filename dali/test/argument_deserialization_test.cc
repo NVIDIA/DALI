@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <gtest/gtest.h>
+#include <stdexcept>
 #include <string>
 #include <type_traits>
 #include <vector>
@@ -37,7 +38,7 @@ TYPED_TEST(ArgumentDeserializationTest, MissingScalarValue) {
   arg.set_name("missing_value");
   arg.set_type(serialize_type(TypeParam{}));
   arg.set_is_vector(false);
-  EXPECT_THROW(DeserializeProtobuf(arg), DALIException);
+  EXPECT_THROW(DeserializeProtobuf(arg), std::out_of_range);
 
   // A scalar nested in a vector must be checked as well.
   dali_proto::Argument vector_proto;
@@ -46,7 +47,7 @@ TYPED_TEST(ArgumentDeserializationTest, MissingScalarValue) {
   vector_arg.set_type(arg.type());
   vector_arg.set_is_vector(true);
   *vector_proto.add_extra_args() = proto;
-  EXPECT_THROW(DeserializeProtobuf(vector_arg), DALIException);
+  EXPECT_THROW(DeserializeProtobuf(vector_arg), std::out_of_range);
 }
 
 TYPED_TEST(ArgumentDeserializationTest, RoundTrip) {
@@ -74,12 +75,21 @@ TEST(DaliProtoIndexTest, Bounds) {
   dali_proto::Argument proto;
   DaliProtoPriv arg(&proto);
   arg.set_name("bounds");
+  auto expect_invalid_index = [&](auto access, const char *field, int index, int size) {
+    try {
+      access(index);
+      FAIL() << "Expected std::out_of_range for " << field << " index " << index;
+    } catch (const std::out_of_range &e) {
+      EXPECT_EQ(e.what(), make_string("Invalid ", field, " index ", index,
+                                     " in argument \"bounds\"; expected 0 <= index < ", size, "."));
+    }
+  };
   for (int index : {-1, 0}) {
-    EXPECT_THROW(arg.ints(index), DALIException);
-    EXPECT_THROW(arg.floats(index), DALIException);
-    EXPECT_THROW(arg.bools(index), DALIException);
-    EXPECT_THROW(arg.strings(index), DALIException);
-    EXPECT_THROW(arg.extra_args(index), DALIException);
+    expect_invalid_index([&](int i) { arg.ints(i); }, "int value", index, 0);
+    expect_invalid_index([&](int i) { arg.floats(i); }, "float value", index, 0);
+    expect_invalid_index([&](int i) { arg.bools(i); }, "bool value", index, 0);
+    expect_invalid_index([&](int i) { arg.strings(i); }, "string value", index, 0);
+    expect_invalid_index([&](int i) { arg.extra_args(i); }, "extra argument", index, 0);
   }
   arg.add_ints(42);
   arg.add_floats(1.5f);
@@ -92,11 +102,11 @@ TEST(DaliProtoIndexTest, Bounds) {
   EXPECT_EQ(arg.strings(0), "value");
   EXPECT_EQ(arg.extra_args(0).name(), "child");
   for (int index : {-1, 1}) {
-    EXPECT_THROW(arg.ints(index), DALIException);
-    EXPECT_THROW(arg.floats(index), DALIException);
-    EXPECT_THROW(arg.bools(index), DALIException);
-    EXPECT_THROW(arg.strings(index), DALIException);
-    EXPECT_THROW(arg.extra_args(index), DALIException);
+    expect_invalid_index([&](int i) { arg.ints(i); }, "int value", index, 1);
+    expect_invalid_index([&](int i) { arg.floats(i); }, "float value", index, 1);
+    expect_invalid_index([&](int i) { arg.bools(i); }, "bool value", index, 1);
+    expect_invalid_index([&](int i) { arg.strings(i); }, "string value", index, 1);
+    expect_invalid_index([&](int i) { arg.extra_args(i); }, "extra argument", index, 1);
   }
 }
 
@@ -122,7 +132,7 @@ TEST(FeatureDeserializationTest, MissingExtraArguments) {
     while (proto.extra_args_size() > count)
       proto.mutable_extra_args()->RemoveLast();
     SCOPED_TRACE(count);
-    EXPECT_THROW(DeserializeProtobuf(DaliProtoPriv(&proto)), DALIException);
+    EXPECT_THROW(DeserializeProtobuf(DaliProtoPriv(&proto)), std::out_of_range);
   }
 }
 
@@ -137,7 +147,7 @@ TEST(FeatureDeserializationTest, MissingValues) {
       field->clear_floats();
       field->clear_bools();
       field->clear_strings();
-      EXPECT_THROW(DeserializeProtobuf(DaliProtoPriv(&proto)), DALIException);
+      EXPECT_THROW(DeserializeProtobuf(DaliProtoPriv(&proto)), std::out_of_range);
     }
   }
 }
