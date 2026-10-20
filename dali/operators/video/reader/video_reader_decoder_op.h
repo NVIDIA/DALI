@@ -16,7 +16,9 @@
 #define DALI_OPERATORS_VIDEO_READER_VIDEO_READER_DECODER_OP_H_
 
 #include <algorithm>
+#include <cmath>
 #include <functional>
+#include <limits>
 #include <list>
 #include <memory>
 #include <random>
@@ -226,7 +228,8 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
         step_(spec.GetArgument<int>("step")),
         image_type_(spec.GetArgument<DALIImageType>("image_type")),
         boundary_type_(detail::GetReaderBoundaryType(spec)),
-        uniform_sample_(spec.GetArgument<bool>("uniform_sample")) {
+        uniform_sample_(spec.GetArgument<bool>("uniform_sample")),
+        require_constant_frame_rate_(spec.GetArgument<bool>("require_constant_frame_rate")) {
     // Like legacy readers.video, count non-empty sources: an explicitly passed empty
     // `file_list=""`, `file_root=""` or `filenames=[]` means "not provided".
     int num_sources = !file_list_.empty() + !file_root_.empty() + !filenames_.empty();
@@ -264,8 +267,20 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
       DALI_ENFORCE(stride_ > 0,
                    make_string("stride must be greater than 0, got ", stride_, "."));
     }
-    if (step_ <= 0) {
-      step_ = stride_ * sequence_len_;
+    if (!uniform_sample_) {
+      // Frame indices (and the sample's start_/end_) are int: make sure the sequence extent
+      // (stride_ * sequence_len_, which is also the default step) fits, otherwise e.g. the
+      // default step would wrap to 0 or a negative value and the sample loop in
+      // PrepareMetadataImpl would never terminate.
+      int64_t full_seq_stride = static_cast<int64_t>(stride_) * sequence_len_;
+      DALI_ENFORCE(full_seq_stride <= std::numeric_limits<int>::max(),
+                   make_string("stride * sequence_length must not exceed ",
+                               std::numeric_limits<int>::max(), ", got ", stride_, " * ",
+                               sequence_len_, " = ", full_seq_stride, "."));
+      // `step` <= 0 (including the default, -1) means "use stride * sequence_length".
+      if (step_ <= 0) {
+        step_ = static_cast<int>(full_seq_stride);
+      }
     }
     if (uniform_sample_) {
       if (spec.HasArgument("stride")) {
@@ -336,22 +351,52 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
         LOG_LINE << "Reusing index for " << entry.filename << std::endl;
         decoder->SetIndex(it->second);
       }
+      // Checked here, while building the dataset metadata (i.e. at pipeline build, or on first
+      // use with lazy_init), rather than when a file is first decoded: that way a VFR file fails
+      // the pipeline deterministically, regardless of sharding/shuffling, like legacy
+      // readers.video's VFR check. Checked after both branches above, since SetIndex() also
+      // recomputes IsVfr() from an index restored from FrameIndexCache.
+      if (require_constant_frame_rate_) {
+        DALI_ENFORCE(!decoder->IsVfr(),
+                     make_string("File ", entry.filename,
+                                 " has a variable frame rate, but "
+                                 "require_constant_frame_rate=True was specified."));
+      }
       int64_t num_frames = decoder->NumFrames();
-      entry.start_frame = 0;
-      entry.end_frame = num_frames;
+      // The range is resolved in int64_t and only stored in the (int) entry fields once it is
+      // known to lie within [0, num_frames].
+      int64_t start_frame = 0;
+      int64_t end_frame = num_frames;
       LOG_LINE << "Total frames in video: " << num_frames << std::endl;
       if (entry.start != 0.0f || entry.end != 0.0f) {
         LOG_LINE << "Processing range [" << entry.start << ", " << entry.end
                  << "], file_list_format: " << make_string(file_list_opts_) << std::endl;
         switch (file_list_opts_.format) {
-          case FileListFormat::kFrames:
-            if (entry.start < 0)
-              entry.start = num_frames + entry.start;
-            if (entry.end <= 0)
-              entry.end = num_frames + entry.end;
-            entry.start_frame = file_list_opts_.round_start(entry.start);
-            entry.end_frame = file_list_opts_.round_end(entry.end);
+          case FileListFormat::kFrames: {
+            // Same semantics as the kTimestamps branch below: a negative start counts back from
+            // the end (clamped at the first frame), a start past the end of the video is an
+            // error, and an end past the end of the video is clamped (after the switch).
+            DALI_ENFORCE(!std::isnan(entry.start) && !std::isnan(entry.end),
+                         make_string("file_list entry for \"", entry.filename,
+                                     "\": start and end must be numbers."));
+            double start = entry.start < 0 ? num_frames + static_cast<double>(entry.start)
+                                           : static_cast<double>(entry.start);
+            double end = entry.end <= 0 ? num_frames + static_cast<double>(entry.end)
+                                        : static_cast<double>(entry.end);
+            // Clamped before rounding to an integer, so that huge values (e.g. 3e9 or inf)
+            // can't overflow. This doesn't change the outcome: a start of num_frames is still
+            // past the end, an end past num_frames is clamped to it below anyway, and an end of
+            // -1 still gives an empty range with include_end.
+            start = std::clamp<double>(start, 0, num_frames);
+            end = std::clamp<double>(end, -1, num_frames);
+            start_frame = file_list_opts_.round_start(start);
+            end_frame = file_list_opts_.round_end(end);
+            DALI_ENFORCE(start_frame < num_frames,
+                         make_string("file_list entry for \"", entry.filename, "\": start frame ",
+                                     entry.start, " is past the end of the video (", num_frames,
+                                     " frames)."));
             break;
+          }
           case FileListFormat::kTimestamps: {
             // Seconds are relative to the first frame (like legacy readers.video and this
             // operator's `timestamps` output). A negative start and a non-positive end (which
@@ -373,9 +418,9 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
                                      " s)."));
             // GetFrameIdxByTimestamp returns num_frames (one past the last frame) for times at
             // or after the end of the stream; for end_frame the clamp below keeps it in range.
-            entry.start_frame = decoder->GetFrameIdxByTimestamp(
+            start_frame = decoder->GetFrameIdxByTimestamp(
                 start_ts, file_list_opts_.should_round_down_start());
-            entry.end_frame = decoder->GetFrameIdxByTimestamp(
+            end_frame = decoder->GetFrameIdxByTimestamp(
                 end_ts, file_list_opts_.should_round_down_end());
             break;
           }
@@ -385,11 +430,13 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
         // Always clamp to the video's actual frame count (a file_list entry may specify an
         // `end` beyond the video's length). Only add +1 when include_end is set, to make the
         // range inclusive of the raw `end` value.
-        entry.end_frame =
-            std::min<int>(entry.end_frame + (file_list_opts_.include_end ? 1 : 0), num_frames);
-        LOG_LINE << "Frame range after conversion: [" << entry.start_frame << ", "
-                 << entry.end_frame << "]" << std::endl;
+        end_frame =
+            std::min<int64_t>(end_frame + (file_list_opts_.include_end ? 1 : 0), num_frames);
+        LOG_LINE << "Frame range after conversion: [" << start_frame << ", " << end_frame << "]"
+                 << std::endl;
       }
+      entry.start_frame = static_cast<int>(start_frame);
+      entry.end_frame = static_cast<int>(end_frame);
 
       if (entry.start_frame >= entry.end_frame) {
         DALI_WARN(make_string("Empty frame range [", entry.start_frame, ", ", entry.end_frame,
@@ -417,13 +464,24 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
         // (sequence_len_ - 1) * stride_ + 1 frames (same criterion as legacy readers.video).
         // The sample's end_ stays start + stride_ * sequence_len_, so the frame count derived
         // downstream, (end_ - start_ + stride_ - 1) / stride_, is exactly sequence_len_.
-        int seq_span = (sequence_len_ - 1) * stride_ + 1;
-        int full_seq_stride = stride_ * sequence_len_;
-        int start = entry.start_frame;
+        // Computed in int64: start + step_ / start + full_seq_stride can exceed INT_MAX even
+        // though each term fits in int (the constructor guarantees stride_ * sequence_len_ and
+        // step_ do).
+        int64_t seq_span = static_cast<int64_t>(sequence_len_ - 1) * stride_ + 1;
+        int64_t full_seq_stride = static_cast<int64_t>(stride_) * sequence_len_;
+        auto add_sample = [&](int64_t start) {
+          int64_t end = start + full_seq_stride;
+          DALI_ENFORCE(end <= std::numeric_limits<int>::max(),
+                       make_string("Sequence starting at frame ", start, " of \"", entry.filename,
+                                   "\" would end at frame ", end, ", which exceeds the supported "
+                                   "frame index range. Reduce stride or sequence_length."));
+          samples_.emplace_back(&entry, static_cast<int>(start), static_cast<int>(end), stride_);
+        };
+        int64_t start = entry.start_frame;
         for (; start + seq_span <= entry.end_frame; start += step_) {
           LOG_LINE << "Adding sample with start=" << start << ", end=" << start + full_seq_stride
                    << ", stride=" << stride_ << std::endl;
-          samples_.emplace_back(&entry, start, start + full_seq_stride, stride_);
+          add_sample(start);
         }
 
         // With padding enabled, emit a padded sample at every remaining step position that
@@ -432,7 +490,7 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
           for (; start < entry.end_frame; start += step_) {
             LOG_LINE << "Adding padded tail sample starting at frame " << start
                      << ", end=" << entry.end_frame << ", stride=" << stride_ << std::endl;
-            samples_.emplace_back(&entry, start, start + full_seq_stride, stride_);
+            add_sample(start);
           }
         }
       }
@@ -486,6 +544,7 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
   DALIImageType image_type_;
   boundary::BoundaryType boundary_type_;
   bool uniform_sample_;
+  bool require_constant_frame_rate_;
   FileListOptions file_list_opts_;
 
   std::vector<VideoFileMeta> video_files_info_;
@@ -518,9 +577,7 @@ class VideoReaderDecoder
         dtype_(spec.GetArgument<DALIDataType>("dtype")),
         normalized_(spec.GetArgument<bool>("normalized")),
         additional_decode_surfaces_(spec.GetArgument<int>("additional_decode_surfaces")),
-        decoder_cache_capacity_(spec.GetArgument<int>("decoder_cache_size")),
-        require_constant_frame_rate_(
-            spec.GetArgument<bool>("require_constant_frame_rate")) {
+        decoder_cache_capacity_(spec.GetArgument<int>("decoder_cache_size")) {
     loader_ = InitLoader<VideoLoaderImpl>(spec);
     this->SetInitialSnapshot();
 
@@ -715,23 +772,23 @@ class VideoReaderDecoder
   // files than fit in a single batch -- tears down and rebuilds a FramesDecoderImpl (container
   // reopen/parse, NVDEC parser creation, decode-surface allocation, ...) on nearly every sample,
   // even though the same file will very likely come up again within the next few samples.
-  // Capacity defaults to 8 (the long-standing behavior) but is user-tunable via the
-  // `decoder_cache_size` argument (decoder_cache_capacity_ below): each cached decoder holds an
-  // NVDEC lease plus device-memory frame buffers that can run from hundreds of MB to several GB
-  // depending on resolution/dtype, so the real memory cost scales directly with this capacity.
+  // Capacity defaults to 8 (previously the reader kept a single decoder, i.e. capacity 1) and is
+  // user-tunable via the `decoder_cache_size` argument (decoder_cache_capacity_ below): each
+  // cached decoder holds an NVDEC lease plus device-memory frame buffers that can run from
+  // hundreds of MB to several GB depending on resolution/dtype, so the real memory cost scales
+  // directly with this capacity.
   // Whether a larger cache actually helps depends on the dataset: it only pays off when the
   // number of distinct files likely to be interleaved within the shuffle window (e.g.
   // random_shuffle's buffer) is less than or comparable to the cache size; with far more distinct
   // files than capacity, the hit rate drops and the cache mostly just adds memory pressure for
   // little benefit.
 
-  // Constructs, indexes, VFR-checks and validates a decoder for `filename` before it is ever
+  // Constructs, indexes and validates a decoder for `filename` before it is ever
   // placed in decoder_cache_: if any of those steps throws, nothing is left behind in the cache
   // for this filename (the partially-built decoder is simply destroyed), and any other entries
   // already in decoder_cache_ are untouched. Cache insertion is deliberately the *last* step,
-  // reached only on full success -- otherwise a corrupt/VFR-rejected file could be cached
-  // unvalidated, and a later call for the same filename would hit the cache and skip
-  // index-building and the VFR check entirely.
+  // reached only on full success -- otherwise a corrupt file could be cached unvalidated, and a
+  // later call for the same filename would hit the cache and skip index-building entirely.
   FramesDecoderImpl *GetOrOpenDecoder(const std::string &filename, bool &is_new_decoder) {
     for (auto it = decoder_cache_.begin(); it != decoder_cache_.end(); ++it) {
       if (it->first == filename) {
@@ -761,16 +818,8 @@ class VideoReaderDecoder
       LOG_LINE << "Reusing index for " << filename << std::endl;
       decoder->SetIndex(it->second);
     }
-    // Checked after both branches above (fresh BuildIndex() and cache-hit SetIndex()):
-    // IsVfr() is a per-file property, and SetIndex() recomputes is_vfr_ from the restored
-    // index, so this must fire regardless of which branch populated the decoder's index
-    // (e.g. a second operator instance, or a later epoch, hitting the warm FrameIndexCache).
-    if (require_constant_frame_rate_) {
-      DALI_ENFORCE(!decoder->IsVfr(),
-                   make_string("File ", filename,
-                               " has a variable frame rate, but "
-                               "require_constant_frame_rate=True was specified."));
-    }
+    // No require_constant_frame_rate check here: every file that can produce a sample already
+    // passed it in VideoLoaderDecoder::PrepareMetadataImpl().
     DALI_ENFORCE(decoder->IsValid(), make_string("Invalid decoder for filename ", filename));
 
     decoder_cache_.emplace_front(filename, std::move(decoder));
@@ -802,7 +851,8 @@ class VideoReaderDecoder
                    make_string("Invalid decoder for filename ", filename));
 
       int64_t num_frames = sample->frame_idxs_.empty()
-          ? (sample->end_ - sample->start_ + sample->stride_ - 1) / sample->stride_
+          ? (static_cast<int64_t>(sample->end_) - sample->start_ + sample->stride_ - 1) /
+                sample->stride_
           : static_cast<int64_t>(sample->frame_idxs_.size());
       sample->data_.Resize(
           {num_frames, decoder_->Height(), decoder_->Width(), decoder_->Channels()}, dtype_);
@@ -870,10 +920,10 @@ class VideoReaderDecoder
                                constant_frame, make_span(sample->timestamps_));
       } else if (roi_start != 0 || roi_end != decoder_->NumFrames()) {
         frame_idxs_.clear();
-        for (int frame_idx = sample->start_; frame_idx < sample->end_;
+        for (int64_t frame_idx = sample->start_; frame_idx < sample->end_;
              frame_idx += sample->stride_) {
           frame_idxs_.push_back(decoder_->HandleBoundary(
-              boundary_type_, frame_idx, roi_start, roi_end));
+              boundary_type_, static_cast<int>(frame_idx), roi_start, roi_end));
         }
         decoder_->DecodeFrames(sample_data, make_cspan(frame_idxs_), boundary_type_,
                                constant_frame, make_span(sample->timestamps_));
@@ -884,7 +934,12 @@ class VideoReaderDecoder
       LOG_LINE << "Decoding frames done" << std::endl;
     }
 
-    if (cuda_stream_) {
+    // The GPU decoder defers its per-frame synchronization (color-conversion kernels are only
+    // fenced with events), so the batch must be synchronized here before RunImpl copies it on
+    // ws.stream(). Always sync the stream the decoders actually ran on: when
+    // StreamInitialization() left cuda_stream_ empty (old-driver fallback), that is the legacy
+    // default stream (0), which a non-blocking ws.stream() does not implicitly wait for.
+    if constexpr (std::is_same_v<Backend, GPUBackend>) {
       CUDA_CALL(cudaStreamSynchronize(cuda_stream_.get()));
     }
     LOG_LINE << "Prefetch done" << std::endl;
@@ -899,7 +954,6 @@ class VideoReaderDecoder
   bool normalized_;
   int additional_decode_surfaces_;
   int decoder_cache_capacity_;
-  bool require_constant_frame_rate_;
   std::vector<uint8_t> fill_value_;
   bool has_labels_ = false;
 

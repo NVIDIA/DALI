@@ -154,16 +154,20 @@ This option is mutually exclusive with `filenames` and `file_list`.)code",
 ``start`` and ``end`` are optional and can be used to specify the start and end of the video to load.
 The values can be interpreted differently depending on the ``file_list_format``. A missing
 ``end`` means "until the end of the video", and negative values count from the end of the video.
+A ``start`` past the end of the video is an error; an ``end`` past the end of the video is clamped.
 
 This option is mutually exclusive with `filenames` and `file_root`.)code",
                     std::string())
     .AddOptionalArg("file_list_format",
         R"code(How to interpret start/end values in file_list:
 
-* ``frames``: Use exact frame numbers (0-based). Negative values count from end.
+* ``frames``: Use exact frame numbers (0-based). Negative values count from the end (a negative
+  ``start`` reaching before the beginning of the video is clamped to the first frame).
 * ``timestamps``: Use timestamps in seconds, relative to the first frame of the video. Negative
-  values count from the end. A ``start`` past the end of the video is an error; an ``end`` past
-  the end of the video is clamped.
+  values count from the end.
+
+In both modes, a ``start`` past the end of the video is an error, and an ``end`` past the end of
+the video is clamped.
 
 Default: ``timestamps``.)code",
         "timestamps")
@@ -230,7 +234,9 @@ The ``stride``, ``step``, and ``pad_mode`` arguments are ignored.)code",
         "pad_mode",
         R"code(How to handle videos with insufficient frames when using start_frame/sequence_length/stride:
 
-* ``'none'``: Return shorter sequences if not enough frames: ABC -> ABC
+* ``'none'``: No padding: a sequence that would extend past the last frame is not returned, so
+  every sample has exactly ``sequence_length`` frames (like ``readers.video`` with
+  ``pad_sequences=False``): ABC -> (dropped)
 * ``'constant'``: Pad with a fixed value (specified by ``fill_value``): ABC -> ABCPPP
 * ``'edge'`` or ``'repeat'``: Repeat the last valid frame: ABC -> ABCCCC
 * ``'reflect_1001'`` or ``'symmetric'``: Reflect padding, including the last element: ABC -> ABCCBA
@@ -291,8 +297,10 @@ distinct files than `decoder_cache_size`, the cache's hit rate drops and it most
 pressure with little throughput benefit. With the default value and a dataset containing
 substantially more distinct files than that, measured throughput can be below the legacy GPU
 reader's; size this at or above your expected number of concurrently-interleaved files to match
-or exceed it. Tune this down (e.g. to ``1`` to effectively disable reuse) for large datasets with
-a wide shuffle window and tight memory budgets.
+or exceed it. Tune this down for large datasets with a wide shuffle window and tight memory
+budgets: ``1`` keeps only the most recently used decoder, which is still reused for consecutive
+samples from the same file (the behavior of this operator before the cache was introduced), but
+any switch to a different file reopens it.
 
 Must be positive.)code",
                     8)
