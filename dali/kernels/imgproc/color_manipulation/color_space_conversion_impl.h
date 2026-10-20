@@ -59,42 +59,58 @@ constexpr DALI_HOST_DEV std::enable_if_t<!std::is_integral<T>::value, float> bia
 }
 
 /**
- * @brief Saturates the input channels to the range of normalized values representable in `Output`
+ * @brief Saturates an input value to the range of normalized values representable in `Output`
  *
- * The scalar overload is `dali::clamp_norm` (dali/core/convert.h); this one applies it to each
- * channel. The values are kept in the `Input` type (and units), so the conversion formulas below
- * can apply their usual Input -> Output scaling to them.
+ * Integer values are interpreted as normalized: unsigned integers as UNORM (`v / max_value`,
+ * in [0, 1]) and signed integers as SNORM (`v / max_value`, in [-1, 1]); floating point values
+ * are used as they are. The value is then saturated to the normalized range of `Output`:
+ *   * unsigned `Output`: [0, 1]
+ *   * signed integer `Output`: [-1, 1] - `min_value<Input>()`, which is one code below
+ *     `-max_value<Input>()`, is clamped to -1, as in SNORM formats of graphics APIs
+ *   * floating point `Output`: no limit, the value is returned unchanged
+ * Unsigned integer inputs are never modified.
  *
- * For RGB and GRAY inputs, this makes the color space conversion functions equivalent to
- * converting each channel to `Output` first (as the GPU decode path, ConvertGPU, does) and then
- * running the conversion with `Output` as both input and output type, but without the
- * intermediate rounding - up to one code at `min_value<Input>()` for a signed integral `Output`
- * (see below). For YCbCr inputs (`ycbcr_to_rgb`, `y_to_gray`, `ycbcr_to_gray`) the Y and chroma
- * biases are in `Input` units (2^n/16 and 2^n/2), which normalize differently for each type
- * (e.g. 64/127 for int8_t, 128/255 for uint8_t, 0.5 for float), so the two orders also differ
- * by that bias difference - e.g. up to ~0.85% of full scale for int8_t YCbCr to float RGB. This
- * is negligible for 16-bit and wider types. Without the saturation,
- * e.g. a negative value of a signed channel would contribute a negative term to the conversion
- * matrix and yield colors not representable in an unsigned output type, which then saturate to
- * wrong values.
+ * Note that the value is not converted to `Output` - it's returned in the `Input` type (and
+ * units), so that the conversion formulas below can apply their usual Input -> Output scaling
+ * to it.
  *
- * Each channel is clipped separately, before the conversion matrix - also for floating point
- * inputs out of the [0, 1] (or [-1, 1]) range. This is a deliberate choice that matches the GPU
- * decode path; clipping only the result of the matrix would give different colors.
- *
- * Unlike `ConvertSatNorm`, the signed `min_value<Input>()` is clamped to -1 when `Output` is a
- * signed integer type - also when `Output` is the same type as `Input`. When `Output` is floating
- * point, the values are not clamped at all, matching `ConvertSatNorm<float>` and the GPU decode
- * path - so int8_t(-128) normalizes to -128/127, not -1.
+ * Unlike here, `ConvertSatNorm` to a signed integer type keeps `min_value<Input>()` one code
+ * below -1 when `Output` is as wide as `Input` or wider (e.g. `ConvertSatNorm<int8_t>` of
+ * int8_t(-128) is -128 and `ConvertSatNorm<int16_t>` of int8_t(-128) is -32768). Like here,
+ * `ConvertSatNorm` to a floating point type doesn't clamp it - int8_t(-128) normalizes to
+ * -128/127, not -1.
  */
-using dali::clamp_norm;
-
 template <typename Output, typename Input>
-constexpr DALI_HOST_DEV vec<3, Input> clamp_norm(vec<3, Input> v) {
+constexpr DALI_HOST_DEV Input saturate_to_output_range(Input value) {
+  static_assert(is_arithmetic_or_half<Output>::value && is_arithmetic_or_half<Input>::value,
+                "saturate_to_output_range can only be used with arithmetic types");
+  if constexpr (is_fp_or_half<Output>::value) {
+    return value;
+  } else if constexpr (is_fp_or_half<Input>::value) {  // NOLINT - linter bug with else if constexpr
+    // float16 is compared as float
+    using Calc = std::conditional_t<std::is_same<Input, float16>::value, float, Input>;
+    constexpr Calc lo = std::is_unsigned<Output>::value ? Calc(0) : Calc(-1);
+    Calc v = static_cast<Calc>(value);
+    return v < lo ? static_cast<Input>(lo) : v > Calc(1) ? static_cast<Input>(Calc(1)) : value;
+  } else if constexpr (std::is_signed<Input>::value) {  // NOLINT - linter bug, else if constexpr
+    constexpr Input lo = std::is_unsigned<Output>::value
+                         ? Input(0)
+                         : static_cast<Input>(-max_value<Input>());
+    return value < lo ? lo : value;
+  } else {
+    return value;
+  }
+}
+
+/**
+ * @brief Applies the scalar `saturate_to_output_range` to each channel
+ */
+template <typename Output, typename Input>
+constexpr DALI_HOST_DEV vec<3, Input> saturate_to_output_range(vec<3, Input> v) {
   return {
-    dali::clamp_norm<Output>(v[0]),
-    dali::clamp_norm<Output>(v[1]),
-    dali::clamp_norm<Output>(v[2])
+    saturate_to_output_range<Output>(v[0]),
+    saturate_to_output_range<Output>(v[1]),
+    saturate_to_output_range<Output>(v[2])
   };
 }
 
@@ -102,9 +118,27 @@ constexpr DALI_HOST_DEV vec<3, Input> clamp_norm(vec<3, Input> v) {
 
 /*
  * All functions below accept any combination of `Output` and `Input` types (unsigned or signed
- * integers, floating point). Integer values are normalized (UNORM/SNORM) and saturated as
- * described in `dali::clamp_norm`; the results are scaled to the dynamic range of `Output`
- * and rounded/saturated as needed.
+ * integers, floating point). The input channels are first saturated to the normalized range of
+ * `Output` with `detail::saturate_to_output_range`; the results are scaled to the dynamic range
+ * of `Output` and rounded/saturated as needed.
+ *
+ * Without the saturation, e.g. a negative value of a signed channel would contribute a negative
+ * term to the conversion matrix and yield colors not representable in an unsigned output type,
+ * which then saturate to wrong values.
+ *
+ * Each channel is clipped separately, before the conversion matrix - also for floating point
+ * inputs out of the [0, 1] (or [-1, 1]) range. This is a deliberate choice that matches the GPU
+ * decode path; clipping only the result of the matrix would give different colors.
+ *
+ * For RGB and GRAY inputs, this makes the conversion functions equivalent to converting each
+ * channel to `Output` first (as the GPU decode path, ConvertGPU, does) and then running the
+ * conversion with `Output` as both input and output type, but without the intermediate rounding
+ * - up to one code at `min_value<Input>()` for a signed integral `Output` (see
+ * `detail::saturate_to_output_range`). For YCbCr inputs (`ycbcr_to_rgb`, `y_to_gray`,
+ * `ycbcr_to_gray`) the Y and chroma biases are in `Input` units (2^n/16 and 2^n/2), which
+ * normalize differently for each type (e.g. 64/127 for int8_t, 128/255 for uint8_t, 0.5 for
+ * float), so the two orders also differ by that bias difference - e.g. up to ~0.85% of full scale
+ * for int8_t YCbCr to float RGB. This is negligible for 16-bit and wider types.
  */
 
 // Y, Cb, Cr definition from ITU-R BT.601, with values in the range 16-235, allowing for
@@ -115,7 +149,7 @@ struct itu_r_bt_601 {
     constexpr vec3 coeffs = vec3(0.25678823529f, 0.50412941176f, 0.09790588235f)
                             * detail::scale_factor<Input, Output>();
     constexpr float bias = 0.0625f * detail::bias_scale<Output>();
-    float y = dot(coeffs, detail::clamp_norm<Output>(rgb)) + bias;
+    float y = dot(coeffs, detail::saturate_to_output_range<Output>(rgb)) + bias;
     return needs_clamp<Input, Output>::value ? Convert<Output>(y) : ConvertSat<Output>(y);
   }
 
@@ -125,7 +159,7 @@ struct itu_r_bt_601 {
     constexpr vec3 coeffs = vec3(-0.14822289945f, -0.29099278682f, 0.43921568627f)
                             * detail::scale_factor<Input, Output>();
     constexpr float bias = 0.5f * detail::bias_scale<Output>();
-    float y = dot(coeffs, detail::clamp_norm<Output>(rgb)) + bias;
+    float y = dot(coeffs, detail::saturate_to_output_range<Output>(rgb)) + bias;
     return needs_clamp<Input, Output>::value ? Convert<Output>(y) : ConvertSat<Output>(y);
   }
 
@@ -135,7 +169,7 @@ struct itu_r_bt_601 {
     constexpr vec3 coeffs = vec3(0.43921568627f, -0.36778831435f, -0.07142737192)
                             * detail::scale_factor<Input, Output>();
     constexpr float bias = 0.5f * detail::bias_scale<Output>();
-    float y = dot(coeffs, detail::clamp_norm<Output>(rgb)) + bias;
+    float y = dot(coeffs, detail::saturate_to_output_range<Output>(rgb)) + bias;
     return needs_clamp<Input, Output>::value ? Convert<Output>(y) : ConvertSat<Output>(y);
   }
 
@@ -156,7 +190,7 @@ struct itu_r_bt_601 {
   constexpr Output y_to_gray(Input y) {
     constexpr float scale = 255 * detail::scale_factor<Input, Output>() / 219;
     constexpr float bias = 0.0625f * detail::bias_scale<Input>();
-    return ConvertSat<Output>(scale * (detail::clamp_norm<Output>(y) - bias));
+    return ConvertSat<Output>(scale * (detail::saturate_to_output_range<Output>(y) - bias));
   }
 
   template <typename Output, typename Input>
@@ -164,7 +198,7 @@ struct itu_r_bt_601 {
   constexpr Output gray_to_y(Input y) {
     constexpr float bias = 0.0625f * detail::bias_scale<Output>();
     constexpr float scale = 219 * detail::scale_factor<Input, Output>() / 255;
-    return ConvertSat<Output>(detail::clamp_norm<Output>(y) * scale + bias);
+    return ConvertSat<Output>(detail::saturate_to_output_range<Output>(y) * scale + bias);
   }
 
   template <typename Output, typename Input>
@@ -173,7 +207,7 @@ struct itu_r_bt_601 {
     constexpr float cbias = 0.5f * detail::bias_scale<Input>();
     constexpr float ybias = 0.0625f * detail::bias_scale<Input>();
     constexpr float s = detail::scale_factor<Input, Output>();
-    ycbcr = detail::clamp_norm<Output>(ycbcr);
+    ycbcr = detail::saturate_to_output_range<Output>(ycbcr);
     float ys = (ycbcr[0] - ybias) * (255.0f / 219) * s;
     float tmp_b = ycbcr[1] - cbias;
     float tmp_r = ycbcr[2] - cbias;
@@ -204,7 +238,7 @@ struct jpeg {
   static DALI_HOST_DEV DALI_FORCEINLINE
   constexpr Output rgb_to_y(vec<3, Input> rgb) {
     constexpr vec3 coeffs = vec3(0.299f, 0.587f, 0.114f) * detail::scale_factor<Input, Output>();
-    float y = dot(coeffs, detail::clamp_norm<Output>(rgb));
+    float y = dot(coeffs, detail::saturate_to_output_range<Output>(rgb));
     return needs_clamp<Input, Output>::value ? Convert<Output>(y) : ConvertSat<Output>(y);
   }
 
@@ -214,7 +248,7 @@ struct jpeg {
     constexpr vec3 coeffs = vec3(-0.16873589f, -0.33126411f, 0.5f)
                             * detail::scale_factor<Input, Output>();
     constexpr float bias = 0.5f * detail::bias_scale<Output>();
-    float y = dot(coeffs, detail::clamp_norm<Output>(rgb)) + bias;
+    float y = dot(coeffs, detail::saturate_to_output_range<Output>(rgb)) + bias;
     return needs_clamp<Input, Output>::value ? Convert<Output>(y) : ConvertSat<Output>(y);
   }
 
@@ -224,7 +258,7 @@ struct jpeg {
     constexpr vec3 coeffs = vec3(0.5f, -0.41868759f, -0.08131241f)
                             * detail::scale_factor<Input, Output>();
     constexpr float bias = 0.5f * detail::bias_scale<Output>();
-    float y = dot(coeffs, detail::clamp_norm<Output>(rgb)) + bias;
+    float y = dot(coeffs, detail::saturate_to_output_range<Output>(rgb)) + bias;
     return needs_clamp<Input, Output>::value ? Convert<Output>(y) : ConvertSat<Output>(y);
   }
 
@@ -243,7 +277,7 @@ struct jpeg {
   constexpr vec<3, Output> ycbcr_to_rgb(vec<3, Input> ycbcr) {
     constexpr float cbias = 0.5f * detail::bias_scale<Input>();
     constexpr float s = detail::scale_factor<Input, Output>();
-    ycbcr = detail::clamp_norm<Output>(ycbcr);
+    ycbcr = detail::saturate_to_output_range<Output>(ycbcr);
     float tmp_b = ycbcr[1] - cbias;
     float tmp_r = ycbcr[2] - cbias;
     float ys = ycbcr[0] * s;
@@ -256,17 +290,17 @@ struct jpeg {
   template <typename Output, typename Input>
   static DALI_HOST_DEV DALI_FORCEINLINE
   constexpr Output gray_to_y(Input gray) {
-    // clamp_norm first, so that the same saturation as in the other functions is applied
+    // Saturate first, so that the same saturation as in the other functions is applied
     // (ConvertSatNorm alone doesn't clamp min_value or floating point values before scaling)
-    return ConvertSatNorm<Output>(detail::clamp_norm<Output>(gray));
+    return ConvertSatNorm<Output>(detail::saturate_to_output_range<Output>(gray));
   }
 
   template <typename Output, typename Input>
   static DALI_HOST_DEV DALI_FORCEINLINE
   constexpr Output y_to_gray(Input y) {
-    // clamp_norm first, so that the same saturation as in the other functions is applied
+    // Saturate first, so that the same saturation as in the other functions is applied
     // (ConvertSatNorm alone doesn't clamp min_value or floating point values before scaling)
-    return ConvertSatNorm<Output>(detail::clamp_norm<Output>(y));
+    return ConvertSatNorm<Output>(detail::saturate_to_output_range<Output>(y));
   }
 };  // struct jpeg
 

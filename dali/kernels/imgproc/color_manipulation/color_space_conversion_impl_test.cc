@@ -540,7 +540,35 @@ static_assert(any_ref::norm<float, float>(1.5f) == 1.5);
 static_assert(any_ref::ybias<int32_t>() == (1 << 27));
 static_assert(any_ref::cbias<uint32_t>() == 2147483648.0);
 
-// The input saturation used by the implementation (clamp_norm) is tested in dali/core
+// detail::saturate_to_output_range - the input saturation used by the implementation
+using detail::saturate_to_output_range;
+// Signed integers are saturated to the normalized range of the output type
+static_assert(saturate_to_output_range<uint8_t>(int8_t(-128)) == 0);
+static_assert(saturate_to_output_range<uint8_t>(int8_t(-1)) == 0);
+static_assert(saturate_to_output_range<uint8_t>(int8_t(5)) == 5);
+static_assert(saturate_to_output_range<uint16_t>(min_value<int32_t>()) == 0);
+static_assert(saturate_to_output_range<int8_t>(int8_t(-128)) == -127);
+static_assert(saturate_to_output_range<int32_t>(int8_t(-128)) == -127);
+static_assert(saturate_to_output_range<int8_t>(int16_t(-32767)) == -32767);
+static_assert(saturate_to_output_range<int8_t>(max_value<int32_t>()) == max_value<int32_t>());
+// ...but not when the output is floating point - min_value<Input>() is passed through unchanged
+static_assert(saturate_to_output_range<float>(int16_t(-32768)) == -32768);
+static_assert(saturate_to_output_range<float>(int32_t(-5)) == -5);
+// Unsigned inputs are never modified
+static_assert(saturate_to_output_range<uint8_t>(uint8_t(0)) == 0);
+static_assert(saturate_to_output_range<uint8_t>(uint8_t(255)) == 255);
+static_assert(saturate_to_output_range<int8_t>(uint32_t(0xffffffffu)) == 0xffffffffu);
+static_assert(saturate_to_output_range<float>(uint16_t(0xffff)) == 0xffff);
+// Floating point inputs are saturated to the range representable by integral outputs
+static_assert(saturate_to_output_range<uint8_t>(1.5f) == 1.0f);
+static_assert(saturate_to_output_range<uint8_t>(-0.5f) == 0.0f);
+static_assert(saturate_to_output_range<uint8_t>(0.25f) == 0.25f);
+static_assert(saturate_to_output_range<int16_t>(-1.5f) == -1.0f);
+static_assert(saturate_to_output_range<int16_t>(-0.5f) == -0.5f);
+static_assert(saturate_to_output_range<int32_t>(2.0) == 1.0);
+// ...but not for floating point outputs
+static_assert(saturate_to_output_range<float>(-1.5f) == -1.5f);
+static_assert(saturate_to_output_range<double>(1.5f) == 1.5f);
 
 namespace {
 
@@ -798,7 +826,8 @@ TYPED_TEST(ColorSpaceConversionAnyTypeTest, YCbCr_to_Gray) {
  * converting the result to YCbCr.
  *
  * This holds for floating point outputs too: ConvertSatNorm<float> does not clamp the SNORM
- * min_value<In>() to -1 either, matching clamp_norm's behavior for a floating point Output.
+ * min_value<In>() to -1 either, matching detail::saturate_to_output_range for a floating point
+ * Output.
  */
 TYPED_TEST(ColorSpaceConversionAnyTypeTest, EquivalentToConvertSatNormFirst) {
   using In = TypeParam;
@@ -955,6 +984,18 @@ TEST(ColorSpaceConversionSignedTest, FloatInputSaturation) {
               0.0625 - 0.5 * 219 / 255, 1e-6);
 }
 
+
+TEST(ColorSpaceConversionSignedTest, SaturateToOutputRangeFloat16) {
+  // float16 input is compared as float
+  EXPECT_EQ(static_cast<float>(saturate_to_output_range<uint8_t>(float16(1.5f))), 1.0f);
+  EXPECT_EQ(static_cast<float>(saturate_to_output_range<uint8_t>(float16(-0.5f))), 0.0f);
+  EXPECT_EQ(static_cast<float>(saturate_to_output_range<uint8_t>(float16(0.25f))), 0.25f);
+  EXPECT_EQ(static_cast<float>(saturate_to_output_range<int16_t>(float16(-1.5f))), -1.0f);
+  EXPECT_EQ(static_cast<float>(saturate_to_output_range<int16_t>(float16(1.5f))), 1.0f);
+  EXPECT_EQ(static_cast<float>(saturate_to_output_range<int16_t>(float16(-0.5f))), -0.5f);
+  // No saturation for floating point outputs
+  EXPECT_EQ(static_cast<float>(saturate_to_output_range<float>(float16(1.5f))), 1.5f);
+}
 
 }  // namespace test
 }  // namespace color

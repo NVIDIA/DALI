@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -136,35 +136,6 @@ static_assert(clamp<int64_t>(1.0e+200) == 0x7fffffffffffffffLL, "Unexpected clam
 static_assert(clamp<int64_t>(-1.0e+200) == -0x7fffffffffffffffLL-1, "Unexpected clamp result");
 static_assert(clamp<uint64_t>(1.0e+200) == 0xffffffffffffffffULL, "Unexpected clamp result");
 static_assert(clamp<uint64_t>(-1.0e+200) == 0, "Unexpected clamp result");
-
-// clamp_norm: signed integers are saturated to the normalized range of the output type
-static_assert(clamp_norm<uint8_t>(int8_t(-128)) == 0);
-static_assert(clamp_norm<uint8_t>(int8_t(-1)) == 0);
-static_assert(clamp_norm<uint8_t>(int8_t(5)) == 5);
-static_assert(clamp_norm<uint16_t>(min_value<int32_t>()) == 0);
-static_assert(clamp_norm<int8_t>(int8_t(-128)) == -127);
-static_assert(clamp_norm<int32_t>(int8_t(-128)) == -127);
-static_assert(clamp_norm<int8_t>(int16_t(-32767)) == -32767);
-static_assert(clamp_norm<int8_t>(max_value<int32_t>()) == max_value<int32_t>());
-// ...but not when the output is floating point - min_value<In>() is passed through unchanged
-static_assert(clamp_norm<float>(int16_t(-32768)) == -32768);
-static_assert(clamp_norm<float>(int32_t(-5)) == -5);
-// Unsigned inputs are never modified
-static_assert(clamp_norm<uint8_t>(uint8_t(0)) == 0);
-static_assert(clamp_norm<uint8_t>(uint8_t(255)) == 255);
-static_assert(clamp_norm<int8_t>(uint32_t(0xffffffffu)) == 0xffffffffu);
-static_assert(clamp_norm<float>(uint16_t(0xffff)) == 0xffff);
-// Floating point inputs are clamped to the range representable by integral outputs
-static_assert(clamp_norm<uint8_t>(1.5f) == 1.0f);
-static_assert(clamp_norm<uint8_t>(-0.5f) == 0.0f);
-static_assert(clamp_norm<uint8_t>(0.25f) == 0.25f);
-static_assert(clamp_norm<int16_t>(-1.5f) == -1.0f);
-static_assert(clamp_norm<int16_t>(-0.5f) == -0.5f);
-static_assert(clamp_norm<int32_t>(2.0) == 1.0);
-static_assert(clamp_norm<bool>(-0.5f) == 0.0f);
-// ...but not for floating point outputs
-static_assert(clamp_norm<float>(-1.5f) == -1.5f);
-static_assert(clamp_norm<double>(1.5f) == 1.5f);
 
 }  // namespace kernels
 }  // namespace dali

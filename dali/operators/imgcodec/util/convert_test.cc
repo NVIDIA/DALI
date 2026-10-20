@@ -362,9 +362,9 @@ TEST_F(ConvertOrientationTest, FlipY) {
 
 // Regression test for ConvertCPU with a signed source: the color-conversion coefficients/biases
 // are calibrated for a channel in the normalized range of the output, so the signed input must
-// be saturated to that range (clamp_norm in color_space_conversion_impl.h) instead of running the
-// color math directly on the raw signed value - giving the same results as ConvertGPU, which
-// normalizes to Out first.
+// be saturated to that range (saturate_to_output_range in color_space_conversion_impl.h) instead
+// of running the color math directly on the raw signed value - giving the same results as
+// ConvertGPU, which normalizes to Out first.
 class ConvertSignedSourceTest : public ::testing::Test {
  protected:
   Tensor<CPUBackend> Convert(const std::vector<int8_t> &rgb, DALIImageType out_format,
