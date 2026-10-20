@@ -93,6 +93,13 @@ args = parser.parse_args()
 
 if args.reader == "legacy" and args.device == "cpu":
     parser.error("legacy reader (readers.video) is GPU-only")
+if args.batch_size < 1:
+    parser.error(f"batch size (-b) must be positive, got {args.batch_size}")
+if args.total_samples < args.batch_size:
+    parser.error(
+        f"total samples (-t {args.total_samples}) must be at least the batch size "
+        f"(-b {args.batch_size}), otherwise no test iteration would run"
+    )
 
 video_files = args.video_list or sorted(glob.glob(os.path.join(args.video_dir, "*")))
 if not video_files:
