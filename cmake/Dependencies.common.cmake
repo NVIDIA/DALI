@@ -170,18 +170,26 @@ if(BUILD_NVCOMP)
            nvcomp_VERSION_MAJOR "${nvcomp_VERSION_MAJOR}")
   endif()
   if (NOT nvcomp_VERSION_MAJOR STREQUAL DALI_NVCOMP_VERSION_MAJOR)
-    set(nvcomp_ERROR "nvCOMP ${DALI_NVCOMP_VERSION_MAJOR}.x is required, but the headers found in "
-                     "${nvcomp_INCLUDE_DIR} are version ${nvcomp_VERSION_MAJOR}. "
-                     "Try to specify nvcomp location with `-DNVCOMP_ROOT_DIR`.")
-    # Don't keep the wrong location in the cache, so that the next run searches again
+    # Don't keep the wrong location in the cache, so that the next run searches again.
+    # This must precede message(FATAL_ERROR), which stops processing.
+    set(nvcomp_WRONG_INCLUDE_DIR "${nvcomp_INCLUDE_DIR}")
     unset(nvcomp_INCLUDE_DIR CACHE)
-    message(FATAL_ERROR ${nvcomp_ERROR})
+    message(FATAL_ERROR "nvCOMP ${DALI_NVCOMP_VERSION_MAJOR}.x is required, but the headers found in "
+                        "${nvcomp_WRONG_INCLUDE_DIR} are version ${nvcomp_VERSION_MAJOR}. "
+                        "Try to specify nvcomp location with `-DNVCOMP_ROOT_DIR`.")
   endif()
   include_directories(SYSTEM ${nvcomp_INCLUDE_DIR})
   if (NOT WITH_DYNAMIC_NVCOMP)
-    # Discard a library found by an older configuration, e.g. before a major version change
-    if (nvcomp_LIBS AND NOT nvcomp_LIBS MATCHES "libnvcomp\\.so\\.${DALI_NVCOMP_VERSION_MAJOR}$")
-      unset(nvcomp_LIBS CACHE)
+    # Discard a library with a wrong major version, e.g. found by an older configuration.
+    # Symlinks are resolved, so an unversioned libnvcomp.so pointing to the right version is kept.
+    if (nvcomp_LIBS)
+      get_filename_component(nvcomp_LIBS_REALPATH "${nvcomp_LIBS}" REALPATH)
+      if (NOT nvcomp_LIBS_REALPATH MATCHES
+          "libnvcomp\\.so\\.${DALI_NVCOMP_VERSION_MAJOR}(\\.[0-9]+)*$")
+        message(STATUS "Discarding nvcomp_LIBS=${nvcomp_LIBS}, as it's not "
+                       "libnvcomp.so.${DALI_NVCOMP_VERSION_MAJOR}. Searching again.")
+        unset(nvcomp_LIBS CACHE)
+      endif()
     endif()
     find_library(
       nvcomp_LIBS
