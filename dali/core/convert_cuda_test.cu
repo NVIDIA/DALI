@@ -76,6 +76,9 @@ DEVICE_TEST(ConvertNormCUDA_Dev, float2int, 1, 1) {
 DEVICE_TEST(ConvertNorm_Dev, float16_2int, 1, 1) {
   DEV_EXPECT_EQ(ConvertNorm<uint16_t>(float16(0.25f)), 16384);
   DEV_EXPECT_EQ(ConvertNorm<int32_t>(float16(0.5f)), 0x40000000);
+  DEV_EXPECT_EQ(ConvertNorm<int16_t>(float16(1.0f)), 0x7fff);
+  DEV_EXPECT_EQ(ConvertNorm<int16_t>(float16(-1.0f)), -0x7fff);
+  DEV_EXPECT_EQ(ConvertNorm<int64_t>(float16(0.5f)), 0x4000000000000000);
   DEV_EXPECT_EQ(ConvertSatNorm<uint8_t>(float16(0.25f)), 64);
   DEV_EXPECT_EQ(ConvertSatNorm<uint16_t>(float16(0.0f)), 0);
   DEV_EXPECT_EQ(ConvertSatNorm<uint16_t>(float16(0.25f)), 16384);
