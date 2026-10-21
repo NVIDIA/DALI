@@ -117,11 +117,14 @@ class NVDECLease {
 };
 
 /**
- * @brief Returns the number of decoders (leased and idle) in the NVDEC decoder cache of a device.
+ * @brief Returns how many NVDEC decoders were created so far for a device, i.e. how many times
+ *        the decoder cache could not provide a matching one.
+ *
+ * The count includes decoders that were evicted from the cache since.
  *
  * @param device_id CUDA device ordinal or -1 for the current device.
  */
-DLL_PUBLIC size_t NVDECCacheSize(int device_id = -1);
+DLL_PUBLIC size_t NVDECDecodersCreated(int device_id = -1);
 
 }  // namespace frame_dec_gpu_impl
 

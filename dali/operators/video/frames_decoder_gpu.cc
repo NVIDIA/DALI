@@ -107,9 +107,9 @@ class NVDECCache {
       DALI_FAIL("Cannot return decoder that is not from the cache");
     }
 
-    size_t Size() {
+    size_t NumCreated() {
       std::lock_guard lock(access_lock);
-      return dec_cache.size();
+      return num_created;
     }
 
  private:
@@ -264,6 +264,7 @@ class NVDECCache {
 
       lock.lock();
       auto inserted = dec_cache.insert({codec_type, decoder_inst});
+      num_created++;
       if (dec_cache.size() > CACHE_SIZE_LIMIT) {
         for (auto it = dec_cache.begin(); it != dec_cache.end(); ++it) {
           if (it->second.used == false) {
@@ -281,6 +282,7 @@ class NVDECCache {
     using codec_map = std::multimap<cudaVideoCodec, DecInstance>;
     codec_map dec_cache;
     std::mutex access_lock;
+    size_t num_created = 0;  // decoders created so far, including those already evicted
 
     static constexpr int CACHE_SIZE_LIMIT = 100;
 };
@@ -293,8 +295,8 @@ void NVDECLease::Return() {
   }
 }
 
-size_t NVDECCacheSize(int device_id) {
-  return NVDECCache::GetCache(device_id).Size();
+size_t NVDECDecodersCreated(int device_id) {
+  return NVDECCache::GetCache(device_id).NumCreated();
 }
 
 int process_video_sequence(void *user_data, CUVIDEOFORMAT *video_format) {
