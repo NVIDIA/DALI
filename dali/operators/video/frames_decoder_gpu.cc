@@ -981,6 +981,13 @@ void FramesDecoderGpu::SendLastPacket(bool flush) {
     while (piped_pts_.size() > 0) {
       piped_pts_.pop();
     }
+
+    // The bitstream filter can be stateful: mpeg4_unpack_bframes holds back the B-frame of a
+    // packed P+B packet until the next packet. Left in place, it would be sent to the decoder
+    // in place of the first packet after the seek, shifting every picture against its pts.
+    if (bsfc_) {
+      av_bsf_flush(bsfc_);
+    }
   }
 }
 
