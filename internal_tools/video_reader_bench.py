@@ -294,7 +294,8 @@ def nvml_handle(device_id):
         entry = visible.split(",")[device_id].strip()
         if entry.isdigit():
             return pynvml, pynvml.nvmlDeviceGetHandleByIndex(int(entry))
-        return pynvml, pynvml.nvmlDeviceGetHandleByUUID(entry)
+        # older nvidia-ml-py versions take and return bytes, newer ones accept both
+        return pynvml, pynvml.nvmlDeviceGetHandleByUUID(entry.encode())
     return pynvml, pynvml.nvmlDeviceGetHandleByIndex(device_id)
 
 
@@ -714,7 +715,8 @@ def provenance(args):
     )
     for key, query in queries.items():
         try:  # one unsupported query must not hide the others
-            info[key] = query()
+            value = query()
+            info[key] = value.decode() if isinstance(value, bytes) else value
         except Exception as e:
             info.setdefault("nvml_query_errors", {})[key] = str(e)
     return info
