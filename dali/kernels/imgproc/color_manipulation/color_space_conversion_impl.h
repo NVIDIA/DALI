@@ -20,6 +20,7 @@
 #include "dali/core/geom/vec.h"
 #include "dali/core/geom/mat.h"
 #include "dali/core/convert.h"
+#include "dali/core/math_util.h"
 
 namespace dali {
 namespace kernels {
@@ -82,12 +83,7 @@ constexpr DALI_HOST_DEV Input clamp_color_input(Input value) {
   static_assert(is_arithmetic_or_half<Input>::value,
                 "clamp_color_input can only be used with arithmetic types");
   if constexpr (is_fp_or_half<Input>::value) {
-    // float16 is compared as float
-    using Calc = std::conditional_t<std::is_same<Input, float16>::value, float, Input>;
-    Calc v = static_cast<Calc>(value);
-    return v < Calc(0) ? static_cast<Input>(Calc(0))
-         : v > Calc(1) ? static_cast<Input>(Calc(1))
-         : value;
+    return clamp(value, Input(0), Input(1));
   } else if constexpr (std::is_signed<Input>::value) {  // NOLINT - linter bug, else if constexpr
     return value < 0 ? Input(0) : value;
   } else {

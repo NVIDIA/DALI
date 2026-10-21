@@ -496,6 +496,10 @@ class ImageDecoder : public StatelessOperator<Backend> {
     parsed_sample.orig_dtype = to_dali_dtype(sample_type);
     if (parsed_sample.orig_dtype == DALI_NO_TYPE)
       throw std::runtime_error(make_string("Invalid sample_type: ", sample_type));
+    if (!IsIntegral(parsed_sample.orig_dtype))
+      throw std::runtime_error(make_string(
+          "Decoding images with a floating point sample type (", parsed_sample.orig_dtype,
+          ") is not supported."));
   }
 
   ThreadPool *GetThreadPool(const Workspace &ws) {
@@ -556,7 +560,7 @@ class ImageDecoder : public StatelessOperator<Backend> {
 
     st.image_info.cuda_stream = std::is_same<MixedBackend, Backend>::value ? ws.stream() : nullptr;
 
-    // At the moment we are not dealing with floating point outputs in nvimagecodec
+    // Floating point sources are rejected when the sample is parsed
     assert(IsIntegral(st.parsed_sample.orig_dtype));
 
     int precision = st.image_info.plane_info[0].precision;
