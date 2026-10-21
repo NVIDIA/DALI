@@ -1,4 +1,4 @@
-# Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -1866,15 +1866,21 @@ def test_avcc_seek_matches_sequential_decode(case):
     _check_seek_matches_sequential_decode(case, path, expected_frames)
 
 
-def _check_seek_matches_sequential_decode(case, path, expected_frames):
-    # Forward seek into the middle, backward seek, next frame, back to the start, last frame.
-    targets = [
-        expected_frames * 5 // 6,
-        expected_frames // 2,
-        expected_frames // 2 + 1,
-        0,
-        expected_frames - 1,
-    ]
+def _check_seek_matches_sequential_decode(
+    case, path, expected_frames, targets=None, check_shuffled_epoch=False
+):
+    """Checks that frames `targets` (by default: a forward seek into the middle, a backward seek,
+    the next frame, back to the start, the last frame), each read as a separate file_list sample,
+    are pixel-identical to the same frames decoded sequentially. With `check_shuffled_epoch`, also
+    checks every frame of a random_shuffle epoch (which seeks all over the file) the same way."""
+    if targets is None:
+        targets = [
+            expected_frames * 5 // 6,
+            expected_frames // 2,
+            expected_frames // 2 + 1,
+            0,
+            expected_frames - 1,
+        ]
 
     @pipeline_def(batch_size=1, num_threads=2, device_id=0, prefetch_queue_depth=1)
     def sequential_pipe():
@@ -1897,7 +1903,7 @@ def _check_seek_matches_sequential_decode(case, path, expected_frames):
     reference = {}
     for idx in range(epoch_size):
         (video,) = p.run()
-        if idx in targets:
+        if check_shuffled_epoch or idx in targets:
             reference[idx] = np.array(video.as_cpu()[0])[0]
 
     list_file = _write_file_list([f"{path} 0 {t} {t + 1}" for t in targets])
@@ -1919,14 +1925,56 @@ def _check_seek_matches_sequential_decode(case, path, expected_frames):
         video, frame_num = p.run()
         got = int(np.array(frame_num.as_cpu()[0]).flatten()[0])
         assert got == t, f"[{case}] expected frame {t} next, reader returned frame {got}"
-        frame = np.array(video.as_cpu()[0])[0]
-        diff = np.abs(np.float32(frame) - np.float32(reference[t]))
-        bad_fraction = np.count_nonzero(diff > 2) / diff.size
-        assert bad_fraction <= 0.03, (
+        _assert_matches_sequential_frame(case, t, np.array(video.as_cpu()[0])[0], reference)
+
+    if check_shuffled_epoch:
+        _check_shuffled_epoch_matches_sequential_decode(case, path, reference)
+
+
+def _assert_matches_sequential_frame(case, t, frame, reference):
+    diff = np.abs(np.float32(frame) - np.float32(reference[t]))
+    bad_fraction = np.count_nonzero(diff > 2) / diff.size
+    if bad_fraction > 0.03:
+        diffs = [np.abs(np.float32(frame) - np.float32(r)).mean() for r in reference.values()]
+        best_match = list(reference.keys())[int(np.argmin(diffs))]
+        raise AssertionError(
             f"[{case}] frame {t} decoded after a seek differs from the sequentially decoded "
-            f"frame in {bad_fraction * 100:.1f}% of pixels: the seek landed on a wrong or "
-            f"non-key frame (keyframe detection in FramesDecoderBase::BuildIndex)"
+            f"frame in {bad_fraction * 100:.1f}% of pixels (closest sequentially decoded frame: "
+            f"{best_match}): the seek landed on a wrong or non-key frame, or the decoder matched "
+            f"decoded pictures to the wrong frame index"
         )
+
+
+def _check_shuffled_epoch_matches_sequential_decode(case, path, reference):
+    sequence_length, batch_size = 2, 4
+
+    @pipeline_def(batch_size=batch_size, num_threads=2, device_id=0, seed=1234)
+    def shuffled_pipe():
+        video, _, frame_num = fn.experimental.readers.video(
+            device="gpu",
+            filenames=[path],
+            labels=[],
+            sequence_length=sequence_length,
+            step=3,
+            random_shuffle=True,
+            enable_frame_num=True,
+            name="r",
+        )
+        return video, frame_num
+
+    p = shuffled_pipe()
+    p.build()
+    num_samples = p.reader_meta("r")["epoch_size"]
+    seen = set()
+    for _ in range((num_samples + batch_size - 1) // batch_size):
+        video, frame_num = p.run()
+        video, frame_num = video.as_cpu(), frame_num.as_cpu()
+        for i in range(batch_size):
+            first = int(np.array(frame_num[i]).flatten()[0])
+            seen.add(first)
+            for k, frame in enumerate(np.array(video[i])):
+                _assert_matches_sequential_frame(case, first + k, frame, reference)
+    assert len(seen) > num_samples // 2, f"[{case}] the shuffled epoch only covered {seen}"
 
 
 def _ffmpeg_or_skip():
@@ -1941,14 +1989,21 @@ def _ffmpeg_or_skip():
     return ffmpeg
 
 
-def _encode_h264_test_video(ffmpeg, dst, num_frames, gop_size):
+def _encode_h264_test_video(ffmpeg, dst, num_frames, gop_size, b_frames=0):
     """Encodes a 25 fps, 640x360 H.264 test pattern with a keyframe every `gop_size` frames and
-    no B-frames. The container is picked from `dst`'s extension (MPEG-TS stores Annex-B)."""
+    `b_frames` consecutive B-frames at most. With `gop_size=None`, uses libx264's stock settings
+    instead. The container is picked from `dst`'s extension (MPEG-TS and AVI store Annex-B)."""
+    if gop_size is None:
+        encoder_args = []
+    else:
+        encoder_args = ["-preset", "ultrafast", "-bf", str(b_frames), "-g", str(gop_size)]
+        encoder_args += ["-keyint_min", str(gop_size), "-sc_threshold", "0"]
     subprocess.run(
         [ffmpeg, "-hide_banner", "-loglevel", "error", "-y"]
         + ["-f", "lavfi", "-i", f"testsrc2=size=640x360:rate=25:duration={num_frames / 25}"]
-        + ["-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p", "-bf", "0"]
-        + ["-g", str(gop_size), "-keyint_min", str(gop_size), "-sc_threshold", "0", dst],
+        + ["-c:v", "libx264", "-pix_fmt", "yuv420p"]
+        + encoder_args
+        + [dst],
         check=True,
     )
     return dst
@@ -2024,6 +2079,44 @@ def test_annex_b_keyframes_are_indexed():
         f"{control_time:.3f} s it takes without keyframes (AVCC reference: "
         f"{reference_time:.3f} s): its keyframes were not indexed"
     )
+
+
+# Generated multi-GOP H.264-in-AVI (Annex-B) fixtures, complementing ANNEX_B_VIDEOS'
+# h264_in_avi, which has a single keyframe: (gop_size, b_frames) for _encode_h264_test_video.
+MULTI_GOP_AVI_VARIANTS = {
+    "gop25_bf0": (25, 0),
+    "gop25_bf2": (25, 2),
+    "stock_x264": (None, 0),
+}
+
+
+@params(*MULTI_GOP_AVI_VARIANTS.keys())
+def test_multi_gop_h264_avi_seek_matches_sequential_decode(variant):
+    """H.264 packets in AVI carry only a dts (their pts is AV_NOPTS_VALUE), which the frame index
+    uses as the frame's timestamp. The GPU decoder must tag decoded pictures with the same
+    timestamp: it used to tag them with a frame counter restarted at 0 on every seek instead, so
+    after seeking to the keyframe K, target frame t was matched with the picture K + t (silently
+    wrong frames), or not at all near the end of the file (a failed DALI_ENFORCE). With a single
+    keyframe (as in DALI_extra's AVI fixture) seeks always restart from frame 0, which hid it.
+    Note: dts order is decode order, so with B-frames the frames come out in decode rather than
+    display order (a known, pre-existing limitation); this only checks that seeking is consistent
+    with sequential decoding."""
+    ffmpeg = _ffmpeg_or_skip()
+    num_frames = 300
+    gop_size, b_frames = MULTI_GOP_AVI_VARIANTS[variant]
+    # Forward jumps, mid-GOP targets, backward seeks and targets near the end of the file.
+    targets = [60, 137, 30, 251, 299, 276, 290, 0, 174, 100]
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        path = _encode_h264_test_video(
+            ffmpeg, os.path.join(tmp_dir, f"{variant}.avi"), num_frames, gop_size, b_frames
+        )
+        _check_seek_matches_sequential_decode(
+            f"generated_h264_in_avi_{variant}",
+            path,
+            num_frames,
+            targets=targets,
+            check_shuffled_epoch=True,
+        )
 
 
 @cartesian_params(["legacy", "experimental_cpu", "experimental_gpu"], ["absolute", "relative"])
