@@ -22,6 +22,7 @@
 #include <mutex>
 #include "dali/core/error_handling.h"
 #include "dali/core/cuda_error.h"
+#include "dali/core/device_guard.h"
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/data/tensor.h"
 #include "dali/operators/video/color_space.h"
@@ -1093,16 +1094,15 @@ FramesDecoderGpu::~FramesDecoderGpu() {
 }
 
 bool FramesDecoderGpu::SupportsHevc() {
-  CUVIDDECODECAPS decoder_caps = {};
-  decoder_caps.eCodecType = cudaVideoCodec_HEVC;
-  decoder_caps.eChromaFormat = cudaVideoChromaFormat_420;
-  decoder_caps.nBitDepthMinus8 = 10 - 8;  // 10-bit HEVC
-  CUDA_CALL(cuvidGetDecoderCaps(&decoder_caps));
-  return decoder_caps.bIsSupported;
+  return NvdecSupports(cudaVideoCodec_HEVC, cudaVideoChromaFormat_420, 10);  // 10-bit HEVC
 }
 
 bool FramesDecoderGpu::NvdecSupports(cudaVideoCodec codec_type,
                                      cudaVideoChromaFormat chroma_format, int bit_depth) {
+  // cuvidGetDecoderCaps needs a current context: make the current device's primary context
+  // current if there is none, and restore the caller's context afterwards.
+  DeviceGuard dg;
+  CUDA_CALL(cudaFree(nullptr));
   CUVIDDECODECAPS decoder_caps = {};
   decoder_caps.eCodecType = codec_type;
   decoder_caps.eChromaFormat = chroma_format;

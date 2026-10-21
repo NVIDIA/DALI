@@ -204,7 +204,7 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
 
   /**
    * @brief Whether NVDEC on the current device can decode `codec_type` with the given chroma
-   * format and bit depth.
+   * format and bit depth. Safe to call before any CUDA context exists on the calling thread.
    */
   static bool NvdecSupports(cudaVideoCodec codec_type, cudaVideoChromaFormat chroma_format,
                             int bit_depth = 8);
