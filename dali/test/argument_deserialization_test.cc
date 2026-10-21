@@ -20,8 +20,8 @@
 
 #include "dali/core/error_handling.h"
 #include "dali/operators/reader/parser/tf_feature.h"
-#include "dali/pipeline/dali.pb.h"
 #include "dali/pipeline/operator/argument.h"
+#include "dali/test/argument_test_helper.h"
 
 namespace dali {
 
@@ -33,20 +33,23 @@ using ScalarArgumentTypes = ::testing::Types<int64_t, float, bool, std::string>;
 TYPED_TEST_SUITE(ArgumentDeserializationTest, ScalarArgumentTypes);
 
 TYPED_TEST(ArgumentDeserializationTest, MissingScalarValue) {
-  dali_proto::Argument proto;
-  DaliProtoPriv arg(&proto);
+  ArgumentTestHelper proto;
+  auto arg = proto.argument();
   arg.set_name("missing_value");
   arg.set_type(serialize_type(TypeParam{}));
   arg.set_is_vector(false);
   EXPECT_THROW(DeserializeProtobuf(arg), std::out_of_range);
 
   // A scalar nested in a vector must be checked as well.
-  dali_proto::Argument vector_proto;
-  DaliProtoPriv vector_arg(&vector_proto);
+  ArgumentTestHelper vector_proto;
+  auto vector_arg = vector_proto.argument();
   vector_arg.set_name("vector");
   vector_arg.set_type(arg.type());
   vector_arg.set_is_vector(true);
-  *vector_proto.add_extra_args() = proto;
+  auto child = vector_arg.add_extra_args();
+  child.set_name(arg.name());
+  child.set_type(arg.type());
+  child.set_is_vector(false);
   EXPECT_THROW(DeserializeProtobuf(vector_arg), std::out_of_range);
 }
 
@@ -58,22 +61,22 @@ TYPED_TEST(ArgumentDeserializationTest, RoundTrip) {
     nonzero = TypeParam{1};
   }
   for (const auto &value : {TypeParam{}, nonzero}) {
-    dali_proto::Argument proto;
-    DaliProtoPriv arg(&proto);
+    ArgumentTestHelper proto;
+    auto arg = proto.argument();
     Argument::Store("value", value)->SerializeToProtobuf(&arg);
     EXPECT_EQ(DeserializeProtobuf(arg)->template Get<TypeParam>(), value);
   }
   for (const auto &values : {std::vector<TypeParam>{}, std::vector<TypeParam>(2, nonzero)}) {
-    dali_proto::Argument proto;
-    DaliProtoPriv arg(&proto);
+    ArgumentTestHelper proto;
+    auto arg = proto.argument();
     Argument::Store("values", values)->SerializeToProtobuf(&arg);
     EXPECT_EQ(DeserializeProtobuf(arg)->template Get<std::vector<TypeParam>>(), values);
   }
 }
 
 TEST(DaliProtoIndexTest, Bounds) {
-  dali_proto::Argument proto;
-  DaliProtoPriv arg(&proto);
+  ArgumentTestHelper proto;
+  auto arg = proto.argument();
   arg.set_name("bounds");
   auto expect_invalid_index = [&](auto access, const char *field, int index, int size) {
     try {
@@ -112,15 +115,15 @@ TEST(DaliProtoIndexTest, Bounds) {
 
 #ifdef DALI_BUILD_PROTO3
 namespace {
-dali_proto::Argument SerializeFeature(TFUtil::FeatureType type, bool has_shape) {
+ArgumentTestHelper SerializeFeature(TFUtil::FeatureType type, bool has_shape) {
   TFUtil::Feature::Value value = {};
   value.int64 = 42;
   value.float32 = 1.5f;
   value.str = "default";
   auto feature = has_shape ? TFUtil::Feature({2, 3}, type, value)
                            : TFUtil::Feature(type, value);
-  dali_proto::Argument proto;
-  DaliProtoPriv arg(&proto);
+  ArgumentTestHelper proto;
+  auto arg = proto.argument();
   Argument::Store("feature", feature)->SerializeToProtobuf(&arg);
   return proto;
 }
@@ -129,10 +132,9 @@ dali_proto::Argument SerializeFeature(TFUtil::FeatureType type, bool has_shape) 
 TEST(FeatureDeserializationTest, MissingExtraArguments) {
   for (int count = 0; count < 4; count++) {
     auto proto = SerializeFeature(TFUtil::int64, false);
-    while (proto.extra_args_size() > count)
-      proto.mutable_extra_args()->RemoveLast();
+    proto.TruncateExtraArgs(count);
     SCOPED_TRACE(count);
-    EXPECT_THROW(DeserializeProtobuf(DaliProtoPriv(&proto)), std::out_of_range);
+    EXPECT_THROW(DeserializeProtobuf(proto.argument()), std::out_of_range);
   }
 }
 
@@ -142,12 +144,8 @@ TEST(FeatureDeserializationTest, MissingValues) {
     for (int child : {0, 1, 3}) {
       SCOPED_TRACE(::testing::Message() << "type=" << type << ", child=" << child);
       auto proto = SerializeFeature(type, false);
-      auto *field = proto.mutable_extra_args(child);
-      field->clear_ints();
-      field->clear_floats();
-      field->clear_bools();
-      field->clear_strings();
-      EXPECT_THROW(DeserializeProtobuf(DaliProtoPriv(&proto)), std::out_of_range);
+      proto.ClearExtraArgValues(child);
+      EXPECT_THROW(DeserializeProtobuf(proto.argument()), std::out_of_range);
     }
   }
 }
@@ -156,7 +154,7 @@ TEST(FeatureDeserializationTest, RoundTrip) {
   for (auto type : {TFUtil::int64, TFUtil::float32, TFUtil::string}) {
     for (bool has_shape : {false, true}) {
       auto proto = SerializeFeature(type, has_shape);
-      auto restored = DeserializeProtobuf(DaliProtoPriv(&proto));
+      auto restored = DeserializeProtobuf(proto.argument());
       const auto &feature = restored->Get<TFUtil::Feature>();
       EXPECT_EQ(feature.GetType(), type);
       EXPECT_EQ(feature.HasShape(), has_shape);

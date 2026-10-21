@@ -20,6 +20,16 @@
 #include "dali/pipeline/proto/dali_proto_intern.h"
 
 namespace dali {
+namespace {
+void CheckIndex(const char *what, int index, int size, const string &arg_name) {
+  if (index < 0 || index >= size) {
+    throw std::out_of_range(make_string(
+        "Invalid ", what, " index ", index, " in argument \"", arg_name,
+        "\"; expected 0 <= index < ", size, "."));
+  }
+}
+}  // namespace
+
 
   DaliProtoPriv::DaliProtoPriv(dali_proto::Argument *const intern)
       : intern_(intern) {
@@ -84,11 +94,7 @@ namespace dali {
   }
 
   int64_t DaliProtoPriv::ints(int index) const {
-    if (index < 0 || index >= intern_->ints_size()) {
-      throw std::out_of_range(make_string(
-          "Invalid int value index ", index, " in argument \"", name(),
-          "\"; expected 0 <= index < ", intern_->ints_size(), "."));
-    }
+    CheckIndex("int value", index, intern_->ints_size(), name());
     return intern_->ints(index);
   }
 
@@ -98,11 +104,7 @@ namespace dali {
   }
 
   float DaliProtoPriv::floats(int index) const {
-    if (index < 0 || index >= intern_->floats_size()) {
-      throw std::out_of_range(make_string(
-          "Invalid float value index ", index, " in argument \"", name(),
-          "\"; expected 0 <= index < ", intern_->floats_size(), "."));
-    }
+    CheckIndex("float value", index, intern_->floats_size(), name());
     return intern_->floats(index);
   }
 
@@ -112,11 +114,7 @@ namespace dali {
   }
 
   bool DaliProtoPriv::bools(int index) const {
-    if (index < 0 || index >= intern_->bools_size()) {
-      throw std::out_of_range(make_string(
-          "Invalid bool value index ", index, " in argument \"", name(),
-          "\"; expected 0 <= index < ", intern_->bools_size(), "."));
-    }
+    CheckIndex("bool value", index, intern_->bools_size(), name());
     return intern_->bools(index);
   }
 
@@ -126,11 +124,7 @@ namespace dali {
   }
 
   string DaliProtoPriv::strings(int index) const {
-    if (index < 0 || index >= intern_->strings_size()) {
-      throw std::out_of_range(make_string(
-          "Invalid string value index ", index, " in argument \"", name(),
-          "\"; expected 0 <= index < ", intern_->strings_size(), "."));
-    }
+    CheckIndex("string value", index, intern_->strings_size(), name());
     return intern_->strings(index);
   }
 
@@ -143,11 +137,7 @@ namespace dali {
   }
 
   DaliProtoPriv DaliProtoPriv::extra_args(int index) const {
-    if (index < 0 || index >= intern_->extra_args_size()) {
-      throw std::out_of_range(make_string(
-          "Invalid extra argument index ", index, " in argument \"", name(),
-          "\"; expected 0 <= index < ", intern_->extra_args_size(), "."));
-    }
+    CheckIndex("extra argument", index, intern_->extra_args_size(), name());
     DaliProtoPriv tmp(&(intern_->extra_args(index)));
     return tmp;
   }
