@@ -71,6 +71,7 @@ struct IndexEntry {
   int last_keyframe_id;
   bool is_keyframe;
   bool is_flush_frame;
+  int64_t dts = AV_NOPTS_VALUE;  // dts of the frame's packet, used to seek in MPEG-TS
 };
 
 struct FrameIndex {

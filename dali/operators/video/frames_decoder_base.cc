@@ -521,6 +521,7 @@ void FramesDecoderBase::BuildIndex() {
       LOG_LINE << "Negative timestamp: " << entry.pts << ", skipping" << std::endl;
       continue;
     }
+    entry.dts = packet->dts;
 
     // Update last keyframe position if this is a keyframe
     if (entry.is_keyframe) {
@@ -677,13 +678,22 @@ void FramesDecoderBase::SeekFrame(int frame_id) {
         // We are seeking to a different keyframe than the current frame,
         // so we need to seek to the keyframe first
         auto &keyframe_entry = index_[keyframe_id];
-        LOG_LINE << "Seeking to key frame " << keyframe_id << " timestamp " << keyframe_entry.pts
+        // The MPEG-TS demuxer seeks on dts and treats every packet as a seek point. With
+        // B-frames, a keyframe's dts is lower than its pts, so seeking to its pts would land on a
+        // later, non-key packet whose dts equals that pts, and decoding would start without the
+        // keyframe. Other demuxers keep seeking on pts: e.g. in MP4, an edit list can shift dts
+        // so that seeking to it lands on an earlier keyframe.
+        int64_t seek_timestamp = keyframe_entry.pts;
+        if (keyframe_entry.dts != AV_NOPTS_VALUE && !strcmp(ctx_->iformat->name, "mpegts")) {
+          seek_timestamp = keyframe_entry.dts;
+        }
+        LOG_LINE << "Seeking to key frame " << keyframe_id << " timestamp " << seek_timestamp
                  << " for requested frame " << frame_id << " timestamp " << requested_frame.pts
                  << std::endl;
 
-        if (!AvSeekFrame(keyframe_entry.pts, keyframe_id)) {
+        if (!AvSeekFrame(seek_timestamp, keyframe_id)) {
           LOG_LINE << "Failed to seek to keyframe " << keyframe_id << " timestamp "
-                   << keyframe_entry.pts << ". Resetting decoder." << std::endl;
+                   << seek_timestamp << ". Resetting decoder." << std::endl;
           Reset();
         }
       }
