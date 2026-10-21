@@ -122,19 +122,39 @@ class NVDECCache {
       }
     }
 
+    /**
+     * @brief Checks if a cached decoder can be reused for a stream with the given format.
+     *
+     * It can if it is not in use and it was created for exactly the same stream parameters
+     * (the codec is already matched by the cache key):
+     * - the coded size: the size of the decode surfaces (ulWidth/ulHeight of the decoder),
+     * - the display area, i.e. the size and the origin of the output that the decoder crops
+     *   the coded frame to (ulTargetWidth/ulTargetHeight and display_area of the decoder).
+     *   It differs from the coded size when the stream is cropped, e.g. 1080p H.264 is coded
+     *   as 1920x1088 and displayed as 1920x1080, so both sizes have to be compared,
+     * - the number of decode surfaces, the chroma format and the bit depth.
+     */
+    static bool IsReusable(const DecInstance &dec, const CUVIDEOFORMAT &format,
+                           unsigned num_decode_surfaces) {
+      const auto &area = format.display_area;
+      return !dec.used &&
+             dec.coded_width == format.coded_width &&
+             dec.coded_height == format.coded_height &&
+             dec.width == static_cast<unsigned>(area.right - area.left) &&
+             dec.height == static_cast<unsigned>(area.bottom - area.top) &&
+             dec.display_left == area.left &&
+             dec.display_top == area.top &&
+             dec.num_decode_surfaces == num_decode_surfaces &&
+             dec.chroma_format == format.chroma_format &&
+             dec.bit_depth_luma_minus8 == format.bit_depth_luma_minus8;
+    }
+
     NVDECLease GetDecoder(CUVIDEOFORMAT *video_format, int device_id) {
       std::unique_lock lock(access_lock);
 
       auto codec_type = video_format->codec;
       unsigned height =  video_format->coded_height;
       unsigned width = video_format->coded_width;
-      // The decoder is created with the display area as the output size (see ulTargetHeight
-      // and ulTargetWidth below), which differs from the coded size when the stream is cropped,
-      // e.g. 1080p H.264 is coded as 1920x1088. A cached decoder can be reused only if it matches
-      // both.
-      const auto &display_area = video_format->display_area;
-      unsigned display_height = display_area.bottom - display_area.top;
-      unsigned display_width = display_area.right - display_area.left;
       auto num_decode_surfaces = video_format->min_num_decode_surfaces;
       auto chroma_format = video_format->chroma_format;
       auto bit_depth_luma_minus8 = video_format->bit_depth_luma_minus8;
@@ -147,13 +167,7 @@ class NVDECCache {
         if (best_match == range.second && it->second.used == false) {
           best_match = it;
         }
-        if (it->second.used == false && it->second.coded_height == height &&
-            it->second.coded_width == width && it->second.height == display_height &&
-            it->second.width == display_width && it->second.display_left == display_area.left &&
-            it->second.display_top == display_area.top &&
-            it->second.num_decode_surfaces == num_decode_surfaces &&
-            it->second.chroma_format == chroma_format &&
-            it->second.bit_depth_luma_minus8 == bit_depth_luma_minus8) {
+        if (IsReusable(it->second, *video_format, num_decode_surfaces)) {
           it->second.used = true;
           assert(it->second.device_id == device_id);
           return NVDECLease(this, &it->second);
