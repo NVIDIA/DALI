@@ -745,8 +745,9 @@ def test_dtype_normalized(normalized):
         )
     else:
         # Normalized output also slightly exceeds 1.0 (see above), so check for values that only
-        # the [0, 255] scale can produce.
-        assert sample.max() > 100.0 and sample.mean() > 2.0, (
+        # the [0, 255] scale can produce. Don't assert on the mean: VIDEO_FILES comes from an
+        # unordered listdir, so video[0] may be a file that starts with near-black frames.
+        assert sample.max() > 100.0, (
             f"Expected unnormalized float output in the [0, 255] scale, got "
             f"max={sample.max()}, mean={sample.mean()}"
         )
