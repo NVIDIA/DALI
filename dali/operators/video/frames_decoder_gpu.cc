@@ -759,6 +759,12 @@ bool FramesDecoderGpu::SendFrameToParser() {
   // that this frame is in the decoder
   if (packet_->pts != AV_NOPTS_VALUE) {
     piped_pts_.push(packet_->pts);
+  } else if (HasIndex() && packet_->dts != AV_NOPTS_VALUE) {
+    // Packets without a pts (e.g. H.264 in AVI only carries a dts) are indexed by their dts in
+    // BuildIndex, so the decoded picture must be tagged with the same value: the frame counter
+    // below restarts at 0 on every seek, so it only matches the index when decoding from frame 0.
+    // The no-index path keeps the counter, which ReadNextFrameWithoutIndex relies on.
+    piped_pts_.push(packet_->dts);
   } else {
     piped_pts_.push(frame_index_if_no_pts_);
     frame_index_if_no_pts_++;
