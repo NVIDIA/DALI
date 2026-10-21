@@ -329,6 +329,20 @@ def test_shape_slice_dim_removal():
 
 
 @eval_modes()
+def test_shape_slice_dim_removal_trailing_dims():
+    t = ndd.tensor(np.zeros((5, 6, 7), dtype=np.int32), layout="HWC")
+    s = t[0]
+    assert s.shape == (6, 7)
+    assert s.layout == "WC"
+    s = t[:, 0]
+    assert s.shape == (5, 7)
+    assert s.layout == "HC"
+    s = t[1:3, 0]
+    assert s.shape == (2, 7)
+    assert s.layout == "HC"
+
+
+@eval_modes()
 def test_shape_slice_multi_dim_removal():
     t = ndd.tensor(np.zeros((5, 6, 7, 10), dtype=np.int32))
     s = t[:-1, 0, -2:, 0]
