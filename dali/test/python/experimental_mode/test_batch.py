@@ -406,6 +406,52 @@ def test_batch_subscript_per_sample():
     assert asnumpy(b11.tensors[1]) == 9
 
 
+def _sample_values(tensors):
+    return [int(asnumpy(t)) for t in tensors]
+
+
+@eval_modes()
+@params(("cpu",), ("gpu",))
+def test_batch_tensors_selection(device_type):
+    b = ndd.as_batch([10, 11, 12, 13, 14], dtype=ndd.int32, device=device_type)
+    assert _sample_values(b.tensors) == [10, 11, 12, 13, 14]
+
+    sub = b.tensors[1:3]
+    assert len(sub) == 2
+    assert _sample_values(sub) == [11, 12]
+    assert _sample_values(sub.tolist()) == [11, 12]
+    assert int(asnumpy(sub[0])) == 11
+    assert int(asnumpy(sub[-1])) == 12
+    assert _sample_values(sub[[1, 0]]) == [12, 11]
+    assert _sample_values(sub.as_batch()) == [11, 12]
+
+    assert _sample_values(b.tensors[[2, 0]]) == [12, 10]
+    assert len(b.tensors[3:3]) == 0
+    assert len(b.tensors[10:]) == 0
+    assert len(b.tensors[[]]) == 0
+
+
+@eval_modes()
+@params(("cpu",), ("gpu",))
+def test_batch_select(device_type):
+    b = ndd.as_batch([10, 11, 12, 13, 14], dtype=ndd.int32, device=device_type)
+    assert int(asnumpy(b.select(2))) == 12
+
+    s = b.select(slice(1, 3))
+    assert isinstance(s, ndd.Batch)
+    assert s.batch_size == 2
+    assert _sample_values(s) == [11, 12]
+
+    s = b.select([4, 0])
+    assert s.batch_size == 2
+    assert _sample_values(s) == [14, 10]
+
+    empty = b.select(slice(3, 3))
+    assert empty.batch_size == 0
+    assert empty.dtype == ndd.int32
+    assert empty.device.device_type == device_type
+
+
 @eval_modes()
 def test_batch_to_gpu():
     input = np.array([[1, 2, 3], [4, 5, 6]], dtype=np.int32)

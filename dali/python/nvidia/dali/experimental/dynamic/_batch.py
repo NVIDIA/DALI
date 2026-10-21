@@ -119,7 +119,7 @@ class _TensorList:
 
     def __init__(self, batch: "Batch", indices: list[int] | range | None = None):
         self._batch = batch
-        self._indices = indices or range(batch.batch_size)
+        self._indices = range(batch.batch_size) if indices is None else indices
 
     def __getitem__(self, selection: int | slice | list[int]):
         return self.select(selection)
@@ -141,7 +141,7 @@ class _TensorList:
         elif isinstance(selection, list):
             return _TensorList(self._batch, [self._indices[i] for i in selection])
         else:
-            return self._batch.select(selection)
+            return self._batch.select(self._indices[selection])
 
     def tolist(self):
         return [self._batch._get_tensor(i) for i in self._indices]
@@ -640,10 +640,11 @@ class Batch:
         r = sample_range
         if r is ...:
             return self
-        if isinstance(r, slice):
-            return Batch(self.tensors[r])
-        elif isinstance(r, list):
-            return Batch(self.tensors[r])
+        if isinstance(r, (slice, list)):
+            tensors = self.tensors[r]
+            if len(tensors) == 0:
+                return Batch([], dtype=self.dtype, device=self.device)
+            return Batch(tensors)
         else:
             return self._get_tensor(r)
 
