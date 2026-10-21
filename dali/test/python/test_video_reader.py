@@ -1973,7 +1973,9 @@ def _check_shuffled_epoch_matches_sequential_decode(case, path, reference):
     assert len(seen) > num_samples // 2, f"[{case}] the shuffled epoch only covered {seen}"
 
 
-def _ffmpeg_or_skip():
+def _ffmpeg_or_skip(encoder=None):
+    """Returns the path to an ffmpeg executable, skipping the test if there is none or if it
+    lacks `encoder` (e.g. "libx265")."""
     ffmpeg = shutil.which("ffmpeg")
     if ffmpeg is None:
         try:
@@ -1982,6 +1984,12 @@ def _ffmpeg_or_skip():
             ffmpeg = imageio_ffmpeg.get_ffmpeg_exe()
         except (ImportError, RuntimeError):
             raise SkipTest("ffmpeg is required to generate the multi-GOP Annex-B fixtures")
+    if encoder is not None:
+        encoders = subprocess.run(
+            [ffmpeg, "-hide_banner", "-encoders"], capture_output=True, text=True
+        ).stdout
+        if not any(line.split()[1:2] == [encoder] for line in encoders.splitlines()):
+            raise SkipTest(f"ffmpeg ({ffmpeg}) was built without the {encoder} encoder")
     return ffmpeg
 
 
@@ -2045,7 +2053,7 @@ def test_annex_b_keyframes_are_indexed():
     stream remuxed to AVCC in MP4 (reference), and an MPEG-TS with a single keyframe (control).
     Backward seeks to the middle of late GOPs must be about as fast as in the reference, not as
     slow as in the control."""
-    ffmpeg = _ffmpeg_or_skip()
+    ffmpeg = _ffmpeg_or_skip("libx264")
     num_frames, gop_size = 600, 25
     targets = list(range(num_frames - 10, 0, -gop_size))[:6]  # backward, mid-GOP
     with tempfile.TemporaryDirectory() as tmp_dir:
@@ -2100,7 +2108,7 @@ def test_multi_gop_h264_avi_seek_matches_sequential_decode(variant):
     Note: dts order is decode order, so with B-frames the frames come out in decode rather than
     display order (a known, pre-existing limitation); this only checks that seeking is consistent
     with sequential decoding."""
-    ffmpeg = _ffmpeg_or_skip()
+    ffmpeg = _ffmpeg_or_skip("libx264")
     num_frames = 300
     gop_size, b_frames = MULTI_GOP_AVI_VARIANTS[variant]
     # Forward jumps, mid-GOP targets, backward seeks and targets near the end of the file.
@@ -2132,9 +2140,9 @@ def test_bframes_ts_seek_matches_sequential_decode(variant):
     treats every packet as a seek point, so seeking to a keyframe's pts used to land on a later
     (P or B) packet whose dts matches that pts: decoding then started without the keyframe, and
     every frame read after a seek (even frame 0, with a backward seek) was corrupted."""
-    ffmpeg = _ffmpeg_or_skip()
-    num_frames, gop_size = 300, 25
     encoder, b_frames = BFRAMES_TS_VARIANTS[variant]
+    ffmpeg = _ffmpeg_or_skip(encoder)
+    num_frames, gop_size = 300, 25
     # Forward jumps, mid-GOP targets, backward seeks and targets near the end of the file.
     targets = [60, 137, 30, 251, 299, 276, 290, 0, 174, 100]
     with tempfile.TemporaryDirectory() as tmp_dir:
