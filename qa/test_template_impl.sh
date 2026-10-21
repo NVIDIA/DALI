@@ -109,6 +109,19 @@ enable_sanitizer() {
     export LD_PRELOAD="/usr/lib/x86_64-linux-gnu/libasan.so /tmp/glibc_fix.so /tmp/libfakeclose.so /usr/lib/x86_64-linux-gnu/libstdc++.so"
     # Workaround for bug in asan ignoring RPATHs https://bugzilla.redhat.com/show_bug.cgi?id=1449604
     export OLD_LD_LIBRARY_PATH2=${LD_LIBRARY_PATH}  # OLD_LD_LIBRARY_PATH variable name already used
+    # LD_LIBRARY_PATH precedes RUNPATH, so prefer wheel libraries over inherited toolkit paths.
+    local cuda_wheel cuda_wheel_lib
+    for cuda_wheel in cufft npp nvjpeg; do
+        cuda_wheel_lib=$(python -c "
+import importlib.util
+import os
+spec = importlib.util.find_spec('nvidia.${cuda_wheel}')
+print(os.path.join(next(iter(spec.submodule_search_locations)), 'lib'))
+" 2>/dev/null) || continue
+        if [ -d "${cuda_wheel_lib}" ]; then
+            export LD_LIBRARY_PATH="${cuda_wheel_lib}${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
+        fi
+    done
     # Include the nvCOMP wheel directory used by the dynamic loader.
     export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:"$(python -c 'import nvidia.libnvcomp as n, os; print(os.path.dirname(n.__file__) + "/lib64")' 2>/dev/null || echo '')"
     # first provide paths to nvimgcodec deps then learn its location
