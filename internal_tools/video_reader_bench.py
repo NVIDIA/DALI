@@ -305,12 +305,19 @@ class GpuMonitor:
         if not self.nvml:
             return {}
         nvml, h = self.nvml, self.handle
-        return dict(
-            other_pids=other_gpu_pids(nvml, h),
-            dev_nvdec_util=nvml.nvmlDeviceGetDecoderUtilization(h)[0],
-            clock_video_mhz=nvml.nvmlDeviceGetClockInfo(h, nvml.NVML_CLOCK_VIDEO),
-            clock_sm_mhz=nvml.nvmlDeviceGetClockInfo(h, nvml.NVML_CLOCK_SM),
+        res = {}
+        queries = dict(
+            other_pids=lambda: other_gpu_pids(nvml, h),
+            dev_nvdec_util=lambda: nvml.nvmlDeviceGetDecoderUtilization(h)[0],
+            clock_video_mhz=lambda: nvml.nvmlDeviceGetClockInfo(h, nvml.NVML_CLOCK_VIDEO),
+            clock_sm_mhz=lambda: nvml.nvmlDeviceGetClockInfo(h, nvml.NVML_CLOCK_SM),
         )
+        for key, query in queries.items():
+            try:  # older NVML bindings may lack some queries for newer drivers
+                res[key] = query()
+            except Exception as e:
+                self.error = f"NVML {key} failed: {e}"
+        return res
 
     def _run(self):
         nvml, h, pid = self.nvml, self.handle, os.getpid()
