@@ -107,6 +107,11 @@ class NVDECCache {
       DALI_FAIL("Cannot return decoder that is not from the cache");
     }
 
+    size_t Size() {
+      std::lock_guard lock(access_lock);
+      return dec_cache.size();
+    }
+
  private:
     NVDECCache() {}
 
@@ -123,6 +128,13 @@ class NVDECCache {
       auto codec_type = video_format->codec;
       unsigned height =  video_format->coded_height;
       unsigned width = video_format->coded_width;
+      // The decoder is created with the display area as the output size (see ulTargetHeight
+      // and ulTargetWidth below), which differs from the coded size when the stream is cropped,
+      // e.g. 1080p H.264 is coded as 1920x1088. A cached decoder can be reused only if it matches
+      // both.
+      const auto &display_area = video_format->display_area;
+      unsigned display_height = display_area.bottom - display_area.top;
+      unsigned display_width = display_area.right - display_area.left;
       auto num_decode_surfaces = video_format->min_num_decode_surfaces;
       auto chroma_format = video_format->chroma_format;
       auto bit_depth_luma_minus8 = video_format->bit_depth_luma_minus8;
@@ -135,8 +147,11 @@ class NVDECCache {
         if (best_match == range.second && it->second.used == false) {
           best_match = it;
         }
-        if (it->second.used == false && it->second.height == height &&
-            it->second.width == width && it->second.num_decode_surfaces == num_decode_surfaces &&
+        if (it->second.used == false && it->second.coded_height == height &&
+            it->second.coded_width == width && it->second.height == display_height &&
+            it->second.width == display_width && it->second.display_left == display_area.left &&
+            it->second.display_top == display_area.top &&
+            it->second.num_decode_surfaces == num_decode_surfaces &&
             it->second.chroma_format == chroma_format &&
             it->second.bit_depth_luma_minus8 == bit_depth_luma_minus8) {
           it->second.used = true;
@@ -157,8 +172,12 @@ class NVDECCache {
         reconfigParams.ulTargetWidth = reconfigParams.ulWidth = width;
         reconfigParams.ulTargetHeight = reconfigParams.ulHeight = height;
         reconfigParams.ulNumDecodeSurfaces = num_decode_surfaces;
+        best_match->second.coded_height = height;
+        best_match->second.coded_width = width;
         best_match->second.height = height;
         best_match->second.width = width;
+        best_match->second.display_left = 0;
+        best_match->second.display_top = 0;
         best_match->second.num_decode_surfaces = num_decode_surfaces;
         CUDA_CALL(cuvidReconfigureDecoder(best_match->second.decoder, &reconfigParams));
         return NVDECLease(this, &best_match->second);
@@ -228,8 +247,12 @@ class NVDECCache {
       DecInstance decoder_inst = {};
 
       CUDA_CALL(cuvidCreateDecoder(&(decoder_inst.decoder), &decoder_info));
+      decoder_inst.coded_height = decoder_info.ulHeight;
+      decoder_inst.coded_width = decoder_info.ulWidth;
       decoder_inst.height = decoder_info.ulTargetHeight;
       decoder_inst.width = decoder_info.ulTargetWidth;
+      decoder_inst.display_left = area.left;
+      decoder_inst.display_top = area.top;
       decoder_inst.max_height = decoder_info.ulMaxHeight;
       decoder_inst.max_width = decoder_info.ulMaxWidth;
       decoder_inst.num_decode_surfaces = num_decode_surfaces;
@@ -268,6 +291,10 @@ void NVDECLease::Return() {
     owner = nullptr;
     decoder = nullptr;
   }
+}
+
+size_t NVDECCacheSize(int device_id) {
+  return NVDECCache::GetCache(device_id).Size();
 }
 
 int process_video_sequence(void *user_data, CUVIDEOFORMAT *video_format) {
