@@ -1985,19 +1985,22 @@ def _ffmpeg_or_skip():
     return ffmpeg
 
 
-def _encode_h264_test_video(ffmpeg, dst, num_frames, gop_size, b_frames=0):
+def _encode_h264_test_video(ffmpeg, dst, num_frames, gop_size, b_frames=0, encoder="libx264"):
     """Encodes a 25 fps, 640x360 H.264 test pattern with a keyframe every `gop_size` frames and
-    `b_frames` consecutive B-frames at most. With `gop_size=None`, uses libx264's stock settings
-    instead. The container is picked from `dst`'s extension (MPEG-TS and AVI store Annex-B)."""
+    `b_frames` consecutive B-frames at most. With `gop_size=None`, uses the encoder's stock
+    settings instead. `encoder="libx265"` encodes HEVC instead. The container is picked from
+    `dst`'s extension (MPEG-TS and AVI store Annex-B)."""
     if gop_size is None:
         encoder_args = []
     else:
         encoder_args = ["-preset", "ultrafast", "-bf", str(b_frames), "-g", str(gop_size)]
         encoder_args += ["-keyint_min", str(gop_size), "-sc_threshold", "0"]
+    if encoder == "libx265":
+        encoder_args += ["-x265-params", "log-level=error"]
     subprocess.run(
         [ffmpeg, "-hide_banner", "-loglevel", "error", "-y"]
         + ["-f", "lavfi", "-i", f"testsrc2=size=640x360:rate=25:duration={num_frames / 25}"]
-        + ["-c:v", "libx264", "-pix_fmt", "yuv420p"]
+        + ["-c:v", encoder, "-pix_fmt", "yuv420p"]
         + encoder_args
         + [dst],
         check=True,
@@ -2108,6 +2111,43 @@ def test_multi_gop_h264_avi_seek_matches_sequential_decode(variant):
         )
         _check_seek_matches_sequential_decode(
             f"generated_h264_in_avi_{variant}",
+            path,
+            num_frames,
+            targets=targets,
+            check_shuffled_epoch=True,
+        )
+
+
+# Generated multi-GOP MPEG-TS fixtures with B-frames: (encoder, b_frames) for
+# _encode_h264_test_video.
+BFRAMES_TS_VARIANTS = {
+    "h264_bf3": ("libx264", 3),
+    "hevc_bf3": ("libx265", 3),
+}
+
+
+@params(*BFRAMES_TS_VARIANTS.keys())
+def test_bframes_ts_seek_matches_sequential_decode(variant):
+    """With B-frames, a packet's dts is lower than its pts. The MPEG-TS demuxer seeks on dts and
+    treats every packet as a seek point, so seeking to a keyframe's pts used to land on a later
+    (P or B) packet whose dts matches that pts: decoding then started without the keyframe, and
+    every frame read after a seek (even frame 0, with a backward seek) was corrupted."""
+    ffmpeg = _ffmpeg_or_skip()
+    num_frames, gop_size = 300, 25
+    encoder, b_frames = BFRAMES_TS_VARIANTS[variant]
+    # Forward jumps, mid-GOP targets, backward seeks and targets near the end of the file.
+    targets = [60, 137, 30, 251, 299, 276, 290, 0, 174, 100]
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        path = _encode_h264_test_video(
+            ffmpeg,
+            os.path.join(tmp_dir, f"{variant}.ts"),
+            num_frames,
+            gop_size,
+            b_frames,
+            encoder=encoder,
+        )
+        _check_seek_matches_sequential_decode(
+            f"generated_ts_{variant}",
             path,
             num_frames,
             targets=targets,
