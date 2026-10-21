@@ -429,6 +429,11 @@ def test_batch_tensors_selection(device_type):
     assert len(b.tensors[3:3]) == 0
     assert len(b.tensors[10:]) == 0
     assert len(b.tensors[[]]) == 0
+    for copy in (False, True):
+        empty = b.tensors[3:3].as_batch(copy=copy)
+        assert empty.batch_size == 0
+        assert empty.dtype == ndd.int32
+        assert empty.device.device_type == device_type
 
 
 @eval_modes()

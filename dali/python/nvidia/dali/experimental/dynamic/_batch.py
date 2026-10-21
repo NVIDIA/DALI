@@ -150,6 +150,9 @@ class _TensorList:
         """
         Converts the list of tensors to a :class:`Batch` object.
         """
+        if len(self._indices) == 0:
+            # an empty list carries no element type, take it from the source batch
+            return Batch([], dtype=self._batch.dtype, device=self._batch.device)
         return batch(self) if copy else as_batch(self)  # type: ignore
 
 
