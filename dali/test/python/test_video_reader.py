@@ -2115,6 +2115,121 @@ def test_multi_gop_h264_avi_seek_matches_sequential_decode(variant):
         )
 
 
+# MPEG-4 Part 2 (Xvid) in AVI with packed B-frames, 91 frames showing their frame number on a
+# plain background (see db/video/ucf101_test/README.rst in DALI_extra), so wrong frames differ
+# from the right ones in a small area only: compare frames exactly.
+PACKED_BFRAMES_AVI = DALI_EXTRA_PATH + "/db/video/ucf101_test/packed_bframes_test.avi"
+
+
+def _sequential_gpu_decode(path):
+    """Returns all frames of `path`, decoded sequentially by experimental.readers.video."""
+
+    @pipeline_def(batch_size=1, num_threads=2, device_id=0, prefetch_queue_depth=1)
+    def pipe():
+        return fn.experimental.readers.video(
+            device="gpu", filenames=[path], sequence_length=1, name="r"
+        )
+
+    p = pipe()
+    p.build()
+    return [np.array(p.run()[0].as_cpu()[0])[0] for _ in range(p.reader_meta("r")["epoch_size"])]
+
+
+def _assert_sequence_equals_sequential_decode(case, first, sequence, reference):
+    for k, frame in enumerate(sequence):
+        if not np.array_equal(frame, reference[first + k]):
+            diffs = [np.abs(np.int16(frame) - np.int16(ref)).mean() for ref in reference]
+            raise AssertionError(
+                f"[{case}] frame {first + k} (frame {k} of the sequence starting at {first}) "
+                f"differs from the sequentially decoded one (mean abs diff "
+                f"{diffs[first + k]:.2f}); closest sequentially decoded frame: "
+                f"{int(np.argmin(diffs))} (mean abs diff {min(diffs):.2f})"
+            )
+
+
+def test_packed_bframes_avi_seek_matches_sequential_decode():
+    """MPEG-4 Part 2 in AVI goes through the stateful mpeg4_unpack_bframes bitstream filter,
+    which holds back the B-frame of a packed P+B packet until the next packet. The GPU decoder
+    used to keep that held-back B-frame across seeks, so after a seek it was decoded in place of
+    the keyframe: the pictures no longer matched their timestamps, the requested frames were
+    never written and the samples kept stale content (e.g. the frames of an earlier sample)."""
+    reference = _sequential_gpu_decode(PACKED_BFRAMES_AVI)
+    assert len(reference) == 91, f"expected 91 frames, got {len(reference)}"
+    sequence_length = 4
+    starts = [0, 63, 28, 77, 56, 14, 7, 21, 49, 70, 84, 42, 35]
+    list_file = _write_file_list(
+        [f"{PACKED_BFRAMES_AVI} 0 {s} {s + sequence_length}" for s in starts]
+    )
+
+    @pipeline_def(batch_size=1, num_threads=2, device_id=0, prefetch_queue_depth=1)
+    def pipe():
+        video, _, frame_num = fn.experimental.readers.video(
+            device="gpu",
+            file_list=list_file,
+            file_list_format="frames",
+            sequence_length=sequence_length,
+            enable_frame_num=True,
+        )
+        return video, frame_num
+
+    p = pipe()
+    p.build()
+    for s in starts:
+        video, frame_num = p.run()
+        first = int(np.array(frame_num.as_cpu()[0]).flatten()[0])
+        assert first == s, f"expected the sequence starting at frame {s}, got {first}"
+        _assert_sequence_equals_sequential_decode(
+            "file_list", first, np.array(video.as_cpu()[0]), reference
+        )
+
+
+@params(1, None)
+def test_packed_bframes_avi_shuffled_with_cached_decoders(decoder_cache_size):
+    """Like test_packed_bframes_avi_seek_matches_sequential_decode, with random_shuffle over the
+    packed B-frame AVI and another file: every sample of the AVI must match the sequential
+    decode exactly, whether its decoder is reopened (decoder_cache_size=1) or reused from the
+    decoder cache (default), where the bitstream filter state outlives the previous sample."""
+    reference = _sequential_gpu_decode(PACKED_BFRAMES_AVI)
+    files = [DALI_EXTRA_PATH + "/db/video/cfr/test_1_mpeg4.mp4", PACKED_BFRAMES_AVI]
+    batch_size = 2
+    cache_kwargs = {} if decoder_cache_size is None else {"decoder_cache_size": decoder_cache_size}
+
+    @pipeline_def(batch_size=batch_size, num_threads=2, device_id=0, seed=1)
+    def pipe():
+        return tuple(
+            fn.experimental.readers.video(
+                device="gpu",
+                filenames=files,
+                labels=[0, 1],
+                sequence_length=4,
+                step=7,
+                random_shuffle=True,
+                initial_fill=32,
+                enable_frame_num=True,
+                name="r",
+                **cache_kwargs,
+            )
+        )
+
+    p = pipe()
+    p.build()
+    num_samples = p.reader_meta("r")["epoch_size"]
+    checked = set()
+    for _ in range((num_samples + batch_size - 1) // batch_size):
+        video, label, frame_num = (x.as_cpu() for x in p.run())
+        for i in range(batch_size):
+            if int(np.array(label[i]).flatten()[0]) == 1:
+                first = int(np.array(frame_num[i]).flatten()[0])
+                checked.add(first)
+                _assert_sequence_equals_sequential_decode(
+                    f"random_shuffle, decoder_cache_size={decoder_cache_size}",
+                    first,
+                    np.array(video[i]),
+                    reference,
+                )
+    assert len(checked) >= 10, f"only checked the sequences starting at {sorted(checked)}"
+
+
 @cartesian_params(["legacy", "experimental_cpu", "experimental_gpu"], ["absolute", "relative"])
 def test_filename_with_colon_can_be_opened(reader, path_kind):
     """Detection test: experimental.readers.video opens files with
