@@ -389,8 +389,9 @@ TYPED_TEST(ColorSpaceConversionTypedTest, Gray_Y_BothWays) {
 // The convention verified below is the one documented in color_space_conversion_impl.h:
 //  * an integer sample is normalized by the maximum of its type: x = v / max_value<In>()
 //  * a floating point sample is used as-is
-//  * before the color transform, the normalized input is clamped to [0, 1], unless Output is a
-//    floating point type (then it's used unclamped).
+//  * before the color transform, the normalized RGB or gray input is clamped to [0, 1], whatever
+//    the Output type is. A YCbCr input is clamped like that only if Output is not a floating
+//    point type (then it's used unclamped).
 //    For RGB and GRAY inputs, this makes the color conversion equivalent to
 //    ConvertSatNorm<Output>(input) followed by the color transform in Output type (which is what
 //    the GPU image decoder path does), but without the intermediate rounding.
@@ -416,21 +417,30 @@ constexpr double cbias() {  // chroma offset, in the units of T
 }
 
 /**
- * @brief Normalizes a raw sample and, for an integral `Out`, clamps it to [0, 1].
+ * @brief Normalizes a raw RGB or gray sample and clamps it to [0, 1].
  */
-template <typename Out, typename In>
+template <typename In>
 constexpr double norm(In v) {
   double x = std::is_integral_v<In> ? static_cast<double>(v) / max_value<In>()
                                     : static_cast<double>(v);
+  return x < 0 ? 0 : x > 1 ? 1 : x;
+}
+
+/**
+ * @brief Normalizes a raw YCbCr sample and, for an integral `Out`, clamps it to [0, 1].
+ */
+template <typename Out, typename In>
+constexpr double ycc_norm(In v) {
   if (std::is_integral_v<Out>)
-    x = x < 0 ? 0 : x > 1 ? 1 : x;
-  return x;
+    return norm(v);
+  return std::is_integral_v<In> ? static_cast<double>(v) / max_value<In>()
+                                : static_cast<double>(v);
 }
 
 /** @brief Same as norm, but scaled back to the units of In (e.g. for YCbCr inputs with biases) */
 template <typename Out, typename In>
 constexpr double sat(In v) {
-  return norm<Out, In>(v) * unit<In>();
+  return ycc_norm<Out>(v) * unit<In>();
 }
 
 /** @brief Clamps the (unrounded) reference to the range of Out */
@@ -476,7 +486,7 @@ struct method_ref<jpeg> {
 template <typename Method, typename Out, typename In>
 dvec3 rgb_to_ycbcr(vec<3, In> in) {
   using M = method_ref<Method>;
-  dvec3 rgb(norm<Out>(in[0]), norm<Out>(in[1]), norm<Out>(in[2]));
+  dvec3 rgb(norm(in[0]), norm(in[1]), norm(in[2]));
   return {
     finish<Out>(luma(rgb) * unit<Out>() * M::yscale + M::template ybias<Out>()),
     finish<Out>(chroma_b(rgb) * unit<Out>() * M::cscale + cbias<Out>()),
@@ -501,7 +511,7 @@ dvec3 ycbcr_to_rgb(vec<3, In> in) {
 template <typename Method, typename Out, typename In>
 double gray_to_y(In gray) {
   using M = method_ref<Method>;
-  return finish<Out>(norm<Out>(gray) * unit<Out>() * M::yscale + M::template ybias<Out>());
+  return finish<Out>(norm(gray) * unit<Out>() * M::yscale + M::template ybias<Out>());
 }
 
 template <typename Method, typename Out, typename In>
@@ -514,47 +524,47 @@ double y_to_gray(In y) {
 }  // namespace any_ref
 
 // Sanity checks of the reference itself
-static_assert(any_ref::norm<uint8_t, int8_t>(int8_t(-128)) == 0);
-static_assert(any_ref::norm<int8_t, int8_t>(int8_t(-128)) == 0);
-static_assert(any_ref::norm<int16_t, int8_t>(int8_t(-1)) == 0);
-static_assert(any_ref::norm<float, int16_t>(int16_t(-32768)) == -32768.0 / 32767);
-static_assert(any_ref::norm<float, int16_t>(int16_t(32767)) == 1);
-static_assert(any_ref::norm<uint8_t, float>(1.5f) == 1);
-static_assert(any_ref::norm<uint8_t, float>(-0.5f) == 0);
-static_assert(any_ref::norm<int16_t, float>(-1.5f) == 0);
-static_assert(any_ref::norm<float, float>(-1.5f) == -1.5);
-static_assert(any_ref::norm<float, float>(1.5f) == 1.5);
+static_assert(any_ref::norm(int8_t(-128)) == 0);
+static_assert(any_ref::norm(int8_t(-1)) == 0);
+static_assert(any_ref::norm(int16_t(32767)) == 1);
+static_assert(any_ref::norm(1.5f) == 1);
+static_assert(any_ref::norm(-0.5f) == 0);
+static_assert(any_ref::norm(0.25f) == 0.25);
+static_assert(any_ref::ycc_norm<uint8_t>(-0.5f) == 0);
+static_assert(any_ref::ycc_norm<float>(-0.5f) == -0.5);
+static_assert(any_ref::ycc_norm<float>(int16_t(-32768)) == -32768.0 / 32767);
 static_assert(any_ref::ybias<int32_t>() == (1 << 27));
 static_assert(any_ref::cbias<uint32_t>() == 2147483648.0);
 
 // detail::clamp_color_input - the input clamping used by the implementation
 using detail::clamp_color_input;
-// Negative signed integers are clamped to 0, for any integral output type
-static_assert(clamp_color_input<uint8_t>(int8_t(-128)) == 0);
-static_assert(clamp_color_input<uint8_t>(int8_t(-1)) == 0);
-static_assert(clamp_color_input<uint8_t>(int8_t(5)) == 5);
-static_assert(clamp_color_input<uint16_t>(min_value<int32_t>()) == 0);
-static_assert(clamp_color_input<int8_t>(int8_t(-128)) == 0);
-static_assert(clamp_color_input<int32_t>(int8_t(-1)) == 0);
-static_assert(clamp_color_input<int8_t>(max_value<int32_t>()) == max_value<int32_t>());
-// ...but not when the output is floating point
-static_assert(clamp_color_input<float>(int16_t(-32768)) == -32768);
-static_assert(clamp_color_input<float>(int32_t(-5)) == -5);
+// Negative signed integers are clamped to 0
+static_assert(clamp_color_input(int8_t(-128)) == 0);
+static_assert(clamp_color_input(int8_t(-1)) == 0);
+static_assert(clamp_color_input(int8_t(5)) == 5);
+static_assert(clamp_color_input(min_value<int32_t>()) == 0);
+static_assert(clamp_color_input(int16_t(-32768)) == 0);
+static_assert(clamp_color_input(max_value<int32_t>()) == max_value<int32_t>());
 // Unsigned inputs are never modified
-static_assert(clamp_color_input<uint8_t>(uint8_t(0)) == 0);
-static_assert(clamp_color_input<uint8_t>(uint8_t(255)) == 255);
-static_assert(clamp_color_input<int8_t>(uint32_t(0xffffffffu)) == 0xffffffffu);
-static_assert(clamp_color_input<float>(uint16_t(0xffff)) == 0xffff);
-// Floating point inputs are clamped to [0, 1] for integral outputs
-static_assert(clamp_color_input<uint8_t>(1.5f) == 1.0f);
-static_assert(clamp_color_input<uint8_t>(-0.5f) == 0.0f);
-static_assert(clamp_color_input<uint8_t>(0.25f) == 0.25f);
-static_assert(clamp_color_input<int16_t>(-1.5f) == 0.0f);
-static_assert(clamp_color_input<int16_t>(-0.5f) == 0.0f);
-static_assert(clamp_color_input<int32_t>(2.0) == 1.0);
+static_assert(clamp_color_input(uint8_t(0)) == 0);
+static_assert(clamp_color_input(uint8_t(255)) == 255);
+static_assert(clamp_color_input(uint32_t(0xffffffffu)) == 0xffffffffu);
+// Floating point inputs are clamped to [0, 1]
+static_assert(clamp_color_input(1.5f) == 1.0f);
+static_assert(clamp_color_input(-0.5f) == 0.0f);
+static_assert(clamp_color_input(0.25f) == 0.25f);
+static_assert(clamp_color_input(-1.5f) == 0.0f);
+static_assert(clamp_color_input(2.0) == 1.0);
+// YCbCr inputs are clamped the same way for integral outputs...
+using detail::clamp_ycbcr_input;
+static_assert(clamp_ycbcr_input<uint8_t>(int8_t(-128)) == 0);
+static_assert(clamp_ycbcr_input<int16_t>(int8_t(-1)) == 0);
+static_assert(clamp_ycbcr_input<uint8_t>(1.5f) == 1.0f);
+static_assert(clamp_ycbcr_input<int32_t>(-0.5f) == 0.0f);
 // ...but not for floating point outputs
-static_assert(clamp_color_input<float>(-1.5f) == -1.5f);
-static_assert(clamp_color_input<double>(1.5f) == 1.5f);
+static_assert(clamp_ycbcr_input<float>(int16_t(-32768)) == -32768);
+static_assert(clamp_ycbcr_input<float>(-1.5f) == -1.5f);
+static_assert(clamp_ycbcr_input<double>(1.5f) == 1.5f);
 
 namespace {
 
@@ -811,8 +821,9 @@ TYPED_TEST(ColorSpaceConversionAnyTypeTest, YCbCr_to_Gray) {
  * It also means that decoding to YCbCr gives the same results as decoding to RGB and then
  * converting the result to YCbCr.
  *
- * This holds for floating point outputs too: there, neither ConvertSatNorm<float> nor
- * detail::clamp_color_input clamps the input.
+ * This holds for floating point outputs too: ConvertSatNorm<float> doesn't clamp the input, but
+ * for RGB and gray inputs the color conversion with `Out` as the input type clamps it, as it does
+ * with any other type. YCbCr inputs aren't clamped for a floating point output at all.
  */
 TYPED_TEST(ColorSpaceConversionAnyTypeTest, EquivalentToConvertSatNormFirst) {
   using In = TypeParam;
@@ -903,14 +914,11 @@ TEST(ColorSpaceConversionSignedTest, ITU_R_BT601_RGB2YCbCr_Pinned) {
             i16vec3(2048, 16384, 16384));
   EXPECT_EQ((method::rgb_to_ycbcr<int16_t, int16_t>({32767, -32768, -100})),
             (method::rgb_to_ycbcr<int16_t, int16_t>({32767, 0, 0})));
-  // Floating point output: the input is not clamped. min_value<int16_t>() (-32768) normalizes to
-  // -32768/32767, matching ConvertSatNorm<float> and the GPU decode path.
-  // Y = 1/16 - (219/255) * (32768/32767).
-  EXPECT_NEAR((method::rgb_to_y<float, int16_t>({-32768, -32768, -32768})),
-              0.0625 - 219.0 / 255 * (32768.0 / 32767), 1e-6);
-  // -max_value<int16_t>() (-32767) normalizes to exactly -1: Y = 1/16 - 219/255.
-  EXPECT_NEAR((method::rgb_to_y<float, int16_t>({-32767, -32767, -32767})),
-              0.0625 - 219.0 / 255, 1e-6);
+  // Floating point output: negative values are clamped to 0 as well, so black has Y = 1/16 (the
+  // footroom) whether it's given as 0, -1 or min_value<int16_t>().
+  EXPECT_NEAR((method::rgb_to_y<float, int16_t>({-32768, -32768, -32768})), 0.0625, 1e-6);
+  EXPECT_NEAR((method::rgb_to_y<float, int16_t>({-32767, -32767, -32767})), 0.0625, 1e-6);
+  EXPECT_NEAR((method::rgb_to_y<float, int16_t>({0, 0, 0})), 0.0625, 1e-6);
 }
 
 TEST(ColorSpaceConversionSignedTest, JPEG_Pinned) {
@@ -960,30 +968,27 @@ TEST(ColorSpaceConversionSignedTest, ITU_R_BT601_Inverse_Pinned) {
 }
 
 TEST(ColorSpaceConversionSignedTest, FloatInputSaturation) {
-  // Out-of-range floating point input is clamped to [0, 1] for an integral output, before the
-  // color conversion...
+  // Out-of-range floating point input is clamped to [0, 1] before the color conversion, whatever
+  // the output type is
   using method = itu_r_bt_601;
   EXPECT_EQ((method::rgb_to_ycbcr<uint8_t, float>({1.5f, 1.5f, 1.5f})), u8vec3(235, 128, 128));
   EXPECT_EQ((method::rgb_to_ycbcr<uint8_t, float>({-0.5f, -0.5f, -0.5f})), u8vec3(16, 128, 128));
   EXPECT_EQ((method::rgb_to_ycbcr<uint8_t, float>({1.5f, -0.5f, -0.5f})), u8vec3(81, 90, 240));
-  // ...but it's kept as-is for floating point output
-  EXPECT_NEAR((method::rgb_to_y<float, float>({1.5f, 1.5f, 1.5f})), 0.0625 + 1.5 * 219 / 255,
-              1e-6);
-  EXPECT_NEAR((method::rgb_to_y<float, float>({-0.5f, -0.5f, -0.5f})),
-              0.0625 - 0.5 * 219 / 255, 1e-6);
+  EXPECT_NEAR((method::rgb_to_y<float, float>({1.5f, 1.5f, 1.5f})), 0.0625 + 219.0 / 255, 1e-6);
+  EXPECT_NEAR((method::rgb_to_y<float, float>({-0.5f, -0.5f, -0.5f})), 0.0625, 1e-6);
+  EXPECT_NEAR((method::rgb_to_y<float, float>({1.5f, -0.5f, -0.5f})),
+              0.0625 + 0.25678823529, 1e-6);
 }
 
 
 TEST(ColorSpaceConversionSignedTest, ClampColorInputFloat16) {
   // float16 input is compared as float
-  EXPECT_EQ(static_cast<float>(clamp_color_input<uint8_t>(float16(1.5f))), 1.0f);
-  EXPECT_EQ(static_cast<float>(clamp_color_input<uint8_t>(float16(-0.5f))), 0.0f);
-  EXPECT_EQ(static_cast<float>(clamp_color_input<uint8_t>(float16(0.25f))), 0.25f);
-  EXPECT_EQ(static_cast<float>(clamp_color_input<int16_t>(float16(-1.5f))), 0.0f);
-  EXPECT_EQ(static_cast<float>(clamp_color_input<int16_t>(float16(1.5f))), 1.0f);
-  EXPECT_EQ(static_cast<float>(clamp_color_input<int16_t>(float16(-0.5f))), 0.0f);
-  // No clamping for floating point outputs
-  EXPECT_EQ(static_cast<float>(clamp_color_input<float>(float16(1.5f))), 1.5f);
+  EXPECT_EQ(static_cast<float>(clamp_color_input(float16(1.5f))), 1.0f);
+  EXPECT_EQ(static_cast<float>(clamp_color_input(float16(-0.5f))), 0.0f);
+  EXPECT_EQ(static_cast<float>(clamp_color_input(float16(0.25f))), 0.25f);
+  EXPECT_EQ(static_cast<float>(clamp_color_input(float16(-1.5f))), 0.0f);
+  EXPECT_EQ(static_cast<float>(clamp_ycbcr_input<uint8_t>(float16(1.5f))), 1.0f);
+  EXPECT_EQ(static_cast<float>(clamp_ycbcr_input<float>(float16(1.5f))), 1.5f);
 }
 
 }  // namespace test
