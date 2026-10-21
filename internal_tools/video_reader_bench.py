@@ -29,8 +29,11 @@ Scenarios (each isolates one aspect of the reader):
   reader_depth   batch 1, the reader's own prefetch_queue_depth (batches in flight),
                  on many distinct files and on one sequential long-GOP file
   cache_key      every sample switches between two files with the same format, either
-                 cropped (800x600 coded as 800x608) or not (1280x720): per-switch
-                 cost and the NVDEC decoder cache
+                 cropped (800x600 coded as 800x608) or not (1280x720), vs. a control
+                 that rewinds the same file to frame 0 for every sample instead:
+                 the cost of opening another file (decoder creation or NVDEC decoder
+                 cache reuse) relative to a flush and seek within the same file. This
+                 is a workload difference, not an isolated switch cost
   switch         clips of mixed resolutions, shuffled, short sequences: per-sample
                  cost under constant file switching (random access)
   startup        many distinct files: pipeline build time and first batch latency
@@ -42,8 +45,10 @@ Scenarios (each isolates one aspect of the reader):
 Methodology:
   * every configuration runs in a fresh subprocess (no cache carry-over), --repeat
     times, round-robin over configurations; the median and the spread are reported
-  * timed iterations run until both --iters and --min_time are reached; throughput
-    excludes the first `depth` iterations, which may have been prefetched off the clock
+  * the first `depth` + `reader_depth` timed iterations are excluded, as up to that many
+    batches (pipeline queue and the reader's own queue) may have been produced off the
+    clock; measuring continues until both --iters and --min_time are reached after them
+  * throughput and pixel rates count the actual output shapes of the timed batches
   * Pipeline.run() without cuda_stream returns host-synchronized outputs, so iteration
     times include GPU completion
   * NVML metrics are per process where possible (decoder utilization, memory). A
@@ -72,6 +77,7 @@ import sys
 import tempfile
 import threading
 import time
+import warnings
 
 VIDEO_DIR = "db/video"
 
@@ -125,7 +131,8 @@ def _cfg(files, layout="plain", device="gpu", batch=8, seq=32, threads=4, **kw):
             "alternate:N" - N lines alternating between the files, each starting at
                           frame 0, read in order: every sample switches files
             "same:N"    - N lines, all of the first file, each starting at frame 0: the
-                          no-switch control for "alternate" (same seeks, no switches)
+                          control for "alternate" (no file switches, but every sample
+                          after the first rewinds the same decoder to frame 0)
     """
     cfg = dict(
         files=files,
@@ -165,7 +172,8 @@ def scenarios(threads, readers):
             for f, layout in (("h264_clips", "many:256"), ("h264_long", "plain"))
             for d in (1, 2, 4, 8)
         ],
-        # switch cost = ms_per_sample(alternate) - ms_per_sample(same), per file pair
+        # ms_per_sample(alternate) - ms_per_sample(same), per file pair: cost of opening the
+        # other file relative to rewinding the same one (see the module docstring)
         "cache_key": [
             _cfg(f, f"{kind}:64", batch=8, seq=8, threads=t)
             for f in ("h264_cropped_pair", "h264_aligned_pair")
@@ -192,7 +200,8 @@ def scenarios(threads, readers):
 
 
 def resolve_files(dali_extra, name):
-    root = os.path.join(dali_extra, VIDEO_DIR)
+    # absolute paths: they are used as symlink targets in a temporary directory
+    root = os.path.abspath(os.path.join(dali_extra, VIDEO_DIR))
     files, missing = [], []
     for pattern in FILES[name]:
         matches = sorted(glob.glob(os.path.join(root, pattern)))
@@ -200,7 +209,10 @@ def resolve_files(dali_extra, name):
             missing.append(pattern)
         files += matches
     if missing:
-        raise FileNotFoundError(f"file set {name}: not found under {root}: {missing}")
+        raise FileNotFoundError(
+            f"File set '{name}': no files match {missing} under '{root}'. "
+            f"Check that --dali_extra (or DALI_EXTRA_PATH) points to a DALI_extra checkout."
+        )
     return files
 
 
@@ -214,8 +226,13 @@ def materialize(cfg, dali_extra, workdir):
     kind, _, n = cfg["layout"].partition(":")
     if kind == "plain":
         if cfg["readers"] != 1:
-            raise ValueError("layout 'plain' supports a single reader")
+            raise ValueError(f"layout='plain' requires readers=1; got readers={cfg['readers']}.")
         return [{"filenames": files}]
+    if kind not in ("many", "alternate", "same") or not n.isdigit() or int(n) < 1:
+        raise ValueError(
+            f"Unknown layout {cfg['layout']!r}; expected 'plain', 'many:N', 'alternate:N' "
+            f"or 'same:N' with a positive integer N."
+        )
     n = int(n)
     seq = cfg["seq"]
     tag = "_".join(str(cfg[k]) for k in ("files", "layout", "seq", "readers"))
@@ -234,7 +251,10 @@ def materialize(cfg, dali_extra, workdir):
     elif kind == "same":
         lines = [(files[0], i) for i in range(n)]
     else:
-        raise ValueError(f"unknown layout {cfg['layout']}")
+        raise ValueError(
+            f"Unknown layout {cfg['layout']!r}; expected 'plain', 'many:N', 'alternate:N' "
+            f"or 'same:N'."
+        )
     specs = []
     per_reader = len(lines) // cfg["readers"]
     for r in range(cfg["readers"]):
@@ -285,20 +305,29 @@ def other_gpu_pids(nvml, handle):
 
 
 class GpuMonitor:
-    """Samples per-process GPU memory and collects per-process NVDEC utilization."""
+    """Samples per-process GPU memory and collects per-process NVDEC utilization.
+
+    While sampling, it also records any other process that uses the GPU, so that a
+    competing process that starts and exits during a run is detected.
+    """
 
     def __init__(self, device_id, period=0.1):
-        self.error = None
+        self.errors = []  # NVML problems; a metric may be missing, the run is still valid
         self.period = period
         self.mem = []
         self.dev_dec = []
+        self.others = set()
         self._stop = threading.Event()
         self._thread = threading.Thread(target=self._run, daemon=True)
         try:
             self.nvml, self.handle = nvml_handle(device_id)
         except Exception as e:
             self.nvml = None
-            self.error = f"NVML unavailable: {e}"
+            self._error(f"NVML unavailable: {e}")
+
+    def _error(self, msg):
+        if msg not in self.errors:
+            self.errors.append(msg)
 
     def snapshot(self):
         """Pre/post-run state: other processes, NVDEC utilization, clocks."""
@@ -316,20 +345,37 @@ class GpuMonitor:
             try:  # older NVML bindings may lack some queries for newer drivers
                 res[key] = query()
             except Exception as e:
-                self.error = f"NVML {key} failed: {e}"
+                self._error(f"NVML {key} failed: {e}")
         return res
 
     def _run(self):
         nvml, h, pid = self.nvml, self.handle, os.getpid()
+
+        def own_memory():
+            for p in nvml.nvmlDeviceGetComputeRunningProcesses(h):
+                if p.pid == pid and p.usedGpuMemory is not None:
+                    self.mem.append(p.usedGpuMemory)
+
+        samplers = {
+            "own memory": own_memory,
+            "other processes": lambda: self.others.update(other_gpu_pids(nvml, h)),
+            "decoder utilization": lambda: self.dev_dec.append(
+                nvml.nvmlDeviceGetDecoderUtilization(h)[0]
+            ),
+        }
+        failures = dict.fromkeys(samplers, 0)
         while not self._stop.is_set():
-            try:
-                for p in nvml.nvmlDeviceGetComputeRunningProcesses(h):
-                    if p.pid == pid and p.usedGpuMemory is not None:
-                        self.mem.append(p.usedGpuMemory)
-                self.dev_dec.append(nvml.nvmlDeviceGetDecoderUtilization(h)[0])
-            except Exception as e:
-                self.error = f"NVML sampling failed: {e}"
-                return
+            for name, sample in list(samplers.items()):
+                try:
+                    sample()
+                    failures[name] = 0
+                except Exception as e:
+                    # e.g. a process list that changed size during the query; only give up
+                    # on a query that keeps failing (unsupported by these bindings/driver)
+                    failures[name] += 1
+                    if failures[name] >= 3:
+                        self._error(f"NVML sampling of {name} failed: {e}")
+                        del samplers[name]
             time.sleep(self.period)
 
     def start(self):
@@ -347,13 +393,15 @@ class GpuMonitor:
             res["proc_mem_max_mb"] = max(self.mem) / 2**20
         if self.dev_dec:
             res["dev_nvdec_util"] = statistics.mean(self.dev_dec)
-        try:  # per-process decoder utilization since start, where the driver supports it
+        try:
             samples = self.nvml.nvmlDeviceGetProcessUtilization(self.handle, self._t_start_us)
             dec = [s.decUtil for s in samples if s.pid == os.getpid()]
             if dec:
                 res["proc_nvdec_util"] = statistics.mean(dec)
         except Exception:
-            pass
+            # per-process utilization is optional: not every driver/binding supports it, or
+            # there may be no samples yet; the result is still valid without it
+            res["proc_nvdec_util"] = None
         return res
 
 
@@ -410,7 +458,6 @@ def warm_up_cuda(device_id):
     p = tiny()
     p.build()
     p.run()
-    del p
 
 
 def percentile(sorted_vals, q):
@@ -442,38 +489,49 @@ def run_one(cfg, specs, args):
     if iters > 0:
         for _ in range(args.warmup):
             pipe.run()
-        frames_per_iter = cfg["readers"] * cfg["batch"] * cfg["seq"]
-        stamps = []
+        # Up to `depth` (pipeline queue) + `reader_depth` (the reader's own queue, filled
+        # by its prefetch thread) batches may have been produced before the clock started.
+        # They are excluded, and --iters/--min_time apply to the remaining window.
+        skip = cfg["depth"] + cfg["reader_depth"]
+        stamps, frames, pixels = [], [], []
         mon.start()
         t_start = time.perf_counter()
-        while len(stamps) < iters or stamps[-1] - t_start < args.min_time:
-            pipe.run()
+        while True:
+            out = pipe.run()
             stamps.append(time.perf_counter())
+            # actual output sizes (mixed resolutions); shapes are host-side metadata
+            shapes = [s for r in range(cfg["readers"]) for s in out[2 * r].shape()]
+            frames.append(sum(s[0] for s in shapes))
+            pixels.append(sum(s[0] * s[1] * s[2] for s in shapes))
+            kept = len(stamps) - skip
+            if kept > 0 and kept >= iters:
+                t_ref = stamps[skip - 1] if skip else t_start
+                if stamps[-1] - t_ref >= args.min_time:
+                    break
         res.update(mon.stop())
-        times = sorted(b - a for a, b in zip([t_start] + stamps, stamps))
-        times_ms = [t * 1e3 for t in times]
-        # the first `depth` batches may have been produced off the clock
-        skip = min(cfg["depth"], len(stamps) - 1)
+        t_ref = stamps[skip - 1] if skip else t_start
+        span = stamps[-1] - t_ref
         n = len(stamps) - skip
-        span = stamps[-1] - (stamps[skip - 1] if skip else t_start)
-        h, w = res["shape"][1:3]
+        times_ms = sorted((b - a) * 1e3 for a, b in zip([t_ref] + stamps[skip:], stamps[skip:]))
         res.update(
-            iters=len(stamps),
-            frames_per_s=n * frames_per_iter / span,
-            mpix_per_s=n * frames_per_iter * h * w / span / 1e6,
+            iters=n,
+            iters_skipped=skip,
+            frames_per_s=sum(frames[skip:]) / span,
+            mpix_per_s=sum(pixels[skip:]) / span / 1e6,
             ms_per_sample=span * 1e3 / (n * cfg["readers"] * cfg["batch"]),
             iter_p50_ms=statistics.median(times_ms),
             iter_p90_ms=percentile(times_ms, 90),
             iter_p99_ms=percentile(times_ms, 99) if len(times_ms) >= 200 else None,
             iter_max_ms=times_ms[-1],
         )
-    if mon.error:
-        res["nvml_error"] = mon.error
     res["post"] = mon.snapshot()
+    if mon.errors:  # after the last NVML query, so that every failure is recorded
+        res["nvml_error"] = "; ".join(mon.errors)
     pre, post = res["pre"], res["post"]
-    res["contaminated"] = bool(
-        pre.get("other_pids") or post.get("other_pids") or pre.get("dev_nvdec_util", 0) > 5
+    res["other_pids_seen"] = sorted(
+        mon.others | set(pre.get("other_pids", [])) | set(post.get("other_pids", []))
     )
+    res["contaminated"] = bool(res["other_pids_seen"] or pre.get("dev_nvdec_util", 0) > 5)
     return res
 
 
@@ -644,13 +702,21 @@ def provenance(args):
         info["dali_error"] = str(e)
     try:
         nvml, h = nvml_handle(args.device_id)
-        info["gpu"] = nvml.nvmlDeviceGetName(h)
-        info["gpu_uuid"] = nvml.nvmlDeviceGetUUID(h)
-        info["driver"] = nvml.nvmlSystemGetDriverVersion()
-        info["other_gpu_pids"] = other_gpu_pids(nvml, h)
-        info["nvdec_util_at_start"] = nvml.nvmlDeviceGetDecoderUtilization(h)[0]
     except Exception as e:
         info["nvml_error"] = str(e)
+        return info
+    queries = dict(
+        gpu=lambda: nvml.nvmlDeviceGetName(h),
+        gpu_uuid=lambda: nvml.nvmlDeviceGetUUID(h),
+        driver=lambda: nvml.nvmlSystemGetDriverVersion(),
+        other_gpu_pids=lambda: other_gpu_pids(nvml, h),
+        nvdec_util_at_start=lambda: nvml.nvmlDeviceGetDecoderUtilization(h)[0],
+    )
+    for key, query in queries.items():
+        try:  # one unsupported query must not hide the others
+            info[key] = query()
+        except Exception as e:
+            info.setdefault("nvml_query_errors", {})[key] = str(e)
     return info
 
 
@@ -661,24 +727,42 @@ def compare(a_path, b_path, ignore):
     so a configuration in A is compared against every configuration in B that differs
     only in those fields. The output must not depend on them.
     """
-    a, b = (json.load(open(p)) for p in (a_path, b_path))
+    with open(a_path) as fa, open(b_path) as fb:
+        a, b = json.load(fa), json.load(fb)
     skip = {"hashes", "scenario", "error", "errors", "dali_version", "repeats"} | set(ignore)
 
     def key(r):
         return json.dumps({k: v for k, v in r.items() if k not in skip}, sort_keys=True)
 
     def label(r):
-        return ", ".join(f"{k}={r[k]}" for k in sorted(r) if k not in ("hashes", "errors"))
+        return ", ".join(f"{k}={r[k]}" for k in sorted(r) if k not in ("hashes", "errors", "error"))
 
     b_runs = {}
     for r in b["results"]:
         b_runs.setdefault(key(r), []).append(r)
+    a_keys = {key(r) for r in a["results"]}
     bad = compared = 0
+    # a configuration that failed or is missing on either side fails the comparison: a
+    # build that cannot decode a workload must not pass as "identical"
+    for r in b["results"]:
+        if key(r) not in a_keys:
+            bad += 1
+            print(f"MISSING in {a_path}: {label(r)}")
+    failed_runs = set()  # (file, index): each failed run is reported and counted once
+    for path, results in ((a_path, a["results"]), (b_path, b["results"])):
+        for i, r in enumerate(results):
+            if "hashes" not in r and (path, i) not in failed_runs:
+                failed_runs.add((path, i))
+                bad += 1
+                print(f"FAILED in {path}: {label(r)}  ({r.get('error', 'no checksums')})")
     for r in a["results"]:
-        for other in b_runs.get(key(r), []):
+        matches = b_runs.get(key(r), [])
+        if not matches:
+            bad += 1
+            print(f"MISSING in {b_path}: {label(r)}")
+        for other in matches:
             if "hashes" not in r or "hashes" not in other:
-                print(f"skip (failed run): {label(r)}")
-                continue
+                continue  # reported above
             n = max(len(r["hashes"]), len(other["hashes"]))
             diff = sum(x != y for x, y in zip(r["hashes"], other["hashes"]))
             diff += abs(len(r["hashes"]) - len(other["hashes"]))
@@ -687,10 +771,10 @@ def compare(a_path, b_path, ignore):
             vs = ", ".join(f"{k}={other[k]}" for k in ignore if other.get(k) != r.get(k))
             status = "OK  " if diff == 0 else "DIFF"
             print(f"{status} {diff:4d}/{n} samples  {label(r)}" + (f"  vs {vs}" if vs else ""))
-    if compared == 0:
+    if compared == 0 and bad == 0:
         print("nothing to compare: no matching configurations")
         return 2
-    print("all identical" if bad == 0 else f"{bad} comparison(s) differ")
+    print("all identical" if bad == 0 else f"{bad} comparison(s) differ, failed or are missing")
     return 1 if bad else 0
 
 
@@ -733,9 +817,10 @@ def parse_args():
     if args.compare:
         return parser, args
     if not args.dali_extra:
-        parser.error("set DALI_EXTRA_PATH or pass --dali_extra")
+        parser.error("--dali_extra is empty; set DALI_EXTRA_PATH or pass --dali_extra.")
+    args.dali_extra = os.path.abspath(args.dali_extra)
     if args.hash and not args.json and not args._single:
-        parser.error("--hash needs --json to store the checksums")
+        parser.error("--hash requires --json to store the checksums; got no --json.")
     if args.quick:
         args.threads, args.readers, args.repeat = "1,4", "1,2", 1
         args.iters, args.min_time, args.warmup = 3, 0.0, 1
@@ -756,19 +841,30 @@ def main():
     names = list(all_scenarios) if args.scenarios == "all" else args.scenarios.split(",")
     unknown = [n for n in names if n not in all_scenarios]
     if unknown:
-        parser.error(f"unknown scenario(s) {unknown}; choose from {list(all_scenarios)}")
+        parser.error(
+            f"--scenarios got unknown scenario(s) {unknown}; expected 'all' or a subset of "
+            f"{list(all_scenarios)}."
+        )
     if args.hash:
         args.repeat = 1
 
     prov = provenance(args)
     print("# " + json.dumps(prov))
     if prov.get("nvml_error"):
-        print(f"# WARNING: NVML unavailable ({prov['nvml_error']}); GPU checks are disabled")
-    busy = prov.get("other_gpu_pids") or prov.get("nvdec_util_at_start", 0) > 5
+        warnings.warn(f"NVML is unavailable ({prov['nvml_error']}); GPU checks are disabled.")
+    busy = prov.get("other_gpu_pids") or (prov.get("nvdec_util_at_start") or 0) > 5
     if busy:
-        print("# WARNING: the GPU is in use by other processes; numbers will be skewed")
+        details = []
+        if prov.get("other_gpu_pids"):
+            details.append(f"pids {prov['other_gpu_pids']}")
+        if prov.get("nvdec_util_at_start") is not None:
+            details.append(f"NVDEC utilization {prov['nvdec_util_at_start']}%")
+        warnings.warn(
+            f"The GPU is in use by other processes ({', '.join(details)}); "
+            f"the results will be skewed."
+        )
         if args.require_idle:
-            sys.exit("GPU busy, aborting (--require_idle)")
+            sys.exit("The GPU is in use by other processes and --require_idle is set; aborting.")
 
     workdir = tempfile.mkdtemp(prefix="video_reader_bench_")
     results, failed = [], 0
@@ -790,7 +886,8 @@ def main():
                     if "filenames" in s:
                         paths += s["filenames"]
                     else:
-                        paths += [ln.split()[0] for ln in open(s["file_list"])]
+                        with open(s["file_list"]) as f:
+                            paths += [ln.split()[0] for ln in f]
                 prewarm(os.path.realpath(p) for p in paths)
         reps = {i: [] for i in range(len(jobs))}
         rng = random.Random(args.seed)
@@ -825,7 +922,8 @@ def main():
             else:
                 r = aggregate(cfg, reps[i])
                 print(format_row(r))
-            failed += bool(r.get("error"))
+            # a configuration fails if any of its repetitions failed
+            failed += bool(r.get("error") or r.get("errors"))
             results.append(r)
     finally:
         shutil.rmtree(workdir, ignore_errors=True)

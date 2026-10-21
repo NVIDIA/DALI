@@ -35,6 +35,7 @@ Exits with 1 if any check failed.
 import argparse
 import json
 import sys
+import warnings
 
 
 def by(results, scenario, **match):
@@ -78,8 +79,19 @@ def main():
     )
     args = parser.parse_args()
 
-    data = json.load(open(args.results))
-    results = data["results"]
+    with open(args.results) as f:
+        results = json.load(f)["results"]
+    metrics = named_metrics(results)
+    minimums = {}
+    for item in args.min:
+        name, _, value = item.partition("=")
+        if name not in metrics:
+            parser.error(f"--min got unknown metric {name!r}; expected one of {list(metrics)}.")
+        if value:  # an empty value means: no minimum, report only
+            try:
+                minimums[name] = float(value)
+            except ValueError:
+                parser.error(f"--min {name} expects a number of frames/s; got {value!r}.")
     tol = args.tolerance / 100
     failed = []
 
@@ -88,14 +100,19 @@ def main():
         if not ok:
             failed.append(name)
 
-    errors = [r for r in results if r.get("error")]
+    # a configuration fails if all its repetitions failed (`error`) or only some (`errors`)
+    errors = [r for r in results if r.get("error") or r.get("errors")]
     check("no failed configurations", not errors, f"{len(errors)} of {len(results)} failed")
     for r in errors:
-        print(f"  {r.get('scenario')} {r.get('files')} {r.get('layout')}: {r['error']}")
+        for e in [r["error"]] if r.get("error") else r["errors"]:
+            print(f"  {r.get('scenario')} {r.get('files')} {r.get('layout')}: {e}")
 
     contaminated = [r for r in results if r.get("contaminated")]
     if contaminated:
-        print(f"WARNING: {len(contaminated)} result(s) contaminated by other GPU processes")
+        warnings.warn(
+            f"{len(contaminated)} of {len(results)} results were measured while other "
+            f"processes used the GPU; their numbers may be skewed."
+        )
 
     def relative(scenario, keys, param):
         for key, rows in sorted(groups(results, scenario, keys).items(), key=str):
@@ -117,12 +134,7 @@ def main():
     relative("cpu", ("files", "layout", "batch"), "threads")
     relative("reader_depth", ("files", "layout"), "reader_depth")
 
-    minimums = {}
-    for item in args.min:
-        name, _, value = item.partition("=")
-        if value:
-            minimums[name] = float(value)
-    for name, value in named_metrics(results).items():
+    for name, value in metrics.items():
         if name in minimums:
             check(
                 f"{name} minimum",
