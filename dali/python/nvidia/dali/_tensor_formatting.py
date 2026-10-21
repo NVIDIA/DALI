@@ -326,7 +326,7 @@ def format_batch(
 
     crop = False
 
-    if data:
+    if data is not None:
         if adapter.get_length(data) == 0:
             data_str = "[]"
         else:
