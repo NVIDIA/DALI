@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -438,6 +438,18 @@ class DLL_PUBLIC FramesDecoderBase {
    * @brief Builds the index of the video file.
    */
   virtual void BuildIndex();
+
+  /**
+   * @brief Fails with a descriptive error if the file uses a container format that can't be
+   * decoded correctly, i.e. MPEG-PS (MPEG-2 Program Stream, libavformat format "mpeg").
+   *
+   * MPEG-PS only stamps a timestamp on some packets (typically the first packet of each PES
+   * unit). Neither the frame index (see BuildIndex()), which needs an exact, collision-free
+   * timestamp for every frame, nor sequential decoding without an index, which would mix those
+   * timestamps with frame-counter ones and return frames out of order, can handle that.
+   * Does nothing if the file couldn't be opened.
+   */
+  void EnforceSupportedContainer();
 
   const FrameIndex& GetIndex() const {
     return index_;

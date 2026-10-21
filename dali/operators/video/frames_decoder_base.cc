@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -160,9 +160,11 @@ bool FramesDecoderBase::SelectVideoStream(int stream_id) {
     LOG_LINE << "Finding video stream" << std::endl;
     stream_id = av_find_best_stream(ctx_, AVMEDIA_TYPE_VIDEO, -1, -1, nullptr, 0);
     if (stream_id == AVERROR_STREAM_NOT_FOUND) {
-      // Some containers (e.g. MPEG-PS/TS) don't declare stream codec types in a header that's
-      // available right after avformat_open_input -- they only become known once packets are
-      // probed. Fall back to a full probe and retry before giving up.
+      // Some containers (e.g. MPEG-PS) don't declare their streams in a header that's read by
+      // avformat_open_input -- they only become known once packets are probed. Fall back to a
+      // full probe and retry before giving up, so that such a file is still identified (and,
+      // for MPEG-PS, rejected with a clear error by EnforceSupportedContainer()) rather than
+      // reported as having no video stream.
       if (avformat_find_stream_info(ctx_, nullptr) >= 0) {
         stream_id = av_find_best_stream(ctx_, AVMEDIA_TYPE_VIDEO, -1, -1, nullptr, 0);
       }
@@ -434,26 +436,26 @@ bool HasKeyframeNalUnit(AVCodecID codec_id, const uint8_t *data, int size,
 
 }  // namespace detail
 
+void FramesDecoderBase::EnforceSupportedContainer() {
+  if (ctx_ && ctx_->iformat && !strcmp(ctx_->iformat->name, "mpeg")) {
+    DALI_FAIL(make_string(
+        "Video file \"", Filename(), "\" is MPEG-PS (MPEG-2 Program Stream), which is not "
+        "supported: this container format only stamps a timestamp on some packets, so its "
+        "frames can't be reliably indexed or returned in presentation order. Remux the file to "
+        "MP4 or MKV (e.g. `ffmpeg -i in.mpeg -c copy out.mp4`)."));
+  }
+}
+
 void FramesDecoderBase::BuildIndex() {
   if (HasIndex()) {
     return;
   }
 
-  // MPEG-PS only stamps a timestamp on some packets (typically the first packet of each PES
-  // unit), which the frame index built below can't support reliably (it needs an exact,
-  // collision-free timestamp for every frame). Reject it here, rather than in
-  // SelectVideoStream(), so the rejection only applies to callers that actually need a seek
-  // index (e.g. experimental.readers.video): sequential-decode-only operators such as
-  // experimental.decoders.video and experimental.inputs.video never call BuildIndex() and can
-  // still open and decode MPEG-PS content. MPEG-TS is unaffected (its packets carry
-  // PCR-derived timestamps far more consistently) and is not rejected by this check.
-  if (!strcmp(ctx_->iformat->name, "mpeg")) {
-    DALI_FAIL(make_string(
-        "Video file \"", Filename(), "\" is MPEG-PS (MPEG-2 Program Stream), which does not "
-        "support building a frame-accurate seek index: this container format only stamps a "
-        "timestamp on some packets. Remux the file to MP4 or MKV (e.g. `ffmpeg -i in.mpeg -c "
-        "copy out.mp4`) to use it where a seek index is required."));
-  }
+  // Throwing here (rather than in SelectVideoStream()) lets experimental.readers.video treat
+  // such a file like any other invalid one while it builds its dataset metadata: it catches
+  // this exception and skips the file with a warning. Operators that decode without an index
+  // (decoders.video, experimental.inputs.video) call EnforceSupportedContainer() themselves.
+  EnforceSupportedContainer();
 
   // Initialize frame index
   index_.index.clear();

@@ -1744,12 +1744,11 @@ ANNEX_B_VIDEOS = {
 def test_mpeg_ps_is_rejected_as_unsupported():
     """MPEG-PS (container format 'mpeg') only stamps a timestamp on some packets, which the
     frame-accurate seek index experimental.readers.video builds can't handle reliably.
-    FramesDecoderBase::BuildIndex() rejects it explicitly, before doing any index-building work.
-    This only affects operators that need a seek index (this reader); sequential-decode-only
-    operators such as experimental.decoders.video and experimental.inputs.video never call
-    BuildIndex() and are unaffected. At the dataset-metadata-building stage, BuildIndex()'s
-    rejection is caught and treated like any other invalid file: a file list mixing MPEG-PS with
-    a working file excludes only the MPEG-PS entry, with a warning."""
+    FramesDecoderBase::BuildIndex() rejects it explicitly, before doing any index-building work
+    (operators that decode without an index reject it too, see
+    test_mpeg_ps_is_rejected_by_sequential_decode_operators). At the dataset-metadata-building
+    stage, BuildIndex()'s rejection is caught and treated like any other invalid file: a file
+    list mixing MPEG-PS with a working file excludes only the MPEG-PS entry, with a warning."""
     mpeg_ps_file = DALI_EXTRA_PATH + "/db/video/containers/mpeg/cfr.mpeg"
     avi_file = DALI_EXTRA_PATH + "/db/video/containers/avi/cfr.avi"
 
@@ -1778,13 +1777,19 @@ def test_mpeg_ps_is_rejected_as_unsupported():
 MPEG_PS_VIDEO_FILE = DALI_EXTRA_PATH + "/db/video/containers/mpeg/cfr.mpeg"
 
 
-@params("decoders", "inputs")
-def test_mpeg_ps_is_accepted_by_sequential_decode_operators(op_kind):
-    """Counterpart of test_mpeg_ps_is_rejected_as_unsupported: the MPEG-PS rejection is scoped
-    to the seek index, so experimental.decoders.video and experimental.inputs.video, which only
-    decode sequentially, must still decode MPEG-PS content (180 frames of 1280x720)."""
+@params(
+    ("decoders", "cpu"),
+    ("decoders", "mixed"),
+    ("inputs", "cpu"),
+    ("inputs", "mixed"),
+)
+def test_mpeg_ps_is_rejected_by_sequential_decode_operators(op_kind, device):
+    """Counterpart of test_mpeg_ps_is_rejected_as_unsupported: decoders.video and
+    experimental.inputs.video decode without a seek index, which can't handle MPEG-PS either
+    (frames would come out of order, since only some packets carry a timestamp). They must fail
+    with an error naming the format, rather than return wrong frames or claim that the file
+    has no video stream."""
     encoded = np.fromfile(MPEG_PS_VIDEO_FILE, dtype=np.uint8)
-    sequence_length = 60
 
     @pipeline_def(
         batch_size=1,
@@ -1797,25 +1802,16 @@ def test_mpeg_ps_is_accepted_by_sequential_decode_operators(op_kind):
     def pipe():
         if op_kind == "decoders":
             data = fn.external_source(name="encoded", dtype=types.UINT8, ndim=1)
-            return fn.experimental.decoders.video(data, device="mixed")
+            return fn.decoders.video(data, device=device)
         return fn.experimental.inputs.video(
-            name="encoded", device="mixed", sequence_length=sequence_length, blocking=False
+            name="encoded", device=device, sequence_length=60, blocking=False
         )
 
     p = pipe()
     p.build()
     p.feed_input("encoded", [encoded])
-    if op_kind == "decoders":
-        (video,) = p.run()
-        shapes = [video.as_cpu()[0].shape()]
-    else:
-        shapes = []
-        for _ in range(180 // sequence_length):
-            (video,) = p.run()
-            shapes.append(video.as_cpu()[0].shape())
-    num_frames = sum(shape[0] for shape in shapes)
-    assert num_frames == 180, f"decoded {num_frames} frames, expected 180 (shapes: {shapes})"
-    assert all(list(shape[1:]) == [720, 1280, 3] for shape in shapes), f"shapes: {shapes}"
+    with assert_raises(RuntimeError, glob="*is MPEG-PS (MPEG-2 Program Stream)*not supported*"):
+        p.run()
 
 
 @params(*ANNEX_B_VIDEOS.keys())
