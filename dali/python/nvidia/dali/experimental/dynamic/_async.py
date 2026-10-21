@@ -12,14 +12,33 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import atexit
 import queue
 import sys
 import threading
+import weakref
 from collections.abc import Callable
 from typing import Any, Optional
 
 from ._eval_mode import EvalMode
 from ._exceptions import CallStack, rethrow_exception
+
+_executors: "weakref.WeakSet[_AsyncExecutor]" = weakref.WeakSet()
+
+
+def _join_executors():
+    """Stop daemon threads so they don't race during executor shutdown"""
+    executors = list(_executors)
+    for executor in executors:
+        executor.shutdown()
+    for executor in executors:
+        executor._thread.join()  # type: ignore
+
+
+def _register_executor(executor: "_AsyncExecutor"):
+    _executors.add(executor)
+    atexit.unregister(_join_executors)
+    atexit.register(_join_executors)
 
 
 class _Future:
@@ -98,6 +117,7 @@ class _AsyncExecutor:
         if self._thread is None or not self._thread.is_alive():
             self._thread = threading.Thread(target=self._worker, daemon=True)
             self._thread.start()
+            _register_executor(self)
 
         # Since the executor is bound to a single eval context, there's no race condition
         self._submitted_seq += 1
