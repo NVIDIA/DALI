@@ -25,10 +25,29 @@ def all(input, *, axes=None, axis_names=None, keep_dims=False):
     """
     Tests whether all elements along given axes evaluate to ``True``.
 
+    The input is converted to ``bool`` first: any non-zero value (including NaN) is ``True``.
     An empty volume evaluates to ``True``.
 
     If the input is a batch, then the evaluation is performed on all constituent tensors
     and a batch of reduced tensors is returned.
+
+    Parameters
+    ----------
+    input : TensorLike or Batch
+        The data to test.
+    axes : int or list of int, optional, default: None
+        Axis or axes along which the reduction is performed. Negative indices are counted
+        from the back. If neither `axes` nor `axis_names` is given, all axes are reduced.
+    axis_names : str, optional, default: None
+        Name(s) of the axis or axes along which the reduction is performed, translated to
+        indices using the input layout. This argument cannot be used together with `axes`.
+    keep_dims : bool, optional, default: False
+        If ``True``, the reduced axes are kept in the output with extent 1.
+
+    Returns
+    -------
+    Tensor or Batch
+        The result of the test, of type ``bool``.
     """
     from . import reductions
 
@@ -46,10 +65,29 @@ def any(input, *, axes=None, axis_names=None, keep_dims=False):
     """
     Tests whether any elements along given axes evaluate to ``True``.
 
+    The input is converted to ``bool`` first: any non-zero value (including NaN) is ``True``.
     An empty volume evaluates to ``False``.
 
     If the input is a batch, then the evaluation is performed on all constituent tensors
     and a batch of reduced tensors is returned.
+
+    Parameters
+    ----------
+    input : TensorLike or Batch
+        The data to test.
+    axes : int or list of int, optional, default: None
+        Axis or axes along which the reduction is performed. Negative indices are counted
+        from the back. If neither `axes` nor `axis_names` is given, all axes are reduced.
+    axis_names : str, optional, default: None
+        Name(s) of the axis or axes along which the reduction is performed, translated to
+        indices using the input layout. This argument cannot be used together with `axes`.
+    keep_dims : bool, optional, default: False
+        If ``True``, the reduced axes are kept in the output with extent 1.
+
+    Returns
+    -------
+    Tensor or Batch
+        The result of the test, of type ``bool``.
     """
     from . import reductions
 
