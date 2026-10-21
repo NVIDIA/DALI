@@ -459,6 +459,7 @@ void FramesDecoderBase::BuildIndex() {
 
   // Initialize frame index
   index_.index.clear();
+  index_.keyframe_dts.clear();
   index_.filename = Filename();
   index_.timebase = ctx_->streams[stream_id_]->time_base;
 
@@ -470,6 +471,12 @@ void FramesDecoderBase::BuildIndex() {
   const AVCodecID codec_id = codecpar->codec_id;
   const int nal_length_size =
       detail::GetNalLengthSize(codec_id, codecpar->extradata, codecpar->extradata_size);
+  // The MPEG-TS demuxer seeks on dts and treats every packet as a seek point. With B-frames, a
+  // keyframe's dts is lower than its pts, so seeking to its pts would land on a later, non-key
+  // packet whose dts equals that pts, and decoding would start without the keyframe: record the
+  // keyframes' dts to seek on. Other demuxers keep seeking on pts: e.g. in MP4, an edit list can
+  // shift dts so that seeking to it lands on an earlier keyframe.
+  const bool seek_on_dts = !strcmp(ctx_->iformat->name, "mpegts");
 
   // Track the position of the last keyframe seen
   int last_keyframe = -1;
@@ -521,11 +528,13 @@ void FramesDecoderBase::BuildIndex() {
       LOG_LINE << "Negative timestamp: " << entry.pts << ", skipping" << std::endl;
       continue;
     }
-    entry.dts = packet->dts;
 
     // Update last keyframe position if this is a keyframe
     if (entry.is_keyframe) {
       last_keyframe = index_.size();
+      if (seek_on_dts && packet->dts != AV_NOPTS_VALUE) {
+        index_.keyframe_dts.emplace_back(entry.pts, packet->dts);
+      }
     }
     entry.last_keyframe_id = last_keyframe;
 
@@ -547,6 +556,7 @@ void FramesDecoderBase::BuildIndex() {
   // This is needed because frames may be stored out of order in the container
   std::sort(index_.index.begin(), index_.index.end(),
             [](const IndexEntry &a, const IndexEntry &b) { return a.pts < b.pts; });
+  std::sort(index_.keyframe_dts.begin(), index_.keyframe_dts.end());
 
   // After sorting, we need to update last_keyframe_id references
   std::vector<int> keyframe_positions;
@@ -678,15 +688,8 @@ void FramesDecoderBase::SeekFrame(int frame_id) {
         // We are seeking to a different keyframe than the current frame,
         // so we need to seek to the keyframe first
         auto &keyframe_entry = index_[keyframe_id];
-        // The MPEG-TS demuxer seeks on dts and treats every packet as a seek point. With
-        // B-frames, a keyframe's dts is lower than its pts, so seeking to its pts would land on a
-        // later, non-key packet whose dts equals that pts, and decoding would start without the
-        // keyframe. Other demuxers keep seeking on pts: e.g. in MP4, an edit list can shift dts
-        // so that seeking to it lands on an earlier keyframe.
-        int64_t seek_timestamp = keyframe_entry.pts;
-        if (keyframe_entry.dts != AV_NOPTS_VALUE && !strcmp(ctx_->iformat->name, "mpegts")) {
-          seek_timestamp = keyframe_entry.dts;
-        }
+        // The keyframe's dts for MPEG-TS (see BuildIndex), its pts otherwise.
+        int64_t seek_timestamp = index_.KeyframeSeekTimestamp(keyframe_entry.pts);
         LOG_LINE << "Seeking to key frame " << keyframe_id << " timestamp " << seek_timestamp
                  << " for requested frame " << frame_id << " timestamp " << requested_frame.pts
                  << std::endl;

@@ -69,6 +69,7 @@ class FrameIndexCache {
     for (const auto& entry : index_cache_) {
       total_size += entry.first.size();  // filename string size
       total_size += entry.second.size() * sizeof(IndexEntry);  // index entries size
+      total_size += entry.second.keyframe_dts.size() * sizeof(entry.second.keyframe_dts[0]);
     }
     LOG_LINE << "FrameIndexCache stats: " << std::endl;
     LOG_LINE << "  Number of cached files: " << index_cache_.size() << std::endl;

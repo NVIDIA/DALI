@@ -27,6 +27,7 @@ extern "C" {
 #include <memory>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 #include "dali/core/boundary.h"
 #include "dali/core/common.h"
@@ -71,13 +72,17 @@ struct IndexEntry {
   int last_keyframe_id;
   bool is_keyframe;
   bool is_flush_frame;
-  int64_t dts = AV_NOPTS_VALUE;  // dts of the frame's packet, used to seek in MPEG-TS
 };
 
 struct FrameIndex {
   std::string filename;
   std::vector<IndexEntry> index;
   AVRational timebase;
+  /**
+   * @brief (pts, dts) of each keyframe, sorted by pts. Only filled for MPEG-TS, whose demuxer
+   * seeks on dts: kept out of IndexEntry so that other containers don't pay for it per frame.
+   */
+  std::vector<std::pair<int64_t, int64_t>> keyframe_dts;
 
   size_t size() const {
     return index.size();
@@ -112,6 +117,16 @@ struct FrameIndex {
     int64_t last = index.back().pts;
     int64_t gap = index.size() >= 2 ? last - index[index.size() - 2].pts : 1;
     return last + std::max<int64_t>(gap, 1);
+  }
+
+  /**
+   * @brief Timestamp to seek to so that the demuxer lands on the keyframe with the given pts:
+   * its dts if recorded in `keyframe_dts`, otherwise the pts itself.
+   */
+  int64_t KeyframeSeekTimestamp(int64_t keyframe_pts) const {
+    auto it = std::lower_bound(keyframe_dts.begin(), keyframe_dts.end(), keyframe_pts,
+                               [](const auto &entry, int64_t pts) { return entry.first < pts; });
+    return (it != keyframe_dts.end() && it->first == keyframe_pts) ? it->second : keyframe_pts;
   }
 
   /**
