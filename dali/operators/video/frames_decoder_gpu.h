@@ -31,6 +31,7 @@ extern "C" {
 #include "dali/operators/video/dynlink_nvcuvid/cuviddec.h"
 #include "dali/operators/video/dynlink_nvcuvid/dynlink_nvcuvid.h"
 #include "dali/core/unique_handle.h"
+#include "dali/core/cuda_event.h"
 
 #include "dali/core/dev_buffer.h"
 
@@ -201,6 +202,13 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
 
   static bool SupportsHevc();
 
+  /**
+   * @brief Whether NVDEC on the current device can decode `codec_type` with the given chroma
+   * format and bit depth.
+   */
+  static bool NvdecSupports(cudaVideoCodec codec_type, cudaVideoChromaFormat chroma_format,
+                            int bit_depth = 8);
+
   static bool SupportsCodec(AVCodecID codec_id, uint8_t bit_depth = 8);
 
   void InitGpuDecoder(CUVIDEOFORMAT *video_format);
@@ -273,6 +281,12 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
   std::vector<PendingMap> pending_maps_;  // indexed by picture_index
   std::deque<int> pending_map_order_;     // FIFO of currently-mapped picture_index values
   unsigned num_output_surfaces_ = 1;
+
+  // JPEG only: NVDEC decodes JPEG pictures in stream order with the legacy default stream, and
+  // cuvidMapVideoFrame doesn't order output_stream after that. Before mapping a picture,
+  // stream_ waits for this event, recorded on the legacy default stream (see
+  // HandlePictureDisplay).
+  CUDAEvent legacy_stream_event_;
 
   void InitPendingMaps(unsigned decode_surface_count, unsigned num_output_surfaces);
 

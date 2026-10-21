@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,9 +15,12 @@
 #include <cuda_runtime_api.h>
 #include <exception>
 #include <limits>
+#include <memory>
 #include <random>
+#include <vector>
 
 #include "dali/core/cuda_error.h"
+#include "dali/core/cuda_stream.h"
 #include "dali/core/dev_buffer.h"
 #include "dali/core/device_guard.h"
 #include "dali/core/dynlink_cuda.h"
@@ -478,6 +481,18 @@ TEST_F(FramesDecoderGpuTest, AdditionalDecodeSurfacesStillDecodesCorrectly) {
   RunTest(decoder, cfr_videos_[0]);
 }
 
+namespace {
+
+double AvgAbsDiff(const std::vector<uint8_t> &a, const std::vector<uint8_t> &b) {
+  int64_t sum = 0;
+  for (size_t i = 0; i < a.size(); ++i) {
+    sum += std::abs(static_cast<int>(a[i]) - static_cast<int>(b[i]));
+  }
+  return static_cast<double>(sum) / a.size();
+}
+
+}  // namespace
+
 TEST_F(FramesDecoderGpuTest, MjpegDecodesMultipleFrames) {
   // DALI-4918: the NVDEC driver reports min_num_decode_surfaces=1 for this MJPEG file --
   // with zero surface headroom, decoding the 2nd frame used to fail with
@@ -488,41 +503,57 @@ TEST_F(FramesDecoderGpuTest, MjpegDecodesMultipleFrames) {
   // count for MJPEG specifically: `20` is a conservative, empirically-verified value for this
   // backend's synchronous-inline HandlePictureDisplay (see AdjustedNumDecodeSurfaces's comment
   // in frames_decoder_gpu.cc), not a value inherited from legacy's NVDEC integration.
-  auto mjpeg_path = testing::dali_extra_path() + "/db/video/mjpeg/mjpeg.avi";
-  FramesDecoderGpu decoder(mjpeg_path, 0, DALI_RGB);
-  decoder.BuildIndex();
-  ASSERT_GT(decoder.NumFrames(), 1);
+  //
+  // Every frame is also compared against the CPU backend: NVDEC writes JPEG pictures in stream
+  // order with the legacy default stream, so a color conversion on a non-blocking stream used to
+  // read surfaces that weren't written yet and return blank frames (mostly the first ~20 frames
+  // of a freshly created NVDEC decoder). Hence the non-blocking streams, and several decoders
+  // alive at once: each one holds its NVDEC decoder, so the others can't reuse it from
+  // NVDECCache and get freshly created ones.
 
+  // The test file is 8-bit 4:4:4 (yuvj444p), which not every NVDEC generation can decode.
+  if (!FramesDecoderGpu::NvdecSupports(cudaVideoCodec_JPEG, cudaVideoChromaFormat_444)) {
+    GTEST_SKIP() << "NVDEC does not support 8-bit 4:4:4 JPEG on this GPU";
+  }
+  auto mjpeg_path = testing::dali_extra_path() + "/db/video/mjpeg/mjpeg.avi";
+  FramesDecoderCpu cpu_decoder(mjpeg_path, DALI_RGB);
+  ASSERT_TRUE(cpu_decoder.IsValid());
+  cpu_decoder.BuildIndex();
+  int num_frames = cpu_decoder.NumFrames();
+  ASSERT_GT(num_frames, 1);
+
+  constexpr int kNumGpuDecoders = 3;
+  std::vector<CUDAStream> streams;
+  std::vector<std::unique_ptr<FramesDecoderGpu>> gpu_decoders;
+  for (int d = 0; d < kNumGpuDecoders; ++d) {
+    streams.push_back(CUDAStream::Create(true));
+    gpu_decoders.push_back(std::make_unique<FramesDecoderGpu>(mjpeg_path, streams[d], DALI_RGB));
+    ASSERT_TRUE(gpu_decoders[d]->IsValid());
+    gpu_decoders[d]->BuildIndex();
+    ASSERT_EQ(gpu_decoders[d]->NumFrames(), num_frames);
+    ASSERT_EQ(gpu_decoders[d]->FrameSize(), cpu_decoder.FrameSize());
+  }
+
+  std::vector<uint8_t> expected(cpu_decoder.FrameSize());
+  std::vector<uint8_t> actual(cpu_decoder.FrameSize());
   // VideoColorSpaceConversion writes directly into this pointer via a CUDA kernel, so it must
   // be device memory, not a host std::vector.
-  DeviceBuffer<uint8_t> frame0_device;
-  DeviceBuffer<uint8_t> frame1_device;
-  frame0_device.resize(decoder.FrameSize());
-  frame1_device.resize(decoder.FrameSize());
-  ASSERT_TRUE(decoder.ReadNextFrame(frame0_device.data()));
-  ASSERT_TRUE(decoder.ReadNextFrame(frame1_device.data()));
-
-  auto any_nonzero = [](const std::vector<uint8_t> &frame) {
-    for (uint8_t v : frame) {
-      if (v != 0) return true;
+  DeviceBuffer<uint8_t> frame_device;
+  frame_device.resize(cpu_decoder.FrameSize());
+  for (int i = 0; i < num_frames; ++i) {
+    ASSERT_TRUE(cpu_decoder.ReadNextFrame(expected.data())) << "CPU: failed decoding frame " << i;
+    for (int d = 0; d < kNumGpuDecoders; ++d) {
+      ASSERT_TRUE(gpu_decoders[d]->ReadNextFrame(frame_device.data()))
+          << "GPU decoder " << d << ": failed decoding frame " << i;
+      CUDA_CALL(cudaMemcpyAsync(actual.data(), frame_device.data(), actual.size(),
+                                cudaMemcpyDeviceToHost, streams[d]));
+      CUDA_CALL(cudaStreamSynchronize(streams[d]));
+      // The two backends use different JPEG decoders and color conversions, so they differ by
+      // rounding noise (below 1 on average); a blank frame is off by tens.
+      double diff = AvgAbsDiff(actual, expected);
+      EXPECT_LT(diff, 1.5) << "GPU decoder " << d << ": frame " << i
+                           << " differs from the CPU backend's (avg abs diff " << diff << ")";
     }
-    return false;
-  };
-
-  std::vector<uint8_t> frame0_host(decoder.FrameSize());
-  MemCopy(frame0_host.data(), frame0_device.data(), decoder.FrameSize());
-  EXPECT_TRUE(any_nonzero(frame0_host)) << "Decoded MJPEG frame 0 was all zeros";
-
-  // frame 1 is the specific point that used to crash with CUDA_ERROR_INVALID_VALUE -- check its
-  // content too, not just that ReadNextFrame returned true for it.
-  std::vector<uint8_t> frame1_host(decoder.FrameSize());
-  MemCopy(frame1_host.data(), frame1_device.data(), decoder.FrameSize());
-  EXPECT_TRUE(any_nonzero(frame1_host)) << "Decoded MJPEG frame 1 was all zeros";
-
-  // Decode the rest of the video too -- the surface-count fix must hold for the whole file,
-  // not just the first couple of frames.
-  for (int i = 2; i < decoder.NumFrames(); ++i) {
-    ASSERT_TRUE(decoder.ReadNextFrame(frame0_device.data())) << "Failed decoding frame " << i;
   }
 }
 

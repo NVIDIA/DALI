@@ -472,6 +472,9 @@ void FramesDecoderGpu::InitGpuParser() {
                make_string("Could not allocate av packet for \"", Filename(), "\""));
 
   auto codec_type = GetCodecType(codec_params_->codec_id);
+  if (codec_type == cudaVideoCodec_JPEG) {
+    legacy_stream_event_ = CUDAEvent::CreateWithFlags(cudaEventDisableTiming);
+  }
 
   // Create nv parser
   CUVIDPARSERPARAMS parser_info;
@@ -642,6 +645,16 @@ int FramesDecoderGpu::HandlePictureDisplay(CUVIDPARSERDISPINFO *picture_display_
     int oldest = pending_map_order_.front();
     pending_map_order_.pop_front();
     EnsureUnmapped(oldest);
+  }
+
+  // NVDEC decodes JPEG pictures in stream order with the legacy default stream, and neither
+  // cuvidMapVideoFrame nor cuvidGetDecodeStatus (which already reports success) waits for that
+  // work: with stream_ being a non-blocking stream, the conversion kernel below could read the
+  // surface before NVDEC wrote it, returning blank frames (mostly the first ~20 pictures of a
+  // freshly created decoder). Make stream_ wait for the legacy default stream, on the GPU.
+  if (legacy_stream_event_) {
+    CUDA_CALL(cudaEventRecord(legacy_stream_event_, cudaStreamLegacy));
+    CUDA_CALL(cudaStreamWaitEvent(stream_, legacy_stream_event_, 0));
   }
 
   CUDA_CALL(cuvidMapVideoFrame(
@@ -1084,6 +1097,16 @@ bool FramesDecoderGpu::SupportsHevc() {
   decoder_caps.eCodecType = cudaVideoCodec_HEVC;
   decoder_caps.eChromaFormat = cudaVideoChromaFormat_420;
   decoder_caps.nBitDepthMinus8 = 10 - 8;  // 10-bit HEVC
+  CUDA_CALL(cuvidGetDecoderCaps(&decoder_caps));
+  return decoder_caps.bIsSupported;
+}
+
+bool FramesDecoderGpu::NvdecSupports(cudaVideoCodec codec_type,
+                                     cudaVideoChromaFormat chroma_format, int bit_depth) {
+  CUVIDDECODECAPS decoder_caps = {};
+  decoder_caps.eCodecType = codec_type;
+  decoder_caps.eChromaFormat = chroma_format;
+  decoder_caps.nBitDepthMinus8 = bit_depth - 8;
   CUDA_CALL(cuvidGetDecoderCaps(&decoder_caps));
   return decoder_caps.bIsSupported;
 }

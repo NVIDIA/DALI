@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,6 +16,7 @@
 #include <cmath>
 #include <cstring>
 #include <fstream>
+#include "dali/operators/video/frames_decoder_gpu.h"
 #include "dali/pipeline/pipeline.h"
 #include "dali/test/dali_test_config.h"
 #include "dali/util/nvml.h"
@@ -247,8 +248,12 @@ TEST_F(VIDEO_READER_TEST_CLASS, PackedBFrames) {
 
 inline bool IsUnsupportedCodec(const char *error_message) {
   const char *unsupported_codec_messages[] = {
+      // readers.video
       "Decoder hardware does not support this video codec and/or chroma format",
-      "Unsupported Code"};
+      "Unsupported Code",
+      // experimental.readers.video
+      "Codec configuration not supported on this GPU",
+      "is not supported by NVDEC on this platform"};
   for (const char *part : unsupported_codec_messages) {
     if (std::strstr(error_message, part)) return true;
   }
@@ -370,6 +375,13 @@ TEST_F(VIDEO_READER_TEST_CLASS, MJpeg) {
   const string unsupported_exception_msg =
       "Decoder hardware does not support this video codec"
       " and/or chroma format";
+
+  // experimental.readers.video skips (with a warning) a file whose codec NVDEC doesn't support at
+  // all, so with no files left it fails with a generic "no samples" error instead: check upfront.
+  // The test file is 8-bit 4:4:4 (yuvj444p).
+  if (!FramesDecoderGpu::NvdecSupports(cudaVideoCodec_JPEG, cudaVideoChromaFormat_444)) {
+    GTEST_SKIP() << "NVDEC does not support 8-bit 4:4:4 JPEG on this GPU";
+  }
 
   // richer FFmpeg configuration leads to different behaviour of VFR heuristics, so disable the
   // VFR check for this video. readers__Video's default (VFR check enabled) rejects this file;
