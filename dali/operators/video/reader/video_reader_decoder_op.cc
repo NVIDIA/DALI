@@ -106,8 +106,7 @@ MPEG-PS (MPEG-2 Program Stream, container format ``mpeg``) is not supported: thi
 stamps a timestamp on some packets, which this operator's frame-accurate seeking can't handle
 reliably. Such files are treated like any other invalid file (skipped with a warning when mixed
 with valid files, or an error if no valid files remain). Remux affected files to MP4 or MKV
-(e.g. ``ffmpeg -i in.mpeg -c copy out.mp4``) to use them with this operator. MPEG-TS (Transport
-Stream) is unaffected and fully supported.
+(e.g. ``ffmpeg -i in.mpeg -c copy out.mp4``) to use them with this operator.
 
 The following video codecs are supported by both CPU and GPU backends:
 
