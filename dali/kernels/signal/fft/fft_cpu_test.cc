@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -172,6 +172,7 @@ INSTANTIATE_TEST_SUITE_P(Fft1DCpuTest, ComplexFft1DCpuTest, testing::Combine(
                     std::array<int64_t, 2>{1, 10},
                     std::array<int64_t, 2>{1, 64},
                     std::array<int64_t, 2>{1, 100},
+                    std::array<int64_t, 2>{1, 301},
                     std::array<int64_t, 2>{1, 4096})));
 
 class PowerSpectrum1DCpuTest : public Fft1DCpuTest {};
@@ -240,6 +241,7 @@ INSTANTIATE_TEST_SUITE_P(Fft1DCpuTest, PowerSpectrum1DCpuTest, testing::Combine(
                     std::array<int64_t, 2>{1, 10},
                     std::array<int64_t, 2>{1, 64},
                     std::array<int64_t, 2>{1, 100},
+                    std::array<int64_t, 2>{1, 301},
                     std::array<int64_t, 2>{1, 4096})));
 
 class Fft1DCpuOtherLayoutTest : public::testing::TestWithParam<
