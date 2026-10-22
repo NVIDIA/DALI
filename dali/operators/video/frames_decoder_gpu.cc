@@ -901,6 +901,12 @@ void FramesDecoderGpu::Flush() {
 }
 
 FramesDecoderGpu::~FramesDecoderGpu() {
+  // frame_buffer_ goes back to the memory pool right after this, without stream ordering: wait
+  // for the copies out of it (CopyFrame, copyD2D) that may still be pending on stream_. Nothing
+  // is thrown from the destructor: a failing sync means the CUDA context is already broken, and
+  // that error is reported by the call that caused it.
+  if (cudaStreamSynchronize(stream_) != cudaSuccess)
+    (void)cudaGetLastError();
   filtered_packet_.reset();
   bsfc_.reset();
 }
