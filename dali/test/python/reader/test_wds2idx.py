@@ -82,3 +82,44 @@ def test_wds2idx_gnu_tar_path_accepts_member_owner_with_space():
         _, name, size = entries[0]
         assert name == member_name
         assert size == len(payload)
+
+
+def _check_gnu_tar_path_offsets_with_long_member_names(archive_format):
+    if which("tar") is None:
+        raise unittest.SkipTest("GNU tar not installed")
+
+    wds2idx = _load_wds2idx()
+
+    with tempfile.TemporaryDirectory() as test_dir:
+        tar_path = os.path.join(test_dir, "data.tar")
+        idx_path = os.path.join(test_dir, "data.idx")
+        # names longer than 100 characters don't fit in the tar header and are stored in
+        # extra headers placed before the member header (`././@LongLink` in the GNU format)
+        payloads = {
+            "sample/" + "a" * 150 + ".jpg": b"\xff\xd8\xff\xe0first payload",
+            "short.cls": b"1",
+            "b" * 600 + ".jpg": b"\xff\xd8\xff\xe0second payload",
+        }
+
+        with tarfile.open(tar_path, "w", format=archive_format) as archive:
+            for member_name, payload in payloads.items():
+                info = tarfile.TarInfo(name=member_name)
+                info.size = len(payload)
+                archive.addfile(info, io.BytesIO(payload))
+
+        with wds2idx.IndexCreator(tar_path, idx_path, verbose=False) as creator:
+            entries = list(creator._get_data_tar())
+
+        assert [name for _, name, _ in entries] == list(payloads)
+        with open(tar_path, "rb") as archive:
+            for offset, name, size in entries:
+                archive.seek(offset)
+                assert archive.read(size) == payloads[name]
+
+
+def test_wds2idx_gnu_tar_path_offsets_with_gnu_long_member_names():
+    _check_gnu_tar_path_offsets_with_long_member_names(tarfile.GNU_FORMAT)
+
+
+def test_wds2idx_gnu_tar_path_offsets_with_pax_long_member_names():
+    _check_gnu_tar_path_offsets_with_long_member_names(tarfile.PAX_FORMAT)
