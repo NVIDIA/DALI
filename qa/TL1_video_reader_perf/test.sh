@@ -32,9 +32,9 @@ JSON_HASH="video_reader_hash.json"
 LOG_REF="video_reader_ref.log"
 JSON_REF="video_reader_ref.json"
 
-# Other libraries run for reference on the same samples (video_reader_bench.py --backends), on
-# x86_64 only; one short run each, not checked. The DALI numbers are in the performance run.
-# Installed by install_reference_libs.
+# DALI's legacy fn.readers.video and other libraries run for reference on the same samples
+# (video_reader_bench.py --backends), on x86_64 only; one short run each, not checked. The DALI
+# numbers are in the performance run. The libraries are installed by install_reference_libs.
 REF_SCENARIOS="lanes,single_stream,cache_key,cpu"
 REF_ARGS="--repeat 1 --iters 4 --warmup 1 --min_time 2 -j 1,16"
 
@@ -137,7 +137,7 @@ test_body() {
         REF_RUN="SKIPPED"
     elif install_reference_libs; then
         run_bench "${LOG_REF}" ${TASKSET} python video_reader_bench.py ${REF_ARGS} \
-            -s ${REF_SCENARIOS} -b ${REF_BACKENDS} --json ${JSON_REF} || REF_RUN="FAIL"
+            -s ${REF_SCENARIOS} -b dali_legacy,${REF_BACKENDS} --json ${JSON_REF} || REF_RUN="FAIL"
     else
         REF_RUN="FAIL"
     fi

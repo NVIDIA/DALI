@@ -65,7 +65,9 @@ HASH_MIN_SAMPLES samples, so that the reader's prefetch queue wraps around. Comp
 --hash result files (e.g. two builds, or --ignore threads to check that the output
 does not depend on num_threads) with --compare.
 
-Other libraries (--backends), for reference:
+Other readers and libraries (--backends), for reference:
+  dali_legacy      DALI's legacy fn.readers.video (GPU, constant frame rate only: no cpu,
+                   cache_key), through the same pipeline as the DALI reader
   pynvvideocodec   PyNvVideoCodec SimpleDecoder (NVDEC), RGB interleaved output (as DALI)
   torchcodec       torchcodec VideoDecoder, FFmpeg CUDA backend on GPU, FFmpeg on CPU
   torchcodec_nvdec torchcodec VideoDecoder with its own NVDEC backend (torchcodec >= 0.8)
@@ -212,6 +214,9 @@ def scenarios(threads, readers, quick=False):
 _REFERENCE_SCENARIOS = {"lanes", "seq_longgop", "random_access", "single_stream", "cache_key"}
 BACKEND_SCENARIOS = {
     "dali": (None, ("gpu", "cpu")),  # None: all scenarios
+    # the legacy fn.readers.video: GPU only, and constant frame rate only (both cache_key
+    # pairs include a variable frame rate file)
+    "dali_legacy": (_REFERENCE_SCENARIOS - {"cache_key"} | {"reader_depth", "engines"}, ("gpu",)),
     "pynvvideocodec": (_REFERENCE_SCENARIOS, ("gpu",)),
     "torchcodec": (_REFERENCE_SCENARIOS | {"cpu"}, ("gpu", "cpu")),
     "torchcodec_nvdec": (_REFERENCE_SCENARIOS, ("gpu",)),
@@ -228,7 +233,11 @@ def backend_runs(backend, scenario, cfg):
     seeks = scenario == "random_access" or (
         scenario == "seq_longgop" and min(cfg["threads"], cfg["batch"]) > 1
     )
-    return not (backend == "pynvvideocodec" and seeks)
+    if backend == "pynvvideocodec" and seeks:
+        return False
+    # the legacy reader fails seeking in the HEVC trailer (open GOPs): "The decoder returned a
+    # frame that is past the expected one"; reading it sequentially works
+    return not (backend == "dali_legacy" and seeks and cfg["files"] == "hevc_long")
 
 
 # ----------------------------------------------------------------------------------------
@@ -437,6 +446,9 @@ def build_pipeline(cfg, specs, device_id, seed, frame_num=False):
     import nvidia.dali.fn as fn
     from nvidia.dali.pipeline import pipeline_def
 
+    legacy = cfg["backend"] == "dali_legacy"
+    reader = fn.readers.video if legacy else fn.experimental.readers.video
+
     @pipeline_def(
         batch_size=cfg["batch"],
         num_threads=cfg["threads"],
@@ -450,12 +462,14 @@ def build_pipeline(cfg, specs, device_id, seed, frame_num=False):
             kw = dict(spec)
             if "filenames" in kw:
                 kw["labels"] = list(range(len(kw["filenames"])))
+            elif legacy:
+                kw["file_list_frame_num"] = True  # frame numbers, not timestamps; end exclusive
             else:
                 kw["file_list_format"] = "frames"
                 kw["file_list_include_end"] = False  # explicit: the default changed over time
             if frame_num:
                 kw["enable_frame_num"] = True
-            outs += fn.experimental.readers.video(
+            outs += reader(
                 device=cfg["device"],
                 sequence_length=cfg["seq"],
                 random_shuffle=cfg["shuffle"],
@@ -489,7 +503,9 @@ class DaliRunner:
         import nvidia.dali as dali
 
         self.cfg = cfg
-        self.version = dali.__version__
+        self.version = dali.__version__ + (
+            " (fn.readers.video)" if cfg["backend"] != "dali" else ""
+        )
         # up to `depth` (pipeline queue) + `reader_depth` (the reader's own queue) batches
         # may be produced before the clock starts
         self.prefetched = cfg["depth"] + cfg["reader_depth"]
@@ -637,7 +653,8 @@ class ReferenceRunner:
 
 
 def make_runner(cfg, specs, args):
-    return (DaliRunner if cfg["backend"] == "dali" else ReferenceRunner)(cfg, specs, args)
+    dali = cfg["backend"] in ("dali", "dali_legacy")
+    return (DaliRunner if dali else ReferenceRunner)(cfg, specs, args)
 
 
 def percentile(sorted_vals, q):
@@ -655,7 +672,7 @@ def run_one(cfg, specs, args):
     res["backend_version"] = runner.version
     t0 = time.perf_counter()  # build_s: the DALI reader (indexing), not the CUDA runtime
     runner.build()
-    if cfg["backend"] == "dali":  # other libraries open their decoders lazily, in run()
+    if isinstance(runner, DaliRunner):  # other libraries open their decoders lazily, in run()
         res["build_s"] = time.perf_counter() - t0
     t0 = time.perf_counter()
     runner.run()
