@@ -169,6 +169,11 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
 
   static bool SupportsHevc();
 
+  /**
+   * @brief Number of NVDEC engines of the device; 0 if unknown.
+   */
+  static int NumEngines(int device_id);
+
   static bool SupportsCodec(AVCodecID codec_id, uint8_t bit_depth = 8);
 
   void InitGpuDecoder(CUVIDEOFORMAT *video_format);

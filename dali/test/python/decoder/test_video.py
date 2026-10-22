@@ -21,6 +21,7 @@ import nvidia.dali.types as types
 import glob
 import os
 import random
+import tempfile
 from itertools import cycle
 from test_utils import (
     get_dali_extra_path,
@@ -1319,3 +1320,85 @@ def test_video_index_reuse():
         seed=123456,
     )
     pipe.run()
+
+
+# The reader decodes the samples of a batch in parallel, by up to num_threads decoders (decode
+# lanes). Its output must not depend on how many there are.
+_lanes_reader_cases = [
+    dict(sequence_length=5),  # consecutive sequences of each file
+    dict(sequence_length=4, stride=3, step=20),  # sparse samples of each file
+    dict(sequence_length=5, step=2),  # overlapping samples
+    dict(sequence_length=6, random_shuffle=True, initial_fill=8),
+    dict(sequence_length=6, uniform_sample=True),
+    dict(sequence_length=7, pad_mode="constant", fill_value=[30, 60, 90], enable_timestamps=True),
+    dict(sequence_length=5, pad_last_batch=True, num_shards=3, shard_id=2),
+]
+
+
+def _lanes_reader_files(device):
+    # H.264 is not enabled on the CPU backend
+    return cfr_files + vfr_files + (codec_files["h264"] if device == "gpu" else [])
+
+
+@cartesian_params(["cpu", "gpu"], range(len(_lanes_reader_cases)))
+def test_reader_output_independent_of_num_threads(device, case):
+    skip_if_m60()
+    kwargs = _lanes_reader_cases[case]
+    batch_size = 4
+
+    @pipeline_def(batch_size=batch_size, device_id=0, seed=42)
+    def pipe():
+        # videos, frame numbers and, with enable_timestamps, timestamps
+        return tuple(
+            fn.experimental.readers.video(
+                filenames=_lanes_reader_files(device),
+                device=device,
+                enable_frame_num="sequence",
+                **kwargs,
+            )
+        )
+
+    compare_pipelines(
+        pipe(num_threads=1), pipe(num_threads=4), batch_size=batch_size, N_iterations=8
+    )
+
+
+@params("cpu", "gpu")
+def test_reader_pad_last_batch_repeats_last_sample(device):
+    """With pad_last_batch, a shard's last sample is repeated, here as the whole next batch: the
+    same sample, which must not be decoded again while the earlier batch may still be in use."""
+    skip_if_m60()
+    batch_size = 4
+    files = _lanes_reader_files(device)
+    # 26 samples in 3 shards: shard 0 has samples 0-7 and is padded to 9 samples, so its third
+    # batch is sample 7, four times
+    with tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False) as file_list:
+        for i in range(26):
+            start = (i // len(files)) * 4
+            file_list.write(f"{files[i % len(files)]} {i} {start} {start + 4}\n")
+
+    @pipeline_def(batch_size=batch_size, num_threads=4, device_id=0, prefetch_queue_depth=3)
+    def pipe():
+        videos, labels = fn.experimental.readers.video(
+            file_list=file_list.name,
+            file_list_format="frames",
+            file_list_include_end=False,
+            device=device,
+            sequence_length=4,
+            pad_last_batch=True,
+            num_shards=3,
+            shard_id=0,
+        )
+        return videos, labels
+
+    p = pipe()
+    samples = []
+    for _ in range(3):
+        videos, labels = p.run()
+        videos = videos.as_cpu() if device == "gpu" else videos
+        labels = labels.as_cpu() if device == "gpu" else labels
+        samples += [(np.array(videos[i]), int(np.array(labels[i])[0])) for i in range(batch_size)]
+    os.remove(file_list.name)
+    assert [label for _, label in samples] == list(range(8)) + [7] * 4
+    for video, _ in samples[8:]:
+        np.testing.assert_array_equal(video, samples[7][0])

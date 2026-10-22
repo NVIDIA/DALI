@@ -619,8 +619,23 @@ class VideoReaderDecoder
   // much as decoding a few frames
   static constexpr int64_t kOpenCost = 16;
 
+  // GPU: decode lanes per NVDEC engine. More sessions than engines keep an engine busy while a
+  // lane does its host work between pictures; many more only add memory.
+  static constexpr int kLanesPerEngine = 2;
+
+  /**
+   * @brief Number of decode lanes: num_threads, but no more than the batch size and, on the GPU,
+   * kLanesPerEngine per NVDEC engine.
+   */
   int NumLanes(const OpSpec &spec) {
-    return 1;  // more lanes in the next step
+    int lanes = std::min(spec.GetArgument<int>("num_threads"),
+                         spec.GetArgument<int>("max_batch_size"));
+    if constexpr (std::is_same_v<Backend, GPUBackend>) {
+      int engines = FramesDecoderGpu::NumEngines(spec.GetArgument<int>("device_id"));
+      if (engines > 0)
+        lanes = std::min(lanes, kLanesPerEngine * engines);
+    }
+    return std::max(lanes, 1);
   }
 
   void InitLanes(const OpSpec &spec) {
@@ -740,7 +755,7 @@ class VideoReaderDecoder
    *
    * A lane then decodes the runs of one file together, by first frame: first the file its
    * decoder holds (starting with the run that continues where the decoder is), then the others in
-   * batch order.
+   * batch order. A lane without runs releases its decoder.
    */
   void AssignRuns() {
     for (auto &lane : lanes_) {
@@ -821,6 +836,8 @@ class VideoReaderDecoder
       auto it = std::find_if(runs.begin(), runs.end(), continues);
       if (it != runs.end())
         std::rotate(runs.begin(), it, it + 1);
+      if (runs.empty() && lanes_.size() > 1)
+        lanes_[l].decoder.reset();  // do not keep its frame buffers and NVDEC decoder idle
     }
   }
 
@@ -1031,6 +1048,11 @@ The following codecs are supported by the GPU backend only:
 * MPEG-4
 * H.264/AVC
 * H.265/HEVC
+
+The samples of a batch are decoded in parallel, by up to ``num_threads`` decoders (on the GPU, at
+most two per NVDEC engine of the device). Consecutive samples of one file that can be decoded
+without seeking are decoded by the same decoder, one after another. Every decoder has its own
+frame buffers, so the memory used grows with the number of decoders.
 
 The outputs of the operator are: video, [labels], [frame_num], [timestamps].
 
