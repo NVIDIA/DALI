@@ -394,7 +394,9 @@ class Compose:
         Parameters
         ----------
             data_input: Tensor or PIL Image
-                In case of PIL image it will be converted to tensor before sending to pipeline
+                In case of PIL image it will be converted to tensor before sending to pipeline.
+                Tensors are expected in ``(..., C, H, W)`` layout. The leading dimensions are
+                processed as a batch, so their product must not exceed ``batch_size``.
         """
 
         _ValidateTensorOrImage.verify(data_input)

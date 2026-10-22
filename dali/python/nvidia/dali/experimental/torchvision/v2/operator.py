@@ -279,7 +279,8 @@ def adjust_input(func):
     - ``PIL.Image`` -> ``ndd.Tensor(layout = "HWC")``
     - ``torch.Tensor``:
         - ``ndim == 3`` -> ``ndd.Tensor(layout = "CHW")``
-        - ``ndim > 3`` -> ``ndd.Batch(layout = "CHW")``
+        - ``ndim > 3`` -> ``ndd.Batch(layout = "CHW")``, leading dimensions ``(..., C, H, W)``
+          are flattened into the batch and restored on the output
 
     Note: When new input types are supported this function will be extended.
     """
