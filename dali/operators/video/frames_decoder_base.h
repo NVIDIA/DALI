@@ -263,6 +263,14 @@ class DLL_PUBLIC FramesDecoderBase {
   virtual void SeekFrame(int frame_id);
 
   /**
+   * @brief Seeking forward by at most this many frames decodes through them instead of seeking.
+   *
+   * With an index, a decoder also decodes through to any later frame that has the same last
+   * keyframe as its next frame (see SeekFrame).
+   */
+  static constexpr int kMinimumSeekLeap = 10;
+
+  /**
    * @brief Handles boundary conditions for a given frame index.
    *
    * @param boundary_type The boundary type to apply.
@@ -270,8 +278,8 @@ class DLL_PUBLIC FramesDecoderBase {
    * @param roi_start The start of the region of interest.
    * @param roi_end The end of the region of interest.
    */
-  int HandleBoundary(boundary::BoundaryType boundary_type, int frame_id,
-                     int roi_start, int roi_end);
+  static int HandleBoundary(boundary::BoundaryType boundary_type, int frame_id,
+                            int roi_start, int roi_end);
 
   /**
    * @brief Decodes a collection of frames, not necessarily in ascending order, applying a boundary type

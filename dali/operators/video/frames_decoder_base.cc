@@ -527,13 +527,12 @@ void FramesDecoderBase::SeekFrame(int frame_id) {
   assert(next_frame_idx_ >= 0);
 
   // If we are seeking to a frame that is before the current frame,
-  // or we are seeking to a frame that is more than MINIMUM_SEEK_LEAP frames away,
+  // or we are seeking to a frame that is more than kMinimumSeekLeap frames away,
   // or the current frame index is invalid (e.g. end of file),
   // we will to seek to the nearest keyframe first
   LOG_LINE << "SeekFrame: frame_id=" << frame_id << ", next_frame_idx=" << next_frame_idx_
            << std::endl;
-  constexpr int MINIMUM_SEEK_LEAP = 10;
-  if (frame_id < next_frame_idx_ || frame_id > next_frame_idx_ + MINIMUM_SEEK_LEAP) {
+  if (frame_id < next_frame_idx_ || frame_id > next_frame_idx_ + kMinimumSeekLeap) {
     // If we have an index, we can seek to the nearest keyframe first
     if (HasIndex()) {
       LOG_LINE << "Using index to find nearest keyframe" << std::endl;
