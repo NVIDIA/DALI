@@ -496,6 +496,10 @@ class ImageDecoder : public StatelessOperator<Backend> {
     parsed_sample.orig_dtype = to_dali_dtype(sample_type);
     if (parsed_sample.orig_dtype == DALI_NO_TYPE)
       throw std::runtime_error(make_string("Invalid sample_type: ", sample_type));
+    if (!IsIntegral(parsed_sample.orig_dtype))
+      throw std::runtime_error(make_string(
+          "Decoding images with a floating point sample type (", parsed_sample.orig_dtype,
+          ") is not supported."));
   }
 
   ThreadPool *GetThreadPool(const Workspace &ws) {
@@ -556,14 +560,25 @@ class ImageDecoder : public StatelessOperator<Backend> {
 
     st.image_info.cuda_stream = std::is_same<MixedBackend, Backend>::value ? ws.stream() : nullptr;
 
-    // At the moment we are not dealing with floating point outputs in nvimagecodec
+    // Floating point sources are rejected when the sample is parsed
     assert(IsIntegral(st.parsed_sample.orig_dtype));
 
     int precision = st.image_info.plane_info[0].precision;
-    if (precision == 0)
+    if (precision == 0) {
       precision = PositiveBits(st.parsed_sample.orig_dtype);
-    if (precision == 1 && st.parsed_sample.orig_dtype == DALI_UINT8)
+    } else if (precision == 1 && st.parsed_sample.orig_dtype == DALI_UINT8) {
       precision = 8;  // nvimgcodec produces at minimum uint8 dynamic range (0..255)
+    } else {
+      // `precision` reported by the source (e.g. TIFF BitsPerSample) is the raw bit width of the
+      // stored sample, which for a signed sample format already includes the sign bit, while
+      // PositiveBits() counts only the magnitude bits. Convert it to the same basis, otherwise
+      // a full-width signed source (the common case) is treated as if it used one bit less than
+      // its actual dynamic range and gets scaled down incorrectly. This assumes that a codec
+      // producing a signed type reports the precision including the sign bit.
+      // Note that the CPU backend does not apply `dyn_range_multiplier` yet (see the TODO in
+      // the conversion step below), so a reduced-precision source is decoded unscaled there.
+      precision = PositiveBitsFromPrecision(precision, st.parsed_sample.orig_dtype);
+    }
     bool need_dynamic_range_scaling =
         NeedDynamicRangeScaling(precision, st.parsed_sample.orig_dtype);
     st.dyn_range_multiplier = need_dynamic_range_scaling ?
