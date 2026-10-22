@@ -654,9 +654,10 @@ def run_one(cfg, specs, args):
 
     runner = make_runner(cfg, specs, args)  # initializes CUDA before the clock starts
     res["backend_version"] = runner.version
-    t0 = time.perf_counter()  # build_s: the reader or the decoders, not the CUDA runtime
+    t0 = time.perf_counter()  # build_s: the DALI reader (indexing), not the CUDA runtime
     runner.build()
-    res["build_s"] = time.perf_counter() - t0
+    if cfg["backend"] == "dali":  # other libraries open their decoders lazily, in run()
+        res["build_s"] = time.perf_counter() - t0
     t0 = time.perf_counter()
     runner.run()
     res["first_batch_ms"] = (time.perf_counter() - t0) * 1e3
@@ -851,6 +852,10 @@ def format_row(r):
         flags.append("CONTAMINATED")
     if r.get("frames_per_s_spread_pct", 0) > 3:
         flags.append("spread>3%")
+    if r.get("device") == "gpu" and r.get("proc_nvdec_util") is not None:
+        if r["proc_nvdec_util"] < 10:
+            # e.g. a GPU backend that falls back to CPU decoding for a format it can't decode
+            flags.append("NVDEC<10%")
     if r.get("errors"):
         flags.append(f"{len(r['errors'])} failed run(s)")
     if r.get("error"):
