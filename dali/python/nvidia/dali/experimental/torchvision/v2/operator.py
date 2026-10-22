@@ -293,6 +293,7 @@ def adjust_input(func):
         - torch.Tensor:
           ndim==3 -> ndd.Tensor(layout = "CHW"),
           ndim>3  -> ndd.Batch(layout="CHW")  (workaround for DALI-4566; intended: layout="NCHW")
+                     with all leading dimensions (..., C, H, W) flattened into the batch
         """
         mode = "RGB"
         if isinstance(inpt, Image.Image):
@@ -307,8 +308,8 @@ def adjust_input(func):
             if inpt.ndim == 3:
                 _input = ndd.Tensor(inpt, layout="CHW")
             elif inpt.ndim > 3:
-                # Creating batches of NCHW
-                _input = ndd.as_batch(inpt, layout="CHW")
+                # Creating batches of NCHW, leading dimensions (..., C, H, W) are flattened
+                _input = ndd.as_batch(inpt.reshape(-1, *inpt.shape[-3:]), layout="CHW")
             else:
                 raise TypeError(f"Tensor has < 3 dimensions: {inpt.ndim}, shape: {inpt.shape}")
         else:
@@ -358,7 +359,11 @@ def adjust_input(func):
             if output.device.device_type == "cpu":
                 output = np.asarray(output)
 
-            return torch.as_tensor(output)
+            output = torch.as_tensor(output)
+            if inpt.ndim > 3:
+                # Restore leading dimensions flattened in transform_input
+                output = output.reshape(*inpt.shape[:-3], *output.shape[-3:])
+            return output
         else:
             return output
 

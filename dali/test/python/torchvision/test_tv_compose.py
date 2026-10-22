@@ -79,6 +79,28 @@ def test_compose_multi_tensor():
     assert torch.allclose(dali_out, tv_out, rtol=0, atol=1), f"Should be {tv_out} is {dali_out}"
 
 
+@params(
+    ((2, 4, 3, 5, 5), "cpu"),
+    ((2, 4, 3, 5, 5), "gpu"),
+    ((2, 2, 2, 1, 5, 5), "cpu"),
+    ((2, 2, 2, 1, 5, 5), "gpu"),
+)
+def test_compose_leading_dims_tensor(shape, device):
+    # Videos (N, T, C, H, W) and other inputs with arbitrary leading dimensions (..., C, H, W)
+    test_tensor = make_test_tensor(shape=shape)
+    dali_pipeline = Compose(
+        [RandomHorizontalFlip(p=1.0, device=device), RandomVerticalFlip(p=1.0, device=device)]
+    )
+    dali_out = dali_pipeline(test_tensor).cpu()
+    fn_out = fn_dali.horizontal_flip(test_tensor, device=device)
+    fn_out = fn_dali.vertical_flip(fn_out, device=device).cpu()
+    tv_out = tv.Compose([tv.RandomHorizontalFlip(p=1.0), tv.RandomVerticalFlip(p=1.0)])(test_tensor)
+
+    assert dali_out.shape == tv_out.shape, f"Should be {tv_out.shape} is {dali_out.shape}"
+    assert torch.equal(dali_out, tv_out)
+    assert torch.equal(fn_out, tv_out)
+
+
 def test_compose_invalid_batch_tensor():
     test_tensor = make_test_tensor(shape=(5, 1, 5, 5))
     with assert_raises(RuntimeError):

@@ -296,6 +296,9 @@ class PipelineCHW(PipelineWithLayout):
             if data_input.ndim == 3:
                 # DALI requires batch size to be present
                 _input = data_input.unsqueeze(0)
+            elif data_input.ndim > 4:
+                # Flatten leading dimensions (..., C, H, W) into the batch dimension
+                _input = data_input.reshape(-1, *data_input.shape[-3:])
         else:
             raise ValueError("CHW layout is currently supported for torch.Tensor only.\
                 Please check if samples have the same format.")
@@ -304,6 +307,9 @@ class PipelineCHW(PipelineWithLayout):
         if data_input.ndim == 3:
             # Remove the batch dimension we added above
             output = output.squeeze(0)
+        elif data_input.ndim > 4:
+            # Restore the leading dimensions flattened above
+            output = output.reshape(*data_input.shape[:-3], *output.shape[-3:])
 
         if self.output_type == "pil":
             if output.ndim == 4:
