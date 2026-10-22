@@ -19,6 +19,11 @@ test_body() {
     # and one requiring a dedicated HW (multiGPU, GDS and OF)
     # optical flow requires TU102 architecture whilst this test can be run on any GPU
     exclude_files="multigpu\|mxnet\|tensorflow\|pytorch\|paddle\|jax\|external_input.ipynb\|webdataset-externalsource.ipynb\|numpy_reader\|optical_flow\|python_operator\|torchvision\|#"
+    if [ -n "$DALI_ENABLE_SANITIZERS" ]; then
+        # Numba stalls in llvmlite's LLVM JIT finalization with ASan preloaded.
+        echo "Skipping numba_function.ipynb with sanitizers: LLVM JIT finalization times out."
+        exclude_files="${exclude_files}\|numba_function.ipynb"
+    fi
 
     find * -name "*.ipynb" | sed "/${exclude_files}/d" | xargs -i jupyter nbconvert \
                     --to notebook --inplace --execute \
