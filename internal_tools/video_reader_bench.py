@@ -801,7 +801,7 @@ def aggregate(cfg, reps):
 
 COLUMNS = [
     ("scenario", "scenario", "{:<13}"),
-    ("backend", "backend", "{:<15}"),
+    ("backend", "backend", "{:<16}"),
     ("files", "files", "{:<17}"),
     ("layout", "layout", "{:<12}"),
     ("device", "dev", "{:<3}"),
