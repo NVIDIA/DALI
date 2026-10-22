@@ -1,7 +1,6 @@
 #!/bin/bash -e
-# used pip packages; torch (pinned per CUDA version in qa/setup_packages.py) is needed by the
-# reference libraries, see install_reference_libs
-pip_packages='numpy nvidia-ml-py==11.450.51 torch'
+# used pip packages (the reference libraries are installed by install_reference_libs)
+pip_packages='numpy nvidia-ml-py==11.450.51'
 target_dir=./internal_tools
 
 # One-time pre-step: FFmpeg shared libraries for torchcodec (x86_64 only, see
@@ -37,24 +36,20 @@ JSON_REF="video_reader_ref.json"
 REF_SCENARIOS="lanes,single_stream,cache_key,cpu"
 REF_ARGS="--repeat 1 --iters 4 --warmup 1 --min_time 2 -j 1,16"
 
-# Installs PyNvVideoCodec and torchcodec (x86_64 only) and sets REF_BACKENDS. torchcodec must
-# match the torch version installed through pip_packages, and is built for the same CUDA version.
+# Installs PyNvVideoCodec, and torch with the matching CUDA-enabled torchcodec from the PyTorch
+# index for this CUDA version (x86_64 only), and sets REF_BACKENDS. torch is needed only here,
+# so it is pinned here rather than in pip_packages, which would follow the DALI framework tests.
 install_reference_libs() {
-    local torch_ver cuda_tag tc_ver
-    torch_ver=$(python -c "import torch; print(torch.__version__.split('+')[0])")
-    cuda_tag=$(python -c "import torch; print('cu' + torch.version.cuda.replace('.', ''))")
-    case "${torch_ver}" in
-        2.7.*) tc_ver=0.5 ;;
-        2.11.*) tc_ver=0.11.1 ;;
-        *) echo "No torchcodec version known for torch ${torch_ver}; update test.sh"; return 1 ;;
+    local cuda_tag
+    case "${CUDA_VERSION}" in
+        12*) cuda_tag=cu129 ;;
+        13*) cuda_tag=cu130 ;;
+        *) echo "No PyTorch index known for CUDA_VERSION=${CUDA_VERSION}; update test.sh"; return 1 ;;
     esac
     pip install PyNvVideoCodec==2.0.2 || return 1
-    # --no-deps: keep the torch from pip_packages
-    pip install --no-deps "torchcodec==${tc_ver}+${cuda_tag}" \
+    pip install "torch==2.11.0+${cuda_tag}" "torchcodec==0.15.0+${cuda_tag}" \
         --index-url "https://download.pytorch.org/whl/${cuda_tag}" || return 1
-    REF_BACKENDS="pynvvideocodec,torchcodec"
-    # torchcodec 0.5 has no set_cuda_backend, i.e. no torchcodec_beta
-    [ "${tc_ver}" != "0.5" ] && REF_BACKENDS="${REF_BACKENDS},torchcodec_beta"
+    REF_BACKENDS="pynvvideocodec,torchcodec,torchcodec_nvdec"
     echo "Reference backends: ${REF_BACKENDS}"
 }
 
@@ -96,24 +91,18 @@ run_bench() {
 
 test_body() {
     if [ "$(uname -p)" == "x86_64" ]; then
-        # Hopper
-        TASKSET="taskset --cpu-list 0-127"
-        # Absolute minimums in frames/s (see qa/TL1_video_reader_perf/check_results.py);
-        # empty: reported for reference only, not checked.
-        # TODO: set them (e.g. 0.85x the REFERENCE values) once a few CI runs establish the
-        # baseline on these machines
-        MIN_LANES=
-        MIN_SINGLE_STREAM=
-        MIN_CPU=
-        MIN_ENGINES=
+        TASKSET="taskset --cpu-list 0-127"  # Hopper
     else
-        # GraceHopper
-        TASKSET="taskset --cpu-list 0-71"
-        MIN_LANES=
-        MIN_SINGLE_STREAM=
-        MIN_CPU=
-        MIN_ENGINES=
+        TASKSET="taskset --cpu-list 0-71"  # GraceHopper
     fi
+    # Absolute minimums in frames/s (see qa/TL1_video_reader_perf/check_results.py); empty:
+    # reported for reference only, not checked.
+    # TODO: set them per architecture (e.g. 0.85x the REFERENCE values) once a few CI runs
+    # establish the baseline on these machines
+    MIN_LANES=
+    MIN_SINGLE_STREAM=
+    MIN_CPU=
+    MIN_ENGINES=
 
     unset NSYS_REP
     PERF_RUN="OK"
@@ -123,7 +112,7 @@ test_body() {
     # The output must not depend on num_threads or on the reader's prefetch_queue_depth: every
     # configuration is compared with all that differ from it only in those
     HASH_RESULT="OK"
-    ${TASKSET} python video_reader_bench.py -s ${HASH_SCENARIOS} -j 1,16 --hash --hash_batches 4 \
+    ${TASKSET} python video_reader_bench.py -s ${HASH_SCENARIOS} -j 1,16 --hash \
         --json ${JSON_HASH} || HASH_RESULT="FAIL"
     python video_reader_bench.py --compare ${JSON_HASH} ${JSON_HASH} \
         --ignore threads,reader_depth || HASH_RESULT="FAIL"

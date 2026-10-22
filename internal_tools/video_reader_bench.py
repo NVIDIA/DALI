@@ -38,9 +38,6 @@ Scenarios (each isolates one aspect of the reader):
                  the cost of opening another file (decoder creation or NVDEC decoder
                  cache reuse) relative to a flush and seek within the same file. This
                  is a workload difference, not an isolated switch cost
-  switch         clips of mixed resolutions, shuffled, short sequences: per-sample
-                 cost under constant file switching (random access)
-  startup        many distinct files: pipeline build time and first batch latency
   engines        K independent readers in one pipeline, each on its own files:
                  how throughput scales with concurrent NVDEC sessions (works today,
                  because every reader decodes on its own thread)
@@ -52,7 +49,7 @@ Methodology:
   * the first `depth` + `reader_depth` timed iterations are excluded, as up to that many
     batches (pipeline queue and the reader's own queue) may have been produced off the
     clock; measuring continues until both --iters and --min_time are reached after them
-  * throughput and pixel rates count the actual output shapes of the timed batches
+  * throughput counts the actual output frames of the timed batches
   * Pipeline.run() without cuda_stream returns host-synchronized outputs, so iteration
     times include GPU completion
   * NVML metrics are per process where possible (decoder utilization, memory). A
@@ -70,7 +67,7 @@ does not depend on num_threads) with --compare.
 Other libraries (--backends), for reference:
   pynvvideocodec   PyNvVideoCodec SimpleDecoder (NVDEC), RGB interleaved output (as DALI)
   torchcodec       torchcodec VideoDecoder, FFmpeg CUDA backend on GPU, FFmpeg on CPU
-  torchcodec_beta  torchcodec VideoDecoder with its own NVDEC backend (set_cuda_backend)
+  torchcodec_nvdec torchcodec VideoDecoder with its own NVDEC backend (torchcodec >= 0.8)
   They decode the same samples as the DALI reader (the same sequences of the same files,
   in the same order, or shuffled with a fixed seed), each sample with frames [start, end)
   of one file. A batch is decoded by a pool of min(threads, batch) threads, each with its
@@ -106,7 +103,6 @@ VIDEO_DIR = "db/video"
 # every slot of the reader's prefetch queue is reused
 HASH_MIN_SAMPLES = 40
 
-H264_CLIPS = ["sintel/video_files/*.mp4", "sintel/labelled_videos/*/*.mp4"]
 VPX_CLIPS = [
     "vp9/vp9_0.mp4",
     "vp9/vp9_2.mp4",
@@ -119,7 +115,7 @@ VPX_CLIPS = [
 # file sets: glob patterns relative to DALI_extra/db/video
 FILES = {
     # 15 H.264 1280x720 clips, 122-430 frames, B-frames, 1-4 keyframes (GOP up to 250)
-    "h264_clips": H264_CLIPS,
+    "h264_clips": ["sintel/video_files/*.mp4", "sintel/labelled_videos/*/*.mp4"],
     # one H.264 1280x720 clip, 1253 frames, GOP 250
     "h264_long": ["sintel/sintel_trailer-720p.mp4"],
     # the same clip as HEVC 8-bit (keyframe every ~9 frames) and HEVC 10-bit (GOP 250)
@@ -127,17 +123,6 @@ FILES = {
     "hevc10_long": ["hevc/sintel_trailer-720p_10b.mp4"],
     # one H.264 512x512 clip, 250 frames: small frames, per-frame overheads dominate
     "h264_small": ["test_label.mp4"],
-    # H.264 clips with mixed resolutions (1280x720, 512x512, 800x600 coded as 800x608)
-    "h264_mixed": H264_CLIPS
-    + [
-        "cfr_test.mp4",
-        "vfr_test.mp4",
-        "test_label.mp4",
-        "frame_num_timestamp/test_25fps.mp4",
-        "multiple_framerate/50/50fps.mp4",
-        "cfr/test_2.mp4",
-        "vfr/test_2.mp4",
-    ],
     # two H.264 800x600 clips, coded as 800x608 (display area cropped)
     "h264_cropped_pair": ["cfr/test_2.mp4", "vfr/test_2.mp4"],
     # two H.264 1280x720 clips, coded size == display size
@@ -149,7 +134,7 @@ FILES = {
 # with an MP4 edit list hiding the lead-in frames: DALI and torchcodec start at the first
 # visible frame, so they decode the lead-in before frame 0, while PyNvVideoCodec returns the
 # lead-in frames themselves (different frames, less decoding)
-LEAD_IN_FILES = {"h264_clips", "h264_mixed"}
+LEAD_IN_FILES = {"h264_clips"}
 
 
 def _cfg(files, layout="plain", device="gpu", batch=8, seq=32, threads=4, **kw):
@@ -210,38 +195,25 @@ def scenarios(threads, readers, quick=False):
             for f in ("h264_cropped_pair", "h264_aligned_pair")
             for kind in ("alternate", "same")
         ],
-        "switch": [_cfg("h264_mixed", batch=8, seq=8, threads=t, shuffle=True) for t in t_pair],
-        "startup": [
-            _cfg("h264_clips", "many:256", batch=1, seq=8, threads=t, iters=0) for t in t_pair
-        ],
         # the noisiest scenario: more iterations than the --iters default
         "engines": [
             _cfg("h264_clips", "many:64", batch=4, seq=32, threads=4, readers=k, **iters)
             for k in readers
         ],
         "cpu": [
-            _cfg("vpx_clips", "many:128", device="cpu", batch=b, seq=16, threads=t)
-            for b in (1, 8)
-            for t in threads
+            _cfg("vpx_clips", "many:128", device="cpu", batch=8, seq=16, threads=t) for t in threads
         ],
     }
 
 
-# scenarios that other backends run as well (reader_depth, startup and engines measure
-# properties of the DALI reader), and the devices they decode on
-_REFERENCE_SCENARIOS = {
-    "lanes",
-    "seq_longgop",
-    "random_access",
-    "single_stream",
-    "cache_key",
-    "switch",
-}
+# scenarios that other backends run as well (reader_depth and engines measure properties of
+# the DALI reader), and the devices they decode on
+_REFERENCE_SCENARIOS = {"lanes", "seq_longgop", "random_access", "single_stream", "cache_key"}
 BACKEND_SCENARIOS = {
     "dali": (None, ("gpu", "cpu")),  # None: all scenarios
     "pynvvideocodec": (_REFERENCE_SCENARIOS, ("gpu",)),
     "torchcodec": (_REFERENCE_SCENARIOS | {"cpu"}, ("gpu", "cpu")),
-    "torchcodec_beta": (_REFERENCE_SCENARIOS, ("gpu",)),
+    "torchcodec_nvdec": (_REFERENCE_SCENARIOS, ("gpu",)),
 }
 
 
@@ -252,7 +224,7 @@ def backend_runs(backend, scenario, cfg):
     # PyNvVideoCodec 2.0 SimpleDecoder fails (IndexError) when a decoder that was just
     # created or reconfigured for a file is asked for frames from the middle of it, so it
     # runs only configurations whose decoders start every file at frame 0
-    seeks = scenario in ("random_access", "switch") or (
+    seeks = scenario == "random_access" or (
         scenario == "seq_longgop" and min(cfg["threads"], cfg["batch"]) > 1
     )
     return not (backend == "pynvvideocodec" and seeks)
@@ -374,7 +346,6 @@ class GpuMonitor:
         self.errors = []  # NVML problems; a metric may be missing, the run is still valid
         self.period = period
         self.mem = []
-        self.dev_dec = []
         self.others = set()
         self._stop = threading.Event()
         self._thread = threading.Thread(target=self._run, daemon=True)
@@ -416,9 +387,6 @@ class GpuMonitor:
         samplers = {
             "own memory": own_memory,
             "other processes": lambda: self.others.update(other_gpu_pids(nvml, h)),
-            "decoder utilization": lambda: self.dev_dec.append(
-                nvml.nvmlDeviceGetDecoderUtilization(h)[0]
-            ),
         }
         failures = dict.fromkeys(samplers, 0)
         while not self._stop.is_set():
@@ -448,8 +416,6 @@ class GpuMonitor:
         res = {}
         if self.mem:
             res["proc_mem_max_mb"] = max(self.mem) / 2**20
-        if self.dev_dec:
-            res["dev_nvdec_util"] = statistics.mean(self.dev_dec)
         try:
             samples = self.nvml.nvmlDeviceGetProcessUtilization(self.handle, self._t_start_us)
             dec = [s.decUtil for s in samples if s.pid == os.getpid()]
@@ -594,6 +560,13 @@ class ReferenceRunner:
             self.version = f"torchcodec {torchcodec.__version__}"
         self.version += f", torch {torch.__version__}"
         self.local = threading.local()
+        # torchcodec on the GPU: whether a decoder reported decoding on the CPU instead
+        # (None: not known, e.g. older torchcodec without VideoDecoder.cpu_fallback)
+        self.cpu_fallback = None
+        if self.gpu and self.backend != "pynvvideocodec":
+            from torchcodec.decoders import VideoDecoder
+
+            self.cpu_fallback = False if hasattr(VideoDecoder, "cpu_fallback") else None
         samples = sample_list(specs, cfg["seq"], cfg["shuffle"], self._num_frames)
         self.samples = itertools.cycle(samples)
         # no more threads than samples per batch: an idle extra thread would take the next
@@ -609,16 +582,18 @@ class ReferenceRunner:
                 use_device_memory=True,
                 output_color_type=self.nvc.OutputColorType.RGB,  # interleaved, as DALI
             )
-        from torchcodec.decoders import VideoDecoder
+        from torchcodec import decoders
 
         if not self.gpu:
-            return VideoDecoder(path, device="cpu")
-        if self.backend == "torchcodec":  # the default CUDA backend, FFmpeg's NVDEC support
-            return VideoDecoder(path, device=f"cuda:{self.device_id}")
-        from torchcodec.decoders import set_cuda_backend  # torchcodec >= 0.8
-
-        with set_cuda_backend("beta"):
-            return VideoDecoder(path, device=f"cuda:{self.device_id}")
+            return decoders.VideoDecoder(path, device="cpu")
+        # the CUDA backend is chosen explicitly, as the default changed: FFmpeg's NVDEC support
+        # up to torchcodec 0.11 (the only one before 0.8), torchcodec's own NVDEC decoder later
+        # ("nvdec", called "beta" before, which later versions still accept)
+        if not hasattr(decoders, "set_cuda_backend"):
+            return decoders.VideoDecoder(path, device=f"cuda:{self.device_id}")
+        backend = "ffmpeg" if self.backend == "torchcodec" else "beta"
+        with decoders.set_cuda_backend(backend):
+            return decoders.VideoDecoder(path, device=f"cuda:{self.device_id}")
 
     def _num_frames(self, path):
         return len(self._decoder(path))
@@ -645,6 +620,8 @@ class ReferenceRunner:
             frames = decoder.get_batch_frames_by_index(list(range(start, end)))
             return (len(frames),) + tuple(frames[0].shape[:2])  # frames of H, W, C
         video = decoder.get_frames_in_range(start, end).data
+        if self.gpu and getattr(decoder, "cpu_fallback", None):  # torchcodec >= 0.11
+            self.cpu_fallback = True
         return (video.shape[0], video.shape[2], video.shape[3])  # F, C, H, W
 
     def build(self):
@@ -685,40 +662,39 @@ def run_one(cfg, specs, args):
     res["shape"] = list(runner.run()[0])
 
     iters = cfg.get("iters", args.iters)
-    if iters > 0:
-        for _ in range(args.warmup):
-            runner.run()
-        # Up to runner.prefetched batches (DALI: `depth` in the pipeline queue +
-        # `reader_depth` in the reader's own queue) may have been produced before the clock
-        # started. They are excluded, and --iters/--min_time apply to the remaining window.
-        skip = runner.prefetched
-        stamps, frames, pixels = [], [], []
-        mon.start()
-        t_start = time.perf_counter()
-        while True:
-            shapes = runner.run()  # actual (frames, height, width) of every sample
-            stamps.append(time.perf_counter())
-            frames.append(sum(s[0] for s in shapes))
-            pixels.append(sum(s[0] * s[1] * s[2] for s in shapes))
-            kept = len(stamps) - skip
-            if kept > 0 and kept >= iters:
-                t_ref = stamps[skip - 1] if skip else t_start
-                if stamps[-1] - t_ref >= args.min_time:
-                    break
-        res.update(mon.stop())
-        span = stamps[-1] - t_ref
-        n = len(stamps) - skip
-        times_ms = sorted((b - a) * 1e3 for a, b in zip([t_ref] + stamps[skip:], stamps[skip:]))
-        res.update(
-            iters=n,
-            iters_skipped=skip,
-            frames_per_s=sum(frames[skip:]) / span,
-            mpix_per_s=sum(pixels[skip:]) / span / 1e6,
-            ms_per_sample=span * 1e3 / (n * cfg["readers"] * cfg["batch"]),
-            iter_p50_ms=statistics.median(times_ms),
-            iter_p90_ms=percentile(times_ms, 90),
-            iter_max_ms=times_ms[-1],
-        )
+    for _ in range(args.warmup):
+        runner.run()
+    # Up to runner.prefetched batches (DALI: `depth` in the pipeline queue + `reader_depth`
+    # in the reader's own queue) may have been produced before the clock started. They are
+    # excluded, and --iters/--min_time apply to the remaining window.
+    skip = runner.prefetched
+    stamps, frames = [], []
+    mon.start()
+    t_start = time.perf_counter()
+    while True:
+        shapes = runner.run()  # actual (frames, height, width) of every sample
+        stamps.append(time.perf_counter())
+        frames.append(sum(s[0] for s in shapes))
+        kept = len(stamps) - skip
+        if kept > 0 and kept >= iters:
+            t_ref = stamps[skip - 1] if skip else t_start
+            if stamps[-1] - t_ref >= args.min_time:
+                break
+    res.update(mon.stop())
+    span = stamps[-1] - t_ref
+    n = len(stamps) - skip
+    times_ms = sorted((b - a) * 1e3 for a, b in zip([t_ref] + stamps[skip:], stamps[skip:]))
+    res.update(
+        iters=n,
+        iters_skipped=skip,
+        frames_per_s=sum(frames[skip:]) / span,
+        ms_per_sample=span * 1e3 / (n * cfg["readers"] * cfg["batch"]),
+        iter_p50_ms=statistics.median(times_ms),
+        iter_p90_ms=percentile(times_ms, 90),
+        iter_max_ms=times_ms[-1],
+    )
+    if getattr(runner, "cpu_fallback", None) is not None:
+        res["cpu_fallback"] = runner.cpu_fallback
     res["post"] = mon.snapshot()
     if mon.errors:  # after the last NVML query, so that every failure is recorded
         res["nvml_error"] = "; ".join(mon.errors)
@@ -736,7 +712,7 @@ def hash_one(cfg, specs, args):
     pipe.build()
     hashes = []
     # Not dependent on threads or reader_depth, so that --compare --ignore can match runs
-    batches = max(args.hash_batches, -(-HASH_MIN_SAMPLES // (cfg["batch"] * cfg["readers"])))
+    batches = -(-HASH_MIN_SAMPLES // (cfg["batch"] * cfg["readers"]))  # ceil
     for _ in range(batches):
         outs = [_as_cpu(t) for t in pipe.run()]
         for r in range(cfg["readers"]):
@@ -770,7 +746,7 @@ def run_child(cfg, specs, args):
     cmd += [json.dumps(dict(cfg=cfg, specs=specs))]
     for flag in ("dali_extra", "device_id", "iters", "warmup", "min_time", "seed"):
         cmd += [f"--{flag}", str(getattr(args, flag))]
-    cmd += ["--hash_batches", str(args.hash_batches)] + (["--hash"] if args.hash else [])
+    cmd += ["--hash"] if args.hash else []
     try:
         p = subprocess.run(cmd, capture_output=True, text=True, timeout=args.timeout)
     except subprocess.TimeoutExpired:
@@ -793,10 +769,11 @@ def aggregate(cfg, reps):
         return res
     res["errors"] = [r["error"] for r in reps if "error" in r]
     res["contaminated"] = any(r.get("contaminated") for r in ok)
+    if any("cpu_fallback" in r for r in ok):
+        res["cpu_fallback"] = any(r.get("cpu_fallback") for r in ok)
     res["runs"] = ok
     for key in (
         "frames_per_s",
-        "mpix_per_s",
         "ms_per_sample",
         "iter_p50_ms",
         "iter_p90_ms",
@@ -804,7 +781,6 @@ def aggregate(cfg, reps):
         "build_s",
         "first_batch_ms",
         "proc_nvdec_util",
-        "dev_nvdec_util",
         "proc_mem_max_mb",
     ):
         vals = [r[key] for r in ok if r.get(key) is not None]
@@ -876,6 +852,8 @@ def format_row(r):
         if r["proc_nvdec_util"] < 10:
             # e.g. a GPU backend that falls back to CPU decoding for a format it can't decode
             flags.append("NVDEC<10%")
+    if r.get("cpu_fallback"):
+        flags.append("CPU fallback")  # reported by torchcodec
     if r.get("backend") == "pynvvideocodec" and r.get("files") in LEAD_IN_FILES:
         flags.append("lead-in frames")  # not the same frames as DALI, see LEAD_IN_FILES
     if r.get("errors"):
@@ -1018,9 +996,7 @@ def parse_args():
     parser.add_argument("--dali_extra", default=os.environ.get("DALI_EXTRA_PATH", ""))
     parser.add_argument("--json", help="write results (with provenance) to this file")
     parser.add_argument("--quick", action="store_true", help="smoke test: tiny sweep, 1 run")
-    parser.add_argument("--require_idle", action="store_true", help="abort if the GPU is busy")
     parser.add_argument("--hash", action="store_true", help="record per-sample checksums")
-    parser.add_argument("--hash_batches", default=8, type=int)
     parser.add_argument("--compare", nargs=2, metavar=("A", "B"), help="compare two --hash files")
     parser.add_argument(
         "--ignore",
@@ -1088,8 +1064,6 @@ def main():
             f"The GPU is in use by other processes ({', '.join(details)}); "
             f"the results will be skewed."
         )
-        if args.require_idle:
-            sys.exit("The GPU is in use by other processes and --require_idle is set; aborting.")
 
     workdir = tempfile.mkdtemp(prefix="video_reader_bench_")
     results, failed = [], 0
