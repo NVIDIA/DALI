@@ -15,6 +15,7 @@
 #include "dali/operators/video/frames_decoder_base.h"
 #include <iomanip>
 #include <memory>
+#include <mutex>
 #include "dali/core/error_handling.h"
 #include "dali/core/small_vector.h"
 #include "dali/operators/video/video_utils.h"
@@ -212,8 +213,18 @@ bool FramesDecoderBase::CheckDimensions() {
   return true;
 }
 
+namespace {
+
+// FFmpeg's log level is process-wide; set it once, not from every decoder (several threads)
+void SetAvLogLevel() {
+  static std::once_flag once;
+  std::call_once(once, [] { av_log_set_level(AV_LOG_ERROR); });
+}
+
+}  // namespace
+
 FramesDecoderBase::FramesDecoderBase(const std::string &filename, DALIImageType image_type) {
-  av_log_set_level(AV_LOG_ERROR);
+  SetAvLogLevel();
   filename_ = filename;
   DALI_ENFORCE(image_type == DALI_YCbCr || image_type == DALI_RGB,
                make_string("Invalid image type: ", image_type));
@@ -234,7 +245,7 @@ FramesDecoderBase::FramesDecoderBase(const std::string &filename, DALIImageType 
 }
 
 FramesDecoderBase::FramesDecoderBase(const char *memory_file, size_t memory_file_size, std::string_view source_info, DALIImageType image_type) {
-  av_log_set_level(AV_LOG_ERROR);
+  SetAvLogLevel();
   filename_ = source_info;
   DALI_ENFORCE(image_type == DALI_YCbCr || image_type == DALI_RGB,
                make_string("Invalid image type: ", image_type));
