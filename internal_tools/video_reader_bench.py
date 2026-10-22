@@ -54,7 +54,8 @@ Methodology:
     times include GPU completion
   * NVML metrics are per process where possible (decoder utilization, memory). A
     result is flagged as contaminated if other processes use the GPU or NVDEC is busy
-    before the run starts
+    before the run starts. Decoder utilization (dec%) is averaged over the GPU's NVDEC
+    engines, so on GPUs with several engines it is low even for a fully busy session
   * all input files are read once before the first run, so all runs see a warm page cache
   * DALI_extra has no 1080p content, so absolute rates are lower than for 1080p data;
     compare builds, not datasets
@@ -75,9 +76,9 @@ Other libraries (--backends), for reference:
   reconfigures its decoder for a new file, torchcodec opens a new one, scanning it, as
   its default seek_mode="exact" does). Batches are not prefetched: unlike DALI, a batch
   is decoded when it is requested. They run only the configurations that mean the same
-  for them (backend_runs), and need torch. GPU rows where NVDEC stays nearly idle are
-  flagged, as a GPU backend may fall back to CPU decoding, and so are PyNvVideoCodec rows on
-  clips with hidden lead-in frames (LEAD_IN_FILES), where it returns different frames.
+  for them (backend_runs), and need torch. Rows are flagged when torchcodec reports a CPU
+  fallback, and PyNvVideoCodec rows on clips with hidden lead-in frames (LEAD_IN_FILES),
+  where it returns different frames.
 """
 
 import argparse
@@ -848,12 +849,8 @@ def format_row(r):
         flags.append("CONTAMINATED")
     if r.get("frames_per_s_spread_pct", 0) > 3:
         flags.append("spread>3%")
-    if r.get("device") == "gpu" and r.get("proc_nvdec_util") is not None:
-        if r["proc_nvdec_util"] < 10:
-            # e.g. a GPU backend that falls back to CPU decoding for a format it can't decode
-            flags.append("NVDEC<10%")
     if r.get("cpu_fallback"):
-        flags.append("CPU fallback")  # reported by torchcodec
+        flags.append("CPU fallback")  # reported by torchcodec (>= 0.11)
     if r.get("backend") == "pynvvideocodec" and r.get("files") in LEAD_IN_FILES:
         flags.append("lead-in frames")  # not the same frames as DALI, see LEAD_IN_FILES
     if r.get("errors"):
