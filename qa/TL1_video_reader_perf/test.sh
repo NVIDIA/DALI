@@ -8,7 +8,9 @@ target_dir=./internal_tools
 do_once() {
     apt update
     if [ "$(uname -m)" == "x86_64" ]; then
-        apt install -y --no-install-recommends ffmpeg
+        # torchcodec loads the FFmpeg shared libraries and links against the shared libpython
+        apt install -y --no-install-recommends ffmpeg \
+            "libpython$(python -c 'import sys; print("%d.%d" % sys.version_info[:2])')"
     fi
     if command -v nsys &>/dev/null; then
         echo "nsys already installed: $(nsys --version)"
