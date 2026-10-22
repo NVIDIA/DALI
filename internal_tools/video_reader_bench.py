@@ -68,6 +68,12 @@ does not depend on num_threads) with --compare.
 Other readers and libraries (--backends), for reference:
   dali_legacy      DALI's legacy fn.readers.video (GPU, constant frame rate only: no cpu,
                    cache_key), through the same pipeline as the DALI reader
+  dali_decoder     fn.readers.file + fn.decoders.video (fn.experimental.decoders.video in
+                   older DALI): every sample is a whole file, read by the file reader, and
+                   decoded with a new decoder per sample, the samples of a batch in parallel
+                   on num_threads threads. Same samples (file, first and last frame) as the
+                   DALI reader, shuffled by the file reader; `reader_depth` is the file
+                   reader's prefetch_queue_depth
   pynvvideocodec   PyNvVideoCodec SimpleDecoder (NVDEC), RGB interleaved output (as DALI)
   torchcodec       torchcodec VideoDecoder, FFmpeg CUDA backend on GPU, FFmpeg on CPU
   torchcodec_nvdec torchcodec VideoDecoder with its own NVDEC backend (torchcodec >= 0.8)
@@ -83,8 +89,8 @@ Other readers and libraries (--backends), for reference:
   exception: its frames stay in its decoder's buffers, which the decoder's next call
   reuses, so its memory does not include a batch. They run only the configurations that
   mean the same for them (backend_runs), and need torch. Rows are flagged when torchcodec
-  reports a CPU fallback, and PyNvVideoCodec rows on clips with hidden lead-in frames
-  (LEAD_IN_FILES), where it returns different frames.
+  reports a CPU fallback, and PyNvVideoCodec and dali_decoder rows on clips with hidden
+  lead-in frames (LEAD_IN_FILES), where they return different frames.
 """
 
 import argparse
@@ -138,10 +144,12 @@ FILES = {
     "vpx_clips": VPX_CLIPS,
 }
 # File sets where most clips (cut without re-encoding) start before the frame they show first,
-# with an MP4 edit list hiding the lead-in frames: DALI and torchcodec start at the first
-# visible frame, so they decode the lead-in before frame 0, while PyNvVideoCodec returns the
-# lead-in frames themselves (different frames, less decoding)
+# with an MP4 edit list hiding the lead-in frames: the DALI reader and torchcodec start at the
+# first visible frame, so they decode the lead-in before frame 0, while PyNvVideoCodec and
+# DALI's video decoder (dali_decoder) return the lead-in frames themselves (different frames,
+# less decoding)
 LEAD_IN_FILES = {"h264_clips"}
+LEAD_IN_BACKENDS = {"pynvvideocodec", "dali_decoder"}
 
 
 def _cfg(files, layout="plain", device="gpu", batch=8, seq=32, threads=4, **kw):
@@ -221,6 +229,8 @@ BACKEND_SCENARIOS = {
     # the legacy fn.readers.video: GPU only, and constant frame rate only (both cache_key
     # pairs include a variable frame rate file)
     "dali_legacy": (_REFERENCE_SCENARIOS - {"cache_key"} | {"reader_depth", "engines"}, ("gpu",)),
+    # fn.readers.file + fn.decoders.video; reader_depth would prefetch file contents only
+    "dali_decoder": (_REFERENCE_SCENARIOS | {"engines", "cpu"}, ("gpu", "cpu")),
     "pynvvideocodec": (_REFERENCE_SCENARIOS, ("gpu",)),
     "torchcodec": (_REFERENCE_SCENARIOS | {"cpu"}, ("gpu", "cpu")),
     "torchcodec_nvdec": (_REFERENCE_SCENARIOS, ("gpu",)),
@@ -446,12 +456,37 @@ class GpuMonitor:
 # running
 
 
+def num_frames_dali(path, device, device_id):
+    """The frames of a file as the DALI reader counts them: its sequences of one frame."""
+    import nvidia.dali.fn as fn
+    from nvidia.dali.pipeline import pipeline_def
+
+    @pipeline_def(batch_size=1, num_threads=1, device_id=device_id)
+    def count():
+        return fn.experimental.readers.video(
+            filenames=[path], sequence_length=1, device=device, name="Count"
+        )
+
+    p = count()
+    p.build()
+    return p.reader_meta("Count")["epoch_size"]
+
+
 def build_pipeline(cfg, specs, device_id, seed, frame_num=False):
     import nvidia.dali.fn as fn
     from nvidia.dali.pipeline import pipeline_def
 
     legacy = cfg["backend"] == "dali_legacy"
     reader = fn.readers.video if legacy else fn.experimental.readers.video
+    if cfg["backend"] == "dali_decoder":
+
+        def num_frames(path):
+            return num_frames_dali(path, cfg["device"], device_id)
+
+        # the samples the DALI reader would produce, (path, start, end), one list per reader
+        samples = [sample_list([s], cfg["seq"], False, num_frames) for s in specs]
+        # moved out of experimental in DALI 2.0
+        decoder = getattr(fn.decoders, "video", None) or fn.experimental.decoders.video
 
     @pipeline_def(
         batch_size=cfg["batch"],
@@ -462,6 +497,24 @@ def build_pipeline(cfg, specs, device_id, seed, frame_num=False):
     )
     def pipe():
         outs = []
+        if cfg["backend"] == "dali_decoder":
+            for r, reader_samples in enumerate(samples):
+                # whole files, with the sample's first frame as the label
+                encoded, start = fn.readers.file(
+                    files=[path for path, _, _ in reader_samples],
+                    labels=[start for _, start, _ in reader_samples],
+                    random_shuffle=cfg["shuffle"],
+                    prefetch_queue_depth=cfg["reader_depth"],
+                    name=f"Reader{r}",
+                )
+                video = decoder(
+                    encoded,
+                    device="mixed" if cfg["device"] == "gpu" else "cpu",
+                    start_frame=start[0],
+                    sequence_length=cfg["seq"],
+                )
+                outs += [video, start]
+            return tuple(outs)
         for r, spec in enumerate(specs):
             kw = dict(spec)
             if "filenames" in kw:
@@ -507,8 +560,13 @@ class DaliRunner:
         import nvidia.dali as dali
 
         self.cfg = cfg
-        self.version = dali.__version__ + (
-            " (fn.readers.video)" if cfg["backend"] != "dali" else ""
+        self.version = (
+            dali.__version__
+            + {
+                "dali": "",
+                "dali_legacy": " (fn.readers.video)",
+                "dali_decoder": " (fn.readers.file + video decoder)",
+            }[cfg["backend"]]
         )
         # up to `depth` (pipeline queue) + `reader_depth` (the reader's own queue) batches
         # may be produced before the clock starts
@@ -664,7 +722,7 @@ class ReferenceRunner:
 
 
 def make_runner(cfg, specs, args):
-    dali = cfg["backend"] in ("dali", "dali_legacy")
+    dali = cfg["backend"] in ("dali", "dali_legacy", "dali_decoder")
     return (DaliRunner if dali else ReferenceRunner)(cfg, specs, args)
 
 
@@ -879,7 +937,7 @@ def format_row(r):
         flags.append("spread>3%")
     if r.get("cpu_fallback"):
         flags.append("CPU fallback")  # reported by torchcodec (>= 0.11)
-    if r.get("backend") == "pynvvideocodec" and r.get("files") in LEAD_IN_FILES:
+    if r.get("backend") in LEAD_IN_BACKENDS and r.get("files") in LEAD_IN_FILES:
         flags.append("lead-in frames")  # not the same frames as DALI, see LEAD_IN_FILES
     if r.get("errors"):
         flags.append(f"{len(r['errors'])} failed run(s)")
