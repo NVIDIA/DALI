@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from abc import ABC, abstractmethod
+import contextlib
 import functools
 import inspect
 import logging
@@ -23,6 +24,45 @@ import torch
 import numpy as np
 
 import nvidia.dali.experimental.dynamic as ndd
+import nvidia.dali.fn as fn
+import nvidia.dali.types as types
+
+# Indices selecting the first sample of a call, set while defining a pipeline in which
+# a single call is split into multiple samples (see ``share_random_values``).
+_first_sample_indices = None
+
+
+@contextlib.contextmanager
+def share_random_values(input_node, enabled: bool = True):
+    """
+    Makes ``share_random_value`` broadcast random values across the batch for operators invoked
+    inside this context.
+
+    Torchvision samples a single parameter set per call and applies it across all leading
+    dimensions. If a call is split into multiple pipeline samples, the random values drawn for
+    the first sample must be used for all of them.
+    """
+    global _first_sample_indices
+    if enabled:
+        _first_sample_indices = fn.cast(input_node.shape()[0] * 0, dtype=types.INT32)
+    try:
+        yield
+    finally:
+        _first_sample_indices = None
+
+
+def is_sharing_random_values() -> bool:
+    return _first_sample_indices is not None
+
+
+def share_random_value(value):
+    """
+    Returns the random ``value`` drawn for the first sample for all samples in the batch,
+    if the pipeline is defined in the ``share_random_values`` context.
+    """
+    if _first_sample_indices is None:
+        return value
+    return fn.permute_batch(value, indices=_first_sample_indices)
 
 
 class DataValidateRule(ABC):

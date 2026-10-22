@@ -17,7 +17,11 @@ import unittest
 
 from nvidia.dali.experimental.torchvision import (
     Compose,
+    GaussianBlur,
+    RandomApply,
+    RandomCrop,
     RandomHorizontalFlip,
+    RandomResizedCrop,
     RandomVerticalFlip,
     Resize,
 )
@@ -101,11 +105,54 @@ def test_compose_leading_dims_tensor(shape, device):
     assert torch.equal(fn_out, tv_out)
 
 
-def test_compose_invalid_batch_tensor():
+@params("cpu", "gpu")
+def test_compose_tensor_larger_than_batch_size(device):
+    # A call is processed as FCHW sequences, so batch_size does not limit the leading dimensions
     test_tensor = make_test_tensor(shape=(5, 1, 5, 5))
-    with assert_raises(RuntimeError):
-        dali_pipeline = Compose([RandomHorizontalFlip(p=1.0)], batch_size=1)
-        _ = dali_pipeline(test_tensor)
+    dali_pipeline = Compose([RandomHorizontalFlip(p=1.0, device=device)], batch_size=1)
+    dali_out = dali_pipeline(test_tensor).cpu()
+
+    assert torch.equal(dali_out, tv.RandomHorizontalFlip(p=1.0)(test_tensor))
+
+
+@params(
+    *[
+        (shape, device, transform)
+        for shape in [(8, 3, 32, 32), (7, 3, 32, 32), (2, 4, 3, 32, 32)]
+        for device in ["cpu", "gpu"]
+        for transform in [
+            "RandomHorizontalFlip",
+            "RandomVerticalFlip",
+            "RandomCrop",
+            "RandomResizedCrop",
+            "GaussianBlur",
+            "RandomApply",
+        ]
+    ]
+)
+def test_compose_random_params_shared_across_leading_dims(shape, device, transform):
+    # Torchvision samples a single parameter set per call and applies it across all leading
+    # dimensions, so identical images in a call must produce identical outputs
+    ops = {
+        "RandomHorizontalFlip": lambda: RandomHorizontalFlip(p=0.5, device=device),
+        "RandomVerticalFlip": lambda: RandomVerticalFlip(p=0.5, device=device),
+        "RandomCrop": lambda: RandomCrop(20, padding=2, device=device),
+        "RandomResizedCrop": lambda: RandomResizedCrop(24, device=device),
+        "GaussianBlur": lambda: GaussianBlur(5, sigma=(0.1, 3.0), device=device),
+        "RandomApply": lambda: RandomApply(
+            [RandomHorizontalFlip(p=1.0, device=device)], p=0.5, device=device
+        ),
+    }
+    image = torch.randint(0, 256, shape[-3:], dtype=torch.uint8)
+    test_tensor = image.expand(shape).contiguous()
+    dali_pipeline = Compose([ops[transform]()], num_threads=4)
+
+    for _ in range(5):
+        dali_out = dali_pipeline(test_tensor).cpu()
+        assert dali_out.shape[:-3] == test_tensor.shape[:-3]
+        frames = dali_out.reshape(-1, *dali_out.shape[-3:])
+        for i in range(1, frames.shape[0]):
+            assert torch.equal(frames[0], frames[i]), f"Frame {i} differs from frame 0"
 
 
 def test_compose_images():
