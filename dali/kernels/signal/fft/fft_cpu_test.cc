@@ -172,6 +172,7 @@ INSTANTIATE_TEST_SUITE_P(Fft1DCpuTest, ComplexFft1DCpuTest, testing::Combine(
                     std::array<int64_t, 2>{1, 10},
                     std::array<int64_t, 2>{1, 64},
                     std::array<int64_t, 2>{1, 100},
+                    // The chirp-z plan allocates 301 * 8 = 2408 bytes, not a multiple of 32.
                     std::array<int64_t, 2>{1, 301},
                     std::array<int64_t, 2>{1, 4096})));
 
