@@ -39,10 +39,13 @@ import warnings
 
 
 def by(results, scenario, **match):
+    """DALI results only; results of other libraries (--backends) are for reference."""
     return [
         r
         for r in results
-        if r.get("scenario") == scenario and all(r.get(k) == v for k, v in match.items())
+        if r.get("scenario") == scenario
+        and r.get("backend", "dali") == "dali"
+        and all(r.get(k) == v for k, v in match.items())
     ]
 
 

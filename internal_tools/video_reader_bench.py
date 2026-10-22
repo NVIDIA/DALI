@@ -61,6 +61,18 @@ Methodology:
 --hash records a checksum of every sample (frames, label, frame_num). Compare two
 --hash result files (e.g. two builds, or --ignore threads to check that the output
 does not depend on num_threads) with --compare.
+
+Other libraries (--backends), for reference:
+  pynvvideocodec   PyNvVideoCodec SimpleDecoder (NVDEC), RGB interleaved output (as DALI)
+  torchcodec       torchcodec VideoDecoder, FFmpeg CUDA backend on GPU, FFmpeg on CPU
+  torchcodec_beta  torchcodec VideoDecoder with its own NVDEC backend (set_cuda_backend)
+  They decode the same samples as the DALI reader (the same sequences of the same files,
+  in the same order, or shuffled with a fixed seed), each sample with frames [start, end)
+  of one file. A batch is decoded by a pool of `threads` threads, each with its own
+  decoder, kept while consecutive samples come from the same file (PyNvVideoCodec
+  reconfigures its decoder for a new file, torchcodec opens a new one). Batches are not
+  prefetched: unlike DALI, a batch is decoded when it is requested. They run only the
+  scenarios that mean the same for them (BACKEND_SCENARIOS), and need torch.
 """
 
 import argparse
@@ -135,6 +147,7 @@ def _cfg(files, layout="plain", device="gpu", batch=8, seq=32, threads=4, **kw):
                           after the first rewinds the same decoder to frame 0)
     """
     cfg = dict(
+        backend="dali",
         files=files,
         layout=layout,
         device=device,
@@ -193,6 +206,29 @@ def scenarios(threads, readers):
             for t in threads
         ],
     }
+
+
+# scenarios that other backends run as well (reader_depth, startup and engines measure
+# properties of the DALI reader), and the devices they decode on
+_REFERENCE_SCENARIOS = {
+    "lanes",
+    "seq_longgop",
+    "random_access",
+    "single_stream",
+    "cache_key",
+    "switch",
+}
+BACKEND_SCENARIOS = {
+    "dali": (None, ("gpu", "cpu")),  # None: all scenarios
+    "pynvvideocodec": (_REFERENCE_SCENARIOS, ("gpu",)),
+    "torchcodec": (_REFERENCE_SCENARIOS | {"cpu"}, ("gpu", "cpu")),
+    "torchcodec_beta": (_REFERENCE_SCENARIOS, ("gpu",)),
+}
+
+
+def backend_runs(backend, scenario, device):
+    names, devices = BACKEND_SCENARIOS[backend]
+    return (names is None or scenario in names) and device in devices
 
 
 # ----------------------------------------------------------------------------------------
@@ -461,6 +497,150 @@ def warm_up_cuda(device_id):
     p.run()
 
 
+class DaliRunner:
+    """The DALI reader. run() returns the (frames, height, width) of every sample."""
+
+    def __init__(self, cfg, specs, args):
+        import nvidia.dali as dali
+
+        self.cfg = cfg
+        self.version = dali.__version__
+        # up to `depth` (pipeline queue) + `reader_depth` (the reader's own queue) batches
+        # may be produced before the clock starts
+        self.prefetched = cfg["depth"] + cfg["reader_depth"]
+        warm_up_cuda(args.device_id)
+        self.pipe = build_pipeline(cfg, specs, args.device_id, args.seed)
+
+    def build(self):
+        self.pipe.build()
+
+    def run(self):
+        out = self.pipe.run()
+        # shapes are host-side metadata; video outputs are every other output (video, label)
+        return [tuple(s[:3]) for r in range(self.cfg["readers"]) for s in out[2 * r].shape()]
+
+
+def sample_list(specs, seq, shuffle, num_frames):
+    """The samples the DALI reader produces for `specs`: (path, start, end) tuples.
+
+    Whole files are split into full sequences of `seq` frames (the reader's default step
+    and stride); a file list gives one sample per line. DALI shuffles with its own seed, so
+    a shuffled list has the same samples in a different order.
+    """
+    (spec,) = specs
+    samples = []
+    if "filenames" in spec:
+        for path in spec["filenames"]:
+            n = num_frames(path)
+            samples += [(path, s, s + seq) for s in range(0, n - seq + 1, seq)]
+    else:
+        with open(spec["file_list"]) as f:
+            for line in f:
+                path, _, start, end = line.split()
+                samples.append((path, int(start), int(end)))
+    if shuffle:
+        random.Random(0).shuffle(samples)
+    return samples
+
+
+class ReferenceRunner:
+    """PyNvVideoCodec or torchcodec, called directly through their own APIs.
+
+    Each sample of a batch is decoded by one of `threads` threads; every thread keeps its
+    own decoder while consecutive samples come from the same file. Outputs are what the
+    libraries return; torch is used only to wait for the GPU.
+    """
+
+    prefetched = 0  # a batch is decoded when it is requested
+
+    def __init__(self, cfg, specs, args):
+        import itertools
+        from concurrent.futures import ThreadPoolExecutor
+
+        import torch
+
+        self.cfg, self.torch = cfg, torch
+        self.backend, self.gpu = cfg["backend"], cfg["device"] == "gpu"
+        self.device_id = args.device_id
+        if self.gpu:
+            torch.cuda.set_device(self.device_id)
+            torch.zeros(1, device="cuda")  # CUDA context, so build_s measures the decoders
+            torch.cuda.synchronize()
+        if self.backend == "pynvvideocodec":
+            import PyNvVideoCodec as nvc
+
+            self.nvc, self.version = nvc, f"PyNvVideoCodec {nvc.__version__}"
+        else:
+            import torchcodec
+
+            self.version = f"torchcodec {torchcodec.__version__}"
+        self.version += f", torch {torch.__version__}"
+        self.local = threading.local()
+        samples = sample_list(specs, cfg["seq"], cfg["shuffle"], self._num_frames)
+        self.samples = itertools.cycle(samples)
+        self.pool = ThreadPoolExecutor(cfg["threads"]) if cfg["threads"] > 1 else None
+
+    def _open(self, path):
+        if self.backend == "pynvvideocodec":
+            return self.nvc.SimpleDecoder(
+                path,
+                gpu_id=self.device_id,
+                use_device_memory=True,
+                output_color_type=self.nvc.OutputColorType.RGB,  # interleaved, as DALI
+            )
+        from torchcodec.decoders import VideoDecoder
+
+        if not self.gpu:
+            return VideoDecoder(path, device="cpu")
+        if self.backend == "torchcodec":  # the default CUDA backend, FFmpeg's NVDEC support
+            return VideoDecoder(path, device=f"cuda:{self.device_id}")
+        from torchcodec.decoders import set_cuda_backend  # torchcodec >= 0.8
+
+        with set_cuda_backend("beta"):
+            return VideoDecoder(path, device=f"cuda:{self.device_id}")
+
+    def _num_frames(self, path):
+        return len(self._decoder(path))
+
+    def _decoder(self, path):
+        """This thread's decoder, switched to `path`."""
+        local = self.local
+        if getattr(local, "path", None) == path:
+            return local.decoder
+        if self.gpu:
+            self.torch.cuda.set_device(self.device_id)  # this thread's current device
+        if self.backend == "pynvvideocodec" and getattr(local, "decoder", None) is not None:
+            local.decoder.reconfigure_decoder(path)  # picks a cached NVDEC decoder if any
+        else:
+            local.decoder = self._open(path)
+        local.path = path
+        return local.decoder
+
+    def _decode(self, sample):
+        path, start, end = sample
+        decoder = self._decoder(path)
+        # the libraries' own outputs, not converted or copied
+        if self.backend == "pynvvideocodec":
+            frames = decoder.get_batch_frames_by_index(list(range(start, end)))
+            return (len(frames),) + tuple(frames[0].shape[:2])  # frames of H, W, C
+        video = decoder.get_frames_in_range(start, end).data
+        return (video.shape[0], video.shape[2], video.shape[3])  # F, C, H, W
+
+    def build(self):
+        pass
+
+    def run(self):
+        batch = [next(self.samples) for _ in range(self.cfg["batch"])]
+        shapes = list(self.pool.map(self._decode, batch) if self.pool else map(self._decode, batch))
+        if self.gpu:
+            self.torch.cuda.synchronize()  # as Pipeline.run(): outputs are ready
+        return shapes
+
+
+def make_runner(cfg, specs, args):
+    return (DaliRunner if cfg["backend"] == "dali" else ReferenceRunner)(cfg, specs, args)
+
+
 def percentile(sorted_vals, q):
     if len(sorted_vals) == 1:
         return sorted_vals[0]
@@ -469,39 +649,33 @@ def percentile(sorted_vals, q):
 
 def run_one(cfg, specs, args):
     """Runs one configuration in this process and returns its metrics."""
-    import nvidia.dali as dali
-
     mon = GpuMonitor(args.device_id)
-    res = dict(dali_version=dali.__version__)
-    res["pre"] = mon.snapshot()
-    warm_up_cuda(args.device_id)
+    res = dict(pre=mon.snapshot())
 
-    t0 = time.perf_counter()
-    pipe = build_pipeline(cfg, specs, args.device_id, args.seed)
-    pipe.build()
+    runner = make_runner(cfg, specs, args)  # initializes CUDA before the clock starts
+    res["backend_version"] = runner.version
+    t0 = time.perf_counter()  # build_s: the reader or the decoders, not the CUDA runtime
+    runner.build()
     res["build_s"] = time.perf_counter() - t0
     t0 = time.perf_counter()
-    pipe.run()
+    runner.run()
     res["first_batch_ms"] = (time.perf_counter() - t0) * 1e3
-    out = pipe.run()
-    res["shape"] = list(out[0].shape()[0])
+    res["shape"] = list(runner.run()[0])
 
     iters = cfg.get("iters", args.iters)
     if iters > 0:
         for _ in range(args.warmup):
-            pipe.run()
-        # Up to `depth` (pipeline queue) + `reader_depth` (the reader's own queue, filled
-        # by its prefetch thread) batches may have been produced before the clock started.
-        # They are excluded, and --iters/--min_time apply to the remaining window.
-        skip = cfg["depth"] + cfg["reader_depth"]
+            runner.run()
+        # Up to runner.prefetched batches (DALI: `depth` in the pipeline queue +
+        # `reader_depth` in the reader's own queue) may have been produced before the clock
+        # started. They are excluded, and --iters/--min_time apply to the remaining window.
+        skip = runner.prefetched
         stamps, frames, pixels = [], [], []
         mon.start()
         t_start = time.perf_counter()
         while True:
-            out = pipe.run()
+            shapes = runner.run()  # actual (frames, height, width) of every sample
             stamps.append(time.perf_counter())
-            # actual output sizes (mixed resolutions); shapes are host-side metadata
-            shapes = [s for r in range(cfg["readers"]) for s in out[2 * r].shape()]
             frames.append(sum(s[0] for s in shapes))
             pixels.append(sum(s[0] * s[1] * s[2] for s in shapes))
             kept = len(stamps) - skip
@@ -618,7 +792,7 @@ def aggregate(cfg, reps):
             if key in ("frames_per_s", "build_s", "first_batch_ms") and len(vals) > 1:
                 res[key + "_spread_pct"] = (max(vals) - min(vals)) / res[key] * 100
     res["shape"] = ok[0].get("shape")
-    for key in ("dali_version", "nvml_error"):
+    for key in ("backend_version", "nvml_error"):
         if ok[0].get(key):
             res[key] = ok[0][key]
     return res
@@ -630,6 +804,7 @@ def aggregate(cfg, reps):
 
 COLUMNS = [
     ("scenario", "scenario", "{:<13}"),
+    ("backend", "backend", "{:<15}"),
     ("files", "files", "{:<17}"),
     ("layout", "layout", "{:<12}"),
     ("device", "dev", "{:<3}"),
@@ -701,6 +876,13 @@ def provenance(args):
         info["dali_path"] = os.path.dirname(dali.__file__)
     except Exception as e:
         info["dali_error"] = str(e)
+    from importlib import metadata
+
+    for pkg in ("PyNvVideoCodec", "torchcodec", "torch"):
+        try:
+            info.setdefault("packages", {})[pkg] = metadata.version(pkg)
+        except metadata.PackageNotFoundError:
+            pass
     try:
         nvml, h = nvml_handle(args.device_id)
     except Exception as e:
@@ -731,7 +913,7 @@ def compare(a_path, b_path, ignore):
     """
     with open(a_path) as fa, open(b_path) as fb:
         a, b = json.load(fa), json.load(fb)
-    skip = {"hashes", "scenario", "error", "errors", "dali_version", "repeats"} | set(ignore)
+    skip = {"hashes", "scenario", "error", "errors", "backend_version", "repeats"} | set(ignore)
 
     def key(r):
         return json.dumps({k: v for k, v in r.items() if k not in skip}, sort_keys=True)
@@ -794,6 +976,12 @@ def parse_args():
         "-j", "--threads", default="1,2,4,8,16", help="num_threads sweep (B200: 1,2,4,7,8,14,16)"
     )
     parser.add_argument("--readers", default="1,2,4,8", help="reader counts for 'engines'")
+    parser.add_argument(
+        "-b",
+        "--backends",
+        default="dali",
+        help=f"comma separated, any of {list(BACKEND_SCENARIOS)}; others for reference",
+    )
     parser.add_argument("-d", "--device_id", default=0, type=int)
     parser.add_argument("--repeat", default=3, type=int, help="fresh-process runs per config")
     parser.add_argument("--iters", default=20, type=int, help="minimum timed iterations")
@@ -823,6 +1011,15 @@ def parse_args():
     args.dali_extra = os.path.abspath(args.dali_extra)
     if args.hash and not args.json and not args._single:
         parser.error("--hash requires --json to store the checksums; got no --json.")
+    args.backends = args.backends.split(",")
+    unknown = [b for b in args.backends if b not in BACKEND_SCENARIOS]
+    if unknown:
+        parser.error(
+            f"--backends got unknown backend(s) {unknown}; expected a subset of "
+            f"{list(BACKEND_SCENARIOS)}."
+        )
+    if args.hash and args.backends != ["dali"]:
+        parser.error(f"--hash supports only the dali backend; got --backends {args.backends}.")
     if args.quick:
         args.threads, args.readers, args.repeat = "1,4", "1,2", 1
         args.iters, args.min_time, args.warmup = 3, 0.0, 1
@@ -871,16 +1068,21 @@ def main():
     workdir = tempfile.mkdtemp(prefix="video_reader_bench_")
     results, failed = [], 0
     try:
-        jobs = []
+        jobs, not_run = [], set()
         for name in names:
-            for cfg in all_scenarios[name]:
-                cfg = dict(cfg, scenario=name)
+            for base, backend in [(c, b) for c in all_scenarios[name] for b in args.backends]:
+                if not backend_runs(backend, name, base["device"]):
+                    not_run.add((backend, name))
+                    continue
+                cfg = dict(base, scenario=name, backend=backend)
                 try:
                     specs = materialize(cfg, args.dali_extra, workdir)
                 except Exception as e:
                     jobs.append((cfg, None, f"{type(e).__name__}: {e}"))
                     continue
                 jobs.append((cfg, specs, None))
+        for backend, name in sorted(not_run):
+            print(f"# not run: {name} with {backend} (DALI reader specific or unsupported)")
         for cfg, specs, err in jobs:
             if specs:
                 paths = []
@@ -905,8 +1107,8 @@ def main():
                     f"{res['frames_per_s']:.1f} frames/s" if "frames_per_s" in res else "done"
                 )
                 print(
-                    f"[run {rep + 1}/{args.repeat}] {cfg['scenario']} {cfg['files']} "
-                    f"{cfg['layout']} bs={cfg['batch']} thr={cfg['threads']} "
+                    f"[run {rep + 1}/{args.repeat}] {cfg['scenario']} {cfg['backend']} "
+                    f"{cfg['files']} {cfg['layout']} bs={cfg['batch']} thr={cfg['threads']} "
                     f"rq={cfg['reader_depth']} rd={cfg['readers']}: {note}",
                     file=sys.stderr,
                     flush=True,
