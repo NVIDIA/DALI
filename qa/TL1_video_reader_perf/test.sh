@@ -27,15 +27,15 @@ do_once() {
 
 LOG_PERF="video_reader_perf.log"
 JSON_PERF="video_reader_perf.json"
-JSON_HASH_LOW="video_reader_hash_low.json"
-JSON_HASH_HIGH="video_reader_hash_high.json"
+JSON_HASH="video_reader_hash.json"
 LOG_REF="video_reader_ref.log"
 JSON_REF="video_reader_ref.json"
 
 # Other libraries run for reference on the same samples (video_reader_bench.py --backends), on
-# x86_64 only; one run each, not checked against minimums. Installed by install_reference_libs.
+# x86_64 only; one short run each, not checked. The DALI numbers are in the performance run.
+# Installed by install_reference_libs.
 REF_SCENARIOS="lanes,single_stream,cache_key,cpu"
-REF_ARGS="--repeat 1 --min_time 3 -j 1,16"
+REF_ARGS="--repeat 1 --iters 4 --warmup 1 --min_time 2 -j 1,16"
 
 # Installs PyNvVideoCodec and torchcodec (x86_64 only) and sets REF_BACKENDS. torchcodec must
 # match the torch version installed through pip_packages, and is built for the same CUDA version.
@@ -59,16 +59,27 @@ install_reference_libs() {
 }
 
 # Scenarios of internal_tools/video_reader_bench.py run for performance; see its --help
-PERF_SCENARIOS="lanes,engines,single_stream,reader_depth,cache_key,startup,seq_longgop,cpu"
+PERF_SCENARIOS="lanes,engines,single_stream,reader_depth,cache_key,seq_longgop,random_access,cpu"
 # Scenarios whose output is checked to be independent of num_threads and reader_depth
-HASH_SCENARIOS="lanes,reader_depth,cache_key,cpu"
-THREADS_LOW=1
-THREADS_HIGH=16
-BENCH_ARGS="--repeat 3 --min_time 3 -j ${THREADS_LOW},4,${THREADS_HIGH} --readers 1,2,4"
+HASH_SCENARIOS="lanes,reader_depth,cache_key,cpu,seq_longgop,random_access"
+BENCH_ARGS="--repeat 3 --iters 8 --min_time 3 -j 1,4,16 --readers 1,2,4"
+# engines: one H100 or GH200 reaches 3.6x with 4 readers (several NVDEC engines)
+ENGINES_SCALING=2.5
 
 function CLEAN_AND_EXIT {
-    rm -rf ${LOG_PERF} ${JSON_PERF} ${JSON_HASH_LOW} ${JSON_HASH_HIGH} ${LOG_REF} ${JSON_REF}
+    rm -rf ${LOG_PERF} ${JSON_PERF} ${JSON_HASH} ${LOG_REF} ${JSON_REF}
     exit $1
+}
+
+# Prints the results (without per-run data) to the log, so that they are kept on success too
+print_results() {
+    for json in "$@"; do
+        [ -f "${json}" ] && python -c "import json, sys
+d = json.load(open(sys.argv[1]))
+for r in d['results']:
+    r.pop('runs', None)
+print('RESULTS', sys.argv[1], json.dumps(d, separators=(',', ':')))" "${json}"
+    done
 }
 
 # Run the benchmark; if NSYS_REP is set, wrap it with nsys profiling (child processes included).
@@ -88,7 +99,9 @@ test_body() {
         # Hopper
         TASKSET="taskset --cpu-list 0-127"
         # Absolute minimums in frames/s (see qa/TL1_video_reader_perf/check_results.py);
-        # empty: reported for reference only, not checked
+        # empty: reported for reference only, not checked.
+        # TODO: set them (e.g. 0.85x the REFERENCE values) once a few CI runs establish the
+        # baseline on these machines
         MIN_LANES=
         MIN_SINGLE_STREAM=
         MIN_CPU=
@@ -107,20 +120,17 @@ test_body() {
     run_bench "${LOG_PERF}" ${TASKSET} python video_reader_bench.py ${BENCH_ARGS} \
         -s ${PERF_SCENARIOS} --json ${JSON_PERF} || PERF_RUN="FAIL"
 
-    # The output must not depend on num_threads or on the reader's prefetch_queue_depth
+    # The output must not depend on num_threads or on the reader's prefetch_queue_depth: every
+    # configuration is compared with all that differ from it only in those
     HASH_RESULT="OK"
-    for threads in ${THREADS_LOW} ${THREADS_HIGH}; do
-        [ ${threads} == ${THREADS_LOW} ] && json=${JSON_HASH_LOW} || json=${JSON_HASH_HIGH}
-        ${TASKSET} python video_reader_bench.py -s ${HASH_SCENARIOS} -j ${threads} \
-            --hash --hash_batches 4 --json ${json} || HASH_RESULT="FAIL"
-    done
-    python video_reader_bench.py --compare ${JSON_HASH_LOW} ${JSON_HASH_HIGH} --ignore threads \
-        || HASH_RESULT="FAIL"
-    python video_reader_bench.py --compare ${JSON_HASH_HIGH} ${JSON_HASH_HIGH} \
-        --ignore reader_depth || HASH_RESULT="FAIL"
+    ${TASKSET} python video_reader_bench.py -s ${HASH_SCENARIOS} -j 1,16 --hash --hash_batches 4 \
+        --json ${JSON_HASH} || HASH_RESULT="FAIL"
+    python video_reader_bench.py --compare ${JSON_HASH} ${JSON_HASH} \
+        --ignore threads,reader_depth || HASH_RESULT="FAIL"
 
     CHECK_RESULT="OK"
     python ${topdir}/qa/TL1_video_reader_perf/check_results.py ${JSON_PERF} --tolerance 10 \
+        --engines_scaling ${ENGINES_SCALING} \
         --min lanes=${MIN_LANES} --min single_stream=${MIN_SINGLE_STREAM} \
         --min cpu=${MIN_CPU} --min engines=${MIN_ENGINES} || CHECK_RESULT="FAIL"
 
@@ -132,7 +142,7 @@ test_body() {
         REF_RUN="SKIPPED"
     elif install_reference_libs; then
         run_bench "${LOG_REF}" ${TASKSET} python video_reader_bench.py ${REF_ARGS} \
-            -s ${REF_SCENARIOS} -b dali,${REF_BACKENDS} --json ${JSON_REF} || REF_RUN="FAIL"
+            -s ${REF_SCENARIOS} -b ${REF_BACKENDS} --json ${JSON_REF} || REF_RUN="FAIL"
     else
         REF_RUN="FAIL"
     fi
@@ -141,23 +151,24 @@ test_body() {
     echo "HASH_RESULT=${HASH_RESULT}"
     echo "CHECK_RESULT=${CHECK_RESULT}"
     echo "REF_RUN=${REF_RUN}"
+    print_results ${JSON_PERF} ${JSON_REF}
 
     if [[ "$PERF_RUN" == "OK" && "$HASH_RESULT" == "OK" && "$CHECK_RESULT" == "OK" \
           && "$REF_RUN" != "FAIL" ]]; then
         CLEAN_AND_EXIT 0
     fi
 
-    # On failure: re-run the performance scenarios once with nsys and save the profile
-    echo "Video reader checks failed; re-running the benchmark with nsys profiling..."
+    # On failure: save the results; if the performance run or its checks failed, also re-run the
+    # performance scenarios once with nsys and save the profile
     ARTIFACTS_DIR="${topdir}/core_artifacts"
     mkdir -p "${ARTIFACTS_DIR}"
-
-    NSYS_REP="enabled" run_bench "${LOG_PERF}" ${TASKSET} python video_reader_bench.py \
-        --repeat 1 --min_time 3 -j ${THREADS_LOW},${THREADS_HIGH} --readers 1,4 \
-        -s ${PERF_SCENARIOS} || true
-
-    cp -f *.nsys-rep ${JSON_PERF} "${ARTIFACTS_DIR}/" 2>/dev/null || true
-    echo "nsys profile and results saved to ${ARTIFACTS_DIR}"
+    if [[ "$PERF_RUN" != "OK" || "$CHECK_RESULT" != "OK" ]]; then
+        echo "Video reader performance checks failed; re-running with nsys profiling..."
+        NSYS_REP="enabled" run_bench "${LOG_PERF}" ${TASKSET} python video_reader_bench.py \
+            --repeat 1 --min_time 3 -j 1,16 --readers 1,4 -s ${PERF_SCENARIOS} || true
+    fi
+    cp -f *.nsys-rep ${JSON_PERF} ${JSON_HASH} ${JSON_REF} "${ARTIFACTS_DIR}/" 2>/dev/null || true
+    echo "Results (and nsys profile, if any) saved to ${ARTIFACTS_DIR}"
     CLEAN_AND_EXIT 1
 }
 pushd ../..

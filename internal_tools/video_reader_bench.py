@@ -18,11 +18,15 @@ Scenarios (each isolates one aspect of the reader):
 
   lanes          many distinct files, one keyframe-aligned sequence each, so every
                  batch holds `batch` different files and no sample needs a seek:
-                 decode parallelism across samples vs. num_threads
+                 per-file cost (opening, indexing, decoder setup, decoding the lead-in
+                 frames an edit list hides, see LEAD_IN_FILES) plus decoding, vs.
+                 num_threads. A per-file speedup also shows here; check `cache_key`
+                 and `engines` before attributing a gain to decode parallelism
   seq_longgop    15 H.264 clips read sequentially (long GOPs, consecutive sequences
                  of the same file): no-regression check for sequential access
-  random_access  the same clips shuffled: parallelism and keyframe-seek waste
-                 together (do not read a lanes speedup from this one alone)
+  random_access  the same clips, and the HEVC trailer (open GOPs), shuffled:
+                 parallelism and keyframe-seek waste together (do not read a lanes
+                 speedup from this one alone)
   single_stream  one clip, batch 1: per-stream throughput, i.e. per-frame
                  serialization. Includes a 512x512 clip, where per-frame overheads
                  matter more than decode time
@@ -54,11 +58,12 @@ Methodology:
   * NVML metrics are per process where possible (decoder utilization, memory). A
     result is flagged as contaminated if other processes use the GPU or NVDEC is busy
     before the run starts
-  * files are read once before each scenario, so all runs see a warm page cache
+  * all input files are read once before the first run, so all runs see a warm page cache
   * DALI_extra has no 1080p content, so absolute rates are lower than for 1080p data;
     compare builds, not datasets
 
---hash records a checksum of every sample (frames, label, frame_num). Compare two
+--hash records a checksum of every sample (frames, label, frame_num) of at least
+HASH_MIN_SAMPLES samples, so that the reader's prefetch queue wraps around. Compare two
 --hash result files (e.g. two builds, or --ignore threads to check that the output
 does not depend on num_threads) with --compare.
 
@@ -68,11 +73,14 @@ Other libraries (--backends), for reference:
   torchcodec_beta  torchcodec VideoDecoder with its own NVDEC backend (set_cuda_backend)
   They decode the same samples as the DALI reader (the same sequences of the same files,
   in the same order, or shuffled with a fixed seed), each sample with frames [start, end)
-  of one file. A batch is decoded by a pool of `threads` threads, each with its own
-  decoder, kept while consecutive samples come from the same file (PyNvVideoCodec
-  reconfigures its decoder for a new file, torchcodec opens a new one). Batches are not
-  prefetched: unlike DALI, a batch is decoded when it is requested. They run only the
-  scenarios that mean the same for them (BACKEND_SCENARIOS), and need torch.
+  of one file. A batch is decoded by a pool of min(threads, batch) threads, each with its
+  own decoder, kept while consecutive samples come from the same file (PyNvVideoCodec
+  reconfigures its decoder for a new file, torchcodec opens a new one, scanning it, as
+  its default seek_mode="exact" does). Batches are not prefetched: unlike DALI, a batch
+  is decoded when it is requested. They run only the configurations that mean the same
+  for them (backend_runs), and need torch. GPU rows where NVDEC stays nearly idle are
+  flagged, as a GPU backend may fall back to CPU decoding, and so are PyNvVideoCodec rows on
+  clips with hidden lead-in frames (LEAD_IN_FILES), where it returns different frames.
 """
 
 import argparse
@@ -92,6 +100,11 @@ import time
 import warnings
 
 VIDEO_DIR = "db/video"
+
+# --hash checks at least this many samples per configuration: twice the batches the
+# pipeline and the reader can hold (depth 2 + reader_depth up to 8) at batch 1, so that
+# every slot of the reader's prefetch queue is reused
+HASH_MIN_SAMPLES = 40
 
 H264_CLIPS = ["sintel/video_files/*.mp4", "sintel/labelled_videos/*/*.mp4"]
 VPX_CLIPS = [
@@ -132,6 +145,11 @@ FILES = {
     # VP8/VP9 clips (H.264 is not enabled on the CPU backend)
     "vpx_clips": VPX_CLIPS,
 }
+# File sets where most clips (cut without re-encoding) start before the frame they show first,
+# with an MP4 edit list hiding the lead-in frames: DALI and torchcodec start at the first
+# visible frame, so they decode the lead-in before frame 0, while PyNvVideoCodec returns the
+# lead-in frames themselves (different frames, less decoding)
+LEAD_IN_FILES = {"h264_clips", "h264_mixed"}
 
 
 def _cfg(files, layout="plain", device="gpu", batch=8, seq=32, threads=4, **kw):
@@ -163,18 +181,17 @@ def _cfg(files, layout="plain", device="gpu", batch=8, seq=32, threads=4, **kw):
     return cfg
 
 
-def scenarios(threads, readers):
+def scenarios(threads, readers, quick=False):
     t_max = max(threads)
     t_pair = sorted({1, t_max})
+    iters = {} if quick else dict(iters=20)
     return {
-        "lanes": [
-            _cfg("h264_clips", "many:256", batch=b, seq=32, threads=t)
-            for b in (8, 16)
-            for t in threads
-        ],
+        "lanes": [_cfg("h264_clips", "many:256", batch=16, seq=32, threads=t) for t in threads],
         "seq_longgop": [_cfg("h264_clips", batch=16, seq=32, threads=t) for t in t_pair],
         "random_access": [
-            _cfg("h264_clips", batch=16, seq=32, threads=t, shuffle=True) for t in t_pair
+            _cfg(f, batch=16, seq=32, threads=t, shuffle=True)
+            for f in ("h264_clips", "hevc_long")
+            for t in t_pair
         ],
         "single_stream": [
             _cfg(f, batch=1, seq=64, threads=4)
@@ -186,19 +203,21 @@ def scenarios(threads, readers):
             for d in (1, 2, 4, 8)
         ],
         # ms_per_sample(alternate) - ms_per_sample(same), per file pair: cost of opening the
-        # other file relative to rewinding the same one (see the module docstring)
+        # other file relative to rewinding the same one (see the module docstring). One
+        # thread: with more, other libraries keep each file of a pair on its own decoder
         "cache_key": [
-            _cfg(f, f"{kind}:64", batch=8, seq=8, threads=t)
+            _cfg(f, f"{kind}:64", batch=8, seq=8, threads=1)
             for f in ("h264_cropped_pair", "h264_aligned_pair")
             for kind in ("alternate", "same")
-            for t in t_pair
         ],
         "switch": [_cfg("h264_mixed", batch=8, seq=8, threads=t, shuffle=True) for t in t_pair],
         "startup": [
             _cfg("h264_clips", "many:256", batch=1, seq=8, threads=t, iters=0) for t in t_pair
         ],
+        # the noisiest scenario: more iterations than the --iters default
         "engines": [
-            _cfg("h264_clips", "many:64", batch=4, seq=32, threads=4, readers=k) for k in readers
+            _cfg("h264_clips", "many:64", batch=4, seq=32, threads=4, readers=k, **iters)
+            for k in readers
         ],
         "cpu": [
             _cfg("vpx_clips", "many:128", device="cpu", batch=b, seq=16, threads=t)
@@ -226,9 +245,17 @@ BACKEND_SCENARIOS = {
 }
 
 
-def backend_runs(backend, scenario, device):
+def backend_runs(backend, scenario, cfg):
     names, devices = BACKEND_SCENARIOS[backend]
-    return (names is None or scenario in names) and device in devices
+    if (names is not None and scenario not in names) or cfg["device"] not in devices:
+        return False
+    # PyNvVideoCodec 2.0 SimpleDecoder fails (IndexError) when a decoder that was just
+    # created or reconfigured for a file is asked for frames from the middle of it, so it
+    # runs only configurations whose decoders start every file at frame 0
+    seeks = scenario in ("random_access", "switch") or (
+        scenario == "seq_longgop" and min(cfg["threads"], cfg["batch"]) > 1
+    )
+    return not (backend == "pynvvideocodec" and seeks)
 
 
 # ----------------------------------------------------------------------------------------
@@ -284,13 +311,8 @@ def materialize(cfg, dali_extra, workdir):
             lines.append((dst, i))
     elif kind == "alternate":
         lines = [(files[i % len(files)], i) for i in range(n)]
-    elif kind == "same":
+    else:  # same
         lines = [(files[0], i) for i in range(n)]
-    else:
-        raise ValueError(
-            f"Unknown layout {cfg['layout']!r}; expected 'plain', 'many:N', 'alternate:N' "
-            f"or 'same:N'."
-        )
     specs = []
     per_reader = len(lines) // cfg["readers"]
     for r in range(cfg["readers"]):
@@ -367,7 +389,7 @@ class GpuMonitor:
             self.errors.append(msg)
 
     def snapshot(self):
-        """Pre/post-run state: other processes, NVDEC utilization, clocks."""
+        """Pre/post-run state: other processes, NVDEC utilization."""
         if not self.nvml:
             return {}
         nvml, h = self.nvml, self.handle
@@ -375,8 +397,6 @@ class GpuMonitor:
         queries = dict(
             other_pids=lambda: other_gpu_pids(nvml, h),
             dev_nvdec_util=lambda: nvml.nvmlDeviceGetDecoderUtilization(h)[0],
-            clock_video_mhz=lambda: nvml.nvmlDeviceGetClockInfo(h, nvml.NVML_CLOCK_VIDEO),
-            clock_sm_mhz=lambda: nvml.nvmlDeviceGetClockInfo(h, nvml.NVML_CLOCK_SM),
         )
         for key, query in queries.items():
             try:  # older NVML bindings may lack some queries for newer drivers
@@ -466,8 +486,6 @@ def build_pipeline(cfg, specs, device_id, seed, frame_num=False):
             else:
                 kw["file_list_format"] = "frames"
                 kw["file_list_include_end"] = False  # explicit: the default changed over time
-            if "initial_fill" in cfg:
-                kw["initial_fill"] = cfg["initial_fill"]
             if frame_num:
                 kw["enable_frame_num"] = True
             outs += fn.experimental.readers.video(
@@ -578,7 +596,10 @@ class ReferenceRunner:
         self.local = threading.local()
         samples = sample_list(specs, cfg["seq"], cfg["shuffle"], self._num_frames)
         self.samples = itertools.cycle(samples)
-        self.pool = ThreadPoolExecutor(cfg["threads"]) if cfg["threads"] > 1 else None
+        # no more threads than samples per batch: an idle extra thread would take the next
+        # batch's samples of the same file and make its decoder seek
+        workers = min(cfg["threads"], cfg["batch"])
+        self.pool = ThreadPoolExecutor(workers) if workers > 1 else None
 
     def _open(self, path):
         if self.backend == "pynvvideocodec":
@@ -685,7 +706,6 @@ def run_one(cfg, specs, args):
                 if stamps[-1] - t_ref >= args.min_time:
                     break
         res.update(mon.stop())
-        t_ref = stamps[skip - 1] if skip else t_start
         span = stamps[-1] - t_ref
         n = len(stamps) - skip
         times_ms = sorted((b - a) * 1e3 for a, b in zip([t_ref] + stamps[skip:], stamps[skip:]))
@@ -697,7 +717,6 @@ def run_one(cfg, specs, args):
             ms_per_sample=span * 1e3 / (n * cfg["readers"] * cfg["batch"]),
             iter_p50_ms=statistics.median(times_ms),
             iter_p90_ms=percentile(times_ms, 90),
-            iter_p99_ms=percentile(times_ms, 99) if len(times_ms) >= 200 else None,
             iter_max_ms=times_ms[-1],
         )
     res["post"] = mon.snapshot()
@@ -712,11 +731,13 @@ def run_one(cfg, specs, args):
 
 
 def hash_one(cfg, specs, args):
-    """Returns one checksum per sample for the first --hash_batches batches."""
+    """Returns one checksum per sample of the first batches (see HASH_MIN_SAMPLES)."""
     pipe = build_pipeline(cfg, specs, args.device_id, args.seed, frame_num=True)
     pipe.build()
     hashes = []
-    for _ in range(args.hash_batches):
+    # Not dependent on threads or reader_depth, so that --compare --ignore can match runs
+    batches = max(args.hash_batches, -(-HASH_MIN_SAMPLES // (cfg["batch"] * cfg["readers"])))
+    for _ in range(batches):
         outs = [_as_cpu(t) for t in pipe.run()]
         for r in range(cfg["readers"]):
             video, label, frame_num = outs[3 * r : 3 * r + 3]
@@ -725,7 +746,7 @@ def hash_one(cfg, specs, args):
                 h.update(label.at(i).tobytes())
                 h.update(frame_num.at(i).tobytes())
                 hashes.append(h.hexdigest())
-    return dict(hashes=hashes)
+    return dict(hashes=hashes, hash_batches=batches)
 
 
 def _as_cpu(tensor_list):
@@ -779,7 +800,6 @@ def aggregate(cfg, reps):
         "ms_per_sample",
         "iter_p50_ms",
         "iter_p90_ms",
-        "iter_p99_ms",
         "iter_max_ms",
         "build_s",
         "first_batch_ms",
@@ -856,6 +876,8 @@ def format_row(r):
         if r["proc_nvdec_util"] < 10:
             # e.g. a GPU backend that falls back to CPU decoding for a format it can't decode
             flags.append("NVDEC<10%")
+    if r.get("backend") == "pynvvideocodec" and r.get("files") in LEAD_IN_FILES:
+        flags.append("lead-in frames")  # not the same frames as DALI, see LEAD_IN_FILES
     if r.get("errors"):
         flags.append(f"{len(r['errors'])} failed run(s)")
     if r.get("error"):
@@ -870,7 +892,6 @@ def provenance(args):
         python=sys.version.split()[0],
         cpu_count=os.cpu_count(),
         argv=sys.argv,
-        isolation="subprocess per run",
         env={k: v for k, v in os.environ.items() if k.startswith("DALI_") or k.startswith("CUDA_")},
     )
     try:
@@ -918,7 +939,7 @@ def compare(a_path, b_path, ignore):
     """
     with open(a_path) as fa, open(b_path) as fb:
         a, b = json.load(fa), json.load(fb)
-    skip = {"hashes", "scenario", "error", "errors", "backend_version", "repeats"} | set(ignore)
+    skip = {"hashes", "scenario", "error", "errors"} | set(ignore)
 
     def key(r):
         return json.dumps({k: v for k, v in r.items() if k not in skip}, sort_keys=True)
@@ -1041,7 +1062,7 @@ def main():
 
     threads = [int(t) for t in args.threads.split(",")]
     readers = [int(r) for r in args.readers.split(",")]
-    all_scenarios = scenarios(threads, readers)
+    all_scenarios = scenarios(threads, readers, args.quick)
     names = list(all_scenarios) if args.scenarios == "all" else args.scenarios.split(",")
     unknown = [n for n in names if n not in all_scenarios]
     if unknown:
@@ -1076,8 +1097,8 @@ def main():
         jobs, not_run = [], set()
         for name in names:
             for base, backend in [(c, b) for c in all_scenarios[name] for b in args.backends]:
-                if not backend_runs(backend, name, base["device"]):
-                    not_run.add((backend, name))
+                if not backend_runs(backend, name, base):
+                    not_run.add((backend, name, base["threads"]))
                     continue
                 cfg = dict(base, scenario=name, backend=backend)
                 try:
@@ -1086,8 +1107,8 @@ def main():
                     jobs.append((cfg, None, f"{type(e).__name__}: {e}"))
                     continue
                 jobs.append((cfg, specs, None))
-        for backend, name in sorted(not_run):
-            print(f"# not run: {name} with {backend} (DALI reader specific or unsupported)")
+        for backend, name, threads in sorted(not_run):
+            print(f"# not run: {name} threads={threads} with {backend} (see backend_runs)")
         for cfg, specs, err in jobs:
             if specs:
                 paths = []
@@ -1122,7 +1143,7 @@ def main():
             print_header()
         for i, (cfg, specs, err) in enumerate(jobs):
             if args.hash:
-                r = dict(cfg, seed=args.seed, hash_batches=args.hash_batches, **reps[i][0])
+                r = dict(cfg, seed=args.seed, **reps[i][0])  # with the hash_batches used
                 n = len(r.get("hashes", []))
                 print(
                     f"{cfg['scenario']} {cfg['files']} threads={cfg['threads']}: "

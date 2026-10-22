@@ -17,10 +17,12 @@
 
 Checks:
   * no configuration failed
-  * hardware-independent relative checks, with a tolerance:
-      - lanes, cpu: throughput at the highest num_threads is not lower than at the
-        lowest one (more threads must not make the reader slower)
+  * relative checks, with a tolerance:
+      - lanes, seq_longgop, random_access, cpu: throughput at any higher num_threads is
+        not lower than at the lowest one (more threads must not make the reader slower)
       - reader_depth: a deeper reader queue is not slower than depth 1
+  * optional: engines with the most readers reach at least --engines_scaling times the
+    throughput of one reader (GPUs with several NVDEC engines; e.g. H100: 3.6x at 4)
   * optional absolute minimums (frames/s) for named metrics, passed with --min:
       lanes          lanes, batch 16, highest num_threads
       single_stream  single_stream, h264_long
@@ -80,6 +82,11 @@ def main():
     parser.add_argument(
         "--min", action="append", default=[], metavar="NAME=FPS", help="absolute minimum"
     )
+    parser.add_argument(
+        "--engines_scaling",
+        type=float,
+        help="minimum speedup of engines with the most readers over one reader",
+    )
     args = parser.parse_args()
 
     with open(args.results) as f:
@@ -133,9 +140,24 @@ def main():
                     f"tolerance {args.tolerance:g}%",
                 )
 
-    relative("lanes", ("files", "layout", "batch"), "threads")
-    relative("cpu", ("files", "layout", "batch"), "threads")
+    for scenario in ("lanes", "seq_longgop", "random_access", "cpu"):
+        relative(scenario, ("files", "layout", "batch"), "threads")
     relative("reader_depth", ("files", "layout"), "reader_depth")
+
+    if args.engines_scaling is not None:
+        rows = sorted(
+            (r for r in by(results, "engines") if r.get("frames_per_s")), key=lambda r: r["readers"]
+        )
+        if len(rows) < 2 or rows[0]["readers"] != 1:
+            check("engines scaling", False, "needs engines results with 1 and more readers")
+        else:
+            one, most = rows[0], rows[-1]
+            scaling = most["frames_per_s"] / one["frames_per_s"]
+            check(
+                f"engines readers={most['readers']} vs 1",
+                scaling >= args.engines_scaling,
+                f"{scaling:.2f}x, minimum {args.engines_scaling:g}x",
+            )
 
     for name, value in metrics.items():
         if name in minimums:
