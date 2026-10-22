@@ -460,9 +460,10 @@ class ConvertCPUvsGPUTest : public ::testing::Test {
                 static_cast<Input>(max_value<Input>() / 3),
                 static_cast<Input>(max_value<Input>() / 2 + 1),
                 static_cast<Input>(max_value<Input>() - 1), max_value<Input>()};
-      if (std::is_signed_v<Input>)
-        values.insert(values.end(), {static_cast<Input>(-1),
-                                     static_cast<Input>(-(max_value<Input>() / 3))});
+      if constexpr (std::is_signed_v<Input>) {
+        values.push_back(static_cast<Input>(-1));
+        values.push_back(static_cast<Input>(-(max_value<Input>() / 3)));
+      }
     } else {
       values = {-2.0f, -1.0f, -0.5f, 0.0f, 0.25f, 0.5f, 1.0f, 1.5f};
     }
