@@ -886,7 +886,7 @@ def provenance(args):
         try:
             info.setdefault("packages", {})[pkg] = metadata.version(pkg)
         except metadata.PackageNotFoundError:
-            pass
+            continue  # optional: needed only by the --backends that use it
     try:
         nvml, h = nvml_handle(args.device_id)
     except Exception as e:

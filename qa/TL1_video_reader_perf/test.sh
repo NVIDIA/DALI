@@ -66,14 +66,18 @@ function CLEAN_AND_EXIT {
     exit $1
 }
 
-# Prints the results (without per-run data) to the log, so that they are kept on success too
+# Prints the results (without per-run data) to the log, so that they are kept on success too.
+# A missing or unreadable file (e.g. no reference run on GraceHopper) is skipped, not an error.
 print_results() {
     for json in "$@"; do
-        [ -f "${json}" ] && python -c "import json, sys
+        if [ -f "${json}" ]; then
+            python -c "import json, sys
 d = json.load(open(sys.argv[1]))
 for r in d['results']:
     r.pop('runs', None)
-print('RESULTS', sys.argv[1], json.dumps(d, separators=(',', ':')))" "${json}"
+print('RESULTS', sys.argv[1], json.dumps(d, separators=(',', ':')))" "${json}" \
+                || echo "Could not print ${json}"
+        fi
     done
 }
 
