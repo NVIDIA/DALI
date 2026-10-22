@@ -14,6 +14,8 @@
 
 #include "dali/operators/reader/loader/file_label_loader.h"
 #include <cerrno>
+#include <cfloat>
+#include <cmath>
 #include <cstdlib>
 #include <limits>
 #include <memory>
@@ -71,7 +73,13 @@ std::optional<FileLabel> ParseFileLabel(const char *str, DALIDataType dtype) {
     }
     case DALI_FLOAT: {
       float value = std::strtof(str, &end);
-      if (end == str || *end != '\0' || errno == ERANGE)
+      if (end == str || *end != '\0')
+        return std::nullopt;
+      // Reject only overflow. Underflow (subnormals, or a flush to zero) is ordinary rounding,
+      // and some platforms report it with ERANGE even for normal results (e.g. aarch64 detects
+      // tininess before rounding). Depending on the rounding mode, overflow yields either
+      // infinity or FLT_MAX; a label that is exactly FLT_MAX doesn't set ERANGE.
+      if (errno == ERANGE && std::abs(value) >= FLT_MAX)
         return std::nullopt;
       return value;
     }
