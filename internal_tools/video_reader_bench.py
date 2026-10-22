@@ -77,10 +77,14 @@ Other readers and libraries (--backends), for reference:
   own decoder, kept while consecutive samples come from the same file (PyNvVideoCodec
   reconfigures its decoder for a new file, torchcodec opens a new one, scanning it, as
   its default seek_mode="exact" does). Batches are not prefetched: unlike DALI, a batch
-  is decoded when it is requested. They run only the configurations that mean the same
-  for them (backend_runs), and need torch. Rows are flagged when torchcodec reports a CPU
-  fallback, and PyNvVideoCodec rows on clips with hidden lead-in frames (LEAD_IN_FILES),
-  where it returns different frames.
+  is decoded when it is requested. A batch's outputs are kept until the next batch is
+  requested, as DALI's, so the process memory (mem MB) includes one batch for them, and
+  for DALI also the batches in its queues (`depth` + `reader_depth`). PyNvVideoCodec is an
+  exception: its frames stay in its decoder's buffers, which the decoder's next call
+  reuses, so its memory does not include a batch. They run only the configurations that
+  mean the same for them (backend_runs), and need torch. Rows are flagged when torchcodec
+  reports a CPU fallback, and PyNvVideoCodec rows on clips with hidden lead-in frames
+  (LEAD_IN_FILES), where it returns different frames.
 """
 
 import argparse
@@ -630,26 +634,33 @@ class ReferenceRunner:
         return local.decoder
 
     def _decode(self, sample):
+        """Returns the sample's (frames, height, width) and the library's output."""
         path, start, end = sample
         decoder = self._decoder(path)
         # the libraries' own outputs, not converted or copied
         if self.backend == "pynvvideocodec":
             frames = decoder.get_batch_frames_by_index(list(range(start, end)))
-            return (len(frames),) + tuple(frames[0].shape[:2])  # frames of H, W, C
+            return (len(frames),) + tuple(frames[0].shape[:2]), frames  # frames of H, W, C
         video = decoder.get_frames_in_range(start, end).data
         if self.gpu and getattr(decoder, "cpu_fallback", None):  # torchcodec >= 0.11
             self.cpu_fallback = True
-        return (video.shape[0], video.shape[2], video.shape[3])  # F, C, H, W
+        return (video.shape[0], video.shape[2], video.shape[3]), video  # F, C, H, W
 
     def build(self):
         pass
 
     def run(self):
+        # The outputs of a batch are kept until the next run(), as Pipeline.run() outputs, so
+        # that the process memory includes a whole batch (DALI's also includes its queues)
+        self.outputs = None
         batch = [next(self.samples) for _ in range(self.cfg["batch"])]
-        shapes = list(self.pool.map(self._decode, batch) if self.pool else map(self._decode, batch))
+        decoded = list(
+            self.pool.map(self._decode, batch) if self.pool else map(self._decode, batch)
+        )
         if self.gpu:
             self.torch.cuda.synchronize()  # as Pipeline.run(): outputs are ready
-        return shapes
+        self.outputs = [out for _, out in decoded]
+        return [shape for shape, _ in decoded]
 
 
 def make_runner(cfg, specs, args):
