@@ -100,26 +100,45 @@ class IndexCreator:
         )  # <type>... <size> <date> <name>
 
         # Extracting
-        for blocks_line, types_sizes_line in zip(tar_blocks, tar_types_sizes):
-            if not blocks_line or not types_sizes_line:
-                continue
+        with open(self.uri, "rb") as archive:
+            for blocks_line, types_sizes_line in zip(tar_blocks, tar_types_sizes):
+                if not blocks_line or not types_sizes_line:
+                    continue
 
-            name = os.fsdecode(blocks_line[blocks_line.find(b":") + 2 :])
-            entry_type = types_sizes_line[0:1]
+                name = os.fsdecode(blocks_line[blocks_line.find(b":") + 2 :])
+                entry_type = types_sizes_line[0:1]
 
-            if entry_type != b"-":
-                continue
+                if entry_type != b"-":
+                    continue
 
-            offset = int(blocks_line[blocks_line.find(b"block") + 6 : blocks_line.find(b":")])
-            # according to https://www.loc.gov/preservation/digital/formats/fdd/fdd000531.shtml#:~:text=A%20tar%20(tape%20archive)%20file,are%20not%20compressed%20archive%20files. # noqa: E501, W505
-            # each data record is preceded by 512-byte header. `tar --list --block-num --file`
-            # return the position (counted in 512-byte blocks) of the header for a given entry.
-            # So the size of the header needs to be added to get the data offset
-            offset = (offset + 1) * 512
+                block = int(blocks_line[blocks_line.find(b"block") + 6 : blocks_line.find(b":")])
+                # according to https://www.loc.gov/preservation/digital/formats/fdd/fdd000531.shtml#:~:text=A%20tar%20(tape%20archive)%20file,are%20not%20compressed%20archive%20files. # noqa: E501, W505
+                # each data record is preceded by 512-byte header. `tar --list --block-num --file`
+                # return the position (counted in 512-byte blocks) of the first header for a given
+                # entry. So the size of the header(s) needs to be added to get the data offset
+                offset = self._get_data_offset(archive, block)
 
-            size = int(types_sizes_line.split(maxsplit=5)[2])
+                size = int(types_sizes_line.split(maxsplit=5)[2])
 
-            yield offset, name, size
+                yield offset, name, size
+
+    def _get_data_offset(self, archive, block):
+        """Returns the offset of the data of the entry whose first header is at `block`.
+        In the GNU format, a name (or a link target) that does not fit in the 100-byte field
+        of the header is stored in an additional `././@LongLink` header, followed by the name
+        itself, placed before the header of the entry. `tar --block-num` reports the position
+        of this first header, so the long name headers have to be skipped as well."""
+        offset = block * self.tar_block_size
+        while True:
+            archive.seek(offset)
+            header = archive.read(self.tar_block_size)
+            offset += self.tar_block_size
+            # the type flag is stored in the byte 156 of a tar header
+            if header[156:157] not in (tarfile.GNUTYPE_LONGNAME, tarfile.GNUTYPE_LONGLINK):
+                return offset
+            # skip the blocks holding the long name
+            size = tarfile.TarInfo.frombuf(header, tarfile.ENCODING, "surrogateescape").size
+            offset += (size + self.tar_block_size - 1) // self.tar_block_size * self.tar_block_size
 
     def _get_data_tarfile(self):
         """Retreives the data about the offset, name and size of each component
