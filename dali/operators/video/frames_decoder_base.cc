@@ -15,6 +15,7 @@
 #include "dali/operators/video/frames_decoder_base.h"
 #include <iomanip>
 #include <memory>
+#include <mutex>
 #include "dali/core/error_handling.h"
 #include "dali/core/small_vector.h"
 #include "dali/operators/video/video_utils.h"
@@ -212,8 +213,18 @@ bool FramesDecoderBase::CheckDimensions() {
   return true;
 }
 
+namespace {
+
+// FFmpeg's log level is process-wide; set it once, not from every decoder (several threads)
+void SetAvLogLevel() {
+  static std::once_flag once;
+  std::call_once(once, [] { av_log_set_level(AV_LOG_ERROR); });
+}
+
+}  // namespace
+
 FramesDecoderBase::FramesDecoderBase(const std::string &filename, DALIImageType image_type) {
-  av_log_set_level(AV_LOG_ERROR);
+  SetAvLogLevel();
   filename_ = filename;
   DALI_ENFORCE(image_type == DALI_YCbCr || image_type == DALI_RGB,
                make_string("Invalid image type: ", image_type));
@@ -234,7 +245,7 @@ FramesDecoderBase::FramesDecoderBase(const std::string &filename, DALIImageType 
 }
 
 FramesDecoderBase::FramesDecoderBase(const char *memory_file, size_t memory_file_size, std::string_view source_info, DALIImageType image_type) {
-  av_log_set_level(AV_LOG_ERROR);
+  SetAvLogLevel();
   filename_ = source_info;
   DALI_ENFORCE(image_type == DALI_YCbCr || image_type == DALI_RGB,
                make_string("Invalid image type: ", image_type));
@@ -516,13 +527,12 @@ void FramesDecoderBase::SeekFrame(int frame_id) {
   assert(next_frame_idx_ >= 0);
 
   // If we are seeking to a frame that is before the current frame,
-  // or we are seeking to a frame that is more than MINIMUM_SEEK_LEAP frames away,
+  // or we are seeking to a frame that is more than kMinimumSeekLeap frames away,
   // or the current frame index is invalid (e.g. end of file),
   // we will to seek to the nearest keyframe first
   LOG_LINE << "SeekFrame: frame_id=" << frame_id << ", next_frame_idx=" << next_frame_idx_
            << std::endl;
-  constexpr int MINIMUM_SEEK_LEAP = 10;
-  if (frame_id < next_frame_idx_ || frame_id > next_frame_idx_ + MINIMUM_SEEK_LEAP) {
+  if (frame_id < next_frame_idx_ || frame_id > next_frame_idx_ + kMinimumSeekLeap) {
     // If we have an index, we can seek to the nearest keyframe first
     if (HasIndex()) {
       LOG_LINE << "Using index to find nearest keyframe" << std::endl;

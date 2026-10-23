@@ -57,8 +57,16 @@ struct DecInstance {
   CUvideodecoder decoder = {};
   cudaVideoCodec codec_type = {};
   cudaVideoChromaFormat chroma_format = {};
+  // Size of the coded frame (CUVIDEOFORMAT::coded_*), which the decoder is created for. It is
+  // aligned to the macroblock/CTB size, e.g. 1920x1088 for a 1920x1080 H.264 stream.
+  unsigned coded_height = 0;
+  unsigned coded_width = 0;
+  // Output size and origin of the display area (CUVIDEOFORMAT::display_area), which the decoder
+  // crops the coded frame to, e.g. 1920x1080 at (0, 0).
   unsigned height = 0;
   unsigned width = 0;
+  int display_left = 0;
+  int display_top = 0;
   unsigned num_decode_surfaces = 0;
   unsigned max_height = 0;
   unsigned max_width = 0;
@@ -107,6 +115,16 @@ class NVDECLease {
     NVDECCache *owner = nullptr;
     DecInstance *decoder = nullptr;
 };
+
+/**
+ * @brief Returns how many NVDEC decoders were created so far for a device, i.e. how many times
+ *        the decoder cache could not provide a matching one.
+ *
+ * The count includes decoders that were evicted from the cache since.
+ *
+ * @param device_id CUDA device ordinal or -1 for the current device.
+ */
+DLL_PUBLIC size_t NVDECDecodersCreated(int device_id = -1);
 
 }  // namespace frame_dec_gpu_impl
 
@@ -168,6 +186,11 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
   ~FramesDecoderGpu();
 
   static bool SupportsHevc();
+
+  /**
+   * @brief Number of NVDEC engines of the device; 0 if unknown.
+   */
+  static int NumEngines(int device_id);
 
   static bool SupportsCodec(AVCodecID codec_id, uint8_t bit_depth = 8);
 
