@@ -1322,6 +1322,37 @@ def test_video_index_reuse():
     pipe.run()
 
 
+_reference_cache = {}
+
+
+def _reference_frames(filename):
+    """All frames of the file, decoded with PyAV, in presentation order."""
+    if filename not in _reference_cache:
+        with av.open(filename) as container:
+            _reference_cache[filename] = [
+                f.to_ndarray(format="rgb24") for f in container.decode(video=0)
+            ]
+    return _reference_cache[filename]
+
+
+def _assert_frames_match_file(frames, frame_nums, filename):
+    """Checks that frames[i] is the frame frame_nums[i] of the file (negative: padding, skipped).
+
+    Decoders differ slightly in color conversion, so a frame must be close to the reference and
+    closer to it than to any other frame of the file."""
+    reference = _reference_frames(filename)
+    for frame, num in zip(frames, frame_nums):
+        if num < 0:
+            continue
+        diffs = [np.abs(frame.astype(np.int32) - ref).mean() for ref in reference]
+        assert (
+            diffs[num] < 10
+        ), f"{filename}: frame {num} differs from the reference by {diffs[num]}"
+        assert (
+            diffs[num] <= min(diffs) + 0.5
+        ), f"{filename}: frame {num} is closer to frame {int(np.argmin(diffs))}"
+
+
 # The reader decodes the samples of a batch in parallel, by up to num_threads decoders (decode
 # lanes). Its output must not depend on how many there are.
 _lanes_reader_cases = [
@@ -1346,12 +1377,16 @@ def test_reader_output_independent_of_num_threads(device, case):
     kwargs = _lanes_reader_cases[case]
     batch_size = 4
 
+    files = _lanes_reader_files(device)
+
     @pipeline_def(batch_size=batch_size, device_id=0, seed=42)
     def pipe():
-        # videos, frame numbers and, with enable_timestamps, timestamps
+        # videos, labels (the index of the file), frame numbers and, with enable_timestamps,
+        # timestamps
         return tuple(
             fn.experimental.readers.video(
-                filenames=_lanes_reader_files(device),
+                filenames=files,
+                labels=list(range(len(files))),
                 device=device,
                 enable_frame_num="sequence",
                 **kwargs,
@@ -1361,6 +1396,17 @@ def test_reader_output_independent_of_num_threads(device, case):
     compare_pipelines(
         pipe(num_threads=1), pipe(num_threads=4), batch_size=batch_size, N_iterations=8
     )
+
+    # The two runs could agree on wrong frames, so check the frames against PyAV as well
+    p = pipe(num_threads=4)
+    for _ in range(4):
+        videos, labels, frame_nums, *_ = (t.as_cpu() for t in p.run())
+        for i in range(batch_size):
+            _assert_frames_match_file(
+                np.array(videos[i]),
+                np.array(frame_nums[i]),
+                files[int(np.array(labels[i])[0])],
+            )
 
 
 @params("cpu", "gpu")
@@ -1402,3 +1448,6 @@ def test_reader_pad_last_batch_repeats_last_sample(device):
     assert [label for _, label in samples] == list(range(8)) + [7] * 4
     for video, _ in samples[8:]:
         np.testing.assert_array_equal(video, samples[7][0])
+    for video, label in samples[:8]:
+        start = (label // len(files)) * 4
+        _assert_frames_match_file(video, range(start, start + 4), files[label % len(files)])

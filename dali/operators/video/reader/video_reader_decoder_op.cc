@@ -71,7 +71,7 @@ struct VideoSample : public VideoSampleDesc {
   std::vector<int32_t> frame_idx_;
   // Set once decoded. With pad_last_batch, the loader returns the last sample again, also in the
   // next batch, which must not decode it again while the previous batch may still be read.
-  bool decoded_ = false;
+  bool decoded = false;
 };
 
 enum class FileListFormat {
@@ -680,7 +680,7 @@ class VideoReaderDecoder
    * @brief Whether a decoder whose next frame is `next` decodes through to `frame` without
    * seeking (see FramesDecoderBase::SeekFrame).
    */
-  static bool ReachesWithoutSeek(const FrameIndex *index, int next, int frame) {
+  static bool CanReachWithoutSeek(const FrameIndex *index, int next, int frame) {
     if (next < 0 || frame < next)
       return false;
     if (frame - next <= FramesDecoderBase::kMinimumSeekLeap)
@@ -702,7 +702,7 @@ class VideoReaderDecoder
     runs_.clear();
     for (int i = 0; i < static_cast<int>(batch.size()); i++) {
       auto *sample = batch[i].get();
-      if (sample->decoded_)
+      if (sample->decoded)
         continue;
       bool repeated = false;
       for (auto &task : tasks_)
@@ -737,7 +737,7 @@ class VideoReaderDecoder
       }
       // join a run of the file that a decoder continues to this sample without seeking
       auto run = std::find_if(runs_.begin() + file_runs, runs_.end(), [&](const DecodeRun &r) {
-        return task.first < 0 || ReachesWithoutSeek(index.get(), r.last + 1, task.first);
+        return task.first < 0 || CanReachWithoutSeek(index.get(), r.last + 1, task.first);
       });
       if (run != runs_.end()) {
         run->tasks.push_back(t);
@@ -797,7 +797,7 @@ class VideoReaderDecoder
         int64_t work = cost.frames;
         if (lane.next_filename != *run.filename)
           work += kOpenCost + cost.preroll;
-        else if (!ReachesWithoutSeek(cost.index, lane.next_frame, run.first))
+        else if (!CanReachWithoutSeek(cost.index, lane.next_frame, run.first))
           work += cost.preroll;
         if (lane.load + work < best_end) {
           best = l;
@@ -815,7 +815,7 @@ class VideoReaderDecoder
       auto continues = [&](int r) {
         const auto &run = runs_[r];
         return *run.filename == start[l].first &&
-               ReachesWithoutSeek(FrameIndexCache::instance().Find(*run.filename).get(),
+               CanReachWithoutSeek(FrameIndexCache::instance().Find(*run.filename).get(),
                                   start[l].second, run.first);
       };
       // files in the order of their first sample in the batch, the decoder's file first
@@ -882,7 +882,7 @@ class VideoReaderDecoder
         auto &task = tasks_[t];
         try {
           DecodeSample(*task.sample, lane);
-          task.sample->decoded_ = true;
+          task.sample->decoded = true;
         } catch (...) {
           lane.errors.emplace_back(task.batch_idx, std::current_exception());
           lane.decoder.reset();  // in an unknown state; its destructor waits for its stream

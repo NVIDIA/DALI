@@ -21,6 +21,7 @@
 #include <vector>
 
 #include "dali/operators/video/reader/frame_index_cache.h"
+#include "dali/core/format.h"
 
 namespace dali {
 
@@ -28,7 +29,7 @@ namespace {
 
 // Unique keys per test: the cache is process-wide
 std::string Key(const std::string &test, int i) {
-  return "frame_index_cache_test/" + test + "/" + std::to_string(i);
+  return make_string("frame_index_cache_test/", test, "/", i);
 }
 
 FrameIndex MakeIndex(const std::string &filename, int num_frames) {
