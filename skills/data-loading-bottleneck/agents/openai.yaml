@@ -1,0 +1,4 @@
+interface:
+  display_name: "Data Loading Bottleneck"
+  short_description: "Measure, profile, and diagnose training input stalls"
+  default_prompt: "Use $data-loading-bottleneck to check whether this training workload is input-bound."
