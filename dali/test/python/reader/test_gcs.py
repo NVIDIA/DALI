@@ -26,8 +26,9 @@ import nvidia.dali.fn as fn
 from nvidia.dali import pipeline_def
 
 import gcs_test_utils as gcs
+from nose2.tools import params
 from nose_utils import assert_raises, attr
-from test_utils import compare_pipelines, to_array
+from test_utils import compare_pipelines, get_dali_extra_path, to_array
 
 batch_size = 4
 num_threads = 4
@@ -43,6 +44,7 @@ g_quirks_files = None
 g_odd_sizes = None
 g_reserved_files = None
 g_numpy_root = None
+g_video_root = None
 
 DATA_PREFIX = f"{gcs.PREFIX}/data"
 WDS_PREFIX = f"{gcs.PREFIX}/wds"
@@ -54,6 +56,16 @@ ODD_PREFIX = f"{gcs.PREFIX}/odd"
 # Object names holding characters that are reserved in a URI but ordinary in a GCS name.
 RESERVED_PREFIX = f"{gcs.PREFIX}/reserved"
 NUMPY_PREFIX = f"{gcs.PREFIX}/numpy"
+VIDEO_PREFIX = f"{gcs.PREFIX}/video"
+VIDEO_ROOT_PREFIX = f"{gcs.PREFIX}/video_root"
+
+# Videos for each backend of the video reader, relative to DALI_extra/db/video - the CPU one
+# decodes only VP8, VP9 and MJPEG. The last file of each is larger than the 1 MiB I/O buffer the
+# reader uses for streamed videos, so decoding it takes several ranged reads, not just one.
+VIDEO_FILES = {
+    "cpu": ["vp9/vp9_0.mp4", "vp8/vp8.webm", "mjpeg/mjpeg.avi"],
+    "gpu": ["cfr_test.mp4", "vfr/test_2.mp4", "sintel/video_files/sintel_trailer-720p_2.mp4"],
+}
 
 # Sizes that are deliberately not round: they catch an off-by-one between the right-open
 # ReadRange([begin, end)) that DALI issues and the inclusive HTTP "Range: bytes=first-last".
@@ -138,6 +150,38 @@ def _seed_odd_sizes(endpoint, root):
         gcs.put_object(endpoint, f"{ODD_PREFIX}/{name}", payload)
 
 
+def _seed_videos(endpoint):
+    for device_files in VIDEO_FILES.values():
+        for name in device_files:
+            with open(_local_video(name), "rb") as f:
+                gcs.put_object(endpoint, f"{VIDEO_PREFIX}/{name}", f.read())
+
+
+def _seed_video_root(endpoint, root):
+    """Lays the videos out as a file_root for each backend, in a local directory and on GCS.
+
+    Each subdirectory is a class and the first one holds two videos, so that they share a label.
+    The copy directly under the root is in no class: the local backend skips it, and listing the
+    bucket has to skip it as well.
+    """
+    for device, (first, second, third) in VIDEO_FILES.items():
+        layout = {"class_a": [first, second], "class_b": [third], "": [first]}
+        for subdir, names in layout.items():
+            dirpath = os.path.join(root, device, subdir)
+            os.makedirs(dirpath, exist_ok=True)
+            for name in names:
+                os.symlink(_local_video(name), os.path.join(dirpath, os.path.basename(name)))
+    gcs.upload_dir(endpoint, root, VIDEO_ROOT_PREFIX)
+
+
+def _local_video(name):
+    return os.path.join(get_dali_extra_path(), "db", "video", name)
+
+
+def _remote_video(name):
+    return f"gs://{gcs.BUCKET}/{VIDEO_PREFIX}/{name}"
+
+
 def _seed_many_objects(endpoint, count=1100):
     def put(i):
         gcs.put_object(endpoint, f"{MANY_PREFIX}/c/{i:04}.dat", b"x")
@@ -148,7 +192,7 @@ def _seed_many_objects(endpoint, count=1100):
 
 def setUpModule():
     global g_server, g_tmpdir, g_root, g_files, g_tar, g_index, g_endpoint
-    global g_quirks_files, g_odd_sizes, g_reserved_files, g_numpy_root
+    global g_quirks_files, g_odd_sizes, g_reserved_files, g_numpy_root, g_video_root
     gcs.require_mock_server()
 
     g_tmpdir = tempfile.TemporaryDirectory()
@@ -173,6 +217,9 @@ def setUpModule():
         _seed_numpy(g_endpoint, g_numpy_root)
         g_odd_sizes = os.path.join(g_tmpdir.name, "sizes")
         _seed_odd_sizes(g_endpoint, g_odd_sizes)
+        _seed_videos(g_endpoint)
+        g_video_root = os.path.join(g_tmpdir.name, "video_root")
+        _seed_video_root(g_endpoint, g_video_root)
     except Exception:
         tearDownModule()
         raise
@@ -228,6 +275,33 @@ def wds_pipe(paths, index_paths=None, dont_use_mmap=False):
             paths=paths, index_paths=index_paths, ext=["txt", "cls"], dont_use_mmap=dont_use_mmap
         )
     )
+
+
+@pipeline_def(batch_size=batch_size, num_threads=num_threads)
+def video_pipe(device, filenames=None, file_list=None, file_root=None, random_shuffle=False):
+    if filenames is not None:
+        source = dict(filenames=filenames, labels=list(range(len(filenames))))
+    elif file_root is not None:
+        source = dict(file_root=file_root)
+    else:
+        source = dict(file_list=file_list, file_list_format="frames")
+    return tuple(
+        fn.experimental.readers.video(
+            **source,
+            device=device,
+            name="Reader",
+            sequence_length=4,
+            stride=3,
+            step=15,
+            enable_frame_num=True,
+            enable_timestamps=True,
+            random_shuffle=random_shuffle,
+        )
+    )
+
+
+def _video_pipe(device, **kwargs):
+    return video_pipe(device, device_id=0 if device == "gpu" else None, seed=1234, **kwargs)
 
 
 def _epoch_size(pipe):
@@ -447,3 +521,69 @@ def test_checksum_validation_enabled():
         ) from e
     assert child.returncode == 0, f"stdout:\n{child.stdout}\nstderr:\n{child.stderr}"
     assert "OK" in child.stdout, child.stdout
+
+
+# ---------------------------------------------------------------------------------------------
+# Video reader against gs:// URLs: libavformat opens only local files, so these videos are
+# streamed through DALI's FileStream instead
+# ---------------------------------------------------------------------------------------------
+
+
+def _compare_video_epoch(gcs_pipe, local_pipe):
+    gcs_pipe.build()
+    local_pipe.build()
+    epoch_size = _epoch_size(local_pipe)
+    assert _epoch_size(gcs_pipe) == epoch_size, (_epoch_size(gcs_pipe), epoch_size)
+    compare_pipelines(gcs_pipe, local_pipe, batch_size, -(-epoch_size // batch_size))
+
+
+@params("cpu", "gpu")
+def test_video_reader_filenames(device):
+    """Shuffled, so that the decoder keeps switching files and seeking back and forth."""
+    files = VIDEO_FILES[device]
+    _compare_video_epoch(
+        _video_pipe(device, filenames=[_remote_video(f) for f in files], random_shuffle=True),
+        _video_pipe(device, filenames=[_local_video(f) for f in files], random_shuffle=True),
+    )
+
+
+@params("cpu", "gpu")
+def test_video_reader_file_list(device):
+    """Frame ranges that start mid-video, so that the first read is preceded by a seek."""
+
+    def write_list(path, make_path):
+        with open(path, "w") as f:
+            for label, name in enumerate(VIDEO_FILES[device]):
+                f.write(f"{make_path(name)} {label} {7 + label} 50\n")
+        return path
+
+    gcs_list = write_list(os.path.join(g_tmpdir.name, f"gcs_{device}.txt"), _remote_video)
+    local_list = write_list(os.path.join(g_tmpdir.name, f"local_{device}.txt"), _local_video)
+    _compare_video_epoch(
+        _video_pipe(device, file_list=gcs_list), _video_pipe(device, file_list=local_list)
+    )
+
+
+@params("cpu", "gpu")
+def test_video_reader_file_root(device):
+    """The videos, and the labels taken from their subdirectories, come from listing the bucket."""
+    _compare_video_epoch(
+        _video_pipe(device, file_root=f"gs://{gcs.BUCKET}/{VIDEO_ROOT_PREFIX}/{device}"),
+        _video_pipe(device, file_root=os.path.join(g_video_root, device)),
+    )
+
+
+def test_video_reader_source_info():
+    files = [_remote_video(f) for f in VIDEO_FILES["cpu"]]
+    pipe = _video_pipe("cpu", filenames=files)
+    pipe.build()
+    video = pipe.run()[0]
+    for i in range(batch_size):
+        assert video[i].source_info() in files, video[i].source_info()
+
+
+def test_video_reader_missing_object():
+    with assert_raises(RuntimeError, glob="*GCS object not found. bucket=*object=*"):
+        pipe = _video_pipe("cpu", filenames=[_remote_video("no-such-video.mp4")])
+        pipe.build()
+        pipe.run()

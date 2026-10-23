@@ -443,6 +443,18 @@ FramesDecoderGpu::FramesDecoderGpu(const char *memory_file, size_t memory_file_s
   }
 }
 
+FramesDecoderGpu::FramesDecoderGpu(std::unique_ptr<InputStream> input_stream,
+                                   std::string_view source_info, cudaStream_t stream,
+                                   DALIImageType image_type)
+    : FramesDecoderBase(std::move(input_stream), source_info, image_type),
+      frame_buffer_(num_decode_surfaces_),
+      stream_(stream) {
+  is_valid_ = is_valid_ && SelectVideoStream();
+  if (is_valid_) {
+    InitGpuParser();
+  }
+}
+
 int FramesDecoderGpu::ProcessPictureDecode(CUVIDPICPARAMS *picture_params) {
   // Sending empty packet will call this callback.
   // If we want to flush the decoder, we do not need to do anything here
