@@ -226,6 +226,29 @@ TEST_F(FramesDecoderGpuTest, VariableFrameRate) {
   RunTest(decoder, vfr_videos_[1]);
 }
 
+// H.264 is coded in whole macroblocks, so an 800x600 stream is coded as 800x608 and cropped to the
+// display area. The NVDEC decoder cache has to recognize such a stream, so that a decoder is reused
+// when the next file is opened and not created from scratch every time. The number of created
+// decoders is checked, as the size of the cache would not change if it is full and evicts one.
+TEST_F(FramesDecoderGpuTest, DecoderCacheReusedForCroppedVideo) {
+  std::string path = testing::dali_extra_path() + "/db/video/cfr/test_2.mp4";
+  auto decode_first_frame = [&]() {
+    FramesDecoderGpu decoder(path);
+    ASSERT_TRUE(decoder.IsValid());
+    decoder.BuildIndex();
+    ASSERT_EQ(decoder.Height(), 600);
+    ASSERT_EQ(decoder.Width(), 800);
+    decoder.ReadNextFrame(FrameData());
+  };
+
+  // The first decoder may or may not be created, depending on what ran before.
+  decode_first_frame();
+  size_t num_created = frame_dec_gpu_impl::NVDECDecodersCreated();
+  // The decoder returned to the cache by the first one has to be reused.
+  decode_first_frame();
+  EXPECT_EQ(frame_dec_gpu_impl::NVDECDecodersCreated(), num_created);
+}
+
 TEST_F(FramesDecoderGpuTest, ConstantFrameRateHevc) {
   if (!FramesDecoderGpu::SupportsHevc()) {
     GTEST_SKIP();
