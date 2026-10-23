@@ -12,10 +12,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import atexit
 import gc
+import glob
+import os
+import shutil
+import tempfile
+import uuid
 import numpy as np
 import nvidia.dali as dali
+import nvidia.dali.fn as fn
 import nvidia.dali.types as types
+from nvidia.dali import pipeline_def
+from nose_utils import assert_raises
 
 video_directory = "/tmp/labelled_videos/"
 video_directory_multiple_resolutions = "/tmp/video_resolution/vp9/"
@@ -144,3 +153,252 @@ def test_video_resize(batch_size=2):
     for vp in video_reader_params:
         for rp in resize_params:
             yield run_for_params, batch_size, vp, rp
+
+
+# ---------------------------------------------------------------------------
+# experimental.readers.video_resize
+# ---------------------------------------------------------------------------
+
+experimental_video_files = sorted(glob.glob("/tmp/video_files/*.mp4"))
+
+experimental_reader_params = [
+    {"filenames": experimental_video_files, "sequence_length": 5},
+    {"file_root": video_directory_multiple_resolutions, "sequence_length": 4},
+]
+
+experimental_resize_params = [
+    {"resize_x": 100, "resize_y": 80},
+    {"resize_x": 300, "resize_y": 200, "interp_type": types.DALIInterpType.INTERP_CUBIC},
+    {"resize_shorter": 120, "interp_type": types.DALIInterpType.INTERP_LANCZOS3},
+    {"resize_longer": 150, "antialias": False},
+    {"size": (64, 96), "interp_type": types.DALIInterpType.INTERP_NN},
+    {
+        "resize_x": 300,
+        "resize_y": 200,
+        "min_filter": types.DALIInterpType.INTERP_CUBIC,
+        "mag_filter": types.DALIInterpType.INTERP_TRIANGULAR,
+        "minibatch_size": 4,
+    },
+]
+
+
+def test_experimental_video_resize_basic_shape():
+    @pipeline_def(batch_size=2, num_threads=3, device_id=0)
+    def pipe():
+        return fn.experimental.readers.video_resize(
+            device="gpu",
+            filenames=experimental_video_files,
+            sequence_length=3,
+            resize_x=100,
+            resize_y=80,
+        )
+
+    p = pipe()
+    p.build()
+    (video,) = p.run()
+    assert video.layout() == "FHWC"
+    for i in range(len(video)):
+        sample = np.array(video[i].as_cpu())
+        assert sample.shape == (3, 80, 100, 3), sample.shape
+        assert sample.dtype == np.uint8
+
+
+def test_experimental_video_resize_emits_all_outputs():
+    @pipeline_def(batch_size=2, num_threads=3, device_id=0)
+    def pipe():
+        return tuple(
+            fn.experimental.readers.video_resize(
+                device="gpu",
+                filenames=experimental_video_files,
+                labels=list(range(len(experimental_video_files))),
+                sequence_length=3,
+                resize_x=64,
+                resize_y=64,
+                enable_frame_num=True,
+                enable_timestamps=True,
+            )
+        )
+
+    p = pipe()
+    p.build()
+    video, labels, frame_num, timestamps = p.run()
+    for i in range(2):
+        assert np.array(video[i].as_cpu()).shape == (3, 64, 64, 3)
+        assert np.array(labels[i].as_cpu()).shape == (1,)
+        assert np.array(frame_num[i].as_cpu()).shape == (1,)
+        assert np.array(timestamps[i].as_cpu()).shape == (3,)
+
+
+def test_experimental_video_resize_sequence_frame_num_shape():
+    @pipeline_def(batch_size=2, num_threads=3, device_id=0)
+    def pipe():
+        return tuple(
+            fn.experimental.readers.video_resize(
+                device="gpu",
+                file_root=video_directory_multiple_resolutions,
+                sequence_length=4,
+                resize_x=50,
+                resize_y=40,
+                enable_frame_num="sequence",
+                enable_timestamps=True,
+            )
+        )
+
+    p = pipe()
+    p.build()
+    video, labels, frame_num, timestamps = p.run()
+    for i in range(2):
+        assert np.array(video[i].as_cpu()).shape == (4, 40, 50, 3)
+        assert np.array(labels[i].as_cpu()).shape == (1,)
+        assert np.array(frame_num[i].as_cpu()).shape == (4,)
+        assert np.array(timestamps[i].as_cpu()).shape == (4,)
+
+
+def _check_experimental_against_reference(batch_size, reader_params, resize_params, extra=None):
+    """Compares the fused reader with experimental.readers.video followed by fn.resize.
+
+    Both readers see the same files in the same order (no shuffling), so the fused output must
+    be bit-exact with the two-step reference, and every metadata output must match.
+    """
+    extra = extra or {}
+
+    @pipeline_def(batch_size=batch_size, num_threads=3, device_id=0, seed=0)
+    def pipe():
+        fused = fn.experimental.readers.video_resize(
+            device="gpu", **reader_params, **resize_params, **extra
+        )
+        plain = fn.experimental.readers.video(device="gpu", **reader_params, **extra)
+        if not isinstance(fused, (list, tuple)):
+            fused, plain = [fused], [plain]
+        assert len(fused) == len(plain)
+        reference = fn.resize(plain[0], **resize_params)
+        return (*fused, reference, *plain[1:])
+
+    p = pipe()
+    p.build()
+    for _ in range(2):
+        out = p.run()
+        assert len(out) % 2 == 0, len(out)
+        half = len(out) // 2
+        fused, reference = out[:half], out[half:]
+        fused_video = fused[0].as_cpu()
+        ref_video = reference[0].as_cpu()
+        assert fused_video.layout() == "FHWC", fused_video.layout()
+        # guard against a trivially passing comparison (e.g. both outputs all zeros)
+        assert any(np.array(fused_video[i]).std() > 0 for i in range(batch_size))
+        for i in range(batch_size):
+            a = np.array(fused_video[i])
+            b = np.array(ref_video[i])
+            assert a.shape == b.shape, f"{a.shape} != {b.shape}"
+            assert a.dtype == b.dtype, f"{a.dtype} != {b.dtype}"
+            np.testing.assert_array_equal(a, b)
+            assert fused_video[i].source_info() == ref_video[i].source_info()
+        for fused_meta, ref_meta in zip(fused[1:], reference[1:]):
+            fused_meta = fused_meta.as_cpu()
+            ref_meta = ref_meta.as_cpu()
+            for i in range(batch_size):
+                np.testing.assert_array_equal(np.array(fused_meta[i]), np.array(ref_meta[i]))
+    del p
+    gc.collect()
+
+
+def test_experimental_video_resize_matches_reader_plus_resize():
+    for reader_params in experimental_reader_params:
+        for rp in experimental_resize_params:
+            yield _check_experimental_against_reference, 2, reader_params, rp
+
+
+def test_experimental_video_resize_metadata_matches_reader():
+    reader_params = {
+        "filenames": experimental_video_files,
+        "labels": list(range(len(experimental_video_files))),
+        "sequence_length": 4,
+        "stride": 2,
+    }
+    for frame_num in ["scalar", "sequence"]:
+        yield (
+            _check_experimental_against_reference,
+            3,
+            reader_params,
+            {"resize_x": 96, "resize_y": 72},
+            {"enable_frame_num": frame_num, "enable_timestamps": True},
+        )
+
+
+def test_experimental_video_resize_float():
+    for normalized in [False, True]:
+        yield (
+            _check_experimental_against_reference,
+            2,
+            experimental_reader_params[0],
+            {"resize_shorter": 100},
+            {"dtype": types.FLOAT, "normalized": normalized},
+        )
+
+
+_file_list_dir = tempfile.mkdtemp(prefix="dali_video_reader_resize_file_lists_")
+atexit.register(shutil.rmtree, _file_list_dir, ignore_errors=True)
+
+
+def _write_file_list(lines):
+    """Writes the given file_list entries (one string per line) to a new temporary file and
+    returns its path."""
+    path = os.path.join(_file_list_dir, f"file_list_{uuid.uuid4().hex}.txt")
+    with open(path, "w") as list_file:
+        list_file.write("".join(line + "\n" for line in lines))
+    return path
+
+
+def test_experimental_video_resize_float_constant_padding():
+    # experimental.readers.video_resize shares its constructor with experimental.readers.video,
+    # which supports dtype=FLOAT combined with pad_mode="constant". Exercise that combination
+    # through the fused resize operator: a 7-frame range with sequence_length=5 makes the
+    # second sample hold frames 5 and 6 followed by 3 padded frames.
+    list_file = _write_file_list([f"{experimental_video_files[0]} 0 0 7"])
+    fill_value = [10, 20, 30]
+
+    @pipeline_def(batch_size=1, num_threads=2, device_id=0, prefetch_queue_depth=1)
+    def pipe():
+        video, _label, frame_num = fn.experimental.readers.video_resize(
+            device="gpu",
+            file_list=list_file,
+            file_list_format="frames",
+            sequence_length=5,
+            resize_x=32,
+            resize_y=24,
+            dtype=types.FLOAT,
+            pad_mode="constant",
+            fill_value=fill_value,
+            enable_frame_num="sequence",
+        )
+        return video, frame_num
+
+    p = pipe()
+    p.build()
+    p.run()  # first sample: frames 0-4, no padding
+    video, frame_num = p.run()
+    frames = np.array(video.as_cpu()[0])
+    assert frames.dtype == np.float32
+    assert list(np.array(frame_num.as_cpu()[0])) == [5, 6, -1, -1, -1]
+    padded = frames[2:]
+    # The padded region goes through the same resampling as decoded frames, so allow for the
+    # tiny floating-point error introduced by resizing a constant image.
+    np.testing.assert_allclose(
+        padded, np.broadcast_to(np.float32(fill_value), padded.shape), atol=1e-4
+    )
+
+
+def test_experimental_video_resize_cpu_not_supported():
+    @pipeline_def(batch_size=1, num_threads=1, device_id=0)
+    def pipe():
+        return fn.experimental.readers.video_resize(
+            device="cpu",
+            filenames=experimental_video_files,
+            sequence_length=2,
+            resize_x=10,
+            resize_y=10,
+        )
+
+    with assert_raises(RuntimeError, glob="*experimental__readers__VideoResize*not registered*"):
+        p = pipe()
+        p.build()

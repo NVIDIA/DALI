@@ -243,6 +243,9 @@ class DLL_PUBLIC VideoDecoderBase : public Operator<Backend> {
             auto source_info = input.GetMeta(s).GetSourceInfo();
             frames_decoders_[s] = CreateDecoder(data, size, build_index_, source_info,
                                                 ws.has_stream() ? ws.stream() : 0);
+            // Before the IsValid() check, so that an unsupported container is reported as
+            // such, even when the decoder also rejected the stream (e.g. its codec, on CPU).
+            frames_decoders_[s]->EnforceSupportedContainer();
             DALI_ENFORCE(frames_decoders_[s]->IsValid(),
                          make_string("Failed to create video decoder for \"",
                                      frames_decoders_[s]->Filename(), "\""));
