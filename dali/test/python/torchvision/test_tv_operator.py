@@ -18,7 +18,7 @@ import torch
 
 from nose2.tools import params
 import nvidia.dali.fn as fn
-from nvidia.dali.pipeline import Pipeline
+from nvidia.dali.pipeline import pipeline_def
 from nvidia.dali.experimental.torchvision.v2.operator import (
     adjust_input,
     is_sharing_random_values,
@@ -67,7 +67,10 @@ def test_adjust_input_device_defaults_to_cpu():
 def test_share_random_values_isolated_between_threads():
     # Pipelines defined concurrently in other threads must not see this pipeline's state
     seen_in_other_thread = []
-    with Pipeline(batch_size=2, num_threads=1, device_id=None):
+    seen_in_pipeline = []
+
+    @pipeline_def(batch_size=2, num_threads=1, device_id=None)
+    def pipeline():
         input_node = fn.external_source(name="input_data")
         with share_random_values(input_node):
             thread = threading.Thread(
@@ -75,16 +78,27 @@ def test_share_random_values_isolated_between_threads():
             )
             thread.start()
             thread.join()
-            assert is_sharing_random_values()
+            seen_in_pipeline.append(is_sharing_random_values())
+        return input_node
+
+    pipeline()
+    assert seen_in_pipeline == [True]
     assert seen_in_other_thread == [False]
     assert not is_sharing_random_values()
 
 
 def test_share_random_values_restores_outer_state():
-    with Pipeline(batch_size=2, num_threads=1, device_id=None):
+    seen = []
+
+    @pipeline_def(batch_size=2, num_threads=1, device_id=None)
+    def pipeline():
         input_node = fn.external_source(name="input_data")
         with share_random_values(input_node):
             with share_random_values(input_node, enabled=False):
-                assert not is_sharing_random_values()
-            assert is_sharing_random_values()
-        assert not is_sharing_random_values()
+                seen.append(("inner", is_sharing_random_values()))
+            seen.append(("outer", is_sharing_random_values()))
+        return input_node
+
+    pipeline()
+    assert seen == [("inner", False), ("outer", True)]
+    assert not is_sharing_random_values()
