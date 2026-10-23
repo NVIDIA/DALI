@@ -16,8 +16,13 @@ import os
 import unittest
 
 from nvidia.dali.experimental.torchvision import (
+    CenterCrop,
     Compose,
+    GaussianBlur,
+    RandomApply,
+    RandomCrop,
     RandomHorizontalFlip,
+    RandomResizedCrop,
     RandomVerticalFlip,
     Resize,
 )
@@ -79,11 +84,164 @@ def test_compose_multi_tensor():
     assert torch.allclose(dali_out, tv_out, rtol=0, atol=1), f"Should be {tv_out} is {dali_out}"
 
 
-def test_compose_invalid_batch_tensor():
+@params(
+    ((2, 4, 3, 5, 5), "cpu"),
+    ((2, 4, 3, 5, 5), "gpu"),
+    ((2, 2, 2, 1, 5, 5), "cpu"),
+    ((2, 2, 2, 1, 5, 5), "gpu"),
+)
+def test_compose_leading_dims_tensor(shape, device):
+    # Videos (N, T, C, H, W) and other inputs with arbitrary leading dimensions (..., C, H, W)
+    test_tensor = make_test_tensor(shape=shape)
+    dali_pipeline = Compose(
+        [RandomHorizontalFlip(p=1.0, device=device), RandomVerticalFlip(p=1.0, device=device)]
+    )
+    dali_out = dali_pipeline(test_tensor).cpu()
+    fn_out = fn_dali.horizontal_flip(test_tensor, device=device)
+    fn_out = fn_dali.vertical_flip(fn_out, device=device).cpu()
+    tv_out = tv.Compose([tv.RandomHorizontalFlip(p=1.0), tv.RandomVerticalFlip(p=1.0)])(test_tensor)
+
+    assert dali_out.shape == tv_out.shape, f"Should be {tv_out.shape} is {dali_out.shape}"
+    assert torch.equal(dali_out, tv_out)
+    assert torch.equal(fn_out, tv_out)
+
+
+def make_smooth_test_tensor(shape):
+    # Distinct values for each image and channel, varying smoothly in space without overflow
+    *leading, c, h, w = shape
+    images = torch.arange(int(np.prod(leading))).reshape(*leading, 1, 1, 1)
+    channels = torch.arange(c).reshape(c, 1, 1)
+    ys = torch.arange(h).reshape(1, h, 1)
+    xs = torch.arange(w).reshape(1, 1, w)
+    return (images * 20 + channels * 7 + ys * 5 + xs * 4).to(dtype=torch.uint8)
+
+
+@params(
+    ((2, 4, 3, 10, 12), "cpu"),
+    ((2, 4, 3, 10, 12), "gpu"),
+    ((2, 2, 2, 1, 10, 12), "cpu"),
+    ((2, 2, 2, 1, 10, 12), "gpu"),
+)
+def test_compose_leading_dims_changed_size(shape, device):
+    # The output spatial size differs from the input, so the leading dimensions must be restored
+    # together with the output (not the input) image size
+    test_tensor = make_smooth_test_tensor(shape)
+    expected_shape = (*shape[:-2], 9, 11)
+
+    dali_out = Compose(
+        [Resize(size=(15, 17), device=device), CenterCrop(size=(9, 11), device=device)]
+    )(test_tensor).cpu()
+    fn_out = fn_dali.resize(test_tensor, size=[15, 17], device=device)
+    fn_out = fn_dali.center_crop(fn_out, output_size=[9, 11], device=device).cpu()
+    tv_out = tv.Compose([tv.Resize(size=(15, 17)), tv.CenterCrop(size=(9, 11))])(test_tensor)
+
+    assert tv_out.shape == expected_shape
+    assert dali_out.shape == expected_shape, f"Should be {expected_shape} is {dali_out.shape}"
+    assert fn_out.shape == expected_shape, f"Should be {expected_shape} is {fn_out.shape}"
+    # All close, because there are pixel differences due to resize
+    assert torch.allclose(dali_out, tv_out, rtol=0, atol=1)
+    assert torch.allclose(fn_out, tv_out, rtol=0, atol=1)
+
+    # Crop changes the image size without resampling, so the values must match exactly
+    fn_crop = fn_dali.crop(test_tensor, top=1, left=2, height=6, width=7, device=device).cpu()
+    tv_crop = tv.functional.crop(test_tensor, top=1, left=2, height=6, width=7)
+    assert fn_crop.shape == (*shape[:-2], 6, 7), f"Should be {tv_crop.shape} is {fn_crop.shape}"
+    assert torch.equal(fn_crop, tv_crop)
+
+
+@params("cpu", "gpu")
+def test_compose_tensor_larger_than_batch_size(device):
+    # A call is processed as FCHW sequences, so batch_size does not limit the leading dimensions
     test_tensor = make_test_tensor(shape=(5, 1, 5, 5))
-    with assert_raises(RuntimeError):
-        dali_pipeline = Compose([RandomHorizontalFlip(p=1.0)], batch_size=1)
-        _ = dali_pipeline(test_tensor)
+    dali_pipeline = Compose([RandomHorizontalFlip(p=1.0, device=device)], batch_size=1)
+    dali_out = dali_pipeline(test_tensor).cpu()
+
+    assert torch.equal(dali_out, tv.RandomHorizontalFlip(p=1.0)(test_tensor))
+
+
+# For each transform: a factory of the DALI transform with random (controlled=False) or
+# deterministic (controlled=True) parameters, the torchvision reference for the controlled
+# parameters and the tolerance of the comparison.
+_RANDOM_TRANSFORMS = {
+    "RandomHorizontalFlip": (
+        lambda device, controlled: RandomHorizontalFlip(
+            p=1.0 if controlled else 0.5, device=device
+        ),
+        tv.RandomHorizontalFlip(p=1.0),
+        0,
+    ),
+    "RandomVerticalFlip": (
+        lambda device, controlled: RandomVerticalFlip(p=1.0 if controlled else 0.5, device=device),
+        tv.RandomVerticalFlip(p=1.0),
+        0,
+    ),
+    "RandomCrop": (
+        # Crop of the padded input size has a single valid position
+        lambda device, controlled: RandomCrop(36 if controlled else 20, padding=2, device=device),
+        tv.RandomCrop(36, padding=2),
+        0,
+    ),
+    "RandomResizedCrop": (
+        # Full area and aspect ratio of a square input select the whole image, and the output size
+        # equal to the input size avoids differences between DALI and torchvision resampling
+        lambda device, controlled: RandomResizedCrop(
+            32 if controlled else 24,
+            scale=(1.0, 1.0) if controlled else (0.08, 1.0),
+            ratio=(1.0, 1.0) if controlled else (3.0 / 4.0, 4.0 / 3.0),
+            device=device,
+        ),
+        tv.RandomResizedCrop(32, scale=(1.0, 1.0), ratio=(1.0, 1.0)),
+        0,
+    ),
+    "GaussianBlur": (
+        lambda device, controlled: GaussianBlur(
+            5, sigma=1.0 if controlled else (0.1, 3.0), device=device
+        ),
+        tv.GaussianBlur(5, sigma=1.0),
+        1,
+    ),
+    "RandomApply": (
+        lambda device, controlled: RandomApply(
+            [RandomHorizontalFlip(p=1.0, device=device)],
+            p=1.0 if controlled else 0.5,
+            device=device,
+        ),
+        tv.RandomHorizontalFlip(p=1.0),
+        0,
+    ),
+}
+
+
+@params(
+    *[
+        (shape, device, transform)
+        for shape in [(8, 3, 32, 32), (7, 3, 32, 32), (2, 4, 3, 32, 32)]
+        for device in ["cpu", "gpu"]
+        for transform in _RANDOM_TRANSFORMS
+    ]
+)
+def test_compose_random_params_shared_across_leading_dims(shape, device, transform):
+    make_transform, tv_transform, atol = _RANDOM_TRANSFORMS[transform]
+    generator = torch.Generator().manual_seed(1234)
+    images = torch.randint(0, 256, shape, dtype=torch.uint8, generator=generator)
+
+    # With controlled parameters, every image must match torchvision
+    dali_out = Compose([make_transform(device, True)], num_threads=4, seed=1234)(images).cpu()
+    tv_out = tv_transform(images)
+    assert dali_out.shape == tv_out.shape, f"Should be {tv_out.shape} is {dali_out.shape}"
+    max_diff = (dali_out.int() - tv_out.int()).abs().max().item()
+    assert max_diff <= atol, f"Max absolute difference to torchvision: {max_diff}"
+
+    # Torchvision samples a single parameter set per call and applies it across all leading
+    # dimensions, so identical images in a call must produce identical outputs
+    identical = images.reshape(-1, *shape[-3:])[0].expand(shape).contiguous()
+    dali_pipeline = Compose([make_transform(device, False)], num_threads=4, seed=1234)
+    for _ in range(5):
+        dali_out = dali_pipeline(identical).cpu()
+        assert dali_out.shape[:-3] == identical.shape[:-3]
+        frames = dali_out.reshape(-1, *dali_out.shape[-3:])
+        for i in range(1, frames.shape[0]):
+            assert torch.equal(frames[0], frames[i]), f"Frame {i} differs from frame 0"
 
 
 def test_compose_images():
