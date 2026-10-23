@@ -304,6 +304,16 @@ def test_file_list_boundary_labels(label_dtype, np_dtype):
     _check_file_labels(pipe, fnames, [np_dtype(x) for x in labels], np_dtype)
 
 
+def test_file_list_float_labels_underflow():
+    # Subnormal labels, and labels that underflow to zero, are valid (they are rounded like any
+    # other decimal), even though strtof may report them with ERANGE.
+    fnames = g_files[:6]
+    labels = ["1e-39", "-1e-39", "1.4e-45", "1e-100", "-1e-100", "1.1754943508222875e-38"]
+    list_file = _write_file_list(fnames, labels)
+    pipe = _label_pipe(batch_size=1, file_list=list_file, label_dtype=types.FLOAT)
+    _check_file_labels(pipe, fnames, [np.float32(x) for x in labels], np.float32)
+
+
 def test_file_list_int64_labels():
     fnames = g_files
     labels = [(1 << 40) + i for i in range(len(fnames))]
@@ -378,8 +388,8 @@ def test_file_root_label_dtype():
     (0.375, types.INT64),
     ("abc", types.FLOAT),
     ("1.5x", types.FLOAT),
-    ("1e-100", types.FLOAT),
     ("1e100", types.FLOAT),
+    ("-1e100", types.FLOAT),
     (1 << 31, types.INT32),
     (-(1 << 31) - 1, types.INT32),
     (1 << 63, types.INT64),
