@@ -105,6 +105,25 @@ def test_compose_leading_dims_tensor(shape, device):
     assert torch.equal(fn_out, tv_out)
 
 
+@params(
+    ((3, 8, 10), "cpu"),
+    ((3, 8, 10), "gpu"),
+    ((2, 4, 3, 8, 10), "cpu"),
+    ((2, 4, 3, 8, 10), "gpu"),
+)
+def test_compose_non_contiguous_tensor(shape, device):
+    # e.g. pil_to_tensor returns a permuted view of HWC data
+    test_tensor = make_test_tensor(shape=(*shape[:-3], *shape[-2:], shape[-3])).movedim(-1, -3)
+    assert not test_tensor.is_contiguous()
+    tv_out = tv.RandomHorizontalFlip(p=1.0)(test_tensor)
+
+    dali_out = Compose([RandomHorizontalFlip(p=1.0, device=device)])(test_tensor).cpu()
+    fn_out = fn_dali.horizontal_flip(test_tensor, device=device).cpu()
+
+    assert torch.equal(dali_out, tv_out)
+    assert torch.equal(fn_out, tv_out)
+
+
 @params("cpu", "gpu")
 def test_compose_tensor_larger_than_batch_size(device):
     # A call is processed as FCHW sequences, so batch_size does not limit the leading dimensions

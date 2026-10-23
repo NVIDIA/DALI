@@ -128,6 +128,7 @@ class RandomCrop(Operator):
 
     If the input is a ``torch.Tensor`` it can have an arbitrary number of leading batch dimensions.
     For example, the image tensor can have [..., C, H, W] shape.
+    The same random crop is applied across all leading dimensions.
 
     Parameters
     ----------
@@ -274,6 +275,7 @@ class RandomResizedCrop(Operator):
 
     If the input is a ``torch.Tensor`` it can have an arbitrary number of leading batch dimensions.
     For example, the image tensor can have [..., C, H, W] shape.
+    The same random crop is applied across all leading dimensions.
 
     Parameters
     ----------

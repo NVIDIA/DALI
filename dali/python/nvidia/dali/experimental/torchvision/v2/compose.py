@@ -319,8 +319,9 @@ class PipelineCHW(PipelineWithLayout):
             raise ValueError("CHW layout is currently supported for torch.Tensor only.\
                 Please check if samples have the same format.")
 
-        # Flatten leading dimensions (..., C, H, W) into frames, split evenly into sequences
-        frames = data_input.reshape(-1, *data_input.shape[-3:])
+        # Flatten leading dimensions (..., C, H, W) into frames, split evenly into sequences.
+        # DALI does not support strided data (e.g. a permuted tensor from pil_to_tensor).
+        frames = data_input.reshape(-1, *data_input.shape[-3:]).contiguous()
         num_frames = frames.shape[0]
         num_samples = max(
             n

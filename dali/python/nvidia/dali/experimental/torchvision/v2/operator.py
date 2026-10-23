@@ -346,11 +346,12 @@ def adjust_input(func):
             else:
                 raise ValueError(f"Mode {mode} is not supported, expected, L, RGB, RGBA")
         elif isinstance(inpt, torch.Tensor):
+            # DALI does not support strided data (e.g. a permuted tensor from pil_to_tensor)
             if inpt.ndim == 3:
-                _input = ndd.Tensor(inpt, layout="CHW")
+                _input = ndd.Tensor(inpt.contiguous(), layout="CHW")
             elif inpt.ndim > 3:
                 # Creating batches of NCHW, leading dimensions (..., C, H, W) are flattened
-                _input = ndd.as_batch(inpt.reshape(-1, *inpt.shape[-3:]), layout="CHW")
+                _input = ndd.as_batch(inpt.reshape(-1, *inpt.shape[-3:]).contiguous(), layout="CHW")
             else:
                 raise TypeError(f"Tensor has < 3 dimensions: {inpt.ndim}, shape: {inpt.shape}")
         else:
