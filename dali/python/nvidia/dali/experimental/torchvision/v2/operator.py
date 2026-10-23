@@ -14,6 +14,7 @@
 
 from abc import ABC, abstractmethod
 import contextlib
+import contextvars
 import functools
 import inspect
 import logging
@@ -29,7 +30,8 @@ import nvidia.dali.types as types
 
 # Indices selecting the first sample of a call, set while defining a pipeline in which
 # a single call is split into multiple samples (see ``share_random_values``).
-_first_sample_indices = None
+# A context variable keeps pipelines defined concurrently in different threads isolated.
+_first_sample_indices = contextvars.ContextVar("_first_sample_indices", default=None)
 
 
 @contextlib.contextmanager
@@ -42,17 +44,16 @@ def share_random_values(input_node, enabled: bool = True):
     dimensions. If a call is split into multiple pipeline samples, the random values drawn for
     the first sample must be used for all of them.
     """
-    global _first_sample_indices
-    if enabled:
-        _first_sample_indices = fn.cast(input_node.shape()[0] * 0, dtype=types.INT32)
+    indices = fn.cast(input_node.shape()[0] * 0, dtype=types.INT32) if enabled else None
+    token = _first_sample_indices.set(indices)
     try:
         yield
     finally:
-        _first_sample_indices = None
+        _first_sample_indices.reset(token)
 
 
 def is_sharing_random_values() -> bool:
-    return _first_sample_indices is not None
+    return _first_sample_indices.get() is not None
 
 
 def share_random_value(value):
@@ -60,9 +61,10 @@ def share_random_value(value):
     Returns the random ``value`` drawn for the first sample for all samples in the batch,
     if the pipeline is defined in the ``share_random_values`` context.
     """
-    if _first_sample_indices is None:
+    indices = _first_sample_indices.get()
+    if indices is None:
         return value
-    return fn.permute_batch(value, indices=_first_sample_indices)
+    return fn.permute_batch(value, indices=indices)
 
 
 class DataValidateRule(ABC):
