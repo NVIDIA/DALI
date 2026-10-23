@@ -886,6 +886,7 @@ class TensorSlice:
                 j += skip
             else:
                 j += 1  # skip this dimension
+        layout += input_layout[j:]  # dimensions not covered by the ranges are kept
         self._layout = layout
         return self._layout
 
