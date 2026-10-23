@@ -37,7 +37,9 @@ as described in layout.
 If a value is provided, `axis_names` will have a higher priority than `axes`.)code",
         TensorLayout("WH"))
     .AddOptionalArg<std::vector<int>>("start",
-        R"code(Start coordinates of the slice.
+        R"code(Start coordinates of the slice, as absolute integer coordinates.
+
+For relative coordinates, use `rel_start`.
 
 Note: Providing named arguments `start`/`end` or `start`/`shape` is incompatible with
 providing positional inputs anchor and shape.)code",
@@ -49,7 +51,9 @@ Note: Providing named arguments `start`, `end`, `shape`, `rel_start`, `rel_end`,
 is incompatible with providing positional inputs anchor and shape.)code",
         nullptr, true)
     .AddOptionalArg<std::vector<int>>("end",
-        R"code(End coordinates of the slice.
+        R"code(End coordinates of the slice, as absolute integer coordinates.
+
+For relative coordinates, use `rel_end`.
 
 Note: Providing named arguments `start`, `end`, `shape`, `rel_start`, `rel_end`, `rel_shape`
 is incompatible with providing positional inputs anchor and shape.)code",
@@ -61,7 +65,9 @@ Note: Providing named arguments `start`, `end`, `shape`, `rel_start`, `rel_end`,
 is incompatible with providing positional inputs anchor and shape.)code",
         nullptr, true)
     .AddOptionalArg<std::vector<int>>("shape",
-        R"code(Shape of the slice.
+        R"code(Shape of the slice, as absolute integer coordinates.
+
+For a relative shape, use `rel_shape`.
 
 Providing named arguments `start`, `end`, `shape`, `rel_start`, `rel_end`, `rel_shape`
 is incompatible with providing positional inputs anchor and shape.)code",
@@ -78,15 +84,15 @@ is incompatible with providing positional inputs anchor and shape.)code",
 
 .. note::
   This argument is only relevant when anchor data type is ``float``. For integer types,
-  the coordinates are always absolute.)code",
+  the coordinates are always absolute. It does not apply to the named arguments.)code",
         true)
     .AddOptionalArg("normalized_shape",
         R"code(Determines whether the shape positional input should be interpreted as normalized
 (range [0.0, 1.0]) or as absolute coordinates.
 
 .. note::
-  This argument is only relevant when anchor data type is ``float``. For integer types,
-  the coordinates are always absolute.)code",
+  This argument is only relevant when shape data type is ``float``. For integer types,
+  the coordinates are always absolute. It does not apply to the named arguments.)code",
         true);
 
 }  // namespace dali
