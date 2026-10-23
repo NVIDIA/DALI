@@ -16,6 +16,7 @@ import os
 import unittest
 
 from nvidia.dali.experimental.torchvision import (
+    CenterCrop,
     Compose,
     GaussianBlur,
     RandomApply,
@@ -103,6 +104,49 @@ def test_compose_leading_dims_tensor(shape, device):
     assert dali_out.shape == tv_out.shape, f"Should be {tv_out.shape} is {dali_out.shape}"
     assert torch.equal(dali_out, tv_out)
     assert torch.equal(fn_out, tv_out)
+
+
+def make_smooth_test_tensor(shape):
+    # Distinct values for each image and channel, varying smoothly in space without overflow
+    *leading, c, h, w = shape
+    images = torch.arange(int(np.prod(leading))).reshape(*leading, 1, 1, 1)
+    channels = torch.arange(c).reshape(c, 1, 1)
+    ys = torch.arange(h).reshape(1, h, 1)
+    xs = torch.arange(w).reshape(1, 1, w)
+    return (images * 20 + channels * 7 + ys * 5 + xs * 4).to(dtype=torch.uint8)
+
+
+@params(
+    ((2, 4, 3, 10, 12), "cpu"),
+    ((2, 4, 3, 10, 12), "gpu"),
+    ((2, 2, 2, 1, 10, 12), "cpu"),
+    ((2, 2, 2, 1, 10, 12), "gpu"),
+)
+def test_compose_leading_dims_changed_size(shape, device):
+    # The output spatial size differs from the input, so the leading dimensions must be restored
+    # together with the output (not the input) image size
+    test_tensor = make_smooth_test_tensor(shape)
+    expected_shape = (*shape[:-2], 9, 11)
+
+    dali_out = Compose(
+        [Resize(size=(15, 17), device=device), CenterCrop(size=(9, 11), device=device)]
+    )(test_tensor).cpu()
+    fn_out = fn_dali.resize(test_tensor, size=[15, 17], device=device)
+    fn_out = fn_dali.center_crop(fn_out, output_size=[9, 11], device=device).cpu()
+    tv_out = tv.Compose([tv.Resize(size=(15, 17)), tv.CenterCrop(size=(9, 11))])(test_tensor)
+
+    assert tv_out.shape == expected_shape
+    assert dali_out.shape == expected_shape, f"Should be {expected_shape} is {dali_out.shape}"
+    assert fn_out.shape == expected_shape, f"Should be {expected_shape} is {fn_out.shape}"
+    # All close, because there are pixel differences due to resize
+    assert torch.allclose(dali_out, tv_out, rtol=0, atol=1)
+    assert torch.allclose(fn_out, tv_out, rtol=0, atol=1)
+
+    # Crop changes the image size without resampling, so the values must match exactly
+    fn_crop = fn_dali.crop(test_tensor, top=1, left=2, height=6, width=7, device=device).cpu()
+    tv_crop = tv.functional.crop(test_tensor, top=1, left=2, height=6, width=7)
+    assert fn_crop.shape == (*shape[:-2], 6, 7), f"Should be {tv_crop.shape} is {fn_crop.shape}"
+    assert torch.equal(fn_crop, tv_crop)
 
 
 @params("cpu", "gpu")
