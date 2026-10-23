@@ -111,7 +111,7 @@ class PipelineWithLayout(ABC):
     """
 
     # Whether a single call can be split into multiple samples
-    splits_calls = False
+    _splits_calls = False
 
     def _cuda_run(self, data_input):
         if isinstance(data_input, torch.Tensor) and data_input.is_cuda:
@@ -153,15 +153,15 @@ class PipelineWithLayout(ABC):
         self.torch_device_type = "cuda" if self.device == "gpu" else "cpu"
         # DALI CPU operators parallelize across samples, so on CPU a call can be split into
         # multiple samples. On GPU, processing a call as a single sample is the fastest.
-        self.max_samples_per_call = 1
-        if self.splits_calls and self.device == "cpu":
-            self.max_samples_per_call = min(batch_size, num_threads)
+        self._max_samples_per_call = 1
+        if self._splits_calls and self.device == "cpu":
+            self._max_samples_per_call = min(batch_size, num_threads)
 
         self.pipe = _pipeline_function(
             op_list,
             layout=layout,
             input_device=self.device,
-            split_calls=self.max_samples_per_call > 1,
+            split_calls=self._max_samples_per_call > 1,
             batch_size=batch_size,
             num_threads=num_threads,
             **dali_pipeline_kwargs,
@@ -297,7 +297,7 @@ class PipelineCHW(PipelineWithLayout):
         Additional keyword arguments for the DALI pipeline.
     """
 
-    splits_calls = True
+    _splits_calls = True
 
     def __init__(
         self,
@@ -324,7 +324,7 @@ class PipelineCHW(PipelineWithLayout):
         num_frames = frames.shape[0]
         num_samples = max(
             n
-            for n in range(1, min(num_frames, self.max_samples_per_call) + 1)
+            for n in range(1, min(num_frames, self._max_samples_per_call) + 1)
             if num_frames % n == 0
         )
         output = super().run(frames.reshape(num_samples, -1, *frames.shape[1:]))
