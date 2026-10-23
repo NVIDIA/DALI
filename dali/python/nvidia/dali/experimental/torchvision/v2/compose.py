@@ -20,7 +20,7 @@ from nvidia.dali.pipeline import pipeline_def
 from nvidia.dali.data_node import DataNode as _DataNode
 from nvidia.dali.backend import TensorListCPU, TensorListGPU
 
-from .operator import _ValidateTensorOrImage
+from .operator import _ValidateTensorOrImage, share_random_values
 from .totensor import ToPureTensor, PILToTensor, ToPILImage
 from .functional.totensor import to_pil_image
 
@@ -64,7 +64,12 @@ def to_torch_tensor(
 
 
 @pipeline_def(enable_conditionals=True, exec_dynamic=True, prefetch_queue_depth=1)
-def _pipeline_function(op_list: Sequence, layout: str = "HWC", input_device: str = "gpu"):
+def _pipeline_function(
+    op_list: Sequence,
+    layout: str = "HWC",
+    input_device: str = "gpu",
+    split_calls: bool = False,
+):
     """
     Builds a DALI pipeline from a list of operators.
 
@@ -74,10 +79,13 @@ def _pipeline_function(op_list: Sequence, layout: str = "HWC", input_device: str
             List of DALI operators.
         layout : str
             Layout of the data.
+        split_calls : bool
+            Whether a single call can be split into multiple samples sharing random values.
     """
     input_node = fn.external_source(name="input_data", layout=layout, device=input_device)
-    for op in op_list:
-        input_node = op._invoke(input_node)
+    with share_random_values(input_node, enabled=split_calls):
+        for op in op_list:
+            input_node = op._invoke(input_node)
     return input_node
 
 
@@ -101,6 +109,9 @@ class PipelineWithLayout(ABC):
     **dali_pipeline_kwargs
         Additional keyword arguments for the DALI pipeline.
     """
+
+    # Whether a single call can be split into multiple samples
+    _splits_calls = False
 
     def _cuda_run(self, data_input):
         if isinstance(data_input, torch.Tensor) and data_input.is_cuda:
@@ -140,11 +151,17 @@ class PipelineWithLayout(ABC):
         self.output_type = PipelineWithLayout._get_output_format(op_list)
         self.device = op_list[0].device if len(op_list) > 0 else "cpu"
         self.torch_device_type = "cuda" if self.device == "gpu" else "cpu"
+        # DALI CPU operators parallelize across samples, so on CPU a call can be split into
+        # multiple samples. On GPU, processing a call as a single sample is the fastest.
+        self._max_samples_per_call = 1
+        if self._splits_calls and self.device == "cpu":
+            self._max_samples_per_call = min(batch_size, num_threads)
 
         self.pipe = _pipeline_function(
             op_list,
             layout=layout,
             input_device=self.device,
+            split_calls=self._max_samples_per_call > 1,
             batch_size=batch_size,
             num_threads=num_threads,
             **dali_pipeline_kwargs,
@@ -263,6 +280,11 @@ class PipelineCHW(PipelineWithLayout):
     This class prepares data to be passed to a DALI pipeline and runs the pipeline, converting
     the output to a ``torch.Tensor``.
 
+    Torchvision samples a single parameter set per call and applies it across all leading
+    dimensions ``(..., C, H, W)``. The leading dimensions are therefore flattened into frames of
+    a FCHW sequence. On CPU, the frames are split into up to ``min(batch_size, num_threads)``
+    sequences, which share random values.
+
     Parameters
     ----------
     op_list : list
@@ -275,6 +297,8 @@ class PipelineCHW(PipelineWithLayout):
         Additional keyword arguments for the DALI pipeline.
     """
 
+    _splits_calls = True
+
     def __init__(
         self,
         op_list: List[Callable[..., Sequence[_DataNode] | _DataNode]],
@@ -284,26 +308,30 @@ class PipelineCHW(PipelineWithLayout):
     ):
         super().__init__(
             op_list,
-            layout="CHW",
+            layout="FCHW",
             batch_size=batch_size,
             num_threads=num_threads,
             **dali_pipeline_kwargs,
         )
 
     def run(self, data_input):
-        if isinstance(data_input, torch.Tensor):
-            _input = data_input
-            if data_input.ndim == 3:
-                # DALI requires batch size to be present
-                _input = data_input.unsqueeze(0)
-        else:
+        if not isinstance(data_input, torch.Tensor):
             raise ValueError("CHW layout is currently supported for torch.Tensor only.\
                 Please check if samples have the same format.")
-        output = super().run(_input)
 
-        if data_input.ndim == 3:
-            # Remove the batch dimension we added above
-            output = output.squeeze(0)
+        # Flatten leading dimensions (..., C, H, W) into frames, split evenly into sequences.
+        # DALI does not support strided data (e.g. a permuted tensor from pil_to_tensor).
+        frames = data_input.reshape(-1, *data_input.shape[-3:]).contiguous()
+        num_frames = frames.shape[0]
+        num_samples = max(
+            n
+            for n in range(1, min(num_frames, self._max_samples_per_call) + 1)
+            if num_frames % n == 0
+        )
+        output = super().run(frames.reshape(num_samples, -1, *frames.shape[1:]))
+
+        # Restore the leading dimensions flattened above
+        output = output.reshape(*data_input.shape[:-3], *output.shape[-3:])
 
         if self.output_type == "pil":
             if output.ndim == 4:
@@ -345,7 +373,9 @@ class Compose:
     op_list : list
         List of DALI operators.
     batch_size : int, optional, default = DEFAULT_BATCH_SIZE
-        Batch size.
+        Maximum batch size of the DALI pipeline. On CPU, a ``torch.Tensor`` call is split into up
+        to ``min(batch_size, num_threads)`` samples processed in parallel. It does not limit the
+        leading dimensions of the input.
     num_threads : int, optional, default = DEFAULT_NUM_THREADS
         Number of threads.
     **dali_pipeline_kwargs
@@ -388,7 +418,10 @@ class Compose:
         Parameters
         ----------
             data_input: Tensor or PIL Image
-                In case of PIL image it will be converted to tensor before sending to pipeline
+                In case of PIL image it will be converted to tensor before sending to pipeline.
+                Tensors are expected in ``(..., C, H, W)`` layout. As in Torchvision, random
+                transformations draw a single parameter set per call and apply it across all
+                leading dimensions.
         """
 
         _ValidateTensorOrImage.verify(data_input)
