@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@
 
 #include "dali/core/util.h"
 #include "dali/core/geom/vec.h"
+#include "dali/core/cuda_utils.h"
 #include "dali/kernels/reduce/reductions.h"
 #include "dali/kernels/reduce/reduce_all_gpu_impl.cuh"
 #include "dali/kernels/reduce/reduce_common.cuh"

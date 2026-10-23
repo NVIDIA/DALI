@@ -559,7 +559,8 @@ class Tensor:
         if self.size != 1:
             raise ValueError(
                 f"The truth value of a tensor with {self.size} elements is ambiguous. "
-                "Only tensors with exactly one element can be converted to `bool`."
+                f"Only tensors with exactly one element can be converted to `bool`."
+                + (" Use `all` and `any` to evaluate multiple elements." if self.size > 1 else "")
             )
         return bool(self.item())
 
