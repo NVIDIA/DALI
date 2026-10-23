@@ -22,6 +22,7 @@
 #include <mutex>
 #include "dali/core/error_handling.h"
 #include "dali/core/cuda_error.h"
+#include "dali/core/device_guard.h"
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/data/tensor.h"
 #include "dali/operators/video/color_space.h"
@@ -901,8 +902,27 @@ void FramesDecoderGpu::Flush() {
 }
 
 FramesDecoderGpu::~FramesDecoderGpu() {
+  // frame_buffer_ goes back to the memory pool right after this, without stream ordering: wait
+  // for the copies out of it (CopyFrame, copyD2D) that may still be pending on stream_. Nothing
+  // is thrown from the destructor: a failing sync means the CUDA context is already broken, and
+  // that error is reported by the call that caused it.
+  if (cudaStreamSynchronize(stream_) != cudaSuccess)
+    (void)cudaGetLastError();
   filtered_packet_.reset();
   bsfc_.reset();
+}
+
+int FramesDecoderGpu::NumEngines(int device_id) {
+  if (!cuvidInitChecked())
+    return 0;
+  DeviceGuard guard(device_id);
+  CUVIDDECODECAPS decoder_caps = {};
+  decoder_caps.eCodecType = cudaVideoCodec_H264;
+  decoder_caps.eChromaFormat = cudaVideoChromaFormat_420;
+  decoder_caps.nBitDepthMinus8 = 0;
+  if (cuvidGetDecoderCaps(&decoder_caps) != CUDA_SUCCESS || !decoder_caps.bIsSupported)
+    return 0;
+  return decoder_caps.nNumNVDECs;
 }
 
 bool FramesDecoderGpu::SupportsHevc() {
