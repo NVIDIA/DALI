@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include "dali/operators/video/frames_decoder_base.h"
+#include <cstring>
 #include <iomanip>
 #include <memory>
 #include "dali/core/error_handling.h"
@@ -77,7 +78,13 @@ int FramesDecoderBase::OpenFile(const std::string& filename) {
   ctx_.reset(avformat_alloc_context());
   DALI_ENFORCE(ctx_, "Could not alloc avformat context");
 
-  int ret = avformat_open_input(&ctx_, filename.c_str(), nullptr, nullptr);
+  // avformat_open_input parses the filename through avio's URL layer, which treats a colon as a
+  // protocol separator (e.g. a relative path like "clip:01.mp4" would be parsed as protocol
+  // "clip", which doesn't exist, instead of a plain filename). Prefixing with the "file:"
+  // protocol forces it to always be treated as a plain filesystem path, regardless of what
+  // characters it contains, for both relative and absolute paths.
+  std::string url = "file:" + filename;
+  int ret = avformat_open_input(&ctx_, url.c_str(), nullptr, nullptr);
   if (ret < 0) {
     ctx_.reset();
   }
@@ -153,9 +160,23 @@ bool FramesDecoderBase::SelectVideoStream(int stream_id) {
     LOG_LINE << "Finding video stream" << std::endl;
     stream_id = av_find_best_stream(ctx_, AVMEDIA_TYPE_VIDEO, -1, -1, nullptr, 0);
     if (stream_id == AVERROR_STREAM_NOT_FOUND) {
-      DALI_WARN(make_string("Could not find a valid video stream in a file in ", Filename()));
-      return false;
+      // Some containers (e.g. MPEG-PS) don't declare their streams in a header that's read by
+      // avformat_open_input -- they only become known once packets are probed. Fall back to a
+      // full probe and retry before giving up, so that such a file is still identified (and,
+      // for MPEG-PS, rejected with a clear error by EnforceSupportedContainer()) rather than
+      // reported as having no video stream.
+      if (avformat_find_stream_info(ctx_, nullptr) >= 0) {
+        stream_id = av_find_best_stream(ctx_, AVMEDIA_TYPE_VIDEO, -1, -1, nullptr, 0);
+      }
+      if (stream_id == AVERROR_STREAM_NOT_FOUND) {
+        DALI_WARN(make_string("Could not find a valid video stream in a file in ", Filename()));
+        return false;
+      }
     }
+  } else if (stream_id >= static_cast<int>(ctx_->nb_streams)) {
+    // Same for an explicitly requested stream, e.g. when Reset() reopens such a file: its streams
+    // don't exist until packets are probed.
+    avformat_find_stream_info(ctx_, nullptr);
   }
   if (stream_id < 0 || stream_id >= static_cast<int>(ctx_->nb_streams)) {
     LOG_LINE << "Invalid stream id: " << stream_id << std::endl;
@@ -272,24 +293,157 @@ void FramesDecoderBase::ParseNumFrames() {
   Reset();
 }
 
+namespace {
+
 /**
- * @brief Reads the length of a Network Abstraction Layer (NAL) unit from a buffer.
+ * @brief Checks for an Annex-B NAL unit start code (00 00 01 or 00 00 00 01) at `buf`.
  *
- * NAL units are the basic elements of H.264/AVC and H.265/HEVC video compression standards.
- * In the Annex B byte stream format, NAL units are prefixed with a 4-byte length field
- * that indicates the size of the following NAL unit.
- *
- * This function reads those 4 bytes in big-endian order to get the NAL unit length.
- *
- * Reference: ITU-T H.264 and H.265 specifications
- *
- * @param buf Pointer to the buffer containing the NAL unit length prefix
- * @return The length of the NAL unit in bytes
+ * @param buf Pointer to the position to check.
+ * @param end End of the buffer (exclusive), to avoid reading out of bounds.
+ * @return The length of the start code (3 or 4), or 0 if no start code is present at `buf`.
  */
-static inline uint32_t read_nal_unit_length(uint8_t *buf) {
-  uint32_t length = 0;
-  length = (buf)[0] << 24 | (buf)[1] << 16 | (buf)[2] << 8 | (buf)[3];
-  return length;
+inline int nal_start_code_length(const uint8_t *buf, const uint8_t *end) {
+  if (buf + 4 <= end && buf[0] == 0 && buf[1] == 0 && buf[2] == 0 && buf[3] == 1) {
+    return 4;
+  }
+  if (buf + 3 <= end && buf[0] == 0 && buf[1] == 0 && buf[2] == 1) {
+    return 3;
+  }
+  return 0;
+}
+
+/**
+ * @brief Locates the next NAL unit starting at `pos`, using the stream's NAL unit framing.
+ *
+ * H.264/HEVC packets use one of two framings, fixed for the whole stream:
+ * - AVCC/ISO (MP4/MOV/Matroska): each NAL unit is prefixed with its big-endian length, stored on
+ *   `nal_length_size` bytes (1, 2 or 4, as recorded in the AVCDecoderConfigurationRecord /
+ *   HEVCDecoderConfigurationRecord extradata -- see GetNalLengthSize).
+ * - Annex-B (raw elementary streams, AVI, MPEG-PS/TS, ...): NAL units are delimited by start
+ *   codes (00 00 01 or 00 00 00 01); signaled here by `nal_length_size == 0`.
+ *
+ * The framing must be known up front, it can't be guessed per NAL unit: an AVCC length prefix
+ * can be byte-for-byte identical to a start code (e.g. any 4-byte length in [256, 511] is
+ * "00 00 01 XX", and a length of 1 is "00 00 00 01").
+ *
+ * @param pos [in/out] Position to start searching from; advanced past the located NAL unit.
+ * @param end End of the packet buffer (exclusive).
+ * @param nal_length_size Size of the AVCC/ISO length prefix, or 0 for Annex-B.
+ * @param nal_data [out] Set to the first byte of the NAL unit (after any start code or
+ * length prefix).
+ * @param nal_size [out] Set to the size, in bytes, of the NAL unit.
+ * @return true if a NAL unit was located, false if there isn't enough data left in the packet.
+ */
+inline bool find_next_nal_unit(const uint8_t *&pos, const uint8_t *end, int nal_length_size,
+                               const uint8_t *&nal_data, uint32_t &nal_size) {
+  if (nal_length_size > 0) {
+    if (end - pos < nal_length_size) {
+      return false;
+    }
+    uint32_t length = 0;
+    for (int i = 0; i < nal_length_size; i++) {
+      length = (length << 8) | pos[i];
+    }
+    nal_data = pos + nal_length_size;
+    if (length > static_cast<size_t>(end - nal_data)) {
+      return false;
+    }
+    nal_size = length;
+    pos = nal_data + nal_size;
+    return true;
+  }
+
+  // Annex-B: skip to the next start code; the NAL unit runs from there up to the following
+  // start code (or the end of the packet).
+  int sc_len = 0;
+  while (pos < end && (sc_len = nal_start_code_length(pos, end)) == 0) {
+    ++pos;
+  }
+  if (sc_len == 0) {
+    return false;
+  }
+  nal_data = pos + sc_len;
+  const uint8_t *next = nal_data;
+  while (next < end && nal_start_code_length(next, end) == 0) {
+    ++next;
+  }
+  nal_size = static_cast<uint32_t>(next - nal_data);
+  pos = next;
+  return true;
+}
+
+}  // namespace
+
+namespace detail {
+
+int GetNalLengthSize(AVCodecID codec_id, const uint8_t *extradata, int extradata_size) {
+  // Both AVCDecoderConfigurationRecord (ISO/IEC 14496-15, 5.3.3.1) and
+  // HEVCDecoderConfigurationRecord (8.3.3.1) start with configurationVersion = 1, while Annex-B
+  // extradata starts with a start code (00 00 01 / 00 00 00 01). lengthSizeMinusOne is held in the
+  // two low bits of byte 4 (avcC) or byte 21 (hvcC).
+  if (extradata == nullptr) {
+    return 0;
+  }
+  if (codec_id == AV_CODEC_ID_H264 && extradata_size > 4 && extradata[0] == 1) {
+    return (extradata[4] & 0x03) + 1;
+  }
+  // HEVC uses the same criterion as FFmpeg's HEVC parser (libavcodec/hevc/parse.c,
+  // ff_hevc_decode_extradata): anything longer than 3 bytes that doesn't start with an Annex-B
+  // start code prefix (00 00 00 / 00 00 01) is hvcC, whatever its configurationVersion -- some
+  // muxers wrote 0, and future versions may be > 1.
+  if (codec_id == AV_CODEC_ID_HEVC && extradata_size > 3 &&
+      (extradata[0] != 0 || extradata[1] != 0 || extradata[2] > 1)) {
+    // hvcC whose fixed 23-byte header is truncated (so lengthSizeMinusOne can't be read) is
+    // malformed; rather than guess a length size, fall back to Annex-B scanning, which can't
+    // read past the end of a packet.
+    if (extradata_size < 23)
+      return 0;
+    return (extradata[21] & 0x03) + 1;
+  }
+  return 0;
+}
+
+bool HasKeyframeNalUnit(AVCodecID codec_id, const uint8_t *data, int size,
+                        int nal_length_size) {
+  if (data == nullptr || size <= 0) {
+    return false;
+  }
+  const uint8_t *pos = data;
+  const uint8_t *end = data + size;
+  const uint8_t *nal_data;
+  uint32_t nal_size;
+  while (find_next_nal_unit(pos, end, nal_length_size, nal_data, nal_size)) {
+    if (nal_size == 0) {
+      continue;
+    }
+    if (codec_id == AV_CODEC_ID_H264) {
+      // In H.264, the NAL unit type is in the lower 5 bits. Type 5 is an IDR (Instantaneous
+      // Decoding Refresh) slice, which clears all reference buffers.
+      if ((nal_data[0] & 0x1F) == 5) {
+        return true;
+      }
+    } else if (codec_id == AV_CODEC_ID_HEVC) {
+      // In HEVC, the NAL unit type is in bits 1-6 of the first byte. Types 16-21 are IRAP
+      // (Intra Random Access Point) pictures.
+      uint8_t nal_unit_type = (nal_data[0] >> 1) & 0x3F;
+      if (nal_unit_type >= 16 && nal_unit_type <= 21) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+}  // namespace detail
+
+void FramesDecoderBase::EnforceSupportedContainer() {
+  if (ctx_ && ctx_->iformat && !strcmp(ctx_->iformat->name, "mpeg")) {
+    DALI_FAIL(make_string(
+        "Video file \"", Filename(), "\" is MPEG-PS (MPEG-2 Program Stream), which is not "
+        "supported: this container format only stamps a timestamp on some packets, so its "
+        "frames can't be reliably indexed or returned in presentation order. Remux the file to "
+        "MP4 or MKV (e.g. `ffmpeg -i in.mpeg -c copy out.mp4`)."));
+  }
 }
 
 void FramesDecoderBase::BuildIndex() {
@@ -297,10 +451,32 @@ void FramesDecoderBase::BuildIndex() {
     return;
   }
 
+  // Throwing here (rather than in SelectVideoStream()) lets experimental.readers.video treat
+  // such a file like any other invalid one while it builds its dataset metadata: it catches
+  // this exception and skips the file with a warning. Operators that decode without an index
+  // (decoders.video, experimental.inputs.video) call EnforceSupportedContainer() themselves.
+  EnforceSupportedContainer();
+
   // Initialize frame index
   index_.index.clear();
+  index_.keyframe_dts.clear();
   index_.filename = Filename();
   index_.timebase = ctx_->streams[stream_id_]->time_base;
+
+  // The NAL unit framing of H.264/HEVC packets (Annex-B start codes vs. AVCC/ISO length
+  // prefixes) is a property of the whole stream, signaled by its extradata. It has to be
+  // determined here, because av_read_frame returns packets exactly as stored in the container:
+  // the *_mp4toannexb bitstream filter is only applied later, on the GPU decode path.
+  const AVCodecParameters *codecpar = ctx_->streams[stream_id_]->codecpar;
+  const AVCodecID codec_id = codecpar->codec_id;
+  const int nal_length_size =
+      detail::GetNalLengthSize(codec_id, codecpar->extradata, codecpar->extradata_size);
+  // The MPEG-TS demuxer seeks on dts and treats every packet as a seek point. With B-frames, a
+  // keyframe's dts is lower than its pts, so seeking to its pts would land on a later, non-key
+  // packet whose dts equals that pts, and decoding would start without the keyframe: record the
+  // keyframes' dts to seek on. Other demuxers keep seeking on pts: e.g. in MP4, an edit list can
+  // shift dts so that seeking to it lands on an earlier keyframe.
+  const bool seek_on_dts = !strcmp(ctx_->iformat->name, "mpegts");
 
   // Track the position of the last keyframe seen
   int last_keyframe = -1;
@@ -330,44 +506,12 @@ void FramesDecoderBase::BuildIndex() {
     if (packet->flags & AV_PKT_FLAG_KEY) {
       LOG_LINE << "Found potential keyframe at frame " << index_.size() << std::endl;
 
-      // Special handling for H.264 and HEVC formats
-      auto codec_id = ctx_->streams[packet->stream_index]->codecpar->codec_id;
+      // Special handling for H.264 and HEVC formats: parse the packet's NAL units (Network
+      // Abstraction Layer, the basic unit of encoded video) to verify that this is actually a
+      // keyframe.
       if (codec_id == AV_CODEC_ID_H264 || codec_id == AV_CODEC_ID_HEVC) {
-        // Parse NAL units to verify if this is actually a keyframe
-        // NAL = Network Abstraction Layer, the basic unit of encoded video
-        const uint8_t *end = packet->data + packet->size;
-        uint8_t *nal_start = packet->data;
-
-        // Iterate through NAL units in the packet
-        while (nal_start + 4 < end) {
-          // Each NAL unit is prefixed with a 4-byte length
-          uint32_t nal_size = read_nal_unit_length(nal_start);
-          nal_start += 4;
-          if (nal_start + nal_size > end) {
-            break;
-          }
-
-          if (codec_id == AV_CODEC_ID_H264) {
-            // In H.264, the NAL unit type is in the lower 5 bits
-            uint8_t nal_unit_type = nal_start[0] & 0x1F;
-            // Type 5 indicates an IDR frame (Instantaneous Decoding Refresh)
-            // IDR frames are special keyframes that clear all reference buffers
-            if (nal_unit_type == 5) {
-              entry.is_keyframe = true;
-              break;
-            }
-          } else {  // AV_CODEC_ID_HEVC
-            // In HEVC/H.265, NAL unit type is in bits 1-6 of the first byte
-            uint8_t nal_unit_type = (nal_start[0] >> 1) & 0x3F;
-            // Types 16-21 are IRAP (Intra Random Access Point) pictures
-            // which serve as keyframes in HEVC
-            if (nal_unit_type >= 16 && nal_unit_type <= 21) {
-              entry.is_keyframe = true;
-              break;
-            }
-          }
-          nal_start += nal_size;  // Advance to next NAL unit
-        }
+        entry.is_keyframe =
+            detail::HasKeyframeNalUnit(codec_id, packet->data, packet->size, nal_length_size);
       } else {
         // For other codecs, trust the AV_PKT_FLAG_KEY flag
         entry.is_keyframe = true;
@@ -388,6 +532,9 @@ void FramesDecoderBase::BuildIndex() {
     // Update last keyframe position if this is a keyframe
     if (entry.is_keyframe) {
       last_keyframe = index_.size();
+      if (seek_on_dts && packet->dts != AV_NOPTS_VALUE) {
+        index_.keyframe_dts.emplace_back(entry.pts, packet->dts);
+      }
     }
     entry.last_keyframe_id = last_keyframe;
 
@@ -409,6 +556,7 @@ void FramesDecoderBase::BuildIndex() {
   // This is needed because frames may be stored out of order in the container
   std::sort(index_.index.begin(), index_.index.end(),
             [](const IndexEntry &a, const IndexEntry &b) { return a.pts < b.pts; });
+  std::sort(index_.keyframe_dts.begin(), index_.keyframe_dts.end());
 
   // After sorting, we need to update last_keyframe_id references
   std::vector<int> keyframe_positions;
@@ -540,13 +688,15 @@ void FramesDecoderBase::SeekFrame(int frame_id) {
         // We are seeking to a different keyframe than the current frame,
         // so we need to seek to the keyframe first
         auto &keyframe_entry = index_[keyframe_id];
-        LOG_LINE << "Seeking to key frame " << keyframe_id << " timestamp " << keyframe_entry.pts
+        // The keyframe's dts for MPEG-TS (see BuildIndex), its pts otherwise.
+        int64_t seek_timestamp = index_.KeyframeSeekTimestamp(keyframe_entry.pts);
+        LOG_LINE << "Seeking to key frame " << keyframe_id << " timestamp " << seek_timestamp
                  << " for requested frame " << frame_id << " timestamp " << requested_frame.pts
                  << std::endl;
 
-        if (!AvSeekFrame(keyframe_entry.pts, keyframe_id)) {
+        if (!AvSeekFrame(seek_timestamp, keyframe_id)) {
           LOG_LINE << "Failed to seek to keyframe " << keyframe_id << " timestamp "
-                   << keyframe_entry.pts << ". Resetting decoder." << std::endl;
+                   << seek_timestamp << ". Resetting decoder." << std::endl;
           Reset();
         }
       }
@@ -568,7 +718,8 @@ void FramesDecoderBase::SeekFrame(int frame_id) {
   assert(next_frame_idx_ == frame_id);
 }
 
-int FramesDecoderBase::HandleBoundary(boundary::BoundaryType boundary_type, int frame_id, int roi_start, int roi_end) {
+int FramesDecoderBase::HandleBoundary(boundary::BoundaryType boundary_type, int frame_id,
+                                      int roi_start, int roi_end) {
   DALI_ENFORCE(boundary_type == boundary::BoundaryType::CLAMP ||
                    boundary_type == boundary::BoundaryType::CONSTANT ||
                    boundary_type == boundary::BoundaryType::REFLECT_1001 ||
@@ -583,10 +734,11 @@ int FramesDecoderBase::HandleBoundary(boundary::BoundaryType boundary_type, int 
       return std::clamp(frame_id, roi_start, roi_end - 1);
     case boundary::BoundaryType::CONSTANT:
       return -1;
+    // Reflect within [roi_start, roi_end), so that padded indices never leave the ROI
     case boundary::BoundaryType::REFLECT_1001:
-      return boundary::idx_reflect_1001(frame_id, roi_end);
+      return boundary::idx_reflect_1001(frame_id, roi_start, roi_end);
     case boundary::BoundaryType::REFLECT_101:
-      return boundary::idx_reflect_101(frame_id, roi_end);
+      return boundary::idx_reflect_101(frame_id, roi_start, roi_end);
     case boundary::BoundaryType::ISOLATED:
     default:
       DALI_FAIL(make_string(
@@ -608,7 +760,7 @@ void FramesDecoderBase::DecodeFramesImpl(uint8_t *data,
 
   uint8_t *last_out_frame_start = nullptr;
   for (auto &[frame_id, i] : frame_ids) {
-    uint8_t* out_frame_start = data + ptrdiff_t(i) * FrameSize();
+    uint8_t* out_frame_start = data + ptrdiff_t(i) * FrameSizeBytes();
     assert(out_frame_start >= data);
     if (frame_id >= 0 && frame_id < NumFrames()) {
       LOG_LINE << "Decoding frame " << frame_id << " to position " << i << std::endl;

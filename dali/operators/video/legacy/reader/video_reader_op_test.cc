@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,6 +16,7 @@
 #include <cmath>
 #include <cstring>
 #include <fstream>
+#include "dali/operators/video/frames_decoder_gpu.h"
 #include "dali/pipeline/pipeline.h"
 #include "dali/test/dali_test_config.h"
 #include "dali/util/nvml.h"
@@ -247,8 +248,12 @@ TEST_F(VIDEO_READER_TEST_CLASS, PackedBFrames) {
 
 inline bool IsUnsupportedCodec(const char *error_message) {
   const char *unsupported_codec_messages[] = {
+      // readers.video
       "Decoder hardware does not support this video codec and/or chroma format",
-      "Unsupported Code"};
+      "Unsupported Code",
+      // experimental.readers.video
+      "Codec configuration not supported on this GPU",
+      "is not supported by NVDEC on this platform"};
   for (const char *part : unsupported_codec_messages) {
     if (std::strstr(error_message, part)) return true;
   }
@@ -371,19 +376,27 @@ TEST_F(VIDEO_READER_TEST_CLASS, MJpeg) {
       "Decoder hardware does not support this video codec"
       " and/or chroma format";
 
-  if (strcmp(VIDEO_READER_OP_STR, "experimental__readers__Video") == 0) {
-    GTEST_SKIP() << "Skipped because of unsupported codec.";
+  // experimental.readers.video skips (with a warning) a file whose codec NVDEC doesn't support at
+  // all, so with no files left it fails with a generic "no samples" error instead: check upfront.
+  // The test file is 8-bit 4:4:4 (yuvj444p).
+  if (!FramesDecoderGpu::NvdecSupports(cudaVideoCodec_JPEG, cudaVideoChromaFormat_444)) {
+    GTEST_SKIP() << "NVDEC does not support 8-bit 4:4:4 JPEG on this GPU";
   }
 
-  // richer FFmpeg configuration leads to different behaviour of VFR heuristics so dissable it for
-  // this video
-  pipe.AddOperator(OpSpec(VIDEO_READER_OP_STR)
-                       .AddArg("device", "gpu")
-                       .AddArg("sequence_length", sequence_length)
-                       .AddArg("skip_vfr_check", true)
-                       .AddArg("filenames", std::vector<std::string>{testing::dali_extra_path() +
-                                                                     "/db/video/mjpeg/mjpeg.avi"})
-                       .AddOutput("frames", StorageDevice::GPU));
+  // richer FFmpeg configuration leads to different behaviour of VFR heuristics, so disable the
+  // VFR check for this video. readers__Video's default (VFR check enabled) rejects this file;
+  // experimental__readers__Video's default is already permissive (no VFR check unless
+  // require_constant_frame_rate=True is explicitly requested), so it needs no equivalent arg.
+  auto op_spec = OpSpec(VIDEO_READER_OP_STR)
+                     .AddArg("device", "gpu")
+                     .AddArg("sequence_length", sequence_length)
+                     .AddArg("filenames", std::vector<std::string>{testing::dali_extra_path() +
+                                                                   "/db/video/mjpeg/mjpeg.avi"})
+                     .AddOutput("frames", StorageDevice::GPU);
+  if (strcmp(VIDEO_READER_OP_STR, "experimental__readers__Video") != 0) {
+    op_spec = op_spec.AddArg("skip_vfr_check", true);
+  }
+  pipe.AddOperator(op_spec);
 
   Workspace ws;
   try {
@@ -624,7 +637,6 @@ TEST_F(VIDEO_READER_TEST_CLASS, FrameLabelsWithFileListFrameNum) {
                        .AddArg("enable_frame_num", "scalar")
                        .AddArg("enable_timestamps", true)
                        .AddArg("file_list_frame_num", true)
-                       .AddArg("file_list_format", "frames")  // equivalent to file_list_frame_num in the old decoder
                        .AddArg("image_type", DALI_YCbCr)
                        .AddArg("file_list", file_list_path)
                        .AddOutput("frames", StorageDevice::GPU)

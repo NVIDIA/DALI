@@ -1,4 +1,4 @@
-// Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -288,6 +288,9 @@ bool VideoInput<Backend, FramesDecoderImpl>::SetupImpl(std::vector<OutputDesc> &
     int size = sample.shape().num_elements();
     std::string_view source_info{};
     frames_decoders_[0] = CreateDecoder(data, size, source_info, ws.has_stream() ? ws.stream() : 0);
+    // Before the IsValid() check, so that an unsupported container is reported as such, even
+    // when the decoder also rejected the stream (e.g. its codec, on CPU).
+    frames_decoders_[0]->EnforceSupportedContainer();
     DALI_ENFORCE(frames_decoders_[0]->IsValid(),
                  "Failed to create video decoder for provided video data");
 
