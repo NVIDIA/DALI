@@ -15,7 +15,6 @@
 #include <algorithm>
 #include <exception>
 #include <limits>
-#include <map>
 #include <memory>
 #include <numeric>
 #include <string>
@@ -32,6 +31,7 @@
 #include "dali/operators/video/frames_decoder_base.h"
 #include "dali/operators/video/frames_decoder_cpu.h"
 #include "dali/operators/video/frames_decoder_gpu.h"
+#include "dali/operators/video/reader/decode_lane_planner.h"
 #include "dali/operators/video/reader/frame_index_cache.h"
 #include "dali/operators/video/video_utils.h"
 #include "dali/pipeline/util/thread_pool.h"
@@ -605,12 +605,10 @@ class VideoReaderDecoder
     std::unique_ptr<FramesDecoderImpl> decoder;  // after `stream`: destroyed (and synced) first
     Tensor<Backend> constant_frame;
     std::vector<int> frame_idxs;  // scratch
-    // Planning: the runs of the current batch, in decoding order, the estimated work, and where
-    // the lane's decoder will be after them
+    // Planning: the runs of the current batch, in the order the lane decodes them, and the
+    // estimated work
     std::vector<int> runs;
     int64_t load = 0;
-    std::string next_filename;
-    int next_frame = -1;
     // Errors of the current batch: (position in the batch, exception)
     std::vector<std::pair<int, std::exception_ptr>> errors;
   };
@@ -677,19 +675,6 @@ class VideoReaderDecoder
   }
 
   /**
-   * @brief Whether a decoder whose next frame is `next` decodes through to `frame` without
-   * seeking (see FramesDecoderBase::SeekFrame).
-   */
-  static bool CanReachWithoutSeek(const FrameIndex *index, int next, int frame) {
-    if (next < 0 || frame < next)
-      return false;
-    if (frame - next <= FramesDecoderBase::kMinimumSeekLeap)
-      return true;
-    return index && frame < static_cast<int>(index->size()) &&
-           (*index)[frame].last_keyframe_id == (*index)[next].last_keyframe_id;
-  }
-
-  /**
    * @brief Groups the batch's samples into runs: samples of one file that one decoder decodes in
    * a row without seeking.
    *
@@ -750,93 +735,28 @@ class VideoReaderDecoder
   }
 
   /**
-   * @brief Assigns the runs to lanes: longest first, each to the lane that would finish it
-   * first, counting what the lane's decoder saves (no reopening, no seeking).
-   *
-   * A lane then decodes the runs of one file together, by first frame: first the file its
-   * decoder holds (starting with the run that continues where the decoder is), then the others in
-   * batch order. A lane without runs releases its decoder.
+   * @brief Assigns the runs to lanes (see PlanLanes). A lane without runs releases its decoder.
    */
   void AssignRuns() {
-    for (auto &lane : lanes_) {
-      lane.runs.clear();
-      lane.load = 0;
-      lane.next_filename = lane.decoder ? lane.decoder->Filename() : std::string();
-      lane.next_frame = lane.decoder ? lane.decoder->NextFrameIdx() : -1;
-    }
-    std::vector<std::pair<std::string, int>> start(lanes_.size());  // where the decoders are
-    for (size_t l = 0; l < lanes_.size(); l++)
-      start[l] = {lanes_[l].next_filename, lanes_[l].next_frame};
-    struct RunCost {
-      int run;
-      const FrameIndex *index;
-      int64_t frames;   // frames decoded, from the first to the last
-      int64_t preroll;  // frames decoded before the first one, after a seek
-    };
-    std::vector<RunCost> costs;
     std::vector<FrameIndexCache::IndexPtr> indices;  // keeps the indices alive while planning
-    for (int r = 0; r < static_cast<int>(runs_.size()); r++) {
-      const auto &run = runs_[r];
+    std::vector<PlannedRun> runs;
+    for (const auto &run : runs_) {
       indices.push_back(FrameIndexCache::instance().Find(*run.filename));
-      const FrameIndex *index = indices.back().get();
-      int64_t frames = run.first < 0 ? 0 : run.last - run.first + 1;
-      int64_t preroll = 0;
-      if (index && run.first >= 0 && run.first < static_cast<int>(index->size()))
-        preroll = run.first - (*index)[run.first].last_keyframe_id;
-      costs.push_back({r, index, frames, preroll});
+      runs.push_back({*run.filename, indices.back().get(), run.batch_idx, run.first, run.last});
     }
-    std::stable_sort(costs.begin(), costs.end(), [](const RunCost &a, const RunCost &b) {
-      return a.frames + a.preroll > b.frames + b.preroll;
-    });
-    for (const auto &cost : costs) {
-      const auto &run = runs_[cost.run];
-      int best = 0;
-      int64_t best_end = std::numeric_limits<int64_t>::max();
-      for (int l = 0; l < static_cast<int>(lanes_.size()); l++) {
-        const auto &lane = lanes_[l];
-        int64_t work = cost.frames;
-        if (lane.next_filename != *run.filename)
-          work += kOpenCost + cost.preroll;
-        else if (!CanReachWithoutSeek(cost.index, lane.next_frame, run.first))
-          work += cost.preroll;
-        if (lane.load + work < best_end) {
-          best = l;
-          best_end = lane.load + work;
-        }
-      }
-      auto &lane = lanes_[best];
-      lane.runs.push_back(cost.run);
-      lane.load = best_end;
-      lane.next_filename = *run.filename;
-      lane.next_frame = run.last < 0 ? lane.next_frame : run.last + 1;
-    }
+    std::vector<std::string> filenames(lanes_.size());  // of the lanes' decoders
+    std::vector<LaneStart> starts(lanes_.size());
     for (size_t l = 0; l < lanes_.size(); l++) {
-      auto &runs = lanes_[l].runs;
-      auto continues = [&](int r) {
-        const auto &run = runs_[r];
-        return *run.filename == start[l].first &&
-               CanReachWithoutSeek(FrameIndexCache::instance().Find(*run.filename).get(),
-                                  start[l].second, run.first);
-      };
-      // files in the order of their first sample in the batch, the decoder's file first
-      std::map<std::string_view, int> file_order;
-      for (int r : runs) {
-        auto [it, inserted] = file_order.emplace(*runs_[r].filename, runs_[r].batch_idx);
-        if (!inserted)
-          it->second = std::min(it->second, runs_[r].batch_idx);
+      if (lanes_[l].decoder) {
+        filenames[l] = lanes_[l].decoder->Filename();
+        starts[l] = {filenames[l], lanes_[l].decoder->NextFrameIdx()};
       }
-      auto held = file_order.find(start[l].first);
-      if (held != file_order.end())
-        held->second = -1;
-      std::sort(runs.begin(), runs.end(), [&](int a, int b) {
-        const auto &ra = runs_[a], &rb = runs_[b];
-        return std::make_tuple(file_order[*ra.filename], *ra.filename, ra.first) <
-               std::make_tuple(file_order[*rb.filename], *rb.filename, rb.first);
-      });
-      auto it = std::find_if(runs.begin(), runs.end(), continues);
-      if (it != runs.end())
-        std::rotate(runs.begin(), it, it + 1);
-      if (runs.empty() && lanes_.size() > 1)
+    }
+    PlanLanes(make_cspan(runs), make_cspan(starts), kOpenCost, plans_);
+    for (size_t l = 0; l < lanes_.size(); l++) {
+      lanes_[l].runs = std::move(plans_[l].runs);
+      lanes_[l].load = plans_[l].load;
+      if (lanes_[l].runs.empty() && lanes_.size() > 1)
         lanes_[l].decoder.reset();  // do not keep its frame buffers and NVDEC decoder idle
     }
   }
@@ -1027,6 +947,7 @@ class VideoReaderDecoder
   std::vector<SampleTask> tasks_;
   std::vector<DecodeRun> runs_;
   std::vector<DecodeLane> lanes_;
+  std::vector<LanePlan> plans_;  // scratch
   std::unique_ptr<OldThreadPool> thread_pool_;  // with more than one lane
 };
 
