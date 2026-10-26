@@ -14,7 +14,7 @@
 
 from typing import Callable, Literal, Sequence
 
-from .operator import Operator, _ValidateIfZeroOneRange, share_random_value
+from .operator import Operator, _ValidateIfZeroOneRange
 import nvidia.dali.fn as fn
 import nvidia.dali as dali
 
@@ -50,9 +50,7 @@ class RandomApply(Operator):
         Randomly applies each operator in op_list sequentially.
         """
         output = data_input
-        convert = share_random_value(
-            fn.random.coin_flip(dtype=dali.types.DALIDataType.BOOL, probability=self.p)
-        )
+        convert = fn.random.coin_flip(dtype=dali.types.DALIDataType.BOOL, probability=self.p)
         if convert:
             for op in self._op_list:
                 output = op._invoke(output)

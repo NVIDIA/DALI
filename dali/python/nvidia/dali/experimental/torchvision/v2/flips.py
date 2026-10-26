@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from typing import Literal
-from .operator import Operator, share_random_value
+from .operator import Operator
 import nvidia.dali.fn as fn
 
 
@@ -43,7 +43,7 @@ class RandomFlip(Operator):
         if self.horizontal:
             data_input = fn.flip(
                 data_input,
-                horizontal=share_random_value(fn.random.coin_flip(probability=self.prob)),
+                horizontal=fn.random.coin_flip(probability=self.prob),
                 vertical=0,
                 device=self.device,
             )
@@ -51,7 +51,7 @@ class RandomFlip(Operator):
             data_input = fn.flip(
                 data_input,
                 horizontal=0,
-                vertical=share_random_value(fn.random.coin_flip(probability=self.prob)),
+                vertical=fn.random.coin_flip(probability=self.prob),
                 device=self.device,
             )
 

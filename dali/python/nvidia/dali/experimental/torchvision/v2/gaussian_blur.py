@@ -13,13 +13,7 @@
 # limitations under the License.
 
 from typing import Sequence, Literal
-from .operator import (
-    Operator,
-    ArgumentValidateRule,
-    _ValidateIfPositive,
-    _ValidateIfRange,
-    share_random_value,
-)
+from .operator import Operator, ArgumentValidateRule, _ValidateIfPositive, _ValidateIfRange
 
 import nvidia.dali.fn as fn
 
@@ -125,7 +119,7 @@ class GaussianBlur(Operator):
 
     def _kernel(self, data_input):
         if self.sigma[0] != self.sigma[1]:
-            sigma = share_random_value(fn.random.uniform(range=self.sigma, seed=self.seed))
+            sigma = fn.random.uniform(range=self.sigma, seed=self.seed)
         else:
             sigma = self.sigma[0]
 
