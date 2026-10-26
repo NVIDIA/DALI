@@ -1,4 +1,4 @@
-# Copyright (c) 2018-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2018-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 
 # caffe_parse_header
 # Reads set of version defines from the header file
@@ -413,6 +413,17 @@ macro(DETERMINE_GCC_SYSTEM_INCLUDE_DIRS _lang _compiler _flags _result)
         separate_arguments(${_result})
     endif ()
 endmacro()
+
+# Finds the directory of a CUDA header (e.g. cufft.h) for the stub generator and caches it in VAR.
+# It is usually CUDAToolkit_TARGET_DIR/include, but the headers of the CUDA libraries can be
+# installed elsewhere: in CUDAToolkit_INCLUDE_DIRS (e.g. the NVHPC SDK's math_libs) or in a
+# separate prefix that the default search paths cover (e.g. CMAKE_PREFIX_PATH).
+function(find_cuda_header VAR HEADER)
+  find_path(${VAR} ${HEADER}
+            PATHS "${CUDAToolkit_TARGET_DIR}/include" ${CUDAToolkit_INCLUDE_DIRS}
+            NO_DEFAULT_PATH NO_CMAKE_FIND_ROOT_PATH)
+  find_path(${VAR} ${HEADER} REQUIRED)
+endfunction()
 
 function(custom_filter CURR_DIR ORIG_FILE_LIST EXTRA_FILE_LIST INCLUDE_PATTERNS EXCLUDE_PATTERNS)
   if (NOT ${INCLUDE_PATTERNS} STREQUAL "")
