@@ -511,6 +511,14 @@ class DLL_PUBLIC FramesDecoderBase {
 
   int64_t decoded_pictures_ = 0;  // see DecodedPictures
 
+  /**
+   * @brief The frames read with their data next, in order, when known: DecodeFrames sets those it
+   * has yet to read and SeekFrame the one it seeks to. Empty: any frame may be read.
+   *
+   * A frame decoded on the way to them that is not one of them is only skipped.
+   */
+  span<const int> frames_to_read_;
+
  private:
   void DetectVariableFrameRate();
 

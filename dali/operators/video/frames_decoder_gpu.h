@@ -258,9 +258,9 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
   /**
    * @brief Whether a buffered frame with this timestamp may be read with its data later.
    *
-   * Decoding a frame that is not read (e.g. one hidden by an edit list) is still needed for the
-   * frames that refer to it, but mapping and converting it is not. Reading a frame without its
-   * data is an internal error.
+   * Decoding a frame that is not read (e.g. one hidden by an edit list, or one that is only
+   * skipped on the way to the frames to read) is still needed for the frames that refer to it, but
+   * mapping and converting it is not. Reading a frame without its data is an internal error.
    */
   bool MayBeReadWithData(int64_t pts) const;
 

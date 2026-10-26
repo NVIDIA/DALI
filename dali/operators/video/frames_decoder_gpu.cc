@@ -588,14 +588,15 @@ int FramesDecoderGpu::HandlePictureDisplay(CUVIDPARSERDISPINFO *picture_display_
     // Put currently decoded frame to the buffer for later
     auto &slot = FindEmptySlot();
     slot.pts_ = current_pts_;
-    // A frame that is never read with its data (e.g. hidden by an edit list) keeps its place in
-    // the buffer, but it is neither mapped nor converted
+    // A frame that is never read with its data (e.g. hidden by an edit list, or only skipped on
+    // the way to the frames to read) keeps its place in the buffer, but it is neither mapped nor
+    // converted
     slot.has_data_ = buffered_frame_data_ == BufferedFrameData::kIfRead
                          ? MayBeReadWithData(slot.pts_)
                          : buffered_frame_data_ == BufferedFrameData::kAll;
     if (!slot.has_data_) {
-      LOG_LINE << "Not mapping frame with timestamp " << slot.pts_ << ": it is not read"
-               << std::endl;
+      LOG_LINE << "Not mapping frame with timestamp " << slot.pts_
+               << ": it is not read with its data" << std::endl;
       return 1;
     }
     AttachFrameBuffer(slot);
@@ -982,7 +983,15 @@ bool FramesDecoderGpu::MayBeReadWithData(int64_t pts) const {
   auto first = index_.index.begin() + next_frame_idx_;
   auto entry = std::lower_bound(first, index_.index.end(), pts,
                                 [](const IndexEntry &e, int64_t pts) { return e.pts < pts; });
-  return entry != index_.index.end() && entry->pts == pts;
+  if (entry == index_.index.end() || entry->pts != pts)
+    return false;
+  // Up to the last of the frames to read next, a frame that is not one of them is only skipped;
+  // after it, a later DecodeFrames (e.g. the next sample of a decode lane) may read it
+  if (frames_to_read_.empty() || pts > index_[frames_to_read_.back()].pts)
+    return true;
+  auto read = std::lower_bound(frames_to_read_.begin(), frames_to_read_.end(), pts,
+                               [&](int frame, int64_t pts) { return index_[frame].pts < pts; });
+  return index_[*read].pts == pts;
 }
 
 int FramesDecoderGpu::NumFrameBuffers() const {
