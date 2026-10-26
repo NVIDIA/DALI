@@ -15,6 +15,7 @@
 #include "dali/operators/video/frames_decoder_gpu.h"
 #include <cuda.h>
 #include <unistd.h>
+#include <algorithm>
 #include <atomic>
 #include <string>
 #include <memory>
@@ -587,6 +588,17 @@ int FramesDecoderGpu::HandlePictureDisplay(CUVIDPARSERDISPINFO *picture_display_
     // Put currently decoded frame to the buffer for later
     auto &slot = FindEmptySlot();
     slot.pts_ = current_pts_;
+    // A frame that is never read with its data (e.g. hidden by an edit list) keeps its place in
+    // the buffer, but it is neither mapped nor converted
+    slot.has_data_ = buffered_frame_data_ == BufferedFrameData::kIfRead
+                         ? MayBeReadWithData(slot.pts_)
+                         : buffered_frame_data_ == BufferedFrameData::kAll;
+    if (!slot.has_data_) {
+      LOG_LINE << "Not mapping frame with timestamp " << slot.pts_ << ": it is not read"
+               << std::endl;
+      return 1;
+    }
+    AttachFrameBuffer(slot);
     frame_output = slot.frame_.data();
   }
 
@@ -602,6 +614,7 @@ int FramesDecoderGpu::HandlePictureDisplay(CUVIDPARSERDISPINFO *picture_display_
     &videoProcessingParameters));
   mapped_frame_ = frame;  // tracked before anything can throw
   frame_dec_gpu_impl::FrameMapped();
+  mapped_pictures_++;
   conversion_recorded_ = false;
 
   LOG_LINE << "VideoColorSpaceConversion with conversion_type_="
@@ -648,6 +661,9 @@ bool FramesDecoderGpu::ReadNextFrameWithIndex(uint8_t *data) {
   for (auto &frame : frame_buffer_) {
     if (frame.pts_ != -1 && frame.pts_ == index_[next_frame_idx_].pts) {
       if (copy_to_output) {
+        DALI_ENFORCE(frame.has_data_, make_string("Internal error: frame ", next_frame_idx_,
+                                                  " of \"", Filename(), "\" is read, but only its "
+                                                  "timestamp was kept."));
         LOG_LINE << "Copying from frame buffer to frame_output" << std::endl;
         copyD2D(data, frame.frame_.data(), FrameSize(), stream_);
       }
@@ -824,6 +840,8 @@ bool FramesDecoderGpu::ReadNextFrameWithoutIndex(uint8_t *data) {
     if (dtype_ == DALI_FLOAT) {
       total_size *= 4;
     }
+    // without an index, every buffered frame keeps its data (see MayBeReadWithData)
+    assert(frame_buffer_[frame_to_return_index].has_data_);
     LOG_LINE << "Copying from frame buffer at index " << frame_to_return_index
              << " to frame_output at " << current_frame_output_ << " (frame_idx=" << next_frame_idx_
              << ")" << std::endl;
@@ -937,9 +955,43 @@ BufferedFrame& FramesDecoderGpu::FindEmptySlot() {
   }
   frame_buffer_ = std::move(new_frame_buffer);
   auto &new_frame = frame_buffer_.back();
-  new_frame.frame_.resize(FrameSize());
-  new_frame.pts_ = -1;
+  new_frame.pts_ = -1;  // its frame buffer is attached if the frame keeps its data
   return new_frame;
+}
+
+void FramesDecoderGpu::AttachFrameBuffer(BufferedFrame &slot) {
+  if (!slot.frame_.empty())
+    return;
+  for (auto &other : frame_buffer_) {
+    // the buffer of an empty slot, or of a slot that keeps only a timestamp: a conversion into it
+    // runs on stream_, after any pending copy out of it
+    if (!other.frame_.empty() && (other.pts_ == -1 || !other.has_data_)) {
+      slot.frame_ = std::move(other.frame_);
+      return;
+    }
+  }
+  slot.frame_.resize(FrameSize());
+}
+
+bool FramesDecoderGpu::MayBeReadWithData(int64_t pts) const {
+  if (!HasIndex() || next_frame_idx_ < 0 || next_frame_idx_ >= static_cast<int>(index_.size()))
+    return true;
+  // The index is sorted by timestamp and, until the decoder is flushed, a buffered frame is only
+  // looked up for the frames from the next one on: a frame that is not among them (e.g. hidden by
+  // an edit list, or shown before the next one) is never read
+  auto first = index_.index.begin() + next_frame_idx_;
+  auto entry = std::lower_bound(first, index_.index.end(), pts,
+                                [](const IndexEntry &e, int64_t pts) { return e.pts < pts; });
+  return entry != index_.index.end() && entry->pts == pts;
+}
+
+int FramesDecoderGpu::NumFrameBuffers() const {
+  int num_buffers = 0;
+  for (auto &frame : frame_buffer_) {
+    if (!frame.frame_.empty())
+      num_buffers++;
+  }
+  return num_buffers;
 }
 
 bool FramesDecoderGpu::HasEmptySlot() const {

@@ -23,6 +23,7 @@ extern "C" {
 #include <libavcodec/bsf.h>
 }
 
+#include <algorithm>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -446,6 +447,9 @@ class DLL_PUBLIC FramesDecoderBase {
   }
 
   void SetIndex(const FrameIndex& index) {
+    // sorted by timestamp, as BuildIndex makes it (the GPU decoder searches it)
+    assert(std::is_sorted(index.index.begin(), index.index.end(),
+                          [](const IndexEntry &a, const IndexEntry &b) { return a.pts < b.pts; }));
     index_ = index;
     num_frames_ = index.size();
   }
