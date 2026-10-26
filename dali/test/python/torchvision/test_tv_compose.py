@@ -16,7 +16,6 @@ import os
 import unittest
 
 from nvidia.dali.experimental.torchvision import (
-    CenterCrop,
     Compose,
     RandomHorizontalFlip,
     RandomVerticalFlip,
@@ -102,7 +101,9 @@ def test_compose_leading_dims_tensor(shape, device):
     assert torch.equal(fn_out, tv_out)
 
 
-def test_compose_invalid_batch_tensor():
+@params("cpu", "gpu")
+def test_compose_tensor_larger_than_batch_size(device):
+    # A call is processed as FCHW sequences, so batch_size does not limit the leading dimensions
     test_tensor = make_test_tensor(shape=(5, 1, 5, 5))
     with assert_raises(RuntimeError):
         dali_pipeline = Compose([RandomHorizontalFlip(p=1.0)], batch_size=1)
