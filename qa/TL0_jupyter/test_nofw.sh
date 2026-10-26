@@ -23,6 +23,7 @@ test_body() {
         # Numba stalls in llvmlite's LLVM JIT finalization with ASan preloaded.
         echo "Skipping numba_function.ipynb with sanitizers: LLVM JIT finalization times out."
         exclude_files="${exclude_files}\|numba_function.ipynb"
+        python "$topdir/qa/TL0_jupyter/prepare_sanitizer_notebooks.py" || return $?
     fi
 
     find * -name "*.ipynb" | sed "/${exclude_files}/d" | xargs -i jupyter nbconvert \

@@ -111,7 +111,12 @@ enable_sanitizer() {
     export OLD_LD_LIBRARY_PATH2=${LD_LIBRARY_PATH}  # OLD_LD_LIBRARY_PATH variable name already used
     # LD_LIBRARY_PATH precedes RUNPATH, so prefer wheel libraries over inherited toolkit paths.
     local cuda_wheel cuda_wheel_lib cuda_wheel_libdir
-    for cuda_wheel in cufft npp nvjpeg libnvcomp; do
+    local cuda_wheels=(cufft npp nvjpeg libnvcomp)
+    # CUDA 13 wheels share a library directory; prepend it last so it takes priority.
+    if [[ "$CUDA_VERSION" == 13* ]]; then
+        cuda_wheels+=(cu13)
+    fi
+    for cuda_wheel in "${cuda_wheels[@]}"; do
         cuda_wheel_libdir=lib
         if [ "$cuda_wheel" = libnvcomp ]; then
             cuda_wheel_libdir=lib64

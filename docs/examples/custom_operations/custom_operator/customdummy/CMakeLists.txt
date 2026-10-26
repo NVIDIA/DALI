@@ -16,23 +16,15 @@ set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -std=c++20")
 
 include_directories(SYSTEM "${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}")
 
-# NVCC must not inherit ASan preloads, but importing a sanitized DALI needs them.
-set(DALI_PYTHON_LD_PRELOAD "$ENV{LD_PRELOAD}")
-if(DEFINED ENV{LD_EXTRA_PRELOAD})
-    set(DALI_PYTHON_LD_PRELOAD "$ENV{LD_EXTRA_PRELOAD}")
-endif()
-
 execute_process(
-        COMMAND ${CMAKE_COMMAND} -E env "LD_PRELOAD=${DALI_PYTHON_LD_PRELOAD}"
-                python -c "import nvidia.dali as dali; \
+        COMMAND python -c "import nvidia.dali as dali; \
                            print(dali.sysconfig.get_lib_dir())"
         OUTPUT_VARIABLE DALI_LIB_DIR
         COMMAND_ERROR_IS_FATAL ANY)
 string(STRIP "${DALI_LIB_DIR}" DALI_LIB_DIR)
 
 execute_process(
-        COMMAND ${CMAKE_COMMAND} -E env "LD_PRELOAD=${DALI_PYTHON_LD_PRELOAD}"
-                python -c "import nvidia.dali as dali; print(\" \
+        COMMAND python -c "import nvidia.dali as dali; print(\" \
                           \".join(dali.sysconfig.get_compile_flags()))"
         OUTPUT_VARIABLE DALI_COMPILE_FLAGS
         COMMAND_ERROR_IS_FATAL ANY)
