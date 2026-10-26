@@ -52,7 +52,12 @@ TEST(ThreadPoolTest, WorkFailure) {
   OldThreadPool tp(1, CPU_ONLY_DEVICE_ID, false, "Work failure test");
   tp.AddWork([]() { throw std::runtime_error("Task failed"); });
   tp.RunAll(false);
-  EXPECT_THROW(tp.WaitForWork(), std::runtime_error);
+  try {
+    tp.WaitForWork();
+    FAIL() << "Expected the task exception to propagate";
+  } catch (const std::runtime_error &e) {
+    EXPECT_STREQ(e.what(), "Task failed");
+  }
 
   int count = 0;
   tp.AddWork([&]() { count++; });
@@ -60,7 +65,7 @@ TEST(ThreadPoolTest, WorkFailure) {
   EXPECT_EQ(count, 1);
 }
 
-TEST(ThreadPool, AddWork) {
+TEST(ThreadPoolTest, AddWork) {
   OldThreadPool tp(16, 0, false, "OldThreadPool test");
   std::atomic<int> count{0};
   auto increase = [&count](int thread_id) { count++; };
@@ -73,7 +78,7 @@ TEST(ThreadPool, AddWork) {
 }
 
 
-TEST(ThreadPool, AddWorkWithPriority) {
+TEST(ThreadPoolTest, AddWorkWithPriority) {
   // only one thread to ensure deterministic behavior
   OldThreadPool tp(1, 0, false, "OldThreadPool test");
   std::atomic<int> count{0};
@@ -99,7 +104,7 @@ TEST(ThreadPool, AddWorkWithPriority) {
 }
 
 
-TEST(ThreadPool, CheckName) {
+TEST(ThreadPoolTest, CheckName) {
   const char given_thread_pool_name[] = "OldThreadPool test";
   const char full_thread_pool_name[] = "[DALI][TP0]OldThreadPool test";
   // max len supported by pthread_getname_np is 16
