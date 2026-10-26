@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -13,8 +13,12 @@
 // limitations under the License.
 
 #include <cuda_runtime_api.h>
+#include <algorithm>
 #include <exception>
 #include <random>
+#include <set>
+#include <string>
+#include <vector>
 
 #include "dali/core/cuda_error.h"
 #include "dali/core/dev_buffer.h"
@@ -193,6 +197,126 @@ class FramesDecoderGpuTest : public FramesDecoderTestBase {
   std::vector<uint8_t> frame_cpu_buffer_;
   DeviceBuffer<uint8_t> frame_gpu_buffer_;
 };
+
+namespace {
+
+std::string SintelClip(int label, int clip) {
+  return make_string(testing::dali_extra_path(), "/db/video/sintel/labelled_videos/", label,
+                     "/sintel_trailer-720p_", clip, ".mp4");
+}
+
+// The frames that SeekFrame seeks to: the last keyframes of the frames
+std::set<int> SeekTargets(const FrameIndex &index) {
+  std::set<int> targets;
+  for (size_t i = 0; i < index.size(); i++)
+    targets.insert(index[i].last_keyframe_id);
+  return targets;
+}
+
+// Checks the decoding order in the index of a file without hidden packets, where a seek to a
+// keyframe lands on the keyframe itself
+void CheckDecodeOrder(const FrameIndex &index) {
+  int n = index.size();
+  std::vector<int> decode_idx;
+  for (int i = 0; i < n; i++)
+    decode_idx.push_back(index[i].decode_idx);
+  std::sort(decode_idx.begin(), decode_idx.end());
+  for (int i = 0; i < n; i++)
+    ASSERT_EQ(decode_idx[i], i) << "not a permutation of the decoding positions [0, " << n << ")";
+  auto targets = SeekTargets(index);
+  for (int i = 0; i < n; i++) {
+    if (index[i].is_keyframe) {
+      EXPECT_TRUE(targets.count(i)) << "keyframe " << i;
+    }
+    if (targets.count(i)) {
+      EXPECT_EQ(index[i].seek_decode_idx, index[i].decode_idx) << "seek to frame " << i;
+    } else {
+      EXPECT_EQ(index[i].seek_decode_idx, -1) << "frame " << i << " is not a seek target";
+    }
+  }
+}
+
+}  // namespace
+
+TEST_F(FramesDecoderTest_CpuOnlyTests, IndexDecodeOrder) {
+  for (auto &path : {cfr_videos_paths_[0], vfr_videos_paths_[0]}) {
+    FramesDecoderCpu decoder(path);
+    decoder.BuildIndex();
+    auto &index = decoder.GetIndex();
+    CheckDecodeOrder(index);
+    for (size_t i = 0; i < index.size(); i++)  // VP9 has no reordering
+      EXPECT_EQ(index[i].decode_idx, static_cast<int>(i)) << path;
+  }
+}
+
+TEST_F(FramesDecoderGpuTest, IndexDecodeOrder) {
+  auto h264_path = testing::dali_extra_path() + "/db/video/cfr/test_1.mp4";
+  for (auto &path : {cfr_videos_paths_[0], h264_path}) {
+    FramesDecoderGpu decoder(path);
+    decoder.BuildIndex();
+    CheckDecodeOrder(decoder.GetIndex());
+  }
+}
+
+// The Sintel clips start with packets that an edit list hides (negative timestamps): they are not
+// in the index, but they are decoded, before the first frame or after a seek that lands on them
+TEST_F(FramesDecoderGpuTest, IndexDecodeOrderLeadIn) {
+  {
+    // 310 packets, of which 188 hidden, and only the IDR at frame 62 is shown
+    FramesDecoderGpu decoder(SintelClip(2, 8));
+    decoder.BuildIndex();
+    auto &index = decoder.GetIndex();
+    ASSERT_EQ(index.size(), 122u);
+    std::set<int> positions;
+    for (size_t i = 0; i < index.size(); i++) {
+      EXPECT_GE(index.DecodeIdx(i), 0);
+      EXPECT_LT(index.DecodeIdx(i), 310);
+      positions.insert(index.DecodeIdx(i));
+    }
+    EXPECT_EQ(positions.size(), index.size());  // the other 188 are hidden
+    EXPECT_FALSE(index[0].is_keyframe);
+    EXPECT_EQ(index[0].last_keyframe_id, 0);
+    EXPECT_EQ(index.SeekDecodeIdx(0), 0);  // the hidden IDR
+    int decoded = 0;
+    for (int i = 0; i < 32; i++)
+      decoded = std::max(decoded, index.DecodeIdx(i) + 1);
+    EXPECT_EQ(decoded, 221);  // the pictures decoded for the first 32 frames
+    ASSERT_TRUE(index[62].is_keyframe);
+    EXPECT_EQ(index.DecodeIdx(62), 250);
+    EXPECT_EQ(index.SeekDecodeIdx(62), 250);
+  }
+  // Only the IDR is hidden: every frame is decoded from the start
+  for (auto &path : {SintelClip(0, 3), SintelClip(1, 7)}) {
+    FramesDecoderGpu decoder(path);
+    decoder.BuildIndex();
+    auto &index = decoder.GetIndex();
+    for (size_t i = 0; i < index.size(); i++)
+      EXPECT_EQ(index[i].last_keyframe_id, 0) << path << " frame " << i;
+    EXPECT_EQ(index.SeekDecodeIdx(0), 0) << path;
+  }
+  {
+    // The seek to the shown IDR (frame 60, packet 118) lands on the hidden one: mov searches the
+    // sync samples by decoding timestamp, offset by the edit list
+    FramesDecoderGpu decoder(SintelClip(0, 9));
+    decoder.BuildIndex();
+    auto &index = decoder.GetIndex();
+    ASSERT_TRUE(index[60].is_keyframe);
+    EXPECT_EQ(index.DecodeIdx(60), 118);
+    EXPECT_EQ(index.SeekDecodeIdx(60), 0);
+  }
+  {
+    // Here the seeks to the shown IDRs land on them
+    FramesDecoderGpu decoder(SintelClip(2, 5));
+    decoder.BuildIndex();
+    auto &index = decoder.GetIndex();
+    for (int k : {21, 58}) {
+      ASSERT_TRUE(index[k].is_keyframe) << k;
+      EXPECT_EQ(index.SeekDecodeIdx(k), index.DecodeIdx(k)) << k;
+    }
+    EXPECT_EQ(index.DecodeIdx(21), 37);
+    EXPECT_EQ(index.DecodeIdx(58), 74);
+  }
+}
 
 TEST_F(FramesDecoderTest_CpuOnlyTests, ConstantFrameRate) {
   FramesDecoderCpu decoder(cfr_videos_paths_[0]);

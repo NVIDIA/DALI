@@ -22,6 +22,8 @@
 
 #include "dali/operators/video/reader/frame_index_cache.h"
 #include "dali/core/format.h"
+#include "dali/operators/video/frames_decoder_cpu.h"
+#include "dali/test/dali_test_config.h"
 
 namespace dali {
 
@@ -93,6 +95,43 @@ TEST(FrameIndexCacheTest, FailedBuildIsReportedAndRetried) {
   auto index = cache.GetOrBuild(key, [&] { return MakeIndex(key, 3); });
   ASSERT_NE(index, nullptr);
   EXPECT_EQ(index->size(), 3u);
+}
+
+TEST(FrameIndexCacheTest, HandBuiltIndexIsInDecodingOrder) {
+  // Without decoding order, the frames are in decoding order and a seek lands on the frame
+  auto index = MakeIndex(Key("hand_built", 0), 5);
+  for (int i = 0; i < 5; i++) {
+    EXPECT_EQ(index[i].decode_idx, -1);
+    EXPECT_EQ(index.DecodeIdx(i), i);
+    EXPECT_EQ(index.SeekDecodeIdx(i), i);
+  }
+}
+
+TEST(FrameIndexCacheTest, KeepsDecodingOrder) {
+  auto path = testing::dali_extra_path() + "/db/video/vfr/test_1_vp9.mp4";
+  FramesDecoderCpu decoder(path);
+  ASSERT_TRUE(decoder.IsValid());
+  auto &cache = FrameIndexCache::instance();
+  auto key = Key("decoding_order", 0);
+  auto index = cache.GetOrBuild(key, [&] {
+    decoder.BuildIndex();
+    return decoder.GetIndex();
+  });
+  FramesDecoderCpu other(path);
+  other.SetIndex(*cache.Find(key));
+  auto &built = decoder.GetIndex();
+  ASSERT_EQ(index->size(), built.size());
+  ASSERT_EQ(other.GetIndex().size(), built.size());
+  int seek_targets = 0;
+  for (size_t i = 0; i < built.size(); i++) {
+    EXPECT_GE(built[i].decode_idx, 0);
+    seek_targets += built[i].seek_decode_idx >= 0;
+    for (auto *copy : {&(*index)[i], &other.GetIndex()[i]}) {
+      EXPECT_EQ(copy->decode_idx, built[i].decode_idx) << i;
+      EXPECT_EQ(copy->seek_decode_idx, built[i].seek_decode_idx) << i;
+    }
+  }
+  EXPECT_GT(seek_targets, 1);
 }
 
 TEST(FrameIndexCacheTest, FindDoesNotBuildOrWait) {

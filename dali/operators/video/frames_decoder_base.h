@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -42,6 +42,12 @@ struct IndexEntry {
   int last_keyframe_id;
   bool is_keyframe;
   bool is_flush_frame;
+  // Position of the frame's packet in decoding order, counting all the packets of the stream,
+  // also those decoded but not shown (e.g. hidden by an edit list); -1 if unknown
+  int decode_idx = -1;
+  // For a frame that SeekFrame seeks to (the last keyframe of some frame): the decoding position
+  // of the packet where a seek to its timestamp lands (see AvSeekFrame); -1 otherwise or if unknown
+  int seek_decode_idx = -1;
 };
 
 struct FrameIndex {
@@ -61,6 +67,24 @@ struct FrameIndex {
   const IndexEntry& operator[](size_t idx) const {
     assert(idx < index.size());
     return index[idx];
+  }
+
+  /**
+   * @brief Position of frame i's packet in decoding order.
+   *
+   * Without decoding order (e.g. a hand-built index), the frames are assumed in decoding order.
+   */
+  int DecodeIdx(int i) const {
+    return index[i].decode_idx >= 0 ? index[i].decode_idx : i;
+  }
+
+  /**
+   * @brief Decoding position where a seek to frame i starts, for a frame that SeekFrame seeks to.
+   *
+   * If unknown, the seek is assumed to start at the frame itself.
+   */
+  int SeekDecodeIdx(int i) const {
+    return index[i].seek_decode_idx >= 0 ? index[i].seek_decode_idx : DecodeIdx(i);
   }
 
   /**

@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,6 +16,7 @@
 #include <iomanip>
 #include <memory>
 #include <mutex>
+#include <unordered_map>
 #include "dali/core/error_handling.h"
 #include "dali/core/small_vector.h"
 #include "dali/operators/video/video_utils.h"
@@ -303,6 +304,16 @@ static inline uint32_t read_nal_unit_length(uint8_t *buf) {
   return length;
 }
 
+/**
+ * @brief Identifies a packet of the stream when it is read again (e.g. after a seek): by its
+ * position in the file or, if unknown, by its timestamp.
+ */
+static inline int64_t packet_key(const AVPacket &packet) {
+  if (packet.pos >= 0)
+    return packet.pos;
+  return packet.dts != AV_NOPTS_VALUE ? packet.dts : packet.pts;
+}
+
 void FramesDecoderBase::BuildIndex() {
   if (HasIndex()) {
     return;
@@ -317,6 +328,10 @@ void FramesDecoderBase::BuildIndex() {
   int last_keyframe = -1;
   int frame_count = 0;
   num_frames_ = 0;
+  int decode_idx = 0;  // packets of the stream so far, in decoding order
+  // The decoding position of each sync packet, where a seek can land
+  std::unordered_map<int64_t, int> sync_packets;
+  bool has_hidden_packets = false;  // with negative timestamps (e.g. hidden by an edit list)
 
   while (true) {
     // Read the next frame from the video
@@ -336,6 +351,10 @@ void FramesDecoderBase::BuildIndex() {
 
     IndexEntry entry;
     entry.is_keyframe = false;  // Default to false, set true only if confirmed
+    // Counted before the negative timestamps are skipped: hidden packets are decoded too
+    entry.decode_idx = decode_idx++;
+    if (packet->flags & AV_PKT_FLAG_KEY)
+      sync_packets.emplace(packet_key(*packet), entry.decode_idx);
 
     // Check if this packet contains a keyframe
     if (packet->flags & AV_PKT_FLAG_KEY) {
@@ -393,6 +412,7 @@ void FramesDecoderBase::BuildIndex() {
 
     if (entry.pts < 0) {
       LOG_LINE << "Negative timestamp: " << entry.pts << ", skipping" << std::endl;
+      has_hidden_packets = true;
       continue;
     }
 
@@ -441,6 +461,38 @@ void FramesDecoderBase::BuildIndex() {
       index_[i].last_keyframe_id = 0;  // First keyframe
     } else {
       index_[i].last_keyframe_id = *(--it);
+    }
+  }
+
+  // Where AvSeekFrame lands for the frames that SeekFrame seeks to (the last keyframe of a frame),
+  // for estimating the decoding work: on the keyframe itself, unless packets are hidden. Then the
+  // demuxer is asked, as its rule is not exposed: e.g. mov searches its sync samples by decoding
+  // timestamp, offset by the edit list, so a seek can land a whole GOP (or a hidden lead-in)
+  // before the keyframe. Asking reads a packet per target, which in an all-intra stream would
+  // read the whole file again.
+  bool ask_demuxer = has_hidden_packets;
+  int prev_target = -1;
+  for (size_t i = 0; i < index_.size(); i++) {
+    int target = index_[i].last_keyframe_id;
+    if (target == prev_target)
+      continue;  // last_keyframe_id does not decrease
+    prev_target = target;
+    auto &entry = index_[target];
+    entry.seek_decode_idx = entry.decode_idx;
+    if (!ask_demuxer)
+      continue;
+    if (av_seek_frame(ctx_, stream_id_, entry.pts, AVSEEK_FLAG_BACKWARD) < 0) {
+      ask_demuxer = false;  // not seekable
+      continue;
+    }
+    while (av_read_frame(ctx_, packet_) == 0) {
+      auto packet = AVPacketScope(packet_, av_packet_unref);
+      if (packet->stream_index != stream_id_)
+        continue;
+      auto landing = sync_packets.find(packet_key(*packet));
+      if (landing != sync_packets.end())
+        entry.seek_decode_idx = landing->second;
+      break;
     }
   }
 
