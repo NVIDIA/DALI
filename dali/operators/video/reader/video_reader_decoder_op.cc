@@ -793,6 +793,11 @@ class VideoReaderDecoder
         auto &task = tasks_[t];
         try {
           DecodeSample(*task.sample, lane);
+          if constexpr (std::is_same_v<Backend, GPUBackend>) {
+            // the decoder does not wait for its GPU work: its asynchronous errors (conversions,
+            // copies) are reported for this sample
+            CUDA_CALL(cudaStreamSynchronize(lane.stream ? lane.stream.get() : 0));
+          }
           task.sample->decoded = true;
         } catch (...) {
           lane.errors.emplace_back(task.batch_idx, std::current_exception());

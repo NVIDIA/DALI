@@ -210,6 +210,13 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
 
   void CopyFrame(uint8_t *dst, const uint8_t *src) override;
 
+  /**
+   * @brief The stream the decoder converts and copies frames on.
+   */
+  cudaStream_t stream() const noexcept {
+    return stream_;
+  }
+
  protected:
   bool SelectVideoStream(int stream_id = -1) override;
 
