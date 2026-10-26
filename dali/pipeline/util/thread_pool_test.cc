@@ -15,10 +15,50 @@
 #include "dali/pipeline/util/thread_pool.h"
 #include <gtest/gtest.h>
 #include <atomic>
+#include <cstdlib>
+#include <stdexcept>
+#include <string>
+#include "dali/core/call_at_exit.h"
 
 namespace dali {
 
 namespace test {
+
+#if NVML_ENABLED
+TEST(ThreadPoolTest, AffinityFailure) {
+  const char *env_affinity = std::getenv("DALI_AFFINITY_MASK");
+  bool had_affinity = env_affinity != nullptr;
+  std::string old_affinity = had_affinity ? env_affinity : "";
+  auto restore_affinity = AtScopeExit([&]() {
+    if (had_affinity)
+      setenv("DALI_AFFINITY_MASK", old_affinity.c_str(), 1);
+    else
+      unsetenv("DALI_AFFINITY_MASK");
+  });
+  // Force affinity setup to throw before calling NVML, without requiring a GPU.
+  ASSERT_EQ(setenv("DALI_AFFINITY_MASK", "invalid", 1), 0);
+  OldThreadPool tp(1, CPU_ONLY_DEVICE_ID, true, "Affinity failure test");
+  int count = 0;
+  for (int i = 0; i < 2; i++) {
+    tp.AddWork([&]() { count++; });
+    ASSERT_NO_THROW(tp.RunAll(false));
+    EXPECT_NO_THROW(tp.WaitForWork());
+    EXPECT_EQ(count, i + 1);
+  }
+}
+#endif
+
+TEST(ThreadPoolTest, WorkFailure) {
+  OldThreadPool tp(1, CPU_ONLY_DEVICE_ID, false, "Work failure test");
+  tp.AddWork([]() { throw std::runtime_error("Task failed"); });
+  tp.RunAll(false);
+  EXPECT_THROW(tp.WaitForWork(), std::runtime_error);
+
+  int count = 0;
+  tp.AddWork([&]() { count++; });
+  EXPECT_NO_THROW(tp.RunAll());
+  EXPECT_EQ(count, 1);
+}
 
 TEST(ThreadPool, AddWork) {
   OldThreadPool tp(16, 0, false, "OldThreadPool test");
