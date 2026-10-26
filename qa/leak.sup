@@ -81,6 +81,7 @@ leak:Py_CompileStringObject
 leak:_PyUnicode_DecodeUnicodeEscapeInternal2
 leak:/usr/bin/sort
 leak:/usr/bin/tr
+leak:/usr/bin/mktemp
 leak:/usr/bin/fc-list
 leak:/usr/bin/xargs
 leak:yyparse

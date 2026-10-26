@@ -109,10 +109,36 @@ enable_sanitizer() {
     export LD_PRELOAD="/usr/lib/x86_64-linux-gnu/libasan.so /tmp/glibc_fix.so /tmp/libfakeclose.so /usr/lib/x86_64-linux-gnu/libstdc++.so"
     # Workaround for bug in asan ignoring RPATHs https://bugzilla.redhat.com/show_bug.cgi?id=1449604
     export OLD_LD_LIBRARY_PATH2=${LD_LIBRARY_PATH}  # OLD_LD_LIBRARY_PATH variable name already used
+    # LD_LIBRARY_PATH precedes RUNPATH, so prefer wheel libraries over inherited toolkit paths.
+    local cuda_wheel cuda_wheel_lib cuda_wheel_libdir
+    local cuda_wheels=(cufft npp nvjpeg libnvcomp)
+    # CUDA 13 wheels share a library directory; prepend it last so it takes priority.
+    if [[ "$CUDA_VERSION" == 13* ]]; then
+        cuda_wheels+=(cu13)
+    fi
+    for cuda_wheel in "${cuda_wheels[@]}"; do
+        cuda_wheel_libdir=lib
+        if [ "$cuda_wheel" = libnvcomp ]; then
+            cuda_wheel_libdir=lib64
+        fi
+        cuda_wheel_lib=$(python -c "
+import importlib.util
+import os
+spec = importlib.util.find_spec('nvidia.${cuda_wheel}')
+print(os.path.join(next(iter(spec.submodule_search_locations)), '${cuda_wheel_libdir}'))
+" 2>/dev/null) || continue
+        if [ -d "${cuda_wheel_lib}" ]; then
+            export LD_LIBRARY_PATH="${cuda_wheel_lib}${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
+        fi
+    done
     # first provide paths to nvimgcodec deps then learn its location
     export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:"$(python -c 'import nvidia.nvjpeg2k as n, os; print(os.path.dirname(n.__file__) + "/lib")' 2>/dev/null || echo '')"
     export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:"$(python -c 'import nvidia.nvtiff as n, os; print(os.path.dirname(n.__file__) + "/lib")' 2>/dev/null || echo '')"
     export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:"$(python -c 'import nvidia.nvimgcodec as n, os; print(os.path.dirname(n.__file__))' 2>/dev/null || echo '')"
+    # Keep system CUDA libraries after wheel directories to preserve wheel testing.
+    if [ -d /usr/local/cuda/lib64 ]; then
+        export LD_LIBRARY_PATH="${LD_LIBRARY_PATH:+${LD_LIBRARY_PATH}:}/usr/local/cuda/lib64"
+    fi
 
     export ASAN_OPTIONS=symbolize=1:protect_shadow_gap=0:log_path=sanitizer.log:start_deactivated=false:allocator_may_return_null=1:detect_leaks=1:fast_unwind_on_malloc=0:verify_asan_link_order=0:detect_container_overflow=0:suppressions=$topdir/qa/address.sup
     export ASAN_SYMBOLIZER_PATH=$(which llvm-symbolizer)

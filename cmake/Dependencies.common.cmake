@@ -277,7 +277,12 @@ if (BUILD_FFTS AND NOT PREBUILD_DALI_LIBS)
     SET(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -Xcompiler -msse -Xcompiler -msse2 -Xcompiler -msse3")
   endif()
 
-  check_and_add_cmake_submodule(${PROJECT_SOURCE_DIR}/third_party/ffts EXCLUDE_FROM_ALL)
+  block(SCOPE_FOR VARIABLES)
+    # FFTS passes sizes that are not multiples of 32 to aligned_alloc(32, size).
+    # Use its posix_memalign fallback, which accepts these sizes, including under ASan.
+    set(HAVE_ALIGNED_ALLOC OFF)
+    check_and_add_cmake_submodule(${PROJECT_SOURCE_DIR}/third_party/ffts EXCLUDE_FROM_ALL)
+  endblock()
   include_directories(SYSTEM ${PROJECT_SOURCE_DIR}/third_party/ffts/include)
   list(APPEND DALI_LIBS ffts)
   list(APPEND DALI_EXCLUDES libffts.a)
