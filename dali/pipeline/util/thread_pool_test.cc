@@ -25,7 +25,7 @@ namespace dali {
 namespace test {
 
 #if NVML_ENABLED
-TEST(ThreadPoolTest, AffinityFailure) {
+TEST(ThreadPool, AffinityFailure) {
   const char *env_affinity = std::getenv("DALI_AFFINITY_MASK");
   bool had_affinity = env_affinity != nullptr;
   std::string old_affinity = had_affinity ? env_affinity : "";
@@ -48,7 +48,7 @@ TEST(ThreadPoolTest, AffinityFailure) {
 }
 #endif
 
-TEST(ThreadPoolTest, WorkFailure) {
+TEST(ThreadPool, WorkFailure) {
   OldThreadPool tp(1, CPU_ONLY_DEVICE_ID, false, "Work failure test");
   tp.AddWork([]() { throw std::runtime_error("Task failed"); });
   tp.RunAll(false);
@@ -65,7 +65,7 @@ TEST(ThreadPoolTest, WorkFailure) {
   EXPECT_EQ(count, 1);
 }
 
-TEST(ThreadPoolTest, AddWork) {
+TEST(ThreadPool, AddWork) {
   OldThreadPool tp(16, 0, false, "OldThreadPool test");
   std::atomic<int> count{0};
   auto increase = [&count](int thread_id) { count++; };
@@ -78,7 +78,7 @@ TEST(ThreadPoolTest, AddWork) {
 }
 
 
-TEST(ThreadPoolTest, AddWorkWithPriority) {
+TEST(ThreadPool, AddWorkWithPriority) {
   // only one thread to ensure deterministic behavior
   OldThreadPool tp(1, 0, false, "OldThreadPool test");
   std::atomic<int> count{0};
@@ -104,7 +104,7 @@ TEST(ThreadPoolTest, AddWorkWithPriority) {
 }
 
 
-TEST(ThreadPoolTest, CheckName) {
+TEST(ThreadPool, CheckName) {
   const char given_thread_pool_name[] = "OldThreadPool test";
   const char full_thread_pool_name[] = "[DALI][TP0]OldThreadPool test";
   // max len supported by pthread_getname_np is 16
