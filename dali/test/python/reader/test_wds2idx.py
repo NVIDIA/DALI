@@ -21,6 +21,8 @@ import tarfile
 import tempfile
 import unittest
 
+from nose_utils import assert_raises
+
 
 def _load_wds2idx():
     script_path = Path(__file__).parents[4] / "tools" / "wds2idx.py"
@@ -123,3 +125,32 @@ def test_wds2idx_gnu_tar_path_offsets_with_gnu_long_member_names():
 
 def test_wds2idx_gnu_tar_path_offsets_with_pax_long_member_names():
     _check_gnu_tar_path_offsets_with_long_member_names(tarfile.PAX_FORMAT)
+
+
+def _check_gnu_long_name_header_is_rejected(size, glob):
+    wds2idx = _load_wds2idx()
+
+    with tempfile.TemporaryDirectory() as test_dir:
+        tar_path = os.path.join(test_dir, "data.tar")
+        idx_path = os.path.join(test_dir, "data.idx")
+        # a hand-crafted `././@LongLink` header followed by the two empty end-of-archive blocks
+        long_name_header = tarfile.TarInfo(name="././@LongLink")
+        long_name_header.type = tarfile.GNUTYPE_LONGNAME
+        long_name_header.size = size
+        with open(tar_path, "wb") as archive:
+            archive.write(long_name_header.tobuf(tarfile.GNU_FORMAT))
+            archive.write(bytes(2 * tarfile.BLOCKSIZE))
+
+        with wds2idx.IndexCreator(tar_path, idx_path, verbose=False) as creator:
+            with open(tar_path, "rb") as archive:
+                with assert_raises(ValueError, glob=glob):
+                    creator._get_data_offset(archive, 0)
+
+
+def test_wds2idx_gnu_long_name_header_with_negative_size():
+    # the GNU format stores a size in base-256, which can encode a negative number
+    _check_gnu_long_name_header_is_rejected(-tarfile.BLOCKSIZE, "Negative size -512 *")
+
+
+def test_wds2idx_gnu_long_name_header_past_end_of_archive():
+    _check_gnu_long_name_header_is_rejected(100 * tarfile.BLOCKSIZE, "Truncated tar header *")

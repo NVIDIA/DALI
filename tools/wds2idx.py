@@ -132,12 +132,22 @@ class IndexCreator:
         while True:
             archive.seek(offset)
             header = archive.read(self.tar_block_size)
+            if len(header) < self.tar_block_size:
+                raise ValueError(f"Truncated tar header at offset {offset} in {self.uri}")
             offset += self.tar_block_size
-            # the type flag is stored in the byte 156 of a tar header
+            # the type flag is stored in the byte 156 of a tar header. A long link header is only
+            # written for links, which never reach this point, so skipping it is defensive
             if header[156:157] not in (tarfile.GNUTYPE_LONGNAME, tarfile.GNUTYPE_LONGLINK):
                 return offset
             # skip the blocks holding the long name
             size = tarfile.TarInfo.frombuf(header, tarfile.ENCODING, "surrogateescape").size
+            # a negative size (possible in the base-256 encoding) would move the offset back and
+            # make this loop read the same header forever
+            if size < 0:
+                raise ValueError(
+                    f"Negative size {size} in the long name header at offset "
+                    f"{offset - self.tar_block_size} in {self.uri}"
+                )
             offset += (size + self.tar_block_size - 1) // self.tar_block_size * self.tar_block_size
 
     def _get_data_tarfile(self):
