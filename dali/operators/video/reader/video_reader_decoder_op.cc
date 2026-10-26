@@ -25,6 +25,7 @@
 
 #include "dali/core/boundary.h"
 #include "dali/core/cuda_stream_pool.h"
+#include "dali/core/small_vector.h"
 #include "dali/core/span.h"
 
 #include "dali/operators/reader/reader_op.h"
@@ -578,6 +579,7 @@ class VideoReaderDecoder
     int batch_idx;  // first position of the sample in the batch
     int first;      // smallest frame index decoded; -1 if none (padding only)
     int last;       // largest frame index decoded; -1 if none
+    SmallVector<int, 32> frames;  // the frames the decoder seeks to, in order (see SampleFrames)
   };
 
   /**
@@ -609,12 +611,15 @@ class VideoReaderDecoder
     // estimated work
     std::vector<int> runs;
     int64_t load = 0;
+    // Diagnostics: the pictures the plan expects the lane to decode, and those it decodes
+    int64_t planned_pictures = 0;
+    int64_t decoded_pictures = 0;
     // Errors of the current batch: (position in the batch, exception)
     std::vector<std::pair<int, std::exception_ptr>> errors;
   };
 
-  // Planning costs, in frames decoded: opening a decoder (and its first frame) costs about as
-  // much as decoding a few frames
+  // Planning costs, in pictures decoded: opening a decoder (or resetting it, which reopens the
+  // file) costs about as much as decoding a few pictures
   static constexpr int64_t kOpenCost = 16;
 
   // GPU: decode lanes per NVDEC engine. More sessions than engines keep an engine busy while a
@@ -651,30 +656,6 @@ class VideoReaderDecoder
   }
 
   /**
-   * @brief The range of frames a sample decodes: [first, last], or first = last = -1 if none.
-   */
-  void FrameRange(const VideoSample<Backend> &sample, int &first, int &last) const {
-    int roi_start = sample.video_file_meta_->start_frame;
-    int roi_end = sample.video_file_meta_->end_frame;
-    first = -1;
-    last = -1;
-    auto add = [&](int frame) {
-      int idx = FramesDecoderBase::HandleBoundary(boundary_type_, frame, roi_start, roi_end);
-      if (idx < 0)
-        return;  // a constant frame
-      first = first < 0 ? idx : std::min(first, idx);
-      last = std::max(last, idx);
-    };
-    if (!sample.frame_idxs_.empty()) {
-      for (int frame : sample.frame_idxs_)
-        add(frame);
-    } else {
-      for (int frame = sample.start_; frame < sample.end_; frame += sample.stride_)
-        add(frame);
-    }
-  }
-
-  /**
    * @brief Groups the batch's samples into runs: samples of one file that one decoder decodes in
    * a row without seeking.
    *
@@ -694,13 +675,19 @@ class VideoReaderDecoder
         repeated = repeated || task.sample == sample;
       if (repeated)
         continue;
-      SampleTask task{sample, i, -1, -1};
+      SampleTask task{sample, i, -1, -1, {}};
       try {
-        FrameRange(*sample, task.first, task.last);
+        SampleFrames(sample->frame_idxs_, sample->start_, sample->end_, sample->stride_,
+                     boundary_type_, sample->video_file_meta_->start_frame,
+                     sample->video_file_meta_->end_frame, task.frames);
       } catch (...) {
-        // decoding the sample reports the error, in its lane
+        task.frames.clear();  // decoding the sample reports the error, in its lane
       }
-      tasks_.push_back(task);
+      if (!task.frames.empty()) {
+        task.first = task.frames.front();
+        task.last = task.frames.back();
+      }
+      tasks_.push_back(std::move(task));
     }
 
     std::vector<int> order(tasks_.size());
@@ -742,20 +729,23 @@ class VideoReaderDecoder
     std::vector<PlannedRun> runs;
     for (const auto &run : runs_) {
       indices.push_back(FrameIndexCache::instance().Find(*run.filename));
-      runs.push_back({*run.filename, indices.back().get(), run.batch_idx, run.first, run.last});
+      runs.push_back({*run.filename, indices.back().get(), run.batch_idx, run.first, run.last, {}});
+      for (int t : run.tasks)
+        runs.back().samples.push_back(make_cspan(tasks_[t].frames));
     }
     std::vector<std::string> filenames(lanes_.size());  // of the lanes' decoders
     std::vector<LaneStart> starts(lanes_.size());
     for (size_t l = 0; l < lanes_.size(); l++) {
       if (lanes_[l].decoder) {
         filenames[l] = lanes_[l].decoder->Filename();
-        starts[l] = {filenames[l], lanes_[l].decoder->NextFrameIdx()};
+        starts[l] = {filenames[l], DecoderPosition(*lanes_[l].decoder)};
       }
     }
     PlanLanes(make_cspan(runs), make_cspan(starts), kOpenCost, plans_);
     for (size_t l = 0; l < lanes_.size(); l++) {
       lanes_[l].runs = std::move(plans_[l].runs);
       lanes_[l].load = plans_[l].load;
+      lanes_[l].planned_pictures = plans_[l].pictures;
       if (lanes_[l].runs.empty() && lanes_.size() > 1)
         lanes_[l].decoder.reset();  // do not keep its frame buffers and NVDEC decoder idle
     }
@@ -797,6 +787,7 @@ class VideoReaderDecoder
 
   void RunLane(DecodeLane &lane) {
     lane.errors.clear();
+    lane.decoded_pictures = 0;
     for (int r : lane.runs) {
       for (int t : runs_[r].tasks) {
         auto &task = tasks_[t];
@@ -822,6 +813,9 @@ class VideoReaderDecoder
         (void)cudaGetLastError();  // already failing: report the sample's error
       }
     }
+    // Planned with the files' indices, the two match (on the GPU, within a picture or two)
+    LOG_LINE << "Lane decoded " << lane.decoded_pictures << " pictures, planned "
+             << lane.planned_pictures << " (load " << lane.load << ")" << std::endl;
   }
 
   /**
@@ -856,6 +850,7 @@ class VideoReaderDecoder
     }
     auto &decoder = *lane.decoder;
     DALI_ENFORCE(decoder.IsValid(), make_string("Invalid decoder for filename ", filename));
+    int64_t decoded_pictures = decoder.DecodedPictures();
 
     int64_t num_frames = sample.frame_idxs_.empty()
         ? (sample.end_ - sample.start_ + sample.stride_ - 1) / sample.stride_
@@ -933,6 +928,7 @@ class VideoReaderDecoder
                            sample.end_, sample.stride_, boundary_type_, constant_frame,
                            make_span(sample.timestamps_));
     }
+    lane.decoded_pictures += decoder.DecodedPictures() - decoded_pictures;
     LOG_LINE << "Decoding frames done" << std::endl;
   }
 

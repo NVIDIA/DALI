@@ -16,7 +16,6 @@
 
 #include <algorithm>
 #include <limits>
-#include <map>
 #include <tuple>
 #include <utility>
 
@@ -31,74 +30,207 @@ bool CanReachWithoutSeek(const FrameIndex *index, int next, int frame) {
          (*index)[frame].last_keyframe_id == (*index)[next].last_keyframe_id;
 }
 
+void SampleFrames(span<const int> frame_idxs, int start, int end, int stride,
+                  boundary::BoundaryType boundary_type, int roi_start, int roi_end,
+                  SmallVector<int, 32> &frames) {
+  frames.clear();
+  auto add = [&](int frame) {
+    int idx = FramesDecoderBase::HandleBoundary(boundary_type, frame, roi_start, roi_end);
+    if (idx >= 0)  // not a constant frame
+      frames.push_back(idx);
+  };
+  if (!frame_idxs.empty()) {
+    for (int frame : frame_idxs)
+      add(frame);
+  } else {
+    for (int frame = start; frame < end; frame += stride)
+      add(frame);
+  }
+  std::sort(frames.begin(), frames.end());
+}
+
+FramesDecoderBase::DecodePosition DecoderPosition(FramesDecoderBase &decoder) {
+  int next = decoder.NextFrameIdx();
+  return decoder.HasIndex() ? FramesDecoderBase::PositionAt(decoder.GetIndex(), next)
+                            : FramesDecoderBase::DecodePosition{next, -1};
+}
+
+namespace {
+
+using DecodePosition = FramesDecoderBase::DecodePosition;
+using DecodeWork = FramesDecoderBase::DecodeWork;
+
+// Whether the decoder of a lane continues to the run without seeking
+bool Continues(const PlannedRun &run, const LaneStart &start) {
+  return run.filename == start.filename &&
+         CanReachWithoutSeek(run.index, start.pos.next_frame, run.first);
+}
+
+/**
+ * @brief Orders the runs of one file on a lane as the lane decodes them: by first frame (then run
+ * number), the run that continues from the lane's decoder first.
+ */
+void OrderFileRuns(span<const PlannedRun> runs, const LaneStart &start,
+                   SmallVector<int, 4> &order) {
+  std::sort(order.begin(), order.end(), [&](int a, int b) {
+    return std::make_pair(runs[a].first, a) < std::make_pair(runs[b].first, b);
+  });
+  auto it = std::find_if(order.begin(), order.end(),
+                         [&](int r) { return Continues(runs[r], start); });
+  if (it != order.end())
+    std::rotate(order.begin(), it, it + 1);
+}
+
+// The work in pictures, an opening or a reset counted as `open_cost`
+int64_t Cost(const DecodeWork &work, int64_t open_cost) {
+  return work.pictures + open_cost * work.reopens;
+}
+
+/**
+ * @brief Without an index (or with frames outside of it): the frames of each run, from the first
+ * to the last, and the opening of a decoder.
+ */
+DecodeWork FrameRangeWork(span<const PlannedRun> runs, bool held, span<const int> order) {
+  DecodeWork work;
+  work.reopens = held ? 0 : 1;
+  for (int r : order) {
+    if (runs[r].first >= 0)
+      work.pictures += runs[r].last - runs[r].first + 1;
+  }
+  return work;
+}
+
+/**
+ * @brief The work of a lane for the runs of one file, decoded in `order`: from the lane's decoder
+ * if it holds the file, otherwise from a newly opened one.
+ */
+DecodeWork FileWork(span<const PlannedRun> runs, const LaneStart &start, span<const int> order) {
+  const auto &file = runs[order[0]];
+  bool held = start.filename == file.filename;
+  if (!file.index)
+    return FrameRangeWork(runs, held, order);
+  const auto &index = *file.index;
+  int num_frames = index.size();
+  DecodePosition pos = held ? start.pos : DecodePosition{};
+  DecodeWork work;
+  work.reopens = held ? 0 : 1;
+  for (int r : order) {
+    for (auto frames : runs[r].samples) {
+      for (int frame : frames) {
+        if (frame < 0 || frame >= num_frames)
+          return FrameRangeWork(runs, held, order);
+        FramesDecoderBase::AddDecodeWork(index, pos, frame, work);
+      }
+    }
+  }
+  return work;
+}
+
+/**
+ * @brief The runs of one file on a lane, in the order the lane decodes them, and their work.
+ */
+struct FileGroup {
+  std::string_view filename;
+  SmallVector<int, 4> runs;
+  DecodeWork work;
+};
+
+FileGroup *FindGroup(SmallVector<FileGroup, 4> &groups, std::string_view filename) {
+  for (auto &group : groups) {
+    if (group.filename == filename)
+      return &group;
+  }
+  return nullptr;
+}
+
+}  // namespace
+
 void PlanLanes(span<const PlannedRun> runs, span<const LaneStart> lanes, int64_t open_cost,
                std::vector<LanePlan> &plans) {
   int num_lanes = lanes.size();
+  int num_runs = runs.size();
   plans.clear();
   plans.resize(num_lanes);
-  std::vector<LaneStart> next(lanes.begin(), lanes.end());  // where the decoders will be
-  struct RunCost {
-    int run;
-    int64_t frames;   // frames decoded, from the first to the last
-    int64_t preroll;  // frames decoded before the first one, after a seek
-  };
-  std::vector<RunCost> costs;
-  for (int r = 0; r < static_cast<int>(runs.size()); r++) {
-    const auto &run = runs[r];
-    int64_t frames = run.first < 0 ? 0 : run.last - run.first + 1;
-    int64_t preroll = 0;
-    if (run.index && run.first >= 0 && run.first < static_cast<int>(run.index->size()))
-      preroll = run.first - (*run.index)[run.first].last_keyframe_id;
-    costs.push_back({r, frames, preroll});
+  // The runs of different files on a lane do not share a decoder: the file the lane's decoder
+  // holds goes first, the others are opened anew, one after another. So the work of a lane is the
+  // sum of the work of its files, each simulated in the order the lane decodes its runs.
+  std::vector<SmallVector<FileGroup, 4>> groups(num_lanes);
+
+  // the work of each run on a newly opened decoder; the longest first
+  std::vector<DecodeWork> fresh_work(num_runs);
+  std::vector<int64_t> fresh(num_runs);
+  std::vector<int> order(num_runs);
+  for (int r = 0; r < num_runs; r++) {
+    fresh_work[r] = FileWork(runs, LaneStart{}, make_cspan(&r, 1));
+    fresh[r] = Cost(fresh_work[r], open_cost);
+    order[r] = r;
+    LOG_LINE << "PlanLanes: run " << r << " of " << runs[r].filename << " [" << runs[r].first
+             << ", " << runs[r].last << "]: " << fresh[r] << std::endl;
   }
-  std::stable_sort(costs.begin(), costs.end(), [](const RunCost &a, const RunCost &b) {
-    return a.frames + a.preroll > b.frames + b.preroll;
-  });
-  for (const auto &cost : costs) {
-    const auto &run = runs[cost.run];
+  std::stable_sort(order.begin(), order.end(), [&](int a, int b) { return fresh[a] > fresh[b]; });
+
+  SmallVector<int, 4> candidate, best_runs;
+  for (int r : order) {
+    const auto &run = runs[r];
     int best = 0;
     int64_t best_end = std::numeric_limits<int64_t>::max();
+    DecodeWork best_work;
     for (int l = 0; l < num_lanes; l++) {
-      int64_t work = cost.frames;
-      if (next[l].filename != run.filename)
-        work += open_cost + cost.preroll;
-      else if (!CanReachWithoutSeek(run.index, next[l].next_frame, run.first))
-        work += cost.preroll;
-      if (plans[l].load + work < best_end) {
+      FileGroup *group = FindGroup(groups[l], run.filename);
+      DecodeWork work;
+      int64_t delta;
+      candidate.clear();
+      if (!group && lanes[l].filename != run.filename) {
+        candidate.push_back(r);
+        work = fresh_work[r];
+        delta = fresh[r];
+      } else {
+        if (group)
+          candidate = group->runs;
+        candidate.push_back(r);
+        OrderFileRuns(runs, lanes[l], candidate);
+        work = FileWork(runs, lanes[l], make_cspan(candidate));
+        delta = Cost(work, open_cost) - (group ? Cost(group->work, open_cost) : 0);
+      }
+      if (plans[l].load + delta < best_end) {
         best = l;
-        best_end = plans[l].load + work;
+        best_end = plans[l].load + delta;
+        best_work = work;
+        best_runs = candidate;
       }
     }
-    plans[best].runs.push_back(cost.run);
-    plans[best].load = best_end;
-    next[best].filename = run.filename;
-    next[best].next_frame = run.last < 0 ? next[best].next_frame : run.last + 1;
-  }
-  for (int l = 0; l < num_lanes; l++) {
-    auto &lane_runs = plans[l].runs;
-    auto continues = [&](int r) {
-      const auto &run = runs[r];
-      return run.filename == lanes[l].filename &&
-             CanReachWithoutSeek(run.index, lanes[l].next_frame, run.first);
-    };
-    // files in the order of their first sample in the batch, the decoder's file first
-    std::map<std::string_view, int> file_order;
-    for (int r : lane_runs) {
-      auto [it, inserted] = file_order.emplace(runs[r].filename, runs[r].batch_idx);
-      if (!inserted)
-        it->second = std::min(it->second, runs[r].batch_idx);
+    FileGroup *group = FindGroup(groups[best], run.filename);
+    if (!group) {
+      groups[best].push_back({run.filename, {}, {}});
+      group = &groups[best].back();
     }
-    auto held = file_order.find(lanes[l].filename);
-    if (held != file_order.end())
-      held->second = -1;
-    std::sort(lane_runs.begin(), lane_runs.end(), [&](int a, int b) {
-      const auto &ra = runs[a], &rb = runs[b];
-      return std::make_tuple(file_order[ra.filename], ra.filename, ra.first) <
-             std::make_tuple(file_order[rb.filename], rb.filename, rb.first);
+    group->runs = best_runs;
+    group->work = best_work;
+    plans[best].load = best_end;
+  }
+
+  for (int l = 0; l < num_lanes; l++) {
+    // the file the decoder holds first, then the others by their first sample in the batch
+    auto file_order = [&](const FileGroup &group) {
+      int batch_idx = std::numeric_limits<int>::max();
+      for (int r : group.runs)
+        batch_idx = std::min(batch_idx, runs[r].batch_idx);
+      return std::make_tuple(group.filename == lanes[l].filename ? -1 : batch_idx,
+                             group.filename);
+    };
+    auto &lane_groups = groups[l];
+    std::sort(lane_groups.begin(), lane_groups.end(), [&](const FileGroup &a, const FileGroup &b) {
+      return file_order(a) < file_order(b);
     });
-    auto it = std::find_if(lane_runs.begin(), lane_runs.end(), continues);
-    if (it != lane_runs.end())
-      std::rotate(lane_runs.begin(), it, it + 1);
+    for (auto &group : lane_groups) {
+      plans[l].runs.insert(plans[l].runs.end(), group.runs.begin(), group.runs.end());
+      plans[l].pictures += group.work.pictures;
+      LOG_LINE << "PlanLanes: lane " << l << ": " << group.filename << ", " << group.runs.size()
+               << " runs: " << group.work.pictures << " pictures, " << group.work.reopens
+               << " openings" << std::endl;
+    }
+    LOG_LINE << "PlanLanes: lane " << l << ": load " << plans[l].load << ", "
+             << plans[l].pictures << " pictures" << std::endl;
   }
 }
 

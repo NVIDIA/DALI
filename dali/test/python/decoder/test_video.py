@@ -1366,17 +1366,21 @@ _lanes_reader_cases = [
 ]
 
 
+# H.264 clips that start with packets hidden by an edit list (62 and 16), which are decoded before
+# the first frame, and after a seek that lands on them
+lead_in_files = [
+    f"{get_dali_extra_path()}/db/video/sintel/labelled_videos/0/sintel_trailer-720p_6.mp4",
+    f"{get_dali_extra_path()}/db/video/sintel/labelled_videos/2/sintel_trailer-720p_5.mp4",
+]
+
+
 def _lanes_reader_files(device):
     # H.264 is not enabled on the CPU backend
-    return cfr_files + vfr_files + (codec_files["h264"] if device == "gpu" else [])
+    gpu_files = codec_files["h264"] + lead_in_files
+    return cfr_files + vfr_files + (gpu_files if device == "gpu" else [])
 
 
-@cartesian_params(["cpu", "gpu"], range(len(_lanes_reader_cases)))
-def test_reader_output_independent_of_num_threads(device, case):
-    skip_if_m60()
-    kwargs = _lanes_reader_cases[case]
-    batch_size = 4
-
+def _check_reader_output_independent_of_num_threads(device, kwargs, batch_size, num_threads):
     files = _lanes_reader_files(device)
 
     @pipeline_def(batch_size=batch_size, device_id=0, seed=42)
@@ -1394,11 +1398,11 @@ def test_reader_output_independent_of_num_threads(device, case):
         )
 
     compare_pipelines(
-        pipe(num_threads=1), pipe(num_threads=4), batch_size=batch_size, N_iterations=8
+        pipe(num_threads=1), pipe(num_threads=num_threads), batch_size=batch_size, N_iterations=8
     )
 
     # The two runs could agree on wrong frames, so check the frames against PyAV as well
-    p = pipe(num_threads=4)
+    p = pipe(num_threads=num_threads)
     for _ in range(4):
         videos, labels, frame_nums, *_ = (t.as_cpu() for t in p.run())
         for i in range(batch_size):
@@ -1407,6 +1411,32 @@ def test_reader_output_independent_of_num_threads(device, case):
                 np.array(frame_nums[i]),
                 files[int(np.array(labels[i])[0])],
             )
+
+
+@cartesian_params(["cpu", "gpu"], range(len(_lanes_reader_cases)))
+def test_reader_output_independent_of_num_threads(device, case):
+    skip_if_m60()
+    _check_reader_output_independent_of_num_threads(
+        device, _lanes_reader_cases[case], batch_size=4, num_threads=4
+    )
+
+
+# With fewer lanes than samples, a lane decodes several runs, of one file or more, in an order
+# picked from their estimated work: tails padded with the last frame (decoding it again reopens
+# the file) and uniformly sampled frames
+_multi_run_lanes_cases = [
+    dict(sequence_length=7, pad_mode="edge", random_shuffle=True, initial_fill=16),
+    dict(sequence_length=7, step=4, pad_mode="edge"),
+    dict(sequence_length=6, uniform_sample=True),
+]
+
+
+@cartesian_params(["cpu", "gpu"], range(len(_multi_run_lanes_cases)))
+def test_reader_multi_run_lanes_output_independent_of_num_threads(device, case):
+    skip_if_m60()
+    _check_reader_output_independent_of_num_threads(
+        device, _multi_run_lanes_cases[case], batch_size=8, num_threads=2
+    )
 
 
 @params("cpu", "gpu")
