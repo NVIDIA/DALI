@@ -29,6 +29,7 @@ extern "C" {
 
 #include "dali/operators/video/dynlink_nvcuvid/cuviddec.h"
 #include "dali/operators/video/dynlink_nvcuvid/dynlink_nvcuvid.h"
+#include "dali/core/cuda_event.h"
 #include "dali/core/unique_handle.h"
 
 #include "dali/core/dev_buffer.h"
@@ -107,6 +108,10 @@ class NVDECLease {
 
     operator CUvideodecoder() && = delete;
 
+    int device_id() const noexcept {
+      return decoder->device_id;
+    }
+
     explicit operator bool() const noexcept {
       return decoder != nullptr;
     }
@@ -125,6 +130,12 @@ class NVDECLease {
  * @param device_id CUDA device ordinal or -1 for the current device.
  */
 DLL_PUBLIC size_t NVDECDecodersCreated(int device_id = -1);
+
+/**
+ * @brief Returns how many NVDEC output surfaces are mapped by FramesDecoderGpu objects in this
+ *        process. Meant for tests: it is 0 when no decoder is alive.
+ */
+DLL_PUBLIC int64_t NVDECFramesMapped();
 
 }  // namespace frame_dec_gpu_impl
 
@@ -181,7 +192,8 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
 
   int HandlePictureDisplay(CUVIDPARSERDISPINFO *picture_display_info);
 
-  FramesDecoderGpu(FramesDecoderGpu&&) = default;
+  // not movable: the parser calls back into this object (and it may hold a mapped surface)
+  FramesDecoderGpu(FramesDecoderGpu&&) = delete;
 
   ~FramesDecoderGpu();
 
@@ -203,6 +215,20 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
 
  private:
   std::unique_ptr<NvDecodeState> nvdecode_state_;
+
+  /**
+   * @brief Unmaps the output surface of the last converted picture, once its conversion is done.
+   *
+   * The surface stays mapped after the conversion is launched, so that the host does not wait for
+   * each picture; it is released before NVDEC is used again (the next picture, a flush), which is
+   * when NVDEC could overwrite it.
+   */
+  void ReleaseMappedFrame();
+
+  CUdeviceptr mapped_frame_ = 0;      // the mapped output surface, 0 if none
+  CUDAEvent conversion_done_;         // recorded on stream_ after mapped_frame_ is converted
+  bool conversion_recorded_ = false;  // false: the conversion failed, wait for the whole stream
+
   void *current_frame_output_ = nullptr;
   bool current_copy_to_output_ = false;
   bool frame_returned_ = false;
