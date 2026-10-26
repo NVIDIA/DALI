@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from abc import ABC, abstractmethod
-from typing import List, Sequence, Callable, Union
+from typing import List, Sequence, Callable, Union, Literal
 
 import nvidia.dali.fn as fn
 from nvidia.dali.pipeline import pipeline_def
@@ -64,7 +64,12 @@ def to_torch_tensor(
 
 
 @pipeline_def(enable_conditionals=True, exec_dynamic=True, prefetch_queue_depth=1)
-def _pipeline_function(op_list: Sequence, layout: str = "HWC", input_device: str = "gpu"):
+def _pipeline_function(
+    op_list: Sequence,
+    layout: Literal["CHW", "HWC", "FCHW", "FHWC", "NCHW", "NHWC", "NFCHW", "NFHWC" ] = "HWC",
+    input_device: str = "gpu",
+    split_calls: bool = False,
+):
     """
     Builds a DALI pipeline from a list of operators.
 
@@ -132,7 +137,7 @@ class PipelineWithLayout(ABC):
     def __init__(
         self,
         op_list: List[Callable[..., Sequence[_DataNode] | _DataNode]],
-        layout: str,
+        layout: Literal["CHW", "HWC", "FCHW", "FHWC", "NCHW", "NHWC", "NFCHW", "NFHWC" ] = "HWC",
         batch_size: int = DEFAULT_BATCH_SIZE,
         num_threads: int = DEFAULT_NUM_THREADS,
         **dali_pipeline_kwargs,
@@ -140,23 +145,13 @@ class PipelineWithLayout(ABC):
         self.output_type = PipelineWithLayout._get_output_format(op_list)
         self.device = op_list[0].device if len(op_list) > 0 else "cpu"
         self.torch_device_type = "cuda" if self.device == "gpu" else "cpu"
-<<<<<<< HEAD
         # DALI CPU operators parallelize across samples, so on CPU a call can be split into
         # multiple samples. On GPU, processing a call as a single sample is the fastest.
-        self._max_samples_per_call = 1
-        if self._splits_calls and self.device == "cpu":
-            self._max_samples_per_call = min(batch_size, num_threads)
-=======
->>>>>>> parent of f1e65fc01 (Sample one random parameter set per call in torchvision Compose)
 
         self.pipe = _pipeline_function(
             op_list,
             layout=layout,
             input_device=self.device,
-<<<<<<< HEAD
-            split_calls=self._max_samples_per_call > 1,
-=======
->>>>>>> parent of f1e65fc01 (Sample one random parameter set per call in torchvision Compose)
             batch_size=batch_size,
             num_threads=num_threads,
             **dali_pipeline_kwargs,
@@ -287,11 +282,6 @@ class PipelineCHW(PipelineWithLayout):
         Additional keyword arguments for the DALI pipeline.
     """
 
-<<<<<<< HEAD
-    _splits_calls = True
-
-=======
->>>>>>> parent of f1e65fc01 (Sample one random parameter set per call in torchvision Compose)
     def __init__(
         self,
         op_list: List[Callable[..., Sequence[_DataNode] | _DataNode]],
@@ -301,7 +291,7 @@ class PipelineCHW(PipelineWithLayout):
     ):
         super().__init__(
             op_list,
-            layout="CHW",
+            layout="NCHW",
             batch_size=batch_size,
             num_threads=num_threads,
             **dali_pipeline_kwargs,
@@ -321,27 +311,14 @@ class PipelineCHW(PipelineWithLayout):
                 Please check if samples have the same format.")
         output = super().run(_input)
 
-<<<<<<< HEAD
-        # Flatten leading dimensions (..., C, H, W) into frames, split evenly into sequences
-        frames = data_input.reshape(-1, *data_input.shape[-3:])
-        num_frames = frames.shape[0]
-        num_samples = max(
-            n
-            for n in range(1, min(num_frames, self._max_samples_per_call) + 1)
-            if num_frames % n == 0
-        )
-        output = super().run(frames.reshape(num_samples, -1, *frames.shape[1:]))
-
         # Restore the leading dimensions flattened above
         output = output.reshape(*data_input.shape[:-3], *output.shape[-3:])
-=======
         if data_input.ndim == 3:
             # Remove the batch dimension we added above
             output = output.squeeze(0)
         elif data_input.ndim > 4:
             # Restore the leading dimensions flattened above
             output = output.reshape(*data_input.shape[:-3], *output.shape[-3:])
->>>>>>> parent of f1e65fc01 (Sample one random parameter set per call in torchvision Compose)
 
         if self.output_type == "pil":
             if output.ndim == 4:
@@ -369,7 +346,6 @@ class PipelineCHW(PipelineWithLayout):
         if not isinstance(data_input, torch.Tensor):
             raise TypeError(f"The pipeline expects torch.Tensor as input got {type(data_input)}")
 
-
 class Compose:
     """
     Composes transforms together in a single pipeline
@@ -394,6 +370,7 @@ class Compose:
         self,
         op_list: List[Callable[..., Sequence[_DataNode] | _DataNode]],
         batch_size: int = DEFAULT_BATCH_SIZE,
+        layout: Literal[None, "CHW", "HWC", "FCHW", "FHWC", "NCHW", "NHWC", "NFCHW", "NFHWC" ] = None,
         num_threads: int = DEFAULT_NUM_THREADS,
         **dali_pipeline_kwargs,
     ):
@@ -402,18 +379,46 @@ class Compose:
         self.num_threads = num_threads
         self.active_pipeline = None
         self.dali_pipeline_kwargs = dali_pipeline_kwargs
+        self.layout = layout
 
     def _build_pipeline(self, data_input):
-        if isinstance(data_input, Image.Image):
-            self.active_pipeline = PipelineHWC(
-                self.op_list, self.batch_size, self.num_threads, **self.dali_pipeline_kwargs
-            )
-        elif isinstance(data_input, torch.Tensor):
-            self.active_pipeline = PipelineCHW(
-                self.op_list, self.batch_size, self.num_threads, **self.dali_pipeline_kwargs
-            )
+        """
+        Build the pipeliene taking into account its layout.
+
+        1. If the layout is explicitly set use it
+        2. If batch_size is not set, then base on input data dimensions: 3->"CHW", >4->"FCHW"
+        3. If batch_size is set then combine it with dimensions: 4->"NCHW", >5->"NFCHW"
+
+        """
+
+        if layout:
+           self.active_pipeline = PipelineLayouts[layout]
         else:
-            raise ValueError("Currently only PILImages and torch.Tensors are supported")
+            if isinstance(data_input, Image.Image):
+                pipeline_layout = PipelineHWC
+            elif isinstance(data_input, torch.Tensor):
+                # "CHW" or "FCHW" layout
+                if batch_size == 0 or batch_size == None:
+                    if data_input.ndim == 3:
+                        pipeline_layout = PipelineCHW
+                    else if data_input.ndum >= 4:
+                        pipeline_layout = PipelineFCHW
+                    else:
+                        raise ValueError("Input data dimensions must be =>3 if no batch size is set.")
+                # For batch_size > 0, only "NCHW" or "NFCHW" layout
+                else:
+                    if data_input.ndim == 4:
+                        pipeline_layout = PipelineCHW
+                    else if data_input.ndum >= 5:
+                        pipeline_layout = PipelineFCHW
+                    else:
+                        raise ValueError("Input data dimensions must be >=4.")
+            else:
+                raise ValueError("Currently only PILImages and torch.Tensors are supported")
+
+        self.active_pipeline =  pipeline_layout ( 
+                self.op_list, self.batch_size, self.num_threads, **self.dali_pipeline_kwargs
+            )
 
     def __call__(self, data_input):
         """
