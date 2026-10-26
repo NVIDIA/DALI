@@ -21,7 +21,9 @@
 #include <random>
 #include <set>
 #include <string>
+#include <string_view>
 #include <thread>
+#include <utility>
 #include <vector>
 
 #include "dali/core/cuda_error.h"
@@ -695,6 +697,212 @@ TEST_F(FramesDecoderGpuTest, SurfaceUnmappedAfterFailedConversion) {
     EXPECT_EQ(frame_dec_gpu_impl::NVDECFramesMapped(), 1);
   }
   EXPECT_EQ(frame_dec_gpu_impl::NVDECFramesMapped(), 0);
+}
+
+namespace {
+
+// A decoder that maps and converts every picture that it decodes, but does not return as it comes
+// (as the decoder did before it left out the pictures that are not read)
+class GpuDecoderMappingAll : public FramesDecoderGpu {
+ public:
+  template <typename... Args>
+  explicit GpuDecoderMappingAll(Args &&...args) : FramesDecoderGpu(std::forward<Args>(args)...) {
+    SetBufferedFrameDataForTesting(BufferedFrameData::kAll);
+  }
+};
+
+// A decoder that maps none of the pictures that it does not return as they come
+class GpuDecoderMappingNone : public FramesDecoderGpu {
+ public:
+  template <typename... Args>
+  explicit GpuDecoderMappingNone(Args &&...args) : FramesDecoderGpu(std::forward<Args>(args)...) {
+    SetBufferedFrameDataForTesting(BufferedFrameData::kNone);
+  }
+};
+
+// The pictures that a decoder maps past the last frame it reads: those decoded before it, but shown
+// after it (e.g. a P-frame decoded before the B-frames shown before it), which a next sample of a
+// decode lane may read
+constexpr int kMaxMappedAhead = 4;
+
+// Hashes of the `num_frames` frames in `frames` (on the device)
+std::vector<size_t> HashFrames(const uint8_t *frames, int num_frames, size_t frame_size,
+                               cudaStream_t stream) {
+  std::vector<char> host(frame_size);
+  std::vector<size_t> hashes;
+  for (int i = 0; i < num_frames; i++) {
+    MemCopy(host.data(), frames + i * frame_size, frame_size, stream);
+    CUDA_CALL(cudaStreamSynchronize(stream));
+    hashes.push_back(std::hash<std::string_view>()(std::string_view(host.data(), frame_size)));
+  }
+  return hashes;
+}
+
+std::vector<int> Strided(int start, int end, int stride) {
+  std::vector<int> frames;
+  for (int i = start; i < end; i += stride)
+    frames.push_back(i);
+  return frames;
+}
+
+// Decodes `frame_ids` with DecodeFrames (padding with a constant frame) and hashes them
+std::vector<size_t> DecodeAndHash(
+    FramesDecoderGpu &decoder, const std::vector<int> &frame_ids,
+    boundary::BoundaryType boundary_type = boundary::BoundaryType::ISOLATED) {
+  size_t frame_size = decoder.FrameSize();
+  DeviceBuffer<uint8_t> frames, constant;
+  frames.resize(frame_ids.size() * frame_size);
+  constant.resize(frame_size);
+  CUDA_CALL(cudaMemsetAsync(constant.data(), 77, frame_size, decoder.stream()));
+  decoder.DecodeFrames(frames.data(), make_cspan(frame_ids), boundary_type, constant.data());
+  return HashFrames(frames.data(), frame_ids.size(), frame_size, decoder.stream());
+}
+
+// Reads `frame_ids` with SeekFrame and ReadNextFrame (see ReadFrames) and hashes them
+std::vector<size_t> ReadAndHash(FramesDecoderGpu &decoder, const std::vector<int> &frame_ids) {
+  DeviceBuffer<uint8_t> frames;
+  frames.resize(frame_ids.size() * decoder.FrameSize());
+  ReadFrames(decoder, decoder.stream(), frame_ids, frames.data(), 0);
+  return HashFrames(frames.data(), frame_ids.size(), decoder.FrameSize(), decoder.stream());
+}
+
+using HashedFramesScenario = std::function<std::vector<size_t>(FramesDecoderGpu &)>;
+
+struct ScenarioResult {
+  std::vector<size_t> frames;
+  int64_t decoded = 0, mapped = 0;
+};
+
+// Runs `scenario` with a new decoder (one at a time: ReadFrames expects one mapped surface at most)
+template <typename Decoder>
+ScenarioResult RunScenario(const std::string &path, const FrameIndex &index,
+                           const HashedFramesScenario &scenario) {
+  Decoder decoder(path);
+  decoder.SetIndex(index);
+  ScenarioResult result;
+  result.frames = scenario(decoder);
+  result.decoded = decoder.DecodedPictures();
+  result.mapped = decoder.MappedPictures();
+  return result;
+}
+
+/**
+ * @brief Runs `scenario` with a decoder and with one that maps every picture (GpuDecoderMappingAll)
+ * and checks that they return the same frames, after decoding the same pictures, of which the
+ * decoder maps no more. Returns the pictures mapped by the decoder.
+ */
+int64_t CheckSameFramesAsMappingAll(const std::string &path, const FrameIndex &index,
+                                    const std::string &what, const HashedFramesScenario &scenario) {
+  auto result = RunScenario<FramesDecoderGpu>(path, index, scenario);
+  auto expected = RunScenario<GpuDecoderMappingAll>(path, index, scenario);
+  EXPECT_EQ(result.frames, expected.frames) << path << ": " << what;
+  EXPECT_EQ(result.decoded, expected.decoded) << path << ": " << what;
+  EXPECT_LE(result.mapped, expected.mapped) << path << ": " << what;
+  return result.mapped;
+}
+
+/**
+ * @brief Checks that a decoder that does not map the pictures it does not read returns the same
+ * frames as one that maps them all, when it decodes samples (with skipped frames, duplicates and
+ * padding), when it seeks, also with AvSeekFrame to a frame that is not a keyframe, and when one
+ * decoder decodes a sample after another (a decode lane), also one that starts before the end of
+ * the previous one.
+ */
+void CheckSameFramesAsMappingAll(const std::string &path) {
+  FramesDecoderGpu indexed(path);
+  indexed.BuildIndex();
+  auto &index = indexed.GetIndex();
+  int n = index.size();
+  ASSERT_GE(n, 40) << path;
+  auto check = [&](const std::string &what, const HashedFramesScenario &scenario) {
+    CheckSameFramesAsMappingAll(path, index, what, scenario);
+  };
+  check("stride 3", [&](FramesDecoderGpu &d) { return DecodeAndHash(d, Strided(0, 40, 3)); });
+  check("a duplicate", [&](FramesDecoderGpu &d) {
+    return DecodeAndHash(d, {5, 5, 7, 30, 31, std::min(90, n - 1)});
+  });
+  for (auto pad : {boundary::BoundaryType::REFLECT_101, boundary::BoundaryType::CLAMP,
+                   boundary::BoundaryType::CONSTANT}) {
+    check(make_string("padded with ", boundary::to_string(pad)), [&](FramesDecoderGpu &d) {
+      return DecodeAndHash(d, FrameRange(n - 4, n + 4), pad);
+    });
+  }
+  static_assert(FramesDecoderBase::kMinimumSeekLeap >= 3);
+  constexpr int leap = FramesDecoderBase::kMinimumSeekLeap;
+  check("seeks", [&](FramesDecoderGpu &d) {
+    return ReadAndHash(d, {0, leap, 2 * leap + 1, 2 * leap + 3, n / 2, n / 2 + 3, 1});
+  });
+  check("a decode lane", [&](FramesDecoderGpu &d) {
+    auto frames = DecodeAndHash(d, Strided(0, 9, 2));
+    for (auto &sample : {FrameRange(9, 17), FrameRange(16, 20)}) {
+      auto more = DecodeAndHash(d, sample);
+      frames.insert(frames.end(), more.begin(), more.end());
+    }
+    return frames;
+  });
+  int frame = n / 2;
+  while (frame < n - 3 && index[frame].is_keyframe)
+    frame++;
+  check("AvSeekFrame to a frame that is not a keyframe", [&](FramesDecoderGpu &d) {
+    EXPECT_TRUE(d.AvSeekFrame(index[frame].pts, frame));
+    return ReadAndHash(d, FrameRange(frame, frame + 3));
+  });
+}
+
+}  // namespace
+
+// A decoder decodes the pictures that it does not return (hidden by an edit list, or skipped), but
+// it does not map or convert them, nor keep a frame buffer for them
+TEST_F(FramesDecoderGpuTest, PicturesNotReadAreNotMapped) {
+  // 188 pictures hidden by an edit list, decoded before the first frame
+  auto path = SintelVideoFile(4);
+  FramesDecoderGpu indexed(path);
+  indexed.BuildIndex();
+  auto &index = indexed.GetIndex();
+  auto check = [&](const std::string &what, const std::vector<int> &frame_ids) {
+    auto mapped = CheckSameFramesAsMappingAll(path, index, what, [&](FramesDecoderGpu &d) {
+      auto frames = DecodeAndHash(d, frame_ids);
+      EXPECT_GT(d.DecodedPictures(), 188);
+      if (dynamic_cast<GpuDecoderMappingAll *>(&d))
+        EXPECT_GT(d.NumFrameBuffers(), 188);  // one for each picture hidden by the edit list
+      else
+        EXPECT_LE(d.NumFrameBuffers(), 10);
+      return frames;
+    });
+    EXPECT_LE(mapped, static_cast<int64_t>(frame_ids.size()) + kMaxMappedAhead) << what;
+  };
+  check("in a row", FrameRange(0, 32));
+  // the frames skipped are not mapped either: between the frames read, and before the first one
+  check("stride 3", Strided(0, 40, 3));
+  check("from frame 30", {30, 31});
+}
+
+TEST_F(FramesDecoderGpuTest, SameFramesAsMappingAll) {
+  std::vector<std::string> paths = {SintelVideoFile(4), SintelClip(2, 8),
+                                    testing::dali_extra_path() + "/db/video/vfr/test_1.mp4"};
+  if (FramesDecoderGpu::SupportsHevc()) {
+    paths.push_back(testing::dali_extra_path() + "/db/video/hevc/sintel_trailer-720p.mp4");
+    paths.push_back(testing::dali_extra_path() + "/db/video/vfr/test_2_hevc.mp4");
+  }
+  for (auto &path : paths)
+    CheckSameFramesAsMappingAll(path);
+}
+
+// Reading a frame that the decoder did not map is an internal error, not a frame of garbage
+TEST_F(FramesDecoderGpuTest, ReadingFrameNotMappedFails) {
+  // B-frames: the frames shown after them are decoded before them, and buffered
+  GpuDecoderMappingNone decoder(SintelVideoFile(0));
+  decoder.BuildIndex();
+  DeviceBuffer<uint8_t> frame;
+  frame.resize(decoder.FrameSize());
+  try {
+    for (int i = 0; i < 60; i++)
+      decoder.ReadNextFrame(frame.data());
+    FAIL() << "a frame that was not mapped was read";
+  } catch (std::exception &e) {
+    EXPECT_NE(std::string(e.what()).find("only its timestamp was kept"), std::string::npos)
+        << e.what();
+  }
 }
 
 TEST_F(FramesDecoderTest_CpuOnlyTests, ConstantFrameRate) {

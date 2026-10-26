@@ -1335,22 +1335,26 @@ def _reference_frames(filename):
     return _reference_cache[filename]
 
 
-def _assert_frames_match_file(frames, frame_nums, filename):
+def _assert_frames_match_file(frames, frame_nums, filename, window=None):
     """Checks that frames[i] is the frame frame_nums[i] of the file (negative: padding, skipped).
 
     Decoders differ slightly in color conversion, so a frame must be close to the reference and
-    closer to it than to any other frame of the file."""
+    closer to it than to any other frame of the file (with `window`, to any other frame up to
+    `window` frames away, which is faster for long files)."""
     reference = _reference_frames(filename)
     for frame, num in zip(frames, frame_nums):
         if num < 0:
             continue
-        diffs = [np.abs(frame.astype(np.int32) - ref).mean() for ref in reference]
+        start = 0 if window is None else max(0, num - window)
+        end = len(reference) if window is None else min(len(reference), num + window + 1)
+        diffs = {i: np.abs(frame.astype(np.int32) - reference[i]).mean() for i in range(start, end)}
+        closest = min(diffs, key=diffs.get)
         assert (
             diffs[num] < 10
         ), f"{filename}: frame {num} differs from the reference by {diffs[num]}"
         assert (
-            diffs[num] <= min(diffs) + 0.5
-        ), f"{filename}: frame {num} is closer to frame {int(np.argmin(diffs))}"
+            diffs[num] <= diffs[closest] + 0.5
+        ), f"{filename}: frame {num} is closer to frame {closest}"
 
 
 # The reader decodes the samples of a batch in parallel, by up to num_threads decoders (decode
@@ -1380,8 +1384,10 @@ def _lanes_reader_files(device):
     return cfr_files + vfr_files + (gpu_files if device == "gpu" else [])
 
 
-def _check_reader_output_independent_of_num_threads(device, kwargs, batch_size, num_threads):
-    files = _lanes_reader_files(device)
+def _check_reader_output_independent_of_num_threads(
+    device, kwargs, batch_size, num_threads, files=None, window=None
+):
+    files = files or _lanes_reader_files(device)
 
     @pipeline_def(batch_size=batch_size, device_id=0, seed=42)
     def pipe():
@@ -1410,6 +1416,7 @@ def _check_reader_output_independent_of_num_threads(device, kwargs, batch_size, 
                 np.array(videos[i]),
                 np.array(frame_nums[i]),
                 files[int(np.array(labels[i])[0])],
+                window,
             )
 
 
@@ -1418,6 +1425,28 @@ def test_reader_output_independent_of_num_threads(device, case):
     skip_if_m60()
     _check_reader_output_independent_of_num_threads(
         device, _lanes_reader_cases[case], batch_size=4, num_threads=4
+    )
+
+
+# An H.264 clip with a long lead-in hidden by an edit list (188 pictures). The GPU decoder decodes
+# those pictures, but does not map or convert them, nor the pictures that it only skips
+long_lead_in_files = [
+    f"{get_dali_extra_path()}/db/video/sintel/video_files/sintel_trailer-720p_4.mp4",
+]
+
+
+# Consecutive sequences (from the start of a file, after its lead-in), sparse samples (frames
+# skipped in between) and shuffled samples (seeks, also back to the lead-in)
+@params(0, 1, 3)
+def test_reader_lead_in_output_independent_of_num_threads(case):
+    skip_if_m60()
+    _check_reader_output_independent_of_num_threads(
+        "gpu",
+        _lanes_reader_cases[case],
+        batch_size=4,
+        num_threads=4,
+        files=long_lead_in_files,
+        window=16,
     )
 
 
