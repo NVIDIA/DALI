@@ -15,7 +15,6 @@
 import numpy as np
 import torch
 from typing import Sequence, Literal
-import nvidia.dali.fn as fn
 
 from .operator import Operator, ArgumentValidateRule
 
@@ -111,9 +110,5 @@ class Normalize(Operator):
             mean = np.asarray(self.mean)[:, None, None]
             std = np.asarray(self.std)[:, None, None]
 
-        return fn.normalize(
-            data_input,
-            mean=mean,
-            stddev=std,
-            device=self.device,
-        )
+        # Arithmetic broadcasting is right-aligned, so it works for CHW, FCHW, HWC and FHWC
+        return (data_input - mean) / std

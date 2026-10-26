@@ -79,76 +79,11 @@ def test_compose_multi_tensor():
     assert torch.allclose(dali_out, tv_out, rtol=0, atol=1), f"Should be {tv_out} is {dali_out}"
 
 
-@params(
-    ((2, 4, 3, 5, 5), "cpu"),
-    ((2, 4, 3, 5, 5), "gpu"),
-    ((2, 2, 2, 1, 5, 5), "cpu"),
-    ((2, 2, 2, 1, 5, 5), "gpu"),
-)
-def test_compose_leading_dims_tensor(shape, device):
-    # Videos (N, T, C, H, W) and other inputs with arbitrary leading dimensions (..., C, H, W)
-    test_tensor = make_test_tensor(shape=shape)
-    dali_pipeline = Compose(
-        [RandomHorizontalFlip(p=1.0, device=device), RandomVerticalFlip(p=1.0, device=device)]
-    )
-    dali_out = dali_pipeline(test_tensor).cpu()
-    fn_out = fn_dali.horizontal_flip(test_tensor, device=device)
-    fn_out = fn_dali.vertical_flip(fn_out, device=device).cpu()
-    tv_out = tv.Compose([tv.RandomHorizontalFlip(p=1.0), tv.RandomVerticalFlip(p=1.0)])(test_tensor)
-
-    assert dali_out.shape == tv_out.shape, f"Should be {tv_out.shape} is {dali_out.shape}"
-    assert torch.equal(dali_out, tv_out)
-    assert torch.equal(fn_out, tv_out)
-
-
-@params("cpu", "gpu")
-def test_compose_tensor_larger_than_batch_size(device):
-    # A call is processed as FCHW sequences, so batch_size does not limit the leading dimensions
+def test_compose_invalid_batch_tensor():
     test_tensor = make_test_tensor(shape=(5, 1, 5, 5))
-    dali_pipeline = Compose([RandomHorizontalFlip(p=1.0, device=device)], batch_size=1)
-    dali_out = dali_pipeline(test_tensor).cpu()
-
-    assert torch.equal(dali_out, tv.RandomHorizontalFlip(p=1.0)(test_tensor))
-
-
-@params(
-    *[
-        (shape, device, transform)
-        for shape in [(8, 3, 32, 32), (7, 3, 32, 32), (2, 4, 3, 32, 32)]
-        for device in ["cpu", "gpu"]
-        for transform in [
-            "RandomHorizontalFlip",
-            "RandomVerticalFlip",
-            "RandomCrop",
-            "RandomResizedCrop",
-            "GaussianBlur",
-            "RandomApply",
-        ]
-    ]
-)
-def test_compose_random_params_shared_across_leading_dims(shape, device, transform):
-    # Torchvision samples a single parameter set per call and applies it across all leading
-    # dimensions, so identical images in a call must produce identical outputs
-    ops = {
-        "RandomHorizontalFlip": lambda: RandomHorizontalFlip(p=0.5, device=device),
-        "RandomVerticalFlip": lambda: RandomVerticalFlip(p=0.5, device=device),
-        "RandomCrop": lambda: RandomCrop(20, padding=2, device=device),
-        "RandomResizedCrop": lambda: RandomResizedCrop(24, device=device),
-        "GaussianBlur": lambda: GaussianBlur(5, sigma=(0.1, 3.0), device=device),
-        "RandomApply": lambda: RandomApply(
-            [RandomHorizontalFlip(p=1.0, device=device)], p=0.5, device=device
-        ),
-    }
-    image = torch.randint(0, 256, shape[-3:], dtype=torch.uint8)
-    test_tensor = image.expand(shape).contiguous()
-    dali_pipeline = Compose([ops[transform]()], num_threads=4)
-
-    for _ in range(5):
-        dali_out = dali_pipeline(test_tensor).cpu()
-        assert dali_out.shape[:-3] == test_tensor.shape[:-3]
-        frames = dali_out.reshape(-1, *dali_out.shape[-3:])
-        for i in range(1, frames.shape[0]):
-            assert torch.equal(frames[0], frames[i]), f"Frame {i} differs from frame 0"
+    with assert_raises(RuntimeError):
+        dali_pipeline = Compose([RandomHorizontalFlip(p=1.0)], batch_size=1)
+        _ = dali_pipeline(test_tensor)
 
 
 def test_compose_images():
@@ -496,3 +431,221 @@ def test_error_in_isolated_operators():
     dali_resize = Resize(size=(7, 7))
     with assert_raises(RuntimeError, glob="*is not directly callable*"):
         _ = dali_resize(test_tensor)
+
+
+# Layout tests
+# N - batch of samples, F - sequence of frames. Random parameters are sampled per sample, so for
+# NCHW once per CHW image, and for FCHW once for the whole sequence of frames.
+
+# (layout, shape, batch_size)
+supported_layouts = [
+    ("CHW", (3, 8, 8), 4),
+    ("NCHW", (4, 3, 8, 8), 4),
+    ("FCHW", (5, 3, 8, 8), None),
+    ("NFCHW", (4, 5, 3, 8, 8), 4),
+]
+
+
+def make_distinct_frames(shape):
+    """Tensor in which every (spatial) row is different, so flips are always visible."""
+    return make_test_tensor(shape)
+
+
+def count_flipped(out, inp):
+    """Returns (number of samples equal to the flipped input, number equal to the input),
+    where the sample is the leading dimension of ``out`` and ``inp``."""
+    flipped = sum(bool(torch.equal(o, torch.flip(i, [-1]))) for o, i in zip(out, inp))
+    same = sum(bool(torch.equal(o, i)) for o, i in zip(out, inp))
+    return flipped, same
+
+
+@params(*supported_layouts)
+def test_compose_layout_supported(layout, shape, batch_size):
+    test_tensor = make_distinct_frames(shape)
+    dali_pipeline = Compose([RandomHorizontalFlip(p=1.0)], batch_size=batch_size, layout=layout)
+    out = dali_pipeline(test_tensor)
+    assert dali_pipeline.active_pipeline.get_layout() == layout
+    assert out.shape == test_tensor.shape
+    assert torch.equal(out, torch.flip(test_tensor, [-1]))
+
+
+@params(*supported_layouts)
+def test_compose_layout_inferred(layout, shape, batch_size):
+    test_tensor = make_distinct_frames(shape)
+    dali_pipeline = Compose([RandomHorizontalFlip(p=1.0)], batch_size=batch_size)
+    out = dali_pipeline(test_tensor)
+    assert dali_pipeline.active_pipeline.get_layout() == layout
+    assert torch.equal(out, torch.flip(test_tensor, [-1]))
+
+
+def test_compose_layout_hwc():
+    img = Image.fromarray(make_test_tensor((8, 8, 3)).numpy())
+    dali_pipeline = Compose([RandomHorizontalFlip(p=1.0)], layout="HWC")
+    out = dali_pipeline(img)
+    assert dali_pipeline.active_pipeline.get_layout() == "HWC"
+    assert np.array_equal(np.array(out), np.array(img)[:, ::-1])
+
+
+def test_compose_layout_default_is_none():
+    assert Compose([RandomHorizontalFlip(p=1.0)]).layout is None
+
+
+def test_compose_chw_vs_fchw():
+    # The same 4D tensor is a batch of images or a single sequence of frames,
+    # depending on whether the batch size is set.
+    frames = 16
+    test_tensor = make_test_tensor((1, 3, 8, 8)).expand(frames, 3, 8, 8).contiguous()
+
+    batched = Compose([RandomHorizontalFlip(p=0.5)], batch_size=frames)
+    assert batched(test_tensor).shape == test_tensor.shape
+    assert batched.active_pipeline.get_layout() == "NCHW"
+
+    sequence = Compose([RandomHorizontalFlip(p=0.5)], batch_size=None)
+    assert sequence(test_tensor).shape == test_tensor.shape
+    assert sequence.active_pipeline.get_layout() == "FCHW"
+
+    # 3D tensor is always a single CHW image
+    single = Compose([RandomHorizontalFlip(p=0.5)], batch_size=None)
+    assert single(test_tensor[0]).shape == test_tensor[0].shape
+    assert single.active_pipeline.get_layout() == "CHW"
+
+
+def test_compose_nchw_vs_fchw_random_params():
+    # 32 identical frames: probability that all random flips are equal is 2 * 2**-32
+    n = 32
+    test_tensor = make_test_tensor((1, 3, 8, 8)).expand(n, 3, 8, 8).contiguous()
+
+    # NCHW: one transform per CHW image -> results differ between images
+    nchw = Compose([RandomHorizontalFlip(p=0.5)], batch_size=n, layout="NCHW")(test_tensor)
+    flipped, same = count_flipped(nchw, test_tensor)
+    assert flipped + same == n
+    assert flipped > 0 and same > 0, f"Expected a mix of flipped and not flipped, got {flipped}"
+
+    # FCHW: one transform per FCHW sequence -> all frames are transformed the same way
+    fchw = Compose([RandomHorizontalFlip(p=0.5)], batch_size=None, layout="FCHW")(test_tensor)
+    flipped, same = count_flipped(fchw, test_tensor)
+    assert flipped in (0, n) and same in (0, n) and flipped + same == n
+    assert torch.equal(fchw, fchw[0].expand_as(fchw))
+
+
+def test_compose_nfchw_random_params_per_sequence():
+    n, frames = 32, 4
+    sample = make_test_tensor((frames, 3, 8, 8))
+    test_tensor = sample.unsqueeze(0).expand(n, frames, 3, 8, 8).contiguous()
+    out = Compose([RandomHorizontalFlip(p=0.5)], batch_size=n, layout="NFCHW")(test_tensor)
+
+    flipped_sequences = 0
+    for seq in out:
+        flipped, same = count_flipped(seq, sample)
+        # all the frames of a sequence share the transform
+        assert flipped in (0, frames) and same in (0, frames) and flipped + same == frames
+        flipped_sequences += flipped == frames
+    # sequences are transformed independently
+    assert 0 < flipped_sequences < n
+
+
+@params(
+    ("NHWC",),
+    ("FHWC",),
+    ("NFHWC",),
+)
+def test_compose_layout_not_supported(layout):
+    with assert_raises(NotImplementedError):
+        Compose([RandomHorizontalFlip(p=1.0)], layout=layout)
+
+
+@params(("CHWN",), ("hwc",), ("",))
+def test_compose_layout_unknown(layout):
+    with assert_raises(ValueError):
+        Compose([RandomHorizontalFlip(p=1.0)], layout=layout)
+
+
+@params(("NCHW", (3, 8, 8)), ("NFCHW", (2, 3, 8, 8)))
+def test_compose_layout_batched_default_batch_size(layout, shape):
+    # N layouts without batch_size are too few dimensions
+    dali_pipeline = Compose([RandomHorizontalFlip(p=1.0)], layout=layout)
+    with assert_raises(ValueError):
+        dali_pipeline(make_test_tensor(shape))
+
+
+@params(("NCHW", (4, 3, 8, 8)), ("NFCHW", (4, 2, 3, 8, 8)))
+def test_compose_layout_batched_without_batch_size(layout, shape):
+    # NCHW and NFCHW do not require batch_size, DEFAULT_BATCH_SIZE is used
+    test_tensor = make_test_tensor(shape)
+    out = Compose([RandomHorizontalFlip(p=1.0)], layout=layout)(test_tensor)
+    assert torch.equal(out, torch.flip(test_tensor, [-1]))
+
+
+@params(
+    ("CHW", (4, 3, 8, 8)),
+    ("NCHW", (3, 8, 8)),
+    ("FCHW", (3, 8, 8)),
+    ("NFCHW", (4, 3, 8, 8)),
+)
+def test_compose_layout_ndim_mismatch(layout, shape):
+    dali_pipeline = Compose([RandomHorizontalFlip(p=1.0)], batch_size=4, layout=layout)
+    with assert_raises(ValueError):
+        dali_pipeline(make_test_tensor(shape))
+
+
+def test_compose_layout_input_type_mismatch():
+    img = Image.fromarray(make_test_tensor((8, 8, 3)).numpy())
+    with assert_raises(TypeError):
+        Compose([RandomHorizontalFlip(p=1.0)], layout="CHW")(img)
+    with assert_raises(TypeError):
+        Compose([RandomHorizontalFlip(p=1.0)], layout="HWC")(make_test_tensor((3, 8, 8)))
+
+
+def test_compose_cannot_infer_layout():
+    with assert_raises(ValueError):
+        Compose([RandomHorizontalFlip(p=1.0)])(make_test_tensor((8, 8)))
+
+
+# (layout, batch_size, shape)
+flatten_cases = [
+    (None, None, (2, 3, 4, 3, 8, 8)),  # inferred FCHW: leading dims flattened into F
+    ("FCHW", None, (2, 3, 4, 3, 8, 8)),
+    (None, 24, (2, 3, 4, 3, 8, 8)),  # inferred NFCHW: leading dims flattened into N
+    ("NFCHW", 24, (2, 3, 4, 3, 8, 8)),
+    (None, 24, (2, 3, 3, 8, 8)),  # inferred NFCHW
+    ("NCHW", 24, (2, 3, 4, 3, 8, 8)),
+]
+
+
+@params(*flatten_cases)
+def test_compose_leading_dims_flattened(layout, batch_size, shape):
+    test_tensor = make_test_tensor(shape)
+    out = Compose([RandomHorizontalFlip(p=1.0)], batch_size=batch_size, layout=layout)(test_tensor)
+    assert out.shape == test_tensor.shape
+    assert torch.equal(out, torch.flip(test_tensor, [-1]))
+
+
+def test_compose_leading_dims_resize_output_shape():
+    test_tensor = make_test_tensor((2, 3, 3, 8, 8))
+    out = Compose([Resize((4, 6))])(test_tensor)
+    assert out.shape == (2, 3, 3, 4, 6)
+
+
+def test_compose_leading_dims_default_is_one_sample():
+    # Without batch_size a >=4D tensor is a single sample (as in torchvision): one random draw
+    test_tensor = make_test_tensor((1, 3, 8, 8)).expand(32, 3, 8, 8).contiguous()
+    out = Compose([RandomHorizontalFlip(p=0.5)])(test_tensor)
+    flipped, same = count_flipped(out, test_tensor)
+    assert flipped in (0, 32) and same in (0, 32) and flipped + same == 32
+
+
+@params(
+    (None, (8, 8)),
+    ("CHW", (4, 3, 8, 8)),
+    ("NCHW", (3, 8, 8)),
+    ("FCHW", (3, 8, 8)),
+    ("NFCHW", (4, 3, 8, 8)),
+)
+def test_compose_unsupported_ndim_error_message(layout, shape):
+    dali_pipeline = Compose([RandomHorizontalFlip(p=1.0)], batch_size=4, layout=layout)
+    try:
+        dali_pipeline(make_test_tensor(shape))
+    except ValueError as e:
+        assert str(e).startswith(f"Unsupported input: a tensor with {len(shape)} dimensions"), e
+    else:
+        raise AssertionError("ValueError not raised")

@@ -172,7 +172,7 @@ def test_last_conversion_op_wins():
 def test_to_pil_image_operator_returns_pil():
     """ToPILImage inside Compose must return a PIL Image matching torchvision pixel-exactly."""
     tensor = make_test_tensor(shape=(1, 3, 8, 8))
-    dali_out = Compose([ToPILImage()])(tensor)
+    dali_out = Compose([ToPILImage()])(tensor.squeeze(0))
     tv_out = tv_fn.to_pil_image(tensor.squeeze(0))
     assert isinstance(dali_out, Image.Image), f"Expected PIL Image, got {type(dali_out)}"
     assert np.array_equal(np.array(dali_out), np.array(tv_out)), "Pixel mismatch vs torchvision"
@@ -186,7 +186,7 @@ def test_to_pil_image_operator_returns_pil():
 def test_to_pil_image_operator_mode(channels, expected_mode):
     """ToPILImage must infer the correct PIL mode and match torchvision pixel values."""
     tensor = make_test_tensor(shape=(1, channels, 8, 8))
-    dali_out = Compose([ToPILImage()])(tensor)
+    dali_out = Compose([ToPILImage()])(tensor.squeeze(0))
     tv_out = tv_fn.to_pil_image(tensor.squeeze(0))
     assert dali_out.mode == expected_mode, f"Expected mode {expected_mode}, got {dali_out.mode}"
     assert np.array_equal(
@@ -198,7 +198,7 @@ def test_to_pil_image_operator_spatial_size():
     """ToPILImage output must have the correct (W, H) size and match torchvision pixels."""
     h, w = 20, 30
     tensor = make_test_tensor(shape=(1, 3, h, w))
-    dali_out = Compose([ToPILImage()])(tensor)
+    dali_out = Compose([ToPILImage()])(tensor.squeeze(0))
     tv_out = tv_fn.to_pil_image(tensor.squeeze(0))
     assert dali_out.size == (w, h), f"Expected size ({w}, {h}), got {dali_out.size}"
     assert np.array_equal(np.array(dali_out), np.array(tv_out)), "Pixel mismatch vs torchvision"
@@ -207,7 +207,7 @@ def test_to_pil_image_operator_spatial_size():
 def test_to_pil_image_operator_with_flip():
     """Resize followed by ToPILImage must match torchvision's output (±1 due to resize)."""
     tensor = make_test_tensor(shape=(1, 3, 40, 50))
-    dali_out = Compose([RandomHorizontalFlip(p=1.0), ToPILImage()])(tensor)
+    dali_out = Compose([RandomHorizontalFlip(p=1.0), ToPILImage()])(tensor.squeeze(0))
     tv_out = tv.Compose([tv.RandomHorizontalFlip(p=1.0), tv.ToPILImage()])(tensor.squeeze(0))
     assert isinstance(dali_out, Image.Image)
     assert torch.allclose(
@@ -220,7 +220,7 @@ def test_to_pil_image_operator_with_flip():
 def test_to_pil_image_operator_roundtrip_with_pil_to_tensor():
     """ToPILImage output must match torchvision's ToPILImage pixel-exactly."""
     tensor = make_test_tensor(shape=(1, 3, 8, 8)).squeeze(0)  # (3, 8, 8)
-    dali_out = Compose([ToPILImage()])(tensor.unsqueeze(0))
+    dali_out = Compose([ToPILImage()])(tensor)
     tv_out = tv_fn.to_pil_image(tensor)
     assert np.array_equal(np.array(dali_out), np.array(tv_out)), "Pixel mismatch vs torchvision"
     recovered = tv_fn.pil_to_tensor(dali_out)
@@ -422,6 +422,7 @@ def test_pil_to_tensor_operator_gpu(mode):
 def test_to_pil_image_operator_gpu():
     """ToPILImage on GPU tensor pipeline must return a PIL Image matching the CPU reference."""
     tensor = make_test_tensor(shape=(1, 3, 8, 8))
+    tensor = tensor.squeeze(0)
     cpu_out = Compose([ToPILImage()])(tensor)
     gpu_out = Compose([ToPILImage(device="gpu")])(tensor.cuda())
     assert isinstance(gpu_out, Image.Image), f"Expected PIL Image, got {type(gpu_out)}"
@@ -604,7 +605,7 @@ def test_to_pil_image_operator_batch_returns_list():
     test documents the current DALI behaviour so regressions are caught.
     """
     tensor = make_test_tensor(shape=(2, 3, 8, 8))
-    out = Compose([ToPILImage()])(tensor)
+    out = Compose([ToPILImage()], batch_size=2)(tensor)
     assert isinstance(out, list), f"Expected list of PIL Images, got {type(out)}"
     assert len(out) == 2, f"Expected 2 images, got {len(out)}"
     assert all(isinstance(img, Image.Image) for img in out), "Not all batch outputs are PIL Images"
