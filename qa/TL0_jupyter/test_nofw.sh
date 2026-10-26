@@ -23,6 +23,9 @@ test_body() {
         # Numba stalls in llvmlite's LLVM JIT finalization with ASan preloaded.
         echo "Skipping numba_function.ipynb with sanitizers: LLVM JIT finalization times out."
         exclude_files="${exclude_files}\|numba_function.ipynb"
+        # Patch only the QA copy to keep sanitizer setup out of the public tutorial.
+        # NVCC's TCMalloc conflicts with ASan, so build tools need preloads cleared,
+        # while DALI's Python queries and the notebook kernel must retain them.
         python "$topdir/qa/TL0_jupyter/prepare_sanitizer_notebooks.py" || return $?
     fi
 
