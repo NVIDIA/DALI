@@ -495,6 +495,7 @@ int FramesDecoderGpu::ProcessPictureDecode(CUVIDPICPARAMS *picture_params) {
   }
 
   CUDA_CALL(cuvidDecodePicture(nvdecode_state_->decoder, picture_params));
+  decoded_pictures_++;
   CUVIDPARSERDISPINFO picture_display_info;
   memset(&picture_display_info, 0, sizeof(picture_display_info));
   picture_display_info.picture_index = picture_params->CurrPicIdx;

@@ -557,6 +557,7 @@ void FramesDecoderBase::Reset() {
   SelectVideoStream(stream_id);
 }
 
+// Keep FramesDecoderBase::AddDecodeWork in sync with how this seeks
 void FramesDecoderBase::SeekFrame(int frame_id) {
   LOG_LINE << "SeekFrame: Seeking to frame " << frame_id
             << " (current=" << next_frame_idx_ << ")" << std::endl;
@@ -628,6 +629,40 @@ void FramesDecoderBase::SeekFrame(int frame_id) {
   LOG_LINE << "After skipping: next_frame_idx_=" << next_frame_idx_ << ", frame_id=" << frame_id
            << std::endl;
   assert(next_frame_idx_ == frame_id);
+}
+
+FramesDecoderBase::DecodePosition FramesDecoderBase::PositionAt(const FrameIndex &index,
+                                                                int next_frame) {
+  if (next_frame <= 0 || next_frame >= static_cast<int>(index.size()))
+    return {next_frame, -1};
+  // it decoded from the keyframe of the last frame read (or from before it)
+  int decoded = -1;
+  for (int i = index[next_frame - 1].last_keyframe_id; i < next_frame; i++)
+    decoded = std::max(decoded, index.DecodeIdx(i));
+  return {next_frame, decoded};
+}
+
+void FramesDecoderBase::AddDecodeWork(const FrameIndex &index, DecodePosition &pos, int frame,
+                                      DecodeWork &work) {
+  int n = index.size();
+  if (frame != pos.next_frame) {
+    if (pos.next_frame < 0 || pos.next_frame >= n) {  // Reset(): reopens the file
+      pos = {0, -1};
+      work.reopens++;
+    }
+    if (frame < pos.next_frame || frame > pos.next_frame + kMinimumSeekLeap) {
+      int keyframe = index[frame].last_keyframe_id;
+      if (index[pos.next_frame].last_keyframe_id != keyframe || frame < pos.next_frame)
+        pos = {keyframe, index.SeekDecodeIdx(keyframe) - 1};  // AvSeekFrame and Flush
+    }
+  }
+  // A frame is returned once the pictures up to its own (in decoding order) are decoded, so the
+  // decoder decodes up to the furthest picture of the frames it reads, skipped ones included
+  int start = pos.decoded;
+  for (int i = pos.next_frame; i <= frame; i++)
+    pos.decoded = std::max(pos.decoded, index.DecodeIdx(i));
+  work.pictures += pos.decoded - start;
+  pos.next_frame = frame + 1 < n ? frame + 1 : -1;
 }
 
 int FramesDecoderBase::HandleBoundary(boundary::BoundaryType boundary_type, int frame_id, int roi_start, int roi_end) {

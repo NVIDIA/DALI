@@ -295,6 +295,42 @@ class DLL_PUBLIC FramesDecoderBase {
   static constexpr int kMinimumSeekLeap = 10;
 
   /**
+   * @brief Where a decoder is, for estimating its work: the frame it returns next (as
+   * NextFrameIdx, -1 after the last one) and the decoding position of the last picture it
+   * decoded (-1: none).
+   */
+  struct DecodePosition {
+    int next_frame = 0;
+    int decoded = -1;
+  };
+
+  /**
+   * @brief Estimated work of a decoder: the pictures it decodes and the times it reopens the file.
+   */
+  struct DecodeWork {
+    int64_t pictures = 0;
+    int reopens = 0;
+  };
+
+  /**
+   * @brief The position of a decoder that read the frames up to `next_frame - 1` in a row.
+   *
+   * It is taken to have decoded from the keyframe of the last frame read; a decoder that
+   * decoded through from an earlier (open GOP) keyframe may be a few pictures further.
+   */
+  static DecodePosition PositionAt(const FrameIndex &index, int next_frame);
+
+  /**
+   * @brief Adds the work of returning `frame` from `pos` and advances `pos`.
+   *
+   * Mirrors SeekFrame and ReadNextFrame (keep them in sync), counting the pictures decoded, also
+   * the hidden ones (see IndexEntry::decode_idx), and a Reset as a reopening. Not modelled: a
+   * failed av_seek_frame (after which every seek resets the decoder).
+   */
+  static void AddDecodeWork(const FrameIndex &index, DecodePosition &pos, int frame,
+                            DecodeWork &work);
+
+  /**
    * @brief Handles boundary conditions for a given frame index.
    *
    * @param boundary_type The boundary type to apply.
@@ -430,6 +466,13 @@ class DLL_PUBLIC FramesDecoderBase {
     dtype_ = dtype;
   }
 
+  /**
+   * @brief Number of pictures decoded so far (for tests and diagnostics).
+   */
+  int64_t DecodedPictures() const {
+    return decoded_pictures_;
+  }
+
  protected:
   void DecodeFramesImpl(uint8_t *data, SmallVector<std::pair<int, int>, 32> frame_ids,
                         boundary::BoundaryType boundary_type,
@@ -461,6 +504,8 @@ class DLL_PUBLIC FramesDecoderBase {
 
   // False when the file doesn't have any correct content or doesn't have a valid video stream
   bool is_valid_ = false;
+
+  int64_t decoded_pictures_ = 0;  // see DecodedPictures
 
  private:
   void DetectVariableFrameRate();
