@@ -48,19 +48,21 @@ endif()
 separate_arguments(CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES_DIRECTIVE UNIX_COMMAND  "${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES_DIRECTIVE}")
 
 if (NOT LINK_DRIVER)
+  find_cuda_header(CUDA_DRIVER_INCLUDE_DIR cuda.h)
   set(CUDA_GENERATED_STUB "${CMAKE_CURRENT_BINARY_DIR}/dynlink_cuda_gen.cc")
   add_custom_command(
       OUTPUT ${CUDA_GENERATED_STUB}
       COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/../../internal_tools/stub_generator/stub_codegen.py --unique_prefix=Cuda --
                   "${CMAKE_CURRENT_SOURCE_DIR}/../../internal_tools/stub_generator/cuda.json" ${CUDA_GENERATED_STUB}
-                  "${CUDAToolkit_TARGET_DIR}/include/cuda.h" "-I${CUDAToolkit_TARGET_DIR}/include"
+                  "${CUDA_DRIVER_INCLUDE_DIR}/cuda.h" "-I${CUDA_DRIVER_INCLUDE_DIR}"
+                  "-I${CUDAToolkit_TARGET_DIR}/include"
                   # for some reason QNX fails with 'too many errors emitted' is this is not set
                   "-ferror-limit=0"
                   # let clang know which architecutre we compile for
                   "--target=${CMAKE_SYSTEM_PROCESSOR}-linux-gnu"
                   ${DEFAULT_COMPILER_INCLUDE}
       DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/../../internal_tools/stub_generator/stub_codegen.py
-              "${CUDAToolkit_TARGET_DIR}/include/cuda.h"
+              "${CUDA_DRIVER_INCLUDE_DIR}/cuda.h"
               "${CMAKE_CURRENT_SOURCE_DIR}/../../internal_tools/stub_generator/cuda.json"
       COMMENT "Running cuda.h stub generator"
       VERBATIM)
@@ -74,19 +76,21 @@ endif()
 list(FILTER DALI_CORE_SRCS EXCLUDE REGEX ".*dynlink_cuda.cc")
 
 if (BUILD_CUFILE)
+  find_cuda_header(CUFILE_INCLUDE_DIR cufile.h)
   set(CUFILE_GENERATED_STUB "${CMAKE_CURRENT_BINARY_DIR}/dynlink_cufile_gen.cc")
   add_custom_command(
       OUTPUT ${CUFILE_GENERATED_STUB}
       COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/../../internal_tools/stub_generator/stub_codegen.py --unique_prefix=Cufile --
                   "${CMAKE_CURRENT_SOURCE_DIR}/../../internal_tools/stub_generator/cufile.json" ${CUFILE_GENERATED_STUB}
-                  "${CUDAToolkit_TARGET_DIR}/include/cufile.h" "-I${CUDAToolkit_TARGET_DIR}/include"
+                  "${CUFILE_INCLUDE_DIR}/cufile.h" "-I${CUFILE_INCLUDE_DIR}"
+                  "-I${CUDAToolkit_TARGET_DIR}/include"
                   # for some reason QNX fails with 'too many errors emitted' is this is not set
                   "-ferror-limit=0"
                   # let clang know which architecutre we compile for
                   "--target=${CMAKE_SYSTEM_PROCESSOR}-linux-gnu"
                   ${DEFAULT_COMPILER_INCLUDE}
       DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/../../internal_tools/stub_generator/stub_codegen.py
-              "${CUDAToolkit_TARGET_DIR}/include/cufile.h"
+              "${CUFILE_INCLUDE_DIR}/cufile.h"
               "${CMAKE_CURRENT_SOURCE_DIR}/../../internal_tools/stub_generator/cufile.json"
       COMMENT "Running cufile.h stub generator"
       VERBATIM)

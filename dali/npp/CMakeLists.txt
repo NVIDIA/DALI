@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2017-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -39,19 +39,21 @@ endif()
 separate_arguments(CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES_DIRECTIVE UNIX_COMMAND  "${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES_DIRECTIVE}")
 
 if (WITH_DYNAMIC_NPP)
+    find_cuda_header(NPP_INCLUDE_DIR npp.h)
     set(NPP_GENERATED_STUB "${CMAKE_CURRENT_BINARY_DIR}/dynlink_npp_gen.cc")
     add_custom_command(
         OUTPUT ${NPP_GENERATED_STUB}
         COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/../../internal_tools/stub_generator/stub_codegen.py --unique_prefix=Npp --
                     "${CMAKE_CURRENT_SOURCE_DIR}/../../internal_tools/stub_generator/npp.json" ${NPP_GENERATED_STUB}
-                    "${CUDAToolkit_TARGET_DIR}/include/npp.h" "-I${CUDAToolkit_TARGET_DIR}/include"
+                    "${NPP_INCLUDE_DIR}/npp.h" "-I${NPP_INCLUDE_DIR}"
+                    "-I${CUDAToolkit_TARGET_DIR}/include"
                     # for some reason QNX fails with 'too many errors emitted' is this is not set
                     "-ferror-limit=0"
                     # let clang know which architecutre we compile for
                     "--target=${CMAKE_SYSTEM_PROCESSOR}-linux-gnu"
                     ${DEFAULT_COMPILER_INCLUDE}
         DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/../../internal_tools/stub_generator/stub_codegen.py
-                "${CUDAToolkit_TARGET_DIR}/include/npp.h"
+                "${NPP_INCLUDE_DIR}/npp.h"
                 "${CMAKE_CURRENT_SOURCE_DIR}/../../internal_tools/stub_generator/npp.json"
         COMMENT "Running npp.h stub generator"
         VERBATIM)
