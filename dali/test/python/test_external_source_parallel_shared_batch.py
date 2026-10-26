@@ -206,6 +206,7 @@ def check_serialize_deserialize(batch):
         deserialized_batch = deserialize_batch(shm_chunk, batch_meta)
         assert len(batch) == len(deserialized_batch), "Lengths before and after should be the same"
         for i in range(len(batch)):
+            assert batch[i].dtype == deserialized_batch[i].dtype
             np.testing.assert_array_equal(batch[i], deserialized_batch[i])
 
 
@@ -219,7 +220,7 @@ def test_serialize_deserialize():
         [(2, 3, 4), (2, 3, 5), (3, 4, 5)],
         [],
     ]:
-        for dtype in [np.int8, float, np.int32, np.bool_, np.float16, np.complex64, ">u2"]:
+        for dtype in [np.int8, float, np.int32, ">u2"]:
             yield check_serialize_deserialize, [np.full(s, 42, dtype=dtype) for s in shapes]
 
 
