@@ -44,6 +44,34 @@ check_required_paths() {
     fi
 }
 
+COCO_DIR=/data/coco/coco-2017/coco2017
+
+# Checks that COCO 2017 is mounted and exports DATA_DIR pointing to a directory with train2017,
+# val2017 and annotations. When only the zip archives are present, they are extracted to a
+# temporary directory and IS_TMP_DIR=1 is exported; the caller is responsible for removing it.
+prepare_coco_dataset() {
+    local archive
+    local -a archives=(train2017.zip val2017.zip annotations_trainval2017.zip)
+    check_required_paths "${COCO_DIR}"
+    export DATA_DIR=${COCO_DIR}
+    export IS_TMP_DIR=0
+    if [ ! -f "${COCO_DIR}/train2017/000000581929.jpg" ] && [ -f "${COCO_DIR}/train2017.zip" ]; then
+        command -v unzip >/dev/null || (apt update && apt install -y unzip)
+        export DATA_DIR=$(mktemp -d)
+        export IS_TMP_DIR=1
+        pushd "${DATA_DIR}"
+        for archive in "${archives[@]}"; do
+            cp "${COCO_DIR}/${archive}" . &
+        done
+        wait
+        for archive in "${archives[@]}"; do
+            unzip -q "${archive}" &
+        done
+        wait
+        popd
+    fi
+}
+
 # Finds a self-test binary and prints its canonical path. Pass `conda` to prefer
 # the package installed in the active Conda environment; other suites prefer the
 # local build tree so they test the code built by the current job.
