@@ -49,12 +49,6 @@ void SampleFrames(span<const int> frame_idxs, int start, int end, int stride,
   std::sort(frames.begin(), frames.end());
 }
 
-FramesDecoderBase::DecodePosition DecoderPosition(FramesDecoderBase &decoder) {
-  int next = decoder.NextFrameIdx();
-  return decoder.HasIndex() ? FramesDecoderBase::PositionAt(decoder.GetIndex(), next)
-                            : FramesDecoderBase::DecodePosition{next, -1};
-}
-
 namespace {
 
 using DecodePosition = FramesDecoderBase::DecodePosition;

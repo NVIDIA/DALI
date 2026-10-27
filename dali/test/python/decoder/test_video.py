@@ -17,6 +17,7 @@ from nvidia.dali import pipeline_def
 import numpy as np
 import cv2
 import av
+import contextlib
 import nvidia.dali.types as types
 import glob
 import os
@@ -1384,6 +1385,23 @@ def _lanes_reader_files(device):
     return cfr_files + vfr_files + (gpu_files if device == "gpu" else [])
 
 
+@contextlib.contextmanager
+def _strict_plans():
+    """Readers created in it fail a batch if a decode lane's decoder is not where the batch's plan
+    expects it (otherwise, decoding only follows a worse plan)."""
+    name = "DALI_VIDEO_READER_STRICT_PLANS"
+    old = os.environ.get(name)
+    os.environ[name] = "1"
+    try:
+        yield
+    finally:
+        if old is None:
+            del os.environ[name]
+        else:
+            os.environ[name] = old
+
+
+@_strict_plans()
 def _check_reader_output_independent_of_num_threads(
     device, kwargs, batch_size, num_threads, files=None, window=None
 ):

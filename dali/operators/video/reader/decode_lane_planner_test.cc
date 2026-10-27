@@ -50,6 +50,11 @@ LaneStart Held(std::string_view file, const FrameIndex &index, int next_frame) {
   return {file, FramesDecoderBase::PositionAt(index, next_frame)};
 }
 
+// Where a decoder with an index is, for LaneStart
+FramesDecoderBase::DecodePosition DecoderPosition(FramesDecoderBase &decoder) {
+  return FramesDecoderBase::PositionAt(decoder.GetIndex(), decoder.NextFrameIdx());
+}
+
 /**
  * @brief The runs of a batch, and the frames of their samples.
  */

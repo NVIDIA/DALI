@@ -74,12 +74,6 @@ DLL_PUBLIC void SampleFrames(span<const int> frame_idxs, int start, int end, int
                              SmallVector<int, 32> &frames);
 
 /**
- * @brief Where a decoder is, for LaneStart: from its index (see FramesDecoderBase::PositionAt) or,
- * without one, only its next frame.
- */
-DLL_PUBLIC FramesDecoderBase::DecodePosition DecoderPosition(FramesDecoderBase &decoder);
-
-/**
  * @brief Whether a decoder whose next frame is `next` decodes through to `frame` without
  * seeking (see FramesDecoderBase::SeekFrame).
  */

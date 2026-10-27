@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <algorithm>
+#include <cstdlib>
 #include <exception>
 #include <limits>
 #include <memory>
@@ -70,9 +71,10 @@ struct VideoSample : public VideoSampleDesc {
   Tensor<Backend> data_;
   std::vector<double> timestamps_;
   std::vector<int32_t> frame_idx_;
-  // Set once decoded. With pad_last_batch, the loader returns the last sample again, also in the
-  // next batch, which must not decode it again while the previous batch may still be read.
-  bool decoded = false;
+  // Set when the reader plans the sample's decoding. With pad_last_batch, the loader returns the
+  // last sample again, also in the next batch, which must not decode it again while the previous
+  // batch may still be read.
+  bool planned = false;
 };
 
 enum class FileListFormat {
@@ -408,6 +410,9 @@ class VideoReaderDecoder
         has_timestamps_(spec.GetArgument<bool>("enable_timestamps")),
         boundary_type_(GetBoundaryType(spec)),
         image_type_(spec.GetArgument<DALIImageType>("image_type")) {
+    // Test aid only: a lane's decoder that is not where the plan expects it fails the batch
+    const char *strict_plans = std::getenv("DALI_VIDEO_READER_STRICT_PLANS");
+    strict_plans_ = strict_plans && *strict_plans && std::string_view(strict_plans) != "0";
     loader_ = InitLoader<VideoLoaderImpl>(spec);
     this->SetInitialSnapshot();
 
@@ -579,7 +584,17 @@ class VideoReaderDecoder
     int batch_idx;  // first position of the sample in the batch
     int first;      // smallest frame index decoded; -1 if none (padding only)
     int last;       // largest frame index decoded; -1 if none
+    int end;        // where the sample leaves its decoder (see EndFrame)
     SmallVector<int, 32> frames;  // the frames the decoder seeks to, in order (see SampleFrames)
+  };
+
+  /**
+   * @brief Where a lane's decoder is, as planned: its file (empty: no decoder) and the frame it
+   * returns next (see Normalize).
+   */
+  struct LanePosition {
+    std::string filename;
+    int next_frame = -1;
   };
 
   /**
@@ -611,6 +626,12 @@ class VideoReaderDecoder
     // estimated work
     std::vector<int> runs;
     int64_t load = 0;
+    // Planning: where the decoder is when the lane starts the current batch, and where it is
+    // once the lane is done with it. The plans are made from these, not from the decoder.
+    LanePosition start, planned;
+    // Whether decoding a sample failed (and reset the decoder) since the lane last opened one:
+    // the decoder is then not where the plan expects it
+    bool failed = false;
     // Diagnostics: the pictures the plan expects the lane to decode, and those it decodes
     int64_t planned_pictures = 0;
     int64_t decoded_pictures = 0;
@@ -625,6 +646,84 @@ class VideoReaderDecoder
   // GPU: decode lanes per NVDEC engine. More sessions than engines keep an engine busy while a
   // lane does its host work between pictures; many more only add memory.
   static constexpr int kLanesPerEngine = 2;
+
+  // SampleTask::end of a sample that decodes no frame: its decoder stays where it was
+  static constexpr int kNoFrames = -2;
+
+  /**
+   * @brief A decoder's next frame as the planner sees it: CanReachWithoutSeek and resetting
+   * decoders (see FramesDecoderBase::SeekFrame) treat any frame < 0 or >= num_frames as the end
+   * of the file, so these are all -1.
+   */
+  static int Normalize(int next_frame, int num_frames) {
+    return next_frame < 0 || next_frame >= num_frames ? -1 : next_frame;
+  }
+
+  /**
+   * @brief Where decoding a sample leaves its decoder: after the largest frame it decodes
+   * (Normalized), or kNoFrames.
+   *
+   * DecodeFrames maps the frames into [0, num_frames) once more, which differs from the sample's
+   * own range (see SampleFrames) when it ends past the end of the file. It decodes the frames in
+   * order, so that the largest one is read last.
+   */
+  int EndFrame(const SampleTask &task, int num_frames) const {
+    int last = -1;
+    for (int frame : task.frames) {
+      last = std::max(last, FramesDecoderBase::HandleBoundary(boundary_type_, frame, 0,
+                                                              num_frames));
+    }
+    return last < 0 ? kNoFrames : Normalize(last + 1, num_frames);
+  }
+
+  /**
+   * @brief Where a lane's decoder is once it decodes `runs`, in order, from `pos`.
+   */
+  LanePosition PredictEnd(span<const int> runs, LanePosition pos) const {
+    for (int r : runs) {
+      for (int t : runs_[r].tasks) {
+        const auto &task = tasks_[t];
+        const auto &filename = task.sample->video_file_meta_->filename;
+        if (pos.filename != filename)
+          pos = {filename, 0};  // a newly opened decoder
+        if (task.end != kNoFrames)
+          pos.next_frame = task.end;
+      }
+    }
+    return pos;
+  }
+
+  /**
+   * @brief Whether a lane's decoder is at `pos`.
+   */
+  static bool IsAt(DecodeLane &lane, const LanePosition &pos) {
+    if (!lane.decoder)
+      return pos.filename.empty();
+    return lane.decoder->Filename() == pos.filename &&
+           Normalize(lane.decoder->NextFrameIdx(), lane.decoder->NumFrames()) == pos.next_frame;
+  }
+
+  /**
+   * @brief Checks that a lane's decoder is where the plan of its batch expects it.
+   *
+   * The plans are made from where decoding the samples leaves the decoders, which is where they
+   * are as long as they decode every frame they are asked for. If one is somewhere else, the lane
+   * still decodes the right frames (decoding seeks from where the decoder is), only the plan may
+   * be worse. With DALI_VIDEO_READER_STRICT_PLANS set (for tests), it is an error.
+   */
+  void CheckPlan(DecodeLane &lane) {
+    if (lane.failed || IsAt(lane, lane.start))
+      return;
+    LOG_LINE << "The decoder of a lane is at "
+             << (lane.decoder ? lane.decoder->Filename() : "no file") << ", frame "
+             << (lane.decoder ? lane.decoder->NextFrameIdx() : -1) << "; planned: "
+             << lane.start.filename << ", frame " << lane.start.next_frame << std::endl;
+    DALI_ENFORCE(!strict_plans_, make_string(
+        "Internal error: a video decoder is not where the plan expects it, at frame ",
+        lane.start.next_frame, " of \"", lane.start.filename, "\"; it is at frame ",
+        lane.decoder ? lane.decoder->NextFrameIdx() : -1, " of \"",
+        lane.decoder ? lane.decoder->Filename() : "", "\"."));
+  }
 
   /**
    * @brief Number of decode lanes: num_threads, but no more than the batch size and, on the GPU,
@@ -659,7 +758,7 @@ class VideoReaderDecoder
    * @brief Groups the batch's samples into runs: samples of one file that one decoder decodes in
    * a row without seeking.
    *
-   * A sample repeated in the batch (pad_last_batch) is decoded once, and a sample decoded in an
+   * A sample repeated in the batch (pad_last_batch) is decoded once, and a sample planned in an
    * earlier batch (padding repeats the last sample, also in the next batch) is not decoded again.
    */
   void PlanBatch() {
@@ -668,20 +767,22 @@ class VideoReaderDecoder
     runs_.clear();
     for (int i = 0; i < static_cast<int>(batch.size()); i++) {
       auto *sample = batch[i].get();
-      if (sample->decoded)
+      if (sample->planned)
         continue;
-      bool repeated = false;
-      for (auto &task : tasks_)
-        repeated = repeated || task.sample == sample;
-      if (repeated)
-        continue;
-      SampleTask task{sample, i, -1, -1, {}};
+      sample->planned = true;
+      const auto &filename = sample->video_file_meta_->filename;
+      auto index = FrameIndexCache::instance().Find(filename);
+      DALI_ENFORCE(index, make_string("Internal error: no frame index for \"", filename, "\"."));
+      SampleTask task{sample, i, -1, -1, -1, {}};
       try {
         SampleFrames(sample->frame_idxs_, sample->start_, sample->end_, sample->stride_,
                      boundary_type_, sample->video_file_meta_->start_frame,
                      sample->video_file_meta_->end_frame, task.frames);
+        task.end = EndFrame(task, index->size());
       } catch (...) {
-        task.frames.clear();  // decoding the sample reports the error, in its lane
+        // decoding the sample reports the error, in its lane, and resets the decoder
+        task.frames.clear();
+        task.end = -1;
       }
       if (!task.frames.empty()) {
         task.first = task.frames.front();
@@ -722,7 +823,8 @@ class VideoReaderDecoder
   }
 
   /**
-   * @brief Assigns the runs to lanes (see PlanLanes). A lane without runs releases its decoder.
+   * @brief Assigns the runs to lanes (see PlanLanes), from where the lanes' previous batches leave
+   * their decoders. A lane without runs releases its decoder.
    */
   void AssignRuns() {
     std::vector<FrameIndexCache::IndexPtr> indices;  // keeps the indices alive while planning
@@ -733,21 +835,27 @@ class VideoReaderDecoder
       for (int t : run.tasks)
         runs.back().samples.push_back(make_cspan(tasks_[t].frames));
     }
-    std::vector<std::string> filenames(lanes_.size());  // of the lanes' decoders
     std::vector<LaneStart> starts(lanes_.size());
     for (size_t l = 0; l < lanes_.size(); l++) {
-      if (lanes_[l].decoder) {
-        filenames[l] = lanes_[l].decoder->Filename();
-        starts[l] = {filenames[l], DecoderPosition(*lanes_[l].decoder)};
+      const auto &pos = lanes_[l].planned;
+      if (!pos.filename.empty()) {
+        indices.push_back(FrameIndexCache::instance().Find(pos.filename));
+        starts[l] = {pos.filename, FramesDecoderBase::PositionAt(*indices.back(), pos.next_frame)};
       }
     }
     PlanLanes(make_cspan(runs), make_cspan(starts), kOpenCost, plans_);
     for (size_t l = 0; l < lanes_.size(); l++) {
-      lanes_[l].runs = std::move(plans_[l].runs);
-      lanes_[l].load = plans_[l].load;
-      lanes_[l].planned_pictures = plans_[l].pictures;
-      if (lanes_[l].runs.empty() && lanes_.size() > 1)
-        lanes_[l].decoder.reset();  // do not keep its frame buffers and NVDEC decoder idle
+      auto &lane = lanes_[l];
+      lane.runs = std::move(plans_[l].runs);
+      lane.load = plans_[l].load;
+      lane.planned_pictures = plans_[l].pictures;
+      lane.start = lane.planned;
+      if (lane.runs.empty() && lanes_.size() > 1) {
+        lane.decoder.reset();  // do not keep its frame buffers and NVDEC decoder idle
+        lane.planned = {};
+      } else {
+        lane.planned = PredictEnd(make_cspan(lane.runs), std::move(lane.planned));
+      }
     }
   }
 
@@ -788,6 +896,12 @@ class VideoReaderDecoder
   void RunLane(DecodeLane &lane) {
     lane.errors.clear();
     lane.decoded_pictures = 0;
+    try {
+      CheckPlan(lane);
+    } catch (...) {
+      lane.errors.emplace_back(tasks_[runs_[lane.runs[0]].tasks[0]].batch_idx,
+                               std::current_exception());
+    }
     for (int r : lane.runs) {
       for (int t : runs_[r].tasks) {
         auto &task = tasks_[t];
@@ -798,10 +912,10 @@ class VideoReaderDecoder
             // copies) are reported for this sample
             CUDA_CALL(cudaStreamSynchronize(lane.stream ? lane.stream.get() : 0));
           }
-          task.sample->decoded = true;
         } catch (...) {
           lane.errors.emplace_back(task.batch_idx, std::current_exception());
           lane.decoder.reset();  // in an unknown state; its destructor waits for its stream
+          lane.failed = true;
         }
       }
     }
@@ -833,6 +947,7 @@ class VideoReaderDecoder
              << (lane.decoder ? lane.decoder->Filename() : "none") << std::endl;
     if (!lane.decoder || lane.decoder->Filename() != filename) {
       lane.decoder.reset();  // first: its frame buffers are freed before the new ones
+      lane.failed = false;
       if constexpr (std::is_same_v<Backend, CPUBackend>) {
         lane.decoder = std::make_unique<FramesDecoderImpl>(filename, image_type_);
       } else {
@@ -943,6 +1058,7 @@ class VideoReaderDecoder
   DALIImageType image_type_;
   std::vector<uint8_t> fill_value_;
   bool has_labels_ = false;
+  bool strict_plans_ = false;  // see CheckPlan
 
   bool use_streams_ = false;  // GPU: a stream per lane (false: the default stream, old drivers)
   std::vector<SampleTask> tasks_;
