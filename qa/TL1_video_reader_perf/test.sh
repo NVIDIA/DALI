@@ -58,8 +58,10 @@ install_reference_libs() {
 
 # Scenarios of internal_tools/video_reader_bench.py run for performance; see its --help
 PERF_SCENARIOS="lanes,engines,single_stream,reader_depth,cache_key,seq_longgop,random_access,cpu"
-# Scenarios whose output is checked to be independent of num_threads and reader_depth
-HASH_SCENARIOS="lanes,reader_depth,cache_key,cpu,seq_longgop,random_access"
+# Scenarios whose output is checked to be independent of num_threads and reader_depth, over two
+# epochs (decoders reused across batches, the epochs wrapping around)
+HASH_SCENARIOS="lanes,lanes_depth,reader_depth,cache_key,cpu,seq_longgop,random_access"
+HASH_EPOCHS=2
 BENCH_ARGS="--repeat 3 --iters 8 --min_time 3 -j 1,4,16 --readers 1,2,4"
 # engines: one H100 or GH200 reaches 3.6x with 4 readers (several NVDEC engines)
 ENGINES_SCALING=2.5
@@ -120,7 +122,7 @@ test_body() {
     # configuration is compared with all that differ from it only in those
     HASH_RESULT="OK"
     ${TASKSET} python video_reader_bench.py -s ${HASH_SCENARIOS} -j 1,16 --hash \
-        --json ${JSON_HASH} || HASH_RESULT="FAIL"
+        --hash_epochs ${HASH_EPOCHS} --json ${JSON_HASH} || HASH_RESULT="FAIL"
     python video_reader_bench.py --compare ${JSON_HASH} ${JSON_HASH} \
         --ignore threads,reader_depth || HASH_RESULT="FAIL"
 

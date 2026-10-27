@@ -61,9 +61,13 @@ Methodology:
     compare builds, not datasets
 
 --hash records a checksum of every sample (frames, label, frame_num) of at least
-HASH_MIN_SAMPLES samples, so that the reader's prefetch queue wraps around. Compare two
---hash result files (e.g. two builds, or --ignore threads to check that the output
-does not depend on num_threads) with --compare.
+HASH_MIN_SAMPLES samples, so that the reader's prefetch queue wraps around, and with
+--hash_epochs E of E epochs and one more batch, so that decoders are reused across
+batches and the reader wraps around its epochs. Compare two --hash result files (e.g. two
+builds, or --ignore threads to check that the output does not depend on num_threads) with
+--compare. --hash also runs the configurations only checksummed:
+  lanes_depth    batch 16 on several decode lanes with the reader's prefetch_queue_depth
+                 1 and 2: whole files in order and shuffled, and many distinct files
 
 Other readers and libraries (--backends), for reference:
   dali_legacy      DALI's legacy fn.readers.video (GPU, constant frame rate only: no cpu,
@@ -182,6 +186,7 @@ def _cfg(files, layout="plain", device="gpu", batch=8, seq=32, threads=4, **kw):
 
 
 def scenarios(threads, readers, quick=False):
+    """The configurations of every scenario (HASH_ONLY_SCENARIOS only with --hash)."""
     t_max = max(threads)
     t_pair = sorted({1, t_max})
     iters = {} if quick else dict(iters=20)
@@ -218,7 +223,23 @@ def scenarios(threads, readers, quick=False):
         "cpu": [
             _cfg("vpx_clips", "many:128", device="cpu", batch=8, seq=16, threads=t) for t in threads
         ],
+        # several decode lanes with up to two batches in the reader's queue (the other
+        # scenarios with several lanes use reader_depth 1)
+        "lanes_depth": [
+            _cfg(f, layout, batch=16, seq=32, threads=t, reader_depth=d, shuffle=s)
+            for f, layout, s in (
+                ("h264_clips", "plain", False),
+                ("h264_clips", "plain", True),
+                ("h264_clips", "many:256", False),
+            )
+            for d in (1, 2)
+            for t in threads
+        ],
     }
+
+
+# scenarios only checksummed (--hash), not measured
+HASH_ONLY_SCENARIOS = {"lanes_depth"}
 
 
 # scenarios that other backends run as well (reader_depth and engines measure properties of
@@ -794,12 +815,16 @@ def run_one(cfg, specs, args):
 
 
 def hash_one(cfg, specs, args):
-    """Returns one checksum per sample of the first batches (see HASH_MIN_SAMPLES)."""
+    """Returns one checksum per sample of the first batches (see HASH_MIN_SAMPLES and
+    --hash_epochs)."""
     pipe = build_pipeline(cfg, specs, args.device_id, args.seed, frame_num=True)
     pipe.build()
     hashes = []
     # Not dependent on threads or reader_depth, so that --compare --ignore can match runs
     batches = -(-HASH_MIN_SAMPLES // (cfg["batch"] * cfg["readers"]))  # ceil
+    if args.hash_epochs:
+        epoch = max(pipe.epoch_size(f"Reader{r}") for r in range(cfg["readers"]))
+        batches = max(batches, -(-args.hash_epochs * epoch // cfg["batch"]) + 1)
     for _ in range(batches):
         outs = [_as_cpu(t) for t in pipe.run()]
         for r in range(cfg["readers"]):
@@ -831,7 +856,7 @@ def child_main(args):
 def run_child(cfg, specs, args):
     cmd = [sys.executable, os.path.abspath(__file__), "--_single"]
     cmd += [json.dumps(dict(cfg=cfg, specs=specs))]
-    for flag in ("dali_extra", "device_id", "iters", "warmup", "min_time", "seed"):
+    for flag in ("dali_extra", "device_id", "iters", "warmup", "min_time", "seed", "hash_epochs"):
         cmd += [f"--{flag}", str(getattr(args, flag))]
     cmd += ["--hash"] if args.hash else []
     try:
@@ -1080,6 +1105,13 @@ def parse_args():
     parser.add_argument("--json", help="write results (with provenance) to this file")
     parser.add_argument("--quick", action="store_true", help="smoke test: tiny sweep, 1 run")
     parser.add_argument("--hash", action="store_true", help="record per-sample checksums")
+    parser.add_argument(
+        "--hash_epochs",
+        default=0,
+        type=int,
+        help="with --hash: checksum at least this many epochs of every configuration, and "
+        "one more batch",
+    )
     parser.add_argument("--compare", nargs=2, metavar=("A", "B"), help="compare two --hash files")
     parser.add_argument(
         "--ignore",
@@ -1122,13 +1154,19 @@ def main():
     threads = [int(t) for t in args.threads.split(",")]
     readers = [int(r) for r in args.readers.split(",")]
     all_scenarios = scenarios(threads, readers, args.quick)
-    names = list(all_scenarios) if args.scenarios == "all" else args.scenarios.split(",")
+    if args.scenarios == "all":
+        names = [n for n in all_scenarios if args.hash or n not in HASH_ONLY_SCENARIOS]
+    else:
+        names = args.scenarios.split(",")
     unknown = [n for n in names if n not in all_scenarios]
     if unknown:
         parser.error(
             f"--scenarios got unknown scenario(s) {unknown}; expected 'all' or a subset of "
             f"{list(all_scenarios)}."
         )
+    hash_only = [n for n in names if n in HASH_ONLY_SCENARIOS]
+    if hash_only and not args.hash:
+        parser.error(f"--scenarios {hash_only} run only with --hash.")
     if args.hash:
         args.repeat = 1
 
