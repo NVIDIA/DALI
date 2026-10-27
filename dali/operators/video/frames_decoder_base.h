@@ -328,6 +328,10 @@ class DLL_PUBLIC FramesDecoderBase {
 
   /**
    * @brief Estimated work of a decoder: the pictures it decodes and the times it reopens the file.
+   *
+   * A picture is a packet of the stream (see IndexEntry::decode_idx). The GPU decoder decodes
+   * more than one picture for a packet that holds several, e.g. a VP9 superframe with a hidden
+   * frame, or the two fields of an interlaced frame (see DecodedPictures).
    */
   struct DecodeWork {
     int64_t pictures = 0;
@@ -337,8 +341,8 @@ class DLL_PUBLIC FramesDecoderBase {
   /**
    * @brief The position of a decoder that read the frames up to `next_frame - 1` in a row.
    *
-   * It is taken to have decoded from the keyframe of the last frame read; a decoder that
-   * decoded through from an earlier (open GOP) keyframe may be a few pictures further.
+   * It has decoded the pictures of the frames read, and nothing after them. `next_frame` out of
+   * range is the position after the last frame.
    */
   static DecodePosition PositionAt(const FrameIndex &index, int next_frame);
 
@@ -346,8 +350,10 @@ class DLL_PUBLIC FramesDecoderBase {
    * @brief Adds the work of returning `frame` from `pos` and advances `pos`.
    *
    * Mirrors SeekFrame and ReadNextFrame (keep them in sync), counting the pictures decoded, also
-   * the hidden ones (see IndexEntry::decode_idx), and a Reset as a reopening. Not modelled: a
-   * failed av_seek_frame (after which every seek resets the decoder).
+   * the hidden ones (see IndexEntry::decode_idx), and a Reset as a reopening. A `frame` out of
+   * range (e.g. -1, a constant frame from HandleBoundary) is not decoded: it adds nothing and
+   * leaves `pos` as it is. Not modelled: a failed av_seek_frame (after which every seek resets
+   * the decoder).
    */
   static void AddDecodeWork(const FrameIndex &index, DecodePosition &pos, int frame,
                             DecodeWork &work);
@@ -490,9 +496,19 @@ class DLL_PUBLIC FramesDecoderBase {
 
   /**
    * @brief Number of pictures decoded so far (for tests and diagnostics).
+   *
+   * The CPU decoder counts the packets it sends to FFmpeg, the GPU decoder the pictures that
+   * NVDEC decodes: more than the packets when a packet holds several pictures (see DecodeWork).
    */
   int64_t DecodedPictures() const {
     return decoded_pictures_;
+  }
+
+  /**
+   * @brief Number of times the file was opened again by Reset (for tests and diagnostics).
+   */
+  int64_t Reopens() const {
+    return reopens_;
   }
 
  protected:
@@ -529,6 +545,7 @@ class DLL_PUBLIC FramesDecoderBase {
   bool is_valid_ = false;
 
   int64_t decoded_pictures_ = 0;  // see DecodedPictures
+  int64_t reopens_ = 0;  // see Reopens
 
  private:
   void DetectVariableFrameRate();
