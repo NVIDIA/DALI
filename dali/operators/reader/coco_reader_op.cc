@@ -16,7 +16,6 @@
 
 #include <set>
 #include <variant>
-#include "dali/core/call_at_exit.h"
 
 extern "C" {
 #include "third_party/cocoapi/common/maskApi.h"

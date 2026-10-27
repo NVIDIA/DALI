@@ -213,6 +213,19 @@ def test_coco_valid_rle_mask(counts, expected):
             np.testing.assert_array_equal(masks.at(0)[:, :, 0], expected)
 
 
+@params(
+    [[0, 0, 2, 0, 2, 2, 0, 2]],
+    [[0, 0, 1, 0, 1, 2, 0, 2], [1, 0, 2, 0, 2, 2, 1, 2]],
+)
+def test_coco_polygon_mask_ownership(polygons):
+    with tempfile.TemporaryDirectory() as directory:
+        write_coco_rle_annotations(directory, [polygons])
+        for preprocessed in (False, True):
+            pipe = coco_rle_masks_pipe(directory, preprocessed=preprocessed)
+            (masks,) = pipe.run()
+            np.testing.assert_array_equal(masks.at(0)[:, :, 0], [[1, 1], [1, 1]])
+
+
 @params(False, True)
 def test_coco_rle_mask_merge(zero_runs):
     with tempfile.TemporaryDirectory() as directory:
