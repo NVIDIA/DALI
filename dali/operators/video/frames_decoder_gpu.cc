@@ -901,6 +901,9 @@ void FramesDecoderGpu::Flush() {
 }
 
 FramesDecoderGpu::~FramesDecoderGpu() {
+  // frame_buffer_ goes back to the memory pool right after this, without stream ordering: wait
+  // for the copies out of it (CopyFrame, copyD2D) that may still be pending on stream_
+  CUDA_DTOR_CALL(cudaStreamSynchronize(stream_));
   filtered_packet_.reset();
   bsfc_.reset();
 }
