@@ -72,7 +72,7 @@ set_platform_params() {
             MIN_PERF_NDD=20000
             ;;
         *)
-            echo "Unsupported platform: ${arch}/${compute_cap}" >&2
+            echo "Unsupported platform: got ${arch}/${compute_cap}, expected x86_64 with any GPU, or aarch64 with GPU compute capability 9.0, 10.0, 10.3 or 10.7." >&2
             CLEAN_AND_EXIT 1
             ;;
     esac
