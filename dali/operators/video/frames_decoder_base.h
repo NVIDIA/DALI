@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@ extern "C" {
 #include <libavcodec/bsf.h>
 }
 
+#include <algorithm>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -66,29 +67,22 @@ struct FrameIndex {
   /**
    * @brief Returns the index of the frame that has the given timestamp
    *
+   * The entries must be sorted by pts, which BuildIndex guarantees.
+   *
    * @param timestamp Timestamp of the frame to seek to
    * @param rounddown If true, the seek will be to a frame that has this timestamp or a previous one
    */
   int GetFrameIdxByTimestamp(int64_t timestamp, bool rounddown = false) const {
     LOG_LINE << "GetFrameIdxByTimestamp: timestamp=" << timestamp << ", rounddown=" << rounddown
              << ", index_size=" << index.size() << std::endl;
-    int frame_idx = 0;
-    for (size_t i = 0; i < index.size(); i++) {
-      if (index[i].pts == timestamp) {
-        LOG_LINE << "Exact match found at index " << i << std::endl;
-        frame_idx = i;
-        break;
-      } else if (index[i].pts > timestamp) {
-        LOG_LINE << "Frame " << i << " with pts=" << index[i].pts << " is the first frame past the timestamp" << std::endl;
-        if (rounddown && i > 0) {
-          LOG_LINE << "Round down mode: previous frame " << i - 1 << " with pts=" << index[i - 1].pts << " is the last frame before the timestamp" << std::endl;
-          frame_idx = i - 1;
-        } else {
-          LOG_LINE << "Round up mode: frame " << i << " with pts=" << index[i].pts << " is the first frame past the timestamp" << std::endl;
-          frame_idx = i;
-        }
-        break;
-      }
+    // The first frame with pts >= timestamp
+    auto it = std::lower_bound(index.begin(), index.end(), timestamp,
+                               [](const IndexEntry &e, int64_t ts) { return e.pts < ts; });
+    int frame_idx = 0;  // returned when the timestamp is past the last frame
+    if (it != index.end()) {
+      frame_idx = it - index.begin();
+      if (it->pts > timestamp && rounddown && frame_idx > 0)
+        frame_idx--;
     }
     assert(frame_idx >= 0 && frame_idx < static_cast<int>(index.size()));
     LOG_LINE << "Returning frame_idx=" << frame_idx << std::endl;
