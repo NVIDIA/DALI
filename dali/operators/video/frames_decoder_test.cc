@@ -14,7 +14,9 @@
 
 #include <cuda_runtime_api.h>
 #include <algorithm>
+#include <cmath>
 #include <exception>
+#include <map>
 #include <random>
 #include <set>
 #include <string>
@@ -216,9 +218,44 @@ std::set<int> SeekTargets(const FrameIndex &index) {
   return targets;
 }
 
+// The timestamps of the packets where seeks to `timestamps` land, as AvSeekFrame seeks, asked to
+// a demuxer of its own
+std::vector<int64_t> SeekLandings(const std::string &path, const std::vector<int64_t> &timestamps) {
+  AVUniquePtr<AVFormatContext> ctx;
+  if (avformat_open_input(&ctx, path.c_str(), nullptr, nullptr) < 0) {
+    ADD_FAILURE() << "Cannot open " << path;
+    return {};
+  }
+  int stream = -1;
+  if (avformat_find_stream_info(ctx, nullptr) >= 0)
+    stream = av_find_best_stream(ctx, AVMEDIA_TYPE_VIDEO, -1, -1, nullptr, 0);
+  if (stream < 0) {
+    ADD_FAILURE() << "No video stream in " << path;
+    return {};
+  }
+  AVUniquePtr<AVPacket> packet(av_packet_alloc());
+  std::vector<int64_t> landings;
+  for (int64_t ts : timestamps) {
+    int64_t landing = AV_NOPTS_VALUE;
+    if (av_seek_frame(ctx, stream, ts, AVSEEK_FLAG_BACKWARD) >= 0) {
+      while (av_read_frame(ctx, packet) == 0) {
+        bool found = packet->stream_index == stream;
+        if (found)
+          landing = packet->pts != AV_NOPTS_VALUE ? packet->pts : packet->dts;
+        av_packet_unref(packet);
+        if (found)
+          break;
+      }
+    }
+    landings.push_back(landing);
+  }
+  return landings;
+}
+
 // Checks the decoding order in the index of a file without hidden packets, where a seek to a
-// keyframe lands on the keyframe itself
-void CheckDecodeOrder(const FrameIndex &index) {
+// keyframe lands on the keyframe itself (BuildIndex records this without asking the demuxer, so
+// it is asked here)
+void CheckDecodeOrder(const FrameIndex &index, const std::string &path) {
   int n = index.size();
   std::vector<int> decode_idx;
   for (int i = 0; i < n; i++)
@@ -237,6 +274,13 @@ void CheckDecodeOrder(const FrameIndex &index) {
       EXPECT_EQ(index[i].seek_decode_idx, -1) << "frame " << i << " is not a seek target";
     }
   }
+  std::vector<int64_t> timestamps;
+  for (int target : targets)
+    timestamps.push_back(index[target].pts);
+  auto landings = SeekLandings(path, timestamps);
+  ASSERT_EQ(landings.size(), timestamps.size());
+  for (size_t i = 0; i < landings.size(); i++)
+    EXPECT_EQ(landings[i], timestamps[i]) << path << ": a seek to " << timestamps[i];
 }
 
 std::string SintelVideoFile(int clip) {
@@ -279,12 +323,15 @@ constexpr int kGpuPictureSlack = 1;
 
 /**
  * @brief Decodes `frame_ids` as the reader does (padded by clamping) and checks that the decoder
- * decodes the pictures that AddDecodeWork estimates from `pos` (give or take `slack`), and ends
- * where `pos` does.
+ * decodes the pictures that AddDecodeWork estimates from `pos`, reopens the file as estimated,
+ * and ends where `pos` does.
+ *
+ * The decoder may decode up to `slack` pictures more than estimated, which its next frames then do
+ * not cost: `surplus` carries how many pictures it may be ahead from the previous samples.
  */
 void CheckDecodeWork(FramesDecoderBase &decoder, FramesDecoderBase::DecodePosition &pos,
-                     const std::vector<int> &frame_ids, uint8_t *buffer, int slack,
-                     const std::string &what) {
+                     int64_t &surplus, const std::vector<int> &frame_ids, uint8_t *buffer,
+                     int slack, const std::string &what) {
   ASSERT_LE(frame_ids.size(), static_cast<size_t>(kMaxDecodeWorkFrames));
   auto &index = decoder.GetIndex();
   int n = index.size();
@@ -298,8 +345,14 @@ void CheckDecodeWork(FramesDecoderBase &decoder, FramesDecoderBase::DecodePositi
     FramesDecoderBase::AddDecodeWork(index, pos, frame, work);
 
   int64_t before = decoder.DecodedPictures();
+  int64_t reopens_before = decoder.Reopens();
   decoder.DecodeFrames(buffer, make_cspan(frame_ids), boundary::BoundaryType::CLAMP);
-  EXPECT_NEAR(decoder.DecodedPictures() - before, work.pictures, slack) << what;
+  int64_t ahead = decoder.DecodedPictures() - before - work.pictures;
+  EXPECT_GE(ahead, -surplus) << what;
+  EXPECT_LE(ahead, slack) << what;
+  // a seek drops the surplus, so this is an upper bound
+  surplus = std::clamp<int64_t>(surplus + ahead, 0, slack);
+  EXPECT_EQ(decoder.Reopens() - reopens_before, work.reopens) << what;
   EXPECT_EQ(decoder.NextFrameIdx(), pos.next_frame) << what;
 }
 
@@ -313,24 +366,25 @@ void CheckDecodeWorkScenarios(FramesDecoderBase &decoder, uint8_t *buffer, int s
   int n = index.size();
   ASSERT_GE(n, 40);
   FramesDecoderBase::DecodePosition pos;  // a new decoder
+  int64_t surplus = 0;
   int a = std::min(kMaxDecodeWorkFrames, n / 5);
   int next = a;
   auto check = [&](const std::string &what, const std::vector<int> &frames) {
-    CheckDecodeWork(decoder, pos, frames, buffer, slack, make_string(path, ": ", what));
+    CheckDecodeWork(decoder, pos, surplus, frames, buffer, slack, make_string(path, ": ", what));
     next = pos.next_frame;
   };
   check("fresh", FrameRange(0, a));
   check("continue", FrameRange(next, next + 8));
-  static_assert(FramesDecoderBase::kMinimumSeekLeap >= 5);
-  check("short leap", FrameRange(next + 5, next + 9));
-  check("far jump", FrameRange(next + 20, std::min(next + 23, n)));
-  int keyframe = next < 0 ? n : next + 1;
+  // Early in the file, so that there is a keyframe ahead and room for the leaps after it
+  int keyframe = next + 1;
   while (keyframe < n && !index[keyframe].is_keyframe)
     keyframe++;
-  if (keyframe < n - 4)
+  if (keyframe + 4 + 9 < n - 4)
     check("across a keyframe", FrameRange(keyframe + 1, keyframe + 4));
-  else
-    check("near the end", FrameRange(3 * n / 4, 3 * n / 4 + 3));
+  static_assert(FramesDecoderBase::kMinimumSeekLeap >= 5);
+  check("short leap", FrameRange(next + 5, next + 9));
+  int far = std::min(next + 20, n - 4);  // not to the last frame: the next sample seeks backward
+  check("far jump", FrameRange(far, far + 3));
   check("backward", FrameRange(5, 9));
   check("duplicate", {12, 12, 13});
   check("last frame, twice", {n - 1, n - 1});
@@ -390,7 +444,123 @@ void CheckGpuPositionAt(const std::vector<std::string> &paths) {
   }
 }
 
+// An index built by hand: the decoding position of each frame (-1: unknown), its keyframes, and
+// where seeks to some of them land
+FrameIndex MakeIndex(const std::vector<int> &decode_idx, const std::set<int> &keyframes,
+                     const std::map<int, int> &seek_decode_idx = {}) {
+  FrameIndex index;
+  int last_keyframe = 0;
+  for (int i = 0; i < static_cast<int>(decode_idx.size()); i++) {
+    IndexEntry entry;
+    entry.pts = i;
+    entry.is_keyframe = keyframes.count(i) > 0;
+    if (entry.is_keyframe)
+      last_keyframe = i;
+    entry.last_keyframe_id = last_keyframe;
+    entry.is_flush_frame = false;
+    entry.decode_idx = decode_idx[i];
+    index.index.push_back(entry);
+  }
+  for (auto [frame, landing] : seek_decode_idx)
+    index[frame].seek_decode_idx = landing;
+  return index;
+}
+
+struct DecodeStep {
+  int frame;
+  int64_t pictures;  // decoded to return it
+  int reopens;
+  int next_frame;  // after it
+};
+
+void CheckDecodeSteps(const FrameIndex &index, const std::vector<DecodeStep> &steps) {
+  FramesDecoderBase::DecodePosition pos;
+  for (auto &step : steps) {
+    FramesDecoderBase::DecodeWork work;
+    FramesDecoderBase::AddDecodeWork(index, pos, step.frame, work);
+    EXPECT_EQ(work.pictures, step.pictures) << "frame " << step.frame;
+    EXPECT_EQ(work.reopens, step.reopens) << "frame " << step.frame;
+    EXPECT_EQ(pos.next_frame, step.next_frame) << "frame " << step.frame;
+  }
+}
+
+// PositionAt gives the position of a decoder that read the frames before it in a row
+void CheckPositionAtInARow(const FrameIndex &index) {
+  int n = index.size();
+  FramesDecoderBase::DecodePosition pos;
+  for (int k = 0; k < n; k++) {
+    auto at = FramesDecoderBase::PositionAt(index, k);
+    EXPECT_EQ(at.next_frame, pos.next_frame) << "frame " << k;
+    EXPECT_EQ(at.decoded, pos.decoded) << "frame " << k;
+    FramesDecoderBase::DecodeWork work;
+    FramesDecoderBase::AddDecodeWork(index, pos, k, work);
+  }
+  EXPECT_EQ(FramesDecoderBase::PositionAt(index, n).next_frame, -1);
+  EXPECT_EQ(FramesDecoderBase::PositionAt(index, -1).next_frame, -1);
+}
+
 }  // namespace
+
+static_assert(FramesDecoderBase::kMinimumSeekLeap == 10, "the steps below assume it");
+
+// Exact estimates on hand-built indices: B-frames, a hidden lead-in, a seek that lands before its
+// keyframe and an open GOP, which the decoder tests only cover with real files and some slack
+TEST(FramesDecoderDecodeWorkTest, ReorderedWithLeadIn) {
+  // 8 GOPs of 4 frames, shown as I B B P and decoded as I P B B, after 2 hidden packets. A seek to
+  // frame 0 lands on the first hidden packet, and a seek to frame 16 on the keyframe before it.
+  std::vector<int> decode_idx;
+  std::set<int> keyframes;
+  for (int g = 0; g < 8; g++) {
+    int d = 2 + 4 * g;
+    decode_idx.insert(decode_idx.end(), {d, d + 2, d + 3, d + 1});
+    keyframes.insert(4 * g);
+  }
+  auto index = MakeIndex(decode_idx, keyframes, {{0, 0}, {16, 14}});
+  EXPECT_EQ(index.SeekDecodeIdx(0), 0);
+  EXPECT_EQ(index.SeekDecodeIdx(16), 14);
+  EXPECT_EQ(index.SeekDecodeIdx(20), 22);  // unknown: the keyframe itself
+  CheckDecodeSteps(index, {
+    {0, 3, 0, 1},     // the hidden packets and the I-frame
+    {1, 2, 0, 2},     // the P-frame and the first B-frame
+    {2, 1, 0, 3},
+    {3, 0, 0, 4},     // the P-frame, already decoded
+    {6, 4, 0, 7},     // decoding through, from frame 4
+    {20, 1, 0, 21},   // a far jump, to a keyframe
+    {17, 7, 0, 18},   // backward: the seek to frame 16 lands on frame 12
+    {31, 4, 0, -1},   // the last frame
+    {31, 4, 1, -1},   // again: reopens the file, then seeks to frame 28
+    {2, 6, 1, 3},     // after the end: reopens the file and decodes from the start
+    {-1, 0, 0, 3},    // a constant frame: not decoded
+    {32, 0, 0, 3},    // past the end: not decoded
+    {13, 11, 0, 14},  // a leap of kMinimumSeekLeap frames: decoding through 2 keyframes
+    {15, 1, 0, 16},
+  });
+  CheckPositionAtInARow(index);
+  EXPECT_EQ(FramesDecoderBase::PositionAt(index, 6).decoded, 8);
+}
+
+TEST(FramesDecoderDecodeWorkTest, OpenGop) {
+  // Shown as I P B B I P, decoded as I P I B B P: the B-frames are decoded after the second
+  // keyframe, and a decoder that read them is past it
+  auto index = MakeIndex({0, 1, 3, 4, 2, 5}, {0, 4});
+  CheckDecodeSteps(index, {{0, 1, 0, 1}, {1, 1, 0, 2}, {2, 2, 0, 3}, {3, 1, 0, 4}, {4, 0, 0, 5},
+                           {5, 1, 0, -1}});
+  CheckPositionAtInARow(index);
+  EXPECT_EQ(FramesDecoderBase::PositionAt(index, 5).decoded, 4);
+}
+
+TEST(FramesDecoderDecodeWorkTest, NoDecodeOrder) {
+  // One GOP of 30 frames, without decoding positions: taken in display order
+  auto index = MakeIndex(std::vector<int>(30, -1), {0});
+  EXPECT_EQ(index.DecodeIdx(7), 7);
+  EXPECT_EQ(index.SeekDecodeIdx(0), 0);
+  CheckDecodeSteps(index, {
+    {0, 1, 0, 1},
+    {20, 20, 0, 21},  // past kMinimumSeekLeap, but the same keyframe: decoding through
+    {5, 6, 0, 6},     // backward: seeks to frame 0
+  });
+  CheckPositionAtInARow(index);
+}
 
 TEST_F(FramesDecoderTest_CpuOnlyTests, DecodeWork) {
   for (auto &path : {cfr_videos_paths_[0], vfr_videos_paths_[0],
@@ -434,7 +604,7 @@ TEST_F(FramesDecoderTest_CpuOnlyTests, IndexDecodeOrder) {
     FramesDecoderCpu decoder(path);
     decoder.BuildIndex();
     auto &index = decoder.GetIndex();
-    CheckDecodeOrder(index);
+    CheckDecodeOrder(index, path);
     for (size_t i = 0; i < index.size(); i++)  // VP9 has no reordering
       EXPECT_EQ(index[i].decode_idx, static_cast<int>(i)) << path;
   }
@@ -445,7 +615,7 @@ TEST_F(FramesDecoderGpuTest, IndexDecodeOrder) {
   for (auto &path : {cfr_videos_paths_[0], h264_path}) {
     FramesDecoderGpu decoder(path);
     decoder.BuildIndex();
-    CheckDecodeOrder(decoder.GetIndex());
+    CheckDecodeOrder(decoder.GetIndex(), path);
   }
 }
 

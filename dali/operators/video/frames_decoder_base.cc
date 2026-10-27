@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include "dali/operators/video/frames_decoder_base.h"
+#include <algorithm>
 #include <iomanip>
 #include <memory>
 #include <unordered_map>
@@ -606,8 +607,11 @@ void FramesDecoderBase::BuildIndex() {
   // demuxer is asked, as its rule is not exposed: e.g. mov searches its sync samples by decoding
   // timestamp, offset by the edit list, so a seek can land a whole GOP (or a hidden lead-in)
   // before the keyframe. Asking reads a packet per target, which in an all-intra stream would
-  // read the whole file again.
-  bool ask_demuxer = has_hidden_packets;
+  // read the whole file again; there, decoding and display order match and a seek lands on the
+  // keyframe, so the demuxer is not asked.
+  bool all_keyframes = std::all_of(index_.index.begin(), index_.index.end(),
+                                   [](const IndexEntry &e) { return e.is_keyframe; });
+  bool ask_demuxer = has_hidden_packets && !all_keyframes;
   int prev_target = -1;
   for (size_t i = 0; i < index_.size(); i++) {
     int target = index_[i].last_keyframe_id;
@@ -695,6 +699,7 @@ void FramesDecoderBase::Reset() {
   is_valid_ = true;
   can_seek_ = true;
   next_frame_idx_ = 0;
+  reopens_++;
 
   SelectVideoStream(stream_id);
 }
@@ -775,11 +780,18 @@ void FramesDecoderBase::SeekFrame(int frame_id) {
 
 FramesDecoderBase::DecodePosition FramesDecoderBase::PositionAt(const FrameIndex &index,
                                                                 int next_frame) {
-  if (next_frame <= 0 || next_frame >= static_cast<int>(index.size()))
-    return {next_frame, -1};
-  // it decoded from the keyframe of the last frame read (or from before it)
+  if (next_frame < 0 || next_frame >= static_cast<int>(index.size()))
+    return {-1, -1};
+  if (next_frame == 0)
+    return {0, -1};
+  // It decoded the pictures of all the frames read. These are decoded after the keyframe of the
+  // last frame read, or after the keyframe before it: the leading pictures of an open GOP are
+  // shown before its keyframe, but decoded after it.
+  int first = index[next_frame - 1].last_keyframe_id;
+  if (first > 0)
+    first = index[first - 1].last_keyframe_id;
   int decoded = -1;
-  for (int i = index[next_frame - 1].last_keyframe_id; i < next_frame; i++)
+  for (int i = first; i < next_frame; i++)
     decoded = std::max(decoded, index.DecodeIdx(i));
   return {next_frame, decoded};
 }
@@ -787,6 +799,8 @@ FramesDecoderBase::DecodePosition FramesDecoderBase::PositionAt(const FrameIndex
 void FramesDecoderBase::AddDecodeWork(const FrameIndex &index, DecodePosition &pos, int frame,
                                       DecodeWork &work) {
   int n = index.size();
+  if (frame < 0 || frame >= n)
+    return;  // not decoded: DecodeFramesImpl copies a constant or the last frame
   if (frame != pos.next_frame) {
     if (pos.next_frame < 0 || pos.next_frame >= n) {  // Reset(): reopens the file
       pos = {0, -1};
