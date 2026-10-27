@@ -79,13 +79,25 @@ struct FrameIndex {
     auto it = std::lower_bound(index.begin(), index.end(), timestamp,
                                [](const IndexEntry &e, int64_t ts) { return e.pts < ts; });
     int frame_idx = 0;  // returned when the timestamp is past the last frame
+  #if LOGS_ENABLED
+    std::optional<int64_t> pts_found = {};
+  #endif
     if (it != index.end()) {
       frame_idx = it - index.begin();
       if (it->pts > timestamp && rounddown && frame_idx > 0)
         frame_idx--;
+    #if LOGS_ENABLED
+      pts_found = index[frame_idx].pts;
+    #endif
     }
     assert(frame_idx >= 0 && frame_idx < static_cast<int>(index.size()));
-    LOG_LINE << "Returning frame_idx=" << frame_idx << std::endl;
+  #if LOGS_ENABLED
+    if (pts_found) {
+      LOG_LINE << "Returning frame_idx=" << frame_idx << " with pts=" << *pts_found << std::endl;
+    } else {
+      LOG_LINE << "Returning frame_idx=" << frame_idx << " (frame not found)" << std::endl;
+    }
+  #endif
     return frame_idx;
   }
 };
