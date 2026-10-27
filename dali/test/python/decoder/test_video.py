@@ -1493,9 +1493,9 @@ def test_reader_multi_run_lanes_output_independent_of_num_threads(device, case):
     )
 
 
-# With more than one lane, the lanes decode the batches from their queues on their own threads,
-# while the reader's queue (prefetch_queue_depth) holds earlier batches. Two epochs, so that
-# decoders carry over from batch to batch and into the next epoch
+# With more than one lane, the lanes decode the next batch while the slowest lane finishes the
+# current one, and while the reader's queue (prefetch_queue_depth) holds earlier batches. Two
+# epochs, so that decoders carry over from batch to batch and into the next epoch
 @cartesian_params(["cpu", "gpu"], (0, 3, 6), (1, 2))
 def test_reader_output_independent_of_num_threads_reader_depth(device, case, reader_depth):
     skip_if_m60()
@@ -1576,8 +1576,8 @@ def _num_frames(filename, device):
 @cartesian_params(("cpu", "gpu"), (1, 4), (1, 2))
 @_strict_plans()
 def test_reader_reports_first_error_of_batch(device, num_threads, reader_depth):
-    """Samples fail in two lanes of a batch and in the next batch: the error is the first one of
-    the batch, at that batch, whatever the lanes' timing."""
+    """Samples fail in two lanes of a batch and in the next batch, which lanes may be decoding
+    already: the error is the first one of the batch, at that batch, whatever the lanes' timing."""
     skip_if_m60()
     batch_size = 4
     files = cfr_files  # with different numbers of frames
@@ -1609,7 +1609,7 @@ def test_reader_reports_first_error_of_batch(device, num_threads, reader_depth):
         expected = rf"frame index {num_frames[0] + 10} .*\[0, {num_frames[0]}\)"
         with assert_raises(RuntimeError, regex=expected):
             p.run()
-        del p  # destroyed right after the error
+        del p  # destroyed right after the error, while lanes may still be decoding batch 2
     finally:
         os.remove(file_list.name)
 
@@ -1617,7 +1617,7 @@ def test_reader_reports_first_error_of_batch(device, num_threads, reader_depth):
 @params("cpu", "gpu")
 @_strict_plans()
 def test_reader_destroyed_while_decoding(device):
-    """The reader is destroyed while its lanes decode, or before it starts them."""
+    """The reader is destroyed with its lanes decoding batches ahead, or before it starts them."""
     skip_if_m60()
 
     @pipeline_def(batch_size=4, num_threads=4, device_id=0)

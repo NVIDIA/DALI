@@ -694,6 +694,12 @@ class VideoReaderDecoder
   // lane does its host work between pictures; many more only add memory.
   static constexpr int kLanesPerEngine = 2;
 
+  // With more than one lane: the batches read and decoded ahead of the one being published, so that
+  // a lane that is done with its part of a batch goes on to the next one, instead of waiting for
+  // the slowest lane. Each holds one more batch of samples (of the loader's 2 *
+  // prefetch_queue_depth batches).
+  static constexpr int kDecodeAhead = 1;
+
   // SampleTask::end of a sample that decodes no frame: its decoder stays where it was
   static constexpr int kNoFrames = -2;
 
@@ -790,6 +796,7 @@ class VideoReaderDecoder
 
   void InitLanes(const OpSpec &spec) {
     lanes_.resize(NumLanes(spec));
+    decode_ahead_ = lanes_.size() > 1 ? kDecodeAhead : 0;
     lane_device_id_ = spec.GetArgument<int>("device_id");
     for (auto &lane : lanes_) {
       lane.constant_frame.set_pinned(std::is_same_v<Backend, GPUBackend>);
@@ -1257,7 +1264,9 @@ The following codecs are supported by the GPU backend only:
 The samples of a batch are decoded in parallel, by up to ``num_threads`` decoders (on the GPU, at
 most two per NVDEC engine of the device). Consecutive samples of one file that can be decoded
 without seeking are decoded by the same decoder, one after another. Every decoder has its own
-frame buffers, so the memory used grows with the number of decoders.
+frame buffers, so the memory used grows with the number of decoders. With more than one decoder,
+the decoders that are done with their part of a batch start on the next batch, so up to one more
+batch of decoded samples is held in memory (host memory for the CPU backend).
 
 The outputs of the operator are: video, [labels], [frame_num], [timestamps].
 
