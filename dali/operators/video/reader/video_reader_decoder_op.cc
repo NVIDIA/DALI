@@ -13,7 +13,6 @@
 // limitations under the License.
 
 #include <string>
-#include <shared_mutex>
 #include <unordered_map>
 #include <vector>
 
@@ -25,6 +24,7 @@
 #include "dali/operators/video/frames_decoder_base.h"
 #include "dali/operators/video/frames_decoder_cpu.h"
 #include "dali/operators/video/frames_decoder_gpu.h"
+#include "dali/operators/video/reader/frame_index_cache.h"
 #include "dali/operators/video/video_utils.h"
 #if NVML_ENABLED
 #include "dali/util/nvml.h"
@@ -33,49 +33,6 @@
 #include "libavutil/rational.h"
 
 namespace dali {
-
-class FrameIndexCache {
- private:
-  std::unordered_map<std::string, FrameIndex> index_cache_;
-  mutable std::shared_mutex rw_mutex_;
-
-  FrameIndexCache() = default;
-
-  ~FrameIndexCache() {
-#ifdef NDEBUG
-    size_t total_size = 0;
-    for (const auto& entry : index_cache_) {
-      total_size += entry.first.size();  // filename string size
-      total_size += entry.second.size() * sizeof(IndexEntry);  // index entries size
-    }
-    LOG_LINE << "FrameIndexCache stats: " << std::endl;
-    LOG_LINE << "  Number of cached files: " << index_cache_.size() << std::endl;
-    LOG_LINE << "  Total memory used: " << total_size << " bytes" << std::endl;
-#endif
-  }
-
- public:
-  static FrameIndexCache& instance() {
-    static FrameIndexCache cache;
-    return cache;
-  }
-
-  std::unordered_map<std::string, FrameIndex>::iterator find(const std::string& filename) {
-    std::shared_lock<std::shared_mutex> read_lock(rw_mutex_);
-    return index_cache_.find(filename);
-  }
-
-  std::unordered_map<std::string, FrameIndex>::iterator end() {
-    std::shared_lock<std::shared_mutex> read_lock(rw_mutex_);
-    return index_cache_.end();
-  }
-
-  void insert(const std::string& filename, const FrameIndex& index) {
-    std::unique_lock<std::shared_mutex> write_lock(rw_mutex_);
-    index_cache_[filename] = index;
-  }
-};
-
 
 struct VideoSampleDesc {
   VideoSampleDesc(const VideoFileMeta *video_file_meta = nullptr, int start = -1, int end = -1, int stride = -1)
@@ -257,6 +214,15 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
     MoveToNextShard(++current_index_);
   }
 
+  /**
+   * @brief The frame index of one of the reader's files, nullptr if the file was not indexed
+   *        (it is not a valid video).
+   */
+  const FrameIndex *FileIndex(const std::string &filename) const {
+    auto it = indices_.find(filename);
+    return it != indices_.end() ? it->second.get() : nullptr;
+  }
+
   Index SizeImpl() override {
     return samples_.size();
   }
@@ -270,6 +236,8 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
     for (size_t i = 0; i < video_files_info_.size(); ++i) {
       auto& entry = video_files_info_[i];
       LOG_LINE << "Processing video file " << i << ": " << entry.filename << std::endl;
+      // the version of the file that the decoder opens (see FrameIndexCache::GetOrBuild)
+      auto stamp = FrameIndexCache::FileStamp::Of(entry.filename);
       std::unique_ptr<FramesDecoderImpl> decoder;
       if constexpr(std::is_same_v<Backend, CPUBackend>) {
         decoder = std::make_unique<FramesDecoderImpl>(entry.filename, image_type_);
@@ -280,15 +248,14 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
         LOG_LINE << "Invalid video file: " << entry.filename << std::endl;
         continue;
       }
-      auto it = FrameIndexCache::instance().find(entry.filename);
-      if (it == FrameIndexCache::instance().end()) {
+      auto index = FrameIndexCache::instance().GetOrBuild(entry.filename, stamp, [&]() {
         LOG_LINE << "Building index for " << entry.filename << std::endl;
         decoder->BuildIndex();
-        FrameIndexCache::instance().insert(entry.filename, decoder->GetIndex());
-      } else {
-        LOG_LINE << "Reusing index for " << entry.filename << std::endl;
-        decoder->SetIndex(it->second);
-      }
+        return decoder->GetIndex();
+      });
+      if (!decoder->HasIndex())
+        decoder->SetIndex(*index);
+      indices_[entry.filename] = index;  // kept for the reader's lifetime
       int64_t num_frames = decoder->NumFrames();
       entry.start_frame = 0;
       entry.end_frame = num_frames;
@@ -414,6 +381,9 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
   FileListOptions file_list_opts_;
 
   std::vector<VideoFileMeta> video_files_info_;
+  // the frame indices of the valid files, built (or found in FrameIndexCache) by
+  // PrepareMetadataImpl
+  std::unordered_map<std::string, FrameIndexCache::IndexPtr> indices_;
   std::vector<std::vector<int>> all_frame_idxs_;  // owns frame index data; samples_ hold spans into these
   std::vector<VideoSampleDesc> samples_;
   CUDAStreamLease cuda_stream_;
@@ -595,6 +565,13 @@ class VideoReaderDecoder
     return true;
   }
 
+  /**
+   * @brief The frame index of one of the reader's files (see VideoLoaderDecoder::FileIndex).
+   */
+  const FrameIndex *FileIndex(const std::string &filename) const {
+    return static_cast<const VideoLoaderImpl &>(*loader_).FileIndex(filename);
+  }
+
   void Prefetch() override {
     Base::Prefetch();
     auto &current_batch = prefetched_batch_queue_[curr_batch_producer_];
@@ -613,15 +590,11 @@ class VideoReaderDecoder
         }
         LOG_LINE << "Initialized decoder to " << decoder_->Filename() << " ptr: " << decoder_.get()
                  << " num_frames: " << decoder_->NumFrames() << std::endl;
-        auto it = FrameIndexCache::instance().find(filename);
-        if (it == FrameIndexCache::instance().end()) {
-          LOG_LINE << "Building index for " << filename << std::endl;
-          decoder_->BuildIndex();
-          FrameIndexCache::instance().insert(filename, decoder_->GetIndex());
-        } else {
-          LOG_LINE << "Reusing index for " << filename << std::endl;
-          decoder_->SetIndex(it->second);
-        }
+        // the index the reader was set up with (the file is not indexed again, even if it changed)
+        auto *index = FileIndex(filename);
+        DALI_ENFORCE(index, make_string("Internal error: no frame index for \"", filename, "\"."));
+        if (!decoder_->HasIndex())
+          decoder_->SetIndex(*index);
       } else {
         LOG_LINE << "Reusing decoder for " << decoder_->Filename() << " ptr: " << decoder_.get()
                  << " num_frames: " << decoder_->NumFrames() << std::endl;
