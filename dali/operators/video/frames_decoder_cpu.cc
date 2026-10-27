@@ -198,6 +198,7 @@ bool FramesDecoderCpu::ReadRegularFrame(uint8_t *data) {
     ret = avcodec_send_packet(codec_ctx_, packet.get());
     DALI_ENFORCE(ret >= 0,
                  make_string("Failed to send packet to decoder: ", av_error_string(ret)));
+    decoded_pictures_++;
 
     ret = avcodec_receive_frame(codec_ctx_, frame_);
     if (ret == AVERROR(EAGAIN)) {
