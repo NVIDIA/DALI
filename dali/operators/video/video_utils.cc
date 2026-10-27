@@ -1,4 +1,4 @@
-// Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2025-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@
 #include <fstream>
 #include <sstream>
 #include <string>
+#include <utility>
 
 namespace dali {
 
@@ -148,8 +149,7 @@ std::vector<VideoFileMeta> GetVideoFiles(const std::string& file_root,
 }
 
 std::string av_error_string(int ret) {
-  static char msg[AV_ERROR_MAX_STRING_SIZE];
-  memset(msg, 0, sizeof(msg));
+  char msg[AV_ERROR_MAX_STRING_SIZE] = {};  // not static: decoders run on several threads
   return std::string(av_make_error_string(msg, AV_ERROR_MAX_STRING_SIZE, ret));
 }
 
