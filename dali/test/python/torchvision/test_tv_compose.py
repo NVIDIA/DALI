@@ -454,9 +454,7 @@ def make_distinct_frames(shape):
 def count_flipped(out, inp):
     """Returns (number of samples equal to the flipped input, number equal to the input),
     where the sample is the leading dimension of ``out`` and ``inp``."""
-    flipped = sum(
-        bool(torch.equal(o, torch.flip(i, [-1]))) for o, i in zip(out, inp, strict=True)
-    )
+    flipped = sum(bool(torch.equal(o, torch.flip(i, [-1]))) for o, i in zip(out, inp, strict=True))
     same = sum(bool(torch.equal(o, i)) for o, i in zip(out, inp, strict=True))
     return flipped, same
 
