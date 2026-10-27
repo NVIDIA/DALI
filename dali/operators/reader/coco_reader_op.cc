@@ -15,6 +15,7 @@
 #include "dali/operators/reader/coco_reader_op.h"
 
 #include <set>
+#include <stdexcept>
 #include <variant>
 
 extern "C" {
@@ -295,18 +296,31 @@ void COCOReader::PixelwiseMasks(int image_idx, int* mask) {
   // covers compressed counts and preprocessed annotations, which bypass JSON parsing.
   for (const auto &mask_rle : masks_info.rles) {
     const auto rle = mask_rle->get();
-    DALI_ENFORCE(rle.h == static_cast<siz>(h) && rle.w == static_cast<siz>(w),
-                 "Invalid COCO RLE mask: dimensions must match the image.");
-    DALI_ENFORCE(rle.m > 0 && rle.m <= static_cast<siz>(num_pixels + 1),
-                 "Invalid COCO RLE mask: too many or missing runs.");
+    if (rle.h != static_cast<siz>(h) || rle.w != static_cast<siz>(w)) {
+      throw std::invalid_argument(make_string(
+          "Invalid COCO RLE mask: dimensions must match the image; got ", rle.h, "x", rle.w,
+          ", expected ", h, "x", w, "."));
+    }
+    if (rle.m == 0 || rle.m > static_cast<siz>(num_pixels + 1)) {
+      throw std::invalid_argument(make_string(
+          "Invalid COCO RLE mask: too many or missing runs; got ", rle.m,
+          ", expected 1 to ", num_pixels + 1, "."));
+    }
     int64_t remaining = num_pixels;
     for (siz i = 0; i < rle.m; i++) {
-      DALI_ENFORCE(rle.cnts[i] <= remaining,
-                   "Invalid COCO RLE mask: run lengths exceed the image size.");
+      if (rle.cnts[i] > remaining) {
+        throw std::invalid_argument(make_string(
+            "Invalid COCO RLE mask: run lengths exceed the image size; run ", i,
+            " has length ", rle.cnts[i], ", expected at most ", remaining,
+            " (image has ", num_pixels, " pixels)."));
+      }
       remaining -= rle.cnts[i];
     }
-    DALI_ENFORCE(remaining == 0,
-                 "Invalid COCO RLE mask: run lengths must cover the entire image.");
+    if (remaining != 0) {
+      throw std::invalid_argument(make_string(
+          "Invalid COCO RLE mask: run lengths must cover the entire image; got ",
+          num_pixels - remaining, " pixels, expected ", num_pixels, "."));
+    }
   }
   auto bboxes = loader_impl.bboxes(image_idx);
   auto labels_span = loader_impl.labels(image_idx);
@@ -423,7 +437,11 @@ void COCOReader::PixelwiseMasks(int image_idx, int* mask) {
       }
       cnt_tot += cnt_b;
 
-      DALI_ENFORCE(m <= num_pixels, "Invalid COCO RLE mask: too many merged runs.");
+      if (m > num_pixels) {
+        throw std::invalid_argument(make_string(
+            "Invalid COCO RLE mask: too many merged runs; got at least ",
+            static_cast<int64_t>(m) + 1, ", expected at most ", num_pixels + 1, "."));
+      }
       if (val_a && vb)  // there's already a class at this pixel
                         // in this case, the last annotation wins (it's undefined by the spec)
         vals[m] = (!cnt_a) ? val_a : val_b;
