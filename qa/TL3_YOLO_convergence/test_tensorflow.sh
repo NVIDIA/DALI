@@ -7,7 +7,7 @@ function CLEAN_AND_EXIT {
 # enable compat for CUDA 13 if the test image doesn't support it yet
 source <(echo "set -x"; cat ../setup_test_common.sh; echo "set +x")
 
-prepare_coco_dataset
+check_required_paths "${COCO_DIR}"
 
 install_cuda_compat
 
@@ -22,6 +22,8 @@ python -m pip install -r requirements.txt
 export NCCL_NVLS_ENABLE=0
 # workaround for https://github.com/tensorflow/tensorflow/issues/63548
 export WRAPT_DISABLE_EXTENSIONS=1
+
+prepare_coco_dataset
 
 python src/main.py train \
     ${DATA_DIR}/train2017 \

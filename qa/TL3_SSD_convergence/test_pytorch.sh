@@ -11,7 +11,7 @@ function CLEAN_AND_EXIT {
 # enable compat for CUDA 13 if the test image doesn't support it yet
 source <(echo "set -x"; cat ../setup_test_common.sh; echo "set +x")
 
-prepare_coco_dataset
+check_required_paths "${COCO_DIR}"
 
 install_cuda_compat
 
@@ -21,6 +21,8 @@ pip install mlperf_compliance Cython
 pip install git+https://github.com/NVIDIA/cocoapi.git#subdirectory=PythonAPI --no-build-isolation
 
 NUM_GPUS=$(nvidia-smi -L | wc -l)
+
+prepare_coco_dataset
 
 LOG=dali.log
 
