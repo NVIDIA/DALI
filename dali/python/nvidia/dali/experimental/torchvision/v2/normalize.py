@@ -81,8 +81,8 @@ class Normalize(Operator):
     """
 
     arg_rules = [_ValidateStd, _ValidateMean]
-    # TODO: currently not supported
-    # input_rules = [_ValidateIsTensor]
+    # Like torchvision, Normalize does not accept PIL images (see Compose._verify_pil_support)
+    supports_pil = False
 
     def __init__(
         self,

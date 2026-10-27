@@ -23,7 +23,7 @@ from PIL import Image
 import torch
 import torchvision.transforms.v2 as transforms
 
-from nvidia.dali.experimental.torchvision import Normalize, Compose
+from nvidia.dali.experimental.torchvision import Normalize, Compose, RandomHorizontalFlip
 from nvidia.dali.experimental.torchvision.v2.functional import normalize
 
 
@@ -195,12 +195,9 @@ def test_non_tensor_input_not_supported():
     #    _ = norm([[1.0, 2.0], [3.0, 4.0]])
     with assert_raises(TypeError):
         _ = norm(im)
-    """
-    Because of how it is implemented the Normalize allows PIL Image input
     dnorm = Compose([Normalize(mean=[0.5], std=[0.5])])
     with assert_raises(TypeError):
         _ = dnorm(im)
-    """
     with assert_raises(TypeError):
         _ = transforms.functional.normalize(im, [0.5], [0.5])
     with assert_raises(TypeError):
@@ -320,3 +317,11 @@ def test_different_std_per_channel_cpu():
 @unittest.skipUnless(torch.cuda.is_available(), "CUDA is not available")
 def test_different_std_per_channel_gpu():
     _test_different_std_per_channel("gpu")
+
+
+def test_pil_input_rejected_only_by_operators_without_pil_support():
+    img = Image.fromarray(np.zeros((6, 6, 3), dtype=np.uint8))
+    assert isinstance(Compose([RandomHorizontalFlip(p=1.0)])(img), Image.Image)
+    # the check happens before the pipeline is built, on every Compose instance
+    with assert_raises(TypeError):
+        Compose([RandomHorizontalFlip(p=1.0), Normalize([0.5] * 3, [0.2] * 3)])(img)

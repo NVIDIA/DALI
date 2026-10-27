@@ -81,7 +81,7 @@ def test_compose_multi_tensor():
 
 def test_compose_invalid_batch_tensor():
     test_tensor = make_test_tensor(shape=(5, 1, 5, 5))
-    with assert_raises(RuntimeError):
+    with assert_raises(ValueError, glob="*flattens to 5 samples*batch_size is 1*"):
         dali_pipeline = Compose([RandomHorizontalFlip(p=1.0)], batch_size=1)
         _ = dali_pipeline(test_tensor)
 
@@ -439,7 +439,7 @@ def test_error_in_isolated_operators():
 
 # (layout, shape, batch_size)
 supported_layouts = [
-    ("CHW", (3, 8, 8), 4),
+    ("CHW", (3, 8, 8), None),
     ("NCHW", (4, 3, 8, 8), 4),
     ("FCHW", (5, 3, 8, 8), None),
     ("NFCHW", (4, 5, 3, 8, 8), 4),
@@ -550,30 +550,26 @@ def test_compose_nfchw_random_params_per_sequence():
     ("NFHWC",),
 )
 def test_compose_layout_not_supported(layout):
-    with assert_raises(NotImplementedError):
+    with assert_raises(NotImplementedError, glob=f"*Layout '{layout}' is currently not supported*"):
         Compose([RandomHorizontalFlip(p=1.0)], layout=layout)
 
 
 @params(("CHWN",), ("hwc",), ("",))
 def test_compose_layout_unknown(layout):
-    with assert_raises(ValueError):
+    with assert_raises(ValueError, glob=f"*Unknown layout '{layout}'*"):
         Compose([RandomHorizontalFlip(p=1.0)], layout=layout)
 
 
 @params(("NCHW", (3, 8, 8)), ("NFCHW", (2, 3, 8, 8)))
-def test_compose_layout_batched_default_batch_size(layout, shape):
-    # N layouts without batch_size are too few dimensions
-    dali_pipeline = Compose([RandomHorizontalFlip(p=1.0)], layout=layout)
-    with assert_raises(ValueError):
+def test_compose_layout_batched_too_few_dimensions(layout, shape):
+    dali_pipeline = Compose([RandomHorizontalFlip(p=1.0)], batch_size=4, layout=layout)
+    with assert_raises(ValueError, glob=f"*{len(shape)} dimensions for layout {layout}, expected*"):
         dali_pipeline(make_test_tensor(shape))
 
 
-@params(("NCHW", (4, 3, 8, 8)), ("NFCHW", (4, 2, 3, 8, 8)))
-def test_compose_layout_batched_without_batch_size(layout, shape):
-    # NCHW and NFCHW do not require batch_size, DEFAULT_BATCH_SIZE is used
-    test_tensor = make_test_tensor(shape)
-    out = Compose([RandomHorizontalFlip(p=1.0)], layout=layout)(test_tensor)
-    assert torch.equal(out, torch.flip(test_tensor, [-1]))
+def batch_size_for(layout):
+    """A batch_size compatible with the layout: only layouts with N take one."""
+    return 4 if layout is None or layout.startswith("N") else None
 
 
 @params(
@@ -583,21 +579,23 @@ def test_compose_layout_batched_without_batch_size(layout, shape):
     ("NFCHW", (4, 3, 8, 8)),
 )
 def test_compose_layout_ndim_mismatch(layout, shape):
-    dali_pipeline = Compose([RandomHorizontalFlip(p=1.0)], batch_size=4, layout=layout)
-    with assert_raises(ValueError):
+    dali_pipeline = Compose(
+        [RandomHorizontalFlip(p=1.0)], batch_size=batch_size_for(layout), layout=layout
+    )
+    with assert_raises(ValueError, glob=f"*{len(shape)} dimensions for layout {layout}, expected*"):
         dali_pipeline(make_test_tensor(shape))
 
 
 def test_compose_layout_input_type_mismatch():
     img = Image.fromarray(make_test_tensor((8, 8, 3)).numpy())
-    with assert_raises(TypeError):
+    with assert_raises(TypeError, glob="*expects torch.Tensor as input*PIL.Image*"):
         Compose([RandomHorizontalFlip(p=1.0)], layout="CHW")(img)
-    with assert_raises(TypeError):
+    with assert_raises(TypeError, glob="*expects PIL.Images as input*Tensor*"):
         Compose([RandomHorizontalFlip(p=1.0)], layout="HWC")(make_test_tensor((3, 8, 8)))
 
 
 def test_compose_cannot_infer_layout():
-    with assert_raises(ValueError):
+    with assert_raises(ValueError, glob="*2 dimensions, expected at least 3 dimensions*"):
         Compose([RandomHorizontalFlip(p=1.0)])(make_test_tensor((8, 8)))
 
 
@@ -642,10 +640,83 @@ def test_compose_leading_dims_default_is_one_sample():
     ("NFCHW", (4, 3, 8, 8)),
 )
 def test_compose_unsupported_ndim_error_message(layout, shape):
-    dali_pipeline = Compose([RandomHorizontalFlip(p=1.0)], batch_size=4, layout=layout)
-    try:
+    dali_pipeline = Compose(
+        [RandomHorizontalFlip(p=1.0)], batch_size=batch_size_for(layout), layout=layout
+    )
+    with assert_raises(
+        ValueError, glob=f"Unsupported input: a tensor with {len(shape)} dimensions*"
+    ):
         dali_pipeline(make_test_tensor(shape))
-    except ValueError as e:
-        assert str(e).startswith(f"Unsupported input: a tensor with {len(shape)} dimensions"), e
-    else:
-        raise AssertionError("ValueError not raised")
+
+
+@params((0,), (-1,))
+def test_compose_invalid_batch_size(batch_size):
+    with assert_raises(ValueError, glob="*batch_size must be a positive integer or None*"):
+        Compose([RandomHorizontalFlip(p=1.0)], batch_size=batch_size)
+
+
+@params(
+    ("CHW", None),
+    ("CHW", 1),
+    ("FCHW", None),
+    ("NCHW", 4),
+    ("NFCHW", 4),
+)
+def test_compose_layout_batch_size_compatible(layout, batch_size):
+    Compose([RandomHorizontalFlip(p=1.0)], batch_size=batch_size, layout=layout)
+
+
+@params(("CHW", 2), ("CHW", 4), ("FCHW", 2), ("HWC", 4))
+def test_compose_layout_without_n_rejects_batch_size(layout, batch_size):
+    with assert_raises(ValueError, glob=f"*Layout '{layout}' has no batch dimension*"):
+        Compose([RandomHorizontalFlip(p=1.0)], batch_size=batch_size, layout=layout)
+
+
+@params(("NCHW",), ("NFCHW",))
+def test_compose_n_layout_requires_batch_size(layout):
+    with assert_raises(ValueError, glob=f"*Layout '{layout}' requires batch_size*"):
+        Compose([RandomHorizontalFlip(p=1.0)], layout=layout)
+
+
+def test_compose_infer_3d_tensor_with_batch_size_is_chw():
+    test_tensor = make_test_tensor((3, 8, 8))
+    dali_pipeline = Compose([RandomHorizontalFlip(p=1.0)], batch_size=4)
+    out = dali_pipeline(test_tensor)
+    assert dali_pipeline.active_pipeline.get_layout() == "CHW"
+    assert torch.equal(out, torch.flip(test_tensor, [-1]))
+
+
+# (layout, batch_size, shape, number of samples after flattening)
+too_many_samples_cases = [
+    ("NCHW", 2, (5, 3, 8, 8), 5),
+    (None, 2, (5, 3, 8, 8), 5),
+    ("NCHW", 4, (2, 3, 3, 8, 8), 6),  # leading dimensions are flattened into N
+    ("NFCHW", 3, (2, 2, 4, 3, 8, 8), 4),
+    (None, 3, (2, 2, 4, 3, 8, 8), 4),
+]
+
+
+@params(*too_many_samples_cases)
+def test_compose_more_samples_than_batch_size(layout, batch_size, shape, samples):
+    dali_pipeline = Compose([RandomHorizontalFlip(p=1.0)], batch_size=batch_size, layout=layout)
+    expected = f"*{tuple(shape)} flattens to {samples} samples*batch_size is {batch_size}*"
+    with assert_raises(ValueError, glob=expected):
+        dali_pipeline(make_test_tensor(shape))
+
+
+def test_compose_samples_equal_to_batch_size():
+    test_tensor = make_test_tensor((2, 3, 3, 8, 8))
+    out = Compose([RandomHorizontalFlip(p=1.0)], batch_size=6, layout="NCHW")(test_tensor)
+    assert torch.equal(out, torch.flip(test_tensor, [-1]))
+
+
+@params(
+    ("NCHW", 4, (0, 3, 8, 8)),
+    (None, 4, (0, 3, 8, 8)),
+    ("FCHW", None, (0, 3, 8, 8)),
+    (None, None, (2, 0, 3, 8, 8)),
+)
+def test_compose_empty_input(layout, batch_size, shape):
+    dali_pipeline = Compose([RandomHorizontalFlip(p=1.0)], batch_size=batch_size, layout=layout)
+    with assert_raises(ValueError, glob=f"Empty input of shape {tuple(shape)} is not supported*"):
+        dali_pipeline(torch.zeros(shape, dtype=torch.uint8))
