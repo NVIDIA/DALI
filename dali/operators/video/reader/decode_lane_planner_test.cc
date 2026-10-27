@@ -53,6 +53,11 @@ LaneStart Held(std::string_view file, const FrameIndex &index, int next_frame) {
   return {file, FramesDecoderBase::PositionAt(index, next_frame)};
 }
 
+// Where a decoder with an index is, for LaneStart
+FramesDecoderBase::DecodePosition DecoderPosition(const FramesDecoderBase &decoder) {
+  return FramesDecoderBase::PositionAt(decoder.GetIndex(), decoder.NextFrameIdx());
+}
+
 /**
  * @brief The runs of a batch, and the frames of their samples.
  */
@@ -391,6 +396,37 @@ TEST(DecodeLanePlannerTest, OneLongRunUsesOneLane) {
   EXPECT_EQ(plans[0].load, 512 + kOpenCost);
   for (int l = 1; l < 4; l++)
     EXPECT_TRUE(plans[l].runs.empty()) << "lane " << l;
+}
+
+TEST(DecodeLanePlannerTest, TiesToTheLeastBacklog) {
+  auto index = MakeIndex(100, 100);
+  Batch batch;
+  batch.Add("a", &index, 0, 0, 29);
+  // lanes without decoders, which would all finish the run at the same time: the lowest one
+  auto plans = Plan(batch, {{}, {}, {}});
+  EXPECT_EQ(plans[0].runs, std::vector<int>({0}));
+  // unless it has more work of earlier batches left than another
+  LaneStart behind, less_behind;
+  behind.backlog = 10;
+  less_behind.backlog = 5;
+  plans = Plan(batch, {behind, less_behind, behind});
+  EXPECT_TRUE(plans[0].runs.empty());
+  EXPECT_EQ(plans[1].runs, std::vector<int>({0}));
+  // the backlog only breaks ties: the lane that continues the run gets it
+  auto held = Held("a", index, 0);
+  held.backlog = 1000;
+  plans = Plan(batch, {{}, held});
+  EXPECT_EQ(plans[1].runs, std::vector<int>({0}));
+  // a lane whose decoder a later run of the batch continues on goes before the backlog
+  auto long_index = MakeIndex(1000, 250);
+  Batch two;
+  two.Add("b", &long_index, 0, 0, 47);
+  two.Add("a", &long_index, 1, 500, 515);
+  LaneStart spare;
+  spare.backlog = 10;
+  plans = Plan(two, {Held("a", long_index, 500), spare});
+  EXPECT_EQ(plans[0].runs, std::vector<int>({1}));
+  EXPECT_EQ(plans[1].runs, std::vector<int>({0}));
 }
 
 TEST(DecodeLanePlannerTest, HeldFileContinues) {
