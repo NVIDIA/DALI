@@ -337,6 +337,12 @@ void VideoInput<Backend, FramesDecoderImpl>::VideoInputRunImpl(Workspace &ws) {
       }
     }
   }
+  if constexpr (!is_cpu) {
+    // the decoder does not wait for its GPU work: its asynchronous errors are reported by this
+    // operator, in this Run. Its own stream is waited for (it was fixed when the decoder was
+    // created), so the frames are complete even if ws.stream() is not that stream.
+    CUDA_CALL(cudaStreamSynchronize(frames_decoder.stream()));
+  }
 
   // If true, this operator can be run again, after this Run.
   bool will_return_next = true;

@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,6 +15,9 @@
 #include "dali/operators/video/frames_decoder_base.h"
 #include <iomanip>
 #include <memory>
+#include <mutex>
+#include <unordered_map>
+#include "dali/core/call_at_exit.h"
 #include "dali/core/error_handling.h"
 #include "dali/core/small_vector.h"
 #include "dali/operators/video/video_utils.h"
@@ -212,8 +215,18 @@ bool FramesDecoderBase::CheckDimensions() {
   return true;
 }
 
+namespace {
+
+// FFmpeg's log level is process-wide; set it once, not from every decoder (several threads)
+void SetAvLogLevel() {
+  static std::once_flag once;
+  std::call_once(once, [] { av_log_set_level(AV_LOG_ERROR); });
+}
+
+}  // namespace
+
 FramesDecoderBase::FramesDecoderBase(const std::string &filename, DALIImageType image_type) {
-  av_log_set_level(AV_LOG_ERROR);
+  SetAvLogLevel();
   filename_ = filename;
   DALI_ENFORCE(image_type == DALI_YCbCr || image_type == DALI_RGB,
                make_string("Invalid image type: ", image_type));
@@ -234,7 +247,7 @@ FramesDecoderBase::FramesDecoderBase(const std::string &filename, DALIImageType 
 }
 
 FramesDecoderBase::FramesDecoderBase(const char *memory_file, size_t memory_file_size, std::string_view source_info, DALIImageType image_type) {
-  av_log_set_level(AV_LOG_ERROR);
+  SetAvLogLevel();
   filename_ = source_info;
   DALI_ENFORCE(image_type == DALI_YCbCr || image_type == DALI_RGB,
                make_string("Invalid image type: ", image_type));
@@ -292,6 +305,16 @@ static inline uint32_t read_nal_unit_length(uint8_t *buf) {
   return length;
 }
 
+/**
+ * @brief Identifies a packet of the stream when it is read again (e.g. after a seek): by its
+ * position in the file or, if unknown, by its timestamp.
+ */
+static inline int64_t packet_key(const AVPacket &packet) {
+  if (packet.pos >= 0)
+    return packet.pos;
+  return packet.dts != AV_NOPTS_VALUE ? packet.dts : packet.pts;
+}
+
 void FramesDecoderBase::BuildIndex() {
   if (HasIndex()) {
     return;
@@ -306,6 +329,10 @@ void FramesDecoderBase::BuildIndex() {
   int last_keyframe = -1;
   int frame_count = 0;
   num_frames_ = 0;
+  int decode_idx = 0;  // packets of the stream so far, in decoding order
+  // The decoding position of each sync packet, where a seek can land
+  std::unordered_map<int64_t, int> sync_packets;
+  bool has_hidden_packets = false;  // with negative timestamps (e.g. hidden by an edit list)
 
   while (true) {
     // Read the next frame from the video
@@ -325,6 +352,10 @@ void FramesDecoderBase::BuildIndex() {
 
     IndexEntry entry;
     entry.is_keyframe = false;  // Default to false, set true only if confirmed
+    // Counted before the negative timestamps are skipped: hidden packets are decoded too
+    entry.decode_idx = decode_idx++;
+    if (packet->flags & AV_PKT_FLAG_KEY)
+      sync_packets.emplace(packet_key(*packet), entry.decode_idx);
 
     // Check if this packet contains a keyframe
     if (packet->flags & AV_PKT_FLAG_KEY) {
@@ -382,6 +413,7 @@ void FramesDecoderBase::BuildIndex() {
 
     if (entry.pts < 0) {
       LOG_LINE << "Negative timestamp: " << entry.pts << ", skipping" << std::endl;
+      has_hidden_packets = true;
       continue;
     }
 
@@ -430,6 +462,38 @@ void FramesDecoderBase::BuildIndex() {
       index_[i].last_keyframe_id = 0;  // First keyframe
     } else {
       index_[i].last_keyframe_id = *(--it);
+    }
+  }
+
+  // Where AvSeekFrame lands for the frames that SeekFrame seeks to (the last keyframe of a frame),
+  // for estimating the decoding work: on the keyframe itself, unless packets are hidden. Then the
+  // demuxer is asked, as its rule is not exposed: e.g. mov searches its sync samples by decoding
+  // timestamp, offset by the edit list, so a seek can land a whole GOP (or a hidden lead-in)
+  // before the keyframe. Asking reads a packet per target, which in an all-intra stream would
+  // read the whole file again.
+  bool ask_demuxer = has_hidden_packets;
+  int prev_target = -1;
+  for (size_t i = 0; i < index_.size(); i++) {
+    int target = index_[i].last_keyframe_id;
+    if (target == prev_target)
+      continue;  // last_keyframe_id does not decrease
+    prev_target = target;
+    auto &entry = index_[target];
+    entry.seek_decode_idx = entry.decode_idx;
+    if (!ask_demuxer)
+      continue;
+    if (av_seek_frame(ctx_, stream_id_, entry.pts, AVSEEK_FLAG_BACKWARD) < 0) {
+      ask_demuxer = false;  // not seekable
+      continue;
+    }
+    while (av_read_frame(ctx_, packet_) == 0) {
+      auto packet = AVPacketScope(packet_, av_packet_unref);
+      if (packet->stream_index != stream_id_)
+        continue;
+      auto landing = sync_packets.find(packet_key(*packet));
+      if (landing != sync_packets.end())
+        entry.seek_decode_idx = landing->second;
+      break;
     }
   }
 
@@ -494,6 +558,7 @@ void FramesDecoderBase::Reset() {
   SelectVideoStream(stream_id);
 }
 
+// Keep FramesDecoderBase::AddDecodeWork in sync with how this seeks
 void FramesDecoderBase::SeekFrame(int frame_id) {
   LOG_LINE << "SeekFrame: Seeking to frame " << frame_id
             << " (current=" << next_frame_idx_ << ")" << std::endl;
@@ -516,13 +581,12 @@ void FramesDecoderBase::SeekFrame(int frame_id) {
   assert(next_frame_idx_ >= 0);
 
   // If we are seeking to a frame that is before the current frame,
-  // or we are seeking to a frame that is more than MINIMUM_SEEK_LEAP frames away,
+  // or we are seeking to a frame that is more than kMinimumSeekLeap frames away,
   // or the current frame index is invalid (e.g. end of file),
   // we will to seek to the nearest keyframe first
   LOG_LINE << "SeekFrame: frame_id=" << frame_id << ", next_frame_idx=" << next_frame_idx_
            << std::endl;
-  constexpr int MINIMUM_SEEK_LEAP = 10;
-  if (frame_id < next_frame_idx_ || frame_id > next_frame_idx_ + MINIMUM_SEEK_LEAP) {
+  if (frame_id < next_frame_idx_ || frame_id > next_frame_idx_ + kMinimumSeekLeap) {
     // If we have an index, we can seek to the nearest keyframe first
     if (HasIndex()) {
       LOG_LINE << "Using index to find nearest keyframe" << std::endl;
@@ -558,6 +622,14 @@ void FramesDecoderBase::SeekFrame(int frame_id) {
   LOG_LINE << "After seeking: next_frame_idx_=" << next_frame_idx_ << ", frame_id=" << frame_id
            << std::endl;
   assert(next_frame_idx_ <= frame_id);
+  // Unless DecodeFrames knows more, the requested frame is the next one read with its data
+  bool own_frames_to_read = frames_to_read_.empty();
+  if (own_frames_to_read)
+    frames_to_read_ = make_cspan(&frame_id, 1);
+  auto clear_frames_to_read = AtScopeExit([&] {
+    if (own_frames_to_read)
+      frames_to_read_ = {};
+  });
   // Skip all remaining frames until the requested frame
   LOG_LINE << "Skipping frames from " << next_frame_idx_ << " to " << frame_id << std::endl;
   for (int i = next_frame_idx_; i < frame_id; i++) {
@@ -566,6 +638,40 @@ void FramesDecoderBase::SeekFrame(int frame_id) {
   LOG_LINE << "After skipping: next_frame_idx_=" << next_frame_idx_ << ", frame_id=" << frame_id
            << std::endl;
   assert(next_frame_idx_ == frame_id);
+}
+
+FramesDecoderBase::DecodePosition FramesDecoderBase::PositionAt(const FrameIndex &index,
+                                                                int next_frame) {
+  if (next_frame <= 0 || next_frame >= static_cast<int>(index.size()))
+    return {next_frame, -1};
+  // it decoded from the keyframe of the last frame read (or from before it)
+  int decoded = -1;
+  for (int i = index[next_frame - 1].last_keyframe_id; i < next_frame; i++)
+    decoded = std::max(decoded, index.DecodeIdx(i));
+  return {next_frame, decoded};
+}
+
+void FramesDecoderBase::AddDecodeWork(const FrameIndex &index, DecodePosition &pos, int frame,
+                                      DecodeWork &work) {
+  int n = index.size();
+  if (frame != pos.next_frame) {
+    if (pos.next_frame < 0 || pos.next_frame >= n) {  // Reset(): reopens the file
+      pos = {0, -1};
+      work.reopens++;
+    }
+    if (frame < pos.next_frame || frame > pos.next_frame + kMinimumSeekLeap) {
+      int keyframe = index[frame].last_keyframe_id;
+      if (index[pos.next_frame].last_keyframe_id != keyframe || frame < pos.next_frame)
+        pos = {keyframe, index.SeekDecodeIdx(keyframe) - 1};  // AvSeekFrame and Flush
+    }
+  }
+  // A frame is returned once the pictures up to its own (in decoding order) are decoded, so the
+  // decoder decodes up to the furthest picture of the frames it reads, skipped ones included
+  int start = pos.decoded;
+  for (int i = pos.next_frame; i <= frame; i++)
+    pos.decoded = std::max(pos.decoded, index.DecodeIdx(i));
+  work.pictures += pos.decoded - start;
+  pos.next_frame = frame + 1 < n ? frame + 1 : -1;
 }
 
 int FramesDecoderBase::HandleBoundary(boundary::BoundaryType boundary_type, int frame_id, int roi_start, int roi_end) {
@@ -606,12 +712,23 @@ void FramesDecoderBase::DecodeFramesImpl(uint8_t *data,
   DALI_ENFORCE(constant_frame != nullptr || boundary_type != boundary::BoundaryType::CONSTANT,
                make_string("Constant frame must be provided if boundary type is CONSTANT"));
 
+  // The frames read with their data, in order (see frames_to_read_)
+  SmallVector<int, 32> to_read;
+  for (auto &[frame_id, i] : frame_ids) {
+    if (frame_id >= 0 && frame_id < NumFrames())
+      to_read.push_back(frame_id);
+  }
+  auto clear_frames_to_read = AtScopeExit([&] { frames_to_read_ = {}; });
+  int num_read = 0;
+
   uint8_t *last_out_frame_start = nullptr;
   for (auto &[frame_id, i] : frame_ids) {
     uint8_t* out_frame_start = data + ptrdiff_t(i) * FrameSize();
     assert(out_frame_start >= data);
     if (frame_id >= 0 && frame_id < NumFrames()) {
       LOG_LINE << "Decoding frame " << frame_id << " to position " << i << std::endl;
+      frames_to_read_ = make_cspan(to_read.data() + num_read, to_read.size() - num_read);
+      num_read++;
       SeekFrame(frame_id);
       ReadNextFrame(out_frame_start);
       last_out_frame_start = out_frame_start;
