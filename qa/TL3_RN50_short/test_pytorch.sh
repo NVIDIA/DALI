@@ -11,7 +11,7 @@ function CLEAN_AND_EXIT {
 # enable compat for CUDA 13 if the test image doesn't support it yet
 source <(echo "set -x"; cat ../setup_test_common.sh; echo "set +x")
 
-check_required_paths /data/imagenet/train-jpeg /data/imagenet/val-jpeg
+check_required_paths ${IMAGENET_DIR}/train-jpeg ${IMAGENET_DIR}/val-jpeg
 
 install_cuda_compat
 
@@ -19,12 +19,7 @@ cd /opt/dali/docs/examples/use_cases/pytorch/resnet50
 
 NUM_GPUS=$(nvidia-smi -L | wc -l)
 
-if [ ! -d "val" ]; then
-   ln -sf /data/imagenet/val-jpeg/ val
-fi
-if [ ! -d "train" ]; then
-   ln -sf /data/imagenet/train-jpeg/ train
-fi
+link_imagenet_jpeg
 
 LOG=dali.log
 
@@ -65,7 +60,7 @@ printf "TOP-5 Accuracy: %.2f%% (expect at least %f%%) %s\n" $TOP5 $MIN_TOP5 $TOP
 printf "Average perf: %.2f (expect at least %f) samples/sec %s\n" $PERF $MIN_PERF $PERF_RESULT
 
 # check perf only if data is locally available
-if [ $(stat /data/imagenet/val-jpeg --format="%T" -f) == "ext2/ext3" ] && [ "$PERF_RESULT" != "OK" ]; then
+if [ $(stat ${IMAGENET_DIR}/val-jpeg --format="%T" -f) == "ext2/ext3" ] && [ "$PERF_RESULT" != "OK" ]; then
     CAN_AND_EXIT 4
 fi
 

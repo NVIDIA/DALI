@@ -6,7 +6,7 @@ set -o pipefail
 # enable compat for CUDA 13 if the test image doesn't support it yet
 source <(echo "set -x"; cat ../setup_test_common.sh; echo "set +x")
 
-check_required_paths /data/imagenet/train-jpeg /data/imagenet/val-jpeg
+check_required_paths ${IMAGENET_DIR}/train-jpeg ${IMAGENET_DIR}/val-jpeg
 
 install_cuda_compat
 
@@ -14,12 +14,7 @@ cd /opt/dali/docs/examples/use_cases/pytorch/resnet50
 
 NUM_GPUS=$(nvidia-smi -L | wc -l)
 
-if [ ! -d "val" ]; then
-   ln -sf /data/imagenet/val-jpeg/ val
-fi
-if [ ! -d "train" ]; then
-   ln -sf /data/imagenet/train-jpeg/ train
-fi
+link_imagenet_jpeg
 
 # turn off SHARP to avoid NCCL errors
 export NCCL_NVLS_ENABLE=0

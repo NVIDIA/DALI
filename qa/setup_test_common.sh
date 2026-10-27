@@ -72,6 +72,22 @@ prepare_coco_dataset() {
     fi
 }
 
+IMAGENET_DIR=/data/imagenet
+
+# Checks that the ImageNet JPEG dataset is mounted and creates `train` and `val` links to it in
+# the given directory (the current directory by default), unless they already exist.
+link_imagenet_jpeg() {
+    local dest=${1:-.}
+    local split
+    check_required_paths "${IMAGENET_DIR}/train-jpeg" "${IMAGENET_DIR}/val-jpeg"
+    mkdir -p "${dest}"
+    for split in train val; do
+        if [ ! -d "${dest}/${split}" ]; then
+            ln -sf "${IMAGENET_DIR}/${split}-jpeg/" "${dest}/${split}"
+        fi
+    done
+}
+
 # Finds a self-test binary and prints its canonical path. Pass `conda` to prefer
 # the package installed in the active Conda environment; other suites prefer the
 # local build tree so they test the code built by the current job.

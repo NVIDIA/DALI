@@ -3,7 +3,7 @@
 # enable compat for CUDA 13 if the test image doesn't support it yet
 source <(echo "set -x"; cat ../setup_test_common.sh; echo "set +x")
 
-check_required_paths /data/imagenet/train-val-tfrecord
+check_required_paths ${IMAGENET_DIR}/train-val-tfrecord
 
 install_cuda_compat
 
@@ -13,7 +13,7 @@ mkdir -p idx-files/
 
 NUM_GPUS=$(nvidia-smi -L | wc -l)
 
-DATA_SET_DIR=/data/imagenet/train-val-tfrecord
+DATA_SET_DIR=${IMAGENET_DIR}/train-val-tfrecord
 for file in $(ls $DATA_SET_DIR/*-of-*);
 do
     file=$(basename ${file})
@@ -77,7 +77,7 @@ printf "TOP-5 Accuracy: %.2f%% (expect at least %f%%) %s\n" $TOP5 $MIN_TOP5 $TOP
 printf "mean speed %.2f (expect at least %f) samples/sec %s\n" $PERF $MIN_PERF $PERF_RESULT
 
 # check perf only if data is locally available
-if [ $(stat /data/imagenet/train-val-tfrecord --format="%T" -f) == "ext2/ext3" ] && [ "$PERF_RESULT" != "OK" ]; then
+if [ $(stat ${IMAGENET_DIR}/train-val-tfrecord --format="%T" -f) == "ext2/ext3" ] && [ "$PERF_RESULT" != "OK" ]; then
     CAN_AND_EXIT 4
 fi
 
