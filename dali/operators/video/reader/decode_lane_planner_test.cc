@@ -50,6 +50,11 @@ LaneStart Held(std::string_view file, const FrameIndex &index, int next_frame) {
   return {file, FramesDecoderBase::PositionAt(index, next_frame)};
 }
 
+// Where a decoder with an index is, for LaneStart
+FramesDecoderBase::DecodePosition DecoderPosition(FramesDecoderBase &decoder) {
+  return FramesDecoderBase::PositionAt(decoder.GetIndex(), decoder.NextFrameIdx());
+}
+
 /**
  * @brief The runs of a batch, and the frames of their samples.
  */
@@ -259,6 +264,27 @@ TEST(DecodeLanePlannerTest, LongestFirstToEarliestFinish) {
   EXPECT_EQ(plans[0].load, 30 + kOpenCost);
   EXPECT_EQ(plans[1].runs, std::vector<int>({0, 2}));
   EXPECT_EQ(plans[1].load, 20 + 10 + 2 * kOpenCost);
+}
+
+TEST(DecodeLanePlannerTest, TiesToTheLeastBacklog) {
+  auto index = MakeIndex(100, 100);
+  Batch batch;
+  batch.Add("a", &index, 0, 0, 29);
+  // lanes without decoders, which would all finish the run at the same time: the lowest one
+  auto plans = Plan(batch, {{}, {}, {}});
+  EXPECT_EQ(plans[0].runs, std::vector<int>({0}));
+  // unless it has more work of earlier batches left than another
+  LaneStart behind, less_behind;
+  behind.backlog = 10;
+  less_behind.backlog = 5;
+  plans = Plan(batch, {behind, less_behind, behind});
+  EXPECT_TRUE(plans[0].runs.empty());
+  EXPECT_EQ(plans[1].runs, std::vector<int>({0}));
+  // the backlog only breaks ties: the lane that continues the run gets it
+  auto held = Held("a", index, 0);
+  held.backlog = 1000;
+  plans = Plan(batch, {{}, held});
+  EXPECT_EQ(plans[1].runs, std::vector<int>({0}));
 }
 
 TEST(DecodeLanePlannerTest, HeldFileContinues) {
