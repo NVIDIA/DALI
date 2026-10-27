@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,6 +20,18 @@
 #include "dali/operators/video/video_utils.h"
 
 namespace dali {
+
+namespace {
+
+// FFmpeg's log level is a plain global (av_log_set_level only stores it). It is set once, while the
+// library is loaded and before any decoder exists, rather than by every decoder: decoders are
+// created on several threads
+const bool av_log_level_set = [] {
+  av_log_set_level(AV_LOG_ERROR);
+  return true;
+}();
+
+}  // namespace
 
 int MemoryVideoFile::Read(unsigned char *buffer, int buffer_size) {
   int left_in_file = size_ - position_;
@@ -213,7 +225,6 @@ bool FramesDecoderBase::CheckDimensions() {
 }
 
 FramesDecoderBase::FramesDecoderBase(const std::string &filename, DALIImageType image_type) {
-  av_log_set_level(AV_LOG_ERROR);
   filename_ = filename;
   DALI_ENFORCE(image_type == DALI_YCbCr || image_type == DALI_RGB,
                make_string("Invalid image type: ", image_type));
@@ -234,7 +245,6 @@ FramesDecoderBase::FramesDecoderBase(const std::string &filename, DALIImageType 
 }
 
 FramesDecoderBase::FramesDecoderBase(const char *memory_file, size_t memory_file_size, std::string_view source_info, DALIImageType image_type) {
-  av_log_set_level(AV_LOG_ERROR);
   filename_ = source_info;
   DALI_ENFORCE(image_type == DALI_YCbCr || image_type == DALI_RGB,
                make_string("Invalid image type: ", image_type));
