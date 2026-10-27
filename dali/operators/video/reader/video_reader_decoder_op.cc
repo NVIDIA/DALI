@@ -677,6 +677,7 @@ class VideoReaderDecoder
     // Planning: where the decoder is once the lane is done with the batches planned so far. The
     // plans are made from it, not from the decoder.
     LanePosition planned;
+    int64_t backlog = 0;  // planning: see LaneStart::backlog
     // Whether decoding a sample failed (and reset the decoder) since the lane last opened one:
     // the decoder is then not where the plan expects it
     bool failed = false;
@@ -939,8 +940,20 @@ class VideoReaderDecoder
         indices.push_back(FrameIndexCache::instance().Find(pos.filename));
         starts[l] = {pos.filename, FramesDecoderBase::PositionAt(*indices.back(), pos.next_frame)};
       }
+      starts[l].backlog = lanes_[l].backlog;
     }
     PlanLanes(make_cspan(runs), make_cspan(starts), kOpenCost, batch.plans);
+    if (decode_ahead_ > 0) {
+      // A lane that is done with its part of a batch goes on to the next one: the work that one
+      // lane has more than another carries over to the next batch
+      int64_t least = std::numeric_limits<int64_t>::max();
+      for (size_t l = 0; l < lanes_.size(); l++) {
+        lanes_[l].backlog += batch.plans[l].load;
+        least = std::min(least, lanes_[l].backlog);
+      }
+      for (auto &lane : lanes_)
+        lane.backlog -= least;
+    }
     batch.lane_start.resize(lanes_.size());
     for (size_t l = 0; l < lanes_.size(); l++) {
       auto &lane = lanes_[l];

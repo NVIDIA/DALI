@@ -48,6 +48,9 @@ struct LaneStart {
   // The frame it returns next (as FramesDecoderBase::NextFrameIdx) and, with an index, the last
   // picture it decoded (see FramesDecoderBase::PositionAt)
   FramesDecoderBase::DecodePosition pos = {-1, -1};
+  // The work of earlier batches that the lane may still be doing when the batch starts, beyond
+  // that of the lane with the least
+  int64_t backlog = 0;
 };
 
 /**
@@ -81,6 +84,9 @@ DLL_PUBLIC bool CanReachWithoutSeek(const FrameIndex *index, int next, int frame
 
 /**
  * @brief Assigns the runs to lanes: longest first, each to the lane that would finish it first.
+ *
+ * Of the lanes that would finish a run at the same time, the one with the least backlog gets it
+ * (then the lowest one).
  *
  * A lane decodes the runs of one file together, by first frame: first the file its decoder holds
  * (starting with the run that continues where the decoder is), then the others in batch order,
