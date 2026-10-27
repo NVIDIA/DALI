@@ -20,6 +20,7 @@ import av
 import io
 import struct
 import tempfile
+import contextlib
 import functools
 import nvidia.dali.types as types
 import glob
@@ -1514,9 +1515,27 @@ def _lanes_reader_files(device):
     return cfr_files + vfr_files + (gpu_files if device == "gpu" else [])
 
 
+@contextlib.contextmanager
+def _strict_plans():
+    """Readers created in it fail a batch if a decode lane's decoder is not where the batch's plan
+    expects it (otherwise, decoding only follows a worse plan)."""
+    name = "DALI_VIDEO_READER_STRICT_PLANS"
+    old = os.environ.get(name)
+    os.environ[name] = "1"
+    try:
+        yield
+    finally:
+        if old is None:
+            del os.environ[name]
+        else:
+            os.environ[name] = old
+
+
+@_strict_plans()
 def _check_reader_output_independent_of_num_threads(
-    device, kwargs, batch_size, num_threads, files=None, window=32
+    device, kwargs, batch_size, num_threads, files=None, window=32, epochs=None
 ):
+    """With `epochs`, compares that many epochs (and one more batch), otherwise 8 batches."""
     files = files or _lanes_reader_files(device)
 
     @pipeline_def(batch_size=batch_size, device_id=0, seed=42)
@@ -1529,12 +1548,18 @@ def _check_reader_output_independent_of_num_threads(
                 labels=list(range(len(files))),
                 device=device,
                 enable_frame_num="sequence",
+                name="Reader",
                 **kwargs,
             )
         )
 
+    ref = pipe(num_threads=1)
+    iterations = 8
+    if epochs:
+        ref.build()
+        iterations = -(-epochs * ref.epoch_size("Reader") // batch_size) + 1
     compare_pipelines(
-        pipe(num_threads=1), pipe(num_threads=num_threads), batch_size=batch_size, N_iterations=8
+        ref, pipe(num_threads=num_threads), batch_size=batch_size, N_iterations=iterations
     )
 
     # The two runs could agree on wrong frames, so check the frames against PyAV as well
@@ -1608,11 +1633,28 @@ def test_reader_multi_run_lanes_output_independent_of_num_threads(device, case):
     )
 
 
+# With more than one lane, the lanes decode the next batch while the slowest lane finishes the
+# current one, and while the reader's queue (prefetch_queue_depth) holds earlier batches. Two
+# epochs, so that decoders carry over from batch to batch and into the next epoch
+@cartesian_params(["cpu", "gpu"], (0, 3, 6), (1, 2))
+def test_reader_output_independent_of_num_threads_reader_depth(device, case, reader_depth):
+    skip_if_m60()
+    _check_reader_output_independent_of_num_threads(
+        device,
+        dict(_lanes_reader_cases[case], prefetch_queue_depth=reader_depth),
+        batch_size=4,
+        num_threads=4,
+        files=cfr_files + vfr_files,
+        epochs=2,
+    )
+
+
 # 26 samples in 3 shards (pad_last_batch): shard 0 has samples 0-7, padded to 9 samples, so that
 # its third batch is sample 7, four times (decoded in the batch before it); shard 2 has samples
 # 17-25, so that its third batch is sample 25 and three repeats of it
-@cartesian_params(("cpu", "gpu"), (0, 2))
-def test_reader_pad_last_batch_repeats_last_sample(device, shard_id):
+@cartesian_params(("cpu", "gpu"), (0, 2), (1, 2))
+@_strict_plans()
+def test_reader_pad_last_batch_repeats_last_sample(device, shard_id, reader_depth):
     """With pad_last_batch, a shard's last sample is repeated, in its own batch or as the whole
     next batch: the same sample, which must not be decoded again while an earlier batch may still
     be in use."""
@@ -1635,6 +1677,7 @@ def test_reader_pad_last_batch_repeats_last_sample(device, shard_id):
             pad_last_batch=True,
             num_shards=3,
             shard_id=shard_id,
+            prefetch_queue_depth=reader_depth,
         )
         return videos, labels
 
@@ -1674,10 +1717,11 @@ def _num_frames(filename, device):
     return p.reader_meta("Reader")["epoch_size"]
 
 
-@cartesian_params(("cpu", "gpu"), (1, 4))
-def test_reader_reports_first_error_of_batch(device, num_threads):
-    """Samples fail in two lanes of a batch and in the next batch: the error is the first one of
-    the batch, at that batch, whatever the lanes' timing."""
+@cartesian_params(("cpu", "gpu"), (1, 4), (1, 2))
+@_strict_plans()
+def test_reader_reports_first_error_of_batch(device, num_threads, reader_depth):
+    """Samples fail in two lanes of a batch and in the next batch, which lanes may be decoding
+    already: the error is the first one of the batch, at that batch, whatever the lanes' timing."""
     skip_if_m60()
     batch_size = 4
     files = cfr_files  # with different numbers of frames
@@ -1699,6 +1743,7 @@ def test_reader_reports_first_error_of_batch(device, num_threads):
             file_list_include_end=False,
             device=device,
             sequence_length=4,
+            prefetch_queue_depth=reader_depth,
         )
         return videos
 
@@ -1708,5 +1753,26 @@ def test_reader_reports_first_error_of_batch(device, num_threads):
         expected = rf"frame index {num_frames[0] + 10} .*\[0, {num_frames[0]}\)"
         with assert_raises(RuntimeError, regex=expected):
             p.run()
+        del p  # destroyed right after the error, while lanes may still be decoding batch 2
     finally:
         os.remove(file_list.name)
+
+
+@params("cpu", "gpu")
+@_strict_plans()
+def test_reader_destroyed_while_decoding(device):
+    """The reader is destroyed with its lanes decoding batches ahead, or before it starts them."""
+    skip_if_m60()
+
+    @pipeline_def(batch_size=4, num_threads=4, device_id=0)
+    def pipe(lazy_init):
+        return fn.experimental.readers.video(
+            filenames=cfr_files + vfr_files, device=device, sequence_length=5, lazy_init=lazy_init
+        )
+
+    for i in range(30):
+        p = pipe(lazy_init=i % 2 == 1)
+        p.build()
+        for _ in range(i % 3):  # none: destroyed before the lanes are started
+            p.run()
+        del p

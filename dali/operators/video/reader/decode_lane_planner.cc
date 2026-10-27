@@ -49,12 +49,6 @@ void SampleFrames(span<const int> frame_idxs, int start, int end, int stride,
   std::sort(frames.begin(), frames.end());
 }
 
-FramesDecoderBase::DecodePosition DecoderPosition(FramesDecoderBase &decoder) {
-  int next = decoder.NextFrameIdx();
-  return decoder.HasIndex() ? FramesDecoderBase::PositionAt(decoder.GetIndex(), next)
-                            : FramesDecoderBase::DecodePosition{next, -1};
-}
-
 namespace {
 
 using DecodePosition = FramesDecoderBase::DecodePosition;
@@ -192,9 +186,10 @@ void PlanLanes(span<const PlannedRun> runs, span<const LaneStart> lanes, int64_t
         work = FileWork(runs, lanes[l], make_cspan(candidate));
         delta = Cost(work, open_cost) - (group ? Cost(group->work, open_cost) : 0);
       }
-      if (plans[l].load + delta < best_end) {
+      int64_t end = plans[l].load + delta;
+      if (end < best_end || (end == best_end && lanes[l].backlog < lanes[best].backlog)) {
         best = l;
-        best_end = plans[l].load + delta;
+        best_end = end;
         best_work = work;
         best_runs = candidate;
       }
