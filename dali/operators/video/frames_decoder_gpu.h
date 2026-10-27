@@ -234,6 +234,14 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
     return mapped_pictures_;
   }
 
+  /**
+   * @brief Number of pictures not decoded at all so far (for tests and diagnostics): H.264
+   *        non-reference pictures that are not read with their data.
+   */
+  int64_t SkippedPictures() const {
+    return skipped_pictures_;
+  }
+
  protected:
   bool SelectVideoStream(int stream_id = -1) override;
 
@@ -263,6 +271,12 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
    * mapping and converting it is not. Reading a frame without its data is an internal error.
    */
   bool MayBeReadWithData(int64_t pts) const;
+
+  /**
+   * @brief Whether the picture with this timestamp, decoded next, is mapped and converted: it is
+   *        returned with its data now, or buffered with its data.
+   */
+  bool PictureReadWithData(int64_t pts) const;
 
  private:
   std::unique_ptr<NvDecodeState> nvdecode_state_;

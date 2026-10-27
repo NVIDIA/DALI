@@ -1148,7 +1148,7 @@ class VideoReaderDecoder
     }
     auto &decoder = *lane.decoder;
     DALI_ENFORCE(decoder.IsValid(), make_string("Invalid decoder for filename ", filename));
-    int64_t decoded_pictures = decoder.DecodedPictures();
+    int64_t decoded_pictures = decoder.ParsedPictures();
 
     int64_t num_frames = sample.frame_idxs_.empty()
         ? (sample.end_ - sample.start_ + sample.stride_ - 1) / sample.stride_
@@ -1226,7 +1226,7 @@ class VideoReaderDecoder
                            sample.end_, sample.stride_, boundary_type_, constant_frame,
                            make_span(sample.timestamps_));
     }
-    lane.decoded_pictures += decoder.DecodedPictures() - decoded_pictures;
+    lane.decoded_pictures += decoder.ParsedPictures() - decoded_pictures;
     LOG_LINE << "Decoding frames done" << std::endl;
   }
 

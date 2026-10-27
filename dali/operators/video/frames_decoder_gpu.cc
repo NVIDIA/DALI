@@ -560,10 +560,20 @@ int FramesDecoderGpu::ProcessPictureDecode(CUVIDPICPARAMS *picture_params) {
     return 0;
   }
 
-  // NVDEC is not used while the previous picture's surface may still be read
-  ReleaseMappedFrame();
-  CUDA_CALL(cuvidDecodePicture(nvdecode_state_->decoder, picture_params));
-  decoded_pictures_++;
+  // A non-reference picture that is not read with its data (e.g. one hidden by an edit list, or one
+  // only skipped on the way to the frames to read) is not decoded at all: no other picture refers
+  // to it, and only its timestamp is kept
+  bool decode = picture_params->ref_pic_flag || picture_params->field_pic_flag ||
+                codec_params_->codec_id != AV_CODEC_ID_H264 ||
+                PictureReadWithData(piped_pts_.empty() ? current_pts_ : piped_pts_.front());
+  if (decode) {
+    // NVDEC is not used while the previous picture's surface may still be read
+    ReleaseMappedFrame();
+    CUDA_CALL(cuvidDecodePicture(nvdecode_state_->decoder, picture_params));
+    decoded_pictures_++;
+  } else {
+    skipped_pictures_++;
+  }
   CUVIDPARSERDISPINFO picture_display_info;
   memset(&picture_display_info, 0, sizeof(picture_display_info));
   picture_display_info.picture_index = picture_params->CurrPicIdx;
@@ -1000,6 +1010,15 @@ void FramesDecoderGpu::AttachFrameBuffer(BufferedFrame &slot) {
     }
   }
   slot.frame_.resize(FrameSize());
+}
+
+bool FramesDecoderGpu::PictureReadWithData(int64_t pts) const {
+  // the same decision as HandlePictureDisplay's: returned now, or buffered with its data
+  if (HasIndex() && next_frame_idx_ >= 0 && pts == index_[next_frame_idx_].pts)
+    return current_copy_to_output_;
+  return buffered_frame_data_ == BufferedFrameData::kIfRead
+             ? MayBeReadWithData(pts)
+             : buffered_frame_data_ == BufferedFrameData::kAll;
 }
 
 bool FramesDecoderGpu::MayBeReadWithData(int64_t pts) const {

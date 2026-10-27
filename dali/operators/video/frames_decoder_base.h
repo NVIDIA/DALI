@@ -477,6 +477,15 @@ class DLL_PUBLIC FramesDecoderBase {
     return decoded_pictures_;
   }
 
+  /**
+   * @brief Number of pictures that the decoder went through so far: those decoded, and those it
+   *        left out as no other picture needs them (see FramesDecoderGpu). AddDecodeWork estimates
+   *        this number.
+   */
+  int64_t ParsedPictures() const {
+    return decoded_pictures_ + skipped_pictures_;
+  }
+
  protected:
   void DecodeFramesImpl(uint8_t *data, SmallVector<std::pair<int, int>, 32> frame_ids,
                         boundary::BoundaryType boundary_type,
@@ -510,6 +519,7 @@ class DLL_PUBLIC FramesDecoderBase {
   bool is_valid_ = false;
 
   int64_t decoded_pictures_ = 0;  // see DecodedPictures
+  int64_t skipped_pictures_ = 0;  // see ParsedPictures
 
   /**
    * @brief The frames read with their data next, in order, when known: DecodeFrames sets those it

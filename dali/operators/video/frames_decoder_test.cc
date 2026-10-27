@@ -301,9 +301,9 @@ void CheckDecodeWork(FramesDecoderBase &decoder, FramesDecoderBase::DecodePositi
   for (int frame : frames)
     FramesDecoderBase::AddDecodeWork(index, pos, frame, work);
 
-  int64_t before = decoder.DecodedPictures();
+  int64_t before = decoder.ParsedPictures();
   decoder.DecodeFrames(buffer, make_cspan(frame_ids), boundary::BoundaryType::CLAMP);
-  EXPECT_NEAR(decoder.DecodedPictures() - before, work.pictures, slack) << what;
+  EXPECT_NEAR(decoder.ParsedPictures() - before, work.pictures, slack) << what;
   EXPECT_EQ(decoder.NextFrameIdx(), pos.next_frame) << what;
 }
 
@@ -357,7 +357,7 @@ int CheckPositionAt(FramesDecoderBase &decoder, uint8_t *frame, int slack,
                     const std::string &path) {
   auto &index = decoder.GetIndex();
   int free_frames = 0;
-  int64_t start = decoder.DecodedPictures(), estimate = 0;
+  int64_t start = decoder.ParsedPictures(), estimate = 0;
   for (int k = 0; k < static_cast<int>(index.size()); k++) {
     auto pos = FramesDecoderBase::PositionAt(index, k);
     FramesDecoderBase::DecodeWork work;
@@ -365,7 +365,7 @@ int CheckPositionAt(FramesDecoderBase &decoder, uint8_t *frame, int slack,
     estimate += work.pictures;
     EXPECT_EQ(decoder.NextFrameIdx(), k) << path;
     decoder.ReadNextFrame(frame);
-    int64_t ahead = decoder.DecodedPictures() - start - estimate;
+    int64_t ahead = decoder.ParsedPictures() - start - estimate;
     EXPECT_GE(ahead, 0) << path << ": frame " << k;
     EXPECT_LE(ahead, slack) << path << ": frame " << k;
     free_frames += work.pictures == 0;
@@ -770,7 +770,7 @@ using HashedFramesScenario = std::function<std::vector<size_t>(FramesDecoderGpu 
 
 struct ScenarioResult {
   std::vector<size_t> frames;
-  int64_t decoded = 0, mapped = 0;
+  int64_t decoded = 0, skipped = 0, mapped = 0;
 };
 
 // Runs `scenario` with a new decoder (one at a time: ReadFrames expects one mapped surface at most)
@@ -782,21 +782,24 @@ ScenarioResult RunScenario(const std::string &path, const FrameIndex &index,
   ScenarioResult result;
   result.frames = scenario(decoder);
   result.decoded = decoder.DecodedPictures();
+  result.skipped = decoder.SkippedPictures();
   result.mapped = decoder.MappedPictures();
   return result;
 }
 
 /**
  * @brief Runs `scenario` with a decoder and with one that maps every picture (GpuDecoderMappingAll)
- * and checks that they return the same frames, after decoding the same pictures, of which the
- * decoder maps no more. Returns the pictures mapped by the decoder.
+ * and checks that they return the same frames, after going through the same pictures, of which the
+ * decoder decodes and maps no more. Returns the pictures mapped by the decoder.
  */
 int64_t CheckSameFramesAsMappingAll(const std::string &path, const FrameIndex &index,
                                     const std::string &what, const HashedFramesScenario &scenario) {
   auto result = RunScenario<FramesDecoderGpu>(path, index, scenario);
   auto expected = RunScenario<GpuDecoderMappingAll>(path, index, scenario);
   EXPECT_EQ(result.frames, expected.frames) << path << ": " << what;
-  EXPECT_EQ(result.decoded, expected.decoded) << path << ": " << what;
+  EXPECT_EQ(result.decoded + result.skipped, expected.decoded + expected.skipped)
+      << path << ": " << what;
+  EXPECT_LE(result.decoded, expected.decoded) << path << ": " << what;
   EXPECT_LE(result.mapped, expected.mapped) << path << ": " << what;
   return result.mapped;
 }
@@ -851,8 +854,9 @@ void CheckSameFramesAsMappingAll(const std::string &path) {
 
 }  // namespace
 
-// A decoder decodes the pictures that it does not return (hidden by an edit list, or skipped), but
-// it does not map or convert them, nor keep a frame buffer for them
+// A decoder decodes the pictures that it does not return (hidden by an edit list, or skipped) only
+// when other pictures refer to them (H.264 non-reference pictures are left out), and it does not
+// map or convert them, nor keep a frame buffer for them
 TEST_F(FramesDecoderGpuTest, PicturesNotReadAreNotMapped) {
   // 188 pictures hidden by an edit list, decoded before the first frame
   auto path = SintelVideoFile(4);
@@ -862,11 +866,14 @@ TEST_F(FramesDecoderGpuTest, PicturesNotReadAreNotMapped) {
   auto check = [&](const std::string &what, const std::vector<int> &frame_ids) {
     auto mapped = CheckSameFramesAsMappingAll(path, index, what, [&](FramesDecoderGpu &d) {
       auto frames = DecodeAndHash(d, frame_ids);
-      EXPECT_GT(d.DecodedPictures(), 188);
-      if (dynamic_cast<GpuDecoderMappingAll *>(&d))
+      EXPECT_GT(d.ParsedPictures(), 188);
+      if (dynamic_cast<GpuDecoderMappingAll *>(&d)) {
         EXPECT_GT(d.NumFrameBuffers(), 188);  // one for each picture hidden by the edit list
-      else
+      } else {
         EXPECT_LE(d.NumFrameBuffers(), 10);
+        // 86 of the 188 hidden pictures are H.264 non-reference pictures
+        EXPECT_GE(d.SkippedPictures(), 80);
+      }
       return frames;
     });
     EXPECT_LE(mapped, static_cast<int64_t>(frame_ids.size()) + kMaxMappedAhead) << what;
