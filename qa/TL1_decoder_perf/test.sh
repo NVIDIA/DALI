@@ -47,8 +47,9 @@ run_bench() {
 
 # Per-platform benchmark settings, keyed by "<CPU arch>/<GPU compute capability>".
 set_platform_params() {
-    local arch=$(uname -m)
-    local compute_cap=$(nvidia-smi --query-gpu=compute_cap --format=csv,noheader -i 0)
+    local arch compute_cap
+    arch=$(uname -m)
+    compute_cap=$(nvidia-smi --query-gpu=compute_cap --format=csv,noheader -i 0)
     case "${arch}/${compute_cap}" in
         x86_64/*)  # x86 + any GPU (tuned on Hopper)
             CPU_LIST="0-127"
@@ -58,8 +59,9 @@ set_platform_params() {
             MIN_PERF_NDD=14000
             ;;
         aarch64/10.7)  # Vera Rubin (VR)
+            # 2 sockets x 88 cores x 2 threads; 0-87 + 176-263 are socket 0 and its hyperthread siblings (local to GPU 0)
             CPU_LIST="0-87,176-263"
-            NUM_CORES=174
+            NUM_CORES=174  # leave 2 cores for internal DALI tasks
             HW_LOAD=0.13
             MIN_PERF=40000
             MIN_PERF_NDD=27000
