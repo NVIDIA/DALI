@@ -406,8 +406,8 @@ TEST(DecodeLanePlannerTest, LaneOrder) {
 TEST(DecodeLanePlannerTest, PlannedPicturesAreDecoded) {
   // VP9 (the codecs of the CPU decoder): 60 frames with a keyframe every 10, and 50 frames with
   // a single keyframe
-  std::string gops = testing::dali_extra_path() + "/db/video/vfr/test_2_vp9.mp4";
-  std::string single_gop = testing::dali_extra_path() + "/db/video/cfr/test_1_vp9.mp4";
+  std::string gops = make_string(testing::dali_extra_path(), "/db/video/vfr/test_2_vp9.mp4");
+  std::string single_gop = make_string(testing::dali_extra_path(), "/db/video/cfr/test_1_vp9.mp4");
   std::map<std::string, FrameIndex> indices;
   size_t frame_size = 0;
   for (auto &path : {gops, single_gop}) {

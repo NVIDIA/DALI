@@ -227,7 +227,7 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
   /**
    * @brief Number of pictures mapped and converted so far (for tests and diagnostics).
    *
-   * Pictures that are decoded, but never read (see MayBeReadWithData) or skipped as they come,
+   * Pictures that are decoded, but never read (see CanBeReadWithData) or skipped as they come,
    * are not.
    */
   int64_t MappedPictures() const {
@@ -250,7 +250,7 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
    *        converted
    */
   enum class BufferedFrameData {
-    kIfRead,  // those that may be read with their data (see MayBeReadWithData)
+    kIfRead,  // those that may be read with their data (see CanBeReadWithData)
     kAll,     // all of them, as before the decoder left out those that are not read
     kNone,    // none of them
   };
@@ -270,13 +270,13 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
    * skipped on the way to the frames to read) is still needed for the frames that refer to it, but
    * mapping and converting it is not. Reading a frame without its data is an internal error.
    */
-  bool MayBeReadWithData(int64_t pts) const;
+  bool CanBeReadWithData(int64_t pts) const;
 
   /**
    * @brief Whether the picture with this timestamp, decoded next, is mapped and converted: it is
    *        returned with its data now, or buffered with its data.
    */
-  bool PictureReadWithData(int64_t pts) const;
+  bool IsPictureReadWithData(int64_t pts) const;
 
  private:
   std::unique_ptr<NvDecodeState> nvdecode_state_;

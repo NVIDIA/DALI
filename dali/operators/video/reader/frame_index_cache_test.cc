@@ -114,7 +114,7 @@ TEST(FrameIndexCacheTest, HandBuiltIndexIsInDecodingOrder) {
 }
 
 TEST(FrameIndexCacheTest, KeepsDecodingOrder) {
-  auto path = testing::dali_extra_path() + "/db/video/vfr/test_1_vp9.mp4";
+  auto path = make_string(testing::dali_extra_path(), "/db/video/vfr/test_1_vp9.mp4");
   FramesDecoderCpu decoder(path);
   ASSERT_TRUE(decoder.IsValid());
   auto &cache = FrameIndexCache::instance();

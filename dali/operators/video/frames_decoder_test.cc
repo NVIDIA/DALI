@@ -32,6 +32,7 @@
 #include "dali/core/device_guard.h"
 #include "dali/core/dynlink_cuda.h"
 #include "dali/core/error_handling.h"
+#include "dali/core/format.h"
 #include "dali/operators/video/frames_decoder_cpu.h"
 #include "dali/operators/video/frames_decoder_gpu.h"
 #include "dali/operators/video/video_test.h"
@@ -488,8 +489,8 @@ GpuDecoderFactory FileDecoder(const std::string &path) {
 
 TEST_F(FramesDecoderTest_CpuOnlyTests, DecodeWork) {
   for (auto &path : {cfr_videos_paths_[0], vfr_videos_paths_[0],
-                     testing::dali_extra_path() + "/db/video/cfr/test_2_vp9.mp4",
-                     testing::dali_extra_path() + "/db/video/vfr/test_2_vp9.mp4"}) {
+                     make_string(testing::dali_extra_path(), "/db/video/cfr/test_2_vp9.mp4"),
+                     make_string(testing::dali_extra_path(), "/db/video/vfr/test_2_vp9.mp4")}) {
     FramesDecoderCpu decoder(path);
     decoder.BuildIndex();
     std::vector<uint8_t> buffer(kMaxDecodeWorkFrames * decoder.FrameSize());
@@ -503,7 +504,7 @@ TEST_F(FramesDecoderGpuTest, DecodeWork) {
   std::vector<std::string> paths = SintelClipKinds();
   // VP9, H.264 without a lead-in and HEVC (the CPU test covers the other VP9 files)
   paths.push_back(vfr_videos_paths_[0]);
-  paths.push_back(testing::dali_extra_path() + "/db/video/cfr/test_1.mp4");
+  paths.push_back(make_string(testing::dali_extra_path(), "/db/video/cfr/test_1.mp4"));
   if (FramesDecoderGpu::SupportsHevc())
     paths.push_back(vfr_hevc_videos_paths_[0]);
   CheckGpuDecodeWork(paths);
@@ -535,7 +536,7 @@ TEST_F(FramesDecoderTest_CpuOnlyTests, IndexDecodeOrder) {
 }
 
 TEST_F(FramesDecoderGpuTest, IndexDecodeOrder) {
-  auto h264_path = testing::dali_extra_path() + "/db/video/cfr/test_1.mp4";
+  auto h264_path = make_string(testing::dali_extra_path(), "/db/video/cfr/test_1.mp4");
   for (auto &path : {cfr_videos_paths_[0], h264_path}) {
     FramesDecoderGpu decoder(path);
     decoder.BuildIndex();
@@ -885,11 +886,12 @@ TEST_F(FramesDecoderGpuTest, PicturesNotReadAreNotMapped) {
 }
 
 TEST_F(FramesDecoderGpuTest, SameFramesAsMappingAll) {
+  auto video_dir = make_string(testing::dali_extra_path(), "/db/video");
   std::vector<std::string> paths = {SintelVideoFile(4), SintelClip(2, 8),
-                                    testing::dali_extra_path() + "/db/video/vfr/test_1.mp4"};
+                                    make_string(video_dir, "/vfr/test_1.mp4")};
   if (FramesDecoderGpu::SupportsHevc()) {
-    paths.push_back(testing::dali_extra_path() + "/db/video/hevc/sintel_trailer-720p.mp4");
-    paths.push_back(testing::dali_extra_path() + "/db/video/vfr/test_2_hevc.mp4");
+    paths.push_back(make_string(video_dir, "/hevc/sintel_trailer-720p.mp4"));
+    paths.push_back(make_string(video_dir, "/vfr/test_2_hevc.mp4"));
   }
   for (auto &path : paths)
     CheckSameFramesAsMappingAll(path);
@@ -949,7 +951,7 @@ TEST_F(FramesDecoderGpuTest, VariableFrameRate) {
 // when the next file is opened and not created from scratch every time. The number of created
 // decoders is checked, as the size of the cache would not change if it is full and evicts one.
 TEST_F(FramesDecoderGpuTest, DecoderCacheReusedForCroppedVideo) {
-  std::string path = testing::dali_extra_path() + "/db/video/cfr/test_2.mp4";
+  std::string path = make_string(testing::dali_extra_path(), "/db/video/cfr/test_2.mp4");
   auto decode_first_frame = [&]() {
     FramesDecoderGpu decoder(path);
     ASSERT_TRUE(decoder.IsValid());

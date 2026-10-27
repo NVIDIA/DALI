@@ -560,7 +560,7 @@ int FramesDecoderGpu::ProcessPictureDecode(CUVIDPICPARAMS *picture_params) {
   // to it, and only its timestamp is kept
   bool decode = picture_params->ref_pic_flag || picture_params->field_pic_flag ||
                 codec_params_->codec_id != AV_CODEC_ID_H264 ||
-                PictureReadWithData(piped_pts_.empty() ? current_pts_ : piped_pts_.front());
+                IsPictureReadWithData(piped_pts_.empty() ? current_pts_ : piped_pts_.front());
   if (decode) {
     // NVDEC is not used while the previous picture's surface may still be read
     ReleaseMappedFrame();
@@ -625,7 +625,7 @@ int FramesDecoderGpu::HandlePictureDisplay(CUVIDPARSERDISPINFO *picture_display_
     // the way to the frames to read) keeps its place in the buffer, but it is neither mapped nor
     // converted
     slot.has_data_ = buffered_frame_data_ == BufferedFrameData::kIfRead
-                         ? MayBeReadWithData(slot.pts_)
+                         ? CanBeReadWithData(slot.pts_)
                          : buffered_frame_data_ == BufferedFrameData::kAll;
     if (!slot.has_data_) {
       LOG_LINE << "Not mapping frame with timestamp " << slot.pts_
@@ -874,7 +874,7 @@ bool FramesDecoderGpu::ReadNextFrameWithoutIndex(uint8_t *data) {
     if (dtype_ == DALI_FLOAT) {
       total_size *= 4;
     }
-    // without an index, every buffered frame keeps its data (see MayBeReadWithData)
+    // without an index, every buffered frame keeps its data (see CanBeReadWithData)
     assert(frame_buffer_[frame_to_return_index].has_data_);
     LOG_LINE << "Copying from frame buffer at index " << frame_to_return_index
              << " to frame_output at " << current_frame_output_ << " (frame_idx=" << next_frame_idx_
@@ -1007,16 +1007,16 @@ void FramesDecoderGpu::AttachFrameBuffer(BufferedFrame &slot) {
   slot.frame_.resize(FrameSize());
 }
 
-bool FramesDecoderGpu::PictureReadWithData(int64_t pts) const {
+bool FramesDecoderGpu::IsPictureReadWithData(int64_t pts) const {
   // the same decision as HandlePictureDisplay's: returned now, or buffered with its data
   if (HasIndex() && next_frame_idx_ >= 0 && pts == index_[next_frame_idx_].pts)
     return current_copy_to_output_;
   return buffered_frame_data_ == BufferedFrameData::kIfRead
-             ? MayBeReadWithData(pts)
+             ? CanBeReadWithData(pts)
              : buffered_frame_data_ == BufferedFrameData::kAll;
 }
 
-bool FramesDecoderGpu::MayBeReadWithData(int64_t pts) const {
+bool FramesDecoderGpu::CanBeReadWithData(int64_t pts) const {
   if (!HasIndex() || next_frame_idx_ < 0 || next_frame_idx_ >= static_cast<int>(index_.size()))
     return true;
   // The index is sorted by timestamp and, until the decoder is flushed, a buffered frame is only

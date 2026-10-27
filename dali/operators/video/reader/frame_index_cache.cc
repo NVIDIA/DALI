@@ -25,7 +25,7 @@ FrameIndexCache &FrameIndexCache::instance() {
 }
 
 FrameIndexCache::FileStamp FrameIndexCache::FileStamp::Of(std::string_view filename) {
-  struct stat st;
+  struct stat st = {};
   if (stat(std::string(filename).c_str(), &st) != 0)
     return {};
   return {static_cast<int64_t>(st.st_size),

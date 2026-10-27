@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2022-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -1366,11 +1366,13 @@ _lanes_reader_cases = [
 ]
 
 
+_sintel_dir = os.path.join(get_dali_extra_path(), "db", "video", "sintel")
+
 # H.264 clips that start with packets hidden by an edit list (62 and 16), which are decoded before
 # the first frame, and after a seek that lands on them
 lead_in_files = [
-    f"{get_dali_extra_path()}/db/video/sintel/labelled_videos/0/sintel_trailer-720p_6.mp4",
-    f"{get_dali_extra_path()}/db/video/sintel/labelled_videos/2/sintel_trailer-720p_5.mp4",
+    os.path.join(_sintel_dir, "labelled_videos", "0", "sintel_trailer-720p_6.mp4"),
+    os.path.join(_sintel_dir, "labelled_videos", "2", "sintel_trailer-720p_5.mp4"),
 ]
 
 
@@ -1461,7 +1463,7 @@ def test_reader_batch_size_1_output_independent_of_num_threads(device, case):
 # An H.264 clip with a long lead-in hidden by an edit list (188 pictures). The GPU decoder decodes
 # those pictures, but does not map or convert them, nor the pictures that it only skips
 long_lead_in_files = [
-    f"{get_dali_extra_path()}/db/video/sintel/video_files/sintel_trailer-720p_4.mp4",
+    os.path.join(_sintel_dir, "video_files", "sintel_trailer-720p_4.mp4"),
 ]
 
 
