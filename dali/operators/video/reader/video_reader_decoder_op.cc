@@ -22,6 +22,7 @@
 #include <memory>
 #include <mutex>
 #include <numeric>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -259,6 +260,8 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
     for (size_t i = 0; i < video_files_info_.size(); ++i) {
       auto& entry = video_files_info_[i];
       LOG_LINE << "Processing video file " << i << ": " << entry.filename << std::endl;
+      // the version of the file that the decoder opens (see FrameIndexCache::GetOrBuild)
+      auto stamp = FrameIndexCache::FileStamp::Of(entry.filename);
       std::unique_ptr<FramesDecoderImpl> decoder;
       if constexpr(std::is_same_v<Backend, CPUBackend>) {
         decoder = std::make_unique<FramesDecoderImpl>(entry.filename, image_type_);
@@ -269,7 +272,7 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
         LOG_LINE << "Invalid video file: " << entry.filename << std::endl;
         continue;
       }
-      auto index = FrameIndexCache::instance().GetOrBuild(entry.filename, [&]() {
+      auto index = FrameIndexCache::instance().GetOrBuild(entry.filename, stamp, [&]() {
         LOG_LINE << "Building index for " << entry.filename << std::endl;
         decoder->BuildIndex();
         return decoder->GetIndex();
@@ -812,7 +815,9 @@ class VideoReaderDecoder
   void InitLanes(const OpSpec &spec) {
     lanes_.resize(NumLanes(spec));
     decode_ahead_ = lanes_.size() > 1 ? kDecodeAhead : 0;
-    lane_device_id_ = spec.GetArgument<int>("device_id");
+    // CPU: the lanes' threads do not use the GPU (DeviceGuard does nothing)
+    lane_device_id_ = std::is_same_v<Backend, GPUBackend> ? spec.GetArgument<int>("device_id")
+                                                          : CPU_ONLY_DEVICE_ID;
     for (auto &lane : lanes_) {
       lane.constant_frame.set_pinned(std::is_same_v<Backend, GPUBackend>);
       if (use_streams_)
@@ -933,6 +938,8 @@ class VideoReaderDecoder
       });
       if (run != runs.end()) {
         run->tasks.push_back(t);
+        if (run->first < 0)  // opened by a sample that decodes no frame
+          run->first = task.first;
         run->last = std::max(run->last, task.last);
         run->batch_idx = std::min(run->batch_idx, task.batch_idx);
       } else {
@@ -1035,8 +1042,16 @@ class VideoReaderDecoder
   }
 
   void LaneMain(int l) {
-    SetThreadName(make_string("[DALI][VR lane ", l, "]").c_str());
-    DeviceGuard g(lane_device_id_);
+    // Nothing may throw out of a lane's thread: if setting it up fails, it fails its part of every
+    // batch with that error
+    std::exception_ptr setup_error;
+    std::optional<DeviceGuard> device_guard;
+    try {
+      SetThreadName(make_string("[DALI][VR lane ", l, "]").c_str());
+      device_guard.emplace(lane_device_id_);
+    } catch (...) {
+      setup_error = std::current_exception();
+    }
     auto &lane = lanes_[l];
     std::unique_lock<std::mutex> lock(lanes_mutex_);
     for (;;) {
@@ -1046,22 +1061,25 @@ class VideoReaderDecoder
       PendingBatch *batch = lane.queue.front();
       lane.queue.pop_front();
       lock.unlock();
-      RunLanePart(l, *batch);
+      RunLanePart(l, *batch, setup_error);
       lock.lock();
     }
   }
 
   /**
    * @brief Does a lane's part of a batch, and records that it is done. Never throws: on a lane's
-   * thread, that would end the process, and the batch would never be done.
+   * thread, that would end the process, and the batch would never be done. With `setup_error`
+   * (the lane's thread could not be set up), the part fails with it.
    */
-  void RunLanePart(int l, PendingBatch &batch) {
+  void RunLanePart(int l, PendingBatch &batch, std::exception_ptr setup_error = nullptr) {
     std::vector<SampleError> errors;
-    std::exception_ptr failure;  // of the lane's part, not of a sample
-    try {
-      DecodeLanePart(l, batch, errors);
-    } catch (...) {
-      failure = std::current_exception();
+    std::exception_ptr failure = setup_error;  // of the lane's part, not of a sample
+    if (!failure) {
+      try {
+        DecodeLanePart(l, batch, errors);
+      } catch (...) {
+        failure = std::current_exception();
+      }
     }
     std::lock_guard<std::mutex> lock(lanes_mutex_);
     try {

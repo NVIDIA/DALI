@@ -55,15 +55,28 @@ class DLL_PUBLIC FrameIndexCache {
   static FrameIndexCache &instance();
 
   /**
+   * @brief A version of a file: its size and modification time (-1 if the file cannot be
+   *        checked, e.g. the name is not a path).
+   */
+  struct FileStamp {
+    int64_t size = -1, mtime_ns = -1;
+    static FileStamp Of(std::string_view filename);
+    bool operator==(const FileStamp &other) const = default;
+  };
+
+  /**
    * @brief Returns the index of `filename`, building it with `build()` if it is not cached.
    *
    * `build` returns a FrameIndex. If another thread is building the same index, this call waits
    * for it. If building fails, the exception is rethrown to every caller waiting for that index
    * and the entry is removed, so that a later call can try again.
+   *
+   * `stamp` is the version of the file that `build` indexes: taken before `build` (or the decoder
+   * it uses) opens the file, so that an index of a file rewritten in the meantime is not cached
+   * as that of the new version.
    */
   template <typename BuildFn>
-  IndexPtr GetOrBuild(std::string_view filename, BuildFn &&build) {
-    auto stamp = FileStamp::Of(filename);
+  IndexPtr GetOrBuild(std::string_view filename, const FileStamp &stamp, BuildFn &&build) {
     std::shared_future<IndexPtr> pending;
     {
       std::shared_lock guard(mutex_);
@@ -100,6 +113,11 @@ class DLL_PUBLIC FrameIndexCache {
     return index;
   }
 
+  template <typename BuildFn>
+  IndexPtr GetOrBuild(std::string_view filename, BuildFn &&build) {
+    return GetOrBuild(filename, FileStamp::Of(filename), std::forward<BuildFn>(build));
+  }
+
   /**
    * @brief Returns the index of `filename` if it is cached and ready, nullptr otherwise.
    *
@@ -109,16 +127,6 @@ class DLL_PUBLIC FrameIndexCache {
 
  private:
   FrameIndexCache() = default;
-
-  /**
-   * @brief A version of a file: its size and modification time (-1 if the file cannot be
-   *        checked, e.g. the name is not a path).
-   */
-  struct FileStamp {
-    int64_t size = -1, mtime_ns = -1;
-    static FileStamp Of(std::string_view filename);
-    bool operator==(const FileStamp &other) const = default;
-  };
 
   struct Entry {
     uint64_t id = 0;                        // tells this entry from a later one of the same file

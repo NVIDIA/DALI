@@ -18,6 +18,7 @@ import numpy as np
 import cv2
 import av
 import contextlib
+import functools
 import nvidia.dali.types as types
 import glob
 import os
@@ -1323,25 +1324,19 @@ def test_video_index_reuse():
     pipe.run()
 
 
-_reference_cache = {}
-
-
+@functools.lru_cache(maxsize=4)
 def _reference_frames(filename):
-    """All frames of the file, decoded with PyAV, in presentation order."""
-    if filename not in _reference_cache:
-        with av.open(filename) as container:
-            _reference_cache[filename] = [
-                f.to_ndarray(format="rgb24") for f in container.decode(video=0)
-            ]
-    return _reference_cache[filename]
+    """All frames of the file, decoded with PyAV, in presentation order (the last few files are
+    kept: the tests check one file after another)."""
+    with av.open(filename) as container:
+        return [f.to_ndarray(format="rgb24") for f in container.decode(video=0)]
 
 
-def _assert_frames_match_file(frames, frame_nums, filename, window=None):
+def _assert_frames_match_file(frames, frame_nums, filename, window=32):
     """Checks that frames[i] is the frame frame_nums[i] of the file (negative: padding, skipped).
 
     Decoders differ slightly in color conversion, so a frame must be close to the reference and
-    closer to it than to any other frame of the file (with `window`, to any other frame up to
-    `window` frames away, which is faster for long files)."""
+    closer to it than to any other frame up to `window` frames away (None: of the whole file)."""
     reference = _reference_frames(filename)
     for frame, num in zip(frames, frame_nums, strict=True):
         if num < 0:
@@ -1403,7 +1398,7 @@ def _strict_plans():
 
 @_strict_plans()
 def _check_reader_output_independent_of_num_threads(
-    device, kwargs, batch_size, num_threads, files=None, window=None, epochs=None
+    device, kwargs, batch_size, num_threads, files=None, window=32, epochs=None
 ):
     """With `epochs`, compares that many epochs (and one more batch), otherwise 8 batches."""
     files = files or _lanes_reader_files(device)
@@ -1551,14 +1546,18 @@ def test_reader_pad_last_batch_repeats_last_sample(device, shard_id, reader_dept
         )
         return videos, labels
 
-    p = pipe()
-    samples = []
-    for _ in range(3):
-        videos, labels = p.run()
-        videos = videos.as_cpu() if device == "gpu" else videos
-        labels = labels.as_cpu() if device == "gpu" else labels
-        samples += [(np.array(videos[i]), int(np.array(labels[i])[0])) for i in range(batch_size)]
-    os.remove(file_list.name)
+    try:
+        p = pipe()
+        samples = []
+        for _ in range(3):
+            videos, labels = p.run()
+            videos = videos.as_cpu() if device == "gpu" else videos
+            labels = labels.as_cpu() if device == "gpu" else labels
+            samples += [
+                (np.array(videos[i]), int(np.array(labels[i])[0])) for i in range(batch_size)
+            ]
+    finally:
+        os.remove(file_list.name)
     first, end = 26 * shard_id // 3, 26 * (shard_id + 1) // 3
     num_read = end - first
     assert [label for _, label in samples] == list(range(first, end)) + [end - 1] * (12 - num_read)

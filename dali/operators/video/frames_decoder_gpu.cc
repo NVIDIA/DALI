@@ -97,18 +97,16 @@ CUVIDDECODECAPS GetDecoderCaps(cudaVideoCodec codec, cudaVideoChromaFormat chrom
   static std::mutex mutex;
   static std::map<Key, CUVIDDECODECAPS> cache;
   Key key{device_id, codec, chroma, bit_depth_minus8};
-  {
-    std::lock_guard lock(mutex);
-    auto it = cache.find(key);
-    if (it != cache.end())
-      return it->second;
-  }
+  // held during the query too: decoders that start at once query each configuration once
+  std::lock_guard lock(mutex);
+  auto it = cache.find(key);
+  if (it != cache.end())
+    return it->second;
   CUVIDDECODECAPS caps = {};
   caps.eCodecType = codec;
   caps.eChromaFormat = chroma;
   caps.nBitDepthMinus8 = bit_depth_minus8;
   CUDA_CALL(cuvidGetDecoderCaps(&caps));
-  std::lock_guard lock(mutex);
   cache.emplace(key, caps);
   return caps;
 }
@@ -508,12 +506,9 @@ void FramesDecoderGpu::InitGpuParser() {
 
   nvdecode_state_->parser = frame_dec_gpu_impl::CUvideoparserHandle(parser_info);
 
-  // Init internal frame buffer
-  // TODO(awolant): Check, if continuous buffer would be faster
-  for (size_t i = 0; i < frame_buffer_.size(); ++i) {
-    frame_buffer_[i].frame_.resize(FrameSize());
-    frame_buffer_[i].pts_ = -1;
-  }
+  // The frame buffers are allocated as frames are buffered (see AttachFrameBuffer)
+  for (auto &frame : frame_buffer_)
+    frame.pts_ = -1;
 }
 
 FramesDecoderGpu::FramesDecoderGpu(const std::string &filename, cudaStream_t stream, DALIImageType image_type)
