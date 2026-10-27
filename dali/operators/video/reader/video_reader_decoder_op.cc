@@ -27,6 +27,7 @@
 #include <string_view>
 #include <thread>
 #include <tuple>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -236,6 +237,15 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
     MoveToNextShard(++current_index_);
   }
 
+  /**
+   * @brief The frame index of one of the reader's files, nullptr if the file was not indexed
+   *        (it is not a valid video).
+   */
+  const FrameIndex *FileIndex(const std::string &filename) const {
+    auto it = indices_.find(filename);
+    return it != indices_.end() ? it->second.get() : nullptr;
+  }
+
   Index SizeImpl() override {
     return samples_.size();
   }
@@ -266,6 +276,7 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
       });
       if (!decoder->HasIndex())
         decoder->SetIndex(*index);
+      indices_[entry.filename] = index;  // kept for the reader's lifetime
       int64_t num_frames = decoder->NumFrames();
       entry.start_frame = 0;
       entry.end_frame = num_frames;
@@ -391,6 +402,9 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
   FileListOptions file_list_opts_;
 
   std::vector<VideoFileMeta> video_files_info_;
+  // the frame indices of the valid files, built (or found in FrameIndexCache) by
+  // PrepareMetadataImpl; the cache keeps an index only while a reader holds it
+  std::unordered_map<std::string, FrameIndexCache::IndexPtr> indices_;
   std::vector<std::vector<int>> all_frame_idxs_;  // owns frame index data; samples_ hold spans into these
   std::vector<VideoSampleDesc> samples_;
   CUDAStreamLease cuda_stream_;
@@ -854,6 +868,13 @@ class VideoReaderDecoder
   }
 
   /**
+   * @brief The frame index of one of the reader's files (see VideoLoaderDecoder::FileIndex).
+   */
+  const FrameIndex *FileIndex(const std::string &filename) const {
+    return static_cast<const VideoLoaderImpl &>(*loader_).FileIndex(filename);
+  }
+
+  /**
    * @brief Groups the batch's samples into runs: samples of one file that one decoder decodes in
    * a row without seeking.
    *
@@ -869,7 +890,7 @@ class VideoReaderDecoder
         continue;
       sample->planned = true;
       const auto &filename = sample->video_file_meta_->filename;
-      auto index = FrameIndexCache::instance().Find(filename);
+      auto *index = FileIndex(filename);
       DALI_ENFORCE(index, make_string("Internal error: no frame index for \"", filename, "\"."));
       SampleTask task{sample, i, -1, -1, -1, {}};
       try {
@@ -897,18 +918,18 @@ class VideoReaderDecoder
       const auto &fb = tb.sample->video_file_meta_->filename;
       return std::tie(fa, ta.first, ta.batch_idx) < std::tie(fb, tb.first, tb.batch_idx);
     });
-    FrameIndexCache::IndexPtr index;
+    const FrameIndex *index = nullptr;
     size_t file_runs = 0;  // the first run of the current file
     for (int t : order) {
       auto &task = tasks[t];
       const auto &filename = task.sample->video_file_meta_->filename;
       if (runs.empty() || *runs.back().filename != filename) {
         file_runs = runs.size();
-        index = FrameIndexCache::instance().Find(filename);
+        index = FileIndex(filename);
       }
       // join a run of the file that a decoder continues to this sample without seeking
       auto run = std::find_if(runs.begin() + file_runs, runs.end(), [&](const DecodeRun &r) {
-        return task.first < 0 || CanReachWithoutSeek(index.get(), r.last + 1, task.first);
+        return task.first < 0 || CanReachWithoutSeek(index, r.last + 1, task.first);
       });
       if (run != runs.end()) {
         run->tasks.push_back(t);
@@ -925,11 +946,10 @@ class VideoReaderDecoder
    * their decoders. A lane without runs releases its decoder.
    */
   void AssignRuns(PendingBatch &batch) {
-    std::vector<FrameIndexCache::IndexPtr> indices;  // keeps the indices alive while planning
     std::vector<PlannedRun> runs;
     for (const auto &run : batch.runs) {
-      indices.push_back(FrameIndexCache::instance().Find(*run.filename));
-      runs.push_back({*run.filename, indices.back().get(), run.batch_idx, run.first, run.last, {}});
+      runs.push_back({*run.filename, FileIndex(*run.filename), run.batch_idx, run.first, run.last,
+                      {}});
       for (int t : run.tasks)
         runs.back().samples.push_back(make_cspan(batch.tasks[t].frames));
     }
@@ -937,8 +957,8 @@ class VideoReaderDecoder
     for (size_t l = 0; l < lanes_.size(); l++) {
       const auto &pos = lanes_[l].planned;
       if (!pos.filename.empty()) {
-        indices.push_back(FrameIndexCache::instance().Find(pos.filename));
-        starts[l] = {pos.filename, FramesDecoderBase::PositionAt(*indices.back(), pos.next_frame)};
+        starts[l] = {pos.filename, FramesDecoderBase::PositionAt(*FileIndex(pos.filename),
+                                                                 pos.next_frame)};
       }
       starts[l].backlog = lanes_[l].backlog;
     }
@@ -1134,11 +1154,9 @@ class VideoReaderDecoder
       auto &decoder = *lane.decoder;
       LOG_LINE << "Initialized decoder to " << decoder.Filename() << " ptr: " << &decoder
                << " num_frames: " << decoder.NumFrames() << std::endl;
-      auto index = FrameIndexCache::instance().GetOrBuild(filename, [&]() {
-        LOG_LINE << "Building index for " << filename << std::endl;
-        decoder.BuildIndex();
-        return decoder.GetIndex();
-      });
+      // the index the batch was planned with (the file is not indexed again, even if it changed)
+      auto *index = FileIndex(filename);
+      DALI_ENFORCE(index, make_string("Internal error: no frame index for \"", filename, "\"."));
       if (!decoder.HasIndex())
         decoder.SetIndex(*index);
     } else {

@@ -13,8 +13,11 @@
 // limitations under the License.
 
 #include <gtest/gtest.h>
+#include <unistd.h>
 #include <atomic>
 #include <chrono>
+#include <cstdlib>
+#include <fstream>
 #include <stdexcept>
 #include <string>
 #include <thread>
@@ -51,6 +54,8 @@ TEST(FrameIndexCacheTest, BuildsEachIndexOnceUnderConcurrency) {
   std::vector<std::atomic<int>> builds(kFiles);
   std::atomic<int> errors{0};
   std::vector<std::thread> threads;
+  // the cache keeps an index only while it is used: every thread keeps the ones it got
+  std::vector<std::vector<FrameIndexCache::IndexPtr>> held(kThreads);
   for (int t = 0; t < kThreads; t++) {
     threads.emplace_back([&, t]() {
       for (int r = 0; r < kRounds; r++) {
@@ -64,6 +69,7 @@ TEST(FrameIndexCacheTest, BuildsEachIndexOnceUnderConcurrency) {
           if (!index || index->filename != Key("concurrent", file) ||
               static_cast<int>(index->size()) != file + 1)
             errors++;
+          held[t].push_back(index);
         }
       }
     });
@@ -139,8 +145,9 @@ TEST(FrameIndexCacheTest, FindDoesNotBuildOrWait) {
   auto key = Key("find", 0);
   EXPECT_EQ(cache.Find(key), nullptr);
   std::atomic<bool> building{false}, release{false};
+  FrameIndexCache::IndexPtr built;
   std::thread builder([&]() {
-    cache.GetOrBuild(key, [&] {
+    built = cache.GetOrBuild(key, [&] {
       building = true;
       while (!release)
         std::this_thread::yield();
@@ -154,7 +161,59 @@ TEST(FrameIndexCacheTest, FindDoesNotBuildOrWait) {
   builder.join();
   auto index = cache.Find(key);
   ASSERT_NE(index, nullptr);
+  EXPECT_EQ(index, built);
   EXPECT_EQ(index->size(), 2u);
+}
+
+TEST(FrameIndexCacheTest, IndexIsReleasedWithItsLastUser) {
+  auto &cache = FrameIndexCache::instance();
+  auto key = Key("released", 0);
+  int builds = 0;
+  auto build = [&] {
+    builds++;
+    return MakeIndex(key, 4);
+  };
+  auto index = cache.GetOrBuild(key, build);
+  auto other = cache.GetOrBuild(key, build);
+  EXPECT_EQ(index, other);
+  EXPECT_EQ(builds, 1);
+  std::weak_ptr<const FrameIndex> weak = index;
+  index.reset();
+  other.reset();
+  EXPECT_TRUE(weak.expired());  // the cache does not keep it
+  EXPECT_EQ(cache.Find(key), nullptr);
+  index = cache.GetOrBuild(key, build);
+  ASSERT_NE(index, nullptr);
+  EXPECT_EQ(builds, 2);
+}
+
+TEST(FrameIndexCacheTest, IndexIsRebuiltWhenTheFileChanges) {
+  char path[] = "/tmp/frame_index_cache_test_XXXXXX";
+  int fd = mkstemp(path);
+  ASSERT_GE(fd, 0);
+  close(fd);
+  auto &cache = FrameIndexCache::instance();
+  int builds = 0;
+  auto build = [&] {
+    builds++;
+    return MakeIndex(path, builds);
+  };
+  {
+    std::ofstream(path) << "first";
+  }
+  auto first = cache.GetOrBuild(path, build);
+  EXPECT_EQ(cache.GetOrBuild(path, build), first);
+  EXPECT_EQ(builds, 1);
+  {
+    std::ofstream(path, std::ios::app) << ", second";  // another size
+  }
+  auto second = cache.GetOrBuild(path, build);
+  EXPECT_EQ(builds, 2);
+  EXPECT_NE(second, first);
+  EXPECT_EQ(second->size(), 2u);
+  EXPECT_EQ(first->size(), 1u);  // still valid for its users
+  EXPECT_EQ(cache.GetOrBuild(path, build), second);
+  unlink(path);
 }
 
 }  // namespace dali
