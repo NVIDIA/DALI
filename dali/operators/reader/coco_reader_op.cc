@@ -16,7 +16,6 @@
 
 #include <set>
 #include <variant>
-#include "dali/core/call_at_exit.h"
 
 extern "C" {
 #include "third_party/cocoapi/common/maskApi.h"
@@ -319,12 +318,7 @@ void COCOReader::PixelwiseMasks(int image_idx, int* mask) {
   }
 
   // Create a run-length encoding for each polygon, indexed by label :
-  std::map<int, std::vector<RLE> > frPoly;
-  auto free_polygon_rles = AtScopeExit([&] {
-    for (auto &rles : frPoly)
-      for (auto &rle : rles.second)
-        rleFree(&rle);
-  });
+  std::map<int, std::vector<RLEMask>> frPoly;
   std::vector<double> in;
   for (uint polygon_idx = 0; polygon_idx < pol.size(); polygon_idx++) {
     auto &polygon = pol[polygon_idx];
@@ -341,29 +335,34 @@ void COCOReader::PixelwiseMasks(int image_idx, int* mask) {
       in[k++] = static_cast<double>(ratio ? pol_ver[i].x * w : pol_ver[i].x);
       in[k++] = static_cast<double>(ratio ? pol_ver[i].y * h : pol_ver[i].y);
     }
-    RLE M;
-    rleInit(&M, 0, 0, 0, 0);
-    rleFrPoly(&M, in.data(), pol_ver.size(), h, w);
-    frPoly[label].push_back(M);
+    RLE raw_mask{};
+    rleFrPoly(&raw_mask, in.data(), pol_ver.size(), h, w);
+    RLEMask polygon_mask(raw_mask);
+    frPoly[label].push_back(std::move(polygon_mask));
   }
 
   // Reserve run-length encodings by labels
-  RLE* R;
-  rlesInit(&R, *labels.rbegin() + 1);
-  auto free_label_rles = AtScopeExit([&] { rlesFree(&R, *labels.rbegin() + 1); });
+  std::vector<RLEMask> R(*labels.rbegin() + 1);
 
   // Mask was originally described in RLE format
   for (uint ann_id = 0 ; ann_id < masks_info.mask_indices.size(); ann_id++) {
     const auto &rle = masks_info.rles[ann_id];
     auto mask_idx = masks_info.mask_indices[ann_id];
     int label = labels_span[mask_idx];
-    rleInit(&R[label], (*rle)->h, (*rle)->w, (*rle)->m, (*rle)->cnts);
+    R[label] = RLEMask((*rle)->h, (*rle)->w, make_cspan((*rle)->cnts, (*rle)->m));
   }
 
   // Merge each label (from multi-polygons annotations)
-  uint lab_cnt = 0;
-  for (const auto &rles : frPoly)
-    rleMerge(rles.second.data(), &R[rles.first], rles.second.size(), 0);
+  for (const auto &rles : frPoly) {
+    // The C API requires contiguous RLE structs; these views borrow the owned counts.
+    std::vector<RLE> polygon_rles;
+    polygon_rles.reserve(rles.second.size());
+    for (const auto &rle : rles.second)
+      polygon_rles.push_back(rle.get());
+    RLE merged_mask{};
+    rleMerge(polygon_rles.data(), &merged_mask, polygon_rles.size(), 0);
+    R[rles.first] = RLEMask(merged_mask);
+  }
 
   // Merge all the labels into a pair of vectors :
   // [2,2,2],[A,B,C] for [A,A,B,B,C,C]
@@ -378,9 +377,9 @@ void COCOReader::PixelwiseMasks(int image_idx, int* mask) {
 
   // first copy the content of the first label to the output
   bool v = false;
-  A.m = R[*labels.begin()].m;
-  for (siz a = 0; a < R[*labels.begin()].m; a++) {
-    A.cnts[a] = R[*labels.begin()].cnts[a];
+  A.m = R[*labels.begin()]->m;
+  for (siz a = 0; a < R[*labels.begin()]->m; a++) {
+    A.cnts[a] = R[*labels.begin()]->cnts[a];
     A.vals[a] = v ? *labels.begin() : 0;
     v = !v;
   }
@@ -389,7 +388,7 @@ void COCOReader::PixelwiseMasks(int image_idx, int* mask) {
   std::unique_ptr<uint[]> cnts = std::make_unique<uint[]>(num_pixels + 1);
   std::unique_ptr<int[]> vals = std::make_unique<int[]>(num_pixels + 1);
   for (auto label = ++labels.begin(); label != labels.end(); label++) {
-    RLE B = R[*label];
+    RLE B = R[*label].get();
     if (B.cnts == 0)
       continue;
 
