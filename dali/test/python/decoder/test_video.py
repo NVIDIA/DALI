@@ -1343,7 +1343,7 @@ def _assert_frames_match_file(frames, frame_nums, filename, window=None):
     closer to it than to any other frame of the file (with `window`, to any other frame up to
     `window` frames away, which is faster for long files)."""
     reference = _reference_frames(filename)
-    for frame, num in zip(frames, frame_nums):
+    for frame, num in zip(frames, frame_nums, strict=True):
         if num < 0:
             continue
         start = 0 if window is None else max(0, num - window)
@@ -1450,6 +1450,16 @@ def test_reader_output_independent_of_num_threads(device, case):
     skip_if_m60()
     _check_reader_output_independent_of_num_threads(
         device, _lanes_reader_cases[case], batch_size=4, num_threads=4
+    )
+
+
+# One sample per batch: one lane decodes, whatever the number of threads, and its decoder carries
+# over from batch to batch
+@cartesian_params(["cpu", "gpu"], (0, 1, 3))
+def test_reader_batch_size_1_output_independent_of_num_threads(device, case):
+    skip_if_m60()
+    _check_reader_output_independent_of_num_threads(
+        device, _lanes_reader_cases[case], batch_size=1, num_threads=4
     )
 
 
