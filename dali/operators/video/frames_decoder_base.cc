@@ -17,6 +17,7 @@
 #include <iomanip>
 #include <memory>
 #include <unordered_map>
+#include "dali/core/call_at_exit.h"
 #include "dali/core/error_handling.h"
 #include "dali/core/small_vector.h"
 #include "dali/operators/video/video_utils.h"
@@ -768,6 +769,14 @@ void FramesDecoderBase::SeekFrame(int frame_id) {
   LOG_LINE << "After seeking: next_frame_idx_=" << next_frame_idx_ << ", frame_id=" << frame_id
            << std::endl;
   assert(next_frame_idx_ <= frame_id);
+  // Unless DecodeFrames knows more, the requested frame is the next one read with its data
+  bool own_frames_to_read = frames_to_read_.empty();
+  if (own_frames_to_read)
+    frames_to_read_ = make_cspan(&frame_id, 1);
+  auto clear_frames_to_read = AtScopeExit([&] {
+    if (own_frames_to_read)
+      frames_to_read_ = {};
+  });
   // Skip all remaining frames until the requested frame
   LOG_LINE << "Skipping frames from " << next_frame_idx_ << " to " << frame_id << std::endl;
   for (int i = next_frame_idx_; i < frame_id; i++) {
@@ -859,12 +868,23 @@ void FramesDecoderBase::DecodeFramesImpl(uint8_t *data,
   DALI_ENFORCE(constant_frame != nullptr || boundary_type != boundary::BoundaryType::CONSTANT,
                make_string("Constant frame must be provided if boundary type is CONSTANT"));
 
+  // The frames read with their data, in order (see frames_to_read_)
+  SmallVector<int, 32> to_read;
+  for (auto &[frame_id, i] : frame_ids) {
+    if (frame_id >= 0 && frame_id < NumFrames())
+      to_read.push_back(frame_id);
+  }
+  auto clear_frames_to_read = AtScopeExit([&] { frames_to_read_ = {}; });
+  int num_read = 0;
+
   uint8_t *last_out_frame_start = nullptr;
   for (auto &[frame_id, i] : frame_ids) {
     uint8_t* out_frame_start = data + ptrdiff_t(i) * FrameSize();
     assert(out_frame_start >= data);
     if (frame_id >= 0 && frame_id < NumFrames()) {
       LOG_LINE << "Decoding frame " << frame_id << " to position " << i << std::endl;
+      frames_to_read_ = make_cspan(to_read.data() + num_read, to_read.size() - num_read);
+      num_read++;
       SeekFrame(frame_id);
       ReadNextFrame(out_frame_start);
       last_out_frame_start = out_frame_start;

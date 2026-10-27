@@ -474,6 +474,9 @@ class DLL_PUBLIC FramesDecoderBase {
   }
 
   void SetIndex(const FrameIndex& index) {
+    // sorted by timestamp, as BuildIndex makes it (the GPU decoder searches it)
+    assert(std::is_sorted(index.index.begin(), index.index.end(),
+                          [](const IndexEntry &a, const IndexEntry &b) { return a.pts < b.pts; }));
     index_ = index;
     num_frames_ = index.size();
   }
@@ -511,6 +514,15 @@ class DLL_PUBLIC FramesDecoderBase {
     return reopens_;
   }
 
+  /**
+   * @brief Number of pictures that the decoder went through so far: those decoded, and those it
+   *        left out as no other picture needs them (see FramesDecoderGpu). AddDecodeWork estimates
+   *        this number.
+   */
+  int64_t ParsedPictures() const {
+    return decoded_pictures_ + skipped_pictures_;
+  }
+
  protected:
   void DecodeFramesImpl(uint8_t *data, SmallVector<std::pair<int, int>, 32> frame_ids,
                         boundary::BoundaryType boundary_type,
@@ -546,6 +558,15 @@ class DLL_PUBLIC FramesDecoderBase {
 
   int64_t decoded_pictures_ = 0;  // see DecodedPictures
   int64_t reopens_ = 0;  // see Reopens
+  int64_t skipped_pictures_ = 0;  // see ParsedPictures
+
+  /**
+   * @brief The frames read with their data next, in order, when known: DecodeFrames sets those it
+   * has yet to read and SeekFrame the one it seeks to. Empty: any frame may be read.
+   *
+   * A frame decoded on the way to them that is not one of them is only skipped.
+   */
+  span<const int> frames_to_read_;
 
  private:
   void DetectVariableFrameRate();
