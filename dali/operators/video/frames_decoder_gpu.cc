@@ -20,6 +20,7 @@
 #include <iomanip>
 #include <map>
 #include <mutex>
+#include <shared_mutex>
 #include <tuple>
 #include "dali/core/error_handling.h"
 #include "dali/core/cuda_error.h"
@@ -91,11 +92,17 @@ CUVIDDECODECAPS GetDecoderCaps(cudaVideoCodec codec, cudaVideoChromaFormat chrom
   int device_id = -1;
   CUDA_CALL(cudaGetDevice(&device_id));
   using Key = std::tuple<int, int, int, unsigned>;
-  static std::mutex mutex;
+  static std::shared_mutex mutex;
   static std::map<Key, CUVIDDECODECAPS> cache;
   Key key{device_id, codec, chroma, bit_depth_minus8};
+  {
+    std::shared_lock lock(mutex);
+    auto it = cache.find(key);
+    if (it != cache.end())
+      return it->second;
+  }
   // held during the query too: decoders that start at once query each configuration once
-  std::lock_guard lock(mutex);
+  std::unique_lock lock(mutex);
   auto it = cache.find(key);
   if (it != cache.end())
     return it->second;
