@@ -138,6 +138,102 @@ def coco_invalid_annotations_pipe(annotations_file, file_root):
     return inputs, boxes, labels
 
 
+@pipeline_def(batch_size=1, num_threads=1, device_id=None, prefetch_queue_depth=1)
+def coco_rle_masks_pipe(directory, preprocessed=False):
+    annotation_args = (
+        {"preprocessed_annotations": directory}
+        if preprocessed
+        else {
+            "annotations_file": os.path.join(directory, "instances.json"),
+            "save_preprocessed_annotations": True,
+            "save_preprocessed_annotations_dir": directory,
+        }
+    )
+    _, _, _, masks = fn.readers.coco(file_root=directory, pixelwise_masks=True, **annotation_args)
+    return masks
+
+
+def write_coco_rle_annotations(directory, segmentations):
+    # The reader returns encoded image bytes; decoding is unnecessary for mask tests.
+    with open(os.path.join(directory, "image.bin"), "wb") as f:
+        f.write(b"image")
+    annotations = {
+        "images": [{"id": 1, "width": 2, "height": 2, "file_name": "image.bin"}],
+        "categories": [{"id": i + 1} for i in range(len(segmentations))],
+        "annotations": [
+            {
+                "id": i + 1,
+                "image_id": 1,
+                "category_id": i + 1,
+                "bbox": [0, 0, 2, 2],
+                "iscrowd": 1,
+                "segmentation": segmentation,
+            }
+            for i, segmentation in enumerate(segmentations)
+        ],
+    }
+    with open(os.path.join(directory, "instances.json"), "w") as f:
+        json.dump(annotations, f)
+
+
+@params(
+    ({"size": [2, 2], "counts": [1] * 10}, "too many or missing runs"),
+    ({"size": [2, 2], "counts": "1110000000"}, "too many or missing runs"),
+    ({"size": [2, 2], "counts": [0] * 6 + [4]}, "too many or missing runs"),
+    ({"size": [2, 2], "counts": [5]}, "run lengths exceed the image size"),
+    ({"size": [2, 2], "counts": "5"}, "run lengths exceed the image size"),
+    ({"size": [2, 2], "counts": [-1, 5]}, "run lengths exceed the image size"),
+    ({"size": [2, 2], "counts": [3]}, "run lengths must cover the entire image"),
+    ({"size": [2, 3], "counts": [4]}, "dimensions must match the image"),
+    ({"size": [1, 4], "counts": [4]}, "dimensions must match the image"),
+)
+def test_coco_invalid_rle_mask(segmentation, message):
+    with tempfile.TemporaryDirectory() as directory:
+        write_coco_rle_annotations(directory, [segmentation])
+        pipe = coco_rle_masks_pipe(directory)
+        assert_raises(RuntimeError, pipe.run, glob=f"*Invalid COCO RLE mask: {message}*")
+        # Loading saved annotations must apply the same checks as the JSON path.
+        cached_pipe = coco_rle_masks_pipe(directory, preprocessed=True)
+        assert_raises(RuntimeError, cached_pipe.run, glob=f"*Invalid COCO RLE mask: {message}*")
+
+
+@params(
+    ([1, 1, 1, 1], [[0, 0], [1, 1]]),
+    ("1110", [[0, 0], [1, 1]]),
+    ([0, 1, 1, 1, 1], [[1, 1], [0, 0]]),
+    ([4], [[0, 0], [0, 0]]),
+    ([0, 4], [[1, 1], [1, 1]]),
+)
+def test_coco_valid_rle_mask(counts, expected):
+    with tempfile.TemporaryDirectory() as directory:
+        write_coco_rle_annotations(directory, [{"size": [2, 2], "counts": counts}])
+        for preprocessed in (False, True):
+            pipe = coco_rle_masks_pipe(directory, preprocessed=preprocessed)
+            (masks,) = pipe.run()
+            np.testing.assert_array_equal(masks.at(0)[:, :, 0], expected)
+
+
+@params(False, True)
+def test_coco_rle_mask_merge(zero_runs):
+    with tempfile.TemporaryDirectory() as directory:
+        write_coco_rle_annotations(
+            directory,
+            [
+                {"size": [2, 2], "counts": [0, 4] if zero_runs else [0, 1, 3]},
+                {"size": [2, 2], "counts": [1, 0, 0, 0, 3] if zero_runs else [1, 3]},
+            ],
+        )
+        for preprocessed in (False, True):
+            pipe = coco_rle_masks_pipe(directory, preprocessed=preprocessed)
+            if zero_runs:
+                assert_raises(
+                    RuntimeError, pipe.run, glob="*Invalid COCO RLE mask: too many merged runs*"
+                )
+            else:
+                (masks,) = pipe.run()
+                np.testing.assert_array_equal(masks.at(0)[:, :, 0], [[1, 2], [2, 2]])
+
+
 @params([], [1, 2, 3], [1, 2, 3, 4, 5])
 def test_operator_coco_reader_rejects_invalid_bbox_size(bbox):
     annotations = {
