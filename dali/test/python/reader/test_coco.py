@@ -177,24 +177,59 @@ def write_coco_rle_annotations(directory, segmentations):
 
 
 @params(
-    ({"size": [2, 2], "counts": [1] * 10}, "too many or missing runs"),
-    ({"size": [2, 2], "counts": "1110000000"}, "too many or missing runs"),
-    ({"size": [2, 2], "counts": [0] * 6 + [4]}, "too many or missing runs"),
-    ({"size": [2, 2], "counts": [5]}, "run lengths exceed the image size"),
-    ({"size": [2, 2], "counts": "5"}, "run lengths exceed the image size"),
-    ({"size": [2, 2], "counts": [-1, 5]}, "run lengths exceed the image size"),
-    ({"size": [2, 2], "counts": [3]}, "run lengths must cover the entire image"),
-    ({"size": [2, 3], "counts": [4]}, "dimensions must match the image"),
-    ({"size": [1, 4], "counts": [4]}, "dimensions must match the image"),
+    (
+        {"size": [2, 2], "counts": [1] * 10},
+        "too many or missing runs; got 10, expected 1 to 5.",
+    ),
+    (
+        {"size": [2, 2], "counts": "1110000000"},
+        "too many or missing runs; got 10, expected 1 to 5.",
+    ),
+    (
+        {"size": [2, 2], "counts": [0] * 6 + [4]},
+        "too many or missing runs; got 7, expected 1 to 5.",
+    ),
+    (
+        {"size": [2, 2], "counts": [5]},
+        "run lengths exceed the image size; run 0 has length 5, expected at most 4 "
+        "(image has 4 pixels).",
+    ),
+    (
+        {"size": [2, 2], "counts": "5"},
+        "run lengths exceed the image size; run 0 has length 5, expected at most 4 "
+        "(image has 4 pixels).",
+    ),
+    (
+        {"size": [2, 2], "counts": [-1, 5]},
+        "run lengths exceed the image size; run 0 has length 4294967295, expected at most 4 "
+        "(image has 4 pixels).",
+    ),
+    (
+        {"size": [2, 2], "counts": [3, 2]},
+        "run lengths exceed the image size; run 1 has length 2, expected at most 1 "
+        "(image has 4 pixels).",
+    ),
+    (
+        {"size": [2, 2], "counts": [3]},
+        "run lengths must cover the entire image; got 3 pixels, expected 4.",
+    ),
+    (
+        {"size": [2, 3], "counts": [4]},
+        "dimensions must match the image; got 2x3, expected 2x2.",
+    ),
+    (
+        {"size": [1, 4], "counts": [4]},
+        "dimensions must match the image; got 1x4, expected 2x2.",
+    ),
 )
 def test_coco_invalid_rle_mask(segmentation, message):
     with tempfile.TemporaryDirectory() as directory:
         write_coco_rle_annotations(directory, [segmentation])
         pipe = coco_rle_masks_pipe(directory)
-        assert_raises(RuntimeError, pipe.run, glob=f"*Invalid COCO RLE mask: {message}*")
+        assert_raises(ValueError, pipe.run, glob=f"*Invalid COCO RLE mask: {message}*")
         # Loading saved annotations must apply the same checks as the JSON path.
         cached_pipe = coco_rle_masks_pipe(directory, preprocessed=True)
-        assert_raises(RuntimeError, cached_pipe.run, glob=f"*Invalid COCO RLE mask: {message}*")
+        assert_raises(ValueError, cached_pipe.run, glob=f"*Invalid COCO RLE mask: {message}*")
 
 
 @params(
@@ -240,7 +275,10 @@ def test_coco_rle_mask_merge(zero_runs):
             pipe = coco_rle_masks_pipe(directory, preprocessed=preprocessed)
             if zero_runs:
                 assert_raises(
-                    RuntimeError, pipe.run, glob="*Invalid COCO RLE mask: too many merged runs*"
+                    ValueError,
+                    pipe.run,
+                    glob="*Invalid COCO RLE mask: too many merged runs; "
+                    "got at least 6, expected at most 5.*",
                 )
             else:
                 (masks,) = pipe.run()
