@@ -45,17 +45,43 @@ run_bench() {
     fi
 }
 
+# Per-platform benchmark settings, keyed by "<CPU arch>/<GPU compute capability>".
+set_platform_params() {
+    local arch=$(uname -m)
+    local compute_cap=$(nvidia-smi --query-gpu=compute_cap --format=csv,noheader -i 0)
+    case "${arch}/${compute_cap}" in
+        x86_64/*)  # x86 + any GPU (tuned on Hopper)
+            CPU_LIST="0-127"
+            NUM_CORES=70
+            HW_LOAD=0.12
+            MIN_PERF=19000
+            MIN_PERF_NDD=14000
+            ;;
+        aarch64/10.7)  # Vera Rubin (VR)
+            CPU_LIST="0-87,176-263"
+            NUM_CORES=174
+            HW_LOAD=0.13
+            MIN_PERF=40000
+            MIN_PERF_NDD=27000
+            ;;
+        aarch64/9.0|aarch64/10.0|aarch64/10.3)  # Grace Hopper (GH200), Grace Blackwell (GB200, GB300)
+            CPU_LIST="0-71"
+            NUM_CORES=72
+            HW_LOAD=0.11
+            MIN_PERF=29000
+            MIN_PERF_NDD=20000
+            ;;
+        *)
+            echo "Unsupported platform: ${arch}/${compute_cap}" >&2
+            CLEAN_AND_EXIT 1
+            ;;
+    esac
+}
+
 # SPEC:DA-11356-002_v04 - run all benchmarks (optionally with nsys when NSYS_REP is set per run).
 run_all_benchmarks() {
-    if [ "$(uname -p)" == "x86_64" ]; then
-        # Hopper
-        TASKSET="taskset --cpu-list 0-127"
-        BENCH_ARGS="--width_hint 6000 --height_hint 6000 -b 408 -d 0 -g gpu -w 100 -t 100000 -i ${DALI_EXTRA_PATH}/db/single/jpeg -j 70 --hw_load 0.12"
-    else
-        # GraceHopper
-        TASKSET="taskset --cpu-list 0-71"
-        BENCH_ARGS="--width_hint 6000 --height_hint 6000 -b 408 -d 0 -g gpu -w 100 -t 100000 -i ${DALI_EXTRA_PATH}/db/single/jpeg -j 72 --hw_load 0.11"
-    fi
+    TASKSET="taskset --cpu-list ${CPU_LIST}"
+    BENCH_ARGS="--width_hint 6000 --height_hint 6000 -b 408 -d 0 -g gpu -w 100 -t 100000 -i ${DALI_EXTRA_PATH}/db/single/jpeg -j ${NUM_CORES} --hw_load ${HW_LOAD}"
     run_bench "${LOG_RN50}" ${TASKSET} python hw_decoder_bench.py ${BENCH_ARGS} -p rn50
     DALI_USE_NEW_THREAD_POOL=1 run_bench "${LOG_RN50_TP}" ${TASKSET} python hw_decoder_bench.py ${BENCH_ARGS} -p rn50
     run_bench "${LOG_NDD}" ${TASKSET} python hw_decoder_bench.py ${BENCH_ARGS} -p ndd_rn50
@@ -63,13 +89,7 @@ run_all_benchmarks() {
 }
 
 test_body() {
-    if [ "$(uname -p)" == "x86_64" ]; then
-        MIN_PERF=19000
-        MIN_PERF_NDD=14000
-    else
-        MIN_PERF=29000
-        MIN_PERF_NDD=20000
-    fi
+    set_platform_params
 
     # First run: all benchmarks without nsys
     unset NSYS_REP
