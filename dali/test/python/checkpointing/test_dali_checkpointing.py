@@ -1,4 +1,4 @@
-# Copyright (c) 2023-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2023-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -816,6 +816,34 @@ def test_video_reader_resize_reader(
         stride=video.stride,
         step=video.step,
         size=(100, 100),
+    )
+
+
+# With more than one decode lane, the reader decodes a batch ahead of the one it publishes: the
+# checkpoints must still be those of the batches returned, also with batches in the reader's own
+# queue and with a shuffle buffer (both hold samples of the loader)
+@cartesian_params(("cpu", "gpu"), (1, 2), (False, True))
+def test_experimental_video_reader_prefetch_queue_depth(device, reader_depth, random_shuffle):
+    files = [
+        os.path.join(get_dali_extra_path(), "db", "video", "vfr", f"test_{i}_vp9.mp4")
+        for i in (1, 2)
+    ]
+
+    check_reader_checkpointing(
+        fn.experimental.readers.video,
+        2,
+        4,
+        2,
+        device=device,
+        filenames=files,
+        labels=list(range(len(files))),
+        random_shuffle=random_shuffle,
+        initial_fill=8,
+        pad_last_batch=True,
+        prefetch_queue_depth=reader_depth,
+        sequence_length=3,
+        stride=1,
+        step=5,
     )
 
 

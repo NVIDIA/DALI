@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@ extern "C" {
 #include <libavcodec/bsf.h>
 }
 
+#include <algorithm>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -42,6 +43,12 @@ struct IndexEntry {
   int last_keyframe_id;
   bool is_keyframe;
   bool is_flush_frame;
+  // Position of the frame's packet in decoding order, counting all the packets of the stream,
+  // also those decoded but not shown (e.g. hidden by an edit list); -1 if unknown
+  int decode_idx = -1;
+  // For a frame that SeekFrame seeks to (the last keyframe of some frame): the decoding position
+  // of the packet where a seek to its timestamp lands (see AvSeekFrame); -1 otherwise or if unknown
+  int seek_decode_idx = -1;
 };
 
 struct FrameIndex {
@@ -61,6 +68,24 @@ struct FrameIndex {
   const IndexEntry& operator[](size_t idx) const {
     assert(idx < index.size());
     return index[idx];
+  }
+
+  /**
+   * @brief Position of frame i's packet in decoding order.
+   *
+   * Without decoding order (e.g. a hand-built index), the frames are assumed in decoding order.
+   */
+  int DecodeIdx(int i) const {
+    return index[i].decode_idx >= 0 ? index[i].decode_idx : i;
+  }
+
+  /**
+   * @brief Decoding position where a seek to frame i starts, for a frame that SeekFrame seeks to.
+   *
+   * If unknown, the seek is assumed to start at the frame itself.
+   */
+  int SeekDecodeIdx(int i) const {
+    return index[i].seek_decode_idx >= 0 ? index[i].seek_decode_idx : DecodeIdx(i);
   }
 
   /**
@@ -263,6 +288,50 @@ class DLL_PUBLIC FramesDecoderBase {
   virtual void SeekFrame(int frame_id);
 
   /**
+   * @brief Seeking forward by at most this many frames decodes through them instead of seeking.
+   *
+   * With an index, a decoder also decodes through to any later frame that has the same last
+   * keyframe as its next frame (see SeekFrame).
+   */
+  static constexpr int kMinimumSeekLeap = 10;
+
+  /**
+   * @brief Where a decoder is, for estimating its work: the frame it returns next (as
+   * NextFrameIdx, -1 after the last one) and the decoding position of the last picture it
+   * decoded (-1: none).
+   */
+  struct DecodePosition {
+    int next_frame = 0;
+    int decoded = -1;
+  };
+
+  /**
+   * @brief Estimated work of a decoder: the pictures it decodes and the times it reopens the file.
+   */
+  struct DecodeWork {
+    int64_t pictures = 0;
+    int reopens = 0;
+  };
+
+  /**
+   * @brief The position of a decoder that read the frames up to `next_frame - 1` in a row.
+   *
+   * It is taken to have decoded from the keyframe of the last frame read; a decoder that
+   * decoded through from an earlier (open GOP) keyframe may be a few pictures further.
+   */
+  static DecodePosition PositionAt(const FrameIndex &index, int next_frame);
+
+  /**
+   * @brief Adds the work of returning `frame` from `pos` and advances `pos`.
+   *
+   * Mirrors SeekFrame and ReadNextFrame (keep them in sync), counting the pictures decoded, also
+   * the hidden ones (see IndexEntry::decode_idx), and a Reset as a reopening. Not modelled: a
+   * failed av_seek_frame (after which every seek resets the decoder).
+   */
+  static void AddDecodeWork(const FrameIndex &index, DecodePosition &pos, int frame,
+                            DecodeWork &work);
+
+  /**
    * @brief Handles boundary conditions for a given frame index.
    *
    * @param boundary_type The boundary type to apply.
@@ -270,8 +339,8 @@ class DLL_PUBLIC FramesDecoderBase {
    * @param roi_start The start of the region of interest.
    * @param roi_end The end of the region of interest.
    */
-  int HandleBoundary(boundary::BoundaryType boundary_type, int frame_id,
-                     int roi_start, int roi_end);
+  static int HandleBoundary(boundary::BoundaryType boundary_type, int frame_id,
+                            int roi_start, int roi_end);
 
   /**
    * @brief Decodes a collection of frames, not necessarily in ascending order, applying a boundary type
@@ -378,6 +447,9 @@ class DLL_PUBLIC FramesDecoderBase {
   }
 
   void SetIndex(const FrameIndex& index) {
+    // sorted by timestamp, as BuildIndex makes it (the GPU decoder searches it)
+    assert(std::is_sorted(index.index.begin(), index.index.end(),
+                          [](const IndexEntry &a, const IndexEntry &b) { return a.pts < b.pts; }));
     index_ = index;
     num_frames_ = index.size();
   }
@@ -396,6 +468,22 @@ class DLL_PUBLIC FramesDecoderBase {
 
   void SetOutputType(DALIDataType dtype) {
     dtype_ = dtype;
+  }
+
+  /**
+   * @brief Number of pictures decoded so far (for tests and diagnostics).
+   */
+  int64_t DecodedPictures() const {
+    return decoded_pictures_;
+  }
+
+  /**
+   * @brief Number of pictures that the decoder went through so far: those decoded, and those it
+   *        left out as no other picture needs them (see FramesDecoderGpu). AddDecodeWork estimates
+   *        this number.
+   */
+  int64_t ParsedPictures() const {
+    return decoded_pictures_ + skipped_pictures_;
   }
 
  protected:
@@ -429,6 +517,17 @@ class DLL_PUBLIC FramesDecoderBase {
 
   // False when the file doesn't have any correct content or doesn't have a valid video stream
   bool is_valid_ = false;
+
+  int64_t decoded_pictures_ = 0;  // see DecodedPictures
+  int64_t skipped_pictures_ = 0;  // see ParsedPictures
+
+  /**
+   * @brief The frames read with their data next, in order, when known: DecodeFrames sets those it
+   * has yet to read and SeekFrame the one it seeks to. Empty: any frame may be read.
+   *
+   * A frame decoded on the way to them that is not one of them is only skipped.
+   */
+  span<const int> frames_to_read_;
 
  private:
   void DetectVariableFrameRate();

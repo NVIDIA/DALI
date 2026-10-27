@@ -29,6 +29,7 @@ extern "C" {
 
 #include "dali/operators/video/dynlink_nvcuvid/cuviddec.h"
 #include "dali/operators/video/dynlink_nvcuvid/dynlink_nvcuvid.h"
+#include "dali/core/cuda_event.h"
 #include "dali/core/unique_handle.h"
 
 #include "dali/core/dev_buffer.h"
@@ -57,8 +58,16 @@ struct DecInstance {
   CUvideodecoder decoder = {};
   cudaVideoCodec codec_type = {};
   cudaVideoChromaFormat chroma_format = {};
+  // Size of the coded frame (CUVIDEOFORMAT::coded_*), which the decoder is created for. It is
+  // aligned to the macroblock/CTB size, e.g. 1920x1088 for a 1920x1080 H.264 stream.
+  unsigned coded_height = 0;
+  unsigned coded_width = 0;
+  // Output size and origin of the display area (CUVIDEOFORMAT::display_area), which the decoder
+  // crops the coded frame to, e.g. 1920x1080 at (0, 0).
   unsigned height = 0;
   unsigned width = 0;
+  int display_left = 0;
+  int display_top = 0;
   unsigned num_decode_surfaces = 0;
   unsigned max_height = 0;
   unsigned max_width = 0;
@@ -99,6 +108,10 @@ class NVDECLease {
 
     operator CUvideodecoder() && = delete;
 
+    int device_id() const noexcept {
+      return decoder->device_id;
+    }
+
     explicit operator bool() const noexcept {
       return decoder != nullptr;
     }
@@ -107,6 +120,22 @@ class NVDECLease {
     NVDECCache *owner = nullptr;
     DecInstance *decoder = nullptr;
 };
+
+/**
+ * @brief Returns how many NVDEC decoders were created so far for a device, i.e. how many times
+ *        the decoder cache could not provide a matching one.
+ *
+ * The count includes decoders that were evicted from the cache since.
+ *
+ * @param device_id CUDA device ordinal or -1 for the current device.
+ */
+DLL_PUBLIC size_t NVDECDecodersCreated(int device_id = -1);
+
+/**
+ * @brief Returns how many NVDEC output surfaces are mapped by FramesDecoderGpu objects in this
+ *        process. Meant for tests: it is 0 when no decoder is alive.
+ */
+DLL_PUBLIC int64_t NVDECFramesMapped();
 
 }  // namespace frame_dec_gpu_impl
 
@@ -120,8 +149,9 @@ struct NvDecodeState {
 };
 
 struct BufferedFrame {
-  DeviceBuffer<uint8_t> frame_;
+  DeviceBuffer<uint8_t> frame_;  // may be empty when the slot keeps no frame data
   int pts_;
+  bool has_data_ = false;  // false: the frame is never read with its data, only pts_ is kept
 };
 
 class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
@@ -163,11 +193,17 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
 
   int HandlePictureDisplay(CUVIDPARSERDISPINFO *picture_display_info);
 
-  FramesDecoderGpu(FramesDecoderGpu&&) = default;
+  // not movable: the parser calls back into this object (and it may hold a mapped surface)
+  FramesDecoderGpu(FramesDecoderGpu&&) = delete;
 
   ~FramesDecoderGpu();
 
   static bool SupportsHevc();
+
+  /**
+   * @brief Number of NVDEC engines of the device; 0 if unknown.
+   */
+  static int NumEngines(int device_id);
 
   static bool SupportsCodec(AVCodecID codec_id, uint8_t bit_depth = 8);
 
@@ -175,11 +211,91 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
 
   void CopyFrame(uint8_t *dst, const uint8_t *src) override;
 
+  /**
+   * @brief The stream the decoder converts and copies frames on.
+   */
+  cudaStream_t stream() const noexcept {
+    return stream_;
+  }
+
+  /**
+   * @brief Number of frame buffers (device memory for one frame each) held by the decoder, for
+   *        tests.
+   */
+  int NumFrameBuffers() const;
+
+  /**
+   * @brief Number of pictures mapped and converted so far (for tests and diagnostics).
+   *
+   * Pictures that are decoded, but never read (see CanBeReadWithData) or skipped as they come,
+   * are not.
+   */
+  int64_t MappedPictures() const {
+    return mapped_pictures_;
+  }
+
+  /**
+   * @brief Number of pictures not decoded at all so far (for tests and diagnostics): H.264
+   *        non-reference pictures that are not read with their data.
+   */
+  int64_t SkippedPictures() const {
+    return skipped_pictures_;
+  }
+
  protected:
   bool SelectVideoStream(int stream_id = -1) override;
 
+  /**
+   * @brief Which of the buffered frames (those not returned as they are decoded) are mapped and
+   *        converted
+   */
+  enum class BufferedFrameData {
+    kIfRead,  // those that may be read with their data (see CanBeReadWithData)
+    kAll,     // all of them, as before the decoder left out those that are not read
+    kNone,    // none of them
+  };
+
+  /**
+   * @brief For tests: maps all the buffered frames (to compare the frames read with the default)
+   *        or none of them (to check that reading a frame without its data fails).
+   */
+  void SetBufferedFrameDataForTesting(BufferedFrameData data) {
+    buffered_frame_data_ = data;
+  }
+
+  /**
+   * @brief Whether a buffered frame with this timestamp may be read with its data later.
+   *
+   * Decoding a frame that is not read (e.g. one hidden by an edit list, or one that is only
+   * skipped on the way to the frames to read) is still needed for the frames that refer to it, but
+   * mapping and converting it is not. Reading a frame without its data is an internal error.
+   */
+  bool CanBeReadWithData(int64_t pts) const;
+
+  /**
+   * @brief Whether the picture with this timestamp, decoded next, is mapped and converted: it is
+   *        returned with its data now, or buffered with its data.
+   */
+  bool IsPictureReadWithData(int64_t pts) const;
+
  private:
   std::unique_ptr<NvDecodeState> nvdecode_state_;
+
+  /**
+   * @brief Unmaps the output surface of the last converted picture, once its conversion is done.
+   *
+   * The surface stays mapped after the conversion is launched, so that the host does not wait for
+   * each picture; it is released before NVDEC is used again (the next picture, a flush), which is
+   * when NVDEC could overwrite it.
+   */
+  void ReleaseMappedFrame();
+
+  CUdeviceptr mapped_frame_ = 0;      // the mapped output surface, 0 if none
+  CUDAEvent conversion_done_;         // recorded on stream_ after mapped_frame_ is converted
+  bool conversion_recorded_ = false;  // false: the conversion failed, wait for the whole stream
+  int64_t mapped_pictures_ = 0;       // see MappedPictures
+  BufferedFrameData buffered_frame_data_ = BufferedFrameData::kIfRead;
+
   void *current_frame_output_ = nullptr;
   bool current_copy_to_output_ = false;
   bool frame_returned_ = false;
@@ -207,6 +323,11 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
   void SendLastPacket(bool flush = false);
 
   BufferedFrame& FindEmptySlot();
+
+  /**
+   * @brief Gives the slot a frame buffer, taking a spare one from another slot if there is any.
+   */
+  void AttachFrameBuffer(BufferedFrame &slot);
 
   bool HasEmptySlot() const;
 
