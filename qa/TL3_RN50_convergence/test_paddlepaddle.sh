@@ -10,6 +10,8 @@ function CLEAN_AND_EXIT {
 # enable compat for CUDA 13 if the test image doesn't support it yet
 source <(echo "set -x"; cat ../setup_test_common.sh; echo "set +x")
 
+check_required_paths /data/imagenet/train-jpeg /data/imagenet/val-jpeg
+
 install_cuda_compat
 
 cd /opt/dali/docs/examples/use_cases/paddle/resnet50

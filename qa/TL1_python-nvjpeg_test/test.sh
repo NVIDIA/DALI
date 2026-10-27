@@ -5,6 +5,7 @@ target_dir=./dali/test/python
 
 
 test_body() {
+    check_required_paths /data/imagenet/train-jpeg /data/coco/coco-2017/coco2017
     NUM_GPUS=$(nvidia-smi -L | wc -l)
     if [ $(stat /data/imagenet/train-jpeg --format="%T" -f) != "ext2/ext3" ]; then
         echo "Not available locally, skipping the test"

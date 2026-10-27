@@ -5,6 +5,7 @@ do_once() {
     if [ $($topdir/qa/setup_packages.py -n -u tensorflow-gpu --cuda ${CUDA_VERSION}) = -1 ]; then
         exit 0
     fi
+    check_required_paths /data/imagenet/train-val-tfrecord-small
     mkdir -p idx-files/
 
     # Use path returned by pip show pip and append nvidia/cusolver/lib/ to it

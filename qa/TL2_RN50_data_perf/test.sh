@@ -8,6 +8,8 @@ do_once() {
 }
 
 test_body() {
+    check_required_paths /data/imagenet/train-jpeg /data/imagenet/val-jpeg \
+        /data/imagenet/train-val-tfrecord /data/imagenet/train-val-tfrecord.idx
     if [ $(stat /data/imagenet/train-jpeg --format="%T" -f) != "ext2/ext3" ]; then
         echo "Not available locally, skipping the test"
         return 0

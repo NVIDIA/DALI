@@ -4,6 +4,7 @@ pip_packages='numpy pillow torch torchvision mlperf_compliance matplotlib Cython
 target_dir=./docs/examples/use_cases/pytorch/single_stage_detector/
 
 test_body() {
+    check_required_paths /data/coco/coco-2017/coco2017
     NUM_GPUS=$(nvidia-smi -L | wc -l)
     export DATA_DIR=/data/coco/coco-2017/coco2017
     export IS_TMP_DIR=0

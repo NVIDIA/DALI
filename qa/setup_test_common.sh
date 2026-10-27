@@ -26,6 +26,24 @@ function version_lt() { test "$(echo "$@" | tr " " "\n" | sort -rV | head -n 1)"
 function version_ge() { test "$(echo "$@" | tr " " "\n" | sort -rV | head -n 1)" == "$1"; }
 function version_eq() { test "$1" == "$2"; }
 
+# Exits with an error when any of the given paths does not exist. Use it for test data
+# (e.g. datasets under /data) that has to be mounted in the test container, so the test
+# fails fast instead of mid-run. It exits rather than returns, so it also works without `set -e`.
+check_required_paths() {
+    local path
+    local -a missing=()
+    for path in "$@"; do
+        if [ ! -e "$path" ]; then
+            missing+=("$path")
+        fi
+    done
+    if [ ${#missing[@]} -ne 0 ]; then
+        echo "ERROR: Test precondition failed. Required path(s) not found: ${missing[*]}." \
+             "Make sure the required data is mounted in the container." >&2
+        exit 1
+    fi
+}
+
 # Finds a self-test binary and prints its canonical path. Pass `conda` to prefer
 # the package installed in the active Conda environment; other suites prefer the
 # local build tree so they test the code built by the current job.
