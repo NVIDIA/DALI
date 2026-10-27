@@ -21,8 +21,11 @@ Checks:
       - lanes, seq_longgop, random_access, cpu: throughput at any higher num_threads is
         not lower than at the lowest one (more threads must not make the reader slower)
       - reader_depth: a deeper reader queue is not slower than depth 1
-  * optional: engines with the most readers reach at least --engines_scaling times the
-    throughput of one reader (GPUs with several NVDEC engines; e.g. H100: 3.6x at 4)
+  * optional: engines with the most readers use the GPU's NVDEC engines: they reach at least
+    --engines_scaling times the throughput of one reader (GPUs with several NVDEC engines), or,
+    with --engines_busy, keep NVDEC at least that busy (percent). The latter is for when one
+    reader already spreads its decode lanes over the engines, so that more readers cannot scale
+    as much.
   * optional absolute minimums (frames/s) for named metrics, passed with --min:
       lanes          lanes, batch 16, highest num_threads
       single_stream  single_stream, h264_long
@@ -86,6 +89,12 @@ def main():
         "--engines_scaling",
         type=float,
         help="minimum speedup of engines with the most readers over one reader",
+    )
+    parser.add_argument(
+        "--engines_busy",
+        type=float,
+        help="NVDEC utilization (percent) of engines with the most readers that passes the "
+        "engines check even below --engines_scaling (NVDEC is saturated)",
     )
     args = parser.parse_args()
 
@@ -153,10 +162,17 @@ def main():
         else:
             one, most = rows[0], rows[-1]
             scaling = most["frames_per_s"] / one["frames_per_s"]
+            busy = most.get("proc_nvdec_util")
+            saturated = (
+                args.engines_busy is not None and busy is not None and busy >= args.engines_busy
+            )
+            detail = f"{scaling:.2f}x, minimum {args.engines_scaling:g}x"
+            if args.engines_busy is not None:
+                detail += f"; NVDEC {busy}% busy, saturated at {args.engines_busy:g}%"
             check(
                 f"engines readers={most['readers']} vs 1",
-                scaling >= args.engines_scaling,
-                f"{scaling:.2f}x, minimum {args.engines_scaling:g}x",
+                scaling >= args.engines_scaling or saturated,
+                detail,
             )
 
     for name, value in metrics.items():

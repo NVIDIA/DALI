@@ -63,8 +63,11 @@ PERF_SCENARIOS="lanes,engines,single_stream,reader_depth,cache_key,seq_longgop,r
 HASH_SCENARIOS="lanes,lanes_depth,reader_depth,cache_key,cpu,seq_longgop,random_access"
 HASH_EPOCHS=2
 BENCH_ARGS="--repeat 3 --iters 8 --min_time 3 -j 1,4,16 --readers 1,2,4"
-# engines: one H100 or GH200 reaches 3.6x with 4 readers (several NVDEC engines)
+# engines: more readers use more NVDEC engines: 4 readers reach 2.5x one reader, or keep NVDEC
+# saturated (one reader's decode lanes already use several engines, e.g. H100 PCIe: 2016 frames/s
+# with 1 reader, 3824 at 98% NVDEC with 4, which is 1.9x)
 ENGINES_SCALING=2.5
+ENGINES_BUSY=90
 
 function CLEAN_AND_EXIT {
     rm -rf ${LOG_PERF} ${JSON_PERF} ${JSON_HASH} ${LOG_REF} ${JSON_REF}
@@ -128,7 +131,7 @@ test_body() {
 
     CHECK_RESULT="OK"
     python ${topdir}/qa/TL1_video_reader_perf/check_results.py ${JSON_PERF} --tolerance 10 \
-        --engines_scaling ${ENGINES_SCALING} \
+        --engines_scaling ${ENGINES_SCALING} --engines_busy ${ENGINES_BUSY} \
         --min lanes=${MIN_LANES} --min single_stream=${MIN_SINGLE_STREAM} \
         --min cpu=${MIN_CPU} --min engines=${MIN_ENGINES} || CHECK_RESULT="FAIL"
 
