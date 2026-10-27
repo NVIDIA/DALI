@@ -1132,6 +1132,19 @@ FramesDecoderGpu::~FramesDecoderGpu() {
   bsfc_.reset();
 }
 
+int FramesDecoderGpu::NumEngines(int device_id) {
+  if (!cuvidInitChecked())
+    return 0;
+  DeviceGuard guard(device_id);
+  CUVIDDECODECAPS decoder_caps = {};
+  decoder_caps.eCodecType = cudaVideoCodec_H264;
+  decoder_caps.eChromaFormat = cudaVideoChromaFormat_420;
+  decoder_caps.nBitDepthMinus8 = 0;
+  if (cuvidGetDecoderCaps(&decoder_caps) != CUDA_SUCCESS || !decoder_caps.bIsSupported)
+    return 0;
+  return decoder_caps.nNumNVDECs;
+}
+
 bool FramesDecoderGpu::SupportsHevc() {
   CUVIDDECODECAPS decoder_caps = {};
   decoder_caps.eCodecType = cudaVideoCodec_HEVC;
