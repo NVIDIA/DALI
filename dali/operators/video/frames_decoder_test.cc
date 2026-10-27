@@ -14,16 +14,21 @@
 
 #include <cuda_runtime_api.h>
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <exception>
+#include <functional>
 #include <map>
+#include <memory>
 #include <random>
 #include <set>
 #include <string>
+#include <thread>
 #include <utility>
 #include <vector>
 
 #include "dali/core/cuda_error.h"
+#include "dali/core/cuda_stream.h"
 #include "dali/core/dev_buffer.h"
 #include "dali/core/device_guard.h"
 #include "dali/core/dynlink_cuda.h"
@@ -499,6 +504,96 @@ void CheckPositionAtInARow(const FrameIndex &index) {
   EXPECT_EQ(FramesDecoderBase::PositionAt(index, -1).next_frame, -1);
 }
 
+// Holds up the work enqueued on `stream` after this call for `ms` milliseconds
+void DelayStream(cudaStream_t stream, int ms) {
+  auto sleep = [](void *ms) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(reinterpret_cast<intptr_t>(ms)));
+  };
+  CUDA_CALL(cudaLaunchHostFunc(stream, sleep, reinterpret_cast<void *>(intptr_t{ms})));
+}
+
+constexpr int kConversionDelayMs = 5;
+
+// Frames to read in this order: in a row, seeking forward and back, the last frame, from the start
+// after the end and across a short leap (the skipped frames are decoded, but not returned)
+std::vector<int> ReadOrder(int num_frames) {
+  std::vector<int> frames = FrameRange(0, 10);
+  for (int frame : {25, 26, 12, 13, num_frames - 1, 0, 1, 30, 33})
+    frames.push_back(std::min(frame, num_frames - 1));
+  return frames;
+}
+
+using GpuDecoderFactory = std::function<std::unique_ptr<FramesDecoderGpu>(cudaStream_t)>;
+
+/**
+ * @brief Reads `frame_ids` in this order (seeking to a frame that is not the next one) into `out`,
+ * one frame after another, on the stream of the decoder.
+ *
+ * With `delay_ms`, the stream is held up before each frame is read, so that the conversions of the
+ * pictures are still pending when the decoder decodes the next picture (or is destroyed). Checks
+ * that at most `max_mapped` output surfaces are mapped in the process meanwhile.
+ */
+void ReadFrames(FramesDecoderGpu &decoder, cudaStream_t stream, const std::vector<int> &frame_ids,
+                uint8_t *out, int delay_ms, int max_mapped = 1) {
+  for (int frame : frame_ids) {
+    if (decoder.NextFrameIdx() != frame)
+      decoder.SeekFrame(frame);
+    if (delay_ms > 0)
+      DelayStream(stream, delay_ms);
+    ASSERT_TRUE(decoder.ReadNextFrame(out)) << "frame " << frame;
+    EXPECT_LE(frame_dec_gpu_impl::NVDECFramesMapped(), max_mapped);
+    out += decoder.FrameSize();
+  }
+}
+
+/**
+ * @brief Decodes `frame_ids` (see ReadFrames) with a decoder on `stream` and returns them on the
+ * host. The decoder is destroyed first, while the conversion of its last picture may be pending.
+ */
+std::vector<uint8_t> DecodeToHost(const GpuDecoderFactory &make_decoder, cudaStream_t stream,
+                                  const std::vector<int> &frame_ids, int delay_ms) {
+  auto decoder = make_decoder(stream);
+  size_t frame_size = decoder->FrameSize();
+  DeviceBuffer<uint8_t> frames;
+  frames.resize(frame_ids.size() * frame_size);
+  ReadFrames(*decoder, stream, frame_ids, frames.data(), delay_ms);
+  decoder.reset();
+  EXPECT_EQ(frame_dec_gpu_impl::NVDECFramesMapped(), 0) << "a surface was not unmapped";
+  std::vector<uint8_t> host(frames.size());
+  MemCopy(host.data(), frames.data(), host.size(), stream);
+  CUDA_CALL(cudaStreamSynchronize(stream));
+  return host;
+}
+
+/**
+ * @brief Checks that the frames (see ReadOrder) decoded on a stream of their own, held up so that
+ * the conversions are pending, are the same as those decoded on the default stream without the
+ * delay, and match the ground truth.
+ */
+void CheckConversionPending(const GpuDecoderFactory &make_decoder, TestVideo &ground_truth,
+                            double eps) {
+  auto frame_ids = ReadOrder(ground_truth.NumFrames());
+  auto reference = DecodeToHost(make_decoder, 0, frame_ids, 0);
+  auto stream = CUDAStream::Create(true);
+  auto frames = DecodeToHost(make_decoder, stream, frame_ids, kConversionDelayMs);
+  ASSERT_EQ(frames.size(), reference.size());
+  EXPECT_TRUE(frames == reference);
+  size_t frame_size = ground_truth.FrameSize();
+  for (size_t i = 0; i < frame_ids.size(); i++) {
+    CompareFrameAvgError(frame_ids[i], frame_size, ground_truth.Width(), ground_truth.Height(),
+                         frames.data() + i * frame_size, ground_truth.frames_[frame_ids[i]].data,
+                         eps);
+  }
+}
+
+GpuDecoderFactory FileDecoder(const std::string &path) {
+  return [path](cudaStream_t stream) {
+    auto decoder = std::make_unique<FramesDecoderGpu>(path, stream);
+    decoder->BuildIndex();
+    return decoder;
+  };
+}
+
 }  // namespace
 
 static_assert(FramesDecoderBase::kMinimumSeekLeap == 10, "the steps below assume it");
@@ -679,6 +774,102 @@ TEST_F(FramesDecoderGpuTest, IndexDecodeOrderLeadIn) {
   }
 }
 
+// The GPU decoder does not wait for the conversion of a picture before it decodes the next one:
+// held up on a stream of its own, the conversions are pending when the decoder decodes the next
+// picture, seeks, flushes and is destroyed. The frames are the same as when nothing is pending.
+TEST_F(FramesDecoderGpuTest, ConversionPendingAtNextPicture) {
+  CheckConversionPending(FileDecoder(cfr_videos_paths_[0]), cfr_videos_[0], 1.5);
+}
+
+// The same without an index: the frames go through the frame buffer of the decoder
+TEST_F(FramesDecoderGpuTest, ConversionPendingAtNextPictureNoIndex) {
+  auto &ground_truth = vfr_videos_[1];
+  auto memory_video = MemoryVideo(vfr_mpeg4_mkv_videos_paths_[1]);
+  auto make_decoder = [&](cudaStream_t stream) {
+    auto decoder =
+        std::make_unique<FramesDecoderGpu>(memory_video.data(), memory_video.size(), "", stream);
+    decoder->SetNumFrames(ground_truth.NumFrames());
+    return decoder;
+  };
+  CheckConversionPending(make_decoder, ground_truth, 3.0);
+}
+
+// A decoder destroyed while the conversion of its last picture is pending unmaps the surface
+// before NVDEC goes back to the cache, where the next decoder, on another stream, takes it
+TEST_F(FramesDecoderGpuTest, DecoderReturnedToCacheIsClean) {
+  std::vector<int> frame_ids = FrameRange(0, 8);
+  frame_ids.push_back(20);
+  std::vector<std::vector<uint8_t>> reference;
+  for (int clip = 0; clip < 5; clip++)  // also puts a decoder for these clips in the cache
+    reference.push_back(DecodeToHost(FileDecoder(SintelClip(clip % 3, clip)), 0, frame_ids, 0));
+  size_t num_created = frame_dec_gpu_impl::NVDECDecodersCreated();
+  CUDAStream streams[2] = {CUDAStream::Create(true), CUDAStream::Create(true)};
+  for (int clip = 0; clip < 5; clip++) {
+    auto frames = DecodeToHost(FileDecoder(SintelClip(clip % 3, clip)), streams[clip % 2],
+                               frame_ids, kConversionDelayMs);
+    EXPECT_TRUE(frames == reference[clip]) << "clip " << clip;
+  }
+  EXPECT_EQ(frame_dec_gpu_impl::NVDECDecodersCreated(), num_created);
+}
+
+// Decoders that run in threads of their own, on streams of their own, are destroyed in another
+// thread (as the video reader does with the decoders of idle lanes), while the conversion of their
+// last picture is likely pending
+TEST_F(FramesDecoderGpuTest, DecodersDestroyedInAnotherThread) {
+  constexpr int kThreads = 4;
+  std::vector<int> frame_ids = FrameRange(0, 6);
+  frame_ids.push_back(15);
+  std::vector<std::vector<uint8_t>> reference;
+  for (int clip = 0; clip < kThreads; clip++)
+    reference.push_back(DecodeToHost(FileDecoder(SintelClip(clip % 3, clip)), 0, frame_ids, 0));
+
+  std::vector<CUDAStream> streams;
+  std::vector<std::unique_ptr<FramesDecoderGpu>> decoders(kThreads);
+  std::vector<DeviceBuffer<uint8_t>> frames(kThreads);
+  for (int t = 0; t < kThreads; t++)
+    streams.push_back(CUDAStream::Create(true));
+  auto run = [&](std::function<void(int)> body) {
+    std::vector<std::thread> threads;
+    for (int t = 0; t < kThreads; t++) {
+      threads.emplace_back([&, t]() {
+        DeviceGuard guard(0);
+        body(t);
+      });
+    }
+    for (auto &thread : threads)
+      thread.join();
+  };
+  run([&](int t) {
+    decoders[t] = FileDecoder(SintelClip(t % 3, t))(streams[t]);
+    frames[t].resize(frame_ids.size() * decoders[t]->FrameSize());
+    ReadFrames(*decoders[t], streams[t], frame_ids, frames[t].data(), 20, kThreads);
+  });
+  run([&](int t) {
+    decoders[(t + 1) % kThreads].reset();
+  });
+  EXPECT_EQ(frame_dec_gpu_impl::NVDECFramesMapped(), 0);
+  for (int t = 0; t < kThreads; t++) {
+    std::vector<uint8_t> host(frames[t].size());
+    MemCopy(host.data(), frames[t].data(), host.size(), streams[t]);
+    CUDA_CALL(cudaStreamSynchronize(streams[t]));
+    EXPECT_TRUE(host == reference[t]) << "clip " << t;
+  }
+}
+
+// A conversion that fails once the surface is mapped (here: for an output type that it does not
+// support) does not leave the surface mapped when the decoder goes back to the cache
+TEST_F(FramesDecoderGpuTest, SurfaceUnmappedAfterFailedConversion) {
+  auto stream = CUDAStream::Create(true);
+  {
+    FramesDecoderGpu decoder(cfr_videos_paths_[0], stream);
+    decoder.BuildIndex();
+    decoder.SetOutputType(DALI_INT16);
+    EXPECT_THROW(decoder.ReadNextFrame(FrameData()), std::exception);
+    EXPECT_EQ(frame_dec_gpu_impl::NVDECFramesMapped(), 1);
+  }
+  EXPECT_EQ(frame_dec_gpu_impl::NVDECFramesMapped(), 0);
+}
+
 TEST_F(FramesDecoderTest_CpuOnlyTests, ConstantFrameRate) {
   FramesDecoderCpu decoder(cfr_videos_paths_[0]);
   decoder.BuildIndex();
@@ -716,7 +907,7 @@ TEST_F(FramesDecoderGpuTest, VariableFrameRate) {
 // when the next file is opened and not created from scratch every time. The number of created
 // decoders is checked, as the size of the cache would not change if it is full and evicts one.
 TEST_F(FramesDecoderGpuTest, DecoderCacheReusedForCroppedVideo) {
-  std::string path = testing::dali_extra_path() + "/db/video/cfr/test_2.mp4";
+  std::string path = make_string(testing::dali_extra_path(), "/db/video/cfr/test_2.mp4");
   auto decode_first_frame = [&]() {
     FramesDecoderGpu decoder(path);
     ASSERT_TRUE(decoder.IsValid());
