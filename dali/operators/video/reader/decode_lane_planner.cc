@@ -62,12 +62,6 @@ void SampleFrames(SmallVector<int, 32> &frames, span<const int> frame_idxs, int 
   std::sort(frames.begin(), frames.end());
 }
 
-FramesDecoderBase::DecodePosition DecoderPosition(const FramesDecoderBase &decoder) {
-  if (!decoder.HasIndex())
-    throw std::invalid_argument("The decoder of a decode lane must have an index.");
-  return FramesDecoderBase::PositionAt(decoder.GetIndex(), decoder.NextFrameIdx());
-}
-
 namespace {
 
 using DecodePosition = FramesDecoderBase::DecodePosition;
@@ -234,9 +228,13 @@ void PlanLanes(std::vector<LanePlan> &plans, span<const PlannedRun> runs,
         delta = Cost(work, open_cost) - (group ? Cost(group->work, open_cost) : 0);
       }
       int64_t end = plans[l].load + delta;
-      // on a tie, not a lane whose decoder a run left in the batch may continue on
+      // on a tie, not a lane whose decoder a run left in the batch may continue on, then the lane
+      // with the least backlog
       bool spare = pending[l] == 0 || Holds(lanes[l], run.filename);
-      if (end < best_end || (end == best_end && spare && !best_spare)) {
+      bool better = end < best_end;
+      if (end == best_end)
+        better = spare != best_spare ? spare : lanes[l].backlog < lanes[best].backlog;
+      if (better) {
         best = l;
         best_end = end;
         best_spare = spare;
