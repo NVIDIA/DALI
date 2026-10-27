@@ -309,6 +309,11 @@ class DLL_PUBLIC VideoDecoderBase : public Operator<Backend> {
                                                 start_frame, end_frame, stride,
                                                 boundary_type_, constant_frame);
             }
+            if constexpr (!std::is_same_v<Backend, CPUBackend>) {
+              // the decoder does not wait for its GPU work: its asynchronous errors are reported
+              // for this sample (the destructor would only swallow them)
+              CUDA_CALL(cudaStreamSynchronize(ctx.stream));
+            }
             frames_decoders_[s].reset();
           },
           output[s].shape().num_elements());
