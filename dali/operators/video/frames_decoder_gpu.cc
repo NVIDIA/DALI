@@ -20,6 +20,8 @@
 #include <iomanip>
 #include <map>
 #include <mutex>
+#include <shared_mutex>
+#include <tuple>
 #include "dali/core/error_handling.h"
 #include "dali/core/cuda_error.h"
 #include "dali/pipeline/data/backend.h"
@@ -76,6 +78,41 @@ const char *codec_to_string(cudaVideoCodec in) {
     default:
       return "Unknown codec type";
   }
+}
+
+/**
+ * @brief cuvidGetDecoderCaps of the current device, cached per process.
+ *
+ * The capabilities do not change, but the driver call does not scale: with many decoders opening
+ * files at once it takes tens of milliseconds (hundreds at worst), as it is serialized in the
+ * driver, and it is made for every file.
+ */
+CUVIDDECODECAPS GetDecoderCaps(cudaVideoCodec codec, cudaVideoChromaFormat chroma,
+                               unsigned bit_depth_minus8) {
+  int device_id = -1;
+  CUDA_CALL(cudaGetDevice(&device_id));
+  using Key = std::tuple<int, int, int, unsigned>;
+  static std::shared_mutex mutex;
+  static std::map<Key, CUVIDDECODECAPS> cache;
+  Key key{device_id, codec, chroma, bit_depth_minus8};
+  {
+    std::shared_lock lock(mutex);
+    auto it = cache.find(key);
+    if (it != cache.end())
+      return it->second;
+  }
+  // held during the query too: decoders that start at once query each configuration once
+  std::unique_lock lock(mutex);
+  auto it = cache.find(key);
+  if (it != cache.end())
+    return it->second;
+  CUVIDDECODECAPS caps = {};
+  caps.eCodecType = codec;
+  caps.eChromaFormat = chroma;
+  caps.nBitDepthMinus8 = bit_depth_minus8;
+  CUDA_CALL(cuvidGetDecoderCaps(&caps));
+  cache.emplace(key, caps);
+  return caps;
 }
 
 class NVDECCache {
@@ -165,11 +202,7 @@ class NVDECCache {
       }
 #endif
       lock.unlock();
-      auto caps = CUVIDDECODECAPS{};
-      caps.eCodecType = codec_type;
-      caps.eChromaFormat = chroma_format;
-      caps.nBitDepthMinus8 = bit_depth_luma_minus8;
-      CUDA_CALL(cuvidGetDecoderCaps(&caps));
+      auto caps = GetDecoderCaps(codec_type, chroma_format, bit_depth_luma_minus8);
       DALI_ENFORCE(caps.bIsSupported,
                    make_string("Codec configuration not supported on this GPU. ",
                    "Codec: ", codec_to_string(codec_type),
@@ -945,11 +978,8 @@ bool FramesDecoderGpu::SelectVideoStream(int stream_id) {
     return false;
   }
 
-  CUVIDDECODECAPS decoder_caps = {};
-  decoder_caps.eCodecType = GetCodecType(codec_id);
-  decoder_caps.eChromaFormat = cudaVideoChromaFormat_420;
-  decoder_caps.nBitDepthMinus8 = 0;
-  CUDA_CALL(cuvidGetDecoderCaps(&decoder_caps));
+  auto decoder_caps = frame_dec_gpu_impl::GetDecoderCaps(GetCodecType(codec_id),
+                                                         cudaVideoChromaFormat_420, 0);
   if (!decoder_caps.bIsSupported) {
     DALI_WARN(make_string("Codec ", avcodec_get_name(codec_id),
                           " is not supported by NVDEC on this platform."));
