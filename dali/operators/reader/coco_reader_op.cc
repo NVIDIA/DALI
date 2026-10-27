@@ -16,6 +16,7 @@
 
 #include <set>
 #include <variant>
+#include "dali/core/call_at_exit.h"
 
 extern "C" {
 #include "third_party/cocoapi/common/maskApi.h"
@@ -290,17 +291,40 @@ void COCOReader::PixelwiseMasks(int image_idx, int* mask) {
   auto masks_info = loader_impl.pixelwise_masks_info(image_idx);
   int h = masks_info.shape[0];
   int w = masks_info.shape[1];
+  const int64_t num_pixels = static_cast<int64_t>(h) * w;
+  // Validate annotation RLEs before copying them into image-sized buffers. This also
+  // covers compressed counts and preprocessed annotations, which bypass JSON parsing.
+  for (const auto &mask_rle : masks_info.rles) {
+    const auto rle = mask_rle->get();
+    DALI_ENFORCE(rle.h == static_cast<siz>(h) && rle.w == static_cast<siz>(w),
+                 "Invalid COCO RLE mask: dimensions must match the image.");
+    DALI_ENFORCE(rle.m > 0 && rle.m <= static_cast<siz>(num_pixels + 1),
+                 "Invalid COCO RLE mask: too many or missing runs.");
+    int64_t remaining = num_pixels;
+    for (siz i = 0; i < rle.m; i++) {
+      DALI_ENFORCE(rle.cnts[i] <= remaining,
+                   "Invalid COCO RLE mask: run lengths exceed the image size.");
+      remaining -= rle.cnts[i];
+    }
+    DALI_ENFORCE(remaining == 0,
+                 "Invalid COCO RLE mask: run lengths must cover the entire image.");
+  }
   auto bboxes = loader_impl.bboxes(image_idx);
   auto labels_span = loader_impl.labels(image_idx);
   std::set<int> labels(labels_span.data(),
                        labels_span.data() + labels_span.size());
-  memset(mask, 0, h * w * sizeof(int));
+  memset(mask, 0, num_pixels * sizeof(int));
   if (!labels.size()) {
     return;
   }
 
   // Create a run-length encoding for each polygon, indexed by label :
   std::map<int, std::vector<RLE> > frPoly;
+  auto free_polygon_rles = AtScopeExit([&] {
+    for (auto &rles : frPoly)
+      for (auto &rle : rles.second)
+        rleFree(&rle);
+  });
   std::vector<double> in;
   for (uint polygon_idx = 0; polygon_idx < pol.size(); polygon_idx++) {
     auto &polygon = pol[polygon_idx];
@@ -326,6 +350,7 @@ void COCOReader::PixelwiseMasks(int image_idx, int* mask) {
   // Reserve run-length encodings by labels
   RLE* R;
   rlesInit(&R, *labels.rbegin() + 1);
+  auto free_label_rles = AtScopeExit([&] { rlesFree(&R, *labels.rbegin() + 1); });
 
   // Mask was originally described in RLE format
   for (uint ann_id = 0 ; ann_id < masks_info.mask_indices.size(); ann_id++) {
@@ -348,8 +373,8 @@ void COCOReader::PixelwiseMasks(int image_idx, int* mask) {
     std::unique_ptr<int[]> vals;
   };
   Encoding A;
-  A.cnts = std::make_unique<uint[]>(h * w + 1);  // upper-bound
-  A.vals = std::make_unique<int[]>(h * w + 1);
+  A.cnts = std::make_unique<uint[]>(num_pixels + 1);  // upper-bound
+  A.vals = std::make_unique<int[]>(num_pixels + 1);
 
   // first copy the content of the first label to the output
   bool v = false;
@@ -361,8 +386,8 @@ void COCOReader::PixelwiseMasks(int image_idx, int* mask) {
   }
 
   // then merge the other labels
-  std::unique_ptr<uint[]> cnts = std::make_unique<uint[]>(h * w + 1);
-  std::unique_ptr<int[]> vals = std::make_unique<int[]>(h * w + 1);
+  std::unique_ptr<uint[]> cnts = std::make_unique<uint[]>(num_pixels + 1);
+  std::unique_ptr<int[]> vals = std::make_unique<int[]>(num_pixels + 1);
   for (auto label = ++labels.begin(); label != labels.end(); label++) {
     RLE B = R[*label];
     if (B.cnts == 0)
@@ -399,6 +424,7 @@ void COCOReader::PixelwiseMasks(int image_idx, int* mask) {
       }
       cnt_tot += cnt_b;
 
+      DALI_ENFORCE(m <= num_pixels, "Invalid COCO RLE mask: too many merged runs.");
       if (val_a && vb)  // there's already a class at this pixel
                         // in this case, the last annotation wins (it's undefined by the spec)
         vals[m] = (!cnt_a) ? val_a : val_b;
@@ -433,12 +459,6 @@ void COCOReader::PixelwiseMasks(int image_idx, int* mask) {
         x++;
       }
     }
-
-  // Destroy RLEs
-  rlesFree(&R, *labels.rbegin() + 1);
-  for (auto rles : frPoly)
-    for (auto &rle : rles.second)
-      rleFree(&rle);
 }
 
 }  // namespace dali
