@@ -30,11 +30,6 @@ namespace dali {
 
 namespace {
 
-// Unique keys per test: the cache is process-wide
-std::string Key(const std::string &test, int i) {
-  return make_string("frame_index_cache_test/", test, "/", i);
-}
-
 FrameIndex MakeIndex(const std::string &filename, int num_frames) {
   FrameIndex index;
   index.filename = filename;
@@ -46,7 +41,23 @@ FrameIndex MakeIndex(const std::string &filename, int num_frames) {
 
 }  // namespace
 
-TEST(FrameIndexCacheTest, BuildsEachIndexOnceUnderConcurrency) {
+class FrameIndexCacheTest : public ::testing::Test {
+ protected:
+  // Unique keys per test run: the cache is process-wide and keeps its entries, so a repeated
+  // test (--gtest_repeat) must not find those of the previous run
+  std::string Key(const std::string &test, int i) const {
+    return make_string("frame_index_cache_test/", run_, "/", test, "/", i);
+  }
+
+ private:
+  static int NextRun() {
+    static std::atomic<int> runs{0};
+    return runs++;
+  }
+  int run_ = NextRun();
+};
+
+TEST_F(FrameIndexCacheTest, BuildsEachIndexOnceUnderConcurrency) {
   constexpr int kThreads = 16, kFiles = 64, kRounds = 4;
   auto &cache = FrameIndexCache::instance();
   std::vector<std::atomic<int>> builds(kFiles);
@@ -76,17 +87,17 @@ TEST(FrameIndexCacheTest, BuildsEachIndexOnceUnderConcurrency) {
     EXPECT_EQ(builds[f], 1) << "file " << f;
 }
 
-TEST(FrameIndexCacheTest, IndexStaysValidAfterOtherInsertions) {
+TEST_F(FrameIndexCacheTest, IndexStaysValidAfterOtherInsertions) {
   auto &cache = FrameIndexCache::instance();
-  auto first = cache.GetOrBuild(Key("valid", 0), [] { return MakeIndex(Key("valid", 0), 10); });
+  auto first = cache.GetOrBuild(Key("valid", 0), [&] { return MakeIndex(Key("valid", 0), 10); });
   for (int i = 1; i < 1000; i++)  // forces rehashing of the underlying map
-    cache.GetOrBuild(Key("valid", i), [i] { return MakeIndex(Key("valid", i), 1); });
+    cache.GetOrBuild(Key("valid", i), [&] { return MakeIndex(Key("valid", i), 1); });
   ASSERT_EQ(first->size(), 10u);
   EXPECT_EQ(first->filename, Key("valid", 0));
   EXPECT_EQ(cache.Find(Key("valid", 0)), first);
 }
 
-TEST(FrameIndexCacheTest, FailedBuildIsReportedAndRetried) {
+TEST_F(FrameIndexCacheTest, FailedBuildIsReportedAndRetried) {
   auto &cache = FrameIndexCache::instance();
   auto key = Key("failure", 0);
   EXPECT_THROW(
@@ -98,7 +109,7 @@ TEST(FrameIndexCacheTest, FailedBuildIsReportedAndRetried) {
   EXPECT_EQ(index->size(), 3u);
 }
 
-TEST(FrameIndexCacheTest, FindDoesNotBuildOrWait) {
+TEST_F(FrameIndexCacheTest, FindDoesNotBuildOrWait) {
   auto &cache = FrameIndexCache::instance();
   auto key = Key("find", 0);
   EXPECT_EQ(cache.Find(key), nullptr);
@@ -123,7 +134,7 @@ TEST(FrameIndexCacheTest, FindDoesNotBuildOrWait) {
   EXPECT_EQ(index->size(), 2u);
 }
 
-TEST(FrameIndexCacheTest, IndexIsKeptAfterItsLastUser) {
+TEST_F(FrameIndexCacheTest, IndexIsKeptAfterItsLastUser) {
   auto &cache = FrameIndexCache::instance();
   auto key = Key("kept", 0);
   int builds = 0;
@@ -142,7 +153,7 @@ TEST(FrameIndexCacheTest, IndexIsKeptAfterItsLastUser) {
   EXPECT_EQ(builds, 1);
 }
 
-TEST(FrameIndexCacheTest, IndexIsRebuiltWhenTheFileChanges) {
+TEST_F(FrameIndexCacheTest, IndexIsRebuiltWhenTheFileChanges) {
   char path[] = "/tmp/frame_index_cache_test_XXXXXX";
   int fd = mkstemp(path);
   ASSERT_GE(fd, 0);
@@ -169,6 +180,49 @@ TEST(FrameIndexCacheTest, IndexIsRebuiltWhenTheFileChanges) {
   EXPECT_EQ(first->size(), 1u);  // still valid for its users
   EXPECT_EQ(cache.GetOrBuild(path, build), second);
   unlink(path);
+}
+
+TEST_F(FrameIndexCacheTest, UnfinishedBuildDoesNotOverwriteItsReplacement) {
+  auto &cache = FrameIndexCache::instance();
+  const FrameIndexCache::FileStamp old_stamp{1, 1}, new_stamp{2, 2};
+  for (bool old_fails : {false, true}) {
+    auto key = Key(old_fails ? "replaced_failing" : "replaced", 0);
+    std::atomic<bool> building{false}, release{false};
+    FrameIndexCache::IndexPtr old_index;
+    bool old_threw = false;
+    std::thread old_builder([&]() {
+      try {
+        old_index = cache.GetOrBuild(key, old_stamp, [&] {
+          building = true;
+          while (!release)
+            std::this_thread::yield();
+          if (old_fails)
+            throw std::runtime_error("cannot index");
+          return MakeIndex(key, 1);
+        });
+      } catch (const std::runtime_error &) {
+        old_threw = true;
+      }
+    });
+    while (!building)
+      std::this_thread::yield();
+    // the file changed while the old version was being indexed
+    auto new_index = cache.GetOrBuild(key, new_stamp, [&] { return MakeIndex(key, 2); });
+    ASSERT_EQ(new_index->size(), 2u);
+    EXPECT_EQ(cache.Find(key), new_index);
+    release = true;
+    old_builder.join();
+    if (old_fails) {
+      EXPECT_TRUE(old_threw);
+    } else {
+      ASSERT_NE(old_index, nullptr);  // its caller still gets the index it built
+      EXPECT_EQ(old_index->size(), 1u);
+    }
+    EXPECT_EQ(cache.Find(key), new_index);
+    EXPECT_EQ(cache.GetOrBuild(key, new_stamp, [&]() -> FrameIndex {
+      throw std::logic_error("must not be built again");
+    }), new_index);
+  }
 }
 
 }  // namespace dali
