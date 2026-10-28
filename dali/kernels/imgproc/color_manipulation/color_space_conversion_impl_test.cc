@@ -486,8 +486,11 @@ struct method_ref<itu_r_bt_601> {
 };
 
 template <>
-struct method_ref<itu_r_bt_709> : method_ref<itu_r_bt_601> {
+struct method_ref<itu_r_bt_709> {
   static constexpr double kr = 0.2126, kb = 0.0722;
+  static constexpr double yscale = 219.0 / 255;
+  static constexpr double cscale = 224.0 / 255;
+  template <typename T> static constexpr double ybias() { return any_ref::ybias<T>(); }
 };
 
 template <>
@@ -499,8 +502,11 @@ struct method_ref<jpeg> {
 };
 
 template <>
-struct method_ref<itu_r_bt_709_full_range> : method_ref<jpeg> {
+struct method_ref<itu_r_bt_709_full_range> {
   static constexpr double kr = 0.2126, kb = 0.0722;
+  static constexpr double yscale = 1;
+  static constexpr double cscale = 1;
+  template <typename T> static constexpr double ybias() { return 0; }
 };
 
 template <typename Method, typename Out, typename In>
