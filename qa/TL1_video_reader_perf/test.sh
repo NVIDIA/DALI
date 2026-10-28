@@ -1,4 +1,5 @@
 #!/bin/bash -e
+# Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # used pip packages (torch and torchcodec are installed by install_torchcodec)
 pip_packages='numpy'
 target_dir=./internal_tools

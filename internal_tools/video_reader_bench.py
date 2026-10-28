@@ -146,7 +146,12 @@ def run_config(cfg, root, hash_out, tmp):
     import numpy as np
 
     files = sorted(f for p in cfg["files"] for f in glob.glob(os.path.join(root, VIDEO_DIR, p)))
-    assert files, f"no files for {cfg['files']} under {root}/{VIDEO_DIR}"
+    if not files:
+        raise FileNotFoundError(
+            f"--dali_extra={root!r}: expected files matching {cfg['files']} under "
+            f"{os.path.join(root, VIDEO_DIR)!r}, but found none. Point --dali_extra (or "
+            "DALI_EXTRA_PATH) at a DALI_extra checkout."
+        )
     samples = []  # (path, start, end)
     if cfg.get("many"):  # distinct symlinks: nothing keyed by the file name is shared
         lines = []
@@ -174,6 +179,7 @@ def run_config(cfg, root, hash_out, tmp):
                 for first in range(0, len(VideoDecoder(f)) - cfg["seq"] + 1, cfg["seq"]):
                     samples.append((f, first, first + cfg["seq"]))
         run_batch = torchcodec_step(cfg, samples)
+        epoch_size = len(samples)
     else:
         import nvidia.dali.fn as fn
         from nvidia.dali.pipeline import pipeline_def
@@ -199,11 +205,14 @@ def run_config(cfg, root, hash_out, tmp):
         p = pipe()
         p.build()
         run_batch = p.run
+        epoch_size = sum(p.epoch_size().values())
     build_s = time.perf_counter() - t0
 
     if hash_out:  # from batch 0: the same samples whatever the queue depths
         h = hashlib.sha1()
-        for _ in range(-(-HASH_MIN_SAMPLES // cfg["batch"]) + 2):
+        # more than an epoch, so that the reader's restart is covered too
+        n_samples = max(HASH_MIN_SAMPLES, epoch_size)
+        for _ in range(-(-n_samples // cfg["batch"]) + 2):
             for o in run_batch():
                 o = o.as_cpu() if hasattr(o, "as_cpu") else o
                 for i in range(len(o)):
@@ -244,7 +253,7 @@ def check_scaling(out, tolerance=0.10):
 def run(a):
     todo = [
         (group, c)
-        for group, c in configs(a.threads, not (a.hash or a.no_torchcodec))
+        for group, c in configs(a.threads, a.torchcodec and not a.hash)
         if a.only in group and (a.hash or not c.get("hash_only"))
     ]
     out = {}
@@ -314,7 +323,7 @@ def main():
     )
     ap.add_argument("--repeat", type=int, default=3, help="fresh-process runs per configuration")
     ap.add_argument("--only", default="", help="only groups containing this text")
-    ap.add_argument("--no_torchcodec", action="store_true", help="DALI only")
+    ap.add_argument("--no_torchcodec", dest="torchcodec", action="store_false", help="DALI only")
     ap.add_argument("--dali_extra", default=os.environ.get("DALI_EXTRA_PATH", ""))
     ap.add_argument("--child", help=argparse.SUPPRESS)
     a = ap.parse_args()
