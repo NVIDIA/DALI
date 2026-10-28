@@ -238,6 +238,89 @@ struct itu_r_bt_601 {
 };  // struct itu_r_bt_601
 
 
+// Y, Cb, Cr definition from ITU-R BT.709 (the usual one for HD video), with values in the range
+// 16-235, allowing for footroom and headroom.
+// It differs from ITU-R BT.601 only in the RGB <-> YCbCr matrix. The conversions from and to gray
+// do not depend on the matrix and are inherited.
+struct itu_r_bt_709 : itu_r_bt_601 {
+  template <typename Output, typename Input>
+  static DALI_HOST_DEV DALI_FORCEINLINE constexpr Output rgb_to_y(vec<3, Input> rgb) {
+    constexpr vec3 coeffs = vec3(0.18258588235f, 0.61423058824f, 0.06200705882f)
+                            * detail::scale_factor<Input, Output>();
+    constexpr float bias = 0.0625f * detail::bias_scale<Output>();
+    float y = dot(coeffs, detail::clamp_color_input(rgb)) + bias;
+    return needs_clamp<Input, Output>::value ? Convert<Output>(y) : ConvertSat<Output>(y);
+  }
+
+  template <typename Output, typename Input>
+  static DALI_HOST_DEV DALI_FORCEINLINE
+  constexpr Output rgb_to_cb(vec<3, Input> rgb) {
+    constexpr vec3 coeffs = vec3(-0.10064373238f, -0.33857195389f, 0.43921568627f)
+                            * detail::scale_factor<Input, Output>();
+    constexpr float bias = 0.5f * detail::bias_scale<Output>();
+    float y = dot(coeffs, detail::clamp_color_input(rgb)) + bias;
+    return needs_clamp<Input, Output>::value ? Convert<Output>(y) : ConvertSat<Output>(y);
+  }
+
+  template <typename Output, typename Input>
+  static DALI_HOST_DEV DALI_FORCEINLINE
+  constexpr Output rgb_to_cr(vec<3, Input> rgb) {
+    constexpr vec3 coeffs = vec3(0.43921568627f, -0.39894216259f, -0.04027352368f)
+                            * detail::scale_factor<Input, Output>();
+    constexpr float bias = 0.5f * detail::bias_scale<Output>();
+    float y = dot(coeffs, detail::clamp_color_input(rgb)) + bias;
+    return needs_clamp<Input, Output>::value ? Convert<Output>(y) : ConvertSat<Output>(y);
+  }
+
+  template <typename Output, typename Input>
+  static DALI_HOST_DEV DALI_FORCEINLINE
+  constexpr vec<3, Output> rgb_to_ycbcr(vec<3, Input> rgb) {
+    return {
+      rgb_to_y<Output, Input>(rgb),
+      rgb_to_cb<Output, Input>(rgb),
+      rgb_to_cr<Output, Input>(rgb)
+    };
+  }
+
+  template <typename Output, typename Input>
+  static DALI_HOST_DEV DALI_FORCEINLINE
+  constexpr vec<3, Output> ycbcr_to_rgb(vec<3, Input> ycbcr) {
+    constexpr float cbias = 0.5f * detail::bias_scale<Input>();
+    constexpr float ybias = 0.0625f * detail::bias_scale<Input>();
+    constexpr float s = detail::scale_factor<Input, Output>();
+    ycbcr = detail::clamp_ycbcr_input<Output>(ycbcr);
+    float ys = (ycbcr[0] - ybias) * (255.0f / 219) * s;
+    float tmp_b = ycbcr[1] - cbias;
+    float tmp_r = ycbcr[2] - cbias;
+    auto r = ConvertSat<Output>(ys + (1.79274107143f * s) * tmp_r);
+    auto g = ConvertSat<Output>(ys - (0.21324861427f * s) * tmp_b - (0.53290932856f * s) * tmp_r);
+    auto b = ConvertSat<Output>(ys + (2.11240178571f * s) * tmp_b);
+    return {r, g, b};
+  }
+};  // struct itu_r_bt_709
+
+
+// YCbCr -> RGB with the ITU-R BT.709 matrix, using the whole dynamic range of the type (the
+// counterpart of `jpeg`, which uses the ITU-R BT.601 matrix). Only this direction is provided;
+// it is what the video decoders need for full range video.
+struct itu_r_bt_709_full_range {
+  template <typename Output, typename Input>
+  static DALI_HOST_DEV DALI_FORCEINLINE
+  constexpr vec<3, Output> ycbcr_to_rgb(vec<3, Input> ycbcr) {
+    constexpr float cbias = 0.5f * detail::bias_scale<Input>();
+    constexpr float s = detail::scale_factor<Input, Output>();
+    ycbcr = detail::clamp_ycbcr_input<Output>(ycbcr);
+    float tmp_b = ycbcr[1] - cbias;
+    float tmp_r = ycbcr[2] - cbias;
+    float ys = ycbcr[0] * s;
+    auto r = ConvertSat<Output>(ys + (1.5748f * s) * tmp_r);
+    auto g = ConvertSat<Output>(ys - (0.18732427293f * s) * tmp_b - (0.46812427293f * s) * tmp_r);
+    auto b = ConvertSat<Output>(ys + (1.8556f * s) * tmp_b);
+    return {r, g, b};
+  }
+};  // struct itu_r_bt_709_full_range
+
+
 // Y, Cb, Cr formulas used in JPEG, using the whole dynamic range of the type.
 struct jpeg {
   template <typename Output, typename Input>

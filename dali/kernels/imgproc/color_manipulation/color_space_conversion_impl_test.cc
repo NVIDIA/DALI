@@ -13,7 +13,10 @@
 // limitations under the License.
 
 #include <gtest/gtest.h>
+#include <algorithm>
+#include <array>
 #include <cmath>
+#include <cstdlib>
 #include <limits>
 #include <random>
 #include <tuple>
@@ -989,6 +992,95 @@ TEST(ColorSpaceConversionSignedTest, ClampColorInputFloat16) {
   EXPECT_EQ(static_cast<float>(clamp_color_input(float16(-1.5f))), 0.0f);
   EXPECT_EQ(static_cast<float>(clamp_ycbcr_input<uint8_t>(float16(1.5f))), 1.0f);
   EXPECT_EQ(static_cast<float>(clamp_ycbcr_input<float>(float16(1.5f))), 1.5f);
+}
+
+TEST(ColorSpaceConversionTest, ITU_R_BT709_RGB2YCbCr_u8) {
+  using method = itu_r_bt_709;
+  auto rgb_to_ycbcr = [](u8vec3 rgb) { return method::rgb_to_ycbcr<uint8_t>(rgb); };
+  EXPECT_EQ(rgb_to_ycbcr(u8vec3(0, 0, 0)), u8vec3(16, 128, 128));
+  EXPECT_EQ(rgb_to_ycbcr(u8vec3(255, 255, 255)), u8vec3(235, 128, 128));
+  EXPECT_EQ(rgb_to_ycbcr(u8vec3(255, 0, 0)), u8vec3(63, 102, 240));
+  EXPECT_EQ(rgb_to_ycbcr(u8vec3(0, 255, 0)), u8vec3(173, 42, 26));
+  EXPECT_EQ(rgb_to_ycbcr(u8vec3(0, 0, 255)), u8vec3(32, 240, 118));
+  EXPECT_EQ(rgb_to_ycbcr(u8vec3(255, 255, 0)), u8vec3(219, 16, 138));
+  EXPECT_EQ(rgb_to_ycbcr(u8vec3(0, 255, 255)), u8vec3(188, 154, 16));
+  EXPECT_EQ(rgb_to_ycbcr(u8vec3(255, 0, 255)), u8vec3(78, 214, 230));
+  EXPECT_EQ(rgb_to_ycbcr(u8vec3(255, 128, 0)), u8vec3(141, 59, 189));
+}
+
+TEST(ColorSpaceConversionTest, ITU_R_BT709_DiffersFromBT601) {
+  // Pure red in BT.601 is Y=81, Cb=90, Cr=240; in BT.709 it is Y=63, Cb=102, Cr=240.
+  EXPECT_EQ(itu_r_bt_601::rgb_to_ycbcr<uint8_t>(u8vec3(255, 0, 0)), u8vec3(81, 90, 240));
+  EXPECT_NE(itu_r_bt_709::rgb_to_ycbcr<uint8_t>(u8vec3(255, 0, 0)),
+            itu_r_bt_601::rgb_to_ycbcr<uint8_t>(u8vec3(255, 0, 0)));
+  // gray does not depend on the matrix
+  for (int g : {0, 1, 100, 128, 254, 255}) {
+    EXPECT_EQ((itu_r_bt_709::gray_to_ycbcr<uint8_t, uint8_t>(g)),
+              (itu_r_bt_601::gray_to_ycbcr<uint8_t, uint8_t>(g)));
+    EXPECT_EQ((itu_r_bt_709::y_to_gray<uint8_t, uint8_t>(g)),
+              (itu_r_bt_601::y_to_gray<uint8_t, uint8_t>(g)));
+  }
+}
+
+namespace {
+
+// Double precision reference for YCbCr -> RGB, from the luma weights Kr, Kb.
+// Y, Cb, Cr are in [0, 255]; the result is in [0, 255], clamped but not rounded.
+std::array<double, 3> ycbcr_to_rgb_ref(double Kr, double Kb, bool full_range,
+                                       double y, double cb, double cr) {
+  double Kg = 1 - Kr - Kb;
+  double yn = full_range ? y / 255 : (y - 16) / 219;
+  double cbn = full_range ? (cb - 128) / 255 : (cb - 128) / 224;
+  double crn = full_range ? (cr - 128) / 255 : (cr - 128) / 224;
+  double r = yn + 2 * (1 - Kr) * crn;
+  double b = yn + 2 * (1 - Kb) * cbn;
+  double g = (yn - Kr * r - Kb * b) / Kg;
+  auto out = [](double v) { return std::min(255.0, std::max(0.0, v * 255)); };
+  return {out(r), out(g), out(b)};
+}
+
+}  // namespace
+
+TEST(ColorSpaceConversionTest, ITU_R_BT709_YCbCr2RGB_MatchesReference) {
+  // Allowed difference: rounding (0.5) plus a little for the single precision arithmetic.
+  constexpr double kTolerance = 0.502;
+  for (int y = 0; y < 256; y += 5) {
+    for (int cb = 0; cb < 256; cb += 5) {
+      for (int cr = 0; cr < 256; cr += 5) {
+        u8vec3 ycbcr(y, cb, cr);
+        auto limited = itu_r_bt_709::ycbcr_to_rgb<uint8_t>(ycbcr);
+        auto limited_ref = ycbcr_to_rgb_ref(0.2126, 0.0722, false, y, cb, cr);
+        auto full = itu_r_bt_709_full_range::ycbcr_to_rgb<uint8_t>(ycbcr);
+        auto full_ref = ycbcr_to_rgb_ref(0.2126, 0.0722, true, y, cb, cr);
+        for (int c = 0; c < 3; c++) {
+          ASSERT_NEAR(limited[c], limited_ref[c], kTolerance)
+              << "limited range, YCbCr " << y << " " << cb << " " << cr << ", channel " << c;
+          ASSERT_NEAR(full[c], full_ref[c], kTolerance)
+              << "full range, YCbCr " << y << " " << cb << " " << cr << ", channel " << c;
+        }
+      }
+    }
+  }
+}
+
+TEST(ColorSpaceConversionTest, ITU_R_BT709_YCbCr2RGB_RoundTripOfPrimaries) {
+  // RGB -> YCbCr -> RGB gets back the colors up to the quantization of the 8 bit YCbCr.
+  for (auto rgb : {u8vec3(255, 0, 0), u8vec3(0, 255, 0), u8vec3(0, 0, 255), u8vec3(255, 255, 0),
+                   u8vec3(0, 255, 255), u8vec3(255, 0, 255), u8vec3(255, 128, 0),
+                   u8vec3(128, 128, 128)}) {
+    auto ycbcr = itu_r_bt_709::rgb_to_ycbcr<uint8_t>(rgb);
+    auto back = itu_r_bt_709::ycbcr_to_rgb<uint8_t>(ycbcr);
+    for (int c = 0; c < 3; c++)
+      EXPECT_NEAR(back[c], rgb[c], 4) << "color " << int(rgb[0]) << " " << int(rgb[1]) << " "
+                                      << int(rgb[2]) << ", channel " << c;
+    // BT.601 does not get the colors back from BT.709 YCbCr
+    auto wrong = itu_r_bt_601::ycbcr_to_rgb<uint8_t>(ycbcr);
+    int max_diff = 0;
+    for (int c = 0; c < 3; c++)
+      max_diff = std::max(max_diff, std::abs(static_cast<int>(wrong[c]) - rgb[c]));
+    if (rgb[0] != rgb[1] || rgb[1] != rgb[2])
+      EXPECT_GT(max_diff, 8) << "color " << int(rgb[0]) << " " << int(rgb[1]) << " " << int(rgb[2]);
+  }
 }
 
 }  // namespace test
