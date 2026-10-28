@@ -395,6 +395,43 @@ def test_full_range_video_experimental(device, video):
     assert np.mean(absdiff) < 2
 
 
+def color_matrix_bars_error(frame, reference):
+    """Worst difference between `frame` and `reference` of the mean colors of the interiors of the
+    8 bars of the test pattern in db/video/color_matrix (the bars are 240 pixels wide)"""
+    worst = 0
+    for i in range(8):
+        interior = (slice(100, 440), slice(i * 240 + 40, (i + 1) * 240 - 40))
+        color = frame[interior].reshape(-1, 3).mean(axis=0)
+        ref_color = reference[interior].reshape(-1, 3).mean(axis=0)
+        worst = max(worst, np.max(np.abs(color - ref_color)))
+    return worst
+
+
+@params("bt709_limited_1080p", "bt709_limited_1080p_vp9")
+def test_color_matrix_bt709_gpu(name):
+    # The streams are tagged as BT.709 (limited range). The references are what ffmpeg decodes,
+    # which uses the matrix from the stream; converting with BT.601 gives errors up to 22 in the
+    # interior of the saturated bars.
+    skip_if_m60()
+    data_dir = get_dali_extra_path() + "/db/video/color_matrix"
+
+    @pipeline_def
+    def test_pipeline():
+        return fn.experimental.readers.video(
+            device="gpu",
+            filenames=[f"{data_dir}/{name}.mp4"],
+            sequence_length=1,
+        )
+
+    out = test_pipeline(batch_size=1, num_threads=1, device_id=0).run()[0]
+    out = out.as_cpu()
+    frame = out.as_array()[0, 0]
+    ref = cv2.cvtColor(cv2.imread(f"{data_dir}/{name}_ref.png"), cv2.COLOR_BGR2RGB)
+    assert frame.shape == ref.shape
+    assert color_matrix_bars_error(frame, ref) <= 4
+    assert np.mean(np.abs(frame.astype(int) - ref.astype(int))) < 2
+
+
 @attr("multi_gpu")
 @params("cpu", "mixed")
 def test_multi_gpu_video(device):
