@@ -407,26 +407,32 @@ def color_matrix_bars_error(frame, reference):
     return worst
 
 
-@params("bt709_limited_1080p", "bt709_limited_1080p_vp9")
+@params(
+    "bt709_limited_1080p",
+    "bt709_limited_1080p_vp9",
+    "bt709_full_1080p",
+    # the matrix is only in the H.264 stream, not in the container
+    "bt709_limited_1080p_nocolr",
+)
 def test_color_matrix_bt709_gpu(name):
-    # The streams are tagged as BT.709 (limited range). The references are what ffmpeg decodes,
-    # which uses the matrix from the stream; converting with BT.601 gives errors up to 22 in the
+    # The streams are tagged as BT.709. The references are what ffmpeg decodes, which uses the
+    # matrix and range from the stream; converting with BT.601 gives errors up to 22 in the
     # interior of the saturated bars.
     skip_if_m60()
-    data_dir = get_dali_extra_path() + "/db/video/color_matrix"
+    data_dir = os.path.join(get_dali_extra_path(), "db", "video", "color_matrix")
 
     @pipeline_def
     def test_pipeline():
         return fn.experimental.readers.video(
             device="gpu",
-            filenames=[f"{data_dir}/{name}.mp4"],
+            filenames=[os.path.join(data_dir, f"{name}.mp4")],
             sequence_length=1,
         )
 
     out = test_pipeline(batch_size=1, num_threads=1, device_id=0).run()[0]
     out = out.as_cpu()
     frame = out.as_array()[0, 0]
-    ref = cv2.cvtColor(cv2.imread(f"{data_dir}/{name}_ref.png"), cv2.COLOR_BGR2RGB)
+    ref = cv2.cvtColor(cv2.imread(os.path.join(data_dir, f"{name}_ref.png")), cv2.COLOR_BGR2RGB)
     assert frame.shape == ref.shape
     assert color_matrix_bars_error(frame, ref) <= 4
     assert np.mean(np.abs(frame.astype(int) - ref.astype(int))) < 2
