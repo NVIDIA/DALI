@@ -315,15 +315,15 @@ class PipelineCHW(PipelineWithLayout):
             tail = len(self.sample_layout)
             supported = data_input.ndim > tail
             expected = f"at least {tail + 1} dimensions"
-        elif self.sample_layout == "FCHW":
-            # Any leading dimensions are flattened into the frames dimension, as in torchvision
-            tail = 3
-            supported = data_input.ndim > tail
-            expected = "at least 4 dimensions"
         else:
             tail = 3
-            supported = data_input.ndim == tail
-            expected = "exactly 3 dimensions"
+            if self.sample_layout == "FCHW":
+                # Any leading dimensions are flattened into the frames dimension, as in torchvision
+                supported = data_input.ndim > tail
+                expected = "at least 4 dimensions"
+            else:
+                supported = data_input.ndim == tail
+                expected = "exactly 3 dimensions"
         if not supported:
             raise ValueError(
                 f"Unsupported input: a tensor with {data_input.ndim} dimensions for layout "
@@ -402,7 +402,7 @@ PipelineLayouts = {
     "NFCHW": (PipelineFCHW, True),
 }
 _UNSUPPORTED_LAYOUTS = ("NHWC", "FHWC", "NFHWC")
-_ALLOWED_LAYOUTS = (None, "HWC", "CHW", "NHWC", "NCHW", "FCHW", "FHWC", "NFCHW", "NFHWC")
+_ALLOWED_LAYOUTS = (None, "HWC", "CHW", "NCHW", "FCHW", "NFCHW")
 
 
 class Compose:

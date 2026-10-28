@@ -548,13 +548,10 @@ def test_compose_nfchw_random_params_per_sequence():
     ("NHWC",),
     ("FHWC",),
     ("NFHWC",),
+    ("CHWN",),
+    ("hwc",),
+    ("",),
 )
-def test_compose_layout_not_supported(layout):
-    with assert_raises(NotImplementedError, glob=f"*Layout '{layout}' is currently not supported*"):
-        Compose([RandomHorizontalFlip(p=1.0)], layout=layout)
-
-
-@params(("CHWN",), ("hwc",), ("",))
 def test_compose_layout_unknown(layout):
     with assert_raises(ValueError, glob=f"*Unknown layout '{layout}'*"):
         Compose([RandomHorizontalFlip(p=1.0)], layout=layout)
