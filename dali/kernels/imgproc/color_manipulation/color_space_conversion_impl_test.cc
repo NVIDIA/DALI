@@ -456,16 +456,22 @@ constexpr double finish(double v) {
   return v;
 }
 
-// Luma/chroma from normalized RGB
-inline double luma(dvec3 rgb) { return 0.299 * rgb[0] + 0.587 * rgb[1] + 0.114 * rgb[2]; }
-inline double chroma_b(dvec3 rgb) { return (rgb[2] - luma(rgb)) * (0.5 / (1 - 0.114)); }
-inline double chroma_r(dvec3 rgb) { return (rgb[0] - luma(rgb)) * (0.5 / (1 - 0.299)); }
+// Luma/chroma from normalized RGB, given the luma weights of red and blue (kr, kb)
+inline double luma(dvec3 rgb, double kr, double kb) {
+  return kr * rgb[0] + (1 - kr - kb) * rgb[1] + kb * rgb[2];
+}
+inline double chroma_b(dvec3 rgb, double kr, double kb) {
+  return (rgb[2] - luma(rgb, kr, kb)) * (0.5 / (1 - kb));
+}
+inline double chroma_r(dvec3 rgb, double kr, double kb) {
+  return (rgb[0] - luma(rgb, kr, kb)) * (0.5 / (1 - kr));
+}
 
 // Normalized RGB from normalized luma/chroma (chroma centered at 0)
-inline dvec3 rgb_from_ycc(double y, double cb, double cr) {
-  double r = y + 2 * (1 - 0.299) * cr;
-  double b = y + 2 * (1 - 0.114) * cb;
-  double g = (y - 0.299 * r - 0.114 * b) / 0.587;
+inline dvec3 rgb_from_ycc(double y, double cb, double cr, double kr, double kb) {
+  double r = y + 2 * (1 - kr) * cr;
+  double b = y + 2 * (1 - kb) * cb;
+  double g = (y - kr * r - kb * b) / (1 - kr - kb);
   return {r, g, b};
 }
 
@@ -474,16 +480,28 @@ struct method_ref;
 
 template <>
 struct method_ref<itu_r_bt_601> {
+  static constexpr double kr = 0.299, kb = 0.114;
   static constexpr double yscale = 219.0 / 255;
   static constexpr double cscale = 224.0 / 255;
   template <typename T> static constexpr double ybias() { return any_ref::ybias<T>(); }
 };
 
 template <>
+struct method_ref<itu_r_bt_709> : method_ref<itu_r_bt_601> {
+  static constexpr double kr = 0.2126, kb = 0.0722;
+};
+
+template <>
 struct method_ref<jpeg> {
+  static constexpr double kr = 0.299, kb = 0.114;
   static constexpr double yscale = 1;
   static constexpr double cscale = 1;
   template <typename T> static constexpr double ybias() { return 0; }
+};
+
+template <>
+struct method_ref<itu_r_bt_709_full_range> : method_ref<jpeg> {
+  static constexpr double kr = 0.2126, kb = 0.0722;
 };
 
 template <typename Method, typename Out, typename In>
@@ -491,9 +509,9 @@ dvec3 rgb_to_ycbcr(vec<3, In> in) {
   using M = method_ref<Method>;
   dvec3 rgb(norm(in[0]), norm(in[1]), norm(in[2]));
   return {
-    finish<Out>(luma(rgb) * unit<Out>() * M::yscale + M::template ybias<Out>()),
-    finish<Out>(chroma_b(rgb) * unit<Out>() * M::cscale + cbias<Out>()),
-    finish<Out>(chroma_r(rgb) * unit<Out>() * M::cscale + cbias<Out>())
+    finish<Out>(luma(rgb, M::kr, M::kb) * unit<Out>() * M::yscale + M::template ybias<Out>()),
+    finish<Out>(chroma_b(rgb, M::kr, M::kb) * unit<Out>() * M::cscale + cbias<Out>()),
+    finish<Out>(chroma_r(rgb, M::kr, M::kb) * unit<Out>() * M::cscale + cbias<Out>())
   };
 }
 
@@ -503,7 +521,7 @@ dvec3 ycbcr_to_rgb(vec<3, In> in) {
   double y  = (sat<Out>(in[0]) - M::template ybias<In>()) / (unit<In>() * M::yscale);
   double cb = (sat<Out>(in[1]) - cbias<In>()) / (unit<In>() * M::cscale);
   double cr = (sat<Out>(in[2]) - cbias<In>()) / (unit<In>() * M::cscale);
-  dvec3 rgb = rgb_from_ycc(y, cb, cr);
+  dvec3 rgb = rgb_from_ycc(y, cb, cr, M::kr, M::kb);
   return {
     finish<Out>(rgb[0] * unit<Out>()),
     finish<Out>(rgb[1] * unit<Out>()),
@@ -585,7 +603,10 @@ const char *type_name() {
 
 template <typename Method>
 const char *method_name() {
-  return std::is_same_v<Method, itu_r_bt_601> ? "itu_r_bt_601" : "jpeg";
+  if (std::is_same_v<Method, itu_r_bt_601>) return "itu_r_bt_601";
+  if (std::is_same_v<Method, itu_r_bt_709>) return "itu_r_bt_709";
+  if (std::is_same_v<Method, itu_r_bt_709_full_range>) return "itu_r_bt_709_full_range";
+  return "jpeg";
 }
 
 /**
@@ -678,7 +699,15 @@ void for_all_outputs(F &&f) {
 template <typename F>
 void for_all_methods_and_outputs(F &&f) {
   for_all_outputs([&](auto out) { f(itu_r_bt_601{}, out); });
+  for_all_outputs([&](auto out) { f(itu_r_bt_709{}, out); });
   for_all_outputs([&](auto out) { f(jpeg{}, out); });
+}
+
+/** @brief Same as above, with the methods that provide only the YCbCr -> RGB conversion */
+template <typename F>
+void for_all_inverse_methods_and_outputs(F &&f) {
+  for_all_methods_and_outputs(f);
+  for_all_outputs([&](auto out) { f(itu_r_bt_709_full_range{}, out); });
 }
 
 }  // namespace
@@ -733,7 +762,7 @@ TYPED_TEST(ColorSpaceConversionAnyTypeTest, RGB_to_Gray) {
 TYPED_TEST(ColorSpaceConversionAnyTypeTest, YCbCr_to_RGB) {
   using In = TypeParam;
   auto inputs = test_triplets<In>();
-  for_all_methods_and_outputs([&](auto method, auto out_type) {
+  for_all_inverse_methods_and_outputs([&](auto method, auto out_type) {
     using Method = decltype(method);
     using Out = decltype(out_type);
     SCOPED_TRACE(make_string(method_name<Method>(), " ", type_name<In>(), " -> ",

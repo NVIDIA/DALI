@@ -147,9 +147,49 @@ constexpr DALI_HOST_DEV Input clamp_ycbcr_input(Input value) {
  * for 16-bit and wider types.
  */
 
+namespace detail {
+
+// Conversions between gray and Y, Cb, Cr with the values in the range 16-235, allowing for
+// footroom and headroom. They do not depend on the RGB <-> YCbCr matrix, so they are shared by the
+// ITU-R recommendations below.
+struct itu_r_limited_range {
+  // Gray uses the full dynamic range of the type (e.g. 0..255) while the ITU-R recommendations use
+  // a reduced range to allow for headroom and footroom (e.g. 16..235)
+  template <typename Output, typename Input>
+  static DALI_HOST_DEV DALI_FORCEINLINE
+  constexpr Output y_to_gray(Input y) {
+    constexpr float scale = 255 * scale_factor<Input, Output>() / 219;
+    constexpr float bias = 0.0625f * bias_scale<Input>();
+    return ConvertSat<Output>(scale * (clamp_ycbcr_input<Output>(y) - bias));
+  }
+
+  template <typename Output, typename Input>
+  static DALI_HOST_DEV DALI_FORCEINLINE
+  constexpr Output gray_to_y(Input y) {
+    constexpr float bias = 0.0625f * bias_scale<Output>();
+    constexpr float scale = 219 * scale_factor<Input, Output>() / 255;
+    return ConvertSat<Output>(clamp_color_input(y) * scale + bias);
+  }
+
+  template <typename Output, typename Input>
+  static DALI_HOST_DEV DALI_FORCEINLINE
+  constexpr Output ycbcr_to_gray(vec<3, Input> ycbcr) {
+    return y_to_gray<Output>(ycbcr[0]);
+  }
+
+  template <typename Output, typename Input>
+  static DALI_HOST_DEV DALI_FORCEINLINE
+  constexpr vec<3, Output> gray_to_ycbcr(Input gray) {
+    auto c = ConvertNorm<Output>(0.5f);
+    return {gray_to_y<Output>(gray), c, c};
+  }
+};  // struct itu_r_limited_range
+
+}  // namespace detail
+
 // Y, Cb, Cr definition from ITU-R BT.601, with values in the range 16-235, allowing for
 // footroom and headroom
-struct itu_r_bt_601 {
+struct itu_r_bt_601 : detail::itu_r_limited_range {
   template <typename Output, typename Input>
   static DALI_HOST_DEV DALI_FORCEINLINE constexpr Output rgb_to_y(vec<3, Input> rgb) {
     constexpr vec3 coeffs = vec3(0.25678823529f, 0.50412941176f, 0.09790588235f)
@@ -189,24 +229,6 @@ struct itu_r_bt_601 {
     };
   }
 
-  // Gray uses the full dynamic range of the type (e.g. 0..255)
-  // while ITU-R BT.601 uses a reduced range to allow for headroom and footroom (e.g. 16..235)
-  template <typename Output, typename Input>
-  static DALI_HOST_DEV DALI_FORCEINLINE
-  constexpr Output y_to_gray(Input y) {
-    constexpr float scale = 255 * detail::scale_factor<Input, Output>() / 219;
-    constexpr float bias = 0.0625f * detail::bias_scale<Input>();
-    return ConvertSat<Output>(scale * (detail::clamp_ycbcr_input<Output>(y) - bias));
-  }
-
-  template <typename Output, typename Input>
-  static DALI_HOST_DEV DALI_FORCEINLINE
-  constexpr Output gray_to_y(Input y) {
-    constexpr float bias = 0.0625f * detail::bias_scale<Output>();
-    constexpr float scale = 219 * detail::scale_factor<Input, Output>() / 255;
-    return ConvertSat<Output>(detail::clamp_color_input(y) * scale + bias);
-  }
-
   template <typename Output, typename Input>
   static DALI_HOST_DEV DALI_FORCEINLINE
   constexpr vec<3, Output> ycbcr_to_rgb(vec<3, Input> ycbcr) {
@@ -222,27 +244,13 @@ struct itu_r_bt_601 {
     auto b = ConvertSat<Output>(ys + (2.0172321417f * s) * tmp_b);
     return {r, g, b};
   }
-
-  template <typename Output, typename Input>
-  static DALI_HOST_DEV DALI_FORCEINLINE
-  constexpr Output ycbcr_to_gray(vec<3, Input> ycbcr) {
-    return y_to_gray<Output>(ycbcr[0]);
-  }
-
-  template <typename Output, typename Input>
-  static DALI_HOST_DEV DALI_FORCEINLINE
-  constexpr vec<3, Output> gray_to_ycbcr(Input gray) {
-    auto c = ConvertNorm<Output>(0.5f);
-    return {gray_to_y<Output>(gray), c, c};
-  }
 };  // struct itu_r_bt_601
 
 
 // Y, Cb, Cr definition from ITU-R BT.709 (the usual one for HD video), with values in the range
 // 16-235, allowing for footroom and headroom.
-// It differs from ITU-R BT.601 only in the RGB <-> YCbCr matrix. The conversions from and to gray
-// do not depend on the matrix and are inherited.
-struct itu_r_bt_709 : itu_r_bt_601 {
+// It differs from ITU-R BT.601 only in the RGB <-> YCbCr matrix.
+struct itu_r_bt_709 : detail::itu_r_limited_range {
   template <typename Output, typename Input>
   static DALI_HOST_DEV DALI_FORCEINLINE constexpr Output rgb_to_y(vec<3, Input> rgb) {
     constexpr vec3 coeffs = vec3(0.18258588235f, 0.61423058824f, 0.06200705882f)
