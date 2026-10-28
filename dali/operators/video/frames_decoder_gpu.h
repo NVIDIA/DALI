@@ -201,6 +201,13 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
 
   static bool SupportsHevc();
 
+  /**
+   * @brief Checks if the codec can be decoded by this decoder, as it is done when the video stream
+   *        is selected: it is supported by the decoder and by NVDEC on this platform
+   *        (8-bit 4:2:0). It warns if it is not.
+   */
+  static bool IsCodecSupported(AVCodecID codec_id);
+
   static bool SupportsCodec(AVCodecID codec_id, uint8_t bit_depth = 8);
 
   void InitGpuDecoder(CUVIDEOFORMAT *video_format);
@@ -246,7 +253,7 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
 
   void InitBitStreamFilter();
 
-  cudaVideoCodec GetCodecType(AVCodecID codec_id) const;
+  static cudaVideoCodec GetCodecType(AVCodecID codec_id);
 
   bool IsFullRange(CUVIDEOFORMAT *video_format) const;
 

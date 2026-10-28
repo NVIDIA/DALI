@@ -422,7 +422,7 @@ void FramesDecoderGpu::InitBitStreamFilter() {
     "Unable to initialize bit stream filter");
 }
 
-cudaVideoCodec FramesDecoderGpu::GetCodecType(AVCodecID codec_id) const {
+cudaVideoCodec FramesDecoderGpu::GetCodecType(AVCodecID codec_id) {
   switch (codec_id) {
     case AV_CODEC_ID_HEVC: return cudaVideoCodec_HEVC;
     case AV_CODEC_ID_H264: return cudaVideoCodec_H264;
@@ -1009,15 +1009,7 @@ void FramesDecoderGpu::CopyFrame(uint8_t *dst, const uint8_t *src) {
   CUDA_CALL(cudaMemcpyAsync(dst, src, FrameSize(), cudaMemcpyDeviceToDevice, stream_));
 }
 
-bool FramesDecoderGpu::SelectVideoStream(int stream_id) {
-  if (!FramesDecoderBase::SelectVideoStream(stream_id)) {
-    return false;
-  }
-
-  assert(stream_id_ >= 0 && stream_id_ < static_cast<int>(ctx_->nb_streams));
-  assert(codec_params_);
-  AVCodecID codec_id = codec_params_->codec_id;
-
+bool FramesDecoderGpu::IsCodecSupported(AVCodecID codec_id) {
   static constexpr std::array<AVCodecID, /*7*/ 6> codecs = {
     AVCodecID::AV_CODEC_ID_H264,
     AVCodecID::AV_CODEC_ID_HEVC,
@@ -1038,6 +1030,19 @@ bool FramesDecoderGpu::SelectVideoStream(int stream_id) {
   if (!decoder_caps.bIsSupported) {
     DALI_WARN(make_string("Codec ", avcodec_get_name(codec_id),
                           " is not supported by NVDEC on this platform."));
+    return false;
+  }
+  return true;
+}
+
+bool FramesDecoderGpu::SelectVideoStream(int stream_id) {
+  if (!FramesDecoderBase::SelectVideoStream(stream_id)) {
+    return false;
+  }
+
+  assert(stream_id_ >= 0 && stream_id_ < static_cast<int>(ctx_->nb_streams));
+  assert(codec_params_);
+  if (!IsCodecSupported(codec_params_->codec_id)) {
     return false;
   }
 
