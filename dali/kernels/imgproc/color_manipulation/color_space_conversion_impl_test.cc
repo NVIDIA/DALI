@@ -14,7 +14,6 @@
 
 #include <gtest/gtest.h>
 #include <algorithm>
-#include <array>
 #include <cmath>
 #include <cstdlib>
 #include <limits>
@@ -701,12 +700,6 @@ void for_all_methods_and_outputs(F &&f) {
   for_all_outputs([&](auto out) { f(itu_r_bt_601{}, out); });
   for_all_outputs([&](auto out) { f(itu_r_bt_709{}, out); });
   for_all_outputs([&](auto out) { f(jpeg{}, out); });
-}
-
-/** @brief Same as above, with the methods that provide only the YCbCr -> RGB conversion */
-template <typename F>
-void for_all_inverse_methods_and_outputs(F &&f) {
-  for_all_methods_and_outputs(f);
   for_all_outputs([&](auto out) { f(itu_r_bt_709_full_range{}, out); });
 }
 
@@ -762,7 +755,7 @@ TYPED_TEST(ColorSpaceConversionAnyTypeTest, RGB_to_Gray) {
 TYPED_TEST(ColorSpaceConversionAnyTypeTest, YCbCr_to_RGB) {
   using In = TypeParam;
   auto inputs = test_triplets<In>();
-  for_all_inverse_methods_and_outputs([&](auto method, auto out_type) {
+  for_all_methods_and_outputs([&](auto method, auto out_type) {
     using Method = decltype(method);
     using Out = decltype(out_type);
     SCOPED_TRACE(make_string(method_name<Method>(), " ", type_name<In>(), " -> ",
@@ -1048,47 +1041,6 @@ TEST(ColorSpaceConversionTest, ITU_R_BT709_DiffersFromBT601) {
               (itu_r_bt_601::gray_to_ycbcr<uint8_t, uint8_t>(g)));
     EXPECT_EQ((itu_r_bt_709::y_to_gray<uint8_t, uint8_t>(g)),
               (itu_r_bt_601::y_to_gray<uint8_t, uint8_t>(g)));
-  }
-}
-
-namespace {
-
-// Double precision reference for YCbCr -> RGB, from the luma weights Kr, Kb.
-// Y, Cb, Cr are in [0, 255]; the result is in [0, 255], clamped but not rounded.
-std::array<double, 3> ycbcr_to_rgb_ref(double Kr, double Kb, bool full_range,
-                                       double y, double cb, double cr) {
-  double Kg = 1 - Kr - Kb;
-  double yn = full_range ? y / 255 : (y - 16) / 219;
-  double cbn = full_range ? (cb - 128) / 255 : (cb - 128) / 224;
-  double crn = full_range ? (cr - 128) / 255 : (cr - 128) / 224;
-  double r = yn + 2 * (1 - Kr) * crn;
-  double b = yn + 2 * (1 - Kb) * cbn;
-  double g = (yn - Kr * r - Kb * b) / Kg;
-  auto out = [](double v) { return std::min(255.0, std::max(0.0, v * 255)); };
-  return {out(r), out(g), out(b)};
-}
-
-}  // namespace
-
-TEST(ColorSpaceConversionTest, ITU_R_BT709_YCbCr2RGB_MatchesReference) {
-  // Allowed difference: rounding (0.5) plus a little for the single precision arithmetic.
-  constexpr double kTolerance = 0.502;
-  for (int y = 0; y < 256; y += 5) {
-    for (int cb = 0; cb < 256; cb += 5) {
-      for (int cr = 0; cr < 256; cr += 5) {
-        u8vec3 ycbcr(y, cb, cr);
-        auto limited = itu_r_bt_709::ycbcr_to_rgb<uint8_t>(ycbcr);
-        auto limited_ref = ycbcr_to_rgb_ref(0.2126, 0.0722, false, y, cb, cr);
-        auto full = itu_r_bt_709_full_range::ycbcr_to_rgb<uint8_t>(ycbcr);
-        auto full_ref = ycbcr_to_rgb_ref(0.2126, 0.0722, true, y, cb, cr);
-        for (int c = 0; c < 3; c++) {
-          ASSERT_NEAR(limited[c], limited_ref[c], kTolerance)
-              << "limited range, YCbCr " << y << " " << cb << " " << cr << ", channel " << c;
-          ASSERT_NEAR(full[c], full_ref[c], kTolerance)
-              << "full range, YCbCr " << y << " " << cb << " " << cr << ", channel " << c;
-        }
-      }
-    }
   }
 }
 

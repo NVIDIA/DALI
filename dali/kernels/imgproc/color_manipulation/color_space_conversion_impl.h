@@ -149,10 +149,15 @@ constexpr DALI_HOST_DEV Input clamp_ycbcr_input(Input value) {
 
 namespace detail {
 
-// Conversions between gray and Y, Cb, Cr with the values in the range 16-235, allowing for
-// footroom and headroom. They do not depend on the RGB <-> YCbCr matrix, so they are shared by the
-// ITU-R recommendations below.
-struct itu_r_limited_range {
+// Where Y (and the gray values) lie in the dynamic range. The gray functions do not depend on the
+// RGB <-> YCbCr matrix, so they come with the range.
+
+// The values in the range 16-235, allowing for footroom and headroom, as in the ITU-R
+// recommendations.
+struct limited_range {
+  static constexpr float y_bias = 0.0625f;  // of the dynamic range
+  static constexpr float y_scale = 255.0f / 219;  // from Y to the full range
+
   // Gray uses the full dynamic range of the type (e.g. 0..255) while the ITU-R recommendations use
   // a reduced range to allow for headroom and footroom (e.g. 16..235)
   template <typename Output, typename Input>
@@ -183,213 +188,19 @@ struct itu_r_limited_range {
     auto c = ConvertNorm<Output>(0.5f);
     return {gray_to_y<Output>(gray), c, c};
   }
-};  // struct itu_r_limited_range
+};  // struct limited_range
 
-}  // namespace detail
-
-// Y, Cb, Cr definition from ITU-R BT.601, with values in the range 16-235, allowing for
-// footroom and headroom
-struct itu_r_bt_601 : detail::itu_r_limited_range {
-  template <typename Output, typename Input>
-  static DALI_HOST_DEV DALI_FORCEINLINE constexpr Output rgb_to_y(vec<3, Input> rgb) {
-    constexpr vec3 coeffs = vec3(0.25678823529f, 0.50412941176f, 0.09790588235f)
-                            * detail::scale_factor<Input, Output>();
-    constexpr float bias = 0.0625f * detail::bias_scale<Output>();
-    float y = dot(coeffs, detail::clamp_color_input(rgb)) + bias;
-    return needs_clamp<Input, Output>::value ? Convert<Output>(y) : ConvertSat<Output>(y);
-  }
-
-  template <typename Output, typename Input>
-  static DALI_HOST_DEV DALI_FORCEINLINE
-  constexpr Output rgb_to_cb(vec<3, Input> rgb) {
-    constexpr vec3 coeffs = vec3(-0.14822289945f, -0.29099278682f, 0.43921568627f)
-                            * detail::scale_factor<Input, Output>();
-    constexpr float bias = 0.5f * detail::bias_scale<Output>();
-    float y = dot(coeffs, detail::clamp_color_input(rgb)) + bias;
-    return needs_clamp<Input, Output>::value ? Convert<Output>(y) : ConvertSat<Output>(y);
-  }
-
-  template <typename Output, typename Input>
-  static DALI_HOST_DEV DALI_FORCEINLINE
-  constexpr Output rgb_to_cr(vec<3, Input> rgb) {
-    constexpr vec3 coeffs = vec3(0.43921568627f, -0.36778831435f, -0.07142737192)
-                            * detail::scale_factor<Input, Output>();
-    constexpr float bias = 0.5f * detail::bias_scale<Output>();
-    float y = dot(coeffs, detail::clamp_color_input(rgb)) + bias;
-    return needs_clamp<Input, Output>::value ? Convert<Output>(y) : ConvertSat<Output>(y);
-  }
-
-  template <typename Output, typename Input>
-  static DALI_HOST_DEV DALI_FORCEINLINE
-  constexpr vec<3, Output> rgb_to_ycbcr(vec<3, Input> rgb) {
-    return {
-      rgb_to_y<Output, Input>(rgb),
-      rgb_to_cb<Output, Input>(rgb),
-      rgb_to_cr<Output, Input>(rgb)
-    };
-  }
-
-  template <typename Output, typename Input>
-  static DALI_HOST_DEV DALI_FORCEINLINE
-  constexpr vec<3, Output> ycbcr_to_rgb(vec<3, Input> ycbcr) {
-    constexpr float cbias = 0.5f * detail::bias_scale<Input>();
-    constexpr float ybias = 0.0625f * detail::bias_scale<Input>();
-    constexpr float s = detail::scale_factor<Input, Output>();
-    ycbcr = detail::clamp_ycbcr_input<Output>(ycbcr);
-    float ys = (ycbcr[0] - ybias) * (255.0f / 219) * s;
-    float tmp_b = ycbcr[1] - cbias;
-    float tmp_r = ycbcr[2] - cbias;
-    auto r = ConvertSat<Output>(ys + (1.5960267848f * s) * tmp_r);
-    auto g = ConvertSat<Output>(ys - (0.39176228842f * s) * tmp_b - (0.81296764538f * s) * tmp_r);
-    auto b = ConvertSat<Output>(ys + (2.0172321417f * s) * tmp_b);
-    return {r, g, b};
-  }
-};  // struct itu_r_bt_601
-
-
-// Y, Cb, Cr definition from ITU-R BT.709 (the usual one for HD video), with values in the range
-// 16-235, allowing for footroom and headroom.
-// It differs from ITU-R BT.601 only in the RGB <-> YCbCr matrix.
-struct itu_r_bt_709 : detail::itu_r_limited_range {
-  template <typename Output, typename Input>
-  static DALI_HOST_DEV DALI_FORCEINLINE constexpr Output rgb_to_y(vec<3, Input> rgb) {
-    constexpr vec3 coeffs = vec3(0.18258588235f, 0.61423058824f, 0.06200705882f)
-                            * detail::scale_factor<Input, Output>();
-    constexpr float bias = 0.0625f * detail::bias_scale<Output>();
-    float y = dot(coeffs, detail::clamp_color_input(rgb)) + bias;
-    return needs_clamp<Input, Output>::value ? Convert<Output>(y) : ConvertSat<Output>(y);
-  }
-
-  template <typename Output, typename Input>
-  static DALI_HOST_DEV DALI_FORCEINLINE
-  constexpr Output rgb_to_cb(vec<3, Input> rgb) {
-    constexpr vec3 coeffs = vec3(-0.10064373238f, -0.33857195389f, 0.43921568627f)
-                            * detail::scale_factor<Input, Output>();
-    constexpr float bias = 0.5f * detail::bias_scale<Output>();
-    float y = dot(coeffs, detail::clamp_color_input(rgb)) + bias;
-    return needs_clamp<Input, Output>::value ? Convert<Output>(y) : ConvertSat<Output>(y);
-  }
-
-  template <typename Output, typename Input>
-  static DALI_HOST_DEV DALI_FORCEINLINE
-  constexpr Output rgb_to_cr(vec<3, Input> rgb) {
-    constexpr vec3 coeffs = vec3(0.43921568627f, -0.39894216259f, -0.04027352368f)
-                            * detail::scale_factor<Input, Output>();
-    constexpr float bias = 0.5f * detail::bias_scale<Output>();
-    float y = dot(coeffs, detail::clamp_color_input(rgb)) + bias;
-    return needs_clamp<Input, Output>::value ? Convert<Output>(y) : ConvertSat<Output>(y);
-  }
-
-  template <typename Output, typename Input>
-  static DALI_HOST_DEV DALI_FORCEINLINE
-  constexpr vec<3, Output> rgb_to_ycbcr(vec<3, Input> rgb) {
-    return {
-      rgb_to_y<Output, Input>(rgb),
-      rgb_to_cb<Output, Input>(rgb),
-      rgb_to_cr<Output, Input>(rgb)
-    };
-  }
-
-  template <typename Output, typename Input>
-  static DALI_HOST_DEV DALI_FORCEINLINE
-  constexpr vec<3, Output> ycbcr_to_rgb(vec<3, Input> ycbcr) {
-    constexpr float cbias = 0.5f * detail::bias_scale<Input>();
-    constexpr float ybias = 0.0625f * detail::bias_scale<Input>();
-    constexpr float s = detail::scale_factor<Input, Output>();
-    ycbcr = detail::clamp_ycbcr_input<Output>(ycbcr);
-    float ys = (ycbcr[0] - ybias) * (255.0f / 219) * s;
-    float tmp_b = ycbcr[1] - cbias;
-    float tmp_r = ycbcr[2] - cbias;
-    auto r = ConvertSat<Output>(ys + (1.79274107143f * s) * tmp_r);
-    auto g = ConvertSat<Output>(ys - (0.21324861427f * s) * tmp_b - (0.53290932856f * s) * tmp_r);
-    auto b = ConvertSat<Output>(ys + (2.11240178571f * s) * tmp_b);
-    return {r, g, b};
-  }
-};  // struct itu_r_bt_709
-
-
-// YCbCr -> RGB with the ITU-R BT.709 matrix, using the whole dynamic range of the type (the
-// counterpart of `jpeg`, which uses the ITU-R BT.601 matrix). Only this direction is provided;
-// it is what the video decoders need for full range video.
-struct itu_r_bt_709_full_range {
-  template <typename Output, typename Input>
-  static DALI_HOST_DEV DALI_FORCEINLINE
-  constexpr vec<3, Output> ycbcr_to_rgb(vec<3, Input> ycbcr) {
-    constexpr float cbias = 0.5f * detail::bias_scale<Input>();
-    constexpr float s = detail::scale_factor<Input, Output>();
-    ycbcr = detail::clamp_ycbcr_input<Output>(ycbcr);
-    float tmp_b = ycbcr[1] - cbias;
-    float tmp_r = ycbcr[2] - cbias;
-    float ys = ycbcr[0] * s;
-    auto r = ConvertSat<Output>(ys + (1.5748f * s) * tmp_r);
-    auto g = ConvertSat<Output>(ys - (0.18732427293f * s) * tmp_b - (0.46812427293f * s) * tmp_r);
-    auto b = ConvertSat<Output>(ys + (1.8556f * s) * tmp_b);
-    return {r, g, b};
-  }
-};  // struct itu_r_bt_709_full_range
-
-
-// Y, Cb, Cr formulas used in JPEG, using the whole dynamic range of the type.
-struct jpeg {
-  template <typename Output, typename Input>
-  static DALI_HOST_DEV DALI_FORCEINLINE
-  constexpr Output rgb_to_y(vec<3, Input> rgb) {
-    constexpr vec3 coeffs = vec3(0.299f, 0.587f, 0.114f) * detail::scale_factor<Input, Output>();
-    float y = dot(coeffs, detail::clamp_color_input(rgb));
-    return needs_clamp<Input, Output>::value ? Convert<Output>(y) : ConvertSat<Output>(y);
-  }
-
-  template <typename Output, typename Input>
-  static DALI_HOST_DEV DALI_FORCEINLINE
-  constexpr Output rgb_to_cb(vec<3, Input> rgb) {
-    constexpr vec3 coeffs = vec3(-0.16873589f, -0.33126411f, 0.5f)
-                            * detail::scale_factor<Input, Output>();
-    constexpr float bias = 0.5f * detail::bias_scale<Output>();
-    float y = dot(coeffs, detail::clamp_color_input(rgb)) + bias;
-    return needs_clamp<Input, Output>::value ? Convert<Output>(y) : ConvertSat<Output>(y);
-  }
-
-  template <typename Output, typename Input>
-  static DALI_HOST_DEV DALI_FORCEINLINE
-  constexpr Output rgb_to_cr(vec<3, Input> rgb) {
-    constexpr vec3 coeffs = vec3(0.5f, -0.41868759f, -0.08131241f)
-                            * detail::scale_factor<Input, Output>();
-    constexpr float bias = 0.5f * detail::bias_scale<Output>();
-    float y = dot(coeffs, detail::clamp_color_input(rgb)) + bias;
-    return needs_clamp<Input, Output>::value ? Convert<Output>(y) : ConvertSat<Output>(y);
-  }
-
-  template <typename Output, typename Input>
-  static DALI_HOST_DEV DALI_FORCEINLINE
-  constexpr vec<3, Output> rgb_to_ycbcr(vec<3, Input> rgb) {
-    return {
-      rgb_to_y<Output, Input>(rgb),
-      rgb_to_cb<Output, Input>(rgb),
-      rgb_to_cr<Output, Input>(rgb)
-    };
-  }
-
-  template <typename Output, typename Input>
-  static DALI_HOST_DEV DALI_FORCEINLINE
-  constexpr vec<3, Output> ycbcr_to_rgb(vec<3, Input> ycbcr) {
-    constexpr float cbias = 0.5f * detail::bias_scale<Input>();
-    constexpr float s = detail::scale_factor<Input, Output>();
-    ycbcr = detail::clamp_ycbcr_input<Output>(ycbcr);
-    float tmp_b = ycbcr[1] - cbias;
-    float tmp_r = ycbcr[2] - cbias;
-    float ys = ycbcr[0] * s;
-    auto r = ConvertSat<Output>(ys + (1.402f * s) * tmp_r);
-    auto g = ConvertSat<Output>(ys - (0.344136285f * s) * tmp_b - (0.714136285f * s) * tmp_r);
-    auto b = ConvertSat<Output>(ys + (1.772f * s) * tmp_b);
-    return {r, g, b};
-  }
+// The whole dynamic range of the type.
+struct full_range {
+  static constexpr float y_bias = 0.0f;
+  static constexpr float y_scale = 1.0f;
 
   template <typename Output, typename Input>
   static DALI_HOST_DEV DALI_FORCEINLINE
   constexpr Output gray_to_y(Input gray) {
     // Clamp first, as in the other functions - ConvertSatNorm alone would keep negative values
     // for a signed Output
-    return ConvertSatNorm<Output>(detail::clamp_color_input(gray));
+    return ConvertSatNorm<Output>(clamp_color_input(gray));
   }
 
   template <typename Output, typename Input>
@@ -397,9 +208,144 @@ struct jpeg {
   constexpr Output y_to_gray(Input y) {
     // Clamp first, as in the other functions - ConvertSatNorm alone would keep negative values
     // for a signed Output
-    return ConvertSatNorm<Output>(detail::clamp_ycbcr_input<Output>(y));
+    return ConvertSatNorm<Output>(clamp_ycbcr_input<Output>(y));
   }
-};  // struct jpeg
+};  // struct full_range
+
+// The RGB <-> YCbCr matrices, scaled for the range they are used with. The rows of the forward
+// matrix are `y`, `cb` and `cr`; the inverse matrix is
+//   R = Y + r_cr * Cr,  G = Y - g_cb * Cb - g_cr * Cr,  B = Y + b_cb * Cb
+// with the chroma centered at 0 and Y scaled to the full range.
+struct bt_601_limited_matrix {
+  static constexpr DALI_HOST_DEV vec3 y() {
+    return vec3(0.25678823529f, 0.50412941176f, 0.09790588235f);
+  }
+  static constexpr DALI_HOST_DEV vec3 cb() {
+    return vec3(-0.14822289945f, -0.29099278682f, 0.43921568627f);
+  }
+  static constexpr DALI_HOST_DEV vec3 cr() {
+    return vec3(0.43921568627f, -0.36778831435f, -0.07142737192);
+  }
+  static constexpr float r_cr = 1.5960267848f;
+  static constexpr float g_cb = 0.39176228842f;
+  static constexpr float g_cr = 0.81296764538f;
+  static constexpr float b_cb = 2.0172321417f;
+};
+
+struct bt_709_limited_matrix {
+  static constexpr DALI_HOST_DEV vec3 y() {
+    return vec3(0.18258588235f, 0.61423058824f, 0.06200705882f);
+  }
+  static constexpr DALI_HOST_DEV vec3 cb() {
+    return vec3(-0.10064373238f, -0.33857195389f, 0.43921568627f);
+  }
+  static constexpr DALI_HOST_DEV vec3 cr() {
+    return vec3(0.43921568627f, -0.39894216259f, -0.04027352368f);
+  }
+  static constexpr float r_cr = 1.79274107143f;
+  static constexpr float g_cb = 0.21324861427f;
+  static constexpr float g_cr = 0.53290932856f;
+  static constexpr float b_cb = 2.11240178571f;
+};
+
+// The matrix of JPEG (ITU-R BT.601 luma weights), over the whole dynamic range
+struct bt_601_full_matrix {
+  static constexpr DALI_HOST_DEV vec3 y() { return vec3(0.299f, 0.587f, 0.114f); }
+  static constexpr DALI_HOST_DEV vec3 cb() { return vec3(-0.16873589f, -0.33126411f, 0.5f); }
+  static constexpr DALI_HOST_DEV vec3 cr() { return vec3(0.5f, -0.41868759f, -0.08131241f); }
+  static constexpr float r_cr = 1.402f;
+  static constexpr float g_cb = 0.344136285f;
+  static constexpr float g_cr = 0.714136285f;
+  static constexpr float b_cb = 1.772f;
+};
+
+struct bt_709_full_matrix {
+  static constexpr DALI_HOST_DEV vec3 y() { return vec3(0.2126f, 0.7152f, 0.0722f); }
+  static constexpr DALI_HOST_DEV vec3 cb() { return vec3(-0.11457210606f, -0.38542789394f, 0.5f); }
+  static constexpr DALI_HOST_DEV vec3 cr() { return vec3(0.5f, -0.45415290831f, -0.04584709169f); }
+  static constexpr float r_cr = 1.5748f;
+  static constexpr float g_cb = 0.18732427293f;
+  static constexpr float g_cr = 0.46812427293f;
+  static constexpr float b_cb = 1.8556f;
+};
+
+/**
+ * @brief The conversions between RGB and YCbCr, and between gray and Y, for a matrix and a range
+ */
+template <typename Matrix, typename Range>
+struct ycbcr_method : Range {
+  template <typename Output, typename Input>
+  static DALI_HOST_DEV DALI_FORCEINLINE constexpr Output rgb_to_y(vec<3, Input> rgb) {
+    constexpr vec3 coeffs = Matrix::y() * scale_factor<Input, Output>();
+    constexpr float bias = Range::y_bias * bias_scale<Output>();
+    float y = dot(coeffs, clamp_color_input(rgb)) + bias;
+    return needs_clamp<Input, Output>::value ? Convert<Output>(y) : ConvertSat<Output>(y);
+  }
+
+  template <typename Output, typename Input>
+  static DALI_HOST_DEV DALI_FORCEINLINE
+  constexpr Output rgb_to_cb(vec<3, Input> rgb) {
+    constexpr vec3 coeffs = Matrix::cb() * scale_factor<Input, Output>();
+    constexpr float bias = 0.5f * bias_scale<Output>();
+    float y = dot(coeffs, clamp_color_input(rgb)) + bias;
+    return needs_clamp<Input, Output>::value ? Convert<Output>(y) : ConvertSat<Output>(y);
+  }
+
+  template <typename Output, typename Input>
+  static DALI_HOST_DEV DALI_FORCEINLINE
+  constexpr Output rgb_to_cr(vec<3, Input> rgb) {
+    constexpr vec3 coeffs = Matrix::cr() * scale_factor<Input, Output>();
+    constexpr float bias = 0.5f * bias_scale<Output>();
+    float y = dot(coeffs, clamp_color_input(rgb)) + bias;
+    return needs_clamp<Input, Output>::value ? Convert<Output>(y) : ConvertSat<Output>(y);
+  }
+
+  template <typename Output, typename Input>
+  static DALI_HOST_DEV DALI_FORCEINLINE
+  constexpr vec<3, Output> rgb_to_ycbcr(vec<3, Input> rgb) {
+    return {
+      rgb_to_y<Output, Input>(rgb),
+      rgb_to_cb<Output, Input>(rgb),
+      rgb_to_cr<Output, Input>(rgb)
+    };
+  }
+
+  template <typename Output, typename Input>
+  static DALI_HOST_DEV DALI_FORCEINLINE
+  constexpr vec<3, Output> ycbcr_to_rgb(vec<3, Input> ycbcr) {
+    constexpr float cbias = 0.5f * bias_scale<Input>();
+    constexpr float ybias = Range::y_bias * bias_scale<Input>();
+    constexpr float s = scale_factor<Input, Output>();
+    ycbcr = clamp_ycbcr_input<Output>(ycbcr);
+    float ys = (ycbcr[0] - ybias) * Range::y_scale * s;
+    float tmp_b = ycbcr[1] - cbias;
+    float tmp_r = ycbcr[2] - cbias;
+    auto r = ConvertSat<Output>(ys + (Matrix::r_cr * s) * tmp_r);
+    auto g = ConvertSat<Output>(ys - (Matrix::g_cb * s) * tmp_b - (Matrix::g_cr * s) * tmp_r);
+    auto b = ConvertSat<Output>(ys + (Matrix::b_cb * s) * tmp_b);
+    return {r, g, b};
+  }
+};  // struct ycbcr_method
+
+}  // namespace detail
+
+// Y, Cb, Cr definition from ITU-R BT.601, with values in the range 16-235, allowing for
+// footroom and headroom
+struct itu_r_bt_601 : detail::ycbcr_method<detail::bt_601_limited_matrix, detail::limited_range> {};
+
+// Y, Cb, Cr definition from ITU-R BT.709 (the usual one for HD video), with values in the range
+// 16-235, allowing for footroom and headroom.
+// It differs from ITU-R BT.601 only in the RGB <-> YCbCr matrix.
+struct itu_r_bt_709 : detail::ycbcr_method<detail::bt_709_limited_matrix, detail::limited_range> {};
+
+// Y, Cb, Cr formulas used in JPEG, using the whole dynamic range of the type.
+struct jpeg : detail::ycbcr_method<detail::bt_601_full_matrix, detail::full_range> {};
+
+// Y, Cb, Cr with the ITU-R BT.709 matrix, using the whole dynamic range of the type (the
+// counterpart of `jpeg`, which uses the ITU-R BT.601 matrix). It is what the video decoders need
+// for full range video.
+struct itu_r_bt_709_full_range
+    : detail::ycbcr_method<detail::bt_709_full_matrix, detail::full_range> {};
 
 
 template <typename Output, typename Input>
