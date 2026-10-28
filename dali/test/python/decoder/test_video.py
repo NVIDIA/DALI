@@ -1329,7 +1329,7 @@ def test_video_index_reuse():
 )
 def test_video_decoder_matches_reader(filename, start_frame, sequence_length=8):
     """The decoder (with the default build_index=True) returns the same frames as the reader"""
-    path = f"{get_dali_extra_path()}/db/video/sintel/video_files/{filename}"
+    path = os.path.join(get_dali_extra_path(), "db", "video", "sintel", "video_files", filename)
     with tempfile.NamedTemporaryFile("w", suffix=".txt") as file_list:
         file_list.write(f"{path} 0 {start_frame} {start_frame + sequence_length}\n")
         file_list.flush()
