@@ -480,6 +480,7 @@ def test_color_matrix_bt709_gpu(name):
     ref = cv2.cvtColor(cv2.imread(os.path.join(data_dir, f"{name}_ref.png")), cv2.COLOR_BGR2RGB)
     assert frame.shape == ref.shape
     assert color_matrix_bars_error(frame, ref) <= 4
+    check_color_matrix_black_and_white(frame)
     assert np.mean(np.abs(frame.astype(int) - ref.astype(int))) < 2
 
 
