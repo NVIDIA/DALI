@@ -192,7 +192,12 @@ to store frame metadata and longer initialization time to scan the entire video 
 stores metadata, such as whether it is a key frame and the presentation timestamp (PTS).
 
 Building an index is particularly useful when decoding a small number of frames spaced far
-apart or starting playback from a frame deep into the video.)code",
+apart or starting playback from a frame deep into the video.
+
+Without an index, the decoder cannot seek to the keyframe before the requested frame, so it
+decodes every frame from the start of the file up to it. It also returns the frames that an
+MP4 edit list hides (for example, the lead-in of a clip cut without re-encoding), so the frame
+indices differ from those of an indexed decoder and of ``fn.experimental.readers.video``.)code",
                     true)
     .OutputNDim(0, 4)
     .OutputDType(0, DALI_UINT8)
