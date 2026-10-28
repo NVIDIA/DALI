@@ -439,7 +439,7 @@ static inline uint32_t read_nal_unit_length(uint8_t *buf) {
  * @brief Identifies a packet of the stream when it is read again (e.g. after a seek): by its
  * position in the file or, if unknown, by its timestamp.
  */
-static inline int64_t packet_key(const AVPacket &packet) {
+static inline int64_t PacketKey(const AVPacket &packet) {
   if (packet.pos >= 0)
     return packet.pos;
   return packet.dts != AV_NOPTS_VALUE ? packet.dts : packet.pts;
@@ -492,7 +492,7 @@ void FramesDecoderBase::BuildIndex() {
     // Counted before the negative timestamps are skipped: hidden packets are decoded too
     entry.decode_idx = decode_idx++;
     if (packet->flags & AV_PKT_FLAG_KEY)
-      sync_packets.emplace(packet_key(*packet), entry.decode_idx);
+      sync_packets.emplace(PacketKey(*packet), entry.decode_idx);
 
     // Check if this packet contains a keyframe
     if (packet->flags & AV_PKT_FLAG_KEY) {
@@ -630,7 +630,7 @@ void FramesDecoderBase::BuildIndex() {
       auto packet = AVPacketScope(packet_, av_packet_unref);
       if (packet->stream_index != stream_id_)
         continue;
-      auto landing = sync_packets.find(packet_key(*packet));
+      auto landing = sync_packets.find(PacketKey(*packet));
       if (landing != sync_packets.end())
         entry.seek_decode_idx = landing->second;
       break;

@@ -423,7 +423,7 @@ int CheckPositionAt(FramesDecoderBase &decoder, uint8_t *frame, int slack,
   return free_frames;
 }
 
-void CheckGpuDecodeWork(const std::vector<std::string> &paths) {
+void CheckGPUDecodeWork(const std::vector<std::string> &paths) {
   for (auto &path : paths) {
     FramesDecoderGpu decoder(path);
     decoder.BuildIndex();
@@ -433,7 +433,7 @@ void CheckGpuDecodeWork(const std::vector<std::string> &paths) {
   }
 }
 
-void CheckGpuPositionAt(const std::vector<std::string> &paths) {
+void CheckGPUPositionAt(const std::vector<std::string> &paths) {
   for (auto &path : paths) {
     FramesDecoderGpu decoder(path);
     decoder.BuildIndex();
@@ -448,10 +448,10 @@ void CheckGpuPositionAt(const std::vector<std::string> &paths) {
 // where seeks to some of them land
 FrameIndex MakeIndex(const std::vector<int> &decode_idx, const std::set<int> &keyframes,
                      const std::map<int, int> &seek_decode_idx = {}) {
-  FrameIndex index;
+  FrameIndex index = {};
   int last_keyframe = 0;
   for (int i = 0; i < static_cast<int>(decode_idx.size()); i++) {
-    IndexEntry entry;
+    IndexEntry entry = {};
     entry.pts = i;
     entry.is_keyframe = keyframes.count(i) > 0;
     if (entry.is_keyframe)
@@ -582,21 +582,21 @@ TEST_F(FramesDecoderGpuTest, DecodeWork) {
   paths.push_back(make_string(testing::dali_extra_path(), "/db/video/cfr/test_1.mp4"));
   if (FramesDecoderGpu::SupportsHevc())
     paths.push_back(vfr_hevc_videos_paths_[0]);
-  CheckGpuDecodeWork(paths);
+  CheckGPUDecodeWork(paths);
 }
 
 TEST_F(FramesDecoderGpuTest, DecodeWorkFromPosition) {
-  CheckGpuPositionAt(SintelClipKinds());
+  CheckGPUPositionAt(SintelClipKinds());
 }
 
 // The same, on every Sintel clip: too slow to run by default (~30 s), so run it with
 // --gtest_also_run_disabled_tests after changing SeekFrame or AddDecodeWork
 TEST_F(FramesDecoderGpuTest, DISABLED_DecodeWorkAllSintelClips) {
-  CheckGpuDecodeWork(SintelClips());
+  CheckGPUDecodeWork(SintelClips());
 }
 
 TEST_F(FramesDecoderGpuTest, DISABLED_DecodeWorkFromPositionAllSintelClips) {
-  CheckGpuPositionAt(SintelClips());
+  CheckGPUPositionAt(SintelClips());
 }
 
 TEST_F(FramesDecoderTest_CpuOnlyTests, IndexDecodeOrder) {
