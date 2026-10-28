@@ -323,5 +323,5 @@ def test_pil_input_rejected_only_by_operators_without_pil_support():
     img = Image.fromarray(np.zeros((6, 6, 3), dtype=np.uint8))
     assert isinstance(Compose([RandomHorizontalFlip(p=1.0)])(img), Image.Image)
     # the check happens before the pipeline is built, on every Compose instance
-    with assert_raises(TypeError):
+    with assert_raises(TypeError, glob="*Normalize does not support PIL images*"):
         Compose([RandomHorizontalFlip(p=1.0), Normalize([0.5] * 3, [0.2] * 3)])(img)
