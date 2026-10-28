@@ -442,13 +442,28 @@ bool FramesDecoderGpu::IsFullRange(CUVIDEOFORMAT *video_format) const {
          codec_params_->color_range == AVCOL_RANGE_JPEG;
 }
 
+bool FramesDecoderGpu::IsBT709() const {
+  // Use the matrix that FFmpeg got from the stream (as the CPU decoder does), not the one that
+  // NVDEC reports: NVDEC doesn't report the color description for some codecs (e.g. VP9), and for
+  // others it reports the codec's default (BT.709 for MPEG-4) when the stream doesn't have one.
+  return codec_params_->color_space == AVCOL_SPC_BT709;
+}
+
 void FramesDecoderGpu::InitGpuDecoder(CUVIDEOFORMAT *video_format) {
   if (!nvdecode_state_->decoder) {
-    bool is_full_range = IsFullRange(video_format);
-    conversion_type_ = image_type_ == DALI_RGB ?
-                           is_full_range ? VIDEO_COLOR_SPACE_CONVERSION_TYPE_YUV_TO_RGB_FULL_RANGE :
-                                           VIDEO_COLOR_SPACE_CONVERSION_TYPE_YUV_TO_RGB :
-                           VIDEO_COLOR_SPACE_CONVERSION_TYPE_YUV_UPSAMPLE;
+    if (image_type_ == DALI_RGB) {
+      bool is_full_range = IsFullRange(video_format);
+      if (IsBT709()) {
+        conversion_type_ = is_full_range
+                               ? VIDEO_COLOR_SPACE_CONVERSION_TYPE_YUV_TO_RGB_BT709_FULL_RANGE
+                               : VIDEO_COLOR_SPACE_CONVERSION_TYPE_YUV_TO_RGB_BT709;
+      } else {
+        conversion_type_ = is_full_range ? VIDEO_COLOR_SPACE_CONVERSION_TYPE_YUV_TO_RGB_FULL_RANGE
+                                         : VIDEO_COLOR_SPACE_CONVERSION_TYPE_YUV_TO_RGB;
+      }
+    } else {
+      conversion_type_ = VIDEO_COLOR_SPACE_CONVERSION_TYPE_YUV_UPSAMPLE;
+    }
     nvdecode_state_->decoder = frame_dec_gpu_impl::NVDECCache::GetDecoderFromCache(video_format);
   }
 }
