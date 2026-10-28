@@ -39,12 +39,33 @@ install_torchcodec() {
         --index-url "https://download.pytorch.org/whl/${cuda_tag}" && python -c "import torchcodec"
 }
 
+# Per-platform benchmark settings, keyed by "<CPU arch>/<GPU compute capability>".
+set_platform_params() {
+    local arch compute_cap
+    arch=$(uname -m)
+    compute_cap=$(nvidia-smi --query-gpu=compute_cap --format=csv,noheader -i 0)
+    case "${arch}/${compute_cap}" in
+        x86_64/*)  # x86 + any GPU (tuned on Hopper)
+            CPU_LIST="0-127"
+            ;;
+        aarch64/10.7)  # Vera Rubin
+            # 2 sockets x 88 cores x 2 threads; 0-87 + 176-263 are socket 0 and its hyperthread
+            # siblings (local to GPU 0)
+            CPU_LIST="0-87,176-263"
+            ;;
+        aarch64/9.0|aarch64/10.0|aarch64/10.3)  # Grace Hopper (GH200), Grace Blackwell (GB200, GB300)
+            CPU_LIST="0-71"
+            ;;
+        *)
+            echo "Unsupported platform: got ${arch}/${compute_cap}, expected x86_64 with any GPU, or aarch64 with GPU compute capability 9.0, 10.0, 10.3 or 10.7." >&2
+            CLEAN_AND_EXIT 1
+            ;;
+    esac
+}
+
 test_body() {
-    if [ "$(uname -p)" == "x86_64" ]; then
-        TASKSET="taskset --cpu-list 0-127"  # Hopper
-    else
-        TASKSET="taskset --cpu-list 0-71"  # GraceHopper
-    fi
+    set_platform_params
+    TASKSET="taskset --cpu-list ${CPU_LIST}"
     TORCHCODEC_ARGS=""
     install_torchcodec || { echo "No torchcodec rows"; TORCHCODEC_ARGS="--no_torchcodec"; }
 
