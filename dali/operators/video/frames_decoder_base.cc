@@ -15,6 +15,7 @@
 #include "dali/operators/video/frames_decoder_base.h"
 #include <iomanip>
 #include <memory>
+#include <stdexcept>
 #include "dali/core/error_handling.h"
 #include "dali/core/small_vector.h"
 #include "dali/operators/video/video_utils.h"
@@ -398,11 +399,11 @@ FramesIndexer::FramesIndexer(const std::string &filename, CodecCheck is_codec_su
 }
 
 bool FramesIndexer::ReadNextFrame(uint8_t *data) {
-  DALI_FAIL("FramesIndexer does not decode the frames of a video.");
+  throw std::logic_error("FramesIndexer does not decode the frames of a video.");
 }
 
 void FramesIndexer::CopyFrame(uint8_t *dst, const uint8_t *src) {
-  DALI_FAIL("FramesIndexer does not decode the frames of a video.");
+  throw std::logic_error("FramesIndexer does not decode the frames of a video.");
 }
 
 bool FramesIndexer::SelectVideoStream(int stream_id) {

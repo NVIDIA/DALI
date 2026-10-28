@@ -22,6 +22,7 @@
 #include "dali/core/device_guard.h"
 #include "dali/core/dynlink_cuda.h"
 #include "dali/core/error_handling.h"
+#include "dali/core/format.h"
 #include "dali/operators/video/frames_decoder_cpu.h"
 #include "dali/operators/video/frames_decoder_gpu.h"
 #include "dali/operators/video/video_test.h"
@@ -297,9 +298,10 @@ TEST_F(FramesDecoderGpuTest, IndexerGivesTheIndexOfTheDecoder) {
 // decoder: a missing file, a file without a video stream, and a codec that is not supported by the
 // GPU decoder
 TEST_F(FramesDecoderGpuTest, IndexerIsValidForTheSameFilesAsTheDecoder) {
-  const std::string video_dir = testing::dali_extra_path() + "/db/video";
-  for (const auto &path : {video_dir + "/nonexistent.mp4", video_dir + "/corrupted/audio_only.mp4",
-                           video_dir + "/mjpeg/mjpeg.avi", cfr_videos_paths_[0]}) {
+  const std::string video_dir = make_string(testing::dali_extra_path(), "/db/video");
+  for (const auto &path : {make_string(video_dir, "/nonexistent.mp4"),
+                           make_string(video_dir, "/corrupted/audio_only.mp4"),
+                           make_string(video_dir, "/mjpeg/mjpeg.avi"), cfr_videos_paths_[0]}) {
     SCOPED_TRACE(path);
     FramesDecoderGpu decoder(path);
     FramesIndexer indexer(path, FramesDecoderGpu::IsCodecSupported);
