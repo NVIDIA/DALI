@@ -488,6 +488,39 @@ class DLL_PUBLIC FramesDecoderBase {
   bool can_seek_ = true;  // at first, we assume that the video is seekable
 };
 
+/**
+ * @brief Reads the frame index of a video file, without decoding it.
+ *
+ * It only demuxes the file: it has no codec context, parser or frame buffers, so it is much
+ * cheaper to create than a decoder. It is valid for the same files as the decoder that provides
+ * `is_codec_supported`, which is what that decoder checks when it selects the video stream.
+ */
+class DLL_PUBLIC FramesIndexer : public FramesDecoderBase {
+ public:
+  using CodecCheck = bool (*)(AVCodecID);
+
+  FramesIndexer(const std::string &filename, CodecCheck is_codec_supported,
+                DALIImageType image_type = DALI_RGB);
+
+  bool ReadNextFrame(uint8_t *data) override;
+
+  void CopyFrame(uint8_t *dst, const uint8_t *src) override;
+
+  void Flush() override {}
+
+  /**
+   * @brief Does nothing: the file is not read after it is indexed, so it is not reopened, as
+   *        FramesDecoderBase::BuildIndex does at its end.
+   */
+  void Reset() override {}
+
+ protected:
+  bool SelectVideoStream(int stream_id = -1) override;
+
+ private:
+  CodecCheck is_codec_supported_;
+};
+
 }  // namespace dali
 
 #endif  // DALI_OPERATORS_VIDEO_FRAMES_DECODER_BASE_H_

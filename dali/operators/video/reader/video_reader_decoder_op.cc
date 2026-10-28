@@ -270,11 +270,14 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
     for (size_t i = 0; i < video_files_info_.size(); ++i) {
       auto& entry = video_files_info_[i];
       LOG_LINE << "Processing video file " << i << ": " << entry.filename << std::endl;
-      std::unique_ptr<FramesDecoderImpl> decoder;
+      std::unique_ptr<FramesDecoderBase> decoder;
       if constexpr(std::is_same_v<Backend, CPUBackend>) {
         decoder = std::make_unique<FramesDecoderImpl>(entry.filename, image_type_);
       } else {
-        decoder = std::make_unique<FramesDecoderImpl>(entry.filename, cuda_stream_, image_type_);
+        // The index needs no decoder: no codec context, parser, frame buffers nor reopening of
+        // the file
+        decoder = std::make_unique<FramesIndexer>(entry.filename, FramesDecoderImpl::IsCodecSupported,
+                                                  image_type_);
       }
       if (!decoder->IsValid()) {
         LOG_LINE << "Invalid video file: " << entry.filename << std::endl;

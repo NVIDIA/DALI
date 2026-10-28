@@ -391,6 +391,25 @@ int FramesDecoderBase::ReadFrameError(int ret) const {
   return 0;
 }
 
+FramesIndexer::FramesIndexer(const std::string &filename, CodecCheck is_codec_supported,
+                             DALIImageType image_type)
+    : FramesDecoderBase(filename, image_type), is_codec_supported_(is_codec_supported) {
+  is_valid_ = is_valid_ && SelectVideoStream();
+}
+
+bool FramesIndexer::ReadNextFrame(uint8_t *data) {
+  DALI_FAIL("FramesIndexer does not decode the frames of a video.");
+}
+
+void FramesIndexer::CopyFrame(uint8_t *dst, const uint8_t *src) {
+  DALI_FAIL("FramesIndexer does not decode the frames of a video.");
+}
+
+bool FramesIndexer::SelectVideoStream(int stream_id) {
+  return FramesDecoderBase::SelectVideoStream(stream_id) &&
+         is_codec_supported_(codec_params_->codec_id);
+}
+
 void FramesDecoderBase::ParseNumFrames() {
   num_frames_ = 0;
   while (true) {
