@@ -65,6 +65,7 @@ class DLL_PUBLIC FramesDecoderCpu : public FramesDecoderBase {
   std::unique_ptr<SwsContext, decltype(&sws_freeContext)> sws_ctx_{
     nullptr, sws_freeContext};
   std::optional<bool> sws_src_full_range_;
+  std::optional<int> sws_src_colorspace_;
 
   std::vector<uint8_t> tmp_buffer_;
 };
