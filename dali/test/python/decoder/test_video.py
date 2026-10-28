@@ -395,16 +395,37 @@ def test_full_range_video_experimental(device, video):
     assert np.mean(absdiff) < 2
 
 
+COLOR_MATRIX_NUM_BARS = 10
+COLOR_MATRIX_BAR_WIDTH = 192  # pixels
+
+
+def color_matrix_bar(frame, i):
+    """Mean color of the interior of the i-th bar of the test pattern in db/video/color_matrix: 10
+    flat bars (red, green, blue, yellow, cyan, magenta, orange, grey, black, white), 192 pixels
+    wide"""
+    interior = (
+        slice(100, 440),
+        slice(i * COLOR_MATRIX_BAR_WIDTH + 32, (i + 1) * COLOR_MATRIX_BAR_WIDTH - 32),
+    )
+    return frame[interior].reshape(-1, 3).mean(axis=0)
+
+
 def color_matrix_bars_error(frame, reference):
     """Worst difference between `frame` and `reference` of the mean colors of the interiors of the
-    8 bars of the test pattern in db/video/color_matrix (the bars are 240 pixels wide)"""
-    worst = 0
-    for i in range(8):
-        interior = (slice(100, 440), slice(i * 240 + 40, (i + 1) * 240 - 40))
-        color = frame[interior].reshape(-1, 3).mean(axis=0)
-        ref_color = reference[interior].reshape(-1, 3).mean(axis=0)
-        worst = max(worst, np.max(np.abs(color - ref_color)))
-    return worst
+    bars of the test pattern in db/video/color_matrix"""
+    return max(
+        np.max(np.abs(color_matrix_bar(frame, i) - color_matrix_bar(reference, i)))
+        for i in range(COLOR_MATRIX_NUM_BARS)
+    )
+
+
+def check_color_matrix_black_and_white(frame):
+    """Black and white are the ends of the range (Y=16 and Y=235 in the limited range): the luma
+    has to be mapped to the whole range and clamped there (not 16 and 235). They do not depend on
+    the matrix, unlike the saturated bars."""
+    black, white = color_matrix_bar(frame, 8), color_matrix_bar(frame, 9)
+    assert np.all(black <= 2), f"black bar is {black}"
+    assert np.all(white >= 253), f"white bar is {white}"
 
 
 @params(
@@ -435,6 +456,7 @@ def test_color_matrix_bt709_gpu(name):
     ref = cv2.cvtColor(cv2.imread(os.path.join(data_dir, f"{name}_ref.png")), cv2.COLOR_BGR2RGB)
     assert frame.shape == ref.shape
     assert color_matrix_bars_error(frame, ref) <= 4
+    check_color_matrix_black_and_white(frame)
     assert np.mean(np.abs(frame.astype(int) - ref.astype(int))) < 2
 
 
