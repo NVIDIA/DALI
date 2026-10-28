@@ -24,6 +24,7 @@ import nvidia.dali.types as types
 import glob
 import os
 import random
+from enum import Enum
 from functools import lru_cache
 from itertools import cycle
 from test_utils import (
@@ -1460,9 +1461,16 @@ def test_video_decoder_matches_reader(filename, start_frame, sequence_length=8):
 # SEI) or CRA pictures (HEVC) that the container flags as keyframes. The pictures that follow them
 # in the decoding order and precede them in the display order (B-pictures, RASL pictures in HEVC)
 # refer to the previous GOP.
+class Codec(Enum):
+    H264 = "h264"
+    HEVC = "hevc"
+
+
 non_idr_videos = {
-    "h264": f"{get_dali_extra_path()}/db/video/non_idr_keyframes/open_gop_h264.mp4",
-    "hevc": f"{get_dali_extra_path()}/db/video/non_idr_keyframes/open_gop_hevc.mp4",
+    codec: os.path.join(
+        get_dali_extra_path(), "db", "video", "non_idr_keyframes", f"open_gop_{codec.value}.mp4"
+    )
+    for codec in Codec
 }
 non_idr_num_frames = 64
 non_idr_keyframes = [12, 24, 36, 48, 60]
@@ -1478,14 +1486,14 @@ def nal_unit_types(packet, codec):
         pos += 4
         if size == 0 or pos + size > len(data):
             break
-        types.append(data[pos] & 0x1F if codec == "h264" else (data[pos] >> 1) & 0x3F)
+        types.append(data[pos] & 0x1F if codec == Codec.H264 else (data[pos] >> 1) & 0x3F)
         pos += size
     return types
 
 
 def is_idr(codec, types):
     """IDR_W_RADL and IDR_N_LP in HEVC"""
-    return any(t == 5 for t in types) if codec == "h264" else any(t in (19, 20) for t in types)
+    return any(t == 5 for t in types) if codec == Codec.H264 else any(t in (19, 20) for t in types)
 
 
 def non_idr_reader_frames(codec, start_frame, sequence_length):
@@ -1542,14 +1550,14 @@ def test_non_idr_keyframes_fixture(codec):
         f"Expected {len(non_idr_keyframes)} keyframes that are not IDR pictures, "
         f"got {len(keyframes) - len(idr)}"
     )
-    if codec == "hevc":  # RASL_N, RASL_R
+    if codec == Codec.HEVC:  # RASL_N, RASL_R
         assert any(8 in nal_unit_types(p, codec) or 9 in nal_unit_types(p, codec) for p in packets)
 
 
 @params(*non_idr_codecs)
 def test_non_idr_keyframes_sequential_decoding(codec):
     """Decoding the stream in order gives all the frames, as decoded by FFmpeg"""
-    if codec == "hevc":
+    if codec == Codec.HEVC:
         skip_if_m60()
     frames = non_idr_sequential_frames(codec)
     reference = np.stack(
@@ -1578,7 +1586,7 @@ def test_non_idr_keyframes_sequential_decoding(codec):
 )
 def test_non_idr_keyframes_random_access(codec, op, start_frame, sequence_length=4):
     """Decoding from any frame gives the same frames as decoding the stream in order"""
-    if codec == "hevc":
+    if codec == Codec.HEVC:
         skip_if_m60()
     decode = non_idr_reader_frames if op == "reader" else non_idr_decoder_frames
     frames = decode(codec, start_frame, sequence_length)
