@@ -21,6 +21,8 @@
 #include <vector>
 #include "dali/core/cuda_error.h"
 #include "dali/core/format.h"
+#include "dali/core/mm/memory.h"
+#include "dali/core/util.h"
 #include "dali/kernels/imgproc/color_manipulation/color_space_conversion_impl.h"
 #include "dali/operators/video/color_space.h"
 
@@ -33,7 +35,7 @@ constexpr int kStrideAlignment = 8;
 
 // Runs the conversion on NV12 planes of one color and returns the RGB (or YUV) output
 std::vector<uint8_t> Convert(int width, int height, u8vec3 yuv, VideoColorSpaceConversionType type) {
-  int pitch = (width + kStrideAlignment - 1) / kStrideAlignment * kStrideAlignment;
+  int pitch = div_ceil(width, kStrideAlignment) * kStrideAlignment;
   std::vector<uint8_t> nv12(static_cast<size_t>(pitch) * height * 3 / 2);
   for (int y = 0; y < height; y++)
     std::fill_n(&nv12[static_cast<size_t>(y) * pitch], width, yuv[0]);
@@ -47,21 +49,19 @@ std::vector<uint8_t> Convert(int width, int height, u8vec3 yuv, VideoColorSpaceC
   // A pixel that is not written keeps the value the output was filled with, so running with two
   // different fills gives two different results
   size_t out_size = static_cast<size_t>(width) * height * 3;
-  uint8_t *d_nv12 = nullptr, *d_out = nullptr;
-  CUDA_CALL(cudaMalloc(&d_nv12, nv12.size()));
-  CUDA_CALL(cudaMalloc(&d_out, out_size));
-  CUDA_CALL(cudaMemcpy(d_nv12, nv12.data(), nv12.size(), cudaMemcpyHostToDevice));
+  auto d_nv12 = mm::alloc_raw_unique<uint8_t, mm::memory_kind::device>(nv12.size());
+  auto d_out = mm::alloc_raw_unique<uint8_t, mm::memory_kind::device>(out_size);
+  CUDA_CALL(cudaMemcpy(d_nv12.get(), nv12.data(), nv12.size(), cudaMemcpyHostToDevice));
   std::vector<uint8_t> out(out_size);
   std::vector<std::vector<uint8_t>> results;
   for (uint8_t fill : {0x00, 0xff}) {
-    CUDA_CALL(cudaMemset(d_out, fill, out_size));
-    VideoColorSpaceConversion(d_out, width * 3, d_nv12, pitch, height, width, type, false, 0);
+    CUDA_CALL(cudaMemset(d_out.get(), fill, out_size));
+    VideoColorSpaceConversion(d_out.get(), width * 3, d_nv12.get(), pitch, height, width, type,
+                              false, 0);
     CUDA_CALL(cudaStreamSynchronize(0));
-    CUDA_CALL(cudaMemcpy(out.data(), d_out, out_size, cudaMemcpyDeviceToHost));
+    CUDA_CALL(cudaMemcpy(out.data(), d_out.get(), out_size, cudaMemcpyDeviceToHost));
     results.push_back(out);
   }
-  CUDA_CALL(cudaFree(d_nv12));
-  CUDA_CALL(cudaFree(d_out));
   EXPECT_EQ(results[0], results[1])
       << "Some pixels are not written (" << width << "x" << height << ")";
   return results[0];

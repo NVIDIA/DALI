@@ -16,6 +16,7 @@
 
 #include <cuda_runtime.h>
 #include "dali/core/static_switch.h"
+#include "dali/core/util.h"
 #include "dali/core/cuda_error.h"
 #include "dali/kernels/imgproc/sampler.h"
 #include "dali/kernels/imgproc/color_manipulation/color_space_conversion_impl.h"
@@ -92,7 +93,7 @@ void VideoColorSpaceConversionImpl(Out *out, int out_pitch, const uint8_t *yuv, 
                                    int height, int width, VideoColorSpaceConversionType conversion_type,
                                    bool normalized_range, cudaStream_t stream) {
     // A thread converts a 2x2 quad, so a block of 32x2 threads covers 64x4 pixels
-    auto grid_layout = dim3((width + 63) / 64, (height + 3) / 4);
+    auto grid_layout = dim3(div_ceil(width, 64), div_ceil(height, 4));
     auto block_layout = dim3(32, 2);
 
     BOOL_SWITCH(
