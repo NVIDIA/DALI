@@ -323,20 +323,19 @@ def test_color_matrix_bt709_cpu(name):
     # The streams are tagged as BT.709 (limited range). The references are what ffmpeg decodes,
     # which uses the matrix from the stream; converting with BT.601 gives errors up to 22 in the
     # interior of the saturated bars.
-    skip_if_m60()
-    data_dir = get_dali_extra_path() + "/db/video/color_matrix"
+    data_dir = os.path.join(get_dali_extra_path(), "db", "video", "color_matrix")
 
     @pipeline_def
     def test_pipeline():
         return fn.experimental.readers.video(
             device="cpu",
-            filenames=[f"{data_dir}/{name}.mp4"],
+            filenames=[os.path.join(data_dir, f"{name}.mp4")],
             sequence_length=1,
         )
 
     out = test_pipeline(batch_size=1, num_threads=1, device_id=None).run()[0]
     frame = out.as_array()[0, 0]
-    ref = cv2.cvtColor(cv2.imread(f"{data_dir}/{name}_ref.png"), cv2.COLOR_BGR2RGB)
+    ref = cv2.cvtColor(cv2.imread(os.path.join(data_dir, f"{name}_ref.png")), cv2.COLOR_BGR2RGB)
     assert frame.shape == ref.shape
     assert color_matrix_bars_error(frame, ref) <= 4
     assert np.mean(np.abs(frame.astype(int) - ref.astype(int))) < 2
