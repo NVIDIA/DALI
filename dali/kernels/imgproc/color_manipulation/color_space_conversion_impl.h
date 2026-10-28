@@ -256,15 +256,11 @@ struct ycbcr_coefficients {
   static constexpr double ys = Range::y_scale, cs = Range::c_scale;
 
   // RGB -> Y', Cb', Cr' (before the offsets): the rows of the matrix
-  static constexpr DALI_HOST_DEV vec3 y_row() {
-    return vec3(kr * ys, kg * ys, kb * ys);
-  }
-  static constexpr DALI_HOST_DEV vec3 cb_row() {
-    return vec3(-kr / (2 * (1 - kb)) * cs, -kg / (2 * (1 - kb)) * cs, 0.5 * cs);
-  }
-  static constexpr DALI_HOST_DEV vec3 cr_row() {
-    return vec3(0.5 * cs, -kg / (2 * (1 - kr)) * cs, -kb / (2 * (1 - kr)) * cs);
-  }
+  static constexpr vec3 y_row = vec3(kr * ys, kg * ys, kb * ys);
+  static constexpr vec3 cb_row =
+      vec3(-kr / (2 * (1 - kb)) * cs, -kg / (2 * (1 - kb)) * cs, 0.5 * cs);
+  static constexpr vec3 cr_row =
+      vec3(0.5 * cs, -kg / (2 * (1 - kr)) * cs, -kb / (2 * (1 - kr)) * cs);
 
   // Y', Cb', Cr' (without the offsets) -> RGB
   static constexpr float y_gain = 1 / ys;
@@ -283,12 +279,12 @@ struct ycbcr_method : Range {
  private:
   using C = ycbcr_coefficients<Weights, Range>;
 
-  // One of Y', Cb', Cr' of an RGB pixel: the row of the matrix, then the offset
+  // One of Y', Cb', Cr' of an RGB pixel, from its row of the matrix (scaled for the types) and its
+  // offset, which the callers compute at compile time
   template <typename Output, typename Input>
   static DALI_HOST_DEV DALI_FORCEINLINE
-  constexpr Output rgb_to_channel(vec3 row, float offset, vec<3, Input> rgb) {
-    vec3 coeffs = row * scale_factor<Input, Output>();
-    float v = dot(coeffs, clamp_color_input(rgb)) + offset * bias_scale<Output>();
+  constexpr Output rgb_to_channel(const vec3 &coeffs, float bias, vec<3, Input> rgb) {
+    float v = dot(coeffs, clamp_color_input(rgb)) + bias;
     return needs_clamp<Input, Output>::value ? Convert<Output>(v) : ConvertSat<Output>(v);
   }
 
@@ -296,19 +292,25 @@ struct ycbcr_method : Range {
   template <typename Output, typename Input>
   static DALI_HOST_DEV DALI_FORCEINLINE
   constexpr Output rgb_to_y(vec<3, Input> rgb) {
-    return rgb_to_channel<Output>(C::y_row(), Range::y_bias, rgb);
+    constexpr vec3 coeffs = C::y_row * scale_factor<Input, Output>();
+    constexpr float bias = Range::y_bias * bias_scale<Output>();
+    return rgb_to_channel<Output>(coeffs, bias, rgb);
   }
 
   template <typename Output, typename Input>
   static DALI_HOST_DEV DALI_FORCEINLINE
   constexpr Output rgb_to_cb(vec<3, Input> rgb) {
-    return rgb_to_channel<Output>(C::cb_row(), 0.5f, rgb);
+    constexpr vec3 coeffs = C::cb_row * scale_factor<Input, Output>();
+    constexpr float bias = 0.5f * bias_scale<Output>();
+    return rgb_to_channel<Output>(coeffs, bias, rgb);
   }
 
   template <typename Output, typename Input>
   static DALI_HOST_DEV DALI_FORCEINLINE
   constexpr Output rgb_to_cr(vec<3, Input> rgb) {
-    return rgb_to_channel<Output>(C::cr_row(), 0.5f, rgb);
+    constexpr vec3 coeffs = C::cr_row * scale_factor<Input, Output>();
+    constexpr float bias = 0.5f * bias_scale<Output>();
+    return rgb_to_channel<Output>(coeffs, bias, rgb);
   }
 
   template <typename Output, typename Input>
