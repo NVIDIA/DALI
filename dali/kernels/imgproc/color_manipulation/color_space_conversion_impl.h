@@ -168,6 +168,8 @@ namespace detail {
  *
  *   Y' = y_bias + y_scale Y        Cb' = 0.5 + c_scale Cb        Cr' = 0.5 + c_scale Cr
  *
+ * The offsets are fractions of 2^n for an integer type of n bits (16/256 = 1/16 for Y, 1/2 for the
+ * chroma) and of 1 for floating point, so Y' of a floating point type is in [1/16, 1/16 + y_scale].
  * The coefficients below are the matrices of these formulas with the scales folded in.
  */
 
@@ -195,16 +197,16 @@ struct limited_range {
   template <typename Output, typename Input>
   static DALI_HOST_DEV DALI_FORCEINLINE
   constexpr Output y_to_gray(Input y) {
-    constexpr float scale = 255 * scale_factor<Input, Output>() / 219;
-    constexpr float bias = 0.0625f * bias_scale<Input>();
+    constexpr float scale = 255 * scale_factor<Input, Output>() / 219;  // 1 / y_scale
+    constexpr float bias = y_bias * bias_scale<Input>();
     return ConvertSat<Output>(scale * (clamp_ycbcr_input<Output>(y) - bias));
   }
 
   template <typename Output, typename Input>
   static DALI_HOST_DEV DALI_FORCEINLINE
   constexpr Output gray_to_y(Input y) {
-    constexpr float bias = 0.0625f * bias_scale<Output>();
-    constexpr float scale = 219 * scale_factor<Input, Output>() / 255;
+    constexpr float bias = y_bias * bias_scale<Output>();
+    constexpr float scale = 219 * scale_factor<Input, Output>() / 255;  // y_scale
     return ConvertSat<Output>(clamp_color_input(y) * scale + bias);
   }
 
@@ -246,15 +248,14 @@ struct full_range {
 };  // struct full_range
 
 /**
- * @brief The conversions between RGB and YCbCr, and between gray and Y, for luma weights and a
- *        range
+ * @brief The coefficients of the formulas above for luma weights and a range
  */
 template <typename Weights, typename Range>
-struct ycbcr_method : Range {
+struct ycbcr_coefficients {
   static constexpr double kr = Weights::kr, kb = Weights::kb, kg = 1 - kr - kb;
   static constexpr double ys = Range::y_scale, cs = Range::c_scale;
 
-  // RGB -> Y', Cb', Cr' (before the biases): the rows of the matrix
+  // RGB -> Y', Cb', Cr' (before the offsets): the rows of the matrix
   static constexpr DALI_HOST_DEV vec3 y_row() {
     return vec3(kr * ys, kg * ys, kb * ys);
   }
@@ -265,37 +266,49 @@ struct ycbcr_method : Range {
     return vec3(0.5 * cs, -kg / (2 * (1 - kr)) * cs, -kb / (2 * (1 - kr)) * cs);
   }
 
-  // Y', Cb', Cr' (without the biases) -> RGB
+  // Y', Cb', Cr' (without the offsets) -> RGB
   static constexpr float y_gain = 1 / ys;
   static constexpr float r_cr = 2 * (1 - kr) / cs;
   static constexpr float g_cb = 2 * kb * (1 - kb) / kg / cs;
   static constexpr float g_cr = 2 * kr * (1 - kr) / kg / cs;
   static constexpr float b_cb = 2 * (1 - kb) / cs;
+};
 
+/**
+ * @brief The conversions between RGB and YCbCr, and between gray and Y, for luma weights and a
+ *        range
+ */
+template <typename Weights, typename Range>
+struct ycbcr_method : Range {
+ private:
+  using C = ycbcr_coefficients<Weights, Range>;
+
+  // One of Y', Cb', Cr' of an RGB pixel: the row of the matrix, then the offset
   template <typename Output, typename Input>
-  static DALI_HOST_DEV DALI_FORCEINLINE constexpr Output rgb_to_y(vec<3, Input> rgb) {
-    constexpr vec3 coeffs = y_row() * scale_factor<Input, Output>();
-    constexpr float bias = Range::y_bias * bias_scale<Output>();
-    float y = dot(coeffs, clamp_color_input(rgb)) + bias;
-    return needs_clamp<Input, Output>::value ? Convert<Output>(y) : ConvertSat<Output>(y);
+  static DALI_HOST_DEV DALI_FORCEINLINE
+  constexpr Output rgb_to_channel(vec3 row, float offset, vec<3, Input> rgb) {
+    vec3 coeffs = row * scale_factor<Input, Output>();
+    float v = dot(coeffs, clamp_color_input(rgb)) + offset * bias_scale<Output>();
+    return needs_clamp<Input, Output>::value ? Convert<Output>(v) : ConvertSat<Output>(v);
+  }
+
+ public:
+  template <typename Output, typename Input>
+  static DALI_HOST_DEV DALI_FORCEINLINE
+  constexpr Output rgb_to_y(vec<3, Input> rgb) {
+    return rgb_to_channel<Output>(C::y_row(), Range::y_bias, rgb);
   }
 
   template <typename Output, typename Input>
   static DALI_HOST_DEV DALI_FORCEINLINE
   constexpr Output rgb_to_cb(vec<3, Input> rgb) {
-    constexpr vec3 coeffs = cb_row() * scale_factor<Input, Output>();
-    constexpr float bias = 0.5f * bias_scale<Output>();
-    float y = dot(coeffs, clamp_color_input(rgb)) + bias;
-    return needs_clamp<Input, Output>::value ? Convert<Output>(y) : ConvertSat<Output>(y);
+    return rgb_to_channel<Output>(C::cb_row(), 0.5f, rgb);
   }
 
   template <typename Output, typename Input>
   static DALI_HOST_DEV DALI_FORCEINLINE
   constexpr Output rgb_to_cr(vec<3, Input> rgb) {
-    constexpr vec3 coeffs = cr_row() * scale_factor<Input, Output>();
-    constexpr float bias = 0.5f * bias_scale<Output>();
-    float y = dot(coeffs, clamp_color_input(rgb)) + bias;
-    return needs_clamp<Input, Output>::value ? Convert<Output>(y) : ConvertSat<Output>(y);
+    return rgb_to_channel<Output>(C::cr_row(), 0.5f, rgb);
   }
 
   template <typename Output, typename Input>
@@ -315,12 +328,12 @@ struct ycbcr_method : Range {
     constexpr float ybias = Range::y_bias * bias_scale<Input>();
     constexpr float s = scale_factor<Input, Output>();
     ycbcr = clamp_ycbcr_input<Output>(ycbcr);
-    float y = (ycbcr[0] - ybias) * y_gain * s;
+    float y = (ycbcr[0] - ybias) * C::y_gain * s;
     float tmp_b = ycbcr[1] - cbias;
     float tmp_r = ycbcr[2] - cbias;
-    auto r = ConvertSat<Output>(y + (r_cr * s) * tmp_r);
-    auto g = ConvertSat<Output>(y - (g_cb * s) * tmp_b - (g_cr * s) * tmp_r);
-    auto b = ConvertSat<Output>(y + (b_cb * s) * tmp_b);
+    auto r = ConvertSat<Output>(y + (C::r_cr * s) * tmp_r);
+    auto g = ConvertSat<Output>(y - (C::g_cb * s) * tmp_b - (C::g_cr * s) * tmp_r);
+    auto b = ConvertSat<Output>(y + (C::b_cb * s) * tmp_b);
     return {r, g, b};
   }
 };  // struct ycbcr_method

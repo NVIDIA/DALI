@@ -1030,6 +1030,20 @@ TEST(ColorSpaceConversionTest, ITU_R_BT709_RGB2YCbCr_u8) {
   EXPECT_EQ(rgb_to_ycbcr(u8vec3(255, 128, 0)), u8vec3(141, 59, 189));
 }
 
+TEST(ColorSpaceConversionTest, ITU_R_BT709_FullRange_RGB2YCbCr_u8) {
+  using method = itu_r_bt_709_full_range;
+  auto rgb_to_ycbcr = [](u8vec3 rgb) { return method::rgb_to_ycbcr<uint8_t>(rgb); };
+  EXPECT_EQ(rgb_to_ycbcr(u8vec3(0, 0, 0)), u8vec3(0, 128, 128));
+  EXPECT_EQ(rgb_to_ycbcr(u8vec3(255, 255, 255)), u8vec3(255, 128, 128));
+  EXPECT_EQ(rgb_to_ycbcr(u8vec3(255, 0, 0)), u8vec3(54, 99, 255));
+  EXPECT_EQ(rgb_to_ycbcr(u8vec3(0, 255, 0)), u8vec3(182, 30, 12));
+  EXPECT_EQ(rgb_to_ycbcr(u8vec3(0, 0, 255)), u8vec3(18, 255, 116));
+  // the whole range of Y is used, as in JPEG, but with the BT.709 weights
+  EXPECT_EQ(method::ycbcr_to_rgb<uint8_t>(u8vec3(128, 128, 128)), u8vec3(128, 128, 128));
+  EXPECT_NE(method::ycbcr_to_rgb<uint8_t>(u8vec3(54, 99, 255)),
+            jpeg::ycbcr_to_rgb<uint8_t>(u8vec3(54, 99, 255)));
+}
+
 TEST(ColorSpaceConversionTest, ITU_R_BT709_DiffersFromBT601) {
   // Pure red in BT.601 is Y=81, Cb=90, Cr=240; in BT.709 it is Y=63, Cb=102, Cr=240.
   EXPECT_EQ(itu_r_bt_601::rgb_to_ycbcr<uint8_t>(u8vec3(255, 0, 0)), u8vec3(81, 90, 240));
