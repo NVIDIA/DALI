@@ -67,6 +67,7 @@ H264_LONG = ["sintel/sintel_trailer-720p.mp4"]  # 1253 frames, GOP 250
 HEVC_LONG = ["hevc/sintel_trailer-720p.mp4"]  # the same clip as HEVC, a keyframe every ~9 frames
 VPX = ["vp9/vp9_0.mp4", "vp9/vp9_2.mp4", "vp8/vp8.webm", "cfr/test_1_vp9.mp4", "vfr/test_1_vp9.mp4"]
 HASH_MIN_SAMPLES = 40
+PIPELINE_DEPTH = 2  # the pipeline's own prefetch queue, set explicitly
 
 
 def dali_configs(threads):
@@ -137,13 +138,17 @@ def torchcodec_step(cfg, samples):
 
 def child(cfg, root, hash_out):
     """Runs one configuration in this process: {"fps", "build_s"}, or {"hash"}."""
+    with tempfile.TemporaryDirectory() as tmp:
+        return run_config(cfg, root, hash_out, tmp)
+
+
+def run_config(cfg, root, hash_out, tmp):
     import numpy as np
 
     files = sorted(f for p in cfg["files"] for f in glob.glob(os.path.join(root, VIDEO_DIR, p)))
     assert files, f"no files for {cfg['files']} under {root}/{VIDEO_DIR}"
     samples = []  # (path, start, end)
     if cfg.get("many"):  # distinct symlinks: nothing keyed by the file name is shared
-        tmp = tempfile.mkdtemp()
         lines = []
         for i in range(cfg["many"]):
             link = os.path.join(tmp, f"{i}_{os.path.basename(files[i % len(files)])}")
@@ -173,7 +178,13 @@ def child(cfg, root, hash_out):
         import nvidia.dali.fn as fn
         from nvidia.dali.pipeline import pipeline_def
 
-        @pipeline_def(batch_size=cfg["batch"], num_threads=cfg["t"], device_id=0, seed=42)
+        @pipeline_def(
+            batch_size=cfg["batch"],
+            num_threads=cfg["t"],
+            device_id=0,
+            seed=42,
+            prefetch_queue_depth=PIPELINE_DEPTH,
+        )
         def pipe():
             return tuple(
                 fn.experimental.readers.video(
@@ -199,7 +210,7 @@ def child(cfg, root, hash_out):
                     h.update(np.ascontiguousarray(np.array(o[i])).tobytes())
         return dict(hash=h.hexdigest())
     # batches that may have been produced before the clock starts: pipeline + reader queues
-    for _ in range(2 + cfg["rd"] + 1):
+    for _ in range(PIPELINE_DEPTH + cfg["rd"] + 1):
         run_batch()
     n, t0 = 0, time.perf_counter()
     while n < 20 or time.perf_counter() - t0 < 5:  # >= 20 batches and >= 5 s
@@ -215,13 +226,18 @@ def check_scaling(out, tolerance=0.10):
         rows = sorted((v["t"], v["rd"], v["fps"]) for v in out.values() if v["group"] == group)
         if group.endswith("_torchcodec") or len(rows) < 2:
             continue
-        (t0, rd0, slow), (t1, rd1, fast) = rows[0], rows[-1]
-        bad = fast < (1 - tolerance) * slow
-        ok &= not bad
-        print(
-            f"{'FAIL' if bad else 'ok  '} {group}: {slow:.0f} frames/s (t={t0}, rd={rd0})"
-            f" -> {fast:.0f} (t={t1}, rd={rd1})"
-        )
+        best = rows[0]  # the fastest of the rows with fewer threads / a shallower queue
+        slower = []
+        for row in rows[1:]:
+            if row[2] < (1 - tolerance) * best[2]:
+                slower.append((best, row))
+            best = max(best, row, key=lambda r: r[2])
+        ok &= not slower
+        for (t0, rd0, slow), (t1, rd1, fast) in slower or [(rows[0], rows[-1])]:
+            print(
+                f"{'FAIL' if slower else 'ok  '} {group}: {slow:.0f} frames/s (t={t0}, rd={rd0})"
+                f" -> {fast:.0f} (t={t1}, rd={rd1})"
+            )
     return ok
 
 
@@ -278,9 +294,9 @@ def compare(path_a, path_b):
     # a configuration missing on one side is a failure (the torchcodec rows are for reference)
     bad = [k for k in a.keys() ^ b.keys() if "_torchcodec" not in k]
     for k in sorted(a.keys() & b.keys()):
-        if "hash" in a[k] and a[k]["hash"] != b[k]["hash"]:
+        if a[k].get("hash") != b[k].get("hash"):
             bad.append(k)
-        if "fps" in a[k]:
+        if "fps" in a[k] and "fps" in b[k]:
             ratio = b[k]["fps"] / a[k]["fps"]
             print(f"{k:34} {a[k]['fps']:9.1f} -> {b[k]['fps']:9.1f} frames/s  x{ratio:.2f}")
     print("DIFFERENT / MISSING:", bad if bad else "none")
@@ -302,6 +318,8 @@ def main():
     ap.add_argument("--dali_extra", default=os.environ.get("DALI_EXTRA_PATH", ""))
     ap.add_argument("--child", help=argparse.SUPPRESS)
     a = ap.parse_args()
+    if a.dali_extra:  # symlink targets and file lists must not depend on the working directory
+        a.dali_extra = os.path.abspath(a.dali_extra)
     if a.child:
         print(json.dumps(child(json.loads(a.child), a.dali_extra, a.hash)))
     elif a.compare:
