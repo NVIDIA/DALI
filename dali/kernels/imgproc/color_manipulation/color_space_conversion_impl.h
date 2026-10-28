@@ -149,14 +149,46 @@ constexpr DALI_HOST_DEV Input clamp_ycbcr_input(Input value) {
 
 namespace detail {
 
+/*
+ * RGB <-> YCbCr, for the luma weights Kr and Kb of red and blue (green is Kg = 1 - Kr - Kb).
+ * With R, G, B in [0, 1]:
+ *
+ *   Y  = Kr R + Kg G + Kb B
+ *   Cb = (B - Y) / (2 (1 - Kb))             Cb, Cr in [-0.5, 0.5]
+ *   Cr = (R - Y) / (2 (1 - Kr))
+ *
+ * and the inverse
+ *
+ *   R = Y + 2 (1 - Kr) Cr
+ *   B = Y + 2 (1 - Kb) Cb
+ *   G = (Y - Kr R - Kb B) / Kg = Y - 2 Kb (1 - Kb) / Kg Cb - 2 Kr (1 - Kr) / Kg Cr
+ *
+ * The range then places them in the dynamic range of the type, with `y_scale` and `c_scale`
+ * (the limited range is 16-235 for Y and 16-240 for Cb and Cr):
+ *
+ *   Y' = y_bias + y_scale Y        Cb' = 0.5 + c_scale Cb        Cr' = 0.5 + c_scale Cr
+ *
+ * The coefficients below are the matrices of these formulas with the scales folded in.
+ */
+
+// The luma weights of the ITU-R recommendations (and of JPEG, which uses the BT.601 ones)
+struct bt_601 {
+  static constexpr double kr = 0.299, kb = 0.114;
+};
+
+struct bt_709 {
+  static constexpr double kr = 0.2126, kb = 0.0722;
+};
+
 // Where Y (and the gray values) lie in the dynamic range. The gray functions do not depend on the
 // RGB <-> YCbCr matrix, so they come with the range.
 
 // The values in the range 16-235, allowing for footroom and headroom, as in the ITU-R
 // recommendations.
 struct limited_range {
-  static constexpr float y_bias = 0.0625f;  // of the dynamic range
-  static constexpr float y_scale = 255.0f / 219;  // from Y to the full range
+  static constexpr float y_bias = 0.0625f;  // 16/256 of the dynamic range
+  static constexpr double y_scale = 219.0 / 255;  // Y is in 16..235, out of 0..255
+  static constexpr double c_scale = 224.0 / 255;  // Cb and Cr are in 16..240
 
   // Gray uses the full dynamic range of the type (e.g. 0..255) while the ITU-R recommendations use
   // a reduced range to allow for headroom and footroom (e.g. 16..235)
@@ -193,7 +225,8 @@ struct limited_range {
 // The whole dynamic range of the type.
 struct full_range {
   static constexpr float y_bias = 0.0f;
-  static constexpr float y_scale = 1.0f;
+  static constexpr double y_scale = 1.0;
+  static constexpr double c_scale = 1.0;
 
   template <typename Output, typename Input>
   static DALI_HOST_DEV DALI_FORCEINLINE
@@ -212,71 +245,36 @@ struct full_range {
   }
 };  // struct full_range
 
-// The RGB <-> YCbCr matrices, scaled for the range they are used with. The rows of the forward
-// matrix are `y`, `cb` and `cr`; the inverse matrix is
-//   R = Y + r_cr * Cr,  G = Y - g_cb * Cb - g_cr * Cr,  B = Y + b_cb * Cb
-// with the chroma centered at 0 and Y scaled to the full range.
-struct bt_601_limited_matrix {
-  static constexpr DALI_HOST_DEV vec3 y() {
-    return vec3(0.25678823529f, 0.50412941176f, 0.09790588235f);
-  }
-  static constexpr DALI_HOST_DEV vec3 cb() {
-    return vec3(-0.14822289945f, -0.29099278682f, 0.43921568627f);
-  }
-  static constexpr DALI_HOST_DEV vec3 cr() {
-    return vec3(0.43921568627f, -0.36778831435f, -0.07142737192);
-  }
-  static constexpr float r_cr = 1.5960267848f;
-  static constexpr float g_cb = 0.39176228842f;
-  static constexpr float g_cr = 0.81296764538f;
-  static constexpr float b_cb = 2.0172321417f;
-};
-
-struct bt_709_limited_matrix {
-  static constexpr DALI_HOST_DEV vec3 y() {
-    return vec3(0.18258588235f, 0.61423058824f, 0.06200705882f);
-  }
-  static constexpr DALI_HOST_DEV vec3 cb() {
-    return vec3(-0.10064373238f, -0.33857195389f, 0.43921568627f);
-  }
-  static constexpr DALI_HOST_DEV vec3 cr() {
-    return vec3(0.43921568627f, -0.39894216259f, -0.04027352368f);
-  }
-  static constexpr float r_cr = 1.79274107143f;
-  static constexpr float g_cb = 0.21324861427f;
-  static constexpr float g_cr = 0.53290932856f;
-  static constexpr float b_cb = 2.11240178571f;
-};
-
-// The matrix of JPEG (ITU-R BT.601 luma weights), over the whole dynamic range
-struct bt_601_full_matrix {
-  static constexpr DALI_HOST_DEV vec3 y() { return vec3(0.299f, 0.587f, 0.114f); }
-  static constexpr DALI_HOST_DEV vec3 cb() { return vec3(-0.16873589f, -0.33126411f, 0.5f); }
-  static constexpr DALI_HOST_DEV vec3 cr() { return vec3(0.5f, -0.41868759f, -0.08131241f); }
-  static constexpr float r_cr = 1.402f;
-  static constexpr float g_cb = 0.344136285f;
-  static constexpr float g_cr = 0.714136285f;
-  static constexpr float b_cb = 1.772f;
-};
-
-struct bt_709_full_matrix {
-  static constexpr DALI_HOST_DEV vec3 y() { return vec3(0.2126f, 0.7152f, 0.0722f); }
-  static constexpr DALI_HOST_DEV vec3 cb() { return vec3(-0.11457210606f, -0.38542789394f, 0.5f); }
-  static constexpr DALI_HOST_DEV vec3 cr() { return vec3(0.5f, -0.45415290831f, -0.04584709169f); }
-  static constexpr float r_cr = 1.5748f;
-  static constexpr float g_cb = 0.18732427293f;
-  static constexpr float g_cr = 0.46812427293f;
-  static constexpr float b_cb = 1.8556f;
-};
-
 /**
- * @brief The conversions between RGB and YCbCr, and between gray and Y, for a matrix and a range
+ * @brief The conversions between RGB and YCbCr, and between gray and Y, for luma weights and a
+ *        range
  */
-template <typename Matrix, typename Range>
+template <typename Weights, typename Range>
 struct ycbcr_method : Range {
+  static constexpr double kr = Weights::kr, kb = Weights::kb, kg = 1 - kr - kb;
+  static constexpr double ys = Range::y_scale, cs = Range::c_scale;
+
+  // RGB -> Y', Cb', Cr' (before the biases): the rows of the matrix
+  static constexpr DALI_HOST_DEV vec3 y_row() {
+    return vec3(kr * ys, kg * ys, kb * ys);
+  }
+  static constexpr DALI_HOST_DEV vec3 cb_row() {
+    return vec3(-kr / (2 * (1 - kb)) * cs, -kg / (2 * (1 - kb)) * cs, 0.5 * cs);
+  }
+  static constexpr DALI_HOST_DEV vec3 cr_row() {
+    return vec3(0.5 * cs, -kg / (2 * (1 - kr)) * cs, -kb / (2 * (1 - kr)) * cs);
+  }
+
+  // Y', Cb', Cr' (without the biases) -> RGB
+  static constexpr float y_gain = 1 / ys;
+  static constexpr float r_cr = 2 * (1 - kr) / cs;
+  static constexpr float g_cb = 2 * kb * (1 - kb) / kg / cs;
+  static constexpr float g_cr = 2 * kr * (1 - kr) / kg / cs;
+  static constexpr float b_cb = 2 * (1 - kb) / cs;
+
   template <typename Output, typename Input>
   static DALI_HOST_DEV DALI_FORCEINLINE constexpr Output rgb_to_y(vec<3, Input> rgb) {
-    constexpr vec3 coeffs = Matrix::y() * scale_factor<Input, Output>();
+    constexpr vec3 coeffs = y_row() * scale_factor<Input, Output>();
     constexpr float bias = Range::y_bias * bias_scale<Output>();
     float y = dot(coeffs, clamp_color_input(rgb)) + bias;
     return needs_clamp<Input, Output>::value ? Convert<Output>(y) : ConvertSat<Output>(y);
@@ -285,7 +283,7 @@ struct ycbcr_method : Range {
   template <typename Output, typename Input>
   static DALI_HOST_DEV DALI_FORCEINLINE
   constexpr Output rgb_to_cb(vec<3, Input> rgb) {
-    constexpr vec3 coeffs = Matrix::cb() * scale_factor<Input, Output>();
+    constexpr vec3 coeffs = cb_row() * scale_factor<Input, Output>();
     constexpr float bias = 0.5f * bias_scale<Output>();
     float y = dot(coeffs, clamp_color_input(rgb)) + bias;
     return needs_clamp<Input, Output>::value ? Convert<Output>(y) : ConvertSat<Output>(y);
@@ -294,7 +292,7 @@ struct ycbcr_method : Range {
   template <typename Output, typename Input>
   static DALI_HOST_DEV DALI_FORCEINLINE
   constexpr Output rgb_to_cr(vec<3, Input> rgb) {
-    constexpr vec3 coeffs = Matrix::cr() * scale_factor<Input, Output>();
+    constexpr vec3 coeffs = cr_row() * scale_factor<Input, Output>();
     constexpr float bias = 0.5f * bias_scale<Output>();
     float y = dot(coeffs, clamp_color_input(rgb)) + bias;
     return needs_clamp<Input, Output>::value ? Convert<Output>(y) : ConvertSat<Output>(y);
@@ -317,12 +315,12 @@ struct ycbcr_method : Range {
     constexpr float ybias = Range::y_bias * bias_scale<Input>();
     constexpr float s = scale_factor<Input, Output>();
     ycbcr = clamp_ycbcr_input<Output>(ycbcr);
-    float ys = (ycbcr[0] - ybias) * Range::y_scale * s;
+    float y = (ycbcr[0] - ybias) * y_gain * s;
     float tmp_b = ycbcr[1] - cbias;
     float tmp_r = ycbcr[2] - cbias;
-    auto r = ConvertSat<Output>(ys + (Matrix::r_cr * s) * tmp_r);
-    auto g = ConvertSat<Output>(ys - (Matrix::g_cb * s) * tmp_b - (Matrix::g_cr * s) * tmp_r);
-    auto b = ConvertSat<Output>(ys + (Matrix::b_cb * s) * tmp_b);
+    auto r = ConvertSat<Output>(y + (r_cr * s) * tmp_r);
+    auto g = ConvertSat<Output>(y - (g_cb * s) * tmp_b - (g_cr * s) * tmp_r);
+    auto b = ConvertSat<Output>(y + (b_cb * s) * tmp_b);
     return {r, g, b};
   }
 };  // struct ycbcr_method
@@ -331,21 +329,21 @@ struct ycbcr_method : Range {
 
 // Y, Cb, Cr definition from ITU-R BT.601, with values in the range 16-235, allowing for
 // footroom and headroom
-struct itu_r_bt_601 : detail::ycbcr_method<detail::bt_601_limited_matrix, detail::limited_range> {};
+struct itu_r_bt_601 : detail::ycbcr_method<detail::bt_601, detail::limited_range> {};
 
 // Y, Cb, Cr definition from ITU-R BT.709 (the usual one for HD video), with values in the range
 // 16-235, allowing for footroom and headroom.
 // It differs from ITU-R BT.601 only in the RGB <-> YCbCr matrix.
-struct itu_r_bt_709 : detail::ycbcr_method<detail::bt_709_limited_matrix, detail::limited_range> {};
+struct itu_r_bt_709 : detail::ycbcr_method<detail::bt_709, detail::limited_range> {};
 
 // Y, Cb, Cr formulas used in JPEG, using the whole dynamic range of the type.
-struct jpeg : detail::ycbcr_method<detail::bt_601_full_matrix, detail::full_range> {};
+struct jpeg : detail::ycbcr_method<detail::bt_601, detail::full_range> {};
 
 // Y, Cb, Cr with the ITU-R BT.709 matrix, using the whole dynamic range of the type (the
 // counterpart of `jpeg`, which uses the ITU-R BT.601 matrix). It is what the video decoders need
 // for full range video.
 struct itu_r_bt_709_full_range
-    : detail::ycbcr_method<detail::bt_709_full_matrix, detail::full_range> {};
+    : detail::ycbcr_method<detail::bt_709, detail::full_range> {};
 
 
 template <typename Output, typename Input>
