@@ -1079,8 +1079,9 @@ TEST(ColorSpaceConversionTest, ITU_R_BT709_YCbCr2RGB_RoundTripOfPrimaries) {
     int max_diff = 0;
     for (int c = 0; c < 3; c++)
       max_diff = std::max(max_diff, std::abs(static_cast<int>(wrong[c]) - rgb[c]));
-    if (rgb[0] != rgb[1] || rgb[1] != rgb[2])
+    if (rgb[0] != rgb[1] || rgb[1] != rgb[2]) {
       EXPECT_GT(max_diff, 8) << "color " << int(rgb[0]) << " " << int(rgb[1]) << " " << int(rgb[2]);
+    }
   }
 }
 
