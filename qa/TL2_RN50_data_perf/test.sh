@@ -8,7 +8,9 @@ do_once() {
 }
 
 test_body() {
-    if [ $(stat /data/imagenet/train-jpeg --format="%T" -f) != "ext2/ext3" ]; then
+    check_required_paths ${IMAGENET_DIR}/train-jpeg ${IMAGENET_DIR}/val-jpeg \
+        ${IMAGENET_DIR}/train-val-tfrecord ${IMAGENET_DIR}/train-val-tfrecord.idx
+    if [ $(stat ${IMAGENET_DIR}/train-jpeg --format="%T" -f) != "ext2/ext3" ]; then
         echo "Not available locally, skipping the test"
         return 0
     fi
@@ -19,10 +21,10 @@ test_body() {
     python test_RN50_data_pipeline.py --gpus ${NUM_GPUS} -b 256 --workers 3 --prefetch 2 --fp16 --nhwc
     python test_RN50_data_pipeline.py --gpus ${NUM_GPUS} -b 16 --workers 3 --prefetch 11 --fp16 --nhwc
     # Paralell ExternalSource:
-    python ./test_RN50_external_source_parallel_data.py /data/imagenet/train-jpeg/ --workers 6 --py_workers 6 --epochs 3 --batch_size 256 --reader_queue_depth 2 --worker_init fork --benchmark_iters 500 --gpus ${NUM_GPUS} --test_pipes parallel
-    python ./test_RN50_external_source_parallel_data.py /data/imagenet/train-jpeg/ --workers 6 --py_workers 6 --epochs 3 --batch_size 256 --reader_queue_depth 2 --worker_init spawn --benchmark_iters 500 --gpus ${NUM_GPUS} --test_pipes parallel
-    python ./test_RN50_external_source_parallel_data.py /data/imagenet/train-jpeg/ --workers 6 --py_workers 6 --epochs 3 --batch_size 256 --reader_queue_depth 2  --benchmark_iters 500 --gpus ${NUM_GPUS} --test_pipes file_reader
-    python ./test_RN50_external_source_parallel_data.py /data/imagenet/train-jpeg/ --workers 6 --py_workers 6 --epochs 3 --batch_size 256 --reader_queue_depth 2 --benchmark_iters 250 --gpus ${NUM_GPUS} --test_pipes scalar
+    python ./test_RN50_external_source_parallel_data.py ${IMAGENET_DIR}/train-jpeg/ --workers 6 --py_workers 6 --epochs 3 --batch_size 256 --reader_queue_depth 2 --worker_init fork --benchmark_iters 500 --gpus ${NUM_GPUS} --test_pipes parallel
+    python ./test_RN50_external_source_parallel_data.py ${IMAGENET_DIR}/train-jpeg/ --workers 6 --py_workers 6 --epochs 3 --batch_size 256 --reader_queue_depth 2 --worker_init spawn --benchmark_iters 500 --gpus ${NUM_GPUS} --test_pipes parallel
+    python ./test_RN50_external_source_parallel_data.py ${IMAGENET_DIR}/train-jpeg/ --workers 6 --py_workers 6 --epochs 3 --batch_size 256 --reader_queue_depth 2  --benchmark_iters 500 --gpus ${NUM_GPUS} --test_pipes file_reader
+    python ./test_RN50_external_source_parallel_data.py ${IMAGENET_DIR}/train-jpeg/ --workers 6 --py_workers 6 --epochs 3 --batch_size 256 --reader_queue_depth 2 --benchmark_iters 250 --gpus ${NUM_GPUS} --test_pipes scalar
 }
 
 pushd ../..
