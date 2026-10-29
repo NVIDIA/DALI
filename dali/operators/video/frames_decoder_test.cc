@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,6 +15,7 @@
 #include <cuda_runtime_api.h>
 #include <exception>
 #include <random>
+#include <utility>
 
 #include "dali/core/cuda_error.h"
 #include "dali/core/dev_buffer.h"
@@ -25,6 +26,7 @@
 #include "dali/operators/video/frames_decoder_gpu.h"
 #include "dali/operators/video/video_test.h"
 #include "dali/test/dali_test_config.h"
+#include "dali/util/file.h"
 
 #include "dali/pipeline/pipeline.h"
 
@@ -303,6 +305,81 @@ TEST_F(FramesDecoderGpuTest, InMemoryVfrHevcVideo) {
   FramesDecoderGpu decoder(memory_video.data(), memory_video.size());
   decoder.BuildIndex();
   RunTest(decoder, vfr_hevc_videos_[1]);
+}
+
+TEST_F(FramesDecoderTest_CpuOnlyTests, InputStreamCfrVideo) {
+  FramesDecoderCpu decoder(FileStream::Open(cfr_videos_paths_[1]), cfr_videos_paths_[1]);
+  ASSERT_TRUE(decoder.IsValid());
+  EXPECT_EQ(decoder.Filename(), cfr_videos_paths_[1]);
+  decoder.BuildIndex();
+  RunTest(decoder, cfr_videos_[1]);
+}
+
+TEST_F(FramesDecoderGpuTest, InputStreamCfrVideo) {
+  FramesDecoderGpu decoder(FileStream::Open(cfr_videos_paths_[0]), cfr_videos_paths_[0]);
+  ASSERT_TRUE(decoder.IsValid());
+  decoder.BuildIndex();
+  RunTest(decoder, cfr_videos_[0]);
+}
+
+TEST_F(FramesDecoderTest_CpuOnlyTests, InputStreamVfrVideoNoIndex) {
+  auto memory_video = MemoryVideo(vfr_videos_paths_[0]);
+  FramesDecoderCpu decoder(
+      std::make_unique<MemInputStream>(memory_video.data(), memory_video.size()));
+  ASSERT_TRUE(decoder.IsValid());
+  RunTest(decoder, vfr_videos_[0], false);
+}
+
+TEST_F(FramesDecoderGpuTest, InputStreamVfrVideoNoIndex) {
+  auto memory_video = MemoryVideo(vfr_videos_paths_[0]);
+  FramesDecoderGpu decoder(
+      std::make_unique<MemInputStream>(memory_video.data(), memory_video.size()));
+  ASSERT_TRUE(decoder.IsValid());
+  RunTest(decoder, vfr_videos_[0], false);
+}
+
+/**
+ * @brief A stream whose next read fails on request, like a transient error of remote storage.
+ */
+class FailingInputStream : public MemInputStream {
+ public:
+  using MemInputStream::MemInputStream;
+
+  enum class Failure { None, Throw, ReadNothing };
+
+  void FailNextRead(Failure failure) {
+    failure_ = failure;
+  }
+
+  size_t Read(void *buf, size_t bytes) override {
+    auto failure = std::exchange(failure_, Failure::None);
+    if (failure == Failure::Throw)
+      throw std::runtime_error("Simulated read failure.");
+    if (failure == Failure::ReadNothing)
+      return 0;
+    return MemInputStream::Read(buf, bytes);
+  }
+
+ private:
+  Failure failure_ = Failure::None;
+};
+
+TEST_F(FramesDecoderTest_CpuOnlyTests, InputStreamReadErrorRejectsIndex) {
+  // Larger than the decoder's I/O buffer, so building the index has to read past what was read
+  // while opening the file.
+  auto memory_video = MemoryVideo(testing::dali_extra_path() + "/db/video/mjpeg/mjpeg.avi");
+  for (auto failure : {FailingInputStream::Failure::Throw,
+                       FailingInputStream::Failure::ReadNothing}) {
+    auto stream = std::make_unique<FailingInputStream>(memory_video.data(), memory_video.size());
+    auto *failing_stream = stream.get();
+    FramesDecoderCpu decoder(std::move(stream));
+    ASSERT_TRUE(decoder.IsValid());
+    failing_stream->FailNextRead(failure);
+    // The failure is transient, so reopening the stream when the scan ends succeeds - a partial
+    // index would then be taken for the whole video, and cached by the reader.
+    EXPECT_THROW(decoder.BuildIndex(), std::runtime_error);
+    EXPECT_FALSE(decoder.HasIndex());
+  }
 }
 
 TEST_F(FramesDecoderTest_CpuOnlyTests, VariableFrameRateNoIndex) {

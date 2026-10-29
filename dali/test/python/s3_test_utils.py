@@ -216,7 +216,8 @@ def upload_dir(client, bucket, local_dir, key_prefix):
         for name in sorted(filenames):
             local = os.path.join(dirpath, name)
             rel = os.path.relpath(local, local_dir).replace(os.sep, "/")
-            key = f"{key_prefix.rstrip('/')}/{rel}"
+            # an empty prefix is the bucket root - "/<rel>" would be a different key
+            key = f"{key_prefix.rstrip('/')}/{rel}" if key_prefix else rel
             client.upload_file(local, bucket, key)
             keys.append(key)
     return keys
