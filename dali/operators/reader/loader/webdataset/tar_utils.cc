@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -225,6 +225,11 @@ inline void TarArchive::ParseHeader() {
   } else {
     filename_ = th_get_pathname(ToTarHandle(handle_));
     filesize_ = th_get_size(ToTarHandle(handle_));
+    const auto data_offset = stream_->TellRead();
+    DALI_ENFORCE(data_offset >= 0 && static_cast<uint64_t>(data_offset) <= stream_->Size() &&
+                     filesize_ <= stream_->Size() - data_offset,
+                 make_string("Corrupted tar file: entry ", filename_,
+                             " extends beyond the archive"));
 
     if (TH_ISREG(ToTarHandle(handle_))) {
       filetype_ = ENTRY_FILE;
