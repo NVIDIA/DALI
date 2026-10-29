@@ -349,7 +349,8 @@ void COCOReader::PixelwiseMasks(int image_idx, int* mask) {
       in[k++] = static_cast<double>(ratio ? pol_ver[i].x * w : pol_ver[i].x);
       in[k++] = static_cast<double>(ratio ? pol_ver[i].y * h : pol_ver[i].y);
     }
-    RLE raw_mask{};
+    RLE raw_mask;
+    rleInit(&raw_mask, 0, 0, 0, 0);
     rleFrPoly(&raw_mask, in.data(), pol_ver.size(), h, w);
     RLEMask polygon_mask(raw_mask);
     frPoly[label].push_back(std::move(polygon_mask));
