@@ -52,8 +52,7 @@ class RecordIOLoader : public IndexedFileLoader {
                           file_offsets.back()) {
         throw std::runtime_error(make_string(
             "RecordIO data files are too large: ", file_offsets.back(), " bytes plus ",
-            file_size, " bytes exceeds the maximum ", std::numeric_limits<int64_t>::max(),
-            " bytes."));
+            file_size, " bytes exceeds the range of a signed 64-bit integer."));
       }
       file_offsets.push_back(file_size + file_offsets.back());
       tmp->Close();
@@ -73,12 +72,12 @@ class RecordIOLoader : public IndexedFileLoader {
     DALI_ENFORCE(fin.good(),
         "Could not open RecordIO index file. Provided path: \"" + path + "\"");
     std::vector<size_t> temp;
-    size_t index, offset;
     size_t entry_number = 0;
     while (true) {
       fin >> std::ws;
       if (fin.eof())
         break;
+      size_t index = 0, offset = 0;
       ++entry_number;
       if (!(fin >> index >> offset)) {
         throw std::runtime_error(make_string(
@@ -97,15 +96,17 @@ class RecordIOLoader : public IndexedFileLoader {
                   path, "\""));
 
     std::sort(temp.begin(), temp.end());
+    size_t file_offset_index = 0;
     for (size_t i = 0; i < temp.size(); ++i) {
       auto next_offset = i + 1 < temp.size() ? temp[i + 1] : file_offsets.back();
       int64_t size = next_offset - temp[i];
-      // Skip duplicate offsets. Locate each record independently, including the last one:
-      // an index can skip entire files, and records can span file boundaries.
+      // Skip duplicate offsets. Both offset arrays are sorted, so advance across skipped
+      // or empty files at most once, including when locating the last record.
       if (size) {
-        auto file_offset_index =
-            std::upper_bound(file_offsets.begin(), file_offsets.end(), temp[i]) -
-            file_offsets.begin() - 1;
+        while (file_offset_index + 1 < paths_.size() &&
+               temp[i] >= file_offsets[file_offset_index + 1]) {
+          ++file_offset_index;
+        }
         indices_.emplace_back(temp[i] - file_offsets[file_offset_index],
                               size, file_offset_index);
       }

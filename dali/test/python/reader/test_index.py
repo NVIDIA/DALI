@@ -662,7 +662,7 @@ def test_recordio_reader_rejects_cumulative_size_overflow():
                 RuntimeError,
                 pipe().run,
                 glob="*RecordIO data files are too large: 4611686018427387904 bytes plus "
-                "4611686018427387904 bytes exceeds the maximum 9223372036854775807 bytes.*",
+                "4611686018427387904 bytes exceeds the range of a signed 64-bit integer.*",
             )
     finally:
         for fd in file_descriptors:
