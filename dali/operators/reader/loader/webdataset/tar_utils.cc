@@ -96,10 +96,15 @@ static tartype_t kTarArchiveType = {LibtarOpenTarArchive, [](int) -> int { retur
 
 TarArchive::TarArchive(std::unique_ptr<FileStream> stream)
     : stream_(std::move(stream)), instance_handle_(Register(this)) {
-  tar_open(ToTarHandle(&handle_), "", &kTarArchiveType, 0, instance_handle_, TAR_GNU);
-  stream_->SeekRead(0);
-  eof_ = stream_->Size() == 0;
-  ParseHeader();
+  try {
+    tar_open(ToTarHandle(&handle_), "", &kTarArchiveType, 0, instance_handle_, TAR_GNU);
+    stream_->SeekRead(0);
+    eof_ = stream_->Size() == 0;
+    ParseHeader();
+  } catch (...) {
+    Release();
+    throw;
+  }
 }
 
 TarArchive::TarArchive(TarArchive&& other) {
@@ -227,10 +232,16 @@ inline void TarArchive::ParseHeader() {
     filename_ = th_get_pathname(ToTarHandle(handle_));
     filesize_ = th_get_size(ToTarHandle(handle_));
     const auto data_offset = stream_->TellRead();
-    if (data_offset < 0 || static_cast<uint64_t>(data_offset) > stream_->Size() ||
-        filesize_ > stream_->Size() - data_offset) {
-      throw std::runtime_error(make_string("Corrupted tar file: entry ", filename_,
-                     " extends beyond the archive"));
+    const auto archive_size = stream_->Size();
+    const bool valid_offset = data_offset >= 0 &&
+                              static_cast<uint64_t>(data_offset) <= archive_size;
+    const auto available_bytes = valid_offset ? archive_size - data_offset : 0;
+    if (!valid_offset || filesize_ > available_bytes) {
+      throw std::runtime_error(
+          make_string("Corrupted tar file ", stream_->path(), ": entry ", filename_,
+                      " declares ", filesize_, " bytes, but only ", available_bytes,
+                      " bytes are available at offset ", data_offset,
+                      "; the entry extends beyond the archive."));
     }
 
     if (TH_ISREG(ToTarHandle(handle_))) {

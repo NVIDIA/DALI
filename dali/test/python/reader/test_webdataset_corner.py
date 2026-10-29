@@ -13,6 +13,10 @@
 # limitations under the License.
 
 import math
+import io
+import tarfile
+from nvidia.dali import fn, pipeline_def, types
+from nose2.tools import params
 import nvidia.dali as dali
 import os
 import tempfile
@@ -287,14 +291,14 @@ def test_index_errors():
     )
 
 
-def run_reader(archive, index, use_mmap):
-    @dali.pipeline_def(batch_size=1, num_threads=1, device_id=None, prefetch_queue_depth=1)
+def run_tar_size_reader(archive, index, use_mmap, dtype=types.UINT8):
+    @pipeline_def(batch_size=1, num_threads=1, device_id=None, prefetch_queue_depth=1)
     def pipeline():
-        return dali.fn.readers.webdataset(
+        return fn.readers.webdataset(
             paths=[archive],
-            index_paths=[index],
+            index_paths=[index] if index else [],
             ext=["bin"],
-            dtypes=[dali.types.UINT8],
+            dtypes=[dtype],
             dont_use_mmap=not use_mmap,
             random_shuffle=False,
             initial_fill=1,
@@ -316,4 +320,50 @@ def test_invalid_mapping(use_mmap):
             "*Could not map WebDataset component*" if use_mmap else "*Error reading from a file*"
         )
         with assert_raises(RuntimeError, glob=message):
-            run_reader(archive, index, use_mmap)
+            run_tar_size_reader(archive, index, use_mmap)
+
+
+def write_invalid_tar(archive, size):
+    header = bytearray(tarfile.TarInfo("sample.bin").tobuf())
+    field = b"-4" if size == -4 else oct(size)[2:].encode()
+    header[124:136] = field.rjust(11, b" ") + b"\0"
+    header[148:156] = b" " * 8
+    header[148:156] = f"{sum(header):06o}\0 ".encode()
+    with open(archive, "wb") as f:
+        f.write(header + bytes(1024))
+
+
+@params(*[(use_mmap, size) for use_mmap in (False, True) for size in (-4, 8**11 - 1, 2048)])
+def test_invalid_tar_entry_size(use_mmap, size):
+    with tempfile.TemporaryDirectory() as tmp:
+        archive = os.path.join(tmp, "data.tar")
+        write_invalid_tar(archive, size)
+        declared_size = size % (1 << 64)
+        message = (
+            f"*{archive}: entry sample.bin declares {declared_size} bytes, "
+            "but only 1024 bytes are available at offset 512; "
+            "the entry extends beyond the archive.*"
+        )
+        with assert_raises(RuntimeError, glob=message):
+            run_tar_size_reader(archive, None, use_mmap, types.FLOAT)
+
+
+@params(False, True)
+def test_repeated_invalid_tar_first_entry(use_mmap):
+    with tempfile.TemporaryDirectory() as tmp:
+        archive = os.path.join(tmp, "invalid.tar")
+        write_invalid_tar(archive, 2048)
+        for _ in range(32):
+            with assert_raises(RuntimeError, glob="*extends beyond the archive.*"):
+                run_tar_size_reader(archive, None, use_mmap)
+
+
+@params(False, True)
+def test_valid_tar(use_mmap):
+    with tempfile.TemporaryDirectory() as tmp:
+        archive = os.path.join(tmp, "data.tar")
+        with tarfile.open(archive, "w") as tar:
+            info = tarfile.TarInfo("sample.bin")
+            info.size = 4
+            tar.addfile(info, io.BytesIO(bytes(range(4))))
+        assert run_tar_size_reader(archive, None, use_mmap).tolist() == [[0, 1, 2, 3]]
