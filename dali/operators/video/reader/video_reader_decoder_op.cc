@@ -322,8 +322,9 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
   }
 
   // The least number of distinct files for which indexing them in parallel is worth starting the
-  // threads. This is an estimate, not a measured value.
-  static constexpr size_t kMinFilesForParallelIndex = 8;
+  // threads. Measured on small, cached files: at 8 files the parallel build was slower than the
+  // serial one, at 16 it was faster.
+  static constexpr size_t kMinFilesForParallelIndex = 16;
 
   /**
    * @brief Indexes the given distinct files, one record per file, in the same order.

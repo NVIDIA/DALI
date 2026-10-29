@@ -42,8 +42,8 @@ SOURCE_FILES = {
     ],
 }
 # Each source file is linked under several names. The index is built per distinct file name, so
-# there are at least 8 distinct valid files: the index is built in parallel above that.
-COPIES = 3
+# there are at least 16 distinct valid files: the index is built in parallel above that.
+COPIES = 4
 INVALID_FILE = "corrupted/audio_only.mp4"
 
 
