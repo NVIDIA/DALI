@@ -44,6 +44,9 @@ if (BUILD_OPENCV)
   list(APPEND DALI_LIBS opencv_core opencv_imgproc)
   message("OpenCV production libraries: opencv_core opencv_imgproc")
   list(APPEND DALI_EXCLUDES libopencv_core.a;libopencv_imgproc.a;libopencv_highgui.a)
+  # On aarch64 OpenCV pulls in KleidiCV as its HAL; hide it too, otherwise its
+  # kleidicv::neon::* symbols leak from libdali*.so (names not matching any linked archive are ignored).
+  list(APPEND DALI_EXCLUDES libkleidicv_hal.a;libkleidicv.a;libkleidicv_thread.a)
 
   if (BUILD_TEST)
     set(DALI_OPENCV_TEST_EXTRA_LIBS opencv_imgcodecs CACHE INTERNAL
