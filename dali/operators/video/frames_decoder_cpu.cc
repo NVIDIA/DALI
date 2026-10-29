@@ -14,12 +14,13 @@
 
 #include "dali/operators/video/frames_decoder_cpu.h"
 #include <algorithm>
+#include <cstring>
+#include <iomanip>
+#include <memory>
 #include <stdexcept>
 #include <string>
 #include "dali/core/error_handling.h"
-#include "dali/core/math_util.h"
-#include <cstring>
-#include <iomanip>
+#include "dali/core/util.h"
 #include "dali/operators/video/video_utils.h"
 
 namespace dali {
@@ -29,7 +30,8 @@ FramesDecoderCpu::FramesDecoderCpu(const std::string &filename, DALIImageType im
   is_valid_ = is_valid_ && SelectVideoStream();
 }
 
-FramesDecoderCpu::FramesDecoderCpu(const char *memory_file, size_t memory_file_size, std::string_view source_info, DALIImageType image_type)
+FramesDecoderCpu::FramesDecoderCpu(const char *memory_file, size_t memory_file_size,
+                                 std::string_view source_info, DALIImageType image_type)
   : FramesDecoderBase(memory_file, memory_file_size, source_info, image_type) {
   is_valid_ = is_valid_ && SelectVideoStream();
 }
@@ -69,14 +71,17 @@ bool FramesDecoderCpu::ReadNextFrame(uint8_t *data) {
 
 
 void PlanarToInterleaved(uint8_t *output, const uint8_t *input, int64_t height, int64_t width,
-                         int64_t channels, int64_t row_stride) {
-  for (int64_t channel = 0; channel < channels; channel++) {
-    for (int64_t y = 0; y < height; y++) {
-      const uint8_t *src = input + (channel * height + y) * row_stride;
-      uint8_t *dst = output + y * width * channels + channel;
-      for (int64_t x = 0; x < width; x++) {
-        dst[x * channels] = src[x];
-      }
+                         int64_t row_stride) {
+  const int64_t plane_stride = height * row_stride;
+  for (int64_t y = 0; y < height; y++) {
+    const uint8_t *p0 = input + y * row_stride;
+    const uint8_t *p1 = p0 + plane_stride;
+    const uint8_t *p2 = p1 + plane_stride;
+    uint8_t *dst = output + y * width * 3;
+    for (int64_t x = 0; x < width; x++) {
+      dst[3 * x + 0] = p0[x];
+      dst[3 * x + 1] = p1[x];
+      dst[3 * x + 2] = p2[x];
     }
   }
 }
@@ -151,7 +156,8 @@ void FramesDecoderCpu::CopyToOutput(uint8_t *data) {
     dest_linesize[1] = dest_linesize[2] = row_stride;
   }
 
-  LOG_LINE << "Converting frame data to format " << (sws_output_format == AV_PIX_FMT_RGB24 ? "RGB" : "YUV") << std::endl;
+  LOG_LINE << "Converting frame data to format "
+           << (sws_output_format == AV_PIX_FMT_RGB24 ? "RGB" : "YUV") << std::endl;
   int ret = sws_scale(
     sws_ctx_.get(),
     frame_->data,
@@ -166,7 +172,7 @@ void FramesDecoderCpu::CopyToOutput(uint8_t *data) {
 
   if (image_type_ == DALI_YCbCr) {
     LOG_LINE << "Converting planar YUV to interleaved" << std::endl;
-    PlanarToInterleaved(data, sws_output_data, Height(), Width(), Channels(), row_stride);
+    PlanarToInterleaved(data, sws_output_data, Height(), Width(), row_stride);
   } else if (Width() % 32) {
     std::copy(sws_output_data, sws_output_data + FrameSize(), data);
   }
