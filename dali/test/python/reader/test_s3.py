@@ -19,12 +19,15 @@ import tarfile
 import tempfile
 from concurrent.futures import ThreadPoolExecutor
 
+import numpy as np
+
 import nvidia.dali.fn as fn
 from nvidia.dali import pipeline_def
 
 import s3_test_utils as s3
+from nose2.tools import params
 from nose_utils import assert_raises, attr
-from test_utils import compare_pipelines
+from test_utils import compare_pipelines, get_dali_extra_path, to_array
 
 batch_size = 4
 num_threads = 4
@@ -38,11 +41,31 @@ g_index = None
 g_rec = None
 g_rec_index = None
 g_client = None
+g_quirks_files = None
+g_numpy_root = None
+g_bucket_root = None
 
 DATA_PREFIX = f"{s3.PREFIX}/data"
 WDS_PREFIX = f"{s3.PREFIX}/wds"
 MANY_PREFIX = f"{s3.PREFIX}/many"
 REC_PREFIX = f"{s3.PREFIX}/rec"
+# Kept apart from DATA_PREFIX on purpose: the objects below are the ones discovery must throw
+# away, and mixing them into the comparison fixture would make a failure hard to read.
+QUIRKS_PREFIX = f"{s3.PREFIX}/quirks"
+NUMPY_PREFIX = f"{s3.PREFIX}/numpy"
+VIDEO_PREFIX = f"{s3.PREFIX}/video"
+
+# A bucket of its own, listed from the root: nothing else may be in it, since every object at
+# the right depth becomes a sample.
+ROOT_BUCKET = f"{s3.PREFIX}-root"
+
+# Videos for each backend of the video reader, relative to DALI_extra/db/video - the CPU one
+# decodes only VP8, VP9 and MJPEG. The last file of each is larger than the 1 MiB I/O buffer the
+# reader uses for streamed videos, so decoding it takes several ranged reads, not just one.
+VIDEO_FILES = {
+    "cpu": ["vp9/vp9_0.mp4", "vp8/vp8.webm", "mjpeg/mjpeg.avi"],
+    "gpu": ["cfr_test.mp4", "vfr/test_2.mp4", "sintel/video_files/sintel_trailer-720p_2.mp4"],
+}
 
 
 def _make_local_dataset(root):
@@ -93,8 +116,71 @@ def _seed_many_objects(client, count=1100):
         list(ex.map(put, range(count)))
 
 
+def _put(client, key, body):
+    client.put_object(Bucket=s3.BUCKET, Key=key, Body=body)
+
+
+def _seed_quirks(client):
+    """Seeds the objects that listing must reject, plus the two that must survive."""
+    # directory markers - zero-byte objects whose key ends with '/', as made by "Create folder"
+    _put(client, f"{QUIRKS_PREFIX}/", b"")
+    _put(client, f"{QUIRKS_PREFIX}/class_a/", b"")
+    # depth 1: directly under the listed prefix, no subdirectory to take a label from
+    _put(client, f"{QUIRKS_PREFIX}/toplevel.dat", b"toplevel")
+    # depth 3: two levels below the listed prefix
+    _put(client, f"{QUIRKS_PREFIX}/class_a/sub/deep.dat", b"deep")
+    # the only two that are at exactly one subdirectory level
+    kept = ["class_a/keep0.dat", "class_a/keep1.dat"]
+    for name in kept:
+        _put(client, f"{QUIRKS_PREFIX}/{name}", f"Contents of {name}.\n".encode())
+    return sorted(kept)
+
+
+def _seed_numpy(client, root):
+    """Mirrors .npy files to S3 and to a local directory, in both layouts the reader accepts.
+
+    readers.numpy reaches discovery through FileLoader with label_from_subdir off, so objects
+    sitting directly under the prefix are samples as well - the flat layout is where S3 discovery
+    can diverge from the local backend, which visits "." on top of the subdirectories.
+    """
+    for rel in ("nested/class_a", "flat"):
+        os.makedirs(os.path.join(root, rel))
+        for i in range(3):
+            np.save(os.path.join(root, rel, f"{i:03}.npy"), np.full((2, 3), i, dtype=np.int32))
+    s3.upload_dir(client, s3.BUCKET, root, NUMPY_PREFIX)
+
+
+def _seed_bucket_root(client, root):
+    """Mirrors a small file reader dataset to the root of ROOT_BUCKET and to a local directory.
+
+    The object directly under the root must not become a sample - the local reader skips it too,
+    as it has no subdirectory to take a label from.
+    """
+    for name in ("class_a/0.dat", "class_a/1.dat", "class_b/0.dat", "toplevel.dat"):
+        os.makedirs(os.path.join(root, os.path.dirname(name)), exist_ok=True)
+        with open(os.path.join(root, name), "w") as f:
+            f.write(f"Contents of {name}.\n")
+    s3.create_bucket(client, ROOT_BUCKET)
+    s3.upload_dir(client, ROOT_BUCKET, root, "")
+
+
+def _seed_videos(client):
+    for device_files in VIDEO_FILES.values():
+        for name in device_files:
+            client.upload_file(_local_video(name), s3.BUCKET, f"{VIDEO_PREFIX}/{name}")
+
+
+def _local_video(name):
+    return os.path.join(get_dali_extra_path(), "db", "video", name)
+
+
+def _remote_video(name):
+    return f"s3://{s3.BUCKET}/{VIDEO_PREFIX}/{name}"
+
+
 def setUpModule():
     global g_server, g_tmpdir, g_root, g_files, g_tar, g_index, g_rec, g_rec_index, g_client
+    global g_quirks_files, g_numpy_root, g_bucket_root
     s3.require_mock_server()
 
     g_tmpdir = tempfile.TemporaryDirectory()
@@ -118,6 +204,12 @@ def setUpModule():
         g_client.upload_file(g_tar, s3.BUCKET, f"{WDS_PREFIX}/shard0.tar")
         g_client.upload_file(g_rec, s3.BUCKET, f"{REC_PREFIX}/train.rec")
         g_client.upload_file(g_rec_index, s3.BUCKET, f"{REC_PREFIX}/train.idx")
+        g_quirks_files = _seed_quirks(g_client)
+        g_numpy_root = os.path.join(g_tmpdir.name, "numpy")
+        _seed_numpy(g_client, g_numpy_root)
+        g_bucket_root = os.path.join(g_tmpdir.name, "bucket_root")
+        _seed_bucket_root(g_client, g_bucket_root)
+        _seed_videos(g_client)
 
         # everything past the first upload has to stay inside this try: unittest skips
         # tearDownModule once setUpModule raised, so the call below is the only thing that
@@ -173,6 +265,40 @@ def wds_pipe(paths, index_paths=None, dont_use_mmap=False):
 @pipeline_def(batch_size=batch_size, num_threads=num_threads, device_id=None)
 def mxnet_pipe(path, index_path, dont_use_mmap=False):
     return tuple(fn.readers.mxnet(path=path, index_path=index_path, dont_use_mmap=dont_use_mmap))
+
+
+@pipeline_def(batch_size=3, num_threads=num_threads, device_id=None)
+def numpy_pipe(file_root, dont_use_mmap=False):
+    return fn.readers.numpy(file_root=file_root, name="Reader", dont_use_mmap=dont_use_mmap)
+
+
+@pipeline_def(batch_size=batch_size, num_threads=num_threads)
+def video_pipe(device, filenames=None, file_list=None, random_shuffle=False):
+    if filenames is not None:
+        source = dict(filenames=filenames, labels=list(range(len(filenames))))
+    else:
+        source = dict(file_list=file_list, file_list_format="frames")
+    return tuple(
+        fn.experimental.readers.video(
+            **source,
+            device=device,
+            name="Reader",
+            sequence_length=4,
+            stride=3,
+            step=15,
+            enable_frame_num=True,
+            enable_timestamps=True,
+            random_shuffle=random_shuffle,
+        )
+    )
+
+
+def _video_pipe(device, **kwargs):
+    return video_pipe(device, device_id=0 if device == "gpu" else None, seed=1234, **kwargs)
+
+
+def _epoch_size(pipe):
+    return pipe.reader_meta("Reader")["epoch_size"]
 
 
 def test_file_reader_file_root():
@@ -292,3 +418,127 @@ def test_file_reader_missing_object():
 def test_file_reader_missing_bucket():
     with assert_raises(RuntimeError, glob="*NoSuchBucket*"):
         file_pipe(file_root=f"s3://{s3.MISSING_BUCKET}/data").build()
+
+
+# ---------------------------------------------------------------------------------------------
+# Listing: each of these pins a branch of s3_discover_files / s3_filesystem::list_objects_f
+# ---------------------------------------------------------------------------------------------
+
+
+def test_directory_markers_are_not_samples():
+    """A zero-byte object named "<prefix>/class_a/" is a folder, not a sample.
+
+    lexically_relative() turns it into ("class_a", ""), so it only stays out of the dataset
+    because of the empty-filename guard in s3_discover_files.
+    """
+    pipe = file_pipe(file_root=f"s3://{s3.BUCKET}/{QUIRKS_PREFIX}")
+    pipe.build()
+    assert _epoch_size(pipe) == len(g_quirks_files), pipe.reader_meta("Reader")
+
+
+def test_listing_depth_filtering():
+    """Only objects exactly one subdirectory below the prefix become samples.
+
+    The fixture also holds an object directly under the prefix and one two levels down; both are
+    rejected by the path_elems != 2 check, which is also what keeps the prefix's own directory
+    marker (lexically_relative() maps it to ".") from being dereferenced.
+    """
+    pipe = file_pipe(file_root=f"s3://{s3.BUCKET}/{QUIRKS_PREFIX}")
+    pipe.build()
+    data, _ = pipe.run()  # fn.readers.file yields (contents, label)
+    read = sorted(bytes(to_array(data[i])).decode() for i in range(len(g_quirks_files)))
+    assert read == [f"Contents of {name}.\n" for name in g_quirks_files], read
+
+
+def test_numpy_reader_nested_prefix():
+    """readers.numpy over s3://, one subdirectory below the prefix."""
+    compare_pipelines(
+        numpy_pipe(file_root=f"s3://{s3.BUCKET}/{NUMPY_PREFIX}/nested"),
+        numpy_pipe(file_root=os.path.join(g_numpy_root, "nested"), dont_use_mmap=True),
+        3,
+        2,
+    )
+
+
+def test_numpy_reader_flat_prefix():
+    """readers.numpy over s3://, objects directly under the prefix.
+
+    Without label_from_subdir there is no subdirectory to take a label from, so these count as
+    samples - the local backend reads them and discovery over s3:// has to agree. Dropping them
+    surfaces as "No files found." rather than a wrong result, which is why this compares against
+    the local reader instead of asserting a count.
+    """
+    compare_pipelines(
+        numpy_pipe(file_root=f"s3://{s3.BUCKET}/{NUMPY_PREFIX}/flat"),
+        numpy_pipe(file_root=os.path.join(g_numpy_root, "flat"), dont_use_mmap=True),
+        3,
+        2,
+    )
+
+
+@params("", "/")
+def test_file_reader_bucket_root(suffix):
+    """file_root naming a whole bucket lists it with an empty prefix, not with "/"."""
+    s3_pipe = file_pipe(file_root=f"s3://{ROOT_BUCKET}{suffix}")
+    local_pipe = file_pipe(file_root=g_bucket_root)
+    s3_pipe.build()
+    local_pipe.build()
+    assert _epoch_size(s3_pipe) == _epoch_size(local_pipe) == 3, s3_pipe.reader_meta("Reader")
+    compare_pipelines(s3_pipe, local_pipe, batch_size, 2)
+
+
+# ---------------------------------------------------------------------------------------------
+# Video reader against s3:// URLs: libavformat opens only local files, so these videos are
+# streamed through DALI's FileStream instead
+# ---------------------------------------------------------------------------------------------
+
+
+def _compare_video_epoch(s3_pipe, local_pipe):
+    s3_pipe.build()
+    local_pipe.build()
+    epoch_size = _epoch_size(local_pipe)
+    assert _epoch_size(s3_pipe) == epoch_size, (_epoch_size(s3_pipe), epoch_size)
+    compare_pipelines(s3_pipe, local_pipe, batch_size, -(-epoch_size // batch_size))
+
+
+@params("cpu", "gpu")
+def test_video_reader_filenames(device):
+    """Shuffled, so that the decoder keeps switching files and seeking back and forth."""
+    files = VIDEO_FILES[device]
+    _compare_video_epoch(
+        _video_pipe(device, filenames=[_remote_video(f) for f in files], random_shuffle=True),
+        _video_pipe(device, filenames=[_local_video(f) for f in files], random_shuffle=True),
+    )
+
+
+@params("cpu", "gpu")
+def test_video_reader_file_list(device):
+    """Frame ranges that start mid-video, so that the first read is preceded by a seek."""
+
+    def write_list(path, make_path):
+        with open(path, "w") as f:
+            for label, name in enumerate(VIDEO_FILES[device]):
+                f.write(f"{make_path(name)} {label} {7 + label} 50\n")
+        return path
+
+    s3_list = write_list(os.path.join(g_tmpdir.name, f"s3_{device}.txt"), _remote_video)
+    local_list = write_list(os.path.join(g_tmpdir.name, f"local_{device}.txt"), _local_video)
+    _compare_video_epoch(
+        _video_pipe(device, file_list=s3_list), _video_pipe(device, file_list=local_list)
+    )
+
+
+def test_video_reader_source_info():
+    files = [_remote_video(f) for f in VIDEO_FILES["cpu"]]
+    pipe = _video_pipe("cpu", filenames=files)
+    pipe.build()
+    video = pipe.run()[0]
+    for i in range(batch_size):
+        assert video[i].source_info() in files, video[i].source_info()
+
+
+def test_video_reader_missing_object():
+    with assert_raises(RuntimeError, glob="*S3 Object not found. bucket=*object=*"):
+        pipe = _video_pipe("cpu", filenames=[_remote_video("no-such-video.mp4")])
+        pipe.build()
+        pipe.run()

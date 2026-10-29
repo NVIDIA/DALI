@@ -1,5 +1,5 @@
 // Copyright 2015 The TensorFlow Authors. All Rights Reserved.
-// Copyright (c) 2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2024-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -103,7 +103,9 @@ void list_objects_f(Aws::S3::S3Client* s3_client, const S3ObjectLocation& object
   DomainTimeRange tr(make_string("list_object_contents @ ", object_location.object),
                      DomainTimeRange::kOrange);
   std::string prefix = object_location.object;
-  if (prefix.back() != '/') {
+  // The bucket root ("s3://bucket" or "s3://bucket/") has an empty prefix. It must stay empty:
+  // no key starts with "/", so listing that would find nothing.
+  if (!prefix.empty() && prefix.back() != '/') {
     prefix.push_back('/');
   }
   constexpr int kS3GetChildrenMaxKeys = 1000;
