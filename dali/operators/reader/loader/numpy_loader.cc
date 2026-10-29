@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,7 +16,9 @@
 #include <dirent.h>
 #include <errno.h>
 #include <cstdlib>
+#include <limits>
 #include <memory>
+#include <stdexcept>
 #include "dali/core/common.h"
 #include "dali/operators/reader/loader/filesystem.h"
 #include "dali/operators/reader/loader/utils.h"
@@ -97,7 +99,15 @@ void NumpyLoader::ReadSample(NumpyFileWrapper& target) {
   }
   current_file->SeekRead(header.data_offset);
 
-  Index nbytes = header.nbytes();
+  auto payload_bytes = header.nbytes();
+  auto file_size = current_file->Size();
+  if (payload_bytes > static_cast<size_t>(std::numeric_limits<Index>::max()) ||
+      header.data_offset < 0 || static_cast<uint64_t>(header.data_offset) > file_size ||
+      payload_bytes > file_size - header.data_offset) {
+    throw std::runtime_error(make_string(
+        "Numpy array payload exceeds the available file data: ", filename));
+  }
+  Index nbytes = payload_bytes;
   target.shape = header.shape;
   target.type = header.type();
   target.meta = meta;
