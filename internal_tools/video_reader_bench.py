@@ -24,6 +24,8 @@ Configurations (a group is one set of samples, read with different num_threads /
 
   lanes          256 distinct files, one sequence each: every sample is a new file, so the cost
                  of opening a file and the parallelism of decoding dominate
+  lanes_noedit   the same with 3 files whose MP4 edit list hides no lead-in frames (the reader
+                 decodes about as many pictures as it outputs; lanes' clips hide 2-190 each)
   cpu            the same on the CPU backend (VP8/VP9 files)
   seq, random    the 15 H.264 clips as they are, read in order or shuffled
   random_hevc    the HEVC trailer, shuffled (keyframe seeks, open GOPs)
@@ -66,6 +68,12 @@ CLIPS = ["sintel/video_files/*.mp4", "sintel/labelled_videos/*/*.mp4"]  # 15 H.2
 H264_LONG = ["sintel/sintel_trailer-720p.mp4"]  # 1253 frames, GOP 250
 HEVC_LONG = ["hevc/sintel_trailer-720p.mp4"]  # the same clip as HEVC, a keyframe every ~9 frames
 VPX = ["vp9/vp9_0.mp4", "vp9/vp9_2.mp4", "vp8/vp8.webm", "cfr/test_1_vp9.mp4", "vfr/test_1_vp9.mp4"]
+# 3 H.264 files with no hidden lead-in (an edit list that only delays by the B-frame reorder)
+NOEDIT = [
+    "sintel/sintel_trailer-720p.mp4",
+    "sintel/video_files/sintel_trailer-720p_0.mp4",
+    "sintel/labelled_videos/0/sintel_trailer-720p_0.mp4",
+]
 HASH_MIN_SAMPLES = 40
 PIPELINE_DEPTH = 2  # the pipeline's own prefetch queue, set explicitly
 
@@ -79,6 +87,7 @@ def dali_configs(threads):
     t_max = max(threads)
     for t in threads:
         yield "lanes", dict(base, files=CLIPS, many=256, t=t)
+        yield "lanes_noedit", dict(base, files=NOEDIT, many=256, t=t)
         yield "cpu", dict(base, files=VPX, many=128, t=t, device="cpu", batch=8, seq=16)
     for name, files in (("seq", CLIPS), ("random", CLIPS), ("random_hevc", HEVC_LONG)):
         for t in sorted({1, t_max}):
