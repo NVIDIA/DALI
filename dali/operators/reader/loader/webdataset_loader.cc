@@ -368,9 +368,11 @@ void WebdatasetLoader::ReadSample(vector<Tensor<CPUBackend>>& sample) {
     } else {
       auto data = current_wds_shard->Get(component.size);
       if (!data) {
-        throw std::runtime_error(make_string("Could not map component from ",
-                       GetSampleSource(current_sample),
-                       ": requested range is outside of the archive file"));
+        throw std::runtime_error(make_string(
+            "Could not map component from ", GetSampleSource(current_sample),
+            ": requested range is outside of the archive file (offset ", component.offset,
+            ", component size ", component.size, ", archive size ", current_wds_shard->Size(),
+            ")."));
       }
       for (auto& output : component.outputs) {
         sample[output].SetMeta(meta);
