@@ -76,6 +76,12 @@ void PlanarToInterleaved(uint8_t *output, const uint8_t *input, int64_t height, 
 }
 
 void FramesDecoderCpu::CopyToOutput(uint8_t *data) {
+  // The output buffer and conversion context use the dimensions from the container.
+  // Decoded frames must agree with them before we convert or write any pixels.
+  DALI_ENFORCE(frame_->width == Width() && frame_->height == Height(),
+               make_string("Decoded frame dimensions (", frame_->width, "x", frame_->height,
+                           ") do not match the video dimensions (", Width(), "x", Height(),
+                           ") in ", Filename(), "."));
   uint8_t *sws_output_data = data;
   AVPixelFormat sws_output_format = AV_PIX_FMT_RGB24;
   if (image_type_ == DALI_YCbCr || Width() % 32) {
@@ -124,7 +130,7 @@ void FramesDecoderCpu::CopyToOutput(uint8_t *data) {
   }
 
   uint8_t *dest[4] = {sws_output_data, nullptr, nullptr, nullptr};
-  int dest_linesize[4] = {frame_->width * Channels(), 0, 0, 0};
+  int dest_linesize[4] = {Width() * Channels(), 0, 0, 0};
 
   LOG_LINE << "Converting frame data to format " << (sws_output_format == AV_PIX_FMT_RGB24 ? "RGB" : "YUV") << std::endl;
   int ret = sws_scale(

@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2022-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,6 +17,8 @@ from nvidia.dali import pipeline_def
 import numpy as np
 import cv2
 import av
+import io
+import struct
 import nvidia.dali.types as types
 import glob
 import os
@@ -64,6 +66,53 @@ codec_files = {
 # list all not supported codecs by the CPU operator we test on
 unsupported_cpu_codec_error = r"is not supported by the CPU variant of this operator\."
 unsupported_cpu_codecs = {"h264", "hevc", "mpeg4", "av1"}
+
+
+@params(
+    (32, 48, types.RGB),
+    (30, 48, types.RGB),
+    (64, 24, types.RGB),
+    (32, 48, types.YCbCr),
+    (30, 48, types.YCbCr),
+    (64, 24, types.YCbCr),
+    (64, 48, types.RGB),
+)
+def test_video_container_frame_dimensions(declared_width, declared_height, image_type):
+    """Reject a container size that differs from the decoded frame size."""
+    encoded = io.BytesIO()
+    with av.open(encoded, mode="w", format="avi") as container:
+        stream = container.add_stream("mjpeg", rate=1)
+        stream.width, stream.height = 64, 48
+        stream.pix_fmt = "yuvj420p"
+        for _ in range(2):
+            frame = av.VideoFrame.from_ndarray(
+                np.full((48, 64, 3), 64, dtype=np.uint8), format="rgb24"
+            )
+            for packet in stream.encode(frame):
+                container.mux(packet)
+        for packet in stream.encode():
+            container.mux(packet)
+
+    data = bytearray(encoded.getvalue())
+    # AVI's stream-format chunk contains a BITMAPINFOHEADER. Change its dimensions,
+    # leaving the dimensions encoded in the MJPEG frames intact.
+    header = data.index(b"strf")
+    assert struct.unpack_from("<ii", data, header + 12) == (64, 48)
+    struct.pack_into("<ii", data, header + 12, declared_width, declared_height)
+    sample = np.frombuffer(data, dtype=np.uint8)
+
+    @pipeline_def(batch_size=1, num_threads=1, device_id=None)
+    def pipeline():
+        video = fn.external_source(source=lambda: [sample], dtype=types.UINT8)
+        return fn.decoders.video(video, device="cpu", image_type=image_type)
+
+    pipe = pipeline()
+    if (declared_width, declared_height) != (64, 48):
+        with assert_raises(RuntimeError, glob="*Decoded frame dimensions (64x48)*"):
+            pipe.run()
+    else:
+        output = pipe.run()[0].at(0)
+        assert output.shape == (2, 48, 64, 3)
 
 
 def assert_unsupported_cpu_codec(run_pipeline):
