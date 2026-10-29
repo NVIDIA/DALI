@@ -273,7 +273,8 @@ void COCOReader::RunImpl(SampleWorkspace &ws) {
     auto masks_info = loader_impl.pixelwise_masks_info(image_idx);
     masks_output.Resize(masks_info.shape, DALI_INT32);
     masks_output.SetLayout("HWC");
-    PixelwiseMasks(image_idx, masks_output.mutable_data<int>());
+    PixelwiseMasks(image_idx, masks_output.mutable_data<int>(),
+                   image_label.image.GetSourceInfo());
   }
 
   if (output_image_ids_) {
@@ -283,7 +284,7 @@ void COCOReader::RunImpl(SampleWorkspace &ws) {
   }
 }
 
-void COCOReader::PixelwiseMasks(int image_idx, int* mask) {
+void COCOReader::PixelwiseMasks(int image_idx, int* mask, const std::string &source) {
   bool ratio = spec_.GetArgument<bool>("ratio");
   auto &loader_impl = LoaderImpl();
   auto pol = loader_impl.polygons(image_idx);
@@ -294,32 +295,30 @@ void COCOReader::PixelwiseMasks(int image_idx, int* mask) {
   const int64_t num_pixels = static_cast<int64_t>(h) * w;
   // Validate annotation RLEs before copying them into image-sized buffers. This also
   // covers compressed counts and preprocessed annotations, which bypass JSON parsing.
-  for (const auto &mask_rle : masks_info.rles) {
-    const auto rle = mask_rle->get();
+  for (int64_t mask_idx = 0; mask_idx < masks_info.rles.size(); mask_idx++) {
+    const auto rle = masks_info.rles[mask_idx]->get();
     if (rle.h != static_cast<siz>(h) || rle.w != static_cast<siz>(w)) {
       throw std::invalid_argument(make_string(
           "Invalid COCO RLE mask: dimensions must match the image; got ", rle.h, "x", rle.w,
-          ", expected ", h, "x", w, "."));
+          ", expected ", h, "x", w, ". Image: \"", source, "\", RLE mask index ", mask_idx, "."));
     }
     if (rle.m == 0 || rle.m > static_cast<siz>(num_pixels + 1)) {
       throw std::invalid_argument(make_string(
           "Invalid COCO RLE mask: too many or missing runs; got ", rle.m,
-          ", expected 1 to ", num_pixels + 1, "."));
+          ", expected 1 to ", num_pixels + 1,
+          ". Image: \"", source, "\", RLE mask index ", mask_idx, "."));
     }
-    int64_t remaining = num_pixels;
+    int64_t covered = 0;
     for (siz i = 0; i < rle.m; i++) {
-      if (rle.cnts[i] > remaining) {
-        throw std::invalid_argument(make_string(
-            "Invalid COCO RLE mask: run lengths exceed the image size; run ", i,
-            " has length ", rle.cnts[i], ", expected at most ", remaining,
-            " (image has ", num_pixels, " pixels)."));
-      }
-      remaining -= rle.cnts[i];
+      covered += rle.cnts[i];
+      // Counts are nonnegative. Stop on invalid coverage before further additions can overflow.
+      if (covered > num_pixels)
+        break;
     }
-    if (remaining != 0) {
+    if (covered != num_pixels) {
       throw std::invalid_argument(make_string(
-          "Invalid COCO RLE mask: run lengths must cover the entire image; got ",
-          num_pixels - remaining, " pixels, expected ", num_pixels, "."));
+          "Invalid COCO RLE mask: the sum of run lengths must equal the number of pixels. "
+          "Image: \"", source, "\", RLE mask index ", mask_idx, "."));
     }
   }
   auto bboxes = loader_impl.bboxes(image_idx);
