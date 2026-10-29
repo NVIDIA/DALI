@@ -264,15 +264,7 @@ void FramesDecoderCpu::Reset() {
   flush_state_ = false;
 }
 
-bool FramesDecoderCpu::SelectVideoStream(int stream_id) {
-  if (!FramesDecoderBase::SelectVideoStream(stream_id)) {
-    return false;
-  }
-
-  assert(stream_id_ >= 0 && stream_id_ < static_cast<int>(ctx_->nb_streams));
-  assert(codec_params_);
-  AVCodecID codec_id = codec_params_->codec_id;
-
+bool FramesDecoderCpu::IsCodecSupported(AVCodecID codec_id) {
   static constexpr std::array<AVCodecID, 3> codecs = {
     AVCodecID::AV_CODEC_ID_VP8,
     AVCodecID::AV_CODEC_ID_VP9,
@@ -290,11 +282,25 @@ bool FramesDecoderCpu::SelectVideoStream(int stream_id) {
     return false;
   }
 
-  if ((codec_ = avcodec_find_decoder(codec_params_->codec_id)) == nullptr) {
-    LOG_LINE << "No decoder found for codec " << avcodec_get_name(codec_params_->codec_id)
-             << " (codec_id=" << codec_params_->codec_id << ")" << std::endl;
+  if (avcodec_find_decoder(codec_id) == nullptr) {
+    LOG_LINE << "No decoder found for codec " << avcodec_get_name(codec_id)
+             << " (codec_id=" << codec_id << ")" << std::endl;
     return false;
   }
+  return true;
+}
+
+bool FramesDecoderCpu::SelectVideoStream(int stream_id) {
+  if (!FramesDecoderBase::SelectVideoStream(stream_id)) {
+    return false;
+  }
+
+  assert(stream_id_ >= 0 && stream_id_ < static_cast<int>(ctx_->nb_streams));
+  assert(codec_params_);
+  if (!IsCodecSupported(codec_params_->codec_id)) {
+    return false;
+  }
+  codec_ = avcodec_find_decoder(codec_params_->codec_id);
 
   codec_ctx_.reset(avcodec_alloc_context3(codec_));
   DALI_ENFORCE(codec_ctx_, "Could not alloc av codec context");

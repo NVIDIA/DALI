@@ -65,6 +65,13 @@ class DLL_PUBLIC FramesDecoderCpu : public FramesDecoderBase {
   void Reset() override;
   void Flush() override;
 
+  /**
+   * @brief Checks if the codec can be decoded by this decoder, as it is done when the video stream
+   *        is selected: it is on the list of the supported codecs and libavcodec has a decoder
+   *        for it. It warns if it is not.
+   */
+  static bool IsCodecSupported(AVCodecID codec_id);
+
  protected:
   bool SelectVideoStream(int stream_id = -1) override;
 
