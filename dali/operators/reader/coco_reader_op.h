@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -46,7 +46,7 @@ class COCOReader : public DataReader<CPUBackend, ImageLabelWrapper, ImageLabelWr
 
   bool legacy_polygon_format_ = false;
 
-  void PixelwiseMasks(int image_id, int* masks_output);
+  void PixelwiseMasks(int image_id, int* masks_output, const std::string &source);
 };
 
 }  // namespace dali

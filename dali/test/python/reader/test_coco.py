@@ -191,27 +191,23 @@ def write_coco_rle_annotations(directory, segmentations):
     ),
     (
         {"size": [2, 2], "counts": [5]},
-        "run lengths exceed the image size; run 0 has length 5, expected at most 4 "
-        "(image has 4 pixels).",
+        "the sum of run lengths must equal the number of pixels.",
     ),
     (
         {"size": [2, 2], "counts": "5"},
-        "run lengths exceed the image size; run 0 has length 5, expected at most 4 "
-        "(image has 4 pixels).",
+        "the sum of run lengths must equal the number of pixels.",
     ),
     (
         {"size": [2, 2], "counts": [-1, 5]},
-        "run lengths exceed the image size; run 0 has length 4294967295, expected at most 4 "
-        "(image has 4 pixels).",
+        "the sum of run lengths must equal the number of pixels.",
     ),
     (
         {"size": [2, 2], "counts": [3, 2]},
-        "run lengths exceed the image size; run 1 has length 2, expected at most 1 "
-        "(image has 4 pixels).",
+        "the sum of run lengths must equal the number of pixels.",
     ),
     (
         {"size": [2, 2], "counts": [3]},
-        "run lengths must cover the entire image; got 3 pixels, expected 4.",
+        "the sum of run lengths must equal the number of pixels.",
     ),
     (
         {"size": [2, 3], "counts": [4]},
@@ -224,12 +220,13 @@ def write_coco_rle_annotations(directory, segmentations):
 )
 def test_coco_invalid_rle_mask(segmentation, message):
     with tempfile.TemporaryDirectory() as directory:
-        write_coco_rle_annotations(directory, [segmentation])
+        write_coco_rle_annotations(directory, [{"size": [2, 2], "counts": [4]}, segmentation])
+        error = f'*Invalid COCO RLE mask: {message} Image: "*image.bin", RLE mask index 1.*'
         pipe = coco_rle_masks_pipe(directory)
-        assert_raises(ValueError, pipe.run, glob=f"*Invalid COCO RLE mask: {message}*")
+        assert_raises(ValueError, pipe.run, glob=error)
         # Loading saved annotations must apply the same checks as the JSON path.
         cached_pipe = coco_rle_masks_pipe(directory, preprocessed=True)
-        assert_raises(ValueError, cached_pipe.run, glob=f"*Invalid COCO RLE mask: {message}*")
+        assert_raises(ValueError, cached_pipe.run, glob=error)
 
 
 @params(
