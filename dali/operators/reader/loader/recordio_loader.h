@@ -42,10 +42,12 @@ class RecordIOLoader : public IndexedFileLoader {
     for (std::string& path : paths_) {
       FileStream::Options opts;
       opts.read_ahead = read_ahead_;
-      opts.use_mmap = !copy_read_data_;
+      // Only the size is needed here. Empty shards cannot be memory-mapped.
+      opts.use_mmap = false;
       opts.use_odirect = false;
       auto tmp = FileStream::Open(path, opts);
       auto file_size = tmp->Size();
+      // Record spans are stored in int64_t. Bound the sum even when individual sizes fit.
       if (file_size > static_cast<size_t>(std::numeric_limits<int64_t>::max()) -
                           file_offsets.back()) {
         throw std::runtime_error(make_string(
