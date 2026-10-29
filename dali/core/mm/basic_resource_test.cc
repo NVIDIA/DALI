@@ -13,12 +13,21 @@
 // limitations under the License.
 
 #include <gtest/gtest.h>
+#include <limits>
 #include "dali/core/mm/malloc_resource.h"
 #include "dali/core/mm/detail/align.h"
 
 namespace dali {
 namespace mm {
 namespace test {
+
+TEST(MallocResourceTest, RejectsSizeOverflow) {
+  malloc_memory_resource resource;
+  const size_t max = std::numeric_limits<size_t>::max();
+  for (size_t overhead = 0; overhead < sizeof(int); overhead++) {
+    EXPECT_THROW(resource.allocate(max - overhead), std::bad_alloc);
+  }
+}
 
 template <typename Resource>
 struct MMBasicResourceTest : public ::testing::Test {
