@@ -515,7 +515,7 @@ def test_recordio_reader_rejects_invalid_index_offset(use_mmap, shuffle, offset)
 @cartesian_params((False, True), (False, True))
 def test_recordio_reader_index_skips_files(use_mmap, shuffle):
     with tempfile.TemporaryDirectory() as root:
-        paths = [os.path.join(root, f"data{i}.rec") for i in range(3)]
+        paths = [os.path.join(root, f"data{i}.rec") for i in range(4)]
         for i, path in enumerate(paths):
             payload = _recordio_header() + bytes([i]) * 4
             with open(path, "wb") as f:
@@ -523,7 +523,7 @@ def test_recordio_reader_index_skips_files(use_mmap, shuffle):
         record_size = 8 + len(payload)
         index = os.path.join(root, "data.idx")
         with open(index, "w") as f:
-            f.write(f"0 0\n1 {2 * record_size}\n")
+            f.write(f"0 0\n1 {2 * record_size}\n2 {3 * record_size}\n")
 
         @pipeline_def(batch_size=1, device_id=None, num_threads=1)
         def pipe():
@@ -537,18 +537,29 @@ def test_recordio_reader_index_skips_files(use_mmap, shuffle):
             )
 
         p = pipe()
-        # The first record includes the skipped file; the final record belongs to file 2.
+        # The intermediate record jumps across file 1; the final record belongs to file 3.
         for _ in range(2):
             observed = []
-            for _ in range(2):
+            for _ in range(3):
                 images, _ = p.run()
                 observed.append(images.at(0).copy())
-            assert sorted(int(image[0]) for image in observed) == [0, 2]
+            assert sorted(int(image[0]) for image in observed) == [0, 2, 3]
             for image in observed:
                 np.testing.assert_array_equal(image, np.full(4, image[0], dtype=np.uint8))
 
 
-@cartesian_params((False, True), (False, True), ("", "0", "0 invalid", "invalid 0"))
+@cartesian_params(
+    (False, True),
+    (False, True),
+    (
+        "",
+        "0",
+        "0 invalid",
+        "invalid 0",
+        "0 0\n1 999999999999999999999999",
+        "0 0\n999999999999999999999999",
+    ),
+)
 def test_recordio_reader_rejects_malformed_index(use_mmap, shuffle, index_contents):
     with tempfile.TemporaryDirectory() as root:
         path = os.path.join(root, "data.rec")

@@ -72,22 +72,23 @@ class RecordIOLoader : public IndexedFileLoader {
         "Could not open RecordIO index file. Provided path: \"" + path + "\"");
     std::vector<size_t> temp;
     size_t index, offset;
-    while (fin >> index) {
-      if (!(fin >> offset)) {
+    size_t entry_number = 0;
+    while (true) {
+      fin >> std::ws;
+      if (fin.eof())
+        break;
+      ++entry_number;
+      if (!(fin >> index >> offset)) {
         throw std::runtime_error(make_string(
-            "Invalid RecordIO index entry in ", path,
-            "; expected an integer offset after record ID ", index, "."));
+            "Invalid RecordIO index entry ", entry_number, " in ", path,
+            "; expected two integers (record ID and offset)."));
       }
       if (offset >= file_offsets.back()) {
-        throw std::runtime_error(make_string("RecordIO index offset out of bounds: ",
-                                             offset, " (dataset size: ", file_offsets.back(),
-                                             " bytes; expected an offset within the dataset)."));
+        throw std::runtime_error(make_string(
+            "RecordIO index offset out of bounds at entry ", entry_number, " in ", path,
+            ": got ", offset, " bytes, expected less than ", file_offsets.back(), " bytes."));
       }
       temp.push_back(offset);
-    }
-    if (!fin.eof()) {
-      throw std::runtime_error(make_string(
-          "Invalid RecordIO index entry in ", path, "; expected an integer record ID."));
     }
     DALI_ENFORCE(!temp.empty(),
       make_string("RecordIO index file doesn't contain any indices. Provided path: \"",
@@ -96,7 +97,7 @@ class RecordIOLoader : public IndexedFileLoader {
     std::sort(temp.begin(), temp.end());
     for (size_t i = 0; i < temp.size(); ++i) {
       auto next_offset = i + 1 < temp.size() ? temp[i + 1] : file_offsets.back();
-      auto size = next_offset - temp[i];
+      int64_t size = next_offset - temp[i];
       // Skip duplicate offsets. Locate each record independently, including the last one:
       // an index can skip entire files, and records can span file boundaries.
       if (size) {
