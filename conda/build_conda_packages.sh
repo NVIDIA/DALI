@@ -10,7 +10,7 @@ if [ -z "${CUDA_VERSION_MAJOR}" ]; then
   exit 1
 fi
 if [ "${CUDA_VERSION_MAJOR}" -eq 13 ]; then
-  export METAL_YAML=linux_64_c_stdlib_version2.28cuda_compiler_version13.0cxx_compiler_version15.yaml
+  export METAL_YAML=linux_64_c_stdlib_version2.28cuda_compiler_version13.4cxx_compiler_version15.yaml
 elif [ "${CUDA_VERSION_MAJOR}" -eq 12 ]; then
   export METAL_YAML=linux_64_c_stdlib_version2.17cuda_compiler_version12.9cxx_compiler_version14.yaml
 else
