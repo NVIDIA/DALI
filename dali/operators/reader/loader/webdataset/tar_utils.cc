@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <list>
+#include <stdexcept>
 #include <string>
 #include <tuple>
 #include <utility>
@@ -95,10 +96,15 @@ static tartype_t kTarArchiveType = {LibtarOpenTarArchive, [](int) -> int { retur
 
 TarArchive::TarArchive(std::unique_ptr<FileStream> stream)
     : stream_(std::move(stream)), instance_handle_(Register(this)) {
-  tar_open(ToTarHandle(&handle_), "", &kTarArchiveType, 0, instance_handle_, TAR_GNU);
-  stream_->SeekRead(0);
-  eof_ = stream_->Size() == 0;
-  ParseHeader();
+  try {
+    tar_open(ToTarHandle(&handle_), "", &kTarArchiveType, 0, instance_handle_, TAR_GNU);
+    stream_->SeekRead(0);
+    eof_ = stream_->Size() == 0;
+    ParseHeader();
+  } catch (...) {
+    Release();
+    throw;
+  }
 }
 
 TarArchive::TarArchive(TarArchive&& other) {
@@ -247,6 +253,24 @@ inline void TarArchive::ParseHeader() {
        * entries, and skip when reading data.
        */
        filetype_ = ENTRY_UNKNOWN;
+    }
+    // POSIX link, directory and device entries have no payload, regardless of the size field.
+    // Normalize their size so NextFile does not skip bytes belonging to the next header.
+    if (filetype_ != ENTRY_FILE && filetype_ != ENTRY_UNKNOWN) {
+      filesize_ = 0;
+    } else {
+      const auto data_offset = stream_->TellRead();
+      const auto archive_size = stream_->Size();
+      const bool valid_offset = data_offset >= 0 &&
+                                static_cast<uint64_t>(data_offset) <= archive_size;
+      const auto available_bytes = valid_offset ? archive_size - data_offset : 0;
+      if (!valid_offset || filesize_ > available_bytes) {
+        throw std::runtime_error(
+            make_string("Corrupted tar file ", stream_->path(), ": entry ", filename_,
+                        " declares ", filesize_, " bytes, but only ", available_bytes,
+                        " bytes are available at offset ", data_offset,
+                        "; the entry extends beyond the archive."));
+      }
     }
   }
   readoffset_ = 0;
