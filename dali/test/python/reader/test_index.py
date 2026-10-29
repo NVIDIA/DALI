@@ -486,3 +486,67 @@ def test_wrong_feature_type():
     tfrecord_idx = os.path.join(get_dali_extra_path(), "db", "tfrecord", "train.idx")
     pipe = tfrecord_pipe(fn.readers.tfrecord, tfrecord, tfrecord_idx)
     pipe.run()
+
+
+@cartesian_params((False, True), (False, True), (-1, 32, 33, 1 << 63))
+def test_recordio_reader_rejects_invalid_index_offset(dont_use_mmap, shuffle, offset):
+    with tempfile.TemporaryDirectory() as root:
+        path = os.path.join(root, "data.rec")
+        index = os.path.join(root, "data.idx")
+        with open(path, "wb") as f:
+            f.write(bytes(32))
+        with open(index, "w") as f:
+            f.write(f"0 {offset}\n")
+
+        @pipeline_def(batch_size=1, device_id=None, num_threads=1)
+        def pipe():
+            return tuple(
+                fn.readers.mxnet(
+                    path=path,
+                    index_path=index,
+                    dont_use_mmap=dont_use_mmap,
+                    shuffle_after_epoch=shuffle,
+                )
+            )
+
+        assert_raises(
+            RuntimeError, pipe().run, glob="*RecordIO index offset out of bounds*"
+        )
+
+
+@cartesian_params((False, True), (False, True))
+def test_recordio_reader_index_skips_files(dont_use_mmap, shuffle):
+    with tempfile.TemporaryDirectory() as root:
+        paths = [os.path.join(root, f"data{i}.rec") for i in range(3)]
+        for i, path in enumerate(paths):
+            payload = _recordio_header() + bytes([i]) * 4
+            with open(path, "wb") as f:
+                f.write(_recordio_record(len(payload), payload))
+        record_size = 8 + len(payload)
+        index = os.path.join(root, "data.idx")
+        with open(index, "w") as f:
+            f.write(f"0 0\n1 {2 * record_size}\n")
+
+        @pipeline_def(batch_size=1, device_id=None, num_threads=1)
+        def pipe():
+            return tuple(
+                fn.readers.mxnet(
+                    path=paths,
+                    index_path=index,
+                    dont_use_mmap=dont_use_mmap,
+                    shuffle_after_epoch=shuffle,
+                )
+            )
+
+        p = pipe()
+        # The first record includes the skipped file; the final record belongs to file 2.
+        for _ in range(2):
+            observed = []
+            for _ in range(2):
+                images, _ = p.run()
+                observed.append(images.at(0).copy())
+            assert sorted(int(image[0]) for image in observed) == [0, 2]
+            for image in observed:
+                np.testing.assert_array_equal(
+                    image, np.full(4, image[0], dtype=np.uint8)
+                )

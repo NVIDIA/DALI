@@ -16,7 +16,9 @@
 #define DALI_OPERATORS_READER_LOADER_RECORDIO_LOADER_H_
 
 #include <algorithm>
+#include <limits>
 #include <memory>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -43,7 +45,12 @@ class RecordIOLoader : public IndexedFileLoader {
       opts.use_mmap = !copy_read_data_;
       opts.use_odirect = false;
       auto tmp = FileStream::Open(path, opts);
-      file_offsets.push_back(tmp->Size() + file_offsets.back());
+      auto file_size = tmp->Size();
+      if (file_size > static_cast<size_t>(std::numeric_limits<int64_t>::max()) -
+                          file_offsets.back()) {
+        throw std::runtime_error("RecordIO data files are too large");
+      }
+      file_offsets.push_back(file_size + file_offsets.back());
       tmp->Close();
     }
     DALI_ENFORCE(index_paths.size() == 1,
@@ -61,32 +68,37 @@ class RecordIOLoader : public IndexedFileLoader {
     DALI_ENFORCE(fin.good(),
         "Could not open RecordIO index file. Provided path: \"" + path + "\"");
     std::vector<size_t> temp;
-    size_t index, offset, prev_offset = -1;
-    while (fin >> index >> offset) {
+    size_t index, offset;
+    while (fin >> index) {
+      if (!(fin >> offset)) {
+        throw std::runtime_error("Invalid RecordIO index entry in " + path);
+      }
+      if (offset >= file_offsets.back()) {
+        throw std::runtime_error(make_string("RecordIO index offset out of bounds: ",
+                                             offset, " (dataset size: ", file_offsets.back(), ")"));
+      }
       temp.push_back(offset);
+    }
+    if (!fin.eof()) {
+      throw std::runtime_error("Invalid RecordIO index entry in " + path);
     }
     DALI_ENFORCE(!temp.empty(),
       make_string("RecordIO index file doesn't contain any indices. Provided path: \"",
                   path, "\""));
 
     std::sort(temp.begin(), temp.end());
-    size_t file_offset_index = 0;
-    for (size_t i = 0; i < temp.size() - 1; ++i) {
-      if (temp[i] >= file_offsets[file_offset_index + 1]) {
-        ++file_offset_index;
-      }
-      int64_t size = temp[i + 1] - temp[i];
-      // skip 0 sized images
+    for (size_t i = 0; i < temp.size(); ++i) {
+      auto next_offset = i + 1 < temp.size() ? temp[i + 1] : file_offsets.back();
+      auto size = next_offset - temp[i];
+      // Skip duplicate offsets. Locate each record independently, including the last one:
+      // an index can skip entire files, and records can span file boundaries.
       if (size) {
+        auto file_offset_index =
+            std::upper_bound(file_offsets.begin(), file_offsets.end(), temp[i]) -
+            file_offsets.begin() - 1;
         indices_.emplace_back(temp[i] - file_offsets[file_offset_index],
                               size, file_offset_index);
       }
-    }
-    int64_t size = file_offsets.back() - temp.back();
-    // skip 0 sized images
-    if (size) {
-      indices_.emplace_back(temp.back() - file_offsets[file_offset_index],
-                            size, file_offset_index);
     }
   }
 
