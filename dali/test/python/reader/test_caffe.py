@@ -188,7 +188,7 @@ def _tensor_protos_bytes_label_weighted_indices_out_of_bounds():
     # indices: dims=[1], INT32, int32_data=[999]
     tp0 = bytes([0x08, 0x01, 0x10, 0x02, 0x22, 0x02, 0xE7, 0x07])
     # weights: dims=[1], FLOAT, float_data=[1.0] (4 bytes LE)
-    tp1 = bytes([0x08, 0x01, 0x10, 0x01, 0x22, 0x04, 0x00, 0x00, 0x80, 0x3F])
+    tp1 = bytes([0x08, 0x01, 0x10, 0x01, 0x1A, 0x04, 0x00, 0x00, 0x80, 0x3F])
     return bytes([0x0A, len(tp0)]) + tp0 + bytes([0x0A, len(tp1)]) + tp1
 
 
@@ -309,6 +309,11 @@ def _run_caffe2(record, **kwargs):
     (_record(_image, _label), {"additional_inputs": 1}, "*missing additional tensors*"),
     (_record(_image, _label), {"label_type": 3}, "*missing tensor 2*"),
     (_record(_image, _label, b"\x10\x01"), {"label_type": 3}, "*one float value*"),
+    (
+        _record(_image, b"\x10\x02", b"\x10\x01\x1a\x04\x00\x00\x80\x3f"),
+        {"label_type": 3},
+        "*expected 0 floats*got 1 floats*",
+    ),
 )
 def test_caffe2_rejects_incomplete_tensor_fields(record, kwargs, message):
     assert_raises(RuntimeError, _run_caffe2, record, glob=message, **kwargs)
