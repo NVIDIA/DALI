@@ -1,6 +1,3 @@
-ci:
-  skip: [guardwords-scan-code-scanning]
-
 repos:
   - repo: https://github.com/NVIDIA/security-workflows
     # GuardWords was added after v0.4.0 (NVIDIA/security-workflows#24).
