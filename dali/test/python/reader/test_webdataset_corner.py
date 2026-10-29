@@ -312,6 +312,8 @@ def test_invalid_mapping(use_mmap):
             f.write(bytes(1024))
         with open(index, "w") as f:
             f.write("v1.2 1\nbin 512 1024 sample.bin\n")
-        message = "*requested range is outside*" if use_mmap else "*Error reading from a file*"
+        message = (
+            "*Could not map WebDataset component*" if use_mmap else "*Error reading from a file*"
+        )
         with assert_raises(RuntimeError, glob=message):
             run_reader(archive, index, use_mmap)
