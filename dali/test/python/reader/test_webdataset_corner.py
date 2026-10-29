@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import math
-from nvidia.dali import fn, pipeline_def, types
 from nose2.tools import params
 import nvidia.dali as dali
 import os
@@ -288,10 +287,10 @@ def test_index_errors():
     )
 
 
-def run_component_range_reader(archive, index, use_mmap, dtype=types.UINT8):
-    @pipeline_def(batch_size=1, num_threads=1, device_id=None, prefetch_queue_depth=1)
+def run_component_range_reader(archive, index, use_mmap, dtype=dali.types.UINT8):
+    @dali.pipeline_def(batch_size=1, num_threads=1, device_id=None, prefetch_queue_depth=1)
     def pipeline():
-        return fn.readers.webdataset(
+        return dali.fn.readers.webdataset(
             paths=[archive],
             index_paths=[index] if index else [],
             ext=["bin"],
@@ -326,7 +325,7 @@ def test_invalid_component_range(use_mmap, offset, size):
         with open(index, "w") as f:
             f.write(f"v1.2 1\nbin {offset} {size} sample.bin\n")
         with assert_raises(RuntimeError, glob="*offset or size is outside*"):
-            run_component_range_reader(archive, index, use_mmap, types.FLOAT)
+            run_component_range_reader(archive, index, use_mmap, dali.types.FLOAT)
 
 
 @params(*[(use_mmap, size) for use_mmap in (False, True) for size in (0, 4)])
