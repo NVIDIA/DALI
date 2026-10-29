@@ -12,17 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import math
 import io
-import tarfile
-from nvidia.dali import fn, pipeline_def, types
-from nose2.tools import params
-import nvidia.dali as dali
+import math
 import os
+import tarfile
 import tempfile
 from glob import glob
-from nose_utils import assert_equals, assert_raises
 
+from nose2.tools import params
+import nvidia.dali as dali
+from nvidia.dali import fn, pipeline_def, types
+
+from nose_utils import assert_equals, assert_raises
 import webdataset_base as base
 from test_utils import compare_pipelines, get_dali_extra_path
 
@@ -290,12 +291,12 @@ def test_index_errors():
     )
 
 
-def run_tar_size_reader(archive, index, use_mmap, dtype=types.UINT8):
+def run_tar_size_reader(archive, use_mmap, dtype=types.UINT8):
     @pipeline_def(batch_size=1, num_threads=1, device_id=None, prefetch_queue_depth=1)
     def pipeline():
         return fn.readers.webdataset(
             paths=[archive],
-            index_paths=[index] if index else [],
+            index_paths=[],
             ext=["bin"],
             dtypes=[dtype],
             dont_use_mmap=not use_mmap,
@@ -328,7 +329,7 @@ def test_invalid_tar_entry_size(use_mmap, size):
             "the entry extends beyond the archive.*"
         )
         with assert_raises(RuntimeError, glob=message):
-            run_tar_size_reader(archive, None, use_mmap, types.FLOAT)
+            run_tar_size_reader(archive, use_mmap, types.FLOAT)
 
 
 @params(False, True)
@@ -338,7 +339,7 @@ def test_repeated_invalid_tar_first_entry(use_mmap):
         write_invalid_tar(archive, 2048)
         for _ in range(32):
             with assert_raises(RuntimeError, glob="*extends beyond the archive.*"):
-                run_tar_size_reader(archive, None, use_mmap)
+                run_tar_size_reader(archive, use_mmap)
 
 
 @params(False, True)
@@ -349,4 +350,36 @@ def test_valid_tar(use_mmap):
             info = tarfile.TarInfo("sample.bin")
             info.size = 4
             tar.addfile(info, io.BytesIO(bytes(range(4))))
-        assert run_tar_size_reader(archive, None, use_mmap).tolist() == [[0, 1, 2, 3]]
+        assert run_tar_size_reader(archive, use_mmap).tolist() == [[0, 1, 2, 3]]
+
+
+@params(
+    *[
+        (use_mmap, kind)
+        for use_mmap in (False, True)
+        for kind in (
+            tarfile.LNKTYPE,
+            tarfile.SYMTYPE,
+            tarfile.DIRTYPE,
+            tarfile.CHRTYPE,
+            tarfile.BLKTYPE,
+            tarfile.FIFOTYPE,
+        )
+    ]
+)
+def test_tar_non_data_entry_ignores_size(use_mmap, kind):
+    with tempfile.TemporaryDirectory() as tmp:
+        archive = os.path.join(tmp, "data.tar")
+        entry = tarfile.TarInfo("metadata")
+        entry.type = kind
+        entry.linkname = "sample.bin"
+        entry.size = 8**11 - 1
+        sample = tarfile.TarInfo("sample.bin")
+        sample.size = 4
+        # These entry types carry no data blocks, even when their size field is nonzero.
+        with open(archive, "wb") as f:
+            f.write(entry.tobuf())
+            f.write(sample.tobuf())
+            f.write(bytes(range(4)) + bytes(508))
+            f.write(bytes(1024))
+        assert run_tar_size_reader(archive, use_mmap).tolist() == [[0, 1, 2, 3]]

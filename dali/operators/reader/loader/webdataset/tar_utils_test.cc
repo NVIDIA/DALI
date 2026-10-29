@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,6 +17,8 @@
 #include <gtest/gtest.h>
 #include <libtar.h>
 #include <algorithm>
+#include <cstdio>
+#include <cstring>
 #include <future>
 #include <memory>
 #include <string>
@@ -30,6 +32,44 @@
 
 namespace dali {
 namespace detail {
+
+TEST(LibTarUtilsTest, ReadsPayloadWithoutBlockPadding) {
+  class MemoryFileStream : public FileStream {
+   public:
+    explicit MemoryFileStream(const std::string &data)
+        : FileStream("memory.tar"), stream_(data.data(), data.size()) {}
+    size_t Read(void *buf, size_t n) override { return stream_.Read(buf, n); }
+    void SeekRead(ptrdiff_t pos, int whence) override { stream_.SeekRead(pos, whence); }
+    ssize_t TellRead() const override { return stream_.TellRead(); }
+    size_t Size() const override { return stream_.Size(); }
+    void Close() override {}
+
+   private:
+    MemInputStream stream_;
+  };
+
+  tar_header header = {};
+  std::memcpy(header.name, "sample.bin", 10);
+  std::memcpy(header.magic, "ustar", 5);
+  std::memcpy(header.version, "00", 2);
+  header.typeflag = REGTYPE;
+  std::snprintf(header.size, sizeof(header.size), "%011o", 4);
+  std::memset(header.chksum, ' ', sizeof(header.chksum));
+  unsigned checksum = 0;
+  auto *raw_header = reinterpret_cast<const unsigned char *>(&header);
+  for (int i = 0; i < T_BLOCKSIZE; i++)
+    checksum += raw_header[i];
+  std::snprintf(header.chksum, sizeof(header.chksum), "%06o", checksum);
+  header.chksum[7] = ' ';
+  std::string data(reinterpret_cast<const char *>(&header), T_BLOCKSIZE);
+  data += "abcd";
+
+  TarArchive archive(std::make_unique<MemoryFileStream>(data));
+  ASSERT_EQ(archive.GetFileSize(), 4u);
+  char actual[4];
+  ASSERT_EQ(archive.Read(actual, sizeof(actual)), sizeof(actual));
+  EXPECT_EQ(std::string(actual, sizeof(actual)), "abcd");
+}
 
 TEST(LibTarUtilsTestSimple, Interface) {
   std::string filepath(dali::filesystem::join_path(testing::dali_extra_path(),

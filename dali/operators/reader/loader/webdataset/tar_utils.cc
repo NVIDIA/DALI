@@ -231,18 +231,6 @@ inline void TarArchive::ParseHeader() {
   } else {
     filename_ = th_get_pathname(ToTarHandle(handle_));
     filesize_ = th_get_size(ToTarHandle(handle_));
-    const auto data_offset = stream_->TellRead();
-    const auto archive_size = stream_->Size();
-    const bool valid_offset = data_offset >= 0 &&
-                              static_cast<uint64_t>(data_offset) <= archive_size;
-    const auto available_bytes = valid_offset ? archive_size - data_offset : 0;
-    if (!valid_offset || filesize_ > available_bytes) {
-      throw std::runtime_error(
-          make_string("Corrupted tar file ", stream_->path(), ": entry ", filename_,
-                      " declares ", filesize_, " bytes, but only ", available_bytes,
-                      " bytes are available at offset ", data_offset,
-                      "; the entry extends beyond the archive."));
-    }
 
     if (TH_ISREG(ToTarHandle(handle_))) {
       filetype_ = ENTRY_FILE;
@@ -265,6 +253,24 @@ inline void TarArchive::ParseHeader() {
        * entries, and skip when reading data.
        */
        filetype_ = ENTRY_UNKNOWN;
+    }
+    // POSIX link, directory and device entries have no payload, regardless of the size field.
+    // Normalize their size so NextFile does not skip bytes belonging to the next header.
+    if (filetype_ != ENTRY_FILE && filetype_ != ENTRY_UNKNOWN) {
+      filesize_ = 0;
+    } else {
+      const auto data_offset = stream_->TellRead();
+      const auto archive_size = stream_->Size();
+      const bool valid_offset = data_offset >= 0 &&
+                                static_cast<uint64_t>(data_offset) <= archive_size;
+      const auto available_bytes = valid_offset ? archive_size - data_offset : 0;
+      if (!valid_offset || filesize_ > available_bytes) {
+        throw std::runtime_error(
+            make_string("Corrupted tar file ", stream_->path(), ": entry ", filename_,
+                        " declares ", filesize_, " bytes, but only ", available_bytes,
+                        " bytes are available at offset ", data_offset,
+                        "; the entry extends beyond the archive."));
+      }
     }
   }
   readoffset_ = 0;
