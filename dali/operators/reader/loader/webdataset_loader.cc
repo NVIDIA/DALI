@@ -367,9 +367,11 @@ void WebdatasetLoader::ReadSample(vector<Tensor<CPUBackend>>& sample) {
                    "Error reading from a file " + paths_[current_sample.wds_shard_index]);
     } else {
       auto data = current_wds_shard->Get(component.size);
-      DALI_ENFORCE(data != nullptr,
-                   make_string("Could not map component from ", GetSampleSource(current_sample),
-                               ": requested range is outside of the archive file"));
+      if (!data) {
+        throw std::runtime_error(make_string("Could not map component from ",
+                       GetSampleSource(current_sample),
+                       ": requested range is outside of the archive file"));
+      }
       for (auto& output : component.outputs) {
         sample[output].SetMeta(meta);
         sample[output].ShareData(
