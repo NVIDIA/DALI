@@ -351,7 +351,7 @@ TEST_F(FramesDecoderTest_CpuOnlyTests, IndexerIsValidForTheSameFilesAsTheDecoder
   const std::string video_dir = make_string(testing::dali_extra_path(), "/db/video");
   for (const auto &path : {make_string(video_dir, "/nonexistent.mp4"),
                            make_string(video_dir, "/corrupted/audio_only.mp4"),
-                           cfr_videos_paths_[0], make_string(video_dir, "/vp9/vp9_0.mp4")}) {
+                           cfr_mpeg4_videos_paths_[0], make_string(video_dir, "/vp9/vp9_0.mp4")}) {
     SCOPED_TRACE(path);
     FramesDecoderCpu decoder(path);
     FramesIndexer indexer(path, FramesDecoderCpu::IsCodecSupported);
