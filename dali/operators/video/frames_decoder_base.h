@@ -460,6 +460,11 @@ class DLL_PUBLIC FramesDecoderBase {
 
   void ParseNumFrames();
 
+  /**
+   * @brief Returns the error that made av_read_frame return `ret`, or 0 at the end of the file.
+   */
+  int ReadFrameError(int ret) const;
+
   bool IsFormatSeekable();
 
   std::string GetAllStreamInfo() const;

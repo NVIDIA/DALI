@@ -94,7 +94,12 @@ int read_input_stream(void *data_ptr, uint8_t *av_io_buffer, int av_io_buffer_si
     if (left <= 0)
       return AVERROR_EOF;
     size_t n = stream->Read(av_io_buffer, std::min<ssize_t>(left, av_io_buffer_size));
-    return n > 0 ? static_cast<int>(n) : AVERROR_EOF;
+    if (n == 0) {
+      // Reported as the end of the file, this would silently truncate the video.
+      DALI_WARN("Error while reading video data: the stream ended before its reported size.");
+      return AVERROR(EIO);
+    }
+    return static_cast<int>(n);
   } catch (const std::exception &e) {
     DALI_WARN(make_string("Error while reading video data: ", e.what()));
     return AVERROR(EIO);
@@ -137,6 +142,12 @@ namespace {
 bool IsRemotePath(const std::string &path) {
   auto uri = URI::Parse(path, URI::ParseOpts::AllowNonEscaped);
   return uri.valid() && uri.scheme() != "file";
+}
+
+void ValidateImageType(DALIImageType image_type) {
+  DALI_ENFORCE(image_type == DALI_YCbCr || image_type == DALI_RGB,
+               make_string("Unsupported `image_type`: ", to_string(image_type),
+                           ". Supported values are DALI_RGB and DALI_YCbCr."));
 }
 
 }  // namespace
@@ -305,8 +316,7 @@ bool FramesDecoderBase::CheckDimensions() {
 
 FramesDecoderBase::FramesDecoderBase(const std::string &filename, DALIImageType image_type) {
   filename_ = filename;
-  DALI_ENFORCE(image_type == DALI_YCbCr || image_type == DALI_RGB,
-               make_string("Invalid image type: ", image_type));
+  ValidateImageType(image_type);
   image_type_ = image_type;
   int ret = -1;
   if (IsRemotePath(filename)) {
@@ -331,8 +341,7 @@ FramesDecoderBase::FramesDecoderBase(const std::string &filename, DALIImageType 
 
 FramesDecoderBase::FramesDecoderBase(const char *memory_file, size_t memory_file_size, std::string_view source_info, DALIImageType image_type) {
   filename_ = source_info;
-  DALI_ENFORCE(image_type == DALI_YCbCr || image_type == DALI_RGB,
-               make_string("Invalid image type: ", image_type));
+  ValidateImageType(image_type);
   image_type_ = image_type;
   memory_video_file_ = std::make_unique<MemoryVideoFile>(memory_file, memory_file_size);
   int ret = OpenMemoryFile(*memory_video_file_);
@@ -352,26 +361,34 @@ FramesDecoderBase::FramesDecoderBase(const char *memory_file, size_t memory_file
 
 FramesDecoderBase::FramesDecoderBase(std::unique_ptr<InputStream> stream,
                                      std::string_view source_info, DALIImageType image_type) {
-  av_log_set_level(AV_LOG_ERROR);
   filename_ = source_info;
-  DALI_ENFORCE(stream, "The input stream must not be null");
-  DALI_ENFORCE(image_type == DALI_YCbCr || image_type == DALI_RGB,
-               make_string("Invalid image type: ", image_type));
+  DALI_ENFORCE(stream, "The `stream` argument must not be null.");
+  ValidateImageType(image_type);
   image_type_ = image_type;
   input_stream_ = std::move(stream);
   int ret = OpenInputStream(*input_stream_);
   if (ret < 0) {
     DALI_WARN(make_string("Failed to open video file \"", Filename(), "\" due to: ",
-                          av_error_string(ret)));
+                          av_error_string(ret), "."));
     return;
   }
 
   packet_.reset(av_packet_alloc());
-  DALI_ENFORCE(packet_, "Could not allocate av packet");
+  DALI_ENFORCE(packet_, "Could not allocate an AVPacket.");
 
   is_valid_ = true;
   can_seek_ = true;
   next_frame_idx_ = 0;
+}
+
+int FramesDecoderBase::ReadFrameError(int ret) const {
+  if (ret != AVERROR_EOF)
+    return ret;
+  // A failed read also sets the end-of-file flag of the I/O context, and some demuxers check
+  // only that flag - the error is still recorded in the context, though.
+  if (ctx_->pb && ctx_->pb->error < 0)
+    return ctx_->pb->error;
+  return 0;
 }
 
 void FramesDecoderBase::ParseNumFrames() {
@@ -380,6 +397,11 @@ void FramesDecoderBase::ParseNumFrames() {
     int ret = av_read_frame(ctx_, packet_);
     auto packet = AVPacketScope(packet_, av_packet_unref);
     if (ret != 0) {
+      if (int err = ReadFrameError(ret)) {
+        num_frames_ = -1;
+        DALI_FAIL(make_string("Failed to read video file \"", Filename(),
+                              "\" while counting its frames: ", av_error_string(err), "."));
+      }
       break;  // End of file
     }
 
@@ -431,6 +453,13 @@ void FramesDecoderBase::BuildIndex() {
     int ret = av_read_frame(ctx_, packet_);
     auto packet = AVPacketScope(packet_, av_packet_unref);
     if (ret != 0) {
+      if (int err = ReadFrameError(ret)) {
+        // Only the whole file makes a valid index - a partial one would drop the remaining frames.
+        index_.index.clear();
+        num_frames_ = -1;
+        DALI_FAIL(make_string("Failed to read video file \"", Filename(),
+                              "\" while building its frame index: ", av_error_string(err), "."));
+      }
       LOG_LINE << "End of file reached after " << frame_count << " frames" << std::endl;
       break;  // Just break when we hit EOF instead of trying to seek back
     }
