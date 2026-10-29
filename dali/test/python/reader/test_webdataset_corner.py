@@ -1,4 +1,4 @@
-# Copyright (c) 2021-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2021-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import math
+from nose2.tools import params
 import nvidia.dali as dali
 import os
 import tempfile
@@ -243,7 +244,7 @@ def general_index_error(
         index_file.name,
         ext,
         batch_size=1,
-        device_id=0,
+        device_id=None,
         num_threads=1,
     )
     webdataset_pipeline.run()
@@ -282,5 +283,58 @@ def test_index_errors():
         general_index_error,
         b"v1.1 1\njpg 51200 1",
         "db/webdataset/sample-tar/empty.tar",
-        glob="offset is outside of the archive file",
+        glob="offset or size is outside of the archive file",
     )
+
+
+def run_component_range_reader(archive, index, use_mmap, dtype=dali.types.UINT8):
+    @dali.pipeline_def(batch_size=1, num_threads=1, device_id=None, prefetch_queue_depth=1)
+    def pipeline():
+        return dali.fn.readers.webdataset(
+            paths=[archive],
+            index_paths=[index] if index else [],
+            ext=["bin"],
+            dtypes=[dtype],
+            dont_use_mmap=not use_mmap,
+            random_shuffle=False,
+            initial_fill=1,
+        )
+
+    return pipeline().run()[0].as_array()
+
+
+@params(
+    *[
+        (mmap, offset, size)
+        for mmap in (False, True)
+        for offset, size in (
+            (512, 2**64 - 4),
+            (512, 2**64 - 512),
+            (-512, 4),
+            (512, 1028),
+            (2048, 4),
+        )
+    ]
+)
+def test_invalid_component_range(use_mmap, offset, size):
+    with tempfile.TemporaryDirectory() as tmp:
+        archive = os.path.join(tmp, "data.tar")
+        index = os.path.join(tmp, "data.idx")
+        with open(archive, "wb") as f:
+            f.write(bytes(1024))
+        with open(index, "w") as f:
+            f.write(f"v1.2 1\nbin {offset} {size} sample.bin\n")
+        with assert_raises(RuntimeError, glob="*offset or size is outside*"):
+            run_component_range_reader(archive, index, use_mmap, dali.types.FLOAT)
+
+
+@params(*[(use_mmap, size) for use_mmap in (False, True) for size in (0, 4)])
+def test_component_ending_at_eof(use_mmap, size):
+    with tempfile.TemporaryDirectory() as tmp:
+        archive = os.path.join(tmp, "data.tar")
+        index = os.path.join(tmp, "data.idx")
+        with open(archive, "wb") as f:
+            f.write(bytes(512) + bytes(range(size)))
+        with open(index, "w") as f:
+            f.write(f"v1.2 1\nbin 512 {size} sample.bin\n")
+        assert run_component_range_reader(archive, index, use_mmap).tolist() == [list(range(size))]
