@@ -323,9 +323,8 @@ void COCOReader::PixelwiseMasks(int image_idx, int* mask) {
     frPoly[label].push_back(M);
   }
 
-  // Reserve run-length encodings by labels
-  RLE* R;
-  rlesInit(&R, *labels.rbegin() + 1);
+  // Category IDs need not be nonnegative or contiguous array indices.
+  std::map<int, RLE> R;
 
   // Mask was originally described in RLE format
   for (uint ann_id = 0 ; ann_id < masks_info.mask_indices.size(); ann_id++) {
@@ -435,7 +434,8 @@ void COCOReader::PixelwiseMasks(int image_idx, int* mask) {
     }
 
   // Destroy RLEs
-  rlesFree(&R, *labels.rbegin() + 1);
+  for (auto &rle : R)
+    rleFree(&rle.second);
   for (auto rles : frPoly)
     for (auto &rle : rles.second)
       rleFree(&rle);
