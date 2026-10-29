@@ -101,11 +101,22 @@ void NumpyLoader::ReadSample(NumpyFileWrapper& target) {
 
   auto payload_bytes = header.nbytes();
   auto file_size = current_file->Size();
-  if (payload_bytes > static_cast<size_t>(std::numeric_limits<Index>::max()) ||
-      header.data_offset < 0 || static_cast<uint64_t>(header.data_offset) > file_size ||
-      payload_bytes > file_size - header.data_offset) {
+  auto max_payload = static_cast<size_t>(std::numeric_limits<Index>::max());
+  if (payload_bytes > max_payload) {
     throw std::runtime_error(make_string(
-        "Numpy array payload exceeds the available file data: ", filename));
+        "Numpy array payload exceeds the supported size: ", filename, "; requested ",
+        payload_bytes, " bytes, maximum ", max_payload, " bytes."));
+  }
+  if (header.data_offset < 0 || static_cast<uint64_t>(header.data_offset) > file_size) {
+    throw std::runtime_error(make_string(
+        "Numpy array data offset is outside the file: ", filename, "; offset ",
+        header.data_offset, " bytes, file size ", file_size, " bytes."));
+  }
+  auto available_bytes = file_size - header.data_offset;
+  if (payload_bytes > available_bytes) {
+    throw std::runtime_error(make_string(
+        "Numpy array payload exceeds the available file data: ", filename, "; requested ",
+        payload_bytes, " bytes, available ", available_bytes, " bytes."));
   }
   Index nbytes = payload_bytes;
   target.shape = header.shape;
