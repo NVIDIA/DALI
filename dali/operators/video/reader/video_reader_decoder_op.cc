@@ -14,6 +14,7 @@
 
 #include <algorithm>
 #include <exception>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <shared_mutex>
@@ -106,7 +107,7 @@ struct VideoFileIndex {
  * @param cached The index of the file taken from the cache, or null if it is not cached.
  */
 static VideoFileIndex IndexVideoFile(const std::string &filename,
-                                     bool (*is_codec_supported)(AVCodecID),
+                                     const FramesIndexer::CodecCheck &is_codec_supported,
                                      DALIImageType image_type,
                                      std::shared_ptr<const FrameIndex> cached) {
   VideoFileIndex result;
@@ -340,31 +341,32 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
     }
 
     std::vector<VideoFileIndex> results(filenames.size());
+    const int num_workers = std::min<int>(num_threads_, filenames.size());
+    const bool parallel = num_workers > 1 && filenames.size() >= kMinFilesForParallelIndex;
+
+    // The codec check of the GPU decoder queries NVDEC (cuvidGetDecoderCaps), which needs the CUDA
+    // context of the calling thread, and the threads of the pool have none. So, for the parallel
+    // path, the capabilities are queried here, once, and the threads only look them up. The
+    // serial path does the query lazily, as the decoder does, and only for the codecs it meets.
+    FramesIndexer::CodecCheck is_codec_supported = FramesDecoderImpl::IsCodecSupported;
+    if (parallel)
+      is_codec_supported = FramesDecoderImpl::MakeCodecCheck();
+
     auto index_file = [&](size_t i) {
-      results[i] = IndexVideoFile(filenames[i], FramesDecoderImpl::IsCodecSupported, image_type_,
+      results[i] = IndexVideoFile(filenames[i], is_codec_supported, image_type_,
                                   std::move(cached[i]));
     };
 
-    // The GPU backend indexes on the calling thread: FramesDecoderGpu::IsCodecSupported queries
-    // the decoder capabilities (cuvidGetDecoderCaps), which probably needs a CUDA context that
-    // is current on the calling thread only.
-    const int num_workers = std::min<int>(num_threads_, filenames.size());
-    bool indexed = false;
-    if constexpr (std::is_same_v<Backend, CPUBackend>) {
-      if (num_workers > 1 && filenames.size() >= kMinFilesForParallelIndex) {
-        // A transient pool, destroyed on return: this runs in the constructor of the operator,
-        // before the pool of the pipeline is available. It has no device, so its threads do not
-        // touch CUDA. The tasks never throw (see IndexVideoFile) and write only to their own
-        // slot.
-        NewThreadPool pool(num_workers, std::nullopt, false, "VideoIndex");
-        Job job;
-        for (size_t i = 0; i < filenames.size(); ++i)
-          job.AddTask([&index_file, i]() { index_file(i); });
-        job.Run(pool, true);
-        indexed = true;
-      }
-    }
-    if (!indexed) {
+    if (parallel) {
+      // A transient pool, destroyed on return: this runs in the constructor of the operator,
+      // before the pool of the pipeline is available. It has no device, so its threads do not
+      // touch CUDA. The tasks never throw (see IndexVideoFile) and write only to their own slot.
+      NewThreadPool pool(num_workers, std::nullopt, false, "VideoIndex");
+      Job job;
+      for (size_t i = 0; i < filenames.size(); ++i)
+        job.AddTask([&index_file, i]() { index_file(i); });
+      job.Run(pool, true);
+    } else {
       for (size_t i = 0; i < filenames.size(); ++i)
         index_file(i);
     }
