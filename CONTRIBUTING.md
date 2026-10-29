@@ -21,30 +21,6 @@
 - Make sure that you can contribute your work to open source (no license and/or patent conflict is introduced by your code). You need to [`sign`](#Sign) your commit.
 - Thanks in advance for your patience as we review your contributions; we do appreciate them!
 
-## Security hooks
-
-Install [pre-commit](https://pre-commit.com/#install) and enable DALI's hooks once per clone:
-
-```sh
-git config core.hooksPath .githooks
-```
-
-DALI's pre-commit hook runs the secret scanner and GuardWords before checking copyright
-notices. To check staged changes manually, run:
-
-```sh
-pre-commit run --hook-stage pre-commit
-```
-
-GuardWords sends the staged diff to NVIDIA's internal code-scanning service. NVIDIA
-employees must install the client and configure the endpoint by following the
-[GuardWords setup guide](https://github.com/NVIDIA/security-workflows/blob/c4e36e1edf9e5c0601d5fec00b62462d20a956ac/hooks/guardwords/README.md#setup).
-Keep the endpoint in your Git configuration as described there.
-External contributors need no additional setup: GuardWords skips with a notice when
-the client or endpoint is missing. It also skips if the service is unavailable.
-Blocking findings prevent the commit; informational findings are printed and allow it.
-There is currently no GuardWords CI workflow to re-scan commits that skipped the hook.
-
 <a name="Sign"></a>Sign your Work
 --------------
 
