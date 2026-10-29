@@ -1,0 +1,64 @@
+name: GuardWords hook checks
+
+on:
+  pull_request:
+    branches: ["main"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  guardwords-hook:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out security-workflows
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+        with:
+          repository: NVIDIA/security-workflows
+          ref: c4e36e1edf9e5c0601d5fec00b62462d20a956ac
+          path: security-workflows
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1  # v6.3.0
+        with:
+          python-version: '3.x'
+      # These are hook regression checks; they do not scan PR content.
+      - name: Verify GuardWords behavior without the internal service
+        shell: bash
+        working-directory: security-workflows
+        run: |
+          python -m pip install ./hooks/guardwords
+          expect() {
+            local want=$1 got=0
+            shift
+            "$@" || got=$?
+            if [ "$got" -ne "$want" ]; then
+              echo "::error::'$*' exited $got, expected $want"
+              exit 1
+            fi
+          }
+          # No client installed.
+          expect 0 guardwords-scan-code-scanning
+          expect 1 guardwords-scan-code-scanning --on-unavailable=fail
+          # The skip notice tells external contributors they can ignore it.
+          output=$(guardwords-scan-code-scanning)
+          echo "$output"
+          if ! grep -q 'external contributors can ignore' <<<"$output"; then
+            echo "::error::the skip notice does not address external contributors"
+            exit 1
+          fi
+          # Client configured but the endpoint refuses connections, so the client is never launched.
+          stand_in_client=$(python -c 'import sys; print(sys.executable)')
+          export GIT_CONFIG_COUNT=2
+          export GIT_CONFIG_KEY_0=code-scanning.client GIT_CONFIG_VALUE_0="$stand_in_client"
+          export GIT_CONFIG_KEY_1=code-scanning.endpoint GIT_CONFIG_VALUE_1=127.0.0.1:9
+          expect 0 guardwords-scan-code-scanning
+          expect 1 guardwords-scan-code-scanning --on-unavailable=fail
+          # An endpoint written as a URL is reported as malformed, not as off-network.
+          export GIT_CONFIG_VALUE_1=https://127.0.0.1:9
+          output=$(guardwords-scan-code-scanning)
+          echo "$output"
+          if ! grep -q 'is not HOST\[:PORT\]' <<<"$output"; then
+            echo "::error::an https:// endpoint was not reported as malformed"
+            exit 1
+          fi
