@@ -24,6 +24,7 @@ extern "C" {
 }
 
 #include <algorithm>
+#include <functional>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -498,6 +499,12 @@ class DLL_PUBLIC FramesDecoderBase {
  */
 class DLL_PUBLIC FramesIndexer : public FramesDecoderBase {
  public:
+  /**
+   * @brief Tells if a codec is supported. It may carry state (see `MakeCodecCheck` of the
+   *        decoders). The indexer does not apply it: the caller applies it to `CodecId()`.
+   */
+  using CodecCheck = std::function<bool(AVCodecID)>;
+
   explicit FramesIndexer(const std::string &filename, DALIImageType image_type = DALI_RGB);
 
   /**

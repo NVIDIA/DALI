@@ -72,6 +72,12 @@ class DLL_PUBLIC FramesDecoderCpu : public FramesDecoderBase {
    */
   static bool IsCodecSupported(AVCodecID codec_id);
 
+  /**
+   * @brief Returns a function that gives the same answers as `IsCodecSupported`. It is pure, so it
+   *        can be called from any thread.
+   */
+  static FramesIndexer::CodecCheck MakeCodecCheck();
+
  protected:
   bool SelectVideoStream(int stream_id = -1) override;
 

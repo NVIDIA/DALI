@@ -285,6 +285,10 @@ bool FramesDecoderCpu::IsCodecSupported(AVCodecID codec_id) {
   return avcodec_find_decoder(codec_id) != nullptr;
 }
 
+FramesIndexer::CodecCheck FramesDecoderCpu::MakeCodecCheck() {
+  return &FramesDecoderCpu::IsCodecSupported;
+}
+
 bool FramesDecoderCpu::SelectVideoStream(int stream_id) {
   if (!FramesDecoderBase::SelectVideoStream(stream_id)) {
     return false;

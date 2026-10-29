@@ -15,7 +15,10 @@
 #include <cuda_runtime_api.h>
 #include <exception>
 #include <random>
+#include <string>
+#include <thread>
 #include <utility>
+#include <vector>
 
 #include "dali/core/cuda_error.h"
 #include "dali/core/dev_buffer.h"
@@ -315,6 +318,44 @@ TEST_F(FramesDecoderGpuTest, IndexerIsValidForTheSameFilesAsTheDecoder) {
   }
 }
 
+// The check made by MakeCodecCheck gives the same answers as IsCodecSupported, for the codecs that
+// the decoder accepts, for those that it does not (MJPEG among them), and for one that does not
+// exist. It is called from a thread that has no CUDA context, as the indexing threads do.
+TEST_F(FramesDecoderGpuTest, CodecCheckIsEquivalentToIsCodecSupported) {
+  const std::vector<AVCodecID> ids = {
+      AV_CODEC_ID_H264, AV_CODEC_ID_HEVC, AV_CODEC_ID_VP8, AV_CODEC_ID_VP9, AV_CODEC_ID_AV1,
+      AV_CODEC_ID_MPEG4, AV_CODEC_ID_MJPEG, AV_CODEC_ID_PCM_S16LE, AV_CODEC_ID_NONE};
+  auto check = FramesDecoderGpu::MakeCodecCheck();
+  std::vector<bool> expected;
+  for (AVCodecID id : ids) {
+    SCOPED_TRACE(avcodec_get_name(id));
+    expected.push_back(FramesDecoderGpu::IsCodecSupported(id));
+    EXPECT_EQ(check(id), expected.back());
+  }
+  std::vector<bool> from_thread;
+  std::thread t([&]() {
+    for (AVCodecID id : ids)
+      from_thread.push_back(check(id));
+  });
+  t.join();
+  EXPECT_EQ(from_thread, expected);
+}
+
+// An indexer with the check of MakeCodecCheck applied to its codec is valid for the same files
+// as the decoder
+TEST_F(FramesDecoderGpuTest, IndexerWithCodecCheckIsValidForTheSameFilesAsTheDecoder) {
+  const std::string video_dir = make_string(testing::dali_extra_path(), "/db/video");
+  auto check = FramesDecoderGpu::MakeCodecCheck();
+  for (const auto &path : {make_string(video_dir, "/nonexistent.mp4"),
+                           make_string(video_dir, "/corrupted/audio_only.mp4"),
+                           make_string(video_dir, "/mjpeg/mjpeg.avi"), cfr_videos_paths_[0]}) {
+    SCOPED_TRACE(path);
+    FramesDecoderGpu decoder(path);
+    FramesIndexer indexer(path);
+    EXPECT_EQ(indexer.IsValid() && check(indexer.CodecId()), decoder.IsValid());
+  }
+}
+
 TEST_F(FramesDecoderGpuTest, ConstantFrameRateHevc) {
   if (!FramesDecoderGpu::SupportsHevc()) {
     GTEST_SKIP();
@@ -331,6 +372,18 @@ TEST_F(FramesDecoderGpuTest, VariableFrameRateHevc) {
   FramesDecoderGpu decoder(vfr_hevc_videos_paths_[1]);
   decoder.BuildIndex();
   RunTest(decoder, vfr_hevc_videos_[1]);
+}
+
+// The check made by MakeCodecCheck gives the same answers as IsCodecSupported, for the codecs that
+// the decoder accepts, for those that it does not, and for one that does not exist
+TEST_F(FramesDecoderTest_CpuOnlyTests, CodecCheckIsEquivalentToIsCodecSupported) {
+  auto check = FramesDecoderCpu::MakeCodecCheck();
+  for (AVCodecID id : {AV_CODEC_ID_VP8, AV_CODEC_ID_VP9, AV_CODEC_ID_MJPEG, AV_CODEC_ID_H264,
+                       AV_CODEC_ID_HEVC, AV_CODEC_ID_AV1, AV_CODEC_ID_MPEG4,
+                       AV_CODEC_ID_PCM_S16LE, AV_CODEC_ID_NONE}) {
+    SCOPED_TRACE(avcodec_get_name(id));
+    EXPECT_EQ(check(id), FramesDecoderCpu::IsCodecSupported(id));
+  }
 }
 
 TEST_F(FramesDecoderTest_CpuOnlyTests, IndexerGivesTheIndexOfTheDecoder) {

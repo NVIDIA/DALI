@@ -208,6 +208,18 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
    */
   static bool IsCodecSupported(AVCodecID codec_id);
 
+  /**
+   * @brief Returns a function that gives the same answers as `IsCodecSupported`, with the same
+   *        warnings, but that does not touch CUDA, so it can be called from any thread.
+   *
+   * The NVDEC capabilities of all the codecs that the decoder accepts are queried here, on the
+   * calling thread, which must have the CUDA context of the device that will decode the videos
+   * current. No warnings are issued for the codecs that are not asked about later. If a query
+   * fails, the error is thrown by the returned function when that codec is asked about, as
+   * `IsCodecSupported` would.
+   */
+  static FramesIndexer::CodecCheck MakeCodecCheck();
+
   static bool SupportsCodec(AVCodecID codec_id, uint8_t bit_depth = 8);
 
   void InitGpuDecoder(CUVIDEOFORMAT *video_format);
@@ -218,6 +230,15 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
   bool SelectVideoStream(int stream_id = -1) override;
 
  private:
+  /** @brief Tells if the codec is on the list of the codecs that this decoder accepts. */
+  static bool IsCodecAllowed(AVCodecID codec_id);
+
+  /** @brief Tells if NVDEC of the current device decodes 8-bit 4:2:0 video of the codec. Quiet. */
+  static bool QueryNvdecSupport(AVCodecID codec_id);
+
+  static void WarnCodecNotAllowed(AVCodecID codec_id);
+  static void WarnNoNvdecSupport(AVCodecID codec_id);
+
   std::unique_ptr<NvDecodeState> nvdecode_state_;
   void *current_frame_output_ = nullptr;
   bool current_copy_to_output_ = false;

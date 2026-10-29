@@ -16,6 +16,7 @@
 #include <iomanip>
 #include <memory>
 #include <stdexcept>
+#include <utility>
 #include "dali/core/error_handling.h"
 #include "dali/core/small_vector.h"
 #include "dali/operators/video/video_utils.h"
