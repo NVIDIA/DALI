@@ -18,6 +18,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <list>
+#include <stdexcept>
 #include <string>
 #include <tuple>
 #include <utility>
@@ -226,10 +227,11 @@ inline void TarArchive::ParseHeader() {
     filename_ = th_get_pathname(ToTarHandle(handle_));
     filesize_ = th_get_size(ToTarHandle(handle_));
     const auto data_offset = stream_->TellRead();
-    DALI_ENFORCE(data_offset >= 0 && static_cast<uint64_t>(data_offset) <= stream_->Size() &&
-                     filesize_ <= stream_->Size() - data_offset,
-                 make_string("Corrupted tar file: entry ", filename_,
-                             " extends beyond the archive"));
+    if (data_offset < 0 || static_cast<uint64_t>(data_offset) > stream_->Size() ||
+        filesize_ > stream_->Size() - data_offset) {
+      throw std::runtime_error(make_string("Corrupted tar file: entry ", filename_,
+                     " extends beyond the archive"));
+    }
 
     if (TH_ISREG(ToTarHandle(handle_))) {
       filetype_ = ENTRY_FILE;
