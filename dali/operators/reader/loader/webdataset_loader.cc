@@ -318,9 +318,11 @@ void WebdatasetLoader::ReadSample(vector<Tensor<CPUBackend>>& sample) {
   for (auto& component : current_sample.components) {
     // Checking if the component data from the index file agrees with reality
     DALI_ENFORCE(
-        component.offset < static_cast<int64_t>(current_wds_shard->Size()),
-        IndexFileErrMsg(index_paths_[current_sample.wds_shard_index], current_sample.line_number,
-                        "offset is outside of the archive file"));
+        component.offset >= 0 &&
+            static_cast<uint64_t>(component.offset) <= current_wds_shard->Size() &&
+            component.size <= current_wds_shard->Size() - component.offset,
+        make_string("Invalid component range from ", GetSampleSource(current_sample),
+                    ": offset or size is outside of the archive file"));
 
     current_wds_shard->SeekRead(component.offset);
 
