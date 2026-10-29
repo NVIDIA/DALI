@@ -12,16 +12,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <algorithm>
 #include <exception>
 #include <memory>
-#include <string>
+#include <optional>
 #include <shared_mutex>
+#include <string>
+#include <type_traits>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 #include "dali/core/boundary.h"
 #include "dali/core/call_at_exit.h"
 #include "dali/core/cuda_stream_pool.h"
+#include "dali/core/exec/thread_pool_base.h"
 #include "dali/core/span.h"
 
 #include "dali/operators/reader/reader_op.h"
@@ -29,6 +34,7 @@
 #include "dali/operators/video/frames_decoder_cpu.h"
 #include "dali/operators/video/frames_decoder_gpu.h"
 #include "dali/operators/video/video_utils.h"
+#include "dali/pipeline/util/new_thread_pool.h"
 #if NVML_ENABLED
 #include "dali/util/nvml.h"
 #endif
@@ -235,7 +241,8 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
         step_(spec.GetArgument<int>("step")),
         image_type_(spec.GetArgument<DALIImageType>("image_type")),
         boundary_type_(GetBoundaryType(spec)),
-        uniform_sample_(spec.GetArgument<bool>("uniform_sample")) {
+        uniform_sample_(spec.GetArgument<bool>("uniform_sample")),
+        num_threads_(std::max(1, spec.GetArgument<int>("num_threads"))) {
     if ((spec.HasArgument("file_list") + spec.HasArgument("file_root") + spec.HasArgument("filenames")) != 1) {
       DALI_FAIL("Only one of the following arguments can be provided: ``file_list``, ``file_root``, ``filenames``");
     }
@@ -313,10 +320,15 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
     return samples_.size();
   }
 
+  // The least number of distinct files for which indexing them in parallel is worth starting the
+  // threads. This is an estimate, not a measured value.
+  static constexpr size_t kMinFilesForParallelIndex = 8;
+
   /**
    * @brief Indexes the given distinct files, one record per file, in the same order.
    *
-   * The cache is read before and written after the files are indexed.
+   * The cache is accessed only by the calling thread: it is read before the files are indexed and
+   * written after all of them are, in the order of the files.
    */
   std::vector<VideoFileIndex> BuildFileIndices(const std::vector<std::string> &filenames) {
     auto &cache = FrameIndexCache::instance();
@@ -328,9 +340,33 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
     }
 
     std::vector<VideoFileIndex> results(filenames.size());
-    for (size_t i = 0; i < filenames.size(); ++i) {
+    auto index_file = [&](size_t i) {
       results[i] = IndexVideoFile(filenames[i], FramesDecoderImpl::IsCodecSupported, image_type_,
                                   std::move(cached[i]));
+    };
+
+    // The GPU backend indexes on the calling thread: FramesDecoderGpu::IsCodecSupported queries
+    // the decoder capabilities (cuvidGetDecoderCaps), which probably needs a CUDA context that
+    // is current on the calling thread only.
+    const int num_workers = std::min<int>(num_threads_, filenames.size());
+    bool indexed = false;
+    if constexpr (std::is_same_v<Backend, CPUBackend>) {
+      if (num_workers > 1 && filenames.size() >= kMinFilesForParallelIndex) {
+        // A transient pool, destroyed on return: this runs in the constructor of the operator,
+        // before the pool of the pipeline is available. It has no device, so its threads do not
+        // touch CUDA. The tasks never throw (see IndexVideoFile) and write only to their own
+        // slot.
+        NewThreadPool pool(num_workers, std::nullopt, false, "VideoIndex");
+        Job job;
+        for (size_t i = 0; i < filenames.size(); ++i)
+          job.AddTask([&index_file, i]() { index_file(i); });
+        job.Run(pool, true);
+        indexed = true;
+      }
+    }
+    if (!indexed) {
+      for (size_t i = 0; i < filenames.size(); ++i)
+        index_file(i);
     }
 
     for (size_t i = 0; i < filenames.size(); ++i) {
@@ -504,6 +540,7 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
   DALIImageType image_type_;
   boundary::BoundaryType boundary_type_;
   bool uniform_sample_;
+  int num_threads_;
   FileListOptions file_list_opts_;
 
   std::vector<VideoFileMeta> video_files_info_;
