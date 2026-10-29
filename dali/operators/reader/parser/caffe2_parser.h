@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,6 +15,8 @@
 #ifndef DALI_OPERATORS_READER_PARSER_CAFFE2_PARSER_H_
 #define DALI_OPERATORS_READER_PARSER_CAFFE2_PARSER_H_
 
+#include <limits>
+#include <stdexcept>
 #include <string>
 
 #include "dali/operators/reader/parser/parser.h"
@@ -36,6 +38,14 @@ enum LabelType {
   MULTI_LABEL_WEIGHTED_SPARSE = 3,
   NO_LABEL = 4
 };
+
+inline const caffe2::TensorProto& GetCaffe2Proto(const caffe2::TensorProtos& protos, int idx) {
+  if (idx < 0 || idx >= protos.protos_size()) {
+    throw std::runtime_error(make_string("Caffe2 record is missing tensor ", idx,
+                                         " (stored tensors: ", protos.protos_size(), ")"));
+  }
+  return protos.protos(idx);
+}
 
 // Extract the size of the data stored in a protobuf tensor
 template <typename T>
@@ -126,9 +136,10 @@ void ParseLabels(const caffe2::TensorProtos& protos,
     case SINGLE_LABEL: {
       // single element, from protos(1) to Output(consumed_inputs)
       // ensure we only have a single label in the proto
-      DALI_ENFORCE(proto_data_size<T>(protos.protos(consumed_inputs)) == 1);
+      DALI_ENFORCE(proto_data_size<T>(GetCaffe2Proto(protos, consumed_inputs)) == 1);
 
-      extract_data<T>(protos.protos(consumed_inputs), ws->Output<CPUBackend>(consumed_inputs));
+      extract_data<T>(GetCaffe2Proto(protos, consumed_inputs),
+                      ws->Output<CPUBackend>(consumed_inputs));
       break;
     }
     case MULTI_LABEL_SPARSE: {
@@ -137,7 +148,7 @@ void ParseLabels(const caffe2::TensorProtos& protos,
       label_tensor.set_type<T>();
       label_tensor.Resize({num_labels});
 
-      auto& label_indices = protos.protos(consumed_inputs);
+      auto& label_indices = GetCaffe2Proto(protos, consumed_inputs);
       const int label_data_size = proto_data_size<T>(label_indices);
 
       T* label_tensor_data = label_tensor.mutable_data<T>();
@@ -153,7 +164,8 @@ void ParseLabels(const caffe2::TensorProtos& protos,
     }
     case MULTI_LABEL_DENSE: {
       // multiple elements, stored contiguously
-      extract_data<T>(protos.protos(consumed_inputs), ws->Output<CPUBackend>(consumed_inputs));
+      extract_data<T>(GetCaffe2Proto(protos, consumed_inputs),
+                      ws->Output<CPUBackend>(consumed_inputs));
       break;
     }
     case MULTI_LABEL_WEIGHTED_SPARSE: {
@@ -162,8 +174,8 @@ void ParseLabels(const caffe2::TensorProtos& protos,
       // weights [float] in protos(consumed_inputs + 1)
       label_tensor.Resize({num_labels}, DALI_FLOAT);
 
-      auto& label_indices = protos.protos(consumed_inputs);
-      auto& label_weights = protos.protos(consumed_inputs + 1);
+      auto& label_indices = GetCaffe2Proto(protos, consumed_inputs);
+      auto& label_weights = GetCaffe2Proto(protos, consumed_inputs + 1);
       const int label_size = proto_data_size<T>(label_indices);
 
       float* label_tensor_data = label_tensor.mutable_data<float>();
@@ -173,6 +185,11 @@ void ParseLabels(const caffe2::TensorProtos& protos,
         DALI_ENFORCE(idx >= 0 && idx < num_labels,
                     make_string("Label index out of bounds: ", idx,
                                 " (num_labels: ", num_labels, ")"));
+        if (label_weights.data_type() != caffe2::TensorProto::FLOAT ||
+            label_weights.float_data_size() != label_size) {
+          throw std::runtime_error(
+              "Caffe2 label weights must contain one float value per label index");
+        }
         label_tensor_data[idx] = proto_get_data<float>(label_weights, i);
       }
       break;
@@ -196,6 +213,9 @@ class Caffe2Parser : public Parser<Tensor<CPUBackend>> {
     caffe2::TensorProtos protos;
     int consumed_inputs = 0;
 
+    if (!(data.size() <= std::numeric_limits<int>::max())) {
+      throw std::runtime_error("Caffe2 record is too large");
+    }
     DALI_ENFORCE(protos.ParseFromArray(data.data<uint8_t>(), data.size()),
       make_string("Error while parsing Caffe2 file: ", data.GetSourceInfo(),
                   " (raw data length: ", data.size(), " bytes)."));
@@ -203,24 +223,38 @@ class Caffe2Parser : public Parser<Tensor<CPUBackend>> {
 
     if (image_available_) {
       auto& image = ws->Output<CPUBackend>(consumed_inputs);
-      const caffe2::TensorProto& image_proto = protos.protos(consumed_inputs);
+      const caffe2::TensorProto& image_proto = GetCaffe2Proto(protos, consumed_inputs);
 
       // copy image -- if type is string, image is encoded, if bytes, image isn't encoded
       if (image_proto.data_type() == caffe2::TensorProto::STRING) {
+        if (!(image_proto.string_data_size() >= 1)) {
+          throw std::runtime_error("Caffe2 encoded image tensor is missing string data");
+        }
         const string& image_data = image_proto.string_data(0);
         const size_t image_bytes = image_data.size();
 
         image.Resize({(Index)image_bytes}, DALI_UINT8);
         std::memcpy(image.mutable_data<uint8_t>(), image_data.data(), image_bytes);
       } else if (image_proto.data_type() == caffe2::TensorProto::BYTE) {
-        const int C = (image_proto.dims_size() == 3) ? image_proto.dims(2) : 1;
-        const int H = image_proto.dims(0);
-        const int W = image_proto.dims(1);
-
+        if (!(image_proto.dims_size() == 2 || image_proto.dims_size() == 3)) {
+          throw std::runtime_error("Caffe2 image tensor must have 2 or 3 dimensions");
+        }
+        const Index C = (image_proto.dims_size() == 3) ? image_proto.dims(2) : 1;
+        const Index H = image_proto.dims(0);
+        const Index W = image_proto.dims(1);
+        auto image_bytes = image_proto.byte_data().size();
+        size_t expected = 1;
+        for (auto dim : {H, W, C}) {
+          if (dim <= 0 || static_cast<uint64_t>(dim) > image_bytes / expected) {
+            throw std::runtime_error(
+                "Image data size mismatch: dimensions exceed the available byte data");
+          }
+          expected *= dim;
+        }
+        if (image_bytes != expected) {
+          throw std::runtime_error("Image data size mismatch");
+        }
         image.Resize({H, W, C}, DALI_UINT8);
-        DALI_ENFORCE(image_proto.byte_data().size() == static_cast<size_t>(H) * W * C,
-                    make_string("Image data size mismatch: ", image_proto.byte_data().size(),
-                                " (expected: ", static_cast<size_t>(H) * W * C, ")"));
         std::memcpy(image.mutable_data<uint8_t>(),
                     image_proto.byte_data().data(),
                     image_proto.byte_data().size());
@@ -230,7 +264,7 @@ class Caffe2Parser : public Parser<Tensor<CPUBackend>> {
     }
 
     if (label_type_ != NO_LABEL) {
-      const caffe2::TensorProto& label_proto = protos.protos(consumed_inputs);
+      const caffe2::TensorProto& label_proto = GetCaffe2Proto(protos, consumed_inputs);
       // Parse all label types
       auto label_data_type = label_proto.data_type();
       if (label_data_type == caffe2::TensorProto::FLOAT) {
@@ -248,10 +282,14 @@ class Caffe2Parser : public Parser<Tensor<CPUBackend>> {
     auto additional_proto_start = consumed_inputs +
                                 ((label_type_ == MULTI_LABEL_SPARSE ||
 -                               label_type_ == MULTI_LABEL_WEIGHTED_SPARSE) ? 1 : 0);
+    if (additional_inputs_ < 0 || additional_proto_start < 0 ||
+        (additional_inputs_ > 0 &&
+         additional_inputs_ > protos.protos_size() - additional_proto_start)) {
+      throw std::runtime_error("Caffe2 record is missing additional tensors");
+    }
     auto additional_proto_end = additional_inputs_ + additional_proto_start;
-
     for (int i = additional_proto_start; i < additional_proto_end; ++i) {
-      auto& additional_proto = protos.protos(i);
+      auto& additional_proto = GetCaffe2Proto(protos, i);
       auto& output_tensor = ws->Output<CPUBackend>(consumed_inputs);
 
       switch (additional_proto.data_type()) {
