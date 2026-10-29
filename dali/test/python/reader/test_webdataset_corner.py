@@ -21,7 +21,6 @@ from glob import glob
 
 from nose2.tools import params
 import nvidia.dali as dali
-from nvidia.dali import fn, pipeline_def, types
 
 from nose_utils import assert_equals, assert_raises
 import webdataset_base as base
@@ -307,10 +306,10 @@ def run_reader(archive, index, use_mmap):
     return pipeline().run()[0].as_array()
 
 
-def run_tar_size_reader(archive, use_mmap, dtype=types.UINT8):
-    @pipeline_def(batch_size=1, num_threads=1, device_id=None, prefetch_queue_depth=1)
+def run_tar_size_reader(archive, use_mmap, dtype=dali.types.UINT8):
+    @dali.pipeline_def(batch_size=1, num_threads=1, device_id=None, prefetch_queue_depth=1)
     def pipeline():
-        return fn.readers.webdataset(
+        return dali.fn.readers.webdataset(
             paths=[archive],
             index_paths=[],
             ext=["bin"],
@@ -361,7 +360,7 @@ def test_invalid_tar_entry_size(use_mmap, size):
             "the entry extends beyond the archive.*"
         )
         with assert_raises(RuntimeError, glob=message):
-            run_tar_size_reader(archive, use_mmap, types.FLOAT)
+            run_tar_size_reader(archive, use_mmap, dali.types.FLOAT)
 
 
 @params(False, True)
