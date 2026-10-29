@@ -489,7 +489,7 @@ def test_wrong_feature_type():
 
 
 @cartesian_params((False, True), (False, True), (-1, 32, 33, 1 << 63))
-def test_recordio_reader_rejects_invalid_index_offset(dont_use_mmap, shuffle, offset):
+def test_recordio_reader_rejects_invalid_index_offset(use_mmap, shuffle, offset):
     with tempfile.TemporaryDirectory() as root:
         path = os.path.join(root, "data.rec")
         index = os.path.join(root, "data.idx")
@@ -504,18 +504,16 @@ def test_recordio_reader_rejects_invalid_index_offset(dont_use_mmap, shuffle, of
                 fn.readers.mxnet(
                     path=path,
                     index_path=index,
-                    dont_use_mmap=dont_use_mmap,
+                    dont_use_mmap=not use_mmap,
                     shuffle_after_epoch=shuffle,
                 )
             )
 
-        assert_raises(
-            RuntimeError, pipe().run, glob="*RecordIO index offset out of bounds*"
-        )
+        assert_raises(RuntimeError, pipe().run, glob="*RecordIO index offset out of bounds*")
 
 
 @cartesian_params((False, True), (False, True))
-def test_recordio_reader_index_skips_files(dont_use_mmap, shuffle):
+def test_recordio_reader_index_skips_files(use_mmap, shuffle):
     with tempfile.TemporaryDirectory() as root:
         paths = [os.path.join(root, f"data{i}.rec") for i in range(3)]
         for i, path in enumerate(paths):
@@ -533,7 +531,7 @@ def test_recordio_reader_index_skips_files(dont_use_mmap, shuffle):
                 fn.readers.mxnet(
                     path=paths,
                     index_path=index,
-                    dont_use_mmap=dont_use_mmap,
+                    dont_use_mmap=not use_mmap,
                     shuffle_after_epoch=shuffle,
                 )
             )
@@ -547,6 +545,31 @@ def test_recordio_reader_index_skips_files(dont_use_mmap, shuffle):
                 observed.append(images.at(0).copy())
             assert sorted(int(image[0]) for image in observed) == [0, 2]
             for image in observed:
-                np.testing.assert_array_equal(
-                    image, np.full(4, image[0], dtype=np.uint8)
+                np.testing.assert_array_equal(image, np.full(4, image[0], dtype=np.uint8))
+
+
+@cartesian_params((False, True), (False, True), ("", "0", "0 invalid", "invalid 0"))
+def test_recordio_reader_rejects_malformed_index(use_mmap, shuffle, index_contents):
+    with tempfile.TemporaryDirectory() as root:
+        path = os.path.join(root, "data.rec")
+        index = os.path.join(root, "data.idx")
+        with open(path, "wb") as f:
+            f.write(bytes(32))
+        with open(index, "w") as f:
+            f.write(index_contents)
+
+        @pipeline_def(batch_size=1, device_id=None, num_threads=1)
+        def pipe():
+            return tuple(
+                fn.readers.mxnet(
+                    path=path,
+                    index_path=index,
+                    dont_use_mmap=not use_mmap,
+                    shuffle_after_epoch=shuffle,
                 )
+            )
+
+        message = (
+            "*Invalid RecordIO index entry*" if index_contents else "*doesn't contain any indices*"
+        )
+        assert_raises(RuntimeError, pipe().run, glob=message)

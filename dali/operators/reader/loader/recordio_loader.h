@@ -48,7 +48,10 @@ class RecordIOLoader : public IndexedFileLoader {
       auto file_size = tmp->Size();
       if (file_size > static_cast<size_t>(std::numeric_limits<int64_t>::max()) -
                           file_offsets.back()) {
-        throw std::runtime_error("RecordIO data files are too large");
+        throw std::runtime_error(make_string(
+            "RecordIO data files are too large: ", file_offsets.back(), " bytes plus ",
+            file_size, " bytes exceeds the maximum ", std::numeric_limits<int64_t>::max(),
+            " bytes."));
       }
       file_offsets.push_back(file_size + file_offsets.back());
       tmp->Close();
@@ -71,16 +74,20 @@ class RecordIOLoader : public IndexedFileLoader {
     size_t index, offset;
     while (fin >> index) {
       if (!(fin >> offset)) {
-        throw std::runtime_error("Invalid RecordIO index entry in " + path);
+        throw std::runtime_error(make_string(
+            "Invalid RecordIO index entry in ", path,
+            "; expected an integer offset after record ID ", index, "."));
       }
       if (offset >= file_offsets.back()) {
         throw std::runtime_error(make_string("RecordIO index offset out of bounds: ",
-                                             offset, " (dataset size: ", file_offsets.back(), ")"));
+                                             offset, " (dataset size: ", file_offsets.back(),
+                                             " bytes; expected an offset within the dataset)."));
       }
       temp.push_back(offset);
     }
     if (!fin.eof()) {
-      throw std::runtime_error("Invalid RecordIO index entry in " + path);
+      throw std::runtime_error(make_string(
+          "Invalid RecordIO index entry in ", path, "; expected an integer record ID."));
     }
     DALI_ENFORCE(!temp.empty(),
       make_string("RecordIO index file doesn't contain any indices. Provided path: \"",
