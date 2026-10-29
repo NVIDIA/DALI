@@ -197,6 +197,34 @@ class FramesDecoderGpuTest : public FramesDecoderTestBase {
   DeviceBuffer<uint8_t> frame_gpu_buffer_;
 };
 
+// The video reader builds the index of the files with FramesIndexer, which only demuxes, instead of
+// a decoder. It has to give the index that the decoder gives.
+static void ExpectIndexerGivesTheIndexOfTheDecoder(FramesDecoderBase &decoder,
+                                                   FramesIndexer &indexer) {
+  ASSERT_TRUE(decoder.IsValid());
+  decoder.BuildIndex();
+  ASSERT_TRUE(indexer.IsValid());
+  indexer.BuildIndex();
+
+  const FrameIndex &expected = decoder.GetIndex();
+  const FrameIndex &actual = indexer.GetIndex();
+  ASSERT_EQ(actual.size(), expected.size());
+  EXPECT_EQ(actual.filename, expected.filename);
+  EXPECT_EQ(actual.timebase.num, expected.timebase.num);
+  EXPECT_EQ(actual.timebase.den, expected.timebase.den);
+  for (size_t i = 0; i < expected.size(); i++) {
+    EXPECT_EQ(actual.index[i].pts, expected.index[i].pts) << "frame " << i;
+    EXPECT_EQ(actual.index[i].is_keyframe, expected.index[i].is_keyframe) << "frame " << i;
+    EXPECT_EQ(actual.index[i].is_flush_frame, expected.index[i].is_flush_frame) << "frame " << i;
+    EXPECT_EQ(actual.index[i].last_keyframe_id, expected.index[i].last_keyframe_id)
+        << "frame " << i;
+  }
+  EXPECT_EQ(indexer.NumFrames(), decoder.NumFrames());
+  EXPECT_EQ(indexer.Width(), decoder.Width());
+  EXPECT_EQ(indexer.Height(), decoder.Height());
+  EXPECT_EQ(indexer.IsVfr(), decoder.IsVfr());
+}
+
 TEST_F(FramesDecoderTest_CpuOnlyTests, ConstantFrameRate) {
   FramesDecoderCpu decoder(cfr_videos_paths_[0]);
   decoder.BuildIndex();
@@ -252,8 +280,6 @@ TEST_F(FramesDecoderGpuTest, DecoderCacheReusedForCroppedVideo) {
   EXPECT_EQ(frame_dec_gpu_impl::NVDECDecodersCreated(), num_created);
 }
 
-// The video reader builds the index of the files with FramesIndexer, which only demuxes, instead of
-// a decoder. It has to give the index that the decoder gives.
 TEST_F(FramesDecoderGpuTest, IndexerGivesTheIndexOfTheDecoder) {
   std::vector<std::string> paths;
   for (const auto *list : {&cfr_videos_paths_, &vfr_videos_paths_, &cfr_mpeg4_videos_paths_,
@@ -268,29 +294,8 @@ TEST_F(FramesDecoderGpuTest, IndexerGivesTheIndexOfTheDecoder) {
   for (const auto &path : paths) {
     SCOPED_TRACE(path);
     FramesDecoderGpu decoder(path);
-    ASSERT_TRUE(decoder.IsValid());
-    decoder.BuildIndex();
     FramesIndexer indexer(path, FramesDecoderGpu::IsCodecSupported);
-    ASSERT_TRUE(indexer.IsValid());
-    indexer.BuildIndex();
-
-    const FrameIndex &expected = decoder.GetIndex();
-    const FrameIndex &actual = indexer.GetIndex();
-    ASSERT_EQ(actual.size(), expected.size());
-    EXPECT_EQ(actual.filename, expected.filename);
-    EXPECT_EQ(actual.timebase.num, expected.timebase.num);
-    EXPECT_EQ(actual.timebase.den, expected.timebase.den);
-    for (size_t i = 0; i < expected.size(); i++) {
-      EXPECT_EQ(actual.index[i].pts, expected.index[i].pts) << "frame " << i;
-      EXPECT_EQ(actual.index[i].is_keyframe, expected.index[i].is_keyframe) << "frame " << i;
-      EXPECT_EQ(actual.index[i].is_flush_frame, expected.index[i].is_flush_frame) << "frame " << i;
-      EXPECT_EQ(actual.index[i].last_keyframe_id, expected.index[i].last_keyframe_id)
-          << "frame " << i;
-    }
-    EXPECT_EQ(indexer.NumFrames(), decoder.NumFrames());
-    EXPECT_EQ(indexer.Width(), decoder.Width());
-    EXPECT_EQ(indexer.Height(), decoder.Height());
-    EXPECT_EQ(indexer.IsVfr(), decoder.IsVfr());
+    ExpectIndexerGivesTheIndexOfTheDecoder(decoder, indexer);
   }
 }
 
@@ -325,6 +330,33 @@ TEST_F(FramesDecoderGpuTest, VariableFrameRateHevc) {
   FramesDecoderGpu decoder(vfr_hevc_videos_paths_[1]);
   decoder.BuildIndex();
   RunTest(decoder, vfr_hevc_videos_[1]);
+}
+
+TEST_F(FramesDecoderTest_CpuOnlyTests, IndexerGivesTheIndexOfTheDecoder) {
+  const std::string video_dir = make_string(testing::dali_extra_path(), "/db/video");
+  for (const auto &path : {make_string(video_dir, "/vp8/vp8.webm"),
+                           make_string(video_dir, "/vp9/vp9_0.mp4"),
+                           make_string(video_dir, "/mjpeg/mjpeg.avi")}) {
+    SCOPED_TRACE(path);
+    FramesDecoderCpu decoder(path);
+    FramesIndexer indexer(path, FramesDecoderCpu::IsCodecSupported);
+    ExpectIndexerGivesTheIndexOfTheDecoder(decoder, indexer);
+  }
+}
+
+// The files that the video reader skips as invalid are the same with the indexer as with the
+// decoder: a missing file, a file without a video stream, and a codec that is not supported by the
+// CPU decoder
+TEST_F(FramesDecoderTest_CpuOnlyTests, IndexerIsValidForTheSameFilesAsTheDecoder) {
+  const std::string video_dir = make_string(testing::dali_extra_path(), "/db/video");
+  for (const auto &path : {make_string(video_dir, "/nonexistent.mp4"),
+                           make_string(video_dir, "/corrupted/audio_only.mp4"),
+                           cfr_videos_paths_[0], make_string(video_dir, "/vp9/vp9_0.mp4")}) {
+    SCOPED_TRACE(path);
+    FramesDecoderCpu decoder(path);
+    FramesIndexer indexer(path, FramesDecoderCpu::IsCodecSupported);
+    EXPECT_EQ(indexer.IsValid(), decoder.IsValid());
+  }
 }
 
 TEST_F(FramesDecoderTest_CpuOnlyTests, InMemoryCfrVideo) {
