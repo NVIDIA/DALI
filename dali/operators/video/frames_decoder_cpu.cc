@@ -30,8 +30,7 @@ FramesDecoderCpu::FramesDecoderCpu(const std::string &filename, DALIImageType im
   is_valid_ = is_valid_ && SelectVideoStream();
 }
 
-FramesDecoderCpu::FramesDecoderCpu(const char *memory_file, size_t memory_file_size,
-                                 std::string_view source_info, DALIImageType image_type)
+FramesDecoderCpu::FramesDecoderCpu(const char *memory_file, size_t memory_file_size, std::string_view source_info, DALIImageType image_type)
   : FramesDecoderBase(memory_file, memory_file_size, source_info, image_type) {
   is_valid_ = is_valid_ && SelectVideoStream();
 }
@@ -156,8 +155,7 @@ void FramesDecoderCpu::CopyToOutput(uint8_t *data) {
     dest_linesize[1] = dest_linesize[2] = row_stride;
   }
 
-  LOG_LINE << "Converting frame data to format "
-           << (sws_output_format == AV_PIX_FMT_RGB24 ? "RGB" : "YUV") << std::endl;
+  LOG_LINE << "Converting frame data to format " << (sws_output_format == AV_PIX_FMT_RGB24 ? "RGB" : "YUV") << std::endl;
   int ret = sws_scale(
     sws_ctx_.get(),
     frame_->data,
