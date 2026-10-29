@@ -18,6 +18,7 @@ import os
 import tempfile
 from glob import glob
 from nose_utils import assert_equals, assert_raises
+from nose2.tools import params
 
 import webdataset_base as base
 from test_utils import compare_pipelines, get_dali_extra_path
@@ -286,14 +287,14 @@ def test_index_errors():
     )
 
 
-def run_reader(archive, index, use_mmap, dtype=dali.types.UINT8):
+def run_reader(archive, index, use_mmap):
     @dali.pipeline_def(batch_size=1, num_threads=1, device_id=None, prefetch_queue_depth=1)
     def pipeline():
         return dali.fn.readers.webdataset(
             paths=[archive],
-            index_paths=[index] if index else [],
+            index_paths=[index],
             ext=["bin"],
-            dtypes=[dtype],
+            dtypes=[dali.types.UINT8],
             dont_use_mmap=not use_mmap,
             random_shuffle=False,
             initial_fill=1,
@@ -302,7 +303,8 @@ def run_reader(archive, index, use_mmap, dtype=dali.types.UINT8):
     return pipeline().run()[0].as_array()
 
 
-def test_invalid_mapping():
+@params(False, True)
+def test_invalid_mapping(use_mmap):
     with tempfile.TemporaryDirectory() as tmp:
         archive = os.path.join(tmp, "data.tar")
         index = os.path.join(tmp, "data.idx")
@@ -310,5 +312,6 @@ def test_invalid_mapping():
             f.write(bytes(1024))
         with open(index, "w") as f:
             f.write("v1.2 1\nbin 512 1024 sample.bin\n")
-        with assert_raises(RuntimeError, glob="*requested range is outside*"):
-            run_reader(archive, index, True)
+        message = "*requested range is outside*" if use_mmap else "*Error reading from a file*"
+        with assert_raises(RuntimeError, glob=message):
+            run_reader(archive, index, use_mmap)

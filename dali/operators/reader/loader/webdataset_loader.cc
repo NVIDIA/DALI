@@ -21,6 +21,7 @@
 #include <numeric>
 #include <random>
 #include <sstream>
+#include <stdexcept>
 #include <tuple>
 #include <utility>
 #include "dali/core/common.h"
