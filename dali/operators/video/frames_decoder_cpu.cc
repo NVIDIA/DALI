@@ -14,6 +14,7 @@
 
 #include "dali/operators/video/frames_decoder_cpu.h"
 #include <algorithm>
+#include <stdexcept>
 #include <string>
 #include "dali/core/error_handling.h"
 #include "dali/core/tensor_view.h"
@@ -78,10 +79,12 @@ void PlanarToInterleaved(uint8_t *output, const uint8_t *input, int64_t height, 
 void FramesDecoderCpu::CopyToOutput(uint8_t *data) {
   // The output buffer and conversion context use the dimensions from the container.
   // Decoded frames must agree with them before we convert or write any pixels.
-  DALI_ENFORCE(frame_->width == Width() && frame_->height == Height(),
-               make_string("Decoded frame dimensions (", frame_->width, "x", frame_->height,
-                           ") do not match the video dimensions (", Width(), "x", Height(),
-                           ") in ", Filename(), "."));
+  if (frame_->width != Width() || frame_->height != Height()) {
+    throw std::runtime_error(
+        make_string("Decoded frame dimensions (", frame_->width, "x", frame_->height,
+                    ") do not match the video dimensions (", Width(), "x", Height(),
+                    ") in ", Filename(), "."));
+  }
   uint8_t *sws_output_data = data;
   AVPixelFormat sws_output_format = AV_PIX_FMT_RGB24;
   if (image_type_ == DALI_YCbCr || Width() % 32) {

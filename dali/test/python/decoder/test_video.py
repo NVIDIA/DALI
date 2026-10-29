@@ -84,9 +84,9 @@ def test_video_container_frame_dimensions(declared_width, declared_height, image
         stream = container.add_stream("mjpeg", rate=1)
         stream.width, stream.height = 64, 48
         stream.pix_fmt = "yuvj420p"
-        for _ in range(2):
+        for frame_idx in range(2):
             frame = av.VideoFrame.from_ndarray(
-                np.full((48, 64, 3), 64, dtype=np.uint8), format="rgb24"
+                np.full((48, 64, 3), 64 * (frame_idx + 1), dtype=np.uint8), format="rgb24"
             )
             for packet in stream.encode(frame):
                 container.mux(packet)
@@ -112,7 +112,9 @@ def test_video_container_frame_dimensions(declared_width, declared_height, image
             pipe.run()
     else:
         output = pipe.run()[0].at(0)
-        assert output.shape == (2, 48, 64, 3)
+        with av.open(io.BytesIO(data)) as container:
+            reference = np.stack([frame.to_ndarray(format="rgb24") for frame in container.decode()])
+        np.testing.assert_allclose(output, reference, atol=2, rtol=0)
 
 
 def assert_unsupported_cpu_codec(run_pipeline):
