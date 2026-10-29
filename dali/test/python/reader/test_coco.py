@@ -246,6 +246,72 @@ def test_coco_pixelwise_category_ids(category_id):
                 np.testing.assert_array_equal(masks.at(0), np.full((2, 2, 1), category_id))
 
 
+@params(False, True)
+def test_coco_pixelwise_multiple_categories(polygon_masks):
+    categories = [-2, 5, 2**31 - 1]
+    segmentations = (
+        [[[x, 0, x + 1, 0, x + 1, 2, x, 2]] for x in range(3)]
+        if polygon_masks
+        else [{"size": [2, 3], "counts": counts} for counts in ([0, 2, 4], [2, 2, 2], [4, 2])]
+    )
+    check_coco_pixelwise_merged_annotations(categories, segmentations, [categories, categories])
+
+
+@params(False, True)
+def test_coco_pixelwise_same_category(polygon_mask):
+    segmentations = [
+        {"size": [2, 3], "counts": [0, 2, 4]},
+        {"size": [2, 3], "counts": [2, 2, 2]},
+        [[2, 0, 3, 0, 3, 2, 2, 2]] if polygon_mask else {"size": [2, 3], "counts": [4, 2]},
+    ]
+    check_coco_pixelwise_merged_annotations([-2] * 3, segmentations, [[-2] * 3] * 2)
+
+
+def check_coco_pixelwise_merged_annotations(categories, segmentations, expected):
+    with tempfile.TemporaryDirectory() as directory:
+        with open(os.path.join(directory, "image.bin"), "wb") as f:
+            f.write(b"image")
+        annotations_file = os.path.join(directory, "instances.json")
+        annotations = {
+            "images": [{"id": 1, "width": 3, "height": 2, "file_name": "image.bin"}],
+            "categories": [{"id": category} for category in dict.fromkeys(categories)],
+            "annotations": [
+                {
+                    "id": i,
+                    "image_id": 1,
+                    "category_id": category,
+                    "bbox": [0, 0, 3, 2],
+                    "iscrowd": 0,
+                    "segmentation": segmentation,
+                }
+                for i, (category, segmentation) in enumerate(zip(categories, segmentations))
+            ],
+        }
+        with open(annotations_file, "w") as f:
+            json.dump(annotations, f)
+
+        @pipeline_def(batch_size=1, num_threads=1, device_id=None, prefetch_queue_depth=1)
+        def masks_pipe(preprocessed):
+            annotation_args = (
+                {"preprocessed_annotations": directory}
+                if preprocessed
+                else {
+                    "annotations_file": annotations_file,
+                    "save_preprocessed_annotations": True,
+                    "save_preprocessed_annotations_dir": directory,
+                    "avoid_class_remapping": True,
+                }
+            )
+            _, _, _, masks = fn.readers.coco(
+                file_root=directory, pixelwise_masks=True, **annotation_args
+            )
+            return masks
+
+        for preprocessed in (False, True):
+            (masks,) = masks_pipe(preprocessed).run()
+            np.testing.assert_array_equal(masks.at(0)[:, :, 0], expected)
+
+
 def test_operator_coco_reader_same_images():
     file_root = os.path.join(test_data_root, "db", "coco_pixelwise", "images")
     train_annotations = os.path.join(test_data_root, "db", "coco_pixelwise", "instances.json")
