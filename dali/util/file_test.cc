@@ -20,6 +20,7 @@
 #include <stdexcept>
 #include <string>
 #include <utility>
+#include "dali/core/call_at_exit.h"
 #include "dali/util/mmaped_file.h"
 
 namespace dali {
@@ -149,11 +150,11 @@ TEST(MmapedFileStreamTest, RejectsOverflowingRanges) {
   char path[] = "/tmp/dali-mmap-test-XXXXXX";
   int fd = mkstemp(path);
   ASSERT_GE(fd, 0);
+  auto remove_file = AtScopeExit([&] { unlink(path); });
+  auto close_file = AtScopeExit([&] { close(fd); });
   const char payload[] = "abcdefgh";
   ASSERT_EQ(write(fd, payload, 8), 8);
-  close(fd);
   MmapedFileStream stream(path, false);
-  unlink(path);
   stream.SeekRead(4);
   EXPECT_EQ(stream.Get(std::numeric_limits<size_t>::max()), nullptr);
   EXPECT_EQ(stream.Get(std::numeric_limits<size_t>::max() - 3), nullptr);
