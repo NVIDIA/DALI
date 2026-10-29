@@ -295,6 +295,8 @@ class Caffe2Parser : public Parser<Tensor<CPUBackend>> {
     auto additional_proto_start = consumed_inputs +
                                 ((label_type_ == MULTI_LABEL_SPARSE ||
 -                               label_type_ == MULTI_LABEL_WEIGHTED_SPARSE) ? 1 : 0);
+    // Reject negative starts/counts and requests larger than the remaining protos.
+    // Subtract first so the range check cannot overflow while computing its end.
     if (additional_inputs_ < 0 || additional_proto_start < 0 ||
         (additional_inputs_ > 0 &&
          additional_inputs_ > protos.protos_size() - additional_proto_start)) {
