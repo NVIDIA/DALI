@@ -628,3 +628,42 @@ def test_recordio_reader_unsorted_duplicate_offsets_and_empty_shard(use_mmap, sh
             assert sorted(int(image[0]) for image in observed) == [0, 2]
             for image in observed:
                 np.testing.assert_array_equal(image, np.full(image_size, image[0], dtype=np.uint8))
+
+
+def test_recordio_reader_rejects_cumulative_size_overflow():
+    if not hasattr(os, "memfd_create"):
+        raise SkipTest("Anonymous sparse files require Linux memfd_create")
+    import resource
+
+    file_size_limit, _ = resource.getrlimit(resource.RLIMIT_FSIZE)
+    if file_size_limit != resource.RLIM_INFINITY and file_size_limit < 1 << 62:
+        raise SkipTest("File-size resource limit is too small for the RecordIO size-bound fixture")
+    file_descriptors = []
+    try:
+        for _ in range(2):
+            try:
+                fd = os.memfd_create("dali-recordio-size-bound")
+                file_descriptors.append(fd)
+                # Set only the logical size: memfd files have no allocated data pages here.
+                os.ftruncate(fd, 1 << 62)
+            except OSError as error:
+                raise SkipTest(f"Cannot create sparse RecordIO size-bound fixture: {error}")
+        paths = [f"/proc/self/fd/{fd}" for fd in file_descriptors]
+        with tempfile.TemporaryDirectory() as root:
+            index = os.path.join(root, "data.idx")
+            with open(index, "w") as f:
+                f.write("0 0\n")
+
+            @pipeline_def(batch_size=1, device_id=None, num_threads=1)
+            def pipe():
+                return tuple(fn.readers.mxnet(path=paths, index_path=index))
+
+            assert_raises(
+                RuntimeError,
+                pipe().run,
+                glob="*RecordIO data files are too large: 4611686018427387904 bytes plus "
+                "4611686018427387904 bytes exceeds the maximum 9223372036854775807 bytes.*",
+            )
+    finally:
+        for fd in file_descriptors:
+            os.close(fd)
