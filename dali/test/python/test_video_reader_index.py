@@ -56,7 +56,7 @@ def make_file_list(root, tag, file_list_format, device):
     valid_files = [(name, c) for c in range(COPIES) for name in SOURCE_FILES[device]]
     links = {}
     for name, copy in valid_files + [(INVALID_FILE, 0)]:
-        base, ext = os.path.splitext(os.path.basename(name))
+        base, ext = os.path.splitext(name.replace("/", "_"))
         link = os.path.join(root, f"{tag}_{base}_{copy}{ext}")
         os.symlink(os.path.join(VIDEO_DIR, name), link)
         links[(name, copy)] = link
@@ -84,7 +84,7 @@ def read_epoch(file_list, file_list_format, num_threads, device):
         batch_size=1, num_threads=num_threads, device_id=None if device == "cpu" else 0, seed=42
     )
     def pipe_def():
-        return fn.experimental.readers.video(
+        outputs = fn.experimental.readers.video(
             device=device,
             file_list=file_list,
             file_list_format=file_list_format,
@@ -94,6 +94,7 @@ def read_epoch(file_list, file_list_format, num_threads, device):
             enable_frame_num=True,
             name="reader",
         )
+        return tuple(outputs)
 
     pipe = pipe_def()
     pipe.build()
