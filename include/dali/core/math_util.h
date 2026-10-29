@@ -1,4 +1,4 @@
-// Copyright (c) 2019, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -24,6 +24,8 @@
 #include <cmath>
 #endif
 #include <cstdint>
+#include <type_traits>
+#include <utility>
 #include "dali/core/host_dev.h"
 #include "dali/core/force_inline.h"
 
