@@ -44,6 +44,7 @@ g_quirks_files = None
 g_odd_sizes = None
 g_reserved_files = None
 g_numpy_root = None
+g_video_root = None
 
 DATA_PREFIX = f"{gcs.PREFIX}/data"
 WDS_PREFIX = f"{gcs.PREFIX}/wds"
@@ -56,6 +57,7 @@ ODD_PREFIX = f"{gcs.PREFIX}/odd"
 RESERVED_PREFIX = f"{gcs.PREFIX}/reserved"
 NUMPY_PREFIX = f"{gcs.PREFIX}/numpy"
 VIDEO_PREFIX = f"{gcs.PREFIX}/video"
+VIDEO_ROOT_PREFIX = f"{gcs.PREFIX}/video_root"
 
 # Videos for each backend of the video reader, relative to DALI_extra/db/video - the CPU one
 # decodes only VP8, VP9 and MJPEG. The last file of each is larger than the 1 MiB I/O buffer the
@@ -163,6 +165,15 @@ def _remote_video(name):
     return f"gs://{gcs.BUCKET}/{VIDEO_PREFIX}/{name}"
 
 
+def _make_video_root(root):
+    """A file_root for each backend: its videos split between two label subdirectories."""
+    for device, files in VIDEO_FILES.items():
+        for i, name in enumerate(files):
+            path = os.path.join(root, device, "ab"[i % 2], os.path.basename(name))
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            os.symlink(_local_video(name), path)
+
+
 def _seed_many_objects(endpoint, count=1100):
     def put(i):
         gcs.put_object(endpoint, f"{MANY_PREFIX}/c/{i:04}.dat", b"x")
@@ -173,7 +184,7 @@ def _seed_many_objects(endpoint, count=1100):
 
 def setUpModule():
     global g_server, g_tmpdir, g_root, g_files, g_tar, g_index, g_endpoint
-    global g_quirks_files, g_odd_sizes, g_reserved_files, g_numpy_root
+    global g_quirks_files, g_odd_sizes, g_reserved_files, g_numpy_root, g_video_root
     gcs.require_mock_server()
 
     g_tmpdir = tempfile.TemporaryDirectory()
@@ -199,6 +210,9 @@ def setUpModule():
         g_odd_sizes = os.path.join(g_tmpdir.name, "sizes")
         _seed_odd_sizes(g_endpoint, g_odd_sizes)
         _seed_videos(g_endpoint)
+        g_video_root = os.path.join(g_tmpdir.name, "video_root")
+        _make_video_root(g_video_root)
+        gcs.upload_dir(g_endpoint, g_video_root, VIDEO_ROOT_PREFIX)
     except Exception:
         tearDownModule()
         raise
@@ -257,11 +271,13 @@ def wds_pipe(paths, index_paths=None, dont_use_mmap=False):
 
 
 @pipeline_def(batch_size=batch_size, num_threads=num_threads)
-def video_pipe(device, filenames=None, file_list=None, random_shuffle=False):
+def video_pipe(device, filenames=None, file_list=None, file_root=None, random_shuffle=False):
     if filenames is not None:
         source = dict(filenames=filenames, labels=list(range(len(filenames))))
-    else:
+    elif file_list is not None:
         source = dict(file_list=file_list, file_list_format="frames")
+    else:
+        source = dict(file_root=file_root)
     return tuple(
         fn.experimental.readers.video(
             **source,
@@ -538,6 +554,19 @@ def test_video_reader_file_list(device):
     local_list = write_list(os.path.join(g_tmpdir.name, f"local_{device}.txt"), _local_video)
     _compare_video_epoch(
         _video_pipe(device, file_list=gcs_list), _video_pipe(device, file_list=local_list)
+    )
+
+
+@params("cpu", "gpu")
+def test_video_reader_file_root(device):
+    """The labels come from the subdirectories, so they compare the listing, not just videos."""
+    _compare_video_epoch(
+        _video_pipe(
+            device,
+            file_root=f"gs://{gcs.BUCKET}/{VIDEO_ROOT_PREFIX}/{device}",
+            random_shuffle=True,
+        ),
+        _video_pipe(device, file_root=os.path.join(g_video_root, device), random_shuffle=True),
     )
 
 

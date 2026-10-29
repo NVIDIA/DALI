@@ -43,6 +43,7 @@ g_rec_index = None
 g_client = None
 g_quirks_files = None
 g_numpy_root = None
+g_video_root = None
 g_bucket_root = None
 
 DATA_PREFIX = f"{s3.PREFIX}/data"
@@ -54,6 +55,7 @@ REC_PREFIX = f"{s3.PREFIX}/rec"
 QUIRKS_PREFIX = f"{s3.PREFIX}/quirks"
 NUMPY_PREFIX = f"{s3.PREFIX}/numpy"
 VIDEO_PREFIX = f"{s3.PREFIX}/video"
+VIDEO_ROOT_PREFIX = f"{s3.PREFIX}/video_root"
 
 # A bucket of its own, listed from the root: nothing else may be in it, since every object at
 # the right depth becomes a sample.
@@ -178,9 +180,18 @@ def _remote_video(name):
     return f"s3://{s3.BUCKET}/{VIDEO_PREFIX}/{name}"
 
 
+def _make_video_root(root):
+    """A file_root for each backend: its videos split between two label subdirectories."""
+    for device, files in VIDEO_FILES.items():
+        for i, name in enumerate(files):
+            path = os.path.join(root, device, "ab"[i % 2], os.path.basename(name))
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            os.symlink(_local_video(name), path)
+
+
 def setUpModule():
     global g_server, g_tmpdir, g_root, g_files, g_tar, g_index, g_rec, g_rec_index, g_client
-    global g_quirks_files, g_numpy_root, g_bucket_root
+    global g_quirks_files, g_numpy_root, g_bucket_root, g_video_root
     s3.require_mock_server()
 
     g_tmpdir = tempfile.TemporaryDirectory()
@@ -210,6 +221,9 @@ def setUpModule():
         g_bucket_root = os.path.join(g_tmpdir.name, "bucket_root")
         _seed_bucket_root(g_client, g_bucket_root)
         _seed_videos(g_client)
+        g_video_root = os.path.join(g_tmpdir.name, "video_root")
+        _make_video_root(g_video_root)
+        s3.upload_dir(g_client, s3.BUCKET, g_video_root, VIDEO_ROOT_PREFIX)
 
         # everything past the first upload has to stay inside this try: unittest skips
         # tearDownModule once setUpModule raised, so the call below is the only thing that
@@ -273,11 +287,13 @@ def numpy_pipe(file_root, dont_use_mmap=False):
 
 
 @pipeline_def(batch_size=batch_size, num_threads=num_threads)
-def video_pipe(device, filenames=None, file_list=None, random_shuffle=False):
+def video_pipe(device, filenames=None, file_list=None, file_root=None, random_shuffle=False):
     if filenames is not None:
         source = dict(filenames=filenames, labels=list(range(len(filenames))))
-    else:
+    elif file_list is not None:
         source = dict(file_list=file_list, file_list_format="frames")
+    else:
+        source = dict(file_root=file_root)
     return tuple(
         fn.experimental.readers.video(
             **source,
@@ -525,6 +541,19 @@ def test_video_reader_file_list(device):
     local_list = write_list(os.path.join(g_tmpdir.name, f"local_{device}.txt"), _local_video)
     _compare_video_epoch(
         _video_pipe(device, file_list=s3_list), _video_pipe(device, file_list=local_list)
+    )
+
+
+@params("cpu", "gpu")
+def test_video_reader_file_root(device):
+    """The labels come from the subdirectories, so they compare the listing, not just videos."""
+    _compare_video_epoch(
+        _video_pipe(
+            device,
+            file_root=f"s3://{s3.BUCKET}/{VIDEO_ROOT_PREFIX}/{device}",
+            random_shuffle=True,
+        ),
+        _video_pipe(device, file_root=os.path.join(g_video_root, device), random_shuffle=True),
     )
 
 
