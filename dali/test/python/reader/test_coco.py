@@ -284,7 +284,9 @@ def check_coco_pixelwise_merged_annotations(categories, segmentations, expected)
                     "iscrowd": 0,
                     "segmentation": segmentation,
                 }
-                for i, (category, segmentation) in enumerate(zip(categories, segmentations))
+                for i, (category, segmentation) in enumerate(
+                    zip(categories, segmentations, strict=True)
+                )
             ],
         }
         with open(annotations_file, "w") as f:
