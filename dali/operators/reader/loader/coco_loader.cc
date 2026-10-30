@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <limits>
 #include <list>
 #include <map>
 #include <stdexcept>
@@ -59,7 +60,8 @@ struct Polygons {
 };
 
 struct Annotation {
-  enum {POLYGON, RLE} tag_;
+  // NONE marks an annotation without a usable segmentation (missing, null, or not parsed).
+  enum {NONE, POLYGON, RLE} tag_ = NONE;
   int image_id_;
   int category_id_;
   std::array<float, 4> box_;
@@ -76,6 +78,57 @@ struct Annotation {
     return box_[2] >= min_size_threshold && box_[3] >= min_size_threshold;
   }
 };
+
+/**
+ * @brief Decodes the run lengths of a COCO RLE mask stored as a compressed string.
+ *
+ * The format matches rleFrString from the COCO API, which does not validate its input: it reads
+ * past the string when the last value is incomplete and writes past its output buffer.
+ */
+std::vector<uint32_t> DecodeRleCounts(const std::string &str) {
+  // A 32-bit count, or a signed difference of two counts, fits in 7 characters of 5 bits each.
+  constexpr int kMaxCharsPerValue = 7;
+  std::vector<uint32_t> counts;
+  size_t pos = 0;
+  while (pos < str.size()) {
+    int64_t value = 0;
+    int num_chars = 0;
+    bool more = true;
+    while (more) {
+      if (pos >= str.size()) {
+        throw std::invalid_argument(
+            "Invalid COCO RLE mask: compressed `counts` end in the middle of a value.");
+      }
+      int c = static_cast<unsigned char>(str[pos]) - '0';
+      if (c < 0 || c > 63) {
+        throw std::invalid_argument(make_string(
+            "Invalid COCO RLE mask: compressed `counts` contain an invalid character at position ",
+            pos, "; expected characters from '0' to 'o'."));
+      }
+      if (num_chars == kMaxCharsPerValue) {
+        throw std::invalid_argument(make_string(
+            "Invalid COCO RLE mask: a value in compressed `counts` at position ", pos,
+            " is longer than ", kMaxCharsPerValue, " characters."));
+      }
+      value |= static_cast<int64_t>(c & 0x1f) << (5 * num_chars);
+      more = c & 0x20;
+      pos++;
+      num_chars++;
+      if (!more && (c & 0x10))
+        value |= -(int64_t{1} << (5 * num_chars));  // sign extension
+    }
+    // Starting from the fourth value, the string stores a difference to the value two places back.
+    if (counts.size() > 2)
+      value += counts[counts.size() - 2];
+    if (value < 0 || value > std::numeric_limits<uint32_t>::max()) {
+      throw std::invalid_argument(make_string(
+          "Invalid COCO RLE mask: decoded run length ", value, " at index ", counts.size(),
+          " in compressed `counts` is out of range."));
+    }
+    counts.push_back(static_cast<uint32_t>(value));
+  }
+  return counts;
+}
 
 template <typename T>
 std::enable_if_t<is_pod_v<T>, void>
@@ -371,12 +424,11 @@ void ParseAnnotations(LookaheadParser &parser, std::vector<Annotation> &annotati
           }
           DALI_ENFORCE(h > 0 && w > 0, "Invalid or missing mask sizes");
           if (!rle_str.empty()) {
-            annotation.rle_ = std::make_shared<RLEMask>(h, w, rle_str.c_str());
-          } else if (!rle_uints.empty()) {
-            annotation.rle_ = std::make_shared<RLEMask>(h, w, make_cspan(rle_uints));
-          } else {
+            rle_uints = DecodeRleCounts(rle_str);
+          } else if (rle_uints.empty()) {
             DALI_FAIL("Missing or invalid ``counts`` attribute.");
           }
+          annotation.rle_ = std::make_shared<RLEMask>(h, w, make_cspan(rle_uints));
         } else if (parser.PeekType() == kArrayType) {
           annotation.tag_ = Annotation::POLYGON;
           int coord_offset = 0;
@@ -633,6 +685,9 @@ void CocoLoader::ParseJsonAnnotations() {
             masks_rles_idx_.push_back(objects_in_sample);
             masks_rles_.push_back(annotation.rle_);
             mask_count++;
+            break;
+          }
+          case detail::Annotation::NONE: {
             break;
           }
           default: {
