@@ -44,6 +44,12 @@ struct IndexEntry {
   int last_keyframe_id;
   bool is_keyframe;
   bool is_flush_frame;
+  // Position of the frame's packet in decoding order, counting all the packets of the stream,
+  // also those decoded but not shown (e.g. hidden by an edit list); -1 if unknown
+  int decode_idx = -1;
+  // For a frame that SeekFrame seeks to (the last keyframe of some frame): the decoding position
+  // of the packet where a seek to its timestamp lands (see AvSeekFrame); -1 otherwise or if unknown
+  int seek_decode_idx = -1;
 };
 
 struct FrameIndex {
@@ -63,6 +69,24 @@ struct FrameIndex {
   const IndexEntry& operator[](size_t idx) const {
     assert(idx < index.size());
     return index[idx];
+  }
+
+  /**
+   * @brief Position of frame i's packet in decoding order.
+   *
+   * Without decoding order (e.g. a hand-built index), the frames are assumed in decoding order.
+   */
+  int DecodeIdx(int i) const {
+    return index[i].decode_idx >= 0 ? index[i].decode_idx : i;
+  }
+
+  /**
+   * @brief Decoding position where a seek to frame i starts, for a frame that SeekFrame seeks to.
+   *
+   * If unknown, the seek is assumed to start at the frame itself.
+   */
+  int SeekDecodeIdx(int i) const {
+    return index[i].seek_decode_idx >= 0 ? index[i].seek_decode_idx : DecodeIdx(i);
   }
 
   /**
@@ -285,6 +309,56 @@ class DLL_PUBLIC FramesDecoderBase {
   virtual void SeekFrame(int frame_id);
 
   /**
+   * @brief Seeking forward by at most this many frames decodes through them instead of seeking.
+   *
+   * With an index, a decoder also decodes through to any later frame that has the same last
+   * keyframe as its next frame (see SeekFrame).
+   */
+  static constexpr int kMinimumSeekLeap = 10;
+
+  /**
+   * @brief Where a decoder is, for estimating its work: the frame it returns next (as
+   * NextFrameIdx, -1 after the last one) and the decoding position of the last picture it
+   * decoded (-1: none).
+   */
+  struct DecodePosition {
+    int next_frame = 0;
+    int decoded = -1;
+  };
+
+  /**
+   * @brief Estimated work of a decoder: the pictures it decodes and the times it reopens the file.
+   *
+   * A picture is a packet of the stream (see IndexEntry::decode_idx). The GPU decoder decodes
+   * more than one picture for a packet that holds several, e.g. a VP9 superframe with a hidden
+   * frame, or the two fields of an interlaced frame (see DecodedPictures).
+   */
+  struct DecodeWork {
+    int64_t pictures = 0;
+    int reopens = 0;
+  };
+
+  /**
+   * @brief The position of a decoder that read the frames up to `next_frame - 1` in a row.
+   *
+   * It has decoded the pictures of the frames read, and nothing after them. `next_frame` out of
+   * range is the position after the last frame.
+   */
+  static DecodePosition PositionAt(const FrameIndex &index, int next_frame);
+
+  /**
+   * @brief Adds the work of returning `frame` from `pos` and advances `pos`.
+   *
+   * Mirrors SeekFrame and ReadNextFrame (keep them in sync), counting the pictures decoded, also
+   * the hidden ones (see IndexEntry::decode_idx), and a Reset as a reopening. A `frame` out of
+   * range (e.g. -1, a constant frame from HandleBoundary) is not decoded: it adds nothing and
+   * leaves `pos` as it is. Not modelled: a failed av_seek_frame (after which every seek resets
+   * the decoder).
+   */
+  static void AddDecodeWork(const FrameIndex &index, DecodePosition &pos, int frame,
+                            DecodeWork &work);
+
+  /**
    * @brief Handles boundary conditions for a given frame index.
    *
    * @param boundary_type The boundary type to apply.
@@ -292,8 +366,8 @@ class DLL_PUBLIC FramesDecoderBase {
    * @param roi_start The start of the region of interest.
    * @param roi_end The end of the region of interest.
    */
-  int HandleBoundary(boundary::BoundaryType boundary_type, int frame_id,
-                     int roi_start, int roi_end);
+  static int HandleBoundary(boundary::BoundaryType boundary_type, int frame_id,
+                            int roi_start, int roi_end);
 
   /**
    * @brief Decodes a collection of frames, not necessarily in ascending order, applying a boundary type
@@ -420,6 +494,23 @@ class DLL_PUBLIC FramesDecoderBase {
     dtype_ = dtype;
   }
 
+  /**
+   * @brief Number of pictures decoded so far (for tests and diagnostics).
+   *
+   * The CPU decoder counts the packets it sends to FFmpeg, the GPU decoder the pictures that
+   * NVDEC decodes: more than the packets when a packet holds several pictures (see DecodeWork).
+   */
+  int64_t DecodedPictures() const {
+    return decoded_pictures_;
+  }
+
+  /**
+   * @brief Number of times the file was opened again by Reset (for tests and diagnostics).
+   */
+  int64_t Reopens() const {
+    return reopens_;
+  }
+
  protected:
   void DecodeFramesImpl(uint8_t *data, SmallVector<std::pair<int, int>, 32> frame_ids,
                         boundary::BoundaryType boundary_type,
@@ -452,6 +543,9 @@ class DLL_PUBLIC FramesDecoderBase {
 
   // False when the file doesn't have any correct content or doesn't have a valid video stream
   bool is_valid_ = false;
+
+  int64_t decoded_pictures_ = 0;  // see DecodedPictures
+  int64_t reopens_ = 0;  // see Reopens
 
  private:
   void DetectVariableFrameRate();
