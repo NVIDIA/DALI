@@ -14,6 +14,7 @@
 
 #include "dali/operators/reader/coco_reader_op.h"
 
+#include <algorithm>
 #include <set>
 #include <stdexcept>
 #include <variant>
@@ -378,104 +379,30 @@ void COCOReader::PixelwiseMasks(int image_idx, int* mask, const std::string &sou
     R[rles.first] = RLEMask(merged_mask);
   }
 
-  // Merge all the labels into a pair of vectors :
-  // [2,2,2],[A,B,C] for [A,A,B,B,C,C]
-  struct Encoding {
-    uint m;
-    std::unique_ptr<uint[]> cnts;
-    std::unique_ptr<int[]> vals;
-  };
-  Encoding A;
-  A.cnts = std::make_unique<uint[]>(num_pixels + 1);  // upper-bound
-  A.vals = std::make_unique<int[]>(num_pixels + 1);
-
-  // first copy the content of the first label to the output
-  bool v = false;
-  A.m = R[*labels.begin()]->m;
-  for (siz a = 0; a < R[*labels.begin()]->m; a++) {
-    A.cnts[a] = R[*labels.begin()]->cnts[a];
-    A.vals[a] = v ? *labels.begin() : 0;
-    v = !v;
-  }
-
-  // then merge the other labels
-  std::unique_ptr<uint[]> cnts = std::make_unique<uint[]>(num_pixels + 1);
-  std::unique_ptr<int[]> vals = std::make_unique<int[]>(num_pixels + 1);
-  for (auto label = ++labels.begin(); label != labels.end(); label++) {
-    RLE B = R[*label].get();
-    if (B.cnts == 0)
+  // Paint the labels in ascending order, so that a higher label wins where masks overlap
+  // (the overlap is undefined by the spec). Each RLE alternates background and foreground runs,
+  // starting with background, and walks the pixels in column-major order.
+  // Zero-length runs and labels without a mask need no special handling.
+  for (int label : labels) {
+    const RLE rle = R[label].get();
+    if (!rle.cnts)
       continue;
-
-    uint cnt_a = A.cnts[0];
-    uint cnt_b = B.cnts[0];
-    int next_val_a = A.vals[0];
-    int val_a = next_val_a;
-    int val_b = *label;
-    bool next_vb = false;
-    bool vb = next_vb;
-    uint nb_seq_a, nb_seq_b;
-    nb_seq_a = nb_seq_b = 1;
-    int m = 0;
-
-    int cnt_tot = 1;  // check if we advanced at all
-    while (cnt_tot > 0) {
-      uint c = std::min(cnt_a, cnt_b);
-      cnt_tot = 0;
-      // advance A
-      cnt_a -= c;
-      if (!cnt_a && nb_seq_a < A.m) {
-        cnt_a = A.cnts[nb_seq_a];  // next sequence for A
-        next_val_a = A.vals[nb_seq_a];
-        nb_seq_a++;
+    int64_t begin = 0;
+    for (siz i = 0; i < rle.m && begin < num_pixels; i++) {
+      int64_t end = std::min<int64_t>(begin + rle.cnts[i], num_pixels);
+      if (i % 2 == 1) {
+        int64_t x = begin / h, y = begin % h;
+        for (int64_t p = begin; p < end; p++) {
+          mask[x + y * w] = label;
+          if (++y == h) {
+            y = 0;
+            x++;
+          }
+        }
       }
-      cnt_tot += cnt_a;
-      // advance B
-      cnt_b -= c;
-      if (!cnt_b && nb_seq_b < B.m) {
-        cnt_b = B.cnts[nb_seq_b++];  // next sequence for B
-        next_vb = !next_vb;
-      }
-      cnt_tot += cnt_b;
-
-      if (m > num_pixels) {
-        throw std::invalid_argument(make_string(
-            "Invalid COCO RLE mask: too many merged runs; got at least ",
-            static_cast<int64_t>(m) + 1, ", expected at most ", num_pixels + 1, "."));
-      }
-      if (val_a && vb)  // there's already a class at this pixel
-                        // in this case, the last annotation wins (it's undefined by the spec)
-        vals[m] = (!cnt_a) ? val_a : val_b;
-      else if (val_a)
-        vals[m] = val_a;
-      else if (vb)
-        vals[m] = val_b;
-      else
-        vals[m] = 0;
-      cnts[m] = c;
-      m++;
-
-      // since we switched sequence for A or B, apply the new value from now on
-      val_a = next_val_a;
-      vb = next_vb;
-
-      if (cnt_a == 0) break;
+      begin = end;
     }
-    // copy back the buffers to the destination encoding
-    A.m = m;
-    for (int i = 0; i < m; i++) A.cnts[i] = cnts[i];
-    for (int i = 0; i < m; i++) A.vals[i] = vals[i];
   }
-
-  // Decode final pixelwise masks encoded via RLE
-  int x = 0, y = 0;
-  for (uint i = 0; i < A.m; i++)
-    for (uint j = 0; j < A.cnts[i]; j++) {
-      mask[x + y * w] = A.vals[i];
-      if (++y >= h) {
-        y = 0;
-        x++;
-      }
-    }
 }
 
 }  // namespace dali

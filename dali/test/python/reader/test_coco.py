@@ -232,6 +232,9 @@ def test_coco_invalid_rle_mask(segmentation, message):
 @params(
     ([1, 1, 1, 1], [[0, 0], [1, 1]]),
     ("1110", [[0, 0], [1, 1]]),
+    # From the fourth value, compressed counts store the difference to the value two places back.
+    ("0111", [[1, 1], [0, 1]]),
+    ("021O", [[1, 0], [1, 1]]),
     ([0, 1, 1, 1, 1], [[1, 1], [0, 0]]),
     ([4], [[0, 0], [0, 0]]),
     ([0, 4], [[1, 1], [1, 1]]),
@@ -258,28 +261,58 @@ def test_coco_polygon_mask_ownership(polygons):
             np.testing.assert_array_equal(masks.at(0)[:, :, 0], [[1, 1], [1, 1]])
 
 
-@params(False, True)
-def test_coco_rle_mask_merge(zero_runs):
+@params(
+    # Runs walk the 2x2 image column by column; the higher label wins where masks overlap.
+    ([[0, 1, 3], [1, 3]], [[1, 2], [2, 2]]),
+    ([[0, 4], [2, 2]], [[1, 2], [1, 2]]),
+    # Zero-length runs in the middle of a mask.
+    ([[0, 4], [1, 0, 0, 0, 3]], [[1, 1], [1, 1]]),
+    ([[1, 0, 0, 1, 2], [2, 2]], [[0, 2], [1, 2]]),
+    ([[2, 2], [1, 0, 0, 1, 2]], [[0, 1], [2, 1]]),
+    # The lowest label has no mask.
+    ([None, [2, 2]], [[0, 2], [0, 2]]),
+)
+def test_coco_rle_mask_merge(counts, expected):
     with tempfile.TemporaryDirectory() as directory:
         write_coco_rle_annotations(
             directory,
-            [
-                {"size": [2, 2], "counts": [0, 4] if zero_runs else [0, 1, 3]},
-                {"size": [2, 2], "counts": [1, 0, 0, 0, 3] if zero_runs else [1, 3]},
-            ],
+            [[] if c is None else {"size": [2, 2], "counts": c} for c in counts],
         )
         for preprocessed in (False, True):
             pipe = coco_rle_masks_pipe(directory, preprocessed=preprocessed)
-            if zero_runs:
-                assert_raises(
-                    ValueError,
-                    pipe.run,
-                    glob="*Invalid COCO RLE mask: too many merged runs; "
-                    "got at least 6, expected at most 5.*",
-                )
-            else:
-                (masks,) = pipe.run()
-                np.testing.assert_array_equal(masks.at(0)[:, :, 0], [[1, 2], [2, 2]])
+            (masks,) = pipe.run()
+            np.testing.assert_array_equal(masks.at(0)[:, :, 0], expected)
+
+
+@params(
+    ([None, {"size": [2, 2], "counts": [2, 2]}], [[0, 2], [0, 2]]),
+    ([{"size": [2, 2], "counts": [2, 2]}, None], [[0, 1], [0, 1]]),
+)
+def test_coco_null_segmentation(segmentations, expected):
+    with tempfile.TemporaryDirectory() as directory:
+        write_coco_rle_annotations(directory, segmentations)
+        for preprocessed in (False, True):
+            pipe = coco_rle_masks_pipe(directory, preprocessed=preprocessed)
+            (masks,) = pipe.run()
+            np.testing.assert_array_equal(masks.at(0)[:, :, 0], expected)
+
+
+@params(
+    ("0P", "compressed `counts` end in the middle of a value."),
+    ("1 ", "compressed `counts` contain an invalid character at position 1;"),
+    ("1p", "compressed `counts` contain an invalid character at position 1;"),
+    ("oooooooo", "a value in compressed `counts` at position 7 is longer than 7 characters."),
+    ("@", "decoded run length -16 at index 0 in compressed `counts` is out of range."),
+)
+def test_coco_invalid_compressed_rle_counts(counts, message):
+    with tempfile.TemporaryDirectory() as directory:
+        # A longer string comes first, as the parser reuses its string buffer between annotations.
+        write_coco_rle_annotations(
+            directory,
+            [{"size": [2, 2], "counts": "0111"}, {"size": [2, 2], "counts": counts}],
+        )
+        pipe = coco_rle_masks_pipe(directory)
+        assert_raises(ValueError, pipe.run, glob=f"*Invalid COCO RLE mask: {message}*")
 
 
 @params([], [1, 2, 3], [1, 2, 3, 4, 5])
