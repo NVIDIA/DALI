@@ -250,20 +250,27 @@ def check_scaling(out, tolerance=0.10):
     return ok
 
 
-def run(a):
+def run(args):
     todo = [
         (group, c)
-        for group, c in configs(a.threads, a.torchcodec and not a.hash)
-        if a.only in group and (a.hash or not c.get("hash_only"))
+        for group, c in configs(args.threads, args.torchcodec and not args.hash)
+        if args.only in group and (args.hash or not c.get("hash_only"))
     ]
     out = {}
     for group, c in todo:
         reference = c.get("lib") == "torchcodec"  # never fails the run
         reps = []
-        for _ in range(1 if a.hash else a.repeat):
+        for _ in range(1 if args.hash else args.repeat):
             r = subprocess.run(
-                [sys.executable, __file__, "--child", json.dumps(c), "--dali_extra", a.dali_extra]
-                + ["--hash"] * a.hash,
+                [
+                    sys.executable,
+                    __file__,
+                    "--child",
+                    json.dumps(c),
+                    "--dali_extra",
+                    args.dali_extra,
+                ]
+                + ["--hash"] * args.hash,
                 capture_output=True,
                 text=True,
             )
@@ -283,14 +290,14 @@ def run(a):
     failed = any(
         key(g, c) not in out for g, c in todo if c.get("lib") != "torchcodec"
     )  # a failed or missing configuration
-    for g in {v["group"] for v in out.values()} if a.hash else ():
+    for g in {v["group"] for v in out.values()} if args.hash else ():
         # one group, one output, whatever num_threads / reader_depth
         if len({v["hash"] for v in out.values() if v["group"] == g}) > 1:
             print(f"MISMATCH within group {g}")
             failed = True
-    if a.check and not a.hash:
+    if args.check and not args.hash:
         failed |= not check_scaling(out)
-    with open(a.json, "w") as f:
+    with open(args.json, "w") as f:
         json.dump(out, f, indent=1)
     return int(failed)
 
@@ -326,15 +333,15 @@ def main():
     ap.add_argument("--no_torchcodec", dest="torchcodec", action="store_false", help="DALI only")
     ap.add_argument("--dali_extra", default=os.environ.get("DALI_EXTRA_PATH", ""))
     ap.add_argument("--child", help=argparse.SUPPRESS)
-    a = ap.parse_args()
-    if a.dali_extra:  # symlink targets and file lists must not depend on the working directory
-        a.dali_extra = os.path.abspath(a.dali_extra)
-    if a.child:
-        print(json.dumps(child(json.loads(a.child), a.dali_extra, a.hash)))
-    elif a.compare:
-        sys.exit(compare(*a.compare))
+    args = ap.parse_args()
+    if args.dali_extra:  # symlink targets and file lists must not depend on the working directory
+        args.dali_extra = os.path.abspath(args.dali_extra)
+    if args.child:
+        print(json.dumps(child(json.loads(args.child), args.dali_extra, args.hash)))
+    elif args.compare:
+        sys.exit(compare(*args.compare))
     else:
-        sys.exit(run(a))
+        sys.exit(run(args))
 
 
 if __name__ == "__main__":
