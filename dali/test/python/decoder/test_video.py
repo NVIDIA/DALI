@@ -24,6 +24,7 @@ import nvidia.dali.types as types
 import glob
 import os
 import random
+import tempfile
 from itertools import cycle
 from test_utils import (
     get_dali_extra_path,
@@ -1408,3 +1409,47 @@ def test_video_index_reuse():
         seed=123456,
     )
     pipe.run()
+
+
+@cartesian_params(
+    # sintel_trailer-720p_3.mp4 has an MP4 edit list that hides its first frames, _0 does not
+    ("sintel_trailer-720p_0.mp4", "sintel_trailer-720p_3.mp4"),
+    (0, 40, 100),
+)
+def test_video_decoder_matches_reader(filename, start_frame, sequence_length=8):
+    """The decoder (with the default build_index=True) returns the same frames as the reader"""
+    path = os.path.join(get_dali_extra_path(), "db", "video", "sintel", "video_files", filename)
+    with tempfile.NamedTemporaryFile("w", suffix=".txt") as file_list:
+        file_list.write(f"{path} 0 {start_frame} {start_frame + sequence_length}\n")
+        file_list.flush()
+
+        @pipeline_def(batch_size=1, num_threads=1, device_id=0)
+        def reader_pipe():
+            frames, _ = fn.experimental.readers.video(
+                device="gpu",
+                file_list=file_list.name,
+                file_list_format="frames",
+                file_list_include_end=False,
+                sequence_length=sequence_length,
+            )
+            return frames
+
+        @pipeline_def(batch_size=1, num_threads=1, device_id=0)
+        def decoder_pipe():
+            encoded, _ = fn.readers.file(files=[path])
+            return fn.decoders.video(
+                encoded, device="mixed", start_frame=start_frame, sequence_length=sequence_length
+            )
+
+        reader = reader_pipe()
+        decoder = decoder_pipe()
+        reader.build()
+        decoder.build()
+        expected = np.array(reader.run()[0].as_cpu().at(0))
+        decoded = np.array(decoder.run()[0].as_cpu().at(0))
+    assert decoded.shape == expected.shape, f"{decoded.shape} != {expected.shape}"
+    diff = np.abs(decoded.astype(np.int16) - expected.astype(np.int16))
+    assert np.array_equal(decoded, expected), (
+        f"{filename}, start_frame={start_frame}: frame {np.argmax(diff.max(axis=(1, 2, 3)))} "
+        f"differs from the reader's, max abs diff {diff.max()}"
+    )
