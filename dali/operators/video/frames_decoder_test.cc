@@ -294,14 +294,14 @@ TEST_F(FramesDecoderGpuTest, IndexerGivesTheIndexOfTheDecoder) {
   for (const auto &path : paths) {
     SCOPED_TRACE(path);
     FramesDecoderGpu decoder(path);
-    FramesIndexer indexer(path, FramesDecoderGpu::IsCodecSupported);
+    FramesIndexer indexer(path);
     ExpectIndexerGivesTheIndexOfTheDecoder(decoder, indexer);
   }
 }
 
 // The files that the video reader skips as invalid are the same with the indexer as with the
 // decoder: a missing file, a file without a video stream, and a codec that is not supported by the
-// GPU decoder
+// GPU decoder. The indexer only reports the codec, the reader checks it with the decoder.
 TEST_F(FramesDecoderGpuTest, IndexerIsValidForTheSameFilesAsTheDecoder) {
   const std::string video_dir = make_string(testing::dali_extra_path(), "/db/video");
   for (const auto &path : {make_string(video_dir, "/nonexistent.mp4"),
@@ -309,8 +309,9 @@ TEST_F(FramesDecoderGpuTest, IndexerIsValidForTheSameFilesAsTheDecoder) {
                            make_string(video_dir, "/mjpeg/mjpeg.avi"), cfr_videos_paths_[0]}) {
     SCOPED_TRACE(path);
     FramesDecoderGpu decoder(path);
-    FramesIndexer indexer(path, FramesDecoderGpu::IsCodecSupported);
-    EXPECT_EQ(indexer.IsValid(), decoder.IsValid());
+    FramesIndexer indexer(path);
+    bool indexer_valid = indexer.IsValid() && FramesDecoderGpu::IsCodecSupported(indexer.CodecId());
+    EXPECT_EQ(indexer_valid, decoder.IsValid());
   }
 }
 
@@ -339,14 +340,14 @@ TEST_F(FramesDecoderTest_CpuOnlyTests, IndexerGivesTheIndexOfTheDecoder) {
                            make_string(video_dir, "/mjpeg/mjpeg.avi")}) {
     SCOPED_TRACE(path);
     FramesDecoderCpu decoder(path);
-    FramesIndexer indexer(path, FramesDecoderCpu::IsCodecSupported);
+    FramesIndexer indexer(path);
     ExpectIndexerGivesTheIndexOfTheDecoder(decoder, indexer);
   }
 }
 
 // The files that the video reader skips as invalid are the same with the indexer as with the
 // decoder: a missing file, a file without a video stream, and a codec that is not supported by the
-// CPU decoder
+// CPU decoder. The indexer only reports the codec, the reader checks it with the decoder.
 TEST_F(FramesDecoderTest_CpuOnlyTests, IndexerIsValidForTheSameFilesAsTheDecoder) {
   const std::string video_dir = make_string(testing::dali_extra_path(), "/db/video");
   for (const auto &path : {make_string(video_dir, "/nonexistent.mp4"),
@@ -354,8 +355,9 @@ TEST_F(FramesDecoderTest_CpuOnlyTests, IndexerIsValidForTheSameFilesAsTheDecoder
                            cfr_mpeg4_videos_paths_[0], make_string(video_dir, "/vp9/vp9_0.mp4")}) {
     SCOPED_TRACE(path);
     FramesDecoderCpu decoder(path);
-    FramesIndexer indexer(path, FramesDecoderCpu::IsCodecSupported);
-    EXPECT_EQ(indexer.IsValid(), decoder.IsValid());
+    FramesIndexer indexer(path);
+    bool indexer_valid = indexer.IsValid() && FramesDecoderCpu::IsCodecSupported(indexer.CodecId());
+    EXPECT_EQ(indexer_valid, decoder.IsValid());
   }
 }
 
