@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -45,6 +45,7 @@ void MinGPU<Out, In>::Run(KernelContext &ctx, const OutListGPU<Out> &out, const 
   impl_->Run(ctx, out, in);
 }
 
+template class MinGPU<bool, bool>;
 template class MinGPU<uint8_t, uint8_t>;
 template class MinGPU<int8_t, int8_t>;
 template class MinGPU<uint16_t, uint16_t>;
