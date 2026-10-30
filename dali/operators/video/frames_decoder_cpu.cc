@@ -282,12 +282,7 @@ bool FramesDecoderCpu::IsCodecSupported(AVCodecID codec_id) {
     return false;
   }
 
-  if (avcodec_find_decoder(codec_id) == nullptr) {
-    LOG_LINE << "No decoder found for codec " << avcodec_get_name(codec_id)
-             << " (codec_id=" << codec_id << ")" << std::endl;
-    return false;
-  }
-  return true;
+  return avcodec_find_decoder(codec_id) != nullptr;
 }
 
 bool FramesDecoderCpu::SelectVideoStream(int stream_id) {
@@ -298,6 +293,8 @@ bool FramesDecoderCpu::SelectVideoStream(int stream_id) {
   assert(stream_id_ >= 0 && stream_id_ < static_cast<int>(ctx_->nb_streams));
   assert(codec_params_);
   if (!IsCodecSupported(codec_params_->codec_id)) {
+    LOG_LINE << "Codec " << avcodec_get_name(codec_params_->codec_id)
+             << " (codec_id=" << codec_params_->codec_id << ") cannot be decoded" << std::endl;
     return false;
   }
   codec_ = avcodec_find_decoder(codec_params_->codec_id);
