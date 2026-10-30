@@ -209,6 +209,9 @@ class Operator(ABC):
     ``arg_rules`` - a sequence of verification rules for algorithm's arguments.
     ``input_rules`` - a sequence of verification rules for algorithm's input data.
     ``preprocess_data`` - a function to preprocess the input data.
+    ``supports_pil`` - whether the operator accepts ``PIL.Image`` input. Checked by ``Compose``
+    against the actual input, because ``input_rules`` only see graph nodes while the pipeline
+    is being built.
 
     Parameters
     ----------
@@ -221,6 +224,7 @@ class Operator(ABC):
     arg_rules: tuple[ArgumentValidateRule, ...] = tuple()
     input_rules: tuple[DataValidateRule, ...] = tuple()
     preprocess_data = None
+    supports_pil = True
 
     @classmethod
     def verify_args(cls, **kwargs):

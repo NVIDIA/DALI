@@ -63,7 +63,9 @@ def test_gaussian_blur_tensor_equivalence(kernel_size, sigma):
 
     dali_blur = Compose([GaussianBlur(kernel_size=kernel_size, sigma=sigma, seed=seed)])
     dali_out_tens = dali_blur(tens)
-    dali_out_batch = dali_blur(batch)
+    # Compose fixes the layout on the first call, so the batch needs its own instance
+    dali_blur_batch = Compose([GaussianBlur(kernel_size=kernel_size, sigma=sigma, seed=seed)])
+    dali_out_batch = dali_blur_batch(batch)
 
     ndd.random.set_seed(seed)
     dali_out_fn_tens = gaussian_blur(tens, kernel_size=kernel_size, sigma=sigma)
@@ -223,7 +225,8 @@ def _test_tensor_device(kernel_size, sigma, device):
 
     td = Compose([GaussianBlur(kernel_size=kernel_size, sigma=sigma, device=device)])
     out_dali = td(tens)
-    out_dali_batch = td(batch)
+    td_batch = Compose([GaussianBlur(kernel_size=kernel_size, sigma=sigma, device=device)])
+    out_dali_batch = td_batch(batch)
 
     out_dali_fn = gaussian_blur(tens, kernel_size=kernel_size, sigma=sigma, device=device)
     out_dali_fn_batch = gaussian_blur(batch, kernel_size=kernel_size, sigma=sigma, device=device)

@@ -15,7 +15,6 @@
 import numpy as np
 import torch
 from typing import Sequence, Literal
-import nvidia.dali.fn as fn
 
 from .operator import Operator, ArgumentValidateRule
 
@@ -82,8 +81,8 @@ class Normalize(Operator):
     """
 
     arg_rules = [_ValidateStd, _ValidateMean]
-    # TODO: currently not supported
-    # input_rules = [_ValidateIsTensor]
+    # Like torchvision, Normalize does not accept PIL images (see Compose._verify_pil_support)
+    supports_pil = False
 
     def __init__(
         self,
@@ -111,9 +110,5 @@ class Normalize(Operator):
             mean = np.asarray(self.mean)[:, None, None]
             std = np.asarray(self.std)[:, None, None]
 
-        return fn.normalize(
-            data_input,
-            mean=mean,
-            stddev=std,
-            device=self.device,
-        )
+        # Arithmetic broadcasting is right-aligned, so it works for CHW, FCHW, HWC and FHWC
+        return (data_input - mean) / std

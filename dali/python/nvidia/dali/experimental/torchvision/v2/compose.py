@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from abc import ABC, abstractmethod
-from typing import List, Sequence, Callable, Union
+from typing import List, Sequence, Callable, Literal, Union
 
 import nvidia.dali.fn as fn
 from nvidia.dali.pipeline import pipeline_def
@@ -137,6 +137,7 @@ class PipelineWithLayout(ABC):
         num_threads: int = DEFAULT_NUM_THREADS,
         **dali_pipeline_kwargs,
     ):
+        self.batch_size = batch_size
         self.output_type = PipelineWithLayout._get_output_format(op_list)
         self.device = op_list[0].device if len(op_list) > 0 else "cpu"
         self.torch_device_type = "cuda" if self.device == "gpu" else "cpu"
@@ -258,7 +259,12 @@ class PipelineHWC(PipelineWithLayout):
 
 
 class PipelineCHW(PipelineWithLayout):
-    """Handles ``torch.Tensors`` in CHW format.
+    """Handles ``torch.Tensors`` in CHW (unbatched) or NCHW (batched) format.
+
+    Both layouts describe samples in ``CHW`` layout and differ only in whether the input has
+    a leading batch dimension. Random parameters are sampled once per ``CHW`` sample.
+    ``CHW`` expects exactly 3 dimensions. For ``NCHW`` any leading dimensions are flattened into
+    the batch dimension, and restored in the output.
 
     This class prepares data to be passed to a DALI pipeline and runs the pipeline, converting
     the output to a ``torch.Tensor``.
@@ -271,58 +277,102 @@ class PipelineCHW(PipelineWithLayout):
         Batch size.
     num_threads : int, optional, default = DEFAULT_NUM_THREADS
         Number of threads.
+    batched : bool, optional, default = False
+        Whether the input has a leading batch dimension (``NCHW``) or not (``CHW``).
     **dali_pipeline_kwargs
         Additional keyword arguments for the DALI pipeline.
     """
+
+    sample_layout = "CHW"
 
     def __init__(
         self,
         op_list: List[Callable[..., Sequence[_DataNode] | _DataNode]],
         batch_size: int = DEFAULT_BATCH_SIZE,
         num_threads: int = DEFAULT_NUM_THREADS,
+        batched: bool = False,
         **dali_pipeline_kwargs,
     ):
+        self.batched = batched
         super().__init__(
             op_list,
-            layout="CHW",
+            layout=self.sample_layout,
             batch_size=batch_size,
             num_threads=num_threads,
             **dali_pipeline_kwargs,
         )
 
     def run(self, data_input):
-        if isinstance(data_input, torch.Tensor):
-            _input = data_input
-            if data_input.ndim == 3:
-                # DALI requires batch size to be present
-                _input = data_input.unsqueeze(0)
+        if not isinstance(data_input, torch.Tensor):
+            raise ValueError(
+                f"{self.get_layout()} layout is currently supported for torch.Tensor only.\
+                Please check if samples have the same format."
+            )
+
+        shape = data_input.shape
+        if self.batched:
+            # Any leading dimensions are flattened into the batch dimension
+            tail = len(self.sample_layout)
+            supported = data_input.ndim > tail
+            expected = f"at least {tail + 1} dimensions"
         else:
-            raise ValueError("CHW layout is currently supported for torch.Tensor only.\
-                Please check if samples have the same format.")
+            tail = 3
+            if self.sample_layout == "FCHW":
+                # Any leading dimensions are flattened into the frames dimension, as in torchvision
+                supported = data_input.ndim > tail
+                expected = "at least 4 dimensions"
+            else:
+                supported = data_input.ndim == tail
+                expected = "exactly 3 dimensions"
+        if not supported:
+            raise ValueError(
+                f"Unsupported input: a tensor with {data_input.ndim} dimensions for layout "
+                f"{self.get_layout()}, expected {expected}."
+            )
+        if data_input.numel() == 0:
+            raise ValueError(f"Empty input of shape {tuple(shape)} is not supported.")
+        leading = shape[:-tail]
+
+        _input = data_input.reshape(-1, *shape[-tail:])
+        if self.batched and _input.shape[0] > self.batch_size:
+            raise ValueError(
+                f"Input of shape {tuple(shape)} flattens to {_input.shape[0]} samples "
+                f"for layout {self.get_layout()}, but batch_size is {self.batch_size}. "
+                "Increase batch_size."
+            )
+        if self.sample_layout == "FCHW" and not self.batched:
+            # DALI requires batch size to be present
+            _input = _input.unsqueeze(0)
         output = super().run(_input)
 
-        if data_input.ndim == 3:
+        if self.batched:
+            output = output.reshape(*leading, *output.shape[1:])
+        else:
             # Remove the batch dimension we added above
             output = output.squeeze(0)
+            output = output.reshape(*leading, *output.shape[-3:])
 
         if self.output_type == "pil":
-            if output.ndim == 4:
-                if output.shape[0] > 1:
-                    return [self.output_to_pil(output[i]) for i in range(output.shape[0])]
-                return self.output_to_pil(output[0])
             return self.output_to_pil(output)
 
         return output
 
     def output_to_tensor(self, output: torch.Tensor) -> torch.Tensor:
-        """Return the pipeline output as a CHW ``torch.Tensor``."""
+        """Return the pipeline output as a ``torch.Tensor``."""
         return output
 
-    def output_to_pil(self, output: torch.Tensor) -> Image.Image:
-        return to_pil_image(output)
+    def output_to_pil(self, output: torch.Tensor):
+        """Convert the output to ``PIL.Image``. Extra leading dimensions yield (nested) lists."""
+        if output.ndim == len(self.sample_layout):
+            if self.sample_layout == "CHW":
+                return to_pil_image(output)
+            return [to_pil_image(frame) for frame in output]
+        if output.shape[0] > 1:
+            return [self.output_to_pil(output[i]) for i in range(output.shape[0])]
+        return self.output_to_pil(output[0])
 
     def get_layout(self) -> str:
-        return "CHW"
+        return ("N" if self.batched else "") + self.sample_layout
 
     def get_channel_reverse_idx(self) -> int:
         return -3
@@ -330,6 +380,29 @@ class PipelineCHW(PipelineWithLayout):
     def verify_layout(self, data_input) -> None:
         if not isinstance(data_input, torch.Tensor):
             raise TypeError(f"The pipeline expects torch.Tensor as input got {type(data_input)}")
+
+
+class PipelineFCHW(PipelineCHW):
+    """Handles ``torch.Tensors`` in FCHW (unbatched) or NFCHW (batched) format.
+
+    Both layouts describe samples in ``FCHW`` layout (a sequence of frames) and differ only
+    in whether the input has a leading batch dimension. Random parameters are sampled once per
+    ``FCHW`` sample, so all frames of a sample are transformed identically.
+    """
+
+    sample_layout = "FCHW"
+
+
+# layout -> (pipeline class, input has a batch dimension)
+PipelineLayouts = {
+    "HWC": (PipelineHWC, False),
+    "CHW": (PipelineCHW, False),
+    "NCHW": (PipelineCHW, True),
+    "FCHW": (PipelineFCHW, False),
+    "NFCHW": (PipelineFCHW, True),
+}
+_UNSUPPORTED_LAYOUTS = ("NHWC", "FHWC", "NFHWC")
+_ALLOWED_LAYOUTS = (None, "HWC", "CHW", "NCHW", "FCHW", "NFCHW")
 
 
 class Compose:
@@ -340,14 +413,34 @@ class Compose:
     ``torchvision.transforms.Compose``. The ``Compose`` class implements a callable which runs
     the pipeline.
 
+    The DALI pipeline is built on the first call, and its input layout and type are fixed from then
+    on. Use a separate ``Compose`` instance for inputs with a different layout (e.g. ``CHW`` and
+    ``FCHW`` tensors) or type (``PIL.Image`` and ``torch.Tensor``).
+
     Parameters
     ----------
     op_list : list
         List of DALI operators.
-    batch_size : int, optional, default = DEFAULT_BATCH_SIZE
-        Batch size.
+    batch_size : int, optional, default = None
+        Maximum number of samples in a batch, must be at least 1. If not set, ``Compose`` follows
+        torchvision: every call is a single sample with one set of random parameters. Setting it
+        enables the batched mode, which is an extension to torchvision: each sample in the batch
+        gets its own random parameters. ``batch_size > 1`` contradicts a ``layout`` without ``N``
+        and raises ``ValueError``.
     num_threads : int, optional, default = DEFAULT_NUM_THREADS
         Number of threads.
+    layout : str, optional, default = None
+        Layout of the input data. One of ``None``, ``"HWC"``, ``"CHW"``, ``"NCHW"``, ``"FCHW"``,
+        ``"NFCHW"`` (``"NHWC"``, ``"FHWC"`` and ``"NFHWC"`` are not supported yet).
+        ``N`` is a batch of samples, ``F`` is a sequence of frames. Random parameters are sampled
+        once per sample, i.e. per ``CHW`` image for ``NCHW`` and per ``FCHW`` sequence for
+        ``NFCHW``. ``NCHW`` and ``NFCHW`` are extensions to torchvision and require
+        ``batch_size``. Leading dimensions beyond the layout are flattened into ``N`` (or into
+        ``F`` for ``FCHW``).
+        If ``None``, the layout is inferred from the input: ``PIL.Image`` is ``HWC``.
+        For ``torch.Tensor`` without ``batch_size`` (torchvision behavior): 3 dimensions is
+        ``CHW``, 4 or more is ``FCHW``. With ``batch_size`` set: 3 dimensions is ``CHW``,
+        4 is ``NCHW``, 5 or more is ``NFCHW``.
     **dali_pipeline_kwargs
         Additional keyword arguments for the DALI pipeline.
     """
@@ -355,27 +448,74 @@ class Compose:
     def __init__(
         self,
         op_list: List[Callable[..., Sequence[_DataNode] | _DataNode]],
-        batch_size: int = DEFAULT_BATCH_SIZE,
+        batch_size: int | None = None,
         num_threads: int = DEFAULT_NUM_THREADS,
+        layout: Literal[
+            None, "HWC", "CHW", "NHWC", "NCHW", "FCHW", "FHWC", "NFCHW", "NFHWC"
+        ] = None,
         **dali_pipeline_kwargs,
     ):
+        if layout not in _ALLOWED_LAYOUTS:
+            raise ValueError(f"Unknown layout {layout!r}. Allowed values: {_ALLOWED_LAYOUTS}.")
+        if batch_size is not None and batch_size < 1:
+            raise ValueError(f"batch_size must be a positive integer or None, got {batch_size}.")
+        if layout is not None:
+            if layout in _UNSUPPORTED_LAYOUTS:
+                raise NotImplementedError(f"Layout {layout!r} is currently not supported.")
+            if layout.startswith("N") and batch_size is None:
+                raise ValueError(f"Layout {layout!r} requires batch_size.")
+            if not layout.startswith("N") and batch_size is not None and batch_size > 1:
+                raise ValueError(f"Layout {layout!r} has no batch dimension, got {batch_size=}.")
         self.op_list = op_list
         self.batch_size = batch_size
         self.num_threads = num_threads
+        self.layout = layout
         self.active_pipeline = None
         self.dali_pipeline_kwargs = dali_pipeline_kwargs
 
+    def _infer_layout(self, data_input) -> str:
+        """Infer the layout from the input type, its dimensions and the batch size."""
+        if isinstance(data_input, Image.Image):
+            return "HWC"
+        if not isinstance(data_input, torch.Tensor):
+            raise ValueError("Currently only PILImages and torch.Tensors are supported")
+
+        ndim = data_input.ndim
+        if ndim < 3:
+            raise ValueError(
+                f"Unsupported input: a tensor with {ndim} dimensions, expected at least 3 "
+                "dimensions (..., C, H, W)."
+            )
+        if ndim == 3:
+            return "CHW"
+        if not self.batch_size:
+            return "FCHW"
+        return "NCHW" if ndim == 4 else "NFCHW"
+
+    def _verify_pil_support(self):
+        """Raise if an operator that does not accept PIL images would receive one."""
+        for op in self.op_list:
+            if isinstance(op, (ToPureTensor, PILToTensor)):
+                return  # the data is a tensor from here on
+            # Wrappers that are not Operator subclasses (e.g. Pad) have no such attribute
+            if not getattr(op, "supports_pil", True):
+                raise TypeError(
+                    f"{type(op).__name__} does not support PIL images. "
+                    "Convert the image to a tensor first, e.g. with PILToTensor."
+                )
+
     def _build_pipeline(self, data_input):
         if isinstance(data_input, Image.Image):
-            self.active_pipeline = PipelineHWC(
-                self.op_list, self.batch_size, self.num_threads, **self.dali_pipeline_kwargs
-            )
-        elif isinstance(data_input, torch.Tensor):
-            self.active_pipeline = PipelineCHW(
-                self.op_list, self.batch_size, self.num_threads, **self.dali_pipeline_kwargs
-            )
-        else:
-            raise ValueError("Currently only PILImages and torch.Tensors are supported")
+            self._verify_pil_support()
+        layout = self.layout or self._infer_layout(data_input)
+        pipeline_cls, batched = PipelineLayouts[layout]
+        kwargs = dict(self.dali_pipeline_kwargs)
+        if pipeline_cls is not PipelineHWC:
+            kwargs["batched"] = batched
+        pipeline_batch_size = self.batch_size if batched else 1
+        self.active_pipeline = pipeline_cls(
+            self.op_list, pipeline_batch_size, self.num_threads, **kwargs
+        )
 
     def __call__(self, data_input):
         """
