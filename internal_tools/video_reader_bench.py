@@ -95,13 +95,24 @@ def dali_configs(threads):
 def configs(threads, torchcodec=True):
     cfgs = list(dali_configs(threads))
     yield from cfgs
-    for group, c in cfgs if torchcodec else ():
-        if c["device"] == "gpu" and group != "reader_depth" and not c.get("hash_only"):
-            yield group + "_torchcodec", dict(c, lib="torchcodec")
+    for group, cfg in cfgs if torchcodec else ():
+        if cfg["device"] == "gpu" and group != "reader_depth" and not cfg.get("hash_only"):
+            yield group + "_torchcodec", dict(cfg, lib="torchcodec")
 
 
-def key(group, c):
-    return f"{group} t={c['t']} rd={c['rd']}"
+def key(group, cfg):
+    return f"{group} t={cfg['t']} rd={cfg['rd']}"
+
+
+def find_files(cfg, root):
+    files = sorted(f for p in cfg["files"] for f in glob.glob(os.path.join(root, VIDEO_DIR, p)))
+    if not files:
+        raise FileNotFoundError(
+            f"--dali_extra={root!r}: expected files matching {cfg['files']} under "
+            f"{os.path.join(root, VIDEO_DIR)!r}, but found none. Point --dali_extra (or "
+            "DALI_EXTRA_PATH) at a DALI_extra checkout."
+        )
+    return files
 
 
 def torchcodec_step(cfg, samples):
@@ -145,13 +156,7 @@ def child(cfg, root, hash_out):
 def run_config(cfg, root, hash_out, tmp):
     import numpy as np
 
-    files = sorted(f for p in cfg["files"] for f in glob.glob(os.path.join(root, VIDEO_DIR, p)))
-    if not files:
-        raise FileNotFoundError(
-            f"--dali_extra={root!r}: expected files matching {cfg['files']} under "
-            f"{os.path.join(root, VIDEO_DIR)!r}, but found none. Point --dali_extra (or "
-            "DALI_EXTRA_PATH) at a DALI_extra checkout."
-        )
+    files = find_files(cfg, root)
     samples = []  # (path, start, end)
     if cfg.get("many"):  # distinct symlinks: nothing keyed by the file name is shared
         lines = []
@@ -244,7 +249,7 @@ def check_scaling(out, tolerance=0.10):
         ok &= not slower
         for (t0, rd0, slow), (t1, rd1, fast) in slower or [(rows[0], rows[-1])]:
             print(
-                f"{'FAIL' if slower else 'ok  '} {group}: {slow:.0f} frames/s (t={t0}, rd={rd0})"
+                f"{'FAIL' if slower else 'OK':4} {group}: {slow:.0f} frames/s (t={t0}, rd={rd0})"
                 f" -> {fast:.0f} (t={t1}, rd={rd1})"
             )
     return ok
@@ -252,13 +257,15 @@ def check_scaling(out, tolerance=0.10):
 
 def run(args):
     todo = [
-        (group, c)
-        for group, c in configs(args.threads, args.torchcodec and not args.hash)
-        if args.only in group and (args.hash or not c.get("hash_only"))
+        (group, cfg)
+        for group, cfg in configs(args.threads, args.torchcodec and not args.hash)
+        if args.only in group and (args.hash or not cfg.get("hash_only"))
     ]
+    for _, cfg in todo:  # once here, not as a failure of every child process
+        find_files(cfg, args.dali_extra)
     out = {}
-    for group, c in todo:
-        reference = c.get("lib") == "torchcodec"  # never fails the run
+    for group, cfg in todo:
+        reference = cfg.get("lib") == "torchcodec"  # never fails the run
         reps = []
         for _ in range(1 if args.hash else args.repeat):
             r = subprocess.run(
@@ -266,7 +273,7 @@ def run(args):
                     sys.executable,
                     __file__,
                     "--child",
-                    json.dumps(c),
+                    json.dumps(cfg),
                     "--dali_extra",
                     args.dali_extra,
                 ]
@@ -276,19 +283,19 @@ def run(args):
             )
             if r.returncode:
                 reps = None
-                print(f"FAILED {key(group, c)}{' (reference)' if reference else ''}:")
+                print(f"FAILED {key(group, cfg)}{' (reference)' if reference else ''}:")
                 print(r.stderr[-1500:])
                 break
             reps.append(json.loads(r.stdout.splitlines()[-1]))
         if reps:
-            out[key(group, c)] = dict(group=group, t=c["t"], rd=c["rd"])
+            out[key(group, cfg)] = dict(group=group, t=cfg["t"], rd=cfg["rd"])
             for k in reps[0]:
-                out[key(group, c)][k] = (
+                out[key(group, cfg)][k] = (
                     reps[0][k] if k == "hash" else statistics.median(x[k] for x in reps)
                 )
-            print(key(group, c), {k: v for k, v in out[key(group, c)].items() if k != "group"})
+            print(key(group, cfg), {k: v for k, v in out[key(group, cfg)].items() if k != "group"})
     failed = any(
-        key(g, c) not in out for g, c in todo if c.get("lib") != "torchcodec"
+        key(g, cfg) not in out for g, cfg in todo if cfg.get("lib") != "torchcodec"
     )  # a failed or missing configuration
     for g in {v["group"] for v in out.values()} if args.hash else ():
         # one group, one output, whatever num_threads / reader_depth
