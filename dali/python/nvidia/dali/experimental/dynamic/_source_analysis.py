@@ -42,6 +42,7 @@ from ._call_site import resolve_callsite_frame
 from ._capture import CapturedBatch, CaptureRef
 from ._device import Device
 from ._nvtx import NVTXRange
+from ._tensor import _subscript_kwargs
 from ._type import DType
 from .capture._invariant import invariant, is_dunder
 from .capture._invariant import is_invariant as _is_explicit_invariant
@@ -216,7 +217,9 @@ class ModuleInfo:
                 accepted = cst.Call
             elif name.startswith("INPLACE_"):
                 accepted = cst.AugAssign
-            elif name.startswith("BINARY_") and name != "BINARY_SUBSCR":
+            elif name == "BINARY_SUBSCR":
+                accepted = cst.Subscript
+            elif name.startswith("BINARY_"):
                 accepted = cst.BinaryOperation
             else:
                 return None
@@ -318,8 +321,8 @@ class _FusedCodegenState(PositionProvidingCodegenState):
     def after_codegen(self, node: cst.CSTNode) -> None:
         super().after_codegen(node)
         self._node_stack.pop()
-        # A frame executes either at a call or at an arithmetic operator reached via a dunder
-        if isinstance(node, (cst.Call, cst.BinaryOperation, cst.AugAssign)):
+        # A frame executes either at a call, or at an operator or subscript reached via a dunder
+        if isinstance(node, (cst.Call, cst.BinaryOperation, cst.AugAssign, cst.Subscript)):
             self.nodes.append(node)
 
 
@@ -455,9 +458,13 @@ class _Classifier:
         self, inputs: tuple[Any, ...], raw_kwargs: dict[str, Any]
     ) -> tuple[list[CaptureRef | Any], dict[str, CaptureRef | Any]] | None:
         info = site_info(self.frame)
-        call = info.node if info is not None else None
-        source_args = _split_call_args(call) if isinstance(call, cst.Call) else None
-        pos_nodes, kw_nodes = source_args or ((), {})
+        match (info.node if info is not None else None):
+            case cst.Call() as call:
+                pos_nodes, kw_nodes = _split_call_args(call) or ((), {})
+            case cst.Subscript() as subscript:
+                pos_nodes, kw_nodes = (), _split_subscript_args(subscript, inputs[0], raw_kwargs)
+            case _:
+                pos_nodes, kw_nodes = (), {}
 
         try:
             classified_inputs: list[CaptureRef | Any] = []
@@ -707,6 +714,27 @@ def _split_call_args(
     pos = [a.value for a in call.args if a.keyword is None]
     kw = {a.keyword.value: a.value for a in call.args if a.keyword is not None}
     return pos, kw
+
+
+def _split_subscript_args(
+    subscript: cst.Subscript, data: Any, raw_kwargs: Mapping[str, Any]
+) -> dict[str, cst.BaseExpression]:
+    """Map the ``_tensor_subscript`` arguments of ``data.slice[...]`` to their expressions."""
+    ranges = []
+    for element in subscript.slice:
+        match element.slice:
+            case cst.Index(star="*"):
+                return {}
+            case cst.Index(value=cst.Ellipsis()):
+                ranges.append(...)
+            case cst.Index(value=value):
+                ranges.append(value)
+            case cst.Slice(lower=lower, upper=upper, step=step):
+                ranges.append(slice(lower, upper, step))
+    kw_nodes = _subscript_kwargs(ranges, data)
+    # A name holding an Ellipsis or a slice desyncs source elements from runtime arguments
+    used = {name for name, value in raw_kwargs.items() if value is not None}
+    return kw_nodes if used <= kw_nodes.keys() else {}
 
 
 def _matches_callee(obj: Any, callee_code: types.CodeType) -> bool:
