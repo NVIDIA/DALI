@@ -14,12 +14,13 @@
 
 #include "dali/operators/video/frames_decoder_cpu.h"
 #include <algorithm>
-#include <string>
-#include "dali/core/error_handling.h"
-#include "dali/core/tensor_view.h"
-#include "dali/kernels/transpose/transpose.h"
 #include <cstring>
 #include <iomanip>
+#include <memory>
+#include <stdexcept>
+#include <string>
+#include "dali/core/error_handling.h"
+#include "dali/core/util.h"
 #include "dali/operators/video/video_utils.h"
 
 namespace dali {
@@ -74,25 +75,47 @@ bool FramesDecoderCpu::ReadNextFrame(uint8_t *data) {
 }
 
 
-void PlanarToInterleaved(uint8_t *output, const uint8_t *input, int64_t height, int64_t width, int64_t channels) {
-  std::array<int, 3> perm = {1, 2, 0};
-  TensorView<StorageCPU, uint8_t> output_view{output, {height, width, channels}};
-  TensorView<StorageCPU, const uint8_t> input_view{input, {channels, height, width}};
-  kernels::TransposeGrouped(output_view, input_view, make_cspan(perm));
+void PlanarToInterleaved(uint8_t *output, const uint8_t *input, int64_t height, int64_t width,
+                         int64_t row_stride) {
+  const int64_t plane_stride = height * row_stride;
+  for (int64_t y = 0; y < height; y++) {
+    const uint8_t *p0 = input + y * row_stride;
+    const uint8_t *p1 = p0 + plane_stride;
+    const uint8_t *p2 = p1 + plane_stride;
+    uint8_t *dst = output + y * width * 3;
+    for (int64_t x = 0; x < width; x++) {
+      dst[3 * x + 0] = p0[x];
+      dst[3 * x + 1] = p1[x];
+      dst[3 * x + 2] = p2[x];
+    }
+  }
 }
 
 void FramesDecoderCpu::CopyToOutput(uint8_t *data) {
+  // The output buffer and conversion context use the dimensions from the container.
+  // Decoded frames must agree with them before we convert or write any pixels.
+  if (frame_->width != Width() || frame_->height != Height()) {
+    throw std::runtime_error(
+        make_string("Decoded frame dimensions (", frame_->width, "x", frame_->height,
+                    ") do not match the video dimensions (", Width(), "x", Height(),
+                    ") in ", Filename(), "."));
+  }
   uint8_t *sws_output_data = data;
   AVPixelFormat sws_output_format = AV_PIX_FMT_RGB24;
+  int row_stride = Width() * Channels();
+  int64_t plane_stride = 0;
+  if (image_type_ == DALI_YCbCr) {
+    sws_output_format = AV_PIX_FMT_YUV444P;
+    row_stride = align_up(Width(), 32);
+    plane_stride = static_cast<int64_t>(row_stride) * Height();
+  }
   if (image_type_ == DALI_YCbCr || Width() % 32) {
     // in some cases, when Width() % 32, sws_scale go past the provided memory for
     // conversion output, so we need the memory allocated with extra padding
     auto extra_padding = 32;
-    tmp_buffer_.resize(FrameSize() + extra_padding);
+    auto buffer_size = image_type_ == DALI_YCbCr ? plane_stride * Channels() : FrameSize();
+    tmp_buffer_.resize(buffer_size + extra_padding);
     sws_output_data = tmp_buffer_.data();
-    if (image_type_ == DALI_YCbCr) {
-      sws_output_format = AV_PIX_FMT_YUV444P;
-    }
   }
   if (!sws_ctx_) {
     sws_ctx_ = std::unique_ptr<SwsContext, decltype(&sws_freeContext)>(
@@ -130,7 +153,13 @@ void FramesDecoderCpu::CopyToOutput(uint8_t *data) {
   }
 
   uint8_t *dest[4] = {sws_output_data, nullptr, nullptr, nullptr};
-  int dest_linesize[4] = {frame_->width * Channels(), 0, 0, 0};
+  int dest_linesize[4] = {row_stride, 0, 0, 0};
+  if (image_type_ == DALI_YCbCr) {
+    // YUV444P writes three separately padded planes before interleaving them.
+    dest[1] = sws_output_data + plane_stride;
+    dest[2] = sws_output_data + 2 * plane_stride;
+    dest_linesize[1] = dest_linesize[2] = row_stride;
+  }
 
   LOG_LINE << "Converting frame data to format " << (sws_output_format == AV_PIX_FMT_RGB24 ? "RGB" : "YUV") << std::endl;
   int ret = sws_scale(
@@ -142,15 +171,15 @@ void FramesDecoderCpu::CopyToOutput(uint8_t *data) {
     dest,
     dest_linesize);
 
+  DALI_ENFORCE(ret >= 0,
+               make_string("Could not convert frame data: ", av_error_string(ret)));
+
   if (image_type_ == DALI_YCbCr) {
     LOG_LINE << "Converting planar YUV to interleaved" << std::endl;
-    PlanarToInterleaved(data, sws_output_data, Height(), Width(), Channels());
+    PlanarToInterleaved(data, sws_output_data, Height(), Width(), row_stride);
   } else if (Width() % 32) {
     std::copy(sws_output_data, sws_output_data + FrameSize(), data);
   }
-
-  DALI_ENFORCE(ret >= 0,
-               make_string("Could not convert frame data: ", av_error_string(ret)));
 }
 
 bool FramesDecoderCpu::ReadRegularFrame(uint8_t *data) {

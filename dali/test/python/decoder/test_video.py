@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2022-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,6 +17,9 @@ from nvidia.dali import pipeline_def
 import numpy as np
 import cv2
 import av
+import io
+import struct
+import tempfile
 import nvidia.dali.types as types
 import glob
 import os
@@ -64,6 +67,92 @@ codec_files = {
 # list all not supported codecs by the CPU operator we test on
 unsupported_cpu_codec_error = r"is not supported by the CPU variant of this operator\."
 unsupported_cpu_codecs = {"h264", "hevc", "mpeg4", "av1"}
+
+
+def make_mjpeg_video(width, height):
+    y, x = np.mgrid[:height, :width]
+    x = x * 64 // max(width - 1, 1)
+    y = y * 48 // max(height - 1, 1)
+    encoded = io.BytesIO()
+    with av.open(encoded, mode="w", format="avi") as container:
+        stream = container.add_stream("mjpeg", rate=1)
+        stream.width, stream.height = width, height
+        # Avoid chroma upsampling differences between DALI's and PyAV's FFmpeg builds.
+        stream.pix_fmt = "yuvj444p"
+        for frame_idx in range(2):
+            # Vary each channel along both axes so incorrect row/plane strides change pixels.
+            pixels = np.stack(
+                (
+                    32 + x + y // 2 + 32 * frame_idx,
+                    64 + x // 2 + y,
+                    160 - x // 2 + y // 2 - 16 * frame_idx,
+                ),
+                axis=-1,
+            ).astype(np.uint8)
+            frame = av.VideoFrame.from_ndarray(
+                pixels,
+                format="rgb24",
+            )
+            for packet in stream.encode(frame):
+                container.mux(packet)
+        for packet in stream.encode():
+            container.mux(packet)
+    return bytearray(encoded.getvalue())
+
+
+def mjpeg_reference(data, image_type=types.RGB):
+    with av.open(io.BytesIO(data)) as container:
+        frames = []
+        for frame in container.decode():
+            if image_type == types.RGB:
+                frames.append(frame.to_ndarray(format="rgb24"))
+            else:
+                # The CPU decoder produces full-range YCbCr in interleaved HWC layout.
+                frames.append(frame.to_ndarray(format="yuvj444p").transpose(1, 2, 0))
+        return np.stack(frames)
+
+
+@params((32, 48), (30, 48), (64, 24), (64, 48))
+def test_video_container_frame_dimensions(declared_width, declared_height):
+    """Reject a container size that differs from the decoded frame size."""
+    data = make_mjpeg_video(64, 48)
+    # AVI's stream-format chunk contains a BITMAPINFOHEADER. Change its dimensions,
+    # leaving the dimensions encoded in the MJPEG frames intact.
+    header = data.index(b"strf")
+    assert struct.unpack_from("<ii", data, header + 12) == (64, 48)
+    struct.pack_into("<ii", data, header + 12, declared_width, declared_height)
+    sample = np.frombuffer(data, dtype=np.uint8)
+
+    @pipeline_def(batch_size=1, num_threads=1, device_id=None)
+    def pipeline():
+        video = fn.external_source(source=lambda: [sample], dtype=types.UINT8)
+        return fn.decoders.video(video, device="cpu")
+
+    pipe = pipeline()
+    if (declared_width, declared_height) != (64, 48):
+        with assert_raises(RuntimeError, glob="*Decoded frame dimensions (64x48)*"):
+            pipe.run()
+    else:
+        np.testing.assert_allclose(pipe.run()[0].at(0), mjpeg_reference(data), atol=2, rtol=0)
+
+
+@cartesian_params([30, 64], [types.RGB, types.YCbCr])
+def test_video_reader_matching_frame_dimensions(width, image_type):
+    """Exercise direct, padded RGB, and planar YCbCr conversion with valid frames."""
+    data = make_mjpeg_video(width, 48)
+    with tempfile.TemporaryDirectory() as tmpdir:
+        filename = os.path.join(tmpdir, "video.avi")
+        with open(filename, "wb") as video:
+            video.write(data)
+
+        @pipeline_def(batch_size=1, num_threads=1, device_id=None)
+        def pipeline():
+            return fn.experimental.readers.video(
+                filenames=[filename], sequence_length=2, device="cpu", image_type=image_type
+            )
+
+        output = pipeline().run()[0].at(0)
+        np.testing.assert_allclose(output, mjpeg_reference(data, image_type), atol=2, rtol=0)
 
 
 def assert_unsupported_cpu_codec(run_pipeline):
