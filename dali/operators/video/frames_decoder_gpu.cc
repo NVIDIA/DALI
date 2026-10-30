@@ -369,26 +369,27 @@ int handle_picture_display(void *user_data, CUVIDPARSERDISPINFO *picture_display
 
 void FramesDecoderGpu::InitBitStreamFilter() {
   const AVBitStreamFilter *bsf = nullptr;
+  const AVInputFormat *fmt = demuxer_.InputFormat();
   const char* filtername = nullptr;
-  switch (codec_params_->codec_id) {
+  switch (demuxer_.CodecParams()->codec_id) {
   case AVCodecID::AV_CODEC_ID_H264:
-    if  (!strcmp(ctx_->iformat->long_name, "QuickTime / MOV") ||
-         !strcmp(ctx_->iformat->long_name, "FLV (Flash Video)") ||
-         !strcmp(ctx_->iformat->long_name, "Matroska / WebM") ||
-         !strcmp(ctx_->iformat->long_name, "raw H.264 video")) {
+    if  (!strcmp(fmt->long_name, "QuickTime / MOV") ||
+         !strcmp(fmt->long_name, "FLV (Flash Video)") ||
+         !strcmp(fmt->long_name, "Matroska / WebM") ||
+         !strcmp(fmt->long_name, "raw H.264 video")) {
       filtername = "h264_mp4toannexb";
     }
     break;
   case AVCodecID::AV_CODEC_ID_HEVC:
-    if  (!strcmp(ctx_->iformat->long_name, "QuickTime / MOV") ||
-         !strcmp(ctx_->iformat->long_name, "FLV (Flash Video)") ||
-         !strcmp(ctx_->iformat->long_name, "Matroska / WebM") ||
-         !strcmp(ctx_->iformat->long_name, "raw HEVC video")) {
+    if  (!strcmp(fmt->long_name, "QuickTime / MOV") ||
+         !strcmp(fmt->long_name, "FLV (Flash Video)") ||
+         !strcmp(fmt->long_name, "Matroska / WebM") ||
+         !strcmp(fmt->long_name, "raw HEVC video")) {
       filtername = "hevc_mp4toannexb";
     }
     break;
   case AVCodecID::AV_CODEC_ID_MPEG4:
-    if  (!strcmp(ctx_->iformat->name, "avi")) {
+    if  (!strcmp(fmt->name, "avi")) {
       filtername = "mpeg4_unpack_bframes";
     }
     break;
@@ -400,7 +401,7 @@ void FramesDecoderGpu::InitBitStreamFilter() {
   default:
     DALI_FAIL(make_string(
       "Could not find suitable bit stream filter for codec: ",
-      avcodec_get_name(codec_params_->codec_id)));
+      avcodec_get_name(demuxer_.CodecParams()->codec_id)));
   }
 
   if (filtername != nullptr) {
@@ -415,7 +416,7 @@ void FramesDecoderGpu::InitBitStreamFilter() {
 
   DALI_ENFORCE(
     avcodec_parameters_copy(bsfc_->par_in,
-                            ctx_->streams[stream_id_]->codecpar) >= 0,
+                            demuxer_.CodecParams()) >= 0,
     "Unable to copy bit stream filter parameters");
   DALI_ENFORCE(
     av_bsf_init(bsfc_) >= 0,
@@ -439,7 +440,7 @@ cudaVideoCodec FramesDecoderGpu::GetCodecType(AVCodecID codec_id) const {
 
 bool FramesDecoderGpu::IsFullRange(CUVIDEOFORMAT *video_format) const {
   return video_format->video_signal_description.video_full_range_flag ||
-         codec_params_->color_range == AVCOL_RANGE_JPEG;
+         demuxer_.CodecParams()->color_range == AVCOL_RANGE_JPEG;
 }
 
 void FramesDecoderGpu::InitGpuDecoder(CUVIDEOFORMAT *video_format) {
@@ -462,7 +463,7 @@ void FramesDecoderGpu::InitGpuParser() {
   DALI_ENFORCE(filtered_packet_,
                make_string("Could not allocate av packet for \"", Filename(), "\""));
 
-  auto codec_type = GetCodecType(codec_params_->codec_id);
+  auto codec_type = GetCodecType(demuxer_.CodecParams()->codec_id);
 
   // Create nv parser
   CUVIDPARSERPARAMS parser_info;
@@ -476,8 +477,8 @@ void FramesDecoderGpu::InitGpuParser() {
   parser_info.pfnDecodePicture = frame_dec_gpu_impl::process_picture_decode;
   parser_info.pfnDisplayPicture = nullptr;
 
-  auto extradata = ctx_->streams[stream_id_]->codecpar->extradata;
-  auto extradata_size = ctx_->streams[stream_id_]->codecpar->extradata_size;
+  auto extradata = demuxer_.CodecParams()->extradata;
+  auto extradata_size = demuxer_.CodecParams()->extradata_size;
 
   memset(&parser_extinfo, 0, sizeof(parser_extinfo));
   parser_info.pExtVideoInfo = &parser_extinfo;
@@ -560,13 +561,13 @@ int FramesDecoderGpu::HandlePictureDisplay(CUVIDPARSERDISPINFO *picture_display_
            << next_frame_idx_ << ", timestamp " << std::setw(5) << current_pts_ << std::endl;
 
   // current_pts_ is pts of frame that came from the decoder
-  // index_[NextFrameIdx()].pts is pts of the frame that we want to return
+  // demuxer_.GetIndex()[NextFrameIdx()].pts is pts of the frame that we want to return
   // in this call to ReadNextFrame
   // If they are the same, we just return this frame
   // If not, we store it in the buffer for later
 
   void *frame_output = nullptr;
-  if (HasIndex() && current_pts_ == index_[NextFrameIdx()].pts) {
+  if (HasIndex() && current_pts_ == demuxer_.GetIndex()[NextFrameIdx()].pts) {
     // Currently decoded frame is actually the one we want to display
     frame_returned_ = true;
     LOG_LINE << "Found frame with correct display timestamp " << current_pts_
@@ -635,7 +636,7 @@ bool FramesDecoderGpu::ReadNextFrameWithIndex(uint8_t *data) {
   // Check if requested frame was buffered earlier
   assert(HasIndex());
   for (auto &frame : frame_buffer_) {
-    if (frame.pts_ != -1 && frame.pts_ == index_[next_frame_idx_].pts) {
+    if (frame.pts_ != -1 && frame.pts_ == demuxer_.GetIndex()[next_frame_idx_].pts) {
       if (copy_to_output) {
         LOG_LINE << "Copying from frame buffer to frame_output" << std::endl;
         copyD2D(data, frame.frame_.data(), FrameSize(), stream_);
@@ -652,8 +653,8 @@ bool FramesDecoderGpu::ReadNextFrameWithIndex(uint8_t *data) {
   current_frame_output_ = data;
 
   while (next_frame_idx_ < NumFrames()) {
-    int ret = av_read_frame(ctx_, packet_);
-    auto packet = AVPacketScope(packet_, av_packet_unref);
+    int ret = demuxer_.ReadFrame();
+    auto packet = AVPacketScope(demuxer_.Packet(), av_packet_unref);
     if (ret != 0) {
       LOG_LINE << "Hit EOF, sending last packet with " << piped_pts_.size()
                << " frames in pipeline, " << NumBufferedFrames() << " buffered frames, "
@@ -687,14 +688,15 @@ bool FramesDecoderGpu::ReadNextFrameWithIndex(uint8_t *data) {
 }
 
 bool FramesDecoderGpu::SendFrameToParser() {
-  if (packet_->stream_index != stream_id_) {
+  AVPacket *av_pkt = demuxer_.Packet();
+  if (av_pkt->stream_index != demuxer_.StreamId()) {
     return false;
   }
 
   // Store pts from current packet to indicate,
   // that this frame is in the decoder
-  if (packet_->pts != AV_NOPTS_VALUE) {
-    piped_pts_.push(packet_->pts);
+  if (av_pkt->pts != AV_NOPTS_VALUE) {
+    piped_pts_.push(av_pkt->pts);
   } else {
     piped_pts_.push(frame_index_if_no_pts_);
     frame_index_if_no_pts_++;
@@ -705,8 +707,8 @@ bool FramesDecoderGpu::SendFrameToParser() {
     av_packet_unref(filtered_packet_);
   }
 
-  LOG_LINE << "Sending packet to bitstream filter " << packet_->pts << std::endl;
-  DALI_ENFORCE(av_bsf_send_packet(bsfc_, packet_) >= 0);
+  LOG_LINE << "Sending packet to bitstream filter " << av_pkt->pts << std::endl;
+  DALI_ENFORCE(av_bsf_send_packet(bsfc_, av_pkt) >= 0);
   DALI_ENFORCE(av_bsf_receive_packet(bsfc_, filtered_packet_) >= 0);
 
   // Prepare nv packet
@@ -754,8 +756,8 @@ bool FramesDecoderGpu::ReadNextFrameWithoutIndex(uint8_t *data) {
     more_frames_to_decode_ &&
     !frame_returned_ &&
     frame_to_return_index == -1) {
-    int ret = av_read_frame(ctx_, packet_);
-    auto packet = AVPacketScope(packet_, av_packet_unref);
+    int ret = demuxer_.ReadFrame();
+    auto packet = AVPacketScope(demuxer_.Packet(), av_packet_unref);
     if (ret == 0) {
       if (!SendFrameToParser()) {
         continue;
@@ -882,7 +884,8 @@ void FramesDecoderGpu::SendLastPacket(bool flush) {
     do {
       found_frame = false;
       for (auto &frame : frame_buffer_) {
-        if (frame.pts_ != -1 && HasIndex() && frame.pts_ == index_[next_frame_idx_].pts) {
+        if (frame.pts_ != -1 && HasIndex() &&
+            frame.pts_ == demuxer_.GetIndex()[next_frame_idx_].pts) {
           LOG_LINE << "Processing remaining buffered frame pts=" << frame.pts_ << " for index "
                    << next_frame_idx_ << std::endl;
           frame.pts_ = -1;
@@ -1002,9 +1005,8 @@ bool FramesDecoderGpu::SelectVideoStream(int stream_id) {
     return false;
   }
 
-  assert(stream_id_ >= 0 && stream_id_ < static_cast<int>(ctx_->nb_streams));
-  assert(codec_params_);
-  AVCodecID codec_id = codec_params_->codec_id;
+  assert(demuxer_.CodecParams());
+  AVCodecID codec_id = demuxer_.CodecParams()->codec_id;
 
   static constexpr std::array<AVCodecID, /*7*/ 6> codecs = {
     AVCodecID::AV_CODEC_ID_H264,
@@ -1032,7 +1034,7 @@ bool FramesDecoderGpu::SelectVideoStream(int stream_id) {
   codec_ctx_.reset(avcodec_alloc_context3(nullptr));
   DALI_ENFORCE(codec_ctx_, "Could not alloc av codec context");
 
-  int ret = avcodec_parameters_to_context(codec_ctx_, codec_params_);
+  int ret = avcodec_parameters_to_context(codec_ctx_, demuxer_.CodecParams());
   DALI_ENFORCE(ret >= 0, make_string("Could not fill the codec based on parameters: ",
                                      av_error_string(ret)));
   return true;

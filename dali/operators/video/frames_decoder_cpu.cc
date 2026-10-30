@@ -106,7 +106,7 @@ void FramesDecoderCpu::CopyToOutput(uint8_t *data) {
   }
   bool src_full_range = frame_->color_range == AVCOL_RANGE_JPEG ||
                         (frame_->color_range == AVCOL_RANGE_UNSPECIFIED &&
-                         codec_params_->color_range == AVCOL_RANGE_JPEG);
+                         demuxer_.CodecParams()->color_range == AVCOL_RANGE_JPEG);
   if (sws_src_full_range_ != src_full_range) {
     int ret = sws_setColorspaceDetails(
       sws_ctx_.get(),
@@ -151,13 +151,13 @@ bool FramesDecoderCpu::ReadRegularFrame(uint8_t *data) {
   int ret = -1;
   bool copy_to_output = data != nullptr;
   while (true) {
-    ret = av_read_frame(ctx_, packet_);
-    auto packet = AVPacketScope(packet_, av_packet_unref);
+    ret = demuxer_.ReadFrame();
+    auto packet = AVPacketScope(demuxer_.Packet(), av_packet_unref);
     if (ret != 0) {
       break;  // End of file
     }
 
-    if (packet->stream_index != stream_id_) {
+    if (packet->stream_index != demuxer_.StreamId()) {
       continue;
     }
     ret = avcodec_send_packet(codec_ctx_, packet.get());
@@ -234,9 +234,8 @@ bool FramesDecoderCpu::SelectVideoStream(int stream_id) {
     return false;
   }
 
-  assert(stream_id_ >= 0 && stream_id_ < static_cast<int>(ctx_->nb_streams));
-  assert(codec_params_);
-  AVCodecID codec_id = codec_params_->codec_id;
+  assert(demuxer_.CodecParams());
+  AVCodecID codec_id = demuxer_.CodecParams()->codec_id;
 
   static constexpr std::array<AVCodecID, 3> codecs = {
     AVCodecID::AV_CODEC_ID_VP8,
@@ -255,16 +254,16 @@ bool FramesDecoderCpu::SelectVideoStream(int stream_id) {
     return false;
   }
 
-  if ((codec_ = avcodec_find_decoder(codec_params_->codec_id)) == nullptr) {
-    LOG_LINE << "No decoder found for codec " << avcodec_get_name(codec_params_->codec_id)
-             << " (codec_id=" << codec_params_->codec_id << ")" << std::endl;
+  if ((codec_ = avcodec_find_decoder(codec_id)) == nullptr) {
+    LOG_LINE << "No decoder found for codec " << avcodec_get_name(codec_id)
+             << " (codec_id=" << codec_id << ")" << std::endl;
     return false;
   }
 
   codec_ctx_.reset(avcodec_alloc_context3(codec_));
   DALI_ENFORCE(codec_ctx_, "Could not alloc av codec context");
 
-  int ret = avcodec_parameters_to_context(codec_ctx_, codec_params_);
+  int ret = avcodec_parameters_to_context(codec_ctx_, demuxer_.CodecParams());
   DALI_ENFORCE(ret >= 0, make_string("Could not fill the codec based on parameters: ",
                                      av_error_string(ret)));
 

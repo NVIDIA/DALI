@@ -23,6 +23,7 @@
 #include "dali/core/error_handling.h"
 #include "dali/operators/video/frames_decoder_cpu.h"
 #include "dali/operators/video/frames_decoder_gpu.h"
+#include "dali/operators/video/frames_demuxer.h"
 #include "dali/operators/video/video_test.h"
 #include "dali/test/dali_test_config.h"
 
@@ -380,6 +381,36 @@ TEST_F(FramesDecoderGpuTest, RawH265) {
   auto memory_video = MemoryVideo(cfr_raw_h264_videos_paths_[0]);
   FramesDecoderGpu decoder(memory_video.data(), memory_video.size());
   RunTest(decoder, cfr_videos_[0], false, 1.5);
+}
+
+// The demuxer on its own, checked against the ground truth
+TEST_F(FramesDecoderTest_CpuOnlyTests, DemuxerMatchesGroundTruth) {
+  auto check = [](const std::string &path, const TestVideo &gt, bool vfr) {
+    SCOPED_TRACE(path);
+    FramesDemuxer demuxer(path);
+    ASSERT_TRUE(demuxer.IsValid());
+    ASSERT_TRUE(demuxer.SelectVideoStream());
+    demuxer.BuildIndex();
+    ASSERT_TRUE(demuxer.HasIndex());
+    EXPECT_EQ(demuxer.NumFrames(), gt.NumFrames());
+    EXPECT_EQ(demuxer.GetIndex().size(), static_cast<size_t>(gt.NumFrames()));
+    EXPECT_EQ(demuxer.IsVfr(), vfr);
+    EXPECT_EQ(demuxer.Width(), gt.Width());
+    EXPECT_EQ(demuxer.Height(), gt.Height());
+  };
+  check(cfr_videos_paths_[0], cfr_videos_[0], false);
+  check(vfr_videos_paths_[0], vfr_videos_[0], true);
+}
+
+TEST_F(FramesDecoderTest_CpuOnlyTests, DemuxerInvalidFiles) {
+  FramesDemuxer missing(make_string(testing::dali_extra_path(), "/db/video/missing.mp4"));
+  EXPECT_FALSE(missing.IsValid());
+
+  // An audio file has no video stream
+  FramesDemuxer audio(
+      make_string(testing::dali_extra_path(), "/db/audio/flac/237-134500-0000.flac"));
+  ASSERT_TRUE(audio.IsValid());
+  EXPECT_FALSE(audio.SelectVideoStream());
 }
 
 }  // namespace dali
