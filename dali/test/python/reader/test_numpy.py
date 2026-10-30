@@ -1307,8 +1307,8 @@ def test_sample_data_is_read_when_mmap_is_unavailable():
             keep_alive.clear()
 
 
-@cartesian_params((False, True), (False, True), ((1 << 61) - 16, 9))
-def test_numpy_reader_rejects_payload_outside_file(use_mmap, cache_header_information, extent):
+@cartesian_params((False, True), ((1 << 62), (1 << 61) - 16, 9))
+def test_numpy_reader_rejects_payload_outside_file(use_mmap, extent):
     with tempfile.TemporaryDirectory() as root:
         path = os.path.join(root, "invalid.npy")
         header = repr({"descr": "<f8", "fortran_order": False, "shape": (extent,)})
@@ -1323,14 +1323,17 @@ def test_numpy_reader_rejects_payload_outside_file(use_mmap, cache_header_inform
             return fn.readers.numpy(
                 files=[path],
                 dont_use_mmap=not use_mmap,
-                cache_header_information=cache_header_information,
             )
 
-        message = (
-            "*requested 18446744073709551488 bytes, maximum 9223372036854775807 bytes*"
-            if extent == (1 << 61) - 16
-            else "*requested 72 bytes, available 64 bytes*"
-        )
+        if extent == 1 << 62:
+            message = "*Numpy array is too large:*File: *invalid.npy*"
+        elif extent == (1 << 61) - 16:
+            message = (
+                "*invalid.npy*requested 18446744073709551488 bytes, "
+                "maximum 9223372036854775807 bytes*"
+            )
+        else:
+            message = "*invalid.npy*requested 72 bytes, available 64 bytes*"
         assert_raises(RuntimeError, pipe().run, glob=message)
 
 
