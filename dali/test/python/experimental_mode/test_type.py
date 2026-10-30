@@ -166,3 +166,16 @@ def test_type_significand_bits():
     assert ndd.float16.significand_bits == 10
     assert ndd.float32.significand_bits == 23
     assert ndd.float64.significand_bits == 52
+
+
+def test_explicit_zero_float_field_is_not_replaced_with_the_default():
+    # A written 0 used to be treated as missing, so these came back as float32 and float16.
+    for name in ("f32e8m0", "f16e0m10"):
+        try:
+            parsed = ndd.dtype(name)
+        except ValueError:
+            continue
+        raise AssertionError(
+            f"{name} was accepted as {parsed.name} "
+            f"(exponent {parsed.exponent_bits}, significand {parsed.significand_bits})"
+        )
