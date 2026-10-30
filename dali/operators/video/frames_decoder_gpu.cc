@@ -15,6 +15,7 @@
 #include "dali/operators/video/frames_decoder_gpu.h"
 #include <cuda.h>
 #include <unistd.h>
+#include <atomic>
 #include <string>
 #include <memory>
 #include <iomanip>
@@ -24,6 +25,7 @@
 #include <tuple>
 #include "dali/core/error_handling.h"
 #include "dali/core/cuda_error.h"
+#include "dali/core/device_guard.h"
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/data/tensor.h"
 #include "dali/operators/video/color_space.h"
@@ -346,6 +348,24 @@ size_t NVDECDecodersCreated(int device_id) {
   return NVDECCache::GetCache(device_id).NumCreated();
 }
 
+namespace {
+
+std::atomic<int64_t> frames_mapped{0};  // see NVDECFramesMapped
+
+void FrameMapped() {
+  frames_mapped.fetch_add(1, std::memory_order_relaxed);
+}
+
+void FrameUnmapped() {
+  frames_mapped.fetch_sub(1, std::memory_order_relaxed);
+}
+
+}  // namespace
+
+int64_t NVDECFramesMapped() {
+  return frames_mapped.load(std::memory_order_relaxed);
+}
+
 int process_video_sequence(void *user_data, CUVIDEOFORMAT *video_format) {
   FramesDecoderGpu *frames_decoder = static_cast<FramesDecoderGpu*>(user_data);
   frames_decoder->InitGpuDecoder(video_format);
@@ -455,6 +475,8 @@ void FramesDecoderGpu::InitGpuDecoder(CUVIDEOFORMAT *video_format) {
 
 void FramesDecoderGpu::InitGpuParser() {
   nvdecode_state_ = std::make_unique<NvDecodeState>();
+  // on the current device, which is also the one that the decoder is taken from (NVDECCache)
+  conversion_done_ = CUDAEvent::CreateWithFlags(cudaEventDisableTiming);
 
   InitBitStreamFilter();
 
@@ -531,6 +553,22 @@ FramesDecoderGpu::FramesDecoderGpu(std::unique_ptr<InputStream> input_stream,
   }
 }
 
+void FramesDecoderGpu::ReleaseMappedFrame() {
+  if (!mapped_frame_)
+    return;
+  assert(nvdecode_state_ && nvdecode_state_->decoder);
+  // Once unmapped, NVDEC may write the surface again: the conversion has to be done first
+  if (conversion_recorded_)
+    CUDA_CALL(cudaEventSynchronize(conversion_done_));
+  else
+    CUDA_CALL(cudaStreamSynchronize(stream_));
+  conversion_recorded_ = false;
+  // a surface that failed to unmap stays tracked: the destructor tries again
+  CUDA_CALL(cuvidUnmapVideoFrame(nvdecode_state_->decoder, mapped_frame_));
+  mapped_frame_ = 0;
+  frame_dec_gpu_impl::FrameUnmapped();
+}
+
 int FramesDecoderGpu::ProcessPictureDecode(CUVIDPICPARAMS *picture_params) {
   // Sending empty packet will call this callback.
   // If we want to flush the decoder, we do not need to do anything here
@@ -538,7 +576,10 @@ int FramesDecoderGpu::ProcessPictureDecode(CUVIDPICPARAMS *picture_params) {
     return 0;
   }
 
+  // NVDEC is not used while the previous picture's surface may still be read
+  ReleaseMappedFrame();
   CUDA_CALL(cuvidDecodePicture(nvdecode_state_->decoder, picture_params));
+  decoded_pictures_++;
   CUVIDPARSERDISPINFO picture_display_info;
   memset(&picture_display_info, 0, sizeof(picture_display_info));
   picture_display_info.picture_index = picture_params->CurrPicIdx;
@@ -597,12 +638,16 @@ int FramesDecoderGpu::HandlePictureDisplay(CUVIDPARSERDISPINFO *picture_display_
   CUdeviceptr frame = {};
   unsigned int pitch = 0;
 
+  assert(!mapped_frame_);  // released before this picture was decoded
   CUDA_CALL(cuvidMapVideoFrame(
     nvdecode_state_->decoder,
     picture_display_info->picture_index,
     &frame,
     &pitch,
     &videoProcessingParameters));
+  mapped_frame_ = frame;  // tracked before anything can throw
+  frame_dec_gpu_impl::FrameMapped();
+  conversion_recorded_ = false;
 
   LOG_LINE << "VideoColorSpaceConversion with conversion_type_="
            << static_cast<int>(conversion_type_) << " and dimensions " << Height() << "x" << Width()
@@ -618,11 +663,10 @@ int FramesDecoderGpu::HandlePictureDisplay(CUVIDPARSERDISPINFO *picture_display_
       stream_);
   ), DALI_FAIL(make_string("Unsupported type: ", dtype_)));
 
-  // TODO(awolant): Alternative is to copy the data to a buffer
-  // and then process it on the stream. Check, if this is faster, when
-  // the benchmark is ready.
-  CUDA_CALL(cudaStreamSynchronize(stream_));
-  CUDA_CALL(cuvidUnmapVideoFrame(nvdecode_state_->decoder, frame));
+  // The host does not wait for the conversion here: the surface is unmapped by ReleaseMappedFrame,
+  // before NVDEC is used again
+  CUDA_CALL(cudaEventRecord(conversion_done_, stream_));
+  conversion_recorded_ = true;
 
   return 1;
 }
@@ -982,6 +1026,7 @@ void FramesDecoderGpu::Reset() {
 
 void FramesDecoderGpu::Flush() {
   LOG_LINE << "Flush" << std::endl;
+  ReleaseMappedFrame();  // a flushed decoder holds no surface
   SendLastPacket(true);
   more_frames_to_decode_ = true;
   frame_index_if_no_pts_ = 0;
@@ -990,8 +1035,22 @@ void FramesDecoderGpu::Flush() {
 
 FramesDecoderGpu::~FramesDecoderGpu() {
   // frame_buffer_ goes back to the memory pool right after this, without stream ordering: wait
-  // for the copies out of it (CopyFrame, copyD2D) that may still be pending on stream_
+  // for the copies out of it (CopyFrame, copyD2D) that may still be pending on stream_, and for the
+  // conversion of a surface that is still mapped
   CUDA_DTOR_CALL(cudaStreamSynchronize(stream_));
+  // stream_ is idle: the surface can be unmapped before the decoder goes back to the cache. The
+  // destructor may run on a thread with another device current (e.g. when the operator is
+  // destroyed), so the decoder's device is set. A failed unmap is left counted in
+  // NVDECFramesMapped, so that the tests see it.
+  if (mapped_frame_ && nvdecode_state_ && nvdecode_state_->decoder) {
+    try {
+      DeviceGuard dg(nvdecode_state_->decoder.device_id());
+      if (cuvidUnmapVideoFrame(nvdecode_state_->decoder, mapped_frame_) == CUDA_SUCCESS)
+        frame_dec_gpu_impl::FrameUnmapped();
+    } catch (...) {
+      // the device could not be set: nothing is thrown from the destructor
+    }
+  }
   filtered_packet_.reset();
   bsfc_.reset();
 }

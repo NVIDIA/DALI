@@ -705,6 +705,11 @@ class VideoReaderDecoder
                                sample->end_, sample->stride_, boundary_type_, constant_frame,
                                make_span(sample->timestamps_));
       }
+      if constexpr (std::is_same_v<Backend, GPUBackend>) {
+        // the decoder does not wait for its GPU work: its asynchronous errors (conversions,
+        // copies) are reported for this sample
+        CUDA_CALL(cudaStreamSynchronize(cuda_stream_ ? cuda_stream_.get() : 0));
+      }
       LOG_LINE << "Decoding frames done" << std::endl;
     }
 
