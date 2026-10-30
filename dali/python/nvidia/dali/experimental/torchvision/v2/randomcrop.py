@@ -26,6 +26,8 @@ from .operator import (
     _ValidateIfNonNegative,
     _ValidateSizeDescriptor,
     get_HWC_from_layout_pipeline,
+    is_sharing_random_values,
+    share_random_value,
 )
 from .pad import PADDING_CLASS, _ValidatePaddingMode
 from .resize import Resize
@@ -126,6 +128,7 @@ class RandomCrop(Operator):
 
     If the input is a ``torch.Tensor`` it can have an arbitrary number of leading batch dimensions.
     For example, the image tensor can have [..., C, H, W] shape.
+    The same random crop is applied across all leading dimensions.
 
     Parameters
     ----------
@@ -190,7 +193,8 @@ class RandomCrop(Operator):
         max_value = dali.math.max(max_value, 0)
         range_start = fn.cast(0, dtype=dali.types.FLOAT)
         range_end = fn.cast(max_value + 1, dtype=dali.types.FLOAT)
-        value = dali.math.floor(fn.random.uniform(range=fn.stack(range_start, range_end)))
+        value = share_random_value(fn.random.uniform(range=fn.stack(range_start, range_end)))
+        value = dali.math.floor(value)
         return fn.cast(value, dtype=dali.types.INT32)
 
     def __init__(
@@ -271,6 +275,7 @@ class RandomResizedCrop(Operator):
 
     If the input is a ``torch.Tensor`` it can have an arbitrary number of leading batch dimensions.
     For example, the image tensor can have [..., C, H, W] shape.
+    The same random crop is applied across all leading dimensions.
 
     Parameters
     ----------
@@ -333,7 +338,28 @@ class RandomResizedCrop(Operator):
         """
         Applies random resized crop to the input data.
         """
-        _, _, _, tensor = data_input
+        in_h, in_w, _, tensor = data_input
+
+        if is_sharing_random_values():
+            # fn.random_resized_crop selects a crop window per sample, generate it once instead
+            anchor, shape = fn.random_crop_generator(
+                fn.stack(in_h, in_w),
+                random_area=self.scale,
+                random_aspect_ratio=self.ratio,
+                num_attempts=10,
+            )
+            anchor = share_random_value(fn.cast(anchor, dtype=dali.types.FLOAT))
+            shape = share_random_value(fn.cast(shape, dtype=dali.types.FLOAT))
+            return fn.resize(
+                tensor,
+                device=self.device,
+                size=self.size,
+                roi_start=anchor,
+                roi_end=anchor + shape,
+                roi_relative=False,
+                interp_type=self.interpolation,
+                antialias=self.antialias,
+            )
 
         return fn.random_resized_crop(
             tensor,
