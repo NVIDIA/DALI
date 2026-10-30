@@ -368,10 +368,10 @@ void COCOReader::PixelwiseMasks(int image_idx, int* mask, const std::string &sou
   }
 
   // Merge each label (from multi-polygons annotations)
+  // The C API requires contiguous RLE structs; these views borrow the owned counts.
+  std::vector<RLE> polygon_rles;
   for (const auto &rles : frPoly) {
-    // The C API requires contiguous RLE structs; these views borrow the owned counts.
-    std::vector<RLE> polygon_rles;
-    polygon_rles.reserve(rles.second.size());
+    polygon_rles.clear();
     for (const auto &rle : rles.second)
       polygon_rles.push_back(rle.get());
     RLE merged_mask{};
