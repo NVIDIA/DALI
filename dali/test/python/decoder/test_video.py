@@ -24,7 +24,8 @@ import nvidia.dali.types as types
 import glob
 import os
 import random
-import tempfile
+from enum import Enum
+from functools import lru_cache
 from itertools import cycle
 from test_utils import (
     get_dali_extra_path,
@@ -1453,3 +1454,142 @@ def test_video_decoder_matches_reader(filename, start_frame, sequence_length=8):
         f"{filename}, start_frame={start_frame}: frame {np.argmax(diff.max(axis=(1, 2, 3)))} "
         f"differs from the reader's, max abs diff {diff.max()}"
     )
+
+
+# Streams with open GOPs, H.264 and HEVC: only the first picture is an IDR picture, and the
+# keyframes at frames 12, 24, 36, 48 and 60 are non-IDR I-pictures (H.264, with a recovery point
+# SEI) or CRA pictures (HEVC) that the container flags as keyframes. The pictures that follow them
+# in the decoding order and precede them in the display order (B-pictures, RASL pictures in HEVC)
+# refer to the previous GOP.
+class Codec(Enum):
+    H264 = "h264"
+    HEVC = "hevc"
+
+
+class NonIdrOp(Enum):
+    READER = "reader"
+    DECODER = "decoder"
+
+
+non_idr_videos = {
+    codec: os.path.join(
+        get_dali_extra_path(), "db", "video", "non_idr_keyframes", f"open_gop_{codec.value}.mp4"
+    )
+    for codec in Codec
+}
+non_idr_num_frames = 64
+non_idr_keyframes = [12, 24, 36, 48, 60]
+non_idr_codecs = list(non_idr_videos)
+
+
+def nal_unit_types(packet, codec):
+    """NAL unit types of a packet in the MP4 (AVCC / HVCC) format: 4-byte length-prefixed units"""
+    data = bytes(packet)
+    types, pos = [], 0
+    while pos + 4 <= len(data):
+        size = int.from_bytes(data[pos : pos + 4], "big")
+        pos += 4
+        if size == 0 or pos + size > len(data):
+            break
+        types.append(data[pos] & 0x1F if codec == Codec.H264 else (data[pos] >> 1) & 0x3F)
+        pos += size
+    return types
+
+
+def is_idr(codec, types):
+    """IDR_W_RADL and IDR_N_LP in HEVC"""
+    return any(t == 5 for t in types) if codec == Codec.H264 else any(t in (19, 20) for t in types)
+
+
+def non_idr_reader_frames(codec, start_frame, sequence_length):
+    with tempfile.NamedTemporaryFile("w", suffix=".txt") as file_list:
+        file_list.write(
+            f"{non_idr_videos[codec]} 0 {start_frame} {start_frame + sequence_length}\n"
+        )
+        file_list.flush()
+
+        @pipeline_def(batch_size=1, num_threads=1, device_id=0)
+        def reader_pipe():
+            frames, _ = fn.experimental.readers.video(
+                device="gpu",
+                file_list=file_list.name,
+                file_list_format="frames",
+                file_list_include_end=False,
+                sequence_length=sequence_length,
+            )
+            return frames
+
+        pipe = reader_pipe()
+        pipe.build()
+        return np.array(pipe.run()[0].as_cpu().at(0))
+
+
+def non_idr_decoder_frames(codec, start_frame, sequence_length):
+    @pipeline_def(batch_size=1, num_threads=1, device_id=0)
+    def decoder_pipe():
+        encoded, _ = fn.readers.file(files=[non_idr_videos[codec]])
+        return fn.decoders.video(
+            encoded, device="mixed", start_frame=start_frame, sequence_length=sequence_length
+        )
+
+    pipe = decoder_pipe()
+    pipe.build()
+    return np.array(pipe.run()[0].as_cpu().at(0))
+
+
+@lru_cache(maxsize=None)
+def non_idr_sequential_frames(codec):
+    """All frames of the stream, decoded in order from the start"""
+    return non_idr_reader_frames(codec, 0, non_idr_num_frames)
+
+
+@params(*non_idr_codecs)
+def test_non_idr_keyframes_fixture(codec):
+    """The test video has the keyframes that these tests are about"""
+    container = av.open(non_idr_videos[codec])
+    packets = [p for p in container.demux(container.streams.video[0]) if p.size > 0]
+    keyframes = [nal_unit_types(p, codec) for p in packets if p.is_keyframe]
+    idr = [types for types in keyframes if is_idr(codec, types)]
+    assert len(idr) == 1, f"Expected one IDR picture, got {len(idr)}"
+    assert len(keyframes) - len(idr) == len(non_idr_keyframes), (
+        f"Expected {len(non_idr_keyframes)} keyframes that are not IDR pictures, "
+        f"got {len(keyframes) - len(idr)}"
+    )
+    if codec == Codec.HEVC:  # RASL_N, RASL_R
+        assert any(8 in nal_unit_types(p, codec) or 9 in nal_unit_types(p, codec) for p in packets)
+
+
+@params(*non_idr_codecs)
+def test_non_idr_keyframes_sequential_decoding(codec):
+    """Decoding the stream in order gives all the frames, as decoded by FFmpeg"""
+    skip_if_m60()
+    frames = non_idr_sequential_frames(codec)
+    reference = extract_frames_from_video(non_idr_videos[codec])
+    assert len(frames) == len(reference), f"{len(frames)} != {len(reference)} frames"
+    for i, (frame, ref_frame) in enumerate(zip(frames, reference, strict=True)):
+        compare_frames(frame, ref_frame, i)
+
+
+@cartesian_params(
+    non_idr_codecs,
+    list(NonIdrOp),
+    # around the keyframes that are not IDR pictures (the pictures before them in the display
+    # order refer to the previous GOP), and the first frame; the sequences have 4 frames
+    sorted(
+        {0, 5}
+        | {k + d for k in non_idr_keyframes for d in (-1, 0, 1) if k + d + 4 <= non_idr_num_frames}
+    ),
+)
+def test_non_idr_keyframes_random_access(codec, op, start_frame, sequence_length=4):
+    """Decoding from any frame gives the same frames as decoding the stream in order"""
+    skip_if_m60()
+    decode = non_idr_reader_frames if op == NonIdrOp.READER else non_idr_decoder_frames
+    frames = decode(codec, start_frame, sequence_length)
+    expected = non_idr_sequential_frames(codec)[start_frame : start_frame + sequence_length]
+    assert frames.shape == expected.shape, f"{frames.shape} != {expected.shape}"
+    for i in range(sequence_length):
+        diff = np.abs(frames[i].astype(np.int16) - expected[i].astype(np.int16))
+        assert np.array_equal(frames[i], expected[i]), (
+            f"{codec} {op}: frame {start_frame + i} differs from the one decoded in order, "
+            f"max abs diff {diff.max()}"
+        )
