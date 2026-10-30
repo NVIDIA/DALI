@@ -15,6 +15,7 @@
 import numpy as np
 import nvidia.dali.fn as fn
 import os
+import struct
 import tempfile
 import json
 from nvidia.dali import Pipeline, pipeline_def
@@ -153,12 +154,12 @@ def coco_rle_masks_pipe(directory, preprocessed=False):
     return masks
 
 
-def write_coco_rle_annotations(directory, segmentations):
+def write_coco_rle_annotations(directory, segmentations, height=2, width=2):
     # The reader returns encoded image bytes; decoding is unnecessary for mask tests.
     with open(os.path.join(directory, "image.bin"), "wb") as f:
         f.write(b"image")
     annotations = {
-        "images": [{"id": 1, "width": 2, "height": 2, "file_name": "image.bin"}],
+        "images": [{"id": 1, "width": width, "height": height, "file_name": "image.bin"}],
         "categories": [{"id": i + 1} for i in range(len(segmentations))],
         "annotations": [
             {
@@ -313,6 +314,100 @@ def test_coco_invalid_compressed_rle_counts(counts, message):
         )
         pipe = coco_rle_masks_pipe(directory)
         assert_raises(ValueError, pipe.run, glob=f"*Invalid COCO RLE mask: {message}*")
+
+
+@params((0, 2), (2, 0), (-2, -2))
+def test_coco_invalid_image_size(height, width):
+    with tempfile.TemporaryDirectory() as directory:
+        write_coco_rle_annotations(directory, [[[0, 0, 1, 0, 1, 1]]], height=height, width=width)
+        error = (
+            f'*Invalid COCO annotations: the size of image "*image.bin" must be positive, '
+            f"got {height}x{width}.*"
+        )
+        # The JSON path saves the preprocessed annotations before rejecting them.
+        for preprocessed in (False, True):
+            pipe = coco_rle_masks_pipe(directory, preprocessed=preprocessed)
+            assert_raises(ValueError, pipe.run, glob=error)
+
+
+def test_coco_odd_polygon_coordinates():
+    with tempfile.TemporaryDirectory() as directory:
+        write_coco_rle_annotations(directory, [[[0, 0, 1, 0, 1]]])
+        pipe = coco_rle_masks_pipe(directory)
+        assert_raises(
+            ValueError,
+            pipe.run,
+            glob="*Invalid COCO annotation: a polygon in `segmentation` must have an even number "
+            "of coordinates, got 5.*",
+        )
+
+
+def set_value(fmt, offset, value):
+    def update(data):
+        struct.pack_into(fmt, data, offset, value)
+
+    return update
+
+
+# Each array file starts with a 4-byte element count. The image has an RLE mask (object 0) and
+# a triangle (object 1).
+@params(
+    (
+        "counts.dat",
+        set_value("<I", 0, 2**31),
+        'Invalid preprocessed COCO annotations: "*counts.dat" declares 2147483648 elements '
+        "of 4 bytes, but only 4 bytes remain.",
+    ),
+    (
+        "masks_rles.dat",
+        set_value("<Q", 4 + 2 * 8, 2**40),
+        'Invalid preprocessed COCO annotations: "*masks_rles.dat" declares 1099511627776 '
+        "elements of 4 bytes, but only 8 bytes remain.",
+    ),
+    (
+        "offsets.dat",
+        set_value("<i", 4, 1000),
+        'Invalid COCO annotations: the objects of image "*image.bin" (offset 1000, count 2) '
+        "are outside the 2 loaded entries.",
+    ),
+    (
+        "masks_offset.dat",
+        set_value("<q", 4, 1000),
+        'Invalid COCO annotations: the RLE masks of image "*image.bin" (offset 1000, count 1) '
+        "are outside the 1 loaded entries.",
+    ),
+    (
+        "masks_rles_idx.dat",
+        set_value("<i", 4, 7),
+        'Invalid COCO annotations: RLE mask 0 of image "*image.bin" refers to object 7, '
+        "but the image has 2 objects.",
+    ),
+    (
+        "polygon_data.dat",
+        set_value("<i", 4 + 2 * 4, 100),
+        'Invalid COCO annotations: polygon 0 of image "*image.bin" refers to object 1 and '
+        "vertices 0 to 100, but the image has 2 objects and 3 vertices.",
+    ),
+    (
+        "heights.dat",
+        set_value("<i", 4, -2),
+        'Invalid COCO annotations: the size of image "*image.bin" must be positive, got -2x2.',
+    ),
+)
+def test_coco_invalid_preprocessed_annotations(filename, update, message):
+    with tempfile.TemporaryDirectory() as directory:
+        write_coco_rle_annotations(
+            directory, [{"size": [2, 2], "counts": [1, 3]}, [[0, 0, 2, 0, 2, 2]]]
+        )
+        coco_rle_masks_pipe(directory).run()  # saves the preprocessed annotations
+        path = os.path.join(directory, filename)
+        with open(path, "rb") as f:
+            data = bytearray(f.read())
+        update(data)
+        with open(path, "wb") as f:
+            f.write(data)
+        pipe = coco_rle_masks_pipe(directory, preprocessed=True)
+        assert_raises(ValueError, pipe.run, glob=f"*{message}*")
 
 
 @params([], [1, 2, 3], [1, 2, 3, 4, 5])

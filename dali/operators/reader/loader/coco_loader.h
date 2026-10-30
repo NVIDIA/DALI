@@ -177,6 +177,7 @@ class DLL_PUBLIC CocoLoader : public FileLabelLoaderBase<true> {
     } else {
       ParseJsonAnnotations();
     }
+    ValidateAnnotations();
 
     DALI_ENFORCE(SizeImpl() > 0, "No files found.");
     if (shuffle_) {
@@ -196,6 +197,12 @@ class DLL_PUBLIC CocoLoader : public FileLabelLoaderBase<true> {
   void ParsePreprocessedAnnotations();
 
   void ParseJsonAnnotations();
+
+  /**
+   * @brief Checks that the per-image ranges and indices are within the loaded annotation data
+   *        and that image sizes are positive when pixelwise masks are requested.
+   */
+  void ValidateAnnotations() const;
 
   void SavePreprocessedAnnotations(
     const std::string &path, const std::vector<FileLabelEntry> &image_id_pairs);
