@@ -57,6 +57,7 @@ template <typename Backend, typename LoadTarget,
 class DataReader : public Operator<Backend> {
  public:
   using LoadTargetPtr = std::shared_ptr<LoadTarget>;
+  using BatchQueueElement = std::vector<LoadTargetPtr>;
 
   inline explicit DataReader(const OpSpec& spec)
       : Operator<Backend>(spec),
@@ -93,12 +94,7 @@ class DataReader : public Operator<Backend> {
     // We actually prepare the next batch
     DomainTimeRange tr("[DALI][DataReader] Prefetch #" + to_string(curr_batch_producer_),
                        DomainTimeRange::kRed);
-    auto &curr_batch = prefetched_batch_queue_[curr_batch_producer_];
-    curr_batch.clear();
-    curr_batch.reserve(max_batch_size_);
-    for (int i = 0; i < max_batch_size_; ++i) {
-      curr_batch.push_back(loader_->ReadOne(i == 0, i == max_batch_size_ - 1));
-    }
+    ReadBatch(prefetched_batch_queue_[curr_batch_producer_]);
     if (IsCheckpointingEnabled()) {
       SaveLoaderSnapshot();
     }
@@ -307,8 +303,27 @@ class DataReader : public Operator<Backend> {
     }
   }
 
+  /**
+   * @brief Reads the next batch from the loader into `batch` (cleared first).
+   */
+  void ReadBatch(BatchQueueElement &batch) {
+    batch.clear();
+    batch.reserve(max_batch_size_);
+    for (int i = 0; i < max_batch_size_; ++i) {
+      batch.push_back(loader_->ReadOne(i == 0, i == max_batch_size_ - 1));
+    }
+  }
+
+  /**
+   * @brief Stores the loader's state after the batch that is being produced: the state the
+   * checkpoint of that batch restores.
+   */
+  void SaveLoaderSnapshot(const LoaderStateSnapshot &snapshot) {
+    loader_snapshot_queue_[snapshot_producer_] = snapshot;
+  }
+
   void SaveLoaderSnapshot() {
-    loader_snapshot_queue_[snapshot_producer_] = loader_->GetStateSnapshot();
+    SaveLoaderSnapshot(loader_->GetStateSnapshot());
   }
 
   void ParseIfNeeded(const Tensor<CPUBackend>& tensor, SampleWorkspace* ws) {
@@ -432,7 +447,6 @@ class DataReader : public Operator<Backend> {
   // prefetched batch
   int prefetch_queue_depth_;
   bool skip_cached_images_;
-  using BatchQueueElement = std::vector<LoadTargetPtr>;
   std::vector<BatchQueueElement> prefetched_batch_queue_;
   int curr_batch_consumer_;
   int curr_batch_producer_;
