@@ -16,7 +16,9 @@
 #define DALI_OPERATORS_READER_LOADER_RECORDIO_LOADER_H_
 
 #include <algorithm>
+#include <limits>
 #include <memory>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -40,10 +42,19 @@ class RecordIOLoader : public IndexedFileLoader {
     for (std::string& path : paths_) {
       FileStream::Options opts;
       opts.read_ahead = read_ahead_;
-      opts.use_mmap = !copy_read_data_;
+      // Only the size is needed here. Empty shards cannot be memory-mapped.
+      opts.use_mmap = false;
       opts.use_odirect = false;
       auto tmp = FileStream::Open(path, opts);
-      file_offsets.push_back(tmp->Size() + file_offsets.back());
+      auto file_size = tmp->Size();
+      // Record spans are stored in int64_t. Bound the sum even when individual sizes fit.
+      if (file_size > static_cast<size_t>(std::numeric_limits<int64_t>::max()) -
+                          file_offsets.back()) {
+        throw std::runtime_error(make_string(
+            "RecordIO data files are too large: ", file_offsets.back(), " bytes plus ",
+            file_size, " bytes exceeds the range of a signed 64-bit integer."));
+      }
+      file_offsets.push_back(file_size + file_offsets.back());
       tmp->Close();
     }
     DALI_ENFORCE(index_paths.size() == 1,
@@ -61,8 +72,23 @@ class RecordIOLoader : public IndexedFileLoader {
     DALI_ENFORCE(fin.good(),
         "Could not open RecordIO index file. Provided path: \"" + path + "\"");
     std::vector<size_t> temp;
-    size_t index, offset, prev_offset = -1;
-    while (fin >> index >> offset) {
+    size_t entry_number = 0;
+    while (true) {
+      fin >> std::ws;
+      if (fin.eof())
+        break;
+      size_t index = 0, offset = 0;
+      ++entry_number;
+      if (!(fin >> index >> offset)) {
+        throw std::runtime_error(make_string(
+            "Invalid RecordIO index entry ", entry_number, " in ", path,
+            "; expected two integers (record ID and offset)."));
+      }
+      if (offset >= file_offsets.back()) {
+        throw std::runtime_error(make_string(
+            "RecordIO index offset out of bounds at entry ", entry_number, " in ", path,
+            ": got ", offset, " bytes, expected less than ", file_offsets.back(), " bytes."));
+      }
       temp.push_back(offset);
     }
     DALI_ENFORCE(!temp.empty(),
@@ -71,22 +97,19 @@ class RecordIOLoader : public IndexedFileLoader {
 
     std::sort(temp.begin(), temp.end());
     size_t file_offset_index = 0;
-    for (size_t i = 0; i < temp.size() - 1; ++i) {
-      if (temp[i] >= file_offsets[file_offset_index + 1]) {
-        ++file_offset_index;
-      }
-      int64_t size = temp[i + 1] - temp[i];
-      // skip 0 sized images
+    for (size_t i = 0; i < temp.size(); ++i) {
+      auto next_offset = i + 1 < temp.size() ? temp[i + 1] : file_offsets.back();
+      int64_t size = next_offset - temp[i];
+      // Skip duplicate offsets. Both offset arrays are sorted, so advance across skipped
+      // or empty files at most once, including when locating the last record.
       if (size) {
+        while (file_offset_index + 1 < paths_.size() &&
+               temp[i] >= file_offsets[file_offset_index + 1]) {
+          ++file_offset_index;
+        }
         indices_.emplace_back(temp[i] - file_offsets[file_offset_index],
                               size, file_offset_index);
       }
-    }
-    int64_t size = file_offsets.back() - temp.back();
-    // skip 0 sized images
-    if (size) {
-      indices_.emplace_back(temp.back() - file_offsets[file_offset_index],
-                            size, file_offset_index);
     }
   }
 
