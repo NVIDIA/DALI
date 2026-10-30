@@ -395,6 +395,71 @@ def test_full_range_video_experimental(device, video):
     assert np.mean(absdiff) < 2
 
 
+COLOR_MATRIX_NUM_BARS = 10
+COLOR_MATRIX_BAR_WIDTH = 192  # pixels
+
+
+def color_matrix_bar(frame, i):
+    """Mean color of the interior of the i-th bar of the test pattern in db/video/color_matrix: 10
+    flat bars (red, green, blue, yellow, cyan, magenta, orange, grey, black, white), 192 pixels
+    wide"""
+    interior = (
+        slice(100, 440),
+        slice(i * COLOR_MATRIX_BAR_WIDTH + 32, (i + 1) * COLOR_MATRIX_BAR_WIDTH - 32),
+    )
+    return frame[interior].reshape(-1, 3).mean(axis=0)
+
+
+def color_matrix_bars_error(frame, reference):
+    """Worst difference between `frame` and `reference` of the mean colors of the interiors of the
+    bars of the test pattern in db/video/color_matrix"""
+    return max(
+        np.max(np.abs(color_matrix_bar(frame, i) - color_matrix_bar(reference, i)))
+        for i in range(COLOR_MATRIX_NUM_BARS)
+    )
+
+
+def check_color_matrix_black_and_white(frame):
+    """Black and white are the ends of the range (Y=16 and Y=235 in the limited range): the luma
+    has to be mapped to the whole range and clamped there (not 16 and 235). They do not depend on
+    the matrix, unlike the saturated bars."""
+    black, white = color_matrix_bar(frame, 8), color_matrix_bar(frame, 9)
+    assert np.all(black <= 2), f"black bar is {black}"
+    assert np.all(white >= 253), f"white bar is {white}"
+
+
+@params(
+    "bt709_limited_1080p",
+    "bt709_limited_1080p_vp9",
+    "bt709_full_1080p",
+    # the matrix is only in the H.264 stream, not in the container
+    "bt709_limited_1080p_nocolr",
+)
+def test_color_matrix_bt709_gpu(name):
+    # The streams are tagged as BT.709. The references are what ffmpeg decodes, which uses the
+    # matrix and range from the stream; converting with BT.601 gives errors up to 22 in the
+    # interior of the saturated bars.
+    skip_if_m60()
+    data_dir = os.path.join(get_dali_extra_path(), "db", "video", "color_matrix")
+
+    @pipeline_def
+    def test_pipeline():
+        return fn.experimental.readers.video(
+            device="gpu",
+            filenames=[os.path.join(data_dir, f"{name}.mp4")],
+            sequence_length=1,
+        )
+
+    out = test_pipeline(batch_size=1, num_threads=1, device_id=0).run()[0]
+    out = out.as_cpu()
+    frame = out.as_array()[0, 0]
+    ref = cv2.cvtColor(cv2.imread(os.path.join(data_dir, f"{name}_ref.png")), cv2.COLOR_BGR2RGB)
+    assert frame.shape == ref.shape
+    assert color_matrix_bars_error(frame, ref) <= 4
+    check_color_matrix_black_and_white(frame)
+    assert np.mean(np.abs(frame.astype(int) - ref.astype(int))) < 2
+
+
 @attr("multi_gpu")
 @params("cpu", "mixed")
 def test_multi_gpu_video(device):

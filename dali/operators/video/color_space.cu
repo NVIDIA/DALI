@@ -66,6 +66,13 @@ __global__ static void VideoColorSpaceConversionKernel(
               case VIDEO_COLOR_SPACE_CONVERSION_TYPE_YUV_TO_RGB:
                 out_val = dali::kernels::color::itu_r_bt_601::ycbcr_to_rgb<float>(yuv_val);
                 break;
+              case VIDEO_COLOR_SPACE_CONVERSION_TYPE_YUV_TO_RGB_BT709_FULL_RANGE:
+                out_val = dali::kernels::color::itu_r_bt_709_full_range::ycbcr_to_rgb<float>(
+                    yuv_val);
+                break;
+              case VIDEO_COLOR_SPACE_CONVERSION_TYPE_YUV_TO_RGB_BT709:
+                out_val = dali::kernels::color::itu_r_bt_709::ycbcr_to_rgb<float>(yuv_val);
+                break;
               case VIDEO_COLOR_SPACE_CONVERSION_TYPE_YUV_UPSAMPLE:
                 out_val = yuv_val;
                 break;
@@ -99,7 +106,9 @@ void VideoColorSpaceConversionImpl(Out *out, int out_pitch, const uint8_t *yuv, 
         (VALUE_SWITCH(static_cast<int>(conversion_type), static_conversion_type, (
       VIDEO_COLOR_SPACE_CONVERSION_TYPE_YUV_TO_RGB,
       VIDEO_COLOR_SPACE_CONVERSION_TYPE_YUV_TO_RGB_FULL_RANGE,
-      VIDEO_COLOR_SPACE_CONVERSION_TYPE_YUV_UPSAMPLE), (
+      VIDEO_COLOR_SPACE_CONVERSION_TYPE_YUV_UPSAMPLE,
+      VIDEO_COLOR_SPACE_CONVERSION_TYPE_YUV_TO_RGB_BT709,
+      VIDEO_COLOR_SPACE_CONVERSION_TYPE_YUV_TO_RGB_BT709_FULL_RANGE), (
         VideoColorSpaceConversionKernel<Out, static_conversion_type, static_normalized_range>
         <<<grid_layout, block_layout, 0, stream>>>(out, out_pitch, yuv, yuv_pitch, height, width);
         ), (DALI_FAIL("wrong value")));));
