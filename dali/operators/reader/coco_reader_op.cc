@@ -14,7 +14,9 @@
 
 #include "dali/operators/reader/coco_reader_op.h"
 
+#include <algorithm>
 #include <set>
+#include <stdexcept>
 #include <variant>
 
 extern "C" {
@@ -272,7 +274,8 @@ void COCOReader::RunImpl(SampleWorkspace &ws) {
     auto masks_info = loader_impl.pixelwise_masks_info(image_idx);
     masks_output.Resize(masks_info.shape, DALI_INT32);
     masks_output.SetLayout("HWC");
-    PixelwiseMasks(image_idx, masks_output.mutable_data<int>());
+    PixelwiseMasks(image_idx, masks_output.mutable_data<int>(),
+                   image_label.image.GetSourceInfo());
   }
 
   if (output_image_ids_) {
@@ -282,7 +285,7 @@ void COCOReader::RunImpl(SampleWorkspace &ws) {
   }
 }
 
-void COCOReader::PixelwiseMasks(int image_idx, int* mask) {
+void COCOReader::PixelwiseMasks(int image_idx, int* mask, const std::string &source) {
   bool ratio = spec_.GetArgument<bool>("ratio");
   auto &loader_impl = LoaderImpl();
   auto pol = loader_impl.polygons(image_idx);
@@ -290,17 +293,46 @@ void COCOReader::PixelwiseMasks(int image_idx, int* mask) {
   auto masks_info = loader_impl.pixelwise_masks_info(image_idx);
   int h = masks_info.shape[0];
   int w = masks_info.shape[1];
+  const int64_t num_pixels = static_cast<int64_t>(h) * w;
+  // Validate annotation RLEs before copying them into image-sized buffers. This also
+  // covers compressed counts and preprocessed annotations, which bypass JSON parsing.
+  for (int64_t mask_idx = 0; mask_idx < masks_info.rles.size(); mask_idx++) {
+    const auto rle = masks_info.rles[mask_idx]->get();
+    if (rle.h != static_cast<siz>(h) || rle.w != static_cast<siz>(w)) {
+      throw std::invalid_argument(make_string(
+          "Invalid COCO RLE mask: dimensions must match the image; got ", rle.h, "x", rle.w,
+          ", expected ", h, "x", w, ". Image: \"", source, "\", RLE mask index ", mask_idx, "."));
+    }
+    if (rle.m == 0 || rle.m > static_cast<siz>(num_pixels + 1)) {
+      throw std::invalid_argument(make_string(
+          "Invalid COCO RLE mask: too many or missing runs; got ", rle.m,
+          ", expected 1 to ", num_pixels + 1,
+          ". Image: \"", source, "\", RLE mask index ", mask_idx, "."));
+    }
+    int64_t covered = 0;
+    for (siz i = 0; i < rle.m; i++) {
+      covered += rle.cnts[i];
+      // Counts are nonnegative. Stop on invalid coverage before further additions can overflow.
+      if (covered > num_pixels)
+        break;
+    }
+    if (covered != num_pixels) {
+      throw std::invalid_argument(make_string(
+          "Invalid COCO RLE mask: the sum of run lengths must equal the number of pixels. "
+          "Image: \"", source, "\", RLE mask index ", mask_idx, "."));
+    }
+  }
   auto bboxes = loader_impl.bboxes(image_idx);
   auto labels_span = loader_impl.labels(image_idx);
   std::set<int> labels(labels_span.data(),
                        labels_span.data() + labels_span.size());
-  memset(mask, 0, h * w * sizeof(int));
+  memset(mask, 0, num_pixels * sizeof(int));
   if (!labels.size()) {
     return;
   }
 
   // Create a run-length encoding for each polygon, indexed by label :
-  std::map<int, std::vector<RLE> > frPoly;
+  std::map<int, std::vector<RLEMask>> frPoly;
   std::vector<double> in;
   for (uint polygon_idx = 0; polygon_idx < pol.size(); polygon_idx++) {
     auto &polygon = pol[polygon_idx];
@@ -317,128 +349,60 @@ void COCOReader::PixelwiseMasks(int image_idx, int* mask) {
       in[k++] = static_cast<double>(ratio ? pol_ver[i].x * w : pol_ver[i].x);
       in[k++] = static_cast<double>(ratio ? pol_ver[i].y * h : pol_ver[i].y);
     }
-    RLE M;
-    rleInit(&M, 0, 0, 0, 0);
-    rleFrPoly(&M, in.data(), pol_ver.size(), h, w);
-    frPoly[label].push_back(M);
+    RLE raw_mask;
+    rleInit(&raw_mask, 0, 0, 0, 0);
+    rleFrPoly(&raw_mask, in.data(), pol_ver.size(), h, w);
+    RLEMask polygon_mask(raw_mask);
+    frPoly[label].push_back(std::move(polygon_mask));
   }
 
   // Reserve run-length encodings by labels
-  RLE* R;
-  rlesInit(&R, *labels.rbegin() + 1);
+  std::vector<RLEMask> R(*labels.rbegin() + 1);
 
   // Mask was originally described in RLE format
   for (uint ann_id = 0 ; ann_id < masks_info.mask_indices.size(); ann_id++) {
     const auto &rle = masks_info.rles[ann_id];
     auto mask_idx = masks_info.mask_indices[ann_id];
     int label = labels_span[mask_idx];
-    rleInit(&R[label], (*rle)->h, (*rle)->w, (*rle)->m, (*rle)->cnts);
+    R[label] = RLEMask((*rle)->h, (*rle)->w, make_cspan((*rle)->cnts, (*rle)->m));
   }
 
   // Merge each label (from multi-polygons annotations)
-  uint lab_cnt = 0;
-  for (const auto &rles : frPoly)
-    rleMerge(rles.second.data(), &R[rles.first], rles.second.size(), 0);
-
-  // Merge all the labels into a pair of vectors :
-  // [2,2,2],[A,B,C] for [A,A,B,B,C,C]
-  struct Encoding {
-    uint m;
-    std::unique_ptr<uint[]> cnts;
-    std::unique_ptr<int[]> vals;
-  };
-  Encoding A;
-  A.cnts = std::make_unique<uint[]>(h * w + 1);  // upper-bound
-  A.vals = std::make_unique<int[]>(h * w + 1);
-
-  // first copy the content of the first label to the output
-  bool v = false;
-  A.m = R[*labels.begin()].m;
-  for (siz a = 0; a < R[*labels.begin()].m; a++) {
-    A.cnts[a] = R[*labels.begin()].cnts[a];
-    A.vals[a] = v ? *labels.begin() : 0;
-    v = !v;
+  // The C API requires contiguous RLE structs; these views borrow the owned counts.
+  std::vector<RLE> polygon_rles;
+  for (const auto &rles : frPoly) {
+    polygon_rles.clear();
+    for (const auto &rle : rles.second)
+      polygon_rles.push_back(rle.get());
+    RLE merged_mask{};
+    rleMerge(polygon_rles.data(), &merged_mask, polygon_rles.size(), 0);
+    R[rles.first] = RLEMask(merged_mask);
   }
 
-  // then merge the other labels
-  std::unique_ptr<uint[]> cnts = std::make_unique<uint[]>(h * w + 1);
-  std::unique_ptr<int[]> vals = std::make_unique<int[]>(h * w + 1);
-  for (auto label = ++labels.begin(); label != labels.end(); label++) {
-    RLE B = R[*label];
-    if (B.cnts == 0)
+  // Paint the labels in ascending order, so that a higher label wins where masks overlap
+  // (the overlap is undefined by the spec). Each RLE alternates background and foreground runs,
+  // starting with background, and walks the pixels in column-major order.
+  // Zero-length runs and labels without a mask need no special handling.
+  for (int label : labels) {
+    const RLE rle = R[label].get();
+    if (!rle.cnts)
       continue;
-
-    uint cnt_a = A.cnts[0];
-    uint cnt_b = B.cnts[0];
-    int next_val_a = A.vals[0];
-    int val_a = next_val_a;
-    int val_b = *label;
-    bool next_vb = false;
-    bool vb = next_vb;
-    uint nb_seq_a, nb_seq_b;
-    nb_seq_a = nb_seq_b = 1;
-    int m = 0;
-
-    int cnt_tot = 1;  // check if we advanced at all
-    while (cnt_tot > 0) {
-      uint c = std::min(cnt_a, cnt_b);
-      cnt_tot = 0;
-      // advance A
-      cnt_a -= c;
-      if (!cnt_a && nb_seq_a < A.m) {
-        cnt_a = A.cnts[nb_seq_a];  // next sequence for A
-        next_val_a = A.vals[nb_seq_a];
-        nb_seq_a++;
+    int64_t begin = 0;
+    for (siz i = 0; i < rle.m && begin < num_pixels; i++) {
+      int64_t end = std::min<int64_t>(begin + rle.cnts[i], num_pixels);
+      if (i % 2 == 1) {
+        int64_t x = begin / h, y = begin % h;
+        for (int64_t p = begin; p < end; p++) {
+          mask[x + y * w] = label;
+          if (++y == h) {
+            y = 0;
+            x++;
+          }
+        }
       }
-      cnt_tot += cnt_a;
-      // advance B
-      cnt_b -= c;
-      if (!cnt_b && nb_seq_b < B.m) {
-        cnt_b = B.cnts[nb_seq_b++];  // next sequence for B
-        next_vb = !next_vb;
-      }
-      cnt_tot += cnt_b;
-
-      if (val_a && vb)  // there's already a class at this pixel
-                        // in this case, the last annotation wins (it's undefined by the spec)
-        vals[m] = (!cnt_a) ? val_a : val_b;
-      else if (val_a)
-        vals[m] = val_a;
-      else if (vb)
-        vals[m] = val_b;
-      else
-        vals[m] = 0;
-      cnts[m] = c;
-      m++;
-
-      // since we switched sequence for A or B, apply the new value from now on
-      val_a = next_val_a;
-      vb = next_vb;
-
-      if (cnt_a == 0) break;
+      begin = end;
     }
-    // copy back the buffers to the destination encoding
-    A.m = m;
-    for (int i = 0; i < m; i++) A.cnts[i] = cnts[i];
-    for (int i = 0; i < m; i++) A.vals[i] = vals[i];
   }
-
-  // Decode final pixelwise masks encoded via RLE
-  int x = 0, y = 0;
-  for (uint i = 0; i < A.m; i++)
-    for (uint j = 0; j < A.cnts[i]; j++) {
-      mask[x + y * w] = A.vals[i];
-      if (++y >= h) {
-        y = 0;
-        x++;
-      }
-    }
-
-  // Destroy RLEs
-  rlesFree(&R, *labels.rbegin() + 1);
-  for (auto rles : frPoly)
-    for (auto &rle : rles.second)
-      rleFree(&rle);
 }
 
 }  // namespace dali

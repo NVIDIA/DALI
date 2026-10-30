@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -74,10 +74,6 @@ struct RLEMask : public UniqueHandle<RLE, RLEMask> {
 
   RLEMask(siz h, siz w, span<const uint> counts) {
     rleInit(&handle_, h, w, counts.size(), const_cast<uint*>(counts.data()));
-  }
-
-  RLEMask(siz h, siz w, const char* str) {
-    rleFrString(&handle_, const_cast<char*>(str), h, w);
   }
 
   static constexpr bool is_null_handle(const RLE &handle) {
@@ -181,6 +177,7 @@ class DLL_PUBLIC CocoLoader : public FileLabelLoaderBase<true> {
     } else {
       ParseJsonAnnotations();
     }
+    ValidateAnnotations();
 
     DALI_ENFORCE(SizeImpl() > 0, "No files found.");
     if (shuffle_) {
@@ -200,6 +197,12 @@ class DLL_PUBLIC CocoLoader : public FileLabelLoaderBase<true> {
   void ParsePreprocessedAnnotations();
 
   void ParseJsonAnnotations();
+
+  /**
+   * @brief Checks that the per-image ranges and indices are within the loaded annotation data
+   *        and that image sizes are positive when pixelwise masks are requested.
+   */
+  void ValidateAnnotations() const;
 
   void SavePreprocessedAnnotations(
     const std::string &path, const std::vector<FileLabelEntry> &image_id_pairs);

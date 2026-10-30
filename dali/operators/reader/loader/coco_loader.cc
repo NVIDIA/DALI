@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <limits>
 #include <list>
 #include <map>
 #include <stdexcept>
@@ -48,9 +49,9 @@ const char *JsonTypeName(int type) {
 
 struct ImageInfo {
   std::string filename_;
-  int original_id_;
-  int width_;
-  int height_;
+  int original_id_ = 0;
+  int width_ = 0;
+  int height_ = 0;
 };
 
 struct Polygons {
@@ -59,7 +60,8 @@ struct Polygons {
 };
 
 struct Annotation {
-  enum {POLYGON, RLE} tag_;
+  // NONE marks an annotation without a usable segmentation (missing, null, or not parsed).
+  enum {NONE, POLYGON, RLE} tag_ = NONE;
   int image_id_;
   int category_id_;
   std::array<float, 4> box_;
@@ -76,6 +78,57 @@ struct Annotation {
     return box_[2] >= min_size_threshold && box_[3] >= min_size_threshold;
   }
 };
+
+/**
+ * @brief Decodes the run lengths of a COCO RLE mask stored as a compressed string.
+ *
+ * The format matches rleFrString from the COCO API, which does not validate its input: it reads
+ * past the string when the last value is incomplete and writes past its output buffer.
+ */
+std::vector<uint32_t> DecodeRleCounts(const std::string &str) {
+  // A 32-bit count, or a signed difference of two counts, fits in 7 characters of 5 bits each.
+  constexpr int kMaxCharsPerValue = 7;
+  std::vector<uint32_t> counts;
+  size_t pos = 0;
+  while (pos < str.size()) {
+    int64_t value = 0;
+    int num_chars = 0;
+    bool more = true;
+    while (more) {
+      if (pos >= str.size()) {
+        throw std::invalid_argument(
+            "Invalid COCO RLE mask: compressed `counts` end in the middle of a value.");
+      }
+      int c = static_cast<unsigned char>(str[pos]) - '0';
+      if (c < 0 || c > 63) {
+        throw std::invalid_argument(make_string(
+            "Invalid COCO RLE mask: compressed `counts` contain an invalid character at position ",
+            pos, "; expected characters from '0' to 'o'."));
+      }
+      if (num_chars == kMaxCharsPerValue) {
+        throw std::invalid_argument(make_string(
+            "Invalid COCO RLE mask: a value in compressed `counts` at position ", pos,
+            " is longer than ", kMaxCharsPerValue, " characters."));
+      }
+      value |= static_cast<int64_t>(c & 0x1f) << (5 * num_chars);
+      more = c & 0x20;
+      pos++;
+      num_chars++;
+      if (!more && (c & 0x10))
+        value |= -(int64_t{1} << (5 * num_chars));  // sign extension
+    }
+    // Starting from the fourth value, the string stores a difference to the value two places back.
+    if (counts.size() > 2)
+      value += counts[counts.size() - 2];
+    if (value < 0 || value > std::numeric_limits<uint32_t>::max()) {
+      throw std::invalid_argument(make_string(
+          "Invalid COCO RLE mask: decoded run length ", value, " at index ", counts.size(),
+          " in compressed `counts` is out of range."));
+    }
+    counts.push_back(static_cast<uint32_t>(value));
+  }
+  return counts;
+}
 
 template <typename T>
 std::enable_if_t<is_pod_v<T>, void>
@@ -97,6 +150,26 @@ void Read(std::ifstream& file, span<T> data, const char* filename) {
   DALI_ENFORCE(file.gcount() == bytes,
                make_string("Error reading from path: ", filename, ". Read ", file.gcount(),
                            " bytes but requested ", bytes, " bytes."));
+}
+
+/**
+ * @brief Checks that the file has at least `count` more elements of `element_size` bytes.
+ *
+ * Element counts stored in preprocessed annotation files are checked before they are used
+ * to allocate memory.
+ */
+void CheckRemainingSize(std::ifstream &file, uint64_t count, uint64_t element_size,
+                        const char *filename) {
+  auto pos = file.tellg();
+  file.seekg(0, std::ios_base::end);
+  auto end = file.tellg();
+  file.seekg(pos);
+  uint64_t remaining = end - pos;
+  if (count > remaining / element_size) {
+    throw std::invalid_argument(make_string(
+        "Invalid preprocessed COCO annotations: \"", filename, "\" declares ", count,
+        " elements of ", element_size, " bytes, but only ", remaining, " bytes remain."));
+  }
 }
 
 template <typename T>
@@ -182,6 +255,7 @@ void LoadFromFile(std::vector<T> &output, const std::string path) {
 
   unsigned size;
   Read(file, size, path.c_str());
+  CheckRemainingSize(file, size, sizeof(T), path.c_str());
   output.resize(size);
   Read(file, make_span(output), path.c_str());
 }
@@ -195,12 +269,14 @@ void LoadFromFile(std::vector<RLEMaskPtr> &output, const std::string path) {
 
   unsigned size;
   Read(file, size, path.c_str());
+  CheckRemainingSize(file, size, 3 * sizeof(siz), path.c_str());
   output.clear();
   output.resize(size);
   for (auto &rle : output) {
     siz dims[3];
     Read(file, span<siz>{&dims[0], 3}, path.c_str());
     siz h = dims[0], w = dims[1], m = dims[2];
+    CheckRemainingSize(file, m, sizeof(uint), path.c_str());
     rle = std::make_shared<RLEMask>(h, w, m);
     Read(file, span<uint>{(*rle)->cnts, static_cast<ptrdiff_t>((*rle)->m)}, path.c_str());
   }
@@ -215,9 +291,11 @@ void LoadFromFile(std::vector<std::vector<T> > &output, const std::string path) 
 
   unsigned size;
   Read(file, size, path.c_str());
+  CheckRemainingSize(file, size, sizeof(unsigned), path.c_str());
   output.resize(size);
   for (size_t i = 0; i < output.size(); ++i) {
     Read(file, size, path.c_str());
+    CheckRemainingSize(file, size, sizeof(T), path.c_str());
     output[i].resize(size);
     Read(file, make_span(output[i]), path.c_str());
   }
@@ -371,12 +449,11 @@ void ParseAnnotations(LookaheadParser &parser, std::vector<Annotation> &annotati
           }
           DALI_ENFORCE(h > 0 && w > 0, "Invalid or missing mask sizes");
           if (!rle_str.empty()) {
-            annotation.rle_ = std::make_shared<RLEMask>(h, w, rle_str.c_str());
-          } else if (!rle_uints.empty()) {
-            annotation.rle_ = std::make_shared<RLEMask>(h, w, make_cspan(rle_uints));
-          } else {
+            rle_uints = DecodeRleCounts(rle_str);
+          } else if (rle_uints.empty()) {
             DALI_FAIL("Missing or invalid ``counts`` attribute.");
           }
+          annotation.rle_ = std::make_shared<RLEMask>(h, w, make_cspan(rle_uints));
         } else if (parser.PeekType() == kArrayType) {
           annotation.tag_ = Annotation::POLYGON;
           int coord_offset = 0;
@@ -389,6 +466,12 @@ void ParseAnnotations(LookaheadParser &parser, std::vector<Annotation> &annotati
             while (parser.NextArrayValue()) {
               segm_coords.push_back(parser.GetDouble());
               coord_offset++;
+            }
+            int num_coords = coord_offset - segm_meta.back();
+            if (num_coords % 2 != 0) {
+              throw std::invalid_argument(make_string(
+                  "Invalid COCO annotation: a polygon in `segmentation` must have an even number "
+                  "of coordinates, got ", num_coords, "."));
             }
             segm_meta.push_back(coord_offset);
           }
@@ -635,6 +718,9 @@ void CocoLoader::ParseJsonAnnotations() {
             mask_count++;
             break;
           }
+          case detail::Annotation::NONE: {
+            break;
+          }
           default: {
             assert(false);
           }
@@ -675,6 +761,93 @@ void CocoLoader::ParseJsonAnnotations() {
     SavePreprocessedAnnotations(
       spec_.GetArgument<std::string>("save_preprocessed_annotations_dir"),
       file_label_entries_);
+  }
+}
+
+void CocoLoader::ValidateAnnotations() const {
+  // Preprocessed annotations are used as stored, so every per-sample range and index is checked
+  // against the loaded data before the accessors use it.
+  auto check = [](bool condition, const auto &...message) {
+    if (!condition)
+      throw std::invalid_argument(make_string("Invalid COCO annotations: ", message...));
+  };
+  const int64_t num_samples = file_label_entries_.size();
+  auto check_size = [&](const auto &values, const char *name) {
+    check(static_cast<int64_t>(values.size()) == num_samples, "expected ", num_samples, " ",
+          name, " entries (one per image), got ", values.size(), ".");
+  };
+  auto check_range = [&](int64_t offset, int64_t count, size_t size, const char *name,
+                         const std::string &image) {
+    check(offset >= 0 && count >= 0 && offset <= static_cast<int64_t>(size) &&
+          count <= static_cast<int64_t>(size) - offset,
+          "the ", name, " of image \"", image, "\" (offset ", offset, ", count ", count,
+          ") are outside the ", size, " loaded entries.");
+  };
+
+  check_size(offsets_, "object offset");
+  check_size(counts_, "object count");
+  check(boxes_.size() == 4 * labels_.size(), "expected 4 box coordinates per label, got ",
+        boxes_.size(), " coordinates for ", labels_.size(), " labels.");
+  if (output_image_ids_)
+    check_size(original_ids_, "image ID");
+  // The same conditions as in `polygons` and `vertices`, which return no data otherwise.
+  bool has_polygons = !polygon_data_.empty() && !polygon_offset_.empty() && !polygon_count_.empty();
+  bool has_vertices =
+      !vertices_data_.empty() && !vertices_offset_.empty() && !vertices_count_.empty();
+  if (has_polygons) {
+    check_size(polygon_offset_, "polygon offset");
+    check_size(polygon_count_, "polygon count");
+  }
+  if (has_vertices) {
+    check_size(vertices_offset_, "vertex offset");
+    check_size(vertices_count_, "vertex count");
+  }
+  if (output_pixelwise_masks_) {
+    check_size(heights_, "image height");
+    check_size(widths_, "image width");
+    check_size(mask_offsets_, "mask offset");
+    check_size(mask_counts_, "mask count");
+    check(masks_rles_idx_.size() == masks_rles_.size(), "expected one object index per RLE mask, "
+          "got ", masks_rles_idx_.size(), " indices for ", masks_rles_.size(), " masks.");
+  }
+
+  for (const auto &entry : file_label_entries_) {
+    int64_t i = entry.label.value_or(-1);  // the index of the image in the per-sample data
+    const auto &image = entry.filename;
+    check(i >= 0 && i < num_samples, "image \"", image, "\" has index ", i, ", expected 0 to ",
+          num_samples - 1, ".");
+    check_range(offsets_[i], counts_[i], labels_.size(), "objects", image);
+    int64_t num_vertices = 0;
+    if (has_vertices) {
+      check_range(vertices_offset_[i], vertices_count_[i], vertices_data_.size(), "vertices",
+                  image);
+      num_vertices = vertices_count_[i];
+    }
+    if (has_polygons) {
+      check_range(polygon_offset_[i], polygon_count_[i], polygon_data_.size(), "polygons", image);
+      for (int64_t j = 0; j < polygon_count_[i]; j++) {
+        // (object index, first vertex, end vertex), relative to the image
+        const ivec3 &polygon = polygon_data_[polygon_offset_[i] + j];
+        check(polygon[0] >= 0 && polygon[0] < counts_[i] && polygon[1] >= 0 &&
+              polygon[1] <= polygon[2] && polygon[2] <= num_vertices,
+              "polygon ", j, " of image \"", image, "\" refers to object ", polygon[0],
+              " and vertices ", polygon[1], " to ", polygon[2], ", but the image has ",
+              counts_[i], " objects and ", num_vertices, " vertices.");
+      }
+    }
+    if (output_pixelwise_masks_) {
+      check(heights_[i] > 0 && widths_[i] > 0, "the size of image \"", image,
+            "\" must be positive, got ", heights_[i], "x", widths_[i], ".");
+      check_range(mask_offsets_[i], mask_counts_[i], masks_rles_.size(), "RLE masks", image);
+      for (int64_t j = 0; j < mask_counts_[i]; j++) {
+        int64_t mask_idx = mask_offsets_[i] + j;
+        check(masks_rles_[mask_idx] != nullptr, "RLE mask ", j, " of image \"", image,
+              "\" is missing.");
+        check(masks_rles_idx_[mask_idx] >= 0 && masks_rles_idx_[mask_idx] < counts_[i],
+              "RLE mask ", j, " of image \"", image, "\" refers to object ",
+              masks_rles_idx_[mask_idx], ", but the image has ", counts_[i], " objects.");
+      }
+    }
   }
 }
 

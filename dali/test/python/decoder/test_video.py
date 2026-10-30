@@ -24,7 +24,6 @@ import nvidia.dali.types as types
 import glob
 import os
 import random
-import tempfile
 from itertools import cycle
 from test_utils import (
     get_dali_extra_path,
