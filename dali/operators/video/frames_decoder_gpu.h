@@ -57,8 +57,16 @@ struct DecInstance {
   CUvideodecoder decoder = {};
   cudaVideoCodec codec_type = {};
   cudaVideoChromaFormat chroma_format = {};
+  // Size of the coded frame (CUVIDEOFORMAT::coded_*), which the decoder is created for. It is
+  // aligned to the macroblock/CTB size, e.g. 1920x1088 for a 1920x1080 H.264 stream.
+  unsigned coded_height = 0;
+  unsigned coded_width = 0;
+  // Output size and origin of the display area (CUVIDEOFORMAT::display_area), which the decoder
+  // crops the coded frame to, e.g. 1920x1080 at (0, 0).
   unsigned height = 0;
   unsigned width = 0;
+  int display_left = 0;
+  int display_top = 0;
   unsigned num_decode_surfaces = 0;
   unsigned max_height = 0;
   unsigned max_width = 0;
@@ -108,6 +116,16 @@ class NVDECLease {
     DecInstance *decoder = nullptr;
 };
 
+/**
+ * @brief Returns how many NVDEC decoders were created so far for a device, i.e. how many times
+ *        the decoder cache could not provide a matching one.
+ *
+ * The count includes decoders that were evicted from the cache since.
+ *
+ * @param device_id CUDA device ordinal or -1 for the current device.
+ */
+DLL_PUBLIC size_t NVDECDecodersCreated(int device_id = -1);
+
 }  // namespace frame_dec_gpu_impl
 
 struct NvDecodeState {
@@ -150,6 +168,20 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
   FramesDecoderGpu(const char *memory_file, size_t memory_file_size,
                    std::string_view source_info = {}, cudaStream_t stream = 0,
                    DALIImageType image_type = DALI_RGB);
+
+  /**
+   * @brief Construct a new FramesDecoder object.
+   *
+   * @param input_stream Input stream with video file data; the decoder takes ownership of it.
+   * @param source_info Source info of the video file.
+   * @param stream CUDA stream to use for decoding.
+   * @param image_type Image type of the video.
+   * @note This constructor assumes that the input stream covers the entire video file,
+   * including the header.
+   */
+  explicit FramesDecoderGpu(std::unique_ptr<InputStream> input_stream,
+                            std::string_view source_info = {}, cudaStream_t stream = 0,
+                            DALIImageType image_type = DALI_RGB);
 
   bool ReadNextFrame(uint8_t *data) override;
 

@@ -21,6 +21,7 @@
 #include <numeric>
 #include <random>
 #include <sstream>
+#include <stdexcept>
 #include <tuple>
 #include <utility>
 #include "dali/core/common.h"
@@ -367,6 +368,13 @@ void WebdatasetLoader::ReadSample(vector<Tensor<CPUBackend>>& sample) {
                    "Error reading from a file " + paths_[current_sample.wds_shard_index]);
     } else {
       auto data = current_wds_shard->Get(component.size);
+      if (!data) {
+        throw std::runtime_error(make_string(
+            "Could not map WebDataset component from ", GetSampleSource(current_sample),
+            " (offset ", component.offset,
+            ", component size ", component.size, ", archive size ", current_wds_shard->Size(),
+            ")."));
+      }
       for (auto& output : component.outputs) {
         sample[output].SetMeta(meta);
         sample[output].ShareData(

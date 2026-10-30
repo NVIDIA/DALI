@@ -1,5 +1,5 @@
 diff --git a/recipe/build.sh b/recipe/build.sh
-index 3ac3249..7de51f7 100755
+index 3ac3249..639b9ff 100755
 --- a/recipe/build.sh
 +++ b/recipe/build.sh
 @@ -48,13 +48,18 @@ if [ -z "${targetsDir+x}" ]; then
@@ -34,7 +34,7 @@ index 3ac3249..7de51f7 100755
    -DBUILD_CFITSIO=ON \
    -DBUILD_CUFILE=ON \
    -DBUILD_CVCUDA=ON \
-@@ -124,7 +131,7 @@ cmake ${CMAKE_ARGS} \
+@@ -124,7 +132,7 @@ cmake ${CMAKE_ARGS} \
    -DBUILD_NVOF=ON \
    -DBUILD_NVTX=ON \
    -DBUILD_OPENCV=ON \
@@ -44,14 +44,14 @@ index 3ac3249..7de51f7 100755
    -DBUILD_WITH_LSAN=OFF \
    -DBUILD_WITH_UBSAN=OFF \
 diff --git a/recipe/recipe.yaml b/recipe/recipe.yaml
-index 5145af2..7b5e36e 100644
+index 750271a..78d6591 100644
 --- a/recipe/recipe.yaml
 +++ b/recipe/recipe.yaml
 @@ -1,7 +1,11 @@
  # TODO: Update package pinnings in conda_build_config for every release
  schema_version: 1
  context:
--  version: "2.3.0"
+-  version: "2.4.0"
 +  dali_version: ${{ env.get("DALI_VERSION") }}
 +  dali_build_flavor: ${{ env.get("NVIDIA_DALI_BUILD_FLAVOR", default="") }}
 +  dali_timestamp: ${{ env.get("DALI_TIMESTAMP", default="") }}
@@ -64,7 +64,7 @@ index 5145af2..7b5e36e 100644
  
  source:
    - url: https://github.com/NVIDIA/DALI/archive/refs/tags/v${{ version }}.tar.gz
--    sha256: 4a54e22e13e713aed35e7eb8a81410a509a48491956534bcb46ccd8f70e25200
+-    sha256: 1bf98d3532fee5345a93bdf3dc1167820ba4d3f4e98697b899d5d5a09a8a069f
      patches:
        - patches/0007-BLD-Use-pre-build-cvcuda-instead-of-submodule.patch
 -  - url: https://github.com/cocodataset/cocoapi/archive/8c9bcc3cf640524c4c20a9c40e89cb6a2f2fa0e9.tar.gz
@@ -75,7 +75,7 @@ index 5145af2..7b5e36e 100644
 -    target_directory: third_party/ffts
  
  build:
--  number: 0
+-  number: 1
 +  number: ${{ build_number }}
    skip:
      - cuda_compiler_version == "None"

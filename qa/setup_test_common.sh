@@ -26,6 +26,68 @@ function version_lt() { test "$(echo "$@" | tr " " "\n" | sort -rV | head -n 1)"
 function version_ge() { test "$(echo "$@" | tr " " "\n" | sort -rV | head -n 1)" == "$1"; }
 function version_eq() { test "$1" == "$2"; }
 
+# Exits with an error when any of the given paths does not exist. Use it for test data
+# (e.g. datasets under /data) that has to be mounted in the test container, so the test
+# fails fast instead of mid-run. It exits rather than returns, so it also works without `set -e`.
+check_required_paths() {
+    local path
+    local -a missing=()
+    for path in "$@"; do
+        if [ ! -e "$path" ]; then
+            missing+=("$path")
+        fi
+    done
+    if [ ${#missing[@]} -ne 0 ]; then
+        echo "ERROR: Test precondition failed. Required path(s) not found: ${missing[*]}." \
+             "Make sure the required data is mounted in the container." >&2
+        exit 1
+    fi
+}
+
+COCO_DIR=/data/coco/coco-2017/coco2017
+
+# Checks that COCO 2017 is mounted and exports DATA_DIR pointing to a directory with train2017,
+# val2017 and annotations. When only the zip archives are present, they are extracted to a
+# temporary directory and IS_TMP_DIR=1 is exported; the caller is responsible for removing it.
+prepare_coco_dataset() {
+    local archive
+    local -a archives=(train2017.zip val2017.zip annotations_trainval2017.zip)
+    check_required_paths "${COCO_DIR}"
+    export DATA_DIR=${COCO_DIR}
+    export IS_TMP_DIR=0
+    if [ ! -f "${COCO_DIR}/train2017/000000581929.jpg" ] && [ -f "${COCO_DIR}/train2017.zip" ]; then
+        command -v unzip >/dev/null || (apt update && apt install -y unzip)
+        export DATA_DIR=$(mktemp -d)
+        export IS_TMP_DIR=1
+        pushd "${DATA_DIR}"
+        for archive in "${archives[@]}"; do
+            cp "${COCO_DIR}/${archive}" . &
+        done
+        wait
+        for archive in "${archives[@]}"; do
+            unzip -q "${archive}" &
+        done
+        wait
+        popd
+    fi
+}
+
+IMAGENET_DIR=/data/imagenet
+
+# Checks that the ImageNet JPEG dataset is mounted and creates `train` and `val` links to it in
+# the given directory (the current directory by default), unless they already exist.
+link_imagenet_jpeg() {
+    local dest=${1:-.}
+    local split
+    check_required_paths "${IMAGENET_DIR}/train-jpeg" "${IMAGENET_DIR}/val-jpeg"
+    mkdir -p "${dest}"
+    for split in train val; do
+        if [ ! -d "${dest}/${split}" ]; then
+            ln -sf "${IMAGENET_DIR}/${split}-jpeg/" "${dest}/${split}"
+        fi
+    done
+}
+
 # Finds a self-test binary and prints its canonical path. Pass `conda` to prefer
 # the package installed in the active Conda environment; other suites prefer the
 # local build tree so they test the code built by the current job.

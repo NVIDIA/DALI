@@ -14,10 +14,14 @@
 
 #include "dali/util/file.h"
 #include <gtest/gtest.h>
+#include <unistd.h>
+#include <limits>
+#include <filesystem>
 #include <cstring>
 #include <stdexcept>
 #include <string>
 #include <utility>
+#include "dali/core/call_at_exit.h"
 
 namespace dali {
 
@@ -140,6 +144,29 @@ TEST(FileStreamBuf, RemoteStreamExactMultipleOfBuffer) {
   ASSERT_NO_THROW({ result = ReadAllThroughBuf(stream); });
   EXPECT_EQ(result.size(), payload.size());
   EXPECT_EQ(result, payload);
+}
+
+TEST(MmapedFileStreamTest, RejectsOverflowingRanges) {
+  std::string path = (std::filesystem::temp_directory_path() / "dali-mmap-test-XXXXXX").string();
+  int fd = mkstemp(path.data());
+  ASSERT_GE(fd, 0);
+  auto remove_file = AtScopeExit([&] { unlink(path.c_str()); });
+  auto close_file = AtScopeExit([&] { close(fd); });
+  const char payload[] = "abcdefgh";
+  ASSERT_EQ(write(fd, payload, 8), 8);
+  auto stream = FileStream::Open(path, {false, true, false});
+  ASSERT_TRUE(stream->CanMemoryMap());
+  stream->SeekRead(4);
+  EXPECT_EQ(stream->Get(std::numeric_limits<size_t>::max()), nullptr);
+  EXPECT_EQ(stream->Get(std::numeric_limits<size_t>::max() - 3), nullptr);
+  EXPECT_EQ(stream->Get(5), nullptr);
+  EXPECT_EQ(stream->TellRead(), 4);
+  auto data = stream->Get(4);
+  ASSERT_NE(data, nullptr);
+  EXPECT_EQ(std::memcmp(data.get(), payload + 4, 4), 0);
+  EXPECT_EQ(stream->TellRead(), 8);
+  EXPECT_EQ(stream->Get(1), nullptr);
+  EXPECT_NE(stream->Get(0), nullptr);
 }
 
 }  // namespace dali

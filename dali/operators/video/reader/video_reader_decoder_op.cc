@@ -773,10 +773,18 @@ The outputs of the operator are: video, [labels], [frame_num], [timestamps].
     .AddOptionalArg("filenames",
                     R"code(Absolute paths to the video files to load.
 
+Remote files can be specified with URLs, e.g. ``s3://bucket/video.mp4`` or
+``gs://bucket/video.mp4``.
+
 This option is mutually exclusive with `file_root` and `file_list`.)code",
                     std::vector<std::string>{})
     .AddOptionalArg("file_root",
                     R"code(Path to a directory that contains the data files.
+
+The files are expected in subdirectories of `file_root`, one per label.
+
+Remote directories can be specified with URLs, e.g. ``s3://bucket/videos`` or
+``gs://bucket/videos``.
 
 This option is mutually exclusive with `filenames` and `file_list`.)code",
                     std::string())
@@ -785,6 +793,8 @@ This option is mutually exclusive with `filenames` and `file_list`.)code",
 
 ``start`` and ``end`` are optional and can be used to specify the start and end of the video to load.
 The values can be interpreted differently depending on the ``file_list_format``.
+
+The ``file`` can be a remote URL, e.g. ``s3://bucket/video.mp4`` or ``gs://bucket/video.mp4``.
 
 This option is mutually exclusive with `filenames` and `file_root`.)code",
                     std::string())

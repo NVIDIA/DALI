@@ -66,7 +66,7 @@ struct needs_clamp {
     (from_fp && !to_fp) ||
     // converting to unsigned requires clamping negatives to zero
     (!from_unsigned && to_unsigned) ||
-    // zero-extending signed unsigned integers requires more bits
+    // unsigned to signed integers of the same or smaller size may exceed the positive range
     (from_unsigned && !to_unsigned && sizeof(To) <= sizeof(From));
 };
 
@@ -305,6 +305,11 @@ struct ConverterBase<float16, In, true, false, false, false> {
 /// Converts FP to integral type
 template <typename Out, typename In>
 struct ConverterBase<Out, In, false, true, false, false> {
+  // float16 can't exactly represent max_value<Out>() of integer types wider than 8 bits (it
+  // rounds int16_t's up and overflows to inf for uint16_t and wider), so the scaling is done in
+  // float
+  using Calc = std::conditional_t<std::is_same<In, float16>::value, float, In>;
+
   DALI_HOST_DEV
   static constexpr Out Convert(In value) {
 #ifdef __CUDA_ARCH__
@@ -326,9 +331,9 @@ struct ConverterBase<Out, In, false, true, false, false> {
   DALI_HOST_DEV
   static constexpr Out ConvertNorm(In value) {
 #ifdef __CUDA_ARCH__
-    return detail::cuda_round_helper(value * max_value<Out>(), Out());
+    return detail::cuda_round_helper(static_cast<Calc>(value) * max_value<Out>(), Out());
 #else
-    return std::round(value * max_value<Out>());
+    return std::round(static_cast<Calc>(value) * max_value<Out>());
 #endif
   }
 
@@ -336,10 +341,10 @@ struct ConverterBase<Out, In, false, true, false, false> {
   static constexpr Out ConvertSatNorm(In value) {
 #ifdef __CUDA_ARCH__
     return std::is_signed<Out>::value
-      ? clamp<Out>(detail::cuda_round_helper(value * max_value<Out>(), Out()))
+      ? clamp<Out>(detail::cuda_round_helper(static_cast<Calc>(value) * max_value<Out>(), Out()))
       : detail::cuda_round_helper(max_value<Out>() * __saturatef(value), Out());
 #else
-    return clamp<Out>(std::round(value * static_cast<In>(max_value<Out>())));
+    return clamp<Out>(std::round(static_cast<Calc>(value) * static_cast<Calc>(max_value<Out>())));
 #endif
   }
 };
@@ -405,7 +410,7 @@ struct ConvertIntInt<Out, In, false, true> {
   static constexpr Out ConvertSatNorm(In value) {
 #ifdef __CUDA_ARCH__
     return detail::cuda_round_helper(
-      __saturatef(value * (1.0f / max_value<In>())) * max_value<Out>());
+      __saturatef(value * (1.0f / max_value<In>())) * max_value<Out>(), Out());
 #else
     return value < 0 ? 0 : ConvertNorm(value);
 #endif
@@ -507,7 +512,7 @@ struct Converter<T, T> {
   static DALI_HOST_DEV
   constexpr T ConvertSat(T value) { return value; }
 
-    static DALI_HOST_DEV
+  static DALI_HOST_DEV
   constexpr T ConvertNorm(T value) { return value; }
 
   static DALI_HOST_DEV
@@ -517,7 +522,7 @@ struct Converter<T, T> {
 template <typename raw_out, typename raw_in>
 using converter_t = Converter<
   std::remove_cv_t<raw_out>,
-  std::remove_cv_t<std::remove_reference_t<raw_in>>>;;
+  std::remove_cv_t<std::remove_reference_t<raw_in>>>;
 
 }  // namespace detail
 
@@ -530,9 +535,9 @@ using converter_t = Converter<
 /// ```
 ///   Convert<uint8_t>(100.2f);   // == 100
 ///   Convert<uint8_t>(100.7f);   // == 101
-///   Convert<uint8_t>(-5);       // usage discouraged, typically 250
+///   Convert<uint8_t>(-5);       // usage discouraged, typically 251
 ///   Convert<uint8_t>(-5.0f);    // undefined
-///   Convert<uint8_t>(100.0.0f); // undefined
+///   Convert<uint8_t>(1000.0f);  // undefined
 /// ```
 template <typename Out, typename In>
 DALI_HOST_DEV constexpr Out Convert(In value) {
@@ -548,7 +553,7 @@ DALI_HOST_DEV constexpr Out Convert(In value) {
 ///   * When converting from floating point to `bool`, any non-zero value (including NaN)
 ///     is `true`, while 0 and -0 are `false`.
 ///   * When converting from integral type to floating point, the input value is normalized by
-///     multiplying by reciprocal of `Out` type's maximum positive value.
+///     multiplying by reciprocal of `In` type's maximum positive value.
 ///
 /// Usage:
 /// ```
@@ -557,7 +562,7 @@ DALI_HOST_DEV constexpr Out Convert(In value) {
 ///   ConvertNorm<int8_t>(-1.0f);               // -127
 ///   ConvertNorm<int8_t, int16_t>(256 * 1/3);  // == 0
 ///   ConvertNorm<int8_t, int16_t>(256 * 2/3);  // == 1
-///   ConvertNorm<int8_t, int16_t>(0x7fff);     // == 255
+///   ConvertNorm<int8_t, int16_t>(0x7fff);     // == 127
 ///   ConvertNorm<float, uint8_t>(255);         // == 1.0f
 ///   ConvertNorm<uint8_t, int8_t>(-1);         // undefined
 ///   ConvertNorm<uint8_t>(1000.0f);            // undefined
@@ -601,7 +606,7 @@ DALI_HOST_DEV constexpr Out ConvertSat(In value) {
 ///   ConvertSatNorm<int8_t>(-1.0f);              // == -127
 ///   ConvertSatNorm<int8_t, int16_t>(256 * 1/3); // == 0
 ///   ConvertSatNorm<int8_t, int16_t>(256 * 2/3); // == 1
-///   ConvertSatNorm<int8_t, int16_t>(0x7fff);    // == 255
+///   ConvertSatNorm<int8_t, int16_t>(0x7fff);    // == 127
 ///   ConvertSatNorm<float, uint8_t>(255);        // == 1.0f
 ///   ConvertSatNorm<uint8_t, int8_t>(-1);        // == 0
 /// ```

@@ -533,22 +533,50 @@ class ConvertCPUvsGPUTest : public ::testing::Test {
     double abs_eps = std::is_integral_v<Output> ? int_eps : 1e-5;
     if (in_format == DALI_YCbCr) {
       // Luma footroom and chroma offsets are powers of two (e.g. 16 and 128 for 8 bits, 4096 and
-      // 32768 for 16 bits), so their normalized values differ slightly between types. The CPU
-      // interprets them in the input type, while the GPU first normalizes the data to the
-      // output type and then interprets them in the output type - account for that difference.
-      auto norm_bias = [](auto type_tag, double bias_fraction) {
+      // 32768 for 16 bits) and the spans of the limited range are multiples of 2^(bits-8), so
+      // their normalized values differ slightly between types. The CPU interprets them in the
+      // input type, while the GPU first normalizes the data to the output type and then
+      // interprets them in the output type - account for that difference.
+      auto bits_of = [](auto type_tag) {
+        using T = decltype(type_tag);
+        return static_cast<int>(sizeof(T) * 8 - std::is_signed_v<T>);
+      };
+      // The offset (a fraction of the dynamic range) and the span (in the codes of 8 bits) of Y or
+      // chroma, relative to the maximum of the type
+      auto norm_bias = [&](auto type_tag, double bias_fraction) {
         using T = decltype(type_tag);
         if constexpr (std::is_integral_v<T>) {
-          constexpr int bits = sizeof(T) * 8 - std::is_signed_v<T>;
-          return std::ldexp(bias_fraction, bits) / max_value<T>();
+          return std::ldexp(bias_fraction, bits_of(type_tag)) / max_value<T>();
         } else {
           return bias_fraction;
         }
       };
-      double dy = std::abs(norm_bias(Input(), 1.0 / 16) - norm_bias(Output(), 1.0 / 16));
-      double dc = std::abs(norm_bias(Input(), 0.5) - norm_bias(Output(), 0.5));
+      auto norm_span = [&](auto type_tag, double code_span) {
+        using T = decltype(type_tag);
+        if constexpr (std::is_integral_v<T>) {
+          return std::ldexp(code_span, bits_of(type_tag) - 8) / max_value<T>();
+        } else {
+          return code_span / 255;
+        }
+      };
+      // The difference of the Y (or chroma) normalized by the two interpretations. It's linear in
+      // the value, so the largest one is at an end of the range of the normalized values (which
+      // is [0, 1], also for a signed input, but for the floating point output, where they are not
+      // clamped, a signed integer can go down to about -1).
+      double low = std::is_floating_point_v<Output> && std::is_signed_v<Input> ? -1.01 : 0.0;
+      auto interpretation_diff = [&](double offset_in, double span_in, double offset_out,
+                                     double span_out) {
+        auto diff = [&](double x) {
+          return std::abs((x - offset_in) / span_in - (x - offset_out) / span_out);
+        };
+        return std::max(diff(low), diff(1.0));
+      };
+      double dy = interpretation_diff(norm_bias(Input(), 1.0 / 16), norm_span(Input(), 219),
+                                      norm_bias(Output(), 1.0 / 16), norm_span(Output(), 219));
+      double dc = interpretation_diff(norm_bias(Input(), 0.5), norm_span(Input(), 224),
+                                      norm_bias(Output(), 0.5), norm_span(Output(), 224));
       double unit = std::is_integral_v<Output> ? static_cast<double>(max_value<Output>()) : 1.0;
-      abs_eps += (255.0 / 219 * dy + 2.02 * dc) * unit;
+      abs_eps += (dy + 2.02 * dc) * unit;
     }
     for (int64_t p = 0; p < npixels; p++) {
       for (int c = 0; c < out_channels; c++) {

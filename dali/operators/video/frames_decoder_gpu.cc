@@ -20,6 +20,8 @@
 #include <iomanip>
 #include <map>
 #include <mutex>
+#include <shared_mutex>
+#include <tuple>
 #include "dali/core/error_handling.h"
 #include "dali/core/cuda_error.h"
 #include "dali/pipeline/data/backend.h"
@@ -78,6 +80,41 @@ const char *codec_to_string(cudaVideoCodec in) {
   }
 }
 
+/**
+ * @brief cuvidGetDecoderCaps of the current device, cached per process.
+ *
+ * The capabilities do not change, but the driver call does not scale: with many decoders opening
+ * files at once it takes tens of milliseconds (hundreds at worst), as it is serialized in the
+ * driver, and it is made for every file.
+ */
+CUVIDDECODECAPS GetDecoderCaps(cudaVideoCodec codec, cudaVideoChromaFormat chroma,
+                               unsigned bit_depth_minus8) {
+  int device_id = -1;
+  CUDA_CALL(cudaGetDevice(&device_id));
+  using Key = std::tuple<int, int, int, unsigned>;
+  static std::shared_mutex mutex;
+  static std::map<Key, CUVIDDECODECAPS> cache;
+  Key key{device_id, codec, chroma, bit_depth_minus8};
+  {
+    std::shared_lock lock(mutex);
+    auto it = cache.find(key);
+    if (it != cache.end())
+      return it->second;
+  }
+  // held during the query too: decoders that start at once query each configuration once
+  std::unique_lock lock(mutex);
+  auto it = cache.find(key);
+  if (it != cache.end())
+    return it->second;
+  CUVIDDECODECAPS caps = {};
+  caps.eCodecType = codec;
+  caps.eChromaFormat = chroma;
+  caps.nBitDepthMinus8 = bit_depth_minus8;
+  CUDA_CALL(cuvidGetDecoderCaps(&caps));
+  cache.emplace(key, caps);
+  return caps;
+}
+
 class NVDECCache {
  public:
     static NVDECCache &GetCache(int device_id = -1) {
@@ -107,6 +144,11 @@ class NVDECCache {
       DALI_FAIL("Cannot return decoder that is not from the cache");
     }
 
+    size_t NumCreated() {
+      std::lock_guard lock(access_lock);
+      return num_created;
+    }
+
  private:
     NVDECCache() {}
 
@@ -115,6 +157,33 @@ class NVDECCache {
       for (auto &it : dec_cache) {
         cuvidDestroyDecoder(it.second.decoder);
       }
+    }
+
+    /**
+     * @brief Checks if a cached decoder can be reused for a stream with the given format.
+     *
+     * It can if it is not in use and it was created for exactly the same stream parameters
+     * (the codec is already matched by the cache key):
+     * - the coded size: the size of the decode surfaces (ulWidth/ulHeight of the decoder),
+     * - the display area, i.e. the size and the origin of the output that the decoder crops
+     *   the coded frame to (ulTargetWidth/ulTargetHeight and display_area of the decoder).
+     *   It differs from the coded size when the stream is cropped, e.g. 1080p H.264 is coded
+     *   as 1920x1088 and displayed as 1920x1080, so both sizes have to be compared,
+     * - the number of decode surfaces, the chroma format and the bit depth.
+     */
+    static bool IsReusable(const DecInstance &dec, const CUVIDEOFORMAT &format,
+                           unsigned num_decode_surfaces) {
+      const auto &area = format.display_area;
+      return !dec.used &&
+             dec.coded_width == format.coded_width &&
+             dec.coded_height == format.coded_height &&
+             dec.width == static_cast<unsigned>(area.right - area.left) &&
+             dec.height == static_cast<unsigned>(area.bottom - area.top) &&
+             dec.display_left == area.left &&
+             dec.display_top == area.top &&
+             dec.num_decode_surfaces == num_decode_surfaces &&
+             dec.chroma_format == format.chroma_format &&
+             dec.bit_depth_luma_minus8 == format.bit_depth_luma_minus8;
     }
 
     NVDECLease GetDecoder(CUVIDEOFORMAT *video_format, int device_id) {
@@ -135,10 +204,7 @@ class NVDECCache {
         if (best_match == range.second && it->second.used == false) {
           best_match = it;
         }
-        if (it->second.used == false && it->second.height == height &&
-            it->second.width == width && it->second.num_decode_surfaces == num_decode_surfaces &&
-            it->second.chroma_format == chroma_format &&
-            it->second.bit_depth_luma_minus8 == bit_depth_luma_minus8) {
+        if (IsReusable(it->second, *video_format, num_decode_surfaces)) {
           it->second.used = true;
           assert(it->second.device_id == device_id);
           return NVDECLease(this, &it->second);
@@ -157,19 +223,19 @@ class NVDECCache {
         reconfigParams.ulTargetWidth = reconfigParams.ulWidth = width;
         reconfigParams.ulTargetHeight = reconfigParams.ulHeight = height;
         reconfigParams.ulNumDecodeSurfaces = num_decode_surfaces;
+        best_match->second.coded_height = height;
+        best_match->second.coded_width = width;
         best_match->second.height = height;
         best_match->second.width = width;
+        best_match->second.display_left = 0;
+        best_match->second.display_top = 0;
         best_match->second.num_decode_surfaces = num_decode_surfaces;
         CUDA_CALL(cuvidReconfigureDecoder(best_match->second.decoder, &reconfigParams));
         return NVDECLease(this, &best_match->second);
       }
 #endif
       lock.unlock();
-      auto caps = CUVIDDECODECAPS{};
-      caps.eCodecType = codec_type;
-      caps.eChromaFormat = chroma_format;
-      caps.nBitDepthMinus8 = bit_depth_luma_minus8;
-      CUDA_CALL(cuvidGetDecoderCaps(&caps));
+      auto caps = GetDecoderCaps(codec_type, chroma_format, bit_depth_luma_minus8);
       DALI_ENFORCE(caps.bIsSupported,
                    make_string("Codec configuration not supported on this GPU. ",
                    "Codec: ", codec_to_string(codec_type),
@@ -228,8 +294,12 @@ class NVDECCache {
       DecInstance decoder_inst = {};
 
       CUDA_CALL(cuvidCreateDecoder(&(decoder_inst.decoder), &decoder_info));
+      decoder_inst.coded_height = decoder_info.ulHeight;
+      decoder_inst.coded_width = decoder_info.ulWidth;
       decoder_inst.height = decoder_info.ulTargetHeight;
       decoder_inst.width = decoder_info.ulTargetWidth;
+      decoder_inst.display_left = area.left;
+      decoder_inst.display_top = area.top;
       decoder_inst.max_height = decoder_info.ulMaxHeight;
       decoder_inst.max_width = decoder_info.ulMaxWidth;
       decoder_inst.num_decode_surfaces = num_decode_surfaces;
@@ -241,6 +311,7 @@ class NVDECCache {
 
       lock.lock();
       auto inserted = dec_cache.insert({codec_type, decoder_inst});
+      num_created++;
       if (dec_cache.size() > CACHE_SIZE_LIMIT) {
         for (auto it = dec_cache.begin(); it != dec_cache.end(); ++it) {
           if (it->second.used == false) {
@@ -258,6 +329,7 @@ class NVDECCache {
     using codec_map = std::multimap<cudaVideoCodec, DecInstance>;
     codec_map dec_cache;
     std::mutex access_lock;
+    size_t num_created = 0;  // decoders created so far, including those already evicted
 
     static constexpr int CACHE_SIZE_LIMIT = 100;
 };
@@ -268,6 +340,10 @@ void NVDECLease::Return() {
     owner = nullptr;
     decoder = nullptr;
   }
+}
+
+size_t NVDECDecodersCreated(int device_id) {
+  return NVDECCache::GetCache(device_id).NumCreated();
 }
 
 int process_video_sequence(void *user_data, CUVIDEOFORMAT *video_format) {
@@ -435,6 +511,18 @@ FramesDecoderGpu::FramesDecoderGpu(const std::string &filename, cudaStream_t str
 FramesDecoderGpu::FramesDecoderGpu(const char *memory_file, size_t memory_file_size, std::string_view source_info,
                                    cudaStream_t stream, DALIImageType image_type)
     : FramesDecoderBase(memory_file, memory_file_size, source_info, image_type),
+      frame_buffer_(num_decode_surfaces_),
+      stream_(stream) {
+  is_valid_ = is_valid_ && SelectVideoStream();
+  if (is_valid_) {
+    InitGpuParser();
+  }
+}
+
+FramesDecoderGpu::FramesDecoderGpu(std::unique_ptr<InputStream> input_stream,
+                                   std::string_view source_info, cudaStream_t stream,
+                                   DALIImageType image_type)
+    : FramesDecoderBase(std::move(input_stream), source_info, image_type),
       frame_buffer_(num_decode_surfaces_),
       stream_(stream) {
   is_valid_ = is_valid_ && SelectVideoStream();
@@ -901,6 +989,9 @@ void FramesDecoderGpu::Flush() {
 }
 
 FramesDecoderGpu::~FramesDecoderGpu() {
+  // frame_buffer_ goes back to the memory pool right after this, without stream ordering: wait
+  // for the copies out of it (CopyFrame, copyD2D) that may still be pending on stream_
+  CUDA_DTOR_CALL(cudaStreamSynchronize(stream_));
   filtered_packet_.reset();
   bsfc_.reset();
 }
@@ -942,11 +1033,8 @@ bool FramesDecoderGpu::SelectVideoStream(int stream_id) {
     return false;
   }
 
-  CUVIDDECODECAPS decoder_caps = {};
-  decoder_caps.eCodecType = GetCodecType(codec_id);
-  decoder_caps.eChromaFormat = cudaVideoChromaFormat_420;
-  decoder_caps.nBitDepthMinus8 = 0;
-  CUDA_CALL(cuvidGetDecoderCaps(&decoder_caps));
+  auto decoder_caps = frame_dec_gpu_impl::GetDecoderCaps(GetCodecType(codec_id),
+                                                         cudaVideoChromaFormat_420, 0);
   if (!decoder_caps.bIsSupported) {
     DALI_WARN(make_string("Codec ", avcodec_get_name(codec_id),
                           " is not supported by NVDEC on this platform."));
