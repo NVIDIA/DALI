@@ -218,6 +218,8 @@ class ModuleInfo:
                 accepted = cst.AugAssign
             elif name.startswith("BINARY_") and name != "BINARY_SUBSCR":
                 accepted = cst.BinaryOperation
+            elif name == "COMPARE_OP":
+                accepted = cst.Comparison
             else:
                 return None
             return self._node_on_line(frame.f_lineno, accepted)
@@ -318,8 +320,8 @@ class _FusedCodegenState(PositionProvidingCodegenState):
     def after_codegen(self, node: cst.CSTNode) -> None:
         super().after_codegen(node)
         self._node_stack.pop()
-        # A frame executes either at a call or at an arithmetic operator reached via a dunder
-        if isinstance(node, (cst.Call, cst.BinaryOperation, cst.AugAssign)):
+        # A frame executes either at a call or at an operator reached via a dunder
+        if isinstance(node, (cst.Call, cst.BinaryOperation, cst.AugAssign, cst.Comparison)):
             self.nodes.append(node)
 
 
@@ -455,9 +457,18 @@ class _Classifier:
         self, inputs: tuple[Any, ...], raw_kwargs: dict[str, Any]
     ) -> tuple[list[CaptureRef | Any], dict[str, CaptureRef | Any]] | None:
         info = site_info(self.frame)
-        call = info.node if info is not None else None
-        source_args = _split_call_args(call) if isinstance(call, cst.Call) else None
-        pos_nodes, kw_nodes = source_args or ((), {})
+        match info.node if info is not None else None:
+            case cst.Call() as call:
+                pos_nodes, kw_nodes = self._call_arg_nodes(call)
+            case cst.BinaryOperation(left=lhs, right=rhs) | cst.AugAssign(target=lhs, value=rhs):
+                pos_nodes, kw_nodes = (lhs, rhs), {}
+            case cst.Comparison(left=lhs, comparisons=[cst.ComparisonTarget(comparator=rhs)]):
+                probe = _Classifier(self.module_info, self.frame)
+                # There are no reflected dunders for comparisons so we need to check manually
+                reflected = probe.is_invariant(lhs, static=False)
+                pos_nodes, kw_nodes = ((rhs, lhs) if reflected else (lhs, rhs)), {}
+            case _:
+                pos_nodes, kw_nodes = (), {}
 
         try:
             classified_inputs: list[CaptureRef | Any] = []
@@ -475,6 +486,18 @@ class _Classifier:
         except _Unresolved:
             return None  # an argument is neither a CapturedBatch nor a capturable constant
         return classified_inputs, classified_kwargs
+
+    def _call_arg_nodes(
+        self, call: cst.Call
+    ) -> tuple[Sequence[cst.BaseExpression], Mapping[str, cst.BaseExpression]]:
+        """`call`'s argument expressions, ordered by the callee's positional parameters."""
+        pos_nodes, kw_nodes = _split_call_args(call) or ((), {})
+        try:
+            callee = _safe_resolve(call.func, self.frame)
+            bound = inspect.signature(callee).bind(*pos_nodes, **kw_nodes)
+        except (_Unresolved, TypeError, ValueError):
+            return pos_nodes, kw_nodes
+        return bound.args, bound.kwargs
 
     @NVTXRange("detect_invariant_args", category="source analysis")
     def detect_invariant_args(

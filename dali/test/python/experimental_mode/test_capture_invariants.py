@@ -72,8 +72,11 @@ def captured_test(*, expect_captured: bool):
 
 _MODULE_DTYPE = ndd.float32
 _GLOBAL_ANGLE = 60
+_GLOBAL_SCALAR = 2
 _INVARIANT_ANGLE = ndd.capture.invariant(0.0)
 _INVARIANT_SIZE = ndd.capture.invariant(4)
+_INVARIANT_INT64 = ndd.capture.invariant(np.array([2**40], dtype=np.int64))
+_INVARIANT_FLOAT64 = ndd.capture.invariant(np.array([1 + 2**-30]))
 
 
 class _Cfg:
@@ -438,6 +441,78 @@ def transform(images, angle):
     return namespace["transform"](images, _INVARIANT_ANGLE)
 
 
+@captured_test(expect_captured=True)
+def test_arithmetic(images):
+    scale = 0.5
+    shifted = 1 - images
+    shifted *= scale
+    return -shifted + images
+
+
+@captured_test(expect_captured=True)
+def test_arithmetic_closure_and_keywords(images):
+    def normalize(imgs, scale):
+        def apply():
+            return ndd.math.clamp(imgs * scale, lo=0, hi=100)
+
+        return apply()
+
+    return normalize(images, 0.5)
+
+
+@captured_test(expect_captured=True)
+def test_arithmetic_constant_vector(images):
+    return images + (1, 2, 3)
+
+
+@captured_test(expect_captured=True)
+def test_arithmetic_constant_list(images):
+    return images + [1, 2, 3]
+
+
+@captured_test(expect_captured=True)
+def test_math_constant_list(images):
+    return ndd.math.clamp(images, [0, 0, 0], [9, 9, 9])
+
+
+@captured_test(expect_captured=True)
+def test_arithmetic_int64_constant(images):
+    return images.cpu() + _INVARIANT_INT64
+
+
+@captured_test(expect_captured=True)
+def test_arithmetic_float64_constant(images):
+    x = images.cpu()
+    y = x + _INVARIANT_FLOAT64 - x
+    return ndd.cast(y - 1, dtype=ndd.float32)
+
+
+@captured_test(expect_captured=True)
+def test_math_function(images):
+    return ndd.math.sqrt(images)
+
+
+@captured_test(expect_captured=True)
+def test_arithmetic_helper_constants(images):
+    def scale(imgs, factor):
+        return imgs * factor
+
+    half = scale(images, 0.5)
+    double = scale(images, 2.0)
+    return half + double
+
+
+@captured_test(expect_captured=True)
+def test_comparison(images):
+    mask = images > ndd.math.sqrt(images)
+    return mask.cpu() & (images.cpu() > 100)
+
+
+@captured_test(expect_captured=True)
+def test_comparison_reflected(images):
+    return 128 < images
+
+
 # Tests for rejected cases
 
 
@@ -470,6 +545,39 @@ def test_global_name(images):
 def test_mutable_name(images):
     c = [224, 224]  # named mutables are not captured
     return ndd.resize(images, size=c)
+
+
+@captured_test(expect_captured=False)
+def test_arithmetic_mutable_name(images):
+    c = [1, 2, 3]
+    return images + c
+
+
+@captured_test(expect_captured=False)
+def test_arithmetic_global(images):
+    return images * _GLOBAL_SCALAR
+
+
+@captured_test(expect_captured=False)
+def test_arithmetic_reflected_global(images):
+    return _GLOBAL_SCALAR - images
+
+
+@captured_test(expect_captured=False)
+def test_arithmetic_augassign_global(images):
+    x = images
+    x *= _GLOBAL_SCALAR
+    return x
+
+
+@captured_test(expect_captured=False)
+def test_math_global(images):
+    return ndd.math.clamp(images, lo=_GLOBAL_SCALAR, hi=100)
+
+
+@captured_test(expect_captured=False)
+def test_comparison_global(images):
+    return images > _GLOBAL_SCALAR
 
 
 @captured_test(expect_captured=False)
@@ -649,13 +757,3 @@ def test_invariant_marker_removed():
 @captured_test(expect_captured=False)
 def test_slice(images):
     return images.slice[0:4]
-
-
-@captured_test(expect_captured=False)
-def test_arithmetic(images):
-    return images + 1
-
-
-@captured_test(expect_captured=False)
-def test_math_function(images):
-    return ndd.math.sqrt(images)
