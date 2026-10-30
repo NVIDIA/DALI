@@ -1557,21 +1557,12 @@ def test_non_idr_keyframes_fixture(codec):
 @params(*non_idr_codecs)
 def test_non_idr_keyframes_sequential_decoding(codec):
     """Decoding the stream in order gives all the frames, as decoded by FFmpeg"""
-    if codec == Codec.HEVC:
-        skip_if_m60()
+    skip_if_m60()
     frames = non_idr_sequential_frames(codec)
-    reference = np.stack(
-        [
-            frame.to_ndarray(format="rgb24")
-            for frame in av.open(non_idr_videos[codec]).decode(video=0)
-        ]
-    )
-    assert frames.shape == reference.shape, f"{frames.shape} != {reference.shape}"
-    # color conversion and chroma upsampling are not the same, but a wrong frame is very different
-    diff = np.abs(frames.astype(np.int16) - reference.astype(np.int16)).mean(axis=(1, 2, 3))
-    assert diff.max() < 12, f"Frame {diff.argmax()} differs from FFmpeg's by {diff.max()}"
-    for i in range(1, len(frames)):
-        assert not np.array_equal(frames[i], frames[i - 1]), f"Frames {i - 1} and {i} are equal"
+    reference = extract_frames_from_video(non_idr_videos[codec])
+    assert len(frames) == len(reference), f"{len(frames)} != {len(reference)} frames"
+    for i, (frame, ref_frame) in enumerate(zip(frames, reference)):
+        compare_frames(frame, ref_frame, i)
 
 
 @cartesian_params(
@@ -1586,8 +1577,7 @@ def test_non_idr_keyframes_sequential_decoding(codec):
 )
 def test_non_idr_keyframes_random_access(codec, op, start_frame, sequence_length=4):
     """Decoding from any frame gives the same frames as decoding the stream in order"""
-    if codec == Codec.HEVC:
-        skip_if_m60()
+    skip_if_m60()
     decode = non_idr_reader_frames if op == "reader" else non_idr_decoder_frames
     frames = decode(codec, start_frame, sequence_length)
     expected = non_idr_sequential_frames(codec)[start_frame : start_frame + sequence_length]
