@@ -123,3 +123,64 @@ def _get_input_name(schema, input_idx):
 def _get_variadic_input_name():
     """Return the string representing the name of positional-only input for a variadic context."""
     return "inputs"
+
+
+# Dynamic (ndd) API only: optional positional inputs that carry the same value as named arguments.
+# Such an input is hidden from the generated ndd signature and docs, leaving the named argument(s)
+# as the canonical parameter, but it is still accepted positionally, so existing calls keep
+# working. The fn/ops APIs are unaffected.
+#
+# Maps a schema name to {input name (see `_get_input_name`): the named arguments it corresponds
+# to}. Only inputs that are CPU-only or CPU in practice (a GPU value is copied to the host inside
+# the operator) are listed. Arguments are always CPU, so an input that the operator consumes on the
+# GPU, such as WarpAffine's `mtx`, is the only way to keep that value on the GPU and stays visible.
+#
+# Slice's `anchor`/`shape` inputs (shared with `decoders.image_slice` through `SliceAttr`) are
+# interpreted by their dtype - integers are absolute, floats follow `normalized_anchor` and
+# `normalized_shape` - while the named arguments are absolute or relative by their name, so each of
+# them corresponds to an absolute and a relative argument. The inputs of the deprecated alias
+# `experimental.decoders.image_slice` have no names in its schema, hence `input_1`/`input_2`.
+MERGED_INPUT_ARGS = {
+    "Reshape": {"shape_input": ("shape",)},
+    "Reinterpret": {"shape_input": ("shape",)},
+    "Slice": {
+        "anchor": ("start", "rel_start"),
+        "shape_input": ("shape", "rel_shape"),
+    },
+    "decoders__ImageSlice": {
+        "anchor": ("start", "rel_start"),
+        "shape_input": ("shape", "rel_shape"),
+    },
+    "experimental__decoders__ImageSlice": {
+        "input_1": ("start", "rel_start"),
+        "input_2": ("shape", "rel_shape"),
+    },
+}
+
+
+# Named arguments that only qualify the merged inputs above (they say how the positional anchor and
+# shape are interpreted) and have no effect on the named arguments. They stay in the ndd signature,
+# which has no other way to accept them, and their ndd docs say that they apply to `*inputs` only.
+_SLICE_INPUT_QUALIFIERS = ("normalized_anchor", "normalized_shape")
+MERGED_INPUT_QUALIFIER_ARGS = {
+    "Slice": _SLICE_INPUT_QUALIFIERS,
+    "decoders__ImageSlice": _SLICE_INPUT_QUALIFIERS,
+    "experimental__decoders__ImageSlice": _SLICE_INPUT_QUALIFIERS,
+}
+
+
+def get_merged_inputs(schema_name):
+    """Return {input name: corresponding named arguments} for the inputs of `schema_name` that the
+    dynamic API hides behind named arguments (see `MERGED_INPUT_ARGS`); empty if none."""
+    return MERGED_INPUT_ARGS.get(schema_name, {})
+
+
+def get_merged_input_names(schema_name):
+    """Return the set of dynamic-API-hidden input names for `schema_name` (empty if none)."""
+    return set(get_merged_inputs(schema_name))
+
+
+def get_merged_input_qualifier_args(schema_name):
+    """Return the named arguments of `schema_name` that only apply to the dynamic-API-hidden
+    inputs (see `MERGED_INPUT_QUALIFIER_ARGS`); empty if none."""
+    return MERGED_INPUT_QUALIFIER_ARGS.get(schema_name, ())
