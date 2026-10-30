@@ -235,10 +235,10 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
       // the version of the file that the decoder opens (see FrameIndexCache::GetOrBuild)
       auto stamp = FrameIndexCache::FileStamp::Of(entry.filename);
       // The index needs no decoder: no codec context, parser, frame buffers nor reopening of
-      // the file
-      auto decoder = std::make_unique<FramesIndexer>(
-          entry.filename, FramesDecoderImpl::IsCodecSupported, image_type_);
-      if (!decoder->IsValid()) {
+      // the file. The files whose codec the decoder does not support are skipped, as they would
+      // be with the decoder.
+      auto decoder = std::make_unique<FramesIndexer>(entry.filename, image_type_);
+      if (!decoder->IsValid() || !FramesDecoderImpl::IsCodecSupported(decoder->CodecId())) {
         LOG_LINE << "Invalid video file: " << entry.filename << std::endl;
         continue;
       }
