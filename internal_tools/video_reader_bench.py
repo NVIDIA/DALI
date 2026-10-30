@@ -73,8 +73,10 @@ PIPELINE_DEPTH = 2  # the pipeline's own prefetch queue, set explicitly
 def dali_configs(threads):
     """(group, configuration) of the DALI reader.
 
-    `many`: that number of symlinks to the files, one sequence each. Without it, the files as
-    they are."""
+    A configuration is a dict of: files (glob patterns), device, t (num_threads), rd (the reader's
+    prefetch_queue_depth), batch (batch_size), seq (sequence_length), shuffle (random_shuffle),
+    many (optional: that number of symlinks to the files, one sequence each; without it, the
+    files as they are), hash_only (optional: not timed)."""
     base = dict(batch=16, seq=32, rd=1, shuffle=False, device="gpu")
     t_max = max(threads)
     for t in threads:
@@ -218,10 +220,10 @@ def run_config(cfg, root, hash_out, tmp):
         # more than an epoch, so that the reader's restart is covered too
         n_samples = max(HASH_MIN_SAMPLES, epoch_size)
         for _ in range(-(-n_samples // cfg["batch"]) + 2):
-            for o in run_batch():
-                o = o.as_cpu() if hasattr(o, "as_cpu") else o
-                for i in range(len(o)):
-                    h.update(np.ascontiguousarray(np.array(o[i])).tobytes())
+            for output in run_batch():
+                output = output.as_cpu() if hasattr(output, "as_cpu") else output
+                for i in range(len(output)):
+                    h.update(np.ascontiguousarray(np.array(output[i])).tobytes())
         return dict(hash=h.hexdigest())
     # batches that may have been produced before the clock starts: pipeline + reader queues
     for _ in range(PIPELINE_DEPTH + cfg["rd"] + 1):
