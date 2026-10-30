@@ -15,7 +15,9 @@
 #ifndef DALI_OPERATORS_VIDEO_COLOR_SPACE_H_
 #define DALI_OPERATORS_VIDEO_COLOR_SPACE_H_
 
+#include <cuda_runtime_api.h>
 #include <stdint.h>
+#include "dali/core/api_helper.h"
 
 namespace dali {
 
@@ -25,11 +27,11 @@ enum VideoColorSpaceConversionType {
     VIDEO_COLOR_SPACE_CONVERSION_TYPE_YUV_UPSAMPLE,
 };
 
-void VideoColorSpaceConversion(uint8_t *out, int out_pitch, const uint8_t* yuv, int yuv_pitch, int height, int width,
+DLL_PUBLIC void VideoColorSpaceConversion(uint8_t *out, int out_pitch, const uint8_t* yuv, int yuv_pitch, int height, int width,
                                VideoColorSpaceConversionType conversion_type, bool normalized_range,
                                cudaStream_t stream);
 
-void VideoColorSpaceConversion(float *out, int out_pitch, const uint8_t* yuv, int yuv_pitch, int height, int width,
+DLL_PUBLIC void VideoColorSpaceConversion(float *out, int out_pitch, const uint8_t* yuv, int yuv_pitch, int height, int width,
                                VideoColorSpaceConversionType conversion_type, bool normalized_range,
                                cudaStream_t stream);
 
