@@ -178,6 +178,7 @@ def run_config(cfg, root, hash_out, tmp):
         src = dict(filenames=files, labels=list(range(len(files))))
 
     t0 = time.perf_counter()
+    # run_batch() produces one batch: the DALI pipeline's run, or the same work in torchcodec
     if cfg.get("lib") == "torchcodec":
         if not cfg.get("many"):  # whole files in full sequences, as the DALI reader splits them
             from torchcodec.decoders import VideoDecoder
