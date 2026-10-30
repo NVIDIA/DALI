@@ -113,10 +113,19 @@ void FramesDecoderCpu::CopyToOutput(uint8_t *data) {
   bool src_full_range = frame_->color_range == AVCOL_RANGE_JPEG ||
                         (frame_->color_range == AVCOL_RANGE_UNSPECIFIED &&
                          codec_params_->color_range == AVCOL_RANGE_JPEG);
-  if (sws_src_full_range_ != src_full_range) {
+  // The matrix that the stream says it uses (BT.709 for most HD video); otherwise, BT.601.
+  // It matters only when converting to RGB: YCbCr output is a copy of the decoded planes, which
+  // must not be converted to another matrix (the destination one is BT.601).
+  AVColorSpace src_colorspace = frame_->colorspace != AVCOL_SPC_UNSPECIFIED
+                                    ? frame_->colorspace
+                                    : codec_params_->color_space;
+  int sws_colorspace = (image_type_ == DALI_RGB && src_colorspace == AVCOL_SPC_BT709)
+                           ? SWS_CS_ITU709
+                           : SWS_CS_DEFAULT;
+  if (sws_src_full_range_ != src_full_range || sws_src_colorspace_ != sws_colorspace) {
     int ret = sws_setColorspaceDetails(
       sws_ctx_.get(),
-      sws_getCoefficients(SWS_CS_DEFAULT),
+      sws_getCoefficients(sws_colorspace),
       src_full_range,
       sws_getCoefficients(SWS_CS_DEFAULT),
       1,
@@ -127,6 +136,7 @@ void FramesDecoderCpu::CopyToOutput(uint8_t *data) {
                  make_string("Could not set color space conversion details: ",
                              av_error_string(ret)));
     sws_src_full_range_ = src_full_range;
+    sws_src_colorspace_ = sws_colorspace;
   }
 
   uint8_t *dest[4] = {sws_output_data, nullptr, nullptr, nullptr};
