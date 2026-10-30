@@ -70,18 +70,27 @@ unsupported_cpu_codecs = {"h264", "hevc", "mpeg4", "av1"}
 
 
 def make_mjpeg_video(width, height):
+    y, x = np.mgrid[:height, :width]
+    x = x * 64 // max(width - 1, 1)
+    y = y * 48 // max(height - 1, 1)
     encoded = io.BytesIO()
     with av.open(encoded, mode="w", format="avi") as container:
         stream = container.add_stream("mjpeg", rate=1)
         stream.width, stream.height = width, height
-        stream.pix_fmt = "yuvj420p"
+        # Avoid chroma upsampling differences between DALI's and PyAV's FFmpeg builds.
+        stream.pix_fmt = "yuvj444p"
         for frame_idx in range(2):
-            frame = av.VideoFrame.from_ndarray(
-                np.full(
-                    (height, width, 3),
-                    (32 + 64 * frame_idx, 96, 160 - 32 * frame_idx),
-                    dtype=np.uint8,
+            # Vary each channel along both axes so incorrect row/plane strides change pixels.
+            pixels = np.stack(
+                (
+                    32 + x + y // 2 + 32 * frame_idx,
+                    64 + x // 2 + y,
+                    160 - x // 2 + y // 2 - 16 * frame_idx,
                 ),
+                axis=-1,
+            ).astype(np.uint8)
+            frame = av.VideoFrame.from_ndarray(
+                pixels,
                 format="rgb24",
             )
             for packet in stream.encode(frame):
