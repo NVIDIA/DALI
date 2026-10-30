@@ -13,7 +13,9 @@
 // limitations under the License.
 
 #include <gtest/gtest.h>
+#include <algorithm>
 #include <cmath>
+#include <cstdlib>
 #include <limits>
 #include <random>
 #include <tuple>
@@ -32,6 +34,25 @@ constexpr int integer_bits = std::is_integral_v<T>
                            ? sizeof(T) * 8 - std::is_signed_v<T>
                            : 0;  // floating point has 0 integer bits
 
+/**
+ * @brief The span of the limited range in the units of T, for a span of `code_span` codes of the
+ *        8-bit range (219 for Y, 224 for Cb and Cr)
+ *
+ * An integer type of n bits uses code_span * 2^(n-8), as in ITU-R BT.601/709/2100 and H.273 (so
+ * the limited range of uint16_t is 4096..60160 for Y). Floating point has no such definition and
+ * uses code_span / 255 (see the documentation in color_space_conversion_impl.h).
+ */
+template <typename T>
+constexpr double limited_span(double code_span) {
+  constexpr int bits = integer_bits<T>;
+  if constexpr (!std::is_integral_v<T>)
+    return code_span / 255;
+  else if constexpr (bits >= 8)
+    return code_span * static_cast<double>(1_i64 << (bits - 8));
+  else
+    return code_span / static_cast<double>(1_i64 << (8 - bits));
+}
+
 struct itu_ref {
   template <typename T>
   static constexpr float y_bias() {
@@ -41,12 +62,7 @@ struct itu_ref {
 
   template <typename Out>
   static constexpr float gray_to_y(float g) {
-    double scale = 219.0 / 255;
-
-    if (std::is_integral_v<Out>)
-      scale = max_value<Out>() * 219.0 / 255;  // floating point division - exact for any Out
-
-    return scale * g + y_bias<Out>();
+    return limited_span<Out>(219) * g + y_bias<Out>();
   }
 
   /**
@@ -65,18 +81,16 @@ struct itu_ref {
 
     double ybias = 1/16.0;
     double cbias = 0.5;
-    double scale = 1;
     if constexpr (std::is_integral_v<Out>) {
       int out_bits = integer_bits<Out>;
       ybias = 1_i64 << (out_bits - 4);
       cbias = 1_i64 << (out_bits - 1);
-      scale = max_value<Out>();
     }
 
     return {
-      y  * scale * 219/255 + ybias,
-      cb * scale * 224/255 + cbias,
-      cr * scale * 224/255 + cbias
+      y  * limited_span<Out>(219) + ybias,
+      cb * limited_span<Out>(224) + cbias,
+      cr * limited_span<Out>(224) + cbias
     };
   }
 };
@@ -221,6 +235,73 @@ TEST(ColorSpaceConversionTest, JPEG_RGB2YCbCr_u8) {
   EXPECT_EQ(rgb_to_cr(u8vec3{  0,   0, 255}), 107);
   EXPECT_EQ(rgb_to_cb(u8vec3{255,   0, 255}), 212);
   EXPECT_EQ(rgb_to_cr(u8vec3{255,   0, 255}), 235);
+}
+
+/**
+ * @brief The limited range of the integer types wider than 8 bits
+ *
+ * As in ITU-R BT.601/709/2100 and H.273, the offsets and spans of the 8-bit range (16..235 for Y,
+ * 16..240 for Cb and Cr, centered at 128) are scaled by 2^(bits-8), where bits is the number of
+ * the bits of the values: 16 for uint16_t and 15 for int16_t. That is not the same as scaling by
+ * the maximum value of the type: the white of uint16_t is 235 * 256 = 60160, not 60379.
+ */
+template <typename Method>
+void CheckNBitLimitedRange() {
+  // uint16_t: 4096..60160 for Y, 4096..61440 for Cb and Cr, centered at 32768
+  EXPECT_EQ((Method::template rgb_to_ycbcr<uint16_t>(u16vec3(0, 0, 0))),
+            u16vec3(4096, 32768, 32768));
+  EXPECT_EQ((Method::template rgb_to_ycbcr<uint16_t>(u16vec3(65535, 65535, 65535))),
+            u16vec3(60160, 32768, 32768));
+  EXPECT_EQ((Method::template rgb_to_cb<uint16_t>(u16vec3(0, 0, 65535))), 61440);
+  EXPECT_EQ((Method::template rgb_to_cr<uint16_t>(u16vec3(65535, 0, 0))), 61440);
+  EXPECT_EQ((Method::template rgb_to_cb<uint16_t>(u16vec3(65535, 65535, 0))), 4096);
+  EXPECT_EQ((Method::template rgb_to_cr<uint16_t>(u16vec3(0, 65535, 65535))), 4096);
+  EXPECT_EQ((Method::template ycbcr_to_rgb<uint16_t>(u16vec3(60160, 32768, 32768))),
+            u16vec3(65535, 65535, 65535));
+  EXPECT_EQ((Method::template ycbcr_to_rgb<uint16_t>(u16vec3(4096, 32768, 32768))),
+            u16vec3(0, 0, 0));
+  EXPECT_EQ(Method::template gray_to_y<uint16_t>(uint16_t(0)), 4096);
+  EXPECT_EQ(Method::template gray_to_y<uint16_t>(uint16_t(65535)), 60160);
+  EXPECT_EQ(Method::template y_to_gray<uint16_t>(uint16_t(4096)), 0);
+  EXPECT_EQ(Method::template y_to_gray<uint16_t>(uint16_t(60160)), 65535);
+
+  // int16_t: 2048..30080 for Y, 2048..30720 for Cb and Cr, centered at 16384
+  EXPECT_EQ((Method::template rgb_to_ycbcr<int16_t>(i16vec3(0, 0, 0))),
+            i16vec3(2048, 16384, 16384));
+  EXPECT_NEAR((Method::template rgb_to_y<int16_t>(i16vec3(32767, 32767, 32767))), 30080, 1);
+  EXPECT_NEAR((Method::template rgb_to_cb<int16_t>(i16vec3(0, 0, 32767))), 30720, 1);
+  EXPECT_EQ((Method::template ycbcr_to_rgb<int16_t>(i16vec3(30080, 16384, 16384))),
+            i16vec3(32767, 32767, 32767));
+  EXPECT_EQ(Method::template y_to_gray<int16_t>(int16_t(30080)), 32767);
+
+  // The primaries go back to where they came from
+  for (auto rgb : {u16vec3(65535, 0, 0), u16vec3(0, 65535, 0), u16vec3(0, 0, 65535),
+                   u16vec3(65535, 65535, 0), u16vec3(0, 65535, 65535), u16vec3(65535, 0, 65535)}) {
+    auto back = Method::template ycbcr_to_rgb<uint16_t>(
+        Method::template rgb_to_ycbcr<uint16_t>(rgb));
+    for (int c = 0; c < 3; c++)
+      EXPECT_NEAR(back[c], rgb[c], 2) << "RGB = " << vec3(rgb);
+  }
+
+  // 8 bits are the same as before: 16..235 and 16..240
+  EXPECT_EQ((Method::template rgb_to_ycbcr<uint8_t>(u8vec3(255, 255, 255))),
+            u8vec3(235, 128, 128));
+  EXPECT_EQ((Method::template rgb_to_cb<uint8_t>(u8vec3(0, 0, 255))), 240);
+
+  // Floating point is not defined by the recommendations: black is 1/16, the neutral chroma is
+  // 1/2 and the span of Y is 219/255
+  EXPECT_NEAR((Method::template rgb_to_y<float>(vec3(0, 0, 0))), 0.0625, 1e-6);
+  EXPECT_NEAR((Method::template rgb_to_y<float>(vec3(1, 1, 1))), 0.0625 + 219.0 / 255, 1e-6);
+  EXPECT_NEAR((Method::template rgb_to_cb<float>(vec3(1, 1, 1))), 0.5, 1e-6);
+  EXPECT_NEAR((Method::template rgb_to_cb<float>(vec3(0, 0, 1))), 0.5 + 0.5 * 224.0 / 255, 1e-6);
+}
+
+TEST(ColorSpaceConversionTest, ITU_R_BT601_NBitLimitedRange) {
+  CheckNBitLimitedRange<itu_r_bt_601>();
+}
+
+TEST(ColorSpaceConversionTest, ITU_R_BT709_NBitLimitedRange) {
+  CheckNBitLimitedRange<itu_r_bt_709>();
 }
 
 template <typename TypeParam>
@@ -453,33 +534,58 @@ constexpr double finish(double v) {
   return v;
 }
 
-// Luma/chroma from normalized RGB
-inline double luma(dvec3 rgb) { return 0.299 * rgb[0] + 0.587 * rgb[1] + 0.114 * rgb[2]; }
-inline double chroma_b(dvec3 rgb) { return (rgb[2] - luma(rgb)) * (0.5 / (1 - 0.114)); }
-inline double chroma_r(dvec3 rgb) { return (rgb[0] - luma(rgb)) * (0.5 / (1 - 0.299)); }
+// Luma/chroma from normalized RGB, given the luma weights of red and blue (kr, kb)
+inline double luma(dvec3 rgb, double kr, double kb) {
+  return kr * rgb[0] + (1 - kr - kb) * rgb[1] + kb * rgb[2];
+}
+inline double chroma_b(dvec3 rgb, double kr, double kb) {
+  return (rgb[2] - luma(rgb, kr, kb)) * (0.5 / (1 - kb));
+}
+inline double chroma_r(dvec3 rgb, double kr, double kb) {
+  return (rgb[0] - luma(rgb, kr, kb)) * (0.5 / (1 - kr));
+}
 
 // Normalized RGB from normalized luma/chroma (chroma centered at 0)
-inline dvec3 rgb_from_ycc(double y, double cb, double cr) {
-  double r = y + 2 * (1 - 0.299) * cr;
-  double b = y + 2 * (1 - 0.114) * cb;
-  double g = (y - 0.299 * r - 0.114 * b) / 0.587;
+inline dvec3 rgb_from_ycc(double y, double cb, double cr, double kr, double kb) {
+  double r = y + 2 * (1 - kr) * cr;
+  double b = y + 2 * (1 - kb) * cb;
+  double g = (y - kr * r - kb * b) / (1 - kr - kb);
   return {r, g, b};
 }
 
 template <typename Method>
 struct method_ref;
 
+// yspan and cspan are the spans of Y and of Cb and Cr in the units of T
 template <>
 struct method_ref<itu_r_bt_601> {
-  static constexpr double yscale = 219.0 / 255;
-  static constexpr double cscale = 224.0 / 255;
+  static constexpr double kr = 0.299, kb = 0.114;
+  template <typename T> static constexpr double yspan() { return limited_span<T>(219); }
+  template <typename T> static constexpr double cspan() { return limited_span<T>(224); }
+  template <typename T> static constexpr double ybias() { return any_ref::ybias<T>(); }
+};
+
+template <>
+struct method_ref<itu_r_bt_709> {
+  static constexpr double kr = 0.2126, kb = 0.0722;
+  template <typename T> static constexpr double yspan() { return limited_span<T>(219); }
+  template <typename T> static constexpr double cspan() { return limited_span<T>(224); }
   template <typename T> static constexpr double ybias() { return any_ref::ybias<T>(); }
 };
 
 template <>
 struct method_ref<jpeg> {
-  static constexpr double yscale = 1;
-  static constexpr double cscale = 1;
+  static constexpr double kr = 0.299, kb = 0.114;
+  template <typename T> static constexpr double yspan() { return unit<T>(); }
+  template <typename T> static constexpr double cspan() { return unit<T>(); }
+  template <typename T> static constexpr double ybias() { return 0; }
+};
+
+template <>
+struct method_ref<itu_r_bt_709_full_range> {
+  static constexpr double kr = 0.2126, kb = 0.0722;
+  template <typename T> static constexpr double yspan() { return unit<T>(); }
+  template <typename T> static constexpr double cspan() { return unit<T>(); }
   template <typename T> static constexpr double ybias() { return 0; }
 };
 
@@ -488,19 +594,19 @@ dvec3 rgb_to_ycbcr(vec<3, In> in) {
   using M = method_ref<Method>;
   dvec3 rgb(norm(in[0]), norm(in[1]), norm(in[2]));
   return {
-    finish<Out>(luma(rgb) * unit<Out>() * M::yscale + M::template ybias<Out>()),
-    finish<Out>(chroma_b(rgb) * unit<Out>() * M::cscale + cbias<Out>()),
-    finish<Out>(chroma_r(rgb) * unit<Out>() * M::cscale + cbias<Out>())
+    finish<Out>(luma(rgb, M::kr, M::kb) * M::template yspan<Out>() + M::template ybias<Out>()),
+    finish<Out>(chroma_b(rgb, M::kr, M::kb) * M::template cspan<Out>() + cbias<Out>()),
+    finish<Out>(chroma_r(rgb, M::kr, M::kb) * M::template cspan<Out>() + cbias<Out>())
   };
 }
 
 template <typename Method, typename Out, typename In>
 dvec3 ycbcr_to_rgb(vec<3, In> in) {
   using M = method_ref<Method>;
-  double y  = (sat<Out>(in[0]) - M::template ybias<In>()) / (unit<In>() * M::yscale);
-  double cb = (sat<Out>(in[1]) - cbias<In>()) / (unit<In>() * M::cscale);
-  double cr = (sat<Out>(in[2]) - cbias<In>()) / (unit<In>() * M::cscale);
-  dvec3 rgb = rgb_from_ycc(y, cb, cr);
+  double y  = (sat<Out>(in[0]) - M::template ybias<In>()) / M::template yspan<In>();
+  double cb = (sat<Out>(in[1]) - cbias<In>()) / M::template cspan<In>();
+  double cr = (sat<Out>(in[2]) - cbias<In>()) / M::template cspan<In>();
+  dvec3 rgb = rgb_from_ycc(y, cb, cr, M::kr, M::kb);
   return {
     finish<Out>(rgb[0] * unit<Out>()),
     finish<Out>(rgb[1] * unit<Out>()),
@@ -511,13 +617,13 @@ dvec3 ycbcr_to_rgb(vec<3, In> in) {
 template <typename Method, typename Out, typename In>
 double gray_to_y(In gray) {
   using M = method_ref<Method>;
-  return finish<Out>(norm(gray) * unit<Out>() * M::yscale + M::template ybias<Out>());
+  return finish<Out>(norm(gray) * M::template yspan<Out>() + M::template ybias<Out>());
 }
 
 template <typename Method, typename Out, typename In>
 double y_to_gray(In y) {
   using M = method_ref<Method>;
-  double g = (sat<Out>(y) - M::template ybias<In>()) / (unit<In>() * M::yscale);
+  double g = (sat<Out>(y) - M::template ybias<In>()) / M::template yspan<In>();
   return finish<Out>(g * unit<Out>());
 }
 
@@ -582,7 +688,10 @@ const char *type_name() {
 
 template <typename Method>
 const char *method_name() {
-  return std::is_same_v<Method, itu_r_bt_601> ? "itu_r_bt_601" : "jpeg";
+  if (std::is_same_v<Method, itu_r_bt_601>) return "itu_r_bt_601";
+  if (std::is_same_v<Method, itu_r_bt_709>) return "itu_r_bt_709";
+  if (std::is_same_v<Method, itu_r_bt_709_full_range>) return "itu_r_bt_709_full_range";
+  return "jpeg";
 }
 
 /**
@@ -675,7 +784,9 @@ void for_all_outputs(F &&f) {
 template <typename F>
 void for_all_methods_and_outputs(F &&f) {
   for_all_outputs([&](auto out) { f(itu_r_bt_601{}, out); });
+  for_all_outputs([&](auto out) { f(itu_r_bt_709{}, out); });
   for_all_outputs([&](auto out) { f(jpeg{}, out); });
+  for_all_outputs([&](auto out) { f(itu_r_bt_709_full_range{}, out); });
 }
 
 }  // namespace
@@ -843,16 +954,27 @@ TYPED_TEST(ColorSpaceConversionAnyTypeTest, EquivalentToConvertSatNormFirst) {
       double slack = any_ref::unit<Out>() * std::ldexp(1.0, -20);
       double fwd_eps = 1.0 + 1e-3 + 4 * slack;
       // For YCbCr inputs, the luma footroom and chroma offsets are powers of 2 (e.g. 16 and 128
-      // for 8 bits, 4096 and 32768 for 16 bits), so their normalized values differ slightly
-      // between types, e.g. 128/255 vs 32768/65535. The inverse conversion interprets them in the
-      // type of the data (In), while the two-step procedure does so in Out - account for that.
-      double dy = std::abs(any_ref::ybias<In>() / any_ref::unit<In>() -
-                           any_ref::ybias<Out>() / any_ref::unit<Out>());
-      double dc = std::abs(any_ref::cbias<In>() / any_ref::unit<In>() -
-                           any_ref::cbias<Out>() / any_ref::unit<Out>());
-      double inv_eps = 2.5 + 1e-3 + 16 * slack +
-                       (255.0 / 219 * dy + 2.02 * 255 / 224 * dc) * any_ref::unit<Out>();
-      double y_to_gray_eps = fwd_eps + 0.5 + 255.0 / 219 * dy * any_ref::unit<Out>();
+      // for 8 bits, 4096 and 32768 for 16 bits) and the spans are multiples of 2^(bits-8), so
+      // their normalized values differ slightly between types, e.g. 128/255 vs 32768/65535. The
+      // inverse conversion interprets them in the type of the data (In), while the two-step
+      // procedure does so in Out - account for that, with the difference of the normalized Y or
+      // chroma of the two interpretations. It's linear in the value, so it's exact for each input.
+      using M = any_ref::method_ref<Method>;
+      auto ycc_diff = [&](In v, double offset_in, double span_in, double offset_out,
+                          double span_out) {
+        double x = any_ref::ycc_norm<Out>(v);
+        return std::abs((x - offset_in / any_ref::unit<In>()) / (span_in / any_ref::unit<In>()) -
+                        (x - offset_out / any_ref::unit<Out>()) /
+                            (span_out / any_ref::unit<Out>()));
+      };
+      auto y_diff = [&](In v) {
+        return ycc_diff(v, M::template ybias<In>(), M::template yspan<In>(),
+                        M::template ybias<Out>(), M::template yspan<Out>());
+      };
+      auto c_diff = [&](In v) {
+        return ycc_diff(v, any_ref::cbias<In>(), M::template cspan<In>(),
+                        any_ref::cbias<Out>(), M::template cspan<Out>());
+      };
       for (auto v : triplets) {
         auto direct = Method::template rgb_to_ycbcr<Out, In>(v);
         auto two_step = Method::template rgb_to_ycbcr<Out, Out>(to_out(v));
@@ -861,6 +983,9 @@ TYPED_TEST(ColorSpaceConversionAnyTypeTest, EquivalentToConvertSatNormFirst) {
 
         auto direct_rgb = Method::template ycbcr_to_rgb<Out, In>(v);
         auto two_step_rgb = Method::template ycbcr_to_rgb<Out, Out>(to_out(v));
+        double inv_eps = 2.5 + 1e-3 + 16 * slack +
+                         (y_diff(v[0]) + 2.02 * (c_diff(v[1]) + c_diff(v[2]))) *
+                             any_ref::unit<Out>();
         for (int c = 0; c < 3; c++)
           ASSERT_NEAR(direct_rgb[c], two_step_rgb[c], inv_eps)
               << "YCbCr = " << as_dvec(v) << " c=" << c;
@@ -869,6 +994,9 @@ TYPED_TEST(ColorSpaceConversionAnyTypeTest, EquivalentToConvertSatNormFirst) {
         ASSERT_NEAR((Method::template gray_to_y<Out, In>(v)),
                     (Method::template gray_to_y<Out, Out>(ConvertSatNorm<Out>(v))), fwd_eps)
             << "gray = " << static_cast<double>(v);
+        // the intermediate rounding (up to 0.5) is amplified by 1 / (the span of Y)
+        double y_to_gray_eps = fwd_eps + 0.5 * any_ref::unit<Out>() / M::template yspan<Out>() +
+                               y_diff(v) * any_ref::unit<Out>();
         ASSERT_NEAR((Method::template y_to_gray<Out, In>(v)),
                     (Method::template y_to_gray<Out, Out>(ConvertSatNorm<Out>(v))),
                     y_to_gray_eps)
@@ -989,6 +1117,69 @@ TEST(ColorSpaceConversionSignedTest, ClampColorInputFloat16) {
   EXPECT_EQ(static_cast<float>(clamp_color_input(float16(-1.5f))), 0.0f);
   EXPECT_EQ(static_cast<float>(clamp_ycbcr_input<uint8_t>(float16(1.5f))), 1.0f);
   EXPECT_EQ(static_cast<float>(clamp_ycbcr_input<float>(float16(1.5f))), 1.5f);
+}
+
+TEST(ColorSpaceConversionTest, ITU_R_BT709_RGB2YCbCr_u8) {
+  using method = itu_r_bt_709;
+  auto rgb_to_ycbcr = [](u8vec3 rgb) { return method::rgb_to_ycbcr<uint8_t>(rgb); };
+  EXPECT_EQ(rgb_to_ycbcr(u8vec3(0, 0, 0)), u8vec3(16, 128, 128));
+  EXPECT_EQ(rgb_to_ycbcr(u8vec3(255, 255, 255)), u8vec3(235, 128, 128));
+  EXPECT_EQ(rgb_to_ycbcr(u8vec3(255, 0, 0)), u8vec3(63, 102, 240));
+  EXPECT_EQ(rgb_to_ycbcr(u8vec3(0, 255, 0)), u8vec3(173, 42, 26));
+  EXPECT_EQ(rgb_to_ycbcr(u8vec3(0, 0, 255)), u8vec3(32, 240, 118));
+  EXPECT_EQ(rgb_to_ycbcr(u8vec3(255, 255, 0)), u8vec3(219, 16, 138));
+  EXPECT_EQ(rgb_to_ycbcr(u8vec3(0, 255, 255)), u8vec3(188, 154, 16));
+  EXPECT_EQ(rgb_to_ycbcr(u8vec3(255, 0, 255)), u8vec3(78, 214, 230));
+  EXPECT_EQ(rgb_to_ycbcr(u8vec3(255, 128, 0)), u8vec3(141, 59, 189));
+}
+
+TEST(ColorSpaceConversionTest, ITU_R_BT709_FullRange_RGB2YCbCr_u8) {
+  using method = itu_r_bt_709_full_range;
+  auto rgb_to_ycbcr = [](u8vec3 rgb) { return method::rgb_to_ycbcr<uint8_t>(rgb); };
+  EXPECT_EQ(rgb_to_ycbcr(u8vec3(0, 0, 0)), u8vec3(0, 128, 128));
+  EXPECT_EQ(rgb_to_ycbcr(u8vec3(255, 255, 255)), u8vec3(255, 128, 128));
+  EXPECT_EQ(rgb_to_ycbcr(u8vec3(255, 0, 0)), u8vec3(54, 99, 255));
+  EXPECT_EQ(rgb_to_ycbcr(u8vec3(0, 255, 0)), u8vec3(182, 30, 12));
+  EXPECT_EQ(rgb_to_ycbcr(u8vec3(0, 0, 255)), u8vec3(18, 255, 116));
+  // the whole range of Y is used, as in JPEG, but with the BT.709 weights
+  EXPECT_EQ(method::ycbcr_to_rgb<uint8_t>(u8vec3(128, 128, 128)), u8vec3(128, 128, 128));
+  EXPECT_NE(method::ycbcr_to_rgb<uint8_t>(u8vec3(54, 99, 255)),
+            jpeg::ycbcr_to_rgb<uint8_t>(u8vec3(54, 99, 255)));
+}
+
+TEST(ColorSpaceConversionTest, ITU_R_BT709_DiffersFromBT601) {
+  // Pure red in BT.601 is Y=81, Cb=90, Cr=240; in BT.709 it is Y=63, Cb=102, Cr=240.
+  EXPECT_EQ(itu_r_bt_601::rgb_to_ycbcr<uint8_t>(u8vec3(255, 0, 0)), u8vec3(81, 90, 240));
+  EXPECT_NE(itu_r_bt_709::rgb_to_ycbcr<uint8_t>(u8vec3(255, 0, 0)),
+            itu_r_bt_601::rgb_to_ycbcr<uint8_t>(u8vec3(255, 0, 0)));
+  // gray does not depend on the matrix
+  for (int g : {0, 1, 100, 128, 254, 255}) {
+    EXPECT_EQ((itu_r_bt_709::gray_to_ycbcr<uint8_t, uint8_t>(g)),
+              (itu_r_bt_601::gray_to_ycbcr<uint8_t, uint8_t>(g)));
+    EXPECT_EQ((itu_r_bt_709::y_to_gray<uint8_t, uint8_t>(g)),
+              (itu_r_bt_601::y_to_gray<uint8_t, uint8_t>(g)));
+  }
+}
+
+TEST(ColorSpaceConversionTest, ITU_R_BT709_YCbCr2RGB_RoundTripOfPrimaries) {
+  // RGB -> YCbCr -> RGB gets back the colors up to the quantization of the 8 bit YCbCr.
+  for (auto rgb : {u8vec3(255, 0, 0), u8vec3(0, 255, 0), u8vec3(0, 0, 255), u8vec3(255, 255, 0),
+                   u8vec3(0, 255, 255), u8vec3(255, 0, 255), u8vec3(255, 128, 0),
+                   u8vec3(128, 128, 128)}) {
+    auto ycbcr = itu_r_bt_709::rgb_to_ycbcr<uint8_t>(rgb);
+    auto back = itu_r_bt_709::ycbcr_to_rgb<uint8_t>(ycbcr);
+    for (int c = 0; c < 3; c++)
+      EXPECT_NEAR(back[c], rgb[c], 4) << "color " << int(rgb[0]) << " " << int(rgb[1]) << " "
+                                      << int(rgb[2]) << ", channel " << c;
+    // BT.601 does not get the colors back from BT.709 YCbCr
+    auto wrong = itu_r_bt_601::ycbcr_to_rgb<uint8_t>(ycbcr);
+    int max_diff = 0;
+    for (int c = 0; c < 3; c++)
+      max_diff = std::max(max_diff, std::abs(static_cast<int>(wrong[c]) - rgb[c]));
+    if (rgb[0] != rgb[1] || rgb[1] != rgb[2]) {
+      EXPECT_GT(max_diff, 8) << "color " << int(rgb[0]) << " " << int(rgb[1]) << " " << int(rgb[2]);
+    }
+  }
 }
 
 }  // namespace test
