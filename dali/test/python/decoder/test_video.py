@@ -1466,6 +1466,11 @@ class Codec(Enum):
     HEVC = "hevc"
 
 
+class NonIdrOp(Enum):
+    READER = "reader"
+    DECODER = "decoder"
+
+
 non_idr_videos = {
     codec: os.path.join(
         get_dali_extra_path(), "db", "video", "non_idr_keyframes", f"open_gop_{codec.value}.mp4"
@@ -1504,7 +1509,7 @@ def non_idr_reader_frames(codec, start_frame, sequence_length):
         file_list.flush()
 
         @pipeline_def(batch_size=1, num_threads=1, device_id=0)
-        def pipe():
+        def reader_pipe():
             frames, _ = fn.experimental.readers.video(
                 device="gpu",
                 file_list=file_list.name,
@@ -1514,20 +1519,20 @@ def non_idr_reader_frames(codec, start_frame, sequence_length):
             )
             return frames
 
-        pipe = pipe()
+        pipe = reader_pipe()
         pipe.build()
         return np.array(pipe.run()[0].as_cpu().at(0))
 
 
 def non_idr_decoder_frames(codec, start_frame, sequence_length):
     @pipeline_def(batch_size=1, num_threads=1, device_id=0)
-    def pipe():
+    def decoder_pipe():
         encoded, _ = fn.readers.file(files=[non_idr_videos[codec]])
         return fn.decoders.video(
             encoded, device="mixed", start_frame=start_frame, sequence_length=sequence_length
         )
 
-    pipe = pipe()
+    pipe = decoder_pipe()
     pipe.build()
     return np.array(pipe.run()[0].as_cpu().at(0))
 
@@ -1561,13 +1566,13 @@ def test_non_idr_keyframes_sequential_decoding(codec):
     frames = non_idr_sequential_frames(codec)
     reference = extract_frames_from_video(non_idr_videos[codec])
     assert len(frames) == len(reference), f"{len(frames)} != {len(reference)} frames"
-    for i, (frame, ref_frame) in enumerate(zip(frames, reference)):
+    for i, (frame, ref_frame) in enumerate(zip(frames, reference, strict=True)):
         compare_frames(frame, ref_frame, i)
 
 
 @cartesian_params(
     non_idr_codecs,
-    ("reader", "decoder"),
+    list(NonIdrOp),
     # around the keyframes that are not IDR pictures (the pictures before them in the display
     # order refer to the previous GOP), and the first frame; the sequences have 4 frames
     sorted(
@@ -1578,7 +1583,7 @@ def test_non_idr_keyframes_sequential_decoding(codec):
 def test_non_idr_keyframes_random_access(codec, op, start_frame, sequence_length=4):
     """Decoding from any frame gives the same frames as decoding the stream in order"""
     skip_if_m60()
-    decode = non_idr_reader_frames if op == "reader" else non_idr_decoder_frames
+    decode = non_idr_reader_frames if op == NonIdrOp.READER else non_idr_decoder_frames
     frames = decode(codec, start_frame, sequence_length)
     expected = non_idr_sequential_frames(codec)[start_frame : start_frame + sequence_length]
     assert frames.shape == expected.shape, f"{frames.shape} != {expected.shape}"
