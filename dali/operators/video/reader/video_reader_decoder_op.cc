@@ -273,21 +273,21 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
       // The index needs no decoder: no codec context, parser, frame buffers nor reopening of
       // the file. The files whose codec the decoder does not support are skipped, as they would
       // be with the decoder.
-      auto decoder = std::make_unique<FramesIndexer>(entry.filename, image_type_);
-      if (!decoder->IsValid() || !FramesDecoderImpl::IsCodecSupported(decoder->CodecId())) {
+      auto indexer = std::make_unique<FramesIndexer>(entry.filename, image_type_);
+      if (!indexer->IsValid() || !FramesDecoderImpl::IsCodecSupported(indexer->CodecId())) {
         LOG_LINE << "Invalid video file: " << entry.filename << std::endl;
         continue;
       }
       auto it = FrameIndexCache::instance().find(entry.filename);
       if (it == FrameIndexCache::instance().end()) {
         LOG_LINE << "Building index for " << entry.filename << std::endl;
-        decoder->BuildIndex();
-        FrameIndexCache::instance().insert(entry.filename, decoder->GetIndex());
+        indexer->BuildIndex();
+        FrameIndexCache::instance().insert(entry.filename, indexer->GetIndex());
       } else {
         LOG_LINE << "Reusing index for " << entry.filename << std::endl;
-        decoder->SetIndex(it->second);
+        indexer->SetIndex(it->second);
       }
-      int64_t num_frames = decoder->NumFrames();
+      int64_t num_frames = indexer->NumFrames();
       entry.start_frame = 0;
       entry.end_frame = num_frames;
       LOG_LINE << "Total frames in video: " << num_frames << std::endl;
@@ -304,11 +304,11 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
             entry.end_frame = file_list_opts_.round_end(entry.end);
             break;
           case FileListFormat::kTimestamps:
-            entry.start_frame = decoder->GetFrameIdxByTimestamp(
-                SecondsToTimestamp(decoder->GetTimebase(), entry.start),
+            entry.start_frame = indexer->GetFrameIdxByTimestamp(
+                SecondsToTimestamp(indexer->GetTimebase(), entry.start),
                 file_list_opts_.should_round_down_start());
-            entry.end_frame = decoder->GetFrameIdxByTimestamp(
-                SecondsToTimestamp(decoder->GetTimebase(), entry.end),
+            entry.end_frame = indexer->GetFrameIdxByTimestamp(
+                SecondsToTimestamp(indexer->GetTimebase(), entry.end),
                 file_list_opts_.should_round_down_end());
             break;
           default:
