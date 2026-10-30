@@ -12,20 +12,30 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <algorithm>
+#include <exception>
+#include <limits>
+#include <memory>
+#include <numeric>
 #include <string>
-#include <shared_mutex>
+#include <tuple>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 #include "dali/core/boundary.h"
 #include "dali/core/cuda_stream_pool.h"
+#include "dali/core/small_vector.h"
 #include "dali/core/span.h"
 
 #include "dali/operators/reader/reader_op.h"
 #include "dali/operators/video/frames_decoder_base.h"
 #include "dali/operators/video/frames_decoder_cpu.h"
 #include "dali/operators/video/frames_decoder_gpu.h"
+#include "dali/operators/video/reader/decode_lane_planner.h"
+#include "dali/operators/video/reader/frame_index_cache.h"
 #include "dali/operators/video/video_utils.h"
+#include "dali/pipeline/util/thread_pool.h"
 #if NVML_ENABLED
 #include "dali/util/nvml.h"
 #endif
@@ -33,49 +43,6 @@
 #include "libavutil/rational.h"
 
 namespace dali {
-
-class FrameIndexCache {
- private:
-  std::unordered_map<std::string, FrameIndex> index_cache_;
-  mutable std::shared_mutex rw_mutex_;
-
-  FrameIndexCache() = default;
-
-  ~FrameIndexCache() {
-#ifdef NDEBUG
-    size_t total_size = 0;
-    for (const auto& entry : index_cache_) {
-      total_size += entry.first.size();  // filename string size
-      total_size += entry.second.size() * sizeof(IndexEntry);  // index entries size
-    }
-    LOG_LINE << "FrameIndexCache stats: " << std::endl;
-    LOG_LINE << "  Number of cached files: " << index_cache_.size() << std::endl;
-    LOG_LINE << "  Total memory used: " << total_size << " bytes" << std::endl;
-#endif
-  }
-
- public:
-  static FrameIndexCache& instance() {
-    static FrameIndexCache cache;
-    return cache;
-  }
-
-  std::unordered_map<std::string, FrameIndex>::iterator find(const std::string& filename) {
-    std::shared_lock<std::shared_mutex> read_lock(rw_mutex_);
-    return index_cache_.find(filename);
-  }
-
-  std::unordered_map<std::string, FrameIndex>::iterator end() {
-    std::shared_lock<std::shared_mutex> read_lock(rw_mutex_);
-    return index_cache_.end();
-  }
-
-  void insert(const std::string& filename, const FrameIndex& index) {
-    std::unique_lock<std::shared_mutex> write_lock(rw_mutex_);
-    index_cache_[filename] = index;
-  }
-};
-
 
 struct VideoSampleDesc {
   VideoSampleDesc(const VideoFileMeta *video_file_meta = nullptr, int start = -1, int end = -1, int stride = -1)
@@ -103,6 +70,10 @@ struct VideoSample : public VideoSampleDesc {
   Tensor<Backend> data_;
   std::vector<double> timestamps_;
   std::vector<int32_t> frame_idx_;
+  // Set when the reader plans the sample's decoding. With pad_last_batch, the loader returns the
+  // last sample again, also in the next batch, which must not decode it again while the previous
+  // batch may still be read.
+  bool planned = false;
 };
 
 enum class FileListFormat {
@@ -257,6 +228,15 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
     MoveToNextShard(++current_index_);
   }
 
+  /**
+   * @brief The frame index of one of the reader's files, nullptr if the file was not indexed
+   *        (it is not a valid video).
+   */
+  const FrameIndex *FileIndex(const std::string &filename) const {
+    auto it = indices_.find(filename);
+    return it != indices_.end() ? it->second.get() : nullptr;
+  }
+
   Index SizeImpl() override {
     return samples_.size();
   }
@@ -270,6 +250,8 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
     for (size_t i = 0; i < video_files_info_.size(); ++i) {
       auto& entry = video_files_info_[i];
       LOG_LINE << "Processing video file " << i << ": " << entry.filename << std::endl;
+      // the version of the file that the decoder opens (see FrameIndexCache::GetOrBuild)
+      auto stamp = FrameIndexCache::FileStamp::Of(entry.filename);
       std::unique_ptr<FramesDecoderImpl> decoder;
       if constexpr(std::is_same_v<Backend, CPUBackend>) {
         decoder = std::make_unique<FramesDecoderImpl>(entry.filename, image_type_);
@@ -280,15 +262,14 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
         LOG_LINE << "Invalid video file: " << entry.filename << std::endl;
         continue;
       }
-      auto it = FrameIndexCache::instance().find(entry.filename);
-      if (it == FrameIndexCache::instance().end()) {
+      auto index = FrameIndexCache::instance().GetOrBuild(entry.filename, stamp, [&]() {
         LOG_LINE << "Building index for " << entry.filename << std::endl;
         decoder->BuildIndex();
-        FrameIndexCache::instance().insert(entry.filename, decoder->GetIndex());
-      } else {
-        LOG_LINE << "Reusing index for " << entry.filename << std::endl;
-        decoder->SetIndex(it->second);
-      }
+        return decoder->GetIndex();
+      });
+      if (!decoder->HasIndex())
+        decoder->SetIndex(*index);
+      indices_[entry.filename] = index;  // kept for the reader's lifetime
       int64_t num_frames = decoder->NumFrames();
       entry.start_frame = 0;
       entry.end_frame = num_frames;
@@ -414,6 +395,9 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
   FileListOptions file_list_opts_;
 
   std::vector<VideoFileMeta> video_files_info_;
+  // the frame indices of the valid files, built (or found in FrameIndexCache) by
+  // PrepareMetadataImpl
+  std::unordered_map<std::string, FrameIndexCache::IndexPtr> indices_;
   std::vector<std::vector<int>> all_frame_idxs_;  // owns frame index data; samples_ hold spans into these
   std::vector<VideoSampleDesc> samples_;
   CUDAStreamLease cuda_stream_;
@@ -460,7 +444,7 @@ class VideoReaderDecoder
     DALI_ENFORCE(image_type_ == DALI_RGB || image_type_ == DALI_YCbCr,
                  make_string("Invalid image_type: ", image_type_));
 
-    constant_frame_.set_pinned(std::is_same_v<Backend, GPUBackend>);
+    InitLanes(spec);
   }
 
   ~VideoReaderDecoder() override {
@@ -486,8 +470,7 @@ class VideoReaderDecoder
         return;
       }
 #endif
-      int device_id = spec.GetArgument<int>("device_id");
-      cuda_stream_ = CUDAStreamPool::instance().Get(device_id);
+      use_streams_ = true;
     }
   }
 
@@ -597,124 +580,382 @@ class VideoReaderDecoder
 
   void Prefetch() override {
     Base::Prefetch();
-    auto &current_batch = prefetched_batch_queue_[curr_batch_producer_];
-    size_t i = 0;
-    for (auto &sample : current_batch) {
-      LOG_LINE << "Processing sample " << i++ << " with filename " << sample->video_file_meta_->filename
-               << " and previous decoder " << decoder_.get() << " filename "
-               << (decoder_ ? decoder_->Filename() : "none") << std::endl;
-      auto prev_filename = decoder_ ? decoder_->Filename() : "";
-      const auto &filename = sample->video_file_meta_->filename;
-      if (prev_filename != filename) {
-        if constexpr (std::is_same_v<Backend, CPUBackend>) {
-          decoder_ = std::make_unique<FramesDecoderImpl>(filename, image_type_);
-        } else {
-          decoder_ = std::make_unique<FramesDecoderImpl>(filename, cuda_stream_, image_type_);
-        }
-        LOG_LINE << "Initialized decoder to " << decoder_->Filename() << " ptr: " << decoder_.get()
-                 << " num_frames: " << decoder_->NumFrames() << std::endl;
-        auto it = FrameIndexCache::instance().find(filename);
-        if (it == FrameIndexCache::instance().end()) {
-          LOG_LINE << "Building index for " << filename << std::endl;
-          decoder_->BuildIndex();
-          FrameIndexCache::instance().insert(filename, decoder_->GetIndex());
-        } else {
-          LOG_LINE << "Reusing index for " << filename << std::endl;
-          decoder_->SetIndex(it->second);
-        }
-      } else {
-        LOG_LINE << "Reusing decoder for " << decoder_->Filename() << " ptr: " << decoder_.get()
-                 << " num_frames: " << decoder_->NumFrames() << std::endl;
-      }
-      DALI_ENFORCE(decoder_->IsValid(),
-                   make_string("Invalid decoder for filename ", filename));
-
-      int64_t num_frames = sample->frame_idxs_.empty()
-          ? (sample->end_ - sample->start_ + sample->stride_ - 1) / sample->stride_
-          : static_cast<int64_t>(sample->frame_idxs_.size());
-      sample->data_.Resize(
-          {num_frames, decoder_->Height(), decoder_->Width(), decoder_->Channels()}, DALI_UINT8);
-      sample->data_.SetSourceInfo(decoder_->Filename());
-      sample->data_.SetLayout("FHWC");
-
-      const uint8_t *constant_frame =
-          boundary_type_ == boundary::BoundaryType::CONSTANT ?
-              ConstantFrame(constant_frame_, decoder_->FrameShape(), make_cspan(fill_value_),
-                            cuda_stream_, true) :
-              nullptr;
-      if (has_timestamps_) {
-        sample->timestamps_.resize(num_frames);
-      } else {
-        sample->timestamps_.clear();
-      }
-      if (!sample->frame_idxs_.empty()) {
-        LOG_LINE << "Decoding frames (uniform) num_frames=" << num_frames
-                 << ", frame_idxs=[" << sample->frame_idxs_.front() << ".."
-                 << sample->frame_idxs_.back() << "]"
-                 << ", filename=" << sample->video_file_meta_->filename
-                 << ", label=" << sample->video_file_meta_->label
-                 << ", boundary_type=" << to_string(boundary_type_) << std::endl;
-      } else {
-        LOG_LINE << "Decoding frames start=" << sample->start_ << ", end=" << sample->end_
-                 << ", stride=" << sample->stride_ << ", num_frames=" << num_frames
-                 << ", filename=" << sample->video_file_meta_->filename
-                 << ", label=" << sample->video_file_meta_->label
-                 << ", start=" << sample->video_file_meta_->start_frame
-                 << ", end=" << sample->video_file_meta_->end_frame
-                 << ", boundary_type=" << to_string(boundary_type_) << std::endl;
-      }
-      int roi_start = sample->video_file_meta_->start_frame;
-      int roi_end = sample->video_file_meta_->end_frame;
-      if (frame_num_policy_ == FrameNumPolicy::Sequence) {
-        sample->frame_idx_.resize(num_frames);
-        if (!sample->frame_idxs_.empty()) {
-          // Uniform indices are always within [roi_start, roi_end-1], so HandleBoundary
-          // is a no-op here — but we call it for consistency with the stride path below.
-          for (int64_t i = 0; i < num_frames; ++i) {
-            sample->frame_idx_[i] = static_cast<int32_t>(decoder_->HandleBoundary(
-                boundary_type_, sample->frame_idxs_[i], roi_start, roi_end));
-          }
-        } else {
-          for (int64_t i = 0; i < num_frames; ++i) {
-            sample->frame_idx_[i] = static_cast<int32_t>(decoder_->HandleBoundary(
-                boundary_type_,
-                static_cast<int>(sample->start_ + i * sample->stride_),
-                roi_start, roi_end));
-          }
-        }
-      } else {
-        sample->frame_idx_.clear();
-      }
-      if (!sample->frame_idxs_.empty()) {
-        // Uniform sampling: explicit frame indices already include ROI offset (start_frame)
-        decoder_->DecodeFrames(sample->data_.template mutable_data<uint8_t>(),
-                               make_cspan(sample->frame_idxs_), boundary_type_, constant_frame,
-                               make_span(sample->timestamps_));
-      } else if (roi_start != 0 || roi_end != decoder_->NumFrames()) {
-        frame_idxs_.clear();
-        for (int frame_idx = sample->start_; frame_idx < sample->end_;
-             frame_idx += sample->stride_) {
-          frame_idxs_.push_back(decoder_->HandleBoundary(
-              boundary_type_, frame_idx, roi_start, roi_end));
-        }
-        decoder_->DecodeFrames(sample->data_.template mutable_data<uint8_t>(),
-                               make_cspan(frame_idxs_), boundary_type_, constant_frame,
-                               make_span(sample->timestamps_));
-      } else {
-        decoder_->DecodeFrames(sample->data_.template mutable_data<uint8_t>(), sample->start_,
-                               sample->end_, sample->stride_, boundary_type_, constant_frame,
-                               make_span(sample->timestamps_));
-      }
-      LOG_LINE << "Decoding frames done" << std::endl;
-    }
-
-    if (cuda_stream_) {
-      CUDA_CALL(cudaStreamSynchronize(cuda_stream_.get()));
-    }
+    PlanBatch();
+    AssignRuns();
+    DecodeBatch();
     LOG_LINE << "Prefetch done" << std::endl;
   }
 
  private:
+  /**
+   * @brief A sample to decode, with the frames it decodes (for planning only).
+   */
+  struct SampleTask {
+    VideoSample<Backend> *sample;
+    int batch_idx;  // first position of the sample in the batch
+    int first;      // smallest frame index decoded; -1 if none (padding only)
+    int last;       // largest frame index decoded; -1 if none
+    SmallVector<int, 32> frames;  // the frames the decoder seeks to, in order (see SampleFrames)
+  };
+
+  /**
+   * @brief Samples of one file that one decoder decodes in a row, without seeking.
+   */
+  struct DecodeRun {
+    const std::string *filename;
+    std::vector<int> tasks;  // indices into tasks_, in decoding order
+    int first;
+    int last;
+    int batch_idx;  // the smallest position of its samples in the batch
+  };
+
+  /**
+   * @brief A part of a batch's decoding that runs on one thread.
+   *
+   * A lane keeps its decoder while consecutive samples come from the same file, so that they
+   * are decoded without seeking, and decodes on its own stream, so that lanes do not wait for
+   * each other's work. Which samples a lane decodes is decided before decoding starts, from the
+   * samples alone, so a decoder's history (and with it, the output) never depends on thread
+   * timing.
+   */
+  struct DecodeLane {
+    CUDAStreamLease stream;  // GPU only; empty: the default stream
+    std::unique_ptr<FramesDecoderImpl> decoder;  // after `stream`: destroyed (and synced) first
+    Tensor<Backend> constant_frame;
+    std::vector<int> frame_idxs;  // scratch
+    // Diagnostics: the pictures the lane decodes in the current batch
+    int64_t decoded_pictures = 0;
+    // Errors of the current batch: (position in the batch, exception)
+    std::vector<std::pair<int, std::exception_ptr>> errors;
+  };
+
+  // Planning costs, in pictures decoded: opening a decoder (or resetting it, which reopens the
+  // file) costs about as much as decoding a few pictures
+  static constexpr int64_t kOpenCost = 16;
+
+  // GPU: decode lanes per NVDEC engine. More sessions than engines keep an engine busy while a
+  // lane does its host work between pictures; many more only add memory.
+  static constexpr int kLanesPerEngine = 2;
+
+  /**
+   * @brief Number of decode lanes: num_threads, but no more than the batch size and, on the GPU,
+   * kLanesPerEngine per NVDEC engine.
+   */
+  int NumLanes(const OpSpec &spec) {
+    int lanes = std::min(spec.GetArgument<int>("num_threads"),
+                         spec.GetArgument<int>("max_batch_size"));
+    if constexpr (std::is_same_v<Backend, GPUBackend>) {
+      int engines = FramesDecoderGpu::NumEngines(spec.GetArgument<int>("device_id"));
+      if (engines > 0)
+        lanes = std::min(lanes, kLanesPerEngine * engines);
+    }
+    return std::max(lanes, 1);
+  }
+
+  void InitLanes(const OpSpec &spec) {
+    lanes_.resize(NumLanes(spec));
+    int device_id = spec.GetArgument<int>("device_id");
+    for (auto &lane : lanes_) {
+      lane.constant_frame.set_pinned(std::is_same_v<Backend, GPUBackend>);
+      if (use_streams_)
+        lane.stream = CUDAStreamPool::instance().Get(device_id);
+    }
+    if (lanes_.size() > 1)
+      thread_pool_ = std::make_unique<OldThreadPool>(lanes_.size(), device_id, false,
+                                                     "VideoReaderDecoder");
+  }
+
+  /**
+   * @brief The frame index of one of the reader's files (see VideoLoaderDecoder::FileIndex).
+   */
+  const FrameIndex *FileIndex(const std::string &filename) const {
+    return static_cast<const VideoLoaderImpl &>(*loader_).FileIndex(filename);
+  }
+
+  /**
+   * @brief Groups the batch's samples into runs: samples of one file that one decoder decodes in
+   * a row without seeking.
+   *
+   * A sample repeated in the batch (pad_last_batch) is decoded once, and a sample planned in an
+   * earlier batch (padding repeats the last sample, also in the next batch) is not decoded again.
+   */
+  void PlanBatch() {
+    auto &batch = prefetched_batch_queue_[curr_batch_producer_];
+    auto &tasks = tasks_;
+    auto &runs = runs_;
+    tasks.clear();
+    runs.clear();
+    for (int i = 0; i < static_cast<int>(batch.size()); i++) {
+      auto *sample = batch[i].get();
+      if (sample->planned)
+        continue;
+      sample->planned = true;
+      SampleTask task{sample, i, -1, -1, {}};
+      try {
+        SampleFrames(sample->frame_idxs_, sample->start_, sample->end_, sample->stride_,
+                     boundary_type_, sample->video_file_meta_->start_frame,
+                     sample->video_file_meta_->end_frame, task.frames);
+      } catch (...) {
+        // decoding the sample reports the error, in its lane, and resets the decoder
+        task.frames.clear();
+      }
+      if (!task.frames.empty()) {
+        task.first = task.frames.front();
+        task.last = task.frames.back();
+      }
+      tasks.push_back(std::move(task));
+    }
+
+    std::vector<int> order(tasks.size());
+    std::iota(order.begin(), order.end(), 0);
+    std::sort(order.begin(), order.end(), [&](int a, int b) {
+      const auto &ta = tasks[a], &tb = tasks[b];
+      const auto &fa = ta.sample->video_file_meta_->filename;
+      const auto &fb = tb.sample->video_file_meta_->filename;
+      return std::tie(fa, ta.first, ta.batch_idx) < std::tie(fb, tb.first, tb.batch_idx);
+    });
+    const FrameIndex *index = nullptr;
+    size_t file_runs = 0;  // the first run of the current file
+    for (int t : order) {
+      auto &task = tasks[t];
+      const auto &filename = task.sample->video_file_meta_->filename;
+      if (runs.empty() || *runs.back().filename != filename) {
+        file_runs = runs.size();
+        index = FileIndex(filename);
+      }
+      // join a run of the file that a decoder continues to this sample without seeking
+      auto run = std::find_if(runs.begin() + file_runs, runs.end(), [&](const DecodeRun &r) {
+        return task.first < 0 || CanReachWithoutSeek(index, r.last + 1, task.first);
+      });
+      if (run != runs.end()) {
+        run->tasks.push_back(t);
+        if (run->first < 0)  // opened by a sample that decodes no frame
+          run->first = task.first;
+        run->last = std::max(run->last, task.last);
+        run->batch_idx = std::min(run->batch_idx, task.batch_idx);
+      } else {
+        runs.push_back({&filename, {t}, task.first, task.last, task.batch_idx});
+      }
+    }
+  }
+
+  /**
+   * @brief Assigns the runs to lanes (see PlanLanes), from where the lanes' decoders are. A lane
+   * without runs releases its decoder.
+   */
+  void AssignRuns() {
+    std::vector<PlannedRun> runs;
+    for (const auto &run : runs_) {
+      runs.push_back({*run.filename, FileIndex(*run.filename), run.batch_idx, run.first, run.last,
+                      {}});
+      for (int t : run.tasks)
+        runs.back().samples.push_back(make_cspan(tasks_[t].frames));
+    }
+    std::vector<std::string> filenames(lanes_.size());  // of the lanes' decoders
+    std::vector<LaneStart> starts(lanes_.size());
+    for (size_t l = 0; l < lanes_.size(); l++) {
+      if (lanes_[l].decoder) {
+        filenames[l] = lanes_[l].decoder->Filename();
+        starts[l] = {filenames[l], DecoderPosition(*lanes_[l].decoder)};
+      }
+    }
+    PlanLanes(make_cspan(runs), make_cspan(starts), kOpenCost, plans_);
+    for (size_t l = 0; l < lanes_.size(); l++) {
+      if (plans_[l].runs.empty() && lanes_.size() > 1)
+        lanes_[l].decoder.reset();  // do not keep its frame buffers and NVDEC decoder idle
+    }
+  }
+
+  /**
+   * @brief Decodes the batch, every lane on its own thread, and waits for all of them.
+   *
+   * An error is reported for the first failing sample in the batch, whatever the lanes' timing.
+   */
+  void DecodeBatch() {
+    std::vector<int> active;
+    for (int l = 0; l < static_cast<int>(lanes_.size()); l++) {
+      if (!plans_[l].runs.empty())
+        active.push_back(l);
+    }
+    if (active.size() == 1 || !thread_pool_) {
+      for (int l : active)
+        DecodeLanePart(l);
+    } else {
+      for (int l : active)
+        thread_pool_->AddWork([this, l](int) { DecodeLanePart(l); }, plans_[l].load);
+      thread_pool_->RunAll();
+    }
+    const std::pair<int, std::exception_ptr> *first_error = nullptr;
+    for (int l : active) {
+      for (auto &error : lanes_[l].errors) {
+        if (!first_error || error.first < first_error->first)
+          first_error = &error;
+      }
+    }
+    if (first_error) {
+      auto error = first_error->second;
+      for (int l : active)
+        lanes_[l].errors.clear();
+      std::rethrow_exception(error);
+    }
+  }
+
+  /**
+   * @brief Decodes a lane's runs of the batch. A sample that fails is recorded in the lane's
+   * errors.
+   */
+  void DecodeLanePart(int l) {
+    auto &lane = lanes_[l];
+    const auto &plan = plans_[l];
+    auto &errors = lane.errors;
+    errors.clear();
+    lane.decoded_pictures = 0;
+    for (int r : plan.runs) {
+      for (int t : runs_[r].tasks) {
+        auto &task = tasks_[t];
+        try {
+          DecodeSample(*task.sample, lane);
+          if constexpr (std::is_same_v<Backend, GPUBackend>) {
+            // the decoder does not wait for its GPU work: its asynchronous errors (conversions,
+            // copies) are reported for this sample
+            CUDA_CALL(cudaStreamSynchronize(lane.stream ? lane.stream.get() : 0));
+          }
+        } catch (...) {
+          lane.decoder.reset();  // in an unknown state; its destructor waits for its stream
+          errors.emplace_back(task.batch_idx, std::current_exception());
+        }
+      }
+    }
+    if constexpr (std::is_same_v<Backend, GPUBackend>) {
+      // the samples are read on the workspace stream once the batch is consumed
+      cudaStream_t stream = lane.stream ? lane.stream.get() : 0;
+      if (errors.empty()) {
+        try {
+          CUDA_CALL(cudaStreamSynchronize(stream));
+        } catch (...) {
+          errors.emplace_back(std::numeric_limits<int>::max(), std::current_exception());
+        }
+      } else if (cudaStreamSynchronize(stream) != cudaSuccess) {
+        (void)cudaGetLastError();  // already failing: report the sample's error
+      }
+    }
+    // Planned with the files' indices, the two match (on the GPU, within a picture or two)
+    LOG_LINE << "Lane " << l << " decoded " << lane.decoded_pictures << " pictures, planned "
+             << plan.pictures << " (load " << plan.load << ")" << std::endl;
+  }
+
+  /**
+   * @brief Decodes one sample on a lane, reusing the lane's decoder if it has the same file.
+   */
+  void DecodeSample(VideoSample<Backend> &sample, DecodeLane &lane) {
+    const auto &filename = sample.video_file_meta_->filename;
+    LOG_LINE << "Processing sample with filename " << filename << " and previous decoder "
+             << lane.decoder.get() << " filename "
+             << (lane.decoder ? lane.decoder->Filename() : "none") << std::endl;
+    if (!lane.decoder || lane.decoder->Filename() != filename) {
+      lane.decoder.reset();  // first: its frame buffers are freed before the new ones
+      if constexpr (std::is_same_v<Backend, CPUBackend>) {
+        lane.decoder = std::make_unique<FramesDecoderImpl>(filename, image_type_);
+      } else {
+        lane.decoder = std::make_unique<FramesDecoderImpl>(filename, lane.stream, image_type_);
+      }
+      auto &decoder = *lane.decoder;
+      LOG_LINE << "Initialized decoder to " << decoder.Filename() << " ptr: " << &decoder
+               << " num_frames: " << decoder.NumFrames() << std::endl;
+      // the index the batch was planned with (the file is not indexed again, even if it changed)
+      auto *index = FileIndex(filename);
+      DALI_ENFORCE(index, make_string("Internal error: no frame index for \"", filename, "\"."));
+      if (!decoder.HasIndex())
+        decoder.SetIndex(*index);
+    } else {
+      LOG_LINE << "Reusing decoder for " << lane.decoder->Filename() << " ptr: "
+               << lane.decoder.get() << " num_frames: " << lane.decoder->NumFrames()
+               << std::endl;
+    }
+    auto &decoder = *lane.decoder;
+    DALI_ENFORCE(decoder.IsValid(), make_string("Invalid decoder for filename ", filename));
+    int64_t decoded_pictures = decoder.ParsedPictures();
+
+    int64_t num_frames = sample.frame_idxs_.empty()
+        ? (sample.end_ - sample.start_ + sample.stride_ - 1) / sample.stride_
+        : static_cast<int64_t>(sample.frame_idxs_.size());
+    sample.data_.Resize(
+        {num_frames, decoder.Height(), decoder.Width(), decoder.Channels()}, DALI_UINT8);
+    sample.data_.SetSourceInfo(decoder.Filename());
+    sample.data_.SetLayout("FHWC");
+
+    const uint8_t *constant_frame =
+        boundary_type_ == boundary::BoundaryType::CONSTANT ?
+            ConstantFrame(lane.constant_frame, decoder.FrameShape(), make_cspan(fill_value_),
+                          lane.stream, true) :
+            nullptr;
+    if (has_timestamps_) {
+      sample.timestamps_.resize(num_frames);
+    } else {
+      sample.timestamps_.clear();
+    }
+    if (!sample.frame_idxs_.empty()) {
+      LOG_LINE << "Decoding frames (uniform) num_frames=" << num_frames
+               << ", frame_idxs=[" << sample.frame_idxs_.front() << ".."
+               << sample.frame_idxs_.back() << "]"
+               << ", filename=" << sample.video_file_meta_->filename
+               << ", label=" << sample.video_file_meta_->label
+               << ", boundary_type=" << to_string(boundary_type_) << std::endl;
+    } else {
+      LOG_LINE << "Decoding frames start=" << sample.start_ << ", end=" << sample.end_
+               << ", stride=" << sample.stride_ << ", num_frames=" << num_frames
+               << ", filename=" << sample.video_file_meta_->filename
+               << ", label=" << sample.video_file_meta_->label
+               << ", start=" << sample.video_file_meta_->start_frame
+               << ", end=" << sample.video_file_meta_->end_frame
+               << ", boundary_type=" << to_string(boundary_type_) << std::endl;
+    }
+    int roi_start = sample.video_file_meta_->start_frame;
+    int roi_end = sample.video_file_meta_->end_frame;
+    if (frame_num_policy_ == FrameNumPolicy::Sequence) {
+      sample.frame_idx_.resize(num_frames);
+      if (!sample.frame_idxs_.empty()) {
+        // Uniform indices are always within [roi_start, roi_end-1], so HandleBoundary
+        // is a no-op here — but we call it for consistency with the stride path below.
+        for (int64_t i = 0; i < num_frames; ++i) {
+          sample.frame_idx_[i] = static_cast<int32_t>(decoder.HandleBoundary(
+              boundary_type_, sample.frame_idxs_[i], roi_start, roi_end));
+        }
+      } else {
+        for (int64_t i = 0; i < num_frames; ++i) {
+          sample.frame_idx_[i] = static_cast<int32_t>(decoder.HandleBoundary(
+              boundary_type_,
+              static_cast<int>(sample.start_ + i * sample.stride_),
+              roi_start, roi_end));
+        }
+      }
+    } else {
+      sample.frame_idx_.clear();
+    }
+    if (!sample.frame_idxs_.empty()) {
+      // Uniform sampling: explicit frame indices already include ROI offset (start_frame)
+      decoder.DecodeFrames(sample.data_.template mutable_data<uint8_t>(),
+                           make_cspan(sample.frame_idxs_), boundary_type_, constant_frame,
+                           make_span(sample.timestamps_));
+    } else if (roi_start != 0 || roi_end != decoder.NumFrames()) {
+      lane.frame_idxs.clear();
+      for (int frame_idx = sample.start_; frame_idx < sample.end_;
+           frame_idx += sample.stride_) {
+        lane.frame_idxs.push_back(decoder.HandleBoundary(
+            boundary_type_, frame_idx, roi_start, roi_end));
+      }
+      decoder.DecodeFrames(sample.data_.template mutable_data<uint8_t>(),
+                           make_cspan(lane.frame_idxs), boundary_type_, constant_frame,
+                           make_span(sample.timestamps_));
+    } else {
+      decoder.DecodeFrames(sample.data_.template mutable_data<uint8_t>(), sample.start_,
+                           sample.end_, sample.stride_, boundary_type_, constant_frame,
+                           make_span(sample.timestamps_));
+    }
+    lane.decoded_pictures += decoder.ParsedPictures() - decoded_pictures;
+    LOG_LINE << "Decoding frames done" << std::endl;
+  }
+
   FrameNumPolicy frame_num_policy_;
   bool has_timestamps_;
   boundary::BoundaryType boundary_type_;
@@ -722,10 +963,12 @@ class VideoReaderDecoder
   std::vector<uint8_t> fill_value_;
   bool has_labels_ = false;
 
-  Tensor<Backend> constant_frame_;
-  CUDAStreamLease cuda_stream_;
-  std::unique_ptr<FramesDecoderImpl> decoder_;  // keeping one decoder open.
-  std::vector<int> frame_idxs_;
+  bool use_streams_ = false;  // GPU: a stream per lane (false: the default stream, old drivers)
+  std::vector<SampleTask> tasks_;  // of the current batch
+  std::vector<DecodeRun> runs_;  // of the current batch
+  std::vector<DecodeLane> lanes_;
+  std::vector<LanePlan> plans_;  // the runs of each lane in the current batch, in decoding order
+  std::unique_ptr<OldThreadPool> thread_pool_;  // with more than one lane; destroyed first
 };
 
 DALI_SCHEMA(experimental__readers__Video)
@@ -746,6 +989,11 @@ The following codecs are supported by the GPU backend only:
 * MPEG-4
 * H.264/AVC
 * H.265/HEVC
+
+The samples of a batch are decoded in parallel, by up to ``num_threads`` decoders (on the GPU, at
+most two per NVDEC engine of the device). Consecutive samples of one file that can be decoded
+without seeking are decoded by the same decoder, one after another. Every decoder has its own
+frame buffers, so the memory used grows with the number of decoders.
 
 The outputs of the operator are: video, [labels], [frame_num], [timestamps].
 
