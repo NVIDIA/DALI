@@ -15,6 +15,10 @@
 #include "dali/operators/video/frames_decoder_gpu.h"
 #include <cuda.h>
 #include <unistd.h>
+#include <algorithm>
+#include <array>
+#include <exception>
+#include <functional>
 #include <string>
 #include <memory>
 #include <iomanip>
@@ -22,6 +26,8 @@
 #include <mutex>
 #include <shared_mutex>
 #include <tuple>
+#include <utility>
+#include <vector>
 #include "dali/core/error_handling.h"
 #include "dali/core/cuda_error.h"
 #include "dali/pipeline/data/backend.h"
@@ -422,7 +428,7 @@ void FramesDecoderGpu::InitBitStreamFilter() {
     "Unable to initialize bit stream filter");
 }
 
-cudaVideoCodec FramesDecoderGpu::GetCodecType(AVCodecID codec_id) const {
+cudaVideoCodec FramesDecoderGpu::GetCodecType(AVCodecID codec_id) {
   switch (codec_id) {
     case AV_CODEC_ID_HEVC: return cudaVideoCodec_HEVC;
     case AV_CODEC_ID_H264: return cudaVideoCodec_H264;
@@ -1009,6 +1015,86 @@ void FramesDecoderGpu::CopyFrame(uint8_t *dst, const uint8_t *src) {
   CUDA_CALL(cudaMemcpyAsync(dst, src, FrameSize(), cudaMemcpyDeviceToDevice, stream_));
 }
 
+namespace {
+
+constexpr std::array<AVCodecID, 6> kGpuCodecs = {
+  AVCodecID::AV_CODEC_ID_H264,
+  AVCodecID::AV_CODEC_ID_HEVC,
+  AVCodecID::AV_CODEC_ID_VP8,
+  AVCodecID::AV_CODEC_ID_VP9,
+  // AVCodecID::AV_CODEC_ID_MJPEG,  // TODO(janton): add support for MJPEG
+  AVCodecID::AV_CODEC_ID_AV1,
+  AVCodecID::AV_CODEC_ID_MPEG4,
+};
+
+}  // namespace
+
+bool FramesDecoderGpu::IsCodecAllowed(AVCodecID codec_id) {
+  return std::find(kGpuCodecs.begin(), kGpuCodecs.end(), codec_id) != kGpuCodecs.end();
+}
+
+bool FramesDecoderGpu::QueryNvdecSupport(AVCodecID codec_id) {
+  return frame_dec_gpu_impl::GetDecoderCaps(GetCodecType(codec_id), cudaVideoChromaFormat_420, 0)
+      .bIsSupported;
+}
+
+void FramesDecoderGpu::WarnCodecNotAllowed(AVCodecID codec_id) {
+  DALI_WARN(make_string("Codec ", codec_id, " (", avcodec_get_name(codec_id),
+                        ") is not supported by the GPU variant of this operator."));
+}
+
+void FramesDecoderGpu::WarnNoNvdecSupport(AVCodecID codec_id) {
+  DALI_WARN(make_string("Codec ", avcodec_get_name(codec_id),
+                        " is not supported by NVDEC on this platform."));
+}
+
+bool FramesDecoderGpu::IsCodecSupported(AVCodecID codec_id) {
+  if (!IsCodecAllowed(codec_id)) {
+    WarnCodecNotAllowed(codec_id);
+    return false;
+  }
+  if (!QueryNvdecSupport(codec_id)) {
+    WarnNoNvdecSupport(codec_id);
+    return false;
+  }
+  return true;
+}
+
+FramesIndexer::CodecCheck FramesDecoderGpu::MakeCodecCheck() {
+  struct Entry {
+    AVCodecID codec_id;
+    bool supported = false;
+    std::exception_ptr error;
+  };
+  auto table = std::make_shared<std::vector<Entry>>();
+  for (AVCodecID codec_id : kGpuCodecs) {
+    Entry entry{codec_id};
+    try {
+      entry.supported = QueryNvdecSupport(codec_id);
+    } catch (...) {
+      entry.error = std::current_exception();
+    }
+    table->push_back(std::move(entry));
+  }
+  // The table is never modified again, so the check can be called from many threads at once.
+  std::shared_ptr<const std::vector<Entry>> immutable = std::move(table);
+  return [immutable](AVCodecID codec_id) {
+    auto it = std::find_if(immutable->begin(), immutable->end(),
+                           [&](const Entry &e) { return e.codec_id == codec_id; });
+    if (it == immutable->end()) {
+      WarnCodecNotAllowed(codec_id);
+      return false;
+    }
+    if (it->error)
+      std::rethrow_exception(it->error);
+    if (!it->supported) {
+      WarnNoNvdecSupport(codec_id);
+      return false;
+    }
+    return true;
+  };
+}
+
 bool FramesDecoderGpu::SelectVideoStream(int stream_id) {
   if (!FramesDecoderBase::SelectVideoStream(stream_id)) {
     return false;
@@ -1016,28 +1102,7 @@ bool FramesDecoderGpu::SelectVideoStream(int stream_id) {
 
   assert(stream_id_ >= 0 && stream_id_ < static_cast<int>(ctx_->nb_streams));
   assert(codec_params_);
-  AVCodecID codec_id = codec_params_->codec_id;
-
-  static constexpr std::array<AVCodecID, /*7*/ 6> codecs = {
-    AVCodecID::AV_CODEC_ID_H264,
-    AVCodecID::AV_CODEC_ID_HEVC,
-    AVCodecID::AV_CODEC_ID_VP8,
-    AVCodecID::AV_CODEC_ID_VP9,
-    //AVCodecID::AV_CODEC_ID_MJPEG,  // TODO(janton): add support for MJPEG
-    AVCodecID::AV_CODEC_ID_AV1,
-    AVCodecID::AV_CODEC_ID_MPEG4,
-  };
-  if (std::find(codecs.begin(), codecs.end(), codec_id) == codecs.end()) {
-    DALI_WARN(make_string("Codec ", codec_id, " (", avcodec_get_name(codec_id),
-                          ") is not supported by the GPU variant of this operator."));
-    return false;
-  }
-
-  auto decoder_caps = frame_dec_gpu_impl::GetDecoderCaps(GetCodecType(codec_id),
-                                                         cudaVideoChromaFormat_420, 0);
-  if (!decoder_caps.bIsSupported) {
-    DALI_WARN(make_string("Codec ", avcodec_get_name(codec_id),
-                          " is not supported by NVDEC on this platform."));
+  if (!IsCodecSupported(codec_params_->codec_id)) {
     return false;
   }
 

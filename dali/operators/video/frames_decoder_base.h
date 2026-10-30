@@ -24,6 +24,7 @@ extern "C" {
 }
 
 #include <algorithm>
+#include <functional>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -486,6 +487,44 @@ class DLL_PUBLIC FramesDecoderBase {
 
   int num_frames_ = -1;
   bool can_seek_ = true;  // at first, we assume that the video is seekable
+};
+
+/**
+ * @brief Reads the frame index of a video file, without decoding it.
+ *
+ * It only demuxes the file: it has no codec context, parser or frame buffers, so it is much
+ * cheaper to create than a decoder. It is valid for the files whose container has a video stream.
+ * Whether a backend can decode the codec of that stream is up to the caller to check, for example
+ * with `Decoder::IsCodecSupported(indexer.CodecId())`.
+ */
+class DLL_PUBLIC FramesIndexer : public FramesDecoderBase {
+ public:
+  /**
+   * @brief Tells if a codec is supported. It may carry state (see `MakeCodecCheck` of the
+   *        decoders). The indexer does not apply it: the caller applies it to `CodecId()`.
+   */
+  using CodecCheck = std::function<bool(AVCodecID)>;
+
+  explicit FramesIndexer(const std::string &filename, DALIImageType image_type = DALI_RGB);
+
+  /**
+   * @brief Codec of the selected video stream. Only valid when IsValid().
+   */
+  AVCodecID CodecId() const {
+    return codec_params_->codec_id;
+  }
+
+  bool ReadNextFrame(uint8_t *data) override;
+
+  void CopyFrame(uint8_t *dst, const uint8_t *src) override;
+
+  void Flush() override {}
+
+  /**
+   * @brief Does nothing: the file is not read after it is indexed, so it is not reopened, as
+   *        FramesDecoderBase::BuildIndex does at its end.
+   */
+  void Reset() override {}
 };
 
 }  // namespace dali

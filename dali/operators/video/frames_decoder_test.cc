@@ -15,13 +15,17 @@
 #include <cuda_runtime_api.h>
 #include <exception>
 #include <random>
+#include <string>
+#include <thread>
 #include <utility>
+#include <vector>
 
 #include "dali/core/cuda_error.h"
 #include "dali/core/dev_buffer.h"
 #include "dali/core/device_guard.h"
 #include "dali/core/dynlink_cuda.h"
 #include "dali/core/error_handling.h"
+#include "dali/core/format.h"
 #include "dali/operators/video/frames_decoder_cpu.h"
 #include "dali/operators/video/frames_decoder_gpu.h"
 #include "dali/operators/video/video_test.h"
@@ -196,6 +200,34 @@ class FramesDecoderGpuTest : public FramesDecoderTestBase {
   DeviceBuffer<uint8_t> frame_gpu_buffer_;
 };
 
+// The video reader builds the index of the files with FramesIndexer, which only demuxes, instead of
+// a decoder. It has to give the index that the decoder gives.
+static void ExpectIndexerGivesTheIndexOfTheDecoder(FramesDecoderBase &decoder,
+                                                   FramesIndexer &indexer) {
+  ASSERT_TRUE(decoder.IsValid());
+  decoder.BuildIndex();
+  ASSERT_TRUE(indexer.IsValid());
+  indexer.BuildIndex();
+
+  const FrameIndex &expected = decoder.GetIndex();
+  const FrameIndex &actual = indexer.GetIndex();
+  ASSERT_EQ(actual.size(), expected.size());
+  EXPECT_EQ(actual.filename, expected.filename);
+  EXPECT_EQ(actual.timebase.num, expected.timebase.num);
+  EXPECT_EQ(actual.timebase.den, expected.timebase.den);
+  for (size_t i = 0; i < expected.size(); i++) {
+    EXPECT_EQ(actual.index[i].pts, expected.index[i].pts) << "frame " << i;
+    EXPECT_EQ(actual.index[i].is_keyframe, expected.index[i].is_keyframe) << "frame " << i;
+    EXPECT_EQ(actual.index[i].is_flush_frame, expected.index[i].is_flush_frame) << "frame " << i;
+    EXPECT_EQ(actual.index[i].last_keyframe_id, expected.index[i].last_keyframe_id)
+        << "frame " << i;
+  }
+  EXPECT_EQ(indexer.NumFrames(), decoder.NumFrames());
+  EXPECT_EQ(indexer.Width(), decoder.Width());
+  EXPECT_EQ(indexer.Height(), decoder.Height());
+  EXPECT_EQ(indexer.IsVfr(), decoder.IsVfr());
+}
+
 TEST_F(FramesDecoderTest_CpuOnlyTests, ConstantFrameRate) {
   FramesDecoderCpu decoder(cfr_videos_paths_[0]);
   decoder.BuildIndex();
@@ -251,6 +283,79 @@ TEST_F(FramesDecoderGpuTest, DecoderCacheReusedForCroppedVideo) {
   EXPECT_EQ(frame_dec_gpu_impl::NVDECDecodersCreated(), num_created);
 }
 
+TEST_F(FramesDecoderGpuTest, IndexerGivesTheIndexOfTheDecoder) {
+  std::vector<std::string> paths;
+  for (const auto *list : {&cfr_videos_paths_, &vfr_videos_paths_, &cfr_mpeg4_videos_paths_,
+                           &vfr_mpeg4_videos_paths_}) {
+    paths.insert(paths.end(), list->begin(), list->end());
+  }
+  if (FramesDecoderGpu::SupportsHevc()) {
+    paths.insert(paths.end(), cfr_hevc_videos_paths_.begin(), cfr_hevc_videos_paths_.end());
+    paths.insert(paths.end(), vfr_hevc_videos_paths_.begin(), vfr_hevc_videos_paths_.end());
+  }
+  ASSERT_FALSE(paths.empty());
+  for (const auto &path : paths) {
+    SCOPED_TRACE(path);
+    FramesDecoderGpu decoder(path);
+    FramesIndexer indexer(path);
+    ExpectIndexerGivesTheIndexOfTheDecoder(decoder, indexer);
+  }
+}
+
+// The files that the video reader skips as invalid are the same with the indexer as with the
+// decoder: a missing file, a file without a video stream, and a codec that is not supported by the
+// GPU decoder. The indexer only reports the codec, the reader checks it with the decoder.
+TEST_F(FramesDecoderGpuTest, IndexerIsValidForTheSameFilesAsTheDecoder) {
+  const std::string video_dir = make_string(testing::dali_extra_path(), "/db/video");
+  for (const auto &path : {make_string(video_dir, "/nonexistent.mp4"),
+                           make_string(video_dir, "/corrupted/audio_only.mp4"),
+                           make_string(video_dir, "/mjpeg/mjpeg.avi"), cfr_videos_paths_[0]}) {
+    SCOPED_TRACE(path);
+    FramesDecoderGpu decoder(path);
+    FramesIndexer indexer(path);
+    bool indexer_valid = indexer.IsValid() && FramesDecoderGpu::IsCodecSupported(indexer.CodecId());
+    EXPECT_EQ(indexer_valid, decoder.IsValid());
+  }
+}
+
+// The check made by MakeCodecCheck gives the same answers as IsCodecSupported, for the codecs that
+// the decoder accepts, for those that it does not (MJPEG among them), and for one that does not
+// exist. It is called from a thread that has no CUDA context, as the indexing threads do.
+TEST_F(FramesDecoderGpuTest, CodecCheckIsEquivalentToIsCodecSupported) {
+  const std::vector<AVCodecID> ids = {
+      AV_CODEC_ID_H264, AV_CODEC_ID_HEVC, AV_CODEC_ID_VP8, AV_CODEC_ID_VP9, AV_CODEC_ID_AV1,
+      AV_CODEC_ID_MPEG4, AV_CODEC_ID_MJPEG, AV_CODEC_ID_PCM_S16LE, AV_CODEC_ID_NONE};
+  auto check = FramesDecoderGpu::MakeCodecCheck();
+  std::vector<bool> expected;
+  for (AVCodecID id : ids) {
+    SCOPED_TRACE(avcodec_get_name(id));
+    expected.push_back(FramesDecoderGpu::IsCodecSupported(id));
+    EXPECT_EQ(check(id), expected.back());
+  }
+  std::vector<bool> from_thread;
+  std::thread t([&]() {
+    for (AVCodecID id : ids)
+      from_thread.push_back(check(id));
+  });
+  t.join();
+  EXPECT_EQ(from_thread, expected);
+}
+
+// An indexer with the check of MakeCodecCheck applied to its codec is valid for the same files
+// as the decoder
+TEST_F(FramesDecoderGpuTest, IndexerWithCodecCheckIsValidForTheSameFilesAsTheDecoder) {
+  const std::string video_dir = make_string(testing::dali_extra_path(), "/db/video");
+  auto check = FramesDecoderGpu::MakeCodecCheck();
+  for (const auto &path : {make_string(video_dir, "/nonexistent.mp4"),
+                           make_string(video_dir, "/corrupted/audio_only.mp4"),
+                           make_string(video_dir, "/mjpeg/mjpeg.avi"), cfr_videos_paths_[0]}) {
+    SCOPED_TRACE(path);
+    FramesDecoderGpu decoder(path);
+    FramesIndexer indexer(path);
+    EXPECT_EQ(indexer.IsValid() && check(indexer.CodecId()), decoder.IsValid());
+  }
+}
+
 TEST_F(FramesDecoderGpuTest, ConstantFrameRateHevc) {
   if (!FramesDecoderGpu::SupportsHevc()) {
     GTEST_SKIP();
@@ -267,6 +372,46 @@ TEST_F(FramesDecoderGpuTest, VariableFrameRateHevc) {
   FramesDecoderGpu decoder(vfr_hevc_videos_paths_[1]);
   decoder.BuildIndex();
   RunTest(decoder, vfr_hevc_videos_[1]);
+}
+
+// The check made by MakeCodecCheck gives the same answers as IsCodecSupported, for the codecs that
+// the decoder accepts, for those that it does not, and for one that does not exist
+TEST_F(FramesDecoderTest_CpuOnlyTests, CodecCheckIsEquivalentToIsCodecSupported) {
+  auto check = FramesDecoderCpu::MakeCodecCheck();
+  for (AVCodecID id : {AV_CODEC_ID_VP8, AV_CODEC_ID_VP9, AV_CODEC_ID_MJPEG, AV_CODEC_ID_H264,
+                       AV_CODEC_ID_HEVC, AV_CODEC_ID_AV1, AV_CODEC_ID_MPEG4,
+                       AV_CODEC_ID_PCM_S16LE, AV_CODEC_ID_NONE}) {
+    SCOPED_TRACE(avcodec_get_name(id));
+    EXPECT_EQ(check(id), FramesDecoderCpu::IsCodecSupported(id));
+  }
+}
+
+TEST_F(FramesDecoderTest_CpuOnlyTests, IndexerGivesTheIndexOfTheDecoder) {
+  const std::string video_dir = make_string(testing::dali_extra_path(), "/db/video");
+  for (const auto &path : {make_string(video_dir, "/vp8/vp8.webm"),
+                           make_string(video_dir, "/vp9/vp9_0.mp4"),
+                           make_string(video_dir, "/mjpeg/mjpeg.avi")}) {
+    SCOPED_TRACE(path);
+    FramesDecoderCpu decoder(path);
+    FramesIndexer indexer(path);
+    ExpectIndexerGivesTheIndexOfTheDecoder(decoder, indexer);
+  }
+}
+
+// The files that the video reader skips as invalid are the same with the indexer as with the
+// decoder: a missing file, a file without a video stream, and a codec that is not supported by the
+// CPU decoder. The indexer only reports the codec, the reader checks it with the decoder.
+TEST_F(FramesDecoderTest_CpuOnlyTests, IndexerIsValidForTheSameFilesAsTheDecoder) {
+  const std::string video_dir = make_string(testing::dali_extra_path(), "/db/video");
+  for (const auto &path : {make_string(video_dir, "/nonexistent.mp4"),
+                           make_string(video_dir, "/corrupted/audio_only.mp4"),
+                           cfr_mpeg4_videos_paths_[0], make_string(video_dir, "/vp9/vp9_0.mp4")}) {
+    SCOPED_TRACE(path);
+    FramesDecoderCpu decoder(path);
+    FramesIndexer indexer(path);
+    bool indexer_valid = indexer.IsValid() && FramesDecoderCpu::IsCodecSupported(indexer.CodecId());
+    EXPECT_EQ(indexer_valid, decoder.IsValid());
+  }
 }
 
 TEST_F(FramesDecoderTest_CpuOnlyTests, InMemoryCfrVideo) {

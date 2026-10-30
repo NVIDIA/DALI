@@ -54,6 +54,7 @@ test_body() {
     ${python_new_invoke_test} test_video_pipeline
     ${python_new_invoke_test} test_video_reader_resize
     ${python_new_invoke_test} test_video_reader
+    ${python_new_invoke_test} test_video_reader_index
 
     popd
 }
