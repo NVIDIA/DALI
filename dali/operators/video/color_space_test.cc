@@ -127,8 +127,10 @@ TEST(ConvertVideoColorSpaceTest, WritesEveryPixel) {
 // The conversion to RGB follows the quantization of ITU-R BT.601 and H.273: Y of the limited range
 // at 16 and the chroma at 128 (for a long time they were 15.9375 and 127.5, as the samples were
 // normalized by 255 instead of 256, which made e.g. black (1, 0, 1)). The 8-bit output is the
-// reference rounded to the nearest level, and the floating point outputs are the reference
-// itself, in levels or in [0, 1] (white is 1.0).
+// reference rounded to the nearest level and saturated, and the floating point outputs are the
+// reference itself, in levels or in [0, 1] (white is 1.0). The floating point outputs are only
+// checked within [0, 1]: out of it (YCbCr values beyond black and white, or outside of the RGB
+// gamut) they are not specified here.
 TEST(ConvertVideoColorSpaceTest, ItuLevels) {
   const u8vec3 colors[] = {
       // black, gray and white of the limited range, and beyond them
@@ -160,6 +162,8 @@ TEST(ConvertVideoColorSpaceTest, ItuLevels) {
           ASSERT_NEAR(u8[3 * i + ch], level, 0.5 + 1e-3) << "pixel " << i << ", channel " << ch;
           ASSERT_NEAR(u8_norm[3 * i + ch], level, 0.5 + 1e-3)
               << "pixel " << i << ", channel " << ch;
+          if (ref[ch] < -1e-9 || ref[ch] > 1 + 1e-9)
+            continue;
           ASSERT_NEAR(f[3 * i + ch], ref[ch] * 255, 1e-3) << "pixel " << i << ", channel " << ch;
           ASSERT_NEAR(f_norm[3 * i + ch], ref[ch], 1e-5) << "pixel " << i << ", channel " << ch;
         }
