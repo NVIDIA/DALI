@@ -1594,10 +1594,42 @@ def non_idr_decoder_frames(codec, start_frame, sequence_length):
     return np.array(pipe.run()[0].as_cpu().at(0))
 
 
+def yuv420_to_rgb_bt601(y, u, v):
+    """YUV 4:2:0 to RGB the way the GPU video decoder does it: BT.601, limited range, bilinear
+    chroma upsampling"""
+    size = (y.shape[1], y.shape[0])
+    u = cv2.resize(u, size, interpolation=cv2.INTER_LINEAR)
+    v = cv2.resize(v, size, interpolation=cv2.INTER_LINEAR)
+    y = (y - 16) * (255 / 219)
+    u = (u - 128) * (255 / 224)
+    v = (v - 128) * (255 / 224)
+    kr, kb = 0.299, 0.114
+    r = y + 2 * (1 - kr) * v
+    b = y + 2 * (1 - kb) * u
+    g = (y - kr * r - kb * b) / (1 - kr - kb)
+    return np.clip(np.rint(np.stack([r, g, b], axis=-1)), 0, 255).astype(np.uint8)
+
+
 @lru_cache(maxsize=None)
 def non_idr_reference_frames(codec):
-    """All frames of the stream, as decoded by FFmpeg"""
-    return np.stack(extract_frames_from_video(non_idr_videos[codec]))
+    """All frames of the stream: the YUV frames decoded by FFmpeg, converted to RGB like the GPU
+    video decoder does it.
+
+    The conversion is done here and not by FFmpeg (as in extract_frames_from_video) because the
+    clips are synthetic (sharp colour edges) and FFmpeg's chroma upsampling differs from the GPU
+    decoder's there: 8-16% of the pixels differ by more than 2 levels, which makes a tolerance
+    hide anything below that. With the same conversion the difference is a rounding error.
+    """
+    container = av.open(non_idr_videos[codec])
+    frames = []
+    for frame in container.decode(container.streams.video[0]):
+        h, w = frame.height, frame.width
+        planes = frame.to_ndarray(format="yuv420p")
+        y = planes[:h].astype(np.float32)
+        u = planes[h : h + h // 4].reshape(h // 2, w // 2).astype(np.float32)
+        v = planes[h + h // 4 :].reshape(h // 2, w // 2).astype(np.float32)
+        frames.append(yuv420_to_rgb_bt601(y, u, v))
+    return np.stack(frames)
 
 
 def closest_reference_indices(frames, reference):
@@ -1646,8 +1678,11 @@ def test_non_idr_keyframes_sequential_decoding(codec):
     frames = non_idr_sequential_frames(codec)
     reference = non_idr_reference_frames(codec)
     assert len(frames) == len(reference), f"{len(frames)} != {len(reference)} frames"
-    for i, (frame, ref_frame) in enumerate(zip(frames, reference, strict=True)):
-        compare_frames(frame, ref_frame, i)
+    # the frames match the reference up to the rounding of the colour conversion (the measured
+    # maximum is 2 levels), so a corrupted block, however small, is caught
+    diff = np.abs(frames.astype(np.int16) - reference.astype(np.int16)).reshape(len(frames), -1)
+    for i, frame_diff in enumerate(diff.max(axis=1)):
+        assert frame_diff <= 2, f"{codec}: frame {i} differs from FFmpeg's by {frame_diff} levels"
     assert closest_reference_indices(frames, reference) == list(range(len(reference)))
 
 
