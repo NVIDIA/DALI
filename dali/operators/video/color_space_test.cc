@@ -56,8 +56,8 @@ std::vector<uint8_t> Convert(int width, int height, u8vec3 yuv, VideoColorSpaceC
   std::vector<std::vector<uint8_t>> results;
   for (uint8_t fill : {0x00, 0xff}) {
     CUDA_CALL(cudaMemset(d_out.get(), fill, out_size));
-    VideoColorSpaceConversion(d_out.get(), width * 3, d_nv12.get(), pitch, height, width, type,
-                              false, 0);
+    ConvertVideoColorSpace(d_out.get(), width * 3, d_nv12.get(), pitch, height, width, type,
+                           false, 0);
     CUDA_CALL(cudaStreamSynchronize(0));
     CUDA_CALL(cudaMemcpy(out.data(), d_out.get(), out_size, cudaMemcpyDeviceToHost));
     results.push_back(out);
@@ -72,7 +72,7 @@ std::vector<uint8_t> Convert(int width, int height, u8vec3 yuv, VideoColorSpaceC
 // The conversion launches one thread per 2x2 pixels. The sizes are not multiples of the block
 // (64x4 pixels), so that every pixel, also at the right and bottom edges, has to be covered by
 // a grid that has no spare blocks.
-TEST(VideoColorSpaceConversionTest, WritesEveryPixel) {
+TEST(ConvertVideoColorSpaceTest, WritesEveryPixel) {
   const std::pair<int, int> sizes[] = {{2, 2},   {4, 2},    {62, 6},    {64, 4},     {66, 34},
                                        {130, 70}, {638, 478}, {1280, 720}, {1922, 1082}};
   const u8vec3 colors[] = {u8vec3(128, 128, 128), u8vec3(81, 90, 240), u8vec3(173, 42, 26)};

@@ -604,11 +604,11 @@ int FramesDecoderGpu::HandlePictureDisplay(CUVIDPARSERDISPINFO *picture_display_
     &pitch,
     &videoProcessingParameters));
 
-  LOG_LINE << "VideoColorSpaceConversion with conversion_type_="
+  LOG_LINE << "ConvertVideoColorSpace with conversion_type_="
            << static_cast<int>(conversion_type_) << " and dimensions " << Height() << "x" << Width()
            << std::endl;
   TYPE_SWITCH(dtype_, type2id, OutType, (uint8_t, float), (
-    VideoColorSpaceConversion(
+    ConvertVideoColorSpace(
       reinterpret_cast<OutType *>(frame_output), Width() * 3,
       reinterpret_cast<const uint8_t *>(frame), static_cast<int>(pitch),
       Height(),
