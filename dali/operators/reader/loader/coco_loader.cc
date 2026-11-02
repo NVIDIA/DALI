@@ -62,9 +62,9 @@ struct Polygons {
 struct Annotation {
   // NONE marks an annotation without a usable segmentation (missing, null, or not parsed).
   enum {NONE, POLYGON, RLE} tag_ = NONE;
-  int image_id_;
-  int category_id_;
-  std::array<float, 4> box_;
+  int image_id_ = 0;
+  int category_id_ = 0;
+  std::array<float, 4> box_ = {};
   // union
   Polygons poly_;
   RLEMaskPtr rle_;
@@ -153,18 +153,34 @@ void Read(std::ifstream& file, span<T> data, const char* filename) {
 }
 
 /**
+ * @brief Returns the size of the file in bytes, leaving the read position at the beginning.
+ */
+uint64_t GetFileSize(std::ifstream &file, const char *filename) {
+  file.seekg(0, std::ios_base::end);
+  auto size = file.tellg();
+  file.seekg(0, std::ios_base::beg);
+  if (!file || size < 0) {
+    throw std::invalid_argument(make_string(
+        "Invalid preprocessed COCO annotations: cannot determine the size of \"", filename, "\"."));
+  }
+  return static_cast<uint64_t>(size);
+}
+
+/**
  * @brief Checks that the file has at least `count` more elements of `element_size` bytes.
  *
  * Element counts stored in preprocessed annotation files are checked before they are used
- * to allocate memory.
+ * to allocate memory. `file_size` is the total size of the file, see `GetFileSize`.
  */
-void CheckRemainingSize(std::ifstream &file, uint64_t count, uint64_t element_size,
-                        const char *filename) {
+void CheckRemainingSize(std::ifstream &file, uint64_t file_size, uint64_t count,
+                        uint64_t element_size, const char *filename) {
   auto pos = file.tellg();
-  file.seekg(0, std::ios_base::end);
-  auto end = file.tellg();
-  file.seekg(pos);
-  uint64_t remaining = end - pos;
+  if (!file || pos < 0 || static_cast<uint64_t>(pos) > file_size) {
+    throw std::invalid_argument(make_string(
+        "Invalid preprocessed COCO annotations: cannot determine the position in \"", filename,
+        "\"."));
+  }
+  uint64_t remaining = file_size - static_cast<uint64_t>(pos);
   if (count > remaining / element_size) {
     throw std::invalid_argument(make_string(
         "Invalid preprocessed COCO annotations: \"", filename, "\" declares ", count,
@@ -253,9 +269,10 @@ void LoadFromFile(std::vector<T> &output, const std::string path) {
   if (!file.good())
     return;
 
+  const uint64_t file_size = GetFileSize(file, path.c_str());
   unsigned size;
   Read(file, size, path.c_str());
-  CheckRemainingSize(file, size, sizeof(T), path.c_str());
+  CheckRemainingSize(file, file_size, size, sizeof(T), path.c_str());
   output.resize(size);
   Read(file, make_span(output), path.c_str());
 }
@@ -267,16 +284,17 @@ void LoadFromFile(std::vector<RLEMaskPtr> &output, const std::string path) {
   if (!file.good())
     return;
 
+  const uint64_t file_size = GetFileSize(file, path.c_str());
   unsigned size;
   Read(file, size, path.c_str());
-  CheckRemainingSize(file, size, 3 * sizeof(siz), path.c_str());
+  CheckRemainingSize(file, file_size, size, 3 * sizeof(siz), path.c_str());
   output.clear();
   output.resize(size);
   for (auto &rle : output) {
     siz dims[3];
     Read(file, span<siz>{&dims[0], 3}, path.c_str());
     siz h = dims[0], w = dims[1], m = dims[2];
-    CheckRemainingSize(file, m, sizeof(uint), path.c_str());
+    CheckRemainingSize(file, file_size, m, sizeof(uint), path.c_str());
     rle = std::make_shared<RLEMask>(h, w, m);
     Read(file, span<uint>{(*rle)->cnts, static_cast<ptrdiff_t>((*rle)->m)}, path.c_str());
   }
@@ -289,13 +307,14 @@ void LoadFromFile(std::vector<std::vector<T> > &output, const std::string path) 
   if (!file.good())
     return;
 
+  const uint64_t file_size = GetFileSize(file, path.c_str());
   unsigned size;
   Read(file, size, path.c_str());
-  CheckRemainingSize(file, size, sizeof(unsigned), path.c_str());
+  CheckRemainingSize(file, file_size, size, sizeof(unsigned), path.c_str());
   output.resize(size);
   for (size_t i = 0; i < output.size(); ++i) {
     Read(file, size, path.c_str());
-    CheckRemainingSize(file, size, sizeof(T), path.c_str());
+    CheckRemainingSize(file, file_size, size, sizeof(T), path.c_str());
     output[i].resize(size);
     Read(file, make_span(output[i]), path.c_str());
   }
@@ -388,12 +407,15 @@ void ParseAnnotations(LookaheadParser &parser, std::vector<Annotation> &annotati
       continue;
     }
     bool to_add = true;
+    bool has_image_id = false, has_category_id = false, has_bbox = false;
     parser.EnterObject();
     while (const char* internal_key = parser.NextObjectKey()) {
       if (0 == std::strcmp(internal_key, "image_id")) {
         annotation.image_id_ = parser.GetInt();
+        has_image_id = true;
       } else if (0 == std::strcmp(internal_key, "category_id")) {
         annotation.category_id_ = parser.GetInt();
+        has_category_id = true;
       } else if (0 == std::strcmp(internal_key, "iscrowd")) {
         auto iscrowd = parser.GetInt();
         to_add &= iscrowd == 0 || include_iscrowd;
@@ -414,6 +436,7 @@ void ParseAnnotations(LookaheadParser &parser, std::vector<Annotation> &annotati
           throw std::invalid_argument(make_string(
               "Invalid COCO annotation: `bbox` must contain exactly 4 values, got ", i, "."));
         }
+        has_bbox = true;
       } else if (parse_segmentation && 0 == std::strcmp(internal_key, "segmentation")) {
         // That means that the mask encoding is not polygons but RLE
         // (iscrowd==1 in Object Detection task, or Stuff Segmentation)
@@ -481,6 +504,12 @@ void ParseAnnotations(LookaheadParser &parser, std::vector<Annotation> &annotati
       } else {
         parser.SkipValue();
       }
+    }
+    if (to_add && !(has_image_id && has_category_id && has_bbox)) {
+      throw std::invalid_argument(make_string(
+          "Invalid COCO annotation: `image_id`, `category_id` and `bbox` are required, but ",
+          !has_image_id ? "`image_id`" : !has_category_id ? "`category_id`" : "`bbox`",
+          " is missing."));
     }
     if (!annotation.IsOver(min_size_threshold)) {
       to_add = false;
@@ -655,6 +684,13 @@ void CocoLoader::ParseJsonAnnotations() {
       continue;
     const auto &image_info = *img_info_ptr;
     auto image_id = image_info.original_id_;
+    if (ratio && (image_info.width_ <= 0 || image_info.height_ <= 0) &&
+        !img_annotations_map[image_id].empty()) {
+      throw std::invalid_argument(make_string(
+          "Invalid COCO annotations: the size of image \"", image_info.filename_,
+          "\" must be positive when `ratio` is set, got ", image_info.height_, "x",
+          image_info.width_, "."));
+    }
     int objects_in_sample = 0;
     int64_t sample_polygons_offset = polygon_data_.size();
     int64_t sample_polygons_count = 0;

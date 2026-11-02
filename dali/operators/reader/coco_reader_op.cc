@@ -15,6 +15,7 @@
 #include "dali/operators/reader/coco_reader_op.h"
 
 #include <algorithm>
+#include <map>
 #include <set>
 #include <stdexcept>
 #include <variant>
@@ -356,8 +357,10 @@ void COCOReader::PixelwiseMasks(int image_idx, int* mask, const std::string &sou
     frPoly[label].push_back(std::move(polygon_mask));
   }
 
-  // Reserve run-length encodings by labels
-  std::vector<RLEMask> R(*labels.rbegin() + 1);
+  // Run-length encodings by labels. Category IDs come from the annotations (and are not remapped
+  // with `avoid_class_remapping`), so they can be negative or arbitrarily large and must not be
+  // used as indices.
+  std::map<int, RLEMask> R;
 
   // Mask was originally described in RLE format
   for (uint ann_id = 0 ; ann_id < masks_info.mask_indices.size(); ann_id++) {
@@ -384,7 +387,10 @@ void COCOReader::PixelwiseMasks(int image_idx, int* mask, const std::string &sou
   // starting with background, and walks the pixels in column-major order.
   // Zero-length runs and labels without a mask need no special handling.
   for (int label : labels) {
-    const RLE rle = R[label].get();
+    auto it = R.find(label);
+    if (it == R.end())
+      continue;
+    const RLE rle = it->second.get();
     if (!rle.cnts)
       continue;
     int64_t begin = 0;
