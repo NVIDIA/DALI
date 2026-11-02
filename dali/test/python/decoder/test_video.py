@@ -428,28 +428,36 @@ def check_color_matrix_black_and_white(frame):
     assert np.all(white >= 253), f"white bar is {white}"
 
 
+def color_matrix_data_dir():
+    return os.path.join(get_dali_extra_path(), "db", "video", "color_matrix")
+
+
+def check_color_matrix_frame(frame, name):
+    """Checks a decoded frame of the clip `name` of db/video/color_matrix against ffmpeg's decode"""
+    ref_path = os.path.join(color_matrix_data_dir(), f"{name}_ref.png")
+    ref = cv2.cvtColor(cv2.imread(ref_path), cv2.COLOR_BGR2RGB)
+    assert frame.shape == ref.shape
+    assert color_matrix_bars_error(frame, ref) <= 4
+    check_color_matrix_black_and_white(frame)
+    assert np.mean(np.abs(frame.astype(int) - ref.astype(int))) < 2
+
+
 @params("bt709_limited_1080p_vp9")
 def test_color_matrix_bt709_cpu(name):
     # The streams are tagged as BT.709 (limited range). The references are what ffmpeg decodes,
     # which uses the matrix from the stream; converting with BT.601 gives errors up to 22 in the
     # interior of the saturated bars.
-    data_dir = os.path.join(get_dali_extra_path(), "db", "video", "color_matrix")
 
     @pipeline_def
     def test_pipeline():
         return fn.experimental.readers.video(
             device="cpu",
-            filenames=[os.path.join(data_dir, f"{name}.mp4")],
+            filenames=[os.path.join(color_matrix_data_dir(), f"{name}.mp4")],
             sequence_length=1,
         )
 
     out = test_pipeline(batch_size=1, num_threads=1, device_id=None).run()[0]
-    frame = out.as_array()[0, 0]
-    ref = cv2.cvtColor(cv2.imread(os.path.join(data_dir, f"{name}_ref.png")), cv2.COLOR_BGR2RGB)
-    assert frame.shape == ref.shape
-    assert color_matrix_bars_error(frame, ref) <= 4
-    check_color_matrix_black_and_white(frame)
-    assert np.mean(np.abs(frame.astype(int) - ref.astype(int))) < 2
+    check_color_matrix_frame(out.as_array()[0, 0], name)
 
 
 @params(
@@ -464,24 +472,108 @@ def test_color_matrix_bt709_gpu(name):
     # matrix and range from the stream; converting with BT.601 gives errors up to 22 in the
     # interior of the saturated bars.
     skip_if_m60()
-    data_dir = os.path.join(get_dali_extra_path(), "db", "video", "color_matrix")
 
     @pipeline_def
     def test_pipeline():
         return fn.experimental.readers.video(
             device="gpu",
-            filenames=[os.path.join(data_dir, f"{name}.mp4")],
+            filenames=[os.path.join(color_matrix_data_dir(), f"{name}.mp4")],
             sequence_length=1,
         )
 
     out = test_pipeline(batch_size=1, num_threads=1, device_id=0).run()[0]
     out = out.as_cpu()
-    frame = out.as_array()[0, 0]
-    ref = cv2.cvtColor(cv2.imread(os.path.join(data_dir, f"{name}_ref.png")), cv2.COLOR_BGR2RGB)
-    assert frame.shape == ref.shape
-    assert color_matrix_bars_error(frame, ref) <= 4
-    check_color_matrix_black_and_white(frame)
-    assert np.mean(np.abs(frame.astype(int) - ref.astype(int))) < 2
+    check_color_matrix_frame(out.as_array()[0, 0], name)
+
+
+def _ebml_element(element_id, payload):
+    """An EBML element, with the data size in its 8 byte form"""
+    return element_id + b"\x01" + len(payload).to_bytes(7, "big") + payload
+
+
+def _ebml_uint(element_id, value):
+    return _ebml_element(element_id, value.to_bytes(max(1, (value.bit_length() + 7) // 8), "big"))
+
+
+def write_matroska_without_color_and_frame_count(src, dst):
+    """Remuxes the H.264 stream of `src` to a Matroska file, without re-encoding it. The file has
+    the dimensions of the video, but neither color tags nor the number of frames (like many
+    Matroska files): the only color description is in the H.264 stream itself. The container is
+    written here because of the lack of the tools that would leave out the color tags."""
+    with av.open(src) as container:
+        stream = container.streams.video[0]
+        codec = stream.codec_context
+        extradata = bytes(codec.extradata)
+        width, height = codec.width, codec.height
+        frame_duration_ns = int(1e9 / stream.average_rate)
+        # (timestamp in ms, is keyframe, data), in the decoding order
+        frames = [
+            (int(round(float(p.pts * stream.time_base) * 1000)), p.is_keyframe, bytes(p))
+            for p in container.demux(stream)
+            if p.dts is not None
+        ]
+
+    ebml_header = _ebml_element(
+        b"\x1a\x45\xdf\xa3",
+        _ebml_uint(b"\x42\x86", 1)  # EBMLVersion
+        + _ebml_uint(b"\x42\xf7", 1)  # EBMLReadVersion
+        + _ebml_uint(b"\x42\xf2", 4)  # EBMLMaxIDLength
+        + _ebml_uint(b"\x42\xf3", 8)  # EBMLMaxSizeLength
+        + _ebml_element(b"\x42\x82", b"matroska")  # DocType
+        + _ebml_uint(b"\x42\x87", 4)  # DocTypeVersion
+        + _ebml_uint(b"\x42\x85", 2),  # DocTypeReadVersion
+    )
+    info = _ebml_element(
+        b"\x15\x49\xa9\x66", _ebml_uint(b"\x2a\xd7\xb1", 1000000)  # TimecodeScale: 1 ms
+    )
+    track = _ebml_element(
+        b"\xae",  # TrackEntry
+        _ebml_uint(b"\xd7", 1)  # TrackNumber
+        + _ebml_uint(b"\x73\xc5", 1)  # TrackUID
+        + _ebml_uint(b"\x83", 1)  # TrackType: video
+        + _ebml_uint(b"\x23\xe3\x83", frame_duration_ns)  # DefaultDuration
+        + _ebml_element(b"\x86", b"V_MPEG4/ISO/AVC")  # CodecID
+        + _ebml_element(b"\x63\xa2", extradata)  # CodecPrivate: avcC
+        + _ebml_element(
+            b"\xe0",  # Video, without the Colour element
+            _ebml_uint(b"\xb0", width) + _ebml_uint(b"\xba", height),
+        ),
+    )
+    tracks = _ebml_element(b"\x16\x54\xae\x6b", track)
+    blocks = b"".join(
+        _ebml_element(
+            b"\xa3",  # SimpleBlock: track 1, timestamp relative to the cluster, flags
+            b"\x81" + ts.to_bytes(2, "big", signed=True) + (b"\x80" if key else b"\x00") + data,
+        )
+        for ts, key, data in frames
+    )
+    cluster = _ebml_element(b"\x1f\x43\xb6\x75", _ebml_uint(b"\xe7", 0) + blocks)
+    segment = _ebml_element(b"\x18\x53\x80\x67", info + tracks + cluster)
+    with open(dst, "wb") as f:
+        f.write(ebml_header + segment)
+
+
+def test_color_matrix_bt709_gpu_without_frame_count():
+    # Without the number of frames in the container, the decoder reads the stream to count them
+    # and then reopens the file. The BT.709 matrix, which is only in the H.264 stream, has to
+    # survive that.
+    skip_if_m60()
+    name = "bt709_limited_1080p_nocolr"
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        mkv_path = os.path.join(tmp_dir, f"{name}.mkv")
+        write_matroska_without_color_and_frame_count(
+            os.path.join(color_matrix_data_dir(), f"{name}.mp4"), mkv_path
+        )
+        encoded = np.fromfile(mkv_path, dtype=np.uint8)
+
+    @pipeline_def
+    def test_pipeline():
+        data = fn.external_source(source=lambda: [encoded], dtype=types.UINT8, ndim=1)
+        return fn.decoders.video(data, device="mixed")
+
+    out = test_pipeline(batch_size=1, num_threads=1, device_id=0).run()[0]
+    out = out.as_cpu()
+    check_color_matrix_frame(out.as_array()[0][0], name)
 
 
 @attr("multi_gpu")

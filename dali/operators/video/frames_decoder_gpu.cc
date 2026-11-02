@@ -442,17 +442,25 @@ bool FramesDecoderGpu::IsFullRange(CUVIDEOFORMAT *video_format) const {
          codec_params_->color_range == AVCOL_RANGE_JPEG;
 }
 
-void FramesDecoderGpu::ProbeColorSpace() {
-  // Opening the file reads only what the container has. The color description of H.264 or HEVC
-  // streams may be only in the stream itself (SPS), which FFmpeg reads while probing the stream.
-  if (image_type_ == DALI_RGB && codec_params_->color_space == AVCOL_SPC_UNSPECIFIED)
-    avformat_find_stream_info(ctx_, nullptr);  // best effort, the stream is usable without it
-}
-
-bool FramesDecoderGpu::IsBT709() const {
-  // Use the matrix that FFmpeg got from the stream, not the one that NVDEC reports: NVDEC doesn't
-  // report the color description for some codecs (e.g. VP9), and for others it reports the codec's
-  // default (BT.709 for MPEG-4) when the stream doesn't have one.
+bool FramesDecoderGpu::IsBT709(CUVIDEOFORMAT *video_format) const {
+  // The color description of H.264 and HEVC streams may be only in the stream itself (SPS, VUI),
+  // not in the container. NVDEC reads it from there, and reports "unspecified" when the stream
+  // doesn't have it. NVDEC can't be used for other codecs: it doesn't report the color description
+  // of some (e.g. VP9), and for others it reports the default of the codec (BT.709 for MPEG-4)
+  // when the stream doesn't have a description. In these cases, and when the H.264 or HEVC stream
+  // doesn't have it, use the matrix that the container has (FFmpeg's, which is read when the file
+  // is opened and doesn't need to read the stream).
+  switch (codec_params_->codec_id) {
+    case AV_CODEC_ID_H264:
+    case AV_CODEC_ID_HEVC: {
+      int matrix = video_format->video_signal_description.matrix_coefficients;
+      if (matrix != AVCOL_SPC_UNSPECIFIED)
+        return matrix == AVCOL_SPC_BT709;
+      break;
+    }
+    default:
+      break;
+  }
   return codec_params_->color_space == AVCOL_SPC_BT709;
 }
 
@@ -460,7 +468,7 @@ void FramesDecoderGpu::InitGpuDecoder(CUVIDEOFORMAT *video_format) {
   if (!nvdecode_state_->decoder) {
     if (image_type_ == DALI_RGB) {
       bool is_full_range = IsFullRange(video_format);
-      if (IsBT709()) {
+      if (IsBT709(video_format)) {
         conversion_type_ = is_full_range
                                ? VIDEO_COLOR_SPACE_CONVERSION_TYPE_YUV_TO_RGB_BT709_FULL_RANGE
                                : VIDEO_COLOR_SPACE_CONVERSION_TYPE_YUV_TO_RGB_BT709;
@@ -526,7 +534,6 @@ FramesDecoderGpu::FramesDecoderGpu(const std::string &filename, cudaStream_t str
       stream_(stream) {
   is_valid_ = is_valid_ && SelectVideoStream();
   if (is_valid_) {
-    ProbeColorSpace();
     InitGpuParser();
   }
 }
@@ -538,7 +545,6 @@ FramesDecoderGpu::FramesDecoderGpu(const char *memory_file, size_t memory_file_s
       stream_(stream) {
   is_valid_ = is_valid_ && SelectVideoStream();
   if (is_valid_) {
-    ProbeColorSpace();
     InitGpuParser();
   }
 }

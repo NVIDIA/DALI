@@ -256,8 +256,7 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
   static cudaVideoCodec GetCodecType(AVCodecID codec_id);
 
   bool IsFullRange(CUVIDEOFORMAT *video_format) const;
-  void ProbeColorSpace();
-  bool IsBT709() const;
+  bool IsBT709(CUVIDEOFORMAT *video_format) const;
 
   void InitGpuParser();
 
