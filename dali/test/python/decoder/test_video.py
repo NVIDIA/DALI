@@ -1513,11 +1513,6 @@ def test_video_decoder_matches_reader(filename, start_frame, sequence_length=8):
     )
 
 
-# Streams with open GOPs, H.264 and HEVC: only the first picture is an IDR picture, and the
-# keyframes at frames 12, 24, 36, 48 and 60 are non-IDR I-pictures (H.264, with a recovery point
-# SEI) or CRA pictures (HEVC) that the container flags as keyframes. The pictures that follow them
-# in the decoding order and precede them in the display order (B-pictures, RASL pictures in HEVC)
-# refer to the previous GOP.
 class Codec(Enum):
     H264 = "h264"
     HEVC = "hevc"
@@ -1528,6 +1523,14 @@ class NonIdrOp(Enum):
     DECODER = "decoder"
 
 
+# Streams with open GOPs, H.264 and HEVC: only the first picture is an IDR picture, and the
+# keyframes at frames 12, 24, 36, 48 and 60 are non-IDR I-pictures (H.264, with a recovery point
+# SEI) or CRA pictures (HEVC) that the container flags as keyframes. Some pictures that follow them
+# in the decoding order precede them in the display order and refer to the previous GOP: the RASL
+# pictures of every CRA picture in HEVC, and in H.264 the B-pictures before the keyframes at 12
+# (10, 11), 36 (35) and 60 (57-59); the H.264 keyframes at 24 and 48 have no such pictures.
+# DALI's frame index treats CRA pictures as keyframes, but only IDR pictures in H.264, so the
+# H.264 stream is only ever decoded from frame 0: the H.264 tests make sure that it stays so.
 non_idr_videos = {
     codec: os.path.join(
         get_dali_extra_path(), "db", "video", "non_idr_keyframes", f"open_gop_{codec.value}.mp4"
@@ -1535,9 +1538,10 @@ non_idr_videos = {
     for codec in Codec
 }
 non_idr_num_frames = 64
-AVCOL_SPC_BT709 = 1  # libavutil/pixfmt.h
 non_idr_keyframes = [12, 24, 36, 48, 60]
-non_idr_codecs = list(non_idr_videos)
+non_idr_codecs = list(Codec)
+AVCOL_SPC_BT709 = 1  # libavutil/pixfmt.h
+AVCOL_RANGE_JPEG = 2  # libavutil/pixfmt.h
 
 
 def nal_unit_types(packet, codec):
@@ -1555,7 +1559,7 @@ def nal_unit_types(packet, codec):
 
 
 def is_idr(codec, types):
-    """IDR_W_RADL and IDR_N_LP in HEVC"""
+    """IDR (5) in H.264, IDR_W_RADL and IDR_N_LP (19, 20) in HEVC"""
     return any(t == 5 for t in types) if codec == Codec.H264 else any(t in (19, 20) for t in types)
 
 
@@ -1598,8 +1602,13 @@ def non_idr_decoder_frames(codec, start_frame, sequence_length):
     @pipeline_def(batch_size=1, num_threads=1, device_id=0)
     def decoder_pipe():
         encoded, _ = fn.readers.file(files=[non_idr_videos[codec]])
+        # the index is what the decoder seeks with
         return fn.decoders.video(
-            encoded, device="mixed", start_frame=start_frame, sequence_length=sequence_length
+            encoded,
+            device="mixed",
+            start_frame=start_frame,
+            sequence_length=sequence_length,
+            build_index=True,
         )
 
     pipe = decoder_pipe()
@@ -1609,13 +1618,17 @@ def non_idr_decoder_frames(codec, start_frame, sequence_length):
 
 def yuv420_to_rgb_bt601(y, u, v):
     """YUV 4:2:0 to RGB the way the GPU video decoder does it: BT.601, limited range, bilinear
-    chroma upsampling"""
+    chroma upsampling.
+
+    The offsets are the decoder's: it normalizes the YUV values to [0, 1] and subtracts 0.0625 from
+    Y and 0.5 from Cb and Cr (itu_r_bt_601::ycbcr_to_rgb<float>), that is 15.9375 and 127.5 levels
+    and not 16 and 128."""
     size = (y.shape[1], y.shape[0])
     u = cv2.resize(u, size, interpolation=cv2.INTER_LINEAR)
     v = cv2.resize(v, size, interpolation=cv2.INTER_LINEAR)
-    y = (y - 16) * (255 / 219)
-    u = (u - 128) * (255 / 224)
-    v = (v - 128) * (255 / 224)
+    y = (y - 255 * 0.0625) * (255 / 219)
+    u = (u - 127.5) * (255 / 224)
+    v = (v - 127.5) * (255 / 224)
     kr, kb = 0.299, 0.114
     r = y + 2 * (1 - kr) * v
     b = y + 2 * (1 - kb) * u
@@ -1630,8 +1643,8 @@ def non_idr_reference_frames(codec):
 
     The conversion is done here and not by FFmpeg (as in extract_frames_from_video) because the
     clips are synthetic (sharp colour edges) and FFmpeg's chroma upsampling differs from the GPU
-    decoder's there: 8-16% of the pixels differ by more than 2 levels, which makes a tolerance
-    hide anything below that. With the same conversion the difference is a rounding error.
+    decoder's there: 6-16% of the values differ by more than 2 levels, which makes a tolerance
+    hide anything below that. With the same conversion only the floating point rounding differs.
     """
     container = av.open(non_idr_videos[codec])
     frames = []
@@ -1645,21 +1658,16 @@ def non_idr_reference_frames(codec):
     return np.stack(frames)
 
 
-def closest_reference_indices(frames, reference):
-    """Index of the reference frame that each of the frames is the most similar to (mean absolute
-    difference)
-
-    Neighbouring frames of the test clips are similar (mean difference of a few levels), so
-    comparing a frame with the reference frame of the same index with a tolerance, as
-    compare_frames does, does not tell a frame from the adjacent ones: a sequence shifted by one
-    frame or with two frames swapped would pass. Finding the best match among all the reference
-    frames needs no tolerance.
-    """
-    reference = reference.astype(np.int16)
-    return [
-        int(np.abs(reference - frame.astype(np.int16)).mean(axis=(1, 2, 3)).argmin())
-        for frame in frames
-    ]
+def assert_non_idr_frames_equal(frames, expected, first_frame, what):
+    """The frames are bit-identical to the ones decoded in order"""
+    assert frames.shape == expected.shape, f"{what}: {frames.shape} != {expected.shape}"
+    for i in range(len(expected)):
+        if not np.array_equal(frames[i], expected[i]):
+            diff = np.abs(frames[i].astype(np.int16) - expected[i].astype(np.int16))
+            raise AssertionError(
+                f"{what}: frame {first_frame + i} differs from the one decoded in order, "
+                f"max abs diff {diff.max()}"
+            )
 
 
 @lru_cache(maxsize=None)
@@ -1671,23 +1679,37 @@ def non_idr_sequential_frames(codec):
 @params(*non_idr_codecs)
 def test_non_idr_keyframes_fixture(codec):
     """The test video has the keyframes that these tests are about"""
-    container = av.open(non_idr_videos[codec])
-    packets = [p for p in container.demux(container.streams.video[0]) if p.size > 0]
-    keyframes = [nal_unit_types(p, codec) for p in packets if p.is_keyframe]
-    idr = [types for types in keyframes if is_idr(codec, types)]
-    assert len(idr) == 1, f"Expected one IDR picture, got {len(idr)}"
-    assert len(keyframes) - len(idr) == len(non_idr_keyframes), (
-        f"Expected {len(non_idr_keyframes)} keyframes that are not IDR pictures, "
-        f"got {len(keyframes) - len(idr)}"
+    with av.open(non_idr_videos[codec]) as container:
+        stream = container.streams.video[0]
+        packets = [p for p in container.demux(stream) if p.size > 0]
+        colorspace, color_range = stream.codec_context.colorspace, stream.codec_context.color_range
+    assert len(packets) == non_idr_num_frames, f"{len(packets)} != {non_idr_num_frames} packets"
+    # the display index of each packet, in the decoding order
+    display = {pts: i for i, pts in enumerate(sorted(p.pts for p in packets))}
+    frame_ids = [display[p.pts] for p in packets]
+    types = [nal_unit_types(p, codec) for p in packets]
+    keyframes = [i for i, p in enumerate(packets) if p.is_keyframe]
+    idr = [i for i in keyframes if is_idr(codec, types[i])]
+    idr_frames = [frame_ids[i] for i in idr]
+    assert idr_frames == [0], f"Expected one IDR picture, at frame 0, got {idr_frames}"
+    non_idr = [i for i in keyframes if i not in idr]
+    assert [frame_ids[i] for i in non_idr] == non_idr_keyframes, (
+        f"Expected keyframes that are not IDR pictures at frames {non_idr_keyframes}, "
+        f"got {[frame_ids[i] for i in non_idr]}"
     )
-    if codec == Codec.HEVC:  # RASL_N, RASL_R
-        assert any(8 in nal_unit_types(p, codec) or 9 in nal_unit_types(p, codec) for p in packets)
-    # The GPU decoder converts the streams tagged as BT.709 with the BT.709 matrix and all the
-    # others with BT.601, which is what non_idr_reference_frames assumes
-    assert container.streams.video[0].codec_context.colorspace != AVCOL_SPC_BT709, (
-        f"{codec}: the test clip is tagged as BT.709, but its reference frames are converted "
-        f"with the BT.601 matrix"
-    )
+    # the pictures that follow a keyframe in the decoding order and precede it in the display
+    # order (they refer to the previous GOP)
+    leading = {frame_ids[i]: [f for f in frame_ids[i + 1 :] if f < frame_ids[i]] for i in non_idr}
+    if codec == Codec.HEVC:
+        assert all(21 in types[i] for i in non_idr), "Expected CRA pictures"
+        assert all(leading.values()), f"Expected RASL pictures after each CRA, got {leading}"
+        assert any(set(t) & {8, 9} for t in types), "Expected RASL_N or RASL_R pictures"
+    else:
+        assert any(leading.values()), f"Expected leading pictures, got {leading}"
+    # non_idr_reference_frames converts with the BT.601 matrix and the limited range, which is
+    # what the GPU decoder does unless the stream is full range (or, possibly, tagged as BT.709)
+    assert color_range != AVCOL_RANGE_JPEG, f"{codec}: the test clip is full range"
+    assert colorspace != AVCOL_SPC_BT709, f"{codec}: the test clip is tagged as BT.709"
 
 
 @params(*non_idr_codecs)
@@ -1697,19 +1719,19 @@ def test_non_idr_keyframes_sequential_decoding(codec):
     frames = non_idr_sequential_frames(codec)
     reference = non_idr_reference_frames(codec)
     assert len(frames) == len(reference), f"{len(frames)} != {len(reference)} frames"
-    # the frames match the reference up to the rounding of the colour conversion (the measured
-    # maximum is 2 levels), so a corrupted block, however small, is caught
+    # the frames match the reference up to the floating point rounding of the colour conversion,
+    # so a corrupted block, however small, is caught, and so is a frame swapped with another (any
+    # two frames of the clips differ by far more than that somewhere)
     diff = np.abs(frames.astype(np.int16) - reference.astype(np.int16)).reshape(len(frames), -1)
     for i, frame_diff in enumerate(diff.max(axis=1)):
-        assert frame_diff <= 2, f"{codec}: frame {i} differs from FFmpeg's by {frame_diff} levels"
-    assert closest_reference_indices(frames, reference) == list(range(len(reference)))
+        assert frame_diff <= 1, f"{codec}: frame {i} differs from FFmpeg's by {frame_diff} levels"
 
 
 @cartesian_params(
     non_idr_codecs,
     list(NonIdrOp),
-    # around the keyframes that are not IDR pictures (the pictures before them in the display
-    # order refer to the previous GOP), and the first frame; the sequences have 4 frames
+    # around the keyframes that are not IDR pictures (in HEVC the frame before each of them is a
+    # RASL picture), and in the first GOP; the sequences have 4 frames
     sorted(
         {0, 5}
         | {k + d for k in non_idr_keyframes for d in (-1, 0, 1) if k + d + 4 <= non_idr_num_frames}
@@ -1721,21 +1743,17 @@ def test_non_idr_keyframes_random_access(codec, op, start_frame, sequence_length
     decode = non_idr_reader_frames if op == NonIdrOp.READER else non_idr_decoder_frames
     frames = decode(codec, start_frame, sequence_length)
     expected = non_idr_sequential_frames(codec)[start_frame : start_frame + sequence_length]
-    assert frames.shape == expected.shape, f"{frames.shape} != {expected.shape}"
-    for i in range(sequence_length):
-        diff = np.abs(frames[i].astype(np.int16) - expected[i].astype(np.int16))
-        assert np.array_equal(frames[i], expected[i]), (
-            f"{codec} {op}: frame {start_frame + i} differs from the one decoded in order, "
-            f"max abs diff {diff.max()}"
-        )
+    assert_non_idr_frames_equal(frames, expected, start_frame, f"{codec} {op}")
 
 
 # The reader keeps its decoder open while the next sequence is from the same file, so seeking can
 # start from a decoder that has decoded other sequences already (the decoder operator creates a new
-# one for each sample). The order makes it seek: far forward into the leading pictures of a
-# keyframe (57), backwards (33, 35, 20, 0, 23), to the keyframe (36), forward by a few frames,
-# which only skips the frames in between (26, 11, 24), and forward by many (45, 60).
-non_idr_warm_starts = [57, 33, 36, 35, 20, 26, 45, 0, 11, 24, 23, 60]
+# one for each sample). In HEVC, the order makes it seek: far forward to a leading picture of a
+# keyframe (58), backwards (33, 35, 20, 0, 23), backwards by one frame to the keyframe (36), forward
+# by a few frames, which only skips the frames in between (26, 11, 24), and forward by many (45,
+# 60). The H.264 stream has no keyframe to seek to after frame 0 (see above), so there the reader
+# skips forward and goes back to frame 0.
+non_idr_warm_starts = [58, 33, 36, 35, 20, 26, 45, 0, 11, 24, 23, 60]
 
 
 @params(*non_idr_codecs)
@@ -1745,11 +1763,6 @@ def test_non_idr_keyframes_warm_seeks(codec, sequence_length=4):
     sequences = non_idr_reader_sequences(codec, non_idr_warm_starts, sequence_length)
     expected = non_idr_sequential_frames(codec)
     for start, frames in zip(non_idr_warm_starts, sequences, strict=True):
-        expected_frames = expected[start : start + sequence_length]
-        assert frames.shape == expected_frames.shape, f"{frames.shape} != {expected_frames.shape}"
-        for i in range(sequence_length):
-            diff = np.abs(frames[i].astype(np.int16) - expected_frames[i].astype(np.int16))
-            assert np.array_equal(frames[i], expected_frames[i]), (
-                f"{codec}: frame {start + i} of the sequence from {start} differs from the one "
-                f"decoded in order, max abs diff {diff.max()}"
-            )
+        assert_non_idr_frames_equal(
+            frames, expected[start : start + sequence_length], start, f"{codec}, sequence {start}"
+        )
