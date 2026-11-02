@@ -450,6 +450,8 @@ static inline uint32_t read_nal_unit_length(uint8_t *buf) {
   return length;
 }
 
+namespace {
+
 /**
  * @brief Identifies a packet of the stream when it is read again (e.g. after a seek): by its
  * position in the file or, if unknown, by its timestamp.
@@ -459,7 +461,7 @@ static inline uint32_t read_nal_unit_length(uint8_t *buf) {
  */
 using PacketKeyType = std::pair<bool, int64_t>;
 
-static inline PacketKeyType PacketKey(const AVPacket &packet) {
+inline PacketKeyType PacketKey(const AVPacket &packet) {
   if (packet.pos >= 0)
     return {true, packet.pos};
   return {false, packet.dts != AV_NOPTS_VALUE ? packet.dts : packet.pts};
@@ -470,6 +472,8 @@ struct SyncPacket {
   PacketKeyType key;
   int decode_idx;  // its position in decoding order
 };
+
+}  // namespace
 
 void FramesDecoderBase::BuildIndex() {
   if (HasIndex()) {
@@ -489,7 +493,9 @@ void FramesDecoderBase::BuildIndex() {
   // The key packets in decoding order, to find where a seek landed. Only collected here (a
   // push_back), as most files never need the lookup: see ask_demuxer below.
   std::vector<SyncPacket> sync_packets;
-  bool has_hidden_packets = false;  // with negative timestamps (e.g. hidden by an edit list)
+  // Packets decoded but not shown (e.g. hidden by an edit list): marked as discarded by the
+  // demuxer, or with negative timestamps
+  bool has_hidden_packets = false;
 
   while (true) {
     // Read the next frame from the video
@@ -520,6 +526,9 @@ void FramesDecoderBase::BuildIndex() {
     entry.decode_idx = decode_idx++;
     if (packet->flags & AV_PKT_FLAG_KEY)
       sync_packets.push_back({PacketKey(*packet), entry.decode_idx});
+    // An empty edit shifts the timeline, so hidden packets can have non-negative timestamps too
+    if (packet->flags & AV_PKT_FLAG_DISCARD)
+      has_hidden_packets = true;
 
     // Check if this packet contains a keyframe
     if (packet->flags & AV_PKT_FLAG_KEY) {
@@ -657,10 +666,12 @@ void FramesDecoderBase::BuildIndex() {
     if (!ask_demuxer)
       continue;
     if (av_seek_frame(ctx_, stream_id_, entry.pts, AVSEEK_FLAG_BACKWARD) < 0) {
-      ask_demuxer = false;  // not seekable
+      LOG_LINE << "Not seekable: seeks to keyframes are assumed to land on them" << std::endl;
+      ask_demuxer = false;
       continue;
     }
-    while (av_read_frame(ctx_, packet_) == 0) {
+    int ret;
+    while ((ret = av_read_frame(ctx_, packet_)) == 0) {
       auto packet = AVPacketScope(packet_, av_packet_unref);
       if (packet->stream_index != stream_id_)
         continue;
@@ -670,8 +681,13 @@ void FramesDecoderBase::BuildIndex() {
           [](const SyncPacket &s, const PacketKeyType &k) { return s.key < k; });
       if (landing != sync_packets.end() && landing->key == key)
         entry.seek_decode_idx = landing->decode_idx;
+      else
+        LOG_LINE << "A seek to frame " << target << " landed on an unknown packet" << std::endl;
       break;
     }
+    if (ret != 0)
+      LOG_LINE << "No packet read after a seek to frame " << target << ": "
+               << av_error_string(ret) << std::endl;
   }
 
   // Detect if video has variable frame rate (VFR)
@@ -835,9 +851,9 @@ FramesDecoderBase::DecodePosition FramesDecoderBase::PositionAt(const FrameIndex
 
 void FramesDecoderBase::AddDecodeWork(const FrameIndex &index, DecodePosition &pos, int frame,
                                       DecodeWork &work) {
-  int n = index.size();
+  int n = static_cast<int>(index.size());
   if (frame < 0 || frame >= n)
-    return;  // not decoded: DecodeFramesImpl copies a constant or the last frame
+    return;  // not decoded: DecodeFramesImpl copies a constant frame
   if (frame != pos.next_frame) {
     if (pos.next_frame < 0 || pos.next_frame >= n) {  // Reset(): reopens the file
       pos = {0, -1};

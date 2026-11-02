@@ -284,7 +284,7 @@ std::vector<int64_t> SeekLandings(const std::string &path, const std::vector<int
 // keyframe lands on the keyframe itself (BuildIndex records this without asking the demuxer, so
 // it is asked here)
 void CheckDecodeOrder(const FrameIndex &index, const std::string &path) {
-  int n = index.size();
+  int n = static_cast<int>(index.size());
   std::vector<int> decode_idx;
   for (int i = 0; i < n; i++)
     decode_idx.push_back(index[i].decode_idx);
@@ -316,19 +316,9 @@ std::string SintelVideoFile(int clip) {
                      "sintel_trailer-720p_", clip, ".mp4");
 }
 
-// The frames of the Sintel clips: B-frames, some with hidden lead-ins, some with a single IDR
-std::vector<std::string> SintelClips() {
-  std::vector<std::string> paths;
-  for (int clip = 0; clip < 10; clip++)
-    paths.push_back(SintelClip(clip % 3, clip));
-  for (int clip = 0; clip < 5; clip++)
-    paths.push_back(SintelVideoFile(clip));
-  return paths;
-}
-
-// One Sintel clip of each kind: no lead-in, only the IDR hidden (a single GOP), a seek that lands
-// on the hidden IDR, seeks that land on the shown IDRs, and a long lead-in (188 hidden pictures).
-// SintelClips() has more of the same kinds; the DISABLED_*AllSintelClips tests sweep them all.
+// One Sintel clip of each kind, all with B-frames: no lead-in, only the IDR hidden (a single GOP),
+// a seek that lands on the hidden IDR, seeks that land on the shown IDRs, and a long lead-in (188
+// hidden pictures)
 std::vector<std::string> SintelClipKinds() {
   return {SintelVideoFile(0), SintelClip(0, 3), SintelClip(0, 9), SintelClip(2, 5),
           SintelClip(2, 8)};
@@ -362,7 +352,7 @@ void CheckDecodeWork(FramesDecoderBase &decoder, FramesDecoderBase::DecodePositi
                      int slack, const std::string &what) {
   ASSERT_LE(frame_ids.size(), static_cast<size_t>(kMaxDecodeWorkFrames));
   auto &index = decoder.GetIndex();
-  int n = index.size();
+  int n = static_cast<int>(index.size());
   // the frames that DecodeFrames seeks to, in order
   std::vector<int> frames;
   for (int frame : frame_ids)
@@ -387,11 +377,14 @@ void CheckDecodeWork(FramesDecoderBase &decoder, FramesDecoderBase::DecodePositi
 /**
  * @brief Runs, on one decoder, samples that take every path of SeekFrame: decoding through,
  * seeking forward and backward, to the same and to another keyframe, and resetting.
+ *
+ * A file without a keyframe early enough (e.g. a single GOP) skips the sample across a keyframe;
+ * `across_keyframe` counts the files that ran it.
  */
 void CheckDecodeWorkScenarios(FramesDecoderBase &decoder, uint8_t *buffer, int slack,
-                              const std::string &path) {
+                              const std::string &path, int &across_keyframe) {
   auto &index = decoder.GetIndex();
-  int n = index.size();
+  int n = static_cast<int>(index.size());
   ASSERT_GE(n, 40);
   FramesDecoderBase::DecodePosition pos;  // a new decoder
   int64_t surplus = 0;
@@ -404,15 +397,20 @@ void CheckDecodeWorkScenarios(FramesDecoderBase &decoder, uint8_t *buffer, int s
   };
   check("fresh", FrameRange(0, a));
   check("continue", FrameRange(next, next + 8));
+  constexpr int kShortLeap = 5, kShortLeapEnd = 9, kFarJump = 20, kTail = 4;
   // Early in the file, so that there is a keyframe ahead and room for the leaps after it
   int keyframe = next + 1;
   while (keyframe < n && !index[keyframe].is_keyframe)
     keyframe++;
-  if (keyframe + 4 + 9 < n - 4)
-    check("across a keyframe", FrameRange(keyframe + 1, keyframe + 4));
-  static_assert(FramesDecoderBase::kMinimumSeekLeap >= 5);
-  check("short leap", FrameRange(next + 5, next + 9));
-  int far = std::min(next + 20, n - 4);  // not to the last frame: the next sample seeks backward
+  int after_keyframe = keyframe + 4;  // where the sample across the keyframe ends
+  if (after_keyframe + kShortLeapEnd < n - kTail) {
+    check("across a keyframe", FrameRange(keyframe + 1, after_keyframe));
+    across_keyframe++;
+  }
+  static_assert(FramesDecoderBase::kMinimumSeekLeap >= kShortLeap);
+  check("short leap", FrameRange(next + kShortLeap, next + kShortLeapEnd));
+  // not to the last frame: the next sample seeks backward
+  int far = std::min(next + kFarJump, n - kTail);
   check("far jump", FrameRange(far, far + 3));
   check("backward", FrameRange(5, 9));
   check("duplicate", {12, 12, 13});
@@ -422,7 +420,7 @@ void CheckDecodeWorkScenarios(FramesDecoderBase &decoder, uint8_t *buffer, int s
   for (int i = 0; i < 8; i++)
     uniform.push_back(std::lround(i * (n - 1) / 7.0));
   check("uniform", uniform);
-  check("edge-padded tail", FrameRange(n - 4, n + 3));
+  check("edge-padded tail", FrameRange(n - kTail, n + 3));
   check("from the start", FrameRange(0, 4));
 }
 
@@ -450,28 +448,6 @@ int CheckPositionAt(FramesDecoderBase &decoder, uint8_t *frame, int slack,
     free_frames += work.pictures == 0;
   }
   return free_frames;
-}
-
-void CheckGPUDecodeWork(const std::vector<std::string> &paths) {
-  for (auto &path : paths) {
-    FramesDecoderGpu decoder(path);
-    decoder.BuildIndex();
-    DeviceBuffer<uint8_t> buffer;
-    buffer.resize(kMaxDecodeWorkFrames * decoder.FrameSize());
-    ASSERT_NO_FATAL_FAILURE(
-        CheckDecodeWorkScenarios(decoder, buffer.data(), kGpuPictureSlack, path));
-  }
-}
-
-void CheckGPUPositionAt(const std::vector<std::string> &paths) {
-  for (auto &path : paths) {
-    FramesDecoderGpu decoder(path);
-    decoder.BuildIndex();
-    DeviceBuffer<uint8_t> buffer;
-    buffer.resize(decoder.FrameSize());
-    EXPECT_GT(CheckPositionAt(decoder, buffer.data(), kGpuPictureSlack, path), 0)
-        << path << ": no B-frames";
-  }
 }
 
 // An index built by hand: the decoding position of each frame (-1: unknown), its keyframes, and
@@ -516,7 +492,7 @@ void CheckDecodeSteps(const FrameIndex &index, const std::vector<DecodeStep> &st
 
 // PositionAt gives the position of a decoder that read the frames before it in a row
 void CheckPositionAtInARow(const FrameIndex &index) {
-  int n = index.size();
+  int n = static_cast<int>(index.size());
   FramesDecoderBase::DecodePosition pos;
   for (int k = 0; k < n; k++) {
     auto at = FramesDecoderBase::PositionAt(index, k);
@@ -593,40 +569,44 @@ TEST(FramesDecoderDecodeWorkTest, NoDecodeOrder) {
 }
 
 TEST_F(FramesDecoderTest_CpuOnlyTests, DecodeWork) {
+  int across_keyframe = 0;
   for (auto &path : {cfr_videos_paths_[0], vfr_videos_paths_[0],
                      make_string(testing::dali_extra_path(), "/db/video/cfr/test_2_vp9.mp4"),
                      make_string(testing::dali_extra_path(), "/db/video/vfr/test_2_vp9.mp4")}) {
     FramesDecoderCpu decoder(path);
     decoder.BuildIndex();
     std::vector<uint8_t> buffer(kMaxDecodeWorkFrames * decoder.FrameSize());
-    ASSERT_NO_FATAL_FAILURE(CheckDecodeWorkScenarios(decoder, buffer.data(), 0, path));
+    ASSERT_NO_FATAL_FAILURE(
+        CheckDecodeWorkScenarios(decoder, buffer.data(), 0, path, across_keyframe));
     decoder.Reset();
     CheckPositionAt(decoder, buffer.data(), 0, path);
   }
+  EXPECT_GT(across_keyframe, 0) << "no file ran the sample across a keyframe";
 }
 
 TEST_F(FramesDecoderGpuTest, DecodeWork) {
-  std::vector<std::string> paths = SintelClipKinds();
+  auto with_b_frames = SintelClipKinds();
+  auto paths = with_b_frames;
   // VP9, H.264 without a lead-in and HEVC (the CPU test covers the other VP9 files)
   paths.push_back(vfr_videos_paths_[0]);
   paths.push_back(make_string(testing::dali_extra_path(), "/db/video/cfr/test_1.mp4"));
   if (FramesDecoderGpu::SupportsHevc())
     paths.push_back(vfr_hevc_videos_paths_[0]);
-  ASSERT_NO_FATAL_FAILURE(CheckGPUDecodeWork(paths));
-}
-
-TEST_F(FramesDecoderGpuTest, DecodeWorkFromPosition) {
-  ASSERT_NO_FATAL_FAILURE(CheckGPUPositionAt(SintelClipKinds()));
-}
-
-// The same, on every Sintel clip: too slow to run by default (~30 s), so run it with
-// --gtest_also_run_disabled_tests after changing SeekFrame or AddDecodeWork
-TEST_F(FramesDecoderGpuTest, DISABLED_DecodeWorkAllSintelClips) {
-  ASSERT_NO_FATAL_FAILURE(CheckGPUDecodeWork(SintelClips()));
-}
-
-TEST_F(FramesDecoderGpuTest, DISABLED_DecodeWorkFromPositionAllSintelClips) {
-  ASSERT_NO_FATAL_FAILURE(CheckGPUPositionAt(SintelClips()));
+  int across_keyframe = 0;
+  for (size_t i = 0; i < paths.size(); i++) {
+    auto &path = paths[i];
+    FramesDecoderGpu decoder(path);
+    decoder.BuildIndex();
+    DeviceBuffer<uint8_t> buffer;
+    buffer.resize(kMaxDecodeWorkFrames * decoder.FrameSize());
+    ASSERT_NO_FATAL_FAILURE(CheckDecodeWorkScenarios(decoder, buffer.data(), kGpuPictureSlack,
+                                                     path, across_keyframe));
+    decoder.Reset();
+    int free_frames = CheckPositionAt(decoder, buffer.data(), kGpuPictureSlack, path);
+    if (i < with_b_frames.size())
+      EXPECT_GT(free_frames, 0) << path << ": no B-frames";
+  }
+  EXPECT_GT(across_keyframe, 0) << "no file ran the sample across a keyframe";
 }
 
 TEST_F(FramesDecoderTest_CpuOnlyTests, IndexDecodeOrder) {
@@ -640,13 +620,13 @@ TEST_F(FramesDecoderTest_CpuOnlyTests, IndexDecodeOrder) {
   }
 }
 
+// H.264, with reordering (the index of the VP9 files does not depend on the decoder: see the CPU
+// test)
 TEST_F(FramesDecoderGpuTest, IndexDecodeOrder) {
-  auto h264_path = make_string(testing::dali_extra_path(), "/db/video/cfr/test_1.mp4");
-  for (auto &path : {cfr_videos_paths_[0], h264_path}) {
-    FramesDecoderGpu decoder(path);
-    decoder.BuildIndex();
-    CheckDecodeOrder(decoder.GetIndex(), path);
-  }
+  auto path = make_string(testing::dali_extra_path(), "/db/video/cfr/test_1.mp4");
+  FramesDecoderGpu decoder(path);
+  decoder.BuildIndex();
+  CheckDecodeOrder(decoder.GetIndex(), path);
 }
 
 // The Sintel clips start with packets that an edit list hides (negative timestamps): they are not

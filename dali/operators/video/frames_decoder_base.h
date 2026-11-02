@@ -353,7 +353,8 @@ class DLL_PUBLIC FramesDecoderBase {
    * the hidden ones (see IndexEntry::decode_idx), and a Reset as a reopening. A `frame` out of
    * range (e.g. -1, a constant frame from HandleBoundary) is not decoded: it adds nothing and
    * leaves `pos` as it is. Not modelled: a failed av_seek_frame (after which every seek resets
-   * the decoder).
+   * the decoder), and the RASL pictures of an HEVC CRA, which are counted after a seek to it
+   * although a decoder skips them there (they reference pictures before the seek).
    *
    * The CPU decoder accepts only codecs without frame reordering (VP8, VP9, MJPEG, see
    * FramesDecoderCpu::SelectVideoStream), where the estimate is exact. If it ever accepted a
@@ -512,6 +513,8 @@ class DLL_PUBLIC FramesDecoderBase {
 
   /**
    * @brief Number of times the file was opened again by Reset (for tests and diagnostics).
+   *
+   * Includes the resets done after counting frames or building the index.
    */
   int64_t Reopens() const {
     return reopens_;
