@@ -486,3 +486,184 @@ def test_wrong_feature_type():
     tfrecord_idx = os.path.join(get_dali_extra_path(), "db", "tfrecord", "train.idx")
     pipe = tfrecord_pipe(fn.readers.tfrecord, tfrecord, tfrecord_idx)
     pipe.run()
+
+
+@cartesian_params((False, True), (False, True), (-1, 32, 33, 1 << 63))
+def test_recordio_reader_rejects_invalid_index_offset(use_mmap, shuffle, offset):
+    with tempfile.TemporaryDirectory() as root:
+        path = os.path.join(root, "data.rec")
+        index = os.path.join(root, "data.idx")
+        with open(path, "wb") as f:
+            f.write(bytes(32))
+        with open(index, "w") as f:
+            f.write(f"0 {offset}\n")
+
+        @pipeline_def(batch_size=1, device_id=None, num_threads=1)
+        def pipe():
+            return tuple(
+                fn.readers.mxnet(
+                    path=path,
+                    index_path=index,
+                    dont_use_mmap=not use_mmap,
+                    shuffle_after_epoch=shuffle,
+                )
+            )
+
+        assert_raises(RuntimeError, pipe().run, glob="*RecordIO index offset out of bounds*")
+
+
+@cartesian_params((False, True), (False, True))
+def test_recordio_reader_index_skips_files(use_mmap, shuffle):
+    with tempfile.TemporaryDirectory() as root:
+        paths = [os.path.join(root, f"data{i}.rec") for i in range(4)]
+        image_size = 4
+        payload_size = len(_recordio_header()) + image_size
+        record_size = 8 + payload_size
+        for i, path in enumerate(paths):
+            payload = _recordio_header() + bytes([i]) * image_size
+            with open(path, "wb") as f:
+                f.write(_recordio_record(len(payload), payload))
+        index = os.path.join(root, "data.idx")
+        with open(index, "w") as f:
+            f.write(f"0 0\n1 {2 * record_size}\n2 {3 * record_size}\n")
+
+        @pipeline_def(batch_size=1, device_id=None, num_threads=1)
+        def pipe():
+            return tuple(
+                fn.readers.mxnet(
+                    path=paths,
+                    index_path=index,
+                    dont_use_mmap=not use_mmap,
+                    shuffle_after_epoch=shuffle,
+                )
+            )
+
+        p = pipe()
+        # The intermediate record jumps across file 1; the final record belongs to file 3.
+        for _ in range(2):
+            observed = []
+            for _ in range(3):
+                images, _ = p.run()
+                observed.append(images.at(0).copy())
+            assert sorted(int(image[0]) for image in observed) == [0, 2, 3]
+            for image in observed:
+                np.testing.assert_array_equal(image, np.full(4, image[0], dtype=np.uint8))
+
+
+@cartesian_params(
+    (False, True),
+    (False, True),
+    (
+        "",
+        "0",
+        "0 invalid",
+        "invalid 0",
+        "0 0\n1 999999999999999999999999",
+        "0 0\n999999999999999999999999",
+    ),
+)
+def test_recordio_reader_rejects_malformed_index(use_mmap, shuffle, index_contents):
+    with tempfile.TemporaryDirectory() as root:
+        path = os.path.join(root, "data.rec")
+        index = os.path.join(root, "data.idx")
+        with open(path, "wb") as f:
+            f.write(bytes(32))
+        with open(index, "w") as f:
+            f.write(index_contents)
+
+        @pipeline_def(batch_size=1, device_id=None, num_threads=1)
+        def pipe():
+            return tuple(
+                fn.readers.mxnet(
+                    path=path,
+                    index_path=index,
+                    dont_use_mmap=not use_mmap,
+                    shuffle_after_epoch=shuffle,
+                )
+            )
+
+        message = (
+            "*Invalid RecordIO index entry*" if index_contents else "*doesn't contain any indices*"
+        )
+        assert_raises(RuntimeError, pipe().run, glob=message)
+
+
+@cartesian_params((False, True), (False, True))
+def test_recordio_reader_unsorted_duplicate_offsets_and_empty_shard(use_mmap, shuffle):
+    with tempfile.TemporaryDirectory() as root:
+        paths = [os.path.join(root, f"data{i}.rec") for i in range(3)]
+        image_size = 4
+        payload_size = len(_recordio_header()) + image_size
+        record_size = 8 + payload_size
+        for i, path in enumerate(paths):
+            with open(path, "wb") as f:
+                if i != 1:
+                    payload = _recordio_header() + bytes([i]) * image_size
+                    f.write(_recordio_record(payload_size, payload))
+        index = os.path.join(root, "data.idx")
+        # Reverse the offsets and repeat both. The second record starts after an empty shard.
+        with open(index, "w") as f:
+            f.write(f"0 {record_size}\n1 0\n2 {record_size}\n3 0\n")
+
+        @pipeline_def(batch_size=1, device_id=None, num_threads=1)
+        def pipe():
+            return tuple(
+                fn.readers.mxnet(
+                    path=paths,
+                    index_path=index,
+                    dont_use_mmap=not use_mmap,
+                    shuffle_after_epoch=shuffle,
+                    name="Reader",
+                )
+            )
+
+        p = pipe()
+        p.build()
+        assert p.epoch_size("Reader") == 2
+        for _ in range(2):
+            observed = []
+            for _ in range(2):
+                images, _ = p.run()
+                observed.append(images.at(0).copy())
+            assert sorted(int(image[0]) for image in observed) == [0, 2]
+            for image in observed:
+                np.testing.assert_array_equal(image, np.full(image_size, image[0], dtype=np.uint8))
+
+
+def test_recordio_reader_rejects_cumulative_size_overflow():
+    if not hasattr(os, "memfd_create"):
+        raise SkipTest("Anonymous sparse files require Linux memfd_create")
+    import resource
+
+    file_size_limit, _ = resource.getrlimit(resource.RLIMIT_FSIZE)
+    if file_size_limit != resource.RLIM_INFINITY and file_size_limit < 1 << 62:
+        raise SkipTest("File-size resource limit is too small for the RecordIO size-bound fixture")
+    file_descriptors = []
+    try:
+        for _ in range(2):
+            try:
+                fd = os.memfd_create("dali-recordio-size-bound")
+                file_descriptors.append(fd)
+                # Set only the logical size: memfd files have no allocated data pages here.
+                os.ftruncate(fd, 1 << 62)
+            except OSError as error:
+                raise SkipTest(f"Cannot create sparse RecordIO size-bound fixture: {error}")
+        paths = [f"/proc/self/fd/{fd}" for fd in file_descriptors]
+        with tempfile.TemporaryDirectory() as root:
+            index = os.path.join(root, "data.idx")
+            with open(index, "w") as f:
+                f.write("0 0\n")
+
+            @pipeline_def(batch_size=1, device_id=None, num_threads=1)
+            def pipe():
+                return tuple(fn.readers.mxnet(path=paths, index_path=index))
+
+            assert_raises(
+                RuntimeError,
+                pipe().run,
+                glob="*RecordIO data files are too large: 4611686018427387904 bytes plus "
+                "4611686018427387904 bytes exceeds the range of a signed 64-bit integer.*",
+            )
+    finally:
+        for fd in file_descriptors:
+            os.close(fd)
