@@ -22,6 +22,9 @@ A call is recorded only when each ordinary input and argument is either:
 - A value that DALI can prove is constant by reading the source, or
 - A value wrapped with :func:`capture.invariant`.
 
+Slicing with :python:`batch.slice[...]` is captured too, with its bounds and indices following
+the same capture rules as arguments.
+
 On later steps, DALI matches each operator call to a traced call site. Uncaptured and previously
 unseen sites run eagerly. At a captured site, a :class:`Batch` argument must be the current output
 of the expected captured call. A stale or different batch causes eager fallback. Arguments that
@@ -52,9 +55,9 @@ However, consuming a batch from a previous step leads to falling back to eager e
        resized = ndd.resize(target, size=[64, 64])   # captured on the first step only
        previous = images                             # stale by the time it is used again
 
-Slicing with :python:`batch.slice[...]`, arithmetic such as :python:`a + b`, and the functions in
-:python:`ndd.math` are not captured at all. Each one silently causes dependent operators to fall
-back to eager execution, because the result is no longer something the pipeline produced.
+Arithmetic such as :python:`a + b` and the functions in :python:`ndd.math` are not captured at
+all. Each one silently causes dependent operators to fall back to eager execution, because the
+result is no longer something the pipeline produced.
 
 Constant arguments
 ------------------

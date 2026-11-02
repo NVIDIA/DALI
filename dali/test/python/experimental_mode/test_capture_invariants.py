@@ -438,6 +438,27 @@ def transform(images, angle):
     return namespace["transform"](images, _INVARIANT_ANGLE)
 
 
+@captured_test(expect_captured=True)
+def test_slice(images):
+    return images.slice[16:-16, 16:-16]
+
+
+@captured_test(expect_captured=True)
+def test_slice_ellipsis(images):
+    return images.slice[..., ::-1]
+
+
+@captured_test(expect_captured=True)
+def test_slice_index(images):
+    return images.slice[..., 0]
+
+
+@captured_test(expect_captured=True)
+def test_slice_captured_bound(images):
+    side = ndd.reductions.min(ndd._shape(images).slice[:2])
+    return images.slice[:side, :side]
+
+
 # Tests for rejected cases
 
 
@@ -470,6 +491,12 @@ def test_global_name(images):
 def test_mutable_name(images):
     c = [224, 224]  # named mutables are not captured
     return ndd.resize(images, size=c)
+
+
+@captured_test(expect_captured=False)
+def test_slice_data_dependent_bound(images):
+    height = min(shape[0] for shape in images.shape)
+    return images.slice[:height]
 
 
 @captured_test(expect_captured=False)
@@ -644,11 +671,6 @@ def test_invariant_marker_removed():
 
 
 # These tests pin behavior documented in docs/dali_dynamic/capture_mode/capture.rst.
-
-
-@captured_test(expect_captured=False)
-def test_slice(images):
-    return images.slice[0:4]
 
 
 @captured_test(expect_captured=False)
