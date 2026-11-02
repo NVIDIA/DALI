@@ -1535,6 +1535,7 @@ non_idr_videos = {
     for codec in Codec
 }
 non_idr_num_frames = 64
+AVCOL_SPC_BT709 = 1  # libavutil/pixfmt.h
 non_idr_keyframes = [12, 24, 36, 48, 60]
 non_idr_codecs = list(non_idr_videos)
 
@@ -1681,6 +1682,12 @@ def test_non_idr_keyframes_fixture(codec):
     )
     if codec == Codec.HEVC:  # RASL_N, RASL_R
         assert any(8 in nal_unit_types(p, codec) or 9 in nal_unit_types(p, codec) for p in packets)
+    # The GPU decoder converts the streams tagged as BT.709 with the BT.709 matrix and all the
+    # others with BT.601, which is what non_idr_reference_frames assumes
+    assert container.streams.video[0].codec_context.colorspace != AVCOL_SPC_BT709, (
+        f"{codec}: the test clip is tagged as BT.709, but its reference frames are converted "
+        f"with the BT.601 matrix"
+    )
 
 
 @params(*non_idr_codecs)
