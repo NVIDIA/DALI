@@ -140,7 +140,7 @@ def coco_invalid_annotations_pipe(annotations_file, file_root):
 
 
 @pipeline_def(batch_size=1, num_threads=1, device_id=None, prefetch_queue_depth=1)
-def coco_rle_masks_pipe(directory, preprocessed=False):
+def coco_rle_masks_pipe(directory, preprocessed=False, **reader_args):
     annotation_args = (
         {"preprocessed_annotations": directory}
         if preprocessed
@@ -150,22 +150,26 @@ def coco_rle_masks_pipe(directory, preprocessed=False):
             "save_preprocessed_annotations_dir": directory,
         }
     )
-    _, _, _, masks = fn.readers.coco(file_root=directory, pixelwise_masks=True, **annotation_args)
+    _, _, _, masks = fn.readers.coco(
+        file_root=directory, pixelwise_masks=True, **annotation_args, **reader_args
+    )
     return masks
 
 
-def write_coco_rle_annotations(directory, segmentations, height=2, width=2):
+def write_coco_rle_annotations(directory, segmentations, height=2, width=2, category_ids=None):
+    if category_ids is None:
+        category_ids = [i + 1 for i in range(len(segmentations))]
     # The reader returns encoded image bytes; decoding is unnecessary for mask tests.
     with open(os.path.join(directory, "image.bin"), "wb") as f:
         f.write(b"image")
     annotations = {
         "images": [{"id": 1, "width": width, "height": height, "file_name": "image.bin"}],
-        "categories": [{"id": i + 1} for i in range(len(segmentations))],
+        "categories": [{"id": c} for c in category_ids],
         "annotations": [
             {
                 "id": i + 1,
                 "image_id": 1,
-                "category_id": i + 1,
+                "category_id": category_ids[i],
                 "bbox": [0, 0, 2, 2],
                 "iscrowd": 1,
                 "segmentation": segmentation,
@@ -260,6 +264,59 @@ def test_coco_polygon_mask_ownership(polygons):
             pipe = coco_rle_masks_pipe(directory, preprocessed=preprocessed)
             (masks,) = pipe.run()
             np.testing.assert_array_equal(masks.at(0)[:, :, 0], [[1, 1], [1, 1]])
+
+
+@params(
+    # [2, 2] fills the right column, [0, 2, 2] the left one.
+    ([-3, 10**9], [[2, 2], [0, 2, 2]], [[10**9, -3], [10**9, -3]]),
+    ([10**9, -3], [[0, 2, 2], [2, 2]], [[10**9, -3], [10**9, -3]]),
+    ([-7], [[2, 2]], [[0, -7], [0, -7]]),
+)
+def test_coco_pixelwise_masks_arbitrary_category_ids(category_ids, counts, expected):
+    # Without class remapping, category IDs are used as is and must not be used as indices.
+    with tempfile.TemporaryDirectory() as directory:
+        write_coco_rle_annotations(
+            directory,
+            [{"size": [2, 2], "counts": c} for c in counts],
+            category_ids=category_ids,
+        )
+        for preprocessed in (False, True):
+            pipe = coco_rle_masks_pipe(
+                directory, preprocessed=preprocessed, avoid_class_remapping=True
+            )
+            (masks,) = pipe.run()
+            np.testing.assert_array_equal(masks.at(0)[:, :, 0], expected)
+
+
+@params(("image_id",), ("category_id",), ("bbox",))
+def test_coco_missing_annotation_field(field):
+    with tempfile.TemporaryDirectory() as directory:
+        write_coco_rle_annotations(directory, [[[0, 0, 1, 0, 1, 1]]])
+        with open(os.path.join(directory, "instances.json")) as f:
+            annotations = json.load(f)
+        del annotations["annotations"][0][field]
+        with open(os.path.join(directory, "instances.json"), "w") as f:
+            json.dump(annotations, f)
+        pipe = coco_rle_masks_pipe(directory)
+        assert_raises(
+            ValueError,
+            pipe.run,
+            glob=f"*Invalid COCO annotation: `image_id`, `category_id` and `bbox` are required, "
+            f"but `{field}` is missing.*",
+        )
+
+
+@params((0, 2), (2, 0), (-2, -2))
+def test_coco_ratio_invalid_image_size(height, width):
+    with tempfile.TemporaryDirectory() as directory:
+        write_coco_rle_annotations(directory, [[[0, 0, 1, 0, 1, 1]]], height=height, width=width)
+        pipe = coco_rle_masks_pipe(directory, ratio=True)
+        assert_raises(
+            ValueError,
+            pipe.run,
+            glob=f'*Invalid COCO annotations: the size of image "*image.bin" must be positive '
+            f"when `ratio` is set, got {height}x{width}.*",
+        )
 
 
 @params(
