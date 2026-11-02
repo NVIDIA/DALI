@@ -354,6 +354,12 @@ class DLL_PUBLIC FramesDecoderBase {
    * range (e.g. -1, a constant frame from HandleBoundary) is not decoded: it adds nothing and
    * leaves `pos` as it is. Not modelled: a failed av_seek_frame (after which every seek resets
    * the decoder).
+   *
+   * The CPU decoder accepts only codecs without frame reordering (VP8, VP9, MJPEG, see
+   * FramesDecoderCpu::SelectVideoStream), where the estimate is exact. If it ever accepted a
+   * codec with reordering (e.g. H.264), libavcodec could need packets beyond a frame's own
+   * position before it returns the frame (its decoder delay), and the CPU would decode more than
+   * estimated.
    */
   static void AddDecodeWork(const FrameIndex &index, DecodePosition &pos, int frame,
                             DecodeWork &work);

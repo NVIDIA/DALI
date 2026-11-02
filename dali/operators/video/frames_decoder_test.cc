@@ -398,7 +398,8 @@ void CheckDecodeWorkScenarios(FramesDecoderBase &decoder, uint8_t *buffer, int s
   int a = std::min(kMaxDecodeWorkFrames, n / 5);
   int next = a;
   auto check = [&](const std::string &what, const std::vector<int> &frames) {
-    CheckDecodeWork(decoder, pos, surplus, frames, buffer, slack, make_string(path, ": ", what));
+    ASSERT_NO_FATAL_FAILURE(CheckDecodeWork(decoder, pos, surplus, frames, buffer, slack,
+                                            make_string(path, ": ", what)));
     next = pos.next_frame;
   };
   check("fresh", FrameRange(0, a));
@@ -457,7 +458,8 @@ void CheckGPUDecodeWork(const std::vector<std::string> &paths) {
     decoder.BuildIndex();
     DeviceBuffer<uint8_t> buffer;
     buffer.resize(kMaxDecodeWorkFrames * decoder.FrameSize());
-    CheckDecodeWorkScenarios(decoder, buffer.data(), kGpuPictureSlack, path);
+    ASSERT_NO_FATAL_FAILURE(
+        CheckDecodeWorkScenarios(decoder, buffer.data(), kGpuPictureSlack, path));
   }
 }
 
@@ -597,7 +599,7 @@ TEST_F(FramesDecoderTest_CpuOnlyTests, DecodeWork) {
     FramesDecoderCpu decoder(path);
     decoder.BuildIndex();
     std::vector<uint8_t> buffer(kMaxDecodeWorkFrames * decoder.FrameSize());
-    CheckDecodeWorkScenarios(decoder, buffer.data(), 0, path);
+    ASSERT_NO_FATAL_FAILURE(CheckDecodeWorkScenarios(decoder, buffer.data(), 0, path));
     decoder.Reset();
     CheckPositionAt(decoder, buffer.data(), 0, path);
   }
@@ -610,21 +612,21 @@ TEST_F(FramesDecoderGpuTest, DecodeWork) {
   paths.push_back(make_string(testing::dali_extra_path(), "/db/video/cfr/test_1.mp4"));
   if (FramesDecoderGpu::SupportsHevc())
     paths.push_back(vfr_hevc_videos_paths_[0]);
-  CheckGPUDecodeWork(paths);
+  ASSERT_NO_FATAL_FAILURE(CheckGPUDecodeWork(paths));
 }
 
 TEST_F(FramesDecoderGpuTest, DecodeWorkFromPosition) {
-  CheckGPUPositionAt(SintelClipKinds());
+  ASSERT_NO_FATAL_FAILURE(CheckGPUPositionAt(SintelClipKinds()));
 }
 
 // The same, on every Sintel clip: too slow to run by default (~30 s), so run it with
 // --gtest_also_run_disabled_tests after changing SeekFrame or AddDecodeWork
 TEST_F(FramesDecoderGpuTest, DISABLED_DecodeWorkAllSintelClips) {
-  CheckGPUDecodeWork(SintelClips());
+  ASSERT_NO_FATAL_FAILURE(CheckGPUDecodeWork(SintelClips()));
 }
 
 TEST_F(FramesDecoderGpuTest, DISABLED_DecodeWorkFromPositionAllSintelClips) {
-  CheckGPUPositionAt(SintelClips());
+  ASSERT_NO_FATAL_FAILURE(CheckGPUPositionAt(SintelClips()));
 }
 
 TEST_F(FramesDecoderTest_CpuOnlyTests, IndexDecodeOrder) {

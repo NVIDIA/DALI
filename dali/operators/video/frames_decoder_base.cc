@@ -17,7 +17,8 @@
 #include <iomanip>
 #include <memory>
 #include <stdexcept>
-#include <unordered_map>
+#include <utility>
+#include <vector>
 #include "dali/core/error_handling.h"
 #include "dali/core/small_vector.h"
 #include "dali/operators/video/video_utils.h"
@@ -452,12 +453,23 @@ static inline uint32_t read_nal_unit_length(uint8_t *buf) {
 /**
  * @brief Identifies a packet of the stream when it is read again (e.g. after a seek): by its
  * position in the file or, if unknown, by its timestamp.
+ *
+ * The kind of the value (true: position) is part of the key, so that a timestamp never matches
+ * the position of another packet.
  */
-static inline int64_t PacketKey(const AVPacket &packet) {
+using PacketKeyType = std::pair<bool, int64_t>;
+
+static inline PacketKeyType PacketKey(const AVPacket &packet) {
   if (packet.pos >= 0)
-    return packet.pos;
-  return packet.dts != AV_NOPTS_VALUE ? packet.dts : packet.pts;
+    return {true, packet.pos};
+  return {false, packet.dts != AV_NOPTS_VALUE ? packet.dts : packet.pts};
 }
+
+// A key packet of the stream: where a seek can land
+struct SyncPacket {
+  PacketKeyType key;
+  int decode_idx;  // its position in decoding order
+};
 
 void FramesDecoderBase::BuildIndex() {
   if (HasIndex()) {
@@ -474,8 +486,9 @@ void FramesDecoderBase::BuildIndex() {
   int frame_count = 0;
   num_frames_ = 0;
   int decode_idx = 0;  // packets of the stream so far, in decoding order
-  // The decoding position of each sync packet, where a seek can land
-  std::unordered_map<int64_t, int> sync_packets;
+  // The key packets in decoding order, to find where a seek landed. Only collected here (a
+  // push_back), as most files never need the lookup: see ask_demuxer below.
+  std::vector<SyncPacket> sync_packets;
   bool has_hidden_packets = false;  // with negative timestamps (e.g. hidden by an edit list)
 
   while (true) {
@@ -506,7 +519,7 @@ void FramesDecoderBase::BuildIndex() {
     // Counted before the negative timestamps are skipped: hidden packets are decoded too
     entry.decode_idx = decode_idx++;
     if (packet->flags & AV_PKT_FLAG_KEY)
-      sync_packets.emplace(PacketKey(*packet), entry.decode_idx);
+      sync_packets.push_back({PacketKey(*packet), entry.decode_idx});
 
     // Check if this packet contains a keyframe
     if (packet->flags & AV_PKT_FLAG_KEY) {
@@ -626,6 +639,13 @@ void FramesDecoderBase::BuildIndex() {
   bool all_keyframes = std::all_of(index_.index.begin(), index_.index.end(),
                                    [](const IndexEntry &e) { return e.is_keyframe; });
   bool ask_demuxer = has_hidden_packets && !all_keyframes;
+  if (ask_demuxer) {
+    // Sorted by key, keeping the decoding order of packets with the same key: the first one wins
+    std::stable_sort(sync_packets.begin(), sync_packets.end(),
+                     [](const SyncPacket &a, const SyncPacket &b) { return a.key < b.key; });
+  } else {
+    std::vector<SyncPacket>().swap(sync_packets);  // not needed: release it
+  }
   int prev_target = -1;
   for (size_t i = 0; i < index_.size(); i++) {
     int target = index_[i].last_keyframe_id;
@@ -644,9 +664,12 @@ void FramesDecoderBase::BuildIndex() {
       auto packet = AVPacketScope(packet_, av_packet_unref);
       if (packet->stream_index != stream_id_)
         continue;
-      auto landing = sync_packets.find(PacketKey(*packet));
-      if (landing != sync_packets.end())
-        entry.seek_decode_idx = landing->second;
+      auto key = PacketKey(*packet);
+      auto landing = std::lower_bound(
+          sync_packets.begin(), sync_packets.end(), key,
+          [](const SyncPacket &s, const PacketKeyType &k) { return s.key < k; });
+      if (landing != sync_packets.end() && landing->key == key)
+        entry.seek_decode_idx = landing->decode_idx;
       break;
     }
   }
