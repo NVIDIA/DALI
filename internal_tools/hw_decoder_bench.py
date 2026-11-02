@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import argparse
+from itertools import product
 import nvidia.dali.fn as fn
 import nvidia.dali.types as types
 import statistics
@@ -24,8 +25,65 @@ from nvidia.dali.auto_aug import auto_augment, trivial_augment
 from nvidia.dali.pipeline import pipeline_def
 import nvidia.dali.experimental.dynamic as ndd
 
+
+class ParseRangeArg(argparse.Action):
+    def __init__(self, *args, parse_fn=int, default=None, **kwargs):
+        # argparse does not run actions on defaults, so parse string defaults here
+        if isinstance(default, str):
+            default = ParseRangeArg.parse_range_arg(default, parse_fn)
+        super().__init__(*args, default=default, **kwargs)
+        self.parse_fn = parse_fn
+
+    def __call__(self, parser, namespace, values, option_string=None):
+        try:
+            parsed = ParseRangeArg.parse_range_arg(values, self.parse_fn)
+        except ValueError as e:
+            raise argparse.ArgumentError(self, str(e))
+        setattr(namespace, self.dest, parsed)
+
+    @staticmethod
+    def parse_range_arg(arg_str, parse_fn=int):
+        """Parse argument into a list of values. Handles both range format
+            'start:end:step' and single values.
+
+        Args:
+            arg_str: String argument to parse
+            parse_fn: Function used to parse each value (e.g. int or float)
+        Returns:
+            List of parsed values
+        """
+        if ":" in arg_str:
+            try:
+                start, end, step = map(parse_fn, arg_str.split(":"))
+                if parse_fn == float:
+                    # +step/2 to include end value
+                    values = list(np.arange(start, end + step / 2, step))
+                else:
+                    values = list(range(start, end + 1, step))  # +1 to include end value
+            except (ValueError, ZeroDivisionError):
+                raise ValueError(
+                    f"invalid range '{arg_str}', expected 'start:end:step' "
+                    f"with {parse_fn.__name__} values and non-zero step"
+                ) from None
+            if not values:
+                raise ValueError(f"range '{arg_str}' contains no values")
+            return values
+        else:
+            try:
+                return [parse_fn(arg_str)]
+            except ValueError:
+                raise ValueError(f"invalid {parse_fn.__name__} value: '{arg_str}'") from None
+
+
 parser = argparse.ArgumentParser(description="DALI HW decoder benchmark")
-parser.add_argument("-b", dest="batch_size", help="batch size", default=1, type=int)
+parser.add_argument(
+    "-b",
+    dest="batch_size",
+    help="Batch size. Can be a single value (e.g. 64) or range 'start:end:step' (e.g. 32:256:32). "
+    "End of range is included.",
+    default=[1],
+    action=ParseRangeArg,
+)
 parser.add_argument("-m", dest="minibatch_size", help="minibatch size", default=32, type=int)
 parser.add_argument("-d", dest="device_id", help="device id", default=0, type=int)
 parser.add_argument(
@@ -38,11 +96,11 @@ parser.add_argument("-w", dest="warmup_iterations", help="warmup iterations", de
 parser.add_argument("-t", dest="total_images", help="total images", default=100, type=int)
 parser.add_argument(
     "-j",
-    dest="num_threads",
+    dest="threads_num",
     help="CPU threads. Can be a single value (e.g. 4) or range 'start:end:step' (e.g. 1:8:2). "
     "End of range is included.",
     default="4",
-    type=str,
+    action=ParseRangeArg,
 )
 parser.add_argument(
     "--exec_dynamic",
@@ -87,40 +145,13 @@ parser.add_argument("--height_hint", dest="height_hint", default=0, type=int)
 
 parser.add_argument(
     "--hw_load",
-    dest="hw_load",
+    dest="decoder_hw_load",
     help="HW decoder workload. Can be a single value (e.g. 0.66) or range "
     "'start:end:step' (e.g. 0.0:1.0:0.2). End of range is included.",
     default="0.75",
-    type=str,
+    action=ParseRangeArg,
+    parse_fn=float,
 )
-
-
-def parse_range_arg(arg_str, parse_fn=int):
-    """Parse argument into a list of values. Handles both range format
-       'start:end:step' and single values.
-
-    Args:
-        arg_str: String argument to parse
-        use_float: If True, parse as float values, otherwise as integers
-    Returns:
-        List of parsed values
-    """
-    if ":" in arg_str:
-        try:
-            start, end, step = map(parse_fn, arg_str.split(":"))
-            if parse_fn == float:
-                return list(np.arange(start, end + step / 2, step))  # +step/2 to include end value
-            else:
-                return list(range(start, end + 1, step))  # +1 to include end value
-        except ValueError:
-            raise ValueError(
-                f"Invalid range format. Expected 'start:end:step' with {parse_fn.__name__} values"
-            )
-    else:
-        try:
-            return [parse_fn(arg_str)]
-        except ValueError:
-            raise ValueError(f"Invalid value. Expected {parse_fn.__name__} number")
 
 
 parser.add_argument(
@@ -147,9 +178,18 @@ args = parser.parse_args()
 if args.ndd_capture and args.pipeline != "ndd_rn50":
     parser.error("--ndd-capture requires -p ndd_rn50")
 
+if min(args.batch_size) < 1:
+    parser.error(f"argument -b: batch size must be positive, got {args.batch_size}")
+
+# Per-iteration statistics (stdev) need at least 2 iterations for every batch size
+if args.total_images < 2 * max(args.batch_size):
+    parser.error(
+        f"argument -t: total images ({args.total_images}) must be at least twice the largest "
+        f"batch size ({max(args.batch_size)})"
+    )
+
 
 @pipeline_def(
-    batch_size=args.batch_size,
     num_threads=1,
     device_id=args.device_id,
     seed=0,
@@ -170,7 +210,6 @@ def DecoderPipeline(decoders_module=fn.decoders, hw_load=0):
 
 
 @pipeline_def(
-    batch_size=args.batch_size,
     num_threads=1,
     device_id=args.device_id,
     seed=0,
@@ -205,7 +244,7 @@ class NDDRN50Pipeline:
     def __init__(
         self,
         minibatch_size,
-        batch_size=args.batch_size,
+        batch_size,
         device_id=args.device_id,
         num_threads=1,
         decoders_module=fn.decoders,
@@ -281,7 +320,6 @@ class NDDRN50Pipeline:
 
 
 @pipeline_def(
-    batch_size=args.batch_size,
     num_threads=1,
     device_id=args.device_id,
     seed=0,
@@ -361,7 +399,6 @@ def EfficientnetTrainingPipeline(
 
 
 @pipeline_def(
-    batch_size=args.batch_size,
     num_threads=1,
     device_id=args.device_id,
     prefetch_queue_depth=1,
@@ -427,7 +464,7 @@ def non_image_preprocessing(raw_text):
     return np.array([int(bytes(raw_text).decode("utf-8"))])
 
 
-@pipeline_def(batch_size=args.batch_size, num_threads=1, device_id=args.device_id, seed=0)
+@pipeline_def(num_threads=1, device_id=args.device_id, seed=0)
 def vit_pipeline(
     is_training=False,
     image_shape=(384, 384, 3),
@@ -498,170 +535,171 @@ def vit_pipeline(
 DALI_INPUT_NAME = "DALI_INPUT_0"
 needs_feed_input = args.pipeline == "efficientnet_inference"
 
-threads_num = parse_range_arg(args.num_threads, parse_fn=int)
-decoder_hw_load = parse_range_arg(args.hw_load, parse_fn=float)
-
-print(f"Threads num to check: {threads_num}")
-print(f"Decoder hw load to check: {decoder_hw_load}")
+print(f"Threads num to check: {args.threads_num}")
+print(f"Decoder hw load to check: {args.decoder_hw_load}")
+print(f"Batch size to check: {args.batch_size}")
 
 perf_results = []
-for cpu_num in threads_num:
-    for hw_load in decoder_hw_load:
-        if "ndd" in args.pipeline:
-            decoders_module = (
-                ndd.experimental.decoders if args.experimental_decoder else ndd.decoders
+test_configs = product(args.threads_num, args.decoder_hw_load, args.batch_size)
+for cpu_num, hw_load, batch_size in test_configs:
+    if "ndd" in args.pipeline:
+        decoders_module = ndd.experimental.decoders if args.experimental_decoder else ndd.decoders
+    else:
+        decoders_module = fn.experimental.decoders if args.experimental_decoder else fn.decoders
+    print(f"Using decoders_module={decoders_module}")
+
+    pipes = []
+    if args.pipeline == "decoder":
+        for i in range(args.gpu_num):
+            pipes.append(
+                DecoderPipeline(
+                    batch_size=batch_size,
+                    device_id=i + args.device_id,
+                    num_threads=cpu_num,
+                    decoders_module=decoders_module,
+                    hw_load=hw_load,
+                )
             )
-        else:
-            decoders_module = fn.experimental.decoders if args.experimental_decoder else fn.decoders
-        print(f"Using decoders_module={decoders_module}")
+    elif args.pipeline == "rn50":
+        for i in range(args.gpu_num):
+            pipes.append(
+                RN50Pipeline(
+                    batch_size=batch_size,
+                    device_id=i + args.device_id,
+                    minibatch_size=args.minibatch_size,
+                    num_threads=cpu_num,
+                    decoders_module=decoders_module,
+                    hw_load=hw_load,
+                )
+            )
+    elif args.pipeline == "ndd_rn50":
+        for i in range(args.gpu_num):
+            pipes.append(
+                NDDRN50Pipeline(
+                    batch_size=batch_size,
+                    device_id=i + args.device_id,
+                    minibatch_size=args.minibatch_size,
+                    num_threads=cpu_num,
+                    decoders_module=decoders_module,
+                    hw_load=hw_load,
+                    capture=args.ndd_capture,
+                )
+            )
+    elif args.pipeline == "efficientnet_inference":
+        for i in range(args.gpu_num):
+            pipes.append(
+                EfficientnetInferencePipeline(
+                    batch_size=batch_size,
+                    device_id=i + args.device_id,
+                    num_threads=cpu_num,
+                    decoders_module=decoders_module,
+                    hw_load=hw_load,
+                )
+            )
+    elif args.pipeline == "vit":
+        for i in range(args.gpu_num):
+            pipes.append(
+                vit_pipeline(
+                    batch_size=batch_size,
+                    device_id=i + args.device_id,
+                    num_threads=cpu_num,
+                    decoders_module=decoders_module,
+                    hw_load=hw_load,
+                )
+            )
+    elif args.pipeline == "efficientnet_training":
+        for i in range(args.gpu_num):
+            pipes.append(
+                EfficientnetTrainingPipeline(
+                    batch_size=batch_size,
+                    device_id=i + args.device_id,
+                    minibatch_size=args.minibatch_size,
+                    automatic_augmentation=args.aug_strategy,
+                    num_threads=cpu_num,
+                    decoders_module=decoders_module,
+                    hw_load=hw_load,
+                )
+            )
+    else:
+        raise RuntimeError("Unsupported pipeline")
+    for p in pipes:
+        p.build()
 
-        pipes = []
-        if args.pipeline == "decoder":
-            for i in range(args.gpu_num):
-                pipes.append(
-                    DecoderPipeline(
-                        device_id=i + args.device_id,
-                        num_threads=cpu_num,
-                        decoders_module=decoders_module,
-                        hw_load=hw_load,
-                    )
-                )
-        elif args.pipeline == "rn50":
-            for i in range(args.gpu_num):
-                pipes.append(
-                    RN50Pipeline(
-                        device_id=i + args.device_id,
-                        minibatch_size=args.minibatch_size,
-                        num_threads=cpu_num,
-                        decoders_module=decoders_module,
-                        hw_load=hw_load,
-                    )
-                )
-        elif args.pipeline == "ndd_rn50":
-            for i in range(args.gpu_num):
-                pipes.append(
-                    NDDRN50Pipeline(
-                        device_id=i + args.device_id,
-                        minibatch_size=args.minibatch_size,
-                        num_threads=cpu_num,
-                        decoders_module=decoders_module,
-                        hw_load=hw_load,
-                        capture=args.ndd_capture,
-                    )
-                )
-        elif args.pipeline == "efficientnet_inference":
-            for i in range(args.gpu_num):
-                pipes.append(
-                    EfficientnetInferencePipeline(
-                        device_id=i + args.device_id,
-                        num_threads=cpu_num,
-                        decoders_module=decoders_module,
-                        hw_load=hw_load,
-                    )
-                )
-        elif args.pipeline == "vit":
-            for i in range(args.gpu_num):
-                pipes.append(
-                    vit_pipeline(
-                        device_id=i + args.device_id,
-                        num_threads=cpu_num,
-                        decoders_module=decoders_module,
-                        hw_load=hw_load,
-                    )
-                )
-        elif args.pipeline == "efficientnet_training":
-            for i in range(args.gpu_num):
-                pipes.append(
-                    EfficientnetTrainingPipeline(
-                        device_id=i + args.device_id,
-                        minibatch_size=args.minibatch_size,
-                        automatic_augmentation=args.aug_strategy,
-                        num_threads=cpu_num,
-                        decoders_module=decoders_module,
-                        hw_load=hw_load,
-                    )
-                )
-        else:
-            raise RuntimeError("Unsupported pipeline")
+    input_tensor = create_input_tensor(batch_size, args.image_list) if needs_feed_input else None
+
+    for iteration in range(args.warmup_iterations):
         for p in pipes:
-            p.build()
+            feed_input(p, input_tensor)
+            p.schedule_run()
+        for p in pipes:
+            _ = p.share_outputs()
+        for p in pipes:
+            p.release_outputs()
+    print("Warmup finished")
 
-        input_tensor = (
-            create_input_tensor(args.batch_size, args.image_list) if needs_feed_input else None
-        )
+    test_iterations = args.total_images // batch_size
 
-        for iteration in range(args.warmup_iterations):
-            for p in pipes:
-                feed_input(p, input_tensor)
-                p.schedule_run()
-            for p in pipes:
-                _ = p.share_outputs()
-            for p in pipes:
-                p.release_outputs()
-        print("Warmup finished")
+    print("Test iterations: ", test_iterations)
+    start_time = time.perf_counter()
+    execution_times = []
+    for iteration in range(test_iterations):
+        iter_start_time = time.perf_counter()
+        for p in pipes:
+            feed_input(p, input_tensor)
+            p.schedule_run()
+        for p in pipes:
+            _ = p.share_outputs()
+        for p in pipes:
+            p.release_outputs()
+        iter_end_time = time.perf_counter()
+        iter_duration = iter_end_time - iter_start_time
+        execution_times.append(iter_duration)
 
-        test_iterations = args.total_images // args.batch_size
+        if args.print_every_n_iterations > 0 and (
+            (iteration + 1) % args.print_every_n_iterations == 0 or iteration == test_iterations - 1
+        ):
+            elapsed_time = time.perf_counter() - start_time
+            throughput = (iteration + 1) * batch_size * args.gpu_num / elapsed_time
+            mean_t = statistics.mean(execution_times)
+            median_t = statistics.median(execution_times)
+            min_t = min(execution_times)
+            max_t = max(execution_times)
+            print(
+                f"Iteration {iteration + 1}/{test_iterations} - "
+                + f"Throughput: {throughput:.2f} frames/sec "
+                + f"(mean={mean_t:.6f}sec, median={median_t:.6f}sec, "
+                + f"min={min_t:.6f}sec, max={max_t:.6f}sec)"
+            )
 
-        print("Test iterations: ", test_iterations)
-        start_time = time.perf_counter()
-        execution_times = []
-        for iteration in range(test_iterations):
-            iter_start_time = time.perf_counter()
-            for p in pipes:
-                feed_input(p, input_tensor)
-                p.schedule_run()
-            for p in pipes:
-                _ = p.share_outputs()
-            for p in pipes:
-                p.release_outputs()
-            iter_end_time = time.perf_counter()
-            iter_duration = iter_end_time - iter_start_time
-            execution_times.append(iter_duration)
+    end_time = time.perf_counter()
+    total_time = end_time - start_time
+    total_throughput = test_iterations * batch_size * args.gpu_num / total_time
+    avg_t = statistics.mean(execution_times)
+    stdev_t = statistics.stdev(execution_times)
+    median_t = statistics.median(execution_times)
+    min_t = min(execution_times)
+    max_t = max(execution_times)
 
-            if args.print_every_n_iterations > 0 and (
-                (iteration + 1) % args.print_every_n_iterations == 0
-                or iteration == test_iterations - 1
-            ):
-                elapsed_time = time.perf_counter() - start_time
-                throughput = (iteration + 1) * args.batch_size * args.gpu_num / elapsed_time
-                mean_t = statistics.mean(execution_times)
-                median_t = statistics.median(execution_times)
-                min_t = min(execution_times)
-                max_t = max(execution_times)
-                print(
-                    f"Iteration {iteration + 1}/{test_iterations} - "
-                    + f"Throughput: {throughput:.2f} frames/sec "
-                    + f"(mean={mean_t:.6f}sec, median={median_t:.6f}sec, "
-                    + f"min={min_t:.6f}sec, max={max_t:.6f}sec)"
-                )
-
-        end_time = time.perf_counter()
-        total_time = end_time - start_time
-        total_throughput = test_iterations * args.batch_size * args.gpu_num / total_time
-        avg_t = statistics.mean(execution_times)
-        stdev_t = statistics.stdev(execution_times)
-        median_t = statistics.median(execution_times)
-        min_t = min(execution_times)
-        max_t = max(execution_times)
-
-        print("\nFinal Results:")
-        print(f"CPU threads: {cpu_num}")
-        print(f"HW decoder load: {hw_load}")
-        print(f"Total Execution Time: {total_time:.6f} sec")
-        print(f"Total Throughput: {total_throughput:.2f} frames/sec")
-        print(f"Average time per iteration: {avg_t:.6f} sec")
-        print(f"Median time per iteration: {median_t:.6f} sec")
-        print(f"Stddev time per iteration: {stdev_t:.6f} sec")
-        print(f"Min time per iteration: {min_t:.6f} sec")
-        print(f"Max time per iteration: {max_t:.6f} sec")
-        perf_results.append(
-            {
-                "cpu_num": cpu_num,
-                "hw_load": hw_load,
-                "total_time": total_time,
-                "total_throughput": total_throughput,
-            }
-        )
+    print("\nFinal Results:")
+    print(f"CPU threads: {cpu_num}")
+    print(f"HW decoder load: {hw_load}")
+    print(f"Batch size: {batch_size}")
+    print(f"Total Execution Time: {total_time:.6f} sec")
+    print(f"Total Throughput: {total_throughput:.2f} frames/sec")
+    print(f"Average time per iteration: {avg_t:.6f} sec")
+    print(f"Median time per iteration: {median_t:.6f} sec")
+    print(f"Stddev time per iteration: {stdev_t:.6f} sec")
+    print(f"Min time per iteration: {min_t:.6f} sec")
+    print(f"Max time per iteration: {max_t:.6f} sec")
+    perf_results.append(
+        {
+            "cpu_num": cpu_num,
+            "hw_load": hw_load,
+            "batch_size": batch_size,
+            "total_time": total_time,
+            "total_throughput": total_throughput,
+        }
+    )
 
 if len(perf_results) > 0:
     # Find and print result with best throughputif
@@ -669,6 +707,7 @@ if len(perf_results) > 0:
     print("\nBest throughput configuration:")
     print(f"Best: CPU threads: {best_result['cpu_num']}")
     print(f"Best: HW decoder load: {best_result['hw_load']}")
+    print(f"Best: Batch size: {best_result['batch_size']}")
     print(f"Best: Total time: {best_result['total_time']:.6f} sec")
     print(f"Best: Throughput: {best_result['total_throughput']:.2f} frames/sec")
 else:
