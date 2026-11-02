@@ -95,7 +95,7 @@ void FileLabelLoaderBase<checkpointing_supported>::PrepareEmpty(ImageLabelWrappe
 
 template<bool checkpointing_supported>
 void FileLabelLoaderBase<checkpointing_supported>::ReadSample(ImageLabelWrapper &image_label) {
-  auto entry = file_label_entries_[current_index_++];
+  const auto &entry = file_label_entries_[current_index_++];
 
   // handle wrap-around
   MoveToNextShard(current_index_);

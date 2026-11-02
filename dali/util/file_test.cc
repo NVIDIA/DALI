@@ -14,6 +14,7 @@
 
 #include "dali/util/file.h"
 #include <gtest/gtest.h>
+#include <sys/stat.h>
 #include <unistd.h>
 #include <limits>
 #include <filesystem>
@@ -148,7 +149,9 @@ TEST(FileStreamBuf, RemoteStreamExactMultipleOfBuffer) {
 
 TEST(MmapedFileStreamTest, RejectsOverflowingRanges) {
   std::string path = (std::filesystem::temp_directory_path() / "dali-mmap-test-XXXXXX").string();
+  mode_t old_mask = umask(S_IRWXG | S_IRWXO);  // restrict the temp file to the owner
   int fd = mkstemp(path.data());
+  umask(old_mask);
   ASSERT_GE(fd, 0);
   auto remove_file = AtScopeExit([&] { unlink(path.c_str()); });
   auto close_file = AtScopeExit([&] { close(fd); });

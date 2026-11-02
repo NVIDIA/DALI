@@ -153,6 +153,7 @@ template <typename Converter, typename Out, typename In>
 void LaunchColorSpaceConvKernel(Out *output, const In *input, int64_t npixels,
                                  unsigned int grid, unsigned int block, cudaStream_t stream) {
   ColorSpaceConvKernel<Converter, Out, In><<<grid, block, 0, stream>>>(output, input, npixels);
+  CUDA_CALL(cudaGetLastError());
 }
 
 // TODO(janton): Write a generic batched color space conversion kernel template
@@ -209,10 +210,8 @@ void RunColorSpaceConversionKernel(Out *output, const In *input, DALIImageType o
     DALI_FAIL(make_string("conversion not supported ", in_type, " to ", out_type));
   }
 
-  if (grid > 0) {
+  if (grid > 0)
     kernel_launch(output, input, npixels, grid, block, stream);
-    CUDA_CALL(cudaGetLastError());
-  }
 }
 
 }  // namespace color
