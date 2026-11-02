@@ -94,7 +94,13 @@ parser.add_argument(
     "-g", dest="device", choices=["gpu", "cpu"], help="device to use", default="gpu", type=str
 )
 parser.add_argument("-w", dest="warmup_iterations", help="warmup iterations", default=0, type=int)
-parser.add_argument("-t", dest="total_images", help="total images", default=100, type=int)
+parser.add_argument(
+    "-t",
+    dest="total_images",
+    help="Total images per configuration. Defaults to max(100, 2 * largest batch size).",
+    default=None,
+    type=int,
+)
 parser.add_argument(
     "-j",
     dest="threads_num",
@@ -181,6 +187,9 @@ if args.ndd_capture and args.pipeline != "ndd_rn50":
 
 if min(args.batch_sizes) < 1:
     parser.error(f"argument -b: batch size must be positive, got {args.batch_sizes}.")
+
+if args.total_images is None:
+    args.total_images = max(100, 2 * max(args.batch_sizes))
 
 # Per-iteration statistics (stdev) need at least 2 iterations for every batch size
 if args.total_images < 2 * max(args.batch_sizes):
