@@ -44,7 +44,7 @@ index 3ac3249..639b9ff 100755
    -DBUILD_WITH_LSAN=OFF \
    -DBUILD_WITH_UBSAN=OFF \
 diff --git a/recipe/recipe.yaml b/recipe/recipe.yaml
-index 750271a..78d6591 100644
+index ac23651..78d6591 100644
 --- a/recipe/recipe.yaml
 +++ b/recipe/recipe.yaml
 @@ -1,7 +1,11 @@
@@ -75,7 +75,7 @@ index 750271a..78d6591 100644
 -    target_directory: third_party/ffts
  
  build:
--  number: 1
+-  number: 2
 +  number: ${{ build_number }}
    skip:
      - cuda_compiler_version == "None"
