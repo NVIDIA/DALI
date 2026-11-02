@@ -495,6 +495,10 @@ def _ebml_uint(element_id, value):
     return _ebml_element(element_id, value.to_bytes(max(1, (value.bit_length() + 7) // 8), "big"))
 
 
+# The timestamp of a block is a signed 16 bit offset (in ms) from the timestamp of its cluster
+MATROSKA_MAX_CLUSTER_OFFSET_MS = 2**15
+
+
 def write_matroska_without_color_and_frame_count(src, dst):
     """Remuxes the H.264 stream of `src` to a Matroska file, without re-encoding it. The file has
     the dimensions of the video, but neither color tags nor the number of frames (like many
@@ -505,12 +509,12 @@ def write_matroska_without_color_and_frame_count(src, dst):
         codec = stream.codec_context
         extradata = bytes(codec.extradata)
         width, height = codec.width, codec.height
-        frame_duration_ns = int(1e9 / stream.average_rate)
+        frame_duration_ns = int(1e9 / stream.average_rate) if stream.average_rate else None
         # (timestamp in ms, is keyframe, data), in the decoding order
         frames = [
             (int(round(float(p.pts * stream.time_base) * 1000)), p.is_keyframe, bytes(p))
             for p in container.demux(stream)
-            if p.dts is not None
+            if p.pts is not None and p.dts is not None
         ]
 
     ebml_header = _ebml_element(
@@ -531,7 +535,11 @@ def write_matroska_without_color_and_frame_count(src, dst):
         _ebml_uint(b"\xd7", 1)  # TrackNumber
         + _ebml_uint(b"\x73\xc5", 1)  # TrackUID
         + _ebml_uint(b"\x83", 1)  # TrackType: video
-        + _ebml_uint(b"\x23\xe3\x83", frame_duration_ns)  # DefaultDuration
+        + (
+            _ebml_uint(b"\x23\xe3\x83", frame_duration_ns)  # DefaultDuration
+            if frame_duration_ns
+            else b""
+        )
         + _ebml_element(b"\x86", b"V_MPEG4/ISO/AVC")  # CodecID
         + _ebml_element(b"\x63\xa2", extradata)  # CodecPrivate: avcC
         + _ebml_element(
@@ -540,23 +548,36 @@ def write_matroska_without_color_and_frame_count(src, dst):
         ),
     )
     tracks = _ebml_element(b"\x16\x54\xae\x6b", track)
-    blocks = b"".join(
-        _ebml_element(
-            b"\xa3",  # SimpleBlock: track 1, timestamp relative to the cluster, flags
-            b"\x81" + ts.to_bytes(2, "big", signed=True) + (b"\x80" if key else b"\x00") + data,
+    # (timestamp of the cluster in ms, its blocks): a new cluster when the offset doesn't fit
+    clusters = []
+    for ts, key, data in frames:
+        if not clusters or abs(ts - clusters[-1][0]) >= MATROSKA_MAX_CLUSTER_OFFSET_MS:
+            clusters.append((ts, []))
+        cluster_ts, blocks = clusters[-1]
+        blocks.append(
+            _ebml_element(
+                b"\xa3",  # SimpleBlock: track 1, timestamp relative to the cluster, flags
+                b"\x81"
+                + (ts - cluster_ts).to_bytes(2, "big", signed=True)
+                + (b"\x80" if key else b"\x00")
+                + data,
+            )
         )
-        for ts, key, data in frames
+    cluster_elements = b"".join(
+        _ebml_element(b"\x1f\x43\xb6\x75", _ebml_uint(b"\xe7", cluster_ts) + b"".join(blocks))
+        for cluster_ts, blocks in clusters
     )
-    cluster = _ebml_element(b"\x1f\x43\xb6\x75", _ebml_uint(b"\xe7", 0) + blocks)
-    segment = _ebml_element(b"\x18\x53\x80\x67", info + tracks + cluster)
+    segment = _ebml_element(b"\x18\x53\x80\x67", info + tracks + cluster_elements)
     with open(dst, "wb") as f:
         f.write(ebml_header + segment)
 
 
-def test_color_matrix_bt709_gpu_without_frame_count():
-    # Without the number of frames in the container, the decoder reads the stream to count them
-    # and then reopens the file. The BT.709 matrix, which is only in the H.264 stream, has to
-    # survive that.
+def test_color_matrix_bt709_gpu_matroska_without_color_tags():
+    # Matroska files often have neither color tags nor the number of frames. The matrix of this
+    # clip is then only in the H.264 stream (SPS), and the decoder has to take it from there. As
+    # there is no number of frames, the decoder also reads the stream to count the frames and
+    # reopens the file, so this also checks that the matrix doesn't depend on what the decoder
+    # found when it opened the file the first time.
     skip_if_m60()
     name = "bt709_limited_1080p_nocolr"
     with tempfile.TemporaryDirectory() as tmp_dir:

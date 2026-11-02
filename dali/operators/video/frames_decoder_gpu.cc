@@ -446,10 +446,11 @@ bool FramesDecoderGpu::IsBT709(CUVIDEOFORMAT *video_format) const {
   // The color description of H.264 and HEVC streams may be only in the stream itself (SPS, VUI),
   // not in the container. NVDEC reads it from there, and reports "unspecified" when the stream
   // doesn't have it. NVDEC can't be used for other codecs: it doesn't report the color description
-  // of some (e.g. VP9), and for others it reports the default of the codec (BT.709 for MPEG-4)
-  // when the stream doesn't have a description. In these cases, and when the H.264 or HEVC stream
-  // doesn't have it, use the matrix that the container has (FFmpeg's, which is read when the file
-  // is opened and doesn't need to read the stream).
+  // of some (VP9: always 0, even for a BT.709 stream), and for others it reports the default of
+  // the codec (MPEG-4: BT.709) when the stream doesn't have a description (observed with the video
+  // files of DALI_extra). In these cases, and when the H.264 or HEVC stream doesn't have it, use
+  // the matrix that the container has (FFmpeg's, which is read when the file is opened and doesn't
+  // need to read the stream).
   switch (codec_params_->codec_id) {
     case AV_CODEC_ID_H264:
     case AV_CODEC_ID_HEVC: {
