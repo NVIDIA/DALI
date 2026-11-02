@@ -394,7 +394,7 @@ void NvDecoder::receive_frames(SequenceWrapper& sequence) {
               static_cast<ptrdiff_t>(i) * sequence.height * sequence.width * sequence.channels;
       TYPE_SWITCH(dtype_, type2id, OutType, NVDECODER_SUPPORTED_TYPES, (
         auto* tensor_out = sequence.sequence.mutable_data<OutType>() + frame_stride;
-        VideoColorSpaceConversion(
+        ConvertVideoColorSpace(
           reinterpret_cast<OutType *>(tensor_out), sequence.width * sequence.channels,
           reinterpret_cast<const uint8_t *>(frame.get_ptr()), static_cast<int>(frame.get_pitch()),
           decoder_.height(),
