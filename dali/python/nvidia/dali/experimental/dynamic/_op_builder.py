@@ -564,11 +564,13 @@ def build_fn_wrapper(op, fn_name=None, add_to_module=True):
             **call_args,
         )
 
+    eager_call = fn_call
     fn_call = _capture_intercept(fn_call, op, op_name=fn_name)
 
     doc = _docs._docstring_generator_fn(schema.Name(), api="dynamic", args=used_kwargs)
     function = mark_transparent(makefun.create_function(header, fn_call, doc=doc))
     function._op_class = op
+    function._eager_call = eager_call
     function._schema = schema
     function._schema_name = schema.Name()
     function._generated = True
