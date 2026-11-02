@@ -1594,8 +1594,27 @@ def non_idr_decoder_frames(codec, start_frame, sequence_length):
     return np.array(pipe.run()[0].as_cpu().at(0))
 
 
-def mean_abs_diff(frame, ref_frame):
-    return np.abs(np.float32(frame) - np.float32(ref_frame)).mean()
+@lru_cache(maxsize=None)
+def non_idr_reference_frames(codec):
+    """All frames of the stream, as decoded by FFmpeg"""
+    return np.stack(extract_frames_from_video(non_idr_videos[codec]))
+
+
+def closest_reference_indices(frames, reference):
+    """Index of the reference frame that each of the frames is the most similar to (mean absolute
+    difference)
+
+    Neighbouring frames of the test clips are similar (mean difference of a few levels), so
+    comparing a frame with the reference frame of the same index with a tolerance, as
+    compare_frames does, does not tell a frame from the adjacent ones: a sequence shifted by one
+    frame or with two frames swapped would pass. Finding the best match among all the reference
+    frames needs no tolerance.
+    """
+    reference = reference.astype(np.int16)
+    return [
+        int(np.abs(reference - frame.astype(np.int16)).mean(axis=(1, 2, 3)).argmin())
+        for frame in frames
+    ]
 
 
 @lru_cache(maxsize=None)
@@ -1625,20 +1644,11 @@ def test_non_idr_keyframes_sequential_decoding(codec):
     """Decoding the stream in order gives all the frames, as decoded by FFmpeg"""
     skip_if_m60()
     frames = non_idr_sequential_frames(codec)
-    reference = extract_frames_from_video(non_idr_videos[codec])
+    reference = non_idr_reference_frames(codec)
     assert len(frames) == len(reference), f"{len(frames)} != {len(reference)} frames"
     for i, (frame, ref_frame) in enumerate(zip(frames, reference, strict=True)):
         compare_frames(frame, ref_frame, i)
-        # neighbouring frames of the test clips are similar (mean difference of 3-8 levels), so a
-        # frame shifted or swapped with its neighbour could pass compare_frames: require that the
-        # frame is closer to its own reference than to the adjacent ones
-        own = mean_abs_diff(frame, ref_frame)
-        for j in (i - 1, i + 1):
-            if 0 <= j < len(reference):
-                assert own < mean_abs_diff(frame, reference[j]), (
-                    f"{codec}: frame {i} is closer to frame {j} of the reference "
-                    f"({mean_abs_diff(frame, reference[j]):.2f}) than to its own ({own:.2f})"
-                )
+    assert closest_reference_indices(frames, reference) == list(range(len(reference)))
 
 
 @cartesian_params(
@@ -1658,6 +1668,10 @@ def test_non_idr_keyframes_random_access(codec, op, start_frame, sequence_length
     frames = decode(codec, start_frame, sequence_length)
     expected = non_idr_sequential_frames(codec)[start_frame : start_frame + sequence_length]
     assert frames.shape == expected.shape, f"{frames.shape} != {expected.shape}"
+    # the frames are the requested ones of the stream, as decoded by FFmpeg
+    assert closest_reference_indices(frames, non_idr_reference_frames(codec)) == list(
+        range(start_frame, start_frame + sequence_length)
+    )
     for i in range(sequence_length):
         diff = np.abs(frames[i].astype(np.int16) - expected[i].astype(np.int16))
         assert np.array_equal(frames[i], expected[i]), (
