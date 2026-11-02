@@ -47,6 +47,20 @@ FrameIndexCache::IndexPtr GetOrBuild(FrameIndexCache &cache, const std::string &
                           std::forward<BuildFn>(build));
 }
 
+// The index of `filename` that is expected to be cached already: fails the test (and returns
+// nullptr) if it had to be built.
+FrameIndexCache::IndexPtr Cached(FrameIndexCache &cache, const std::string &filename,
+                                 const FrameIndexCache::FileStamp &stamp = {}) {
+  try {
+    return cache.GetOrBuild(filename, stamp, []() -> FrameIndex {
+      throw std::logic_error("must not be built");
+    });
+  } catch (const std::logic_error &) {
+    ADD_FAILURE() << "Index of " << filename << " is not cached";
+    return nullptr;
+  }
+}
+
 }  // namespace
 
 class FrameIndexCacheTest : public ::testing::Test {
@@ -102,7 +116,7 @@ TEST_F(FrameIndexCacheTest, IndexStaysValidAfterOtherInsertions) {
     GetOrBuild(cache, Key("valid", i), [&] { return MakeIndex(Key("valid", i), 1); });
   ASSERT_EQ(first->size(), 10u);
   EXPECT_EQ(first->filename, Key("valid", 0));
-  EXPECT_EQ(cache.Find(Key("valid", 0)), first);
+  EXPECT_EQ(Cached(cache, Key("valid", 0)), first);
 }
 
 TEST_F(FrameIndexCacheTest, FailedBuildIsReportedAndRetried) {
@@ -111,35 +125,10 @@ TEST_F(FrameIndexCacheTest, FailedBuildIsReportedAndRetried) {
   EXPECT_THROW(
       GetOrBuild(cache, key, []() -> FrameIndex { throw std::runtime_error("cannot index"); }),
       std::runtime_error);
-  EXPECT_EQ(cache.Find(key), nullptr);
+  // the failed entry was removed, so the next call builds the index again
   auto index = GetOrBuild(cache, key, [&] { return MakeIndex(key, 3); });
   ASSERT_NE(index, nullptr);
   EXPECT_EQ(index->size(), 3u);
-}
-
-TEST_F(FrameIndexCacheTest, FindDoesNotBuildOrWait) {
-  auto &cache = FrameIndexCache::instance();
-  auto key = Key("find", 0);
-  EXPECT_EQ(cache.Find(key), nullptr);
-  std::atomic<bool> building{false}, release{false};
-  FrameIndexCache::IndexPtr built;
-  std::thread builder([&]() {
-    built = GetOrBuild(cache, key, [&] {
-      building = true;
-      while (!release)
-        std::this_thread::yield();
-      return MakeIndex(key, 2);
-    });
-  });
-  while (!building)
-    std::this_thread::yield();
-  EXPECT_EQ(cache.Find(key), nullptr);  // still being built
-  release = true;
-  builder.join();
-  auto index = cache.Find(key);
-  ASSERT_NE(index, nullptr);
-  EXPECT_EQ(index, built);
-  EXPECT_EQ(index->size(), 2u);
 }
 
 TEST_F(FrameIndexCacheTest, IndexIsKeptAfterItsLastUser) {
@@ -157,7 +146,7 @@ TEST_F(FrameIndexCacheTest, IndexIsKeptAfterItsLastUser) {
   index.reset();  // e.g. the reader is destroyed: a later one reuses the index
   index = GetOrBuild(cache, key, build);
   EXPECT_EQ(index.get(), built);
-  EXPECT_EQ(cache.Find(key), index);
+  EXPECT_EQ(Cached(cache, key), index);
   EXPECT_EQ(builds, 1);
 }
 
@@ -217,7 +206,7 @@ TEST_F(FrameIndexCacheTest, UnfinishedBuildDoesNotOverwriteItsReplacement) {
     // the file changed while the old version was being indexed
     auto new_index = cache.GetOrBuild(key, new_stamp, [&] { return MakeIndex(key, 2); });
     ASSERT_EQ(new_index->size(), 2u);
-    EXPECT_EQ(cache.Find(key), new_index);
+    EXPECT_EQ(Cached(cache, key, new_stamp), new_index);
     release = true;
     old_builder.join();
     if (old_fails) {
@@ -226,10 +215,7 @@ TEST_F(FrameIndexCacheTest, UnfinishedBuildDoesNotOverwriteItsReplacement) {
       ASSERT_NE(old_index, nullptr);  // its caller still gets the index it built
       EXPECT_EQ(old_index->size(), 1u);
     }
-    EXPECT_EQ(cache.Find(key), new_index);
-    EXPECT_EQ(cache.GetOrBuild(key, new_stamp, [&]() -> FrameIndex {
-      throw std::logic_error("must not be built again");
-    }), new_index);
+    EXPECT_EQ(Cached(cache, key, new_stamp), new_index);
   }
 }
 

@@ -113,13 +113,6 @@ class DLL_PUBLIC FrameIndexCache {
     }
   }
 
-  /**
-   * @brief Returns the index of `filename` if it is cached and ready, nullptr otherwise.
-   *
-   * Never builds and never waits; does not check the file.
-   */
-  IndexPtr Find(std::string_view filename) const;
-
  private:
   FrameIndexCache() = default;
 

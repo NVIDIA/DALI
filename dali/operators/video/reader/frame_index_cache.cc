@@ -57,12 +57,4 @@ void FrameIndexCache::Finish(std::string_view filename, uint64_t id, const Index
   }
 }
 
-FrameIndexCache::IndexPtr FrameIndexCache::Find(std::string_view filename) const {
-  std::shared_lock guard(mutex_);
-  auto it = cache_.find(filename);
-  if (it == cache_.end() || it->second.pending.valid())
-    return nullptr;
-  return it->second.index;
-}
-
 }  // namespace dali
