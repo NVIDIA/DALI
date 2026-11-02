@@ -96,24 +96,21 @@ class DLL_PUBLIC FrameIndexCache {
         cache_.insert_or_assign(std::string(filename), Entry{id, pending, {}, stamp});
       }
     }
-    if (!id)
-      return pending.get();  // built by another thread
-    IndexPtr index;
-    try {
-      index = std::make_shared<const FrameIndex>(build());
-    } catch (...) {
-      Finish(filename, id, nullptr);
-      promise.set_exception(std::current_exception());
-      throw;
+    if (id) {  // this thread builds the index
+      IndexPtr index;
+      try {
+        index = std::make_shared<const FrameIndex>(build());
+      } catch (...) {
+        Finish(filename, id, nullptr);
+        promise.set_exception(std::current_exception());
+        throw;
+      }
+      Finish(filename, id, index);
+      promise.set_value(index);
+      return index;
+    } else {  // built by another thread
+      return pending.get();
     }
-    Finish(filename, id, index);
-    promise.set_value(index);
-    return index;
-  }
-
-  template <typename BuildFn>
-  IndexPtr GetOrBuild(std::string_view filename, BuildFn &&build) {
-    return GetOrBuild(filename, FileStamp::Of(filename), std::forward<BuildFn>(build));
   }
 
   /**

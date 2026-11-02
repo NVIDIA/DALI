@@ -39,6 +39,14 @@ FrameIndex MakeIndex(const std::string &filename, int num_frames) {
   return index;
 }
 
+// GetOrBuild with the current stamp of `filename` (the keys of most tests are not paths: -1, -1)
+template <typename BuildFn>
+FrameIndexCache::IndexPtr GetOrBuild(FrameIndexCache &cache, const std::string &filename,
+                                     BuildFn &&build) {
+  return cache.GetOrBuild(filename, FrameIndexCache::FileStamp::Of(filename),
+                          std::forward<BuildFn>(build));
+}
+
 }  // namespace
 
 class FrameIndexCacheTest : public ::testing::Test {
@@ -68,7 +76,7 @@ TEST_F(FrameIndexCacheTest, BuildsEachIndexOnceUnderConcurrency) {
       for (int r = 0; r < kRounds; r++) {
         for (int f = 0; f < kFiles; f++) {
           int file = (f + t * 7) % kFiles;  // threads start on different files
-          auto index = cache.GetOrBuild(Key("concurrent", file), [&]() {
+          auto index = GetOrBuild(cache, Key("concurrent", file), [&]() {
             builds[file]++;
             std::this_thread::sleep_for(std::chrono::microseconds(200));
             return MakeIndex(Key("concurrent", file), file + 1);
@@ -89,9 +97,9 @@ TEST_F(FrameIndexCacheTest, BuildsEachIndexOnceUnderConcurrency) {
 
 TEST_F(FrameIndexCacheTest, IndexStaysValidAfterOtherInsertions) {
   auto &cache = FrameIndexCache::instance();
-  auto first = cache.GetOrBuild(Key("valid", 0), [&] { return MakeIndex(Key("valid", 0), 10); });
+  auto first = GetOrBuild(cache, Key("valid", 0), [&] { return MakeIndex(Key("valid", 0), 10); });
   for (int i = 1; i < 1000; i++)  // forces rehashing of the underlying map
-    cache.GetOrBuild(Key("valid", i), [&] { return MakeIndex(Key("valid", i), 1); });
+    GetOrBuild(cache, Key("valid", i), [&] { return MakeIndex(Key("valid", i), 1); });
   ASSERT_EQ(first->size(), 10u);
   EXPECT_EQ(first->filename, Key("valid", 0));
   EXPECT_EQ(cache.Find(Key("valid", 0)), first);
@@ -101,10 +109,10 @@ TEST_F(FrameIndexCacheTest, FailedBuildIsReportedAndRetried) {
   auto &cache = FrameIndexCache::instance();
   auto key = Key("failure", 0);
   EXPECT_THROW(
-      cache.GetOrBuild(key, []() -> FrameIndex { throw std::runtime_error("cannot index"); }),
+      GetOrBuild(cache, key, []() -> FrameIndex { throw std::runtime_error("cannot index"); }),
       std::runtime_error);
   EXPECT_EQ(cache.Find(key), nullptr);
-  auto index = cache.GetOrBuild(key, [&] { return MakeIndex(key, 3); });
+  auto index = GetOrBuild(cache, key, [&] { return MakeIndex(key, 3); });
   ASSERT_NE(index, nullptr);
   EXPECT_EQ(index->size(), 3u);
 }
@@ -116,7 +124,7 @@ TEST_F(FrameIndexCacheTest, FindDoesNotBuildOrWait) {
   std::atomic<bool> building{false}, release{false};
   FrameIndexCache::IndexPtr built;
   std::thread builder([&]() {
-    built = cache.GetOrBuild(key, [&] {
+    built = GetOrBuild(cache, key, [&] {
       building = true;
       while (!release)
         std::this_thread::yield();
@@ -142,12 +150,12 @@ TEST_F(FrameIndexCacheTest, IndexIsKeptAfterItsLastUser) {
     builds++;
     return MakeIndex(key, 4);
   };
-  auto index = cache.GetOrBuild(key, build);
-  EXPECT_EQ(cache.GetOrBuild(key, build), index);
+  auto index = GetOrBuild(cache, key, build);
+  EXPECT_EQ(GetOrBuild(cache, key, build), index);
   EXPECT_EQ(builds, 1);
   const FrameIndex *built = index.get();
   index.reset();  // e.g. the reader is destroyed: a later one reuses the index
-  index = cache.GetOrBuild(key, build);
+  index = GetOrBuild(cache, key, build);
   EXPECT_EQ(index.get(), built);
   EXPECT_EQ(cache.Find(key), index);
   EXPECT_EQ(builds, 1);
@@ -167,18 +175,18 @@ TEST_F(FrameIndexCacheTest, IndexIsRebuiltWhenTheFileChanges) {
   {
     std::ofstream(path) << "first";
   }
-  auto first = cache.GetOrBuild(path, build);
-  EXPECT_EQ(cache.GetOrBuild(path, build), first);
+  auto first = GetOrBuild(cache, path, build);
+  EXPECT_EQ(GetOrBuild(cache, path, build), first);
   EXPECT_EQ(builds, 1);
   {
     std::ofstream(path, std::ios::app) << ", second";  // another size
   }
-  auto second = cache.GetOrBuild(path, build);
+  auto second = GetOrBuild(cache, path, build);
   EXPECT_EQ(builds, 2);
   EXPECT_NE(second, first);
   EXPECT_EQ(second->size(), 2u);
   EXPECT_EQ(first->size(), 1u);  // still valid for its users
-  EXPECT_EQ(cache.GetOrBuild(path, build), second);
+  EXPECT_EQ(GetOrBuild(cache, path, build), second);
   unlink(path);
 }
 
