@@ -14,6 +14,7 @@
 
 import numpy as np
 import torch
+from nvidia.dali import fn
 from typing import Sequence, Literal
 
 from .operator import Operator, ArgumentValidateRule
@@ -110,5 +111,9 @@ class Normalize(Operator):
             mean = np.asarray(self.mean)[:, None, None]
             std = np.asarray(self.std)[:, None, None]
 
-        # Arithmetic broadcasting is right-aligned, so it works for CHW, FCHW, HWC and FHWC
-        return (data_input - mean) / std
+        # Arithmetic broadcasting is right-aligned, so it works for CHW, FCHW, HWC and FHWC.
+        # Torchvision subtracts the mean out of place, but divides in place, so std cannot
+        # expand the result of subtraction (e.g. 1 channel with 3-element std). Reshaping to the
+        # shape before the division fails in that case.
+        centered = data_input - mean
+        return fn.reshape(centered / std, shape=centered.shape())

@@ -148,6 +148,38 @@ def test_mismatched_mean_or_std_length_raises(mean, std):
 
 
 @params(
+    ("cpu", [0.0], [1.0, 2.0, 3.0]),
+    ("gpu", [0.0], [1.0, 2.0, 3.0]),
+)
+def test_std_cannot_expand_single_channel_input(device, mean, std):
+    # Torchvision divides in place, so std cannot expand (1, H, W) into (3, H, W)
+    x = torch.rand(1, 8, 8)
+    with assert_raises(RuntimeError):
+        _ = transforms.Normalize(mean=mean, std=std)(x)
+    with assert_raises(RuntimeError):
+        _ = Compose([Normalize(mean=mean, std=std, device=device)])(x)
+
+
+@params(("cpu",), ("gpu",))
+def test_mean_can_expand_single_channel_input(device):
+    # Torchvision subtracts the mean out of place, so it can expand (1, H, W) into (3, H, W)
+    x = torch.rand(1, 8, 8)
+    out = transforms.Normalize(mean=[0.0, 0.5, 1.0], std=[2.0])(x)
+    dout = Compose([Normalize(mean=[0.0, 0.5, 1.0], std=[2.0], device=device)])(x)
+    assert dout.shape == out.shape == (3, 8, 8)
+    assert torch.allclose(dout.cpu(), out, atol=1e-5)
+
+
+@params(("cpu",), ("gpu",))
+def test_single_value_mean_std_broadcast_over_channels(device):
+    x = make_sample_tensor()
+    out = transforms.Normalize(mean=[0.5], std=[2.0])(x)
+    dout = Compose([Normalize(mean=[0.5], std=[2.0], device=device)])(x)
+    assert dout.shape == out.shape
+    assert torch.allclose(dout.cpu(), out, atol=1e-5)
+
+
+@params(
     ([0.0, 0.0, 0.0], [1.0, 0.0, 1.0]),
     ([0.0, 0.0, 0.0], [0.0, 1.0, 1.0]),
 )
