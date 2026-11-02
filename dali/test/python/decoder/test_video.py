@@ -1594,6 +1594,10 @@ def non_idr_decoder_frames(codec, start_frame, sequence_length):
     return np.array(pipe.run()[0].as_cpu().at(0))
 
 
+def mean_abs_diff(frame, ref_frame):
+    return np.abs(np.float32(frame) - np.float32(ref_frame)).mean()
+
+
 @lru_cache(maxsize=None)
 def non_idr_sequential_frames(codec):
     """All frames of the stream, decoded in order from the start"""
@@ -1625,6 +1629,16 @@ def test_non_idr_keyframes_sequential_decoding(codec):
     assert len(frames) == len(reference), f"{len(frames)} != {len(reference)} frames"
     for i, (frame, ref_frame) in enumerate(zip(frames, reference, strict=True)):
         compare_frames(frame, ref_frame, i)
+        # neighbouring frames of the test clips are similar (mean difference of 3-8 levels), so a
+        # frame shifted or swapped with its neighbour could pass compare_frames: require that the
+        # frame is closer to its own reference than to the adjacent ones
+        own = mean_abs_diff(frame, ref_frame)
+        for j in (i - 1, i + 1):
+            if 0 <= j < len(reference):
+                assert own < mean_abs_diff(frame, reference[j]), (
+                    f"{codec}: frame {i} is closer to frame {j} of the reference "
+                    f"({mean_abs_diff(frame, reference[j]):.2f}) than to its own ({own:.2f})"
+                )
 
 
 @cartesian_params(
