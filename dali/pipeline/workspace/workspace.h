@@ -740,7 +740,7 @@ class WorkspaceBase : public ArgumentWorkspace {
 
  private:
   template <typename Buffers, typename Getter>
-  static auto GetBufferProperty(Buffers &buffers, int idx, Getter &&getter) {
+  static decltype(auto) GetBufferProperty(Buffers &buffers, int idx, Getter &&getter) {
     DALI_ENFORCE_VALID_INDEX(idx, buffers.size());
     auto &inp = buffers[idx];
     if (inp.device == StorageDevice::GPU)
