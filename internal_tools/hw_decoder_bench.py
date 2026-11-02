@@ -59,7 +59,8 @@ class ParseRangeArg(argparse.Action):
                     # +step/2 to include end value
                     values = list(np.arange(start, end + step / 2, step))
                 else:
-                    values = list(range(start, end + 1, step))  # +1 to include end value
+                    # +/-1 to include end value in either direction
+                    values = list(range(start, end + (1 if step > 0 else -1), step))
             except (ValueError, ZeroDivisionError):
                 raise ValueError(
                     f"invalid range '{arg_str}', expected 'start:end:step' "
@@ -78,7 +79,7 @@ class ParseRangeArg(argparse.Action):
 parser = argparse.ArgumentParser(description="DALI HW decoder benchmark")
 parser.add_argument(
     "-b",
-    dest="batch_size",
+    dest="batch_sizes",
     help="Batch size. Can be a single value (e.g. 64) or range 'start:end:step' (e.g. 32:256:32). "
     "End of range is included.",
     default=[1],
@@ -178,14 +179,14 @@ args = parser.parse_args()
 if args.ndd_capture and args.pipeline != "ndd_rn50":
     parser.error("--ndd-capture requires -p ndd_rn50")
 
-if min(args.batch_size) < 1:
-    parser.error(f"argument -b: batch size must be positive, got {args.batch_size}")
+if min(args.batch_sizes) < 1:
+    parser.error(f"argument -b: batch size must be positive, got {args.batch_sizes}.")
 
 # Per-iteration statistics (stdev) need at least 2 iterations for every batch size
-if args.total_images < 2 * max(args.batch_size):
+if args.total_images < 2 * max(args.batch_sizes):
     parser.error(
         f"argument -t: total images ({args.total_images}) must be at least twice the largest "
-        f"batch size ({max(args.batch_size)})"
+        f"batch size ({max(args.batch_sizes)})."
     )
 
 
@@ -537,10 +538,10 @@ needs_feed_input = args.pipeline == "efficientnet_inference"
 
 print(f"Threads num to check: {args.threads_num}")
 print(f"Decoder hw load to check: {args.decoder_hw_load}")
-print(f"Batch size to check: {args.batch_size}")
+print(f"Batch size to check: {args.batch_sizes}")
 
 perf_results = []
-test_configs = product(args.threads_num, args.decoder_hw_load, args.batch_size)
+test_configs = product(args.threads_num, args.decoder_hw_load, args.batch_sizes)
 for cpu_num, hw_load, batch_size in test_configs:
     if "ndd" in args.pipeline:
         decoders_module = ndd.experimental.decoders if args.experimental_decoder else ndd.decoders
