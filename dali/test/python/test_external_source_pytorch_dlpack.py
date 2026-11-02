@@ -13,11 +13,12 @@
 # limitations under the License.
 
 import numpy as np
+from unittest import mock
 import nvidia.dali.fn as fn
 import nvidia.dali.ops as ops
 import torch
 from nvidia.dali.backend_impl import *  # noqa: F401, F403
-from nvidia.dali import Pipeline
+from nvidia.dali import Pipeline, pipeline_def
 from torch.utils.dlpack import to_dlpack, from_dlpack
 
 from test_utils import check_output
@@ -176,3 +177,18 @@ def test_external_source_callback_torch_stream():
     for src_device in ["cpu", "gpu"]:
         for gen_device in ["cpu", "cuda"]:
             yield _test_external_source_callback_torch_stream, src_device, gen_device
+
+
+def test_feed_cpu_torch_tensor_without_cuda():
+    # A CPU tensor must not need a CUDA stream, e.g. with a CPU-only PyTorch build
+    @pipeline_def(batch_size=1, num_threads=1, device_id=None)
+    def pipe():
+        return fn.external_source(name="x") + 1
+
+    p = pipe()
+    p.build()
+    no_cuda = AssertionError("Torch not compiled with CUDA enabled")
+    with mock.patch("torch.cuda.current_stream", side_effect=no_cuda):
+        p.feed_input("x", [torch.arange(3, dtype=torch.int32)])
+        (out,) = p.run()
+    assert np.array_equal(np.array(out[0]), [1, 2, 3])

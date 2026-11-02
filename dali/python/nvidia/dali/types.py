@@ -421,6 +421,8 @@ def _get_default_stream_for_array(array):
     if isinstance(array, (backend_impl.TensorListGPU, backend_impl.TensorGPU)):
         return array.stream
     if _is_torch_tensor(array):
+        if not array.is_cuda:
+            return None
         import torch
 
         return _raw_cuda_stream(torch.cuda.current_stream())
