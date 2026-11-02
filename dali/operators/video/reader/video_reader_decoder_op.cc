@@ -214,10 +214,6 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
     MoveToNextShard(++current_index_);
   }
 
-  /**
-   * @brief The frame index of one of the reader's files, nullptr if the file was not indexed
-   *        (it is not a valid video).
-   */
   const FrameIndex *FileIndex(const std::string &filename) const {
     auto it = indices_.find(filename);
     return it != indices_.end() ? it->second.get() : nullptr;
@@ -565,9 +561,6 @@ class VideoReaderDecoder
     return true;
   }
 
-  /**
-   * @brief The frame index of one of the reader's files (see VideoLoaderDecoder::FileIndex).
-   */
   const FrameIndex *FileIndex(const std::string &filename) const {
     return static_cast<const VideoLoaderImpl &>(*loader_).FileIndex(filename);
   }
