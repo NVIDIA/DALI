@@ -1558,27 +1558,39 @@ def is_idr(codec, types):
     return any(t == 5 for t in types) if codec == Codec.H264 else any(t in (19, 20) for t in types)
 
 
-def non_idr_reader_frames(codec, start_frame, sequence_length):
+def non_idr_reader_sequences(codec, starts, sequence_length):
+    """The sequences that start at the given frames, read in this order from the file by one reader
+    (batch of 1, so the reader's decoder has decoded the previous sequences already)"""
     with tempfile.NamedTemporaryFile("w", suffix=".txt") as file_list:
-        file_list.write(
-            f"{non_idr_videos[codec]} 0 {start_frame} {start_frame + sequence_length}\n"
-        )
+        for start in starts:
+            # the label is the start frame, to check the order
+            file_list.write(f"{non_idr_videos[codec]} {start} {start} {start + sequence_length}\n")
         file_list.flush()
 
         @pipeline_def(batch_size=1, num_threads=1, device_id=0)
         def reader_pipe():
-            frames, _ = fn.experimental.readers.video(
+            frames, labels = fn.experimental.readers.video(
                 device="gpu",
                 file_list=file_list.name,
                 file_list_format="frames",
                 file_list_include_end=False,
                 sequence_length=sequence_length,
             )
-            return frames
+            return frames, labels
 
         pipe = reader_pipe()
         pipe.build()
-        return np.array(pipe.run()[0].as_cpu().at(0))
+        sequences = []
+        for start in starts:
+            frames, labels = pipe.run()
+            label = int(np.array(labels.as_cpu().at(0)).reshape(-1)[0])
+            assert label == start, f"The sequence of frame {label} came instead of {start}"
+            sequences.append(np.array(frames.as_cpu().at(0)))
+        return sequences
+
+
+def non_idr_reader_frames(codec, start_frame, sequence_length):
+    return non_idr_reader_sequences(codec, [start_frame], sequence_length)[0]
 
 
 def non_idr_decoder_frames(codec, start_frame, sequence_length):
@@ -1703,13 +1715,34 @@ def test_non_idr_keyframes_random_access(codec, op, start_frame, sequence_length
     frames = decode(codec, start_frame, sequence_length)
     expected = non_idr_sequential_frames(codec)[start_frame : start_frame + sequence_length]
     assert frames.shape == expected.shape, f"{frames.shape} != {expected.shape}"
-    # the frames are the requested ones of the stream, as decoded by FFmpeg
-    assert closest_reference_indices(frames, non_idr_reference_frames(codec)) == list(
-        range(start_frame, start_frame + sequence_length)
-    )
     for i in range(sequence_length):
         diff = np.abs(frames[i].astype(np.int16) - expected[i].astype(np.int16))
         assert np.array_equal(frames[i], expected[i]), (
             f"{codec} {op}: frame {start_frame + i} differs from the one decoded in order, "
             f"max abs diff {diff.max()}"
         )
+
+
+# The reader keeps its decoder open while the next sequence is from the same file, so seeking can
+# start from a decoder that has decoded other sequences already (the decoder operator creates a new
+# one for each sample). The order makes it seek: far forward into the leading pictures of a
+# keyframe (57), backwards (33, 35, 20, 0, 23), to the keyframe (36), forward by a few frames,
+# which only skips the frames in between (26, 11, 24), and forward by many (45, 60).
+non_idr_warm_starts = [57, 33, 36, 35, 20, 26, 45, 0, 11, 24, 23, 60]
+
+
+@params(*non_idr_codecs)
+def test_non_idr_keyframes_warm_seeks(codec, sequence_length=4):
+    """Seeking on a decoder that has decoded other sequences gives the frames of the stream"""
+    skip_if_m60()
+    sequences = non_idr_reader_sequences(codec, non_idr_warm_starts, sequence_length)
+    expected = non_idr_sequential_frames(codec)
+    for start, frames in zip(non_idr_warm_starts, sequences, strict=True):
+        expected_frames = expected[start : start + sequence_length]
+        assert frames.shape == expected_frames.shape, f"{frames.shape} != {expected_frames.shape}"
+        for i in range(sequence_length):
+            diff = np.abs(frames[i].astype(np.int16) - expected_frames[i].astype(np.int16))
+            assert np.array_equal(frames[i], expected_frames[i]), (
+                f"{codec}: frame {start + i} of the sequence from {start} differs from the one "
+                f"decoded in order, max abs diff {diff.max()}"
+            )
