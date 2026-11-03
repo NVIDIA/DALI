@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <cmath>
 #include <limits>
 #include <list>
 #include <map>
@@ -128,6 +129,53 @@ std::vector<uint32_t> DecodeRleCounts(const std::string &str) {
     counts.push_back(static_cast<uint32_t>(value));
   }
   return counts;
+}
+
+/**
+ * @brief The largest absolute polygon coordinate, in pixels, accepted for pixelwise masks
+ *
+ * `rleFrPoly` converts 5 times the coordinates, and their differences, to `int`.
+ */
+constexpr int64_t kMaxPolygonCoordinate = 100'000'000;
+
+/**
+ * @brief The largest polygon perimeter, in pixels, accepted for pixelwise masks
+ *
+ * `rleFrPoly` allocates about 80 bytes per pixel of the perimeter, including the parts outside
+ * the image, without checking the allocations. This limit keeps it below about 1.3 GB.
+ */
+constexpr int64_t kMaxPolygonPerimeter = int64_t{1} << 24;
+
+/**
+ * @brief Checks that an RLE mask matches the image size and covers each pixel exactly once
+ *
+ * @param mask_idx  the index of the mask among the RLE masks of the image
+ */
+void ValidateRle(const RLE &rle, int h, int w, const std::string &image, int64_t mask_idx) {
+  const int64_t num_pixels = static_cast<int64_t>(h) * w;
+  if (rle.h != static_cast<siz>(h) || rle.w != static_cast<siz>(w)) {
+    throw std::invalid_argument(make_string(
+        "Invalid COCO RLE mask: dimensions must match the image; got ", rle.h, "x", rle.w,
+        ", expected ", h, "x", w, ". Image: \"", image, "\", RLE mask index ", mask_idx, "."));
+  }
+  if (rle.m == 0 || rle.m > static_cast<siz>(num_pixels + 1)) {
+    throw std::invalid_argument(make_string(
+        "Invalid COCO RLE mask: too many or missing runs; got ", rle.m,
+        ", expected 1 to ", num_pixels + 1,
+        ". Image: \"", image, "\", RLE mask index ", mask_idx, "."));
+  }
+  int64_t covered = 0;
+  for (siz i = 0; i < rle.m; i++) {
+    covered += rle.cnts[i];
+    // Counts are nonnegative. Stop on invalid coverage before further additions can overflow.
+    if (covered > num_pixels)
+      break;
+  }
+  if (covered != num_pixels) {
+    throw std::invalid_argument(make_string(
+        "Invalid COCO RLE mask: the sum of run lengths must equal the number of pixels. "
+        "Image: \"", image, "\", RLE mask index ", mask_idx, "."));
+  }
 }
 
 template <typename T>
@@ -808,6 +856,8 @@ void CocoLoader::ValidateAnnotations() const {
       throw std::invalid_argument(make_string("Invalid COCO annotations: ", message...));
   };
   const int64_t num_samples = file_label_entries_.size();
+  // Always false for preprocessed annotations, which do not accept `ratio`
+  const bool ratio = spec_.GetArgument<bool>("ratio");
   auto check_size = [&](const auto &values, const char *name) {
     check(static_cast<int64_t>(values.size()) == num_samples, "expected ", num_samples, " ",
           name, " entries (one per image), got ", values.size(), ".");
@@ -872,8 +922,9 @@ void CocoLoader::ValidateAnnotations() const {
       }
     }
     if (output_pixelwise_masks_) {
-      check(heights_[i] > 0 && widths_[i] > 0, "the size of image \"", image,
-            "\" must be positive, got ", heights_[i], "x", widths_[i], ".");
+      const int h = heights_[i], w = widths_[i];
+      check(h > 0 && w > 0, "the size of image \"", image, "\" must be positive, got ", h, "x", w,
+            ".");
       check_range(mask_offsets_[i], mask_counts_[i], masks_rles_.size(), "RLE masks", image);
       for (int64_t j = 0; j < mask_counts_[i]; j++) {
         int64_t mask_idx = mask_offsets_[i] + j;
@@ -882,6 +933,34 @@ void CocoLoader::ValidateAnnotations() const {
         check(masks_rles_idx_[mask_idx] >= 0 && masks_rles_idx_[mask_idx] < counts_[i],
               "RLE mask ", j, " of image \"", image, "\" refers to object ",
               masks_rles_idx_[mask_idx], ", but the image has ", counts_[i], " objects.");
+        detail::ValidateRle(masks_rles_[mask_idx]->get(), h, w, image, j);
+      }
+      if (has_polygons && has_vertices) {
+        // Pixelwise masks rasterize polygons with `rleFrPoly`, which clips polygons that extend
+        // outside the image, so only the coordinates and perimeters it cannot handle are rejected.
+        const vec2 *image_vertices = vertices_data_.data() + vertices_offset_[i];
+        for (int64_t j = 0; j < polygon_count_[i]; j++) {
+          const ivec3 &polygon = polygon_data_[polygon_offset_[i] + j];
+          const int begin = polygon[1], end = polygon[2];
+          double perimeter = 0;
+          for (int k = begin; k < end; k++) {
+            vec2 v = PolygonVertexPixels(image_vertices[k], ratio, h, w);
+            // Also false for NaN
+            check(std::abs(v.x) <= detail::kMaxPolygonCoordinate &&
+                  std::abs(v.y) <= detail::kMaxPolygonCoordinate,
+                  "polygon ", j, " of image \"", image, "\" has a vertex at (", v.x, ", ", v.y,
+                  "), but polygon coordinates must be finite and at most ",
+                  detail::kMaxPolygonCoordinate, " in absolute value.");
+            // The polygon is closed. The last vertex is checked before the perimeter is used.
+            vec2 prev = PolygonVertexPixels(image_vertices[k > begin ? k - 1 : end - 1], ratio,
+                                            h, w);
+            perimeter += std::hypot(static_cast<double>(v.x) - prev.x,
+                                    static_cast<double>(v.y) - prev.y);
+          }
+          check(perimeter <= detail::kMaxPolygonPerimeter, "polygon ", j, " of image \"", image,
+                "\" has a perimeter of ", perimeter, " pixels, but at most ",
+                detail::kMaxPolygonPerimeter, " is supported.");
+        }
       }
     }
   }

@@ -63,6 +63,15 @@ inline bool HasSavePreprocessedAnnotationsDir(const OpSpec &spec) {
     (spec.HasArgument("dump_meta_files_path") && spec.GetArgument<bool>("dump_meta_files_path"));
 }
 
+/**
+ * @brief The pixel coordinates of a polygon vertex, as rasterized for pixelwise masks
+ *
+ * With `ratio`, the vertices are stored relative to the image size.
+ */
+inline vec2 PolygonVertexPixels(vec2 v, bool ratio, int h, int w) {
+  return ratio ? vec2(v.x * w, v.y * h) : v;
+}
+
 struct RLEMask : public UniqueHandle<RLE, RLEMask> {
   DALI_INHERIT_UNIQUE_HANDLE(RLE, RLEMask)
 
@@ -199,8 +208,11 @@ class DLL_PUBLIC CocoLoader : public FileLabelLoaderBase<true> {
   void ParseJsonAnnotations();
 
   /**
-   * @brief Checks that the per-image ranges and indices are within the loaded annotation data
-   *        and that image sizes are positive when pixelwise masks are requested.
+   * @brief Checks that the per-image ranges and indices are within the loaded annotation data.
+   *
+   * When pixelwise masks are requested, also checks that image sizes are positive, that RLE masks
+   * match the image size and cover each pixel once, and that polygons have finite coordinates
+   * and sizes that `rleFrPoly` can rasterize. Polygons may extend outside the image.
    */
   void ValidateAnnotations() const;
 

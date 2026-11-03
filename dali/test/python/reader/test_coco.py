@@ -170,7 +170,7 @@ def write_coco_rle_annotations(directory, segmentations, height=2, width=2, cate
         f.write(b"image")
     annotations = {
         "images": [{"id": 1, "width": width, "height": height, "file_name": "image.bin"}],
-        "categories": [{"id": c} for c in category_ids],
+        "categories": [{"id": c} for c in dict.fromkeys(category_ids)],
         "annotations": [
             {
                 "id": i + 1,
@@ -290,6 +290,96 @@ def test_coco_pixelwise_masks_arbitrary_category_ids(category_ids, counts, expec
             pipe = coco_rle_masks_pipe(directory, preprocessed=preprocessed, avoid_remap=True)
             (masks,) = pipe.run()
             np.testing.assert_array_equal(masks.at(0)[:, :, 0], expected)
+
+
+# On a 2x2 image, these RLE masks and polygons fill the left or the right column.
+RLE_LEFT = {"size": [2, 2], "counts": [0, 2, 2]}
+RLE_RIGHT = {"size": [2, 2], "counts": [2, 2]}
+POLYGON_LEFT = [[0, 0, 1, 0, 1, 2, 0, 2]]
+POLYGON_RIGHT = [[1, 0, 2, 0, 2, 2, 1, 2]]
+
+
+@params(
+    ([1, 1], [RLE_LEFT, RLE_RIGHT], [[1, 1], [1, 1]]),
+    ([1, 1], [RLE_LEFT, POLYGON_RIGHT], [[1, 1], [1, 1]]),
+    ([1, 1], [POLYGON_RIGHT, RLE_LEFT], [[1, 1], [1, 1]]),
+    ([1, 1], [POLYGON_LEFT, POLYGON_RIGHT], [[1, 1], [1, 1]]),
+    ([2, 1, 2], [RLE_LEFT, {"size": [2, 2], "counts": [0, 4]}, POLYGON_RIGHT], [[2, 2], [2, 2]]),
+    # Zero-length runs, which `rleMerge` from the COCO API cannot merge.
+    (
+        [1, 1, 1],
+        [{"size": [2, 2], "counts": [1, 0, 0, 3]}] * 2 + [{"size": [2, 2], "counts": [4]}],
+        [[0, 1], [1, 1]],
+    ),
+)
+def test_coco_pixelwise_masks_same_category(category_ids, segmentations, expected):
+    # All masks of a category are painted, regardless of their encoding.
+    with tempfile.TemporaryDirectory() as directory:
+        write_coco_rle_annotations(directory, segmentations, category_ids=category_ids)
+        for preprocessed in (False, True):
+            pipe = coco_rle_masks_pipe(directory, preprocessed=preprocessed)
+            (masks,) = pipe.run()
+            np.testing.assert_array_equal(masks.at(0)[:, :, 0], expected)
+
+
+# Polygons that extend outside the image are clipped to it, however far they extend.
+@params(
+    *(
+        (polygon, expected, ratio)
+        for polygon, expected in (
+            ([-1000, -1000, 1000, -1000, 1000, 1000, -1000, 1000], [[1, 1], [1, 1]]),
+            ([-1000, -1000, 1, -1000, 1, 1000, -1000, 1000], [[1, 0], [1, 0]]),
+            ([1, -1e5, 1e5, -1e5, 1e5, 1e5, 1, 1e5], [[0, 1], [0, 1]]),
+            ([-1000, -1000, 1002, 1002, -1000, 1002], [[1, 0], [1, 1]]),
+        )
+        for ratio in (False, True)
+    )
+)
+def test_coco_polygon_outside_image(polygon, expected, ratio):
+    with tempfile.TemporaryDirectory() as directory:
+        write_coco_rle_annotations(directory, [[polygon]])
+        # `ratio` is baked into saved annotations, which are then used as pixel coordinates.
+        for preprocessed in (False,) if ratio else (False, True):
+            pipe = coco_rle_masks_pipe(directory, preprocessed=preprocessed, ratio=ratio)
+            (masks,) = pipe.run()
+            np.testing.assert_array_equal(masks.at(0)[:, :, 0], expected)
+
+
+VERTEX_OUT_OF_RANGE = (
+    "but polygon coordinates must be finite and at most 100000000 in absolute value."
+)
+
+
+@params(
+    (
+        [[0, 0, 1e9, 0, 1, 1]],
+        False,
+        f'polygon 0 of image "*image.bin" has a vertex at (1e+09, 0), {VERTEX_OUT_OF_RANGE}',
+    ),
+    (
+        [[0, 0, 1, 0, 1, 1], [0, 0, 1, -1e9, 1, 1]],
+        False,
+        f'polygon 1 of image "*image.bin" has a vertex at (1, -1e+09), {VERTEX_OUT_OF_RANGE}',
+    ),
+    (
+        [[0, 0, 1e9, 0, 1, 1]],
+        True,
+        f'polygon 0 of image "*image.bin" has a vertex at (1e+09, 0), {VERTEX_OUT_OF_RANGE}',
+    ),
+    # `rleFrPoly` would allocate about 3 GB.
+    (
+        [[0, 0, 2e7, 0, 0, 1]],
+        False,
+        'polygon 0 of image "*image.bin" has a perimeter of 4e+07 pixels, but at most 16777216 '
+        "is supported.",
+    ),
+)
+def test_coco_polygon_out_of_range(polygons, ratio, message):
+    with tempfile.TemporaryDirectory() as directory:
+        write_coco_rle_annotations(directory, [polygons])
+        for preprocessed in (False,) if ratio else (False, True):
+            pipe = coco_rle_masks_pipe(directory, preprocessed=preprocessed, ratio=ratio)
+            assert_raises(ValueError, pipe.run, glob=f"*Invalid COCO annotations: {message}*")
 
 
 @params(("image_id",), ("category_id",), ("bbox",))
@@ -453,6 +543,19 @@ def set_value(fmt, offset, value):
         "heights.dat",
         set_value("<i", 4, -2),
         'Invalid COCO annotations: the size of image "*image.bin" must be positive, got -2x2.',
+    ),
+    # Each vertex is a pair of 4-byte floats.
+    (
+        "vertices.dat",
+        set_value("<f", 4, float("nan")),
+        'Invalid COCO annotations: polygon 0 of image "*image.bin" has a vertex at (nan, 0), '
+        "but polygon coordinates must be finite",
+    ),
+    (
+        "vertices.dat",
+        set_value("<f", 4 + 3 * 4, float("-inf")),
+        'Invalid COCO annotations: polygon 0 of image "*image.bin" has a vertex at (2, -inf), '
+        "but polygon coordinates must be finite",
     ),
 )
 def test_coco_invalid_preprocessed_annotations(filename, update, message):

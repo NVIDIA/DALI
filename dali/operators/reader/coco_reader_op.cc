@@ -16,8 +16,6 @@
 
 #include <algorithm>
 #include <map>
-#include <set>
-#include <stdexcept>
 #include <variant>
 
 extern "C" {
@@ -275,8 +273,7 @@ void COCOReader::RunImpl(SampleWorkspace &ws) {
     auto masks_info = loader_impl.pixelwise_masks_info(image_idx);
     masks_output.Resize(masks_info.shape, DALI_INT32);
     masks_output.SetLayout("HWC");
-    PixelwiseMasks(image_idx, masks_output.mutable_data<int>(),
-                   image_label.image.GetSourceInfo());
+    PixelwiseMasks(image_idx, masks_output.mutable_data<int>());
   }
 
   if (output_image_ids_) {
@@ -286,7 +283,7 @@ void COCOReader::RunImpl(SampleWorkspace &ws) {
   }
 }
 
-void COCOReader::PixelwiseMasks(int image_idx, int* mask, const std::string &source) {
+void COCOReader::PixelwiseMasks(int image_idx, int* mask) {
   bool ratio = spec_.GetArgument<bool>("ratio");
   auto &loader_impl = LoaderImpl();
   auto pol = loader_impl.polygons(image_idx);
@@ -295,45 +292,18 @@ void COCOReader::PixelwiseMasks(int image_idx, int* mask, const std::string &sou
   int h = masks_info.shape[0];
   int w = masks_info.shape[1];
   const int64_t num_pixels = static_cast<int64_t>(h) * w;
-  // Validate annotation RLEs before copying them into image-sized buffers. This also
-  // covers compressed counts and preprocessed annotations, which bypass JSON parsing.
-  for (int64_t mask_idx = 0; mask_idx < masks_info.rles.size(); mask_idx++) {
-    const auto rle = masks_info.rles[mask_idx]->get();
-    if (rle.h != static_cast<siz>(h) || rle.w != static_cast<siz>(w)) {
-      throw std::invalid_argument(make_string(
-          "Invalid COCO RLE mask: dimensions must match the image; got ", rle.h, "x", rle.w,
-          ", expected ", h, "x", w, ". Image: \"", source, "\", RLE mask index ", mask_idx, "."));
-    }
-    if (rle.m == 0 || rle.m > static_cast<siz>(num_pixels + 1)) {
-      throw std::invalid_argument(make_string(
-          "Invalid COCO RLE mask: too many or missing runs; got ", rle.m,
-          ", expected 1 to ", num_pixels + 1,
-          ". Image: \"", source, "\", RLE mask index ", mask_idx, "."));
-    }
-    int64_t covered = 0;
-    for (siz i = 0; i < rle.m; i++) {
-      covered += rle.cnts[i];
-      // Counts are nonnegative. Stop on invalid coverage before further additions can overflow.
-      if (covered > num_pixels)
-        break;
-    }
-    if (covered != num_pixels) {
-      throw std::invalid_argument(make_string(
-          "Invalid COCO RLE mask: the sum of run lengths must equal the number of pixels. "
-          "Image: \"", source, "\", RLE mask index ", mask_idx, "."));
-    }
-  }
-  auto bboxes = loader_impl.bboxes(image_idx);
   auto labels_span = loader_impl.labels(image_idx);
-  std::set<int> labels(labels_span.data(),
-                       labels_span.data() + labels_span.size());
   memset(mask, 0, num_pixels * sizeof(int));
-  if (!labels.size()) {
-    return;
-  }
 
-  // Create a run-length encoding for each polygon, indexed by label :
-  std::map<int, std::vector<RLEMask>> frPoly;
+  // Views of the run-length encodings of each label. Category IDs come from the annotations (and
+  // are not remapped with `avoid_class_remapping`), so they can be negative or arbitrarily large
+  // and must not be used as indices. The annotation RLEs are owned by the loader, which validated
+  // them when loading the annotations; the polygon RLEs are owned by `polygon_masks`.
+  std::map<int, std::vector<RLE>> masks_by_label;
+  std::vector<RLEMask> polygon_masks;
+  polygon_masks.reserve(pol.size());
+
+  // Create a run-length encoding for each polygon
   std::vector<double> in;
   for (uint polygon_idx = 0; polygon_idx < pol.size(); polygon_idx++) {
     auto &polygon = pol[polygon_idx];
@@ -347,66 +317,45 @@ void COCOReader::PixelwiseMasks(int image_idx, int* mask, const std::string &sou
     auto pol_ver = span<const vec2>{ver.data() + start_idx, nver};
     in.resize(pol_ver.size() * 2);
     for (int i = 0, k = 0; i < pol_ver.size(); i++) {
-      in[k++] = static_cast<double>(ratio ? pol_ver[i].x * w : pol_ver[i].x);
-      in[k++] = static_cast<double>(ratio ? pol_ver[i].y * h : pol_ver[i].y);
+      // Validated by `CocoLoader::ValidateAnnotations`
+      vec2 v = PolygonVertexPixels(pol_ver[i], ratio, h, w);
+      in[k++] = v.x;
+      in[k++] = v.y;
     }
     RLE raw_mask;
     rleInit(&raw_mask, 0, 0, 0, 0);
     rleFrPoly(&raw_mask, in.data(), pol_ver.size(), h, w);
-    RLEMask polygon_mask(raw_mask);
-    frPoly[label].push_back(std::move(polygon_mask));
+    polygon_masks.emplace_back(raw_mask);
+    masks_by_label[label].push_back(polygon_masks.back().get());
   }
 
-  // Run-length encodings by labels. Category IDs come from the annotations (and are not remapped
-  // with `avoid_class_remapping`), so they can be negative or arbitrarily large and must not be
-  // used as indices.
-  std::map<int, RLEMask> R;
-
-  // Mask was originally described in RLE format
-  for (uint ann_id = 0 ; ann_id < masks_info.mask_indices.size(); ann_id++) {
-    const auto &rle = masks_info.rles[ann_id];
-    auto mask_idx = masks_info.mask_indices[ann_id];
-    int label = labels_span[mask_idx];
-    R[label] = RLEMask((*rle)->h, (*rle)->w, make_cspan((*rle)->cnts, (*rle)->m));
+  // Masks originally described in RLE format
+  for (uint ann_id = 0; ann_id < masks_info.mask_indices.size(); ann_id++) {
+    int label = labels_span[masks_info.mask_indices[ann_id]];
+    masks_by_label[label].push_back(masks_info.rles[ann_id]->get());
   }
 
-  // Merge each label (from multi-polygons annotations)
-  // The C API requires contiguous RLE structs; these views borrow the owned counts.
-  std::vector<RLE> polygon_rles;
-  for (const auto &rles : frPoly) {
-    polygon_rles.clear();
-    for (const auto &rle : rles.second)
-      polygon_rles.push_back(rle.get());
-    RLE merged_mask{};
-    rleMerge(polygon_rles.data(), &merged_mask, polygon_rles.size(), 0);
-    R[rles.first] = RLEMask(merged_mask);
-  }
-
-  // Paint the labels in ascending order, so that a higher label wins where masks overlap
-  // (the overlap is undefined by the spec). Each RLE alternates background and foreground runs,
-  // starting with background, and walks the pixels in column-major order.
-  // Zero-length runs and labels without a mask need no special handling.
-  for (int label : labels) {
-    auto it = R.find(label);
-    if (it == R.end())
-      continue;
-    const RLE rle = it->second.get();
-    if (!rle.cnts)
-      continue;
-    int64_t begin = 0;
-    for (siz i = 0; i < rle.m && begin < num_pixels; i++) {
-      int64_t end = std::min<int64_t>(begin + rle.cnts[i], num_pixels);
-      if (i % 2 == 1) {
-        int64_t x = begin / h, y = begin % h;
-        for (int64_t p = begin; p < end; p++) {
-          mask[x + y * w] = label;
-          if (++y == h) {
-            y = 0;
-            x++;
+  // Paint every mask, in ascending label order, so that the masks of a label add up and a higher
+  // label wins where masks of different labels overlap (the overlap is undefined by the spec).
+  // This avoids `rleMerge`, which fails on zero-length runs. Each RLE alternates background and
+  // foreground runs, starting with background, and walks the pixels in column-major order.
+  for (const auto &[label, rles] : masks_by_label) {
+    for (const RLE &rle : rles) {
+      int64_t begin = 0;
+      for (siz i = 0; i < rle.m && begin < num_pixels; i++) {
+        int64_t end = std::min<int64_t>(begin + rle.cnts[i], num_pixels);
+        if (i % 2 == 1) {
+          int64_t x = begin / h, y = begin % h;
+          for (int64_t p = begin; p < end; p++) {
+            mask[x + y * w] = label;
+            if (++y == h) {
+              y = 0;
+              x++;
+            }
           }
         }
+        begin = end;
       }
-      begin = end;
     }
   }
 }
