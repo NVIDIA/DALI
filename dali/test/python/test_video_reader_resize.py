@@ -276,7 +276,10 @@ def _check_experimental_against_reference(batch_size, reader_params, resize_para
 
     p = pipe()
     p.build()
-    for _ in range(2):
+    # The first sequences can be uniformly black (e.g. the opening of the Sintel trailer, which is
+    # exactly 0 once limited-range black is mapped to 0), so check over all iterations instead.
+    any_nonconstant = False
+    for _ in range(3):
         out = p.run()
         assert len(out) % 2 == 0, len(out)
         half = len(out) // 2
@@ -284,8 +287,7 @@ def _check_experimental_against_reference(batch_size, reader_params, resize_para
         fused_video = fused[0].as_cpu()
         ref_video = reference[0].as_cpu()
         assert fused_video.layout() == "FHWC", fused_video.layout()
-        # guard against a trivially passing comparison (e.g. both outputs all zeros)
-        assert any(np.array(fused_video[i]).std() > 0 for i in range(batch_size))
+        any_nonconstant |= any(np.array(fused_video[i]).std() > 0 for i in range(batch_size))
         for i in range(batch_size):
             a = np.array(fused_video[i])
             b = np.array(ref_video[i])
@@ -298,6 +300,8 @@ def _check_experimental_against_reference(batch_size, reader_params, resize_para
             ref_meta = ref_meta.as_cpu()
             for i in range(batch_size):
                 np.testing.assert_array_equal(np.array(fused_meta[i]), np.array(ref_meta[i]))
+    # guard against a trivially passing comparison (e.g. both outputs all zeros)
+    assert any_nonconstant
     del p
     gc.collect()
 
