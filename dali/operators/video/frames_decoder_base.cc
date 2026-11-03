@@ -757,7 +757,8 @@ void FramesDecoderBase::Reset() {
   SelectVideoStream(stream_id);
 }
 
-// Keep FramesDecoderBase::AddDecodeWork in sync with how this seeks
+// The decision to seek is SeekTarget, shared with AddDecodeWork. Keep the rest (Reset at the end
+// of the file, skipping to the frame) in sync with AddDecodeWork.
 void FramesDecoderBase::SeekFrame(int frame_id) {
   LOG_LINE << "SeekFrame: Seeking to frame " << frame_id
             << " (current=" << next_frame_idx_ << ")" << std::endl;
@@ -785,38 +786,24 @@ void FramesDecoderBase::SeekFrame(int frame_id) {
   // we will to seek to the nearest keyframe first
   LOG_LINE << "SeekFrame: frame_id=" << frame_id << ", next_frame_idx=" << next_frame_idx_
            << std::endl;
-  if (frame_id < next_frame_idx_ || frame_id > next_frame_idx_ + kMinimumSeekLeap) {
-    // If we have an index, we can seek to the nearest keyframe first
-    if (HasIndex()) {
-      LOG_LINE << "Using index to find nearest keyframe" << std::endl;
-      const auto &current_frame = index_[next_frame_idx_];
-      const auto &requested_frame = index_[frame_id];
-      auto keyframe_id = requested_frame.last_keyframe_id;
-      // if we are seeking to a different keyframe than the current frame,
-      // or if we are seeking to a frame that is before the current frame,
-      // we need to seek to the keyframe first
-      LOG_LINE << "current_frame.last_keyframe_id=" << current_frame.last_keyframe_id
-               << ", keyframe_id=" << keyframe_id << ", frame_id=" << frame_id
-               << ", next_frame_idx_=" << next_frame_idx_ << std::endl;
-
-      if (current_frame.last_keyframe_id != keyframe_id || frame_id < next_frame_idx_) {
-        // We are seeking to a different keyframe than the current frame,
-        // so we need to seek to the keyframe first
-        auto &keyframe_entry = index_[keyframe_id];
-        LOG_LINE << "Seeking to key frame " << keyframe_id << " timestamp " << keyframe_entry.pts
-                 << " for requested frame " << frame_id << " timestamp " << requested_frame.pts
-                 << std::endl;
-
-        if (!AvSeekFrame(keyframe_entry.pts, keyframe_id)) {
-          LOG_LINE << "Failed to seek to keyframe " << keyframe_id << " timestamp "
-                   << keyframe_entry.pts << ". Resetting decoder." << std::endl;
-          Reset();
-        }
+  if (HasIndex()) {
+    // Seek to the keyframe of the requested frame, unless decoding through is enough
+    int keyframe_id = SeekTarget(index_, next_frame_idx_, frame_id);
+    if (keyframe_id >= 0) {
+      auto &keyframe_entry = index_[keyframe_id];
+      LOG_LINE << "Seeking to key frame " << keyframe_id << " timestamp " << keyframe_entry.pts
+               << " for requested frame " << frame_id << std::endl;
+      // TODO(janton): when packets are hidden (e.g. by an edit list), a seek can land before
+      // the keyframe (see IndexEntry::seek_decode_idx); AddDecodeWork only prices that for now.
+      if (!AvSeekFrame(keyframe_entry.pts, keyframe_id)) {
+        LOG_LINE << "Failed to seek to keyframe " << keyframe_id << " timestamp "
+                 << keyframe_entry.pts << ". Resetting decoder." << std::endl;
+        Reset();
       }
-    } else if (frame_id < next_frame_idx_) {
-      LOG_LINE << "No index & seeking backwards. Resetting decoder." << std::endl;
-      Reset();
     }
+  } else if (frame_id < next_frame_idx_) {
+    LOG_LINE << "No index & seeking backwards. Resetting decoder." << std::endl;
+    Reset();
   }
   LOG_LINE << "After seeking: next_frame_idx_=" << next_frame_idx_ << ", frame_id=" << frame_id
            << std::endl;
@@ -829,6 +816,16 @@ void FramesDecoderBase::SeekFrame(int frame_id) {
   LOG_LINE << "After skipping: next_frame_idx_=" << next_frame_idx_ << ", frame_id=" << frame_id
            << std::endl;
   assert(next_frame_idx_ == frame_id);
+}
+
+int FramesDecoderBase::SeekTarget(const FrameIndex &index, int next_frame, int frame) {
+  assert(next_frame >= 0 && next_frame < static_cast<int>(index.size()));
+  if (frame >= next_frame && frame <= next_frame + kMinimumSeekLeap)
+    return -1;  // a short leap forward
+  int keyframe = index[frame].last_keyframe_id;
+  if (frame > next_frame && index[next_frame].last_keyframe_id == keyframe)
+    return -1;  // further ahead, but within the same keyframe
+  return keyframe;
 }
 
 FramesDecoderBase::DecodePosition FramesDecoderBase::PositionAt(const FrameIndex &index,
@@ -859,11 +856,9 @@ void FramesDecoderBase::AddDecodeWork(const FrameIndex &index, DecodePosition &p
       pos = {0, -1};
       work.reopens++;
     }
-    if (frame < pos.next_frame || frame > pos.next_frame + kMinimumSeekLeap) {
-      int keyframe = index[frame].last_keyframe_id;
-      if (index[pos.next_frame].last_keyframe_id != keyframe || frame < pos.next_frame)
-        pos = {keyframe, index.SeekDecodeIdx(keyframe) - 1};  // AvSeekFrame and Flush
-    }
+    int keyframe = SeekTarget(index, pos.next_frame, frame);
+    if (keyframe >= 0)
+      pos = {keyframe, index.SeekDecodeIdx(keyframe) - 1};  // AvSeekFrame and Flush
   }
   // A frame is returned once the pictures up to its own (in decoding order) are decoded, so the
   // decoder decodes up to the furthest picture of the frames it reads, skipped ones included

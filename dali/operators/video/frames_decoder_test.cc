@@ -224,6 +224,9 @@ static void ExpectIndexerGivesTheIndexOfTheDecoder(FramesDecoderBase &decoder,
     EXPECT_EQ(actual.index[i].is_flush_frame, expected.index[i].is_flush_frame) << "frame " << i;
     EXPECT_EQ(actual.index[i].last_keyframe_id, expected.index[i].last_keyframe_id)
         << "frame " << i;
+    EXPECT_EQ(actual.index[i].decode_idx, expected.index[i].decode_idx) << "frame " << i;
+    EXPECT_EQ(actual.index[i].seek_decode_idx, expected.index[i].seek_decode_idx)
+        << "frame " << i;
   }
   EXPECT_EQ(indexer.NumFrames(), decoder.NumFrames());
   EXPECT_EQ(indexer.Width(), decoder.Width());
@@ -555,6 +558,23 @@ TEST(FramesDecoderDecodeWorkTest, OpenGop) {
   EXPECT_EQ(FramesDecoderBase::PositionAt(index, 5).decoded, 4);
 }
 
+// The decision that SeekFrame and AddDecodeWork share
+TEST(FramesDecoderDecodeWorkTest, SeekTarget) {
+  // GOPs of 15 frames: keyframes 0, 15, 30
+  auto index = MakeIndex(std::vector<int>(45, -1), {0, 15, 30});
+  auto SeekTarget = [&](int next, int frame) {
+    return FramesDecoderBase::SeekTarget(index, next, frame);
+  };
+  EXPECT_EQ(SeekTarget(3, 3), -1);    // already there
+  EXPECT_EQ(SeekTarget(3, 13), -1);   // a leap of kMinimumSeekLeap
+  EXPECT_EQ(SeekTarget(3, 14), -1);   // further, but the same keyframe
+  EXPECT_EQ(SeekTarget(10, 20), -1);  // a leap of kMinimumSeekLeap, across a keyframe
+  EXPECT_EQ(SeekTarget(3, 16), 15);   // further, to another keyframe
+  EXPECT_EQ(SeekTarget(3, 40), 30);
+  EXPECT_EQ(SeekTarget(14, 13), 0);   // backward, within the same keyframe
+  EXPECT_EQ(SeekTarget(20, 5), 0);    // backward, to another keyframe
+}
+
 TEST(FramesDecoderDecodeWorkTest, NoDecodeOrder) {
   // One GOP of 30 frames, without decoding positions: taken in display order
   auto index = MakeIndex(std::vector<int>(30, -1), {0});
@@ -754,6 +774,10 @@ TEST_F(FramesDecoderGpuTest, IndexerGivesTheIndexOfTheDecoder) {
     paths.insert(paths.end(), cfr_hevc_videos_paths_.begin(), cfr_hevc_videos_paths_.end());
     paths.insert(paths.end(), vfr_hevc_videos_paths_.begin(), vfr_hevc_videos_paths_.end());
   }
+  // Clips with packets hidden by an edit list, where BuildIndex asks the demuxer where seeks land
+  // (the reader caches the index built by FramesIndexer, so seek_decode_idx must match too)
+  paths.push_back(SintelClip(0, 9));
+  paths.push_back(SintelClip(2, 8));
   ASSERT_FALSE(paths.empty());
   for (const auto &path : paths) {
     SCOPED_TRACE(path);

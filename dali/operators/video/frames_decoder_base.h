@@ -317,6 +317,18 @@ class DLL_PUBLIC FramesDecoderBase {
   static constexpr int kMinimumSeekLeap = 10;
 
   /**
+   * @brief The keyframe that SeekFrame seeks to, to return `frame` from a decoder (with an index)
+   * whose next frame is `next_frame`, or -1 if it decodes through to it.
+   *
+   * It decodes through when `frame` is ahead of `next_frame` by at most kMinimumSeekLeap, or has
+   * the same last keyframe. Otherwise it seeks to the last keyframe of `frame`. SeekFrame and
+   * AddDecodeWork both take this decision from here, so the estimate cannot drift from it.
+   *
+   * @param next_frame The decoder's next frame, in range: past the end, SeekFrame resets first.
+   */
+  static int SeekTarget(const FrameIndex &index, int next_frame, int frame);
+
+  /**
    * @brief Where a decoder is, for estimating its work: the frame it returns next (as
    * NextFrameIdx, -1 after the last one) and the decoding position of the last picture it
    * decoded (-1: none).
@@ -343,13 +355,17 @@ class DLL_PUBLIC FramesDecoderBase {
    *
    * It has decoded the pictures of the frames read, and nothing after them. `next_frame` out of
    * range is the position after the last frame.
+   *
+   * For a decoder that seeked to reach `next_frame - 1`, this is an approximation: it also counts
+   * the leading pictures of an open GOP before the seek target (at most those of one GOP), which
+   * such a decoder may not have decoded.
    */
   static DecodePosition PositionAt(const FrameIndex &index, int next_frame);
 
   /**
    * @brief Adds the work of returning `frame` from `pos` and advances `pos`.
    *
-   * Mirrors SeekFrame and ReadNextFrame (keep them in sync), counting the pictures decoded, also
+   * Follows SeekFrame (through SeekTarget) and ReadNextFrame, counting the pictures decoded, also
    * the hidden ones (see IndexEntry::decode_idx), and a Reset as a reopening. A `frame` out of
    * range (e.g. -1, a constant frame from HandleBoundary) is not decoded: it adds nothing and
    * leaves `pos` as it is. Not modelled: a failed av_seek_frame (after which every seek resets
