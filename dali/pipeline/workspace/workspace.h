@@ -279,16 +279,20 @@ class WorkspaceBase : public ArgumentWorkspace {
    * Returns shape of the input at given index
    * @return TensorShape<> for SampleWorkspace, TensorListShape<> for other Workspaces
    */
-  auto GetInputShape(int input_idx) const {
-    return GetBufferProperty(inputs_, input_idx, [](auto &buf) { return buf->shape(); });
+  decltype(auto) GetInputShape(int input_idx) const {
+    return GetBufferProperty(inputs_, input_idx, [](auto &buf)->auto & {
+      return buf->shape();
+    });
   }
 
   /**
    * Returns shape of the output at given index
    * @return TensorShape<> for SampleWorkspace, TensorListShape<> for other Workspaces
    */
-  auto GetOutputShape(int output_idx) const {
-    return GetBufferProperty(outputs_, output_idx, [](auto &buf) { return buf->shape(); });
+  decltype(auto) GetOutputShape(int output_idx) const {
+    return GetBufferProperty(outputs_, output_idx, [](auto &buf)->auto & {
+      return buf->shape();
+    });
   }
 
   /**
@@ -736,7 +740,7 @@ class WorkspaceBase : public ArgumentWorkspace {
 
  private:
   template <typename Buffers, typename Getter>
-  static auto GetBufferProperty(Buffers &buffers, int idx, Getter &&getter) {
+  static decltype(auto) GetBufferProperty(Buffers &buffers, int idx, Getter &&getter) {
     DALI_ENFORCE_VALID_INDEX(idx, buffers.size());
     auto &inp = buffers[idx];
     if (inp.device == StorageDevice::GPU)

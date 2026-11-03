@@ -125,8 +125,8 @@ inline void ParseIndexFile(std::vector<SampleDesc>& samples_container,
   // argument and the index can be arbitrarily large, so it's streamed through FileStreamBuf
   // (also used by IndexedFileLoader) rather than read into memory in full.
   auto file = FileStream::Open(index_path);
-  FileStreamBuf<64 * 1024> file_buf(file.get());
-  std::istream index_file(&file_buf);
+  auto file_buf = std::make_unique<FileStreamBuf<64 * 1024>>(file.get());
+  std::istream index_file(file_buf.get());
 
   // Index Checking
   std::string global_meta;
