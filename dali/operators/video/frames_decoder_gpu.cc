@@ -640,21 +640,30 @@ int FramesDecoderGpu::HandlePictureDisplay(CUVIDPARSERDISPINFO *picture_display_
   LOG_LINE << "ConvertVideoColorSpace with conversion_type_="
            << static_cast<int>(conversion_type_) << " and dimensions " << Height() << "x" << Width()
            << std::endl;
-  TYPE_SWITCH(dtype_, type2id, OutType, (uint8_t, float), (
-    ConvertVideoColorSpace(
-      reinterpret_cast<OutType *>(frame_output), Width() * 3,
-      reinterpret_cast<const uint8_t *>(frame), static_cast<int>(pitch),
-      Height(),
-      Width(),
-      conversion_type_,
-      false,  // normalized_range_,
-      stream_);
-  ), DALI_FAIL(make_string("Unsupported type: ", dtype_)));
+  try {
+    TYPE_SWITCH(dtype_, type2id, OutType, (uint8_t, float), (
+      ConvertVideoColorSpace(
+        reinterpret_cast<OutType *>(frame_output), Width() * 3,
+        reinterpret_cast<const uint8_t *>(frame), static_cast<int>(pitch),
+        Height(),
+        Width(),
+        conversion_type_,
+        false,  // normalized_range_,
+        stream_);
+    ), DALI_FAIL(make_string("Unsupported type: ", dtype_)));
 
-  // TODO(awolant): Alternative is to copy the data to a buffer
-  // and then process it on the stream. Check, if this is faster, when
-  // the benchmark is ready.
-  CUDA_CALL(cudaStreamSynchronize(stream_));
+    // TODO(awolant): Alternative is to copy the data to a buffer
+    // and then process it on the stream. Check, if this is faster, when
+    // the benchmark is ready.
+    CUDA_CALL(cudaStreamSynchronize(stream_));
+  } catch (...) {
+    // The surface is unmapped also when the conversion fails: otherwise the decoder goes back to
+    // the NVDEC cache with one output surface less. Work already queued may still read the surface.
+    // The errors are not checked: the one being thrown is the one to report.
+    (void)cudaStreamSynchronize(stream_);
+    (void)cuvidUnmapVideoFrame(nvdecode_state_->decoder, frame);
+    throw;
+  }
   CUDA_CALL(cuvidUnmapVideoFrame(nvdecode_state_->decoder, frame));
 
   return 1;
