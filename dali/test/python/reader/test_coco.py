@@ -150,11 +150,13 @@ def coco_rle_masks_pipe(directory, preprocessed=False, avoid_remap=False, ratio=
             "save_preprocessed_annotations_dir": directory,
         }
     )
+    if not preprocessed:
+        # `ratio` is baked into saved annotations, so it must not be set when loading them.
+        annotation_args["ratio"] = ratio
     _, _, _, masks = fn.readers.coco(
         file_root=directory,
         pixelwise_masks=True,
         avoid_class_remapping=avoid_remap,
-        ratio=ratio,
         **annotation_args,
     )
     return masks
