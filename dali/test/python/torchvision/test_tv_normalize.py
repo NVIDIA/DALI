@@ -132,18 +132,19 @@ def test_mean_std_sequence_lengths_match_channels(mean, std):
 )
 def test_mismatched_mean_or_std_length_raises(mean, std):
     x = make_sample_tensor()
+    tv_message = "*The size of tensor a*must match the size of tensor b*"
     norm = transforms.Normalize(mean=mean, std=std)
-    with assert_raises(RuntimeError):
+    with assert_raises(RuntimeError, glob=tv_message):
         _ = norm(x)
 
     dnorm = Compose([Normalize(mean=mean, std=std)])
-    with assert_raises(RuntimeError):
+    with assert_raises(RuntimeError, glob="*Can't broadcast shapes*"):
         _ = dnorm(x)
 
-    with assert_raises(RuntimeError):
+    with assert_raises(RuntimeError, glob="*their shapes must match*"):
         _ = normalize(x, mean, std)
 
-    with assert_raises(RuntimeError):
+    with assert_raises(RuntimeError, glob=tv_message):
         _ = transforms.functional.normalize(x, mean, std)
 
 
@@ -153,16 +154,18 @@ def test_mismatched_mean_or_std_length_raises(mean, std):
 )
 def test_std_cannot_expand_single_channel_input(device, mean, std):
     # Torchvision divides in place, so std cannot expand (1, H, W) into (3, H, W)
+    torch.manual_seed(1234)
     x = torch.rand(1, 8, 8)
-    with assert_raises(RuntimeError):
+    with assert_raises(RuntimeError, glob="*doesn't match the broadcast shape*"):
         _ = transforms.Normalize(mean=mean, std=std)(x)
-    with assert_raises(RuntimeError):
+    with assert_raises(RuntimeError, glob="*Input and output samples must occupy the same size*"):
         _ = Compose([Normalize(mean=mean, std=std, device=device)])(x)
 
 
 @params(("cpu",), ("gpu",))
 def test_mean_can_expand_single_channel_input(device):
     # Torchvision subtracts the mean out of place, so it can expand (1, H, W) into (3, H, W)
+    torch.manual_seed(1234)
     x = torch.rand(1, 8, 8)
     out = transforms.Normalize(mean=[0.0, 0.5, 1.0], std=[2.0])(x)
     dout = Compose([Normalize(mean=[0.0, 0.5, 1.0], std=[2.0], device=device)])(x)
@@ -185,17 +188,18 @@ def test_single_value_mean_std_broadcast_over_channels(device):
 )
 def test_std_must_be_non_zero(mean, std):
     x = make_sample_tensor()
+    tv_message = "*std evaluated to zero*"
     norm = transforms.Normalize(mean=mean, std=std)
-    with assert_raises(ValueError):
+    with assert_raises(ValueError, glob=tv_message):
         _ = norm(x)
 
-    with assert_raises(ValueError):
+    with assert_raises(ValueError, glob="*Std must not be 0*"):
         _ = Compose([Normalize(mean=mean, std=std)])
 
-    with assert_raises(ValueError):
+    with assert_raises(ValueError, glob="*Std must not be 0*"):
         _ = normalize(x, mean, std)
 
-    with assert_raises(ValueError):
+    with assert_raises(ValueError, glob=tv_message):
         _ = transforms.functional.normalize(x, mean, std)
 
 
@@ -225,14 +229,14 @@ def test_non_tensor_input_not_supported():
     # not a valid tensor but it works in torchvision
     # with assert_raises(TypeError):
     #    _ = norm([[1.0, 2.0], [3.0, 4.0]])
-    with assert_raises(TypeError):
+    with assert_raises(TypeError, glob="*Normalize() does not support PIL images*"):
         _ = norm(im)
     dnorm = Compose([Normalize(mean=[0.5], std=[0.5])])
-    with assert_raises(TypeError):
+    with assert_raises(TypeError, glob="*Normalize does not support PIL images*"):
         _ = dnorm(im)
-    with assert_raises(TypeError):
+    with assert_raises(TypeError, glob="*supports inputs of type*but got*PIL.Image.Image*"):
         _ = transforms.functional.normalize(im, [0.5], [0.5])
-    with assert_raises(TypeError):
+    with assert_raises(TypeError, glob="*Data should be Tensor*"):
         _ = normalize(im, [0.5], [0.5])
 
 
