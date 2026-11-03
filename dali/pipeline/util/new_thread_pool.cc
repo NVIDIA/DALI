@@ -56,11 +56,14 @@ template <typename T>
 class DummyCopyWrapper : public T {
  public:
   using T::T;
+
+  DummyCopyWrapper(T &&t) : T(std::move(t)) {}  // NOLINT
+
   [[noreturn]] DummyCopyWrapper(const DummyCopyWrapper &) {
     throw std::logic_error("This object must not be copied.");
   }
 
-  [[noreturn]] DummyCopyWrapper operator=(const DummyCopyWrapper &) {
+  [[noreturn]] DummyCopyWrapper &operator=(const DummyCopyWrapper &) {
     throw std::logic_error("This object must not be copied.");
   }
 };
