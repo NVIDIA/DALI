@@ -140,7 +140,7 @@ def coco_invalid_annotations_pipe(annotations_file, file_root):
 
 
 @pipeline_def(batch_size=1, num_threads=1, device_id=None, prefetch_queue_depth=1)
-def coco_rle_masks_pipe(directory, preprocessed=False, avoid_remap=False, ratio=False):
+def coco_rle_masks_pipe(directory, preprocessed=False, remap_classes=True, ratio=False):
     annotation_args = (
         {"preprocessed_annotations": directory}
         if preprocessed
@@ -156,7 +156,7 @@ def coco_rle_masks_pipe(directory, preprocessed=False, avoid_remap=False, ratio=
     _, _, _, masks = fn.readers.coco(
         file_root=directory,
         pixelwise_masks=True,
-        avoid_class_remapping=avoid_remap,
+        avoid_class_remapping=not remap_classes,
         **annotation_args,
     )
     return masks
@@ -287,7 +287,7 @@ def test_coco_pixelwise_masks_arbitrary_category_ids(category_ids, counts, expec
             category_ids=category_ids,
         )
         for preprocessed in (False, True):
-            pipe = coco_rle_masks_pipe(directory, preprocessed=preprocessed, avoid_remap=True)
+            pipe = coco_rle_masks_pipe(directory, preprocessed=preprocessed, remap_classes=False)
             (masks,) = pipe.run()
             np.testing.assert_array_equal(masks.at(0)[:, :, 0], expected)
 
