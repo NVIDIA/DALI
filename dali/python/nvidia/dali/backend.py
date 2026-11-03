@@ -136,7 +136,8 @@ def check_cuda_runtime():
                 "for the reference."
             )
 
-        if GetNppVersion() == -1:
+        npp_version = GetNppVersion()
+        if npp_version == -1:
             deprecation_warning(
                 "nvidia-dali-cuda120 is no longer shipped with CUDA runtime. "
                 "You need to install it separately. NPP is typically "
@@ -145,6 +146,16 @@ def check_cuda_runtime():
                 "https://docs.nvidia.com/cuda/cuda-quick-start-guide/index.html"
                 "#pip-wheels-installation-linux "
                 "for the reference."
+            )
+        elif 12025 < npp_version < 13000:
+            # GetNppVersion encodes major * 1000 + minor * 10 + patch.
+            deprecation_warning(
+                "The loaded NPP library is affected by a known regression in CUDA 12 NPP "
+                "versions newer than 12.2.5 that can produce incorrect GPU debayer results. "
+                'Install a working version with: pip install "nvidia-npp-cu12==12.2.5.30", '
+                "and ensure DALI loads that library, or switch to the CUDA 13 DALI package "
+                "(nvidia-dali-cuda130). See https://github.com/NVIDIA/DALI/issues/6595 "
+                "for details."
             )
 
 
