@@ -9,9 +9,14 @@ test_body() {
         "general/data_loading/external_input.ipynb"
     )
     for f in ${test_files[@]}; do
-        jupyter nbconvert --to notebook --inplace --execute \
-                        --ExecutePreprocessor.kernel_name=python${PYVER:0:1} \
-                        --ExecutePreprocessor.timeout=300 $f;
+        if [ -n "${DALI_ENABLE_SANITIZERS:-}" ]; then
+            bash "$topdir/qa/TL0_jupyter/run_notebook_sanitizer.sh" \
+                "$topdir" "${PYVER:0:1}" "$f"
+        else
+            jupyter nbconvert --to notebook --inplace --execute \
+                            --ExecutePreprocessor.kernel_name=python${PYVER:0:1} \
+                            --ExecutePreprocessor.timeout=300 $f;
+        fi
     done
 }
 
