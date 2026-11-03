@@ -13,6 +13,9 @@
 // limitations under the License.
 
 #include <gtest/gtest.h>
+#include <optional>
+#include <type_traits>
+#include <utility>
 #include "dali/core/call_at_exit.h"
 #include "dali/core/dynlink_cuda.h"
 #include "dali/core/device_guard.h"
@@ -246,6 +249,38 @@ TEST(DeviceGuard, CheckContext_MultiGPU) {
   EXPECT_EQ(ctx, cu_test_ctx0.get()) << "Context not restored upon destruction";
 }
 
+
+static_assert(!std::is_copy_constructible_v<DeviceGuard>, "DeviceGuard must not be copyable");
+static_assert(!std::is_copy_assignable_v<DeviceGuard>, "DeviceGuard must not be copyable");
+static_assert(std::is_move_constructible_v<DeviceGuard>, "DeviceGuard must be movable");
+
+TEST(DeviceGuard, Move) {
+  // Moving a guard transfers the responsibility for restoring the context to the target;
+  // the moved-from guard must not restore anything when destroyed.
+  ASSERT_TRUE(cuInitChecked());
+
+  CUcontext old = nullptr;
+  CUDA_CALL(cuCtxGetCurrent(&old));
+  auto restore = AtScopeExit([old]() {
+    CUDA_DTOR_CALL(cuCtxSetCurrent(old));
+  });
+  auto cu_test_ctx0 = CUDAContext::Create(0, 0);
+  auto cu_test_ctx1 = CUDAContext::Create(0, 0);
+  CUDA_CALL(cuCtxSetCurrent(cu_test_ctx0));
+  CUcontext ctx = nullptr;
+  {
+    std::optional<DeviceGuard> moved_to;
+    {
+      DeviceGuard g;  // saves cu_test_ctx0
+      CUDA_CALL(cuCtxSetCurrent(cu_test_ctx1));
+      moved_to.emplace(std::move(g));
+    }  // g is destroyed here
+    CUDA_CALL(cuCtxGetCurrent(&ctx));
+    EXPECT_EQ(ctx, cu_test_ctx1.get()) << "The moved-from guard restored the context";
+  }  // moved_to is destroyed here
+  CUDA_CALL(cuCtxGetCurrent(&ctx));
+  EXPECT_EQ(ctx, cu_test_ctx0.get()) << "The moved-to guard didn't restore the context";
+}
 
 TEST(DeviceGuard, CheckContextNoArgs) {
   int test_device = 0;
