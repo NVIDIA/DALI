@@ -59,6 +59,8 @@ class DummyCopyWrapper : public T {
 
   DummyCopyWrapper(T &&t) noexcept(noexcept(T(std::move(t)))) : T(std::move(t)) {}  // NOLINT
 
+  DummyCopyWrapper(DummyCopyWrapper &&) = default;
+
   [[noreturn]] DummyCopyWrapper(const DummyCopyWrapper &) {
     throw std::logic_error("This object must not be copied.");
   }
