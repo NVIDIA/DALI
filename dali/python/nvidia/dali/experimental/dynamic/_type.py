@@ -197,6 +197,8 @@ class DType:
         return repr_str
 
     def __eq__(self, other):
+        if not isinstance(other, DType):
+            return NotImplemented
         if not (
             self.kind == other.kind
             and self.bits == other.bits
@@ -207,9 +209,6 @@ class DType:
         if self.kind == DType.Kind.enum:
             return self.type_id == other.type_id
         return True
-
-    def __ne__(self, other):
-        return not self.__eq__(other)
 
     def __hash__(self):
         h = hash((self.kind, self.bits, self.exponent_bits, self.significand_bits))
@@ -278,7 +277,7 @@ class DType:
 
         t = parse_internal(name)
         if t.type_id is None:
-            t.type_id = _type2id[t]
+            t.type_id = _type2id.get(t)
         if t.type_id is not None:
             t = _id2type[t.type_id]  # use the same DType instance as the one registered with the id
         _name2type[name] = t
@@ -292,7 +291,7 @@ class DType:
             raise ValueError("dtype cannot be overridden")
         from . import _tensor
 
-        return _tensor.tensor(self, *args, dtype=self, **kwargs)
+        return _tensor.tensor(*args, dtype=self, **kwargs)
 
 
 int8 = DType(DType.Kind.signed, 8, type_id=nvidia.dali.types.INT8)

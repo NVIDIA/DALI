@@ -166,3 +166,33 @@ def test_type_significand_bits():
     assert ndd.float16.significand_bits == 10
     assert ndd.float32.significand_bits == 23
     assert ndd.float64.significand_bits == 52
+
+
+def test_type_call():
+    t = ndd.int16([1, 2, 3])
+    assert isinstance(t, ndd.Tensor)
+    assert t.dtype == ndd.int16
+    assert np.array_equal(np.asarray(t), np.int16([1, 2, 3]))
+    t = ndd.float32([[1, 2]], layout="AB")
+    assert t.dtype == ndd.float32
+    assert t.layout == "AB"
+    assert np.array_equal(np.asarray(t), np.float32([[1, 2]]))
+
+
+def test_type_compare_with_other_objects():
+    assert ndd.int32 != None  # noqa: E711
+    assert not (ndd.int32 == None)  # noqa: E711
+    assert ndd.int32 != "i32"
+    assert ndd.int32 in [None, ndd.int32]
+    assert None not in [ndd.int32]
+    assert ndd.int32 == ndd.dtype("i32")
+    assert not (ndd.int32 != ndd.dtype("i32"))
+    assert ndd.int32 != ndd.uint32
+
+
+def test_type_name_without_type_id():
+    t = ndd.dtype("f8e5m2")
+    assert t.kind == ndd.DType.Kind.float
+    assert (t.bits, t.exponent_bits, t.significand_bits) == (8, 5, 2)
+    assert t.type_id is None
+    assert ndd.dtype("f8e5m2") is t
