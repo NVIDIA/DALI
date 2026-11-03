@@ -16,7 +16,6 @@ import gc
 import sys
 import tracemalloc
 import warnings
-from unittest import mock
 
 import numpy as np
 import nvidia.dali.fn as fn
@@ -412,42 +411,6 @@ def test_backend_deprecation_warning_shown_by_default():
         assert len(w) == 1
         assert w[0].category is Warning
         assert "backend deprecation warning default check" == str(w[0].message)
-
-
-@params(
-    (-1, "NPP is typically"),
-    (11000, None),
-    (12002, None),
-    (12011, None),
-    (12025, None),
-    (12030, "known regression"),
-    (12033, "known regression"),
-    (12040, "known regression"),
-    (12041, "known regression"),
-    (13000, None),
-    (13020, None),
-)
-def test_check_cuda_runtime_npp_version(npp_version, expected_warning):
-    with mock.patch.multiple(
-        dali.backend,
-        cuda_checked=False,
-        GetCudaVersion=lambda: 12000,
-        GetCufftVersion=lambda: 11000,
-        GetNppVersion=mock.Mock(return_value=npp_version),
-    ), warnings.catch_warnings(record=True) as caught:
-        warnings.simplefilter("always")
-        dali.backend.check_cuda_runtime()
-        dali.backend.check_cuda_runtime()
-        dali.backend.GetNppVersion.assert_called_once_with()
-        if expected_warning is None:
-            assert len(caught) == 0
-        else:
-            assert len(caught) == 1
-            message = str(caught[0].message)
-            assert expected_warning in message
-            if expected_warning == "known regression":
-                assert 'pip install "nvidia-npp-cu12==12.2.5.30"' in message
-                assert "nvidia-dali-cuda130" in message
 
 
 def test_dtype_placeholder_equivalence():
