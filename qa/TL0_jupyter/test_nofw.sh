@@ -14,6 +14,11 @@ do_once() {
 }
 
 test_body() {
+    kernel_args=()
+    if [ -n "${DALI_ENABLE_SANITIZERS:-}" ]; then
+        kernel_args+=('--ExecutePreprocessor.extra_arguments=["--IPKernelApp.capture_fd_output=False"]')
+    fi
+
     # test code
     # test all jupyters except one related to a particular FW,
     # and one requiring a dedicated HW (multiGPU, GDS and OF)
@@ -27,24 +32,12 @@ test_body() {
         # NVCC's TCMalloc conflicts with ASan, so build tools need preloads cleared,
         # while DALI's Python queries and the notebook kernel must retain them.
         python "$topdir/qa/TL0_jupyter/prepare_sanitizer_notebooks.py" || return $?
-
-        printf 'Notebook sanitizer environment:\n'
-        printf '%s\n' "ASAN_OPTIONS=$ASAN_OPTIONS" "LSAN_OPTIONS=$LSAN_OPTIONS" \
-            "ASAN_SYMBOLIZER_PATH=$ASAN_SYMBOLIZER_PATH" "PYTHONMALLOC=$PYTHONMALLOC" \
-            "LD_PRELOAD=$LD_PRELOAD" "LD_LIBRARY_PATH=$LD_LIBRARY_PATH"
-        LD_PRELOAD= python --version
-        LD_PRELOAD= python -m pip freeze --all
-
-        find * -name "*.ipynb" -print0 | sed -z "/${exclude_files}/d" | \
-            xargs -0 -r -n 1 bash "$topdir/qa/TL0_jupyter/run_notebook_sanitizer.sh" \
-                "$topdir" "${PYVER:0:1}"
-        return $?
     fi
 
     find * -name "*.ipynb" | sed "/${exclude_files}/d" | xargs -i jupyter nbconvert \
                     --to notebook --inplace --execute \
                     --ExecutePreprocessor.kernel_name=python${PYVER:0:1} \
-                    --ExecutePreprocessor.timeout=300 {}
+                    --ExecutePreprocessor.timeout=300 "${kernel_args[@]}" {}
 }
 
 pushd ../..

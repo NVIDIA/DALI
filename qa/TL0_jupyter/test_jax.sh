@@ -4,6 +4,11 @@ pip_packages='jupyter numpy matplotlib jax flax'
 target_dir=./docs/examples
 
 test_body() {
+    kernel_args=()
+    if [ -n "${DALI_ENABLE_SANITIZERS:-}" ]; then
+        kernel_args+=('--ExecutePreprocessor.extra_arguments=["--IPKernelApp.capture_fd_output=False"]')
+    fi
+
     export XLA_FLAGS="--xla_gpu_enable_command_buffer="
 
     test_files=(
@@ -19,14 +24,9 @@ test_body() {
     fi
 
     for f in ${test_files[@]}; do
-        if [ -n "${DALI_ENABLE_SANITIZERS:-}" ]; then
-            bash "$topdir/qa/TL0_jupyter/run_notebook_sanitizer.sh" \
-                "$topdir" "${PYVER:0:1}" "$f"
-        else
-            jupyter nbconvert --to notebook --inplace --execute \
-                            --ExecutePreprocessor.kernel_name=python${PYVER:0:1} \
-                            --ExecutePreprocessor.timeout=300 $f;
-        fi
+        jupyter nbconvert --to notebook --inplace --execute \
+                        --ExecutePreprocessor.kernel_name=python${PYVER:0:1} \
+                        --ExecutePreprocessor.timeout=300 "${kernel_args[@]}" $f;
     done
 }
 
