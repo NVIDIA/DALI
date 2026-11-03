@@ -943,6 +943,49 @@ TEST_F(FramesDecoderGpuTest, SurfaceUnmappedAfterFailedConversion) {
   EXPECT_EQ(frame_dec_gpu_impl::NVDECDecodersCreated(), num_created);
 }
 
+// When none of the cached decoders that were set up for the format of a stream is free, a larger
+// free one is reconfigured for it, instead of creating a decoder, which takes much longer (and
+// destroying one, when the cache is full). It has to decode the stream as a new decoder would.
+TEST_F(FramesDecoderGpuTest, DecoderCacheReconfiguresLargerDecoder) {
+  using frame_dec_gpu_impl::NVDECDecodersCreated;
+  using frame_dec_gpu_impl::NVDECDecodersReconfigured;
+  // 800x600, coded as 800x608: the reconfigured decoder has to crop it
+  std::string small_path = testing::dali_extra_path() + "/db/video/cfr/test_2.mp4";
+  std::string large_path = testing::dali_extra_path() + "/db/video/cfr/test_1.mp4";  // 1280x720
+  auto open = [](const std::string &path) {
+    auto decoder = std::make_unique<FramesDecoderGpu>(path);
+    decoder->BuildIndex();
+    return decoder;
+  };
+  auto num_set_up = [] { return NVDECDecodersCreated() + NVDECDecodersReconfigured(); };
+
+  // Take the cached decoders of the small video until one has to be set up for it: then none of
+  // them is free. A decoder gets its NVDEC decoder when it starts decoding.
+  std::vector<std::unique_ptr<FramesDecoderGpu>> taken;
+  for (size_t before = num_set_up(); num_set_up() == before;) {
+    ASSERT_LT(taken.size(), 200u);
+    taken.push_back(open(small_path));
+    ASSERT_TRUE(taken.back()->IsValid());
+    taken.back()->ReadNextFrame(FrameData());
+  }
+
+  // A larger decoder is free when this one is gone
+  {
+    auto large = open(large_path);
+    ASSERT_TRUE(large->IsValid());
+    ASSERT_EQ(large->Width(), 1280);
+    large->ReadNextFrame(FrameData());
+  }
+
+  size_t num_created = NVDECDecodersCreated();
+  size_t num_reconfigured = NVDECDecodersReconfigured();
+  auto decoder = open(small_path);
+  ASSERT_TRUE(decoder->IsValid());
+  RunTest(*decoder, cfr_videos_[1]);
+  EXPECT_EQ(NVDECDecodersCreated(), num_created);
+  EXPECT_EQ(NVDECDecodersReconfigured(), num_reconfigured + 1);
+}
+
 TEST_F(FramesDecoderGpuTest, IndexerGivesTheIndexOfTheDecoder) {
   std::vector<std::string> paths;
   for (const auto *list : {&cfr_videos_paths_, &vfr_videos_paths_, &cfr_mpeg4_videos_paths_,

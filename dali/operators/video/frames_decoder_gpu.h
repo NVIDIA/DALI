@@ -69,6 +69,8 @@ struct DecInstance {
   int display_left = 0;
   int display_top = 0;
   unsigned num_decode_surfaces = 0;
+  // What the decoder was created for, so what it can be reconfigured for
+  unsigned max_num_decode_surfaces = 0;
   unsigned max_height = 0;
   unsigned max_width = 0;
   unsigned int bit_depth_luma_minus8 = 0;
@@ -126,6 +128,14 @@ class NVDECLease {
  * @param device_id CUDA device ordinal or -1 for the current device.
  */
 DLL_PUBLIC size_t NVDECDecodersCreated(int device_id = -1);
+
+/**
+ * @brief Returns how many times a cached NVDEC decoder was reconfigured for a stream of another
+ *        format (size, number of decode surfaces) so far for a device, instead of creating one.
+ *
+ * @param device_id CUDA device ordinal or -1 for the current device.
+ */
+DLL_PUBLIC size_t NVDECDecodersReconfigured(int device_id = -1);
 
 }  // namespace frame_dec_gpu_impl
 
