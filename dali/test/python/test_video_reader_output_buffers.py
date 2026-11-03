@@ -133,6 +133,17 @@ def test_same_as_copy(exec_dynamic, depth, reader_depth):
     )
 
 
+@params(1, 2)
+def test_same_as_copy_separated_queues(reader_depth):
+    # the executor with separate CPU and GPU queues (exec_dynamic=False only)
+    check_same_as_copy(
+        exec_dynamic=False,
+        prefetch_queue_depth={"cpu_size": 2, "gpu_size": 3},
+        reader_depth=reader_depth,
+        enable_frame_num="scalar",
+    )
+
+
 @params(
     dict(enable_frame_num="scalar"),
     dict(pad_mode="constant", fill_value=[10, 20, 30], enable_frame_num="sequence", step=100),
