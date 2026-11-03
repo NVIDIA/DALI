@@ -48,12 +48,29 @@ NewThreadPool::NewThreadPool(
   });
 }
 
+/** A wrapper for move-only objects that allows them to be stored in containers requiring copy.
+ *
+ * The copy is still disallowed, but only at run-time.
+ */
+template <typename T>
+class DummyCopyWrapper : public T {
+ public:
+  using T::T;
+  [[noreturn]] DummyCopyWrapper(const DummyCopyWrapper &) {
+    throw std::logic_error("This object must not be copied.");
+  }
+
+  [[noreturn]] DummyCopyWrapper operator=(const DummyCopyWrapper &) {
+    throw std::logic_error("This object must not be copied.");
+  }
+};
+
 std::any NewThreadPool::OnThreadStart(int thread_idx, bool set_affinity) {
   std::string name = make_string("[DALI][NT", thread_idx, "]", name_);
   SetThreadName(name.c_str());
   std::any dg;
   if (device_id_.has_value())
-    dg.emplace<DeviceGuard>(*device_id_);
+    dg.emplace<DummyCopyWrapper<DeviceGuard>>(*device_id_);
 #if NVML_ENABLED
   try {
     if (set_affinity) {

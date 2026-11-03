@@ -31,6 +31,11 @@ DeviceGuard::DeviceGuard() :
   CUDA_CALL(cuCtxGetCurrent(&old_context_));
 }
 
+DeviceGuard::DeviceGuard(DeviceGuard &&g) {
+  old_context_ = g.old_context_;
+  g.old_context_ = INVALID_CONTEXT;
+}
+
 namespace {
 
 struct PrimaryContext {

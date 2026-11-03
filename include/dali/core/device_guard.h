@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -29,6 +29,11 @@ class DLL_PUBLIC DeviceGuard {
  public:
   /// @brief Saves current device id and restores it upon object destruction
   DeviceGuard();
+
+  DeviceGuard(DeviceGuard &&g);
+
+  DeviceGuard(const DeviceGuard &) = delete;
+  DeviceGuard &operator=(const DeviceGuard &) = delete;
 
   /// @brief Saves current device id, sets a new one and switches back
   ///        to the original device upon object destruction.
