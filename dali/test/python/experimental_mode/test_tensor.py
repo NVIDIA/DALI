@@ -360,6 +360,17 @@ def test_tensor_subscript():
 
 
 @eval_modes()
+@params(("cpu",), ("gpu",))
+def test_tensor_subscript_swapped_ends_with_stride(device_type):
+    data = np.arange(5, dtype=np.int32)
+    t = ndd.tensor(data, device=device_type)
+    for r in [slice(3, 0, 3), slice(3, 1, 2), slice(1, 3, -2), slice(0, 4, -3)]:
+        x = t[r]
+        assert x.shape == (0,)
+        assert asnumpy(x).shape == (0,)
+
+
+@eval_modes()
 def test_tensor_subscript_negative_step():
     t = ndd.tensor([0, 1, 2, 3, 4, 5], dtype=ndd.int32)
     x = t[-1:1:-1]
