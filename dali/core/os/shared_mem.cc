@@ -44,6 +44,7 @@ bool dir_exists(const char *str) {
  * Returns -1 and sets errno on failure.
  */
 int create_memfd() {
+  // Raw syscall: glibc 2.17 (conda cu12 sysroot) has neither memfd_create() nor MFD_CLOEXEC.
 #ifdef SYS_memfd_create
   constexpr unsigned int kMfdCloexec = 0x0001U;  // MFD_CLOEXEC
   return static_cast<int>(syscall(SYS_memfd_create, "nvidia_dali", kMfdCloexec));

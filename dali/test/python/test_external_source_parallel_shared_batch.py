@@ -56,7 +56,9 @@ class UnsafePicklePayload:
 
 def test_message_deserialization_rejects_pickle():
     payload = pickle.dumps(UnsafePicklePayload())
-    raises(RuntimeError, "Malformed shared memory message")(deserialize_message)(payload)
+    raises(RuntimeError, "Malformed shared memory message")(deserialize_message)(
+        payload, CompletedTask
+    )
     raises(RuntimeError, "Malformed shared memory message")(deserialize_samples_meta)(payload)
 
 
@@ -67,10 +69,26 @@ def test_samples_meta_deserialization_rejects_malformed_data():
     for _ in range(100):
         deep_sample = (deep_sample,)
     raises(TypeError, "nested deeper than")(serialize_samples_meta)([deep_sample])
-    bad_dtype = struct.pack("<QBQQQ", 1, 0, 0, 1, 3) + b"xyz" + struct.pack("<I", 0)
+    bad_dtype = struct.pack("<QBQQBI", 1, 0, 0, 1, 255, 0)
     raises(RuntimeError, "invalid sample data type")(deserialize_samples_meta)(bad_dtype)
-    object_dtype = struct.pack("<QBQQQ", 1, 0, 0, 8, 3) + b"|O8" + struct.pack("<I", 0)
-    raises(RuntimeError, "object data type")(deserialize_samples_meta)(object_dtype)
+
+
+def test_samples_meta_dtype_roundtrip():
+    dtypes = [np.bool_, np.int8, np.int16, np.int32, np.int64, np.uint8, np.uint16, np.uint32]
+    dtypes += [np.uint64, np.float16, np.float32, np.float64]
+    for dtype in dtypes:
+        for byte_order in "<>":
+            np_dtype = np.dtype(dtype).newbyteorder(byte_order)
+            meta = [SampleMeta(0, (2, 3), np_dtype, 6 * np_dtype.itemsize)]
+            (decoded,) = deserialize_samples_meta(serialize_samples_meta(meta))
+            assert decoded.dtype == np_dtype
+            assert decoded.shape == (2, 3)
+
+
+def test_samples_meta_rejects_unsupported_dtypes():
+    for dtype in [object, "i4,f8", "(2,)i4", "S0", "V0", np.complex64, "M8[s]"]:
+        sample = SampleMeta(0, (1,), np.dtype(dtype), 0)
+        yield raises(TypeError, "Unsupported sample data type")(serialize_samples_meta), [sample]
 
 
 def test_message_wire_format():
@@ -87,21 +105,32 @@ def test_message_deserialization_rejects_malformed_data():
     task = ScheduledTask(0, 1, 2, TaskArgs.make_sample(SampleRange(0, 8, 0, 0)))
     serialized = serialize_message(task)
     for truncated in [b"", serialized[:1], serialized[:-1]]:
-        raises(RuntimeError, "unexpected end of data")(deserialize_message)(truncated)
-    raises(RuntimeError, "trailing data")(deserialize_message)(serialized + b"\0")
-    raises(RuntimeError, "unexpected tag")(deserialize_message)(b"\xff" + serialized[1:])
+        raises(RuntimeError, "unexpected end of data")(deserialize_message)(
+            truncated, ScheduledTask
+        )
+    raises(RuntimeError, "trailing data")(deserialize_message)(serialized + b"\0", ScheduledTask)
+    raises(RuntimeError, "unexpected tag")(deserialize_message)(
+        b"\xff" + serialized[1:], ScheduledTask
+    )
+    raises(RuntimeError, "expected COMPLETED_TASK, got SCHEDULED_TASK")(deserialize_message)(
+        serialized, CompletedTask
+    )
 
 
-def test_samples_meta_rejects_object_dtype():
-    np_dtype = np.dtype(np.int32)
-    serialized = serialize_samples_meta([SampleMeta(0, (2,), np_dtype, 8)])
-    malformed = serialized.replace(np_dtype.str.encode(), b"|O\0")
-    assert len(malformed) == len(serialized)
-    raises(RuntimeError, "Malformed shared memory message")(deserialize_samples_meta)(malformed)
+def test_scheduled_task_rejects_invalid_sample_range():
+    header = struct.pack("<Bqqqq", 1, 0, 1, 2, 0)
+    for sample_range in [
+        (0, 8, 0, 0, 5, 3),
+        (0, 8, 0, 0, -1, 4),
+        (0, 8, 0, 0, 0, 9),
+        (8, 0, 0, 0, 0, 0),
+    ]:
+        data = header + struct.pack("<B6q", 0, *sample_range)
+        raises(RuntimeError, "invalid sample range")(deserialize_message)(data, ScheduledTask)
 
 
 def _check_scheduled_task_roundtrip(task):
-    decoded = deserialize_message(serialize_message(task))
+    decoded = deserialize_message(serialize_message(task), ScheduledTask)
     assert type(decoded) is ScheduledTask
     assert decoded.context_i == task.context_i
     assert decoded.scheduled_i == task.scheduled_i
@@ -142,7 +171,7 @@ def test_scheduled_task_rejects_unsupported_batch_args():
 def test_completed_task_roundtrip():
     processed = SimpleNamespace(context_i=1, scheduled_i=2, minibatch_i=3)
     done = CompletedTask.done(4, processed, SharedBatchMeta(128, 256))
-    decoded = deserialize_message(serialize_message(done))
+    decoded = deserialize_message(serialize_message(done), CompletedTask)
     assert type(decoded) is CompletedTask
     assert (decoded.worker_id, decoded.context_i, decoded.scheduled_i, decoded.minibatch_i) == (
         4,
@@ -171,7 +200,7 @@ def _check_failed_task_roundtrip(exception, expected_type):
         traceback_str="Traceback: \u017c\u00f3\u0142w",
     )
     completed = CompletedTask.failed(0, processed)
-    decoded = deserialize_message(serialize_message(completed))
+    decoded = deserialize_message(serialize_message(completed), CompletedTask)
     assert type(decoded.exception) is expected_type
     assert str(decoded.exception) == str(exception)
     assert decoded.traceback_str == processed.traceback_str
@@ -193,7 +222,7 @@ def test_shm_message_roundtrip():
     with closing(shm_chunk) as shm_chunk:
         task = ScheduledTask(1, 2, 3, TaskArgs.make_sample(SampleRange(0, 4, 0, 0)))
         msg_desc = write_shm_message(-1, shm_chunk, task, 0, resize=False)
-        decoded = read_shm_message(shm_chunk, msg_desc)
+        decoded = read_shm_message(shm_chunk, msg_desc, ScheduledTask)
         assert type(decoded) is ScheduledTask
         assert (decoded.context_i, decoded.scheduled_i, decoded.epoch_start) == (1, 2, 3)
 

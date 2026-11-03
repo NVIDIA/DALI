@@ -24,7 +24,7 @@ from nvidia.dali import backend as _b
 from nvidia.dali import pickling
 from nvidia.dali._utils.external_source_impl import SourceDescription, SourceKind
 from nvidia.dali._multiproc.worker import worker
-from nvidia.dali._multiproc.messages import ScheduledTask, TaskArgs, WorkerArgs
+from nvidia.dali._multiproc.messages import CompletedTask, ScheduledTask, TaskArgs, WorkerArgs
 from nvidia.dali._multiproc.shared_batch import (
     deserialize_batch,
     import_numpy,
@@ -856,7 +856,7 @@ class WorkerPool:
         for completed_task_meta in completed_tasks_meta:
             context = self.shm_chunks_contexts[completed_task_meta.shm_chunk_id]
             shm_chunk = context.shm_manager.get_chunk_by_id(completed_task_meta.shm_chunk_id)
-            completed_task = read_shm_message(shm_chunk, completed_task_meta)
+            completed_task = read_shm_message(shm_chunk, completed_task_meta, CompletedTask)
             context.process_task(shm_chunk, completed_task)
 
     def pids(self):

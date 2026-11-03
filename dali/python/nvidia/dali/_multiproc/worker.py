@@ -443,7 +443,7 @@ class WorkerContext:
         if scheduled_meta is None:
             return None, None
         shm_chunk = self.shm_chunks[scheduled_meta.shm_chunk_id]
-        scheduled = read_shm_message(shm_chunk, scheduled_meta)
+        scheduled = read_shm_message(shm_chunk, scheduled_meta, ScheduledTask)
         return scheduled, shm_chunk
 
     def get_callback(self, scheduled):
