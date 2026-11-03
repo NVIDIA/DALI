@@ -73,13 +73,13 @@ def test_warnings(op, name, replacement, message):
 
 alias_variants = [
     (fn.mxnet_reader, "nvidia.dali.fn.mxnet_reader", "readers.mxnet"),
-    (ops.MXNetReader, "nvidia.dali.ops.MXNetReader", "readers.mxnet"),
+    (ops.MXNetReader, "nvidia.dali.ops.MXNetReader", "readers.MXNet"),
     (fn.numpy_reader, "nvidia.dali.fn.numpy_reader", "readers.numpy"),
     (fn.experimental.tensor_resize, "nvidia.dali.fn.experimental.tensor_resize", "tensor_resize"),
     (
         ops.experimental.TensorResize,
         "nvidia.dali.ops.experimental.TensorResize",
-        "tensor_resize",
+        "TensorResize",
     ),
 ]
 
@@ -93,7 +93,13 @@ def _call_op(op, *inputs, **kwargs):
 
 @params(*alias_variants)
 def test_alias_warnings(op, full_name, replacement):
-    glob = f"WARNING: `{full_name}` is now deprecated. Use `nvidia.dali.fn.{replacement}` instead.*"
+    # The replacement is reported through the API namespace the deprecated operator was called
+    # through.
+    api = "ops" if full_name.startswith("nvidia.dali.ops") else "fn"
+    glob = (
+        f"WARNING: `{full_name}` is now deprecated. "
+        f"Use `nvidia.dali.{api}.{replacement}` instead.*"
+    )
     with Pipeline(batch_size=1, num_threads=1, device_id=None):
         if "reader" in full_name.lower():
             inputs = []
