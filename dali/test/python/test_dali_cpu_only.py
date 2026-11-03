@@ -1222,6 +1222,26 @@ def test_pytorch_plugin_cpu():
     pii = pytorch.DALIGenericIterator([pipe], ["data"])  # noqa: F841
 
 
+@attr("pytorch")
+def test_feed_cpu_torch_tensor_without_cuda():
+    from unittest import mock
+
+    import torch
+
+    # A CPU tensor must not need a CUDA stream, e.g. with a CPU-only PyTorch build
+    @pipeline_def(batch_size=1, num_threads=1, device_id=None)
+    def pipe():
+        return fn.external_source(name="x") + 1
+
+    p = pipe()
+    p.build()
+    no_cuda = AssertionError("Torch not compiled with CUDA enabled")
+    with mock.patch("torch.cuda.current_stream", side_effect=no_cuda):
+        p.feed_input("x", [torch.arange(3, dtype=torch.int32)])
+        (out,) = p.run()
+    assert np.array_equal(np.array(out[0]), [1, 2, 3])
+
+
 def test_random_mask_pixel_cpu():
     check_single_input(fn.segmentation.random_mask_pixel)
 
