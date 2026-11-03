@@ -195,7 +195,8 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
 
   int HandlePictureDisplay(CUVIDPARSERDISPINFO *picture_display_info);
 
-  FramesDecoderGpu(FramesDecoderGpu&&) = default;
+  // not movable: the parser calls back into this object (pUserData)
+  FramesDecoderGpu(FramesDecoderGpu&&) = delete;
 
   ~FramesDecoderGpu();
 
