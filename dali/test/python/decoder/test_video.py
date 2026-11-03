@@ -1620,15 +1620,14 @@ def yuv420_to_rgb_bt601(y, u, v):
     """YUV 4:2:0 to RGB the way the GPU video decoder does it: BT.601, limited range, bilinear
     chroma upsampling.
 
-    The offsets are the decoder's: it normalizes the YUV values to [0, 1] and subtracts 0.0625 from
-    Y and 0.5 from Cb and Cr (itu_r_bt_601::ycbcr_to_rgb<float>), that is 15.9375 and 127.5 levels
-    and not 16 and 128."""
+    The offsets are the exact 8-bit ones (16 for Y, 128 for Cb and Cr): the decoder normalizes the
+    8-bit samples by 256 so that 1/16 and 1/2 are 16 and 128 levels."""
     size = (y.shape[1], y.shape[0])
     u = cv2.resize(u, size, interpolation=cv2.INTER_LINEAR)
     v = cv2.resize(v, size, interpolation=cv2.INTER_LINEAR)
-    y = (y - 255 * 0.0625) * (255 / 219)
-    u = (u - 127.5) * (255 / 224)
-    v = (v - 127.5) * (255 / 224)
+    y = (y - 16) * (255 / 219)
+    u = (u - 128) * (255 / 224)
+    v = (v - 128) * (255 / 224)
     kr, kb = 0.299, 0.114
     r = y + 2 * (1 - kr) * v
     b = y + 2 * (1 - kb) * u
