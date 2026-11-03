@@ -320,8 +320,9 @@ class DLL_PUBLIC FramesDecoderBase {
    * @brief The keyframe that SeekFrame seeks to, to return `frame` from a decoder (with an index)
    * whose next frame is `next_frame`, or -1 if it decodes through to it.
    *
-   * It decodes through when `frame` is ahead of `next_frame` by at most kMinimumSeekLeap, or has
-   * the same last keyframe. Otherwise it seeks to the last keyframe of `frame`. SeekFrame and
+   * It decodes through when `frame` is ahead of `next_frame`, by at most kMinimumSeekLeap or with
+   * the same last keyframe. Otherwise, also for any `frame` before `next_frame`, it seeks to the
+   * last keyframe of `frame`. SeekFrame and
    * AddDecodeWork both take this decision from here, so the estimate cannot drift from it.
    *
    * @param next_frame The decoder's next frame, in range: past the end, SeekFrame resets first.
@@ -347,7 +348,7 @@ class DLL_PUBLIC FramesDecoderBase {
    */
   struct DecodeWork {
     int64_t pictures = 0;
-    int reopens = 0;
+    int64_t reopens = 0;
   };
 
   /**

@@ -300,7 +300,9 @@ void CheckDecodeOrder(const FrameIndex &index, const std::string &path) {
       EXPECT_TRUE(targets.count(i)) << "keyframe " << i;
     }
     if (targets.count(i)) {
-      EXPECT_EQ(index[i].seek_decode_idx, index[i].decode_idx) << "seek to frame " << i;
+      // a target that is not a keyframe (frame 0 before the first one): the start of the stream
+      int landing = index[i].is_keyframe ? index[i].decode_idx : 0;
+      EXPECT_EQ(index[i].seek_decode_idx, landing) << "seek to frame " << i;
     } else {
       EXPECT_EQ(index[i].seek_decode_idx, -1) << "frame " << i << " is not a seek target";
     }
@@ -356,11 +358,17 @@ void CheckDecodeWork(FramesDecoderBase &decoder, FramesDecoderBase::DecodePositi
   ASSERT_LE(frame_ids.size(), static_cast<size_t>(kMaxDecodeWorkFrames));
   auto &index = decoder.GetIndex();
   int n = static_cast<int>(index.size());
-  // the frames that DecodeFrames seeks to, in order
+  // the frames that DecodeFrames seeks to, in order (keep in sync with DecodeFrames)
   std::vector<int> frames;
   for (int frame : frame_ids)
     frames.push_back(FramesDecoderBase::HandleBoundary(boundary::BoundaryType::CLAMP, frame, 0, n));
   std::sort(frames.begin(), frames.end());
+  // A seek or a reset drops the pictures decoded ahead: then the decoder must not be behind
+  bool restarts = pos.next_frame < 0 || pos.next_frame >= n ||
+                  (frames[0] != pos.next_frame &&
+                   FramesDecoderBase::SeekTarget(index, pos.next_frame, frames[0]) >= 0);
+  if (restarts)
+    surplus = 0;
   FramesDecoderBase::DecodeWork work;
   for (int frame : frames)
     FramesDecoderBase::AddDecodeWork(index, pos, frame, work);
@@ -371,7 +379,6 @@ void CheckDecodeWork(FramesDecoderBase &decoder, FramesDecoderBase::DecodePositi
   int64_t ahead = decoder.DecodedPictures() - before - work.pictures;
   EXPECT_GE(ahead, -surplus) << what;
   EXPECT_LE(ahead, slack) << what;
-  // a seek drops the surplus, so this is an upper bound
   surplus = std::clamp<int64_t>(surplus + ahead, 0, slack);
   EXPECT_EQ(decoder.Reopens() - reopens_before, work.reopens) << what;
   EXPECT_EQ(decoder.NextFrameIdx(), pos.next_frame) << what;
@@ -590,9 +597,9 @@ TEST(FramesDecoderDecodeWorkTest, NoDecodeOrder) {
 
 TEST_F(FramesDecoderTest_CpuOnlyTests, DecodeWork) {
   int across_keyframe = 0;
-  for (auto &path : {cfr_videos_paths_[0], vfr_videos_paths_[0],
-                     make_string(testing::dali_extra_path(), "/db/video/cfr/test_2_vp9.mp4"),
-                     make_string(testing::dali_extra_path(), "/db/video/vfr/test_2_vp9.mp4")}) {
+  auto paths = cfr_videos_paths_;
+  paths.insert(paths.end(), vfr_videos_paths_.begin(), vfr_videos_paths_.end());
+  for (auto &path : paths) {
     FramesDecoderCpu decoder(path);
     decoder.BuildIndex();
     std::vector<uint8_t> buffer(kMaxDecodeWorkFrames * decoder.FrameSize());
@@ -623,8 +630,9 @@ TEST_F(FramesDecoderGpuTest, DecodeWork) {
                                                      path, across_keyframe));
     decoder.Reset();
     int free_frames = CheckPositionAt(decoder, buffer.data(), kGpuPictureSlack, path);
-    if (i < with_b_frames.size())
+    if (i < with_b_frames.size()) {
       EXPECT_GT(free_frames, 0) << path << ": no B-frames";
+    }
   }
   EXPECT_GT(across_keyframe, 0) << "no file ran the sample across a keyframe";
 }
@@ -646,7 +654,12 @@ TEST_F(FramesDecoderGpuTest, IndexDecodeOrder) {
   auto path = make_string(testing::dali_extra_path(), "/db/video/cfr/test_1.mp4");
   FramesDecoderGpu decoder(path);
   decoder.BuildIndex();
-  CheckDecodeOrder(decoder.GetIndex(), path);
+  auto &index = decoder.GetIndex();
+  CheckDecodeOrder(index, path);
+  int reordered = 0;
+  for (size_t i = 0; i < index.size(); i++)
+    reordered += index[i].decode_idx != static_cast<int>(i);
+  EXPECT_GT(reordered, 0) << "the decoding order is the display order";
 }
 
 // The Sintel clips start with packets that an edit list hides (negative timestamps): they are not
@@ -654,7 +667,8 @@ TEST_F(FramesDecoderGpuTest, IndexDecodeOrder) {
 TEST_F(FramesDecoderGpuTest, IndexDecodeOrderLeadIn) {
   {
     // 310 packets, of which 188 hidden, and only the IDR at frame 62 is shown
-    FramesDecoderGpu decoder(SintelClip(2, 8));
+    auto path = SintelClip(2, 8);
+    FramesDecoderGpu decoder(path);
     decoder.BuildIndex();
     auto &index = decoder.GetIndex();
     ASSERT_EQ(index.size(), 122u);
@@ -675,6 +689,7 @@ TEST_F(FramesDecoderGpuTest, IndexDecodeOrderLeadIn) {
     ASSERT_TRUE(index[62].is_keyframe);
     EXPECT_EQ(index.DecodeIdx(62), 250);
     EXPECT_EQ(index.SeekDecodeIdx(62), 250);
+    EXPECT_EQ(SeekLandings(path, {index[62].pts}), std::vector<int64_t>{index[62].pts});
   }
   // Only the IDR is hidden: every frame is decoded from the start
   for (auto &path : {SintelClip(0, 3), SintelClip(1, 7)}) {
@@ -696,10 +711,16 @@ TEST_F(FramesDecoderGpuTest, IndexDecodeOrderLeadIn) {
     EXPECT_EQ(index.SeekDecodeIdx(60), 0);
   }
   {
-    // Here the seeks to the shown IDRs land on them
-    FramesDecoderGpu decoder(SintelClip(2, 5));
+    // Here the seeks to the shown IDRs land on them (as a demuxer of the test's own confirms: the
+    // index would say so too if BuildIndex failed to ask)
+    auto path = SintelClip(2, 5);
+    FramesDecoderGpu decoder(path);
     decoder.BuildIndex();
     auto &index = decoder.GetIndex();
+    auto landings = SeekLandings(path, {index[21].pts, index[58].pts});
+    ASSERT_EQ(landings.size(), 2u);
+    EXPECT_EQ(landings[0], index[21].pts);
+    EXPECT_EQ(landings[1], index[58].pts);
     for (int k : {21, 58}) {
       ASSERT_TRUE(index[k].is_keyframe) << k;
       EXPECT_EQ(index.SeekDecodeIdx(k), index.DecodeIdx(k)) << k;

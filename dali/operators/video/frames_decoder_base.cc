@@ -467,11 +467,69 @@ inline PacketKeyType PacketKey(const AVPacket &packet) {
   return {false, packet.dts != AV_NOPTS_VALUE ? packet.dts : packet.pts};
 }
 
-// A key packet of the stream: where a seek can land
+// A packet where a seek can land: a key packet, or the first packet of the stream
 struct SyncPacket {
   PacketKeyType key;
   int decode_idx;  // its position in decoding order
 };
+
+/**
+ * @brief Records IndexEntry::seek_decode_idx for the frames that SeekFrame seeks to.
+ *
+ * A seek lands on the keyframe itself, or at the start of the stream for a target that is not a
+ * keyframe (frame 0 before the first keyframe). With hidden packets (e.g. an edit list), the
+ * demuxer is asked instead, as its rule is not exposed: mov, for one, can land a whole GOP or a
+ * hidden lead-in before the keyframe. All-intra streams are not asked: a seek lands on the keyframe
+ * there, and asking would read the whole file again.
+ *
+ * Leaves the demuxer at an arbitrary position: the caller resets it.
+ */
+void RecordSeekLandings(AVFormatContext *ctx, int stream_id, AVPacket *packet_buf,
+                        FrameIndex &index, bool has_hidden_packets,
+                        std::vector<SyncPacket> sync_packets) {
+  bool all_keyframes = std::all_of(index.index.begin(), index.index.end(),
+                                   [](const IndexEntry &e) { return e.is_keyframe; });
+  bool ask_demuxer = has_hidden_packets && !all_keyframes;
+  // Sorted by key, keeping the decoding order of packets with the same key: the first one wins
+  if (ask_demuxer)
+    std::stable_sort(sync_packets.begin(), sync_packets.end(),
+                     [](const SyncPacket &a, const SyncPacket &b) { return a.key < b.key; });
+  int prev_target = -1;
+  for (size_t i = 0; i < index.size(); i++) {
+    int target = index[i].last_keyframe_id;
+    if (target == prev_target)
+      continue;  // last_keyframe_id does not decrease
+    prev_target = target;
+    auto &entry = index[target];
+    entry.seek_decode_idx = entry.is_keyframe ? entry.decode_idx : 0;
+    if (!ask_demuxer)
+      continue;
+    if (av_seek_frame(ctx, stream_id, entry.pts, AVSEEK_FLAG_BACKWARD) < 0) {
+      LOG_LINE << "Not seekable: seeks are assumed to land on their keyframes" << std::endl;
+      ask_demuxer = false;
+      continue;
+    }
+    int ret;
+    while ((ret = av_read_frame(ctx, packet_buf)) == 0) {
+      auto packet = AVPacketScope(packet_buf, av_packet_unref);
+      if (packet->stream_index != stream_id)
+        continue;
+      auto key = PacketKey(*packet);
+      auto landing = std::lower_bound(
+          sync_packets.begin(), sync_packets.end(), key,
+          [](const SyncPacket &s, const PacketKeyType &k) { return s.key < k; });
+      if (landing != sync_packets.end() && landing->key == key)
+        entry.seek_decode_idx = landing->decode_idx;
+      else
+        LOG_LINE << "A seek to frame " << target << " landed on an unknown packet: assumed to "
+                 << "land on decoding position " << entry.seek_decode_idx << std::endl;
+      break;
+    }
+    if (ret != 0)
+      LOG_LINE << "No packet read after a seek to frame " << target << ": "
+               << av_error_string(ret) << std::endl;
+  }
+}
 
 }  // namespace
 
@@ -490,8 +548,7 @@ void FramesDecoderBase::BuildIndex() {
   int frame_count = 0;
   num_frames_ = 0;
   int decode_idx = 0;  // packets of the stream so far, in decoding order
-  // The key packets in decoding order, to find where a seek landed. Only collected here (a
-  // push_back), as most files never need the lookup: see ask_demuxer below.
+  // Where a seek can land, in decoding order (see RecordSeekLandings)
   std::vector<SyncPacket> sync_packets;
   // Packets decoded but not shown (e.g. hidden by an edit list): marked as discarded by the
   // demuxer, or with negative timestamps
@@ -524,7 +581,8 @@ void FramesDecoderBase::BuildIndex() {
     entry.is_keyframe = false;  // Default to false, set true only if confirmed
     // Counted before the negative timestamps are skipped: hidden packets are decoded too
     entry.decode_idx = decode_idx++;
-    if (packet->flags & AV_PKT_FLAG_KEY)
+    // The first packet too: a demuxer can fall back to the start of the stream
+    if ((packet->flags & AV_PKT_FLAG_KEY) || entry.decode_idx == 0)
       sync_packets.push_back({PacketKey(*packet), entry.decode_idx});
     // An empty edit shifts the timeline, so hidden packets can have non-negative timestamps too
     if (packet->flags & AV_PKT_FLAG_DISCARD)
@@ -638,57 +696,9 @@ void FramesDecoderBase::BuildIndex() {
     }
   }
 
-  // Where AvSeekFrame lands for the frames that SeekFrame seeks to (the last keyframe of a frame),
-  // for estimating the decoding work: on the keyframe itself, unless packets are hidden. Then the
-  // demuxer is asked, as its rule is not exposed: e.g. mov searches its sync samples by decoding
-  // timestamp, offset by the edit list, so a seek can land a whole GOP (or a hidden lead-in)
-  // before the keyframe. Asking reads a packet per target, which in an all-intra stream would
-  // read the whole file again; there, decoding and display order match and a seek lands on the
-  // keyframe, so the demuxer is not asked.
-  bool all_keyframes = std::all_of(index_.index.begin(), index_.index.end(),
-                                   [](const IndexEntry &e) { return e.is_keyframe; });
-  bool ask_demuxer = has_hidden_packets && !all_keyframes;
-  if (ask_demuxer) {
-    // Sorted by key, keeping the decoding order of packets with the same key: the first one wins
-    std::stable_sort(sync_packets.begin(), sync_packets.end(),
-                     [](const SyncPacket &a, const SyncPacket &b) { return a.key < b.key; });
-  } else {
-    std::vector<SyncPacket>().swap(sync_packets);  // not needed: release it
-  }
-  int prev_target = -1;
-  for (size_t i = 0; i < index_.size(); i++) {
-    int target = index_[i].last_keyframe_id;
-    if (target == prev_target)
-      continue;  // last_keyframe_id does not decrease
-    prev_target = target;
-    auto &entry = index_[target];
-    entry.seek_decode_idx = entry.decode_idx;
-    if (!ask_demuxer)
-      continue;
-    if (av_seek_frame(ctx_, stream_id_, entry.pts, AVSEEK_FLAG_BACKWARD) < 0) {
-      LOG_LINE << "Not seekable: seeks to keyframes are assumed to land on them" << std::endl;
-      ask_demuxer = false;
-      continue;
-    }
-    int ret;
-    while ((ret = av_read_frame(ctx_, packet_)) == 0) {
-      auto packet = AVPacketScope(packet_, av_packet_unref);
-      if (packet->stream_index != stream_id_)
-        continue;
-      auto key = PacketKey(*packet);
-      auto landing = std::lower_bound(
-          sync_packets.begin(), sync_packets.end(), key,
-          [](const SyncPacket &s, const PacketKeyType &k) { return s.key < k; });
-      if (landing != sync_packets.end() && landing->key == key)
-        entry.seek_decode_idx = landing->decode_idx;
-      else
-        LOG_LINE << "A seek to frame " << target << " landed on an unknown packet" << std::endl;
-      break;
-    }
-    if (ret != 0)
-      LOG_LINE << "No packet read after a seek to frame " << target << ": "
-               << av_error_string(ret) << std::endl;
-  }
+  // For estimating the decoding work; the Reset below restores the demuxer
+  RecordSeekLandings(ctx_, stream_id_, packet_, index_, has_hidden_packets,
+                     std::move(sync_packets));
 
   // Detect if video has variable frame rate (VFR)
   DetectVariableFrameRate();
@@ -780,10 +790,6 @@ void FramesDecoderBase::SeekFrame(int frame_id) {
   }
   assert(next_frame_idx_ >= 0);
 
-  // If we are seeking to a frame that is before the current frame,
-  // or we are seeking to a frame that is more than kMinimumSeekLeap frames away,
-  // or the current frame index is invalid (e.g. end of file),
-  // we will to seek to the nearest keyframe first
   LOG_LINE << "SeekFrame: frame_id=" << frame_id << ", next_frame_idx=" << next_frame_idx_
            << std::endl;
   if (HasIndex()) {
@@ -793,8 +799,7 @@ void FramesDecoderBase::SeekFrame(int frame_id) {
       auto &keyframe_entry = index_[keyframe_id];
       LOG_LINE << "Seeking to key frame " << keyframe_id << " timestamp " << keyframe_entry.pts
                << " for requested frame " << frame_id << std::endl;
-      // TODO(janton): when packets are hidden (e.g. by an edit list), a seek can land before
-      // the keyframe (see IndexEntry::seek_decode_idx); AddDecodeWork only prices that for now.
+      // With hidden packets the seek can land before the keyframe (see seek_decode_idx)
       if (!AvSeekFrame(keyframe_entry.pts, keyframe_id)) {
         LOG_LINE << "Failed to seek to keyframe " << keyframe_id << " timestamp "
                  << keyframe_entry.pts << ". Resetting decoder." << std::endl;
