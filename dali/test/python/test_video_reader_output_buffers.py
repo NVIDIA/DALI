@@ -24,11 +24,13 @@ import contextlib
 import glob
 import hashlib
 import os
+import shutil
 import tempfile
 
 import numpy as np
 from nose2.tools import cartesian_params, params
-from nvidia.dali import fn, pipeline_def
+from nvidia.dali import fn, pipeline_def, types
+from nvidia.dali.pipeline import OperatorConcurrency, StreamPolicy
 from test_utils import get_dali_extra_path
 
 DALI_EXTRA = get_dali_extra_path()
@@ -296,3 +298,97 @@ def test_checkpoint_resume(reader_depth):
     cpt = p.checkpoint()
     expected = run(p, 4)
     compare(expected, run(make_pipe(False, checkpoint=cpt, **args), 4))
+
+
+def make_streams_pipe(copy, stream_policy, depth=3, reader_depth=2):
+    """The reader feeding two independent GPU consumers, with the given stream policy."""
+
+    @pipeline_def(
+        batch_size=4,
+        num_threads=2,
+        device_id=0,
+        seed=7,
+        prefetch_queue_depth=depth,
+        stream_policy=stream_policy,
+        concurrency=OperatorConcurrency.FULL,
+    )
+    def pipe():
+        video, label = fn.experimental.readers.video(
+            device="gpu",
+            filenames=CLIPS,
+            labels=list(range(len(CLIPS))),
+            sequence_length=8,
+            step=40,
+            random_shuffle=True,
+            prefetch_queue_depth=reader_depth,
+            name="Reader",
+        )
+        resized = fn.resize(fn.cast(video, dtype=types.FLOAT), resize_x=512, resize_y=512)
+        flipped = fn.flip(video, horizontal=1, vertical=1)
+        return video, label, fn.reductions.sum(resized, axes=(1, 2, 3)), flipped
+
+    with copy_outputs(copy):
+        p = pipe()
+        p.build()
+    return p
+
+
+@params(StreamPolicy.PER_OPERATOR, StreamPolicy.PER_BACKEND, StreamPolicy.SINGLE)
+def test_same_as_copy_stream_policies(stream_policy):
+    # with PER_OPERATOR, the consumers of the reader's output run on streams of their own
+    ref = run(make_streams_pipe(True, stream_policy), 10)
+    out = run(make_streams_pipe(False, stream_policy), 10)
+    compare(ref, out)
+
+
+def test_held_outputs_unchanged_per_operator_streams():
+    p = make_streams_pipe(False, StreamPolicy.PER_OPERATOR, reader_depth=3)
+    held = []
+    for _ in range(3):
+        outs = p.run()
+        held.append((outs, [digest(o) for o in outs]))
+    for _ in range(12):
+        p.run()
+    for it, (outs, digests) in enumerate(held):
+        assert [digest(o) for o in outs] == digests, f"held iteration {it} changed"
+
+
+def read_until_error(copy, path, files):
+    """Builds the pipeline (which indexes `path`), garbles `path` after its header, then runs;
+    returns the digests of the batches read and the error that stopped the pipeline."""
+
+    @pipeline_def(batch_size=4, num_threads=2, device_id=0, seed=1, prefetch_queue_depth=2)
+    def pipe():
+        return fn.experimental.readers.video(
+            device="gpu", filenames=files, sequence_length=8, step=40, name="Reader"
+        )
+
+    shutil.copy(CLIPS[0], path)
+    with copy_outputs(copy):
+        p = pipe()
+        p.build()
+    size = os.path.getsize(path)
+    garbage = np.random.default_rng(0).integers(0, 256, size - size // 8, np.uint8).tobytes()
+    with open(path, "r+b") as f:
+        f.seek(size // 8)
+        f.write(garbage)
+    digests, error = [], None
+    try:
+        for _ in range(12):
+            digests.append(digest(p.run()[0]))
+    except RuntimeError as e:
+        error = e
+    del p
+    return digests, error
+
+
+def test_file_damaged_after_indexing():
+    """A decoding error in the middle of the epoch stops the pipeline as with the copy, and the
+    batches before it are the same."""
+    with tempfile.TemporaryDirectory() as tmp:
+        path = os.path.join(tmp, "damaged.mp4")
+        files = CLIPS[1:4] + [path]
+        ref, ref_error = read_until_error(True, path, files)
+        out, error = read_until_error(False, path, files)
+    assert ref_error is not None and error is not None, (ref_error, error)
+    assert out == ref
