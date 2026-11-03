@@ -30,7 +30,7 @@ class DLL_PUBLIC DeviceGuard {
   /// @brief Saves current device id and restores it upon object destruction
   DeviceGuard();
 
-  DeviceGuard(DeviceGuard &&g);
+  DeviceGuard(DeviceGuard &&g) noexcept;
 
   DeviceGuard(const DeviceGuard &) = delete;
   DeviceGuard &operator=(const DeviceGuard &) = delete;

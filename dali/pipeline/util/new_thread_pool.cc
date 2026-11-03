@@ -57,7 +57,7 @@ class DummyCopyWrapper : public T {
  public:
   using T::T;
 
-  DummyCopyWrapper(T &&t) : T(std::move(t)) {}  // NOLINT
+  DummyCopyWrapper(T &&t) noexcept(noexcept(T(std::move(t)))) : T(std::move(t)) {}  // NOLINT
 
   [[noreturn]] DummyCopyWrapper(const DummyCopyWrapper &) {
     throw std::logic_error("This object must not be copied.");

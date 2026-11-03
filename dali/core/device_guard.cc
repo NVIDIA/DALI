@@ -31,7 +31,7 @@ DeviceGuard::DeviceGuard() :
   CUDA_CALL(cuCtxGetCurrent(&old_context_));
 }
 
-DeviceGuard::DeviceGuard(DeviceGuard &&g) {
+DeviceGuard::DeviceGuard(DeviceGuard &&g) noexcept {
   old_context_ = g.old_context_;
   g.old_context_ = INVALID_CONTEXT;
 }
