@@ -19,6 +19,7 @@
 #include <memory>
 #include <stdexcept>
 #include <string>
+#include <vector>
 #include "dali/core/error_handling.h"
 #include "dali/core/util.h"
 #include "dali/operators/video/video_utils.h"
@@ -275,25 +276,39 @@ void FramesDecoderCpu::Reset() {
   flush_state_ = false;
 }
 
-bool FramesDecoderCpu::IsCodecSupported(AVCodecID codec_id) {
-  static constexpr std::array<AVCodecID, 3> codecs = {
-    AVCodecID::AV_CODEC_ID_VP8,
-    AVCodecID::AV_CODEC_ID_VP9,
-    AVCodecID::AV_CODEC_ID_MJPEG,
-    // Those are not supported by our compiled version of libavcodec,
-    // AVCodecID::AV_CODEC_ID_AV1,
-    // AVCodecID::AV_CODEC_ID_MPEG4,
-    // AVCodecID::AV_CODEC_ID_H264,
-    // AVCodecID::AV_CODEC_ID_HEVC,
-  };
+namespace {
 
-  if (std::find(codecs.begin(), codecs.end(), codec_id) == codecs.end()) {
-    DALI_WARN(make_string("Codec ", codec_id, " (", avcodec_get_name(codec_id),
-                          ") is not supported by the CPU variant of this operator."));
+constexpr std::array<AVCodecID, 3> kCpuCodecs = {
+  AVCodecID::AV_CODEC_ID_VP8,
+  AVCodecID::AV_CODEC_ID_VP9,
+  AVCodecID::AV_CODEC_ID_MJPEG,
+  // Those are not supported by our compiled version of libavcodec,
+  // AVCodecID::AV_CODEC_ID_AV1,
+  // AVCodecID::AV_CODEC_ID_MPEG4,
+  // AVCodecID::AV_CODEC_ID_H264,
+  // AVCodecID::AV_CODEC_ID_HEVC,
+};
+
+}  // namespace
+
+bool FramesDecoderCpu::IsCodecSupported(AVCodecID codec_id, bool warn) {
+  if (std::find(kCpuCodecs.begin(), kCpuCodecs.end(), codec_id) == kCpuCodecs.end()) {
+    if (warn)
+      DALI_WARN(make_string("Codec ", codec_id, " (", avcodec_get_name(codec_id),
+                            ") is not supported by the CPU variant of this operator."));
     return false;
   }
 
   return avcodec_find_decoder(codec_id) != nullptr;
+}
+
+std::vector<AVCodecID> FramesDecoderCpu::SupportedCodecs() {
+  std::vector<AVCodecID> supported;
+  for (AVCodecID codec_id : kCpuCodecs) {
+    if (IsCodecSupported(codec_id, false))
+      supported.push_back(codec_id);
+  }
+  return supported;
 }
 
 bool FramesDecoderCpu::SelectVideoStream(int stream_id) {

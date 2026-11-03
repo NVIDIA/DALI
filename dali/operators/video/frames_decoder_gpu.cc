@@ -1042,27 +1042,43 @@ void FramesDecoderGpu::CopyFrame(uint8_t *dst, const uint8_t *src) {
   CUDA_CALL(cudaMemcpyAsync(dst, src, FrameSize(), cudaMemcpyDeviceToDevice, stream_));
 }
 
-bool FramesDecoderGpu::IsCodecSupported(AVCodecID codec_id) {
-  static constexpr std::array<AVCodecID, /*7*/ 6> codecs = {
-    AVCodecID::AV_CODEC_ID_H264,
-    AVCodecID::AV_CODEC_ID_HEVC,
-    AVCodecID::AV_CODEC_ID_VP8,
-    AVCodecID::AV_CODEC_ID_VP9,
-    //AVCodecID::AV_CODEC_ID_MJPEG,  // TODO(janton): add support for MJPEG
-    AVCodecID::AV_CODEC_ID_AV1,
-    AVCodecID::AV_CODEC_ID_MPEG4,
-  };
-  if (std::find(codecs.begin(), codecs.end(), codec_id) == codecs.end()) {
-    DALI_WARN(make_string("Codec ", codec_id, " (", avcodec_get_name(codec_id),
-                          ") is not supported by the GPU variant of this operator."));
+namespace {
+
+constexpr std::array<AVCodecID, /*7*/ 6> kGpuCodecs = {
+  AVCodecID::AV_CODEC_ID_H264,
+  AVCodecID::AV_CODEC_ID_HEVC,
+  AVCodecID::AV_CODEC_ID_VP8,
+  AVCodecID::AV_CODEC_ID_VP9,
+  // AVCodecID::AV_CODEC_ID_MJPEG,  // TODO(janton): add support for MJPEG
+  AVCodecID::AV_CODEC_ID_AV1,
+  AVCodecID::AV_CODEC_ID_MPEG4,
+};
+
+}  // namespace
+
+std::vector<AVCodecID> FramesDecoderGpu::SupportedCodecs() {
+  std::vector<AVCodecID> supported;
+  for (AVCodecID codec_id : kGpuCodecs) {
+    if (IsCodecSupported(codec_id, false))
+      supported.push_back(codec_id);
+  }
+  return supported;
+}
+
+bool FramesDecoderGpu::IsCodecSupported(AVCodecID codec_id, bool warn) {
+  if (std::find(kGpuCodecs.begin(), kGpuCodecs.end(), codec_id) == kGpuCodecs.end()) {
+    if (warn)
+      DALI_WARN(make_string("Codec ", codec_id, " (", avcodec_get_name(codec_id),
+                            ") is not supported by the GPU variant of this operator."));
     return false;
   }
 
   auto decoder_caps = frame_dec_gpu_impl::GetDecoderCaps(GetCodecType(codec_id),
                                                          cudaVideoChromaFormat_420, 0);
   if (!decoder_caps.bIsSupported) {
-    DALI_WARN(make_string("Codec ", avcodec_get_name(codec_id),
-                          " is not supported by NVDEC on this platform."));
+    if (warn)
+      DALI_WARN(make_string("Codec ", avcodec_get_name(codec_id),
+                            " is not supported by NVDEC on this platform."));
     return false;
   }
   return true;
