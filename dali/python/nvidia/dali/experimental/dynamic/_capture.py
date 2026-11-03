@@ -949,7 +949,8 @@ def _wire_capture_graph(
         if node.random_state_ref is not None:
             kw_nodes["_random_state"] = datanode_map[node.random_state_ref].cpu()
 
-        op = node.op_class._legacy_op(device=node.backend, **kw_scalars)
+        legacy_kwargs = {**node.op_class._legacy_op_kwargs(), **kw_scalars}
+        op = node.op_class._legacy_op(device=node.backend, **legacy_kwargs)
         out = op(*positional, **kw_nodes)
 
         if node.num_outputs == 1:

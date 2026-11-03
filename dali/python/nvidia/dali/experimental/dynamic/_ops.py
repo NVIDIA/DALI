@@ -158,6 +158,22 @@ class Operator:
     # to reimport the operator from py to pyi file.
     _generated = False
 
+    @classmethod
+    def _legacy_op_kwargs(cls):
+        """Metadata to forward to the legacy op so e.g. deprecation warnings report the
+        dynamic (ndd) API the user actually called instead of the legacy `ops`/`fn` one.
+
+        `cls.__module__` can't be used directly: non-reader operator classes are registered
+        under the internal `nvidia.dali.experimental.dynamic._ops` module (to keep them out of
+        Sphinx autodoc), not the public one, so the public module path is rebuilt from the
+        schema instead.
+        """
+        module = ".".join(["nvidia", "dali", "experimental", "dynamic", *cls._schema.ModulePath()])
+        return {
+            "_module": module,
+            "_display_name": cls._fn_name or cls._op_name,
+        }
+
     def __init__(
         self,
         max_batch_size,
@@ -426,8 +442,10 @@ class Operator:
                 }
 
                 # legacy_op is a member of the old `ops` module - we use the ops API to obtain
-                # an OpSpec
-                op = self._legacy_op(name=self._name, device=self._backend, **self._init_args)
+                # an OpSpec. Report the ndd module/name (not the legacy op's) so e.g. deprecation
+                # warnings correctly point at the dynamic API the user actually called.
+                legacy_init_args = {**type(self)._legacy_op_kwargs(), **self._init_args}
+                op = self._legacy_op(name=self._name, device=self._backend, **legacy_init_args)
                 self._op_inst = op
                 out = op(*input_nodes, **arg_nodes)
                 if isinstance(out, (list, tuple)):
@@ -896,7 +914,8 @@ class Reader(Operator):
 
     def _wire_pipeline(self, source: "_capture.CaptureSource") -> tuple:
         """Build the reader's pipeline outputs from its operator instance."""
-        op = self._legacy_op(name=self._name, device=self._backend, **self._init_args)
+        legacy_init_args = {**type(self)._legacy_op_kwargs(), **self._init_args}
+        op = self._legacy_op(name=self._name, device=self._backend, **legacy_init_args)
         out = op(**{name: _wire_arg(value) for name, value in self._raw_tensor_args.items()})
 
         if isinstance(out, dict):
