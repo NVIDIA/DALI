@@ -47,6 +47,7 @@ def make_input_tensors():
     # fixed sigma (float or sequence)
     ((3, 3), 1.0),
     ((5, 5), 2.0),
+    ((3, 7), 1.0),
     # sigma range (tuple -> random)
     ((3, 3), (0.1, 2.0)),
     ((7, 9), (0.5, 1.5)),
@@ -194,6 +195,7 @@ def _test_pil_images(kernel_size, sigma, device):
 @params(
     ((3, 3), 1.0),
     ((5, 5), 2.0),
+    ((3, 7), 1.0),
     ((3, 3), (0.1, 2.0)),
 )
 def test_gaussian_blur_pil_images_cpu(kernel_size, sigma):
@@ -204,6 +206,7 @@ def test_gaussian_blur_pil_images_cpu(kernel_size, sigma):
 @params(
     ((3, 3), 1.0),
     ((5, 5), 2.0),
+    ((3, 7), 1.0),
     ((3, 3), (0.1, 2.0)),
 )
 def test_gaussian_blur_pil_images_gpu(kernel_size, sigma):
@@ -248,6 +251,7 @@ def _test_tensor_device(kernel_size, sigma, device):
 @params(
     ((3, 3), 1.0),
     ((5, 5), 2.0),
+    ((3, 7), 1.0),
     ((3, 3), (0.1, 2.0)),
 )
 def test_gaussian_blur_tensor_gpu(kernel_size, sigma):
