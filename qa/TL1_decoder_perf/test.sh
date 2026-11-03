@@ -57,14 +57,16 @@ set_platform_params() {
             HW_LOAD=0.12
             MIN_PERF=19000
             MIN_PERF_NDD=14000
+            BATCH_SIZE=408
             ;;
         aarch64/10.7)  # Vera Rubin (VR)
             # 2 sockets x 88 cores x 2 threads; 0-87 + 176-263 are socket 0 and its hyperthread siblings (local to GPU 0)
             CPU_LIST="0-87,176-263"
             NUM_CORES=174  # leave 2 cores for internal DALI tasks
             HW_LOAD=0.13
-            MIN_PERF=40000
-            MIN_PERF_NDD=27000
+            MIN_PERF=42000
+            MIN_PERF_NDD=29000
+            BATCH_SIZE=430
             ;;
         aarch64/9.0|aarch64/10.0|aarch64/10.3)  # Grace Hopper (GH200), Grace Blackwell (GB200, GB300)
             CPU_LIST="0-71"
@@ -72,6 +74,7 @@ set_platform_params() {
             HW_LOAD=0.11
             MIN_PERF=29000
             MIN_PERF_NDD=20000
+            BATCH_SIZE=408
             ;;
         *)
             echo "Unsupported platform: got ${arch}/${compute_cap}, expected x86_64 with any GPU, or aarch64 with GPU compute capability 9.0, 10.0, 10.3 or 10.7." >&2
@@ -83,7 +86,7 @@ set_platform_params() {
 # SPEC:DA-11356-002_v04 - run all benchmarks (optionally with nsys when NSYS_REP is set per run).
 run_all_benchmarks() {
     TASKSET="taskset --cpu-list ${CPU_LIST}"
-    BENCH_ARGS="--width_hint 6000 --height_hint 6000 -b 408 -d 0 -g gpu -w 100 -t 100000 -i ${DALI_EXTRA_PATH}/db/single/jpeg -j ${NUM_CORES} --hw_load ${HW_LOAD}"
+    BENCH_ARGS="--width_hint 6000 --height_hint 6000 -b ${BATCH_SIZE} -d 0 -g gpu -w 100 -t 100000 -i ${DALI_EXTRA_PATH}/db/single/jpeg -j ${NUM_CORES} --hw_load ${HW_LOAD}"
     run_bench "${LOG_RN50}" ${TASKSET} python hw_decoder_bench.py ${BENCH_ARGS} -p rn50
     DALI_USE_NEW_THREAD_POOL=1 run_bench "${LOG_RN50_TP}" ${TASKSET} python hw_decoder_bench.py ${BENCH_ARGS} -p rn50
     run_bench "${LOG_NDD}" ${TASKSET} python hw_decoder_bench.py ${BENCH_ARGS} -p ndd_rn50
