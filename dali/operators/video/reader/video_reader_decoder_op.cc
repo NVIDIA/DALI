@@ -268,10 +268,12 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
             break;
           case FileListFormat::kTimestamps:
             entry.start_frame = indexer->GetFrameIdxByTimestamp(
-                SecondsToTimestamp(indexer->GetTimebase(), entry.start),
+                SecondsToTimestamp(indexer->GetTimebase(), entry.start,
+                                   file_list_opts_.should_round_down_start()),
                 file_list_opts_.should_round_down_start());
             entry.end_frame = indexer->GetFrameIdxByTimestamp(
-                SecondsToTimestamp(indexer->GetTimebase(), entry.end),
+                SecondsToTimestamp(indexer->GetTimebase(), entry.end,
+                                   file_list_opts_.should_round_down_end()),
                 file_list_opts_.should_round_down_end());
             break;
           default:
