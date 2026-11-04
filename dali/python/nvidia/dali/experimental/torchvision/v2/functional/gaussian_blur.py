@@ -19,7 +19,7 @@ from nvidia.dali._typing import TensorLike
 from nvidia.dali.experimental.dynamic._device import DeviceLike
 
 from ..operator import adjust_input
-from ..gaussian_blur import GaussianBlur
+from ..gaussian_blur import GaussianBlur, _to_window_size
 
 
 @adjust_input
@@ -40,4 +40,6 @@ def gaussian_blur(
         # Passing the same sigma value for each axis reduces to a single value
         sigma = sigma[0]
 
-    return ndd.gaussian_blur(inpt, window_size=kernel_size, sigma=sigma, device=device)
+    return ndd.gaussian_blur(
+        inpt, window_size=_to_window_size(kernel_size), sigma=sigma, device=device
+    )
