@@ -1044,3 +1044,13 @@ def test_two_non_empty_sources_raise(device):
     with assert_raises(ValueError, glob="*Exactly one of*Got 2*"):
         p = pipe()
         p.build()
+
+
+@cartesian_params(devices)
+def test_file_list_timestamps_end_at_duration_is_kept(device):
+    list_file = _write_file_list([f"{VIDEO_0} 0 1.0 10.0"])  # end == video duration
+    experimental = _file_list_frame_selection(_experimental_reader(device), list_file)
+    legacy = _file_list_frame_selection(_legacy_gpu_reader, list_file)
+    assert (
+        experimental == legacy == (216, list(range(24, 240)))
+    ), f"experimental: {experimental[0]} frames, legacy: {legacy[0]} frames"
