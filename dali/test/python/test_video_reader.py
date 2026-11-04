@@ -599,3 +599,53 @@ def test_file_url_can_be_opened(device):
     p.build()
     assert p.reader_meta("r")["epoch_size"] == 50
     p.run()
+
+
+def _reflect_index(idx, start, end, mode):
+    """Reference for reflecting `idx` into [start, end); `mode` is the DALI pad_mode name."""
+    n = end - start
+    off = idx - start
+    if mode == "reflect_101":
+        period = 2 * (n - 1)
+        off %= period
+        off = period - off if off >= n else off
+    else:
+        period = 2 * n
+        off %= period
+        off = period - 1 - off if off >= n else off
+    return start + off
+
+
+@cartesian_params(devices, ["reflect_101", "reflect_1001"])
+def test_reflect_padding_stays_within_file_list_roi(device, pad_mode):
+    # Frames 10..13 of the video, sequence_length=4, stride=5: the first sequence starts at the
+    # beginning of the range and is padded by reflecting within it. The requested frames
+    # 10, 15, 20, 25 must come out as frames of the range: reflecting only off its end instead
+    # gives 10, 11, 6, 1 for reflect_101, i.e. frames before the start of the range.
+    roi_start, roi_end = 10, 14
+    list_file = _write_file_list([f"{VIDEO_0} 0 {roi_start} {roi_end}"])
+
+    @pipeline_def(batch_size=1, num_threads=2, device_id=0, prefetch_queue_depth=1)
+    def pipe():
+        _, _, frame_num = fn.experimental.readers.video(
+            device=device,
+            name="reader",
+            file_list=list_file,
+            file_list_format="frames",
+            sequence_length=4,
+            stride=5,
+            step=1,
+            pad_mode=pad_mode,
+            enable_frame_num="sequence",
+        )
+        return frame_num
+
+    p = pipe()
+    p.build()
+    (frame_num,) = p.run()
+    frame_nums = [int(x) for x in np.array(frame_num.as_cpu()[0]).flatten()]
+    expected = [_reflect_index(roi_start + 5 * i, roi_start, roi_end, pad_mode) for i in range(4)]
+    assert frame_nums == expected, (
+        f"pad_mode={pad_mode}: got frames {frame_nums}, expected {expected} "
+        f"(file_list range [{roi_start}, {roi_end}))"
+    )
