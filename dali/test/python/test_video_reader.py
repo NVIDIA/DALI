@@ -898,3 +898,13 @@ def test_ycbcr_cpu_matches_gpu(source):
     assert cpu.shape == gpu.shape
     max_diff = np.abs(cpu - gpu).max()
     assert max_diff <= 1, f"CPU and GPU YCbCr differ by up to {max_diff}"
+
+
+@cartesian_params(devices)
+def test_file_list_timestamps_end_at_duration_is_kept(device):
+    list_file = _write_file_list([f"{VIDEO_0} 0 1.0 10.0"])  # end == video duration
+    experimental = _file_list_frame_selection(_experimental_reader(device), list_file)
+    legacy = _file_list_frame_selection(_legacy_gpu_reader, list_file)
+    assert (
+        experimental == legacy == (216, list(range(24, 240)))
+    ), f"experimental: {experimental[0]} frames, legacy: {legacy[0]} frames"
