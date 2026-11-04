@@ -264,16 +264,19 @@ class DLL_PUBLIC FramesDecoderBase {
 
   /**
    * @brief Width of a video frame in pixels
+   *
+   * The size from the container, unless a decoder overrides it with SetDisplaySize. Only
+   * FramesDecoderGpu does: FramesIndexer and the CPU decoder keep the container size.
    */
   int Width() const {
-    return codec_params_->width;
+    return display_width_ > 0 ? display_width_ : codec_params_->width;
   }
 
   /**
    * @brief Height of a video frame in pixels
    */
   int Height() const {
-    return codec_params_->height;
+    return display_height_ > 0 ? display_height_ : codec_params_->height;
   }
 
   /**
@@ -587,6 +590,15 @@ class DLL_PUBLIC FramesDecoderBase {
    */
   bool HasDecodeOrderTimestamps() const;
 
+  /**
+   * @brief Overrides the size reported by Width() and Height(), when the size of the pictures in
+   *        the stream differs from the one declared by the container.
+   */
+  void SetDisplaySize(int width, int height) {
+    display_width_ = width;
+    display_height_ = height;
+  }
+
   AVUniquePtr<AVFormatContext> ctx_;
   AVUniquePtr<AVCodecContext> codec_ctx_;
   AVUniquePtr<AVFrame> frame_;
@@ -637,6 +649,8 @@ class DLL_PUBLIC FramesDecoderBase {
                    int buffer_size);
 
   int channels_ = 3;
+  int display_width_ = 0;
+  int display_height_ = 0;
   bool is_vfr_ = false;
 
   std::string filename_ = {};
