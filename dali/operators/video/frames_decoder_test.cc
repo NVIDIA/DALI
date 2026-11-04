@@ -854,6 +854,7 @@ TEST_F(FramesDecoderGpuTest, DecoderCacheReconfiguresLargerDecoder) {
 TEST_F(FramesDecoderGpuTest, DecoderCacheDoesNotReconfigureSmallerDecoder) {
   using frame_dec_gpu_impl::NVDECDecodersCreated;
   using frame_dec_gpu_impl::NVDECDecodersReconfigured;
+  using frame_dec_gpu_impl::NVDECDestroyUnusedDecoders;
   std::string small_path = testing::dali_extra_path() + "/db/video/cfr/test_2.mp4";  // 800x600
   std::string large_path = testing::dali_extra_path() + "/db/video/cfr/test_1.mp4";  // 1280x720
   auto open = [](const std::string &path) {
@@ -862,6 +863,10 @@ TEST_F(FramesDecoderGpuTest, DecoderCacheDoesNotReconfigureSmallerDecoder) {
     return decoder;
   };
   auto num_set_up = [] { return NVDECDecodersCreated() + NVDECDecodersReconfigured(); };
+
+  // Start from an empty cache: when earlier tests filled it up, creating a decoder evicts a free
+  // one, which could be the small decoder checked at the end.
+  NVDECDestroyUnusedDecoders();
 
   // Take cached decoders until one has to be created for the large video: none that is free fits
   // it any more (it would have been reconfigured), and they stay taken.

@@ -155,6 +155,18 @@ class NVDECCache {
       return num_reconfigured;
     }
 
+    void DestroyUnused() {
+      std::lock_guard lock(access_lock);
+      for (auto it = dec_cache.begin(); it != dec_cache.end();) {
+        if (!it->second.used) {
+          cuvidDestroyDecoder(it->second.decoder);
+          it = dec_cache.erase(it);
+        } else {
+          ++it;
+        }
+      }
+    }
+
  private:
     NVDECCache() {}
 
@@ -428,6 +440,10 @@ size_t NVDECDecodersCreated(int device_id) {
 
 size_t NVDECDecodersReconfigured(int device_id) {
   return NVDECCache::GetCache(device_id).NumReconfigured();
+}
+
+void NVDECDestroyUnusedDecoders(int device_id) {
+  NVDECCache::GetCache(device_id).DestroyUnused();
 }
 
 int process_video_sequence(void *user_data, CUVIDEOFORMAT *video_format) {

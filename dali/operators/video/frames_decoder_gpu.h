@@ -136,6 +136,13 @@ DLL_PUBLIC size_t NVDECDecodersCreated(int device_id = -1);
  */
 DLL_PUBLIC size_t NVDECDecodersReconfigured(int device_id = -1);
 
+/**
+ * @brief Destroys the cached NVDEC decoders that are not in use, e.g. to start from an empty cache.
+ *
+ * @param device_id CUDA device ordinal or -1 for the current device.
+ */
+DLL_PUBLIC void NVDECDestroyUnusedDecoders(int device_id = -1);
+
 }  // namespace frame_dec_gpu_impl
 
 struct NvDecodeState {
