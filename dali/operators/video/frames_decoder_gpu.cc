@@ -470,10 +470,8 @@ bool FramesDecoderGpu::IsBT709(CUVIDEOFORMAT *video_format) const {
 
 int FramesDecoderGpu::NumDecodeSurfaces(const CUVIDEOFORMAT &video_format) {
   // the minimum is what the stream's reference pictures and reordering need. The display delay
-  // keeps that many more decoded pictures in the parser, and the picture being mapped and
-  // converted must not be decoded over either: two spare surfaces, as the minimum does not
-  // guarantee the best performance (nvcuvid.h)
-  return video_format.min_num_decode_surfaces + kDisplayDelay + 2;
+  // keeps that many more decoded pictures in the parser
+  return video_format.min_num_decode_surfaces + kDisplayDelay + kSpareDecodeSurfaces;
 }
 
 void FramesDecoderGpu::InitGpuDecoder(CUVIDEOFORMAT *video_format) {

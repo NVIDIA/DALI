@@ -220,6 +220,13 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
   static constexpr int kDisplayDelay = 1;
 
   /**
+   * @brief Decode surfaces on top of the minimum that the stream needs and of the display delay:
+   *        the picture being mapped and converted must not be decoded over, and the minimum does
+   *        not guarantee the best performance (nvcuvid.h).
+   */
+  static constexpr int kSpareDecodeSurfaces = 2;
+
+  /**
    * @brief The number of decode surfaces of the decoder for a stream. It is also what the sequence
    *        callback returns to the parser, which uses it from then on.
    */
