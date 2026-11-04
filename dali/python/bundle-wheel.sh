@@ -154,7 +154,8 @@ DEPS_LIST=(
 
 if [ "$BUNDLE_NVCOMP" = "YES" ]; then
     DEPS_LIST+=(
-        "${DEPS_PATH}/cuda/lib64/libnvcomp.so.5"
+        # soname major version differs between nvCOMP releases; match any single-digit major
+        "${DEPS_PATH}"/cuda/lib64/libnvcomp.so.[0-9]
     )
 fi
 
