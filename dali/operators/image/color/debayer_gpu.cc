@@ -16,6 +16,7 @@
 #include "dali/core/error_handling.h"
 #include "dali/core/span.h"
 #include "dali/core/static_switch.h"
+#include "dali/core/version_util.h"
 #include "dali/kernels/imgproc/color_manipulation/debayer/debayer.h"
 #include "dali/kernels/imgproc/color_manipulation/debayer/debayer_npp.h"
 #include "dali/kernels/kernel_manager.h"
@@ -30,8 +31,7 @@ namespace {
 
 void WarnIfNppVersionAffected() {
   const int npp_version = NPPGetVersion();
-  // NPPGetVersion encodes major * 1000 + minor * 10 + patch.
-  if (12025 < npp_version && npp_version < 13000) {
+  if (MakeVersionNumber(12, 2, 5) < npp_version && npp_version < MakeVersionNumber(13, 0, 0)) {
     DALI_WARN_ONCE(
         "The loaded NPP library is affected by a known regression in CUDA 12 NPP "
         "versions newer than 12.2.5 that can produce incorrect GPU debayer results. "
