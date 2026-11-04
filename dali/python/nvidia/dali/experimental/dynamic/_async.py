@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import atexit
+import os
 import queue
 import sys
 import threading
@@ -24,15 +25,30 @@ from ._eval_mode import EvalMode
 from ._exceptions import CallStack, rethrow_exception
 
 _executors: "weakref.WeakSet[_AsyncExecutor]" = weakref.WeakSet()
+_lock = threading.Lock()
 
 
 def _join_executors():
-    """Stop daemon threads so they don't race during executor shutdown"""
-    executors = list(_executors)
+    """Stop the other worker threads before a fork, or at exit so they don't race shutdown"""
+    current = threading.current_thread()
+    executors = [e for e in _executors if e._thread is not current]
     for executor in executors:
         executor.shutdown()
     for executor in executors:
         executor._thread.join()  # type: ignore
+
+
+def _before_fork():
+    _lock.acquire()
+    _join_executors()
+
+
+# With free-threading, an idle worker would leave the frees it owns to the forked child
+os.register_at_fork(
+    before=_before_fork,
+    after_in_parent=_lock.release,
+    after_in_child=_lock.release,
+)
 
 
 def _register_executor(executor: "_AsyncExecutor"):
@@ -114,15 +130,17 @@ class _AsyncExecutor:
                 self._condition.notify_all()
 
     def submit(self, callable: Callable[[], None], call_stack: CallStack):
-        if self._thread is None or not self._thread.is_alive():
-            self._thread = threading.Thread(target=self._worker, daemon=True)
-            self._thread.start()
-            _register_executor(self)
+        with _lock:
+            if self._thread is None or not self._thread.is_alive():
+                self._queue = queue.SimpleQueue[Optional[_Future]]()
+                self._thread = threading.Thread(target=self._worker, daemon=True)
+                self._thread.start()
+                _register_executor(self)
 
-        # Since the executor is bound to a single eval context, there's no race condition
-        self._submitted_seq += 1
-        task = _Future(self._submitted_seq, self, callable, call_stack)
-        self._queue.put(task)
+            # Since the executor is bound to a single eval context, there's no race condition
+            self._submitted_seq += 1
+            task = _Future(self._submitted_seq, self, callable, call_stack)
+            self._queue.put(task)
 
         # Let the worker acquire the GIL if it's ready to pick up a task
         if sys.version_info < (3, 13) or sys._is_gil_enabled():
