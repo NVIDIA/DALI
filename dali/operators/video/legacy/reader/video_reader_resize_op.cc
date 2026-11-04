@@ -38,6 +38,12 @@ This operator combines the features of ``readers.video`` and ``resize``.
 
 .. note::
   The decoder supports only constant frame-rate videos.
+
+.. note::
+  When converting to RGB, this operator always uses the ITU-R BT.601 matrix, regardless of what the
+  video stream says. The colors of streams that use another matrix (for example BT.709, common
+  in HD video) will be slightly off. Use :meth:`nvidia.dali.fn.experimental.readers.video`,
+  which uses the matrix of the stream, for a correct conversion in this case.
 )code")
   .NumInput(0)
   .OutputFn(detail::VideoReaderOutputFn)
