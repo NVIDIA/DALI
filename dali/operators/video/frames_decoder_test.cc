@@ -849,7 +849,8 @@ TEST_F(FramesDecoderGpuTest, DecoderCacheReconfiguresLargerDecoder) {
 }
 
 // A cached decoder that is smaller than the stream cannot be reconfigured for it: a decoder is
-// created instead.
+// created instead and the small one stays in the cache. A failed reconfiguration would also end
+// with a created decoder, but it would drop the small one, so the cache is checked as well.
 TEST_F(FramesDecoderGpuTest, DecoderCacheDoesNotReconfigureSmallerDecoder) {
   using frame_dec_gpu_impl::NVDECDecodersCreated;
   using frame_dec_gpu_impl::NVDECDecodersReconfigured;
@@ -860,6 +861,7 @@ TEST_F(FramesDecoderGpuTest, DecoderCacheDoesNotReconfigureSmallerDecoder) {
     decoder->BuildIndex();
     return decoder;
   };
+  auto num_set_up = [] { return NVDECDecodersCreated() + NVDECDecodersReconfigured(); };
 
   // Take cached decoders until one has to be created for the large video: none that is free fits
   // it any more (it would have been reconfigured), and they stay taken.
@@ -871,19 +873,34 @@ TEST_F(FramesDecoderGpuTest, DecoderCacheDoesNotReconfigureSmallerDecoder) {
     taken.back()->ReadNextFrame(FrameData());
   }
 
-  // Only decoders smaller than the large video can be free now. Make sure there is one.
-  {
-    auto small = open(small_path);
-    ASSERT_TRUE(small->IsValid());
-    small->ReadNextFrame(FrameData());
+  // Take the free decoders for the small video, until one has to be set up for it. That one is
+  // the only free decoder when it is put back: it is smaller than the large video.
+  for (size_t before = num_set_up(); num_set_up() == before;) {
+    ASSERT_LT(taken.size(), 200u);
+    taken.push_back(open(small_path));
+    ASSERT_TRUE(taken.back()->IsValid());
+    taken.back()->ReadNextFrame(FrameData());
   }
+  taken.pop_back();
 
   size_t num_created = NVDECDecodersCreated();
   size_t num_reconfigured = NVDECDecodersReconfigured();
-  auto large = open(large_path);
-  ASSERT_TRUE(large->IsValid());
-  large->ReadNextFrame(FrameData());
-  EXPECT_EQ(NVDECDecodersCreated(), num_created + 1);
+  {
+    auto large = open(large_path);
+    ASSERT_TRUE(large->IsValid());
+    large->ReadNextFrame(FrameData());
+    EXPECT_EQ(NVDECDecodersCreated(), num_created + 1);
+    EXPECT_EQ(NVDECDecodersReconfigured(), num_reconfigured);
+  }
+
+  // The small decoder was not touched: it is reused as it is, and not reconfigured from the new
+  // large one that was just put back.
+  num_created = NVDECDecodersCreated();
+  num_reconfigured = NVDECDecodersReconfigured();
+  auto small = open(small_path);
+  ASSERT_TRUE(small->IsValid());
+  small->ReadNextFrame(FrameData());
+  EXPECT_EQ(NVDECDecodersCreated(), num_created);
   EXPECT_EQ(NVDECDecodersReconfigured(), num_reconfigured);
 }
 
