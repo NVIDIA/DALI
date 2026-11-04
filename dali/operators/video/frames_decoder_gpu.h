@@ -120,10 +120,10 @@ class NVDECLease {
 };
 
 /**
- * @brief Returns how many NVDEC decoders were created so far for a device, i.e. how many times
- *        the decoder cache could not provide a matching one.
+ * @brief Returns how many NVDEC decoders were created (cuvidCreateDecoder) so far for a device.
  *
- * The count includes decoders that were evicted from the cache since.
+ * The count includes decoders that were evicted from the cache since. A cached decoder that was
+ * reconfigured for a stream instead is not counted here, but by NVDECDecodersReconfigured().
  *
  * @param device_id CUDA device ordinal or -1 for the current device.
  */
