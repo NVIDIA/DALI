@@ -810,6 +810,8 @@ TEST_F(FramesDecoderGpuTest, SurfaceUnmappedAfterFailedConversion) {
 TEST_F(FramesDecoderGpuTest, DecoderCacheReconfiguresLargerDecoder) {
   using frame_dec_gpu_impl::NVDECDecodersCreated;
   using frame_dec_gpu_impl::NVDECDecodersReconfigured;
+  if (!NVCUVID_API_EXISTS(cuvidReconfigureDecoder))
+    GTEST_SKIP() << "Test skipped because cuvidReconfigureDecoder API is not available.";
   // 800x600, coded as 800x608: the reconfigured decoder has to crop it
   std::string small_path = testing::dali_extra_path() + "/db/video/cfr/test_2.mp4";
   std::string large_path = testing::dali_extra_path() + "/db/video/cfr/test_1.mp4";  // 1280x720
@@ -820,8 +822,9 @@ TEST_F(FramesDecoderGpuTest, DecoderCacheReconfiguresLargerDecoder) {
   };
   auto num_set_up = [] { return NVDECDecodersCreated() + NVDECDecodersReconfigured(); };
 
-  // Take the cached decoders of the small video until one has to be set up for it: then none of
-  // them is free. A decoder gets its NVDEC decoder when it starts decoding.
+  // Take the cached decoders that are set up for the small video, until one has to be set up for
+  // it (created, or reconfigured from a larger one): then none that is set up for it is free.
+  // A decoder gets its NVDEC decoder when it starts decoding.
   std::vector<std::unique_ptr<FramesDecoderGpu>> taken;
   for (size_t before = num_set_up(); num_set_up() == before;) {
     ASSERT_LT(taken.size(), 200u);
