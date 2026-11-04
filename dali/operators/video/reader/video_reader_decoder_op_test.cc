@@ -13,6 +13,8 @@
 // limitations under the License.
 
 #include <gtest/gtest.h>
+#include <limits>
+#include <string>
 #include <opencv2/core.hpp>
 #include <opencv2/imgproc.hpp>
 #include <opencv2/imgcodecs.hpp>
@@ -277,6 +279,41 @@ TEST_F(VideoReaderDecoderGpuTest, RandomShuffle) {
 }
 
 class VideoReaderDecoderCompareTest : public VideoTestBase {};
+
+// stride * sequence_length (the sequence extent and default step) must fit in int: before the
+// fix, sequence_length=stride=65536 wrapped the default step to 0 and PrepareMetadataImpl looped
+// forever.
+TEST_F(VideoReaderDecoderCpuTest, SequenceExtentOverflowIsError_CpuOnlyTests) {
+  Pipeline pipe(1, 1, CPU_ONLY_DEVICE_ID);
+  pipe.AddOperator(OpSpec("experimental__readers__Video")
+    .AddArg("device", "cpu")
+    .AddArg("sequence_length", 65536)
+    .AddArg("stride", 65536)
+    .AddArg("filenames", std::vector<std::string>{cfr_videos_paths_[0]})
+    .AddOutput("frames", StorageDevice::CPU), "r");
+  try {
+    pipe.Build({{"frames", "cpu"}});
+    FAIL() << "Expected an error for stride * sequence_length overflowing int";
+  } catch (const std::exception &e) {
+    EXPECT_NE(std::string(e.what()).find("stride * sequence_length"), std::string::npos)
+        << e.what();
+  }
+}
+
+// A huge (but valid) step must not overflow the sample loop's frame counter: exactly one sample
+// (starting at frame 0) fits per file.
+TEST_F(VideoReaderDecoderCpuTest, HugeStepYieldsOneSamplePerFile_CpuOnlyTests) {
+  Pipeline pipe(1, 1, CPU_ONLY_DEVICE_ID);
+  pipe.AddOperator(OpSpec("experimental__readers__Video")
+    .AddArg("device", "cpu")
+    .AddArg("sequence_length", 1)
+    .AddArg("step", std::numeric_limits<int>::max())
+    .AddArg("pad_mode", "constant")
+    .AddArg("filenames", std::vector<std::string>{cfr_videos_paths_[0]})
+    .AddOutput("frames", StorageDevice::CPU), "r");
+  pipe.Build({{"frames", "cpu"}});
+  EXPECT_EQ(pipe.GetReaderMeta("r").epoch_size, 1);
+}
 
 TEST_F(VideoReaderDecoderCompareTest, CompareReaders) {
   const int batch_size = 4;
