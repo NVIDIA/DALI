@@ -949,8 +949,6 @@ TEST_F(FramesDecoderGpuTest, SurfaceUnmappedAfterFailedConversion) {
 TEST_F(FramesDecoderGpuTest, DecoderCacheReconfiguresLargerDecoder) {
   using frame_dec_gpu_impl::NVDECDecodersCreated;
   using frame_dec_gpu_impl::NVDECDecodersReconfigured;
-  if (!NVCUVID_API_EXISTS(cuvidReconfigureDecoder))
-    GTEST_SKIP() << "Test skipped because cuvidReconfigureDecoder API is not available.";
   // 800x600, coded as 800x608: the reconfigured decoder has to crop it
   std::string small_path = testing::dali_extra_path() + "/db/video/cfr/test_2.mp4";
   std::string large_path = testing::dali_extra_path() + "/db/video/cfr/test_1.mp4";  // 1280x720
