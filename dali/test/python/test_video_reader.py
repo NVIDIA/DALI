@@ -19,6 +19,7 @@ import numpy as np
 import os
 import cv2
 import atexit
+import enum
 import functools
 import shutil
 import tempfile
@@ -39,18 +40,20 @@ VIDEO_FILES = [VIDEO_DIRECTORY + "/" + f for f in VIDEO_FILES]
 PLENTY_VIDEO_FILES = [PLENTY_VIDEO_DIRECTORY + "/" + f for f in PLENTY_VIDEO_FILES]
 FILE_LIST = "/tmp/file_list.txt"
 MULTIPLE_RESOLUTION_ROOT = "/tmp/video_resolution/vp9/"
-VFR_VIDEO_FILE = DALI_EXTRA_PATH + "/db/video/vfr_test.mp4"
-CFR_VIDEO_FILE = DALI_EXTRA_PATH + "/db/video/cfr_test.mp4"
+VFR_VIDEO_FILE = os.path.join(DALI_EXTRA_PATH, "db", "video", "vfr_test.mp4")
+CFR_VIDEO_FILE = os.path.join(DALI_EXTRA_PATH, "db", "video", "cfr_test.mp4")
 
 # VP9, 24 fps, 240 frames, timebase 1/12288, first pts 0 (cut with ffmpeg -ss 0 -t 10 by
 # qa/TL0_videoreader_test/test.sh). Pinned by test_video_0_fixture_assumptions.
 VIDEO_0 = sorted(VIDEO_FILES)[0]
 
 # VP9, 60 fps, 50 frames, first pts 0 (see db/video/cfr/README.txt in DALI_extra).
-CFR_VP9_60FPS_FILE = DALI_EXTRA_PATH + "/db/video/cfr/test_1_vp9.mp4"
+CFR_VP9_60FPS_FILE = os.path.join(DALI_EXTRA_PATH, "db", "video", "cfr", "test_1_vp9.mp4")
 
 # VP9, full ("pc") color range (see db/video/full_dynamic_range/README.rst in DALI_extra).
-FULL_RANGE_VP9_FILE = DALI_EXTRA_PATH + "/db/video/full_dynamic_range/video_vp9.mp4"
+FULL_RANGE_VP9_FILE = os.path.join(
+    DALI_EXTRA_PATH, "db", "video", "full_dynamic_range", "video_vp9.mp4"
+)
 
 devices = ["cpu", "gpu"]
 sequence_lengths = [3]
@@ -86,7 +89,7 @@ def compare_frames(
         assert False, (
             f"Frame {frame_idx} of sample {batch_idx} in iteration {iteration_idx} differs from "
             f"reference by more than {diff_step} steps in {diff_pixels / total_pixels * 100:.2f}% "
-            f"of pixels (threshold: {threshold}). Frames saved to {out_dir}"
+            f"of pixels (threshold: {threshold}). Frames saved to {out_dir}."
         )
 
 
@@ -533,7 +536,7 @@ def test_video_0_fixture_assumptions(device):
     # the other pinned fixtures are present, and that the shared helpers agree with the legacy
     # reader on a trivial selection.
     for path in (CFR_VP9_60FPS_FILE, FULL_RANGE_VP9_FILE, VFR_VIDEO_FILE, CFR_VIDEO_FILE):
-        assert os.path.isfile(path), f"Missing test fixture {path}"
+        assert os.path.isfile(path), f"Missing test fixture {path}."
 
     epoch_size, samples = _collect_samples(
         _experimental_reader(device), filenames=[VIDEO_0], labels=[7], sequence_length=1
@@ -549,18 +552,31 @@ def test_video_0_fixture_assumptions(device):
     assert experimental == legacy, f"experimental: {experimental}, legacy: {legacy}"
 
 
-@cartesian_params(["legacy", "experimental_cpu", "experimental_gpu"], ["absolute", "relative"])
+class _Reader(enum.Enum):
+    LEGACY = enum.auto()
+    EXPERIMENTAL_CPU = enum.auto()
+    EXPERIMENTAL_GPU = enum.auto()
+
+    def make(self):
+        if self is _Reader.LEGACY:
+            return _legacy_gpu_reader
+        return _experimental_reader("cpu" if self is _Reader.EXPERIMENTAL_CPU else "gpu")
+
+
+class _PathKind(enum.Enum):
+    ABSOLUTE = enum.auto()
+    RELATIVE = enum.auto()
+
+
+@cartesian_params(list(_Reader), list(_PathKind))
 def test_filename_with_colon_can_be_opened(reader, path_kind):
     """A file name such as `clip:01.mp4` must not be parsed as a URL with protocol `clip`: the
     file opens and all 50 frames are indexed, like any other file."""
     with tempfile.TemporaryDirectory() as tmp_dir:
         abs_name = os.path.join(tmp_dir, "clip:01.mp4")
         shutil.copy(CFR_VP9_60FPS_FILE, abs_name)
-        name = abs_name if path_kind == "absolute" else "clip:01.mp4"
-        if reader == "legacy":
-            reader_fn = _legacy_gpu_reader
-        else:
-            reader_fn = _experimental_reader(reader.split("_")[1])
+        name = abs_name if path_kind is _PathKind.ABSOLUTE else "clip:01.mp4"
+        reader_fn = reader.make()
 
         @pipeline_def(batch_size=1, num_threads=2, device_id=0)
         def pipe():
@@ -573,11 +589,13 @@ def test_filename_with_colon_can_be_opened(reader, path_kind):
                 p = pipe()
                 p.build()
             except RuntimeError as e:
-                raise AssertionError(f"[{reader}, {path_kind} path] could not open {name!r}: {e}")
+                raise AssertionError(
+                    f"[{reader.name}, {path_kind.name} path] could not open {name!r}: {e}."
+                )
             epoch_size = p.reader_meta("r")["epoch_size"]
             assert epoch_size == 50, (
-                f"[{reader}, {path_kind} path] indexed {epoch_size} frames of {name!r}, "
-                f"expected 50"
+                f"[{reader.name}, {path_kind.name} path] indexed {epoch_size} frames of {name!r}, "
+                f"expected 50."
             )
             p.run()
         finally:
