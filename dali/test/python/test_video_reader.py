@@ -1,4 +1,4 @@
-# Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -18,7 +18,11 @@ import nvidia.dali.experimental.dynamic as ndd
 import numpy as np
 import os
 import cv2
+import atexit
+import functools
+import shutil
 import tempfile
+import uuid
 from test_utils import get_dali_extra_path
 from nose2.tools import cartesian_params
 
@@ -35,6 +39,18 @@ VIDEO_FILES = [VIDEO_DIRECTORY + "/" + f for f in VIDEO_FILES]
 PLENTY_VIDEO_FILES = [PLENTY_VIDEO_DIRECTORY + "/" + f for f in PLENTY_VIDEO_FILES]
 FILE_LIST = "/tmp/file_list.txt"
 MULTIPLE_RESOLUTION_ROOT = "/tmp/video_resolution/vp9/"
+VFR_VIDEO_FILE = DALI_EXTRA_PATH + "/db/video/vfr_test.mp4"
+CFR_VIDEO_FILE = DALI_EXTRA_PATH + "/db/video/cfr_test.mp4"
+
+# VP9, 24 fps, 240 frames, timebase 1/12288, first pts 0 (cut with ffmpeg -ss 0 -t 10 by
+# qa/TL0_videoreader_test/test.sh). Pinned by test_video_0_fixture_assumptions.
+VIDEO_0 = sorted(VIDEO_FILES)[0]
+
+# VP9, 60 fps, 50 frames, first pts 0 (see db/video/cfr/README.txt in DALI_extra).
+CFR_VP9_60FPS_FILE = DALI_EXTRA_PATH + "/db/video/cfr/test_1_vp9.mp4"
+
+# VP9, full ("pc") color range (see db/video/full_dynamic_range/README.rst in DALI_extra).
+FULL_RANGE_VP9_FILE = DALI_EXTRA_PATH + "/db/video/full_dynamic_range/video_vp9.mp4"
 
 devices = ["cpu", "gpu"]
 sequence_lengths = [3]
@@ -49,24 +65,28 @@ image_type_supported_by_legacy_reader = [types.RGB]  # TODO(janton): Add types.Y
 def compare_frames(
     frame, ref_frame, iteration_idx, batch_idx, frame_idx, diff_step=2, threshold=0.03
 ):
-    # Compare frames
+    # Compare frames. `diff_step` is expressed in the 8-bit [0, 255] intensity scale, so frames
+    # must be given in that scale (normalized float frames should be multiplied by 255 first).
     diff_pixels = np.count_nonzero(np.abs(np.float32(frame) - np.float32(ref_frame)) > diff_step)
     total_pixels = frame.size
     # More than threshold of the pixels differ in more than 2 steps
     if diff_pixels / total_pixels > threshold:
         # Save the mismatched frames for inspection
-        frame_bgr = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
-        ref_frame_bgr = cv2.cvtColor(ref_frame, cv2.COLOR_RGB2BGR)
-
-        output_path = f"frame_{iteration_idx:03d}_{batch_idx:03d}_{frame_idx:03d}.png"
-        ref_output_path = f"ref_frame_{iteration_idx:03d}_{batch_idx:03d}_{frame_idx:03d}.png"
-
-        cv2.imwrite(output_path, frame_bgr)
-        cv2.imwrite(ref_output_path, ref_frame_bgr)
+        out_dir = tempfile.mkdtemp(prefix="dali_video_reader_mismatch_")
+        frame_u8 = np.uint8(np.clip(np.round(frame), 0, 255))
+        ref_frame_u8 = np.uint8(np.clip(np.round(ref_frame), 0, 255))
+        suffix = f"{iteration_idx:03d}_{batch_idx:03d}_{frame_idx:03d}.png"
+        cv2.imwrite(
+            os.path.join(out_dir, "frame_" + suffix), cv2.cvtColor(frame_u8, cv2.COLOR_RGB2BGR)
+        )
+        cv2.imwrite(
+            os.path.join(out_dir, "ref_frame_" + suffix),
+            cv2.cvtColor(ref_frame_u8, cv2.COLOR_RGB2BGR),
+        )
         assert False, (
-            f"Frame {frame_idx+1} differs from reference by more than {diff_step} steps in "
-            + f"{diff_pixels/total_pixels*100}% of pixels (threshold: {threshold}). "
-            + f"Expected {ref_frame_bgr} but got {frame_bgr}"
+            f"Frame {frame_idx} of sample {batch_idx} in iteration {iteration_idx} differs from "
+            f"reference by more than {diff_step} steps in {diff_pixels / total_pixels * 100:.2f}% "
+            f"of pixels (threshold: {threshold}). Frames saved to {out_dir}"
         )
 
 
@@ -148,6 +168,80 @@ def compare_experimental_to_legacy_reader(device, batch_size, **kwargs):
         break
 
 
+_legacy_gpu_reader = functools.partial(fn.readers.video, device="gpu")
+
+
+def _experimental_reader(device):
+    return functools.partial(fn.experimental.readers.video, device=device)
+
+
+_file_list_dir = tempfile.mkdtemp(prefix="dali_video_reader_file_lists_")
+atexit.register(shutil.rmtree, _file_list_dir, ignore_errors=True)
+
+
+def _write_file_list(lines):
+    """Writes the given file_list entries (one string per line) to a new temporary file and
+    returns its path. The files are removed when the test process exits."""
+    path = os.path.join(_file_list_dir, f"file_list_{uuid.uuid4().hex}.txt")
+    with open(path, "w") as list_file:
+        list_file.write("".join(line + "\n" for line in lines))
+    return path
+
+
+def _file_list_frame_selection(reader_fn, file_list, **kwargs):
+    """Returns (epoch_size, sorted start frame indices) for a single-frame-per-sample reader."""
+
+    @pipeline_def(batch_size=1, num_threads=2, device_id=0, prefetch_queue_depth=1)
+    def pipe():
+        _, _, frame_num = reader_fn(
+            name="reader",
+            file_list=file_list,
+            sequence_length=1,
+            step=1,
+            enable_frame_num=True,
+            **kwargs,
+        )
+        return frame_num
+
+    p = pipe()
+    p.build()
+    epoch_size = p.reader_meta("reader")["epoch_size"]
+    frame_nums = []
+    for _ in range(epoch_size):
+        (frame_num,) = p.run()
+        frame_nums.append(int(np.array(frame_num.as_cpu()[0]).flatten()[0]))
+    return epoch_size, sorted(frame_nums)
+
+
+def _collect_samples(reader_fn, **kwargs):
+    """Runs exactly one epoch of `reader_fn` with batch_size=1 and returns
+    (epoch_size, samples), where `samples` is a list of (label, first_frame_num, num_frames)
+    tuples in reader order.
+
+    The reader configuration must produce labels (file_list, file_root, or filenames+labels).
+    """
+
+    @pipeline_def(batch_size=1, num_threads=2, device_id=0, prefetch_queue_depth=1)
+    def pipe():
+        video, label, frame_num = reader_fn(name="reader", enable_frame_num=True, **kwargs)
+        return video, label, frame_num
+
+    p = pipe()
+    p.build()
+    epoch_size = p.reader_meta("reader")["epoch_size"]
+    samples = []
+    for _ in range(epoch_size):
+        video, label, frame_num = p.run()
+        samples.append(
+            (
+                int(np.array(label.as_cpu()[0]).flatten()[0]),
+                int(np.array(frame_num.as_cpu()[0]).flatten()[0]),
+                int(video.shape()[0][0]),
+            )
+        )
+    return epoch_size, samples
+
+
 @cartesian_params(
     devices,
     batch_sizes,
@@ -186,7 +280,7 @@ def test_compare_experimental_to_legacy_reader_file_list(
     device, batch_size, sequence_length, file_list_format, file_list_rounding, pad_mode, image_type
 ):
     files = VIDEO_FILES
-    list_file = tempfile.NamedTemporaryFile(mode="w", delete=False)
+    lines = []
     for i, file in enumerate(files):
         label = np.random.randint(0, 20)
         start = end = 0
@@ -197,18 +291,17 @@ def test_compare_experimental_to_legacy_reader_file_list(
             else:
                 start = np.random.random() * 0.4  # Range [0, 0.4)
                 end = 0.6 + np.random.random() * 0.4  # Range [0.6, 1.0)
-        list_file.write(f"{file} {label} {start} {end}\n")
-    list_file.close()
+        lines.append(f"{file} {label} {start} {end}")
+    list_file = _write_file_list(lines)
 
     if debug:
         print("File list contents:")
-        with open(list_file.name, "r") as f:
-            print(f.read())
+        print("\n".join(lines))
 
     compare_experimental_to_legacy_reader(
         device=device,
         batch_size=batch_size,
-        file_list=list_file.name,
+        file_list=list_file,
         sequence_length=sequence_length,
         enable_timestamps=True,
         enable_frame_num=True,
@@ -432,3 +525,76 @@ def test_uniform_sample_stride_step_ignored(device):
     assert np.array_equal(
         idxs_default, idxs_stride_step
     ), "stride/step should be ignored when uniform_sample=True"
+
+
+@cartesian_params(devices)
+def test_video_0_fixture_assumptions(device):
+    # Tests that hard-code frame numbers rely on VIDEO_0 being 240 frames at 24 fps. Also checks
+    # the other pinned fixtures are present, and that the shared helpers agree with the legacy
+    # reader on a trivial selection.
+    for path in (CFR_VP9_60FPS_FILE, FULL_RANGE_VP9_FILE, VFR_VIDEO_FILE, CFR_VIDEO_FILE):
+        assert os.path.isfile(path), f"Missing test fixture {path}"
+
+    epoch_size, samples = _collect_samples(
+        _experimental_reader(device), filenames=[VIDEO_0], labels=[7], sequence_length=1
+    )
+    assert epoch_size == 240
+    assert samples == [(7, i, 1) for i in range(240)]
+
+    list_file = _write_file_list([f"{VIDEO_0} 0 5 15"])
+    experimental = _file_list_frame_selection(
+        _experimental_reader(device), list_file, file_list_format="frames", pad_mode="none"
+    )
+    legacy = _file_list_frame_selection(_legacy_gpu_reader, list_file, file_list_frame_num=True)
+    assert experimental == legacy, f"experimental: {experimental}, legacy: {legacy}"
+
+
+@cartesian_params(["legacy", "experimental_cpu", "experimental_gpu"], ["absolute", "relative"])
+def test_filename_with_colon_can_be_opened(reader, path_kind):
+    """A file name such as `clip:01.mp4` must not be parsed as a URL with protocol `clip`: the
+    file opens and all 50 frames are indexed, like any other file."""
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        abs_name = os.path.join(tmp_dir, "clip:01.mp4")
+        shutil.copy(CFR_VP9_60FPS_FILE, abs_name)
+        name = abs_name if path_kind == "absolute" else "clip:01.mp4"
+        if reader == "legacy":
+            reader_fn = _legacy_gpu_reader
+        else:
+            reader_fn = _experimental_reader(reader.split("_")[1])
+
+        @pipeline_def(batch_size=1, num_threads=2, device_id=0)
+        def pipe():
+            return reader_fn(filenames=[name], sequence_length=1, name="r")
+
+        prev_cwd = os.getcwd()
+        os.chdir(tmp_dir)
+        try:
+            try:
+                p = pipe()
+                p.build()
+            except RuntimeError as e:
+                raise AssertionError(f"[{reader}, {path_kind} path] could not open {name!r}: {e}")
+            epoch_size = p.reader_meta("r")["epoch_size"]
+            assert epoch_size == 50, (
+                f"[{reader}, {path_kind} path] indexed {epoch_size} frames of {name!r}, "
+                f"expected 50"
+            )
+            p.run()
+        finally:
+            os.chdir(prev_cwd)
+
+
+@cartesian_params(devices)
+def test_file_url_can_be_opened(device):
+    """A `file://` URL names a local file and must open like a plain path (experimental reader
+    only: the legacy reader does not accept URLs)."""
+    url = "file://" + os.path.abspath(CFR_VP9_60FPS_FILE)
+
+    @pipeline_def(batch_size=1, num_threads=2, device_id=0)
+    def pipe():
+        return _experimental_reader(device)(filenames=[url], sequence_length=1, name="r")
+
+    p = pipe()
+    p.build()
+    assert p.reader_meta("r")["epoch_size"] == 50
+    p.run()
