@@ -212,6 +212,19 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
 
   void InitGpuDecoder(CUVIDEOFORMAT *video_format);
 
+  /**
+   * @brief How many pictures the parser keeps decoded before it passes them to the display
+   *        callback, on top of what reordering needs. That many pictures are queued on NVDEC
+   *        while one is mapped and converted.
+   */
+  static constexpr int kDisplayDelay = 1;
+
+  /**
+   * @brief The number of decode surfaces of the decoder for a stream. It is also what the sequence
+   *        callback returns to the parser, which uses it from then on.
+   */
+  static int NumDecodeSurfaces(const CUVIDEOFORMAT &video_format);
+
   void CopyFrame(uint8_t *dst, const uint8_t *src) override;
 
  protected:
@@ -236,7 +249,12 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
 
   std::vector<BufferedFrame> frame_buffer_;
 
+  // pts of the packets sent to the parser, whose pictures were not decoded yet (decode order)
   std::queue<int64_t> piped_pts_;
+  // pts of the picture last decoded to each surface (CUVIDPICPARAMS::CurrPicIdx)
+  std::vector<int64_t> surface_pts_;
+  // whether the picture decoded to each surface is still waiting for the display callback
+  std::vector<bool> surface_to_display_;
   int64_t current_pts_ = AV_NOPTS_VALUE;
 
   cudaStream_t stream_ = 0;

@@ -15,8 +15,10 @@
 #include <cuda_runtime_api.h>
 #include <algorithm>
 #include <cmath>
+#include <cstdlib>
 #include <exception>
 #include <map>
+#include <numeric>
 #include <random>
 #include <set>
 #include <string>
@@ -833,6 +835,48 @@ TEST_F(FramesDecoderGpuTest, ConstantFrameRateHevc) {
   RunTest(decoder, cfr_videos_[0]);
 }
 
+// After a seek to an HEVC CRA picture, the parser drops the CRA's leading pictures, which reference
+// pictures before the seek point, and the timestamps that it then reports with the pictures it
+// displays are not those of their packets. The frames read after seeks must be the frames that a
+// sequential read gives.
+TEST_F(FramesDecoderGpuTest, HevcSeekToOpenGopKeyframes) {
+  if (!FramesDecoderGpu::SupportsHevc()) {
+    GTEST_SKIP();
+  }
+  // a keyframe every few frames, open GOPs (CRA pictures with leading pictures), B-frames
+  auto path = make_string(testing::dali_extra_path(), "/db/video/hevc/sintel_trailer-720p.mp4");
+  std::vector<int> frames = {64, 70, 192, 384, 396, 480, 704, 705, 710, 1024, 1040, 1184, 1200};
+  FramesDecoderGpu sequential(path);
+  sequential.BuildIndex();
+  ASSERT_GT(sequential.NumFrames(), frames.back());
+  size_t frame_size = sequential.FrameSize();
+  DeviceBuffer<uint8_t> frame_gpu;
+  frame_gpu.resize(frame_size);
+  std::vector<std::vector<uint8_t>> expected;
+  std::vector<uint8_t> actual(frame_size);
+  for (int i = 0, next = 0; next < static_cast<int>(frames.size()); i++) {
+    ASSERT_TRUE(sequential.ReadNextFrame(frame_gpu.data()));
+    if (i == frames[next]) {
+      expected.emplace_back(frame_size);
+      MemCopy(expected.back().data(), frame_gpu.data(), frame_size);
+      next++;
+    }
+  }
+
+  FramesDecoderGpu decoder(path);
+  decoder.BuildIndex();
+  std::vector<int> order(frames.size());
+  std::iota(order.begin(), order.end(), 0);
+  std::shuffle(order.begin(), order.end(), std::mt19937(0));
+  for (int k : order) {
+    decoder.SeekFrame(frames[k]);
+    ASSERT_EQ(decoder.NextFrameIdx(), frames[k]);
+    ASSERT_TRUE(decoder.ReadNextFrame(frame_gpu.data()));
+    MemCopy(actual.data(), frame_gpu.data(), frame_size);
+    EXPECT_EQ(actual, expected[k]) << "frame " << frames[k];
+  }
+}
+
 TEST_F(FramesDecoderGpuTest, VariableFrameRateHevc) {
   if (!FramesDecoderGpu::SupportsHevc()) {
     GTEST_SKIP();
@@ -840,6 +884,75 @@ TEST_F(FramesDecoderGpuTest, VariableFrameRateHevc) {
   FramesDecoderGpu decoder(vfr_hevc_videos_paths_[1]);
   decoder.BuildIndex();
   RunTest(decoder, vfr_hevc_videos_[1]);
+}
+
+// With these codecs the parser decodes a picture while it parses its packet, and with the display
+// delay the last picture is displayed only at the end of the stream: reading it, sequentially or
+// after a seek, must not fail.
+TEST_F(FramesDecoderGpuTest, ReadsTheLastFrameOfCodecsWithoutDecodeLag) {
+  // GPU and CPU frames of these clips differ by 3e-5 on average, neighbouring frames by 0.07 at
+  // least and an all-zeros frame by 85: this tolerates the former and catches the others.
+  constexpr double kMaxAvgError = 0.02;
+  const std::string video_dir = make_string(testing::dali_extra_path(), "/db/video");
+  const std::pair<std::string, AVCodecID> videos[] = {
+      {make_string(video_dir, "/vp8/vp8.webm"), AV_CODEC_ID_VP8},
+      {make_string(video_dir, "/vp9/vp9_0.mp4"), AV_CODEC_ID_VP9}};
+  int num_tested = 0;
+  for (const auto &[path, codec_id] : videos) {
+    SCOPED_TRACE(path);
+    if (!FramesDecoderGpu::IsCodecSupported(codec_id)) {
+      GTEST_LOG_(WARNING) << "Skipping " << path << ": the codec is not supported by this GPU";
+      continue;
+    }
+    num_tested++;
+    FramesDecoderGpu decoder(path);
+    ASSERT_TRUE(decoder.IsValid());
+    decoder.BuildIndex();
+    // The reference is the CPU decoder, which decodes these codecs independently of NVDEC.
+    FramesDecoderCpu reference(path);
+    ASSERT_TRUE(reference.IsValid());
+    int num_frames = decoder.NumFrames();
+    ASSERT_GT(num_frames, 4);
+    ASSERT_EQ(reference.NumFrames(), num_frames);
+    size_t frame_size = decoder.FrameSize();
+    ASSERT_EQ(reference.FrameSize(), frame_size);
+    DeviceBuffer<uint8_t> frame_gpu;
+    frame_gpu.resize(frame_size);
+    std::vector<uint8_t> actual(frame_size), expected(frame_size);
+
+    // Reads the next frame with both decoders and compares them. The two do the color conversion
+    // differently, so the frames are close, not equal. An all-zeros or an unwritten frame, or the
+    // wrong frame (the frames have their number drawn on them), is far from that.
+    auto read_and_compare = [&](int i) {
+      ASSERT_EQ(decoder.NextFrameIdx(), i);
+      ASSERT_EQ(reference.NextFrameIdx(), i);
+      CUDA_CALL(cudaMemset(frame_gpu.data(), 0, frame_size));
+      ASSERT_TRUE(decoder.ReadNextFrame(frame_gpu.data()));
+      ASSERT_TRUE(reference.ReadNextFrame(expected.data()));
+      MemCopy(actual.data(), frame_gpu.data(), frame_size);
+      double sum = 0;
+      for (size_t j = 0; j < frame_size; j++)
+        sum += std::abs(static_cast<int>(actual[j]) - static_cast<int>(expected[j]));
+      EXPECT_LT(sum / frame_size, kMaxAvgError) << "frame " << i;
+    };
+
+    for (int i = 0; i < num_frames; i++) {
+      ASSERT_NO_FATAL_FAILURE(read_and_compare(i));
+    }
+    EXPECT_FALSE(decoder.ReadNextFrame(frame_gpu.data()));
+    EXPECT_FALSE(reference.ReadNextFrame(expected.data()));
+
+    for (int start : {num_frames - 3, 0, num_frames - 1}) {
+      decoder.SeekFrame(start);
+      reference.SeekFrame(start);
+      for (int i = start; i < num_frames; i++) {
+        ASSERT_NO_FATAL_FAILURE(read_and_compare(i));
+      }
+    }
+  }
+  if (num_tested == 0) {
+    GTEST_SKIP() << "Neither VP8 nor VP9 is supported by this GPU";
+  }
 }
 
 TEST_F(FramesDecoderTest_CpuOnlyTests, IndexerGivesTheIndexOfTheDecoder) {

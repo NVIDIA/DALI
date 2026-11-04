@@ -15,6 +15,7 @@
 #include "dali/operators/video/frames_decoder_gpu.h"
 #include <cuda.h>
 #include <unistd.h>
+#include <algorithm>
 #include <string>
 #include <memory>
 #include <iomanip>
@@ -350,7 +351,8 @@ int process_video_sequence(void *user_data, CUVIDEOFORMAT *video_format) {
   FramesDecoderGpu *frames_decoder = static_cast<FramesDecoderGpu*>(user_data);
   frames_decoder->InitGpuDecoder(video_format);
 
-  return video_format->min_num_decode_surfaces;
+  // the parser cycles through this many surfaces: the decoder is created with as many
+  return FramesDecoderGpu::NumDecodeSurfaces(*video_format);
 }
 
 int process_picture_decode(void *user_data, CUVIDPICPARAMS *picture_params) {
@@ -466,6 +468,14 @@ bool FramesDecoderGpu::IsBT709(CUVIDEOFORMAT *video_format) const {
   return codec_params_->color_space == AVCOL_SPC_BT709;
 }
 
+int FramesDecoderGpu::NumDecodeSurfaces(const CUVIDEOFORMAT &video_format) {
+  // the minimum is what the stream's reference pictures and reordering need. The display delay
+  // keeps that many more decoded pictures in the parser, and the picture being mapped and
+  // converted must not be decoded over either: two spare surfaces, as the minimum does not
+  // guarantee the best performance (nvcuvid.h)
+  return video_format.min_num_decode_surfaces + kDisplayDelay + 2;
+}
+
 void FramesDecoderGpu::InitGpuDecoder(CUVIDEOFORMAT *video_format) {
   if (!nvdecode_state_->decoder) {
     if (image_type_ == DALI_RGB) {
@@ -481,7 +491,9 @@ void FramesDecoderGpu::InitGpuDecoder(CUVIDEOFORMAT *video_format) {
     } else {
       conversion_type_ = VIDEO_COLOR_SPACE_CONVERSION_TYPE_YUV_UPSAMPLE;
     }
-    nvdecode_state_->decoder = frame_dec_gpu_impl::NVDECCache::GetDecoderFromCache(video_format);
+    CUVIDEOFORMAT format = *video_format;
+    format.min_num_decode_surfaces = NumDecodeSurfaces(*video_format);
+    nvdecode_state_->decoder = frame_dec_gpu_impl::NVDECCache::GetDecoderFromCache(&format);
   }
 }
 
@@ -502,11 +514,15 @@ void FramesDecoderGpu::InitGpuParser() {
   memset(&parser_info, 0, sizeof(CUVIDPARSERPARAMS));
   parser_info.CodecType = codec_type;
   parser_info.ulMaxNumDecodeSurfaces = num_decode_surfaces_;
-  parser_info.ulMaxDisplayDelay = 0;
+  // The pictures are mapped in display order, by the display callback, which the parser calls
+  // with a delay of kDisplayDelay pictures (plus what reordering needs): NVDEC keeps decoding the
+  // next pictures while the host waits for the one that is mapped, converts it and parses the
+  // next packets, instead of each picture being decoded only once the previous one was converted.
+  parser_info.ulMaxDisplayDelay = kDisplayDelay;
   parser_info.pUserData = this;
   parser_info.pfnSequenceCallback = frame_dec_gpu_impl::process_video_sequence;
   parser_info.pfnDecodePicture = frame_dec_gpu_impl::process_picture_decode;
-  parser_info.pfnDisplayPicture = nullptr;
+  parser_info.pfnDisplayPicture = frame_dec_gpu_impl::handle_picture_display;
 
   auto extradata = ctx_->streams[stream_id_]->codecpar->extradata;
   auto extradata_size = ctx_->streams[stream_id_]->codecpar->extradata_size;
@@ -572,17 +588,38 @@ int FramesDecoderGpu::ProcessPictureDecode(CUVIDPICPARAMS *picture_params) {
 
   CUDA_CALL(cuvidDecodePicture(nvdecode_state_->decoder, picture_params));
   decoded_pictures_++;
-  CUVIDPARSERDISPINFO picture_display_info;
-  memset(&picture_display_info, 0, sizeof(picture_display_info));
-  picture_display_info.picture_index = picture_params->CurrPicIdx;
-  picture_display_info.progressive_frame = !picture_params->field_pic_flag;
-  picture_display_info.top_field_first = picture_params->bottom_field_flag ^ 1;
-  HandlePictureDisplay(&picture_display_info);
 
+  // The pts of the picture, taken from the packets in decode order. It is kept with the surface,
+  // for the display callback: the timestamps that the parser passes to that callback are not
+  // reliable when it drops pictures, e.g. the leading pictures of an HEVC CRA picture after a seek.
+  int idx = picture_params->CurrPicIdx;
+  if (idx >= static_cast<int>(surface_pts_.size())) {
+    surface_pts_.resize(idx + 1, AV_NOPTS_VALUE);
+    surface_to_display_.resize(idx + 1, false);
+  }
+  // The second field of a field pair is decoded to the same surface as the first one and is
+  // displayed together with it, as one frame from one packet: it keeps the pts of the first field.
+  if (!picture_params->second_field) {
+    // If there are no piped pts, use the last pts available (unexpected extra picture)
+    if (!piped_pts_.empty()) {
+      current_pts_ = piped_pts_.front();
+      piped_pts_.pop();
+    }
+    surface_pts_[idx] = current_pts_;
+  }
+  surface_to_display_[idx] = true;
   return 1;
 }
 
 int FramesDecoderGpu::HandlePictureDisplay(CUVIDPARSERDISPINFO *picture_display_info) {
+  if (picture_display_info->picture_index < static_cast<int>(surface_to_display_.size()))
+    surface_to_display_[picture_display_info->picture_index] = false;
+  // Pictures that the parser releases while flushing are dropped
+  if (flush_) {
+    return 1;
+  }
+  current_pts_ = surface_pts_[picture_display_info->picture_index];
+
   CUVIDPROCPARAMS videoProcessingParameters = {};
   videoProcessingParameters.progressive_frame = !picture_display_info->progressive_frame;
   videoProcessingParameters.second_field = 1;
@@ -590,11 +627,6 @@ int FramesDecoderGpu::HandlePictureDisplay(CUVIDPARSERDISPINFO *picture_display_
   videoProcessingParameters.unpaired_field = 0;
   videoProcessingParameters.output_stream = stream_;
 
-  // If there are no piped pts, use the last pts available (unexpected extra frame)
-  if (!piped_pts_.empty()) {
-    current_pts_ = piped_pts_.front();
-    piped_pts_.pop();
-  }
   assert(current_pts_ != AV_NOPTS_VALUE);
 
   LOG_LINE << "HandlePictureDisplay-"
@@ -718,8 +750,12 @@ bool FramesDecoderGpu::ReadNextFrameWithIndex(uint8_t *data) {
     }
   }
 
-  // At this point we've hit EOF but might have frames still in the pipeline
-  DALI_ENFORCE(piped_pts_.size() >= 1);
+  // At this point we've hit EOF but might have frames still in the pipeline: packets whose
+  // pictures were not decoded yet, or pictures that were decoded but are not displayed yet (the
+  // display delay: e.g. the last picture of a VP9 stream, decoded while its packet was parsed)
+  DALI_ENFORCE(!piped_pts_.empty() ||
+               std::find(surface_to_display_.begin(), surface_to_display_.end(), true) !=
+                   surface_to_display_.end());
 
   SendLastPacket();
 
@@ -920,6 +956,11 @@ void FramesDecoderGpu::SendLastPacket(bool flush) {
 
   // Send end of stream and process any remaining frames
   CUDA_CALL(cuvidParseVideoData(nvdecode_state_->parser, packet));
+
+  // The end of stream packet makes the parser release all the pictures that it holds. Those that
+  // it did not display (hidden pictures, dropped leading pictures) must not be taken for pending
+  // ones by the end-of-stream check of a later read.
+  std::fill(surface_to_display_.begin(), surface_to_display_.end(), false);
 
   if (!flush) {
     // Process any remaining buffered frames in order
