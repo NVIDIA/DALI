@@ -120,12 +120,19 @@ def read_epoch(file_list, file_list_format, num_threads, device, lazy_init):
 
     pipe = pipe_def()
     pipe.build()
-    epoch_size = pipe.reader_meta("reader")["epoch_size"]
     results = []
-    for _ in range(epoch_size):
+
+    def run_one():
         # with the GPU backend all the outputs are on the GPU
         frames, label, frame_num = (o.as_cpu() if device == "gpu" else o for o in pipe.run())
         results.append((np.array(frames[0]), np.array(label[0]), np.array(frame_num[0])))
+
+    # reader_meta() makes the reader build its indices on the calling thread. With lazy_init, run
+    # the first batch before asking for it, so that the indices are built on the prefetch thread.
+    run_one()
+    epoch_size = pipe.reader_meta("reader")["epoch_size"]
+    for _ in range(epoch_size - 1):
+        run_one()
     return epoch_size, results
 
 
@@ -140,8 +147,8 @@ def test_parallel_index_matches_sequential(file_list_format, device, lazy_init):
     # every distinct valid file contributes at least one sample (plus the repeated ones)
     assert size_seq >= len(SOURCE_FILES[device]) * COPIES
     assert size_seq == size_par
-    for i, (a, b) in enumerate(zip(out_seq, out_par)):
-        for x, y in zip(a, b):
+    for i, (a, b) in enumerate(zip(out_seq, out_par, strict=True)):
+        for x, y in zip(a, b, strict=True):
             assert np.array_equal(x, y), f"Mismatch in sample {i}"
 
 
@@ -186,3 +193,9 @@ def test_broken_file_with_unsupported_codec_is_skipped(num_threads):
         reference = build_reader(valid, num_threads, "cpu").reader_meta("reader")["epoch_size"]
         pipe = build_reader(valid[:2] + [broken] + valid[2:], num_threads, "cpu")
         assert pipe.reader_meta("reader")["epoch_size"] == reference
+
+
+@params("cpu", "gpu")
+def test_empty_file_list_is_rejected(device):
+    with assert_raises(RuntimeError, glob="*No files were read*"):
+        build_reader([], 8, device)
