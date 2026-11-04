@@ -41,6 +41,9 @@ DALI_SCHEMA(readers__COCO)
   .DocStr(R"code(Reads data from a COCO dataset that is composed of a directory with
 images and annotation JSON files.
 
+Each included annotation must contain ``image_id``, ``category_id`` and ``bbox``.
+The bounding box must contain exactly four values.
+
 This readers produces the following outputs::
 
     images, bounding_boxes, labels, ((polygons, vertices) | (pixelwise_masks)),
@@ -140,7 +143,12 @@ Example: A polygon with vertices ``[[x0, y0], [x1, y1], [x2, y2]]`` would be rep
 argument ``masks``, but ``[mask_id, 0, 3]`` when using the new argument `polygon_masks`.)code")
   .AddOptionalArg("pixelwise_masks",
       R"code(If true, segmentation masks are read and returned as pixel-wise masks. This argument is
-mutually exclusive with `polygon_masks`.)code",
+mutually exclusive with `polygon_masks`.
+Every image must have positive ``height`` and ``width``, including images without annotations,
+because these dimensions define the output mask shape.
+Polygon coordinates in pixels must be finite and at most 100,000,000 in absolute value.
+The polygon perimeter must not exceed 16,777,216 pixels. These limits protect the polygon
+rasterizer's integer conversions and temporary allocations, including for edges outside the image.)code",
       false)
   .AddOptionalArg("skip_empty",
       R"code(If true, reader will skip samples with no object instances in them)code",

@@ -554,10 +554,19 @@ void ParseAnnotations(LookaheadParser &parser, std::vector<Annotation> &annotati
       }
     }
     if (to_add && !(has_image_id && has_category_id && has_bbox)) {
+      std::string missing;
+      auto add_missing = [&](bool present, const char *name) {
+        if (!present) {
+          if (!missing.empty())
+            missing += ", ";
+          missing += name;
+        }
+      };
+      add_missing(has_image_id, "`image_id`");
+      add_missing(has_category_id, "`category_id`");
+      add_missing(has_bbox, "`bbox`");
       throw std::invalid_argument(make_string(
-          "Invalid COCO annotation: `image_id`, `category_id` and `bbox` are required, but ",
-          !has_image_id ? "`image_id`" : !has_category_id ? "`category_id`" : "`bbox`",
-          " is missing."));
+          "Invalid COCO annotation: missing required fields: ", missing, "."));
     }
     if (!annotation.IsOver(min_size_threshold)) {
       to_add = false;
@@ -840,12 +849,6 @@ void CocoLoader::ParseJsonAnnotations() {
 
   // we don't need the list anymore and it can contain a lot of strings
   images_.clear();
-
-  if (spec_.GetArgument<bool>("save_preprocessed_annotations")) {
-    SavePreprocessedAnnotations(
-      spec_.GetArgument<std::string>("save_preprocessed_annotations_dir"),
-      file_label_entries_);
-  }
 }
 
 void CocoLoader::ValidateAnnotations() const {

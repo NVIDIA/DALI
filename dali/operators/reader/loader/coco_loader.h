@@ -187,6 +187,11 @@ class DLL_PUBLIC CocoLoader : public FileLabelLoaderBase<true> {
       ParseJsonAnnotations();
     }
     ValidateAnnotations();
+    if (!has_preprocessed_annotations_ &&
+        spec_.GetArgument<bool>("save_preprocessed_annotations")) {
+      SavePreprocessedAnnotations(
+          spec_.GetArgument<std::string>("save_preprocessed_annotations_dir"), file_label_entries_);
+    }
 
     DALI_ENFORCE(SizeImpl() > 0, "No files found.");
     if (shuffle_) {

@@ -235,7 +235,17 @@ def test_coco_invalid_rle_mask(segmentation, message):
         error = f'*Invalid COCO RLE mask: {message} Image: "*image.bin", RLE mask index 1.*'
         pipe = coco_rle_masks_pipe(directory)
         assert_raises(ValueError, pipe.run, glob=error)
-        # Loading saved annotations must apply the same checks as the JSON path.
+        assert not any(name.endswith(".dat") for name in os.listdir(directory))
+        # Corrupt a valid cache: invalid JSON must never be saved.
+        write_coco_rle_annotations(directory, [{"size": [2, 2], "counts": [4]}] * 2)
+        coco_rle_masks_pipe(directory).run()
+        counts = segmentation["counts"]
+        if isinstance(counts, str):
+            counts = {"1110000000": [1] * 10, "5": [5]}[counts]
+        with open(os.path.join(directory, "masks_rles.dat"), "wb") as f:
+            f.write(struct.pack("<IQQQI", 2, 2, 2, 1, 4))
+            f.write(struct.pack("<QQQ", *segmentation["size"], len(counts)))
+            f.write(struct.pack(f"<{len(counts)}I", *(c % 2**32 for c in counts)))
         cached_pipe = coco_rle_masks_pipe(directory, preprocessed=True)
         assert_raises(ValueError, cached_pipe.run, glob=error)
 
@@ -257,6 +267,62 @@ def test_coco_valid_rle_mask(counts, expected):
             pipe = coco_rle_masks_pipe(directory, preprocessed=preprocessed)
             (masks,) = pipe.run()
             np.testing.assert_array_equal(masks.at(0)[:, :, 0], expected)
+
+
+@params(False, True)
+def test_coco_empty_image_size(missing_size):
+    with tempfile.TemporaryDirectory() as directory:
+        write_coco_rle_annotations(directory, [])
+        if missing_size:
+            path = os.path.join(directory, "instances.json")
+            with open(path) as f:
+                annotations = json.load(f)
+            del annotations["images"][0]["height"]
+            del annotations["images"][0]["width"]
+            with open(path, "w") as f:
+                json.dump(annotations, f)
+            assert_raises(
+                ValueError,
+                coco_rle_masks_pipe(directory).run,
+                glob='*the size of image "*image.bin" must be positive, got 0x0.*',
+            )
+            assert not any(name.endswith(".dat") for name in os.listdir(directory))
+        else:
+            for preprocessed in (False, True):
+                (masks,) = coco_rle_masks_pipe(directory, preprocessed=preprocessed).run()
+                np.testing.assert_array_equal(masks.at(0), np.zeros((2, 2, 1), dtype=np.int32))
+
+
+@params("rectangle", "stripes")
+def test_coco_reference_compressed_rle_mask(kind):
+    # Generated with pycocotools' reference rleEncode + rleToString (maskApi.c) on the
+    # Fortran-contiguous masks below. Keep fixtures here so pycocotools is not a test dependency.
+    expected = np.zeros((64, 48), dtype=np.uint8)
+    if kind == "rectangle":
+        expected[5:55, 3:40] = 1
+        counts = "U6b1>" + "0" * 71 + "k?"
+    else:
+        expected[2:60, 1:10] = 1
+        expected[20:45, 13:35] = 1
+        counts = "R2j16" + "0" * 15 + "b6oN_J" + "0" * 41 + "\\i0"
+    with tempfile.TemporaryDirectory() as directory:
+        write_coco_rle_annotations(directory, [{"size": [64, 48], "counts": counts}], 64, 48)
+        for preprocessed in (False, True):
+            (masks,) = coco_rle_masks_pipe(directory, preprocessed=preprocessed).run()
+            np.testing.assert_array_equal(masks.at(0)[:, :, 0], expected)
+
+
+@params((1, 2147483647, "oooooo10"), (65535, 65537, "oooooo30"))
+def test_coco_compressed_rle_large_run(height, width, counts):
+    # Reference rleToString output for [height * width, 0]. These valid 7-character
+    # values must reach dimension validation, without allocating a multi-gigapixel mask.
+    with tempfile.TemporaryDirectory() as directory:
+        write_coco_rle_annotations(directory, [{"size": [height, width], "counts": counts}])
+        assert_raises(
+            ValueError,
+            coco_rle_masks_pipe(directory).run,
+            glob=f"*dimensions must match the image; got {height}x{width}, expected 2x2.*",
+        )
 
 
 @params(
@@ -377,26 +443,39 @@ VERTEX_OUT_OF_RANGE = (
 def test_coco_polygon_out_of_range(polygons, ratio, message):
     with tempfile.TemporaryDirectory() as directory:
         write_coco_rle_annotations(directory, [polygons])
-        for preprocessed in (False,) if ratio else (False, True):
-            pipe = coco_rle_masks_pipe(directory, preprocessed=preprocessed, ratio=ratio)
+        pipe = coco_rle_masks_pipe(directory, ratio=ratio)
+        assert_raises(ValueError, pipe.run, glob=f"*Invalid COCO annotations: {message}*")
+        assert not any(name.endswith(".dat") for name in os.listdir(directory))
+        if not ratio:
+            # Save safe polygons, then replace the cached coordinates with the invalid ones.
+            safe_polygons = [[min(abs(c), 1) for c in polygon] for polygon in polygons]
+            write_coco_rle_annotations(directory, [safe_polygons])
+            coco_rle_masks_pipe(directory).run()
+            coords = [c for polygon in polygons for c in polygon]
+            with open(os.path.join(directory, "vertices.dat"), "wb") as f:
+                f.write(struct.pack("<I", len(coords) // 2))
+                f.write(struct.pack(f"<{len(coords)}f", *coords))
+            pipe = coco_rle_masks_pipe(directory, preprocessed=True)
             assert_raises(ValueError, pipe.run, glob=f"*Invalid COCO annotations: {message}*")
 
 
-@params(("image_id",), ("category_id",), ("bbox",))
-def test_coco_missing_annotation_field(field):
+@params(("image_id",), ("category_id",), ("bbox",), ("image_id", "category_id", "bbox"))
+def test_coco_missing_annotation_field(*fields):
     with tempfile.TemporaryDirectory() as directory:
         write_coco_rle_annotations(directory, [[[0, 0, 1, 0, 1, 1]]])
         with open(os.path.join(directory, "instances.json")) as f:
             annotations = json.load(f)
-        del annotations["annotations"][0][field]
+        for field in fields:
+            del annotations["annotations"][0][field]
         with open(os.path.join(directory, "instances.json"), "w") as f:
             json.dump(annotations, f)
         pipe = coco_rle_masks_pipe(directory)
         assert_raises(
             ValueError,
             pipe.run,
-            glob=f"*Invalid COCO annotation: `image_id`, `category_id` and `bbox` are required, "
-            f"but `{field}` is missing.*",
+            glob="*Invalid COCO annotation: missing required fields: "
+            + ", ".join(f"`{field}`" for field in fields)
+            + ".*",
         )
 
 
@@ -424,7 +503,7 @@ def test_coco_ratio_invalid_image_size(height, width):
     # The lowest label has no mask.
     ([None, [2, 2]], [[0, 2], [0, 2]]),
 )
-def test_coco_rle_mask_merge(counts, expected):
+def test_coco_rle_mask_overlapping_labels(counts, expected):
     with tempfile.TemporaryDirectory() as directory:
         write_coco_rle_annotations(
             directory,
@@ -475,10 +554,16 @@ def test_coco_invalid_image_size(height, width):
             f'*Invalid COCO annotations: the size of image "*image.bin" must be positive, '
             f"got {height}x{width}.*"
         )
-        # The JSON path saves the preprocessed annotations before rejecting them.
-        for preprocessed in (False, True):
-            pipe = coco_rle_masks_pipe(directory, preprocessed=preprocessed)
-            assert_raises(ValueError, pipe.run, glob=error)
+        assert_raises(ValueError, coco_rle_masks_pipe(directory).run, glob=error)
+        assert not any(name.endswith(".dat") for name in os.listdir(directory))
+        write_coco_rle_annotations(directory, [[[0, 0, 1, 0, 1, 1]]])
+        coco_rle_masks_pipe(directory).run()
+        for filename, value in (("heights.dat", height), ("widths.dat", width)):
+            with open(os.path.join(directory, filename), "r+b") as f:
+                f.seek(4)
+                f.write(struct.pack("<i", value))
+        pipe = coco_rle_masks_pipe(directory, preprocessed=True)
+        assert_raises(ValueError, pipe.run, glob=error)
 
 
 def test_coco_odd_polygon_coordinates():
