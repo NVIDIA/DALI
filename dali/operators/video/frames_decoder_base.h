@@ -27,6 +27,7 @@ extern "C" {
 #include <memory>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 #include "dali/core/boundary.h"
 #include "dali/core/common.h"
@@ -39,6 +40,34 @@ extern "C" {
 
 namespace dali {
 
+namespace detail {
+
+/**
+ * @brief Determines the NAL unit framing of an H.264/HEVC stream from its extradata.
+ *
+ * Streams carried in MP4/MOV/Matroska use AVCC/ISO framing (each NAL unit prefixed with its
+ * big-endian length), signaled by an AVCDecoderConfigurationRecord (H.264) or
+ * HEVCDecoderConfigurationRecord (HEVC) in extradata, which also records the size of that length
+ * prefix. Any other stream (no extradata, or extradata holding Annex-B parameter sets) is treated
+ * as Annex-B (start-code delimited).
+ *
+ * @return The size, in bytes, of the NAL unit length prefix (1-4) for AVCC/ISO-framed streams,
+ * or 0 for Annex-B streams.
+ */
+DLL_PUBLIC int GetNalLengthSize(AVCodecID codec_id, const uint8_t *extradata,
+                                int extradata_size);
+
+/**
+ * @brief Checks whether an H.264/HEVC packet contains an IDR (H.264) or IRAP (HEVC) NAL unit.
+ *
+ * @param nal_length_size Framing of the packet, as returned by GetNalLengthSize: 0 for Annex-B,
+ * otherwise the size of the AVCC/ISO NAL unit length prefix.
+ */
+DLL_PUBLIC bool HasKeyframeNalUnit(AVCodecID codec_id, const uint8_t *data, int size,
+                                   int nal_length_size);
+
+}  // namespace detail
+
 struct IndexEntry {
   int64_t pts;
   int last_keyframe_id;
@@ -50,6 +79,11 @@ struct FrameIndex {
   std::string filename;
   std::vector<IndexEntry> index;
   AVRational timebase;
+  /**
+   * @brief (pts, dts) of each keyframe, sorted by pts. Only filled for MPEG-TS, whose demuxer
+   * seeks on dts: kept out of IndexEntry so that other containers don't pay for it per frame.
+   */
+  std::vector<std::pair<int64_t, int64_t>> keyframe_dts;
 
   size_t size() const {
     return index.size();
@@ -66,40 +100,69 @@ struct FrameIndex {
   }
 
   /**
+   * @brief Pts of the first frame.
+   */
+  int64_t StartPts() const {
+    assert(!index.empty());
+    return index.front().pts;
+  }
+
+  /**
+   * @brief Pts one frame past the last frame, i.e. the end of the stream.
+   *
+   * Estimated as the last frame's pts plus the last inter-frame pts gap (plus 1 when the index
+   * has a single frame).
+   */
+  int64_t EndPts() const {
+    assert(!index.empty());
+    int64_t last = index.back().pts;
+    int64_t gap = index.size() >= 2 ? last - index[index.size() - 2].pts : 1;
+    return last + std::max<int64_t>(gap, 1);
+  }
+
+  /**
+   * @brief Timestamp to seek to so that the demuxer lands on the keyframe with the given pts:
+   * its dts if recorded in `keyframe_dts`, otherwise the pts itself.
+   */
+  int64_t KeyframeSeekTimestamp(int64_t keyframe_pts) const {
+    auto it = std::lower_bound(keyframe_dts.begin(), keyframe_dts.end(), keyframe_pts,
+                               [](const auto &entry, int64_t pts) { return entry.first < pts; });
+    return (it != keyframe_dts.end() && it->first == keyframe_pts) ? it->second : keyframe_pts;
+  }
+
+  /**
    * @brief Returns the index of the frame that has the given timestamp
    *
    * The entries must be sorted by pts, which BuildIndex guarantees.
    *
    * @param timestamp Timestamp of the frame to seek to
    * @param rounddown If true, the seek will be to a frame that has this timestamp or a previous one
+   * @return A value in [0, size()]. size() is a sentinel meaning "one past the last frame": it is
+   *         returned for timestamps at or after EndPts(), and for timestamps after the last
+   *         frame's pts when rounding up. It is not a valid frame index.
    */
   int GetFrameIdxByTimestamp(int64_t timestamp, bool rounddown = false) const {
     LOG_LINE << "GetFrameIdxByTimestamp: timestamp=" << timestamp << ", rounddown=" << rounddown
              << ", index_size=" << index.size() << std::endl;
+    if (index.empty())
+      return 0;
     // The first frame with pts >= timestamp
     auto it = std::lower_bound(index.begin(), index.end(), timestamp,
                                [](const IndexEntry &e, int64_t ts) { return e.pts < ts; });
-    int frame_idx = 0;  // returned when the timestamp is past the last frame
-  #if LOGS_ENABLED
-    std::optional<int64_t> pts_found = {};
-  #endif
     if (it != index.end()) {
-      frame_idx = it - index.begin();
-      if (it->pts > timestamp && rounddown && frame_idx > 0)
-        frame_idx--;
-    #if LOGS_ENABLED
-      pts_found = index[frame_idx].pts;
-    #endif
+      int i = it - index.begin();
+      int frame_idx = (it->pts > timestamp && rounddown && i > 0) ? i - 1 : i;
+      LOG_LINE << "Returning frame_idx=" << frame_idx << " with pts=" << index[frame_idx].pts
+               << std::endl;
+      return frame_idx;
     }
-    assert(frame_idx >= 0 && frame_idx < static_cast<int>(index.size()));
-  #if LOGS_ENABLED
-    if (pts_found) {
-      LOG_LINE << "Returning frame_idx=" << frame_idx << " with pts=" << *pts_found << std::endl;
-    } else {
-      LOG_LINE << "Returning frame_idx=" << frame_idx << " (frame not found)" << std::endl;
+    // The timestamp is past the last frame's pts.
+    if (rounddown && timestamp < EndPts()) {
+      LOG_LINE << "Timestamp inside the last frame; returning " << index.size() - 1 << std::endl;
+      return index.size() - 1;
     }
-  #endif
-    return frame_idx;
+    LOG_LINE << "Timestamp past the end of the stream; returning " << index.size() << std::endl;
+    return index.size();
   }
 };
 
@@ -254,6 +317,14 @@ class DLL_PUBLIC FramesDecoderBase {
     return Channels() * Width() * Height();
   }
 
+  /**
+   * @brief Total number of bytes in a frame, accounting for the output element type
+   * set via SetOutputType() (width * height * channels * element size).
+   */
+  int64_t FrameSizeBytes() const {
+    return static_cast<int64_t>(FrameSize()) * TypeTable::GetTypeInfo(dtype_).size();
+  }
+
   TensorShape<3> FrameShape() const {
     return {Height(), Width(), Channels()};
   }
@@ -298,7 +369,8 @@ class DLL_PUBLIC FramesDecoderBase {
   /**
    * @brief Decodes a collection of frames, not necessarily in ascending order, applying a boundary type
    * (what to do when sampling out of bounds).
-   * @param data Output buffer to copy data to. Should be of size FrameSize() * frame_ids.size().
+   * @param data Output buffer to copy data to. Should be at least
+   *             FrameSizeBytes() * frame_ids.size() bytes.
    * @param frame_ids Frame indices to decode.
    * @param boundary_type Boundary type to apply
    * @param constant_frame Constant frame data to repeat when sampling out of bounds.
@@ -314,7 +386,9 @@ class DLL_PUBLIC FramesDecoderBase {
   /**
    * @brief Decodes a range of evenly spaced frames, applying a boundary type
    * (what to do when sampling out of bounds).
-   * @param data Output buffer to copy data to. Should be of size FrameSize() * frame_ids.size().
+   * @param data Output buffer to copy data to. Should be at least
+   *             FrameSizeBytes() * num_frames bytes, where num_frames is the number of frames
+   *             in [start_frame, end_frame) with the given stride.
    * @param start_frame Start frame index.
    * @param end_frame End frame index.
    * @param stride Stride between frames.
@@ -350,11 +424,14 @@ class DLL_PUBLIC FramesDecoderBase {
    * @brief Returns the index of the frame that has the given timestamp
    *
    * @param timestamp Timestamp of the frame to seek to
-   * @param inclusive If true, the seek will be to a frame that has this timestamp or a previous one
+   * @param rounddown If true, the seek will be to a frame that has this timestamp or a previous one
+   * @return A value in [0, index size]. The index size is a sentinel meaning "one past the last
+   *         frame": it is returned for timestamps at or after the end of the stream, and for
+   *         timestamps after the last frame's pts when rounding up. It is not a valid frame index.
    */
-  int GetFrameIdxByTimestamp(int64_t timestamp, bool inclusive = false) const {
+  int GetFrameIdxByTimestamp(int64_t timestamp, bool rounddown = false) const {
     DALI_ENFORCE(HasIndex(), "No index available, cannot seek by timestamp");
-    return index_.GetFrameIdxByTimestamp(timestamp, inclusive);
+    return index_.GetFrameIdxByTimestamp(timestamp, rounddown);
   }
 
   /**
@@ -395,6 +472,18 @@ class DLL_PUBLIC FramesDecoderBase {
    */
   virtual void BuildIndex();
 
+  /**
+   * @brief Fails with a descriptive error if the file uses a container format that can't be
+   * decoded correctly, i.e. MPEG-PS (MPEG-2 Program Stream, libavformat format "mpeg").
+   *
+   * MPEG-PS only stamps a timestamp on some packets (typically the first packet of each PES
+   * unit). Neither the frame index (see BuildIndex()), which needs an exact, collision-free
+   * timestamp for every frame, nor sequential decoding without an index, which would mix those
+   * timestamps with frame-counter ones and return frames out of order, can handle that.
+   * Does nothing if the file couldn't be opened.
+   */
+  void EnforceSupportedContainer();
+
   const FrameIndex& GetIndex() const {
     return index_;
   }
@@ -402,6 +491,10 @@ class DLL_PUBLIC FramesDecoderBase {
   void SetIndex(const FrameIndex& index) {
     index_ = index;
     num_frames_ = index.size();
+    // is_vfr_ is derived solely from index_, so it must be recomputed whenever the index is
+    // restored from a cache (e.g. FrameIndexCache) instead of freshly built by BuildIndex();
+    // otherwise IsVfr() would silently report false (the default) for a cache-hit decoder.
+    DetectVariableFrameRate();
   }
 
   virtual ~FramesDecoderBase() = default;
@@ -416,8 +509,16 @@ class DLL_PUBLIC FramesDecoderBase {
     return is_valid_;
   }
 
-  void SetOutputType(DALIDataType dtype) {
+  virtual void SetOutputType(DALIDataType dtype) {
     dtype_ = dtype;
+  }
+
+  void SetNormalizedRange(bool normalized) {
+    normalized_range_ = normalized;
+  }
+
+  bool NormalizedRange() const {
+    return normalized_range_;
   }
 
  protected:
@@ -449,6 +550,7 @@ class DLL_PUBLIC FramesDecoderBase {
 
   DALIImageType image_type_ = DALI_RGB;
   DALIDataType dtype_ = DALI_UINT8;
+  bool normalized_range_ = false;
 
   // False when the file doesn't have any correct content or doesn't have a valid video stream
   bool is_valid_ = false;

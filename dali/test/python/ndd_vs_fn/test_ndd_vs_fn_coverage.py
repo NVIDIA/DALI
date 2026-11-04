@@ -17,6 +17,7 @@ from nvidia.dali.experimental.dynamic._ops import _all_ops
 
 excluded_operators = [
     "readers.VideoResize",  # TODO(michalz): add manual tests
+    "experimental.readers.VideoResize",  # TODO: add manual tests
     "experimental.readers.Fits",  # TODO(michalz): add tests
     "roi_random_crop",  # TODO(michalz): add tests
     "plugin.video.decoder",

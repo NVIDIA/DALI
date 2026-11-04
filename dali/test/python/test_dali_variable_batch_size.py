@@ -1989,6 +1989,7 @@ excluded_methods = [
     "experimental.inputs.video",  # Input batch_size of inputs.video is always 1 and output
     # batch_size varies and is tested in this operator's test.
     "experimental.readers.video",  # readers do not support variable batch size yet
+    "experimental.readers.video_resize",  # readers do not support variable batch size yet
     "experimental.audio_resample",  # Alias of audio_resample (already tested)
     "experimental.readers.fits",  # readers do not support variable batch size yet
     "plugin.video.decoder",  # plugin not yet tested

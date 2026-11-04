@@ -1689,6 +1689,7 @@ excluded_methods = [
     "video_reader_resize",  # not supported for CPU
     "readers.video",  # not supported for CPU
     "readers.video_resize",  # not supported for CPU
+    "experimental.readers.video_resize",  # not supported for CPU
     "optical_flow",  # not supported for CPU
     "experimental.audio_resample",  # Alias of audio_resample (already tested)
     "experimental.equalize",  # not supported for CPU
