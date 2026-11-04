@@ -445,17 +445,18 @@ bool FramesDecoderGpu::IsFullRange(CUVIDEOFORMAT *video_format) const {
 bool FramesDecoderGpu::IsBT709(CUVIDEOFORMAT *video_format) const {
   // The color description of H.264 and HEVC streams may be only in the stream itself (SPS, VUI),
   // not in the container. NVDEC reads it from there, and reports "unspecified" when the stream
-  // doesn't have it. NVDEC can't be used for other codecs: it doesn't report the color description
-  // of some (VP9: always 0, even for a BT.709 stream), and for others it reports the default of
-  // the codec (MPEG-4: BT.709) when the stream doesn't have a description (observed with the video
-  // files of DALI_extra). In these cases, and when the H.264 or HEVC stream doesn't have it, use
-  // the matrix that the container has (FFmpeg's, which is read when the file is opened and doesn't
-  // need to read the stream).
+  // doesn't have it (or, with some drivers, 0, "RGB/identity", which can't describe the YCbCr
+  // samples that NVDEC outputs, so it's treated the same way). NVDEC can't be used for other
+  // codecs: it doesn't report the color description of some (VP9: always 0, even for a BT.709
+  // stream), and for others it reports the default of the codec (MPEG-4: BT.709) when the stream
+  // doesn't have a description (observed with the video files of DALI_extra). In these cases, and
+  // when the H.264 or HEVC stream doesn't have it, use the matrix that the container has (FFmpeg's,
+  // which is read when the file is opened and doesn't need to read the stream).
   switch (codec_params_->codec_id) {
     case AV_CODEC_ID_H264:
     case AV_CODEC_ID_HEVC: {
       int matrix = video_format->video_signal_description.matrix_coefficients;
-      if (matrix != AVCOL_SPC_UNSPECIFIED)
+      if (matrix != AVCOL_SPC_UNSPECIFIED && matrix != AVCOL_SPC_RGB)
         return matrix == AVCOL_SPC_BT709;
       break;
     }
