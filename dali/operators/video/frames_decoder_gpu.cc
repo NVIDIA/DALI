@@ -223,6 +223,14 @@ class NVDECCache {
     }
 
     /**
+     * @brief Whether the driver provides cuvidReconfigureDecoder.
+     */
+    static bool IsReconfigureAvailable() {
+      static const bool available = cuvidIsSymbolAvailable("cuvidReconfigureDecoder");
+      return available;
+    }
+
+    /**
      * @brief Checks if a cached decoder can be reconfigured for a stream with the given format,
      *        instead of creating a new one.
      *
@@ -246,12 +254,11 @@ class NVDECCache {
      *        which has to be called from the sequence callback of the parser.
      *
      * @return false if the decoder could not be reconfigured.
+     *         IsReconfigureAvailable() must be true.
      */
     static bool Reconfigure(DecInstance &dec, const CUVIDEOFORMAT &format,
                             unsigned num_decode_surfaces) {
-      static const bool available = cuvidIsSymbolAvailable("cuvidReconfigureDecoder");
-      if (!available)
-        return false;
+      assert(IsReconfigureAvailable());
       const auto &area = format.display_area;
       CUVIDRECONFIGUREDECODERINFO params = {};
       params.ulWidth = format.coded_width;
@@ -263,8 +270,12 @@ class NVDECCache {
       params.display_area.top = area.top;
       params.display_area.right = area.right;
       params.display_area.bottom = area.bottom;
-      if (cuvidReconfigureDecoder(dec.decoder, &params) != CUDA_SUCCESS)
+      CUresult res = cuvidReconfigureDecoder(dec.decoder, &params);
+      if (res != CUDA_SUCCESS) {
+        DALI_WARN(make_string("Could not reconfigure a cached NVDEC decoder (error code ",
+                              static_cast<int>(res), "); creating a new one."));
         return false;
+      }
       dec.coded_width = params.ulWidth;
       dec.coded_height = params.ulHeight;
       dec.width = params.ulTargetWidth;
@@ -282,9 +293,9 @@ class NVDECCache {
      * - a cached decoder that was set up for exactly this format,
      * - a cached decoder that is large enough, reconfigured for this format; the smallest one, so
      *   that the larger ones are left for larger streams. Creating a decoder takes tens of
-     *   milliseconds and destroying one as long (the latter is done when the cache is full and one
-     *   is evicted), while reconfiguring one takes microseconds. It matters when there are more
-     *   distinct formats than the cache holds, e.g. a dataset with many different sizes,
+     *   milliseconds, and so does destroying one, which happens when the cache is full and one is
+     *   evicted. Reconfiguring one takes microseconds. It matters when there are more distinct
+     *   formats than the cache holds, e.g. a dataset with many different sizes,
      * - a new decoder, of exactly the size of the stream.
      */
     NVDECLease GetDecoder(CUVIDEOFORMAT *video_format, int device_id) {
@@ -304,13 +315,15 @@ class NVDECCache {
       auto range = dec_cache.equal_range(codec_type);
       codec_map::iterator to_reconfigure = range.second;
       auto max_area = [](const DecInstance &dec) { return dec.max_width * dec.max_height; };
+      const bool can_reconfigure = IsReconfigureAvailable();
       for (auto it = range.first; it != range.second; ++it) {
         if (IsReusable(it->second, *video_format, num_decode_surfaces)) {
           it->second.used = true;
           assert(it->second.device_id == device_id);
           return NVDECLease(this, &it->second);
         }
-        if (CanReconfigure(it->second, *video_format, num_decode_surfaces) &&
+        if (can_reconfigure &&
+            CanReconfigure(it->second, *video_format, num_decode_surfaces) &&
             (to_reconfigure == range.second ||
              max_area(it->second) < max_area(to_reconfigure->second))) {
           to_reconfigure = it;

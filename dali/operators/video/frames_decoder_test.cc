@@ -847,6 +847,45 @@ TEST_F(FramesDecoderGpuTest, DecoderCacheReconfiguresLargerDecoder) {
   EXPECT_EQ(NVDECDecodersReconfigured(), num_reconfigured + 1);
 }
 
+// A cached decoder that is smaller than the stream cannot be reconfigured for it: a decoder is
+// created instead.
+TEST_F(FramesDecoderGpuTest, DecoderCacheDoesNotReconfigureSmallerDecoder) {
+  using frame_dec_gpu_impl::NVDECDecodersCreated;
+  using frame_dec_gpu_impl::NVDECDecodersReconfigured;
+  std::string small_path = testing::dali_extra_path() + "/db/video/cfr/test_2.mp4";  // 800x600
+  std::string large_path = testing::dali_extra_path() + "/db/video/cfr/test_1.mp4";  // 1280x720
+  auto open = [](const std::string &path) {
+    auto decoder = std::make_unique<FramesDecoderGpu>(path);
+    decoder->BuildIndex();
+    return decoder;
+  };
+
+  // Take cached decoders until one has to be created for the large video: none that is free fits
+  // it any more (it would have been reconfigured), and they stay taken.
+  std::vector<std::unique_ptr<FramesDecoderGpu>> taken;
+  for (size_t before = NVDECDecodersCreated(); NVDECDecodersCreated() == before;) {
+    ASSERT_LT(taken.size(), 200u);
+    taken.push_back(open(large_path));
+    ASSERT_TRUE(taken.back()->IsValid());
+    taken.back()->ReadNextFrame(FrameData());
+  }
+
+  // Only decoders smaller than the large video can be free now. Make sure there is one.
+  {
+    auto small = open(small_path);
+    ASSERT_TRUE(small->IsValid());
+    small->ReadNextFrame(FrameData());
+  }
+
+  size_t num_created = NVDECDecodersCreated();
+  size_t num_reconfigured = NVDECDecodersReconfigured();
+  auto large = open(large_path);
+  ASSERT_TRUE(large->IsValid());
+  large->ReadNextFrame(FrameData());
+  EXPECT_EQ(NVDECDecodersCreated(), num_created + 1);
+  EXPECT_EQ(NVDECDecodersReconfigured(), num_reconfigured);
+}
+
 TEST_F(FramesDecoderGpuTest, IndexerGivesTheIndexOfTheDecoder) {
   std::vector<std::string> paths;
   for (const auto *list : {&cfr_videos_paths_, &vfr_videos_paths_, &cfr_mpeg4_videos_paths_,
