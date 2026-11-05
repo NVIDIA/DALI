@@ -950,8 +950,9 @@ TEST_F(FramesDecoderGpuTest, DecoderCacheReconfiguresLargerDecoder) {
   using frame_dec_gpu_impl::NVDECDecodersCreated;
   using frame_dec_gpu_impl::NVDECDecodersReconfigured;
   // 800x600, coded as 800x608: the reconfigured decoder has to crop it
-  std::string small_path = testing::dali_extra_path() + "/db/video/cfr/test_2.mp4";
-  std::string large_path = testing::dali_extra_path() + "/db/video/cfr/test_1.mp4";  // 1280x720
+  std::string small_path = make_string(testing::dali_extra_path(), "/db/video/cfr/test_2.mp4");
+  // 1280x720
+  std::string large_path = make_string(testing::dali_extra_path(), "/db/video/cfr/test_1.mp4");
   auto open = [](const std::string &path) {
     auto decoder = std::make_unique<FramesDecoderGpu>(path);
     decoder->BuildIndex();
@@ -994,8 +995,10 @@ TEST_F(FramesDecoderGpuTest, DecoderCacheDoesNotReconfigureSmallerDecoder) {
   using frame_dec_gpu_impl::NVDECDecodersCreated;
   using frame_dec_gpu_impl::NVDECDecodersReconfigured;
   using frame_dec_gpu_impl::NVDECDestroyUnusedDecoders;
-  std::string small_path = testing::dali_extra_path() + "/db/video/cfr/test_2.mp4";  // 800x600
-  std::string large_path = testing::dali_extra_path() + "/db/video/cfr/test_1.mp4";  // 1280x720
+  // 800x600
+  std::string small_path = make_string(testing::dali_extra_path(), "/db/video/cfr/test_2.mp4");
+  // 1280x720
+  std::string large_path = make_string(testing::dali_extra_path(), "/db/video/cfr/test_1.mp4");
   auto open = [](const std::string &path) {
     auto decoder = std::make_unique<FramesDecoderGpu>(path);
     decoder->BuildIndex();
