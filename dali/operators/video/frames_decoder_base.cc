@@ -305,7 +305,11 @@ bool FramesDecoderBase::SelectVideoStream(int stream_id) {
 }
 
 bool FramesDecoderBase::CheckDimensions() {
-  if (Height() == 0 || Width() == 0) {
+  // MJPEG streams are often demuxed without a pixel format: probe them for it, so that the
+  // backends can tell whether they can decode it.
+  bool unknown_mjpeg_format = codec_params_->codec_id == AV_CODEC_ID_MJPEG &&
+                              codec_params_->format == AV_PIX_FMT_NONE;
+  if (Height() == 0 || Width() == 0 || unknown_mjpeg_format) {
     if (avformat_find_stream_info(ctx_, nullptr) < 0) {
       DALI_WARN(make_string("Could not find stream information in ", Filename()));
       return false;
