@@ -35,7 +35,7 @@ def _normalize(
     mean, std = _channel_params(mean, std, channels_last=input_data.layout[-1] == "C")
 
     # adjust_input already moved the input to the requested device; the constants must follow it
-    data_device = input_data.device.device_type
+    data_device = input_data.device
     mean = ndd.as_tensor(mean, device=data_device)
     std = ndd.as_tensor(std, device=data_device)
     return (input_data - mean) / std
