@@ -22,6 +22,7 @@
 #include <mutex>
 #include <shared_mutex>
 #include <tuple>
+#include "dali/core/call_at_exit.h"
 #include "dali/core/error_handling.h"
 #include "dali/core/cuda_error.h"
 #include "dali/pipeline/data/backend.h"
@@ -640,6 +641,15 @@ int FramesDecoderGpu::HandlePictureDisplay(CUVIDPARSERDISPINFO *picture_display_
   LOG_LINE << "ConvertVideoColorSpace with conversion_type_="
            << static_cast<int>(conversion_type_) << " and dimensions " << Height() << "x" << Width()
            << std::endl;
+  // The surface is unmapped on every exit, also when the conversion fails: otherwise the decoder
+  // goes back to the NVDEC cache with one output surface less. Work already queued may still read
+  // the surface, so it is waited for first; it is not safe to unmap otherwise. If the wait or the
+  // unmap fails, there is no way to recover and the process terminates.
+  auto unmap_surface = AtScopeExit([&] {
+    CUDA_DTOR_CALL(cudaStreamSynchronize(stream_));
+    CUDA_DTOR_CALL(cuvidUnmapVideoFrame(nvdecode_state_->decoder, frame));
+  });
+
   TYPE_SWITCH(dtype_, type2id, OutType, (uint8_t, float), (
     ConvertVideoColorSpace(
       reinterpret_cast<OutType *>(frame_output), Width() * 3,
@@ -654,8 +664,6 @@ int FramesDecoderGpu::HandlePictureDisplay(CUVIDPARSERDISPINFO *picture_display_
   // TODO(awolant): Alternative is to copy the data to a buffer
   // and then process it on the stream. Check, if this is faster, when
   // the benchmark is ready.
-  CUDA_CALL(cudaStreamSynchronize(stream_));
-  CUDA_CALL(cuvidUnmapVideoFrame(nvdecode_state_->decoder, frame));
 
   return 1;
 }

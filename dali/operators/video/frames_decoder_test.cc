@@ -785,6 +785,25 @@ TEST_F(FramesDecoderGpuTest, DecoderCacheReusedForCroppedVideo) {
   EXPECT_EQ(frame_dec_gpu_impl::NVDECDecodersCreated(), num_created);
 }
 
+// A conversion that fails once the output surface is mapped (here: for an output type that it does
+// not support) unmaps the surface. Otherwise the decoder goes back to the NVDEC cache with the
+// surface still mapped, and when all of its output surfaces are taken, a decoder that gets it from
+// the cache can no longer map any picture.
+TEST_F(FramesDecoderGpuTest, SurfaceUnmappedAfterFailedConversion) {
+  for (int i = 0; i < 8; i++) {  // more than the output surfaces of the cached decoders
+    FramesDecoderGpu decoder(cfr_videos_paths_[0]);
+    decoder.BuildIndex();
+    decoder.SetOutputType(DALI_INT16);
+    EXPECT_THROW(decoder.ReadNextFrame(FrameData()), std::exception);
+  }
+  size_t num_created = frame_dec_gpu_impl::NVDECDecodersCreated();
+  FramesDecoderGpu decoder(cfr_videos_paths_[0]);
+  decoder.BuildIndex();
+  RunTest(decoder, cfr_videos_[0]);
+  // the decoder was taken from the cache, where the failed conversions left it
+  EXPECT_EQ(frame_dec_gpu_impl::NVDECDecodersCreated(), num_created);
+}
+
 TEST_F(FramesDecoderGpuTest, IndexerGivesTheIndexOfTheDecoder) {
   std::vector<std::string> paths;
   for (const auto *list : {&cfr_videos_paths_, &vfr_videos_paths_, &cfr_mpeg4_videos_paths_,
