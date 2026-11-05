@@ -40,6 +40,9 @@ struct VideoFileMeta {
   float end;
   int start_frame = -1;
   int end_frame = -1;
+  // size of a frame in pixels, as the decoder reports it (from the container's codec parameters)
+  int height = 0;
+  int width = 0;
   bool operator<(const VideoFileMeta& right) {
     return filename < right.filename;
   }
