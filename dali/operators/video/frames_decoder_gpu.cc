@@ -641,16 +641,13 @@ int FramesDecoderGpu::HandlePictureDisplay(CUVIDPARSERDISPINFO *picture_display_
   LOG_LINE << "ConvertVideoColorSpace with conversion_type_="
            << static_cast<int>(conversion_type_) << " and dimensions " << Height() << "x" << Width()
            << std::endl;
-  // The surface is unmapped also when the conversion fails: otherwise the decoder goes back to the
-  // NVDEC cache with one output surface less. Work already queued may still read the surface, so
-  // the stream is waited for first. The errors are not checked: the one being thrown is the one to
-  // report.
-  bool unmapped = false;
-  auto unmap_on_error = AtScopeExit([&] {
-    if (!unmapped) {
-      (void)cudaStreamSynchronize(stream_);
-      (void)cuvidUnmapVideoFrame(nvdecode_state_->decoder, frame);
-    }
+  // The surface is unmapped on every exit, including a failed conversion: otherwise the decoder
+  // goes back to the NVDEC cache with one output surface less. Work already queued may still read
+  // the surface, so the stream is waited for first. The errors are not checked, so that the one
+  // being thrown (if any) is the one to report.
+  auto unmap = AtScopeExit([&] {
+    (void)cudaStreamSynchronize(stream_);
+    (void)cuvidUnmapVideoFrame(nvdecode_state_->decoder, frame);
   });
 
   TYPE_SWITCH(dtype_, type2id, OutType, (uint8_t, float), (
@@ -663,13 +660,6 @@ int FramesDecoderGpu::HandlePictureDisplay(CUVIDPARSERDISPINFO *picture_display_
       false,  // normalized_range_,
       stream_);
   ), DALI_FAIL(make_string("Unsupported type: ", dtype_)));
-
-  // TODO(awolant): Alternative is to copy the data to a buffer
-  // and then process it on the stream. Check, if this is faster, when
-  // the benchmark is ready.
-  CUDA_CALL(cudaStreamSynchronize(stream_));
-  unmapped = true;  // the unmap below is checked, and must not be repeated by the guard
-  CUDA_CALL(cuvidUnmapVideoFrame(nvdecode_state_->decoder, frame));
 
   return 1;
 }
