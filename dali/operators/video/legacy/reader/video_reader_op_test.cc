@@ -379,7 +379,7 @@ TEST_F(VIDEO_READER_TEST_CLASS, MJpeg) {
   // experimental.readers.video skips (with a warning) a file whose codec NVDEC doesn't support at
   // all, so with no files left it fails with a generic "no samples" error instead: check upfront.
   // The test file is 8-bit 4:4:4 (yuvj444p).
-  if (!FramesDecoderGpu::NvdecSupports(cudaVideoCodec_JPEG, cudaVideoChromaFormat_444)) {
+  if (!FramesDecoderGpu::CanNvdecDecode(cudaVideoCodec_JPEG, cudaVideoChromaFormat_444)) {
     GTEST_SKIP() << "NVDEC does not support 8-bit 4:4:4 JPEG on this GPU";
   }
 
