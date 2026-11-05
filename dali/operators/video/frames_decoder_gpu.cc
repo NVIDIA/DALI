@@ -641,30 +641,32 @@ int FramesDecoderGpu::HandlePictureDisplay(CUVIDPARSERDISPINFO *picture_display_
   LOG_LINE << "ConvertVideoColorSpace with conversion_type_="
            << static_cast<int>(conversion_type_) << " and dimensions " << Height() << "x" << Width()
            << std::endl;
-  // The surface is unmapped on every exit, including a failed conversion: otherwise the decoder
-  // goes back to the NVDEC cache with one output surface less. Work already queued may still read
-  // the surface, so the stream is waited for first. The errors of this cleanup are not checked, so
-  // that the one being thrown (if any) is the one to report.
-  auto unmap = AtScopeExit([&] {
+  // The kernel launch is only checked for launch errors: a failure during its execution surfaces
+  // at the wait, so it is reported for this frame.
+  try {
+    TYPE_SWITCH(dtype_, type2id, OutType, (uint8_t, float), (
+      ConvertVideoColorSpace(
+        reinterpret_cast<OutType *>(frame_output), Width() * 3,
+        reinterpret_cast<const uint8_t *>(frame), static_cast<int>(pitch),
+        Height(),
+        Width(),
+        conversion_type_,
+        false,  // normalized_range_,
+        stream_);
+    ), DALI_FAIL(make_string("Unsupported type: ", dtype_)));
+
+    CUDA_CALL(cudaStreamSynchronize(stream_));
+  } catch (...) {
+    // The surface is unmapped also when the conversion fails: otherwise the decoder goes back to
+    // the NVDEC cache with one output surface less. Work already queued may still read the
+    // surface, so the stream is waited for first. The errors are not checked: the one being
+    // rethrown is the one to report.
     (void)cudaStreamSynchronize(stream_);
     (void)cuvidUnmapVideoFrame(nvdecode_state_->decoder, frame);
-  });
+    throw;
+  }
 
-  TYPE_SWITCH(dtype_, type2id, OutType, (uint8_t, float), (
-    ConvertVideoColorSpace(
-      reinterpret_cast<OutType *>(frame_output), Width() * 3,
-      reinterpret_cast<const uint8_t *>(frame), static_cast<int>(pitch),
-      Height(),
-      Width(),
-      conversion_type_,
-      false,  // normalized_range_,
-      stream_);
-  ), DALI_FAIL(make_string("Unsupported type: ", dtype_)));
-
-  // The kernel launch is only checked for launch errors: a failure during its execution surfaces
-  // here, so it is reported for this frame. The guard above then repeats the (already completed)
-  // wait and unmaps the surface.
-  CUDA_CALL(cudaStreamSynchronize(stream_));
+  CUDA_CALL(cuvidUnmapVideoFrame(nvdecode_state_->decoder, frame));
 
   return 1;
 }
