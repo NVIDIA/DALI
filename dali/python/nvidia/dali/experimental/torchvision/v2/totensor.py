@@ -31,6 +31,8 @@ class ToPureTensor(Operator):
         Device to use for the operator. Can be ``"cpu"`` or ``"gpu"``.
     """
 
+    converts_pil_to_tensor = True
+
     def __init__(self, device: Literal["cpu", "gpu"] = "cpu"):
         super().__init__(device=device)
 
@@ -51,6 +53,8 @@ class PILToTensor(Operator):
     device : Literal["cpu", "gpu"], optional, default = "cpu"
         Device to use for the operator. Can be ``"cpu"`` or ``"gpu"``.
     """
+
+    converts_pil_to_tensor = True
 
     def __init__(self, device: Literal["cpu", "gpu"] = "cpu"):
         super().__init__(device=device)

@@ -23,7 +23,13 @@ from PIL import Image
 import torch
 import torchvision.transforms.v2 as transforms
 
-from nvidia.dali.experimental.torchvision import Normalize, Compose, RandomHorizontalFlip
+from nvidia.dali.experimental.torchvision import (
+    Normalize,
+    Compose,
+    PILToTensor,
+    RandomApply,
+    RandomHorizontalFlip,
+)
 from nvidia.dali.experimental.torchvision.v2.functional import normalize
 
 
@@ -141,45 +147,87 @@ def test_mismatched_mean_or_std_length_raises(mean, std):
     with assert_raises(RuntimeError, glob="*Can't broadcast shapes*"):
         _ = dnorm(x)
 
-    with assert_raises(RuntimeError, glob="*their shapes must match*"):
+    with assert_raises(RuntimeError, glob="*Can't broadcast shapes*"):
         _ = normalize(x, mean, std)
 
     with assert_raises(RuntimeError, glob=tv_message):
         _ = transforms.functional.normalize(x, mean, std)
 
 
-@params(
-    ("cpu", [0.0], [1.0, 2.0, 3.0]),
-    ("gpu", [0.0], [1.0, 2.0, 3.0]),
-)
-def test_std_cannot_expand_single_channel_input(device, mean, std):
-    # Torchvision divides in place, so std cannot expand (1, H, W) into (3, H, W)
+def _test_std_can_expand_single_channel_input(device, mean, std):
+    # Torchvision divides in place, so std cannot expand (1, H, W) into (3, H, W) there.
+    # DALI does not divide in place, so std expands the channels just like mean does.
     torch.manual_seed(1234)
     x = torch.rand(1, 8, 8)
     with assert_raises(RuntimeError, glob="*doesn't match the broadcast shape*"):
         _ = transforms.Normalize(mean=mean, std=std)(x)
-    with assert_raises(RuntimeError, glob="*Input and output samples must occupy the same size*"):
-        _ = Compose([Normalize(mean=mean, std=std, device=device)])(x)
+    with assert_raises(RuntimeError, glob="*doesn't match the broadcast shape*"):
+        _ = transforms.functional.normalize(x, mean, std)
+    expected = (x - torch.tensor(mean)[:, None, None]) / torch.tensor(std)[:, None, None]
+    dout = Compose([Normalize(mean=mean, std=std, device=device)])(x)
+    fdout = normalize(x, mean, std, device=device)
+    assert dout.shape == fdout.shape == expected.shape == (3, 8, 8)
+    assert torch.allclose(dout.cpu(), expected, atol=1e-5)
+    assert torch.allclose(fdout.cpu(), expected, atol=1e-5)
 
 
-@params(("cpu",), ("gpu",))
-def test_mean_can_expand_single_channel_input(device):
+@unittest.skipUnless(torch.cuda.is_available(), "CUDA is not available")
+@params(
+    ([0.0], [1.0, 2.0, 3.0]),
+)
+def test_std_can_expand_single_channel_input_gpu(mean, std):
+    _test_std_can_expand_single_channel_input("gpu", mean, std)
+
+
+@params(
+    ([0.0], [1.0, 2.0, 3.0]),
+)
+def test_std_can_expand_single_channel_input_cpu(mean, std):
+    _test_std_can_expand_single_channel_input("cpu", mean, std)
+
+
+def _test_mean_can_expand_single_channel_input(device):
     # Torchvision subtracts the mean out of place, so it can expand (1, H, W) into (3, H, W)
     torch.manual_seed(1234)
     x = torch.rand(1, 8, 8)
-    out = transforms.Normalize(mean=[0.0, 0.5, 1.0], std=[2.0])(x)
-    dout = Compose([Normalize(mean=[0.0, 0.5, 1.0], std=[2.0], device=device)])(x)
-    assert dout.shape == out.shape == (3, 8, 8)
+    mean, std = [0.0, 0.5, 1.0], [2.0]
+    out = transforms.Normalize(mean=mean, std=std)(x)
+    fout = transforms.functional.normalize(x, mean, std)
+    dout = Compose([Normalize(mean=mean, std=std, device=device)])(x)
+    fdout = normalize(x, mean, std, device=device)
+    assert out.shape == fout.shape == dout.shape == fdout.shape == (3, 8, 8)
     assert torch.allclose(dout.cpu(), out, atol=1e-5)
+    assert torch.allclose(fdout.cpu(), fout, atol=1e-5)
 
 
-@params(("cpu",), ("gpu",))
-def test_single_value_mean_std_broadcast_over_channels(device):
+def test_mean_can_expand_single_channel_input_cpu():
+    _test_mean_can_expand_single_channel_input("cpu")
+
+
+@unittest.skipUnless(torch.cuda.is_available(), "CUDA is not available")
+def test_mean_can_expand_single_channel_input_gpu():
+    _test_mean_can_expand_single_channel_input("gpu")
+
+
+def _test_single_value_mean_std_broadcast_over_channels(device):
     x = make_sample_tensor()
-    out = transforms.Normalize(mean=[0.5], std=[2.0])(x)
-    dout = Compose([Normalize(mean=[0.5], std=[2.0], device=device)])(x)
-    assert dout.shape == out.shape
+    mean, std = [0.5], [2.0]
+    out = transforms.Normalize(mean=mean, std=std)(x)
+    fout = transforms.functional.normalize(x, mean, std)
+    dout = Compose([Normalize(mean=mean, std=std, device=device)])(x)
+    fdout = normalize(x, mean, std, device=device)
+    assert out.shape == fout.shape == dout.shape == fdout.shape == x.shape
     assert torch.allclose(dout.cpu(), out, atol=1e-5)
+    assert torch.allclose(fdout.cpu(), fout, atol=1e-5)
+
+
+@unittest.skipUnless(torch.cuda.is_available(), "CUDA is not available")
+def test_single_value_mean_std_broadcast_over_channels_gpu():
+    _test_single_value_mean_std_broadcast_over_channels("gpu")
+
+
+def test_single_value_mean_std_broadcast_over_channels_cpu():
+    _test_single_value_mean_std_broadcast_over_channels("cpu")
 
 
 @params(
@@ -361,3 +409,17 @@ def test_pil_input_rejected_only_by_operators_without_pil_support():
     # the check happens before the pipeline is built, on every Compose instance
     with assert_raises(TypeError, glob="*Normalize does not support PIL images*"):
         Compose([RandomHorizontalFlip(p=1.0), Normalize([0.5] * 3, [0.2] * 3)])(img)
+
+
+def test_pil_input_rejected_inside_random_apply():
+    img = Image.fromarray(np.zeros((6, 6, 3), dtype=np.uint8))
+    normalize_op = Normalize([0.5] * 3, [0.2] * 3)
+    for ops in (
+        [RandomApply([normalize_op], p=1.0)],
+        [RandomApply([RandomApply([normalize_op], p=1.0)], p=1.0)],
+    ):
+        with assert_raises(TypeError, glob="*Normalize does not support PIL images*"):
+            Compose(ops)(img)
+    # a tensor conversion before the Normalize makes it valid, also when both are wrapped
+    Compose([RandomApply([PILToTensor(), normalize_op], p=1.0)])(img)
+    Compose([RandomApply([RandomHorizontalFlip(p=1.0)], p=1.0)])(img)

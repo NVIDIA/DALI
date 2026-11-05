@@ -14,10 +14,20 @@
 
 import numpy as np
 import torch
-from nvidia.dali import fn
 from typing import Sequence, Literal
 
 from .operator import Operator, ArgumentValidateRule
+
+
+def _channel_params(mean, std, channels_last: bool):
+    """
+    Returns mean and std as float32 arrays that broadcast over the channels of the input.
+    Shared by the ``Normalize`` operator and the functional ``normalize``, so both compute the
+    same values. Float32 matches torchvision; in the dynamic API, float64 constants would promote
+    the output to float64.
+    """
+    shape = (1, 1, -1) if channels_last else (-1, 1, 1)
+    return np.asarray(mean, np.float32).reshape(shape), np.asarray(std, np.float32).reshape(shape)
 
 
 class _ValidateStd(ArgumentValidateRule):
@@ -105,15 +115,11 @@ class Normalize(Operator):
         layout = data_input.property("layout")[-1]
 
         if layout == np.frombuffer(bytes("C", "utf-8"), dtype=np.uint8)[0]:
-            mean = np.asarray(self.mean)[None, None, :]
-            std = np.asarray(self.std)[None, None, :]
+            mean, std = _channel_params(self.mean, self.std, channels_last=True)
         else:
-            mean = np.asarray(self.mean)[:, None, None]
-            std = np.asarray(self.std)[:, None, None]
+            mean, std = _channel_params(self.mean, self.std, channels_last=False)
 
         # Arithmetic broadcasting is right-aligned, so it works for CHW, FCHW, HWC and FHWC.
-        # Torchvision subtracts the mean out of place, but divides in place, so std cannot
-        # expand the result of subtraction (e.g. 1 channel with 3-element std). Reshaping to the
-        # shape before the division fails in that case.
-        centered = data_input - mean
-        return fn.reshape(centered / std, shape=centered.shape())
+        # Unlike torchvision, std can expand the channels (e.g. 1 channel with 3-element std), just
+        # like mean can: torchvision rejects it only because it divides in place.
+        return (data_input - mean) / std

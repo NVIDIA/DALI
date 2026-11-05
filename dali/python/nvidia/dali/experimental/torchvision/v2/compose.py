@@ -20,7 +20,7 @@ from nvidia.dali.pipeline import pipeline_def
 from nvidia.dali.data_node import DataNode as _DataNode
 from nvidia.dali.backend import TensorListCPU, TensorListGPU
 
-from .operator import _ValidateTensorOrImage
+from .operator import _ValidateTensorOrImage, find_op_rejecting_pil
 from .totensor import ToPureTensor, PILToTensor, ToPILImage
 from .functional.totensor import to_pil_image
 
@@ -460,8 +460,6 @@ class Compose:
         if batch_size is not None and batch_size < 1:
             raise ValueError(f"batch_size must be a positive integer or None, got {batch_size}.")
         if layout is not None:
-            if layout in _UNSUPPORTED_LAYOUTS:
-                raise NotImplementedError(f"Layout {layout!r} is currently not supported.")
             if layout.startswith("N") and batch_size is None:
                 raise ValueError(f"Layout {layout!r} requires batch_size.")
             if not layout.startswith("N") and batch_size is not None and batch_size > 1:
@@ -494,15 +492,12 @@ class Compose:
 
     def _verify_pil_support(self):
         """Raise if an operator that does not accept PIL images would receive one."""
-        for op in self.op_list:
-            if isinstance(op, (ToPureTensor, PILToTensor)):
-                return  # the data is a tensor from here on
-            # Wrappers that are not Operator subclasses (e.g. Pad) have no such attribute
-            if not getattr(op, "supports_pil", True):
-                raise TypeError(
-                    f"{type(op).__name__} does not support PIL images. "
-                    "Convert the image to a tensor first, e.g. with PILToTensor."
-                )
+        op = find_op_rejecting_pil(self.op_list)
+        if op is not None:
+            raise TypeError(
+                f"{type(op).__name__} does not support PIL images. "
+                "Convert the image to a tensor first, e.g. with PILToTensor."
+            )
 
     def _build_pipeline(self, data_input):
         if isinstance(data_input, Image.Image):

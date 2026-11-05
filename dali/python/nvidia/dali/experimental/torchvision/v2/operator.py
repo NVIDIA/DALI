@@ -25,6 +25,27 @@ import numpy as np
 import nvidia.dali.experimental.dynamic as ndd
 
 
+def find_op_rejecting_pil(op_list):
+    """
+    Returns the first operator in ``op_list`` that would receive a ``PIL.Image`` and does not
+    support it, or ``None``. The search stops at an operator that converts the image to a tensor.
+    Operators that wrap other operators (``RandomApply``) are searched through, because the wrapped
+    operators receive the image whenever they are applied. Wrappers that are not ``Operator``
+    subclasses (e.g. ``Pad``) are assumed to support PIL.
+    """
+    for op in op_list:
+        if getattr(op, "converts_pil_to_tensor", False):
+            return None
+        wrapped = getattr(op, "_op_list", None)
+        if wrapped is not None:
+            rejecting = find_op_rejecting_pil(wrapped)
+            if rejecting is not None:
+                return rejecting
+        elif not getattr(op, "supports_pil", True):
+            return op
+    return None
+
+
 class DataValidateRule(ABC):
     """
     Abstract base class for data verification rules
@@ -212,6 +233,8 @@ class Operator(ABC):
     ``supports_pil`` - whether the operator accepts ``PIL.Image`` input. Checked by ``Compose``
     against the actual input, because ``input_rules`` only see graph nodes while the pipeline
     is being built.
+    ``converts_pil_to_tensor`` - whether the operator makes the data a tensor, so the operators
+    that follow it are not checked against ``supports_pil``.
 
     Parameters
     ----------
@@ -225,6 +248,7 @@ class Operator(ABC):
     input_rules: tuple[DataValidateRule, ...] = tuple()
     preprocess_data = None
     supports_pil = True
+    converts_pil_to_tensor = False
 
     @classmethod
     def verify_args(cls, **kwargs):
