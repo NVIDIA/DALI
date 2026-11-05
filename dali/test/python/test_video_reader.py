@@ -850,24 +850,31 @@ def test_file_url_can_be_opened(device):
     p.run()
 
 
-MJPEG_AVI = DALI_EXTRA_PATH + "/db/video/mjpeg/mjpeg.avi"
+MJPEG_AVI = os.path.join(DALI_EXTRA_PATH, "db", "video", "mjpeg", "mjpeg.avi")
 
 # Decodes MJPEG_AVI with the GPU (mixed) and CPU variants of experimental.readers.video or
 # decoders.video and prints the mean abs difference of every frame. Runs in a fresh process: the
 # GPU decoder used to return blank frames mostly from freshly created NVDEC decoders, and
 # NVDEC decoders are pooled within a process.
 _MJPEG_PARITY_CHILD = r"""
+import enum
 import sys
 
 import numpy as np
 from nvidia.dali import fn, pipeline_def
 
-path, op = sys.argv[1], sys.argv[2]
+
+class Op(enum.Enum):
+    READER = "reader"
+    DECODER = "decoder"
+
+
+path, op = sys.argv[1], Op(sys.argv[2])
 
 
 @pipeline_def(batch_size=1, num_threads=2, device_id=0, prefetch_queue_depth=1)
 def pipe():
-    if op == "reader":
+    if op == Op.READER:
         return tuple(
             fn.experimental.readers.video(
                 device=device, filenames=[path], sequence_length=30, name=f"r_{device}"
@@ -883,7 +890,7 @@ def pipe():
 
 p = pipe()
 p.build()
-num_runs = p.reader_meta("r_gpu")["epoch_size"] if op == "reader" else 1
+num_runs = p.reader_meta("r_gpu")["epoch_size"] if op == Op.READER else 1
 for _ in range(num_runs):
     gpu, cpu = p.run()
     gpu = np.array(gpu.as_cpu()[0], dtype=np.int16)
@@ -894,7 +901,12 @@ for _ in range(num_runs):
 """
 
 
-@params("reader", "decoder")
+class MjpegOp(enum.Enum):
+    READER = "reader"
+    DECODER = "decoder"
+
+
+@params(*MjpegOp)
 def test_mjpeg_gpu_matches_cpu(op):
     """Every MJPEG frame decoded on the GPU must match the CPU backend's (up to the rounding
     noise of the two different JPEG decoders and color conversions). NVDEC writes JPEG pictures
@@ -902,7 +914,7 @@ def test_mjpeg_gpu_matches_cpu(op):
     operator's non-blocking stream, used to read surfaces that weren't written yet: the first
     ~20 frames of a freshly created NVDEC decoder came back blank."""
     res = subprocess.run(
-        [sys.executable, "-c", _MJPEG_PARITY_CHILD, MJPEG_AVI, op],
+        [sys.executable, "-c", _MJPEG_PARITY_CHILD, MJPEG_AVI, op.value],
         capture_output=True,
         text=True,
         timeout=300,
@@ -914,6 +926,8 @@ def test_mjpeg_gpu_matches_cpu(op):
         raise unittest.SkipTest("NVDEC does not support this MJPEG file's format on this GPU")
     assert res.returncode == 0, f"[{op}] child failed:\n{res.stderr[-3000:]}"
     diffs = [float(line.split()[1]) for line in res.stdout.splitlines() if line.startswith("DIFF")]
-    assert len(diffs) == (180 if op == "reader" else 60), f"[{op}] compared {len(diffs)} frames"
+    assert len(diffs) == (
+        180 if op == MjpegOp.READER else 60
+    ), f"[{op}] compared {len(diffs)} frames"
     bad = [(i, round(d, 2)) for i, d in enumerate(diffs) if d >= 1.5]
     assert not bad, f"[{op}] frames differing from the CPU backend (index, mean abs diff): {bad}"

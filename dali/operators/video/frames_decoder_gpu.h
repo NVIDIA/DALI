@@ -209,14 +209,14 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
    * format and bit depth. Safe to call before any CUDA context exists on the calling thread.
    * Uses the per-process cache of cuvidGetDecoderCaps.
    */
-  static bool NvdecSupports(cudaVideoCodec codec_type, cudaVideoChromaFormat chroma_format,
+  static bool CanNvdecDecode(cudaVideoCodec codec_type, cudaVideoChromaFormat chroma_format,
                             int bit_depth = 8);
 
   /**
    * @brief Checks if the codec can be decoded by this decoder, as it is done when the video stream
    *        is selected: it is supported by the decoder and by NVDEC on this platform
    *        (8-bit 4:2:0). It warns if it is not, unless `warn` is false. MJPEG's actual chroma
-   *        format and bit depth are checked on stream selection.
+   *        format and bit depth are checked by IsStreamSupported.
    *
    * It queries NVDEC of the current device (once per codec, cached per process), so the calling
    * thread must have a current CUDA context.
@@ -229,6 +229,22 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
    *        `IsCodecSupported`), and can then be used from any thread.
    */
   static std::vector<AVCodecID> SupportedCodecs();
+
+  /**
+   * @brief Checks if the video stream with the given parameters can be decoded by this decoder:
+   *        IsCodecSupported plus, for MJPEG, whether NVDEC on this device supports the stream's
+   *        chroma format and bit depth. It warns if it does not. It is what the stream selection
+   *        checks, so it can be used to skip the files that would be rejected by the decoder.
+   */
+  static bool IsStreamSupported(const AVCodecParameters &params) {
+    return IsStreamSupported(params.codec_id, static_cast<AVPixelFormat>(params.format));
+  }
+
+  /**
+   * @brief As above, from the codec and the pixel format of the stream (`AV_PIX_FMT_NONE` if
+   *        unknown). Same requirements as `IsCodecSupported`.
+   */
+  static bool IsStreamSupported(AVCodecID codec_id, AVPixelFormat pix_fmt);
 
   static bool SupportsCodec(AVCodecID codec_id, uint8_t bit_depth = 8);
 

@@ -979,7 +979,8 @@ TEST_F(FramesDecoderGpuTest, IndexerIsValidForTheSameFilesAsTheDecoder) {
     SCOPED_TRACE(path);
     FramesDecoderGpu decoder(path);
     FramesIndexer indexer(path);
-    bool indexer_valid = indexer.IsValid() && FramesDecoderGpu::IsCodecSupported(indexer.CodecId());
+    bool indexer_valid =
+        indexer.IsValid() && FramesDecoderGpu::IsStreamSupported(indexer.CodecParameters());
     EXPECT_EQ(indexer_valid, decoder.IsValid());
   }
 }
@@ -1198,7 +1199,8 @@ TEST_F(FramesDecoderTest_CpuOnlyTests, IndexerIsValidForTheSameFilesAsTheDecoder
     SCOPED_TRACE(path);
     FramesDecoderCpu decoder(path);
     FramesIndexer indexer(path);
-    bool indexer_valid = indexer.IsValid() && FramesDecoderCpu::IsCodecSupported(indexer.CodecId());
+    bool indexer_valid =
+        indexer.IsValid() && FramesDecoderCpu::IsStreamSupported(indexer.CodecParameters());
     EXPECT_EQ(indexer_valid, decoder.IsValid());
   }
 }
@@ -1417,7 +1419,7 @@ TEST_F(FramesDecoderGpuTest, MjpegDecodesMultipleFrames) {
   // NVDECCache and get freshly created ones.
 
   // The test file is 8-bit 4:4:4 (yuvj444p), which not every NVDEC generation can decode.
-  if (!FramesDecoderGpu::NvdecSupports(cudaVideoCodec_JPEG, cudaVideoChromaFormat_444)) {
+  if (!FramesDecoderGpu::CanNvdecDecode(cudaVideoCodec_JPEG, cudaVideoChromaFormat_444)) {
     GTEST_SKIP() << "NVDEC does not support 8-bit 4:4:4 JPEG on this GPU";
   }
   auto mjpeg_path = testing::dali_extra_path() + "/db/video/mjpeg/mjpeg.avi";
