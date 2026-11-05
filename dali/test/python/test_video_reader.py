@@ -191,31 +191,6 @@ def _write_file_list(lines):
     return path
 
 
-def _file_list_frame_selection(reader_fn, file_list, **kwargs):
-    """Returns (epoch_size, sorted start frame indices) for a single-frame-per-sample reader."""
-
-    @pipeline_def(batch_size=1, num_threads=2, device_id=0, prefetch_queue_depth=1)
-    def pipe():
-        _, _, frame_num = reader_fn(
-            name="reader",
-            file_list=file_list,
-            sequence_length=1,
-            step=1,
-            enable_frame_num=True,
-            **kwargs,
-        )
-        return frame_num
-
-    p = pipe()
-    p.build()
-    epoch_size = p.reader_meta("reader")["epoch_size"]
-    frame_nums = []
-    for _ in range(epoch_size):
-        (frame_num,) = p.run()
-        frame_nums.append(int(np.array(frame_num.as_cpu()[0]).flatten()[0]))
-    return epoch_size, sorted(frame_nums)
-
-
 def _collect_samples(reader_fn, **kwargs):
     """Runs exactly one epoch of `reader_fn` with batch_size=1 and returns
     (epoch_size, samples), where `samples` is a list of (label, first_frame_num, num_frames)
@@ -243,6 +218,14 @@ def _collect_samples(reader_fn, **kwargs):
             )
         )
     return epoch_size, samples
+
+
+def _file_list_frame_selection(reader_fn, file_list, **kwargs):
+    """Returns (epoch_size, sorted start frame indices) for a single-frame-per-sample reader."""
+    epoch_size, samples = _collect_samples(
+        reader_fn, file_list=file_list, sequence_length=1, step=1, **kwargs
+    )
+    return epoch_size, sorted(frame_num for _, frame_num, _ in samples)
 
 
 @cartesian_params(
