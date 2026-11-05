@@ -26,6 +26,7 @@ import tempfile
 import uuid
 from test_utils import get_dali_extra_path
 from nose2.tools import cartesian_params
+from nose_utils import assert_raises
 
 np.random.seed(42)
 debug = False  # Set to True to print file_list contents and other debug information
@@ -599,3 +600,84 @@ def test_file_url_can_be_opened(device):
     p.build()
     assert p.reader_meta("r")["epoch_size"] == 50
     p.run()
+
+
+@cartesian_params(devices)
+def test_empty_labels_means_sequential_labels(device):
+    files = sorted(VIDEO_FILES)[:3]
+    # step=1000 > 240 frames: exactly one sample per file.
+    kwargs = dict(filenames=files, labels=[], sequence_length=10, step=1000)
+    experimental = _collect_samples(_experimental_reader(device), **kwargs)
+    legacy = _collect_samples(_legacy_gpu_reader, **kwargs)
+    assert (
+        experimental == legacy == (3, [(0, 0, 10), (1, 0, 10), (2, 0, 10)])
+    ), f"experimental: {experimental}, legacy: {legacy}"
+
+
+@cartesian_params(devices)
+def test_labels_not_passed_means_no_labels_output(device):
+    # Regression guard for the other side of the distinction: no `labels` -> no labels output.
+    @pipeline_def(batch_size=1, num_threads=2, device_id=0)
+    def pipe():
+        outs = fn.experimental.readers.video(device=device, filenames=[VIDEO_0], sequence_length=3)
+        assert isinstance(outs, DataNode), f"Expected only the video output, got {len(outs)}"
+        return outs
+
+    p = pipe()
+    p.build()
+    p.run()
+
+
+@cartesian_params(devices)
+def test_empty_string_sources_are_treated_as_not_provided(device):
+    @pipeline_def(batch_size=1, num_threads=2, device_id=0)
+    def filenames_pipe():
+        outs = fn.experimental.readers.video(
+            device=device, filenames=[VIDEO_0], file_root="", file_list="", sequence_length=3
+        )
+        # No labels are requested, so only the video output may be declared.
+        assert isinstance(outs, DataNode), f"Expected only the video output, got {len(outs)}"
+        return outs
+
+    p = filenames_pipe()
+    p.build()
+    (video,) = p.run()
+    assert video.shape()[0][0] == 3
+
+    list_file = _write_file_list([f"{VIDEO_0} 7 0 30"])
+
+    @pipeline_def(batch_size=1, num_threads=2, device_id=0)
+    def file_list_pipe():
+        video, label = fn.experimental.readers.video(
+            device=device,
+            file_list=list_file,
+            filenames=[],
+            file_root="",
+            file_list_format="frames",
+            sequence_length=3,
+        )
+        return video, label
+
+    p = file_list_pipe()
+    p.build()
+    _, label = p.run()
+    assert int(np.array(label.as_cpu()[0]).flatten()[0]) == 7
+
+
+@cartesian_params(devices)
+def test_two_non_empty_sources_raise(device):
+    list_file = _write_file_list([f"{VIDEO_0} 0 0 30"])
+
+    @pipeline_def(batch_size=1, num_threads=2, device_id=0)
+    def pipe():
+        # Both filenames and file_list are provided, which should raise an error.
+        # The output function sees file_list is non-empty, so it declares 2 outputs.
+        # We unpack both to avoid Python validation errors, letting the C++ error occur.
+        video, label = fn.experimental.readers.video(
+            device=device, filenames=[VIDEO_0], file_list=list_file, sequence_length=3
+        )
+        return video, label
+
+    with assert_raises(RuntimeError, glob="*Exactly one of*"):
+        p = pipe()
+        p.build()  # Error occurs in the loader constructor, triggered by build()
