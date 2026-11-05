@@ -643,8 +643,8 @@ int FramesDecoderGpu::HandlePictureDisplay(CUVIDPARSERDISPINFO *picture_display_
            << std::endl;
   // The surface is unmapped on every exit, including a failed conversion: otherwise the decoder
   // goes back to the NVDEC cache with one output surface less. Work already queued may still read
-  // the surface, so the stream is waited for first. The errors are not checked, so that the one
-  // being thrown (if any) is the one to report.
+  // the surface, so the stream is waited for first. The errors of this cleanup are not checked, so
+  // that the one being thrown (if any) is the one to report.
   auto unmap = AtScopeExit([&] {
     (void)cudaStreamSynchronize(stream_);
     (void)cuvidUnmapVideoFrame(nvdecode_state_->decoder, frame);
@@ -660,6 +660,11 @@ int FramesDecoderGpu::HandlePictureDisplay(CUVIDPARSERDISPINFO *picture_display_
       false,  // normalized_range_,
       stream_);
   ), DALI_FAIL(make_string("Unsupported type: ", dtype_)));
+
+  // The kernel launch is only checked for launch errors: a failure during its execution surfaces
+  // here, so it is reported for this frame. The guard above then repeats the (already completed)
+  // wait and unmaps the surface.
+  CUDA_CALL(cudaStreamSynchronize(stream_));
 
   return 1;
 }
