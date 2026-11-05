@@ -207,16 +207,24 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
    * format and bit depth. Safe to call before any CUDA context exists on the calling thread.
    * Uses the per-process cache of cuvidGetDecoderCaps.
    */
-  static bool NvdecSupports(cudaVideoCodec codec_type, cudaVideoChromaFormat chroma_format,
+  static bool CanNvdecDecode(cudaVideoCodec codec_type, cudaVideoChromaFormat chroma_format,
                             int bit_depth = 8);
 
   /**
    * @brief Checks if the codec can be decoded by this decoder, as it is done when the video stream
    *        is selected: it is supported by the decoder and by NVDEC on this platform
-   *        (8-bit 4:2:0). It warns if it is not. MJPEG's actual chroma format is checked on stream
-   *        selection.
+   *        (8-bit 4:2:0). It warns if it is not. MJPEG's actual chroma format is checked by
+   *        IsStreamSupported.
    */
   static bool IsCodecSupported(AVCodecID codec_id);
+
+  /**
+   * @brief Checks if the video stream with the given parameters can be decoded by this decoder:
+   *        IsCodecSupported plus, for MJPEG, whether NVDEC on this device supports the stream's
+   *        chroma format and bit depth. It warns if it does not. It is what the stream selection
+   *        checks, so it can be used to skip the files that would be rejected by the decoder.
+   */
+  static bool IsStreamSupported(const AVCodecParameters &params);
 
   static bool SupportsCodec(AVCodecID codec_id, uint8_t bit_depth = 8);
 

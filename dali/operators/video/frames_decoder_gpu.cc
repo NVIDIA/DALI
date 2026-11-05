@@ -388,10 +388,14 @@ int handle_picture_display(void *user_data, CUVIDPARSERDISPINFO *picture_display
 namespace {
 
 /** Whether NVDEC supports a JPEG stream in the given pixel format; warns if it does not. */
-bool SupportsJpegPixelFormat(AVPixelFormat pix_fmt) {
+bool IsJpegPixelFormatSupported(AVPixelFormat pix_fmt) {
   const AVPixFmtDescriptor *desc = av_pix_fmt_desc_get(pix_fmt);
-  if (!desc || desc->nb_components == 0)
-    return true;  // unknown: let the decoder decide, as for the other codecs
+  if (!desc || desc->nb_components == 0) {
+    // Not even known after probing the stream: it can't be checked, so don't claim support.
+    DALI_WARN("Could not determine the pixel format of a JPEG stream, so it can't be checked "
+              "against what NVDEC on this platform supports.");
+    return false;
+  }
   cudaVideoChromaFormat chroma = cudaVideoChromaFormat_420;
   if (desc->nb_components < 3) {
     chroma = cudaVideoChromaFormat_Monochrome;
@@ -401,7 +405,7 @@ bool SupportsJpegPixelFormat(AVPixelFormat pix_fmt) {
     chroma = cudaVideoChromaFormat_422;
   }
   int bit_depth = desc->comp[0].depth;
-  if (FramesDecoderGpu::NvdecSupports(cudaVideoCodec_JPEG, chroma, bit_depth))
+  if (FramesDecoderGpu::CanNvdecDecode(cudaVideoCodec_JPEG, chroma, bit_depth))
     return true;
   DALI_WARN(make_string("JPEG with pixel format ", desc->name, " (", bit_depth, "-bit, chroma ",
                         frame_dec_gpu_impl::chroma_to_string(chroma),
@@ -1088,10 +1092,10 @@ FramesDecoderGpu::~FramesDecoderGpu() {
 }
 
 bool FramesDecoderGpu::SupportsHevc() {
-  return NvdecSupports(cudaVideoCodec_HEVC, cudaVideoChromaFormat_420, 10);  // 10-bit HEVC
+  return CanNvdecDecode(cudaVideoCodec_HEVC, cudaVideoChromaFormat_420, 10);  // 10-bit HEVC
 }
 
-bool FramesDecoderGpu::NvdecSupports(cudaVideoCodec codec_type,
+bool FramesDecoderGpu::CanNvdecDecode(cudaVideoCodec codec_type,
                                      cudaVideoChromaFormat chroma_format, int bit_depth) {
   // cuvidGetDecoderCaps needs a current context: make the current device's primary context
   // current if there is none, and restore the caller's context afterwards.
@@ -1130,6 +1134,18 @@ bool FramesDecoderGpu::IsCodecSupported(AVCodecID codec_id) {
   return true;
 }
 
+bool FramesDecoderGpu::IsStreamSupported(const AVCodecParameters &params) {
+  if (!IsCodecSupported(params.codec_id))
+    return false;
+  // The codec check only looks at 8-bit 4:2:0, which is what NVDEC JPEG support is always
+  // reported for. MJPEG is usually 4:2:2 or 4:4:4, which not every GPU can decode: skip such
+  // files with a warning like an unsupported codec, rather than failing in the decoder later.
+  if (params.codec_id == AV_CODEC_ID_MJPEG &&
+      !IsJpegPixelFormatSupported(static_cast<AVPixelFormat>(params.format)))
+    return false;
+  return true;
+}
+
 bool FramesDecoderGpu::SelectVideoStream(int stream_id) {
   if (!FramesDecoderBase::SelectVideoStream(stream_id)) {
     return false;
@@ -1137,15 +1153,7 @@ bool FramesDecoderGpu::SelectVideoStream(int stream_id) {
 
   assert(stream_id_ >= 0 && stream_id_ < static_cast<int>(ctx_->nb_streams));
   assert(codec_params_);
-  if (!IsCodecSupported(codec_params_->codec_id)) {
-    return false;
-  }
-
-  // The codec check above only looks at 8-bit 4:2:0, which is what NVDEC JPEG support is
-  // always reported for. MJPEG is usually 4:2:2 or 4:4:4, which not every GPU can decode: skip such
-  // files with a warning like an unsupported codec, rather than failing in the decoder later.
-  if (codec_params_->codec_id == AV_CODEC_ID_MJPEG &&
-      !SupportsJpegPixelFormat(static_cast<AVPixelFormat>(codec_params_->format))) {
+  if (!IsStreamSupported(*codec_params_)) {
     return false;
   }
 
