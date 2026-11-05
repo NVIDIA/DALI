@@ -268,11 +268,11 @@ class NVDECCache {
      * @brief Reconfigures a decoder for a stream with the given format (cuvidReconfigureDecoder),
      *        which has to be called from the sequence callback of the parser.
      *
-     * @return false if the decoder could not be reconfigured.
+     * @return CUDA_SUCCESS, or the error code if the decoder could not be reconfigured.
      *         IsReconfigureAvailable() must be true.
      */
-    static bool Reconfigure(DecInstance &dec, const CUVIDEOFORMAT &format,
-                            unsigned num_decode_surfaces) {
+    static CUresult Reconfigure(DecInstance &dec, const CUVIDEOFORMAT &format,
+                                unsigned num_decode_surfaces) {
       assert(IsReconfigureAvailable());
       const auto &area = format.display_area;
       CUVIDRECONFIGUREDECODERINFO params = {};
@@ -289,7 +289,7 @@ class NVDECCache {
       if (res != CUDA_SUCCESS) {
         DALI_WARN(make_string("Could not reconfigure a cached NVDEC decoder (error code ",
                               static_cast<int>(res), "); creating a new one."));
-        return false;
+        return res;
       }
       dec.coded_width = params.ulWidth;
       dec.coded_height = params.ulHeight;
@@ -298,7 +298,7 @@ class NVDECCache {
       dec.display_left = area.left;
       dec.display_top = area.top;
       dec.num_decode_surfaces = num_decode_surfaces;
-      return true;
+      return CUDA_SUCCESS;
     }
 
     /**
@@ -346,7 +346,8 @@ class NVDECCache {
       }
       if (to_reconfigure != range.second) {
         assert(to_reconfigure->second.device_id == device_id);
-        if (Reconfigure(to_reconfigure->second, *video_format, num_decode_surfaces)) {
+        CUresult res = Reconfigure(to_reconfigure->second, *video_format, num_decode_surfaces);
+        if (res == CUDA_SUCCESS) {
           to_reconfigure->second.used = true;
           num_reconfigured++;
           return NVDECLease(this, &to_reconfigure->second);
