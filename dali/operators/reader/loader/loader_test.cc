@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -13,14 +13,25 @@
 // limitations under the License.
 
 #include <gtest/gtest.h>
+#include <unistd.h>
+#include <cstdio>
+#include <cstdlib>
+#include <filesystem>
+#include <fstream>
 #include <memory>
+#include <stdexcept>
+#include <string>
+#include <tuple>
+#include <vector>
 
 #include "dali/core/common.h"
+#include "dali/core/call_at_exit.h"
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/operator/op_spec.h"
 #include "dali/test/dali_test.h"
 
 #include "dali/operators/reader/loader/loader.h"
+#include "dali/operators/reader/loader/numpy_loader.h"
 #include "dali/operators/reader/loader/file_label_loader.h"
 #include "dali/operators/reader/loader/recordio_loader.h"
 #include "dali/operators/reader/loader/indexed_file_loader.h"
@@ -305,5 +316,70 @@ TEST(LoaderCheckpointingTest, TestCheckpointShortEpoch) {
     100 /* add 100*current_epoch to each output to differentiate samples */),
   32);
 }
+
+class NumpyLoaderCacheTest : public ::testing::TestWithParam<std::tuple<bool, bool>> {};
+
+TEST_P(NumpyLoaderCacheTest, RejectChangedFileWithCachedHeader) {
+  const auto [use_mmap, truncate_header] = GetParam();
+  auto path = (std::filesystem::temp_directory_path() / "dali-numpy-cache-XXXXXX").string();
+  int fd = mkstemp(path.data());
+  ASSERT_GE(fd, 0);
+  auto cleanup = AtScopeExit([&] {
+    close(fd);
+    std::remove(path.c_str());
+  });
+  {
+    std::ofstream file(path, std::ios::binary | std::ios::trunc);
+    std::string header = "{'descr': '<f8', 'fortran_order': False, 'shape': (8,), }";
+    header.resize(117, ' ');
+    header += '\n';
+    file.write("\x93NUMPY\x01\x00\x76\x00", 10);
+    file << header;
+    const double values[8] = {};
+    file.write(reinterpret_cast<const char *>(values), sizeof(values));
+    ASSERT_TRUE(file.good());
+  }
+  auto spec = OpSpec("readers__Numpy")
+                  .AddArg("files", std::vector<std::string>{path})
+                  .AddArg("max_batch_size", 1)
+                  .AddArg("device_id", CPU_ONLY_DEVICE_ID)
+                  .AddArg("cache_header_information", true)
+                  .AddArg("dont_use_mmap", !use_mmap);
+  NumpyLoader loader(spec, false);
+  loader.PrepareMetadata();
+  int64_t data_offset = 0;
+  {
+    NumpyFileWrapper sample;
+    loader.ReadSample(sample);
+    ASSERT_EQ(sample.nbytes, 64);
+    EXPECT_EQ(sample.data.shares_data(), use_mmap);
+    data_offset = sample.data_offset;
+    ASSERT_GT(data_offset, 4);
+  }  // Release all mappings before changing the file, retaining only the loader's header cache.
+  {
+    std::ofstream file(path, std::ios::binary | std::ios::trunc);
+    // An invalid magic string proves the second load uses the cached header instead of parsing.
+    std::string replacement(truncate_header ? 4 : data_offset + 8, 'x');
+    file.write(replacement.data(), replacement.size());
+    ASSERT_TRUE(file.good());
+  }
+  NumpyFileWrapper sample;
+  try {
+    // Call the loader directly so no prefetched sample can hide the file replacement.
+    loader.ReadSample(sample);
+    FAIL() << "Expected rejection of the changed file";
+  } catch (const std::runtime_error &e) {
+    std::string error = e.what();
+    EXPECT_NE(error.find(path), std::string::npos);
+    EXPECT_NE(error.find(truncate_header ? "data offset is outside the file"
+                                         : "payload exceeds the available file data"),
+              std::string::npos);
+    EXPECT_NE(error.find(truncate_header ? "file size 4 bytes" : "available 8 bytes"),
+              std::string::npos);
+  }
+}
+
+INSTANTIATE_TEST_SUITE_P(MmapAndPlainReads, NumpyLoaderCacheTest,
+                        ::testing::Combine(::testing::Bool(), ::testing::Bool()));
 
 };  // namespace dali
