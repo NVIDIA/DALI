@@ -13,6 +13,8 @@
 # limitations under the License.
 
 from abc import ABC, abstractmethod
+import contextlib
+import contextvars
 import functools
 import inspect
 import logging
@@ -23,6 +25,46 @@ import torch
 import numpy as np
 
 import nvidia.dali.experimental.dynamic as ndd
+import nvidia.dali.fn as fn
+import nvidia.dali.types as types
+
+# Indices selecting the first sample of a call, set while defining a pipeline in which
+# a single call is split into multiple samples (see ``share_random_values``).
+# A context variable keeps pipelines defined concurrently in different threads isolated.
+_first_sample_indices = contextvars.ContextVar("_first_sample_indices", default=None)
+
+
+@contextlib.contextmanager
+def share_random_values(input_node, enabled: bool = True):
+    """
+    Makes ``share_random_value`` broadcast random values across the batch for operators invoked
+    inside this context.
+
+    Torchvision samples a single parameter set per call and applies it across all leading
+    dimensions. If a call is split into multiple pipeline samples, the random values drawn for
+    the first sample must be used for all of them.
+    """
+    indices = fn.cast(input_node.shape()[0] * 0, dtype=types.INT32) if enabled else None
+    token = _first_sample_indices.set(indices)
+    try:
+        yield
+    finally:
+        _first_sample_indices.reset(token)
+
+
+def is_sharing_random_values() -> bool:
+    return _first_sample_indices.get() is not None
+
+
+def share_random_value(value):
+    """
+    Returns the random ``value`` drawn for the first sample for all samples in the batch,
+    if the pipeline is defined in the ``share_random_values`` context.
+    """
+    indices = _first_sample_indices.get()
+    if indices is None:
+        return value
+    return fn.permute_batch(value, indices=indices)
 
 
 class DataValidateRule(ABC):
@@ -279,7 +321,8 @@ def adjust_input(func):
     - ``PIL.Image`` -> ``ndd.Tensor(layout = "HWC")``
     - ``torch.Tensor``:
         - ``ndim == 3`` -> ``ndd.Tensor(layout = "CHW")``
-        - ``ndim > 3`` -> ``ndd.Batch(layout = "CHW")``
+        - ``ndim > 3`` -> ``ndd.Batch(layout = "CHW")``, leading dimensions ``(..., C, H, W)``
+          are flattened into the batch and restored on the output
 
     Note: When new input types are supported this function will be extended.
     """
@@ -293,6 +336,7 @@ def adjust_input(func):
         - torch.Tensor:
           ndim==3 -> ndd.Tensor(layout = "CHW"),
           ndim>3  -> ndd.Batch(layout="CHW")  (workaround for DALI-4566; intended: layout="NCHW")
+                     with all leading dimensions (..., C, H, W) flattened into the batch
         """
         mode = "RGB"
         if isinstance(inpt, Image.Image):
@@ -304,11 +348,12 @@ def adjust_input(func):
             else:
                 raise ValueError(f"Mode {mode} is not supported, expected, L, RGB, RGBA")
         elif isinstance(inpt, torch.Tensor):
+            # DALI does not support strided data (e.g. a permuted tensor from pil_to_tensor)
             if inpt.ndim == 3:
-                _input = ndd.Tensor(inpt, layout="CHW")
+                _input = ndd.Tensor(inpt.contiguous(), layout="CHW")
             elif inpt.ndim > 3:
-                # Creating batches of NCHW
-                _input = ndd.as_batch(inpt, layout="CHW")
+                # Creating batches of NCHW, leading dimensions (..., C, H, W) are flattened
+                _input = ndd.as_batch(inpt.reshape(-1, *inpt.shape[-3:]).contiguous(), layout="CHW")
             else:
                 raise TypeError(f"Tensor has < 3 dimensions: {inpt.ndim}, shape: {inpt.shape}")
         else:
@@ -358,7 +403,11 @@ def adjust_input(func):
             if output.device.device_type == "cpu":
                 output = np.asarray(output)
 
-            return torch.as_tensor(output)
+            output = torch.as_tensor(output)
+            if inpt.ndim > 3:
+                # Restore leading dimensions flattened in transform_input
+                output = output.reshape(*inpt.shape[:-3], *output.shape[-3:])
+            return output
         else:
             return output
 

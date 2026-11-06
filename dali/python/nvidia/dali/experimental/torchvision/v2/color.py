@@ -22,6 +22,7 @@ from .operator import (
     _ValidateIfNonNegative,
     _ValidateIfZeroOneRange,
     get_HWC_from_layout_pipeline,
+    share_random_value,
 )
 
 import numpy as np
@@ -219,7 +220,11 @@ class ColorJitter(Operator):
         # fn.color_twist takes the hue delta in degrees.
         hue_degrees = tuple(float(h) * 360.0 for h in self.hue)
         brightness, contrast, saturation, hue = _get_BrightnessContrastSaturationHue(
-            self.brightness, self.contrast, self.saturation, hue_degrees, fn.random.uniform
+            self.brightness,
+            self.contrast,
+            self.saturation,
+            hue_degrees,
+            lambda **kwargs: share_random_value(fn.random.uniform(**kwargs)),
         )
 
         data_input = fn.color_twist(
@@ -322,7 +327,9 @@ class RandomGrayscale(Operator):
         _, _, c, output = data_input
         self.grayscale.num_output_channels = c
 
-        convert = fn.random.coin_flip(dtype=dali.types.DALIDataType.BOOL, probability=self.p)
+        convert = share_random_value(
+            fn.random.coin_flip(dtype=dali.types.DALIDataType.BOOL, probability=self.p)
+        )
 
         if convert:
             output = self.grayscale._invoke(output)

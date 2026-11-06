@@ -108,8 +108,9 @@ class Normalize(Operator):
             mean = np.asarray(self.mean)[None, None, :]
             std = np.asarray(self.std)[None, None, :]
         else:
-            mean = np.asarray(self.mean)[:, None, None]
-            std = np.asarray(self.std)[:, None, None]
+            # Tensors are processed as FCHW sequences
+            mean = np.asarray(self.mean)[None, :, None, None]
+            std = np.asarray(self.std)[None, :, None, None]
 
         return fn.normalize(
             data_input,
