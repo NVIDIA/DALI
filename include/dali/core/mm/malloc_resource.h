@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@
 
 #include <stdlib.h>
 #include <malloc.h>
+#include <limits>
 #include "dali/core/mm/memory_resource.h"
 #include "dali/core/cuda_error.h"
 #include "dali/core/cuda_stream_pool.h"
@@ -33,6 +34,8 @@ class malloc_memory_resource : public host_memory_resource {
   void *do_allocate(size_t bytes, size_t alignment) override {
     if (bytes == 0)
       return nullptr;
+    if (bytes > std::numeric_limits<size_t>::max() - sizeof(int))
+      throw std::bad_alloc();
     void *ptr = memalign(alignment, bytes + sizeof(int));
     if (!ptr)
       throw std::bad_alloc();
