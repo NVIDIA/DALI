@@ -151,6 +151,23 @@ class NVDECCache {
       return num_created;
     }
 
+    size_t NumReconfigured() {
+      std::lock_guard lock(access_lock);
+      return num_reconfigured;
+    }
+
+    void DestroyUnused() {
+      std::lock_guard lock(access_lock);
+      for (auto it = dec_cache.begin(); it != dec_cache.end();) {
+        if (!it->second.used) {
+          cuvidDestroyDecoder(it->second.decoder);
+          it = dec_cache.erase(it);
+        } else {
+          ++it;
+        }
+      }
+    }
+
  private:
     NVDECCache() {}
 
@@ -188,55 +205,15 @@ class NVDECCache {
              dec.bit_depth_luma_minus8 == format.bit_depth_luma_minus8;
     }
 
-    NVDECLease GetDecoder(CUVIDEOFORMAT *video_format, int device_id) {
-      std::unique_lock lock(access_lock);
-
-      auto codec_type = video_format->codec;
-      unsigned height =  video_format->coded_height;
-      unsigned width = video_format->coded_width;
-      auto num_decode_surfaces = video_format->min_num_decode_surfaces;
-      auto chroma_format = video_format->chroma_format;
-      auto bit_depth_luma_minus8 = video_format->bit_depth_luma_minus8;
-
-      if (num_decode_surfaces == 0)
-        num_decode_surfaces = 20;
-      auto range = dec_cache.equal_range(codec_type);
-      codec_map::iterator best_match = range.second;
-      for (auto it = range.first; it != range.second; ++it) {
-        if (best_match == range.second && it->second.used == false) {
-          best_match = it;
-        }
-        if (IsReusable(it->second, *video_format, num_decode_surfaces)) {
-          it->second.used = true;
-          assert(it->second.device_id == device_id);
-          return NVDECLease(this, &it->second);
-        }
-      }
-      // reconfigure needs ulTargetHeight and ulTargetWidth set to the upper bound of the video
-      // resolution. Hard to know them ahead of time and setting too much slow things down
-#ifdef ENABLE_NVDEC_RECONFIGURE
-      if (best_match != range.second && cuvidIsSymbolAvailable("cuvidReconfigureDecoder") &&
-          best_match->second.max_width <= width && best_match->second.max_height <= height &&
-          best_match->second.chroma_format == chroma_format &&
-          best_match->second.bit_depth_luma_minus8 == bit_depth_luma_minus8) {
-        best_match->second.used = true;
-        lock.unlock();
-        CUVIDRECONFIGUREDECODERINFO reconfigParams = { 0 };
-        reconfigParams.ulTargetWidth = reconfigParams.ulWidth = width;
-        reconfigParams.ulTargetHeight = reconfigParams.ulHeight = height;
-        reconfigParams.ulNumDecodeSurfaces = num_decode_surfaces;
-        best_match->second.coded_height = height;
-        best_match->second.coded_width = width;
-        best_match->second.height = height;
-        best_match->second.width = width;
-        best_match->second.display_left = 0;
-        best_match->second.display_top = 0;
-        best_match->second.num_decode_surfaces = num_decode_surfaces;
-        CUDA_CALL(cuvidReconfigureDecoder(best_match->second.decoder, &reconfigParams));
-        return NVDECLease(this, &best_match->second);
-      }
-#endif
-      lock.unlock();
+    /**
+     * @brief Checks that the GPU can decode a stream with the given format.
+     */
+    static void ValidateFormat(const CUVIDEOFORMAT &format) {
+      auto codec_type = format.codec;
+      unsigned height = format.coded_height;
+      unsigned width = format.coded_width;
+      auto chroma_format = format.chroma_format;
+      auto bit_depth_luma_minus8 = format.bit_depth_luma_minus8;
       auto caps = GetDecoderCaps(codec_type, chroma_format, bit_depth_luma_minus8);
       DALI_ENFORCE(caps.bIsSupported,
                    make_string("Codec configuration not supported on this GPU. ",
@@ -256,6 +233,131 @@ class NVDECCache {
                    make_string("Video is too large (too many macroblocks). ",
                    "Provided (width * height / 256): ",
                    width * height / 256, " vs supported:", caps.nMaxMBCount));
+    }
+
+    /**
+     * @brief Whether the driver provides cuvidReconfigureDecoder.
+     */
+    static bool IsReconfigureAvailable() {
+      static const bool available = cuvidIsSymbolAvailable("cuvidReconfigureDecoder");
+      return available;
+    }
+
+    /**
+     * @brief Checks if a cached decoder can be reconfigured for a stream with the given format,
+     *        instead of creating a new one.
+     *
+     * It can if it is not in use, decodes the same chroma format and bit depth (the codec is
+     * already matched by the cache key) and the stream fits in what the decoder was created for:
+     * the coded size within its maximum size and the number of decode surfaces within the number
+     * it was created with.
+     */
+    static bool CanReconfigure(const DecInstance &dec, const CUVIDEOFORMAT &format,
+                               unsigned num_decode_surfaces) {
+      return !dec.used &&
+             format.coded_width <= dec.max_width &&
+             format.coded_height <= dec.max_height &&
+             num_decode_surfaces <= dec.max_num_decode_surfaces &&
+             dec.chroma_format == format.chroma_format &&
+             dec.bit_depth_luma_minus8 == format.bit_depth_luma_minus8;
+    }
+
+    /**
+     * @brief Reconfigures a decoder for a stream with the given format (cuvidReconfigureDecoder),
+     *        which has to be called from the sequence callback of the parser.
+     *
+     * @return CUDA_SUCCESS, or the error code if the decoder could not be reconfigured.
+     *         IsReconfigureAvailable() must be true.
+     */
+    static CUresult Reconfigure(DecInstance &dec, const CUVIDEOFORMAT &format,
+                                unsigned num_decode_surfaces) {
+      assert(IsReconfigureAvailable());
+      const auto &area = format.display_area;
+      CUVIDRECONFIGUREDECODERINFO params = {};
+      params.ulWidth = format.coded_width;
+      params.ulHeight = format.coded_height;
+      params.ulTargetWidth = area.right - area.left;
+      params.ulTargetHeight = area.bottom - area.top;
+      params.ulNumDecodeSurfaces = num_decode_surfaces;
+      params.display_area.left = area.left;
+      params.display_area.top = area.top;
+      params.display_area.right = area.right;
+      params.display_area.bottom = area.bottom;
+      CUresult res = cuvidReconfigureDecoder(dec.decoder, &params);
+      if (res != CUDA_SUCCESS) {
+        DALI_WARN(make_string("Could not reconfigure a cached NVDEC decoder (error code ",
+                              static_cast<int>(res), "); creating a new one."));
+        return res;
+      }
+      dec.coded_width = params.ulWidth;
+      dec.coded_height = params.ulHeight;
+      dec.width = params.ulTargetWidth;
+      dec.height = params.ulTargetHeight;
+      dec.display_left = area.left;
+      dec.display_top = area.top;
+      dec.num_decode_surfaces = num_decode_surfaces;
+      return CUDA_SUCCESS;
+    }
+
+    /**
+     * @brief Gives a decoder for a stream with the given format, from the cache if possible.
+     *
+     * In order of preference, it is:
+     * - a cached decoder that was set up for exactly this format,
+     * - a cached decoder that is large enough, reconfigured for this format; the smallest one, so
+     *   that the larger ones are left for larger streams. Creating a decoder takes tens of
+     *   milliseconds, and so does destroying one, which happens when the cache is full and one is
+     *   evicted. Reconfiguring one takes microseconds. It matters when there are more distinct
+     *   formats than the cache holds, e.g. a dataset with many different sizes,
+     * - a new decoder, of exactly the size of the stream.
+     */
+    NVDECLease GetDecoder(CUVIDEOFORMAT *video_format, int device_id) {
+      auto codec_type = video_format->codec;
+      unsigned height =  video_format->coded_height;
+      unsigned width = video_format->coded_width;
+      auto num_decode_surfaces = video_format->min_num_decode_surfaces;
+      auto chroma_format = video_format->chroma_format;
+      auto bit_depth_luma_minus8 = video_format->bit_depth_luma_minus8;
+
+      if (num_decode_surfaces == 0)
+        num_decode_surfaces = 20;
+
+      ValidateFormat(*video_format);
+
+      std::unique_lock lock(access_lock);
+      auto range = dec_cache.equal_range(codec_type);
+      codec_map::iterator to_reconfigure = range.second;
+      auto max_area = [](const DecInstance &dec) { return dec.max_width * dec.max_height; };
+      const bool can_reconfigure = IsReconfigureAvailable();
+      for (auto it = range.first; it != range.second; ++it) {
+        if (IsReusable(it->second, *video_format, num_decode_surfaces)) {
+          it->second.used = true;
+          assert(it->second.device_id == device_id);
+          return NVDECLease(this, &it->second);
+        }
+        if (can_reconfigure &&
+            CanReconfigure(it->second, *video_format, num_decode_surfaces) &&
+            (to_reconfigure == range.second ||
+             max_area(it->second) < max_area(to_reconfigure->second))) {
+          to_reconfigure = it;
+        }
+      }
+      if (to_reconfigure != range.second) {
+        assert(to_reconfigure->second.device_id == device_id);
+        CUresult res = Reconfigure(to_reconfigure->second, *video_format, num_decode_surfaces);
+        if (res == CUDA_SUCCESS) {
+          to_reconfigure->second.used = true;
+          num_reconfigured++;
+          return NVDECLease(this, &to_reconfigure->second);
+        }
+        // its configuration is not known any more: it is not reused
+        auto decoder = to_reconfigure->second.decoder;
+        dec_cache.erase(to_reconfigure);
+        lock.unlock();
+        cuvidDestroyDecoder(decoder);
+      } else {
+        lock.unlock();
+      }
 
       CUVIDDECODECREATEINFO decoder_info;
       memset(&decoder_info, 0, sizeof(CUVIDDECODECREATEINFO));
@@ -265,22 +367,10 @@ class NVDECCache {
       decoder_info.CodecType = codec_type;
       decoder_info.ulHeight = height;
       decoder_info.ulWidth = width;
-      // creating the decoder with ulTargetHeight and ulTargetWidth that are above what is really
-      // needed slow things down
-#ifdef ENABLE_NVDEC_RECONFIGURE
-      // assume max width and calculate ulMaxHeight
-      unsigned max_height = caps.nMaxHeight;
-      unsigned max_width = caps.nMaxMBCount / caps.nMaxHeight * 256;
-      if (max_height < height || max_width < width) {
-        max_height = height;
-        max_width = caps.nMaxMBCount / height * 256;
-      }
-#else
-      unsigned max_height = height;
-      unsigned max_width = width;
-#endif
-      decoder_info.ulMaxHeight = max_height;
-      decoder_info.ulMaxWidth = max_width;
+      // A larger maximum size would let the decoder be reconfigured for larger streams too, but
+      // it takes more memory (it is allocated for the maximum size) and time to create.
+      decoder_info.ulMaxHeight = height;
+      decoder_info.ulMaxWidth = width;
       decoder_info.ulTargetHeight = video_format->display_area.bottom -
                                     video_format->display_area.top;
       decoder_info.ulTargetWidth = video_format->display_area.right -
@@ -305,6 +395,7 @@ class NVDECCache {
       decoder_inst.max_height = decoder_info.ulMaxHeight;
       decoder_inst.max_width = decoder_info.ulMaxWidth;
       decoder_inst.num_decode_surfaces = num_decode_surfaces;
+      decoder_inst.max_num_decode_surfaces = num_decode_surfaces;
       decoder_inst.codec_type = codec_type;
       decoder_inst.chroma_format = chroma_format;
       decoder_inst.bit_depth_luma_minus8 = bit_depth_luma_minus8;
@@ -332,6 +423,7 @@ class NVDECCache {
     codec_map dec_cache;
     std::mutex access_lock;
     size_t num_created = 0;  // decoders created so far, including those already evicted
+    size_t num_reconfigured = 0;  // times a cached decoder was reconfigured for another format
 
     static constexpr int CACHE_SIZE_LIMIT = 100;
 };
@@ -346,6 +438,14 @@ void NVDECLease::Return() {
 
 size_t NVDECDecodersCreated(int device_id) {
   return NVDECCache::GetCache(device_id).NumCreated();
+}
+
+size_t NVDECDecodersReconfigured(int device_id) {
+  return NVDECCache::GetCache(device_id).NumReconfigured();
+}
+
+void NVDECDestroyUnusedDecoders(int device_id) {
+  NVDECCache::GetCache(device_id).DestroyUnused();
 }
 
 int process_video_sequence(void *user_data, CUVIDEOFORMAT *video_format) {

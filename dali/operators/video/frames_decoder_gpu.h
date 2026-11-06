@@ -68,6 +68,8 @@ struct DecInstance {
   int display_left = 0;
   int display_top = 0;
   unsigned num_decode_surfaces = 0;
+  // What the decoder was created for, so what it can be reconfigured for
+  unsigned max_num_decode_surfaces = 0;
   unsigned max_height = 0;
   unsigned max_width = 0;
   unsigned int bit_depth_luma_minus8 = 0;
@@ -117,14 +119,29 @@ class NVDECLease {
 };
 
 /**
- * @brief Returns how many NVDEC decoders were created so far for a device, i.e. how many times
- *        the decoder cache could not provide a matching one.
+ * @brief Returns how many NVDEC decoders were created (cuvidCreateDecoder) so far for a device.
  *
- * The count includes decoders that were evicted from the cache since.
+ * The count includes decoders that were evicted from the cache since. A cached decoder that was
+ * reconfigured for a stream instead is not counted here, but by NVDECDecodersReconfigured().
  *
  * @param device_id CUDA device ordinal or -1 for the current device.
  */
 DLL_PUBLIC size_t NVDECDecodersCreated(int device_id = -1);
+
+/**
+ * @brief Returns how many times a cached NVDEC decoder was reconfigured for a stream of another
+ *        format (size, number of decode surfaces) so far for a device, instead of creating one.
+ *
+ * @param device_id CUDA device ordinal or -1 for the current device.
+ */
+DLL_PUBLIC size_t NVDECDecodersReconfigured(int device_id = -1);
+
+/**
+ * @brief Destroys the cached NVDEC decoders that are not in use, e.g. to start from an empty cache.
+ *
+ * @param device_id CUDA device ordinal or -1 for the current device.
+ */
+DLL_PUBLIC void NVDECDestroyUnusedDecoders(int device_id = -1);
 
 }  // namespace frame_dec_gpu_impl
 
