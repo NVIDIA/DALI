@@ -340,23 +340,91 @@ std::vector<int> FrameRange(int start, int end) {
   return frames;
 }
 
-// The GPU parser is sent packets without an end-of-picture flag, so it decodes a picture once the
-// next packet arrives, but now and then (e.g. some B-frames of the Sintel clips) only with the one
-// after: a decoder may have decoded one picture more than AddDecodeWork estimates, which its next
-// frames then do not cost.
-constexpr int kGpuPictureSlack = 1;
+// How many frames the stream may show after a later one in decoding order (its reordering depth),
+// by codec. The test clips come from x264 and x265 with their default settings (B-frames with a
+// B-pyramid: 2 pictures reordered, the SPS of the HEVC clip says the same); VP9 does not reorder.
+// This is not taken from libavformat (AVCodecParameters::video_delay): it is an estimate that
+// differs between FFmpeg versions, and a bound of this test must not depend on the FFmpeg build.
+int StreamReorderDepth(const std::string &path) {
+  AVUniquePtr<AVFormatContext> ctx;
+  if (avformat_open_input(&ctx, path.c_str(), nullptr, nullptr) < 0) {
+    ADD_FAILURE() << "Cannot open " << path;
+    return 0;
+  }
+  int stream = -1;
+  if (avformat_find_stream_info(ctx, nullptr) >= 0)
+    stream = av_find_best_stream(ctx, AVMEDIA_TYPE_VIDEO, -1, -1, nullptr, 0);
+  if (stream < 0) {
+    ADD_FAILURE() << "No video stream in " << path;
+    return 0;
+  }
+  switch (ctx->streams[stream]->codecpar->codec_id) {
+    case AV_CODEC_ID_H264:
+    case AV_CODEC_ID_HEVC:
+      return 2;
+    default:
+      return 0;
+  }
+}
+
+// A GPU decoder is ahead of the estimate of AddDecodeWork (the pictures up to the one of the last
+// frame read): it has decoded the pictures that the frames shown next need, as many frames as the
+// parser holds back. Frames are displayed in order, so it holds back as many decoded pictures as
+// the stream may reorder (StreamReorderDepth), and on top of it kDisplayDelay. A packet is decoded
+// when the next one arrives, and now and then (e.g. some B-frames of the Sintel clips) only with
+// the one after: the packet lag, one frame. The lead is there from the first frame after a start,
+// and shrinks only near the end of the stream, where the decoder cannot decode past the last
+// picture. The "lookahead" below is that number of frames; a CPU decoder has none.
+// The constants of this model were measured, not derived from the NVDEC parser: the lead was the
+// same on a TITAN V and an RTX 5080 (drivers 580 and 620), and the CI runs with an L40 and an H100
+// failed with the same counts as the old slack did on those two. Some clips meet the bound
+// exactly, with no headroom.
+constexpr int kPacketLag = 1;
+
+int GpuLookahead(const std::string &path) {
+  return kPacketLag + StreamReorderDepth(path) + FramesDecoderGpu::kDisplayDelay;
+}
+
+/**
+ * @brief The most pictures that a decoder may have decoded beyond the estimate at `pos`: the
+ * pictures of the next `lookahead` frames (see kPacketLag), which is none at the end of the stream.
+ */
+int64_t LeadAllowance(const FrameIndex &index, FramesDecoderBase::DecodePosition pos,
+                      int lookahead) {
+  if (pos.next_frame < 0)
+    return 0;
+  int end = std::min(pos.next_frame + lookahead, static_cast<int>(index.size()));
+  FramesDecoderBase::DecodeWork work;
+  for (int frame = pos.next_frame; frame < end; frame++)
+    FramesDecoderBase::AddDecodeWork(index, pos, frame, work);
+  return work.pictures;
+}
+
+// How many pictures a decoder has decoded beyond the estimate, after a sample: between `min` and
+// `max`. It is exact (`min == max`) unless a seek in the middle of a sample hides it.
+struct DecodeLead {
+  int64_t min = 0, max = 0;
+};
 
 /**
  * @brief Decodes `frame_ids` as the reader does (padded by clamping) and checks that the decoder
  * decodes the pictures that AddDecodeWork estimates from `pos`, reopens the file as estimated,
  * and ends where `pos` does.
  *
- * The decoder may decode up to `slack` pictures more than estimated, which its next frames then do
- * not cost: `surplus` carries how many pictures it may be ahead from the previous samples.
+ * The decoder may be ahead of the estimate by the pictures of the next `lookahead` frames (see
+ * kPacketLag). `lead` carries how far ahead it is from the previous samples: the next frames
+ * do not cost those pictures. It is not clamped, as the lead is lost only near the end of the
+ * stream, where the decoder cannot decode past the last picture (LeadAllowance shrinks to none
+ * there). A seek or a reset drops the lead. Neither may the decoder be behind the estimate by more
+ * than the lead that it had.
+ *
+ * A sample takes as many leads as the segments between its seeks (the second of two equal frames
+ * seeks back), and only the sum of their changes is observed: with a seek in the middle of a
+ * sample, the lead at its end is known only to be within [0, allowance].
  */
 void CheckDecodeWork(FramesDecoderBase &decoder, FramesDecoderBase::DecodePosition &pos,
-                     int64_t &surplus, const std::vector<int> &frame_ids, uint8_t *buffer,
-                     int slack, const std::string &what) {
+                     DecodeLead &lead, const std::vector<int> &frame_ids, uint8_t *buffer,
+                     int lookahead, const std::string &what) {
   ASSERT_LE(frame_ids.size(), static_cast<size_t>(kMaxDecodeWorkFrames));
   auto &index = decoder.GetIndex();
   int n = static_cast<int>(index.size());
@@ -365,23 +433,43 @@ void CheckDecodeWork(FramesDecoderBase &decoder, FramesDecoderBase::DecodePositi
   for (int frame : frame_ids)
     frames.push_back(FramesDecoderBase::HandleBoundary(boundary::BoundaryType::CLAMP, frame, 0, n));
   std::sort(frames.begin(), frames.end());
-  // A seek or a reset drops the pictures decoded ahead: then the decoder must not be behind
-  bool restarts = pos.next_frame < 0 || pos.next_frame >= n ||
-                  (frames[0] != pos.next_frame &&
-                   FramesDecoderBase::SeekTarget(index, pos.next_frame, frames[0]) >= 0);
-  if (restarts)
-    surplus = 0;
+  // A seek or a reset drops the pictures decoded ahead
+  auto restarts = [&](const FramesDecoderBase::DecodePosition &at, int frame) {
+    return at.next_frame < 0 || at.next_frame >= n ||
+           (frame != at.next_frame &&
+            FramesDecoderBase::SeekTarget(index, at.next_frame, frame) >= 0);
+  };
+  if (restarts(pos, frames[0]))
+    lead = {0, 0};
+  // The leads that the segments of the sample may end with, in total: each is bounded by its own
+  // allowance
+  int64_t allowed = 0;
+  bool seeks_inside = false;
   FramesDecoderBase::DecodeWork work;
-  for (int frame : frames)
-    FramesDecoderBase::AddDecodeWork(index, pos, frame, work);
+  for (size_t i = 0; i < frames.size(); i++) {
+    if (i > 0 && restarts(pos, frames[i])) {
+      allowed += LeadAllowance(index, pos, lookahead);  // a segment ends here
+      seeks_inside = true;
+    }
+    FramesDecoderBase::AddDecodeWork(index, pos, frames[i], work);
+  }
+  int64_t end_allowed = LeadAllowance(index, pos, lookahead);
+  allowed += end_allowed;
 
   int64_t before = decoder.DecodedPictures();
   int64_t reopens_before = decoder.Reopens();
   decoder.DecodeFrames(buffer, make_cspan(frame_ids), boundary::BoundaryType::CLAMP);
   int64_t ahead = decoder.DecodedPictures() - before - work.pictures;
-  EXPECT_GE(ahead, -surplus) << what;
-  EXPECT_LE(ahead, slack) << what;
-  surplus = std::clamp<int64_t>(surplus + ahead, 0, slack);
+  EXPECT_GE(ahead, -lead.max) << what << ": the decoder is behind the estimate by more than it "
+                              << "was ahead";
+  EXPECT_LE(ahead, allowed - lead.min)
+      << what << ": the decoder is further ahead of the estimate than " << lookahead << " frames";
+  if (seeks_inside) {
+    lead = {0, end_allowed};
+  } else {
+    lead.min = std::max<int64_t>(lead.min + ahead, 0);
+    lead.max = std::min<int64_t>(lead.max + ahead, end_allowed);
+  }
   EXPECT_EQ(decoder.Reopens() - reopens_before, work.reopens) << what;
   EXPECT_EQ(decoder.NextFrameIdx(), pos.next_frame) << what;
 }
@@ -393,17 +481,17 @@ void CheckDecodeWork(FramesDecoderBase &decoder, FramesDecoderBase::DecodePositi
  * A file without a keyframe early enough (e.g. a single GOP) skips the sample across a keyframe;
  * `across_keyframe` counts the files that ran it.
  */
-void CheckDecodeWorkScenarios(FramesDecoderBase &decoder, uint8_t *buffer, int slack,
+void CheckDecodeWorkScenarios(FramesDecoderBase &decoder, uint8_t *buffer, int lookahead,
                               const std::string &path, int &across_keyframe) {
   auto &index = decoder.GetIndex();
   int n = static_cast<int>(index.size());
   ASSERT_GE(n, 40);
   FramesDecoderBase::DecodePosition pos;  // a new decoder
-  int64_t surplus = 0;
+  DecodeLead lead;
   int a = std::min(kMaxDecodeWorkFrames, n / 5);
   int next = a;
   auto check = [&](const std::string &what, const std::vector<int> &frames) {
-    ASSERT_NO_FATAL_FAILURE(CheckDecodeWork(decoder, pos, surplus, frames, buffer, slack,
+    ASSERT_NO_FATAL_FAILURE(CheckDecodeWork(decoder, pos, lead, frames, buffer, lookahead,
                                             make_string(path, ": ", what)));
     next = pos.next_frame;
   };
@@ -439,10 +527,10 @@ void CheckDecodeWorkScenarios(FramesDecoderBase &decoder, uint8_t *buffer, int s
 /**
  * @brief Reads the frames in a row and checks that, from PositionAt, AddDecodeWork estimates the
  * pictures decoded for each frame: in total, the decoder is never behind the estimate and at most
- * `slack` pictures ahead. Returns the number of frames that cost nothing (decoded earlier, for a
- * frame shown before them).
+ * the pictures of the next `lookahead` frames ahead of it (see kPacketLag). Returns the number of
+ * frames that cost nothing (decoded earlier, for a frame shown before them).
  */
-int CheckPositionAt(FramesDecoderBase &decoder, uint8_t *frame, int slack,
+int CheckPositionAt(FramesDecoderBase &decoder, uint8_t *frame, int lookahead,
                     const std::string &path) {
   auto &index = decoder.GetIndex();
   int free_frames = 0;
@@ -456,7 +544,7 @@ int CheckPositionAt(FramesDecoderBase &decoder, uint8_t *frame, int slack,
     decoder.ReadNextFrame(frame);
     int64_t ahead = decoder.DecodedPictures() - start - estimate;
     EXPECT_GE(ahead, 0) << path << ": frame " << k;
-    EXPECT_LE(ahead, slack) << path << ": frame " << k;
+    EXPECT_LE(ahead, LeadAllowance(index, pos, lookahead)) << path << ": frame " << k;
     free_frames += work.pictures == 0;
   }
   return free_frames;
@@ -522,7 +610,7 @@ void CheckPositionAtInARow(const FrameIndex &index) {
 static_assert(FramesDecoderBase::kMinimumSeekLeap == 10, "the steps below assume it");
 
 // Exact estimates on hand-built indices: B-frames, a hidden lead-in, a seek that lands before its
-// keyframe and an open GOP, which the decoder tests only cover with real files and some slack
+// keyframe and an open GOP, which the decoder tests only cover with real files and some lookahead
 TEST(FramesDecoderDecodeWorkTest, ReorderedWithLeadIn) {
   // 8 GOPs of 4 frames, shown as I B B P and decoded as I P B B, after 2 hidden packets. A seek to
   // frame 0 lands on the first hidden packet, and a seek to frame 16 on the keyframe before it.
@@ -628,10 +716,11 @@ TEST_F(FramesDecoderGpuTest, DecodeWork) {
     decoder.BuildIndex();
     DeviceBuffer<uint8_t> buffer;
     buffer.resize(kMaxDecodeWorkFrames * decoder.FrameSize());
-    ASSERT_NO_FATAL_FAILURE(CheckDecodeWorkScenarios(decoder, buffer.data(), kGpuPictureSlack,
-                                                     path, across_keyframe));
+    int lookahead = GpuLookahead(path);
+    ASSERT_NO_FATAL_FAILURE(
+        CheckDecodeWorkScenarios(decoder, buffer.data(), lookahead, path, across_keyframe));
     decoder.Reset();
-    int free_frames = CheckPositionAt(decoder, buffer.data(), kGpuPictureSlack, path);
+    int free_frames = CheckPositionAt(decoder, buffer.data(), lookahead, path);
     if (i < with_b_frames.size()) {
       EXPECT_GT(free_frames, 0) << path << ": no B-frames";
     }
