@@ -31,6 +31,7 @@ extern "C" {
 #include "dali/operators/video/dynlink_nvcuvid/dynlink_nvcuvid.h"
 #include "dali/core/unique_handle.h"
 
+#include "dali/core/cuda_event.h"
 #include "dali/core/dev_buffer.h"
 
 namespace dali {
@@ -203,11 +204,28 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
   static bool SupportsHevc();
 
   /**
+   * @brief Whether NVDEC on the current device can decode `codec_type` with the given chroma
+   * format and bit depth. Safe to call before any CUDA context exists on the calling thread.
+   * Uses the per-process cache of cuvidGetDecoderCaps.
+   */
+  static bool CanNvdecDecode(cudaVideoCodec codec_type, cudaVideoChromaFormat chroma_format,
+                             int bit_depth = 8);
+
+  /**
    * @brief Checks if the codec can be decoded by this decoder, as it is done when the video stream
    *        is selected: it is supported by the decoder and by NVDEC on this platform
-   *        (8-bit 4:2:0). It warns if it is not.
+   *        (8-bit 4:2:0). It warns if it is not. MJPEG's actual chroma format is checked by
+   *        IsStreamSupported.
    */
   static bool IsCodecSupported(AVCodecID codec_id);
+
+  /**
+   * @brief Checks if the video stream with the given parameters can be decoded by this decoder:
+   *        IsCodecSupported plus, for MJPEG, whether NVDEC on this device supports the stream's
+   *        chroma format and bit depth. It warns if it does not. It is what the stream selection
+   *        checks, so it can be used to skip the files that would be rejected by the decoder.
+   */
+  static bool IsStreamSupported(const AVCodecParameters &params);
 
   static bool SupportsCodec(AVCodecID codec_id, uint8_t bit_depth = 8);
 
@@ -241,6 +259,12 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
   int64_t current_pts_ = AV_NOPTS_VALUE;
 
   cudaStream_t stream_ = 0;
+
+  // JPEG only: NVDEC decodes JPEG pictures in stream order with the legacy default stream, and
+  // cuvidMapVideoFrame doesn't order output_stream after that. Before mapping a picture,
+  // stream_ waits for this event, recorded on the legacy default stream (see
+  // HandlePictureDisplay).
+  CUDAEvent legacy_stream_event_;
 
   VideoColorSpaceConversionType conversion_type_ = VIDEO_COLOR_SPACE_CONVERSION_TYPE_YUV_TO_RGB;
 

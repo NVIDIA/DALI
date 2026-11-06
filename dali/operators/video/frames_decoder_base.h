@@ -614,7 +614,7 @@ class DLL_PUBLIC FramesDecoderBase {
  * It only demuxes the file: it has no codec context, parser or frame buffers, so it is much
  * cheaper to create than a decoder. It is valid for the files whose container has a video stream.
  * Whether a backend can decode the codec of that stream is up to the caller to check, for example
- * with `Decoder::IsCodecSupported(indexer.CodecId())`.
+ * with `Decoder::IsStreamSupported(indexer.CodecParameters())`.
  */
 class DLL_PUBLIC FramesIndexer : public FramesDecoderBase {
  public:
@@ -625,6 +625,13 @@ class DLL_PUBLIC FramesIndexer : public FramesDecoderBase {
    */
   AVCodecID CodecId() const {
     return codec_params_->codec_id;
+  }
+
+  /**
+   * @brief Parameters of the selected video stream. Only valid when IsValid().
+   */
+  const AVCodecParameters &CodecParameters() const {
+    return *codec_params_;
   }
 
   bool ReadNextFrame(uint8_t *data) override;

@@ -238,7 +238,8 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
       // the file. The files whose codec the decoder does not support are skipped, as they would
       // be with the decoder.
       auto indexer = std::make_unique<FramesIndexer>(entry.filename, image_type_);
-      if (!indexer->IsValid() || !FramesDecoderImpl::IsCodecSupported(indexer->CodecId())) {
+      if (!indexer->IsValid() ||
+          !FramesDecoderImpl::IsStreamSupported(indexer->CodecParameters())) {
         LOG_LINE << "Invalid video file: " << entry.filename << std::endl;
         continue;
       }

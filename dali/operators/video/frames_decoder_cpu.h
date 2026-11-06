@@ -72,6 +72,14 @@ class DLL_PUBLIC FramesDecoderCpu : public FramesDecoderBase {
    */
   static bool IsCodecSupported(AVCodecID codec_id);
 
+  /**
+   * @brief Checks if the video stream with the given parameters can be decoded by this decoder.
+   *        For the CPU variant, it only depends on the codec.
+   */
+  static bool IsStreamSupported(const AVCodecParameters &params) {
+    return IsCodecSupported(params.codec_id);
+  }
+
  protected:
   bool SelectVideoStream(int stream_id = -1) override;
 

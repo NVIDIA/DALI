@@ -17,6 +17,7 @@
 #include <cmath>
 #include <exception>
 #include <map>
+#include <memory>
 #include <random>
 #include <set>
 #include <string>
@@ -24,6 +25,7 @@
 #include <vector>
 
 #include "dali/core/cuda_error.h"
+#include "dali/core/cuda_stream.h"
 #include "dali/core/dev_buffer.h"
 #include "dali/core/device_guard.h"
 #include "dali/core/dynlink_cuda.h"
@@ -838,7 +840,8 @@ TEST_F(FramesDecoderGpuTest, IndexerIsValidForTheSameFilesAsTheDecoder) {
     SCOPED_TRACE(path);
     FramesDecoderGpu decoder(path);
     FramesIndexer indexer(path);
-    bool indexer_valid = indexer.IsValid() && FramesDecoderGpu::IsCodecSupported(indexer.CodecId());
+    bool indexer_valid =
+        indexer.IsValid() && FramesDecoderGpu::IsStreamSupported(indexer.CodecParameters());
     EXPECT_EQ(indexer_valid, decoder.IsValid());
   }
 }
@@ -884,7 +887,8 @@ TEST_F(FramesDecoderTest_CpuOnlyTests, IndexerIsValidForTheSameFilesAsTheDecoder
     SCOPED_TRACE(path);
     FramesDecoderCpu decoder(path);
     FramesIndexer indexer(path);
-    bool indexer_valid = indexer.IsValid() && FramesDecoderCpu::IsCodecSupported(indexer.CodecId());
+    bool indexer_valid =
+        indexer.IsValid() && FramesDecoderCpu::IsStreamSupported(indexer.CodecParameters());
     EXPECT_EQ(indexer_valid, decoder.IsValid());
   }
 }
@@ -1077,6 +1081,73 @@ TEST_F(FramesDecoderGpuTest, RawH265) {
   auto memory_video = MemoryVideo(cfr_raw_h264_videos_paths_[0]);
   FramesDecoderGpu decoder(memory_video.data(), memory_video.size());
   RunTest(decoder, cfr_videos_[0], false, 1.5);
+}
+
+namespace {
+
+double AvgAbsDiff(const std::vector<uint8_t> &a, const std::vector<uint8_t> &b) {
+  int64_t sum = 0;
+  for (size_t i = 0; i < a.size(); ++i) {
+    sum += std::abs(static_cast<int>(a[i]) - static_cast<int>(b[i]));
+  }
+  return static_cast<double>(sum) / a.size();
+}
+
+}  // namespace
+
+TEST_F(FramesDecoderGpuTest, MjpegDecodesMultipleFrames) {
+  // DALI-4918: for MJPEG the driver can report a minimum of 1 decode surface, with which decoding
+  // the 2nd frame used to fail with CUDA_ERROR_INVALID_VALUE.
+  //
+  // Every frame is also compared against the CPU backend: NVDEC writes JPEG pictures in stream
+  // order with the legacy default stream, so a color conversion on a non-blocking stream used to
+  // read surfaces that weren't written yet and return blank frames (mostly the first ~20 frames
+  // of a freshly created NVDEC decoder). Hence the non-blocking streams, and several decoders
+  // alive at once: each one holds its NVDEC decoder, so the others can't reuse it from
+  // NVDECCache and get freshly created ones.
+
+  // The test file is 8-bit 4:4:4 (yuvj444p), which not every NVDEC generation can decode.
+  if (!FramesDecoderGpu::CanNvdecDecode(cudaVideoCodec_JPEG, cudaVideoChromaFormat_444)) {
+    GTEST_SKIP() << "NVDEC does not support 8-bit 4:4:4 JPEG on this GPU";
+  }
+  auto mjpeg_path = testing::dali_extra_path() + "/db/video/mjpeg/mjpeg.avi";
+  FramesDecoderCpu cpu_decoder(mjpeg_path, DALI_RGB);
+  ASSERT_TRUE(cpu_decoder.IsValid());
+  cpu_decoder.BuildIndex();
+  int num_frames = cpu_decoder.NumFrames();
+  ASSERT_GT(num_frames, 1);
+
+  constexpr int kNumGpuDecoders = 3;
+  std::vector<CUDAStream> streams;
+  std::vector<std::unique_ptr<FramesDecoderGpu>> gpu_decoders;
+  for (int d = 0; d < kNumGpuDecoders; ++d) {
+    streams.push_back(CUDAStream::Create(true));
+    gpu_decoders.push_back(std::make_unique<FramesDecoderGpu>(mjpeg_path, streams[d], DALI_RGB));
+    ASSERT_TRUE(gpu_decoders[d]->IsValid());
+    gpu_decoders[d]->BuildIndex();
+    ASSERT_EQ(gpu_decoders[d]->NumFrames(), num_frames);
+    ASSERT_EQ(gpu_decoders[d]->FrameSize(), cpu_decoder.FrameSize());
+  }
+
+  std::vector<uint8_t> expected(cpu_decoder.FrameSize());
+  std::vector<uint8_t> actual(cpu_decoder.FrameSize());
+  DeviceBuffer<uint8_t> frame_device;
+  frame_device.resize(cpu_decoder.FrameSize());
+  for (int i = 0; i < num_frames; ++i) {
+    ASSERT_TRUE(cpu_decoder.ReadNextFrame(expected.data())) << "CPU: failed decoding frame " << i;
+    for (int d = 0; d < kNumGpuDecoders; ++d) {
+      ASSERT_TRUE(gpu_decoders[d]->ReadNextFrame(frame_device.data()))
+          << "GPU decoder " << d << ": failed decoding frame " << i;
+      CUDA_CALL(cudaMemcpyAsync(actual.data(), frame_device.data(), actual.size(),
+                                cudaMemcpyDeviceToHost, streams[d]));
+      CUDA_CALL(cudaStreamSynchronize(streams[d]));
+      // The two backends use different JPEG decoders and color conversions, so they differ by
+      // rounding noise (below 1 on average); a blank frame is off by tens.
+      double diff = AvgAbsDiff(actual, expected);
+      EXPECT_LT(diff, 1.5) << "GPU decoder " << d << ": frame " << i
+                           << " differs from the CPU backend's (avg abs diff " << diff << ")";
+    }
+  }
 }
 
 }  // namespace dali
