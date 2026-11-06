@@ -599,3 +599,42 @@ def test_file_url_can_be_opened(device):
     p.build()
     assert p.reader_meta("r")["epoch_size"] == 50
     p.run()
+
+
+@cartesian_params(
+    devices,
+    (
+        # (file, expected slope, expected offset) of Y as a function of the RGB output's luma
+        ("limited", CFR_VP9_60FPS_FILE, 219 / 255, 16.0),
+        ("full", FULL_RANGE_VP9_FILE, 1.0, 0.0),
+    ),
+)
+def test_ycbcr_preserves_source_color_range(device, source):
+    # YCbCr output keeps the source's range, RGB is full range, so Y relates to the RGB output's
+    # luma by slope 1 / offset 0 for a full-range source and by slope 219/255 / offset 16 for a
+    # limited-range one. The limited-range case fails if the CPU backend expands to full range.
+    _, filename, expected_slope, expected_offset = source
+
+    def first_frame(image_type):
+        @pipeline_def(batch_size=1, num_threads=2, device_id=0)
+        def pipe():
+            return fn.experimental.readers.video(
+                device=device,
+                filenames=[filename],
+                sequence_length=1,
+                image_type=image_type,
+            )
+
+        p = pipe()
+        p.build()
+        (video,) = p.run()
+        return np.float64(np.array(video.as_cpu()[0])[0])
+
+    rgb = first_frame(types.RGB)
+    ycbcr = first_frame(types.YCbCr)
+    luma = rgb @ np.array([0.299, 0.587, 0.114])  # BT.601
+    slope, offset = np.polyfit(luma.ravel(), ycbcr[..., 0].ravel(), 1)
+    assert abs(slope - expected_slope) < 0.05 and abs(offset - expected_offset) < 5.0, (
+        f"Y = {slope:.3f} * luma(RGB) + {offset:.2f}, expected slope {expected_slope:.3f}, "
+        f"offset {expected_offset:.1f} (Y range {ycbcr[..., 0].min()}..{ycbcr[..., 0].max()})"
+    )

@@ -15,6 +15,7 @@
 #include <cuda_runtime_api.h>
 #include <algorithm>
 #include <cmath>
+#include <cstdlib>
 #include <exception>
 #include <map>
 #include <random>
@@ -740,6 +741,45 @@ TEST_F(FramesDecoderTest_CpuOnlyTests, VariableFrameRate) {
   FramesDecoderCpu decoder(vfr_videos_paths_[1]);
   decoder.BuildIndex();
   RunTest(decoder, vfr_videos_[1]);
+}
+
+// Uses the GPU backend, so it belongs to the GPU fixture (not *CpuOnly*, which runs without CUDA).
+TEST_F(FramesDecoderGpuTest, YCbCrMatchesCpuBackendWithinTolerance) {
+  // The CPU backend's YCbCr conversion (libswscale) and the GPU backend's (a custom CUDA
+  // kernel matching the legacy reader's conversion) are independent implementations of 4:2:0
+  // chroma upsampling (libswscale's SWS_BILINEAR vs. the GPU kernel's own bilinear sampling),
+  // so they aren't expected to be byte-identical -- rounding can differ by a step or two on
+  // sharp chroma edges. What is guaranteed is colorimetry: on both backends, YCbCr output keeps
+  // the source's range (no limited <-> full range conversion, DALI-4916). When the CPU backend
+  // expanded limited-range sources to full range, the two disagreed by up to 20/255 per channel;
+  // now differences should be small, uniformly-distributed rounding noise, not a systematic
+  // offset.
+  FramesDecoderCpu cpu_decoder(cfr_videos_paths_[0], DALI_YCbCr);
+  cpu_decoder.BuildIndex();
+  std::vector<uint8_t> frame_cpu(cpu_decoder.FrameSize());
+  ASSERT_TRUE(cpu_decoder.ReadNextFrame(frame_cpu.data()));
+
+  FramesDecoderGpu gpu_decoder(cfr_videos_paths_[0], 0, DALI_YCbCr);
+  gpu_decoder.BuildIndex();
+  DeviceBuffer<uint8_t> frame_gpu_device;
+  frame_gpu_device.resize(gpu_decoder.FrameSize());
+  ASSERT_TRUE(gpu_decoder.ReadNextFrame(frame_gpu_device.data()));
+  std::vector<uint8_t> frame_gpu(gpu_decoder.FrameSize());
+  MemCopy(frame_gpu.data(), frame_gpu_device.data(), gpu_decoder.FrameSize());
+
+  ASSERT_EQ(frame_cpu.size(), frame_gpu.size());
+  int max_abs_diff = 0;
+  int64_t sum_abs_diff = 0;
+  for (size_t i = 0; i < frame_cpu.size(); ++i) {
+    int d = std::abs(static_cast<int>(frame_cpu[i]) - static_cast<int>(frame_gpu[i]));
+    max_abs_diff = std::max(max_abs_diff, d);
+    sum_abs_diff += d;
+  }
+  double avg_abs_diff = static_cast<double>(sum_abs_diff) / frame_cpu.size();
+  EXPECT_LE(max_abs_diff, 4) << "Max abs diff " << max_abs_diff
+                              << " suggests a systematic mismatch, not rounding noise";
+  EXPECT_LE(avg_abs_diff, 0.5) << "Avg abs diff " << avg_abs_diff
+                                << " suggests a systematic mismatch, not rounding noise";
 }
 
 TEST_F(FramesDecoderTest_CpuOnlyTests, InvalidSeek) {
