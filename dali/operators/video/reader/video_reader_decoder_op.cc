@@ -343,6 +343,21 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
     return results;
   }
 
+  /**
+   * @brief Builds the list of samples of the reader, in two phases.
+   *
+   * 1. Every distinct file of the list is indexed once (see BuildFileIndices), possibly in
+   *    parallel.
+   * 2. The list is walked in order, sequentially. For every entry, the frame range is resolved
+   *    (from `file_list`, if given) and the samples (or, with `uniform_sample`, the frame indices
+   *    of the sample) are made from the index of its file. The entries that are not valid videos,
+   *    whose codec is not supported or whose frame range is empty are skipped (with a warning,
+   *    except for the invalid ones). An error that occurred while indexing is thrown here, so the
+   *    one reported is that of the first failing file in the list, however many threads there are.
+   *
+   * Finally, the samples are shuffled (if `shuffle`) and the reader is set to the start of its
+   * shard.
+   */
   void PrepareMetadataImpl() override {
     LOG_LINE << "Starting PrepareMetadataImpl" << std::endl;
     samples_.clear();
