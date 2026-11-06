@@ -35,6 +35,17 @@ as_batch
 ^^^^^^^^
 .. autofunction:: as_batch
 
+Logical reductions
+------------------
+
+all
+^^^
+.. autofunction:: all
+
+any
+^^^
+.. autofunction:: any
+
 External data
 -------------
 
