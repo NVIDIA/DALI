@@ -12,53 +12,25 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import io
 import os
-import pickle  # nosec B403
+import struct
+from enum import IntEnum
 
 from nvidia.dali._multiproc import shared_mem
-from nvidia.dali._multiproc.messages import CompletedTask, ShmMessageDesc
+from nvidia.dali._multiproc.messages import (
+    CompletedTask,
+    SampleRange,
+    ScheduledTask,
+    ShmMessageDesc,
+    TaskArgs,
+)
 from nvidia.dali._utils.external_source_impl import (
     assert_cpu_sample_data_type as _assert_cpu_sample_data_type,
     sample_to_numpy as _sample_to_numpy,
 )
+from nvidia.dali.types import BatchInfo
 
 np = None
-
-
-class _WorkerResultUnpickler(pickle.Unpickler):
-    """Unpickler for data written by a worker into a shared-memory chunk.
-
-    Worker results have a fixed, internal object graph. Restricting globals here prevents a
-    compromised worker from invoking an arbitrary callable while the parent reads its result.
-    """
-
-    _allowed_globals = {
-        ("nvidia.dali._multiproc.messages", "CompletedTask"): CompletedTask,
-        ("nvidia.dali._multiproc.shared_batch", "SharedBatchMeta"): None,
-        ("nvidia.dali._multiproc.shared_batch", "SampleMeta"): None,
-        ("numpy", "dtype"): None,
-        ("builtins", "RuntimeError"): RuntimeError,
-        ("builtins", "StopIteration"): StopIteration,
-    }
-
-    def find_class(self, module, name):
-        allowed = self._allowed_globals.get((module, name), ...)
-        if allowed is ...:
-            raise pickle.UnpicklingError(
-                f"global '{module}.{name}' is not permitted in worker shared-memory data"
-            )
-        if allowed is None:
-            if module == "numpy":
-                import_numpy()
-                return np.dtype
-            return globals()[name]
-        return allowed
-
-
-def restricted_pickle_loads(data):
-    """Loads the fixed-format pickle payloads sent from workers to the parent process."""
-    return _WorkerResultUnpickler(io.BytesIO(data)).load()
 
 
 def _div_ceil(a, b):
@@ -173,6 +145,394 @@ class SharedBatchMeta:
         return cls(writer.data_size, writer.meta_data_size)
 
 
+# Precompiled little-endian layouts of the shared memory messages.
+_U8 = struct.Struct("<B")
+_BOOL = struct.Struct("<?")
+_U64 = struct.Struct("<Q")
+_U64_PAIR = struct.Struct("<QQ")
+_I64 = struct.Struct("<q")
+_I64_PAIR = struct.Struct("<qq")
+_I64_X4 = struct.Struct("<qqqq")
+_I64_X6 = struct.Struct("<6q")
+# array sample: kind tag, offset, nbytes, dtype code, ndim; followed by ndim u64 extents
+_ARRAY_HEADER = struct.Struct("<BQQBI")
+
+
+class _BinaryWriter:
+    """Accumulates little-endian, fixed-layout binary encoding of the multiprocessing messages."""
+
+    def __init__(self):
+        self._parts = []
+
+    def pack(self, layout, *values):
+        self._parts.append(layout.pack(*values))
+
+    def pack_u64_array(self, values):
+        self._parts.append(struct.pack(f"<{len(values)}Q", *values))
+
+    def write_bytes(self, data):
+        self.pack(_U64, len(data))
+        self._parts.append(bytes(data))
+
+    def write_str(self, value):
+        self.write_bytes(value.encode("utf-8", errors="backslashreplace"))
+
+    def getvalue(self):
+        return b"".join(self._parts)
+
+
+class _BinaryReader:
+    """Decodes data produced by `_BinaryWriter`, validating that reads stay within the buffer."""
+
+    def __init__(self, buffer):
+        self._buf = memoryview(buffer).cast("B")
+        self._size = len(self._buf)
+        self._offset = 0
+
+    def _advance(self, size):
+        offset = self._offset
+        end = offset + size
+        if end > self._size:
+            raise RuntimeError("Malformed shared memory message: unexpected end of data.")
+        self._offset = end
+        return offset
+
+    def peek_u8(self):
+        if self._offset >= self._size:
+            raise RuntimeError("Malformed shared memory message: unexpected end of data.")
+        return self._buf[self._offset]
+
+    def unpack(self, layout):
+        return layout.unpack_from(self._buf, self._advance(layout.size))
+
+    def unpack_u64_array(self, count):
+        return struct.unpack_from(f"<{count}Q", self._buf, self._advance(8 * count))
+
+    def read_bytes(self):
+        (size,) = self.unpack(_U64)
+        offset = self._advance(size)
+        return bytes(self._buf[offset : offset + size])
+
+    def read_str(self):
+        return self.read_bytes().decode("utf-8", errors="replace")
+
+    def read_tag(self, tag_type):
+        (tag,) = self.unpack(_U8)
+        member = _TAG_MEMBERS[tag_type].get(tag)
+        if member is None:
+            raise RuntimeError(
+                f"Malformed shared memory message: unexpected tag {tag} ({tag_type.__name__})."
+            )
+        return member
+
+    def assert_consumed(self):
+        if self._offset != self._size:
+            raise RuntimeError("Malformed shared memory message: unexpected trailing data.")
+
+
+class _MessageKind(IntEnum):
+    SCHEDULED_TASK = 1
+    COMPLETED_TASK = 2
+
+
+class _TaskKind(IntEnum):
+    SAMPLE_RANGE = 0
+    BATCH_ARGS = 1
+
+
+class _BatchArgKind(IntEnum):
+    NONE = 0
+    INT = 1
+    BATCH_INFO = 2
+
+
+class _ExceptionKind(IntEnum):
+    NONE = 0
+    STOP_ITERATION = 1
+    RUNTIME_ERROR = 2
+
+
+class _SampleKind(IntEnum):
+    ARRAY = 0
+    TUPLE = 1
+    LIST = 2
+
+
+# Enum construction is slow compared to the rest of decoding, so tags are looked up directly
+_TAG_MEMBERS = {
+    tag_type: {member.value: member for member in tag_type}
+    for tag_type in (_MessageKind, _TaskKind, _BatchArgKind, _ExceptionKind, _SampleKind)
+}
+
+_MAX_SAMPLE_NESTING = 64
+
+# The only sample data types that can be passed; the wire format stores the index in this tuple.
+# DALI cannot consume other data types (e.g. object, structured, complex or string ones) anyway.
+_SAMPLE_DTYPES = (
+    "|b1",
+    "|i1",
+    "|u1",
+    "<i2",
+    ">i2",
+    "<u2",
+    ">u2",
+    "<i4",
+    ">i4",
+    "<u4",
+    ">u4",
+    "<i8",
+    ">i8",
+    "<u8",
+    ">u8",
+    "<f2",
+    ">f2",
+    "<f4",
+    ">f4",
+    "<f8",
+    ">f8",
+)
+_code_to_dtype = None
+_dtype_to_code = None
+
+
+def _dtype_codes():
+    global _code_to_dtype, _dtype_to_code
+    if _code_to_dtype is None:
+        import_numpy()
+        code_to_dtype = tuple(np.dtype(dtype_str) for dtype_str in _SAMPLE_DTYPES)
+        _dtype_to_code = {dtype: code for code, dtype in enumerate(code_to_dtype)}
+        _code_to_dtype = code_to_dtype
+    return _code_to_dtype, _dtype_to_code
+
+
+def _write_optional_str(writer, value):
+    writer.pack(_BOOL, value is not None)
+    if value is not None:
+        writer.write_str(value)
+
+
+def _read_optional_str(reader):
+    (present,) = reader.unpack(_BOOL)
+    return reader.read_str() if present else None
+
+
+def _write_batch_args(writer, batch_args):
+    batch_args = tuple(batch_args)
+    if len(batch_args) == 0:
+        writer.pack(_U8, _BatchArgKind.NONE)
+        return
+    if len(batch_args) != 1:
+        raise TypeError(f"Expected at most one batch argument, got {len(batch_args)}.")
+    (arg,) = batch_args
+    if isinstance(arg, BatchInfo):
+        writer.pack(_U8, _BatchArgKind.BATCH_INFO)
+        writer.pack(_I64_PAIR, arg.iteration, arg.epoch_idx)
+    elif isinstance(arg, int):
+        writer.pack(_U8, _BatchArgKind.INT)
+        writer.pack(_I64, arg)
+    else:
+        raise TypeError(f"Unsupported batch argument type: `{type(arg)}`.")
+
+
+def _read_batch_arg(reader):
+    """Returns the batch callback argument, or None if the callback takes no argument."""
+    kind = reader.read_tag(_BatchArgKind)
+    if kind is _BatchArgKind.NONE:
+        return None
+    if kind is _BatchArgKind.INT:
+        (iteration,) = reader.unpack(_I64)
+        return iteration
+    return BatchInfo(*reader.unpack(_I64_PAIR))
+
+
+def _write_scheduled_task(writer, message: ScheduledTask):
+    task = message.task
+    writer.pack(_U8, _MessageKind.SCHEDULED_TASK)
+    writer.pack(
+        _I64_X4, message.context_i, message.scheduled_i, message.epoch_start, task.minibatch_i
+    )
+    if task.is_sample_mode():
+        sr = task.sample_range
+        writer.pack(_U8, _TaskKind.SAMPLE_RANGE)
+        writer.pack(
+            _I64_X6,
+            sr.sample_start,
+            sr.sample_end,
+            sr.iteration,
+            sr.epoch_idx,
+            sr.slice_start,
+            sr.slice_end,
+        )
+    else:
+        writer.pack(_U8, _TaskKind.BATCH_ARGS)
+        _write_batch_args(writer, task.batch_args)
+
+
+def _read_scheduled_task(reader):
+    context_i, scheduled_i, epoch_start, minibatch_i = reader.unpack(_I64_X4)
+    kind = reader.read_tag(_TaskKind)
+    if kind is _TaskKind.SAMPLE_RANGE:
+        sample_start, sample_end, iteration, epoch_idx, slice_start, slice_end = reader.unpack(
+            _I64_X6
+        )
+        # checked explicitly, as the asserts in `SampleRange` are skipped with `python -O`
+        if not 0 <= slice_start <= slice_end <= sample_end - sample_start:
+            raise RuntimeError("Malformed shared memory message: invalid sample range.")
+        sample_range = SampleRange(
+            sample_start,
+            sample_end,
+            iteration,
+            epoch_idx,
+            slice_start=slice_start,
+            slice_end=slice_end,
+        )
+        task = TaskArgs(minibatch_i, sample_range=sample_range)
+    else:
+        batch_arg = _read_batch_arg(reader)
+        batch_args = () if batch_arg is None else (batch_arg,)
+        task = TaskArgs(minibatch_i, batch_args=batch_args)
+    return ScheduledTask(context_i, scheduled_i, epoch_start, task)
+
+
+def _write_completed_task(writer, message: CompletedTask):
+    writer.pack(_U8, _MessageKind.COMPLETED_TASK)
+    writer.pack(
+        _I64_X4, message.worker_id, message.context_i, message.scheduled_i, message.minibatch_i
+    )
+    batch_meta = message.batch_meta
+    writer.pack(_BOOL, batch_meta is not None)
+    if batch_meta is not None:
+        writer.pack(_U64_PAIR, batch_meta.meta_offset, batch_meta.meta_size)
+    exception = message.exception
+    if exception is None:
+        writer.pack(_U8, _ExceptionKind.NONE)
+    else:
+        if isinstance(exception, StopIteration):
+            writer.pack(_U8, _ExceptionKind.STOP_ITERATION)
+        else:
+            writer.pack(_U8, _ExceptionKind.RUNTIME_ERROR)
+        writer.write_str(str(exception))
+    _write_optional_str(writer, message.traceback_str)
+
+
+def _read_completed_task(reader):
+    worker_id, context_i, scheduled_i, minibatch_i = reader.unpack(_I64_X4)
+    (has_batch_meta,) = reader.unpack(_BOOL)
+    batch_meta = SharedBatchMeta(*reader.unpack(_U64_PAIR)) if has_batch_meta else None
+    exception_kind = reader.read_tag(_ExceptionKind)
+    exception = None
+    if exception_kind is _ExceptionKind.STOP_ITERATION:
+        exception = StopIteration(reader.read_str())
+    elif exception_kind is _ExceptionKind.RUNTIME_ERROR:
+        exception = RuntimeError(reader.read_str())
+    traceback_str = _read_optional_str(reader)
+    return CompletedTask(
+        worker_id,
+        context_i,
+        scheduled_i,
+        minibatch_i,
+        batch_meta=batch_meta,
+        exception=exception,
+        traceback_str=traceback_str,
+    )
+
+
+_MESSAGE_KINDS = {
+    ScheduledTask: (_MessageKind.SCHEDULED_TASK, _read_scheduled_task),
+    CompletedTask: (_MessageKind.COMPLETED_TASK, _read_completed_task),
+}
+
+
+def serialize_message(message):
+    """Encodes `ScheduledTask` or `CompletedTask` into bytes that can be placed in shared memory."""
+    writer = _BinaryWriter()
+    if isinstance(message, ScheduledTask):
+        _write_scheduled_task(writer, message)
+    elif isinstance(message, CompletedTask):
+        _write_completed_task(writer, message)
+    else:
+        raise TypeError(f"Unsupported shared memory message type: `{type(message)}`.")
+    return writer.getvalue()
+
+
+def deserialize_message(buffer, message_type):
+    """Decodes a `message_type` (`ScheduledTask` or `CompletedTask`) encoded with
+    `serialize_message`. Messages of the other type are rejected."""
+    expected_kind, read_message = _MESSAGE_KINDS[message_type]
+    reader = _BinaryReader(buffer)
+    kind = reader.read_tag(_MessageKind)
+    if kind is not expected_kind:
+        raise RuntimeError(
+            f"Malformed shared memory message: expected {expected_kind.name}, got {kind.name}."
+        )
+    message = read_message(reader)
+    reader.assert_consumed()
+    return message
+
+
+def _write_sample_meta(writer, sample, dtype_to_code, depth=0):
+    if depth > _MAX_SAMPLE_NESTING:
+        raise TypeError(
+            f"Samples nested deeper than {_MAX_SAMPLE_NESTING} levels are not supported."
+        )
+    if isinstance(sample, SampleMeta):
+        dtype_code = dtype_to_code.get(sample.dtype)
+        if dtype_code is None:
+            raise TypeError(
+                f"Unsupported sample data type: `{sample.dtype}`. Supported types are: bool, "
+                "int8, int16, int32, int64, uint8, uint16, uint32, uint64, float16, float32 "
+                "and float64."
+            )
+        shape = sample.shape
+        writer.pack(
+            _ARRAY_HEADER, _SampleKind.ARRAY, sample.offset, sample.nbytes, dtype_code, len(shape)
+        )
+        writer.pack_u64_array(shape)
+    elif isinstance(sample, (tuple, list)):
+        kind = _SampleKind.TUPLE if isinstance(sample, tuple) else _SampleKind.LIST
+        writer.pack(_U8, kind)
+        writer.pack(_U64, len(sample))
+        for part in sample:
+            _write_sample_meta(writer, part, dtype_to_code, depth + 1)
+    else:
+        raise TypeError(f"Unsupported sample meta-data type: `{type(sample)}`.")
+
+
+def _read_sample_meta(reader, code_to_dtype, depth=0):
+    if depth > _MAX_SAMPLE_NESTING:
+        raise RuntimeError("Malformed shared memory message: sample nesting is too deep.")
+    if reader.peek_u8() == _SampleKind.ARRAY:
+        _, offset, nbytes, dtype_code, ndim = reader.unpack(_ARRAY_HEADER)
+        if dtype_code >= len(code_to_dtype):
+            raise RuntimeError("Malformed shared memory message: invalid sample data type.")
+        shape = reader.unpack_u64_array(ndim)
+        return SampleMeta(offset, shape, code_to_dtype[dtype_code], nbytes)
+    kind = reader.read_tag(_SampleKind)
+    (num_parts,) = reader.unpack(_U64)
+    parts = [_read_sample_meta(reader, code_to_dtype, depth + 1) for _ in range(num_parts)]
+    return tuple(parts) if kind is _SampleKind.TUPLE else parts
+
+
+def serialize_samples_meta(samples_meta):
+    """Encodes a list of (nested tuples/lists of) `SampleMeta` instances into bytes."""
+    _, dtype_to_code = _dtype_codes()
+    writer = _BinaryWriter()
+    writer.pack(_U64, len(samples_meta))
+    for sample in samples_meta:
+        _write_sample_meta(writer, sample, dtype_to_code)
+    return writer.getvalue()
+
+
+def deserialize_samples_meta(buffer):
+    """Decodes a list of `SampleMeta` instances encoded with `serialize_samples_meta`."""
+    code_to_dtype, _ = _dtype_codes()
+    reader = _BinaryReader(buffer)
+    (num_samples,) = reader.unpack(_U64)
+    samples_meta = [_read_sample_meta(reader, code_to_dtype) for _ in range(num_samples)]
+    reader.assert_consumed()
+    return samples_meta
+
+
 def deserialize_sample(buffer: BufShmChunk, sample):
     if isinstance(sample, SampleMeta):
         offset = sample.offset
@@ -195,9 +555,8 @@ def deserialize_sample_meta(buffer: BufShmChunk, shared_batch_meta: SharedBatchM
     sbm = shared_batch_meta
     if sbm.meta_size == 0:
         return []
-    pickled_meta = buffer.buf[sbm.meta_offset : sbm.meta_offset + sbm.meta_size]
-    samples_meta = restricted_pickle_loads(pickled_meta)
-    return samples_meta
+    serialized_meta = buffer.buf[sbm.meta_offset : sbm.meta_offset + sbm.meta_size]
+    return deserialize_samples_meta(serialized_meta)
 
 
 def deserialize_batch(buffer: BufShmChunk, shared_batch_meta: SharedBatchMeta):
@@ -304,7 +663,7 @@ class SharedBatchWriter:
             for sample in batch
         ]
         meta, data_size = self._prepare_samples_meta(batch)
-        serialized_meta = pickle.dumps(meta)
+        serialized_meta = serialize_samples_meta(meta)
         self.meta_data_size = len(serialized_meta)
         self.data_size = _align_up(data_size, self.SAMPLE_ALIGNMENT)
         self.total_size = _align_up(self.data_size + self.meta_data_size, self.SAMPLE_ALIGNMENT)
@@ -326,24 +685,20 @@ def resize_shm_chunk(shm_chunk, needed_capacity):
     shm_chunk.resize(new_capacity, trunc=True)
 
 
-def read_shm_message(shm_chunk: BufShmChunk, shm_message):
+def read_shm_message(shm_chunk: BufShmChunk, shm_message, message_type):
     if shm_message.shm_capacity != shm_chunk.capacity:
         shm_chunk.resize(shm_message.shm_capacity, trunc=False)
     buffer = shm_chunk.buf[shm_message.offset : shm_message.offset + shm_message.num_bytes]
-    # Messages written by the parent may contain user-provided batch arguments and are trusted
-    # parent-to-child input. Worker-to-parent messages have a fixed protocol and are restricted.
-    if shm_message.worker_id >= 0:
-        return restricted_pickle_loads(buffer)
-    return pickle.loads(buffer)  # nosec B301
+    return deserialize_message(buffer, message_type)
 
 
 def write_shm_message(worker_id, shm_chunk: BufShmChunk, message, offset, resize=True):
     """
-    Pickles `message` instances, stores it in the provided `shm` chunk at given offset and returns
+    Serializes `message` instance, stores it in the provided `shm` chunk at given offset and returns
     `ShmMessageDesc` instance describing the placement of the `message`.
     Returned instance can be put into ShmQueue.
     """
-    serialized_message = pickle.dumps(message)
+    serialized_message = serialize_message(message)
     num_bytes = len(serialized_message)
     if num_bytes > shm_chunk.capacity - offset:
         if resize:

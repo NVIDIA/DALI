@@ -28,7 +28,7 @@ class ShmMessageDesc(Structure):
         Integer identifying a process that put the message, number from [0, num_workers) range
         for workers or -1 in case of a main process.
     shm_chunk_id : int
-        Integer identifying shm chunk that contains pickled data to be read by the receiver
+        Integer identifying shm chunk that contains serialized data to be read by the receiver
     shm_capacity : unsigned long long int
         Size of the `shm_chunk_id` chunk, receiver should resize the mapping if the chunk
         was resized by the writer.
@@ -263,7 +263,7 @@ class CompletedTask:
     @classmethod
     def failed(cls, worker_id, processed):
         # Worker exceptions can be arbitrary user-defined objects. Normalize them to the
-        # restricted protocol's built-in exception types before serializing them.
+        # built-in exception types supported by the shared memory message format.
         exception = processed.exception
         if isinstance(exception, StopIteration):
             exception = StopIteration(str(exception))

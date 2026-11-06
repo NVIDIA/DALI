@@ -66,6 +66,19 @@ class ExtCallback:
         return self.ds[sample_info.idx_in_epoch]
 
 
+class DeeplyNestedSampleCallback:
+    """Returns samples nested deeper than the shared memory metadata format supports"""
+
+    def __init__(self, depth):
+        self.depth = depth
+
+    def __call__(self, sample_info):
+        sample = np.full((2,), sample_info.idx_in_epoch, dtype=np.int32)
+        for _ in range(self.depth):
+            sample = (sample,)
+        return sample
+
+
 class ExtCallbackTensorCPU(ExtCallback):
     def __call__(self, sample_info):
         return dali.tensors.TensorCPU(super().__call__(sample_info))
