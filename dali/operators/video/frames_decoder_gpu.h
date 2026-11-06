@@ -210,7 +210,7 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
    * Uses the per-process cache of cuvidGetDecoderCaps.
    */
   static bool CanNvdecDecode(cudaVideoCodec codec_type, cudaVideoChromaFormat chroma_format,
-                            int bit_depth = 8);
+                             int bit_depth = 8);
 
   /**
    * @brief Checks if the codec can be decoded by this decoder, as it is done when the video stream

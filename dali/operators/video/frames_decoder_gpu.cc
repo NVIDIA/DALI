@@ -417,13 +417,20 @@ bool IsJpegPixelFormatSupported(AVPixelFormat pix_fmt) {
               "against what NVDEC on this platform supports.");
     return false;
   }
-  cudaVideoChromaFormat chroma = cudaVideoChromaFormat_420;
+  cudaVideoChromaFormat chroma;
   if (desc->nb_components < 3) {
     chroma = cudaVideoChromaFormat_Monochrome;
   } else if (desc->log2_chroma_w == 0 && desc->log2_chroma_h == 0) {
     chroma = cudaVideoChromaFormat_444;
   } else if (desc->log2_chroma_w == 1 && desc->log2_chroma_h == 0) {
     chroma = cudaVideoChromaFormat_422;
+  } else if (desc->log2_chroma_w == 1 && desc->log2_chroma_h == 1) {
+    chroma = cudaVideoChromaFormat_420;
+  } else {
+    // e.g. 4:4:0 or 4:1:1: there is no NVDEC chroma format for it
+    DALI_WARN(make_string("JPEG with pixel format ", desc->name,
+                          " is not supported by NVDEC on this platform."));
+    return false;
   }
   int bit_depth = desc->comp[0].depth;
   if (FramesDecoderGpu::CanNvdecDecode(cudaVideoCodec_JPEG, chroma, bit_depth))
@@ -577,7 +584,7 @@ void FramesDecoderGpu::InitGpuParser() {
 
   auto codec_type = GetCodecType(codec_params_->codec_id);
 
-  if (GetCodecType(codec_params_->codec_id) == cudaVideoCodec_JPEG) {
+  if (codec_type == cudaVideoCodec_JPEG) {
     legacy_stream_event_ = CUDAEvent::CreateWithFlags(cudaEventDisableTiming);
   }
 
@@ -1289,9 +1296,9 @@ bool FramesDecoderGpu::SupportsHevc() {
 }
 
 bool FramesDecoderGpu::CanNvdecDecode(cudaVideoCodec codec_type,
-                                     cudaVideoChromaFormat chroma_format, int bit_depth) {
-  // cuvidGetDecoderCaps needs a current context: make the current device's primary context
-  // current if there is none, and restore the caller's context afterwards.
+                                      cudaVideoChromaFormat chroma_format, int bit_depth) {
+  // cuvidGetDecoderCaps needs a current context: make sure the current device's primary context
+  // is current. DeviceGuard restores only the device (not the CUcontext) on exit.
   DeviceGuard dg;
   CUDA_CALL(cudaFree(nullptr));
   return frame_dec_gpu_impl::GetDecoderCaps(codec_type, chroma_format, bit_depth - 8).bIsSupported;
