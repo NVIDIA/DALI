@@ -17,7 +17,10 @@ import unittest
 
 from nvidia.dali.experimental.torchvision import (
     Compose,
+    GaussianBlur,
+    RandomCrop,
     RandomHorizontalFlip,
+    RandomResizedCrop,
     RandomVerticalFlip,
     Resize,
 )
@@ -41,6 +44,8 @@ def make_test_tensor(shape=(5, 10, 10, 1)):
         total *= s
     return torch.arange(total).reshape(shape).to(dtype=torch.uint8)
 
+
+SEED = 1234
 
 dali_extra = os.environ["DALI_EXTRA_PATH"]
 jpeg = os.path.join(dali_extra, "db", "single", "jpeg")
@@ -496,16 +501,16 @@ def test_compose_chw_vs_fchw():
     frames = 16
     test_tensor = make_test_tensor((1, 3, 8, 8)).expand(frames, 3, 8, 8).contiguous()
 
-    batched = Compose([RandomHorizontalFlip(p=0.5)], batch_size=frames)
+    batched = Compose([RandomHorizontalFlip(p=0.5)], batch_size=frames, seed=SEED)
     assert batched(test_tensor).shape == test_tensor.shape
     assert batched.active_pipeline.get_layout() == "NCHW"
 
-    sequence = Compose([RandomHorizontalFlip(p=0.5)], batch_size=None)
+    sequence = Compose([RandomHorizontalFlip(p=0.5)], batch_size=None, seed=SEED)
     assert sequence(test_tensor).shape == test_tensor.shape
     assert sequence.active_pipeline.get_layout() == "FCHW"
 
     # 3D tensor is always a single CHW image
-    single = Compose([RandomHorizontalFlip(p=0.5)], batch_size=None)
+    single = Compose([RandomHorizontalFlip(p=0.5)], batch_size=None, seed=SEED)
     assert single(test_tensor[0]).shape == test_tensor[0].shape
     assert single.active_pipeline.get_layout() == "CHW"
 
@@ -516,13 +521,17 @@ def test_compose_nchw_vs_fchw_random_params():
     test_tensor = make_test_tensor((1, 3, 8, 8)).expand(n, 3, 8, 8).contiguous()
 
     # NCHW: one transform per CHW image -> results differ between images
-    nchw = Compose([RandomHorizontalFlip(p=0.5)], batch_size=n, layout="NCHW")(test_tensor)
+    nchw = Compose([RandomHorizontalFlip(p=0.5)], batch_size=n, layout="NCHW", seed=SEED)(
+        test_tensor
+    )
     flipped, same = count_flipped(nchw, test_tensor)
     assert flipped + same == n
     assert flipped > 0 and same > 0, f"Expected a mix of flipped and not flipped, got {flipped}"
 
     # FCHW: one transform per FCHW sequence -> all frames are transformed the same way
-    fchw = Compose([RandomHorizontalFlip(p=0.5)], batch_size=None, layout="FCHW")(test_tensor)
+    fchw = Compose([RandomHorizontalFlip(p=0.5)], batch_size=None, layout="FCHW", seed=SEED)(
+        test_tensor
+    )
     flipped, same = count_flipped(fchw, test_tensor)
     assert flipped in (0, n) and same in (0, n) and flipped + same == n
     assert torch.equal(fchw, fchw[0].expand_as(fchw))
@@ -532,7 +541,9 @@ def test_compose_nfchw_random_params_per_sequence():
     n, frames = 32, 4
     sample = make_test_tensor((frames, 3, 8, 8))
     test_tensor = sample.unsqueeze(0).expand(n, frames, 3, 8, 8).contiguous()
-    out = Compose([RandomHorizontalFlip(p=0.5)], batch_size=n, layout="NFCHW")(test_tensor)
+    out = Compose([RandomHorizontalFlip(p=0.5)], batch_size=n, layout="NFCHW", seed=SEED)(
+        test_tensor
+    )
 
     flipped_sequences = 0
     for seq in out:
@@ -542,6 +553,45 @@ def test_compose_nfchw_random_params_per_sequence():
         flipped_sequences += flipped == frames
     # sequences are transformed independently
     assert 0 < flipped_sequences < n
+
+
+# Operators that get their random parameters differently: random anchors (RandomCrop and
+# RandomResizedCrop), an argument input drawn by fn.random.uniform (GaussianBlur with a range of
+# sigma). The flips are covered by the tests above.
+random_param_ops = [
+    ("RandomCrop", lambda: RandomCrop(size=(5, 5))),
+    ("RandomResizedCrop", lambda: RandomResizedCrop(size=(6, 6))),
+    ("GaussianBlur", lambda: GaussianBlur(kernel_size=3, sigma=(0.1, 3.0))),
+]
+
+
+def count_distinct(out):
+    """Number of different samples among those of ``out`` (its leading dimension)."""
+    return len({o.contiguous().numpy().tobytes() for o in out})
+
+
+@params(*random_param_ops)
+def test_compose_random_params_per_sample_or_sequence(name, make_op):
+    # Identical frames: different outputs can only come from different random parameters.
+    # With 32 of them the probability that all the parameters are equal is negligible.
+    n, frames = 32, 4
+    frame = make_test_tensor((1, 3, 8, 8))
+
+    # NCHW: one set of parameters per CHW image -> the images differ
+    nchw_in = frame.expand(n, 3, 8, 8).contiguous()
+    nchw = Compose([make_op()], batch_size=n, layout="NCHW", seed=SEED)(nchw_in)
+    assert count_distinct(nchw) > 1, f"{name}: the images of a batch got the same parameters"
+
+    # FCHW: one set of parameters per sequence -> all the frames are transformed the same way
+    fchw = Compose([make_op()], batch_size=None, layout="FCHW", seed=SEED)(nchw_in)
+    assert count_distinct(fchw) == 1, f"{name}: the frames of a sequence got different parameters"
+
+    # NFCHW: one set of parameters per sequence of frames -> the frames of a sequence are the same,
+    # the sequences differ
+    nfchw_in = frame.unsqueeze(0).expand(n, frames, 3, 8, 8).contiguous()
+    nfchw = Compose([make_op()], batch_size=n, layout="NFCHW", seed=SEED)(nfchw_in)
+    assert all(count_distinct(seq) == 1 for seq in nfchw), f"{name}: frames of a sequence differ"
+    assert count_distinct(nfchw) > 1, f"{name}: the sequences of a batch got the same parameters"
 
 
 @params(
@@ -624,7 +674,7 @@ def test_compose_leading_dims_resize_output_shape():
 def test_compose_leading_dims_default_is_one_sample():
     # Without batch_size a >=4D tensor is a single sample (as in torchvision): one random draw
     test_tensor = make_test_tensor((1, 3, 8, 8)).expand(32, 3, 8, 8).contiguous()
-    out = Compose([RandomHorizontalFlip(p=0.5)])(test_tensor)
+    out = Compose([RandomHorizontalFlip(p=0.5)], seed=SEED)(test_tensor)
     flipped, same = count_flipped(out, test_tensor)
     assert flipped in (0, 32) and same in (0, 32) and flipped + same == 32
 

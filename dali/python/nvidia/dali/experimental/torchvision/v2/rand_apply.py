@@ -15,6 +15,7 @@
 from typing import Callable, Literal, Sequence
 
 from .operator import Operator, _ValidateIfZeroOneRange
+from .totensor import PILToTensor, ToPILImage, ToPureTensor
 import nvidia.dali.fn as fn
 import nvidia.dali as dali
 
@@ -26,7 +27,10 @@ class RandomApply(Operator):
     Parameters
     ----------
     op_list : Sequence[Callable]
-        List of transformations to apply.
+        List of transformations to apply. ``PILToTensor``, ``ToPureTensor`` and ``ToPILImage`` are
+        not allowed: they change the type of the data, which ``Compose`` has to know about to
+        check whether the following operators support it, and a random application would make
+        that type depend on a coin flip.
     p : float, optional, default = 0.5
         Probability of applying the transformations.
     device : Literal["cpu", "gpu"], optional, default = "cpu"
@@ -34,6 +38,7 @@ class RandomApply(Operator):
     """
 
     arg_rules = [_ValidateIfZeroOneRange]
+    _forbidden_ops = (PILToTensor, ToPureTensor, ToPILImage)
 
     def __init__(
         self,
@@ -42,6 +47,12 @@ class RandomApply(Operator):
         device: Literal["cpu", "gpu"] = "cpu",
     ):
         super().__init__(device=device, p=p)
+        for op in op_list:
+            if isinstance(op, self._forbidden_ops):
+                raise TypeError(
+                    f"{type(op).__name__} cannot be used in RandomApply: it converts the type of "
+                    "the data, so it has to be applied unconditionally, e.g. in Compose."
+                )
         self.p = p
         self._op_list = op_list
 

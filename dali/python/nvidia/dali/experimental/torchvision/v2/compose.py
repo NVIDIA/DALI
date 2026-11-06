@@ -303,11 +303,6 @@ class PipelineCHW(PipelineWithLayout):
         )
 
     def run(self, data_input):
-        if not isinstance(data_input, torch.Tensor):
-            raise ValueError(
-                f"{self.get_layout()} layout is currently supported for torch.Tensor only.\
-                Please check if samples have the same format."
-            )
 
         shape = data_input.shape
         if self.batched:
@@ -345,31 +340,17 @@ class PipelineCHW(PipelineWithLayout):
             _input = _input.unsqueeze(0)
         output = super().run(_input)
 
-        if self.batched:
-            output = output.reshape(*leading, *output.shape[1:])
-        else:
-            # Remove the batch dimension we added above
-            output = output.squeeze(0)
-            output = output.reshape(*leading, *output.shape[-3:])
-
-        if self.output_type == "pil":
-            return self.output_to_pil(output)
-
-        return output
+        return output.reshape(*leading, *output.shape[-tail:])
 
     def output_to_tensor(self, output: torch.Tensor) -> torch.Tensor:
         """Return the pipeline output as a ``torch.Tensor``."""
         return output
 
     def output_to_pil(self, output: torch.Tensor):
-        """Convert the output to ``PIL.Image``. Extra leading dimensions yield (nested) lists."""
-        if output.ndim == len(self.sample_layout):
-            if self.sample_layout == "CHW":
-                return to_pil_image(output)
-            return [to_pil_image(frame) for frame in output]
-        if output.shape[0] > 1:
-            return [self.output_to_pil(output[i]) for i in range(output.shape[0])]
-        return self.output_to_pil(output[0])
+        """Convert the output to ``PIL.Image``. Each leading dimension yields a (nested) list."""
+        if output.ndim == 3:
+            return to_pil_image(output)
+        return [self.output_to_pil(item) for item in output]
 
     def get_layout(self) -> str:
         return ("N" if self.batched else "") + self.sample_layout
@@ -451,8 +432,7 @@ class Compose:
         batch_size: int | None = None,
         num_threads: int = DEFAULT_NUM_THREADS,
         layout: Literal[
-            None, "HWC", "CHW", "NHWC", "NCHW", "FCHW", "FHWC", "NFCHW", "NFHWC"
-        ] = None,
+            None, "HWC", "CHW", "NHWC", "NCHW", "FCHW" ] = None,
         **dali_pipeline_kwargs,
     ):
         if layout not in _ALLOWED_LAYOUTS:

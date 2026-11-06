@@ -421,5 +421,4 @@ def test_pil_input_rejected_inside_random_apply():
         with assert_raises(TypeError, glob="*Normalize does not support PIL images*"):
             Compose(ops)(img)
     # a tensor conversion before the Normalize makes it valid, also when both are wrapped
-    Compose([RandomApply([PILToTensor(), normalize_op], p=1.0)])(img)
     Compose([RandomApply([RandomHorizontalFlip(p=1.0)], p=1.0)])(img)
