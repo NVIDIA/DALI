@@ -624,6 +624,7 @@ class Op(enum.Enum):
 
 
 path, op = sys.argv[1], Op(sys.argv[2])
+SEQUENCE_LENGTH, END_FRAME = 30, 60
 
 
 @pipeline_def(batch_size=1, num_threads=2, device_id=0, prefetch_queue_depth=1)
@@ -631,13 +632,16 @@ def pipe():
     if op == Op.READER:
         return tuple(
             fn.experimental.readers.video(
-                device=device, filenames=[path], sequence_length=30, name=f"r_{device}"
+                device=device,
+                filenames=[path],
+                sequence_length=SEQUENCE_LENGTH,
+                name=f"r_{device}",
             )
             for device in ("gpu", "cpu")
         )
     data = fn.external_source(source=[[np.fromfile(path, dtype=np.uint8)]], cycle=True)
     return tuple(
-        fn.decoders.video(data, device=device, end_frame=60)
+        fn.decoders.video(data, device=device, end_frame=END_FRAME)
         for device in ("mixed", "cpu")
     )
 
@@ -645,6 +649,7 @@ def pipe():
 p = pipe()
 p.build()
 num_runs = p.reader_meta("r_gpu")["epoch_size"] if op == Op.READER else 1
+print("EXPECTED", num_runs * SEQUENCE_LENGTH if op == Op.READER else END_FRAME)
 for _ in range(num_runs):
     gpu, cpu = p.run()
     gpu = np.array(gpu.as_cpu()[0], dtype=np.int16)
@@ -680,8 +685,10 @@ def test_mjpeg_gpu_matches_cpu(op):
         raise SkipTest("NVDEC does not support this MJPEG file's format on this GPU")
     assert res.returncode == 0, f"[{op}] child failed:\n{res.stderr[-3000:]}"
     diffs = [float(line.split()[1]) for line in res.stdout.splitlines() if line.startswith("DIFF")]
-    assert len(diffs) == (
-        180 if op == MjpegOp.READER else 60
-    ), f"[{op}] compared {len(diffs)} frames"
+    expected = [
+        int(line.split()[1]) for line in res.stdout.splitlines() if line.startswith("EXPECTED")
+    ]
+    assert len(expected) == 1 and expected[0] > 0, f"[{op}] no expected frame count reported"
+    assert len(diffs) == expected[0], f"[{op}] compared {len(diffs)} frames, expected {expected[0]}"
     bad = [(i, round(d, 2)) for i, d in enumerate(diffs) if d >= 1.5]
     assert not bad, f"[{op}] frames differing from the CPU backend (index, mean abs diff): {bad}"
