@@ -431,8 +431,7 @@ class Compose:
         op_list: List[Callable[..., Sequence[_DataNode] | _DataNode]],
         batch_size: int | None = None,
         num_threads: int = DEFAULT_NUM_THREADS,
-        layout: Literal[
-            None, "HWC", "CHW", "NHWC", "NCHW", "FCHW" ] = None,
+        layout: Literal[None, "HWC", "CHW", "NHWC", "NCHW", "FCHW"] = None,
         **dali_pipeline_kwargs,
     ):
         if layout not in _ALLOWED_LAYOUTS:
