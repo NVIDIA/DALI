@@ -126,8 +126,12 @@ class DType:
         self.type_id = type_id
 
         if kind == DType.Kind.float:
-            self.exponent_bits = exponent_bits or DType._default_exponent_bits(bits, True)
-            self.significand_bits = significand_bits or DType._default_significand_bits(bits, True)
+            if exponent_bits is None:
+                exponent_bits = DType._default_exponent_bits(bits, True)
+            if significand_bits is None:
+                significand_bits = DType._default_significand_bits(bits, True)
+            self.exponent_bits = exponent_bits
+            self.significand_bits = significand_bits
         else:
             self.exponent_bits = None
             self.significand_bits = None
@@ -278,7 +282,19 @@ class DType:
 
         t = parse_internal(name)
         if t.type_id is None:
-            t.type_id = _type2id[t]
+            try:
+                t.type_id = _type2id[t]
+            except KeyError:
+                # __init__ caches the temporary type before this lookup. Drop that
+                # entry so a later parse does not return the rejected type. Leave a
+                # name that already pointed at a different type alone.
+                if _name2type.get(t.name) is t:
+                    del _name2type[t.name]
+                if name != t.name and _name2type.get(name) is t:
+                    del _name2type[name]
+                raise ValueError(
+                    f"{name} is not a registered type. Expected a name such as f16 or f32."
+                ) from None
         if t.type_id is not None:
             t = _id2type[t.type_id]  # use the same DType instance as the one registered with the id
         _name2type[name] = t
