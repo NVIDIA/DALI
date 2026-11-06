@@ -132,3 +132,35 @@ index ac23651..78d6591 100644
      requirements:
        ignore_run_exports:
          by_name:
+diff --git a/.ci_support/linux_64_c_stdlib_version2.17cuda_compiler_version12.9cxx_compiler_version14.yaml b/.ci_support/linux_64_c_stdlib_version2.17cuda_compiler_version12.9cxx_compiler_version14.yaml
+index 55f8137..0d96c39 100644
+--- a/.ci_support/linux_64_c_stdlib_version2.17cuda_compiler_version12.9cxx_compiler_version14.yaml
++++ b/.ci_support/linux_64_c_stdlib_version2.17cuda_compiler_version12.9cxx_compiler_version14.yaml
+@@ -41,9 +41,9 @@ libcvcuda:
+ libjpeg_turbo:
+ - '3'
+ libnvcomp:
+-- 5.3.0.*
++- 6.0.*
+ libnvimgcodec:
+-- 0.9.*
++- 0.10.*
+ libopencv:
+ - 4.13.*
+ libprotobuf:
+diff --git a/.ci_support/linux_64_c_stdlib_version2.28cuda_compiler_version13.4cxx_compiler_version15.yaml b/.ci_support/linux_64_c_stdlib_version2.28cuda_compiler_version13.4cxx_compiler_version15.yaml
+index ff66761..94ed305 100644
+--- a/.ci_support/linux_64_c_stdlib_version2.28cuda_compiler_version13.4cxx_compiler_version15.yaml
++++ b/.ci_support/linux_64_c_stdlib_version2.28cuda_compiler_version13.4cxx_compiler_version15.yaml
+@@ -41,9 +41,9 @@ libcvcuda:
+ libjpeg_turbo:
+ - '3'
+ libnvcomp:
+-- 5.3.0.*
++- 6.0.*
+ libnvimgcodec:
+-- 0.9.*
++- 0.10.*
+ libopencv:
+ - 4.13.*
+ libprotobuf:

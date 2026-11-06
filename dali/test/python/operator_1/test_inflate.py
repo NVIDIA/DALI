@@ -167,6 +167,39 @@ def test_checks_sufficient_output_buffer():
     check_batch(inflated, [sample], batch_size=1)
 
 
+@has_operator("decoders.inflate")
+@restrict_platform(min_compute_cap=6.0)
+@params(
+    *[
+        (dtype, offset, oversized)
+        for dtype in [np.uint8, np.uint16]
+        for offset in range(4)
+        for oversized in [False, True]
+    ]
+)
+def test_unaligned_chunks(dtype, offset, oversized):
+    # Enough unaligned ranges to exercise the batched copy kernel in both directions.
+    sample = np.arange(85, dtype=dtype).reshape(17, 5)
+    chunks = [sample_to_lz4(frame) for frame in sample]
+    sizes = np.array([len(chunk) for chunk in chunks], dtype=np.int32)
+    offsets = np.array(offset + np.cumsum([0] + list(sizes[:-1])), dtype=np.int32)
+    compressed = np.concatenate([np.zeros(offset, dtype=np.uint8), *chunks])
+
+    @pipeline_def(batch_size=1, num_threads=4, device_id=0)
+    def pipeline():
+        data = fn.external_source(source=lambda: compressed, batch=False)
+        return fn.decoders.inflate(
+            data.gpu(),
+            shape=[7 if oversized else 5],
+            dtype=np_type_to_dali(dtype),
+            chunk_offsets=offsets,
+            chunk_sizes=sizes,
+        )
+
+    (inflated,) = pipeline().run()
+    check_batch(inflated, [sample], batch_size=1, oversized_shape=oversized)
+
+
 def _test_scalar_shape(dtype, shape, layout):
     def sample_source(sample_info):
         sample_size = np.prod(shape)
