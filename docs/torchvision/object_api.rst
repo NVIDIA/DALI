@@ -10,7 +10,7 @@ For a general introduction, see :doc:`overview`. To add an operator that is not 
 see :doc:`custom_operators`. For the functional counterparts, see :doc:`functional_api`.
 
 Every operator accepts the additional ``device`` argument (``"cpu"`` or ``"gpu"``).
-:class:`nvidia.dali.experimental.torchvision.Compose` additionally accepts ``batch_size``.
+:class:`nvidia.dali.experimental.torchvision.Compose` additionally accepts ``batch_size`` and ``layout``, see :doc:`overview`.
 
 
 .. currentmodule:: nvidia.dali.experimental.torchvision
