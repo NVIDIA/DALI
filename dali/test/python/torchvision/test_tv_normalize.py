@@ -29,6 +29,8 @@ from nvidia.dali.experimental.torchvision import (
     PILToTensor,
     RandomApply,
     RandomHorizontalFlip,
+    RandomVerticalFlip,
+    ToPureTensor,
 )
 from nvidia.dali.experimental.torchvision.v2.functional import normalize
 
@@ -422,3 +424,32 @@ def test_pil_input_rejected_inside_random_apply():
             Compose(ops)(img)
     # a tensor conversion before the Normalize makes it valid, also when both are wrapped
     Compose([RandomApply([RandomHorizontalFlip(p=1.0)], p=1.0)])(img)
+
+
+@params(
+    (PILToTensor, False),
+    (PILToTensor, True),
+    (ToPureTensor, False),
+    (ToPureTensor, True),
+)
+def test_normalize_after_pil_to_tensor(to_tensor, wrap_flips_in_random_apply):
+    """Transformations on a PIL image, a conversion to a tensor and then Normalize, which does not
+    support PIL images: the conversion makes the pipeline valid."""
+    rng = np.random.default_rng(1234)
+    img = Image.fromarray(rng.integers(0, 256, (6, 8, 3), dtype=np.uint8))
+    mean, std = [0.5, 0.4, 0.3], [0.2, 0.3, 0.4]
+
+    flips = [RandomHorizontalFlip(p=1.0), RandomVerticalFlip(p=1.0)]
+    if wrap_flips_in_random_apply:
+        flips = [RandomApply(flips, p=1.0)]
+    out = Compose([*flips, to_tensor(), Normalize(mean=mean, std=std)])(img)
+
+    # torchvision's Normalize accepts only floating point tensors, while this one also takes the
+    # uint8 tensor of the conversion and normalizes its values (in [0, 255]) as they are
+    flipped = transforms.functional.vflip(transforms.functional.hflip(img))
+    expected = transforms.functional.normalize(
+        transforms.functional.pil_to_tensor(flipped).float(), mean, std
+    )
+    assert isinstance(out, torch.Tensor)
+    assert out.dtype == torch.float32 and out.shape == expected.shape == (3, 6, 8)
+    assert torch.allclose(out, expected, atol=1e-3), f"Diff: {(out - expected).abs().max()}"

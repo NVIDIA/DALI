@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import os
+import typing
 import unittest
 
 from nvidia.dali.experimental.torchvision import (
@@ -25,6 +26,7 @@ from nvidia.dali.experimental.torchvision import (
     Resize,
 )
 import nvidia.dali.experimental.torchvision.v2.functional as fn_dali
+from nvidia.dali.experimental.torchvision.v2.compose import _ALLOWED_LAYOUTS
 
 from nose2.tools import params
 from nose_utils import assert_raises
@@ -495,6 +497,13 @@ def test_compose_layout_default_is_none():
     assert Compose([RandomHorizontalFlip(p=1.0)]).layout is None
 
 
+def test_compose_layout_annotation_lists_supported_layouts():
+    # type checkers and IDEs take the values from the annotation, Compose accepts _ALLOWED_LAYOUTS
+    # the raw annotation: Python 3.10's get_type_hints wraps it in Optional, as it defaults to None
+    annotated = typing.get_args(Compose.__init__.__annotations__["layout"])
+    assert set(annotated) == set(_ALLOWED_LAYOUTS), f"{annotated} vs {_ALLOWED_LAYOUTS}"
+
+
 def test_compose_chw_vs_fchw():
     # The same 4D tensor is a batch of images or a single sequence of frames,
     # depending on whether the batch size is set.
@@ -603,7 +612,7 @@ def test_compose_random_params_per_sample_or_sequence(name, make_op):
     ("",),
 )
 def test_compose_layout_unknown(layout):
-    with assert_raises(ValueError, glob=f"*Unknown layout '{layout}'*"):
+    with assert_raises(ValueError, glob=f"*Unsupported layout '{layout}'*"):
         Compose([RandomHorizontalFlip(p=1.0)], layout=layout)
 
 

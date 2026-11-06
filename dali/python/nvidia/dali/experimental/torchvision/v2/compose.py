@@ -339,8 +339,12 @@ class PipelineCHW(PipelineWithLayout):
             # DALI requires batch size to be present
             _input = _input.unsqueeze(0)
         output = super().run(_input)
+        output = output.reshape(*leading, *output.shape[-tail:])
 
-        return output.reshape(*leading, *output.shape[-tail:])
+        if self.output_type == "pil":
+            return self.output_to_pil(output)
+
+        return output
 
     def output_to_tensor(self, output: torch.Tensor) -> torch.Tensor:
         """Return the pipeline output as a ``torch.Tensor``."""
@@ -383,7 +387,7 @@ PipelineLayouts = {
     "NFCHW": (PipelineFCHW, True),
 }
 _UNSUPPORTED_LAYOUTS = ("NHWC", "FHWC", "NFHWC")
-_ALLOWED_LAYOUTS = (None, "HWC", "CHW", "NCHW", "FCHW", "NFCHW")
+_ALLOWED_LAYOUTS = (None, *PipelineLayouts)
 
 
 class Compose:
@@ -431,11 +435,13 @@ class Compose:
         op_list: List[Callable[..., Sequence[_DataNode] | _DataNode]],
         batch_size: int | None = None,
         num_threads: int = DEFAULT_NUM_THREADS,
-        layout: Literal[None, "HWC", "CHW", "NHWC", "NCHW", "FCHW"] = None,
+        layout: Literal[None, "HWC", "CHW", "NCHW", "FCHW", "NFCHW"] = None,
         **dali_pipeline_kwargs,
     ):
         if layout not in _ALLOWED_LAYOUTS:
-            raise ValueError(f"Unknown layout {layout!r}. Allowed values: {_ALLOWED_LAYOUTS}.")
+            raise ValueError(
+                f"Unsupported layout {layout!r}. Supported values: {_ALLOWED_LAYOUTS}."
+            )
         if batch_size is not None and batch_size < 1:
             raise ValueError(f"batch_size must be a positive integer or None, got {batch_size}.")
         if layout is not None:
