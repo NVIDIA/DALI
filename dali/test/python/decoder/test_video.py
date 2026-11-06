@@ -18,7 +18,10 @@ import numpy as np
 import cv2
 import av
 import io
+import shutil
 import struct
+import subprocess
+from fractions import Fraction
 import tempfile
 import nvidia.dali.types as types
 import glob
@@ -155,6 +158,211 @@ def test_video_reader_matching_frame_dimensions(width, image_type):
 
         output = pipeline().run()[0].at(0)
         np.testing.assert_allclose(output, mjpeg_reference(data, image_type), atol=2, rtol=0)
+
+
+def make_video(width, height, codec="libx264", num_frames=8, container_format="mp4", shift=0):
+    """Encodes a moving gradient to an in-memory video. The stream crops the size to a coded one.
+
+    A nonzero ``shift`` moves the timestamps back by that many frames, so that the first packets
+    have negative ones (the muxer is told to keep them).
+    """
+    y, x = np.mgrid[:height, :width]
+    encoded = io.BytesIO()
+    options = {"avoid_negative_ts": "disabled"} if shift else {}
+    with av.open(encoded, mode="w", format=container_format, options=options) as container:
+        try:
+            stream = container.add_stream(codec, rate=24)
+        except Exception:
+            raise SkipTest(f"{codec} is not available")
+        stream.width, stream.height, stream.pix_fmt = width, height, "yuv420p"
+        stream.time_base = Fraction(1, 24)
+        if codec == "libx265":
+            stream.options = {"x265-params": "keyint=4:bframes=0:log-level=none", "crf": "10"}
+        else:
+            stream.options = {"g": "4", "bf": "0", "crf": "10"}
+        packets = []
+        for i in range(num_frames):
+            pixels = np.stack(
+                ((x * 255 // width + 8 * i) % 256, y * 255 // height, (x + y + 20 * i) % 256),
+                axis=-1,
+            ).astype(np.uint8)
+            frame = av.VideoFrame.from_ndarray(pixels, format="rgb24")
+            frame.pts = i
+            packets.extend(stream.encode(frame))
+        packets.extend(stream.encode())
+        for packet in packets:
+            if shift:
+                packet.pts -= shift
+                packet.dts -= shift
+            container.mux(packet)
+    return bytearray(encoded.getvalue())
+
+
+def make_h264_video(width, height, num_frames=8):
+    return make_video(width, height, "libx264", num_frames)
+
+
+def set_mp4_container_size(data, width, height):
+    """Rewrites the size in the sample entry. The size in the SPS is not changed."""
+    stsd = data.index(b"stsd")
+    entry = min(i for i in (data.find(tag, stsd) for tag in (b"avc1", b"hvc1", b"hev1")) if i > 0)
+    struct.pack_into(">HH", data, entry + 28, width, height)
+
+
+def recrop_with_ffmpeg(data, crop_options):
+    """Rewrites the crop in the SPS of an H.264 stream, leaving the container size as it is."""
+    ffmpeg = os.environ.get("FFMPEG") or shutil.which("ffmpeg")
+    if not ffmpeg:
+        raise SkipTest("the ffmpeg executable is not available")
+    src = write_video(data, ".mp4")
+    dst = src + ".crop.mp4"
+    try:
+        command = [ffmpeg, "-y", "-loglevel", "error", "-i", src, "-c", "copy"]
+        subprocess.run(command + ["-bsf:v", f"h264_metadata={crop_options}", dst], check=True)
+        with open(dst, "rb") as video:
+            return bytearray(video.read())
+    finally:
+        for path in (src, dst):
+            if os.path.exists(path):
+                os.remove(path)
+
+
+def decode_with_pyav(path):
+    with av.open(path) as container:
+        return np.stack([f.to_ndarray(format="rgb24") for f in container.decode(video=0)])
+
+
+def read_video_gpu(path, num_frames, reader):
+    @pipeline_def(batch_size=1, num_threads=2, device_id=0)
+    def pipeline():
+        if reader == "decoder":
+            data = fn.external_source(
+                source=lambda: [np.fromfile(path, dtype=np.uint8)], dtype=types.UINT8
+            )
+            return fn.decoders.video(data, device="mixed")
+        if reader == "input":
+            return fn.experimental.inputs.video(
+                name="video_input",
+                device="mixed",
+                blocking=False,
+                sequence_length=num_frames,
+            )
+        return fn.experimental.readers.video(
+            filenames=[path], sequence_length=num_frames, device="gpu", random_shuffle=False
+        )
+
+    pipe = pipeline()
+    if reader == "input":
+        pipe.feed_input("video_input", [np.fromfile(path, dtype=np.uint8)])
+    return np.array(pipe.run()[0].as_cpu().at(0))
+
+
+def write_video(data, suffix):
+    handle, path = tempfile.mkstemp(suffix=suffix)
+    with os.fdopen(handle, "wb") as video:
+        video.write(data)
+    return path
+
+
+READERS = ("reader", "decoder", "input")
+
+
+@params(
+    ("libx264", 300, 232, (320, 240)),  # right and bottom
+    ("libx264", 320, 232, (320, 240)),  # bottom only
+    ("libx264", 300, 240, (320, 240)),  # right only
+    ("libx264", 304, 240, (320, 256)),  # no crop in the stream, only the container is bigger
+    ("libx264", 320, 240, (304, 232)),  # the container is smaller than the stream
+    ("libx265", 300, 232, (320, 240)),
+    ("libx265", 304, 240, (320, 256)),
+)
+def test_video_container_size_differs_from_stream_size(codec, width, height, container_size):
+    """The output has the size of the picture in the stream, not the one from the container."""
+    skip_if_m60()
+    data = make_video(width, height, codec)
+    set_mp4_container_size(data, *container_size)
+    path = write_video(data, ".mp4")
+    try:
+        reference = decode_with_pyav(path)
+        assert reference.shape[1:] == (height, width, 3), reference.shape
+        for reader in READERS:
+            output = read_video_gpu(path, len(reference), reader)
+            assert output.shape == reference.shape, (reader, output.shape, reference.shape)
+            diff = np.abs(output.astype(int) - reference.astype(int)).mean()
+            assert diff < 2.0, (reader, diff)
+    finally:
+        os.remove(path)
+
+
+def test_video_probe_keeps_leading_frames():
+    """Guards that a file with negative timestamps in the first packets (the seek to 0 skips them)
+    returns the same frames as the sequential decoding, once the probe has rewound the file."""
+    skip_if_m60()
+    data = make_video(64, 64, num_frames=48, container_format="mpegts", shift=24)
+    path = write_video(data, ".ts")
+    try:
+        with av.open(path) as container:
+            frames = list(container.decode(video=0))
+        assert len(frames) == 48 and sum(f.pts >= 0 for f in frames) == 24
+        # the frames with negative timestamps are not indexed by DALI
+        reference = np.stack([f.to_ndarray(format="rgb24") for f in frames if f.pts >= 0])
+        output = read_video_gpu(path, len(reference), "decoder")
+        assert output.shape == reference.shape, (output.shape, reference.shape)
+        diff = np.abs(output.astype(int) - reference.astype(int)).mean(axis=(1, 2, 3))
+        assert diff.max() < 3.5, diff
+    finally:
+        os.remove(path)
+
+
+def make_video_without_leading_timestamps():
+    return make_video(64, 64, num_frames=48, container_format="matroska", shift=24)
+
+
+def test_video_no_timestamps_in_first_packets_decoder():
+    """A file whose first packets have no timestamps is rejected by the index, as without the
+    probe. The seek after the probe lands after those packets and must not hide them.
+    Update the test if the index starts to accept such files."""
+    skip_if_m60()
+    path = write_video(make_video_without_leading_timestamps(), ".mkv")
+    try:
+        for reader in ("reader", "decoder"):
+            with assert_raises(RuntimeError, regex="has no valid timestamps"):
+                read_video_gpu(path, 48, reader)
+    finally:
+        os.remove(path)
+
+
+def test_video_no_timestamps_in_first_packets_input():
+    """The input operator does not index the file: all the frames are returned, as without the
+    probe (and not the ones after the packets that the seek skipped)."""
+    skip_if_m60()
+    path = write_video(make_video_without_leading_timestamps(), ".mkv")
+    try:
+        reference = decode_with_pyav(path)
+        output = read_video_gpu(path, len(reference), "input")
+        assert output.shape == reference.shape, (output.shape, reference.shape)
+        assert np.abs(output[0].astype(int) - reference[0].astype(int)).mean() < 2.0
+    finally:
+        os.remove(path)
+
+
+@params(
+    # a pure left/top crop is ignored by NVDEC: the full frame is output
+    ("crop_left=64:crop_top=8", (240, 320)),
+    # of a mixed crop, the right and bottom one is applied and the left and top one is not
+    ("crop_left=16:crop_right=16:crop_top=8:crop_bottom=8", (232, 304)),
+)
+def test_video_left_top_crop_is_not_supported(crop_options, expected_size):
+    """Documents the limitation: NVDEC does not report the left and top crop of the stream."""
+    skip_if_m60()
+    data = recrop_with_ffmpeg(make_h264_video(320, 240), crop_options)
+    path = write_video(data, ".mp4")
+    try:
+        for reader in READERS:
+            output = read_video_gpu(path, 8, reader)
+            assert output.shape[1:3] == expected_size, (reader, output.shape)
+    finally:
+        os.remove(path)
 
 
 def assert_unsupported_cpu_codec(run_pipeline):
