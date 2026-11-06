@@ -211,7 +211,7 @@ def main() -> int:
     )
     source = _path_info(args.source_dir)
     artifact = _path_info(args.artifact_dir)
-    shared_memory = _path_info(Path("/dev/shm"))
+    shared_memory = _path_info(Path("/dev/shm"))  # nosec B108
     torch_info = _torch_probe()
     git = _command_probe("git", ["--version"])
 

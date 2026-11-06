@@ -196,7 +196,7 @@ def _prepare_nvtx(connection: sqlite3.Connection) -> None:
         LEFT JOIN own_domain own USING (global_pid, domainId)
         LEFT JOIN unambiguous_domain any USING (domainId)
         LEFT JOIN PROCESSES p ON p.globalPid = r.global_pid;
-        """)
+        """)  # nosec B608
 
 
 def _select_window(
@@ -207,7 +207,7 @@ def _select_window(
         connection.execute(
             f"""SELECT * FROM normalized_nvtx
                 WHERE event_type IN ({_sql_list(_RANGE_TYPES | _INCOMPLETE_RANGE_TYPES)})
-                  AND name = ? AND domain = ?""",
+                  AND name = ? AND domain = ?""",  # nosec B608
             (_WINDOW_NAME, _WINDOW_DOMAIN),
         )
     )
@@ -254,7 +254,7 @@ def _unnamed_limitations(connection: sqlite3.Connection) -> list[str]:
     """Ranges whose domain ID resolved to no name leave worker coverage indeterminate."""
     unnamed = list(connection.execute(f"""SELECT pid, global_pid FROM normalized_nvtx
                 WHERE event_type IN ({_sql_list(_RANGE_TYPES)}) AND end IS NOT NULL AND end > start
-                  AND domain IS NULL AND domainId IS NOT NULL AND domainId != 0"""))
+                  AND domain IS NULL AND domainId IS NOT NULL AND domainId != 0"""))  # nosec B608
     if not unnamed:
         return []
     pids = sorted({str(_row_pid(row)) for row in unnamed})
@@ -277,7 +277,7 @@ def _clip_to_window(
             WHERE event_type IN ({_sql_list(_RANGE_TYPES)}) AND end IS NOT NULL
               AND end > {start} AND start < {end}
               AND domain IN ('{_WINDOW_DOMAIN}', '{_WORKER_DOMAIN}')
-              AND (global_pid = {global_pid} OR domain = '{_WORKER_DOMAIN}')""")
+              AND (global_pid = {global_pid} OR domain = '{_WORKER_DOMAIN}')""")  # nosec B608
 
 
 def _range_summaries(connection: sqlite3.Connection) -> list[dict[str, Any]]:
@@ -361,7 +361,7 @@ def _enum_labels(
 ) -> dict[int, str]:
     if table not in schema or not {"id", "label"} <= schema[table]:
         return {}
-    return dict(connection.execute(f'SELECT id, label FROM "{table}"'))
+    return dict(connection.execute(f'SELECT id, label FROM "{table}"'))  # nosec B608
 
 
 def _enum_label(labels: dict[int, str], value: Any) -> str:
@@ -405,7 +405,7 @@ def _load_gpu(
     for kind, (table, columns) in available.items():
         rows = connection.execute(
             f"""SELECT {", ".join(columns)} FROM "{table}"
-                WHERE globalPid = ? AND end > ? AND start < ?""",
+                WHERE globalPid = ? AND end > ? AND start < ?""",  # nosec B608
             (global_pid, window_start, window_end),
         )
         for row in rows:

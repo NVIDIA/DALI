@@ -87,8 +87,8 @@ After preflight, record the original checkout status and diff, then create a dis
 worktree. Reproduce the canonical code and configuration, including staged, unstaged, and
 relevant untracked changes. Put its package root or `src` directory first on `PYTHONPATH`,
 point out-of-tree builds to it, and record representative module `__file__` paths. Stop if it
-cannot reproduce the workload. Leave the original checkout untouched. Remove the worktree
-after diagnosis and keep the artifacts.
+cannot reproduce the workload. Leave the original checkout untouched. After diagnosis, remove
+the worktree with `git worktree remove --force` and keep the artifacts.
 
 ### 2. Instrument one bounded production run
 
