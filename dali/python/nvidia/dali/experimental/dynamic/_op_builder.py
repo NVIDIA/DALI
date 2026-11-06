@@ -64,6 +64,26 @@ def _scalar_decay(x):
 _unsupported_args = {"bytes_per_sample_hint", "preserve"}
 
 
+_VAR_POSITIONAL = "*" + _names._get_variadic_input_name()
+
+
+def _filter_merged_inputs(inputs, schema_name):
+    """Hide the inputs merged into arguments (see `_names.MERGED_INPUT_ARGS`) from a generated
+    `inputs` header list.
+
+    The hidden inputs are still accepted positionally (`reshape(x, shape_tensor)`,
+    `slice(x, anchor, shape)`), so a trailing "*" (no further positional arguments) is relaxed
+    into the `_VAR_POSITIONAL` catch-all. The operator rejects more inputs than it accepts.
+    """
+    merged_input_names = _names.get_merged_input_names(schema_name)
+    if not merged_input_names:
+        return inputs
+    inputs = [i for i in inputs if i.split("=", 1)[0] not in merged_input_names]
+    if inputs and inputs[-1] == "*":
+        inputs = inputs[:-1] + [_VAR_POSITIONAL]
+    return inputs
+
+
 def _find_or_create_module(root_module, module_path):
     return _internal.get_submodule(root_module, module_path)
 
@@ -269,7 +289,7 @@ def _get_inputs(schema):
     if inputs:
         inputs.append("/")
     if num_separate_inputs < max_inputs:
-        inputs.append("*inputs")
+        inputs.append(_VAR_POSITIONAL)
     else:
         inputs.append("*")
     return inputs
@@ -317,6 +337,7 @@ def build_call_function(schema, op_class):
             used_kwargs.remove("seed")
 
     inputs = _get_inputs(schema)
+    inputs = _filter_merged_inputs(inputs, op_class._schema_name)
 
     header = f"__call__({', '.join(['self'] + inputs + call_args + internal_args)})"
 
@@ -478,6 +499,7 @@ def build_fn_wrapper(op, fn_name=None, add_to_module=True):
     if fn_name is None:  # for tests
         fn_name = _to_snake_case(op._schema.OperatorName())
     inputs = _get_inputs(schema)
+    inputs = _filter_merged_inputs(inputs, op._schema_name)
 
     fixed_args = []
     tensor_args = []

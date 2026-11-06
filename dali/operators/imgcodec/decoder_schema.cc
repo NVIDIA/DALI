@@ -227,6 +227,11 @@ When using positional inputs, two extra boolean arguments `normalized_anchor`/`n
 can be used to specify the nature of the arguments provided. Using positional inputs for anchor
 and shape is incompatible with the named arguments specified above.
 
+Unlike the named arguments, the positional inputs are interpreted according to their type: integer
+coordinates are absolute, while floating point ones are relative unless `normalized_anchor` (for
+the anchor) or `normalized_shape` (for the shape) is ``False``. Relative coordinates given as named
+arguments go to `rel_start`, `rel_end` and `rel_shape`.
+
 The slice arguments should provide as many dimensions as specified by the `axis_names` or `axes`
 arguments.
 
