@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,6 +14,7 @@
 
 from typing import List, Tuple, Any, Optional
 import os
+import signal
 import socket
 import threading
 import warnings
@@ -454,6 +455,29 @@ class ProcPool:
             raise RuntimeError("Cannot receive data from the pool that has been closed")
         return self._result_queue.get(None)
 
+    def worker_failure_error(self, msg):
+        """Creates an error describing a failed communication with the workers, extended with
+        the information on the worker processes that exited unexpectedly, if any."""
+        observer = self._observer
+        exited_workers = observer._exited_workers if observer is not None else []
+        if not exited_workers:
+            return RuntimeError(msg)
+        details = "\n".join(
+            "  - worker {} (pid {}) {}".format(worker_id, pid, _describe_exit_code(exitcode))
+            for worker_id, pid, exitcode in exited_workers
+        )
+        return RuntimeError(
+            f"{msg}, because the following Python worker processes exited unexpectedly:\n"
+            f"{details}\n"
+            "Exceptions raised by the parallel external source callback are reported directly, "
+            "so this usually means that the worker process crashed or was killed by the "
+            "operating system. Check the output of the worker process for errors. Common causes "
+            "are running out of memory (the OOM killer sends SIGKILL), exceeding the shared "
+            "memory limit (check the available space in /dev/shm, for example the `--shm-size` "
+            "setting of a Docker container) or invalid memory access in native code run by the "
+            "callback (SIGSEGV, SIGBUS)."
+        )
+
     def send(self, tasks: List[Tuple[BufShmChunk, Any]], dedicated_worker_id):
         if self._observer is None:
             raise RuntimeError("Cannot send tasks to the pool that has been closed")
@@ -462,18 +486,20 @@ class ProcPool:
         ]
         if dedicated_worker_id is None:
             if self._general_task_queue.put(shm_msg_descs) is None:
-                raise RuntimeError("Sending tasks to workers failed")
+                raise self.worker_failure_error("Sending tasks to workers failed")
         else:
             worker_ctx = self._workers_contexts[dedicated_worker_id]
             if worker_ctx.dedicated_task_queue.put(shm_msg_descs) is None:
-                raise RuntimeError("Sending tasks to worker {} failed".format(dedicated_worker_id))
+                raise self.worker_failure_error(
+                    "Sending tasks to worker {} failed".format(dedicated_worker_id)
+                )
 
     def _sync_initialized_workers(self):
         workers_received = []
         while len(workers_received) < self.num_workers:
             shm_msgs = self.wait_for_res()
             if shm_msgs is None:
-                raise RuntimeError("Workers initialization failed")
+                raise self.worker_failure_error("Workers initialization failed")
             synced_ids = [shm_msg.worker_id for shm_msg in shm_msgs]
             assert all(
                 0 <= worker_id < self.num_workers and worker_id not in workers_received
@@ -533,10 +559,22 @@ class ProcPool:
             raise
 
 
+def _describe_exit_code(exitcode):
+    if exitcode >= 0:
+        return "exited with code {}".format(exitcode)
+    try:
+        signal_name = signal.Signals(-exitcode).name
+    except ValueError:
+        signal_name = "unknown signal"
+    return "was terminated by signal {} ({})".format(-exitcode, signal_name)
+
+
 class Observer:
     """
     Closes the whole pool of worker processes if any of the processes exits. The processes can also
     be closed from the main process by calling observer `close` method.
+    The ids, pids and exit codes of the processes that exited on their own are stored in
+    `_exited_workers`.
     ----------
     mp : Python's multiprocessing context (depending on start method used: `spawn` or `fork`)
     processes : List of multiprocessing Process instances
@@ -554,6 +592,7 @@ class Observer:
         self._processes = processes
         self._task_queues = task_queues
         self._result_queue = result_queue
+        self._exited_workers = []
         self.thread = threading.Thread(target=self._observer_thread, daemon=True)
         self.thread.start()
 
@@ -571,6 +610,11 @@ class Observer:
                     break
                 if any(ps[sentinel].exitcode is not None for sentinel in proc_sentinels):
                     exit_gently = False
+                    self._exited_workers = [
+                        (worker_id, proc.pid, proc.exitcode)
+                        for worker_id, proc in enumerate(self._processes)
+                        if proc.exitcode is not None
+                    ]
                     break
         except:  # noqa: E722
             exit_gently = False
@@ -852,7 +896,7 @@ class WorkerPool:
     def _receive_chunk(self):
         completed_tasks_meta = self.pool.wait_for_res()
         if completed_tasks_meta is None:
-            raise RuntimeError("Worker data receiving interrupted")
+            raise self.pool.worker_failure_error("Worker data receiving interrupted")
         for completed_task_meta in completed_tasks_meta:
             context = self.shm_chunks_contexts[completed_task_meta.shm_chunk_id]
             shm_chunk = context.shm_manager.get_chunk_by_id(completed_task_meta.shm_chunk_id)
