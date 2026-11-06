@@ -81,6 +81,13 @@ class Normalize(Operator):
     this transform will normalize each channel of the input torch.*Tensor
     i.e., output[channel] = (input[channel] - mean[channel]) / std[channel]
 
+    .. note::
+        Unlike torchvision, which accepts only floating point tensors, this transform also accepts
+        integer tensors, e.g. the ``uint8`` output of ``PILToTensor``, and converts them to
+        ``float32`` automatically. The values are not rescaled, so ``uint8`` input is normalized
+        in the [0, 255] range. To get the result that torchvision gives for the image converted to
+        [0, 1] (``ToDtype(torch.float32, scale=True)``), multiply ``mean`` and ``std`` by 255.
+
     Parameters
     ----------
     mean : sequence

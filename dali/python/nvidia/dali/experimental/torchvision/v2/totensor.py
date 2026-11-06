@@ -71,6 +71,15 @@ class ToPILImage(Operator):
     DALI pipeline.  It acts as a marker that causes ``PipelineCHW`` (torch.Tensor input path)
     to convert the CHW output tensor back to a ``PIL.Image``.
 
+    A ``CHW`` tensor gives a single ``PIL.Image``. A tensor with leading dimensions (e.g.
+    ``NCHW``, ``FCHW`` or ``NFCHW``) gives nested lists that mirror them: every ``CHW`` image
+    becomes a ``PIL.Image`` and every leading dimension a list, also when its size is 1. For
+    example, ``FCHW`` gives a list of frames and ``NFCHW`` a list of such lists.
+
+    .. note::
+        Nested lists are an extension to torchvision, whose ``ToPILImage`` accepts only 2D and 3D
+        tensors and raises ``ValueError`` for more dimensions.
+
     Parameters
     ----------
     device : Literal["cpu", "gpu"], optional, default = "cpu"

@@ -453,11 +453,6 @@ supported_layouts = [
 ]
 
 
-def make_distinct_frames(shape):
-    """Tensor in which every (spatial) row is different, so flips are always visible."""
-    return make_test_tensor(shape)
-
-
 def count_flipped(out, inp):
     """Returns (number of samples equal to the flipped input, number equal to the input),
     where the sample is the leading dimension of ``out`` and ``inp``."""
@@ -468,7 +463,8 @@ def count_flipped(out, inp):
 
 @params(*supported_layouts)
 def test_compose_layout_supported(layout, shape, batch_size):
-    test_tensor = make_distinct_frames(shape)
+    # no row of make_test_tensor is a palindrome, so every flip changes the tensor
+    test_tensor = make_test_tensor(shape)
     dali_pipeline = Compose([RandomHorizontalFlip(p=1.0)], batch_size=batch_size, layout=layout)
     out = dali_pipeline(test_tensor)
     assert dali_pipeline.active_pipeline.get_layout() == layout
@@ -478,7 +474,7 @@ def test_compose_layout_supported(layout, shape, batch_size):
 
 @params(*supported_layouts)
 def test_compose_layout_inferred(layout, shape, batch_size):
-    test_tensor = make_distinct_frames(shape)
+    test_tensor = make_test_tensor(shape)
     dali_pipeline = Compose([RandomHorizontalFlip(p=1.0)], batch_size=batch_size)
     out = dali_pipeline(test_tensor)
     assert dali_pipeline.active_pipeline.get_layout() == layout
@@ -638,7 +634,8 @@ def test_compose_layout_ndim_mismatch(layout, shape):
     dali_pipeline = Compose(
         [RandomHorizontalFlip(p=1.0)], batch_size=batch_size_for(layout), layout=layout
     )
-    with assert_raises(ValueError, glob=f"*{len(shape)} dimensions for layout {layout}, expected*"):
+    expected = f"Unsupported input: a tensor with {len(shape)} dimensions for layout {layout}, *"
+    with assert_raises(ValueError, glob=expected):
         dali_pipeline(make_test_tensor(shape))
 
 
@@ -686,23 +683,6 @@ def test_compose_leading_dims_default_is_one_sample():
     out = Compose([RandomHorizontalFlip(p=0.5)], seed=SEED)(test_tensor)
     flipped, same = count_flipped(out, test_tensor)
     assert flipped in (0, 32) and same in (0, 32) and flipped + same == 32
-
-
-@params(
-    (None, (8, 8)),
-    ("CHW", (4, 3, 8, 8)),
-    ("NCHW", (3, 8, 8)),
-    ("FCHW", (3, 8, 8)),
-    ("NFCHW", (4, 3, 8, 8)),
-)
-def test_compose_unsupported_ndim_error_message(layout, shape):
-    dali_pipeline = Compose(
-        [RandomHorizontalFlip(p=1.0)], batch_size=batch_size_for(layout), layout=layout
-    )
-    with assert_raises(
-        ValueError, glob=f"Unsupported input: a tensor with {len(shape)} dimensions*"
-    ):
-        dali_pipeline(make_test_tensor(shape))
 
 
 @params((0,), (-1,))

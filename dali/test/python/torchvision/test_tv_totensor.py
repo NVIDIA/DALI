@@ -610,6 +610,35 @@ def test_to_pil_image_operator_batch_returns_list():
     assert all(isinstance(img, Image.Image) for img in out), "Not all batch outputs are PIL Images"
 
 
+@params(
+    ("NCHW", 2, (2, 3, 8, 8)),
+    ("FCHW", None, (4, 3, 8, 8)),
+    ("NFCHW", 2, (2, 4, 3, 8, 8)),
+    ("NCHW", 2, (2, 1, 3, 8, 8)),  # a size-1 leading dimension beyond the layout is kept
+)
+def test_to_pil_image_operator_nests_leading_dimensions(layout, batch_size, shape):
+    """ToPILImage gives nested lists of PIL Images that mirror the leading dimensions of the input
+    (an extension: torchvision's ToPILImage accepts only 2D and 3D tensors)."""
+    # random images, so that a frame in a wrong place cannot match by chance
+    generator = torch.Generator().manual_seed(1234)
+    tensor = torch.randint(0, 256, shape, dtype=torch.uint8, generator=generator)
+    out = Compose([ToPILImage()], batch_size=batch_size, layout=layout)(tensor)
+
+    def check(nested, expected, where):
+        if expected.ndim == 3:
+            assert isinstance(nested, Image.Image), f"{where}: expected PIL Image, got {nested}"
+            assert np.array_equal(
+                np.array(nested), np.array(tv_fn.to_pil_image(expected))
+            ), f"{where}: pixel mismatch vs torchvision"
+            return
+        assert isinstance(nested, list), f"{where}: expected list, got {type(nested)}"
+        assert len(nested) == expected.shape[0], f"{where}: {len(nested)} vs {expected.shape[0]}"
+        for i, (item, sub) in enumerate(zip(nested, expected, strict=True)):
+            check(item, sub, f"{where}[{i}]")
+
+    check(out, tensor, "out")
+
+
 # ---------------------------------------------------------------------------
 # Pipeline mode — conversion operator ordering (last marker wins)
 # ---------------------------------------------------------------------------
