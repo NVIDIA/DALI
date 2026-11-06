@@ -1,4 +1,4 @@
-// Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,6 +14,9 @@
 
 #include <gtest/gtest.h>
 #include <fcntl.h>
+#include <algorithm>
+#include <atomic>
+#include <exception>
 #include <utility>
 #include <vector>
 #include <thread>
@@ -183,6 +186,76 @@ TEST(GDSMem, StagingEngine) {
       ASSERT_EQ(host[i], 0xaa);
     for (size_t i = chunk; i < 2*chunk; i++)
       ASSERT_EQ(host[i], 0xbb);
+  });
+}
+
+TEST(GDSMemTest, ConcurrentStagingBufferReuse) {
+  SkipIfIncompatible([&] {
+    CUFileDriverScope scope;
+    CUDAStream copy_stream = CUDAStream::Create(true);
+    // A small pool and immediate commits make multiple readers wait on the same event,
+    // which is repeatedly re-recorded as other readers submit more copies.
+    GDSStagingEngine engine(-1, 2, 0);
+    engine.set_stream(copy_stream);
+    constexpr int num_threads = 8;
+    constexpr int iterations = 32;
+    const size_t copy_size = std::min<size_t>(engine.chunk_size(), 1 << 20);
+    const size_t output_size = num_threads * iterations * copy_size;
+    auto output = mm::alloc_raw_unique<uint8_t, mm::memory_kind::device>(output_size);
+    int device;
+    CUDA_CALL(cudaGetDevice(&device));
+    std::atomic<bool> start{false};
+    std::vector<std::exception_ptr> errors(num_threads);
+    std::vector<std::thread> threads;
+    for (int t = 0; t < num_threads; t++) {
+      threads.emplace_back([&, t] {
+        while (!start.load())
+          std::this_thread::yield();
+        try {
+          CUDA_CALL(cudaSetDevice(device));
+          CUDAStream fill_stream = CUDAStream::Create(true);
+          for (int i = 0; i < iterations; i++) {
+            auto buffer = engine.get_staging_buffer();
+            try {
+              // Complete the write before submitting the copy, just as a synchronous
+              // cuFileRead would. Different readers and iterations write different data.
+              int value = (t * 31 + i) % 255 + 1;
+              CUDA_CALL(cudaMemsetAsync(buffer.at(0), value, copy_size, fill_stream));
+              CUDA_CALL(cudaStreamSynchronize(fill_stream));
+            } catch (...) {
+              engine.return_unused(std::move(buffer));
+              throw;
+            }
+            size_t offset = (t * iterations + i) * copy_size;
+            engine.copy_to_client(output.get() + offset, copy_size, std::move(buffer));
+          }
+        } catch (...) {
+          errors[t] = std::current_exception();
+        }
+      });
+    }
+    start = true;
+    for (auto &thread : threads)
+      thread.join();
+    engine.commit();
+    CUDA_CALL(cudaStreamSynchronize(copy_stream));
+    for (auto &error : errors) {
+      if (error)
+        std::rethrow_exception(error);
+    }
+    std::vector<uint8_t> host(output_size);
+    CUDA_CALL(cudaMemcpy(host.data(), output.get(), output_size, cudaMemcpyDeviceToHost));
+    for (int t = 0; t < num_threads; t++) {
+      for (int i = 0; i < iterations; i++) {
+        uint8_t expected = (t * 31 + i) % 255 + 1;
+        size_t offset = (t * iterations + i) * copy_size;
+        auto begin = host.begin() + offset;
+        auto end = begin + copy_size;
+        auto mismatch = std::find_if(begin, end, [=](uint8_t value) { return value != expected; });
+        ASSERT_TRUE(mismatch == end)
+            << "Reader " << t << ", iteration " << i << ", byte " << mismatch - begin;
+      }
+    }
   });
 }
 
