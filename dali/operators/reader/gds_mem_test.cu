@@ -199,6 +199,9 @@ TEST(GDSMemTest, ConcurrentStagingBufferReuse) {
     engine.set_stream(copy_stream);
     constexpr int num_threads = 8;
     constexpr int iterations = 32;
+    auto sample_value = [](int t, int i) -> uint8_t {
+      return (t * iterations + i) % 255 + 1;
+    };
     const size_t copy_size = std::min<size_t>(engine.chunk_size(), 1 << 20);
     const size_t output_size = num_threads * iterations * copy_size;
     auto output = mm::alloc_raw_unique<uint8_t, mm::memory_kind::device>(output_size);
@@ -219,7 +222,7 @@ TEST(GDSMemTest, ConcurrentStagingBufferReuse) {
             try {
               // Complete the write before submitting the copy, just as a synchronous
               // cuFileRead would. Different readers and iterations write different data.
-              int value = (t * 31 + i) % 255 + 1;
+              uint8_t value = sample_value(t, i);
               CUDA_CALL(cudaMemsetAsync(buffer.at(0), value, copy_size, fill_stream));
               CUDA_CALL(cudaStreamSynchronize(fill_stream));
             } catch (...) {
@@ -247,7 +250,7 @@ TEST(GDSMemTest, ConcurrentStagingBufferReuse) {
     CUDA_CALL(cudaMemcpy(host.data(), output.get(), output_size, cudaMemcpyDeviceToHost));
     for (int t = 0; t < num_threads; t++) {
       for (int i = 0; i < iterations; i++) {
-        uint8_t expected = (t * 31 + i) % 255 + 1;
+        uint8_t expected = sample_value(t, i);
         size_t offset = (t * iterations + i) * copy_size;
         auto begin = host.begin() + offset;
         auto end = begin + copy_size;
