@@ -205,9 +205,19 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
   /**
    * @brief Checks if the codec can be decoded by this decoder, as it is done when the video stream
    *        is selected: it is supported by the decoder and by NVDEC on this platform
-   *        (8-bit 4:2:0). It warns if it is not.
+   *        (8-bit 4:2:0). It warns if it is not, unless `warn` is false.
+   *
+   * It queries NVDEC of the current device (once per codec, cached per process), so the calling
+   * thread must have a current CUDA context.
    */
-  static bool IsCodecSupported(AVCodecID codec_id);
+  static bool IsCodecSupported(AVCodecID codec_id, bool warn = true);
+
+  /**
+   * @brief The codecs for which `IsCodecSupported` is true: a codec is supported if and only if it
+   *        is on this list. The list is made on the calling thread (with the same requirement as
+   *        `IsCodecSupported`), and can then be used from any thread.
+   */
+  static std::vector<AVCodecID> SupportedCodecs();
 
   static bool SupportsCodec(AVCodecID codec_id, uint8_t bit_depth = 8);
 
