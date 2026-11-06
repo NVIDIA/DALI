@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -63,6 +63,15 @@ inline bool HasSavePreprocessedAnnotationsDir(const OpSpec &spec) {
     (spec.HasArgument("dump_meta_files_path") && spec.GetArgument<bool>("dump_meta_files_path"));
 }
 
+/**
+ * @brief The pixel coordinates of a polygon vertex, as rasterized for pixelwise masks
+ *
+ * With `ratio`, the vertices are stored relative to the image size.
+ */
+inline vec2 PolygonVertexPixels(vec2 v, bool ratio, int h, int w) {
+  return ratio ? vec2(v.x * w, v.y * h) : v;
+}
+
 struct RLEMask : public UniqueHandle<RLE, RLEMask> {
   DALI_INHERIT_UNIQUE_HANDLE(RLE, RLEMask)
 
@@ -74,10 +83,6 @@ struct RLEMask : public UniqueHandle<RLE, RLEMask> {
 
   RLEMask(siz h, siz w, span<const uint> counts) {
     rleInit(&handle_, h, w, counts.size(), const_cast<uint*>(counts.data()));
-  }
-
-  RLEMask(siz h, siz w, const char* str) {
-    rleFrString(&handle_, const_cast<char*>(str), h, w);
   }
 
   static constexpr bool is_null_handle(const RLE &handle) {
@@ -181,6 +186,12 @@ class DLL_PUBLIC CocoLoader : public FileLabelLoaderBase<true> {
     } else {
       ParseJsonAnnotations();
     }
+    ValidateAnnotations();
+    if (!has_preprocessed_annotations_ &&
+        spec_.GetArgument<bool>("save_preprocessed_annotations")) {
+      SavePreprocessedAnnotations(
+          spec_.GetArgument<std::string>("save_preprocessed_annotations_dir"), file_label_entries_);
+    }
 
     DALI_ENFORCE(SizeImpl() > 0, "No files found.");
     if (shuffle_) {
@@ -200,6 +211,15 @@ class DLL_PUBLIC CocoLoader : public FileLabelLoaderBase<true> {
   void ParsePreprocessedAnnotations();
 
   void ParseJsonAnnotations();
+
+  /**
+   * @brief Checks that the per-image ranges and indices are within the loaded annotation data.
+   *
+   * When pixelwise masks are requested, also checks that image sizes are positive, that RLE masks
+   * match the image size and cover each pixel once, and that polygons have finite coordinates
+   * and sizes that `rleFrPoly` can rasterize. Polygons may extend outside the image.
+   */
+  void ValidateAnnotations() const;
 
   void SavePreprocessedAnnotations(
     const std::string &path, const std::vector<FileLabelEntry> &image_id_pairs);
