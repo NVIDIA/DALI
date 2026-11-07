@@ -213,7 +213,7 @@ class ColorJitter(Operator):
 
     def _kernel(self, data_input):
         """
-        Performs the color jitter using the ``fn.color_twist`` operator.
+        Performs the color jitter using the ``fn.color_twist`` and ``fn.contrast`` operators.
         """
         # torchvision expresses hue as a fraction of a full turn (|hue| <= 0.5), while
         # fn.color_twist takes the hue delta in degrees.
@@ -225,11 +225,20 @@ class ColorJitter(Operator):
         data_input = fn.color_twist(
             data_input,
             brightness=brightness,
-            contrast=contrast,
             saturation=saturation,
             hue=hue,
             device=self.device,
         )
+
+        if self.contrast != (1.0, 1.0):
+            # torchvision blends towards the mean of the grayscale image, while fn.color_twist
+            # uses the middle of the input range.
+            gray = fn.color_space_conversion(
+                data_input, image_type=dali.types.RGB, output_type=dali.types.GRAY
+            )
+            data_input = fn.contrast(
+                data_input, contrast=contrast, contrast_center=fn.reductions.mean(gray).cpu()
+            )
 
         return data_input
 

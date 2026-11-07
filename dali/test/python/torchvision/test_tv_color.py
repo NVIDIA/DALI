@@ -252,6 +252,23 @@ def test_colorjitter_hue_range_is_converted(device):
         )
 
 
+@cartesian_params((0.5, 1.5), ("cpu", "gpu"))
+def test_colorjitter_contrast_matches_torchvision(contrast, device):
+    # torchvision blends towards the mean of the grayscale image. The darkened copy has a mean far
+    # from the middle of the range, where blending towards 128 is off by tens of levels.
+    cj = Compose([ColorJitter(contrast=(contrast, contrast), device=device)])
+
+    for fn in test_files:
+        img = Image.open(fn).convert("RGB")
+        for x in (img, img.point(lambda v: v // 4)):
+            expected = transforms.functional.adjust_contrast(x, contrast)
+            actual = cj(x)
+            assert verify_non_one_off(
+                transforms.functional.pil_to_tensor(actual),
+                transforms.functional.pil_to_tensor(expected),
+            ), f"contrast={contrast} differs from torchvision by more than 1: {fn}"
+
+
 """
 TODO (https://github.com/NVIDIA/DALI/issues/DALI-4656):
 DALI ColorJitter does not currently work on CHW layout
