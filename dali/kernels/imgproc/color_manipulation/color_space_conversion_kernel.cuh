@@ -131,6 +131,43 @@ struct YCbCr_to_BGR_Converter {
   }
 };
 
+template <typename Out, typename In, typename Illuminant>
+struct RGB_to_Lab_Converter {
+  static constexpr int out_pixel_sz = 3;
+  static constexpr int in_pixel_sz = 3;
+  static DALI_HOST_DEV DALI_FORCEINLINE vec<out_pixel_sz, Out> convert(vec<in_pixel_sz, In> rgb) {
+    return Illuminant::template rgb_to_lab<Out, In>(rgb);
+  }
+};
+
+template <typename Out, typename In, typename Illuminant>
+struct BGR_to_Lab_Converter {
+  static constexpr int out_pixel_sz = 3;
+  static constexpr int in_pixel_sz = 3;
+  static DALI_HOST_DEV DALI_FORCEINLINE vec<out_pixel_sz, Out> convert(vec<in_pixel_sz, In> bgr) {
+    return Illuminant::template rgb_to_lab<Out, In>({bgr[2], bgr[1], bgr[0]});
+  }
+};
+
+template <typename Out, typename In, typename Illuminant>
+struct Lab_to_RGB_Converter {
+  static constexpr int out_pixel_sz = 3;
+  static constexpr int in_pixel_sz = 3;
+  static DALI_HOST_DEV DALI_FORCEINLINE vec<out_pixel_sz, Out> convert(vec<in_pixel_sz, In> lab) {
+    return Illuminant::template lab_to_rgb<Out, In>(lab);
+  }
+};
+
+template <typename Out, typename In, typename Illuminant>
+struct Lab_to_BGR_Converter {
+  static constexpr int out_pixel_sz = 3;
+  static constexpr int in_pixel_sz = 3;
+  static DALI_HOST_DEV DALI_FORCEINLINE vec<out_pixel_sz, Out> convert(vec<in_pixel_sz, In> lab) {
+    auto rgb = Illuminant::template lab_to_rgb<Out, In>(lab);
+    return {rgb[2], rgb[1], rgb[0]};
+  }
+};
+
 template <typename Converter, typename Out, typename In>
 __global__ void ColorSpaceConvKernel(Out *output, const In *input, int64_t sz) {
   int64_t idx = blockIdx.x * blockDim.x + threadIdx.x;
@@ -156,10 +193,24 @@ void LaunchColorSpaceConvKernel(Out *output, const In *input, int64_t npixels,
   CUDA_CALL(cudaGetLastError());
 }
 
+template <typename Illuminant, typename Out, typename In>
+auto LabKernelLaunch(const std::pair<DALIImageType, DALIImageType> &conversion)
+    -> void (*)(Out *, const In *, int64_t, unsigned int, unsigned int, cudaStream_t) {
+  if (conversion.second == DALI_LAB) {
+    return conversion.first == DALI_RGB
+               ? &LaunchColorSpaceConvKernel<RGB_to_Lab_Converter<Out, In, Illuminant>, Out, In>
+               : &LaunchColorSpaceConvKernel<BGR_to_Lab_Converter<Out, In, Illuminant>, Out, In>;
+  }
+  return conversion.second == DALI_RGB
+             ? &LaunchColorSpaceConvKernel<Lab_to_RGB_Converter<Out, In, Illuminant>, Out, In>
+             : &LaunchColorSpaceConvKernel<Lab_to_BGR_Converter<Out, In, Illuminant>, Out, In>;
+}
+
 // TODO(janton): Write a generic batched color space conversion kernel template
 template <typename Out, typename In>
 void RunColorSpaceConversionKernel(Out *output, const In *input, DALIImageType out_type,
-                                   DALIImageType in_type, int64_t npixels, cudaStream_t stream) {
+                                   DALIImageType in_type, int64_t npixels, cudaStream_t stream,
+                                   float white_point = 65.0f) {
   using ImageTypePair = std::pair<DALIImageType, DALIImageType>;
   ImageTypePair conversion{in_type, out_type};
   const ImageTypePair kRGB_TO_BGR{DALI_RGB, DALI_BGR};
@@ -174,6 +225,10 @@ void RunColorSpaceConversionKernel(Out *output, const In *input, DALIImageType o
   const ImageTypePair kGRAY_TO_RGB{DALI_GRAY, DALI_RGB};
   const ImageTypePair kGRAY_TO_BGR{DALI_GRAY, DALI_BGR};
   const ImageTypePair kGRAY_TO_YCbCr{DALI_GRAY, DALI_YCbCr};
+  const ImageTypePair kRGB_TO_LAB{DALI_RGB, DALI_LAB};
+  const ImageTypePair kBGR_TO_LAB{DALI_BGR, DALI_LAB};
+  const ImageTypePair kLAB_TO_RGB{DALI_LAB, DALI_RGB};
+  const ImageTypePair kLAB_TO_BGR{DALI_LAB, DALI_BGR};
 
   // For CUDA kernel. A zero-pixel sample yields grid == 0, which CUDA rejects with
   // cudaErrorInvalidConfiguration rather than treating as a no-op, so the launch is skipped in
@@ -206,6 +261,18 @@ void RunColorSpaceConversionKernel(Out *output, const In *input, DALIImageType o
     kernel_launch = &LaunchColorSpaceConvKernel<Gray_to_YCbCr_Converter<Out, In>, Out, In>;
   } else if (conversion == kYCbCr_TO_GRAY) {
     kernel_launch = &LaunchColorSpaceConvKernel<YCbCr_to_Gray_Converter<Out, In>, Out, In>;
+  } else if (conversion == kRGB_TO_LAB || conversion == kBGR_TO_LAB ||
+             conversion == kLAB_TO_RGB || conversion == kLAB_TO_BGR) {
+    if constexpr (std::is_same<Out, uint8_t>::value && std::is_same<In, uint8_t>::value) {
+      if (white_point != 50.0f && white_point != 65.0f) {
+        DALI_FAIL(make_string("Unsupported white point: ", white_point,
+                              ". Supported values are 50 (D50) and 65 (D65)."));
+      }
+      kernel_launch = white_point == 50.0f ? LabKernelLaunch<cielab_d50, Out, In>(conversion)
+                                            : LabKernelLaunch<cielab_d65, Out, In>(conversion);
+    } else {
+      DALI_FAIL("CIELAB conversion supports only uint8 tensors");
+    }
   } else {
     DALI_FAIL(make_string("conversion not supported ", in_type, " to ", out_type));
   }
