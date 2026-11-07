@@ -1182,6 +1182,48 @@ TEST(ColorSpaceConversionTest, ITU_R_BT709_YCbCr2RGB_RoundTripOfPrimaries) {
   }
 }
 
+TEST(ColorSpaceConversionTest, CIELabD65PinnedU8) {
+  // OpenCV COLOR_RGB2Lab reference values for selected D65 colors.
+  EXPECT_EQ((cielab_d65::rgb_to_lab<uint8_t>(u8vec3(0, 0, 0))), u8vec3(0, 128, 128));
+  EXPECT_EQ((cielab_d65::rgb_to_lab<uint8_t>(u8vec3(255, 255, 255))), u8vec3(255, 128, 128));
+  EXPECT_EQ((cielab_d65::rgb_to_lab<uint8_t>(u8vec3(255, 0, 0))), u8vec3(136, 208, 195));
+  EXPECT_EQ((cielab_d65::rgb_to_lab<uint8_t>(u8vec3(0, 255, 0))), u8vec3(224, 42, 211));
+  EXPECT_EQ((cielab_d65::rgb_to_lab<uint8_t>(u8vec3(0, 0, 255))), u8vec3(82, 207, 20));
+  EXPECT_EQ((cielab_d65::rgb_to_lab<uint8_t>(u8vec3(255, 255, 0))), u8vec3(248, 106, 222));
+  EXPECT_EQ((cielab_d65::rgb_to_lab<uint8_t>(u8vec3(0, 255, 255))), u8vec3(232, 80, 114));
+  EXPECT_EQ((cielab_d65::rgb_to_lab<uint8_t>(u8vec3(255, 0, 255))), u8vec3(154, 226, 67));
+  EXPECT_EQ((cielab_d65::rgb_to_lab<uint8_t>(u8vec3(128, 128, 128))), u8vec3(137, 128, 128));
+}
+
+TEST(ColorSpaceConversionTest, CIELabD50PinnedU8) {
+  // Reference values for the Bradford-adapted D50 sRGB-to-Lab transform.
+  EXPECT_EQ((cielab_d50::rgb_to_lab<uint8_t>(u8vec3(0, 0, 0))), u8vec3(0, 128, 128));
+  EXPECT_EQ((cielab_d50::rgb_to_lab<uint8_t>(u8vec3(255, 255, 255))), u8vec3(255, 128, 128));
+  EXPECT_EQ((cielab_d50::rgb_to_lab<uint8_t>(u8vec3(255, 0, 0))), u8vec3(138, 209, 198));
+  EXPECT_EQ((cielab_d50::rgb_to_lab<uint8_t>(u8vec3(0, 255, 0))), u8vec3(224, 49, 209));
+  EXPECT_EQ((cielab_d50::rgb_to_lab<uint8_t>(u8vec3(0, 0, 255))), u8vec3(75, 196, 16));
+  EXPECT_EQ((cielab_d50::rgb_to_lab<uint8_t>(u8vec3(128, 128, 128))), u8vec3(137, 128, 128));
+
+  // Verify D50 and D65 differ on chromatic primaries
+  EXPECT_NE((cielab_d50::rgb_to_lab<uint8_t>(u8vec3(0, 0, 255))),
+            (cielab_d65::rgb_to_lab<uint8_t>(u8vec3(0, 0, 255))));
+}
+TEST(ColorSpaceConversionTest, CIELabRoundTripU8) {
+  for (auto rgb : {u8vec3(0, 0, 0), u8vec3(255, 255, 255), u8vec3(255, 0, 0),
+                   u8vec3(0, 255, 0), u8vec3(0, 0, 255), u8vec3(255, 255, 0),
+                   u8vec3(0, 255, 255), u8vec3(255, 0, 255), u8vec3(128, 128, 128)}) {
+    auto lab_d65 = cielab_d65::rgb_to_lab<uint8_t>(rgb);
+    auto back_d65 = cielab_d65::lab_to_rgb<uint8_t>(lab_d65);
+    auto lab_d50 = cielab_d50::rgb_to_lab<uint8_t>(rgb);
+    auto back_d50 = cielab_d50::lab_to_rgb<uint8_t>(lab_d50);
+
+    for (int c = 0; c < 3; c++) {
+      EXPECT_NEAR(back_d65[c], rgb[c], 12);
+      EXPECT_NEAR(back_d50[c], rgb[c], 12);
+    }
+  }
+}
+
 }  // namespace test
 }  // namespace color
 }  // namespace kernels

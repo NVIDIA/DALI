@@ -152,7 +152,8 @@ struct type2ocv<float> {
 int DLL_PUBLIC GetOpenCvChannelType(size_t c);
 
 void DLL_PUBLIC OpenCvColorConversion(DALIImageType input_type, const cv::Mat& input_img,
-                                      DALIImageType output_type, cv::Mat& output_img);
+                                      DALIImageType output_type, cv::Mat& output_img,
+                                      float white_point = 65.0f);
 
 }  // namespace dali
 

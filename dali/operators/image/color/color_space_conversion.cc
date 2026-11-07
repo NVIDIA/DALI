@@ -25,6 +25,12 @@ DALI_SCHEMA(ColorSpaceConversion)
     .InputLayout({"FDHWC", "FHWC", "DHWC", "HWC"})
     .AddArg("image_type", R"code(The color space of the input image.)code", DALI_IMAGE_TYPE)
     .AddArg("output_type", R"code(The color space of the output image.)code", DALI_IMAGE_TYPE)
+    .AddOptionalArg<float>("white_point",
+        R"code(Reference white point illuminant for CIELAB conversions.
+
+Supported values are ``65`` (D65 standard illuminant used by sRGB and OpenCV) and
+``50`` (D50 standard illuminant used by ICC color profiles).)code",
+        65.0f)
     .AllowSequences()
     .SupportVolumetric();
 
@@ -51,7 +57,7 @@ void ColorSpaceConversion<CPUBackend>::RunImpl(Workspace &ws) {
           CreateMatFromPtr(height, width, GetOpenCvChannelType(in_nchannels_), in_view[i].data);
         auto cv_out =
           CreateMatFromPtr(height, width, GetOpenCvChannelType(out_nchannels_), out_view[i].data);
-        OpenCvColorConversion(input_type_, cv_in, output_type_, cv_out);
+        OpenCvColorConversion(input_type_, cv_in, output_type_, cv_out, white_point_);
       }, in_sh.tensor_size(i));
   }
   thread_pool.RunAll();

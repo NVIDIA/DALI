@@ -36,7 +36,7 @@ void ColorSpaceConversion<GPUBackend>::RunImpl(Workspace &ws) {
     auto sample_sh = in_sh.tensor_shape_span(i);
     int64_t npixels = volume(sample_sh.begin(), sample_sh.end() - 1);
     kernels::color::RunColorSpaceConversionKernel(out_view[i].data, in_view[i].data, output_type_,
-                                                  input_type_, npixels, stream);
+                                                  input_type_, npixels, stream, white_point_);
   }
 }
 
