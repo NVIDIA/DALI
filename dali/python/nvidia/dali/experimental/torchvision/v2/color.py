@@ -232,13 +232,11 @@ class ColorJitter(Operator):
 
         if self.contrast != (1.0, 1.0):
             # torchvision blends towards the mean of the grayscale image, while fn.color_twist
-            # uses the middle of the input range.
-            gray = fn.color_space_conversion(
-                data_input, image_type=dali.types.RGB, output_type=dali.types.GRAY
-            )
-            data_input = fn.contrast(
-                data_input, contrast=contrast, contrast_center=fn.reductions.mean(gray).cpu()
-            )
+            # uses the middle of the input range. The grayscale mean is the weighted sum of the
+            # channel means, so no type-restricted color space conversion is needed.
+            mean = fn.reductions.mean(data_input, axis_names="HW")
+            gray_mean = 0.299 * mean[0] + 0.587 * mean[1] + 0.114 * mean[2]
+            data_input = fn.contrast(data_input, contrast=contrast, contrast_center=gray_mean.cpu())
 
         return data_input
 
