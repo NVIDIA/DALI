@@ -841,6 +841,28 @@ TEST_F(FramesDecoderTest_CpuOnlyTests, InvalidSeek) {
     "Invalid seek frame id. frame_id = 60, num_frames = 50");
 }
 
+TEST_F(FramesDecoderTest_CpuOnlyTests, HandleBoundaryReflectsWithinRoi) {
+  using boundary::BoundaryType;
+  FramesDecoderCpu decoder(cfr_videos_paths_[0]);
+  // ROI [10, 20), e.g. a file_list entry that doesn't start at frame 0. Reflecting must stay
+  // within the ROI; reflecting within [0, roi_end) instead would give 9, 5 and 9 below.
+  EXPECT_EQ(decoder.HandleBoundary(BoundaryType::REFLECT_101, 29, 10, 20), 11);
+  EXPECT_EQ(decoder.HandleBoundary(BoundaryType::REFLECT_101, 5, 10, 20), 15);
+  EXPECT_EQ(decoder.HandleBoundary(BoundaryType::REFLECT_1001, 5, 10, 20), 14);
+  EXPECT_EQ(decoder.HandleBoundary(BoundaryType::REFLECT_1001, 30, 10, 20), 10);
+  for (auto type : {BoundaryType::REFLECT_101, BoundaryType::REFLECT_1001}) {
+    for (int frame_id = -50; frame_id < 80; frame_id++) {
+      int idx = decoder.HandleBoundary(type, frame_id, 10, 20);
+      EXPECT_GE(idx, 10) << "frame_id=" << frame_id << " type=" << boundary::to_string(type);
+      EXPECT_LT(idx, 20) << "frame_id=" << frame_id << " type=" << boundary::to_string(type);
+    }
+  }
+  // In-range indices are returned as is; clamping is unaffected.
+  EXPECT_EQ(decoder.HandleBoundary(BoundaryType::REFLECT_101, 12, 10, 20), 12);
+  EXPECT_EQ(decoder.HandleBoundary(BoundaryType::CLAMP, 3, 10, 20), 10);
+  EXPECT_EQ(decoder.HandleBoundary(BoundaryType::CLAMP, 25, 10, 20), 19);
+}
+
 TEST_F(FramesDecoderGpuTest, ConstantFrameRate) {
   FramesDecoderGpu decoder(cfr_videos_paths_[0]);
   decoder.BuildIndex();
