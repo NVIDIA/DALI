@@ -921,7 +921,7 @@ class TensorSlice:
                     stop = -1 if step < 0 else extent
                 if step < 0:
                     stop = _clamp(stop, -1, extent - 1)
-                    start = _clamp(start, stop, extent)
+                    start = _clamp(start, stop, extent - 1)
                 else:
                     start = _clamp(start, 0, extent)
                     stop = _clamp(stop, start, extent)

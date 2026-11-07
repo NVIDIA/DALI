@@ -380,6 +380,24 @@ def test_tensor_subscript_negative_step():
 
 
 @eval_modes()
+def test_tensor_subscript_negative_step_start_past_end():
+    data = np.arange(5, dtype=np.int32)
+    t = ndd.tensor(data)
+    x = t[10::-1]
+    assert x.shape == (5,)
+    assert np.array_equal(asnumpy(x), data[10::-1])
+    assert asnumpy(x[0]) == data[10::-1][0]
+
+    y = t[10::-2]
+    assert y.shape == (3,)
+    assert np.array_equal(asnumpy(y[1:]), data[10::-2][1:])
+
+    z = t[::-1][5::-1]
+    assert z.shape == (5,)
+    assert np.array_equal(asnumpy(z), data[::-1][5::-1])
+
+
+@eval_modes()
 def test_tensor_copy_constructor_invocation_result():
     t = ndd.tensor(np.array([[1, 2, 3], [4, 5, 6]], dtype=np.int32), device="cpu")
     t_gpu = t.gpu()  # invocation result - lazy copy
