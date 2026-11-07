@@ -268,3 +268,13 @@ def test_parallel_op_metadata_query():
             assert batch.ndim == 3
 
     run_parallel(worker)
+
+
+def test_fork_after_eager_gpu_op():
+    with ndd.EvalMode.eager:
+        ndd.tensor([1.0], device="gpu").evaluate()
+
+    pid = os.fork()
+    if pid == 0:
+        os._exit(0)
+    assert os.waitstatus_to_exitcode(os.waitpid(pid, 0)[1]) == 0
