@@ -128,8 +128,12 @@ class DType:
         if kind == DType.Kind.float:
             if exponent_bits is None:
                 exponent_bits = DType._default_exponent_bits(bits, True)
+            elif exponent_bits < 1:
+                raise ValueError(f"Invalid number of exponent bits: {exponent_bits}")
             if significand_bits is None:
                 significand_bits = DType._default_significand_bits(bits, True)
+            elif significand_bits < 1:
+                raise ValueError(f"Invalid number of significand bits: {significand_bits}")
             self.exponent_bits = exponent_bits
             self.significand_bits = significand_bits
         else:
@@ -292,9 +296,7 @@ class DType:
                     del _name2type[t.name]
                 if name != t.name and _name2type.get(name) is t:
                     del _name2type[name]
-                raise ValueError(
-                    f"{name} is not a registered type. Expected a name such as f16 or f32."
-                ) from None
+                raise ValueError(f"{name} is not a registered type.") from None
         if t.type_id is not None:
             t = _id2type[t.type_id]  # use the same DType instance as the one registered with the id
         _name2type[name] = t

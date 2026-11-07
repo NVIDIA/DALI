@@ -170,10 +170,16 @@ def test_type_significand_bits():
 
 def test_explicit_zero_float_field_is_not_replaced_with_the_default():
     # A written 0 used to be treated as missing, so these came back as float32 and float16.
-    for name in ("f32e8m0", "f16e0m10"):
+    cases = {
+        "f32e8m0": "Invalid number of significand bits: 0",
+        "f16e0m10": "Invalid number of exponent bits: 0",
+    }
+    for name, message in cases.items():
         try:
             parsed = ndd.dtype(name)
-        except ValueError:
+        except ValueError as err:
+            if message not in str(err):
+                raise AssertionError(f"{name} raised {err!r}, want {message}") from err
             continue
         raise AssertionError(
             f"{name} was accepted as {parsed.name} "
