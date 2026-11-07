@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -152,7 +152,8 @@ struct type2ocv<float> {
 int DLL_PUBLIC GetOpenCvChannelType(size_t c);
 
 void DLL_PUBLIC OpenCvColorConversion(DALIImageType input_type, const cv::Mat& input_img,
-                                      DALIImageType output_type, cv::Mat& output_img);
+                                      DALIImageType output_type, cv::Mat& output_img,
+                                      float white_point = 65.0f);
 
 }  // namespace dali
 

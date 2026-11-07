@@ -207,6 +207,8 @@ class ImageDecoder : public StatelessOperator<Backend> {
     device_id_ = std::is_same<CPUBackend, Backend>::value ? CPU_ONLY_DEVICE_ID :
                                                             spec.GetArgument<int>("device_id");
     format_ = spec.GetArgument<DALIImageType>("output_type");
+    DALI_ENFORCE(format_ != DALI_LAB,
+                 "Image decoders do not support LAB output. Use ColorSpaceConversion after decoding.");
     dtype_ = spec.GetArgument<DALIDataType>("dtype");
     use_orientation_ = spec.GetArgument<bool>("adjust_orientation");
     max_batch_size_ = spec.GetArgument<int>("max_batch_size");
