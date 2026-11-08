@@ -277,7 +277,7 @@ def _check_join(op, devices, batch_size, shape, layouts, expected_layout, axis=0
     (1, (2, 4), 0),  # single sample
     (3, (2, 4), 0),
     (3, (1, 1), 0),  # smallest non-empty sample
-    (3, (2, 0), 0),  # empty sample
+    (3, (0, 4), 0),  # empty sample
     (3, (2, 4), -2),  # negative axis at the edge of the accepted range
 )
 def test_cat_layout_from_any_input(batch_size, shape, axis):
