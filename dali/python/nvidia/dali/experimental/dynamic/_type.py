@@ -153,7 +153,10 @@ class DType:
         if type_id is not None:
             _id2type[type_id] = self
             _type2id[self] = type_id
-        _name2type[self.name] = self
+        # f16e8m7 generates the name bfloat16. Leave the type that already
+        # owns that name in place, or the failed lookup deletes it.
+        if _name2type.get(self.name) is None:
+            _name2type[self.name] = self
 
     @staticmethod
     def _make_name_and_docs(

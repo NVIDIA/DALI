@@ -185,3 +185,13 @@ def test_explicit_zero_float_field_is_not_replaced_with_the_default():
             f"{name} was accepted as {parsed.name} "
             f"(exponent {parsed.exponent_bits}, significand {parsed.significand_bits})"
         )
+
+
+def test_rejected_float_alias_does_not_drop_bfloat16():
+    for _ in range(2):
+        try:
+            ndd.dtype("f16e8m7")
+        except ValueError:
+            continue
+        raise AssertionError("f16e8m7 was accepted")
+    assert ndd.dtype("bfloat16") is ndd.bfloat16
