@@ -243,7 +243,7 @@ def _join_pipeline(op, devices, batch_size, shape, layouts, axis=0, axis_name=No
     def join_pipeline():
         inputs = [
             _layout_input(shape, value, batch_size, layout)
-            for value, layout in zip(values, layouts)
+            for value, layout in zip(values, layouts, strict=True)
         ]
         kwargs = {"axis": axis}
         if axis_name is not None:
@@ -254,7 +254,7 @@ def _join_pipeline(op, devices, batch_size, shape, layouts, axis=0, axis_name=No
             outputs.append(op(*operands, **kwargs))
         return tuple(outputs)
 
-    return join_pipeline
+    return join_pipeline()
 
 
 def _join_ref(op, shape, num_inputs, batch_size, axis):
@@ -267,7 +267,7 @@ def _join_ref(op, shape, num_inputs, batch_size, axis):
 def _check_join(op, devices, batch_size, shape, layouts, expected_layout, axis=0, axis_name=None):
     pipe = _join_pipeline(op, devices, batch_size, shape, layouts, axis=axis, axis_name=axis_name)
     ref = _join_ref(op, shape, len(layouts), batch_size, axis)
-    for device, out in zip(devices, pipe.run()):
+    for device, out in zip(devices, pipe.run(), strict=True):
         if device == "gpu":
             out = out.as_cpu()
         check_batch(out, ref, batch_size, eps=0, expected_layout=expected_layout)
