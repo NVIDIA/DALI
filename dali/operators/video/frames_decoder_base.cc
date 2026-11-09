@@ -969,11 +969,15 @@ void FramesDecoderBase::DecodeFrames(uint8_t *data, int start_frame, int end_fra
            << ", stride=" << stride << std::endl;
 
   SmallVector<std::pair<int, int>, 32> sorted_frame_ids;
-  size_t num_frames = (end_frame - start_frame + stride - 1) / stride;
+  // 64-bit arithmetic: end_frame - start_frame + stride - 1 does not fit in int for large strides.
+  int64_t num_frames = (static_cast<int64_t>(end_frame) - start_frame + stride - 1) / stride;
   sorted_frame_ids.reserve(num_frames);
-  for (int i = 0; i < static_cast<int>(num_frames); i++) {
+  for (int64_t i = 0; i < num_frames; i++) {
+    int64_t frame_id = start_frame + i * stride;
+    // Frames of a range that is not past INT_MAX are < end_frame, so the index fits in int.
     sorted_frame_ids.push_back(
-        {HandleBoundary(boundary_type, start_frame + i * stride, 0, NumFrames()), i});
+        {HandleBoundary(boundary_type, static_cast<int>(frame_id), 0, NumFrames()),
+         static_cast<int>(i)});
   }
   std::sort(sorted_frame_ids.begin(), sorted_frame_ids.end());
   DecodeFramesImpl(data, sorted_frame_ids, boundary_type, constant_frame, out_timestamps);

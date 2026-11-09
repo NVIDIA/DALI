@@ -603,7 +603,7 @@ def test_file_url_can_be_opened(device):
     p.run()
 
 
-# Builds a CPU-only experimental.readers.video pipeline in a child process whose address space
+# Builds an experimental.readers.video pipeline in a child process whose address space
 # is capped, so that an infinite sample-generation loop cannot exhaust the machine's memory.
 _BOUNDED_BUILD_CHILD = r"""
 import resource
@@ -615,10 +615,13 @@ resource.setrlimit(resource.RLIMIT_AS, (limit, limit))
 from nvidia.dali import fn, pipeline_def
 
 
-@pipeline_def(batch_size=1, num_threads=1, device_id=None)
+device = sys.argv[4]
+
+
+@pipeline_def(batch_size=1, num_threads=1, device_id=None if device == "cpu" else 0)
 def pipe():
     return fn.experimental.readers.video(
-        device="cpu",
+        device=device,
         filenames=[sys.argv[1]],
         sequence_length=int(sys.argv[2]),
         stride=int(sys.argv[3]),
@@ -634,7 +637,7 @@ print("BUILT")
 """
 
 
-def _build_reader_in_bounded_subprocess(sequence_length, stride, timeout=120):
+def _build_reader_in_bounded_subprocess(device, sequence_length, stride, timeout=120):
     try:
         return subprocess.run(
             [
@@ -644,6 +647,7 @@ def _build_reader_in_bounded_subprocess(sequence_length, stride, timeout=120):
                 VIDEO_0,
                 str(sequence_length),
                 str(stride),
+                device,
             ],
             capture_output=True,
             text=True,
@@ -651,31 +655,61 @@ def _build_reader_in_bounded_subprocess(sequence_length, stride, timeout=120):
         )
     except subprocess.TimeoutExpired:
         raise AssertionError(
-            f"build() with sequence_length={sequence_length}, stride={stride} did not return "
-            f"within {timeout} s (sample-generation loop not advancing?)"
+            f"build() with device={device}, sequence_length={sequence_length}, "
+            f"stride={stride} did not return within {timeout} s "
+            f"(sample-generation loop not advancing?)"
         )
 
 
-def test_stride_zero_raises_instead_of_hanging():
-    res = _build_reader_in_bounded_subprocess(sequence_length=3, stride=0)
+@cartesian_params(devices)
+def test_stride_zero_raises_instead_of_hanging(device):
+    res = _build_reader_in_bounded_subprocess(device, sequence_length=3, stride=0)
     assert "RAISED:" in res.stdout and "stride" in res.stdout, (
         f"Expected a prompt error mentioning `stride`; returncode={res.returncode}, "
         f"stdout={res.stdout!r}, stderr tail={res.stderr[-2000:]!r}"
     )
 
 
-def test_sequence_length_zero_raises_instead_of_hanging():
-    res = _build_reader_in_bounded_subprocess(sequence_length=0, stride=1)
+@cartesian_params(devices)
+def test_sequence_length_zero_raises_instead_of_hanging(device):
+    res = _build_reader_in_bounded_subprocess(device, sequence_length=0, stride=1)
     assert "RAISED:" in res.stdout and "sequence_length" in res.stdout, (
         f"Expected a prompt error mentioning `sequence_length`; returncode={res.returncode}, "
         f"stdout={res.stdout!r}, stderr tail={res.stderr[-2000:]!r}"
     )
 
 
-def test_huge_stride_times_sequence_length_raises_instead_of_hanging():
+@cartesian_params(devices)
+def test_huge_stride_times_sequence_length_raises_instead_of_hanging(device):
     # 65536 * 65536 overflows int: the default step (stride * sequence_length) used to wrap to 0.
-    res = _build_reader_in_bounded_subprocess(sequence_length=65536, stride=65536)
+    res = _build_reader_in_bounded_subprocess(device, sequence_length=65536, stride=65536)
     assert "RAISED:" in res.stdout and "sequence_length" in res.stdout, (
         f"Expected a prompt error mentioning `sequence_length`; returncode={res.returncode}, "
         f"stdout={res.stdout!r}, stderr tail={res.stderr[-2000:]!r}"
     )
+
+
+@cartesian_params(devices)
+def test_huge_stride_and_step_decode_one_frame(device):
+    """stride and step of INT_MAX are valid: one single-frame sample per file, padded from the
+    video, must be decoded without integer overflow in the frame count arithmetic."""
+    int_max = 2**31 - 1
+
+    @pipeline_def(batch_size=1, num_threads=1, device_id=0)
+    def pipe():
+        return _experimental_reader(device)(
+            filenames=[VIDEO_0],
+            sequence_length=1,
+            stride=int_max,
+            step=int_max,
+            pad_mode="constant",
+            name="r",
+        )
+
+    p = pipe()
+    p.build()
+    assert p.reader_meta("r")["epoch_size"] == 1
+    (out,) = p.run()
+    if device == "gpu":
+        out = out.as_cpu()
+    assert out.as_array().shape[:2] == (1, 1)
