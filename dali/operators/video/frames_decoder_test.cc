@@ -885,7 +885,13 @@ TEST_F(FramesDecoderGpuTest, SurfaceUnmappedAfterFailedConversion) {
     FramesDecoderGpu decoder(cfr_videos_paths_[0]);
     decoder.BuildIndex();
     decoder.SetOutputType(DALI_INT16);
-    EXPECT_THROW(decoder.ReadNextFrame(FrameData()), std::exception);
+    // The error of the conversion, not the generic one that the parser returns on a failed callback
+    try {
+      decoder.ReadNextFrame(FrameData());
+      ADD_FAILURE() << "Expected the conversion to fail";
+    } catch (const std::exception &e) {
+      EXPECT_NE(std::string(e.what()).find("Unsupported type:"), std::string::npos) << e.what();
+    }
   }
   size_t num_created = frame_dec_gpu_impl::NVDECDecodersCreated();
   FramesDecoderGpu decoder(cfr_videos_paths_[0]);

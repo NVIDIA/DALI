@@ -21,6 +21,7 @@ extern "C" {
 #include <libavcodec/bsf.h>
 }
 
+#include <exception>
 #include <string>
 #include <memory>
 #include <queue>
@@ -243,17 +244,29 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
    */
   static int NumDecodeSurfaces(const CUVIDEOFORMAT &video_format);
 
+  /** @brief Stores an exception thrown in a parser callback, to be rethrown by ParseVideoData. */
+  void SetCallbackException(std::exception_ptr e) {
+    callback_exception_ = std::move(e);
+  }
+
   void CopyFrame(uint8_t *dst, const uint8_t *src) override;
 
  protected:
   bool SelectVideoStream(int stream_id = -1) override;
 
  private:
+  /**
+   * @brief Sends a packet to the NVDEC parser. Exceptions thrown by the parser callbacks are
+   *        rethrown here, once the parser has returned.
+   */
+  void ParseVideoData(CUVIDSOURCEDATAPACKET *packet);
+
   std::unique_ptr<NvDecodeState> nvdecode_state_;
   void *current_frame_output_ = nullptr;
   bool current_copy_to_output_ = false;
   bool frame_returned_ = false;
   bool flush_ = false;
+  std::exception_ptr callback_exception_;
   bool more_frames_to_decode_ = true;
 
   // This is used to order the frames, if there is no pts

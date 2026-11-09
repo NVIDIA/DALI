@@ -16,6 +16,7 @@
 #include <cuda.h>
 #include <unistd.h>
 #include <algorithm>
+#include <exception>
 #include <string>
 #include <memory>
 #include <iomanip>
@@ -350,7 +351,15 @@ size_t NVDECDecodersCreated(int device_id) {
 
 int process_video_sequence(void *user_data, CUVIDEOFORMAT *video_format) {
   FramesDecoderGpu *frames_decoder = static_cast<FramesDecoderGpu*>(user_data);
-  frames_decoder->InitGpuDecoder(video_format);
+  // The callbacks are called by the NVDEC parser from within cuvidParseVideoData. An exception must
+  // not propagate through the library's frames: the stack is unwound without its cleanup, which
+  // leaks the parser's internal allocations. It is stored and rethrown by ParseVideoData instead.
+  try {
+    frames_decoder->InitGpuDecoder(video_format);
+  } catch (...) {
+    frames_decoder->SetCallbackException(std::current_exception());
+    return 0;
+  }
 
   // the parser cycles through this many surfaces: the decoder is created with as many
   return FramesDecoderGpu::NumDecodeSurfaces(*video_format);
@@ -359,13 +368,23 @@ int process_video_sequence(void *user_data, CUVIDEOFORMAT *video_format) {
 int process_picture_decode(void *user_data, CUVIDPICPARAMS *picture_params) {
   FramesDecoderGpu *frames_decoder = static_cast<FramesDecoderGpu*>(user_data);
 
-  return frames_decoder->ProcessPictureDecode(picture_params);
+  try {
+    return frames_decoder->ProcessPictureDecode(picture_params);
+  } catch (...) {
+    frames_decoder->SetCallbackException(std::current_exception());
+    return 0;
+  }
 }
 
 int handle_picture_display(void *user_data, CUVIDPARSERDISPINFO *picture_display_info) {
   FramesDecoderGpu *frames_decoder = static_cast<FramesDecoderGpu*>(user_data);
 
-  return frames_decoder->HandlePictureDisplay(picture_display_info);
+  try {
+    return frames_decoder->HandlePictureDisplay(picture_display_info);
+  } catch (...) {
+    frames_decoder->SetCallbackException(std::current_exception());
+    return 0;
+  }
 }
 
 }  // namespace frame_dec_gpu_impl
@@ -773,6 +792,19 @@ bool FramesDecoderGpu::ReadNextFrameWithIndex(uint8_t *data) {
   return true;
 }
 
+void FramesDecoderGpu::ParseVideoData(CUVIDSOURCEDATAPACKET *packet) {
+  callback_exception_ = nullptr;
+  CUresult status = cuvidParseVideoData(nvdecode_state_->parser, packet);
+  // An exception from a parser callback takes precedence over the (generic) error that the parser
+  // reports as a result of the callback returning a failure.
+  if (callback_exception_) {
+    std::exception_ptr e = std::move(callback_exception_);
+    callback_exception_ = nullptr;
+    std::rethrow_exception(e);
+  }
+  CUDA_CALL(status);
+}
+
 bool FramesDecoderGpu::SendFrameToParser() {
   if (packet_->stream_index != stream_id_) {
     return false;
@@ -807,7 +839,7 @@ bool FramesDecoderGpu::SendFrameToParser() {
   // Send packet to the nv decoder
   frame_returned_ = false;
   LOG_LINE << "Sending packet to the nv decoder, next pts=" << piped_pts_.front() << std::endl;
-  CUDA_CALL(cuvidParseVideoData(nvdecode_state_->parser, packet));
+  ParseVideoData(packet);
   LOG_LINE << "Packet sent to the nv decoder" << std::endl;
   current_pts_ = AV_NOPTS_VALUE;  // we are done with this packet. Next frame will come from a new packet
   return true;
@@ -961,7 +993,7 @@ void FramesDecoderGpu::SendLastPacket(bool flush) {
   packet->flags = CUVID_PKT_ENDOFSTREAM;
 
   // Send end of stream and process any remaining frames
-  CUDA_CALL(cuvidParseVideoData(nvdecode_state_->parser, packet));
+  ParseVideoData(packet);
 
   // The end of stream packet makes the parser release all the pictures that it holds. Those that
   // it did not display (hidden pictures, dropped leading pictures) must not be taken for pending
