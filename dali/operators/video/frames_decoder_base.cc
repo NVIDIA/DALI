@@ -542,6 +542,7 @@ void FramesDecoderBase::BuildIndex() {
   index_.index.clear();
   index_.filename = Filename();
   index_.timebase = ctx_->streams[stream_id_]->time_base;
+  index_.decode_order_timestamps = HasDecodeOrderTimestamps();
 
   // Track the position of the last keyframe seen
   int last_keyframe = -1;
@@ -828,9 +829,25 @@ int FramesDecoderBase::SeekTarget(const FrameIndex &index, int next_frame, int f
   if (frame >= next_frame && frame <= next_frame + kMinimumSeekLeap)
     return -1;  // a short leap forward
   int keyframe = index[frame].last_keyframe_id;
-  if (frame > next_frame && index[next_frame].last_keyframe_id == keyframe)
-    return -1;  // further ahead, but within the same keyframe
+  // Maybe a leading picture of the keyframe: it needs the pictures before the keyframe
+  if (index.decode_order_timestamps && keyframe > 0 && frame - keyframe < kMaxLeadingPictures)
+    keyframe = index[keyframe - 1].last_keyframe_id;
+  if (frame > next_frame && index[next_frame].last_keyframe_id >= keyframe)
+    return -1;  // further ahead, but past the keyframe that it would seek to
   return keyframe;
+}
+
+bool FramesDecoderBase::HasDecodeOrderTimestamps() const {
+  if (!ctx_ || !ctx_->iformat || strcmp(ctx_->iformat->name, "avi") != 0)
+    return false;
+  switch (ctx_->streams[stream_id_]->codecpar->codec_id) {
+    case AV_CODEC_ID_MPEG4:
+    case AV_CODEC_ID_H264:
+    case AV_CODEC_ID_HEVC:
+      return true;
+    default:
+      return false;  // each packet shown in its own place (e.g. MJPEG, VP8, VP9)
+  }
 }
 
 FramesDecoderBase::DecodePosition FramesDecoderBase::PositionAt(const FrameIndex &index,

@@ -498,6 +498,7 @@ void FramesDecoderGpu::InitGpuDecoder(CUVIDEOFORMAT *video_format) {
 
 void FramesDecoderGpu::InitGpuParser() {
   nvdecode_state_ = std::make_unique<NvDecodeState>();
+  labels_from_parser_ = HasDecodeOrderTimestamps();
 
   InitBitStreamFilter();
 
@@ -617,7 +618,8 @@ int FramesDecoderGpu::HandlePictureDisplay(CUVIDPARSERDISPINFO *picture_display_
   if (flush_) {
     return 1;
   }
-  current_pts_ = surface_pts_[picture_display_info->picture_index];
+  current_pts_ = labels_from_parser_ ? picture_display_info->timestamp
+                                     : surface_pts_[picture_display_info->picture_index];
 
   CUVIDPROCPARAMS videoProcessingParameters = {};
   videoProcessingParameters.progressive_frame = !picture_display_info->progressive_frame;
@@ -641,16 +643,35 @@ int FramesDecoderGpu::HandlePictureDisplay(CUVIDPARSERDISPINFO *picture_display_
   // If they are the same, we just return this frame
   // If not, we store it in the buffer for later
 
+  if (labels_from_parser_ && HasIndex() && NextFrameIdx() >= 0 && NextFrameIdx() < NumFrames()) {
+    // The labels come in display order. A picture before the frame wanted is not wanted anymore,
+    // and one after it means that the frame wanted has no picture: e.g. a not-coded MPEG-4 VOP,
+    // which NVDEC does not decode. Such a frame repeats the previous one.
+    int64_t wanted_pts = index_[NextFrameIdx()].pts;
+    if (current_pts_ < wanted_pts) {
+      LOG_LINE << "Dropping picture " << current_pts_ << ", shown before frame "
+               << next_frame_idx_ << std::endl;
+      return 1;
+    }
+    if (current_pts_ > wanted_pts && !frame_returned_)
+      RepeatLastFrame(current_copy_to_output_ ? current_frame_output_ : nullptr);
+  }
+
   void *frame_output = nullptr;
+  bool keep_as_last_frame = false;
   if (HasIndex() && current_pts_ == index_[NextFrameIdx()].pts) {
     // Currently decoded frame is actually the one we want to display
     frame_returned_ = true;
     LOG_LINE << "Found frame with correct display timestamp " << current_pts_
               << " for index " << next_frame_idx_ << std::endl;
-    if (current_copy_to_output_ == false) {
+    keep_as_last_frame = labels_from_parser_;
+    if (current_copy_to_output_) {
+      frame_output = current_frame_output_;
+    } else if (keep_as_last_frame) {
+      frame_output = LastFrame();  // skipped, but a frame after it may repeat it
+    } else {
       return 1;
     }
-    frame_output = current_frame_output_;
   } else {
     // Put currently decoded frame to the buffer for later
     auto &slot = FindEmptySlot();
@@ -691,6 +712,9 @@ int FramesDecoderGpu::HandlePictureDisplay(CUVIDPARSERDISPINFO *picture_display_
       stream_);
   ), DALI_FAIL(make_string("Unsupported type: ", dtype_)));
 
+  if (keep_as_last_frame)
+    KeepAsLastFrame(frame_output);
+
   // TODO(awolant): Alternative is to copy the data to a buffer
   // and then process it on the stream. Check, if this is faster, when
   // the benchmark is ready.
@@ -717,22 +741,37 @@ bool FramesDecoderGpu::ReadNextFrameWithIndex(uint8_t *data) {
 
   // Check if requested frame was buffered earlier
   assert(HasIndex());
+  int64_t wanted_pts = index_[next_frame_idx_].pts;
+  bool later_frame_buffered = false;
   for (auto &frame : frame_buffer_) {
-    if (frame.pts_ != -1 && frame.pts_ == index_[next_frame_idx_].pts) {
+    if (frame.pts_ != -1 && frame.pts_ == wanted_pts) {
       if (copy_to_output) {
         LOG_LINE << "Copying from frame buffer to frame_output" << std::endl;
         copyD2D(data, frame.frame_.data(), FrameSize(), stream_);
       }
+      if (labels_from_parser_)
+        KeepAsLastFrame(frame.frame_.data());
       LOG_LINE << "Found buffered frame with pts=" << frame.pts_ << std::endl;
 
       frame.pts_ = -1;
       next_frame_idx_ = next_frame_idx_ == NumFrames() - 1 ? -1 : next_frame_idx_ + 1;
       return true;
     }
+    later_frame_buffered = later_frame_buffered || (frame.pts_ != -1 && frame.pts_ > wanted_pts);
+  }
+  // With the labels in display order, a later frame shown already: the frame wanted has no picture
+  if (labels_from_parser_ && later_frame_buffered) {
+    RepeatLastFrame(data);
+    next_frame_idx_ = next_frame_idx_ == NumFrames() - 1 ? -1 : next_frame_idx_ + 1;
+    return true;
   }
 
   current_copy_to_output_ = copy_to_output;
   current_frame_output_ = data;
+  // Nothing returned for this frame yet: the read may reach the end of the stream before it sends
+  // a packet (which resets it), e.g. for a frame without a picture after the last one
+  if (labels_from_parser_)
+    frame_returned_ = false;
 
   while (next_frame_idx_ < NumFrames()) {
     int ret = av_read_frame(ctx_, packet_);
@@ -765,6 +804,11 @@ bool FramesDecoderGpu::ReadNextFrameWithIndex(uint8_t *data) {
 
   SendLastPacket();
 
+  // The end of the stream, without the frame wanted: with the labels in display order, it has no
+  // picture (e.g. a not-coded MPEG-4 VOP in the last packet)
+  if (labels_from_parser_ && !frame_returned_)
+    RepeatLastFrame(current_copy_to_output_ ? current_frame_output_ : nullptr);
+
   // Check if we got the frame we wanted during SendLastPacket
   if (frame_returned_) {
     next_frame_idx_ = next_frame_idx_ == NumFrames() - 1 ? -1 : next_frame_idx_ + 1;
@@ -780,12 +824,16 @@ bool FramesDecoderGpu::SendFrameToParser() {
 
   // Store pts from current packet to indicate,
   // that this frame is in the decoder
+  int64_t label;
   if (packet_->pts != AV_NOPTS_VALUE) {
-    piped_pts_.push(packet_->pts);
+    label = packet_->pts;
+  } else if (labels_from_parser_ && packet_->dts != AV_NOPTS_VALUE) {
+    label = packet_->dts;  // as the index has it (BuildIndex)
   } else {
-    piped_pts_.push(frame_index_if_no_pts_);
+    label = frame_index_if_no_pts_;
     frame_index_if_no_pts_++;
   }
+  piped_pts_.push(label);
 
   // Add header needed for NVDECODE to the packet
   if (filtered_packet_->data) {
@@ -802,7 +850,9 @@ bool FramesDecoderGpu::SendFrameToParser() {
   packet->payload = filtered_packet_->data;
   packet->payload_size = filtered_packet_->size;
   packet->flags = CUVID_PKT_TIMESTAMP;
-  packet->timestamp = filtered_packet_->pts;
+  // With labels_from_parser_, the label comes back in the display callback: the parser hands out
+  // the timestamps fed in decoding order (as the packets are) in display order
+  packet->timestamp = labels_from_parser_ ? label : filtered_packet_->pts;
 
   // Send packet to the nv decoder
   frame_returned_ = false;
@@ -1072,7 +1122,35 @@ void FramesDecoderGpu::Flush() {
   SendLastPacket(true);
   more_frames_to_decode_ = true;
   frame_index_if_no_pts_ = 0;
+  has_last_frame_ = false;
   LOG_LINE << "Flush done" << std::endl;
+}
+
+size_t FramesDecoderGpu::FrameBytes() const {
+  return static_cast<size_t>(FrameSize()) * (dtype_ == DALI_FLOAT ? sizeof(float) : 1);
+}
+
+uint8_t *FramesDecoderGpu::LastFrame() {
+  if (last_frame_.size() < FrameBytes())
+    last_frame_.resize(FrameBytes());
+  return last_frame_.data();
+}
+
+void FramesDecoderGpu::KeepAsLastFrame(const void *frame) {
+  if (frame != last_frame_.data())
+    copyD2D(LastFrame(), static_cast<const uint8_t *>(frame), FrameBytes(), stream_);
+  has_last_frame_ = true;
+}
+
+void FramesDecoderGpu::RepeatLastFrame(void *data) {
+  DALI_ENFORCE(has_last_frame_,
+               make_string("Frame ", next_frame_idx_, " of \"", Filename(),
+                           "\" has no picture of its own, and no frame before it to repeat."));
+  LOG_LINE << "Frame " << next_frame_idx_ << " has no picture: repeating the last frame"
+           << std::endl;
+  if (data)
+    copyD2D(static_cast<uint8_t *>(data), last_frame_.data(), FrameBytes(), stream_);
+  frame_returned_ = true;
 }
 
 FramesDecoderGpu::~FramesDecoderGpu() {

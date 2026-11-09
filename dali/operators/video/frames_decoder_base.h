@@ -56,6 +56,15 @@ struct FrameIndex {
   std::string filename;
   std::vector<IndexEntry> index;
   AVRational timebase;
+  /**
+   * @brief The timestamps of the stream follow the order of its packets, not the order in which
+   * its pictures are shown (see FramesDecoderBase::HasDecodeOrderTimestamps).
+   *
+   * Frame i is then the picture shown i-th, which the decoder finds by the parser's display order,
+   * and the frames that a keyframe's leading pictures (shown before it, decoded after it) take are
+   * not known (see FramesDecoderBase::SeekTarget).
+   */
+  bool decode_order_timestamps = false;
 
   size_t size() const {
     return index.size();
@@ -317,13 +326,24 @@ class DLL_PUBLIC FramesDecoderBase {
   static constexpr int kMinimumSeekLeap = 10;
 
   /**
+   * @brief The most frames that the leading pictures of a keyframe can take, in an index with
+   *        FrameIndex::decode_order_timestamps: the longest run of B-frames of H.264.
+   */
+  static constexpr int kMaxLeadingPictures = 16;
+
+  /**
    * @brief The keyframe that SeekFrame seeks to, to return `frame` from a decoder (with an index)
    * whose next frame is `next_frame`, or -1 if it decodes through to it.
    *
    * It decodes through when `frame` is ahead of `next_frame`, by at most kMinimumSeekLeap or with
-   * the same last keyframe. Otherwise, also for any `frame` before `next_frame`, it seeks to the
-   * last keyframe of `frame`. SeekFrame and
+   * a last keyframe not before the seek target. Otherwise, also for any `frame` before
+   * `next_frame`, it seeks to the last keyframe of `frame`. SeekFrame and
    * AddDecodeWork both take this decision from here, so the estimate cannot drift from it.
+   *
+   * With FrameIndex::decode_order_timestamps, the frames right after a keyframe (fewer than
+   * kMaxLeadingPictures) may be the pictures that lead it: shown before it, but decoded after it
+   * from pictures before it. A decoder that starts at the keyframe does not decode those, so it
+   * seeks to the keyframe before.
    *
    * @param next_frame The decoder's next frame, in range: past the end, SeekFrame resets first.
    */
@@ -547,6 +567,18 @@ class DLL_PUBLIC FramesDecoderBase {
    * @brief Select a stream to decode. If stream_id is -1, the video stream will be selected automatically.
    */
   virtual bool SelectVideoStream(int stream_id = -1);
+
+  /**
+   * @brief Whether the timestamps of the selected stream follow the order of its packets, which is
+   *        not the order in which its pictures are shown.
+   *
+   * AVI stores no presentation timestamps: the demuxer stamps each packet with its position in the
+   * stream (as pts and dts for MPEG-4 Part 2, as dts only for H.264 and HEVC). With a codec that
+   * reorders pictures, that is the decoding order: also for DivX packed B-frames, once the decoder
+   * unpacks them (mpeg4_unpack_bframes moves each B-frame to the next packet, which keeps its
+   * timestamp).
+   */
+  bool HasDecodeOrderTimestamps() const;
 
   AVUniquePtr<AVFormatContext> ctx_;
   AVUniquePtr<AVCodecContext> codec_ctx_;

@@ -21,12 +21,13 @@ import cv2
 import atexit
 import enum
 import functools
+import itertools
 import shutil
 import tempfile
 import unittest
 import uuid
 from test_utils import get_dali_extra_path
-from nose2.tools import cartesian_params
+from nose2.tools import cartesian_params, params
 
 np.random.seed(42)
 debug = False  # Set to True to print file_list contents and other debug information
@@ -582,7 +583,7 @@ def test_packed_bframes_avi_seek_shows_requested_frames():
             "db/video/ucf101_test fixture"
         )
     truth = _display_order_frames(PACKED_BFRAMES_AVI)
-    # The last frame of the fixture duplicates the previous one, so OpenCV returns 90 of the 91.
+    # The last of the 91 frames is a not-coded VOP, which repeats frame 89: OpenCV returns 90.
     assert len(truth) >= 90, f"expected at least 90 frames, got {len(truth)}"
     # The pixels that differ between frames: the area where the frame number is drawn.
     mask = np.array(truth).std(0).max(-1) > 20
@@ -618,6 +619,93 @@ def test_packed_bframes_avi_seek_shows_requested_frames():
                 f"frame {first + k} (frame {k} of the sequence starting at {first}) "
                 f"shows frame {shown}"
             )
+
+
+# AVI files with B-frames: AVI stores no presentation timestamps, only the order of the packets,
+# which is the decoding order. DivX packed B-frames (MPEG-4 Part 2, 91 frames) and H.264 with
+# pyramid B-frames (180 frames).
+AVI_WITH_BFRAMES = (
+    PACKED_BFRAMES_AVI,
+    os.path.join(DALI_EXTRA_PATH, "db", "video", "containers", "avi", "cfr.avi"),
+)
+
+
+def _display_order_reference(path):
+    """The OpenCV frames of `path` and the area where they differ, to identify DALI's frames."""
+    if not os.path.isfile(path):
+        raise unittest.SkipTest(f"{path} not found: DALI_extra is too old")
+    truth = _display_order_frames(path)
+    mask = np.array(truth).std(0).max(-1) > 20
+    assert mask.any()
+    return truth, mask
+
+
+def _check_frames_shown(path, frames, video, truth, mask):
+    """Checks that `video` holds the frames `frames` of `path`, in display order."""
+    for k, frame in zip(frames, video):
+        # The packed fixture has a 91st frame, a not-coded VOP, which repeats the previous one and
+        # which OpenCV does not return
+        expected = min(k, len(truth) - 1)
+        shown = _identify_frame(frame, truth, mask)
+        assert shown == expected, f"{os.path.basename(path)}: frame {k} shows frame {shown}"
+
+
+@params(*AVI_WITH_BFRAMES)
+def test_avi_with_bframes_read_in_display_order(path):
+    """The GPU reader returned the frames of an AVI file with B-frames in decoding order: it took
+    their order from the timestamps of the packets, which AVI gives in decoding order. The frames
+    are read in a row, and then with seeks backward and forward."""
+    truth, mask = _display_order_reference(path)
+    sequence_length = 10
+    num_frames = 91 if path == PACKED_BFRAMES_AVI else len(truth)
+    starts = list(range(0, num_frames - sequence_length + 1, sequence_length))
+    starts += [num_frames - sequence_length, 3, 45, 12, num_frames - sequence_length - 1]
+    list_file = _write_file_list([f"{path} 0 {s} {s + sequence_length}" for s in starts])
+
+    @pipeline_def(batch_size=1, num_threads=2, device_id=0, prefetch_queue_depth=1)
+    def pipe():
+        video, _, frame_num = fn.experimental.readers.video(
+            device="gpu",
+            file_list=list_file,
+            file_list_format="frames",
+            sequence_length=sequence_length,
+            enable_frame_num=True,
+        )
+        return video, frame_num
+
+    p = pipe()
+    p.build()
+    for s in starts:
+        video, frame_num = p.run()
+        first = int(np.array(frame_num.as_cpu()[0]).flatten()[0])
+        assert first == s, f"expected the sequence starting at frame {s}, got {first}"
+        video = np.array(video.as_cpu()[0])
+        _check_frames_shown(path, range(s, s + sequence_length), video, truth, mask)
+        if path == PACKED_BFRAMES_AVI and s + sequence_length == num_frames:
+            # The not-coded VOP repeats the frame before it exactly
+            np.testing.assert_array_equal(video[-1], video[-2])
+
+
+@params(*itertools.product(AVI_WITH_BFRAMES, (True, False)))
+def test_avi_with_bframes_decoded_in_display_order(path, build_index):
+    """As test_avi_with_bframes_read_in_display_order, for the video decoder: with an index, and
+    without one (the frames in the order that the decoder outputs them)."""
+    truth, mask = _display_order_reference(path)
+    # Without an index, the frames are the pictures: the not-coded VOP is not one
+    last = 90 if path == PACKED_BFRAMES_AVI and build_index else len(truth) - 1
+    frames = [0, 1, 2, 3, 4, 5, 6, 7, 30, 31, 32, 33, 15, 16, last - 2, last - 1, last, 8, 9]
+
+    @pipeline_def(batch_size=1, num_threads=2, device_id=0, prefetch_queue_depth=1)
+    def pipe():
+        encoded, _ = fn.readers.file(files=[path])
+        return fn.experimental.decoders.video(
+            encoded, device="mixed", frames=frames, build_index=build_index
+        )
+
+    p = pipe()
+    p.build()
+    (video,) = p.run()
+    _check_frames_shown(path, frames, np.array(video.as_cpu()[0]), truth, mask)
 
 
 class _Reader(enum.Enum):

@@ -220,6 +220,7 @@ static void ExpectIndexerGivesTheIndexOfTheDecoder(FramesDecoderBase &decoder,
   EXPECT_EQ(actual.filename, expected.filename);
   EXPECT_EQ(actual.timebase.num, expected.timebase.num);
   EXPECT_EQ(actual.timebase.den, expected.timebase.den);
+  EXPECT_EQ(actual.decode_order_timestamps, expected.decode_order_timestamps);
   for (size_t i = 0; i < expected.size(); i++) {
     EXPECT_EQ(actual.index[i].pts, expected.index[i].pts) << "frame " << i;
     EXPECT_EQ(actual.index[i].is_keyframe, expected.index[i].is_keyframe) << "frame " << i;
@@ -670,6 +671,34 @@ TEST(FramesDecoderDecodeWorkTest, SeekTarget) {
   EXPECT_EQ(SeekTarget(3, 40), 30);
   EXPECT_EQ(SeekTarget(14, 13), 0);   // backward, within the same keyframe
   EXPECT_EQ(SeekTarget(20, 5), 0);    // backward, to another keyframe
+}
+
+// With the timestamps in decoding order (AVI), the frames right after a keyframe may be its leading
+// pictures, which need the pictures before it: SeekFrame seeks to the keyframe before
+TEST(FramesDecoderDecodeWorkTest, SeekTargetWithDecodeOrderTimestamps) {
+  static_assert(FramesDecoderBase::kMaxLeadingPictures == 16, "the frames below assume it");
+  // GOPs of 40 frames: keyframes 0, 40, 80
+  auto index = MakeIndex(std::vector<int>(120, -1), {0, 40, 80});
+  index.decode_order_timestamps = true;
+  auto SeekTarget = [&](int next, int frame) {
+    return FramesDecoderBase::SeekTarget(index, next, frame);
+  };
+  EXPECT_EQ(SeekTarget(3, 5), -1);     // a short leap
+  EXPECT_EQ(SeekTarget(30, 5), 0);     // backward, in the first GOP: no keyframe before
+  EXPECT_EQ(SeekTarget(3, 41), -1);    // right after keyframe 40: decoding through from GOP 0
+  EXPECT_EQ(SeekTarget(70, 41), 0);    // backward, right after keyframe 40: the keyframe before
+  EXPECT_EQ(SeekTarget(70, 55), 0);    // the last frame that may lead keyframe 40
+  EXPECT_EQ(SeekTarget(70, 56), 40);   // past the leading pictures
+  EXPECT_EQ(SeekTarget(3, 56), 40);
+  EXPECT_EQ(SeekTarget(20, 85), 40);   // right after keyframe 80: seeks to keyframe 40
+  EXPECT_EQ(SeekTarget(45, 85), -1);   // ... where the decoder already is: decoding through
+  EXPECT_EQ(SeekTarget(30, 90), 40);   // a longer leap from GOP 0
+  CheckPositionAtInARow(index);
+
+  index.decode_order_timestamps = false;  // the same index, with presentation timestamps
+  EXPECT_EQ(SeekTarget(70, 41), 40);
+  EXPECT_EQ(SeekTarget(3, 41), 40);
+  EXPECT_EQ(SeekTarget(20, 85), 80);
 }
 
 TEST(FramesDecoderDecodeWorkTest, NoDecodeOrder) {
