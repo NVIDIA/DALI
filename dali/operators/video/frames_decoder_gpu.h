@@ -138,8 +138,9 @@ struct NvDecodeState {
 };
 
 struct BufferedFrame {
-  DeviceBuffer<uint8_t> frame_;
+  DeviceBuffer<uint8_t> frame_;  // may be empty when the slot keeps no frame data
   int pts_;
+  bool has_data_ = false;  // false: the frame is never read with its data, only pts_ is kept
 };
 
 class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
@@ -219,6 +220,11 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
    */
   static std::vector<AVCodecID> SupportedCodecs();
 
+  /**
+   * @brief Number of NVDEC engines of the device; 0 if unknown.
+   */
+  static int NumEngines(int device_id);
+
   static bool SupportsCodec(AVCodecID codec_id, uint8_t bit_depth = 8);
 
   void InitGpuDecoder(CUVIDEOFORMAT *video_format);
@@ -245,11 +251,72 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
 
   void CopyFrame(uint8_t *dst, const uint8_t *src) override;
 
+  /**
+   * @brief Number of frame buffers (device memory for one frame each) held by the decoder, for
+   *        tests.
+   */
+  int NumFrameBuffers() const;
+
+  /**
+   * @brief Number of pictures mapped and converted so far (for tests and diagnostics).
+   *
+   * Pictures that are decoded, but never read (see CanBeReadWithData) or skipped as they come,
+   * are not.
+   */
+  int64_t MappedPictures() const {
+    return mapped_pictures_;
+  }
+
+  /**
+   * @brief Number of pictures not decoded at all so far (for tests and diagnostics): H.264
+   *        non-reference pictures that are not read with their data.
+   */
+  int64_t SkippedPictures() const {
+    return skipped_pictures_;
+  }
+
  protected:
   bool SelectVideoStream(int stream_id = -1) override;
 
+  /**
+   * @brief Which of the buffered frames (those not returned as they are decoded) are mapped and
+   *        converted
+   */
+  enum class BufferedFrameData {
+    kIfRead,  // those that may be read with their data (see CanBeReadWithData)
+    kAll,     // all of them, as before the decoder left out those that are not read
+    kNone,    // none of them
+  };
+
+  /**
+   * @brief For tests: maps all the buffered frames (to compare the frames read with the default)
+   *        or none of them (to check that reading a frame without its data fails).
+   */
+  void SetBufferedFrameDataForTesting(BufferedFrameData data) {
+    buffered_frame_data_ = data;
+  }
+
+  /**
+   * @brief Whether a buffered frame with this timestamp may be read with its data later.
+   *
+   * Decoding a frame that is not read (e.g. one hidden by an edit list, or one that is only
+   * skipped on the way to the frames to read) is still needed for the frames that refer to it, but
+   * mapping and converting it is not. Reading a frame without its data is an internal error.
+   */
+  bool CanBeReadWithData(int64_t pts) const;
+
+  /**
+   * @brief Whether the picture with this timestamp, decoded next, is mapped and converted: it is
+   *        returned with its data now, or buffered with its data.
+   */
+  bool IsPictureReadWithData(int64_t pts) const;
+
  private:
   std::unique_ptr<NvDecodeState> nvdecode_state_;
+
+  int64_t mapped_pictures_ = 0;  // see MappedPictures
+  BufferedFrameData buffered_frame_data_ = BufferedFrameData::kIfRead;
+
   void *current_frame_output_ = nullptr;
   bool current_copy_to_output_ = false;
   bool frame_returned_ = false;
@@ -273,6 +340,9 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
   std::vector<int64_t> surface_pts_;
   // whether the picture decoded to each surface is still waiting for the display callback
   std::vector<bool> surface_to_display_;
+  // whether the picture last decoded to each surface was actually decoded (see
+  // IsPictureReadWithData); if not, the surface must not be mapped
+  std::vector<bool> surface_decoded_;
   int64_t current_pts_ = AV_NOPTS_VALUE;
 
   cudaStream_t stream_ = 0;
@@ -282,6 +352,11 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
   void SendLastPacket(bool flush = false);
 
   BufferedFrame& FindEmptySlot();
+
+  /**
+   * @brief Gives the slot a frame buffer, taking a spare one from another slot if there is any.
+   */
+  void AttachFrameBuffer(BufferedFrame &slot);
 
   bool HasEmptySlot() const;
 
