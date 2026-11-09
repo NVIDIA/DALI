@@ -24,6 +24,7 @@ extern "C" {
 
 #include <algorithm>
 #include <cmath>
+#include <stdexcept>
 #include <string>
 #include <vector>
 #include "dali/core/error_handling.h"
@@ -76,7 +77,8 @@ inline int64_t SaturateTicks(double ticks) {
  * is still detected as being past the end of the stream, and a huge end time clamps to the end.
  */
 inline int64_t SecondsToTimestamp(AVRational timebase, double seconds, bool round_down) {
-  DALI_ENFORCE(!std::isnan(seconds), "Cannot convert a NaN time to a timestamp.");
+  if (std::isnan(seconds))
+    throw std::invalid_argument("Cannot convert a NaN time to a timestamp.");
   // Direction-aware quantization, matching legacy readers.video and
   // FrameIndex::GetFrameIdxByTimestamp's own `rounddown` convention: round down (floor) when the
   // caller is about to do a round-down lookup, round up (ceil) when it's about to do a round-up
