@@ -734,6 +734,7 @@ void FramesDecoderBase::BuildIndex() {
             // IDR frames are special keyframes that clear all reference buffers
             if (nal_unit_type == 5) {
               entry.is_keyframe = true;
+              entry.leading_pictures = 0;  // no picture after an IDR is shown before it
               break;
             }
           } else {  // AV_CODEC_ID_HEVC
@@ -743,6 +744,9 @@ void FramesDecoderBase::BuildIndex() {
             // which serve as keyframes in HEVC
             if (nal_unit_type >= 16 && nal_unit_type <= 21) {
               entry.is_keyframe = true;
+              // IDR_N_LP has no leading pictures; the others may have (RADL, RASL)
+              if (nal_unit_type == 20)
+                entry.leading_pictures = 0;
               break;
             }
           }
