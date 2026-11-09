@@ -232,6 +232,7 @@ static void ExpectIndexerGivesTheIndexOfTheDecoder(FramesDecoderBase &decoder,
         << "frame " << i;
     EXPECT_EQ(actual.index[i].leading_pictures, expected.index[i].leading_pictures)
         << "frame " << i;
+    EXPECT_EQ(actual.index[i].seek_timestamp, expected.index[i].seek_timestamp) << "frame " << i;
   }
   EXPECT_EQ(indexer.NumFrames(), decoder.NumFrames());
   EXPECT_EQ(indexer.Width(), decoder.Width());
@@ -254,8 +255,8 @@ std::set<int> SeekTargets(const FrameIndex &index) {
   return targets;
 }
 
-// The timestamps of the packets where seeks to `timestamps` land, as AvSeekFrame seeks, asked to
-// a demuxer of its own
+// The timestamps (pts) of the packets where seeks to `timestamps` land, with av_seek_frame as
+// AvSeekFrame seeks, asked to a demuxer of its own
 std::vector<int64_t> SeekLandings(const std::string &path, const std::vector<int64_t> &timestamps) {
   AVUniquePtr<AVFormatContext> ctx;
   if (avformat_open_input(&ctx, path.c_str(), nullptr, nullptr) < 0) {
@@ -299,6 +300,9 @@ void CheckDecodeOrder(const FrameIndex &index, const std::string &path) {
   std::sort(decode_idx.begin(), decode_idx.end());
   for (int i = 0; i < n; i++)
     ASSERT_EQ(decode_idx[i], i) << "not a permutation of the decoding positions [0, " << n << ")";
+  int first_packet = 0;  // the frame of the packet at decoding position 0
+  while (index[first_packet].decode_idx != 0)
+    first_packet++;
   auto targets = SeekTargets(index);
   for (int i = 0; i < n; i++) {
     if (index[i].is_keyframe) {
@@ -312,18 +316,41 @@ void CheckDecodeOrder(const FrameIndex &index, const std::string &path) {
       EXPECT_EQ(index[i].seek_decode_idx, -1) << "frame " << i << " is not a seek target";
     }
   }
-  std::vector<int64_t> timestamps;
-  for (int target : targets)
-    timestamps.push_back(index[target].pts);
+  std::vector<int64_t> timestamps, expected;
+  for (int target : targets) {
+    timestamps.push_back(index.SeekTimestamp(target));
+    expected.push_back(index[target].is_keyframe ? index[target].pts : index[first_packet].pts);
+  }
   auto landings = SeekLandings(path, timestamps);
   ASSERT_EQ(landings.size(), timestamps.size());
-  for (size_t i = 0; i < landings.size(); i++)
-    EXPECT_EQ(landings[i], timestamps[i]) << path << ": a seek to " << timestamps[i];
+  for (size_t i = 0; i < landings.size(); i++) {
+    EXPECT_EQ(landings[i], expected[i]) << path << ": a seek to " << timestamps[i]
+                                        << " is to land on the packet with the pts " << expected[i];
+  }
 }
 
 std::string SintelVideoFile(int clip) {
   return make_string(testing::dali_extra_path(), "/db/video/sintel/video_files/",
                      "sintel_trailer-720p_", clip, ".mp4");
+}
+
+// An MPEG-TS copy of a clip and the MP4 clip it was copied from: the same packets (in Annex B) with
+// their timestamps moved, and the same frames
+struct MpegTsClip {
+  std::string ts, mp4;
+  bool hevc;
+  int keyframes;  // the pictures that decoding can start from
+};
+
+std::vector<MpegTsClip> MpegTsClips() {
+  auto dir = make_string(testing::dali_extra_path(), "/db/video/");
+  return {{make_string(dir, "mpegts/test_1.ts"), make_string(dir, "cfr/test_1.mp4"), false, 6},
+          {make_string(dir, "mpegts/test_2_hevc.ts"), make_string(dir, "cfr/test_2_hevc.mp4"), true,
+           2},
+          // only the first picture is an IDR picture, but the MPEG-TS demuxer also flags the
+          // I-pictures with a recovery point (open GOPs) as keyframes
+          {make_string(dir, "mpegts/open_gop_h264.ts"),
+           make_string(dir, "non_idr_keyframes/open_gop_h264.mp4"), false, 1}};
 }
 
 // One Sintel clip of each kind, all with B-frames: no lead-in, only the IDR hidden (a single GOP),
@@ -751,6 +778,11 @@ TEST_F(FramesDecoderGpuTest, DecodeWork) {
   paths.push_back(make_string(testing::dali_extra_path(), "/db/video/cfr/test_1.mp4"));
   if (FramesDecoderGpu::SupportsHevc())
     paths.push_back(vfr_hevc_videos_paths_[0]);
+  // MPEG-TS, whose demuxer seeks by decoding timestamp
+  for (auto &clip : MpegTsClips()) {
+    if (!clip.hevc || FramesDecoderGpu::SupportsHevc())
+      paths.push_back(clip.ts);
+  }
   int across_keyframe = 0;
   for (size_t i = 0; i < paths.size(); i++) {
     auto &path = paths[i];
@@ -861,6 +893,52 @@ TEST_F(FramesDecoderGpuTest, IndexDecodeOrderLeadIn) {
     EXPECT_EQ(index.DecodeIdx(21), 37);
     EXPECT_EQ(index.DecodeIdx(58), 74);
   }
+}
+
+// MPEG-TS stores H.264 and HEVC in Annex B (NAL units after start codes, not after their length),
+// and its demuxer seeks by decoding timestamp, on any packet: the index of an MPEG-TS copy has the
+// keyframes (also where the demuxer flags other pictures as keyframes) and the decoding order of the
+// MP4 clip, and a seek to each keyframe lands on it
+TEST_F(FramesDecoderGpuTest, MpegTsIndex) {
+  for (auto &clip : MpegTsClips()) {
+    FramesIndexer ts_indexer(clip.ts), mp4_indexer(clip.mp4);
+    ASSERT_TRUE(ts_indexer.IsValid()) << clip.ts;
+    ts_indexer.BuildIndex();
+    mp4_indexer.BuildIndex();
+    auto &index = ts_indexer.GetIndex();
+    auto &expected = mp4_indexer.GetIndex();
+    ASSERT_EQ(index.size(), expected.size()) << clip.ts;
+    int keyframes = 0;
+    for (size_t i = 0; i < index.size(); i++) {
+      EXPECT_EQ(index[i].is_keyframe, expected[i].is_keyframe) << clip.ts << ": frame " << i;
+      EXPECT_EQ(index[i].last_keyframe_id, expected[i].last_keyframe_id)
+          << clip.ts << ": frame " << i;
+      EXPECT_EQ(index[i].decode_idx, expected[i].decode_idx) << clip.ts << ": frame " << i;
+      keyframes += index[i].is_keyframe;
+    }
+    EXPECT_EQ(keyframes, clip.keyframes) << clip.ts;
+    CheckDecodeOrder(index, clip.ts);
+  }
+}
+
+// A capture can start in the middle of a GOP. This MPEG-TS copy of cfr/test_1.mp4 starts at its
+// packet 8, which is shown after the next one (frame 0), two packets before the first keyframe. A
+// seek to frame 0, which is not a keyframe, is to land on the first packet: it takes the lowest
+// decoding timestamp of the stream, not the one of frame 0. Only the index is checked: the pictures
+// before the first keyframe refer to pictures that are not in the file.
+TEST_F(FramesDecoderGpuTest, MpegTsIndexFromTheMiddleOfAGop) {
+  auto path = make_string(testing::dali_extra_path(), "/db/video/mpegts/test_1_mid_gop.ts");
+  FramesIndexer indexer(path);
+  ASSERT_TRUE(indexer.IsValid()) << path;
+  indexer.BuildIndex();
+  auto &index = indexer.GetIndex();
+  ASSERT_EQ(index.size(), 42u) << path;
+  EXPECT_FALSE(index[0].is_keyframe);
+  EXPECT_EQ(index[0].decode_idx, 1);
+  EXPECT_EQ(index[1].decode_idx, 0);
+  EXPECT_TRUE(index[2].is_keyframe);
+  EXPECT_EQ(index.SeekDecodeIdx(0), 0);
+  CheckDecodeOrder(index, path);
 }
 
 TEST_F(FramesDecoderTest_CpuOnlyTests, ConstantFrameRate) {
@@ -989,6 +1067,22 @@ TEST_F(FramesDecoderGpuTest, ConstantFrameRateHevc) {
   FramesDecoderGpu decoder(cfr_hevc_videos_paths_[0]);
   decoder.BuildIndex();
   RunTest(decoder, cfr_videos_[0]);
+}
+
+// Seeks in MPEG-TS (see MpegTsIndex), checked against the frames of the clips
+TEST_F(FramesDecoderGpuTest, ConstantFrameRateMpegTs) {
+  FramesDecoderGpu decoder(MpegTsClips()[0].ts);
+  decoder.BuildIndex();
+  RunTest(decoder, cfr_videos_[0]);
+}
+
+TEST_F(FramesDecoderGpuTest, ConstantFrameRateHevcMpegTs) {
+  if (!FramesDecoderGpu::SupportsHevc()) {
+    GTEST_SKIP();
+  }
+  FramesDecoderGpu decoder(MpegTsClips()[1].ts);
+  decoder.BuildIndex();
+  RunTest(decoder, cfr_videos_[1]);
 }
 
 // After a seek to an HEVC CRA picture, the parser drops the CRA's leading pictures, which reference

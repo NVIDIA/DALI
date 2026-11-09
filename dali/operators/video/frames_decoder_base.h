@@ -53,6 +53,9 @@ struct IndexEntry {
   // For a keyframe: how many leading pictures it has (shown before it, decoded after it), which
   // with FrameIndex::decode_order_timestamps are the frames right after it; -1 if unknown
   int leading_pictures = -1;
+  // The timestamp that a seek to the frame takes (see FrameIndex::SeekTimestamp); AV_NOPTS_VALUE
+  // if unknown
+  int64_t seek_timestamp = AV_NOPTS_VALUE;
 };
 
 struct FrameIndex {
@@ -99,6 +102,19 @@ struct FrameIndex {
    */
   int SeekDecodeIdx(int i) const {
     return index[i].seek_decode_idx >= 0 ? index[i].seek_decode_idx : DecodeIdx(i);
+  }
+
+  /**
+   * @brief The timestamp that av_seek_frame (with AVSEEK_FLAG_BACKWARD) takes to land on frame i's
+   * packet, or before it, for a frame that SeekFrame seeks to.
+   *
+   * It is the frame's pts if the demuxer seeks by pts (e.g. MP4, Matroska), and its dts otherwise
+   * (e.g. MPEG-TS, which bisects the file on the dts of any packet: with B-frames, a seek to a
+   * keyframe's pts lands after the keyframe). For frame 0 before the first keyframe, it is the
+   * lowest of them, for the start of the stream. If unknown, the frame's pts.
+   */
+  int64_t SeekTimestamp(int i) const {
+    return index[i].seek_timestamp != AV_NOPTS_VALUE ? index[i].seek_timestamp : index[i].pts;
   }
 
   /**
@@ -488,8 +504,10 @@ class DLL_PUBLIC FramesDecoderBase {
   virtual void Reset();
 
   /**
-   * @brief Seeks to the frame given by id using avformat_seek_file
+   * @brief Seeks to the frame given by id using av_seek_frame
    *
+   * @param timestamp What av_seek_frame takes to land on the frame (for a frame that SeekFrame
+   *        seeks to, FrameIndex::SeekTimestamp)
    * @param frame_id Id of the frame to seek to
    *
    * @return Boolean indicating whether the seek was successful

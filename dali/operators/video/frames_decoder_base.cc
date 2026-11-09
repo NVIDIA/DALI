@@ -14,6 +14,7 @@
 
 #include "dali/operators/video/frames_decoder_base.h"
 #include <algorithm>
+#include <cstring>
 #include <iomanip>
 #include <memory>
 #include <stdexcept>
@@ -430,27 +431,99 @@ void FramesDecoderBase::ParseNumFrames() {
   Reset();
 }
 
+namespace {
+
 /**
- * @brief Reads the length of a Network Abstraction Layer (NAL) unit from a buffer.
+ * @brief The size of the length that precedes each NAL (Network Abstraction Layer) unit in the
+ * packets of an H.264 or HEVC stream, or 0 if start codes precede them.
  *
- * NAL units are the basic elements of H.264/AVC and H.265/HEVC video compression standards.
- * In the Annex B byte stream format, NAL units are prefixed with a 4-byte length field
- * that indicates the size of the following NAL unit.
- *
- * This function reads those 4 bytes in big-endian order to get the NAL unit length.
- *
- * Reference: ITU-T H.264 and H.265 specifications
- *
- * @param buf Pointer to the buffer containing the NAL unit length prefix
- * @return The length of the NAL unit in bytes
+ * MP4 and Matroska store the NAL units after their length, whose size the avcC/hvcC extradata
+ * gives. MPEG-TS and raw streams store them in the Annex B format, after a start code (00 00 01, or
+ * 00 00 00 01), and their extradata, if any, starts with one. This is how FFmpeg's
+ * h264_mp4toannexb and hevc_mp4toannexb tell them apart.
  */
-static inline uint32_t read_nal_unit_length(uint8_t *buf) {
-  uint32_t length = 0;
-  length = (buf)[0] << 24 | (buf)[1] << 16 | (buf)[2] << 8 | (buf)[3];
-  return length;
+int NalLengthSize(const AVCodecParameters &par) {
+  const uint8_t *extradata = par.extradata;
+  int size = par.extradata_size;
+  bool annex_b = (size >= 3 && extradata[0] == 0 && extradata[1] == 0 && extradata[2] == 1) ||
+                 (size >= 4 && extradata[0] == 0 && extradata[1] == 0 && extradata[2] == 0 &&
+                  extradata[3] == 1);
+  if (annex_b)
+    return 0;
+  if (par.codec_id == AV_CODEC_ID_H264 && size >= 7)
+    return (extradata[4] & 3) + 1;  // avcC: lengthSizeMinusOne
+  if (par.codec_id == AV_CODEC_ID_HEVC && size >= 23)
+    return (extradata[21] & 3) + 1;  // hvcC: lengthSizeMinusOne
+  return 0;
 }
 
-namespace {
+/**
+ * @brief Whether a NAL unit, by its header (first byte), has a picture that decoding can start
+ * from: an IDR picture in H.264, an IRAP picture (IDR, CRA or BLA) in HEVC.
+ */
+bool IsKeyframeNal(AVCodecID codec_id, uint8_t header) {
+  if (codec_id == AV_CODEC_ID_H264)
+    return (header & 0x1F) == 5;
+  int type = (header >> 1) & 0x3F;
+  return type >= 16 && type <= 21;
+}
+
+/**
+ * @brief Whether a packet of an H.264 or HEVC stream has a NAL unit that decoding can start from
+ * (IsKeyframeNal).
+ *
+ * @param length_size The size of the length before each NAL unit, or 0 for start codes (see
+ *        NalLengthSize)
+ * @param nal_type If there is one, set to the type of the first such NAL unit (in H.264 5, an IDR
+ *        picture; in HEVC 16 to 21, an IRAP picture, 20 is IDR_N_LP)
+ */
+bool HasKeyframeNal(const AVPacket &packet, AVCodecID codec_id, int length_size, int *nal_type) {
+  auto type_of = [&](uint8_t header) {
+    return codec_id == AV_CODEC_ID_H264 ? (header & 0x1F) : ((header >> 1) & 0x3F);
+  };
+  const uint8_t *end = packet.data + packet.size;
+  if (length_size == 0) {
+    // A start code does not occur inside a NAL unit (emulation prevention)
+    for (const uint8_t *p = packet.data; end - p > 3; p++) {
+      if (p[0] == 0 && p[1] == 0 && p[2] == 1) {
+        if (IsKeyframeNal(codec_id, p[3])) {
+          *nal_type = type_of(p[3]);
+          return true;
+        }
+        p += 2;
+      }
+    }
+    return false;
+  }
+  const uint8_t *nal = packet.data;
+  while (end - nal > length_size) {
+    uint32_t nal_size = 0;
+    for (int i = 0; i < length_size; i++)
+      nal_size = nal_size << 8 | nal[i];
+    nal += length_size;
+    if (nal_size > static_cast<size_t>(end - nal))
+      break;
+    if (nal_size > 0 && IsKeyframeNal(codec_id, nal[0])) {
+      *nal_type = type_of(nal[0]);
+      return true;
+    }
+    nal += nal_size;
+  }
+  return false;
+}
+
+/**
+ * @brief Whether av_seek_frame takes a presentation timestamp (pts) for this demuxer, rather than a
+ * decoding timestamp (dts).
+ *
+ * The MP4 demuxer (and the others with AVFMT_SEEK_TO_PTS) and the Matroska one search the keyframes
+ * by pts. The others search by dts: the MPEG-TS and MPEG-PS demuxers bisect the file on the dts of
+ * any packet, so that a seek to a keyframe's pts lands after the keyframe when its dts is lower
+ * (B-frames), and the AVI and FLV demuxers and those of raw streams search an index of dts.
+ */
+bool SeeksByPts(const AVInputFormat &format) {
+  return (format.flags & AVFMT_SEEK_TO_PTS) || std::strcmp(format.name, "matroska,webm") == 0;
+}
 
 /**
  * @brief Identifies a packet of the stream when it is read again (e.g. after a seek): by its
@@ -578,11 +651,12 @@ struct SyncPacket {
 /**
  * @brief Records IndexEntry::seek_decode_idx for the frames that SeekFrame seeks to.
  *
- * A seek lands on the keyframe itself, or at the start of the stream for a target that is not a
- * keyframe (frame 0 before the first keyframe). With hidden packets (e.g. an edit list), the
- * demuxer is asked instead, as its rule is not exposed: mov, for one, can land a whole GOP or a
- * hidden lead-in before the keyframe. All-intra streams are not asked: a seek lands on the keyframe
- * there, and asking would read the whole file again.
+ * A seek to the keyframe's seek timestamp (FrameIndex::SeekTimestamp) lands on the keyframe itself,
+ * or at the start of the stream for a target that is not a keyframe (frame 0 before the first
+ * keyframe). With hidden packets (e.g. an edit list), the demuxer is asked instead, as its rule is
+ * not exposed: mov, for one, can land a whole GOP or a hidden lead-in before the keyframe.
+ * All-intra streams are not asked: a seek lands on the keyframe there, and asking would read the
+ * whole file again.
  *
  * Leaves the demuxer at an arbitrary position: the caller resets it.
  */
@@ -606,7 +680,7 @@ void RecordSeekLandings(AVFormatContext *ctx, int stream_id, AVPacket *packet_bu
     entry.seek_decode_idx = entry.is_keyframe ? entry.decode_idx : 0;
     if (!ask_demuxer)
       continue;
-    if (av_seek_frame(ctx, stream_id, entry.pts, AVSEEK_FLAG_BACKWARD) < 0) {
+    if (av_seek_frame(ctx, stream_id, index.SeekTimestamp(target), AVSEEK_FLAG_BACKWARD) < 0) {
       LOG_LINE << "Not seekable: seeks are assumed to land on their keyframes" << std::endl;
       ask_demuxer = false;
       continue;
@@ -656,17 +730,17 @@ void FramesDecoderBase::BuildIndex() {
   // Packets decoded but not shown (e.g. hidden by an edit list): marked as discarded by the
   // demuxer, or with negative timestamps
   bool has_hidden_packets = false;
+  const AVCodecParameters &codecpar = *ctx_->streams[stream_id_]->codecpar;
+  int nal_length_size = NalLengthSize(codecpar);
+  bool seeks_by_pts = SeeksByPts(*ctx_->iformat);
   // MPEG-4 Part 2 with timestamps in decoding order (AVI): the VOPs tell where a seek can start,
   // and the B-VOPs right after an I-VOP in decoding order, which are shown before it: its leading
   // pictures
-  bool read_vops = index_.decode_order_timestamps &&
-                   ctx_->streams[stream_id_]->codecpar->codec_id == AV_CODEC_ID_MPEG4;
+  bool read_vops = index_.decode_order_timestamps && codecpar.codec_id == AV_CODEC_ID_MPEG4;
   int time_increment_bits = -1;  // from the video object layer header, to read the VOP headers
   int leading_of = -1;  // the keyframe whose leading B-VOPs the next packets may hold
-  if (read_vops) {
-    auto *par = ctx_->streams[stream_id_]->codecpar;
-    Mpeg4Vops(par->extradata, par->extradata_size, time_increment_bits);
-  }
+  if (read_vops)
+    Mpeg4Vops(codecpar.extradata, codecpar.extradata_size, time_increment_bits);
 
   while (true) {
     // Read the next frame from the video
@@ -710,48 +784,15 @@ void FramesDecoderBase::BuildIndex() {
     if (packet->flags & AV_PKT_FLAG_KEY) {
       LOG_LINE << "Found potential keyframe at frame " << index_.size() << std::endl;
 
-      // Special handling for H.264 and HEVC formats
-      auto codec_id = ctx_->streams[packet->stream_index]->codecpar->codec_id;
+      // In H.264 and HEVC, verify that the packet has a picture that decoding can start from
+      auto codec_id = codecpar.codec_id;
       if (codec_id == AV_CODEC_ID_H264 || codec_id == AV_CODEC_ID_HEVC) {
-        // Parse NAL units to verify if this is actually a keyframe
-        // NAL = Network Abstraction Layer, the basic unit of encoded video
-        const uint8_t *end = packet->data + packet->size;
-        uint8_t *nal_start = packet->data;
-
-        // Iterate through NAL units in the packet
-        while (nal_start + 4 < end) {
-          // Each NAL unit is prefixed with a 4-byte length
-          uint32_t nal_size = read_nal_unit_length(nal_start);
-          nal_start += 4;
-          if (nal_start + nal_size > end) {
-            break;
-          }
-
-          if (codec_id == AV_CODEC_ID_H264) {
-            // In H.264, the NAL unit type is in the lower 5 bits
-            uint8_t nal_unit_type = nal_start[0] & 0x1F;
-            // Type 5 indicates an IDR frame (Instantaneous Decoding Refresh)
-            // IDR frames are special keyframes that clear all reference buffers
-            if (nal_unit_type == 5) {
-              entry.is_keyframe = true;
-              entry.leading_pictures = 0;  // no picture after an IDR is shown before it
-              break;
-            }
-          } else {  // AV_CODEC_ID_HEVC
-            // In HEVC/H.265, NAL unit type is in bits 1-6 of the first byte
-            uint8_t nal_unit_type = (nal_start[0] >> 1) & 0x3F;
-            // Types 16-21 are IRAP (Intra Random Access Point) pictures
-            // which serve as keyframes in HEVC
-            if (nal_unit_type >= 16 && nal_unit_type <= 21) {
-              entry.is_keyframe = true;
-              // IDR_N_LP has no leading pictures; the others may have (RADL, RASL)
-              if (nal_unit_type == 20)
-                entry.leading_pictures = 0;
-              break;
-            }
-          }
-          nal_start += nal_size;  // Advance to next NAL unit
-        }
+        int nal_type = 0;
+        entry.is_keyframe = HasKeyframeNal(*packet, codec_id, nal_length_size, &nal_type);
+        // No picture after an H.264 IDR picture or an HEVC IDR_N_LP picture is shown before it; the
+        // other HEVC IRAP pictures may have leading pictures (RADL, RASL)
+        if (entry.is_keyframe && (codec_id == AV_CODEC_ID_H264 || nal_type == 20))
+          entry.leading_pictures = 0;
       } else if (read_vops) {
         // AVI key flags are not always on coded I-VOPs: e.g. a remux of a packed stream flags the
         // not-coded VOP (typed I) after a packed I+B packet. A seek must start at a coded I-VOP.
@@ -767,6 +808,10 @@ void FramesDecoderBase::BuildIndex() {
     if (entry.pts == AV_NOPTS_VALUE) {
       DALI_FAIL(make_string("Video file \"", Filename(), "\" has no valid timestamps"));
     }
+    // What a seek to the frame takes (see FrameIndex::SeekTimestamp)
+    entry.seek_timestamp = seeks_by_pts || packet->dts == AV_NOPTS_VALUE
+                               ? entry.pts
+                               : std::min(packet->dts, entry.pts);
 
     if (entry.pts < 0) {
       LOG_LINE << "Negative timestamp: " << entry.pts << ", skipping" << std::endl;
@@ -835,6 +880,14 @@ void FramesDecoderBase::BuildIndex() {
     } else {
       index_[i].last_keyframe_id = *(--it);
     }
+  }
+
+  // A seek to frame 0 when it is not a keyframe (before the first one) is to land at the start of
+  // the stream: on the packet with the lowest timestamp that a seek takes (with B-frames, the
+  // first packet's dts can be lower than frame 0's)
+  if (!index_[0].is_keyframe) {
+    for (auto &entry : index_.index)
+      index_[0].seek_timestamp = std::min(index_[0].seek_timestamp, entry.seek_timestamp);
   }
 
   // For estimating the decoding work; the Reset below restores the demuxer
@@ -937,13 +990,13 @@ void FramesDecoderBase::SeekFrame(int frame_id) {
     // Seek to the keyframe of the requested frame, unless decoding through is enough
     int keyframe_id = SeekTarget(index_, next_frame_idx_, frame_id);
     if (keyframe_id >= 0) {
-      auto &keyframe_entry = index_[keyframe_id];
-      LOG_LINE << "Seeking to key frame " << keyframe_id << " timestamp " << keyframe_entry.pts
+      int64_t timestamp = index_.SeekTimestamp(keyframe_id);
+      LOG_LINE << "Seeking to key frame " << keyframe_id << " timestamp " << timestamp
                << " for requested frame " << frame_id << std::endl;
       // With hidden packets the seek can land before the keyframe (see seek_decode_idx)
-      if (!AvSeekFrame(keyframe_entry.pts, keyframe_id)) {
-        LOG_LINE << "Failed to seek to keyframe " << keyframe_id << " timestamp "
-                 << keyframe_entry.pts << ". Resetting decoder." << std::endl;
+      if (!AvSeekFrame(timestamp, keyframe_id)) {
+        LOG_LINE << "Failed to seek to keyframe " << keyframe_id << " timestamp " << timestamp
+                 << ". Resetting decoder." << std::endl;
         Reset();
       }
     }
