@@ -545,26 +545,45 @@ PACKED_BFRAMES_AVI = os.path.join(
 )
 
 
-def _display_order_frames(path):
-    """Returns all frames of `path` (RGB, int16) in display order, decoded by OpenCV, which is
-    independent of the DALI decoders. The colour conversion differs from the one of the DALI GPU
-    decoder, so these frames are only meant to identify which frame is which, not to be compared
-    byte by byte."""
+def _opencv_frames(path):
+    """Yields the frames of `path` (RGB) in display order, decoded by OpenCV, which is independent
+    of the DALI decoders."""
     cap = cv2.VideoCapture(path)
-    frames = []
-    while True:
-        ok, frame = cap.read()
-        if not ok:
-            break
-        frames.append(np.int16(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)))
-    cap.release()
-    return frames
+    try:
+        while True:
+            ok, frame = cap.read()
+            if not ok:
+                return
+            yield cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    finally:
+        cap.release()
+
+
+@functools.lru_cache(maxsize=4)
+def _display_order_reference(path):
+    """Returns the frames of `path` in display order, decoded by OpenCV, to identify DALI's frames
+    with _identify_frame: `truth` (frames, pixels, channels) holds them in the `mask` area only,
+    where they differ from each other. The colour conversion differs from the one of the DALI GPU
+    decoder, so these frames are only meant to tell which frame is which, not to be compared byte
+    by byte."""
+    if not os.path.isfile(path):
+        raise unittest.SkipTest(f"{path} not found: DALI_extra is too old")
+    # Two passes keep the memory low: the spread of each pixel, then the pixels that spread
+    count, total, total_sq = 0, 0.0, 0.0
+    for frame in _opencv_frames(path):
+        frame = frame.astype(np.float64)
+        count, total, total_sq = count + 1, total + frame, total_sq + frame * frame
+    std = np.sqrt(np.maximum(total_sq / count - (total / count) ** 2, 0))
+    mask = std.max(-1) > 20
+    assert mask.any()
+    truth = np.stack([np.int16(frame[mask]) for frame in _opencv_frames(path)])
+    return truth, mask
 
 
 def _identify_frame(frame, truth, mask):
-    """Returns the index of the frame in `truth` that `frame` is closest to, in the `mask` area."""
-    frame = np.int16(frame)
-    return int(np.argmin([np.abs(frame[mask] - t[mask]).mean() for t in truth]))
+    """Returns the index of the frame in `truth` that `frame` is closest to, in the `mask` area (see
+    _display_order_reference)."""
+    return int(np.abs(np.int16(frame[mask])[None] - truth).mean((1, 2)).argmin())
 
 
 def test_packed_bframes_avi_seek_shows_requested_frames():
@@ -582,12 +601,10 @@ def test_packed_bframes_avi_seek_shows_requested_frames():
             f"{PACKED_BFRAMES_AVI} not found: DALI_extra is too old to contain the "
             "db/video/ucf101_test fixture"
         )
-    truth = _display_order_frames(PACKED_BFRAMES_AVI)
+    # The pixels that differ between frames: the area where the frame number is drawn.
+    truth, mask = _display_order_reference(PACKED_BFRAMES_AVI)
     # The last of the 91 frames is a not-coded VOP, which repeats frame 89: OpenCV returns 90.
     assert len(truth) >= 90, f"expected at least 90 frames, got {len(truth)}"
-    # The pixels that differ between frames: the area where the frame number is drawn.
-    mask = np.array(truth).std(0).max(-1) > 20
-    assert mask.any()
 
     sequence_length = 4
     starts = [0, 63, 28, 77, 56, 14, 7, 21, 49, 70, 84, 42, 35]
@@ -628,16 +645,6 @@ AVI_WITH_BFRAMES = (
     PACKED_BFRAMES_AVI,
     os.path.join(DALI_EXTRA_PATH, "db", "video", "containers", "avi", "cfr.avi"),
 )
-
-
-def _display_order_reference(path):
-    """The OpenCV frames of `path` and the area where they differ, to identify DALI's frames."""
-    if not os.path.isfile(path):
-        raise unittest.SkipTest(f"{path} not found: DALI_extra is too old")
-    truth = _display_order_frames(path)
-    mask = np.array(truth).std(0).max(-1) > 20
-    assert mask.any()
-    return truth, mask
 
 
 def _check_frames_shown(path, frames, video, truth, mask):
