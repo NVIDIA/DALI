@@ -1422,7 +1422,7 @@ TEST_F(FramesDecoderGpuTest, MjpegDecodesMultipleFrames) {
   if (!FramesDecoderGpu::CanNvdecDecode(cudaVideoCodec_JPEG, cudaVideoChromaFormat_444)) {
     GTEST_SKIP() << "NVDEC does not support 8-bit 4:4:4 JPEG on this GPU";
   }
-  auto mjpeg_path = testing::dali_extra_path() + "/db/video/mjpeg/mjpeg.avi";
+  auto mjpeg_path = make_string(testing::dali_extra_path(), "/db/video/mjpeg/mjpeg.avi");
   FramesDecoderCpu cpu_decoder(mjpeg_path, DALI_RGB);
   ASSERT_TRUE(cpu_decoder.IsValid());
   cpu_decoder.BuildIndex();
