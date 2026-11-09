@@ -38,7 +38,7 @@
       "id": "timm-vit-large-gpu-bound",
       "prompt": "I'm training ViT-L/16 on ImageNet with timm's train.py (/workspace/timm), DeiT III-style:\n\n    python train.py /data/imagenet --model vit_large_patch16_224 --epochs 100 -b 256 -j 16 --amp --amp-dtype bfloat16 --torchcompile --opt adamw --lr 5e-4 --weight-decay 0.05 --sched cosine --warmup-epochs 5 --aa 3a --mixup 0.8 --cutmix 1.0 --drop-path 0.4\n\nEach epoch takes about 38 minutes on my workstation (8 cores, 16 threads), so 100 epochs is close to three days. How can I speed it up?\n",
       "expected_skill": "dali",
-      "expected_output": "The input path is unlikely to be the limit. About 560 images/s on 8 cores leaves roughly 14 ms of CPU time per image, well above what one JPEG decode, a random resized crop, color jitter and one 3-Augment op need, so moving data loading to the GPU would not help.",
+      "expected_output": "About 560 images/s on 8 cores leaves roughly 14 ms of CPU time per image. Timing the transform (one JPEG decode, a random resized crop, color jitter and one 3-Augment op) on synthetic images gives a few ms, well under half that, so moving data loading to the GPU would not help.",
       "assertions": [
         "Does not recommend NVIDIA DALI or moving data loading or augmentation to the GPU"
       ]
