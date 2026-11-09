@@ -537,12 +537,9 @@ void FramesDecoderGpu::InitGpuParser() {
 
   nvdecode_state_->parser = frame_dec_gpu_impl::CUvideoparserHandle(parser_info);
 
-  // Init internal frame buffer
-  // TODO(awolant): Check, if continuous buffer would be faster
-  for (size_t i = 0; i < frame_buffer_.size(); ++i) {
-    frame_buffer_[i].frame_.resize(FrameSize());
-    frame_buffer_[i].pts_ = -1;
-  }
+  // The frame buffers are allocated as frames are buffered (see AttachFrameBuffer)
+  for (auto &frame : frame_buffer_)
+    frame.pts_ = -1;
 }
 
 FramesDecoderGpu::FramesDecoderGpu(const std::string &filename, cudaStream_t stream, DALIImageType image_type)
@@ -585,8 +582,18 @@ int FramesDecoderGpu::ProcessPictureDecode(CUVIDPICPARAMS *picture_params) {
     return 0;
   }
 
-  CUDA_CALL(cuvidDecodePicture(nvdecode_state_->decoder, picture_params));
-  decoded_pictures_++;
+  // A non-reference picture that is not read with its data (e.g. one hidden by an edit list, or one
+  // only skipped on the way to the frames to read) is not decoded at all: no other picture refers
+  // to it, and only its timestamp is kept
+  bool decode = picture_params->ref_pic_flag || picture_params->field_pic_flag ||
+                codec_params_->codec_id != AV_CODEC_ID_H264 ||
+                IsPictureReadWithData(piped_pts_.empty() ? current_pts_ : piped_pts_.front());
+  if (decode) {
+    CUDA_CALL(cuvidDecodePicture(nvdecode_state_->decoder, picture_params));
+    decoded_pictures_++;
+  } else {
+    skipped_pictures_++;
+  }
 
   // The pts of the picture, taken from the packets in decode order. It is kept with the surface,
   // for the display callback: the timestamps that the parser passes to that callback are not
@@ -595,7 +602,9 @@ int FramesDecoderGpu::ProcessPictureDecode(CUVIDPICPARAMS *picture_params) {
   if (idx >= static_cast<int>(surface_pts_.size())) {
     surface_pts_.resize(idx + 1, AV_NOPTS_VALUE);
     surface_to_display_.resize(idx + 1, false);
+    surface_decoded_.resize(idx + 1, false);
   }
+  surface_decoded_[idx] = decode;
   // The second field of a field pair is decoded to the same surface as the first one and is
   // displayed together with it, as one frame from one packet: it keeps the pts of the first field.
   if (!picture_params->second_field) {
@@ -650,11 +659,28 @@ int FramesDecoderGpu::HandlePictureDisplay(CUVIDPARSERDISPINFO *picture_display_
     if (current_copy_to_output_ == false) {
       return 1;
     }
+    DALI_ENFORCE(surface_decoded_[picture_display_info->picture_index],
+                 make_string("Internal error: frame ", next_frame_idx_, " of \"", Filename(),
+                             "\" is read, but its picture was not decoded."));
     frame_output = current_frame_output_;
   } else {
     // Put currently decoded frame to the buffer for later
     auto &slot = FindEmptySlot();
     slot.pts_ = current_pts_;
+    // A frame that is never read with its data (e.g. hidden by an edit list, or only skipped on
+    // the way to the frames to read) keeps its place in the buffer, but it is neither mapped nor
+    // converted
+    // (a picture that was not decoded has no data either)
+    slot.has_data_ = surface_decoded_[picture_display_info->picture_index] &&
+                     (buffered_frame_data_ == BufferedFrameData::kIfRead
+                          ? CanBeReadWithData(slot.pts_)
+                          : buffered_frame_data_ == BufferedFrameData::kAll);
+    if (!slot.has_data_) {
+      LOG_LINE << "Not mapping frame with timestamp " << slot.pts_
+               << ": it is not read with its data" << std::endl;
+      return 1;
+    }
+    AttachFrameBuffer(slot);
     frame_output = slot.frame_.data();
   }
 
@@ -667,6 +693,7 @@ int FramesDecoderGpu::HandlePictureDisplay(CUVIDPARSERDISPINFO *picture_display_
     &frame,
     &pitch,
     &videoProcessingParameters));
+  mapped_pictures_++;
 
   LOG_LINE << "ConvertVideoColorSpace with conversion_type_="
            << static_cast<int>(conversion_type_) << " and dimensions " << Height() << "x" << Width()
@@ -720,6 +747,9 @@ bool FramesDecoderGpu::ReadNextFrameWithIndex(uint8_t *data) {
   for (auto &frame : frame_buffer_) {
     if (frame.pts_ != -1 && frame.pts_ == index_[next_frame_idx_].pts) {
       if (copy_to_output) {
+        DALI_ENFORCE(frame.has_data_, make_string("Internal error: frame ", next_frame_idx_,
+                                                  " of \"", Filename(), "\" is read, but only its "
+                                                  "timestamp was kept."));
         LOG_LINE << "Copying from frame buffer to frame_output" << std::endl;
         copyD2D(data, frame.frame_.data(), FrameSize(), stream_);
       }
@@ -900,6 +930,8 @@ bool FramesDecoderGpu::ReadNextFrameWithoutIndex(uint8_t *data) {
     if (dtype_ == DALI_FLOAT) {
       total_size *= 4;
     }
+    // without an index, every buffered frame keeps its data (see CanBeReadWithData)
+    assert(frame_buffer_[frame_to_return_index].has_data_);
     LOG_LINE << "Copying from frame buffer at index " << frame_to_return_index
              << " to frame_output at " << current_frame_output_ << " (frame_idx=" << next_frame_idx_
              << ")" << std::endl;
@@ -1018,9 +1050,60 @@ BufferedFrame& FramesDecoderGpu::FindEmptySlot() {
   }
   frame_buffer_ = std::move(new_frame_buffer);
   auto &new_frame = frame_buffer_.back();
-  new_frame.frame_.resize(FrameSize());
-  new_frame.pts_ = -1;
+  new_frame.pts_ = -1;  // its frame buffer is attached if the frame keeps its data
   return new_frame;
+}
+
+void FramesDecoderGpu::AttachFrameBuffer(BufferedFrame &slot) {
+  if (!slot.frame_.empty())
+    return;
+  for (auto &other : frame_buffer_) {
+    // the buffer of an empty slot, or of a slot that keeps only a timestamp: a conversion into it
+    // runs on stream_, after any pending copy out of it
+    if (!other.frame_.empty() && (other.pts_ == -1 || !other.has_data_)) {
+      slot.frame_ = std::move(other.frame_);
+      return;
+    }
+  }
+  slot.frame_.resize(FrameSize());
+}
+
+bool FramesDecoderGpu::IsPictureReadWithData(int64_t pts) const {
+  // the same decision as HandlePictureDisplay's: returned now, or buffered with its data
+  if (HasIndex() && next_frame_idx_ >= 0 && pts == index_[next_frame_idx_].pts)
+    return current_copy_to_output_;
+  return buffered_frame_data_ == BufferedFrameData::kIfRead
+             ? CanBeReadWithData(pts)
+             : buffered_frame_data_ == BufferedFrameData::kAll;
+}
+
+bool FramesDecoderGpu::CanBeReadWithData(int64_t pts) const {
+  if (!HasIndex() || next_frame_idx_ < 0 || next_frame_idx_ >= static_cast<int>(index_.size()))
+    return true;
+  // The index is sorted by timestamp and, until the decoder is flushed, a buffered frame is only
+  // looked up for the frames from the next one on: a frame that is not among them (e.g. hidden by
+  // an edit list, or shown before the next one) is never read
+  auto first = index_.index.begin() + next_frame_idx_;
+  auto entry = std::lower_bound(first, index_.index.end(), pts,
+                                [](const IndexEntry &e, int64_t pts) { return e.pts < pts; });
+  if (entry == index_.index.end() || entry->pts != pts)
+    return false;
+  // Up to the last of the frames to read next, a frame that is not one of them is only skipped;
+  // after it, a later DecodeFrames (e.g. the next sample of a decode lane) may read it
+  if (frames_to_read_.empty() || pts > index_[frames_to_read_.back()].pts)
+    return true;
+  auto read = std::lower_bound(frames_to_read_.begin(), frames_to_read_.end(), pts,
+                               [&](int frame, int64_t pts) { return index_[frame].pts < pts; });
+  return index_[*read].pts == pts;
+}
+
+int FramesDecoderGpu::NumFrameBuffers() const {
+  int num_buffers = 0;
+  for (auto &frame : frame_buffer_) {
+    if (!frame.frame_.empty())
+      num_buffers++;
+  }
+  return num_buffers;
 }
 
 bool FramesDecoderGpu::HasEmptySlot() const {
@@ -1074,6 +1157,19 @@ FramesDecoderGpu::~FramesDecoderGpu() {
   CUDA_DTOR_CALL(cudaStreamSynchronize(stream_));
   filtered_packet_.reset();
   bsfc_.reset();
+}
+
+int FramesDecoderGpu::NumEngines(int device_id) {
+  if (!cuvidInitChecked())
+    return 0;
+  DeviceGuard guard(device_id);
+  CUVIDDECODECAPS decoder_caps = {};
+  decoder_caps.eCodecType = cudaVideoCodec_H264;
+  decoder_caps.eChromaFormat = cudaVideoChromaFormat_420;
+  decoder_caps.nBitDepthMinus8 = 0;
+  if (cuvidGetDecoderCaps(&decoder_caps) != CUDA_SUCCESS || !decoder_caps.bIsSupported)
+    return 0;
+  return decoder_caps.nNumNVDECs;
 }
 
 bool FramesDecoderGpu::SupportsHevc() {
