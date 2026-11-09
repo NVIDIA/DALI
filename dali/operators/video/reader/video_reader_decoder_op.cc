@@ -840,7 +840,10 @@ Otherwise, the number of values must match the number of channels in the video.)
                     std::vector<int>{
                         0,
                     })
-    .AddOptionalArg("image_type", R"(The color space of the output frames (RGB or YCbCr).)",
+    .AddOptionalArg("image_type", R"(The color space of the output frames (RGB or YCbCr).
+
+YCbCr output contains the decoded samples upsampled to 4:4:4, in the color range and matrix of
+the stream (usually limited range); RGB output is full range.)",
                     DALI_RGB)
     .AddParent("LoaderBase")
     .OutputNDim(0, 4)

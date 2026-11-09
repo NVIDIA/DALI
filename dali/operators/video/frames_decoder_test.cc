@@ -748,12 +748,11 @@ TEST_F(FramesDecoderGpuTest, YCbCrMatchesCpuBackendWithinTolerance) {
   // The CPU backend's YCbCr conversion (libswscale) and the GPU backend's (a custom CUDA
   // kernel matching the legacy reader's conversion) are independent implementations of 4:2:0
   // chroma upsampling (libswscale's SWS_BILINEAR vs. the GPU kernel's own bilinear sampling),
-  // so they aren't expected to be byte-identical -- rounding can differ by a step or two on
-  // sharp chroma edges. What is guaranteed is colorimetry: on both backends, YCbCr output keeps
-  // the source's range (no limited <-> full range conversion, DALI-4916). When the CPU backend
-  // expanded limited-range sources to full range, the two disagreed by up to 20/255 per channel;
-  // now differences should be small, uniformly-distributed rounding noise, not a systematic
-  // offset.
+  // so they aren't guaranteed to be byte-identical (on the test file they currently are, but
+  // SIMD paths on other platforms may round differently by a step). What is guaranteed is
+  // colorimetry: on both backends, YCbCr output keeps the source's range (no limited <-> full
+  // range conversion, DALI-4916). When the CPU backend expanded limited-range sources to full
+  // range, the two disagreed by up to 20/255 per channel; now differences should be at most rounding noise, not a systematic offset.
   FramesDecoderCpu cpu_decoder(cfr_videos_paths_[0], DALI_YCbCr);
   cpu_decoder.BuildIndex();
   std::vector<uint8_t> frame_cpu(cpu_decoder.FrameSize());
@@ -776,9 +775,9 @@ TEST_F(FramesDecoderGpuTest, YCbCrMatchesCpuBackendWithinTolerance) {
     sum_abs_diff += d;
   }
   double avg_abs_diff = static_cast<double>(sum_abs_diff) / frame_cpu.size();
-  EXPECT_LE(max_abs_diff, 4) << "Max abs diff " << max_abs_diff
-                              << " suggests a systematic mismatch, not rounding noise";
-  EXPECT_LE(avg_abs_diff, 0.5) << "Avg abs diff " << avg_abs_diff
+  EXPECT_LE(max_abs_diff, 2) << "Max abs diff " << max_abs_diff
+                             << " suggests a systematic mismatch, not rounding noise";
+  EXPECT_LE(avg_abs_diff, 0.05) << "Avg abs diff " << avg_abs_diff
                                 << " suggests a systematic mismatch, not rounding noise";
 }
 
