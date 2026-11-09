@@ -643,18 +643,24 @@ int FramesDecoderGpu::HandlePictureDisplay(CUVIDPARSERDISPINFO *picture_display_
   // If they are the same, we just return this frame
   // If not, we store it in the buffer for later
 
+  // The frame wanted has no picture, and there is no frame before it to repeat: it takes this one
+  bool fill_from_this = false;
   if (labels_from_parser_ && HasIndex() && NextFrameIdx() >= 0 && NextFrameIdx() < NumFrames()) {
     // The labels come in display order. A picture before the frame wanted is not wanted anymore,
-    // and one after it means that the frame wanted has no picture: e.g. a not-coded MPEG-4 VOP,
-    // which NVDEC does not decode. Such a frame repeats the previous one.
+    // and one after it means that the frame wanted has no picture: e.g. the not-coded VOP of a
+    // DivX packed stream, which NVDEC skips. Such a frame repeats the previous one.
     int64_t wanted_pts = index_[NextFrameIdx()].pts;
     if (current_pts_ < wanted_pts) {
       LOG_LINE << "Dropping picture " << current_pts_ << ", shown before frame "
                << next_frame_idx_ << std::endl;
       return 1;
     }
-    if (current_pts_ > wanted_pts && !frame_returned_)
-      RepeatLastFrame(current_copy_to_output_ ? current_frame_output_ : nullptr);
+    if (current_pts_ > wanted_pts && !frame_returned_) {
+      if (has_last_frame_ || !current_copy_to_output_)
+        RepeatLastFrame(current_copy_to_output_ ? current_frame_output_ : nullptr);
+      else
+        fill_from_this = true;  // e.g. the start of the stream, or a seek, on a packet without one
+    }
   }
 
   void *frame_output = nullptr;
@@ -714,6 +720,13 @@ int FramesDecoderGpu::HandlePictureDisplay(CUVIDPARSERDISPINFO *picture_display_
 
   if (keep_as_last_frame)
     KeepAsLastFrame(frame_output);
+  if (fill_from_this) {
+    // The picture was buffered for its own frame (a later one): the frame wanted is a copy of it
+    copyD2D(static_cast<uint8_t *>(current_frame_output_),
+            static_cast<const uint8_t *>(frame_output), FrameBytes(), stream_);
+    KeepAsLastFrame(frame_output);
+    frame_returned_ = true;
+  }
 
   // TODO(awolant): Alternative is to copy the data to a buffer
   // and then process it on the stream. Check, if this is faster, when
@@ -761,7 +774,18 @@ bool FramesDecoderGpu::ReadNextFrameWithIndex(uint8_t *data) {
   }
   // With the labels in display order, a later frame shown already: the frame wanted has no picture
   if (labels_from_parser_ && later_frame_buffered) {
-    RepeatLastFrame(data);
+    if (data && !has_last_frame_) {
+      // No frame before it to repeat: it takes the next picture shown, still buffered for its own
+      BufferedFrame *next = nullptr;
+      for (auto &frame : frame_buffer_) {
+        if (frame.pts_ != -1 && frame.pts_ > wanted_pts && (!next || frame.pts_ < next->pts_))
+          next = &frame;
+      }
+      copyD2D(data, next->frame_.data(), FrameSize(), stream_);
+      KeepAsLastFrame(next->frame_.data());
+    } else {
+      RepeatLastFrame(data);
+    }
     next_frame_idx_ = next_frame_idx_ == NumFrames() - 1 ? -1 : next_frame_idx_ + 1;
     return true;
   }
@@ -1143,13 +1167,14 @@ void FramesDecoderGpu::KeepAsLastFrame(const void *frame) {
 }
 
 void FramesDecoderGpu::RepeatLastFrame(void *data) {
-  DALI_ENFORCE(has_last_frame_,
-               make_string("Frame ", next_frame_idx_, " of \"", Filename(),
-                           "\" has no picture of its own, and no frame before it to repeat."));
   LOG_LINE << "Frame " << next_frame_idx_ << " has no picture: repeating the last frame"
            << std::endl;
-  if (data)
+  if (data) {  // a skipped frame needs no content
+    DALI_ENFORCE(has_last_frame_,
+                 make_string("Frame ", next_frame_idx_, " of \"", Filename(),
+                             "\" has no picture of its own, and no frame next to it to show."));
     copyD2D(static_cast<uint8_t *>(data), last_frame_.data(), FrameBytes(), stream_);
+  }
   frame_returned_ = true;
 }
 

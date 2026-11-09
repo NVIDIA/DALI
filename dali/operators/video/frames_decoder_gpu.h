@@ -264,7 +264,8 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
   // packet's: the parser hands the timestamps fed in decoding order out in display order.
   bool labels_from_parser_ = false;
   // With labels_from_parser_: a copy of the last frame read, which a frame without a picture of its
-  // own (e.g. a not-coded MPEG-4 VOP) repeats. Unknown after a flush.
+  // own (e.g. the not-coded VOP of a DivX packed stream) repeats. Unknown after a flush: such a
+  // frame then takes the next picture shown.
   DeviceBuffer<uint8_t> last_frame_;
   bool has_last_frame_ = false;
 
@@ -302,7 +303,7 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
   void KeepAsLastFrame(const void *frame);
 
   // Returns the frame wanted, which has no picture, as a repeat of the last frame read, into `data`
-  // (nullptr: skipped)
+  // (nullptr: skipped, which needs no last frame)
   void RepeatLastFrame(void *data);
 
   bool HasEmptySlot() const;
