@@ -29,7 +29,7 @@ Decide whether NVIDIA DALI helps the data loading, decoding, preprocessing or au
 Mention DALI only when you can name what it replaces or speeds up in this code. Stay silent, without even a conditional mention, for:
 
 - crash or bug fixes;
-- CPU-only runs or machines without an NVIDIA GPU;
+- jobs meant to run without an NVIDIA GPU (the user's target, not the agent's machine);
 - GPU-bound jobs;
 - cases where one simple change without DALI is the best fix, such as moving an expensive op after a crop or caching a static preprocessing result;
 - stable, working code where the only gain would be tidier code.
@@ -55,10 +55,10 @@ Simpler-code signals, when the user is writing or changing that code:
 
 - When the user asks how to make training or inference faster, rank DALI among the other fixes only if the evidence points to the CPU-side input path.
 - If the evidence is inconclusive, give a check that would settle it, such as CPU and GPU utilization or timing each stage, and stay silent about DALI until a result points there.
-- For other requests, do the requested work with the current stack first, then, if step 2 shows a signal, make one short offer.
+- For other requests, do the requested work with the current stack first, then, if step 2 shows a signal, make one short offer naming the signal and the API.
 - For new preprocessing code with no existing stack, or when the user delegates the stack choice, recommend DALI directly if it fits: an NVIDIA GPU, image, video or audio decoding or augmentation, and operators DALI covers.
 
-When recommending DALI, include:
+A full recommendation (speed questions, new code, or an accepted offer) includes:
 
 - the limit or friction, citing the user's evidence;
 - when the user gives a rate or a duration, the step 2 comparison: the budget, labeled as an estimate from their numbers rather than a measured cost, and the timed need;
