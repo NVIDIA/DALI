@@ -468,6 +468,7 @@ inline PacketKeyType PacketKey(const AVPacket &packet) {
 }
 
 constexpr int kMpeg4IVop = 0;
+constexpr int kMpeg4BVop = 2;
 
 // Reads the bits of an MPEG-4 Part 2 header, most significant first; zeros past the end
 class Mpeg4BitReader {
@@ -655,10 +656,13 @@ void FramesDecoderBase::BuildIndex() {
   // Packets decoded but not shown (e.g. hidden by an edit list): marked as discarded by the
   // demuxer, or with negative timestamps
   bool has_hidden_packets = false;
-  // MPEG-4 Part 2 with timestamps in decoding order (AVI): the VOPs tell where a seek can start
+  // MPEG-4 Part 2 with timestamps in decoding order (AVI): the VOPs tell where a seek can start,
+  // and the B-VOPs right after an I-VOP in decoding order, which are shown before it: its leading
+  // pictures
   bool read_vops = index_.decode_order_timestamps &&
                    ctx_->streams[stream_id_]->codecpar->codec_id == AV_CODEC_ID_MPEG4;
   int time_increment_bits = -1;  // from the video object layer header, to read the VOP headers
+  int leading_of = -1;  // the keyframe whose leading B-VOPs the next packets may hold
   if (read_vops) {
     auto *par = ctx_->streams[stream_id_]->codecpar;
     Mpeg4Vops(par->extradata, par->extradata_size, time_increment_bits);
@@ -776,6 +780,21 @@ void FramesDecoderBase::BuildIndex() {
     entry.is_flush_frame = false;
     index_.index.push_back(entry);
     ++num_frames_;
+
+    if (read_vops) {
+      size_t first = 0;
+      if (entry.is_keyframe) {
+        leading_of = static_cast<int>(index_.size()) - 1;
+        index_[leading_of].leading_pictures = 0;
+        first = 1;  // after the I-VOP: a DivX packed packet holds the B-VOP shown before it
+      }
+      for (size_t v = first; leading_of >= 0 && v < vops.size(); v++) {
+        if (vops[v].type == kMpeg4BVop)
+          index_[leading_of].leading_pictures++;
+        else
+          leading_of = -1;  // the next reference picture: shown after the keyframe
+      }
+    }
   }
 
   LOG_LINE << "Index building complete. Total frames: " << index_.size() << std::endl;
@@ -946,9 +965,12 @@ int FramesDecoderBase::SeekTarget(const FrameIndex &index, int next_frame, int f
   if (frame >= next_frame && frame <= next_frame + kMinimumSeekLeap)
     return -1;  // a short leap forward
   int keyframe = index[frame].last_keyframe_id;
-  // Maybe a leading picture of the keyframe: it needs the pictures before the keyframe
-  if (index.decode_order_timestamps && keyframe > 0 && frame - keyframe < kMaxLeadingPictures)
-    keyframe = index[keyframe - 1].last_keyframe_id;
+  if (index.decode_order_timestamps && keyframe > 0) {
+    // Maybe a leading picture of the keyframe: it needs the pictures before the keyframe
+    int leading = index[keyframe].leading_pictures;
+    if (frame - keyframe < (leading >= 0 ? leading : kMaxLeadingPictures))
+      keyframe = index[keyframe - 1].last_keyframe_id;
+  }
   if (frame > next_frame && index[next_frame].last_keyframe_id >= keyframe)
     return -1;  // further ahead, but past the keyframe that it would seek to
   return keyframe;

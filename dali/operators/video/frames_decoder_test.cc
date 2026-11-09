@@ -230,6 +230,8 @@ static void ExpectIndexerGivesTheIndexOfTheDecoder(FramesDecoderBase &decoder,
     EXPECT_EQ(actual.index[i].decode_idx, expected.index[i].decode_idx) << "frame " << i;
     EXPECT_EQ(actual.index[i].seek_decode_idx, expected.index[i].seek_decode_idx)
         << "frame " << i;
+    EXPECT_EQ(actual.index[i].leading_pictures, expected.index[i].leading_pictures)
+        << "frame " << i;
   }
   EXPECT_EQ(indexer.NumFrames(), decoder.NumFrames());
   EXPECT_EQ(indexer.Width(), decoder.Width());
@@ -693,6 +695,17 @@ TEST(FramesDecoderDecodeWorkTest, SeekTargetWithDecodeOrderTimestamps) {
   EXPECT_EQ(SeekTarget(20, 85), 40);   // right after keyframe 80: seeks to keyframe 40
   EXPECT_EQ(SeekTarget(45, 85), -1);   // ... where the decoder already is: decoding through
   EXPECT_EQ(SeekTarget(30, 90), 40);   // a longer leap from GOP 0
+  CheckPositionAtInARow(index);
+
+  // Known leading pictures (MPEG-4 Part 2): 2 for keyframe 40, none for keyframe 80
+  index[40].leading_pictures = 2;
+  index[80].leading_pictures = 0;
+  EXPECT_EQ(SeekTarget(70, 40), 0);    // a leading picture: the keyframe before
+  EXPECT_EQ(SeekTarget(70, 41), 0);
+  EXPECT_EQ(SeekTarget(70, 42), 40);   // the keyframe itself, shown after its leading pictures
+  EXPECT_EQ(SeekTarget(70, 55), 40);
+  EXPECT_EQ(SeekTarget(20, 80), 80);   // no leading pictures
+  EXPECT_EQ(SeekTarget(20, 85), 80);
   CheckPositionAtInARow(index);
 
   index.decode_order_timestamps = false;  // the same index, with presentation timestamps

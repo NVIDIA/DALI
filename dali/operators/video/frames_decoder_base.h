@@ -50,6 +50,9 @@ struct IndexEntry {
   // For a frame that SeekFrame seeks to (the last keyframe of some frame): the decoding position
   // of the packet where a seek to its timestamp lands (see AvSeekFrame); -1 otherwise or if unknown
   int seek_decode_idx = -1;
+  // For a keyframe of an index with FrameIndex::decode_order_timestamps: how many of the frames
+  // right after it its leading pictures take (shown before it, decoded after it); -1 if unknown
+  int leading_pictures = -1;
 };
 
 struct FrameIndex {
@@ -327,7 +330,8 @@ class DLL_PUBLIC FramesDecoderBase {
 
   /**
    * @brief The most frames that the leading pictures of a keyframe can take, in an index with
-   *        FrameIndex::decode_order_timestamps: the longest run of B-frames of H.264.
+   *        FrameIndex::decode_order_timestamps that does not know them (see
+   *        IndexEntry::leading_pictures): the longest run of B-frames of H.264.
    */
   static constexpr int kMaxLeadingPictures = 16;
 
@@ -340,10 +344,10 @@ class DLL_PUBLIC FramesDecoderBase {
    * `next_frame`, it seeks to the last keyframe of `frame`. SeekFrame and
    * AddDecodeWork both take this decision from here, so the estimate cannot drift from it.
    *
-   * With FrameIndex::decode_order_timestamps, the frames right after a keyframe (fewer than
-   * kMaxLeadingPictures) may be the pictures that lead it: shown before it, but decoded after it
-   * from pictures before it. A decoder that starts at the keyframe does not decode those, so it
-   * seeks to the keyframe before.
+   * With FrameIndex::decode_order_timestamps, the frames right after a keyframe may be the
+   * pictures that lead it: shown before it, but decoded after it from pictures before it (as many
+   * as IndexEntry::leading_pictures, or fewer than kMaxLeadingPictures if unknown). A decoder that
+   * starts at the keyframe does not decode those, so it seeks to the keyframe before.
    *
    * @param next_frame The decoder's next frame, in range: past the end, SeekFrame resets first.
    */
