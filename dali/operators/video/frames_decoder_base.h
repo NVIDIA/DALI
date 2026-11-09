@@ -69,11 +69,13 @@ struct FrameIndex {
    */
   bool decode_order_timestamps = false;
   /**
-   * @brief Some packets may hold no picture: an empty packet, or an MPEG-4 Part 2 packet without a
-   * coded VOP (e.g. the not-coded VOP of a DivX packed stream), also when its VOPs cannot be read.
+   * @brief Some frames may have no picture: a packet may hold none (an empty packet, or an MPEG-4
+   * Part 2 packet without a coded VOP, e.g. the not-coded VOP of a DivX packed stream, also when
+   * its VOPs cannot be read), or a keyframe may have leading pictures (or it is not known), which
+   * a decoder that starts at it drops.
    *
    * With decode_order_timestamps, a frame without a picture repeats the frame before it, which the
-   * GPU decoder then keeps a copy of. Without such packets, it skips that copy.
+   * GPU decoder then keeps a copy of. Without such frames, it skips that copy.
    */
   bool may_have_frames_without_pictures = false;
 

@@ -1186,16 +1186,19 @@ TEST_F(FramesDecoderTest_CpuOnlyTests, LeadingPicturesOfIdrKeyframes) {
   }
 }
 
-// Only a stream with packets that may hold no picture needs the GPU decoder to keep the last frame
-// read, which such a frame repeats (with timestamps in decoding order)
+// Only a stream with packets that may hold no picture, or keyframes that may have leading pictures
+// (dropped by a decoder that starts there), needs the GPU decoder to keep the last frame read,
+// which a frame without a picture repeats (with timestamps in decoding order)
 TEST_F(FramesDecoderTest_CpuOnlyTests, IndexKnowsFramesWithoutPictures) {
   const std::string video_dir = make_string(testing::dali_extra_path(), "/db/video");
   std::vector<std::pair<std::string, bool>> files = {
       // DivX packed: a not-coded VOP after each packet that holds a P-VOP and a B-VOP
       {make_string(video_dir, "/ucf101_test/packed_bframes_test.avi"), true},
       {make_string(video_dir, "/cfr/test_1.avi"), false},          // MPEG-4 Part 2, all coded
-      {make_string(video_dir, "/containers/avi/cfr.avi"), false},  // H.264
-      {make_string(video_dir, "/cfr/test_1.mp4"), false}};
+      {make_string(video_dir, "/containers/avi/cfr.avi"), false},  // H.264, one closed GOP
+      {make_string(video_dir, "/cfr/test_1.mp4"), false},  // H.264, IDR keyframes
+      // HEVC, open GOPs: CRA keyframes, whose leading pictures are not known
+      {make_string(video_dir, "/hevc/sintel_trailer-720p.mp4"), true}};
   for (const auto &[path, expected] : files) {
     SCOPED_TRACE(path);
     FramesIndexer indexer(path);
