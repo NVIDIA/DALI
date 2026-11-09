@@ -360,6 +360,9 @@ def test_tensor_subscript_nested_empty():
         (slice(-6, None, -1), slice(1, None)),
         (slice(-6, None, -1), slice(None, None, -2)),
         (slice(2, 2), slice(None, None, -1)),
+        (slice(1, 4), slice(2, 2)),
+        (slice(None, None, -1), slice(3, 3)),
+        (slice(None, None, 2), slice(1, 1)),
     ]:
         x = t[outer][inner]
         ref = data[outer][inner]
@@ -370,6 +373,12 @@ def test_tensor_subscript_nested_empty():
     x = t2[:0:2][::-1, 1:]
     assert x.shape == (0, 4)
     assert asnumpy(x).shape == (0, 4)
+
+    data2 = np.arange(15, dtype=np.int32).reshape(3, 5)
+    x = t2[1:3][1:1, 2:2]
+    ref = data2[1:3][1:1, 2:2]
+    assert x.shape == ref.shape == (0, 0)
+    assert np.array_equal(asnumpy(x), ref)
 
 
 @eval_modes()
