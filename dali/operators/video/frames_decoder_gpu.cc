@@ -22,6 +22,7 @@
 #include <map>
 #include <mutex>
 #include <shared_mutex>
+#include <stdexcept>
 #include <tuple>
 #include "dali/core/call_at_exit.h"
 #include "dali/core/error_handling.h"
@@ -1170,9 +1171,11 @@ void FramesDecoderGpu::RepeatLastFrame(void *data) {
   LOG_LINE << "Frame " << next_frame_idx_ << " has no picture: repeating the last frame"
            << std::endl;
   if (data) {  // a skipped frame needs no content
-    DALI_ENFORCE(has_last_frame_,
-                 make_string("Frame ", next_frame_idx_, " of \"", Filename(),
-                             "\" has no picture of its own, and no frame next to it to show."));
+    if (!has_last_frame_) {
+      throw std::runtime_error(
+          make_string("Frame ", next_frame_idx_, " of \"", Filename(),
+                      "\" has no picture of its own, and no frame next to it to show."));
+    }
     copyD2D(static_cast<uint8_t *>(data), last_frame_.data(), FrameBytes(), stream_);
   }
   frame_returned_ = true;

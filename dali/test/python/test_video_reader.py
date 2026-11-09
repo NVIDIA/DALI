@@ -650,7 +650,7 @@ AVI_WITH_BFRAMES = (
 
 def _check_frames_shown(path, frames, video, truth, mask):
     """Checks that `video` holds the frames `frames` of `path`, in display order."""
-    for k, frame in zip(frames, video):
+    for k, frame in zip(frames, video, strict=True):
         # The packed fixture has a 91st frame, a not-coded VOP, which repeats the previous one and
         # which OpenCV does not return
         expected = min(k, len(truth) - 1)

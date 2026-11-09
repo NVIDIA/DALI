@@ -487,7 +487,7 @@ class Mpeg4BitReader {
   void Skip(int n) { pos_ += n; }
 
   // Whether no bit was read past the end
-  bool Ok() const { return pos_ <= bits_; }
+  bool IsWithinBounds() const { return pos_ <= bits_; }
 
  private:
   const uint8_t *data_;
@@ -523,7 +523,7 @@ int Mpeg4TimeIncrementBits(Mpeg4BitReader r) {
     r.Skip(4);  // video_object_layer_shape_extension
   r.Skip(1);  // marker_bit
   unsigned resolution = r.Get(16);  // vop_time_increment_resolution
-  if (!r.Ok() || resolution == 0)
+  if (!r.IsWithinBounds() || resolution == 0)
     return -1;
   int bits = 1;  // as many as resolution - 1 takes, and at least 1
   while ((1u << bits) < resolution)
@@ -557,10 +557,10 @@ SmallVector<Mpeg4Vop, 2> Mpeg4Vops(const uint8_t *data, int size, int &time_incr
     } else if (code == 0xB6) {  // vop_start_code
       Mpeg4Vop vop = {static_cast<int>(r.Get(2)), true};
       if (time_increment_bits > 0) {
-        while (r.Get(1) && r.Ok()) {}  // modulo_time_base
+        while (r.Get(1) && r.IsWithinBounds()) {}  // modulo_time_base
         r.Skip(1 + time_increment_bits + 1);  // marker_bit, vop_time_increment, marker_bit
         unsigned coded = r.Get(1);
-        vop.coded = coded || !r.Ok();  // cut short: taken as coded
+        vop.coded = coded || !r.IsWithinBounds();  // cut short: taken as coded
       }
       vops.push_back(vop);
     }
