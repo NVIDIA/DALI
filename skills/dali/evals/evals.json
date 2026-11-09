@@ -1,0 +1,56 @@
+{
+  "skill_name": "dali",
+  "evals": [
+    {
+      "id": "lightly-swav-slow",
+      "prompt": "I'm pretraining SwAV on ImageNet with lightly's benchmark script (/workspace/lightly/benchmarks/imagenet/resnet50), with channels_last and torch.compile added locally to main.py:\n\n    python main.py --methods swav --epochs 100 --num-workers 16 --batch-size-per-device 256 --precision bf16-mixed --devices 1 --skip-knn-eval --skip-linear-eval --skip-finetune-eval\n\nIt's slow: the 100 epochs will take almost three days on my workstation (8 cores, 16 threads). How can I speed it up?\n",
+      "expected_output": "The CPU input path is the likely limit. About 500 images/s on 8 cores leaves roughly 16 ms of CPU time per image, in which a worker decodes the JPEG with PIL and builds eight augmented crops (2 at 224 px, 6 at 96 px). DALI can move this work to the GPU. Proxy and dynamic mode decode and augment there, while the TorchVision API runs lightly's transforms.v2 crops on the GPU but leaves PIL decoding on the CPU. GPU work inside DataLoader workers needs the spawn start method and CUDA MPS. A run without data loading shows the possible gain before migrating.",
+      "assertions": [
+        "Estimates from the stated training time how many images per second the 8 CPU cores must decode and turn into eight augmented crops",
+        "Recommends DALI Proxy, dynamic mode or the TorchVision API to move the crop augmentations to the GPU",
+        "States no unmeasured speedup figure for DALI or GPU data loading"
+      ]
+    },
+    {
+      "id": "doctr-ocr-throughput",
+      "prompt": "I'm running OCR over a large archive of scanned 300-dpi JPEG pages with docTR (/workspace/doctr) on my workstation (8 cores, 16 threads). Each process runs `ocr_predictor(pretrained=True).cuda().bfloat16()` on 8 pages at a time from `DocumentFile.from_images`. With 12 processes I get about 15 pages/s, nvidia-smi shows the GPU about 40% busy and top shows the CPU about 90% busy. How can I make it faster?\n",
+      "expected_output": "The CPU-side preprocessing is likely the limit, not the models. At 40% busy the GPU could reach about 37 pages/s, which leaves about 0.2 core-seconds per page on 8 cores for decoding a 300-dpi page, resizing it for detection and above all resizing and padding its hundreds of word crops for recognition. DALI moves them to the GPU, with dynamic mode preparing each page's crops in batched calls (ROI resize over the decoded page); detection postprocessing stays on the CPU.",
+      "assertions": [
+        "Relates the 15 pages/s to the CPU work per page, such as decoding a 300-dpi page and preparing its hundreds of word crops",
+        "Recommends moving decoding, page resizing and crop preparation to the GPU with NVIDIA DALI",
+        "Recommends DALI dynamic mode for preparing the word crops for recognition",
+        "States no unmeasured speedup figure for DALI or GPU preprocessing"
+      ]
+    },
+    {
+      "id": "timm-augmix-non-square-crash",
+      "prompt": "Training timm (/workspace/timm) on our flowers dataset at a non-square size dies on the first batch:\n\n    python train.py /data/flowers --model resnet50 --num-classes 3 --input-size 3 200 300 --aa augmix-m5-w4-d2 -b 64 -j 8 --epochs 50 --amp --device cuda\n\nFull output: /workspace/input/timm_augmix_crash.log. With --input-size 3 224 224 it runs fine. Can you fix it?\n",
+      "files": [
+        "evals/files/timm_augmix_crash.log"
+      ],
+      "expected_skill": null,
+      "expected_output": "AugMix's mixing buffer is allocated as (W, H, C) but filled with (H, W, C) arrays; allocate it from the array's shape (upstream fix huggingface/pytorch-image-models#2783).",
+      "assertions": [
+        "Does not propose NVIDIA DALI or GPU augmentation"
+      ]
+    },
+    {
+      "id": "timm-vit-large-gpu-bound",
+      "prompt": "I'm training ViT-L/16 on ImageNet with timm's train.py (/workspace/timm), DeiT III-style:\n\n    python train.py /data/imagenet --model vit_large_patch16_224 --epochs 100 -b 256 -j 16 --amp --amp-dtype bfloat16 --torchcompile --opt adamw --lr 5e-4 --weight-decay 0.05 --sched cosine --warmup-epochs 5 --aa 3a --mixup 0.8 --cutmix 1.0 --drop-path 0.4\n\nEach epoch takes about 38 minutes on my workstation (8 cores, 16 threads), so 100 epochs is close to three days. How can I speed it up?\n",
+      "expected_skill": "dali",
+      "expected_output": "The input path is unlikely to be the limit. About 560 images/s on 8 cores leaves roughly 14 ms of CPU time per image, well above what one JPEG decode, a random resized crop, color jitter and one 3-Augment op need, so moving data loading to the GPU would not help.",
+      "assertions": [
+        "Does not recommend NVIDIA DALI or moving data loading or augmentation to the GPU"
+      ]
+    },
+    {
+      "id": "tabular-loader-new-code",
+      "prompt": "We're starting a fraud-detection model. Write the PyTorch data loading for our card transactions in /workspace/fraud/data.py: 48 Parquet files under /data/transactions, about 50 million rows with 30 numeric and 8 categorical columns, and the label in `is_fraud`. We train an MLP on NVIDIA GPUs.\n",
+      "expected_skill": "dali",
+      "expected_output": "The data is tabular, with no image, video or audio decoding or augmentation, so DALI does not fit. The answer writes the loader with the current stack and does not mention DALI.",
+      "assertions": [
+        "Does not mention NVIDIA DALI"
+      ]
+    }
+  ]
+}
