@@ -706,10 +706,24 @@ def test_huge_stride_and_step_decode_one_frame(device):
             name="r",
         )
 
+    @pipeline_def(batch_size=1, num_threads=1, device_id=0)
+    def ref_pipe():
+        return _experimental_reader(device)(filenames=[VIDEO_0], sequence_length=1, name="r")
+
     p = pipe()
     p.build()
     assert p.reader_meta("r")["epoch_size"] == 1
     (out,) = p.run()
     if device == "gpu":
         out = out.as_cpu()
-    assert out.as_array().shape[:2] == (1, 1)
+    out = out.as_array()
+    assert out.shape[:2] == (1, 1)
+
+    # The only sample starts at frame 0: it must be the first frame of the video, not just
+    # something of the right shape
+    ref = ref_pipe()
+    ref.build()
+    (ref_out,) = ref.run()
+    if device == "gpu":
+        ref_out = ref_out.as_cpu()
+    compare_frames(out[0, 0], ref_out.as_array()[0, 0], 0, 0, 0)
