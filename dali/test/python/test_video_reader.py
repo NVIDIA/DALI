@@ -22,6 +22,7 @@ import atexit
 import enum
 import functools
 import itertools
+import random
 import shutil
 import tempfile
 import unittest
@@ -713,6 +714,72 @@ def test_avi_with_bframes_decoded_in_display_order(path, build_index):
     p.build()
     (video,) = p.run()
     _check_frames_shown(path, frames, np.array(video.as_cpu()[0]), truth, mask)
+
+
+# MPEG-4 Part 2 in AVI with B-frames and open GOPs (FFmpeg's encoder): 90 frames of 160x128, a
+# keyframe about every 15, each frame showing its number as the one bright cell of a 10x9 grid of
+# 16x14 cells. qa/TL0_videoreader_test/test.sh makes it.
+MPEG4_OPEN_GOP_AVI = "/tmp/avi_video_files/mpeg4_open_gop.avi"
+
+
+def _frame_number(frame):
+    """The number that a frame of MPEG4_OPEN_GOP_AVI shows: the index of its bright cell."""
+    cells = np.float32(frame).mean(-1)[:126, :160].reshape(9, 14, 10, 16).mean((1, 3))
+    return int(cells.argmax())
+
+
+@params("reader", "decoder")
+def test_avi_open_gop_seeks_show_requested_frames(op):
+    """The keyframes of an open GOP have leading pictures: shown before the keyframe, but decoded
+    after it from the pictures before it. In AVI, whose timestamps follow the decoding order, they
+    take the frames right after the keyframe, so a seek to one of them has to start at the keyframe
+    before. Every frame is read once, in a shuffled order, so that most reads seek, also to the
+    leading pictures and to the keyframes."""
+    if not os.path.isfile(MPEG4_OPEN_GOP_AVI):
+        raise unittest.SkipTest(f"{MPEG4_OPEN_GOP_AVI} not found: made by the qa test script")
+    num_frames = 90
+    order = list(range(num_frames))
+    random.Random(42).shuffle(order)
+
+    if op == "reader":
+        sequence_length = 3
+        starts = [s for s in order if s + sequence_length <= num_frames]
+        list_file = _write_file_list(
+            [f"{MPEG4_OPEN_GOP_AVI} 0 {s} {s + sequence_length}" for s in starts]
+        )
+
+        @pipeline_def(batch_size=1, num_threads=2, device_id=0, prefetch_queue_depth=1)
+        def pipe():
+            video, _ = fn.experimental.readers.video(
+                device="gpu",
+                file_list=list_file,
+                file_list_format="frames",
+                sequence_length=sequence_length,
+            )
+            return video
+
+        p = pipe()
+        p.build()
+        reads = [(s, np.array(p.run()[0].as_cpu()[0])) for s in starts]
+    else:
+        # One frame per iteration: the frames of one sample are decoded in order, without seeks
+        @pipeline_def(batch_size=1, num_threads=2, device_id=0, prefetch_queue_depth=1)
+        def pipe():
+            encoded, _ = fn.readers.file(files=[MPEG4_OPEN_GOP_AVI])
+            frame = fn.external_source(
+                source=lambda info: np.array([order[info.iteration]], dtype=np.int32),
+                batch=False,
+            )
+            return fn.experimental.decoders.video(encoded, device="mixed", frames=frame)
+
+        p = pipe()
+        p.build()
+        reads = [(f, np.array(p.run()[0].as_cpu()[0])) for f in order]
+
+    for first, frames in reads:
+        for k, frame in enumerate(frames):
+            shown = _frame_number(frame)
+            assert shown == first + k, f"frame {first + k} shows frame {shown}"
 
 
 class _Reader(enum.Enum):

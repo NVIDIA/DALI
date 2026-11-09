@@ -41,6 +41,13 @@ do_once() {
 
   # generate file_list.txt from video_files directory
   ls -d $TMP_VIDEO_FILES/*  | tr " " "\n" | awk '{print $0, NR;}' > /tmp/file_list.txt
+
+  # MPEG-4 Part 2 in AVI with B-frames and open GOPs, each frame showing its number as the one
+  # bright cell of a 10x9 grid of 16x14 cells (see test_video_reader.MPEG4_OPEN_GOP_AVI). The
+  # noise keeps every macroblock coded: skipped ones in B-VOPs are not decoded alike by all decoders.
+  mkdir -p /tmp/avi_video_files
+  ffmpeg -f lavfi -i "color=black:size=160x128:rate=30,format=yuv420p,geq=lum='if(eq(floor(X/16)+10*floor(Y/14)\,N)\,235\,16+60*random(1)*lt(mod(X\,8)\,4))':cb=128:cr=128" \
+      -frames:v 90 -c:v mpeg4 -bf 2 -g 15 -q:v 2 -y /tmp/avi_video_files/mpeg4_open_gop.avi
 }
 
 test_body() {
