@@ -374,6 +374,8 @@ class InstallerHelper:
             dali_cflags = "-I" + os.path.join(self.src_path, "include")
 
             cmd = [compiler, "-Wl,-R,$ORIGIN/..", "-std=c++14", "-DNDEBUG", "-shared"]
+            if self.tf_uses_libcpp:
+                cmd += ["-stdlib=libc++"]
             cmd += dali_stub_src.split()
             cmd += ["-o"]
             cmd += dali_stub_lib.split()

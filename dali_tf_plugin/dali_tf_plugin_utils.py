@@ -126,9 +126,12 @@ def get_cpp_compiler_version(compiler=None):
     cmd = [compiler or get_cpp_compiler(), "--version"]
     output = subprocess.check_output(cmd, text=True)  # nosec B603
     # GCC prints the version after the vendor parentheses; Clang uses "clang version".
-    version = re.search(r"(?:clang version\s+|\)\s*)(\d+\.\d+)", output.splitlines()[0])
+    version = re.search(r"(?:clang version\s+|\)\s*)(\d+\.\d+)", output.partition("\n")[0])
     if version is None:
-        raise ImportError(f"Could not determine the C++ compiler version from {output!r}")
+        raise ImportError(
+            f"Could not determine the C++ compiler version for {cmd[0]!r} from {output!r}. "
+            "Set CXX to a supported g++ or clang++ executable."
+        )
     return version.group(1)
 
 
