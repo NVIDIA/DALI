@@ -364,10 +364,18 @@ def test_tensor_subscript():
 def test_tensor_subscript_swapped_ends_with_stride(device_type):
     data = np.arange(5, dtype=np.int32)
     t = ndd.tensor(data, device=device_type)
-    for r in [slice(3, 0, 3), slice(3, 1, 2), slice(1, 3, -2), slice(0, 4, -3)]:
+    for r in [
+        slice(3, 0, 3),
+        slice(3, 1, 2),
+        slice(1, 3, -2),
+        slice(0, 4, -3),
+        slice(-1, -6, 3),
+    ]:
         x = t[r]
         assert x.shape == (0,)
-        assert asnumpy(x).shape == (0,)
+        result = asnumpy(x)
+        assert result.dtype == data.dtype
+        assert np.array_equal(result, data[r])
 
 
 @eval_modes()
