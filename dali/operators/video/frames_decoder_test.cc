@@ -772,6 +772,16 @@ TEST_F(FramesDecoderTest_CpuOnlyTests, HandleBoundaryReflectsWithinRoi) {
   EXPECT_EQ(decoder.HandleBoundary(BoundaryType::CLAMP, 25, 10, 20), 19);
 }
 
+TEST_F(FramesDecoderTest_CpuOnlyTests, HandleBoundarySingleFrameRoi) {
+  using boundary::BoundaryType;
+  FramesDecoderCpu decoder(cfr_videos_paths_[0]);
+  // A one-frame ROI [10, 11): every index maps to its only frame.
+  for (auto type : {BoundaryType::REFLECT_101, BoundaryType::REFLECT_1001, BoundaryType::CLAMP})
+    for (int frame_id : {-7, 9, 10, 11, 12, 25})
+      EXPECT_EQ(decoder.HandleBoundary(type, frame_id, 10, 11), 10)
+          << "frame_id=" << frame_id << " type=" << boundary::to_string(type);
+}
+
 TEST_F(FramesDecoderGpuTest, ConstantFrameRate) {
   FramesDecoderGpu decoder(cfr_videos_paths_[0]);
   decoder.BuildIndex();

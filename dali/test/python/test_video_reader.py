@@ -605,6 +605,8 @@ def _reflect_index(idx, start, end, mode):
     """Reference for reflecting `idx` into [start, end); `mode` is the DALI pad_mode name."""
     n = end - start
     off = idx - start
+    if n == 1:
+        return start
     if mode == "reflect_101":
         period = 2 * (n - 1)
         off %= period
@@ -648,4 +650,49 @@ def test_reflect_padding_stays_within_file_list_roi(device, pad_mode):
     assert frame_nums == expected, (
         f"pad_mode={pad_mode}: got frames {frame_nums}, expected {expected} "
         f"(file_list range [{roi_start}, {roi_end}))"
+    )
+
+
+@cartesian_params(
+    devices,
+    ["reflect_101", "reflect_1001"],
+    [
+        # (file_list entry, stride, file_list_include_end, effective range)
+        ("45 60", 6, False, (45, 50)),  # end past the last frame
+        ("-60 10", 5, False, (0, 10)),  # start before the first frame (after wrapping)
+        ("-60 10", 5, True, (0, 10)),
+    ],
+)
+def test_reflect_padding_with_range_beyond_the_video(device, pad_mode, case):
+    # The padded indices may only leave the frames of the file_list range, and the range must be
+    # a subset of the frames of the file (50): otherwise the reflected indices are outside of it.
+    entry, stride, include_end, (roi_start, roi_end) = case
+    list_file = _write_file_list([f"{CFR_VP9_60FPS_FILE} 0 {entry}"])
+
+    @pipeline_def(batch_size=1, num_threads=2, device_id=0, prefetch_queue_depth=1)
+    def pipe():
+        _, _, frame_num = fn.experimental.readers.video(
+            device=device,
+            name="reader",
+            file_list=list_file,
+            file_list_format="frames",
+            file_list_include_end=include_end,
+            sequence_length=4,
+            stride=stride,
+            step=1,
+            pad_mode=pad_mode,
+            enable_frame_num="sequence",
+        )
+        return frame_num
+
+    p = pipe()
+    p.build()
+    (frame_num,) = p.run()
+    frame_nums = [int(x) for x in np.array(frame_num.as_cpu()[0]).flatten()]
+    expected = [
+        _reflect_index(roi_start + stride * i, roi_start, roi_end, pad_mode) for i in range(4)
+    ]
+    assert frame_nums == expected, (
+        f"{entry!r}, pad_mode={pad_mode}: got frames {frame_nums}, expected {expected} "
+        f"(range [{roi_start}, {roi_end}))"
     )
