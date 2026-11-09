@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2017-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,7 +14,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-COMPILER=${CXX:-g++}
 PYTHON=${PYTHON:-python}
 LIB_NAME=${1:-"libdali_tf_current.so"}
 DALI_STUB_DIR=${2:-"${PWD}/stub"}
@@ -25,6 +24,11 @@ DALI_CFLAGS="-I../include -I.."
 DALI_LFLAGS="-L${DALI_STUB_DIR} -ldali"
 
 TF_CFLAGS=( $($PYTHON -c 'import tensorflow as tf; print(" ".join(tf.sysconfig.get_compile_flags()))') )
+COMPILER=$($PYTHON -c '
+import tensorflow as tf
+from dali_tf_plugin_utils import get_cpp_compiler
+print(get_cpp_compiler(" ".join(tf.sysconfig.get_compile_flags())))
+') || exit 1
 TF_LFLAGS=( $($PYTHON -c 'import tensorflow as tf; print(" ".join(tf.sysconfig.get_link_flags()))') )
 TF_VERSION=( $($PYTHON -c 'import tensorflow as tf; print(tf.__version__)') )
 TF_VERSION=$(echo $TF_VERSION | tr "." "\n")

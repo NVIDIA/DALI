@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -100,9 +100,11 @@ class InstallerHelper:
         )
         self.is_conda = is_conda_env()
         self.tf_version = get_tf_version()
+        tf_cflags = get_tf_build_flags()[0] if self.tf_version else ""
+        self.tf_uses_libcpp = "-stdlib=libc++" in tf_cflags.split()
         self.tf_compiler = get_tf_compiler_version()
-        self.cpp_compiler = get_cpp_compiler()
-        self.default_cpp_version = get_cpp_compiler_version()
+        self.cpp_compiler = get_cpp_compiler(tf_cflags)
+        self.default_cpp_version = get_cpp_compiler_version(self.cpp_compiler)
         self.alt_compiler = "g++-{}".format(self.tf_compiler)
         self.has_alt_compiler = which(self.alt_compiler) is not None
         self.platform_system = platform.system()
@@ -157,6 +159,7 @@ class InstallerHelper:
         # - Both TF and default compilers are >= 5.0
         self.can_default_compile = (
             self.always_build
+            or self.tf_uses_libcpp
             or self.default_cpp_version == self.tf_compiler
             or not bool(self.tf_compiler)
             or (
@@ -181,7 +184,7 @@ class InstallerHelper:
         )
         s += "\n TF version installed:                 {}".format(self.tf_version or "Unknown")
         if self.tf_version:
-            s += "\n g++ version used to compile TF:       {}".format(self.tf_compiler or "Unknown")
+            s += "\n GCC version found in TF library:      {}".format(self.tf_compiler or "Unknown")
             s += "\n Is {} present in the system?     {}".format(
                 self.alt_compiler, "Yes" if self.has_alt_compiler else "No"
             )
@@ -287,6 +290,37 @@ class InstallerHelper:
 
     def get_compiler(self):
         compiler = self.cpp_compiler
+        if self.tf_uses_libcpp:
+            # GCC version strings embedded in TF do not describe its libc++ toolchain.
+            # Check the selected compiler, headers and linker before building the plugin.
+            with tempfile.TemporaryDirectory(prefix="dali_tf_libcpp_") as tmpdir:
+                cmd = [
+                    compiler,
+                    "-std=c++20",
+                    "-stdlib=libc++",
+                    "-shared",
+                    "-fPIC",
+                    "-x",
+                    "c++",
+                    "-",
+                    "-o",
+                    os.path.join(tmpdir, "check.so"),
+                ]
+                result = subprocess.run(  # nosec B603
+                    cmd,
+                    input='#include <string>\nstd::string check() { return "DALI"; }\n',
+                    text=True,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                )
+                if result.returncode != 0:
+                    raise ImportError(
+                        f"TensorFlow requests -stdlib=libc++, but {compiler} cannot build "
+                        "with C++20 and libc++. Install a compatible Clang toolchain and "
+                        "libc++/libc++abi development headers and libraries, and set CXX "
+                        f"to its clang++ executable.\n{result.stderr}"
+                    )
+            return compiler
         if not self.can_default_compile:
             if self.has_alt_compiler:
                 print("Will use alternative compiler {}".format(self.alt_compiler))
