@@ -22,6 +22,7 @@
 #include <numeric>
 #include <random>
 #include <set>
+#include <stdexcept>
 #include <string>
 #include <utility>
 #include <vector>
@@ -1312,6 +1313,25 @@ TEST(FramesDecoderFrameIndexTest, StartAndEndPts) {
   EXPECT_EQ(MakeFrameIndex({5}).EndPts(), 6);
 }
 
+TEST(FramesDecoderFrameIndexTest, EndPtsUsesRecordedStreamEnd) {
+  // The last frame lasts 100 ticks, the one before it 200: the gap would give 500.
+  auto index = MakeFrameIndex({0, 100, 300});
+  EXPECT_EQ(index.EndPts(), 500);
+  index.end_pts = 400;
+  EXPECT_EQ(index.EndPts(), 400);
+  EXPECT_EQ(index.GetFrameIdxByTimestamp(400, true), 3);   // end of stream: one past the last
+  EXPECT_EQ(index.GetFrameIdxByTimestamp(399, true), 2);   // inside the last frame
+  // Single frame lasting 40 ticks: ranges starting inside it still select it.
+  auto single = MakeFrameIndex({0});
+  single.end_pts = 40;
+  EXPECT_EQ(single.EndPts(), 40);
+  EXPECT_EQ(single.GetFrameIdxByTimestamp(39, true), 0);
+  EXPECT_EQ(single.GetFrameIdxByTimestamp(40, true), 1);
+  // A recorded end not past the last pts is ignored.
+  single.end_pts = 0;
+  EXPECT_EQ(single.EndPts(), 1);
+}
+
 TEST(FramesDecoderFrameIndexTest, PastTheLastFrameReturnsSizeSentinel) {
   auto index = MakeFrameIndex({100, 200, 300});
   // Inside the last frame's duration: rounding down selects the last frame.
@@ -1474,10 +1494,12 @@ TEST(VideoUtilsSecondsToTimestampTest, SaturatesOutOfRangeTimes) {
               kMax);
     EXPECT_EQ(SecondsToTimestamp(timebase, -std::numeric_limits<float>::infinity(), round_down),
               -kMax);
-    EXPECT_ANY_THROW(
-        SecondsToTimestamp(timebase, std::numeric_limits<double>::quiet_NaN(), round_down));
-    EXPECT_ANY_THROW(
-        SecondsToTimestamp(timebase, std::numeric_limits<float>::quiet_NaN(), round_down));
+    EXPECT_THROW(
+        SecondsToTimestamp(timebase, std::numeric_limits<double>::quiet_NaN(), round_down),
+        std::invalid_argument);
+    EXPECT_THROW(
+        SecondsToTimestamp(timebase, std::numeric_limits<float>::quiet_NaN(), round_down),
+        std::invalid_argument);
   }
   // Leaves headroom for adding a pts offset, so a huge start is still "past the end".
   EXPECT_GT(SecondsToTimestamp(timebase, 1e20, true) + (int64_t(1) << 61), 0);

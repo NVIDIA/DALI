@@ -56,6 +56,9 @@ struct FrameIndex {
   std::string filename;
   std::vector<IndexEntry> index;
   AVRational timebase;
+  // End of the stream (pts + duration of the latest-ending packet), as recorded by the container;
+  // -1 if unknown. See EndPts().
+  int64_t end_pts = -1;
 
   size_t size() const {
     return index.size();
@@ -100,12 +103,15 @@ struct FrameIndex {
   /**
    * @brief Pts one frame past the last frame, i.e. the end of the stream.
    *
-   * Estimated as the last frame's pts plus the last inter-frame pts gap (plus 1 when the index
-   * has a single frame).
+   * Uses `end_pts` (the last frame's pts plus its duration, as recorded by the container) when
+   * known. Otherwise it is estimated as the last frame's pts plus the last inter-frame pts gap
+   * (plus 1 when the index has a single frame).
    */
   int64_t EndPts() const {
     assert(!index.empty());
     int64_t last = index.back().pts;
+    if (end_pts > last)
+      return end_pts;
     int64_t gap = index.size() >= 2 ? last - index[index.size() - 2].pts : 1;
     return last + std::max<int64_t>(gap, 1);
   }

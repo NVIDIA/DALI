@@ -540,6 +540,7 @@ void FramesDecoderBase::BuildIndex() {
 
   // Initialize frame index
   index_.index.clear();
+  index_.end_pts = -1;
   index_.filename = Filename();
   index_.timebase = ctx_->streams[stream_id_]->time_base;
 
@@ -647,6 +648,10 @@ void FramesDecoderBase::BuildIndex() {
       has_hidden_packets = true;
       continue;
     }
+
+    // Stream end, from the packet durations, for FrameIndex::EndPts
+    if (packet->duration > 0)
+      index_.end_pts = std::max<int64_t>(index_.end_pts, entry.pts + packet->duration);
 
     // Update last keyframe position if this is a keyframe
     if (entry.is_keyframe) {
