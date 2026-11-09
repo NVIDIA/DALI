@@ -221,6 +221,7 @@ static void ExpectIndexerGivesTheIndexOfTheDecoder(FramesDecoderBase &decoder,
   EXPECT_EQ(actual.timebase.num, expected.timebase.num);
   EXPECT_EQ(actual.timebase.den, expected.timebase.den);
   EXPECT_EQ(actual.decode_order_timestamps, expected.decode_order_timestamps);
+  EXPECT_EQ(actual.may_have_frames_without_pictures, expected.may_have_frames_without_pictures);
   for (size_t i = 0; i < expected.size(); i++) {
     EXPECT_EQ(actual.index[i].pts, expected.index[i].pts) << "frame " << i;
     EXPECT_EQ(actual.index[i].is_keyframe, expected.index[i].is_keyframe) << "frame " << i;
@@ -1182,6 +1183,24 @@ TEST_F(FramesDecoderTest_CpuOnlyTests, LeadingPicturesOfIdrKeyframes) {
     for (size_t i = 0; i < index.size(); i++)
       unknown += index[i].is_keyframe && index[i].leading_pictures == -1;
     EXPECT_GT(unknown, 0);
+  }
+}
+
+// Only a stream with packets that may hold no picture needs the GPU decoder to keep the last frame
+// read, which such a frame repeats (with timestamps in decoding order)
+TEST_F(FramesDecoderTest_CpuOnlyTests, IndexKnowsFramesWithoutPictures) {
+  const std::string video_dir = make_string(testing::dali_extra_path(), "/db/video");
+  std::vector<std::pair<std::string, bool>> files = {
+      // DivX packed: a not-coded VOP after each packet that holds a P-VOP and a B-VOP
+      {make_string(video_dir, "/ucf101_test/packed_bframes_test.avi"), true},
+      {make_string(video_dir, "/cfr/test_1.avi"), false},          // MPEG-4 Part 2, all coded
+      {make_string(video_dir, "/containers/avi/cfr.avi"), false},  // H.264
+      {make_string(video_dir, "/cfr/test_1.mp4"), false}};
+  for (const auto &[path, expected] : files) {
+    SCOPED_TRACE(path);
+    FramesIndexer indexer(path);
+    indexer.BuildIndex();
+    EXPECT_EQ(indexer.GetIndex().may_have_frames_without_pictures, expected);
   }
 }
 
