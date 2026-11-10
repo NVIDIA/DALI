@@ -487,8 +487,13 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
                                    "frame index range. Reduce stride or sequence_length."));
           samples_.emplace_back(&entry, static_cast<int>(start), static_cast<int>(end), stride_);
         };
+        // A sequence only needs its last frame to exist: it spans (sequence_length - 1) * stride + 1
+        // frames, not stride * sequence_length (as in the legacy reader). The end of the sample
+        // (see add_sample) can be up to stride - 1 frames past the last frame of the range, which
+        // the frames decoder does not read.
+        int64_t seq_span = static_cast<int64_t>(sequence_len_ - 1) * stride_ + 1;
         int64_t start = entry.start_frame;
-        for (; start + full_seq_stride <= entry.end_frame; start += step_) {
+        for (; start + seq_span <= entry.end_frame; start += step_) {
           LOG_LINE << "Adding sample with start=" << start << ", end=" << start + full_seq_stride
                    << ", stride=" << stride_ << std::endl;
           add_sample(start);
