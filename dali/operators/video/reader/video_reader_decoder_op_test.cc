@@ -48,6 +48,36 @@ class VideoReaderDecoderBaseTest : public VideoTestBase {
   template<typename Backend>
   int GetFrameIdx(dali::TensorList<Backend> &device_frame_idx);
 
+  // A huge (but valid) step and stride must not overflow the frame arithmetic of the sample loop,
+  // of Prefetch or of the full-video decoding path (FramesDecoderBase::DecodeFrames): exactly one
+  // sample (starting at frame 0, with a single frame) fits per file, and it is the first frame of
+  // the video. Without the decoding fix, the frame count wraps to 0 and nothing is decoded, so the
+  // pixels are compared too, not just the shape.
+  template<typename Backend>
+  void RunHugeStrideAndStepTest(
+        const std::string &filename,
+        TestVideo &ground_truth,
+        const std::string &backend,
+        int device_id) {
+    Pipeline pipe(1, 1, device_id);
+    pipe.AddOperator(OpSpec("experimental__readers__Video")
+      .AddArg("device", backend)
+      .AddArg("sequence_length", 1)
+      .AddArg("stride", std::numeric_limits<int>::max())
+      .AddArg("step", std::numeric_limits<int>::max())
+      .AddArg("pad_mode", "constant")
+      .AddArg("filenames", std::vector<std::string>{filename})
+      .AddOutput("frames", ParseStorageDevice(backend)), "r");
+    pipe.Build({{"frames", backend}});
+    EXPECT_EQ(pipe.GetReaderMeta("r").epoch_size, 1);
+    pipe.Run();
+    Workspace ws;
+    pipe.Outputs(&ws);
+    auto &frames = ws.Output<Backend>(0);
+    ASSERT_EQ(frames.shape()[0][0], 1);
+    AssertFrame(0, frames.template tensor<uint8_t>(0), ground_truth);
+  }
+
  private:
   template<typename Backend>
   void RunTestImpl(
@@ -300,38 +330,13 @@ TEST_F(VideoReaderDecoderCpuTest, SequenceExtentOverflowIsError_CpuOnlyTests) {
   }
 }
 
-// A huge (but valid) step and stride must not overflow the frame arithmetic of the sample loop,
-// of Prefetch or of the full-video decoding path (FramesDecoderBase::DecodeFrames): exactly one
-// sample (starting at frame 0, with a single frame) fits per file, and it is actually decoded.
-static void RunHugeStrideAndStepTest(const std::string &filename, const std::string &backend,
-                                     int device_id) {
-  Pipeline pipe(1, 1, device_id);
-  pipe.AddOperator(OpSpec("experimental__readers__Video")
-    .AddArg("device", backend)
-    .AddArg("sequence_length", 1)
-    .AddArg("stride", std::numeric_limits<int>::max())
-    .AddArg("step", std::numeric_limits<int>::max())
-    .AddArg("pad_mode", "constant")
-    .AddArg("filenames", std::vector<std::string>{filename})
-    .AddOutput("frames", ParseStorageDevice(backend)), "r");
-  pipe.Build({{"frames", backend}});
-  EXPECT_EQ(pipe.GetReaderMeta("r").epoch_size, 1);
-  pipe.Run();
-  Workspace ws;
-  pipe.Outputs(&ws);
-  if (backend == "cpu") {
-    EXPECT_EQ(ws.Output<CPUBackend>(0).shape()[0][0], 1);
-  } else {
-    EXPECT_EQ(ws.Output<GPUBackend>(0).shape()[0][0], 1);
-  }
-}
-
 TEST_F(VideoReaderDecoderCpuTest, HugeStrideAndStep_CpuOnlyTests) {
-  RunHugeStrideAndStepTest(cfr_videos_paths_[0], "cpu", CPU_ONLY_DEVICE_ID);
+  RunHugeStrideAndStepTest<dali::CPUBackend>(
+      cfr_videos_paths_[0], cfr_videos_[0], "cpu", CPU_ONLY_DEVICE_ID);
 }
 
 TEST_F(VideoReaderDecoderGpuTest, HugeStrideAndStep) {
-  RunHugeStrideAndStepTest(cfr_videos_paths_[0], "gpu", 0);
+  RunHugeStrideAndStepTest<dali::GPUBackend>(cfr_videos_paths_[0], cfr_videos_[0], "gpu", 0);
 }
 
 TEST_F(VideoReaderDecoderCompareTest, CompareReaders) {
