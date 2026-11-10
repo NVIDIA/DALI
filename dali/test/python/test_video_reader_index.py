@@ -197,6 +197,16 @@ def test_broken_file_with_unsupported_codec_is_skipped(num_threads):
 
 @params("cpu", "gpu")
 def test_empty_file_list_is_rejected(device):
-    # An empty list counts as "not provided", so the reader has no source at all.
-    with assert_raises(RuntimeError, glob="*Exactly one of*"):
-        build_reader([], 8, device)
+    """An empty `file_list` file passes the source check, but no files are read from it."""
+    with tempfile.NamedTemporaryFile("w", suffix=".txt") as list_file:
+
+        @pipeline_def(batch_size=1, num_threads=8, device_id=None if device == "cpu" else 0)
+        def pipe_def():
+            return tuple(
+                fn.experimental.readers.video(
+                    device=device, file_list=list_file.name, sequence_length=3
+                )
+            )
+
+        with assert_raises(RuntimeError, glob="*No files were read*"):
+            pipe_def().build()
