@@ -54,6 +54,13 @@ do_once() {
   ffmpeg -f lavfi -i "color=black:size=160x128:rate=30,format=yuv420p,geq=lum='if(eq(floor(X/16)+10*floor(Y/14)\,N)\,235\,16+60*random(1)*lt(mod(X\,8)\,4))':cb=128:cr=128" \
       -frames:v 90 -c:v libx264 -bf 2 -g 15 -keyint_min 15 -sc_threshold 0 -pix_fmt yuv420p \
       -y /tmp/avi_video_files/h264_idr_gops.avi
+  # And the same without B-frames, and with three B-frames in a pyramid (see
+  # test_video_reader.H264_IDR_GOPS_VARIANT_AVIS).
+  for variant in "no_bframes:-bf 0" "pyramid:-bf 3 -x264-params b-pyramid=normal"; do
+      ffmpeg -f lavfi -i "color=black:size=160x128:rate=30,format=yuv420p,geq=lum='if(eq(floor(X/16)+10*floor(Y/14)\,N)\,235\,16+60*random(1)*lt(mod(X\,8)\,4))':cb=128:cr=128" \
+          -frames:v 90 -c:v libx264 -g 15 -keyint_min 15 -sc_threshold 0 ${variant#*:} -pix_fmt yuv420p \
+          -y /tmp/avi_video_files/h264_idr_gops_${variant%%:*}.avi
+  done
 }
 
 test_body() {
