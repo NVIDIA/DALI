@@ -228,6 +228,28 @@ class AVUniquePtr : public UniqueHandle<T *, AVUniquePtr<T>> {
   T **operator&() { return &handle_; }  // NOLINT(runtime/operator)
 };
 
+namespace detail {
+
+/**
+ * @brief The size of the length that precedes each NAL unit in the packets of an H.264 or HEVC
+ * stream (from its avcC/hvcC extradata), or 0 if start codes precede them (Annex B).
+ */
+DLL_PUBLIC int NalLengthSize(const AVCodecParameters &par);
+
+/**
+ * @brief Whether a packet of an H.264 or HEVC stream has a NAL unit that decoding can start from:
+ * an IDR picture in H.264, an IRAP picture (IDR, CRA or BLA) in HEVC.
+ *
+ * @param length_size The size of the length before each NAL unit, or 0 for start codes
+ *        (see NalLengthSize)
+ * @param nal_type If there is such a NAL unit, set to the type of the first one (in H.264 5, in
+ *        HEVC 16 to 21; 20 is IDR_N_LP)
+ */
+DLL_PUBLIC bool HasKeyframeNal(const AVPacket &packet, AVCodecID codec_id, int length_size,
+                               int *nal_type);
+
+}  // namespace detail
+
 /**
  * @brief Object representing a video file. Allows access to frames and seeking.
  */

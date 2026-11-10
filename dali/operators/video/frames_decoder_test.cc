@@ -1486,4 +1486,176 @@ TEST_F(FramesDecoderGpuTest, RawH265) {
   RunTest(decoder, cfr_videos_[0], false, 1.5);
 }
 
+
+namespace {
+
+// A NAL unit of `size` bytes that starts with `header` (the rest is filler), after its length
+void AppendLengthPrefixedNal(std::vector<uint8_t> &buf, int length_size,
+                             const std::vector<uint8_t> &header, uint32_t size) {
+  for (int i = length_size - 1; i >= 0; i--)
+    buf.push_back(static_cast<uint8_t>(size >> (8 * i)));
+  for (uint32_t i = 0; i < size; i++)
+    buf.push_back(i < header.size() ? header[i] : 0xAB);
+}
+
+// A NAL unit of `size` bytes that starts with `header` (the rest is filler), after a start code
+void AppendAnnexBNal(std::vector<uint8_t> &buf, const std::vector<uint8_t> &header,
+                     uint32_t size) {
+  buf.insert(buf.end(), {0, 0, 0, 1});
+  for (uint32_t i = 0; i < size; i++)
+    buf.push_back(i < header.size() ? header[i] : 0xAB);
+}
+
+const std::vector<uint8_t> kAvcC = {0x01, 0x64, 0x00, 0x20, 0xff, 0xe1, 0x00, 0x19,
+                                    0x67, 0x64, 0x00, 0x20, 0xac, 0xd9, 0x40, 0x50};
+const std::vector<uint8_t> kAnnexBExtradata = {0x00, 0x00, 0x01, 0x67, 0x64, 0x00, 0x20, 0xac,
+                                               0xd9, 0x40, 0x50, 0x05, 0xbb, 0x01, 0x10, 0x00};
+const std::vector<uint8_t> kHvcC = {0x01, 0x01, 0x60, 0x00, 0x00, 0x00, 0x90, 0x00,
+                                    0x00, 0x00, 0x00, 0x00, 0x5d, 0xf0, 0x00, 0xfc,
+                                    0xfd, 0xf8, 0xf8, 0x00, 0x00, 0x0f, 0x04, 0x20};
+
+// The NAL length size for the extradata, of which only the first `size` bytes are given (all if < 0)
+int LengthSize(AVCodecID codec, std::vector<uint8_t> extradata, int size = -1) {
+  AVCodecParameters par = {};
+  par.codec_id = codec;
+  par.extradata = extradata.empty() ? nullptr : extradata.data();
+  par.extradata_size = size < 0 ? static_cast<int>(extradata.size()) : size;
+  return detail::NalLengthSize(par);
+}
+
+// The type of the keyframe NAL unit in the first `size` bytes of a packet, or -1 if there is none
+int KeyframeNalType(AVCodecID codec, std::vector<uint8_t> data, size_t size, int length_size) {
+  AVPacket packet = {};
+  packet.data = data.data();
+  packet.size = static_cast<int>(size);
+  int type = -1;
+  return detail::HasKeyframeNal(packet, codec, length_size, &type) ? type : -1;
+}
+
+}  // namespace
+
+TEST(NalFramingTest, LengthSizeFromExtradata) {
+  EXPECT_EQ(LengthSize(AV_CODEC_ID_H264, kAvcC), 4);
+  EXPECT_EQ(LengthSize(AV_CODEC_ID_HEVC, kHvcC), 4);
+  EXPECT_EQ(LengthSize(AV_CODEC_ID_H264, kAnnexBExtradata), 0);
+  EXPECT_EQ(LengthSize(AV_CODEC_ID_H264, {}), 0) << "no extradata: start codes";
+
+  // Annex B extradata starts with a 3 or 4 byte start code, in HEVC too
+  std::vector<uint8_t> hevc_annex_b(32, 0xAB);
+  hevc_annex_b[0] = hevc_annex_b[1] = hevc_annex_b[2] = 0;
+  hevc_annex_b[3] = 1;
+  EXPECT_EQ(LengthSize(AV_CODEC_ID_HEVC, hevc_annex_b), 0);
+  hevc_annex_b[2] = 1;
+  EXPECT_EQ(LengthSize(AV_CODEC_ID_HEVC, hevc_annex_b), 0);
+
+  auto avcc_2 = kAvcC;
+  avcc_2[4] = 0xfd;  // lengthSizeMinusOne = 1
+  EXPECT_EQ(LengthSize(AV_CODEC_ID_H264, avcc_2), 2);
+  auto hvcc_1 = kHvcC;
+  hvcc_1[21] = 0x0c;  // lengthSizeMinusOne = 0
+  EXPECT_EQ(LengthSize(AV_CODEC_ID_HEVC, hvcc_1), 1);
+
+  // hvcC is told from Annex B by its start code, not by configurationVersion
+  for (int version : {0, 2, 0xff}) {
+    auto hvcc = kHvcC;
+    hvcc[0] = static_cast<uint8_t>(version);
+    EXPECT_EQ(LengthSize(AV_CODEC_ID_HEVC, hvcc), 4) << "configurationVersion " << version;
+  }
+
+  // too short to hold the field: not avcC/hvcC
+  EXPECT_EQ(LengthSize(AV_CODEC_ID_H264, kAvcC, 4), 0);
+  EXPECT_EQ(LengthSize(AV_CODEC_ID_HEVC, kHvcC, 21), 0);
+}
+
+TEST(NalFramingTest, LengthPrefixes) {
+  for (int length_size : {1, 2, 4}) {
+    std::vector<uint8_t> idr;  // SEI, then an IDR picture
+    AppendLengthPrefixedNal(idr, length_size, {0x06, 0x05}, 20);
+    AppendLengthPrefixedNal(idr, length_size, {0x65}, 200);
+    EXPECT_EQ(KeyframeNalType(AV_CODEC_ID_H264, idr, idr.size(), length_size), 5)
+        << "length of " << length_size << " bytes";
+
+    std::vector<uint8_t> p_slice;
+    AppendLengthPrefixedNal(p_slice, length_size, {0x41}, 200);
+    EXPECT_EQ(KeyframeNalType(AV_CODEC_ID_H264, p_slice, p_slice.size(), length_size), -1)
+        << "length of " << length_size << " bytes";
+  }
+
+  // a NAL unit of 1 byte (an access unit delimiter) before the IDR picture
+  std::vector<uint8_t> multi;
+  AppendLengthPrefixedNal(multi, 4, {0x09}, 1);
+  AppendLengthPrefixedNal(multi, 4, {0x06, 0x05}, 300);
+  AppendLengthPrefixedNal(multi, 4, {0x65}, 1000);
+  EXPECT_EQ(KeyframeNalType(AV_CODEC_ID_H264, multi, multi.size(), 4), 5);
+}
+
+TEST(NalFramingTest, StartCodes) {
+  std::vector<uint8_t> idr;
+  AppendAnnexBNal(idr, {0x67, 0x64}, 20);  // SPS
+  AppendAnnexBNal(idr, {0x68}, 5);         // PPS
+  AppendAnnexBNal(idr, {0x65}, 300);       // IDR picture
+  EXPECT_EQ(KeyframeNalType(AV_CODEC_ID_H264, idr, idr.size(), 0), 5);
+
+  std::vector<uint8_t> p_slice;
+  AppendAnnexBNal(p_slice, {0x41}, 300);
+  EXPECT_EQ(KeyframeNalType(AV_CODEC_ID_H264, p_slice, p_slice.size(), 0), -1);
+
+  // a 3 byte start code
+  std::vector<uint8_t> short_start_code = {0, 0, 1, 0x65, 0xAB, 0xAB};
+  EXPECT_EQ(KeyframeNalType(AV_CODEC_ID_H264, short_start_code, short_start_code.size(), 0), 5);
+
+  std::vector<uint8_t> hevc;
+  AppendAnnexBNal(hevc, {0x40, 0x01}, 20);   // VPS
+  AppendAnnexBNal(hevc, {0x2a, 0x01}, 300);  // CRA picture
+  EXPECT_EQ(KeyframeNalType(AV_CODEC_ID_HEVC, hevc, hevc.size(), 0), 21);
+}
+
+TEST(NalFramingTest, TruncatedPacket) {
+  std::vector<uint8_t> idr;
+  AppendLengthPrefixedNal(idr, 4, {0x65}, 300);
+  EXPECT_EQ(KeyframeNalType(AV_CODEC_ID_H264, idr, idr.size(), 4), 5);
+  // the NAL unit is cut short, and so is its length
+  EXPECT_EQ(KeyframeNalType(AV_CODEC_ID_H264, idr, idr.size() - 1, 4), -1);
+  EXPECT_EQ(KeyframeNalType(AV_CODEC_ID_H264, idr, 3, 4), -1);
+}
+
+// The type is what BuildIndex takes the leading pictures of a keyframe from: none after an H.264
+// IDR picture or an HEVC IDR_N_LP picture
+TEST(NalFramingTest, ReportsTheTypeOfTheKeyframeNal) {
+  struct Case {
+    AVCodecID codec;
+    std::vector<uint8_t> header;
+    int type;
+  };
+  std::vector<Case> cases = {
+      {AV_CODEC_ID_H264, {0x65}, 5},        // IDR
+      {AV_CODEC_ID_H264, {0x25}, 5},        // IDR, with another nal_ref_idc
+      {AV_CODEC_ID_HEVC, {0x26, 0x01}, 19},  // IDR_W_RADL
+      {AV_CODEC_ID_HEVC, {0x28, 0x01}, 20},  // IDR_N_LP
+      {AV_CODEC_ID_HEVC, {0x2a, 0x01}, 21},  // CRA
+      {AV_CODEC_ID_HEVC, {0x20, 0x01}, 16},  // BLA_W_LP
+  };
+  for (auto &c : cases) {
+    for (int length_size : {0, 4}) {
+      std::vector<uint8_t> packet;
+      if (length_size == 0)
+        AppendAnnexBNal(packet, c.header, 50);
+      else
+        AppendLengthPrefixedNal(packet, length_size, c.header, 50);
+      EXPECT_EQ(KeyframeNalType(c.codec, packet, packet.size(), length_size), c.type)
+          << "header " << static_cast<int>(c.header[0]) << ", length size " << length_size;
+    }
+  }
+  // not keyframes: a P slice, and an HEVC TRAIL_R
+  std::vector<uint8_t> trail;
+  AppendLengthPrefixedNal(trail, 4, {0x02, 0x01}, 50);
+  EXPECT_EQ(KeyframeNalType(AV_CODEC_ID_HEVC, trail, trail.size(), 4), -1);
+
+  // the first keyframe NAL unit of the packet gives the type
+  std::vector<uint8_t> two;
+  AppendLengthPrefixedNal(two, 4, {0x28, 0x01}, 50);
+  AppendLengthPrefixedNal(two, 4, {0x2a, 0x01}, 50);
+  EXPECT_EQ(KeyframeNalType(AV_CODEC_ID_HEVC, two, two.size(), 4), 20);
+}
+
 }  // namespace dali

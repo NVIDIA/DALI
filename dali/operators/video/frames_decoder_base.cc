@@ -431,7 +431,7 @@ void FramesDecoderBase::ParseNumFrames() {
   Reset();
 }
 
-namespace {
+namespace detail {
 
 /**
  * @brief The size of the length that precedes each NAL (Network Abstraction Layer) unit in the
@@ -511,6 +511,10 @@ bool HasKeyframeNal(const AVPacket &packet, AVCodecID codec_id, int length_size,
   }
   return false;
 }
+
+}  // namespace detail
+
+namespace {
 
 /**
  * @brief Whether av_seek_frame takes a presentation timestamp (pts) for this demuxer, rather than a
@@ -731,7 +735,7 @@ void FramesDecoderBase::BuildIndex() {
   // demuxer, or with negative timestamps
   bool has_hidden_packets = false;
   const AVCodecParameters &codecpar = *ctx_->streams[stream_id_]->codecpar;
-  int nal_length_size = NalLengthSize(codecpar);
+  int nal_length_size = detail::NalLengthSize(codecpar);
   bool seeks_by_pts = SeeksByPts(*ctx_->iformat);
   // MPEG-4 Part 2 with timestamps in decoding order (AVI): the VOPs tell where a seek can start,
   // and the B-VOPs right after an I-VOP in decoding order, which are shown before it: its leading
@@ -788,7 +792,8 @@ void FramesDecoderBase::BuildIndex() {
       auto codec_id = codecpar.codec_id;
       if (codec_id == AV_CODEC_ID_H264 || codec_id == AV_CODEC_ID_HEVC) {
         int nal_type = 0;
-        entry.is_keyframe = HasKeyframeNal(*packet, codec_id, nal_length_size, &nal_type);
+        entry.is_keyframe =
+            detail::HasKeyframeNal(*packet, codec_id, nal_length_size, &nal_type);
         // No picture after an H.264 IDR picture or an HEVC IDR_N_LP picture is shown before it; the
         // other HEVC IRAP pictures may have leading pictures (RADL, RASL)
         if (entry.is_keyframe && (codec_id == AV_CODEC_ID_H264 || nal_type == 20))
