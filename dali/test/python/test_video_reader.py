@@ -794,14 +794,20 @@ def test_avi_open_gop_seeks_show_requested_frames(op):
 H264_IDR_GOPS_AVI = "/tmp/avi_video_files/h264_idr_gops.avi"
 
 
-@params("reader", "decoder")
-def test_h264_avi_with_several_idr_pictures_seeks_show_requested_frames(op):
+# The same without B-frames, and with three B-frames in a pyramid (qa/TL0_videoreader_test/test.sh)
+H264_IDR_GOPS_VARIANT_AVIS = [
+    f"/tmp/avi_video_files/h264_idr_gops_{variant}.avi" for variant in ("no_bframes", "pyramid")
+]
+
+
+@cartesian_params(("reader", "decoder"), [H264_IDR_GOPS_AVI] + H264_IDR_GOPS_VARIANT_AVIS)
+def test_h264_avi_with_several_idr_pictures_seeks_show_requested_frames(op, path):
     """The NAL units of H.264 in AVI come after start codes, and each IDR picture is a keyframe
     that a seek can start from. AVI has no presentation timestamps, so after a seek the pictures
     must still be shown as the frames requested, not as the frames that follow the keyframe in the
     order of the file. Every frame is read once, in a shuffled order, so that most reads seek, also
     to the frames right after an IDR picture."""
-    _check_shuffled_seeks_show_requested_frames(H264_IDR_GOPS_AVI, op)
+    _check_shuffled_seeks_show_requested_frames(path, op)
 
 
 class _Reader(enum.Enum):
