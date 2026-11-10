@@ -24,7 +24,8 @@ import functools
 import shutil
 import tempfile
 import uuid
-from test_utils import get_dali_extra_path
+from test_utils import check_output_pattern, get_dali_extra_path
+from nose_utils import assert_raises
 from nose2.tools import cartesian_params
 
 np.random.seed(42)
@@ -615,6 +616,11 @@ def test_file_list_timestamps_end_at_duration_is_kept_any_rounding(device, round
     )
     # the start 1.0 s is frame 24 exactly, so it does not depend on the rounding of the start
     assert selection == (216, list(range(24, 240))), f"{rounding}: {selection[0]} frames"
+    if rounding == "start_down_end_up":  # the rounding of file_list_include_preceding_frame
+        legacy = _file_list_frame_selection(
+            _legacy_gpu_reader, list_file, file_list_include_preceding_frame=True
+        )
+        assert selection == legacy, f"experimental: {selection}, legacy: {legacy}"
 
 
 @cartesian_params(devices, all_file_list_roundings)
@@ -639,11 +645,33 @@ def test_file_list_timestamps_end_inside_the_last_frame(device, case):
     assert selection == (expected_frames, list(range(expected_frames))), f"{rounding}: {selection}"
 
 
+@cartesian_params(
+    devices,
+    [
+        ("start_down_end_up", [24, 36, 37]),
+        ("start_up_end_down", []),
+        ("all_up", [37]),
+        ("all_down", [36]),
+    ],
+)
+def test_file_list_timestamps_short_and_empty_ranges(device, case):
+    rounding, kept = case
+    lines = [
+        f"{VIDEO_0} 0 1.01 1.03",  # inside frame 24 (1.0 s to 1.0417 s)
+        f"{VIDEO_0} 0 1.51 1.56",  # from inside frame 36 to inside frame 37 (1.5417 s to 1.5833 s)
+        f"{VIDEO_0} 0 11.0 12.0",  # after the end of the stream (10 s): always empty
+        f"{VIDEO_0} 0 2.0 3.0",  # frames 48 to 71, with any rounding
+    ]
+    with check_output_pattern(r"Empty frame range \[240, 240\)"):
+        selection = _file_list_frame_selection(
+            _experimental_reader(device), _write_file_list(lines), file_list_rounding=rounding
+        )
+    expected = kept + list(range(48, 72))
+    assert selection == (len(expected), expected), f"{rounding}: {selection}"
+
+
 @cartesian_params(devices)
-def test_file_list_timestamps_end_at_duration_is_kept(device):
-    list_file = _write_file_list([f"{VIDEO_0} 0 1.0 10.0"])  # end == video duration
-    experimental = _file_list_frame_selection(_experimental_reader(device), list_file)
-    legacy = _file_list_frame_selection(_legacy_gpu_reader, list_file)
-    assert (
-        experimental == legacy == (216, list(range(24, 240)))
-    ), f"experimental: {experimental[0]} frames, legacy: {legacy[0]} frames"
+def test_file_list_timestamps_no_frames_in_any_range(device):
+    list_file = _write_file_list([f"{VIDEO_0} 0 11.0 12.0"])  # after the end of the stream (10 s)
+    with assert_raises(RuntimeError, glob="The number of input samples: 0, needs to be at least*"):
+        _file_list_frame_selection(_experimental_reader(device), list_file)
