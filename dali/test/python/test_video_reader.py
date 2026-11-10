@@ -24,6 +24,8 @@ import functools
 import itertools
 import random
 import shutil
+import subprocess
+import sys
 import tempfile
 import unittest
 import uuid
@@ -1009,3 +1011,137 @@ def test_uniform_sample_with_range_before_the_video(device):
         device, "-60 10", sequence_length=4, uniform_sample=True
     )
     assert frame_nums == [0, 3, 6, 9]
+
+
+# Builds an experimental.readers.video pipeline in a child process whose address space
+# is capped, so that an infinite sample-generation loop cannot exhaust the machine's memory.
+_BOUNDED_BUILD_CHILD = r"""
+import resource
+import sys
+
+limit = 6 * 1024**3
+resource.setrlimit(resource.RLIMIT_AS, (limit, limit))
+
+from nvidia.dali import fn, pipeline_def
+
+
+device = sys.argv[4]
+
+
+@pipeline_def(batch_size=1, num_threads=1, device_id=None if device == "cpu" else 0)
+def pipe():
+    return fn.experimental.readers.video(
+        device=device,
+        filenames=[sys.argv[1]],
+        sequence_length=int(sys.argv[2]),
+        stride=int(sys.argv[3]),
+    )
+
+
+try:
+    pipe().build()
+except Exception as e:
+    print("RAISED:", e)
+    sys.exit(0)
+print("BUILT")
+"""
+
+
+def _build_reader_in_bounded_subprocess(device, sequence_length, stride, timeout=120):
+    try:
+        return subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                _BOUNDED_BUILD_CHILD,
+                VIDEO_0,
+                str(sequence_length),
+                str(stride),
+                device,
+            ],
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+        )
+    except subprocess.TimeoutExpired:
+        raise AssertionError(
+            f"build() with device={device}, sequence_length={sequence_length}, "
+            f"stride={stride} did not return within {timeout} s "
+            f"(sample-generation loop not advancing?)"
+        )
+
+
+@cartesian_params(devices)
+def test_stride_zero_raises_instead_of_hanging(device):
+    res = _build_reader_in_bounded_subprocess(device, sequence_length=3, stride=0)
+    assert "RAISED:" in res.stdout and "stride" in res.stdout, (
+        f"Expected a prompt error mentioning `stride`; returncode={res.returncode}, "
+        f"stdout={res.stdout!r}, stderr tail={res.stderr[-2000:]!r}"
+    )
+
+
+@cartesian_params(devices)
+def test_sequence_length_zero_raises_instead_of_hanging(device):
+    res = _build_reader_in_bounded_subprocess(device, sequence_length=0, stride=1)
+    assert "RAISED:" in res.stdout and "sequence_length" in res.stdout, (
+        f"Expected a prompt error mentioning `sequence_length`; returncode={res.returncode}, "
+        f"stdout={res.stdout!r}, stderr tail={res.stderr[-2000:]!r}"
+    )
+
+
+@cartesian_params(devices)
+def test_huge_stride_times_sequence_length_raises_instead_of_hanging(device):
+    # 65536 * 65536 overflows int: the default step (stride * sequence_length) used to wrap to 0.
+    res = _build_reader_in_bounded_subprocess(device, sequence_length=65536, stride=65536)
+    assert "RAISED:" in res.stdout and "sequence_length" in res.stdout, (
+        f"Expected a prompt error mentioning `sequence_length`; returncode={res.returncode}, "
+        f"stdout={res.stdout!r}, stderr tail={res.stderr[-2000:]!r}"
+    )
+
+
+@cartesian_params(devices)
+def test_huge_stride_and_step_decode_one_frame(device):
+    """stride and step of INT_MAX are valid: one single-frame sample per file, padded from the
+    video, must be decoded without integer overflow in the frame count arithmetic."""
+    int_max = 2**31 - 1
+
+    # The first frame of this file is not black (unlike the first frames of VIDEO_0), so a sample
+    # that was never decoded cannot match it. No file_list ROI either: it would take the explicit
+    # frame index path and bypass the full-video decoding that this test is about.
+    @pipeline_def(batch_size=1, num_threads=1, device_id=0)
+    def pipe():
+        return _experimental_reader(device)(
+            filenames=[CFR_VP9_60FPS_FILE],
+            sequence_length=1,
+            stride=int_max,
+            step=int_max,
+            pad_mode="constant",
+            name="r",
+        )
+
+    @pipeline_def(batch_size=1, num_threads=1, device_id=0)
+    def ref_pipe():
+        return _experimental_reader(device)(
+            filenames=[CFR_VP9_60FPS_FILE], sequence_length=1, name="r"
+        )
+
+    p = pipe()
+    p.build()
+    assert p.reader_meta("r")["epoch_size"] == 1
+    (out,) = p.run()
+    if device == "gpu":
+        out = out.as_cpu()
+    out = out.as_array()
+    assert out.shape[:2] == (1, 1)
+
+    # The only sample starts at frame 0: it must be the first frame of the video, not just
+    # something of the right shape
+    ref = ref_pipe()
+    ref.build()
+    (ref_out,) = ref.run()
+    if device == "gpu":
+        ref_out = ref_out.as_cpu()
+    ref_frame = ref_out.as_array()[0, 0]
+    # guard against the reference going vacuous (an all-black frame matches an undecoded one)
+    assert ref_frame.mean() > 10, "The reference frame is (almost) black"
+    compare_frames(out[0, 0], ref_frame, 0, 0, 0)
