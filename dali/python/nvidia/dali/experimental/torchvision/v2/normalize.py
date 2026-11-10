@@ -15,9 +15,19 @@
 import numpy as np
 import torch
 from typing import Sequence, Literal
-import nvidia.dali.fn as fn
 
 from .operator import Operator, ArgumentValidateRule
+
+
+def _channel_params(mean, std, channels_last: bool):
+    """
+    Returns mean and std as float32 arrays that broadcast over the channels of the input.
+    Shared by the ``Normalize`` operator and the functional ``normalize``, so both compute the
+    same values. Float32 matches torchvision; in the dynamic API, float64 constants would promote
+    the output to float64.
+    """
+    shape = (1, 1, -1) if channels_last else (-1, 1, 1)
+    return np.asarray(mean, np.float32).reshape(shape), np.asarray(std, np.float32).reshape(shape)
 
 
 class _ValidateStd(ArgumentValidateRule):
@@ -71,6 +81,13 @@ class Normalize(Operator):
     this transform will normalize each channel of the input torch.*Tensor
     i.e., output[channel] = (input[channel] - mean[channel]) / std[channel]
 
+    .. note::
+        Unlike torchvision, which accepts only floating point tensors, this transform also accepts
+        integer tensors, e.g. the ``uint8`` output of ``PILToTensor``, and converts them to
+        ``float32`` automatically. The values are not rescaled, so ``uint8`` input is normalized
+        in the [0, 255] range. To get the result that torchvision gives for the image converted to
+        [0, 1] (``ToDtype(torch.float32, scale=True)``), multiply ``mean`` and ``std`` by 255.
+
     Parameters
     ----------
     mean : sequence
@@ -82,8 +99,8 @@ class Normalize(Operator):
     """
 
     arg_rules = [_ValidateStd, _ValidateMean]
-    # TODO: currently not supported
-    # input_rules = [_ValidateIsTensor]
+    # Like torchvision, Normalize does not accept PIL images (see Compose._verify_pil_support)
+    supports_pil = False
 
     def __init__(
         self,
@@ -105,15 +122,11 @@ class Normalize(Operator):
         layout = data_input.property("layout")[-1]
 
         if layout == np.frombuffer(bytes("C", "utf-8"), dtype=np.uint8)[0]:
-            mean = np.asarray(self.mean)[None, None, :]
-            std = np.asarray(self.std)[None, None, :]
+            mean, std = _channel_params(self.mean, self.std, channels_last=True)
         else:
-            mean = np.asarray(self.mean)[:, None, None]
-            std = np.asarray(self.std)[:, None, None]
+            mean, std = _channel_params(self.mean, self.std, channels_last=False)
 
-        return fn.normalize(
-            data_input,
-            mean=mean,
-            stddev=std,
-            device=self.device,
-        )
+        # Arithmetic broadcasting is right-aligned, so it works for CHW, FCHW, HWC and FHWC.
+        # Unlike torchvision, std can expand the channels (e.g. 1 channel with 3-element std), just
+        # like mean can: torchvision rejects it only because it divides in place.
+        return (data_input - mean) / std

@@ -167,10 +167,11 @@ def loop_tensors_test(
     antialias: bool = False,
     device: Literal["cpu", "gpu"] = "cpu",
 ):
-    t, td = build_resize_transform(resize, max_size, interpolation, antialias, device)
     tensors = build_tensors()
 
     for tn in tensors:
+        # Compose fixes the layout on the first call, so each input shape needs its own instance
+        t, td = build_resize_transform(resize, max_size, interpolation, antialias, device)
         _internal_loop(tn, t, td, resize, max_size, interpolation, antialias, device=device)
 
 

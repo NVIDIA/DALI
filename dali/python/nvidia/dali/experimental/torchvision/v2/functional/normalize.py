@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import numpy as np
 from typing import List
 import nvidia.dali.experimental.dynamic as ndd
 
@@ -20,7 +19,7 @@ from nvidia.dali._typing import TensorLike
 from nvidia.dali.experimental.dynamic._device import DeviceLike
 
 from ..operator import adjust_input, _ValidateIsTensor
-from ..normalize import Normalize
+from ..normalize import Normalize, _channel_params
 
 
 @adjust_input
@@ -32,20 +31,14 @@ def _normalize(
     device: DeviceLike = "cpu",
 ) -> TensorLike | ndd.Batch:
 
-    if input_data.layout[-3:] == "CHW":
-        mean = np.asarray(mean)[:, None, None]
-        std = np.asarray(std)[:, None, None]
-    else:
-        # Torchvision does not support normalization on HWC, but DALI does
-        mean = np.asarray(mean)[None, None, :]
-        std = np.asarray(std)[None, None, :]
+    # Torchvision does not support normalization on HWC, but DALI does
+    mean, std = _channel_params(mean, std, channels_last=input_data.layout[-1] == "C")
 
-    return ndd.normalize(
-        input_data,
-        mean=mean,
-        stddev=std,
-        device=device,
-    )
+    # adjust_input already moved the input to the requested device; the constants must follow it
+    data_device = input_data.device
+    mean = ndd.as_tensor(mean, device=data_device)
+    std = ndd.as_tensor(std, device=data_device)
+    return (input_data - mean) / std
 
 
 def normalize(
