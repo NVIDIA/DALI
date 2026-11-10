@@ -540,23 +540,9 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
       } else {
         // The constructor checked that stride_ * sequence_len_ fits in int.
         const int full_seq_stride = stride_ * sequence_len_;
-        // int64: after the last sample, start + step_ can exceed INT_MAX.
-        int64_t start = entry.start_frame;
-        for (; start + full_seq_stride <= entry.end_frame; start += step_) {
-          LOG_LINE << "Adding sample with start=" << start << ", end=" << start + full_seq_stride
-                   << ", stride=" << stride_ << std::endl;
-          // the sample ends at or before entry.end_frame, so its frame indices fit in int
-          samples_.emplace_back(&entry, static_cast<int>(start),
-                                static_cast<int>(start + full_seq_stride), stride_);
-        }
-
-        // if we have a tail that doesn't fit a full sequence and we allow padding, extend the last
-        // sequence
-        if (boundary_type_ != boundary::BoundaryType::ISOLATED && start < entry.end_frame) {
-          LOG_LINE << "Adding padded tail sample starting at frame " << start
-                   << ", end=" << entry.end_frame << ", stride=" << stride_ << std::endl;
-          // Unlike the samples above, the padded one ends past entry.end_frame, possibly past
-          // INT_MAX (start < entry.end_frame, so start itself fits in int).
+        // A sample ends full_seq_stride frames after its start, possibly past INT_MAX (its start
+        // is a frame of the range, so the start itself fits in int).
+        auto add_sample = [&](int64_t start) {
           int end;
           const bool overflow =
               __builtin_add_overflow(static_cast<int>(start), full_seq_stride, &end);
@@ -566,6 +552,26 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
                                    ", which exceeds the supported frame index range. Reduce "
                                    "stride or sequence_length."));
           samples_.emplace_back(&entry, static_cast<int>(start), end, stride_);
+        };
+        // A sequence only needs its last frame to exist: it spans
+        // (sequence_length - 1) * stride + 1 frames, not stride * sequence_length (as in the legacy
+        // reader). The end of the sample (see add_sample) can be up to stride - 1 frames past the
+        // last frame of the range, which the frames decoder does not read.
+        const int64_t seq_span = static_cast<int64_t>(sequence_len_ - 1) * stride_ + 1;
+        // int64: after the last sample, start + step_ can exceed INT_MAX.
+        int64_t start = entry.start_frame;
+        for (; start + seq_span <= entry.end_frame; start += step_) {
+          LOG_LINE << "Adding sample with start=" << start << ", end=" << start + full_seq_stride
+                   << ", stride=" << stride_ << std::endl;
+          add_sample(start);
+        }
+
+        // if we have a tail that doesn't fit a full sequence and we allow padding, extend the last
+        // sequence
+        if (boundary_type_ != boundary::BoundaryType::ISOLATED && start < entry.end_frame) {
+          LOG_LINE << "Adding padded tail sample starting at frame " << start
+                   << ", end=" << entry.end_frame << ", stride=" << stride_ << std::endl;
+          add_sample(start);
         }
       }
     }
