@@ -541,6 +541,14 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
   CUDAStreamLease cuda_stream_;
 };
 
+// The labels output is produced for `filenames` with `labels`, and for `file_list` and
+// `file_root` (an empty `file_list` or `file_root` counts as not provided).
+static bool HasLabelsOutput(const OpSpec &spec) {
+  return spec.HasArgument("labels") ||
+         !spec.GetArgument<std::string>("file_list").empty() ||
+         !spec.GetArgument<std::string>("file_root").empty();
+}
+
 template <typename Backend>
 class VideoReaderDecoder
     : public DataReader<Backend, VideoSample<Backend>, VideoSample<Backend>, true> {
@@ -565,9 +573,7 @@ class VideoReaderDecoder
     loader_ = InitLoader<VideoLoaderImpl>(spec);
     this->SetInitialSnapshot();
 
-    has_labels_ = spec.HasArgument("labels") ||
-                  !spec.GetArgument<std::string>("file_list").empty() ||
-                  !spec.GetArgument<std::string>("file_root").empty();
+    has_labels_ = HasLabelsOutput(spec);
 
     auto fill_values = spec.GetRepeatedArgument<int>("fill_value");
     fill_value_.clear();
@@ -885,11 +891,7 @@ The outputs of the operator are: video, [labels], [frame_num], [timestamps].
 )code")
     .NumInput(0)
     .OutputFn([](const OpSpec &spec) {
-      // Must match VideoReaderDecoder::has_labels_: an empty file_list/file_root is
-      // "not provided".
-      bool has_labels = spec.HasArgument("labels") ||
-                        !spec.GetArgument<std::string>("file_list").empty() ||
-                        !spec.GetArgument<std::string>("file_root").empty();
+      bool has_labels = HasLabelsOutput(spec);
       bool has_frame_num =
           ParseFrameNumPolicy(spec.GetArgument<std::string>("enable_frame_num")) !=
           FrameNumPolicy::None;

@@ -913,7 +913,7 @@ def test_empty_string_sources_are_treated_as_not_provided(device):
 
 @cartesian_params(devices)
 def test_empty_companions_of_file_root_are_treated_as_not_provided(device):
-    def epoch_size_and_outputs(**kwargs):
+    def epoch_size(**kwargs):
         @pipeline_def(batch_size=1, num_threads=2, device_id=0)
         def pipe():
             video, label = fn.experimental.readers.video(
@@ -925,10 +925,8 @@ def test_empty_companions_of_file_root_are_treated_as_not_provided(device):
         p.build()
         return p.reader_meta("reader")["epoch_size"]
 
-    reference = epoch_size_and_outputs(file_root=MULTIPLE_RESOLUTION_ROOT)
-    with_empty = epoch_size_and_outputs(
-        file_root=MULTIPLE_RESOLUTION_ROOT, file_list="", filenames=[]
-    )
+    reference = epoch_size(file_root=MULTIPLE_RESOLUTION_ROOT)
+    with_empty = epoch_size(file_root=MULTIPLE_RESOLUTION_ROOT, file_list="", filenames=[])
     assert with_empty == reference
 
 
