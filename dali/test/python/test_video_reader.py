@@ -912,6 +912,40 @@ def test_empty_string_sources_are_treated_as_not_provided(device):
 
 
 @cartesian_params(devices)
+def test_empty_companions_of_file_root_are_treated_as_not_provided(device):
+    def epoch_size_and_outputs(**kwargs):
+        @pipeline_def(batch_size=1, num_threads=2, device_id=0)
+        def pipe():
+            video, label = fn.experimental.readers.video(
+                device=device, sequence_length=3, name="reader", **kwargs
+            )
+            return video, label
+
+        p = pipe()
+        p.build()
+        return p.reader_meta("reader")["epoch_size"]
+
+    reference = epoch_size_and_outputs(file_root=MULTIPLE_RESOLUTION_ROOT)
+    with_empty = epoch_size_and_outputs(
+        file_root=MULTIPLE_RESOLUTION_ROOT, file_list="", filenames=[]
+    )
+    assert with_empty == reference
+
+
+@cartesian_params(devices)
+def test_all_sources_empty_raise(device):
+    @pipeline_def(batch_size=1, num_threads=2, device_id=0)
+    def pipe():
+        return fn.experimental.readers.video(
+            device=device, filenames=[], file_root="", file_list="", sequence_length=3
+        )
+
+    with assert_raises(RuntimeError, glob="*Exactly one of*"):
+        p = pipe()
+        p.build()
+
+
+@cartesian_params(devices)
 def test_two_non_empty_sources_raise(device):
     list_file = _write_file_list([f"{VIDEO_0} 0 0 30"])
 
