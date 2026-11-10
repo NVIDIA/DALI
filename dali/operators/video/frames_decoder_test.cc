@@ -1430,6 +1430,17 @@ TEST_F(FramesDecoderGpuTest, YCbCrMatchesCpuBackendWithinTolerance) {
                                 << " suggests a systematic mismatch, not rounding noise";
 }
 
+// MPEG program streams are rejected, with a message that names the container. The files of the
+// reader skip them because of that (as before: this checks the message only).
+TEST_F(FramesDecoderTest_CpuOnlyTests, MpegProgramStreamIsRejected) {
+  auto path = make_string(testing::dali_extra_path(), "/db/video/containers/mpeg/cfr.mpeg");
+  ::testing::internal::CaptureStderr();
+  FramesIndexer indexer(path);
+  EXPECT_FALSE(indexer.IsValid());
+  std::string log = ::testing::internal::GetCapturedStderr();
+  EXPECT_NE(log.find("MPEG-PS"), std::string::npos) << log;
+}
+
 TEST_F(FramesDecoderTest_CpuOnlyTests, InvalidSeek) {
   FramesDecoderCpu decoder(cfr_videos_paths_[0]);
   decoder.BuildIndex();
