@@ -660,6 +660,7 @@ def test_reflect_padding_stays_within_file_list_roi(device, pad_mode):
         # (file_list entry, stride, file_list_include_end, effective range)
         ("45 60", 6, False, (45, 50)),  # end past the last frame
         ("-60 10", 5, False, (0, 10)),  # start before the first frame (after wrapping)
+        # file_list_include_end does not add the end frame yet: once it does, this is (0, 11)
         ("-60 10", 5, True, (0, 10)),
     ],
 )
