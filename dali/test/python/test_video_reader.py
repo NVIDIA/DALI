@@ -1180,3 +1180,31 @@ def test_epoch_size_with_sequences_of_one_frame_does_not_depend_on_the_stride(de
     )
     assert epoch_size == 50, f"stride {stride}: {epoch_size} samples"
     assert [first for _, first, _ in samples] == list(range(50))
+
+
+@cartesian_params(devices, [1, 2], ["constant", "edge"])
+def test_padding_emits_a_sample_at_every_remaining_step(device, stride, pad_mode):
+    # a 10-frame range, sequence_length=3, step=1: the sequences that fit start at 0..7 (stride 1)
+    # or at 0..5 (stride 2). With padding, the legacy reader also has a padded sample at every
+    # start that remains: one per frame of the range.
+    list_file = _write_file_list([f"{VIDEO_0} 0 0 10"])
+    kwargs = dict(file_list=list_file, sequence_length=3, stride=stride, step=1)
+    expected = (10, [(0, s, 3) for s in range(10)])
+    experimental = _collect_samples(
+        functools.partial(
+            fn.experimental.readers.video,
+            device=device,
+            file_list_format="frames",
+            pad_mode=pad_mode,
+        ),
+        **kwargs,
+    )
+    assert experimental == expected, f"experimental: {experimental}"
+    if pad_mode == "constant":
+        legacy = _collect_samples(
+            functools.partial(
+                fn.readers.video, device="gpu", file_list_frame_num=True, pad_sequences=True
+            ),
+            **kwargs,
+        )
+        assert legacy == expected, f"legacy: {legacy}"
