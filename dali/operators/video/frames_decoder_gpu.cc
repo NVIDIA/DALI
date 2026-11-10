@@ -553,6 +553,18 @@ int FramesDecoderGpu::NumDecodeSurfaces(const CUVIDEOFORMAT &video_format) {
 
 void FramesDecoderGpu::InitGpuDecoder(CUVIDEOFORMAT *video_format) {
   if (!nvdecode_state_->decoder) {
+    if (video_format->codec == cudaVideoCodec_JPEG) {
+      // The output buffer and the color conversion use the dimensions from the container, while
+      // NVDEC sizes its surfaces after the frames. A JPEG has no cropping, so they must agree.
+      int width = video_format->display_area.right - video_format->display_area.left;
+      int height = video_format->display_area.bottom - video_format->display_area.top;
+      if (width != Width() || height != Height()) {
+        throw std::runtime_error(
+            make_string("Decoded frame dimensions (", width, "x", height,
+                        ") do not match the video dimensions (", Width(), "x", Height(),
+                        ") in ", Filename(), "."));
+      }
+    }
     if (image_type_ == DALI_RGB) {
       bool is_full_range = IsFullRange(video_format);
       if (IsBT709(video_format)) {
