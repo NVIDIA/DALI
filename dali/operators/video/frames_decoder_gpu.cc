@@ -727,6 +727,8 @@ int FramesDecoderGpu::ProcessPictureDecode(CUVIDPICPARAMS *picture_params) {
                 ShouldDecodePicture(pts);
   if (decode) {
     CUDA_CALL(cuvidDecodePicture(nvdecode_state_->decoder, picture_params));
+    nvdecode_state_->last_decoded = picture_params->CurrPicIdx;
+    nvdecode_state_->last_mapped = false;
     decoded_pictures_++;
   } else {
     not_decoded_pictures_++;
@@ -862,6 +864,8 @@ int FramesDecoderGpu::HandlePictureDisplay(CUVIDPARSERDISPINFO *picture_display_
     &pitch,
     &videoProcessingParameters));
   mapped_pictures_++;
+  if (picture_display_info->picture_index == nvdecode_state_->last_decoded)
+    nvdecode_state_->last_mapped = true;
 
   LOG_LINE << "ConvertVideoColorSpace with conversion_type_="
            << static_cast<int>(conversion_type_) << " and dimensions " << Height() << "x" << Width()
@@ -1445,6 +1449,17 @@ void FramesDecoderGpu::RepeatLastFrame(void *data) {
     copyD2D(static_cast<uint8_t *>(data), last_frame_.data(), FrameBytes(), stream_);
   }
   frame_returned_ = true;
+}
+
+NvDecodeState::~NvDecodeState() {
+  if (decoder && last_decoded >= 0 && !last_mapped) {
+    CUdeviceptr frame = 0;
+    unsigned int pitch = 0;
+    CUVIDPROCPARAMS params = {};
+    params.progressive_frame = 1;
+    if (cuvidMapVideoFrame(decoder, last_decoded, &frame, &pitch, &params) == CUDA_SUCCESS)
+      CUDA_DTOR_CALL(cuvidUnmapVideoFrame(decoder, frame));
+  }
 }
 
 FramesDecoderGpu::~FramesDecoderGpu() {
