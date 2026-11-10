@@ -126,10 +126,9 @@ struct VideoSample : public VideoSampleDesc {
     data_.set_pinned(std::is_same_v<Backend, GPUBackend>);
   }
 
-  // to be filled by Prefetch
+  // the decoded frames, filled by Prefetch (the CPU backend, and the GPU one with the old copying
+  // path)
   Tensor<Backend> data_;
-  std::vector<double> timestamps_;
-  std::vector<int32_t> frame_idx_;
 };
 
 enum class FileListFormat {
@@ -714,9 +713,11 @@ class VideoReaderDecoder
       if (zero_copy_) {
         auto expected = slot.shape.tensor_shape(i);
         DALI_ENFORCE(expected == decoder_->Shape(num_frames),
-                     make_string("Internal error: the frames of \"", decoder_->Filename(),
-                                 "\" have the shape ", decoder_->Shape(num_frames),
-                                 " but the index reported ", expected, "."));
+                     make_string("The frames of \"", decoder_->Filename(), "\" have the shape ",
+                                 decoder_->Shape(num_frames), ", but the shape was ", expected,
+                                 " when the reader indexed the file. The file was probably "
+                                 "modified after the reader was created: create the pipeline "
+                                 "again to index it."));
         out = static_cast<uint8_t *>(slot.data.raw_mutable_tensor(i));
       } else {
         sample.data_.Resize(decoder_->Shape(num_frames), DALI_UINT8);
@@ -758,7 +759,7 @@ class VideoReaderDecoder
   }
 
  protected:
-  bool SyncBeforeRecycle() const override {
+  bool ShouldSyncBeforeRecycle() const override {
     // With zero_copy_, nothing that RunImpl issues on the workspace's stream reads the samples.
     return !zero_copy_;
   }

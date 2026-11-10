@@ -230,7 +230,7 @@ class DataReader : public Operator<Backend> {
   void RunBackend(Workspace &ws, bool validate_metadata, GPUBackend) {
     // Consume batch
     Operator<Backend>::Run(ws, validate_metadata);
-    if (SyncBeforeRecycle())
+    if (ShouldSyncBeforeRecycle())
       CUDA_CALL(cudaStreamSynchronize(ws.stream()));
     // clear samples from the current batch so they can be recycled
     ClearCurentBatch();
@@ -283,7 +283,7 @@ class DataReader : public Operator<Backend> {
    * as a recycled sample can be overwritten by the next Prefetch. A reader whose GPU work in
    * Run does not read the samples' memory can return false.
    */
-  virtual bool SyncBeforeRecycle() const {
+  virtual bool ShouldSyncBeforeRecycle() const {
     return true;
   }
 
