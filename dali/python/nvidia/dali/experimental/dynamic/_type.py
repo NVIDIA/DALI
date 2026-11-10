@@ -198,7 +198,13 @@ class DType:
 
     def __eq__(self, other):
         if not isinstance(other, DType):
-            return NotImplemented
+            # Compare with anything `dtype` accepts, e.g. DALIDataType, a type name,
+            # a NumPy or PyTorch type. `dtype` raises TypeError for unknown objects,
+            # ValueError for invalid type names and KeyError for type ids without a DType.
+            try:
+                other = dtype(other)
+            except (TypeError, ValueError, KeyError):
+                return NotImplemented
         if not (
             self.kind == other.kind
             and self.bits == other.bits
@@ -211,6 +217,8 @@ class DType:
         return True
 
     def __hash__(self):
+        # Hashes only the DType fields, so equal DTypes hash equally. Objects of other types that
+        # compare equal (e.g. np.int32) keep their own hash, as np.dtype("int32") and np.int32 do.
         h = hash((self.kind, self.bits, self.exponent_bits, self.significand_bits))
         if self.kind == DType.Kind.enum:
             h = hash((h, self.type_id))
