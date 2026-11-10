@@ -519,7 +519,7 @@ bool HasKeyframeNal(const AVPacket &packet, AVCodecID codec_id, int length_size,
  * The MP4 demuxer (and the others with AVFMT_SEEK_TO_PTS) and the Matroska one search the keyframes
  * by pts. The others search by dts: the MPEG-TS and MPEG-PS demuxers bisect the file on the dts of
  * any packet, so that a seek to a keyframe's pts lands after the keyframe when its dts is lower
- * (B-frames), and the AVI and FLV demuxers and those of raw streams search an index of dts.
+ * (B-frames), and the AVI and FLV demuxers search an index of dts.
  */
 bool SeeksByPts(const AVInputFormat &format) {
   return (format.flags & AVFMT_SEEK_TO_PTS) || std::strcmp(format.name, "matroska,webm") == 0;
