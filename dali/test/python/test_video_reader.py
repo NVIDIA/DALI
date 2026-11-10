@@ -29,6 +29,7 @@ import sys
 import tempfile
 import unittest
 import uuid
+from nose_utils import assert_raises
 from test_utils import get_dali_extra_path
 from nose2.tools import cartesian_params, params
 
@@ -46,6 +47,9 @@ PLENTY_VIDEO_FILES = [PLENTY_VIDEO_DIRECTORY + "/" + f for f in PLENTY_VIDEO_FIL
 FILE_LIST = "/tmp/file_list.txt"
 MULTIPLE_RESOLUTION_ROOT = "/tmp/video_resolution/vp9/"
 VFR_VIDEO_FILE = os.path.join(DALI_EXTRA_PATH, "db", "video", "vfr_test.mp4")
+# VP9 (supported by both backends), 50 frames, variable frame rate: the stream ends at 1.9833 s,
+# whereas the last frame's pts plus the gap to the previous frame would give 2.0167 s
+VFR_VP9_FILE = os.path.join(DALI_EXTRA_PATH, "db", "video", "vfr", "test_1_vp9.mp4")
 CFR_VIDEO_FILE = os.path.join(DALI_EXTRA_PATH, "db", "video", "cfr_test.mp4")
 
 # VP9, 24 fps, 240 frames, timebase 1/12288, first pts 0 (cut with ffmpeg -ss 0 -t 10 by
@@ -850,6 +854,51 @@ def test_file_url_can_be_opened(device):
     p.run()
 
 
+all_file_list_roundings = ["start_down_end_up", "start_up_end_down", "all_up", "all_down"]
+
+
+@cartesian_params(devices, all_file_list_roundings)
+def test_file_list_timestamps_end_at_duration_is_kept_any_rounding(device, rounding):
+    list_file = _write_file_list([f"{VIDEO_0} 0 1.0 10.0"])  # end == video duration
+    selection = _file_list_frame_selection(
+        _experimental_reader(device), list_file, file_list_rounding=rounding
+    )
+    # the start 1.0 s is frame 24 exactly, so it does not depend on the rounding of the start
+    assert selection == (216, list(range(24, 240))), f"{rounding}: {selection[0]} frames"
+
+
+@cartesian_params(devices, all_file_list_roundings)
+def test_file_list_timestamps_end_at_vfr_duration_is_kept(device, rounding):
+    # 2.0 s is after the end of the stream (1.9833 s) but before the end estimated from the last
+    # gap (2.0167 s): the last frame must be kept also when the end is rounded down
+    list_file = _write_file_list([f"{VFR_VP9_FILE} 0 0.0 2.0"])
+    selection = _file_list_frame_selection(
+        _experimental_reader(device), list_file, file_list_rounding=rounding
+    )
+    assert selection == (50, list(range(50))), f"{rounding}: {selection[0]} frames"
+
+
+@cartesian_params(devices, [("start_down_end_up", 50), ("all_up", 50), ("all_down", 49)])
+def test_file_list_timestamps_end_inside_the_last_frame(device, case):
+    rounding, expected_frames = case
+    # 1.975 s is inside the last frame (it starts at 1.9667 s and lasts until the end, 1.9833 s)
+    list_file = _write_file_list([f"{VFR_VP9_FILE} 0 0.0 1.975"])
+    selection = _file_list_frame_selection(
+        _experimental_reader(device), list_file, file_list_rounding=rounding
+    )
+    assert selection == (expected_frames, list(range(expected_frames))), f"{rounding}: {selection}"
+
+
+@cartesian_params(devices)
+def test_file_list_timestamps_end_at_duration_is_kept(device):
+    list_file = _write_file_list([f"{VIDEO_0} 0 1.0 10.0"])  # end == video duration
+    experimental = _file_list_frame_selection(_experimental_reader(device), list_file)
+    legacy = _file_list_frame_selection(_legacy_gpu_reader, list_file)
+    assert (
+        experimental == legacy == (216, list(range(24, 240)))
+    ), f"experimental: {experimental[0]} frames, legacy: {legacy[0]} frames"
+
+
 def _reflect_index(idx, start, end, mode):
     """Reference for reflecting `idx` into [start, end); `mode` is the DALI pad_mode name."""
     n = end - start
@@ -909,7 +958,7 @@ def test_reflect_padding_stays_within_file_list_roi(device, pad_mode):
         # (file_list entry, stride, file_list_include_end, effective range)
         ("45 60", 6, False, (45, 50)),  # end past the last frame
         ("-60 10", 5, False, (0, 10)),  # start before the first frame (after wrapping)
-        ("-60 10", 5, True, (0, 10)),
+        ("-60 10", 5, True, (0, 11)),  # the end frame is included
     ],
 )
 def test_reflect_padding_with_range_beyond_the_video(device, pad_mode, case):
@@ -1208,3 +1257,177 @@ def test_padding_emits_a_sample_at_every_remaining_step(device, stride, pad_mode
             **kwargs,
         )
         assert legacy == expected, f"legacy: {legacy}"
+
+
+def _frames_selection(device, *entries, **kwargs):
+    """The frame selection of VIDEO_0 (240 frames, 24 fps, 10 s) for file_list entries in the
+    `frames` format (one entry per line: "start end")."""
+    list_file = _write_file_list([f"{VIDEO_0} {i} {entry}" for i, entry in enumerate(entries)])
+    return _file_list_frame_selection(
+        _experimental_reader(device), list_file, file_list_format="frames", **kwargs
+    )
+
+
+def _timestamps_selection(device, *entries, **kwargs):
+    """The same for entries in the `timestamps` format, in seconds."""
+    list_file = _write_file_list([f"{VIDEO_0} {i} {entry}" for i, entry in enumerate(entries)])
+    return _file_list_frame_selection(_experimental_reader(device), list_file, **kwargs)
+
+
+@cartesian_params(devices)
+def test_file_list_frames_include_end(device):
+    # the end is exclusive by default
+    assert _frames_selection(device, "5 15") == (10, list(range(5, 15)))
+    assert _frames_selection(device, "5 15", file_list_include_end=True) == (11, list(range(5, 16)))
+
+
+@cartesian_params(devices)
+def test_file_list_frames_omitted_or_zero_end_is_the_end_of_the_video(device):
+    expected = (235, list(range(5, 240)))
+    assert _frames_selection(device, "5") == expected
+    assert _frames_selection(device, "5 0") == expected
+
+
+@cartesian_params(devices)
+def test_file_list_frames_negative_end_counts_from_the_end(device):
+    assert _frames_selection(device, "5 -5") == (230, list(range(5, 235)))
+    assert _frames_selection(device, "-10 -5") == (5, list(range(230, 235)))
+
+
+@cartesian_params(devices)
+def test_file_list_frames_range_beyond_the_video_is_clamped(device):
+    # an end past the last frame, with and without the end frame, and values that do not fit in an
+    # int (they used to make the entry empty or to allocate memory until the process was killed)
+    expected = (10, list(range(230, 240)))
+    assert _frames_selection(device, "230 300") == expected
+    assert _frames_selection(device, "230 240", file_list_include_end=True) == expected
+    assert _frames_selection(device, "230 3000000000") == expected
+    # a start before the first frame
+    assert _frames_selection(device, "-100000 30") == (30, list(range(30)))
+
+
+@cartesian_params(devices)
+def test_file_list_frames_start_past_the_end_of_the_video(device):
+    # the valid first entry keeps the dataset non-empty: the second one is what fails
+    with assert_raises(RuntimeError, glob="*past the end of the video*"):
+        _frames_selection(device, "0 24", "300 400")
+    with assert_raises(RuntimeError, glob="*past the end of the video*"):
+        _frames_selection(device, "0 24", "241 300")
+    # a start at the end of the video is an empty range: it is skipped, as the others
+    assert _frames_selection(device, "0 24", "240 300") == (24, list(range(24)))
+    assert _frames_selection(device, "0 24", "100 100") == (24, list(range(24)))
+
+
+@cartesian_params(devices)
+def test_file_list_timestamps_include_end(device):
+    # 1.0 s and 2.0 s are the frames 24 and 48: the frame at the end is included on request
+    assert _timestamps_selection(device, "1.0 2.0") == (24, list(range(24, 48)))
+    assert _timestamps_selection(device, "1.0 2.0", file_list_include_end=True) == (
+        25,
+        list(range(24, 49)),
+    )
+    # 2.02 s is between the frames 48 and 49: there is no frame at the end, and the end is rounded
+    # up, as without file_list_include_end
+    expected = (25, list(range(24, 49)))
+    assert _timestamps_selection(device, "1.0 2.02") == expected
+    assert _timestamps_selection(device, "1.0 2.02", file_list_include_end=True) == expected
+
+
+@cartesian_params(devices)
+def test_file_list_timestamps_omitted_end_is_the_end_of_the_video(device):
+    # 2.5 s is the frame 60, exactly: legacy gives the same
+    list_file = _write_file_list([f"{VIDEO_0} 0 2.5"])
+    experimental = _file_list_frame_selection(_experimental_reader(device), list_file)
+    legacy = _file_list_frame_selection(_legacy_gpu_reader, list_file)
+    assert experimental == legacy == (180, list(range(60, 240)))
+
+
+@cartesian_params(devices)
+def test_file_list_timestamps_negative_values_count_from_the_end(device):
+    # 2 s and 1 s before the end of the video: the frames 192 to 215 (exactly: same as legacy)
+    list_file = _write_file_list([f"{VIDEO_0} 0 -2.0 -1.0"])
+    experimental = _file_list_frame_selection(_experimental_reader(device), list_file)
+    legacy = _file_list_frame_selection(_legacy_gpu_reader, list_file)
+    assert experimental == legacy == (24, list(range(192, 216)))
+    # a negative end, from the start of the video
+    assert _timestamps_selection(device, "0 -9.0") == (24, list(range(24)))
+
+
+@cartesian_params(devices)
+def test_file_list_timestamps_start_past_the_end_of_the_video(device):
+    # `end` is given too, so that the legacy reader checks the start against the duration, which
+    # is what this test compares with (with the end omitted, it checks the start against the
+    # end, and reports another error)
+    list_file = _write_file_list([f"{VIDEO_0} 0 0 1.0", f"{VIDEO_0} 1 10.5 20"])
+    with assert_raises(RuntimeError, glob="*past the end of the video*"):
+        _file_list_frame_selection(_experimental_reader(device), list_file)
+    with assert_raises(RuntimeError, glob="*greater than video duration*"):
+        _file_list_frame_selection(_legacy_gpu_reader, list_file)
+
+
+@cartesian_params(devices)
+def test_file_list_timestamps_start_at_the_end_of_the_video_is_skipped(device):
+    # the legacy reader also accepts a start equal to the duration, and gives no samples for it
+    list_file = _write_file_list([f"{VIDEO_0} 0 0 1.0", f"{VIDEO_0} 1 10.0"])
+    experimental = _file_list_frame_selection(_experimental_reader(device), list_file)
+    legacy = _file_list_frame_selection(_legacy_gpu_reader, list_file)
+    assert experimental == legacy == (24, list(range(24)))
+
+
+def _import_av_or_skip():
+    try:
+        import av
+    except ImportError:
+        raise unittest.SkipTest("PyAV (`av`) is required to build the shifted-pts fixture")
+    return av
+
+
+def _make_pts_shifted_copy(src, offset_seconds, tmp_dir):
+    """Remuxes (without encoding) the video stream of `src` into an MP4 file in `tmp_dir`, with
+    all the timestamps shifted by `offset_seconds`; returns the path of the new file."""
+    av = _import_av_or_skip()
+    dst = os.path.join(tmp_dir, "shifted.mp4")
+    with av.open(src) as inp, av.open(dst, mode="w", format="mp4") as out:
+        in_stream = inp.streams.video[0]
+        out_stream = out.add_stream(
+            codec_name=in_stream.codec_context.name, rate=in_stream.average_rate
+        )
+        out_stream.codec_context.extradata = in_stream.codec_context.extradata
+        out_stream.codec_context.width = in_stream.codec_context.width
+        out_stream.codec_context.height = in_stream.codec_context.height
+        out_stream.codec_context.pix_fmt = in_stream.codec_context.pix_fmt
+        out_stream.codec_context.time_base = in_stream.time_base
+        offset = int(round(offset_seconds / in_stream.time_base))
+        for packet in inp.demux(in_stream):
+            if packet.dts is None:  # the flush packet of the demuxer
+                continue
+            packet.pts += offset
+            packet.dts += offset
+            packet.stream = out_stream
+            out.mux(packet)
+    with av.open(dst) as check:
+        stream = check.streams.video[0]
+        first_pts = min(p.pts for p in check.demux(stream) if p.pts is not None)
+        assert float(first_pts * stream.time_base) >= offset_seconds - 0.01, "no shifted pts"
+    return dst
+
+
+@cartesian_params(devices)
+def test_file_list_timestamps_are_relative_to_the_first_frame(device):
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        shifted = _make_pts_shifted_copy(CFR_VP9_60FPS_FILE, 1.0, tmp_dir)
+        # 0.21 s and 0.49 s after the first frame are between frames (12.6 and 29.4 at 60 fps):
+        # with the end rounded down and the start up, the frames 13 to 28. The legacy reader
+        # rounds like that.
+        list_file = _write_file_list([f"{shifted} 0 0.21 0.49"])
+        experimental = _file_list_frame_selection(
+            _experimental_reader(device), list_file, file_list_rounding="start_up_end_down"
+        )
+        legacy = _file_list_frame_selection(_legacy_gpu_reader, list_file)
+        assert experimental == legacy == (16, list(range(13, 29)))
+        # a negative start counts back from the end of the stream, whatever its first pts is:
+        # 0.29 s before the end of the 50 frames is the frame 32.6, rounded down for the default
+        # rounding (33 would be the result of rounding up)
+        negative_list = _write_file_list([f"{shifted} 0 -0.29"])
+        negative = _file_list_frame_selection(_experimental_reader(device), negative_list)
+        assert negative == (18, list(range(32, 50))), f"experimental: {negative}"
