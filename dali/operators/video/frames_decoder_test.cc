@@ -353,6 +353,11 @@ std::vector<MpegTsClip> MpegTsClips() {
            make_string(dir, "non_idr_keyframes/open_gop_h264.mp4"), false, 1}};
 }
 
+// cfr/test_1.mp4 copied to Matroska: H.264 with B-frames, 50 frames and 6 IDR keyframes
+std::string MatroskaClip() {
+  return make_string(testing::dali_extra_path(), "/db/video/matroska/test_1.mkv");
+}
+
 // One Sintel clip of each kind, all with B-frames: no lead-in, only the IDR hidden (a single GOP),
 // a seek that lands on the hidden IDR, seeks that land on the shown IDRs, and a long lead-in (188
 // hidden pictures)
@@ -783,6 +788,8 @@ TEST_F(FramesDecoderGpuTest, DecodeWork) {
     if (!clip.hevc || FramesDecoderGpu::SupportsHevc())
       paths.push_back(clip.ts);
   }
+  // Matroska, whose demuxer seeks by pts
+  paths.push_back(MatroskaClip());
   int across_keyframe = 0;
   for (size_t i = 0; i < paths.size(); i++) {
     auto &path = paths[i];
@@ -940,6 +947,43 @@ TEST_F(FramesDecoderGpuTest, MpegTsIndexFromTheMiddleOfAGop) {
   EXPECT_TRUE(index[2].is_keyframe);
   EXPECT_EQ(index.SeekDecodeIdx(0), 0);
   CheckDecodeOrder(index, path);
+}
+
+// The Matroska demuxer seeks to the keyframes by pts: a seek to a keyframe takes its pts and lands
+// on it
+TEST_F(FramesDecoderGpuTest, MatroskaIndex) {
+  auto path = MatroskaClip();
+  FramesIndexer indexer(path);
+  ASSERT_TRUE(indexer.IsValid()) << path;
+  indexer.BuildIndex();
+  auto &index = indexer.GetIndex();
+  int n = static_cast<int>(index.size());
+  ASSERT_EQ(n, 50) << path;
+  int keyframes = 0, reordered = 0;
+  for (int i = 0; i < n; i++) {
+    reordered += index[i].decode_idx != i;
+    if (index[i].is_keyframe) {
+      keyframes++;
+      EXPECT_EQ(index.SeekTimestamp(i), index[i].pts) << path << ": frame " << i;
+    }
+  }
+  EXPECT_EQ(keyframes, 6) << path;
+  EXPECT_GT(reordered, 0) << path << ": the decoding order is the display order";
+  CheckDecodeOrder(index, path);
+}
+
+// Matroska has no AVFMT_SEEK_TO_PTS flag, and stores no dts. libavformat can derive one for a
+// stream with B-frames (for H.264 once it has probed the stream, for MPEG-4 Part 2 with its
+// parser): below the pts of each keyframe, so that a seek to it lands on the keyframe before. The
+// decoder does not probe a Matroska file and DALI's FFmpeg has no MPEG-4 Part 2 parser, so no clip
+// shows the difference: the rule is checked here.
+TEST(FramesDecoderSeekTest, SeeksByPts) {
+  for (auto [name, by_pts] : std::vector<std::pair<const char *, bool>>{
+           {"mov", true}, {"matroska", true}, {"webm", true}, {"mpegts", false}, {"avi", false}}) {
+    const AVInputFormat *format = av_find_input_format(name);
+    ASSERT_NE(format, nullptr) << name;
+    EXPECT_EQ(detail::SeeksByPts(*format), by_pts) << name;
+  }
 }
 
 TEST_F(FramesDecoderTest_CpuOnlyTests, ConstantFrameRate) {

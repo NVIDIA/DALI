@@ -248,6 +248,12 @@ DLL_PUBLIC int NalLengthSize(const AVCodecParameters &par);
 DLL_PUBLIC bool HasKeyframeNal(const AVPacket &packet, AVCodecID codec_id, int length_size,
                                int *nal_type);
 
+/**
+ * @brief Whether av_seek_frame takes a presentation timestamp (pts) for this demuxer, rather than a
+ * decoding timestamp (dts), e.g. for MP4 and Matroska.
+ */
+DLL_PUBLIC bool SeeksByPts(const AVInputFormat &format);
+
 }  // namespace detail
 
 /**
