@@ -175,16 +175,22 @@ def test_same_as_copy_file_list_roi():
 
 @cartesian_params((1, 3), (1, 2))
 def test_same_as_copy_resolutions(depth, reader_depth):
-    # batches mix the three resolutions
-    check_same_as_copy(
+    # Batches mix the three resolutions. The clips have 300 frames each, so step=28 gives 11
+    # samples per clip, which is not a multiple of the batch size: the batches that straddle two
+    # clips hold samples of different shapes. (With a small step, e.g. 7, all the samples of the
+    # first 8 batches would come from the first clip.)
+    out = check_same_as_copy(
         iters=8,
         filenames=RESOLUTIONS,
         labels=[0, 1, 2],
         sequence_length=3,
-        step=7,
+        step=28,
         prefetch_queue_depth=depth,
         reader_depth=reader_depth,
     )
+    shapes_per_batch = [{a.shape for a in outs[0]} for outs, _ in out]
+    assert len(set().union(*shapes_per_batch)) == 3, f"Not all the resolutions: {shapes_per_batch}"
+    assert any(len(s) >= 2 for s in shapes_per_batch), f"No batch mixes shapes: {shapes_per_batch}"
 
 
 @cartesian_params((False, True), (1, 3), (1, 2))
