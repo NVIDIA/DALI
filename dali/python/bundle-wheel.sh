@@ -1,6 +1,6 @@
 #!/bin/bash -e
 #
-# Copyright (c) 2018-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2018-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -124,20 +124,20 @@ DEPS_LIST=(
     "${DEPS_PATH}/lib/libaws-cpp-sdk-core.so"
     "${DEPS_PATH}/lib/libaws-cpp-sdk-s3.so"
     "${DEPS_PATH}/lib/libaws-crt-cpp.so"
-    "${DEPS_PATH}/lib/libaws-c-mqtt.so.1.0.0"
-    "${DEPS_PATH}/lib/libaws-c-event-stream.so.1.0.0"
-    "${DEPS_PATH}/lib/libaws-c-common.so.1.0.0"
-    "${DEPS_PATH}/lib/libaws-c-common.so.1"
-    "${DEPS_PATH}/lib/libaws-c-sdkutils.so.1.0.0"
-    "${DEPS_PATH}/lib/libaws-c-io.so.1.0.0"
-    "${DEPS_PATH}/lib/libaws-c-cal.so.1.0.0"
-    "${DEPS_PATH}/lib/libaws-c-compression.so.1.0.0"
-    "${DEPS_PATH}/lib/libaws-c-http.so.1.0.0"
-    "${DEPS_PATH}/lib/libaws-c-auth.so.1.0.0"
-    "${DEPS_PATH}/lib/libaws-checksums.so.1.0.0"
-    "${DEPS_PATH}/lib/libaws-c-s3.so.1.0.0"
-    "${DEPS_PATH}/lib/libaws-c-s3.so.0unstable"
-    "${DEPS_PATH}/lib/libs2n.so.1"
+    # aws-c-* SONAMEs (MAJOR.MINOR) change between AWS SDK releases, so use the unversioned
+    # links; copy_and_patch matches DT_NEEDED entries by the DT_SONAME of the copied file
+    "${DEPS_PATH}/lib/libaws-c-mqtt.so"
+    "${DEPS_PATH}/lib/libaws-c-event-stream.so"
+    "${DEPS_PATH}/lib/libaws-c-common.so"
+    "${DEPS_PATH}/lib/libaws-c-sdkutils.so"
+    "${DEPS_PATH}/lib/libaws-c-io.so"
+    "${DEPS_PATH}/lib/libaws-c-cal.so"
+    "${DEPS_PATH}/lib/libaws-c-compression.so"
+    "${DEPS_PATH}/lib/libaws-c-http.so"
+    "${DEPS_PATH}/lib/libaws-c-auth.so"
+    "${DEPS_PATH}/lib/libaws-checksums.so"
+    "${DEPS_PATH}/lib/libaws-c-s3.so"
+    "${DEPS_PATH}/lib/libs2n.so"
     # google-cloud-cpp, shared for the same reason the AWS SDK is: libdali.so and
     # libdali_operators.so both use the client, and a gcs::Client has to be the same object on
     # both sides of that boundary. Everything below it - gRPC, protobuf, abseil, curl, OpenSSL -
@@ -192,7 +192,8 @@ copy_and_patch() {
     fi
     patchedname=$(fname_with_sha256 $filepath)
     patchedpath=$PKGNAME_PATH/.libs/$patchedname
-    original+=("$filename")
+    soname=$(patchelf --print-soname $filepath 2>/dev/null || true)
+    original+=("${soname:-$filename}")
     patched+=("$patchedname")
 
     echo "Copying $filepath to $patchedpath"
