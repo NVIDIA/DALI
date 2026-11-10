@@ -524,9 +524,7 @@ def build_fn_wrapper(op, fn_name=None, add_to_module=True):
             _caller_frame = resolve_callsite_frame(depth_hint=3)
 
         # TODO(michalz): utilize constant inputs
-        # Whether an argument is constant at the call site only matters for arguments that are
-        # not fixed (fixed arguments always go to init_args). Skip the source analysis, which
-        # parses the caller's file on first use, when all arguments are fixed.
+        # Static analysis is only necessary when there are non-fixed args
         if any(arg not in fixed_args for arg in raw_kwargs if arg != "max_batch_size"):
             constant_args = constant_kwargs(_caller_frame, raw_kwargs)
         else:
