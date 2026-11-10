@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -321,13 +321,8 @@ TEST_F(VideoReaderDecoderCpuTest, SequenceExtentOverflowIsError_CpuOnlyTests) {
     .AddArg("stride", 65536)
     .AddArg("filenames", std::vector<std::string>{cfr_videos_paths_[0]})
     .AddOutput("frames", StorageDevice::CPU), "r");
-  try {
-    pipe.Build({{"frames", "cpu"}});
-    FAIL() << "Expected an error for stride * sequence_length overflowing int";
-  } catch (const std::exception &e) {
-    EXPECT_NE(std::string(e.what()).find("stride * sequence_length"), std::string::npos)
-        << e.what();
-  }
+  RunFailureTest([&]() -> void { pipe.Build({{"frames", "cpu"}}); },
+                 "stride * sequence_length");
 }
 
 TEST_F(VideoReaderDecoderCpuTest, HugeStrideAndStep_CpuOnlyTests) {
