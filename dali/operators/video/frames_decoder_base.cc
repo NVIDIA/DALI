@@ -811,9 +811,12 @@ void FramesDecoderBase::BuildIndex() {
   index_.index.back().is_flush_frame = true;
 
   // Sort frames by presentation timestamp
-  // This is needed because frames may be stored out of order in the container
+  // This is needed because frames may be stored out of order in the container. Frames that share
+  // a timestamp keep their decoding order, so that their order does not depend on the sort.
   std::sort(index_.index.begin(), index_.index.end(),
-            [](const IndexEntry &a, const IndexEntry &b) { return a.pts < b.pts; });
+            [](const IndexEntry &a, const IndexEntry &b) {
+              return a.pts != b.pts ? a.pts < b.pts : a.decode_idx < b.decode_idx;
+            });
 
   // After sorting, we need to update last_keyframe_id references
   std::vector<int> keyframe_positions;

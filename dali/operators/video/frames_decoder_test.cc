@@ -1203,8 +1203,15 @@ TEST_F(FramesDecoderGpuTest, SameFramesAsMappingAllWithSharedPts) {
   int n = index.size();
   ASSERT_EQ(n, 65) << path;
   int shared_pts = 0;
-  for (int i = 1; i < n; i++)
-    shared_pts += index[i].pts == index[i - 1].pts;
+  for (int i = 1; i < n; i++) {
+    if (index[i].pts != index[i - 1].pts)
+      continue;
+    shared_pts++;
+    // the frames of a pair are in decoding order (the reference picture first): the sort by pts
+    // alone could give either order
+    EXPECT_LT(index[i - 1].decode_idx, index[i].decode_idx)
+        << path << ": frames " << i - 1 << " and " << i << " share a pts";
+  }
   ASSERT_EQ(shared_pts, 22) << path;
 
   std::set<int> all_frames;
