@@ -1515,18 +1515,20 @@ const std::vector<uint8_t> kHvcC = {0x01, 0x01, 0x60, 0x00, 0x00, 0x00, 0x90, 0x
                                     0xfd, 0xf8, 0xf8, 0x00, 0x00, 0x0f, 0x04, 0x20};
 
 // The NAL length size for the extradata, of which only the first `size` bytes are given (all if < 0)
-int LengthSize(AVCodecID codec, std::vector<uint8_t> extradata, int size = -1) {
+int LengthSize(AVCodecID codec, const std::vector<uint8_t> &extradata, int size = -1) {
   AVCodecParameters par = {};
   par.codec_id = codec;
-  par.extradata = extradata.empty() ? nullptr : extradata.data();
+  // FFmpeg's field is not const, but the extradata is only read
+  par.extradata = extradata.empty() ? nullptr : const_cast<uint8_t *>(extradata.data());
   par.extradata_size = size < 0 ? static_cast<int>(extradata.size()) : size;
   return detail::NalLengthSize(par);
 }
 
 // The type of the keyframe NAL unit in the first `size` bytes of a packet, or -1 if there is none
-int KeyframeNalType(AVCodecID codec, std::vector<uint8_t> data, size_t size, int length_size) {
+int KeyframeNalType(AVCodecID codec, const std::vector<uint8_t> &data, size_t size,
+                    int length_size) {
   AVPacket packet = {};
-  packet.data = data.data();
+  packet.data = const_cast<uint8_t *>(data.data());  // only read
   packet.size = static_cast<int>(size);
   int type = -1;
   return detail::HasKeyframeNal(packet, codec, length_size, &type) ? type : -1;
