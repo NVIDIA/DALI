@@ -903,6 +903,7 @@ TEST_F(FramesDecoderGpuTest, MpegTsIndex) {
   for (auto &clip : MpegTsClips()) {
     FramesIndexer ts_indexer(clip.ts), mp4_indexer(clip.mp4);
     ASSERT_TRUE(ts_indexer.IsValid()) << clip.ts;
+    ASSERT_TRUE(mp4_indexer.IsValid()) << clip.mp4;
     ts_indexer.BuildIndex();
     mp4_indexer.BuildIndex();
     auto &index = ts_indexer.GetIndex();
