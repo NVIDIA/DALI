@@ -14,10 +14,12 @@
 
 #include <algorithm>
 #include <atomic>
+#include <cmath>
 #include <exception>
 #include <functional>
 #include <memory>
 #include <optional>
+#include <stdexcept>
 #include <string>
 #include <type_traits>
 #include <unordered_map>
@@ -399,44 +401,77 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
       const FrameIndex &index = *file_index.index;
       indices_[entry.filename] = file_index.index;  // kept for the reader's lifetime
       int64_t num_frames = index.size();
-      entry.start_frame = 0;
-      entry.end_frame = num_frames;
+      // The range is resolved in 64 bits, and stored in the (int) fields of the entry only once
+      // it is within the frames of the video.
+      int64_t start_frame = 0;
+      int64_t end_frame = num_frames;
       LOG_LINE << "Total frames in video: " << num_frames << std::endl;
       if (entry.start != 0.0f || entry.end != 0.0f) {
         LOG_LINE << "Processing range [" << entry.start << ", " << entry.end
                  << "], file_list_format: " << make_string(file_list_opts_) << std::endl;
         switch (file_list_opts_.format) {
-          case FileListFormat::kFrames:
-            if (entry.start < 0)
-              entry.start = num_frames + entry.start;
-            if (entry.end < 0)
-              entry.end = num_frames + entry.end;
-            entry.start_frame = file_list_opts_.round_start(entry.start);
-            entry.end_frame = file_list_opts_.round_end(entry.end);
+          case FileListFormat::kFrames: {
+            // Negative values count from the end of the video. An end of 0 (or an omitted one) is
+            // the end of the video.
+            double start = entry.start;
+            double end = entry.end;
+            if (start < 0)
+              start += num_frames;
+            if (end <= 0)
+              end += num_frames;
+            if (start > num_frames) {
+              throw std::runtime_error(make_string(
+                  "The start frame ", entry.start, " of the file_list entry for \"", entry.filename,
+                  "\" is past the end of the video (", num_frames, " frames)."));
+            }
+            if (file_list_opts_.include_end)
+              end += 1;
+            // Clamped before the conversion: the values may be too large for an integer.
+            start = std::clamp(start, 0.0, static_cast<double>(num_frames));
+            end = std::clamp(end, 0.0, static_cast<double>(num_frames));
+            start_frame = file_list_opts_.round_start(start);
+            end_frame = file_list_opts_.round_end(end);
             break;
-          case FileListFormat::kTimestamps:
-            entry.start_frame = index.GetFrameIdxByTimestamp(
-                SecondsToTimestamp(index.timebase, entry.start,
-                                   file_list_opts_.should_round_down_start()),
-                file_list_opts_.should_round_down_start());
-            entry.end_frame = index.GetFrameIdxByTimestamp(
-                SecondsToTimestamp(index.timebase, entry.end,
-                                   file_list_opts_.should_round_down_end()),
-                file_list_opts_.should_round_down_end());
+          }
+          case FileListFormat::kTimestamps: {
+            // The times are relative to the first frame. Negative values (and an end of 0, or an
+            // omitted one) count from the end of the video.
+            const bool round_down_start = file_list_opts_.should_round_down_start();
+            const bool round_down_end = file_list_opts_.should_round_down_end();
+            const int64_t video_start = index.StartPts();
+            const int64_t video_end = index.EndPts();
+            int64_t start_ts = (entry.start < 0 ? video_end : video_start) +
+                               SecondsToTimestamp(index.timebase, entry.start, round_down_start);
+            int64_t end_ts = (entry.end <= 0 ? video_end : video_start) +
+                             SecondsToTimestamp(index.timebase, entry.end, round_down_end);
+            if (start_ts > video_end) {
+              throw std::runtime_error(make_string(
+                  "The start time ", entry.start, " of the file_list entry for \"", entry.filename,
+                  "\" is past the end of the video (", TimestampToSeconds(index.timebase,
+                  video_end - video_start), " s)."));
+            }
+            start_frame = index.GetFrameIdxByTimestamp(start_ts, round_down_start);
+            end_frame = index.GetFrameIdxByTimestamp(end_ts, round_down_end);
+            // The end is exclusive: the frame at exactly that time is included on request.
+            if (file_list_opts_.include_end && end_frame < num_frames &&
+                index[end_frame].pts == end_ts) {
+              end_frame++;
+            }
             break;
+          }
           default:
             DALI_FAIL("Invalid file_list_format");
         }
-        LOG_LINE << "Frame range after conversion: [" << entry.start_frame << ", "
-                 << entry.end_frame << "]" << std::endl;
+        LOG_LINE << "Frame range after conversion: [" << start_frame << ", " << end_frame << "]"
+                 << std::endl;
       }
 
       // The padding (see FramesDecoderBase::HandleBoundary) reflects and clamps within
       // [start_frame, end_frame), so the range has to be a subset of the frames of the file.
       // Entries like "-60 10" (a start before the first frame) or "45 60" (an end past the last
       // one) would otherwise map the padded indices to frames outside of the range.
-      entry.start_frame = std::max<int64_t>(entry.start_frame, 0);
-      entry.end_frame = std::min<int64_t>(entry.end_frame, num_frames);
+      entry.start_frame = static_cast<int>(std::clamp<int64_t>(start_frame, 0, num_frames));
+      entry.end_frame = static_cast<int>(std::clamp<int64_t>(end_frame, 0, num_frames));
 
       if (entry.start_frame >= entry.end_frame) {
         DALI_WARN(make_string("Empty frame range [", entry.start_frame, ", ", entry.end_frame,
@@ -920,8 +955,13 @@ This option is mutually exclusive with `filenames` and `file_root`.)code",
     .AddOptionalArg("file_list_format",
         R"code(How to interpret start/end values in file_list:
 
-* ``frames``: Use exact frame numbers (0-based). Negative values count from end.
-* ``timestamps``: Use timestamps in seconds.
+* ``frames``: Use exact frame numbers (0-based).
+* ``timestamps``: Use timestamps in seconds, relative to the first frame of the video.
+
+Negative start and end values count from the end of the video, and an end of 0 (or an omitted
+end) is the end of the video. An end past the end of the video is clamped to it. A start past the
+end of the video is an error, and any other empty range (for example, a start equal to the end)
+is skipped with a warning.
 
 Default: ``timestamps``.)code",
         "timestamps")
@@ -931,11 +971,19 @@ Default: ``timestamps``.)code",
 * ``start_down_end_up`` (default): Round start down and end up
 * ``start_up_end_down``: Round start up and end down
 * ``all_up``: Round both up
-* ``all_down``: Round both down)code",
+* ``all_down``: Round both down
+
+The legacy ``fn.readers.video`` has the ``file_list_include_preceding_frame`` argument instead:
+True corresponds to ``start_down_end_up`` and False to ``start_up_end_down``. The legacy reader
+truncates the frame numbers of the ``frames`` format, which corresponds to ``all_down``.)code",
         "start_down_end_up")
     .AddOptionalArg("file_list_include_end",
-        R"code(If true, include the end frame in the range. Default: true)code",
-        true)
+        R"code(If true, the end frame of a ``file_list`` entry is part of its range. Default: false,
+which makes the end exclusive, as the end of a Python range.
+
+In the ``frames`` format, the range ends at ``end + 1``. In the ``timestamps`` format, the frame
+whose timestamp is exactly ``end`` is included, if there is one.)code",
+        false)
     .AddOptionalArg<vector<int>>("labels", R"(Labels associated with the files listed in
 `filenames` argument. If not provided, no labels will be yielded.)",
                                  nullptr)
