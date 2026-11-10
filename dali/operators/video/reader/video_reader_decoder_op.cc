@@ -962,7 +962,8 @@ Default: ``timestamps``.)code",
     .AddOptionalArg<vector<int>>("labels", R"(Labels associated with the files listed in
 `filenames` argument. If not provided, no labels will be yielded.)",
                                  nullptr)
-    .AddArg("sequence_length", R"code(Frames to load per sequence.)code", DALI_INT32)
+    .AddArg("sequence_length", R"code(Frames to load per sequence. Must be at least 1.)code",
+            DALI_INT32)
     .AddOptionalArg("enable_frame_num",
                     R"code(Determines what frame number information is returned as an additional output.
 
@@ -980,7 +981,10 @@ as an additional output.)code",
 
 When the value is less than or equal to 0, `step` is set to `stride * sequence_length`.)code",
                     -1)
-    .AddOptionalArg("stride", R"code(Distance between consecutive frames in the sequence.)code", 1u,
+    .AddOptionalArg("stride", R"code(Distance between consecutive frames in the sequence.
+
+Must be at least 1, and ``stride * sequence_length`` must not exceed ``2**31 - 1``. Both
+conditions are not checked when ``uniform_sample`` is True, which ignores the stride.)code", 1u,
                     false)
     .AddOptionalArg("uniform_sample",
         R"code(If set to True, uniformly samples ``sequence_length`` frames from the full video
