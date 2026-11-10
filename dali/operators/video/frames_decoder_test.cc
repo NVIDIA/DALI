@@ -1407,6 +1407,35 @@ double AvgAbsDiff(const std::vector<uint8_t> &a, const std::vector<uint8_t> &b) 
 
 }  // namespace
 
+TEST_F(FramesDecoderGpuTest, MjpegRejectsFramesOfOtherSizeThanDeclared) {
+  if (!FramesDecoderGpu::CanNvdecDecode(cudaVideoCodec_JPEG, cudaVideoChromaFormat_444)) {
+    GTEST_SKIP() << "NVDEC does not support 8-bit 4:4:4 JPEG on this GPU";
+  }
+  auto memory_video = MemoryVideo(
+      make_string(testing::dali_extra_path(), "/db/video/mjpeg/mjpeg.avi"));
+  // Declare a size that differs from the one of the frames, in the stream format chunk of the AVI
+  // ('strf', the chunk size, the bitmap header size, the width and the height).
+  const std::string strf = "strf";
+  auto it = std::search(memory_video.begin(), memory_video.end(), strf.begin(), strf.end());
+  ASSERT_NE(it, memory_video.end());
+  int32_t *size = reinterpret_cast<int32_t *>(&*it + 12);
+  ASSERT_EQ(size[0], 1280);
+  ASSERT_EQ(size[1], 720);
+  size[0] = 640;
+  size[1] = 360;
+
+  FramesDecoderCpu cpu_decoder(memory_video.data(), memory_video.size());
+  ASSERT_TRUE(cpu_decoder.IsValid());
+  std::vector<uint8_t> frame(cpu_decoder.FrameSize());
+  EXPECT_THROW(cpu_decoder.ReadNextFrame(frame.data()), std::runtime_error);
+
+  FramesDecoderGpu gpu_decoder(memory_video.data(), memory_video.size());
+  ASSERT_TRUE(gpu_decoder.IsValid());
+  DeviceBuffer<uint8_t> frame_device;
+  frame_device.resize(gpu_decoder.FrameSize());
+  EXPECT_THROW(gpu_decoder.ReadNextFrame(frame_device.data()), std::runtime_error);
+}
+
 TEST_F(FramesDecoderGpuTest, MjpegDecodesMultipleFrames) {
   // DALI-4918: for MJPEG the driver can report a minimum of 1 decode surface, with which decoding
   // the 2nd frame used to fail with CUDA_ERROR_INVALID_VALUE.
