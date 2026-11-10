@@ -310,9 +310,18 @@ bool FramesDecoderBase::CheckDimensions() {
   bool unknown_mjpeg_format = codec_params_->codec_id == AV_CODEC_ID_MJPEG &&
                               codec_params_->format == AV_PIX_FMT_NONE;
   if (Height() == 0 || Width() == 0 || unknown_mjpeg_format) {
+    // The probe replaces the size declared by the container with the one of the bitstream. Keep
+    // the declared one, if there is any, so that a mismatch with the decoded frames is detected
+    // as it is when the probe is not needed.
+    int declared_width = codec_params_->width;
+    int declared_height = codec_params_->height;
     if (avformat_find_stream_info(ctx_, nullptr) < 0) {
       DALI_WARN(make_string("Could not find stream information in ", Filename()));
       return false;
+    }
+    if (declared_width != 0 && declared_height != 0) {
+      codec_params_->width = declared_width;
+      codec_params_->height = declared_height;
     }
     if (Height() == 0 || Width() == 0) {
       DALI_WARN("Couldn't load video size info.");
