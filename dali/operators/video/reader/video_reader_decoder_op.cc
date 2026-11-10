@@ -195,6 +195,81 @@ inline std::string make_string(FileListOptions options) {
          (options.include_end ? "include_end" : "exclude_end");
 }
 
+namespace detail {
+
+/**
+ * @brief The boundary type of the reader: ``pad_mode``, or the legacy ``pad_sequences``
+ * (True is ``pad_mode="constant"``, False is ``pad_mode="none"``).
+ */
+inline boundary::BoundaryType GetReaderBoundaryType(const OpSpec &spec) {
+  if (spec.HasArgument("pad_sequences")) {
+    DALI_ENFORCE(!spec.HasArgument("pad_mode"),
+                 "The legacy argument `pad_sequences` cannot be used together with `pad_mode`. "
+                 "Use `pad_mode` only.");
+    return spec.GetArgument<bool>("pad_sequences") ? boundary::BoundaryType::CONSTANT
+                                                    : boundary::BoundaryType::ISOLATED;
+  }
+  return GetBoundaryType(spec);
+}
+
+/**
+ * @brief The options of the ``file_list``, from ``file_list_format``, ``file_list_rounding`` and
+ * ``file_list_include_end``, or from the legacy ``file_list_frame_num`` and
+ * ``file_list_include_preceding_frame`` that stand for the first two. They are checked also when
+ * there is no ``file_list``.
+ */
+inline FileListOptions GetFileListOptions(const OpSpec &spec) {
+  FileListOptions opts;
+
+  if (spec.HasArgument("file_list_frame_num")) {
+    DALI_ENFORCE(!spec.HasArgument("file_list_format"),
+                 "The legacy argument `file_list_frame_num` cannot be used together with "
+                 "`file_list_format`. Use `file_list_format` only.");
+    opts.format = spec.GetArgument<bool>("file_list_frame_num") ? FileListFormat::kFrames
+                                                                : FileListFormat::kTimestamps;
+  } else {
+    auto format_str = spec.GetArgument<std::string>("file_list_format");
+    if (format_str == "frames") {
+      opts.format = FileListFormat::kFrames;
+    } else if (format_str == "timestamps") {
+      opts.format = FileListFormat::kTimestamps;
+    } else {
+      DALI_FAIL(make_string("Invalid file_list_format: ", format_str));
+    }
+  }
+
+  if (spec.HasArgument("file_list_include_preceding_frame")) {
+    DALI_ENFORCE(!spec.HasArgument("file_list_rounding"),
+                 "The legacy argument `file_list_include_preceding_frame` cannot be used together "
+                 "with `file_list_rounding`. Use `file_list_rounding` only.");
+    // As in the legacy reader, it only applies to the times: the frame numbers are not rounded
+    // by it.
+    if (opts.format == FileListFormat::kTimestamps) {
+      opts.rounding = spec.GetArgument<bool>("file_list_include_preceding_frame")
+                          ? FileListRounding::kStartDownEndUp
+                          : FileListRounding::kStartUpEndDown;
+    }
+  } else {
+    auto rounding_str = spec.GetArgument<std::string>("file_list_rounding");
+    if (rounding_str == "start_down_end_up") {
+      opts.rounding = FileListRounding::kStartDownEndUp;
+    } else if (rounding_str == "start_up_end_down") {
+      opts.rounding = FileListRounding::kStartUpEndDown;
+    } else if (rounding_str == "all_up") {
+      opts.rounding = FileListRounding::kAllUp;
+    } else if (rounding_str == "all_down") {
+      opts.rounding = FileListRounding::kAllDown;
+    } else {
+      DALI_FAIL(make_string("Invalid file_list_rounding: ", rounding_str));
+    }
+  }
+
+  opts.include_end = spec.GetArgument<bool>("file_list_include_end");
+  return opts;
+}
+
+}  // namespace detail
+
 template <typename Backend, typename FramesDecoderImpl, typename Sample = VideoSample<Backend>>
 class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
  public:
@@ -207,7 +282,7 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
         stride_(spec.GetArgument<int>("stride")),
         step_(spec.GetArgument<int>("step")),
         image_type_(spec.GetArgument<DALIImageType>("image_type")),
-        boundary_type_(GetBoundaryType(spec)),
+        boundary_type_(detail::GetReaderBoundaryType(spec)),
         uniform_sample_(spec.GetArgument<bool>("uniform_sample")),
         num_threads_(std::max(1, spec.GetArgument<int>("num_threads"))) {
     if ((spec.HasArgument("file_list") + spec.HasArgument("file_root") + spec.HasArgument("filenames")) != 1) {
@@ -225,31 +300,7 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
     video_files_info_ = GetVideoFiles(file_root_, filenames_, has_labels, labels_, file_list_);
     DALI_ENFORCE(!video_files_info_.empty(), "No files were read.");
 
-    if (!file_list_.empty()) {
-      auto format_str = spec.GetArgument<std::string>("file_list_format");
-      if (format_str == "frames") {
-        file_list_opts_.format = FileListFormat::kFrames;
-      } else if (format_str == "timestamps") {
-        file_list_opts_.format = FileListFormat::kTimestamps;
-      } else {
-        DALI_FAIL(make_string("Invalid file_list_format: ", format_str));
-      }
-
-      auto rounding_str = spec.GetArgument<std::string>("file_list_rounding");
-      if (rounding_str == "start_down_end_up") {
-        file_list_opts_.rounding = FileListRounding::kStartDownEndUp;
-      } else if (rounding_str == "start_up_end_down") {
-        file_list_opts_.rounding = FileListRounding::kStartUpEndDown;
-      } else if (rounding_str == "all_up") {
-        file_list_opts_.rounding = FileListRounding::kAllUp;
-      } else if (rounding_str == "all_down") {
-        file_list_opts_.rounding = FileListRounding::kAllDown;
-      } else {
-        DALI_FAIL(make_string("Invalid file_list_rounding: ", rounding_str));
-      }
-
-      file_list_opts_.include_end = spec.GetArgument<bool>("file_list_include_end");
-    }
+    file_list_opts_ = detail::GetFileListOptions(spec);
 
     // Both feed the default step (stride_ * sequence_len_); zero would make the sample loop in
     // PrepareMetadataImpl never advance.
@@ -279,7 +330,7 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
       if (spec.HasArgument("step")) {
         DALI_WARN("uniform_sample=True: the `step` argument is ignored.");
       }
-      if (spec.HasArgument("pad_mode")) {
+      if (spec.HasArgument("pad_mode") || spec.HasArgument("pad_sequences")) {
         DALI_WARN("uniform_sample=True: the `pad_mode` argument is ignored. "
                   "Frames are repeated when sequence_length exceeds the number of available frames.");
       }
@@ -628,7 +679,7 @@ class VideoReaderDecoder
       : Base(spec),
         frame_num_policy_(ParseFrameNumPolicy(spec.GetArgument<std::string>("enable_frame_num"))),
         has_timestamps_(spec.GetArgument<bool>("enable_timestamps")),
-        boundary_type_(GetBoundaryType(spec)),
+        boundary_type_(detail::GetReaderBoundaryType(spec)),
         image_type_(spec.GetArgument<DALIImageType>("image_type")) {
     loader_ = InitLoader<VideoLoaderImpl>(spec);
     this->SetInitialSnapshot();
@@ -1081,6 +1132,34 @@ fewer frames of the video than ``sequence_length``, as with the legacy ``fn.read
 
 Not relevant when using ``frames`` argument.)code",
         "none", true)
+    .AddOptionalArg("pad_sequences",
+        R"code(Allows creation of incomplete sequences if there is an insufficient number
+of frames at the very end of the video.)code", false)
+    .DeprecateArg("pad_sequences", "2.5", false,
+        R"code(Use `pad_mode` instead: ``pad_sequences=True`` is ``pad_mode='constant'``, and
+``pad_sequences=False`` is ``pad_mode='none'``.)code")
+    .AddOptionalArg("file_list_frame_num",
+        R"code(Interpret the start and end values of `file_list` as frame numbers, not as
+timestamps.)code", false)
+    .DeprecateArg("file_list_frame_num", "2.5", false,
+        R"code(Use `file_list_format` instead: ``file_list_frame_num=True`` is
+``file_list_format='frames'``, and ``False`` is ``file_list_format='timestamps'``.)code")
+    .AddOptionalArg("file_list_include_preceding_frame",
+        R"code(Changes how the start and end timestamps of `file_list` are translated to frame
+numbers.)code", false)
+    .DeprecateArg("file_list_include_preceding_frame", "2.5", false,
+        R"code(Use `file_list_rounding` instead: ``file_list_include_preceding_frame=True`` is
+``file_list_rounding='start_down_end_up'``, and ``False`` is ``'start_up_end_down'``. It applies to
+the ``timestamps`` format only. The legacy reader computes the frame numbers in single precision,
+so for a time that is exactly the time of a frame, the frame that this operator selects can differ
+from the legacy one by one.)code")
+    .AddOptionalArg("skip_vfr_check", R"code(Skips the check for variable frame rate videos.)code",
+                    false)
+    .DeprecateArg("skip_vfr_check", "2.5", true,
+        R"code(It has no effect: this operator reads variable frame rate videos.)code")
+    .AddOptionalArg("channels", R"code(Number of channels.)code", 3)
+    .DeprecateArg("channels", "2.5", true,
+        R"code(It has no effect: the output always has 3 channels (see `image_type`).)code")
     .AddOptionalArg("fill_value",
                     R"code(Value(s) used to pad missing frames when ``pad_mode='constant'``.
 
