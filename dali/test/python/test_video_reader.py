@@ -696,3 +696,69 @@ def test_reflect_padding_with_range_beyond_the_video(device, pad_mode, case):
         f"{entry!r}, pad_mode={pad_mode}: got frames {frame_nums}, expected {expected} "
         f"(range [{roi_start}, {roi_end}))"
     )
+
+
+def _first_sample_frame_nums(device, entry, **kwargs):
+    """The frame numbers of the first sample of a reader over the file_list entry (frames) of
+    CFR_VP9_60FPS_FILE (50 frames) and the epoch size."""
+    list_file = _write_file_list([f"{CFR_VP9_60FPS_FILE} 0 {entry}"])
+
+    @pipeline_def(batch_size=1, num_threads=2, device_id=0, prefetch_queue_depth=1)
+    def pipe():
+        _, _, frame_num = fn.experimental.readers.video(
+            device=device,
+            name="reader",
+            file_list=list_file,
+            file_list_format="frames",
+            enable_frame_num="sequence",
+            **kwargs,
+        )
+        return frame_num
+
+    p = pipe()
+    p.build()
+    epoch_size = p.reader_meta("reader")["epoch_size"]
+    (frame_num,) = p.run()
+    return [int(x) for x in np.array(frame_num.as_cpu()[0]).flatten()], epoch_size
+
+
+@cartesian_params(
+    devices,
+    [
+        # (file_list entry, pad_mode, stride, expected frame numbers of the first sample)
+        ("45 60", "edge", 6, [45, 49, 49, 49]),  # end past the last frame
+        ("45 60", "constant", 6, [45, -1, -1, -1]),
+        ("-60 10", "edge", 5, [0, 5, 9, 9]),  # start before the first frame (after wrapping)
+        ("-60 10", "constant", 5, [0, 5, -1, -1]),
+        ("10 11", "edge", 1, [10, 10, 10, 10]),  # a single frame
+        ("10 11", "constant", 1, [10, -1, -1, -1]),
+        ("10 11", "reflect_101", 1, [10, 10, 10, 10]),
+        ("10 11", "reflect_1001", 1, [10, 10, 10, 10]),
+    ],
+)
+def test_pad_modes_stay_within_file_list_range_beyond_the_video(device, case):
+    # The file_list range is clamped to the frames of the video for every pad mode
+    entry, pad_mode, stride, expected = case
+    frame_nums, _ = _first_sample_frame_nums(
+        device, entry, sequence_length=4, stride=stride, step=1, pad_mode=pad_mode
+    )
+    assert frame_nums == expected, f"{entry!r}, {pad_mode}: got {frame_nums}, expected {expected}"
+
+
+@cartesian_params(devices)
+def test_no_padding_with_range_before_the_video(device):
+    # '-60 10' is the range [0, 10) of the 50 frames: 7 samples of 4 frames (without clamping the
+    # start, the range would start before the video and have 17)
+    frame_nums, epoch_size = _first_sample_frame_nums(
+        device, "-60 10", sequence_length=4, stride=1, step=1, pad_mode="none"
+    )
+    assert (frame_nums, epoch_size) == ([0, 1, 2, 3], 7)
+
+
+@cartesian_params(devices)
+def test_uniform_sample_with_range_before_the_video(device):
+    # linspace(0, 9, 4) of the range [0, 10)
+    frame_nums, _ = _first_sample_frame_nums(
+        device, "-60 10", sequence_length=4, uniform_sample=True
+    )
+    assert frame_nums == [0, 3, 6, 9]
