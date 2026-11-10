@@ -1763,3 +1763,38 @@ def test_file_list_timestamps_are_relative_to_the_first_frame(device):
         negative_list = _write_file_list([f"{shifted} 0 -0.29"])
         negative = _file_list_frame_selection(_experimental_reader(device), negative_list)
         assert negative == (18, list(range(32, 50))), f"experimental: {negative}"
+
+
+@cartesian_params(devices)
+def test_strided_sequence_fits_when_its_last_frame_exists(device):
+    # sequence_length=3, stride=4 uses the frames s, s+4 and s+8: a span of 9 frames. A 9-frame
+    # range holds exactly one sequence, as for the legacy reader. The second, longer entry keeps
+    # the dataset non-empty without the change.
+    list_file = _write_file_list([f"{VIDEO_0} 0 0 9", f"{VIDEO_0} 1 0 30"])
+    kwargs = dict(file_list=list_file, sequence_length=3, stride=4)
+    experimental = _collect_samples(
+        functools.partial(fn.experimental.readers.video, device=device, file_list_format="frames"),
+        **kwargs,
+    )
+    legacy = _collect_samples(
+        functools.partial(fn.readers.video, device="gpu", file_list_frame_num=True), **kwargs
+    )
+    expected = (3, [(0, 0, 3), (1, 0, 3), (1, 12, 3)])
+    assert legacy == expected, f"legacy: {legacy}"
+    assert experimental == expected, f"experimental: {experimental}, legacy: {legacy}"
+
+
+@cartesian_params(devices, [1, 3, 7])
+def test_epoch_size_with_sequences_of_one_frame_does_not_depend_on_the_stride(device, stride):
+    # a sequence of one frame spans one frame, whatever the stride is: every frame of the video
+    # starts a sample (the epoch depended on the stride, and lost stride - 1 frames at the end)
+    list_file = _write_file_list([f"{CFR_VP9_60FPS_FILE} 0 0 50"])
+    epoch_size, samples = _collect_samples(
+        functools.partial(fn.experimental.readers.video, device=device, file_list_format="frames"),
+        file_list=list_file,
+        sequence_length=1,
+        stride=stride,
+        step=1,
+    )
+    assert epoch_size == 50, f"stride {stride}: {epoch_size} samples"
+    assert [first for _, first, _ in samples] == list(range(50))
