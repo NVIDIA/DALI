@@ -653,7 +653,7 @@ void FramesDecoderBase::BuildIndex() {
 
   // Initialize frame index
   index_.index.clear();
-  index_.end_pts = -1;
+  index_.end_pts = AV_NOPTS_VALUE;
   index_.filename = Filename();
   index_.timebase = ctx_->streams[stream_id_]->time_base;
   index_.decode_order_timestamps = HasDecodeOrderTimestamps();
