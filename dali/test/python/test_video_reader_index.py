@@ -197,5 +197,6 @@ def test_broken_file_with_unsupported_codec_is_skipped(num_threads):
 
 @params("cpu", "gpu")
 def test_empty_file_list_is_rejected(device):
-    with assert_raises(RuntimeError, glob="*No files were read*"):
+    # An empty list counts as "not provided", so the reader has no source at all.
+    with assert_raises(RuntimeError, glob="*Exactly one of*"):
         build_reader([], 8, device)
