@@ -988,6 +988,63 @@ TEST_F(FramesDecoderGpuTest, DecoderCacheReconfiguresLargerDecoder) {
   EXPECT_EQ(NVDECDecodersReconfigured(), num_reconfigured + 1);
 }
 
+// A decoder that is destroyed after a partial read goes back to the cache with pictures that NVDEC
+// decoded and nobody mapped: the ones that the parser holds for the display delay, the ones that a
+// read without output or a seek leaves behind. Reconfiguring it for another stream has to give the
+// same frames as a new decoder does, whatever was left behind.
+TEST_F(FramesDecoderGpuTest, DecoderCacheReconfigureAfterPartialReads) {
+  using frame_dec_gpu_impl::NVDECDecodersCreated;
+  using frame_dec_gpu_impl::NVDECDecodersReconfigured;
+  using frame_dec_gpu_impl::NVDECDestroyUnusedDecoders;
+  // 800x600
+  std::string small_path = make_string(testing::dali_extra_path(), "/db/video/cfr/test_2.mp4");
+  // 1280x720, with B-frames
+  std::string large_path = make_string(testing::dali_extra_path(), "/db/video/cfr/test_1.mp4");
+  auto open = [](const std::string &path) {
+    auto decoder = std::make_unique<FramesDecoderGpu>(path);
+    decoder->BuildIndex();
+    return decoder;
+  };
+
+  // frames read with output, frames read without output (skipped), frame to seek to (or -1)
+  struct Partial {
+    int read, skipped, seek_to;
+  };
+  const Partial partial_reads[] = {
+    {1, 0, -1}, {2, 0, -1}, {3, 0, -1}, {5, 0, -1}, {8, 0, -1}, {13, 0, -1},
+    {0, 1, -1}, {0, 2, -1}, {0, 5, -1}, {1, 3, -1}, {2, 7, -1}, {0, 20, -1},
+    {1, 0, 9}, {1, 0, 10}, {2, 4, 17}, {0, 3, 23}, {3, 0, 31}, {0, 1, 40},
+  };
+  for (int round = 0; round < 3; round++) {
+    for (const auto &p : partial_reads) {
+      SCOPED_TRACE(make_string("round ", round, ": read ", p.read, ", skipped ", p.skipped,
+                               ", seek to ", p.seek_to));
+      // Only the decoder that is created for the large video is cached, so the small video
+      // reconfigures it
+      NVDECDestroyUnusedDecoders();
+      {
+        auto large = open(large_path);
+        ASSERT_TRUE(large->IsValid());
+        if (p.seek_to >= 0)
+          large->SeekFrame(p.seek_to);
+        for (int i = 0; i < p.skipped; i++)
+          large->ReadNextFrame(nullptr);
+        for (int i = 0; i < p.read; i++)
+          large->ReadNextFrame(FrameData());
+      }
+      size_t num_created = NVDECDecodersCreated();
+      size_t num_reconfigured = NVDECDecodersReconfigured();
+      auto decoder = open(small_path);
+      ASSERT_TRUE(decoder->IsValid());
+      RunTest(*decoder, cfr_videos_[1]);
+      EXPECT_EQ(NVDECDecodersCreated(), num_created);
+      EXPECT_EQ(NVDECDecodersReconfigured(), num_reconfigured + 1);
+      if (HasFatalFailure() || HasNonfatalFailure())
+        return;
+    }
+  }
+}
+
 // A cached decoder that is smaller than the stream cannot be reconfigured for it: a decoder is
 // created instead and the small one stays in the cache. A failed reconfiguration would also end
 // with a created decoder, but it would drop the small one, so the cache is checked as well.
