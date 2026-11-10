@@ -512,10 +512,6 @@ bool HasKeyframeNal(const AVPacket &packet, AVCodecID codec_id, int length_size,
   return false;
 }
 
-}  // namespace detail
-
-namespace {
-
 /**
  * @brief Whether av_seek_frame takes a presentation timestamp (pts) for this demuxer, rather than a
  * decoding timestamp (dts).
@@ -528,6 +524,10 @@ namespace {
 bool SeeksByPts(const AVInputFormat &format) {
   return (format.flags & AVFMT_SEEK_TO_PTS) || std::strcmp(format.name, "matroska,webm") == 0;
 }
+
+}  // namespace detail
+
+namespace {
 
 /**
  * @brief Identifies a packet of the stream when it is read again (e.g. after a seek): by its
@@ -736,7 +736,7 @@ void FramesDecoderBase::BuildIndex() {
   bool has_hidden_packets = false;
   const AVCodecParameters &codecpar = *ctx_->streams[stream_id_]->codecpar;
   int nal_length_size = detail::NalLengthSize(codecpar);
-  bool seeks_by_pts = SeeksByPts(*ctx_->iformat);
+  bool seeks_by_pts = detail::SeeksByPts(*ctx_->iformat);
   // MPEG-4 Part 2 with timestamps in decoding order (AVI): the VOPs tell where a seek can start,
   // and the B-VOPs right after an I-VOP in decoding order, which are shown before it: its leading
   // pictures
