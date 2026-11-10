@@ -41,6 +41,9 @@ PLENTY_VIDEO_FILES = [PLENTY_VIDEO_DIRECTORY + "/" + f for f in PLENTY_VIDEO_FIL
 FILE_LIST = "/tmp/file_list.txt"
 MULTIPLE_RESOLUTION_ROOT = "/tmp/video_resolution/vp9/"
 VFR_VIDEO_FILE = os.path.join(DALI_EXTRA_PATH, "db", "video", "vfr_test.mp4")
+# VP9 (supported by both backends), 50 frames, variable frame rate: the stream ends at 1.9833 s,
+# whereas the last frame's pts plus the gap to the previous frame would give 2.0167 s
+VFR_VP9_FILE = os.path.join(DALI_EXTRA_PATH, "db", "video", "vfr", "test_1_vp9.mp4")
 CFR_VIDEO_FILE = os.path.join(DALI_EXTRA_PATH, "db", "video", "cfr_test.mp4")
 
 # VP9, 24 fps, 240 frames, timebase 1/12288, first pts 0 (cut with ffmpeg -ss 0 -t 10 by
@@ -599,6 +602,41 @@ def test_file_url_can_be_opened(device):
     p.build()
     assert p.reader_meta("r")["epoch_size"] == 50
     p.run()
+
+
+all_file_list_roundings = ["start_down_end_up", "start_up_end_down", "all_up", "all_down"]
+
+
+@cartesian_params(devices, all_file_list_roundings)
+def test_file_list_timestamps_end_at_duration_is_kept_any_rounding(device, rounding):
+    list_file = _write_file_list([f"{VIDEO_0} 0 1.0 10.0"])  # end == video duration
+    selection = _file_list_frame_selection(
+        _experimental_reader(device), list_file, file_list_rounding=rounding
+    )
+    # the start 1.0 s is frame 24 exactly, so it does not depend on the rounding of the start
+    assert selection == (216, list(range(24, 240))), f"{rounding}: {selection[0]} frames"
+
+
+@cartesian_params(devices, all_file_list_roundings)
+def test_file_list_timestamps_end_at_vfr_duration_is_kept(device, rounding):
+    # 2.0 s is after the end of the stream (1.9833 s) but before the end estimated from the last
+    # gap (2.0167 s): the last frame must be kept also when the end is rounded down
+    list_file = _write_file_list([f"{VFR_VP9_FILE} 0 0.0 2.0"])
+    selection = _file_list_frame_selection(
+        _experimental_reader(device), list_file, file_list_rounding=rounding
+    )
+    assert selection == (50, list(range(50))), f"{rounding}: {selection[0]} frames"
+
+
+@cartesian_params(devices, [("start_down_end_up", 50), ("all_up", 50), ("all_down", 49)])
+def test_file_list_timestamps_end_inside_the_last_frame(device, case):
+    rounding, expected_frames = case
+    # 1.975 s is inside the last frame (it starts at 1.9667 s and lasts until the end, 1.9833 s)
+    list_file = _write_file_list([f"{VFR_VP9_FILE} 0 0.0 1.975"])
+    selection = _file_list_frame_selection(
+        _experimental_reader(device), list_file, file_list_rounding=rounding
+    )
+    assert selection == (expected_frames, list(range(expected_frames))), f"{rounding}: {selection}"
 
 
 @cartesian_params(devices)

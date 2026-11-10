@@ -233,6 +233,7 @@ static void ExpectIndexerGivesTheIndexOfTheDecoder(FramesDecoderBase &decoder,
     EXPECT_EQ(actual.index[i].seek_decode_idx, expected.index[i].seek_decode_idx)
         << "frame " << i;
   }
+  EXPECT_EQ(actual.end_pts, expected.end_pts);
   EXPECT_EQ(indexer.NumFrames(), decoder.NumFrames());
   EXPECT_EQ(indexer.Width(), decoder.Width());
   EXPECT_EQ(indexer.Height(), decoder.Height());
@@ -740,6 +741,19 @@ TEST_F(FramesDecoderTest_CpuOnlyTests, IndexDecodeOrder) {
     for (size_t i = 0; i < index.size(); i++)  // VP9 has no reordering
       EXPECT_EQ(index[i].decode_idx, static_cast<int>(i)) << path;
   }
+}
+
+// The end of the stream recorded by BuildIndex is used, not the estimate from the last gap
+// (the clip has a variable frame rate: the recorded end is 30464, the estimate 30976)
+TEST_F(FramesDecoderTest_CpuOnlyTests, EndPtsIsTheRecordedEndOfTheStream) {
+  FramesDecoderCpu decoder(vfr_videos_paths_[0]);
+  decoder.BuildIndex();
+  auto &index = decoder.GetIndex();
+  ASSERT_EQ(index.size(), 50u);
+  EXPECT_EQ(index.end_pts, 30464);
+  EXPECT_EQ(index.EndPts(), 30464);
+  EXPECT_EQ(index.GetFrameIdxByTimestamp(30464, true), 50);  // the end: one past the last frame
+  EXPECT_EQ(index.GetFrameIdxByTimestamp(30463, true), 49);  // inside the last frame
 }
 
 // H.264, with reordering (the index of the VP9 files does not depend on the decoder: see the CPU
