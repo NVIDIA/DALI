@@ -695,10 +695,13 @@ def test_huge_stride_and_step_decode_one_frame(device):
     video, must be decoded without integer overflow in the frame count arithmetic."""
     int_max = 2**31 - 1
 
+    # The first frame of this file is not black (unlike the first frames of VIDEO_0), so a sample
+    # that was never decoded cannot match it. No file_list ROI either: it would take the explicit
+    # frame index path and bypass the full-video decoding that this test is about.
     @pipeline_def(batch_size=1, num_threads=1, device_id=0)
     def pipe():
         return _experimental_reader(device)(
-            filenames=[VIDEO_0],
+            filenames=[CFR_VP9_60FPS_FILE],
             sequence_length=1,
             stride=int_max,
             step=int_max,
@@ -708,7 +711,9 @@ def test_huge_stride_and_step_decode_one_frame(device):
 
     @pipeline_def(batch_size=1, num_threads=1, device_id=0)
     def ref_pipe():
-        return _experimental_reader(device)(filenames=[VIDEO_0], sequence_length=1, name="r")
+        return _experimental_reader(device)(
+            filenames=[CFR_VP9_60FPS_FILE], sequence_length=1, name="r"
+        )
 
     p = pipe()
     p.build()
@@ -726,4 +731,7 @@ def test_huge_stride_and_step_decode_one_frame(device):
     (ref_out,) = ref.run()
     if device == "gpu":
         ref_out = ref_out.as_cpu()
-    compare_frames(out[0, 0], ref_out.as_array()[0, 0], 0, 0, 0)
+    ref_frame = ref_out.as_array()[0, 0]
+    # guard against the reference going vacuous (an all-black frame matches an undecoded one)
+    assert ref_frame.mean() > 10, "The reference frame is (almost) black"
+    compare_frames(out[0, 0], ref_frame, 0, 0, 0)
