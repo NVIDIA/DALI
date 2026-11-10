@@ -294,9 +294,13 @@ def test_video_container_size_differs_from_stream_size(codec, width, height, con
         os.remove(path)
 
 
-def test_video_probe_keeps_leading_frames():
+@params("reader", "decoder")
+def test_video_probe_keeps_leading_frames(reader):
     """Guards that a file with negative timestamps in the first packets (the seek to 0 skips them)
-    returns the same frames as the sequential decoding, once the probe has rewound the file."""
+    returns the same frames as the sequential decoding, once the probe has rewound the file.
+
+    The decoder builds the index of the file, which reopens it and so hides a wrong rewind. The
+    reader only gives its decoder the index, so it decodes from where the probe left the file."""
     skip_if_m60()
     data = make_video(64, 64, num_frames=48, container_format="mpegts", shift=24)
     path = write_video(data, ".ts")
@@ -306,7 +310,7 @@ def test_video_probe_keeps_leading_frames():
         assert len(frames) == 48 and sum(f.pts >= 0 for f in frames) == 24
         # the frames with negative timestamps are not indexed by DALI
         reference = np.stack([f.to_ndarray(format="rgb24") for f in frames if f.pts >= 0])
-        output = read_video_gpu(path, len(reference), "decoder")
+        output = read_video_gpu(path, len(reference), reader)
         assert output.shape == reference.shape, (output.shape, reference.shape)
         diff = np.abs(output.astype(int) - reference.astype(int)).mean(axis=(1, 2, 3))
         assert diff.max() < 3.5, diff
