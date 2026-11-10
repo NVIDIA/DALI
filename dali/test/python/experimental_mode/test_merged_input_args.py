@@ -18,6 +18,7 @@ signatures and docs are checked in `test_signatures.py`.
 """
 
 import os
+from unittest import mock
 
 import numpy as np
 import nvidia.dali.backend as _backend
@@ -61,6 +62,25 @@ def test_extra_positional_inputs_are_rejected():
     image = ndd.tensor(np.zeros((4, 4), dtype=np.uint8))
     with assert_raises(ValueError, glob="*expects from 1 to 3 inputs, but received 4*"):
         _to_numpy(ndd.slice(image, shape, shape, shape))
+    with assert_raises(ValueError, glob="*expects from 1 to 2 inputs, but received 3*"):
+        _to_numpy(ndd._ops.Reshape()(data, shape, shape))
+    # trailing `None`s are not inputs
+    np.testing.assert_array_equal(
+        _to_numpy(ndd.reshape(data, shape, None)), np.arange(24, dtype=np.float32).reshape(2, 12)
+    )
+
+
+@params((ndd._ops.Reshape, 3, "1 to 2"), (ndd._ops.Slice, 4, "1 to 3"))
+def test_input_count_is_checked_before_input_devices(op_class, num_inputs, expected_range):
+    """`_process_params`, used by both the functions and the operator classes, checks the number of
+    inputs before it looks up their devices in the schema, which doesn't check the input index."""
+    inputs = [ndd.tensor(np.array([2, 12], dtype=np.int32))] * num_inputs
+    lookup_error = AssertionError("input device looked up before checking the number of inputs")
+    with mock.patch.object(op_class, "_input_device", side_effect=lookup_error):
+        with assert_raises(
+            ValueError, glob=f"*expects from {expected_range} inputs, but received {num_inputs}*"
+        ):
+            op_class._process_params("cpu", ndd.Device("cpu"), None, *inputs)
 
 
 # --- Slice: positional inputs are interpreted by dtype, named arguments by name ---

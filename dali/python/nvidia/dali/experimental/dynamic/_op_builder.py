@@ -179,6 +179,7 @@ def build_operator_class(schema):
     op_class._legacy_op = legacy_op_class
     op_class._is_stateful = schema.IsStateful()
     op_class._has_random_state_arg = schema.HasRandomStateArg()
+    op_class._max_num_inputs = schema.MaxNumInput()
     op_class._generated = True
     op_class.__init__ = build_constructor(schema, op_class)
     op_class.__call__ = build_call_function(schema, op_class)

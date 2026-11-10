@@ -154,6 +154,7 @@ class Operator:
     _legacy_op = None  # The legacy operator class from the nvidia.dali.ops module
     _is_stateful = False
     _has_random_state_arg = False
+    _max_num_inputs = 0  # The schema's MaxNumInput()
     # Indicates if this operator is generated and we can autogenerate the stubs or we need
     # to reimport the operator from py to pyi file.
     _generated = False
@@ -315,6 +316,18 @@ class Operator:
         is essential for proper operator instance caching, as input/argument metadata is a part
         of the operator cache key.
         """
+
+        # Check the number of inputs before looking up their devices - the schema doesn't check
+        # the input index. Trailing `None`s are not inputs (see `convert_args`).
+        max_inputs = cls._max_num_inputs
+        num_inputs = len(raw_args)
+        while num_inputs > max_inputs and unwrap_invariant(raw_args[num_inputs - 1]) is None:
+            num_inputs -= 1
+        if num_inputs > max_inputs:
+            raise ValueError(
+                f"Operator `{cls._op_path}` expects from {cls._schema.MinNumInput()} to "
+                f"{max_inputs} inputs, but received {num_inputs}."
+            )
 
         is_batch = batch_size is not None
         if cls._has_random_state_arg:
